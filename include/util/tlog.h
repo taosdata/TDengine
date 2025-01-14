@@ -70,14 +70,15 @@ extern int32_t idxDebugFlag;
 extern int32_t tdbDebugFlag;
 extern int32_t sndDebugFlag;
 extern int32_t simDebugFlag;
+extern int32_t bseDebugFlag;
 
 extern int32_t tqClientDebugFlag;
-int32_t taosInitLogOutput(const char **ppLogName);
-int32_t taosInitLog(const char *logName, int32_t maxFiles, bool tsc);
-void    taosCloseLog();
-void    taosResetLog();
-void    taosDumpData(uint8_t *msg, int32_t len);
-void    taosSetNoNewFile();
+int32_t        taosInitLogOutput(const char **ppLogName);
+int32_t        taosInitLog(const char *logName, int32_t maxFiles, bool tsc);
+void           taosCloseLog();
+void           taosResetLog();
+void           taosDumpData(uint8_t *msg, int32_t len);
+void           taosSetNoNewFile();
 
 void taosPrintLog(const char *flags, int32_t level, int32_t dflag, const char *format, ...)
 #ifdef __GNUC__

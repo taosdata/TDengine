@@ -23,9 +23,32 @@
 #define kMagicNumber 0xdb4775248b80fb57ull;
 #define kMagicNum    0x123456
 
+enum type {
+  BSE_DATA_TYPE = 0x1,
+  BSE_META_TYPE = 0x2,
+  BSE_FOOTER_TYPE = 0x4,
+};
+
 #define kBlockTrailerSize (1 + 1 + 4)  // complete flag + compress type + crc unmask
 
 static int32_t kBlockCap = 1024 * 16;
+
+// clang-format off
+#define bseFatal(...) do { if (bseDebugFlag & DEBUG_FATAL) { taosPrintLog("BSE FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
+#define bseError(...) do { if (bseDebugFlag & DEBUG_ERROR) { taosPrintLog("BSE ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
+#define bseWarn(...)  do { if (bseDebugFlag & DEBUG_WARN)  { taosPrintLog("BSE WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
+#define bseInfo(...)  do { if (bseDebugFlag & DEBUG_INFO)  { taosPrintLog("BSE ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
+#define bseDebug(...) do { if (bseDebugFlag & DEBUG_DEBUG) { taosPrintLog("BSE ", DEBUG_DEBUG, bseDebugFlag, __VA_ARGS__); }}    while(0)
+#define bseTrace(...) do { if (bseDebugFlag & DEBUG_TRACE) { taosPrintLog("BSE ", DEBUG_TRACE, bseDebugFlag, __VA_ARGS__); }}    while(0)
+
+#define bseGTrace(param, ...) do { if (bseDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseTrace(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define bseGFatal(param, ...) do { if (bseDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseFatal(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define bseGError(param, ...) do { if (bseDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseError(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define bseGWarn(param, ...)  do { if (bseDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseWarn(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define bseGInfo(param, ...)  do { if (bseDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseInfo(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define bseGDebug(param, ...) do { if (bseDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseDebug(param ",QID:%s", __VA_ARGS__, buf);}}    while(0)
+
+// clang-format on
 
 typedef struct {
   uint64_t offset;
@@ -52,11 +75,13 @@ typedef struct {
 } STableFooter;
 
 typedef struct {
+  char         name[TSDB_FILENAME_LEN];
   TdFilePtr    pDataFile;
   TdFilePtr    pIdxFile;
   SBlkData     data;
   SBlkData     tdata;
   STableFooter footer;
+  SHashObj    *pCache;
 } STableBuilder;
 
 typedef struct {
@@ -89,11 +114,12 @@ static void bseBuildIndexFullName(SBse *pBse, char *name);
 
 static int32_t tableOpen(char *name, STableBuilder **pTable);
 static int32_t tableClose(STableBuilder *pTable);
-static int32_t tableAppend(STableBuilder *pTable, uint64_t key, uint8_t *value, int32_t len, uint32_t *offset);
-static int32_t tableGet(STableBuilder *pTable, uint32_t offset, uint64_t key, uint8_t **pValue, int32_t *len);
+static int32_t tableAppendData(STableBuilder *pTable, uint64_t key, uint8_t *value, int32_t len);
+static int32_t tableGet(STableBuilder *pTable, uint64_t offset, uint64_t key, uint8_t **pValue, int32_t *len);
 static int32_t tableFlush(STableBuilder *pTable);
 static int32_t tableCommit(STableBuilder *pTable);
 static int32_t tableLoadBlk(STableBuilder *pTable, uint32_t blockId, SBlkData *blk);
+static int32_t tableRebuild(STableBuilder *pTable);
 typedef struct {
   uint8_t  type;
   uint32_t len;
@@ -108,7 +134,7 @@ static int64_t blockEstimateSize(SBlkData *data);
 static int8_t  blockShouldFlush(SBlkData *data, int32_t len);
 static int32_t blockReset(SBlkData *data);
 static int32_t blockSeek(SBlkData *data, uint64_t key, uint32_t blockId, uint8_t *pValue, int32_t *len);
-static int32_t blockSeekOffset(SBlkData *data, uint32_t offset, uint64_t key, uint8_t *pValue, int32_t *len);
+static int32_t blockSeekOffset(SBlkData *data, uint32_t offset, uint64_t key, uint8_t **pValue, int32_t *len);
 
 // block handle func
 static int32_t blkHandleEncode(SBlkHandle *pHandle, char *buf);
@@ -199,7 +225,7 @@ int8_t blockShouldFlush(SBlkData *data, int32_t len) {
 
 int32_t blockReset(SBlkData *data) {
   memset(data->head, 0, sizeof(data->head));
-  data->type = 0;
+  data->type = BSE_DATA_TYPE;
   data->len = 0;
   return 0;
 }
@@ -212,7 +238,7 @@ static int32_t blockSeek(SBlkData *data, uint64_t key, uint32_t blockId, uint8_t
   int32_t code = 0;
   return code;
 }
-static int32_t blockSeekOffset(SBlkData *data, uint32_t offset, uint64_t key, uint8_t *pValue, int32_t *len) {
+static int32_t blockSeekOffset(SBlkData *data, uint32_t offset, uint64_t key, uint8_t **pValue, int32_t *len) {
   int32_t  code = 0;
   int32_t  tlen = 0;
   uint64_t tkey = 0;
@@ -223,6 +249,7 @@ static int32_t blockSeekOffset(SBlkData *data, uint32_t offset, uint64_t key, ui
   }
   p = taosDecodeVariantI32(p, &tlen);
   p = taosDecodeBinary(p, (void **)pValue, tlen);
+  *len = tlen;
 
   return code;
 }
@@ -252,7 +279,7 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
   *pBse = p;
 _err:
   if (code != 0) {
-    // failed to open bse sinc
+    bseError("failed to open bse since %s", tstrerror(code));
   }
   return code;
 }
@@ -261,78 +288,151 @@ void bseClose(SBse *pBse) {
     return;
   }
 
+  taosMemFreeClear(pBse->pTableBuilder);
+  taosHashCleanup(pBse->pSeqOffsetCache);
   taosMemoryFree(pBse);
 }
 
-int32_t tableOpen(char *name, STableBuilder **pTable) {
-  int32_t        code = 0;
-  STableBuilder *pBuilder = taosMemoryMalloc(sizeof(STableBuilder));
-  code = blockInit(kBlockCap, 0, &pBuilder->data);
+int32_t tableOpen(char *name, STableBuilder **ppTable) {
+  int32_t line = 0;
+  int32_t code = 0;
+
+  STableBuilder *pTable = taosMemoryMalloc(sizeof(STableBuilder));
+  if (pTable == NULL) {
+    TAOS_CHECK_GOTO(terrno, &line, _err);
+  }
+
+  pTable->pCache = taosHashInit(4096 * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_ENTRY_LOCK);
+  if (pTable->pCache == NULL) {
+    TAOS_CHECK_GOTO(terrno, &line, _err);
+  }
+
+  code = blockInit(kBlockCap, 0, &pTable->data);
+  TAOS_CHECK_GOTO(code, &line, _err);
+
+  code = blockInit(kBlockCap, 0, &pTable->tdata);
+  TAOS_CHECK_GOTO(code, &line, _err);
+
+  *ppTable = pTable;
+_err:
+  if (code != 0) {
+    bseError("failed to open table since %s", tstrerror(code));
+    if (pTable != NULL) {
+      tableClose(pTable);
+    }
+  } else {
+    bseInfo("bse file %s succ to be opened", pTable->name);
+  }
+
   return code;
 }
 
 int32_t tableClose(STableBuilder *pTable) {
   int32_t code = 0;
   code = blockCleanup(&pTable->data);
+  code = blockCleanup(&pTable->tdata);
+  taosHashCleanup(pTable->pCache);
+
   taosMemFree(pTable);
   return code;
 }
-int32_t tableAppend(STableBuilder *pTableBuilder, uint64_t key, uint8_t *value, int32_t len, uint32_t *offset) {
-  int32_t line = 0;
-  int32_t code = 0;
-  if (blockShouldFlush(&pTableBuilder->data, len)) {
-    TAOS_CHECK_GOTO(tableFlush(pTableBuilder), &line, _err);
+int32_t tableAppendData(STableBuilder *pTable, uint64_t key, uint8_t *value, int32_t len) {
+  int32_t    line = 0;
+  int32_t    code = 0;
+  uint32_t   offset = 0;
+  SValueInfo info;
 
-    TAOS_CHECK_GOTO(blockReset(&pTableBuilder->data), &line, _err);
+  if (blockShouldFlush(&pTable->data, len)) {
+    TAOS_CHECK_GOTO(tableFlush(pTable), &line, _err);
+    TAOS_CHECK_GOTO(blockReset(&pTable->data), &line, _err);
   }
 
-  code = blockAdd(&pTableBuilder->data, key, value, len, offset);
+  code = blockAdd(&pTable->data, key, value, len, &offset);
+  TAOS_CHECK_GOTO(code, &line, _err);
+
+  info.offset = offset;
+  info.size = len;
+  code = taosHashPut(pTable->pCache, &key, sizeof(key), &info, sizeof(SValueInfo));
+
+  TAOS_CHECK_GOTO(code, &line, _err);
 
 _err:
-  return code;
-}
-int32_t tableGet(STableBuilder *pTableBuilder, uint32_t offset, uint64_t key, uint8_t **pValue, int32_t *len) {
-  int32_t code = 0;
-  int32_t id = offset / kBlockCap;
-
-  if (pTableBuilder->data.id == id) {
-    code = blockSeekOffset(&pTableBuilder->data, offset % kBlockCap, key, *pValue, len);
-  } else {
-    code = tableLoadBlk(pTableBuilder, id, &pTableBuilder->data);
-    code = blockSeekOffset(&pTableBuilder->data, offset % kBlockCap, key, *pValue, len);
+  if (code != 0) {
+    bseError("bse file %s failed to append value at line since %s", pTable->name, tstrerror(code));
   }
   return code;
 }
-int32_t tableFlush(STableBuilder *pTableBuilder) {
-  /// do write to file
+
+int32_t tableAppendMeta(STableBuilder *pTable) {
+  int32_t line = 0;
   int32_t code = 0;
-  // Do CRC and write to table
-  code = taosWriteFile(pTableBuilder->pDataFile, pTableBuilder->data.data, pTableBuilder->data.len);
+  TAOS_CHECK_GOTO(tableFlush(pTable), &line, _err);
+  TAOS_CHECK_GOTO(blockReset(&pTable->data), &line, _err);
+
+  SBlkData *pBlk = &(SBlkData){0};
+  pBlk->type = BSE_META_TYPE;
+  pBlk->len = taosHashGetSize(pTable->pCache);
+
+  return code;
+_err:
+  if (code != 0) {
+    bseError("bse file %s failed to append meta since %s", pTable->name, tstrerror(code));
+  }
   return code;
 }
-int32_t tableCommit(STableBuilder *pTableBuilder) {
-  // Generate static info and footer info;
 
+int32_t tableGet(STableBuilder *pTable, uint64_t offset, uint64_t key, uint8_t **pValue, int32_t *len) {
+  int32_t line = 0;
   int32_t code = 0;
+  int32_t blkId = offset / kBlockCap;
+  int32_t blkOffset = offset % kBlockCap;
+
+  if (pTable->data.id == blkId) {
+    code = blockSeekOffset(&pTable->data, blkOffset, key, pValue, len);
+    TAOS_CHECK_GOTO(code, &line, _err);
+  } else {
+    code = tableLoadBlk(pTable, blkId, &pTable->tdata);
+    TAOS_CHECK_GOTO(code, &line, _err);
+
+    code = blockSeekOffset(&pTable->tdata, blkOffset, key, pValue, len);
+    TAOS_CHECK_GOTO(code, &line, _err);
+  }
+_err:
+  if (code != 0) {
+    bseError("failed to get value by key %" PRIu64 "since %s", key, tstrerror(code));
+  }
+  return code;
+}
+int32_t tableFlush(STableBuilder *pTable) {
+  /// do write to file
+  // Do CRC and write to table
+  return taosWriteFile(pTable->pDataFile, pTable->data.data, pTable->data.len);
+}
+
+int32_t tableCommit(STableBuilder *pTable) {
+  // Generate static info and footer info;
+  int32_t   code = 0;
+  SBlkData *pBlk = &(SBlkData){0};
+  pBlk->type = BSE_META_TYPE;
+  pBlk->id = pTable->data.id;
+
+  pBlk->len = taosHashGetSize(pTable->pCache);
+
   return code;
 }
 
 int32_t tableLoadBlk(STableBuilder *pTable, uint32_t blockId, SBlkData *blk) {
-  int32_t  code = 0;
-  uint32_t offset = blockId * kBlockCap;
-  code = taosLSeekFile(pTable->pDataFile, offset, SEEK_SET);
-  if (code != 0) {
-    return code;
-  }
+  int32_t code = 0;
+  int32_t offset = blockId * kBlockCap;
 
-  code = taosReadFile(pTable->pDataFile, blk->data, blk->cap);
+  taosLSeekFile(pTable->pDataFile, offset, SEEK_SET);
+  code = taosReadFile(pTable->pDataFile, blk->data, kBlockCap);
   return code;
 }
 
-int32_t tableLoadBySeq(STableBuilder *pTable, SValueInfo *pInfo, uint8_t **pValue, int32_t *len) {
+int32_t tableLoadBySeq(STableBuilder *pTable, uint64_t key, SValueInfo *pInfo, uint8_t **pValue, int32_t *len) {
   int32_t code = 0;
-  code = tableLoadBlk(pTable, pInfo->offset / kBlockCap, &pTable->data);
-  return code;
+  return tableGet(pTable, pInfo->offset, key, pValue, len);
 }
 
 int32_t bseAppend(SBse *pBse, uint64_t *seq, uint8_t *value, int32_t len) {
@@ -341,18 +441,10 @@ int32_t bseAppend(SBse *pBse, uint64_t *seq, uint8_t *value, int32_t len) {
   uint32_t offset = 0;
   uint64_t tseq = 0;
 
-  SValueInfo info;
-
   taosThreadMutexLock(&pBse->mutex);
   tseq = ++pBse->seq;
 
-  code = tableAppend(pBse->pTableBuilder, tseq, value, len, &offset);
-  TAOS_CHECK_GOTO(code, &line, _err);
-
-  info.offset = offset;
-  info.size = len;
-
-  code = taosHashPut(pBse->pSeqOffsetCache, &tseq, sizeof(tseq), &info, sizeof(SValueInfo));
+  code = tableAppendData(pBse->pTableBuilder, tseq, value, len);
   TAOS_CHECK_GOTO(code, &line, _err);
 
   *seq = tseq;
@@ -377,12 +469,13 @@ int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     TAOS_CHECK_GOTO(code, &line, _err);
   }
+  code = tableLoadBySeq(pBse->pTableBuilder, seq, pValueInfo, pValue, len);
+  TAOS_CHECK_GOTO(code, &line, _err);
 
-  *len = pValueInfo->size;
 _err:
   taosThreadMutexUnlock(&pBse->mutex);
   if (code != 0) {
-    // failed to get bse value since tstrerror(code)
+    bseError("failed to get value by seq %" PRIu64 "since %s", seq, tstrerror(code));
   }
   return code;
 }
