@@ -176,7 +176,7 @@ int32_t stmtGetTbName(TAOS_STMT* stmt, char** tbName) {
 
   return TSDB_CODE_SUCCESS;
 }
-
+/*
 int32_t stmtBackupQueryFields(STscStmt* pStmt) {
   SStmtQueryResInfo* pRes = &pStmt->sql.queryRes;
   pRes->numOfCols = pStmt->exec.pRequest->body.resInfo.numOfCols;
@@ -225,7 +225,7 @@ int32_t stmtRestoreQueryFields(STscStmt* pStmt) {
 
   return TSDB_CODE_SUCCESS;
 }
-
+*/
 int32_t stmtUpdateBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, SName* tbName, const char* sTableName,
                            bool autoCreateTbl) {
   STscStmt* pStmt = (STscStmt*)stmt;
@@ -1320,11 +1320,12 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
   if (colIdx < 0) {
     if (pStmt->sql.stbInterlaceMode) {
       (*pDataBlock)->pData->flags = 0;
-      code = qBindStmtStbColsValue(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf,
-                                   pStmt->exec.pRequest->msgBufLen, &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo, pStmt->taos->optionInfo.charsetCxt);
-    } else {
       code =
-          qBindStmtColsValue(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen, pStmt->taos->optionInfo.charsetCxt);
+          qBindStmtStbColsValue(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen,
+                                &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo, pStmt->taos->optionInfo.charsetCxt);
+    } else {
+      code = qBindStmtColsValue(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen,
+                                pStmt->taos->optionInfo.charsetCxt);
     }
 
     if (code) {
@@ -1348,8 +1349,9 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
       pStmt->bInfo.sBindRowNum = bind->num;
     }
 
-    code = qBindStmtSingleColValue(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf,
-                                   pStmt->exec.pRequest->msgBufLen, colIdx, pStmt->bInfo.sBindRowNum, pStmt->taos->optionInfo.charsetCxt);
+    code =
+        qBindStmtSingleColValue(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen,
+                                colIdx, pStmt->bInfo.sBindRowNum, pStmt->taos->optionInfo.charsetCxt);
     if (code) {
       tscError("qBindStmtSingleColValue failed, error:%s", tstrerror(code));
       STMT_ERR_RET(code);
@@ -1401,7 +1403,7 @@ int stmtAddBatch(TAOS_STMT* stmt) {
 
   return TSDB_CODE_SUCCESS;
 }
-
+/*
 int stmtUpdateTableUid(STscStmt* pStmt, SSubmitRsp* pRsp) {
   tscDebug("stmt start to update tbUid, blockNum: %d", pRsp->nBlocks);
 
@@ -1487,6 +1489,7 @@ int stmtUpdateTableUid(STscStmt* pStmt, SSubmitRsp* pRsp) {
 
   return finalCode;
 }
+*/
 
 /*
 int stmtStaticModeExec(TAOS_STMT* stmt) {

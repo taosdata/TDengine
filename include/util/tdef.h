@@ -558,6 +558,7 @@ typedef enum ELogicConditionType {
 #define TSDB_QUERY_CLEAR_TYPE(x, _type) ((x) &= (~_type))
 #define TSDB_QUERY_RESET_TYPE(x)        ((x) = TSDB_QUERY_TYPE_NON_TYPE)
 
+#define TSDB_ORDER_NONE 0
 #define TSDB_ORDER_ASC  1
 #define TSDB_ORDER_DESC 2
 
@@ -663,6 +664,14 @@ typedef enum {
   ANAL_ALGO_TYPE_FORECAST = 1,
   ANAL_ALGO_TYPE_END,
 } EAnalAlgoType;
+
+typedef enum {
+  TSDB_VERSION_UNKNOWN = 0,
+  TSDB_VERSION_OSS,
+  TSDB_VERSION_ENTERPRISE,
+  TSDB_VERSION_CLOUD,
+  TSDB_VERSION_END,
+} EVersionType;
 
 #define MIN_RESERVE_MEM_SIZE 1024 // MB
 
