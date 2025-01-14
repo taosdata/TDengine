@@ -488,7 +488,7 @@ if(${JEMALLOC_ENABLED})
         PREFIX "jemalloc"
         SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/jemalloc
         BUILD_IN_SOURCE 1
-        CONFIGURE_COMMAND ./autogen.sh COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/ --disable-initial-exec-tls
+        CONFIGURE_COMMAND  ./autogen.sh COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/ --disable-initial-exec-tls --enable-prof --with-malloc-conf=prof:true,lg_prof_interval:33,lg_prof_sample:30
         BUILD_COMMAND ${MAKE}
     )
     INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
