@@ -40,6 +40,7 @@ typedef struct {
 typedef struct {
   uint32_t head[4];
   int8_t   type;
+  uint32_t id;
   uint32_t len;
   uint32_t cap;
   char    *data;
@@ -88,8 +89,8 @@ static void bseBuildIndexFullName(SBse *pBse, char *name);
 
 static int32_t tableOpen(char *name, STableBuilder **pTable);
 static int32_t tableClose(STableBuilder *pTable);
-static int32_t tableAppend(STableBuilder *pTable, uint64_t key, uint8_t *value, int32_t len, uint64_t *offset);
-static int32_t tableGet(STableBuilder *pTable, uint64_t key, uint8_t **pValue, int32_t *len);
+static int32_t tableAppend(STableBuilder *pTable, uint64_t key, uint8_t *value, int32_t len, uint32_t *offset);
+static int32_t tableGet(STableBuilder *pTable, uint32_t offset, uint64_t key, uint8_t **pValue, int32_t *len);
 static int32_t tableFlush(STableBuilder *pTable);
 static int32_t tableCommit(STableBuilder *pTable);
 static int32_t tableLoadBlk(STableBuilder *pTable, uint32_t blockId, SBlkData *blk);
@@ -102,11 +103,12 @@ typedef struct {
 // data block func
 static int32_t blockInit(int32_t cap, int8_t type, SBlkData *blk);
 static int32_t blockCleanup(SBlkData *data);
-static int32_t blockAdd(SBlkData *blk, uint64_t key, uint8_t *value, int32_t len);
+static int32_t blockAdd(SBlkData *blk, uint64_t key, uint8_t *value, int32_t len, uint32_t *offset);
 static int64_t blockEstimateSize(SBlkData *data);
 static int8_t  blockShouldFlush(SBlkData *data, int32_t len);
 static int32_t blockReset(SBlkData *data);
 static int32_t blockSeek(SBlkData *data, uint64_t key, uint32_t blockId, uint8_t *pValue, int32_t *len);
+static int32_t blockSeekOffset(SBlkData *data, uint32_t offset, uint64_t key, uint8_t *pValue, int32_t *len);
 
 // block handle func
 static int32_t blkHandleEncode(SBlkHandle *pHandle, char *buf);
@@ -167,7 +169,7 @@ int32_t footerDecode(STableFooter *pFooter, char *buf) {
 
 int32_t blockInit(int32_t cap, int8_t type, SBlkData *blk) {
   blk->type = type;
-  blk->len = 0;
+  blk->len = sizeof(blk->head);
   blk->cap = cap;
   blk->data = taosMemoryMalloc(cap);
   if (blk->data == NULL) {
@@ -176,12 +178,15 @@ int32_t blockInit(int32_t cap, int8_t type, SBlkData *blk) {
   return 0;
 }
 
-int32_t blockAdd(SBlkData *blk, uint64_t key, uint8_t *value, int32_t len) {
+int32_t blockAdd(SBlkData *blk, uint64_t key, uint8_t *value, int32_t len, uint32_t *offset) {
   int32_t code = 0;
   char   *p = blk->data + blk->len;
+
+  *offset = blk->id * kBlockCap + blk->len;
   blk->len += taosEncodeVariantU64((void **)&p, key);
   blk->len += taosEncodeVariantU32((void **)&p, len);
   blk->len += taosEncodeBinary((void **)&p, value, len);
+
   return code;
 }
 
@@ -205,6 +210,20 @@ int32_t blockCleanup(SBlkData *data) {
 
 static int32_t blockSeek(SBlkData *data, uint64_t key, uint32_t blockId, uint8_t *pValue, int32_t *len) {
   int32_t code = 0;
+  return code;
+}
+static int32_t blockSeekOffset(SBlkData *data, uint32_t offset, uint64_t key, uint8_t *pValue, int32_t *len) {
+  int32_t  code = 0;
+  int32_t  tlen = 0;
+  uint64_t tkey = 0;
+  uint8_t *p = (uint8_t *)data->data + offset;
+  p = taosDecodeVariantU64(p, &tkey);
+  if (tkey != key) {
+    return TSDB_CODE_NOT_FOUND;
+  }
+  p = taosDecodeVariantI32(p, &tlen);
+  p = taosDecodeBinary(p, (void **)pValue, tlen);
+
   return code;
 }
 
@@ -258,24 +277,37 @@ int32_t tableClose(STableBuilder *pTable) {
   taosMemFree(pTable);
   return code;
 }
-int32_t tableAppend(STableBuilder *pTableBuilder, uint64_t key, uint8_t *value, int32_t len, uint64_t *offset) {
+int32_t tableAppend(STableBuilder *pTableBuilder, uint64_t key, uint8_t *value, int32_t len, uint32_t *offset) {
+  int32_t line = 0;
   int32_t code = 0;
   if (blockShouldFlush(&pTableBuilder->data, len)) {
-    code = tableFlush(pTableBuilder);
-  }
-  code = blockAdd(&pTableBuilder->data, key, value, len);
+    TAOS_CHECK_GOTO(tableFlush(pTableBuilder), &line, _err);
 
+    TAOS_CHECK_GOTO(blockReset(&pTableBuilder->data), &line, _err);
+  }
+
+  code = blockAdd(&pTableBuilder->data, key, value, len, offset);
+
+_err:
   return code;
 }
-int32_t tableGet(STableBuilder *pTableBuilder, uint64_t key, uint8_t **pValue, int32_t *len) {
+int32_t tableGet(STableBuilder *pTableBuilder, uint32_t offset, uint64_t key, uint8_t **pValue, int32_t *len) {
   int32_t code = 0;
+  int32_t id = offset / kBlockCap;
 
+  if (pTableBuilder->data.id == id) {
+    code = blockSeekOffset(&pTableBuilder->data, offset % kBlockCap, key, *pValue, len);
+  } else {
+    code = tableLoadBlk(pTableBuilder, id, &pTableBuilder->data);
+    code = blockSeekOffset(&pTableBuilder->data, offset % kBlockCap, key, *pValue, len);
+  }
   return code;
 }
 int32_t tableFlush(STableBuilder *pTableBuilder) {
   /// do write to file
   int32_t code = 0;
-
+  // Do CRC and write to table
+  code = taosWriteFile(pTableBuilder->pDataFile, pTableBuilder->data.data, pTableBuilder->data.len);
   return code;
 }
 int32_t tableCommit(STableBuilder *pTableBuilder) {
@@ -306,7 +338,7 @@ int32_t tableLoadBySeq(STableBuilder *pTable, SValueInfo *pInfo, uint8_t **pValu
 int32_t bseAppend(SBse *pBse, uint64_t *seq, uint8_t *value, int32_t len) {
   int32_t  line = 0;
   int32_t  code = 0;
-  uint64_t offset = 0;
+  uint32_t offset = 0;
   uint64_t tseq = 0;
 
   SValueInfo info;
@@ -341,6 +373,11 @@ int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
   }
 
   *pValue = taosMemoryMalloc(pValueInfo->size + 10);
+  if (*pValue == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_CHECK_GOTO(code, &line, _err);
+  }
+  
 
   *len = pValueInfo->size;
 _err:
