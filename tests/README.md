@@ -47,7 +47,7 @@ work for TDengine Enterprise Edition, you can run the script with below command:
 
 ```bash
 cd tests/system-test
-python3 ./test.py -f 2-query/floor.py
+python3 ./test.py -f 2-query/avg.py
 ```
 
 ## Smoke Test
