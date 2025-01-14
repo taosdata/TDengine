@@ -58,6 +58,20 @@ extern const UInt128  uInt128_1e18;
 extern const UInt128  uInt128Zero;
 extern const uint64_t k1e18;
 
+static inline int32_t countLeadingZeros(uint64_t v) {
+#if defined(__clang__) || defined(__GUNC__)
+  if (v == 0) return 64;
+  return __builtin_clzll(v);
+#else
+  int32_t bitpos = 0;
+  while (v != 0) {
+    v >>= 1;
+    ++bitpos;
+  }
+  return 64 - bitpos;
+#endif
+}
+
 #ifdef __cplusplus
 }
 #endif
