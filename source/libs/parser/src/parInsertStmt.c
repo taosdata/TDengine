@@ -816,7 +816,8 @@ static int32_t convertStmtNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STM
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen, void *charsetCxt) {
+int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
+                            STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
   SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
   SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
@@ -825,9 +826,21 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
   TAOS_STMT2_BIND  ncharBind = {0};
   TAOS_STMT2_BIND* pBind = NULL;
   int32_t          code = 0;
+  int16_t          lastColId = -1;
+  bool             colInOrder = true;
+
+  if (NULL == *pTSchema) {
+    *pTSchema = tBuildTSchema(pSchema, pDataBlock->pMeta->tableInfo.numOfColumns, pDataBlock->pMeta->sversion);
+  }
 
   for (int c = 0; c < boundInfo->numOfBound; ++c) {
     SSchema*  pColSchema = &pSchema[boundInfo->pColIndex[c]];
+    if (pColSchema->colId <= lastColId) {
+      colInOrder = false;
+    } else {
+      lastColId = pColSchema->colId;
+    }
+
     SColData* pCol = taosArrayGet(pCols, c);
     if (pCol == NULL || pColSchema == NULL) {
       code = buildInvalidOperationMsg(&pBuf, "get column schema or column data failed");
@@ -852,17 +865,21 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
       }
       pBind = &ncharBind;
     } else {
-      pBind = bind + c;
+      pBindInfos[c].bind = bind + c;
     }
 
-    code = tColDataAddValueByBind2(pCol, pBind,
-                                   IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
-                                   initCtxAsText, checkWKB);
-    if (code) {
-      goto _return;
-    }
+    pBindInfos[c].columnId = pColSchema->colId;
+    pBindInfos[c].type = pColSchema->type;
+    pBindInfos[c].bytes = pColSchema->bytes;
+
+  // code = tColDataAddValueByBind2(pCol, pBind,
+  //                                IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
+  //                                initCtxAsText, checkWKB);
+  if (code) {
+    goto _return;
   }
-
+}
+  code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, &pDataBlock->ordered, &pDataBlock->duplicateTs);
   qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
 
 _return:
