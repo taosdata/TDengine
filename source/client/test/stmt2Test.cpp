@@ -197,7 +197,7 @@ void do_stmt(TAOS* taos, TAOS_STMT2_OPTION* option, const char* sql, int CTB_NUM
     checkError(stmt, code);
 
     // exec
-    int affected;
+    int affected = 0;
     code = taos_stmt2_exec(stmt, &affected);
     total_affected += affected;
     checkError(stmt, code);
@@ -219,8 +219,9 @@ void do_stmt(TAOS* taos, TAOS_STMT2_OPTION* option, const char* sql, int CTB_NUM
       taosMemoryFree(tags);
     }
   }
-
-  ASSERT_EQ(total_affected, CYC_NUMS * ROW_NUMS * CTB_NUMS);
+  if (option->asyncExecFn == NULL) {
+    ASSERT_EQ(total_affected, CYC_NUMS * ROW_NUMS * CTB_NUMS);
+  }
   for (int i = 0; i < CTB_NUMS; i++) {
     taosMemoryFree(tbs[i]);
   }
