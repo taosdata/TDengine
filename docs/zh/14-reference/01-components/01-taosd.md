@@ -73,12 +73,7 @@ taosd 命令行参数如下
 |minReservedMemorySize   |          |不支持动态修改  |最小预留的系统可用内存数量，除预留外的内存都可以被用于查询，单位：MB，默认预留大小为系统物理内存的 20%，取值范围 1024 - 1000000000|
 |singleQueryMaxMemorySize|          |不支持动态修改  |单个查询在单个节点(dnode)上可以使用的内存上限，超过该上限将返回错误，单位：MB，默认值：0（无上限），取值范围 0 - 1000000000|
 |filterScalarMode        |          |不支持动态修改             |强制使用标量过滤模式，0：关闭；1：开启，默认值 0|
-|queryPlannerTrace       |          |支持动态修改 立即生效       |内部参数，查询计划是否输出详细日志|
-|queryNodeChunkSize      |          |支持动态修改 立即生效       |内部参数，查询计划的块大小|
-|queryUseNodeAllocator   |          |支持动态修改 立即生效       |内部参数，查询计划的分配方法|
-|queryMaxConcurrentTables|          |不支持动态修改             |内部参数，查询计划的并发数目|
 |queryRsmaTolerance      |          |不支持动态修改             |内部参数，用于判定查询哪一级 rsma 数据时的容忍时间，单位为毫秒|
-|enableQueryHb           |          |支持动态修改 立即生效       |内部参数，是否发送查询心跳消息|
 |pqSortMemThreshold      |          |不支持动态修改             |内部参数，排序使用的内存阈值|
 
 ### 区域相关
