@@ -2171,7 +2171,7 @@ ignore_negative: {
 
 **Usage Instructions**:
 
-- Can be used with the columns associated with the selection. For example: select _rowts, DERIVATIVE() from.
+- Can be used with the columns associated with the selection. For example: select _rowts, DERIVATIVE(col1, 1s, 1) from tb1.
 
 ### DIFF
 
