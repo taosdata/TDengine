@@ -305,7 +305,7 @@ cd /root/TDinternal/community/tests/script
 
 ```bash
 cd /root/TDinternal/community/tests/system-test
-python3 ./test.py -f 2-query/floor.py
+python3 ./test.py -f 2-query/avg.py
 ```
 
 ## 8.3 Run unittest
@@ -374,7 +374,11 @@ apt install -y python3-pip && \
   ! grep -q -F "$(cat $HOME/.ssh/id_rsa.pub)" "$HOME/.ssh/authorized_keys" && \
   cat "$HOME/.ssh/id_rsa.pub" >> "$HOME/.ssh/authorized_keys"
 ```
-4. Run test script:
+4. How to add test case:
+
+You can add python test case under TestNG/cases. When the case passes in the test branch, add the case to the testng_cases.txt file under TestNG/scripts, and then merge the pr into master branch .
+
+5. Run test script:
 ```bash
 /root/TestNG/scripts/run.sh \
   -m /root/TestNG/scripts/testng.json \
@@ -382,7 +386,7 @@ apt install -y python3-pip && \
   -l /root/TestNG/testlog_$(date +"%Y-%m-%d_%H-%M-%S") \
   -d debug -o 12000 -f False -a True
 ```
-5. When the test is done, the result can be found in `/root/TestNG/testlog_$(date +"%Y-%m-%d_%H-%M-%S")` directory.
+6. When the test is done, the result can be found in `/root/TestNG/testlog_$(date +"%Y-%m-%d_%H-%M-%S")` directory.
 
 # 9 Releasing
 
@@ -404,23 +408,27 @@ scp <installer> root@192.168.1.131:/pkgs/TDengine/3.3/v3.3.4.0/enterprise/
 
 # 10 CI/CD
 
-We use jenkins for CI/CD workflow configuration. See http://ci.bl.taosdata.com:8080/job/NewTest/view/change-requests/
-We can also run ci script locally.
+Now, Jenkins is mainly used to build CI/CD pipeline for TDengine. To run the tests in the CI/CD pipeline, please run following commands:
 
 ```bash
-cd /root/TDinternal/community/tests
-./run_all_ci_cases.sh
+cd tests
+./run_all_ci_cases.sh -b main # on main branch
 ```
+
+TDengine build check workflow can be found in this [Github Action](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml).
 
 # 11 Coverage
 
-We can see coverage result in https://coveralls.io/github/taosdata/TDengine
-We can also run coverage script locally.
+Latest TDengine test coverage report can be found on [coveralls.io](https://coveralls.io/github/taosdata/TDengine). To create the test coverage report (in HTML format) locally, please run following commands:
 
 ```bash
-cd /root/TDinternal/community/tests
-./run_local_coverage.sh
+cd tests
+bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -b main -c task 
+# on main branch and run cases in longtimeruning_cases.task 
+# for more infomation about options please refer to ./run_local_coverage.sh -h
 ```
+> [!NOTE]
+> Please note that the -b and -i options will recompile TDengine with the -DCOVER=true option, which may take a amount of time.
 
 # 12 Contributing
 
