@@ -21,14 +21,23 @@ Install the Python connector for TDengine.
 pip3 install taospy taos-ws-py
 ```
 
+>[!NTOE]
+>Please make sure building operation with option '-DBUILD_TEST=true' has been finished, execute the below commands if not:
+
+```bash
+cd debug
+cmake .. -DBUILD_TEST=true -DBUILD_CONTRIB=true
+make && make install
+```
+
 ## Unit Test
 
 Unit test script is the smallest testable part and developed for some function, method or class of TDengine, you can run
 the script with below command:
 
 ```bash
-cd tests/unit-test/ -e 0
-bash test.sh
+cd tests/unit-test/
+bash test.sh -e 0
 ```
 
 ## System Test
