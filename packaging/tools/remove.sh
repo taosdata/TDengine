@@ -90,7 +90,7 @@ fi
 
 kill_service_of() {
   _service=$1
-  pid=$(ps -C $_service |grep -w $_service |  grep -v $uninstallScript | awk '{print $1}')
+  pid=$(ps -C $_service | grep -w $_service |  grep -v $uninstallScript | awk '{print $1}')
   if [ -n "$pid" ]; then
     ${csudo}kill -9 $pid || :
   fi
