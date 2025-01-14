@@ -69,6 +69,10 @@ cd tests/script
 ./test.sh -f tsim/db/basic1.sim
 ```
 
+## How TO Add Test Cases
+
+You can add sim test case under tests/script, python test case under tests/system-test or tests/army. When the case passes in the test branch, add the case to the cases.task file under tests/parallel_test, and then merge the pr into main branch to run in the future CI.
+
 ## TSBS Test
 
 Time Series Benchmark Suite (TSBS) is an open-source performance benchmarking platform specifically designed for time-series data processing systems, such as databases. It provides a standardized approach to evaluating the performance of various databases by simulating typical use cases such as IoT and DevOps.
