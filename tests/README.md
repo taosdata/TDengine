@@ -21,8 +21,8 @@ Install the Python connector for TDengine.
 pip3 install taospy taos-ws-py
 ```
 
->[!NTOE]
->Please make sure building operation with option '-DBUILD_TEST=true' has been finished, execute the below commands if not:
+> [!NOTE]
+> Please make sure building operation with option '-DBUILD_TEST=true' has been finished, execute the below commands if not:
 
 ```bash
 cd debug
