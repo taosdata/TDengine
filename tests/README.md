@@ -22,11 +22,11 @@ pip3 install taospy taos-ws-py
 ```
 
 > [!NOTE]
-> Please make sure building operation with option '-DBUILD_TEST=true' has been finished, execute the below commands if not:
+> Please make sure building operation with option '-DBUILD_TOOLS=true -DBUILD_TEST=true -DBUILD_CONTRIB=true' has been finished, execute the below commands if not:
 
 ```bash
 cd debug
-cmake .. -DBUILD_TEST=true -DBUILD_CONTRIB=true
+cmake .. -DBUILD_TOOLS=true -DBUILD_TEST=true -DBUILD_CONTRIB=true
 make && make install
 ```
 
