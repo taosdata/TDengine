@@ -54,6 +54,7 @@ typedef struct {
   TdFilePtr    pDataFile;
   TdFilePtr    pIdxFile;
   SBlkData     data;
+  SBlkData     tdata;
   STableFooter footer;
 } STableBuilder;
 
@@ -91,7 +92,7 @@ static int32_t tableAppend(STableBuilder *pTable, uint64_t key, uint8_t *value, 
 static int32_t tableGet(STableBuilder *pTable, uint64_t key, uint8_t **pValue, int32_t *len);
 static int32_t tableFlush(STableBuilder *pTable);
 static int32_t tableCommit(STableBuilder *pTable);
-
+static int32_t tableLoadBlk(STableBuilder *pTable, uint32_t blockId, SBlkData *blk);
 typedef struct {
   uint8_t  type;
   uint32_t len;
@@ -281,6 +282,24 @@ int32_t tableCommit(STableBuilder *pTableBuilder) {
   // Generate static info and footer info;
 
   int32_t code = 0;
+  return code;
+}
+
+int32_t tableLoadBlk(STableBuilder *pTable, uint32_t blockId, SBlkData *blk) {
+  int32_t  code = 0;
+  uint32_t offset = blockId * kBlockCap;
+  code = taosLSeekFile(pTable->pDataFile, offset, SEEK_SET);
+  if (code != 0) {
+    return code;
+  }
+
+  code = taosReadFile(pTable->pDataFile, blk->data, blk->cap);
+  return code;
+}
+
+int32_t tableLoadBySeq(STableBuilder *pTable, SValueInfo *pInfo, uint8_t **pValue, int32_t *len) {
+  int32_t code = 0;
+  code = tableLoadBlk(pTable, pInfo->offset / kBlockCap, &pTable->data);
   return code;
 }
 
