@@ -666,6 +666,9 @@ int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiN
       setFillHistoryOperatorFlag(&pInfo->basic);
     }
     pInfo->pIntervalAggFn = doStreamIntervalNonblockAggImpl;
+    if (pPhyNode->type == QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL) {
+      setSingleOperatorFlag(&pInfo->basic);
+    }
     pOperator->fpSet =
         createOperatorFpSet(optrDummyOpenFn, doStreamIntervalNonblockAggNext, NULL, destroyStreamIntervalSliceOperatorInfo,
                             optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);

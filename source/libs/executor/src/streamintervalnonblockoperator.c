@@ -219,10 +219,12 @@ _end:
 int32_t getHistoryRemainResultInfo(SStreamAggSupporter* pAggSup, int32_t numOfState, SArray* pUpdated, int32_t capacity) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+
   if (pAggSup->pCur == NULL) {
-    pAggSup->pCur = pAggSup->stateStore.streamStateGetLastStateCur(pAggSup->pState);
+    goto _end;
   }
-  int32_t      num = capacity - taosArrayGetSize(pUpdated);
+
+  int32_t num = capacity - taosArrayGetSize(pUpdated);
   for (int32_t i = 0; i < num; i++) {
     int32_t winCode = pAggSup->stateStore.streamStateNLastStateGetKVByCur(pAggSup->pCur, numOfState, pUpdated);
     if (winCode == TSDB_CODE_FAILED) {
@@ -232,6 +234,7 @@ int32_t getHistoryRemainResultInfo(SStreamAggSupporter* pAggSup, int32_t numOfSt
     }
 
     pAggSup->stateStore.streamStateLastStateCurNext(pAggSup->pCur);
+    num = capacity - taosArrayGetSize(pUpdated);
   }
 
 _end:
@@ -333,7 +336,7 @@ static int32_t buildOtherResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SStreamIntervalSliceOperatorInfo* pInfo = pOperator->info;
   SStreamAggSupporter*              pAggSup = &pInfo->streamAggSup;
   SExecTaskInfo*                    pTaskInfo = pOperator->pTaskInfo;
-  if (isHistoryOperator(&pInfo->basic) && !isSemiOperator(&pInfo->basic)) {
+  if (isHistoryOperator(&pInfo->basic) && isSingleOperator(&pInfo->basic)) {
     code = buildIntervalHistoryResult(pOperator);
     QUERY_CHECK_CODE(code, lino, _end);
     if (pInfo->binfo.pRes->info.rows != 0) {
@@ -514,14 +517,17 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
     }
   }
 
-  if (isSemiOperator(&pInfo->basic)) {
+  if (pOperator->status == OP_RES_TO_RETURN && (isHistoryOperator(&pInfo->basic) || isSemiOperator(&pInfo->basic))) {
     code = copyNewResult(&pAggSup->pResultRows, pInfo->pUpdated, winPosCmprImpl);
     QUERY_CHECK_CODE(code, lino, _end);
-  }
 
-  if (pOperator->status == OP_RES_TO_RETURN && isHistoryOperator(&pInfo->basic) && !isSemiOperator(&pInfo->basic)) {
-    code = getHistoryRemainResultInfo(pAggSup, pInfo->numOfKeep, pInfo->pUpdated, pOperator->resultInfo.capacity);
-    QUERY_CHECK_CODE(code, lino, _end);
+    if (isSingleOperator(&pInfo->basic)) {
+      if (pAggSup->pCur == NULL) {
+        pAggSup->pCur = pAggSup->stateStore.streamStateGetLastStateCur(pAggSup->pState);
+      }
+      code = getHistoryRemainResultInfo(pAggSup, pInfo->numOfKeep, pInfo->pUpdated, pOperator->resultInfo.capacity);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
   }
 
   taosArraySort(pInfo->pUpdated, winPosCmprImpl);
@@ -605,7 +611,6 @@ int32_t doStreamSemiIntervalNonblockAggImpl(SOperatorInfo* pOperator, SSDataBloc
     if (curPoint.pLastRow->key == curPoint.winKey.win.ekey) {
       setInterpoWindowFinished(&curPoint);
     }
-    releaseOutputBuf(pInfo->streamAggSup.pState, curPoint.pResPos, &pInfo->streamAggSup.stateStore);
 
     startPos = getNextQualifiedWindow(&pInfo->interval, &curWin, &pBlock->info, tsCols, prevEndPos, TSDB_ORDER_ASC);
     if (startPos < 0) {
@@ -614,7 +619,7 @@ int32_t doStreamSemiIntervalNonblockAggImpl(SOperatorInfo* pOperator, SSDataBloc
     curTs = tsCols[startPos];
   }
 
-  if (isHistoryOperator(&pInfo->basic)) {
+  if (isHistoryOperator(&pInfo->basic) && tSimpleHashGetSize(pAggSup->pResultRows) > pOperator->resultInfo.capacity * 10) {
     code = copyNewResult(&pAggSup->pResultRows, pInfo->pUpdated, winPosCmprImpl);
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -637,9 +642,6 @@ int32_t createSemiIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNod
   pInfo->numOfKeep = 0;
   pInfo->pIntervalAggFn = doStreamSemiIntervalNonblockAggImpl;
   setSemiOperatorFlag(&pInfo->basic);
-  if (pHandle->fillHistory) {
-    setFillHistoryOperatorFlag(&pInfo->basic);
-  }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -754,9 +756,14 @@ static int32_t doStreamFinalntervalNonblockAggImpl(SOperatorInfo* pOperator, SSD
     startPos = getNextQualifiedFinalWindow(&pInfo->interval, &curWin, &pBlock->info, tsCols, prevEndPos);
   }
 
-  code =
-      closeNonBlockIntervalWindow(pAggSup->pResultRows, &pInfo->twAggSup, &pInfo->interval, pInfo->pUpdated, pTaskInfo);
-  QUERY_CHECK_CODE(code, lino, _end);
+  if ( !isHistoryOperator(&pInfo->basic)) {
+    code = closeNonBlockIntervalWindow(pAggSup->pResultRows, &pInfo->twAggSup, &pInfo->interval, pInfo->pUpdated,
+                                       pTaskInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else if (isHistoryOperator(&pInfo->basic) && tSimpleHashGetSize(pAggSup->pResultRows) > pOperator->resultInfo.capacity * 10) {
+    code = copyNewResult(&pAggSup->pResultRows, pInfo->pUpdated, winPosCmprImpl);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -775,12 +782,8 @@ int32_t createFinalIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNo
   SStreamIntervalSliceOperatorInfo* pInfo = (SStreamIntervalSliceOperatorInfo*)(*ppOptInfo)->info;
   pInfo->pIntervalAggFn = doStreamFinalntervalNonblockAggImpl;
   pInfo->streamAggSup.pScanBlock->info.type = STREAM_RECALCULATE_DATA;
-  pInfo->numOfKeep = TMAX(pInfo->numOfKeep, 16);
   pInfo->tsOfKeep = INT64_MIN;
   pInfo->twAggSup.waterMark = 0;
-  if (pHandle->fillHistory) {
-    setFillHistoryOperatorFlag(&pInfo->basic);
-  }
   setFinalOperatorFlag(&pInfo->basic);
 
 _end:

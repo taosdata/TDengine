@@ -78,6 +78,8 @@ bool needBuildAllResult(SSteamOpBasicInfo* pBasicInfo);
 void setSemiOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
 bool isSemiOperator(SSteamOpBasicInfo* pBasicInfo);
 bool isRecalculateOperator(SSteamOpBasicInfo* pBasicInfo);
+void setSingleOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
+bool isSingleOperator(SSteamOpBasicInfo* pBasicInfo);
 
 int64_t getDeleteMarkFromOption(SStreamNodeOption* pOption);
 void    removeDeleteResults(SSHashObj* pUpdatedMap, SArray* pDelWins);
