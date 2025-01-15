@@ -265,6 +265,8 @@ int32_t tableClose(STableBuilder *pTable) {
   code = blockCleanup(&pTable->bufBlk);
   taosHashCleanup(pTable->pCache);
 
+  taosCloseFile(&pTable->pDataFile);
+
   taosMemFree(pTable);
   return code;
 }
@@ -402,8 +404,13 @@ int32_t tableLoadBlk(STableBuilder *pTable, uint32_t blockId, SBlkData *blk) {
   return code;
 }
 
-int32_t tableLoadBySeq(STableBuilder *pTable, uint64_t key, SValueInfo *pInfo, uint8_t **pValue, int32_t *len) {
-  int32_t code = 0;
+int32_t tableLoadBySeq(STableBuilder *pTable, uint64_t key, uint8_t **pValue, int32_t *len) {
+  int32_t     code = 0;
+  SValueInfo *pInfo = taosHashGet(pTable->pCache, &key, sizeof(uint64_t));
+  if (pInfo == NULL) {
+    return TSDB_CODE_NOT_FOUND;
+  }
+
   return tableGet(pTable, pInfo->offset, key, pValue, len);
 }
 
@@ -465,25 +472,25 @@ int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t line = 0;
   int32_t code = 0;
   taosThreadMutexLock(&pBse->mutex);
-  SValueInfo *pValueInfo = taosHashGet(pBse->pSeqOffsetCache, &seq, sizeof(uint64_t));
+  // SValueInfo *pValueInfo = taosHashGet(pBse->pSeqOffsetCache, &seq, sizeof(uint64_t));
 
-  if (pValueInfo == NULL) {
-    code = TSDB_CODE_NOT_FOUND;
-    TAOS_CHECK_GOTO(code, &line, _err);
-  }
+  // if (pValueInfo == NULL) {
+  //   code = TSDB_CODE_NOT_FOUND;
+  //   TAOS_CHECK_GOTO(code, &line, _err);
+  // }
 
-  *pValue = taosMemoryMalloc(pValueInfo->size + 10);
-  if (*pValue == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    TAOS_CHECK_GOTO(code, &line, _err);
-  }
-  code = tableLoadBySeq(pBse->pTableBuilder, seq, pValueInfo, pValue, len);
+  // *pValue = taosMemoryMalloc(pValueInfo->size + 10);
+  // if (*pValue == NULL) {
+  //   code = TSDB_CODE_OUT_OF_MEMORY;
+  //   TAOS_CHECK_GOTO(code, &line, _err);
+  // }
+  code = tableLoadBySeq(pBse->pTableBuilder, seq, pValue, len);
   TAOS_CHECK_GOTO(code, &line, _err);
 
 _err:
   taosThreadMutexUnlock(&pBse->mutex);
   if (code != 0) {
-    bseError("failed to get value by seq %" PRIu64 "since %s", seq, tstrerror(code));
+    bseError("failed to get value by seq %" PRIu64 " since %s", seq, tstrerror(code));
   }
   return code;
 }

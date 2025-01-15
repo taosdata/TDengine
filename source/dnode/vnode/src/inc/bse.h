@@ -12,11 +12,17 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef _TD_VNODE_BSE_H_
+#define _TD_VNODE_BSE_H_
 
 #include "os.h"
 #include "tchecksum.h"
 #include "tlog.h"
 #include "tmsg.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct {
   uint64_t offset;
@@ -108,3 +114,9 @@ int32_t bseRollback(SBse *pBse, int64_t ver);
 int32_t bseBeginSnapshot(SBse *pBse, int64_t ver);
 int32_t bseEndSnapshot(SBse *pBse);
 int32_t bseStopSnapshot(SBse *pBse);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

@@ -75,6 +75,9 @@ set(
     "src/tq/tqSnapshot.c"
     "src/tq/tqStreamStateSnap.c"
     "src/tq/tqStreamTaskSnap.c"
+
+    #bse
+    "src/bse/bseMgt.c"
 )
 
 aux_source_directory("src/tsdb/" TSDB_SOURCE_FILES)

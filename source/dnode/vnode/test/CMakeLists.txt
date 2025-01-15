@@ -35,3 +35,16 @@ ENDIF()
 #         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
 #         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 # )
+
+ADD_EXECUTABLE(bseTest bseTest.cpp)
+ TARGET_LINK_LIBRARIES(
+         bseTest
+         PUBLIC os util common vnode gtest_main
+ )
+
+TARGET_INCLUDE_DIRECTORIES(
+         bseTest
+         PUBLIC "${TD_SOURCE_DIR}/include/common"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
