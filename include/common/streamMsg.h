@@ -41,6 +41,7 @@ typedef struct SStreamUpstreamEpInfo {
   SEpSet  epSet;
   bool    dataAllowed;  // denote if the data from this upstream task is allowed to put into inputQ, not serialize it
   int64_t stage;  // upstream task stage value, to denote if the upstream node has restart/replica changed/transfer
+  int64_t lastMsgId;
 } SStreamUpstreamEpInfo;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamUpstreamEpInfo* pInfo);
