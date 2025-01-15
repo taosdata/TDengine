@@ -64,17 +64,18 @@ TEST(bseCase, openTest) {
     SBse *bse = NULL;
     uint64_t seq = 0; 
     std::vector<uint64_t> data;
-    int32_t code = bseOpen("./bse.log", NULL, &bse);
-    for (int32_t i = 0; i < 100; i++) {
+    int32_t code = bseOpen("/tmp/bse.log", NULL, &bse);
+    for (int32_t i = 0; i < 10000; i++) {
         code = bseAppend(bse, &seq, (uint8_t *)"test", 4);
         data.push_back(seq); 
     }
 
-    for (int32_t i = 0; i < 100; i++) {
+    for (int32_t i = 0; i < 10000; i++) {
       char *p = NULL;
       int32_t len = 0;
       uint64_t seq = data[i];
       code = bseGet(bse, seq, (uint8_t **)&p, &len);
+      ASSERT_EQ(len, 4);
       //code = bseRead(bse, data[i], NULL, NULL);
     }
 
