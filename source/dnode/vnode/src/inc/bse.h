@@ -80,17 +80,16 @@ typedef struct {
   STableFooter footer;
   SHashObj    *pCache;
   int32_t      blockId;
-} STableBuilder;
+} STable;
 typedef struct {
   char    path[TSDB_FILENAME_LEN];
   int64_t ver;
-
-  STableBuilder *pTableBuilder;
-  SHashObj      *pTableCache;
-  TdThreadMutex  mutex;
-  uint64_t       seq;
-  uint64_t       commitSeq;
-  SHashObj      *pSeqOffsetCache;
+  STable *pTable;
+  // SHashObj     *pTableCache;
+  TdThreadMutex mutex;
+  uint64_t      seq;
+  uint64_t      commitSeq;
+  SHashObj     *pSeqOffsetCache;
 } SBse;
 
 typedef struct {

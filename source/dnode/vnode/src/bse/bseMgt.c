@@ -426,12 +426,6 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
   code = tableOpen(path, &p->pTable);
   TAOS_CHECK_GOTO(code, &lino, _err);
 
-  // p->pSeqOffsetCache =
-  //     taosHashInit(4096 * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_ENTRY_LOCK);
-  // if (p->pSeqOffsetCache == NULL) {
-  //   TAOS_CHECK_GOTO(terrno, &lino, _err);
-  // }
-
   taosThreadMutexInit(&p->mutex, NULL);
   tstrncpy(p->path, path, sizeof(p->path));
   *pBse = p;
