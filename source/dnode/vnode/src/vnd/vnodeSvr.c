@@ -1134,6 +1134,34 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     vAlterTbRsp.pMeta = &vMetaRsp;
   }
 
+  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) {
+    int64_t uid = metaGetTableEntryUidByName(pVnode->pMeta, vAlterTbReq.tbName);
+    if (uid == 0) {
+      vError("vgId:%d, %s failed at %s:%d since table %s not found", TD_VID(pVnode), __func__, __FILE__, __LINE__,
+             vAlterTbReq.tbName);
+      goto _exit;
+    }
+
+    SArray* tbUids = taosArrayInit(4, sizeof(int64_t));
+    void* p = taosArrayPush(tbUids, &uid);
+    if (p == NULL) {{
+      vError("vgId:%d, failed to push tbUid list since %s", TD_VID(pVnode), tstrerror(terrno));
+      goto _exit;
+    }}
+
+    vDebug("vgId:%d, remove tags value altered table:%s from query table list", TD_VID(pVnode), vAlterTbReq.tbName);
+    if ((ret = tqUpdateTbUidList(pVnode->pTq, tbUids, false)) < 0) {
+      vError("vgId:%d, failed to remove tbUid list since %s", TD_VID(pVnode), tstrerror(ret));
+    }
+
+    vDebug("vgId:%d, try to add table:%s in query table list", TD_VID(pVnode), vAlterTbReq.tbName);
+    if ((ret = tqUpdateTbUidList(pVnode->pTq, tbUids, true)) < 0) {
+      vError("vgId:%d, failed to add tbUid list since %s", TD_VID(pVnode), tstrerror(ret));
+    }
+
+    taosArrayDestroy(tbUids);
+  }
+
 _exit:
   tEncodeSize(tEncodeSVAlterTbRsp, &vAlterTbRsp, pRsp->contLen, ret);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);
