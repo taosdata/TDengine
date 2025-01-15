@@ -190,7 +190,7 @@ impl Service<Uri> for Svc {
                 Box::pin(async move {
                     Ok::<_, tower::BoxError>(TokioIo::new({
                         let host = uri.host().ok_or("URI must have a host")?;
-                        let port = uri.port_u16().unwrap_or(80);
+                        let port = uri.port_u16().ok_or("URI must have a port")?;
                         let addr = format!("{}:{}", host, port);
                         socket.connect(addr.parse()?).await?
                     }))
