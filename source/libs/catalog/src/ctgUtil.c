@@ -2097,12 +2097,12 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
       CTG_ERR_JRET(ctgGetTbMeta(pCtg, req->pConn, &ctx, &pMeta));
     }
 
-    if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType) {
+    if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType || TSDB_VIRTUAL_TABLE == pMeta->tableType) {
       res->pRawRes->pass[AUTH_RES_BASIC] = false;
       goto _return;
     }
 
-    if (TSDB_CHILD_TABLE == pMeta->tableType) {
+    if (TSDB_CHILD_TABLE == pMeta->tableType || TSDB_VIRTUAL_CHILD_TABLE == pMeta->tableType) {
       CTG_ERR_JRET(ctgGetCachedStbNameFromSuid(pCtg, dbFName, pMeta->suid, &stbName));
       if (NULL == stbName) {
         if (req->onlyCache) {

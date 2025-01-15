@@ -13188,7 +13188,8 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
       return code;
     }
 
-    if (TSDB_SUPER_TABLE != pTable->pMeta->tableType && TSDB_NORMAL_TABLE != pTable->pMeta->tableType) {
+    if (TSDB_SUPER_TABLE != pTable->pMeta->tableType && TSDB_NORMAL_TABLE != pTable->pMeta->tableType &&
+        TSDB_VIRTUAL_TABLE != pTable->pMeta->tableType) {
       nodesDestroyNode((SNode*)pTable);
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "Only supertable and normal table can be granted");
@@ -16399,26 +16400,22 @@ static int32_t buildDropVirtualTableVgroupHashmap(STranslateContext* pCxt, SDrop
   }
 
   if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && pStmt->ignoreNotExists) {
-    code = TSDB_CODE_SUCCESS;
-    goto over;
+    PAR_RET(TSDB_CODE_SUCCESS);
   }
+  PAR_ERR_JRET(code);
 
   if (!isVirtualTable(pTableMeta->tableType)) {
-    code = TSDB_CODE_PAR_INVALID_TABLE_TYPE;
-    goto over;
+    PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_TABLE_TYPE);
   }
 
   SVgroupInfo info = {0};
-  if (TSDB_CODE_SUCCESS == code) {
-    code = getTableHashVgroup(pCxt, pStmt->dbName, pStmt->tableName, &info);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    SVDropTbReq req = {.suid = pTableMeta->suid, .igNotExists = pStmt->ignoreNotExists, .isVirtual = true};
-    req.name = pStmt->tableName;
-    code = addDropTbReqIntoVgroup(pVgroupHashmap, &info, &req);
-  }
+  PAR_ERR_JRET(getTableHashVgroup(pCxt, pStmt->dbName, pStmt->tableName, &info));
 
-over:
+  SVDropTbReq req = {.suid = pTableMeta->suid, .igNotExists = pStmt->ignoreNotExists, .isVirtual = true};
+  req.name = pStmt->tableName;
+  PAR_ERR_JRET(addDropTbReqIntoVgroup(pVgroupHashmap, &info, &req));
+
+_return:
   taosMemoryFreeClear(pTableMeta);
   return code;
 }
