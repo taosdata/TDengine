@@ -2253,7 +2253,7 @@ MAVG(expr, k)
 STATECOUNT(expr, oper, val)
 ```
 
-**Function Description**: Returns the number of consecutive records that meet a certain condition, with the result appended as a new column to each row. The condition is calculated based on the parameters, adding 1 if the condition is true, resetting to -1 if false, and skipping the data if it is NULL.
+**Function Description**: Return the number of consecutive records that meet a certain condition. Calculation rule: If the condition is met, the cumulative count is incremented by 1. If the condition is not met, the count is reset to -1. If the expr data is NULL, the output is NULL.
 
 **Parameter Range**:
 
@@ -2278,13 +2278,13 @@ STATECOUNT(expr, oper, val)
 STATEDURATION(expr, oper, val, unit)
 ```
 
-**Function Description**: Returns the duration of time for consecutive records that meet a certain condition, with the result appended as a new column to each row. The condition is calculated based on the parameters, adding the time length between two records if the condition is true (the time length of the first record meeting the condition is counted as 0), resetting to -1 if false, and skipping the data if it is NULL.
+**Function Description**: Return the cumulative duration of time for consecutive records that meet a certain condition. Calculation rule: If the condition is met, the cumulative time is added to the duration time between the current record and the previous record, and the cumulative duration of time for the first record that meets the condition is recorded as 0; if the condition is not met, the cumulative duration of time is reset to -1, and if the expr data is NULL, the output is NULL.
 
 **Parameter Range**:
 
 - oper: `'LT'` (less than), `'GT'` (greater than), `'LE'` (less than or equal to), `'GE'` (greater than or equal to), `'NE'` (not equal to), `'EQ'` (equal to), case insensitive, but must be enclosed in `''`.
 - val: Numeric
-- unit: Time unit of the duration, possible values: 1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). If omitted, defaults to the current database precision.
+- unit: Time unit of the output duration, possible values: 1b (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). If omitted, defaults to the current database precision.
 
 **Return Result Type**: INTEGER.
 
