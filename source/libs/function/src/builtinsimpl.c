@@ -946,7 +946,7 @@ int32_t setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STu
       if (nullList[j]) {
         colDataSetNULL(pDstCol, rowIndex);
       } else {
-        code = colDataSetVal(pDstCol, rowIndex, pStart, false);
+        code = colDataSetValOrCover(pDstCol, rowIndex, pStart, false);
         if (TSDB_CODE_SUCCESS != code) {
           return code;
         }
