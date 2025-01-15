@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "bse.h"
 #include "os.h"
 #include "tchecksum.h"
 #include "tlog.h"
@@ -51,94 +52,10 @@ static int32_t kBlockCap = 1024 * 16;
 
 // clang-format on
 
-typedef struct {
-  uint64_t offset;
-  int32_t  size;
-} SValueInfo;
-
-typedef struct {
-  uint64_t offset;
-  uint64_t size;
-} SBlkHandle;
-
-typedef struct {
-  uint8_t  head[4];
-  uint32_t id;
-  uint32_t len;
-  uint8_t  data[0];
-} SBlkData2;
-
-typedef struct {
-  uint8_t  bType;
-  uint8_t  type;  // content data
-  uint32_t crc;
-  uint32_t id;
-  uint32_t len;
-  uint32_t cap;
-  uint8_t  flushed;
-
-  SBlkData2 *pData;
-  // int8_t   type;   // content data
-
-  // int8_t   bType;  // block type
-  // int8_t   type;   // content data
-  // uint32_t id;
-  // uint32_t len;
-  // uint32_t cap;
-  // uint8_t *data;
-} SBlkData;
-
-typedef struct {
-  uint8_t  type;
-  uint32_t len;
-  uint32_t num;
-} SBlkHeader;
-
-typedef struct {
-  SBlkHandle metaHandle[1];
-  SBlkHandle indexHandle[1];
-} STableFooter;
-
-typedef struct {
-  char         name[TSDB_FILENAME_LEN];
-  TdFilePtr    pDataFile;
-  TdFilePtr    pIdxFile;
-  SBlkData     data;
-  SBlkData     bufBlk;
-  STableFooter footer;
-  SHashObj    *pCache;
-  int32_t      blockId;
-} STableBuilder;
-
-typedef struct {
-  char    path[TSDB_FILENAME_LEN];
-  int64_t ver;
-
-  STableBuilder *pTableBuilder;
-  SHashObj      *pTableCache;
-  TdThreadMutex  mutex;
-  uint64_t       seq;
-  uint64_t       commitSeq;
-  SHashObj      *pSeqOffsetCache;
-} SBse;
-
-typedef struct {
-  int32_t vgId;
-  int32_t fsyncPeriod;
-  int32_t retentionPeriod;  // secs
-  int32_t rollPeriod;       // secs
-  int64_t retentionSize;
-  int64_t segSize;
-  int64_t committed;
-  int32_t encryptAlgorithm;
-  char    encryptKey[ENCRYPT_KEY_LEN + 1];
-  int8_t  clearFiles;
-} SBseCfg;
-
 static void bseBuildDataFullName(SBse *pBse, char *name);
 static void bseBuildIndexFullName(SBse *pBse, char *name);
 
-static int32_t tableOpen(char *name, STableBuilder **pTable);
+static int32_t tableOpen(const char *name, STableBuilder **pTable);
 static int32_t tableClose(STableBuilder *pTable);
 static int32_t tableAppendData(STableBuilder *pTable, uint64_t key, uint8_t *value, int32_t len);
 static int32_t tableGet(STableBuilder *pTable, uint64_t offset, uint64_t key, uint8_t **pValue, int32_t *len);
@@ -306,46 +223,7 @@ static void bseBuildIndexFullName(SBse *pBse, char *name) {
   snprintf(name, strlen(name), "%s/%s", pBse->path, "index");
 }
 
-int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
-  int32_t lino = 0;
-  int32_t code = 0;
-
-  SBse *p = taosMemoryMalloc(sizeof(SBse));
-  if (p == NULL) {
-    TAOS_CHECK_GOTO(terrno, &lino, _err);
-  }
-
-  p->pTableBuilder = taosMemoryMalloc(sizeof(STableBuilder));
-  if (p->pTableBuilder == NULL) {
-    TAOS_CHECK_GOTO(terrno, &lino, _err);
-  }
-
-  p->pSeqOffsetCache =
-      taosHashInit(4096 * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_ENTRY_LOCK);
-  if (p->pSeqOffsetCache == NULL) {
-    TAOS_CHECK_GOTO(terrno, &lino, _err);
-  }
-
-  taosThreadMutexInit(&p->mutex, NULL);
-  tstrncpy(p->path, path, sizeof(p->path));
-  *pBse = p;
-_err:
-  if (code != 0) {
-    bseError("failed to open bse since %s", tstrerror(code));
-  }
-  return code;
-}
-void bseClose(SBse *pBse) {
-  if (pBse == NULL) {
-    return;
-  }
-
-  taosMemFreeClear(pBse->pTableBuilder);
-  taosHashCleanup(pBse->pSeqOffsetCache);
-  taosMemoryFree(pBse);
-}
-
-int32_t tableOpen(char *name, STableBuilder **ppTable) {
+int32_t tableOpen(const char *name, STableBuilder **ppTable) {
   int32_t line = 0;
   int32_t code = 0;
 
@@ -358,6 +236,7 @@ int32_t tableOpen(char *name, STableBuilder **ppTable) {
   if (pTable->pCache == NULL) {
     TAOS_CHECK_GOTO(terrno, &line, _err);
   }
+
   pTable->blockId = 0;
   code = blockInit(pTable->blockId, kBlockCap, BSE_DATA_TYPE, &pTable->data);
   TAOS_CHECK_GOTO(code, &line, _err);
@@ -365,6 +244,7 @@ int32_t tableOpen(char *name, STableBuilder **ppTable) {
   code = blockInit(pTable->blockId, kBlockCap, BSE_DATA_TYPE, &pTable->bufBlk);
   TAOS_CHECK_GOTO(code, &line, _err);
 
+  pTable->pDataFile = taosOpenFile(name, TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
   *ppTable = pTable;
 _err:
   if (code != 0) {
@@ -525,6 +405,42 @@ int32_t tableLoadBlk(STableBuilder *pTable, uint32_t blockId, SBlkData *blk) {
 int32_t tableLoadBySeq(STableBuilder *pTable, uint64_t key, SValueInfo *pInfo, uint8_t **pValue, int32_t *len) {
   int32_t code = 0;
   return tableGet(pTable, pInfo->offset, key, pValue, len);
+}
+
+int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
+  int32_t lino = 0;
+  int32_t code = 0;
+
+  SBse *p = taosMemoryMalloc(sizeof(SBse));
+  if (p == NULL) {
+    TAOS_CHECK_GOTO(terrno, &lino, _err);
+  }
+
+  code = tableOpen(path, &p->pTableBuilder);
+  TAOS_CHECK_GOTO(code, &lino, _err);
+
+  p->pSeqOffsetCache =
+      taosHashInit(4096 * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_ENTRY_LOCK);
+  if (p->pSeqOffsetCache == NULL) {
+    TAOS_CHECK_GOTO(terrno, &lino, _err);
+  }
+
+  taosThreadMutexInit(&p->mutex, NULL);
+  tstrncpy(p->path, path, sizeof(p->path));
+  *pBse = p;
+_err:
+  if (code != 0) {
+    bseError("failed to open bse since %s", tstrerror(code));
+  }
+  return code;
+}
+void bseClose(SBse *pBse) {
+  if (pBse == NULL) {
+    return;
+  }
+  tableClose(pBse->pTableBuilder);
+  taosHashCleanup(pBse->pSeqOffsetCache);
+  taosMemoryFree(pBse);
 }
 
 int32_t bseAppend(SBse *pBse, uint64_t *seq, uint8_t *value, int32_t len) {
