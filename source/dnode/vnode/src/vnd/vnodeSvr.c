@@ -1008,7 +1008,7 @@ static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode *pVnode, int64_t ver, void 
   tb_uid_t    suid;
   char        ctbName[TSDB_TABLE_NAME_LEN];
   SVDropTbReq expiredTb = {.igNotExists = true};
-  metaReaderDoInit(&mr, pVnode->pMeta, 0);
+  metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK);
   rsp.vgId = TD_VID(pVnode);
   rsp.pExpiredTbs = taosArrayInit(ttlReq.nUids, sizeof(SVDropTbReq));
   if (!rsp.pExpiredTbs) goto _end;
