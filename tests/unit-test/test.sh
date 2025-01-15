@@ -7,10 +7,10 @@ function usage() {
 }
 
 ent=1
-while getopts "eh" opt; do
+while getopts "e:h" opt; do
     case $opt in
         e)
-            ent=1
+            ent="$OPTARG"
             ;;
         h)
             usage
