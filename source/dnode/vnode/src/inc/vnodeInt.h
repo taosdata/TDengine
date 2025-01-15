@@ -95,6 +95,8 @@ typedef struct SQueryNode         SQueryNode;
 #define VNODE_RSMA2_DIR      "rsma2"
 #define VNODE_TQ_STREAM      "stream"
 #define VNODE_CACHE_DIR      "cache.rdb"
+#define VNODE_BSE_DIR        "bse"
+
 #define VNODE_TSDB_CACHE_DIR VNODE_TSDB_DIR TD_DIRSEP VNODE_CACHE_DIR
 
 #if SUSPEND_RESUME_TEST  // only for test purpose

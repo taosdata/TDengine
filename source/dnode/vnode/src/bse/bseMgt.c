@@ -14,6 +14,7 @@
  */
 
 #include "bse.h"
+#include "cJSON.h"
 #include "os.h"
 #include "tchecksum.h"
 #include "tlog.h"
@@ -25,6 +26,8 @@
 #define kMagicNumber 0xdb4775248b80fb57ull;
 #define kMagicNum    0x123456
 
+#define BSE_FILE_FULL_LEN TSDB_FILENAME_LEN
+
 enum type {
   BSE_DATA_TYPE = 0x1,
   BSE_META_TYPE = 0x2,
@@ -34,23 +37,6 @@ enum type {
 #define kBlockTrailerSize (1 + 1 + 4)  // complete flag + compress type + crc unmask
 
 static int32_t kBlockCap = 512;
-
-// clang-format off
-#define bseFatal(...) do { if (bseDebugFlag & DEBUG_FATAL) { taosPrintLog("BSE FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define bseError(...) do { if (bseDebugFlag & DEBUG_ERROR) { taosPrintLog("BSE ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define bseWarn(...)  do { if (bseDebugFlag & DEBUG_WARN)  { taosPrintLog("BSE WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define bseInfo(...)  do { if (bseDebugFlag & DEBUG_INFO)  { taosPrintLog("BSE ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define bseDebug(...) do { if (bseDebugFlag & DEBUG_DEBUG) { taosPrintLog("BSE ", DEBUG_DEBUG, bseDebugFlag, __VA_ARGS__); }}    while(0)
-#define bseTrace(...) do { if (bseDebugFlag & DEBUG_TRACE) { taosPrintLog("BSE ", DEBUG_TRACE, bseDebugFlag, __VA_ARGS__); }}    while(0)
-
-#define bseGTrace(param, ...) do { if (bseDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseTrace(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
-#define bseGFatal(param, ...) do { if (bseDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseFatal(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
-#define bseGError(param, ...) do { if (bseDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseError(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
-#define bseGWarn(param, ...)  do { if (bseDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseWarn(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
-#define bseGInfo(param, ...)  do { if (bseDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseInfo(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
-#define bseGDebug(param, ...) do { if (bseDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseDebug(param ",QID:%s", __VA_ARGS__, buf);}}    while(0)
-
-// clang-format on
 
 static void bseBuildDataFullName(SBse *pBse, char *name);
 static void bseBuildIndexFullName(SBse *pBse, char *name);
@@ -442,7 +428,207 @@ int32_t tableLoadBySeq(STable *pTable, uint64_t key, uint8_t **pValue, int32_t *
 
   return tableGet(pTable, pInfo->offset, key, pValue, len);
 }
+static char *bseFilexSuffix[] = {
+    "idx",
+    "data",
+    "log",
+};
 
+int32_t bseLoadMeta(SBse *pBse) {
+  int32_t code = 0;
+  return code;
+}
+static FORCE_INLINE int32_t bseBuildMetaName(SBse *pBse, int ver, char *name) {
+  return snprintf(name, BSE_FILE_FULL_LEN, "%s%sbse-ver%d", pBse->path, TD_DIRSEP, ver);
+}
+static FORCE_INLINE int32_t bseBuildTempMetaName(SBse *pBse, char *name) {
+  return snprintf(name, BSE_FILE_FULL_LEN, "%s%sbse-ver.tmp", pBse->path, TD_DIRSEP);
+}
+
+typedef struct {
+  int64_t firstVer;
+  int64_t lastVer;
+  int64_t createTs;
+  int64_t closeTs;
+  int64_t fileSize;
+  int64_t syncedOffset;
+} SBseFileInfo;
+
+static int32_t bseFindCurrMetaVer(SBse *pBse);
+
+static int32_t bseMetaSerialize(SBse *pBse, char **pBuf, int32_t *len) {
+  int32_t code = 0;
+  int32_t line = 0;
+  char    buf[128] = {0};
+
+  int32_t sz = taosArrayGetSize(pBse->fileSet);
+  cJSON  *pRoot = cJSON_CreateObject();
+  cJSON  *pMeta = cJSON_CreateObject();
+  cJSON  *pFiles = cJSON_CreateArray();
+  cJSON  *pField;
+  if (pRoot == NULL || pMeta == NULL || pFiles == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_THIRDPARTY_ERROR, &line, _err);
+  }
+
+  int64_t firstVer = -1;
+  int64_t snapshotVer = -1;
+  int64_t commitVer = -1;
+  int64_t lastVer = -1;
+
+  if (!cJSON_AddItemToObject(pRoot, "meta", pMeta)) goto _err;
+  snprintf(buf, sizeof(buf), "%" PRId64, firstVer);
+  if (cJSON_AddStringToObject(pMeta, "firstVer", buf) == NULL) goto _err;
+  (void)snprintf(buf, sizeof(buf), "%" PRId64, snapshotVer);
+  if (cJSON_AddStringToObject(pMeta, "snapshotVer", buf) == NULL) goto _err;
+  (void)snprintf(buf, sizeof(buf), "%" PRId64, commitVer);
+  if (cJSON_AddStringToObject(pMeta, "commitVer", buf) == NULL) goto _err;
+  (void)snprintf(buf, sizeof(buf), "%" PRId64, lastVer);
+  if (cJSON_AddStringToObject(pMeta, "lastVer", buf) == NULL) goto _err;
+  for (int i = 0; i < taosArrayGetSize(pBse->fileSet); i++) {
+    SBseFileInfo *pInfo = taosArrayGet(pBse->fileSet, i);
+    if (!cJSON_AddItemToArray(pFiles, pField = cJSON_CreateObject())) {
+      bseInfo("vgId:%d, failed to add field to files", pBse->cfg.vgId);
+    }
+    if (pField == NULL) {
+      cJSON_Delete(pRoot);
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    // cjson only support int32_t or double
+    // string are used to prohibit the loss of precision
+    (void)snprintf(buf, sizeof(buf), "%" PRId64, pInfo->firstVer);
+    if (cJSON_AddStringToObject(pField, "firstVer", buf) == NULL) goto _err;
+    (void)snprintf(buf, sizeof(buf), "%" PRId64, pInfo->lastVer);
+    if (cJSON_AddStringToObject(pField, "lastVer", buf) == NULL) goto _err;
+    (void)snprintf(buf, sizeof(buf), "%" PRId64, pInfo->createTs);
+    if (cJSON_AddStringToObject(pField, "createTs", buf) == NULL) goto _err;
+    (void)snprintf(buf, sizeof(buf), "%" PRId64, pInfo->closeTs);
+    if (cJSON_AddStringToObject(pField, "closeTs", buf) == NULL) goto _err;
+    (void)snprintf(buf, sizeof(buf), "%" PRId64, pInfo->fileSize);
+    if (cJSON_AddStringToObject(pField, "fileSize", buf) == NULL) goto _err;
+  }
+  char *pSerialized = cJSON_Print(pRoot);
+  cJSON_Delete(pRoot);
+
+  *pBuf = pSerialized;
+  *len = strlen(pSerialized);
+  return code;
+_err:
+  bseError("vgId:%d, %s failed at line %d since %s", pBse->cfg.vgId, __func__, line, tstrerror(code));
+  cJSON_Delete(pRoot);
+  cJSON_Delete(pMeta);
+  cJSON_Delete(pFiles);
+  return code;
+}
+
+int32_t bseSaveMeta(SBse *pBse) {
+  int32_t code = 0, line = 0;
+  char    fNameStr[BSE_FILE_FULL_LEN] = {0};
+  char    tNameStr[BSE_FILE_FULL_LEN] = {0};
+  int32_t nBytes = 0;
+  int32_t ver = bseFindCurrMetaVer(pBse);
+
+  int32_t n = bseBuildTempMetaName(pBse, tNameStr);
+  if (n >= sizeof(tNameStr)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  TdFilePtr pMetaFile = taosOpenFile(tNameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  if (pMetaFile == NULL) {
+    bseError("vgId:%d, failed to open file due to %s. file:%s", pBse->cfg.vgId, strerror(errno), tNameStr);
+    TAOS_RETURN(terrno);
+  }
+  char   *buf = NULL;
+  int32_t len = 0;
+  code = bseMetaSerialize(pBse, &buf, &len);
+  TAOS_CHECK_GOTO(code, &line, _err);
+
+  nBytes = taosWriteFile(pMetaFile, buf, len);
+  if (nBytes != len) {
+    TAOS_CHECK_GOTO(terrno, &line, _err);
+  }
+
+  code = taosFsyncFile(pMetaFile);
+  TAOS_CHECK_GOTO(code, &line, _err);
+
+  if (taosCloseFile(&pMetaFile) < 0) {
+    TAOS_CHECK_GOTO(terrno, &line, _err);
+  }
+
+  n = bseBuildMetaName(pBse, ver + 1, fNameStr);
+  if (n >= sizeof(fNameStr)) {
+    TAOS_CHECK_GOTO(TSDB_CODE_FAILED, &line, _err);
+  }
+
+  if (taosRenameFile(tNameStr, fNameStr) < 0) {
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &line, _err);
+  }
+
+  if (ver > -1) {
+    n = bseBuildMetaName(pBse, ver, fNameStr);
+    if (n >= sizeof(fNameStr)) {
+      TAOS_CHECK_GOTO(TSDB_CODE_FAILED, &line, _err);
+    }
+    code = taosRemoveFile(fNameStr);
+    if (code) {
+      bseError("vgId:%d, failed to remove file due to %s. file:%s", pBse->cfg.vgId, strerror(errno), fNameStr);
+    } else {
+      bseInfo("vgId:%d, remove old meta file: %s", pBse->cfg.vgId, fNameStr);
+    }
+  }
+  taosMemoryFree(buf);
+  return code;
+_err:
+  bseError("vgId:%d, %s failed at line %d since %s", pBse->cfg.vgId, __func__, line, tstrerror(code));
+  (void)taosCloseFile(&pMetaFile);
+  taosMemoryFree(buf);
+  return code;
+}
+static int32_t bseFindCurrMetaVer(SBse *pBse) {
+  int32_t     code = 0;
+  const char *pattern = "^bse-ver[0-9]+$";
+
+  regex_t bseMetaRegexPattern;
+  if (regcomp(&bseMetaRegexPattern, pattern, REG_EXTENDED) != 0) {
+    bseError("failed to compile bse faile pattern, error %s", tstrerror(terrno));
+    return terrno;
+  }
+  TdDirPtr pDir = taosOpenDir(pBse->path);
+  if (pDir == NULL) {
+    bseError("vgId:%d, path:%s, failed to open since %s", pBse->cfg.vgId, pBse->path, tstrerror(terrno));
+    regfree(&bseMetaRegexPattern);
+    return terrno;
+  }
+
+  TdDirEntryPtr pDirEntry;
+
+  // find existing bse-ver[x].json
+  int bseVer = -1;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char *name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
+    int   code = regexec(&bseMetaRegexPattern, name, 0, NULL, 0);
+    if (code == 0) {
+      (void)sscanf(name, "meta-ver%d", &bseVer);
+      bseDebug("vgId:%d, bse find current meta: %s is the meta file, ver %d", pBse->cfg.vgId, name, bseVer);
+      break;
+    }
+    bseDebug("vgId:%d, bse find current meta: %s is not meta file", pBse->cfg.vgId, name);
+  }
+  if (taosCloseDir(&pDir) != 0) {
+    bseError("failed to close dir, ret:%s", tstrerror(terrno));
+    regfree(&bseMetaRegexPattern);
+    return terrno;
+  }
+  regfree(&bseMetaRegexPattern);
+  return bseVer;
+}
+int32_t bseInitLock(SBse *pBse) {
+  TdThreadRwlockAttr attr;
+  (void)taosThreadRwlockAttrInit(&attr);
+  (void)taosThreadRwlockAttrSetKindNP(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+  (void)taosThreadRwlockInit(&pBse->rwlock, &attr);
+  (void)taosThreadRwlockAttrDestroy(&attr);
+  return 0;
+}
 int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
   int32_t lino = 0;
   int32_t code = 0;
@@ -452,24 +638,30 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
     TAOS_CHECK_GOTO(terrno, &lino, _err);
   }
 
+  code = bseInitLock(p);
+  TAOS_CHECK_GOTO(code, &lino, _err);
+
   code = tableOpen(path, &p->pTable);
   TAOS_CHECK_GOTO(code, &lino, _err);
 
   taosThreadMutexInit(&p->mutex, NULL);
   tstrncpy(p->path, path, sizeof(p->path));
   *pBse = p;
+
 _err:
   if (code != 0) {
     bseError("failed to open bse since %s", tstrerror(code));
   }
   return code;
 }
+
 void bseClose(SBse *pBse) {
   if (pBse == NULL) {
     return;
   }
   tableClose(pBse->pTable);
-  // taosHashCleanup(pBse->pSeqOffsetCache);
+  taosThreadMutexDestroy(&pBse->mutex);
+  taosThreadRwlockDestroy(&pBse->rwlock);
   taosMemoryFree(pBse);
 }
 

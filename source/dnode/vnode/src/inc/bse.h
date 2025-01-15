@@ -24,6 +24,22 @@
 extern "C" {
 #endif
 
+// clang-format off
+#define bseFatal(...) do { if (bseDebugFlag & DEBUG_FATAL) { taosPrintLog("BSE FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
+#define bseError(...) do { if (bseDebugFlag & DEBUG_ERROR) { taosPrintLog("BSE ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
+#define bseWarn(...)  do { if (bseDebugFlag & DEBUG_WARN)  { taosPrintLog("BSE WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
+#define bseInfo(...)  do { if (bseDebugFlag & DEBUG_INFO)  { taosPrintLog("BSE ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
+#define bseDebug(...) do { if (bseDebugFlag & DEBUG_DEBUG) { taosPrintLog("BSE ", DEBUG_DEBUG, bseDebugFlag, __VA_ARGS__); }}    while(0)
+#define bseTrace(...) do { if (bseDebugFlag & DEBUG_TRACE) { taosPrintLog("BSE ", DEBUG_TRACE, bseDebugFlag, __VA_ARGS__); }}    while(0)
+
+#define bseGTrace(param, ...) do { if (bseDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseTrace(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define bseGFatal(param, ...) do { if (bseDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseFatal(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define bseGError(param, ...) do { if (bseDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseError(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define bseGWarn(param, ...)  do { if (bseDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseWarn(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define bseGInfo(param, ...)  do { if (bseDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseInfo(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
+#define bseGDebug(param, ...) do { if (bseDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); bseDebug(param ",QID:%s", __VA_ARGS__, buf);}}    while(0)
+
+// clang-format on
 typedef struct {
   uint64_t offset;
   int32_t  size;
@@ -82,16 +98,6 @@ typedef struct {
   SHashObj    *pCache;
   int32_t      blockId;
 } STable;
-typedef struct {
-  char    path[TSDB_FILENAME_LEN];
-  int64_t ver;
-  STable *pTable;
-  // SHashObj     *pTableCache;
-  TdThreadMutex mutex;
-  uint64_t      seq;
-  uint64_t      commitSeq;
-  SHashObj     *pSeqOffsetCache;
-} SBse;
 
 typedef struct {
   int32_t vgId;
@@ -105,6 +111,20 @@ typedef struct {
   char    encryptKey[ENCRYPT_KEY_LEN + 1];
   int8_t  clearFiles;
 } SBseCfg;
+
+typedef struct {
+  char    path[TSDB_FILENAME_LEN];
+  int64_t ver;
+  STable *pTable;
+  // SHashObj     *pTableCache;
+  TdThreadMutex  mutex;
+  TdThreadRwlock rwlock;
+  uint64_t       seq;
+  uint64_t       commitSeq;
+  SHashObj      *pSeqOffsetCache;
+  SBseCfg        cfg;
+  SArray        *fileSet;
+} SBse;
 
 int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse);
 int32_t bseAppend(SBse *pBse, uint64_t *seq, uint8_t *value, int32_t len);

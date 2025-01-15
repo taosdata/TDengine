@@ -633,7 +633,7 @@ _exit:
   if (code) {
     wError("vgId:%d, %s failed at line %d since %s", pWal->cfg.vgId, __func__, lino, tstrerror(code));
   }
-  
+
   // recover in a reverse order
   if (taosFtruncateFile(pWal->pLogFile, offset) < 0) {
     wFatal("vgId:%d, failed to recover WAL logfile from write error since %s, offset:%" PRId64, pWal->cfg.vgId,
