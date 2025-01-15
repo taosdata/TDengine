@@ -383,7 +383,10 @@ static int32_t authAlterVTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
   PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_WRITE, NULL));
-  PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->refTableName, AUTH_TYPE_READ, NULL));
+  if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
+      pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF) {
+    PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->refTableName, AUTH_TYPE_READ, NULL));
+  }
   PAR_RET(TSDB_CODE_SUCCESS);
 }
 
