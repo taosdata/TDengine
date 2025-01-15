@@ -94,17 +94,11 @@ int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t ad
     pWp->nCols = nCols + 1;
     pWp->version = ver;
   } else {
-    for (int32_t i = 0; i < nCols; i++) {
-      SColRef *pOCRef = &pWp->pColRef[i];
-      if (pOCRef->id == pSchema->colId) {
-        int32_t left = (nCols - i - 1) * sizeof(SColRef);
-        if (left) {
-          memmove(pWp->pColRef + i, pWp->pColRef + i + 1, left);
-        }
-        nCols--;
-        break;
-      }
+    int32_t left = (nCols - pSchema->colId - 1) * sizeof(SColRef);
+    if (left) {
+      memmove(pWp->pColRef + pSchema->colId, pWp->pColRef + pSchema->colId + 1, left);
     }
+    nCols--;
     pWp->nCols = nCols;
     pWp->version = ver;
   }
