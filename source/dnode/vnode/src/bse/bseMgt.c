@@ -135,6 +135,7 @@ int32_t blockInit(int32_t id, int32_t cap, int8_t type, SBlkData *blk) {
   blk->len = 0;
   blk->cap = cap;
   blk->id = id;
+  blk->dataNum = 0;
 
   blk->pData = (SBlkData2 *)taosMemoryCalloc(1, kBlockCap);
   blk->pData->id = id;
@@ -153,10 +154,12 @@ int32_t blockAdd(SBlkData *blk, uint64_t key, uint8_t *value, int32_t len, uint3
   pBlk->len += taosEncodeVariantU64((void **)&p, key);
   pBlk->len += taosEncodeVariantI32((void **)&p, len);
   pBlk->len += taosEncodeBinary((void **)&p, value, len);
+
+  blk->dataNum++;
   return code;
 }
 
-int32_t blockAdd2(SBlkData *blk, uint64_t key, SValueInfo *pValue, uint64_t *offset) {
+int32_t blockAddMeta(SBlkData *blk, uint64_t key, SValueInfo *pValue, uint64_t *offset) {
   int32_t    code = 0;
   SBlkData2 *pBlk = blk->pData;
 
@@ -165,6 +168,8 @@ int32_t blockAdd2(SBlkData *blk, uint64_t key, SValueInfo *pValue, uint64_t *off
   pBlk->len += taosEncodeVariantU64((void **)&p, key);
   pBlk->len += taosEncodeVariantU64((void **)&p, pValue->offset);
   pBlk->len += taosEncodeVariantI32((void **)&p, pValue->size);
+
+  blk->dataNum++;
   return code;
 }
 
@@ -182,10 +187,11 @@ int32_t blockReset(SBlkData *data, uint8_t type, int32_t blockId) {
 
   memset((uint8_t *)pBlkData, 0, kBlockCap);
   data->type = type;
-  data->len = sizeof(SBlkData2);
+  data->len = 0;
   data->id = blockId;
+  data->dataNum = 0;
 
-  memset(pBlkData->head, 0, sizeof(pBlkData->head));
+  // memset(pBlkData->head, 0, sizeof(pBlkData->head));
   pBlkData->id = blockId;
   pBlkData->len = 0;
   pBlkData->head[3] = type;
@@ -212,15 +218,23 @@ static int32_t blockSeekOffset(SBlkData *data, uint32_t offset, uint64_t key, ui
   }
   p = taosDecodeVariantI32(p, &tlen);
   p = taosDecodeBinary(p, (void **)pValue, tlen);
-  *len = tlen;
 
+  *len = tlen;
   return code;
 }
 
-static void bseBuildDataFullName(SBse *pBse, char *name) { snprintf(name, strlen(name), "%s/%s", pBse->path, "data"); }
+static void bseBuildDataFullName(SBse *pBse, char *name) {
+  // build data file name
+  snprintf(name, strlen(name), "%s%s%s", pBse->path, TD_DIRSEP, "data");
+}
 
 static void bseBuildIndexFullName(SBse *pBse, char *name) {
-  snprintf(name, strlen(name), "%s/%s", pBse->path, "index");
+  // build index file name
+  snprintf(name, strlen(name), "%s%s%s", pBse->path, TD_DIRSEP, "index");
+}
+static void bseBuildLogFullName(SBse *pBse, char *name) {
+  // build log file name
+  snprintf(name, strlen(name), "%s%s%s", pBse->path, TD_DIRSEP, "log");
 }
 
 int32_t tableOpen(const char *name, STable **ppTable) {
@@ -260,14 +274,25 @@ _err:
 }
 
 int32_t tableClose(STable *pTable) {
+  int32_t line = 0;
   int32_t code = 0;
+
   code = blockCleanup(&pTable->data);
+  TAOS_CHECK_GOTO(code, &line, _err);
+
   code = blockCleanup(&pTable->bufBlk);
+  TAOS_CHECK_GOTO(code, &line, _err);
+
   taosHashCleanup(pTable->pCache);
 
-  taosCloseFile(&pTable->pDataFile);
+  code = taosCloseFile(&pTable->pDataFile);
+  TAOS_CHECK_GOTO(code, &line, _err);
 
   taosMemFree(pTable);
+_err:
+  if (code != 0) {
+    bseError("bse file %s failed to close table since %s", pTable->name, tstrerror(code));
+  }
   return code;
 }
 int32_t tableAppendData(STable *pTable, uint64_t key, uint8_t *value, int32_t len) {
@@ -313,13 +338,15 @@ int32_t tableAppendMeta(STable *pTable) {
   while (pIter) {
     key = *(uint64_t *)taosHashGetKey(pIter, NULL);
     SValueInfo *value = (SValueInfo *)pIter;
-    code = blockAdd2(&pTable->data, key, value, &offset);
+    code = blockAddMeta(&pTable->data, key, value, &offset);
     pIter = taosHashIterate(pTable->pCache, pIter);
   }
 
-  tableFlushBlock(pTable);
+  code = tableFlushBlock(pTable);
+  TAOS_CHECK_GOTO(code, &line, _err);
 
-  return code;
+  TAOS_CHECK_GOTO(blockReset(&pTable->data, BSE_FOOTER_TYPE, pTable->blockId), &line, _err);
+
 _err:
   if (code != 0) {
     bseError("bse file %s failed to append meta since %s", pTable->name, tstrerror(code));
@@ -360,6 +387,8 @@ int32_t tableFlushBlock(STable *pTable) {
   if (pBlk->len == 0) {
     return 0;
   }
+  // serialize or not
+  pBlk->len = pTable->data.dataNum;
 
   code = taosCalcChecksumAppend(0, (uint8_t *)pBlk, kBlockCap);
   TAOS_CHECK_GOTO(code, &line, _err);

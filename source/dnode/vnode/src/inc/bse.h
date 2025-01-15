@@ -49,6 +49,7 @@ typedef struct {
   uint32_t len;
   uint32_t cap;
   uint8_t  flushed;
+  uint32_t dataNum;
 
   SBlkData2 *pData;
   // int8_t   type;   // content data
