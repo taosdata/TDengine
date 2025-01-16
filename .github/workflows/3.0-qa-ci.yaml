@@ -255,6 +255,7 @@ jobs:
           genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx-report-e2e/ --quiet --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_e2e_remove.info
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/"
       - name: opc Report
+        continue-on-error: true
         run: |
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/mqtt/"
           # opc report
@@ -267,6 +268,7 @@ jobs:
           /root/go/bin/gocov convert opc_unit_report.txt opc_e2e_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/merged/index.html
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/opc/"
       - name: influxdb & opentsdb report
+        continue-on-error: true
         run: |
           # opentsdb report
           mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opentsdb/unit/ && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opentsdb/e2e/ && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opentsdb/merged/
