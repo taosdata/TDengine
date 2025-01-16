@@ -40,7 +40,7 @@ TEST_TYPE="all"
 SAVE_LOG="notsave"
 
 # Parse command line parameters
-while getopts "hb:d:s:" arg; do
+while getopts "hb:d:t:s:" arg; do
   case $arg in
     d)
       PROJECT_DIR=$OPTARG
