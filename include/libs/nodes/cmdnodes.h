@@ -566,19 +566,44 @@ typedef struct SStreamOptions {
   int64_t   setFlag;
 } SStreamOptions;
 
+typedef enum EStreamNotifyOptionSetFlag {
+  SNOTIFY_OPT_ERROR_HANDLE_SET = BIT_FLAG_MASK(0),
+  SNOTIFY_OPT_NOTIFY_HISTORY_SET = BIT_FLAG_MASK(1),
+} EStreamNotifyOptionSetFlag;
+
+typedef enum EStreamNotifyEventType {
+  SNOTIFY_EVENT_WINDOW_OPEN = BIT_FLAG_MASK(0),
+  SNOTIFY_EVENT_WINDOW_CLOSE = BIT_FLAG_MASK(1),
+} EStreamNotifyEventType;
+
+typedef enum EStreamNotifyErrorHandleType {
+  SNOTIFY_ERROR_HANDLE_PAUSE,
+  SNOTIFY_ERROR_HANDLE_DROP,
+} EStreamNotifyErrorHandleType;
+
+typedef struct SStreamNotifyOptions {
+  ENodeType                    type;
+  SNodeList*                   pAddrUrls;
+  EStreamNotifyEventType       eventTypes;
+  EStreamNotifyErrorHandleType errorHandle;
+  bool                         notifyHistory;
+  EStreamNotifyOptionSetFlag   setFlag;
+} SStreamNotifyOptions;
+
 typedef struct SCreateStreamStmt {
-  ENodeType           type;
-  char                streamName[TSDB_TABLE_NAME_LEN];
-  char                targetDbName[TSDB_DB_NAME_LEN];
-  char                targetTabName[TSDB_TABLE_NAME_LEN];
-  bool                ignoreExists;
-  SStreamOptions*     pOptions;
-  SNode*              pQuery;
-  SNode*              pPrevQuery;
-  SNodeList*          pTags;
-  SNode*              pSubtable;
-  SNodeList*          pCols;
-  SCMCreateStreamReq* pReq;
+  ENodeType             type;
+  char                  streamName[TSDB_TABLE_NAME_LEN];
+  char                  targetDbName[TSDB_DB_NAME_LEN];
+  char                  targetTabName[TSDB_TABLE_NAME_LEN];
+  bool                  ignoreExists;
+  SStreamOptions*       pOptions;
+  SNode*                pQuery;
+  SNode*                pPrevQuery;
+  SNodeList*            pTags;
+  SNode*                pSubtable;
+  SNodeList*            pCols;
+  SStreamNotifyOptions* pNotifyOptions;
+  SCMCreateStreamReq*   pReq;
 } SCreateStreamStmt;
 
 typedef struct SDropStreamStmt {

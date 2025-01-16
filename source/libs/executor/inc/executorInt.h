@@ -449,9 +449,16 @@ typedef struct STimeWindowAggSupp {
   SColumnInfoData timeWindowData;  // query time window info for scalar function execution.
 } STimeWindowAggSupp;
 
+typedef struct SStreamNotifyEventSupp {
+  SArray*      pWindowEvents;   // Array of SStreamNotifyEvent, storing window events and trigger values.
+  SArray*      pWindowResults;  // Array of SStreamNotifyEvent, storing window results.
+  SSDataBlock* pEventBlock;     // The datablock contains all window events and results.
+} SStreamNotifyEventSupp;
+
 typedef struct SSteamOpBasicInfo {
-  int32_t primaryPkIndex;
-  bool    updateOperatorInfo;
+  int32_t                primaryPkIndex;
+  bool                   updateOperatorInfo;
+  SStreamNotifyEventSupp windowEventSup;
 } SSteamOpBasicInfo;
 
 typedef struct SStreamFillSupporter {
@@ -767,6 +774,8 @@ typedef struct SStreamEventAggOperatorInfo {
   SSHashObj*          pPkDeleted;
   bool                destHasPrimaryKey;
   struct SOperatorInfo* pOperator;
+  SNodeList*            pStartCondCols;
+  SNodeList*            pEndCondCols;
 } SStreamEventAggOperatorInfo;
 
 typedef struct SStreamCountAggOperatorInfo {
