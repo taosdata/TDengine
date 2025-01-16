@@ -92,27 +92,33 @@ bash test.sh -e 0
 
 #### How to add new cases?
 
+<details>
+
+<summary>Detailed steps to add new unit test case</summary>
+
 The Google test framwork is used for unit testing to specific function module, you can refer below steps to add one test case:
 
-##### Create test case file and develop the test scripts
+##### 1. Create test case file and develop the test scripts
 
 In the test directory corresponding to the target function module, create test files in CPP format and write corresponding test cases.
 
-##### Update build configuration
+##### 2. Update build configuration
 
 Modify the CMakeLists.txt file in this directory to ensure that the new test files are properly included in the compilation process. See the source\os\test\CMakeLists.txt file for configuration examples.
 
-##### Compile test code
+##### 3. Compile test code
 
 In the root directory of the project, create a compilation directory (e.g., debug), switch to the directory and run CMake commands (e.g., cmake .. -DBUILD_TEST=1) to generate a compilation file, and then run a compilation command (e.g. make) to complete the compilation of the test code. 
 
-##### Execute the test program
+##### 4. Execute the test program
 
 Find the executable file in the compiled directory(e.g. TDengine/debug/build/bin/) and run it.
 
-##### Integrate into CI tests
+##### 5. Integrate into CI tests
 
 Use the add_test command to add new compiled test cases into CI test collection, ensure that the new added test cases can be run for every build.
+
+</details>
 
 ## 3.1.2 System Test
 
@@ -135,7 +141,34 @@ cd tests
 
 ### How to add new case?
 
-[Placeholder]
+<details>
+
+<summary>Detailed steps to add new system test case</summary>
+
+you can refer below steps to add one test case:
+
+##### 1. Create test case file and develop the test scripts
+
+In the test directory corresponding to the target function module, create test files in CPP format and write corresponding test cases.
+
+##### 2. Update build configuration
+
+Modify the CMakeLists.txt file in this directory to ensure that the new test files are properly included in the compilation process. See the source\os\test\CMakeLists.txt file for configuration examples.
+
+##### 3. Compile test code
+
+In the root directory of the project, create a compilation directory (e.g., debug), switch to the directory and run CMake commands (e.g., cmake .. -DBUILD_TEST=1) to generate a compilation file, and then run a compilation command (e.g. make) to complete the compilation of the test code. 
+
+##### 4. Execute the test program
+
+Find the executable file in the compiled directory(e.g. TDengine/debug/build/bin/) and run it.
+
+##### 5. Integrate into CI tests
+
+Use the add_test command to add new compiled test cases into CI test collection, ensure that the new added test cases can be run for every build.
+
+</details>
+
 
 ## 3.1.3 Legacy Test
 
