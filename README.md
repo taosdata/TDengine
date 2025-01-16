@@ -216,7 +216,8 @@ apt install python3-pip
 Install the dependent Python components.
 
 ```bash
-pip3 install pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog toml
+pip3 install pandas psutil fabric2 requests faker simplejson toml \
+     pexpect tzlocal distro decorator loguru hyperloglog toml
 ```
 
 Install the Python connector for TDengine.
@@ -276,7 +277,8 @@ Using the following script to package the enterprise edition.
 
 ```bash
 cd /root/TDinternal/enterprise/packaging
-./new_ver_release.sh -n <version_number>   # version_number should be in the format x.x.x.x[.x], e.g., 3.3.5.0 or 3.3.5.0.1234
+# version_number should be in the format x.x.x.x[.x], e.g., 3.3.5.0 or 3.3.5.0.1234
+./new_ver_release.sh -n <version_number>   
 ```
 
 Once the packaging process is complete, you can find the installation package files listed below by executing the command:
@@ -425,7 +427,8 @@ We can also run ci script locally.
 
 ```bash
 cd /root/TDinternal/community/tests
-chmod +x run_all_ci_cases.sh && ./run_all_ci_cases.sh   # use -d $TDENGINE_DIR option if not use default /root/TDinternal/community
+# use -d $TDENGINE_DIR option if not use default /root/TDinternal/community
+chmod +x run_all_ci_cases.sh && ./run_all_ci_cases.sh
 ```
 
 # 11 Coverage
@@ -435,7 +438,10 @@ We can also run coverage script locally with following commands. Please note tha
 
 ```bash
 cd /root/TDinternal/community/tests
-bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -d [TDengine dir] -b [Test branch] -i [Build test branch] -f [TDengine gcda dir] -c [Test single case/all cases] -u [Unit test case] -l [Lcov dir]     # for more infomation about options please refer to ./run_local_coverage.sh -h
+# for more infomation about options please refer to ./run_local_coverage.sh -h
+bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -d [TDengine dir] -b [Test branch] \
+-i [Build test branch] -f [TDengine gcda dir] -c [Test single case/all cases] \
+-u [Unit test case] -l [Lcov dir]
 ```
 
 # 12 Contributing
