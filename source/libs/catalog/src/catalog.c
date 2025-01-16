@@ -138,7 +138,7 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
       taosMemoryFreeClear(output->tbMeta);
 
       CTG_ERR_JRET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, output->dbFName, output->tbName, output, NULL));
-    } else if (CTG_IS_META_BOTH(output->metaType)) {
+    } else if (CTG_IS_META_BOTH(output->metaType) || CTG_IS_META_VBOTH(output->metaType)) {
       int32_t exist = 0;
       if (!CTG_FLAG_IS_FORCE_UPDATE(ctx->flag)) {
         CTG_ERR_JRET(ctgTbMetaExistInCache(pCtg, output->dbFName, output->tbName, &exist));
@@ -190,6 +190,7 @@ _return:
 
   if (output) {
     taosMemoryFreeClear(output->tbMeta);
+    taosMemoryFreeClear(output->vctbMeta);
     taosMemoryFreeClear(output);
   }
   
@@ -220,8 +221,29 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
       goto _return;
     }
 
+    if (CTG_IS_META_VBOTH(output->metaType) || CTG_IS_META_VCTABLE(output->metaType)) {
+      int32_t colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
+      if (output->tbMeta) {
+        int32_t metaSize = CTG_META_SIZE(output->tbMeta);
+        int32_t schemaExtSize = 0;
+        if (useCompress(output->tbMeta->tableType) && output->tbMeta->schemaExt) {
+          schemaExtSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+        }
+        TAOS_MEMCPY(output->tbMeta, output->vctbMeta, sizeof(SVCTableMeta));
+        output->tbMeta->colRef = (SColRef *)((char *)output->tbMeta + metaSize + schemaExtSize);
+        TAOS_MEMCPY(output->tbMeta->colRef, output->vctbMeta->colRef, colRefSize);
+      } else  {
+        TAOS_MEMCPY(output->tbMeta, output->vctbMeta, sizeof(SVCTableMeta) + colRefSize);
+        output->tbMeta->colRef = (SColRef *)((char *)output->tbMeta + sizeof(SVCTableMeta));
+      }
+
+      *pTableMeta = output->tbMeta;
+      goto _return;
+    }
+
     if ((!CTG_IS_META_CTABLE(output->metaType)) || output->tbMeta) {
       ctgError("invalid metaType:%d", output->metaType);
+      taosMemoryFreeClear(output->vctbMeta);
       taosMemoryFreeClear(output->tbMeta);
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
@@ -229,6 +251,7 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
     // HANDLE ONLY CHILD TABLE META
 
     taosMemoryFreeClear(output->tbMeta);
+    taosMemoryFreeClear(output->vctbMeta);
 
     SName stbName = *ctx->pName;
     TAOS_STRCPY(stbName.tname, output->tbName);
@@ -293,6 +316,12 @@ int32_t ctgUpdateTbMeta(SCatalog* pCtg, STableMetaRsp* rspMsg, bool syncOp) {
     SET_META_TYPE_CTABLE(output->metaType);
 
     CTG_ERR_JRET(queryCreateCTableMetaFromMsg(rspMsg, &output->ctbMeta));
+  } else if (TSDB_VIRTUAL_CHILD_TABLE == rspMsg->tableType && NULL == rspMsg->pSchemas) {
+    TAOS_STRCPY(output->ctbName, rspMsg->tbName);
+
+    SET_META_TYPE_VCTABLE(output->metaType);
+
+    CTG_ERR_JRET(queryCreateVCTableMetaFromMsg(rspMsg, &output->vctbMeta));
   } else {
     TAOS_STRCPY(output->tbName, rspMsg->tbName);
 
@@ -311,6 +340,7 @@ _return:
 
   if (output) {
     taosMemoryFreeClear(output->tbMeta);
+    taosMemoryFreeClear(output->vctbMeta);
     taosMemoryFreeClear(output);
   }
   

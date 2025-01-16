@@ -591,6 +591,7 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
     case TDMT_VND_TABLE_NAME: {
       STableMetaOutput* pOut = (STableMetaOutput*)pCtx->out;
       taosMemoryFree(pOut->tbMeta);
+      taosMemoryFree(pOut->vctbMeta);
       taosMemoryFreeClear(pCtx->out);
       break;
     }
@@ -676,6 +677,7 @@ void ctgFreeSTableMetaOutput(STableMetaOutput* pOutput) {
   }
 
   taosMemoryFree(pOutput->tbMeta);
+  taosMemoryFree(pOutput->vctbMeta);
   taosMemoryFree(pOutput);
 }
 
@@ -1681,6 +1683,7 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     }
   }
 
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2386,6 +2389,8 @@ FORCE_INLINE uint64_t ctgGetTbMetaCacheSize(STableMeta* pMeta) {
       return sizeof(*pMeta) + (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags) * sizeof(SSchema);
     case TSDB_CHILD_TABLE:
       return sizeof(SCTableMeta);
+    case TSDB_VIRTUAL_CHILD_TABLE:
+      return sizeof(*pMeta);
     default:
       return sizeof(*pMeta) + pMeta->tableInfo.numOfColumns * sizeof(SSchema);
   }

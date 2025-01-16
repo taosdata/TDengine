@@ -94,7 +94,7 @@ int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t ad
     pWp->nCols = nCols + 1;
     pWp->version = ver;
   } else {
-    int32_t left = (nCols - pSchema->colId - 1) * sizeof(SColRef);
+    int32_t left = (nCols - pSchema->colId) * sizeof(SColRef);
     if (left) {
       memmove(pWp->pColRef + pSchema->colId, pWp->pColRef + pSchema->colId + 1, left);
     }
@@ -162,6 +162,7 @@ int32_t metaUpdateVtbMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema
   pMetaRsp->tuid = uid;
   pMetaRsp->tableType = tableType;
   pMetaRsp->virtualStb = false; // super table will never be processed here
+  pMetaRsp->numOfColRefs = pRef->nCols;
 
   return code;
 _return:
