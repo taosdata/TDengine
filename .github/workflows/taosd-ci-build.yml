@@ -17,8 +17,11 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    name: Build and test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, ubuntu-20.04, ubuntu-18.04]
+    name: Build and test on ${{ matrix.os }}
 
     steps:
       - name: Checkout the repository
