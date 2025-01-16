@@ -1,6 +1,13 @@
-# Testing TDengine
+# Table of Contents
+1. [Introduction](#1-introduction)
+1. [Prerequisites](#2-prerequisites)
+2. [Testing Guide](#3-testing-guide)
 
-## Install the required tools
+# 1. Introduction
+
+This manual is intended to provide users with comprehensive guidance to help them verify the TDengine function efficiently. The document is divided into three main sections: introduction, prerequisites and testing guide. 
+
+# 2. Prerequisites 
 
 Install Python3.
 
@@ -30,6 +37,8 @@ cmake .. -DBUILD_TOOLS=true -DBUILD_TEST=true -DBUILD_CONTRIB=true
 make && make install
 ```
 
+# 3. Testing Guide
+
 ## Unit Test
 
 Unit test script is the smallest testable part and developed for some function, method or class of TDengine, you can run
@@ -47,7 +56,7 @@ work for TDengine Enterprise Edition, you can run the script with below command:
 
 ```bash
 cd tests/system-test
-python3 ./test.py -f 2-query/avg.py
+python3 ./test.py -f 2-query/floor.py
 ```
 
 ## Smoke Test
@@ -68,7 +77,6 @@ In the early stage of TDengine development, test cases are run by an internal te
 cd tests/script
 ./test.sh -f tsim/db/basic1.sim
 ```
-
 ## How TO Add Test Cases
 
 You can add sim test case under tests/script, python test case under tests/system-test or tests/army. When the case passes in the test branch, add the case to the cases.task file under tests/parallel_test, and then merge the pr into main branch to run in the future CI.
