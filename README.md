@@ -386,7 +386,10 @@ TDengine build check workflow can be found in this [Github Action](https://githu
 
 # 11. Coverage
 
-Latest TDengine test coverage report can be found on [coveralls.io](https://coveralls.io/github/taosdata/TDengine). To create the test coverage report (in HTML format) locally, please run following commands:
+<details>
+
+<summary>Latest TDengine test coverage report can be found on [coveralls.io](https://coveralls.io/github/taosdata/TDengine). </summary>
+To create the test coverage report (in HTML format) locally, please run following commands:
 
 ```bash
 cd tests
@@ -394,8 +397,11 @@ bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -b main -c task
 # on main branch and run cases in longtimeruning_cases.task 
 # for more infomation about options please refer to ./run_local_coverage.sh -h
 ```
-> [!NOTE]
+> [**NOTE**]
 > Please note that the -b and -i options will recompile TDengine with the -DCOVER=true option, which may take a amount of time.
+
+</details>
+
 
 # 12. Contributing
 
