@@ -349,6 +349,16 @@ jobs:
           echo "influxdb_connector_coverage_diff=$influxdb_connector_coverage_diff" >> $GITHUB_ENV
           echo "opentsdb_connector_coverage_diff=$opentsdb_connector_coverage_diff" >> $GITHUB_ENV
           echo "opc_connector_coverage_diff=$opc_connector_coverage_diff" >> $GITHUB_ENV
+      - name: Change string to number
+        run: |
+          taosX_coverage_diff_numeric=$(echo "$taosX_coverage_diff" | bc)
+          echo "taosX_coverage_diff_numeric=$taosX_coverage_diff_numeric" >> $GITHUB_ENV
+          influxdb_connector_coverage_diff_numeric=$(echo "$influxdb_connector_coverage_diff" | bc)
+          echo "influxdb_connector_coverage_diff_numeric=$influxdb_connector_coverage_diff_numeric" >> $GITHUB_ENV
+          opentsdb_connector_coverage_diff_numeric=$(echo "$opentsdb_connector_coverage_diff" | bc)
+          echo "opentsdb_connector_coverage_diff_numeric=$opentsdb_connector_coverage_diff_numeric" >> $GITHUB_ENV
+          opc_connector_coverage_diff_numeric=$(echo "$opc_connector_coverage_diff" | bc)
+          echo "opc_connector_coverage_diff_numeric=$opc_connector_coverage_diff_numeric" >> $GITHUB_ENV
       
       - name: Send Feishu Message to taosX CI Group
         env:
@@ -379,7 +389,7 @@ jobs:
       - name: Send Feishu Message to Platform Alert Group
         env:
           COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
-        if: ${{ env.taosX_coverage_diff <0 }} || ${{ env.influxdb_connector_coverage_diff <0 }} || ${{ env.opentsdb_connector_coverage_diff <0 }} || ${{ env.opc_connector_coverage_diff <0 }}
+        if: ${{ env.taosX_coverage_diff_numeric <0 ||  env.influxdb_connector_coverage_diff_numeric <0 ||  env.opentsdb_connector_coverage_diff_numeric <0  ||  env.opc_connector_coverage_diff_numeric <0 }}
         run: |
           function post_to_feishu() {
             local text="$1"
