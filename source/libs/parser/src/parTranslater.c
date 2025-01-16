@@ -14783,7 +14783,6 @@ static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, S
   int32_t       code = TSDB_CODE_SUCCESS;
   SVCreateTbReq req = {0};
   SNode*        pCol;
-  col_id_t      index = 0;
 
   req.type = TD_VIRTUAL_CHILD_TABLE;
   req.name = taosStrdup(pStmt->tableName);
@@ -14814,6 +14813,7 @@ static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, S
       PAR_ERR_JRET(setColRef(&req.colRef.pColRef[pSchema->colId - 1], pSchema->colId, pColRef->refColName, pColRef->refTableName));
     }
   } else {
+    col_id_t index = 1; // start from second column, don't set column ref for ts column
     FOREACH(pCol, pStmt->pColRefs) {
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
       PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, pColRef->refColName, pColRef->refTableName));
