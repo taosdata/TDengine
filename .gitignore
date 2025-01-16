@@ -123,7 +123,6 @@ contrib/*
 !contrib/CMakeLists.txt
 !contrib/test
 !contrib/azure-cmake
-!contrib/xml2-cmake
 sql
 debug*/
 .env
@@ -157,6 +156,9 @@ pcre2_grep_test.sh
 pcre2_chartables.c
 geos-config
 config.h
+!contrib/xml2-cmake
+!contrib/xml2-cmake/linux_x86_64/include/config.h
+!contrib/xml2-cmake/CMakeLists.txt
 pcre2.h
 zconf.h
 version.h
