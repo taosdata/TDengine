@@ -33,7 +33,7 @@
 #define MAX_GROUP_ID_NUM               200000
 #define NUM_OF_CACHE_WIN               64
 #define MAX_NUM_OF_CACHE_WIN           128
-#define MIN_NUM_OF_SORT_CACHE_WIN      128
+#define MIN_NUM_OF_SORT_CACHE_WIN      4096
 
 #define DEFAULT_STATE_MAP_CAPACITY 10240
 #define MAX_STATE_MAP_SIZE         10240000
