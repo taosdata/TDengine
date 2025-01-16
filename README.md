@@ -388,9 +388,11 @@ TDengine build check workflow can be found in this [Github Action](https://githu
 
 # 11. Coverage
 
+Latest TDengine test coverage report can be found on [coveralls.io](https://coveralls.io/github/taosdata/TDengine)
+
 <details>
 
-<summary>Latest TDengine test coverage report can be found on [coveralls.io](https://coveralls.io/github/taosdata/TDengine). </summary>
+<summary> how to run the coverage report locally. </summary>
 To create the test coverage report (in HTML format) locally, please run following commands:
 
 ```bash
