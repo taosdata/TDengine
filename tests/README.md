@@ -12,12 +12,10 @@
 
 # 1. Introduction
 
-This manual is intended to provide users with comprehensive guidance to help them verify the TDengine function efficiently. 
-
-The document is divided into three main sections: introduction, prerequisites and testing guide.
+This manual is intended to give developers a comprehensive guidance to test TDengine efficiently. It is divided into three main sections: introduction, prerequisites and testing guide.
 
 > [!NOTE]
-> The below commands and test scripts are verified on linux (Ubuntu 18.04、20.04、22.04) locally.
+> The commands and scripts below are verified on Linux (Ubuntu 18.04/20.04/22.04).
 
 # 2. Prerequisites
 
@@ -43,7 +41,7 @@ pip3 install taospy taos-ws-py
 
 - Building
 
-Please make sure building operation with option `-DBUILD_TOOLS=true -DBUILD_TEST=true -DBUILD_CONTRIB=true` has been finished, otherwise execute commands below:
+Before testting, please make sure the building operation with option `-DBUILD_TOOLS=true -DBUILD_TEST=true -DBUILD_CONTRIB=true` has been done, otherwise execute commands below:
 
 ```bash
 cd debug
@@ -57,7 +55,7 @@ In `tests` directory, there are different types of tests for TDengine. Below is 
 
 ### 3.1 Unit Test
 
-Unit test script is the smallest testable part and developed for some function, method or class of TDengine.
+Unit tests are the smallest testable units, which are used to test functions, methods or classes in TDengine code.
 
 ### 3.1.1 How to run single test case?
 
@@ -79,7 +77,7 @@ bash test.sh -e 0
 
 <summary>Detailed steps to add new unit test case</summary>
 
-The Google test framwork is used for unit testing to specific function module, you can refer below steps to add one test case:
+The Google test framwork is used for unit testing to specific function module, please refer to steps below to add a new test case:
 
 ##### a. Create test case file and develop the test scripts
 
@@ -107,10 +105,11 @@ Use the add_test command to add new compiled test cases into CI test collection,
 
 ## 3.2 System Test
 
-Python test script includes all of the functions of TDengine OSS, so some test case maybe fail cause the function only
-work for TDengine Enterprise Edition.
+System tests are end-to-end test cases written in Python from a system point of view. Some of them are designed to test features only in enterprise ediiton, so when running on community edition, they may fail. We'll fix this issue by separating the cases into different gruops in the future.
 
-### 3.2.1 How to run single test case?
+### 3.2.1 How to run a single test case?
+
+Take test file `system-test/2-query/avg.py` for example:
 
 ```bash
 cd tests/system-test
@@ -130,9 +129,9 @@ cd tests
 
 <summary>Detailed steps to add new system test case</summary>
 
-The Python test framework is developed by TDengine teams, and test.py is the test case execution and monitoring of the entry program, Use `python3  ./test.py -h` to view more features.
+The Python test framework is developed by TDengine team, and test.py is the test case execution and monitoring of the entry program, Use `python3 ./test.py -h` to view more features.
 
-you can refer below steps to add one test case:
+Please refer to steps below for how to add a new test case:
 
 ##### a. Create a test case file and develop the test cases
 
@@ -141,15 +140,14 @@ Create a file in `tests/system-test` containing each functional directory and re
 ##### b. Execute the test case 
 
 Ensure the test case execution is successful.
+
 ``` bash
-cd tests/system-test & python3 ./test.py  -f 0-others/test_case_template.py 
+cd tests/system-test && python3 ./test.py -f 0-others/test_case_template.py 
 ```
 
 ##### c. Integrate into CI tests
 
 Edit `tests/parallel_test/cases.task` and add the testcase path and executions in the specified format. The third column indicates whether to use Address Sanitizer mode for testing.
-
-
 
 ```bash
 #caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
@@ -178,14 +176,14 @@ cd tests
 ./run_all_ci_cases.sh -t legacy # all legacy cases
 ```
 
-### 3.3.3 How to add new case?
+### 3.3.3 How to add new cases?
 
 > [!NOTE] 
-> TSIM test framwork is replaced by system test currently, suggest to add new test scripts to system test, you can refer [System Test](#32-system-test) for detail steps.
+> TSIM test framwork is deprecated by system test now, it is encouraged to add new test cases in system test, please refer to [System Test](#32-system-test) for details.
 
 ## 3.4 Smoke Test
 
-Smoke test script is from system test and known as sanity testing to ensure that the critical functionalities of TDengine.
+Smoke test is a group of test cases selected from system test, which is also known as sanity test to ensure the critical functionalities of TDengine.
 
 ### 3.4.1 How to run test?
 
@@ -194,13 +192,13 @@ cd /root/TDengine/packaging/smokeTest
 ./test_smoking_selfhost.sh
 ```
 
-### 3.4.2 How to add new case?
+### 3.4.2 How to add new cases?
 
-You can update python commands part of test_smoking_selfhost.sh file to add any system test case into smoke test.
+New cases can be added by updating the value of `commands` variable in `test_smoking_selfhost.sh`.
 
 ## 3.5 Chaos Test
 
-A simple tool to exercise various functions of the system in a randomized fashion, hoping to expose maximum number of problems without a pre-determined scenario.
+A simple tool to execute various functions of the system in a randomized way, hoping to expose potential problems without a pre-defined test scenario.
 
 ### 3.5.1 How to run test?
 
@@ -209,21 +207,20 @@ cd tests/pytest
 python3 auto_crash_gen.py
 ```
 
-### 3.5.2 How to add new case?
+### 3.5.2 How to add new cases?
 
-Add a function, such as TaskCreateNewFunction, to pytest/crash_gen/crash_gen_main.py.
-
-Integrate TaskCreateNewFunction into the balance_pickTaskType function in crash_gen_main.py.
+1. Add a function, such as `TaskCreateNewFunction` in `pytest/crash_gen/crash_gen_main.py`.
+2. Integrate `TaskCreateNewFunction` into the `balance_pickTaskType` function in `crash_gen_main.py`.
 
 ## 3.6 CI Test
 
 CI testing (Continuous Integration testing), is an important practice in software development that aims to automate frequent integration of code into a shared codebase, build and test it to ensure code quality and stability.
 
-TDengine CI testing includes three part of test cases: unit test、system test and legacy test
+TDengine CI testing will run all the test cases from the following three types of tests: unit test, system test and legacy test.
 
 ### 3.6.1 How to run all CI test cases?
 
-If this is the first time to run all the CI test cases, it is recommended to add the test branch, please run it with  following commands:
+If this is the first time to run all the CI test cases, it is recommended to add the test branch, please run it with following commands:
 
 ```bash
 cd tests
@@ -232,4 +229,4 @@ cd tests
 
 ### 3.6.2 How to add new cases?
 
-You can refer the [Unit Test](#31-unit-test)、[System Test](#32-system-test) and [Legacy Test](#33-legacy-test) sections for detail steps to add new test cases for CI test.
+Please refer to the [Unit Test](#31-unit-test)、[System Test](#32-system-test) and [Legacy Test](#33-legacy-test) sections for detailed steps to add new test cases, when new cases are added in aboved tests, they will be run automatically by CI test.
