@@ -57,11 +57,11 @@ In `tests` directory, there are different types of tests for TDengine. Below is 
 
 ## 3.1 CI Test
 
-[Desciprtion]
+CI testing (Continuous Integration testing), is an important practice in software development that aims to automate frequent integration of code into a shared codebase, build and test it to ensure code quality and stability. TDengine CI testing includes three part of test cases: unit test、system test and legacy test
 
-### How to run tests?
+### How to run all CI test cases?
 
-If this is the first time to run all the CI tests, it is recommended to add the test branch, please run like following commands:
+If this is the first time to run all the CI test cases, it is recommended to add the test branch, please run it with  following commands:
 
 ```bash
 cd tests
@@ -70,8 +70,7 @@ cd tests
 
 ### How to add new cases?
 
-[You can add sim test case under tests/script, python test case under tests/system-test or tests/army. When the case passes in the test branch, add the case to the cases.task file under tests/parallel_test, and then merge the pr into main branch to run in the future CI.]
-
+You can refer the below child sections to add new test cases for CI test.
 
 ### 3.1.1 Unit Test
 
@@ -93,8 +92,27 @@ bash test.sh -e 0
 
 #### How to add new cases?
 
-Copy from the old version, need updates:
+The Google test framwork is used for unit testing to specific function module, you can refer below steps to add one test case:
 
+##### Create test case file and develop the test scripts
+
+In the test directory corresponding to the target function module, create test files in CPP format and write corresponding test cases.
+
+##### Update build configuration
+
+Modify the CMakeLists.txt file in this directory to ensure that the new test files are properly included in the compilation process. See the source\os\test\CMakeLists.txt file for configuration examples.
+
+##### Compile test code
+
+In the root directory of the project, create a compilation directory (e.g., debug), switch to the directory and run CMake commands (e.g., cmake .. -DBUILD_TEST=1) to generate a compilation file, and then run a compilation command (e.g. make) to complete the compilation of the test code. 
+
+##### Execute the test program
+
+Find the executable file in the compiled directory(e.g. TDengine/debug/build/bin/) and run it.
+
+##### Integrate into CI tests
+
+Use the add_test command to add new compiled test cases into CI test collection, ensure that the new added test cases can be run for every build.
 
 ## 3.1.2 System Test
 
@@ -141,14 +159,12 @@ cd tests
 
 ### How to add new case?
 
-[Placeholder]
-
 > [!NOTE]
-> TSIM test framwork is replaced by system test currently, suggest to add new test scripts to system test.
+> TSIM test framwork is replaced by system test currently, suggest to add new test scripts to system test, you can refer [System Test](#312-system-test) for detail steps.
 
 ## 3.2 Smoke Test
 
-Smoke test script is known as sanity testing to ensure that the critical functionalities of TDengine.
+Smoke test script is from system test and known as sanity testing to ensure that the critical functionalities of TDengine.
 
 ### How to run test?
 
@@ -163,7 +179,7 @@ cd /root/TDengine/packaging/smokeTest
 
 ## 3.3 Chaos Test
 
-A simple tool to exercise various functions of the system in a randomized fashion, hoping to expose maximum number of problems, hopefully without a pre-determined scenario.
+A simple tool to exercise various functions of the system in a randomized fashion, hoping to expose maximum number of problems without a pre-determined scenario.
 
 ### How to run test?
 
