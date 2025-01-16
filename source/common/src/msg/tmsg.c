@@ -6055,8 +6055,9 @@ static int32_t tEncodeSTableMetaRsp(SEncoder *pEncoder, STableMetaRsp *pRsp) {
   }
 
   TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pRsp->virtualStb));
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pRsp->numOfColRefs));
   if (hasRefCol(pRsp->tableType)) {
-    for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
+    for (int32_t i = 0; i < pRsp->numOfColRefs; ++i) {
       SColRef *pColRef = &pRsp->pColRefs[i];
       TAOS_CHECK_RETURN(tEncodeSColRef(pEncoder, pColRef));
     }
@@ -6112,13 +6113,14 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
   }
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pRsp->virtualStb));
-    if (hasRefCol(pRsp->tableType) && pRsp->numOfColumns > 0) {
-      pRsp->pColRefs = taosMemoryMalloc(sizeof(SColRef) * pRsp->numOfColumns);
+    TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pRsp->numOfColRefs));
+    if (hasRefCol(pRsp->tableType) && pRsp->numOfColRefs > 0) {
+      pRsp->pColRefs = taosMemoryMalloc(sizeof(SColRef) * pRsp->numOfColRefs);
       if (pRsp->pColRefs == NULL) {
         TAOS_CHECK_RETURN(terrno);
       }
 
-      for (int32_t i = 0; i < pRsp->numOfColumns; ++i) {
+      for (int32_t i = 0; i < pRsp->numOfColRefs; ++i) {
         SColRef *pColRef = &pRsp->pColRefs[i];
         TAOS_CHECK_RETURN(tDecodeSColRef(pDecoder, pColRef));
       }
