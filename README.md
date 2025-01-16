@@ -29,15 +29,28 @@ English | [简体中文](README-CN.md) | [TDengine Cloud](https://cloud.tdengine
 1. [Introduction](#1-introduction)
 1. [Documentation](#2-documentation)
 1. [Prerequisites](#3-prerequisites)
-1. [Building](#4-building)
-1. [Packaging](#5-packaging)
-1. [Installation](#6-installation)
-1. [Running](#7-running)
-1. [Testing](#8-testing)
-1. [Releasing](#9-releasing)
-1. [CI/CD](#10-cicd)
-1. [Coverage](#11-coverage)
-1. [Contributing](#12-contributing)
+    - [3.1 Prerequisites On Linux](#31-on-linux)
+    - [3.2 Prerequisites On macOS](#32-on-macos)
+    - [3.3 Prerequisites On Windows](#33-on-windows) 
+    - [3.4 Clone the repo](#34-clone-the-repo) 
+2. [Building](#4-building)
+    - [4.1 Build on Linux](#41-build-on-linux)
+    - [4.2 Build on macOS](#42-build-on-macos)
+    - [4.3 Build On Windows](#43-build-on-windows) 
+3. [Packaging](#5-packaging)
+4. [Installation](#6-installation)
+    - [6.1 Install on Linux](#61-install-on-linux)
+    - [6.2 Install on macOS](#62-install-on-macos)
+    - [6.3 Install on Windows](#63-install-on-windows)
+5. [Running](#7-running)
+    - [7.1 Run TDengine on Linux](#71-run-tdengine-on-linux)
+    - [7.2 Run TDengine on macOS](#72-run-tdengine-on-macos)
+    - [7.3 Run TDengine on Windows](#73-run-tdengine-on-windows)
+6. [Testing](#8-testing)
+7. [Releasing](#9-releasing)
+8. [CI/CD](#10-cicd)
+9.  [Coverage](#11-coverage)
+10. [Contributing](#12-contributing)
 
 # 1. Introduction
 
@@ -65,7 +78,11 @@ For user manual, system design and architecture, please refer to [TDengine Docum
 
 ## 3.1 On Linux
 
-### For Ubuntu 18.04 or Later
+<details>
+
+<summary>Install required tools on Linux</summary>
+
+### For Ubuntu 18.04、20.04、22.04
 
 ```bash
 sudo apt-get udpate
@@ -82,23 +99,13 @@ yum config-manager --set-enabled powertools
 yum install -y zlib-static xz-devel snappy-devel jansson-devel pkgconfig libatomic-static libstdc++-static 
 ```
 
-### For Fedora or Rocky Linux
-
-```bash
-sudo dnf install -y gcc gcc-c++ make cmake git perl
-sudo dnf install -y zlib-devel xz-devel snappy-devel jansson-devel pkgconfig
-```
-
-To build the [taosTools](https://github.com/taosdata/taos-tools) on Fedora or Rocky, the following packages need to be installed.
-
-```bash
-sudo dnf install -y dnf-plugins-core
-sudo dnf config-manager --set-enabled powertools
-sudo dnf install -y zlib-devel zlib-static xz-devel snappy-devel jansson \
-  jansson-devel pkgconfig libatomic libatomic-static libstdc++-static
-```
+</details>
 
 ## 3.2 On macOS
+
+<details>
+
+<summary>Install required tools on macOS</summary>
 
 Please intall the dependencies with [brew](https://brew.sh/).
 
@@ -106,11 +113,23 @@ Please intall the dependencies with [brew](https://brew.sh/).
 brew install argp-standalone gflags pkgconfig
 ```
 
+</details>
+
 ## 3.3 On Windows
+
+<details>
+
+<summary>Install required tools on Windows</summary>
 
 Work in Progress.
 
+</details>
+
 ## 3.4 Clone the repo
+
+<details>
+
+<summary>Clone the repo</summary>
 
 Clone the repository to the target machine:
 
@@ -121,6 +140,8 @@ cd TDengine
 
 > [!NOTE]
 > TDengine Connectors can be found in following repositories: [JDBC Connector](https://github.com/taosdata/taos-connector-jdbc), [Go Connector](https://github.com/taosdata/driver-go), [Python Connector](https://github.com/taosdata/taos-connector-python), [Node.js Connector](https://github.com/taosdata/taos-connector-node), [C# Connector](https://github.com/taosdata/taos-connector-dotnet), [Rust Connector](https://github.com/taosdata/taos-connector-rust).
+
+</details>
 
 # 4. Building
 
@@ -307,29 +328,7 @@ Option `-c test/cfg` specifies the system configuration file directory.
 
 </details>
 
-## 7.2 Run TDengine on Windows
-
-<details>
-
-<summary>Detailed steps to run on windows</summary>
-
-You can start TDengine server on Windows platform with below commands:
-
-```cmd
-.\build\bin\taosd.exe -c test\cfg
-```
-
-In another terminal, use the TDengine CLI to connect the server:
-
-```cmd
-.\build\bin\taos.exe -c test\cfg
-```
-
-option "-c test/cfg" specifies the system configuration file directory.
-
-</details>
-
-## 7.3 Run TDengine on macOS
+## 7.2 Run TDengine on macOS
 
 <details>
 
@@ -351,6 +350,29 @@ If TDengine CLI connects the server successfully, welcome messages and version i
 
 </details>
 
+
+## 7.3 Run TDengine on Windows
+
+<details>
+
+<summary>Detailed steps to run on windows</summary>
+
+You can start TDengine server on Windows platform with below commands:
+
+```cmd
+.\build\bin\taosd.exe -c test\cfg
+```
+
+In another terminal, use the TDengine CLI to connect the server:
+
+```cmd
+.\build\bin\taos.exe -c test\cfg
+```
+
+option "-c test/cfg" specifies the system configuration file directory.
+
+</details>
+
 # 8. Testing
 
 For how to run different types of tests on TDengine, please see [Testing TDengine](./tests/README.md).
@@ -359,14 +381,9 @@ For how to run different types of tests on TDengine, please see [Testing TDengin
 
 For the complete list of TDengine Releases, please see [Releases](https://github.com/taosdata/TDengine/releases).
 
-# 10. CI/CD
+# 10. Workflow
 
-Now, Jenkins is mainly used to build CI/CD pipeline for TDengine. To run the tests in the CI/CD pipeline, please run following commands:
-
-```bash
-cd tests
-./run_all_ci_cases.sh -b main # on main branch
-```
+Now, Jenkins is mainly used to build CI/CD pipeline for TDengine. 
 
 TDengine build check workflow can be found in this [Github Action](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml).
 
