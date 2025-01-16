@@ -145,7 +145,8 @@ cd tests
 
 <summary>Detailed steps to add new system test case</summary>
 
-test.py is the test case execution and monitoring of the entry program. you can refer below steps to add one test case:
+The Python test framework is developed by TDengine teams, and test.py is the test case execution and monitoring of the entry program, Use `python3  ./test.py -h` to view more features.
+you can refer below steps to add one test case:
 
 ##### 1.Create a test case file and develop the test cases
 
