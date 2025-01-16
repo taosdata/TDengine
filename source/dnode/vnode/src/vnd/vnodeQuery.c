@@ -225,6 +225,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       goto _exit;
     }
   }
+  metaRsp.numOfColRefs = metaRsp.numOfColumns;
 
   vnodePrintTableMeta(&metaRsp);
 
