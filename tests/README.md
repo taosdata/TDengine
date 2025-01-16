@@ -130,6 +130,8 @@ cd tests/script
 
 [Time Series Benchmark Suite (TSBS)](https://github.com/timescale/tsbs) is an open-source performance benchmarking platform specifically designed for time-series data processing systems, such as databases. It provides a standardized approach to evaluating the performance of various databases by simulating typical use cases such as IoT and DevOps.
 
+### How to run tests?
+
 1. Clone the code and  run the tests locally on your machine. Ensure that your virtual machine supports the AVX instruction set:
 ```bash
   cd /usr/local/src && git clone https://github.com/taosdata/tsbs-internal.git tsbs && \
@@ -154,9 +156,3 @@ cd tests/script
     ./testTsbs.sh  
     ```
 3. When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
-
-### How to run tests?
-
-Need updates: must be run from public repo!
-
-TSBS Test is based on the TDengine Enterprise Edition and need private repositry privilege, you can refer the link for detail steps. [TSBS Test](https://github.com/taosdata/TDinternal/tree/main?tab=readme-ov-file#85-tsbs-test)
