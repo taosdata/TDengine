@@ -189,7 +189,7 @@ charset 的有效值是 UTF-8。
 |numOfQnodeQueryThreads    |          |支持动态修改 重启生效       |qnode 的 Query 线程数目，取值范围 0-1024，默认值为 CPU 核数的两倍（不超过 16）|
 |numOfSnodeSharedThreads   |          |支持动态修改 重启生效       |snode 的共享线程数目，取值范围 0-1024，默认值为 CPU 核数的四分之一（不小于 2，不超过 4）|
 |numOfSnodeUniqueThreads   |          |支持动态修改 重启生效       |snode 的独占线程数目，取值范围 0-1024，默认值为 CPU 核数的四分之一（不小于 2，不超过 4）|
-|ratioOfVnodeStreamThreads |          |支持动态修改 重启生效       |流计算使用 vnode 线程的比例，取值范围 0.01-4，默认值 4|
+|ratioOfVnodeStreamThreads |          |支持动态修改 重启生效       |流计算使用 vnode 线程的比例，取值范围 0.01-4，默认值 0.5|
 |ttlUnit                   |          |不支持动态修改             |ttl 参数的单位，取值范围 1-31572500，单位为秒，默认值 86400|
 |ttlPushInterval           |          |支持动态修改 立即生效       |ttl 检测超时频率，取值范围 1-100000，单位为秒，默认值 10|
 |ttlChangeOnWrite          |          |支持动态修改 立即生效       |ttl 到期时间是否伴随表的修改操作改变；0：不改变，1：改变；默认值为 0|
