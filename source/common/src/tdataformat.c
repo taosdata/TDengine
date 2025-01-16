@@ -669,6 +669,15 @@ void tRowDestroy(SRow *pRow) {
   if (pRow) taosMemoryFree(pRow);
 }
 
+void tRowDataClear(SRow *pColData) {
+  pColData->ts = 0;
+  pColData->len = 0;
+  pColData->sver = 0;
+  pColData->flag = 0;
+  pColData->numOfPKs = 0;
+}
+
+
 static int32_t tRowPCmprFn(const void *p1, const void *p2) {
   SRowKey key1, key2;
   tRowGetKey(*(SRow **)p1, &key1);

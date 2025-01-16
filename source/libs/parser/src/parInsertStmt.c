@@ -54,8 +54,13 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
 
   int32_t colNum = taosArrayGetSize(pNew->aCol);
   for (int32_t i = 0; i < colNum; ++i) {
-    SColData* pCol = (SColData*)taosArrayGet(pNew->aCol, i);
-    tColDataDeepClear(pCol);
+    if (pDataBlock->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      SColData* pCol = (SColData*)taosArrayGet(pNew->aCol, i);
+      tColDataDeepClear(pCol);
+    } else {
+      SRow* pRowp = (SRow*)taosArrayGet(pNew->aCol, i);
+      tRowDataClear(pRowp);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -841,12 +846,6 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
       lastColId = pColSchema->colId;
     }
 
-    SColData* pCol = taosArrayGet(pCols, c);
-    if (pCol == NULL || pColSchema == NULL) {
-      code = buildInvalidOperationMsg(&pBuf, "get column schema or column data failed");
-      goto _return;
-    }
-
     if (bind[c].num != rowNum) {
       code = buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
       goto _return;
@@ -863,7 +862,7 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
       if (code) {
         goto _return;
       }
-      pBind = &ncharBind;
+      pBindInfos[c].bind = &ncharBind;
     } else {
       pBindInfos[c].bind = bind + c;
     }
@@ -872,14 +871,14 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
     pBindInfos[c].type = pColSchema->type;
     pBindInfos[c].bytes = pColSchema->bytes;
 
-  // code = tColDataAddValueByBind2(pCol, pBind,
-  //                                IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
-  //                                initCtxAsText, checkWKB);
-  if (code) {
-    goto _return;
+    if (code) {
+      goto _return;
+    }
   }
-}
-  code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, &pDataBlock->ordered, &pDataBlock->duplicateTs);
+
+  pDataBlock->pData->flags &= ~SUBMIT_REQ_COLUMN_DATA_FORMAT;
+  code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, &pDataBlock->ordered,
+                            &pDataBlock->duplicateTs);
   qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
 
 _return:
@@ -1127,15 +1126,24 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
   int32_t        colNum = taosArrayGetSize(pBlock->pData->aCol);
 
   for (int32_t i = 0; i < colNum; ++i) {
-    SColData* pCol = (SColData*)taosArrayGet(pBlock->pData->aCol, i);
-    if (pCol == NULL) {
-      qError("qResetStmtDataBlock column is NULL");
-      return terrno;
-    }
-    if (deepClear) {
-      tColDataDeepClear(pCol);
+    if (pBlock->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      SColData* pCol = (SColData*)taosArrayGet(pBlock->pData->aCol, i);
+      if (pCol == NULL) {
+        qError("qResetStmtDataBlock column is NULL");
+        return terrno;
+      }
+      if (deepClear) {
+        tColDataDeepClear(pCol);
+      } else {
+        tColDataClear(pCol);
+      }
     } else {
-      tColDataClear(pCol);
+      SRow* aRowP = (SRow*)taosArrayGet(pBlock->pData->aRowP, i);
+      if (aRowP == NULL) {
+        qError("qResetStmtDataBlock row pointer is NULL");
+        return terrno;
+      }
+      tRowDataClear(aRowP);
     }
   }
 
