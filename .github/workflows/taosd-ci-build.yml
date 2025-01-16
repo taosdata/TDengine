@@ -10,6 +10,8 @@ on:
       - 'docs/**'
       - 'packaging/**'
       - 'tests/**'
+      - 'README.md'
+      - 'README-CN.md'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,7 +22,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-22.04, ubuntu-20.04, ubuntu-18.04]
+        os: [ubuntu-latest, ubuntu-20.04, ubuntu-22.04, ubuntu-24.04, macos-latest, macos-13, macos-14, macos-15]
     name: Build and test on ${{ matrix.os }}
 
     steps:
