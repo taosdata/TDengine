@@ -106,13 +106,29 @@ typedef struct SCTableMeta {
 #pragma pack(pop)
 
 #pragma pack(push, 1)
+typedef struct SVCTableMeta {
+  uint64_t uid;
+  uint64_t suid;
+  int32_t  vgId;
+  int8_t   tableType;
+  int32_t  numOfColRefs;
+  SColRef* colRef;
+} SVCTableMeta;
+#pragma pack(pop)
+
+#pragma pack(push, 1)
 typedef struct STableMeta {
+  // BEGIN: KEEP THIS PART SAME WITH SVCTableMeta
   // BEGIN: KEEP THIS PART SAME WITH SCTableMeta
   uint64_t uid;
   uint64_t suid;
   int32_t  vgId;
   int8_t   tableType;
   // END: KEEP THIS PART SAME WITH SCTableMeta
+
+  int32_t       numOfColRefs;
+  SColRef*      colRef;
+  // END: KEEP THIS PART SAME WITH SVCTableMeta
 
   // if the table is TSDB_CHILD_TABLE, the following information is acquired from the corresponding super table meta
   // info
@@ -121,9 +137,8 @@ typedef struct STableMeta {
   STableComInfo tableInfo;
   SSchemaExt*   schemaExt;  // There is no additional memory allocation, and the pointer is fixed to the next address of
                             // the schema content.
-  SColRef*      colRef;
   int8_t        virtualStb;
-  SSchema schema[];
+  SSchema       schema[];
 } STableMeta;
 #pragma pack(pop)
 
@@ -155,16 +170,22 @@ typedef struct SUseDbOutput {
   SDBVgInfo* dbVgroup;
 } SUseDbOutput;
 
-enum { META_TYPE_NULL_TABLE = 1, META_TYPE_CTABLE, META_TYPE_TABLE, META_TYPE_BOTH_TABLE };
+enum { META_TYPE_NULL_TABLE = 1,
+       META_TYPE_CTABLE,
+       META_TYPE_VCTABLE,
+       META_TYPE_TABLE,
+       META_TYPE_BOTH_TABLE,
+       META_TYPE_BOTH_VTABLE};
 
 typedef struct STableMetaOutput {
-  int32_t     metaType;
-  uint64_t    dbId;
-  char        dbFName[TSDB_DB_FNAME_LEN];
-  char        ctbName[TSDB_TABLE_NAME_LEN];
-  char        tbName[TSDB_TABLE_NAME_LEN];
-  SCTableMeta ctbMeta;
-  STableMeta* tbMeta;
+  int32_t       metaType;
+  uint64_t      dbId;
+  char          dbFName[TSDB_DB_FNAME_LEN];
+  char          ctbName[TSDB_TABLE_NAME_LEN];
+  char          tbName[TSDB_TABLE_NAME_LEN];
+  SCTableMeta   ctbMeta;
+  SVCTableMeta* vctbMeta;
+  STableMeta*   tbMeta;
 } STableMetaOutput;
 
 typedef struct SViewMetaOutput {
@@ -332,6 +353,7 @@ bool           tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_
 int32_t        getAsofJoinReverseOp(EOperatorType op);
 
 int32_t queryCreateCTableMetaFromMsg(STableMetaRsp* msg, SCTableMeta* pMeta);
+int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta);
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 int32_t queryCreateTableMetaExFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 char*   jobTaskStatusStr(int32_t status);
@@ -355,10 +377,12 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 
 void* getTaskPoolWorkerCb();
 
-#define SET_META_TYPE_NULL(t)       (t) = META_TYPE_NULL_TABLE
-#define SET_META_TYPE_CTABLE(t)     (t) = META_TYPE_CTABLE
-#define SET_META_TYPE_TABLE(t)      (t) = META_TYPE_TABLE
-#define SET_META_TYPE_BOTH_TABLE(t) (t) = META_TYPE_BOTH_TABLE
+#define SET_META_TYPE_NULL(t)        (t) = META_TYPE_NULL_TABLE
+#define SET_META_TYPE_CTABLE(t)      (t) = META_TYPE_CTABLE
+#define SET_META_TYPE_VCTABLE(t)     (t) = META_TYPE_CTABLE
+#define SET_META_TYPE_TABLE(t)       (t) = META_TYPE_TABLE
+#define SET_META_TYPE_BOTH_TABLE(t)  (t) = META_TYPE_BOTH_TABLE
+#define SET_META_TYPE_BOTH_VTABLE(t) (t) = META_TYPE_BOTH_VTABLE
 
 #define NEED_CLIENT_RM_TBLMETA_ERROR(_code)                                                   \
   ((_code) == TSDB_CODE_PAR_TABLE_NOT_EXIST || (_code) == TSDB_CODE_TDB_TABLE_NOT_EXIST ||    \
