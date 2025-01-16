@@ -65,7 +65,7 @@ static void releaseFlusedPos(void* pRes) {
 void streamIntervalNonblockReleaseState(SOperatorInfo* pOperator) {
   SStreamIntervalSliceOperatorInfo* pInfo = pOperator->info;
   SStreamAggSupporter*              pAggSup = &pInfo->streamAggSup;
-  pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, 1, INT64_MAX);
+  pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, pInfo->numOfKeep, pInfo->tsOfKeep);
   pAggSup->stateStore.streamStateCommit(pAggSup->pState);
   int32_t resSize = sizeof(TSKEY);
   pAggSup->stateStore.streamStateSaveInfo(pAggSup->pState, STREAM_INTERVAL_NONBLOCK_OP_STATE_NAME,
