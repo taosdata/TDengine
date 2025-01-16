@@ -138,7 +138,7 @@ git clone https://github.com/taosdata/TDengine.git
 cd TDengine
 ```
 
-> [!NOTE]
+> **NOTE:**
 > TDengine Connectors can be found in following repositories: [JDBC Connector](https://github.com/taosdata/taos-connector-jdbc), [Go Connector](https://github.com/taosdata/driver-go), [Python Connector](https://github.com/taosdata/taos-connector-python), [Node.js Connector](https://github.com/taosdata/taos-connector-node), [C# Connector](https://github.com/taosdata/taos-connector-dotnet), [Rust Connector](https://github.com/taosdata/taos-connector-rust).
 
 </details>
