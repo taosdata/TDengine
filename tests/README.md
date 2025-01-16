@@ -175,7 +175,7 @@ cd /root/TDengine/packaging/smokeTest
 
 ### How to add new case?
 
-[Placeholder]
+You can update python commands part of test_smoking_selfhost.sh file to add any system test case into smoke test.
 
 ## 3.3 Chaos Test
 
