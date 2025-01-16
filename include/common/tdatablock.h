@@ -285,6 +285,8 @@ bool    isAutoTableName(char* ctbName);
 int32_t buildCtbNameAddGroupId(const char* stbName, char* ctbName, uint64_t groupId, size_t cap);
 int32_t buildCtbNameByGroupId(const char* stbName, uint64_t groupId, char** pName);
 int32_t buildCtbNameByGroupIdImpl(const char* stbName, uint64_t groupId, char* pBuf);
+int32_t buildSinkDestTableName(char* parTbName, const char* stbFullName, uint64_t gid, bool newSubTableRule,
+                               char** dstTableName);
 
 int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolList);
 

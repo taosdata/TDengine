@@ -6,9 +6,9 @@ ExternalProject_Add(openssl
         DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
         SOURCE_DIR "${TD_CONTRIB_DIR}/openssl"
         BUILD_IN_SOURCE TRUE
-        #BUILD_ALWAYS 1
-        #UPDATE_COMMAND ""
-        CONFIGURE_COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
+        BUILD_ALWAYS 1
+        UPDATE_COMMAND ""
+        CONFIGURE_COMMAND ${CONTRIB_CONFIG_ENV} ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
         BUILD_COMMAND make -j
         INSTALL_COMMAND make install_sw -j
         TEST_COMMAND ""
