@@ -187,7 +187,6 @@ int32_t blockAddMeta(SBlkData *blk, uint64_t key, SValueInfo *pValue, uint64_t *
   *offset = pBlk->id * kBlockCap + pBlk->len;
   pBlk->len += taosEncodeVariantU64((void **)&p, key);
   pBlk->len += taosEncodeVariantU64((void **)&p, pValue->offset);
-  pBlk->len += taosEncodeVariantI32((void **)&p, pValue->size);
 
   blk->dataNum++;
   return code;
@@ -374,6 +373,7 @@ int32_t tableAppendMeta(STable *pTable) {
     SValueInfo *value = (SValueInfo *)pIter;
 
     if (blockMetaShouldFlush(&pTable->data, value->offset)) {
+      code = tableFlushBlock(pTable);
       TAOS_CHECK_GOTO(blockReset(&pTable->data, BSE_META_TYPE, pTable->blockId), &line, _err);
     }
 
@@ -725,7 +725,6 @@ static int32_t bseRecover(SBse *pBse) {
       if (code == 0) {
         if (next == 1) {
           SBseFileInfo info = {.firstVer = pFileInfo->firstVer + 1};
-          // bseBuildDataFullName(pBse, info.firstVer, fNameStr);
           if (taosArrayPush(pBse->fileSet, &info) == NULL) {
             TAOS_CHECK_GOTO(terrno, &line, _err);
           }
@@ -736,7 +735,7 @@ static int32_t bseRecover(SBse *pBse) {
       }
     }
   } else {
-    SBseFileInfo info = {.firstVer = 1};
+    SBseFileInfo info = {.firstVer = 0};
     bseBuildDataFullName(pBse, info.firstVer, fNameStr);
     if (taosArrayPush(pBse->fileSet, &info) == NULL) {
       TAOS_CHECK_GOTO(terrno, &line, _err);
@@ -855,10 +854,10 @@ void bseClose(SBse *pBse) {
 
   void *pIter = taosHashIterate(pBse->pTableCache, NULL);
   while (pIter != NULL) {
-    SReaderTable *p = *(SReaderTable **)pIter;
-    readerTableClose(p);
+    SReaderTableWrapper *p = pIter;
+    readerTableClose(p->pTable);
 
-    pIter = taosHashIterate(pBse->pTableCache, NULL);
+    pIter = taosHashIterate(pBse->pTableCache, pIter);
   }
   taosHashCleanup(pBse->pTableCache);
   taosMemoryFree(pBse);
@@ -888,6 +887,7 @@ int32_t bseFileSetCmprFn(const void *p1, const void *p2) {
 
   return 0;
 }
+
 int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t line = 0;
   int32_t code = 0;
@@ -898,19 +898,27 @@ int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
     goto _err;
   } else {
     SBseFileInfo  key = {.firstVer = seq};
-    SBseFileInfo *p = taosArraySearch(pBse->fileSet, &key, bseFileSetCmprFn, TD_LE);
+    SBseFileInfo *p = taosArraySearch(pBse->fileSet, &key, bseFileSetCmprFn, TD_GT);
     if (p == NULL) {
       TAOS_CHECK_GOTO(TSDB_CODE_NOT_FOUND, &line, _err);
     } else {
-      char buf[TSDB_FILENAME_LEN] = {0};
-      bseBuildDataFullName(pBse, p->firstVer, buf);
+      SReaderTableWrapper *pTableWraper = taosHashGet(pBse->pTableCache, &p->firstVer, sizeof(p->firstVer));
+      if (pTableWraper == NULL) {
+        char buf[TSDB_FILENAME_LEN] = {0};
+        bseBuildDataFullName(pBse, p->firstVer, buf);
 
-      SReaderTable *pTable = NULL;
-      code = readerTableOpen(buf, p->firstVer, &pTable);
-      TAOS_CHECK_GOTO(code, &line, _err);
+        SReaderTable *pTable = NULL;
+        code = readerTableOpen(buf, p->firstVer, &pTable);
+        TAOS_CHECK_GOTO(code, &line, _err);
 
-      code = taosHashPut(pBse->pTableCache, &p->firstVer, sizeof(p->firstVer), &pTable, sizeof(void *));
-      TAOS_CHECK_GOTO(code, &line, _err);
+        SReaderTableWrapper tableWraper = {.pTable = pTable};
+        code = taosHashPut(pBse->pTableCache, &p->firstVer, sizeof(p->firstVer), &tableWraper,
+                           sizeof(SReaderTableWrapper));
+        TAOS_CHECK_GOTO(code, &line, _err);
+
+        pTableWraper = taosHashGet(pBse->pTableCache, &p->firstVer, sizeof(p->firstVer));
+      }
+      code = readerTableGet(pTableWraper->pTable, seq, pValue, len);
     }
   }
 
@@ -989,7 +997,7 @@ static int32_t readerTableOpen(const char *name, uint64_t lastSeq, SReaderTable 
   int32_t line = 0;
   int32_t code = 0;
 
-  SReaderTable *pTable = taosMemoryMalloc(sizeof(STable));
+  SReaderTable *pTable = taosMemoryMalloc(sizeof(SReaderTable));
   if (pTable == NULL) {
     TAOS_CHECK_GOTO(terrno, &line, _err);
   }
@@ -1005,8 +1013,6 @@ static int32_t readerTableOpen(const char *name, uint64_t lastSeq, SReaderTable 
 
   code = blockInit(pTable->blockId, kBlockCap, BSE_DATA_TYPE, &pTable->bufBlk);
   TAOS_CHECK_GOTO(code, &line, _err);
-
-  // pTable->pDataFile = taosOpenFile(name, TD_FILE_READ);
 
   tstrncpy(pTable->name, name, TSDB_FILENAME_LEN);
   pTable->lastSeq = lastSeq;
@@ -1048,16 +1054,17 @@ _err:
   return code;
 }
 static int32_t readerTableGet(SReaderTable *pTable, uint64_t key, uint8_t **pValue, int32_t *len) {
-  int32_t   code = 0;
-  int32_t   line = 0;
-  uint64_t *offset = taosHashGet(pTable->pCache, &key, sizeof(key));
+  int32_t code = 0;
+  int32_t line = 0;
 
+  uint64_t *offset = taosHashGet(pTable->pCache, &key, sizeof(key));
   if (offset == NULL) {
-    TAOS_CHECK_GOTO(terrno, &line, _err);
+    goto _err;
+    // TAOS_CHECK_GOTO(terrno, &line, _err);
   }
 
-  int32_t blkId = *offset / kBlockCap;
-  int32_t blkOffset = *offset % kBlockCap;
+  int32_t blkId = (*offset) / kBlockCap;
+  int32_t blkOffset = (*offset) % kBlockCap;
 
   code = tableLoadBlk((STable *)pTable, blkId, &pTable->bufBlk);
   TAOS_CHECK_GOTO(code, &line, _err);
@@ -1081,12 +1088,14 @@ static int32_t readerTableRebuild(SReaderTable *pTable) {
 
   uint8_t *buf = taosMemoryCalloc(1, kBlockCap);
   do {
-    int64_t offset = size > kBlockCap ? (size / kBlockCap - 1) * kBlockCap : 0;
+    memset(buf, 0, kBlockCap);
+    int64_t offset = size > kBlockCap ? ((size / kBlockCap) - 1) * kBlockCap : 0;
     if (offset <= 0) {
       break;
     }
+    taosLSeekFile(pTable->pDataFile, offset, SEEK_SET);
     if (taosReadFile(pTable->pDataFile, buf, kBlockCap) == kBlockCap) {
-      if (taosCheckChecksumWhole(buf, kBlockCap) == 0) {
+      if (taosCheckChecksumWhole(buf, kBlockCap) == 1) {
         SBlkData2 *pBlk = (SBlkData2 *)buf;
         if (pBlk->head[3] == BSE_META_TYPE) {
           size -= kBlockCap;
@@ -1100,10 +1109,14 @@ static int32_t readerTableRebuild(SReaderTable *pTable) {
             count++;
 
             taosHashPut(pTable->pCache, &seq, sizeof(uint64_t), &offset, sizeof(uint64_t));
+            printf("seq:%" PRIu64 ", offset:%" PRIu64 "\n", seq, offset);
           } while (count < pBlk->len);
         } else {
           break;
         }
+      } else {
+        code = TSDB_CODE_INVALID_MSG;
+        break;
       }
     }
   } while (1);

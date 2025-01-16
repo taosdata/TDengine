@@ -114,6 +114,10 @@ typedef struct {
 } SReaderTable;
 
 typedef struct {
+  SReaderTable *pTable;
+} SReaderTableWrapper;
+
+typedef struct {
   int32_t vgId;
   int32_t fsyncPeriod;
   int32_t retentionPeriod;  // secs

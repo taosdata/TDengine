@@ -88,6 +88,17 @@ TEST(bseCase, openTest) {
         data.push_back(seq); 
     }
     bseCommit(bse);
+
+    for (int32_t i = 1; i < 1000; i++) {
+      uint8_t* value = NULL;
+      int32_t len = 0;
+      code = bseGet(bse, i, &value, &len);
+      if (code != 0) {
+        printf("failed to get key %d error code: %d\n", i, code);
+      }
+      taosMemFree(value);
+      //ASSERT_EQ(len, 4); 
+    }
     bseClose(bse);
     
 }
