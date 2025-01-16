@@ -1109,7 +1109,7 @@ static int32_t readerTableRebuild(SReaderTable *pTable) {
             count++;
 
             taosHashPut(pTable->pCache, &seq, sizeof(uint64_t), &offset, sizeof(uint64_t));
-            printf("seq:%" PRIu64 ", offset:%" PRIu64 "\n", seq, offset);
+            // printf("seq:%" PRIu64 ", offset:%" PRIu64 "\n", seq, offset);
           } while (count < pBlk->len);
         } else {
           break;
