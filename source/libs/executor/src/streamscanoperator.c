@@ -1030,6 +1030,10 @@ static void destroyStreamDataScanOperatorInfo(void* param) {
     pStreamScan->stateStore.streamStateDestroyTsDataState(&pStreamScan->tsDataState);
   }
 
+  if (pStreamScan->stateStore.updateInfoDestroy != NULL && pStreamScan->pUpdateInfo != NULL) {
+    pStreamScan->stateStore.updateInfoDestroy(pStreamScan->pUpdateInfo);
+  }
+
   taosMemoryFree(pStreamScan);
 }
 

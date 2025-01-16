@@ -1960,30 +1960,6 @@ int32_t getRowStateAllPrevRow(SStreamFileState* pFileState, const SWinKey* pKey,
     }
   }
 
-  if (num < maxNum && needClearDiskBuff(pFileState)) {
-    SStreamStateCur* pCur = streamStateSeekKeyPrev_rocksdb(pState, pPrevKey);
-    for (; num < maxNum; num++) {
-      void*   tmpVal = NULL;
-      int32_t len = 0;
-      SWinKey resKey = {0};
-      int32_t tempCode = streamStateGetGroupKVByCur_rocksdb(pState, pCur, &resKey, (const void**)&tmpVal, &len);
-      if (tempCode == TSDB_CODE_SUCCESS) {
-        SRowBuffPos* pNewPos = getNewRowPosForWrite(pFileState);
-        if (!pNewPos || !pNewPos->pRowBuff) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          QUERY_CHECK_CODE(code, lino, _end);
-        }
-        memcpy(pNewPos->pRowBuff, tmpVal, len);
-        taosMemoryFreeClear(tmpVal);
-        void* tempRes = taosArrayPush(pResArray, &pNewPos);
-        QUERY_CHECK_NULL(tempRes, code, lino, _end, terrno);
-      } else {
-        break;
-      }
-    }
-    streamStateFreeCur(pCur);
-  }
-
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));

@@ -1597,7 +1597,7 @@ int32_t initParDownStream(SOperatorInfo* downstream, SPartitionBySupporter* pPar
       *pPkColIndex = j;
     }
   }
-  if (!pScanInfo->pUpdateInfo) {
+  if (!pScanInfo->pUpdateInfo && pScanInfo->twAggSup.calTrigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
     code = pAPI->stateStore.updateInfoInit(60000, TSDB_TIME_PRECISION_MILLI, 0, pScanInfo->igCheckUpdate,
                                            pScanInfo->pkColType, pScanInfo->pkColLen, &pScanInfo->pUpdateInfo);
   }
