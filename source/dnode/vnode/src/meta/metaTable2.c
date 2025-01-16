@@ -191,6 +191,9 @@ int32_t metaCreateSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq
     TABLE_SET_COL_COMPRESSED(entry.flags);
     entry.colCmpr = pReq->colCmpr;
   }
+  if (pReq->virtualStb) {
+    TABLE_SET_VIRTUAL(entry.flags);
+  }
 
   code = metaHandleEntry2(pMeta, &entry);
   if (TSDB_CODE_SUCCESS == code) {
@@ -815,6 +818,7 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
     SColRef tmpRef;
     if (TSDB_ALTER_TABLE_ADD_COLUMN == pReq->action) {
       tmpRef.hasRef = false;
+      tmpRef.id = pColumn->colId;
     } else {
       tmpRef.hasRef = true;
       tmpRef.id = pColumn->colId;
@@ -864,8 +868,8 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
       for (int32_t i = 0; i < pEntry->colRef.nCols; i++) {
         SColRef *p = &pEntry->colRef.pColRef[i];
         pRsp->pColRefs[i].hasRef = p->hasRef;
+        pRsp->pColRefs[i].id = p->id;
         if (p->hasRef) {
-          pRsp->pColRefs[i].id = p->id;
           tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
         }
@@ -1004,8 +1008,8 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
       for (int32_t i = 0; i < pEntry->colRef.nCols; i++) {
         SColRef *p = &pEntry->colRef.pColRef[i];
         pRsp->pColRefs[i].hasRef = p->hasRef;
+        pRsp->pColRefs[i].id = p->id;
         if (p->hasRef) {
-          pRsp->pColRefs[i].id = p->id;
           tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
         }
@@ -1111,8 +1115,8 @@ int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
       for (int32_t i = 0; i < pEntry->colRef.nCols; i++) {
         SColRef *p = &pEntry->colRef.pColRef[i];
         pRsp->pColRefs[i].hasRef = p->hasRef;
+        pRsp->pColRefs[i].id = p->id;
         if (p->hasRef) {
-          pRsp->pColRefs[i].id = p->id;
           tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
         }
@@ -1229,8 +1233,8 @@ int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *p
       for (int32_t i = 0; i < pEntry->colRef.nCols; i++) {
         SColRef *p = &pEntry->colRef.pColRef[i];
         pRsp->pColRefs[i].hasRef = p->hasRef;
+        pRsp->pColRefs[i].id = p->id;
         if (p->hasRef) {
-          pRsp->pColRefs[i].id = p->id;
           tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
         }
@@ -1893,8 +1897,8 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
     for (int32_t i = 0; i < pEntry->colRef.nCols; i++) {
       SColRef *p = &pEntry->colRef.pColRef[i];
       pRsp->pColRefs[i].hasRef = p->hasRef;
+      pRsp->pColRefs[i].id = p->id;
       if (p->hasRef) {
-        pRsp->pColRefs[i].id = p->id;
         tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
         tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
       }
@@ -1966,6 +1970,7 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
   // do update column name
   pEntry->version = version;
   pColRef->hasRef = false;
+  pColRef->id = pSchema->pSchema[iColumn].colId;
   pSchema->version++;
 
   // do handle entry
@@ -1989,8 +1994,8 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
     for (int32_t i = 0; i < pEntry->colRef.nCols; i++) {
       SColRef *p = &pEntry->colRef.pColRef[i];
       pRsp->pColRefs[i].hasRef = p->hasRef;
+      pRsp->pColRefs[i].id = p->id;
       if (p->hasRef) {
-        pRsp->pColRefs[i].id = p->id;
         tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
         tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
       }
@@ -2230,6 +2235,9 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
       .colCmpr = pReq->colCmpr,
   };
   TABLE_SET_COL_COMPRESSED(entry.flags);
+  if (pReq->virtualStb) {
+    TABLE_SET_VIRTUAL(entry.flags);
+  }
 
   // do handle the entry
   code = metaHandleEntry2(pMeta, &entry);
