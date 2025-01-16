@@ -27,14 +27,14 @@ class TDTestCase:
         self.replicaVar = int(replicaVar)
 
 
-    def test_function():   # case function should be named start with test_
+    def test_function(self):   # case function should be named start with test_
         """
         Here is the function description for single test:
         Test case for custom function
         """
         tdLog.info(f"Test case test custom function")
         # excute the sql 
-        tdLog.execute(f"create database db_test_function")
+        tdSql.execute(f"create database db_test_function")
         tdSql.execute(f"create table db_test_function.stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned);")
         # qury the result and return the result
         tdSql.query(f"show databases")
@@ -45,7 +45,7 @@ class TDTestCase:
 
 
     def run(self):
-        self.test_5dnode_3mnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=2,stopRole='vnode')
+        self.test_function()
 
     def stop(self):
         tdSql.close()

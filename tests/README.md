@@ -126,27 +126,27 @@ cd tests
 
 <summary>Detailed steps to add new system test case</summary>
 
+The Python test framework is developed by TDengine teams, and test.py is the test case execution and monitoring of the entry program, Use `python3  ./test.py -h` to view more features.
 you can refer below steps to add one test case:
 
-##### 1. Create test case file and develop the test scripts
+##### 1.Create a test case file and develop the test cases
 
-In the test directory corresponding to the target function module, create test files in CPP format and write corresponding test cases.
+Create a file in `tests/system-test` containing each functional directory and refer to the use case template `tests/system-test/0-others/test_case_template.py` to add a new test case. 
 
-##### 2. Update build configuration
+##### 2.Execute the test case 
 
-Modify the CMakeLists.txt file in this directory to ensure that the new test files are properly included in the compilation process. See the source\os\test\CMakeLists.txt file for configuration examples.
+cd tests/system-test & python3 ./test.py  -f 0-others/test_case_template.py 
 
-##### 3. Compile test code
+##### 3.Integrate into CI tests
 
-In the root directory of the project, create a compilation directory (e.g., debug), switch to the directory and run CMake commands (e.g., cmake .. -DBUILD_TEST=1) to generate a compilation file, and then run a compilation command (e.g. make) to complete the compilation of the test code. 
+Edit `tests/parallel_test/cases.task` and add the testcase path and executions in the specified format. The third column indicates whether to use Address Sanitizer mode for testing.
 
-##### 4. Execute the test program
 
-Find the executable file in the compiled directory(e.g. TDengine/debug/build/bin/) and run it.
 
-##### 5. Integrate into CI tests
-
-Use the add_test command to add new compiled test cases into CI test collection, ensure that the new added test cases can be run for every build.
+```bash
+#caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
+,,n,system-test, python3 ./test.py  -f 0-others/test_case_template.py 
+```
 
 </details>
 
