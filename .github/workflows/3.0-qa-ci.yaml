@@ -176,7 +176,7 @@ jobs:
           ls ${{ github.workspace }}
           # run taosx
           ssh root@$RELEASE_HOST "mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/"
-          
+          # echo ssh root@$RELEASE_HOST "nohup sh -c 'LD_LIBRARY_PATH=/root/qin/TDengine/dockerbuild/instantclient_19_24 DATABASE_URL=/var/lib/taos/taosx/taosx.db LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/taosx-%p-%m.profraw GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ ENABLE_COVERAGE=true nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx.log 2>&1 &'"
           ssh root@$RELEASE_HOST "nohup sh -c 'LD_LIBRARY_PATH=/root/qin/TDengine/dockerbuild/instantclient_19_24 DATABASE_URL=/var/lib/taos/taosx/taosx.db LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/taosx-%p-%m.profraw GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ ENABLE_COVERAGE=true nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx.log 2>&1 &'"
       - name: Deploy taosx-agent
         run: |
@@ -217,11 +217,13 @@ jobs:
           cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
           #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity -k "not mqtt_test.py"
           #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity opcua_test.py
-      - name: Stop taosx-agent & taosx
+      - name: Stop taosX
+        run: |
+          ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx' | grep -v grep | awk '{print $2}' | xargs -r kill -2
+      - name: Stop taosx-agent
         shell: bash {0}
         run: |
-          pids=$(pgrep "taosx-agent"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx-agent $pid"; kill -2 "$pid"; done; fi
-          pids=$(pgrep "taosx"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx $pid"; kill -2 "$pid"; done; fi
+          ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent' | grep -v grep | awk '{print $2}' | xargs -r kill -2
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [run_e2e_test,set_env]
