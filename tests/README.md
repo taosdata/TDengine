@@ -138,6 +138,12 @@ cd tests/script
   cd tsbs &&  git checkout enh/chr-td-33357 && \
   cd scripts/tsdbComp && ./testTsbs.sh  
 ```
+> [!NOTE]
+> The default case type, CPU test, takes a long time to run.
+> 
+> If you want to run quick test to verify the test environment, please set `caseType=cputest` in test.ini .
+
+
 2. When testing the client and server on separate machines, you should set up your environment as outlined in the steps below:
 
     2.1. Modify IP and host of client and server in `test.ini`
