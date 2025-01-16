@@ -370,9 +370,9 @@ stopTaosd
 
 if [ -z "$TEST_TYPE" ]; then
     runTest
-elif [ "$TEST_TYPE" = "python" -o "$TEST_TYPE" = "PYTHON"]; then
+elif [ "$TEST_TYPE" = "python" -o "$TEST_TYPE" = "PYTHON" ]; then
     runPythonCases
-elif [ "$TEST_TYPE" = "legacy" -o "$TEST_TYPE" = "LEGACY"]; then
+elif [ "$TEST_TYPE" = "legacy" -o "$TEST_TYPE" = "LEGACY" ]; then
     runSimCases
 fi
 
