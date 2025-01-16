@@ -1866,6 +1866,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN: {
       SVirtualScanPhysiNode* pPhyNode = (SVirtualScanPhysiNode*)pNode;
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
+      nodesDestroyList(pPhyNode->pGroupTags);
       nodesDestroyList(pPhyNode->pTargets);
       break;
     }
