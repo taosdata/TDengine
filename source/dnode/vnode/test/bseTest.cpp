@@ -64,7 +64,7 @@ TEST(bseCase, openTest) {
     SBse *bse = NULL;
     uint64_t seq = 0; 
     std::vector<uint64_t> data;
-    int32_t code = bseOpen("/tmp/bse.log", NULL, &bse);
+    int32_t code = bseOpen("/tmp/bse", NULL, &bse);
     for (int32_t i = 0; i < 10000; i++) {
         code = bseAppend(bse, &seq, (uint8_t *)"test", 4);
         data.push_back(seq); 
@@ -75,10 +75,20 @@ TEST(bseCase, openTest) {
       int32_t len = 0;
       uint64_t seq = data[i];
       code = bseGet(bse, seq, (uint8_t **)&p, &len);
+      taosMemoryFree(p);
       ASSERT_EQ(len, 4);
       //code = bseRead(bse, data[i], NULL, NULL);
     }
+    bseCommit(bse);
+    
 
+    
+    for (int32_t i = 0; i < 10000; i++) {
+        code = bseAppend(bse, &seq, (uint8_t *)"test", 4);
+        data.push_back(seq); 
+    }
+    bseCommit(bse);
+    bseClose(bse);
     
 }
 

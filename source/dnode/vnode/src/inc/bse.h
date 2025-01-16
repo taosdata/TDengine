@@ -97,7 +97,21 @@ typedef struct {
   STableFooter footer;
   SHashObj    *pCache;
   int32_t      blockId;
+  uint64_t     initSeq;
 } STable;
+
+typedef struct {
+  char         name[TSDB_FILENAME_LEN];
+  TdFilePtr    pDataFile;
+  TdFilePtr    pIdxFile;
+  SBlkData     data;
+  SBlkData     bufBlk;
+  STableFooter footer;
+  SHashObj    *pCache;
+  int32_t      blockId;
+  uint64_t     initSeq;
+  uint64_t     lastSeq;
+} SReaderTable;
 
 typedef struct {
   int32_t vgId;
@@ -116,7 +130,7 @@ typedef struct {
   char    path[TSDB_FILENAME_LEN];
   int64_t ver;
   STable *pTable;
-  // SHashObj     *pTableCache;
+
   TdThreadMutex  mutex;
   TdThreadRwlock rwlock;
   uint64_t       seq;
@@ -124,6 +138,7 @@ typedef struct {
   SHashObj      *pSeqOffsetCache;
   SBseCfg        cfg;
   SArray        *fileSet;
+  SHashObj      *pTableCache;
 } SBse;
 
 int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse);
@@ -134,6 +149,7 @@ int32_t bseRollback(SBse *pBse, int64_t ver);
 int32_t bseBeginSnapshot(SBse *pBse, int64_t ver);
 int32_t bseEndSnapshot(SBse *pBse);
 int32_t bseStopSnapshot(SBse *pBse);
+void    bseClose(SBse *pBse);
 
 #ifdef __cplusplus
 }
