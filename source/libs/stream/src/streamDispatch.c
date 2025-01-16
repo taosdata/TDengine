@@ -1889,7 +1889,12 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
 
         if (pReq->msgId > pInfo->lastMsgId) {
           status = streamTaskAppendInputBlocks(pTask, pReq);
-          pInfo->lastMsgId = pReq->msgId;
+          if (status == TASK_INPUT_STATUS__NORMAL) {
+            stDebug("s-task:%s update the lastMsgId from %" PRId64 " to %d", id, pInfo->lastMsgId, pReq->msgId);
+            pInfo->lastMsgId = pReq->msgId;
+          } else {
+            stDebug("s-task:%s not update the lastMsgId, remain:%" PRId64, id, pInfo->lastMsgId);
+          }
         } else {
           stWarn(
               "s-task:%s duplicate msgId:%d from upstream:0x%x discard and return succ, from vgId:%d already recv "
