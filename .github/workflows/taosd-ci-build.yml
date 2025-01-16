@@ -10,15 +10,20 @@ on:
       - 'docs/**'
       - 'packaging/**'
       - 'tests/**'
-
+      - 'README.md'
+      - 'README-CN.md'
+      
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    name: Build and test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-20.04, ubuntu-22.04, ubuntu-24.04, macos-latest, macos-13, macos-14, macos-15]
+    name: Build and test on ${{ matrix.os }}
 
     steps:
       - name: Checkout the repository
