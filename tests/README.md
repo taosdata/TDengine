@@ -41,7 +41,7 @@ pip3 install taospy taos-ws-py
 
 - Building
 
-Before testting, please make sure the building operation with option `-DBUILD_TOOLS=true -DBUILD_TEST=true -DBUILD_CONTRIB=true` has been done, otherwise execute commands below:
+Before testing, please make sure the building operation with option `-DBUILD_TOOLS=true -DBUILD_TEST=true -DBUILD_CONTRIB=true` has been done, otherwise execute commands below:
 
 ```bash
 cd debug
