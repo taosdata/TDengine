@@ -59,21 +59,21 @@ In `tests` directory, there are different types of tests for TDengine. Below is 
 
 Unit test script is the smallest testable part and developed for some function, method or class of TDengine.
 
-### How to run single test case?
+### 3.1.1 How to run single test case?
 
 ```bash
 cd debug/build/bin
 ./osTimeTests
 ```
 
-### How to run all unit test cases?
+### 3.1.2 How to run all unit test cases?
 
 ```bash
 cd tests/unit-test/
 bash test.sh -e 0
 ```
 
-#### How to add new cases? 
+### 3.1.3 How to add new cases? 
 
 <details>
 
@@ -81,25 +81,25 @@ bash test.sh -e 0
 
 The Google test framwork is used for unit testing to specific function module, you can refer below steps to add one test case:
 
-##### 1. Create test case file and develop the test scripts
+##### a. Create test case file and develop the test scripts
 
 In the test directory corresponding to the target function module, create test files in CPP format and write corresponding test cases.
 
-##### 2. Update build configuration
+##### b. Update build configuration
 
 Modify the CMakeLists.txt file in this directory to ensure that the new test files are properly included in the compilation process. See the `source/os/test/CMakeLists.txt` file for configuration examples.
 
-##### 3. Compile test code
+##### c. Compile test code
 
 In the root directory of the project, create a compilation directory (e.g., debug), switch to the directory and run CMake commands (e.g., `cmake .. -DBUILD_TEST=1`) to generate a compilation file,
 
 and then run a compilation command (e.g. make) to complete the compilation of the test code. 
 
-##### 4. Execute the test program
+##### d. Execute the test program
 
 Find the executable file in the compiled directory(e.g. `TDengine/debug/build/bin/`) and run it.
 
-##### 5. Integrate into CI tests
+##### e. Integrate into CI tests
 
 Use the add_test command to add new compiled test cases into CI test collection, ensure that the new added test cases can be run for every build.
 
@@ -110,21 +110,21 @@ Use the add_test command to add new compiled test cases into CI test collection,
 Python test script includes all of the functions of TDengine OSS, so some test case maybe fail cause the function only
 work for TDengine Enterprise Edition.
 
-### How to run single test case?
+### 3.2.1 How to run single test case?
 
 ```bash
 cd tests/system-test
 python3 ./test.py -f 2-query/avg.py
 ```
 
-### How to run all system test cases?
+### 3.2.2 How to run all system test cases?
 
 ```bash
 cd tests
 ./run_all_ci_cases.sh -t python # all python cases
 ```
 
-### How to add new case?
+### 3.2.3 How to add new case?
 
 <details>
 
@@ -134,18 +134,18 @@ The Python test framework is developed by TDengine teams, and test.py is the tes
 
 you can refer below steps to add one test case:
 
-##### 1.Create a test case file and develop the test cases
+##### a. Create a test case file and develop the test cases
 
 Create a file in `tests/system-test` containing each functional directory and refer to the use case template `tests/system-test/0-others/test_case_template.py` to add a new test case. 
 
-##### 2.Execute the test case 
+##### b. Execute the test case 
 
 Ensure the test case execution is successful.
 ``` bash
 cd tests/system-test & python3 ./test.py  -f 0-others/test_case_template.py 
 ```
 
-##### 3.Integrate into CI tests
+##### c. Integrate into CI tests
 
 Edit `tests/parallel_test/cases.task` and add the testcase path and executions in the specified format. The third column indicates whether to use Address Sanitizer mode for testing.
 
@@ -162,7 +162,7 @@ Edit `tests/parallel_test/cases.task` and add the testcase path and executions i
 
 In the early stage of TDengine development, test cases are run by an internal test framework called TSIM, which is developed in C++.
 
-### How to run single test case?
+### 3.3.1 How to run single test case?
 
 To run the legacy test cases, please execute the following commands:
 
@@ -171,14 +171,14 @@ cd tests/script
 ./test.sh -f tsim/db/basic1.sim
 ```
 
-### How to run all legacy test cases?
+### 3.3.2 How to run all legacy test cases?
 
 ```bash
 cd tests
 ./run_all_ci_cases.sh -t legacy # all legacy cases
 ```
 
-### How to add new case?
+### 3.3.3 How to add new case?
 
 > [!NOTE] 
 > TSIM test framwork is replaced by system test currently, suggest to add new test scripts to system test, you can refer [System Test](#32-system-test) for detail steps.
@@ -187,14 +187,14 @@ cd tests
 
 Smoke test script is from system test and known as sanity testing to ensure that the critical functionalities of TDengine.
 
-### How to run test?
+### 3.4.1 How to run test?
 
 ```bash
 cd /root/TDengine/packaging/smokeTest
 ./test_smoking_selfhost.sh
 ```
 
-### How to add new case?
+### 3.4.2 How to add new case?
 
 You can update python commands part of test_smoking_selfhost.sh file to add any system test case into smoke test.
 
@@ -202,14 +202,14 @@ You can update python commands part of test_smoking_selfhost.sh file to add any 
 
 A simple tool to exercise various functions of the system in a randomized fashion, hoping to expose maximum number of problems without a pre-determined scenario.
 
-### How to run test?
+### 3.5.1 How to run test?
 
 ```bash
 cd tests/pytest
 python3 auto_crash_gen.py
 ```
 
-### How to add new case?
+### 3.5.2 How to add new case?
 
 Add a function, such as TaskCreateNewFunction, to pytest/crash_gen/crash_gen_main.py.
 
@@ -221,7 +221,7 @@ CI testing (Continuous Integration testing), is an important practice in softwar
 
 TDengine CI testing includes three part of test cases: unit test、system test and legacy test
 
-### How to run all CI test cases?
+### 3.6.1 How to run all CI test cases?
 
 If this is the first time to run all the CI test cases, it is recommended to add the test branch, please run it with  following commands:
 
@@ -230,6 +230,6 @@ cd tests
 ./run_all_ci_cases.sh -b main # on main branch
 ```
 
-### How to add new cases?
+### 3.6.2 How to add new cases?
 
 You can refer the [Unit Test](#31-unit-test)、[System Test](#32-system-test) and [Legacy Test](#33-legacy-test) sections for detail steps to add new test cases for CI test.
