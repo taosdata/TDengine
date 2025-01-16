@@ -215,15 +215,17 @@ jobs:
           rm -rf $COVERAGE_BASE_DIR/influxdb/
           ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile
           cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
-          #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity -k "not mqtt_test.py"
-          #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity opcua_test.py
       - name: Stop taosX
         run: |
           ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx' | grep -v grep | awk '{print $2}' | xargs -r kill -2
+          sleep 10
+          ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx' | grep -v grep | awk '{print $2}' |
       - name: Stop taosx-agent
         shell: bash {0}
         run: |
-          ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent' | grep -v grep | awk '{print $2}' | xargs -r kill -2
+          ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx' | grep -v grep | awk '{print $2}' | xargs -r kill -2
+          sleep 10
+          ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx' | grep -v grep | awk '{print $2}' |
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [run_e2e_test,set_env]
