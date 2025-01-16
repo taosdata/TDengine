@@ -5,7 +5,7 @@ ExternalProject_Add(xml2
 	URL_HASH SHA256=6f6fb27f91bb65f9d7196e3c616901b3e18a7dea31ccc2ae857940b125faa780
         DOWNLOAD_NO_PROGRESS 1
         DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
-        SOURCE_DIR "${TD_CONTRIB_DIR}/xml2"
+        SOURCE_DIR "${TD_CONTRIB_DIR}/libxml2"
         #BINARY_DIR ""
         BUILD_IN_SOURCE TRUE
 	CONFIGURE_COMMAND ""
