@@ -1638,7 +1638,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
         taosMemoryFreeClear(pOut->tbMeta);
 
         CTG_RET(ctgGetTbMetaFromMnode(pCtg, pConn, pName, NULL, tReq));
-      } else if (CTG_IS_META_BOTH(pOut->metaType)) {
+      } else if (CTG_IS_META_BOTH(pOut->metaType) || CTG_IS_META_VBOTH(pOut->metaType)) {
         int32_t exist = 0;
         if (!CTG_FLAG_IS_FORCE_UPDATE(flag)) {
           SName stbName = *pName;
@@ -1672,6 +1672,26 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
 
   if (CTG_IS_META_BOTH(pOut->metaType)) {
     TAOS_MEMCPY(pOut->tbMeta, &pOut->ctbMeta, sizeof(pOut->ctbMeta));
+  }
+
+  if (CTG_IS_META_VBOTH(pOut->metaType)) {
+    int32_t colRefSize = pOut->vctbMeta->numOfColRefs * sizeof(SColRef);
+    if (pOut->tbMeta) {
+      int32_t metaSize = CTG_META_SIZE(pOut->tbMeta);
+      int32_t schemaExtSize = 0;
+      if (useCompress(pOut->tbMeta->tableType) && pOut->tbMeta->schemaExt) {
+        schemaExtSize = pOut->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+      }
+      pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, metaSize + schemaExtSize + colRefSize);
+      TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
+      pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + metaSize + schemaExtSize);
+      TAOS_MEMCPY(pOut->tbMeta->colRef, pOut->vctbMeta->colRef, colRefSize);
+    } else  {
+      pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, sizeof(STableMeta) + colRefSize);
+      TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
+      TAOS_MEMCPY(pOut->tbMeta + sizeof(STableMeta), pOut->vctbMeta + sizeof(SVCTableMeta), colRefSize);
+      pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
+    }
   }
 
   /*
@@ -1823,7 +1843,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
         taosMemoryFreeClear(pOut->tbMeta);
 
         CTG_RET(ctgGetTbMetaFromMnode(pCtg, pConn, pName, NULL, tReq));
-      } else if (CTG_IS_META_BOTH(pOut->metaType)) {
+      } else if (CTG_IS_META_BOTH(pOut->metaType) || CTG_IS_META_VBOTH(pOut->metaType)) {
         int32_t exist = 0;
         if (!CTG_FLAG_IS_FORCE_UPDATE(flag)) {
           SName stbName = *pName;
@@ -1865,6 +1885,25 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
     TAOS_MEMCPY(pOut->tbMeta, &pOut->ctbMeta, sizeof(pOut->ctbMeta));
   }
 
+  if (CTG_IS_META_VBOTH(pOut->metaType)) {
+    int32_t colRefSize = pOut->vctbMeta->numOfColRefs * sizeof(SColRef);
+    if (pOut->tbMeta) {
+      int32_t metaSize = CTG_META_SIZE(pOut->tbMeta);
+      int32_t schemaExtSize = 0;
+      if (useCompress(pOut->tbMeta->tableType) && pOut->tbMeta->schemaExt) {
+        schemaExtSize = pOut->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+      }
+      pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, metaSize + schemaExtSize + colRefSize);
+      TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
+      pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + metaSize + schemaExtSize);
+      TAOS_MEMCPY(pOut->tbMeta->colRef, pOut->vctbMeta->colRef, colRefSize);
+    } else  {
+      pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, sizeof(STableMeta) + colRefSize);
+      TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
+      TAOS_MEMCPY(pOut->tbMeta + sizeof(STableMeta), pOut->vctbMeta + sizeof(SVCTableMeta), colRefSize);
+      pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
+    }
+  }
   /*
     else if (CTG_IS_META_CTABLE(pOut->metaType)) {
       SName stbName = *pName;
@@ -2064,6 +2103,26 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
   STableMetaOutput* pOut = (STableMetaOutput*)pMsgCtx->out;
   if (CTG_IS_META_BOTH(pOut->metaType)) {
     TAOS_MEMCPY(pOut->tbMeta, &pOut->ctbMeta, sizeof(pOut->ctbMeta));
+  }
+
+  if (CTG_IS_META_VBOTH(pOut->metaType)) {
+    int32_t colRefSize = pOut->vctbMeta->numOfColRefs * sizeof(SColRef);
+    if (pOut->tbMeta) {
+      int32_t metaSize = CTG_META_SIZE(pOut->tbMeta);
+      int32_t schemaExtSize = 0;
+      if (useCompress(pOut->tbMeta->tableType) && pOut->tbMeta->schemaExt) {
+        schemaExtSize = pOut->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+      }
+      pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, metaSize + schemaExtSize + colRefSize);
+      TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
+      pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + metaSize + schemaExtSize);
+      TAOS_MEMCPY(pOut->tbMeta->colRef, pOut->vctbMeta->colRef, colRefSize);
+    } else  {
+      pOut->tbMeta = taosMemoryRealloc(pOut->tbMeta, sizeof(STableMeta) + colRefSize);
+      TAOS_MEMCPY(pOut->tbMeta, pOut->vctbMeta, sizeof(SVCTableMeta));
+      TAOS_MEMCPY(pOut->tbMeta + sizeof(STableMeta), pOut->vctbMeta + sizeof(SVCTableMeta), colRefSize);
+      pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
+    }
   }
 
   SMetaRes* pRes = taosArrayGet(ctx->pResList, pFetch->resIdx);
