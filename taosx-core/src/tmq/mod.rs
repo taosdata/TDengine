@@ -264,9 +264,9 @@ pub(crate) async fn check_tmq_dsn(
         // todo: should check the topic creation as we need.
         let res = source.create_topic_as_database(&topic, &database).await;
         if let Err(err) = res {
-            match err.code().to_string().as_str() {
+            match err.code().into() {
                 // WAL retention period is zero
-                "0x038C" => {
+                0x038C => {
                     anyhow::bail!("{err:#}, use `alter database {database} wal_retention_period 3600` to enable it");
                 }
                 _ => return Err(err.into()),
@@ -365,9 +365,9 @@ pub(crate) async fn check_tmq_dsn(
             let database = topic;
             let res = source.create_topic_as_database(topic, database).await;
             if let Err(err) = res {
-                match err.code().to_string().as_str() {
+                match err.code().into() {
                     // WAL retention period is zero
-                    "0x038C" => {
+                    0x038C => {
                         anyhow::bail!("{err:#}, use `alter database {database} wal_retention_period 3600` to enable it");
                     }
                     _ => return Err(err.into()),
@@ -736,9 +736,9 @@ pub(crate) async fn check_tmq_dsn(
                 } else {
                     let res = source.create_topic_as_database(&topic, &topic).await;
                     if let Err(err) = res {
-                        match err.code().to_string().as_str() {
+                        match err.code().into() {
                             // WAL retention period is zero
-                            "0x038C" => {
+                            0x038C => {
                                 anyhow::bail!("{err:#}, use `alter database {database} wal_retention_period 3600` to enable it");
                             }
                             _ => return Err(err.into()),
