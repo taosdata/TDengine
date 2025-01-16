@@ -398,7 +398,7 @@ bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -b main -c task
 # on main branch and run cases in longtimeruning_cases.task 
 # for more infomation about options please refer to ./run_local_coverage.sh -h
 ```
-> [**NOTE**]
+> **NOTE:**
 > Please note that the -b and -i options will recompile TDengine with the -DCOVER=true option, which may take a amount of time.
 
 </details>
