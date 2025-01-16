@@ -485,6 +485,8 @@ typedef SScanPhysiNode SBlockDistScanPhysiNode;
 
 typedef struct SVirtualScanPhysiNode {
   SScanPhysiNode scan;
+  SNodeList*     pGroupTags;
+  bool           groupSort;
   SNodeList*     pTargets;
 }SVirtualScanPhysiNode;
 

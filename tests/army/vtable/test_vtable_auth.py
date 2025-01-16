@@ -437,24 +437,24 @@ class TDTestCase(TBase):
                 tdLog.info(f"priv_db: {priv_db}, priv_vtb: {priv_vtb}")
                 testSql.execute("use test_vctable_auth_select;")
                 if (priv_db == "read" or priv_db == "all"):
-                    testSql.query("select * from test_vtable_auth_vtb_0;")
+                    testSql.query("select * from test_vctable_auth_vtb_0;")
                     testSql.checkRows(0)
-                    testSql.query("select int_col_1 from test_vtable_auth_vtb_0;")
+                    testSql.query("select int_col_1 from test_vctable_auth_vtb_0;")
                     testSql.checkRows(0)
-                    testSql.query("select int_col_2 from test_vtable_auth_vtb_0;")
+                    testSql.query("select int_col_2 from test_vctable_auth_vtb_0;")
                     testSql.checkRows(0)
                 else:
                     if (priv_vtb == "read" or priv_vtb == "all"):
-                        testSql.query("select * from test_vtable_auth_vtb_0;")
+                        testSql.query("select * from test_vctable_auth_vtb_0;")
                         testSql.checkRows(0)
-                        testSql.query("select int_col_1 from test_vtable_auth_vtb_0;")
+                        testSql.query("select int_col_1 from test_vctable_auth_vtb_0;")
                         testSql.checkRows(0)
-                        testSql.query("select int_col_2 from test_vtable_auth_vtb_0;")
+                        testSql.query("select int_col_2 from test_vctable_auth_vtb_0;")
                         testSql.checkRows(0)
                     else:
-                        testSql.error("select * from test_vtable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
-                        testSql.error("select int_col_1 from test_vtable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
-                        testSql.error("select int_col_2 from test_vtable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
+                        testSql.error("select * from test_vctable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
+                        testSql.error("select int_col_1 from test_vctable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
+                        testSql.error("select int_col_2 from test_vctable_auth_vtb_0;", expectErrInfo="Permission denied or target object not exist")
 
                 tdSql.execute(f"revoke {priv_db} on test_vctable_auth_select from test_vct_user_select;")
                 if (priv_vtb != "none"):
@@ -466,12 +466,12 @@ class TDTestCase(TBase):
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
 
-        #self.prepare_data()
+        self.prepare_data()
         #self.test_create_virtual_normal_table()
         #self.test_alter_drop_virtual_normal_table()
         #self.test_select_virtual_normal_table()
-        #self.test_create_virtual_child_table()
-        #self.test_alter_drop_virtual_child_table()
+        self.test_create_virtual_child_table()
+        self.test_alter_drop_virtual_child_table()
         self.test_select_virtual_child_table()
         tdLog.success(f"{__file__} successfully executed")
 

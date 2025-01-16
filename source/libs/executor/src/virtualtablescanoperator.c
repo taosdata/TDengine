@@ -22,6 +22,7 @@
 #include "tsort.h"
 
 typedef struct SVirtualTableScanInfo {
+  STableScanBase base;
   SArray*        pSortInfo;
   SSortHandle*   pSortHandle;
   int32_t        bufPageSize;
@@ -211,6 +212,23 @@ int32_t doVirtualTableMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   return code;
 }
 
+static int32_t doSetTagColumnData(STableScanBase * pTableScanInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo,
+                                  int32_t rows) {
+  int32_t    code = 0;
+  SExprSupp* pSup = &pTableScanInfo->pseudoSup;
+  if (pSup->numOfExprs > 0) {
+    code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pBlock, rows,
+                                  pTaskInfo, &pTableScanInfo->metaCache);
+    // ignore the table not exists error, since this table may have been dropped during the scan procedure.
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      if (pTaskInfo->streamInfo.pState) blockDataCleanup(pBlock);
+      code = 0;
+    }
+  }
+
+  return code;
+}
+
 int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   if (pOperator->status == OP_EXEC_DONE) {
     pResBlock = NULL;
@@ -218,14 +236,22 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   }
 
   VTS_ERR_RET(pOperator->fpSet._openFn(pOperator));
-
+  int32_t                        code = TSDB_CODE_SUCCESS;
+  int32_t                        lino = 0;
+  SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;
+  SVirtualTableScanInfo*         pSortMergeInfo = &pInfo->virtualScanInfo;
+  SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
   while(1) {
     VTS_ERR_RET(doVirtualTableMerge(pOperator, pResBlock));
     if (*pResBlock == NULL) {
       setOperatorCompleted(pOperator);
       break;
     }
+    STableKeyInfo* tbInfo = tableListGetInfo(pSortMergeInfo->base.pTableListInfo, 0);
+    QUERY_CHECK_NULL(tbInfo, code, lino, _return, terrno);
+    (*pResBlock)->info.id.uid = tbInfo->uid;
 
+    VTS_ERR_RET(doSetTagColumnData(&pSortMergeInfo->base, (*pResBlock), pTaskInfo, (*pResBlock)->info.rows));
     VTS_ERR_RET(doFilter(*pResBlock, pOperator->exprSupp.pFilterInfo, NULL));
     if ((*pResBlock)->info.rows > 0) {
       break;
@@ -233,6 +259,8 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   }
 
   return TSDB_CODE_SUCCESS;
+_return:
+  return code;
 }
 
 void destroyVirtualTableScanOperatorInfo(void* param) {
@@ -306,7 +334,8 @@ _return:
   return code;
 }
 
-int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, 
+int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, SReadHandle* readHandle,
+                                            STableListInfo* pTableListInfo, int32_t numOfDownstream,
                                             SVirtualScanPhysiNode* pVirtualScanPhyNode, SExecTaskInfo* pTaskInfo,
                                             SOperatorInfo** pOptrInfo) {
    SPhysiNode*                 pPhyNode = (SPhysiNode*)pVirtualScanPhyNode;
@@ -331,6 +360,16 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
    TSDB_CHECK_NULL(pInputBlock, code, lino, _return, terrno);
    pVirtualScanInfo->pInputBlock = pInputBlock;
 
+   if (pVirtualScanPhyNode->scan.pScanPseudoCols != NULL) {
+     SExprSupp* pSup = &pVirtualScanInfo->base.pseudoSup;
+     pSup->pExprInfo = NULL;
+     VTS_ERR_JRET(createExprInfo(pVirtualScanPhyNode->scan.pScanPseudoCols, NULL, &pSup->pExprInfo, &pSup->numOfExprs));
+
+     pSup->pCtx = createSqlFunctionCtx(pSup->pExprInfo, pSup->numOfExprs, &pSup->rowEntryInfoOffset,
+                                       &pTaskInfo->storageAPI.functionStore);
+     TSDB_CHECK_NULL(pSup->pCtx, code, lino, _return, terrno);
+   }
+
    initResultSizeInfo(&pOperator->resultInfo, 1024);
    TSDB_CHECK_CODE(blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity), lino, _return);
 
@@ -350,6 +389,11 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
    }
 
    VTS_ERR_JRET(filterInitFromNode((SNode*)pVirtualScanPhyNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0));
+
+   pVirtualScanInfo->base.metaCache.pTableMetaEntryCache = taosLRUCacheInit(1024 * 128, -1, .5);
+   QUERY_CHECK_NULL(pVirtualScanInfo->base.metaCache.pTableMetaEntryCache, code, lino, _return, terrno);
+   pVirtualScanInfo->base.readHandle = *readHandle;
+   pVirtualScanInfo->base.pTableListInfo = pTableListInfo;
 
    setOperatorInfo(pOperator, "VirtualTableScanOperator", QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN, false,
                    OP_NOT_OPENED, pInfo, pTaskInfo);

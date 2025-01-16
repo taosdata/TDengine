@@ -549,7 +549,7 @@ static int32_t createTableCacheVal(const SMetaReader* pMetaReader, STableCachedV
   QUERY_CHECK_NULL(pVal->pName, code, lino, _end, terrno);
 
   // only child table has tag value
-  if (pMetaReader->me.type == TSDB_CHILD_TABLE) {
+  if (pMetaReader->me.type == TSDB_CHILD_TABLE || pMetaReader->me.type == TSDB_VIRTUAL_CHILD_TABLE) {
     STag* pTag = (STag*)pMetaReader->me.ctbEntry.pTags;
     pVal->pTags = taosMemoryMalloc(pTag->len);
     QUERY_CHECK_NULL(pVal->pTags, code, lino, _end, terrno);
