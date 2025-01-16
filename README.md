@@ -384,7 +384,7 @@ For the complete list of TDengine Releases, please see [Releases](https://github
 
 # 10. Workflow
 
-TDengine build check workflow can be found in this [Github Action](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml).
+TDengine build check workflow can be found in this [Github Action](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml). More workflows will be available soon.
 
 # 11. Coverage
 
