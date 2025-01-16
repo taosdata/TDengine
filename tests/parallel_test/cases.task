@@ -361,6 +361,7 @@
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-column-false.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-db.py -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeSplit-db-false.py -N 3 -n 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/walRemoveLog.py -N 3
 
 ,,y,system-test,./pytest.sh python3 test.py -f 7-tmq/tmqVnodeReplicate.py -M 3 -N 3 -n 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-19201.py
