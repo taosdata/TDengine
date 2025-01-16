@@ -2812,7 +2812,7 @@ pub struct TaskDetail {
     #[serde(skip_serializing_if = "Option::is_none")]
     agent: Option<Agent>,
 
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing)]
     pub parser: Option<serde_json::Value>,
 }
 
