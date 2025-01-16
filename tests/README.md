@@ -15,7 +15,8 @@
 This manual is intended to give developers a comprehensive guidance to test TDengine efficiently. It is divided into three main sections: introduction, prerequisites and testing guide.
 
 > [!NOTE]
-> The commands and scripts below are verified on Linux (Ubuntu 18.04/20.04/22.04).
+> - The commands and scripts below are verified on Linux (Ubuntu 18.04/20.04/22.04).
+> - The commands and steps described below are to run the tests on a single host.
 
 # 2. Prerequisites
 
