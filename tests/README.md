@@ -173,7 +173,7 @@ cd tests
 ### How to add new case?
 
 > [!NOTE] 
-> TSIM test framwork is replaced by system test currently, suggest to add new test scripts to system test, you can refer [System Test](#312-system-test) for detail steps.
+> TSIM test framwork is replaced by system test currently, suggest to add new test scripts to system test, you can refer [System Test](#32-system-test) for detail steps.
 
 ## 3.4 Smoke Test
 
