@@ -1,6 +1,12 @@
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+# 明确设置库文件路径
+set(CRYPTO_LIBRARY /usr/lib/x86_64-linux-gnu/libcrypto.so)
+set(CURL_LIBRARY /usr/lib/x86_64-linux-gnu/libcurl.so)
+set(SSL_LIBRARY /usr/lib/x86_64-linux-gnu/libssl.so)
+set(XML2_LIBRARY /usr/lib/x86_64-linux-gnu/libxml2.so)
+
 add_executable(
   azure-test
   main.cpp

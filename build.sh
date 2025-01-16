@@ -5,4 +5,4 @@ if [ ! -d debug ]; then
 fi
 
 cd debug && cmake .. -DBUILD_TOOLS=true -DBUILD_CONTRIB=true && make
-
+make install
