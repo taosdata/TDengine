@@ -380,7 +380,7 @@ void* getTaskPoolWorkerCb();
 
 #define SET_META_TYPE_NULL(t)        (t) = META_TYPE_NULL_TABLE
 #define SET_META_TYPE_CTABLE(t)      (t) = META_TYPE_CTABLE
-#define SET_META_TYPE_VCTABLE(t)     (t) = META_TYPE_CTABLE
+#define SET_META_TYPE_VCTABLE(t)     (t) = META_TYPE_VCTABLE
 #define SET_META_TYPE_TABLE(t)       (t) = META_TYPE_TABLE
 #define SET_META_TYPE_BOTH_TABLE(t)  (t) = META_TYPE_BOTH_TABLE
 #define SET_META_TYPE_BOTH_VTABLE(t) (t) = META_TYPE_BOTH_VTABLE

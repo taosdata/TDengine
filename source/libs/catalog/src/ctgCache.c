@@ -575,7 +575,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   int32_t metaSize = sizeof(SCTableMeta);
   int32_t colRefSize = 0;
   if (hasRefCol(tbMeta->tableType) && tbMeta->colRef != NULL) {
-    colRefSize += tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+    colRefSize += tbMeta->numOfColRefs * sizeof(SColRef );
   }
   *pTableMeta = taosMemoryCalloc(1, metaSize + colRefSize);
   if (NULL == *pTableMeta) {
@@ -611,12 +611,12 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   }
 
   metaSize = CTG_META_SIZE(stbMeta);
-  *pTableMeta = taosMemoryRealloc(*pTableMeta, metaSize);
+  *pTableMeta = taosMemoryRealloc(*pTableMeta, metaSize + colRefSize);
   if (NULL == *pTableMeta) {
     CTG_ERR_RET(terrno);
   }
 
-  TAOS_MEMCPY(&(*pTableMeta)->sversion, &stbMeta->sversion, metaSize - sizeof(SCTableMeta));
+  TAOS_MEMCPY(&(*pTableMeta)->numOfColRefs, &stbMeta->numOfColRefs, metaSize - sizeof(SCTableMeta));
   (*pTableMeta)->schemaExt =  NULL;
   if (hasRefCol(tbMeta->tableType) && tbMeta->colRef) {
     (*pTableMeta)->colRef = (SColRef *)((char *)*pTableMeta + metaSize);
@@ -2479,7 +2479,7 @@ int32_t ctgOpUpdateTbMeta(SCtgCacheOperation *operation) {
 
   if (CTG_IS_META_VCTABLE(pMeta->metaType) || CTG_IS_META_VBOTH(pMeta->metaType)) {
     int32_t colRefSize = sizeof(SColRef) * pMeta->vctbMeta->numOfColRefs;
-    SVCTableMeta *ctbMeta = taosMemoryMalloc(sizeof(STableMeta) + colRefSize);
+    STableMeta *ctbMeta = taosMemoryMalloc(sizeof(STableMeta) + colRefSize);
     if (NULL == ctbMeta) {
       CTG_ERR_JRET(terrno);
     }
@@ -2487,12 +2487,11 @@ int32_t ctgOpUpdateTbMeta(SCtgCacheOperation *operation) {
     ctbMeta->colRef = (SColRef *)((char *)ctbMeta + sizeof(STableMeta));
     TAOS_MEMCPY(ctbMeta->colRef, pMeta->vctbMeta->colRef, colRefSize);
     CTG_ERR_JRET(ctgWriteTbMetaToCache(pCtg, dbCache, pMeta->dbFName, pMeta->dbId, pMeta->ctbName,
-                                       (STableMeta *)ctbMeta));
+                                       ctbMeta));
   }
 _return:
 
   taosMemoryFreeClear(pMeta->tbMeta);
-  taosMemoryFreeClear(pMeta->vctbMeta);
   taosMemoryFreeClear(pMeta);
 
   taosMemoryFreeClear(msg);
@@ -3695,7 +3694,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       CTG_ERR_RET(terrno);
     }
 
-    TAOS_MEMCPY(&pTableMeta->sversion, &stbMeta->sversion, metaSize + schemaExtSize - sizeof(SCTableMeta));
+    TAOS_MEMCPY(&pTableMeta->numOfColRefs, &stbMeta->numOfColRefs, metaSize + schemaExtSize - sizeof(SCTableMeta));
     if (useCompress(stbMeta->tableType) && stbMeta->schemaExt != NULL) {
       pTableMeta->schemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
     } else {
