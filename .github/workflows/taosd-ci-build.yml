@@ -34,8 +34,8 @@ jobs:
         with:
           go-version: 1.18
 
-      - name: Install system dependencies
-      if: runner.os == 'Linux'
+      - name: Install dependencies on Linux
+        if: runner.os == 'Linux'
         run: |
           sudo apt update -y
           sudo apt install -y build-essential cmake \
