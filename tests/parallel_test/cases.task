@@ -28,6 +28,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_alter.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_drop.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_meta.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_elapsed.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_function.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_selection_function_with_json.py
