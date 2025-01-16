@@ -591,6 +591,7 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
     case TDMT_VND_TABLE_NAME: {
       STableMetaOutput* pOut = (STableMetaOutput*)pCtx->out;
       taosMemoryFree(pOut->tbMeta);
+      taosMemoryFree(pOut->vctbMeta);
       taosMemoryFreeClear(pCtx->out);
       break;
     }
@@ -676,6 +677,7 @@ void ctgFreeSTableMetaOutput(STableMetaOutput* pOutput) {
   }
 
   taosMemoryFree(pOutput->tbMeta);
+  taosMemoryFree(pOutput->vctbMeta);
   taosMemoryFree(pOutput);
 }
 
@@ -1650,11 +1652,15 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
   if (output->tbMeta) {
     int32_t metaSize = CTG_META_SIZE(output->tbMeta);
     int32_t schemaExtSize = 0;
+    int32_t colRefSize = 0;
     if (useCompress(output->tbMeta->tableType) && (*pOutput)->tbMeta->schemaExt) {
       schemaExtSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
     }
+    if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->colRef) {
+      colRefSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SColRef);
+    }
 
-    (*pOutput)->tbMeta = taosMemoryMalloc(metaSize + schemaExtSize);
+    (*pOutput)->tbMeta = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize);
     qDebug("tbMeta cloned, size:%d, p:%p", metaSize, (*pOutput)->tbMeta);
     if (NULL == (*pOutput)->tbMeta) {
       qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
@@ -1669,7 +1675,14 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     } else {
       (*pOutput)->tbMeta->schemaExt = NULL;
     }
+    if (hasRefCol(output->tbMeta->tableType) && (*pOutput)->tbMeta->colRef) {
+      (*pOutput)->tbMeta->colRef = (SColRef*)((char*)(*pOutput)->tbMeta + metaSize + schemaExtSize);
+      TAOS_MEMCPY((*pOutput)->tbMeta->colRef, output->tbMeta->colRef, colRefSize);
+    } else {
+      (*pOutput)->tbMeta->colRef = NULL;
+    }
   }
+
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2053,12 +2066,12 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
       CTG_ERR_JRET(ctgGetTbMeta(pCtg, req->pConn, &ctx, &pMeta));
     }
 
-    if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType) {
+    if (TSDB_SUPER_TABLE == pMeta->tableType || TSDB_NORMAL_TABLE == pMeta->tableType || TSDB_VIRTUAL_TABLE == pMeta->tableType) {
       res->pRawRes->pass[AUTH_RES_BASIC] = false;
       goto _return;
     }
 
-    if (TSDB_CHILD_TABLE == pMeta->tableType) {
+    if (TSDB_CHILD_TABLE == pMeta->tableType || TSDB_VIRTUAL_CHILD_TABLE == pMeta->tableType) {
       CTG_ERR_JRET(ctgGetCachedStbNameFromSuid(pCtg, dbFName, pMeta->suid, &stbName));
       if (NULL == stbName) {
         if (req->onlyCache) {
@@ -2376,6 +2389,8 @@ FORCE_INLINE uint64_t ctgGetTbMetaCacheSize(STableMeta* pMeta) {
       return sizeof(*pMeta) + (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags) * sizeof(SSchema);
     case TSDB_CHILD_TABLE:
       return sizeof(SCTableMeta);
+    case TSDB_VIRTUAL_CHILD_TABLE:
+      return sizeof(*pMeta);
     default:
       return sizeof(*pMeta) + pMeta->tableInfo.numOfColumns * sizeof(SSchema);
   }

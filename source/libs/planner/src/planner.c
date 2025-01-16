@@ -43,6 +43,20 @@ static int32_t dumpQueryPlan(SQueryPlan* pPlan) {
   return code;
 }
 
+static int32_t printPlanNode(SLogicNode *pNode, int32_t level) {
+  // print pnode and it's child for each level
+  const char *nodename = nodesNodeName(nodeType((pNode)));
+  char *blanks = taosMemoryMalloc(level * 4);
+  memset(blanks, ' ', level * 4);
+  qInfo("%s%s", blanks, nodename);
+  taosMemFree(blanks);
+  SNode *tmp = NULL;
+  FOREACH(tmp, pNode->pChildren) {
+    printPlanNode((SLogicNode *)tmp, level + 1);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
   SLogicSubplan*   pLogicSubplan = NULL;
   SQueryLogicPlan* pLogicPlan = NULL;
@@ -51,19 +65,29 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   if (TSDB_CODE_SUCCESS == code) {
     code = createLogicPlan(pCxt, &pLogicSubplan);
   }
+  qInfo("After logic plan");
   if (TSDB_CODE_SUCCESS == code) {
+    printPlanNode(pLogicSubplan->pNode, 0);
     code = optimizeLogicPlan(pCxt, pLogicSubplan);
   }
+  qInfo("After optimize plan");
   if (TSDB_CODE_SUCCESS == code) {
+    printPlanNode(pLogicSubplan->pNode, 0);
     code = splitLogicPlan(pCxt, pLogicSubplan);
   }
+  qInfo("After split plan");
   if (TSDB_CODE_SUCCESS == code) {
+    printPlanNode(pLogicSubplan->pNode, 0);
     code = scaleOutLogicPlan(pCxt, pLogicSubplan, &pLogicPlan);
   }
+  qInfo("After scale out plan");
   if (TSDB_CODE_SUCCESS == code) {
+    printPlanNode(pLogicSubplan->pNode, 0);
     code = createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList);
   }
+  qInfo("After physic plan");
   if (TSDB_CODE_SUCCESS == code) {
+    printPlanNode(pLogicSubplan->pNode, 0);
     code = validateQueryPlan(pCxt, *pPlan);
   }
   if (TSDB_CODE_SUCCESS == code) {

@@ -167,6 +167,7 @@ int32_t metaFilterTableName(void* pVnode, SMetaFltParam* param, SArray* pUids);
 int32_t metaFilterTtl(void* pVnode, SMetaFltParam* param, SArray* pUids);
 
 int32_t metaGetColCmpr(SMeta* pMeta, tb_uid_t uid, SHashObj** colCmprObj);
+int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t add, SColRef *pColRef);
 #ifndef META_REFACT
 // SMetaDB
 int  metaOpenDB(SMeta* pMeta);
