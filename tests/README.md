@@ -143,6 +143,8 @@ cd tests
 
 [Placeholder]
 
+> [!NOTE]
+> TSIM test framwork is replaced by system test currently, suggest to add new test scripts to system test.
 
 ## 3.2 Smoke Test
 
