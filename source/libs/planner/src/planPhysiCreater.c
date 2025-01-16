@@ -1729,7 +1729,7 @@ static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
     PLAN_ERR_JRET(addDataBlockSlots(pCxt, pScanPhysiNode->scan.pScanPseudoCols, pScanPhysiNode->scan.node.pOutputDataBlockDesc));
   }
 
-  PLAN_ERR_JRET(setConditionsSlotId(pCxt, (const SLogicNode*)pScanLogicNode, (SPhysiNode*)pScanPhysiNode));
+  PLAN_ERR_JRET(setVtableConditionsSlotId(pCxt, pChild, (const SLogicNode*)pScanLogicNode, (SPhysiNode*)pScanPhysiNode));
 
   pScanPhysiNode->scan.uid = pScanLogicNode->tableId;
   pScanPhysiNode->scan.suid = pScanLogicNode->stableId;

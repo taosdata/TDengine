@@ -157,7 +157,11 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
       } else {
         taosMemoryFreeClear(output->tbMeta);
 
-        SET_META_TYPE_CTABLE(output->metaType);
+        if (CTG_IS_META_BOTH(output->metaType)) {
+          SET_META_TYPE_CTABLE(output->metaType);
+        } else {
+          SET_META_TYPE_VCTABLE(output->metaType);
+        }
       }
     }
   }
