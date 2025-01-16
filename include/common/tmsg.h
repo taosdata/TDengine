@@ -654,6 +654,7 @@ typedef struct {
   SSchema*    pSchemas;
   SSchemaExt* pSchemaExt;
   int8_t      virtualStb;
+  int32_t     numOfColRefs;
   SColRef*    pColRefs;
 } STableMetaRsp;
 

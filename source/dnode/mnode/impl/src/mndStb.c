@@ -2121,6 +2121,7 @@ static int32_t mndSetAlterStbRedoActions2(SMnode *pMnode, STrans *pTrans, SDbObj
 
   TAOS_RETURN(code);
 }
+
 static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbName, STableMetaRsp *pRsp) {
   int32_t code = 0;
   taosRLockLatch(&pStb->lock);
@@ -2138,6 +2139,7 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
     code = terrno;
     TAOS_RETURN(code);
   }
+  pRsp->numOfColRefs = 0;
   pRsp->pColRefs = NULL;
   tstrncpy(pRsp->dbFName, pStb->db, sizeof(pRsp->dbFName));
   tstrncpy(pRsp->tbName, tbName, sizeof(pRsp->tbName));

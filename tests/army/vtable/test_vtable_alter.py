@@ -17,7 +17,7 @@ from frame.cases import *
 from frame.sql import *
 from frame.caseBase import *
 from frame.common import *
-
+import time
 class TDTestCase(TBase):
 
     def prepare_vtables(self):

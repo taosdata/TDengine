@@ -192,6 +192,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       goto _exit;
     }
   }
+  metaRsp.numOfColRefs = metaRsp.numOfColumns;
 
   // encode and send response
   rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
