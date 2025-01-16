@@ -12,7 +12,9 @@
 
 # 1. Introduction
 
-This manual is intended to provide users with comprehensive guidance to help them verify the TDengine function efficiently. The document is divided into three main sections: introduction, prerequisites and testing guide.
+This manual is intended to provide users with comprehensive guidance to help them verify the TDengine function efficiently. 
+
+The document is divided into three main sections: introduction, prerequisites and testing guide.
 
 > [!NOTE]
 > The below commands and test scripts are verified on linux (Ubuntu 18.04、20.04、22.04) locally.
@@ -89,7 +91,9 @@ Modify the CMakeLists.txt file in this directory to ensure that the new test fil
 
 ##### 3. Compile test code
 
-In the root directory of the project, create a compilation directory (e.g., debug), switch to the directory and run CMake commands (e.g., `cmake .. -DBUILD_TEST=1`) to generate a compilation file, and then run a compilation command (e.g. make) to complete the compilation of the test code. 
+In the root directory of the project, create a compilation directory (e.g., debug), switch to the directory and run CMake commands (e.g., `cmake .. -DBUILD_TEST=1`) to generate a compilation file,
+
+and then run a compilation command (e.g. make) to complete the compilation of the test code. 
 
 ##### 4. Execute the test program
 
@@ -110,7 +114,7 @@ work for TDengine Enterprise Edition.
 
 ```bash
 cd tests/system-test
-python3 ./test.py -f 2-query/floor.py
+python3 ./test.py -f 2-query/avg.py
 ```
 
 ### How to run all system test cases?
@@ -127,6 +131,7 @@ cd tests
 <summary>Detailed steps to add new system test case</summary>
 
 The Python test framework is developed by TDengine teams, and test.py is the test case execution and monitoring of the entry program, Use `python3  ./test.py -h` to view more features.
+
 you can refer below steps to add one test case:
 
 ##### 1.Create a test case file and develop the test cases
@@ -209,7 +214,9 @@ Integrate TaskCreateNewFunction into the balance_pickTaskType function in crash_
 
 ## 3.6 CI Test
 
-CI testing (Continuous Integration testing), is an important practice in software development that aims to automate frequent integration of code into a shared codebase, build and test it to ensure code quality and stability. TDengine CI testing includes three part of test cases: unit test、system test and legacy test
+CI testing (Continuous Integration testing), is an important practice in software development that aims to automate frequent integration of code into a shared codebase, build and test it to ensure code quality and stability.
+
+TDengine CI testing includes three part of test cases: unit test、system test and legacy test
 
 ### How to run all CI test cases?
 
