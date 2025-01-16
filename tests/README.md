@@ -154,7 +154,10 @@ Create a file in `tests/system-test` containing each functional directory and re
 
 ##### 2.Execute the test case 
 
+Ensure the test case execution is successful.
+```bash
 cd tests/system-test & python3 ./test.py  -f 0-others/test_case_template.py 
+```
 
 ##### 3.Integrate into CI tests
 
