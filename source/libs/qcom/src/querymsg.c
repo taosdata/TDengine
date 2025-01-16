@@ -553,13 +553,42 @@ int32_t queryCreateCTableMetaFromMsg(STableMetaRsp *msg, SCTableMeta *pMeta) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta) {
+  QUERY_PARAM_CHECK(msg);
+  QUERY_PARAM_CHECK(pMeta);
+  QUERY_PARAM_CHECK(msg->pColRefs);
+
+  int32_t pColRefSize = sizeof(SColRef) * msg->numOfColRefs;
+
+  SVCTableMeta *pTableMeta = taosMemoryCalloc(1, sizeof(SVCTableMeta) + pColRefSize);
+  if (NULL == pTableMeta) {
+    qError("calloc size[%d] failed", (int32_t)sizeof(SVCTableMeta) + pColRefSize);
+    return terrno;
+  }
+
+  pTableMeta->vgId = msg->vgId;
+  pTableMeta->tableType = msg->tableType;
+  pTableMeta->uid = msg->tuid;
+  pTableMeta->suid = msg->suid;
+  pTableMeta->numOfColRefs = msg->numOfColRefs;
+
+  pTableMeta->colRef = (SColRef *)((char *)pTableMeta + sizeof(SVCTableMeta));
+  memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
+
+  qDebug("ctable %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s suid %" PRIx64, msg->tbName, (pTableMeta)->uid,
+         (pTableMeta)->tableType, (pTableMeta)->vgId, msg->dbFName, (pTableMeta)->suid);
+
+  *pMeta = pTableMeta;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta **pMeta) {
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(pMeta);
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
   int32_t schemaExtSize = (useCompress(msg->tableType) && msg->pSchemaExt) ? sizeof(SSchemaExt) * msg->numOfColumns : 0;
-  int32_t pColRefSize = (hasRefCol(msg->tableType) && msg->pColRefs) ? sizeof(SColRef) * msg->numOfColumns : 0;
+  int32_t pColRefSize = (hasRefCol(msg->tableType) && msg->pColRefs && !isStb) ? sizeof(SColRef) * msg->numOfColRefs : 0;
 
   STableMeta *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + pColRefSize);
   if (NULL == pTableMeta) {
@@ -589,7 +618,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
     pTableMeta->schemaExt = NULL;
   }
 
-  if (hasRefCol(msg->tableType) && msg->pColRefs) {
+  if (hasRefCol(msg->tableType) && msg->pColRefs && !isStb) {
     pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
     memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
   } else {
@@ -730,6 +759,17 @@ int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
     pOut->ctbMeta.suid = metaRsp.suid;
 
     code = queryCreateTableMetaFromMsg(&metaRsp, true, &pOut->tbMeta);
+  } if (metaRsp.tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+    SET_META_TYPE_BOTH_VTABLE(pOut->metaType);
+
+    tstrncpy(pOut->ctbName, metaRsp.tbName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pOut->tbName, metaRsp.stbName, TSDB_TABLE_NAME_LEN);
+
+    code = queryCreateVCTableMetaFromMsg(&metaRsp, &pOut->vctbMeta);
+    if (TSDB_CODE_SUCCESS != code) {
+      goto PROCESS_META_OVER;
+    }
+    code = queryCreateTableMetaFromMsg(&metaRsp, true, &pOut->tbMeta);
   } else {
     SET_META_TYPE_TABLE(pOut->metaType);
     tstrncpy(pOut->tbName, metaRsp.tbName, TSDB_TABLE_NAME_LEN);
@@ -784,6 +824,18 @@ static int32_t queryProcessTableNameRsp(void *output, char *msg, int32_t msgSize
     pOut->ctbMeta.tableType = metaRsp.tableType;
     pOut->ctbMeta.uid = metaRsp.tuid;
     pOut->ctbMeta.suid = metaRsp.suid;
+
+    code = queryCreateTableMetaExFromMsg(&metaRsp, true, &pOut->tbMeta);
+  } else if (metaRsp.tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+    SET_META_TYPE_BOTH_VTABLE(pOut->metaType);
+
+    tstrncpy(pOut->ctbName, metaRsp.tbName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pOut->tbName, metaRsp.stbName, TSDB_TABLE_NAME_LEN);
+
+    code = queryCreateVCTableMetaFromMsg(&metaRsp, &pOut->vctbMeta);
+    if (TSDB_CODE_SUCCESS != code) {
+      goto PROCESS_NAME_OVER;
+    }
 
     code = queryCreateTableMetaExFromMsg(&metaRsp, true, &pOut->tbMeta);
   } else {
