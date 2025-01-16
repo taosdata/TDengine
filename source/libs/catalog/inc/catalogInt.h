@@ -776,10 +776,12 @@ typedef struct SCtgCacheItemInfo {
 
 #define CTG_META_NHIT_INC() CTG_CACHE_NHIT_INC(CTG_CI_OTHERTABLE_META, 1)
 
-#define CTG_IS_META_NULL(type)   ((type) == META_TYPE_NULL_TABLE)
-#define CTG_IS_META_CTABLE(type) ((type) == META_TYPE_CTABLE)
-#define CTG_IS_META_TABLE(type)  ((type) == META_TYPE_TABLE)
-#define CTG_IS_META_BOTH(type)   ((type) == META_TYPE_BOTH_TABLE)
+#define CTG_IS_META_NULL(type)    ((type) == META_TYPE_NULL_TABLE)
+#define CTG_IS_META_CTABLE(type)  ((type) == META_TYPE_CTABLE)
+#define CTG_IS_META_VCTABLE(type) ((type) == META_TYPE_VCTABLE)
+#define CTG_IS_META_TABLE(type)   ((type) == META_TYPE_TABLE)
+#define CTG_IS_META_BOTH(type)    ((type) == META_TYPE_BOTH_TABLE)
+#define CTG_IS_META_VBOTH(type)   ((type) == META_TYPE_BOTH_VTABLE)
 
 #define CTG_FLAG_STB          0x1
 #define CTG_FLAG_NOT_STB      0x2
