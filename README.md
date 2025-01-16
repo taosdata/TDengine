@@ -243,7 +243,7 @@ nmake
 
 # 5. Packaging
 
-TDengine packaging scripts depends on some private repositries currently, you can refer the link for detail steps. [Packaging](https://github.com/taosdata/TDinternal/tree/main?tab=readme-ov-file#5-packaging)
+[Placeholder]
 
 # 6. Installation
 
@@ -405,7 +405,6 @@ bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -b main -c task
 > Please note that the -b and -i options will recompile TDengine with the -DCOVER=true option, which may take a amount of time.
 
 </details>
-
 
 # 12. Contributing
 
