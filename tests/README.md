@@ -81,7 +81,7 @@ Unit test script is the smallest testable part and developed for some function, 
 
 ```bash
 cd debug/build/bin
-./osTimeTests 
+./osTimeTests
 ```
 
 ### How to run all unit test cases?
@@ -163,12 +163,16 @@ cd /root/TDengine/packaging/smokeTest
 
 ## 3.3 Chaos Test
 
-[Desciprtion]
+A simple tool to exercise various functions of the system in a randomized fashion, hoping to expose maximum number of problems, hopefully without a pre-determined scenario.
 
 ### How to run test?
 
-[Placeholder]
+```bash
+cd tests/pytest
+python3 auto_crash_gen.py
+```
 
 ### How to add new case?
 
-[Placeholder]
+Add a function, such as TaskCreateNewFunction, to pytest/crash_gen/crash_gen_main.py.
+Integrate TaskCreateNewFunction into the balance_pickTaskType function in crash_gen_main.py.
