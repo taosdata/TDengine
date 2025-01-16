@@ -1,5 +1,8 @@
 #!/bin/sh
 set -e
+if [ "$ENTRYPOINT_DEBUG" != "" ]; then
+    set -x
+fi
 # for TZ awareness
 if [ "$TZ" != "" ]; then
     ln -sf /usr/share/zoneinfo/$TZ /etc/localtime
@@ -37,7 +40,7 @@ elif [ "$ENABLE_MONITOR" = "1" ]; then
     export TAOS_MONITOR_FQDN=${TAOS_MONITOR_FQDN:-localhost}
 fi
 
-if [ $# > 0 ]; then
+if [ $# -gt 0 ]; then
     exec $@
     exit 0
 fi
@@ -103,7 +106,7 @@ fi
 if [ "$ENABLE_TAOSX" = "1" ]; then
     echo "enable taosx"
     # startup taosx
-    /usr/bin/taosx serve -c $TAOSX_CONFIG &
+    /usr/bin/taosx serve &
     # wait for 6050 port ready
     for _ in $(seq 1 20); do
         nc -z localhost 6050 && break
@@ -114,7 +117,7 @@ fi
 if [ "$ENABLE_TAOSX" = "1" ]; then
     echo "enable taos-explorer"
     # startup explorer
-    /usr/bin/taos-explorer -C $EXPLORER_CONFIG_FILE &
+    /usr/bin/taos-explorer &
     # wait for 6060 port ready
     for _ in $(seq 1 20); do
         nc -z localhost 6060 && break
