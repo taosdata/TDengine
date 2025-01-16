@@ -144,10 +144,6 @@ You can view cacheload through show \<db_name>.vgroups;
 
 If cacheload is very close to cachesize, then cachesize may be too small. If cacheload is significantly less than cachesize, then cachesize is sufficient. You can decide whether to modify cachesize based on this principle. The specific modification value can be determined based on the available system memory, whether to double it or increase it several times.
 
-4. stt_trigger
-
-Please stop database writing before modifying the stt_trigger parameter.
-
 :::note
 Other parameters are not supported for modification in version 3.0.0.0
 
