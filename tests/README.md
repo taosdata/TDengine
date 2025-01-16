@@ -139,7 +139,9 @@ cd tests/script
   cd scripts/tsdbComp && ./testTsbs.sh  
 ```
 > [!NOTE]
-> If you want to quickly verify the test environment, please set the `caseType` in  `test.ini` file to `cputest`. The current default test is the CPU scenario. After running, the test will take a very long time.
+> The default case type, CPU test, takes a long time to run.
+> 
+> If you want to run quick test to verify the test environment, please set `caseType=cputest` in test.ini .
 
 
 2. When testing the client and server on separate machines, you should set up your environment as outlined in the steps below:
