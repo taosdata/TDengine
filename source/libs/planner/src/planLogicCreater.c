@@ -740,17 +740,37 @@ _return:
   return code;
 }
 
+
+static int32_t makeVirtualScanLogicNode(SLogicPlanContext* pCxt, SVirtualTableNode* pVirtualTable,
+                                        bool hasRepeatScanFuncs, SVirtualScanLogicNode* pScan) {
+
+  TSWAP(pScan->pVgroupList, pVirtualTable->pVgroupList);
+  pScan->tableId = pVirtualTable->pMeta->uid;
+  pScan->stableId = pVirtualTable->pMeta->suid;
+  pScan->tableType = pVirtualTable->pMeta->tableType;
+  pScan->tableName.type = TSDB_TABLE_NAME_T;
+  pScan->tableName.acctId = pCxt->pPlanCxt->acctId;
+  tstrncpy(pScan->tableName.dbname, pVirtualTable->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pScan->tableName.tname, pVirtualTable->table.tableName, TSDB_TABLE_NAME_LEN);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
                                            SVirtualTableNode* pVirtualTable, SLogicNode** pLogicNode) {
   int32_t                 code = TSDB_CODE_SUCCESS;
-  SVirtualScanLogicNode *pVtableScan = NULL;
+  SVirtualScanLogicNode  *pVtableScan = NULL;
   SLogicNode             *pRefScan = NULL;
   SNode                  *pRefTable = NULL;
   PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN, (SNode**)&pVtableScan));
   PLAN_ERR_JRET(nodesMakeList(&pVtableScan->node.pChildren));
 
+  PLAN_ERR_JRET(makeVirtualScanLogicNode(pCxt, pVirtualTable, pSelect->hasRepeatScanFuncs, pVtableScan));
+
   PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pVirtualTable->table.tableAlias, COLLECT_COL_TYPE_COL,
                                     &pVtableScan->pScanCols));
+
+  PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pVirtualTable->table.tableAlias, COLLECT_COL_TYPE_TAG,
+                                    &pVtableScan->pScanPseudoCols));
 
   SNode  *pNode = NULL;
   int32_t slotId = 0;
