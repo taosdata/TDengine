@@ -9959,6 +9959,16 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   }
 
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->smaId));
+
+  int32_t addrSize = taosArrayGetSize(pReq->pNotifyAddrUrls);
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, addrSize));
+  for (int32_t i = 0; i < addrSize; ++i) {
+    const char *url = taosArrayGetP(pReq->pNotifyAddrUrls, i);
+    TAOS_CHECK_EXIT((tEncodeCStr(&encoder, url)));
+  }
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->notifyEventTypes));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->notifyErrorHandle));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->notifyHistory));
   tEndEncode(&encoder);
 
 _exit:
@@ -10093,6 +10103,30 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->smaId));
   }
 
+  if (!tDecodeIsEnd(&decoder)) {
+    int32_t addrSize = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &addrSize));
+    pReq->pNotifyAddrUrls = taosArrayInit(addrSize, POINTER_BYTES);
+    if (pReq->pNotifyAddrUrls == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i < addrSize; ++i) {
+      char *url = NULL;
+      TAOS_CHECK_EXIT(tDecodeCStr(&decoder, &url));
+      url = taosStrndup(url, TSDB_STREAM_NOTIFY_URL_LEN);
+      if (url == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      if (taosArrayPush(pReq->pNotifyAddrUrls, &url) == NULL) {
+        taosMemoryFree(url);
+        TAOS_CHECK_EXIT(terrno);
+      }
+    }
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->notifyEventTypes));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->notifyErrorHandle));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->notifyHistory));
+  }
+
   tEndDecode(&decoder);
 _exit:
   tDecoderClear(&decoder);
@@ -10155,6 +10189,7 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosArrayDestroy(pReq->fillNullCols);
   taosArrayDestroy(pReq->pVgroupVerList);
   taosArrayDestroy(pReq->pCols);
+  taosArrayDestroyP(pReq->pNotifyAddrUrls, NULL);
 }
 
 int32_t tEncodeSRSmaParam(SEncoder *pCoder, const SRSmaParam *pRSmaParam) {

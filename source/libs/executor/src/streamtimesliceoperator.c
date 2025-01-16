@@ -150,6 +150,7 @@ void destroyStreamTimeSliceOperatorInfo(void* param) {
                               &pInfo->groupResInfo);
     pInfo->pOperator = NULL;
   }
+  destroyStreamBasicInfo(&pInfo->basic);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   destroyStreamAggSupporter(&pInfo->streamAggSup);
   resetPrevAndNextWindow(pInfo->pFillSup);

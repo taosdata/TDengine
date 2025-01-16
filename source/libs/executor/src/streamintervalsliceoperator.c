@@ -55,6 +55,7 @@ void destroyStreamIntervalSliceOperatorInfo(void* param) {
     pInfo->pOperator = NULL;
   }
 
+  destroyStreamBasicInfo(&pInfo->basic);
   clearGroupResInfo(&pInfo->groupResInfo);
   taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
   pInfo->pUpdated = NULL;

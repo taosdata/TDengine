@@ -19,7 +19,10 @@
 extern "C" {
 #endif
 
+#include "cJSON.h"
+#include "cmdnodes.h"
 #include "executorInt.h"
+#include "querytask.h"
 #include "tutil.h"
 
 #define FILL_POS_INVALID 0
@@ -106,6 +109,13 @@ int32_t createStreamIntervalSliceOperatorInfo(struct SOperatorInfo* downstream, 
 int32_t buildAllResultKey(SStateStore* pStateStore, SStreamState* pState, TSKEY ts, SArray* pUpdated);
 int32_t initOffsetInfo(int32_t** ppOffset, SSDataBlock* pRes);
 TSKEY   compareTs(void* pKey);
+
+int32_t addEventAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionKey* pSessionKey,
+                               const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t ri,
+                               SStreamNotifyEventSupp* sup);
+int32_t addAggResultNotifyEvent(const SSDataBlock* pResultBlock, const SSchemaWrapper* pSchemaWrapper,
+                                SStreamNotifyEventSupp* sup);
+int32_t buildNotifyEventBlock(const SExecTaskInfo* pTaskInfo, SStreamNotifyEventSupp* sup);
 
 #ifdef __cplusplus
 }
