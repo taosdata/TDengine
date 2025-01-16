@@ -3,18 +3,19 @@
 1. [Introduction](#1-introduction)
 1. [Prerequisites](#2-prerequisites)
 1. [Testing Guide](#3-testing-guide)
-    1. [Unit Test](#31-unit-test)
-    1. [System Test](#32-system-test)
-    1. [Smoke Test](#33-smoke-test)
-    1. [Legacy Test](#34-legacy-test)
-    1. [Chaos Test](#35-chaos-test)
-    1. [CI Test](#36-ci-test)
+    - [3.1 CI Test](#31-ci-test)
+      - [3.1.1 Unit Test](#311-unit-test)
+      - [3.1.2 System Test](#312-system-test)
+      - [3.1.3 Legacy Test](#313-legacy-test)
+    - [3.2 Smoke Test](#32-smoke-test)
+    - [3.3 Chaos Test](#33-chaos-test)
+
 
 # 1. Introduction
 
 This manual is intended to provide users with comprehensive guidance to help them verify the TDengine function efficiently. The document is divided into three main sections: introduction, prerequisites and testing guide.
 
-> [!NOTICE]
+> [!NOTE]
 > The below commands and test scripts are verified on linux (Ubuntu 18.04、20.04、22.04) locally.
 
 # 2. Prerequisites
@@ -53,25 +54,44 @@ make && make install
 
 In `tests` directory, there are different types of tests for TDengine. Below is a brief introduction about how to run them and how to add new cases.
 
-## 3.1. Unit Test
+
+## 3.1 CI Test
+
+[Desciprtion]
+
+### How to run tests?
+
+To run the CI tests, please run following commands:
+
+```bash
+cd tests
+./run_all_ci_cases.sh -b main # on main branch
+```
+
+### How to add new cases?
+
+[Placeholder]
+
+
+### 3.1.1 Unit Test
 
 Unit test script is the smallest testable part and developed for some function, method or class of TDengine.
 
-### How to run tests?
+#### How to run tests?
 
 ```bash
 cd tests/unit-test/
 bash test.sh -e 0
 ```
 
-### How to add new cases?
+#### How to add new cases?
 
 Copy from the old version, need updates:
 You can add sim test case under tests/script, python test case under tests/system-test or tests/army. When the case passes in the test branch, add the case to the cases.task file under tests/parallel_test, and then merge the pr into main branch to run in the future CI.
 
-## 3.2. System Test
+## 3.1.2 System Test
 
-Python test script includes almost all of the functions of TDengine, so some test case maybe fail cause the function only
+Python test script includes all of the functions of TDengine OSS, so some test case maybe fail cause the function only
 work for TDengine Enterprise Edition.
 
 ### How to run tests?
@@ -85,22 +105,7 @@ python3 ./test.py -f 2-query/floor.py
 
 [Placeholder]
 
-## 3.3. Smoke Test
-
-Smoke test script is known as sanity testing to ensure that the critical functionalities of TDengine.
-
-### How to run tests?
-
-```bash
-cd /root/TDengine/packaging/smokeTest
-./test_smoking_selfhost.sh
-```
-
-### How to add new cases?
-
-[Placeholder]
-
-## 3.4. Legacy Test
+## 3.1.3 Legacy Test
 
 In the early stage of TDengine development, test cases are run by an internal test framework called TSIM, which is developed in C++.
 
@@ -117,30 +122,29 @@ cd tests/script
 
 [Placeholder]
 
-## 3.5. Chaos Test
 
-[Desciprtion]
+## 3.2 Smoke Test
+
+Smoke test script is known as sanity testing to ensure that the critical functionalities of TDengine.
 
 ### How to run tests?
 
-[Placeholder]
+```bash
+cd /root/TDengine/packaging/smokeTest
+./test_smoking_selfhost.sh
+```
 
 ### How to add new cases?
 
 [Placeholder]
 
-## 3.6 CI Test
+## 3.3 Chaos Test
 
 [Desciprtion]
 
 ### How to run tests?
 
-To run the CI tests, please run following commands:
-
-```bash
-cd tests
-./run_all_ci_cases.sh -b main # on main branch
-```
+[Placeholder]
 
 ### How to add new cases?
 

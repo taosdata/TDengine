@@ -383,8 +383,6 @@ For the complete list of TDengine Releases, please see [Releases](https://github
 
 # 10. Workflow
 
-Now, Jenkins is mainly used to build CI/CD pipeline for TDengine. 
-
 TDengine build check workflow can be found in this [Github Action](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml).
 
 # 11. Coverage
