@@ -23,16 +23,20 @@ function printHelp() {
       echo "    -b [Build test branch]      Build test branch (default: null)"
       echo "                                    Options: "
       echo "                                    e.g., -b main (pull main branch, build and install)"
+      echo "    -t [Run test cases]         Run test cases type(default: all)"
+      echo "                                    Options: "
+      echo "                                    e.g., -t all/python/legacy"
       echo "    -s [Save cases log]         Save cases log(default: notsave)"
       echo "                                    Options:"
-      echo "                                    e.g., -c notsave : do not save the log "
-      echo "                                    -c save : default save ci case log in Project dir/tests/ci_bak"
+      echo "                                    e.g., -s notsave : do not save the log "
+      echo "                                    -s save : default save ci case log in Project dir/tests/ci_bak"
       exit 0
 }
 
 # Initialization parameter
 PROJECT_DIR=""
 BRANCH=""
+TEST_TYPE="all"
 SAVE_LOG="notsave"
 
 # Parse command line parameters
@@ -43,6 +47,9 @@ while getopts "hb:d:s:" arg; do
       ;;
     b)
       BRANCH=$OPTARG
+      ;;
+    t)
+      TEST_TYPE=$OPTARG
       ;;
     s)
       SAVE_LOG=$OPTARG
@@ -315,9 +322,9 @@ function runTest() {
     [ -d sim ] && rm -rf sim
     [ -f $TDENGINE_ALLCI_REPORT ] && rm $TDENGINE_ALLCI_REPORT
 
-    runUnitTest
     runSimCases
     runPythonCases
+    runUnitTest
 
     stopTaosd
     cd $TDENGINE_DIR/tests/script
@@ -361,7 +368,13 @@ print_color "$GREEN" "Run all ci test cases" | tee -a $WORK_DIR/date.log
 
 stopTaosd
 
-runTest
+if [ -z "$TEST_TYPE" ]; then
+    runTest
+elif [ "$TEST_TYPE" = "python" -o "$TEST_TYPE" = "PYTHON"]; then
+    runPythonCases
+elif [ "$TEST_TYPE" = "legacy" -o "$TEST_TYPE" = "LEGACY"]; then
+    runSimCases
+fi
 
 date >> $WORK_DIR/date.log
 print_color "$GREEN" "End of ci test cases" | tee -a $WORK_DIR/date.log
