@@ -123,6 +123,7 @@ contrib/*
 !contrib/CMakeLists.txt
 !contrib/test
 !contrib/azure-cmake
+!contrib/xml2-cmake
 sql
 debug*/
 .env
