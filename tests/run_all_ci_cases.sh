@@ -36,7 +36,7 @@ function printHelp() {
 # Initialization parameter
 PROJECT_DIR=""
 BRANCH=""
-TEST_TYPE="all"
+TEST_TYPE=""
 SAVE_LOG="notsave"
 
 # Parse command line parameters
@@ -368,7 +368,7 @@ print_color "$GREEN" "Run all ci test cases" | tee -a $WORK_DIR/date.log
 
 stopTaosd
 
-if [ -z "$TEST_TYPE" ]; then
+if [ -z "$TEST_TYPE" -o "$TEST_TYPE" = "all" -o "$TEST_TYPE" = "ALL" ]; then
     runTest
 elif [ "$TEST_TYPE" = "python" -o "$TEST_TYPE" = "PYTHON" ]; then
     runPythonCases
