@@ -3196,7 +3196,15 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
     *((int8_t*)data) = pColInfoData->info.type;
     data += sizeof(int8_t);
 
-    *((int32_t*)data) = pColInfoData->info.bytes;
+    int32_t bytes = pColInfoData->info.bytes;
+    *((int32_t*)data) = bytes;
+    if (IS_DECIMAL_TYPE(pColInfoData->info.type)) {
+      bytes <<= 16;
+      bytes |= pColInfoData->info.precision;
+      bytes <<= 8;
+      bytes |= pColInfoData->info.scale;
+      *(int32_t*)data = bytes;
+    }
     data += sizeof(int32_t);
   }
 
@@ -3341,6 +3349,11 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
 
     if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
       pBlock->info.hasVarCol = true;
+    }
+    if (IS_DECIMAL_TYPE(pColInfoData->info.type)) {
+      pColInfoData->info.scale = pColInfoData->info.bytes & 0xFF;
+      pColInfoData->info.precision = pColInfoData->info.precision = (pColInfoData->info.bytes & 0xFF00) >> 8;
+      pColInfoData->info.bytes >>= 24;
     }
   }
 

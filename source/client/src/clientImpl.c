@@ -2510,7 +2510,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
     code = doConvertUCS4(pResultInfo, colLength);
   }
 #endif
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && convertUcs4) {
     code = convertDecimalType(pResultInfo);
   }
   return code;
