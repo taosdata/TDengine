@@ -462,3 +462,11 @@ int32_t doScanWalAsync(STQ* pTq, bool ckPause) {
 
   return streamTaskSchedTask(&pTq->pVnode->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA);
 }
+
+void streamMetaFreeTQDuringScanWalError(STQ* pTq) {
+  SBuildScanWalMsgParam* p = taosMemoryCalloc(1, sizeof(SBuildScanWalMsgParam));
+  p->metaId = pTq->pStreamMeta->rid;
+  p->numOfTasks = 0;
+
+  doStartScanWal(p, 0);
+}
