@@ -172,6 +172,7 @@ typedef struct SJoinLogicNode {
 
 typedef struct SVirtualScanLogicNode {
   SLogicNode    node;
+  bool          scanAllCols;
   SNodeList*    pScanCols;
   SNodeList*    pScanPseudoCols;
   int8_t        tableType;
@@ -487,6 +488,7 @@ typedef struct SVirtualScanPhysiNode {
   SScanPhysiNode scan;
   SNodeList*     pGroupTags;
   bool           groupSort;
+  bool           scanAllCols;
   SNodeList*     pTargets;
 }SVirtualScanPhysiNode;
 

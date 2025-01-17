@@ -1563,6 +1563,9 @@ _exit:
     taosMemoryFree(vMetaRsp.pSchemas);
     taosMemoryFree(vMetaRsp.pSchemaExt);
   }
+  if (vMetaRsp.pColRefs) {
+    taosMemoryFree(vMetaRsp.pColRefs);
+  }
   return 0;
 }
 
