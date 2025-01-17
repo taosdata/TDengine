@@ -1683,6 +1683,28 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
 
   TAOS_MEMCPY(*pOutput, output, sizeof(STableMetaOutput));
 
+  if (output->vctbMeta) {
+    int32_t metaSize = sizeof(SVCTableMeta);
+    int32_t colRefSize = 0;
+    if (hasRefCol(output->vctbMeta->tableType) && (*pOutput)->vctbMeta->colRef) {
+      colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
+    }
+    (*pOutput)->vctbMeta = taosMemoryMalloc(metaSize + colRefSize);
+    if (NULL == (*pOutput)->vctbMeta) {
+      qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
+      taosMemoryFreeClear(*pOutput);
+      CTG_ERR_RET(terrno);
+    }
+
+    TAOS_MEMCPY((*pOutput)->vctbMeta, output->vctbMeta, metaSize);
+    if (hasRefCol(output->vctbMeta->tableType) && (*pOutput)->vctbMeta->colRef) {
+      (*pOutput)->vctbMeta->colRef = (SColRef*)((char*)(*pOutput)->vctbMeta + metaSize);
+      TAOS_MEMCPY((*pOutput)->vctbMeta->colRef, output->vctbMeta->colRef, colRefSize);
+    } else {
+      (*pOutput)->vctbMeta->colRef = NULL;
+    }
+  }
+
   if (output->tbMeta) {
     int32_t metaSize = CTG_META_SIZE(output->tbMeta);
     int32_t schemaExtSize = 0;
@@ -1716,7 +1738,6 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
       (*pOutput)->tbMeta->colRef = NULL;
     }
   }
-
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2424,7 +2445,7 @@ FORCE_INLINE uint64_t ctgGetTbMetaCacheSize(STableMeta* pMeta) {
     case TSDB_CHILD_TABLE:
       return sizeof(SCTableMeta);
     case TSDB_VIRTUAL_CHILD_TABLE:
-      return sizeof(*pMeta);
+      return sizeof(SVCTableMeta);
     default:
       return sizeof(*pMeta) + pMeta->tableInfo.numOfColumns * sizeof(SSchema);
   }

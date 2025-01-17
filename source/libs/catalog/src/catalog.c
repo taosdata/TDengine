@@ -241,6 +241,7 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
         output->tbMeta->colRef = (SColRef *)((char *)output->tbMeta + sizeof(SVCTableMeta));
       }
 
+      taosMemoryFreeClear(output->vctbMeta);
       *pTableMeta = output->tbMeta;
       goto _return;
     }

@@ -219,9 +219,6 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
         COL_DATA_SET_VAL_AND_CHECK(pCol5, pBlock->info.rows, buf, false);
       }
     }
-    if (hasRefCol(pMeta->tableType) && pMeta->colRef) {
-      //TODO(smj) : add ref column info
-    }
 
     fillTagCol = 0;
 
@@ -261,15 +258,13 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
     if (pDesc->pMeta) {
       if (useCompress(pDesc->pMeta->tableType) && pDesc->pMeta->schemaExt) {
         code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS_COMPRESS, pRsp);
-      }
-      if (hasRefCol(pDesc->pMeta->tableType) && pDesc->pMeta->colRef) {
+      } else if (hasRefCol(pDesc->pMeta->tableType) && pDesc->pMeta->colRef) {
         code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS_REF, pRsp);
+      } else {
+        code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
       }
     } else {
       code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
-    }
-    if (pDesc->pMeta && hasRefCol(pDesc->pMeta->tableType) && pDesc->pMeta->colRef) {
-      //TODO(smj) : add ref column info
     }
   }
   (void)blockDataDestroy(pBlock);

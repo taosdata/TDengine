@@ -2161,6 +2161,7 @@ enum {
   PHY_VIRTUAL_TABLE_SCAN_CODE_SCAN = 1,
   PHY_VIRTUAL_TABLE_SCAN_CODE_GROUPTAGS,
   PHY_VIRTUAL_TABLE_SCAN_CODE_GROUP_SORT,
+  PHY_VIRTUAL_TABLE_SCAN_CODE_ONLY_TS,
   PHY_VIRTUAL_TABLE_SCAN_CODE_TARGETS,
 };
 
@@ -2175,6 +2176,10 @@ static int32_t physiVirtualTableScanNodeToMsg(const void* pObj, STlvEncoder* pEn
 
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_GROUP_SORT, pNode->groupSort);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_ONLY_TS, pNode->scanAllCols);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -2198,6 +2203,9 @@ static int32_t msgToPhysiVirtualTableScanNode(STlvDecoder* pDecoder, void* pObj)
         break;
       case PHY_VIRTUAL_TABLE_SCAN_CODE_GROUP_SORT:
         code = tlvDecodeBool(pTlv, &pNode->groupSort);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_ONLY_TS:
+        code = tlvDecodeBool(pTlv, &pNode->scanAllCols);
         break;
       case PHY_VIRTUAL_TABLE_SCAN_CODE_TARGETS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pTargets);

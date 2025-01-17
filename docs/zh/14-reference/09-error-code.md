@@ -481,11 +481,14 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x8000268A | Cols function's first param must be a select function that output a single row         | cols函数第一个参数应该为选择函数                | 检查并修正 SQL 语句                     |
 | 0x8000268B | Invalid using cols function with multiple output columns                                               | 多列输出的 cols 函数使用错误                   | 检查并修正 SQL 语句                      |
 | 0x8000268C | Invalid using alias for cols function                                                                  | cols 函数输出列重命名错误                      | 检查并修正 SQL 语句                     |
+| 0x8000268D | Invalid virtual table's ref column                                                                     | 创建/更新虚拟表时数据源列不正确                         | 检查并修正SQL语句           |
+| 0x8000268E | Invalid table type                                                                                     | 表类型不正确                                   | 检查并修正SQL语句           |
+| 0x8000268F | Invalid ref column type                                                                                | 虚拟表列的数据类型与数据源的数据类型不同                     | 检查并修正SQL语句           |
+| 0x80002690 | Create child table using virtual super table                                                           | 创建非虚拟子表 USING 了虚拟超级表                     | 检查并修正SQL语句           |
 | 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                | 保留现场和日志，github上报issue       |
 | 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                | 保留现场和日志，github上报issue       |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN条件校验失败                              | 保留现场和日志，github上报issue       |
 | 0x80002702 | Cross join not support                                                                                 | 不支持CROSS JOIN                              | 检查并修正 SQL 语句                     |
-
 
 ## function
 
@@ -562,4 +565,14 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80004002 | Consumer closed       | 消费者已经不存在了                                                               | 查看是否已经close掉了          |
 | 0x80004017 | Invalid status, please subscribe topic first | 数据订阅状态不对                                                                 | 没有调用 subscribe，直接 poll 数据     |
 | 0x80004100 | Stream task not exist | 流计算任务不存在                                                                 | 具体查看server端的错误日志     |
+
+
+## virtual table
+
+| 错误码        | 错误描述                                                    | 可能的出错场景或者可能的原因                                 | 建议用户采取的措施              |
+|------------|---------------------------------------------------------|------------------------------------------------|------------------------|
+| 0x80006200 | Virtual table scan 算子内部错误                               | virtual table scan 算子内部逻辑错误，一般不会出现             | 具体查看client端的错误日志提示     |
+| 0x80006201 | Virtual table scan invalid downstream operator type     | 由于生成的执行计划不对，导致 virtual table scan 算子的下游算子类型不正确 | 保留 explain 执行计划，联系开发处理 |
+| 0x80006202 | Virtual table prim timestamp column should not has ref  | 虚拟表的时间戳主键列不应该有数据源，如果有，后续查询虚拟表的时候就会出现该错误        | 检查错误日志，联系开发处理          |
+| 0x80006203 | Create virtual child table must use virtual super table | 虚拟子表必须建在虚拟超级表下，否则就会出现该错误                       | 创建虚拟子表的时候，USING 虚拟超级表  |
 

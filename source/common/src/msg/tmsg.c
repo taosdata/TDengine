@@ -10338,8 +10338,8 @@ int32_t tEncodeSColRefWrapper(SEncoder *pCoder, const SColRefWrapper *pWrapper) 
   for (int32_t i = 0; i < pWrapper->nCols; i++) {
     SColRef *p = &pWrapper->pColRef[i];
     TAOS_CHECK_EXIT(tEncodeI8(pCoder, p->hasRef));
+    TAOS_CHECK_EXIT(tEncodeI16v(pCoder, p->id));
     if (p->hasRef) {
-      TAOS_CHECK_EXIT(tEncodeI16v(pCoder, p->id));
       TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refColName));
       TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refTableName));
     }
@@ -10364,8 +10364,8 @@ int32_t tDecodeSColRefWrapperEx(SDecoder *pDecoder, SColRefWrapper *pWrapper) {
   for (int i = 0; i < pWrapper->nCols; i++) {
     SColRef *p = &pWrapper->pColRef[i];
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, (int8_t *)&p->hasRef));
+    TAOS_CHECK_EXIT(tDecodeI16v(pDecoder, &p->id));
     if (p->hasRef) {
-      TAOS_CHECK_EXIT(tDecodeI16v(pDecoder, &p->id));
       TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->refColName));
       TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->refTableName));
     }
@@ -10442,6 +10442,7 @@ int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
 
   TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->colCmpred));
   TAOS_CHECK_EXIT(tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr));
+  TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->virtualStb));
   tEndEncode(pCoder);
 
 _exit:
@@ -10476,6 +10477,9 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
     if (!tDecodeIsEnd(pCoder)) {
       TAOS_CHECK_EXIT(tDecodeSColCmprWrapperEx(pCoder, &pReq->colCmpr));
     }
+  }
+  if (!tDecodeIsEnd(pCoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(pCoder, &pReq->virtualStb));
   }
   tEndDecode(pCoder);
 
@@ -10608,20 +10612,20 @@ _exit:
 void tDestroySVCreateTbReq(SVCreateTbReq *pReq, int32_t flags) {
   if (pReq == NULL) return;
 
-  // TODO(smj) : free virtual table stuff
   if (flags & TSDB_MSG_FLG_ENCODE) {
     // TODO
   } else if (flags & TSDB_MSG_FLG_DECODE) {
     taosMemoryFreeClear(pReq->comment);
 
-    if (pReq->type == TSDB_CHILD_TABLE) {
+    if (pReq->type == TSDB_CHILD_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
       taosArrayDestroy(pReq->ctb.tagName);
-    } else if (pReq->type == TSDB_NORMAL_TABLE) {
+    } else if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_TABLE) {
       taosMemoryFreeClear(pReq->ntb.schemaRow.pSchema);
     }
   }
 
   taosMemoryFreeClear(pReq->colCmpr.pColCmpr);
+  taosMemoryFreeClear(pReq->colRef.pColRef);
   taosMemoryFreeClear(pReq->sql);
 }
 
@@ -10665,7 +10669,7 @@ void tDeleteSVCreateTbBatchReq(SVCreateTbBatchReq *pReq) {
     SVCreateTbReq *pCreateReq = pReq->pReqs + iReq;
     taosMemoryFreeClear(pCreateReq->sql);
     taosMemoryFreeClear(pCreateReq->comment);
-    if (pCreateReq->type == TSDB_CHILD_TABLE) {
+    if (pCreateReq->type == TSDB_CHILD_TABLE || pCreateReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
       taosArrayDestroy(pCreateReq->ctb.tagName);
       pCreateReq->ctb.tagName = NULL;
     }

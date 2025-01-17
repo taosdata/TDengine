@@ -464,6 +464,10 @@ This document details the server error codes that may be encountered when using 
 | 0x8000268A | Cols function's first param must be a select function that output a single row | The first parameter of the cols function should be a selection function | Check and correct the SQL statement                          |
 | 0x8000268B | Invalid using cols function with multiple output columns     | Illegal using the cols function for multiple column output             | Check and correct the SQL statement                          |
 | 0x8000268C | Invalid using alias for cols function                        | Illegal cols function alias                                  | Check and correct the SQL statement                          |
+| 0x8000268D | Invalid virtual table's ref column                                                                     | Create/Update Virtual table using incorrect data source column             | Check and correct the SQL statement           |
+| 0x8000268E | Invalid table type                                                                                     | Incorrect Table type                                                       | Check and correct the SQL statement           |
+| 0x8000268F | Invalid ref column type                                                                                | Virtual table's column type and data source column's type are different    | Check and correct the SQL statement           |
+| 0x80002690 | Create child table using virtual super table                                                           | Create non-virtual child table using virtual super table                   | Check and correct the SQL statement           |
 | 0x800026FF | Parser internal error                                        | Internal error in parser                                     | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002700 | Planner internal error                                       | Internal error in planner                                    | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002701 | Expect ts equal                                              | JOIN condition validation failed                             | Preserve the scene and logs, report issue on GitHub          |
@@ -543,3 +547,12 @@ This document details the server error codes that may be encountered when using 
 | 0x80004017 | Invalid status, please subscribe topic first | tmq status invalidate                 | Without calling subscribe, directly poll data     |
 | 0x80004100 | Stream task not exist | The stream computing task does not exist                     | Check the server-side error logs             |
 
+
+## virtual table
+
+| Error Code  | Description                                             | Possible Error Scenarios or Reasons                                                                                                                                  | Recommended Actions for Users                         |
+|-------------|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------|
+| 0x80006200  | Virtual table scan internal error                       | virtual table scan operator internal error, generally does not occur                                                                                                 | Check error logs, contact development for handling    |
+| 0x80006201  | Virtual table scan invalid downstream operator type     | The incorrect execution plan generated causes the downstream operator type of the virtual table scan operator to be incorrect.                                       | Check error logs, contact development for handling    |
+| 0x80006202  | Virtual table prim timestamp column should not has ref  | The timestamp primary key column of a virtual table should not have a data source. If it does, this error will occur during subsequent queries on the virtual table. | Check error logs, contact development for handling    |
+| 0x80006203  | Create virtual child table must use virtual super table | Create virtual child table using non-virtual super table                                                                                                             | create virtual child table using virtual super table  |
