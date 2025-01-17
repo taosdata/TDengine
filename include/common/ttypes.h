@@ -362,6 +362,13 @@ typedef struct tDataTypeCompress {
 extern tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX];
 extern tDataTypeCompress   tDataCompress[TSDB_DATA_TYPE_MAX];
 
+typedef struct SDataType {
+  uint8_t type;
+  uint8_t precision;
+  uint8_t scale;
+  int32_t bytes;
+} SDataType;
+
 bool isValidDataType(int32_t type);
 
 int32_t operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type);
@@ -370,7 +377,9 @@ void   *getDataMin(int32_t type, void *value);
 void   *getDataMax(int32_t type, void *value);
 
 #define STypeMod int32_t
-uint8_t decimalTypeFromPrecision(uint8_t precision);
+uint8_t  decimalTypeFromPrecision(uint8_t precision);
+STypeMod decimalCalcTypeMod(uint8_t prec, uint8_t scale);
+void    decimalFromTypeMod(STypeMod typeMod, uint8_t* precision, uint8_t* scale);
 
 #ifdef __cplusplus
 }

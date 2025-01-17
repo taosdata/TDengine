@@ -136,7 +136,8 @@ __compar_fn_t gDataCompare[] = {
     setChkInBytes2,        setChkInBytes4,         setChkInBytes8,          comparestrRegexMatch,
     comparestrRegexNMatch, setChkNotInBytes1,      setChkNotInBytes2,       setChkNotInBytes4,
     setChkNotInBytes8,     compareChkNotInString,  comparestrPatternNMatch, comparewcsPatternNMatch,
-    comparewcsRegexMatch,  comparewcsRegexNMatch,  compareLenBinaryVal
+    comparewcsRegexMatch,  comparewcsRegexNMatch,  compareLenBinaryVal,     compareDecimal64,
+    compareDecimal128,
 };
 
 __compar_fn_t gInt8SignCompare[] = {compareInt8Val,   compareInt8Int16, compareInt8Int32,
@@ -350,6 +351,11 @@ int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool 
     case TSDB_DATA_TYPE_UBIGINT:
       *comparFn = 14;
       break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+      *comparFn = 31;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL:
+      *comparFn = 32;
 
     default:
       *comparFn = 0;
@@ -362,7 +368,7 @@ int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool 
 int32_t filterGetCompFunc(__compar_fn_t *func, int32_t type, int32_t optr) {
   int8_t compFuncIdx = 0;
   int32_t code = filterGetCompFuncIdx(type, optr, &compFuncIdx, true);
-  *func = gDataCompare[compFuncIdx];
+  if (TSDB_CODE_SUCCESS == code) *func = gDataCompare[compFuncIdx];
   return code;
 }
 
