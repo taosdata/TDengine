@@ -1,0 +1,7 @@
+MALLOC_CONF="prof:true,prof_active:true,prof_prefix:/tmp/je.prof,lg_prof_sample:22,prof_final:true"  LD_PRELOAD=/usr/local/lib/libjemalloc.so nohup taosd -c /root/stability_test/cfg3/cfg_1 > /root/stability_test/log/taosd1.log &
+MALLOC_CONF="prof:true,prof_active:true,prof_prefix:/tmp/je.prof,lg_prof_sample:22,prof_final:true"  LD_PRELOAD=/usr/local/lib/libjemalloc.so nohup taosd -c /root/stability_test/cfg3/cfg_2 > /root/stability_test/log/taosd2.log &
+MALLOC_CONF="prof:true,prof_active:true,prof_prefix:/tmp/je.prof,lg_prof_sample:22,prof_final:true"  LD_PRELOAD=/usr/local/lib/libjemalloc.so nohup taosd -c /root/stability_test/cfg3/cfg_3 > /root/stability_test/log/taosd3.log &
+
+# MALLOC_CONF="prof:true,prof_active:true,prof_prefix:/tmp/je.prof,lg_prof_sample:22,prof_final:true,prof_accum:true"  LD_PRELOAD=/usr/local/lib/libjemalloc.so nohup taosd -c /root/stability_test/cfg3/cfg_1 > /root/stability_test/log/taosd1.log &
+# MALLOC_CONF="prof:true,prof_active:true,prof_prefix:/tmp/je.prof,lg_prof_sample:22,prof_final:true,prof_accum:true"  LD_PRELOAD=/usr/local/lib/libjemalloc.so nohup taosd -c /root/stability_test/cfg3/cfg_2 > /root/stability_test/log/taosd2.log &
+# MALLOC_CONF="prof:true,prof_active:true,prof_prefix:/tmp/je.prof,lg_prof_sample:22,prof_final:true,prof_accum:true"  LD_PRELOAD=/usr/local/lib/libjemalloc.so nohup taosd -c /root/stability_test/cfg3/cfg_3 > /root/stability_test/log/taosd3.log &
