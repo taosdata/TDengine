@@ -83,10 +83,11 @@ int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t ad
     SColRef *pCol = p + nCols;
     if (NULL == pColRef) {
       pCol->hasRef = false;
+      pCol->id = pSchema->colId;
     } else {
       pCol->hasRef = pColRef->hasRef;
+      pCol->id = pSchema->colId;
       if (pCol->hasRef) {
-        pCol->id = pSchema->colId;
         tstrncpy(pCol->refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
         tstrncpy(pCol->refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
       }
@@ -94,11 +95,17 @@ int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t ad
     pWp->nCols = nCols + 1;
     pWp->version = ver;
   } else {
-    int32_t left = (nCols - pSchema->colId) * sizeof(SColRef);
-    if (left) {
-      memmove(pWp->pColRef + pSchema->colId, pWp->pColRef + pSchema->colId + 1, left);
+    for (int32_t i = 0; i < nCols; i++) {
+      SColRef *pOColRef = &pWp->pColRef[i];
+      if (pOColRef->id == pSchema->colId) {
+        int32_t left = (nCols - i - 1) * sizeof(SColCmpr);
+        if (left) {
+          memmove(pWp->pColRef + i, pWp->pColRef + i + 1, left);
+        }
+        nCols--;
+        break;
+      }
     }
-    nCols--;
     pWp->nCols = nCols;
     pWp->version = ver;
   }

@@ -525,6 +525,7 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
   req.alterOriData = alterOriData;
   req.alterOriDataLen = alterOriDataLen;
   req.source = pStb->source;
+  req.virtualStb = pStb->virtualStb;
   // todo
   req.schemaRow.nCols = pStb->numOfColumns;
   req.schemaRow.version = pStb->colVer;
