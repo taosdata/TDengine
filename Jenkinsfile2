@@ -165,7 +165,7 @@ def pre_test(){
     script {
         sh '''
             cd ${WK}
-            git checkout ''' + env.CHANGE_TARGET + '''
+            git checkout feat/3.0/TS-4897-2
             cd ${WKC}
             git checkout ''' + env.CHANGE_TARGET + '''
         '''
@@ -274,7 +274,7 @@ def pre_test_win(){
     script {
         bat '''
             cd %WIN_INTERNAL_ROOT%
-            git checkout ''' + env.CHANGE_TARGET + '''
+            git checkout feat/3.0/TS-4897-2
         '''
         bat '''
             cd %WIN_COMMUNITY_ROOT%

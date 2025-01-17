@@ -237,8 +237,6 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid table type";
     case TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE:
       return "Invalid virtual table's ref column type";
-    case TSDB_CODE_PAR_COLUMN_HAS_REF:
-      return "Column has ref, can not be dropped/modified";
     case TSDB_CODE_PAR_MISMATCH_STABLE_TYPE:
       return "Create child table using virtual super table";
     default:
