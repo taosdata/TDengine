@@ -25,6 +25,7 @@
 #include "types.h"
 #include "osString.h"
 #include "ttimer.h"
+#include "decimal.h"
 
 int32_t setChkInBytes1(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;
@@ -1032,6 +1033,21 @@ int32_t compareUint64Uint32(const void *pLeft, const void *pRight) {
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
+}
+
+int32_t compareDecimal64(const void* pleft, const void* pright) {
+  SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
+  if (pOps->gt(pleft, pright, WORD_NUM(Decimal64))) return 1;
+  if (pOps->lt(pleft, pright, WORD_NUM(Decimal64))) return -1;
+  return 0;
+}
+
+int32_t compareDecimal128(const void* pleft, const void* pright) {
+  SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+  if (pOps->gt(pleft, pright, WORD_NUM(Decimal128))) return 1;
+  if (pOps->lt(pleft,pright, WORD_NUM(Decimal128))) return -1;
+  return 0;
+
 }
 
 int32_t compareJsonValDesc(const void *pLeft, const void *pRight) { return compareJsonVal(pRight, pLeft); }

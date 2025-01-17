@@ -198,6 +198,14 @@ int32_t tsCompressBigint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int3
                           int32_t nBuf);
 int32_t tsDecompressBigint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
                             void *pBuf, int32_t nBuf);
+int32_t tsCompressDecimal64(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                            void *pBuf, int32_t nBuf);
+int32_t tsDecompressDecimal64(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                              void *pBuf, int32_t nBuf);
+int32_t tsCompressDecimal128(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                             void *pBuf, int32_t nBuf);
+int32_t tsDecompressDecimal128(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                               void *pBuf, int32_t nBuf);
 
 /*************************************************************************
  *                  STREAM COMPRESSION

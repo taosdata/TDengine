@@ -1637,7 +1637,7 @@ int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
         int8_t alvl = tsGetCompressL2Level(l2, lvl);                                                                  \
         return compressL2Dict[l2].comprFn(pIn, nIn, pOut, nOut, type, alvl);                                          \
       } else {                                                                                                        \
-        uTrace("dencode:%s, decompress:%s, level:%d, type:%s", "disabled", compressL2Dict[l1].name, lvl,              \
+        uTrace("dencode:%s, decompress:%s, level:%d, type:%s", "disabled", compressL2Dict[l2].name, lvl,              \
                tDataTypes[type].name);                                                                                \
         return compressL2Dict[l2].decomprFn(pIn, nIn, pOut, nOut, type);                                              \
       }                                                                                                               \
@@ -1831,6 +1831,25 @@ int32_t tsDecompressBigint2(void *pIn, int32_t nIn, int32_t nEle, void *pOut, in
   FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_BIGINT, 0);
 }
 
+int32_t tsCompressDecimal64(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                            void *pBuf, int32_t nBuf) {
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_DECIMAL64, 1);
+}
+int32_t tsDecompressDecimal64(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                              void *pBuf, int32_t nBuf) {
+
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_DECIMAL64, 0);
+}
+
+int32_t tsCompressDecimal128(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                             void *pBuf, int32_t nBuf) {
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_DECIMAL, 1);
+}
+int32_t tsDecompressDecimal128(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint32_t cmprAlg,
+                               void *pBuf, int32_t nBuf) {
+  FUNC_COMPRESS_IMPL(pIn, nIn, nEle, pOut, nOut, cmprAlg, pBuf, nBuf, TSDB_DATA_TYPE_DECIMAL, 0);
+}
+
 void tcompressDebug(uint32_t cmprAlg, uint8_t *l1Alg, uint8_t *l2Alg, uint8_t *level) {
   DEFINE_VAR(cmprAlg)
   *l1Alg = l1;
@@ -1902,6 +1921,12 @@ int32_t getWordLength(char type) {
       break;
     case TSDB_DATA_TYPE_TINYINT:
       wordLength = CHAR_BYTES;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+      wordLength = DECIMAL64_BYTES;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL:
+      wordLength = DECIMAL128_BYTES;
       break;
     default:
       uError("Invalid decompress integer type:%d", type);

@@ -22,7 +22,6 @@ extern "C" {
 
 #include "tdef.h"
 #include "ttypes.h"
-typedef struct SDataType SDataType;
 typedef struct SValue    SValue;
 typedef void             DecimalType;
 
@@ -50,7 +49,6 @@ void makeDecimal128(Decimal128* pDec128, int64_t hi, uint64_t low);
 
 #define DECIMAL_WORD_NUM(TYPE) sizeof(TYPE) / sizeof(DecimalWord)
 
-int32_t decimalCalcTypeMod(const SDataType* pType);
 void    decimalFromTypeMod(STypeMod typeMod, uint8_t* precision, uint8_t* scale);
 
 int32_t decimal64FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale, Decimal64* result);

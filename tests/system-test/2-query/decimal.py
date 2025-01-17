@@ -32,13 +32,13 @@ class DecimalType:
         if allow_weight_overflow:
             weight = secrets.randbelow(40)
         else:
-            weight = secrets.randbelow(self.precision + 1)
+            weight = secrets.randbelow(self.precision - self.scale)
         if allow_scale_overflow:
             dscale = secrets.randbelow(40 - weight + 1)
         else:
             dscale = secrets.randbelow(self.precision - weight + 1)
         digits :str = ''
-        for i in range(dscale):
+        for _ in range(weight):
             digits += str(secrets.randbelow(10))
         if dscale > 0:
             digits += '.'
@@ -411,9 +411,9 @@ class TDTestCase:
         tdLog.printNoPrefix("-------- test create decimal column")
         self.columns = [
             DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(10, 2))),
-            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(20, 2))),
-            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(30, 2))),
-            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(38, 2))),
+            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(20, 4))),
+            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(30, 8))),
+            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(38, 10))),
             DataType(TypeEnum.TINYINT),
             DataType(TypeEnum.INT),
             DataType(TypeEnum.BIGINT),
@@ -453,13 +453,15 @@ class TDTestCase:
         ## drop index from stb
         ### These ops will override the previous stbobjs and meta entries, so test it
 
+        ## TODO test encode and compress for decimal type
+
     def test_insert_decimal_values(self):
 
         for i in range(self.c_table_num):
             pass
             #TableInserter(tdSql, self.db_name, f"{self.c_table_prefix}{i}", self.columns, self.tags).insert(1, 1537146000000, 500)
 
-        TableInserter(tdSql, self.db_name, self.norm_table_name, self.columns).insert(1, 1537146000000, 500)
+        TableInserter(tdSql, self.db_name, self.norm_table_name, self.columns).insert(100, 1537146000000, 500)
 
 
         ## insert null/None for decimal type

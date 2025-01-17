@@ -94,10 +94,11 @@ tDataTypeCompress tDataCompress[TSDB_DATA_TYPE_MAX] = {
     {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString2, tsDecompressString2},
     {TSDB_DATA_TYPE_VARBINARY, 9, 1, "VARBINARY", 0, 0, tsCompressString2,
      tsDecompressString2},                                               // placeholder, not implemented
-    {TSDB_DATA_TYPE_DECIMAL, 7, 1, "DECIMAL", 0, 0, NULL, NULL},         // placeholder, not implemented
+    {TSDB_DATA_TYPE_DECIMAL, 7, DECIMAL128_BYTES, "DECIMAL", 0, 0, tsCompressDecimal128, tsDecompressDecimal128},         // placeholder, not implemented
     {TSDB_DATA_TYPE_BLOB, 4, 1, "BLOB", 0, 0, NULL, NULL},               // placeholder, not implemented
     {TSDB_DATA_TYPE_MEDIUMBLOB, 10, 1, "MEDIUMBLOB", 0, 0, NULL, NULL},  // placeholder, not implemented
     {TSDB_DATA_TYPE_GEOMETRY, 8, 1, "GEOMETRY", 0, 0, tsCompressString2, tsDecompressString2},
+    {TSDB_DATA_TYPE_DECIMAL64, 9, DECIMAL64_BYTES, "DECIMAL64", 0, 0, tsCompressDecimal64, tsDecompressDecimal64},         // placeholder, not implemented
     // TODO wjm decimal compress
 
 };
@@ -236,3 +237,13 @@ int32_t operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type) {
 uint8_t decimalTypeFromPrecision(uint8_t precision) {
   return precision > TSDB_DECIMAL64_MAX_PRECISION ? TSDB_DATA_TYPE_DECIMAL : TSDB_DATA_TYPE_DECIMAL64;
 }
+
+STypeMod decimalCalcTypeMod(uint8_t prec, uint8_t scale) {
+  return ((STypeMod)prec << 8) + scale;
+}
+
+void decimalFromTypeMod(STypeMod typeMod, uint8_t* precision, uint8_t* scale) {
+  *precision = (uint8_t)((typeMod >> 8) & 0xFF);
+  *scale = (uint8_t)(typeMod & 0xFF);
+}
+

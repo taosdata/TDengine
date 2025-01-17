@@ -1505,7 +1505,7 @@ int64_t int64SafeSub(int64_t a, int64_t b) {
 
 STypeMod calcTypeMod(const SDataType* pType) {
   if (IS_DECIMAL_TYPE(pType->type)) {
-    return decimalCalcTypeMod(pType);
+    return decimalCalcTypeMod(pType->precision, pType->scale);
   }
   return 0;
 }

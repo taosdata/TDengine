@@ -9,7 +9,7 @@ target_include_directories(
 )
 target_link_libraries(
     decimal
-    PRIVATE os util common qcom nodes
+    PRIVATE os common
 )
 
 if(${BUILD_TEST})

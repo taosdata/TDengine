@@ -15,8 +15,8 @@
  */
 
 #include "decimal.h"
-#include "querynodes.h"
 #include "wideInteger.h"
+#include "tdataformat.h"
 
 typedef enum DecimalInternalType {
   DECIMAL_64 = 0,
@@ -50,6 +50,10 @@ static uint8_t maxPrecision(DecimalInternalType type) {
   }
 }
 
+static const uint8_t typeConvertDecimalPrec[] = {
+    0, 1, 3, 5, 10, 19, TSDB_DECIMAL128_MAX_PRECISION, TSDB_DECIMAL_MAX_PRECISION, 0, 19, 10, 3, 5, 10, 20, 0,
+    0, 0, 0, 0, 0,  0};
+
 int32_t decimalGetRetType(const SDataType* pLeftT, const SDataType* pRightT, EOperatorType opType,
                           SDataType* pOutType) {
   if (IS_FLOAT_TYPE(pLeftT->type) || IS_FLOAT_TYPE(pRightT->type) || IS_VAR_DATA_TYPE(pLeftT->type) ||
@@ -69,12 +73,12 @@ int32_t decimalGetRetType(const SDataType* pLeftT, const SDataType* pRightT, EOp
   uint8_t p1 = pLeftT->precision, s1 = pLeftT->scale, p2 = pRightT->precision, s2 = pRightT->scale;
 
   if (!IS_DECIMAL_TYPE(pLeftT->type)) {
-    p1 = TSDB_DECIMAL_MAX_PRECISION;
-    s1 = s2;  // TODO wjm take which scale? Maybe use default DecimalMax
+    p1 = typeConvertDecimalPrec[pLeftT->type];
+    s1 = 0;
   }
   if (!IS_DECIMAL_TYPE(pRightT->type)) {
-    p1 = TSDB_DECIMAL_MAX_PRECISION;
-    s2 = s1;
+    p2 = typeConvertDecimalPrec[pRightT->type];
+    s2 = 0;
   }
 
   switch (opType) {
@@ -104,25 +108,12 @@ int32_t decimalGetRetType(const SDataType* pLeftT, const SDataType* pRightT, EOp
     pOutType->precision = TSDB_DECIMAL_MAX_PRECISION;
     pOutType->scale = TMAX(minScale, (int8_t)(pOutType->scale) - delta);
   }
-  pOutType->type =
-      pOutType->precision > TSDB_DECIMAL64_MAX_PRECISION ? TSDB_DATA_TYPE_DECIMAL : TSDB_DATA_TYPE_DECIMAL64;
+  pOutType->type = TSDB_DATA_TYPE_DECIMAL;
   pOutType->bytes = tDataTypes[pOutType->type].bytes;
   return 0;
 }
 
 static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* result);
-
-int32_t decimalCalcTypeMod(const SDataType* pType) {
-  if (IS_DECIMAL_TYPE(pType->type)) {
-    return (pType->precision << 8) + pType->scale;
-  }
-  return 0;
-}
-
-void decimalFromTypeMod(STypeMod typeMod, uint8_t* precision, uint8_t* scale) {
-  *precision = (uint8_t)((typeMod >> 8) & 0xFF);
-  *scale = (uint8_t)(typeMod & 0xFF);
-}
 
 static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* result) {
   int32_t code = 0, pos = 0;
@@ -675,6 +666,8 @@ static int32_t decimal128ToStr(const DecimalType* pInt, uint8_t scale, char* pBu
   int32_t wholeLen = len - scale;
   if (wholeLen > 0) {
     TAOS_STRNCAT(pBuf, buf, wholeLen);
+  } else {
+    TAOS_STRNCAT(pBuf, "0", 2);
   }
   if (scale > 0) {
     TAOS_STRNCAT(pBuf, ".", 2);
@@ -696,20 +689,6 @@ int32_t decimalToStr(const DecimalType* pDec, int8_t dataType, int8_t precision,
       break;
   }
   return 0;
-}
-
-static bool needScaleToOutScale(EOperatorType op) {
-  switch (op) {
-    case OP_TYPE_ADD:
-    case OP_TYPE_SUB:
-      return true;  // convert precision and scale
-    case OP_TYPE_MULTI:
-    case OP_TYPE_DIV:
-      return false;
-      break;
-    default:
-      return false;
-  }
 }
 
 static void decimalAddLargePositive(Decimal* pX, const SDataType* pXT, const Decimal* pY, const SDataType* pYT,
