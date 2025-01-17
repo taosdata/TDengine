@@ -31,6 +31,14 @@ select sum(voltage), count(*) over() from d1 event_window start with voltage > 0
 select sum(voltage), count(*) over() from d1 count_window(4);
 select sum(d1.voltage), count(*) over() from d1 join d2 on d1.ts = d2.ts;
 select sum(a) from (select voltage a, count(*) over() from d1);
+select count(*) over () from (select * from tb1);
+select count(*) over () from (select count(*) from tb1);
+
+/* add more nested and join query
+   add limit/slimit/union/union all tests
+   add over() in more clauses: window params, limit, slimit
+   add supertable tests
+ */
 
 select count(*) from count(*) over() where count(*) over () > 0;
 select count(*) from d1 where count(*) over ();
