@@ -1,0 +1,40 @@
+select _wstart, _wend, count(*) from test_vtable_select.vtb_virtual_ctb_full interval(1s);
+select _wstart, _wend, count(*) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(100a);
+select _wstart, _wend, count(*) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(200a);
+select _wstart, _wend, count(*) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(500a);
+select _wstart, _wend, count(*) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(1s);
+select _wstart, _wend, count(*) from test_vtable_select.vtb_virtual_ctb_full interval(1s, 10a) sliding(1s);
+select _wstart, _wend, count(*) from test_vtable_select.vtb_virtual_ctb_full WHERE _rowts >= '2020-09-30 23:59:59.010' interval(1s, AUTO) sliding(1s);
+
+select _wstart, _wend, count(ts) from test_vtable_select.vtb_virtual_ctb_full interval(1s);
+select _wstart, _wend, count(ts) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(100a);
+select _wstart, _wend, count(ts) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(200a);
+select _wstart, _wend, count(ts) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(500a);
+select _wstart, _wend, count(ts) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(1s);
+select _wstart, _wend, count(ts) from test_vtable_select.vtb_virtual_ctb_full interval(1s, 10a) sliding(1s);
+select _wstart, _wend, count(ts) from test_vtable_select.vtb_virtual_ctb_full WHERE _rowts >= '2020-09-30 23:59:59.010' interval(1s, 10a) sliding(1s);
+
+
+select _wstart, _wend, count(u_tinyint_col) from test_vtable_select.vtb_virtual_ctb_full interval(1s);
+select _wstart, _wend, count(u_tinyint_col) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(100a);
+select _wstart, _wend, count(u_tinyint_col) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(200a);
+select _wstart, _wend, count(u_tinyint_col) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(500a);
+select _wstart, _wend, count(u_tinyint_col) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(1s);
+select _wstart, _wend, count(u_tinyint_col) from test_vtable_select.vtb_virtual_ctb_full interval(1s, 10a) sliding(1s);
+select _wstart, _wend, count(u_tinyint_col) from test_vtable_select.vtb_virtual_ctb_full WHERE _rowts >= '2020-09-30 23:59:59.010' interval(1s, 10a) sliding(1s);
+
+select _wstart, _wend, count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ctb_full interval(1s);
+select _wstart, _wend, count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(100a);
+select _wstart, _wend, count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(200a);
+select _wstart, _wend, count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(500a);
+select _wstart, _wend, count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(1s);
+select _wstart, _wend, count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ctb_full interval(1s, 10a) sliding(1s);
+select _wstart, _wend, count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ctb_full WHERE _rowts >= '2020-09-30 23:59:59.010' interval(1s, 10a) sliding(1s);
+
+select _wstart, _wend, count(u_tinyint_col), count(u_smallint_col), count(u_int_col) from test_vtable_select.vtb_virtual_ctb_full interval(1s);
+select _wstart, _wend, count(u_tinyint_col), count(u_smallint_col), count(u_int_col) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(100a);
+select _wstart, _wend, count(u_tinyint_col), count(u_smallint_col), count(u_int_col) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(200a);
+select _wstart, _wend, count(u_tinyint_col), count(u_smallint_col), count(u_int_col) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(500a);
+select _wstart, _wend, count(u_tinyint_col), count(u_smallint_col), count(u_int_col) from test_vtable_select.vtb_virtual_ctb_full interval(1s) sliding(1s);
+select _wstart, _wend, count(u_tinyint_col), count(u_smallint_col), count(u_int_col) from test_vtable_select.vtb_virtual_ctb_full interval(1s, 10a) sliding(1s);
+select _wstart, _wend, count(u_tinyint_col), count(u_smallint_col), count(u_int_col) from test_vtable_select.vtb_virtual_ctb_full WHERE _rowts >= '2020-09-30 23:59:59.010' interval(1s, 10a) sliding(1s);
