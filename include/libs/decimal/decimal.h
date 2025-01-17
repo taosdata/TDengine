@@ -65,6 +65,9 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
                   const void* pLeftData, const void* pRightData, void* pOutputData);
 int32_t convertToDecimal(const void* pData, const SDataType* pInputType, void* pOut, const SDataType* pOutType);
 
+DEFINE_TYPE_FROM_DECIMAL_FUNCS(, Decimal64);
+DEFINE_TYPE_FROM_DECIMAL_FUNCS(, Decimal128);
+
 // TODO wjm change rightWordNum to DecimalType??
 typedef struct SDecimalOps {
   void (*negate)(DecimalType* pWord);
