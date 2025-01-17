@@ -29,6 +29,8 @@ select sum(voltage), count(*) over() from d1 state_window(voltage);
 select sum(voltage), count(*) over() from d1 session(ts, 10s);
 select sum(voltage), count(*) over() from d1 event_window start with voltage > 0 end with voltage > 220;
 select sum(voltage), count(*) over() from d1 count_window(4);
+select sum(d1.voltage), count(*) over() from d1 join d2 on d1.ts = d2.ts;
+select sum(a) from (select voltage a, count(*) over() from d1);
 
 select count(*) from count(*) over() where count(*) over () > 0;
 select count(*) from d1 where count(*) over ();
