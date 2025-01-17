@@ -68,12 +68,14 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
   if (pTq == NULL) {
     return terrno;
   }
+
   pVnode->pTq = pTq;
+  pTq->pVnode = pVnode;
+
   pTq->path = taosStrdup(path);
   if (pTq->path == NULL) {
     return terrno;
   }
-  pTq->pVnode = pVnode;
 
   pTq->pHandle = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
   if (pTq->pHandle == NULL) {
@@ -121,11 +123,19 @@ void tqClose(STQ* pTq) {
     return;
   }
 
+  int32_t vgId = 0;
+  if (pTq->pVnode != NULL) {
+    vgId = TD_VID(pTq->pVnode);
+  } else if (pTq->pStreamMeta != NULL) {
+    vgId = pTq->pStreamMeta->vgId;
+  }
+
+  // close the stream meta firstly
+  streamMetaClose(pTq->pStreamMeta);
+
   void* pIter = taosHashIterate(pTq->pPushMgr, NULL);
   while (pIter) {
     STqHandle* pHandle = *(STqHandle**)pIter;
-    int32_t    vgId = TD_VID(pTq->pVnode);
-
     if (pHandle->msg != NULL) {
       tqPushEmptyDataRsp(pHandle, vgId);
       rpcFreeCont(pHandle->msg->pCont);
@@ -141,9 +151,6 @@ void tqClose(STQ* pTq) {
   taosHashCleanup(pTq->pOffset);
   taosMemoryFree(pTq->path);
   tqMetaClose(pTq);
-
-  int32_t vgId = pTq->pStreamMeta->vgId;
-  streamMetaClose(pTq->pStreamMeta);
 
   qDebug("vgId:%d end to close tq", vgId);
   taosMemoryFree(pTq);
