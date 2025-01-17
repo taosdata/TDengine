@@ -369,6 +369,11 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
   // check org table's read auth
   SNode     *pNode = NULL;
   SNodeList *pTmpNodeList = pStmt->pSpecificColRefs ? pStmt->pSpecificColRefs : pStmt->pColRefs;
+  if (NULL == pTmpNodeList) {
+    // no column reference
+    return TSDB_CODE_SUCCESS;
+  }
+
   FOREACH(pNode, pTmpNodeList) {
     SColumnRefNode *pColRef = (SColumnRefNode*)pNode;
     if (NULL == pColRef) {

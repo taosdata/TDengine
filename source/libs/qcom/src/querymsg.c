@@ -759,7 +759,7 @@ int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
     pOut->ctbMeta.suid = metaRsp.suid;
 
     code = queryCreateTableMetaFromMsg(&metaRsp, true, &pOut->tbMeta);
-  } if (metaRsp.tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+  } else if (metaRsp.tableType == TSDB_VIRTUAL_CHILD_TABLE) {
     SET_META_TYPE_BOTH_VTABLE(pOut->metaType);
 
     tstrncpy(pOut->ctbName, metaRsp.tbName, TSDB_TABLE_NAME_LEN);

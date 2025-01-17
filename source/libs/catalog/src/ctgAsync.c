@@ -1934,6 +1934,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
   pRes->code = 0;
   pRes->pRes = pOut->tbMeta;
   pOut->tbMeta = NULL;
+  pOut->vctbMeta = NULL;
   if (0 == atomic_sub_fetch_32(&ctx->fetchNum, 1)) {
     TSWAP(pTask->res, ctx->pResList);
     taskDone = true;
@@ -2123,6 +2124,7 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
       TAOS_MEMCPY(pOut->tbMeta + sizeof(STableMeta), pOut->vctbMeta + sizeof(SVCTableMeta), colRefSize);
       pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
     }
+    taosMemoryFreeClear(pOut->vctbMeta);
   }
 
   SMetaRes* pRes = taosArrayGet(ctx->pResList, pFetch->resIdx);
@@ -2135,8 +2137,10 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
   if (!pRes->pRes) {
     pRes->code = 0;
     pRes->pRes = pOut->tbMeta;
+    taosMemoryFreeClear(pOut->vctbMeta);
     pOut->tbMeta = NULL;
   } else {
+    taosMemoryFreeClear(pOut->vctbMeta);
     taosMemoryFreeClear(pOut->tbMeta);
   }
 

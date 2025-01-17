@@ -24,8 +24,8 @@ int meteEncodeColRefEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   for (int32_t i = 0; i < pw->nCols; i++) {
     SColRef *p = &pw->pColRef[i];
     TAOS_CHECK_RETURN(tEncodeI8(pCoder, p->hasRef));
+    TAOS_CHECK_RETURN(tEncodeI16v(pCoder, p->id));
     if (p->hasRef) {
-      TAOS_CHECK_RETURN(tEncodeI16v(pCoder, p->id));
       TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refTableName));
       TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refColName));
     }
@@ -50,8 +50,8 @@ int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
   for (int i = 0; i < pWrapper->nCols; i++) {
     SColRef *p = &pWrapper->pColRef[i];
     TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t *)&p->hasRef));
+    TAOS_CHECK_RETURN(tDecodeI16v(pDecoder, &p->id));
     if (p->hasRef) {
-      TAOS_CHECK_RETURN(tDecodeI16v(pDecoder, &p->id));
       TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refTableName));
       TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refColName));
     }
@@ -149,6 +149,12 @@ static int32_t metaCloneColCmpr(const SColCmprWrapper *pSrc, SColCmprWrapper *pD
     memcpy(pDst->pColCmpr, pSrc->pColCmpr, pSrc->nCols * sizeof(SColCmpr));
   }
   return 0;
+}
+
+static void metaCloneColRefFree(SColRefWrapper *pColRef) {
+  if (pColRef) {
+    taosMemoryFreeClear(pColRef->pColRef);
+  }
 }
 
 static void metaCloneColCmprFree(SColCmprWrapper *pCmpr) {
@@ -334,16 +340,17 @@ void metaCloneEntryFree(SMetaEntry **ppEntry) {
   if (TSDB_SUPER_TABLE == (*ppEntry)->type) {
     metaCloneSchemaFree(&(*ppEntry)->stbEntry.schemaRow);
     metaCloneSchemaFree(&(*ppEntry)->stbEntry.schemaTag);
-  } else if (TSDB_CHILD_TABLE == (*ppEntry)->type) {
+  } else if (TSDB_CHILD_TABLE == (*ppEntry)->type || TSDB_VIRTUAL_CHILD_TABLE == (*ppEntry)->type) {
     taosMemoryFreeClear((*ppEntry)->ctbEntry.comment);
     taosMemoryFreeClear((*ppEntry)->ctbEntry.pTags);
-  } else if (TSDB_NORMAL_TABLE == (*ppEntry)->type) {
+  } else if (TSDB_NORMAL_TABLE == (*ppEntry)->type || TSDB_VIRTUAL_TABLE == (*ppEntry)->type) {
     metaCloneSchemaFree(&(*ppEntry)->ntbEntry.schemaRow);
     taosMemoryFreeClear((*ppEntry)->ntbEntry.comment);
   } else {
     return;
   }
   metaCloneColCmprFree(&(*ppEntry)->colCmpr);
+  metaCloneColRefFree(&(*ppEntry)->colRef);
 
   taosMemoryFreeClear(*ppEntry);
   return;
