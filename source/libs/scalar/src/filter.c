@@ -4728,6 +4728,9 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
   if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
     SColumnNode *colNode = (SColumnNode *)*pNode;
     stat->precision = colNode->node.resType.precision;
+    if (IS_DECIMAL_TYPE(colNode->node.resType.type)) {
+      stat->scalarMode = true;
+    }
     return DEAL_RES_CONTINUE;
   }
 

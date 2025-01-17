@@ -15,8 +15,8 @@
  */
 
 #include "decimal.h"
-#include "wideInteger.h"
 #include "tdataformat.h"
+#include "wideInteger.h"
 
 typedef enum DecimalInternalType {
   DECIMAL_64 = 0,
@@ -228,7 +228,9 @@ static Decimal64 SCALE_MULTIPLIER_64[19] = {1LL,
                                             100000000000000000LL,
                                             1000000000000000000LL};
 
-#define DECIMAL64_ONE SCALE_MULTIPLIER_64[0]
+static const Decimal64 decimal64Zero = {0};
+#define DECIMAL64_ONE  SCALE_MULTIPLIER_64[0]
+#define DECIMAL64_ZERO decimal64Zero
 
 #define DECIMAL64_GET_MAX(precision, pMax)                                \
   do {                                                                    \
@@ -922,6 +924,10 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
 #define MAKE_DECIMAL64_SIGNED(pDec, v, max)   CHECK_OVERFLOW_AND_MAKE_DECIMAL64(pDec, v, max, ABS_INT64)
 #define MAKE_DECIMAL64_UNSIGNED(pDec, v, max) CHECK_OVERFLOW_AND_MAKE_DECIMAL64(pDec, v, max, ABS_UINT64);
 
+static int64_t int64FromDecimal64(const DecimalType* pDec, uint8_t prec, uint8_t scale) { return 0; }
+
+static uint64_t uint64FromDecimal64(const DecimalType* pDec, uint8_t prec, uint8_t scale) { return 0; }
+
 static int32_t decimal64FromInt64(DecimalType* pDec, uint8_t prec, uint8_t scale, int64_t val) {
   Decimal64 max = {0};
   DECIMAL64_GET_MAX(prec - scale, &max);
@@ -979,6 +985,10 @@ static int32_t decimal64FromDecimal64(DecimalType* pDec, uint8_t prec, uint8_t s
   if (negative) decimal64Negate(pDec);
   return 0;
 }
+
+static int64_t int64FromDecimal128(const DecimalType* pDec, uint8_t prec, uint8_t scale) { return 0; }
+
+static uint64_t uint64FromDecimal128(const DecimalType* pDec, uint8_t prec, uint8_t scale) { return 0; }
 
 static int32_t decimal128FromInt64(DecimalType* pDec, uint8_t prec, uint8_t scale, int64_t val) {
   if (prec - scale <= 18) {  // TODO wjm test int64 with 19 digits.
@@ -1224,3 +1234,49 @@ int32_t decimal128CountLeadingBinaryZeros(const Decimal128* pDec) {
     return countLeadingZeros((uint64_t)DECIMAL128_HIGH_WORD(pDec));
   }
 }
+
+#define IMPL_INTEGER_TYPE_FROM_DECIMAL_TYPE(oType, decimalType, sign)                    \
+  oType oType##From##decimalType(const DecimalType* pDec, uint8_t prec, uint8_t scale) { \
+    return (oType)sign##int64##From##decimalType(pDec, prec, scale);                     \
+  }
+#define IMP_SIGNED_INTEGER_TYPE_FROM_DECIMAL_TYPE(oType, decimalType) \
+  IMPL_INTEGER_TYPE_FROM_DECIMAL_TYPE(oType, decimalType, )
+#define IMP_UNSIGNED_INTEGER_TYPE_FROM_DECIMAL_TYPE(oType, decimalType) \
+  IMPL_INTEGER_TYPE_FROM_DECIMAL_TYPE(oType, decimalType, u)
+
+IMP_SIGNED_INTEGER_TYPE_FROM_DECIMAL_TYPE(int8_t, Decimal64)
+IMP_SIGNED_INTEGER_TYPE_FROM_DECIMAL_TYPE(int16_t, Decimal64)
+IMP_SIGNED_INTEGER_TYPE_FROM_DECIMAL_TYPE(int32_t, Decimal64)
+IMP_SIGNED_INTEGER_TYPE_FROM_DECIMAL_TYPE(int64_t, Decimal64)
+
+IMP_UNSIGNED_INTEGER_TYPE_FROM_DECIMAL_TYPE(uint8_t, Decimal64)
+IMP_UNSIGNED_INTEGER_TYPE_FROM_DECIMAL_TYPE(uint16_t, Decimal64)
+IMP_UNSIGNED_INTEGER_TYPE_FROM_DECIMAL_TYPE(uint32_t, Decimal64)
+IMP_UNSIGNED_INTEGER_TYPE_FROM_DECIMAL_TYPE(uint64_t, Decimal64)
+
+double doubleFromDecimal64(const void* pDec, uint8_t prec, uint8_t scale) { return 0; }
+
+bool boolFromDecimal64(const void* pDec, uint8_t prec, uint8_t scale) {
+  return !decimal64Eq(pDec, &decimal64Zero, WORD_NUM(Decimal64));
+}
+
+#define IMPL_REAL_TYPE_FROM_DECIMAL_TYPE(oType, decimalType)                             \
+  oType oType##From##decimalType(const DecimalType* pDec, uint8_t prec, uint8_t scale) { \
+    return (oType) double##From##decimalType(pDec, prec, scale);                         \
+  }
+
+IMPL_REAL_TYPE_FROM_DECIMAL_TYPE(float, Decimal64);
+
+IMP_SIGNED_INTEGER_TYPE_FROM_DECIMAL_TYPE(int8_t, Decimal128)
+IMP_SIGNED_INTEGER_TYPE_FROM_DECIMAL_TYPE(int16_t, Decimal128)
+IMP_SIGNED_INTEGER_TYPE_FROM_DECIMAL_TYPE(int32_t, Decimal128)
+IMP_SIGNED_INTEGER_TYPE_FROM_DECIMAL_TYPE(int64_t, Decimal128)
+
+IMP_UNSIGNED_INTEGER_TYPE_FROM_DECIMAL_TYPE(uint8_t, Decimal128)
+IMP_UNSIGNED_INTEGER_TYPE_FROM_DECIMAL_TYPE(uint16_t, Decimal128)
+IMP_UNSIGNED_INTEGER_TYPE_FROM_DECIMAL_TYPE(uint32_t, Decimal128)
+IMP_UNSIGNED_INTEGER_TYPE_FROM_DECIMAL_TYPE(uint64_t, Decimal128)
+
+bool   boolFromDecimal128(const void* pDec, uint8_t prec, uint8_t scale) { return true; }
+double doubleFromDecimal128(const void* pDec, uint8_t prec, uint8_t scale) { return 0; }
+IMPL_REAL_TYPE_FROM_DECIMAL_TYPE(float, Decimal128);
