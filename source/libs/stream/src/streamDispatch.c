@@ -1883,7 +1883,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
         if (pReq->msgId > pInfo->lastMsgId) {
           status = streamTaskAppendInputBlocks(pTask, pReq);
           if (status == TASK_INPUT_STATUS__NORMAL) {
-            stDebug("s-task:%s update the lastMsgId from %" PRId64 " to %" PRId64, id, pInfo->lastMsgId, pReq->msgId);
+            stDebug("s-task:%s update the lastMsgId from %" PRId64 " to %d", id, pInfo->lastMsgId, pReq->msgId);
             pInfo->lastMsgId = pReq->msgId;
           } else {
             stDebug("s-task:%s not update the lastMsgId, remain:%" PRId64, id, pInfo->lastMsgId);
