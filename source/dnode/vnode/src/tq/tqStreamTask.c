@@ -86,15 +86,30 @@ static void doStartScanWal(void* param, void* tmrId) {
     return;
   }
 
+  if (pMeta->closeFlag) {
+    code = taosReleaseRef(streamMetaRefPool, pParam->metaId);
+    if (code == TSDB_CODE_SUCCESS) {
+      tqDebug("vgId:%d jump out of scan wal timer since closed", vgId);
+    } else {
+      tqError("vgId:%d failed to release ref for streamMeta, rid:%" PRId64 " code:%s", vgId, pParam->metaId,
+              tstrerror(code));
+    }
+
+    taosMemoryFree(pParam);
+    return;
+  }
+
   vgId = pMeta->vgId;
   pTq = pMeta->ahandle;
 
   tqDebug("vgId:%d create msg to start wal scan, numOfTasks:%d, vnd restored:%d", vgId, pParam->numOfTasks,
           pTq->pVnode->restored);
 
-  code = streamTaskSchedTask(&pTq->pVnode->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA);
-  if (code) {
-    tqError("vgId:%d failed sched task to scan wal, code:%s", vgId, tstrerror(code));
+  if (pTq->pVnode != NULL) {
+    code = streamTaskSchedTask(&pTq->pVnode->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA);
+    if (code) {
+      tqError("vgId:%d failed sched task to scan wal, code:%s", vgId, tstrerror(code));
+    }
   }
 
   code = taosReleaseRef(streamMetaRefPool, pParam->metaId);
@@ -330,13 +345,13 @@ int32_t doPutDataIntoInputQ(SStreamTask* pTask, int64_t maxVer, int32_t* numOfIt
 
 int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta) {
   int32_t vgId = pStreamMeta->vgId;
+  SArray* pTaskList = NULL;
   int32_t numOfTasks = taosArrayGetSize(pStreamMeta->pTaskList);
   if (numOfTasks == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
   // clone the task list, to avoid the task update during scan wal files
-  SArray* pTaskList = NULL;
   streamMetaWLock(pStreamMeta);
   pTaskList = taosArrayDup(pStreamMeta->pTaskList, NULL);
   streamMetaWUnLock(pStreamMeta);
