@@ -206,10 +206,6 @@ TEST_F(ParserInitialATest, alterDatabase) {
   setAlterDbReplica(3);
   setAlterDbWalRetentionPeriod(10);
   setAlterDbWalRetentionSize(20);
-#ifndef _STORAGE
-  run("ALTER DATABASE test BUFFER 16 CACHEMODEL 'last_row' CACHESIZE 32 WAL_FSYNC_PERIOD 200 KEEP 10 PAGES 128 "
-      "REPLICA 3 WAL_LEVEL 1 WAL_RETENTION_PERIOD 10 WAL_RETENTION_SIZE 20");
-#else
   run("ALTER DATABASE test BUFFER 16 CACHEMODEL 'last_row' CACHESIZE 32 WAL_FSYNC_PERIOD 200 KEEP 10 PAGES 128 "
       "REPLICA 3 WAL_LEVEL 1 "
 #ifdef TD_ENTERPRISE
