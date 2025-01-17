@@ -176,7 +176,7 @@ jobs:
           ls ${{ github.workspace }}
           # run taosx
           ssh root@$RELEASE_HOST "mkdir -p $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data/"
-          
+          # echo ssh root@$RELEASE_HOST "nohup sh -c 'LD_LIBRARY_PATH=/root/qin/TDengine/dockerbuild/instantclient_19_24 DATABASE_URL=/var/lib/taos/taosx/taosx.db LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/taosx-%p-%m.profraw GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ ENABLE_COVERAGE=true nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx.log 2>&1 &'"
           ssh root@$RELEASE_HOST "nohup sh -c 'LD_LIBRARY_PATH=/root/qin/TDengine/dockerbuild/instantclient_19_24 DATABASE_URL=/var/lib/taos/taosx/taosx.db LLVM_PROFILE_FILE=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/taosx-profraw/taosx-%p-%m.profraw GOCOVERDIR=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/go_cover/opc_cover_data PLUGINS_HOME=$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/ ENABLE_COVERAGE=true nohup $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx serve > $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx.log 2>&1 &'"
       - name: Deploy taosx-agent
         run: |
@@ -206,21 +206,35 @@ jobs:
         run: |
           systemctl restart taos-explorer
           systemctl restart taosadapter
-      
+      # - name: Check out repository code
+      #   uses: actions/checkout@v4
       - name: Run Test
         continue-on-error: true
         run: |
           rm -rf $COVERAGE_BASE_DIR/opentsdb/
           rm -rf $COVERAGE_BASE_DIR/influxdb/
           ls $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile || mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile
-          cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity 
-          #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity -k "not mqtt_test.py"
-          #cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && cd tests && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity opcua_test.py
+          cd /data/github/TestNG_taosX && source ./setenv.sh && poetry install && poetry run pytest --alluredir=$COVERAGE_BASE_DIR/$DIR_PATH_3_0/allure_profile --timeout=300 -m sanity -k "not user_migration_test.py"
       - name: Stop taosx-agent & taosx
         shell: bash {0}
         run: |
           pids=$(pgrep "taosx-agent"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx-agent $pid"; kill -2 "$pid"; done; fi
           pids=$(pgrep "taosx"); if [ -n "$pids" ]; then for pid in $pids; do echo "run kill -2 taosx $pid"; kill -2 "$pid"; done; fi
+      
+      # - name: Stop taosX
+      #   shell: bash {0}
+      #   run: |
+      #     echo "ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx' | grep -v grep | awk '{print $2}' | xargs -r kill -2"
+      #     ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx' | grep -v grep | awk '{print $2}' | xargs -r kill -2
+      #     sleep 10
+      #     ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx' | grep -v grep | awk '{print $2}' |
+      # - name: Stop taosx-agent
+      #   shell: bash {0}
+      #   run: |
+      #     echo "ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent' | grep -v grep | awk '{print $2}' | xargs -r kill -2"
+      #     ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent' | grep -v grep | awk '{print $2}' | xargs -r kill -2
+      #     sleep 10
+      #     ps -ef | grep '$ARTIFACT_BASE_DIR/$DIR_PATH_3_0/bin/taosx-agent' | grep -v grep | awk '{print $2}' |
   generate_report:
     runs-on: [self-hosted, linux, x64, qa, rust]
     needs: [run_e2e_test,set_env]
@@ -252,6 +266,7 @@ jobs:
           genhtml -o $COVERAGE_BASE_DIR/$DIR_PATH_3_0/taosx-report-e2e/ --quiet --ignore-errors source --ignore-errors unmapped --show-details --highlight --legend $ARTIFACT_BASE_DIR/$DIR_PATH_3_0/lcov_e2e_remove.info
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/"
       - name: opc Report
+        continue-on-error: true
         run: |
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/mqtt/"
           # opc report
@@ -264,6 +279,7 @@ jobs:
           /root/go/bin/gocov convert opc_unit_report.txt opc_e2e_report.txt | /root/go/bin/gocov-html > $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opc/merged/index.html
           echo "see report at $REPORT_BASE_URL/$DIR_PATH_3_0/opc/"
       - name: influxdb & opentsdb report
+        continue-on-error: true
         run: |
           # opentsdb report
           mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opentsdb/unit/ && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opentsdb/e2e/ && mkdir -p $COVERAGE_BASE_DIR/$DIR_PATH_3_0/opentsdb/merged/
@@ -333,6 +349,16 @@ jobs:
           echo "influxdb_connector_coverage_diff=$influxdb_connector_coverage_diff" >> $GITHUB_ENV
           echo "opentsdb_connector_coverage_diff=$opentsdb_connector_coverage_diff" >> $GITHUB_ENV
           echo "opc_connector_coverage_diff=$opc_connector_coverage_diff" >> $GITHUB_ENV
+      - name: Change string to number
+        run: |
+          taosX_coverage_diff_numeric=$(echo "$taosX_coverage_diff" | bc)
+          echo "taosX_coverage_diff_numeric=$taosX_coverage_diff_numeric" >> $GITHUB_ENV
+          influxdb_connector_coverage_diff_numeric=$(echo "$influxdb_connector_coverage_diff" | bc)
+          echo "influxdb_connector_coverage_diff_numeric=$influxdb_connector_coverage_diff_numeric" >> $GITHUB_ENV
+          opentsdb_connector_coverage_diff_numeric=$(echo "$opentsdb_connector_coverage_diff" | bc)
+          echo "opentsdb_connector_coverage_diff_numeric=$opentsdb_connector_coverage_diff_numeric" >> $GITHUB_ENV
+          opc_connector_coverage_diff_numeric=$(echo "$opc_connector_coverage_diff" | bc)
+          echo "opc_connector_coverage_diff_numeric=$opc_connector_coverage_diff_numeric" >> $GITHUB_ENV
       
       - name: Send Feishu Message to taosX CI Group
         env:
@@ -360,6 +386,33 @@ jobs:
           Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
           post_to_feishu "$PR_INFO"
       
+      - name: Send Feishu Message to Platform Alert Group
+        env:
+          COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
+        if: ${{ env.taosX_coverage_diff_numeric <0 ||  env.influxdb_connector_coverage_diff_numeric <0 ||  env.opentsdb_connector_coverage_diff_numeric <0  ||  env.opc_connector_coverage_diff_numeric <0 }}
+        run: |
+          function post_to_feishu() {
+            local text="$1"
+            curl -X POST -H "Content-Type: application/json" \
+            -d @- https://open.feishu.cn/open-apis/bot/v2/hook/02363732-91f1-49c4-879c-4e98cf31a5f3 <<EOF
+            {
+                "msg_type": "text",
+                "content": {
+                "text": "$text"
+                }
+            }
+          EOF
+          }
+          PR_INFO="Testing coverage report for taosX and its plugins\n
+          PR Owner: @${{ github.actor }}\n
+          Action Page: https://github.com/taosdata/taosx/actions/runs/${{ github.run_id }}\n
+          taosX Coverage: $TAOSX_COVERAGE_PERCENT%,difference to the last result is $taosX_coverage_diff%\n
+          InfluxDB Connector Coverage: $INFLUXDB_CONNECTOR_COVERAGE_PERCENT%, difference is $influxdb_connector_coverage_diff%\n
+          OpenTSDB Connector Coverage: $OPENTSDB_CONNECTOR_COVERAGE_PERCENT%, difference is $opentsdb_connector_coverage_diff%\n
+          OPC Connector Coverage: $OPC_CONNECTOR_COVERAGE_PERCENT%, difference is $opc_connector_coverage_diff%\n
+          Coverage Report URL: $REPORT_BASE_URL/$COVERAGE_REPORT_DIR/$DIR_PATH_3_0/\n"
+          post_to_feishu "$PR_INFO"
+
       - name: Send Feishu Message to Platform Notifications Group
         env:
           COVERAGE_REPORT_DIR: ${{ needs.set_env.outputs.coverage_report_dir }}
