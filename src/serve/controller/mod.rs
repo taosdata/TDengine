@@ -717,7 +717,7 @@ impl TaskController {
         //     fair: true,
         // ```
         let pool = PoolOptions::new()
-            .min_connections(4)
+            .min_connections(1)
             .max_connections(128)
             .acquire_timeout(Duration::from_secs(60))
             .idle_timeout(Some(Duration::from_secs(60 * 60)))
