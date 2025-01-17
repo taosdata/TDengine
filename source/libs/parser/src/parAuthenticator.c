@@ -308,6 +308,11 @@ static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) 
   SNode     *pNode = NULL;
   SNodeList* pTmpList = pStmt->pSpecificColRefs ? pStmt->pSpecificColRefs : pStmt->pColRefs;
   PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, AUTH_TYPE_WRITE, NULL));
+  if (NULL == pTmpList) {
+    // no column reference
+    return TSDB_CODE_SUCCESS;
+  }
+
   FOREACH(pNode, pTmpList) {
     SColumnRefNode *pColRef = (SColumnRefNode*)pNode;
     if (NULL == pColRef) {

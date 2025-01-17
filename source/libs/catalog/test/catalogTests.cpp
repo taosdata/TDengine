@@ -210,6 +210,8 @@ void ctgTestBuildCTableMetaOutput(STableMetaOutput *output) {
   output->tbMeta->sversion = ctgTestSVersion;
   output->tbMeta->tversion = ctgTestTVersion;
 
+  output->vctbMeta = NULL;
+
   SSchema *s = NULL;
   s = &output->tbMeta->schema[0];
   s->type = TSDB_DATA_TYPE_TIMESTAMP;

@@ -31,7 +31,7 @@ typedef struct SVirtualTableScanInfo {
   SSDataBlock*   pInputBlock;
   SHashObj*      dataSlotMap;
   int32_t        tsSlotId;
-  bool           onlyTs;
+  bool           scanAllCols;
 } SVirtualTableScanInfo;
 
 typedef struct SVirtualScanMergeOperatorInfo {
@@ -44,7 +44,7 @@ typedef struct SVirtualScanMergeOperatorInfo {
   STupleHandle*         pSavedTuple;
 } SVirtualScanMergeOperatorInfo;
 
-int32_t sortMergeloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
+int32_t virtualScanloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
   int32_t        code = TSDB_CODE_SUCCESS;
 
@@ -60,41 +60,55 @@ _return:
 int32_t openVirtualTableScanOperatorImpl(SOperatorInfo* pOperator) {
   SVirtualScanMergeOperatorInfo * pInfo = pOperator->info;
   SExecTaskInfo*                  pTaskInfo = pOperator->pTaskInfo;
-  SVirtualTableScanInfo*          pSortMergeInfo = &pInfo->virtualScanInfo;
+  SVirtualTableScanInfo*          pVirtualScanInfo = &pInfo->virtualScanInfo;
+  int32_t                         numOfBufPage = pVirtualScanInfo->sortBufSize / pVirtualScanInfo->bufPageSize;
+  SSortSource*                    ps = NULL;
+  int32_t                         code = 0;
+  int32_t                         lino = 0;
 
-  int32_t numOfBufPage = pSortMergeInfo->sortBufSize / pSortMergeInfo->bufPageSize;
+  pVirtualScanInfo->pSortHandle = NULL;
+  if (pOperator->numOfDownstream == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
 
-  pSortMergeInfo->pSortHandle = NULL;
-  VTS_ERR_RET(tsortCreateSortHandle(pSortMergeInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pSortMergeInfo->bufPageSize,
-                                    numOfBufPage, pSortMergeInfo->pInputBlock, pTaskInfo->id.str, 0, 0, 0, &pSortMergeInfo->pSortHandle));
+  VTS_ERR_JRET(tsortCreateSortHandle(pVirtualScanInfo->pSortInfo, SORT_MULTISOURCE_MERGE, pVirtualScanInfo->bufPageSize,
+                                    numOfBufPage, pVirtualScanInfo->pInputBlock, pTaskInfo->id.str, 0, 0, 0, &pVirtualScanInfo->pSortHandle));
 
-  tsortSetForceUsePQSort(pSortMergeInfo->pSortHandle);
-  tsortSetFetchRawDataFp(pSortMergeInfo->pSortHandle, sortMergeloadNextDataBlock, NULL, NULL);
+  tsortSetForceUsePQSort(pVirtualScanInfo->pSortHandle);
+  tsortSetFetchRawDataFp(pVirtualScanInfo->pSortHandle, virtualScanloadNextDataBlock, NULL, NULL);
 
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
     SOperatorInfo* pDownstream = pOperator->pDownstream[i];
     if (pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
-      VTS_ERR_RET(pDownstream->fpSet._openFn(pDownstream));
+      VTS_ERR_JRET(pDownstream->fpSet._openFn(pDownstream));
     } else {
-      VTS_ERR_RET(TSDB_CODE_VTABLE_SCAN_INVALID_DOWNSTREAM);
+      VTS_ERR_JRET(TSDB_CODE_VTABLE_SCAN_INVALID_DOWNSTREAM);
     }
 
-    SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
-    if (ps == NULL) {
-      return terrno;
-    }
+    ps = taosMemoryCalloc(1, sizeof(SSortSource));
+    TSDB_CHECK_NULL(ps, code, lino, _return, terrno);
 
     ps->param = pDownstream;
     ps->onlyRef = true;
 
-    VTS_ERR_RET(tsortAddSource(pSortMergeInfo->pSortHandle, ps));
+    VTS_ERR_JRET(tsortAddSource(pVirtualScanInfo->pSortHandle, ps));
+    ps = NULL;
   }
 
-  return tsortOpen(pSortMergeInfo->pSortHandle);
+  VTS_ERR_JRET(tsortOpen(pVirtualScanInfo->pSortHandle));
+  return code;
+_return:
+  if (code != 0){
+    qError("%s failed at line %d with msg:%s", __func__, lino, tstrerror(code));
+  }
+  if (ps != NULL) {
+    taosMemoryFree(ps);
+  }
+  return code;
 }
 
 int32_t openVirtualTableScanOperator(SOperatorInfo* pOperator) {
-  int32_t                        code = 0;
+  int32_t code = 0;
 
   if (OPTR_IS_OPENED(pOperator)) {
     return TSDB_CODE_SUCCESS;
@@ -134,7 +148,7 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
     tsortGetBlockInfo(pTupleHandle, &info);
     int32_t blockId = (int32_t)info.id.blockId;
 
-    for (int32_t i = 0; i < (pInfo->virtualScanInfo.onlyTs ? 1 : tsortGetColNum(pTupleHandle)); i++) {
+    for (int32_t i = 0; i < (pInfo->virtualScanInfo.scanAllCols ? 1 : tsortGetColNum(pTupleHandle)); i++) {
       bool isNull = tsortIsNullVal(pTupleHandle, i);
       if (isNull) {
         colDataSetNULL(taosArrayGet(p->pDataBlock, i), rowNums);
@@ -163,7 +177,8 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
           int32_t slotKey = blockId << 16 | i;
           void *slotId = taosHashGet(pInfo->virtualScanInfo.dataSlotMap, &slotKey, sizeof(slotKey));
           if (slotId == NULL) {
-            VTS_ERR_RET(TSDB_CODE_VTABLE_SCAN_UNMATCHED_COLUMN);
+            qError("failed to get slotId from dataSlotMap, blockId:%d, slotId:%d", blockId, i);
+            VTS_ERR_RET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
           }
           VTS_ERR_RET(colDataSetVal(taosArrayGet(p->pDataBlock, *(int32_t *)slotId), rowNums, pData, false));
         }
@@ -181,27 +196,30 @@ int32_t doVirtualTableMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   int32_t                        code = 0;
   SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
   SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;
-  SVirtualTableScanInfo*         pSortMergeInfo = &pInfo->virtualScanInfo;
-  SSortHandle*                   pHandle = pSortMergeInfo->pSortHandle;
+  SVirtualTableScanInfo*         pVirtualScanInfo = &pInfo->virtualScanInfo;
+  SSortHandle*                   pHandle = pVirtualScanInfo->pSortHandle;
   SSDataBlock*                   pDataBlock = pInfo->binfo.pRes;
   int32_t                        capacity = pOperator->resultInfo.capacity;
 
   qDebug("start to merge final sorted rows, %s", GET_TASKID(pTaskInfo));
   blockDataCleanup(pDataBlock);
 
-  if (pSortMergeInfo->pIntermediateBlock == NULL) {
-    pSortMergeInfo->pIntermediateBlock = NULL;
-    VTS_ERR_RET(tsortGetSortedDataBlock(pHandle, &pSortMergeInfo->pIntermediateBlock));
-    if (pSortMergeInfo->pIntermediateBlock == NULL) {
+  if (pHandle == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pVirtualScanInfo->pIntermediateBlock == NULL) {
+    VTS_ERR_RET(tsortGetSortedDataBlock(pHandle, &pVirtualScanInfo->pIntermediateBlock));
+    if (pVirtualScanInfo->pIntermediateBlock == NULL) {
       return TSDB_CODE_SUCCESS;
     }
 
-    VTS_ERR_RET(blockDataEnsureCapacity(pSortMergeInfo->pIntermediateBlock, capacity));
+    VTS_ERR_RET(blockDataEnsureCapacity(pVirtualScanInfo->pIntermediateBlock, capacity));
   } else {
-    blockDataCleanup(pSortMergeInfo->pIntermediateBlock);
+    blockDataCleanup(pVirtualScanInfo->pIntermediateBlock);
   }
 
-  SSDataBlock* p = pSortMergeInfo->pIntermediateBlock;
+  SSDataBlock* p = pVirtualScanInfo->pIntermediateBlock;
   VTS_ERR_RET(doGetVtableMergedBlockData(pInfo, pHandle, capacity, p));
 
   VTS_ERR_RET(copyDataBlock(pDataBlock, p));
@@ -235,24 +253,26 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     return TSDB_CODE_SUCCESS;
   }
 
-  VTS_ERR_RET(pOperator->fpSet._openFn(pOperator));
   int32_t                        code = TSDB_CODE_SUCCESS;
   int32_t                        lino = 0;
   SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;
-  SVirtualTableScanInfo*         pSortMergeInfo = &pInfo->virtualScanInfo;
+  SVirtualTableScanInfo*         pVirtualScanInfo = &pInfo->virtualScanInfo;
   SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
+
+  VTS_ERR_JRET(pOperator->fpSet._openFn(pOperator));
+
   while(1) {
-    VTS_ERR_RET(doVirtualTableMerge(pOperator, pResBlock));
+    VTS_ERR_JRET(doVirtualTableMerge(pOperator, pResBlock));
     if (*pResBlock == NULL) {
       setOperatorCompleted(pOperator);
       break;
     }
-    STableKeyInfo* tbInfo = tableListGetInfo(pSortMergeInfo->base.pTableListInfo, 0);
+    STableKeyInfo* tbInfo = tableListGetInfo(pVirtualScanInfo->base.pTableListInfo, 0);
     QUERY_CHECK_NULL(tbInfo, code, lino, _return, terrno);
     (*pResBlock)->info.id.uid = tbInfo->uid;
 
-    VTS_ERR_RET(doSetTagColumnData(&pSortMergeInfo->base, (*pResBlock), pTaskInfo, (*pResBlock)->info.rows));
-    VTS_ERR_RET(doFilter(*pResBlock, pOperator->exprSupp.pFilterInfo, NULL));
+    VTS_ERR_JRET(doSetTagColumnData(&pVirtualScanInfo->base, (*pResBlock), pTaskInfo, (*pResBlock)->info.rows));
+    VTS_ERR_JRET(doFilter(*pResBlock, pOperator->exprSupp.pFilterInfo, NULL));
     if ((*pResBlock)->info.rows > 0) {
       break;
     }
@@ -260,14 +280,48 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   return TSDB_CODE_SUCCESS;
 _return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
   return code;
 }
 
-void destroyVirtualTableScanOperatorInfo(void* param) {
-  SVirtualScanMergeOperatorInfo* pInfo = (SVirtualScanMergeOperatorInfo*)param;
-  blockDataDestroy(pInfo->binfo.pRes);
-  pInfo->binfo.pRes = NULL;
+static void destroyTableScanBase(STableScanBase* pBase, TsdReader* pAPI) {
+  cleanupQueryTableDataCond(&pBase->cond);
 
+  if (pAPI->tsdReaderClose) {
+    pAPI->tsdReaderClose(pBase->dataReader);
+  }
+  pBase->dataReader = NULL;
+
+  if (pBase->matchInfo.pList != NULL) {
+    taosArrayDestroy(pBase->matchInfo.pList);
+  }
+
+  tableListDestroy(pBase->pTableListInfo);
+  taosLRUCacheCleanup(pBase->metaCache.pTableMetaEntryCache);
+  cleanupExprSupp(&pBase->pseudoSup);
+}
+
+void destroyVirtualTableScanOperatorInfo(void* param) {
+  SVirtualScanMergeOperatorInfo* pOperatorInfo = (SVirtualScanMergeOperatorInfo*)param;
+  SVirtualTableScanInfo* pInfo = &pOperatorInfo->virtualScanInfo;
+  blockDataDestroy(pOperatorInfo->binfo.pRes);
+  pOperatorInfo->binfo.pRes = NULL;
+
+  tsortDestroySortHandle(pInfo->pSortHandle);
+  taosArrayDestroy(pInfo->pSortInfo);
+
+  blockDataDestroy(pInfo->pIntermediateBlock);
+  pInfo->pIntermediateBlock = NULL;
+
+  blockDataDestroy(pInfo->pInputBlock);
+  pInfo->pInputBlock = NULL;
+  destroyTableScanBase(&pInfo->base, &pInfo->base.readerAPI);
+
+  taosHashCleanup(pInfo->dataSlotMap);
   taosMemoryFreeClear(param);
 }
 
@@ -307,8 +361,12 @@ int32_t extractColMap(SNodeList* pNodeList, SHashObj** pSlotMap, int32_t *tsSlot
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  *tsSlotId = -1;
 
+  if (numOfCols == 0) {
+    return code;
+  }
+
+  *tsSlotId = -1;
   *pSlotMap = taosHashInit(numOfCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   TSDB_CHECK_NULL(*pSlotMap, code, lino, _return, terrno);
 
@@ -344,6 +402,7 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, SReadHa
    SVirtualScanMergeOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SVirtualScanMergeOperatorInfo));
    SOperatorInfo*              pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
    SDataBlockDescNode*         pDescNode = pPhyNode->pOutputDataBlockDesc;
+   SNodeList                  *pMergeKeys = NULL;
    if (pInfo == NULL || pOperator == NULL) {
      VTS_ERR_JRET(terrno);
    }
@@ -375,18 +434,16 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, SReadHa
 
    size_t     numOfCols = taosArrayGetSize(pInfo->binfo.pRes->pDataBlock);
    int32_t    rowSize = pInfo->binfo.pRes->info.rowSize;
-   SNodeList *pMergeKeys = NULL;
 
-   TSDB_CHECK_CODE(makeTSMergeKey(&pMergeKeys), lino, _return);
+   VTS_ERR_JRET(makeTSMergeKey(&pMergeKeys));
    pVirtualScanInfo->pSortInfo = createSortInfo(pMergeKeys);
+   TSDB_CHECK_NULL(pVirtualScanInfo->pSortInfo, code, lino, _return, terrno);
    pVirtualScanInfo->bufPageSize = getProperSortPageSize(rowSize, numOfCols);
    pVirtualScanInfo->sortBufSize =
        pVirtualScanInfo->bufPageSize * (numOfDownstream + 1);  // one additional is reserved for merged result.
    VTS_ERR_JRET(extractColMap(pVirtualScanPhyNode->pTargets, &pVirtualScanInfo->dataSlotMap, &pVirtualScanInfo->tsSlotId));
 
-   if (pVirtualScanInfo->tsSlotId != -1 && LIST_LENGTH(pVirtualScanPhyNode->pTargets) == 1) {
-     pVirtualScanInfo->onlyTs = true;
-   }
+   pVirtualScanInfo->scanAllCols = pVirtualScanPhyNode->scanAllCols;
 
    VTS_ERR_JRET(filterInitFromNode((SNode*)pVirtualScanPhyNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0));
 
@@ -401,15 +458,23 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, SReadHa
        createOperatorFpSet(openVirtualTableScanOperator, virtualTableGetNext, NULL, destroyVirtualTableScanOperatorInfo,
                            optrDefaultBufFn, getVirtualTableScanExplainExecInfo, optrDefaultGetNextExtFn, NULL);
 
-   VTS_ERR_JRET(appendDownstream(pOperator, pDownstream, numOfDownstream));
+   if (NULL != pDownstream) {
+     VTS_ERR_JRET(appendDownstream(pOperator, pDownstream, numOfDownstream));
+   }
 
+
+   nodesDestroyList(pMergeKeys);
    *pOptrInfo = pOperator;
    return TSDB_CODE_SUCCESS;
 
 _return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
    if (pInfo != NULL) {
      destroyVirtualTableScanOperatorInfo(pInfo);
    }
+   nodesDestroyList(pMergeKeys);
    pTaskInfo->code = code;
    destroyOperatorAndDownstreams(pOperator, pDownstream, numOfDownstream);
    return code;
