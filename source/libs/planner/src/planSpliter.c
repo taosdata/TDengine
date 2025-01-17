@@ -2054,7 +2054,7 @@ static const SSplitRule splitRuleSet[] = {
   {.pName = "SingleTableJoinSplit", .splitFunc = singleTableJoinSplit},
   {.pName = "UnionAllSplit",        .splitFunc = unionAllSplit},
   {.pName = "UnionDistinctSplit",   .splitFunc = unionDistinctSplit},
-  {.pName = "SmaIndexSplit",        .splitFunc = smaIndexSplit}, // not used yet
+  //{.pName = "SmaIndexSplit",        .splitFunc = smaIndexSplit}, // not used yet
   {.pName = "InsertSelectSplit",    .splitFunc = insertSelectSplit}
 };
 // clang-format on
