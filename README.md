@@ -243,7 +243,7 @@ nmake
 
 # 5. Packaging
 
-[Placeholder]
+The TDengine community installer can NOT be created by this repository only, due to some component dependencies. We are still working on this improvement.
 
 # 6. Installation
 
@@ -392,7 +392,7 @@ Latest TDengine test coverage report can be found on [coveralls.io](https://cove
 
 <details>
 
-<summary> how to run the coverage report locally. </summary>
+<summary>How to run the coverage report locally?</summary>
 To create the test coverage report (in HTML format) locally, please run following commands:
 
 ```bash
