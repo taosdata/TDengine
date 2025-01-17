@@ -1,9 +1,11 @@
 #include <gtest/gtest.h>
 #include <iostream>
+#include <memory>
 
 #include "decimal.h"
 #include "libs/nodes/querynodes.h"
 #include "tcommon.h"
+#include "tdatablock.h"
 #include "wideInteger.h"
 using namespace std;
 
@@ -133,6 +135,30 @@ struct NumericType<128> {
   static constexpr int8_t maxPrec = TSDB_DECIMAL_MAX_PRECISION;
 };
 
+template <typename T>
+struct TrivialTypeInfo {
+  using TrivialType = T;
+};
+
+#define DEFINE_TRIVIAL_TYPE_HELPER(type, tsdb_type) \
+  template <>                                       \
+  struct TrivialTypeInfo<type> {                    \
+    static constexpr type    dataType = tsdb_type;  \
+    static constexpr int32_t bytes = sizeof(type);  \
+  }
+
+DEFINE_TRIVIAL_TYPE_HELPER(int8_t, TSDB_DATA_TYPE_TINYINT);
+DEFINE_TRIVIAL_TYPE_HELPER(uint8_t, TSDB_DATA_TYPE_UTINYINT);
+DEFINE_TRIVIAL_TYPE_HELPER(int16_t, TSDB_DATA_TYPE_SMALLINT);
+DEFINE_TRIVIAL_TYPE_HELPER(uint16_t, TSDB_DATA_TYPE_USMALLINT);
+DEFINE_TRIVIAL_TYPE_HELPER(int32_t, TSDB_DATA_TYPE_INT);
+DEFINE_TRIVIAL_TYPE_HELPER(uint32_t, TSDB_DATA_TYPE_UINT);
+DEFINE_TRIVIAL_TYPE_HELPER(int64_t, TSDB_DATA_TYPE_BIGINT);
+DEFINE_TRIVIAL_TYPE_HELPER(uint64_t, TSDB_DATA_TYPE_UBIGINT);
+DEFINE_TRIVIAL_TYPE_HELPER(float, TSDB_DATA_TYPE_FLOAT);
+DEFINE_TRIVIAL_TYPE_HELPER(double, TSDB_DATA_TYPE_DOUBLE);
+DEFINE_TRIVIAL_TYPE_HELPER(bool, TSDB_DATA_TYPE_BOOL);
+
 template <int ByteNum>
 class Numeric {
   using Type = typename NumericType<ByteNum>::Type;
@@ -178,25 +204,43 @@ class Numeric {
     return out;
   }
 
-  template <int ByteNum2, int ByteNumO = 128>
-  Numeric<ByteNumO> operator+(const Numeric<ByteNum2>& r) {
-    return binaryOp<ByteNum2, ByteNumO>(r, OP_TYPE_ADD);
+  template <int ByteNumO, typename T>
+  Numeric<ByteNumO> binaryOp(const T& r, EOperatorType op) {
+    using TypeInfo = TrivialTypeInfo<T>;
+    SDataType         lt{.type = NumericType<ByteNum>::dataType, .precision = prec_, .scale = scale_, .bytes = ByteNum};
+    SDataType         rt{.type = TypeInfo::dataType, .precision = 0, .scale = 0, .bytes = TypeInfo::bytes};
+    SDataType         ot = getRetType(op, lt, rt);
+    Numeric<ByteNumO> out{ot.precision, ot.scale, "0"};
+    int32_t           code = decimalOp(op, &lt, &rt, &ot, &dec_, &r, &out);
+    if (code != 0) throw std::overflow_error(tstrerror(code));
+    return out;
+  }
+#define DEFINE_OPERATOR(op, op_type)                          \
+  template <int ByteNum2, int ByteNumO = 128>                 \
+  Numeric<ByteNumO> operator op(const Numeric<ByteNum2>& r) { \
+    cout << *this << " " #op " " << r << " = ";               \
+    auto res = binaryOp<ByteNum2, ByteNumO>(r, op_type);      \
+    cout << res << endl;                                      \
+    return res;                                               \
   }
 
-  template <int ByteNum2, int ByteNumO = 128>
-  Numeric<ByteNumO> operator-(const Numeric<ByteNum2>& r) {
-    return binaryOp<ByteNum2, ByteNumO>(r, OP_TYPE_SUB);
-  }
+  DEFINE_OPERATOR(+, OP_TYPE_ADD);
+  DEFINE_OPERATOR(-, OP_TYPE_SUB);
+  DEFINE_OPERATOR(*, OP_TYPE_MULTI);
+  DEFINE_OPERATOR(/, OP_TYPE_DIV);
 
-  template <int ByteNum2, int ByteNumO = 128>
-  Numeric<ByteNumO> operator*(const Numeric<ByteNum2>& r) {
-    return binaryOp<ByteNum2, ByteNumO>(r, OP_TYPE_MULTI);
+#define DEFINE_OPERATOR_T(op, op_type)            \
+  template <typename T, int ByteNumO = 128>       \
+  Numeric<ByteNumO> operator op(const T & r) {    \
+    cout << *this << " " #op " " << r << " = ";   \
+    auto res = binaryOp<ByteNumO, T>(r, op_type); \
+    cout << res << endl;                          \
+    return res;                                   \
   }
-
-  template <int ByteNum2, int ByteNumO = 128>
-  Numeric<ByteNumO> operator/(const Numeric<ByteNum2>& r) {
-    return binaryOp<ByteNum2, ByteNumO>(r, OP_TYPE_DIV);
-  }
+  DEFINE_OPERATOR_T(+, OP_TYPE_ADD);
+  DEFINE_OPERATOR_T(-, OP_TYPE_SUB);
+  DEFINE_OPERATOR_T(*, OP_TYPE_MULTI);
+  DEFINE_OPERATOR_T(/, OP_TYPE_DIV);
 
   template <int ByteNum2>
   Numeric& operator+=(const Numeric<ByteNum2>& r) {
@@ -240,12 +284,10 @@ TEST(decimal, numeric) {
   Numeric<64> dec{10, 4, "123.456"};
   Numeric<64> dec2{18, 10, "123456.123123"};
   auto        o = dec + dec2;
-  cout << dec << " + " << dec2 << " = " << o << endl;
   ASSERT_EQ(o.toString(), "123579.5791230000");
 
   Numeric<128> dec128{37, 10, "123456789012300.09876543"};
   o = dec + dec128;
-  cout << dec << " + " << dec128 << " = " << o << endl;
   ASSERT_EQ(o.toStringTrimTailingZeros(), "123456789012423.55476543");
   ASSERT_EQ(o.toString(), "123456789012423.5547654300");
 
@@ -256,24 +298,51 @@ TEST(decimal, numeric) {
   ASSERT_EQ(os2.toStringTrimTailingZeros(), dec.toStringTrimTailingZeros());
 
   os = dec * dec2;
-  cout << dec << " * " << dec2 << " = " << os << endl;
   ASSERT_EQ(os.toStringTrimTailingZeros(), "15241399.136273088");
   ASSERT_EQ(os.toString(), "15241399.13627308800000");
 
   os = dec * dec128;
-  cout << dec << " * " << dec128 << " = " << os << endl;
   ASSERT_EQ(os.toStringTrimTailingZeros(), "15241481344302520.993184");
   ASSERT_EQ(os.toString(), "15241481344302520.993184");
 
   os2 = os / dec128;
-  cout << os << " / " << dec128 << " = " << os2 << endl;
   ASSERT_EQ(os2.toStringTrimTailingZeros(), "123.456");
   ASSERT_EQ(os2.toString(), "123.456000");
 
   os = dec2 / dec;
-  cout << dec2 << " / " << dec << " = " << os;
   ASSERT_EQ(os.toString(), "1000.000997302682737169518");
+
+  int32_t a = 123;
+  os = dec + a;
+  ASSERT_EQ(os.toString(), "246.4560");
+
+  os = dec * a;
+  ASSERT_EQ(os.toString(), "15185.0880");
+
+  os = dec / 2;
+  ASSERT_EQ(os.toStringTrimTailingZeros(), "61.728");
+
+  os = dec2 / 2;
+  ASSERT_EQ(os.toStringTrimTailingZeros(), "61728.0615615");
+
+  os = dec128 / 2;
+  ASSERT_EQ(os.toStringTrimTailingZeros(), "61728394506150.049382715");
+
+  auto dec3 = Numeric<64>(10, 2, "171154.38");
+  os = dec3 / 2;
+  ASSERT_EQ(os.toStringTrimTailingZeros(), "85577.19");
+
+  auto dec4 = Numeric<64>(10, 5, "1.23456");
+  os = dec4 / 2;
+  ASSERT_EQ(os.toStringTrimTailingZeros(), "0.61728");
+
+  os = dec4 / 123123123;
+  ASSERT_EQ(os.toStringTrimTailingZeros(), "0.0000000100270361075880117");
 }
+
+// TEST where decimal column in (...)
+// TEST same decimal type with different scale doing comparing or operations
+// TEST case when select common type
 
 TEST(decimal, a) {
   __int128 a = generate_big_int128(37);
@@ -326,20 +395,28 @@ TEST(decimal128, divide) {
 }
 
 TEST(decimal, cpi_taos_fetch_rows) {
-  //GTEST_SKIP();
   const char* host = "127.0.0.1";
   const char* user = "root";
   const char* passwd = "taosdata";
-  const char* db = "test";
-  const char* sql = "select c1, c2 from nt";
+  const char* db = "test_api";
+  const char* create_tb = "create table if not exists test_api.nt(ts timestamp, c1 decimal(10, 2), c2 decimal(38, 10))";
+  const char* sql = "select c1, c2 from test_api.nt";
+  const char* sql_insert = "insert into test_api.nt values(now, 123456.123, 98472981092.1209111)";
 
-  TAOS* pTaos = taos_connect(host, user, passwd, db, 0);
+  TAOS* pTaos = taos_connect(host, user, passwd, NULL, 0);
   if (!pTaos) {
     cout << "taos connect failed: " << host << " " << taos_errstr(NULL);
     FAIL();
   }
 
-  auto*   res = taos_query(pTaos, sql);
+  auto* res = taos_query(pTaos, (std::string("create database if not exists ") + db).c_str());
+  taos_free_result(res);
+  res = taos_query(pTaos, create_tb);
+  taos_free_result(res);
+  res = taos_query(pTaos, sql_insert);
+  taos_free_result(res);
+
+  res = taos_query(pTaos, sql);
   int32_t code = taos_errno(res);
   if (code != 0) {
     cout << "taos_query with sql: " << sql << " failed: " << taos_errstr(res);
@@ -359,6 +436,7 @@ TEST(decimal, cpi_taos_fetch_rows) {
   code = taos_errno(res);
   if (code != 0) {
     cout << "taos_query with sql: " << sql << " failed: " << taos_errstr(res);
+    taos_free_result(res);
     FAIL();
   }
 
@@ -369,8 +447,35 @@ TEST(decimal, cpi_taos_fetch_rows) {
     cout << "taos_query with sql: " << sql << " failed: " << taos_errstr(res);
     FAIL();
   }
+  if (numOfRows > 0) {
+    int32_t version = *(int32_t*)pData;
+    ASSERT_EQ(version, BLOCK_VERSION_1);
+    int32_t rows = *(int32_t*)((char*)pData + 4 + 4);
+    int32_t colNum = *(int32_t*)((char*)pData + 4 + 4 + 4);
+    int32_t bytes_skip = 4 + 4 + 4 + 4 + 4 + 8;
+    char*   p = (char*)pData + bytes_skip;
+    // col1
+    int8_t  t = *(int8_t*)p;
+    int32_t type_mod = *(int32_t*)(p + 1);
 
-  SSDataBlock* pBlock;
+    ASSERT_EQ(t, TSDB_DATA_TYPE_DECIMAL64);
+    auto check_type_mod = [](int32_t type_mod, uint8_t prec, uint8_t scale, int32_t bytes) {
+      ASSERT_EQ(type_mod & 0xFF, scale);
+      ASSERT_EQ((type_mod & 0xFF00) >> 8, prec);
+      ASSERT_EQ(type_mod >> 24, bytes);
+    };
+    check_type_mod(type_mod, 10, 2, 8);
+
+    // col2
+    p += 5;
+    t = *(int8_t*)p;
+    type_mod = *(int32_t*)(p + 1);
+    check_type_mod(type_mod, 38, 10, 16);
+
+    p = p + 5 + BitmapLen(numOfRows) + colNum * 4;
+    int64_t row1Val = *(int64_t*)p;
+    ASSERT_EQ(row1Val, 12345612);
+  }
   taos_free_result(res);
 
   taos_close(pTaos);
@@ -466,8 +571,8 @@ TEST(decimal, decimalOpRetType) {
   EOperatorType op = OP_TYPE_ADD;
   auto          ta = getDecimalType(10, 2);
   auto          tb = getDecimalType(10, 2);
-  SDataType tc{}, tExpect = {.type = TSDB_DATA_TYPE_DECIMAL64, .precision = 11, .scale = 2, .bytes = sizeof(Decimal64)};
-  int32_t   code = decimalGetRetType(&ta, &tb, op, &tc);
+  SDataType     tc{}, tExpect = {.type = TSDB_DATA_TYPE_DECIMAL, .precision = 11, .scale = 2, .bytes = sizeof(Decimal)};
+  int32_t       code = decimalGetRetType(&ta, &tb, op, &tc);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tExpect, tc);
 
@@ -477,7 +582,7 @@ TEST(decimal, decimalOpRetType) {
   code = decimalGetRetType(&ta, &tb, op, &tc);
   ASSERT_EQ(code, 0);
   tExpect.type = TSDB_DATA_TYPE_DECIMAL;
-  tExpect.precision = TSDB_DECIMAL_MAX_PRECISION;
+  tExpect.precision = 22;
   tExpect.scale = 2;
   tExpect.bytes = sizeof(Decimal);
   ASSERT_EQ(tExpect, tc);
@@ -492,6 +597,15 @@ TEST(decimal, decimalOpRetType) {
   tExpect.scale = 0;
   tExpect.bytes = 8;
   ASSERT_EQ(tExpect, tc);
+
+  op = OP_TYPE_DIV;
+  ta = getDecimalType(10, 2);
+  tb = getDecimalType(10, 2);
+  tExpect.type = TSDB_DATA_TYPE_DECIMAL;
+  tExpect.precision = 23;
+  tExpect.scale = 13;
+  tExpect.bytes = sizeof(Decimal);
+  code = decimalGetRetType(&ta, &tb, op, &tc);
 }
 
 TEST(decimal, op) {
@@ -507,15 +621,15 @@ TEST(decimal, op) {
   code = decimal64FromStr(strb, strlen(strb), tb.precision, tb.scale, &b);
   ASSERT_EQ(code, 0);
 
-  SDataType tc{}, tExpect{.type = TSDB_DATA_TYPE_DECIMAL64, .precision = 11, .scale = 2, .bytes = sizeof(Decimal64)};
+  SDataType tc{}, tExpect{.type = TSDB_DATA_TYPE_DECIMAL, .precision = 11, .scale = 2, .bytes = sizeof(Decimal)};
   code = decimalGetRetType(&ta, &tb, op, &tc);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tc, tExpect);
-  Decimal64 res{};
+  Decimal res{};
   code = decimalOp(op, &ta, &tb, &tc, &a, &b, &res);
   ASSERT_EQ(code, 0);
 
-  checkDecimal(&res, TSDB_DATA_TYPE_DECIMAL64, tc.precision, tc.scale, "580.11");
+  checkDecimal(&res, TSDB_DATA_TYPE_DECIMAL, tc.precision, tc.scale, "580.11");
 
   a = {1234567890};
   b = {9876543210};
