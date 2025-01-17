@@ -574,11 +574,16 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   // PROCESS FOR CHILD TABLE
   int32_t metaSize = sizeof(SCTableMeta);
   int32_t colRefSize = 0;
+  SColRef *tmpRef = NULL;
+
   if (hasRefCol(tbMeta->tableType) && tbMeta->colRef != NULL) {
-    colRefSize += tbMeta->numOfColRefs * sizeof(SColRef );
+    colRefSize += tbMeta->numOfColRefs * sizeof(SColRef);
+    tmpRef = taosMemoryMalloc(colRefSize);
+    TAOS_MEMCPY(tmpRef, tbMeta->colRef, colRefSize);
   }
   *pTableMeta = taosMemoryCalloc(1, metaSize + colRefSize);
   if (NULL == *pTableMeta) {
+    taosMemoryFreeClear(tmpRef);
     CTG_ERR_RET(terrno);
   }
 
@@ -595,6 +600,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
 
   CTG_ERR_RET(ctgAcquireStbMetaFromCache(dbCache, pCtg, dbFName, ctx->tbInfo.suid, &tbCache));
   if (NULL == tbCache) {
+    taosMemoryFreeClear(tmpRef);
     taosMemoryFreeClear(*pTableMeta);
     *pDb = NULL;
     ctgDebug("stb 0x%" PRIx64 " meta not in cache", ctx->tbInfo.suid);
@@ -607,23 +613,26 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   if (stbMeta->suid != ctx->tbInfo.suid) {
     ctgError("stb suid 0x%" PRIx64 " in stbCache mis-match, expected suid 0x%" PRIx64, stbMeta->suid, ctx->tbInfo.suid);
     taosMemoryFreeClear(*pTableMeta);
+    taosMemoryFreeClear(tmpRef);
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
   metaSize = CTG_META_SIZE(stbMeta);
   *pTableMeta = taosMemoryRealloc(*pTableMeta, metaSize + colRefSize);
   if (NULL == *pTableMeta) {
+    taosMemoryFreeClear(tmpRef);
     CTG_ERR_RET(terrno);
   }
 
   TAOS_MEMCPY(&(*pTableMeta)->numOfColRefs, &stbMeta->numOfColRefs, metaSize - sizeof(SCTableMeta));
   (*pTableMeta)->schemaExt =  NULL;
-  if (hasRefCol(tbMeta->tableType) && tbMeta->colRef) {
+  if (colRefSize != 0) {
     (*pTableMeta)->colRef = (SColRef *)((char *)*pTableMeta + metaSize);
-    TAOS_MEMCPY((*pTableMeta)->colRef, tbMeta->colRef, colRefSize);
+    TAOS_MEMCPY((*pTableMeta)->colRef, tmpRef, colRefSize);
   } else {
     (*pTableMeta)->colRef = NULL;
   }
+  taosMemoryFreeClear(tmpRef);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2478,20 +2487,15 @@ int32_t ctgOpUpdateTbMeta(SCtgCacheOperation *operation) {
   }
 
   if (CTG_IS_META_VCTABLE(pMeta->metaType) || CTG_IS_META_VBOTH(pMeta->metaType)) {
-    int32_t colRefSize = sizeof(SColRef) * pMeta->vctbMeta->numOfColRefs;
-    STableMeta *ctbMeta = taosMemoryMalloc(sizeof(STableMeta) + colRefSize);
-    if (NULL == ctbMeta) {
-      CTG_ERR_JRET(terrno);
-    }
-    TAOS_MEMCPY(ctbMeta, pMeta->vctbMeta, sizeof(SVCTableMeta));
-    ctbMeta->colRef = (SColRef *)((char *)ctbMeta + sizeof(STableMeta));
-    TAOS_MEMCPY(ctbMeta->colRef, pMeta->vctbMeta->colRef, colRefSize);
-    CTG_ERR_JRET(ctgWriteTbMetaToCache(pCtg, dbCache, pMeta->dbFName, pMeta->dbId, pMeta->ctbName,
-                                       ctbMeta));
+    code = ctgWriteTbMetaToCache(pCtg, dbCache, pMeta->dbFName, pMeta->dbId, pMeta->ctbName, (STableMeta *)pMeta->vctbMeta);
+    pMeta->vctbMeta = NULL;
+    CTG_ERR_JRET(code);
   }
+
 _return:
 
   taosMemoryFreeClear(pMeta->tbMeta);
+  taosMemoryFreeClear(pMeta->vctbMeta);
   taosMemoryFreeClear(pMeta);
 
   taosMemoryFreeClear(msg);
@@ -3448,6 +3452,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
   int32_t     code = TSDB_CODE_SUCCESS;
   uint64_t    lastSuid = 0;
   STableMeta *lastTableMeta = NULL;
+  SColRef    *tmpRef = NULL;
   SName      *pName = taosArrayGet(pList, 0);
   if (NULL == pName) {
     ctgError("fail to get the 0th SName from tableList, tableNum:%d", (int32_t)taosArrayGetSize(pList));
@@ -3573,7 +3578,6 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
     // PROCESS FOR CHILD TABLE
 
-    // TODO(smj): add virtual child table process
     if (lastSuid && tbMeta->suid == lastSuid && lastTableMeta) {
       code = cloneTableMeta(lastTableMeta, &pTableMeta);
       if (code) {
@@ -3598,10 +3602,19 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     }
 
     int32_t metaSize = sizeof(SCTableMeta);
+    int32_t colRefSize = 0;
+
     pTableMeta = taosMemoryCalloc(1, metaSize);
     if (NULL == pTableMeta) {
       ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
       CTG_ERR_RET(terrno);
+    }
+
+    if (hasRefCol(tbMeta->tableType) && tbMeta->colRef != NULL) {
+      colRefSize = tbMeta->numOfColRefs * sizeof(SColRef);
+      taosMemoryFreeClear(tmpRef);
+      tmpRef = taosMemoryMalloc(colRefSize);
+      TAOS_MEMCPY(tmpRef, tbMeta->colRef, colRefSize);
     }
 
     TAOS_MEMCPY(pTableMeta, tbMeta, metaSize);
@@ -3680,17 +3693,14 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     }
 
     int32_t schemaExtSize = 0;
-    int32_t colRefSize = 0;
     if (stbMeta->schemaExt != NULL) {
       schemaExtSize = stbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
-    }
-    if (tbMeta->colRef != NULL) {
-      colRefSize = tbMeta->numOfColRefs * sizeof(SColRef);
     }
     metaSize = CTG_META_SIZE(stbMeta);
     pTableMeta = taosMemoryRealloc(pTableMeta, metaSize + schemaExtSize + colRefSize);
     if (NULL == pTableMeta) {
       ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
+      taosMemoryFreeClear(tmpRef);
       CTG_ERR_RET(terrno);
     }
 
@@ -3701,12 +3711,13 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       pTableMeta->schemaExt = NULL;
     }
 
-    if (hasRefCol(tbMeta->tableType) && tbMeta->colRef) {
+    if (colRefSize != 0) {
       pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
-      TAOS_MEMCPY(pTableMeta->colRef, tbMeta->colRef, colRefSize);
+      TAOS_MEMCPY(pTableMeta->colRef, tmpRef, colRefSize);
     } else {
       pTableMeta->colRef = NULL;
     }
+    taosMemoryFreeClear(tmpRef);
 
     CTG_UNLOCK(CTG_READ, &pCache->metaLock);
     taosHashRelease(dbCache->tbCache, pCache);
@@ -3723,7 +3734,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
   }
 
 _return:
-
+  taosMemoryFreeClear(tmpRef);
   ctgReleaseDBCache(pCtg, dbCache);
 
   return code;

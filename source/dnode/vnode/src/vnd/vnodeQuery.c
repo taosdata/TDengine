@@ -60,8 +60,8 @@ int32_t fillTableColRef(SMetaReader *reader, SColRef *pRef, int32_t numOfCol) {
     for (int i = 0; i < p->nCols; i++) {
       SColRef *pColRef = &p->pColRef[i];
       pRef[i].hasRef = pColRef->hasRef;
+      pRef[i].id = pColRef->id;
       if(pRef[i].hasRef) {
-        pRef[i].id = pColRef->id;
         tstrncpy(pRef[i].refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
         tstrncpy(pRef[i].refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
       }
@@ -219,6 +219,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
 
 _exit:
+  taosMemoryFree(metaRsp.pColRefs);
   taosMemoryFree(metaRsp.pSchemas);
   taosMemoryFree(metaRsp.pSchemaExt);
 _exit2:
@@ -361,8 +362,8 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     for (int32_t i = 0; i < cfgRsp.numOfColumns; i++) {
       SColRef *pRef = &pColRef->pColRef[i];
       cfgRsp.pColRefs[i].hasRef = pRef->hasRef;
+      cfgRsp.pColRefs[i].id = pRef->id;
       if (cfgRsp.pColRefs[i].hasRef) {
-        cfgRsp.pColRefs[i].id = pRef->id;
         tstrncpy(cfgRsp.pColRefs[i].refTableName, pRef->refTableName, TSDB_TABLE_NAME_LEN);
         tstrncpy(cfgRsp.pColRefs[i].refColName, pRef->refColName, TSDB_COL_NAME_LEN);
       }

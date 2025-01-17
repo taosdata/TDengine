@@ -1865,11 +1865,15 @@ static const char* jkVirtualTableScanLogicPlanTableType = "TableType";
 static const char* jkVirtualTableScanLogicPlanTableId = "TableId";
 static const char* jkVirtualTableScanLogicPlanStableId = "StableId";
 static const char* jkVirtualTableScanLogicPlanScanType = "ScanType";
+static const char* jkVirtualTableScanLogicPlanOnlyTs = "OnlyTs";
 
 static int32_t logicVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
   const SVirtualScanLogicNode* pNode = (const SVirtualScanLogicNode*)pObj;
 
   int32_t code = logicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkVirtualTableScanLogicPlanOnlyTs, pNode->onlyTs);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkVirtualTableScanLogicPlanScanCols, pNode->pScanCols);
   }
@@ -1896,6 +1900,9 @@ static int32_t jsonToLogicVirtualTableScanNode(const SJson* pJson, void* pObj) {
 
   int32_t objSize = 0;
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetBoolValue(pJson, jkVirtualTableScanLogicPlanOnlyTs, &pNode->onlyTs);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkVirtualTableScanLogicPlanScanCols, &pNode->pScanCols);
   }
@@ -2344,6 +2351,7 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
 }
 static const char* jkVirtualTableScanPhysiPlanGroupTags = "GroupTags";
 static const char* jkVirtualTableScanPhysiPlanGroupSort = "GroupSort";
+static const char* jkVirtualTableScanPhysiPlanOnlyTs= "OnlyTs";
 static const char* jkVirtualTableScanPhysiPlanTargets = "Targets";
 
 static int32_t physiVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
@@ -2357,6 +2365,10 @@ static int32_t physiVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
 
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkVirtualTableScanPhysiPlanTargets, pNode->groupSort);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkVirtualTableScanPhysiPlanOnlyTs, pNode->onlyTs);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -2375,6 +2387,9 @@ static int32_t jsonToPhysiVirtualTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkVirtualTableScanPhysiPlanGroupSort, &pNode->groupSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkVirtualTableScanPhysiPlanOnlyTs, &pNode->onlyTs);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkVirtualTableScanPhysiPlanTargets, &pNode->pTargets);

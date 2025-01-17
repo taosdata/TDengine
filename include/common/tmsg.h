@@ -752,6 +752,7 @@ static FORCE_INLINE int32_t tInitDefaultSColRefWrapperByCols(SColRefWrapper* pRe
   pRef->nCols = nCols;
   for (int32_t i = 0; i < nCols; i++) {
     pRef->pColRef[i].hasRef = false;
+    pRef->pColRef[i].id = (col_id_t)(i + 1);
   }
   return 0;
 }
@@ -900,8 +901,8 @@ static FORCE_INLINE int32_t tDecodeSSchemaExt(SDecoder* pDecoder, SSchemaExt* pS
 
 static FORCE_INLINE int32_t tEncodeSColRef(SEncoder* pEncoder, const SColRef* pColRef) {
   TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pColRef->hasRef));
+  TAOS_CHECK_RETURN(tEncodeI16(pEncoder, pColRef->id));
   if (pColRef->hasRef) {
-    TAOS_CHECK_RETURN(tEncodeI16(pEncoder, pColRef->id));
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refTableName));
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refColName));
   }
@@ -910,8 +911,8 @@ static FORCE_INLINE int32_t tEncodeSColRef(SEncoder* pEncoder, const SColRef* pC
 
 static FORCE_INLINE int32_t tDecodeSColRef(SDecoder* pDecoder, SColRef* pColRef) {
   TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t*)&pColRef->hasRef));
+  TAOS_CHECK_RETURN(tDecodeI16(pDecoder, &pColRef->id));
   if (pColRef->hasRef) {
-    TAOS_CHECK_RETURN(tDecodeI16(pDecoder, &pColRef->id));
     TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refTableName));
     TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refColName));
   }
@@ -3265,6 +3266,7 @@ typedef struct SVCreateStbReq {
   int8_t          source;
   int8_t          colCmpred;
   SColCmprWrapper colCmpr;
+  int8_t          virtualStb;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);
@@ -3320,12 +3322,12 @@ static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
   taosMemoryFreeClear(req->sql);
   taosMemoryFreeClear(req->name);
   taosMemoryFreeClear(req->comment);
-  if (req->type == TSDB_CHILD_TABLE) {
+  if (req->type == TSDB_CHILD_TABLE || req->type == TSDB_VIRTUAL_CHILD_TABLE) {
     taosMemoryFreeClear(req->ctb.pTag);
     taosMemoryFreeClear(req->ctb.stbName);
     taosArrayDestroy(req->ctb.tagName);
     req->ctb.tagName = NULL;
-  } else if (req->type == TSDB_NORMAL_TABLE) {
+  } else if (req->type == TSDB_NORMAL_TABLE || req->type == TSDB_VIRTUAL_TABLE) {
     taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
   }
   taosMemoryFreeClear(req->colCmpr.pColCmpr);

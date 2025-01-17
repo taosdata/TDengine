@@ -374,30 +374,14 @@ static int32_t metaAddOrDropColumnIndexOfVirtualSuperTable(SMeta *pMeta, const S
 
   const SMetaEntry *pEntry = pParam->pEntry;
   const SMetaEntry *pOldEntry = pParam->pOldEntry;
-  enum { ADD_INDEX, DROP_INDEX } action;
+  enum { ADD_COLUMN, DROP_COLUMN } action;
 
   if (pOldColumn && pNewColumn) {
-    if (IS_IDX_ON(pOldColumn) && IS_IDX_ON(pNewColumn)) {
-      return TSDB_CODE_SUCCESS;
-    } else if (IS_IDX_ON(pOldColumn) && !IS_IDX_ON(pNewColumn)) {
-      action = DROP_INDEX;
-    } else if (!IS_IDX_ON(pOldColumn) && IS_IDX_ON(pNewColumn)) {
-      action = ADD_INDEX;
-    } else {
-      return TSDB_CODE_SUCCESS;
-    }
+    return TSDB_CODE_SUCCESS;
   } else if (pOldColumn) {
-    if (IS_IDX_ON(pOldColumn)) {
-      action = DROP_INDEX;
-    } else {
-      return TSDB_CODE_SUCCESS;
-    }
+    action = DROP_COLUMN;
   } else {
-    if (IS_IDX_ON(pNewColumn)) {
-      action = ADD_INDEX;
-    } else {
-      return TSDB_CODE_SUCCESS;
-    }
+    action = ADD_COLUMN;
   }
 
   // fetch all child tables
@@ -425,7 +409,7 @@ static int32_t metaAddOrDropColumnIndexOfVirtualSuperTable(SMeta *pMeta, const S
         .pEntry = pChildEntry
     };
 
-    if (action == ADD_INDEX) {
+    if (action == ADD_COLUMN) {
       code = updataTableColRef(&pChildEntry->colRef, pNewColumn, 1, NULL);
       if (code) {
         metaErr(TD_VID(pMeta->pVnode), code);
@@ -1507,6 +1491,8 @@ static int32_t metaHandleVirtualChildTableCreate(SMeta *pMeta, const SMetaEntry 
   } else {
     metaErr(TD_VID(pMeta->pVnode), code);
   }
+
+  metaFetchEntryFree(&pSuperEntry);
   return code;
 }
 
@@ -1854,18 +1840,6 @@ static int32_t metaHandleVirtualChildTableDrop(SMeta *pMeta, const SMetaEntry *p
     return code;
   }
 
-#if 0
-  if (tbUids) {
-    if (taosArrayPush(tbUids, &uid) == NULL) {
-      rc = terrno;
-      goto _exit;
-    }
-  }
-
-  if ((type == TSDB_CHILD_TABLE) && tbUid) {
-    *tbUid = uid;
-  }
-#endif
   metaFetchEntryFree(&pChild);
   metaFetchEntryFree(&pSuper);
   return code;
