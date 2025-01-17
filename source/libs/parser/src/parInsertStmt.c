@@ -877,6 +877,10 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
   }
 
   pDataBlock->pData->flags &= ~SUBMIT_REQ_COLUMN_DATA_FORMAT;
+  if (pDataBlock->pData->pCreateTbReq != NULL) {
+    pDataBlock->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
+  }
+
   code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, &pDataBlock->ordered,
                             &pDataBlock->duplicateTs);
   qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
