@@ -2760,6 +2760,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
                                          {"tsmaDataDeleteMark", &tsmaDataDeleteMark},
                                          {"numOfRpcSessions", &tsNumOfRpcSessions},
                                          {"bypassFlag", &tsBypassFlag},
+                                         {"safetyCheckLevel", &tsSafetyCheckLevel},
                                          {"streamCoverage", &tsStreamCoverage}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {

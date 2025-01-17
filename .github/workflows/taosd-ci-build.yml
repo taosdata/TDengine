@@ -44,8 +44,8 @@ jobs:
             -DBUILD_KEEPER=true \
             -DBUILD_HTTP=false \
             -DBUILD_TEST=false \
-            -DBUILD_CONTRIB=true \
-            -DBUILD_DEPENDENCY_TESTS=false
+            -DBUILD_CONTRIB=true 
+            
           make VERBOSE=1 -j 4
           sudo make install
           which taosd
