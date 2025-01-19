@@ -73,12 +73,7 @@ taosd 命令行参数如下
 |minReservedMemorySize   |          |不支持动态修改  |最小预留的系统可用内存数量，除预留外的内存都可以被用于查询，单位：MB，默认预留大小为系统物理内存的 20%，取值范围 1024 - 1000000000|
 |singleQueryMaxMemorySize|          |不支持动态修改  |单个查询在单个节点(dnode)上可以使用的内存上限，超过该上限将返回错误，单位：MB，默认值：0（无上限），取值范围 0 - 1000000000|
 |filterScalarMode        |          |不支持动态修改             |强制使用标量过滤模式，0：关闭；1：开启，默认值 0|
-|queryPlannerTrace       |          |支持动态修改 立即生效       |内部参数，查询计划是否输出详细日志|
-|queryNodeChunkSize      |          |支持动态修改 立即生效       |内部参数，查询计划的块大小|
-|queryUseNodeAllocator   |          |支持动态修改 立即生效       |内部参数，查询计划的分配方法|
-|queryMaxConcurrentTables|          |不支持动态修改             |内部参数，查询计划的并发数目|
 |queryRsmaTolerance      |          |不支持动态修改             |内部参数，用于判定查询哪一级 rsma 数据时的容忍时间，单位为毫秒|
-|enableQueryHb           |          |支持动态修改 立即生效       |内部参数，是否发送查询心跳消息|
 |pqSortMemThreshold      |          |不支持动态修改             |内部参数，排序使用的内存阈值|
 
 ### 区域相关
@@ -194,7 +189,7 @@ charset 的有效值是 UTF-8。
 |numOfQnodeQueryThreads    |          |支持动态修改 重启生效       |qnode 的 Query 线程数目，取值范围 0-1024，默认值为 CPU 核数的两倍（不超过 16）|
 |numOfSnodeSharedThreads   |          |支持动态修改 重启生效       |snode 的共享线程数目，取值范围 0-1024，默认值为 CPU 核数的四分之一（不小于 2，不超过 4）|
 |numOfSnodeUniqueThreads   |          |支持动态修改 重启生效       |snode 的独占线程数目，取值范围 0-1024，默认值为 CPU 核数的四分之一（不小于 2，不超过 4）|
-|ratioOfVnodeStreamThreads |          |支持动态修改 重启生效       |流计算使用 vnode 线程的比例，取值范围 0.01-4，默认值 4|
+|ratioOfVnodeStreamThreads |          |支持动态修改 重启生效       |流计算使用 vnode 线程的比例，取值范围 0.01-4，默认值 0.5|
 |ttlUnit                   |          |不支持动态修改             |ttl 参数的单位，取值范围 1-31572500，单位为秒，默认值 86400|
 |ttlPushInterval           |          |支持动态修改 立即生效       |ttl 检测超时频率，取值范围 1-100000，单位为秒，默认值 10|
 |ttlChangeOnWrite          |          |支持动态修改 立即生效       |ttl 到期时间是否伴随表的修改操作改变；0：不改变，1：改变；默认值为 0|

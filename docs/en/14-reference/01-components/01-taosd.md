@@ -77,12 +77,7 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 |minReservedMemorySize   |          |Not supported                     |The minimum reserved system available memory size, all memory except reserved can be used for queries, unit: MB, default reserved size is 20% of system physical memory, value range 1024-1000000000|
 |singleQueryMaxMemorySize|          |Not supported                     |The memory limit that a single query can use on a single node (dnode), exceeding this limit will return an error, unit: MB, default value: 0 (no limit), value range 0-1000000000|
 |filterScalarMode        |          |Not supported                     |Force scalar filter mode, 0: off; 1: on, default value 0|
-|queryPlannerTrace       |          |Supported, effective immediately  |Internal parameter, whether the query plan outputs detailed logs|
-|queryNodeChunkSize      |          |Supported, effective immediately  |Internal parameter, chunk size of the query plan|
-|queryUseNodeAllocator   |          |Supported, effective immediately  |Internal parameter, allocation method of the query plan|
-|queryMaxConcurrentTables|          |Not supported                     |Internal parameter, concurrency number of the query plan|
 |queryRsmaTolerance      |          |Not supported                     |Internal parameter, tolerance time for determining which level of rsma data to query, in milliseconds|
-|enableQueryHb           |          |Supported, effective immediately  |Internal parameter, whether to send query heartbeat messages|
 |pqSortMemThreshold      |          |Not supported                     |Internal parameter, memory threshold for sorting|
 
 ### Region Related
