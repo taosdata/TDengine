@@ -2351,14 +2351,14 @@ static int32_t mndCheckDnodeMemory(SMnode *pMnode, SDbObj *pOldDb, SDbObj *pNewD
     SDnodeObj *pDnode = taosArrayGet(pArray, i);
     bool       inVgroup = false;
     for (int32_t j = 0; j < pOldVgroup->replica; ++j) {
-      SVnodeGid *pVgId = &pOldVgroup->vnodeGid[i];
+      SVnodeGid *pVgId = &pOldVgroup->vnodeGid[j];
       if (pDnode->id == pVgId->dnodeId) {
         pDnode->memUsed -= mndGetVgroupMemory(pMnode, pOldDb, pOldVgroup);
         inVgroup = true;
       }
     }
     for (int32_t j = 0; j < pNewVgroup->replica; ++j) {
-      SVnodeGid *pVgId = &pNewVgroup->vnodeGid[i];
+      SVnodeGid *pVgId = &pNewVgroup->vnodeGid[j];
       if (pDnode->id == pVgId->dnodeId) {
         pDnode->memUsed += mndGetVgroupMemory(pMnode, pNewDb, pNewVgroup);
         inVgroup = true;
