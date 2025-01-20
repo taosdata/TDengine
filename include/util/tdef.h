@@ -460,13 +460,13 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_SCHEMALESS_OFF          0
 #define TSDB_DEFAULT_DB_SCHEMALESS      TSDB_DB_SCHEMALESS_OFF
 #define TSDB_MIN_STT_TRIGGER            1
-#ifdef TD_ENTERPRISE
+// #ifdef TD_ENTERPRISE
 #define TSDB_MAX_STT_TRIGGER     16
 #define TSDB_DEFAULT_SST_TRIGGER 2
-#else
-#define TSDB_MAX_STT_TRIGGER     1
-#define TSDB_DEFAULT_SST_TRIGGER 1
-#endif
+// #else
+// #define TSDB_MAX_STT_TRIGGER     1
+// #define TSDB_DEFAULT_SST_TRIGGER 1
+// #endif
 #define TSDB_STT_TRIGGER_ARRAY_SIZE 16  // maximum of TSDB_MAX_STT_TRIGGER of TD_ENTERPRISE and TD_COMMUNITY
 #define TSDB_MIN_HASH_PREFIX        (2 - TSDB_TABLE_NAME_LEN)
 #define TSDB_MAX_HASH_PREFIX        (TSDB_TABLE_NAME_LEN - 2)

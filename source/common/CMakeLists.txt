@@ -66,7 +66,6 @@ if(${BUILD_S3})
     set(CMAKE_PREFIX_PATH $ENV{HOME}/.cos-local.2)
     find_library(S3_LIBRARY s3)
     find_library(CURL_LIBRARY curl $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
-    find_library(XML2_LIBRARY xml2)
     find_library(SSL_LIBRARY ssl $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
     find_library(CRYPTO_LIBRARY crypto $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
     target_link_libraries(
@@ -77,7 +76,7 @@ if(${BUILD_S3})
       PUBLIC ${CURL_LIBRARY}
       PUBLIC ${SSL_LIBRARY}
       PUBLIC ${CRYPTO_LIBRARY}
-      PUBLIC ${XML2_LIBRARY}
+      PUBLIC _libxml2
     )
 
     add_definitions(-DUSE_S3)
