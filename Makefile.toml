@@ -741,7 +741,7 @@ args = [
   "--retries",
   "0",
   "--filterset",
-  "not test(/_with_taos$/)",
+  "not test(/(_with_taos|_with_datasource)$/)",
 ]
 
 [tasks.pre-commit]
