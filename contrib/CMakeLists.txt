@@ -652,7 +652,12 @@ if(${BUILD_PCRE2})
 endif(${BUILD_PCRE2})
 
 if(${TD_LINUX} AND ${BUILD_WITH_S3})
-    add_subdirectory(azure-cmake EXCLUDE_FROM_ALL)
+  set(ORIG_CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
+  string(REPLACE " -Werror " " " CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+  add_subdirectory(xml2-cmake)
+  set(CMAKE_C_FLAGS ${ORIG_CMAKE_C_FLAGS})
+
+  add_subdirectory(azure-cmake)
 endif()
 
 IF(TD_LINUX)
