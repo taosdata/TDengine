@@ -25,10 +25,9 @@ extern "C" {
 
 extern char            tsOsName[];
 extern char            tsTimezoneStr[];
-extern enum TdTimezone tsTimezone;
 extern char            tsCharset[];
+extern void           *tsCharsetCxt;
 extern char            tsLocale[];
-extern int8_t          tsDaylight;
 extern bool            tsEnableCoreFile;
 extern int64_t         tsPageSizeKB;
 extern int64_t         tsOpenMax;
@@ -37,11 +36,12 @@ extern float           tsNumOfCores;
 extern int64_t         tsTotalMemoryKB;
 extern char           *tsProcPath;
 extern char            tsSIMDEnable;
-extern char            tsSSE42Enable;
-extern char            tsAVXEnable;
-extern char            tsAVX2Enable;
-extern char            tsFMAEnable;
-extern char 	       tsAVX512Enable;
+extern char            tsSSE42Supported;
+extern char            tsAVXSupported;
+extern char            tsAVX2Supported;
+extern char            tsFMASupported;
+extern char 	       tsAVX512Supported;
+extern char            tsAVX512Enable;
 extern char            tsTagFilterCache;
 
 extern char configDir[];
@@ -53,8 +53,8 @@ extern SDiskSpace tsDataSpace;
 extern SDiskSpace tsLogSpace;
 extern SDiskSpace tsTempSpace;
 
-void osDefaultInit();
-void osUpdate();
+int32_t osDefaultInit();
+int32_t osUpdate();
 void osCleanup();
 
 bool osLogSpaceAvailable();
@@ -65,9 +65,8 @@ bool osLogSpaceSufficient();
 bool osDataSpaceSufficient();
 bool osTempSpaceSufficient();
 
-void osSetTimezone(const char *timezone);
-void osSetSystemLocale(const char *inLocale, const char *inCharSet);
-void osSetProcPath(int32_t argc, char **argv);
+int32_t osSetTimezone(const char *timezone);
+void    osSetProcPath(int32_t argc, char **argv);
 
 #ifdef __cplusplus
 }

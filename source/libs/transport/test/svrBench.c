@@ -53,7 +53,7 @@ void initLogEnv() {
   taosRemoveDir(tsLogDir);
   taosMkDir(tsLogDir);
 
-  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, false) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
   }
 }
@@ -67,7 +67,7 @@ void *processShellMsg(void *arg) {
   int        type;
   SQueueInfo qinfo = {0};
 
-  qall = taosAllocateQall();
+  taosAllocateQall(&qall);
 
   while (1) {
     int numOfMsgs = taosReadAllQitemsFromQset(multiQ->qset[idx], qall, &qinfo);
@@ -76,23 +76,6 @@ void *processShellMsg(void *arg) {
 
     for (int i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(qall, (void **)&pRpcMsg);
-
-      if (pDataFile != NULL) {
-        if (taosWriteFile(pDataFile, pRpcMsg->pCont, pRpcMsg->contLen) < 0) {
-          tInfo("failed to write data file, reason:%s", strerror(errno));
-        }
-      }
-    }
-
-    if (commit >= 2) {
-      num += numOfMsgs;
-      // if (taosFsync(pDataFile) < 0) {
-      //  tInfo("failed to flush data to file, reason:%s", strerror(errno));
-      //}
-
-      if (num % 10000 == 0) {
-        tInfo("%d request have been written into disk", num);
-      }
     }
 
     taosResetQitems(qall);
@@ -107,16 +90,7 @@ void *processShellMsg(void *arg) {
       rpcMsg.code = 0;
       rpcSendResponse(&rpcMsg);
 
-      void *handle = pRpcMsg->info.handle;
       taosFreeQitem(pRpcMsg);
-      //{
-      //  SRpcMsg nRpcMsg = {0};
-      //  nRpcMsg.pCont = rpcMallocCont(msgSize);
-      //  nRpcMsg.contLen = msgSize;
-      //  nRpcMsg.info.handle = handle;
-      //  nRpcMsg.code = TSDB_CODE_CTG_NOT_READY;
-      //  rpcSendResponse(&nRpcMsg);
-      //}
     }
 
     taosUpdateItemSize(qinfo.queue, numOfMsgs);
@@ -129,7 +103,7 @@ void *processShellMsg(void *arg) {
 void processRequestMsg(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SRpcMsg *pTemp;
 
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM, 0);
+  taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM, 0, (void **)&pTemp);
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
 
   int32_t idx = balance % multiQ->numOfThread;
@@ -149,12 +123,13 @@ int main(int argc, char *argv[]) {
   rpcInit.localPort = 7000;
   memcpy(rpcInit.localFqdn, "localhost", strlen("localhost"));
   rpcInit.label = "SER";
-  rpcInit.numOfThreads = 1;
+  rpcInit.numOfThreads = 10;
   rpcInit.cfp = processRequestMsg;
   rpcInit.idleTime = 2 * 1500;
 
-  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  taosVersionStrToInt(td_version, &(rpcInit.compatibilityVer));
   rpcDebugFlag = 131;
+  rpcInit.compressSize = -1;
 
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-p") == 0 && i < argc - 1) {
@@ -190,7 +165,7 @@ int main(int argc, char *argv[]) {
   rpcInit.connType = TAOS_CONN_SERVER;
 
   initLogEnv();
-  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  taosVersionStrToInt(td_version, &(rpcInit.compatibilityVer));
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
     tError("failed to start RPC server");
@@ -205,15 +180,15 @@ int main(int argc, char *argv[]) {
     if (pDataFile == NULL) tInfo("failed to open data file, reason:%s", strerror(errno));
   }
 
-  int32_t numOfAthread = 5;
-  multiQ = taosMemoryMalloc(sizeof(numOfAthread));
+  int32_t numOfAthread = 1;
+  multiQ = taosMemoryMalloc(sizeof(MultiThreadQhandle));
   multiQ->numOfThread = numOfAthread;
   multiQ->qhandle = (STaosQueue **)taosMemoryMalloc(sizeof(STaosQueue *) * numOfAthread);
   multiQ->qset = (STaosQset **)taosMemoryMalloc(sizeof(STaosQset *) * numOfAthread);
 
   for (int i = 0; i < numOfAthread; i++) {
-    multiQ->qhandle[i] = taosOpenQueue();
-    multiQ->qset[i] = taosOpenQset();
+    taosOpenQueue(&multiQ->qhandle[i]);
+    taosOpenQset(&multiQ->qset[i]);
     taosAddIntoQset(multiQ->qset[i], multiQ->qhandle[i], NULL);
   }
   TThread *threads = taosMemoryMalloc(sizeof(TThread) * numOfAthread);
@@ -221,11 +196,6 @@ int main(int argc, char *argv[]) {
     threads[i].idx = i;
     taosThreadCreate(&(threads[i].thread), NULL, processShellMsg, (void *)&threads[i]);
   }
-  // qhandle = taosOpenQueue();
-  // qset = taosOpenQset();
-  // taosAddIntoQset(qset, qhandle, NULL);
-
-  // processShellMsg();
 
   if (pDataFile != NULL) {
     taosCloseFile(&pDataFile);

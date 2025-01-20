@@ -24,6 +24,7 @@ extern "C" {
 // When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
 #define strptime     STRPTIME_FUNC_TAOS_FORBID
+#define strftime     STRFTIME_FUNC_TAOS_FORBID
 #define gettimeofday GETTIMEOFDAY_FUNC_TAOS_FORBID
 #define localtime    LOCALTIME_FUNC_TAOS_FORBID
 #define localtime_s  LOCALTIMES_FUNC_TAOS_FORBID
@@ -42,6 +43,7 @@ extern "C" {
 #define MILLISECOND_PER_SECOND ((int64_t)1000LL)
 #endif
 
+#include "osTimezone.h"
 #define MILLISECOND_PER_MINUTE (MILLISECOND_PER_SECOND * 60)
 #define MILLISECOND_PER_HOUR   (MILLISECOND_PER_MINUTE * 60)
 #define MILLISECOND_PER_DAY    (MILLISECOND_PER_HOUR * 24)
@@ -65,39 +67,43 @@ int32_t taosGetTimestampSec();
 //@return timestamp in millisecond
 static FORCE_INLINE int64_t taosGetTimestampMs() {
   struct timeval systemTime;
-  taosGetTimeOfDay(&systemTime);
+  (void)taosGetTimeOfDay(&systemTime);
   return (int64_t)systemTime.tv_sec * 1000LL + (int64_t)systemTime.tv_usec / 1000;
 }
 
 //@return timestamp in microsecond
 static FORCE_INLINE int64_t taosGetTimestampUs() {
   struct timeval systemTime;
-  taosGetTimeOfDay(&systemTime);
+  (void)taosGetTimeOfDay(&systemTime);
   return (int64_t)systemTime.tv_sec * 1000000LL + (int64_t)systemTime.tv_usec;
 }
 
 //@return timestamp in nanosecond
 static FORCE_INLINE int64_t taosGetTimestampNs() {
   struct timespec systemTime = {0};
-  taosClockGetTime(CLOCK_REALTIME, &systemTime);
+  (void)taosClockGetTime(CLOCK_REALTIME, &systemTime);
   return (int64_t)systemTime.tv_sec * 1000000000LL + (int64_t)systemTime.tv_nsec;
 }
 
 //@return timestamp of monotonic clock in millisecond
 static FORCE_INLINE int64_t taosGetMonoTimestampMs() {
   struct timespec systemTime = {0};
-  taosClockGetTime(CLOCK_MONOTONIC, &systemTime);
+  (void)taosClockGetTime(CLOCK_MONOTONIC, &systemTime);
   return (int64_t)systemTime.tv_sec * 1000LL + (int64_t)systemTime.tv_nsec / 1000000;
 }
 
 char      *taosStrpTime(const char *buf, const char *fmt, struct tm *tm);
-struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf);
-struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, int dst);
-time_t     taosTime(time_t *t);
-time_t     taosMktime(struct tm *timep);
+size_t     taosStrfTime(char *s, size_t maxsize, char const *format, struct tm const *t);
+struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int32_t bufSize, timezone_t tz);
+struct tm *taosGmTimeR(const time_t *timep, struct tm *result);
+time_t     taosTimeGm(struct tm *tmp);
+int32_t    taosTime(time_t *t);
+time_t     taosMktime(struct tm *timep, timezone_t tz);
 int64_t    user_mktime64(const uint32_t year, const uint32_t mon, const uint32_t day, const uint32_t hour,
                          const uint32_t min, const uint32_t sec, int64_t time_zone);
 
+//struct tm *taosLocalTimeRz(timezone_t state, const time_t *timep, struct tm *result);
+//time_t     taosMktimeRz(timezone_t state, struct tm *timep);
 #ifdef __cplusplus
 }
 #endif

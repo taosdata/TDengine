@@ -51,8 +51,14 @@ void test2() {
   SWal *pWal = walOpen(gWalPath, &walCfg);
   assert(pWal != NULL);
 
+  SWalSyncInfo syncMeta = {
+      .isWeek = -1,
+      .seqNum = UINT64_MAX,
+      .term = UINT64_MAX,
+  };
+
   for (int i = 0; i < 5; ++i) {
-    int code = walWrite(pWal, i, 100, "aa", 3);
+    int code = walAppendLog(pWal, i, 100, syncMeta, "aa", 3);
     if (code != 0) {
       printf("code:%d terror:%d msg:%s i:%d \n", code, terrno, tstrerror(terrno), i);
       assert(0);
@@ -105,10 +111,16 @@ void test4() {
   SWal *pWal = walOpen(gWalPath, &walCfg);
   assert(pWal != NULL);
 
+  SWalSyncInfo syncMeta = {
+      .isWeek = -1,
+      .seqNum = UINT64_MAX,
+      .term = UINT64_MAX,
+  };
+
   walRestoreFromSnapshot(pWal, 5);
 
   for (int i = 6; i < 10; ++i) {
-    int code = walWrite(pWal, i, 100, "aa", 3);
+    int code = walAppendLog(pWal, i, 100, syncMeta, "aa", 3);
     if (code != 0) {
       printf("code:%d terror:%d msg:%s i:%d \n", code, terrno, tstrerror(terrno), i);
       assert(0);

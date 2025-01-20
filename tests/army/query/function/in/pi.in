@@ -1,0 +1,37 @@
+select pi()
+select pi() + 1
+select pi() - 1
+select pi() * 2
+select pi() / 2
+select pi() from ts_4893.meters limit 5
+select pi() + 1 from ts_4893.meters limit 1
+select pi() - 1 from ts_4893.meters limit 1
+select pi() * 2 from ts_4893.meters limit 1
+select pi() / 2 from ts_4893.meters limit 1
+select pi() + pi() from ts_4893.meters limit 1
+select pi() - pi() from ts_4893.meters limit 1
+select pi() * pi() from ts_4893.meters limit 1
+select pi() / pi() from ts_4893.meters limit 1
+select pi() + id from ts_4893.meters order by ts limit 5
+select abs(pi())
+select pow(pi(), 2)
+select sqrt(pi())
+select cast(pi() as int)
+select pi()
+select substring_index(null, '.', 2)
+select pi() + null
+select pi() * 0
+select pi() / 0
+select pi() * 0.5
+select pi() * -1
+select pi() * name from ts_4893.meters limit 1
+select pi() * voltage from ts_4893.meters limit 1
+select pi() * phase * 2 from ts_4893.meters limit 1
+select round(pi(), 6)
+select round(pi() * phase, 2) from ts_4893.meters limit 1
+select sqrt(pi() * voltage) from ts_4893.meters limit 1
+select sqrt(current / pi()) from ts_4893.meters limit 1
+select abs(pi() * phase) from ts_4893.meters limit 1
+select log(pi() * voltage) from ts_4893.meters limit 1
+select voltage / pi() from ts_4893.meters limit 1
+select id, case when voltage > 100 then pi() else pi() / 2 end from ts_4893.meters limit 1

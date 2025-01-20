@@ -1,7 +1,9 @@
 ---
-title: 应用实践
-description: TDengine 配合其它开源组件的一些应用示例
+title: 实践案例
+toc_max_heading_level: 4
 ---
+
+本章介绍了 TDengine 在各行业应用的一些典型案例。
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

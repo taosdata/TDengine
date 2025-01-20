@@ -6,6 +6,8 @@ sql connect
 print ========================root user create user
 sql create user u1 pass "taosdata"
 sql create user u2 pass "taosdata"
+sql alter user u1 createdb 1
+sql alter user u2 createdb 1
 sql create database test
 sql select * from information_schema.ins_user_privileges where user_name == "root"
 if $rows != 1 then

@@ -64,7 +64,7 @@ class TAdapter:
                 "enable"        : True
             },
             "node_exporter"      : {
-                "enable"        : True
+                "enable"        : False
             },
             "prometheus"      : {
                 "enable"        : True

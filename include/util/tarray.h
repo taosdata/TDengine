@@ -205,7 +205,7 @@ void taosArrayClearEx(SArray* pArray, void (*fp)(void*));
 
 void taosArrayClearP(SArray* pArray, void (*fp)(void*));
 
-void* taosArrayDestroy(SArray* pArray);
+void taosArrayDestroy(SArray* pArray);
 
 void taosArrayDestroyP(SArray* pArray, FDelete fp);
 
@@ -251,7 +251,7 @@ int32_t taosArraySearchIdx(const SArray* pArray, const void* key, __compar_fn_t 
  * @return
  */
 
-void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void* param);
+int32_t taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void* param);
 
 int32_t taosEncodeArray(void** buf, const SArray* pArray, FEncode encode);
 void*   taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t dataSz, int8_t sver);

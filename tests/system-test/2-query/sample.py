@@ -611,7 +611,7 @@ class TDTestCase:
 
     def basic_sample_query(self, dbname="db"):
         tdSql.execute(f" drop database if exists {dbname} ")
-        tdSql.execute(f" create database if not exists {dbname} duration 300d ")
+        tdSql.execute(f" create database if not exists {dbname} duration 120d ")
         tdSql.execute(
             f'''create table {dbname}.stb1
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)

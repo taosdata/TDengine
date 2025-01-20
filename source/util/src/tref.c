@@ -19,10 +19,11 @@
 #include "tlog.h"
 #include "tutil.h"
 
-#define TSDB_REF_OBJECTS       50
-#define TSDB_REF_STATE_EMPTY   0
-#define TSDB_REF_STATE_ACTIVE  1
-#define TSDB_REF_STATE_DELETED 2
+#define TSDB_REF_OBJECTS        100
+#define TSDB_REF_STATE_EMPTY    0
+#define TSDB_REF_STATE_ACTIVE   1
+#define TSDB_REF_STATE_DELETED  2
+#define TSDB_REF_ITER_THRESHOLD 100
 
 typedef struct SRefNode {
   struct SRefNode *prev;     // previous node
@@ -55,7 +56,7 @@ static void    taosLockList(int64_t *lockedBy);
 static void    taosUnlockList(int64_t *lockedBy);
 static void    taosIncRsetCount(SRefSet *pSet);
 static void    taosDecRsetCount(SRefSet *pSet);
-static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove);
+static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove, int32_t *isReleased);
 
 int32_t taosOpenRef(int32_t max, RefFp fp) {
   SRefNode **nodeList;
@@ -63,22 +64,20 @@ int32_t taosOpenRef(int32_t max, RefFp fp) {
   int64_t   *lockedBy;
   int32_t    i, rsetId;
 
-  taosThreadOnce(&tsRefModuleInit, taosInitRefModule);
+  (void)taosThreadOnce(&tsRefModuleInit, taosInitRefModule);
 
   nodeList = taosMemoryCalloc(sizeof(SRefNode *), (size_t)max);
   if (nodeList == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno;
   }
 
   lockedBy = taosMemoryCalloc(sizeof(int64_t), (size_t)max);
   if (lockedBy == NULL) {
     taosMemoryFree(nodeList);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    return terrno;
   }
 
-  taosThreadMutexLock(&tsRefMutex);
+  (void)taosThreadMutexLock(&tsRefMutex);
 
   for (i = 0; i < TSDB_REF_OBJECTS; ++i) {
     tsNextId = (tsNextId + 1) % TSDB_REF_OBJECTS;
@@ -107,24 +106,23 @@ int32_t taosOpenRef(int32_t max, RefFp fp) {
     uTrace("run out of Ref ID, maximum:%d refSetNum:%d", TSDB_REF_OBJECTS, tsRefSetNum);
   }
 
-  taosThreadMutexUnlock(&tsRefMutex);
+  (void)taosThreadMutexUnlock(&tsRefMutex);
 
   return rsetId;
 }
 
-int32_t taosCloseRef(int32_t rsetId) {
+void taosCloseRef(int32_t rsetId) {
   SRefSet *pSet;
   int32_t  deleted = 0;
 
   if (rsetId < 0 || rsetId >= TSDB_REF_OBJECTS) {
     uTrace("rsetId:%d is invalid, out of range", rsetId);
-    terrno = TSDB_CODE_REF_INVALID_ID;
-    return -1;
+    return;
   }
 
   pSet = tsRefSetList + rsetId;
 
-  taosThreadMutexLock(&tsRefMutex);
+  (void)taosThreadMutexLock(&tsRefMutex);
 
   if (pSet->state == TSDB_REF_STATE_ACTIVE) {
     pSet->state = TSDB_REF_STATE_DELETED;
@@ -134,11 +132,9 @@ int32_t taosCloseRef(int32_t rsetId) {
     uTrace("rsetId:%d is already closed, count:%d", rsetId, pSet->count);
   }
 
-  taosThreadMutexUnlock(&tsRefMutex);
+  (void)taosThreadMutexUnlock(&tsRefMutex);
 
   if (deleted) taosDecRsetCount(pSet);
-
-  return 0;
 }
 
 int64_t taosAddRef(int32_t rsetId, void *p) {
@@ -149,8 +145,7 @@ int64_t taosAddRef(int32_t rsetId, void *p) {
 
   if (rsetId < 0 || rsetId >= TSDB_REF_OBJECTS) {
     uTrace("rsetId:%d p:%p failed to add, rsetId not valid", rsetId, p);
-    terrno = TSDB_CODE_REF_INVALID_ID;
-    return -1;
+    return terrno = TSDB_CODE_REF_INVALID_ID;
   }
 
   pSet = tsRefSetList + rsetId;
@@ -158,14 +153,14 @@ int64_t taosAddRef(int32_t rsetId, void *p) {
   if (pSet->state != TSDB_REF_STATE_ACTIVE) {
     taosDecRsetCount(pSet);
     uTrace("rsetId:%d p:%p failed to add, not active", rsetId, p);
-    terrno = TSDB_CODE_REF_ID_REMOVED;
-    return -1;
+    return terrno = TSDB_CODE_REF_ID_REMOVED;
   }
 
   pNode = taosMemoryCalloc(sizeof(SRefNode), 1);
   if (pNode == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    taosDecRsetCount(pSet);
+    uError("rsetId:%d p:%p failed to add, out of memory", rsetId, p);
+    return terrno;
   }
 
   rid = atomic_add_fetch_64(&pSet->rid, 1);
@@ -189,13 +184,14 @@ int64_t taosAddRef(int32_t rsetId, void *p) {
   return rid;
 }
 
-int32_t taosRemoveRef(int32_t rsetId, int64_t rid) { return taosDecRefCount(rsetId, rid, 1); }
+int32_t taosRemoveRef(int32_t rsetId, int64_t rid) { return taosDecRefCount(rsetId, rid, 1, NULL); }
 
 // if rid is 0, return the first p in hash list, otherwise, return the next after current rid
 void *taosAcquireRef(int32_t rsetId, int64_t rid) {
   int32_t   hash;
   SRefNode *pNode;
   SRefSet  *pSet;
+  int32_t   iter = 0;
   void     *p = NULL;
 
   if (rsetId < 0 || rsetId >= TSDB_REF_OBJECTS) {
@@ -228,8 +224,12 @@ void *taosAcquireRef(int32_t rsetId, int64_t rid) {
     if (pNode->rid == rid) {
       break;
     }
-
+    iter++;
     pNode = pNode->next;
+  }
+
+  if (iter >= TSDB_REF_ITER_THRESHOLD) {
+    uWarn("rsetId:%d rid:%" PRId64 " iter:%d", rsetId, rid, iter);
   }
 
   if (pNode) {
@@ -253,7 +253,10 @@ void *taosAcquireRef(int32_t rsetId, int64_t rid) {
   return p;
 }
 
-int32_t taosReleaseRef(int32_t rsetId, int64_t rid) { return taosDecRefCount(rsetId, rid, 0); }
+int32_t taosReleaseRef(int32_t rsetId, int64_t rid) { return taosDecRefCount(rsetId, rid, 0, NULL); }
+int32_t taosReleaseRefEx(int32_t rsetId, int64_t rid, int32_t *isReleased) {
+  return taosDecRefCount(rsetId, rid, 0, isReleased);
+}
 
 // if rid is 0, return the first p in hash list, otherwise, return the next after current rid
 void *taosIterateRef(int32_t rsetId, int64_t rid) {
@@ -285,6 +288,7 @@ void *taosIterateRef(int32_t rsetId, int64_t rid) {
   do {
     newP = NULL;
     int32_t hash = 0;
+    int32_t iter = 0;
     if (rid > 0) {
       hash = rid % pSet->max;
       taosLockList(pSet->lockedBy + hash);
@@ -293,6 +297,11 @@ void *taosIterateRef(int32_t rsetId, int64_t rid) {
       while (pNode) {
         if (pNode->rid == rid) break;
         pNode = pNode->next;
+        iter++;
+      }
+
+      if (iter >= TSDB_REF_ITER_THRESHOLD) {
+        uWarn("rsetId:%d rid:%" PRId64 " iter:%d", rsetId, rid, iter);
       }
 
       if (pNode == NULL) {
@@ -355,7 +364,7 @@ int32_t taosListRef() {
   SRefNode *pNode;
   int32_t   num = 0;
 
-  taosThreadMutexLock(&tsRefMutex);
+  (void)taosThreadMutexLock(&tsRefMutex);
 
   for (int32_t i = 0; i < TSDB_REF_OBJECTS; ++i) {
     pSet = tsRefSetList + i;
@@ -375,35 +384,33 @@ int32_t taosListRef() {
     }
   }
 
-  taosThreadMutexUnlock(&tsRefMutex);
+  (void)taosThreadMutexUnlock(&tsRefMutex);
 
   return num;
 }
 
-static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove) {
+static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove, int32_t *isReleased) {
   int32_t   hash;
   SRefSet  *pSet;
   SRefNode *pNode;
+  int32_t   iter = 0;
   int32_t   released = 0;
   int32_t   code = 0;
 
   if (rsetId < 0 || rsetId >= TSDB_REF_OBJECTS) {
     uTrace("rsetId:%d rid:%" PRId64 " failed to remove, rsetId not valid", rsetId, rid);
-    terrno = TSDB_CODE_REF_INVALID_ID;
-    return -1;
+    return terrno = TSDB_CODE_REF_INVALID_ID;
   }
 
   if (rid <= 0) {
     uTrace("rsetId:%d rid:%" PRId64 " failed to remove, rid not valid", rsetId, rid);
-    terrno = TSDB_CODE_REF_NOT_EXIST;
-    return -1;
+    return terrno = TSDB_CODE_REF_NOT_EXIST;
   }
 
   pSet = tsRefSetList + rsetId;
   if (pSet->state == TSDB_REF_STATE_EMPTY) {
     uTrace("rsetId:%d rid:%" PRId64 " failed to remove, cleaned", rsetId, rid);
-    terrno = TSDB_CODE_REF_ID_REMOVED;
-    return -1;
+    return terrno = TSDB_CODE_REF_ID_REMOVED;
   }
 
   hash = rid % pSet->max;
@@ -414,6 +421,11 @@ static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove) {
     if (pNode->rid == rid) break;
 
     pNode = pNode->next;
+    iter++;
+  }
+
+  if (iter >= TSDB_REF_ITER_THRESHOLD) {
+    uWarn("rsetId:%d rid:%" PRId64 " iter:%d", rsetId, rid, iter);
   }
 
   if (pNode) {
@@ -437,7 +449,7 @@ static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove) {
   } else {
     uTrace("rsetId:%d rid:%" PRId64 " is not there, failed to release/remove", rsetId, rid);
     terrno = TSDB_CODE_REF_NOT_EXIST;
-    code = -1;
+    code = terrno;
   }
 
   taosUnlockList(pSet->lockedBy + hash);
@@ -451,6 +463,10 @@ static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove) {
     taosDecRsetCount(pSet);
   }
 
+  if (isReleased) {
+    *isReleased = released;
+  }
+
   return code;
 }
 
@@ -459,22 +475,20 @@ static void taosLockList(int64_t *lockedBy) {
   int32_t i = 0;
   while (atomic_val_compare_exchange_64(lockedBy, 0, tid) != 0) {
     if (++i % 100 == 0) {
-      sched_yield();
+      (void)sched_yield();
     }
   }
 }
 
 static void taosUnlockList(int64_t *lockedBy) {
   int64_t tid = taosGetSelfPthreadId();
-  if (atomic_val_compare_exchange_64(lockedBy, tid, 0) != tid) {
-    ASSERTS(false, "atomic_val_compare_exchange_64 tid failed");
-  }
+  (void)atomic_val_compare_exchange_64(lockedBy, tid, 0);
 }
 
-static void taosInitRefModule(void) { taosThreadMutexInit(&tsRefMutex, NULL); }
+static void taosInitRefModule(void) { (void)taosThreadMutexInit(&tsRefMutex, NULL); }
 
 static void taosIncRsetCount(SRefSet *pSet) {
-  atomic_add_fetch_32(&pSet->count, 1);
+  (void)atomic_add_fetch_32(&pSet->count, 1);
   // uTrace("rsetId:%d inc count:%d", pSet->rsetId, count);
 }
 
@@ -484,7 +498,7 @@ static void taosDecRsetCount(SRefSet *pSet) {
 
   if (count > 0) return;
 
-  taosThreadMutexLock(&tsRefMutex);
+  (void)taosThreadMutexLock(&tsRefMutex);
 
   if (pSet->state != TSDB_REF_STATE_EMPTY) {
     pSet->state = TSDB_REF_STATE_EMPTY;
@@ -498,5 +512,5 @@ static void taosDecRsetCount(SRefSet *pSet) {
     uTrace("rsetId:%d is cleaned, refSetNum:%d count:%d", pSet->rsetId, tsRefSetNum, pSet->count);
   }
 
-  taosThreadMutexUnlock(&tsRefMutex);
+  (void)taosThreadMutexUnlock(&tsRefMutex);
 }

@@ -40,7 +40,7 @@ TEST(testCase, driverInit_Test) {
 
 TEST(testCase, create_topic_ctb_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
+  ASSERT_NE(pConn, nullptr);
 
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
   if (taos_errno(pRes) != 0) {
@@ -64,7 +64,7 @@ TEST(testCase, create_topic_ctb_Test) {
 
 TEST(testCase, create_topic_stb_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
+  ASSERT_NE(pConn, nullptr);
 
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
   if (taos_errno(pRes) != 0) {
@@ -90,7 +90,7 @@ TEST(testCase, create_topic_stb_Test) {
 #if 0
 TEST(testCase, tmq_subscribe_ctb_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
+  ASSERT_NE(pConn, NULL);
 
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
   if (taos_errno(pRes) != 0) {
@@ -116,7 +116,7 @@ TEST(testCase, tmq_subscribe_ctb_Test) {
 
 TEST(testCase, tmq_subscribe_stb_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
+  ASSERT_NE(pConn, NULL);
 
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
   if (taos_errno(pRes) != 0) {

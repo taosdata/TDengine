@@ -35,7 +35,7 @@ class MndTestSdb : public ::testing::Test {
     taosRemoveDir(path);
     taosMkDir(path);
     tstrncpy(tsLogDir, path, PATH_MAX);
-    if (taosInitLog("taosdlog", 1) != 0) {
+    if (taosInitLog("taosdlog", 1, false) != 0) {
       printf("failed to init log file\n");
     }
   }
@@ -387,11 +387,11 @@ TEST_F(MndTestSdb, 00_API) {
   void *pRow2 = sdbGetRowObj(NULL);
   ASSERT_EQ(pRow2 == NULL, 1);
 
-  //sdbRaw.c
+  // sdbRaw.c
   SStrObj  strObj;
   SSdbRaw *pRaw1 = NULL;
   strSetDefault(&strObj, 1);
-  
+
   pRaw1 = strEncode(&strObj);
   int32_t id = sdbGetIdFromRaw(pSdb, pRaw1);
   ASSERT_EQ(id, -2);
@@ -399,32 +399,32 @@ TEST_F(MndTestSdb, 00_API) {
   SSdbRaw *pRaw2 = sdbAllocRaw(SDB_USER, 1, -128);
   ASSERT_EQ(pRaw2 == NULL, 1);
 
-  ASSERT_EQ(sdbSetRawInt8(NULL, 0, 0), -1);
-  ASSERT_EQ(sdbSetRawInt8(pRaw1, -128, 0), -1);
-  ASSERT_EQ(sdbSetRawInt32(NULL, 0, 0), -1);
-  ASSERT_EQ(sdbSetRawInt32(pRaw1, -128, 0), -1);
-  ASSERT_EQ(sdbSetRawInt16(NULL, 0, 0), -1);
-  ASSERT_EQ(sdbSetRawInt16(pRaw1, -128, 0), -1);
-  ASSERT_EQ(sdbSetRawInt64(NULL, 0, 0), -1);
-  ASSERT_EQ(sdbSetRawInt64(pRaw1, -128, 0), -1);
-  ASSERT_EQ(sdbSetRawBinary(NULL, 0, "12", 3), -1);
-  ASSERT_EQ(sdbSetRawBinary(pRaw1, 9028, "12", 3), -1);
-  ASSERT_EQ(sdbSetRawDataLen(NULL, 0), -1);
-  ASSERT_EQ(sdbSetRawDataLen(pRaw1, 9000), -1);
-  ASSERT_EQ(sdbSetRawStatus(NULL, SDB_STATUS_READY), -1);
-  ASSERT_EQ(sdbSetRawStatus(pRaw1, SDB_STATUS_INIT), -1);
+  ASSERT_EQ(sdbSetRawInt8(NULL, 0, 0), TSDB_CODE_INVALID_PTR);
+  ASSERT_EQ(sdbSetRawInt8(pRaw1, -128, 0), TSDB_CODE_SDB_INVALID_DATA_LEN);
+  ASSERT_EQ(sdbSetRawInt32(NULL, 0, 0), TSDB_CODE_INVALID_PTR);
+  ASSERT_EQ(sdbSetRawInt32(pRaw1, -128, 0), TSDB_CODE_SDB_INVALID_DATA_LEN);
+  ASSERT_EQ(sdbSetRawInt16(NULL, 0, 0), TSDB_CODE_INVALID_PTR);
+  ASSERT_EQ(sdbSetRawInt16(pRaw1, -128, 0), TSDB_CODE_SDB_INVALID_DATA_LEN);
+  ASSERT_EQ(sdbSetRawInt64(NULL, 0, 0), TSDB_CODE_INVALID_PTR);
+  ASSERT_EQ(sdbSetRawInt64(pRaw1, -128, 0), TSDB_CODE_SDB_INVALID_DATA_LEN);
+  ASSERT_EQ(sdbSetRawBinary(NULL, 0, "12", 3), TSDB_CODE_INVALID_PTR);
+  ASSERT_EQ(sdbSetRawBinary(pRaw1, 9028, "12", 3), TSDB_CODE_SDB_INVALID_DATA_LEN);
+  ASSERT_EQ(sdbSetRawDataLen(NULL, 0), TSDB_CODE_INVALID_PTR);
+  ASSERT_EQ(sdbSetRawDataLen(pRaw1, 9000), TSDB_CODE_SDB_INVALID_DATA_LEN);
+  ASSERT_EQ(sdbSetRawStatus(NULL, SDB_STATUS_READY), TSDB_CODE_INVALID_PTR);
+  ASSERT_EQ(sdbSetRawStatus(pRaw1, SDB_STATUS_INIT), TSDB_CODE_INVALID_PARA);
 
-  ASSERT_EQ(sdbGetRawInt8(NULL, 0, 0), -1);
-  ASSERT_EQ(sdbGetRawInt8(pRaw1, 9000, 0), -1);
-  ASSERT_EQ(sdbGetRawInt32(NULL, 0, 0), -1);
-  ASSERT_EQ(sdbGetRawInt32(pRaw1, 9000, 0), -1);
-  ASSERT_EQ(sdbGetRawInt16(NULL, 0, 0), -1);
-  ASSERT_EQ(sdbGetRawInt16(pRaw1, 9000, 0), -1);
-  ASSERT_EQ(sdbGetRawInt64(NULL, 0, 0), -1);
-  ASSERT_EQ(sdbGetRawInt64(pRaw1, 9000, 0), -1);
-  ASSERT_EQ(sdbGetRawBinary(NULL, 0, 0, 4096), -1);
-  ASSERT_EQ(sdbGetRawBinary(pRaw1, 9000, 0, 112), -1);
-  ASSERT_EQ(sdbGetRawSoftVer(NULL, 0), -1);
+  ASSERT_EQ(sdbGetRawInt8(NULL, 0, 0), TSDB_CODE_INVALID_PTR);
+  ASSERT_EQ(sdbGetRawInt8(pRaw1, 9000, 0), TSDB_CODE_SDB_INVALID_DATA_LEN);
+  ASSERT_EQ(sdbGetRawInt32(NULL, 0, 0), TSDB_CODE_INVALID_PTR);
+  ASSERT_EQ(sdbGetRawInt32(pRaw1, 9000, 0), TSDB_CODE_SDB_INVALID_DATA_LEN);
+  ASSERT_EQ(sdbGetRawInt16(NULL, 0, 0), TSDB_CODE_INVALID_PTR);
+  ASSERT_EQ(sdbGetRawInt16(pRaw1, 9000, 0), TSDB_CODE_SDB_INVALID_DATA_LEN);
+  ASSERT_EQ(sdbGetRawInt64(NULL, 0, 0), TSDB_CODE_INVALID_PTR);
+  ASSERT_EQ(sdbGetRawInt64(pRaw1, 9000, 0), TSDB_CODE_SDB_INVALID_DATA_LEN);
+  ASSERT_EQ(sdbGetRawBinary(NULL, 0, 0, 4096), TSDB_CODE_INVALID_PTR);
+  ASSERT_EQ(sdbGetRawBinary(pRaw1, 9000, 0, 112), TSDB_CODE_SDB_INVALID_DATA_LEN);
+  ASSERT_EQ(sdbGetRawSoftVer(NULL, 0), TSDB_CODE_INVALID_PTR);
   ASSERT_EQ(sdbGetRawTotalSize(NULL), -1);
 
   // sdbHash.c

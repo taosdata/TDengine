@@ -12,4 +12,5 @@ ExternalProject_Add(openssl
         BUILD_COMMAND make -j
         INSTALL_COMMAND make install_sw -j
         TEST_COMMAND ""
+        GIT_SHALLOW true
 )

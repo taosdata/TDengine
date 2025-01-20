@@ -27,31 +27,59 @@ extern "C" {
 // typedef struct tsem_s *tsem_t;
 typedef dispatch_semaphore_t tsem_t;
 
-int tsem_init(tsem_t *sem, int pshared, unsigned int value);
-int tsem_wait(tsem_t *sem);
-int tsem_timewait(tsem_t *sim, int64_t milis);
-int tsem_post(tsem_t *sem);
-int tsem_destroy(tsem_t *sem);
+int32_t tsem_init(tsem_t *sem, int pshared, unsigned int value);
+int32_t tsem_wait(tsem_t *sem);
+int32_t tsem_timewait(tsem_t *sim, int64_t milis);
+int32_t tsem_post(tsem_t *sem);
+int32_t tsem_destroy(tsem_t *sem);
+
+#define tsem2_t        tsem_t
+#define tsem2_init     tsem_init
+#define tsem2_wait     tsem_wait
+#define tsem2_timewait tsem_timewait
+#define tsem2_post     tsem_post
+#define tsem2_destroy  tsem_destroy
 
 #elif defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 #include <windows.h>
 
 #define tsem_t HANDLE
 
-int tsem_init(tsem_t *sem, int pshared, unsigned int value);
-int tsem_wait(tsem_t *sem);
-int tsem_timewait(tsem_t *sim, int64_t milis);
-int tsem_post(tsem_t *sem);
-int tsem_destroy(tsem_t *sem);
+int32_t tsem_init(tsem_t *sem, int pshared, unsigned int value);
+int32_t tsem_wait(tsem_t *sem);
+int32_t tsem_timewait(tsem_t *sim, int64_t milis);
+int32_t tsem_post(tsem_t *sem);
+int32_t tsem_destroy(tsem_t *sem);
+
+#define tsem2_t        tsem_t
+#define tsem2_init     tsem_init
+#define tsem2_wait     tsem_wait
+#define tsem2_timewait tsem_timewait
+#define tsem2_post     tsem_post
+#define tsem2_destroy  tsem_destroy
 
 #else
 
 #define tsem_t       sem_t
-#define tsem_init    sem_init
-int tsem_wait(tsem_t *sem);
-int tsem_timewait(tsem_t *sim, int64_t milis);
-#define tsem_post    sem_post
-#define tsem_destroy sem_destroy
+int32_t tsem_init(tsem_t *sem, int pshared, unsigned int value);
+int32_t tsem_wait(tsem_t *sem);
+int32_t tsem_timewait(tsem_t *sim, int64_t milis);
+int32_t tsem_post(tsem_t *sem);
+int32_t tsem_destroy(tsem_t *sem);
+
+typedef struct tsem2_t {
+  TdThreadMutex    mutex;
+  TdThreadCond     cond;
+  TdThreadCondAttr attr;
+  int              count;
+} tsem2_t;
+
+// #define tsem2_t       sem_t
+int tsem2_init(tsem2_t* sem, int pshared, unsigned int value);
+int tsem2_wait(tsem2_t* sem);
+int tsem2_timewait(tsem2_t* sem, int64_t milis);
+int tsem2_post(tsem2_t* sem);
+int tsem2_destroy(tsem2_t* sem);
 
 #endif
 
@@ -76,6 +104,7 @@ int64_t taosGetPthreadId(TdThread thread);
 void    taosResetPthread(TdThread *thread);
 bool    taosComparePthread(TdThread first, TdThread second);
 int32_t taosGetPId();
+int32_t taosGetPIdByName(const char* name, int32_t* pPId);
 int32_t taosGetAppName(char *name, int32_t *len);
 
 #ifdef __cplusplus

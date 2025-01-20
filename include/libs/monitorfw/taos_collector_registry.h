@@ -37,9 +37,9 @@ extern taos_collector_registry_t *TAOS_COLLECTOR_REGISTRY_DEFAULT;
 
 /**
  * @brief Initializes the default collector registry and enables metric collection on the executing process
- * @return A non-zero integer value upon failure
+ * @return
  */
-int taos_collector_registry_default_init(void);
+void taos_collector_registry_default_init(void);
 
 /**
  * @brief Constructs a taos_collector_registry_t*

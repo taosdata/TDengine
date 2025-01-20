@@ -17,6 +17,7 @@
 #define _TD_TDB_INTERNAL_H_
 
 #include "tdb.h"
+#include "tutil.h"
 
 #include "tdef.h"
 #include "tlog.h"
@@ -25,17 +26,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-// clang-format off
-extern int32_t tdbDebugFlag;
-
-#define tdbFatal(...) do { if (tdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TDB FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define tdbError(...) do { if (tdbDebugFlag & DEBUG_ERROR) { taosPrintLog("TDB ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define tdbWarn(...)  do { if (tdbDebugFlag & DEBUG_WARN)  { taosPrintLog("TDB WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define tdbInfo(...)  do { if (tdbDebugFlag & DEBUG_INFO)  { taosPrintLog("TDB ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define tdbDebug(...) do { if (tdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TDB ", DEBUG_DEBUG, tdbDebugFlag, __VA_ARGS__); }} while(0)
-#define tdbTrace(...) do { if (tdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TDB ", DEBUG_TRACE, tdbDebugFlag, __VA_ARGS__); }} while(0)
-// clang-format on
 
 typedef int8_t   i8;
 typedef int16_t  i16;
@@ -155,11 +145,11 @@ struct SBTC {
 };
 
 // SBTree
-int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, char const *tbname, SPgno pgno, tdb_cmpr_fn_t kcmpr, TDB *pEnv,
-                 SBTree **ppBt);
-int tdbBtreeClose(SBTree *pBt);
-int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn);
-int tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn);
+int  tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, char const *tbname, SPgno pgno, tdb_cmpr_fn_t kcmpr, TDB *pEnv,
+                  SBTree **ppBt);
+void tdbBtreeClose(SBTree *pBt);
+int  tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn);
+int  tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn);
 // int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, int nData, TXN *pTxn);
 int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen);
 int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
@@ -172,24 +162,24 @@ typedef struct {
 int tdbBtreeInitPage(SPage *pPage, void *arg, int init);
 
 // SBTC
-int tdbBtcOpen(SBTC *pBtc, SBTree *pBt, TXN *pTxn);
-int tdbBtcClose(SBTC *pBtc);
-int tdbBtcIsValid(SBTC *pBtc);
-int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst);
-int tdbBtcMoveToFirst(SBTC *pBtc);
-int tdbBtcMoveToLast(SBTC *pBtc);
-int tdbBtcMoveToNext(SBTC *pBtc);
-int tdbBtcMoveToPrev(SBTC *pBtc);
-int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen);
-int tdbBtreePrev(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen);
-int tdbBtcGet(SBTC *pBtc, const void **ppKey, int *kLen, const void **ppVal, int *vLen);
-int tdbBtcDelete(SBTC *pBtc);
-int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int nData, int insert);
+int  tdbBtcOpen(SBTC *pBtc, SBTree *pBt, TXN *pTxn);
+void tdbBtcClose(SBTC *pBtc);
+int  tdbBtcIsValid(SBTC *pBtc);
+int  tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst);
+int  tdbBtcMoveToFirst(SBTC *pBtc);
+int  tdbBtcMoveToLast(SBTC *pBtc);
+int  tdbBtcMoveToNext(SBTC *pBtc);
+int  tdbBtcMoveToPrev(SBTC *pBtc);
+int  tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen);
+int  tdbBtreePrev(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen);
+int  tdbBtcGet(SBTC *pBtc, const void **ppKey, int *kLen, const void **ppVal, int *vLen);
+int  tdbBtcDelete(SBTC *pBtc);
+int  tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int nData, int insert);
 
 // tdbPager.c ====================================
 
 int  tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager);
-int  tdbPagerClose(SPager *pPager);
+void tdbPagerClose(SPager *pPager);
 int  tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate, SBTree *pBt);
 int  tdbPagerWrite(SPager *pPager, SPage *pPage);
 int  tdbPagerBegin(SPager *pPager, TXN *pTxn);
@@ -224,7 +214,7 @@ int tdbPagerRollback(SPager *pPager);
 // For page ref
 
 int    tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache);
-int    tdbPCacheClose(SPCache *pCache);
+void   tdbPCacheClose(SPCache *pCache);
 int    tdbPCacheAlter(SPCache *pCache, int32_t nPage);
 SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn);
 void   tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn);
@@ -318,7 +308,6 @@ static inline int tdbTryLockPage(tdb_spinlock_t *pLock) {
   } else if (ret == EBUSY) {
     return P_LOCK_BUSY;
   } else {
-    ASSERT(0);
     return P_LOCK_FAIL;
   }
 }
@@ -338,22 +327,25 @@ static inline int tdbTryLockPage(tdb_spinlock_t *pLock) {
   ((*(pPage)->xCellSize)(pPage, pCell, 0, NULL, NULL) + (pPage)->pPageMethods->szOffset)
 #define TDB_PAGE_OFFSET_SIZE(pPage) ((pPage)->pPageMethods->szOffset)
 
-int  tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg);
-int  tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg);
-void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt));
-void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt));
-int  tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl);
-int  tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt);
-int  tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell, TXN *pTxn, SBTree *pBt);
-void tdbPageCopy(SPage *pFromPage, SPage *pToPage, int copyOvflCells);
-int  tdbPageCapacity(int pageSize, int amHdrSize);
+int     tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg);
+void    tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg);
+void    tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt));
+void    tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt));
+int     tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl);
+int     tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt);
+int     tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell, TXN *pTxn, SBTree *pBt);
+int32_t tdbPageCopy(SPage *pFromPage, SPage *pToPage, int deepCopyOvfl);
+int     tdbPageCapacity(int pageSize, int amHdrSize);
 
 static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
   SCell *pCell;
   int    iOvfl;
   int    lidx;
 
-  ASSERT(idx >= 0 && idx < TDB_PAGE_TOTAL_CELLS(pPage));
+  if (idx < 0 || idx >= TDB_PAGE_TOTAL_CELLS(pPage)) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
 
   iOvfl = 0;
   for (; iOvfl < pPage->nOverflow; iOvfl++) {
@@ -366,7 +358,6 @@ static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
   }
 
   lidx = idx - iOvfl;
-  ASSERT(lidx >= 0 && lidx < pPage->pPageMethods->getCellNum(pPage));
   pCell = pPage->pData + pPage->pPageMethods->getCellOffset(pPage, lidx);
 
   return pCell;

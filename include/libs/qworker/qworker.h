@@ -61,6 +61,7 @@ typedef struct SQWMsgInfo {
   int8_t taskType;
   int8_t explain;
   int8_t needFetch;
+  int8_t compressMsg;
 } SQWMsgInfo;
 
 typedef struct SQWMsg {
@@ -71,6 +72,7 @@ typedef struct SQWMsg {
   int32_t        msgLen;
   SQWMsgInfo     msgInfo;
   SRpcHandleInfo connInfo;
+  void          *pWorkerCb;
 } SQWMsg;
 
 int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const SMsgCb *pMsgCb);
@@ -103,13 +105,18 @@ void qWorkerDestroy(void **qWorkerMgmt);
 
 int32_t qWorkerGetStat(SReadHandle *handle, void *qWorkerMgmt, SQWorkerStat *pStat);
 
-int32_t qWorkerProcessLocalQuery(void *pMgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId, int32_t eId,
-                                 SQWMsg *qwMsg, SArray *explainRes);
+int32_t qWorkerProcessLocalQuery(void *pMgmt, uint64_t sId, uint64_t qId, uint64_t cId, uint64_t tId, int64_t rId,
+                                 int32_t eId, SQWMsg *qwMsg, SArray *explainRes);
 
-int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId, int32_t eId,
-                                 void **pRsp, SArray *explainRes);
+int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64_t cId, uint64_t tId, int64_t rId,
+                                 int32_t eId, void **pRsp, SArray *explainRes);
 
 int32_t qWorkerDbgEnableDebug(char *option);
+
+void qWorkerRetireJob(uint64_t jobId, uint64_t clientId, int32_t errCode);
+
+void qWorkerRetireJobs(int64_t retireSize, int32_t errCode);
+
 
 #ifdef __cplusplus
 }

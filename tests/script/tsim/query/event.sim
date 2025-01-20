@@ -236,4 +236,54 @@ sql_error select count(*) from sta event_window start with f1 >0 end with f2 > 0
 sql_error select count(*) from sta event_window start with f1 >0 end with f2 > 0 group by tbname;
 sql_error select count(*) from sta event_window start with f1 >0 end with f2 > 0 fill(NULL);
 
+print step2
+print =============== create database
+sql create database test2  vgroups 4;
+sql use test2;
+sql create stable st(ts timestamp,a int,b int,c int, d double) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+sql create table t3 using st tags(3,3,3);
+
+sql insert into t1 values(1648791213000,1,2,3,1.0);
+sql insert into t1 values(1648791223001,2,2,3,1.1);
+sql insert into t1 values(1648791233002,3,2,3,2.1);
+sql insert into t1 values(1648791243003,4,2,3,3.1);
+sql insert into t1 values(1648791253004,5,2,3,4.1);
+
+sql insert into t2 values(1648791213000,1,2,3,1.0);
+sql insert into t2 values(1648791223001,2,2,3,1.1);
+sql insert into t2 values(1648791233002,3,2,3,2.1);
+sql insert into t2 values(1648791243003,4,2,3,3.1);
+sql insert into t2 values(1648791253004,5,2,3,4.1);
+
+sql insert into t3 values(1648791213000,1,2,3,1.0);
+sql insert into t3 values(1648791223001,2,2,3,1.1);
+sql insert into t3 values(1648791233002,3,2,3,2.1);
+sql insert into t3 values(1648791243003,4,2,3,3.1);
+sql insert into t3 values(1648791253004,5,2,3,4.1);
+
+$loop_count = 0
+loop4:
+
+sleep 300
+
+sql select  _wstart, count(*) c1, tbname from st partition by tbname event_window start with a > 0 end with b = 2  slimit 2 limit 2;
+
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print $data20 $data21 $data22 $data23
+print $data30 $data31 $data32 $data33
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+# row 0
+if $rows != 4 then
+  print ======rows=$rows
+  goto loop4
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

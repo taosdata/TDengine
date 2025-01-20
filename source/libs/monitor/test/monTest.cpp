@@ -26,7 +26,10 @@ class MonitorTest : public ::testing::Test {
     monInit(&cfg);
   }
 
-  static void TearDownTestSuite() { monCleanup(); }
+  static void TearDownTestSuite() {
+    monCleanup();
+    taosMsleep(100);
+  }
 
  public:
   void SetUp() override {}

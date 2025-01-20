@@ -29,6 +29,9 @@ extern "C" {
 #define DS_BUF_FULL  2
 #define DS_BUF_EMPTY 3
 
+#define DS_FLAG_USE_MEMPOOL (1 << 0)
+
+
 struct SSDataBlock;
 
 typedef struct SDeleterRes {
@@ -55,6 +58,7 @@ typedef struct SDataSinkStat {
 } SDataSinkStat;
 
 typedef struct SDataSinkMgtCfg {
+  int8_t   compress;
   uint32_t maxDataBlockNum;  // todo: this should be numOfRows?
   uint32_t maxDataBlockNumPerQuery;
 } SDataSinkMgtCfg;
@@ -83,7 +87,7 @@ typedef struct SOutputData {
  * @param pHandle output
  * @return error code
  */
-int32_t dsCreateDataSinker(void* pSinkManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void* pParam, const char* id);
+int32_t dsCreateDataSinker(void* pSinkManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle, void* pParam, const char* id);
 
 int32_t dsDataSinkGetCacheSize(SDataSinkStat* pStat);
 
@@ -104,7 +108,7 @@ void dsReset(DataSinkHandle handle);
  * @param handle
  * @param pLen data length
  */
-void dsGetDataLength(DataSinkHandle handle, int64_t* pLen, bool* pQueryEnd);
+void dsGetDataLength(DataSinkHandle handle, int64_t* pLen, int64_t* pRawLen, bool* pQueryEnd);
 
 /**
  * Get data, the caller needs to allocate data memory.
@@ -129,6 +133,9 @@ void dsScheduleProcess(void* ahandle, void* pItem);
  * @param handle
  */
 void dsDestroyDataSinker(DataSinkHandle handle);
+
+int32_t dsGetSinkFlags(DataSinkHandle handle, uint64_t* pFlags);
+
 
 #ifdef __cplusplus
 }

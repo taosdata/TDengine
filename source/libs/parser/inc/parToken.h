@@ -182,7 +182,8 @@ _end:
   return (i < pToken->n) ? TK_NK_ILLEGAL : type;
 }
 
-void taosCleanupKeywordsTable();
+int32_t taosInitKeywordsTable();
+void    taosCleanupKeywordsTable();
 
 #ifdef __cplusplus
 }

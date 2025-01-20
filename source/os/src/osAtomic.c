@@ -19,7 +19,6 @@
 typedef union {
   volatile int64_t i;
   volatile double  d;
-  //double  d;
 } double_number;
 
 #ifdef WINDOWS
@@ -345,7 +344,7 @@ void atomic_store_64(int64_t volatile* ptr, int64_t val) {
 #endif
 }
 
-double  atomic_store_double(double volatile *ptr, double val){
+void atomic_store_double(double volatile* ptr, double val) {
   for (;;) {
     double_number old_num = {0};
     old_num.d = *ptr;  // current old value
@@ -354,9 +353,9 @@ double  atomic_store_double(double volatile *ptr, double val){
     new_num.d = val;
 
     double_number ret_num = {0};
-    ret_num.i = atomic_val_compare_exchange_64((volatile int64_t *)ptr, old_num.i, new_num.i);
+    ret_num.i = atomic_val_compare_exchange_64((volatile int64_t*)ptr, old_num.i, new_num.i);
 
-    if (ret_num.i == old_num.i) return ret_num.d;
+    if (ret_num.i == old_num.i) break;
   }
 }
 
@@ -414,21 +413,25 @@ int64_t atomic_exchange_64(int64_t volatile* ptr, int64_t val) {
 #endif
 }
 
-double  atomic_exchange_double(double volatile *ptr, int64_t val){
+double atomic_exchange_double(double volatile* ptr, double val) {
+  double ret = 0;
+
   for (;;) {
     double_number old_num = {0};
     old_num.d = *ptr;  // current old value
 
     double_number new_num = {0};
-    int64_t iNew = val;
+    new_num.d = val;
 
     double_number ret_num = {0};
-    ret_num.i = atomic_val_compare_exchange_64((volatile int64_t *)ptr, old_num.i, new_num.i);
+    ret_num.i = atomic_val_compare_exchange_64((volatile int64_t*)ptr, old_num.i, new_num.i);
 
     if (ret_num.i == old_num.i) {
-      return ret_num.d;
+      ret = ret_num.d;
+      break;
     }
   }
+  return ret;
 }
 
 void* atomic_exchange_ptr(void* ptr, void* val) {
@@ -589,7 +592,9 @@ int64_t atomic_fetch_add_64(int64_t volatile* ptr, int64_t val) {
 #endif
 }
 
-double  atomic_fetch_add_double(double volatile *ptr, double val){
+double atomic_fetch_add_double(double volatile* ptr, double val) {
+  double ret = 0;
+
   for (;;) {
     double_number old_num = {0};
     old_num.d = *ptr;  // current old value
@@ -598,13 +603,18 @@ double  atomic_fetch_add_double(double volatile *ptr, double val){
     new_num.d = old_num.d + val;
 
     double_number ret_num = {0};
-    ret_num.i = atomic_val_compare_exchange_64((volatile int64_t *)ptr, old_num.i, new_num.i);
+    ret_num.i = atomic_val_compare_exchange_64((volatile int64_t*)ptr, old_num.i, new_num.i);
 
-    if (ret_num.i == old_num.i) return ret_num.d;
+    if (ret_num.i == old_num.i) {
+      ret = ret_num.d;
+      break;
+    }
   }
+
+  return ret;
 }
 
-void* atomic_fetch_add_ptr(void* ptr, void* val) {
+void* atomic_fetch_add_ptr(void* ptr, int64_t val) {
 #ifdef WINDOWS
   return _InterlockedExchangePointer((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
@@ -710,7 +720,9 @@ int64_t atomic_fetch_sub_64(int64_t volatile* ptr, int64_t val) {
 #endif
 }
 
-double atomic_fetch_sub_double(double volatile *ptr, double val){
+double atomic_fetch_sub_double(double volatile* ptr, double val) {
+  double ret = 0;
+
   for (;;) {
     double_number old_num = {0};
     old_num.d = *ptr;  // current old value
@@ -719,13 +731,18 @@ double atomic_fetch_sub_double(double volatile *ptr, double val){
     new_num.d = old_num.d - val;
 
     double_number ret_num = {0};
-    ret_num.i = atomic_val_compare_exchange_64((volatile int64_t *)ptr, old_num.i, new_num.i);
+    ret_num.i = atomic_val_compare_exchange_64((volatile int64_t*)ptr, old_num.i, new_num.i);
 
-    if (ret_num.i == old_num.i) return ret_num.d;
+    if (ret_num.i == old_num.i) {
+      ret = ret_num.d;
+      break;
+    }
   }
+
+  return ret;
 }
 
-void* atomic_fetch_sub_ptr(void* ptr, void* val) {
+void* atomic_fetch_sub_ptr(void* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_fetch_sub_ptr(ptr, val);
 #elif defined(_TD_NINGSI_60)
@@ -777,7 +794,7 @@ int64_t atomic_and_fetch_64(int64_t volatile* ptr, int64_t val) {
 #endif
 }
 
-void* atomic_and_fetch_ptr(void* ptr, void* val) {
+void* atomic_and_fetch_ptr(void* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_and_fetch_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
@@ -829,7 +846,7 @@ int64_t atomic_fetch_and_64(int64_t volatile* ptr, int64_t val) {
 #endif
 }
 
-void* atomic_fetch_and_ptr(void* ptr, void* val) {
+void* atomic_fetch_and_ptr(void* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_fetch_and_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
@@ -881,7 +898,7 @@ int64_t atomic_or_fetch_64(int64_t volatile* ptr, int64_t val) {
 #endif
 }
 
-void* atomic_or_fetch_ptr(void* ptr, void* val) {
+void* atomic_or_fetch_ptr(void* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_or_fetch_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
@@ -933,7 +950,7 @@ int64_t atomic_fetch_or_64(int64_t volatile* ptr, int64_t val) {
 #endif
 }
 
-void* atomic_fetch_or_ptr(void* ptr, void* val) {
+void* atomic_fetch_or_ptr(void* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_fetch_or_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
@@ -985,7 +1002,7 @@ int64_t atomic_xor_fetch_64(int64_t volatile* ptr, int64_t val) {
 #endif
 }
 
-void* atomic_xor_fetch_ptr(void* ptr, void* val) {
+void* atomic_xor_fetch_ptr(void* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_xor_fetch_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)
@@ -1037,7 +1054,7 @@ int64_t atomic_fetch_xor_64(int64_t volatile* ptr, int64_t val) {
 #endif
 }
 
-void* atomic_fetch_xor_ptr(void* ptr, void* val) {
+void* atomic_fetch_xor_ptr(void* ptr, int64_t val) {
 #ifdef WINDOWS
   return interlocked_fetch_xor_ptr((void* volatile*)(ptr), (void*)(val));
 #elif defined(_TD_NINGSI_60)

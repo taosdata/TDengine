@@ -10,4 +10,5 @@ ExternalProject_Add(sqlite
         BUILD_COMMAND "$(MAKE)"
         INSTALL_COMMAND ""
         TEST_COMMAND ""
+        GIT_SHALLOW true
 )

@@ -54,6 +54,8 @@ typedef struct {
   SSdbRaw  *pRaw;
 
   int64_t mTraceId;
+  int64_t startTime;
+  int64_t endTime;
 } STransAction;
 
 typedef void (*TransCbFp)(SMnode *pMnode, void *param, int32_t paramLen);
@@ -78,12 +80,15 @@ int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
 void    mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *param, int32_t paramLen);
 void    mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname);
-void    mndTransSetArbGroupId(STrans *pTrans, int32_t groupId);
+void    mndTransAddArbGroupId(STrans *pTrans, int32_t groupId);
 void    mndTransSetSerial(STrans *pTrans);
+void    mndTransSetBeKilled(STrans *pTrans, bool ableToBeKilled);
+void    mndTransSetKillMode(STrans *pTrans, ETrnKillMode killMode);
 void    mndTransSetParallel(STrans *pTrans);
 void    mndTransSetChangeless(STrans *pTrans);
 void    mndTransSetOper(STrans *pTrans, EOperType oper);
 int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans);
+int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans);
 #ifndef BUILD_NO_CALL
 static int32_t mndTrancCheckConflict(SMnode *pMnode, STrans *pTrans) {
     return mndTransCheckConflict(pMnode, pTrans);

@@ -231,8 +231,7 @@ TEST(tdb_test, DISABLED_simple_insert1) {
   tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 }
 
 TEST(tdb_test, DISABLED_simple_insert2) {
@@ -315,8 +314,7 @@ TEST(tdb_test, DISABLED_simple_insert2) {
   tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 }
 
 TEST(tdb_test, DISABLED_simple_delete1) {
@@ -620,8 +618,7 @@ TEST(tdb_test, multi_thread_query) {
   tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 }
 
 TEST(tdb_test, DISABLED_multi_thread1) {
@@ -745,7 +742,6 @@ TEST(tdb_test, DISABLED_multi_thread1) {
   tdbTbClose(pTb);
 
   // Close Env
-  ret = tdbClose(pDb);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 #endif
 }

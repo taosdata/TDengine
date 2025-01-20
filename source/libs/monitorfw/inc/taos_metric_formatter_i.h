@@ -1,20 +1,22 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+/**
+ * Copyright 2019-2020 DigitalOcean Inc.
  *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 #ifndef TAOS_METRIC_FORMATTER_I_H
 #define TAOS_METRIC_FORMATTER_I_H
+#include <stdint.h>
 
 // Private
 #include "taos_metric_formatter_t.h"
@@ -28,7 +30,7 @@ taos_metric_formatter_t *taos_metric_formatter_new();
 /**
  * @brief API PRIVATE taos_metric_formatter destructor
  */
-int taos_metric_formatter_destroy(taos_metric_formatter_t *self);
+void taos_metric_formatter_destroy(taos_metric_formatter_t *self);
 
 /**
  * @brief API PRIVATE Loads the help text
@@ -56,8 +58,8 @@ int taos_metric_formatter_load_l_value(taos_metric_formatter_t *metric_formatter
 /**
  * @brief API PRIVATE Loads the formatter with a metric sample
  */
-int taos_metric_formatter_load_sample(taos_metric_formatter_t *metric_formatter, taos_metric_sample_t *sample, 
-                                        char *ts, char *format);
+int taos_metric_formatter_load_sample(taos_metric_formatter_t *metric_formatter, taos_metric_sample_t *sample, char *ts,
+                                      char *format);
 
 /**
  * @brief API PRIVATE Loads a metric in the string exposition format
@@ -79,4 +81,5 @@ int taos_metric_formatter_clear(taos_metric_formatter_t *self);
  */
 char *taos_metric_formatter_dump(taos_metric_formatter_t *metric_formatter);
 
+int32_t taos_metric_formatter_get_vgroup_id(char *key);
 #endif  // TAOS_METRIC_FORMATTER_I_H

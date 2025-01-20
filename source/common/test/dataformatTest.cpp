@@ -20,6 +20,7 @@
 #include <tglobal.h>
 #include <tmsg.h>
 #include <iostream>
+#include <tdatablock.h>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -448,6 +449,20 @@ static void checkTSRow(const char **data, STSRow *row, STSchema *pTSchema) {
     checkSColVal(data[i], &colVal, pCol->type);
   }
 }
+#ifndef WINDOWS
+TEST(testCase, tColDataGetValue) {
+  SColData pColData = {0};
+  SColVal pColVal = {0};
+  ASSERT_NE(tColDataGetValue(&pColData, 0, &pColVal),0);
+
+  pColData = {.flag = 8};
+  pColVal = {0};
+  ASSERT_NE(tColDataGetValue(&pColData, 0, &pColVal),0);
+
+  pColData = {.nVal = 1, .flag = 8};
+  ASSERT_NE(tColDataGetValue(&pColData, 0, &pColVal),0);
+}
+#endif
 
 TEST(testCase, AllNormTest) {
   int16_t nCols = 14;
@@ -473,6 +488,93 @@ TEST(testCase, AllNormTest) {
   taosMemoryFreeClear(row);
   taosArrayDestroy(pArray);
   taosMemoryFree(pTSchema);
+}
+
+TEST(testCase, StreamAllNormTest) {
+  char ctbName[TSDB_TABLE_NAME_LEN] = {0};
+  uint64_t groupId = 12345;
+
+  buildCtbNameAddGroupId(NULL, ctbName, groupId, sizeof(ctbName));
+
+  ASSERT_STREQ("_12345", ctbName);
+}
+
+TEST(testCase, StreamWithStbName) {
+  char stbName[] = "1.table.stb";
+  char ctbName[TSDB_TABLE_NAME_LEN] = {0};
+  uint64_t groupId = 12345;
+
+  buildCtbNameAddGroupId(stbName, ctbName, groupId, sizeof(ctbName));
+
+  ASSERT_STREQ("_stb_12345", ctbName);
+}
+
+TEST(testCase, StreamWithoutDotInStbName) {
+  char stbName[] = "table";
+  char ctbName[TSDB_TABLE_NAME_LEN] = {0};
+  uint64_t groupId = 12345;
+
+  buildCtbNameAddGroupId(stbName, ctbName, groupId, sizeof(ctbName));
+
+  ASSERT_STREQ("_table_12345", ctbName);
+}
+
+TEST(testCase, StreamWithoutDotInStbName2) {
+  char stbName[] = "";
+  char ctbName[TSDB_TABLE_NAME_LEN] = {0};
+  uint64_t groupId = 12345;
+
+  buildCtbNameAddGroupId(stbName, ctbName, groupId, sizeof(ctbName));
+
+  ASSERT_STREQ("__12345", ctbName);
+}
+
+TEST(testCase, StreamWithLongStbName) {
+  char     ctbName[TSDB_TABLE_NAME_LEN];
+  char     expectName[TSDB_TABLE_NAME_LEN];
+  char    *stbName = "a_simle_stb_name";
+  uint64_t groupId = UINT64_MAX;
+
+  // test basic function
+  strcpy(ctbName, "a_simple_ctb_name");
+  EXPECT_EQ(buildCtbNameAddGroupId(stbName, ctbName, groupId, sizeof(ctbName)), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(ctbName, "a_simple_ctb_name_a_simle_stb_name_18446744073709551615");
+
+  // test null stbName
+  strcpy(ctbName, "a_simple_ctb_name");
+  stbName = NULL;
+  EXPECT_EQ(buildCtbNameAddGroupId(stbName, ctbName, groupId, sizeof(ctbName)), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(ctbName, "a_simple_ctb_name_18446744073709551615");
+
+  // test buffer capcity check
+  EXPECT_EQ(buildCtbNameAddGroupId(stbName, NULL, groupId, sizeof(ctbName)), TSDB_CODE_INTERNAL_ERROR);
+  EXPECT_EQ(buildCtbNameAddGroupId(stbName, ctbName, groupId, sizeof(ctbName) - 1), TSDB_CODE_INTERNAL_ERROR);
+
+  // test md5 conversion of stbName with groupid
+  for (int32_t i = 0; i < 159; ++i) ctbName[i] = 'A';
+  ctbName[159] = '\0';
+  stbName = taosStrdup(ctbName);
+  snprintf(expectName, TSDB_TABLE_NAME_LEN, "%s_d85f0d87946d76eeedd7b7b78b7492a2", ctbName);
+  EXPECT_EQ(buildCtbNameAddGroupId(stbName, ctbName, groupId, sizeof(ctbName)), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(ctbName, expectName);
+
+  // test md5 conversion of all parts
+  for (int32_t i = 0; i < 190; ++i) ctbName[i] = 'A';
+  ctbName[190] = '\0';
+  tstrncpy(expectName, "t_d38a8b2df999bef0082ffc80a59a9cd7_d85f0d87946d76eeedd7b7b78b7492a2", TSDB_TABLE_NAME_LEN);
+  EXPECT_EQ(buildCtbNameAddGroupId(stbName, ctbName, groupId, sizeof(ctbName)), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(ctbName, expectName);
+
+  // test larger stbName
+  taosMemoryFree(stbName);
+  for (int32_t i = 0; i < 190; ++i) ctbName[i] = 'A';
+  ctbName[190] = '\0';
+  stbName = taosStrdup(ctbName);
+  tstrncpy(expectName, "t_d38a8b2df999bef0082ffc80a59a9cd7_9c99cc7c52073b63fb750af402d9b84b", TSDB_TABLE_NAME_LEN);
+  EXPECT_EQ(buildCtbNameAddGroupId(stbName, ctbName, groupId, sizeof(ctbName)), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(ctbName, expectName);
+
+  taosMemoryFree(stbName);
 }
 
 #if 1

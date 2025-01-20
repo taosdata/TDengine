@@ -46,12 +46,12 @@ class TableBuilder : public ITableBuilder {
     schema()->vgId = vgid;
 
     SVgroupInfo vgroup = {vgid, 0, 0, {0}, 0};
-    addEpIntoEpSet(&vgroup.epSet, "dnode_1", 6030);
-    addEpIntoEpSet(&vgroup.epSet, "dnode_2", 6030);
-    addEpIntoEpSet(&vgroup.epSet, "dnode_3", 6030);
+    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(&vgroup.epSet, "dnode_1", 6030));
+    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(&vgroup.epSet, "dnode_2", 6030));
+    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(&vgroup.epSet, "dnode_3", 6030));
     vgroup.epSet.inUse = 0;
 
-    meta_->vgs.emplace_back(vgroup);
+    (void)meta_->vgs.emplace_back(vgroup);
     return *this;
   }
 
@@ -117,7 +117,7 @@ class MockCatalogServiceImpl {
     std::unique_ptr<STableMeta> table;
 
     char db[TSDB_DB_NAME_LEN] = {0};
-    tNameGetDbName(pTableName, db);
+    (void)tNameGetDbName(pTableName, db);
 
     const char* tname = tNameGetTableName(pTableName);
     int32_t     code = copyTableSchemaMeta(db, tname, &table);
@@ -140,7 +140,7 @@ class MockCatalogServiceImpl {
 
   int32_t catalogGetTableDistVgInfo(const SName* pTableName, SArray** vgList) const {
     char db[TSDB_DB_NAME_LEN] = {0};
-    tNameGetDbName(pTableName, db);
+    (void)tNameGetDbName(pTableName, db);
     return copyTableVgroup(db, tNameGetTableName(pTableName), vgList);
   }
 
@@ -174,7 +174,10 @@ class MockCatalogServiceImpl {
 
   int32_t catalogGetTableIndex(const SName* pTableName, SArray** pIndexes) const {
     char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
-    tNameExtractFullName(pTableName, tbFName);
+    int32_t code = tNameExtractFullName(pTableName, tbFName);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
     auto it = index_.find(tbFName);
     if (index_.end() == it) {
       return TSDB_CODE_SUCCESS;
@@ -183,15 +186,26 @@ class MockCatalogServiceImpl {
     for (const auto& index : it->second) {
       STableIndexInfo info;
 
-      taosArrayPush(*pIndexes, copyTableIndexInfo(&info, &index));
+      if (nullptr == taosArrayPush(*pIndexes, copyTableIndexInfo(&info, &index))) {
+        taosArrayDestroy(*pIndexes);
+        *pIndexes = nullptr;
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
     }
     return TSDB_CODE_SUCCESS;
   }
 
   int32_t catalogGetDnodeList(SArray** pDnodes) const {
     *pDnodes = taosArrayInit(dnode_.size(), sizeof(SEpSet));
+    if (!pDnodes) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     for (const auto& dnode : dnode_) {
-      taosArrayPush(*pDnodes, &dnode.second);
+      if (nullptr == taosArrayPush(*pDnodes, &dnode.second)) {
+        taosArrayDestroy(*pDnodes);
+        *pDnodes = nullptr;
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
     }
     return TSDB_CODE_SUCCESS;
   }
@@ -252,9 +266,9 @@ class MockCatalogServiceImpl {
     SVgroupInfo vgroup = {vgid, 0, 0, {0}, 0};
     genEpSet(&vgroup.epSet);
 
-    meta_[db][tbname]->vgs.emplace_back(vgroup);
+    (void)meta_[db][tbname]->vgs.emplace_back(vgroup);
     // super table
-    meta_[db][stbname]->vgs.emplace_back(vgroup);
+    (void)meta_[db][stbname]->vgs.emplace_back(vgroup);
   }
 
   void showTables() const {
@@ -345,7 +359,7 @@ class MockCatalogServiceImpl {
 
   void createDnode(int32_t dnodeId, const string& host, int16_t port) {
     SEpSet epSet = {0};
-    addEpIntoEpSet(&epSet, host.c_str(), port);
+    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(&epSet, host.c_str(), port));
     dnode_.insert(std::make_pair(dnodeId, epSet));
   }
 
@@ -370,9 +384,9 @@ class MockCatalogServiceImpl {
   uint64_t getNextId() { return id_++; }
 
   void genEpSet(SEpSet* pEpSet) {
-    addEpIntoEpSet(pEpSet, "dnode_1", 6030);
-    addEpIntoEpSet(pEpSet, "dnode_2", 6030);
-    addEpIntoEpSet(pEpSet, "dnode_3", 6030);
+    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(pEpSet, "dnode_1", 6030));
+    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(pEpSet, "dnode_2", 6030));
+    assert(TSDB_CODE_SUCCESS == addEpIntoEpSet(pEpSet, "dnode_3", 6030));
     pEpSet->inUse = 0;
   }
 
@@ -456,8 +470,15 @@ class MockCatalogServiceImpl {
       return TSDB_CODE_SUCCESS;
     }
     *vgList = taosArrayInit(table->vgs.size(), sizeof(SVgroupInfo));
+    if (!*vgList) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     for (const SVgroupInfo& vg : table->vgs) {
-      taosArrayPush(*vgList, &vg);
+      if (nullptr == taosArrayPush(*vgList, &vg)) {
+        taosArrayDestroy(*vgList);
+        *vgList = nullptr;
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
     }
     return TSDB_CODE_SUCCESS;
   }
@@ -478,13 +499,21 @@ class MockCatalogServiceImpl {
     if (NULL != pTableMetaReq) {
       int32_t ndbs = taosArrayGetSize(pTableMetaReq);
       *pTableMetaData = taosArrayInit(ndbs, sizeof(SMetaRes));
+      if (!*pTableMetaData) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       for (int32_t i = 0; i < ndbs; ++i) {
         STablesReq* pReq = (STablesReq*)taosArrayGet(pTableMetaReq, i);
         int32_t     ntables = taosArrayGetSize(pReq->pTables);
         for (int32_t j = 0; j < ntables; ++j) {
           SMetaRes res = {0};
           res.code = catalogGetTableMeta((const SName*)taosArrayGet(pReq->pTables, j), (STableMeta**)&res.pRes);
-          taosArrayPush(*pTableMetaData, &res);
+          if (nullptr == taosArrayPush(*pTableMetaData, &res)) {
+            MockCatalogService::destoryMetaRes(&res);
+            taosArrayDestroyEx(*pTableMetaData, MockCatalogService::destoryMetaRes);
+            *pTableMetaData = nullptr;
+            return TSDB_CODE_OUT_OF_MEMORY;
+          }
         }
       }
     }
@@ -495,14 +524,27 @@ class MockCatalogServiceImpl {
     if (NULL != pTableVgroupReq) {
       int32_t ndbs = taosArrayGetSize(pTableVgroupReq);
       *pTableVgroupData = taosArrayInit(ndbs, sizeof(SMetaRes));
+      if (!*pTableVgroupData) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       for (int32_t i = 0; i < ndbs; ++i) {
         STablesReq* pReq = (STablesReq*)taosArrayGet(pTableVgroupReq, i);
         int32_t     ntables = taosArrayGetSize(pReq->pTables);
         for (int32_t j = 0; j < ntables; ++j) {
           SMetaRes res = {0};
           res.pRes = taosMemoryCalloc(1, sizeof(SVgroupInfo));
+          if (!res.pRes) {
+            taosArrayDestroyEx(*pTableVgroupData, MockCatalogService::destoryMetaRes);
+            *pTableVgroupData = nullptr;
+            return TSDB_CODE_OUT_OF_MEMORY;
+          }
           res.code = catalogGetTableHashVgroup((const SName*)taosArrayGet(pReq->pTables, j), (SVgroupInfo*)res.pRes);
-          taosArrayPush(*pTableVgroupData, &res);
+          if (nullptr == taosArrayPush(*pTableVgroupData, &res)) {
+            MockCatalogService::destoryMetaRes(&res);
+            taosArrayDestroyEx(*pTableVgroupData, MockCatalogService::destoryMetaRes);
+            *pTableVgroupData = nullptr;
+            return TSDB_CODE_OUT_OF_MEMORY;
+          }
         }
       }
     }
@@ -514,9 +556,16 @@ class MockCatalogServiceImpl {
     if (NULL != pDbVgroupReq) {
       int32_t ndbs = taosArrayGetSize(pDbVgroupReq);
       *pDbVgroupData = taosArrayInit(ndbs, sizeof(SMetaRes));
+      if (!*pDbVgroupData) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       for (int32_t i = 0; i < ndbs; ++i) {
         SMetaRes res = {0};
-        taosArrayPush(*pDbVgroupData, &res);
+        if (nullptr == taosArrayPush(*pDbVgroupData, &res)) {
+          taosArrayDestroyEx(*pDbVgroupData, MockCatalogService::destoryMetaRes);
+          *pDbVgroupData = nullptr;
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
       }
     }
     return code;
@@ -529,11 +578,17 @@ class MockCatalogServiceImpl {
     }
     std::set<int32_t> vgSet;
     *pVgList = taosArrayInit(it->second.size(), sizeof(SVgroupInfo));
+    if (!*pVgList) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     for (const auto& vgs : it->second) {
       for (const auto& vg : vgs.second->vgs) {
         if (0 == vgSet.count(vg.vgId)) {
-          taosArrayPush(*pVgList, &vg);
-          vgSet.insert(vg.vgId);
+          if (nullptr == taosArrayPush(*pVgList, &vg)) {
+            taosArrayDestroy(*pVgList);
+            return TSDB_CODE_OUT_OF_MEMORY;
+          }
+          (void)vgSet.insert(vg.vgId);
         }
       }
     }
@@ -543,12 +598,18 @@ class MockCatalogServiceImpl {
   int32_t catalogGetAllDBVgList(SArray** pVgList) const {
     std::set<int32_t> vgSet;
     *pVgList = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SVgroupInfo));
+    if (!*pVgList) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     for (const auto& db : meta_) {
       for (const auto& vgs : db.second) {
         for (const auto& vg : vgs.second->vgs) {
           if (0 == vgSet.count(vg.vgId)) {
-            taosArrayPush(*pVgList, &vg);
-            vgSet.insert(vg.vgId);
+            if (nullptr == taosArrayPush(*pVgList, &vg)) {
+              taosArrayDestroy(*pVgList);
+              return TSDB_CODE_OUT_OF_MEMORY;
+            }
+            (void)vgSet.insert(vg.vgId);
           }
         }
       }
@@ -561,11 +622,24 @@ class MockCatalogServiceImpl {
     if (NULL != pDbCfgReq) {
       int32_t ndbs = taosArrayGetSize(pDbCfgReq);
       *pDbCfgData = taosArrayInit(ndbs, sizeof(SMetaRes));
+      if (!*pDbCfgData) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       for (int32_t i = 0; i < ndbs; ++i) {
         SMetaRes res = {0};
         res.pRes = taosMemoryCalloc(1, sizeof(SDbCfgInfo));
+        if (!res.pRes) {
+          taosArrayDestroyEx(*pDbCfgData, MockCatalogService::destoryMetaRes);
+          *pDbCfgData = nullptr;
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
         res.code = catalogGetDBCfg((const char*)taosArrayGet(pDbCfgReq, i), (SDbCfgInfo*)res.pRes);
-        taosArrayPush(*pDbCfgData, &res);
+        if (nullptr == taosArrayPush(*pDbCfgData, &res)) {
+          MockCatalogService::destoryMetaRes(&res);
+          taosArrayDestroyEx(*pDbCfgData, MockCatalogService::destoryMetaRes);
+          *pDbCfgData = nullptr;
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
       }
     }
     return code;
@@ -576,10 +650,18 @@ class MockCatalogServiceImpl {
     if (NULL != pDbInfoReq) {
       int32_t ndbs = taosArrayGetSize(pDbInfoReq);
       *pDbInfoData = taosArrayInit(ndbs, sizeof(SMetaRes));
+      if (!*pDbInfoData) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       for (int32_t i = 0; i < ndbs; ++i) {
         SMetaRes res = {0};
         res.pRes = taosMemoryCalloc(1, sizeof(SDbInfo));
-        taosArrayPush(*pDbInfoData, &res);
+        if (!res.pRes || (nullptr == taosArrayPush(*pDbInfoData, &res))) {
+          MockCatalogService::destoryMetaRes(&res);
+          taosArrayDestroyEx(*pDbInfoData, MockCatalogService::destoryMetaRes);
+          *pDbInfoData = nullptr;
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
       }
     }
     return code;
@@ -590,11 +672,25 @@ class MockCatalogServiceImpl {
     if (NULL != pUserAuthReq) {
       int32_t num = taosArrayGetSize(pUserAuthReq);
       *pUserAuthData = taosArrayInit(num, sizeof(SMetaRes));
+      if (!*pUserAuthData) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      int32_t code = TSDB_CODE_SUCCESS;
       for (int32_t i = 0; i < num; ++i) {
         SMetaRes res = {0};
         res.pRes = taosMemoryCalloc(1, sizeof(SUserAuthRes));
+        if (!res.pRes) {
+          taosArrayDestroy(*pUserAuthData);
+          *pUserAuthData = nullptr;
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
         ((SUserAuthRes*)res.pRes)->pass[0] = true;
-        taosArrayPush(*pUserAuthData, &res);
+        if (nullptr == taosArrayPush(*pUserAuthData, &res)) {
+          MockCatalogService::destoryMetaRes(&res);
+          taosArrayDestroyEx(*pUserAuthData, MockCatalogService::destoryMetaRes);
+          *pUserAuthData = nullptr;
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
       }
     }
     return code;
@@ -604,11 +700,24 @@ class MockCatalogServiceImpl {
     if (NULL != pUdfReq) {
       int32_t num = taosArrayGetSize(pUdfReq);
       *pUdfData = taosArrayInit(num, sizeof(SMetaRes));
+      if (!*pUdfData) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       for (int32_t i = 0; i < num; ++i) {
         SMetaRes res = {0};
         res.pRes = taosMemoryCalloc(1, sizeof(SFuncInfo));
+        if (!res.pRes) {
+          taosArrayDestroyEx(*pUdfData, MockCatalogService::destoryMetaRes);
+          *pUdfData = nullptr;
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
         res.code = catalogGetUdfInfo((char*)taosArrayGet(pUdfReq, i), (SFuncInfo*)res.pRes);
-        taosArrayPush(*pUdfData, &res);
+        if (nullptr == taosArrayPush(*pUdfData, &res)) {
+          MockCatalogService::destoryMetaRes(&res);
+          taosArrayDestroyEx(*pUdfData, MockCatalogService::destoryMetaRes);
+          *pUdfData = nullptr;
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
       }
     }
     return TSDB_CODE_SUCCESS;
@@ -618,10 +727,18 @@ class MockCatalogServiceImpl {
     if (NULL != pTableIndex) {
       int32_t num = taosArrayGetSize(pTableIndex);
       *pTableIndexData = taosArrayInit(num, sizeof(SMetaRes));
+      if (!*pTableIndexData) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       for (int32_t i = 0; i < num; ++i) {
         SMetaRes res = {0};
         res.code = catalogGetTableIndex((const SName*)taosArrayGet(pTableIndex, i), (SArray**)(&res.pRes));
-        taosArrayPush(*pTableIndexData, &res);
+        if (nullptr == taosArrayPush(*pTableIndexData, &res)) {
+          MockCatalogService::destoryMetaRes(&res);
+          taosArrayDestroyEx(*pTableIndexData, MockCatalogService::destoryMetaRes);
+          *pTableIndexData = nullptr;
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
       }
     }
     return TSDB_CODE_SUCCESS;
@@ -631,11 +748,20 @@ class MockCatalogServiceImpl {
     if (NULL != pTableCfgReq) {
       int32_t ntables = taosArrayGetSize(pTableCfgReq);
       *pTableCfgData = taosArrayInit(ntables, sizeof(SMetaRes));
+      if (!*pTableCfgData) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      int32_t code = 0;
       for (int32_t i = 0; i < ntables; ++i) {
         SMetaRes res = {0};
-        res.pRes = taosMemoryCalloc(1, sizeof(STableCfg));
         res.code = TSDB_CODE_SUCCESS;
-        taosArrayPush(*pTableCfgData, &res);
+        res.pRes = taosMemoryCalloc(1, sizeof(STableCfg));
+        if (!res.pRes || (nullptr == taosArrayPush(*pTableCfgData, &res))) {
+          taosMemoryFree(res.pRes);
+          taosArrayDestroy(*pTableCfgData);
+          *pTableCfgData = nullptr;
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
       }
     }
     return TSDB_CODE_SUCCESS;
@@ -645,11 +771,18 @@ class MockCatalogServiceImpl {
     if (NULL != pViewMetaReq) {
       int32_t nviews = taosArrayGetSize(pViewMetaReq);
       *pViewMetaData = taosArrayInit(nviews, sizeof(SMetaRes));
+      if (!*pViewMetaData) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       for (int32_t i = 0; i < nviews; ++i) {
         SMetaRes res = {0};
-        res.pRes = NULL;
+        res.pRes = nullptr;
         res.code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-        taosArrayPush(*pViewMetaData, &res);
+        if (nullptr == taosArrayPush(*pViewMetaData, &res)) {
+          taosArrayDestroyEx(*pViewMetaData, MockCatalogService::destoryMetaRes);
+          *pViewMetaData = nullptr;
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
       }
     }
     return TSDB_CODE_SUCCESS;
@@ -657,9 +790,20 @@ class MockCatalogServiceImpl {
 
   int32_t getAllDnodeList(SArray** pDnodes) const {
     SMetaRes res = {0};
-    catalogGetDnodeList((SArray**)&res.pRes);
+    int32_t code = catalogGetDnodeList((SArray**)&res.pRes);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
     *pDnodes = taosArrayInit(1, sizeof(SMetaRes));
-    taosArrayPush(*pDnodes, &res);
+    if (!*pDnodes) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    if (nullptr == taosArrayPush(*pDnodes, &res)) {
+      MockCatalogService::destoryMetaArrayRes(&res);
+      taosArrayDestroyEx(*pDnodes, MockCatalogService::destoryMetaArrayRes);
+      *pDnodes = nullptr;
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     return TSDB_CODE_SUCCESS;
   }
 

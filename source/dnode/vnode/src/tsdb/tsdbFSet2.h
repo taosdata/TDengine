@@ -42,8 +42,8 @@ typedef enum {
 int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset);
 int32_t tsdbTFileSetInitCopy(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset);
 int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset);
-int32_t tsdbTFileSetClear(STFileSet **fset);
-int32_t tsdbTFileSetRemove(STFileSet *fset);
+void    tsdbTFileSetClear(STFileSet **fset);
+void    tsdbTFileSetRemove(STFileSet *fset);
 
 int32_t tsdbTFileSetFilteredInitDup(STsdb *pTsdb, const STFileSet *fset1, int64_t ever, STFileSet **fset,
                                     TFileOpArray *fopArr);
@@ -57,7 +57,6 @@ int32_t tsdbJsonToTFileSet(STsdb *pTsdb, const cJSON *json, STFileSet **fset);
 // cmpr
 int32_t tsdbTFileSetCmprFn(const STFileSet **fset1, const STFileSet **fset2);
 // edit
-int32_t tsdbSttLvlClear(SSttLvl **lvl);
 int32_t tsdbTFileSetEdit(STsdb *pTsdb, STFileSet *fset, const STFileOp *op);
 int32_t tsdbTFileSetApplyEdit(STsdb *pTsdb, const STFileSet *fset1, STFileSet *fset);
 // max commit id
@@ -68,9 +67,7 @@ SSttLvl *tsdbTFileSetGetSttLvl(STFileSet *fset, int32_t level);
 bool tsdbTFileSetIsEmpty(const STFileSet *fset);
 // stt
 int32_t tsdbSttLvlInit(int32_t level, SSttLvl **lvl);
-int32_t tsdbSttLvlClear(SSttLvl **lvl);
-// open channel
-int32_t tsdbTFileSetOpenChannel(STFileSet *fset);
+void    tsdbSttLvlClear(SSttLvl **lvl);
 
 struct STFileOp {
   tsdb_fop_t optype;
@@ -84,20 +81,31 @@ struct SSttLvl {
   TFileObjArray fobjArr[1];
 };
 
+struct STFileSetCond {
+  bool         running;
+  int32_t      numWait;
+  TdThreadCond cond;
+};
+
 struct STFileSet {
   int32_t      fid;
   int64_t      maxVerValid;
   STFileObj   *farr[TSDB_FTYPE_MAX];  // file array
   TSttLvlArray lvlArr[1];             // level array
+  TSKEY        lastCompact;
+  TSKEY        lastCommit;
 
-  // background task channel
-  int64_t bgTaskChannel;
-  bool    mergeScheduled;
+  SVATaskID mergeTask;
+  SVATaskID compactTask;
+  SVATaskID retentionTask;
 
   // block commit variables
   TdThreadCond canCommit;
   int32_t      numWaitCommit;
   bool         blockCommit;
+
+  // conditions
+  struct STFileSetCond conds[2];
 };
 
 struct STFileSetRange {

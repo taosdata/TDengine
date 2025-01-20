@@ -4,6 +4,7 @@ from util.log import *
 from util.sql import *
 from util.cases import *
 from util.csv import *
+import platform
 import os
 import taos
 import json
@@ -31,8 +32,8 @@ class LegalDataType(Enum):
     UINT       = 'INT UNSIGNED'
     BIGINT     = 'BIGINT' 
     UBIGINT    = 'BIGINT UNSIGNED'  
-    VARCHAR    = 'VARCHAR(100)' 
-    BINARY     = 'BINARY(100)'   
+    VARCHAR    = 'VARCHAR(10000)' 
+    BINARY     = 'BINARY(10000)'   
 
 
 class TableType(Enum):  
@@ -56,7 +57,6 @@ class TDTestCase:
         tdSql.init(conn.cursor(), True)
 
         self.testcasePath = os.path.split(__file__)[0]
-        self.testcasePath = self.testcasePath.replace('\\', '//')
         self.testcaseFilename = os.path.split(__file__)[-1]
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
         # tdSql.execute(f"insert into db4096.ctb00 file '{self.testcasePath}//tableColumn4096csvLength64k.csv'")

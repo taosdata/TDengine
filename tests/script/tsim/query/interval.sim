@@ -276,6 +276,10 @@ sql insert into t6 values ("2024-03-01 14:34:07.051", 66);
 
 sleep 300
 
+sql select _wstart, count(*) from stb interval(1n) sliding(1d);
+sql select _wstart, count(*) from stb interval(1n) sliding(28d);
+sql_error select _wstart, count(*) from stb interval(1n) sliding(29d);
+
 sql select _wstart, count(*) from (select * from stb partition by tbname) interval(2s);
 
 print $data00,$data01

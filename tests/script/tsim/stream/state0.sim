@@ -21,7 +21,7 @@ print create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   
 
 sql create stream streams1 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791213000,1,2,3,1.0,1);
 sql insert into t1 values(1648791213000,1,2,3,1.0,2);
@@ -459,7 +459,7 @@ print create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   
 
 sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(a)  c4, min(c) c5, max(id) c from t1 state_window(a);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791212000,2,2,3,1.0,1);
 sql insert into t1 values(1648791213000,1,2,3,1.0,1);
@@ -509,7 +509,7 @@ print create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   
 
 sql create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0   into streamt3 as select  _wstart, count(*) c1, sum(b) c3 from t1 state_window(a);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791212000,1,2,3,1.0,1);
 sql insert into t1 values(1648791213000,2,2,3,1.0,1);
@@ -564,7 +564,7 @@ print create stream if not exists streams4 trigger window_close IGNORE EXPIRED 0
 
 sql create stream if not exists streams4 trigger window_close IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt4 as select _wstart AS startts, min(c1),count(c1) from t1 state_window(c1);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 (ts, c1) values (1668073288209, 11);
 sql insert into t1 (ts, c1) values (1668073288210, 11);
@@ -755,7 +755,7 @@ print create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  i
 
 sql create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select _wstart c1, count(*) c2, max(a) c3 from tb state_window(a);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into b values(1648791213000,NULL,NULL,NULL,NULL);
 sql select * from streamt order by c1, c2, c3;

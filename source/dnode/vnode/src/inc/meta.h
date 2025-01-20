@@ -39,9 +39,9 @@ typedef struct SMetaCache SMetaCache;
 // clang-format on
 
 // metaOpen ==================
-int32_t metaRLock(SMeta* pMeta);
-int32_t metaWLock(SMeta* pMeta);
-int32_t metaULock(SMeta* pMeta);
+void metaRLock(SMeta* pMeta);
+void metaWLock(SMeta* pMeta);
+void metaULock(SMeta* pMeta);
 
 // metaEntry ==================
 int metaEncodeEntry(SEncoder* pCoder, const SMetaEntry* pME);
@@ -60,7 +60,8 @@ int  metaRemoveTableFromIdx(SMeta* pMeta, tb_uid_t uid);
 static FORCE_INLINE tb_uid_t metaGenerateUid(SMeta* pMeta) { return tGenIdPI64(); }
 
 // metaTable ==================
-int metaHandleEntry(SMeta* pMeta, const SMetaEntry* pME);
+int32_t metaHandleEntry2(SMeta* pMeta, const SMetaEntry* pEntry);
+void    metaHandleSyncEntry(SMeta* pMeta, const SMetaEntry* pEntry);
 
 // metaCache ==================
 int32_t metaCacheOpen(SMeta* pMeta);

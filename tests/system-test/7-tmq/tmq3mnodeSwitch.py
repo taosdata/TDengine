@@ -65,9 +65,12 @@ class TDTestCase:
         while count < self.mnodeCheckCnt:
             time.sleep(1)
             tdSql.query("select * from information_schema.ins_mnodes;")
+            rst = tdSql.checkRows(self.mnodes)
+            print(f"rst: {rst}")
             if tdSql.checkRows(self.mnodes) :
                 tdLog.debug("mnode is  three nodes")
             else:
+                tdSql.print_error_frame_info(tdSql.queryRows,3)
                 tdLog.exit("mnode number is correct")
 
             roleOfMnode0 = tdSql.queryResult[0][self.roleIndex]

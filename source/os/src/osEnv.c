@@ -25,11 +25,10 @@ SDiskSpace      tsLogSpace = {0};
 SDiskSpace      tsTempSpace = {0};
 char            tsOsName[16] = {0};
 char            tsTimezoneStr[TD_TIMEZONE_LEN] = {0};
-enum TdTimezone tsTimezone = TdZeroZone;
 char            tsLocale[TD_LOCALE_LEN] = {0};
 char            tsCharset[TD_CHARSET_LEN] = {0};
-int8_t          tsDaylight = 0;
-bool            tsEnableCoreFile = 0;
+void           *tsCharsetCxt = NULL;
+bool            tsEnableCoreFile = 1;
 int64_t         tsPageSizeKB = 0;
 int64_t         tsOpenMax = 0;
 int64_t         tsStreamMax = 0;
@@ -37,18 +36,20 @@ float           tsNumOfCores = 0;
 int64_t         tsTotalMemoryKB = 0;
 char           *tsProcPath = NULL;
 
-char tsSIMDEnable = 0;
-char tsSSE42Enable = 0;
-char tsAVXEnable = 0;
-char tsAVX2Enable = 0;
-char tsFMAEnable = 0;
 char tsAVX512Enable = 0;
+char tsSSE42Supported = 0;
+char tsAVXSupported = 0;
+char tsAVX2Supported = 0;
+char tsFMASupported = 0;
+char tsAVX512Supported = 0;
 
-void osDefaultInit() {
+int32_t osDefaultInit() {
+  int32_t code = TSDB_CODE_SUCCESS;
+
   taosSeedRand(taosSafeRand());
   taosGetSystemLocale(tsLocale, tsCharset);
-  taosGetSystemTimezone(tsTimezoneStr, &tsTimezone);
-  taosSetSystemTimezone(tsTimezoneStr, tsTimezoneStr, &tsDaylight, &tsTimezone);
+  (void)taosGetSystemTimezone(tsTimezoneStr);
+
   taosGetSystemInfo();
 
   // deadlock in query
@@ -57,39 +58,48 @@ void osDefaultInit() {
   }
 
 #ifdef WINDOWS
-  taosWinSocketInit();
+  code = taosWinSocketInit();
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   const char *tmpDir = getenv("tmp");
   if (tmpDir == NULL) {
     tmpDir = getenv("temp");
   }
   if (tmpDir != NULL) {
-    strcpy(tsTempDir, tmpDir);
+    tstrncpy(tsTempDir, tmpDir, sizeof(tsTempDir));
   }
-  strcpy(tsOsName, "Windows");
+  tstrncpy(tsOsName, "Windows", sizeof(tsOsName));
 #elif defined(_TD_DARWIN_64)
-  strcpy(tsOsName, "Darwin");
+  tstrncpy(tsOsName, "Darwin", sizeof(tsOsName));
 #else
-  strcpy(tsOsName, "Linux");
+  tstrncpy(tsOsName, "Linux", sizeof(tsOsName));
 #endif
   if (configDir[0] == 0) {
-    strcpy(configDir, TD_CFG_DIR_PATH);
+    tstrncpy(configDir, TD_CFG_DIR_PATH, sizeof(configDir));
   }
-  strcpy(tsDataDir, TD_DATA_DIR_PATH);
-  strcpy(tsLogDir, TD_LOG_DIR_PATH);
-  strcpy(tsTempDir, TD_TMP_DIR_PATH);
+  tstrncpy(tsDataDir, TD_DATA_DIR_PATH, sizeof(tsDataDir));
+  tstrncpy(tsLogDir, TD_LOG_DIR_PATH, sizeof(tsLogDir));
+  if (strlen(tsTempDir) == 0) {
+    tstrncpy(tsTempDir, TD_TMP_DIR_PATH, sizeof(tsTempDir));
+  }
+
+  return code;
 }
 
-void osUpdate() {
+int32_t osUpdate() {
+  int code = 0;
   if (tsLogDir[0] != 0) {
-    taosGetDiskSize(tsLogDir, &tsLogSpace.size);
+    code = taosGetDiskSize(tsLogDir, &tsLogSpace.size);
   }
   if (tsDataDir[0] != 0) {
-    taosGetDiskSize(tsDataDir, &tsDataSpace.size);
+    code = taosGetDiskSize(tsDataDir, &tsDataSpace.size);
   }
   if (tsTempDir[0] != 0) {
-    taosGetDiskSize(tsTempDir, &tsTempSpace.size);
+    code = taosGetDiskSize(tsTempDir, &tsTempSpace.size);
   }
+  return code;
 }
 
 void osCleanup() {}
@@ -106,11 +116,11 @@ bool osDataSpaceSufficient() { return tsDataSpace.size.avail > tsDataSpace.reser
 
 bool osTempSpaceSufficient() { return tsTempSpace.size.avail > tsTempSpace.reserved; }
 
-void osSetTimezone(const char *tz) { taosSetSystemTimezone(tz, tsTimezoneStr, &tsDaylight, &tsTimezone); }
+int32_t osSetTimezone(const char *tz) { return taosSetGlobalTimezone(tz); }
 
-void osSetSystemLocale(const char *inLocale, const char *inCharSet) {
-  memcpy(tsLocale, inLocale, strlen(inLocale) + 1);
-  memcpy(tsCharset, inCharSet, strlen(inCharSet) + 1);
+void osSetProcPath(int32_t argc, char **argv) {
+  if (argv == NULL || argc < 1) {
+    return;  // no command line arguments
+  }
+  tsProcPath = argv[0];
 }
-
-void osSetProcPath(int32_t argc, char **argv) { tsProcPath = argv[0]; }

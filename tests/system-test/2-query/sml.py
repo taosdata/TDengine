@@ -105,6 +105,10 @@ class TDTestCase:
         tdSql.query(f"select * from ts3724.`stb2.`")
         tdSql.checkRows(1)
 
+        tdSql.query(f"select * from ts5528.device_log_yuelan_cs1")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, '{"deviceId":"星宇公司-861701069493741","headers":{"_uid":"4e3599eacd62834995c77b38ad95f88d","creatorId":"1199596756811550720","deviceNmae":"861701069493741","productId":"yuelan","productName":"悦蓝cat1穿戴设备"},"messageType":"REPORT_PROPERTY","properties":{"lat":35.265527067449185,"lng":118.49713144245987,"location":"118.49713144245987,35.265527067449185"},"timestamp":1728719963230}')
+        tdSql.checkData(1, 1, '{"deviceId":"星宇公司-861701069065507","headers":{"_uid":"9045d6b78b4ffaf1e2d244e912ebbff8","creatorId":"1199596756811550720","deviceNmae":"861701069065507","productId":"yuelan","productName":"悦蓝cat1穿戴设备"},"messageType":"REPORT_PROPERTY","properties":{"lat":36.788241914043425,"lng":119.15042325460891,"location":"119.15042325460891,36.788241914043425"},"timestamp":1728719964105}')
         # tdSql.query(f"select * from td24559.stb order by _ts")
         # tdSql.checkRows(4)
         # tdSql.checkData(0, 2, "POINT (4.343000 89.342000)")

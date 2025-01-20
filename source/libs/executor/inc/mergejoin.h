@@ -357,7 +357,6 @@ typedef struct SMJoinOperatorInfo {
 
 #define MJOIN_PUSH_BLK_TO_CACHE(_cache, _blk)                                   \
   do {                                                                          \
-    ASSERT(taosArrayGetSize((_cache)->grps) <= 1);                                \
     SMJoinGrpRows* pGrp = (SMJoinGrpRows*)taosArrayReserve((_cache)->grps, 1);   \
     (_cache)->rowNum += (_blk)->info.rows;                                       \
     pGrp->blk = (_blk);                                                         \
@@ -381,7 +380,6 @@ typedef struct SMJoinOperatorInfo {
   do {                                                                          \
     SMJoinGrpRows* pGrp = taosArrayGet((_cache)->grps, 0);              \
     if (NULL != pGrp) {                                               \
-      ASSERT(pGrp->blk == (_tb)->blk);                                  \
       pGrp->beginIdx = (_tb)->blkRowIdx;                              \
       pGrp->readIdx = pGrp->beginIdx;                                       \
     }                                                                   \
@@ -432,6 +430,15 @@ typedef struct SMJoinOperatorInfo {
     }                                \
   } while (0)
 
+#define MJ_RET(c)                     \
+  do {                                \
+    int32_t _code = c;                \
+    if (_code != TSDB_CODE_SUCCESS) { \
+      terrno = _code;                 \
+    }                                 \
+    return _code;                     \
+  } while (0)
+
 
 
 void mJoinDestroyMergeCtx(SMJoinOperatorInfo* pJoin);
@@ -459,7 +466,7 @@ int32_t mJoinCreateFullBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pT
 int32_t mJoinCreateBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable);
 int32_t mJoinSetKeyColsData(SSDataBlock* pBlock, SMJoinTableCtx* pTable);
 int32_t mJoinProcessEqualGrp(SMJoinMergeCtx* pCtx, int64_t timestamp, bool lastBuildGrp);
-bool    mJoinHashGrpCart(SSDataBlock* pBlk, SMJoinGrpRows* probeGrp, bool append, SMJoinTableCtx* probe, SMJoinTableCtx* build);
+int32_t mJoinHashGrpCart(SSDataBlock* pBlk, SMJoinGrpRows* probeGrp, bool append, SMJoinTableCtx* probe, SMJoinTableCtx* build, bool* cont);
 int32_t mJoinMergeGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool append, SMJoinGrpRows* pFirst, SMJoinGrpRows* pSecond);
 int32_t mJoinHandleMidRemains(SMJoinMergeCtx* pCtx);
 int32_t mJoinNonEqGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool append, SMJoinGrpRows* pGrp, bool probeGrp);

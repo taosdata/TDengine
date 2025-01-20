@@ -1,16 +1,17 @@
-/*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+/**
+ * Copyright 2019-2020 DigitalOcean Inc.
  *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
 
 #include <stdio.h>
@@ -19,15 +20,15 @@
 #include "taos_alloc.h"
 
 // Private
-#include "taos_assert.h"
 #include "taos_collector_t.h"
 #include "taos_linked_list_t.h"
+#include "taos_log.h"
 #include "taos_map_i.h"
 #include "taos_metric_formatter_i.h"
 #include "taos_metric_sample_t.h"
 #include "taos_metric_t.h"
 #include "taos_string_builder_i.h"
-
+#include "taos_test.h"
 
 taos_metric_formatter_t *taos_metric_formatter_new() {
   taos_metric_formatter_t *self = (taos_metric_formatter_t *)taos_malloc(sizeof(taos_metric_formatter_t));
@@ -44,28 +45,21 @@ taos_metric_formatter_t *taos_metric_formatter_new() {
   return self;
 }
 
-int taos_metric_formatter_destroy(taos_metric_formatter_t *self) {
-  TAOS_ASSERT(self != NULL);
-  if (self == NULL) return 0;
+void taos_metric_formatter_destroy(taos_metric_formatter_t *self) {
+  TAOS_TEST_PARA_VOID(self != NULL);
 
-  int r = 0;
-  int ret = 0;
-
-  r = taos_string_builder_destroy(self->string_builder);
+  taos_string_builder_destroy(self->string_builder);
   self->string_builder = NULL;
-  if (r) ret = r;
 
-  r = taos_string_builder_destroy(self->err_builder);
+  taos_string_builder_destroy(self->err_builder);
   self->err_builder = NULL;
-  if (r) ret = r;
 
   taos_free(self);
   self = NULL;
-  return ret;
 }
 /*
 int taos_metric_formatter_load_help(taos_metric_formatter_t *self, const char *name, const char *help) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
 
   int r = 0;
@@ -86,7 +80,7 @@ int taos_metric_formatter_load_help(taos_metric_formatter_t *self, const char *n
 }
 
 int taos_metric_formatter_load_type(taos_metric_formatter_t *self, const char *name, taos_metric_type_t metric_type) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
 
   int r = 0;
@@ -108,7 +102,7 @@ int taos_metric_formatter_load_type(taos_metric_formatter_t *self, const char *n
 */
 int taos_metric_formatter_load_l_value(taos_metric_formatter_t *self, const char *name, const char *suffix,
                                        size_t label_count, const char **label_keys, const char **label_values) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
 
   int r = 0;
@@ -156,10 +150,25 @@ int taos_metric_formatter_load_l_value(taos_metric_formatter_t *self, const char
   }
   return 0;
 }
+int32_t taos_metric_formatter_get_vgroup_id(char *key) {
+  char *start, *end;
+  char  vgroupid[10];
+  start = strstr(key, "vgroup_id=\"");
+  if (start) {
+    start += strlen("vgroup_id=\"");
+    end = strchr(start, '\"');
+    if (end) {
+      strncpy(vgroupid, start, end - start);
+      vgroupid[end - start] = '\0';
+    }
+    return strtol(vgroupid, NULL, 10);
+  }
+  return 0;
+}
 /*
-int taos_metric_formatter_load_sample(taos_metric_formatter_t *self, taos_metric_sample_t *sample, 
+int taos_metric_formatter_load_sample(taos_metric_formatter_t *self, taos_metric_sample_t *sample,
                                       char *ts, char *format) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
 
   int r = 0;
@@ -187,12 +196,12 @@ int taos_metric_formatter_load_sample(taos_metric_formatter_t *self, taos_metric
 }
 */
 int taos_metric_formatter_clear(taos_metric_formatter_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   return taos_string_builder_clear(self->string_builder);
 }
 
 char *taos_metric_formatter_dump(taos_metric_formatter_t *self) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA_NULL(self != NULL);
   int r = 0;
   if (self == NULL) return NULL;
   char *data = taos_string_builder_dump(self->string_builder);
@@ -206,7 +215,7 @@ char *taos_metric_formatter_dump(taos_metric_formatter_t *self) {
 }
 /*
 int taos_metric_formatter_load_metric(taos_metric_formatter_t *self, taos_metric_t *metric, char *ts, char *format) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   if (self == NULL) return 1;
 
   int r = 0;
@@ -233,7 +242,7 @@ int taos_metric_formatter_load_metric(taos_metric_formatter_t *self, taos_metric
 }
 
 int taos_metric_formatter_load_metrics(taos_metric_formatter_t *self, taos_map_t *collectors, char *ts, char *format) {
-  TAOS_ASSERT(self != NULL);
+  TAOS_TEST_PARA(self != NULL);
   int r = 0;
   for (taos_linked_list_node_t *current_node = collectors->keys->head; current_node != NULL;
        current_node = current_node->next) {

@@ -1,7 +1,10 @@
-use std::time::Duration;
+use chrono::DateTime;
+use chrono::Local;
 use std::str::FromStr;
-
+use std::thread;
+use std::time::Duration;
 use taos::*;
+use tokio::runtime::Runtime;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -9,9 +12,11 @@ async fn main() -> anyhow::Result<()> {
         .filter_level(log::LevelFilter::Info)
         .init();
     use taos_query::prelude::*;
+    // ANCHOR: create_consumer_dsn
     let dsn = "taos://localhost:6030".to_string();
-    log::info!("dsn: {}", dsn);
+    println!("dsn: {}", dsn);
     let mut dsn = Dsn::from_str(&dsn)?;
+    // ANCHOR_END: create_consumer_dsn
 
     let taos = TaosBuilder::from_dsn(&dsn)?.build().await?;
 
@@ -21,18 +26,8 @@ async fn main() -> anyhow::Result<()> {
         "drop database if exists power",
         "create database if not exists power WAL_RETENTION_PERIOD 86400",
         "use power",
-
         "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (groupId INT, location BINARY(24))",
-
         "create table if not exists power.d001 using power.meters tags(1,'location')",
-
-    ])
-    .await?;
-
-    taos.exec_many([
-        "drop database if exists db2",
-        "create database if not exists db2 wal_retention_period 3600",
-        "use db2",
     ])
     .await?;
 
@@ -43,77 +38,156 @@ async fn main() -> anyhow::Result<()> {
     .await?;
     // ANCHOR_END: create_topic
 
-    // ANCHOR: create_consumer
-    dsn.params.insert("group.id".to_string(), "abc".to_string());
-    dsn.params.insert("auto.offset.reset".to_string(), "earliest".to_string());
+    // ANCHOR: create_consumer_ac
+    let group_id = "group1".to_string();
+    let client_id = "client1".to_string();
+    dsn.params
+        .insert("auto.offset.reset".to_string(), "latest".to_string());
+    dsn.params
+        .insert("msg.with.table.name".to_string(), "true".to_string());
+    dsn.params
+        .insert("enable.auto.commit".to_string(), "true".to_string());
+    dsn.params
+        .insert("auto.commit.interval.ms".to_string(), "1000".to_string());
+    dsn.params.insert("group.id".to_string(), group_id.clone());
+    dsn.params
+        .insert("client.id".to_string(), client_id.clone());
 
     let builder = TmqBuilder::from_dsn(&dsn)?;
-    let mut consumer = builder.build().await?;
-    // ANCHOR_END: create_consumer
+    let mut consumer = match builder.build().await {
+        Ok(consumer) => {
+            println!(
+                "Create consumer successfully, dsn: {}, groupId: {}, clientId: {}.",
+                dsn, group_id, client_id
+            );
+            consumer
+        }
+        Err(err) => {
+            eprintln!("Failed to create native consumer, dsn: {}, groupId: {}, clientId: {}, ErrMessage: {:?}", dsn, group_id, client_id, err);
+            return Err(err.into());
+        }
+    };
+    // ANCHOR_END: create_consumer_ac
 
-    // ANCHOR: subscribe
-    consumer.subscribe(["topic_meters"]).await?;
-    // ANCHOR_END: subscribe
+    let handle = thread::spawn(move || {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            let taos_insert = TaosBuilder::from_dsn(&dsn).unwrap().build().await.unwrap();
+            for i in 0..50 {
+                let insert_sql = format!(r#"INSERT INTO 
+                                    power.d1001 USING power.meters TAGS(2,'California.SanFrancisco')  
+                                    VALUES 
+                                    (NOW, 10.30000, {}, 0.31000)"#, i);
+                if let Err(e) = taos_insert.exec(insert_sql).await {
+                    eprintln!("Failed to execute insert: {:?}", e);
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+        });
+    });
 
     // ANCHOR: consume
-    {
-        let mut stream = consumer.stream_with_timeout(Timeout::from_secs(1));
-
-        while let Some((offset, message)) = stream.try_next().await? {
-
-            let topic: &str = offset.topic();
-            let database = offset.database();
-            let vgroup_id = offset.vgroup_id();
-            log::debug!(
-                "topic: {}, database: {}, vgroup_id: {}",
-                topic,
-                database,
-                vgroup_id
+    let topic = "topic_meters";
+    match consumer.subscribe([topic]).await {
+        Ok(_) => println!("Subscribe topics successfully."),
+        Err(err) => {
+            eprintln!(
+                "Failed to subscribe topic: {}, groupId: {}, clientId: {}, ErrMessage: {:?}",
+                topic, group_id, client_id, err
             );
-
-            match message {
-                MessageSet::Meta(meta) => {
-                    log::info!("Meta");
-                    let raw = meta.as_raw_meta().await?;
-                    taos.write_raw_meta(&raw).await?;
-
-                    let json = meta.as_json_meta().await?;
-                    let sql = json.to_string();
-                    if let Err(err) = taos.exec(sql).await {
-                        println!("maybe error: {}", err);
-                    }
-                }
-                MessageSet::Data(data) => {
-                    log::info!("Data");
-                    while let Some(data) = data.fetch_raw_block().await? {
-                        log::debug!("data: {:?}", data);
-                    }
-                }
-                MessageSet::MetaData(meta, data) => {
-                    log::info!("MetaData");
-                    let raw = meta.as_raw_meta().await?;
-                    taos.write_raw_meta(&raw).await?;
-
-                    let json = meta.as_json_meta().await?;
-                    let sql = json.to_string();
-                    if let Err(err) = taos.exec(sql).await {
-                        println!("maybe error: {}", err);
-                    }
-
-                    while let Some(data) = data.fetch_raw_block().await? {
-                        log::debug!("data: {:?}", data);
-                    }
-                }
-            }
-            consumer.commit(offset).await?;
+            return Err(err.into());
         }
     }
+
+    #[derive(Debug, serde::Deserialize)]
+    #[allow(dead_code)]
+    struct Record {
+        // deserialize timestamp to chrono::DateTime<Local>
+        ts: DateTime<Local>,
+        // float to f32
+        current: Option<f32>,
+        // int to i32
+        voltage: Option<i32>,
+        phase: Option<f32>,
+        groupid: i32,
+        // binary/varchar to String
+        location: String,
+    }
+
+    consumer
+        .stream_with_timeout(Timeout::from_secs(10))
+        .try_for_each(|(offset, message)| async move {
+            let topic = offset.topic();
+            // the vgroup id, like partition id in kafka.
+            let vgroup_id = offset.vgroup_id();
+            println!("* in vgroup id {vgroup_id} of topic {topic}\n");
+
+            if let Some(data) = message.into_data() {
+                while let Some(block) = data.fetch_raw_block().await? {
+                    let records: Vec<Record> = block.deserialize().try_collect()?;
+                    // Add your data processing logic here
+                    println!("** read {} records: {:#?}\n", records.len(), records);
+                }
+            }
+            Ok(())
+        })
+        .await
+        .map_err(|e| {
+            eprintln!(
+                "Failed to poll data, topic: {}, groupId: {}, clientId: {}, ErrMessage: {:?}",
+                topic, group_id, client_id, e
+            );
+            e
+        })?;
+
     // ANCHOR_END: consume
 
-    // ANCHOR: assignments
-    let assignments = consumer.assignments().await.unwrap();
-    log::info!("assignments: {:?}", assignments);
-    // ANCHOR_END: assignments
+    // ANCHOR: consumer_commit_manually
+    consumer
+        .stream_with_timeout(Timeout::from_secs(10))
+        .try_for_each(|(offset, message)| async {
+            // the vgroup id, like partition id in kafka.
+            let vgroup_id = offset.vgroup_id();
+            println!("* in vgroup id {} of topic {}\n", vgroup_id, topic);
+
+            if let Some(data) = message.into_data() {
+                while let Some(block) = data.fetch_raw_block().await? {
+                    let records: Vec<Record> = block.deserialize().try_collect()?;
+                    // Add your data processing logic here
+                    println!("** read {} records: {:#?}\n", records.len(), records);
+                }
+            }
+            // commit offset manually when you have processed the message.
+            match consumer.commit(offset).await{
+                Ok(_) => println!("Commit offset manually successfully."),
+                Err(err) => {
+                    eprintln!("Failed to commit offset manually, topic: {}, groupId: {}, clientId: {}, vGroupId: {}, ErrMessage: {:?}", 
+                    topic, group_id, client_id, vgroup_id, err);
+                    return Err(err.into());
+                }
+            }
+            Ok(())
+        })
+        .await.map_err(|e| {
+            eprintln!("Failed to poll data, topic: {}, groupId: {}, clientId: {}, ErrMessage: {:?}", topic, group_id, client_id, e);
+            e
+        })?;
+    // ANCHOR_END: consumer_commit_manually
+
+    // ANCHOR: seek_offset
+    let assignments = match consumer.assignments().await {
+        Some(assignments) => assignments,
+        None => {
+            let error_message = format!(
+                "Failed to get assignments. topic: {}, groupId: {}, clientId: {}",
+                topic, group_id, client_id
+            );
+            eprintln!("{}", error_message);
+            return Err(anyhow::anyhow!(error_message));
+        }
+    };
+    println!("assignments: {:?}", assignments);
 
     // seek offset
     for topic_vec_assignment in assignments {
@@ -124,43 +198,50 @@ async fn main() -> anyhow::Result<()> {
             let current = assignment.current_offset();
             let begin = assignment.begin();
             let end = assignment.end();
-            log::debug!(
-                "topic: {}, vgroup_id: {}, current offset: {} begin {}, end: {}",
-                topic,
-                vgroup_id,
-                current,
-                begin,
-                end
+            println!(
+                "topic: {}, vgroup_id: {}, current offset: {}, begin {}, end: {}",
+                topic, vgroup_id, current, begin, end
             );
-            // ANCHOR: seek_offset
-            let res = consumer.offset_seek(topic, vgroup_id, end).await;
-            if res.is_err() {
-                log::error!("seek offset error: {:?}", res);
-                let a = consumer.assignments().await.unwrap();
-                log::error!("assignments: {:?}", a);
+
+            match consumer.offset_seek(topic, vgroup_id, begin).await {
+                Ok(_) => (),
+                Err(err) => {
+                    eprintln!("Failed to seek offset, topic: {}, groupId: {}, clientId: {}, vGroupId: {}, begin: {}, ErrMessage: {:?}", 
+                    topic, group_id, client_id, vgroup_id, begin, err);
+                    return Err(err.into());
+                }
             }
-            // ANCHOR_END: seek_offset
         }
 
         let topic_assignment = consumer.topic_assignment(topic).await;
-        log::debug!("topic assignment: {:?}", topic_assignment);
+        println!("topic assignment: {:?}", topic_assignment);
     }
-
+    println!("Assignment seek to beginning successfully.");
     // after seek offset
-    let assignments = consumer.assignments().await.unwrap();
-    log::info!("after seek offset assignments: {:?}", assignments);
+    let assignments = match consumer.assignments().await {
+        Some(assignments) => assignments,
+        None => {
+            let error_message = format!(
+                "Failed to get assignments. topic: {}, groupId: {}, clientId: {}",
+                topic, group_id, client_id
+            );
+            eprintln!("{}", error_message);
+            return Err(anyhow::anyhow!(error_message));
+        }
+    };
+    println!("After seek offset assignments: {:?}", assignments);
+    // ANCHOR_END: seek_offset
 
     // ANCHOR: unsubscribe
     consumer.unsubscribe().await;
+    println!("Consumer unsubscribed successfully.");
     // ANCHOR_END: unsubscribe
 
     tokio::time::sleep(Duration::from_secs(1)).await;
 
-    taos.exec_many([
-        "drop database db2",
-        "drop topic topic_meters",
-        "drop database power",
-    ])
-    .await?;
+    handle.join().unwrap();
+
+    taos.exec_many(["drop topic topic_meters", "drop database power"])
+        .await?;
     Ok(())
 }

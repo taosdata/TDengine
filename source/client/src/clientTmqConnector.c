@@ -41,7 +41,7 @@ void tmqGlobalMethod(JNIEnv *env) {
   }
 
   if (g_vm == NULL) {
-    (*env)->GetJavaVM(env, &g_vm);
+    (void)((*env)->GetJavaVM(env, &g_vm));
   }
 
   jclass offset = (*env)->FindClass(env, "com/taosdata/jdbc/tmq/OffsetWaitCallback");
@@ -68,7 +68,7 @@ void tmqAssignmentMethod(JNIEnv *env) {
   }
 
   if (g_vm == NULL) {
-    (*env)->GetJavaVM(env, &g_vm);
+    (void)((*env)->GetJavaVM(env, &g_vm));
   }
 
   jclass assignment = (*env)->FindClass(env, "com/taosdata/jdbc/tmq/Assignment");
@@ -104,7 +104,7 @@ void commit_cb(tmq_t *tmq, int32_t code, void *param) {
   param = NULL;
 
   if (needDetach) {
-    (*g_vm)->DetachCurrentThread(g_vm);
+    (void)((*g_vm)->DetachCurrentThread(g_vm));
   }
   env = NULL;
 }
@@ -126,7 +126,7 @@ void consumer_callback(tmq_t *tmq, int32_t code, void *param) {
   param = NULL;
 
   if (needDetach) {
-    (*g_vm)->DetachCurrentThread(g_vm);
+    (void)((*g_vm)->DetachCurrentThread(g_vm));
   }
   env = NULL;
 }
@@ -493,7 +493,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_fetchRawBlockImp(
     (*env)->SetIntField(env, metadataObj, g_metadataColindexField, i);
     jstring metadataObjColname = (*env)->NewStringUTF(env, fields[i].name);
     (*env)->SetObjectField(env, metadataObj, g_metadataColnameField, metadataObjColname);
-    (*env)->CallBooleanMethod(env, arrayListObj, g_arrayListAddFp, metadataObj);
+    (void)(*env)->CallBooleanMethod(env, arrayListObj, g_arrayListAddFp, metadataObj);
   }
 
   (*env)->CallVoidMethod(env, rowobj, g_blockdataSetNumOfRowsFp, (jint)numOfRows);
@@ -567,7 +567,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetTopicAssign
     (*env)->CallVoidMethod(env, jassignment, g_assignmentSetCurrentOffset, assignment.currentOffset);
     (*env)->CallVoidMethod(env, jassignment, g_assignmentSetBegin, assignment.begin);
     (*env)->CallVoidMethod(env, jassignment, g_assignmentSetEnd, assignment.end);
-    (*env)->CallBooleanMethod(env, jarrayList, g_arrayListAddFp, jassignment);
+    (void)(*env)->CallBooleanMethod(env, jarrayList, g_arrayListAddFp, jassignment);
   }
   tmq_free_assignment(pAssign);
   return JNI_SUCCESS;

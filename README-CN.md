@@ -1,6 +1,5 @@
-<p>
 <p align="center">
-  <a href="https://tdengine.com" target="_blank">
+  <a href="https://www.taosdata.com" target="_blank">
   <img
     src="docs/assets/tdengine.svg"
     alt="TDengine"
@@ -8,14 +7,8 @@
   />
   </a>
 </p>
-<p>
 
-[![Build Status](https://travis-ci.org/taosdata/TDengine.svg?branch=master)](https://travis-ci.org/taosdata/TDengine)
-[![Build status](https://ci.appveyor.com/api/projects/status/kf3pwh2or5afsgl9/branch/master?svg=true)](https://ci.appveyor.com/project/sangshuduo/tdengine-2n8ge/branch/master)
-[![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=3.0)](https://coveralls.io/github/taosdata/TDengine?branch=3.0)
-[![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
-
-简体中文 | [English](README.md) | [TDengine 云服务](https://cloud.taosdata.com/?utm_medium=cn&utm_source=github) | 很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
+简体中文 | [English](README.md) | [TDengine 云服务](https://cloud.taosdata.com/?utm_medium=cn&utm_source=github) | 很多职位正在热招中，请看[这里](https://www.taosdata.com/careers/)
 
 # TDengine 简介
 
@@ -337,18 +330,18 @@ Query OK, 2 row(s) in set (0.001700s)
 
 TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java、Python、Go、Node.js、C# 、RESTful 等，便于用户快速开发应用：
 
-- [Java](https://docs.taosdata.com/connector/java/)
-- [C/C++](https://docs.taosdata.com/connector/cpp/)
-- [Python](https://docs.taosdata.com/connector/python/)
-- [Go](https://docs.taosdata.com/connector/go/)
-- [Node.js](https://docs.taosdata.com/connector/node/)
-- [Rust](https://docs.taosdata.com/connector/rust/)
-- [C#](https://docs.taosdata.com/connector/csharp/)
-- [RESTful API](https://docs.taosdata.com/connector/rest-api/)
+- [Java](https://docs.taosdata.com/reference/connector/java/)
+- [C/C++](https://docs.taosdata.com/reference/connector/cpp/)
+- [Python](https://docs.taosdata.com/reference/connector/python/)
+- [Go](https://docs.taosdata.com/reference/connector/go/)
+- [Node.js](https://docs.taosdata.com/reference/connector/node/)
+- [Rust](https://docs.taosdata.com/reference/connector/rust/)
+- [C#](https://docs.taosdata.com/reference/connector/csharp/)
+- [RESTful API](https://docs.taosdata.com/reference/connector/rest-api/)
 
 # 成为社区贡献者
 
-点击 [这里](https://www.taosdata.com/cn/contributor/)，了解如何成为 TDengine 的贡献者。
+点击 [这里](https://www.taosdata.com/contributor)，了解如何成为 TDengine 的贡献者。
 
 # 加入技术交流群
 

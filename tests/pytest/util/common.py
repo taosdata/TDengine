@@ -28,8 +28,9 @@ from util.common import *
 from util.constant import *
 from dataclasses import dataclass,field
 from typing import List
-from datetime import datetime
+from datetime import datetime, timedelta
 import re
+
 @dataclass
 class DataSet:
     ts_data     : List[int]     = field(default_factory=list)
@@ -169,6 +170,8 @@ class TDCom:
         self.fill_tb_source_select_str = ','.join(self.fill_function_list[0:13])
         self.ext_tb_source_select_str = ','.join(self.downsampling_function_list[0:13])
         self.stream_case_when_tbname = "tbname"
+        self.tag_value_str = ""
+        self.tag_value_list = []
 
         self.update = True
         self.disorder = True
@@ -201,6 +204,9 @@ class TDCom:
         self.cast_tag_stb_filter_des_select_elm = "ts, t1, t2, t3, t4, cast(t1 as TINYINT UNSIGNED), t6, t7, t8, t9, t10, cast(t2 as varchar(256)), t12, cast(t3 as bool)"
         self.tag_count = len(self.tag_filter_des_select_elm.split(","))
         self.state_window_range = list()
+        
+        self.custom_col_val = 0
+        self.part_val_list = [1, 2]
     # def init(self, conn, logSql):
     #     # tdSql.init(conn.cursor(), logSql)
 
@@ -534,21 +540,34 @@ class TDCom:
         tdLog.info("cfgPath: %s" % cfgPath)
         return cfgPath
 
-    def newcon(self,host='localhost',port=6030,user='root',password='taosdata'):
-        con=taos.connect(host=host, user=user, password=password, port=port)
+    def newcon(self,host='localhost',port=6030,user='root',password='taosdata', database=None):
+        con=taos.connect(host=host, user=user, password=password, port=port, database=database)
         # print(con)
         return con
 
-    def newcur(self,host='localhost',port=6030,user='root',password='taosdata'):
+    def newcur(self,host='localhost',port=6030,user='root',password='taosdata',database=None):
         cfgPath = self.getClientCfgPath()
-        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port)
+        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port,database=database)
         cur=con.cursor()
         # print(cur)
         return cur
 
-    def newTdSql(self, host='localhost',port=6030,user='root',password='taosdata'):
+    def newTdSql(self, host='localhost',port=6030,user='root',password='taosdata', database = None):
         newTdSql = TDSql()
-        cur = self.newcur(host=host,port=port,user=user,password=password)
+        cur = self.newcur(host=host,port=port,user=user,password=password, database=database)
+        newTdSql.init(cur, False)
+        return newTdSql
+    
+    def newcurWithTimezone(self,  timezone, host='localhost', port=6030,  user='root', password='taosdata'):
+        cfgPath = self.getClientCfgPath()
+        con=taos.connect(host=host, user=user, password=password, config=cfgPath, port=port, timezone=timezone)
+        cur=con.cursor()
+        # print(cur)
+        return cur
+
+    def newTdSqlWithTimezone(self, timezone, host='localhost',port=6030,user='root',password='taosdata'):
+        newTdSql = TDSql()
+        cur = self.newcurWithTimezone(host=host,port=port,user=user,password=password, timezone=timezone)
         newTdSql.init(cur, False)
         return newTdSql
 
@@ -737,10 +756,10 @@ class TDCom:
         if len(kwargs) > 0:
             for param, value in kwargs.items():
                 ctb_params += f'{param} "{value}" '
-        tag_value_list = self.gen_tag_value_list(tag_elm_list)
+        self.tag_value_list = self.gen_tag_value_list(tag_elm_list)
         tag_value_str = ""
         # tag_value_str = ", ".join(str(v) for v in self.tag_value_list)
-        for tag_value in tag_value_list:
+        for tag_value in self.tag_value_list:
             if isinstance(tag_value, str):
                 tag_value_str += f'"{tag_value}", '
             else:
@@ -896,12 +915,13 @@ class TDCom:
             else:
                 stream_options += f" ignore update 0"
             if not use_except:
-                tdSql.execute(f'create stream if not exists {stream_name} trigger at_once {stream_options} {fill_history} into {des_table} {subtable} as {source_sql} {fill};')
+                tdSql.execute(f'create stream if not exists {stream_name} trigger at_once {stream_options} {fill_history} into {des_table} {subtable} as {source_sql} {fill};',queryTimes=3)
                 time.sleep(self.create_stream_sleep)
                 return None
             else:
                 return f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table} {subtable} as {source_sql} {fill};'
         else:
+            
             if watermark is None:
                 if trigger_mode == "max_delay":
                     stream_options = f'trigger {trigger_mode} {max_delay}'
@@ -921,12 +941,14 @@ class TDCom:
                 stream_options += f" ignore update {ignore_update}"
             else:
                 stream_options += f" ignore update 0"
+
             if not use_except:
-                tdSql.execute(f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};')
+                tdSql.execute(f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};',queryTimes=3)
                 time.sleep(self.create_stream_sleep)
                 return None
             else:
                 return f'create stream if not exists {stream_name} {stream_options} {fill_history} into {des_table}{stb_field_name} {tags} {subtable} as {source_sql} {fill};'
+        
 
     def pause_stream(self, stream_name, if_exist=True, if_not_exist=False):
         """pause_stream
@@ -961,6 +983,158 @@ class TDCom:
         stream_name_list = list(map(lambda x: x[0], tdSql.queryResult))
         for stream_name in stream_name_list:
             tdSql.execute(f'drop stream if exists {stream_name};')
+
+
+    def check_stream_wal_info(self, wal_info):
+        # This method is defined for the 'info' column of the 'information_schema.ins_stream_tasks'.
+        # Define the regular expression pattern to match the required format
+        # This pattern looks for a number followed by an optional space and then a pair of square brackets
+        # containing two numbers separated by a comma.
+        pattern = r'(\d+)\s*\[(\d+),\s*(\d+)\]'
+        
+        # Use the search function from the re module to find a match in the string
+        match = re.search(pattern, wal_info)
+        
+        # Check if a match was found
+        if match:
+            # Extract the numbers from the matching groups
+            first_number = int(match.group(1))  # The number before the brackets
+            second_number = int(match.group(3))  # The second number inside the brackets
+
+            # Compare the extracted numbers and return the result
+            if second_number >=5 :
+                if first_number >= second_number-5 and first_number <= second_number:
+                    return True
+            elif second_number < 5:
+                if first_number >= second_number-1 and first_number <= second_number:
+                    return True
+
+        # If no match was found, or the pattern does not match the expected format, return False
+        return False
+    
+    def check_stream_task_status(self, stream_name, vgroups, stream_timeout=0, check_wal_info=True):
+        """check stream status
+
+        Args:
+            stream_name (str): stream_name
+            vgroups (int): vgroups
+        Returns:
+            str: status
+        """
+        timeout = self.stream_timeout if stream_timeout is None else stream_timeout
+
+        #check stream task rows
+        sql_task_all = f"select `task_id`,node_id,stream_name,status,info,history_task_id from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';" 
+        sql_task_status = f"select distinct(status) from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';"
+        sql_task_history = f"select distinct(history_task_id) from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';"
+        tdSql.query(sql_task_all)
+        tdSql.checkRows(vgroups)
+                
+        #check stream task status
+        checktimes = 1
+        check_stream_success = 0
+        vgroup_num = 0
+        while checktimes <= timeout:
+            tdLog.notice(f"checktimes:{checktimes}")
+            try:
+                result_task_alll = tdSql.query(sql_task_all,row_tag=True)
+                result_task_alll_rows = tdSql.query(sql_task_all)
+                result_task_status = tdSql.query(sql_task_status,row_tag=True)
+                result_task_status_rows = tdSql.query(sql_task_status)
+                result_task_history = tdSql.query(sql_task_history,row_tag=True)
+                result_task_history_rows = tdSql.query(sql_task_history)
+                
+                tdLog.notice(f"Try to check stream status, check times: {checktimes} and stream task list[{check_stream_success}]")
+                print(f"result_task_status:{result_task_status},result_task_history:{result_task_history},result_task_alll:{result_task_alll}")
+                if result_task_status_rows == 1 and result_task_status ==[('ready',)] :
+                    if result_task_history_rows == 1 and  result_task_history == [(None,)] :
+                        if check_wal_info:
+                            for vgroup_num in range(vgroups):
+                                if self.check_stream_wal_info(result_task_alll[vgroup_num][4]) :
+                                    check_stream_success += 1
+                                    tdLog.info(f"check stream task list[{check_stream_success}] sucessfully :")
+                                else:
+                                    check_stream_success = 0
+                                    break
+                        else:
+                            check_stream_success = vgroups
+                            
+                if check_stream_success == vgroups:
+                    break
+                time.sleep(1) 
+                checktimes += 1 
+                vgroup_num = vgroup_num
+            except Exception as e:
+                tdLog.notice(f"Try to check stream status again, check times: {checktimes}")
+                checktimes += 1 
+                tdSql.print_error_frame_info(result_task_alll[vgroup_num],"status is ready,info is finished and history_task_id is NULL",sql_task_all)
+        else:
+            checktimes_end = checktimes - 1
+            tdLog.notice(f"it has spend {checktimes_end} for checking stream task status but it failed")
+            if checktimes_end == timeout:
+                tdSql.print_error_frame_info(result_task_alll[vgroup_num],"status is ready,info is finished and history_task_id is NULL",sql_task_all)
+                
+    # def check_stream_task_status(self, stream_name, vgroups, stream_timeout=None):
+    #     """check stream status
+
+    #     Args:
+    #         stream_name (str): stream_name
+    #         vgroups (int): vgroups
+    #     Returns:
+    #         str: status
+    #     """
+    #     timeout = self.stream_timeout if stream_timeout is None else stream_timeout
+
+    #     #check stream task rows
+    #     sql_task_all = f"select `task_id`,node_id,stream_name,status,info,history_task_id from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';" 
+    #     sql_task_status = f"select distinct(status) from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';"
+    #     sql_task_history = f"select distinct(history_task_id) from information_schema.ins_stream_tasks where stream_name='{stream_name}' and `level`='source';"
+    #     tdSql.query(sql_task_all)
+    #     tdSql.checkRows(vgroups)
+                
+    #     #check stream task status
+    #     checktimes = 1
+    #     check_stream_success = 0
+    #     vgroup_num = 0
+    #     while checktimes <= timeout:
+    #         print(f"checktimes:{checktimes}")
+    #         try:
+    #             result_task_alll = tdSql.query(sql_task_all,row_tag=True)
+    #             result_task_alll_rows = tdSql.query(sql_task_all)
+    #             result_task_status = tdSql.query(sql_task_status,row_tag=True)
+    #             result_task_status_rows = tdSql.query(sql_task_status)
+    #             result_task_history = tdSql.query(sql_task_history,row_tag=True)
+    #             result_task_history_rows = tdSql.query(sql_task_history)
+                
+    #             tdLog.notice(f"Try to check stream status, check times: {checktimes} and stream task list[{check_stream_success}]")
+    #             print(f"result_task_status:{result_task_status},result_task_history:{result_task_history},result_task_alll:{result_task_alll}")
+    #             for vgroup_num in range(vgroups):
+    #                 if result_task_alll[vgroup_num][3] == "ready" and self.check_stream_wal_info(result_task_alll[vgroup_num][4]) and result_task_alll[vgroup_num][5] == None:
+    #                     check_stream_success += 1
+    #                     tdLog.info(f"check stream task list[{check_stream_success}] sucessfully :")
+    #                 else:
+    #                     check_stream_success = 0
+    #                     break
+                            
+    #             if check_stream_success == vgroups:
+    #                 break
+    #             time.sleep(1) 
+    #             checktimes += 1 
+    #             vgroup_num = vgroup_num
+    #         except Exception as e:
+    #             tdLog.notice(f"Try to check stream status again, check times: {checktimes}")
+    #             checktimes += 1 
+    #             tdSql.print_error_frame_info(result_task_alll[vgroup_num],"status is ready,info is finished and history_task_id is NULL",sql_task_all)
+                
+    #     else:
+    #         checktimes_end = checktimes - 1
+    #         tdLog.notice(f"it has spend {checktimes_end} for checking stream task status but it failed")
+    #         if checktimes_end == timeout:
+    #             tdSql.print_error_frame_info(result_task_alll[vgroup_num],"status is ready,info is finished and history_task_id is NULL",sql_task_all)
+                
+                
+        
+        
 
     def drop_db(self, dbname="test"):
         """drop a db
@@ -1259,7 +1433,7 @@ class TDCom:
                 default_ctbname_index_start_num += 1
                 tdSql.execute(create_stable_sql)
 
-    def sgen_column_value_list(self, column_elm_list, need_null, ts_value=None):
+    def sgen_column_value_list(self, column_elm_list, need_null, ts_value=None, additional_ts=None, custom_col_index=None, col_value_type=None, force_pk_val=None):
         """_summary_
 
         Args:
@@ -1269,6 +1443,8 @@ class TDCom:
         """
         self.column_value_list = list()
         self.ts_value = self.genTs()[0]
+        if additional_ts is not None:
+            self.additional_ts = self.genTs(additional_ts=additional_ts)[2]
         if ts_value is not None:
             self.ts_value = ts_value
 
@@ -1292,7 +1468,22 @@ class TDCom:
             for i in range(int(len(self.column_value_list)/2)):
                 index_num = random.randint(0, len(self.column_value_list)-1)
                 self.column_value_list[index_num] = None
-        self.column_value_list = [self.ts_value] + self.column_value_list
+
+        if custom_col_index is not None:
+            if col_value_type == "Random":
+                pass
+            elif col_value_type == "Incremental":
+                self.column_value_list[custom_col_index] = self.custom_col_val
+                self.custom_col_val += 1
+            elif col_value_type == "Part_equal":
+                self.column_value_list[custom_col_index] = random.choice(self.part_val_list)
+
+        self.column_value_list = [self.ts_value] + [self.additional_ts] + self.column_value_list if additional_ts is not None else [self.ts_value] + self.column_value_list
+        if col_value_type == "Incremental" and custom_col_index==1:
+            self.column_value_list[custom_col_index] = self.custom_col_val if force_pk_val is None else force_pk_val
+        if col_value_type == "Part_equal" and custom_col_index==1:
+            self.column_value_list[custom_col_index] = random.randint(0, self.custom_col_val) if force_pk_val is None else force_pk_val
+
 
     def screate_table(self, dbname=None, tbname="tb", use_name="table", column_elm_list=None,
                     count=1, default_tbname_prefix="tb", default_tbname_index_start_num=1,
@@ -1333,7 +1524,7 @@ class TDCom:
                 default_tbname_index_start_num += 1
                 tdSql.execute(create_table_sql)
 
-    def sinsert_rows(self, dbname=None, tbname=None, column_ele_list=None, ts_value=None, count=1, need_null=False):
+    def sinsert_rows(self, dbname=None, tbname=None, column_ele_list=None, ts_value=None, count=1, need_null=False, custom_col_index=None, col_value_type="random"):
         """insert rows
 
         Args:
@@ -1353,7 +1544,7 @@ class TDCom:
             if tbname is not None:
                 self.tbname = tbname
 
-        self.sgen_column_value_list(column_ele_list, need_null, ts_value)
+        self.sgen_column_value_list(column_ele_list, need_null, ts_value, custom_col_index=custom_col_index, col_value_type=col_value_type)
         # column_value_str = ", ".join(str(v) for v in self.column_value_list)
         column_value_str = ""
         for column_value in self.column_value_list:
@@ -1370,7 +1561,7 @@ class TDCom:
         else:
             for num in range(count):
                 ts_value = self.genTs()[0]
-                self.sgen_column_value_list(column_ele_list, need_null, f'{ts_value}+{num}s')
+                self.sgen_column_value_list(column_ele_list, need_null, f'{ts_value}+{num}s', custom_col_index=custom_col_index, col_value_type=col_value_type)
                 column_value_str = ""
                 for column_value in self.column_value_list:
                     if column_value is None:
@@ -1578,6 +1769,7 @@ class TDCom:
             bool: False if failed
         """
         tdLog.info("checking query data ...")
+        tdLog.info(f"sq1:{sql1}; sql2:{sql2};")
         if tag_value_list:
             dvalue = len(self.tag_type_str.split(',')) - defined_tag_count
         tdSql.query(sql1)
@@ -1613,7 +1805,7 @@ class TDCom:
             res2 = self.round_handle(res2)
         if not reverse_check:
             while res1 != res2:
-                tdLog.info("query retrying ...")
+                # tdLog.info("query retrying ...")
                 new_list = list()
                 tdSql.query(sql1)
                 res1 = tdSql.queryResult
@@ -1777,7 +1969,22 @@ class TDCom:
             self.sdelete_rows(tbname=self.ctb_name, start_ts=self.time_cast(self.record_history_ts, "-"))
             self.sdelete_rows(tbname=self.tb_name, start_ts=self.time_cast(self.record_history_ts, "-"))
 
-    def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, range_count=None, precision="ms", fill_history_value=0, ext_stb=None):
+    def get_timestamp_n_days_later(self, n=30):
+        """
+        Get the timestamp of a date n days later from the current date.
+
+        Args:
+            n (int): Number of days to add to the current date. Default is 30.
+
+        Returns:
+            int: Timestamp of the date n days later, in milliseconds.
+        """
+        now = datetime.now()
+        thirty_days_later = now + timedelta(days=n)
+        timestamp_thirty_days_later = thirty_days_later.timestamp()
+        return int(timestamp_thirty_days_later*1000)
+
+    def prepare_data(self, interval=None, watermark=None, session=None, state_window=None, state_window_max=127, interation=3, range_count=None, precision="ms", fill_history_value=0, ext_stb=None, custom_col_index=None, col_value_type="random"):
         """prepare stream data
 
         Args:
@@ -1807,7 +2014,7 @@ class TDCom:
             "state_window_max": state_window_max,
             "iteration": interation,
             "range_count": range_count,
-            "start_ts": 1655903478508,
+            "start_ts": self.get_timestamp_n_days_later(),
         }
         if range_count is not None:
             self.range_count = range_count
@@ -1840,8 +2047,8 @@ class TDCom:
         if fill_history_value == 1:
             for i in range(self.range_count):
                 ts_value = str(self.date_time)+f'-{self.default_interval*(i+1)}s'
-                self.sinsert_rows(tbname=self.ctb_name, ts_value=ts_value)
-                self.sinsert_rows(tbname=self.tb_name, ts_value=ts_value)
+                self.sinsert_rows(tbname=self.ctb_name, ts_value=ts_value, custom_col_index=custom_col_index, col_value_type=col_value_type)
+                self.sinsert_rows(tbname=self.tb_name, ts_value=ts_value, custom_col_index=custom_col_index, col_value_type=col_value_type)
                 if i == 1:
                     self.record_history_ts = ts_value
 
@@ -1860,7 +2067,21 @@ class TDCom:
             if latency < self.stream_timeout:
                 latency += 1
                 time.sleep(1)
+            else:
+                return False
         return tbname
+
+    def get_group_id_from_stb(self, stbname):
+        tdSql.query(f'select distinct group_id from {stbname}')
+        cnt = 0
+        while len(tdSql.queryResult) == 0:
+            tdSql.query(f'select distinct group_id from {stbname}')
+            if cnt < self.default_interval:
+                cnt += 1
+                time.sleep(1)
+            else:
+                return False
+        return tdSql.queryResult[0][0]
 
     def update_json_file_replica(self, json_file_path, new_replica_value, output_file_path=None):
         """

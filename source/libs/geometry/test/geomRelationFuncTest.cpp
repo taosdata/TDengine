@@ -154,7 +154,7 @@ void geomRelationFuncTest(FScalarExecProcess geomRelationFunc, int8_t expectedRe
   callGeomRelationFuncAndCompareResult(geomRelationFunc, pInput, rowNum, TSDB_CODE_FUNC_FUNTION_PARA_VALUE, 0);
 }
 
-TEST(GeomRelationFuncTest, intersectsFunction) {
+void geomRelationFuncTestIntersectsFunction() {
   // 1: true, 0: false, -1: null
   int8_t expectedResults[6][6] = {
     {1, 0, 1, 1, 1, 1},   // two columns
@@ -168,7 +168,7 @@ TEST(GeomRelationFuncTest, intersectsFunction) {
   geomRelationFuncTest(intersectsFunction, expectedResults);
 }
 
-TEST(GeomRelationFuncTest, equalsFunction) {
+void geomRelationFuncTestEqualsFunction() {
   // 1: true, 0: false, -1: null
   int8_t expectedResults[6][6] = {
     {1, 0, 0, 0, 0, 0},   // two columns
@@ -182,7 +182,7 @@ TEST(GeomRelationFuncTest, equalsFunction) {
   geomRelationFuncTest(equalsFunction, expectedResults);
 }
 
-TEST(GeomRelationFuncTest, touchesFunction) {
+void geomRelationFuncTestTouchesFunction() {
   // 1: true, 0: false, -1: null
   int8_t expectedResults[6][6] = {
     {0, 0, 1, 0, 0, 1},   // two columns
@@ -196,7 +196,7 @@ TEST(GeomRelationFuncTest, touchesFunction) {
   geomRelationFuncTest(touchesFunction, expectedResults);
 }
 
-TEST(GeomRelationFuncTest, coversFunction) {
+void geomRelationFuncTestCoversFunction() {
   // 1: true, 0: false, -1: null
   int8_t expectedResults[6][6] = {
     {1, 0, 0, 0, 0, 0},   // two columns
@@ -210,7 +210,7 @@ TEST(GeomRelationFuncTest, coversFunction) {
   geomRelationFuncTest(coversFunction, expectedResults);
 }
 
-TEST(GeomRelationFuncTest, containsFunction) {
+void geomRelationFuncTestContainsFunction() {
   // 1: true, 0: false, -1: null
   int8_t expectedResults[6][6] = {
     {1, 0, 0, 0, 0, 0},   // two columns
@@ -224,7 +224,7 @@ TEST(GeomRelationFuncTest, containsFunction) {
   geomRelationFuncTest(containsFunction, expectedResults);
 }
 
-TEST(GeomRelationFuncTest, containsProperlyFunction) {
+void geomRelationFuncTestContainsProperlyFunction() {
   // 1: true, 0: false, -1: null
   int8_t expectedResults[6][6] = {
     {1, 0, 0, 0, 0, 0},   // two columns
@@ -236,4 +236,29 @@ TEST(GeomRelationFuncTest, containsProperlyFunction) {
   };
 
   geomRelationFuncTest(containsProperlyFunction, expectedResults);
+}
+
+static void geomRelationFuncTestImpl() {
+  geomRelationFuncTestIntersectsFunction();
+  geomRelationFuncTestEqualsFunction();
+  geomRelationFuncTestTouchesFunction();
+  geomRelationFuncTestCoversFunction();
+  geomRelationFuncTestContainsFunction();
+  geomRelationFuncTestContainsProperlyFunction();
+}
+
+static void *geomRelationFuncTestFunc(void *arg) {
+  geomRelationFuncTestImpl();
+  return nullptr;
+}
+
+static void geomRelationFuncTestInThread() {
+  TdThread thread;
+  ASSERT_EQ(taosThreadCreate(&thread, nullptr, geomRelationFuncTestFunc, NULL), 0);
+  ASSERT_EQ(taosThreadJoin(thread, nullptr), 0);
+}
+
+TEST(threadGeomRelationFuncTest, threadGeomRelationFuncTest) {
+  geomRelationFuncTestImpl();
+  geomRelationFuncTestInThread();
 }

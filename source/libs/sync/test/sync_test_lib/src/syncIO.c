@@ -193,7 +193,7 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
     io->clientRpc = rpcOpen(&rpcInit);
     if (io->clientRpc == NULL) {
       sError("failed to initialize RPC");
-      return -1;
+      return terrno;
     }
   }
 
@@ -214,7 +214,7 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
     void *pRpc = rpcOpen(&rpcInit);
     if (pRpc == NULL) {
       sError("failed to start RPC server");
-      return -1;
+      return terrno;
     }
   }
 
@@ -520,13 +520,14 @@ void syncUtilU642Addr(uint64_t u64, char *host, int64_t len, uint16_t *port) {
   uint32_t hostU32 = (uint32_t)((u64 >> 32) & 0x00000000FFFFFFFF);
 
   struct in_addr addr = {.s_addr = hostU32};
-  taosInetNtoa(addr, host, len);
+  taosInetNtop(addr, host, len);
   *port = (uint16_t)((u64 & 0x00000000FFFF0000) >> 16);
 }
 
 uint64_t syncUtilAddr2U64(const char *host, uint16_t port) {
-  uint32_t hostU32 = taosGetIpv4FromFqdn(host);
-  if (hostU32 == (uint32_t)-1) {
+  uint32_t hostU32 = 0;
+  int32_t code = taosGetIpv4FromFqdn(host, &hostU32);
+  if (code) {
     sError("failed to resolve ipv4 addr, host:%s", host);
     terrno = TSDB_CODE_TSC_INVALID_FQDN;
     return -1;

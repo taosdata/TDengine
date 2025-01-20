@@ -74,12 +74,12 @@ typedef struct SSyncSnapshotSender {
   int32_t    replicaIndex;
 } SSyncSnapshotSender;
 
-SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaIndex);
-void                 snapshotSenderDestroy(SSyncSnapshotSender *pSender);
-bool                 snapshotSenderIsStart(SSyncSnapshotSender *pSender);
-int32_t              snapshotSenderStart(SSyncSnapshotSender *pSender);
-void                 snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish);
-int32_t              snapshotReSend(SSyncSnapshotSender *pSender);
+int32_t snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaIndex, SSyncSnapshotSender **ppSender);
+void    snapshotSenderDestroy(SSyncSnapshotSender *pSender);
+bool    snapshotSenderIsStart(SSyncSnapshotSender *pSender);
+int32_t snapshotSenderStart(SSyncSnapshotSender *pSender);
+void    snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish);
+int32_t snapshotReSend(SSyncSnapshotSender *pSender);
 
 typedef struct SSyncSnapshotReceiver {
   // update when prep snapshot
@@ -91,6 +91,7 @@ typedef struct SSyncSnapshotReceiver {
 
   // update when begin
   void          *pWriter;
+  TdThreadMutex  writerMutex;
   SSnapshotParam snapshotParam;
   SSnapshot      snapshot;
 
@@ -101,11 +102,11 @@ typedef struct SSyncSnapshotReceiver {
   SSyncNode *pSyncNode;
 } SSyncSnapshotReceiver;
 
-SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId fromId);
-void                   snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver);
-void                   snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg);
-void                   snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);
-bool                   snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver);
+int32_t snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId fromId, SSyncSnapshotReceiver **ppReceiver);
+void    snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver);
+void    snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg);
+void    snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);
+bool    snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver);
 
 // on message
 // int32_t syncNodeOnSnapshot(SSyncNode *ths, const SRpcMsg *pMsg);

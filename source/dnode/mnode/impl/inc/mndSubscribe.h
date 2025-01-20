@@ -26,11 +26,8 @@ int32_t mndInitSubscribe(SMnode *pMnode);
 void    mndCleanupSubscribe(SMnode *pMnode);
 
 int32_t          mndGetGroupNumByTopic(SMnode *pMnode, const char *topicName);
-SMqSubscribeObj *mndAcquireSubscribe(SMnode *pMnode, const char *CGroup, const char *topicName);
-SMqSubscribeObj *mndAcquireSubscribeByKey(SMnode *pMnode, const char *key);
+int32_t          mndAcquireSubscribeByKey(SMnode *pMnode, const char *key, SMqSubscribeObj** pSub);
 void             mndReleaseSubscribe(SMnode *pMnode, SMqSubscribeObj *pSub);
-
-void    mndMakeSubscribeKey(char *key, const char *cgroup, const char *topicName);
 
 int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topic);
 int32_t mndSetDropSubCommitLogs(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj *pSub);

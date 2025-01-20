@@ -40,7 +40,7 @@ sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 30240m,30240m,30240m then
+if $data27 != 21d,21d,21d then
  return -1
 endi
 sql alter database $db keep 11,12
@@ -48,7 +48,7 @@ sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 15840m,17280m,17280m then
+if $data27 != 11d,12d,12d then
  return -1
 endi
 sql alter database $db keep 20,20,20
@@ -56,7 +56,7 @@ sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 28800m,28800m,28800m then
+if $data27 != 20d,20d,20d then
  return -1
 endi
 sql alter database $db keep 10,10,10
@@ -64,7 +64,7 @@ sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 14400m,14400m,14400m then
+if $data27 != 10d,10d,10d then
  return -1
 endi
 sql alter database $db keep 10,10,11
@@ -72,7 +72,7 @@ sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 14400m,14400m,15840m then
+if $data27 != 10d,10d,11d then
  return -1
 endi
 sql alter database $db keep 11,12,13
@@ -80,7 +80,7 @@ sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 15840m,17280m,18720m then
+if $data27 != 11d,12d,13d then
  return -1
 endi
 sql alter database $db keep 365000,365000,365000
@@ -88,7 +88,7 @@ sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
-if $data27 != 525600000m,525600000m,525600000m then
+if $data27 != 365000d,365000d,365000d then
  return -1
 endi
 

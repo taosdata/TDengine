@@ -17,13 +17,13 @@
 #define _TD_COMMON_MSG_CB_H_
 
 #include "os.h"
+#include "tmsg.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct SRpcMsg        SRpcMsg;
-typedef struct SEpSet         SEpSet;
 typedef struct SMgmtWrapper   SMgmtWrapper;
 typedef struct SRpcHandleInfo SRpcHandleInfo;
 
@@ -46,8 +46,8 @@ typedef int32_t (*PutToQueueFp)(void* pMgmt, EQueueType qtype, SRpcMsg* pMsg);
 typedef int32_t (*GetQueueSizeFp)(void* pMgmt, int32_t vgId, EQueueType qtype);
 typedef int32_t (*SendReqFp)(const SEpSet* pEpSet, SRpcMsg* pMsg);
 typedef void (*SendRspFp)(SRpcMsg* pMsg);
-typedef void (*RegisterBrokenLinkArgFp)(SRpcMsg* pMsg);
-typedef void (*ReleaseHandleFp)(SRpcHandleInfo* pHandle, int8_t type);
+typedef void (*RegisterBrokenLinkArgFp)(struct SRpcMsg* pMsg);
+typedef void (*ReleaseHandleFp)(SRpcHandleInfo* pHandle, int8_t type, int32_t status);
 typedef void (*ReportStartup)(const char* name, const char* desc);
 
 typedef struct {
@@ -76,7 +76,7 @@ int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg);
 int32_t tmsgSendSyncReq(const SEpSet* epSet, SRpcMsg* pMsg);
 void    tmsgSendRsp(SRpcMsg* pMsg);
 void    tmsgRegisterBrokenLinkArg(SRpcMsg* pMsg);
-void    tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type);
+void    tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type, int32_t code);
 void    tmsgReportStartup(const char* name, const char* desc);
 bool    tmsgUpdateDnodeInfo(int32_t* dnodeId, int64_t* clusterId, char* fqdn, uint16_t* port);
 void    tmsgUpdateDnodeEpSet(SEpSet* epset);

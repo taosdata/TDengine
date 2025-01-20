@@ -1,9 +1,9 @@
 
-# xz 
+# xz
 
 if (${TD_LINUX})
 ExternalProject_Add(lzma2
-        GIT_REPOSITORY https://github.com/conor42/fast-lzma2.git  
+        GIT_REPOSITORY https://github.com/conor42/fast-lzma2.git
         SOURCE_DIR "${TD_CONTRIB_DIR}/lzma2"
         #BINARY_DIR ""
         BUILD_IN_SOURCE TRUE
@@ -11,5 +11,6 @@ ExternalProject_Add(lzma2
         BUILD_COMMAND make
         INSTALL_COMMAND ""
         TEST_COMMAND ""
+        GIT_SHALLOW true
 )
 endif()

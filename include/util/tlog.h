@@ -41,6 +41,7 @@ extern bool    tsAsyncLog;
 extern bool    tsAssert;
 extern int32_t tsNumOfLogLines;
 extern int32_t tsLogKeepDays;
+extern char   *tsLogOutput;
 extern LogFp   tsLogFp;
 extern int64_t tsNumOfErrorLogs;
 extern int64_t tsNumOfInfoLogs;
@@ -57,6 +58,7 @@ extern int32_t rpcDebugFlag;
 extern int32_t qDebugFlag;
 extern int32_t stDebugFlag;
 extern int32_t wDebugFlag;
+extern int32_t azDebugFlag;
 extern int32_t sDebugFlag;
 extern int32_t tsdbDebugFlag;
 extern int32_t tqDebugFlag;
@@ -69,18 +71,21 @@ extern int32_t tdbDebugFlag;
 extern int32_t sndDebugFlag;
 extern int32_t simDebugFlag;
 
-int32_t taosInitLog(const char *logName, int32_t maxFiles);
+extern int32_t tqClientDebugFlag;
+int32_t taosInitLogOutput(const char **ppLogName);
+int32_t taosInitLog(const char *logName, int32_t maxFiles, bool tsc);
 void    taosCloseLog();
 void    taosResetLog();
 void    taosDumpData(uint8_t *msg, int32_t len);
+void    taosSetNoNewFile();
 
-void taosPrintLog(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...)
+void taosPrintLog(const char *flags, int32_t level, int32_t dflag, const char *format, ...)
 #ifdef __GNUC__
     __attribute__((format(printf, 4, 5)))
 #endif
     ;
 
-void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...)
+void taosPrintLongString(const char *flags, int32_t level, int32_t dflag, const char *format, ...)
 #ifdef __GNUC__
     __attribute__((format(printf, 4, 5)))
 #endif
@@ -88,11 +93,11 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
 
 void taosPrintSlowLog(const char *format, ...)
 #ifdef __GNUC__
-      __attribute__((format(printf, 1, 2)))
+    __attribute__((format(printf, 1, 2)))
 #endif
-      ;
+    ;
 
-bool taosAssertDebug(bool condition, const char *file, int32_t line, const char *format, ...);
+bool taosAssertDebug(bool condition, const char *file, int32_t line, bool core, const char *format, ...);
 bool taosAssertRelease(bool condition);
 
 // Disable all asserts that may compromise the performance.
@@ -100,7 +105,9 @@ bool taosAssertRelease(bool condition);
 #define ASSERT(condition)
 #define ASSERTS(condition, ...) (0)
 #else
-#define ASSERTS(condition, ...) ((condition) ? false : taosAssertDebug(condition, __FILE__, __LINE__, __VA_ARGS__))
+#define ASSERT_CORE(condition, ...) \
+  ((condition) ? false : taosAssertDebug(condition, __FILE__, __LINE__, 1, __VA_ARGS__))
+#define ASSERTS(condition, ...) ((condition) ? false : taosAssertDebug(condition, __FILE__, __LINE__, 0, __VA_ARGS__))
 #ifdef NDEBUG
 #define ASSERT(condition) taosAssertRelease(condition)
 #else
@@ -108,9 +115,14 @@ bool taosAssertRelease(bool condition);
 #endif
 #endif
 
-void    taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, void *sigInfo);
-void    taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr *pFd);
-void    taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile);
+void taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, void *sigInfo);
+void taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr *pFd);
+void taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile);
+
+int32_t initCrashLogWriter();
+void    checkAndPrepareCrashInfo();
+bool    reportThreadSetQuit();
+void    writeCrashLogToFile(int signum, void *sigInfo, char *nodeType, int64_t clusterId, int64_t startTime);
 
 // clang-format off
 #define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", DEBUG_FATAL, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
@@ -119,8 +131,8 @@ void    taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile);
 #define uInfo(...)  { if (uDebugFlag & DEBUG_INFO)  { taosPrintLog("UTL ", DEBUG_INFO, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
 #define uDebug(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLog("UTL ", DEBUG_DEBUG, uDebugFlag, __VA_ARGS__); }}
 #define uTrace(...) { if (uDebugFlag & DEBUG_TRACE) { taosPrintLog("UTL ", DEBUG_TRACE, uDebugFlag, __VA_ARGS__); }}
-#define uDebugL(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLongString("UTL ", DEBUG_DEBUG, uDebugFlag, __VA_ARGS__); }}
-#define uInfoL(...) { if (uDebugFlag & DEBUG_INFO) { taosPrintLongString("UTL ", DEBUG_INFO, uDebugFlag, __VA_ARGS__); }}
+#define uDebugL(...){ if (uDebugFlag & DEBUG_DEBUG) { taosPrintLongString("UTL ", DEBUG_DEBUG, uDebugFlag, __VA_ARGS__); }}
+#define uInfoL(...) { if (uDebugFlag & DEBUG_INFO)  { taosPrintLongString("UTL ", DEBUG_INFO, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
 
 #define pError(...) { taosPrintLog("APP ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }
 #define pPrint(...) { taosPrintLog("APP ", DEBUG_INFO, 255, __VA_ARGS__); }

@@ -1,16 +1,25 @@
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/version.c.in" "${CMAKE_CURRENT_SOURCE_DIR}/src/version.c")
 aux_source_directory(src UTIL_SRC)
+IF(COMPILER_SUPPORT_AVX2)
+    MESSAGE(STATUS "AVX2 instructions is ACTIVATED")
+    set_source_files_properties(src/tdecompressavx.c PROPERTIES COMPILE_FLAGS -mavx2)
+ENDIF()
 add_library(util STATIC ${UTIL_SRC})
-if (DEFINED GRANT_CFG_INCLUDE_DIR)
-  add_definitions(-DGRANTS_CFG)
+
+if(DEFINED GRANT_CFG_INCLUDE_DIR)
+    add_definitions(-DGRANTS_CFG)
 endif()
 
-IF (${ASSERT_NOT_CORE})
+if(${ASSERT_NOT_CORE})
     ADD_DEFINITIONS(-DASSERT_NOT_CORE)
     MESSAGE(STATUS "disable assert core")
-ELSE ()
+else()
     MESSAGE(STATUS "enable assert core")
-ENDIF (${ASSERT_NOT_CORE})
+endif(${ASSERT_NOT_CORE})
+
+if(${BUILD_WITH_ANALYSIS})
+    add_definitions(-DUSE_ANALYTICS)
+endif()
 
 target_include_directories(
     util
@@ -21,29 +30,29 @@ target_include_directories(
     PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/sz/inc"
     PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/zstd/"
     PRIVATE "${TD_SOURCE_DIR}/contrib/lzma2/"
+    PRIVATE "${TD_SOURCE_DIR}/contrib/pcre2/"
 )
 
 target_link_directories(
     util
     PUBLIC "${TD_SOURCE_DIR}/contrib/lzma2"
+    PUBLIC "${TD_SOURCE_DIR}/contrib/pcre2"
 )
 
-
-if (TD_LINUX)
+if(TD_LINUX)
     target_link_libraries(
         util
         PUBLIC os common
-        PUBLIC lz4_static fast-lzma2 
-        PUBLIC api cjson geos_c TSZ 
-    
-    ) 
-else() 
+        PUBLIC lz4_static fast-lzma2 pcre2-8
+        PUBLIC api cjson geos_c TSZ
+    )
+else()
     target_link_libraries(
-    util
-    PUBLIC os common
-    PUBLIC lz4_static 
-    PUBLIC api cjson geos_c TSZ 
-    ) 
+        util
+        PUBLIC os common
+        PUBLIC lz4_static pcre2-8
+        PUBLIC api cjson geos_c TSZ
+    )
 endif()
 
 if(${BUILD_TEST})

@@ -43,6 +43,54 @@ extern "C" {
 #endif
 #define UDF_DNODE_ID_ENV_NAME "DNODE_ID"
 
+#define TAOS_UV_LIB_ERROR_RET(ret)                    \
+    do {                                              \
+        if (0 != ret) {                               \
+            terrno = TSDB_CODE_UDF_UV_EXEC_FAILURE;   \
+            return TSDB_CODE_UDF_UV_EXEC_FAILURE;     \
+        }                                             \
+    } while(0)
+
+
+#define TAOS_UV_CHECK_ERRNO(CODE)                   \
+  do {                                              \
+    if (0 != CODE) {                                \
+      terrln = __LINE__;                            \
+      terrno = (CODE);     \
+      goto _exit;                                   \
+    }                                               \
+  } while (0)
+
+#define TAOS_UDF_CHECK_PTR_RCODE(...)                                          \
+  do {                                                                         \
+    const void *ptrs[] = {__VA_ARGS__};                                        \
+    for (int i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); ++i) {                 \
+      if (ptrs[i] == NULL) {                                                   \
+        fnError("udfd %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
+        return TSDB_CODE_INVALID_PARA;                                         \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
+
+#define TAOS_UDF_CHECK_PTR_RVOID(...)                                          \
+  do {                                                                         \
+    const void *ptrs[] = {__VA_ARGS__};                                        \
+    for (int i = 0; i < sizeof(ptrs) / sizeof(ptrs[0]); ++i) {                 \
+      if (ptrs[i] == NULL) {                                                   \
+        fnError("udfd %dth parameter invalid, NULL PTR.line:%d", i, __LINE__); \
+        return;                                                                \
+      }                                                                        \
+    }                                                                          \
+  } while (0)
+
+#define TAOS_UDF_CHECK_CONDITION(o, code)             \
+  do {                                                \
+    if ((o) == false) {                               \
+      fnError("Condition not met.line:%d", __LINE__); \
+      return code;                                    \
+    }                                                 \
+  } while (0)
+
 // low level APIs
 /**
  * setup udf
@@ -61,8 +109,9 @@ int32_t doCallUdfAggProcess(UdfcFuncHandle handle, SSDataBlock *block, SUdfInter
 int32_t doCallUdfAggFinalize(UdfcFuncHandle handle, SUdfInterBuf *interBuf, SUdfInterBuf *resultData);
 // input: interbuf1, interbuf2
 // output: resultBuf
-int32_t doCallUdfAggMerge(UdfcFuncHandle handle, SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2,
-                          SUdfInterBuf *resultBuf);
+// udf todo:  aggmerge
+// int32_t doCallUdfAggMerge(UdfcFuncHandle handle, SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2,
+//                           SUdfInterBuf *resultBuf);
 // input: block
 // output: resultData
 int32_t doCallUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t numOfCols, SScalarParam *output);
@@ -77,7 +126,7 @@ void freeUdfInterBuf(SUdfInterBuf *buf);
 
 // high level APIs
 bool    udfAggGetEnv(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
-bool    udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResultCellInfo);
+int32_t udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo *pResultCellInfo);
 int32_t udfAggProcess(struct SqlFunctionCtx *pCtx);
 int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock);
 
@@ -109,13 +158,13 @@ int32_t udfStartUdfd(int32_t startDnodeId);
  * stop udfd
  * @return
  */
-int32_t udfStopUdfd();
+void udfStopUdfd();
 
 /**
  * get udfd pid
  *
  */
- int32_t udfGetUdfdPid(int32_t* pUdfdPid);
+// int32_t udfGetUdfdPid(int32_t* pUdfdPid);
 
 #ifdef __cplusplus
 }

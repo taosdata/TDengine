@@ -236,7 +236,9 @@ TEST(testCase, toInteger_test) {
 }
 
 TEST(testCase, Datablock_test) {
-  SSDataBlock* b = createDataBlock();
+  SSDataBlock* b = NULL;
+  int32_t code = createDataBlock(&b);
+  ASSERT(code == 0);
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 1);
   taosArrayPush(b->pDataBlock, &infoData);
@@ -361,7 +363,9 @@ TEST(testCase, non_var_dataBlock_split_test) {
 TEST(testCase, var_dataBlock_split_test) {
   int32_t numOfRows = 1000000;
 
-  SSDataBlock* b = createDataBlock();
+  SSDataBlock* b = NULL;
+  int32_t code = createDataBlock(&b);
+  ASSERT(code == 0);
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 1);
   blockDataAppendColInfo(b, &infoData);
@@ -425,9 +429,9 @@ void test_timestamp_tm_conversion(int64_t ts, int32_t precision, int32_t y, int3
   struct STm tm;
   taosFormatUtcTime(buf, 128, ts, precision);
   printf("formated ts of %ld, precision: %d is: %s\n", ts, precision, buf);
-  taosTs2Tm(ts, precision, &tm);
+  taosTs2Tm(ts, precision, &tm, NULL);
   check_tm(&tm, y, mon, d, h, m, s, fsec);
-  taosTm2Ts(&tm, &ts_tmp, precision);
+  taosTm2Ts(&tm, &ts_tmp, precision, NULL);
   ASSERT_EQ(ts, ts_tmp);
 }
 
@@ -438,15 +442,15 @@ TEST(timeTest, timestamp2tm) {
   int64_t     ts, tmp_ts = 0;
   struct STm  tm;
 
-  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime(ts_str_ns, &ts, strlen(ts_str_ns), TSDB_TIME_PRECISION_NANO, 0));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime(ts_str_ns, &ts, strlen(ts_str_ns), TSDB_TIME_PRECISION_NANO, NULL));
   test_timestamp_tm_conversion(ts, TSDB_TIME_PRECISION_NANO, 2023 - 1900, 9 /* mon start from 0*/, 12, 11, 29, 0,
                                775726171L);
 
-  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime(ts_str_us, &ts, strlen(ts_str_us), TSDB_TIME_PRECISION_MICRO, 0));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime(ts_str_us, &ts, strlen(ts_str_us), TSDB_TIME_PRECISION_MICRO, NULL));
   test_timestamp_tm_conversion(ts, TSDB_TIME_PRECISION_MICRO, 2023 - 1900, 9 /* mon start from 0*/, 12, 11, 29, 0,
                                775726000L);
 
-  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime(ts_str_ms, &ts, strlen(ts_str_ms), TSDB_TIME_PRECISION_MILLI, 0));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime(ts_str_ms, &ts, strlen(ts_str_ms), TSDB_TIME_PRECISION_MILLI, NULL));
   test_timestamp_tm_conversion(ts, TSDB_TIME_PRECISION_MILLI, 2023 - 1900, 9 /* mon start from 0*/, 12, 11, 29, 0,
                                775000000L);
 
@@ -465,14 +469,15 @@ TEST(timeTest, timestamp2tm) {
 
 void test_ts2char(int64_t ts, const char* format, int32_t precison, const char* expected) {
   char buf[256] = {0};
-  TEST_ts2char(format, ts, precison, buf, 256);
+  int32_t code = TEST_ts2char(format, ts, precison, buf, 256);
+  ASSERT_EQ(code, 0);
   printf("ts: %ld format: %s res: [%s], expected: [%s]\n", ts, format, buf, expected);
   ASSERT_STREQ(expected, buf);
 }
 
 TEST(timeTest, ts2char) {
   osDefaultInit();
-  if (tsTimezone != TdEastZone8) GTEST_SKIP();
+  if (taosGetLocalTimezoneOffset() != TdEastZone8) GTEST_SKIP();
   int64_t     ts;
   const char* format = "YYYY-MM-DD";
   ts = 0;
@@ -524,7 +529,7 @@ TEST(timeTest, ts2char) {
 
 TEST(timeTest, char2ts) {
   osDefaultInit();
-  if (tsTimezone != TdEastZone8) GTEST_SKIP();
+  if (taosGetLocalTimezoneOffset() != TdEastZone8) GTEST_SKIP();
   int64_t ts;
   int32_t code =
       TEST_char2ts("YYYY-DD-MM HH12:MI:SS:MSPM", &ts, TSDB_TIME_PRECISION_MILLI, "2023-10-10 12:00:00.000AM");
@@ -625,7 +630,7 @@ TEST(timeTest, char2ts) {
 
   // default to 1970-1-1 00:00:00+08 -> 1969-12-31 16:00:00+00
   ASSERT_EQ(0, TEST_char2ts("YYYY", &ts, TSDB_TIME_PRECISION_SECONDS, "1970"));
-  ASSERT_EQ(ts, -1 * tsTimezone * 60 * 60);
+  ASSERT_EQ(ts, -1 * taosGetLocalTimezoneOffset());
 
   ASSERT_EQ(0, TEST_char2ts("yyyyMM1/dd ", &ts, TSDB_TIME_PRECISION_MICRO, "210001/2"));
   ASSERT_EQ(ts, 4102502400000000LL);
@@ -692,4 +697,174 @@ TEST(timeTest, epSet) {
     ASSERT_EQ(ep.numOfEps, 1);
   }
 }
+
+// Define test cases
+TEST(AlreadyAddGroupIdTest, GroupIdAdded) {
+  // Test case 1: Group ID has been added
+  char ctbName[64] = "abc123";
+  int64_t groupId = 123;
+  bool result = alreadyAddGroupId(ctbName, groupId);
+  EXPECT_TRUE(result);
+}
+
+TEST(AlreadyAddGroupIdTest, GroupIdNotAdded) {
+  // Test case 2: Group ID has not been added
+  char ctbName[64] = "abc456";
+  int64_t groupId = 123;
+  bool result = alreadyAddGroupId(ctbName, groupId);
+  EXPECT_FALSE(result);
+}
+
+TEST(AlreadyAddGroupIdTest, GroupIdAddedAtTheEnd) {
+  // Test case 3: Group ID has been added at the end
+  char ctbName[64] = "xyz1";
+  int64_t groupId = 1;
+  bool result = alreadyAddGroupId(ctbName, groupId);
+  EXPECT_TRUE(result);
+}
+
+TEST(AlreadyAddGroupIdTest, GroupIdAddedWithDifferentLength) {
+  // Test case 4: Group ID has been added with different length
+  char ctbName[64] = "def";
+  int64_t groupId = 123456;
+  bool result = alreadyAddGroupId(ctbName, groupId);
+  EXPECT_FALSE(result);
+}
+
+#define SLOW_LOG_TYPE_NULL   0x0
+#define SLOW_LOG_TYPE_QUERY  0x1
+#define SLOW_LOG_TYPE_INSERT 0x2
+#define SLOW_LOG_TYPE_OTHERS 0x4
+#define SLOW_LOG_TYPE_ALL    0x7
+
+static int32_t taosSetSlowLogScope(char* pScopeStr, int32_t* pScope) {
+  if (NULL == pScopeStr || 0 == strlen(pScopeStr)) {
+    *pScope = SLOW_LOG_TYPE_QUERY;
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  int32_t slowScope = 0;
+
+  char* scope = NULL;
+  char *tmp   = NULL;
+  while((scope = strsep(&pScopeStr, "|")) != NULL){
+    taosMemoryFreeClear(tmp);
+    tmp = taosStrdup(scope);
+    strtrim(tmp);
+    if (0 == strcasecmp(tmp, "all")) {
+      slowScope |= SLOW_LOG_TYPE_ALL;
+      continue;
+    }
+
+    if (0 == strcasecmp(tmp, "query")) {
+      slowScope |= SLOW_LOG_TYPE_QUERY;
+      continue;
+    }
+
+    if (0 == strcasecmp(tmp, "insert")) {
+      slowScope |= SLOW_LOG_TYPE_INSERT;
+      continue;
+    }
+
+    if (0 == strcasecmp(tmp, "others")) {
+      slowScope |= SLOW_LOG_TYPE_OTHERS;
+      continue;
+    }
+
+    if (0 == strcasecmp(tmp, "none")) {
+      slowScope |= SLOW_LOG_TYPE_NULL;
+      continue;
+    }
+
+    taosMemoryFreeClear(tmp);
+    uError("Invalid slowLog scope value:%s", pScopeStr);
+    TAOS_RETURN(TSDB_CODE_INVALID_CFG_VALUE);
+  }
+
+  *pScope = slowScope;
+  taosMemoryFreeClear(tmp);
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+TEST(TaosSetSlowLogScopeTest, NullPointerInput) {
+  char*   pScopeStr = NULL;
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_QUERY);
+}
+
+TEST(TaosSetSlowLogScopeTest, EmptyStringInput) {
+  char    pScopeStr[1] = "";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_QUERY);
+}
+
+TEST(TaosSetSlowLogScopeTest, AllScopeInput) {
+  char    pScopeStr[] = "all";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_ALL);
+}
+
+TEST(TaosSetSlowLogScopeTest, QueryScopeInput) {
+  char    pScopeStr[] = " query";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_QUERY);
+}
+
+TEST(TaosSetSlowLogScopeTest, InsertScopeInput) {
+  char    pScopeStr[] = "insert";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_INSERT);
+}
+
+TEST(TaosSetSlowLogScopeTest, OthersScopeInput) {
+  char    pScopeStr[] = "others";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_OTHERS);
+}
+
+TEST(TaosSetSlowLogScopeTest, NoneScopeInput) {
+  char    pScopeStr[] = "none";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, SLOW_LOG_TYPE_NULL);
+}
+
+TEST(TaosSetSlowLogScopeTest, InvalidScopeInput) {
+  char    pScopeStr[] = "invalid";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, -1);
+}
+
+TEST(TaosSetSlowLogScopeTest, MixedScopesInput) {
+  char    pScopeStr[] = "query|insert|others|none";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, (SLOW_LOG_TYPE_QUERY | SLOW_LOG_TYPE_INSERT | SLOW_LOG_TYPE_OTHERS));
+}
+
+TEST(TaosSetSlowLogScopeTest, MixedScopesInputWithSpaces) {
+  char    pScopeStr[] = "query | insert | others ";
+  int32_t scope = 0;
+  int32_t result = taosSetSlowLogScope(pScopeStr, &scope);
+  EXPECT_EQ(result, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scope, (SLOW_LOG_TYPE_QUERY | SLOW_LOG_TYPE_INSERT | SLOW_LOG_TYPE_OTHERS));
+}
+
 #pragma GCC diagnostic pop

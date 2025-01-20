@@ -13,4 +13,5 @@ ExternalProject_Add(libs3
         BUILD_COMMAND make build/lib/libs3.a
         INSTALL_COMMAND make install_static
         TEST_COMMAND ""
+        GIT_SHALLOW true
 )

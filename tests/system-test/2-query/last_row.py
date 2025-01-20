@@ -61,7 +61,7 @@ class TDTestCase:
 
     def prepare_datas(self ,cache_value, dbname="db"):
         tdSql.execute(f"drop database if exists {dbname} ")
-        create_db_sql = f"create database if not exists {dbname} keep 3650 duration 1000 cachemodel {cache_value}"
+        create_db_sql = f"create database if not exists {dbname} keep 3650 duration 100 cachemodel {cache_value}"
         tdSql.execute(create_db_sql)
 
         tdSql.execute(f"use {dbname}")
@@ -129,7 +129,7 @@ class TDTestCase:
 
         tdSql.execute(f"drop database if exists {dbname} ")
         # prepare datas
-        tdSql.execute(f"create database if not exists {dbname} keep 3650 duration 1000 cachemodel {cache_value}")
+        tdSql.execute(f"create database if not exists {dbname} keep 3650 duration 100 cachemodel {cache_value}")
 
         tdSql.execute(f"use {dbname} ")
 
@@ -353,6 +353,13 @@ class TDTestCase:
         tdSql.checkData(0, 2, -999)
         tdSql.checkData(0, 3, None)
         tdSql.checkData(0, 4,-9.99000)
+        
+        tdSql.query(f"select last_row(c1), c2, c3 , c4, c5 from (select * from {dbname}.ct1)")
+        tdSql.checkData(0, 0, 9)
+        tdSql.checkData(0, 1, -99999)
+        tdSql.checkData(0, 2, -999)
+        tdSql.checkData(0, 3, None)
+        tdSql.checkData(0, 4,-9.99000)
 
         # bug need fix
         tdSql.query(f"select last_row(c1), c2, c3 , c4, c5 from {dbname}.stb1 where tbname='ct1'")
@@ -473,6 +480,11 @@ class TDTestCase:
         tdSql.checkData(0,3,3)
 
         tdSql.query(f"select last_row(abs(floor(t1)) ,t2 ,ceil(abs(t3)) , abs(ceil(t4)) ) from {dbname}.stb1")
+        tdSql.checkData(0,0,3)
+        tdSql.checkData(0,1,33333)
+        tdSql.checkData(0,2,333)
+        tdSql.checkData(0,3,3)
+        tdSql.query(f"select last_row(abs(floor(t1)) ,t2 ,ceil(abs(t3)) , abs(ceil(t4)) ) from (select * from {dbname}.stb1)")
         tdSql.checkData(0,0,3)
         tdSql.checkData(0,1,33333)
         tdSql.checkData(0,2,333)
@@ -649,8 +661,8 @@ class TDTestCase:
         tdSql.checkData(0,1,None)
 
         tdSql.query(f"select ts , last_row(c1) ,c1  from (select ts , max(c1) c1  ,t1 from {dbname}.stb1 where ts >now -1h and ts <now+1h interval(10s) fill(value ,10, 10, 10))")
-        tdSql.checkData(0,1,10)
-        tdSql.checkData(0,1,10)
+        tdSql.checkData(0,1,9)
+        tdSql.checkData(0,1,9)
 
         tdSql.error(f"select ts , last_row(c1) ,c1  from (select count(c1) c1 from {dbname}.stb1 where ts >now -1h and ts <now+1h interval(10s) fill(value ,10, 10, 10))")
 
@@ -871,7 +883,7 @@ class TDTestCase:
 
     def initLastRowDelayTest(self, dbname="db"):
         tdSql.execute(f"drop database if exists {dbname} ")
-        create_db_sql = f"create database if not exists {dbname} keep 3650 duration 1000 cachemodel 'NONE' REPLICA 1"
+        create_db_sql = f"create database if not exists {dbname} keep 3650 duration 100 cachemodel 'NONE' REPLICA 1"
         tdSql.execute(create_db_sql)
 
         time.sleep(3)
@@ -912,6 +924,120 @@ class TDTestCase:
         tdSql.checkData(0 , 1 , None)
         tdSql.checkData(0 , 2 , None)
 
+    def lastrow_in_subquery(self, dbname="db"):
+        tdSql.execute(f'create database if not exists {dbname};')
+        tdSql.execute(f'use {dbname}')
+        tdSql.execute(f'drop table if exists {dbname}.meters')
+        
+        tdSql.execute(f'create table {dbname}.meters (ts timestamp, c0 int, c1 float, c2 nchar(30), c3 bool) tags (t1 nchar(30))')
+        tdSql.execute(f'create table {dbname}.d0 using {dbname}.meters tags("st1")')
+        tdSql.execute(f'create table {dbname}.d1 using {dbname}.meters tags("st2")')
+        tdSql.execute(f'insert into {dbname}.d0 values(1734574929000, 1, 1, "c2", true)')
+        tdSql.execute(f'insert into {dbname}.d0 values(1734574929001, 2, 2, "bbbbbbbbb1", false)')
+        tdSql.execute(f'insert into {dbname}.d0 values(1734574929002, 2, 2, "bbbbbbbbb1", false)')
+        tdSql.execute(f'insert into {dbname}.d0 values(1734574929003, 3, 3, "a2", true)')
+        tdSql.execute(f'insert into {dbname}.d0 values(1734574929004, 4, 4, "bbbbbbbbb2", false)')
+
+        tdSql.execute(f'insert into {dbname}.d1 values(1734574929000, 1, 1, "c2", true)')
+
+        tdSql.execute(f'use {dbname}')        
+        tdSql.execute(f'Create table  {dbname}.normal_table (ts timestamp, c0 int, c1 float, c2 nchar(30), c3 bool)')
+        tdSql.execute(f'insert into {dbname}.normal_table (select * from {dbname}.d0)')
+        
+        tdSql.query(f'select count(1), last(ts), last_row(c0) from (select * from {dbname}.meters)')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 6)
+        tdSql.checkData(0, 1, 1734574929004)
+        tdSql.checkData(0, 2, 4)
+        tdSql.query(f'select count(1), last(ts), last_row(c0) from (select * from {dbname}.meters order by ts desc)')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 6)
+        tdSql.checkData(0, 1, 1734574929004)
+        tdSql.checkData(0, 2, 4)
+        tdSql.query(f'select count(1), last(ts), last_row(c0) from (select * from {dbname}.meters order by ts asc)')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 6)
+        tdSql.checkData(0, 1, 1734574929004)
+        tdSql.checkData(0, 2, 4)
+        tdSql.query(f'select count(1), last(ts), last_row(c0) from (select * from {dbname}.meters order by c0 asc)')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 6)
+        tdSql.checkData(0, 1, 1734574929004)
+        tdSql.checkData(0, 2, 4)
+        tdSql.query(f'select count(1), last_row(ts), last_row(c0) from (select * from {dbname}.meters)')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 6)
+        tdSql.checkData(0, 1, 1734574929004)
+        tdSql.checkData(0, 2, 4)
+        tdSql.query(f'select count(1), last_row(ts), last_row(c0) from (select * from (select * from {dbname}.meters))')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 6)
+        tdSql.checkData(0, 1, 1734574929004)
+        tdSql.checkData(0, 2, 4)
+        tdSql.query(f'select tbname, last_row(ts), last_row(c0) from (select *, tbname from {dbname}.meters) group by tbname order by tbname')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 'd0')
+        tdSql.checkData(0, 1, 1734574929004)
+        tdSql.checkData(0, 2, 4)
+        tdSql.checkData(1, 0, 'd1')
+        tdSql.checkData(1, 1, 1734574929000)
+        tdSql.checkData(1, 2, 1)
+        tdSql.query(f'select tbname, last_row(ts), last_row(c0) from (select * from  (select *, tbname from {dbname}.meters)) group by tbname order by tbname')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 'd0')
+        tdSql.checkData(0, 1, 1734574929004)
+        tdSql.checkData(0, 2, 4)
+        tdSql.checkData(1, 0, 'd1')
+        tdSql.checkData(1, 1, 1734574929000)
+        tdSql.checkData(1, 2, 1)
+        tdSql.query(f'select count(1), last_row(ts), last_row(c0) from (select * from {dbname}.d0)')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 5)
+        tdSql.checkData(0, 1, 1734574929004)
+        tdSql.checkData(0, 2, 4)
+        tdSql.query(f'select count(1), last_row(ts), last_row(c0) from (select * from {dbname}.normal_table)')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 5)
+        tdSql.checkData(0, 1, 1734574929004)
+        tdSql.checkData(0, 2, 4)
+        
+        tdSql.execute(f'insert into {dbname}.d0 values(1734574930000, 1, 1, "c2", true)')
+        tdSql.execute(f'insert into {dbname}.d0 values(1734574931000, 1, 1, "c2", true)')
+        tdSql.execute(f'insert into {dbname}.d0 values(1734574932000, 1, 1, "c2", true)')
+        tdSql.query(f'select last_row(_wstart) from (select _wstart, _wend, count(1) from {dbname}.meters interval(1s))')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1734574932000)
+        tdSql.query(f'select last_row(_wstart), count(1) from (select _wstart, _wend, count(1) from {dbname}.meters interval(1s))')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1734574932000)
+        tdSql.checkData(0, 1, 4)
+        tdSql.query(f'select last_row(_wstart) from (select _wstart, _wend, count(1) from {dbname}.meters partition by tbname interval(1s))')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1734574932000)
+        tdSql.query(f'select last_row(_wstart), count(1) from (select _wstart, _wend, count(1) from {dbname}.meters  partition by tbname interval(1s))')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1734574932000)
+        tdSql.checkData(0, 1, 5)
+        tdSql.query(f'select first(_wstart), count(1) from (select _wstart, _wend, count(1) from {dbname}.meters interval(1s))')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1734574929000)
+        tdSql.checkData(0, 1, 4)
+        
+        tdSql.query(f'select last_row(_wstart) from (select * from (select _wstart, _wend, count(1) from {dbname}.meters interval(1s)))')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1734574932000)
+        tdSql.query(f'select last_row(_wstart), count(1) from (select * from (select _wstart, _wend, count(1) from {dbname}.meters interval(1s)))')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1734574932000)
+        tdSql.checkData(0, 1, 4)
+        tdSql.query(f'select last_row(_wstart) from (select * from (select _wstart, _wend, count(1) from {dbname}.meters partition by tbname interval(1s)))')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1734574932000)
+        tdSql.query(f'select last_row(_wstart), count(1) from (select * from (select _wstart, _wend, count(1) from {dbname}.meters  partition by tbname interval(1s)))')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1734574932000)
+        tdSql.checkData(0, 1, 5)  
+        
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         # tdSql.prepare()
 
@@ -944,7 +1070,8 @@ class TDTestCase:
         self.basic_query()
 
         self.lastRowDelayTest("DELAYTEST")
-
+        
+        self.lastrow_in_subquery("db1")
 
     def stop(self):
         tdSql.close()

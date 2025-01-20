@@ -34,7 +34,7 @@ static void shellWorkAsClient() {
   rpcInit.user = "_dnd";
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
 
-  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
   clientRpc = rpcOpen(&rpcInit);
   if (clientRpc == NULL) {
     printf("failed to init net test client since %s\r\n", terrstr());
@@ -61,7 +61,7 @@ static void shellWorkAsClient() {
   uint64_t startTime = taosGetTimestampUs();
 
   for (int32_t i = 0; i < pArgs->pktNum; ++i) {
-    SRpcMsg rpcMsg = {.info.ahandle = (void *)0x9525, .msgType = TDMT_DND_NET_TEST};
+    SRpcMsg rpcMsg = {.info.ahandle = (void *)0x9525, .info.notFreeAhandle = 1, .msgType = TDMT_DND_NET_TEST};
     rpcMsg.pCont = rpcMallocCont(pArgs->pktLen);
     rpcMsg.contLen = pArgs->pktLen;
 
@@ -125,7 +125,7 @@ static void shellWorkAsServer() {
   rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
 
-  taosVersionStrToInt(version, &(rpcInit.compatibilityVer));
+  taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
 
   void *serverRpc = rpcOpen(&rpcInit);
   if (serverRpc == NULL) {

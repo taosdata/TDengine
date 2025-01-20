@@ -1,0 +1,258 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+system sh/deploy.sh -n dnode5 -i 5
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+system sh/exec.sh -n dnode5 -s start
+
+sql connect
+sql create dnode $hostname port 7200
+sql create dnode $hostname port 7300
+sql create dnode $hostname port 7400
+sql create dnode $hostname port 7500
+
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+print ===> $data30 $data31 $data32 $data33 $data34 $data35
+print ===> $data40 $data41 $data42 $data43 $data44 $data45
+if $rows != 5 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+if $data(2)[4] != ready then
+  goto step1
+endi
+if $data(3)[4] != ready then
+  goto step1
+endi
+if $data(4)[4] != ready then
+  goto step1
+endi
+if $data(5)[4] != ready then
+  goto step1
+endi
+
+print --- error case
+ 
+sql_error create database d1 vgroups 1 dnodes '1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890';
+sql_error create database d1 vgroups 1 dnodes '1 ';
+sql_error create database d1 vgroups 1 dnodes ' 1';
+sql_error create database d1 vgroups 1 dnodes '1,';
+sql_error create database d1 vgroups 1 dnodes '1, ';
+sql_error create database d1 vgroups 1 dnodes 'a ';
+sql_error create database d1 vgroups 1 dnodes '- ';
+sql_error create database d1 vgroups 1 dnodes '1,1';
+sql_error create database d1 vgroups 1 dnodes '1, 1';
+sql_error create database d1 vgroups 1 dnodes '1,1234567890';
+sql_error create database d1 vgroups 1 dnodes '1,2,6';
+sql_error create database d1 vgroups 1 dnodes ',1,2';
+sql_error create database d1 vgroups 1 dnodes 'x1,2';
+sql_error create database d1 vgroups 1 dnodes 'c1,ab2';
+sql_error create database d1 vgroups 1 dnodes '1,1,2';
+
+sql_error create database d1 vgroups 1 replica 2 dnodes '1';
+sql_error create database d1 vgroups 1 replica 2 dnodes '1,8';
+sql_error create database d1 vgroups 1 replica 3 dnodes '1';
+sql_error create database d1 vgroups 1 replica 3 dnodes '1,2';
+sql_error create database d1 vgroups 1 replica 3 dnodes '1,2,4,6';
+
+print --- replica 1
+
+print --- case10
+sql create database d10 vgroups 1 dnodes '1';
+sql show dnodes;
+if $data(1)[2] != 1 then
+  return -1
+endi
+sql_error alter database d10 replica 1 dnodes '1,2,3';
+sql drop database d10;
+
+print --- case11
+sql create database d11 vgroups 1 dnodes '2';
+sql show dnodes;
+if $data(2)[2] != 1 then
+  return -1
+endi
+sql drop database d11;
+
+print --- case12
+sql create database d12 vgroups 2 dnodes '3,4';
+sql show dnodes;
+if $data(3)[2] != 1 then
+  return -1
+endi
+if $data(4)[2] != 1 then
+  return -1
+endi
+sql drop database d12;
+
+print --- case13
+sql create database d13 vgroups 2 dnodes '5';
+sql show dnodes;
+if $data(5)[2] != 2 then
+  return -1
+endi
+sql drop database d13;
+
+print --- case14
+sql create database d14 vgroups 1 dnodes '1,2,5';
+sql drop database d14;
+
+print --- case15
+sql create database d15 vgroups 2 dnodes '1,4,3';
+sql drop database d15;
+
+print --- case16
+sql create database d16 vgroups 3 dnodes '1';
+sql show dnodes;
+if $data(1)[2] != 3 then
+  return -1
+endi
+sql drop database d16;
+
+print --- case17
+sql create database d17 vgroups 3 dnodes '1,4';
+sql drop database d17;
+
+print --- case18
+sql create database d18 vgroups 3 dnodes '1,2,4';
+sql show dnodes;
+if $data(1)[2] != 1 then
+  return -1
+endi
+if $data(2)[2] != 1 then
+  return -1
+endi
+if $data(4)[2] != 1 then
+  return -1
+endi
+sql drop database d18;
+
+print --- replica 2
+
+print --- case20
+sql create database d20 replica 2 vgroups 1 dnodes '1,2';
+sql show dnodes;
+if $data(1)[2] != 1 then
+  return -1
+endi
+if $data(2)[2] != 1 then
+  return -1
+endi
+sql drop database d20;
+
+print --- case21
+sql create database d21 replica 2 vgroups 3 dnodes '1,2,3';
+sql show dnodes;
+if $data(1)[2] != 2 then
+  return -1
+endi
+if $data(2)[2] != 2 then
+  return -1
+endi
+if $data(3)[2] != 2 then
+  return -1
+endi
+sql drop database d21;
+
+print --- case22
+sql create database d22 replica 2 vgroups 2 dnodes '1,2';
+sql show dnodes;
+if $data(1)[2] != 2 then
+  return -1
+endi
+if $data(2)[2] != 2 then
+  return -1
+endi
+sql drop database d22;
+
+print --- replica 3
+
+print --- case30
+sql create database d30 replica 3 vgroups 3 dnodes '1,2,3';
+sql show dnodes;
+if $data(1)[2] != 3 then
+  return -1
+endi
+if $data(2)[2] != 3 then
+  return -1
+endi
+if $data(3)[2] != 3 then
+  return -1
+endi
+sql_error alter database d30 replica 1 dnodes '1';
+sql drop database d30;
+
+print --- case31
+sql create database d31 replica 3 vgroups 2 dnodes '1,2,4';
+sql show dnodes;
+if $data(1)[2] != 2 then
+  return -1
+endi
+if $data(2)[2] != 2 then
+  return -1
+endi
+if $data(4)[2] != 2 then
+  return -1
+endi
+sql drop database d31;
+
+print --- case32
+sql create database d32 replica 3 vgroups 4 dnodes '4,2,3,1';
+sql show dnodes;
+if $data(1)[2] != 3 then
+  return -1
+endi
+if $data(2)[2] != 3 then
+  return -1
+endi
+if $data(3)[2] != 3 then
+  return -1
+endi
+if $data(4)[2] != 3 then
+  return -1
+endi
+sql drop database d32;
+
+print --- case33
+sql create database d33 replica 3 vgroups 5 dnodes '4,2,3,1,5';
+sql show dnodes;
+if $data(1)[2] != 3 then
+  return -1
+endi
+if $data(2)[2] != 3 then
+  return -1
+endi
+if $data(3)[2] != 3 then
+  return -1
+endi
+if $data(4)[2] != 3 then
+  return -1
+endi
+if $data(5)[2] != 3 then
+  return -1
+endi
+sql drop database d33;
+
+return
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT

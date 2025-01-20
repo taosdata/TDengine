@@ -1,0 +1,75 @@
+
+{
+  "filetype": "insert",
+  "cfgdir": "/etc/taos",
+  "host": "127.0.0.1",
+  "port": 6030,
+  "user": "root",
+  "password": "taosdata",
+  "connection_pool_size": 8,
+  "thread_count": 4,
+  "create_table_thread_count": 4,
+  "result_file": "./insert_res.txt",
+  "confirm_parameter_prompt": "no",
+  "num_of_records_per_req": 10000,
+  "prepared_rand": 10000,
+  "chinese": "yes",
+  "escape_character": "yes",
+  "continue_if_fail": "no",
+  "databases": [
+    {
+      "dbinfo": {
+        "name": "ts_4893",
+        "drop": "yes",
+        "vgroups": 4,
+        "precision": "ms"
+      },
+      "super_tables": [
+        {
+          "name": "meters",
+          "child_table_exists": "no",
+          "childtable_count": 1,
+          "childtable_prefix": "d",
+          "auto_create_table": "no",
+          "batch_create_tbl_num": 5,
+          "data_source": "rand",
+          "insert_mode": "taosc",
+          "non_stop_mode": "no",
+          "line_protocol": "line",
+          "insert_rows": 100000,
+          "childtable_limit": 0,
+          "childtable_offset": 0,
+          "interlace_rows": 0,
+          "insert_interval": 0,
+          "partial_col_num": 0,
+          "timestamp_step": 3000000,
+          "start_timestamp": 1500000000000,
+          "sample_format": "csv",
+          "sample_file": "./sample.csv",
+          "use_sample_ts": "no",
+          "tags_file": "",
+          "columns": [
+            { "type": "FLOAT",       "name": "current", "count": 1, "max": 12, "min": 8 },
+            { "type": "INT",         "name": "voltage", "max": 225, "min": 215 },
+            { "type": "FLOAT",       "name": "phase", "max": 1, "min": 0 },
+            { "type": "INT",         "name": "id", "min": 0, "gen": "order" },
+            { "type": "varchar",     "name": "name", "values": ["lili", "haha", "taos", "x"]},
+            { "type": "nchar",       "name": "nch1", "len":50, "values": ["again", "update", "person", "prision", "novel", "picture", "plate", "gas", "一二三123321三二一", "一一一一一||一一一一", "一二三四五六七八九十", "一二三abc", "abc一二三abc一二三abc"]},
+            { "type": "nchar",       "name": "nch2", "len":50, "values": ["a", "b", "c", "d", "e", "f", "g", "一二三", "一", "四", "三a"]},
+            { "type": "varchar",     "name": "var1", "len":50, "values": ["again", "update", "person", "prision", "novel", "picture", "plate", "gas", "一二三123321三二一", "一一一一一||一一一一", "一二三四五六七八九十", "一二三abc", "abc一二三abc一二三abc"]},
+            { "type": "varchar",     "name": "var2", "len":50, "values": ["a", "b", "c", "d", "e", "f", "g", "一二三", "一", "四", "三a"]}
+          ],
+          "tags": [
+            {"type": "TINYINT", "name": "groupid", "max": 10, "min": 1},
+            {"type": "BINARY",  "name": "location", "len": 16,
+              "values": ["San Francisco", "Los Angles", "San Diego", "San Jose", "Palo Alto", "Campbell", "Mountain View", "Sunnyvale",
+                "Santa Clara", "Cupertino"]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+    

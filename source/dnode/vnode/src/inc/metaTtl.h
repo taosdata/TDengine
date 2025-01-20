@@ -85,18 +85,18 @@ typedef struct {
   TXN*     pTxn;
 } STtlDelTtlCtx;
 
-int  ttlMgrOpen(STtlManger** ppTtlMgr, TDB* pEnv, int8_t rollback, const char* logPrefix, int32_t flushThreshold);
-void ttlMgrClose(STtlManger* pTtlMgr);
+int32_t ttlMgrOpen(STtlManger** ppTtlMgr, TDB* pEnv, int8_t rollback, const char* logPrefix, int32_t flushThreshold);
+void    ttlMgrClose(STtlManger* pTtlMgr);
 
-bool ttlMgrNeedUpgrade(TDB* pEnv);
-int  ttlMgrUpgrade(STtlManger* pTtlMgr, void* pMeta);
+bool    ttlMgrNeedUpgrade(TDB* pEnv);
+int32_t ttlMgrUpgrade(STtlManger* pTtlMgr, void* pMeta);
 
-int ttlMgrInsertTtl(STtlManger* pTtlMgr, const STtlUpdTtlCtx* pUpdCtx);
-int ttlMgrDeleteTtl(STtlManger* pTtlMgr, const STtlDelTtlCtx* pDelCtx);
-int ttlMgrUpdateChangeTime(STtlManger* pTtlMgr, const STtlUpdCtimeCtx* pUpdCtimeCtx);
+int32_t ttlMgrInsertTtl(STtlManger* pTtlMgr, const STtlUpdTtlCtx* pUpdCtx);
+int32_t ttlMgrDeleteTtl(STtlManger* pTtlMgr, const STtlDelTtlCtx* pDelCtx);
+int32_t ttlMgrUpdateChangeTime(STtlManger* pTtlMgr, const STtlUpdCtimeCtx* pUpdCtimeCtx);
 
-int ttlMgrFlush(STtlManger* pTtlMgr, TXN* pTxn);
-int ttlMgrFindExpired(STtlManger* pTtlMgr, int64_t timePointMs, SArray* pTbUids, int32_t ttlDropMaxCount);
+int32_t ttlMgrFlush(STtlManger* pTtlMgr, TXN* pTxn);
+int32_t ttlMgrFindExpired(STtlManger* pTtlMgr, int64_t timePointMs, SArray* pTbUids, int32_t ttlDropMaxCount);
 
 #ifdef __cplusplus
 }

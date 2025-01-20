@@ -23,6 +23,7 @@
 #define TDIGEST_H
 
 #include "os.h"
+#include "libs/function/functionResInfo.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846264338327950288 /* pi             */
@@ -37,37 +38,11 @@
 #define TDIGEST_SIZE(compression) \
   (sizeof(TDigest) + sizeof(SCentroid) * GET_CENTROID(compression) + sizeof(SPt) * GET_THRESHOLD(compression))
 
-typedef struct SCentroid {
-  double  mean;
-  int64_t weight;
-} SCentroid;
-
-typedef struct SPt {
-  double  value;
-  int64_t weight;
-} SPt;
-
-typedef struct TDigest {
-  double  compression;
-  int32_t threshold;
-  int64_t size;
-
-  int64_t total_weight;
-  double  min;
-  double  max;
-
-  int32_t num_buffered_pts;
-  SPt    *buffered_pts;
-
-  int32_t    num_centroids;
-  SCentroid *centroids;
-} TDigest;
-
 TDigest *tdigestNewFrom(void *pBuf, int32_t compression);
-void     tdigestAdd(TDigest *t, double x, int64_t w);
-void     tdigestMerge(TDigest *t1, TDigest *t2);
+int32_t  tdigestAdd(TDigest *t, double x, int64_t w);
+int32_t  tdigestMerge(TDigest *t1, TDigest *t2);
 double   tdigestQuantile(TDigest *t, double q);
-void     tdigestCompress(TDigest *t);
+int32_t  tdigestCompress(TDigest *t);
 void     tdigestFreeFrom(TDigest *t);
 void     tdigestAutoFill(TDigest *t, int32_t compression);
 

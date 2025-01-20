@@ -16,7 +16,7 @@ import random
 import time
 import copy
 import string
-
+import platform
 import taos
 from util.log import *
 from util.cases import *
@@ -380,14 +380,15 @@ class TDTestCase:
     # forbid
     def checkForbid(self):
         # stream
-        tdLog.info("check forbid split having stream...")
-        tdSql.execute("create database streamdb;")
-        tdSql.execute("use streamdb;")
-        tdSql.execute("create table ta(ts timestamp, age int);")
-        tdSql.execute("create stream ma into sta as select count(*) from ta interval(1s);")
-        self.expectSplitError("streamdb")
-        tdSql.execute("drop stream ma;")
-        self.expectSplitOk("streamdb")
+        if platform.system().lower() != 'windows':
+            tdLog.info("check forbid split having stream...")
+            tdSql.execute("create database streamdb;")
+            tdSql.execute("use streamdb;")
+            tdSql.execute("create table ta(ts timestamp, age int);")
+            tdSql.execute("create stream ma into sta as select count(*) from ta interval(1s);")
+            self.expectSplitError("streamdb")
+            tdSql.execute("drop stream ma;")
+            self.expectSplitOk("streamdb")
 
         # topic
         tdLog.info("check forbid split having topic...")

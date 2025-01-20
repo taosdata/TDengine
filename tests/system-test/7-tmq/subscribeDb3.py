@@ -219,7 +219,7 @@ class TDTestCase:
         expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"]
         topicList    = topicName1
         ifcheckdata  = 0
-        ifManualCommit = 1
+        ifManualCommit = 0
         keyList      = 'group.id:cgrp1,\
                         enable.auto.commit:false,\
                         auto.commit.interval.ms:6000,\

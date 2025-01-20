@@ -15,6 +15,10 @@ sys.path.append("./7-tmq")
 from tmqCommon import *
 
 class TDTestCase:
+    clientCfgDict = {'debugFlag': 135}
+    updatecfgDict = {'debugFlag': 135, 'asynclog': 0}
+    updatecfgDict["clientCfg"] = clientCfgDict
+
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
@@ -41,6 +45,11 @@ class TDTestCase:
                 tdLog.exit("tmq_offset_test error!")
         else:
             buildPath = tdCom.getBuildPath()
+            cmdStr0 = '%s/build/bin/tmq_offset_test 5679'%(buildPath)
+            tdLog.info(cmdStr0)
+            if os.system(cmdStr0) != 0:
+                tdLog.exit(cmdStr0)
+
             cmdStr1 = '%s/build/bin/taosBenchmark -i 50 -B 1 -t 1000 -n 100000 -y &'%(buildPath)
             tdLog.info(cmdStr1)
             os.system(cmdStr1)

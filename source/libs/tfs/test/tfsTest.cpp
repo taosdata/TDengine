@@ -13,6 +13,7 @@
 #include "os.h"
 
 #include "tfs.h"
+#include "tfsInt.h"
 
 class TfsTest : public ::testing::Test {
  protected:
@@ -37,13 +38,15 @@ TEST_F(TfsTest, 01_Open_Close) {
   tstrncpy(dCfg.dir, root, TSDB_FILENAME_LEN);
   dCfg.level = 0;
   dCfg.primary = 1;
+  dCfg.disable = 0;
 
   taosRemoveDir(root);
-  STfs *pTfs = tfsOpen(&dCfg, 1);
+  STfs *pTfs = NULL;
+  (void)tfsOpen(&dCfg, 1, &pTfs);
   ASSERT_EQ(pTfs, nullptr);
 
   taosMulMkDir(root);
-  pTfs = tfsOpen(&dCfg, 1);
+  (void)tfsOpen(&dCfg, 1, &pTfs);
   ASSERT_NE(pTfs, nullptr);
 
   tfsUpdateSize(pTfs);
@@ -63,10 +66,12 @@ TEST_F(TfsTest, 02_AllocDisk) {
   tstrncpy(dCfg.dir, root, TSDB_FILENAME_LEN);
   dCfg.level = 0;
   dCfg.primary = 1;
+  dCfg.disable = 0;
 
   taosRemoveDir(root);
   taosMkDir(root);
-  STfs *pTfs = tfsOpen(&dCfg, 1);
+  STfs *pTfs = NULL;
+  (void)tfsOpen(&dCfg, 1, &pTfs);
   ASSERT_NE(pTfs, nullptr);
 
   SDiskID did;
@@ -114,10 +119,12 @@ TEST_F(TfsTest, 03_Dir) {
   tstrncpy(dCfg.dir, root, TSDB_FILENAME_LEN);
   dCfg.level = 0;
   dCfg.primary = 1;
+  dCfg.disable = 0;
 
   taosRemoveDir(root);
   taosMkDir(root);
-  STfs *pTfs = tfsOpen(&dCfg, 1);
+  STfs *pTfs = NULL;
+  (void)tfsOpen(&dCfg, 1, &pTfs);
   ASSERT_NE(pTfs, nullptr);
 
   char p1[] = "p1";
@@ -172,7 +179,8 @@ TEST_F(TfsTest, 04_File) {
 
   taosRemoveDir(root);
   taosMkDir(root);
-  STfs *pTfs = tfsOpen(&dCfg, 1);
+  STfs *pTfs = NULL;
+  (void)tfsOpen(&dCfg, 1, &pTfs);
   ASSERT_NE(pTfs, nullptr);
 
   STfsFile file0;
@@ -261,7 +269,8 @@ TEST_F(TfsTest, 04_File) {
     EXPECT_NE(taosDirExist(af2), 1);
 
     {
-      STfsDir *pDir = tfsOpendir(pTfs, "t3");
+      STfsDir *pDir = NULL;
+      tfsOpendir(pTfs, "t3", &pDir);
 
       const STfsFile *pf1 = tfsReaddir(pDir);
       EXPECT_NE(pf1, nullptr);
@@ -272,13 +281,17 @@ TEST_F(TfsTest, 04_File) {
       const STfsFile *pf2 = tfsReaddir(pDir);
       EXPECT_EQ(pf2, nullptr);
 
+      pDir->pDir = taosOpenDir(fulldir);
+      EXPECT_NE(pDir->pDir, nullptr);
+
       tfsClosedir(pDir);
     }
 
     EXPECT_GT(tfsCopyFile(&f1, &f2), 0);
 
     {
-      STfsDir *pDir = tfsOpendir(pTfs, "t3");
+      STfsDir *pDir = NULL;
+      tfsOpendir(pTfs, "t3", &pDir);
 
       const STfsFile *pf1 = tfsReaddir(pDir);
       EXPECT_NE(pf1, nullptr);
@@ -330,30 +343,39 @@ TEST_F(TfsTest, 05_MultiDisk) {
   tstrncpy(dCfg[0].dir, root01, TSDB_FILENAME_LEN);
   dCfg[0].level = 0;
   dCfg[0].primary = 0;
+  dCfg[0].disable = 0;
   tstrncpy(dCfg[1].dir, root00, TSDB_FILENAME_LEN);
   dCfg[1].level = 0;
   dCfg[1].primary = 0;
+  dCfg[1].disable = 0;
   tstrncpy(dCfg[2].dir, root20, TSDB_FILENAME_LEN);
   dCfg[2].level = 2;
   dCfg[2].primary = 0;
+  dCfg[2].disable = 0;
   tstrncpy(dCfg[3].dir, root21, TSDB_FILENAME_LEN);
   dCfg[3].level = 2;
   dCfg[3].primary = 0;
+  dCfg[3].disable = 0;
   tstrncpy(dCfg[4].dir, root22, TSDB_FILENAME_LEN);
   dCfg[4].level = 2;
   dCfg[4].primary = 0;
+  dCfg[4].disable = 0;
   tstrncpy(dCfg[5].dir, root23, TSDB_FILENAME_LEN);
   dCfg[5].level = 2;
   dCfg[5].primary = 0;
+  dCfg[5].disable = 0;
   tstrncpy(dCfg[6].dir, root10, TSDB_FILENAME_LEN);
   dCfg[6].level = 1;
   dCfg[6].primary = 0;
+  dCfg[6].disable = 0;
   tstrncpy(dCfg[7].dir, root11, TSDB_FILENAME_LEN);
   dCfg[7].level = 1;
   dCfg[7].primary = 0;
+  dCfg[7].disable = 0;
   tstrncpy(dCfg[8].dir, root12, TSDB_FILENAME_LEN);
   dCfg[8].level = 1;
   dCfg[8].primary = 0;
+  dCfg[8].disable = 0;
 
   taosRemoveDir(root00);
   taosRemoveDir(root01);
@@ -374,17 +396,18 @@ TEST_F(TfsTest, 05_MultiDisk) {
   taosMkDir(root22);
   taosMkDir(root23);
 
-  STfs *pTfs = tfsOpen(dCfg, 9);
+  STfs *pTfs = NULL;
+  (void)tfsOpen(dCfg, 9, &pTfs);
   ASSERT_EQ(pTfs, nullptr);
 
   dCfg[0].primary = 1;
   dCfg[1].primary = 1;
-  pTfs = tfsOpen(dCfg, 9);
+  (void)tfsOpen(dCfg, 9, &pTfs);
   ASSERT_EQ(pTfs, nullptr);
 
   dCfg[0].primary = 0;
   dCfg[1].primary = 1;
-  pTfs = tfsOpen(dCfg, 9);
+  (void)tfsOpen(dCfg, 9, &pTfs);
   ASSERT_NE(pTfs, nullptr);
 
   tfsUpdateSize(pTfs);
@@ -681,7 +704,8 @@ TEST_F(TfsTest, 05_MultiDisk) {
       tfsRemoveFile(&f2);
 
       {
-        STfsDir *pDir = tfsOpendir(pTfs, "t3");
+        STfsDir *pDir = NULL;
+        tfsOpendir(pTfs, "t3", &pDir);
 
         const STfsFile *pf1 = tfsReaddir(pDir);
         EXPECT_NE(pf1, nullptr);
@@ -699,7 +723,8 @@ TEST_F(TfsTest, 05_MultiDisk) {
       EXPECT_GT(tfsCopyFile(&f1, &f2), 0);
 
       {
-        STfsDir *pDir = tfsOpendir(pTfs, "t3");
+        STfsDir *pDir = NULL;
+        tfsOpendir(pTfs, "t3", &pDir);
 
         const STfsFile *pf1 = tfsReaddir(pDir);
         EXPECT_NE(pf1, nullptr);
@@ -722,4 +747,117 @@ TEST_F(TfsTest, 05_MultiDisk) {
   }
 
   tfsClose(pTfs);
+}
+
+TEST_F(TfsTest, 06_Misc) {
+  // tfsDisk.c
+  STfsDisk *pDisk = NULL;
+  EXPECT_EQ(tfsNewDisk(0, 0, 0, NULL, &pDisk), TSDB_CODE_INVALID_PARA);
+  EXPECT_NE(tfsNewDisk(0, 0, 0, "", &pDisk), 0);
+
+  STfsDisk disk = {0};
+  EXPECT_EQ(tfsUpdateDiskSize(&disk), TSDB_CODE_INVALID_PARA);
+
+  // tfsTier.c
+  STfsTier tfsTier = {0};
+  EXPECT_EQ(taosThreadSpinInit(&tfsTier.lock, 0), 0);
+  EXPECT_EQ(tfsAllocDiskOnTier(&tfsTier), TSDB_CODE_FS_NO_VALID_DISK);
+
+  tfsTier.ndisk = 3;
+  tfsTier.nAvailDisks = 1;
+
+  tfsTier.disks[1] = &disk;
+  disk.disable = 1;
+  EXPECT_EQ(tfsAllocDiskOnTier(&tfsTier), TSDB_CODE_FS_NO_VALID_DISK);
+  disk.disable = 0;
+  disk.size.avail = 0;
+  EXPECT_EQ(tfsAllocDiskOnTier(&tfsTier), TSDB_CODE_FS_NO_VALID_DISK);
+
+  tfsTier.ndisk = TFS_MAX_DISKS_PER_TIER;
+  SDiskCfg diskCfg = {0};
+  tstrncpy(diskCfg.dir, "testDataDir", TSDB_FILENAME_LEN);
+  EXPECT_EQ(tfsMountDiskToTier(&tfsTier, &diskCfg, 0), TSDB_CODE_FS_TOO_MANY_MOUNT);
+  EXPECT_EQ(taosThreadSpinDestroy(&tfsTier.lock), 0);
+
+  // tfs.c
+  STfs *pTfs = NULL;
+  EXPECT_EQ(tfsOpen(0, -1, &pTfs), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(tfsOpen(0, 0, &pTfs), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(tfsOpen(0, TFS_MAX_DISKS + 1, &pTfs), TSDB_CODE_INVALID_PARA);
+  taosMemoryFreeClear(pTfs);
+
+  STfs tfs = {0};
+  STfsTier *pTier = &tfs.tiers[0];
+  EXPECT_EQ(tfsDiskSpaceAvailable(&tfs, -1), false);
+  tfs.nlevel = 2;
+  pTier->ndisk = 3;
+  pTier->nAvailDisks = 1;
+  EXPECT_EQ(tfsDiskSpaceAvailable(&tfs, 0), false);
+  pTier->disks[0] = &disk;
+  EXPECT_EQ(tfsDiskSpaceAvailable(&tfs, 0), false);
+
+  EXPECT_EQ(tfsDiskSpaceSufficient(&tfs, -1, 0), false);
+  EXPECT_EQ(tfsDiskSpaceSufficient(&tfs, tfs.nlevel + 1, 0), false);
+  EXPECT_EQ(tfsDiskSpaceSufficient(&tfs, 0, -1), false);
+  EXPECT_EQ(tfsDiskSpaceSufficient(&tfs, 0, pTier->ndisk), false);
+
+  EXPECT_EQ(tfsGetDisksAtLevel(&tfs, -1), 0);
+  EXPECT_EQ(tfsGetDisksAtLevel(&tfs, tfs.nlevel), 0);
+
+  EXPECT_EQ(tfsGetLevel(&tfs), tfs.nlevel);
+
+  for (int32_t l = 0; l < tfs.nlevel; ++l) {
+    EXPECT_EQ(taosThreadSpinInit(&tfs.tiers[l].lock, 0), 0);
+  }
+
+  SDiskID diskID = {0};
+  disk.size.avail = TFS_MIN_DISK_FREE_SIZE;
+  EXPECT_EQ(tfsAllocDisk(&tfs, tfs.nlevel, &diskID), 0);
+  tfs.nlevel = 0;
+  diskID.level = 0;
+  EXPECT_EQ(tfsAllocDisk(&tfs, 0, &diskID), 0);
+  tfs.nlevel = 2;
+
+  diskID.id = 10;
+  EXPECT_EQ(tfsMkdirAt(&tfs, NULL, diskID), TSDB_CODE_FS_INVLD_CFG);
+
+  EXPECT_NE(tfsMkdirRecurAt(&tfs, NULL, diskID), 0);
+
+  const char *rname = "";
+  EXPECT_EQ(tfsRmdir(&tfs, rname), 0);
+
+  EXPECT_EQ(tfsSearch(&tfs, -1, NULL), -1);
+  EXPECT_EQ(tfsSearch(&tfs, tfs.nlevel, NULL), -1);
+
+  diskCfg.level = -1;
+  EXPECT_EQ(tfsCheckAndFormatCfg(&tfs, &diskCfg), TSDB_CODE_FS_INVLD_CFG);
+  diskCfg.level = TFS_MAX_TIERS;
+  EXPECT_EQ(tfsCheckAndFormatCfg(&tfs, &diskCfg), TSDB_CODE_FS_INVLD_CFG);
+  diskCfg.level = 0;
+  diskCfg.primary = -1;
+  EXPECT_EQ(tfsCheckAndFormatCfg(&tfs, &diskCfg), TSDB_CODE_FS_INVLD_CFG);
+  diskCfg.primary = 2;
+  EXPECT_EQ(tfsCheckAndFormatCfg(&tfs, &diskCfg), TSDB_CODE_FS_INVLD_CFG);
+  diskCfg.primary = 1;
+  diskCfg.disable = -1;
+  EXPECT_EQ(tfsCheckAndFormatCfg(&tfs, &diskCfg), TSDB_CODE_FS_INVLD_CFG);
+  diskCfg.disable = 2;
+  EXPECT_EQ(tfsCheckAndFormatCfg(&tfs, &diskCfg), TSDB_CODE_FS_INVLD_CFG);
+  diskCfg.disable = 0;
+  diskCfg.level = 1;
+  EXPECT_EQ(tfsCheckAndFormatCfg(&tfs, &diskCfg), TSDB_CODE_FS_INVLD_CFG);
+  diskCfg.level = 0;
+  diskCfg.primary = 0;
+  tstrncpy(diskCfg.dir, "testDataDir1", TSDB_FILENAME_LEN);
+  EXPECT_NE(tfsCheckAndFormatCfg(&tfs, &diskCfg), 0);
+
+  TdFilePtr pFile = taosCreateFile("testDataDir1", TD_FILE_CREATE);
+  EXPECT_NE(pFile, nullptr);
+  EXPECT_EQ(tfsCheckAndFormatCfg(&tfs, &diskCfg), TSDB_CODE_FS_INVLD_CFG);
+  EXPECT_EQ(taosCloseFile(&pFile), 0);
+  EXPECT_EQ(taosRemoveFile("testDataDir1"), 0);
+
+  for (int32_t l = 0; l < tfs.nlevel; ++l) {
+    EXPECT_EQ(taosThreadSpinDestroy(&tfs.tiers[l].lock), 0);
+  }
 }

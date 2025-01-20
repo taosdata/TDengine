@@ -44,9 +44,9 @@ typedef struct {
  *
  * @param pCfg Config of the fs.
  * @param ndisk Length of the config.
- * @return STfs* The fs object.
+ * @param ppTfs The fs object.
  */
-STfs *tfsOpen(SDiskCfg *pCfg, int32_t ndisk);
+int32_t tfsOpen(SDiskCfg *pCfg, int32_t ndisk, STfs **ppTfs);
 
 /**
  * @brief Close a fs.
@@ -148,7 +148,7 @@ int32_t tfsMkdirRecur(STfs *pTfs, const char *rname);
  * @return int32_t 0 for success, -1 for failure.
  */
 int32_t tfsMkdirRecurAt(STfs *pTfs, const char *rname, SDiskID diskId);
-
+#if 0
 /**
  * @brief check directories exist in tfs.
  *
@@ -158,7 +158,7 @@ int32_t tfsMkdirRecurAt(STfs *pTfs, const char *rname, SDiskID diskId);
  * @return true for exist, false for not exist.
  */
 bool tfsDirExistAt(STfs *pTfs, const char *rname, SDiskID diskId);
-
+#endif
 /**
  * @brief Remove directory at all levels in tfs.
  *
@@ -241,7 +241,7 @@ void tfsBasename(const STfsFile *pFile, char *dest);
  * @param dest The buffer where dirname will be saved.
  */
 void tfsDirname(const STfsFile *pFile, char *dest);
-
+#if 0
 /**
  * @brief Get the absolute file name of rname.
  *
@@ -251,7 +251,7 @@ void tfsDirname(const STfsFile *pFile, char *dest);
  * @param aname absolute file name
  */
 void tfsAbsoluteName(STfs *pTfs, SDiskID diskId, const char *rname, char *aname);
-
+#endif
 /**
  * @brief Remove file in tfs.
  *
@@ -275,7 +275,7 @@ int32_t tfsCopyFile(const STfsFile *pFile1, const STfsFile *pFile2);
  * @param rname The rel name of file.
  * @return STfsDir* The dir object.
  */
-STfsDir *tfsOpendir(STfs *pTfs, const char *rname);
+int32_t tfsOpendir(STfs *pTfs, const char *rname, STfsDir **ppDir);
 
 /**
  * @brief Get a file from dir and move to next pos.
@@ -318,6 +318,15 @@ bool tfsDiskSpaceAvailable(STfs *pTfs, int32_t level);
  * @return bool
  */
 bool tfsDiskSpaceSufficient(STfs *pTfs, int32_t level, int32_t disk);
+
+/**
+ * @brief Update disk size of tfs.
+ *
+ * @param pTfs The fs object.
+ * @param dir The directory.
+ * @param disable The disable flag.
+ */
+int32_t tfsUpdateDiskDisable(STfs *pTfs, const char *dir, int8_t disable);
 
 #ifdef __cplusplus
 }

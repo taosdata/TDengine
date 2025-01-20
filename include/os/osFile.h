@@ -72,6 +72,9 @@ TdFilePtr taosCreateFile(const char *path, int32_t tdFileOptions);
 #define TD_FILE_ACCESS_EXIST_OK 0x1
 #define TD_FILE_ACCESS_READ_OK  0x2
 #define TD_FILE_ACCESS_WRITE_OK 0x4
+
+#define TD_TMP_FILE_PREFIX "tdengine-"
+
 bool taosCheckAccessFile(const char *pathname, int mode);
 
 int32_t taosLockFile(TdFilePtr pFile);
@@ -79,9 +82,11 @@ int32_t taosUnLockFile(TdFilePtr pFile);
 
 int32_t taosUmaskFile(int32_t maskVal);
 
-int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime, int32_t *atime);
+int32_t taosStatFile(const char *path, int64_t *size, int64_t *mtime, int64_t *atime);
+int32_t taosGetFileDiskID(const char *path, int64_t *diskid);
+bool    taosCheckFileDiskID(const char *path, int64_t *actDiskID, int64_t expDiskID);
 int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno);
-int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime);
+int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int64_t *mtime);
 bool    taosCheckExistFile(const char *pathname);
 
 int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence);
@@ -111,22 +116,35 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
 
 bool taosValidFile(TdFilePtr pFile);
 
-int32_t taosGetErrorFile(TdFilePtr pFile);
-
 int32_t taosCompressFile(char *srcFileName, char *destFileName);
 
 int32_t taosSetFileHandlesLimit();
 
 int32_t taosLinkFile(char *src, char *dst);
 
-FILE*  taosOpenCFile(const char* filename, const char* mode);
-int    taosSeekCFile(FILE* file, int64_t offset, int whence);
-size_t taosReadFromCFile(void *buffer, size_t size, size_t count, FILE *stream );
-size_t taosWriteToCFile(const void* ptr, size_t size, size_t nitems, FILE* stream);
-int	 taosCloseCFile(FILE *);
-int taosSetAutoDelFile(char* path);
+FILE  *taosOpenCFile(const char *filename, const char *mode);
+int    taosSeekCFile(FILE *file, int64_t offset, int whence);
+size_t taosReadFromCFile(void *buffer, size_t size, size_t count, FILE *stream);
+size_t taosWriteToCFile(const void *ptr, size_t size, size_t nitems, FILE *stream);
+int    taosCloseCFile(FILE *);
+int    taosSetAutoDelFile(char *path);
 
 bool lastErrorIsFileNotExist();
+
+#ifdef BUILD_WITH_RAND_ERR
+#define STUB_RAND_NETWORK_ERR(ret)                                        \
+  do {                                                                    \
+    if (tsEnableRandErr && (tsRandErrScope & RAND_ERR_NETWORK)) {         \
+      uint32_t r = taosRand() % tsRandErrDivisor;                         \
+      if ((r + 1) <= tsRandErrChance) {                                   \
+        ret = TSDB_CODE_RPC_NETWORK_UNAVAIL;                              \
+        uError("random network error: %s, %s", tstrerror(ret), __func__); \
+      }                                                                   \
+    }                                                                     \
+    while (0)
+#else
+#define STUB_RAND_NETWORK_ERR(status)
+#endif
 
 #ifdef __cplusplus
 }

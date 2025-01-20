@@ -11,7 +11,7 @@ from util.dnodes import *
 import subprocess
 
 class TDTestCase:
-
+    updatecfgDict = {'udfdResFuncs': "udf1,udf2"}
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
@@ -60,7 +60,7 @@ class TDTestCase:
     def prepare_data(self):
 
         tdSql.execute("drop database if exists db ")
-        tdSql.execute("create database if not exists db  duration 300")
+        tdSql.execute("create database if not exists db  duration 100")
         tdSql.execute("use db")
         tdSql.execute(
         '''create table stb1

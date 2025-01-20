@@ -17,6 +17,8 @@ sql create stream streams0 into streamt0 as select  ts c1, a, abs(b) c4 from t1 
 sql create stream streams1 into streamt1 as select  ts c1, a, abs(b) c4 from t1;
 sql create stream streams2 into streamt2 as select  ts c1, a, abs(b) c4 from st partition by tbname;
 
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into t1 values(1648791213000,1,1,1,1);
 sql insert into t1 values(1648791213001,1,1,1,1);
 sql insert into t1 values(1648791213002,1,1,1,1);

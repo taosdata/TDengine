@@ -29,7 +29,7 @@ void       mndReleaseArbGroup(SMnode *pMnode, SArbGroup *pObj);
 SSdbRaw   *mndArbGroupActionEncode(SArbGroup *pGroup);
 SSdbRow   *mndArbGroupActionDecode(SSdbRaw *pRaw);
 
-void mndArbGroupInitFromVgObj(SVgObj *pVgObj, SArbGroup *outGroup);
+int32_t mndArbGroupInitFromVgObj(SVgObj *pVgObj, SArbGroup *outGroup);
 
 int32_t mndSetCreateArbGroupRedoLogs(STrans *pTrans, SArbGroup *pGroup);
 int32_t mndSetCreateArbGroupUndoLogs(STrans *pTrans, SArbGroup *pGroup);
@@ -46,6 +46,15 @@ bool mndUpdateArbGroupBySetAssignedLeader(SArbGroup *pGroup, int32_t vgId, char 
                                           SArbGroup *pNewGroup);
 
 int32_t mndGetArbGroupSize(SMnode *pMnode);
+
+typedef enum {
+  CHECK_SYNC_NONE = 0,
+  CHECK_SYNC_SET_ASSIGNED_LEADER = 1,
+  CHECK_SYNC_CHECK_SYNC = 2,
+  CHECK_SYNC_UPDATE = 3
+} ECheckSyncOp;
+
+void mndArbCheckSync(SArbGroup *pArbGroup, int64_t nowMs, ECheckSyncOp *pOp, SArbGroup *pNewGroup);
 
 #ifdef __cplusplus
 }

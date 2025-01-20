@@ -95,7 +95,7 @@ class TDTestCase:
                 if partition == "c1":
                     if subtable:
                         tbname = self.tdCom.get_subtable_wait(f'{self.ctb_name}_{self.tdCom.subtable_prefix}{c1_value[1]}{self.tdCom.subtable_suffix}')
-                        tdSql.query(f'select count(*) from `{tbname}`')
+                        tdSql.query(f'select count(*) from `{tbname}`', count_expected_res=1)
                     else:
                         tbname = self.tdCom.get_subtable_wait(f'{self.ctb_name}_{self.tdCom.subtable_prefix}{partition_elm_alias}{self.tdCom.subtable_suffix}')
                         tdSql.query(f'select count(*) from `{tbname}`')
@@ -103,7 +103,7 @@ class TDTestCase:
                 elif partition == "abs(c1)":
                     abs_c1_value = abs(c1_value[1])
                     tbname = self.tdCom.get_subtable_wait(f'{self.ctb_name}_{self.tdCom.subtable_prefix}{abs_c1_value}{self.tdCom.subtable_suffix}')
-                    tdSql.query(f'select count(*) from `{tbname}`')
+                    tdSql.query(f'select count(*) from `{tbname}`', count_expected_res=1)
                 elif partition == "tbname" and ptn_counter == 0:
                     tbname = self.tdCom.get_subtable_wait(f'{self.ctb_name}_{self.tdCom.subtable_prefix}{self.ctb_name}{self.tdCom.subtable_suffix}')
                     tdSql.query(f'select count(*) from `{tbname}`')

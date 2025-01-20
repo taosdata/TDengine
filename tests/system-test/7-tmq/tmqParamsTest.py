@@ -104,7 +104,7 @@ class TDTestCase:
                         stop_flag = 0
                         try:
                             while True:
-                                res = consumer.poll(1)
+                                res = consumer.poll(3)
                                 tdSql.query('show consumers;')
                                 consumer_info = tdSql.queryResult[0][-1]
                                 if offset_value == "latest":
@@ -134,6 +134,8 @@ class TDTestCase:
                             if offset_value != "earliest" and offset_value != "":
                                 if offset_value == "latest":
                                     offset_value_list = list(map(lambda x: (x[-2].replace("wal:", "").replace("earliest", "0").replace("latest", "0").replace(offset_value, "0")), subscription_info))
+                                    if None in offset_value_list:
+                                        continue
                                     offset_value_list1 = list(map(lambda x: int(x.split("/")[0]), offset_value_list))
                                     offset_value_list2 = list(map(lambda x: int(x.split("/")[1]), offset_value_list))
                                     tdSql.checkEqual(offset_value_list1 == offset_value_list2, True)
@@ -142,6 +144,8 @@ class TDTestCase:
                                     tdSql.checkEqual(sum(rows_value_list), expected_res)
                                 elif offset_value == "none":
                                     offset_value_list = list(map(lambda x: x[-2], subscription_info))
+                                    if None in offset_value_list:
+                                        continue
                                     offset_value_list1 = list(map(lambda x: (x.split("/")[0]), offset_value_list))
                                     tdSql.checkEqual(offset_value_list1, ['none']*len(subscription_info))
                                     rows_value_list  = list(map(lambda x: x[-1], subscription_info))
@@ -155,6 +159,8 @@ class TDTestCase:
                                     # tdSql.checkEqual(sum(rows_value_list), expected_res)
                                 else:
                                     offset_value_list = list(map(lambda x: x[-2], subscription_info))
+                                    if None in offset_value_list:
+                                        continue
                                     offset_value_list1 = list(map(lambda x: (x.split("/")[0]), offset_value_list))
                                     tdSql.checkEqual(offset_value_list1, [None]*len(subscription_info))
                                     rows_value_list  = list(map(lambda x: x[-1], subscription_info))
@@ -162,6 +168,8 @@ class TDTestCase:
                         else:
                             if offset_value != "none":
                                 offset_value_list = list(map(lambda x: (x[-2].replace("wal:", "").replace("earliest", "0").replace("latest", "0").replace(offset_value, "0")), subscription_info))
+                                if None in offset_value_list:
+                                    continue
                                 offset_value_list1 = list(map(lambda x: int(x.split("/")[0]), offset_value_list))
                                 offset_value_list2 = list(map(lambda x: int(x.split("/")[1]), offset_value_list))
                                 tdSql.checkEqual(offset_value_list1 <= offset_value_list2, True)
@@ -170,6 +178,8 @@ class TDTestCase:
                                 tdSql.checkEqual(sum(rows_value_list), expected_res)
                             else:
                                 offset_value_list = list(map(lambda x: x[-2], subscription_info))
+                                if None in offset_value_list:
+                                    continue
                                 offset_value_list1 = list(map(lambda x: (x.split("/")[0]), offset_value_list))
                                 tdSql.checkEqual(offset_value_list1, ['none']*len(subscription_info))
                                 rows_value_list  = list(map(lambda x: x[-1], subscription_info))

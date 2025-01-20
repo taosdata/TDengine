@@ -2,20 +2,35 @@ system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c debugflag -v 135
 system sh/cfg.sh -n dnode1 -c streamBufferSize -v 10
+system sh/cfg.sh -n dnode1 -c checkpointinterval -v 60
+system sh/cfg.sh -n dnode1 -c snodeAddress -v 127.0.0.1:873
 system sh/exec.sh -n dnode1 -s start
 
 sleep 500
 
 sql connect
+print step1   =============
 
-print step1=============
+print ================ create snode
+sql show snodes
+if $rows != 0 then
+  return -1
+endi
+
+sql create snode on dnode 1;
+sql show snodes;
+if $rows != 1 then
+    return -1
+endi
+
+print ============== snode created , create db
 
 sql create database test3  vgroups 1;
 sql use test3;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 sql create stream streams3 trigger at_once ignore expired 0 ignore update 0 into streamt3 as select  _wstart, count(*) c1 from t1 state_window(a);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791211000,1,2,3,1.0);
 sql insert into t1 values(1648791213000,2,2,3,1.1);
@@ -57,7 +72,7 @@ loop8:
 sleep 200
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -87,7 +102,7 @@ loop9:
 sleep 200
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -127,7 +142,7 @@ loop10:
 sleep 200
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -162,7 +177,7 @@ loop11:
 sleep 200
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -194,7 +209,7 @@ loop11:
 sleep 200
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -225,7 +240,7 @@ sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 sql create stream streams4 trigger at_once ignore expired 0 ignore update 0 into streamt4 as select  _wstart, first(a), b, c, ta, tb from st interval(1s);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791211000,1,2,3,1.0);
 sql insert into t1 values(1648791213000,2,3,4,1.1);
@@ -239,7 +254,7 @@ loop12:
 sleep 200
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -301,7 +316,7 @@ sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 sql create stream streams5 trigger at_once ignore expired 0 ignore update 0 into streamt5 as select  _wstart, b, c, ta, tb, max(b) from t1 interval(1s);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791211000,1,2,3,1.0);
 sql insert into t1 values(1648791213000,2,3,4,1.1);
@@ -315,7 +330,7 @@ loop13:
 sleep 200
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -369,7 +384,6 @@ if $data24 != 1 then
 endi
 
 print step4=============
-
 sql create database test6  vgroups 4;
 sql use test6;
 sql create stable st(ts timestamp,a int,b int,c int,d int) tags(ta int,tb int,tc int);
@@ -382,7 +396,7 @@ sql create stream streams9 trigger at_once ignore expired 0 ignore update 0 into
 sql create stream streams10 trigger at_once ignore expired 0 ignore update 0 into streamt10 as select  ts, b, c, last(c), ta, tb from st partition by tbname event_window start with d = 0 end with d = 9;
 sql create stream streams11 trigger at_once ignore expired 1 ignore update 0 watermark 100s into streamt11 as select  ts, b, c, last(c), ta, tb from st partition by tbname count_window(2);
 
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql insert into t1 values(1648791211000,1,2,3,0);
 sql insert into t1 values(1648791213000,2,3,4,0);
@@ -396,7 +410,7 @@ loop14:
 sleep 200
 
 $loop_count = $loop_count + 1
-if $loop_count == 10 then
+if $loop_count == 30 then
   return -1
 endi
 
@@ -449,4 +463,21 @@ if $data25 != 2 then
   goto loop14
 endi
 
+print sleep for 1min for checkpoint generate
+sleep 60000
+
+print ================== restart to load checkpoint from snode
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+sleep 500
+sql connect
+
+sleep 30000
+
+sql select start_ver, checkpoint_ver from information_schema.ins_stream_tasks where level='source';
+sleep 500
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+

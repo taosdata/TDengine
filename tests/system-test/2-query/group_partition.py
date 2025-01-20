@@ -80,6 +80,12 @@ class TDTestCase:
         if nonempty_tb_num > 0:
             num = self.row_nums
         tdSql.checkRows(num)
+
+        tdSql.query(f"select c1, count(*), count(1), count(c1) from {self.dbname}.{self.stable} {keyword} by c1 having c1 >= 0")
+        num = 0
+        if nonempty_tb_num > 0:
+            num = self.row_nums
+        tdSql.checkRows(num)
     
         tdSql.query(f"select ts, count(*) from {self.dbname}.{self.stable} {keyword} by ts ")
         tdSql.checkRows(nonempty_tb_num * self.row_nums)
@@ -90,6 +96,157 @@ class TDTestCase:
 
         tdSql.query(f"select t2, t3, c1, count(*) from {self.dbname}.{self.stable} {keyword} by t2, t3, c1 ")
         tdSql.checkRows(nonempty_tb_num * self.row_nums)
+
+    def test_groupby_position(self, keyword, check_num, nonempty_tb_num):
+        ####### by tbname
+        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} {keyword} by 1 ")
+        tdSql.checkRows(check_num)
+
+        tdSql.query(f"select tbname from {self.dbname}.{self.stable} {keyword} by 1 order by count(*)")
+        tdSql.checkRows(check_num)
+
+        # last
+        tdSql.query(f"select tbname from {self.dbname}.{self.stable} {keyword} by 1 having count(*)>=0")
+        tdSql.checkRows(check_num)
+
+        # having filter out empty
+        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} {keyword} by 1 having count(*) <= 0")
+        tdSql.checkRows(check_num - nonempty_tb_num)
+
+        ####### by tag
+        tdSql.query(f"select t2, count(*), count(1), count(c1) from {self.dbname}.{self.stable} {keyword} by 1 ")
+        tdSql.checkRows(check_num)
+
+        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} {keyword} by 1 having count(*) <= 0")
+        tdSql.checkRows(check_num - nonempty_tb_num)
+
+        # where
+        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where ts < now {keyword} by 1 ")
+        tdSql.checkRows(check_num)
+
+        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where ts > 1737146000000 {keyword} by 1 ")
+        tdSql.checkRows(check_num)
+
+        tdSql.query(f"select t2, count(*) from {self.dbname}.{self.stable} where c1 = 1 {keyword} by 1 ")
+        tdSql.checkRows(check_num)
+
+        ####### by col
+        tdSql.query(f"select c1, count(*), count(1), count(c1) from {self.dbname}.{self.stable} {keyword} by 1 ")
+        num = 0
+        if nonempty_tb_num > 0:
+            num = self.row_nums
+        tdSql.checkRows(num)
+
+        tdSql.query(f"select ts, count(*) from {self.dbname}.{self.stable} {keyword} by 1 ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
+
+        # col + tag
+        tdSql.query(f"select t2, c1, count(*) from {self.dbname}.{self.stable} {keyword} by 1, 2 ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
+        tdSql.query(f"select t2, c1, count(*) from {self.dbname}.{self.stable} {keyword} by 1, c1 ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
+        tdSql.query(f"select t2, c1, count(*) from {self.dbname}.{self.stable} {keyword} by t2, 2 ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
+
+        tdSql.query(f"select t2, t3, c1, count(*) from {self.dbname}.{self.stable} {keyword} by 1, 2, 3 ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
+        tdSql.query(f"select t2, t3, c1, count(*) from {self.dbname}.{self.stable} {keyword} by t2, 2, 3 ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
+        tdSql.query(f"select t2, t3, c1, count(*) from {self.dbname}.{self.stable} {keyword} by 1, t3, 3 ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
+
+        tdSql.query(f"select sum(t0.sumc2) from (select c1, sum(c2) as sumc2 from {self.dbname}.{self.stable} {keyword} by 1) t0")
+        num = 0
+        if nonempty_tb_num > 0:
+            num = 1
+        tdSql.checkRows(num)
+
+        tdSql.query(f"select abs(c1), count(*) from {self.dbname}.{self.stable} {keyword} by 1")
+        num = 0
+        if nonempty_tb_num > 0:
+            num = self.row_nums
+        tdSql.checkRows(num)
+
+        ####### error case
+        tdSql.error(f"select c1, count(*) from {self.dbname}.{self.stable} {keyword} by 10")
+        tdSql.error(f"select c1, count(*) from {self.dbname}.{self.stable} {keyword} by 0")
+        tdSql.error(f"select c1, c2, count(*) from {self.dbname}.{self.stable} {keyword} by 0, 1")
+        tdSql.error(f"select c1, count(*) from {self.dbname}.{self.stable} {keyword} by 1.2")
+        tdSql.error(f"select c1, c2, c3, count(*) from {self.dbname}.{self.stable} {keyword} by 1, 2.2, 3")
+        tdSql.error(f"select c1, c2, count(*) from {self.dbname}.{self.stable} {keyword} by 1")
+        tdSql.error(f"select c1, avg(c2), count(*) from {self.dbname}.{self.stable} {keyword} by 1, 2")
+
+    def test_groupby_alias(self, keyword, check_num, nonempty_tb_num):
+        tdSql.query(f"select t1 as t1_alias, count(*) from {self.dbname}.{self.stable} {keyword} by t1_alias ")
+        tdSql.checkRows(check_num)
+
+        tdSql.query(f"select t1 as t1_alias from {self.dbname}.{self.stable} {keyword} by t1_alias order by count(*)")
+        tdSql.checkRows(check_num)
+
+        # last
+        tdSql.query(f"select t1 as t1_alias from {self.dbname}.{self.stable} {keyword} by t1_alias having count(*)>=0")
+        tdSql.checkRows(check_num)
+
+        # having filter out empty
+        tdSql.query(f"select t1 as t1_alias, count(*) from {self.dbname}.{self.stable} {keyword} by t1_alias having count(*) <= 0")
+        tdSql.checkRows(check_num - nonempty_tb_num)
+
+        ####### by tag
+        tdSql.query(f"select t2 as t2_alias, count(*), count(1), count(c1) from {self.dbname}.{self.stable} {keyword} by t2_alias ")
+        tdSql.checkRows(check_num)
+
+        tdSql.query(f"select t2 as t2_alias, count(*) from {self.dbname}.{self.stable} {keyword} by t2_alias having count(*) <= 0")
+        tdSql.checkRows(check_num - nonempty_tb_num)
+
+        # where
+        tdSql.query(f"select t2 as t2_alias, count(*) from {self.dbname}.{self.stable} where ts < now {keyword} by t2_alias ")
+        tdSql.checkRows(check_num)
+
+        tdSql.query(f"select t2 as t2_alias, count(*) from {self.dbname}.{self.stable} where ts > 1737146000000 {keyword} by t2_alias ")
+        tdSql.checkRows(check_num)
+
+        tdSql.query(f"select t2 as t2_alias, count(*) from {self.dbname}.{self.stable} where c1 = 1 {keyword} by t2_alias ")
+        tdSql.checkRows(check_num)
+
+        ####### by col
+        tdSql.query(f"select c1 as c1_alias, count(*), count(1), count(c1) from {self.dbname}.{self.stable} {keyword} by c1_alias ")
+        num = 0
+        if nonempty_tb_num > 0:
+            num = self.row_nums
+        tdSql.checkRows(num)
+
+        tdSql.query(f"select ts as ts_alias, count(*) from {self.dbname}.{self.stable} {keyword} by ts_alias ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
+
+        # col + tag
+        tdSql.query(f"select t2 as t2_alias, c1 as c1_alias, count(*) from {self.dbname}.{self.stable} {keyword} by 1, 2 ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
+        tdSql.query(f"select t2 as t2_alias, c1 as c1_alias, count(*) from {self.dbname}.{self.stable} {keyword} by 1, c1 ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
+        tdSql.query(f"select t2 as t2_alias, c1 as c1_alias, count(*) from {self.dbname}.{self.stable} {keyword} by t2, 2 ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
+
+        tdSql.query(f"select t2 as t2_alias, t3 as t3_alias, c1 as c1_alias, count(*) from {self.dbname}.{self.stable} {keyword} by t2_alias, t3_alias, 3 ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
+        tdSql.query(f"select t2 as t2_alias, t3 as t3_alias, c1 as c1_alias, count(*) from {self.dbname}.{self.stable} {keyword} by t2, t3_alias, c1_alias ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
+        tdSql.query(f"select t2 as t2_alias, t3 as t3_alias, c1 as c1_alias, count(*) from {self.dbname}.{self.stable} {keyword} by t2_alias, t3, c1_alias ")
+        tdSql.checkRows(nonempty_tb_num * self.row_nums)
+
+        tdSql.query(f"select sum(t0.sumc2) from (select c1 as c1_alias, sum(c2) as sumc2 from {self.dbname}.{self.stable} {keyword} by c1_alias) t0")
+        num = 0
+        if nonempty_tb_num > 0:
+            num = 1
+        tdSql.checkRows(num)
+
+        tdSql.query(f"select abs(c1) as abs_alias, count(*) from {self.dbname}.{self.stable} {keyword} by abs_alias")
+        num = 0
+        if nonempty_tb_num > 0:
+            num = self.row_nums
+        tdSql.checkRows(num)
+
+        ####### error case
+        tdSql.error(f"select c1, avg(c2) as avg_alias, count(*) from {self.dbname}.{self.stable} {keyword} by 1, avg_alias")
 
     def test_groupby_sub_table(self):
         for i in range(self.tb_nums):
@@ -237,6 +394,9 @@ class TDTestCase:
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and t2=0;")
         tdSql.checkRows(1)
 
+        tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and t2=0 having count(*) > 10;")
+        tdSql.checkRows(0)
+
         tdSql.query(f"select tbname, count(*) from {self.dbname}.{self.stable} partition by tbname event_window start with c1 >= 0 end with c2 = 9 and _rowts>0;")
         tdSql.checkRows(nonempty_tb_num)
 
@@ -260,13 +420,115 @@ class TDTestCase:
         tdSql.error(f"select t2, count(*) from {self.dbname}.{self.stable} group by t2 where t2 = 1")
         tdSql.error(f"select t2, count(*) from {self.dbname}.{self.stable} group by t2 interval(1d)")
 
-  
+    def test_TS5567(self):
+        tdSql.query(f"select const_col from (select 1 as const_col from {self.dbname}.{self.stable}) t group by const_col")
+        tdSql.checkRows(1)
+        tdSql.query(f"select const_col from (select 1 as const_col from {self.dbname}.{self.stable}) t partition by const_col")
+        tdSql.checkRows(50)
+        tdSql.query(f"select const_col from (select 1 as const_col, count(c1) from {self.dbname}.{self.stable} t group by c1) group by const_col")
+        tdSql.checkRows(1)
+        tdSql.query(f"select const_col from (select 1 as const_col, count(c1) from {self.dbname}.{self.stable} t group by c1) partition by const_col")
+        tdSql.checkRows(10)
+        tdSql.query(f"select const_col as c_c from (select 1 as const_col from {self.dbname}.{self.stable}) t group by c_c")
+        tdSql.checkRows(1)
+        tdSql.query(f"select const_col as c_c from (select 1 as const_col from {self.dbname}.{self.stable}) t partition by c_c")
+        tdSql.checkRows(50)
+        tdSql.query(f"select const_col from (select 1 as const_col, count(c1) from {self.dbname}.{self.stable} t group by c1) group by 1")
+        tdSql.checkRows(1)
+        tdSql.query(f"select const_col from (select 1 as const_col, count(c1) from {self.dbname}.{self.stable} t group by c1) partition by 1")
+        tdSql.checkRows(10)
+    
+    def test_TD_32883(self):
+        sql = "select avg(c1), t9 from db.stb group by t9,t9, tbname"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(5)
+        sql = "select avg(c1), t10 from db.stb group by t10,t10, tbname"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(5)
+        sql = "select avg(c1), t10 from db.stb partition by t10,t10, tbname"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(5)
+        sql = "select avg(c1), concat(t9,t10) from db.stb group by concat(t9,t10), concat(t9,t10),tbname"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(5)
+        
+    def test_TS_5727(self):
+        tdSql.execute(f" use {self.dbname} ")
+        stableName = "test5727"
+        sql = f"CREATE STABLE {self.dbname}.{stableName} (`ts` TIMESTAMP, `WaterConsumption` FLOAT,  \
+        `ElecConsumption` INT, `Status` BOOL, `status2` BOOL, `online` BOOL)                         \
+        TAGS (`ActivationTime` TIMESTAMP, `ProductId` INT,                                           \
+        `ProductMac` VARCHAR(24), `location` INT)"
+        tdSql.execute(sql)
+        
+        sql = f'CREATE TABLE {self.dbname}.`d00` USING {self.dbname}.{stableName} \
+            (`ActivationTime`, `ProductId`, `ProductMac`, `location`)   \
+                TAGS (1733124710578, 1001, "00:11:22:33:44:55", 100000)'
+        tdSql.execute(sql)
+        sql = f'CREATE TABLE {self.dbname}.`d01` USING {self.dbname}.{stableName}  \
+            (`ActivationTime`, `ProductId`, `ProductMac`, `location`)  \
+                TAGS (1733124723572, 1002, "00:12:22:33:44:55", 200000)'
+        tdSql.execute(sql)  
+        sql = f'CREATE TABLE {self.dbname}.`d02` USING {self.dbname}.{stableName} \
+            (`ActivationTime`, `ProductId`, `ProductMac`, `location`) \
+                TAGS (1733124730908, 1003, "00:11:23:33:44:55", 100000)'
+        tdSql.execute(sql)
+        
+        sql = f'insert into {self.dbname}.d00 values(now - 2s, 5, 5, true, true, false);'
+        tdSql.execute(sql)
+        sql = f'insert into {self.dbname}.d01 values(now - 1s, 6, 5, true, true, true);'
+        tdSql.execute(sql)
+        sql = f'insert into {self.dbname}.d02 values(now, 6, 7, true, true, true);'
+        tdSql.execute(sql)
+        
+        sql = f'select `location`, tbname from {self.dbname}.{stableName} where ts < now group by tbname order by tbname;'
+        tdSql.query(sql)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 100000)
+        tdSql.checkData(1, 0, 200000)
+        tdSql.checkData(2, 0, 100000)
+        tdSql.checkData(0, 1, "d00")
+        tdSql.checkData(1, 1, "d01")
+        tdSql.checkData(2, 1, "d02")
+        
+        sql = f'select tbname,last(online) as online,location from {self.dbname}.{stableName} where ts < now group by tbname order by tbname;'
+        tdSql.query(sql)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "d00")
+        tdSql.checkData(1, 0, "d01")
+        tdSql.checkData(2, 0, "d02")
+        tdSql.checkData(0, 1, False)
+        tdSql.checkData(1, 1, True)
+        tdSql.checkData(2, 1, True)
+        tdSql.checkData(0, 2, 100000)
+        tdSql.checkData(1, 2, 200000)
+        tdSql.checkData(2, 2, 100000)
+
+              
+        sql = f'select location,tbname,last_row(online) as online from {self.dbname}.{stableName} where ts < now group by tbname order by tbname;'
+        tdSql.query(sql)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 100000)
+        tdSql.checkData(1, 0, 200000)
+        tdSql.checkData(2, 0, 100000)
+        tdSql.checkData(0, 1, "d00")
+        tdSql.checkData(1, 1, "d01")
+        tdSql.checkData(2, 1, "d02")
+        tdSql.checkData(0, 2, False)
+        tdSql.checkData(1, 2, True)
+        tdSql.checkData(2, 2, True)
+        
+        
     def run(self):
         tdSql.prepare()
         self.prepare_db()
         # empty table only
         self.test_groupby('group', self.tb_nums, 0)
         self.test_groupby('partition', self.tb_nums, 0)
+        self.test_groupby_position('group', self.tb_nums, 0)
+        self.test_groupby_position('partition', self.tb_nums, 0)
+        self.test_groupby_alias('group', self.tb_nums, 0)
+        self.test_groupby_alias('partition', self.tb_nums, 0)
         self.test_innerSelect(self.tb_nums)
         self.test_multi_group_key(self.tb_nums, 0)
         self.test_multi_agg(self.tb_nums, 0)
@@ -278,6 +540,10 @@ class TDTestCase:
 
         self.test_groupby('group', self.tb_nums, nonempty_tb_num)
         self.test_groupby('partition', self.tb_nums, nonempty_tb_num)
+        self.test_groupby_position('group', self.tb_nums, nonempty_tb_num)
+        self.test_groupby_position('partition', self.tb_nums, nonempty_tb_num)
+        self.test_groupby_alias('group', self.tb_nums, nonempty_tb_num)
+        self.test_groupby_alias('partition', self.tb_nums, nonempty_tb_num)
         self.test_groupby_sub_table()
         self.test_innerSelect(self.tb_nums)
         self.test_multi_group_key(self.tb_nums, nonempty_tb_num)
@@ -285,6 +551,8 @@ class TDTestCase:
         self.test_window(nonempty_tb_num)
         self.test_event_window(nonempty_tb_num)
 
+        self.test_TS5567()
+        self.test_TD_32883()
 
         ## test old version before changed
         # self.test_groupby('group', 0, 0)
@@ -292,6 +560,8 @@ class TDTestCase:
         # self.test_groupby('group', 5, 5)
 
         self.test_error()
+        
+        self.test_TS_5727()
 
 
     def stop(self):

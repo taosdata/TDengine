@@ -16,4 +16,5 @@ ExternalProject_Add(apr-1
         BUILD_COMMAND make
         INSTALL_COMMAND make install
         TEST_COMMAND ""
+        GIT_SHALLOW true
 )

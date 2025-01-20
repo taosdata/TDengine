@@ -41,26 +41,23 @@ int32_t tsdbBegin(STsdb *pTsdb) {
   if (!pTsdb) return code;
 
   SMemTable *pMemTable;
-  code = tsdbMemTableCreate(pTsdb, &pMemTable);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  TAOS_CHECK_GOTO(tsdbMemTableCreate(pTsdb, &pMemTable), &lino, _exit);
 
   // lock
   if ((code = taosThreadMutexLock(&pTsdb->mutex))) {
-    code = TAOS_SYSTEM_ERROR(code);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(code), &lino, _exit);
   }
 
   pTsdb->mem = pMemTable;
 
   // unlock
   if ((code = taosThreadMutexUnlock(&pTsdb->mutex))) {
-    code = TAOS_SYSTEM_ERROR(code);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(code), &lino, _exit);
   }
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pTsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
   }
   return code;
 }

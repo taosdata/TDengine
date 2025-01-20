@@ -47,7 +47,7 @@ void taosStringBuilderDestroy(SStringBuilder* sb) {
 
 void taosStringBuilderAppend(SStringBuilder* sb, const void* data, size_t len) {
   taosStringBuilderEnsureCapacity(sb, len);
-  memcpy(sb->buf + sb->pos, data, len);
+  (void)memcpy(sb->buf + sb->pos, data, len);
   sb->pos += len;
 }
 
@@ -59,7 +59,7 @@ void taosStringBuilderAppendChar(SStringBuilder* sb, char c) {
 void taosStringBuilderAppendStringLen(SStringBuilder* sb, const char* str, size_t len) {
   taosStringBuilderEnsureCapacity(sb, len);
   if(!sb->buf) return;
-  memcpy(sb->buf + sb->pos, str, len);
+  (void)memcpy(sb->buf + sb->pos, str, len);
   sb->pos += len;
 }
 
@@ -71,12 +71,12 @@ void taosStringBuilderAppendNull(SStringBuilder* sb) { taosStringBuilderAppendSt
 
 void taosStringBuilderAppendInteger(SStringBuilder* sb, int64_t v) {
   char   buf[64] = {0};
-  size_t len = snprintf(buf, sizeof(buf), "%" PRId64, v);
+  size_t len = tsnprintf(buf, sizeof(buf), "%" PRId64, v);
   taosStringBuilderAppendStringLen(sb, buf, TMIN(len, sizeof(buf)));
 }
 
 void taosStringBuilderAppendDouble(SStringBuilder* sb, double v) {
   char   buf[512] = {0};
-  size_t len = snprintf(buf, sizeof(buf), "%.9lf", v);
+  size_t len = tsnprintf(buf, sizeof(buf), "%.9lf", v);
   taosStringBuilderAppendStringLen(sb, buf, TMIN(len, sizeof(buf)));
 }

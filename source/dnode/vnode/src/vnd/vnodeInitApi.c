@@ -59,10 +59,16 @@ void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdReaderGetNumOfInMemRows = tsdbGetNumOfRowsInMemTable2;  // todo this function should be moved away
 
   pReader->tsdSetQueryTableList = tsdbSetTableList2;
-  pReader->tsdSetReaderTaskId = (void (*)(void*, const char*))tsdbReaderSetId2;
+  pReader->tsdSetReaderTaskId = tsdbReaderSetId;
 
   pReader->tsdSetFilesetDelimited = (void (*)(void*))tsdbSetFilesetDelimited;
   pReader->tsdSetSetNotifyCb = (void (*)(void*, TsdReaderNotifyCbFn, void*))tsdbReaderSetNotifyCb;
+
+  // file set iterate
+  pReader->fileSetReaderOpen = tsdbFileSetReaderOpen;
+  pReader->fileSetReadNext = tsdbFileSetReaderNext;
+  pReader->fileSetGetEntryField = tsdbFileSetGetEntryField;
+  pReader->fileSetReaderClose = tsdbFileSetReaderClose;
 }
 
 void initMetadataAPI(SStoreMeta* pMeta) {
@@ -105,6 +111,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->pauseCtbCursor = metaPauseCtbCursor;
   pMeta->closeCtbCursor = metaCloseCtbCursor;
   pMeta->ctbCursorNext = metaCtbCursorNext;
+  pMeta->getDBSize = vnodeGetDBSize;
 }
 
 void initTqAPI(SStoreTqReader* pTq) {
@@ -129,17 +136,17 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqReaderIsQueriedTable = tqReaderIsQueriedTable;
   pTq->tqReaderCurrentBlockConsumed = tqCurrentBlockConsumed;
 
-  pTq->tqReaderGetWalReader = tqGetWalReader;              // todo remove it
-//  pTq->tqReaderRetrieveTaosXBlock = tqRetrieveTaosxBlock;  // todo remove it
+  pTq->tqReaderGetWalReader = tqGetWalReader;  // todo remove it
+  //  pTq->tqReaderRetrieveTaosXBlock = tqRetrieveTaosxBlock;  // todo remove it
 
   pTq->tqReaderSetSubmitMsg = tqReaderSetSubmitMsg;  // todo remove it
   pTq->tqGetResultBlock = tqGetResultBlock;
 
-//  pTq->tqReaderNextBlockFilterOut = tqNextDataBlockFilterOut;
+  //  pTq->tqReaderNextBlockFilterOut = tqNextDataBlockFilterOut;
   pTq->tqGetResultBlockTime = tqGetResultBlockTime;
 
   pTq->tqGetStreamExecProgress = tqGetStreamExecInfo;
-  }
+}
 
 void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamFileStateInit = streamFileStateInit;
@@ -147,6 +154,7 @@ void initStateStoreAPI(SStateStore* pStore) {
 
   pStore->streamStatePutParName = streamStatePutParName;
   pStore->streamStateGetParName = streamStateGetParName;
+  pStore->streamStateDeleteParName = streamStateDeleteParName;
 
   pStore->streamStateAddIfNotExist = streamStateAddIfNotExist;
   pStore->streamStateReleaseBuf = streamStateReleaseBuf;
@@ -162,10 +170,14 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateSaveInfo = streamStateSaveInfo;
   pStore->streamStateGetInfo = streamStateGetInfo;
   pStore->streamStateSetNumber = streamStateSetNumber;
+  pStore->streamStateGetPrev = streamStateGetPrev;
 
   pStore->streamStateFillPut = streamStateFillPut;
   pStore->streamStateFillGet = streamStateFillGet;
+  pStore->streamStateFillAddIfNotExist = streamStateFillAddIfNotExist;
   pStore->streamStateFillDel = streamStateFillDel;
+  pStore->streamStateFillGetNext = streamStateFillGetNext;
+  pStore->streamStateFillGetPrev = streamStateFillGetPrev;
 
   pStore->streamStateCurNext = streamStateCurNext;
   pStore->streamStateCurPrev = streamStateCurPrev;
@@ -176,8 +188,10 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateFillSeekKeyPrev = streamStateFillSeekKeyPrev;
   pStore->streamStateFreeCur = streamStateFreeCur;
 
-  pStore->streamStateGetGroupKVByCur = streamStateGetGroupKVByCur;
+  pStore->streamStateFillGetGroupKVByCur = streamStateFillGetGroupKVByCur;
   pStore->streamStateGetKVByCur = streamStateGetKVByCur;
+
+  pStore->streamStateClearExpiredState = streamStateClearExpiredState;
 
   pStore->streamStateSessionAddIfNotExist = streamStateSessionAddIfNotExist;
   pStore->streamStateSessionPut = streamStateSessionPut;
@@ -214,6 +228,11 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateSessionSeekKeyCurrentPrev = streamStateSessionSeekKeyCurrentPrev;
   pStore->streamStateSessionSeekKeyCurrentNext = streamStateSessionSeekKeyCurrentNext;
 
+  pStore->streamStateGroupPut = streamStateGroupPut;
+  pStore->streamStateGroupGetCur = streamStateGroupGetCur;
+  pStore->streamStateGroupCurNext = streamStateGroupCurNext;
+  pStore->streamStateGroupGetKVByCur = streamStateGroupGetKVByCur;
+
   pStore->streamFileStateDestroy = streamFileStateDestroy;
   pStore->streamFileStateClear = streamFileStateClear;
   pStore->needClearDiskBuff = needClearDiskBuff;
@@ -223,7 +242,6 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateBegin = streamStateBegin;
   pStore->streamStateCommit = streamStateCommit;
   pStore->streamStateDestroy = streamStateDestroy;
-  pStore->streamStateDeleteCheckPoint = streamStateDeleteCheckPoint;
   pStore->streamStateReloadInfo = streamStateReloadInfo;
   pStore->streamStateCopyBackend = streamStateCopyBackend;
 }

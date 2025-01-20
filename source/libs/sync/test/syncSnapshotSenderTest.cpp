@@ -39,7 +39,8 @@ SSyncSnapshotSender* createSender() {
   pSyncNode->pFsm->FpGetSnapshotInfo = GetSnapshot;
 #endif
 
-  SSyncSnapshotSender* pSender = snapshotSenderCreate(pSyncNode, 2);
+  SSyncSnapshotSender* pSender = NULL;
+  assert(snapshotSenderCreate(pSyncNode, 2, &pSender) == 0);
   pSender->start = true;
   pSender->seq = 10;
   pSender->ack = 20;

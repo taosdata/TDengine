@@ -73,7 +73,7 @@ void jniGetGlobalMethod(JNIEnv *env) {
   }
 
   if (g_vm == NULL) {
-    (*env)->GetJavaVM(env, &g_vm);
+    (void)(*env)->GetJavaVM(env, &g_vm);
   }
 
   jclass arrayListClass = (*env)->FindClass(env, "java/util/ArrayList");
@@ -484,7 +484,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getSchemaMetaData
       (*env)->SetIntField(env, metadataObj, g_metadataColindexField, i);
       jstring metadataObjColname = (*env)->NewStringUTF(env, fields[i].name);
       (*env)->SetObjectField(env, metadataObj, g_metadataColnameField, metadataObjColname);
-      (*env)->CallBooleanMethod(env, arrayListObj, g_arrayListAddFp, metadataObj);
+      (void)(*env)->CallBooleanMethod(env, arrayListObj, g_arrayListAddFp, metadataObj);
     }
   }
 
@@ -582,20 +582,20 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
       case TSDB_DATA_TYPE_BINARY:
       case TSDB_DATA_TYPE_VARBINARY:
       case TSDB_DATA_TYPE_GEOMETRY: {
-        memcpy(tmp, row[i], length[i]);  // handle the case that terminated does not exist
+        (void)memcpy(tmp, row[i], length[i]);  // handle the case that terminated does not exist
         (*env)->CallVoidMethod(env, rowobj, g_rowdataSetStringFp, i, (*env)->NewStringUTF(env, tmp));
 
-        memset(tmp, 0, length[i]);
+        (void)memset(tmp, 0, length[i]);
         break;
       }
       case TSDB_DATA_TYPE_NCHAR: {
         (*env)->CallVoidMethod(env, rowobj, g_rowdataSetByteArrayFp, i,
-                               jniFromNCharToByteArray(env, (char *)row[i], length[i]));
+                                     jniFromNCharToByteArray(env, (char *)row[i], length[i]));
         break;
       }
       case TSDB_DATA_TYPE_JSON: {
         (*env)->CallVoidMethod(env, rowobj, g_rowdataSetByteArrayFp, i,
-                               jniFromNCharToByteArray(env, (char *)row[i], length[i]));
+                                     jniFromNCharToByteArray(env, (char *)row[i], length[i]));
         break;
       }
       case TSDB_DATA_TYPE_TIMESTAMP: {
@@ -680,6 +680,10 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_validateCreateTab
   jsize len = (*env)->GetArrayLength(env, jsql);
 
   char *str = (char *)taosMemoryCalloc(1, sizeof(char) * (len + 1));
+  if (str == NULL) {
+    jniError("jobj:%p, conn:%p, alloc memory failed", jobj, tscon);
+    return JNI_OUT_OF_MEMORY;
+  }
   (*env)->GetByteArrayRegion(env, jsql, 0, len, (jbyte *)str);
   if ((*env)->ExceptionCheck(env)) {
     // todo handle error
@@ -843,6 +847,10 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setTableNameTagsI
 
   jsize len = (*env)->GetArrayLength(env, tags);
   char *tagsData = (char *)taosMemoryCalloc(1, len);
+  if (tagsData == NULL) {
+    jniError("jobj:%p, conn:%p, alloc memory failed", jobj, tsconn);
+    return JNI_OUT_OF_MEMORY;
+  }
   (*env)->GetByteArrayRegion(env, tags, 0, len, (jbyte *)tagsData);
   if ((*env)->ExceptionCheck(env)) {
     // todo handle error
@@ -850,18 +858,30 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setTableNameTagsI
 
   len = (*env)->GetArrayLength(env, lengthList);
   int32_t *lengthArray = (int32_t *)taosMemoryCalloc(1, len);
+  if (lengthArray == NULL) {
+    jniError("jobj:%p, conn:%p, alloc memory failed", jobj, tsconn);
+    return JNI_OUT_OF_MEMORY;
+  }
   (*env)->GetByteArrayRegion(env, lengthList, 0, len, (jbyte *)lengthArray);
   if ((*env)->ExceptionCheck(env)) {
   }
 
   len = (*env)->GetArrayLength(env, typeList);
   char *typeArray = (char *)taosMemoryCalloc(1, len);
+  if (typeArray == NULL) {
+    jniError("jobj:%p, conn:%p, alloc memory failed", jobj, tsconn);
+    return JNI_OUT_OF_MEMORY;
+  }
   (*env)->GetByteArrayRegion(env, typeList, 0, len, (jbyte *)typeArray);
   if ((*env)->ExceptionCheck(env)) {
   }
 
   len = (*env)->GetArrayLength(env, nullList);
   char *nullArray = (char *)taosMemoryCalloc(1, len);
+  if (nullArray == NULL) {
+    jniError("jobj:%p, conn:%p, alloc memory failed", jobj, tsconn);
+    return JNI_OUT_OF_MEMORY;
+  }
   (*env)->GetByteArrayRegion(env, nullList, 0, len, (jbyte *)nullArray);
   if ((*env)->ExceptionCheck(env)) {
   }
@@ -870,6 +890,10 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setTableNameTagsI
   char       *curTags = tagsData;
 
   TAOS_MULTI_BIND *tagsBind = taosMemoryCalloc(numOfTags, sizeof(TAOS_MULTI_BIND));
+  if (tagsBind == NULL) {
+    jniError("jobj:%p, conn:%p, alloc memory failed", jobj, tsconn);
+    return JNI_OUT_OF_MEMORY;
+  }
   for (int32_t i = 0; i < numOfTags; ++i) {
     tagsBind[i].buffer_type = typeArray[i];
     tagsBind[i].buffer = curTags;
@@ -916,6 +940,10 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_bindColDataImp(
   // todo refactor
   jsize len = (*env)->GetArrayLength(env, colDataList);
   char *colBuf = (char *)taosMemoryCalloc(1, len);
+  if (colBuf == NULL) {
+    jniError("jobj:%p, conn:%p, alloc memory failed", jobj, tscon);
+    return JNI_OUT_OF_MEMORY;
+  }
   (*env)->GetByteArrayRegion(env, colDataList, 0, len, (jbyte *)colBuf);
   if ((*env)->ExceptionCheck(env)) {
     // todo handle error
@@ -923,18 +951,30 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_bindColDataImp(
 
   len = (*env)->GetArrayLength(env, lengthList);
   char *lengthArray = (char *)taosMemoryCalloc(1, len);
+  if (lengthArray == NULL) {
+    jniError("jobj:%p, conn:%p, alloc memory failed", jobj, tscon);
+    return JNI_OUT_OF_MEMORY;
+  }
   (*env)->GetByteArrayRegion(env, lengthList, 0, len, (jbyte *)lengthArray);
   if ((*env)->ExceptionCheck(env)) {
   }
 
   len = (*env)->GetArrayLength(env, nullList);
   char *nullArray = (char *)taosMemoryCalloc(1, len);
+  if (nullArray == NULL) {
+    jniError("jobj:%p, conn:%p, alloc memory failed", jobj, tscon);
+    return JNI_OUT_OF_MEMORY;
+  }
   (*env)->GetByteArrayRegion(env, nullList, 0, len, (jbyte *)nullArray);
   if ((*env)->ExceptionCheck(env)) {
   }
 
   // bind multi-rows with only one invoke.
   TAOS_MULTI_BIND *b = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND));
+  if (b == NULL) {
+    jniError("jobj:%p, conn:%p, alloc memory failed", jobj, tscon);
+    return JNI_OUT_OF_MEMORY;
+  }
 
   b->num = numOfRows;
   b->buffer_type = dataType;  // todo check data type
@@ -1043,14 +1083,14 @@ JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_stmtErrorMsgIm
   TAOS *tscon = (TAOS *)con;
   if (tscon == NULL) {
     jniError("jobj:%p, connection already closed", jobj);
-    sprintf(errMsg, "jobj:%p, connection already closed", jobj);
+    (void)snprintf(errMsg, sizeof(errMsg), "jobj:%p, connection already closed", jobj);
     return (*env)->NewStringUTF(env, errMsg);
   }
 
   TAOS_STMT *pStmt = (TAOS_STMT *)stmt;
   if (pStmt == NULL) {
     jniError("jobj:%p, conn:%p, invalid stmt", jobj, tscon);
-    sprintf(errMsg, "jobj:%p, conn:%p, invalid stmt", jobj, tscon);
+    (void)snprintf(errMsg, sizeof(errMsg), "jobj:%p, conn:%p, invalid stmt", jobj, tscon);
     return (*env)->NewStringUTF(env, errMsg);
   }
 

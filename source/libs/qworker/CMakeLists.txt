@@ -8,8 +8,8 @@ target_include_directories(
 )
 
 TARGET_LINK_LIBRARIES(qworker
-        PRIVATE os util transport nodes planner qcom executor index
-        )
+    PRIVATE os util transport nodes planner qcom executor index
+)
 
 if(${BUILD_TEST})
     ADD_SUBDIRECTORY(test)

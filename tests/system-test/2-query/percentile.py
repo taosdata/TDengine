@@ -124,6 +124,9 @@ class TDTestCase:
         tdSql.query(f'select percentile(col1, 9.9, 19.9, 29.9, 39.9, 49.9, 59.9, 69.9, 79.9, 89.9, 99.9) from {self.ntbname}')
         tdSql.checkData(0, 0, '[0.891000, 1.791000, 2.691000, 3.591000, 4.491000, 5.391000, 6.291000, 7.191000, 8.091000, 8.991000]')
 
+        tdSql.query(f'select percentile(col1 * 1e+200, 9.9, 19.9, 29.9, 39.9, 49.9, 59.9, 69.9, 79.9, 89.9, 99.9) from {self.ntbname}')
+        tdSql.checkRows(1);
+
         tdSql.error(f'select percentile(col1) from {self.ntbname}')
         tdSql.error(f'select percentile(col1, -1) from {self.ntbname}')
         tdSql.error(f'select percentile(col1, 101) from {self.ntbname}')
@@ -165,6 +168,9 @@ class TDTestCase:
 
         tdSql.query(f'select percentile(col1, 9.9, 19.9, 29.9, 39.9, 49.9, 59.9, 69.9, 79.9, 89.9, 99.9) from {self.stbname}_0')
         tdSql.checkData(0, 0, '[0.891000, 1.791000, 2.691000, 3.591000, 4.491000, 5.391000, 6.291000, 7.191000, 8.091000, 8.991000]')
+
+        tdSql.query(f'select percentile(col1 * 1e+200, 9.9, 19.9, 29.9, 39.9, 49.9, 59.9, 69.9, 79.9, 89.9, 99.9) from {self.stbname}_0')
+        tdSql.checkRows(1);
 
         tdSql.error(f'select percentile(col1) from {self.stbname}_0')
         tdSql.error(f'select percentile(col1, -1) from {self.stbname}_0')

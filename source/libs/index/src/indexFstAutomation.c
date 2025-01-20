@@ -28,6 +28,11 @@ StartWithStateValue* startWithStateValueCreate(StartWithStateKind kind, ValueTyp
   } else if (ty == FST_CHAR) {
     size_t len = strlen((char*)val);
     sv->ptr = (char*)taosMemoryCalloc(1, len + 1);
+    if (sv->ptr == NULL) {
+      taosMemoryFree(sv);
+      return NULL;
+    }
+
     memcpy(sv->ptr, val, len);
   } else if (ty == FST_ARRAY) {
     // TODO,
@@ -63,6 +68,11 @@ StartWithStateValue* startWithStateValueDump(StartWithStateValue* sv) {
   } else if (nsv->type == FST_CHAR) {
     size_t len = strlen(sv->ptr);
     nsv->ptr = (char*)taosMemoryCalloc(1, len + 1);
+    if (nsv->ptr == NULL) {
+      taosMemoryFree(nsv);
+      return NULL;
+    }
+
     memcpy(nsv->ptr, sv->ptr, len);
   } else if (nsv->type == FST_ARRAY) {
     //
@@ -164,7 +174,18 @@ FAutoCtx* automCtxCreate(void* data, AutomationType atype) {
     // add more search type
   }
 
-  ctx->data = (data != NULL ? taosStrdup((char*)data) : NULL);
+  // ctx->data = (data != NULL ? taosStrdup((char*)data) : NULL);
+  if (data != NULL) {
+    ctx->data = taosStrdup((char*)data);
+    if (ctx->data == NULL) {
+      startWithStateValueDestroy(sv);
+      taosMemoryFree(ctx);
+      return NULL;
+    }
+  } else {
+    ctx->data = NULL;
+  }
+
   ctx->type = atype;
   ctx->stdata = (void*)sv;
   return ctx;

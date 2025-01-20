@@ -18,10 +18,13 @@
 
 static char basis_64[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-char *base64_encode(const uint8_t *value, int32_t vlen) {
+int32_t base64_encode(const uint8_t *value, int32_t vlen, char **result) {
   uint8_t oval = 0;
-  char   *result = (char *)taosMemoryMalloc((size_t)(vlen * 4) / 3 + 10);
-  char   *out = result;
+  *result = (char *)taosMemoryMalloc((size_t)(vlen * 4) / 3 + 10);
+  if (*result == NULL) {
+    return terrno;
+  }
+  char *out = *result;
   while (vlen >= 3) {
     *out++ = basis_64[value[0] >> 2];
     *out++ = basis_64[((value[0] << 4) & 0x30) | (value[1] >> 4)];
@@ -39,7 +42,7 @@ char *base64_encode(const uint8_t *value, int32_t vlen) {
     *out++ = '=';
   }
   *out = '\0';
-  return result;
+  return 0;
 }
 
 #define CHAR64(c) (((c) < 0 || (c) > 127) ? -1 : index_64[(c)])
@@ -51,17 +54,20 @@ static signed char index_64[128] = {
     13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, -1, -1, -1, -1, -1, -1, 26, 27, 28, 29, 30, 31, 32,
     33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, -1, -1, -1, -1, -1};
 
-uint8_t *base64_decode(const char *value, int32_t inlen, int32_t *outlen) {
-  int32_t  c1, c2, c3, c4;
-  uint8_t *result = (uint8_t *)taosMemoryMalloc((size_t)(inlen * 3) / 4 + 1);
-  uint8_t *out = result;
+int32_t base64_decode(const char *value, int32_t inlen, int32_t *outlen, uint8_t **result) {
+  int32_t c1, c2, c3, c4;
+  *result = (uint8_t *)taosMemoryMalloc((size_t)(inlen * 3) / 4 + 1);
+  if (*result == NULL) {
+    return terrno;
+  }
+  uint8_t *out = *result;
 
   *outlen = 0;
 
   while (1) {
     if (value[0] == 0) {
       *out = '\0';
-      return result;
+      return 0;
     }
 
     // skip \r\n
@@ -93,9 +99,9 @@ uint8_t *base64_decode(const char *value, int32_t inlen, int32_t *outlen) {
   }
 
 base64_decode_error:
-  taosMemoryFree(result);
-  result = 0;
+  taosMemoryFree(*result);
+  *result = 0;
   *outlen = 0;
 
-  return result;
+  return TSDB_CODE_INVALID_DATA_FMT;
 }

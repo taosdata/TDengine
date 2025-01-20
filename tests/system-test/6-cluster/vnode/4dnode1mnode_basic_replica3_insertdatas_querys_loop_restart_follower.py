@@ -91,7 +91,7 @@ class TDTestCase:
     def create_db_check_vgroups(self):
 
         tdSql.execute("drop database if exists test")
-        tdSql.execute("create database if not exists test replica 1 duration 300")
+        tdSql.execute("create database if not exists test replica 1 duration 100")
         time.sleep(3)
         tdSql.execute("use test")
         tdSql.execute(

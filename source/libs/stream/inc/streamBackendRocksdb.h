@@ -80,7 +80,8 @@ typedef struct {
   TdThreadRwlock chkpDirLock;
   int64_t        dataWritten;
 
-  void* pMeta;
+  void*  pMeta;
+  int8_t removeAllFiles;
 
 } STaskDbWrapper;
 
@@ -131,25 +132,28 @@ typedef struct {
   TdThreadRwlock rwLock;
 } SBkdMgt;
 
-bool       streamBackendDataIsExist(const char* path, int64_t chkpId, int32_t vgId);
-void*      streamBackendInit(const char* path, int64_t chkpId, int32_t vgId);
+#define META_ON_S3_FORMATE "%s_%" PRId64 "\n%s_%" PRId64 "\n%s_%" PRId64 ""
+
+bool       streamBackendDataIsExist(const char* path, int64_t chkpId);
+int32_t    streamBackendInit(const char* path, int64_t chkpId, int32_t vgId, SBackendWrapper** pBackend);
 void       streamBackendCleanup(void* arg);
 void       streamBackendHandleCleanup(void* arg);
 int32_t    streamBackendLoadCheckpointInfo(void* pMeta);
-int32_t    streamBackendDoCheckpoint(void* pMeta, int64_t checkpointId);
+int32_t    streamBackendDoCheckpoint(void* pMeta, int64_t checkpointId, int64_t processver);
 SListNode* streamBackendAddCompare(void* backend, void* arg);
 void       streamBackendDelCompare(void* backend, void* arg);
 int32_t    streamStateCvtDataFormat(char* path, char* key, void* cfInst);
 
-STaskDbWrapper* taskDbOpen(char* path, char* key, int64_t chkpId);
-void            taskDbDestroy(void* pBackend, bool flush);
-void            taskDbDestroy2(void* pBackend);
-int32_t         taskDbDoCheckpoint(void* arg, int64_t chkpId);
+int32_t taskDbOpen(const char* path, const char* key, int64_t chkptId, int64_t* processVer, STaskDbWrapper** ppTaskDb);
+void    taskDbDestroy(void* pBackend, bool flush);
+void    taskDbDestroy2(void* pBackend);
 
 void taskDbUpdateChkpId(void* pTaskDb, int64_t chkpId);
 
 void* taskDbAddRef(void* pTaskDb);
 void  taskDbRemoveRef(void* pTaskDb);
+
+void taskDbSetClearFileFlag(void* pTaskDb);
 
 int  streamStateOpenBackend(void* backend, SStreamState* pState);
 void streamStateCloseBackend(SStreamState* pState, bool remove);
@@ -160,14 +164,17 @@ int32_t streamStatePut_rocksdb(SStreamState* pState, const SWinKey* key, const v
 int32_t streamStateGet_rocksdb(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
 int32_t streamStateDel_rocksdb(SStreamState* pState, const SWinKey* key);
 int32_t streamStateClear_rocksdb(SStreamState* pState);
-int32_t streamStateCurNext_rocksdb(SStreamState* pState, SStreamStateCur* pCur);
+void    streamStateCurNext_rocksdb(SStreamStateCur* pCur);
 int32_t streamStateGetFirst_rocksdb(SStreamState* pState, SWinKey* key);
-int32_t streamStateGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
+int32_t streamStateGetGroupKVByCur_rocksdb(SStreamState* pState, SStreamStateCur* pCur, SWinKey* pKey,
+                                           const void** pVal, int32_t* pVLen);
 int32_t streamStateAddIfNotExist_rocksdb(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
-int32_t streamStateCurPrev_rocksdb(SStreamStateCur* pCur);
-int32_t streamStateGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
+void    streamStateCurPrev_rocksdb(SStreamStateCur* pCur);
+int32_t streamStateGetKVByCur_rocksdb(SStreamState* pState, SStreamStateCur* pCur, SWinKey* pKey, const void** pVal,
+                                      int32_t* pVLen);
 SStreamStateCur* streamStateGetAndCheckCur_rocksdb(SStreamState* pState, SWinKey* key);
 SStreamStateCur* streamStateSeekKeyNext_rocksdb(SStreamState* pState, const SWinKey* key);
+SStreamStateCur* streamStateSeekKeyPrev_rocksdb(SStreamState* pState, const SWinKey* key);
 SStreamStateCur* streamStateSeekToLast_rocksdb(SStreamState* pState);
 SStreamStateCur* streamStateGetCur_rocksdb(SStreamState* pState, const SWinKey* key);
 
@@ -187,12 +194,13 @@ SStreamStateCur* streamStateSessionSeekKeyPrev_rocksdb(SStreamState* pState, con
 SStreamStateCur* streamStateSessionSeekToLast_rocksdb(SStreamState* pState, int64_t groupId);
 int32_t          streamStateSessionCurPrev_rocksdb(SStreamStateCur* pCur);
 
-int32_t streamStateSessionGetKVByCur_rocksdb(SStreamStateCur* pCur, SSessionKey* pKey, void** pVal, int32_t* pVLen);
+int32_t streamStateSessionGetKVByCur_rocksdb(SStreamState* pState, SStreamStateCur* pCur, SSessionKey* pKey,
+                                             void** pVal, int32_t* pVLen);
 int32_t streamStateSessionGetKeyByRange_rocksdb(SStreamState* pState, const SSessionKey* key, SSessionKey* curKey);
 int32_t streamStateSessionAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal,
                                                 int32_t* pVLen);
 
-int32_t streamStateSessionClear_rocksdb(SStreamState* pState);
+void streamStateSessionClear_rocksdb(SStreamState* pState);
 
 int32_t streamStateStateAddIfNotExist_rocksdb(SStreamState* pState, SSessionKey* key, char* pKeyData,
                                               int32_t keyDataLen, state_key_cmpr_fn fn, void** pVal, int32_t* pVLen);
@@ -205,16 +213,20 @@ SStreamStateCur* streamStateFillGetCur_rocksdb(SStreamState* pState, const SWinK
 int32_t streamStateFillGetKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 SStreamStateCur* streamStateFillSeekKeyPrev_rocksdb(SStreamState* pState, const SWinKey* key);
 SStreamStateCur* streamStateFillSeekKeyNext_rocksdb(SStreamState* pState, const SWinKey* key);
+SStreamStateCur* streamStateFillSeekToLast_rocksdb(SStreamState* pState);
+int32_t streamStateFillGetGroupKVByCur_rocksdb(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 
 // partag cf
 int32_t streamStatePutParTag_rocksdb(SStreamState* pState, int64_t groupId, const void* tag, int32_t tagLen);
 int32_t streamStateGetParTag_rocksdb(SStreamState* pState, int64_t groupId, void** tagVal, int32_t* tagLen);
+void    streamStateParTagSeekKeyNext_rocksdb(SStreamState* pState, const int64_t groupId, SStreamStateCur* pCur);
+int32_t streamStateParTagGetKVByCur_rocksdb(SStreamStateCur* pCur, int64_t* pGroupId, const void** pVal,
+                                            int32_t* pVLen);
 
 // parname cf
 int32_t streamStatePutParName_rocksdb(SStreamState* pState, int64_t groupId, const char tbname[TSDB_TABLE_NAME_LEN]);
 int32_t streamStateGetParName_rocksdb(SStreamState* pState, int64_t groupId, void** pVal);
-
-void streamStateDestroy_rocksdb(SStreamState* pState, bool remove);
+int32_t streamStateDeleteParName_rocksdb(SStreamState* pState, int64_t groupId);
 
 // default cf
 int32_t streamDefaultPut_rocksdb(SStreamState* pState, const void* key, void* pVal, int32_t pVLen);
@@ -247,16 +259,19 @@ int32_t streamBackendAddInUseChkp(void* arg, int64_t chkpId);
 int32_t streamBackendDelInUseChkp(void* arg, int64_t chkpId);
 
 int32_t taskDbBuildSnap(void* arg, SArray* pSnap);
+int32_t taskDbDestroySnap(void* arg, SArray* pSnapInfo);
 
-int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId);
+int32_t taskDbDoCheckpoint(void* arg, int64_t chkpId, int64_t processId);
 
-SBkdMgt* bkdMgtCreate(char* path);
-int32_t  bkdMgtAddChkp(SBkdMgt* bm, char* task, char* path);
-int32_t  bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list, char* name);
-int32_t  bkdMgtDumpTo(SBkdMgt* bm, char* taskId, char* dname);
-void     bkdMgtDestroy(SBkdMgt* bm);
+int32_t bkdMgtCreate(char* path, SBkdMgt** bm);
+int32_t bkdMgtAddChkp(SBkdMgt* bm, char* task, char* path);
+int32_t bkdMgtGetDelta(SBkdMgt* bm, char* taskId, int64_t chkpId, SArray* list, char* name);
+int32_t bkdMgtDumpTo(SBkdMgt* bm, char* taskId, char* dname);
+void    bkdMgtDestroy(SBkdMgt* bm);
 
-int32_t taskDbGenChkpUploadData(void* arg, void* bkdMgt, int64_t chkpId, int8_t type, char** path, SArray* list);
+int32_t taskDbGenChkpUploadData(void* arg, void* bkdMgt, int64_t chkpId, int8_t type, char** path, SArray* list,
+                                const char* id);
+int32_t remoteChkpGetDelFile(char* path, SArray* toDel);
 
 void* taskAcquireDb(int64_t refId);
 void  taskReleaseDb(int64_t refId);

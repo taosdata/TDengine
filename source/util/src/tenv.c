@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tenv.h"
 #include "tconfig.h"
+#include "tenv.h"
 
 static char toLowChar(char c) { return (c > 'Z' || c < 'A' ? c : (c - 'A' + 'a')); }
 
@@ -24,11 +24,8 @@ int32_t taosEnvNameToCfgName(const char *envNameStr, char *cfgNameStr, int32_t c
   char *p = cfgNameStr;
   if (envNameStr[0] != 'T' || envNameStr[1] != 'A' || envNameStr[2] != 'O' || envNameStr[3] != 'S' ||
       envNameStr[4] != '_') {
-    // if(p != envNameStr) strncpy(p, envNameStr, cfgNameMaxLen - 1);
-    // p[cfgNameMaxLen - 1] = '\0';
-    // return strlen(cfgNameStr);
     cfgNameStr[0] = '\0';
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
   envNameStr += 5;
   if (*envNameStr != '\0') {
@@ -53,11 +50,13 @@ int32_t taosEnvNameToCfgName(const char *envNameStr, char *cfgNameStr, int32_t c
   return strlen(cfgNameStr);
 }
 
-int32_t taosEnvToCfg(const char *envStr, char *cfgStr) {
+int32_t taosEnvToCfg(const char *envStr, char *cfgStr, int32_t cfgStrLen) {
   if (envStr == NULL || cfgStr == NULL) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
-  if (cfgStr != envStr) strcpy(cfgStr, envStr);
+  if (cfgStr != envStr) {
+    tstrncpy(cfgStr, envStr, cfgStrLen);
+  }
   char *p = strchr(cfgStr, '=');
 
   if (p != NULL) {
@@ -74,7 +73,7 @@ int32_t taosEnvToCfg(const char *envStr, char *cfgStr) {
       memset(&cfgStr[cfgNameLen], ' ', p - cfgStr - cfgNameLen + 1);
     } else {
       *cfgStr = '\0';
-      return -1;
+      return TSDB_CODE_INVALID_PARA;
     }
   }
   return strlen(cfgStr);

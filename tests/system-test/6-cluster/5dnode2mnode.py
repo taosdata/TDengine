@@ -84,7 +84,7 @@ class TDTestCase:
         # fisrt add data : db\stable\childtable\general table
 
         tdSql.execute("drop database if exists db2")
-        tdSql.execute("create database if not exists db2 replica 1 duration 300")
+        tdSql.execute("create database if not exists db2 replica 1 duration 100")
         tdSql.execute("use db2")
         tdSql.execute(
         '''create table stb1

@@ -48,45 +48,75 @@
 
 int32_t syncNodeReplicateReset(SSyncNode* pNode, SRaftId* pDestId) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  taosThreadMutexLock(&pBuf->mutex);
+  (void)taosThreadMutexLock(&pBuf->mutex);
   SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(pNode, pDestId);
   syncLogReplReset(pMgr);
-  taosThreadMutexUnlock(&pBuf->mutex);
-  return 0;
+  (void)taosThreadMutexUnlock(&pBuf->mutex);
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 int32_t syncNodeReplicate(SSyncNode* pNode) {
   SSyncLogBuffer* pBuf = pNode->pLogBuf;
-  taosThreadMutexLock(&pBuf->mutex);
+  (void)taosThreadMutexLock(&pBuf->mutex);
   int32_t ret = syncNodeReplicateWithoutLock(pNode);
-  taosThreadMutexUnlock(&pBuf->mutex);
-  return ret;
+  (void)taosThreadMutexUnlock(&pBuf->mutex);
+
+  TAOS_RETURN(ret);
 }
 
 int32_t syncNodeReplicateWithoutLock(SSyncNode* pNode) {
   if ((pNode->state != TAOS_SYNC_STATE_LEADER && pNode->state != TAOS_SYNC_STATE_ASSIGNED_LEADER) ||
       pNode->raftCfg.cfg.totalReplicaNum == 1) {
-    return -1;
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
   for (int32_t i = 0; i < pNode->totalReplicaNum; i++) {
     if (syncUtilSameId(&pNode->replicasId[i], &pNode->myRaftId)) {
       continue;
     }
     SSyncLogReplMgr* pMgr = pNode->logReplMgrs[i];
-    (void)syncLogReplStart(pMgr, pNode);
+    int32_t          ret = 0;
+    if ((ret = syncLogReplStart(pMgr, pNode)) != 0) {
+      sWarn("vgId:%d, failed to start log replication to dnode:%d since %s", pNode->vgId, DID(&(pNode->replicasId[i])),
+            tstrerror(ret));
+    }
   }
-  return 0;
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, SRpcMsg* pRpcMsg) {
   SyncAppendEntries* pMsg = pRpcMsg->pCont;
   pMsg->destId = *destRaftId;
-  syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg);
-  return 0;
+  TAOS_CHECK_RETURN(syncNodeSendMsgById(destRaftId, pSyncNode, pRpcMsg));
+
+  int32_t nRef = 0;
+  if (pSyncNode != NULL) {
+    nRef = atomic_add_fetch_32(&pSyncNode->sendCount, 1);
+    if (nRef <= 0) {
+      sError("vgId:%d, send count is %d", pSyncNode->vgId, nRef);
+    }
+  }
+
+  SSyncLogReplMgr* mgr = syncNodeGetLogReplMgr(pSyncNode, (SRaftId*)destRaftId);
+  if (mgr != NULL) {
+    nRef = atomic_add_fetch_32(&mgr->sendCount, 1);
+    if (nRef <= 0) {
+      sError("vgId:%d, send count is %d", pSyncNode->vgId, nRef);
+    }
+  }
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* destId, SRpcMsg* pMsg) {
-  return syncNodeSendMsgById(destId, pSyncNode, pMsg);
+  SRaftId destIdTmp = *destId;
+  TAOS_CHECK_RETURN(syncNodeSendMsgById(destId, pSyncNode, pMsg));
+
+  int64_t tsMs = taosGetTimestampMs();
+  syncIndexMgrSetSentTime(pSyncNode->pMatchIndex, &destIdTmp, tsMs);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
@@ -108,9 +138,15 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
     pSyncMsg->timeStamp = ts;
 
     // send msg
+    TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
+    STraceId* trace = &(rpcMsg.info.traceId);
+    sGTrace("vgId:%d, send sync-heartbeat to dnode:%d", pSyncNode->vgId, DID(&(pSyncMsg->destId)));
     syncLogSendHeartbeat(pSyncNode, pSyncMsg, true, 0, 0);
-    syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
+    int32_t ret = syncNodeSendHeartbeat(pSyncNode, &pSyncMsg->destId, &rpcMsg);
+    if (ret != 0) {
+      sError("vgId:%d, failed to send sync-heartbeat since %s", pSyncNode->vgId, tstrerror(ret));
+    }
   }
 
-  return 0;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }

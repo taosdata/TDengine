@@ -452,6 +452,43 @@ if $data04 != @abc0@ then
   return -1
 endi
 
+sql select ts, top(c1, 100), tbname, t1, t2 from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') partition by tbname order by ts;
+if $row != 200 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.087@ then
+  return -1
+endi
+
+if $data10 != @70-01-01 08:01:40.088@ then
+  return -1
+endi
+
+if $data20 != @70-01-01 08:01:40.089@ then
+  return -1
+endi
+
+if $data90 != @70-01-01 08:01:40.096@ then
+  return -1
+endi
+
+if $data01 != 87 then
+  return -1
+endi
+
+if $data02 != @select_tags_tb0@ then
+  return -1
+endi
+
+if $data03 != 0 then
+  return -1
+endi
+
+if $data04 != @abc0@ then
+  return -1
+endi
+
 sql select ts, top(c1, 2), t2, tbname, t2 from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') group by tbname,t2 order by ts;
 if $row != 4 then
   return -1

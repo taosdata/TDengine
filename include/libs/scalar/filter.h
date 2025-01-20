@@ -58,12 +58,13 @@ extern int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict
 extern int32_t filterConverNcharColumns(SFilterInfo *pFilterInfo, int32_t rows, bool *gotNchar);
 extern int32_t filterFreeNcharColumns(SFilterInfo *pFilterInfo);
 extern void    filterFreeInfo(SFilterInfo *info);
-extern bool    filterRangeExecute(SFilterInfo *info, SColumnDataAgg **pColsAgg, int32_t numOfCols, int32_t numOfRows);
+extern int32_t filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows,
+                                  bool *keep);
 
 /* condition split interface */
 int32_t filterPartitionCond(SNode **pCondition, SNode **pPrimaryKeyCond, SNode **pTagIndexCond, SNode **pTagCond,
                             SNode **pOtherCond);
-bool filterIsMultiTableColsCond(SNode *pCond);
+int32_t filterIsMultiTableColsCond(SNode *pCond, bool *res);
 EConditionType filterClassifyCondition(SNode *pNode);
 
 #ifdef __cplusplus

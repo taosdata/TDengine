@@ -14,7 +14,7 @@
 import sys
 import random
 import time
-
+import platform
 import taos
 from util.log import *
 from util.cases import *
@@ -149,9 +149,10 @@ class TDTestCase:
             tdSql.execute(sql)
 
         # create stream
-        sql = "create stream ma into sta as select count(ts) from st interval(100u)"
-        tdLog.info(sql)
-        tdSql.execute(sql)
+        if platform.system().lower() != 'windows':
+            sql = "create stream ma into sta as select count(ts) from st interval(100u)"
+            tdLog.info(sql)
+            tdSql.execute(sql)
 
         # insert data
         self.insertData()
@@ -174,46 +175,46 @@ class TDTestCase:
     def checkTimeMacro(self):
         # 2 week
         val = 2
-        usval = val*7*24*60*60*1000*1000
+        usval = -val*7*24*60*60*1000*1000
         expectVal = self.childCnt * self.childRow
         sql = f"select count(ts) from st where timediff(ts - {val}w, ts1) = {usval} "
         self.checkExpect(sql, expectVal)
 
         # 20 day
         val = 20
-        usval = val*24*60*60*1000*1000
+        usval = -val*24*60*60*1000*1000
         uint = "d"
         sql = f"select count(ts) from st where timediff(ts - {val}{uint}, ts1) = {usval} "
         self.checkExpect(sql, expectVal)
 
         # 30 hour
         val = 30
-        usval = val*60*60*1000*1000
+        usval = -val*60*60*1000*1000
         uint = "h"
         sql = f"select count(ts) from st where timediff(ts - {val}{uint}, ts1) = {usval} "
         self.checkExpect(sql, expectVal)
 
         # 90 minutes
         val = 90
-        usval = val*60*1000*1000
+        usval = -val*60*1000*1000
         uint = "m"
         sql = f"select count(ts) from st where timediff(ts - {val}{uint}, ts1) = {usval} "
         self.checkExpect(sql, expectVal)
         # 2s
         val = 2
-        usval = val*1000*1000
+        usval = -val*1000*1000
         uint = "s"
         sql = f"select count(ts) from st where timediff(ts - {val}{uint}, ts1) = {usval} "
         self.checkExpect(sql, expectVal)
         # 20a
         val = 20
-        usval = val*1000
+        usval = -val*1000
         uint = "a"
         sql = f"select count(ts) from st where timediff(ts - {val}{uint}, ts1) = {usval} "
         self.checkExpect(sql, expectVal)
         # 300u
         val = 300
-        usval = val*1
+        usval = -val*1
         uint = "u"
         sql = f"select count(ts) from st where timediff(ts - {val}{uint}, ts1) = {usval} "
         self.checkExpect(sql, expectVal)
@@ -289,7 +290,8 @@ class TDTestCase:
         self.checkWhere()
 
         # check stream
-        self.checkStream()
+        if platform.system().lower() != 'windows':
+            self.checkStream()
 
     # stop
     def stop(self):

@@ -97,6 +97,7 @@ extern "C" {
 #include <nmmintrin.h>
 #endif
 
+
 #include "osThread.h"
 
 #include "osAtomic.h"
@@ -109,6 +110,7 @@ extern "C" {
 #include "osLz4.h"
 #include "osMath.h"
 #include "osMemory.h"
+#include "osMemPool.h"
 #include "osRand.h"
 #include "osSemaphore.h"
 #include "osSignal.h"
@@ -122,6 +124,27 @@ extern "C" {
 #include "osTimezone.h"
 #include "taoserror.h"
 #include "tlog.h"
+
+extern int32_t          tsRandErrChance;
+extern int64_t          tsRandErrDivisor;
+extern int64_t          tsRandErrScope;
+extern threadlocal bool tsEnableRandErr;
+
+#define TAOS_UNUSED(expr) (void)(expr)
+#define TAOS_SKIP_ERROR(expr) \
+  {                           \
+    int32_t _code = terrno;   \
+    (void)(expr);             \
+    terrno = _code;           \
+  }
+
+#define OS_PARAM_CHECK(_o)             \
+  do {                                 \
+    if ((_o) == NULL) {                \
+      terrno = TSDB_CODE_INVALID_PARA; \
+      return terrno;                   \
+    }                                  \
+  } while (0)
 
 #ifdef __cplusplus
 }

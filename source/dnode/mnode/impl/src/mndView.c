@@ -43,18 +43,15 @@ int32_t mndInitView(SMnode *pMnode) {
 #endif
 }
 
-void mndCleanupView(SMnode *pMnode) {
-  mDebug("mnd view cleanup");
-}
+void mndCleanupView(SMnode *pMnode) { mDebug("mnd view cleanup"); }
 
 int32_t mndProcessCreateViewReq(SRpcMsg *pReq) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
-  SCMCreateViewReq   createViewReq = {0};
+  SCMCreateViewReq createViewReq = {0};
   if (tDeserializeSCMCreateViewReq(pReq->pCont, pReq->contLen, &createViewReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
   }
 
   mInfo("start to create view:%s, sql:%s", createViewReq.fullname, createViewReq.sql);
@@ -65,17 +62,16 @@ int32_t mndProcessCreateViewReq(SRpcMsg *pReq) {
 
 int32_t mndProcessDropViewReq(SRpcMsg *pReq) {
 #ifndef TD_ENTERPRISE
-    return TSDB_CODE_OPS_NOT_SUPPORT;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
-    SCMDropViewReq dropViewReq = {0};
-    if (tDeserializeSCMDropViewReq(pReq->pCont, pReq->contLen, &dropViewReq) != 0) {
-      terrno = TSDB_CODE_INVALID_MSG;
-      return -1;
-    }
-  
-    mInfo("start to drop view:%s, sql:%s", dropViewReq.name, dropViewReq.sql);
-  
-    return mndProcessDropViewReqImpl(&dropViewReq, pReq);
+  SCMDropViewReq dropViewReq = {0};
+  if (tDeserializeSCMDropViewReq(pReq->pCont, pReq->contLen, &dropViewReq) != 0) {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  mInfo("start to drop view:%s, sql:%s", dropViewReq.name, dropViewReq.sql);
+
+  return mndProcessDropViewReqImpl(&dropViewReq, pReq);
 #endif
 }
 
@@ -83,17 +79,15 @@ int32_t mndProcessGetViewMetaReq(SRpcMsg *pReq) {
 #ifndef TD_ENTERPRISE
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
-  SViewMetaReq  req = {0};
+  SViewMetaReq req = {0};
 
   if (tDeserializeSViewMetaReq(pReq->pCont, pReq->contLen, &req) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
   }
 
   return mndProcessViewMetaReqImpl(&req, pReq);
-#endif  
+#endif
 }
-
 
 int32_t mndRetrieveView(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
 #ifndef TD_ENTERPRISE
@@ -105,8 +99,5 @@ int32_t mndRetrieveView(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int
 
 void mndCancelGetNextView(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
+  sdbCancelFetchByType(pSdb, pIter, SDB_VIEW);
 }
-
-
-

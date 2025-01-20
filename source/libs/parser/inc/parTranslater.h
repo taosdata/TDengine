@@ -20,10 +20,10 @@
 extern "C" {
 #endif
 
+#include "cmdnodes.h"
 #include "parToken.h"
 #include "parUtil.h"
 #include "parser.h"
-#include "cmdnodes.h"
 
 typedef struct STranslateContext {
   SParseContext*   pParseCxt;
@@ -43,15 +43,19 @@ typedef struct STranslateContext {
   bool             createStream;
   bool             stableQuery;
   bool             showRewrite;
+  bool             withOpt;
   SNode*           pPrevRoot;
   SNode*           pPostRoot;
+  bool             dual;  // whether select stmt without from stmt, true for without.
+  bool             skipCheck;
 } STranslateContext;
 
-bool biRewriteToTbnameFunc(STranslateContext* pCxt, SNode** ppNode);
+int32_t biRewriteToTbnameFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRet);
 int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect);
 int32_t biCheckCreateTableTbnameCol(STranslateContext* pCxt, SCreateTableStmt* pStmt);
 int32_t findTable(STranslateContext* pCxt, const char* pTableAlias, STableNode** pOutput);
-int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta, bool couldBeView);
+int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta,
+                          bool couldBeView);
 
 #ifdef __cplusplus
 }

@@ -35,7 +35,9 @@ int32_t tsdbFSetRAWWriterOpen(SFSetRAWWriterConfig *config, SFSetRAWWriter **wri
   int32_t lino = 0;
 
   writer[0] = taosMemoryCalloc(1, sizeof(SFSetRAWWriter));
-  if (writer[0] == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  if (writer[0] == NULL) {
+    return terrno;
+  }
 
   writer[0]->config[0] = config[0];
 
@@ -152,12 +154,10 @@ _exit:
   return code;
 }
 
-int32_t tsdbFSetRAWWriteBlockData(SFSetRAWWriter *writer, STsdbDataRAWBlockHeader *bHdr, int32_t encryptAlgorithm, 
-                                  char* encryptKey) {
+int32_t tsdbFSetRAWWriteBlockData(SFSetRAWWriter *writer, STsdbDataRAWBlockHeader *bHdr, int32_t encryptAlgorithm,
+                                  char *encryptKey) {
   int32_t code = 0;
   int32_t lino = 0;
-
-  ASSERT(writer->ctx->offset >= 0 && writer->ctx->offset <= writer->ctx->file.size);
 
   if (writer->ctx->offset == writer->ctx->file.size) {
     code = tsdbFSetRAWWriteFileDataEnd(writer);
@@ -171,7 +171,6 @@ int32_t tsdbFSetRAWWriteBlockData(SFSetRAWWriter *writer, STsdbDataRAWBlockHeade
   TSDB_CHECK_CODE(code, lino, _exit);
 
   writer->ctx->offset += bHdr->dataLength;
-  ASSERT(writer->ctx->offset == writer->dataWriter->ctx->offset);
 
 _exit:
   if (code) {

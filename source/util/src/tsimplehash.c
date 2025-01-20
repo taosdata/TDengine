@@ -66,7 +66,6 @@ SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn) {
 
   SSHashObj *pHashObj = (SSHashObj *)taosMemoryMalloc(sizeof(SSHashObj));
   if (!pHashObj) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -82,7 +81,6 @@ SSHashObj *tSimpleHashInit(size_t capacity, _hash_fn_t fn) {
   pHashObj->hashList = (SHNode **)taosMemoryCalloc(pHashObj->capacity, sizeof(void *));
   if (!pHashObj->hashList) {
     taosMemoryFree(pHashObj);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -131,7 +129,6 @@ static SHNode *doCreateHashNode(SSHashObj *pHashObj, const void *key, size_t key
                                 uint32_t hashVal) {
   SHNode *pNewNode = doInternalAlloc(pHashObj, sizeof(SHNode) + keyLen + dataLen);
   if (!pNewNode) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -148,23 +145,24 @@ static SHNode *doCreateHashNode(SSHashObj *pHashObj, const void *key, size_t key
   return pNewNode;
 }
 
-static void tSimpleHashTableResize(SSHashObj *pHashObj) {
+static int32_t tSimpleHashTableResize(SSHashObj *pHashObj) {
+  int32_t code = 0;
   if (!SHASH_NEED_RESIZE(pHashObj)) {
-    return;
+    return code;
   }
 
   int32_t newCapacity = (int32_t)(pHashObj->capacity << 1u);
   if (newCapacity > HASH_MAX_CAPACITY) {
     uDebug("current capacity:%" PRIzu ", maximum capacity:%" PRId32 ", no resize applied due to limitation is reached",
            pHashObj->capacity, (int32_t)HASH_MAX_CAPACITY);
-    return;
+    return code;
   }
 
 //  int64_t st = taosGetTimestampUs();
   void   *pNewEntryList = taosMemoryRealloc(pHashObj->hashList, POINTER_BYTES * newCapacity);
   if (!pNewEntryList) {
     uWarn("hash resize failed due to out of memory, capacity remain:%zu", pHashObj->capacity);
-    return;
+    return terrno;
   }
 
   size_t inc = newCapacity - pHashObj->capacity;
@@ -206,18 +204,22 @@ static void tSimpleHashTableResize(SSHashObj *pHashObj) {
   //  uDebug("hash table resize completed, new capacity:%d, load factor:%f, elapsed time:%fms",
   //  (int32_t)pHashObj->capacity,
   //         ((double)pHashObj->size) / pHashObj->capacity, (et - st) / 1000.0);
+  return code;
 }
 
 int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, const void *data, size_t dataLen) {
   if (!pHashObj || !key) {
-    return -1;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   uint32_t hashVal = (*pHashObj->hashFp)(key, (uint32_t)keyLen);
 
   // need the resize process, write lock applied
   if (SHASH_NEED_RESIZE(pHashObj)) {
-    tSimpleHashTableResize(pHashObj);
+    int32_t code = tSimpleHashTableResize(pHashObj);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
 
   int32_t slot = HASH_INDEX(hashVal, pHashObj->capacity);
@@ -226,7 +228,7 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, cons
   if (!pNode) {
     SHNode *pNewNode = doCreateHashNode(pHashObj, key, keyLen, data, dataLen, hashVal);
     if (!pNewNode) {
-      return -1;
+      return terrno;
     }
 
     pHashObj->hashList[slot] = pNewNode;
@@ -244,7 +246,7 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, cons
   if (!pNode) {
     SHNode *pNewNode = doCreateHashNode(pHashObj, key, keyLen, data, dataLen, hashVal);
     if (!pNewNode) {
-      return -1;
+      return terrno;
     }
     pNewNode->next = pHashObj->hashList[slot];
     pHashObj->hashList[slot] = pNewNode;
@@ -259,8 +261,7 @@ int32_t tSimpleHashPut(SSHashObj *pHashObj, const void *key, size_t keyLen, cons
 static FORCE_INLINE SHNode *doSearchInEntryList(SSHashObj *pHashObj, const void *key, size_t keyLen, int32_t index) {
   SHNode *pNode = pHashObj->hashList[index];
   while (pNode) {
-    const char* p = GET_SHASH_NODE_KEY(pNode, pNode->dataLen);
-    ASSERT(keyLen > 0);
+    const char *p = GET_SHASH_NODE_KEY(pNode, pNode->dataLen);
 
     if (pNode->keyLen == keyLen && ((*(pHashObj->equalFp))(p, key, keyLen) == 0)) {
       break;
@@ -296,7 +297,7 @@ void *tSimpleHashGet(SSHashObj *pHashObj, const void *key, size_t keyLen) {
 }
 
 int32_t tSimpleHashRemove(SSHashObj *pHashObj, const void *key, size_t keyLen) {
-  int32_t code = TSDB_CODE_FAILED;
+  int32_t code = TSDB_CODE_INVALID_PARA;
   if (!pHashObj || !key) {
     return code;
   }

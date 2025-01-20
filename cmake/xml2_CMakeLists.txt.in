@@ -15,4 +15,5 @@ ExternalProject_Add(xml2
         BUILD_COMMAND make -j
         INSTALL_COMMAND make install && ln -sf $ENV{HOME}/.cos-local.2/include/libxml2/libxml $ENV{HOME}/.cos-local.2/include/libxml
         TEST_COMMAND ""
+        GIT_SHALLOW true
         )

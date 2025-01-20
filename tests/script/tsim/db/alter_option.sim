@@ -72,10 +72,10 @@ endi
 if $data5_db != on then  # strict
   return -1
 endi
-if $data6_db != 345600m then  # duration
+if $data6_db != 240d then  # duration
   return -1
 endi
-if $data7_db != 1440000m,1440000m,1440000m then # keep
+if $data7_db != 1000d,1000d,1000d then # keep
   return -1
 endi
 if $data8_db != 256 then  # buffer
@@ -220,7 +220,7 @@ print ============== modify keep
 sql alter database db keep 2400
 sql select * from information_schema.ins_databases
 print keep $data7_db
-if $data7_db != 3456000m,3456000m,3456000m then
+if $data7_db != 2400d,2400d,2400d then
   return -1
 endi
 

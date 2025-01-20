@@ -2,10 +2,12 @@ import taos
 import sys
 import datetime
 import inspect
+import threading
 
 from util.log import *
 from util.sql import *
 from util.cases import *
+from util.common import tdCom
 import random
 
 
@@ -45,7 +47,7 @@ class TDTestCase:
     
     def case2(self):
         tdSql.query("show variables")        
-        tdSql.checkRows(4)
+        tdSql.checkRows(93)
 
         for i in range(self.replicaVar):
             tdSql.query("show dnode %d variables like 'debugFlag'" % (i + 1))
@@ -55,11 +57,62 @@ class TDTestCase:
             tdSql.checkData(0, 2, 0)
 
         tdSql.query("show dnode 1 variables like '%debugFlag'")
-        tdSql.checkRows(23)
+        tdSql.checkRows(25)
 
         tdSql.query("show dnode 1 variables like '____debugFlag'")
         tdSql.checkRows(2)
 
+        tdSql.query("show dnode 1 variables like 's3MigrateEnab%'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 's3MigrateEnabled')
+        tdSql.checkData(0, 2, 0)
+
+        tdSql.query("show dnode 1 variables like 's3MigrateIntervalSec%'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 's3MigrateIntervalSec')
+        tdSql.checkData(0, 2, 3600)
+
+        tdSql.query("show dnode 1 variables like 's3PageCacheSize%'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 's3PageCacheSize')
+        tdSql.checkData(0, 2, 4096)
+
+        tdSql.query("show dnode 1 variables like 's3UploadDelaySec%'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 's3UploadDelaySec')
+        tdSql.checkData(0, 2, 60)
+
+    def threadTest(self, threadID):
+        print(f"Thread {threadID} starting...")
+        tdsqln = tdCom.newTdSql()
+        for i in range(100):
+            tdsqln.query(f"desc db1.stb_1")
+            tdsqln.checkRows(3)
+        
+        print(f"Thread {threadID} finished.")
+
+    def case3(self):
+        tdSql.execute("create database db1")
+        tdSql.execute("create table db1.stb (ts timestamp, c1 varchar(100)) tags(t1 int)")
+        tdSql.execute("create table db1.stb_1 using db1.stb tags(1)")
+
+        threads = []
+        for i in range(10):
+            t = threading.Thread(target=self.threadTest, args=(i,))
+            threads.append(t)
+            t.start()
+            
+        for thread in threads:
+            print(f"Thread waitting for finish...")
+            thread.join()
+        
+        print(f"Mutithread test finished.")
+   
+   
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare(replica = self.replicaVar)
 
@@ -70,6 +123,10 @@ class TDTestCase:
         tdLog.printNoPrefix("==========start case2 run ...............")
         self.case2()
         tdLog.printNoPrefix("==========end case2 run ...............")
+        
+        tdLog.printNoPrefix("==========start case3 run ...............")
+        self.case3()
+        tdLog.printNoPrefix("==========end case3 run ...............")
 
     def stop(self):
         tdSql.close()

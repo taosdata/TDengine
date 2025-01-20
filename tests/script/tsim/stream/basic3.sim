@@ -28,6 +28,7 @@ sql create stream streamd4 into streamt4 as select tbname, _wstart,_wend, count(
 sql create stream streamd5 into streamt5 as select tbname, _wstart,_wend, count(*), max(ca), min(cb) from st where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by tbname state_window(cc);
 sql create stream streamd6 into streamt6 as select ca, _wstart,_wend, count(*), max(ca), min(cb) from t1 where time > "2022-01-01 00:00:00" and time < "2032-01-01 00:00:00" partition by ca state_window(cc);
 
+run tsim/stream/checkTaskStatus.sim
 
 sql alter local 'keepColumnName' '1'
 sql CREATE STABLE `meters_test_data` (`ts` TIMESTAMP, `close` FLOAT, `parttime` TIMESTAMP, `parttime_str` VARCHAR(32)) TAGS (`id` VARCHAR(32));
@@ -97,6 +98,18 @@ sql desc streamd12;
 if $rows == 0 then
   return -1
 endi
+
+print ========== step2
+
+sql CREATE DATABASE test2 VGROUPS 2;
+sql use test2;
+
+sql CREATE STABLE st (time TIMESTAMP, ca DOUBLE, cb DOUBLE, cc int) TAGS (ta VARCHAR(10) );
+
+sql_error create stream stream_t1 trigger at_once ignore update 0 ignore expired 0 into streamtST as select time, count(*) c1, count(1) c2  from st partition by tbname group by ca,time ;
+
+sql_error create stream stream_t1 trigger at_once ignore update 0 ignore expired 0 into streamtST as select time, count(*) c1, count(1) c2  from st group by ca,time ;
+
 
 _OVER:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

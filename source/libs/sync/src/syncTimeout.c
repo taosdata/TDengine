@@ -65,7 +65,7 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   }
 
   // timer replicate
-  syncNodeReplicate(ths);
+  TAOS_CHECK_RETURN(syncNodeReplicate(ths));
 
   // clean mnode index
   if (syncNodeIsMnode(ths)) {
@@ -89,7 +89,7 @@ static int32_t syncNodeTimerRoutine(SSyncNode* ths) {
           snapshotSenderStop(pSender, false);
         } else {
           sSWarn(pSender, "snap replication resend.");
-          snapshotReSend(pSender);
+          TAOS_CHECK_RETURN(snapshotReSend(pSender));
         }
       }
     }
@@ -112,14 +112,14 @@ int32_t syncNodeOnTimeout(SSyncNode* ths, const SRpcMsg* pRpc) {
     if (atomic_load_64(&ths->pingTimerLogicClockUser) <= pMsg->logicClock) {
       ++(ths->pingTimerCounter);
 
-      syncNodeTimerRoutine(ths);
+      TAOS_CHECK_RETURN(syncNodeTimerRoutine(ths));
     }
 
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_ELECTION) {
     if (atomic_load_64(&ths->electTimerLogicClock) <= pMsg->logicClock) {
       ++(ths->electTimerCounter);
 
-      syncNodeElect(ths);
+      TAOS_CHECK_RETURN(syncNodeElect(ths));
     }
 
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_HEARTBEAT) {

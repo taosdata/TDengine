@@ -1,0 +1,64 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "num_of_records_per_req": 500,
+    "thread_count": 4,
+    "create_table_thread_count": 1,
+    "confirm_parameter_prompt": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "test",
+                "drop": "yes",
+                "vgroups": 2
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "child_table_exists": "no",
+                    "childtable_count": 1,
+                    "insert_rows": 100000,
+                    "childtable_prefix": "d",
+                    "insert_mode": "taosc",
+                    "timestamp_step": 1,
+                    "start_timestamp":1700000000000,
+                    "columns": [
+                        { "type": "bool",        "name": "bc"},
+                        { "type": "float",       "name": "fc",  "max": 1, "min": 0 },
+                        { "type": "double",      "name": "dc",  "max": 1, "min": 0 },
+                        { "type": "tinyint",     "name": "ti",  "max": 100, "min": 0 },
+                        { "type": "smallint",    "name": "si",  "max": 100, "min": 0 },
+                        { "type": "int",         "name": "ic",  "max": 100, "min": 0 },
+                        { "type": "bigint",      "name": "bi",  "max": 100, "min": 0 },
+                        { "type": "utinyint",    "name": "uti", "max": 100, "min": 0 },
+                        { "type": "usmallint",   "name": "usi", "max": 100, "min": 0 },
+                        { "type": "uint",        "name": "ui",  "max": 100, "min": 0 },
+                        { "type": "ubigint",     "name": "ubi", "max": 100, "min": 0 },
+                        { "type": "binary",      "name": "bin", "len": 32},
+                        { "type": "nchar",       "name": "nch", "len": 64}
+                    ],
+                    "tags": [
+                        {
+                            "type": "tinyint",
+                            "name": "groupid",
+                            "max": 10,
+                            "min": 1
+                        },
+                        {
+                            "name": "location",
+                            "type": "binary",
+                            "len": 16,
+                            "values": ["San Francisco", "Los Angles", "San Diego",
+                                "San Jose", "Palo Alto", "Campbell", "Mountain View",
+                                "Sunnyvale", "Santa Clara", "Cupertino"]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

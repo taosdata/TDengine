@@ -369,8 +369,52 @@ class TDTestCase:
             '''
         )
 
+    def test_TS_5630(self):
+        sql = "CREATE DATABASE `ep_iot` BUFFER 256 CACHESIZE 20 CACHEMODEL 'both' COMP 2 DURATION 14400m WAL_FSYNC_PERIOD 3000 MAXROWS 4096 MINROWS 100 STT_TRIGGER 2 KEEP 5256000m,5256000m,5256000m PAGES 256 PAGESIZE 4 PRECISION 'ms' REPLICA 1 WAL_LEVEL 1 VGROUPS 3 SINGLE_STABLE 0 TABLE_PREFIX 0 TABLE_SUFFIX 0 TSDB_PAGESIZE 4 WAL_RETENTION_PERIOD 3600 WAL_RETENTION_SIZE 0"
+        tdSql.execute(sql, queryTimes=1)
+        tdLog.info("database ep_iot created")
+        sql = "CREATE STABLE `ep_iot`.`sldc_dp` (`ts` TIMESTAMP, `data_write_time` TIMESTAMP, `jz1fdgl` DOUBLE, `jz1ssfdfh` DOUBLE, `jz1fdmh` DOUBLE, `jz1gdmh` DOUBLE, `jz1qjrhl` DOUBLE, `jz1zhcydl` DOUBLE, `jz1zkby` DOUBLE, `jz1zzqyl` DOUBLE, `jz1zzqwda` DOUBLE, `jz1zzqwdb` DOUBLE, `jz1zzqll` DOUBLE, `jz1gswd` DOUBLE, `jz1gsll` DOUBLE, `jz1glxl` DOUBLE, `jz1qjrh` DOUBLE, `jz1zhrxl` DOUBLE, `jz1gmjassllfk` DOUBLE, `jz1gmjasslllj` DOUBLE, `jz1gmjbssllfk` DOUBLE, `jz1gmjbsslllj` DOUBLE, `jz1gmjcssllfk` DOUBLE, `jz1gmjcsslllj` DOUBLE, `jz1gmjdssllfk` DOUBLE, `jz1gmjdsslllj` DOUBLE, `jz1gmjessllfk` DOUBLE, `jz1gmjesslllj` DOUBLE, `jz1gmjfssllfk` DOUBLE, `jz1gmjfsslllj` DOUBLE, `jz1zrqwda` DOUBLE, `jz1zrqwdb` DOUBLE, `jz1zrzqyl` DOUBLE, `jz1mmjadl` DOUBLE, `jz1mmjbdl` DOUBLE, `jz1mmjcdl` DOUBLE, `jz1mmjddl` DOUBLE, `jz1mmjedl` DOUBLE, `jz1mmjfdl` DOUBLE, `jz1cyqckwda` DOUBLE, `jz1cyqckwdb` DOUBLE, `jz1njswd` DOUBLE, `jz1nqqxhsckawd` DOUBLE, `jz1nqqxhsckbwd` DOUBLE, `jz1nqqxhsrkawd` DOUBLE, `jz1nqqxhsrkbwd` DOUBLE, `jz1kyqackyqwdsel` DOUBLE, `jz1kyqbckyqwdsel` DOUBLE, `jz1yfjackyqwd` DOUBLE, `jz1yfjbckyqwd` DOUBLE, `jz1trkyqwd` DOUBLE, `jz1trkyqwd1` DOUBLE, `jz1trkyqwd2` DOUBLE, `jz1trkyqwd3` DOUBLE, `jz1tckjyqwd1` DOUBLE, `jz1tckjyqwd2` DOUBLE, `jz1tckyqwd1` DOUBLE, `jz1bya` DOUBLE, `jz1byb` DOUBLE, `jz1pqwda` DOUBLE, `jz1pqwdb` DOUBLE, `jz1gmjadl` DOUBLE, `jz1gmjbdl` DOUBLE, `jz1gmjcdl` DOUBLE, `jz1gmjddl` DOUBLE, `jz1gmjedl` DOUBLE, `jz1gmjfdl` DOUBLE, `jz1yfjadl` DOUBLE, `jz1yfjbdl` DOUBLE, `jz1ycfjadl` DOUBLE, `jz1ycfjbdl` DOUBLE, `jz1sfjadl` DOUBLE, `jz1sfjbdl` DOUBLE, `jz1fdjyggl` DOUBLE, `jz1fdjwggl` DOUBLE, `jz1sjzs` DOUBLE, `jz1zfl` DOUBLE, `jz1ltyl` DOUBLE, `jz1smb` DOUBLE, `jz1rll` DOUBLE, `jz1grd` DOUBLE, `jz1zjwd` DOUBLE, `jz1yl` DOUBLE, `jz1kyqckwd` DOUBLE, `jz1abmfsybrkcy` DOUBLE, `jz1bbmfsybrkcy` DOUBLE, `jz1abjcsdmfytwdzdz` DOUBLE, `jz1bbjcsdmfytwdzdz` DOUBLE, `jz2fdgl` DOUBLE, `jz2ssfdfh` DOUBLE, `jz2fdmh` DOUBLE, `jz2gdmh` DOUBLE, `jz2qjrhl` DOUBLE, `jz2zhcydl` DOUBLE, `jz2zkby` DOUBLE, `jz2zzqyl` DOUBLE, `jz2zzqwda` DOUBLE, `jz2zzqwdb` DOUBLE, `jz2zzqll` DOUBLE, `jz2gswd` DOUBLE, `jz2gsll` DOUBLE, `jz2glxl` DOUBLE, `jz2qjrh` DOUBLE, `jz2zhrxl` DOUBLE, `jz2gmjassllfk` DOUBLE, `jz2gmjasslllj` DOUBLE, `jz2gmjbssllfk` DOUBLE, `jz2gmjbsslllj` DOUBLE, `jz2gmjcssllfk` DOUBLE, `jz2gmjcsslllj` DOUBLE, `jz2gmjdssllfk` DOUBLE, `jz2gmjdsslllj` DOUBLE, `jz2gmjessllfk` DOUBLE, `jz2gmjesslllj` DOUBLE, `jz2gmjfssllfk` DOUBLE, `jz2gmjfsslllj` DOUBLE, `jz2zrqwda` DOUBLE, `jz2zrqwdb` DOUBLE, `jz2zrzqyl` DOUBLE, `jz2mmjadl` DOUBLE, `jz2mmjbdl` DOUBLE, `jz2mmjcdl` DOUBLE, `jz2mmjddl` DOUBLE, `jz2mmjedl` DOUBLE, `jz2mmjfdl` DOUBLE, `jz2cyqckwda` DOUBLE, `jz2cyqckwdb` DOUBLE, `jz2njswd` DOUBLE, `jz2nqqxhsckawd` DOUBLE, `jz2nqqxhsckbwd` DOUBLE, `jz2nqqxhsrkawd` DOUBLE, `jz2nqqxhsrkbwd` DOUBLE, `jz2kyqackyqwdsel` DOUBLE, `jz2kyqbckyqwdsel` DOUBLE, `jz2yfjackyqwd` DOUBLE, `jz2yfjbckyqwd` DOUBLE, `jz2trkyqwd` DOUBLE, `jz2trkyqwd1` DOUBLE, `jz2trkyqwd2` DOUBLE, `jz2trkyqwd3` DOUBLE, `jz2tckjyqwd1` DOUBLE, `jz2tckjyqwd2` DOUBLE, `jz2tckyqwd1` DOUBLE, `jz2bya` DOUBLE, `jz2byb` DOUBLE, `jz2pqwda` DOUBLE, `jz2pqwdb` DOUBLE, `jz2gmjadl` DOUBLE, `jz2gmjbdl` DOUBLE, `jz2gmjcdl` DOUBLE, `jz2gmjddl` DOUBLE, `jz2gmjedl` DOUBLE, `jz2gmjfdl` DOUBLE, `jz2yfjadl` DOUBLE, `jz2yfjbdl` DOUBLE, `jz2ycfjadl` DOUBLE, `jz2ycfjbdl` DOUBLE, `jz2sfjadl` DOUBLE, `jz2sfjbdl` DOUBLE, `jz2fdjyggl` DOUBLE, `jz2fdjwggl` DOUBLE, `jz2sjzs` DOUBLE, `jz2zfl` DOUBLE, `jz2ltyl` DOUBLE, `jz2smb` DOUBLE, `jz2rll` DOUBLE, `jz2grd` DOUBLE, `jz2zjwd` DOUBLE, `jz2yl` DOUBLE, `jz2kyqckwd` DOUBLE, `jz2abmfsybrkcy` DOUBLE, `jz2bbmfsybrkcy` DOUBLE, `jz2abjcsdmfytwdzdz` DOUBLE, `jz2bbjcsdmfytwdzdz` DOUBLE) TAGS (`iot_hub_id` VARCHAR(100), `device_group_code` VARCHAR(100), `device_code` VARCHAR(100))"
+        tdLog.info("stable ep_iot.sldc_dp created")
+        tdSql.execute(sql, queryTimes=1)
+        sql = "insert into ep_iot.sldc_dp_t1 using ep_iot.sldc_dp tags('a','a','a') values(now, now, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9,0,1);"
+        tdSql.execute(sql, queryTimes=1)
+        sql = "insert into ep_iot.sldc_dp_t1 using ep_iot.sldc_dp tags('b','b','b') values(now, now, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9,0,1);"
+        tdSql.execute(sql, queryTimes=1)
+        sql = "insert into ep_iot.sldc_dp_t1 using ep_iot.sldc_dp tags('c','c','c') values(now, now, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9,0,1);"
+        tdSql.execute(sql, queryTimes=1)
+        sql = "insert into ep_iot.sldc_dp_t1 using ep_iot.sldc_dp tags('d','d','d') values(now, now, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9,0,1);"
+        tdSql.execute(sql, queryTimes=1)
+        sql = "insert into ep_iot.sldc_dp_t1 using ep_iot.sldc_dp tags('e','e','e') values(now, now, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9, 0,1,2,3,4,5,6,7,8,9,0,1);"
+        tdSql.execute(sql, queryTimes=1)
+        sql = "select scdw_code, scdw_name, jzmc, fdgl, jzzt from ((select '01072016' as scdw_code, '盛鲁电厂' as scdw_name, '机组1' as jzmc, last(jz1fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '01072016' as scdw_code, '盛鲁电厂' as scdw_name, '机组2' as jzmc, last(jz2fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '00103673' as scdw_code, '鲁西电厂' as scdw_name, '机组1'as jzmc, last(jz1fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '00103673' as scdw_code, '鲁西电厂' as scdw_name, '机组2'as jzmc, last(jz2fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '01061584' as scdw_code, '富源热电' as scdw_name, '机组1'as jzmc, last(jz1fdjyggl) as fdgl, '填报' as jzzt ,last(ts) as ts from ep_iot.sldc_dp) union all ( select '01061584' as scdw_code, '富源热电' as scdw_name, '机组2'as jzmc, last(jz2fdjyggl) as fdgl, '填报' as jzzt ,last(ts) as ts from ep_iot.sldc_dp)) where scdw_code like '%%';"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkCols(5)
+        tdSql.checkRows(6)
+
+        sql = "select scdw_name, scdw_code, jzmc, fdgl, jzzt from ((select '01072016' as scdw_code, '盛鲁电厂' as scdw_name, '机组1' as jzmc, last(jz1fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '01072016' as scdw_code, '盛鲁电厂' as scdw_name, '机组2' as jzmc, last(jz2fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '00103673' as scdw_code, '鲁西电厂' as scdw_name, '机组1'as jzmc, last(jz1fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '00103673' as scdw_code, '鲁西电厂' as scdw_name, '机组2'as jzmc, last(jz2fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '01061584' as scdw_code, '富源热电' as scdw_name, '机组1'as jzmc, last(jz1fdjyggl) as fdgl, '填报' as jzzt ,last(ts) as ts from ep_iot.sldc_dp) union all ( select '01061584' as scdw_code, '富源热电' as scdw_name, '机组2'as jzmc, last(jz2fdjyggl) as fdgl, '填报' as jzzt ,last(ts) as ts from ep_iot.sldc_dp)) where scdw_code like '%%';"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkCols(5)
+        tdSql.checkRows(6)
+        sql = "select scdw_name, scdw_code, jzzt from ((select '01072016' as scdw_code, '盛鲁电厂' as scdw_name, '机组1' as jzmc, last(jz1fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '01072016' as scdw_code, '盛鲁电厂' as scdw_name, '机组2' as jzmc, last(jz2fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '00103673' as scdw_code, '鲁西电厂' as scdw_name, '机组1'as jzmc, last(jz1fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '00103673' as scdw_code, '鲁西电厂' as scdw_name, '机组2'as jzmc, last(jz2fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '01061584' as scdw_code, '富源热电' as scdw_name, '机组1'as jzmc, last(jz1fdjyggl) as fdgl, '填报' as jzzt ,last(ts) as ts from ep_iot.sldc_dp) union all ( select '01061584' as scdw_code, '富源热电' as scdw_name, '机组2'as jzmc, last(jz2fdjyggl) as fdgl, '填报' as jzzt ,last(ts) as ts from ep_iot.sldc_dp)) where scdw_code like '%%';"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(6)
+        tdSql.checkCols(3)
+
+        sql = "select scdw_code, scdw_name, jzmc, fdgl, jzzt,ts from ((select '01072016' as scdw_code, '盛鲁电厂' as scdw_name, '机组1' as jzmc, last(jz1fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '01072016' as scdw_code, '盛鲁电厂' as scdw_name, '机组2' as jzmc, last(jz2fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '00103673' as scdw_code, '鲁西电厂' as scdw_name, '机组1'as jzmc, last(jz1fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '00103673' as scdw_code, '鲁西电厂' as scdw_name, '机组2'as jzmc, last(jz2fdjyggl) as fdgl, '填报' as jzzt, last(ts) as ts from ep_iot.sldc_dp) union all ( select '01061584' as scdw_code, '富源热电' as scdw_name, '机组1'as jzmc, last(jz1fdjyggl) as fdgl, '填报' as jzzt ,last(ts) as ts from ep_iot.sldc_dp) union all ( select '01061584' as scdw_code, '富源热电' as scdw_name, '机组2'as jzmc, last(jz2fdjyggl) as fdgl, '填报' as jzzt ,last(ts) as ts from ep_iot.sldc_dp)) where scdw_code like '%%';"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkCols(6)
+        tdSql.checkRows(6)
+        ##tdSql.execute("drop database ep_iot")
+
+    def test_case_for_nodes_match_node(self):
+        sql = "create table db.nt (ts timestamp, c1 int primary key, c2 int)"
+        tdSql.execute(sql, queryTimes=1)
+        sql = 'select diff (ts) from (select * from db.tt union select * from db.tt order by c1, case when ts < now - 1h then ts + 1h else ts end) partition by c1, case when ts < now - 1h then ts + 1h else ts end'
+        tdSql.error(sql, -2147473917)
+
     def run(self):
         tdSql.prepare()
+        self.test_TS_5630()
 
         tdLog.printNoPrefix("==========step1:create table")
         self.__create_tb()
@@ -388,6 +432,39 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()
+        self.test_TD_33137()
+        self.test_case_for_nodes_match_node()
+    
+    def test_TD_33137(self):
+        sql = "select 'asd' union all select 'asdasd'"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(2)
+        sql = "select db_name `TABLE_CAT`, '' `TABLE_SCHEM`, stable_name `TABLE_NAME`, 'TABLE' `TABLE_TYPE`, table_comment `REMARKS` from information_schema.ins_stables union all select db_name `TABLE_CAT`, '' `TABLE_SCHEM`, table_name `TABLE_NAME`,  case when `type`='SYSTEM_TABLE' then 'TABLE'       when `type`='NORMAL_TABLE' then 'TABLE'       when `type`='CHILD_TABLE' then 'TABLE'       else 'UNKNOWN'  end `TABLE_TYPE`, table_comment `REMARKS` from information_schema.ins_tables union all select db_name `TABLE_CAT`, '' `TABLE_SCHEM`, view_name `TABLE_NAME`, 'VIEW' `TABLE_TYPE`, NULL `REMARKS` from information_schema.ins_views"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(50)
+
+        sql = "select null union select null"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
+        sql = "select null union all select null"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, None)
+
+        sql = "select null union select 1"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, 1)
+
+        sql = "select null union select 'asd'"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, 'asd')
 
     def stop(self):
         tdSql.close()

@@ -51,7 +51,7 @@ typedef struct SDataFileReaderConfig {
 
 int32_t tsdbDataFileReaderOpen(const char *fname[/* TSDB_FTYPE_MAX */], const SDataFileReaderConfig *config,
                                SDataFileReader **reader);
-int32_t tsdbDataFileReaderClose(SDataFileReader **reader);
+void    tsdbDataFileReaderClose(SDataFileReader **reader);
 // .head
 int32_t tsdbDataFileReadBrinBlk(SDataFileReader *reader, const TBrinBlkArray **brinBlkArray);
 int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinBlk, SBrinBlock *brinBlock);
@@ -98,25 +98,25 @@ int32_t tsdbDataFileFlush(SDataFileWriter *writer);
 // head
 int32_t tsdbFileWriteBrinBlock(STsdbFD *fd, SBrinBlock *brinBlock, uint32_t cmprAlg, int64_t *fileSize,
                                TBrinBlkArray *brinBlkArray, SBuffer *buffers, SVersionRange *range,
-                              int32_t encryptAlgorithm, char* encryptKey);
+                               int32_t encryptAlgorithm, char *encryptKey);
 int32_t tsdbFileWriteBrinBlk(STsdbFD *fd, TBrinBlkArray *brinBlkArray, SFDataPtr *ptr, int64_t *fileSize,
-                            int32_t encryptAlgorithm, char* encryptKey);
-int32_t tsdbFileWriteHeadFooter(STsdbFD *fd, int64_t *fileSize, const SHeadFooter *footer,
-                               int32_t encryptAlgorithm, char* encryptKey);
+                             int32_t encryptAlgorithm, char *encryptKey);
+int32_t tsdbFileWriteHeadFooter(STsdbFD *fd, int64_t *fileSize, const SHeadFooter *footer, int32_t encryptAlgorithm,
+                                char *encryptKey);
 
 // tomb
 int32_t tsdbDataFileWriteTombRecord(SDataFileWriter *writer, const STombRecord *record);
 int32_t tsdbFileWriteTombBlock(STsdbFD *fd, STombBlock *tombBlock, int8_t cmprAlg, int64_t *fileSize,
                                TTombBlkArray *tombBlkArray, SBuffer *buffers, SVersionRange *range,
-                                int32_t encryptAlgorithm, char* encryptKey);
+                               int32_t encryptAlgorithm, char *encryptKey);
 int32_t tsdbFileWriteTombBlk(STsdbFD *fd, const TTombBlkArray *tombBlkArray, SFDataPtr *ptr, int64_t *fileSize,
-                            int32_t encryptAlgorithm, char* encryptKey);
-int32_t tsdbFileWriteTombFooter(STsdbFD *fd, const STombFooter *footer, int64_t *fileSize,
-                                int32_t encryptAlgorithm, char* encryptKey);
+                             int32_t encryptAlgorithm, char *encryptKey);
+int32_t tsdbFileWriteTombFooter(STsdbFD *fd, const STombFooter *footer, int64_t *fileSize, int32_t encryptAlgorithm,
+                                char *encryptKey);
 
 // utils
-int32_t tsdbWriterUpdVerRange(SVersionRange *range, int64_t minVer, int64_t maxVer);
-int32_t tsdbTFileUpdVerRange(STFile *f, SVersionRange range);
+void tsdbWriterUpdVerRange(SVersionRange *range, int64_t minVer, int64_t maxVer);
+void tsdbTFileUpdVerRange(STFile *f, SVersionRange range);
 
 #ifdef __cplusplus
 }

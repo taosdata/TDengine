@@ -176,22 +176,22 @@ int32_t ctgdLaunchAsyncCall(SCatalog *pCtg, SRequestConnInfo *pConn, uint64_t re
   taosArrayPush(req.pTableMeta, &name);
   taosArrayPush(req.pTableHash, &name);
 
-  strcpy(dbFName, "1.db1");
+  tstrncpy(dbFName, "1.db1", sizeof(dbFName));
   taosArrayPush(req.pDbVgroup, dbFName);
   taosArrayPush(req.pDbCfg, dbFName);
   taosArrayPush(req.pDbInfo, dbFName);
-  strcpy(dbFName, "1.db2");
+  tstrncpy(dbFName, "1.db2", sizeof(dbFName));
   taosArrayPush(req.pDbVgroup, dbFName);
   taosArrayPush(req.pDbCfg, dbFName);
   taosArrayPush(req.pDbInfo, dbFName);
 
-  strcpy(funcName, "udf1");
+  tstrncpy(funcName, "udf1", sizeof(funcName));
   taosArrayPush(req.pUdf, funcName);
-  strcpy(funcName, "udf2");
+  tstrncpy(funcName, "udf2", sizeof(funcName));
   taosArrayPush(req.pUdf, funcName);
 
-  strcpy(user.user, "root");
-  strcpy(user.dbFName, "1.db1");
+  tstrncpy(user.user, "root", sizeof(user.user));
+  tstrncpy(user.dbFName, "1.db1", sizeof(user.dbFName));
   user.type = AUTH_TYPE_READ;
   taosArrayPush(req.pUser, &user);
   user.type = AUTH_TYPE_WRITE;
@@ -199,8 +199,8 @@ int32_t ctgdLaunchAsyncCall(SCatalog *pCtg, SRequestConnInfo *pConn, uint64_t re
   user.type = AUTH_TYPE_OTHER;
   taosArrayPush(req.pUser, &user);
 
-  strcpy(user.user, "user1");
-  strcpy(user.dbFName, "1.db2");
+  tstrncpy(user.user, "user1", sizeof(user.user));
+  tstrncpy(user.dbFName, "1.db2", sizeof(user.dbFName));
   user.type = AUTH_TYPE_READ;
   taosArrayPush(req.pUser, &user);
   user.type = AUTH_TYPE_WRITE;
@@ -291,6 +291,10 @@ int32_t ctgdHandleDbgCommand(char *command) {
   }
 
   char *dup = taosStrdup(command);
+  if (NULL == dup) {
+    CTG_RET(terrno);
+  }
+  
   char *option = NULL;
   char *param = NULL;
   
@@ -331,7 +335,7 @@ int32_t ctgdHandleDbgCommand(char *command) {
     CTG_RET(TSDB_CODE_INVALID_PARA);
   }
 
-  bool enable = atoi(param);
+  bool enable = taosStr2Int32(param, NULL, 10);
 
   int32_t code = ctgdEnableDebug(option, enable);
 
@@ -426,6 +430,7 @@ int32_t ctgdGetClusterCacheNum(SCatalog *pCtg, int32_t type) {
         break;
       case CTG_DBG_VIEW_NUM:
         num += ctgdGetViewNum(dbCache);
+        break;
       default:
         ctgError("invalid type:%d", type);
         break;
@@ -475,6 +480,8 @@ void ctgdShowDBCache(SCatalog *pCtg, SHashObj *dbHash) {
 
     dbCache = (SCtgDBCache *)pIter;
 
+    CTG_LOCK(CTG_READ, &dbCache->dbLock);
+
     dbFName = taosHashGetKey(pIter, &len);
 
     int32_t metaNum = dbCache->tbCache ? taosHashGetSize(dbCache->tbCache) : 0;
@@ -504,6 +511,8 @@ void ctgdShowDBCache(SCatalog *pCtg, SHashObj *dbHash) {
              hashMethod, hashPrefix, hashSuffix, vgNum);
 
     if (dbCache->vgCache.vgInfo) {
+      CTG_LOCK(CTG_READ, &dbCache->vgCache.vgLock);
+
       int32_t i = 0;
       void *pVgIter = taosHashIterate(dbCache->vgCache.vgInfo->vgHash, NULL);
       while (pVgIter) {
@@ -519,6 +528,8 @@ void ctgdShowDBCache(SCatalog *pCtg, SHashObj *dbHash) {
         
         pVgIter = taosHashIterate(dbCache->vgCache.vgInfo->vgHash, pVgIter);      
       }
+
+      CTG_UNLOCK(CTG_READ, &dbCache->vgCache.vgLock);
     }
 
     if (dbCache->cfgCache.cfgInfo) {
@@ -538,6 +549,8 @@ void ctgdShowDBCache(SCatalog *pCtg, SHashObj *dbHash) {
                pCfg->walRollPeriod, pCfg->walRetentionSize, pCfg->walSegmentSize, pCfg->numOfRetensions,
                pCfg->schemaless, pCfg->sstTrigger);
     }
+
+    CTG_UNLOCK(CTG_READ, &dbCache->dbLock);
 
     ++i;
     pIter = taosHashIterate(dbHash, pIter);

@@ -43,7 +43,7 @@ SSyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, Syn
 SSyncRaftEntry* syncEntryBuildFromAppendEntries(const SyncAppendEntries* pMsg);
 SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId);
 void            syncEntryDestroy(SSyncRaftEntry* pEntry);
-void            syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg);  // step 7
+int32_t         syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg);  // step 7
 
 static FORCE_INLINE bool syncLogReplBarrier(SSyncRaftEntry* pEntry) {
   return pEntry->originalRpcType == TDMT_SYNC_NOOP || pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE;

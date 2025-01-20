@@ -44,7 +44,7 @@ FstBuilderNode* fstBuilderNodeDefault();
 
 FstBuilderNode* fstBuilderNodeClone(FstBuilderNode* src);
 
-void fstBuilderNodeCloneFrom(FstBuilderNode* dst, FstBuilderNode* src);
+int32_t fstBuilderNodeCloneFrom(FstBuilderNode* dst, FstBuilderNode* src);
 
 // bool fstBuilderNodeCompileTo(FstBuilderNode *b, IdxFile' *wrt,
 // CompiledAddr lastAddr, CompiledAddr startAddr);

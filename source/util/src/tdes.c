@@ -76,6 +76,12 @@ char* taosDesEncode(int64_t key, char* src, int32_t len) {
 char* taosDesDecode(int64_t key, char* src, int32_t len) {
   uint8_t* keyStr = (uint8_t*)(&key);
   char*    temp = taosMemoryCalloc(len + 8, 1);
+
+  if (!temp) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
   memcpy(temp, src, len);
   len += 8;
 

@@ -144,6 +144,9 @@ class TDTestCase:
             f"{dbname}.ct2",
             f"{dbname}.ct4",
         ]
+        tdSql.query("select concat(null,null)")  # TD-31571
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
         for tb in tbname:
             for i in range(2,8):
                 self.__concat_check(tb,i)

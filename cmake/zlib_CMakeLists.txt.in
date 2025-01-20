@@ -2,7 +2,6 @@
 # zlib
 
 
-if (${TD_LINUX})
 ExternalProject_Add(zlib
         GIT_REPOSITORY https://github.com/taosdata-contrib/zlib.git
         GIT_TAG v1.2.11
@@ -13,5 +12,5 @@ ExternalProject_Add(zlib
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
         TEST_COMMAND ""
+        GIT_SHALLOW true
 )
-endif()

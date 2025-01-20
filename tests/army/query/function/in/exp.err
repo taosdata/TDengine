@@ -1,0 +1,2 @@
+select exp();
+select exp('1');

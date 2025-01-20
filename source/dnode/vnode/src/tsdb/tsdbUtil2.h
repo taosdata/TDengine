@@ -65,9 +65,9 @@ typedef TARRAY2(STombBlk) TTombBlkArray;
 
 #define TOMB_BLOCK_SIZE(db) ((db)->numOfRecords)
 
-int32_t tTombBlockInit(STombBlock *tombBlock);
-int32_t tTombBlockDestroy(STombBlock *tombBlock);
-int32_t tTombBlockClear(STombBlock *tombBlock);
+void    tTombBlockInit(STombBlock *tombBlock);
+void    tTombBlockDestroy(STombBlock *tombBlock);
+void    tTombBlockClear(STombBlock *tombBlock);
 int32_t tTombBlockPut(STombBlock *tombBlock, const STombRecord *record);
 int32_t tTombBlockGet(STombBlock *tombBlock, int32_t idx, STombRecord *record);
 int32_t tTombRecordCompare(const STombRecord *record1, const STombRecord *record2);
@@ -112,8 +112,8 @@ typedef struct {
 #define STATIS_BLOCK_SIZE(db) ((db)->numOfRecords)
 
 int32_t tStatisBlockInit(STbStatisBlock *statisBlock);
-int32_t tStatisBlockDestroy(STbStatisBlock *statisBlock);
-int32_t tStatisBlockClear(STbStatisBlock *statisBlock);
+void    tStatisBlockDestroy(STbStatisBlock *statisBlock);
+void    tStatisBlockClear(STbStatisBlock *statisBlock);
 int32_t tStatisBlockPut(STbStatisBlock *statisBlock, SRowInfo *row, int32_t maxRecords);
 int32_t tStatisBlockGet(STbStatisBlock *statisBlock, int32_t idx, STbStatisRecord *record);
 
@@ -179,8 +179,8 @@ typedef TARRAY2(SBrinBlk) TBrinBlkArray;
 #define BRIN_BLOCK_SIZE(db) ((db)->numOfRecords)
 
 int32_t tBrinBlockInit(SBrinBlock *brinBlock);
-int32_t tBrinBlockDestroy(SBrinBlock *brinBlock);
-int32_t tBrinBlockClear(SBrinBlock *brinBlock);
+void    tBrinBlockDestroy(SBrinBlock *brinBlock);
+void    tBrinBlockClear(SBrinBlock *brinBlock);
 int32_t tBrinBlockPut(SBrinBlock *brinBlock, const SBrinRecord *record);
 int32_t tBrinBlockGet(SBrinBlock *brinBlock, int32_t idx, SBrinRecord *record);
 

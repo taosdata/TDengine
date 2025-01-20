@@ -69,6 +69,9 @@ public class SQLWriter {
      */
     private static Connection getConnection() throws SQLException {
         String jdbcURL = System.getenv("TDENGINE_JDBC_URL");
+        if (jdbcURL == null || jdbcURL == ""){
+            jdbcURL = "jdbc:TAOS://localhost:6030?user=root&password=taosdata";
+        }
         return DriverManager.getConnection(jdbcURL);
     }
 

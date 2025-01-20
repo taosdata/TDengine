@@ -235,12 +235,18 @@ python3 ./test.py -f 2-query/mavg.py -P
 python3 ./test.py -f 2-query/mavg.py -P -R
 python3 ./test.py -f 2-query/max_partition.py -P
 python3 ./test.py -f 2-query/max_partition.py -P -R
+python3 ./test.py -f 2-query/partition_limit_interval.py -P
+python3 ./test.py -f 2-query/partition_limit_interval.py -P -R
 python3 ./test.py -f 2-query/max_min_last_interval.py -P
 python3 ./test.py -f 2-query/last_row_interval.py -P
 python3 ./test.py -f 2-query/max.py -P
 python3 ./test.py -f 2-query/max.py -P -R
 python3 ./test.py -f 2-query/min.py -P
 python3 ./test.py -f 2-query/min.py -P -R
+python3 ./test.py -f 2-query/normal.py -P
+python3 ./test.py -f 2-query/normal.py -P -R
+python3 ./test.py -f 2-query/not.py -P
+python3 ./test.py -f 2-query/not.py -P -R
 python3 ./test.py -f 2-query/mode.py -P
 python3 ./test.py -f 2-query/mode.py -P -R
 python3 ./test.py -f 2-query/Now.py -P
@@ -422,6 +428,8 @@ python3 ./test.py -f 2-query/Now.py -P -Q 2
 python3 ./test.py -f 2-query/Today.py -P -Q 2
 python3 ./test.py -f 2-query/max.py -P -Q 2
 python3 ./test.py -f 2-query/min.py -P -Q 2
+python3 ./test.py -f 2-query/normal.py -P -Q 2
+python3 ./test.py -f 2-query/not.py -P -Q 2
 python3 ./test.py -f 2-query/mode.py -P -Q 2
 python3 ./test.py -f 2-query/count.py -P -Q 2
 python3 ./test.py -f 2-query/countAlwaysReturnValue.py -P -Q 2
@@ -481,6 +489,7 @@ python3 ./test.py -f 2-query/irate.py -P -Q 2
 python3 ./test.py -f 2-query/function_null.py -P -Q 2
 python3 ./test.py -f 2-query/count_partition.py -P -Q 2
 python3 ./test.py -f 2-query/max_partition.py -P -Q 2
+python3 ./test.py -f 2-query/partition_limit_interval.py -P -Q 2
 python3 ./test.py -f 2-query/max_min_last_interval.py -P -Q 2
 python3 ./test.py -f 2-query/last_row_interval.py -P -Q 2
 python3 ./test.py -f 2-query/last_row.py -P -Q 2
@@ -519,6 +528,8 @@ python3 ./test.py -f 2-query/Now.py -P -Q 3
 python3 ./test.py -f 2-query/Today.py -P -Q 3
 python3 ./test.py -f 2-query/max.py -P -Q 3
 python3 ./test.py -f 2-query/min.py -P -Q 3
+python3 ./test.py -f 2-query/normal.py -P -Q 3
+python3 ./test.py -f 2-query/not.py -P -Q 3
 python3 ./test.py -f 2-query/mode.py -P -Q 3
 python3 ./test.py -f 2-query/count.py -P -Q 3
 python3 ./test.py -f 2-query/countAlwaysReturnValue.py -P -Q 3
@@ -576,6 +587,7 @@ python3 ./test.py -f 2-query/irate.py -P -Q 3
 python3 ./test.py -f 2-query/function_null.py -P -Q 3
 python3 ./test.py -f 2-query/count_partition.py -P -Q 3
 python3 ./test.py -f 2-query/max_partition.py -P -Q 3
+python3 ./test.py -f 2-query/partition_limit_interval.py -P -Q 3
 python3 ./test.py -f 2-query/max_min_last_interval.py -P -Q 3
 python3 ./test.py -f 2-query/last_row_interval.py -P -Q 3
 python3 ./test.py -f 2-query/last_row.py -P -Q 3
@@ -615,6 +627,8 @@ python3 ./test.py -f 2-query/Now.py -P -Q 4
 python3 ./test.py -f 2-query/Today.py -P -Q 4
 python3 ./test.py -f 2-query/max.py -P -Q 4
 python3 ./test.py -f 2-query/min.py -P -Q 4
+python3 ./test.py -f 2-query/normal.py -P -Q 4
+python3 ./test.py -f 2-query/not.py -P -Q 4
 python3 ./test.py -f 2-query/mode.py -P -Q 4
 python3 ./test.py -f 2-query/count.py -P -Q 4
 python3 ./test.py -f 2-query/countAlwaysReturnValue.py -P -Q 4
@@ -673,6 +687,7 @@ python3 ./test.py -f 2-query/irate.py -P -Q 4
 python3 ./test.py -f 2-query/function_null.py -P -Q 4
 python3 ./test.py -f 2-query/count_partition.py -P -Q 4
 python3 ./test.py -f 2-query/max_partition.py -P -Q 4
+python3 ./test.py -f 2-query/partition_limit_interval.py -P -Q 4
 python3 ./test.py -f 2-query/max_min_last_interval.py -P -Q 4
 python3 ./test.py -f 2-query/last_row_interval.py -P -Q 4
 python3 ./test.py -f 2-query/last_row.py -P -Q 4

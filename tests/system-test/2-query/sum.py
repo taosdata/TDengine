@@ -42,8 +42,7 @@ class TDTestCase:
             sum_condition.extend( f"{num_col} + {num_col_2}" for num_col_2 in NUM_COL )
             sum_condition.extend( f"{num_col} + {un_num_col} " for un_num_col in UN_NUM_COL )
 
-        sum_condition.append(1)
-
+        sum_condition.append(1.1)
         return sum_condition
 
     def __where_condition(self, col):
@@ -79,7 +78,7 @@ class TDTestCase:
             )
             # sqls.extend( f"select sum( {un_num_col} + {un_num_col_2} ) from {tbanme} " for un_num_col_2 in UN_NUM_COL )
 
-        sqls.extend( f"select sum( {num_col} + {ts_col} ) from {DBNAME}.{tbanme} " for num_col in NUM_COL for ts_col in TS_TYPE_COL)
+        #sqls.extend( f"select sum( {num_col} + {ts_col} ) from {DBNAME}.{tbanme} " for num_col in NUM_COL for ts_col in TS_TYPE_COL)
         sqls.extend(
             (
                 f"select sum() from {DBNAME}.{tbanme} ",

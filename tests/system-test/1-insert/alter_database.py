@@ -17,7 +17,10 @@ class TDTestCase:
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        self.buffer_boundary = [3, 4097, 8193, 12289, 16384]
+        if platform.system().lower() == 'windows':
+            self.buffer_boundary = [3, 4097]
+        else:
+            self.buffer_boundary = [3, 4097, 8193, 12289, 16384]
         # remove the value > free_memory, 70% is the weight to calculate the max value
         # if platform.system() == "Linux" and platform.machine() == "aarch64":
             # mem = psutil.virtual_memory()
@@ -78,8 +81,8 @@ class TDTestCase:
         tdSql.query('select * from information_schema.ins_databases where name = "db"')
         
         db_options_items = ["replica","keep","buffer","pages","minrows","cachemodel","cachesize","wal_level","wal_fsync_period",
-                      "wal_retention_period","wal_retention_size","stt_trigger"]
-        db_options_result_idx = [4,7,8,10,11,18,19,20,21,22,23,24]
+                      "wal_retention_period","wal_retention_size","stt_trigger", "compact_interval", "compact_time_range", "compact_time_offset"]
+        db_options_result_idx = [4,7,8,10,11,18,19,20,21,22,23,24,34,35,36]
         
         self.option_result = []
         for idx in db_options_result_idx:

@@ -17,13 +17,12 @@
 
 void* serverLoop(void* param) {
   TestServer* server = (TestServer*)param;
-  server->runnning = false;
+  cfgInit(&tsCfg);
 
   if (dmInit() != 0) {
     return NULL;
   }
 
-  server->runnning = true;
   if (dmRun() != 0) {
     return NULL;
   }
@@ -33,13 +32,18 @@ void* serverLoop(void* param) {
 }
 
 bool TestServer::Start() {
+  tstrncpy(tsVersionName, "trial", strlen("trial"));
+  running = false;
   TdThreadAttr thAttr;
   taosThreadAttrInit(&thAttr);
   taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
   taosThreadCreate(&threadId, &thAttr, serverLoop, this);
   taosThreadAttrDestroy(&thAttr);
-  taosMsleep(2100);
-  return runnning;
+  while (!dmReadyForTest()) {
+    taosMsleep(500);
+  }
+  running = true;
+  return running;
 }
 
 void TestServer::Stop() {

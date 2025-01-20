@@ -169,7 +169,7 @@ class TDTestCase:
         tdSql.checkData(3, 2, 4)
 
         tdSql.query("explain select * from st where tbname='ct1'")
-        tdSql.checkRows(2)
+        tdSql.checkRows(1)
 	
         tdSql.query("select table_name, vgroup_id from information_schema.ins_tables where db_name='dbvg' and type='CHILD_TABLE'");
         print(tdSql.queryResult);

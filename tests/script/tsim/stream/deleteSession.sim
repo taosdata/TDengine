@@ -18,7 +18,8 @@ sql use test;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 sql create stream streams0 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt as select  _wstart c1, count(*) c2, max(a) c3 from t1 session(ts, 5s);
 
-sleep 2000
+run tsim/stream/checkTaskStatus.sim
+
 
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sleep 1000
@@ -195,7 +196,8 @@ sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 sql create stream streams2 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt2 as select  _wstart c1, count(*) c2, max(a) c3 from st session(ts,5s);
 
-sleep 2000
+run tsim/stream/checkTaskStatus.sim
+
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sql insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);
 
@@ -426,7 +428,9 @@ sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
 sql create stream streams3 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into test.streamt3 as select  _wstart c1, count(*) c2, max(a) c3 from st session(ts,5s);
-sleep 2000
+
+run tsim/stream/checkTaskStatus.sim
+
 
 sql insert into t1 values(1648791210000,1,1,1,NULL);
 sql insert into t1 values(1648791210001,2,2,2,NULL);
@@ -538,7 +542,9 @@ sql create table t2 using st tags(2,2,2);
 
 print create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt4 as select  _wstart, count(*) c1 from st partition by tbname session(ts, 2s);
 sql create stream streams4 trigger at_once IGNORE EXPIRED 0 IGNORE UPDATE 0  into streamt4 as select  _wstart, count(*) c1 from st partition by tbname session(ts, 2s);
-sleep 1000
+
+run tsim/stream/checkTaskStatus.sim
+
 
 sql insert into t1 values(1648791210000,1,2,3);
 sql insert into t1 values(1648791220000,2,2,3);

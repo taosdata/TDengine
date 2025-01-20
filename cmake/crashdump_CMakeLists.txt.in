@@ -5,8 +5,9 @@ ExternalProject_Add(crashdump
         GIT_TAG master
         SOURCE_DIR "${TD_CONTRIB_DIR}/crashdump"
         BINARY_DIR "${TD_CONTRIB_DIR}/crashdump"
-        CONFIGURE_COMMAND "" 
-        BUILD_COMMAND ""  
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
         INSTALL_COMMAND ""
         TEST_COMMAND ""
+        GIT_SHALLOW true
         )

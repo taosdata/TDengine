@@ -54,8 +54,9 @@ class Client {
     rpcInit_.user = (char *)user;
     rpcInit_.parent = this;
     rpcInit_.connType = TAOS_CONN_CLIENT;
+    rpcInit_.shareConnLimit = 200;
 
-    taosVersionStrToInt(version, &(rpcInit_.compatibilityVer));
+    taosVersionStrToInt(td_version, &(rpcInit_.compatibilityVer));
     this->transCli = rpcOpen(&rpcInit_);
     tsem_init(&this->sem, 0, 0);
   }
@@ -68,7 +69,7 @@ class Client {
   void Restart(CB cb) {
     rpcClose(this->transCli);
     rpcInit_.cfp = cb;
-    taosVersionStrToInt(version, &(rpcInit_.compatibilityVer));
+    taosVersionStrToInt(td_version, &(rpcInit_.compatibilityVer));
     this->transCli = rpcOpen(&rpcInit_);
   }
   void Stop() {
@@ -85,9 +86,17 @@ class Client {
     SemWait();
     *resp = this->resp;
   }
+  void sendReq(SRpcMsg *req) {
+    SEpSet epSet = {0};
+    epSet.inUse = 0;
+    addEpIntoEpSet(&epSet, "127.0.0.1", 7000);
+
+    rpcSendRequest(this->transCli, &epSet, req, NULL);
+
+  }
   void SendAndRecvNoHandle(SRpcMsg *req, SRpcMsg *resp) {
     if (req->info.handle != NULL) {
-      rpcReleaseHandle(req->info.handle, TAOS_CONN_CLIENT);
+      rpcReleaseHandle(req->info.handle, TAOS_CONN_CLIENT, 0);
       req->info.handle = NULL;
     }
     SendAndRecv(req, resp);
@@ -120,7 +129,7 @@ class Server {
     rpcInit_.cfp = processReq;
     rpcInit_.user = (char *)user;
     rpcInit_.connType = TAOS_CONN_SERVER;
-    taosVersionStrToInt(version, &(rpcInit_.compatibilityVer));
+    taosVersionStrToInt(td_version, &(rpcInit_.compatibilityVer));
   }
   void Start() {
     this->transSrv = rpcOpen(&this->rpcInit_);
@@ -160,6 +169,7 @@ static void processReq(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   rpcMsg.contLen = 100;
   rpcMsg.info = pMsg->info;
   rpcMsg.code = 0;
+  rpcFreeCont(pMsg->pCont);
   rpcSendResponse(&rpcMsg);
 }
 
@@ -181,7 +191,7 @@ static void processReleaseHandleCb(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) 
   rpcMsg.code = 0;
   rpcSendResponse(&rpcMsg);
 
-  rpcReleaseHandle(&pMsg->info, TAOS_CONN_SERVER);
+  rpcReleaseHandle(&pMsg->info, TAOS_CONN_SERVER, 0);
 }
 static void processRegisterFailure(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   {
@@ -230,7 +240,7 @@ static void initEnv() {
   taosMkDir(path.c_str());
 
   tstrncpy(tsLogDir, path.c_str(), PATH_MAX);
-  if (taosInitLog("taosdlog", 1) != 0) {
+  if (taosInitLog("taosdlog", 1, false) != 0) {
     printf("failed to init log file\n");
   }
 }
@@ -264,6 +274,7 @@ class TransObj {
     cli->Stop();
   }
   void cliSendAndRecv(SRpcMsg *req, SRpcMsg *resp) { cli->SendAndRecv(req, resp); }
+  void cliSendReq(SRpcMsg *req) { cli->sendReq(req); }
   void cliSendAndRecvNoHandle(SRpcMsg *req, SRpcMsg *resp) { cli->SendAndRecvNoHandle(req, resp); }
 
   ~TransObj() {
@@ -355,7 +366,7 @@ TEST_F(TransEnv, cliPersistHandle) {
     //}
     handle = resp.info.handle;
   }
-  rpcReleaseHandle(handle, TAOS_CONN_CLIENT);
+  rpcReleaseHandle(handle, TAOS_CONN_CLIENT,  0);
   for (int i = 0; i < 10; i++) {
     SRpcMsg req = {0};
     req.msgType = 1;
@@ -492,15 +503,16 @@ TEST_F(TransEnv, queryExcept) {
 TEST_F(TransEnv, noResp) {
   SRpcMsg resp = {0};
   SRpcMsg req = {0};
-  // for (int i = 0; i < 5; i++) {
-  //  memset(&req, 0, sizeof(req));
-  //  req.info.noResp = 1;
-  //  req.msgType = 1;
-  //  req.pCont = rpcMallocCont(10);
-  //  req.contLen = 10;
-  //  tr->cliSendAndRecv(&req, &resp);
-  //}
-  // taosMsleep(2000);
+  for (int i = 0; i < 500000; i++) {
+   memset(&req, 0, sizeof(req));
+   req.info.noResp = 1;
+   req.msgType = 3;
+   req.pCont = rpcMallocCont(10);
+   req.contLen = 10;
+   tr->cliSendReq(&req); 
+   //tr->cliSendAndRecv(&req, &resp);
+  }
+  taosMsleep(2000);
 
   // no resp
 }

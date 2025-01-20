@@ -19,6 +19,9 @@
 extern "C" {
 #endif
 
+#include "executorInt.h"
+#include "operator.h"
+
 #define HASH_JOIN_DEFAULT_PAGE_SIZE 10485760
 #define HJOIN_ROW_BITMAP_SIZE (2 * 1048576)
 #define HJOIN_BLK_THRESHOLD_RATIO 0.9

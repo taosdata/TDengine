@@ -30,7 +30,7 @@ int mndAcquireGlobalIdx(SMnode *pMnode, char *name, int type, SSIdx *idx) {
   SSmaObj *pSma = mndGetIdx(pMnode, name, SDB_SMA);
   SIdxObj *pIdx = mndGetIdx(pMnode, name, SDB_IDX);
 
-  terrno = 0;
+  int32_t code = 0;
 
   if (pSma == NULL && pIdx == NULL) return 0;
 
@@ -40,8 +40,8 @@ int mndAcquireGlobalIdx(SMnode *pMnode, char *name, int type, SSIdx *idx) {
       idx->pIdx = pSma;
     } else {
       mndReleaseSma(pMnode, pSma);
-      terrno = TSDB_CODE_MND_SMA_ALREADY_EXIST;
-      return -1;
+      code = TSDB_CODE_MND_SMA_ALREADY_EXIST;
+      TAOS_RETURN(code);
     }
   } else {
     if (type == SDB_IDX) {
@@ -49,9 +49,9 @@ int mndAcquireGlobalIdx(SMnode *pMnode, char *name, int type, SSIdx *idx) {
       idx->pIdx = pIdx;
     } else {
       mndReleaseIdx(pMnode, pIdx);
-      terrno = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
-      return -1;
+      code = TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST;
+      TAOS_RETURN(code);
     }
   }
-  return 0;
+  TAOS_RETURN(code);
 }

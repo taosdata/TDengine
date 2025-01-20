@@ -186,17 +186,17 @@ class TDTestCase:
         tdSql.query('show dnode 1 variables')
         for i in tdSql.queryResult:
             if i[1].lower() == "gitinfo":
-                taosd_gitinfo_sql = f"gitinfo: {i[2]}"
+                taosd_gitinfo_sql = f"git: {i[2]}"
         taos_gitinfo_sql = ''
         tdSql.query('show local variables')
         for i in tdSql.queryResult:
             if i[0].lower() == "gitinfo":
-                taos_gitinfo_sql = f"gitinfo: {i[1]}"
+                taos_gitinfo_sql = f"git: {i[1]}"
         taos_info = os.popen('taos -V').read()
-        taos_gitinfo = re.findall("^gitinfo.*",taos_info,re.M)
+        taos_gitinfo = re.findall("^git: .*",taos_info,re.M)
         tdSql.checkEqual(taos_gitinfo_sql,taos_gitinfo[0])
         taosd_info = os.popen('taosd -V').read()
-        taosd_gitinfo = re.findall("^gitinfo.*",taosd_info,re.M)
+        taosd_gitinfo = re.findall("^git: .*",taosd_info,re.M)
         tdSql.checkEqual(taosd_gitinfo_sql,taosd_gitinfo[0])
 
     def show_base(self):
@@ -283,6 +283,20 @@ class TDTestCase:
         error_vals = ['a', '10a', '', '1.100r', '1.12  r', '5k']
         for error_val in error_vals:
             tdSql.error(f'ALTER DNODE 1 "{var}" "{error_val}"')
+
+        var = 'randErrorDivisor'
+        vals = ['9223372036854775807', '9223372036854775807.1', '9223372036854775806', '9223372036854775808', '9223372036854775808.1', '9223372036854775807.0', '9223372036854775806.1']
+        expected_vals = ['9223372036854775807', 'err', '9223372036854775806', 'err', 'err', 'err', 'err']
+        for val_str, expected_val in zip(vals, expected_vals):
+            sql = f'ALTER all dnodes "{var}" "{val_str}"'
+            if expected_val == 'err':
+                tdSql.error(sql)
+            else:
+                tdSql.execute(sql, queryTimes=1)
+                actual_val = self.get_variable(var, False)
+                if expected_val != actual_val:
+                    tdLog.exit(f"failed to set local {var} to {expected_val} actually {actual_val}")
+
 
     def stop(self):
         tdSql.close()

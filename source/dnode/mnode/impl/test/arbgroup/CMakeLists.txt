@@ -4,7 +4,7 @@ aux_source_directory(. MNODE_ARBGROUP_TEST_SRC)
 add_executable(arbgroupTest ${MNODE_ARBGROUP_TEST_SRC})
 target_link_libraries(
         arbgroupTest
-        PRIVATE dnode nodes planner gtest qcom
+        PRIVATE dnode nodes planner gtest qcom tcs
 )
 
 add_test(

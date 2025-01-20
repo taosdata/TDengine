@@ -30,12 +30,14 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
 int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUseDbReq *pReq);
 bool    mndIsDbReady(SMnode *pMnode, SDbObj *pDb);
 void    mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList);
+bool    mndDbIsExist(SMnode *pMnode, const char *db);
 
 SSdbRaw    *mndDbActionEncode(SDbObj *pDb);
 const char *mndGetDbStr(const char *src);
 const char *mndGetStableStr(const char *src);
 
 int32_t mndProcessCompactDbReq(SRpcMsg *pReq);
+int32_t mndCheckDbDnodeList(SMnode *pMnode, char *db, char *dnodeListStr, SArray *dnodeList);
 
 #ifdef __cplusplus
 }

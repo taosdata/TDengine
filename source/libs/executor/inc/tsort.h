@@ -66,7 +66,7 @@ typedef struct SMsortComparParam {
 typedef struct SSortHandle  SSortHandle;
 typedef struct STupleHandle STupleHandle;
 
-typedef SSDataBlock* (*_sort_fetch_block_fn_t)(void* param);
+typedef int32_t (*_sort_fetch_block_fn_t)(void* param, SSDataBlock** ppBlock);
 typedef int32_t (*_sort_merge_compar_fn_t)(const void* p1, const void* p2, void* param);
 
 /**
@@ -77,9 +77,9 @@ typedef int32_t (*_sort_merge_compar_fn_t)(const void* p1, const void* p2, void*
  * @param sortBufSize sort memory buf size, for check if heap sort is applicable
  * @return
  */
-SSortHandle* tsortCreateSortHandle(SArray* pOrderInfo, int32_t type, int32_t pageSize, int32_t numOfPages,
-                                   SSDataBlock* pBlock, const char* idstr, uint64_t pqMaxRows, uint32_t pqMaxTupleLength,
-                                   uint32_t pqSortBufSize);
+int32_t tsortCreateSortHandle(SArray* pOrderInfo, int32_t type, int32_t pageSize, int32_t numOfPages,
+                              SSDataBlock* pBlock, const char* idstr, uint64_t pqMaxRows, uint32_t pqMaxTupleLength,
+                              uint32_t pqSortBufSize, SSortHandle** pHandle);
 
 void tsortSetForceUsePQSort(SSortHandle* pHandle);
 
@@ -101,14 +101,14 @@ int32_t tsortOpen(SSortHandle* pHandle);
  * @param pHandle
  * @return
  */
-int32_t tsortClose(SSortHandle* pHandle);
+void tsortClose(SSortHandle* pHandle);
 
 /**
  *
  * @return
  */
-int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetchFp, void (*fp)(SSDataBlock*, void*),
-                               void* param);
+void tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetchFp, void (*fp)(SSDataBlock*, void*),
+                            void* param);
 
 /**
  *
@@ -116,16 +116,17 @@ int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetc
  * @param fp
  * @return
  */
-int32_t tsortSetComparFp(SSortHandle* pHandle, _sort_merge_compar_fn_t fp);
+void tsortSetComparFp(SSortHandle* pHandle, _sort_merge_compar_fn_t fp);
 
 /**
  * 
 */
 void tsortSetMergeLimit(SSortHandle* pHandle, int64_t mergeLimit);
+
 /**
  *
  */
-int32_t tsortSetCompareGroupId(SSortHandle* pHandle, bool compareGroupId);
+void tsortSetCompareGroupId(SSortHandle* pHandle, bool compareGroupId);
 
 /**
  *
@@ -140,7 +141,7 @@ int32_t tsortAddSource(SSortHandle* pSortHandle, void* pSource);
  * @param pHandle
  * @return
  */
-STupleHandle* tsortNextTuple(SSortHandle* pHandle);
+int32_t tsortNextTuple(SSortHandle* pHandle, STupleHandle** pTupleHandle);
 
 /**
  *
@@ -156,7 +157,7 @@ bool tsortIsNullVal(STupleHandle* pVHandle, int32_t colId);
  * @param colId
  * @return
  */
-void* tsortGetValue(STupleHandle* pVHandle, int32_t colId);
+void tsortGetValue(STupleHandle* pVHandle, int32_t colId, void** pVal);
 
 /**
  *
@@ -164,13 +165,13 @@ void* tsortGetValue(STupleHandle* pVHandle, int32_t colId);
  * @return
  */
 uint64_t tsortGetGroupId(STupleHandle* pVHandle);
-void*    tsortGetBlockInfo(STupleHandle* pVHandle);
+void     tsortGetBlockInfo(STupleHandle* pVHandle, SDataBlockInfo* pInfo);
 /**
  *
  * @param pSortHandle
  * @return
  */
-SSDataBlock* tsortGetSortedDataBlock(const SSortHandle* pSortHandle);
+int32_t tsortGetSortedDataBlock(const SSortHandle* pSortHandle, SSDataBlock** pBlock);
 
 /**
  * return the sort execution information.
@@ -197,7 +198,8 @@ void tsortSetAbortCheckFn(SSortHandle* pHandle, bool (*checkFn)(void* param), vo
 
 int32_t tsortSetSortByRowId(SSortHandle* pHandle, int32_t extRowsSize);
 
-void tsortAppendTupleToBlock(SSortHandle* pHandle, SSDataBlock* pBlock, STupleHandle* pTupleHandle);
+int32_t tsortAppendTupleToBlock(SSortHandle* pHandle, SSDataBlock* pBlock, STupleHandle* pTupleHandle);
+
 /**
  * @brief comp the tuple with keyBuf, if not equal, new keys will be built in keyBuf, newLen will be stored in keyLen
  * @param [in] pSortCols cols to comp and build
@@ -211,10 +213,11 @@ int32_t tsortCompAndBuildKeys(const SArray* pSortCols, char* keyBuf, int32_t* ke
 /**
  * @brief set the merge limit reached callback. it calls mergeLimitReached param with tableUid and param
 */
-void tsortSetMergeLimitReachedFp(SSortHandle* pHandle, void (*mergeLimitReached)(uint64_t tableUid, void* param), void* param);
+void tsortSetMergeLimitReachedFp(SSortHandle* pHandle, void (*mergeLimitReached)(uint64_t tableUid, void* param),
+                                 void*        param);
 
-int tsortComparBlockCell(SSDataBlock* pLeftBlock, SSDataBlock* pRightBlock,
-                      int32_t leftRowIndex, int32_t rightRowIndex, void* pOrder);
+int32_t tsortComparBlockCell(SSDataBlock* pLeftBlock, SSDataBlock* pRightBlock, int32_t leftRowIndex,
+                             int32_t rightRowIndex, void* pOrder);
 #ifdef __cplusplus
 }
 #endif

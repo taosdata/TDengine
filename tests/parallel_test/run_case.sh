@@ -76,16 +76,9 @@ ulimit -c unlimited
 md5sum /usr/lib/libtaos.so.1
 md5sum /home/TDinternal/debug/build/lib/libtaos.so
 
-#define taospy 2.7.10
-pip3 list|grep taospy
-pip3 uninstall taospy -y
-pip3 install --default-timeout=120 taospy==2.7.13
-
-#define taos-ws-py 0.3.1
-pip3 list|grep taos-ws-py
-pip3 uninstall taos-ws-py -y
-pip3 install --default-timeout=600 taos-ws-py==0.3.1
-
+#get python connector and update: taospy and  taos-ws-py to latest
+pip3 install taospy==2.7.21 
+pip3 install taos-ws-py==0.3.8
 $TIMEOUT_CMD $cmd
 RET=$?
 echo "cmd exit code: $RET"

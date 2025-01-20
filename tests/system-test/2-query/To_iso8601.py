@@ -19,6 +19,61 @@ class TDTestCase:
         self.dbname = 'db'
         self.stbname = f'{self.dbname}.stb'
         self.ntbname = f'{self.dbname}.ntb'
+    def check_timestamp_precision(self):
+        time_zone = time.strftime('%z')
+        tdSql.execute(f'drop database if exists {self.dbname}')
+        tdSql.execute(f'create database {self.dbname} precision "us"')
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(f'create table if not exists {self.ntbname}(ts timestamp, c1 int, c2 timestamp)')
+        tdSql.execute(f'insert into {self.ntbname} values(now,1,today())')
+        ts_list = ['1', '11', '111', '1111', '11111', '111111', '1111111', '11111111', '111111111', '1111111111',
+                   '11111111111','111111111111','1111111111111','11111111111111','111111111111111','1111111111111111',
+                   '11111111111111111','111111111111111111','1111111111111111111']
+        res_list_ms = ['1970-01-01T08:00:00.001+0800', '1970-01-01T08:00:00.011+0800', '1970-01-01T08:00:00.111+0800',
+                       '1970-01-01T08:00:01.111+0800', '1970-01-01T08:00:11.111+0800', '1970-01-01T08:01:51.111+0800',
+                       '1970-01-01T08:18:31.111+0800', '1970-01-01T11:05:11.111+0800', '1970-01-02T14:51:51.111+0800',
+                       '1970-01-14T04:38:31.111+0800', '1970-05-09T22:25:11.111+0800', '1973-07-10T08:11:51.111+0800',
+                       '2005-03-18T09:58:31.111+0800', '2322-02-06T03:45:11.111+0800', '5490-12-21T13:31:51.111+0800',
+                       '37179-09-17T15:18:31.111+0800', '354067-02-04T09:05:11.111+0800',
+                       '3522940-12-11T18:51:51.111+0800', '35211679-06-14T20:38:31.111+0800']
+        res_list_us = ['1970-01-01T08:00:00.000001+0800', '1970-01-01T08:00:00.000011+0800',
+                       '1970-01-01T08:00:00.000111+0800', '1970-01-01T08:00:00.001111+0800',
+                       '1970-01-01T08:00:00.011111+0800', '1970-01-01T08:00:00.111111+0800',
+                       '1970-01-01T08:00:01.111111+0800', '1970-01-01T08:00:11.111111+0800',
+                       '1970-01-01T08:01:51.111111+0800', '1970-01-01T08:18:31.111111+0800',
+                       '1970-01-01T11:05:11.111111+0800', '1970-01-02T14:51:51.111111+0800',
+                       '1970-01-14T04:38:31.111111+0800', '1970-05-09T22:25:11.111111+0800',
+                       '1973-07-10T08:11:51.111111+0800', '2005-03-18T09:58:31.111111+0800',
+                       '2322-02-06T03:45:11.111111+0800', '5490-12-21T13:31:51.111111+0800',
+                       '37179-09-17T15:18:31.111111+0800']
+        res_list_ns = ['1970-01-01T08:00:00.000000001+0800', '1970-01-01T08:00:00.000000011+0800',
+                       '1970-01-01T08:00:00.000000111+0800', '1970-01-01T08:00:00.000001111+0800',
+                       '1970-01-01T08:00:00.000011111+0800', '1970-01-01T08:00:00.000111111+0800',
+                       '1970-01-01T08:00:00.001111111+0800', '1970-01-01T08:00:00.011111111+0800',
+                       '1970-01-01T08:00:00.111111111+0800', '1970-01-01T08:00:01.111111111+0800',
+                       '1970-01-01T08:00:11.111111111+0800', '1970-01-01T08:01:51.111111111+0800',
+                       '1970-01-01T08:18:31.111111111+0800', '1970-01-01T11:05:11.111111111+0800',
+                       '1970-01-02T14:51:51.111111111+0800', '1970-01-14T04:38:31.111111111+0800',
+                       '1970-05-09T22:25:11.111111111+0800', '1973-07-10T08:11:51.111111111+0800',
+                       '2005-03-18T09:58:31.111111111+0800']
+        # test to_iso8601's precision with default precision 'ms'
+        for i in range(len(ts_list)):
+            tdSql.query(f'select to_iso8601({ts_list[i]})')
+            tdSql.checkEqual(tdSql.queryResult[0][0],res_list_ms[i])
+        # test to_iso8601's precision with table's precision 'us'
+        for i in range(len(ts_list)):
+            tdSql.query(f'select to_iso8601({ts_list[i]}) from {self.ntbname}')
+            tdSql.checkEqual(tdSql.queryResult[0][0],res_list_us[i])
+
+        tdSql.execute(f'drop database if exists {self.dbname}')
+        tdSql.execute(f'create database {self.dbname} precision "ns"')
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(f'create table if not exists {self.ntbname}(ts timestamp, c1 int, c2 timestamp)')
+        tdSql.execute(f'insert into {self.ntbname} values(now,1,today())')
+        # test to_iso8601's precision with table's precision 'ns'
+        for i in range(len(ts_list)):
+            tdSql.query(f'select to_iso8601({ts_list[i]}) from {self.ntbname}')
+            tdSql.checkEqual(tdSql.queryResult[0][0],res_list_ns[i])
     def check_customize_param_ms(self):
         time_zone = time.strftime('%z')
         tdSql.execute(f'drop database if exists {self.dbname}')
@@ -65,7 +120,7 @@ class TDTestCase:
         tdSql.checkRows(1)
         for i in range(0,3):
             tdSql.query("select to_iso8601(1) from db.ntb")
-            tdSql.checkData(i,0,"1970-01-01T08:00:01+0800")
+            tdSql.checkData(i,0,"1970-01-01T08:00:00.001+0800")
             tdSql.checkRows(3)
         tdSql.query("select to_iso8601(ts) from db.ntb")
         tdSql.checkRows(3)
@@ -91,13 +146,14 @@ class TDTestCase:
         err_param = [1.5,'a','c2']
         for i in err_param:
             tdSql.error(f"select to_iso8601({i}) from db.ntb")
+        tdSql.error(f"select to_iso8601(ts, timezone()) from db.stb")
         tdSql.query("select to_iso8601(now) from db.stb")
         tdSql.checkRows(3)
         tdSql.query("select to_iso8601(now()) from db.stb")
         tdSql.checkRows(3)
         tdSql.query("select to_iso8601(1) from db.stb")
         for i in range(0,3):
-            tdSql.checkData(i,0,"1970-01-01T08:00:01+0800")
+            tdSql.checkData(i,0,"1970-01-01T08:00:00.001+0800")
             tdSql.checkRows(3)
         tdSql.query("select to_iso8601(ts) from db.stb")
         tdSql.checkRows(3)
@@ -113,6 +169,7 @@ class TDTestCase:
     def run(self):  # sourcery skip: extract-duplicate-method
         self.check_base_function()
         self.check_customize_param_ms()
+        self.check_timestamp_precision()
 
     def stop(self):
         tdSql.close()

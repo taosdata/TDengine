@@ -10,6 +10,7 @@ DLL_EXPORT int32_t udf2_init() { return 0; }
 DLL_EXPORT int32_t udf2_destroy() { return 0; }
 
 DLL_EXPORT int32_t udf2_start(SUdfInterBuf* buf) {
+  if(buf->buf == NULL || buf->bufLen < (sizeof(int64_t))) return TSDB_CODE_UDF_INVALID_BUFSIZE;
   *(int64_t*)(buf->buf) = 0;
   buf->bufLen = sizeof(double);
   buf->numOfResult = 1;
@@ -17,6 +18,7 @@ DLL_EXPORT int32_t udf2_start(SUdfInterBuf* buf) {
 }
 
 DLL_EXPORT int32_t udf2(SUdfDataBlock* block, SUdfInterBuf* interBuf, SUdfInterBuf* newInterBuf) {
+  if(newInterBuf->buf == NULL || newInterBuf->bufLen < (sizeof(double))) return TSDB_CODE_UDF_INVALID_BUFSIZE;
   double sumSquares = 0;
   if (interBuf->numOfResult == 1) {
     sumSquares = *(double*)interBuf->buf;

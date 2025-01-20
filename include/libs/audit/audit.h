@@ -29,7 +29,6 @@ extern "C" {
 #endif
 
 #define AUDIT_DETAIL_MAX 65472
-#define AUDIT_OPERATION_LEN 20
 
 typedef struct {
   const char *server;
@@ -49,8 +48,9 @@ typedef struct {
 } SAuditRecord;
 
 int32_t auditInit(const SAuditCfg *pCfg);
+void    auditSetDnodeId(int32_t dnodeId);
 void    auditCleanup();
-void    auditSend(SJson *pJson);
+int32_t auditSend(SJson *pJson);
 void    auditRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
                     char *detail, int32_t len);
 void    auditAddRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 

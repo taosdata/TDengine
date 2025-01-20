@@ -1,14 +1,61 @@
 ---
-title: TDengine Release History and Download Links
 sidebar_label: TDengine
-description: This document provides download links for all released versions of TDengine 3.0.
+title: TDengine Release History and Download Links
+slug: /release-history/tdengine
 ---
 
-TDengine 3.x installation packages can be downloaded at the following links:
+## TDengine Versioning Rules
 
-For TDengine 2.x installation packages by version, please visit [here](https://tdengine.com/downloads/historical/).
+The TDengine version number consists of four digits separated by dots, defined as follows:
+
+- `[Major+].[Major].[Feature].[Maintenance]`
+- `Major+`: Significant restructuring of the product, direct upgrade is not possible, contact TDengine customer support team if upgrade is needed
+- `Major`: Major new features, does not support rolling upgrades, and is not reversible after upgrade, e.g., cannot revert back after upgrading from 3.2.3.0 to 3.3.0.0
+- `Feature`: New features, does not support rolling upgrades, but can revert back after upgrading from the same Major Release to a different Feature Release, e.g., can revert back to 3.3.0.0 after upgrading to 3.3.1.0. Client drivers (libtaos.so) and servers need to be upgraded simultaneously.
+- `Maintenance`: No new features, only bug fixes, supports rolling upgrades, and is reversible after upgrade
+- Rolling upgrade: For clusters composed of three or more nodes using three replicas, each node is stopped, upgraded, and restarted one at a time, repeating this process until all nodes in the cluster are upgraded. The cluster can still provide services during the upgrade. For versions that do not support rolling upgrades, the entire cluster must be stopped, all nodes upgraded, and then the entire cluster restarted. The cluster cannot provide services during the upgrade.
+
+## TDengine 2.x Downloads
+
+For TDengine 2.x version installation packages, please visit [here](https://tdengine.com/downloads/historical/)
+
+## TDengine 3.x Downloads
+
+Download links for TDengine 3.x version installation packages are as follows:
 
 import Release from "/components/ReleaseV3";
+
+## 3.3.5.0
+
+<Release type="tdengine" version="3.3.5.0" />
+
+## 3.3.4.8
+
+<Release type="tdengine" version="3.3.4.8" />
+
+## 3.3.4.3
+
+<Release type="tdengine" version="3.3.4.3" />
+
+## 3.3.3.0
+
+<Release type="tdengine" version="3.3.3.0" />
+
+## 3.3.2.0
+
+<Release type="tdengine" version="3.3.2.0" />
+
+## 3.3.1.0
+
+<Release type="tdengine" version="3.3.1.0" />
+
+## 3.3.0.3
+
+<Release type="tdengine" version="3.3.0.3" />
+
+## 3.3.0.0
+
+<Release type="tdengine" version="3.3.0.0" />
 
 ## 3.2.3.0
 
@@ -39,11 +86,6 @@ import Release from "/components/ReleaseV3";
 <Release type="tdengine" version="3.1.0.2" />
 
 ## 3.1.0.0
-
-:::note IMPORTANT
-- Once you upgrade to TDengine 3.1.0.0, you cannot roll back to any previous version of TDengine. Upgrading to 3.1.0.0 will alter your data such that it cannot be read by previous versions.
-- You must remove all streams before upgrading to TDengine 3.1.0.0. If you upgrade a deployment that contains streams, the upgrade will fail and your deployment will become nonoperational.
-:::
 
 <Release type="tdengine" version="3.1.0.0" />
 
@@ -82,10 +124,6 @@ import Release from "/components/ReleaseV3";
 ## 3.0.3.2
 
 <Release type="tdengine" version="3.0.3.2" />
-
-## 3.0.3.1
-
-<Release type="tdengine" version="3.0.3.1" />
 
 ## 3.0.3.1
 

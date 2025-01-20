@@ -31,7 +31,7 @@ typedef void* DataSinkHandle;
 struct SRpcMsg;
 struct SSubplan;
 
-typedef int32_t (*localFetchFp)(void*, uint64_t, uint64_t, uint64_t, int64_t, int32_t, void**, SArray*);
+typedef int32_t (*localFetchFp)(void*, uint64_t, uint64_t, uint64_t, uint64_t, int64_t, int32_t, void**, SArray*);
 
 typedef struct {
   void*        handle;
@@ -57,6 +57,8 @@ typedef struct {
   STimeWindow winRange;
 
   struct SStorageAPI api;
+  void*              pWorkerCb;
+  bool               localExec;
 } SReadHandle;
 
 // in queue mode, data streams are seperated by msg
@@ -73,7 +75,7 @@ typedef enum {
  * @param vgId
  * @return
  */
-qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, SReadHandle* readers, int32_t vgId, int32_t taskId);
+int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pInfo, void* msg, SReadHandle* readers, int32_t vgId, int32_t taskId);
 
 /**
  * Create the exec task for queue mode
@@ -92,7 +94,7 @@ int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray **tableList
  * @param taskId
  * @param queryId
  */
-void qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId);
+int32_t qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId);
 
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo);
 
@@ -139,8 +141,9 @@ void   qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam);
  * @param qId
  * @return
  */
-int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pPlan,
-                        qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, char* sql, EOPTR_EXEC_MODEL model);
+int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pSubplan,
+                        qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
+                        EOPTR_EXEC_MODEL model);
 
 /**
  *
@@ -149,8 +152,9 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
  * @param tversion
  * @return
  */
-int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion,
-                                    int32_t* tversion, int32_t idx);
+int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, int32_t dbNameBuffLen, char* tableName,
+                                    int32_t tbaleNameBuffLen, int32_t* sversion, int32_t* tversion, int32_t idx,
+                                    bool* tbGet);
 
 /**
  * The main task execution function, including query on both table and multiple tables,
@@ -163,6 +167,9 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* table
 int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal);
 
 int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pBlock, uint64_t* useconds);
+
+int32_t qExecutorInit(void);
+void qResetTaskCode(qTaskInfo_t tinfo);
 
 void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo);
 
@@ -187,8 +194,9 @@ void qProcessRspMsg(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 
 int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, SArray* pExecInfoList);
 
-void getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
-void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
+TSKEY       getNextTimeWindowStart(const SInterval* pInterval, TSKEY start, int32_t order);
+void        getNextTimeWindow(const SInterval* pInterval, STimeWindow* tw, int32_t order);
+void        getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, bool ascQuery);
 STimeWindow getAlignQueryTimeWindow(const SInterval* pInterval, int64_t key);
 
 SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo);
@@ -199,17 +207,17 @@ void qStreamSetOpen(qTaskInfo_t tinfo);
 
 void qStreamSetSourceExcluded(qTaskInfo_t tinfo, int8_t sourceExcluded);
 
-void qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
+int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 
-SMqMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
+SMqBatchMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
 
 const SSchemaWrapper* qExtractSchemaFromTask(qTaskInfo_t tinfo);
 
-const char* qExtractTbnameFromTask(qTaskInfo_t tinfo);
+const char*   qExtractTbnameFromTask(qTaskInfo_t tinfo);
 
 void* qExtractReaderFromStreamScanner(void* scanner);
 
-int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
+void qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
 
 int32_t qSetStreamOperatorOptionForScanHistory(qTaskInfo_t tinfo);
 int32_t qStreamSourceScanParamForHistoryScanStep1(qTaskInfo_t tinfo, SVersionRange *pVerRange, STimeWindow* pWindow);
@@ -217,8 +225,8 @@ int32_t qStreamSourceScanParamForHistoryScanStep2(qTaskInfo_t tinfo, SVersionRan
 int32_t qStreamRecoverFinish(qTaskInfo_t tinfo);
 bool    qStreamScanhistoryFinished(qTaskInfo_t tinfo);
 int32_t qStreamInfoResetTimewindowFilter(qTaskInfo_t tinfo);
-void    resetTaskInfo(qTaskInfo_t tinfo);
-
+void    qResetTaskInfoCode(qTaskInfo_t tinfo);
+int32_t qGetStreamIntervalExecInfo(qTaskInfo_t tinfo, int64_t* pWaterMark, SInterval* pInterval, STimeWindow* pLastWindow);
 int32_t qStreamOperatorReleaseState(qTaskInfo_t tInfo);
 int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo);
 

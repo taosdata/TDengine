@@ -1,5 +1,5 @@
 [Unit]
-Description=server service
+Description=taosd - TDengine time series database core service
 After=network-online.target
 Wants=network-online.target
 
@@ -15,7 +15,7 @@ TimeoutStartSec=0
 StandardOutput=null
 Restart=always
 StartLimitBurst=3
-StartLimitInterval=60s
+StartLimitInterval=900s
 
 [Install]
 WantedBy=multi-user.target

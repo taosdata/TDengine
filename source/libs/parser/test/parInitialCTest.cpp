@@ -192,8 +192,9 @@ TEST_F(ParserInitialCTest, createDatabase) {
     retention.keepUnit = keepUnit;
     if (NULL == expect.pRetensions) {
       expect.pRetensions = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SRetention));
+      ASSERT_TRUE(expect.pRetensions);
     }
-    taosArrayPush(expect.pRetensions, &retention);
+    ASSERT_TRUE(taosArrayPush(expect.pRetensions, &retention) != nullptr);
     ++expect.numOfRetensions;
   };
   auto setDbSchemaless = [&](int8_t schemaless) { expect.schemaless = schemaless; };
@@ -248,7 +249,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
       for (int32_t i = 0; i < expect.numOfRetensions; ++i) {
         SRetention* pReten = (SRetention*)taosArrayGet(req.pRetensions, i);
         SRetention* pExpectReten = (SRetention*)taosArrayGet(expect.pRetensions, i);
-        if(i == 0) {
+        if (i == 0) {
           ASSERT_EQ(pReten->freq, 0);
         } else {
           ASSERT_EQ(pReten->freq, pExpectReten->freq);
@@ -291,10 +292,44 @@ TEST_F(ParserInitialCTest, createDatabase) {
   setDbWalRetentionSize(-1);
   setDbWalRollPeriod(10);
   setDbWalSegmentSize(20);
+#ifndef _STORAGE
+  setDbSstTrigger(1);
+#else
   setDbSstTrigger(16);
+#endif
   setDbHashPrefix(3);
   setDbHashSuffix(4);
   setDbTsdbPageSize(32);
+#ifndef _STORAGE
+  run("CREATE DATABASE IF NOT EXISTS wxy_db "
+      "BUFFER 64 "
+      "CACHEMODEL 'last_value' "
+      "CACHESIZE 20 "
+      "COMP 1 "
+      "DURATION 100 "
+      "WAL_FSYNC_PERIOD 100 "
+      "MAXROWS 1000 "
+      "MINROWS 100 "
+      "KEEP 1440 "
+      "PAGES 96 "
+      "PAGESIZE 8 "
+      "PRECISION 'ns' "
+      "REPLICA 3 "
+      "RETENTIONS -:7d,1m:21d,15m:500d "
+      //      "STRICT 'on' "
+      "WAL_LEVEL 2 "
+      "VGROUPS 100 "
+      "SINGLE_STABLE 1 "
+      "SCHEMALESS 1 "
+      "WAL_RETENTION_PERIOD -1 "
+      "WAL_RETENTION_SIZE -1 "
+      "WAL_ROLL_PERIOD 10 "
+      "WAL_SEGMENT_SIZE 20 "
+      "STT_TRIGGER 1 "
+      "TABLE_PREFIX 3 "
+      "TABLE_SUFFIX 4 "
+      "TSDB_PAGESIZE 32");
+#else
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
       "BUFFER 64 "
       "CACHEMODEL 'last_value' "
@@ -323,6 +358,8 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "TABLE_PREFIX 3 "
       "TABLE_SUFFIX 4 "
       "TSDB_PAGESIZE 32");
+
+#endif
   clearCreateDbReq();
 
   setCreateDbReq("wxy_db", 1);
@@ -449,7 +486,7 @@ TEST_F(ParserInitialCTest, createFunction) {
       file << 123 << "abc" << '\n';
       file.close();
     }
-    ~udfFile() { remove(path_.c_str()); }
+    ~udfFile() { assert(0 == remove(path_.c_str())); }
     std::string path_;
   } udffile("udf");
 
@@ -506,7 +543,7 @@ TEST_F(ParserInitialCTest, createView) {
     if (NULL == expect.pTags) {
       expect.pTags = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SField));
     }
-    taosArrayPush(expect.pTags, &field);
+    ASSERT_TRUE(nullptr != taosArrayPush(expect.pTags, &field));
     expect.numOfTags += 1;
   };
 
@@ -581,8 +618,6 @@ TEST_F(ParserInitialCTest, createView) {
   run("CREATE STREAM s1 INTO st1 TAGS(tag2) AS SELECT MAX(c1), c2 FROM t1 PARTITION BY TBNAME tag2 INTERVAL(10S)");
   clearCreateStreamReq();
 }
-
-
 
 /*
  * CREATE MNODE ON DNODE dnode_id
@@ -678,13 +713,13 @@ TEST_F(ParserInitialCTest, createSmaIndex) {
     ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType(pQuery->pPrevRoot));
 
     SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pQuery->pRoot;
-    SCmdMsgInfo* pCmdMsg = (SCmdMsgInfo*)taosMemoryMalloc(sizeof(SCmdMsgInfo));
+    SCmdMsgInfo*      pCmdMsg = (SCmdMsgInfo*)taosMemoryMalloc(sizeof(SCmdMsgInfo));
     if (NULL == pCmdMsg) FAIL();
     pCmdMsg->msgType = TDMT_MND_CREATE_SMA;
     pCmdMsg->msgLen = tSerializeSMCreateSmaReq(NULL, 0, pStmt->pReq);
     pCmdMsg->pMsg = taosMemoryMalloc(pCmdMsg->msgLen);
     if (!pCmdMsg->pMsg) FAIL();
-    tSerializeSMCreateSmaReq(pCmdMsg->pMsg, pCmdMsg->msgLen, pStmt->pReq);
+    ASSERT_TRUE(0 < tSerializeSMCreateSmaReq(pCmdMsg->pMsg, pCmdMsg->msgLen, pStmt->pReq));
     ((SQuery*)pQuery)->pCmdMsg = pCmdMsg;
     ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
 
@@ -797,13 +832,13 @@ TEST_F(ParserInitialCTest, createStable) {
       if (NULL == expect.pColumns) {
         expect.pColumns = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SField));
       }
-      taosArrayPush(expect.pColumns, &field);
+      ASSERT_TRUE(nullptr != taosArrayPush(expect.pColumns, &field));
       expect.numOfColumns += 1;
     } else {
       if (NULL == expect.pTags) {
         expect.pTags = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SField));
       }
-      taosArrayPush(expect.pTags, &field);
+      ASSERT_TRUE(taosArrayPush(expect.pTags, &field) != nullptr);
       expect.numOfTags += 1;
     }
   };
@@ -983,7 +1018,7 @@ TEST_F(ParserInitialCTest, createStream) {
     if (NULL == expect.pTags) {
       expect.pTags = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SField));
     }
-    taosArrayPush(expect.pTags, &field);
+    ASSERT_TRUE(taosArrayPush(expect.pTags, &field) != nullptr);
     expect.numOfTags += 1;
   };
 
@@ -1067,7 +1102,8 @@ TEST_F(ParserInitialCTest, createStreamSemanticCheck) {
   run("CREATE STREAM s2 INTO st1 AS SELECT ts, to_json('{c1:1}') FROM st1 PARTITION BY TBNAME",
       TSDB_CODE_PAR_INVALID_STREAM_QUERY);
   run("CREATE STREAM s3 INTO st3 TAGS(tname VARCHAR(10), id INT) SUBTABLE(CONCAT('new-', tbname)) "
-      "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 INTERVAL(10S)", TSDB_CODE_PAR_INVALID_STREAM_QUERY);
+      "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 INTERVAL(10S)",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY);
 }
 
 /*
@@ -1123,8 +1159,9 @@ TEST_F(ParserInitialCTest, createTable) {
     ++expect.nReqs;
     if (nullptr == expect.pArray) {
       expect.pArray = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SVCreateTbReq));
+      ASSERT_TRUE(expect.pArray != nullptr);
     }
-    taosArrayPush(expect.pArray, &req);
+    ASSERT_TRUE(taosArrayPush(expect.pArray, &req) != nullptr);
   };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
@@ -1200,11 +1237,11 @@ TEST_F(ParserInitialCTest, createTableSemanticCheck) {
   string sql = "CREATE TABLE st1(ts TIMESTAMP, ";
   for (int32_t i = 1; i < 4096; ++i) {
     if (i > 1) {
-      sql.append(", ");
+      (void)sql.append(", ");
     }
-    sql.append("c" + to_string(i) + " INT");
+    (void)sql.append("c" + to_string(i) + " INT");
   }
-  sql.append(") TAGS (t1 int)");
+  (void)sql.append(") TAGS (t1 int)");
 
   run(sql, TSDB_CODE_PAR_TOO_MANY_COLUMNS);
 }
@@ -1294,10 +1331,10 @@ TEST_F(ParserInitialCTest, createTopic) {
   run("CREATE TOPIC IF NOT EXISTS tp1 AS STABLE st1 WHERE tag1 > 0");
   clearCreateTopicReq();
 
-  setCreateTopicReq("tp1", 1, "create topic if not exists tp1 with meta as stable st1 where tag1 > 0", nullptr, "test", "st1", 1);
+  setCreateTopicReq("tp1", 1, "create topic if not exists tp1 with meta as stable st1 where tag1 > 0", nullptr, "test",
+                    "st1", 1);
   run("CREATE TOPIC IF NOT EXISTS tp1 WITH META AS STABLE st1 WHERE tag1 > 0");
   clearCreateTopicReq();
-
 }
 
 /*

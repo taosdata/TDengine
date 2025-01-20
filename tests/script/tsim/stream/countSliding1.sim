@@ -11,7 +11,9 @@ sql use test;
 
 sql create table t1(ts timestamp, a int, b int , c int, d double);
 sql create stream streams1 trigger at_once IGNORE EXPIRED 1 IGNORE UPDATE 0 WATERMARK 100s into streamt as select  _wstart as s, count(*) c1,  sum(b), max(c) from t1 count_window(4, 2);
-sleep 1000
+
+run tsim/stream/checkTaskStatus.sim
+
 
 sql insert into t1 values(1648791213000,0,1,1,1.0);
 sleep 100

@@ -1,5 +1,5 @@
 ---
-title: FAQ 及其他
+title: 常见问题
 description: 用户经常遇到的问题
 ---
 

@@ -97,10 +97,12 @@ else
       ${build_dir}/bin/${clientName} \
       ${taostools_bin_files} \
       ${build_dir}/bin/${clientName}adapter \
+      ${build_dir}/bin/${clientName}keeper \
       ${build_dir}/bin/udfd \
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
       ${script_dir}/startPre.sh \
+      ${script_dir}/quick_deploy.sh \
       ${script_dir}/taosd-dump-cfg.gdb"
 fi
 
@@ -137,9 +139,15 @@ mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${
 if [ -f "${compile_dir}/test/cfg/${clientName}adapter.toml" ]; then
   cp ${compile_dir}/test/cfg/${clientName}adapter.toml ${install_dir}/cfg || :
 fi
+if [ -f "${compile_dir}/test/cfg/${clientName}keeper.toml" ]; then
+  cp ${compile_dir}/test/cfg/${clientName}keeper.toml ${install_dir}/cfg || :
+fi
 
 if [ -f "${compile_dir}/test/cfg/${clientName}adapter.service" ]; then
   cp ${compile_dir}/test/cfg/${clientName}adapter.service ${install_dir}/cfg || :
+fi
+if [ -f "${compile_dir}/test/cfg/${clientName}keeper.service" ]; then
+  cp ${compile_dir}/test/cfg/${clientName}keeper.service ${install_dir}/cfg || :
 fi
 
 if [ -f "${cfg_dir}/${serverName}.service" ]; then
@@ -165,36 +173,36 @@ if [ $adapterName != "taosadapter" ]; then
   mv ${install_dir}/bin/taosd-dump-cfg.gdb ${install_dir}/bin/${serverName}-dump-cfg.gdb
 fi
 
-if [ -n "${taostools_bin_files}" ]; then
-    mkdir -p ${taostools_install_dir} || echo -e "failed to create ${taostools_install_dir}"
-    mkdir -p ${taostools_install_dir}/bin \
-        && cp ${taostools_bin_files} ${taostools_install_dir}/bin \
-        && chmod a+x ${taostools_install_dir}/bin/* || :
+# if [ -n "${taostools_bin_files}" ]; then
+#     mkdir -p ${taostools_install_dir} || echo -e "failed to create ${taostools_install_dir}"
+#     mkdir -p ${taostools_install_dir}/bin \
+#         && cp ${taostools_bin_files} ${taostools_install_dir}/bin \
+#         && chmod a+x ${taostools_install_dir}/bin/* || :
 
-    if [ -f ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh ]; then
-        cp ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh \
-            ${taostools_install_dir}/ > /dev/null \
-            && chmod a+x ${taostools_install_dir}/install-tools.sh \
-            || echo -e "failed to copy install-tools.sh"
-    else
-        echo -e "install-tools.sh not found"
-    fi
+#     if [ -f ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh ]; then
+#         cp ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh \
+#             ${taostools_install_dir}/ > /dev/null \
+#             && chmod a+x ${taostools_install_dir}/install-tools.sh \
+#             || echo -e "failed to copy install-tools.sh"
+#     else
+#         echo -e "install-tools.sh not found"
+#     fi
 
-    if [ -f ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh ]; then
-        cp ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh \
-            ${taostools_install_dir}/ > /dev/null \
-            && chmod a+x ${taostools_install_dir}/uninstall-tools.sh \
-            || echo -e "failed to copy uninstall-tools.sh"
-    else
-        echo -e "uninstall-tools.sh not found"
-    fi
+#     if [ -f ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh ]; then
+#         cp ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh \
+#             ${taostools_install_dir}/ > /dev/null \
+#             && chmod a+x ${taostools_install_dir}/uninstall-tools.sh \
+#             || echo -e "failed to copy uninstall-tools.sh"
+#     else
+#         echo -e "uninstall-tools.sh not found"
+#     fi
 
-    if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
-        mkdir -p ${taostools_install_dir}/avro/{lib,lib/pkgconfig} || echo -e "failed to create ${taostools_install_dir}/avro"
-        cp ${build_dir}/lib/libavro.* ${taostools_install_dir}/avro/lib
-        cp ${build_dir}/lib/pkgconfig/avro-c.pc ${taostools_install_dir}/avro/lib/pkgconfig
-    fi
-fi
+#     if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
+#         mkdir -p ${taostools_install_dir}/avro/{lib,lib/pkgconfig} || echo -e "failed to create ${taostools_install_dir}/avro"
+#         cp ${build_dir}/lib/libavro.* ${taostools_install_dir}/avro/lib
+#         cp ${build_dir}/lib/pkgconfig/avro-c.pc ${taostools_install_dir}/avro/lib/pkgconfig
+#     fi
+# fi
 
 if [ -f ${build_dir}/bin/jemalloc-config ]; then
   mkdir -p ${install_dir}/jemalloc/{bin,lib,lib/pkgconfig,include/jemalloc,share/doc/jemalloc,share/man/man3}
@@ -231,7 +239,7 @@ fi
 
 if [ "$verMode" == "cluster" ]; then
   sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh >>remove_temp.sh
-  sed -i "s/PREFIX=\"taos\"/PREFIX=\"${serverName2}\"/g" remove_temp.sh  
+  sed -i "s/PREFIX=\"taos\"/PREFIX=\"${clientName2}\"/g" remove_temp.sh  
   sed -i "s/productName=\"TDengine\"/productName=\"${productName2}\"/g" remove_temp.sh  
   mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
@@ -243,6 +251,7 @@ fi
 cd ${install_dir}
 if [ "$osType" != "Darwin" ]; then
     tar -zcv -f ${tarName} * --remove-files || :
+    ls ${install_dir}
 else
     tar -zcv -f ${tarName} * || :
 fi
@@ -258,7 +267,7 @@ cp ${install_files} ${install_dir}
 cp ${install_dir}/install.sh install_temp.sh
 if [ "$verMode" == "cluster" ]; then
   sed -i 's/verMode=edge/verMode=cluster/g' install_temp.sh
-  sed -i "s/PREFIX=\"taos\"/PREFIX=\"${serverName2}\"/g" install_temp.sh    
+  sed -i "s/PREFIX=\"taos\"/PREFIX=\"${clientName2}\"/g" install_temp.sh
   sed -i "s/productName=\"TDengine\"/productName=\"${productName2}\"/g" install_temp.sh
   cusDomain=`echo "${cusEmail2}" | sed 's/^[^@]*@//'`
   sed -i "s/emailName=\"taosdata.com\"/emailName=\"${cusDomain}\"/g" install_temp.sh
@@ -283,34 +292,35 @@ if [[ $dbName == "taos" ]]; then
   # Copy example code  
   mkdir -p ${install_dir}/examples
   examples_dir="${top_dir}/examples"
+  new_example_dir="${top_dir}/docs/examples"
   cp -r ${examples_dir}/c ${install_dir}/examples
   if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-    if [ -d ${examples_dir}/JDBC/connectionPools/target ]; then
-      rm -rf ${examples_dir}/JDBC/connectionPools/target
+    if [ -d ${new_example_dir}/JDBC/connectionPools/target ]; then
+      rm -rf ${new_example_dir}/JDBC/connectionPools/target
     fi
-    if [ -d ${examples_dir}/JDBC/JDBCDemo/target ]; then
-      rm -rf ${examples_dir}/JDBC/JDBCDemo/target
+    if [ -d ${new_example_dir}/JDBC/JDBCDemo/target ]; then
+      rm -rf ${new_example_dir}/JDBC/JDBCDemo/target
     fi
-    if [ -d ${examples_dir}/JDBC/mybatisplus-demo/target ]; then
-      rm -rf ${examples_dir}/JDBC/mybatisplus-demo/target
+    if [ -d ${new_example_dir}/JDBC/mybatisplus-demo/target ]; then
+      rm -rf ${new_example_dir}/JDBC/mybatisplus-demo/target
     fi
-    if [ -d ${examples_dir}/JDBC/springbootdemo/target ]; then
-      rm -rf ${examples_dir}/JDBC/springbootdemo/target
+    if [ -d ${new_example_dir}/JDBC/springbootdemo/target ]; then
+      rm -rf ${new_example_dir}/JDBC/springbootdemo/target
     fi
-    if [ -d ${examples_dir}/JDBC/SpringJdbcTemplate/target ]; then
-      rm -rf ${examples_dir}/JDBC/SpringJdbcTemplate/target
+    if [ -d ${new_example_dir}/JDBC/SpringJdbcTemplate/target ]; then
+      rm -rf ${new_example_dir}/JDBC/SpringJdbcTemplate/target
     fi
-    if [ -d ${examples_dir}/JDBC/taosdemo/target ]; then
-      rm -rf ${examples_dir}/JDBC/taosdemo/target
+    if [ -d ${new_example_dir}/JDBC/taosdemo/target ]; then
+      rm -rf ${new_example_dir}/JDBC/taosdemo/target
     fi
 
-    cp -r ${examples_dir}/JDBC ${install_dir}/examples
-    cp -r ${examples_dir}/matlab ${install_dir}/examples
-    cp -r ${examples_dir}/python ${install_dir}/examples
-    cp -r ${examples_dir}/R ${install_dir}/examples
-    cp -r ${examples_dir}/go ${install_dir}/examples
-    cp -r ${examples_dir}/nodejs ${install_dir}/examples
-    cp -r ${examples_dir}/C# ${install_dir}/examples
+    cp -r ${new_example_dir}/JDBC ${install_dir}/examples ||:
+    cp -r ${examples_dir}/matlab ${install_dir}/examples ||:
+    cp -r ${examples_dir}/python ${install_dir}/examples ||:
+    cp -r ${examples_dir}/R ${install_dir}/examples ||:
+    cp -r ${examples_dir}/go ${install_dir}/examples ||:
+    cp -r ${examples_dir}/nodejs ${install_dir}/examples ||:
+    cp -r ${examples_dir}/C# ${install_dir}/examples ||:
     mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
@@ -362,8 +372,8 @@ if [ "$verMode" == "cluster" ]; then
         # copy taosx
         if [ -d ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ]; then
           cp -r ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ${install_dir}          
-          cp ${top_dir}/../enterprise/src/plugins/taosx/packaging/uninstall.sh ${install_dir}/taosx
-          sed -i 's/target=\"\"/target=\"taosx\"/g' ${install_dir}/taosx/uninstall.sh
+          cp ${top_dir}/../enterprise/src/plugins/taosx/packaging/uninstall.sh ${install_dir}/taosx/uninstall_taosx.sh
+          sed -i "s/uninstall.sh/uninstall_taosx.sh/g" ${install_dir}/taosx/uninstall_taosx.sh
         fi
     fi
 fi
@@ -420,19 +430,19 @@ if [ "$exitcode" != "0" ]; then
   exit $exitcode
 fi
 
-if [ -n "${taostools_bin_files}" ] && [ "$verMode" != "cloud" ]; then
-    wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh -O ${taostools_install_dir}/bin/TDinsight.sh && echo "TDinsight.sh downloaded!"|| echo "failed to download TDinsight.sh"
-    if [ "$osType" != "Darwin" ]; then
-        tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" "$(basename ${taostools_install_dir})" --remove-files || :
-    else
-        tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" "$(basename ${taostools_install_dir})" || :
-        rm -rf ${taostools_install_dir} ||:
-    fi
-    exitcode=$?
-    if [ "$exitcode" != "0" ]; then
-        echo "tar ${taostools_pkg_name}.tar.gz error !!!"
-        exit $exitcode
-    fi
-fi
+# if [ -n "${taostools_bin_files}" ] && [ "$verMode" != "cloud" ]; then
+#     wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh -O ${taostools_install_dir}/bin/TDinsight.sh && echo "TDinsight.sh downloaded!"|| echo "failed to download TDinsight.sh"
+#     if [ "$osType" != "Darwin" ]; then
+#         tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" "$(basename ${taostools_install_dir})" --remove-files || :
+#     else
+#         tar -zcv -f "$(basename ${taostools_pkg_name}).tar.gz" "$(basename ${taostools_install_dir})" || :
+#         rm -rf ${taostools_install_dir} ||:
+#     fi
+#     exitcode=$?
+#     if [ "$exitcode" != "0" ]; then
+#         echo "tar ${taostools_pkg_name}.tar.gz error !!!"
+#         exit $exitcode
+#     fi
+# fi
 
 cd ${curr_dir}

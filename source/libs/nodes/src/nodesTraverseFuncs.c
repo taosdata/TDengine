@@ -181,6 +181,14 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       res = walkExpr(pEvent->pCol, order, walker, pContext);
       break;
     }
+    case QUERY_NODE_ANOMALY_WINDOW: {
+      SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pNode;
+      res = walkExpr(pAnomaly->pExpr, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pAnomaly->pCol, order, walker, pContext);
+      }
+      break;
+    }
     default:
       break;
   }
@@ -204,19 +212,23 @@ static EDealRes walkExprs(SNodeList* pNodeList, ETraversalOrder order, FNodeWalk
 }
 
 void nodesWalkExpr(SNode* pNode, FNodeWalker walker, void* pContext) {
-  (void)walkExpr(pNode, TRAVERSAL_PREORDER, walker, pContext);
+  EDealRes res;
+  res = walkExpr(pNode, TRAVERSAL_PREORDER, walker, pContext);
 }
 
 void nodesWalkExprs(SNodeList* pNodeList, FNodeWalker walker, void* pContext) {
-  (void)walkExprs(pNodeList, TRAVERSAL_PREORDER, walker, pContext);
+  EDealRes res;
+  res = walkExprs(pNodeList, TRAVERSAL_PREORDER, walker, pContext);
 }
 
 void nodesWalkExprPostOrder(SNode* pNode, FNodeWalker walker, void* pContext) {
-  (void)walkExpr(pNode, TRAVERSAL_POSTORDER, walker, pContext);
+  EDealRes res;
+  res = walkExpr(pNode, TRAVERSAL_POSTORDER, walker, pContext);
 }
 
 void nodesWalkExprsPostOrder(SNodeList* pList, FNodeWalker walker, void* pContext) {
-  (void)walkExprs(pList, TRAVERSAL_POSTORDER, walker, pContext);
+  EDealRes res;
+  res = walkExprs(pList, TRAVERSAL_POSTORDER, walker, pContext);
 }
 
 static void checkParamIsFunc(SFunctionNode* pFunc) {
@@ -228,6 +240,9 @@ static void checkParamIsFunc(SFunctionNode* pFunc) {
     }
     if (nodeType(pPara) == QUERY_NODE_COLUMN) {
       ((SColumnNode*)pPara)->node.asParam = true;
+    }
+    if (nodeType(pPara) == QUERY_NODE_VALUE) {
+      ((SValueNode*)pPara)->node.asParam = true;
     }
   }
 }
@@ -379,10 +394,18 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
         res = rewriteExpr(&pWin->pEndOffset, order, rewriter, pContext);
       }
       break;
-    }  
+    }
     case QUERY_NODE_COUNT_WINDOW: {
       SCountWindowNode* pEvent = (SCountWindowNode*)pNode;
       res = rewriteExpr(&pEvent->pCol, order, rewriter, pContext);
+      break;
+    }
+    case QUERY_NODE_ANOMALY_WINDOW: {
+      SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pNode;
+      res = rewriteExpr(&pAnomaly->pExpr, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pAnomaly->pCol, order, rewriter, pContext);
+      }
       break;
     }
     default:

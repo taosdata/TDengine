@@ -38,15 +38,18 @@ class TDSimClient:
             "asyncLog": "0",
             "rpcDebugFlag": "135",
             "tmrDebugFlag": "131",
+            "dDebugFlag":"131",
             "cDebugFlag": "135",
-            "uDebugFlag": "135",
-            "jniDebugFlag": "135",
+            "uDebugFlag": "131",
+            "jniDebugFlag": "131",
             "qDebugFlag": "135",
             "supportVnodes": "1024",
             "enableQueryHb": "1",
             "telemetryReporting": "0",
             "tqDebugflag": "135",
-            "wDebugflag":"135",
+            "stDebugflag":"135",
+            "safetyCheckLevel":"2",
+            "minReservedMemorySize":"1024"
         }
 
     def getLogDir(self):
@@ -136,7 +139,7 @@ class TDDnode:
             "tqDebugFlag": "135",
             "cDebugFlag": "135",
             "stDebugFlag": "135",
-            "smaDebugFlag": "135",
+            "smaDebugFlag": "131",
             "jniDebugFlag": "131",
             "qDebugFlag": "131",
             "rpcDebugFlag": "135",
@@ -148,7 +151,8 @@ class TDDnode:
             "statusInterval": "1",
             "enableQueryHb": "1",
             "supportVnodes": "1024",
-            "telemetryReporting": "0"
+            "telemetryReporting": "0",
+            "safetyCheckLevel":"2"
         }
 
     def init(self, path, remoteIP = ""):
@@ -591,8 +595,7 @@ class TDDnode:
 
     def forcestop(self):
         if self.asan:
-            stopCmd = "%s -s stop -n dnode%d -x SIGKILL" + \
-                (self.execPath, self.index)
+            stopCmd = "%s -s stop -n dnode%d -x SIGKILL" % (self.execPath, self.index)
             tdLog.info("execute script: " + stopCmd)
             os.system(stopCmd)
             return

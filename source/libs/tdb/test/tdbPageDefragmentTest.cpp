@@ -468,8 +468,7 @@ TEST(TdbPageDefragmentTest, DISABLED_simple_insert1) {
   tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 }
 
 // TEST(TdbPageDefragmentTest, DISABLED_seq_insert) {
@@ -551,8 +550,7 @@ TEST(TdbPageDefragmentTest, seq_insert) {
   tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 }
 
 // TEST(TdbPageDefragmentTest, DISABLED_seq_delete) {
@@ -635,8 +633,7 @@ TEST(TdbPageDefragmentTest, seq_delete) {
   tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 }
 
 // TEST(TdbPageDefragmentTest, DISABLED_defragment_insert) {
@@ -717,6 +714,5 @@ TEST(TdbPageDefragmentTest, defragment_insert) {
   tdbTbClose(pDb);
 
   // Close Env
-  ret = tdbClose(pEnv);
-  GTEST_ASSERT_EQ(ret, 0);
+  tdbClose(pEnv);
 }

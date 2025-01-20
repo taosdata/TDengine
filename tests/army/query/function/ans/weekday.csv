@@ -1,0 +1,272 @@
+
+taos> select WEEKDAY('2020-01-01 00:00:00')
+ weekday('2020-01-01 00:00:00') |
+=================================
+                              2 |
+
+taos> select WEEKDAY('2020-01-01 00:00:00') from ts_4893.meters order by ts limit 10
+ weekday('2020-01-01 00:00:00') |
+=================================
+                              2 |
+                              2 |
+                              2 |
+                              2 |
+                              2 |
+                              2 |
+                              2 |
+                              2 |
+                              2 |
+                              2 |
+
+taos> select WEEKDAY('2021-01-01 00:00:00')
+ weekday('2021-01-01 00:00:00') |
+=================================
+                              4 |
+
+taos> select WEEKDAY('2021-01-01 00:00:00') from ts_4893.meters order by ts limit 10
+ weekday('2021-01-01 00:00:00') |
+=================================
+                              4 |
+                              4 |
+                              4 |
+                              4 |
+                              4 |
+                              4 |
+                              4 |
+                              4 |
+                              4 |
+                              4 |
+
+taos> select WEEKDAY('1998-01-01 00:00:00')
+ weekday('1998-01-01 00:00:00') |
+=================================
+                              3 |
+
+taos> select WEEKDAY('1998-01-01 00:00:00') from ts_4893.meters order by ts limit 10
+ weekday('1998-01-01 00:00:00') |
+=================================
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+
+taos> select WEEKDAY('1998-12-31 00:00:00')
+ weekday('1998-12-31 00:00:00') |
+=================================
+                              3 |
+
+taos> select WEEKDAY('1998-12-31 00:00:00') from ts_4893.meters order by ts limit 10
+ weekday('1998-12-31 00:00:00') |
+=================================
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+
+taos> select WEEKDAY('2000-01-06 00:00:00')
+ weekday('2000-01-06 00:00:00') |
+=================================
+                              3 |
+
+taos> select WEEKDAY('2000-01-06 00:00:00') from ts_4893.meters order by ts limit 10
+ weekday('2000-01-06 00:00:00') |
+=================================
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+                              3 |
+
+taos> select WEEKDAY(1725095657)
+  weekday(1725095657)  |
+========================
+                     2 |
+
+taos> select WEEKDAY(1725095657) from ts_4893.meters order by ts limit 10
+  weekday(1725095657)  |
+========================
+                     2 |
+                     2 |
+                     2 |
+                     2 |
+                     2 |
+                     2 |
+                     2 |
+                     2 |
+                     2 |
+                     2 |
+
+taos> select WEEKDAY(ts) from ts_4893.meters order by ts limit 10
+      weekday(ts)      |
+========================
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+
+taos> select weekday('2020-01-01')
+ weekday('2020-01-01') |
+========================
+                     2 |
+
+taos> select weekday(1721020591)
+  weekday(1721020591)  |
+========================
+                     2 |
+
+taos> select weekday(1721020666229)
+ weekday(1721020666229) |
+=========================
+                      0 |
+
+taos> select weekday('2020-01-01 00:00:00')
+ weekday('2020-01-01 00:00:00') |
+=================================
+                              2 |
+
+taos> select weekday(ts) from ts_4893.d0 order by ts limit 10
+      weekday(ts)      |
+========================
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+
+taos> select weekday(ts) from ts_4893.meters order by ts limit 10
+      weekday(ts)      |
+========================
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+                     4 |
+
+taos> select weekday(null)
+     weekday(null)     |
+========================
+ NULL                  |
+
+taos> select weekday('abc')
+    weekday('abc')     |
+========================
+ NULL                  |
+
+taos> select weekday('1721020591')
+ weekday('1721020591') |
+========================
+ NULL                  |
+
+taos> select weekday('1721020666229')
+ weekday('1721020666229') |
+===========================
+ NULL                     |
+
+taos> select weekday('01/01/2020')
+ weekday('01/01/2020') |
+========================
+ NULL                  |
+
+taos> select weekday('20200101')
+  weekday('20200101')  |
+========================
+ NULL                  |
+
+taos> select weekday('20/01/01')
+  weekday('20/01/01')  |
+========================
+ NULL                  |
+
+taos> select weekday('11/01/32')
+  weekday('11/01/32')  |
+========================
+ NULL                  |
+
+taos> select weekday('01-JAN-20')
+ weekday('01-JAN-20')  |
+========================
+ NULL                  |
+
+taos> select weekday('2024-02-29')
+ weekday('2024-02-29') |
+========================
+                     3 |
+
+taos> select weekday('2023-09-24')
+ weekday('2023-09-24') |
+========================
+                     6 |
+
+taos> select weekday('2023-09-25')
+ weekday('2023-09-25') |
+========================
+                     0 |
+
+taos> select weekday('9999-12-31')
+ weekday('9999-12-31') |
+========================
+                     4 |
+
+taos> select weekday(name) from ts_4893.meters limit 1
+     weekday(name)     |
+========================
+ NULL                  |
+
+taos> select weekday(ts), dayofweek(ts) from ts_4893.meters limit 1
+      weekday(ts)      |     dayofweek(ts)     |
+================================================
+                     4 |                     6 |
+
+taos> select weekday(timediff(ts, '2024-10-10 09:36:50.172')) from ts_4893.meters limit 1
+ weekday(timediff(ts, '2024-10-10 09:36:50.172')) |
+===================================================
+                                                4 |
+
+taos> select weekday(ts) from ts_4893.meters limit 1
+      weekday(ts)      |
+========================
+                     4 |
+
+taos> select id, weekday(ts) from ts_4893.meters where id = 1 limit 1
+     id      |      weekday(ts)      |
+======================================
+           1 |                     4 |
+
+taos> select groupid, sum(weekday(ts)) from ts_4893.meters group by groupid order by groupid
+ groupid |   sum(weekday(ts))    |
+==================================
+       1 |                300007 |
+

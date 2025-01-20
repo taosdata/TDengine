@@ -95,6 +95,15 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define COL_VAL_IS_NULL(CV)  ((CV)->flag == CV_FLAG_NULL)
 #define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
 
+#define tRowGetKey(_pRow, _pKey)           \
+  do {                                     \
+    (_pKey)->ts = (_pRow)->ts;             \
+    (_pKey)->numOfPKs = 0;                 \
+    if ((_pRow)->numOfPKs > 0) {           \
+      tRowGetPrimaryKey((_pRow), (_pKey)); \
+    }                                      \
+  } while (0)
+
 // SValueColumn ================================
 typedef struct {
   int8_t  cmprAlg;  // filled by caller
@@ -106,8 +115,8 @@ typedef struct {
 } SValueColumnCompressInfo;
 
 int32_t tValueColumnInit(SValueColumn *valCol);
-int32_t tValueColumnDestroy(SValueColumn *valCol);
-int32_t tValueColumnClear(SValueColumn *valCol);
+void    tValueColumnDestroy(SValueColumn *valCol);
+void    tValueColumnClear(SValueColumn *valCol);
 int32_t tValueColumnAppend(SValueColumn *valCol, const SValue *value);
 int32_t tValueColumnUpdate(SValueColumn *valCol, int32_t idx, const SValue *value);
 int32_t tValueColumnGet(SValueColumn *valCol, int32_t idx, SValue *value);
@@ -125,9 +134,9 @@ void    tRowDestroy(SRow *pRow);
 int32_t tRowSort(SArray *aRowP);
 int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
 int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData, int32_t flag);
-void    tRowGetKey(SRow *pRow, SRowKey *key);
-int32_t tRowKeyCompare(const void *p1, const void *p2);
-int32_t tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc);
+void    tRowGetPrimaryKey(SRow *pRow, SRowKey *key);
+int32_t tRowKeyCompare(const SRowKey *key1, const SRowKey *key2);
+void    tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc);
 
 // SRowIter ================================
 int32_t  tRowIterOpen(SRow *pRow, STSchema *pTSchema, SRowIter **ppIter);
@@ -144,9 +153,8 @@ char   *tTagValToData(const STagVal *pTagVal, bool isJson);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
-void    tTagSetCid(const STag *pTag, int16_t iTag, int16_t cid);
 void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remove
-int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf);
+int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf, void *charsetCxt);
 
 // SColData ================================
 typedef struct {
@@ -165,6 +173,8 @@ typedef struct {
 } SColDataCompressInfo;
 
 typedef void *(*xMallocFn)(void *, int32_t);
+typedef int32_t (*checkWKBGeometryFn)(const unsigned char *geoWKB, size_t nGeom);
+typedef int32_t (*initGeosFn)();
 
 void    tColDataDestroy(void *ph);
 void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t cflag);
@@ -172,7 +182,7 @@ void    tColDataClear(SColData *pColData);
 void    tColDataDeepClear(SColData *pColData);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
 int32_t tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward);
-void    tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
+int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
 uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal);
 int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
 void    tColDataArrGetRowKey(SColData *aColData, int32_t nColData, int32_t iRow, SRowKey *key);
@@ -183,15 +193,18 @@ int32_t tColDataCompress(SColData *colData, SColDataCompressInfo *info, SBuffer 
 int32_t tColDataDecompress(void *input, SColDataCompressInfo *info, SColData *colData, SBuffer *assist);
 
 // for stmt bind
-int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen);
-void    tColDataSortMerge(SArray *colDataArr);
+int32_t tColDataAddValueByBind(SColData *pColData, TAOS_MULTI_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
+                               checkWKBGeometryFn cgeos);
+int32_t tColDataSortMerge(SArray **arr);
 
 // for raw block
 int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
                                     char *data);
 // for encode/decode
-int32_t tPutColData(uint8_t version, uint8_t *pBuf, SColData *pColData);
-int32_t tGetColData(uint8_t version, uint8_t *pBuf, SColData *pColData);
+int32_t tEncodeColData(uint8_t version, SEncoder *pEncoder, SColData *pColData);
+int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData);
+int32_t tEncodeRow(SEncoder *pEncoder, SRow *pRow);
+int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow);
 
 // STRUCT ================================
 struct STColumn {
@@ -306,7 +319,7 @@ struct STag {
   do {                                            \
     VarDataLenT __len = (VarDataLenT)strlen(str); \
     *(VarDataLenT *)(x) = __len;                  \
-    memcpy(varDataVal(x), (str), __len);          \
+    (void)memcpy(varDataVal(x), (str), __len);    \
   } while (0);
 
 #define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs)                         \
@@ -315,10 +328,10 @@ struct STag {
     varDataSetLen(x, (_e - (x)-VARSTR_HEADER_SIZE));                      \
   } while (0)
 
-#define STR_WITH_SIZE_TO_VARSTR(x, str, _size)  \
-  do {                                          \
-    *(VarDataLenT *)(x) = (VarDataLenT)(_size); \
-    memcpy(varDataVal(x), (str), (_size));      \
+#define STR_WITH_SIZE_TO_VARSTR(x, str, _size)   \
+  do {                                           \
+    *(VarDataLenT *)(x) = (VarDataLenT)(_size);  \
+    (void)memcpy(varDataVal(x), (str), (_size)); \
   } while (0);
 
 // STSchema ================================
@@ -360,6 +373,28 @@ int32_t tDecompressData(void                *input,       // input
 );
 int32_t tCompressDataToBuffer(void *input, SCompressInfo *info, SBuffer *output, SBuffer *assist);
 int32_t tDecompressDataToBuffer(void *input, SCompressInfo *info, SBuffer *output, SBuffer *assist);
+
+typedef struct {
+  int32_t          columnId;
+  int32_t          type;
+  TAOS_MULTI_BIND *bind;
+} SBindInfo;
+int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
+                          SArray *rowArray, bool *pOrdered, bool *pDupTs);
+
+// stmt2 binding
+int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
+                                checkWKBGeometryFn cgeos);
+
+typedef struct {
+  int32_t          columnId;
+  int32_t          type;
+  int32_t          bytes;
+  TAOS_STMT2_BIND *bind;
+} SBindInfo2;
+
+int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
+                           SArray *rowArray, bool *pOrdered, bool *pDupTs);
 
 #endif
 

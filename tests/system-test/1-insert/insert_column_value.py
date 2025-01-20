@@ -45,7 +45,7 @@ class TDTestCase:
         self.TIMESTAMP_BASE = 1706716800
         tdSql.init(conn.cursor())
         tdSql.execute(f'drop database if exists db')
-        tdSql.execute(f'create database if not exists db vgroups 1')
+        tdSql.execute(f'create database if not exists db vgroups 1 keep 10512000m')
         tdLog.printNoPrefix("create table")
         self.__create_tb()
 
@@ -516,9 +516,19 @@ class TDTestCase:
         # check json
         self.__insert_query_json("db", "stb_js", "ctb_js", OK_JS, KO_JS, "\'{\"k1\":\"v1\",\"k2\":\"v2\"}\'")
 
+    def __insert_query_ts5184(self, dbname="db", stbname="stb_ts5184", ctbname="ctb_ts5184", ntbname="ntb_ts5184"):
+        TB_LIST = [ ctbname, ntbname]
+        tdSql.execute(f'create table {dbname}.{stbname} (ts timestamp, w_ts timestamp, opc nchar(100),quality int) tags(t0 int);')
+        tdSql.execute(f'create table {dbname}.{ntbname} (ts timestamp, w_ts timestamp, opc nchar(100),quality int);')
+        tdSql.execute(f'create table {dbname}.{ctbname} using {dbname}.{stbname} tags(1);')
+        for _tb in TB_LIST:
+            tdSql.execute(f'insert into {dbname}.{_tb} values(1721265436000,now(),"0",192) {dbname}.{_tb}(quality,w_ts,ts) values(192,now(),1721265326000) {dbname}.{_tb}(quality,w_ts,ts) values(190,now()+1s,1721265326000) {dbname}.{_tb} values(1721265436000,now()+2s,"1",191) {dbname}.{_tb}(quality,w_ts,ts) values(192,now()+3s,1721265326002) {dbname}.{_tb}(ts,w_ts,opc,quality) values(1721265436003,now()+4s,"3",193);');
+            tdSql.query(f'select * from {dbname}.{_tb}', show=True)
+            tdSql.checkRows(4)
 
     def run(self):
         self.__insert_query_exec()
+        self.__insert_query_ts5184()
 
 
     def stop(self):

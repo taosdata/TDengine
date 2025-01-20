@@ -26,7 +26,9 @@ void taosSsleep(int32_t s) {
 #ifdef WINDOWS
   Sleep(1000 * s);
 #else
-  sleep(s);
+  while (s > 0) {
+    s = sleep(s);
+  }
 #endif
 }
 
@@ -35,7 +37,7 @@ void taosMsleep(int32_t ms) {
 #ifdef WINDOWS
   Sleep(ms);
 #else
-  usleep(ms * 1000);
+  TAOS_SKIP_ERROR(usleep(ms * 1000));
 #endif
 }
 
@@ -47,10 +49,15 @@ void taosUsleep(int32_t us) {
   interval.QuadPart = (10 * us);
 
   timer = CreateWaitableTimer(NULL, TRUE, NULL);
-  SetWaitableTimer(timer, &interval, 0, NULL, NULL, 0);
-  WaitForSingleObject(timer, INFINITE);
-  CloseHandle(timer);
+  if (timer == NULL) {
+    return;
+  }
+  if (!SetWaitableTimer(timer, &interval, 0, NULL, NULL, 0)) {
+    return;
+  }
+  TAOS_SKIP_ERROR(WaitForSingleObject(timer, INFINITE));
+  TAOS_SKIP_ERROR(CloseHandle(timer));
 #else
-  usleep(us);
+  TAOS_SKIP_ERROR(usleep(us));
 #endif
 }

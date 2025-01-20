@@ -25,7 +25,6 @@ extern "C" {
 #include "storageapi.h"
 #include "tcommon.h"
 
-struct SDataSink;
 struct SDataSinkHandle;
 
 typedef struct SDataSinkManager {
@@ -36,10 +35,11 @@ typedef struct SDataSinkManager {
 typedef int32_t (*FPutDataBlock)(struct SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue);
 typedef void (*FEndPut)(struct SDataSinkHandle* pHandle, uint64_t useconds);
 typedef void (*FReset)(struct SDataSinkHandle* pHandle);
-typedef void (*FGetDataLength)(struct SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryEnd);
+typedef void (*FGetDataLength)(struct SDataSinkHandle* pHandle, int64_t* pLen, int64_t* pRowLen, bool* pQueryEnd);
 typedef int32_t (*FGetDataBlock)(struct SDataSinkHandle* pHandle, SOutputData* pOutput);
 typedef int32_t (*FDestroyDataSinker)(struct SDataSinkHandle* pHandle);
 typedef int32_t (*FGetCacheSize)(struct SDataSinkHandle* pHandle, uint64_t* size);
+typedef int32_t (*FGetSinkFlags)(struct SDataSinkHandle* pHandle, uint64_t* flags);
 
 typedef struct SDataSinkHandle {
   FPutDataBlock      fPut;
@@ -49,12 +49,13 @@ typedef struct SDataSinkHandle {
   FGetDataBlock      fGetData;
   FDestroyDataSinker fDestroy;
   FGetCacheSize      fGetCacheSize;
+  FGetSinkFlags      fGetFlags;
 } SDataSinkHandle;
 
-int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle);
-int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle,
+int32_t createDataDispatcher(SDataSinkManager* pManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle);
+int32_t createDataDeleter(SDataSinkManager* pManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle,
                           void* pParam);
-int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle,
+int32_t createDataInserter(SDataSinkManager* pManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle,
                            void* pParam);
 
 #ifdef __cplusplus

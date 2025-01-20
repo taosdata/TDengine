@@ -40,7 +40,7 @@ typedef TARRAY2(SSttFileReader *) TSttFileReaderArray;
 
 // SSttFileReader
 int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *config, SSttFileReader **reader);
-int32_t tsdbSttFileReaderClose(SSttFileReader **reader);
+void    tsdbSttFileReaderClose(SSttFileReader **reader);
 
 // SSttSegReader
 int32_t tsdbSttFileReadSttBlk(SSttFileReader *reader, const TSttBlkArray **sttBlkArray);
@@ -71,10 +71,10 @@ int32_t tsdbSttFileWriteBlockData(SSttFileWriter *writer, SBlockData *pBlockData
 int32_t tsdbSttFileWriteTombRecord(SSttFileWriter *writer, const STombRecord *record);
 bool    tsdbSttFileWriterIsOpened(SSttFileWriter *writer);
 
-int32_t tsdbFileWriteSttBlk(STsdbFD *fd, const TSttBlkArray *sttBlkArray, SFDataPtr *ptr, int64_t *fileSize, 
-                            int32_t encryptAlgorithm, char* encryptKey);
-int32_t tsdbFileWriteSttFooter(STsdbFD *fd, const SSttFooter *footer, int64_t *fileSize, int32_t encryptAlgorithm, 
-                                char* encryptKey);
+int32_t tsdbFileWriteSttBlk(STsdbFD *fd, const TSttBlkArray *sttBlkArray, SFDataPtr *ptr, int64_t *fileSize,
+                            int32_t encryptAlgorithm, char *encryptKey);
+int32_t tsdbFileWriteSttFooter(STsdbFD *fd, const SSttFooter *footer, int64_t *fileSize, int32_t encryptAlgorithm,
+                               char *encryptKey);
 
 struct SSttFileWriterConfig {
   STsdb    *tsdb;

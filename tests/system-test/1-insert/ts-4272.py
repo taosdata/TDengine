@@ -25,7 +25,9 @@ class TDTestCase:
         self.tag2 = f'using {self.stable0}(groupId) tags(2)'
         self.file1 = f"{self.testcasePath}/b.csv"
         self.file2 = f"{self.testcasePath}/c.csv"
-
+        if platform.system().lower() == 'windows':
+            self.file1 = self.file1.replace("\\","\\\\")
+            self.file2 = self.file2.replace("\\","\\\\")
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), logSql)
 
