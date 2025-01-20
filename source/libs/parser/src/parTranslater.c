@@ -1383,11 +1383,7 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
   pCol->isPk = (pCol->tableHasPk) && (pColSchema->flags & COL_IS_KEY);
   pCol->numOfPKs = pTable->pMeta->tableInfo.numOfPKs;
 
-  if (pExtSchema) {
-    if (IS_DECIMAL_TYPE(pCol->node.resType.type)) {
-      decimalFromTypeMod(pExtSchema->typeMod, &pCol->node.resType.precision, &pCol->node.resType.scale);
-    }
-  }
+  if (pExtSchema) fillTypeFromTypeMod(&pCol->node.resType, pExtSchema->typeMod);
 }
 
 static int32_t setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SColumnNode** pColRef, bool joinSrc) {
@@ -1485,8 +1481,10 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
       if (TSDB_CODE_SUCCESS != code) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, code);
       }
-      SSchemaExt* pSchemaExt = i > pMeta->tableInfo.numOfColumns ? NULL : pMeta->schemaExt + i;
-      setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns), pCol, pSchemaExt);
+      SSchemaExt* pSchemaExt =
+          pMeta->schemaExt ? (i > pMeta->tableInfo.numOfColumns ? NULL : (pMeta->schemaExt + i)) : NULL;
+      setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns), pCol,
+                            pSchemaExt);
       setColumnPrimTs(pCxt, pCol, pTable);
       code = nodesListStrictAppend(pList, (SNode*)pCol);
     }
@@ -1564,7 +1562,7 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
       if (0 == strcmp(pCol->colName, pMeta->schema[i].name) &&
           !invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
 
-        SSchemaExt* pSchemaExt = i > pMeta->tableInfo.numOfColumns ? NULL : pMeta->schemaExt + i;
+        SSchemaExt* pSchemaExt = pMeta->schemaExt ? (i > pMeta->tableInfo.numOfColumns ? NULL : (pMeta->schemaExt + i)) : NULL;
         setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns), pCol, pSchemaExt);
         setColumnPrimTs(pCxt, pCol, pTable);
         *pFound = true;
@@ -3382,6 +3380,7 @@ static int32_t createCastFunc(STranslateContext* pCxt, SNode* pExpr, SDataType d
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   code = getFuncInfo(pCxt, pFunc);
+  pFunc->node.resType = dt;
   if (TSDB_CODE_SUCCESS != code) {
     nodesClearList(pFunc->pParameterList);
     pFunc->pParameterList = NULL;

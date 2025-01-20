@@ -2388,11 +2388,17 @@ int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
-    case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_MEDIUMBLOB:
     case TSDB_DATA_TYPE_GEOMETRY:
+      pNode->datum.p = (char*)value;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+      pNode->datum.i = *(int64_t*)value;
+      pNode->typeData = *(int64_t*)value;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL:
       pNode->datum.p = (char*)value;
       break;
     default:
@@ -3037,7 +3043,17 @@ int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
         code = terrno;
       }
       break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+      pVal->d = pNode->datum.d;
+      break;
     case TSDB_DATA_TYPE_DECIMAL:
+      pVal->pz = taosMemoryCalloc(1, pVal->nLen);
+      if (!pVal->pz) {
+        code = terrno;
+        break;
+      }
+      memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
+      break;
     case TSDB_DATA_TYPE_BLOB:
       // todo
     default:
