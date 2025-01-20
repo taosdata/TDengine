@@ -1,5 +1,5 @@
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -19,6 +19,7 @@ use rumqttc::{
     },
     Outgoing,
 };
+use serde_with::serde_as;
 use tokio::{signal::ctrl_c, task::JoinSet};
 use tokio_stream::wrappers::IntervalStream;
 use tokio_util::sync::CancellationToken;
@@ -26,8 +27,29 @@ use tokio_util::sync::CancellationToken;
 use taosx_tools::{
     codec::{Compression, Encoding, Processor},
     csv_reader,
-    faker::SchemaFaker,
+    topic::TopicFaker,
 };
+
+#[derive(Debug, PartialEq, serde::Deserialize)]
+pub struct SchemaFaker {
+    pub schema: Vec<Schema>,
+}
+
+impl SchemaFaker {
+    pub fn from_file(path: impl AsRef<Path>) -> anyhow::Result<Self> {
+        let buf = std::fs::read_to_string(path).context("read schema file error")?;
+        toml::from_str(&buf).context("parse schema file error")
+    }
+}
+
+#[serde_as]
+#[derive(Debug, PartialEq, serde::Deserialize)]
+pub struct Schema {
+    #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
+    pub topics: Vec<TopicFaker>,
+    pub qos: Option<u8>,
+    pub payload: taosx_tools::fake_json::DataFakeSchema,
+}
 
 #[derive(Debug, clap::Parser)]
 struct Args {
@@ -147,7 +169,7 @@ async fn main() -> anyhow::Result<()> {
             });
         }
         (Some(schema), None) => {
-            let faker = SchemaFaker::from_file(schema).map_err(anyhow::Error::new)?;
+            let faker = SchemaFaker::from_file(schema)?;
             let processor = (args.encoding, args.compress);
             for schema in faker.schema.into_iter() {
                 let payload = Arc::new(schema.payload);
@@ -161,7 +183,7 @@ async fn main() -> anyhow::Result<()> {
                             }
                             let payload = payload
                                 .clone()
-                                .rand_json()
+                                .rand_json_value()
                                 .context("gen fake data error")
                                 .and_then(|value| {
                                     serde_json::to_vec(&value).context("serialize json error")
@@ -336,4 +358,63 @@ async fn main() -> anyhow::Result<()> {
 
 fn generate_random_string(length: usize) -> String {
     Alphanumeric.sample_string(&mut rand::thread_rng(), length)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_schema_faker_test() -> anyhow::Result<()> {
+        let schema: SchemaFaker = toml::from_str(
+            r#"
+[[schema]]
+topics = [
+    "ems/site/{::60}/root/{::60}/string",
+    "ems/site/{::60}/{::60}/{::60}/{::60}/string",
+    "ems/site/{::60}/unit/{::60}/root/{::60}/string",
+    "ems/site/{::60}/unit/{::60}/{::60}/{::60}/{::60}/string",
+]
+qos = 0
+
+[schema.payload]
+type = "object"
+
+[schema.payload.properties]
+ts = { type = "timestamp", start_time = 2025-10-01T00:00:00.888888888, precision = "ns" }
+value = { type = "option", value = { type = "string", length = { range = { min = 10, max = 1000 } } } }
+        "#,
+        )?;
+        assert_eq!(schema.schema.len(), 1);
+        assert_eq!(
+            schema.schema[0].topics,
+            [
+                "ems/site/{::60}/root/{::60}/string".parse()?,
+                "ems/site/{::60}/{::60}/{::60}/{::60}/string".parse()?,
+                "ems/site/{::60}/unit/{::60}/root/{::60}/string".parse()?,
+                "ems/site/{::60}/unit/{::60}/{::60}/{::60}/{::60}/string".parse()?,
+            ]
+        );
+        assert_eq!(schema.schema[0].qos, Some(0));
+        assert_eq!(
+            schema.schema[0].payload,
+            toml::from_str(
+                r#"
+type = "object"
+[properties.ts]
+type = "timestamp"
+start_time = 2025-10-01T00:00:00.888888888
+precision = "ns"
+
+[properties.value]
+type = "option"
+
+[properties.value.value]
+type = "string"
+length = { range = { min = 10, max = 1000 } }
+        "#
+            )?
+        );
+        Ok(())
+    }
 }

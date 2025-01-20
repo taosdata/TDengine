@@ -1726,8 +1726,10 @@ pub async fn ipc_flat_stream_worker_concurrent(
     let (cancel, upstream) = (cancel.child_token(), cancel);
     let mut writer_set = tokio::task::JoinSet::new();
 
-    writer_set.spawn(
+    writer_set.spawn({
+        let cancel = cancel.clone();
         async move {
+            let _guard = cancel.drop_guard();
             tokio::pin!(sink);
             while let Ok(ack) = ack_rx.recv_async().await {
                 sink.send(ack).await.inspect_err(|err| {
@@ -1736,8 +1738,8 @@ pub async fn ipc_flat_stream_worker_concurrent(
             }
             anyhow::Ok(())
         }
-        .in_current_span(),
-    );
+        .in_current_span()
+    });
     let qid = Span.get_qid().unwrap_or_else(Qid::init);
     // debug_assert!(qid.task_id() > 0);
     tracing::info!(num = workers, "create flat stream concurrent workers");
@@ -1861,6 +1863,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
             .instrument(tracing::info_span!("flat_stream_worker", worker.id = i,)),
         );
     }
+    drop(msg_rx);
 
     #[derive(Clone)]
     struct WriterContext {
