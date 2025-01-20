@@ -247,3 +247,15 @@ void decimalFromTypeMod(STypeMod typeMod, uint8_t* precision, uint8_t* scale) {
   *scale = (uint8_t)(typeMod & 0xFF);
 }
 
+STypeMod typeGetTypeMod(uint8_t type, uint8_t prec, uint8_t scale, int32_t bytes) {
+  if (IS_DECIMAL_TYPE(type)) {
+    return decimalCalcTypeMod(prec, scale);
+  }
+  return 0;
+}
+
+void fillTypeFromTypeMod(SDataType* pType, STypeMod mod) {
+  if (IS_DECIMAL_TYPE(pType->type)) {
+    decimalFromTypeMod(mod, &pType->precision, &pType->scale);
+  }
+}

@@ -39,8 +39,6 @@
       IS_JSON_NULL(pRight->columnData->info.type, colDataGetVarData(pRight->columnData, i))
 
 #define IS_HELPER_NULL(col, i) colDataIsNull_s(col, i) || IS_JSON_NULL(col->info.type, colDataGetVarData(col, i))
-#define GET_COL_DATA_TYPE(col) \
-  { .type = (col).type, .precision = (col).precision, .bytes = (col).bytes, .scale = (col).scale }
 
 bool noConvertBeforeCompare(int32_t leftType, int32_t rightType, int32_t optr) {
   return !IS_DECIMAL_TYPE(leftType) && !IS_DECIMAL_TYPE(rightType) && IS_NUMERIC_TYPE(leftType) &&
