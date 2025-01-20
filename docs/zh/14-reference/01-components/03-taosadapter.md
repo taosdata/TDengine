@@ -14,39 +14,28 @@ taosAdapter 是一个 TDengine 的配套工具，是 TDengine 集群和应用程
 
 taosAdapter 提供以下功能：
 
-- Websocket/RESTful 接口
+- RESTful 接口
+- WebSocket 接口（通过连接器连接）
 - 兼容 InfluxDB v1 写接口
 - 兼容 OpenTSDB JSON 和 telnet 格式写入
 - 无缝连接到 Telegraf
 - 无缝连接到 collectd
 - 无缝连接到 StatsD
+- 无缝连接到 node_exporter
 - 支持 Prometheus remote_read 和 remote_write
 - 获取 table 所在的虚拟节点组（VGroup）的 VGroup ID
 
-## taosAdapter 架构图
+## 架构图
 
 ![TDengine Database taosAdapter Architecture](taosAdapter-architecture.webp)
 
-## taosAdapter 部署方法
-
-### 安装 taosAdapter
+## 安装
 
 taosAdapter 是 TDengine 服务端软件 的一部分，如果您使用 TDengine server 您不需要任何额外的步骤来安装 taosAdapter。您可以从[涛思数据官方网站](https://docs.taosdata.com/releases/tdengine/)下载 TDengine server 安装包。如果需要将 taosAdapter 分离部署在 TDengine server 之外的服务器上，则应该在该服务器上安装完整的 TDengine 来安装 taosAdapter。如果您需要使用源代码编译生成 taosAdapter，您可以参考[构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD-CN.md)文档。
 
-### 启动/停止 taosAdapter
+安装完成后使用命令 `systemctl start taosadapter` 可以启动 taosAdapter 服务。
 
-在 Linux 系统上 taosAdapter 服务默认由 systemd 管理。使用命令 `systemctl start taosadapter` 可以启动 taosAdapter 服务。使用命令 `systemctl stop taosadapter` 可以停止 taosAdapter 服务。
-
-### 移除 taosAdapter
-
-使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine server 软件。
-
-### 升级 taosAdapter
-
-taosAdapter 和 TDengine server 需要使用相同版本。请通过升级 TDengine server 来升级 taosAdapter。
-与 taosd 分离部署的 taosAdapter 必须通过升级其所在服务器的 TDengine server 才能得到升级。
-
-## taosAdapter 参数列表
+## taosAdapter 配置
 
 taosAdapter 支持通过命令行参数、环境变量和配置文件来进行配置。默认配置文件是 /etc/taos/taosadapter.toml。
 
@@ -152,7 +141,10 @@ Usage of taosAdapter:
   -V, --version                                      Print the version and exit
 ```
 
-备注：
+示例配置文件参见 [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/blob/3.0/example/config/taosadapter.toml)。
+
+### 跨域配置
+
 使用浏览器进行接口调用请根据实际情况设置如下跨源资源共享（CORS）参数：
 
 ```text
@@ -168,11 +160,20 @@ AllowWebSockets
 
 关于 CORS 协议细节请参考：[https://www.w3.org/wiki/CORS_Enabled](https://www.w3.org/wiki/CORS_Enabled) 或 [https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS](https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS)。
 
-示例配置文件参见 [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/blob/3.0/example/config/taosadapter.toml)。
+### 连接池配置
 
-### 连接池参数说明
+taosAdapter 使用连接池管理与 TDengine 的连接，以提高并发性能和资源利用率。连接池适用于以下接口：
 
-在使用 RESTful 接口请求时，系统将通过连接池管理 TDengine 连接。连接池可通过以下参数进行配置：
+* RESTful 接口请求
+* InfluxDB v1 写接口
+* OpenTSDB JSON 和 telnet 格式写入
+* Telegraf 数据写入
+* collectd 数据写入
+* StatsD 数据写入
+* node_exporter 数据写入
+* Prometheus remote_read 和 remote_write
+
+连接池的配置参数如下：
 
 - **`pool.maxConnect`**：连接池允许的最大连接数，默认值为 2 倍 CPU 核心数。建议保持默认设置。
 - **`pool.maxIdle`**：连接池中允许的最大空闲连接数，默认与 `pool.maxConnect` 相同。建议保持默认设置。
@@ -180,7 +181,112 @@ AllowWebSockets
 - **`pool.waitTimeout`**：从连接池获取连接的超时时间，默认设置为 60 秒。如果在超时时间内未能获取连接，将返回 HTTP 状态码 503。该参数从版本 3.3.3.0 开始提供。
 - **`pool.maxWait`**：连接池中等待获取连接的请求数上限，默认值为 0，表示不限制。当排队请求数超过此值时，新的请求将返回 HTTP 状态码 503。该参数从版本 3.3.3.0 开始提供。
 
+### http 返回码配置
+
+taosAdapter 通过参数 `httpCodeServerError` 来控制当底层 C 接口返回错误时，是否在 RESTful 接口请求中返回非 200 的 HTTP 状态码。当设置为 `true` 时，taosAdapter 会根据 C 接口返回的错误码映射为相应的 HTTP 状态码。具体映射规则请参考 [HTTP 响应码](../../connector/rest-api/#http-响应码)。
+
+**影响范围**
+
+- RESTful 接口请求
+
+**参数说明**
+
+- **`httpCodeServerError`**：
+  - **默认值**：`false`（始终返回 HTTP 状态码 `200`）。
+  - **设置为 `true` 时**：根据 C 接口返回的错误码映射为相应的 HTTP 状态码。
+  - **设置为 `false` 时**：无论 C 接口返回什么错误，始终返回 HTTP 状态码 `200`。
+
+
+### 内存限制配置
+
+taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值进行调节。有效值范围为 1 到 100 的整数，单位为系统物理内存的百分比。
+
+**影响范围**
+
+* RESTful 接口请求
+* InfluxDB v1 写接口
+* OpenTSDB HTTP 写入接口
+* Prometheus remote_read 和 remote_write 接口
+
+**参数说明**
+
+- **`pauseQueryMemoryThreshold`**：
+  - 当内存使用超过此阈值时，taosAdapter 将停止处理查询请求。
+  - 默认值：`70`（即 70% 的系统物理内存）。
+- **`pauseAllMemoryThreshold`**：
+  - 当内存使用超过此阈值时，taosAdapter 将停止处理所有请求（包括写入和查询）。
+  - 默认值：`80`（即 80% 的系统物理内存）。
+
+当内存使用回落到阈值以下时，taosAdapter 会自动恢复相应功能。
+
+**HTTP 返回内容：**
+
+- **超过 `pauseQueryMemoryThreshold` 时**：
+  - HTTP 状态码：`503`
+  - 返回内容：`"query memory exceeds threshold"`
+- **超过 `pauseAllMemoryThreshold` 时**：
+  - HTTP 状态码：`503`
+  - 返回内容：`"memory exceeds threshold"`
+
+**状态检查接口：**
+
+可以通过以下接口检查 taosAdapter 的内存状态：
+- **正常状态**：`http://<fqdn>:6041/-/ping` 返回 `code 200`。
+- **内存超过阈值**：
+  - 如果内存超过 `pauseAllMemoryThreshold`，返回 `code 503`。
+  - 如果内存超过 `pauseQueryMemoryThreshold`，且请求参数包含 `action=query`，返回 `code 503`。
+
+**相关配置参数：**
+
+- **`monitor.collectDuration`**：内存监控间隔，默认值为 `3s`，环境变量为 `TAOS_MONITOR_COLLECT_DURATION`。
+- **`monitor.incgroup`**：是否在容器中运行（容器中运行设置为 `true`），默认值为 `false`，环境变量为 `TAOS_MONITOR_INCGROUP`。
+- **`monitor.pauseQueryMemoryThreshold`**：查询请求暂停的内存阈值（百分比），默认值为 `70`，环境变量为 `TAOS_MONITOR_PAUSE_QUERY_MEMORY_THRESHOLD`。
+- **`monitor.pauseAllMemoryThreshold`**：查询和写入请求暂停的内存阈值（百分比），默认值为 `80`，环境变量为 `TAOS_MONITOR_PAUSE_ALL_MEMORY_THRESHOLD`。
+
+您可以根据具体项目应用场景和运营策略进行相应调整，并建议使用运营监控软件及时进行系统内存状态监控。负载均衡器也可以通过这个接口检查 taosAdapter 运行状态。
+
+### schemaless 写入是否自动创建 DB 配置
+
+从 **3.0.4.0 版本** 开始，taosAdapter 提供了参数 `smlAutoCreateDB`，用于控制在 schemaless 协议写入时是否自动创建数据库（DB）。
+
+**影响范围**
+
+`smlAutoCreateDB` 参数会影响以下接口：
+
+- InfluxDB v1 写接口
+- OpenTSDB JSON 和 telnet 格式写入
+- Telegraf 数据写入
+- collectd 数据写入
+- StatsD 数据写入
+- node_exporter 数据写入
+
+**参数说明**
+
+- **`smlAutoCreateDB`**：
+  - **默认值**：`false`（不自动创建 DB）。
+  - **设置为 `true` 时**：在 schemaless 协议写入时，如果目标数据库不存在，taosAdapter 会自动创建该数据库。
+  - **设置为 `false` 时**：用户需要手动创建数据库，否则写入会失败。
+
+### 结果返回条数配置
+
+taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回的结果条数。
+
+**影响范围**
+
+`restfulRowLimit` 参数会影响以下接口的返回结果：
+- RESTful 接口
+- Prometheus remote_read 接口
+
+**参数说明**
+
+- **`restfulRowLimit`**：
+  - **默认值**：`-1`（无限制）。
+  - **设置为正整数时**：接口返回的结果条数将不超过该值。
+  - **设置为 `-1` 时**：接口返回的结果条数无限制。
+
 ## 功能列表
+
+taosAdapter 提供了以下接口：
 
 - RESTful 接口
   [RESTful API](../../connector/rest-api)
@@ -202,8 +308,6 @@ AllowWebSockets
 - 支持 Prometheus remote_read 和 remote_write。
   remote_read 和 remote_write 是 Prometheus 数据读写分离的集群方案。请访问[https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) 了解更多信息。
 - 获取 table 所在的虚拟节点组（VGroup）的 VGroup ID。
-
-## 接口
 
 ### TDengine RESTful 接口
 
@@ -278,99 +382,62 @@ curl --location 'http://127.0.0.1:6041/rest/sql/power/vgid' \
 {"code":0,"vgIDs":[153,152]}
 ```
 
-## 内存使用优化方法
-
-taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值进行调节。有效值范围为 -1 到 100 的整数，单位为系统物理内存的百分比。
-
-- pauseQueryMemoryThreshold
-- pauseAllMemoryThreshold
-
-当超过 pauseQueryMemoryThreshold 阈值时时停止处理查询请求。
-
-http 返回内容：
-
-- code 503
-- body "query memory exceeds threshold"
-
-当超过 pauseAllMemoryThreshold 阈值时停止处理所有写入和查询请求。
-
-http 返回内容：
-
-- code 503
-- body "memory exceeds threshold"
-
-当内存回落到阈值之下时恢复对应功能。
-
-状态检查接口 `http://<fqdn>:6041/-/ping`
-
-- 正常返回 `code 200`
-- 无参数 如果内存超过 pauseAllMemoryThreshold 将返回 `code 503`
-- 请求参数 `action=query` 如果内存超过 pauseQueryMemoryThreshold 或 pauseAllMemoryThreshold 将返回 `code 503`
-
-对应配置参数
-
-```text
-  monitor.collectDuration              监测间隔                                    环境变量 "TAOS_MONITOR_COLLECT_DURATION" (默认值 3s)
-  monitor.incgroup                     是否是cgroup中运行(容器中运行设置为 true)      环境变量 "TAOS_MONITOR_INCGROUP"
-  monitor.pauseAllMemoryThreshold      不再进行插入和查询的内存阈值                   环境变量 "TAOS_MONITOR_PAUSE_ALL_MEMORY_THRESHOLD" (默认值 80)
-  monitor.pauseQueryMemoryThreshold    不再进行查询的内存阈值                        环境变量 "TAOS_MONITOR_PAUSE_QUERY_MEMORY_THRESHOLD" (默认值 70)
-```
-
-您可以根据具体项目应用场景和运营策略进行相应调整，并建议使用运营监控软件及时进行系统内存状态监控。负载均衡器也可以通过这个接口检查 taosAdapter 运行状态。
-
 ## taosAdapter 监控指标
 
-taosAdapter 采集 REST/WebSocket 相关请求的监控指标。将监控指标上报给 taosKeeper，这些监控指标会被 taosKeeper 写入监控数据库，默认是 `log` 库，可以在 taoskeeper 配置文件中修改。以下是这些监控指标的详细介绍。 
+taosAdapter 采集 RESTful/WebSocket 相关请求的监控指标。将监控指标上报给 taosKeeper，这些监控指标会被 taosKeeper 写入监控数据库，默认是 `log` 库，可以在 taoskeeper 配置文件中修改。以下是这些监控指标的详细介绍。 
 
-#### adapter\_requests 表
+`adapter_requests` 表记录 taosAdapter 监控数据，字段如下：
 
-`adapter_requests` 记录 taosadapter 监控数据。
-
-| field              | type         | is\_tag | comment                             |
-| :----------------- | :----------- | :------ | :---------------------------------- |
-| ts                 | TIMESTAMP    |         | timestamp                           |
-| total              | INT UNSIGNED |         | 总请求数                            |
-| query              | INT UNSIGNED |         | 查询请求数                          |
-| write              | INT UNSIGNED |         | 写入请求数                          |
-| other              | INT UNSIGNED |         | 其他请求数                          |
-| in\_process        | INT UNSIGNED |         | 正在处理请求数                      |
-| success            | INT UNSIGNED |         | 成功请求数                          |
-| fail               | INT UNSIGNED |         | 失败请求数                          |
-| query\_success     | INT UNSIGNED |         | 查询成功请求数                      |
-| query\_fail        | INT UNSIGNED |         | 查询失败请求数                      |
-| write\_success     | INT UNSIGNED |         | 写入成功请求数                      |
-| write\_fail        | INT UNSIGNED |         | 写入失败请求数                      |
-| other\_success     | INT UNSIGNED |         | 其他成功请求数                      |
-| other\_fail        | INT UNSIGNED |         | 其他失败请求数                      |
-| query\_in\_process | INT UNSIGNED |         | 正在处理查询请求数                  |
-| write\_in\_process | INT UNSIGNED |         | 正在处理写入请求数                  |
-| endpoint           | VARCHAR      |         | 请求端点                           |
+| field              | type         | is\_tag | comment                     |
+|:-------------------|:-------------|:--------|:----------------------------|
+| ts                 | TIMESTAMP    |         | timestamp                   |
+| total              | INT UNSIGNED |         | 总请求数                        |
+| query              | INT UNSIGNED |         | 查询请求数                       |
+| write              | INT UNSIGNED |         | 写入请求数                       |
+| other              | INT UNSIGNED |         | 其他请求数                       |
+| in\_process        | INT UNSIGNED |         | 正在处理请求数                     |
+| success            | INT UNSIGNED |         | 成功请求数                       |
+| fail               | INT UNSIGNED |         | 失败请求数                       |
+| query\_success     | INT UNSIGNED |         | 查询成功请求数                     |
+| query\_fail        | INT UNSIGNED |         | 查询失败请求数                     |
+| write\_success     | INT UNSIGNED |         | 写入成功请求数                     |
+| write\_fail        | INT UNSIGNED |         | 写入失败请求数                     |
+| other\_success     | INT UNSIGNED |         | 其他成功请求数                     |
+| other\_fail        | INT UNSIGNED |         | 其他失败请求数                     |
+| query\_in\_process | INT UNSIGNED |         | 正在处理查询请求数                   |
+| write\_in\_process | INT UNSIGNED |         | 正在处理写入请求数                   |
+| endpoint           | VARCHAR      |         | 请求端点                        |
 | req\_type          | NCHAR        | TAG     | 请求类型：0 为 REST，1 为 WebSocket |
 
-## 结果返回条数限制
+## 运维
 
-taosAdapter 通过参数 `restfulRowLimit` 来控制结果的返回条数，-1 代表无限制，默认无限制。
+### 启动/停止 taosAdapter
 
-该参数控制以下接口返回
+在 Linux 系统上 taosAdapter 服务默认由 systemd 管理。使用命令 `systemctl start taosadapter` 可以启动 taosAdapter 服务。使用命令 `systemctl stop taosadapter` 可以停止 taosAdapter 服务。使用命令 `systemctl status taosadapter` 来检查 taosAdapter 运行状态。
 
-- `http://<fqdn>:6041/rest/sql`
-- `http://<fqdn>:6041/prometheus/v1/remote_read/:db`
+### 移除 taosAdapter
 
-## 配置 http 返回码
+使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine server 软件。
 
-taosAdapter 通过参数 `httpCodeServerError` 来设置当 C 接口返回错误时是否返回非 200 的 http 状态码。当设置为 true 时将根据 C 返回的错误码返回不同 http 状态码。具体见 [HTTP 响应码](../../connector/rest-api/#http-响应码)。
+### 升级 taosAdapter
 
-## 配置 schemaless 写入是否自动创建 DB
+taosAdapter 和 TDengine server 需要使用相同版本。请通过升级 TDengine server 来升级 taosAdapter。
+与 taosd 分离部署的 taosAdapter 必须通过升级其所在服务器的 TDengine server 才能得到升级。
 
-taosAdapter 从 3.0.4.0 版本开始，提供参数 `smlAutoCreateDB` 来控制在 schemaless 协议写入时是否自动创建 DB。默认值为 false 不自动创建 DB，需要用户手动创建 DB 后进行 schemaless 写入。
+### 日志级别
 
-## 故障解决
+1. 可以通过设置 --log.level 参数或者环境变量 TAOS_ADAPTER_LOG_LEVEL 来设置 taosAdapter 日志输出详细程度。有效值包括： panic、fatal、error、warn、warning、info、debug 以及 trace。
+2. 从 `3.3.5.0` 版本 开始，taosAdapter 支持通过 HTTP 接口动态修改日志级别。用户可以通过发送 HTTP PUT 请求到 /config 接口，动态调整日志级别。该接口的验证方式与 /rest/sql 接口相同，请求体中需传入 JSON 格式的配置项键值对。
 
-您可以通过命令 `systemctl status taosadapter` 来检查 taosAdapter 运行状态。
+以下是通过 curl 命令将日志级别设置为 debug 的示例：
 
-您也可以通过设置 --logLevel 参数或者环境变量 TAOS_ADAPTER_LOG_LEVEL 来调节 taosAdapter 日志输出详细程度。有效值包括： panic、fatal、error、warn、warning、info、debug 以及 trace。
+```shell
+curl --location --request PUT 'http://127.0.0.1:6041/config' \
+-u root:taosdata \
+--data '{"log.level": "debug"}'
+```
 
-## 如何从旧版本 TDengine 迁移到 taosAdapter
+### 从旧版本 TDengine 迁移到 taosAdapter
 
 在 TDengine server 2.2.x.x 或更早期版本中，taosd 进程包含一个内嵌的 http 服务。如前面所述，taosAdapter 是一个使用 systemd 管理的独立软件，拥有自己的进程。并且两者有一些配置参数和行为是不同的，请见下表：
 
