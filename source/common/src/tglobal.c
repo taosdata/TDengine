@@ -14,9 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tglobal.h"
 #include "os.h"
 #include "tconfig.h"
+#include "tglobal.h"
 #include "tgrant.h"
 #include "tlog.h"
 #include "tmisce.h"
@@ -614,9 +614,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "numOfSnodeUniqueThreads", tsNumOfSnodeWriteThreads, 2, 1024, CFG_SCOPE_SERVER) != 0) return -1;
 
   tsQueueMemoryAllowed = tsTotalMemoryKB * 1024 * 0.06;
-  tsQueueMemoryAllowed = TRANGE(tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
+  tsQueueMemoryAllowed = TRANGE(tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 6LL, TSDB_MAX_MSG_SIZE * 6000LL);
   tsApplyMemoryAllowed = tsTotalMemoryKB * 1024 * 0.04;
-  tsApplyMemoryAllowed = TRANGE(tsApplyMemoryAllowed, TSDB_MAX_MSG_SIZE * 10LL, TSDB_MAX_MSG_SIZE * 10000LL);
+  tsApplyMemoryAllowed = TRANGE(tsApplyMemoryAllowed, TSDB_MAX_MSG_SIZE * 4LL, TSDB_MAX_MSG_SIZE * 4000LL);
   if (cfgAddInt64(pCfg, "rpcQueueMemoryAllowed", tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, INT64_MAX,
                   CFG_SCOPE_BOTH) != 0)
     return -1;
