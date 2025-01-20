@@ -1392,7 +1392,7 @@ static int32_t setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SCo
     tstrncpy(pCol->node.aliasName, pExpr->aliasName, TSDB_COL_NAME_LEN);
   }
   if ('\0' == pCol->node.userAlias[0]) {
-    tstrncpy(pCol->node.userAlias, pExpr->aliasName, TSDB_COL_NAME_LEN);
+    tstrncpy(pCol->node.userAlias, pExpr->userAlias, TSDB_COL_NAME_LEN);
   }
   pCol->node.resType = pExpr->resType;
   return TSDB_CODE_SUCCESS;
@@ -7578,6 +7578,11 @@ static int32_t translateDeleteWhere(STranslateContext* pCxt, SDeleteStmt* pDelet
 }
 
 static int32_t translateDelete(STranslateContext* pCxt, SDeleteStmt* pDelete) {
+  const char* dbName = ((STableNode*)pDelete->pFromTable)->dbName;
+  if (IS_SYS_DBNAME(dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "Cannot delete from system database: `%s`", dbName);
+  }
   pCxt->pCurrStmt = (SNode*)pDelete;
   int32_t code = translateFrom(pCxt, &pDelete->pFromTable);
   if (TSDB_CODE_SUCCESS == code) {
@@ -8433,6 +8438,10 @@ static int32_t checkCreateDatabase(STranslateContext* pCxt, SCreateDatabaseStmt*
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,
                                    "The database name cannot contain '.'");
   }
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "Cannot create system database: `%s`", pStmt->dbName);
+  }
   return checkDatabaseOptions(pCxt, pStmt->dbName, pStmt->pOptions);
 }
 
@@ -8622,6 +8631,10 @@ static int32_t translateCreateDatabase(STranslateContext* pCxt, SCreateDatabaseS
 }
 
 static int32_t translateDropDatabase(STranslateContext* pCxt, SDropDatabaseStmt* pStmt) {
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "Cannot drop system database: `%s`",
+                                   pStmt->dbName);
+  }
   SDropDbReq dropReq = {0};
   SName      name = {0};
   int32_t    code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
@@ -8669,6 +8682,10 @@ static int32_t buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStm
 }
 
 static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt) {
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION, "Cannot alter system database: `%s`",
+                                   pStmt->dbName);
+  }
   if (pStmt->pOptions->walLevel == 0) {
     TAOS_CHECK_RETURN(translateGetDbCfg(pCxt, pStmt->dbName, &pStmt->pOptions->pDbCfg));
     if (pStmt->pOptions->pDbCfg->replications > 1) {
@@ -9144,6 +9161,12 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
   if (NULL != strchr(pStmt->tableName, '.')) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,
                                    "The table name cannot contain '.'");
+  }
+
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "Cannot create table of system database: `%s`.`%s`", pStmt->dbName,
+                                   pStmt->tableName);
   }
 
   SDbCfgInfo dbCfg = {0};
@@ -9892,6 +9915,11 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
 }
 
 static int32_t checkAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt* pStmt) {
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "Cannot alter table of system database: `%s`.`%s`", pStmt->dbName, pStmt->tableName);
+  }
+
   if (TSDB_ALTER_TABLE_UPDATE_TAG_VAL == pStmt->alterType ||
       TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL == pStmt->alterType) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
@@ -11536,6 +11564,10 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
                                        "stream max delay must be bigger than 5 seconds");
       }
     }
+  }
+
+  if (NULL != pSelect->pHaving) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported Having");
   }
 
   return TSDB_CODE_SUCCESS;
@@ -15587,11 +15619,6 @@ static int32_t rewriteDropTableWithOpt(STranslateContext* pCxt, SQuery* pQuery) 
   char   pTableName[TSDB_TABLE_NAME_LEN] = {0};
   FOREACH(pNode, pStmt->pTables) {
     SDropTableClause* pClause = (SDropTableClause*)pNode;
-    if (IS_SYS_DBNAME(pClause->dbName)) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
-                                     "Cannot drop table of system database: `%s`.`%s`", pClause->dbName,
-                                     pClause->tableName);
-    }
     for (int32_t i = 0; i < TSDB_TABLE_NAME_LEN; i++) {
       if (pClause->tableName[i] == '\0') {
         break;
@@ -15621,6 +15648,15 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
   int8_t          tableType;
   SNode*          pNode;
   SArray*         pTsmas = NULL;
+
+  FOREACH(pNode, pStmt->pTables) {
+    SDropTableClause* pClause = (SDropTableClause*)pNode;
+    if (IS_SYS_DBNAME(pClause->dbName)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                     "Cannot drop table of system database: `%s`.`%s`", pClause->dbName,
+                                     pClause->tableName);
+    }
+  }
 
   TAOS_CHECK_RETURN(rewriteDropTableWithOpt(pCxt, pQuery));
 
@@ -15711,11 +15747,6 @@ static int32_t rewriteDropSuperTablewithOpt(STranslateContext* pCxt, SQuery* pQu
   if (!pStmt->withOpt) return code;
   pCxt->withOpt = true;
 
-  if (IS_SYS_DBNAME(pStmt->dbName)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
-                                   "Cannot drop table of system database: `%s`.`%s`", pStmt->dbName, pStmt->tableName);
-  }
-
   for (int32_t i = 0; i < TSDB_TABLE_NAME_LEN; i++) {
     if (pStmt->tableName[i] == '\0') {
       break;
@@ -15745,6 +15776,11 @@ static int32_t rewriteDropSuperTablewithOpt(STranslateContext* pCxt, SQuery* pQu
 }
 
 static int32_t rewriteDropSuperTable(STranslateContext* pCxt, SQuery* pQuery) {
+  SDropSuperTableStmt* pStmt = (SDropSuperTableStmt*)pQuery->pRoot;
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "Cannot drop table of system database: `%s`.`%s`", pStmt->dbName, pStmt->tableName);
+  }
   TAOS_CHECK_RETURN(rewriteDropSuperTablewithOpt(pCxt, pQuery));
   TAOS_RETURN(0);
 }
@@ -16297,6 +16333,11 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
 
 static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
   SAlterTableStmt* pStmt = (SAlterTableStmt*)pQuery->pRoot;
+
+  if (IS_SYS_DBNAME(pStmt->dbName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_INVALID_OPERATION,
+                                   "Cannot alter table of system database: `%s`.`%s`", pStmt->dbName, pStmt->tableName);
+  }
 
   if (pStmt->dataType.type == TSDB_DATA_TYPE_JSON && pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COL_JSON);

@@ -2099,7 +2099,7 @@ ignore_negative: {
 
 **使用说明**:
 
-- 可以与选择相关联的列一起使用。 例如: select \_rowts, DERIVATIVE() from。
+- 可以与选择相关联的列一起使用。 例如: select \_rowts, DERIVATIVE(col1, 1s, 1) from tb1。
 
 ### DIFF
 
