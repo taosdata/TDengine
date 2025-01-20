@@ -6,6 +6,7 @@
 #include "tdatablock.h"
 #include "tjson.h"
 #include "ttime.h"
+#include "decimal.h"
 
 typedef float (*_float_fn)(float);
 typedef float (*_float_fn_2)(float, float);
@@ -2152,6 +2153,25 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 
         break;
       }
+      case TSDB_DATA_TYPE_DECIMAL64:
+      case TSDB_DATA_TYPE_DECIMAL: {
+        SDataType iT = GET_COL_DATA_TYPE(pInput[0].columnData->info), oT = GET_COL_DATA_TYPE(pOutput->columnData->info);
+        if (inputType == TSDB_DATA_TYPE_NCHAR) {
+          int32_t len = taosUcs4ToMbs((TdUcs4 *)(varDataVal(input)), varDataLen(input), convBuf, pInput->charsetCxt);
+          if (len < 0) {
+            code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+            goto _end;
+          }
+          convBuf[len] = 0;
+          code = convertToDecimal(convBuf, &iT, output, &oT);
+        } else {
+          code = convertToDecimal(input, &iT, output, &oT);
+        }
+        if (code != TSDB_CODE_SUCCESS) {
+          terrno = code;
+          goto _end;
+        }
+      } break;
       default: {
         code = TSDB_CODE_FAILED;
         goto _end;

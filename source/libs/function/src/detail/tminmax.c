@@ -19,6 +19,7 @@
 #include "tdatablock.h"
 #include "tfunctionInt.h"
 #include "tglobal.h"
+#include "decimal.h"
 
 #define __COMPARE_ACQUIRED_MAX(i, end, bm, _data, ctx, val, pos) \
   int32_t code = TSDB_CODE_SUCCESS;                              \
@@ -458,6 +459,40 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
         __COMPARE_ACQUIRED_MAX(i, end, pCol->nullbitmap, pData, pCtx, *(double*)&(pBuf->v), &pBuf->tuplePos)
         break;
       }
+      case TSDB_DATA_TYPE_DECIMAL64: {
+        const Decimal64* pData = (const Decimal64*)pCol->pData;
+        const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
+        int32_t code = 0;
+        for (; i < end; ++i) {
+          if (colDataIsNull_f(pCol->nullbitmap, i)) {
+            continue;
+          }
+          if (pOps->lt(&pBuf->v, &pData[i], WORD_NUM(Decimal64))) {
+            pBuf->v = DECIMAL64_GET_VALUE(&pData[i]);
+            if (pCtx->subsidiaries.num > 0) {
+              code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (TSDB_CODE_SUCCESS != code) return code;
+            }
+          }
+        }
+      } break;
+      case TSDB_DATA_TYPE_DECIMAL: {
+        int32_t            code = 0;
+        const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+        const Decimal128*  pData = (const Decimal128*)pCol->pData;
+        for (; i < end; ++i) {
+          if (colDataIsNull_f(pCol->nullbitmap, i)) {
+            continue;
+          }
+          if (pOps->lt(pBuf->str, &pData[i], WORD_NUM(Decimal128))) {
+            memcpy(pBuf->str, pData + i, pCol->info.bytes);
+            if (pCtx->subsidiaries.num > 0) {
+              code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (TSDB_CODE_SUCCESS != code) return code;
+            }
+          }
+        }
+      } break;
 
       case TSDB_DATA_TYPE_VARCHAR:
       case TSDB_DATA_TYPE_VARBINARY: {
@@ -612,8 +647,8 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
   int32_t threshold[] = {
       //NULL,    BOOL,      TINYINT, SMALLINT, INT, BIGINT, FLOAT, DOUBLE, VARCHAR,   TIMESTAMP, NCHAR,
       INT32_MAX, INT32_MAX, 32,      16,       8,   4,      8,     4,      INT32_MAX, INT32_MAX, INT32_MAX,
-      // UTINYINT,USMALLINT, UINT, UBIGINT,   JSON,      VARBINARY, DECIMAL,   BLOB,      MEDIUMBLOB, BINARY
-      32,         16,        8,    4,         INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,  INT32_MAX,
+      // UTINYINT,USMALLINT, UINT, UBIGINT,   JSON,      VARBINARY, DECIMAL,   BLOB,      MEDIUMBLOB, BINARY,   Decimal64
+      32,         16,        8,    4,         INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,  INT32_MAX, INT32_MAX,
   };
   // clang-format on
 
@@ -656,6 +691,14 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
           (void)memcpy(pBuf->str, colDataGetData(pCol, i), varDataTLen(colDataGetData(pCol, i)));
           break;
         }
+        case TSDB_DATA_TYPE_DECIMAL64:
+          *(int64_t*)&pBuf->v = *(int64_t*)p;
+          break;
+        case TSDB_DATA_TYPE_DECIMAL:
+          pBuf->str = taosMemoryMalloc(pCol->info.bytes);
+          if (!pBuf->str) return terrno;
+          (void)memcpy(pBuf->str, p, pCol->info.bytes);
+          break;
         default:
           (void)memcpy(&pBuf->v, p, pCol->info.bytes);
           break;

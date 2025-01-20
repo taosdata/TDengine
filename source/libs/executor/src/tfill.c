@@ -112,6 +112,10 @@ static int32_t doSetUserSpecifiedValue(SColumnInfoData* pDst, SVariant* pVar, in
              pDst->info.type == TSDB_DATA_TYPE_VARBINARY) {
     code = colDataSetVal(pDst, rowIndex, pVar->pz, isNull);
     QUERY_CHECK_CODE(code, lino, _end);
+  } else if (pDst->info.type == TSDB_DATA_TYPE_DECIMAL64) {
+    code = colDataSetVal(pDst, rowIndex, (char*)&pVar->i, isNull);
+  } else if (pDst->info.type == TSDB_DATA_TYPE_DECIMAL) {
+    code = colDataSetVal(pDst, rowIndex, (char*)pVar->pz, isNull);
   } else {  // others data
     colDataSetNULL(pDst, rowIndex);
   }

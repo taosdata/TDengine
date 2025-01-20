@@ -902,6 +902,12 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
         }
         break;
       }
+      case TSDB_DATA_TYPE_DECIMAL64:
+        code = colDataSetVal(pCol, currentRow, (const char*)&pRes->v, false);
+        break;
+      case TSDB_DATA_TYPE_DECIMAL:
+        code = colDataSetVal(pCol, currentRow, pRes->str, false);
+        break;
     }
   } else {
     colDataSetNULL(pCol, currentRow);

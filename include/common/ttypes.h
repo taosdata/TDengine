@@ -72,51 +72,51 @@ typedef struct {
 DEFINE_TYPE_FROM_DECIMAL_FUNCS(extern, Decimal64);
 DEFINE_TYPE_FROM_DECIMAL_FUNCS(extern, Decimal128);
 
-#define GET_TYPED_DATA(_v, _finalType, _type, _data)     \
-  do {                                                   \
-    switch (_type) {                                     \
-      case TSDB_DATA_TYPE_BOOL:                          \
-      case TSDB_DATA_TYPE_TINYINT:                       \
-        (_v) = (_finalType)GET_INT8_VAL(_data);          \
-        break;                                           \
-      case TSDB_DATA_TYPE_UTINYINT:                      \
-        (_v) = (_finalType)GET_UINT8_VAL(_data);         \
-        break;                                           \
-      case TSDB_DATA_TYPE_SMALLINT:                      \
-        (_v) = (_finalType)GET_INT16_VAL(_data);         \
-        break;                                           \
-      case TSDB_DATA_TYPE_USMALLINT:                     \
-        (_v) = (_finalType)GET_UINT16_VAL(_data);        \
-        break;                                           \
-      case TSDB_DATA_TYPE_TIMESTAMP:                     \
-      case TSDB_DATA_TYPE_BIGINT:                        \
-        (_v) = (_finalType)(GET_INT64_VAL(_data));       \
-        break;                                           \
-      case TSDB_DATA_TYPE_UBIGINT:                       \
-        (_v) = (_finalType)(GET_UINT64_VAL(_data));      \
-        break;                                           \
-      case TSDB_DATA_TYPE_FLOAT:                         \
-        (_v) = (_finalType)GET_FLOAT_VAL(_data);         \
-        break;                                           \
-      case TSDB_DATA_TYPE_DOUBLE:                        \
-        (_v) = (_finalType)GET_DOUBLE_VAL(_data);        \
-        break;                                           \
-      case TSDB_DATA_TYPE_UINT:                          \
-        (_v) = (_finalType)GET_UINT32_VAL(_data);        \
-        break;                                           \
-      case TSDB_DATA_TYPE_INT:                           \
-        (_v) = (_finalType)GET_INT32_VAL(_data);         \
-        break;                                           \
-      case TSDB_DATA_TYPE_DECIMAL:                       \
-        (_v) = _finalType##FromDecimal128(_data, 10, 0); \
-        break;                                           \
-      case TSDB_DATA_TYPE_DECIMAL64:                     \
-        (_v) = _finalType##FromDecimal64(_data, 10, 0);  \
-        break;                                           \
-      default:                                           \
-        (_v) = (_finalType)varDataLen(_data);            \
-        break;                                           \
-    }                                                    \
+#define GET_TYPED_DATA(_v, _finalType, _type, _data) \
+  do {                                                              \
+    switch (_type) {                                                \
+      case TSDB_DATA_TYPE_BOOL:                                     \
+      case TSDB_DATA_TYPE_TINYINT:                                  \
+        (_v) = (_finalType)GET_INT8_VAL(_data);                     \
+        break;                                                      \
+      case TSDB_DATA_TYPE_UTINYINT:                                 \
+        (_v) = (_finalType)GET_UINT8_VAL(_data);                    \
+        break;                                                      \
+      case TSDB_DATA_TYPE_SMALLINT:                                 \
+        (_v) = (_finalType)GET_INT16_VAL(_data);                    \
+        break;                                                      \
+      case TSDB_DATA_TYPE_USMALLINT:                                \
+        (_v) = (_finalType)GET_UINT16_VAL(_data);                   \
+        break;                                                      \
+      case TSDB_DATA_TYPE_TIMESTAMP:                                \
+      case TSDB_DATA_TYPE_BIGINT:                                   \
+        (_v) = (_finalType)(GET_INT64_VAL(_data));                  \
+        break;                                                      \
+      case TSDB_DATA_TYPE_UBIGINT:                                  \
+        (_v) = (_finalType)(GET_UINT64_VAL(_data));                 \
+        break;                                                      \
+      case TSDB_DATA_TYPE_FLOAT:                                    \
+        (_v) = (_finalType)GET_FLOAT_VAL(_data);                    \
+        break;                                                      \
+      case TSDB_DATA_TYPE_DOUBLE:                                   \
+        (_v) = (_finalType)GET_DOUBLE_VAL(_data);                   \
+        break;                                                      \
+      case TSDB_DATA_TYPE_UINT:                                     \
+        (_v) = (_finalType)GET_UINT32_VAL(_data);                   \
+        break;                                                      \
+      case TSDB_DATA_TYPE_INT:                                      \
+        (_v) = (_finalType)GET_INT32_VAL(_data);                    \
+        break;                                                      \
+      case TSDB_DATA_TYPE_DECIMAL:                                  \
+        (_v) = _finalType##FromDecimal128(_data, 10, 0);            \
+        break;                                                      \
+      case TSDB_DATA_TYPE_DECIMAL64:                                \
+        (_v) = _finalType##FromDecimal64(_data, 10, 0);             \
+        break;                                                      \
+      default:                                                      \
+        (_v) = (_finalType)varDataLen(_data);                       \
+        break;                                                      \
+    }                                                               \
   } while (0)
 
 #define SET_TYPED_DATA(_v, _type, _data)       \
@@ -402,9 +402,13 @@ void   *getDataMin(int32_t type, void *value);
 void   *getDataMax(int32_t type, void *value);
 
 #define STypeMod int32_t
+STypeMod typeGetTypeMod(uint8_t type, uint8_t prec, uint8_t scale, int32_t bytes);
+void     extractTypeFromTypeMod(uint8_t type, STypeMod typeMod, uint8_t *prec, uint8_t scale, int32_t *bytes);
 uint8_t  decimalTypeFromPrecision(uint8_t precision);
 STypeMod decimalCalcTypeMod(uint8_t prec, uint8_t scale);
 void     decimalFromTypeMod(STypeMod typeMod, uint8_t *precision, uint8_t *scale);
+// pType->type should has been set
+void fillTypeFromTypeMod(SDataType *pType, STypeMod mod);
 
 #ifdef __cplusplus
 }
