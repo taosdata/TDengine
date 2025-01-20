@@ -852,6 +852,11 @@ static int32_t datumToMsg(const void* pObj, STlvEncoder* pEncoder) {
       code = tlvEncodeBinary(pEncoder, VALUE_CODE_DATUM, pNode->datum.p, getJsonValueLen(pNode->datum.p));
       break;
     case TSDB_DATA_TYPE_DECIMAL:
+      code = tlvEncodeBinary(pEncoder, VALUE_CODE_DATUM, pNode->datum.p, pNode->node.resType.bytes);
+      break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+      code = tlvEncodeI64(pEncoder, VALUE_CODE_DATUM, pNode->datum.i);
+      break;
     case TSDB_DATA_TYPE_BLOB:
       // todo
     default:
@@ -970,6 +975,17 @@ static int32_t msgToDatum(STlv* pTlv, void* pObj) {
       break;
     }
     case TSDB_DATA_TYPE_DECIMAL:
+      pNode->datum.p = taosMemoryCalloc(1, pNode->node.resType.bytes);
+      if (!pNode->datum.p) {
+        code = terrno;
+        break;
+      }
+      code = tlvDecodeBinary(pTlv, pNode->datum.p);
+      break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+      code = tlvDecodeI64(pTlv, &pNode->datum.i);
+      *(int64_t*)&pNode->typeData = pNode->datum.i;
+      break;
     case TSDB_DATA_TYPE_BLOB:
       // todo
     default:

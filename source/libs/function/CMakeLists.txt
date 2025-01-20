@@ -37,6 +37,7 @@ target_link_libraries(
     PRIVATE qcom
     PRIVATE scalar
     PRIVATE geometry
+    PRIVATE decimal
     PRIVATE transport
     PUBLIC uv_a
 )
