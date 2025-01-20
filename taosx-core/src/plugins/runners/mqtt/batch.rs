@@ -58,13 +58,14 @@ where
         schema: Arc<Schema>,
         codec_processor: P,
         topic_pattern: Option<TopicPattern>,
+        capacity: usize,
     ) -> Self {
         Self {
             schema,
-            ts: TimestampNanosecondBuilder::new(),
-            topic: StringBuilder::new(),
-            qos: UInt8Builder::new(),
-            payload: BinaryBuilder::new(),
+            ts: TimestampNanosecondBuilder::with_capacity(capacity),
+            topic: StringBuilder::with_capacity(capacity, capacity * 20),
+            qos: UInt8Builder::with_capacity(capacity),
+            payload: BinaryBuilder::with_capacity(capacity, capacity * 100),
             codec_err_count: 0,
             codec_processor,
             topic_parser: topic_pattern.map(TopicParser::new),
@@ -146,7 +147,7 @@ mod tests {
         );
 
         let schema = Arc::new(schema);
-        let mut builder = RecordBatchBuilder::new(schema.clone(), (), Some(pattern));
+        let mut builder = RecordBatchBuilder::new(schema.clone(), (), Some(pattern), 1024);
         assert_eq!(
             builder.build([
                 Message {

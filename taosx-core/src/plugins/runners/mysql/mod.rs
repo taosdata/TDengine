@@ -502,7 +502,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_is_valid() {
+    async fn test_is_valid_with_datasource() {
         // prepare data
         let _ = test_create_database().await;
 

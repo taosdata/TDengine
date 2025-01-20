@@ -375,33 +375,86 @@ async fn execute(
     }
 
     // build batch
+    let schema = Arc::new(schema);
+    let parallel = std::env::var("TAOSX_MQTT_BUILD_BATCH_PARRALLEL")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .or_else(|| {
+            std::thread::available_parallelism()
+                .ok()
+                .map(std::num::NonZero::<usize>::get)
+        })
+        .unwrap_or(10);
+    let (tx, rx) = flume::bounded(parallel);
+
+    for _ in 0..parallel {
+        let rx = rx.clone();
+        let schema = schema.clone();
+        let codec_processor = config.codec_processor;
+        let topic_pattern = config.topic_pattern.clone();
+        let cancel_token = cancel_token.clone();
+        let batch_tx = batch_tx.clone();
+        tasks.spawn({
+            async move {
+                let _guard = cancel_token.clone().drop_guard();
+                loop {
+                    tokio::select! {
+                        res = rx.recv_async() => match res {
+                            Ok(chunk) => {
+                                let mut builder = RecordBatchBuilder::new(
+                                    schema.clone(),
+                                    codec_processor,
+                                    topic_pattern.clone(),
+                                    config.task.batch_size.max(1024),
+                                );
+                                let batch = tokio::task::spawn_blocking(move || {
+                                    builder.build(chunk)
+                                }).await??;
+                                tokio::select! {
+                                    res = batch_tx.send_async(batch) => match res {
+                                        Ok(_) => continue,
+                                        Err(_) => {
+                                            tracing::warn!("ipc writer loop exited");
+                                            break
+                                        }
+                                    },
+                                    _ = cancel_token.cancelled() => break,
+                                }
+                            },
+                            Err(_) => break,
+                        },
+                        _ = cancel_token.cancelled() => break,
+                    }
+                }
+                Ok(())
+            }
+        });
+    }
     tasks.spawn(
         async move {
-            let mut builder = RecordBatchBuilder::new(
-                Arc::new(schema),
-                config.codec_processor,
-                config.topic_pattern,
-            );
+            let _guard = cancel_token.clone().drop_guard();
             let chunk_stream = message_rx.into_stream().chunks_timeout(
                 config.task.batch_size,
                 Duration::from_millis(config.task.batch_timeout as u64),
             );
+
             pin_mut!(chunk_stream);
             loop {
                 tokio::select! {
                     Some(chunk) = chunk_stream.next() => {
                         mqtt_metrics.sub_unprocessed_messages(chunk.len() as u64);
-                        let batch = builder
-                            .build(chunk)
-                            .context("Build MQTT RecordBatch error")?;
-                        batch_tx
-                            .send_async(batch).await
-                            .context("ipc write loop exit unexpectedlly")?;
+                        tokio::select! {
+                            res = tx.send_async(chunk) => match res {
+                                Ok(_) => continue,
+                                Err(_) => {
+                                    tracing::warn!("build batch loop exited");
+                                    break
+                                }
+                            },
+                            _ = cancel_token.cancelled() => break,
+                        }
                     }
-                    _ = cancel_token.cancelled() => {
-                        break
-                    }
-                    else => break,
+                    _ = cancel_token.cancelled() => break,
                 }
             }
 
