@@ -477,12 +477,8 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
         if (isRecalculateOperator(&pInfo->basic) && !isSemiOperator(&pInfo->basic)) {
           code = doDeleteRecalculateWindows(pTaskInfo, &pInfo->interval, pBlock, pInfo->pDelWins);
           QUERY_CHECK_CODE(code, lino, _end);
-          continue;
-        } else {
-          continue; //todo(liuyao) for debug
-          (*ppRes) = pBlock;
-          return code;
         }
+        continue;
       } break;
       default:
         code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -506,10 +502,9 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (pAggSup->pScanBlock->info.rows > 0) {
-      //todo(liuyao) debug
-      // (*ppRes) = pAggSup->pScanBlock;
+      (*ppRes) = pAggSup->pScanBlock;
       printDataBlock(pAggSup->pScanBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-      // return code;
+      return code;
     }
 
     if (taosArrayGetSize(pInfo->pUpdated) > 0) {
@@ -781,7 +776,7 @@ int32_t createFinalIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNo
 
   SStreamIntervalSliceOperatorInfo* pInfo = (SStreamIntervalSliceOperatorInfo*)(*ppOptInfo)->info;
   pInfo->pIntervalAggFn = doStreamFinalntervalNonblockAggImpl;
-  pInfo->streamAggSup.pScanBlock->info.type = STREAM_RECALCULATE_DATA;
+  pInfo->streamAggSup.pScanBlock->info.type = STREAM_MID_RETRIEVE;
   pInfo->tsOfKeep = INT64_MIN;
   pInfo->twAggSup.waterMark = 0;
   setFinalOperatorFlag(&pInfo->basic);

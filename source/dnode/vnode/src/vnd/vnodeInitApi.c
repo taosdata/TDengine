@@ -170,6 +170,8 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateClear = streamStateClear;
   pStore->streamStateSaveInfo = streamStateSaveInfo;
   pStore->streamStateGetInfo = streamStateGetInfo;
+  pStore->streamStateGetNumber = streamStateGetNumber;
+  pStore->streamStateDeleteInfo = streamStateDeleteInfo;
   pStore->streamStateSetNumber = streamStateSetNumber;
   pStore->streamStateGetPrev = streamStateGetPrev;
   pStore->streamStateGetAllPrev = streamStateGetAllPrev;
@@ -206,6 +208,8 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateSessionGetKeyByRange = streamStateSessionGetKeyByRange;
   pStore->streamStateCountGetKeyByRange = streamStateCountGetKeyByRange;
   pStore->streamStateSessionAllocWinBuffByNextPosition = streamStateSessionAllocWinBuffByNextPosition;
+  pStore->streamStateSessionSaveToDisk = streamStateSessionSaveToDisk;
+  pStore->streamStateSessionDeleteAll = streamStateSessionDeleteAll;
 
   pStore->streamStateCountWinAddIfNotExist = streamStateCountWinAddIfNotExist;
   pStore->streamStateCountWinAdd = streamStateCountWinAdd;

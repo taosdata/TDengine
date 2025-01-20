@@ -1725,6 +1725,8 @@ int32_t initTsDataState(STableTsDataState* pTsDataState, int8_t pkType, int32_t 
 
   pTsDataState->pScanRanges = taosArrayInit(64, sizeof(SScanRange));
   pTsDataState->pState = pState;
+  pTsDataState->recValueLen = sizeof(uint64_t) + sizeof(uint64_t) + sizeof(int32_t) + pkLen;
+  pTsDataState->pRecValueBuff = taosMemoryCalloc(1, pTsDataState->recValueLen);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {

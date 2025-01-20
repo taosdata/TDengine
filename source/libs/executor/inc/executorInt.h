@@ -544,7 +544,7 @@ typedef struct SStreamScanInfo {
   bool              hasPart;
 
   //nonblock data scan
-  STableTsDataState     tsDataState;
+  STableTsDataState      tsDataState;
   TSKEY                  recalculateInterval;
   __compar_fn_t          comparePkColFn;
   SScanRange             curRange;

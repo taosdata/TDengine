@@ -735,3 +735,31 @@ int32_t streamStatePopScanRange(STableTsDataState* pTsDataState, SScanRange* pRa
   return popScanRange(pTsDataState, pRange);
 }
 
+int32_t streamStateGetNumber(SStreamState* pState) {
+  return pState->number;
+}
+
+int32_t streamStateDeleteInfo(SStreamState* pState, void* pKey, int32_t keyLen) {
+  return streamDefaultDel_rocksdb(pState, pKey);
+}
+
+int32_t streamStateSessionSaveToDisk(SStreamState* pState, SSessionKey* pKey, void* pVal, int32_t vLen) {
+  return streamStateSessionPut_rocksdb(pState, pKey, pVal, vLen);
+}
+
+int32_t streamStateSessionDeleteAll(SStreamState* pState) {
+  SSessionKey      key = {.win.skey = INT64_MIN, .win.ekey = INT64_MIN, .groupId = 0};
+  while (1) {
+    SStreamStateCur* pCur = streamStateSessionSeekKeyCurrentNext_rocksdb(pState, &key);
+    SSessionKey delKey = {0};
+    int32_t     winRes = streamStateSessionGetKVByCur_rocksdb(pState, pCur, &delKey, NULL, 0);
+    if (winRes != TSDB_CODE_SUCCESS) {
+      streamStateFreeCur(pCur);
+      break;
+    }
+    streamStateSessionDel_rocksdb(pState, &delKey);
+    streamStateFreeCur(pCur);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+

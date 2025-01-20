@@ -334,13 +334,18 @@ typedef struct SScanRange {
   SSHashObj* pGroupIds;
   SSHashObj* pUIds;
 } SScanRange;
+
 typedef struct STableTsDataState {
   SSHashObj*    pTableTsDataMap;
   __compar_fn_t comparePkColFn;
   void*         pPkValBuff;
   int32_t       pkValLen;
   void*         pState;
+  int32_t       curRecId;
+  void*         pStreamTaskState;
   SArray*       pScanRanges;
+  void*         pRecValueBuff;
+  int32_t       recValueLen;
 } STableTsDataState;
 
 typedef struct {
@@ -382,6 +387,8 @@ typedef struct SStateStore {
   void (*streamStateSetNumber)(SStreamState* pState, int32_t number, int32_t tsIdex);
   void (*streamStateSaveInfo)(SStreamState* pState, void* pKey, int32_t keyLen, void* pVal, int32_t vLen);
   int32_t (*streamStateGetInfo)(SStreamState* pState, void* pKey, int32_t keyLen, void** pVal, int32_t* pLen);
+  int32_t (*streamStateGetNumber)(SStreamState* pState);
+  int32_t (*streamStateDeleteInfo)(SStreamState* pState, void* pKey, int32_t keyLen);
 
   int32_t (*streamStateFillPut)(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
   int32_t (*streamStateFillGet)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen,
@@ -423,6 +430,8 @@ typedef struct SStateStore {
   int32_t (*streamStateCountGetKeyByRange)(SStreamState* pState, const SSessionKey* range, SSessionKey* curKey);
   int32_t (*streamStateSessionAllocWinBuffByNextPosition)(SStreamState* pState, SStreamStateCur* pCur,
                                                           const SSessionKey* pKey, void** pVal, int32_t* pVLen);
+  int32_t (*streamStateSessionSaveToDisk)(SStreamState* pState, SSessionKey* pKey, void* pVal, int32_t vLen);
+  int32_t (*streamStateSessionDeleteAll)(SStreamState* pState);
 
   int32_t (*streamStateCountWinAddIfNotExist)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount,
                                               void** ppVal, int32_t* pVLen, int32_t* pWinCode);
