@@ -11,7 +11,7 @@
   "create_table_thread_count": 16,
   "result_file": "./insert_res.txt",
   "confirm_parameter_prompt": "no",
-  "num_of_records_per_req": 10000,
+  "num_of_records_per_req": 10,
   "prepared_rand": 10000,
   "chinese": "no",
   "escape_character": "yes",
@@ -34,7 +34,7 @@
           "auto_create_table": "no",
           "batch_create_tbl_num": 500,
           "data_source": "rand",
-          "insert_mode": "stmt",
+          "insert_mode": "taosc",
           "non_stop_mode": "no",
           "line_protocol": "line",
           "insert_rows": 10000,
@@ -49,10 +49,13 @@
           "sample_file": "./sample.csv",
           "use_sample_ts": "no",
           "tags_file": "",
+          "generate_row_rule": 2,
           "columns": [
-            {"type": "FLOAT", "name": "current", "count": 1, "max": 12, "min": 8 },
-            { "type": "INT", "name": "voltage", "max": 225, "min": 215 },
-            { "type": "FLOAT", "name": "phase", "max": 1, "min": 0 }
+            {"type": "TINYINT", "name": "current", "max": 128, "min": 1 },
+            { "type": "BOOL", "name": "phaseewe" },
+            { "type": "BINARY", "name": "locatin", "len":16374 },
+            { "type": "BIGINT", "name": "cnt", "max" : 2563332323232, "min":1 },
+            { "type": "DOUBLE", "name": "phase", "max": 1000, "min": 0 }
           ],
           "tags": [
             {"type": "TINYINT", "name": "groupid", "max": 10, "min": 1},
