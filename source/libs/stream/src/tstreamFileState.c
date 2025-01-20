@@ -1755,6 +1755,7 @@ void destroyTsDataState(STableTsDataState* pTsDataState) {
   tSimpleHashCleanup(pTsDataState->pTableTsDataMap);
   taosMemoryFreeClear(pTsDataState->pPkValBuff);
   taosMemoryFreeClear(pTsDataState->pState);
+  taosMemoryFreeClear(pTsDataState->pRecValueBuff);
 }
 
 int32_t recoverTsData(STableTsDataState* pTsDataState) {

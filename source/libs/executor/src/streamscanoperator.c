@@ -1052,7 +1052,7 @@ _end:
   return code;
 }
 
-#ifdef BUILD_NO_CALL
+#if 0
 static int32_t doStreamRecalculateBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
@@ -1145,7 +1145,7 @@ _end:
   return code;
 }
 
-#ifdef BUILD_NO_CALL
+#if 0
 int32_t doStreamRecalculateScanNextImpl(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
@@ -1244,7 +1244,7 @@ static void destroyStreamDataScanOperatorInfo(void* param) {
   taosMemoryFree(pStreamScan);
 }
 
-#ifdef BUILD_NO_CALL
+#if 0
 static int32_t doStreamScanTest(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
@@ -1448,7 +1448,7 @@ int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNo
   QUERY_CHECK_NULL(pTempState, code, lino, _error, terrno);
   (*pTempState) = *pTaskInfo->streamInfo.pState;
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
-  pInfo->stateStore.streamStateSetNumber(pTempState, -2, pInfo->primaryTsIndex);
+  pInfo->stateStore.streamStateSetNumber(pTempState, 1, pInfo->primaryTsIndex);
 
   pAPI->stateStore.streamStateInitTsDataState(&pInfo->tsDataState, pkType.type, pkType.bytes, pTempState);
   pAPI->stateStore.streamStateRecoverTsData(&pInfo->tsDataState);
