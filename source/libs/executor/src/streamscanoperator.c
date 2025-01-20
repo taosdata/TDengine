@@ -104,7 +104,7 @@ static int32_t saveRecalculateData(SStreamScanInfo* pInfo, SSDataBlock* pSrcBloc
   TSKEY*           srcStartTsCol = (TSKEY*)pSrcStartTsCol->pData;
   TSKEY*           srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
   uint64_t*        srcGp = (uint64_t*)pSrcGpCol->pData;
-  for (int32_t i = 0; i < pSrcBlock->info.rows;) {
+  for (int32_t i = 0; i < pSrcBlock->info.rows; i++) {
     SSessionKey key = {.win.skey = srcStartTsCol[i], .win.ekey = srcEndTsCol[i], .groupId = srcGp[i]};
     int32_t     len = copyRecDataToBuff(srcUidData[i], pSrcBlock->info.version, mode, NULL, 0,
                                         (SRecDataInfo*)pInfo->tsDataState.pRecValueBuff, pInfo->tsDataState.recValueLen);
