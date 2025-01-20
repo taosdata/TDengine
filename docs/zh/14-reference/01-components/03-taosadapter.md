@@ -14,20 +14,16 @@ taosAdapter 是一个 TDengine 的配套工具，是 TDengine 集群和应用程
 
 taosAdapter 提供以下功能：
 
-- RESTful 接口
-- WebSocket 接口（通过连接器连接）
+- RESTful 接口（执行 SQL）
+- WebSocket 接口（执行 SQL、无模式写入、参数绑定、数据订阅）
 - 兼容 InfluxDB v1 写接口
 - 兼容 OpenTSDB JSON 和 telnet 格式写入
-- 无缝连接到 Telegraf
-- 无缝连接到 collectd
-- 无缝连接到 StatsD
-- 无缝连接到 node_exporter
+- 支持 Telegraf 数据写入
+- 支持 collectd 数据写入
+- 支持 StatsD 数据写入
+- 支持采集 node_exporter 数据写入
 - 支持 Prometheus remote_read 和 remote_write
 - 获取 table 所在的虚拟节点组（VGroup）的 VGroup ID
-
-## 架构图
-
-![TDengine Database taosAdapter Architecture](taosAdapter-architecture.webp)
 
 ## 安装
 
@@ -35,7 +31,13 @@ taosAdapter 是 TDengine 服务端软件 的一部分，如果您使用 TDengine
 
 安装完成后使用命令 `systemctl start taosadapter` 可以启动 taosAdapter 服务。
 
-## taosAdapter 配置
+## 架构图
+
+![TDengine Database taosAdapter Architecture](taosAdapter-architecture.webp)
+
+taosAdapter 充当了外部客户端与 TDengine 集群之间的桥梁，支持多种数据采集工具和协议。
+
+## 配置说明
 
 taosAdapter 支持通过命令行参数、环境变量和配置文件来进行配置。默认配置文件是 /etc/taos/taosadapter.toml。
 
@@ -162,7 +164,7 @@ AllowWebSockets
 
 ### 连接池配置
 
-taosAdapter 使用连接池管理与 TDengine 的连接，以提高并发性能和资源利用率。连接池适用于以下接口：
+taosAdapter 使用连接池管理与 TDengine 的连接，以提高并发性能和资源利用率。连接池由以下接口共享：
 
 * RESTful 接口请求
 * InfluxDB v1 写接口
@@ -170,7 +172,7 @@ taosAdapter 使用连接池管理与 TDengine 的连接，以提高并发性能�
 * Telegraf 数据写入
 * collectd 数据写入
 * StatsD 数据写入
-* node_exporter 数据写入
+* 采集 node_exporter 数据写入
 * Prometheus remote_read 和 remote_write
 
 连接池的配置参数如下：
@@ -192,9 +194,8 @@ taosAdapter 通过参数 `httpCodeServerError` 来控制当底层 C 接口返回
 **参数说明**
 
 - **`httpCodeServerError`**：
-  - **默认值**：`false`（始终返回 HTTP 状态码 `200`）。
   - **设置为 `true` 时**：根据 C 接口返回的错误码映射为相应的 HTTP 状态码。
-  - **设置为 `false` 时**：无论 C 接口返回什么错误，始终返回 HTTP 状态码 `200`。
+  - **设置为 `false` 时**：无论 C 接口返回什么错误，始终返回 HTTP 状态码 `200`（默认值）。
 
 
 ### 内存限制配置
@@ -263,9 +264,8 @@ taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值�
 **参数说明**
 
 - **`smlAutoCreateDB`**：
-  - **默认值**：`false`（不自动创建 DB）。
   - **设置为 `true` 时**：在 schemaless 协议写入时，如果目标数据库不存在，taosAdapter 会自动创建该数据库。
-  - **设置为 `false` 时**：用户需要手动创建数据库，否则写入会失败。
+  - **设置为 `false` 时**：用户需要手动创建数据库，否则写入会失败（默认值）。
 
 ### 结果返回条数配置
 
@@ -280,13 +280,25 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 **参数说明**
 
 - **`restfulRowLimit`**：
-  - **默认值**：`-1`（无限制）。
   - **设置为正整数时**：接口返回的结果条数将不超过该值。
-  - **设置为 `-1` 时**：接口返回的结果条数无限制。
+  - **设置为 `-1` 时**：接口返回的结果条数无限制（默认值）。
+
+### 日志级别
+
+1. 可以通过设置 --log.level 参数或者环境变量 TAOS_ADAPTER_LOG_LEVEL 来设置 taosAdapter 日志输出详细程度。有效值包括： panic、fatal、error、warn、warning、info、debug 以及 trace。
+2. 从 `3.3.5.0` 版本 开始，taosAdapter 支持通过 HTTP 接口动态修改日志级别。用户可以通过发送 HTTP PUT 请求到 /config 接口，动态调整日志级别。该接口的验证方式与 /rest/sql 接口相同，请求体中需传入 JSON 格式的配置项键值对。
+
+以下是通过 curl 命令将日志级别设置为 debug 的示例：
+
+```shell
+curl --location --request PUT 'http://127.0.0.1:6041/config' \
+-u root:taosdata \
+--data '{"log.level": "debug"}'
+```
 
 ## 功能列表
 
-taosAdapter 提供了以下接口：
+taosAdapter 提供了以下功能：
 
 - RESTful 接口
   [RESTful API](../../connector/rest-api)
@@ -295,25 +307,25 @@ taosAdapter 提供了以下接口：
 - 兼容 OpenTSDB JSON 和 telnet 格式写入
   - [http://opentsdb.net/docs/build/html/api_http/put.html](http://opentsdb.net/docs/build/html/api_http/put.html)
   - [http://opentsdb.net/docs/build/html/api_telnet/put.html](http://opentsdb.net/docs/build/html/api_telnet/put.html)
-- 与 collectd 无缝连接。
+- collectd 数据写入
   collectd 是一个系统统计收集守护程序，请访问 [https://collectd.org/](https://collectd.org/) 了解更多信息。
-- Seamless connection with StatsD。
+- StatsD 数据写入
   StatsD 是一个简单而强大的统计信息汇总的守护程序。请访问 [https://github.com/statsd/statsd](https://github.com/statsd/statsd) 了解更多信息。
-- 与 icinga2 的无缝连接。
+- icinga2 OpenTSDB writer 数据写入。
   icinga2 是一个收集检查结果指标和性能数据的软件。请访问 [https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer](https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer) 了解更多信息。
-- 与 tcollector 无缝连接。
+- TCollector 数据写入
   TCollector是一个客户端进程，从本地收集器收集数据，并将数据推送到 OpenTSDB。请访问 [http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html) 了解更多信息。
-- 无缝连接 node_exporter。
+- node_exporter 采集写入。
   node_export 是一个机器指标的导出器。请访问 [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) 了解更多信息。
-- 支持 Prometheus remote_read 和 remote_write。
+- Prometheus remote_read 和 remote_write
   remote_read 和 remote_write 是 Prometheus 数据读写分离的集群方案。请访问[https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) 了解更多信息。
-- 获取 table 所在的虚拟节点组（VGroup）的 VGroup ID。
+- 获取 table 的 VGroup ID。
 
-### TDengine RESTful 接口
+### RESTful 接口
 
 您可以使用任何支持 http 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/rest/sql` 来写入数据到 TDengine 或从 TDengine 中查询数据。细节请参考[REST API 文档](../../connector/rest-api/)。
 
-### InfluxDB
+### 兼容 InfluxDB v1 写接口
 
 您可以使用任何支持 http 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/influxdb/v1/write` 来写入 InfluxDB 兼容格式的数据到 TDengine。
 
@@ -327,7 +339,7 @@ taosAdapter 提供了以下接口：
 
 注意： 目前不支持 InfluxDB 的 token 验证方式，仅支持 Basic 验证和查询参数验证。
 示例： curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"
-### OpenTSDB
+### 兼容 OpenTSDB JSON 和 telnet 格式写入
 
 您可以使用任何支持 http 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 OpenTSDB 兼容格式的数据到 TDengine。EndPoint 如下：
 
@@ -336,23 +348,23 @@ taosAdapter 提供了以下接口：
 /opentsdb/v1/put/telnet/<db>
 ```
 
-### collectd
+### collectd 数据写入
 
 <CollectD />
 
-### StatsD
+### StatsD 数据写入
 
 <StatsD />
 
-### icinga2 OpenTSDB writer
+### icinga2 OpenTSDB writer 数据写入
 
 <Icinga2 />
 
-### TCollector
+### TCollector 数据写入
 
 <TCollector />
 
-### node_exporter
+### node_exporter 采集写入
 
 Prometheus 使用的由 \*NIX 内核暴露的硬件和操作系统指标的输出器
 
@@ -360,7 +372,7 @@ Prometheus 使用的由 \*NIX 内核暴露的硬件和操作系统指标的输�
 - 设置 node_exporter 的相关配置
 - 重新启动 taosAdapter
 
-### prometheus
+### Prometheus remote_read 和 remote_write
 
 <Prometheus />
 
@@ -382,7 +394,7 @@ curl --location 'http://127.0.0.1:6041/rest/sql/power/vgid' \
 {"code":0,"vgIDs":[153,152]}
 ```
 
-## taosAdapter 监控指标
+## 监控指标
 
 taosAdapter 采集 RESTful/WebSocket 相关请求的监控指标。将监控指标上报给 taosKeeper，这些监控指标会被 taosKeeper 写入监控数据库，默认是 `log` 库，可以在 taoskeeper 配置文件中修改。以下是这些监控指标的详细介绍。 
 
@@ -415,29 +427,16 @@ taosAdapter 采集 RESTful/WebSocket 相关请求的监控指标。将监控指�
 
 在 Linux 系统上 taosAdapter 服务默认由 systemd 管理。使用命令 `systemctl start taosadapter` 可以启动 taosAdapter 服务。使用命令 `systemctl stop taosadapter` 可以停止 taosAdapter 服务。使用命令 `systemctl status taosadapter` 来检查 taosAdapter 运行状态。
 
-### 移除 taosAdapter
-
-使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine server 软件。
-
 ### 升级 taosAdapter
 
 taosAdapter 和 TDengine server 需要使用相同版本。请通过升级 TDengine server 来升级 taosAdapter。
 与 taosd 分离部署的 taosAdapter 必须通过升级其所在服务器的 TDengine server 才能得到升级。
 
-### 日志级别
+### 移除 taosAdapter
 
-1. 可以通过设置 --log.level 参数或者环境变量 TAOS_ADAPTER_LOG_LEVEL 来设置 taosAdapter 日志输出详细程度。有效值包括： panic、fatal、error、warn、warning、info、debug 以及 trace。
-2. 从 `3.3.5.0` 版本 开始，taosAdapter 支持通过 HTTP 接口动态修改日志级别。用户可以通过发送 HTTP PUT 请求到 /config 接口，动态调整日志级别。该接口的验证方式与 /rest/sql 接口相同，请求体中需传入 JSON 格式的配置项键值对。
+使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine server 软件。
 
-以下是通过 curl 命令将日志级别设置为 debug 的示例：
-
-```shell
-curl --location --request PUT 'http://127.0.0.1:6041/config' \
--u root:taosdata \
---data '{"log.level": "debug"}'
-```
-
-### 从旧版本 TDengine 迁移到 taosAdapter
+## 从旧版本 TDengine 升级到 taosAdapter 的主要变化
 
 在 TDengine server 2.2.x.x 或更早期版本中，taosd 进程包含一个内嵌的 http 服务。如前面所述，taosAdapter 是一个使用 systemd 管理的独立软件，拥有自己的进程。并且两者有一些配置参数和行为是不同的，请见下表：
 
