@@ -1500,4 +1500,30 @@ TEST(stmt2Case, geometry) {
   do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_13");
   taos_close(taos);
 }
+
+// TD-33582
+TEST(stmt2Case, errcode) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+  do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_14");
+  do_query(taos, "CREATE DATABASE IF NOT EXISTS stmt2_testdb_14");
+  do_query(taos, "use stmt2_testdb_14");
+
+  TAOS_STMT2_OPTION option = {0};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+  char* sql = "select * from t where ts > ? and name = ? foo = ?";
+  int   code = taos_stmt2_prepare(stmt, sql, 0);
+  checkError(stmt, code);
+
+  int             fieldNum = 0;
+  TAOS_FIELD_ALL* pFields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+  ASSERT_EQ(code, TSDB_CODE_PAR_SYNTAX_ERROR);
+
+  // get fail dont influence the next stmt prepare
+  sql = "nsert into ? (ts, name) values (?, ?)";
+  code = taos_stmt_prepare(stmt, sql, 0);
+  checkError(stmt, code);
+}
 #pragma GCC diagnostic pop

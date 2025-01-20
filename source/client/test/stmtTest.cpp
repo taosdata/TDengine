@@ -538,5 +538,35 @@ TEST(stmtCase, geometry) {
   do_query(taos, "DROP DATABASE IF EXISTS stmt_testdb_5");
   taos_close(taos);
 }
+//TD-33582
+TEST(stmtCase, errcode) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
 
+  do_query(taos, "DROP DATABASE IF EXISTS stmt_testdb_4");
+  do_query(taos, "CREATE DATABASE IF NOT EXISTS stmt_testdb_4");
+  do_query(taos, "USE stmt_testdb_4");
+  do_query(
+      taos,
+      "CREATE STABLE IF NOT EXISTS stmt_testdb_4.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
+      "(groupId INT, location BINARY(24))");
+
+  TAOS_STMT *stmt = taos_stmt_init(taos);
+  ASSERT_NE(stmt, nullptr);
+  char *sql = "select * from t where ts > ? and name = ? foo = ?";
+  int   code = taos_stmt_prepare(stmt, sql, 0);
+  checkError(stmt, code);
+
+  int fieldNum = 0;
+  TAOS_FIELD_E *pFields = NULL;
+  code = stmtGetParamNum(stmt, &fieldNum);
+  ASSERT_EQ(code, TSDB_CODE_PAR_SYNTAX_ERROR);
+
+  code = taos_stmt_get_tag_fields(stmt, &fieldNum, &pFields);
+  ASSERT_EQ(code, TSDB_CODE_PAR_SYNTAX_ERROR);
+  // get fail dont influence the next stmt prepare
+  sql = "nsert into ? (ts, name) values (?, ?)";
+  code = taos_stmt_prepare(stmt, sql, 0);
+  checkError(stmt, code);
+}
 #pragma GCC diagnostic pop
