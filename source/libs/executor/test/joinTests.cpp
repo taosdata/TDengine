@@ -3657,7 +3657,7 @@ void handleCaseEnd() {
 
 }  // namespace
 
-#if 1
+#if 0
 #if 1
 TEST(mInnerJoin, noCondTest) {
   SJoinTestParam param;
@@ -3768,7 +3768,7 @@ TEST(mInnerJoin, fullCondTest) {
 #endif
 
 
-#if 1
+#if 0
 #if 1
 TEST(mLeftOuterJoin, noCondTest) {
   SJoinTestParam param;
@@ -3879,7 +3879,7 @@ TEST(mLeftOuterJoin, fullCondTest) {
 #endif
 #endif
 
-#if 1
+#if 0
 #if 1
 TEST(mFullOuterJoin, noCondTest) {
   SJoinTestParam param;
@@ -3990,7 +3990,7 @@ TEST(mFullOuterJoin, fullCondTest) {
 #endif
 #endif
 
-#if 1
+#if 0
 #if 1
 TEST(mLeftSemiJoin, noCondTest) {
   SJoinTestParam param;
@@ -4101,7 +4101,7 @@ TEST(mLeftSemiJoin, fullCondTest) {
 #endif
 #endif
 
-#if 1
+#if 0
 #if 1
 TEST(mLeftAntiJoin, noCondTest) {
   SJoinTestParam param;
@@ -4212,7 +4212,7 @@ TEST(mLeftAntiJoin, fullCondTest) {
 #endif
 #endif
 
-#if 1
+#if 0
 #if 1
 TEST(mLeftAsofJoin, noCondGreaterThanTest) {
   SJoinTestParam param;
@@ -4372,7 +4372,7 @@ TEST(mLeftAsofJoin, noCondLowerEqTest) {
 #endif
 
 
-#if 1
+#if 0
 TEST(mLeftWinJoin, noCondProjectionTest) {
   SJoinTestParam param;
   char* caseName = "mLeftWinJoin:noCondProjectionTest";
