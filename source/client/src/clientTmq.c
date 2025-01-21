@@ -1615,6 +1615,7 @@ static void tmqMgmtInit(void) {
   if (taosThreadMutexInit(&tmqMgmt.lock, NULL) != 0){
     goto END;
   }
+  return;
 
 END:
   tmqInitRes = terrno;
