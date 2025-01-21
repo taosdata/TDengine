@@ -1311,6 +1311,12 @@ pub async fn tmq_to_td(
     let _drop_guard = cancel.clone().drop_guard();
     let (mut from, builder, topics, with_meta_delete, with_meta_drop) = check_tmq_dsn(from).await?;
 
+    // check if the source database has enabled wal
+    if let Err(err) = check_wal_enabled(&builder, &topics).await {
+        tracing::error!("check wal failed: {:#}", err);
+        bail!(format!("check wal failed: {}", err));
+    }
+
     let jobs = from
         .remove("read_concurrency")
         .or(from.remove("num.of.consumers"))

@@ -262,7 +262,16 @@ pub(crate) async fn check_tmq_dsn(
         // }
 
         // todo: should check the topic creation as we need.
-        source.create_topic_as_database(&topic, &database).await?;
+        let res = source.create_topic_as_database(&topic, &database).await;
+        if let Err(err) = res {
+            match err.code().into() {
+                // WAL retention period is zero
+                0x038C => {
+                    anyhow::bail!("{err:#}, use `alter database {database} wal_retention_period 3600` to enable it");
+                }
+                _ => return Err(err.into()),
+            }
+        }
 
         let vgroups = source
             .query_one(format!(
@@ -354,7 +363,16 @@ pub(crate) async fn check_tmq_dsn(
         {
             // treat it as database if the topic not exists.
             let database = topic;
-            source.create_topic_as_database(topic, database).await?;
+            let res = source.create_topic_as_database(topic, database).await;
+            if let Err(err) = res {
+                match err.code().into() {
+                    // WAL retention period is zero
+                    0x038C => {
+                        anyhow::bail!("{err:#}, use `alter database {database} wal_retention_period 3600` to enable it");
+                    }
+                    _ => return Err(err.into()),
+                }
+            }
 
             let vgroups = source
                 .query_one(format!(
@@ -716,7 +734,16 @@ pub(crate) async fn check_tmq_dsn(
                 {
                     anyhow::bail!("{} is not either a topic or a database name", topic);
                 } else {
-                    source.create_topic_as_database(&topic, &topic).await?;
+                    let res = source.create_topic_as_database(&topic, &topic).await;
+                    if let Err(err) = res {
+                        match err.code().into() {
+                            // WAL retention period is zero
+                            0x038C => {
+                                anyhow::bail!("{err:#}, use `alter database {database} wal_retention_period 3600` to enable it");
+                            }
+                            _ => return Err(err.into()),
+                        }
+                    }
                     let vgroups = source
                         .query_one(format!(
                             "SELECT `vgroups` FROM information_schema.ins_databases WHERE name='{topic}'"
@@ -784,7 +811,15 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
             dsn.driver.clone(),
             format!("failed to check dsn: {}, cause: {}", dsn, err),
         ),
-        Ok((_dsn, builder, _topics, _, _)) => {
+        Ok((_dsn, builder, topics, _, _)) => {
+            // check if the source database has enabled wal
+            if let Err(err) = check_wal_enabled(&builder, &topics).await {
+                tracing::error!("check wal failed: {:#}", err);
+                return DataSourceValidation::invalid(
+                    dsn.driver.clone(),
+                    format!("check wal failed: {}", err),
+                );
+            }
             let version = builder.server_version().await;
             match version {
                 Err(err) => DataSourceValidation::invalid(
@@ -802,6 +837,31 @@ pub async fn is_tmq_valid(dsn: &Dsn) -> DataSourceValidation {
             }
         }
     }
+}
+
+pub(crate) async fn check_wal_enabled(
+    taos_builder: &TaosBuilder,
+    topics: &[Topic],
+) -> anyhow::Result<()> {
+    let taos = taos_builder.build().await?;
+    for topic in topics {
+        // get all subscriptions by topic and consumer group
+        let wal_retention_period = taos
+            .query_one::<_, usize>(format!(
+                "SELECT `wal_retention_period` FROM information_schema.ins_databases WHERE `name` = '{}'",
+                topic.database
+            ))
+            .await?;
+        // check if wal is enabled
+        if let Some(wal_retention_period) = wal_retention_period {
+            if wal_retention_period == 0 {
+                bail!("wal is not enabled for topic `{}`", topic.name);
+            }
+        } else {
+            bail!("database not found for topic `{}`", topic.name);
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
