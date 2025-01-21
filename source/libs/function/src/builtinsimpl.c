@@ -1536,8 +1536,10 @@ int32_t leastSQRFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResult
 
   SLeastSQRInfo* pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
 
-  GET_TYPED_DATA(pInfo->startVal, double, pCtx->param[1].param.nType, &pCtx->param[1].param.i);
-  GET_TYPED_DATA(pInfo->stepVal, double, pCtx->param[2].param.nType, &pCtx->param[2].param.i);
+  GET_TYPED_DATA(pInfo->startVal, double, pCtx->param[1].param.nType, &pCtx->param[1].param.i,
+                 typeGetTypeModFromCol(pCtx->param[1].pCol));
+  GET_TYPED_DATA(pInfo->stepVal, double, pCtx->param[2].param.nType, &pCtx->param[2].param.i,
+                 typeGetTypeModFromCol(pCtx->param[2].pCol));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1832,7 +1834,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
       pResInfo->complete = true;
       return TSDB_CODE_SUCCESS;
     } else {
-      code = tMemBucketCreate(pCol->info.bytes, type, pInfo->minval, pInfo->maxval, pCtx->hasWindowOrGroup,
+      code = tMemBucketCreate(pCol->info.bytes, type, typeGetTypeModFromColInfo(&pCol->info), pInfo->minval, pInfo->maxval, pCtx->hasWindowOrGroup,
                               &pInfo->pMemBucket, pInfo->numOfElems);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
@@ -1875,7 +1877,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
         char* data = colDataGetData(pCol, i);
 
         double v = 0;
-        GET_TYPED_DATA(v, double, type, data);
+        GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pCol->info));
         if (v < GET_DOUBLE_VAL(&pInfo->minval)) {
           SET_DOUBLE_VAL(&pInfo->minval, v);
         }
@@ -1930,7 +1932,7 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       for (int32_t i = 1; i < pCtx->numOfParams; ++i) {
         SVariant* pVal = &pCtx->param[i].param;
 
-        GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
+        GET_TYPED_DATA(v, double, pVal->nType, &pVal->i, typeGetTypeModFromCol(pCtx->param[i].pCol));
 
         code = getPercentile((*pMemBucket), v, &ppInfo->result);
         if (code != TSDB_CODE_SUCCESS) {
@@ -1962,7 +1964,7 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     } else {
       SVariant* pVal = &pCtx->param[1].param;
 
-      GET_TYPED_DATA(v, double, pVal->nType, &pVal->i);
+      GET_TYPED_DATA(v, double, pVal->nType, &pVal->i, typeGetTypeModFromCol(pCtx->param[1].pCol));
 
       code = getPercentile((*pMemBucket), v, &ppInfo->result);
       if (code != TSDB_CODE_SUCCESS) {
@@ -2031,7 +2033,7 @@ int32_t apercentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pRes
 
   SVariant* pVal = &pCtx->param[1].param;
   pInfo->percent = 0;
-  GET_TYPED_DATA(pInfo->percent, double, pVal->nType, &pVal->i);
+  GET_TYPED_DATA(pInfo->percent, double, pVal->nType, &pVal->i, typeGetTypeModFromCol(pCtx->param[1].pCol));
 
   if (pCtx->numOfParams == 2) {
     pInfo->algo = APERCT_ALGO_DEFAULT;
@@ -2078,7 +2080,7 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
 
       double  v = 0;  // value
       int64_t w = 1;  // weigth
-      GET_TYPED_DATA(v, double, type, data);
+      GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pCol->info));
       int32_t code = tdigestAdd(pInfo->pTDigest, v, w);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -2099,7 +2101,7 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
       char* data = colDataGetData(pCol, i);
 
       double v = 0;
-      GET_TYPED_DATA(v, double, type, data);
+      GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pCol->info));
       int32_t code = tHistogramAdd(&pInfo->pHisto, v);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -4150,7 +4152,7 @@ int32_t spreadFunction(SqlFunctionCtx* pCtx) {
       char* data = colDataGetData(pCol, i);
 
       double v = 0;
-      GET_TYPED_DATA(v, double, type, data);
+      GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pCol->info));
       if (v < GET_DOUBLE_VAL(&pInfo->min)) {
         SET_DOUBLE_VAL(&pInfo->min, v);
       }
@@ -4705,7 +4707,7 @@ static int32_t histogramFunctionImpl(SqlFunctionCtx* pCtx, bool isPartial) {
 
     char*  data = colDataGetData(pCol, i);
     double v;
-    GET_TYPED_DATA(v, double, type, data);
+    GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pCol->info));
 
     for (int32_t k = 0; k < pInfo->numOfBins; ++k) {
       if (v > pInfo->bins[k].lower && v <= pInfo->bins[k].upper) {
@@ -5342,7 +5344,7 @@ int32_t csumFunction(SqlFunctionCtx* pCtx) {
     char* data = colDataGetData(pInputCol, i);
     if (IS_SIGNED_NUMERIC_TYPE(type)) {
       int64_t v;
-      GET_TYPED_DATA(v, int64_t, type, data);
+      GET_TYPED_DATA(v, int64_t, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
       pSumRes->isum += v;
       code = colDataSetVal(pOutput, pos, (char*)&pSumRes->isum, false);
       if (TSDB_CODE_SUCCESS != code) {
@@ -5350,7 +5352,7 @@ int32_t csumFunction(SqlFunctionCtx* pCtx) {
       }
     } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
       uint64_t v;
-      GET_TYPED_DATA(v, uint64_t, type, data);
+      GET_TYPED_DATA(v, uint64_t, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
       pSumRes->usum += v;
       code = colDataSetVal(pOutput, pos, (char*)&pSumRes->usum, false);
       if (TSDB_CODE_SUCCESS != code) {
@@ -5358,7 +5360,7 @@ int32_t csumFunction(SqlFunctionCtx* pCtx) {
       }
     } else if (IS_FLOAT_TYPE(type)) {
       double v;
-      GET_TYPED_DATA(v, double, type, data);
+      GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
       pSumRes->dsum += v;
       // check for overflow
       if (isinf(pSumRes->dsum) || isnan(pSumRes->dsum)) {
@@ -5444,7 +5446,7 @@ int32_t mavgFunction(SqlFunctionCtx* pCtx) {
 
     char*  data = colDataGetData(pInputCol, i);
     double v;
-    GET_TYPED_DATA(v, double, type, data);
+    GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
 
     if (!pInfo->pointsMeet && (pInfo->pos < pInfo->numOfPoints - 1)) {
       pInfo->points[pInfo->pos] = v;
@@ -6136,7 +6138,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
 
       last->key = row.ts;
 
-      GET_TYPED_DATA(last->val, double, pInputCol->info.type, row.pData);
+      GET_TYPED_DATA(last->val, double, pInputCol->info.type, row.pData, typeGetTypeModFromColInfo(&pInputCol->info));
 
       pInfo->dOutput += twa_get_area(pCtx->start, *last);
       pInfo->win.skey = pCtx->start.key;
@@ -6158,7 +6160,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
 
       last->key = row.ts;
 
-      GET_TYPED_DATA(last->val, double, pInputCol->info.type, row.pData);
+      GET_TYPED_DATA(last->val, double, pInputCol->info.type, row.pData, typeGetTypeModFromColInfo(&pInputCol->info));
 
       pInfo->win.skey = last->key;
       pInfo->numOfElems++;
@@ -6691,7 +6693,7 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
       }
 
       char* d = row.pData;
-      GET_TYPED_DATA(v, double, pInputCol->info.type, d);
+      GET_TYPED_DATA(v, double, pInputCol->info.type, d, typeGetTypeModFromColInfo(&pInputCol->info));
 
       int32_t pos = pCtx->offset + numOfElems;
       if (!pDerivInfo->valueSet) {  // initial value is not set yet
@@ -6747,7 +6749,7 @@ int32_t derivativeFunction(SqlFunctionCtx* pCtx) {
       }
 
       char* d = row.pData;
-      GET_TYPED_DATA(v, double, pInputCol->info.type, d);
+      GET_TYPED_DATA(v, double, pInputCol->info.type, d, typeGetTypeModFromColInfo(&pInputCol->info));
 
       int32_t pos = pCtx->offset + numOfElems;
       if (!pDerivInfo->valueSet) {  // initial value is not set yet
@@ -6905,7 +6907,7 @@ int32_t irateFunction(SqlFunctionCtx* pCtx) {
 
     char*  data = row.pData;
     double v = 0;
-    GET_TYPED_DATA(v, double, type, data);
+    GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
 
     if (INT64_MIN == pRateInfo->lastKey) {
       doSaveRateInfo(pRateInfo, false, row.ts, row.pPk, v);

@@ -217,15 +217,15 @@ void doStreamSliceInterpolation(SSliceRowData* pPrevWinVal, TSKEY winKey, TSKEY 
 
     double           prevVal = 0, curVal = 0, winVal = 0;
     SResultCellData* pCell = getSliceResultCell((SResultCellData*)pPrevWinVal->pRowVal, pParam->pCol->slotId, pOffsetInfo);
-    GET_TYPED_DATA(prevVal, double, pCell->type, pCell->pData);
-    GET_TYPED_DATA(curVal, double, pColInfo->info.type, colDataGetData(pColInfo, curRowIndex));
+    GET_TYPED_DATA(prevVal, double, pCell->type, pCell->pData, typeGetTypeModFromColInfo(&pColInfo->info));
+    GET_TYPED_DATA(curVal, double, pColInfo->info.type, colDataGetData(pColInfo, curRowIndex), typeGetTypeModFromColInfo(&pColInfo->info));
 
     SPoint point1 = (SPoint){.key = pPrevWinVal->key, .val = &prevVal};
     SPoint point2 = (SPoint){.key = curTs, .val = &curVal};
     SPoint point = (SPoint){.key = winKey, .val = &winVal};
 
     if (!fmIsElapsedFunc(pCtx[k].functionId)) {
-      taosGetLinearInterpolationVal(&point, TSDB_DATA_TYPE_DOUBLE, &point1, &point2, TSDB_DATA_TYPE_DOUBLE);
+      taosGetLinearInterpolationVal(&point, TSDB_DATA_TYPE_DOUBLE, &point1, &point2, TSDB_DATA_TYPE_DOUBLE, 0);
     }
 
     if (type == INTERVAL_SLICE_START) {

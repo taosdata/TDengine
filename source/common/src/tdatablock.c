@@ -728,9 +728,9 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
   int64_t val = 0;
   if (asc) {
     if (IS_NUMERIC_TYPE(pColInfoData->info.type)) {
-      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, skey);
+      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, skey, typeGetTypeModFromColInfo(&pColInfoData->info));
       VALUE_SET_TRIVIAL_DATUM(&pInfo->pks[0], val);
-      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, ekey);
+      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, ekey, typeGetTypeModFromColInfo(&pColInfoData->info));
       VALUE_SET_TRIVIAL_DATUM(&pInfo->pks[1], val);
     } else {  // todo refactor
       memcpy(pInfo->pks[0].pData, varDataVal(skey), varDataLen(skey));
@@ -741,9 +741,9 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
     }
   } else {
     if (IS_NUMERIC_TYPE(pColInfoData->info.type)) {
-      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, ekey);
+      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, ekey, typeGetTypeModFromColInfo(&pColInfoData->info));
       VALUE_SET_TRIVIAL_DATUM(&pInfo->pks[0], val);
-      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, skey);
+      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, skey, typeGetTypeModFromColInfo(&pColInfoData->info));
       VALUE_SET_TRIVIAL_DATUM(&pInfo->pks[1], val);
     } else {  // todo refactor
       memcpy(pInfo->pks[0].pData, varDataVal(ekey), varDataLen(ekey));
@@ -2887,19 +2887,19 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
                   char tv[DATUM_MAX_SIZE] = {0};
                   if (pColInfoData->info.type == TSDB_DATA_TYPE_FLOAT) {
                     float v = 0;
-                    GET_TYPED_DATA(v, float, pColInfoData->info.type, var);
+                    GET_TYPED_DATA(v, float, pColInfoData->info.type, var, typeGetTypeModFromColInfo(&pColInfoData->info));
                     SET_TYPED_DATA(&tv, pCol->type, v);
                   } else if (pColInfoData->info.type == TSDB_DATA_TYPE_DOUBLE) {
                     double v = 0;
-                    GET_TYPED_DATA(v, double, pColInfoData->info.type, var);
+                    GET_TYPED_DATA(v, double, pColInfoData->info.type, var, typeGetTypeModFromColInfo(&pColInfoData->info));
                     SET_TYPED_DATA(&tv, pCol->type, v);
                   } else if (IS_SIGNED_NUMERIC_TYPE(pColInfoData->info.type)) {
                     int64_t v = 0;
-                    GET_TYPED_DATA(v, int64_t, pColInfoData->info.type, var);
+                    GET_TYPED_DATA(v, int64_t, pColInfoData->info.type, var, typeGetTypeModFromColInfo(&pColInfoData->info));
                     SET_TYPED_DATA(&tv, pCol->type, v);
                   } else {
                     uint64_t v = 0;
-                    GET_TYPED_DATA(v, uint64_t, pColInfoData->info.type, var);
+                    GET_TYPED_DATA(v, uint64_t, pColInfoData->info.type, var, typeGetTypeModFromColInfo(&pColInfoData->info));
                     SET_TYPED_DATA(&tv, pCol->type, v);
                   }
                   valueSetDatum(&sv, sv.type, tv, tDataTypes[pCol->type].bytes);
@@ -3714,12 +3714,12 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
         } else {
           if (TSDB_DATA_TYPE_FLOAT == pCol->info.type) {
             float v = 0;
-            GET_TYPED_DATA(v, float, pCol->info.type, colDataGetNumData(pCol, r));
+            GET_TYPED_DATA(v, float, pCol->info.type, colDataGetNumData(pCol, r), typeGetTypeModFromColInfo(&pCol->info));
           } else if (TSDB_DATA_TYPE_DOUBLE == pCol->info.type) {
             double v = 0;
-            GET_TYPED_DATA(v, double, pCol->info.type, colDataGetNumData(pCol, r));
+            GET_TYPED_DATA(v, double, pCol->info.type, colDataGetNumData(pCol, r), typeGetTypeModFromColInfo(&pCol->info));
           } else {
-            GET_TYPED_DATA(typeValue, int64_t, pCol->info.type, colDataGetNumData(pCol, r));
+            GET_TYPED_DATA(typeValue, int64_t, pCol->info.type, colDataGetNumData(pCol, r), typeGetTypeModFromColInfo(&pCol->info));
           }
         }
       }
