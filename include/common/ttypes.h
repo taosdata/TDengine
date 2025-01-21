@@ -53,6 +53,7 @@ typedef struct {
 #define varDataNetLen(v)  (htons(((VarDataLenT *)(v))[0]))
 #define varDataNetTLen(v) (sizeof(VarDataLenT) + varDataNetLen(v))
 
+
 #define GET_TYPED_DATA(_v, _finalType, _type, _data) \
   do {                                               \
     switch (_type) {                                 \
