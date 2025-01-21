@@ -2406,6 +2406,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
   if (strcasecmp("rpcQueueMemoryAllowed", name) == 0) {
     tsQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64 * QUEUE_MEMORY_USAGE_RATIO;
     tsApplyMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64 * (1 - QUEUE_MEMORY_USAGE_RATIO);
+    code = TSDB_CODE_SUCCESS;
+    goto _exit;
   }
 
   if (strcasecmp(name, "numOfCompactThreads") == 0) {
