@@ -3,13 +3,36 @@
 1. [Introduction](#1-introduction)
 1. [Documentation](#2-documentation)
 1. [Prerequisites](#3-prerequisites)
+    - [3.1 Prerequisites On Linux](#31-on-linux)
+    - [3.2 Prerequisites On macOS](#32-on-macos)
+    - [3.3 Prerequisites On Windows](#33-on-windows) 
 1. [Building](#4-building)
+    - [4.1 Build on Linux](#41-build-on-linux)
+    - [4.2 Build on macOS](#42-build-on-macos)
+    - [4.3 Build On Windows](#43-build-on-windows) 
 1. [Packaging](#5-packaging)
 1. [Installation](#6-installing)
+    - [6.1 Install on Linux](#61-install-on-linux)
+    - [6.2 Install on macOS](#62-install-on-macos)
+    - [6.3 Install on Windows](#63-install-on-windows)
 1. [Running](#7-running)
+    - [7.1 Run TDengine on Linux](#71-run-tdengine-on-linux)
+    - [7.2 Run TDengine on macOS](#72-run-tdengine-on-macos)
+    - [7.3 Run TDengine on Windows](#73-run-tdengine-on-windows)
 1. [Testing](#8-testing)
+    - [8.1 Introduction](#81-introduction)
+    - [8.2 Prerequisites](#82-prerequisites)
+    - [8.3 Testing Guide](#83-testing-guide)
+      - [8.3.1 Unit Test](#831-unit-test)
+      - [8.3.2 System Test](#832-system-test)
+      - [8.3.3 Legacy Test](#833-legacy-test)
+      - [8.3.4 Smoke Test](#834-smoke-test)
+      - [8.3.5 Chaos Test](#835-chaos-test)
+      - [8.3.6 CI Test](#836-ci-test)
+      - [8.3.7 TSBS Test](#837-tsbs-test)
+      - [8.3.8 TestNG Test](#838-testng-test)
 1. [Releasing](#9-releasing)
-1. [CI/CD](#10-cicd)
+1. [Workflow](#10-workflow)
 1. [Coverage](#11-coverage)
 1. [Contributing](#12-contributing)
 
@@ -559,7 +582,8 @@ cd tests
 #### 8.3.3.3 How to add new cases?
 
 > [!NOTE] 
-> TSIM test framwork is deprecated by system test now, it is encouraged to add new test cases in system test, please refer to [System Test](#32-system-test) for details.
+> TSIM test framwork is deprecated by system test now, it is encouraged to add new test cases in system test, please refer to [System Test](#832-system-test) for details.
+
 
 ### 8.3.4 Smoke Test
 
@@ -575,6 +599,7 @@ cd /root/TDinternal/community/packaging/smokeTest
 #### 8.3.4.2 How to add new cases?
 
 New cases can be added by updating the value of `commands` variable in `test_smoking_selfhost.sh`.
+
 
 ### 8.3.5 Chaos Test
 
@@ -609,34 +634,45 @@ cd tests
 
 #### 8.3.6.2 How to add new cases?
 
-Please refer to the [Unit Test](#31-unit-test)、[System Test](#32-system-test) and [Legacy Test](#33-legacy-test) sections for detailed steps to add new test cases, when new cases are added in aboved tests, they will be run automatically by CI test.
+Please refer to the [Unit Test](#831-unit-test)、[System Test](#832-system-test) and [Legacy Test](#833-legacy-test) sections for detailed steps to add new test cases, when new cases are added in aboved tests, they will be run automatically by CI test.
 
 
 ### 8.3.7 TSBS Test
 
-1. Clone the code
+[Time Series Benchmark Suite (TSBS)](https://github.com/timescale/tsbs) is an open-source performance benchmarking platform specifically designed for time-series data processing systems, such as databases. It provides a standardized approach to evaluating the performance of various databases by simulating typical use cases such as IoT and DevOps.
+
+#### 8.3.7.1 How to run tests?
+
+1. Clone the code and  run the tests locally on your machine. Ensure that your virtual machine supports the AVX instruction set:
 ```bash
-cd /root && git clone https://github.com/taosdata/tsbs.git && cd tsbs/scripts/tsdbComp
+  cd /usr/local/src && git clone https://github.com/taosdata/tsbs-internal.git tsbs && \
+  cd tsbs &&  git checkout enh/chr-td-33357 && \
+  cd scripts/tsdbComp && ./testTsbs.sh 
 ```
-2. Modify IP and host of client and server in `test.ini`
+2. When testing the client and server on separate machines, you should set up your environment as outlined in the steps below:
+  2.1 Modify IP and host of client and server in `test.ini`
 ```ini
-clientIP="192.168.0.203"   # client ip
-clientHost="trd03"         # client hostname
-serverIP="192.168.0.204"   # server ip
-serverHost="trd04"         # server hostname
+  clientIP="192.168.0.203"   # client ip
+  clientHost="trd03"         # client hostname
+  serverIP="192.168.0.204"   # server ip
+  serverHost="trd04"         # server hostname
 ```
-3. Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
+  2.2 Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
 ```ini
-serverPass="taosdata123"   # server root password
+  serverPass="taosdata123"   # server root password
 ```
-4. Run the following command to start the test:
- ```bash
-nohup bash tsdbComparison.sh > test.log &
+  2.3 Run the following command to start the test:
+```bash
+  ./testTsbs.sh  
 ```
-5. When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
+3. When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
 
 
 ### 8.3.8 TestNG Test
+
+TestNG Test is another test framwork which developed by python, functionally speaking, it's a supplement for system test, and also run longer time than system test for stability testing purposes.
+
+#### 8.3.8.1 How to run tests?
 
 1. Clone the code:
 ```bash
@@ -659,11 +695,7 @@ apt install -y python3-pip && \
   ! grep -q -F "$(cat $HOME/.ssh/id_rsa.pub)" "$HOME/.ssh/authorized_keys" && \
   cat "$HOME/.ssh/id_rsa.pub" >> "$HOME/.ssh/authorized_keys"
 ```
-4. How to add test case:
-
-You can add python test case under TestNG/cases. When the case passes in the test branch, add the case to the testng_cases.txt file under TestNG/scripts, and then merge the pr into master branch .
-
-5. Run test script:
+4. Run test script:
 ```bash
 /root/TestNG/scripts/run.sh \
   -m /root/TestNG/scripts/testng.json \
@@ -671,7 +703,11 @@ You can add python test case under TestNG/cases. When the case passes in the tes
   -l /root/TestNG/testlog_$(date +"%Y-%m-%d_%H-%M-%S") \
   -d debug -o 12000 -f False -a True
 ```
-6. When the test is done, the result can be found in `/root/TestNG/testlog_$(date +"%Y-%m-%d_%H-%M-%S")` directory.
+5. When the test is done, the result can be found in `/root/TestNG/testlog_$(date +"%Y-%m-%d_%H-%M-%S")` directory.
+
+#### 8.3.8.2 How to add new cases?
+
+You can add python test case under TestNG/cases. When the case passes in the test branch, add the case to the testng_cases.txt file under TestNG/scripts, and then merge the pr into master branch .
 
 
 </details>
@@ -695,16 +731,9 @@ mkdir -p /pkgs/TDengine/3.3/v3.3.4.0/enterprise
 scp <installer> root@192.168.1.131:/pkgs/TDengine/3.3/v3.3.4.0/enterprise/
 ```
 
-# 10 CI/CD
+# 10 Workflow
 
-Now, Jenkins is mainly used to build CI/CD pipeline for TDengine. To run the tests in the CI/CD pipeline, please run following commands:
-
-```bash
-cd tests
-./run_all_ci_cases.sh -b main # on main branch
-```
-
-TDengine build check workflow can be found in this [Github Action](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml).
+TDengine build check workflow can be found in this [Github Action](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml). More workflows will be available soon.
 
 # 11 Coverage
 
