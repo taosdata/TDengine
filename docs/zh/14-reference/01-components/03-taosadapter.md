@@ -144,16 +144,14 @@ Usage of taosAdapter:
 
 ### 跨域配置
 
-使用浏览器进行接口调用请根据实际情况设置如下跨源资源共享（CORS）参数：
+使用浏览器进行接口调用请根据实际情况设置如下跨域（CORS）参数：
 
-```text
-AllowAllOrigins
-AllowOrigins
-AllowHeaders
-ExposeHeaders
-AllowCredentials
-AllowWebSockets
-```
+- **cors.allowAllOrigins**：是否允许所有来源访问，默认为 `true`。
+- **cors.allowOrigins**：允许跨域访问的来源列表，支持多个来源，以逗号分隔。
+- **cors.allowHeaders**：允许跨域访问的请求头列表，支持多个请求头，以逗号分隔。
+- **cors.exposeHeaders**：允许跨域访问的响应头列表，支持多个响应头，以逗号分隔。
+- **cors.allowCredentials**：是否允许跨域请求包含用户凭证，如 cookies、HTTP 认证信息或客户端 SSL 证书。
+- **cors.allowWebSockets**：是否允许 WebSockets 连接。
 
 如果不通过浏览器进行接口调用无需关心这几项配置。
 
@@ -180,7 +178,7 @@ taosAdapter 使用连接池管理与 TDengine 的连接，以提高并发性能�
 - **`pool.waitTimeout`**：从连接池获取连接的超时时间，默认设置为 60 秒。如果在超时时间内未能获取连接，将返回 HTTP 状态码 503。该参数从版本 3.3.3.0 开始提供。
 - **`pool.maxWait`**：连接池中等待获取连接的请求数上限，默认值为 0，表示不限制。当排队请求数超过此值时，新的请求将返回 HTTP 状态码 503。该参数从版本 3.3.3.0 开始提供。
 
-### http 返回码配置
+### HTTP 返回码配置
 
 taosAdapter 通过参数 `httpCodeServerError` 来控制当底层 C 接口返回错误时，是否在 RESTful 接口请求中返回非 200 的 HTTP 状态码。当设置为 `true` 时，taosAdapter 会根据 C 接口返回的错误码映射为相应的 HTTP 状态码。具体映射规则请参考 [HTTP 响应码](../../connector/rest-api/#http-响应码)。
 
@@ -321,7 +319,7 @@ taosAdapter 提供了以下功能：
 
 ### RESTful 接口
 
-您可以使用任何支持 http 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/rest/sql` 来写入数据到 TDengine 或从 TDengine 中查询数据。细节请参考[REST API 文档](../../connector/rest-api/)。
+您可以使用任何支持 HTTP 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/rest/sql` 来写入数据到 TDengine 或从 TDengine 中查询数据。细节请参考[REST API 文档](../../connector/rest-api/)。
 
 ### WebSocket 接口
 
@@ -329,7 +327,7 @@ taosAdapter 提供了以下功能：
 
 ### 兼容 InfluxDB v1 写接口
 
-您可以使用任何支持 http 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/influxdb/v1/write` 来写入 InfluxDB 兼容格式的数据到 TDengine。
+您可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/influxdb/v1/write` 来写入 InfluxDB 兼容格式的数据到 TDengine。
 
 支持 InfluxDB 参数如下：
 
@@ -348,7 +346,7 @@ curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root
 
 ### 兼容 OpenTSDB JSON 和 telnet 格式写入
 
-您可以使用任何支持 http 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 OpenTSDB 兼容格式的数据到 TDengine。EndPoint 如下：
+您可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 OpenTSDB 兼容格式的数据到 TDengine。EndPoint 如下：
 
 ```text
 /opentsdb/v1/put/json/<db>
