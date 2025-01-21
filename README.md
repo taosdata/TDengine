@@ -550,7 +550,7 @@ option "-c test/cfg" specifies the system configuration file directory.
 
 This manual is intended to give developers a comprehensive guidance to test TDengine efficiently. It is divided into three main sections: introduction, prerequisites and testing guide.
 
-> [!NOTE]
+> **NOTE:**
 > - The commands and scripts below are verified on Linux (Ubuntu 18.04/20.04/22.04).
 > - The commands and steps described below are to run the tests on a single host.
 
@@ -716,7 +716,7 @@ cd tests
 
 #### 8.3.3.3 How to add new cases?
 
-> [!NOTE] 
+> **NOTE:**
 > TSIM test framwork is deprecated by system test now, it is encouraged to add new test cases in system test, please refer to [System Test](#832-system-test) for details.
 
 
@@ -842,7 +842,7 @@ apt install -y python3-pip && \
 
 #### 8.3.8.2 How to add new cases?
 
-You can add python test case under TestNG/cases. When the case passes in the test branch, add the case to the testng_cases.txt file under TestNG/scripts, and then merge the pr into master branch .
+You can add python test case under `TestNG/cases`. When the case passes in the test branch, add the case to the `testng_cases.txt` file under `TestNG/scripts`, and then merge the pr into master branch .
 
 
 </details>
@@ -851,7 +851,7 @@ You can add python test case under TestNG/cases. When the case passes in the tes
 # 9 Releasing
 <details>
 
-<summary>For the complete list of TDengine Releases, please see Releases or NAS server</summary>
+<summary>For the complete list of TDengine Releases, please see [Releases](https://github.com/taosdata/TDengine/releases) or on NAS server:</summary>
 
 TDengine Enterprise installers can be found on the corporate NAS server:
 
@@ -876,7 +876,7 @@ TDengine build check workflow can be found in this [Github Action](https://githu
 
 # 11 Coverage
 
-Latest TDengine test coverage report can be found on [coveralls.io](https://coveralls.io/github/taosdata/TDengine). To create the test coverage report (in HTML format) locally, please run following commands:
+Latest TDengine test coverage report can be found on [coveralls.io](https://coveralls.io/github/taosdata/TDengine). 
 
 <details>
 
