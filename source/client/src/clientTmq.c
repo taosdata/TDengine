@@ -1617,10 +1617,6 @@ static void tmqMgmtInit(void) {
     goto END;
   }
 
-  if (taosThreadMutexAttrSetType(&attr, PTHREAD_MUTEX_RECURSIVE) != 0){
-    goto END;
-  }
-
   if (taosThreadMutexInit(&tmqMgmt.lock, &attr) != 0){
     goto END;
   }
@@ -2658,7 +2654,7 @@ int32_t tmq_unsubscribe(tmq_t* tmq) {
 int32_t tmq_consumer_close(tmq_t* tmq) {
   if (tmq == NULL) return TSDB_CODE_INVALID_PARA;
   int32_t code = 0;
-  (void) taosThreadMutexLock(&tmqMgmt.lock);
+  code = taosThreadMutexLock(&tmqMgmt.lock);
   if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__CLOSED){
     goto end;
   }
@@ -2673,7 +2669,7 @@ int32_t tmq_consumer_close(tmq_t* tmq) {
   }
 
   end:
-  (void)taosThreadMutexLock(&tmqMgmt.lock);
+  code = taosThreadMutexUnlock(&tmqMgmt.lock);
   return code;
 }
 
