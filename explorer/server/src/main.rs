@@ -1565,13 +1565,13 @@ impl Args {
 
     async fn query_inner(
         &self,
-        dsn: Dsn,
+        dsn: &Dsn,
         sql: &str,
         tz: Option<&String>,
+        req_id: u64,
     ) -> Result<RestOkResponse, RestErrResponse> {
-        let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
         // taos connection pool
-        let conn = get_connection(&dsn).await.map_err(RestErrResponse::new)?;
+        let conn = get_connection(dsn).await.map_err(RestErrResponse::new)?;
 
         let tz = if let Some(tz) = tz {
             chrono_tz::Tz::from_str(tz).unwrap_or(chrono_tz::Tz::UTC)
@@ -1579,9 +1579,8 @@ impl Args {
             chrono_tz::Tz::UTC
         };
 
-        qid.add_sequence_id();
         debug!("Got connection, querying sql");
-        let mut set = conn.query_with_req_id(sql, qid.get()).await?;
+        let mut set = conn.query_with_req_id(sql, req_id).await?;
         debug!("Got sql result set");
         // dml and cud return empty set
         if set.fields().is_empty() {
@@ -1639,7 +1638,9 @@ impl Args {
         tz: Option<&String>,
     ) -> Result<RestOkResponse, RestErrResponse> {
         let dsn = self.build_dsn(header)?;
-        self.query_inner(dsn, sql, tz).await
+        let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
+        qid.add_sequence_id();
+        self.query_inner(&dsn, sql, tz, qid.get()).await
     }
 
     // 开源版想在登录前就获取TDengine版本信息，使用root用户尝试登录获取。
@@ -1654,7 +1655,10 @@ impl Args {
         dsn.username = Some("root".to_string());
         dsn.password = Some("taosdata".to_string());
 
-        self.query_inner(dsn, sql, None).await
+        let mut qid = Span.get_qid::<Qid>().unwrap_or_else(Qid::init);
+        qid.add_sequence_id();
+
+        self.query_inner(&dsn, sql, None, qid.get()).await
     }
 
     async fn renew(
@@ -1840,6 +1844,7 @@ mod tests {
     use log::LevelFilter;
     use taos::*;
 
+    use super::*;
     use crate::Args;
 
     #[test]
@@ -2020,6 +2025,65 @@ certificate_key = "tests/assets/cert-key.pem"
             .timeout(std::time::Duration::from_secs(3))
             .assert();
         assert.interrupted();
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_float_to_json_precision_with_taos() -> anyhow::Result<(), anyhow::Error> {
+        let profile = Profile {
+            cluster: Some("http://localhost:6041".to_string()),
+            ..Default::default()
+        };
+
+        let args = Args {
+            profile,
+            ..Default::default()
+        };
+
+        // 默认用户名密码：root:taosdata
+        let dsn = args.build_dsn("Basic cm9vdDp0YW9zZGF0YQ==").unwrap();
+
+        // 创建数据库
+        let sql = "create database if not exists `test_explorer` vgroups 2 buffer 3";
+        let result = args.query_inner(&dsn, sql, None, 0).await.unwrap();
+        assert_eq!(result.data.get(0).unwrap().get(0).unwrap().to_string(), "0");
+
+        // 创建超级表
+        let sql = "CREATE STABLE IF NOT EXISTS `test_explorer`.`stb_with_float` (ts TIMESTAMP,float_value FLOAT) TAGS (string_tag VARCHAR(8))";
+        let result = args.query_inner(&dsn, sql, None, 0).await.unwrap();
+        assert_eq!(result.data.get(0).unwrap().get(0).unwrap().to_string(), "0");
+
+        // 写入测试数据
+        let sql = r#"insert into `test_explorer`.`t_with_float` using `test_explorer`.`stb_with_float` tags ('a') 
+                        values ('2025-01-01T00:00:00Z', 19.81) ('2025-01-01T00:00:01Z', 19.60)
+                               ('2025-01-01T00:00:03Z', 19.25) ('2025-01-01T00:00:04Z', 19.50)"#;
+        let result = args.query_inner(&dsn, sql, None, 0).await.unwrap();
+        assert_eq!(result.data.get(0).unwrap().get(0).unwrap().to_string(), "4");
+
+        let sql = "select * from `test_explorer`.`t_with_float`";
+        let result = args.query_inner(&dsn, sql, None, 0).await.unwrap();
+        // 转成 string 来检查精度
+        assert_eq!(
+            result.data.get(0).unwrap().get(1).unwrap().to_string(),
+            "19.81"
+        );
+        assert_eq!(
+            result.data.get(1).unwrap().get(1).unwrap().to_string(),
+            "19.6"
+        );
+        assert_eq!(
+            result.data.get(2).unwrap().get(1).unwrap().to_string(),
+            "19.25"
+        );
+        assert_eq!(
+            result.data.get(3).unwrap().get(1).unwrap().to_string(),
+            "19.5"
+        );
+
+        // 删除测试数据库
+        let sql = "DROP DATABASE `test_explorer`";
+        args.query_inner(&dsn, sql, None, 0).await.unwrap();
+
         Ok(())
     }
 }
