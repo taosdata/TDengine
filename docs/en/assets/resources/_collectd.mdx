@@ -4,7 +4,7 @@ Method to configure taosAdapter to receive collectd data:
 
 - Enable the configuration item in the taosAdapter configuration file (default location is /etc/taos/taosadapter.toml)
 
-```
+```toml
 ...
 [opentsdb_telnet]
 enable = true
@@ -29,7 +29,7 @@ collectd uses a plugin mechanism that can write the collected monitoring data to
 
 Modify the related configuration items in the collectd configuration file (default location /etc/collectd/collectd.conf).
 
-```text
+```xml
 LoadPlugin network
 <Plugin network>
          Server "<taosAdapter's host>" "<port for collectd direct>"
@@ -40,7 +40,7 @@ Where \<taosAdapter's host> should be filled with the domain name or IP address 
 
 Example as follows:
 
-```text
+```xml
 LoadPlugin network
 <Plugin network>
          Server "127.0.0.1" "6045"
@@ -51,7 +51,7 @@ LoadPlugin network
 
 Modify the related configuration items in the collectd configuration file (default location /etc/collectd/collectd.conf).
 
-```text
+```xml
 LoadPlugin write_tsdb
 <Plugin write_tsdb>
         <Node>
@@ -64,7 +64,7 @@ LoadPlugin write_tsdb
 
 Where \<taosAdapter's host> should be filled with the domain name or IP address of the server running taosAdapter. \<port for collectd write_tsdb plugin> should be filled with the port used by taosAdapter to receive collectd write_tsdb plugin data (default is 6047).
 
-```text
+```xml
 LoadPlugin write_tsdb
 <Plugin write_tsdb>
         <Node>
@@ -79,6 +79,6 @@ LoadPlugin write_tsdb
 
 Then restart collectd:
 
-```
+```shell
 systemctl restart collectd
 ```

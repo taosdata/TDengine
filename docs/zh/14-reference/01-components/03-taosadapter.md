@@ -24,19 +24,17 @@ taosAdapter 提供以下功能：
 - 支持采集 node_exporter 数据写入
 - 支持 Prometheus remote_read 和 remote_write
 
+架构图如下：
+
+![TDengine Database taosAdapter Architecture](taosAdapter-architecture.webp)
+
 ## 安装
 
 taosAdapter 是 TDengine 服务端软件 的一部分，如果您使用 TDengine server 您不需要任何额外的步骤来安装 taosAdapter。您可以从[涛思数据官方网站](https://docs.taosdata.com/releases/tdengine/)下载 TDengine server 安装包。如果需要将 taosAdapter 分离部署在 TDengine server 之外的服务器上，则应该在该服务器上安装完整的 TDengine 来安装 taosAdapter。如果您需要使用源代码编译生成 taosAdapter，您可以参考[构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD-CN.md)文档。
 
 安装完成后使用命令 `systemctl start taosadapter` 可以启动 taosAdapter 服务。
 
-## 架构图
-
-![TDengine Database taosAdapter Architecture](taosAdapter-architecture.webp)
-
-taosAdapter 作为外部客户端与 TDengine 集群之间的桥梁，支持多种数据采集工具和协议。外部客户端通过 RESTful 接口、InfluxDB 兼容客户端、OpenTSDB 兼容客户端、Telegraf、collectd 和 StatsD 等方式将数据发送到 taosAdapter。taosAdapter 接收这些数据并写入到 TDengine 集群。
-
-## 配置说明
+## 配置
 
 taosAdapter 支持通过命令行参数、环境变量和配置文件来进行配置。默认配置文件是 /etc/taos/taosadapter.toml。
 
@@ -301,6 +299,8 @@ taosAdapter 提供了以下功能：
 
 - RESTful 接口：
   [RESTful API](../../connector/rest-api)
+- WebSocket 接口：
+  支持通过 WebSocket 协议执行 SQL、无模式数据写入、参数绑定和数据订阅功能。
 - 兼容 InfluxDB v1 写接口：
   [https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/](https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/)
 - 兼容 OpenTSDB JSON 和 telnet 格式写入：
@@ -323,6 +323,10 @@ taosAdapter 提供了以下功能：
 
 您可以使用任何支持 http 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/rest/sql` 来写入数据到 TDengine 或从 TDengine 中查询数据。细节请参考[REST API 文档](../../connector/rest-api/)。
 
+### WebSocket 接口
+
+各语言连接器通过 taosAdapter 的 WebSocket 接口，能够实现 SQL 执行、无模式写入、参数绑定和数据订阅功能。参考[开发指南](../../../develop/connect/#websocket-连接)。
+
 ### 兼容 InfluxDB v1 写接口
 
 您可以使用任何支持 http 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/influxdb/v1/write` 来写入 InfluxDB 兼容格式的数据到 TDengine。
@@ -336,7 +340,12 @@ taosAdapter 提供了以下功能：
 - `ttl` 自动创建的子表生命周期，以子表的第一条数据的 TTL 参数为准，不可更新。更多信息请参考[创建表文档](../../taos-sql/table/#创建表)的 TTL 参数。
 
 注意： 目前不支持 InfluxDB 的 token 验证方式，仅支持 Basic 验证和查询参数验证。
-示例： curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"
+示例： 
+
+```shell
+curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"
+```
+
 ### 兼容 OpenTSDB JSON 和 telnet 格式写入
 
 您可以使用任何支持 http 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 OpenTSDB 兼容格式的数据到 TDengine。EndPoint 如下：

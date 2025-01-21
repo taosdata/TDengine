@@ -4,7 +4,7 @@ To configure taosAdapter to receive data from TCollector:
 
 - Enable the configuration in the taosAdapter configuration file (default location /etc/taos/taosadapter.toml)
 
-```
+```toml
 ...
 [opentsdb_telnet]
 enable = true
@@ -29,7 +29,7 @@ Modify the contents of `collectors/etc/config.py` and `tcollector.py`. Change th
 
 Example of git diff output for source code modifications:
 
-```
+```diff
 index e7e7a1c..ec3e23c 100644
 --- a/collectors/etc/config.py
 +++ b/collectors/etc/config.py
