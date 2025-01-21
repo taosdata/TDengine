@@ -65,8 +65,6 @@ static int32_t mndProcessDropOrphanTaskReq(SRpcMsg *pReq);
 static void    saveTaskAndNodeInfoIntoBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode);
 
 static void     addAllStreamTasksIntoBuf(SMnode *pMnode, SStreamExecInfo *pExecInfo);
-static void     removeExpiredNodeInfo(const SArray *pNodeSnapshot);
-static int32_t  doKillCheckpointTrans(SMnode *pMnode, const char *pDbName, size_t len);
 static SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
 
 SSdbRaw       *mndStreamSeqActionEncode(SStreamObj *pStream);
@@ -806,6 +804,13 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     code = terrno;
     mInfo("stream:%s failed to create, acquire source db %s failed, code:%s", createReq.name, createReq.sourceDB,
           tstrerror(code));
+    goto _OVER;
+  }
+
+  // check for the taskEp update trans
+  if (isNodeUpdateTransActive()) {
+    mError("stream:%s failed to create stream, node update trans is active", createReq.name);
+    code = TSDB_CODE_STREAM_TASK_IVLD_STATUS;
     goto _OVER;
   }
 

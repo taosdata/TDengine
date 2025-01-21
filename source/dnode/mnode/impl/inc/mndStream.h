@@ -159,6 +159,7 @@ void    removeTasksInBuf(SArray *pTaskIds, SStreamExecInfo *pExecInfo);
 int32_t mndFindChangedNodeInfo(SMnode *pMnode, const SArray *pPrevNodeList, const SArray *pNodeList,
                                SVgroupChangeInfo *pInfo);
 void    killAllCheckpointTrans(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo);
+bool    isNodeUpdateTransActive();
 
 int32_t createStreamTaskIter(SStreamObj *pStream, SStreamTaskIter **pIter);
 void    destroyStreamTaskIter(SStreamTaskIter *pIter);
