@@ -2043,8 +2043,12 @@ certificate_key = "tests/assets/cert-key.pem"
         // 默认用户名密码：root:taosdata
         let dsn = args.build_dsn("Basic cm9vdDp0YW9zZGF0YQ==").unwrap();
 
+        // 清除旧数据
+        let sql = "DROP DATABASE IF EXISTS `test_explorer`";
+        let _ = args.query_inner(&dsn, sql, None, 0).await;
+
         // 创建数据库
-        let sql = "create database if not exists `test_explorer` vgroups 2 buffer 3";
+        let sql = "create database `test_explorer` vgroups 2 buffer 3";
         let result = args.query_inner(&dsn, sql, None, 0).await.unwrap();
         assert_eq!(
             result.data.first().unwrap().first().unwrap().to_string(),
@@ -2052,7 +2056,7 @@ certificate_key = "tests/assets/cert-key.pem"
         );
 
         // 创建超级表
-        let sql = "CREATE STABLE IF NOT EXISTS `test_explorer`.`stb_with_float` (ts TIMESTAMP,float_value FLOAT) TAGS (string_tag VARCHAR(8))";
+        let sql = "CREATE STABLE `test_explorer`.`stb_with_float` (ts TIMESTAMP,float_value FLOAT) TAGS (string_tag VARCHAR(8))";
         let result = args.query_inner(&dsn, sql, None, 0).await.unwrap();
         assert_eq!(
             result.data.first().unwrap().first().unwrap().to_string(),
