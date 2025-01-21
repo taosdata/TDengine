@@ -698,7 +698,7 @@ static int32_t allTasksSendChkptReport(SChkptReportInfo* pReportInfo, int32_t nu
   // cross-check failed, there must be something unknown wrong
   SStreamTransInfo *pTransInfo = taosHashGet(execInfo.transMgmt.pDBTrans, &id.streamId, sizeof(id.streamId));
   if (pTransInfo == NULL) {
-    mError("stream:0x%" PRIx64" no active exists for checkpoint transId:%d, clear checkpoint-report list", id.streamId);
+    mError("stream:0x%" PRIx64" no active exists for checkpoint transId:%d, clear checkpoint-report list", id.streamId, transId);
     taosArrayClear(pReportInfo->pTaskList);
     return -1;
   }
