@@ -397,12 +397,6 @@ ll /root/TDinternal/community/release
 
 # 6. Installing
 
-```bash
-tar -xvzf TDengine-enterprise-<version_number>-Linux-x64.tar.gz
-cd TDengine-enterprise-<version_number>-Linux-x64
-./install.sh
-```
-
 ## 6.1 Install on Linux
 
 <details>
