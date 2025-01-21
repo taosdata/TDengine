@@ -126,9 +126,7 @@ void *taosAllocateQitem(int32_t size, EQItype itype, int64_t dataSize) {
       terrno = TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE;
       return NULL;
     }
-  }
-
-  if (itype == APPLY_QITEM) {
+  } else if (itype == APPLY_QITEM) {
     alloced = atomic_add_fetch_64(&tsApplyMemoryUsed, size + dataSize);
     if (alloced > tsApplyMemoryAllowed) {
       uDebug("failed to alloc qitem, size:%" PRId64 " alloc:%" PRId64 " allowed:%" PRId64, size + dataSize, alloced,
@@ -143,7 +141,7 @@ void *taosAllocateQitem(int32_t size, EQItype itype, int64_t dataSize) {
   if (pNode == NULL) {
     if (itype == RPC_QITEM) {
       (void)atomic_sub_fetch_64(&tsQueueMemoryUsed, size + dataSize);
-    } else {
+    } else if (itype == APPLY_QITEM) {
       (void)atomic_sub_fetch_64(&tsApplyMemoryUsed, size + dataSize);
     }
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -165,7 +163,7 @@ void taosFreeQitem(void *pItem) {
   int64_t     alloced = -1;
   if (pNode->itype == RPC_QITEM) {
     alloced = atomic_sub_fetch_64(&tsQueueMemoryUsed, pNode->size + pNode->dataSize);
-  } else {
+  } else if (pNode->itype == APPLY_QITEM) {
     alloced = atomic_sub_fetch_64(&tsApplyMemoryUsed, pNode->size + pNode->dataSize);
   }
   uTrace("item:%p, node:%p is freed, alloc:%" PRId64, pItem, pNode, alloced);
