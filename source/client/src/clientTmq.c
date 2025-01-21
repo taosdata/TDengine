@@ -1612,16 +1612,7 @@ static void tmqMgmtInit(void) {
     goto END;
   }
 
-  TdThreadMutexAttr attr = {0};
-  if (taosThreadMutexAttrInit(&attr) != 0){
-    goto END;
-  }
-
-  if (taosThreadMutexInit(&tmqMgmt.lock, &attr) != 0){
-    goto END;
-  }
-
-  if (taosThreadMutexAttrDestroy(&attr) != 0){
+  if (taosThreadMutexInit(&tmqMgmt.lock, NULL) != 0){
     goto END;
   }
 
