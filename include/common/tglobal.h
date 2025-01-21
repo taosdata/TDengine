@@ -29,6 +29,9 @@ extern "C" {
 #define SLOW_LOG_TYPE_OTHERS 0x4
 #define SLOW_LOG_TYPE_ALL    0xFFFFFFFF
 
+#define RPC_MEMORY_USAGE_RATIO   0.1
+#define QUEUE_MEMORY_USAGE_RATIO 0.6
+
 // cluster
 extern char     tsFirst[];
 extern char     tsSecond[];
@@ -73,6 +76,7 @@ extern int32_t tsNumOfQnodeFetchThreads;
 extern int32_t tsNumOfSnodeStreamThreads;
 extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsQueueMemoryAllowed;
+extern int64_t tsApplyMemoryAllowed;
 
 // sync raft
 extern int32_t tsElectInterval;

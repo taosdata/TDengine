@@ -15,17 +15,17 @@
 
 #define _DEFAULT_SOURCE
 
-#include "syncPipeline.h"
 #include "syncCommit.h"
 #include "syncIndexMgr.h"
 #include "syncInt.h"
+#include "syncPipeline.h"
+#include "syncRaftCfg.h"
 #include "syncRaftEntry.h"
 #include "syncRaftStore.h"
 #include "syncReplication.h"
 #include "syncRespMgr.h"
 #include "syncSnapshot.h"
 #include "syncUtil.h"
-#include "syncRaftCfg.h"
 #include "syncVoteMgr.h"
 
 static int64_t tsLogBufferMemoryUsed = 0;  // total bytes of vnode log buffer
@@ -351,13 +351,13 @@ int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
     goto _out;
   }
 
-  if(pNode->raftCfg.cfg.nodeInfo[pNode->raftCfg.cfg.myIndex].nodeRole == TAOS_SYNC_ROLE_LEARNER &&
-      index > 0 && index > pBuf->totalIndex){
+  if (pNode->raftCfg.cfg.nodeInfo[pNode->raftCfg.cfg.myIndex].nodeRole == TAOS_SYNC_ROLE_LEARNER && index > 0 &&
+      index > pBuf->totalIndex) {
     pBuf->totalIndex = index;
     sTrace("vgId:%d, update learner progress. index:%" PRId64 ", term:%" PRId64 ": prevterm:%" PRId64
-          " != lastmatch:%" PRId64 ". log buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
-          pNode->vgId, pEntry->index, pEntry->term, prevTerm, lastMatchTerm, pBuf->startIndex, pBuf->commitIndex,
-          pBuf->matchIndex, pBuf->endIndex);
+           " != lastmatch:%" PRId64 ". log buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 ")",
+           pNode->vgId, pEntry->index, pEntry->term, prevTerm, lastMatchTerm, pBuf->startIndex, pBuf->commitIndex,
+           pBuf->matchIndex, pBuf->endIndex);
   }
 
   if (index - pBuf->startIndex >= pBuf->size) {
@@ -400,7 +400,7 @@ int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   ASSERT(pBuf->entries[index % pBuf->size].pItem == NULL);
   SSyncLogBufEntry tmp = {.pItem = pEntry, .prevLogIndex = prevIndex, .prevLogTerm = prevTerm};
   pBuf->entries[index % pBuf->size] = tmp;
-  if(pNode->vgId > 1){
+  if (pNode->vgId > 1) {
     pBuf->bytes += pEntry->bytes;
     (void)atomic_add_fetch_64(&tsLogBufferMemoryUsed, (int64_t)pEntry->bytes);
   }
@@ -449,7 +449,7 @@ int32_t syncLogStorePersist(SSyncLogStore* pLogStore, SSyncNode* pNode, SSyncRaf
   return 0;
 }
 
-int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* pMatchTerm, char *str) {
+int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* pMatchTerm, char* str) {
   taosThreadMutexLock(&pBuf->mutex);
   syncLogBufferValidate(pBuf);
 
@@ -503,33 +503,34 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
       taosMsleep(1);
       goto _out;
     }
-    
-    if(pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE){
-      if(pNode->pLogBuf->commitIndex == pEntry->index -1){
-        sInfo("vgId:%d, to change config at %s. "
-              "current entry, index:%" PRId64 ", term:%" PRId64", "
-              "node, restore:%d, commitIndex:%" PRId64 ", "
-              "cond: (pre entry index:%" PRId64 "== buf commit index:%" PRId64 ")",
-              pNode->vgId, str,
-              pEntry->index, pEntry->term, 
-              pNode->restoreFinish, pNode->commitIndex,
-              pEntry->index - 1, pNode->pLogBuf->commitIndex);
-        if(syncNodeChangeConfig(pNode, pEntry, str) != 0){
+
+    if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE) {
+      if (pNode->pLogBuf->commitIndex == pEntry->index - 1) {
+        sInfo(
+            "vgId:%d, to change config at %s. "
+            "current entry, index:%" PRId64 ", term:%" PRId64
+            ", "
+            "node, restore:%d, commitIndex:%" PRId64
+            ", "
+            "cond: (pre entry index:%" PRId64 "== buf commit index:%" PRId64 ")",
+            pNode->vgId, str, pEntry->index, pEntry->term, pNode->restoreFinish, pNode->commitIndex, pEntry->index - 1,
+            pNode->pLogBuf->commitIndex);
+        if (syncNodeChangeConfig(pNode, pEntry, str) != 0) {
           sError("vgId:%d, failed to change config from Append since %s. index:%" PRId64, pNode->vgId, terrstr(),
-             pEntry->index);
+                 pEntry->index);
           goto _out;
         }
-      }
-      else{
-        sInfo("vgId:%d, delay change config from Node %s. "
-              "curent entry, index:%" PRId64 ", term:%" PRId64 ", "
-              "node, commitIndex:%" PRId64 ",  pBuf: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64 "), "
-              "cond:( pre entry index:%" PRId64" != buf commit index:%" PRId64 ")",
-              pNode->vgId, str,
-              pEntry->index, pEntry->term, 
-              pNode->commitIndex, pNode->pLogBuf->startIndex, pNode->pLogBuf->commitIndex,
-              pNode->pLogBuf->matchIndex, pNode->pLogBuf->endIndex, 
-              pEntry->index - 1, pNode->pLogBuf->commitIndex);
+      } else {
+        sInfo(
+            "vgId:%d, delay change config from Node %s. "
+            "curent entry, index:%" PRId64 ", term:%" PRId64
+            ", "
+            "node, commitIndex:%" PRId64 ",  pBuf: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64
+            "), "
+            "cond:( pre entry index:%" PRId64 " != buf commit index:%" PRId64 ")",
+            pNode->vgId, str, pEntry->index, pEntry->term, pNode->commitIndex, pNode->pLogBuf->startIndex,
+            pNode->pLogBuf->commitIndex, pNode->pLogBuf->matchIndex, pNode->pLogBuf->endIndex, pEntry->index - 1,
+            pNode->pLogBuf->commitIndex);
       }
     }
 
@@ -554,16 +555,16 @@ _out:
 }
 
 int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTerm term, SSyncRaftEntry* pEntry,
-                          int32_t applyCode, bool force) {
-  //learner need to execute fsm when it catch up entry log
-  //if force is true, keep all contition check to execute fsm
-  if (pNode->replicaNum == 1 && pNode->restoreFinish && pNode->vgId != 1
-      && pNode->raftCfg.cfg.nodeInfo[pNode->raftCfg.cfg.myIndex].nodeRole != TAOS_SYNC_ROLE_LEARNER
-      && force == false) {
-    sDebug("vgId:%d, not to execute fsm, index:%" PRId64 ", term:%" PRId64 ", type:%s code:0x%x, replicaNum:%d,"
-          "role:%d, restoreFinish:%d",
-           pNode->vgId, pEntry->index, pEntry->term, TMSG_INFO(pEntry->originalRpcType), applyCode,
-           pNode->replicaNum, pNode->raftCfg.cfg.nodeInfo[pNode->raftCfg.cfg.myIndex].nodeRole, pNode->restoreFinish);
+                       int32_t applyCode, bool force) {
+  // learner need to execute fsm when it catch up entry log
+  // if force is true, keep all contition check to execute fsm
+  if (pNode->replicaNum == 1 && pNode->restoreFinish && pNode->vgId != 1 &&
+      pNode->raftCfg.cfg.nodeInfo[pNode->raftCfg.cfg.myIndex].nodeRole != TAOS_SYNC_ROLE_LEARNER && force == false) {
+    sDebug("vgId:%d, not to execute fsm, index:%" PRId64 ", term:%" PRId64
+           ", type:%s code:0x%x, replicaNum:%d,"
+           "role:%d, restoreFinish:%d",
+           pNode->vgId, pEntry->index, pEntry->term, TMSG_INFO(pEntry->originalRpcType), applyCode, pNode->replicaNum,
+           pNode->raftCfg.cfg.nodeInfo[pNode->raftCfg.cfg.myIndex].nodeRole, pNode->restoreFinish);
     return 0;
   }
 
@@ -601,7 +602,11 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
            pEntry->index, pEntry->term, TMSG_INFO(pEntry->originalRpcType), code, retry);
     if (retry) {
       taosMsleep(10);
-      sError("vgId:%d, retry on fsm commit since %s. index:%" PRId64, pNode->vgId, terrstr(), pEntry->index);
+      if (code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE) {
+        sError("vgId:%d, failed to execute fsm since %s. index:%" PRId64, pNode->vgId, terrstr(), pEntry->index);
+      } else {
+        sDebug("vgId:%d, retry on fsm commit since %s. index:%" PRId64, pNode->vgId, terrstr(), pEntry->index);
+      }
     }
   } while (retry);
   return code;
@@ -669,49 +674,50 @@ int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t comm
 
     pNextEntry = syncLogBufferGetOneEntry(pBuf, pNode, index + 1, &nextInBuf);
     if (pNextEntry != NULL) {
-      if(pNextEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE){
-        sInfo("vgId:%d, to change config at Commit. "
-              "current entry, index:%" PRId64 ", term:%" PRId64", "
-              "node, role:%d, current term:%" PRId64 ", restore:%d, "
-              "cond, next entry index:%" PRId64 ", msgType:%s",
-              vgId, 
-              pEntry->index, pEntry->term, 
-              role, currentTerm, pNode->restoreFinish,
-              pNextEntry->index, TMSG_INFO(pNextEntry->originalRpcType));
+      if (pNextEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE) {
+        sInfo(
+            "vgId:%d, to change config at Commit. "
+            "current entry, index:%" PRId64 ", term:%" PRId64
+            ", "
+            "node, role:%d, current term:%" PRId64
+            ", restore:%d, "
+            "cond, next entry index:%" PRId64 ", msgType:%s",
+            vgId, pEntry->index, pEntry->term, role, currentTerm, pNode->restoreFinish, pNextEntry->index,
+            TMSG_INFO(pNextEntry->originalRpcType));
 
-        if(syncNodeChangeConfig(pNode, pNextEntry, "Commit") != 0){
+        if (syncNodeChangeConfig(pNode, pNextEntry, "Commit") != 0) {
           sError("vgId:%d, failed to change config from Commit. index:%" PRId64 ", term:%" PRId64
-                ", role:%d, current term:%" PRId64,
-                vgId, pNextEntry->index, pNextEntry->term, role, currentTerm);
-            goto _out;
+                 ", role:%d, current term:%" PRId64,
+                 vgId, pNextEntry->index, pNextEntry->term, role, currentTerm);
+          goto _out;
         }
 
-        //for 2->1, need to apply config change entry in sync thread,
-        if(pNode->replicaNum == 1){
+        // for 2->1, need to apply config change entry in sync thread,
+        if (pNode->replicaNum == 1) {
           if (syncFsmExecute(pNode, pFsm, role, currentTerm, pNextEntry, 0, true) != 0) {
             sError("vgId:%d, failed to execute sync log entry. index:%" PRId64 ", term:%" PRId64
-                ", role:%d, current term:%" PRId64,
-                vgId, pNextEntry->index, pNextEntry->term, role, currentTerm);
+                   ", role:%d, current term:%" PRId64,
+                   vgId, pNextEntry->index, pNextEntry->term, role, currentTerm);
             goto _out;
           }
 
           index++;
           pBuf->commitIndex = index;
 
-          sTrace("vgId:%d, committed index:%" PRId64 ", term:%" PRId64 ", role:%d, current term:%" PRId64 "", pNode->vgId,
-                pNextEntry->index, pNextEntry->term, role, currentTerm);
+          sTrace("vgId:%d, committed index:%" PRId64 ", term:%" PRId64 ", role:%d, current term:%" PRId64 "",
+                 pNode->vgId, pNextEntry->index, pNextEntry->term, role, currentTerm);
         }
       }
       if (!nextInBuf) {
         syncEntryDestroy(pNextEntry);
         pNextEntry = NULL;
       }
-    } 
-    
+    }
+
     if (!inBuf) {
       syncEntryDestroy(pEntry);
       pEntry = NULL;
-    }  
+    }
   }
 
   // recycle
@@ -1205,8 +1211,8 @@ int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex 
     return 0;
   }
 
-  sInfo("vgId:%d, rollback sync log buffer. toindex:%" PRId64 ", buffer: [%" PRId64 " %" PRId64 " %" PRId64
-        ", %" PRId64 ")",
+  sInfo("vgId:%d, rollback sync log buffer. toindex:%" PRId64 ", buffer: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64
+        ")",
         pNode->vgId, toIndex, pBuf->startIndex, pBuf->commitIndex, pBuf->matchIndex, pBuf->endIndex);
 
   // trunc buffer
