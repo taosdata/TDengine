@@ -377,6 +377,10 @@ Work in Progress.
 
 # 5. Packaging
 
+<details>
+
+<summary>How to package the  enterprise edition locally?</summary>
+
 Using the following script to package the enterprise edition.
 
 ```bash
@@ -389,6 +393,7 @@ After the packaging is complete, you can see the following files.
 ```bash
 ll /root/TDinternal/community/release
 ```
+</details>
 
 # 6. Installing
 
@@ -398,13 +403,149 @@ cd TDengine-enterprise-<version_number>-Linux-x64
 ./install.sh
 ```
 
+## 6.1 Install on Linux
+
+<details>
+
+<summary>Detailed steps to install on Linux</summary>
+
+After building successfully, TDengine can be installed by:
+
+```bash
+sudo make install
+```
+
+Installing from source code will also configure service management for TDengine. Users can also choose to [install from packages](https://docs.tdengine.com/get-started/deploy-from-package/) for it.
+
+```bash
+tar -xvzf TDengine-enterprise-<version_number>-Linux-x64.tar.gz
+cd TDengine-enterprise-<version_number>-Linux-x64
+./install.sh
+```
+
+</details>
+
+## 6.2 Install on macOS
+
+<details>
+
+<summary>Detailed steps to install on macOS</summary>
+
+After building successfully, TDengine can be installed by:
+
+```bash
+sudo make install
+```
+
+</details>
+
+## 6.3 Install on Windows
+
+<details>
+
+<summary>Detailed steps to install on windows</summary>
+
+After building successfully, TDengine can be installed by:
+
+```cmd
+nmake install
+```
+
+</details>
+
+
 # 7. Running
+
+
+## 7.1 Run TDengine on Linux
+
+<details>
+
+<summary>Detailed steps to run on Linux</summary>
+
+To start the service after installation on linux, in a terminal, use:
+
+```bash
+sudo systemctl start taosd
+```
+
+Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
+
+```bash
+taos
+```
+
+If TDengine CLI connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
+
+If you don't want to run TDengine as a service, you can run it in current shell. For example, to quickly start a TDengine server after building, run the command below in terminal: (We take Linux as an example, command on Windows will be `taosd.exe`)
+
+```bash
+./build/bin/taosd -c test/cfg
+```
+
+In another terminal, use the TDengine CLI to connect the server:
+
+```bash
+./build/bin/taos -c test/cfg
+```
+
+Option `-c test/cfg` specifies the system configuration file directory.
+
+
+Running from source code will also configure service management for TDengine. Users can also choose to [install from packages](https://docs.tdengine.com/get-started/deploy-from-package/) for it.
 
 ```bash
 cd TDengine-enterprise-<version_number>-Linux-x64
 ./start-all.sh
 ./stop-all.sh
 ```
+
+</details>
+
+## 7.2 Run TDengine on macOS
+
+<details>
+
+<summary>Detailed steps to run on macOS</summary>
+
+To start the service after installation on macOS, double-click the /applications/TDengine to start the program, or in a terminal, use:
+
+```bash
+sudo launchctl start com.tdengine.taosd
+```
+
+Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
+
+```bash
+taos
+```
+
+If TDengine CLI connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
+
+</details>
+
+
+## 7.3 Run TDengine on Windows
+
+<details>
+
+<summary>Detailed steps to run on windows</summary>
+
+You can start TDengine server on Windows platform with below commands:
+
+```cmd
+.\build\bin\taosd.exe -c test\cfg
+```
+
+In another terminal, use the TDengine CLI to connect the server:
+
+```cmd
+.\build\bin\taos.exe -c test\cfg
+```
+
+option "-c test/cfg" specifies the system configuration file directory.
+
+</details>
 
 # 8. Testing
 <details>
@@ -714,6 +855,9 @@ You can add python test case under TestNG/cases. When the case passes in the tes
 </details>
 
 # 9 Releasing
+<details>
+
+<summary>For the complete list of TDengine Releases, please see Releases or NAS server</summary>
 
 TDengine Enterprise installers can be found on the corporate NAS server:
 
@@ -730,6 +874,7 @@ mkdir -p /pkgs/TDengine/3.3/v3.3.4.0/enterprise
 # copy the installer to release directory
 scp <installer> root@192.168.1.131:/pkgs/TDengine/3.3/v3.3.4.0/enterprise/
 ```
+</details>
 
 # 10 Workflow
 
