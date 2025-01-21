@@ -111,28 +111,24 @@ class TDTestCase:
         tdSql.checkData(0, 0, '2025-01-21 00:12:03')
         tdSql.checkData(0, 1, 123)
 
-        tdSql.query("select last(*) from st1 where tbname in ('ta') and tbname in ('ta');")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '2025-01-21 00:00:03')
-        tdSql.checkData(0, 1, 3)
-
-        tdSql.query("select last(*) from ta where tbname in ('ta') or tbname in ('ta');")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '2025-01-21 00:00:03')
-        tdSql.checkData(0, 1, 3)
-
-        tdSql.query("select last(*) from ta where tbname in ('ta') or tbname in ('tb');")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '2025-01-21 00:00:03')
-        tdSql.checkData(0, 1, 3)
-
-        tdSql.query("select last(*) from ta where tbname in ('ta', 't21') and tbname in ('ta');")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, '2025-01-21 00:00:03')
-        tdSql.checkData(0, 1, 3)
-
-        tdSql.query("select last(*) from ta where tbname in ('ta', 't21') and tbname in ('t21');")
+        tdSql.query("select last(*) from st1 where tbname in ('ta') and tbname in ('t12');")
         tdSql.checkRows(0)
+
+        tdSql.query("select last(*) from st1 where tbname in ('t12') or tbname in ('t11');")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2025-01-21 00:12:03')
+        tdSql.checkData(0, 1, 123)
+
+        tdSql.query("select last(*) from st1 where tbname in ('ta') or tbname in ('t21');")
+        tdSql.checkRows(0)
+
+        tdSql.query("select last(*) from st1 where tbname in ('t12', 't21') and tbname in ('t21');")
+        tdSql.checkRows(0)
+
+        tdSql.query("select last(*) from st1 where tbname in ('t12', 't11') and tbname in ('t11');")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '2025-01-21 00:11:03')
+        tdSql.checkData(0, 1, 113)
 
 
     def run(self):
