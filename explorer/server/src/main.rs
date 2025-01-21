@@ -2046,25 +2046,34 @@ certificate_key = "tests/assets/cert-key.pem"
         // 创建数据库
         let sql = "create database if not exists `test_explorer` vgroups 2 buffer 3";
         let result = args.query_inner(&dsn, sql, None, 0).await.unwrap();
-        assert_eq!(result.data.get(0).unwrap().get(0).unwrap().to_string(), "0");
+        assert_eq!(
+            result.data.first().unwrap().first().unwrap().to_string(),
+            "0"
+        );
 
         // 创建超级表
         let sql = "CREATE STABLE IF NOT EXISTS `test_explorer`.`stb_with_float` (ts TIMESTAMP,float_value FLOAT) TAGS (string_tag VARCHAR(8))";
         let result = args.query_inner(&dsn, sql, None, 0).await.unwrap();
-        assert_eq!(result.data.get(0).unwrap().get(0).unwrap().to_string(), "0");
+        assert_eq!(
+            result.data.first().unwrap().first().unwrap().to_string(),
+            "0"
+        );
 
         // 写入测试数据
         let sql = r#"insert into `test_explorer`.`t_with_float` using `test_explorer`.`stb_with_float` tags ('a') 
                         values ('2025-01-01T00:00:00Z', 19.81) ('2025-01-01T00:00:01Z', 19.60)
                                ('2025-01-01T00:00:03Z', 19.25) ('2025-01-01T00:00:04Z', 19.50)"#;
         let result = args.query_inner(&dsn, sql, None, 0).await.unwrap();
-        assert_eq!(result.data.get(0).unwrap().get(0).unwrap().to_string(), "4");
+        assert_eq!(
+            result.data.first().unwrap().first().unwrap().to_string(),
+            "4"
+        );
 
         let sql = "select * from `test_explorer`.`t_with_float`";
         let result = args.query_inner(&dsn, sql, None, 0).await.unwrap();
         // 转成 string 来检查精度
         assert_eq!(
-            result.data.get(0).unwrap().get(1).unwrap().to_string(),
+            result.data.first().unwrap().get(1).unwrap().to_string(),
             "19.81"
         );
         assert_eq!(
