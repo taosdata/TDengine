@@ -3711,7 +3711,7 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentPrev_rocksdb(SStreamState* pSta
   }
   return pCur;
 }
-SStreamStateCur* streamStateSessionSeekKeyCurrentNext_rocksdb(SStreamState* pState, SSessionKey* key) {
+SStreamStateCur* streamStateSessionSeekKeyCurrentNext_rocksdb(SStreamState* pState, const SSessionKey* key) {
   stDebug("streamStateSessionSeekKeyCurrentNext_rocksdb");
   STaskDbWrapper*  wrapper = pState->pTdbState->pOwner->pBackend;
   SStreamStateCur* pCur = createStreamStateCursor();

@@ -209,6 +209,7 @@ static int32_t doStreamBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
 
     code = blockDataUpdateTsWindow(pBlock, 0);
     QUERY_CHECK_CODE(code, lino, _end);
+    printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "rec recv", GET_TASKID(pTaskInfo));
     switch (pBlock->info.type) {
       case STREAM_NORMAL:
       case STREAM_GET_ALL:
@@ -837,9 +838,9 @@ static int32_t generateDataScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr) {
       break;
     }
     switch (pInfo->windowSup.parentType) {
-      case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
-      case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
-      case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL: {
+      case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL:
+      case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL:
+      case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL: {
         code = generateIntervalDataScanRange(pInfo, pTaskIdStr, hasSrcPrimaryKeyCol(&pInfo->basic), &rangKey,
                                              (SRecDataInfo*)pVal);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -849,6 +850,7 @@ static int32_t generateDataScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr) {
     }
     pInfo->stateStore.streamStateCurNext(pInfo->tsDataState.pStreamTaskState, pCur);
   }
+  pInfo->stateStore.streamStateFreeCur(pCur);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1052,66 +1054,6 @@ _end:
   return code;
 }
 
-#if 0
-static int32_t doStreamRecalculateBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
-  int32_t          code = TSDB_CODE_SUCCESS;
-  int32_t          lino = 0;
-  SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
-  SStreamScanInfo* pInfo = pOperator->info;
-  SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
-  char*            pTaskIdStr = GET_TASKID(pTaskInfo);
-
-  size_t total = taosArrayGetSize(pInfo->pBlockLists);
-  while (1) {
-    if (pInfo->validBlockIndex >= total) {
-      doClearBufferedBlocks(pInfo);
-      break;
-    }
-
-    int32_t current = pInfo->validBlockIndex++;
-    qDebug("process %d/%d input data blocks, %s", current, (int32_t)total, pTaskIdStr);
-
-    SPackedData* pPacked = taosArrayGet(pInfo->pBlockLists, current);
-    QUERY_CHECK_NULL(pPacked, code, lino, _end, terrno);
-
-    SSDataBlock* pBlock = pPacked->pDataBlock;
-    pBlock->info.calWin.skey = INT64_MIN;
-    pBlock->info.calWin.ekey = INT64_MAX;
-    pBlock->info.dataLoad = 1;
-
-    code = blockDataUpdateTsWindow(pBlock, 0);
-    QUERY_CHECK_CODE(code, lino, _end);
-    switch (pBlock->info.type) {
-      case STREAM_RECALCULATE_DATA: {
-        generateDataScanRange(pInfo, pBlock, STREAM_CLEAR, pTaskIdStr);
-      } break;
-      case STREAM_RECALCULATE_DELETE: {
-        generateDataScanRange(pInfo, pBlock, STREAM_DELETE_DATA, pTaskIdStr);
-      } break;
-      case STREAM_DROP_CHILD_TABLE: {
-        int32_t deleteNum = 0;
-        code = deletePartName(&pInfo->stateStore, pTaskInfo->streamInfo.pState, pBlock, &deleteNum);
-        QUERY_CHECK_CODE(code, lino, _end);
-      } break;
-      default:
-        qError("stream check point error. msg type: %d", pBlock->info.type);
-        break;
-    }
-    setStreamOperatorState(&pInfo->basic, pBlock->info.type);
-  }
-
-  code = doDataRangeScan(pInfo, pTaskInfo, ppRes);
-  QUERY_CHECK_CODE(code, lino, _end);
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    pTaskInfo->code = code;
-  }
-  return code;
-}
-#endif
-
 int32_t doStreamRecalculateScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
@@ -1119,9 +1061,10 @@ int32_t doStreamRecalculateScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   char*            pTaskIdStr = GET_TASKID(pTaskInfo);
   SStreamScanInfo* pInfo = pOperator->info;
 
-  if (pInfo->tsDataState.curRecId == 0) {
+  if (pInfo->tsDataState.curRecId == -1) {
     int32_t recId = 0;
     code = getRecalculateId(&pInfo->stateStore, pInfo->tsDataState.pStreamTaskState, &recId);
+    qDebug("===stream===do recalculate.recId:%d", recId);
     QUERY_CHECK_CODE(code, lino, _end);
     pInfo->stateStore.streamStateSetNumber(pInfo->tsDataState.pStreamTaskState, recId, pInfo->primaryTsIndex);
     code = generateDataScanRange(pInfo, pTaskIdStr);
@@ -1135,6 +1078,7 @@ int32_t doStreamRecalculateScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
 
   if ((*ppRes) == NULL) {
     pInfo->stateStore.streamStateSessionDeleteAll(pInfo->tsDataState.pState);
+    pInfo->tsDataState.curRecId = -1;
   }
 
 _end:
@@ -1144,59 +1088,6 @@ _end:
   }
   return code;
 }
-
-#if 0
-int32_t doStreamRecalculateScanNextImpl(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
-  int32_t          code = TSDB_CODE_SUCCESS;
-  int32_t          lino = 0;
-  SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
-  const char*      id = GET_TASKID(pTaskInfo);
-  SStreamScanInfo* pInfo = pOperator->info;
-
-  size_t total = taosArrayGetSize(pInfo->pBlockLists);
-
-  switch (pInfo->blockType) {
-    case STREAM_INPUT__DATA_BLOCK: {
-      code = doStreamRecalculateBlockScan(pOperator, ppRes);
-      QUERY_CHECK_CODE(code, lino, _end);
-    } break;
-    case STREAM_INPUT__CHECKPOINT: {
-      if (pInfo->validBlockIndex >= total) {
-        doClearBufferedBlocks(pInfo);
-        (*ppRes) = NULL;
-        return code;
-      }
-
-      int32_t current = pInfo->validBlockIndex++;
-      qDebug("process %d/%d input data blocks, %s", current, (int32_t)total, id);
-
-      SPackedData* pData = taosArrayGet(pInfo->pBlockLists, current);
-      QUERY_CHECK_NULL(pData, code, lino, _end, terrno);
-      SSDataBlock* pBlock = taosArrayGet(pData->pDataBlock, 0);
-      QUERY_CHECK_NULL(pBlock, code, lino, _end, terrno);
-
-      if (pBlock->info.type == STREAM_CHECKPOINT) {
-        streamDataScanOperatorSaveCheckpoint(pInfo);
-      }
-      printDataBlock(pInfo->pCheckpointRes, "stream scan ck", GET_TASKID(pTaskInfo));
-      (*ppRes) = pInfo->pCheckpointRes;
-      return code;
-    } break;
-    default: {
-      qError("stream scan error, invalid block type %d, %s", pInfo->blockType, id);
-      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-    } break;
-  }
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-    pTaskInfo->code = code;
-    (*ppRes) = NULL;
-  }
-  return code;
-}
-#endif
 
 static void destroyStreamDataScanOperatorInfo(void* param) {
   if (param == NULL) {
@@ -1244,46 +1135,56 @@ static void destroyStreamDataScanOperatorInfo(void* param) {
   taosMemoryFree(pStreamScan);
 }
 
-#if 0
 static int32_t doStreamScanTest(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   SStreamScanInfo* pInfo = pOperator->info;
-  SArray*          tempArray = taosArrayInit(4, sizeof(SSDataBlock));
-  SSDataBlock*     pBlock = NULL;
-  while (1) {
-    doStreamDataScanNext(pOperator, &pBlock);
-    if (pBlock == NULL) {
-      break;
-    }
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SSDataBlock* pBlock = NULL;
 
-    if (pBlock->info.type == STREAM_RECALCULATE_DATA) {
-      void* pBuf = taosArrayPush(tempArray, pBlock);
-      QUERY_CHECK_NULL(pBuf, code, lino, _end, terrno);
-    }
+  pInfo->tsDataState.pStreamTaskState = (SStreamState*)taosMemoryCalloc(1, sizeof(SStreamState));
+  QUERY_CHECK_NULL(pInfo->tsDataState.pStreamTaskState, code, lino, _end, terrno);
+  *((SStreamState*)pInfo->tsDataState.pStreamTaskState) = *pTaskInfo->streamInfo.pState;
+
+  doStreamDataScanNext(pOperator, ppRes);
+  if ((*ppRes) != NULL) {
+    return code;
   }
 
-  for (int32_t i = 0; i < taosArrayGetSize(tempArray); i++) {
-    SSDataBlock* pTempBlock = taosArrayGet(tempArray, i);
-    SPackedData  pack = {0};
-    pack.pDataBlock = pTempBlock;
+  {
+    code = createDataBlock(&pBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pBlock->info.type = STREAM_RECALCULATE_START;
+    SPackedData pack = {0};
+    pack.pDataBlock = pBlock;
     void* pBuf = taosArrayPush(pInfo->pBlockLists, &pack);
     QUERY_CHECK_NULL(pBuf, code, lino, _end, terrno);
   }
 
-  code = doStreamRecalculateBlockScan(pOperator, ppRes);
+  pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
+  doStreamDataScanNext(pOperator, ppRes);
+
+  code = doStreamRecalculateScanNext(pOperator, ppRes);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  taosArrayDestroy(tempArray);
+  if ((*ppRes) == NULL) {
+    pBlock->info.type = STREAM_RECALCULATE_END;
+    SPackedData pack = {0};
+    pack.pDataBlock = pBlock;
+    void* pBuf = taosArrayPush(pInfo->pBlockLists, &pack);
+    QUERY_CHECK_NULL(pBuf, code, lino, _end, terrno);
+    doStreamDataScanNext(pOperator, ppRes);
+    pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
+  }
 
 _end:
+  blockDataDestroy(pBlock);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     (*ppRes) = NULL;
   }
   return code;
 }
-#endif
 
 int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
                                          STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
@@ -1466,9 +1367,11 @@ int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNo
                   pInfo, pTaskInfo);
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
 
-  // doStreamScanTest
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamDataScanNext, NULL, destroyStreamDataScanOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  // doStreamScanTest
+  // pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamScanTest, NULL, destroyStreamDataScanOperatorInfo,
+  //                                        optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamDataScanReleaseState, streamDataScanReloadState);
 
   *pOptrInfo = pOperator;

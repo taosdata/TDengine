@@ -457,7 +457,10 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentPrev(SStreamState* pState, cons
 }
 
 SStreamStateCur* streamStateSessionSeekKeyCurrentNext(SStreamState* pState, const SSessionKey* key) {
-  return sessionWinStateSeekKeyCurrentNext(pState->pFileState, key);
+  if (pState->pFileState != NULL) {
+    return sessionWinStateSeekKeyCurrentNext(pState->pFileState, key);
+  }
+  return streamStateSessionSeekKeyCurrentNext_rocksdb(pState, key);
 }
 
 SStreamStateCur* streamStateSessionSeekKeyNext(SStreamState* pState, const SSessionKey* key) {
@@ -469,7 +472,10 @@ SStreamStateCur* streamStateCountSeekKeyPrev(SStreamState* pState, const SSessio
 }
 
 int32_t streamStateSessionGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, void** pVal, int32_t* pVLen) {
-  return sessionWinStateGetKVByCur(pCur, pKey, pVal, pVLen);
+  if (pCur != NULL && pCur->pStreamFileState != NULL) {
+    return sessionWinStateGetKVByCur(pCur, pKey, pVal, pVLen);
+  }
+  return streamStateSessionGetKVByCur_rocksdb(NULL, pCur, pKey, pVal, pVLen);
 }
 
 void streamStateSessionClear(SStreamState* pState) {
@@ -744,6 +750,8 @@ int32_t streamStateDeleteInfo(SStreamState* pState, void* pKey, int32_t keyLen) 
 }
 
 int32_t streamStateSessionSaveToDisk(SStreamState* pState, SSessionKey* pKey, void* pVal, int32_t vLen) {
+  qDebug("===stream===save recalculate range.recId:%d. start:%" PRId64 ",end:%" PRId64 ".groupId:%" PRId64, pState->number,
+         pKey->win.skey, pKey->win.ekey, pKey->groupId);
   return streamStateSessionPut_rocksdb(pState, pKey, pVal, vLen);
 }
 
