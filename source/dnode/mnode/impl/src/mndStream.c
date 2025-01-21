@@ -799,18 +799,18 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     TSDB_CHECK_NULL(sql, code, lino, _OVER, terrno);
   }
 
+  // check for the taskEp update trans
+  if (isNodeUpdateTransActive()) {
+    mError("stream:%s failed to create stream, node update trans is active", createReq.name);
+    code = TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+    goto _OVER;
+  }
+
   SDbObj *pSourceDb = mndAcquireDb(pMnode, createReq.sourceDB);
   if (pSourceDb == NULL) {
     code = terrno;
     mInfo("stream:%s failed to create, acquire source db %s failed, code:%s", createReq.name, createReq.sourceDB,
           tstrerror(code));
-    goto _OVER;
-  }
-
-  // check for the taskEp update trans
-  if (isNodeUpdateTransActive()) {
-    mError("stream:%s failed to create stream, node update trans is active", createReq.name);
-    code = TSDB_CODE_STREAM_TASK_IVLD_STATUS;
     goto _OVER;
   }
 
