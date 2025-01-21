@@ -430,6 +430,14 @@ static inline bool isTsmaResSTb(const char* stbName) {
   return false;
 }
 
+static inline STypeMod typeGetTypeModFromColInfo(const SColumnInfo* pCol) {
+  return typeGetTypeMod(pCol->type, pCol->precision, pCol->scale, pCol->bytes);
+}
+
+static inline STypeMod typeGetTypeModFromCol(const SColumn* pCol) {
+  return typeGetTypeMod(pCol->type, pCol->precision, pCol->scale, pCol->bytes);
+}
+
 #ifdef __cplusplus
 }
 #endif

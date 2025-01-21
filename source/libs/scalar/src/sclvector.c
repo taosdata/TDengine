@@ -50,48 +50,48 @@ static int32_t vectorMathOpForDecimal(SScalarParam *pLeft, SScalarParam *pRight,
 int32_t convertNumberToNumber(const void *inData, void *outData, int8_t inType, int8_t outType) {
   switch (outType) {
     case TSDB_DATA_TYPE_BOOL: {
-      GET_TYPED_DATA(*((bool *)outData), bool, inType, inData);
+      GET_TYPED_DATA(*((bool *)outData), bool, inType, inData, 0);
       break;
     }
     case TSDB_DATA_TYPE_TINYINT: {
-      GET_TYPED_DATA(*((int8_t *)outData), int8_t, inType, inData);
+      GET_TYPED_DATA(*((int8_t *)outData), int8_t, inType, inData, 0);
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
-      GET_TYPED_DATA(*((int16_t *)outData), int16_t, inType, inData);
+      GET_TYPED_DATA(*((int16_t *)outData), int16_t, inType, inData, 0);
       break;
     }
     case TSDB_DATA_TYPE_INT: {
-      GET_TYPED_DATA(*((int32_t *)outData), int32_t, inType, inData);
+      GET_TYPED_DATA(*((int32_t *)outData), int32_t, inType, inData, 0);
       break;
     }
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
-      GET_TYPED_DATA(*((int64_t *)outData), int64_t, inType, inData);
+      GET_TYPED_DATA(*((int64_t *)outData), int64_t, inType, inData, 0);
       break;
     }
     case TSDB_DATA_TYPE_UTINYINT: {
-      GET_TYPED_DATA(*((uint8_t *)outData), uint8_t, inType, inData);
+      GET_TYPED_DATA(*((uint8_t *)outData), uint8_t, inType, inData, 0);
       break;
     }
     case TSDB_DATA_TYPE_USMALLINT: {
-      GET_TYPED_DATA(*((uint16_t *)outData), uint16_t, inType, inData);
+      GET_TYPED_DATA(*((uint16_t *)outData), uint16_t, inType, inData, 0);
       break;
     }
     case TSDB_DATA_TYPE_UINT: {
-      GET_TYPED_DATA(*((uint32_t *)outData), uint32_t, inType, inData);
+      GET_TYPED_DATA(*((uint32_t *)outData), uint32_t, inType, inData, 0);
       break;
     }
     case TSDB_DATA_TYPE_UBIGINT: {
-      GET_TYPED_DATA(*((uint64_t *)outData), uint64_t, inType, inData);
+      GET_TYPED_DATA(*((uint64_t *)outData), uint64_t, inType, inData, 0);
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
-      GET_TYPED_DATA(*((float *)outData), float, inType, inData);
+      GET_TYPED_DATA(*((float *)outData), float, inType, inData, 0);
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
-      GET_TYPED_DATA(*((double *)outData), double, inType, inData);
+      GET_TYPED_DATA(*((double *)outData), double, inType, inData, 0);
       break;
     }
     default: {
@@ -741,7 +741,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
       }
 
       int64_t value = 0;
-      GET_TYPED_DATA(value, int64_t, pCtx->inType, colDataGetData(pInputCol, i));
+      GET_TYPED_DATA(value, int64_t, pCtx->inType, colDataGetData(pInputCol, i), typeGetTypeModFromColInfo(&pInputCol->info));
       int32_t len = tsnprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%" PRId64, value);
       varDataLen(tmp) = len;
       if (pCtx->outType == TSDB_DATA_TYPE_NCHAR) {
@@ -758,7 +758,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
       }
 
       uint64_t value = 0;
-      GET_TYPED_DATA(value, uint64_t, pCtx->inType, colDataGetData(pInputCol, i));
+      GET_TYPED_DATA(value, uint64_t, pCtx->inType, colDataGetData(pInputCol, i), typeGetTypeModFromColInfo(&pInputCol->info));
       int32_t len = tsnprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%" PRIu64, value);
       varDataLen(tmp) = len;
       if (pCtx->outType == TSDB_DATA_TYPE_NCHAR) {
@@ -775,7 +775,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
       }
 
       double value = 0;
-      GET_TYPED_DATA(value, double, pCtx->inType, colDataGetData(pInputCol, i));
+      GET_TYPED_DATA(value, double, pCtx->inType, colDataGetData(pInputCol, i), typeGetTypeModFromColInfo(&pInputCol->info));
       int32_t len = tsnprintf(varDataVal(tmp), sizeof(tmp) - VARSTR_HEADER_SIZE, "%lf", value);
       varDataLen(tmp) = len;
       if (pCtx->outType == TSDB_DATA_TYPE_NCHAR) {
@@ -824,7 +824,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
       int64_t maxValue = tDataTypes[cCtx.outType].maxValue;
 
       double value = 0;
-      GET_TYPED_DATA(value, double, cCtx.inType, colDataGetData(pInputCol, 0));
+      GET_TYPED_DATA(value, double, cCtx.inType, colDataGetData(pInputCol, 0), typeGetTypeModFromColInfo(&pInputCol->info));
 
       if (value > maxValue) {
         *overflow = 1;
@@ -840,7 +840,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
       uint64_t maxValue = (uint64_t)tDataTypes[cCtx.outType].maxValue;
 
       double value = 0;
-      GET_TYPED_DATA(value, double, cCtx.inType, colDataGetData(pInputCol, 0));
+      GET_TYPED_DATA(value, double, cCtx.inType, colDataGetData(pInputCol, 0), typeGetTypeModFromColInfo(&pInputCol->info));
 
       if (value > maxValue) {
         *overflow = 1;
@@ -864,7 +864,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
         }
 
         bool value = 0;
-        GET_TYPED_DATA(value, bool, cCtx.inType, colDataGetData(pInputCol, i));
+        GET_TYPED_DATA(value, bool, cCtx.inType, colDataGetData(pInputCol, i), typeGetTypeModFromColInfo(&pInputCol->info));
         colDataSetInt8(pOutputCol, i, (int8_t *)&value);
       }
       break;
@@ -877,7 +877,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
         }
 
         int8_t value = 0;
-        GET_TYPED_DATA(value, int8_t, cCtx.inType, colDataGetData(pInputCol, i));
+        GET_TYPED_DATA(value, int8_t, cCtx.inType, colDataGetData(pInputCol, i), typeGetTypeModFromColInfo(&pInputCol->info));
         colDataSetInt8(pOutputCol, i, (int8_t *)&value);
       }
       break;
@@ -890,7 +890,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
         }
 
         int16_t value = 0;
-        GET_TYPED_DATA(value, int16_t, cCtx.inType, colDataGetData(pInputCol, i));
+        GET_TYPED_DATA(value, int16_t, cCtx.inType, colDataGetData(pInputCol, i), typeGetTypeModFromColInfo(&pInputCol->info));
         colDataSetInt16(pOutputCol, i, (int16_t *)&value);
       }
       break;
@@ -903,7 +903,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
         }
 
         int32_t value = 0;
-        GET_TYPED_DATA(value, int32_t, cCtx.inType, colDataGetData(pInputCol, i));
+        GET_TYPED_DATA(value, int32_t, cCtx.inType, colDataGetData(pInputCol, i), typeGetTypeModFromColInfo(&pInputCol->info));
         colDataSetInt32(pOutputCol, i, (int32_t *)&value);
       }
       break;
@@ -917,7 +917,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
         }
 
         int64_t value = 0;
-        GET_TYPED_DATA(value, int64_t, cCtx.inType, colDataGetData(pInputCol, i));
+        GET_TYPED_DATA(value, int64_t, cCtx.inType, colDataGetData(pInputCol, i), typeGetTypeModFromColInfo(&pInputCol->info));
         colDataSetInt64(pOutputCol, i, (int64_t *)&value);
       }
       break;
@@ -930,7 +930,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
         }
 
         uint8_t value = 0;
-        GET_TYPED_DATA(value, uint8_t, cCtx.inType, colDataGetData(pInputCol, i));
+        GET_TYPED_DATA(value, uint8_t, cCtx.inType, colDataGetData(pInputCol, i), typeGetTypeModFromColInfo(&pInputCol->info));
         colDataSetInt8(pOutputCol, i, (int8_t *)&value);
       }
       break;
@@ -943,7 +943,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
         }
 
         uint16_t value = 0;
-        GET_TYPED_DATA(value, uint16_t, cCtx.inType, colDataGetData(pInputCol, i));
+        GET_TYPED_DATA(value, uint16_t, cCtx.inType, colDataGetData(pInputCol, i), typeGetTypeModFromColInfo(&pInputCol->info));
         colDataSetInt16(pOutputCol, i, (int16_t *)&value);
       }
       break;
@@ -956,7 +956,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
         }
 
         uint32_t value = 0;
-        GET_TYPED_DATA(value, uint32_t, cCtx.inType, colDataGetData(pInputCol, i));
+        GET_TYPED_DATA(value, uint32_t, cCtx.inType, colDataGetData(pInputCol, i), typeGetTypeModFromColInfo(&pInputCol->info));
         colDataSetInt32(pOutputCol, i, (int32_t *)&value);
       }
       break;
@@ -969,7 +969,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
         }
 
         uint64_t value = 0;
-        GET_TYPED_DATA(value, uint64_t, cCtx.inType, colDataGetData(pInputCol, i));
+        GET_TYPED_DATA(value, uint64_t, cCtx.inType, colDataGetData(pInputCol, i), typeGetTypeModFromColInfo(&pInputCol->info));
         colDataSetInt64(pOutputCol, i, (int64_t *)&value);
       }
       break;
@@ -982,7 +982,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
         }
 
         float value = 0;
-        GET_TYPED_DATA(value, float, cCtx.inType, colDataGetData(pInputCol, i));
+        GET_TYPED_DATA(value, float, cCtx.inType, colDataGetData(pInputCol, i), typeGetTypeModFromColInfo(&pInputCol->info));
         colDataSetFloat(pOutputCol, i, (float *)&value);
       }
       break;
@@ -995,7 +995,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
         }
 
         double value = 0;
-        GET_TYPED_DATA(value, double, cCtx.inType, colDataGetData(pInputCol, i));
+        GET_TYPED_DATA(value, double, cCtx.inType, colDataGetData(pInputCol, i), typeGetTypeModFromColInfo(&pInputCol->info));
         colDataSetDouble(pOutputCol, i, (double *)&value);
       }
       break;
@@ -2079,7 +2079,7 @@ int32_t vectorIsTrue(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pO
     }
     {
       bool v = false;
-      GET_TYPED_DATA(v, bool, pOut->columnData->info.type, colDataGetData(pOut->columnData, i));
+      GET_TYPED_DATA(v, bool, pOut->columnData->info.type, colDataGetData(pOut->columnData, i), typeGetTypeModFromColInfo(&pOut->columnData->info));
       if (v) {
         ++pOut->numOfQualified;
       }
