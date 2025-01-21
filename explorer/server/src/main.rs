@@ -1617,6 +1617,7 @@ impl Args {
                         taos::Value::Geometry(geo) => {
                             serde_json::Value::String(parse_geometry_from_bytes(&geo))
                         }
+                        taos::Value::Float(f) => serde_json::Value::from(f),
                         _ => v.to_json_value(),
                     })
                     .collect_vec()
