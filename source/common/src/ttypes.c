@@ -18,27 +18,27 @@
 #include "tcompression.h"
 
 const int32_t TYPE_BYTES[21] = {
-    2,                      // TSDB_DATA_TYPE_NULL
-    CHAR_BYTES,              // TSDB_DATA_TYPE_BOOL
-    CHAR_BYTES,              // TSDB_DATA_TYPE_TINYINT
-    SHORT_BYTES,             // TSDB_DATA_TYPE_SMALLINT
-    INT_BYTES,               // TSDB_DATA_TYPE_INT
-    sizeof(int64_t),         // TSDB_DATA_TYPE_BIGINT
-    FLOAT_BYTES,             // TSDB_DATA_TYPE_FLOAT
-    DOUBLE_BYTES,            // TSDB_DATA_TYPE_DOUBLE
-    sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_BINARY
-    sizeof(TSKEY),           // TSDB_DATA_TYPE_TIMESTAMP
-    sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_NCHAR
-    CHAR_BYTES,              // TSDB_DATA_TYPE_UTINYINT
-    SHORT_BYTES,             // TSDB_DATA_TYPE_USMALLINT
-    INT_BYTES,               // TSDB_DATA_TYPE_UINT
-    sizeof(uint64_t),        // TSDB_DATA_TYPE_UBIGINT
-    TSDB_MAX_JSON_TAG_LEN,   // TSDB_DATA_TYPE_JSON
-    sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_VARBINARY
-    TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_DECIMAL: placeholder, not implemented
-    TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_BLOB: placeholder, not implemented
-    TSDB_MAX_TAGS_LEN,       // TSDB_DATA_TYPE_MEDIUMBLOB: placeholder, not implemented
-    sizeof(VarDataOffsetT),  // TSDB_DATA_TYPE_GEOMETRY
+    2,                        // TSDB_DATA_TYPE_NULL
+    CHAR_BYTES,               // TSDB_DATA_TYPE_BOOL
+    CHAR_BYTES,               // TSDB_DATA_TYPE_TINYINT
+    SHORT_BYTES,              // TSDB_DATA_TYPE_SMALLINT
+    INT_BYTES,                // TSDB_DATA_TYPE_INT
+    sizeof(int64_t),          // TSDB_DATA_TYPE_BIGINT
+    FLOAT_BYTES,              // TSDB_DATA_TYPE_FLOAT
+    DOUBLE_BYTES,             // TSDB_DATA_TYPE_DOUBLE
+    sizeof(VarDataOffsetT),   // TSDB_DATA_TYPE_BINARY
+    sizeof(TSKEY),            // TSDB_DATA_TYPE_TIMESTAMP
+    sizeof(VarDataOffsetT),   // TSDB_DATA_TYPE_NCHAR
+    CHAR_BYTES,               // TSDB_DATA_TYPE_UTINYINT
+    SHORT_BYTES,              // TSDB_DATA_TYPE_USMALLINT
+    INT_BYTES,                // TSDB_DATA_TYPE_UINT
+    sizeof(uint64_t),         // TSDB_DATA_TYPE_UBIGINT
+    TSDB_MAX_JSON_TAG_LEN,    // TSDB_DATA_TYPE_JSON
+    sizeof(VarDataOffsetT),   // TSDB_DATA_TYPE_VARBINARY
+    TSDB_MAX_TAGS_LEN,        // TSDB_DATA_TYPE_DECIMAL: placeholder, not implemented
+    sizeof(BlobDataOffsetT),  // TSDB_DATA_TYPE_BLOB: placeholder, not implemented
+    sizeof(BlobDataOffsetT),  // TSDB_DATA_TYPE_MEDIUMBLOB: placeholder, not implemented
+    sizeof(VarDataOffsetT),   // TSDB_DATA_TYPE_GEOMETRY
 };
 
 tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {

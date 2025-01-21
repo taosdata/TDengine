@@ -47,6 +47,7 @@ typedef struct SValueColumn SValueColumn;
 #define HAS_NONE  ((uint8_t)0x1)
 #define HAS_NULL  ((uint8_t)0x2)
 #define HAS_VALUE ((uint8_t)0x4)
+#define HAS_BLOB  ((uint8_t)0x8)
 
 // bitmap ================================
 const static uint8_t BIT1_MAP[8] = {0b11111110, 0b11111101, 0b11111011, 0b11110111,

@@ -11610,13 +11610,36 @@ _exit:
   return code;
 }
 
+static int32_t tPreCheckSubmitTbData(const SSubmitTbData *pSubmitData, int8_t *hasBlog) {
+  int32_t code = 0;
+  int32_t line = 0;
+  if (pSubmitData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+    return 0;
+  } else {
+    SRow **rows = (SRow **)TARRAY_DATA(pSubmitData->aRowP);
+    for (int32_t iRow = 0; iRow < TARRAY_SIZE(pSubmitData->aRowP); ++iRow) {
+      SRow *row = rows[iRow];
+      if (row->flag & HAS_BLOB) {
+        *hasBlog = 1;
+      }
+    }
+  }
+  return 0;
+}
 static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubmitTbData) {
   int32_t code = 0;
   int32_t lino;
+  int8_t  hasBlog = 0;
+
+  TAOS_CHECK_EXIT(tPreCheckSubmitTbData(pSubmitTbData, &hasBlog));
 
   TAOS_CHECK_EXIT(tStartEncode(pCoder));
 
   int32_t flags = pSubmitTbData->flags | ((SUBMIT_REQUEST_VERSION) << 8);
+
+  if (hasBlog) {
+    flags |= SUBMIT_REQ_WITH_BLOB;
+  }
   TAOS_CHECK_EXIT(tEncodeI32v(pCoder, flags));
 
   // auto create table

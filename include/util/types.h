@@ -87,6 +87,14 @@ typedef uint16_t VarDataLenT;  // maxVarDataLen: 65535
 
 typedef int32_t VarDataOffsetT;
 
+typedef uint32_t BlobDataLenT;  // maxVarDataLen: 2^32 - 1
+#define BLOBSTR_HEADER_SIZE sizeof(BlobDataLenT)
+
+#define blobDataLen(v)  ((BlobDataLenT *)(v))[0]
+#define blobDataVal(v)  ((char *)(v) + BLOBSTR_HEADER_SIZE)
+#define blobDataTLen(v) (sizeof(blobDataLenT) + blobDataLen(v))
+
+typedef int64_t BlobDataOffsetT;
 typedef struct tstr {
   VarDataLenT len;
   char        data[];

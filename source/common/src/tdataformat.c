@@ -256,7 +256,7 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
     sinfo->kvIndices[i].offset += sinfo->kvIndexSize;
     sinfo->kvPKSize += tPutPrimaryKeyIndex(NULL, sinfo->kvIndices + i);
   }
- sinfo->kvRowSize = sizeof(SRow)             // SRow
+  sinfo->kvRowSize = sizeof(SRow)             // SRow
                      + sinfo->kvPKSize        // primary keys
                      + sinfo->kvIndexSize     // index array
                      + sinfo->kvPayloadSize;  // payload
@@ -268,7 +268,7 @@ _exit:
 static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, const STSchema *schema,
                                  SRow **ppRow) {
   SColVal *colValArray = (SColVal *)TARRAY_DATA(aColVal);
-
+  int8_t   withBlob = 0;
   *ppRow = (SRow *)taosMemoryCalloc(1, sinfo->tupleRowSize);
   if (*ppRow == NULL) {
     return terrno;
@@ -308,6 +308,10 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
           ROW_SET_BITMAP(bitmap, sinfo->tupleFlag, i - 1, BIT_FLG_VALUE);
 
           if (IS_VAR_DATA_TYPE(schema->columns[i].type)) {
+            if (schema->columns[i].type == TSDB_DATA_TYPE_BINARY) {
+              withBlob = 1;
+            }
+
             *(int32_t *)(fixed + schema->columns[i].offset) = varlen - fixed - sinfo->tupleFixedSize;
             varlen += tPutU32v(varlen, colValArray[colValIndex].value.nData);
             if (colValArray[colValIndex].value.nData) {
@@ -334,6 +338,9 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
       }
     }
   }
+  if (withBlob == 1) {
+    (*ppRow)->flag |= HAS_BLOB;
+  }
 
   return 0;
 }
@@ -356,6 +363,7 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
   if (*ppRow == NULL) {
     return terrno;
   }
+  int8_t withBlob = 0;
   (*ppRow)->flag = sinfo->kvFlag;
   (*ppRow)->numOfPKs = sinfo->numOfPKs;
   (*ppRow)->sver = schema->version;
@@ -388,6 +396,9 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
         if (COL_VAL_IS_VALUE(&colValArray[colValIndex])) {  // value
           tRowBuildKVRowSetIndex(sinfo->kvFlag, indices, payloadSize);
           if (IS_VAR_DATA_TYPE(schema->columns[i].type)) {
+            if (schema->columns[i].type == TSDB_DATA_TYPE_BINARY) {
+              withBlob = 1;
+            }
             payloadSize += tPutI16v(payload + payloadSize, colValArray[colValIndex].cid);
             payloadSize += tPutU32v(payload + payloadSize, colValArray[colValIndex].value.nData);
             if (colValArray[colValIndex].value.nData > 0) {
@@ -416,6 +427,9 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
     }
   }
 
+  if (withBlob) {
+    (*ppRow)->flag |= HAS_BLOB;
+  }
   return 0;
 }
 

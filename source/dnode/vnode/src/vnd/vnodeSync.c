@@ -115,13 +115,119 @@ static void vnodeHandleProposeError(SVnode *pVnode, SRpcMsg *pMsg, int32_t code)
     }
   }
 }
+static int32_t inline decodeSSubmitData(SVnode *pVnode, SDecoder *pCoder, SSubmitTbData *pSubmitTbData) {
+  int32_t code = 0;
+  int32_t lino;
+  int32_t flags;
+  uint8_t version;
+
+  TAOS_CHECK_EXIT(tStartDecode(pCoder));
+  TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &flags));
+  pSubmitTbData->flags = flags & 0xff;
+
+  if (!(pSubmitTbData->flags & SUBMIT_REQ_WITH_BLOB)) {
+    return code;
+  }
+
+  version = (flags >> 8) & 0xff;
+
+  // submit data
+  TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->suid));
+  TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->uid));
+  TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pSubmitTbData->sver));
+
+  STSchema *pTSchema = NULL;
+  code = metaGetTbTSchemaEx(pVnode->pMeta, pSubmitTbData->suid, pSubmitTbData->uid, pSubmitTbData->sver, &pTSchema);
+
+  
+
+  uint64_t nRow;
+  TAOS_CHECK_EXIT(tDecodeU64v(pCoder, &nRow));
+
+  pSubmitTbData->aRowP = taosArrayInit(nRow, sizeof(SRow *));
+  if (pSubmitTbData->aRowP == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+
+  for (int32_t iRow = 0; iRow < nRow; ++iRow) {
+    SRow **ppRow = taosArrayReserve(pSubmitTbData->aRowP, 1);
+    if (ppRow == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+
+    TAOS_CHECK_EXIT(tDecodeRow(pCoder, ppRow));
+  }
+
+  pSubmitTbData->ctimeMs = 0;
+  if (!tDecodeIsEnd(pCoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->ctimeMs));
+  }
+
+  tEndDecode(pCoder);
+
+_exit:
+  return code;
+}
+static int32_t inline vnodeShouldRewriteSubmitMsg(SVnode *pVnode, SRpcMsg **pMsg) {
+  int32_t  code = 0;
+  int32_t  line = 0;
+  void    *pReq = NULL;
+  SRpcMsg *p = *pMsg;
+  int32_t  len = 0;
+  if (p->msgType != TDMT_VND_SUBMIT) {
+    return code;
+  }
+
+  pReq = POINTER_SHIFT(p->pCont, sizeof(SMsgHead));
+  len = p->contLen - sizeof(SMsgHead);
+
+  SSubmitReq2 *pSubmitReq = &(SSubmitReq2){0};
+  SSubmitRsp2 *pSubmitRsp = &(SSubmitRsp2){0};
+
+  pReq = POINTER_SHIFT(pReq, sizeof(SSubmitReq2Msg));
+  len -= sizeof(SSubmitReq2Msg);
+
+  SDecoder dc = {0};
+  tDecoderInit(&dc, pReq, len);
+  if (tStartDecode(&dc) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, line, _err);
+  }
+  uint64_t nSubmitTbData;
+  if (tDecodeU64v(&dc, &nSubmitTbData) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, line, _err);
+  }
+
+  pSubmitReq->aSubmitTbData = taosArrayInit(nSubmitTbData, sizeof(SSubmitTbData));
+  if (pSubmitReq->aSubmitTbData == NULL) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, line, _err);
+  }
+  for (uint64_t i = 0; i < nSubmitTbData; i++) {
+    void *ele = taosArrayReserve(pSubmitReq->aSubmitTbData, 1);
+    code = decodeSSubmitData(pVnode, &dc, ele);
+    TSDB_CHECK_CODE(code, line, _err);
+  }
+
+_err:
+  if (code != 0) {
+  }
+  return code;
+}
 
 static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak) {
+  int32_t code = 0;
   int64_t seq = 0;
 
+  code = vnodeShouldRewriteSubmitMsg(pVnode, &pMsg);
+  if (code != 0) {
+    vError("vgId:%d, failed to propose vnode commit since %s", pVnode->config.vgId, terrstr());
+    return code;
+  }
   (void)taosThreadMutexLock(&pVnode->lock);
-  int32_t code = syncPropose(pVnode->sync, pMsg, isWeak, &seq);
-  bool    wait = (code == 0 && vnodeIsMsgBlock(pMsg->msgType));
+  code = syncPropose(pVnode->sync, pMsg, isWeak, &seq);
+  bool wait = (code == 0 && vnodeIsMsgBlock(pMsg->msgType));
   if (wait) {
     if (pVnode->blocked) {
       return TSDB_CODE_INTERNAL_ERROR;
