@@ -615,7 +615,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   tsQueueMemoryAllowed = tsTotalMemoryKB * 1024 * RPC_MEMORY_USAGE_RATIO * QUEUE_MEMORY_USAGE_RATIO;
   tsQueueMemoryAllowed = TRANGE(tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 6LL, TSDB_MAX_MSG_SIZE * 6000LL);
-  tsApplyMemoryAllowed = tsTotalMemoryKB * 1024 * RPC_MEMORY_USAGE_RATIO * APPLY_MEMORY_USAGE_RATIO;
+  tsApplyMemoryAllowed = tsTotalMemoryKB * 1024 * RPC_MEMORY_USAGE_RATIO * (1 - QUEUE_MEMORY_USAGE_RATIO);
   tsApplyMemoryAllowed = TRANGE(tsApplyMemoryAllowed, TSDB_MAX_MSG_SIZE * 4LL, TSDB_MAX_MSG_SIZE * 4000LL);
   if (cfgAddInt64(pCfg, "rpcQueueMemoryAllowed", tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, INT64_MAX,
                   CFG_SCOPE_BOTH) != 0)
@@ -1063,7 +1063,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsNumOfSnodeStreamThreads = cfgGetItem(pCfg, "numOfSnodeSharedThreads")->i32;
   tsNumOfSnodeWriteThreads = cfgGetItem(pCfg, "numOfSnodeUniqueThreads")->i32;
   tsQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64 * QUEUE_MEMORY_USAGE_RATIO;
-  tsApplyMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64 * APPLY_MEMORY_USAGE_RATIO;
+  tsApplyMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64 * (1 - QUEUE_MEMORY_USAGE_RATIO);
 
   tsSIMDBuiltins = (bool)cfgGetItem(pCfg, "SIMD-builtins")->bval;
   tsTagFilterCache = (bool)cfgGetItem(pCfg, "tagFilterCache")->bval;
@@ -1421,7 +1421,7 @@ int32_t taosApplyLocalCfg(SConfig *pCfg, char *name) {
     case 'r': {
       if (strcasecmp("rpcQueueMemoryAllowed", name) == 0) {
         tsQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64 * QUEUE_MEMORY_USAGE_RATIO;
-        tsApplyMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64 * APPLY_MEMORY_USAGE_RATIO;
+        tsApplyMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64 * (1 - QUEUE_MEMORY_USAGE_RATIO);
       } else if (strcasecmp("rpcDebugFlag", name) == 0) {
         rpcDebugFlag = cfgGetItem(pCfg, "rpcDebugFlag")->i32;
       }
