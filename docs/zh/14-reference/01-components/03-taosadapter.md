@@ -23,7 +23,6 @@ taosAdapter 提供以下功能：
 - 支持 StatsD 数据写入
 - 支持采集 node_exporter 数据写入
 - 支持 Prometheus remote_read 和 remote_write
-- 获取 table 所在的虚拟节点组（VGroup）的 VGroup ID
 
 ## 安装
 
@@ -35,7 +34,7 @@ taosAdapter 是 TDengine 服务端软件 的一部分，如果您使用 TDengine
 
 ![TDengine Database taosAdapter Architecture](taosAdapter-architecture.webp)
 
-taosAdapter 充当了外部客户端与 TDengine 集群之间的桥梁，支持多种数据采集工具和协议。
+taosAdapter作为外部客户端与TDengine集群之间的桥梁，支持多种数据采集工具和协议。外部客户端通过RESTful接口、InfluxDB兼容客户端、OpenTSDB兼容客户端、Telegraf、collectd 和 StatsD 等方式将数据发送到 taosAdapter。taosAdapter 接收这些数据并写入到 TDengine 集群。
 
 ## 配置说明
 
@@ -246,7 +245,7 @@ taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值�
 
 您可以根据具体项目应用场景和运营策略进行相应调整，并建议使用运营监控软件及时进行系统内存状态监控。负载均衡器也可以通过这个接口检查 taosAdapter 运行状态。
 
-### schemaless 写入是否自动创建 DB 配置
+### 无模式写入创建 DB 配置
 
 从 **3.0.4.0 版本** 开始，taosAdapter 提供了参数 `smlAutoCreateDB`，用于控制在 schemaless 协议写入时是否自动创建数据库（DB）。
 
@@ -283,10 +282,10 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
   - **设置为正整数时**：接口返回的结果条数将不超过该值。
   - **设置为 `-1` 时**：接口返回的结果条数无限制（默认值）。
 
-### 日志级别
+### 日志配置
 
 1. 可以通过设置 --log.level 参数或者环境变量 TAOS_ADAPTER_LOG_LEVEL 来设置 taosAdapter 日志输出详细程度。有效值包括： panic、fatal、error、warn、warning、info、debug 以及 trace。
-2. 从 `3.3.5.0` 版本 开始，taosAdapter 支持通过 HTTP 接口动态修改日志级别。用户可以通过发送 HTTP PUT 请求到 /config 接口，动态调整日志级别。该接口的验证方式与 /rest/sql 接口相同，请求体中需传入 JSON 格式的配置项键值对。
+2. 从 **3.3.5.0 版本** 开始，taosAdapter 支持通过 HTTP 接口动态修改日志级别。用户可以通过发送 HTTP PUT 请求到 /config 接口，动态调整日志级别。该接口的验证方式与 /rest/sql 接口相同，请求体中需传入 JSON 格式的配置项键值对。
 
 以下是通过 curl 命令将日志级别设置为 debug 的示例：
 
@@ -300,26 +299,25 @@ curl --location --request PUT 'http://127.0.0.1:6041/config' \
 
 taosAdapter 提供了以下功能：
 
-- RESTful 接口
+- RESTful 接口：
   [RESTful API](../../connector/rest-api)
-- 兼容 InfluxDB v1 写接口
+- 兼容 InfluxDB v1 写接口：
   [https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/](https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/)
-- 兼容 OpenTSDB JSON 和 telnet 格式写入
+- 兼容 OpenTSDB JSON 和 telnet 格式写入：
   - [http://opentsdb.net/docs/build/html/api_http/put.html](http://opentsdb.net/docs/build/html/api_http/put.html)
   - [http://opentsdb.net/docs/build/html/api_telnet/put.html](http://opentsdb.net/docs/build/html/api_telnet/put.html)
-- collectd 数据写入
+- collectd 数据写入：
   collectd 是一个系统统计收集守护程序，请访问 [https://collectd.org/](https://collectd.org/) 了解更多信息。
-- StatsD 数据写入
+- StatsD 数据写入：
   StatsD 是一个简单而强大的统计信息汇总的守护程序。请访问 [https://github.com/statsd/statsd](https://github.com/statsd/statsd) 了解更多信息。
-- icinga2 OpenTSDB writer 数据写入。
+- icinga2 OpenTSDB writer 数据写入：
   icinga2 是一个收集检查结果指标和性能数据的软件。请访问 [https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer](https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer) 了解更多信息。
-- TCollector 数据写入
+- TCollector 数据写入：
   TCollector是一个客户端进程，从本地收集器收集数据，并将数据推送到 OpenTSDB。请访问 [http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html) 了解更多信息。
-- node_exporter 采集写入。
+- node_exporter 采集写入：
   node_export 是一个机器指标的导出器。请访问 [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) 了解更多信息。
-- Prometheus remote_read 和 remote_write
+- Prometheus remote_read 和 remote_write：
   remote_read 和 remote_write 是 Prometheus 数据读写分离的集群方案。请访问[https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) 了解更多信息。
-- 获取 table 的 VGroup ID。
 
 ### RESTful 接口
 
@@ -376,24 +374,6 @@ Prometheus 使用的由 \*NIX 内核暴露的硬件和操作系统指标的输�
 
 <Prometheus />
 
-### 获取 table 的 VGroup ID
-
-可以 POST 请求 http 接口 `http://<fqdn>:<port>/rest/sql/<db>/vgid` 获取 table 的 VGroup ID，body 是多个表名 JSON 数组。
-
-样例：获取数据库为 power，表名为 d_bind_1 和 d_bind_2 的 VGroup ID
-
-```shell
-curl --location 'http://127.0.0.1:6041/rest/sql/power/vgid' \
---user 'root:taosdata' \
---data '["d_bind_1","d_bind_2"]'
-```
-
-响应：
-
-```json
-{"code":0,"vgIDs":[153,152]}
-```
-
 ## 监控指标
 
 taosAdapter 采集 RESTful/WebSocket 相关请求的监控指标。将监控指标上报给 taosKeeper，这些监控指标会被 taosKeeper 写入监控数据库，默认是 `log` 库，可以在 taoskeeper 配置文件中修改。以下是这些监控指标的详细介绍。 
@@ -436,9 +416,9 @@ taosAdapter 和 TDengine server 需要使用相同版本。请通过升级 TDeng
 
 使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine server 软件。
 
-## 从旧版本 TDengine 升级到 taosAdapter 的主要变化
+## httpd 升级到 taosAdapter 的变化
 
-在 TDengine server 2.2.x.x 或更早期版本中，taosd 进程包含一个内嵌的 http 服务。如前面所述，taosAdapter 是一个使用 systemd 管理的独立软件，拥有自己的进程。并且两者有一些配置参数和行为是不同的，请见下表：
+在 TDengine server 2.2.x.x 或更早期版本中，taosd 进程包含一个内嵌的 http 服务（httpd）。如前面所述，taosAdapter 是一个使用 systemd 管理的独立软件，拥有自己的进程。并且两者有一些配置参数和行为是不同的，请见下表：
 
 | **#** | **embedded httpd**  | **taosAdapter**                      | **comment**                                                                                                                                |
 | ----- | ------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
