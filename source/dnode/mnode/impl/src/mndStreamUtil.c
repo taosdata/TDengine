@@ -709,13 +709,13 @@ static int32_t allTasksSendChkptReport(SChkptReportInfo* pReportInfo, int32_t nu
     } else {
       //  do nothing
     }
-  }
-
-  if (pTransInfo->transId != transId) {
-    mError("stream:0x%" PRIx64
-           " checkpoint-report list info are expired, active transId:%d trans in list:%d, recheck next time",
-           id.streamId, pTransInfo->transId, transId);
-    return -1;
+  } else {
+    if (pTransInfo->transId != transId) {
+      mError("stream:0x%" PRIx64
+             " checkpoint-report list info are expired, active transId:%d trans in list:%d, recheck next time",
+             id.streamId, pTransInfo->transId, transId);
+      return -1;
+    }
   }
 
   mDebug("stream:0x%" PRIx64 " %s all %d tasks send checkpoint-report, start to update checkpoint-info", id.streamId,
