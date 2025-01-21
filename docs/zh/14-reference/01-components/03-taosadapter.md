@@ -34,7 +34,7 @@ taosAdapter 是 TDengine 服务端软件 的一部分，如果您使用 TDengine
 
 ![TDengine Database taosAdapter Architecture](taosAdapter-architecture.webp)
 
-taosAdapter作为外部客户端与TDengine集群之间的桥梁，支持多种数据采集工具和协议。外部客户端通过RESTful接口、InfluxDB兼容客户端、OpenTSDB兼容客户端、Telegraf、collectd 和 StatsD 等方式将数据发送到 taosAdapter。taosAdapter 接收这些数据并写入到 TDengine 集群。
+taosAdapter 作为外部客户端与 TDengine 集群之间的桥梁，支持多种数据采集工具和协议。外部客户端通过 RESTful 接口、InfluxDB 兼容客户端、OpenTSDB 兼容客户端、Telegraf、collectd 和 StatsD 等方式将数据发送到 taosAdapter。taosAdapter 接收这些数据并写入到 TDengine 集群。
 
 ## 配置说明
 
@@ -416,7 +416,7 @@ taosAdapter 和 TDengine server 需要使用相同版本。请通过升级 TDeng
 
 使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine server 软件。
 
-## httpd 升级到 taosAdapter 的变化
+## httpd 升级为 taosAdapter 的变化
 
 在 TDengine server 2.2.x.x 或更早期版本中，taosd 进程包含一个内嵌的 http 服务（httpd）。如前面所述，taosAdapter 是一个使用 systemd 管理的独立软件，拥有自己的进程。并且两者有一些配置参数和行为是不同的，请见下表：
 
