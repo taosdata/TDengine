@@ -786,18 +786,18 @@ Please refer to the [Unit Test](#831-unit-test)、[System Test](#832-system-test
 ```
 2. When testing the client and server on separate machines, you should set up your environment as outlined in the steps below:
 
-    2.1 Modify IP and host of client and server in `test.ini`
+2.1 Modify IP and host of client and server in `test.ini`
 ```ini
   clientIP="192.168.0.203"   # client ip
   clientHost="trd03"         # client hostname
   serverIP="192.168.0.204"   # server ip
   serverHost="trd04"         # server hostname
 ```
-    2.2 Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
+2.2 Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
 ```ini
   serverPass="taosdata123"   # server root password
 ```
-    2.3 Run the following command to start the test:
+2.3 Run the following command to start the test:
 ```bash
   ./testTsbs.sh  
 ```
