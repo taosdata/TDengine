@@ -74,8 +74,9 @@ enum {
 };
 
 typedef struct {
-  tmr_h   timer;
-  int32_t rsetId;
+  tmr_h               timer;
+  int32_t             rsetId;
+  TdThreadMutex       lock;
 } SMqMgmt;
 
 struct tmq_list_t {
@@ -1603,13 +1604,33 @@ static void tmqMgmtInit(void) {
   tmqMgmt.timer = taosTmrInit(1000, 100, 360000, "TMQ");
 
   if (tmqMgmt.timer == NULL) {
-    tmqInitRes = terrno;
+    goto END;
   }
 
   tmqMgmt.rsetId = taosOpenRef(10000, tmqFreeImpl);
   if (tmqMgmt.rsetId < 0) {
-    tmqInitRes = terrno;
+    goto END;
   }
+
+  TdThreadMutexAttr attr = {0};
+  if (taosThreadMutexAttrInit(&attr) != 0){
+    goto END;
+  }
+
+  if (taosThreadMutexAttrSetType(&attr, PTHREAD_MUTEX_RECURSIVE) != 0){
+    goto END;
+  }
+
+  if (taosThreadMutexInit(&tmqMgmt.lock, &attr) != 0){
+    goto END;
+  }
+
+  if (taosThreadMutexAttrDestroy(&attr) != 0){
+    goto END;
+  }
+
+END:
+  tmqInitRes = terrno;
 }
 
 void tmqMgmtClose(void) {
@@ -1618,6 +1639,7 @@ void tmqMgmtClose(void) {
     tmqMgmt.timer = NULL;
   }
 
+  (void) taosThreadMutexLock(&tmqMgmt.lock);
   if (tmqMgmt.rsetId >= 0) {
     tmq_t *tmq = taosIterateRef(tmqMgmt.rsetId, 0);
     int64_t  refId = 0;
@@ -1627,9 +1649,7 @@ void tmqMgmtClose(void) {
       if (refId == 0) {
         break;
       }
-      taosWLockLatch(&tmq->lock);
       atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__CLOSED);
-      taosWUnLockLatch(&tmq->lock);
 
       if (taosRemoveRef(tmqMgmt.rsetId, tmq->refId) != 0) {
         qWarn("taosRemoveRef tmq refId:%" PRId64 " failed, error:%s", refId, tstrerror(terrno));
@@ -1640,6 +1660,8 @@ void tmqMgmtClose(void) {
     taosCloseRef(tmqMgmt.rsetId);
     tmqMgmt.rsetId = -1;
   }
+  (void)taosThreadMutexUnlock(&tmqMgmt.lock);
+  (void)taosThreadMutexDestroy(&tmqMgmt.lock);
 }
 
 tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
@@ -2636,7 +2658,7 @@ int32_t tmq_unsubscribe(tmq_t* tmq) {
 int32_t tmq_consumer_close(tmq_t* tmq) {
   if (tmq == NULL) return TSDB_CODE_INVALID_PARA;
   int32_t code = 0;
-  taosWLockLatch(&tmq->lock);
+  (void) taosThreadMutexLock(&tmqMgmt.lock);
   if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__CLOSED){
     goto end;
   }
@@ -2651,7 +2673,7 @@ int32_t tmq_consumer_close(tmq_t* tmq) {
   }
 
   end:
-  taosWUnLockLatch(&tmq->lock);
+  (void)taosThreadMutexLock(&tmqMgmt.lock);
   return code;
 }
 
