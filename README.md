@@ -437,7 +437,7 @@ sudo make install
 
 <details>
 
-<summary>Detailed steps to install on windows</summary>
+<summary>Detailed steps to install on Windows</summary>
 
 After building successfully, TDengine can be installed by:
 
@@ -523,7 +523,7 @@ If TDengine CLI connects the server successfully, welcome messages and version i
 
 <details>
 
-<summary>Detailed steps to run on windows</summary>
+<summary>Detailed steps to run on Windows</summary>
 
 You can start TDengine server on Windows platform with below commands:
 
