@@ -70,10 +70,13 @@ bool isFinalOperator(SSteamOpBasicInfo* pBasicInfo) {
   return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, FINAL_OPERATOR);
 }
 
+void setRecalculateOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, RECALCULATE_OPERATOR);
+}
+
 bool isRecalculateOperator(SSteamOpBasicInfo* pBasicInfo) {
   return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, RECALCULATE_OPERATOR);
 }
-
 
 void setSingleOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
   BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, SINGLE_OPERATOR);

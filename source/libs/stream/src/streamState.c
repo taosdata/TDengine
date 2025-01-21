@@ -729,8 +729,8 @@ int32_t streamStateReloadTsDataState(STableTsDataState* pTsDataState) {
 }
 
 int32_t streamStateMergeAndSaveScanRange(STableTsDataState* pTsDataState, STimeWindow* pWin, uint64_t gpId,
-                                         uint64_t uId) {
-  return mergeAndSaveScanRange(pTsDataState, pWin, gpId, uId);
+                                         SRecDataInfo* pRecData, int32_t len) {
+  return mergeAndSaveScanRange(pTsDataState, pWin, gpId, pRecData, len);
 }
 
 int32_t streamStateMergeAllScanRange(STableTsDataState* pTsDataState) {

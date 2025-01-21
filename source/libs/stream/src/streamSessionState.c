@@ -1162,7 +1162,14 @@ _end:
   return code;
 }
 
-int32_t mergeScanRange(SArray* pRangeArray, SScanRange* pRangeKey, uint64_t gpId, uint64_t uId, int32_t* pIndex,bool* pRes) {
+void mergeRangeKey(SScanRange* pRangeDest, SScanRange* pRangeSrc) {
+  pRangeDest->win.skey = TMIN(pRangeDest->win.skey, pRangeSrc->win.skey);
+  pRangeDest->win.ekey = TMAX(pRangeDest->win.ekey, pRangeSrc->win.ekey);
+  pRangeDest->calWin.skey = TMIN(pRangeDest->calWin.skey, pRangeSrc->calWin.skey);
+  pRangeDest->calWin.ekey = TMAX(pRangeDest->calWin.ekey, pRangeSrc->calWin.ekey);
+}
+
+int32_t mergeScanRange(SArray* pRangeArray, SScanRange* pRangeKey, uint64_t gpId, uint64_t uId, int32_t* pIndex, bool* pRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t size = taosArrayGetSize(pRangeArray);
@@ -1170,6 +1177,7 @@ int32_t mergeScanRange(SArray* pRangeArray, SScanRange* pRangeKey, uint64_t gpId
   if (index >= 0) {
     SScanRange* pFindRangeKey = (SScanRange*) taosArrayGet(pRangeArray, index);
     if (scanRangeKeyCmpr(pFindRangeKey, pRangeKey) == 0) {
+      mergeRangeKey(pFindRangeKey, pRangeKey);
       code = putRangeIdInfo(pFindRangeKey, gpId, uId);
       QUERY_CHECK_CODE(code, lino, _end);
       *pRes = true;
@@ -1179,6 +1187,7 @@ int32_t mergeScanRange(SArray* pRangeArray, SScanRange* pRangeKey, uint64_t gpId
   if (index + 1 < size) {
     SScanRange* pFindRangeKey = (SScanRange*) taosArrayGet(pRangeArray, index + 1);
     if (scanRangeKeyCmpr(pFindRangeKey, pRangeKey) == 0) {
+      mergeRangeKey(pFindRangeKey, pRangeKey);
       code = putRangeIdInfo(pFindRangeKey, gpId, uId);
       QUERY_CHECK_CODE(code, lino, _end);
       *pRes = true;
@@ -1195,15 +1204,16 @@ _end:
   return code;
 }
 
-int32_t mergeAndSaveScanRange(STableTsDataState* pTsDataState, STimeWindow* pWin, uint64_t gpId, uint64_t uId) {
+int32_t mergeAndSaveScanRange(STableTsDataState* pTsDataState, STimeWindow* pWin, uint64_t gpId, SRecDataInfo* pRecData, int32_t recLen) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
   SArray* pRangeArray = pTsDataState->pScanRanges;
+  uint64_t uId = pRecData->tableUid;
 
   int32_t index = 0;
   bool merge = false;
-  SScanRange rangeKey = {.win = *pWin, .pUIds = NULL, .pGroupIds = NULL};
+  SScanRange rangeKey = {.win = *pWin, .calWin = pRecData->calWin, .pUIds = NULL, .pGroupIds = NULL};
   code = mergeScanRange(pRangeArray, &rangeKey, gpId, uId, &index, &merge);
   QUERY_CHECK_CODE(code, lino, _end);
   if (merge == true) {
@@ -1303,8 +1313,12 @@ int32_t mergeAllScanRange(STableTsDataState* pTsDataState) {
     int32_t index = 0;
     bool merge = false;
     SScanRange tmpRange = {.win = key.win, .pUIds = NULL, .pGroupIds = NULL};
-    code = mergeScanRange(pRangeArray, &tmpRange, key.groupId, *(uint64_t*)pVal, &index, &merge);
-    QUERY_CHECK_CODE(code, lino, _end);
+    int32_t num = vlen / sizeof(uint64_t);
+    uint64_t* pUids = (uint64_t*) pVal;
+    for (int32_t i = 0; i < num; i++) {
+      code = mergeScanRange(pRangeArray, &tmpRange, key.groupId, pUids[i], &index, &merge);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     if (merge == true) {
       code = streamStateSessionDel_rocksdb(pTsDataState->pState, &key);
       QUERY_CHECK_CODE(code, lino, _end);

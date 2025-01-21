@@ -331,8 +331,17 @@ typedef struct SUpdateInfo {
   __compar_fn_t comparePkCol;
 } SUpdateInfo;
 
+typedef struct SRecDataInfo {
+  STimeWindow calWin;
+  uint64_t    tableUid;
+  int64_t     dataVersion;
+  EStreamType mode;
+  char        pPkColData[];
+} SRecDataInfo;
+
 typedef struct SScanRange {
   STimeWindow win;
+  STimeWindow calWin;
   SSHashObj* pGroupIds;
   SSHashObj* pUIds;
 } SScanRange;
@@ -346,7 +355,7 @@ typedef struct STableTsDataState {
   int32_t       curRecId;
   void*         pStreamTaskState;
   SArray*       pScanRanges;
-  void*         pRecValueBuff;
+  SRecDataInfo* pRecValueBuff;
   int32_t       recValueLen;
 } STableTsDataState;
 
@@ -493,7 +502,7 @@ typedef struct SStateStore {
   int32_t (*streamStateRecoverTsData)(STableTsDataState* pTsDataState);
   int32_t (*streamStateReloadTsDataState)(STableTsDataState* pTsDataState);
   int32_t (*streamStateMergeAndSaveScanRange)(STableTsDataState* pTsDataState, STimeWindow* pWin, uint64_t gpId,
-                                              uint64_t uId);
+                                              SRecDataInfo* pRecData, int32_t len);
   int32_t (*streamStateMergeAllScanRange)(STableTsDataState* pTsDataState);
   int32_t (*streamStatePopScanRange)(STableTsDataState* pTsDataState, SScanRange* pRange);
 

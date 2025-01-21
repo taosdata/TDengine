@@ -714,9 +714,12 @@ static int32_t doStreamFinalntervalNonblockAggImpl(SOperatorInfo* pOperator, SSD
   while (startPos >= 0) {
     if (!isHistoryOperator(&pInfo->basic) && isDataDeletedStreamWindow(pInfo, &curWin, groupId)) {
       uint64_t uid = 0;
-      code = appendDataToSpecialBlock(pAggSup->pScanBlock, &curWin.skey, &curWin.ekey, &uid, &groupId, NULL);
+      code = appendOneRowToSpecialBlockImpl(pAggSup->pScanBlock, &curWin.skey, &curWin.ekey, &curWin.skey, &curWin.skey,
+                                            &uid, &groupId, NULL, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
 
+      startPos = getNextQualifiedFinalWindow(&pInfo->interval, &curWin, &pBlock->info, tsCols, startPos);
+    } else if (isRecalculateOperator(&pInfo->basic) && !inSlidingWindow(&pInfo->interval, &curWin, &pBlock->info)) {
       startPos = getNextQualifiedFinalWindow(&pInfo->interval, &curWin, &pBlock->info, tsCols, startPos);
     } else {
       break;

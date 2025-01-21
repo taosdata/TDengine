@@ -43,13 +43,6 @@
 #define STREAM_DATA_SCAN_OP_REC_ID_NAME     "StreamDataScanOperator_Recalculate_ID"
 #define IS_INVALID_RANGE(range)             (range.pGroupIds == NULL)
 
-typedef struct SRecDataInfo {
-  uint64_t    tableUid;
-  int64_t     dataVersion;
-  EStreamType mode;
-  char        pPkColData[];
-} SRecDataInfo;
-
 static int32_t getMaxTsKeyInfo(SStreamScanInfo* pInfo, SSDataBlock* pBlock, TSKEY* pCurTs, void** ppPkVal,
                                int32_t* pWinCode) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -73,11 +66,12 @@ _end:
   return code;
 }
 
-static int32_t copyRecDataToBuff(uint64_t uid, uint64_t version, EStreamType mode,
+static int32_t copyRecDataToBuff(TSKEY calStart, TSKEY calEnd, uint64_t uid, uint64_t version, EStreamType mode,
                                  const SColumnInfoData* pPkColDataInfo, int32_t rowId, SRecDataInfo* pValueBuff,
                                  int32_t buffLen) {
+  pValueBuff->calWin.skey = calStart;
+  pValueBuff->calWin.ekey = calEnd;
   pValueBuff->tableUid = uid;
-  ;
   pValueBuff->dataVersion = version;
   pValueBuff->mode = mode;
 
@@ -86,7 +80,7 @@ static int32_t copyRecDataToBuff(uint64_t uid, uint64_t version, EStreamType mod
     pkLen = colDataGetRowLength(pPkColDataInfo, rowId);
     memcpy(pValueBuff->pPkColData, colDataGetData(pPkColDataInfo, rowId), pkLen);
   }
-  return pkLen + sizeof(uint64_t) + sizeof(uint64_t) + sizeof(int32_t);
+  return pkLen + sizeof(SRecDataInfo);
 }
 
 static int32_t saveRecalculateData(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, EStreamType mode) {
@@ -98,16 +92,29 @@ static int32_t saveRecalculateData(SStreamScanInfo* pInfo, SSDataBlock* pSrcBloc
   }
   SColumnInfoData* pSrcStartTsCol = (SColumnInfoData*)taosArrayGet(pSrcBlock->pDataBlock, START_TS_COLUMN_INDEX);
   SColumnInfoData* pSrcEndTsCol = (SColumnInfoData*)taosArrayGet(pSrcBlock->pDataBlock, END_TS_COLUMN_INDEX);
+  SColumnInfoData* pSrcCalStartTsCol = (SColumnInfoData*)taosArrayGet(pSrcBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
+  SColumnInfoData* pSrcCalEndTsCol = (SColumnInfoData*)taosArrayGet(pSrcBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
   SColumnInfoData* pSrcUidCol = taosArrayGet(pSrcBlock->pDataBlock, UID_COLUMN_INDEX);
   SColumnInfoData* pSrcGpCol = taosArrayGet(pSrcBlock->pDataBlock, GROUPID_COLUMN_INDEX);
-  uint64_t*        srcUidData = (uint64_t*)pSrcUidCol->pData;
   TSKEY*           srcStartTsCol = (TSKEY*)pSrcStartTsCol->pData;
   TSKEY*           srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
+  TSKEY*           srcCalStartTsCol = (TSKEY*)pSrcCalStartTsCol->pData;
+  TSKEY*           srcCalEndTsCol = (TSKEY*)pSrcCalEndTsCol->pData;
+  uint64_t*        srcUidData = (uint64_t*)pSrcUidCol->pData;
   uint64_t*        srcGp = (uint64_t*)pSrcGpCol->pData;
+  TSKEY            calStart = INT64_MIN;
+  TSKEY            calEnd = INT64_MIN;
   for (int32_t i = 0; i < pSrcBlock->info.rows; i++) {
     SSessionKey key = {.win.skey = srcStartTsCol[i], .win.ekey = srcEndTsCol[i], .groupId = srcGp[i]};
-    int32_t     len = copyRecDataToBuff(srcUidData[i], pSrcBlock->info.version, mode, NULL, 0,
-                                        (SRecDataInfo*)pInfo->tsDataState.pRecValueBuff, pInfo->tsDataState.recValueLen);
+    if (mode == STREAM_RETRIEVE) {
+      calStart = srcCalStartTsCol[i];
+      calEnd = srcCalEndTsCol[i];
+    } else {
+      calStart = srcStartTsCol[i];
+      calEnd = srcEndTsCol[i];
+    }
+    int32_t     len = copyRecDataToBuff(calStart, calEnd, srcUidData[i], pSrcBlock->info.version, mode, NULL, 0,
+                                        pInfo->tsDataState.pRecValueBuff, pInfo->tsDataState.recValueLen);
     code = pInfo->stateStore.streamStateSessionSaveToDisk(pInfo->tsDataState.pState, &key,
                                                           pInfo->tsDataState.pRecValueBuff, len);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -282,21 +289,24 @@ _end:
   return code;
 }
 
+// data
 static int32_t buildRecalculateData(SSDataBlock* pSrcBlock, TSKEY* pTsCol, SColumnInfoData* pPkColDataInfo, int32_t num,
                                     SPartitionBySupporter* pParSup, SExprSupp* pPartScalarSup, SStateStore* pStateStore,
                                     STableTsDataState* pTsDataState) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  int32_t len = 0;
   for (int32_t rowId = 0; rowId < num; rowId++) {
-    int32_t     len = copyRecDataToBuff(pSrcBlock->info.id.uid, pSrcBlock->info.version, STREAM_CLEAR, NULL, 0,
-                                        (SRecDataInfo*)pTsDataState->pRecValueBuff, pTsDataState->recValueLen);
+    len = copyRecDataToBuff(pTsCol[rowId], pTsCol[rowId], pSrcBlock->info.id.uid, pSrcBlock->info.version, STREAM_CLEAR,
+                            NULL, 0, pTsDataState->pRecValueBuff, pTsDataState->recValueLen);
     SSessionKey key = {.win.skey = pTsCol[rowId], .win.ekey = pTsCol[rowId], .groupId = 0};
     code = pStateStore->streamStateSessionSaveToDisk(pTsDataState->pState, &key, pTsDataState->pRecValueBuff, len);
     QUERY_CHECK_CODE(code, lino, _end);
     if (pParSup->needCalc) {
       key.groupId = calGroupIdByData(pParSup, pPartScalarSup, pSrcBlock, rowId);
-      len = copyRecDataToBuff(pSrcBlock->info.id.uid, pSrcBlock->info.version, STREAM_DELETE_DATA, NULL, 0,
-                              (SRecDataInfo*)pTsDataState->pRecValueBuff, pTsDataState->recValueLen);
+      len = copyRecDataToBuff(pTsCol[rowId], pTsCol[rowId], pSrcBlock->info.id.uid, pSrcBlock->info.version,
+                              STREAM_DELETE_DATA, NULL, 0, pTsDataState->pRecValueBuff,
+                              pTsDataState->recValueLen);
       code = pStateStore->streamStateSessionSaveToDisk(pTsDataState->pState, &key, pTsDataState->pRecValueBuff, len);
       QUERY_CHECK_CODE(code, lino, _end);
     }
@@ -733,8 +743,7 @@ static uint64_t getDataGroupId(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, i
   return tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, uid);
 }
 
-static int32_t generateIntervalPrevVersionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, EStreamType mode,
-                                                    char* pTaskIdStr) {
+static int32_t generateIntervalPrevVersionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, EStreamType mode) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -768,9 +777,14 @@ static int32_t generateIntervalPrevVersionScanRange(SStreamScanInfo* pInfo, SSDa
     }
 
     int32_t     prevRowId = i;
+    TSKEY       calStartTs = srcStartTsCol[i];
     STimeWindow win = getSlidingWindow(srcStartTsCol, srcEndTsCol, srcGp, &pInfo->interval, &pSrcBlock->info, &i,
                                        pInfo->partitionSup.needCalc);
-    pInfo->stateStore.streamStateMergeAndSaveScanRange(&pInfo->tsDataState, &win, groupId, srcUidData[prevRowId]);
+    TSKEY       calEndTs = srcStartTsCol[i - 1];
+    int32_t     len = copyRecDataToBuff(calStartTs, calEndTs, srcUid, ver, mode, pSrcPkCol, i - 1,
+                                        pInfo->tsDataState.pRecValueBuff, pInfo->tsDataState.recValueLen);
+    pInfo->stateStore.streamStateMergeAndSaveScanRange(&pInfo->tsDataState, &win, groupId,
+                                                       pInfo->tsDataState.pRecValueBuff, len);
   }
 
 _end:
@@ -781,29 +795,29 @@ _end:
 }
 
 static int32_t generateIntervalDataScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr, bool hasPk, SSessionKey* pSeKey,
-                                             SRecDataInfo* pRecKey) {
+                                             SRecDataInfo* pRecData, int32_t len) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  int64_t ver = pRecKey->dataVersion - 1;
+  int64_t ver = pRecData->dataVersion - 1;
 
   if (pInfo->partitionSup.needCalc && (pSeKey->win.skey != pSeKey->win.ekey ||
-                                       (hasSrcPrimaryKeyCol(&pInfo->basic) && pRecKey->mode == STREAM_DELETE_DATA))) {
-    code = readPreVersionDataBlock(pRecKey->tableUid, pSeKey->win.skey, pSeKey->win.ekey, ver, pTaskIdStr, pInfo,
+                                       (hasSrcPrimaryKeyCol(&pInfo->basic) && pRecData->mode == STREAM_DELETE_DATA))) {
+    code = readPreVersionDataBlock(pRecData->tableUid, pSeKey->win.skey, pSeKey->win.ekey, ver, pTaskIdStr, pInfo,
                                    pInfo->pUpdateRes);
     QUERY_CHECK_CODE(code, lino, _end);
-    code = generateIntervalPrevVersionScanRange(pInfo, pInfo->pUpdateRes, pRecKey->mode, pTaskIdStr);
+    code = generateIntervalPrevVersionScanRange(pInfo, pInfo->pUpdateRes, pRecData->mode);
     QUERY_CHECK_CODE(code, lino, _end);
     return code;
   }
 
   bool     hasGroupId = false;
-  uint64_t srcUid = pRecKey->tableUid;
+  uint64_t srcUid = pRecData->tableUid;
   uint64_t groupId = pSeKey->groupId;
   if (groupId == 0) {
     void* pVal = NULL;
     if (hasPk) {
-      pVal = (void*)pRecKey->pPkColData;
+      pVal = (void*)pRecData->pPkColData;
     }
     groupId = getDataGroupId(pInfo, srcUid, pSeKey->win.skey, ver, pVal, &hasGroupId);
   }
@@ -813,7 +827,7 @@ static int32_t generateIntervalDataScanRange(SStreamScanInfo* pInfo, char* pTask
   tmpInfo.rows = 1;
   STimeWindow win = getSlidingWindow(&pSeKey->win.skey, &pSeKey->win.ekey, &pSeKey->groupId, &pInfo->interval, &tmpInfo,
                                      &rowId, pInfo->partitionSup.needCalc);
-  pInfo->stateStore.streamStateMergeAndSaveScanRange(&pInfo->tsDataState, &win, groupId, pRecKey->tableUid);
+  pInfo->stateStore.streamStateMergeAndSaveScanRange(&pInfo->tsDataState, &win, groupId, pRecData, len);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -842,7 +856,7 @@ static int32_t generateDataScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr) {
       case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL:
       case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL: {
         code = generateIntervalDataScanRange(pInfo, pTaskIdStr, hasSrcPrimaryKeyCol(&pInfo->basic), &rangKey,
-                                             (SRecDataInfo*)pVal);
+                                             (SRecDataInfo*)pVal, len);
         QUERY_CHECK_CODE(code, lino, _end);
       } break;
       default:
@@ -916,13 +930,13 @@ static int32_t doOneRangeScan(SStreamScanInfo* pInfo, SScanRange* pRange, SSData
       blockDataDestroy(tmpBlock);
 
       if (pResult->info.rows > 0) {
-        pResult->info.calWin = pRange->win;
+        pResult->info.calWin = pRange->calWin;
         (*ppRes) = pResult;
         goto _end;
       }
     } else {
       if (tSimpleHashGet(pRange->pGroupIds, &pResult->info.id.groupId, sizeof(uint64_t)) != NULL) {
-        pResult->info.calWin = pRange->win;
+        pResult->info.calWin = pRange->calWin;
         (*ppRes) = pResult;
         goto _end;
       }

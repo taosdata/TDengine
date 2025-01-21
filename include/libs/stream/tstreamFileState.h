@@ -162,7 +162,7 @@ int32_t doRangeDataCommit(STableTsDataState* pTsDataState);
 int32_t initTsDataState(STableTsDataState* pTsDataState, int8_t pkType, int32_t pkLen, void* pState);
 void destroyTsDataState(STableTsDataState* pTsDataState);
 int32_t recoverTsData(STableTsDataState* pTsDataState);
-int32_t mergeAndSaveScanRange(STableTsDataState* pTsDataState, STimeWindow* pWin, uint64_t gpId, uint64_t uId);
+int32_t mergeAndSaveScanRange(STableTsDataState* pTsDataState, STimeWindow* pWin, uint64_t gpId, SRecDataInfo* pRecData, int32_t len);
 int32_t mergeAllScanRange(STableTsDataState* pTsDataState);
 int32_t popScanRange(STableTsDataState* pTsDataState, SScanRange* pRange);
 

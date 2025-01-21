@@ -77,6 +77,7 @@ bool isFinalOperator(SSteamOpBasicInfo* pBasicInfo);
 bool needBuildAllResult(SSteamOpBasicInfo* pBasicInfo);
 void setSemiOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
 bool isSemiOperator(SSteamOpBasicInfo* pBasicInfo);
+void setRecalculateOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
 bool isRecalculateOperator(SSteamOpBasicInfo* pBasicInfo);
 void setSingleOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
 bool isSingleOperator(SSteamOpBasicInfo* pBasicInfo);
@@ -158,6 +159,8 @@ STimeWindow getSlidingWindow(TSKEY* startTsCol, TSKEY* endTsCol, uint64_t* gpIdC
                              SDataBlockInfo* pDataBlockInfo, int32_t* pRowIndex, bool hasGroup);
 int32_t appendPkToSpecialBlock(SSDataBlock* pBlock, TSKEY* pTsArray, SColumnInfoData* pPkCol, int32_t rowId,
                                uint64_t* pUid, uint64_t* pGp, void* pTbName);
+int32_t appendOneRowToSpecialBlockImpl(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, TSKEY* pCalStartTs,
+                                       TSKEY* pCalEndTs, uint64_t* pUid, uint64_t* pGp, void* pTbName, void* pPkData);
 SSDataBlock* readPreVersionData(struct SOperatorInfo* pTableScanOp, uint64_t tbUid, TSKEY startTs, TSKEY endTs,
                                 int64_t maxVersion);
 bool comparePrimaryKey(SColumnInfoData* pCol, int32_t rowId, void* pVal);
