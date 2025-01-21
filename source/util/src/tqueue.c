@@ -167,7 +167,7 @@ int32_t taosAllocateQitem(int32_t size, EQItype itype, int64_t dataSize, void **
              tsApplyMemoryAllowed);
       (void)atomic_sub_fetch_64(&tsApplyMemoryUsed, size + dataSize);
       terrno = TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE;
-      return NULL;
+      return (terrno = TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE);
     }
   }
 
