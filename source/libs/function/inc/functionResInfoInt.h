@@ -195,6 +195,7 @@ typedef struct tMemBucket {
   int16_t            numOfSlots;
   int16_t            type;
   int32_t            bytes;
+  STypeMod           typeMod;
   int32_t            total;
   int32_t            elemPerPage;  // number of elements for each object
   int32_t            maxCapacity;  // maximum allowed number of elements that can be sort directly to get the result

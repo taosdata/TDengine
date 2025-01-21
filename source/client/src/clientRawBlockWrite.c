@@ -516,7 +516,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
       RAW_NULL_CHECK(tvalue);
     } else {
       double val = 0;
-      GET_TYPED_DATA(val, double, pTagVal->type, &pTagVal->i64);
+      GET_TYPED_DATA(val, double, pTagVal->type, &pTagVal->i64, 0); // currently tag type can't be decimal, so pass 0 as typeMod
       tvalue = cJSON_CreateNumber(val);
       RAW_NULL_CHECK(tvalue);
     }

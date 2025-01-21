@@ -85,27 +85,27 @@ static int32_t doSetUserSpecifiedValue(SColumnInfoData* pDst, SVariant* pVar, in
   bool    isNull = (TSDB_DATA_TYPE_NULL == pVar->nType) ? true : false;
   if (pDst->info.type == TSDB_DATA_TYPE_FLOAT) {
     float v = 0;
-    GET_TYPED_DATA(v, float, pVar->nType, &pVar->f);
+    GET_TYPED_DATA(v, float, pVar->nType, &pVar->f, typeGetTypeModFromColInfo(&pDst->info));
     code = colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
     QUERY_CHECK_CODE(code, lino, _end);
   } else if (pDst->info.type == TSDB_DATA_TYPE_DOUBLE) {
     double v = 0;
-    GET_TYPED_DATA(v, double, pVar->nType, &pVar->d);
+    GET_TYPED_DATA(v, double, pVar->nType, &pVar->d, typeGetTypeModFromColInfo(&pDst->info));
     code = colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
     QUERY_CHECK_CODE(code, lino, _end);
   } else if (IS_SIGNED_NUMERIC_TYPE(pDst->info.type) || pDst->info.type == TSDB_DATA_TYPE_BOOL) {
     int64_t v = 0;
-    GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
+    GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i, typeGetTypeModFromColInfo(&pDst->info));
     code = colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
     QUERY_CHECK_CODE(code, lino, _end);
   } else if (IS_UNSIGNED_NUMERIC_TYPE(pDst->info.type)) {
     uint64_t v = 0;
-    GET_TYPED_DATA(v, uint64_t, pVar->nType, &pVar->u);
+    GET_TYPED_DATA(v, uint64_t, pVar->nType, &pVar->u, typeGetTypeModFromColInfo(&pDst->info));
     code = colDataSetVal(pDst, rowIndex, (char*)&v, isNull);
     QUERY_CHECK_CODE(code, lino, _end);
   } else if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
     int64_t v = 0;
-    GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->u);
+    GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->u, typeGetTypeModFromColInfo(&pDst->info));
     code = colDataSetVal(pDst, rowIndex, (const char*)&v, isNull);
     QUERY_CHECK_CODE(code, lino, _end);
   } else if (pDst->info.type == TSDB_DATA_TYPE_NCHAR || pDst->info.type == TSDB_DATA_TYPE_VARCHAR ||
@@ -236,7 +236,7 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
 
           int64_t out = 0;
           point = (SPoint){.key = pFillInfo->currentKey, .val = &out};
-          taosGetLinearInterpolationVal(&point, type, &point1, &point2, type);
+          taosGetLinearInterpolationVal(&point, type, &point1, &point2, type, typeGetTypeModFromColInfo(&pDstCol->info));
 
           code = colDataSetVal(pDstCol, index, (const char*)&out, false);
           QUERY_CHECK_CODE(code, lino, _end);
@@ -725,10 +725,10 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
 }
 
 void taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* point1, SPoint* point2,
-                                   int32_t inputType) {
+                                   int32_t inputType, STypeMod inputTypeMod) {
   double v1 = -1, v2 = -1;
-  GET_TYPED_DATA(v1, double, inputType, point1->val);
-  GET_TYPED_DATA(v2, double, inputType, point2->val);
+  GET_TYPED_DATA(v1, double, inputType, point1->val, inputTypeMod);
+  GET_TYPED_DATA(v2, double, inputType, point2->val, inputTypeMod);
 
   double r = 0;
   if (!IS_BOOLEAN_TYPE(inputType)) {
