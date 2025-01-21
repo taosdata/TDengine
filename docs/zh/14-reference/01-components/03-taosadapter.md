@@ -146,12 +146,12 @@ Usage of taosAdapter:
 
 使用浏览器进行接口调用请根据实际情况设置如下跨域（CORS）参数：
 
-- **cors.allowAllOrigins**：是否允许所有来源访问，默认为 `true`。
-- **cors.allowOrigins**：允许跨域访问的来源列表，支持多个来源，以逗号分隔。
-- **cors.allowHeaders**：允许跨域访问的请求头列表，支持多个请求头，以逗号分隔。
-- **cors.exposeHeaders**：允许跨域访问的响应头列表，支持多个响应头，以逗号分隔。
-- **cors.allowCredentials**：是否允许跨域请求包含用户凭证，如 cookies、HTTP 认证信息或客户端 SSL 证书。
-- **cors.allowWebSockets**：是否允许 WebSockets 连接。
+- **`cors.allowAllOrigins`**：是否允许所有来源访问，默认为 `true`。
+- **`cors.allowOrigins`**：允许跨域访问的来源列表，支持多个来源，以逗号分隔。
+- **`cors.allowHeaders`**：允许跨域访问的请求头列表，支持多个请求头，以逗号分隔。
+- **`cors.exposeHeaders`**：允许跨域访问的响应头列表，支持多个响应头，以逗号分隔。
+- **`cors.allowCredentials`**：是否允许跨域请求包含用户凭证，如 cookies、HTTP 认证信息或客户端 SSL 证书。
+- **`cors.allowWebSockets`**：是否允许 WebSockets 连接。
 
 如果不通过浏览器进行接口调用无需关心这几项配置。
 
