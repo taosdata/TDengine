@@ -175,8 +175,8 @@ void    removeStreamTasksInBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode);
 int32_t mndGetConsensusInfo(SHashObj *pHash, int64_t streamId, int32_t numOfTasks, SCheckpointConsensusInfo **pInfo);
 void    mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpointInfo *pRestoreInfo);
 void    mndClearConsensusRspEntry(SCheckpointConsensusInfo *pInfo);
-int64_t mndClearConsensusCheckpointId(SHashObj *pHash, int64_t streamId);
-int64_t mndClearChkptReportInfo(SHashObj *pHash, int64_t streamId);
+int32_t mndClearConsensusCheckpointId(SHashObj *pHash, int64_t streamId);
+int32_t mndClearChkptReportInfo(SHashObj *pHash, int64_t streamId);
 int32_t mndResetChkptReportInfo(SHashObj *pHash, int64_t streamId);
 
 int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);

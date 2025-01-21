@@ -902,7 +902,8 @@ void mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpo
   SCheckpointConsensusEntry info = {.ts = taosGetTimestampMs()};
   memcpy(&info.req, pRestoreInfo, sizeof(info.req));
 
-  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pTaskList); ++i) {
+  int32_t num = (int32_t) taosArrayGetSize(pInfo->pTaskList);
+  for (int32_t i = 0; i < num; ++i) {
     SCheckpointConsensusEntry *p = taosArrayGet(pInfo->pTaskList, i);
     if (p == NULL) {
       continue;
@@ -910,10 +911,12 @@ void mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpo
 
     if (p->req.taskId == info.req.taskId) {
       mDebug("s-task:0x%x already in consensus-checkpointId list for stream:0x%" PRIx64 ", update ts %" PRId64
-             "->%" PRId64 " total existed:%d",
-             pRestoreInfo->taskId, pRestoreInfo->streamId, p->req.startTs, info.req.startTs,
-             (int32_t)taosArrayGetSize(pInfo->pTaskList));
+             "->%" PRId64 " checkpointId:%" PRId64 " -> %" PRId64 " total existed:%d",
+             pRestoreInfo->taskId, pRestoreInfo->streamId, p->req.startTs, info.req.startTs, p->req.checkpointId,
+             info.req.checkpointId, num);
       p->req.startTs = info.req.startTs;
+      p->req.checkpointId = info.req.checkpointId;
+      p->req.transId = info.req.transId;
       return;
     }
   }
@@ -922,7 +925,7 @@ void mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpo
   if (p == NULL) {
     mError("s-task:0x%x failed to put task into consensus-checkpointId list, code: out of memory", info.req.taskId);
   } else {
-    int32_t num = taosArrayGetSize(pInfo->pTaskList);
+    num = taosArrayGetSize(pInfo->pTaskList);
     mDebug("s-task:0x%x checkpointId:%" PRId64 " added into consensus-checkpointId list, stream:0x%" PRIx64
            " waiting tasks:%d",
            pRestoreInfo->taskId, pRestoreInfo->checkpointId, pRestoreInfo->streamId, num);
@@ -934,7 +937,7 @@ void mndClearConsensusRspEntry(SCheckpointConsensusInfo *pInfo) {
   pInfo->pTaskList = NULL;
 }
 
-int64_t mndClearConsensusCheckpointId(SHashObj *pHash, int64_t streamId) {
+int32_t mndClearConsensusCheckpointId(SHashObj *pHash, int64_t streamId) {
   int32_t code = 0;
   int32_t numOfStreams = taosHashGetSize(pHash);
   if (numOfStreams == 0) {
@@ -951,7 +954,7 @@ int64_t mndClearConsensusCheckpointId(SHashObj *pHash, int64_t streamId) {
   return code;
 }
 
-int64_t mndClearChkptReportInfo(SHashObj *pHash, int64_t streamId) {
+int32_t mndClearChkptReportInfo(SHashObj *pHash, int64_t streamId) {
   int32_t code = 0;
   int32_t numOfStreams = taosHashGetSize(pHash);
   if (numOfStreams == 0) {
