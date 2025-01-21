@@ -1616,6 +1616,7 @@ static void tmqMgmtInit(void) {
     goto END;
   }
 
+  return;
 END:
   tmqInitRes = terrno;
 }
