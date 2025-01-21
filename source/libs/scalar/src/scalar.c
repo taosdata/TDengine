@@ -878,7 +878,7 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
       int32_t ind = (i >= params[m].numOfRows) ? (params[m].numOfRows - 1) : i;
       char   *p = colDataGetData(params[m].columnData, ind);
 
-      GET_TYPED_DATA(value, bool, params[m].columnData->info.type, p);
+      GET_TYPED_DATA(value, bool, params[m].columnData->info.type, p, typeGetTypeModFromColInfo(&params[m].columnData->info));
 
       if (LOGIC_COND_TYPE_AND == node->condType && (false == value)) {
         complete = true;

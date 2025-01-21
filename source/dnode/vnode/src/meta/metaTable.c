@@ -1134,7 +1134,7 @@ static int metaCreateTable(SMeta *pMeta, int64_t ver, SVCreateTbReq *pReq, STabl
         taosMemoryFree(buf);
       } else {
         double val = 0;
-        GET_TYPED_DATA(val, double, pTagVal->type, &pTagVal->i64);
+        GET_TYPED_DATA(val, double, pTagVal->type, &pTagVal->i64, 0);
         metaDebug("metaTag table:%s number index:%d cid:%d type:%d value:%f", pReq->name, i, pTagVal->cid,
                   pTagVal->type, val);
       }

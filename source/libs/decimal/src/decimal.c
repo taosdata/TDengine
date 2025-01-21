@@ -906,7 +906,7 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
 #define ABS_INT64(v)  (v) == INT64_MIN ? (uint64_t)INT64_MAX + 1 : (uint64_t)llabs(v)
 #define ABS_UINT64(v) (v)
 
-#define DECIMAL64_IS_OVERFLOW(v, max)  decimal64Gt(&(v), &max, DECIMAL_WORD_NUM(Decimal64))
+#define DECIMAL64_IS_OVERFLOW(v, max)  decimal64Gt(&(v), &max, DECIMAL_WORD_NUM(Decimal64)) // TODO wjm DELETE it
 #define DECIMAL128_IS_OVERFLOW(v, max) decimal128Gt(&(v), &max, DECIMAL_WORD_NUM(Decimal128))
 
 #define CHECK_OVERFLOW_AND_MAKE_DECIMAL64(pDec, v, max, ABS) \
@@ -922,7 +922,7 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
   })
 
 #define MAKE_DECIMAL64_SIGNED(pDec, v, max)   CHECK_OVERFLOW_AND_MAKE_DECIMAL64(pDec, v, max, ABS_INT64)
-#define MAKE_DECIMAL64_UNSIGNED(pDec, v, max) CHECK_OVERFLOW_AND_MAKE_DECIMAL64(pDec, v, max, ABS_UINT64);
+#define MAKE_DECIMAL64_UNSIGNED(pDec, v, max) CHECK_OVERFLOW_AND_MAKE_DECIMAL64(pDec, v, max, ABS_UINT64); // TODO wjm delete it
 
 static int64_t int64FromDecimal64(const DecimalType* pDec, uint8_t prec, uint8_t scale) { return 0; }
 

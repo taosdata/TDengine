@@ -243,8 +243,8 @@ STypeMod decimalCalcTypeMod(uint8_t prec, uint8_t scale) {
 }
 
 void decimalFromTypeMod(STypeMod typeMod, uint8_t* precision, uint8_t* scale) {
-  *precision = (uint8_t)((typeMod >> 8) & 0xFF);
-  *scale = (uint8_t)(typeMod & 0xFF);
+  if (precision) *precision = (uint8_t)((typeMod >> 8) & 0xFF);
+  if (scale) *scale = (uint8_t)(typeMod & 0xFF);
 }
 
 STypeMod typeGetTypeMod(uint8_t type, uint8_t prec, uint8_t scale, int32_t bytes) {
@@ -258,4 +258,14 @@ void fillTypeFromTypeMod(SDataType* pType, STypeMod mod) {
   if (IS_DECIMAL_TYPE(pType->type)) {
     decimalFromTypeMod(mod, &pType->precision, &pType->scale);
   }
+}
+
+void extractTypeFromTypeMod(uint8_t type, STypeMod typeMod, uint8_t *prec, uint8_t *scale, int32_t *bytes) {
+  if (IS_DECIMAL_TYPE(type)) {
+    decimalFromTypeMod(typeMod, prec, scale);
+  } else {
+    if (prec) *prec = 0;
+    if (scale) *scale = 0;
+  }
+  if (bytes) *bytes = tDataTypes[type].bytes;
 }

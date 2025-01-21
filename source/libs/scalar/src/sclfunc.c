@@ -1215,9 +1215,9 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
     int32_t subPos = 0;
     int32_t subLen = INT16_MAX;
-    GET_TYPED_DATA(subPos, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInputData[1], colIdx[1]));
+    GET_TYPED_DATA(subPos, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInputData[1], colIdx[1]), typeGetTypeModFromColInfo(&pInput[1].columnData->info));
     if (inputNum == 3) {
-      GET_TYPED_DATA(subLen, int32_t, GET_PARAM_TYPE(&pInput[2]), colDataGetData(pInputData[2], colIdx[2]));
+      GET_TYPED_DATA(subLen, int32_t, GET_PARAM_TYPE(&pInput[2]), colDataGetData(pInputData[2], colIdx[2]), typeGetTypeModFromColInfo(&pInput[2].columnData->info));
     }
 
     if (subPos == 0 || subLen < 1) {
@@ -1334,7 +1334,7 @@ int32_t charFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       if (colDataIsNull_s(pInput[j].columnData, i)) {
         continue;
       } else if (IS_NUMERIC_TYPE(GET_PARAM_TYPE(&pInput[j]))) {
-        GET_TYPED_DATA(num, int32_t, GET_PARAM_TYPE(&pInput[j]), colDataGetData(pInput[j].columnData, colIdx));
+        GET_TYPED_DATA(num, int32_t, GET_PARAM_TYPE(&pInput[j]), colDataGetData(pInput[j].columnData, colIdx), typeGetTypeModFromColInfo(&pInput[j].columnData->info));
         getAsciiChar(num, &output);
       } else if (TSDB_DATA_TYPE_BINARY == GET_PARAM_TYPE(&pInput[j])) {
         num = taosStr2Int32(varDataVal(colDataGetData(pInput[j].columnData, colIdx)), NULL, 10);
@@ -1475,7 +1475,8 @@ int32_t positionFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 int32_t trimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   // trim space
   uint8_t trimType = 0;
-  GET_TYPED_DATA(trimType, int32_t, GET_PARAM_TYPE(&pInput[inputNum - 1]), pInput[inputNum - 1].columnData->pData);
+  GET_TYPED_DATA(trimType, int32_t, GET_PARAM_TYPE(&pInput[inputNum - 1]), pInput[inputNum - 1].columnData->pData,
+                 typeGetTypeModFromColInfo(&pInput[inputNum - 1].columnData->info));
   switch (trimType) {
     case TRIM_TYPE_LEADING: {
       SCL_ERR_RET(doTrimFunction(pInput, inputNum, pOutput, tltrimspace, tltrim));
@@ -1670,7 +1671,9 @@ int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     char   *delimStr = varDataVal(colDataGetData(pInputData[1], colIdx2));
     int32_t delimLen = varDataLen(colDataGetData(pInputData[1], colIdx2));
     bool    needFreeDelim = false;
-    GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[2]), colDataGetData(pInputData[2], (pInput[2].numOfRows == 1) ? 0 : k));
+    GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[2]),
+                   colDataGetData(pInputData[2], (pInput[2].numOfRows == 1) ? 0 : k),
+                   typeGetTypeModFromColInfo(&pInputData[2]->info));
 
     int32_t startPosBytes;
     int32_t endPosBytes;
@@ -1732,7 +1735,8 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     if (colDataIsNull_s(pInput[1].columnData, i)) {
       continue;
     }
-    GET_TYPED_DATA(tmpCount, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i));
+    GET_TYPED_DATA(tmpCount, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i),
+                   typeGetTypeModFromColInfo(&pInput[1].columnData->info));
     maxCount = TMAX(maxCount, tmpCount);
   }
   pInputData[0] = pInput[0].columnData;
@@ -1758,7 +1762,8 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
         continue;
       }
       int32_t count = 0;
-      GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i));
+      GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i),
+                     typeGetTypeModFromColInfo(&pInput[1].columnData->info));
       if (count <= 0) {
         varDataSetLen(output, 0);
         SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
@@ -1780,7 +1785,8 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
           continue;
         }
         int32_t count = 0;
-        GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i));
+        GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i),
+                       typeGetTypeModFromColInfo(&pInput[1].columnData->info));
         if (count <= 0) {
           varDataSetLen(output, 0);
           SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
@@ -1803,7 +1809,8 @@ int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
           continue;
         }
         int32_t count = 0;
-        GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, 0));
+        GET_TYPED_DATA(count, int32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, 0),
+                       typeGetTypeModFromColInfo(&pInput[1].columnData->info));
         if (count <= 0) {
           varDataSetLen(output, 0);
           SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
@@ -1865,7 +1872,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           convBuf[len] = 0;
           *(int8_t *)output = taosStr2Int8(convBuf, NULL, 10);
         } else {
-          GET_TYPED_DATA(*(int8_t *)output, int8_t, inputType, input);
+          GET_TYPED_DATA(*(int8_t *)output, int8_t, inputType, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
         }
         break;
       }
@@ -1883,7 +1890,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           convBuf[len] = 0;
           *(int16_t *)output = taosStr2Int16(convBuf, NULL, 10);
         } else {
-          GET_TYPED_DATA(*(int16_t *)output, int16_t, inputType, input);
+          GET_TYPED_DATA(*(int16_t *)output, int16_t, inputType, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
         }
         break;
       }
@@ -1902,7 +1909,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           convBuf[len] = 0;
           *(int32_t *)output = taosStr2Int32(convBuf, NULL, 10);
         } else {
-          GET_TYPED_DATA(*(int32_t *)output, int32_t, inputType, input);
+          GET_TYPED_DATA(*(int32_t *)output, int32_t, inputType, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
         }
         break;
       }
@@ -1920,7 +1927,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           convBuf[len] = 0;
           *(int64_t *)output = taosStr2Int64(convBuf, NULL, 10);
         } else {
-          GET_TYPED_DATA(*(int64_t *)output, int64_t, inputType, input);
+          GET_TYPED_DATA(*(int64_t *)output, int64_t, inputType, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
         }
         break;
       }
@@ -1938,7 +1945,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           convBuf[len] = 0;
           *(uint8_t *)output = taosStr2UInt8(convBuf, NULL, 10);
         } else {
-          GET_TYPED_DATA(*(uint8_t *)output, uint8_t, inputType, input);
+          GET_TYPED_DATA(*(uint8_t *)output, uint8_t, inputType, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
         }
         break;
       }
@@ -1956,7 +1963,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           convBuf[len] = 0;
           *(uint16_t *)output = taosStr2UInt16(convBuf, NULL, 10);
         } else {
-          GET_TYPED_DATA(*(uint16_t *)output, uint16_t, inputType, input);
+          GET_TYPED_DATA(*(uint16_t *)output, uint16_t, inputType, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
         }
         break;
       }
@@ -1974,7 +1981,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           convBuf[len] = 0;
           *(uint32_t *)output = taosStr2UInt32(convBuf, NULL, 10);
         } else {
-          GET_TYPED_DATA(*(uint32_t *)output, uint32_t, inputType, input);
+          GET_TYPED_DATA(*(uint32_t *)output, uint32_t, inputType, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
         }
         break;
       }
@@ -1993,7 +2000,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           convBuf[len] = 0;
           *(uint64_t *)output = taosStr2UInt64(convBuf, NULL, 10);
         } else {
-          GET_TYPED_DATA(*(uint64_t *)output, uint64_t, inputType, input);
+          GET_TYPED_DATA(*(uint64_t *)output, uint64_t, inputType, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
         }
         break;
       }
@@ -2011,7 +2018,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           convBuf[len] = 0;
           *(float *)output = taosStr2Float(convBuf, NULL);
         } else {
-          GET_TYPED_DATA(*(float *)output, float, inputType, input);
+          GET_TYPED_DATA(*(float *)output, float, inputType, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
         }
         break;
       }
@@ -2029,7 +2036,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           convBuf[len] = 0;
           *(double *)output = taosStr2Double(convBuf, NULL);
         } else {
-          GET_TYPED_DATA(*(double *)output, double, inputType, input);
+          GET_TYPED_DATA(*(double *)output, double, inputType, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
         }
         break;
       }
@@ -2047,7 +2054,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           convBuf[len] = 0;
           *(bool *)output = taosStr2Int8(convBuf, NULL, 10);
         } else {
-          GET_TYPED_DATA(*(bool *)output, bool, inputType, input);
+          GET_TYPED_DATA(*(bool *)output, bool, inputType, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
         }
         break;
       }
@@ -2055,7 +2062,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         int64_t timeVal;
         if (inputType == TSDB_DATA_TYPE_BINARY || inputType == TSDB_DATA_TYPE_NCHAR) {
           int64_t timePrec;
-          GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
+          GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData, typeGetTypeModFromColInfo(&pInput[1].columnData->info));
           int32_t ret = convertStringToTimestamp(inputType, input, timePrec, &timeVal, pInput->tz, pInput->charsetCxt);
           if (ret != TSDB_CODE_SUCCESS) {
             *(int64_t *)output = 0;
@@ -2063,7 +2070,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
             *(int64_t *)output = timeVal;
           }
         } else {
-          GET_TYPED_DATA(*(int64_t *)output, int64_t, inputType, input);
+          GET_TYPED_DATA(*(int64_t *)output, int64_t, inputType, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
         }
         break;
       }
@@ -2222,7 +2229,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     int64_t  quot = 0;
     long    mod = 0;
 
-    GET_TYPED_DATA(timeVal, int64_t, type, input);
+    GET_TYPED_DATA(timeVal, int64_t, type, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
 
     switch (pInput->columnData[0].info.precision) {
       case TSDB_TIME_PRECISION_MILLI: {
@@ -2295,7 +2302,8 @@ int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
   int32_t type = GET_PARAM_TYPE(pInput);
   int64_t timePrec;
   int32_t idx = (inputNum == 2) ? 1 : 2;
-  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[idx]), pInput[idx].columnData->pData);
+  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[idx]), pInput[idx].columnData->pData,
+                 typeGetTypeModFromColInfo(&pInput[idx].columnData->info));
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
@@ -2474,16 +2482,19 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   bool    ignoreTz = true;
   char    timezoneStr[20] = {0};
 
-  GET_TYPED_DATA(timeUnit, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
+  GET_TYPED_DATA(timeUnit, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData,
+                 typeGetTypeModFromColInfo(&pInput[1].columnData->info));
 
   int32_t timePrecIdx = 2, timeZoneIdx = 3;
   if (inputNum == 5) {
     timePrecIdx += 1;
     timeZoneIdx += 1;
-    GET_TYPED_DATA(ignoreTz, bool, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
+    GET_TYPED_DATA(ignoreTz, bool, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData,
+                   typeGetTypeModFromColInfo(&pInput[2].columnData->info));
   }
 
-  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[timePrecIdx]), pInput[timePrecIdx].columnData->pData);
+  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[timePrecIdx]), pInput[timePrecIdx].columnData->pData,
+                 typeGetTypeModFromColInfo(&pInput[timePrecIdx].columnData->info));
   (void)memcpy(timezoneStr, varDataVal(pInput[timeZoneIdx].columnData->pData), varDataLen(pInput[timeZoneIdx].columnData->pData));
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
@@ -2501,9 +2512,9 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
         continue;
       }
     } else if (type == TSDB_DATA_TYPE_BIGINT) { /* unix timestamp */
-      GET_TYPED_DATA(timeVal, int64_t, type, input);
+      GET_TYPED_DATA(timeVal, int64_t, type, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
     } else if (type == TSDB_DATA_TYPE_TIMESTAMP) { /* timestamp column*/
-      GET_TYPED_DATA(timeVal, int64_t, type, input);
+      GET_TYPED_DATA(timeVal, int64_t, type, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
     }
 
     char buf[20] = {0};
@@ -2527,10 +2538,13 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
 int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int64_t timeUnit = -1, timePrec, timeVal[2] = {0};
   if (inputNum == 4) {
-    GET_TYPED_DATA(timeUnit, int64_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
-    GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[3]), pInput[3].columnData->pData);
+    GET_TYPED_DATA(timeUnit, int64_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData,
+                   typeGetTypeModFromColInfo(&pInput[2].columnData->info));
+    GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[3]), pInput[3].columnData->pData,
+                   typeGetTypeModFromColInfo(&pInput[3].columnData->info));
   } else {
-    GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
+    GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData,
+                   typeGetTypeModFromColInfo(&pInput[2].columnData->info));
   }
 
   int64_t factor = TSDB_TICK_PER_SECOND(timePrec);
@@ -2561,7 +2575,7 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
           break;
         }
       } else if (type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column*/
-        GET_TYPED_DATA(timeVal[k], int64_t, type, input[k]);
+        GET_TYPED_DATA(timeVal[k], int64_t, type, input[k], typeGetTypeModFromColInfo(&pInput[k].columnData->info));
         if (type == TSDB_DATA_TYPE_TIMESTAMP) {
           int64_t timeValSec = timeVal[k] / factor;
           if (timeValSec < 1000000000) {
@@ -2660,7 +2674,8 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
 int32_t nowFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int64_t timePrec;
-  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[0]), pInput[0].columnData->pData);
+  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[0]), pInput[0].columnData->pData,
+                 typeGetTypeModFromColInfo(&pInput[0].columnData->info));
 
   int64_t ts = taosGetTimestamp(timePrec);
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
@@ -2672,7 +2687,8 @@ int32_t nowFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
 
 int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int64_t timePrec;
-  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[0]), pInput[0].columnData->pData);
+  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[0]), pInput[0].columnData->pData,
+                 typeGetTypeModFromColInfo(&pInput[0].columnData->info));
 
   int64_t ts = taosGetTimestampToday(timePrec, pInput->tz);
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
@@ -2708,7 +2724,8 @@ int32_t weekdayFunctionImpl(SScalarParam *pInput, int32_t inputNum, SScalarParam
 
   int64_t timePrec, timeVal = 0;
 
-  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
+  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData,
+                 typeGetTypeModFromColInfo(&pInput[1].columnData->info));
 
   for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
     if (colDataIsNull_s(pInput[0].columnData, i)) {
@@ -2725,9 +2742,9 @@ int32_t weekdayFunctionImpl(SScalarParam *pInput, int32_t inputNum, SScalarParam
         continue;
       }
     } else if (type == TSDB_DATA_TYPE_BIGINT) { /* unix timestamp */
-      GET_TYPED_DATA(timeVal, int64_t, type, input);
+      GET_TYPED_DATA(timeVal, int64_t, type, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
     } else if (type == TSDB_DATA_TYPE_TIMESTAMP) { /* timestamp column*/
-      GET_TYPED_DATA(timeVal, int64_t, type, input);
+      GET_TYPED_DATA(timeVal, int64_t, type, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
     }
     struct STm tm;
     TAOS_CHECK_RETURN(taosTs2Tm(timeVal, timePrec, &tm, pInput->tz));
@@ -2835,9 +2852,9 @@ int32_t weekFunctionImpl(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
         continue;
       }
     } else if (type == TSDB_DATA_TYPE_BIGINT) { /* unix timestamp */
-      GET_TYPED_DATA(timeVal, int64_t, type, input);
+      GET_TYPED_DATA(timeVal, int64_t, type, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
     } else if (type == TSDB_DATA_TYPE_TIMESTAMP) { /* timestamp column*/
-      GET_TYPED_DATA(timeVal, int64_t, type, input);
+      GET_TYPED_DATA(timeVal, int64_t, type, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
     }
     struct STm tm;
     SCL_ERR_RET(taosTs2Tm(timeVal, prec, &tm, pInput->tz));
@@ -2854,18 +2871,22 @@ int32_t weekFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   int64_t timePrec;
   int32_t mode = 0;
   if (inputNum == 2) {
-    GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
+    GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData,
+                   typeGetTypeModFromColInfo(&pInput[1].columnData->info));
     return weekFunctionImpl(pInput, inputNum, pOutput, timePrec, mode);
   } else {
-    GET_TYPED_DATA(mode, int32_t , GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
-    GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
+    GET_TYPED_DATA(mode, int32_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData,
+                   typeGetTypeModFromColInfo(&pInput[1].columnData->info));
+    GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData,
+                   typeGetTypeModFromColInfo(&pInput[2].columnData->info));
     return weekFunctionImpl(pInput, inputNum, pOutput, timePrec, mode);
   }
 }
 
 int32_t weekofyearFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int64_t timePrec;
-  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
+  GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData,
+                 typeGetTypeModFromColInfo(&pInput[1].columnData->info));
   return weekFunctionImpl(pInput, inputNum, pOutput, timePrec, 3);
 }
 
@@ -2924,7 +2945,8 @@ int32_t randFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
     // for constant seed, only set seed once
     if ((pInput[0].numOfRows == 1 && i == 0) || (pInput[0].numOfRows != 1)) {
       if (!IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) && !colDataIsNull_s(pInput[0].columnData, i)) {
-        GET_TYPED_DATA(seed, int32_t, GET_PARAM_TYPE(&pInput[0]), colDataGetData(pInput[0].columnData, i));
+        GET_TYPED_DATA(seed, int32_t, GET_PARAM_TYPE(&pInput[0]), colDataGetData(pInput[0].columnData, i),
+                       typeGetTypeModFromColInfo(&pInput[0].columnData->info));
         taosSeedRand(seed);
       }
     }
@@ -3013,7 +3035,8 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
       continue;
     }
     double in2;
-    GET_TYPED_DATA(in2, double, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInputData[1], colIdx2));
+    GET_TYPED_DATA(in2, double, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInputData[1], colIdx2),
+                   typeGetTypeModFromColInfo(&pInputData[1]->info));
     switch (GET_PARAM_TYPE(&pInput[0])) {
       case TSDB_DATA_TYPE_DOUBLE: {
         double  *in = (double *)pInputData[0]->pData;
@@ -3651,8 +3674,10 @@ int32_t leastSQRScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPa
 
   double startVal, stepVal;
   double matrix[2][3] = {0};
-  GET_TYPED_DATA(startVal, double, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData);
-  GET_TYPED_DATA(stepVal, double, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData);
+  GET_TYPED_DATA(startVal, double, GET_PARAM_TYPE(&pInput[1]), pInput[1].columnData->pData,
+                 typeGetTypeModFromColInfo(&pInput[1].columnData->info));
+  GET_TYPED_DATA(stepVal, double, GET_PARAM_TYPE(&pInput[2]), pInput[2].columnData->pData,
+                 typeGetTypeModFromColInfo(&pInput[2].columnData->info));
 
   int32_t type = GET_PARAM_TYPE(pInput);
   int64_t count = 0;
@@ -3828,7 +3853,7 @@ int32_t percentileScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalar
       break;
     }
     char *in = pInputData->pData;
-    GET_TYPED_DATA(val, double, type, in);
+    GET_TYPED_DATA(val, double, type, in, typeGetTypeModFromColInfo(&pInputData->info));
   }
 
   if (hasNull) {
@@ -3865,7 +3890,7 @@ int32_t spreadScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
     char *in = pInputData->pData;
 
     double val = 0;
-    GET_TYPED_DATA(val, double, type, in);
+    GET_TYPED_DATA(val, double, type, in, typeGetTypeModFromColInfo(&pInputData->info));
 
     if (val < GET_DOUBLE_VAL(&min)) {
       SET_DOUBLE_VAL(&min, val);
@@ -4336,7 +4361,7 @@ int32_t histogramScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
 
     char  *data = colDataGetData(pInputData, i);
     double v;
-    GET_TYPED_DATA(v, double, type, data);
+    GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pInputData->info));
 
     for (int32_t k = 0; k < numOfBins; ++k) {
       if (v > bins[k].lower && v <= bins[k].upper) {

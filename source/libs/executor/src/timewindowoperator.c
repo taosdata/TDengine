@@ -264,12 +264,12 @@ void doTimeWindowInterpolation(SArray* pPrevValues, SArray* pDataBlock, TSKEY pr
     double v1 = 0, v2 = 0, v = 0;
     if (prevRowIndex == -1) {
       SGroupKeys* p = taosArrayGet(pPrevValues, index);
-      GET_TYPED_DATA(v1, double, pColInfo->info.type, p->pData);
+      GET_TYPED_DATA(v1, double, pColInfo->info.type, p->pData, typeGetTypeModFromColInfo(&pColInfo->info));
     } else {
-      GET_TYPED_DATA(v1, double, pColInfo->info.type, colDataGetData(pColInfo, prevRowIndex));
+      GET_TYPED_DATA(v1, double, pColInfo->info.type, colDataGetData(pColInfo, prevRowIndex), typeGetTypeModFromColInfo(&pColInfo->info));
     }
 
-    GET_TYPED_DATA(v2, double, pColInfo->info.type, colDataGetData(pColInfo, curRowIndex));
+    GET_TYPED_DATA(v2, double, pColInfo->info.type, colDataGetData(pColInfo, curRowIndex), typeGetTypeModFromColInfo(&pColInfo->info));
 
 #if 0
     if (functionId == FUNCTION_INTERP) {
@@ -299,7 +299,7 @@ void doTimeWindowInterpolation(SArray* pPrevValues, SArray* pDataBlock, TSKEY pr
     SPoint point = (SPoint){.key = windowKey, .val = &v};
 
     if (!fmIsElapsedFunc(pCtx[k].functionId)) {
-      taosGetLinearInterpolationVal(&point, TSDB_DATA_TYPE_DOUBLE, &point1, &point2, TSDB_DATA_TYPE_DOUBLE);
+      taosGetLinearInterpolationVal(&point, TSDB_DATA_TYPE_DOUBLE, &point1, &point2, TSDB_DATA_TYPE_DOUBLE, 0);
     }
 
     if (type == RESULT_ROW_START_INTERP) {

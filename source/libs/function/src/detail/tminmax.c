@@ -597,7 +597,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
     } else {
       if (IS_SIGNED_NUMERIC_TYPE(type)) {
         int64_t prev = 0;
-        GET_TYPED_DATA(prev, int64_t, type, &pBuf->v);
+        GET_TYPED_DATA(prev, int64_t, type, &pBuf->v, 0);
 
         int64_t val = GET_INT64_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
@@ -606,7 +606,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
         }
       } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
         uint64_t prev = 0;
-        GET_TYPED_DATA(prev, uint64_t, type, &pBuf->v);
+        GET_TYPED_DATA(prev, uint64_t, type, &pBuf->v, 0);
 
         uint64_t val = GET_UINT64_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
@@ -615,7 +615,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
         }
       } else if (type == TSDB_DATA_TYPE_DOUBLE) {
         double prev = 0;
-        GET_TYPED_DATA(prev, double, type, &pBuf->v);
+        GET_TYPED_DATA(prev, double, type, &pBuf->v, 0);
 
         double val = GET_DOUBLE_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
@@ -624,7 +624,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
         }
       } else if (type == TSDB_DATA_TYPE_FLOAT) {
         float prev = 0;
-        GET_TYPED_DATA(prev, float, type, &pBuf->v);
+        GET_TYPED_DATA(prev, float, type, &pBuf->v, 0);
 
         float val = GET_DOUBLE_VAL(tval);
         if ((prev < val) ^ isMinFunc) {

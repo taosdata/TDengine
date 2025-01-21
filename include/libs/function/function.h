@@ -313,7 +313,7 @@ typedef struct SPoint {
 } SPoint;
 
 void taosGetLinearInterpolationVal(SPoint *point, int32_t outputType, SPoint *point1, SPoint *point2,
-                                      int32_t inputType);
+                                      int32_t inputType, STypeMod inputTypeMod);
 
 #define LEASTSQUARES_DOUBLE_ITEM_LENGTH 25
 #define LEASTSQUARES_BUFF_LENGTH 128
