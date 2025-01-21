@@ -2794,26 +2794,13 @@ pub struct TaskDetail {
 
     /// Expanded DSN for source.
     from_expand: Option<ExpandedDsn>,
-    /// Expanded DSN definition with values.
-    #[serde(default)]
-    #[serde(skip_deserializing)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    from_detail: Option<DataSourceDefinition>,
 
     /// Expanded DSN for sink.
     to_expand: Option<ExpandedDsn>,
-    /// Expanded DSN definition with values.
-    #[serde(default)]
-    #[serde(skip_deserializing)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    to_detail: Option<DataSourceDefinition>,
 
     /// Agent
     #[serde(skip_serializing_if = "Option::is_none")]
     agent: Option<Agent>,
-
-    #[serde(skip_serializing)]
-    pub parser: Option<serde_json::Value>,
 }
 
 impl From<Task> for TaskDetail {
@@ -2839,12 +2826,9 @@ impl std::ops::DerefMut for TaskDetail {
 impl TaskDetail {
     pub fn new(task: Task) -> Self {
         TaskDetail {
-            parser: task.parser.clone(),
             task,
             from_expand: None,
-            from_detail: None,
             to_expand: None,
-            to_detail: None,
             agent: None,
         }
     }
@@ -2855,51 +2839,29 @@ impl TaskDetail {
 
     pub fn expand_detail(self, lang: Option<String>) -> Self {
         let value = self.task;
-        let parser = value.parser.clone();
         let from_dsn: Dsn = value.from.as_str().parse().unwrap();
         let to_dsn: Dsn = value.to.as_str().parse().unwrap();
         if let Some(lang) = lang {
             match lang.as_str() {
                 "zh" => TaskDetail {
                     from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
-                    from_detail: DATA_SOURCE_DEFINITIONS_CN
-                        .get(&from_dsn.driver)
-                        .map(|d| d.clone().values_from(from_dsn)),
                     to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
-                    to_detail: DATA_SOURCE_DEFINITIONS_CN
-                        .get(&to_dsn.driver)
-                        .map(|d| d.clone().values_from(to_dsn)),
                     task: value,
                     agent: None,
-                    parser,
                 },
                 _ => TaskDetail {
                     from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
-                    from_detail: DATA_SOURCE_DEFINITIONS
-                        .get(&from_dsn.driver)
-                        .map(|d| d.clone().values_from(from_dsn)),
                     to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
-                    to_detail: DATA_SOURCE_DEFINITIONS
-                        .get(&to_dsn.driver)
-                        .map(|d| d.clone().values_from(to_dsn)),
                     task: value,
                     agent: None,
-                    parser,
                 },
             }
         } else {
             TaskDetail {
                 from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
-                from_detail: DATA_SOURCE_DEFINITIONS
-                    .get(&from_dsn.driver)
-                    .map(|d| d.clone().values_from(from_dsn)),
                 to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
-                to_detail: DATA_SOURCE_DEFINITIONS
-                    .get(&to_dsn.driver)
-                    .map(|d| d.clone().values_from(to_dsn)),
                 task: value,
                 agent: None,
-                parser,
             }
         }
     }
@@ -2910,19 +2872,6 @@ impl TaskDetail {
         let to_dsn: Dsn = value.to.as_str().parse().unwrap();
         self.from_expand = Some(from_dsn.into());
         self.to_expand = Some(to_dsn.into());
-        self
-    }
-
-    pub fn _detail(mut self) -> Self {
-        let value = &self.task;
-        let from_dsn: Dsn = value.from.as_str().parse().unwrap();
-        let to_dsn: Dsn = value.to.as_str().parse().unwrap();
-        self.from_detail = DATA_SOURCE_DEFINITIONS
-            .get(&from_dsn.driver)
-            .map(|d| d.clone().values_from(from_dsn));
-        self.to_detail = DATA_SOURCE_DEFINITIONS
-            .get(&to_dsn.driver)
-            .map(|d| d.clone().values_from(to_dsn));
         self
     }
 
