@@ -325,7 +325,7 @@ make install
 
 </details>
 
-## 4.2 On macOS
+## 4.2 Build On macOS
 
 <details>
 
@@ -365,7 +365,7 @@ cmake .. && cmake --build .
 
 </details>
 
-## 4.3 On Windows
+## 4.3 Build On Windows
 
 <details>
 
