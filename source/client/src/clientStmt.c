@@ -1836,7 +1836,6 @@ int stmtGetParam(TAOS_STMT* stmt, int idx, int* type, int* bytes) {
   STMT_ERRI_JRET(stmtFetchColFields(stmt, &nums, &pField));
   if (idx >= nums) {
     tscError("idx %d is too big", idx);
-    taosMemoryFree(pField);
     STMT_ERRI_JRET(TSDB_CODE_INVALID_PARA);
   }
 
@@ -1844,10 +1843,8 @@ int stmtGetParam(TAOS_STMT* stmt, int idx, int* type, int* bytes) {
   *bytes = pField[idx].bytes;
 
 _return:
-  if (pField) {
-    taosMemoryFree(pField);
-  }
 
+  taosMemoryFree(pField);
   pStmt->errCode = preCode;
 
   return code;
