@@ -165,7 +165,6 @@ class TDTestCase:
             expireTime = time.mktime(time.strptime(expireTimeStr, "%Y-%m-%d %H:%M:%S"))
             serviceTime = time.mktime(time.strptime(serviceTimeStr, "%Y-%m-%d %H:%M:%S"))
             tdLog.info(f"expireTime: {expireTime}, serviceTime: {serviceTime}")
-            tdLog.info(f"expireTimeStr: {expireTimeStr}, serviceTimeStr: {serviceTimeStr}")
             tdSql.checkEqual(True, abs(expireTime - serviceTime - 864000) < 15)
             tdSql.query(f'show grants full;')
             nOptionGrants = 31
