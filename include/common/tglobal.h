@@ -29,6 +29,10 @@ extern "C" {
 #define SLOW_LOG_TYPE_OTHERS 0x4
 #define SLOW_LOG_TYPE_ALL    0xFFFFFFFF
 
+#define RPC_MEMORY_USAGE_RATIO   0.1
+#define QUEUE_MEMORY_USAGE_RATIO 0.06
+#define APPLY_MEMORY_USAGE_RATIO 0.04
+
 // cluster
 extern char     tsFirst[];
 extern char     tsSecond[];
