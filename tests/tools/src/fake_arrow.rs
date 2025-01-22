@@ -83,10 +83,14 @@ pub struct DataFaker {
 impl DataFaker {
     pub fn from_file(batch_size: usize, path: impl AsRef<Path>) -> Result<Self> {
         let buf = std::fs::read_to_string(path).context(ReadFileSnafu)?;
+        Self::from_string(batch_size, &buf)
+    }
+
+    fn from_string(batch_size: usize, buf: &str) -> Result<Self> {
         Ok(Self {
             batch_size,
             schema: OnceLock::new(),
-            columns: toml::from_str(&buf).context(ParseTomlSnafu)?,
+            columns: toml::from_str(buf).context(ParseTomlSnafu)?,
         })
     }
 
@@ -260,5 +264,48 @@ impl fake_json::TimestampSchema {
                 ))
             }
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_parse() -> anyhow::Result<()> {
+        let s = r#"
+[topic]
+type = "utf8"
+fixed = "topic"
+
+[qos]
+type = "int8"
+fixed = 0
+
+[payload]
+type = "json"
+
+[payload.properties]
+ts = { type = "timestamp", start_time = 2025-10-01T00:00:00.888000999, interval = "1ms" }
+value = { type = "number", fixed = 1000 }
+
+[site_controller_id]
+type = "utf8"
+fixed = "site_controller_3"
+
+[data_type]
+type = "utf8"
+fixed = "integer"
+
+[point_name]
+type = "utf8"
+length = { fixed = 3 }
+charset = "abcd"
+        "#;
+
+        assert!(DataFaker::from_string(100, s).is_ok());
+
+        Ok(())
     }
 }

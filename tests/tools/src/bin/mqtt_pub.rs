@@ -381,7 +381,7 @@ qos = 0
 type = "object"
 
 [schema.payload.properties]
-ts = { type = "timestamp", start_time = 2025-10-01T00:00:00.888888888, precision = "ns" }
+ts = { type = "timestamp", start_time = 2025-10-01T00:00:00.888888888, interval = "1ns" }
 value = { type = "option", value = { type = "string", length = { range = { min = 10, max = 1000 } } } }
         "#,
         )?;
@@ -404,7 +404,7 @@ type = "object"
 [properties.ts]
 type = "timestamp"
 start_time = 2025-10-01T00:00:00.888888888
-precision = "ns"
+interval = "1ns"
 
 [properties.value]
 type = "option"

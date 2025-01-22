@@ -78,14 +78,12 @@ fn proxy(args: Proxy) -> anyhow::Result<()> {
         .with_context(|| format!("bind listener on {} error", args.from))?;
     println!("start listening on {}", args.from);
 
-    let mut incoming = listener.incoming();
-
-    while let Some(res) = incoming.next() {
+    for res in listener.incoming() {
         let mut batch_from_stream = res.context("accept connection error")?;
         let mut ack_to_stream = batch_from_stream
             .try_clone()
             .context("clone ack to stream error")?;
-        let mut batch_to_stream = std::net::TcpStream::connect(&args.to)
+        let mut batch_to_stream = std::net::TcpStream::connect(args.to)
             .with_context(|| format!("connect to {} error", args.to))?;
         let mut ack_from_stream = batch_to_stream
             .try_clone()
@@ -214,7 +212,7 @@ fn generate(args: Generate) -> anyhow::Result<()> {
 
     let mut writer = StreamWriter::try_new_buffered(write_stream, &faker.get_schema())
         .context("create stream writer error")?;
-    let interval = args.interval.unwrap_or_else(|| Duration::ZERO);
+    let interval = args.interval.unwrap_or(Duration::ZERO);
     std::thread::spawn(move || {
         loop {
             if permit_tx.send(()).is_err() {
@@ -252,7 +250,7 @@ fn generate(args: Generate) -> anyhow::Result<()> {
     }
     drop(tx);
 
-    let mut signals = Signals::new(&[SIGHUP, SIGTERM, SIGINT, SIGQUIT])?;
+    let mut signals = Signals::new([SIGHUP, SIGTERM, SIGINT, SIGQUIT])?;
     for signal in signals.wait() {
         println!("received signal: {signal}");
         stream.shutdown(std::net::Shutdown::Both).ok();

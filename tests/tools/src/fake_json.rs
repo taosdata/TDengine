@@ -112,7 +112,7 @@ pub struct BoolSchema {
 
 impl BoolSchema {
     pub fn rand_bool_value(&self) -> Result<bool> {
-        Ok(self.fixed.unwrap_or_else(|| rand::random()))
+        Ok(self.fixed.unwrap_or_else(rand::random))
     }
 
     fn rand_bool(&self) -> Result<json::Value> {
@@ -153,7 +153,7 @@ pub struct TimestampSchema {
 
 impl PartialEq for TimestampSchema {
     fn eq(&self, other: &Self) -> bool {
-        self.start_time == other.start_time && self.interval == self.interval
+        self.start_time == other.start_time && self.interval == other.interval
     }
 }
 
