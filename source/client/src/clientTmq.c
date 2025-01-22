@@ -2587,7 +2587,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
 
 END:
   terrno = code;
-  if (tmq != NULL) {
+  if (tmq != NULL && terrno != 0) {
     tqErrorC("consumer:0x%" PRIx64 " poll error at line:%d, msg:%s", tmq->consumerId, lino, tstrerror(terrno));
   }
   return NULL;
