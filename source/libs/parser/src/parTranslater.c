@@ -6998,9 +6998,19 @@ static int32_t translateFrom(STranslateContext* pCxt, SNode** pTable) {
 }
 
 static int32_t checkLimit(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  int32_t code = translateExpr(pCxt, (SNode**)&pSelect->pLimit);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateExpr(pCxt, (SNode**)&pSelect->pSlimit);
+  int32_t code = 0;
+
+  if (pSelect->pLimit && pSelect->pLimit->limit) {
+    code = translateExpr(pCxt, (SNode**)&pSelect->pLimit->limit);
+  }
+  if (TSDB_CODE_SUCCESS == code && pSelect->pLimit && pSelect->pLimit->offset) {
+    code = translateExpr(pCxt, (SNode**)&pSelect->pLimit->offset);
+  }
+  if (TSDB_CODE_SUCCESS == code && pSelect->pSlimit && pSelect->pSlimit->limit) {
+    code = translateExpr(pCxt, (SNode**)&pSelect->pSlimit->limit);
+  }
+  if (TSDB_CODE_SUCCESS == code && pSelect->pSlimit && pSelect->pSlimit->offset) {
+    code = translateExpr(pCxt, (SNode**)&pSelect->pSlimit->offset);
   }
 
   if ((TSDB_CODE_SUCCESS == code) && 
