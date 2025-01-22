@@ -82,6 +82,7 @@ impl ZFileMan {
         for entry in self.writers.iter_mut() {
             let mut man = entry.value().lock().await;
             tracing::info!("Flush vgroup {}", entry.key());
+            man.move_to().await?;
             man.start_raw_block().await?;
             man.finish_raw_block().await?;
             man.flush().await?;
@@ -98,7 +99,7 @@ impl ZFileMan {
                     &self.api_version,
                     &self.server_version,
                     &self.backup_dir,
-                    (&self.topic, None, vgroup, 1),
+                    (&self.topic, self.ts, vgroup, 1),
                     self.compression_level,
                     self.max_file_size,
                     self.move_to.clone(),
@@ -322,7 +323,7 @@ pub async fn tmq_to_local(
             "parse backup config error, from: {}, to: {}",
             &from, &to
         ))?;
-
+    tracing::debug!("backup config: {:#?}", config);
     // 如果是初始备份
     if config.is_initial_backup().await? {
         // 在 TDengine 创建备份的 topic
@@ -469,11 +470,6 @@ impl BackupWorker {
     }
 
     async fn run_impl(&self) -> Result<()> {
-        tracing::debug!(
-            "tmq_to_local worker[{}] run with config: {:?}",
-            self.id,
-            self.config
-        );
         let metrics = self.metrics.tmq();
 
         let mut stream = self.consumer.stream();

@@ -368,6 +368,9 @@ pub fn parse_duration_in_dsn(dsn: &Dsn, key: &str) -> anyhow::Result<Option<Dura
 pub fn parse_datetime_in_dsn(dsn: &Dsn, key: &str) -> anyhow::Result<Option<DateTime<Utc>>> {
     parse_key_in_dsn::<String>(dsn, key)?
         .map(|val| {
+            if val.to_lowercase() == "now" {
+                return Ok(Utc::now());
+            }
             DateTime::parse_from_rfc3339(val.as_str())
                 .map(|dt| dt.with_timezone(&Utc))
                 .map_err(|err| anyhow::Error::from(err).context(format!("invalid {key}: {val}")))
@@ -457,6 +460,11 @@ mod tests {
 
     #[test]
     fn test_parse_datetime_in_dsn() {
+        let now = Utc::now();
+        let dsn = "tmq://?upcoming=now".into_dsn().unwrap();
+        let upcoming = parse_datetime_in_dsn(&dsn, "upcoming").unwrap().unwrap();
+        assert!(upcoming - now < chrono::Duration::seconds(1));
+
         let now = Utc::now();
         let dsn = format!("tmq://?upcoming={}", now.to_rfc3339())
             .into_dsn()
