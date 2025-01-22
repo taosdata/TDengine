@@ -300,9 +300,10 @@ bool isNodeUpdateTransActive() {
 
   while ((pIter = taosHashIterate(execInfo.transMgmt.pDBTrans, pIter)) != NULL) {
     SStreamTransInfo *pTransInfo = (SStreamTransInfo *)pIter;
-    if (strcmp(pTransInfo->name, MND_STREAM_CHKPT_UPDATE_NAME) != 0) {
+    if (strcmp(pTransInfo->name, MND_STREAM_CHKPT_UPDATE_NAME) == 0) {
       mDebug("stream:0x%" PRIx64 " %s st:%" PRId64 " is in task nodeEp update, create new stream not allowed",
-             pTransInfo->streamId, pTransInfo->name, pTransInfo->startTime) exist = true;
+             pTransInfo->streamId, pTransInfo->name, pTransInfo->startTime);
+      exist = true;
     }
   }
 
