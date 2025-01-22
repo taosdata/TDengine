@@ -577,6 +577,7 @@ void streamMetaClose(SStreamMeta* pMeta) {
   if (pMeta == NULL) {
     return;
   }
+
   int32_t code = taosRemoveRef(streamMetaRefPool, pMeta->rid);
   if (code) {
     stError("vgId:%d failed to remove meta ref:%" PRId64 ", code:%s", pMeta->vgId, pMeta->rid, tstrerror(code));
