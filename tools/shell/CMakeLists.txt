@@ -10,21 +10,23 @@ ELSE()
     SET(LINK_JEMALLOC "")
 ENDIF()
 
-IF(TD_LINUX AND TD_WEBSOCKET)
-    ADD_DEFINITIONS(-DWEBSOCKET -I${CMAKE_BINARY_DIR}/build/include -ltaosws)
-    SET(LINK_WEBSOCKET "-L${CMAKE_BINARY_DIR}/build/lib -ltaosws")
-    ADD_DEPENDENCIES(shell taosws-rs)
-ELSEIF(TD_DARWIN AND TD_WEBSOCKET)
-    ADD_DEFINITIONS(-DWEBSOCKET -I${CMAKE_BINARY_DIR}/build/include)
-    SET(LINK_WEBSOCKET "${CMAKE_BINARY_DIR}/build/lib/libtaosws.dylib")
-    ADD_DEPENDENCIES(shell taosws-rs)
-ELSEIF(TD_WINDOWS AND TD_WEBSOCKET)
-    ADD_DEFINITIONS(-DWEBSOCKET -I${CMAKE_BINARY_DIR}/build/include)
-    SET(LINK_WEBSOCKET "${CMAKE_BINARY_DIR}/build/lib/taosws.lib")
-    ADD_DEPENDENCIES(shell taosws-rs)
-ELSE()
-    SET(LINK_WEBSOCKET "")
-ENDIF()
+if(${FALLBACK})           # {
+    IF(TD_LINUX AND TD_WEBSOCKET)
+        ADD_DEFINITIONS(-DWEBSOCKET -I${CMAKE_BINARY_DIR}/build/include -ltaosws)
+        SET(LINK_WEBSOCKET "-L${CMAKE_BINARY_DIR}/build/lib -ltaosws")
+        ADD_DEPENDENCIES(shell taosws-rs)
+    ELSEIF(TD_DARWIN AND TD_WEBSOCKET)
+        ADD_DEFINITIONS(-DWEBSOCKET -I${CMAKE_BINARY_DIR}/build/include)
+        SET(LINK_WEBSOCKET "${CMAKE_BINARY_DIR}/build/lib/libtaosws.dylib")
+        ADD_DEPENDENCIES(shell taosws-rs)
+    ELSEIF(TD_WINDOWS AND TD_WEBSOCKET)
+        ADD_DEFINITIONS(-DWEBSOCKET -I${CMAKE_BINARY_DIR}/build/include)
+        SET(LINK_WEBSOCKET "${CMAKE_BINARY_DIR}/build/lib/taosws.lib")
+        ADD_DEPENDENCIES(shell taosws-rs)
+    ELSE()
+        SET(LINK_WEBSOCKET "")
+    ENDIF()
+endif()                   # }
 
 IF(TD_LINUX AND TD_ALPINE)
     SET(LINK_ARGP "/usr/lib/libargp.a")
@@ -38,6 +40,21 @@ else()
     target_link_libraries(shell PUBLIC ${TAOS_LIB} ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
 endif()
 
+if(NOT ${FALLBACK})           # {
+    add_dependencies(shell ext_taosws_builder)
+    target_include_directories(
+        shell
+        PUBLIC ${CMAKE_SOURCE_DIR}/.externals/ext_taosws/install/include        # freemine: hard-coded to be removed
+    )
+    target_link_directories(
+        shell
+        PUBLIC ${CMAKE_SOURCE_DIR}/.externals/ext_taosws/install/lib            # freemine: hard-coded to be removed
+    )
+    target_link_libraries(
+        shell
+        PUBLIC taosws
+    )
+endif()                       # }
 target_link_libraries(
     shell
     PRIVATE os common transport geometry util
@@ -60,18 +77,37 @@ IF(TD_LINUX)
     # shell_ut library
     add_library(shell_ut STATIC ${SHELL_SRC})
 
-    IF(TD_WEBSOCKET)
-        ADD_DEPENDENCIES(shell_ut taosws-rs)
-    ENDIF()
-    target_link_libraries(shell_ut PUBLIC ${TAOS_LIB} ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
-    target_link_libraries(shell_ut PRIVATE os common transport geometry util)
+    if(${FALLBACK})           # {
+        IF(TD_WEBSOCKET)
+            ADD_DEPENDENCIES(shell_ut taosws-rs)
+        ENDIF()
+        target_link_libraries(shell_ut PUBLIC ${TAOS_LIB} ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
+        target_link_libraries(shell_ut PRIVATE os common transport geometry util)
 
-    # util depends
-    target_link_directories(
-        shell_ut
-        PUBLIC "${TD_SOURCE_DIR}/contrib/lzma2"
-        PUBLIC "${TD_SOURCE_DIR}/contrib/pcre2"
-    )
+        # util depends
+        target_link_directories(
+            shell_ut
+            PUBLIC "${TD_SOURCE_DIR}/contrib/lzma2"
+            PUBLIC "${TD_SOURCE_DIR}/contrib/pcre2"
+        )
+    else()                    # }{
+        # freemine: to be depended by shell target
+        add_dependencies(shell_ut ext_taosws_builder)
+        target_include_directories(
+            shell_ut
+            PUBLIC ${CMAKE_SOURCE_DIR}/.externals/ext_taosws/install/include        # freemine: hard-coded to be removed
+        )
+        target_link_directories(
+            shell_ut
+            PUBLIC ${CMAKE_SOURCE_DIR}/.externals/ext_taosws/install/lib            # freemine: hard-coded to be removed
+        )
+        target_link_libraries(
+            shell_ut
+            PUBLIC taosws
+        )
+        target_link_libraries(shell_ut PUBLIC ${TAOS_LIB} ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
+        target_link_libraries(shell_ut PRIVATE os common transport geometry util)
+    endif()                   # }
 
     # unit test
     IF(${BUILD_TEST})

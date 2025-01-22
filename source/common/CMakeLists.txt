@@ -9,7 +9,13 @@ endif()
 
 add_library(common STATIC ${COMMON_SRC})
 
-add_dependencies(common lemon_sql)
+if(${FALLBACK})              # {
+    add_dependencies(common lemon_sql)
+else()                       # }{
+    add_dependencies(common lemon_sql)
+    get_target_property(_inc lemon_sql BINARY_DIR)
+    target_include_directories(common PUBLIC ${_inc})
+endif()                      # }
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
@@ -53,6 +59,22 @@ target_link_libraries(
   PUBLIC util
   INTERFACE api
 )
+
+if(NOT ${FALLBACK})        # {
+  add_dependencies(common ext_cjson)
+  target_include_directories(
+      common
+      PUBLIC ${ext_cjson_install}/include/cjson
+  )
+  target_link_directories(
+      common
+      PUBLIC ${ext_cjson_install}/lib
+  )
+  target_link_libraries(
+      common
+      PUBLIC cjson
+  )
+endif()                    # }
 
 if(${BUILD_S3})
   if(${BUILD_WITH_S3})

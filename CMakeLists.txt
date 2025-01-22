@@ -6,6 +6,18 @@ project(
   DESCRIPTION "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
 )
 
+option(FALLBACK "fall back to original"     OFF)
+
+if(NOT ${FALLBACK})        # {
+    set(TD_EXTERNALS              ${CMAKE_SOURCE_DIR}/.externals)
+    macro(init_external name)
+      set(_base           "${TD_EXTERNALS}/${name}")
+      set(_ins            "${TD_EXTERNALS}/${name}/install")
+      set(${name}_base    "${_base}"          PARENT_SCOPE)
+      set(${name}_install "${_ins}"           PARENT_SCOPE)
+    endmacro()
+endif()                    # }
+
 if(NOT DEFINED TD_SOURCE_DIR)
   set(TD_SOURCE_DIR ${PROJECT_SOURCE_DIR})
 endif()

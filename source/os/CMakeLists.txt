@@ -46,11 +46,85 @@ endif ()
 if(CHECK_STR2INT_ERROR)
     add_definitions(-DTD_CHECK_STR_TO_INT_ERROR)
 endif()
-target_link_libraries(
-    os
-    PUBLIC pthread
-    PUBLIC zlibstatic
-)
+if(${FALLBACK})             # {
+    target_link_libraries(
+        os
+        PUBLIC pthread
+        PUBLIC zlibstatic
+    )
+else()                      # }{
+    add_dependencies(os ext_zlib)
+    target_include_directories(
+        os
+        PUBLIC ${ext_zlib_install}/include
+    )
+    target_link_directories(
+        os
+        PUBLIC ${ext_zlib_install}/lib
+    )
+    target_link_libraries(
+        os
+        PUBLIC libz.a
+    )
+
+    target_link_libraries(
+        os
+        PUBLIC pthread
+    )
+
+    if(${BUILD_TEST})
+        add_dependencies(os ext_gtest)
+        target_include_directories(
+            os
+            PUBLIC ${ext_gtest_install}/include
+        )
+        target_link_directories(
+            os
+            PUBLIC ${ext_gtest_install}/lib
+        )
+        target_link_libraries(
+            os
+            PUBLIC gtest gtest_main
+        )
+        add_dependencies(os ext_stub)
+        target_include_directories(
+            os
+            PUBLIC ${ext_stub_addr_any} ${ext_stub_stub}
+        )
+    endif()
+
+    add_dependencies(os ext_tz_builder)
+    target_link_directories(
+        os
+        PUBLIC ${ext_tz_install}/usr/lib
+    )
+    target_link_libraries(
+        os
+        PUBLIC tz
+    )
+
+    set(_taos_h            "${CMAKE_BINARY_DIR}/build/include/taos.h")
+    set(_taoserror_h       "${CMAKE_BINARY_DIR}/build/include/taoserror.h")
+    add_custom_command(
+        OUTPUT ${_taos_h} ${_taoserror_h}
+        DEPENDS ${CMAKE_SOURCE_DIR}/include/client/taos.h
+                ${CMAKE_SOURCE_DIR}/include/util/taoserror.h
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${CMAKE_SOURCE_DIR}/include/client/taos.h ${_taos_h}
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${CMAKE_SOURCE_DIR}/include/util/taoserror.h ${_taoserror_h}
+        VERBATIM
+    )
+    add_custom_target(
+        copy_taos_headers
+        DEPENDS ${_taos_h}
+                ${_taoserror_h}
+    )
+    add_dependencies(os copy_taos_headers)
+
+    target_link_libraries(
+        os
+        PUBLIC pthread
+    )
+endif()                     # }
 if(TD_WINDOWS)
     target_link_libraries(
         os PUBLIC ws2_32 iconv msvcregex wcwidth winmm crashdump dbghelp version KtmW32

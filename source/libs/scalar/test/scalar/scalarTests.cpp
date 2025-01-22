@@ -600,9 +600,9 @@ TEST(constantTest, binary_greater_equal_varbinary) {
 TEST(constantTest, binary_equal_geo) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
   char   geoRawStr[64] = "POLYGON((30 10, 40 40, 20 40, 10 20, 30 10))";
-  char   geoStr[64] = {0};
+  char   geoStr[2+sizeof(geoRawStr)] = {0};
   int32_t code = TSDB_CODE_SUCCESS;
-  (void)sprintf(&geoStr[2], "%s", geoRawStr);
+  (void)snprintf(&geoStr[2], sizeof(geoStr) - 2, "%s", geoRawStr);
   varDataSetLen(geoStr, strlen(&geoStr[2]));
   code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_GEOMETRY, geoStr);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);

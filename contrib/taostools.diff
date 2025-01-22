@@ -1,0 +1,16 @@
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 7b3b487..ba94551 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -486,3 +486,11 @@ ELSE ()
+ 
+     TARGET_LINK_LIBRARIES(taosBenchmark taos msvcregex pthread toolscJson ${WEBSOCKET_LINK_FLAGS})
+ ENDIF ()
++
++if(DEFINED TAOS_BUILD_DIR)
++    target_include_directories(taosBenchmark PRIVATE ${TAOS_BUILD_DIR}/include)
++    target_include_directories(taosdump      PRIVATE ${TAOS_BUILD_DIR}/include)
++    target_link_directories(taosBenchmark PRIVATE ${TAOS_BUILD_DIR}/lib)
++    target_link_directories(taosdump      PRIVATE ${TAOS_BUILD_DIR}/lib)
++endif()
++

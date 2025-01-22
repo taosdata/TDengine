@@ -1,0 +1,32 @@
+diff --git a/Makefile b/Makefile
+index e386021..68d6137 100644
+--- a/Makefile
++++ b/Makefile
+@@ -62,11 +62,12 @@ ifeq ($(OS),Windows_NT)
+ 	strip -g $(REAL_NAME)
+ else
+ 	mkdir -p $(LIBDIR)
+-	cp $(REAL_NAME) $(LIBDIR)/$(REAL_NAME)
+-	strip -g $(LIBDIR)/$(REAL_NAME)
+-	chmod 0755 $(LIBDIR)/$(REAL_NAME)
+-	cd $(LIBDIR) && ln -sf $(REAL_NAME) $(LINKER_NAME)
+-	ldconfig $(LIBDIR)
++	# cp $(REAL_NAME) $(LIBDIR)/$(REAL_NAME)
++	# strip -g $(LIBDIR)/$(REAL_NAME)
++	# chmod 0755 $(LIBDIR)/$(REAL_NAME)
++	# cd $(LIBDIR) && ln -sf $(REAL_NAME) $(LINKER_NAME)
++	# ldconfig $(LIBDIR)
++	cp $(STATIC_LIBNAME) $(LIBDIR)/$(STATIC_LIBNAME)
+ 	mkdir -p $(DESTDIR)$(PREFIX)/include
+ 	cp fast-lzma2.h $(DESTDIR)$(PREFIX)/include/
+ 	cp fl2_errors.h $(DESTDIR)$(PREFIX)/include/
+@@ -79,7 +80,8 @@ ifeq ($(OS),Windows_NT)
+ else
+ 	rm -f $(LIBDIR)/$(LINKER_NAME)
+ 	rm -f $(LIBDIR)/$(REAL_NAME)
+-	ldconfig $(LIBDIR)
++	rm -f $(LIBDIR)/$(STATIC_LIBNAME)
++	# ldconfig $(LIBDIR)
+ 	rm -f $(DESTDIR)$(PREFIX)/include/fast-lzma2.h
+ 	rm -f $(DESTDIR)$(PREFIX)/include/fl2_errors.h
+ endif

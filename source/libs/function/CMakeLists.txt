@@ -6,16 +6,28 @@ IF(COMPILER_SUPPORT_AVX2)
     set_source_files_properties(src/detail/tminmaxavx.c PROPERTIES COMPILE_FLAGS -mavx2)
 ENDIF()
 add_library(function STATIC ${FUNCTION_SRC} ${FUNCTION_SRC_DETAIL})
-target_include_directories(
-    function
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/include/util"
-    "${TD_SOURCE_DIR}/include/common"
-    "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
+if(${FALLBACK})                    # {
+    target_include_directories(
+        function
+        PUBLIC
+        "${TD_SOURCE_DIR}/include/libs/function"
+        "${TD_SOURCE_DIR}/include/util"
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/client"
+        "${TD_SOURCE_DIR}/contrib/libuv/include"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    )
+else()                             # }{
+    target_include_directories(
+        function
+        PUBLIC
+        "${TD_SOURCE_DIR}/include/libs/function"
+        "${TD_SOURCE_DIR}/include/util"
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/client"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    )
+endif()                            # }
 
 IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
     ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
@@ -28,41 +40,74 @@ IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
     ADD_DEPENDENCIES(function jemalloc)
 ENDIF()
 
-target_link_libraries(
-    function
-    PRIVATE os
-    PRIVATE util
-    PRIVATE common
-    PRIVATE nodes
-    PRIVATE qcom
-    PRIVATE scalar
-    PRIVATE geometry
-    PRIVATE transport
-    PUBLIC uv_a
-)
-
+if(${FALLBACK})                # {
+    target_link_libraries(
+        function
+        PRIVATE os
+        PRIVATE util
+        PRIVATE common
+        PRIVATE nodes
+        PRIVATE qcom
+        PRIVATE scalar
+        PRIVATE geometry
+        transport
+        PUBLIC uv_a
+    )
+else()                         # }{
+    target_link_libraries(
+        function
+        PRIVATE os
+        PRIVATE util
+        PRIVATE common
+        PRIVATE nodes
+        PRIVATE qcom
+        PRIVATE scalar
+        PRIVATE geometry
+        PRIVATE transport
+    )
+endif()                        # }
 add_executable(runUdf test/runUdf.c)
-target_include_directories(
-    runUdf
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
-    "${TD_SOURCE_DIR}/include/util"
-    "${TD_SOURCE_DIR}/include/common"
-    "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/include/os"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
+if(${FALLBACK})                   # {
+    target_include_directories(
+        runUdf
+        PUBLIC
+        "${TD_SOURCE_DIR}/include/libs/function"
+        "${TD_SOURCE_DIR}/contrib/libuv/include"
+        "${TD_SOURCE_DIR}/include/util"
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/client"
+        "${TD_SOURCE_DIR}/include/os"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    )
+else()                            # }{
+    target_include_directories(
+        runUdf
+        PUBLIC
+        "${TD_SOURCE_DIR}/include/libs/function"
+        "${TD_SOURCE_DIR}/include/util"
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/client"
+        "${TD_SOURCE_DIR}/include/os"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    )
+endif()                           # }
 
 IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
     ADD_DEPENDENCIES(runUdf jemalloc)
 ENDIF()
 
-target_link_libraries(
-    runUdf
-    PUBLIC uv_a
-    PRIVATE os util common nodes function ${LINK_JEMALLOC}
-)
+if(${FALLBACK})                  # {
+    target_link_libraries(
+        runUdf
+        PUBLIC uv_a
+        PRIVATE os util common nodes function ${LINK_JEMALLOC}
+    )
+else()                           # }{
+    target_link_libraries(
+        runUdf
+        PRIVATE os util common nodes function ${LINK_JEMALLOC}
+    )
+endif()                          # }
 
 add_library(udf1 STATIC MODULE test/udf1.c)
 target_include_directories(
@@ -193,24 +238,44 @@ if(${TD_DARWIN})
     target_compile_options(udfd PRIVATE -Wno-error=deprecated-non-prototype)
 endif()
 
-target_include_directories(
-    udfd
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
-    "${TD_SOURCE_DIR}/include/util"
-    "${TD_SOURCE_DIR}/include/common"
-    "${TD_SOURCE_DIR}/include/libs/transport"
-    "${TD_SOURCE_DIR}/include/client"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
+if(${FALLBACK})                       # {
+    target_include_directories(
+        udfd
+        PUBLIC
+        "${TD_SOURCE_DIR}/include/libs/function"
+        "${TD_SOURCE_DIR}/contrib/libuv/include"
+        "${TD_SOURCE_DIR}/include/util"
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/libs/transport"
+        "${TD_SOURCE_DIR}/include/client"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    )
+else()                                # }{
+    target_include_directories(
+        udfd
+        PUBLIC
+        "${TD_SOURCE_DIR}/include/libs/function"
+        "${TD_SOURCE_DIR}/include/util"
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/libs/transport"
+        "${TD_SOURCE_DIR}/include/client"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    )
+endif()                               # }
 
 IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
     ADD_DEPENDENCIES(udfd jemalloc)
 ENDIF()
 
-target_link_libraries(
-    udfd
-    PUBLIC uv_a
-    PRIVATE os util common nodes function ${LINK_JEMALLOC}
-)
+if(${FALLBACK})               # {
+    target_link_libraries(
+        udfd
+        PUBLIC uv_a
+        PRIVATE os util common nodes function ${LINK_JEMALLOC}
+    )
+else()                        # }{
+    target_link_libraries(
+        udfd
+        PRIVATE os util common nodes function ${LINK_JEMALLOC}
+    )
+endif()                       # }
