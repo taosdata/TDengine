@@ -84,14 +84,14 @@ function buildTDengine() {
         # pull tdinternal code
         cd "$TDENGINE_DIR/../"
         print_color "$GREEN" "Git pull TDinternal code..."
-        git remote prune origin > /dev/null
-        git remote update > /dev/null
+        # git remote prune origin > /dev/null
+        # git remote update > /dev/null
 
         # pull tdengine code
         cd $TDENGINE_DIR
         print_color "$GREEN" "Git pull TDengine code..."
-        git remote prune origin > /dev/null
-        git remote update > /dev/null
+        # git remote prune origin > /dev/null
+        # git remote update > /dev/null
         REMOTE_COMMIT=`git rev-parse --short remotes/origin/$branch`
         LOCAL_COMMIT=`git rev-parse --short @`
         print_color "$GREEN" " LOCAL: $LOCAL_COMMIT"
@@ -103,12 +103,12 @@ function buildTDengine() {
             print_color "$GREEN" "Repo need to pull"
         fi
 
-        git reset --hard
-        git checkout -- .
+        # git reset --hard
+        # git checkout -- .
         git checkout $branch
-        git checkout -- .
-        git clean -f
-        git pull
+        # git checkout -- .
+        # git clean -f
+        # git pull
 
         [ -d $TDENGINE_DIR/../debug ] || mkdir $TDENGINE_DIR/../debug
         cd $TDENGINE_DIR/../debug
@@ -128,8 +128,8 @@ function buildTDengine() {
         # pull tdengine code
         cd $TDENGINE_DIR
         print_color "$GREEN" "Git pull TDengine code..."
-        git remote prune origin > /dev/null
-        git remote update > /dev/null
+        # git remote prune origin > /dev/null
+        # git remote update > /dev/null
         REMOTE_COMMIT=`git rev-parse --short remotes/origin/$branch`
         LOCAL_COMMIT=`git rev-parse --short @`
         print_color "$GREEN" " LOCAL: $LOCAL_COMMIT"
@@ -141,12 +141,12 @@ function buildTDengine() {
             print_color "$GREEN" "Repo need to pull"
         fi
 
-        git reset --hard
-        git checkout -- .
+        # git reset --hard
+        # git checkout -- .
         git checkout $branch
-        git checkout -- .
-        git clean -f
-        git pull
+        # git checkout -- .
+        # git clean -f
+        # git pull
 
         [ -d $TDENGINE_DIR/debug ] || mkdir $TDENGINE_DIR/debug
         cd $TDENGINE_DIR/debug
