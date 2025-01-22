@@ -33,37 +33,6 @@ function printHelp() {
       exit 0
 }
 
-# Initialization parameter
-PROJECT_DIR=""
-BRANCH=""
-TEST_TYPE=""
-SAVE_LOG="notsave"
-
-# Parse command line parameters
-while getopts "hb:d:t:s:" arg; do
-  case $arg in
-    d)
-      PROJECT_DIR=$OPTARG
-      ;;
-    b)
-      BRANCH=$OPTARG
-      ;;
-    t)
-      TEST_TYPE=$OPTARG
-      ;;
-    s)
-      SAVE_LOG=$OPTARG
-      ;;
-    h)
-      printHelp
-      ;;
-    ?)
-      echo "Usage: ./$(basename $0) -h"
-      exit 1
-      ;;
-  esac
-done
-
 function get_DIR() {
     today=`date +"%Y%m%d"`
     if [ -z "$PROJECT_DIR" ]; then
@@ -101,13 +70,6 @@ function get_DIR() {
         mkdir -p "$BACKUP_DIR"
     fi
 }
-
-get_DIR
-echo "PROJECT_DIR = $PROJECT_DIR"
-echo "TDENGINE_DIR = $TDENGINE_DIR"
-echo "BUILD_DIR = $BUILD_DIR"
-echo "BACKUP_DIR = $BACKUP_DIR"
-
 
 function buildTDengine() {
     print_color "$GREEN" "TDengine build start"
@@ -198,18 +160,6 @@ function buildTDengine() {
 
     print_color "$GREEN" "TDengine build end"
 }
-
-
-# Check and get the branch name
-if [ -n "$BRANCH" ] ; then
-    branch="$BRANCH"
-    print_color "$GREEN" "Testing branch: $branch "
-    print_color "$GREEN" "Build is required for this test！"
-    buildTDengine
-else
-    print_color "$GREEN" "Build is not required for this test！"
-fi
-
 
 function runCasesOneByOne () {
     while read -r line; do
@@ -314,7 +264,6 @@ function runPythonCases() {
     fi
 }
 
-
 function runTest() {
     print_color "$GREEN" "run Test"
 
@@ -360,6 +309,55 @@ function stopTaosadapter {
     print_color "$GREEN" "Stop tasoadapter end"
 
 }
+
+
+# Initialization parameter
+PROJECT_DIR=""
+BRANCH=""
+TEST_TYPE=""
+SAVE_LOG="notsave"
+
+# Parse command line parameters
+while getopts "hb:d:t:s:" arg; do
+  case $arg in
+    d)
+      PROJECT_DIR=$OPTARG
+      ;;
+    b)
+      BRANCH=$OPTARG
+      ;;
+    t)
+      TEST_TYPE=$OPTARG
+      ;;
+    s)
+      SAVE_LOG=$OPTARG
+      ;;
+    h)
+      printHelp
+      ;;
+    ?)
+      echo "Usage: ./$(basename $0) -h"
+      exit 1
+      ;;
+  esac
+done
+
+get_DIR
+echo "PROJECT_DIR = $PROJECT_DIR"
+echo "TDENGINE_DIR = $TDENGINE_DIR"
+echo "BUILD_DIR = $BUILD_DIR"
+echo "BACKUP_DIR = $BACKUP_DIR"
+
+# Check and get the branch name
+if [ -n "$BRANCH" ] ; then
+    branch="$BRANCH"
+    print_color "$GREEN" "Testing branch: $branch "
+    print_color "$GREEN" "Build is required for this test！"
+    buildTDengine
+else
+    print_color "$GREEN" "Build is not required for this test！"
+fi
+
 
 WORK_DIR=$TDENGINE_DIR
 
