@@ -49,11 +49,11 @@ if(${TD_WINDOWS})
   )
 
   target_link_libraries(
-          common
+    common
 
-          PUBLIC os
-          PUBLIC util
-          INTERFACE api
+    PUBLIC os
+    PUBLIC util
+    INTERFACE api
   )
 
 else()

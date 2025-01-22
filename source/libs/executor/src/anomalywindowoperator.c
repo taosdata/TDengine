@@ -26,6 +26,8 @@
 #include "tjson.h"
 #include "ttime.h"
 
+#ifdef USE_ANALYTICS
+
 typedef struct {
   SArray*     blocks;   // SSDataBlock*
   SArray*     windows;  // STimeWindow
@@ -657,3 +659,13 @@ _OVER:
 
   return code;
 }
+
+#else
+
+int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
+                                        SOperatorInfo** pOptrInfo) {
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+void destroyForecastInfo(void* param) {}
+
+#endif
