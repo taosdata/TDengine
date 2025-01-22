@@ -864,7 +864,11 @@ SSortMergeJoinPhysiNode* createDummySortMergeJoinPhysiNode(SJoinTestParam* param
     SLimitNode* limitNode = NULL;
     code = nodesMakeNode(QUERY_NODE_LIMIT, (SNode**)&limitNode);
     assert(limitNode);
-    limitNode->limit = param->jLimit;
+    code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&limitNode->limit);
+    assert(limitNode->limit);
+    limitNode->limit->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+    limitNode->limit->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    limitNode->limit->datum.i = param->jLimit;
     p->pJLimit = (SNode*)limitNode;
   }
   
