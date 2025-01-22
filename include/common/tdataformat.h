@@ -40,6 +40,7 @@ typedef struct SRowIter   SRowIter;
 typedef struct STagVal    STagVal;
 typedef struct STag       STag;
 typedef struct SColData   SColData;
+typedef struct SBlobRow   SBlobRow;
 
 typedef struct SRowKey      SRowKey;
 typedef struct SValueColumn SValueColumn;
@@ -130,6 +131,7 @@ int32_t tValueCompare(const SValue *tv1, const SValue *tv2);
 
 // SRow ================================
 int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);
+int32_t tRowBuild2(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobRow **ppBlobRow);
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 void    tRowDestroy(SRow *pRow);
 int32_t tRowSort(SArray *aRowP);
@@ -237,6 +239,14 @@ struct SRow {
   uint16_t sver;
   uint32_t len;
   TSKEY    ts;
+  uint8_t  data[];
+};
+
+struct SBlobRow {
+  uint8_t  flag;
+  uint8_t  numOfPKs;
+  uint16_t sver;
+  uint32_t len;
   uint8_t  data[];
 };
 

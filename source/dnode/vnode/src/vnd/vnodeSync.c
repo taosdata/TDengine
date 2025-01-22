@@ -138,8 +138,7 @@ static int32_t inline decodeSSubmitData(SVnode *pVnode, SDecoder *pCoder, SSubmi
 
   STSchema *pTSchema = NULL;
   code = metaGetTbTSchemaEx(pVnode->pMeta, pSubmitTbData->suid, pSubmitTbData->uid, pSubmitTbData->sver, &pTSchema);
-
-  
+  TAOS_CHECK_GOTO(code, &lino, _exit);
 
   uint64_t nRow;
   TAOS_CHECK_EXIT(tDecodeU64v(pCoder, &nRow));
@@ -156,6 +155,26 @@ static int32_t inline decodeSSubmitData(SVnode *pVnode, SDecoder *pCoder, SSubmi
     }
 
     TAOS_CHECK_EXIT(tDecodeRow(pCoder, ppRow));
+
+    for (int32_t i = 0; i < pTSchema->numOfCols; ++i) {
+      // SColData *pColData = taosArrayGet(pSubmitTbData->aCol, i);
+      // if (pColData == NULL) {
+      //   TAOS_CHECK_EXIT(terrno);
+      // }
+
+      SColVal colVal = {0};
+      code = tRowGet(*ppRow, pTSchema, i, &colVal);
+      TAOS_CHECK_EXIT(code);
+
+      // if (colVal.cid < pColData->info.colId) {
+      //   continue;
+      // } else if (colVal.cid == pColData->info.colId) {
+      //   code = doSetVal(pColData, iRow, &colVal);
+      //   TAOS_CHECK_EXIT(code);
+      // } else {
+      //   colDataSetNULL(pColData, iRow);
+      // }
+    }
   }
 
   pSubmitTbData->ctimeMs = 0;
@@ -178,7 +197,7 @@ static int32_t inline vnodeShouldRewriteSubmitMsg(SVnode *pVnode, SRpcMsg **pMsg
     return code;
   }
 
-  pReq = POINTER_SHIFT(p->pCont, sizeof(SMsgHead));
+  pReq = p->pCont;
   len = p->contLen - sizeof(SMsgHead);
 
   SSubmitReq2 *pSubmitReq = &(SSubmitReq2){0};
