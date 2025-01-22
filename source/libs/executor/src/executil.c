@@ -2932,7 +2932,7 @@ char* getStreamOpName(uint16_t opType) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL:
       return "interval continue final";
   }
-  return "";
+  return "error name";
 }
 
 void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr) {

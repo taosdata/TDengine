@@ -400,6 +400,37 @@ _end:
   return code;
 }
 
+static int32_t closeNonBlockIntervalWindow(SSHashObj* pHashMap, STimeWindowAggSupp* pTwSup, SInterval* pInterval,
+                                           SArray* pUpdated, SExecTaskInfo* pTaskInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  void*   pIte = NULL;
+  int32_t iter = 0;
+  while ((pIte = tSimpleHashIterate(pHashMap, pIte, &iter)) != NULL) {
+    void*    key = tSimpleHashGetKey(pIte, NULL);
+    SWinKey* pWinKey = (SWinKey*)key;
+
+    STimeWindow win = {
+        .skey = pWinKey->ts,
+        .ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1,
+    };
+
+    if (isCloseWindow(&win, pTwSup)) {
+      void* pTemp = taosArrayPush(pUpdated, pIte);
+      QUERY_CHECK_NULL(pTemp, code, lino, _end, terrno);
+
+      int32_t tmpRes = tSimpleHashIterateRemove(pHashMap, pWinKey, sizeof(SWinKey), &pIte, &iter);
+      qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
+    }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+  return code;
+}
+
 int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                           code = TSDB_CODE_SUCCESS;
   int32_t                           lino = 0;
@@ -524,6 +555,12 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
       code = getHistoryRemainResultInfo(pAggSup, pInfo->numOfKeep, pInfo->pUpdated, pOperator->resultInfo.capacity);
       QUERY_CHECK_CODE(code, lino, _end);
     }
+  }
+  
+  if (pOperator->status == OP_RES_TO_RETURN && pInfo->destHasPrimaryKey && isFinalOperator(&pInfo->basic)) {
+    code = closeNonBlockIntervalWindow(pAggSup->pResultRows, &pInfo->twAggSup, &pInfo->interval, pInfo->pUpdated,
+                                       pTaskInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   taosArraySort(pInfo->pUpdated, winPosCmprImpl);
@@ -655,37 +692,6 @@ bool isDataDeletedStreamWindow(SStreamIntervalSliceOperatorInfo* pInfo, STimeWin
   return false;
 }
 
-static int32_t closeNonBlockIntervalWindow(SSHashObj* pHashMap, STimeWindowAggSupp* pTwSup, SInterval* pInterval,
-                                           SArray* pUpdated, SExecTaskInfo* pTaskInfo) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  void*   pIte = NULL;
-  int32_t iter = 0;
-  while ((pIte = tSimpleHashIterate(pHashMap, pIte, &iter)) != NULL) {
-    void*    key = tSimpleHashGetKey(pIte, NULL);
-    SWinKey* pWinKey = (SWinKey*)key;
-
-    STimeWindow win = {
-        .skey = pWinKey->ts,
-        .ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1,
-    };
-
-    if (isCloseWindow(&win, pTwSup)) {
-      void* pTemp = taosArrayPush(pUpdated, pIte);
-      QUERY_CHECK_NULL(pTemp, code, lino, _end, terrno);
-
-      int32_t tmpRes = tSimpleHashIterateRemove(pHashMap, pWinKey, sizeof(SWinKey), &pIte, &iter);
-      qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
-    }
-  }
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
-  }
-  return code;
-}
-
 static int32_t doStreamFinalntervalNonblockAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   int32_t                           code = TSDB_CODE_SUCCESS;
   int32_t                           lino = 0;
@@ -755,7 +761,7 @@ static int32_t doStreamFinalntervalNonblockAggImpl(SOperatorInfo* pOperator, SSD
     startPos = getNextQualifiedFinalWindow(&pInfo->interval, &curWin, &pBlock->info, tsCols, prevEndPos);
   }
 
-  if (!isHistoryOperator(&pInfo->basic)) {
+  if (!pInfo->destHasPrimaryKey && !isHistoryOperator(&pInfo->basic)) {
     code = closeNonBlockIntervalWindow(pAggSup->pResultRows, &pInfo->twAggSup, &pInfo->interval, pInfo->pUpdated,
                                        pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _end);
