@@ -15,6 +15,10 @@ if(DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
 endif()
 
+if(${BUILD_WITH_ANALYSIS})
+  add_definitions(-DUSE_ANALYTICS)
+endif()
+
 if(TD_GRANT)
   ADD_DEFINITIONS(-D_GRANT)
 endif()

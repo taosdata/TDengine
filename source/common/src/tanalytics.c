@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tanalytics.h"
 #include "ttypes.h"
+#include "tutil.h"
 
 #ifdef USE_ANALYTICS
 #include <curl/curl.h>
@@ -35,7 +36,7 @@ typedef struct {
 static SAlgoMgmt tsAlgos = {0};
 static int32_t   taosAnalBufGetCont(SAnalyticBuf *pBuf, char **ppCont, int64_t *pContLen);
 
-const char *taosAnalAlgoStr(EAnalAlgoType type) {
+const char *taosAnalysisAlgoType(EAnalAlgoType type) {
   switch (type) {
     case ANAL_ALGO_TYPE_ANOMALY_DETECT:
       return "anomaly-detection";
@@ -59,7 +60,7 @@ const char *taosAnalAlgoUrlStr(EAnalAlgoType type) {
 
 EAnalAlgoType taosAnalAlgoInt(const char *name) {
   for (EAnalAlgoType i = 0; i < ANAL_ALGO_TYPE_END; ++i) {
-    if (strcasecmp(name, taosAnalAlgoStr(i)) == 0) {
+    if (strcasecmp(name, taosAnalysisAlgoType(i)) == 0) {
       return i;
     }
   }
@@ -187,12 +188,12 @@ int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, 
     SAnalyticsUrl *pUrl = taosHashAcquire(tsAlgos.hash, name, nameLen);
     if (pUrl != NULL) {
       tstrncpy(url, pUrl->url, urlLen);
-      uDebug("algo:%s, type:%s, url:%s", algoName, taosAnalAlgoStr(type), url);
+      uDebug("algo:%s, type:%s, url:%s", algoName, taosAnalysisAlgoType(type), url);
     } else {
       url[0] = 0;
       terrno = TSDB_CODE_ANA_ALGO_NOT_FOUND;
       code = terrno;
-      uError("algo:%s, type:%s, url not found", algoName, taosAnalAlgoStr(type));
+      uError("algo:%s, type:%s, url not found", algoName, taosAnalysisAlgoType(type));
     }
 
     if (taosThreadMutexUnlock(&tsAlgos.lock) != 0) {
@@ -789,7 +790,7 @@ int32_t taosAnalBufWriteDataEnd(SAnalyticBuf *pBuf) { return 0; }
 int32_t taosAnalBufClose(SAnalyticBuf *pBuf) { return 0; }
 void    taosAnalBufDestroy(SAnalyticBuf *pBuf) {}
 
-const char   *taosAnalAlgoStr(EAnalAlgoType algoType) { return 0; }
+const char   *taosAnalysisAlgoType(EAnalAlgoType algoType) { return 0; }
 EAnalAlgoType taosAnalAlgoInt(const char *algoName) { return 0; }
 const char   *taosAnalAlgoUrlStr(EAnalAlgoType algoType) { return 0; }
 

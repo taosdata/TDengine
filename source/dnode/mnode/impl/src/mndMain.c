@@ -411,7 +411,7 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     mndStreamConsensusChkpt(pMnode);
   }
 
-  if (sec % tsTelemInterval == (TMIN(86400, (tsTelemInterval - 1)))) {
+  if (sec % 20 == (TMIN(86400, (20 - 1)))) {
     mndPullupTelem(pMnode);
   }
 
