@@ -34,7 +34,9 @@ endif()
 
 target_include_directories(
   common
+  PUBLIC "$ENV{HOME}/.cos-local.2/include"
   PUBLIC "${TD_SOURCE_DIR}/include/common"
+
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
   PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
 )
@@ -47,28 +49,33 @@ if(${TD_WINDOWS})
   )
 endif()
 
+find_library(CURL_LIBRARY curl $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
+find_library(SSL_LIBRARY ssl $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
+find_library(CRYPTO_LIBRARY crypto $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
+
 target_link_libraries(
   common
+
+  PUBLIC ${CURL_LIBRARY}
+  PUBLIC ${SSL_LIBRARY}
+  PUBLIC ${CRYPTO_LIBRARY}
+
   PUBLIC os
   PUBLIC util
   INTERFACE api
 )
 
+
+
 if(${BUILD_S3})
   if(${BUILD_WITH_S3})
-    target_include_directories(
-      common
-
-      PUBLIC "$ENV{HOME}/.cos-local.2/include"
-    )
-
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
     set(CMAKE_PREFIX_PATH $ENV{HOME}/.cos-local.2)
     find_library(S3_LIBRARY s3)
-    find_library(CURL_LIBRARY curl $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
+#    find_library(CURL_LIBRARY curl $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
     find_library(XML2_LIBRARY xml2)
-    find_library(SSL_LIBRARY ssl $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
-    find_library(CRYPTO_LIBRARY crypto $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
+#    find_library(SSL_LIBRARY ssl $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
+#    find_library(CRYPTO_LIBRARY crypto $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
     target_link_libraries(
       common
 

@@ -24,8 +24,6 @@
 #include "tanalytics.h"
 #include "tjson.h"
 
-#ifdef USE_ANALYTICS
-
 #define TSDB_ANODE_VER_NUMBER   1
 #define TSDB_ANODE_RESERVE_SIZE 64
 
@@ -880,25 +878,3 @@ _OVER:
   tFreeRetrieveAnalAlgoRsp(&rsp);
   TAOS_RETURN(code);
 }
-
-#else
-
-static int32_t mndProcessUnsupportReq(SRpcMsg *pReq) { return TSDB_CODE_OPS_NOT_SUPPORT; }
-static int32_t mndRetrieveUnsupport(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-}
-
-int32_t mndInitAnode(SMnode *pMnode) {
-  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ANODE, mndProcessUnsupportReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_UPDATE_ANODE, mndProcessUnsupportReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_DROP_ANODE, mndProcessUnsupportReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_RETRIEVE_ANAL_ALGO, mndProcessUnsupportReq);
-
-  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ANODE, mndRetrieveUnsupport);
-  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ANODE_FULL, mndRetrieveUnsupport);
-  return 0;
-}
-
-void mndCleanupAnode(SMnode *pMnode) {}
-
-#endif

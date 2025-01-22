@@ -26,8 +26,6 @@
 #include "tfill.h"
 #include "ttime.h"
 
-#ifdef USE_ANALYTICS
-
 typedef struct {
   char     algoName[TSDB_ANALYTIC_ALGO_NAME_LEN];
   char     algoUrl[TSDB_ANALYTIC_ALGO_URL_LEN];
@@ -662,11 +660,3 @@ static void destroyForecastInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-#else
-
-int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
-                                   SOperatorInfo** pOptrInfo) {
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-}
-
-#endif
