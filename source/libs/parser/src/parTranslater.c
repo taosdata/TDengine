@@ -4735,7 +4735,7 @@ static int32_t translateJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoin
                                          getFullJoinTypeString(type, *pSType));
     }
     SLimitNode* pJLimit = (SLimitNode*)pJoinTable->pJLimit;
-    code = translateExpr(pCxt, &pJoinTable->pJLimit);
+    code = translateExpr(pCxt, (SNode**)&pJLimit->limit);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
@@ -7502,7 +7502,14 @@ static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pS
 }
 
 static int32_t checkSetOperLimit(STranslateContext* pCxt, SLimitNode* pLimit) {
-  if ((NULL != pLimit && NULL != pLimit->offset && pLimit->offset->datum.i < 0)) {
+  int32_t code = 0;
+  if (pLimit && pLimit->limit) {
+    code = translateExpr(pCxt, (SNode**)&pLimit->limit);
+  }
+  if (TSDB_CODE_SUCCESS == code && pLimit && pLimit->offset) {
+    code = translateExpr(pCxt, (SNode**)&pLimit->offset);
+  }
+  if (TSDB_CODE_SUCCESS == code && (NULL != pLimit && NULL != pLimit->offset && pLimit->offset->datum.i < 0)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OFFSET_LESS_ZERO);
   }
   return TSDB_CODE_SUCCESS;
