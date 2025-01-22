@@ -74,6 +74,7 @@ endif()
 # jemalloc
 if(${JEMALLOC_ENABLED})
     cat("${TD_SUPPORT_DIR}/jemalloc_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    MESSAGE("JEMALLOC_ENABLED is on")
 endif()
 
 # msvc regex

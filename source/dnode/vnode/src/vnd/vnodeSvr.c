@@ -1873,7 +1873,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     len -= sizeof(SSubmitReq2Msg);
     SDecoder dc = {0};
     tDecoderInit(&dc, pReq, len);
-    if (tDecodeSubmitReq(&dc, pSubmitReq) < 0) {
+    if (tDecodeSubmitReq(&dc, pSubmitReq, NULL) < 0) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
     }

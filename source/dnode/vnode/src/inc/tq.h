@@ -117,7 +117,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
 int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t reqId);
 
 // tqExec
-int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqDataRsp* pRsp, int32_t* totalRows, int8_t sourceExcluded);
+int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqDataRsp* pRsp, int32_t* totalRows, const SMqPollReq* pRequest);
 int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp,
                       int32_t type, int32_t vgId);
 void    tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId);
@@ -178,6 +178,7 @@ int32_t tqExtractDropCtbDataBlock(const void* data, int32_t len, int64_t ver, vo
 #define TQ_SUBSCRIBE_NAME "subscribe"
 #define TQ_OFFSET_NAME    "offset-ver0"
 #define TQ_POLL_MAX_TIME  1000
+#define TQ_POLL_MAX_BYTES 1048576
 
 #ifdef __cplusplus
 }
