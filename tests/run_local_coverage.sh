@@ -41,49 +41,6 @@ function printHelp() {
 }
 
 
-PROJECT_DIR=""
-CAPTURE_GCDA_DIR=""
-TEST_CASE="task"
-UNIT_TEST_CASE=""
-BRANCH=""
-BRANCH_BUILD=""
-LCOV_DIR="/usr/local/bin"
-
-# Parse command line parameters
-while getopts "hd:b:f:c:u:i:l:" arg; do
-  case $arg in
-    d)
-      PROJECT_DIR=$OPTARG
-      ;;
-    b)
-      BRANCH=$OPTARG
-      ;;
-    f)
-      CAPTURE_GCDA_DIR=$OPTARG
-      ;;
-    c)
-      TEST_CASE=$OPTARG
-      ;;
-    u)
-      UNIT_TEST_CASE=$OPTARG
-      ;;
-    i)
-      BRANCH_BUILD=$OPTARG
-      ;;
-    l)
-      LCOV_DIR=$OPTARG
-      ;;
-    h)
-      printHelp
-      ;;
-    ?)
-      echo "Usage: ./$(basename $0) -h"
-      exit 1
-      ;;
-  esac
-done
-
-
 # Find the project/tdengine/build/capture directory 
 function get_DIR() {
     today=`date +"%Y%m%d"`
@@ -116,18 +73,6 @@ function get_DIR() {
         CAPTURE_GCDA_DIR="$BUILD_DIR"
     fi
 }
-
-
-# Show all parameters
-get_DIR
-echo "PROJECT_DIR = $PROJECT_DIR"
-echo "TDENGINE_DIR = $TDENGINE_DIR"
-echo "BUILD_DIR = $BUILD_DIR"
-echo "CAPTURE_GCDA_DIR = $CAPTURE_GCDA_DIR"
-echo "TEST_CASE = $TEST_CASE"
-echo "UNIT_TEST_CASE = $UNIT_TEST_CASE"
-echo "BRANCH_BUILD = $BRANCH_BUILD"
-echo "LCOV_DIR = $LCOV_DIR"
 
 
 function buildTDengine() {
@@ -219,44 +164,6 @@ function buildTDengine() {
 
     print_color "$GREEN" "TDengine build end"
 }
-
-# Check and get the branch name and build branch
-if [ -n "$BRANCH" ] && [ -z "$BRANCH_BUILD" ] ; then
-    branch="$BRANCH"
-    print_color "$GREEN" "Testing branch: $branch "
-    print_color "$GREEN" "Build is required for this test!"
-    buildTDengine
-elif [ -n "$BRANCH_BUILD" ] && [ "$BRANCH_BUILD" = "YES" -o "$BRANCH_BUILD" = "yes" ] ; then
-    CURRENT_DIR=$(pwd)
-    echo "CURRENT_DIR: $CURRENT_DIR"
-    if [ -d .git ]; then
-        CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-        echo "CURRENT_BRANCH: $CURRENT_BRANCH"
-    else
-        echo "The current directory is not a Git repository"
-    fi
-    branch="$CURRENT_BRANCH"
-    print_color "$GREEN" "Testing branch: $branch "
-    print_color "$GREEN" "Build is required for this test!"
-    buildTDengine
-elif [ -n "$BRANCH_BUILD" ] && [ "$BRANCH_BUILD" = "ONLY_INSTALL" -o "$BRANCH_BUILD" = "only_install" ] ; then
-    CURRENT_DIR=$(pwd)
-    echo "CURRENT_DIR: $CURRENT_DIR"
-    if [ -d .git ]; then
-        CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-        echo "CURRENT_BRANCH: $CURRENT_BRANCH"
-    else
-        echo "The current directory is not a Git repository"
-    fi
-    branch="$CURRENT_BRANCH"
-    print_color "$GREEN" "Testing branch: $branch "
-    print_color "$GREEN" "not build,only install!"
-    cd $TDENGINE_DIR/debug
-    make -j $(nproc) install 
-elif [ -z "$BRANCH" ] && [ -z "$BRANCH_BUILD" ] ; then
-    print_color "$GREEN" "Build is not required for this test!"
-fi
-
 
 function runCasesOneByOne () {
     while read -r line; do
@@ -481,9 +388,107 @@ function stopTaosadapter {
 
 }
 
+######################
+# main entry
+######################
+
+# Initialization parameter
+PROJECT_DIR=""
+CAPTURE_GCDA_DIR=""
+TEST_CASE="task"
+UNIT_TEST_CASE=""
+BRANCH=""
+BRANCH_BUILD=""
+LCOV_DIR="/usr/local/bin"
+
+# Parse command line parameters
+while getopts "hd:b:f:c:u:i:l:" arg; do
+  case $arg in
+    d)
+      PROJECT_DIR=$OPTARG
+      ;;
+    b)
+      BRANCH=$OPTARG
+      ;;
+    f)
+      CAPTURE_GCDA_DIR=$OPTARG
+      ;;
+    c)
+      TEST_CASE=$OPTARG
+      ;;
+    u)
+      UNIT_TEST_CASE=$OPTARG
+      ;;
+    i)
+      BRANCH_BUILD=$OPTARG
+      ;;
+    l)
+      LCOV_DIR=$OPTARG
+      ;;
+    h)
+      printHelp
+      ;;
+    ?)
+      echo "Usage: ./$(basename $0) -h"
+      exit 1
+      ;;
+  esac
+done
+
+
+# Show all parameters
+get_DIR
+echo "PROJECT_DIR = $PROJECT_DIR"
+echo "TDENGINE_DIR = $TDENGINE_DIR"
+echo "BUILD_DIR = $BUILD_DIR"
+echo "CAPTURE_GCDA_DIR = $CAPTURE_GCDA_DIR"
+echo "TEST_CASE = $TEST_CASE"
+echo "UNIT_TEST_CASE = $UNIT_TEST_CASE"
+echo "BRANCH_BUILD = $BRANCH_BUILD"
+echo "LCOV_DIR = $LCOV_DIR"
+
 
 date >> $TDENGINE_DIR/date.log
 print_color "$GREEN" "Run local coverage test cases" | tee -a $TDENGINE_DIR/date.log
+
+
+# Check and get the branch name and build branch
+if [ -n "$BRANCH" ] && [ -z "$BRANCH_BUILD" ] ; then
+    branch="$BRANCH"
+    print_color "$GREEN" "Testing branch: $branch "
+    print_color "$GREEN" "Build is required for this test!"
+    buildTDengine
+elif [ -n "$BRANCH_BUILD" ] && [ "$BRANCH_BUILD" = "YES" -o "$BRANCH_BUILD" = "yes" ] ; then
+    CURRENT_DIR=$(pwd)
+    echo "CURRENT_DIR: $CURRENT_DIR"
+    if [ -d .git ]; then
+        CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+        echo "CURRENT_BRANCH: $CURRENT_BRANCH"
+    else
+        echo "The current directory is not a Git repository"
+    fi
+    branch="$CURRENT_BRANCH"
+    print_color "$GREEN" "Testing branch: $branch "
+    print_color "$GREEN" "Build is required for this test!"
+    buildTDengine
+elif [ -n "$BRANCH_BUILD" ] && [ "$BRANCH_BUILD" = "ONLY_INSTALL" -o "$BRANCH_BUILD" = "only_install" ] ; then
+    CURRENT_DIR=$(pwd)
+    echo "CURRENT_DIR: $CURRENT_DIR"
+    if [ -d .git ]; then
+        CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+        echo "CURRENT_BRANCH: $CURRENT_BRANCH"
+    else
+        echo "The current directory is not a Git repository"
+    fi
+    branch="$CURRENT_BRANCH"
+    print_color "$GREEN" "Testing branch: $branch "
+    print_color "$GREEN" "not build,only install!"
+    cd $TDENGINE_DIR/debug
+    make -j $(nproc) install 
+elif [ -z "$BRANCH" ] && [ -z "$BRANCH_BUILD" ] ; then
+    print_color "$GREEN" "Build is not required for this test!"
+fi
+
 
 stopTaosd
 
