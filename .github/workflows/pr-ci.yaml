@@ -12,6 +12,7 @@ on:
       - 'taosx-core/**'
       - 'taosx-ipc/**'
       - 'taosx-metrics/**'
+      - 'explorer/server/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'build.rs'
