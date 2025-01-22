@@ -3,14 +3,21 @@ from datetime import timedelta
 import os
 import re
 import requests
+from dotenv import load_dotenv
+
+# load .env
+load_dotenv()
 
 # define version
 version = "3.3.*"
-ip = "103.229.218.146"
+
+ip = os.getenv("EXCLUDE_IP")
+server_ip = os.getenv("SERVER_IP")
+owner = os.getenv("OWNER")
 
 # feishu-msg url
-#group_url = 'https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9'
-group_url = 'https://open.feishu.cn/open-apis/bot/v2/hook/11e9e452-34a0-4c88-b014-10e21cb521dd'
+feishu_msg_url = os.getenv("FEISHU_MSG_URL")
+
 today = date.today()
 #today = date(2023,8,7)
 path="/data/telemetry/crash-report/"
@@ -106,14 +113,14 @@ def print_result():
 def send_report():
     content = f'''
     test scope: Telemetry Statistics
-    owner: Jayden Jia
-    ip: 20.124.239.6
+    owner: {owner}
+    ip: {server_ip}
     from: {get_files().split(" ")[6].split("/")[4].split(".")[0]}
     to: {get_files().split(" ")[0].split("/")[4].split(".")[0]}
     filter1 result: {get_output(filter1_cmd)}
     filter2 result: {get_output(filter2_cmd)}
     total crashes: {print_result()}
-    '''    
+    '''
     #send_msg(get_msg(content))
     print(content)
 

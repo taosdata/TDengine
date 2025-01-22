@@ -5,6 +5,12 @@ import json
 import re
 import requests
 import subprocess
+from dotenv import load_dotenv
+
+# load .env
+# You should have a .env file in the same directory as this script
+# You can exec: cp .env.example .env
+load_dotenv()
 
 # define version
 version = "3.3.2.*"
@@ -13,14 +19,15 @@ version_pattern = re.compile(rf'^{version_pattern_str}$')
 version_stack_list = list()
 
 # define ip
-ip = "103.229.218.146"
-server_ip = "20.124.239.6"
-http_ip = "192.168.2.92"
-owner = "Jayden Jia"
+
+ip = os.getenv("EXCLUDE_IP")
+server_ip = os.getenv("SERVER_IP")
+http_serv_ip = os.getenv("HTTP_SERV_IP")
+http_serv_port = os.getenv("HTTP_SERV_PORT")
+owner = os.getenv("OWNER")
 
 # feishu-msg url
-group_url = 'https://open.feishu.cn/open-apis/bot/v2/hook/56c333b5-eae9-4c18-b0b6-7e4b7174f5c9'
-# group_url = 'https://open.feishu.cn/open-apis/bot/v2/hook/11e9e452-34a0-4c88-b014-10e21cb521dd'
+feishu_msg_url = os.getenv("FEISHU_MSG_URL")
 
 # get today
 today = date.today()
@@ -221,7 +228,7 @@ def send_msg(json):
         'Content-Type': 'application/json'
     }
 
-    req = requests.post(url=group_url, headers=headers, json=json)
+    req = requests.post(url=feishu_msg_url, headers=headers, json=json)
     inf = req.json()
     if "StatusCode" in inf and inf["StatusCode"] == 0:
         pass
@@ -270,7 +277,7 @@ def send_report(res, sum, html_report_file):
     owner: {owner}
     result: \n{format_results(res)}\n
     total crashes: {sum}\n
-    details: http://{http_ip}:8000/{html_report_file}
+    details: http://{http_serv_ip}:{http_serv_port}/{html_report_file}
     '''
     print(get_msg(content))
     send_msg(get_msg(content))

@@ -1,8 +1,8 @@
 #!/bin/bash
-
+source .env
 filesPath="/data/telemetry/crash-report"
 version="3.0.4.1"
-taosdataIp="103.229.218.146"
+taosdataIp=$EXCLUDE_IP
 grep "\"version\":\"${version}\"" ${filesPath}/*.txt \
 | grep  "taosd(" \
 | awk -F "stackInfo" '{print $2}' \
