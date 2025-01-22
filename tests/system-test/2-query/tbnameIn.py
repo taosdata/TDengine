@@ -25,6 +25,8 @@ class TDTestCase:
         tdSql.init(conn.cursor())
         
     def inTest(self, dbname="db"):
+        tdSql.execute(f'drop database if exists {dbname}')
+        tdSql.execute(f'create database {dbname}')
         tdSql.execute(f'use {dbname}')
         tdSql.execute('CREATE STABLE `st1` (`ts` TIMESTAMP, `v1` INT) TAGS (`t1` INT);')
         tdSql.execute('CREATE STABLE `st2` (`ts` TIMESTAMP, `v1` INT) TAGS (`t1` INT);')
@@ -132,8 +134,6 @@ class TDTestCase:
 
 
     def run(self):
-        tdSql.prepare()
-        
         self.inTest()
 
     def stop(self):
