@@ -43,13 +43,12 @@ if __name__ == "__main__":
     tdDnodes2.deploy(1,updatecfgDict2)
     tdDnodes2.start(1)
 
+    os.system("taos -c ./dnode2/sim/dnode1/cfg -s \"drop database if exists test\"")
+    os.system("taos -c ./dnode2/sim/dnode1/cfg -s \"create database test vgroups 8\"")
     if insertData :
         os.system("taosBenchmark -f ../taosx-performance.json")
 
     print("create test in dst")
-
-    os.system("taos -c ./dnode2/sim/dnode1/cfg -s \"drop database if exists test\"")
-    os.system("taos -c ./dnode2/sim/dnode1/cfg -s \"create database test vgroups 8\"")
 
     print("start to run taosx")
     os.system("taosx run -f \"tmq://root:taosdata@localhost:6030/test?group.id=taosx-new-`date +%s`&timeout=50s&experimental.snapshot.enable=false&auto.offset.reset=earliest&prefer=raw\" -t \"taos://root:taosdata@localhost:7030/test\" > /dev/null 2>&1 &")
