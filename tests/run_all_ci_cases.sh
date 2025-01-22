@@ -214,7 +214,7 @@ function runUnitTest() {
     cd $BUILD_DIR
     pgrep taosd || taosd >> /dev/null 2>&1 &
     sleep 10
-    ctest -E "cunit_test" -j8
+    ctest -E "cunit_test" -j4
     print_color "$GREEN" "3.0 unit test done"
 }
 
@@ -293,7 +293,7 @@ function stopTaosd {
         sleep 1
         PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
     done
-    print_color "$GREEN" "Stop tasod end"
+    print_color "$GREEN" "Stop taosd end"
 }
 
 function stopTaosadapter {
@@ -306,10 +306,13 @@ function stopTaosadapter {
         sleep 1
         PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
     done
-    print_color "$GREEN" "Stop tasoadapter end"
+    print_color "$GREEN" "Stop taosadapter end"
 
 }
 
+######################
+# main entry
+######################
 
 # Initialization parameter
 PROJECT_DIR=""
@@ -348,17 +351,7 @@ echo "TDENGINE_DIR = $TDENGINE_DIR"
 echo "BUILD_DIR = $BUILD_DIR"
 echo "BACKUP_DIR = $BACKUP_DIR"
 
-# Check and get the branch name
-if [ -n "$BRANCH" ] ; then
-    branch="$BRANCH"
-    print_color "$GREEN" "Testing branch: $branch "
-    print_color "$GREEN" "Build is required for this test！"
-    buildTDengine
-else
-    print_color "$GREEN" "Build is not required for this test！"
-fi
-
-
+# Run all ci case
 WORK_DIR=$TDENGINE_DIR
 
 date >> $WORK_DIR/date.log
@@ -366,6 +359,17 @@ print_color "$GREEN" "Run all ci test cases" | tee -a $WORK_DIR/date.log
 
 stopTaosd
 
+# Check and get the branch name
+if [ -n "$BRANCH" ] ; then
+    branch="$BRANCH"
+    print_color "$GREEN" "Testing branch: $branch "
+    print_color "$GREEN" "Build is required for this test!"
+    buildTDengine
+else
+    print_color "$GREEN" "Build is not required for this test!"
+fi
+
+# Run different types of case
 if [ -z "$TEST_TYPE" -o "$TEST_TYPE" = "all" -o "$TEST_TYPE" = "ALL" ]; then
     runTest
 elif [ "$TEST_TYPE" = "python" -o "$TEST_TYPE" = "PYTHON" ]; then
