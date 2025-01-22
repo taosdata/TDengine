@@ -1649,7 +1649,6 @@ void tmqMgmtClose(void) {
     tmqMgmt.rsetId = -1;
   }
   (void)taosThreadMutexUnlock(&tmqMgmt.lock);
-  (void)taosThreadMutexDestroy(&tmqMgmt.lock);
 }
 
 tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
