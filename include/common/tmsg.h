@@ -269,6 +269,7 @@ typedef enum ENodeType {
   QUERY_NODE_TSMA_OPTIONS,
   QUERY_NODE_ANOMALY_WINDOW,
   QUERY_NODE_RANGE_AROUND,
+  QUERY_NODE_STREAM_NOTIFY_OPTIONS,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -2956,6 +2957,11 @@ typedef struct {
   // 3.3.0.0
   SArray* pCols;  // array of SField
   int64_t smaId;
+  // 3.3.6.0
+  SArray* pNotifyAddrUrls;
+  int32_t notifyEventTypes;
+  int32_t notifyErrorHandle;
+  int8_t  notifyHistory;
 } SCMCreateStreamReq;
 
 typedef struct {

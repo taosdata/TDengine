@@ -12,6 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#include "cmdnodes.h"
 #include "executorInt.h"
 #include "filter.h"
 #include "function.h"
@@ -53,6 +55,8 @@ void destroyStreamEventOperatorInfo(void* param) {
                               &pInfo->groupResInfo);
     pInfo->pOperator = NULL;
   }
+
+  destroyStreamBasicInfo(&pInfo->basic);
   destroyStreamAggSupporter(&pInfo->streamAggSup);
   clearGroupResInfo(&pInfo->groupResInfo);
   taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
@@ -89,6 +93,16 @@ void destroyStreamEventOperatorInfo(void* param) {
     pInfo->pEndCondInfo = NULL;
   }
 
+  if (pInfo->pStartCondCols != NULL) {
+    nodesDestroyList(pInfo->pStartCondCols);
+    pInfo->pStartCondCols = NULL;
+  }
+
+  if (pInfo->pEndCondCols != NULL) {
+    nodesDestroyList(pInfo->pEndCondCols);
+    pInfo->pEndCondCols = NULL;
+  }
+
   taosMemoryFreeClear(param);
 }
 
@@ -121,7 +135,7 @@ void reuseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI) {
 }
 
 int32_t setEventOutputBuf(SStreamAggSupporter* pAggSup, TSKEY* pTs, uint64_t groupId, bool* pStart, bool* pEnd,
-                          int32_t index, int32_t rows, SEventWindowInfo* pCurWin, SSessionKey* pNextWinKey) {
+                          int32_t index, int32_t rows, SEventWindowInfo* pCurWin, SSessionKey* pNextWinKey, int32_t* pWinCode) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t winCode = TSDB_CODE_SUCCESS;
@@ -143,6 +157,7 @@ int32_t setEventOutputBuf(SStreamAggSupporter* pAggSup, TSKEY* pTs, uint64_t gro
     setEventWindowInfo(pAggSup, &leftWinKey, pVal, pCurWin);
     if (inWin || (pCurWin->pWinFlag->startFlag && !pCurWin->pWinFlag->endFlag)) {
       pCurWin->winInfo.isOutput = !isWindowIncomplete(pCurWin);
+      (*pWinCode) = TSDB_CODE_SUCCESS;
       goto _end;
     }
   }
@@ -156,6 +171,7 @@ int32_t setEventOutputBuf(SStreamAggSupporter* pAggSup, TSKEY* pTs, uint64_t gro
     if (endi < 0 || pTs[endi] >= rightWinKey.win.skey) {
       setEventWindowInfo(pAggSup, &rightWinKey, pVal, pCurWin);
       pCurWin->winInfo.isOutput = !isWindowIncomplete(pCurWin);
+      (*pWinCode) = TSDB_CODE_SUCCESS;
       goto _end;
     }
   }
@@ -163,6 +179,7 @@ int32_t setEventOutputBuf(SStreamAggSupporter* pAggSup, TSKEY* pTs, uint64_t gro
   SSessionKey winKey = {.win.skey = ts, .win.ekey = ts, .groupId = groupId};
   code = pAggSup->stateStore.streamStateSessionAllocWinBuffByNextPosition(pAggSup->pState, pCur, &winKey, &pVal, &len);
   QUERY_CHECK_CODE(code, lino, _error);
+    (*pWinCode) = TSDB_CODE_FAILED;
 
   setEventWindowInfo(pAggSup, &winKey, pVal, pCurWin);
   pCurWin->pWinFlag->startFlag = start;
@@ -373,9 +390,17 @@ static void doStreamEventAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
     bool             allEqual = true;
     SEventWindowInfo curWin = {0};
     SSessionKey      nextWinKey = {0};
+    int32_t          winCode = TSDB_CODE_SUCCESS;
     code = setEventOutputBuf(pAggSup, tsCols, groupId, (bool*)pColStart->pData, (bool*)pColEnd->pData, i, rows, &curWin,
-                             &nextWinKey);
+                             &nextWinKey, &winCode);
     QUERY_CHECK_CODE(code, lino, _end);
+
+    if (BIT_FLAG_TEST_MASK(pTaskInfo->streamInfo.eventTypes, SNOTIFY_EVENT_WINDOW_OPEN) &&
+        *(bool*)colDataGetNumData(pColStart, i) && winCode != TSDB_CODE_SUCCESS) {
+      code = addEventAggNotifyEvent(SNOTIFY_EVENT_WINDOW_OPEN, &curWin.winInfo.sessionWin, pSDataBlock,
+                                    pInfo->pStartCondCols, i, &pInfo->basic.windowEventSup);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
 
     setSessionWinOutputInfo(pSeUpdated, &curWin.winInfo);
     bool rebuild = false;
@@ -441,6 +466,12 @@ static void doStreamEventAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
       getSessionHashKey(&curWin.winInfo.sessionWin, &key);
       code =
           tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &curWin.winInfo, sizeof(SResultWindowInfo));
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
+    if (BIT_FLAG_TEST_MASK(pTaskInfo->streamInfo.eventTypes, SNOTIFY_EVENT_WINDOW_CLOSE)) {
+      code = addEventAggNotifyEvent(SNOTIFY_EVENT_WINDOW_CLOSE, &curWin.winInfo.sessionWin, pSDataBlock,
+                                    pInfo->pEndCondCols, i + winRows - 1, &pInfo->basic.windowEventSup);
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -563,6 +594,7 @@ void doStreamEventSaveCheckpoint(SOperatorInfo* pOperator) {
 
 static int32_t buildEventResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                      code = TSDB_CODE_SUCCESS;
+  int32_t                      lino = 0;
   SStreamEventAggOperatorInfo* pInfo = pOperator->info;
   SOptrBasicInfo*              pBInfo = &pInfo->binfo;
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
@@ -577,10 +609,27 @@ static int32_t buildEventResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   doBuildSessionResult(pOperator, pInfo->streamAggSup.pState, &pInfo->groupResInfo, pBInfo->pRes);
   if (pBInfo->pRes->info.rows > 0) {
     printDataBlock(pBInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    if (BIT_FLAG_TEST_MASK(pTaskInfo->streamInfo.eventTypes, SNOTIFY_EVENT_WINDOW_CLOSE)) {
+      code = addAggResultNotifyEvent(pBInfo->pRes, pTaskInfo->streamInfo.notifyResultSchema, &pInfo->basic.windowEventSup);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     (*ppRes) = pBInfo->pRes;
     return code;
   }
+
+  code = buildNotifyEventBlock(pTaskInfo, &pInfo->basic.windowEventSup);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (pInfo->basic.windowEventSup.pEventBlock->info.rows > 0) {
+    printDataBlock(pInfo->basic.windowEventSup.pEventBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    (*ppRes) = pInfo->basic.windowEventSup.pEventBlock;
+    return code;
+  }
+
+_end:
   (*ppRes) = NULL;
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
   return code;
 }
 
@@ -957,6 +1006,7 @@ int32_t createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   pInfo->pPkDeleted = tSimpleHashInit(64, hashFn);
   QUERY_CHECK_NULL(pInfo->pPkDeleted, code, lino, _error, terrno);
   pInfo->destHasPrimaryKey = pEventNode->window.destHasPrimaryKey;
+  initStreamBasicInfo(&pInfo->basic);
 
   pInfo->pOperator = pOperator;
   setOperatorInfo(pOperator, "StreamEventAggOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT, true, OP_NOT_OPENED,
@@ -987,6 +1037,12 @@ int32_t createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = filterInitFromNode((SNode*)pEventNode->pEndCond, &pInfo->pEndCondInfo, 0);
+  QUERY_CHECK_CODE(code, lino, _error);
+
+  code =
+      nodesCollectColumnsFromNode((SNode*)pEventNode->pStartCond, NULL, COLLECT_COL_TYPE_ALL, &pInfo->pStartCondCols);
+  QUERY_CHECK_CODE(code, lino, _error);
+  code = nodesCollectColumnsFromNode((SNode*)pEventNode->pEndCond, NULL, COLLECT_COL_TYPE_ALL, &pInfo->pEndCondCols);
   QUERY_CHECK_CODE(code, lino, _error);
 
   *pOptrInfo = pOperator;
