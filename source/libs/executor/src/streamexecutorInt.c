@@ -74,6 +74,10 @@ void setRecalculateOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
   BIT_FLAG_SET_MASK(pBasicInfo->operatorFlag, RECALCULATE_OPERATOR);
 }
 
+void unsetRecalculateOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
+  BIT_FLAG_UNSET_MASK(pBasicInfo->operatorFlag, RECALCULATE_OPERATOR);
+}
+
 bool isRecalculateOperator(SSteamOpBasicInfo* pBasicInfo) {
   return BIT_FLAG_TEST_MASK(pBasicInfo->operatorFlag, RECALCULATE_OPERATOR);
 }

@@ -1344,8 +1344,8 @@ int32_t popScanRange(STableTsDataState* pTsDataState, SScanRange* pRange) {
   }
 
   int32_t winRes = TSDB_CODE_SUCCESS;
-  pCur = streamStateSessionSeekToLast_rocksdb(pTsDataState->pState, INT64_MAX);
   while (winRes == TSDB_CODE_SUCCESS) {
+    pCur = streamStateSessionSeekToLast_rocksdb(pTsDataState->pState, INT64_MAX);
     void*       pVal = NULL;
     int32_t     vlen = 0;
     SSessionKey key = {0};
@@ -1356,10 +1356,10 @@ int32_t popScanRange(STableTsDataState* pTsDataState, SScanRange* pRange) {
 
     pRange->win = key.win;
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
-    if (pRange->pGroupIds != NULL) {
+    if (pRange->pGroupIds == NULL) {
       pRange->pGroupIds = tSimpleHashInit(8, hashFn);
     }
-    if (pRange->pUIds != NULL) {
+    if (pRange->pUIds == NULL) {
       pRange->pUIds = tSimpleHashInit(8, hashFn);
     }
     code = putRangeIdInfo(pRange, key.groupId, *(uint64_t*) pVal);

@@ -512,7 +512,8 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
     }
   }
 
-  if (pOperator->status == OP_RES_TO_RETURN && (isHistoryOperator(&pInfo->basic) || isSemiOperator(&pInfo->basic))) {
+  if (pOperator->status == OP_RES_TO_RETURN &&
+      (isHistoryOperator(&pInfo->basic) || isRecalculateOperator(&pInfo->basic) || isSemiOperator(&pInfo->basic))) {
     code = copyNewResult(&pAggSup->pResultRows, pInfo->pUpdated, winPosCmprImpl);
     QUERY_CHECK_CODE(code, lino, _end);
 
@@ -754,11 +755,12 @@ static int32_t doStreamFinalntervalNonblockAggImpl(SOperatorInfo* pOperator, SSD
     startPos = getNextQualifiedFinalWindow(&pInfo->interval, &curWin, &pBlock->info, tsCols, prevEndPos);
   }
 
-  if ( !isHistoryOperator(&pInfo->basic)) {
+  if (!isHistoryOperator(&pInfo->basic)) {
     code = closeNonBlockIntervalWindow(pAggSup->pResultRows, &pInfo->twAggSup, &pInfo->interval, pInfo->pUpdated,
                                        pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _end);
-  } else if (isHistoryOperator(&pInfo->basic) && tSimpleHashGetSize(pAggSup->pResultRows) > pOperator->resultInfo.capacity * 10) {
+  } else if ((isHistoryOperator(&pInfo->basic) || isRecalculateOperator(&pInfo->basic)) &&
+             tSimpleHashGetSize(pAggSup->pResultRows) > pOperator->resultInfo.capacity * 10) {
     code = copyNewResult(&pAggSup->pResultRows, pInfo->pUpdated, winPosCmprImpl);
     QUERY_CHECK_CODE(code, lino, _end);
   }

@@ -78,6 +78,7 @@ bool needBuildAllResult(SSteamOpBasicInfo* pBasicInfo);
 void setSemiOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
 bool isSemiOperator(SSteamOpBasicInfo* pBasicInfo);
 void setRecalculateOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
+void unsetRecalculateOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
 bool isRecalculateOperator(SSteamOpBasicInfo* pBasicInfo);
 void setSingleOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
 bool isSingleOperator(SSteamOpBasicInfo* pBasicInfo);

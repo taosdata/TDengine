@@ -264,10 +264,18 @@ static int32_t doStreamBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
         continue;
       } break;
       case STREAM_RECALCULATE_START: {
+        if (isRecalculateOperator(&pInfo->basic)) {
+          qError("stream recalculate error since recalculate operator receive STREAM_RECALCULATE_START");
+          continue;
+        }
         buildRecalculateDataSnapshort(pInfo, pTaskInfo);
         continue;
       } break;
       case STREAM_RECALCULATE_END: {
+        if (isRecalculateOperator(&pInfo->basic)) {
+          qError("stream recalculate error since recalculate operator receive STREAM_RECALCULATE_END");
+          continue;
+        }
         code = deleteRecalculateDataSnapshort(pInfo, pTaskInfo);
         QUERY_CHECK_CODE(code, lino, _end);
         continue;
@@ -963,6 +971,8 @@ static int32_t prepareDataRangeScan(SStreamScanInfo* pInfo, SScanRange* pRange) 
   SOperatorParam*          pOpParam = NULL;
   STableScanOperatorParam* pTableScanParam = NULL;
 
+  qDebug("prepare data range scan start:%" PRId64 ",end:%" PRId64 ",is all table:%d", pRange->win.skey,
+         pRange->win.ekey, pInfo->scanAllTables);
   SOperatorInfo* pScanOp = NULL;
   if (pInfo->scanAllTables) {
     pScanOp = pInfo->pTableScanOp;
@@ -998,6 +1008,7 @@ static int32_t prepareDataRangeScan(SStreamScanInfo* pInfo, SScanRange* pRange) 
     QUERY_CHECK_NULL(pTempUid, code, lino, _end, terrno);
     void* pTemRes = taosArrayPush(pTableScanParam->pUidList, pTempUid);
     QUERY_CHECK_NULL(pTemRes, code, lino, _end, terrno);
+    qDebug("prepare data range add table uid:%" PRIu64, *(uint64_t*)pTempUid);
   }
   pScanOp->pOperatorGetParam = pOpParam;
 
@@ -1178,17 +1189,21 @@ static int32_t doStreamScanTest(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
   doStreamDataScanNext(pOperator, ppRes);
 
+  SOperatorInfo* pRoot = pTaskInfo->pRoot;
+  SStreamIntervalSliceOperatorInfo* pIntervalInfo = pRoot->info;
+  setRecalculateOperatorFlag(&pIntervalInfo->basic);
   code = doStreamRecalculateScanNext(pOperator, ppRes);
   QUERY_CHECK_CODE(code, lino, _end);
 
   if ((*ppRes) == NULL) {
-    pBlock->info.type = STREAM_RECALCULATE_END;
-    SPackedData pack = {0};
-    pack.pDataBlock = pBlock;
-    void* pBuf = taosArrayPush(pInfo->pBlockLists, &pack);
-    QUERY_CHECK_NULL(pBuf, code, lino, _end, terrno);
-    doStreamDataScanNext(pOperator, ppRes);
-    pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
+    // unsetRecalculateOperatorFlag(&pIntervalInfo->basic);
+    // pBlock->info.type = STREAM_RECALCULATE_END;
+    // SPackedData pack = {0};
+    // pack.pDataBlock = pBlock;
+    // void* pBuf = taosArrayPush(pInfo->pBlockLists, &pack);
+    // QUERY_CHECK_NULL(pBuf, code, lino, _end, terrno);
+    // doStreamDataScanNext(pOperator, ppRes);
+    // pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
   }
 
 _end:
