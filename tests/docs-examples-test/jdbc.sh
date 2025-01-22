@@ -6,6 +6,11 @@ cd ../../docs/examples/java
 
 mvn clean test > jdbc-out.log 2>&1
 tail -n 20 jdbc-out.log
+
+if grep -q "BUILD FAILURE" jdbc-out.log; then
+    exit 8
+fi
+
 totalJDBCCases=`grep 'Tests run' jdbc-out.log | awk -F"[:,]" 'END{ print $2 }'`
 failed=`grep 'Tests run' jdbc-out.log | awk -F"[:,]" 'END{ print $4 }'`
 error=`grep 'Tests run' jdbc-out.log | awk -F"[:,]" 'END{ print $6 }'`
