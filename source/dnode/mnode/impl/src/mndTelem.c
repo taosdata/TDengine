@@ -97,32 +97,36 @@ static void mndBuildRuntimeInfo(SMnode* pMnode, SJson* pJson) {
 
   mndRetrieveAlgoList(pMnode, pFcList, pAdList);
 
-  SJson *items = tjsonAddArrayToObject(pJson, "forecast");
-  TSDB_CHECK_NULL(items, code, lino, _OVER, terrno);
+  if (taosArrayGetSize(pFcList) > 0) {
+    SJson* items = tjsonAddArrayToObject(pJson, "forecast");
+    TSDB_CHECK_NULL(items, code, lino, _OVER, terrno);
 
-  for(int32_t i = 0; i < taosArrayGetSize(pFcList); ++i) {
-    SJson *item = tjsonCreateObject();
+    for (int32_t i = 0; i < taosArrayGetSize(pFcList); ++i) {
+      SJson* item = tjsonCreateObject();
 
-    TSDB_CHECK_NULL(item, code, lino, _OVER, terrno);
-    TAOS_CHECK_GOTO(tjsonAddItemToArray(items, item), &lino, _OVER);
+      TSDB_CHECK_NULL(item, code, lino, _OVER, terrno);
+      TAOS_CHECK_GOTO(tjsonAddItemToArray(items, item), &lino, _OVER);
 
-    SAnodeAlgo *p = taosArrayGet(pFcList, i);
-    TSDB_CHECK_NULL(p, code, lino, _OVER, terrno);
-    TAOS_CHECK_GOTO(tjsonAddStringToObject(item, "name", p->name), &lino, _OVER);
+      SAnodeAlgo* p = taosArrayGet(pFcList, i);
+      TSDB_CHECK_NULL(p, code, lino, _OVER, terrno);
+      TAOS_CHECK_GOTO(tjsonAddStringToObject(item, "name", p->name), &lino, _OVER);
+    }
   }
 
-  SJson *items1 = tjsonAddArrayToObject(pJson, "anomaly_detection");
-  TSDB_CHECK_NULL(items1, code, lino, _OVER, terrno);
+  if (taosArrayGetSize(pAdList) > 0) {
+    SJson* items1 = tjsonAddArrayToObject(pJson, "anomaly_detection");
+    TSDB_CHECK_NULL(items1, code, lino, _OVER, terrno);
 
-  for(int32_t i = 0; i < taosArrayGetSize(pAdList); ++i) {
-    SJson *item = tjsonCreateObject();
+    for (int32_t i = 0; i < taosArrayGetSize(pAdList); ++i) {
+      SJson* item = tjsonCreateObject();
 
-    TSDB_CHECK_NULL(item, code, lino, _OVER, terrno);
-    TAOS_CHECK_GOTO(tjsonAddItemToArray(items1, item), &lino, _OVER);
+      TSDB_CHECK_NULL(item, code, lino, _OVER, terrno);
+      TAOS_CHECK_GOTO(tjsonAddItemToArray(items1, item), &lino, _OVER);
 
-    SAnodeAlgo *p = taosArrayGet(pAdList, i);
-    TSDB_CHECK_NULL(p, code, lino, _OVER, terrno);
-    TAOS_CHECK_GOTO(tjsonAddStringToObject(item, "name", p->name), &lino, _OVER);
+      SAnodeAlgo* p = taosArrayGet(pAdList, i);
+      TSDB_CHECK_NULL(p, code, lino, _OVER, terrno);
+      TAOS_CHECK_GOTO(tjsonAddStringToObject(item, "name", p->name), &lino, _OVER);
+    }
   }
 
 _OVER:
