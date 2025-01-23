@@ -1692,7 +1692,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       TAOS_MEMCPY(pOut->tbMeta + sizeof(STableMeta), pOut->vctbMeta + sizeof(SVCTableMeta), colRefSize);
       pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
     }
-    taosMemoryFree(pOut->vctbMeta);
+    taosMemoryFreeClear(pOut->vctbMeta);
   }
 
   /*
