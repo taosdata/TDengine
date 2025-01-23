@@ -243,7 +243,7 @@ nmake
 ```bash
 sudo make install
 ```
-从源代码安装还将为TDengine配置服务管理。用户也可以使用[TDengine安装包](https://docs.tdengine.com/get-started/deploy-from-package/)进行安装。 
+从源代码安装还将为TDengine配置服务管理。用户也可以使用[TDengine安装包](https://docs.taosdata.com/get-started/package/)进行安装。 
 
 </details>
 
