@@ -35,6 +35,22 @@ vim .env
 ...
 ```
 
+- .env 样例
+
+```bash
+# 过滤器排除 IP（公司网络出口 IP）
+EXCLUDE_IP="192.168.1.10"
+# 英文官网服务器 IP
+SERVER_IP="192.168.1.11"
+# 内网提供 HTTP 服务的 IP 及端口，用于提供 HTML 报告浏览
+HTTP_SERV_IP="192.168.1.12"
+HTTP_SERV_PORT=8080
+# 飞书群机器人 webhook 地址
+FEISHU_MSG_URL="https://open.feishu.cn/open-apis/bot/v2/hook/*******"
+# 负责人
+OWNER="Jayden Jia"
+```
+
 # 3. 运行
 
 在 $DIR/telemetry/crash-report 目录中，有类似文件名为 202501**.txt 的一些文件。Python 脚本会将从这些文本文件中收集崩溃信息，并将报告发送到您的飞书机器人群组中。

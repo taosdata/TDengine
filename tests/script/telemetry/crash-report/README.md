@@ -35,6 +35,22 @@ vim .env
 ...
 ```
 
+- Example for .env
+
+```bash
+# Filter to exclude IP (Company network export IP)
+EXCLUDE_IP="192.168.1.10"
+# Official website server IP
+SERVER_IP="192.168.1.11"
+# Internal network providing HTTP service IP and port, used for HTML report browsing
+HTTP_SERV_IP="192.168.1.12"
+HTTP_SERV_PORT=8080
+# Webhook address for feiShu group bot
+FEISHU_MSG_URL="https://open.feishu.cn/open-apis/bot/v2/hook/*******"
+# Owner
+OWNER="Jayden Jia"
+```
+
 # 3. Running
 
 In `$DIR/telemetry/crash-report` directory, there are several files with names like 202501**.txt. The python script will collect crash information from these text files and send report to your Feishu bot group.
