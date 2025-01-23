@@ -926,5 +926,6 @@ int32_t mndInitAnode(SMnode *pMnode) {
 }
 
 void mndCleanupAnode(SMnode *pMnode) {}
+void mndRetrieveAlgoList(SMnode *pMnode, SArray *pFc, SArray *pAd) {}
 
 #endif
