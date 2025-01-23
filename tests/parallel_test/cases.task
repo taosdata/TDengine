@@ -72,6 +72,7 @@
 ,,n,army,python3 ./test.py -f tmq/drop_lost_comsumers.py
 ,,y,army,./pytest.sh python3 ./test.py -f cmdline/taosCli.py
 ,,n,army,python3 ./test.py -f whole/checkErrorCode.py
+,,y,army,./pytest.sh python3 ./test.py -f cluster/strongPassword.py
 
 #
 # system test

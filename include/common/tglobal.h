@@ -69,6 +69,7 @@ extern EEncryptAlgor tsiEncryptAlgorithm;
 extern EEncryptScope tsiEncryptScope;
 // extern char     tsAuthCode[];
 extern char tsEncryptKey[];
+extern int8_t tsEnableStrongPassword;
 
 // common
 extern int32_t tsMaxShellConns;
