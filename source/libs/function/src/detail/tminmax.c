@@ -459,7 +459,7 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
         __COMPARE_ACQUIRED_MAX(i, end, pCol->nullbitmap, pData, pCtx, *(double*)&(pBuf->v), &pBuf->tuplePos)
         break;
       }
-      case TSDB_DATA_TYPE_DECIMAL64: {
+      case TSDB_DATA_TYPE_DECIMAL64: {// TODO wjm merge decimal64 and decimal
         const Decimal64* pData = (const Decimal64*)pCol->pData;
         const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
         int32_t code = 0;
