@@ -604,6 +604,17 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
   streamMutexLock(&pTask->lock);
 
+  // not update the checkpoint info if the checkpointId is less than the failed checkpointId
+  if (pReq->checkpointId < pInfo->pActiveInfo->failedId) {
+    stWarn("s-task:%s vgId:%d not update the checkpoint-info, since update checkpointId:%" PRId64
+           " is less than the failed checkpointId:%" PRId64 ", discard the update info",
+           id, vgId, pReq->checkpointId, pInfo->pActiveInfo->failedId);
+    streamMutexUnlock(&pTask->lock);
+
+    // always return true
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pReq->checkpointId <= pInfo->checkpointId) {
     stDebug("s-task:%s vgId:%d latest checkpointId:%" PRId64 " Ver:%" PRId64
             " no need to update checkpoint info, updated checkpointId:%" PRId64 " Ver:%" PRId64 " transId:%d ignored",
@@ -638,9 +649,9 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
             pInfo->checkpointTime, pReq->checkpointTs);
   } else {  // not in restore status, must be in checkpoint status
     if ((pStatus.state == TASK_STATUS__CK) || (pMeta->role == NODE_ROLE_FOLLOWER)) {
-      stDebug("s-task:%s vgId:%d status:%s start to update the checkpoint-info, checkpointId:%" PRId64 "->%" PRId64
+      stDebug("s-task:%s vgId:%d status:%s role:%d start to update the checkpoint-info, checkpointId:%" PRId64 "->%" PRId64
               " checkpointVer:%" PRId64 "->%" PRId64 " checkpointTs:%" PRId64 "->%" PRId64,
-              id, vgId, pStatus.name, pInfo->checkpointId, pReq->checkpointId, pInfo->checkpointVer,
+              id, vgId, pStatus.name, pMeta->role, pInfo->checkpointId, pReq->checkpointId, pInfo->checkpointVer,
               pReq->checkpointVer, pInfo->checkpointTime, pReq->checkpointTs);
     } else {
       stDebug("s-task:%s vgId:%d status:%s NOT update the checkpoint-info, checkpointId:%" PRId64 "->%" PRId64
