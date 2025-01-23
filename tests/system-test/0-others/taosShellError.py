@@ -131,6 +131,33 @@ class TDTestCase:
                     break
         return buildPath
 
+    def checkTaosReturn(self, buildPath):
+        # combine taos
+        if platform.system().lower() == 'windows':
+            taosCmd = buildPath + '\\build\\bin\\taos.exe'
+            taosCmd = taosCmd.replace('\\','\\\\')
+        else:
+            taosCmd = buildPath + '/build/bin/taos'
+
+        # check file exists
+        if os.path.exists(taosCmd) == False:
+            tdLog.exit(f"taos file not exist: {taosCmd}")
+
+        # show grants
+        sqls = [
+            "show grants;",
+            "show databases;",
+        ]
+
+        # exec sqls
+        for sql in sqls:
+            command = f'{taosCmd} -s "{sql}" '
+            ret = os.system(command)
+            if ret:
+                tdLog.exit(f"failed to run {command} ret code={ret}")
+            else:
+                tdLog.info(f"success to run {command} ret code={ret}")
+
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
         # time.sleep(2)
@@ -146,6 +173,9 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
         cfgPath = buildPath + "/../sim/psim/cfg"
         tdLog.info("cfgPath: %s" % cfgPath)
+
+        # check taos return value
+        self.checkTaosReturn(buildPath)        
 
         checkNetworkStatus = ['0: unavailable', '1: network ok', '2: service ok', '3: service degraded', '4: exiting']
         netrole            = ['client', 'server']
