@@ -1861,7 +1861,6 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
             taosMemoryFreeClear(stbMeta);
           } else {
             ctgTaskDebug("need to get/update stb meta, tbName:%s", tNameGetTableName(pName));
-            taosMemoryFreeClear(pOut->vctbMeta);
             taosMemoryFreeClear(pOut->tbMeta);
             taosMemoryFreeClear(stbMeta);
           }
