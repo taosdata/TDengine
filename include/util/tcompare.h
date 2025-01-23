@@ -59,11 +59,13 @@ int32_t setChkInBytes1(const void *pLeft, const void *pRight);
 int32_t setChkInBytes2(const void *pLeft, const void *pRight);
 int32_t setChkInBytes4(const void *pLeft, const void *pRight);
 int32_t setChkInBytes8(const void *pLeft, const void *pRight);
+int32_t setChkInDecimalHash(const void* pLeft, const void* pRight);
 
 int32_t setChkNotInBytes1(const void *pLeft, const void *pRight);
 int32_t setChkNotInBytes2(const void *pLeft, const void *pRight);
 int32_t setChkNotInBytes4(const void *pLeft, const void *pRight);
 int32_t setChkNotInBytes8(const void *pLeft, const void *pRight);
+int32_t setChkNotInDecimalHash(const void* pLeft, const void* pRight);
 
 int32_t compareChkInString(const void *pLeft, const void *pRight);
 int32_t compareChkNotInString(const void *pLeft, const void *pRight);

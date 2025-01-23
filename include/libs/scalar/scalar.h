@@ -40,10 +40,12 @@ pDst need to freed in caller
 int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst);
 
 int32_t scalarGetOperatorParamNum(EOperatorType type);
-int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, int8_t processType);
+int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, STypeMod typeMod, int8_t processType);
 
-int32_t vectorGetConvertType(int32_t type1, int32_t type2);
-int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, int32_t *overflow, int32_t startIndex, int32_t numOfRows);
+int32_t  vectorGetConvertType(int32_t type1, int32_t type2);
+STypeMod getConvertTypeMod(int32_t type, const SColumnInfo *pCol1, const SColumnInfo *pCol2);
+int32_t  vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, int32_t *overflow, int32_t startIndex,
+                                    int32_t numOfRows);
 
 /* Math functions */
 int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);

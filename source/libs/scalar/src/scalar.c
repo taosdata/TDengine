@@ -118,7 +118,7 @@ _return:
 }
 
 // processType = 0 means all type. 1 means number, 2 means var, 3 means float, 4 means var&integer
-int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, int8_t processType) {
+int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, STypeMod typeMod, int8_t processType) {
   SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(type), true, false);
   if (NULL == pObj) {
     sclError("taosHashInit failed, size:%d", 256);
@@ -155,6 +155,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, int8_
         }
       } else {
         out.columnData->info.bytes = tDataTypes[type].bytes;
+        extractTypeFromTypeMod(type, typeMod, &out.columnData->info.precision, &out.columnData->info.scale, NULL);
       }
 
       int32_t overflow = 0;
@@ -167,6 +168,10 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, int8_
       if (overflow) {
         continue;
       }
+      // TODO For decimal types, after conversion, check if we lose some scale to ignore values with larger scale
+      // e.g. convert decimal(18, 4) to decimal(18, 2) with value:
+      //  1.2345 -> 1.23. 1.23 != 1.2345, ignore this value, can't be the same as any decimal(18, 2)
+      //  1.2300 -> 1.23. 1.2300 == 1.23, take this value.
 
       if (IS_VAR_DATA_TYPE(type)) {
         buf = colDataGetVarData(out.columnData, 0);
@@ -379,8 +384,9 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         SCL_RET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
-      int32_t type = ctx->type.selfType;
-      SNode* nodeItem = NULL;
+      int32_t  type = ctx->type.selfType;
+      STypeMod typeMod = 0;
+      SNode   *nodeItem = NULL;
       FOREACH(nodeItem, nodeList->pNodeList) {
         SValueNode *valueNode = (SValueNode *)nodeItem;
         int32_t tmp = vectorGetConvertType(type, valueNode->node.resType.type);
@@ -392,18 +398,26 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       if (IS_NUMERIC_TYPE(type)){
         ctx->type.peerType = type;
       }
+      // Currently, all types of node list can't be decimal types.
+      // Decimal op double/float/nchar/varchar types will convert these types to double type.
+      // All other types do not need scale info, so here we use self scale
+      // When decimal types are supported in value list, we need to check convertability of different decimal types.
+      // And the new decimal scale will also be calculated.
+      if (IS_DECIMAL_TYPE(type))
+        typeMod = decimalCalcTypeMod(TSDB_DECIMAL_MAX_PRECISION, getScaleFromTypeMod(type, ctx->type.selfTypeMod));
       type = ctx->type.peerType;
       if (IS_VAR_DATA_TYPE(ctx->type.selfType) && IS_NUMERIC_TYPE(type)){
-        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type, 1));
-        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilterOthers, node, ctx->type.selfType, 2));
+        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type, typeMod, 1));
+        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilterOthers, node, ctx->type.selfType, typeMod, 2));
       } else if (IS_INTEGER_TYPE(ctx->type.selfType) && IS_FLOAT_TYPE(type)){
-        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type, 2));
-        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilterOthers, node, ctx->type.selfType, 4));
+        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type, typeMod, 2));
+        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilterOthers, node, ctx->type.selfType, typeMod, 4));
       } else {
-        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type, 0));
+        SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type, typeMod, 0));
       }
 
-      param->hashValueType = type;
+      param->filterValueTypeMod = typeMod;
+      param->filterValueType = type;
       param->colAlloced = true;
       if (taosHashPut(ctx->pRes, &node, POINTER_BYTES, param, sizeof(*param))) {
         taosHashCleanup(param->pHashFilter);
@@ -554,7 +568,7 @@ _return:
   SCL_RET(code);
 }
 
-int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx, int32_t *type) {
+int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx, int32_t *type, STypeMod* pTypeMod) {
   if (NULL == pNode) {
     *type = -1;
     return TSDB_CODE_SUCCESS;
@@ -564,16 +578,19 @@ int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx, int32_t *type) {
     case QUERY_NODE_VALUE: {
       SValueNode *valueNode = (SValueNode *)pNode;
       *type = valueNode->node.resType.type;
+      *pTypeMod = typeGetTypeModFromDataType(&valueNode->node.resType);
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_NODE_LIST: {
       SNodeListNode *nodeList = (SNodeListNode *)pNode;
       *type = nodeList->node.resType.type;
+      *pTypeMod = typeGetTypeModFromDataType(&nodeList->node.resType);
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_COLUMN: {
       SColumnNode *colNode = (SColumnNode *)pNode;
       *type = colNode->node.resType.type;
+      *pTypeMod = typeGetTypeModFromDataType(&colNode->node.resType);
       return TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_FUNCTION:
@@ -585,18 +602,20 @@ int32_t sclGetNodeType(SNode *pNode, SScalarCtx *ctx, int32_t *type) {
         SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
       }
       *type = (int32_t)(res->columnData->info.type);
+      *pTypeMod = typeGetTypeModFromColInfo(&res->columnData->info);
       return TSDB_CODE_SUCCESS;
     }
   }
 
   *type = -1;
+  *pTypeMod = 0;
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t sclSetOperatorValueType(SOperatorNode *node, SScalarCtx *ctx) {
   ctx->type.opResType = node->node.resType.type;
-  SCL_ERR_RET(sclGetNodeType(node->pLeft, ctx, &(ctx->type.selfType)));
-  SCL_ERR_RET(sclGetNodeType(node->pRight, ctx, &(ctx->type.peerType)));
+  SCL_ERR_RET(sclGetNodeType(node->pLeft, ctx, &(ctx->type.selfType), &ctx->type.selfTypeMod));
+  SCL_ERR_RET(sclGetNodeType(node->pRight, ctx, &(ctx->type.peerType), &ctx->type.selfTypeMod));
   SCL_RET(TSDB_CODE_SUCCESS);
 }
 
@@ -1808,6 +1827,7 @@ static int32_t sclGetBitwiseOperatorResType(SOperatorNode *pOp) {
   if (TSDB_DATA_TYPE_VARBINARY == ldt.type || TSDB_DATA_TYPE_VARBINARY == rdt.type) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
+  if (IS_DECIMAL_TYPE(ldt.type) || IS_DECIMAL_TYPE(rdt.type)) return TSDB_CODE_TSC_INVALID_OPERATION;
   pOp->node.resType.type = TSDB_DATA_TYPE_BIGINT;
   pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
   return TSDB_CODE_SUCCESS;

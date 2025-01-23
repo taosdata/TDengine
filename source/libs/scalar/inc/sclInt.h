@@ -25,9 +25,10 @@ extern "C" {
 #include "function.h"
 
 typedef struct SOperatorValueType {
-  int32_t opResType;
-  int32_t selfType;
-  int32_t peerType;
+  int32_t  opResType;
+  int32_t  selfType;
+  int32_t  peerType;
+  STypeMod selfTypeMod;
 } SOperatorValueType;
 
 typedef struct SScalarCtx {
@@ -138,7 +139,7 @@ int32_t sclConvertValueToSclParam(SValueNode* pValueNode, SScalarParam* out, int
 int32_t sclCreateColumnInfoData(SDataType* pType, int32_t numOfRows, SScalarParam* pParam);
 int32_t sclConvertToTsValueNode(int8_t precision, SValueNode* valueNode);
 
-#define GET_PARAM_TYPE(_c)     ((_c)->columnData ? (_c)->columnData->info.type : (_c)->hashValueType)
+#define GET_PARAM_TYPE(_c)     ((_c)->columnData ? (_c)->columnData->info.type : (_c)->filterValueType)
 #define GET_PARAM_BYTES(_c)    ((_c)->columnData->info.bytes)
 #define GET_PARAM_PRECISON(_c) ((_c)->columnData->info.precision)
 

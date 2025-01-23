@@ -289,12 +289,14 @@ struct SScalarParam {
   SColumnInfoData *columnData;
   SHashObj        *pHashFilter;
   SHashObj        *pHashFilterOthers;
-  int32_t          hashValueType;
+  int32_t          filterValueType;
   void            *param;  // other parameter, such as meta handle from vnode, to extract table name/tag value
   int32_t          numOfRows;
   int32_t          numOfQualified;  // number of qualified elements in the final results
   timezone_t       tz;
   void            *charsetCxt;
+  SArray          *pFilterArr; // for types that can't filter with hash
+  STypeMod         filterValueTypeMod;
 };
 
 static inline void setTzCharset(SScalarParam* param, timezone_t tz, void* charsetCxt){
