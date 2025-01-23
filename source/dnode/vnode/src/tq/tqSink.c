@@ -422,7 +422,7 @@ static int32_t doBuildAndSendCreateTableMsg(SVnode* pVnode, char* stbFullName, S
   reqs.nReqs = taosArrayGetSize(reqs.pArray);
   code = tqPutReqToQueue(pVnode, &reqs, encodeCreateChildTableForRPC, TDMT_VND_CREATE_TABLE);
   if (code != TSDB_CODE_SUCCESS) {
-    tqError("s-task:%s failed to send create table msg", id);
+    tqError("s-task:%s failed to send create table msg, code:%s", id, tstrerror(code));
   }
 
 _end:
