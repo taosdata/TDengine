@@ -31,6 +31,8 @@ pip3 install requests python-dotenv
 ```bash
 cd $DIR/telemetry/crash-report
 cp .env.example .env
+vim .env
+...
 ```
 
 # 3. 运行
