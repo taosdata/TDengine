@@ -3199,11 +3199,10 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
     int32_t bytes = pColInfoData->info.bytes;
     *((int32_t*)data) = bytes;
     if (IS_DECIMAL_TYPE(pColInfoData->info.type)) {
-      bytes <<= 16;
-      bytes |= pColInfoData->info.precision;
-      bytes <<= 8;
-      bytes |= pColInfoData->info.scale;
-      *(int32_t*)data = bytes;
+      *(char*)data = bytes;
+      *((char*)data + 1) = 0;
+      *((char*)data + 2) = pColInfoData->info.precision;
+      *((char*)data + 3) = pColInfoData->info.scale;
     }
     data += sizeof(int32_t);
   }
@@ -3345,15 +3344,15 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
     pStart += sizeof(int8_t);
 
     pColInfoData->info.bytes = *(int32_t*)pStart;
+    if (IS_DECIMAL_TYPE(pColInfoData->info.type)) {
+      pColInfoData->info.scale = *(char*)pStart;
+      pColInfoData->info.precision = *((char*)pStart + 2);
+      pColInfoData->info.bytes >>= *((char*)pStart + 3);
+    }
     pStart += sizeof(int32_t);
 
     if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
       pBlock->info.hasVarCol = true;
-    }
-    if (IS_DECIMAL_TYPE(pColInfoData->info.type)) {
-      pColInfoData->info.scale = pColInfoData->info.bytes & 0xFF;
-      pColInfoData->info.precision = pColInfoData->info.precision = (pColInfoData->info.bytes & 0xFF00) >> 8;
-      pColInfoData->info.bytes >>= 24;
     }
   }
 
@@ -3591,6 +3590,22 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
               colDataSetNull_f(pDst->nullbitmap, numOfRows);
             } else {
               ((int8_t*)pDst->pData)[numOfRows] = ((int8_t*)pDst->pData)[j];
+            }
+            numOfRows += 1;
+            j += 1;
+          }
+          break;
+        case TSDB_DATA_TYPE_DECIMAL64:
+        case TSDB_DATA_TYPE_DECIMAL:
+          while (j < totalRows) {
+            if (pBoolList[j] == 0) {
+              j += 1;
+              continue;
+            }
+            if (colDataIsNull_f(pBitmap, j)) {
+              colDataSetNull_f(pDst->nullbitmap, numOfRows);
+            } else {
+              memcpy(pDst->pData + numOfRows * pDst->info.bytes, pDst->pData + j * pDst->info.bytes, pDst->info.bytes);
             }
             numOfRows += 1;
             j += 1;
