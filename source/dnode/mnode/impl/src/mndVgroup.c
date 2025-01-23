@@ -46,6 +46,7 @@ static int32_t mndProcessRedistributeVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessSplitVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessVgroupBalanceLeaderMsg(SRpcMsg *pReq);
+static int32_t mndProcessAssignLeaderMsg(SRpcMsg *pReq);
 
 int32_t mndInitVgroup(SMnode *pMnode) {
   SSdbTable table = {
@@ -77,6 +78,7 @@ int32_t mndInitVgroup(SMnode *pMnode) {
   // mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP, mndProcessVgroupBalanceLeaderMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP, mndProcessBalanceVgroupMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP_LEADER, mndProcessVgroupBalanceLeaderMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_ASSIGN_LEADER, mndProcessAssignLeaderMsg);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndRetrieveVgroups);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndCancelGetNextVgroup);
@@ -3567,6 +3569,30 @@ _OVER:
 
   taosArrayDestroy(pArray);
   tFreeSBalanceVgroupReq(&req);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessAssignLeaderMsg(SRpcMsg *pReq){
+  SMnode *pMnode = pReq->info.node;
+  int32_t code = -1;
+  SArray *pArray = NULL;
+  void   *pIter = NULL;
+  int64_t curMs = taosGetTimestampMs();
+
+  SAssignLeaderReq req = {0};
+  if (tDeserializeSAssignLeaderReq(pReq->pCont, pReq->contLen, &req) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  auditRecord(pReq, pMnode->clusterId, "assignLeader", "", "", req.sql, req.sqlLen);
+
+_OVER:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("failed to assign leader since %s", tstrerror(code));
+  }
+
+  tFreeSAssignLeaderReq(&req);
   TAOS_RETURN(code);
 }
 
