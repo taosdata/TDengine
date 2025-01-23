@@ -471,8 +471,41 @@ class TDTestCase:
         tdSql.checkData(1, 3, 2)
         tdSql.checkData(1, 4, 4)
         
-        # todo 1 , has same select function outof cols func
-        #select cols(last_row(c0), ts as t1, c1 as c11), cols(first(c0), ts as t2, c1 c21), first(c0)  from test.meters where c0 < 4;
+        # fixed: has same select function outof cols func
+        tdSql.query(f'select cols(last_row(c0), ts as t1, c1 as c11), cols(first(c0), ts as t2, c1 c21),  first(c0) from test.meters where c0 < 4 group by tbname order by t1')
+        tdSql.checkResColNameList(['t1', 'c11', 't2', 'c21', 'first(c0)'])
+        tdSql.checkRows(2)
+        tdSql.checkCols(5)
+        tdSql.checkData(0, 0, 1734574929000)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, 1734574929000)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 1)
+        tdSql.checkData(1, 0, 1734574929003)
+        tdSql.checkData(1, 1, 3)
+        tdSql.checkData(1, 2, 1734574929000)
+        tdSql.checkData(1, 3, 1)
+        tdSql.checkData(1, 4, 1)
+        
+        tdSql.query(f'select cols(last_row(c0), ts as t1, c1 as c11), cols(first(c0), ts as t2, c1 c21), first(c0), cols(last(c0), ts, c1)  from test.meters where c0 < 4 group by tbname order by t1;')
+        tdSql.checkResColNameList(['t1', 'c11', 't2', 'c21', 'first(c0)', 'ts', 'c1'])
+        tdSql.checkRows(2)
+        tdSql.checkCols(7)
+        tdSql.checkData(0, 0, 1734574929000)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, 1734574929000)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 1)
+        tdSql.checkData(0, 5, 1734574929000)
+        tdSql.checkData(0, 6, 1)
+        tdSql.checkData(1, 0, 1734574929003)
+        tdSql.checkData(1, 1, 3)
+        tdSql.checkData(1, 2, 1734574929000)
+        tdSql.checkData(1, 3, 1)
+        tdSql.checkData(1, 4, 1)
+        tdSql.checkData(1, 5, 1734574929003)
+        tdSql.checkData(1, 6, 3)
+        
         # todo 2, sub query has cols func
         # select * from (select cols(last_row(c0), ts as t1, c1 as c11), cols(first(c0), ts as t2, c1 c21), first(c0)  from test.meters where c0 < 4);
         # todo 3, cols on system table
