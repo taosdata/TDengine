@@ -392,7 +392,7 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为
   `混合查询`：`sqls` 中所有 sql 分成 `threads` 个组，每个线程执行一组， 每个 sql 都需执行 `query_times` 次查询  
   `查询总次数` = `sqls` 个数 * `query_times`  
 
-- **query_interval** : 查询时间间隔，单位是毫秒，默认值为 0。
+- **query_interval** : 查询时间间隔，单位: nanosecond，默认值为 0。
 
 - **threads** : 执行查询 SQL 的线程数，默认值为 1。
 
