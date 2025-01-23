@@ -46,15 +46,23 @@ class TDTestCase:
     def one_cols_1output_test(self):
         tdLog.info("one_cols_1output_test")
         tdSql.query(f'select cols(last(ts), ts) from {self.dbname}.meters')
+        tdSql.checkResColNameList(['ts'])
         tdSql.query(f'select cols(last(ts), ts) as t1 from {self.dbname}.meters')
+        tdSql.checkResColNameList(['t1'])
         tdSql.query(f'select cols(last(ts), ts as t1) from {self.dbname}.meters')
+        tdSql.checkResColNameList(['t1'])
         tdSql.query(f'select cols(last(ts), c0) from {self.dbname}.meters')
+        tdSql.checkResColNameList(['c0'])
         tdSql.query(f'select cols(last(ts), c1) from {self.dbname}.meters group by tbname')
+        tdSql.checkResColNameList(['c1'])
         
 
         tdSql.query(f'select cols(last(ts+1), ts) as t1 from {self.dbname}.meters')
+        tdSql.checkResColNameList(['t1'])
         tdSql.query(f'select cols(last(ts+1), ts+2 as t1) from {self.dbname}.meters')
+        tdSql.checkResColNameList(['t1'])
         tdSql.query(f'select cols(last(ts+1), c0+10) from {self.dbname}.meters')
+        tdSql.checkResColNameList(['c0+10'])
 
     def one_cols_multi_output_with_group_test(self, from_table = 'test.meters', isTmpTable = False):
         select_t1 = ["", ", t1", ", t1 as tag1"]
@@ -89,6 +97,7 @@ class TDTestCase:
             tdSql.checkData(1, 1, 'd1')
             tdSql.checkData(1, 2, 'st2')        
             tdSql.query(f'select cols(last(c1), ts), tbname, t1 from {from_table} group by tbname order by t1')
+            tdSql.checkResColNameList(['ts', 'tbname', 't1'])
             tdSql.checkRows(2)
             tdSql.checkCols(3)
             tdSql.checkData(0, 0, 1734574929004)
@@ -171,21 +180,25 @@ class TDTestCase:
     def one_cols_multi_output_test(self, from_table = 'test.meters'):
         tdLog.info(f"one_cols_1output_test {from_table}")
         tdSql.query(f'select cols(last(ts), ts, c0) from {from_table}')
+        tdSql.checkResColNameList(['ts', 'c0'])
         tdSql.checkRows(1)
         tdSql.checkCols(2)
         tdSql.checkData(0, 0, 1734574929004)
         tdSql.checkData(0, 1, 4)
         tdSql.query(f'select cols(last(ts), ts as time, c0 cc) from {from_table}')
+        tdSql.checkResColNameList(['time', 'cc'])
         tdSql.checkRows(1)
         tdSql.checkCols(2)
         tdSql.checkData(0, 0, 1734574929004)
         tdSql.checkData(0, 1, 4)
         tdSql.query(f'select cols(last(ts), ts as t123456789t123456789t123456789t123456789t123456789t123456789t123456789, c0 cc) from {from_table}')
+        tdSql.checkResColNameList(['t123456789t123456789t123456789t123456789t123456789t123456789t123', 'cc'])
         tdSql.checkRows(1)
         tdSql.checkCols(2)
         tdSql.checkData(0, 0, 1734574929004)
         tdSql.checkData(0, 1, 4)
         tdSql.query(f'select cols(last(ts), c0, c1, c2, c3) from {from_table}')
+        tdSql.checkResColNameList(['c0', 'c1', 'c2', 'c3'])
         tdSql.checkRows(1)
         tdSql.checkCols(4)
         tdSql.checkData(0, 0, 4)
@@ -193,13 +206,16 @@ class TDTestCase:
         tdSql.checkData(0, 2, 'bbbbbbbbb2')
         tdSql.checkData(0, 3, False)
         tdSql.query(f'select cols(last(ts), c0, t1) from {from_table}')
+        tdSql.checkResColNameList(['c0', 't1'])
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 4)
         tdSql.checkData(0, 1, 'st1')
         tdSql.query(f'select cols(max(c0), ts) from {from_table}')
+        tdSql.checkResColNameList(['ts'])
         tdSql.checkCols(1)
         tdSql.checkData(0, 0, 1734574929004)
         tdSql.query(f'select cols(min(c1), ts, c0) from {from_table}')
+        tdSql.checkResColNameList(['ts', 'c0'])
         tdSql.checkCols(2)
         tdSql.checkData(0, 0, 1734574929000)
         tdSql.checkData(0, 1, 1)
@@ -235,6 +251,7 @@ class TDTestCase:
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(0, 2, 5)
         tdSql.query(f'select cols(min(c0), ts, c0), count(1) from {self.dbname}.normal_table')
+        tdSql.checkResColNameList(['ts', 'c0', 'count(1)'])
         tdSql.checkRows(1)
         tdSql.checkCols(3)
         tdSql.checkData(0, 0, 1734574929000)
@@ -305,6 +322,7 @@ class TDTestCase:
         tdSql.checkData(0, 2, 6)   
 
         tdSql.query(f'select cols(last(ts), ts as time, c0 cc), count(1) from {from_table}')
+        tdSql.checkResColNameList(['time', 'cc', 'count(1)'])
         tdSql.checkRows(1)
         tdSql.checkCols(3)
         tdSql.checkData(0, 0, 1734574929004)
@@ -312,6 +330,7 @@ class TDTestCase:
         tdSql.checkData(0, 2, 6)
 
         tdSql.query(f'select cols(max(c1), ts as time, c0 cc), count(1) from {from_table}')
+        tdSql.checkResColNameList(['time', 'cc', 'count(1)'])
         tdSql.checkRows(1)
         tdSql.checkCols(3)
         tdSql.checkData(0, 0, 1734574929004)
@@ -319,6 +338,7 @@ class TDTestCase:
         tdSql.checkData(0, 2, 6) 
 
         tdSql.query(f'select cols(last(ts), c0, c1, c2, c3), count(1) from {from_table}')
+        tdSql.checkResColNameList(['c0', 'c1', 'c2', 'c3', 'count(1)'])
         tdSql.checkRows(1)
         tdSql.checkCols(5)
         tdSql.checkData(0, 0, 4)
@@ -336,6 +356,7 @@ class TDTestCase:
     def multi_cols_output_test(self, from_table = 'test.meters', isTmpTable = False):
         tdLog.info("multi_cols_output_test")
         tdSql.query(f'select cols(last(c0), ts, c1), cols(first(c0), ts, c1), count(1) from {self.dbname}.meters')
+        tdSql.checkResColNameList(['ts', 'c1', 'ts', 'c1', 'count(1)'])
         tdSql.checkRows(1)
         tdSql.checkCols(5)
         tdSql.checkData(0, 0, 1734574929004)
@@ -344,6 +365,7 @@ class TDTestCase:
         tdSql.checkData(0, 3, 1)
         tdSql.checkData(0, 4, 6)
         tdSql.query(f'select cols(last(c0),ts lts, c1 lc1), cols(first(c0), ts fts, c1 as fc1), count(1) from test.meters')
+        tdSql.checkResColNameList(['lts', 'lc1', 'fts', 'fc1', 'count(1)'])
         tdSql.checkRows(1)
         tdSql.checkCols(5)
         tdSql.checkData(0, 0, 1734574929004)
@@ -352,6 +374,7 @@ class TDTestCase:
         tdSql.checkData(0, 3, 1)
         tdSql.checkData(0, 4, 6)
         tdSql.query(f'select cols(max(c0), ts as t1, c1 as c11), cols(first(c0), ts as t2, c1 c21), count(1) from {self.dbname}.meters')
+        tdSql.checkResColNameList(['t1', 'c11', 't2', 'c21', 'count(1)'])
         tdSql.checkRows(1)
         tdSql.checkCols(5)
         tdSql.checkData(0, 0, 1734574929004)
@@ -360,6 +383,7 @@ class TDTestCase:
         tdSql.checkData(0, 3, 1)
         tdSql.checkData(0, 4, 6)
         tdSql.query(f'select cols(max(c0), ts as t1, c1 as c11), cols(first(c0), ts as t2, c1 c21), count(1) from {self.dbname}.meters where c0 < 4')
+        tdSql.checkResColNameList(['t1', 'c11', 't2', 'c21', 'count(1)'])
         tdSql.checkRows(1)
         tdSql.checkCols(5)
         tdSql.checkData(0, 0, 1734574929003)
@@ -369,6 +393,8 @@ class TDTestCase:
         tdSql.checkData(0, 4, 5)
         tdSql.query(f'select cols(max(c0), ts as t123456789t123456789t123456789t123456789t123456789t123456789t123456789, c1 as c11), cols(first(c0), \
             ts as t123456789t123456789t123456789t123456789t123456789t123456789t123456789, c1 c21), count(1) from {self.dbname}.meters')
+        tdSql.checkResColNameList(['t123456789t123456789t123456789t123456789t123456789t123456789t123', 'c11', \
+            't123456789t123456789t123456789t123456789t123456789t123456789t123', 'c21', 'count(1)'])
         tdSql.checkRows(1)
         tdSql.checkCols(5)
         tdSql.checkData(0, 0, 1734574929004)
@@ -386,6 +412,7 @@ class TDTestCase:
         tdSql.checkData(0, 3, 1)
         tdSql.checkData(0, 4, 5)
         tdSql.query(f'select cols(max(c0), ts as t1, c1 as c11), cols(first(c0), ts as t2, c1 c21), count(1) from test.meters where c0 < 4 group by tbname order by t1')
+        tdSql.checkResColNameList(['t1', 'c11', 't2', 'c21', 'count(1)'])
         tdSql.checkRows(2)
         tdSql.checkCols(5)
         tdSql.checkData(0, 0, 1734574929000)
@@ -400,6 +427,7 @@ class TDTestCase:
         tdSql.checkData(1, 4, 4)
 
         tdSql.query(f'select cols(last_row(c0), ts as t1, c1 as c11), cols(first(c0), ts as t2, c1 c21), count(1) from test.meters where c0 < 4 group by tbname order by t1')
+        tdSql.checkResColNameList(['t1', 'c11', 't2', 'c21', 'count(1)'])
         tdSql.checkRows(2)
         tdSql.checkCols(5)
         tdSql.checkData(0, 0, 1734574929000)
@@ -414,6 +442,7 @@ class TDTestCase:
         tdSql.checkData(1, 4, 4)
         
         tdSql.query(f'select cols(last_row(c0), ts as t1, c1 as c11), cols(min(c0), ts as t2, c1 c21), count(1) from test.meters where c0 < 4 group by tbname order by t1')
+        tdSql.checkResColNameList(['t1', 'c11', 't2', 'c21', 'count(1)'])
         tdSql.checkRows(2)
         tdSql.checkCols(5)
         tdSql.checkData(0, 0, 1734574929000)
@@ -428,6 +457,7 @@ class TDTestCase:
         tdSql.checkData(1, 4, 4)
         
         tdSql.query(f'select cols(last_row(c0), ts as t1, c1 as c11), cols(mode(c0), ts as t2, c1 c21), count(1) from test.meters where c0 < 4 group by tbname order by t1')
+        tdSql.checkResColNameList(['t1', 'c11', 't2', 'c21', 'count(1)'])
         tdSql.checkRows(2)
         tdSql.checkCols(5)
         tdSql.checkData(0, 0, 1734574929000)
@@ -486,6 +516,7 @@ class TDTestCase:
         groupby = ["", "group by tbname order ts", "group by tbname order t1", "group by tbname order ts"]
         
         tdSql.query(f'select cols(last(c0), ts, c2), cols(first(c0), ts, c2) from db.d1')
+        tdSql.checkResColNameList(['ts', 'c2', 'ts', 'c2'])
         tdSql.checkRows(1)
         tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1734574930000)
@@ -493,6 +524,7 @@ class TDTestCase:
         tdSql.checkData(0, 2, 1734574929000)
         tdSql.checkData(0, 3, 'a')
         tdSql.query(f'select cols(last(c0), ts, c1, c2, c3), cols(first(c0), ts, c1, c2, c3) from db.d1')
+        tdSql.checkResColNameList(['ts', 'c1', 'c2', 'c3', 'ts', 'c1', 'c2', 'c3'])
         tdSql.checkRows(1)
         tdSql.checkCols(8)
         tdSql.checkData(0, 0, 1734574930000)
@@ -505,12 +537,14 @@ class TDTestCase:
         tdSql.checkData(0, 7, True)
         
         tdSql.query(f'select cols(last(ts), c1), cols(first(ts), c1) from db.d1')
+        tdSql.checkResColNameList(['c1', 'c1'])
         tdSql.checkRows(1)
         tdSql.checkCols(2)
         tdSql.checkData(0, 0, 2.2)
         tdSql.checkData(0, 1, 1.1)
         
         tdSql.query(f'select cols(first(ts), c0, c1), cols(first(ts), c0, c1) from db.d1')
+        tdSql.checkResColNameList(['c0', 'c1', 'c0', 'c1'])
         tdSql.checkRows(1)
         tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1)
@@ -519,6 +553,7 @@ class TDTestCase:
         tdSql.checkData(0, 3, 1.1)
         
         tdSql.query(f'select cols(first(ts), c0, c1), cols(first(ts+1), c0, c1) from db.d1')
+        tdSql.checkResColNameList(['c0', 'c1', 'c0', 'c1'])
         tdSql.checkRows(1)
         tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1)
@@ -527,6 +562,7 @@ class TDTestCase:
         tdSql.checkData(0, 3, 1.1)
         
         tdSql.query(f'select cols(first(ts), c0, c1), cols(first(ts), c0+1, c1+2) from db.d1')
+        tdSql.checkResColNameList(['c0', 'c1', 'c0+1', 'c1+2'])
         tdSql.checkRows(1)
         tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1)
@@ -535,6 +571,7 @@ class TDTestCase:
         tdSql.checkData(0, 3, 3.1)
         
         tdSql.query(f'select cols(first(c0), ts, length(c2)), cols(last(c0), ts, length(c2)) from db.d1')
+        tdSql.checkResColNameList(['ts', 'length(c2)', 'ts', 'length(c2)'])
         tdSql.checkRows(1)
         tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1734574929000)
@@ -542,6 +579,7 @@ class TDTestCase:
         tdSql.checkData(0, 2, 1734574930000)
         tdSql.checkData(0, 3, 36)
         tdSql.query(f'select cols(first(c0), ts, length(c2)), cols(last(c0), ts, length(c2) + 2) from db.d1')
+        tdSql.checkResColNameList(['ts', 'length(c2)', 'ts', 'length(c2) + 2'])
         tdSql.checkRows(1)
         tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1734574929000)
@@ -550,6 +588,7 @@ class TDTestCase:
         tdSql.checkData(0, 3, 38)
         
         tdSql.query(f'select cols(first(c0), ts, c2), cols(last(c0), ts, length(c2) + 2) from db.d1')
+        tdSql.checkResColNameList(['ts', 'c2', 'ts', 'length(c2) + 2'])
         tdSql.checkRows(1)
         tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1734574929000)
@@ -558,6 +597,7 @@ class TDTestCase:
         tdSql.checkData(0, 3, 38)
         
         tdSql.query(f'select cols(min(c0), ts, c2), cols(last(c0), ts, length(c2) + 2) from db.d1')
+        tdSql.checkResColNameList(['ts', 'c2', 'ts', 'length(c2) + 2'])
         tdSql.checkRows(1)
         tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1734574929000)
@@ -566,6 +606,7 @@ class TDTestCase:
         tdSql.checkData(0, 3, 38)
 
         tdSql.query(f'select cols(min(c0), ts, c2), cols(first(c0), ts, length(c2) + 2) from db.d1')
+        tdSql.checkResColNameList(['ts', 'c2', 'ts', 'length(c2) + 2'])
         tdSql.checkRows(1)
         tdSql.checkCols(4)
         tdSql.checkData(0, 0, 1734574929000)
