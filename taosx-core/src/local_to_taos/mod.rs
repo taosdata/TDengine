@@ -40,7 +40,7 @@ const PROCESSED_CURRENT: FastStr = FastStr::from_static_str("backup_processed_cu
 #[allow(unused)]
 const FAILED_ROWS: FastStr = FastStr::from_static_str("backup_failed_rows");
 
-/// 从本地备份恢复到 taos
+/// # 从本地备份恢复到 taos
 /// 1. 备份文件对应某个备份对象：database 或 database.stable，在 target 中：
 /// * 如果 backup object 存在
 ///     - 如果 @param force 为 true，删除旧的 backup object，创建新的 backup object
@@ -64,7 +64,7 @@ pub async fn local_to_taos(
         .build()
         .await
         .context("parse local_to_taos config error")?;
-    tracing::debug!("local_to_taos config: {:?}", config);
+    tracing::debug!("local_to_taos config: {:#?}", config);
 
     // 处理 backup object
     if config.is_obj_existed().await? {

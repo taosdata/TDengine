@@ -13,7 +13,7 @@ use tracing::Instrument;
 #[derive(Debug, Clone)]
 pub struct BackupConfig {
     #[allow(unused)]
-    task_id: Option<String>,
+    pub task_id: Option<String>,
     raw_from: Dsn,
     #[allow(unused)]
     raw_to: Dsn,
@@ -25,6 +25,8 @@ pub struct BackupConfig {
     pub database: String,
     /// 备份对象：stable
     pub stable: Option<String>,
+    /// 是否自动重复
+    pub self_repeat: bool,
     /// 下次执行时间
     pub upcoming: Option<DateTime<Utc>>,
     /// 备份周期
@@ -312,6 +314,7 @@ impl BackupConfigBuilder {
                 bail!("stable `{}` not exists", stable);
             }
         }
+        let self_repeat = utils::parse_key_in_dsn(&self.from, "self.repeat")?.unwrap_or(false);
 
         // upcoming
         let upcoming = utils::parse_datetime_in_dsn(&self.from, "upcoming")?;
@@ -376,6 +379,7 @@ impl BackupConfigBuilder {
             topic,
             database,
             stable,
+            self_repeat,
             upcoming,
             interval,
             backup_point_gen_mode,
