@@ -119,7 +119,19 @@ impl LocalRestoreConfig {
                 // create stable
                 let sql = format!("USE `{}`", db_name);
                 tracing::info!("exec sql: {}", sql);
-                taos.exec(sql).await?;
+                let res = taos.exec(sql.clone()).await;
+                if let Err(e) = res {
+                    if e.to_string().to_lowercase().contains("database not exist") {
+                        let db_sql = self.backup_obj.db_sql.clone();
+                        let db_sql = db_sql.replace(&self.backup_obj.db_name, &db_name);
+                        tracing::info!("exec sql: {}", db_sql);
+                        taos.exec(db_sql).await?;
+                        taos.exec(sql).await?;
+                    } else {
+                        return Err(anyhow::Error::from(e).context("failed to use database"));
+                    }
+                }
+
                 let sql = stable_sql.clone();
                 let sql = sql.replace(&self.backup_obj.db_name, &db_name);
                 tracing::info!("exec sql: {}", sql);
