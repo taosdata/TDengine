@@ -338,9 +338,9 @@ Parameters related to supertable creation are configured in the `super_tables` s
 
 - **child_table_exists**: Whether the child table already exists, default is "no", options are "yes" or "no".
 
-- **child_table_count**: Number of child tables, default is 10.
+- **childtable_count**: Number of child tables, default is 10.
 
-- **child_table_prefix**: Prefix for child table names, mandatory, no default value.
+- **childtable_prefix**: Prefix for child table names, mandatory, no default value.
 
 - **escape_character**: Whether the supertable and child table names contain escape characters, default is "no", options are "yes" or "no".
 
@@ -435,11 +435,9 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 - **create_table_thread_count** : The number of threads for creating tables, default is 8.
 
-- **connection_pool_size** : The number of pre-established connections with the TDengine server. If not configured, it defaults to the specified number of threads.
-
 - **result_file** : The path to the result output file, default is ./output.txt.
 
-- **confirm_parameter_prompt** : A toggle parameter that requires user confirmation after a prompt to continue. The default value is false.
+- **confirm_parameter_prompt** : A toggle parameter that requires user confirmation after a prompt to continue. The value can be "yes" or "no", the default value is "no".
 
 - **interlace_rows** : Enables interleaved insertion mode and specifies the number of rows to insert into each subtable at a time. Interleaved insertion mode refers to inserting the specified number of rows into each subtable in sequence and repeating this process until all subtable data has been inserted. The default value is 0, meaning data is inserted into one subtable completely before moving to the next.
   This parameter can also be configured in `super_tables`; if configured, the settings in `super_tables` take higher priority and override the global settings.
@@ -495,6 +493,7 @@ The thread mode of the super table query is the same as the `Normal Query` mode 
 - **sqls** :
   - **sql** : The SQL command to execute, required; for supertable queries, keep "xxxx" in the SQL command, the program will automatically replace it with all subtable names of the supertable.
   - **result** : File to save the query results, if not specified, results are not saved.
+  - Note: The maximum number of SQL arrays configured under SQL is 100
 
 ### Configuration Parameters for Subscription Scenarios
 
