@@ -63,3 +63,8 @@ select _irowts, _isfilled, interp(c1) from test.td32861 where ts between '2020-0
 select _irowts, _isfilled, interp(c1) from test.td32861 where ts between '2020-01-01 00:00:22' and '2020-01-01 00:00:30' range('2020-01-01 00:00:00', '2020-01-01 00:00:21') every(1s) fill(prev);
 select _irowts, _isfilled, interp(c1) from test.td32861 where ts between '2020-01-01 00:00:22' and '2020-01-01 00:00:30' range('2020-01-01 00:00:00', '2020-01-01 00:00:21') every(1s) fill(next);
 select _irowts, _isfilled, interp(c1) from test.td32861 where ts between '2020-01-01 00:00:22' and '2020-01-01 00:00:30' range('2020-01-01 00:00:00', '2020-01-01 00:00:21') every(1s) fill(linear);
+select _irowts, interp(c1), t1 from test.ts5941_child range('2020-02-01 00:00:00', '2020-02-01 00:00:20') every(1s) fill(prev);
+select _irowts, interp(c1), t1 from test.ts5941_child range('2020-02-01 00:00:00', '2020-02-01 00:00:20') every(1s) fill(next);
+select _irowts, interp(c1), t1 from test.ts5941_child range('2020-02-01 00:00:00', '2020-02-01 00:00:20') every(1s) fill(linear);
+select _irowts, interp(c1), t1 from test.ts5941_child range('2020-02-01 00:00:00', '2020-02-01 00:00:20') every(1s) fill(null);
+select _irowts, interp(c1), t1 from test.ts5941_child range('2020-02-01 00:00:00', '2020-02-01 00:00:20') every(1s) fill(value, 1);
