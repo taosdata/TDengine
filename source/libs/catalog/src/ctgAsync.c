@@ -1692,6 +1692,7 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       TAOS_MEMCPY(pOut->tbMeta + sizeof(STableMeta), pOut->vctbMeta + sizeof(SVCTableMeta), colRefSize);
       pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
     }
+    taosMemoryFree(pOut->vctbMeta);
   }
 
   /*
@@ -1860,6 +1861,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
             taosMemoryFreeClear(stbMeta);
           } else {
             ctgTaskDebug("need to get/update stb meta, tbName:%s", tNameGetTableName(pName));
+            taosMemoryFreeClear(pOut->vctbMeta);
             taosMemoryFreeClear(pOut->tbMeta);
             taosMemoryFreeClear(stbMeta);
           }
@@ -1903,6 +1905,7 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
       TAOS_MEMCPY(pOut->tbMeta + sizeof(STableMeta), pOut->vctbMeta + sizeof(SVCTableMeta), colRefSize);
       pOut->tbMeta->colRef = (SColRef *)((char *)pOut->tbMeta + sizeof(STableMeta));
     }
+    taosMemoryFreeClear(pOut->vctbMeta);
   }
   /*
     else if (CTG_IS_META_CTABLE(pOut->metaType)) {
