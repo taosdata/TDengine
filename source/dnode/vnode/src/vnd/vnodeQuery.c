@@ -32,6 +32,34 @@ void vnodeQueryPreClose(SVnode *pVnode) { qWorkerStopAllTasks((void *)pVnode->pQ
 
 void vnodeQueryClose(SVnode *pVnode) { qWorkerDestroy((void **)&pVnode->pQuery); }
 
+void vnodePrintTableMeta(STableMetaRsp* pMeta) {
+  if (!(qDebugFlag & DEBUG_DEBUG)) {
+    return;
+  }
+
+  qDebug("tbName:%s", pMeta->tbName);
+  qDebug("stbName:%s", pMeta->stbName);
+  qDebug("dbFName:%s", pMeta->dbFName);
+  qDebug("dbId:%" PRId64, pMeta->dbId);
+  qDebug("numOfTags:%d", pMeta->numOfTags);
+  qDebug("numOfColumns:%d", pMeta->numOfColumns);
+  qDebug("precision:%d", pMeta->precision);
+  qDebug("tableType:%d", pMeta->tableType);
+  qDebug("sversion:%d", pMeta->sversion);
+  qDebug("tversion:%d", pMeta->tversion);
+  qDebug("suid:%" PRIu64, pMeta->suid);
+  qDebug("tuid:%" PRIu64, pMeta->tuid);
+  qDebug("vgId:%d", pMeta->vgId);
+  qDebug("sysInfo:%d", pMeta->sysInfo);
+  if (pMeta->pSchemas) {
+    for (int32_t i = 0; i < (pMeta->numOfColumns + pMeta->numOfTags); ++i) {
+      SSchema* pSchema = pMeta->pSchemas + i;
+      qDebug("%d col/tag: type:%d, flags:%d, colId:%d, bytes:%d, name:%s", i, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes, pSchema->name);
+    }
+  }
+
+}
+
 int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   STableInfoReq  infoReq = {0};
   STableMetaRsp  metaRsp = {0};
@@ -103,6 +131,8 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   if (schemaTag.nCols) {
     memcpy(metaRsp.pSchemas + schema.nCols, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
   }
+
+  vnodePrintTableMeta(&metaRsp);
 
   // encode and send response
   rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
