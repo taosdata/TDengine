@@ -11570,6 +11570,20 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported Having");
   }
 
+  if (tsStreamCoverage == false && NULL != pStmt->pOptions->pRecInterval) {
+    SValueNode* pVal = (SValueNode*)pStmt->pOptions->pRecInterval;
+    int64_t     minDelay = 0;
+    char*       str = "600s";
+    if (DEAL_RES_ERROR != translateValue(pCxt, pVal) &&
+        TSDB_CODE_SUCCESS ==
+            parseNatualDuration(str, strlen(str), &minDelay, &pVal->unit, pVal->node.resType.precision, false)) {
+      if (pVal->datum.i < minDelay) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                       "stream recalculate interval must be bigger than 10 minutes");
+      }
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -12277,8 +12291,12 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
     if (TSDB_CODE_SUCCESS == code) {
       code = columnDefNodeToField(pStmt->pCols, &pReq->pCols, false);
     }
-    pReq->recalculateInterval =
-        (NULL != pStmt->pOptions->pRecInterval ? ((SValueNode*)pStmt->pOptions->pRecInterval)->datum.i : 0);
+    pReq->recalculateInterval = 0;
+    if (NULL != pStmt->pOptions->pRecInterval) {
+      SValueNode* pValueNode = ((SValueNode*)pStmt->pOptions->pRecInterval);
+      pReq->recalculateInterval =
+          convertTimePrecision(pValueNode->datum.i, pValueNode->node.resType.precision, TSDB_TIME_PRECISION_MILLI);
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code) {
