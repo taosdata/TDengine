@@ -1601,6 +1601,11 @@ void tmqFreeImpl(void* handle) {
 
 static void tmqMgmtInit(void) {
   tmqInitRes = 0;
+
+  if (taosThreadMutexInit(&tmqMgmt.lock, NULL) != 0){
+    goto END;
+  }
+
   tmqMgmt.timer = taosTmrInit(1000, 100, 360000, "TMQ");
 
   if (tmqMgmt.timer == NULL) {
@@ -1609,10 +1614,6 @@ static void tmqMgmtInit(void) {
 
   tmqMgmt.rsetId = taosOpenRef(10000, tmqFreeImpl);
   if (tmqMgmt.rsetId < 0) {
-    goto END;
-  }
-
-  if (taosThreadMutexInit(&tmqMgmt.lock, NULL) != 0){
     goto END;
   }
 
