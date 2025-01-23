@@ -12,8 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef STREAM_NONBLOCKINTERVAL_H
-#define STREAM_NONBLOCKINTERVAL_H
+#ifndef STREAM_INTERVAL_H
+#define STREAM_INTERVAL_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,10 +29,10 @@ int32_t createFinalIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNo
                                              SReadHandle* pHandle, SOperatorInfo** ppOptInfo);
 int32_t createSemiIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                              SReadHandle* pHandle, SOperatorInfo** ppOptInfo);
-int32_t getHistoryRemainResultInfo(SStreamAggSupporter* pAggSup, int32_t numOfState, SArray* pUpdated, int32_t capacity);
+int32_t copyNewResult(SSHashObj** ppWinUpdated, SArray* pUpdated, __compar_fn_t compar);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // STREAM_NONBLOCKINTERVAL_H
+#endif  // STREAM_INTERVAL_H

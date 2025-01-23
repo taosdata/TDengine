@@ -461,6 +461,13 @@ typedef struct SSteamOpBasicInfo {
   int32_t                primaryPkIndex;
   int16_t                operatorFlag;
   SStreamNotifyEventSupp windowEventSup;
+  bool                   recvCkBlock;
+  SSDataBlock*           pCheckpointRes;
+  SSHashObj*             pSeDeleted;
+  void*                  pDelIterator;
+  SSDataBlock*           pDelRes;
+  SArray*                pUpdated;
+  bool                   destHasPrimaryKey;
 } SSteamOpBasicInfo;
 
 typedef struct SStreamFillSupporter {
@@ -695,6 +702,14 @@ typedef struct SResultWindowInfo {
   bool         isOutput;
 } SResultWindowInfo;
 
+typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
+
+typedef struct SNonBlockAggSupporter {
+  int32_t       numOfKeep;
+  TSKEY         tsOfKeep;
+  AggImplFn     pWindowAggFn;
+} SNonBlockAggSupporter;
+
 typedef struct SStreamSessionAggOperatorInfo {
   SOptrBasicInfo      binfo;
   SSteamOpBasicInfo   basic;
@@ -727,6 +742,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   bool                destHasPrimaryKey;
   SSHashObj*          pPkDeleted;
   struct SOperatorInfo* pOperator;
+  SNonBlockAggSupporter nbSup;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct SStreamStateAggOperatorInfo {
@@ -755,6 +771,7 @@ typedef struct SStreamStateAggOperatorInfo {
   SSHashObj*          pPkDeleted;
   bool                destHasPrimaryKey;
   struct SOperatorInfo* pOperator;
+  SNonBlockAggSupporter nbSup;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SStreamEventAggOperatorInfo {
@@ -884,9 +901,6 @@ typedef struct SStreamTimeSliceOperatorInfo {
   struct SOperatorInfo* pOperator;
 } SStreamTimeSliceOperatorInfo;
 
-typedef int32_t (*IntervalAggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
-typedef int32_t (*GetRemainResultFn)(SStreamAggSupporter* pAggSup, SArray* pUpdated, int32_t capacity);
-
 typedef struct SStreamIntervalSliceOperatorInfo {
   SSteamOpBasicInfo     basic;
   SOptrBasicInfo        binfo;
@@ -910,9 +924,7 @@ typedef struct SStreamIntervalSliceOperatorInfo {
   bool                  hasFill;
   bool                  hasInterpoFunc;
   int32_t*              pOffsetInfo;
-  int32_t               numOfKeep;
-  TSKEY                 tsOfKeep;
-  IntervalAggImplFn     pIntervalAggFn;
+  SNonBlockAggSupporter nbSup;
 } SStreamIntervalSliceOperatorInfo;
 
 #define OPTR_IS_OPENED(_optr)  (((_optr)->status & OP_OPENED) == OP_OPENED)

@@ -503,7 +503,7 @@ _end:
 
 int32_t initIntervalSliceDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uint16_t type,
                                     int32_t tsColIndex, STimeWindowAggSupp* pTwSup, struct SSteamOpBasicInfo* pBasic,
-                                    SInterval* pInterval, bool hasInterpoFunc) {
+                                    SInterval* pInterval, bool hasInterpoFunc, int64_t recalculateInterval) {
   SExecTaskInfo* pTaskInfo = downstream->pTaskInfo;
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
@@ -515,7 +515,7 @@ int32_t initIntervalSliceDownStream(SOperatorInfo* downstream, SStreamAggSupport
 
   if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     code =
-        initIntervalSliceDownStream(downstream->pDownstream[0], pAggSup, type, tsColIndex, pTwSup, pBasic, pInterval, hasInterpoFunc);
+        initIntervalSliceDownStream(downstream->pDownstream[0], pAggSup, type, tsColIndex, pTwSup, pBasic, pInterval, hasInterpoFunc, recalculateInterval);
     return code;
   }
   SStreamScanInfo* pScanInfo = downstream->info;
@@ -539,6 +539,7 @@ int32_t initIntervalSliceDownStream(SOperatorInfo* downstream, SStreamAggSupport
   if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL) {
     pScanInfo->scanAllTables = true;
   }
+  pScanInfo->recalculateInterval = recalculateInterval;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -656,8 +657,8 @@ int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiN
   pInfo->pOperator = pOperator;
   pInfo->hasFill = false;
   pInfo->hasInterpoFunc = windowinterpNeeded(pExpSup->pCtx, numOfExprs);
-  pInfo->numOfKeep = ceil(((double)pInfo->interval.interval) / pInfo->interval.sliding);
-  pInfo->tsOfKeep = INT64_MAX;
+  pInfo->nbSup.numOfKeep = ceil(((double)pInfo->interval.interval) / pInfo->interval.sliding);
+  pInfo->nbSup.tsOfKeep = INT64_MAX;
 
   setOperatorInfo(pOperator, "StreamIntervalSliceOperator", pPhyNode->type, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
@@ -667,7 +668,7 @@ int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiN
     if (pHandle->fillHistory) {
       setFillHistoryOperatorFlag(&pInfo->basic);
     }
-    pInfo->pIntervalAggFn = doStreamIntervalNonblockAggImpl;
+    pInfo->nbSup.pWindowAggFn = doStreamIntervalNonblockAggImpl;
     if (pPhyNode->type == QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL) {
       setSingleOperatorFlag(&pInfo->basic);
     }
@@ -684,7 +685,8 @@ int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiN
 
   if (downstream) {
     code = initIntervalSliceDownStream(downstream, &pInfo->streamAggSup, pPhyNode->type, pInfo->primaryTsIndex,
-                                       &pInfo->twAggSup, &pInfo->basic, &pInfo->interval, pInfo->hasInterpoFunc);
+                                       &pInfo->twAggSup, &pInfo->basic, &pInfo->interval, pInfo->hasInterpoFunc,
+                                       pIntervalPhyNode->window.recalculateInterval);
     QUERY_CHECK_CODE(code, lino, _error);
 
     code = appendDownstream(pOperator, &downstream, 1);
