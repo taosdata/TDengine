@@ -237,18 +237,32 @@ SVgObj* mndSchedFetchOneVg(SMnode* pMnode, SStreamObj* pStream) {
   return pVgroup;
 }
 
-static int32_t doAddSinkTask(SStreamObj* pStream, SMnode* pMnode, SVgObj* pVgroup, SEpSet* pEpset, bool isFillhistory) {
-  int64_t  uid = (isFillhistory) ? pStream->hTaskUid : pStream->uid;
-  SArray** pTaskList = (isFillhistory) ? taosArrayGetLast(pStream->pHTasksList) : taosArrayGetLast(pStream->tasks);
+static void streamGetUidTaskList(SStreamObj* pStream, EStreamTaskType type, uint64_t* pUid, SArray*** pTaskList) {
+  if (type == NORMAL_STREAM_TASK) {
+    *pUid = pStream->uid;
+    *pTaskList = taosArrayGetLast(pStream->pTaskList);
+  } else if (type == HISTORY_TASK) {
+    *pUid = pStream->hTaskUid;
+    *pTaskList = taosArrayGetLast(pStream->pHTasksList);
+  } else {
+    *pUid = pStream->rTaskUid;
+    *pTaskList = taosArrayGetLast(pStream->pReCalTaskList);
+  }
+}
+
+static int32_t doAddSinkTask(SStreamObj* pStream, SMnode* pMnode, SVgObj* pVgroup, SEpSet* pEpset, EStreamTaskType type) {
+  uint64_t uid = 0;
+  SArray** pTaskList = NULL;
+  streamGetUidTaskList(pStream, type, &uid, &pTaskList);
 
   SStreamTask* pTask = NULL;
-  int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, pEpset, isFillhistory, 0, 0, *pTaskList, pStream->conf.fillHistory,
+  int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, pEpset, type, 0, 0, *pTaskList, pStream->conf.fillHistory,
                                 pStream->subTableWithoutMd5, &pTask);
   if (code != 0) {
     return code;
   }
 
-  mDebug("doAddSinkTask taskId:%s, %p vgId:%d, isFillHistory:%d", pTask->id.idStr, pTask, pVgroup->vgId, isFillhistory);
+  mDebug("doAddSinkTask taskId:%s, %p vgId:%d, isFillHistory:%d", pTask->id.idStr, pTask, pVgroup->vgId, (type == HISTORY_TASK));
 
   pTask->info.nodeId = pVgroup->vgId;
   pTask->info.epSet = mndGetVgroupEpset(pMnode, pVgroup);
@@ -352,11 +366,12 @@ static void haltInitialTaskStatus(SStreamTask* pTask, SSubplan* pPlan, bool isFi
   }
 }
 
-static int32_t buildSourceTask(SStreamObj* pStream, SEpSet* pEpset, bool isFillhistory, bool useTriggerParam, SStreamTask** pTask) {
-  uint64_t uid = (isFillhistory) ? pStream->hTaskUid : pStream->uid;
-  SArray** pTaskList = (isFillhistory) ? taosArrayGetLast(pStream->pHTasksList) : taosArrayGetLast(pStream->tasks);
+static int32_t buildSourceTask(SStreamObj* pStream, SEpSet* pEpset, EStreamTaskType type, bool useTriggerParam, SStreamTask** pTask) {
+  uint64_t uid = 0;
+  SArray** pTaskList = NULL;
+  streamGetUidTaskList(pStream, type, &uid, &pTaskList);
 
-  int32_t code = tNewStreamTask(uid, TASK_LEVEL__SOURCE, pEpset, isFillhistory, pStream->conf.trigger,
+  int32_t code = tNewStreamTask(uid, TASK_LEVEL__SOURCE, pEpset, type, pStream->conf.trigger,
                                 useTriggerParam ? pStream->conf.triggerParam : 0, *pTaskList, pStream->conf.fillHistory,
                                 pStream->subTableWithoutMd5, pTask);
   return code;
@@ -369,7 +384,7 @@ static int32_t addNewTaskList(SStreamObj* pStream) {
     return terrno;
   }
 
-  if (taosArrayPush(pStream->tasks, &pTaskList) == NULL) {
+  if (taosArrayPush(pStream->pTaskList, &pTaskList) == NULL) {
     mError("failed to put into array, code:%s", tstrerror(terrno));
     return terrno;
   }
@@ -377,11 +392,24 @@ static int32_t addNewTaskList(SStreamObj* pStream) {
   if (pStream->conf.fillHistory) {
     pTaskList = taosArrayInit(0, POINTER_BYTES);
     if (pTaskList == NULL) {
-      mError("failed init task list, code:%s", tstrerror(terrno));
+      mError("failed init history task list, code:%s", tstrerror(terrno));
       return terrno;
     }
 
     if (taosArrayPush(pStream->pHTasksList, &pTaskList) == NULL) {
+      mError("failed to put into array, code:%s", tstrerror(terrno));
+      return terrno;
+    }
+  }
+
+  if (pStream->conf.trigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+    pTaskList = taosArrayInit(4, POINTER_BYTES);
+    if (pTaskList == NULL) {
+      mError("failed init re-calculate task list, code:%s", tstrerror(terrno));
+      return terrno;
+    }
+
+    if (taosArrayPush(pStream->pReCalTaskList, &pTaskList) == NULL) {
       mError("failed to put into array, code:%s", tstrerror(terrno));
       return terrno;
     }
@@ -392,7 +420,7 @@ static int32_t addNewTaskList(SStreamObj* pStream) {
 
 // set the history task id
 static void setHTasksId(SStreamObj* pStream) {
-  SArray* pTaskList = *(SArray**)taosArrayGetLast(pStream->tasks);
+  SArray* pTaskList = *(SArray**)taosArrayGetLast(pStream->pTaskList);
   SArray* pHTaskList = *(SArray**)taosArrayGetLast(pStream->pHTasksList);
 
   for (int32_t i = 0; i < taosArrayGetSize(pTaskList); ++i) {
@@ -513,14 +541,15 @@ static int32_t addSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t buildAggTask(SStreamObj* pStream, SEpSet* pEpset, bool isFillhistory, bool useTriggerParam,
+static int32_t buildAggTask(SStreamObj* pStream, SEpSet* pEpset, EStreamTaskType type, bool useTriggerParam,
                             SStreamTask** pAggTask) {
   *pAggTask = NULL;
 
-  uint64_t uid = (isFillhistory) ? pStream->hTaskUid : pStream->uid;
-  SArray** pTaskList = (isFillhistory) ? taosArrayGetLast(pStream->pHTasksList) : taosArrayGetLast(pStream->tasks);
+  uint64_t uid = 0;
+  SArray** pTaskList = NULL;
+  streamGetUidTaskList(pStream, type, &uid, &pTaskList);
 
-  int32_t code = tNewStreamTask(uid, TASK_LEVEL__AGG, pEpset, isFillhistory, pStream->conf.trigger,
+  int32_t code = tNewStreamTask(uid, TASK_LEVEL__AGG, pEpset, type, pStream->conf.trigger,
                                 useTriggerParam ? pStream->conf.triggerParam : 0, *pTaskList, pStream->conf.fillHistory,
                                 pStream->subTableWithoutMd5, pAggTask);
   return code;
@@ -694,9 +723,9 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
   mDebug("doScheduleStream numOfPlanLevel:%d, exDb:%d, multiTarget:%d, fix vgId:%d, physicalPlan:%s", numOfPlanLevel,
          externalTargetDB, multiTarget, pStream->fixedSinkVgId, pStream->physicalPlan);
 
-  pStream->tasks = taosArrayInit(numOfPlanLevel + 1, POINTER_BYTES);
+  pStream->pTaskList = taosArrayInit(numOfPlanLevel + 1, POINTER_BYTES);
   pStream->pHTasksList = taosArrayInit(numOfPlanLevel + 1, POINTER_BYTES);
-  if (pStream->tasks == NULL || pStream->pHTasksList == NULL) {
+  if (pStream->pTaskList == NULL || pStream->pHTasksList == NULL) {
     mError("failed to create stream obj, code:%s", tstrerror(terrno));
     return terrno;
   }
@@ -725,7 +754,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
   }
 
   if (numOfPlanLevel == 1) {
-    bindSourceSink(pStream, pMnode, pStream->tasks, hasExtraSink);
+    bindSourceSink(pStream, pMnode, pStream->pTaskList, hasExtraSink);
     if (pStream->conf.fillHistory) {
       bindSourceSink(pStream, pMnode, pStream->pHTasksList, hasExtraSink);
     }
@@ -741,7 +770,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
     }
 
     do {
-      SArray** list = taosArrayGetLast(pStream->tasks);
+      SArray** list = taosArrayGetLast(pStream->pTaskList);
       float    size = (float)taosArrayGetSize(*list);
       size_t   cnt = (size_t)ceil(size / tsStreamAggCnt);
       if (cnt <= 1) break;
@@ -758,7 +787,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
           return code;
         }
 
-        bindTwoLevel(pStream->tasks, j * tsStreamAggCnt, (j + 1) * tsStreamAggCnt);
+        bindTwoLevel(pStream->pTaskList, j * tsStreamAggCnt, (j + 1) * tsStreamAggCnt);
         if (pStream->conf.fillHistory) {
           bindTwoLevel(pStream->pHTasksList, j * tsStreamAggCnt, (j + 1) * tsStreamAggCnt);
         }
@@ -774,7 +803,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
   }
 
   mDebug("doScheduleStream add final agg");
-  SArray** list = taosArrayGetLast(pStream->tasks);
+  SArray** list = taosArrayGetLast(pStream->pTaskList);
   size_t   size = taosArrayGetSize(*list);
 
   code = addNewTaskList(pStream);
@@ -786,12 +815,12 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
   if (code != TSDB_CODE_SUCCESS) {
     TAOS_RETURN(code);
   }
-  bindTwoLevel(pStream->tasks, 0, size);
+  bindTwoLevel(pStream->pTaskList, 0, size);
   if (pStream->conf.fillHistory) {
     bindTwoLevel(pStream->pHTasksList, 0, size);
   }
 
-  bindAggSink(pStream, pMnode, pStream->tasks);
+  bindAggSink(pStream, pMnode, pStream->pTaskList);
   if (pStream->conf.fillHistory) {
     bindAggSink(pStream, pMnode, pStream->pHTasksList);
   }

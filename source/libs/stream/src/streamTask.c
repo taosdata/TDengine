@@ -105,7 +105,7 @@ static SStreamUpstreamEpInfo* createStreamTaskEpInfo(const SStreamTask* pTask) {
   return pEpInfo;
 }
 
-int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int32_t trigger,
+int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, EStreamTaskType type, int32_t trigger,
                        int64_t triggerParam, SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5,
                        SStreamTask** p) {
   *p = NULL;
@@ -122,7 +122,7 @@ int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool 
   pTask->id.streamId = streamId;
 
   pTask->info.taskLevel = taskLevel;
-  pTask->info.fillHistory = fillHistory;
+  pTask->info.fillHistory = (type == HISTORY_TASK);
   pTask->info.trigger = trigger;
   pTask->info.delaySchedParam = triggerParam;
   pTask->subtableWithoutMd5 = subtableWithoutMd5;
@@ -147,7 +147,7 @@ int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool 
   }
 
   pTask->status.schedStatus = TASK_SCHED_STATUS__INACTIVE;
-  pTask->status.taskStatus = fillHistory ? TASK_STATUS__SCAN_HISTORY : TASK_STATUS__READY;
+  pTask->status.taskStatus = pTask->info.fillHistory ? TASK_STATUS__SCAN_HISTORY : TASK_STATUS__READY;
   pTask->inputq.status = TASK_INPUT_STATUS__NORMAL;
   pTask->outputq.status = TASK_OUTPUT_STATUS__NORMAL;
 
@@ -157,7 +157,7 @@ int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool 
     return code;
   }
 
-  if (fillHistory && !hasFillhistory) {
+  if (pTask->info.fillHistory && !hasFillhistory) {
     stError("s-task:0x%x create task failed, due to inconsistent fill-history flag", pTask->id.taskId);
     return TSDB_CODE_INVALID_PARA;
   }

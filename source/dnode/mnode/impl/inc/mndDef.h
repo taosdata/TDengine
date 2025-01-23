@@ -808,10 +808,12 @@ typedef struct {
   char*   sql;
   char*   ast;
   char*   physicalPlan;
-  SArray* tasks;  // SArray<SArray<SStreamTask>>
 
-  SArray* pHTasksList;  // generate the results for already stored ts data
-  int64_t hTaskUid;     // stream task for history ts data
+  SArray* pTaskList;       // SArray<SArray<SStreamTask>>
+  SArray* pHTasksList;     // generate the results for already stored ts data
+  SArray* pReCalTaskList;  // generate the recalculation task
+  int64_t hTaskUid;        // stream task for history ts data
+  int64_t rTaskUid;
 
   SSchemaWrapper outputSchema;
   SSchemaWrapper tagSchema;

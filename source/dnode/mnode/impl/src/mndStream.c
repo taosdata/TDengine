@@ -347,6 +347,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   snprintf(p, tListLen(p), "%s_%s", pObj->name, "fillhistory");
 
   pObj->hTaskUid = mndGenerateUid(pObj->name, strlen(pObj->name));
+  pObj->rTaskUid = mndGenerateUid(pObj->name, strlen(pObj->name));
   pObj->status = 0;
 
   pObj->conf.igExpired = pCreate->igExpired;
@@ -796,9 +797,9 @@ static int32_t addStreamNotifyInfo(SCMCreateStreamReq *createReq, SStreamObj *pS
     goto _end;
   }
 
-  level = taosArrayGetSize(pStream->tasks);
+  level = taosArrayGetSize(pStream->pTaskList);
   for (int32_t i = 0; i < level; ++i) {
-    pLevel = taosArrayGetP(pStream->tasks, i);
+    pLevel = taosArrayGetP(pStream->pTaskList, i);
     nTasks = taosArrayGetSize(pLevel);
     for (int32_t j = 0; j < nTasks; ++j) {
       code = addStreamTaskNotifyInfo(createReq, pStream, taosArrayGetP(pLevel, j));
@@ -1178,9 +1179,9 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
   pStream->currentTick = 1;
 
   // 1. redo action: broadcast checkpoint source msg for all source vg
-  int32_t totalLevel = taosArrayGetSize(pStream->tasks);
+  int32_t totalLevel = taosArrayGetSize(pStream->pTaskList);
   for (int32_t i = 0; i < totalLevel; i++) {
-    SArray      *pLevel = taosArrayGetP(pStream->tasks, i);
+    SArray      *pLevel = taosArrayGetP(pStream->pTaskList, i);
     SStreamTask *p = taosArrayGetP(pLevel, 0);
 
     if (p->info.taskLevel == TASK_LEVEL__SOURCE) {
