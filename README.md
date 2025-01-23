@@ -67,7 +67,15 @@ List the software and tools required to work on the project.
 - node 16.20.2 (for taos-explorer)
 - python 3.10.12+ (for test)
 
-Step-by-step instructions to set up the prerequisites software.
+Run the script to set up the prerequisite software:
+
+```bash
+wget https://raw.githubusercontent.com/taosdata/TDengine/main/packaging/setup_env.sh
+chmod +x setup_env.sh
+./setup_env.sh TDinternal && ./setup_env.sh install_packages && source ~/.bashrc
+```
+
+You can also set up the prerequisite software by following the step-by-step instructions.
 
 ### 3.1.1 Install the required package
 
@@ -204,7 +212,7 @@ Recommend install node using nvm.
 curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.8/install.sh | bash
 ```
 
-Set up environment variables, add the following content to the end of the `~/.bashrc` file.
+Ensure that the following content is added to your `~/.bashrc` file:
 
 ```bash
 export NVM_DIR="$HOME/.nvm"
@@ -237,7 +245,8 @@ apt install python3-pip
 Install the dependent Python components.
 
 ```bash
-pip3 install pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog
+pip3 install pandas psutil fabric2 requests faker simplejson toml \
+     pexpect tzlocal distro decorator loguru hyperloglog toml
 ```
 
 Install the Python connector for TDengine.
@@ -294,7 +303,7 @@ cd /root
 git clone git@github.com:taosdata/TDinternal.git
 ```
 
-Execute the cmake command to download the community and other repositories (this may take about twenty minutes).
+Execute the cmake command to download the community and other repositories (this may take some minutes).
 
 ```bash
 cd /root/TDinternal && git checkout main
@@ -309,15 +318,16 @@ Select the current branch of community repositorie.
 cd /root/TDinternal/community && git checkout main
 ```
 
-Compile
+Run the following commands to compile and obtain the executables in debug/build/bin after a successful compilation.
 
 ```bash
 cd /root/TDinternal/debug
-cmake .. -DBUILD_TEST=true
+cmake .. -DBUILD_TEST=true 
 make -j4
 ```
 
 Install
+Run the following command to install the executables to /usr/bin and perform some additional configurations.
 
 ```bash
 make install
@@ -385,10 +395,11 @@ Using the following script to package the enterprise edition.
 
 ```bash
 cd /root/TDinternal/enterprise/packaging
-./new_ver_release.sh -n <version_number>
+# version_number should be in the format x.x.x.x[.x], e.g., 3.3.5.0 or 3.3.5.0.1234
+./new_ver_release.sh -n <version_number>   
 ```
 
-After the packaging is complete, you can see the following files.
+Once the packaging process is complete, you can find the installation package files listed below by executing the command:
 
 ```bash
 ll /root/TDinternal/community/release
@@ -488,10 +499,10 @@ Option `-c test/cfg` specifies the system configuration file directory.
 
 Running from source code will also configure service management for TDengine. Users can also choose to [install from packages](https://docs.tdengine.com/get-started/deploy-from-package/) for it.
 
+
 ```bash
-cd TDengine-enterprise-<version_number>-Linux-x64
-./start-all.sh
-./stop-all.sh
+start-all.sh
+stop-all.sh
 ```
 
 </details>
@@ -663,6 +674,7 @@ python3 ./test.py -f 2-query/avg.py
 ```bash
 cd tests
 ./run_all_ci_cases.sh -t python # all python cases
+
 ```
 
 #### 8.3.2.3 How to add new case?
@@ -725,6 +737,7 @@ cd tests
 Smoke test is a group of test cases selected from system test, which is also known as sanity test to ensure the critical functionalities of TDengine.
 
 #### 8.3.4.1 How to run test?
+
 
 ```bash
 cd /root/TDinternal/community/packaging/smokeTest
@@ -888,7 +901,7 @@ To create the test coverage report (in HTML format) locally, please run followin
 cd tests
 bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -b main -c task 
 # on main branch and run cases in longtimeruning_cases.task 
-# for more infomation about options please refer to ./run_local_coverage.sh -h
+
 ```
 > **NOTE:**
 > Please note that the -b and -i options will recompile TDengine with the -DCOVER=true option, which may take a amount of time.
