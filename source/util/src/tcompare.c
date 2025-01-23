@@ -59,6 +59,15 @@ int32_t setChkNotInBytes8(const void *pLeft, const void *pRight) {
   return NULL == taosHashGet((SHashObj *)pRight, pLeft, 8) ? 1 : 0;
 }
 
+int32_t setChkInDecimalHash(const void* pLeft, const void* pRight) {
+  const SDecimalCompareCtx *pCtxL = pLeft, *pCtxR = pRight;
+  return NULL != taosHashGet((SHashObj *)(pCtxR->pData), pCtxL->pData, tDataTypes[pCtxL->type].bytes) ? 1 : 0;
+}
+
+int32_t setChkNotInDecimalHash(const void* pLeft, const void* pRight) {
+  return NULL == taosHashGet((SHashObj *)pRight, pLeft, 16) ? 1 : 0;
+}
+
 int32_t compareChkInString(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, varDataTLen(pLeft)) ? 1 : 0;
 }
@@ -1036,18 +1045,15 @@ int32_t compareUint64Uint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareDecimal64(const void* pleft, const void* pright) {
-  SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
-  if (pOps->gt(pleft, pright, WORD_NUM(Decimal64))) return 1;
-  if (pOps->lt(pleft, pright, WORD_NUM(Decimal64))) return -1;
+  if (decimalCompare(OP_TYPE_GREATER_THAN, pleft, pright)) return 1;
+  if (decimalCompare(OP_TYPE_LOWER_THAN, pleft, pright)) return -1;
   return 0;
 }
 
 int32_t compareDecimal128(const void* pleft, const void* pright) {
-  SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
-  if (pOps->gt(pleft, pright, WORD_NUM(Decimal128))) return 1;
-  if (pOps->lt(pleft,pright, WORD_NUM(Decimal128))) return -1;
+  if (decimalCompare(OP_TYPE_GREATER_THAN, pleft, pright)) return 1;
+  if (decimalCompare(OP_TYPE_LOWER_THAN, pleft, pright)) return -1;
   return 0;
-
 }
 
 int32_t compareJsonValDesc(const void *pLeft, const void *pRight) { return compareJsonVal(pRight, pLeft); }

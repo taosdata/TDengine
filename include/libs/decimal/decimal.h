@@ -22,8 +22,8 @@ extern "C" {
 
 #include "tdef.h"
 #include "ttypes.h"
-typedef struct SValue    SValue;
-typedef void             DecimalType;
+typedef struct SValue SValue;
+typedef void          DecimalType;
 
 typedef struct Decimal64 {
   DecimalWord words[1];  // do not touch it directly, use DECIMAL64_GET_VALUE MACRO
@@ -43,13 +43,19 @@ typedef struct Decimal128 {
 #define decimalFromStr decimal128FromStr
 #define makeDecimal    makeDecimal128
 
+typedef struct SDecimalCompareCtx {
+  void*    pData;
+  int8_t   type;
+  STypeMod typeMod;
+} SDecimalCompareCtx;
+
 // TODO wjm check if we need to expose these functions in decimal.h
 void makeDecimal64(Decimal64* pDec64, int64_t w);
 void makeDecimal128(Decimal128* pDec128, int64_t hi, uint64_t low);
 
 #define DECIMAL_WORD_NUM(TYPE) sizeof(TYPE) / sizeof(DecimalWord)
 
-void    decimalFromTypeMod(STypeMod typeMod, uint8_t* precision, uint8_t* scale);
+void decimalFromTypeMod(STypeMod typeMod, uint8_t* precision, uint8_t* scale);
 
 int32_t decimal64FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale, Decimal64* result);
 int32_t decimal128FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale,
@@ -61,6 +67,7 @@ int32_t decimal128ToDataVal(Decimal128* dec, SValue* pVal);
 int32_t decimalToStr(const DecimalType* pDec, int8_t type, int8_t precision, int8_t scale, char* pBuf, int32_t bufLen);
 
 int32_t decimalGetRetType(const SDataType* pLeftT, const SDataType* pRightT, EOperatorType opType, SDataType* pOutType);
+bool    decimalCompare(EOperatorType op, const SDecimalCompareCtx* pLeft, const SDecimalCompareCtx* pRight);
 int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pRightT, const SDataType* pOutT,
                   const void* pLeftData, const void* pRightData, void* pOutputData);
 int32_t convertToDecimal(const void* pData, const SDataType* pInputType, void* pOut, const SDataType* pOutType);
@@ -83,9 +90,19 @@ typedef struct SDecimalOps {
   int32_t (*toStr)(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen);
 } SDecimalOps;
 
+// all these ops only used for comparing decimal types with same scale
 SDecimalOps* getDecimalOps(int8_t dataType);
 
 __int128 decimal128ToInt128(const Decimal128* pDec);
+int32_t  TEST_decimal64From_int64_t(Decimal64* pDec, uint8_t prec, uint8_t scale, int64_t v);
+int32_t  TEST_decimal64From_uint64_t(Decimal64* pDec, uint8_t prec, uint8_t scale, uint64_t v);
+int32_t  TEST_decimal64From_double(Decimal64* pDec, uint8_t prec, uint8_t scale, double v);
+double  TEST_decimal64ToDouble(Decimal64* pDec, uint8_t prec, uint8_t scale);
+
+int32_t TEST_decimal128From_int64_t(Decimal128* pDec, uint8_t prec, uint8_t scale, int64_t v);
+int32_t TEST_decimal128From_uint64_t(Decimal128* pDec, uint8_t prec, uint8_t scale, uint64_t v);
+int32_t TEST_decimal128From_double(Decimal128* pDec, uint8_t prec, uint8_t scale, double v);
+double  TEST_decimal128ToDouble(Decimal128* pDec, uint8_t prec, uint8_t scale);
 
 #ifdef __cplusplus
 }

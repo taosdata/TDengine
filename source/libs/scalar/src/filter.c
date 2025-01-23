@@ -137,7 +137,7 @@ __compar_fn_t gDataCompare[] = {
     comparestrRegexNMatch, setChkNotInBytes1,      setChkNotInBytes2,       setChkNotInBytes4,
     setChkNotInBytes8,     compareChkNotInString,  comparestrPatternNMatch, comparewcsPatternNMatch,
     comparewcsRegexMatch,  comparewcsRegexNMatch,  compareLenBinaryVal,     compareDecimal64,
-    compareDecimal128,
+    compareDecimal128,     setChkInDecimalHash,        setChkNotInDecimalHash,
 };
 
 __compar_fn_t gInt8SignCompare[] = {compareInt8Val,   compareInt8Int16, compareInt8Int32,
@@ -210,6 +210,10 @@ int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool 
         *comparFn = 0;
         code = TSDB_CODE_QRY_JSON_IN_ERROR;
         break;
+      case TSDB_DATA_TYPE_DECIMAL64:
+      case TSDB_DATA_TYPE_DECIMAL:
+        *comparFn = 33;
+        break;
       default:
         *comparFn = 0;
         break;
@@ -242,6 +246,10 @@ int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool 
       case TSDB_DATA_TYPE_JSON:
         *comparFn = 0;
         code = TSDB_CODE_QRY_JSON_IN_ERROR;
+        break;
+      case TSDB_DATA_TYPE_DECIMAL64:
+      case TSDB_DATA_TYPE_DECIMAL:
+        *comparFn = 34;
         break;
       default:
         *comparFn = 0;
@@ -356,7 +364,7 @@ int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool 
       break;
     case TSDB_DATA_TYPE_DECIMAL:
       *comparFn = 32;
-
+      break;
     default:
       *comparFn = 0;
       break;
@@ -2231,7 +2239,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     }
 
     if (unit->compare.optr == OP_TYPE_IN) {
-      FLT_ERR_RET(scalarGenerateSetFromList((void **)&fi->data, fi->desc, type, 0));
+      FLT_ERR_RET(scalarGenerateSetFromList((void **)&fi->data, fi->desc, type, 0, 0));
       if (fi->data == NULL) {
         fltError("failed to convert in param");
         FLT_ERR_RET(TSDB_CODE_APP_ERROR);

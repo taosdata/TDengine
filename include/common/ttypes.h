@@ -409,11 +409,13 @@ void   *getDataMin(int32_t type, void *value);
 void   *getDataMax(int32_t type, void *value);
 
 STypeMod typeGetTypeMod(uint8_t type, uint8_t prec, uint8_t scale, int32_t bytes);
+STypeMod typeGetTypeModFromDataType(const SDataType* pDataType);
 uint8_t  decimalTypeFromPrecision(uint8_t precision);
 STypeMod decimalCalcTypeMod(uint8_t prec, uint8_t scale);
 void     decimalFromTypeMod(STypeMod typeMod, uint8_t *precision, uint8_t *scale);
 // pType->type should has been set
-void fillTypeFromTypeMod(SDataType *pType, STypeMod mod);
+void    fillTypeFromTypeMod(SDataType *pType, STypeMod mod);
+uint8_t getScaleFromTypeMod(int32_t type, STypeMod mod);
 
 #ifdef __cplusplus
 }

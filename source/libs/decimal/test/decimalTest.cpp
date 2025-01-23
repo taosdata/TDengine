@@ -118,7 +118,7 @@ Numeric64& Numeric64::operator=(const Numeric64& r) {
   return *this;
 }
 
-template <int ByteNum>
+template <int BitNum>
 struct NumericType {};
 
 template <>
@@ -143,7 +143,7 @@ struct TrivialTypeInfo {
 #define DEFINE_TRIVIAL_TYPE_HELPER(type, tsdb_type) \
   template <>                                       \
   struct TrivialTypeInfo<type> {                    \
-    static constexpr type    dataType = tsdb_type;  \
+    static constexpr int8_t  dataType = tsdb_type;  \
     static constexpr int32_t bytes = sizeof(type);  \
   }
 
@@ -159,16 +159,17 @@ DEFINE_TRIVIAL_TYPE_HELPER(float, TSDB_DATA_TYPE_FLOAT);
 DEFINE_TRIVIAL_TYPE_HELPER(double, TSDB_DATA_TYPE_DOUBLE);
 DEFINE_TRIVIAL_TYPE_HELPER(bool, TSDB_DATA_TYPE_BOOL);
 
-template <int ByteNum>
+template <int BitNum>
 class Numeric {
-  using Type = typename NumericType<ByteNum>::Type;
+  static_assert(BitNum == 64 || BitNum == 128, "only support Numeric64 and Numeric128");
+  using Type = typename NumericType<BitNum>::Type;
   Type    dec_;
   uint8_t prec_;
   uint8_t scale_;
 
  public:
   Numeric(uint8_t prec, uint8_t scale, const std::string& str) : prec_(prec), scale_(scale) {
-    if (prec > NumericType<ByteNum>::maxPrec) throw std::string("prec too big") + std::to_string(prec);
+    if (prec > NumericType<BitNum>::maxPrec) throw std::string("prec too big") + std::to_string(prec);
     int32_t code = dec_.fromStr(str, prec, scale) != 0;
     if (code != 0) {
       cout << "failed to init decimal from str: " << str << endl;
@@ -187,41 +188,41 @@ class Numeric {
   uint8_t     scale() const { return scale_; }
   const Type& dec() const { return dec_; }
 
-  template <int ByteNum2>
-  Numeric& binaryOp(const Numeric<ByteNum2>& r, EOperatorType op) {
-    auto out = binaryOp<ByteNum2, ByteNum>(r, op);
+  template <int BitNum2>
+  Numeric& binaryOp(const Numeric<BitNum2>& r, EOperatorType op) {
+    auto out = binaryOp<BitNum2, BitNum>(r, op);
     return *this = out;
   }
 
-  template <int ByteNum2, int ByteNumO>
-  Numeric<ByteNumO> binaryOp(const Numeric<ByteNum2>& r, EOperatorType op) {
-    SDataType lt{.type = NumericType<ByteNum>::dataType, .precision = prec_, .scale = scale_, .bytes = ByteNum};
-    SDataType rt{.type = NumericType<ByteNum2>::dataType, .precision = r.prec(), .scale = r.scale(), .bytes = ByteNum2};
+  template <int BitNum2, int BitNumO>
+  Numeric<BitNumO> binaryOp(const Numeric<BitNum2>& r, EOperatorType op) {
+    SDataType lt{.type = NumericType<BitNum>::dataType, .precision = prec_, .scale = scale_, .bytes = BitNum};
+    SDataType rt{.type = NumericType<BitNum2>::dataType, .precision = r.prec(), .scale = r.scale(), .bytes = BitNum2};
     SDataType ot = getRetType(op, lt, rt);
-    Numeric<ByteNumO> out{ot.precision, ot.scale, "0"};
-    int32_t           code = decimalOp(op, &lt, &rt, &ot, &dec_, &r.dec(), &out);
+    Numeric<BitNumO> out{ot.precision, ot.scale, "0"};
+    int32_t          code = decimalOp(op, &lt, &rt, &ot, &dec_, &r.dec(), &out);
     if (code != 0) throw std::overflow_error(tstrerror(code));
     return out;
   }
 
-  template <int ByteNumO, typename T>
-  Numeric<ByteNumO> binaryOp(const T& r, EOperatorType op) {
+  template <int BitNumO, typename T>
+  Numeric<BitNumO> binaryOp(const T& r, EOperatorType op) {
     using TypeInfo = TrivialTypeInfo<T>;
-    SDataType         lt{.type = NumericType<ByteNum>::dataType, .precision = prec_, .scale = scale_, .bytes = ByteNum};
-    SDataType         rt{.type = TypeInfo::dataType, .precision = 0, .scale = 0, .bytes = TypeInfo::bytes};
-    SDataType         ot = getRetType(op, lt, rt);
-    Numeric<ByteNumO> out{ot.precision, ot.scale, "0"};
-    int32_t           code = decimalOp(op, &lt, &rt, &ot, &dec_, &r, &out);
+    SDataType        lt{.type = NumericType<BitNum>::dataType, .precision = prec_, .scale = scale_, .bytes = BitNum};
+    SDataType        rt{.type = TypeInfo::dataType, .precision = 0, .scale = 0, .bytes = TypeInfo::bytes};
+    SDataType        ot = getRetType(op, lt, rt);
+    Numeric<BitNumO> out{ot.precision, ot.scale, "0"};
+    int32_t          code = decimalOp(op, &lt, &rt, &ot, &dec_, &r, &out);
     if (code != 0) throw std::overflow_error(tstrerror(code));
     return out;
   }
-#define DEFINE_OPERATOR(op, op_type)                          \
-  template <int ByteNum2, int ByteNumO = 128>                 \
-  Numeric<ByteNumO> operator op(const Numeric<ByteNum2>& r) { \
-    cout << *this << " " #op " " << r << " = ";               \
-    auto res = binaryOp<ByteNum2, ByteNumO>(r, op_type);      \
-    cout << res << endl;                                      \
-    return res;                                               \
+#define DEFINE_OPERATOR(op, op_type)                        \
+  template <int BitNum2, int BitNumO = 128>                 \
+  Numeric<BitNumO> operator op(const Numeric<BitNum2>& r) { \
+    cout << *this << " " #op " " << r << " = ";             \
+    auto res = binaryOp<BitNum2, BitNumO>(r, op_type);      \
+    cout << res << endl;                                    \
+    return res;                                             \
   }
 
   DEFINE_OPERATOR(+, OP_TYPE_ADD);
@@ -229,31 +230,44 @@ class Numeric {
   DEFINE_OPERATOR(*, OP_TYPE_MULTI);
   DEFINE_OPERATOR(/, OP_TYPE_DIV);
 
-#define DEFINE_OPERATOR_T(op, op_type)            \
-  template <typename T, int ByteNumO = 128>       \
-  Numeric<ByteNumO> operator op(const T & r) {    \
-    cout << *this << " " #op " " << r << " = ";   \
-    auto res = binaryOp<ByteNumO, T>(r, op_type); \
-    cout << res << endl;                          \
-    return res;                                   \
+#define DEFINE_TYPE_OP(op, op_type)                                               \
+  template <typename T, int BitNumO = 128>                                        \
+  Numeric<BitNumO> operator op(const T & r) {                                     \
+    cout << *this << " " #op " " << r << "(" << typeid(T).name() << ")" << " = "; \
+    auto res = binaryOp<BitNumO, T>(r, op_type);                                  \
+    cout << res << endl;                                                          \
+    return res;                                                                   \
   }
-  DEFINE_OPERATOR_T(+, OP_TYPE_ADD);
-  DEFINE_OPERATOR_T(-, OP_TYPE_SUB);
-  DEFINE_OPERATOR_T(*, OP_TYPE_MULTI);
-  DEFINE_OPERATOR_T(/, OP_TYPE_DIV);
+  DEFINE_TYPE_OP(+, OP_TYPE_ADD);
+  DEFINE_TYPE_OP(-, OP_TYPE_SUB);
+  DEFINE_TYPE_OP(*, OP_TYPE_MULTI);
+  DEFINE_TYPE_OP(/, OP_TYPE_DIV);
 
-  template <int ByteNum2>
-  Numeric& operator+=(const Numeric<ByteNum2>& r) {
+#define DEFINE_REAL_OP(op)                                                     \
+  double operator op(double v) {                                               \
+    if (BitNum == 128)                                                         \
+      return TEST_decimal128ToDouble((Decimal128*)&dec_, prec(), scale()) / v; \
+    else if (BitNum == 64)                                                     \
+      return TEST_decimal64ToDouble((Decimal64*)&dec_, prec(), scale()) / v;   \
+    return 0;                                                                  \
+  }
+  DEFINE_REAL_OP(+);
+  DEFINE_REAL_OP(-);
+  DEFINE_REAL_OP(*);
+  DEFINE_REAL_OP(/);
+
+  template <int BitNum2>
+  Numeric& operator+=(const Numeric<BitNum2>& r) {
     return binaryOp(r, OP_TYPE_ADD);
   }
 
-  template <int ByteNum2>
-  bool operator==(const Numeric<ByteNum2>& r) {
+  template <int BitNum2>
+  bool operator==(const Numeric<BitNum2>& r) {
     return binaryOp(r, OP_TYPE_EQUAL);
   }
   std::string toString() const {
     char    buf[64] = {0};
-    int32_t code = decimalToStr(&dec_, NumericType<ByteNum>::dataType, prec(), scale(), buf, 64);
+    int32_t code = decimalToStr(&dec_, NumericType<BitNum>::dataType, prec(), scale(), buf, 64);
     if (code != 0) throw std::string(tstrerror(code));
     return {buf};
   }
@@ -272,10 +286,77 @@ class Numeric {
     if (ret.size() - sizeToRemove > 0) ret.resize(ret.size() - sizeToRemove);
     return ret;
   }
+#define DEFINE_OPERATOR_T(type)                            \
+  operator type() {                                        \
+    if (BitNum == 64) {                                    \
+      return type##FromDecimal64(&dec_, prec(), scale());  \
+    } else if (BitNum == 128) {                            \
+      return type##FromDecimal128(&dec_, prec(), scale()); \
+    }                                                      \
+    return 0;                                              \
+  }
+  DEFINE_OPERATOR_T(bool);
+  DEFINE_OPERATOR_T(int8_t);
+  DEFINE_OPERATOR_T(uint8_t);
+  DEFINE_OPERATOR_T(int16_t);
+  DEFINE_OPERATOR_T(uint16_t);
+  DEFINE_OPERATOR_T(int32_t);
+  DEFINE_OPERATOR_T(uint32_t);
+  DEFINE_OPERATOR_T(int64_t);
+  DEFINE_OPERATOR_T(uint64_t);
+  DEFINE_OPERATOR_T(float);
+  DEFINE_OPERATOR_T(double);
+
+  Numeric operator=(const char* str) {
+    std::string s = str;
+    int32_t code = 0;
+    if (BitNum == 64) {
+      code = decimal64FromStr(s.c_str(), s.size(), prec(), scale(), (Decimal64*)&dec_);
+    } else if (BitNum == 128) {
+      code = decimal128FromStr(s.c_str(), s.size(), prec(), scale(), (Decimal128*)&dec_);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      throw std::string("failed to convert str to decimal64: ") + s + " " + tstrerror(code);
+    }
+    return *this;
+  }
+
+#define DEFINE_OPERATOR_FROM_FOR_BITNUM(type, BitNum)                              \
+  if (std::is_floating_point<type>::value) {                                       \
+    code = TEST_decimal##BitNum##From_double((Decimal##BitNum*)&dec_, prec(), scale(), v);   \
+  } else if (std::is_signed<type>::value) {                                        \
+    code = TEST_decimal##BitNum##From_int64_t((Decimal##BitNum*)&dec_, prec(), scale(), v);  \
+  } else if (std::is_unsigned<type>::value) {                                      \
+    code = TEST_decimal##BitNum##From_uint64_t((Decimal##BitNum*)&dec_, prec(), scale(), v); \
+  }
+
+#define DEFINE_OPERATOR_EQ_T(type)                \
+  Numeric operator=(type v) {                     \
+    int32_t code = 0;                             \
+    if (BitNum == 64) {                           \
+      DEFINE_OPERATOR_FROM_FOR_BITNUM(type, 64);  \
+    } else if (BitNum == 128) {                   \
+      DEFINE_OPERATOR_FROM_FOR_BITNUM(type, 128); \
+    }                                             \
+    return *this;                                 \
+  }
+  DEFINE_OPERATOR_EQ_T(int64_t);
+  DEFINE_OPERATOR_EQ_T(int32_t);
+  DEFINE_OPERATOR_EQ_T(int16_t);
+  DEFINE_OPERATOR_EQ_T(int8_t);
+
+  DEFINE_OPERATOR_EQ_T(uint64_t);
+  DEFINE_OPERATOR_EQ_T(uint32_t);
+  DEFINE_OPERATOR_EQ_T(uint16_t);
+  DEFINE_OPERATOR_EQ_T(uint8_t);
+
+  DEFINE_OPERATOR_EQ_T(bool);
+  DEFINE_OPERATOR_EQ_T(double);
+  DEFINE_OPERATOR_EQ_T(float);
 };
 
-template <int ByteNum>
-ostream& operator<<(ostream& os, const Numeric<ByteNum>& n) {
+template <int BitNum>
+ostream& operator<<(ostream& os, const Numeric<BitNum>& n) {
   os << n.toString() << "(" << (int32_t)n.prec() << ":" << (int32_t)n.scale() << ")";
   return os;
 }
@@ -337,7 +418,70 @@ TEST(decimal, numeric) {
   ASSERT_EQ(os.toStringTrimTailingZeros(), "0.61728");
 
   os = dec4 / 123123123;
+  ASSERT_EQ(os.toStringTrimTailingZeros(), "0.0000000100270361");
+
+  os = dec4 / (int64_t)123123123;
   ASSERT_EQ(os.toStringTrimTailingZeros(), "0.0000000100270361075880117");
+
+  double dv = dec4 / 123123.123;
+}
+
+TEST(decimal, decimalFromType) {
+  Numeric<128> dec1{20, 4, "0"};
+  dec1 = 123.123;
+  ASSERT_EQ(dec1.toString(), "123.1230");
+  dec1 = (float)123.123;
+  ASSERT_EQ(dec1.toString(), "123.1230");
+  dec1 = (int64_t)-9999999;
+  ASSERT_EQ(dec1.toString(), "-9999999.0000");
+  dec1 = "99.99999";
+  ASSERT_EQ(dec1.toString(), "99.9999");
+}
+
+TEST(decimal, typeFromDecimal) {
+  Numeric<128> dec1{18, 4, "1234"};
+  Numeric<64>  dec2{18, 4, "1234"};
+  int64_t      intv = dec1;
+  uint64_t     uintv = dec1;
+  double       doublev = dec1;
+  ASSERT_EQ(intv, 1234);
+  ASSERT_EQ(uintv, 1234);
+  ASSERT_EQ(doublev, 1234);
+  doublev = dec2;
+  ASSERT_EQ(doublev, 1234);
+  intv = dec1 = "123.43";
+  uintv = dec1;
+  doublev = dec1;
+  ASSERT_EQ(intv, 123);
+  ASSERT_EQ(uintv, 123);
+  ASSERT_EQ(doublev, 123.43);
+  doublev = dec2 = "123.54";
+  ASSERT_EQ(doublev, 123.54);
+  intv = dec1 = "123.66";
+  uintv = dec1;
+  doublev = dec1;
+  ASSERT_EQ(intv, 124);
+  ASSERT_EQ(uintv, 124);
+  ASSERT_EQ(doublev, 123.66);
+
+  intv = dec1 = "-123.44";
+  uintv = dec1;
+  doublev = dec1;
+  ASSERT_EQ(intv, -123);
+  ASSERT_EQ(uintv, 0);
+  ASSERT_EQ(doublev, -123.44);
+  intv = dec1 = "-123.99";
+  uintv = dec1;
+  doublev = dec1;
+  ASSERT_EQ(intv, -124);
+  ASSERT_EQ(uintv, 0);
+  ASSERT_EQ(doublev, -123.99);
+
+  bool boolv = false;
+  boolv = dec1;
+  ASSERT_TRUE(boolv);
+  boolv = dec1 = "0";
+  ASSERT_FALSE(boolv);
 }
 
 // TEST where decimal column in (...)
@@ -394,7 +538,7 @@ TEST(decimal128, divide) {
   printDecimal(&d, TSDB_DATA_TYPE_DECIMAL, out_precision, out_scale);
 }
 
-TEST(decimal, cpi_taos_fetch_rows) {
+TEST(decimal, api_taos_fetch_rows) {
   const char* host = "127.0.0.1";
   const char* user = "root";
   const char* passwd = "taosdata";
@@ -459,18 +603,18 @@ TEST(decimal, cpi_taos_fetch_rows) {
     int32_t type_mod = *(int32_t*)(p + 1);
 
     ASSERT_EQ(t, TSDB_DATA_TYPE_DECIMAL64);
-    auto check_type_mod = [](int32_t type_mod, uint8_t prec, uint8_t scale, int32_t bytes) {
-      ASSERT_EQ(type_mod & 0xFF, scale);
-      ASSERT_EQ((type_mod & 0xFF00) >> 8, prec);
-      ASSERT_EQ(type_mod >> 24, bytes);
+    auto check_type_mod = [](char* pStart, uint8_t prec, uint8_t scale, int32_t bytes) {
+      ASSERT_EQ(*pStart, bytes);
+      ASSERT_EQ(*(pStart + 2), prec);
+      ASSERT_EQ(*(pStart + 3), scale);
     };
-    check_type_mod(type_mod, 10, 2, 8);
+    check_type_mod(p + 1, 10, 2, 8);
 
     // col2
     p += 5;
     t = *(int8_t*)p;
     type_mod = *(int32_t*)(p + 1);
-    check_type_mod(type_mod, 38, 10, 16);
+    check_type_mod(p + 1, 38, 10, 16);
 
     p = p + 5 + BitmapLen(numOfRows) + colNum * 4;
     int64_t row1Val = *(int64_t*)p;

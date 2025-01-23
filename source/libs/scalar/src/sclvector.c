@@ -45,6 +45,10 @@ bool noConvertBeforeCompare(int32_t leftType, int32_t rightType, int32_t optr) {
          IS_NUMERIC_TYPE(rightType) && (optr >= OP_TYPE_GREATER_THAN && optr <= OP_TYPE_NOT_EQUAL);
 }
 
+bool compareForType(__compar_fn_t fp, int32_t optr, SColumnInfoData* pColL, int32_t idxL, SColumnInfoData* pColR, int32_t idxR);
+bool compareForTypeWithColAndHash(__compar_fn_t fp, int32_t optr, SColumnInfoData *pColL, int32_t idxL,
+                              const void *hashData, int32_t hashType, STypeMod hashTypeMod);
+
 static int32_t vectorMathOpForDecimal(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t step, int32_t i, EOperatorType op);
 
 int32_t convertNumberToNumber(const void *inData, void *outData, int8_t inType, int8_t outType) {
@@ -1012,7 +1016,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
         Decimal value = {0};
         SDataType inputType = GET_COL_DATA_TYPE(pInputCol->info), outputType = GET_COL_DATA_TYPE(pOutputCol->info);
         int32_t code = convertToDecimal(colDataGetData(pInputCol, i), &inputType, &value, &outputType);
-        if (TSDB_CODE_SUCCESS != code) return code;
+        if (TSDB_CODE_SUCCESS != code) return code; // TODO wjm handle overflow
         code = colDataSetVal(pOutputCol, i, (const char*)&value, false);
         if (TSDB_CODE_SUCCESS != code) return code;
       }
@@ -1090,8 +1094,21 @@ int32_t vectorGetConvertType(int32_t type1, int32_t type2) {
   return gConvertTypes[type2][type1];
 }
 
-int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_t type, int32_t startIndex,
-                               int32_t numOfRows) {
+STypeMod getConvertTypeMod(int32_t type, const SColumnInfo* pCol1, const SColumnInfo* pCol2) {
+  if (IS_DECIMAL_TYPE(type)) {
+    if (IS_DECIMAL_TYPE(pCol1->type) && (!pCol2 || !IS_DECIMAL_TYPE(pCol2->type))) {
+      return decimalCalcTypeMod(GET_DEICMAL_MAX_PRECISION(type), pCol1->scale);
+    } else if (pCol2 && IS_DECIMAL_TYPE(pCol2->type) && !IS_DECIMAL_TYPE(pCol1->type)) {
+      return decimalCalcTypeMod(GET_DEICMAL_MAX_PRECISION(type), pCol2->scale);
+    } else {
+      return 0;
+    }
+  }
+  return 0;
+}
+
+int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_t type, STypeMod typeMod,
+                               int32_t startIndex, int32_t numOfRows) {
   if (input->columnData == NULL && (input->pHashFilter != NULL || input->pHashFilterOthers != NULL)){
     return TSDB_CODE_SUCCESS;
   }
@@ -1100,6 +1117,11 @@ int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_
   SDataType t = {.type = type};
   t.bytes = (IS_VAR_DATA_TYPE(t.type) && input->columnData) ? input->columnData->info.bytes:tDataTypes[type].bytes;
   t.precision = (IS_TIMESTAMP_TYPE(t.type) && input->columnData) ? input->columnData->info.precision : TSDB_TIME_PRECISION_MILLI;
+  if (IS_DECIMAL_TYPE(type)) {
+    extractTypeFromTypeMod(type, typeMod, &t.precision, &t.scale, NULL);
+    // We do not change scale here for decimal types.
+    if (IS_DECIMAL_TYPE(input->columnData->info.type)) t.scale = input->columnData->info.scale;
+  }
 
   int32_t code = sclCreateColumnInfoData(&t, input->numOfRows, output);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1120,13 +1142,14 @@ int32_t vectorConvertCols(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
   int32_t rightType = GET_PARAM_TYPE(pRight);
   if (leftType == rightType) {
     if (IS_DECIMAL_TYPE(leftType)) {
-      //TODO wjm force do conversion for decimal type
+      //TODO wjm force do conversion for decimal type, do not convert any more, do conversion inside decimal.c
     }
     return TSDB_CODE_SUCCESS;
   }
 
-  int8_t  type = 0;
-  int32_t code = 0;
+  int8_t   type = 0;
+  int32_t  code = 0;
+  STypeMod outTypeMod = 0;
 
   SScalarParam *param1 = pLeft, *paramOut1 = pLeftOut;
   SScalarParam *param2 = pRight, *paramOut2 = pRightOut;
@@ -1149,14 +1172,15 @@ int32_t vectorConvertCols(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
       terrno = TSDB_CODE_SCALAR_CONVERT_ERROR;
       return TSDB_CODE_SCALAR_CONVERT_ERROR;
     }
+    outTypeMod = getConvertTypeMod(type, &param1->columnData->info, param2->columnData ? &param2->columnData->info : NULL);
   }
 
   if (type != GET_PARAM_TYPE(param1)) {
-    SCL_ERR_RET(vectorConvertSingleCol(param1, paramOut1, type, startIndex, numOfRows));
+    SCL_ERR_RET(vectorConvertSingleCol(param1, paramOut1, type, outTypeMod, startIndex, numOfRows));
   }
 
   if (type != GET_PARAM_TYPE(param2)) {
-    SCL_ERR_RET(vectorConvertSingleCol(param2, paramOut2, type, startIndex, numOfRows));
+    SCL_ERR_RET(vectorConvertSingleCol(param2, paramOut2, type, outTypeMod, startIndex, numOfRows));
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1228,7 +1252,7 @@ static int32_t vectorConvertVarToDouble(SScalarParam *pInput, int32_t *converted
   int32_t          code = TSDB_CODE_SUCCESS;
   *pOutputCol = NULL;
   if (IS_VAR_DATA_TYPE(pCol->info.type) && pCol->info.type != TSDB_DATA_TYPE_JSON && pCol->info.type != TSDB_DATA_TYPE_VARBINARY) {
-    SCL_ERR_RET(vectorConvertSingleCol(pInput, &output, TSDB_DATA_TYPE_DOUBLE, -1, -1));
+    SCL_ERR_RET(vectorConvertSingleCol(pInput, &output, TSDB_DATA_TYPE_DOUBLE, 0, -1, -1));
     *converted = VECTOR_DO_CONVERT;
     *pOutputCol = output.columnData;
     SCL_RET(code);
@@ -1393,6 +1417,8 @@ int32_t vectorMathSub(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
   SColumnInfoData *pRightCol = NULL;
 
  if (pOutputCol->info.type == TSDB_DATA_TYPE_TIMESTAMP) { // timestamp minus duration
+    SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
+    SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
     int64_t             *output = (int64_t *)pOutputCol->pData;
     _getBigintValue_fn_t getVectorBigintValueFnLeft;
     _getBigintValue_fn_t getVectorBigintValueFnRight;
@@ -1812,10 +1838,7 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
         int32_t leftIndex = (i >= pLeft->numOfRows) ? 0 : i;
         int32_t rightIndex = (i >= pRight->numOfRows) ? 0 : i;
 
-        char *pLeftData = colDataGetData(pLeft->columnData, leftIndex);
-        char *pRightData = colDataGetData(pRight->columnData, rightIndex);
-
-        pRes[i] = filterDoCompare(fp, optr, pLeftData, pRightData);
+        pRes[i] = compareForType(fp, optr, pLeft->columnData, leftIndex, pRight->columnData, rightIndex);
         if (pRes[i]) {
           ++(*num);
         }
@@ -1830,9 +1853,7 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
           pRes[i] = false;
           continue;
         }
-        char *pLeftData = colDataGetData(pLeft->columnData, leftIndex);
-        char *pRightData = colDataGetData(pRight->columnData, rightIndex);
-        pRes[i] = filterDoCompare(fp, optr, pLeftData, pRightData);
+        pRes[i] = compareForType(fp, optr, pLeft->columnData, leftIndex, pRight->columnData, rightIndex);
         if (pRes[i]) {
           ++(*num);
         }
@@ -1912,7 +1933,7 @@ int32_t doVectorCompare(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarPara
     return TSDB_CODE_INTERNAL_ERROR;
   }
 
-  if (pLeftVar != NULL) {
+  if (pLeftVar != NULL) {// TODO wjm test when pLeftVar is not NULL
     SCL_ERR_RET(filterGetCompFunc(&fpVar, GET_PARAM_TYPE(pLeftVar), optr));
   }
   if (startIndex < 0) {
@@ -1932,8 +1953,8 @@ int32_t doVectorCompare(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarPara
         continue;
       }
 
-      char *pLeftData = colDataGetData(pLeft->columnData, i);
-      bool  res = filterDoCompare(fp, optr, pLeftData, pRight->pHashFilter);
+      bool  res = compareForTypeWithColAndHash(fp, optr, pLeft->columnData, i, pRight->pHashFilter,
+                                               pRight->filterValueType, pRight->filterValueTypeMod);
       if (pLeftVar != NULL && taosHashGetSize(pRight->pHashFilterOthers) > 0){
         do{
           if (optr == OP_TYPE_IN && res){
@@ -1942,8 +1963,8 @@ int32_t doVectorCompare(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarPara
           if (optr == OP_TYPE_NOT_IN && !res){
             break;
           }
-          pLeftData = colDataGetData(pLeftVar->columnData, i);
-          res = filterDoCompare(fpVar, optr, pLeftData, pRight->pHashFilterOthers);
+          res = compareForTypeWithColAndHash(fpVar, optr, pLeftVar->columnData, i, pRight->pHashFilterOthers,
+                                             pRight->filterValueType, pRight->filterValueTypeMod);
         }while(0);
       }
       colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
@@ -2290,4 +2311,33 @@ static int32_t vectorMathOpForDecimal(SScalarParam *pLeft, SScalarParam *pRight,
     code = vectorMathOpOneRowForDecimal(pLeft, pRight, pOut, step, i, op, pRight);
   }
   return code;
+}
+
+bool compareForType(__compar_fn_t fp, int32_t optr, SColumnInfoData* pColL, int32_t idxL, SColumnInfoData* pColR, int32_t idxR) {
+  void* pLeftData = colDataGetData(pColL, idxL), *pRightData = colDataGetData(pColR, idxR);
+  if (IS_DECIMAL_TYPE(pColL->info.type) || IS_DECIMAL_TYPE(pColR->info.type)) {
+    SDecimalCompareCtx ctxL = {.pData = pLeftData,
+                               .type = pColL->info.type,
+                               .typeMod = typeGetTypeModFromColInfo(&pColL->info)},
+                       ctxR = {.pData = pRightData,
+                               .type = pColR->info.type,
+                               .typeMod = typeGetTypeModFromColInfo(&pColR->info)};
+    return filterDoCompare(fp, optr, &ctxL, &ctxR);
+  } else {
+    return filterDoCompare(fp, optr, pLeftData, pRightData);
+  }
+}
+
+bool compareForTypeWithColAndHash(__compar_fn_t fp, int32_t optr, SColumnInfoData *pColL, int32_t idxL,
+                              const void *pHashData, int32_t hashType, STypeMod hashTypeMod) {
+  void * pLeftData = colDataGetData(pColL, idxL);
+  if (IS_DECIMAL_TYPE(pColL->info.type) || IS_DECIMAL_TYPE(hashType)) {
+    SDecimalCompareCtx ctxL = {.pData = pLeftData,
+                               .type = pColL->info.type,
+                               .typeMod = typeGetTypeModFromColInfo(&pColL->info)},
+                       ctxR = {.pData = (void *)pHashData, .type = hashType, .typeMod = hashTypeMod};
+    return filterDoCompare(fp, optr, &ctxL, &ctxR);
+  } else {
+    return filterDoCompare(fp, optr, pLeftData, (void*)pHashData);
+  }
 }
