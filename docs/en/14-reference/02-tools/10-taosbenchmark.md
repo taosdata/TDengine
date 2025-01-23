@@ -253,6 +253,10 @@ INFO: Spend 26.9530 second completed total queries: 30000, the QPS of all thread
 - The first line represents the percentile distribution of query execution and query request delay for each of the three threads executing 10000 queries. The SQL command is the test query statement
 - The second line indicates that a total of 10000 * 3 = 30000 queries have been completed
 - The third line indicates that the total query time is 26.9653 seconds, and the query rate per second (QPS) is 1113.049 times/second
+-If the `continue _if_fail` option is set to `yes` in the query, the last line will output the number of failed requests and error rate, in the format of error+number of failed requests (error rate)
+**Indicator calculation**
+-QPS        = number of successful requests / time spent (in seconds)
+-Error rate = number of failed requests / (number of successful requests + number of failed requests)
 
 #### Subscription metrics
 
@@ -403,7 +407,7 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 - **min**: The minimum value for the data type of the column/tag. Generated values will be greater than or equal to the minimum value.
 
-- **max**: The maximum value for the data type of the column/tag. Generated values will be less than the minimum value.
+- **max**: The maximum value for the data type of the column/tag. Generated values will be less than the maximum value.
 
 - **scalingFactor**: Floating-point precision enhancement factor, only effective when the data type is float/double, valid values range from 1 to 1000000 positive integers. Used to enhance the precision of generated floating points, especially when min or max values are small. This attribute enhances the precision after the decimal point by powers of 10: a scalingFactor of 10 means enhancing the precision by 1 decimal place, 100 means 2 places, and so on.
 
@@ -464,12 +468,12 @@ For other common parameters, see Common Configuration Parameters.
 
 Configuration parameters for querying specified tables (can specify supertables, subtables, or regular tables) are set in `specified_table_query`.
 
-- **mixed_query**  "yes": `Mixed Query`  "no": `Normal Query`,  default is "no"  
-`Mixed Query`: All SQL statements in `sqls` are grouped by the number of threads, with each thread executing one group. Each SQL statement in a thread needs to perform `query_times` queries.  
-`Normal Query `: Each SQL in `sqls` starts `threads` and exits after executing `query_times` times. The next SQL can only be executed after all previous SQL threads have finished executing and exited.  
-Regardless of whether it is a `Normal Query` or `Mixed Query`, the total number of query executions is the same. The total number of queries = `sqls` * `threads` * `query_times`. The difference is that `Normal Query` starts  `threads` for each SQL query, while ` Mixed Query` only starts  `threads` once to complete all SQL queries. The number of thread startups for the two is different.  
+`General Query`: Each SQL in `sqls` starts `threads` threads to query this SQL, Each thread exits after executing the `query_times` queries, and only after all threads executing this SQL have completed can the next SQL be executed.  
+`Mixed Query`  : All SQL statements in `sqls` are divided into `threads` groups, with each thread executing one group. Each SQL statement needs to execute `query_times` queries.   
+The total number of queries(`General Query`) = the number of `sqls` * `query_times` * `threads`  
+The total number of queries(`Mixed Query`)   = the number of `sqls` * `query_times`
 
-- **query_interval** : Query interval, in seconds, default is 0.
+- **query_interval** : Query interval, in milliseconds, default is 0.
 
 - **threads** : Number of threads executing the SQL query, default is 1.
 
