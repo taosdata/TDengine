@@ -231,6 +231,7 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
   TAOS_CHECK_GOTO(tjsonAddIntegerToObject(pJson, "crashSig", signum), NULL, _exit);
   TAOS_CHECK_GOTO(tjsonAddIntegerToObject(pJson, "crashTs", taosGetTimestampUs()), NULL, _exit);
 
+#if 0
 #ifdef _TD_DARWIN_64
   taosLogTraceToBuf(tmp, sizeof(tmp), 4);
 #elif !defined(WINDOWS)
@@ -240,7 +241,7 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
 #endif
 
   TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "stackInfo", tmp), NULL, _exit);
-
+#endif
   char* pCont = tjsonToString(pJson);
   if (pCont == NULL) {
     code = terrno;

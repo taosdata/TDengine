@@ -51,7 +51,7 @@ extern const SVnodeCfg vnodeCfgDefault;
 
 typedef void (*StopDnodeFp)();
 
-int32_t vnodeInit(int32_t nthreads, StopDnodeFp stopDnodeFp);
+int32_t vnodeInit(StopDnodeFp stopDnodeFp);
 void    vnodeCleanup();
 int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs *pTfs);
 bool    vnodeShouldRemoveWal(SVnode *pVnode);
@@ -327,7 +327,7 @@ struct SVnodeCfg {
   int16_t     hashSuffix;
   int32_t     tsdbPageSize;
   int32_t     tdbEncryptAlgorithm;
-  char        tdbEncryptKey[ENCRYPT_KEY_LEN];
+  char        tdbEncryptKey[ENCRYPT_KEY_LEN + 1];
   int32_t     s3ChunkSize;
   int32_t     s3KeepLocal;
   int8_t      s3Compact;

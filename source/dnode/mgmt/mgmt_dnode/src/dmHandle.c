@@ -181,7 +181,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.numOfSupportVnodes = tsNumOfSupportVnodes;
   req.numOfDiskCfg = tsDiskCfgNum;
   req.memTotal = tsTotalMemoryKB * 1024;
-  req.memAvail = req.memTotal - tsQueueMemoryAllowed - 16 * 1024 * 1024;
+  req.memAvail = req.memTotal - tsQueueMemoryAllowed - tsApplyMemoryAllowed - 16 * 1024 * 1024;
   tstrncpy(req.dnodeEp, tsLocalEp, TSDB_EP_LEN);
   tstrncpy(req.machineId, pMgmt->pData->machineId, TSDB_MACHINE_ID_LEN + 1);
 
@@ -475,42 +475,20 @@ int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return 0;
 }
 
-extern void    tsdbAlterMaxCompactTasks();
-static int32_t dmAlterMaxCompactTask(const char *value) {
-  int32_t max_compact_tasks;
-  char   *endptr = NULL;
-
-  max_compact_tasks = taosStr2Int32(value, &endptr, 10);
-  if (endptr == value || endptr[0] != '\0') {
-    return TSDB_CODE_INVALID_MSG;
-  }
-
-  if (max_compact_tasks != tsNumOfCompactThreads) {
-    dInfo("alter max compact tasks from %d to %d", tsNumOfCompactThreads, max_compact_tasks);
-    tsNumOfCompactThreads = max_compact_tasks;
-#ifdef TD_ENTERPRISE
-    tsdbAlterMaxCompactTasks();
-#endif
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t       code = 0;
   SDCfgDnodeReq cfgReq = {0};
+  SConfig      *pCfg = taosGetCfg();
+  SConfigItem  *pItem = NULL;
+
   if (tDeserializeSDCfgDnodeReq(pMsg->pCont, pMsg->contLen, &cfgReq) != 0) {
     return TSDB_CODE_INVALID_MSG;
   }
-
-  if (strncmp(cfgReq.config, tsAlterCompactTaskKeywords, strlen(tsAlterCompactTaskKeywords) + 1) == 0) {
-    return dmAlterMaxCompactTask(cfgReq.value);
+  if (strcasecmp(cfgReq.config, "dataDir") == 0) {
+    return taosUpdateTfsItemDisable(pCfg, cfgReq.value, pMgmt->pTfs);
   }
 
   dInfo("start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
-
-  SConfig     *pCfg = taosGetCfg();
-  SConfigItem *pItem = NULL;
 
   code = cfgGetAndSetItem(pCfg, &pItem, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_SERVER_CMD, true);
   if (code != 0) {
@@ -703,6 +681,7 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (tDeserializeSRetrieveTableReq(pMsg->pCont, pMsg->contLen, &retrieveReq) != 0) {
     return TSDB_CODE_INVALID_MSG;
   }
+  dInfo("retrieve table:%s, user:%s, compactId:%" PRId64, retrieveReq.tb, retrieveReq.user, retrieveReq.compactId);
 #if 0
   if (strcmp(retrieveReq.user, TSDB_DEFAULT_USER) != 0) {
     code = TSDB_CODE_MND_NO_RIGHTS;

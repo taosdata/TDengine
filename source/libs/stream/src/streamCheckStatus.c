@@ -18,10 +18,9 @@
 #include "streamBackendRocksdb.h"
 #include "streamInt.h"
 
-#define CHECK_NOT_RSP_DURATION 10 * 1000  // 10 sec
+#define CHECK_NOT_RSP_DURATION 60 * 1000  // 60 sec
 
 static void    processDownstreamReadyRsp(SStreamTask* pTask);
-static int32_t addIntoNodeUpdateList(SStreamTask* pTask, int32_t nodeId);
 static void    rspMonitorFn(void* param, void* tmrId);
 static void    streamTaskInitTaskCheckInfo(STaskCheckInfo* pInfo, STaskOutputInfo* pOutputInfo, int64_t startTs);
 static int32_t streamTaskStartCheckDownstream(STaskCheckInfo* pInfo, const char* id);
@@ -226,13 +225,13 @@ int32_t streamTaskProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
         stError("s-task:%s vgId:%d self vnode-transfer/leader-change/restart detected, old stage:%" PRId64
                 ", current stage:%" PRId64 ", not check wait for downstream task nodeUpdate, and all tasks restart",
                 id, pRsp->upstreamNodeId, pRsp->oldStage, pTask->pMeta->stage);
-        code = addIntoNodeUpdateList(pTask, pRsp->upstreamNodeId);
+        code = streamTaskAddIntoNodeUpdateList(pTask, pRsp->upstreamNodeId);
       } else {
         stError(
             "s-task:%s downstream taskId:0x%x (vgId:%d) not leader, self dispatch epset needs to be updated, not check "
             "downstream again, nodeUpdate needed",
             id, pRsp->downstreamTaskId, pRsp->downstreamNodeId);
-        code = addIntoNodeUpdateList(pTask, pRsp->downstreamNodeId);
+        code = streamTaskAddIntoNodeUpdateList(pTask, pRsp->downstreamNodeId);
       }
 
       streamMetaAddFailedTaskSelf(pTask, now);
@@ -373,11 +372,10 @@ void processDownstreamReadyRsp(SStreamTask* pTask) {
   }
 }
 
-int32_t addIntoNodeUpdateList(SStreamTask* pTask, int32_t nodeId) {
+int32_t streamTaskAddIntoNodeUpdateList(SStreamTask* pTask, int32_t nodeId) {
   int32_t vgId = pTask->pMeta->vgId;
   int32_t code = 0;
-  ;
-  bool existed = false;
+  bool    existed = false;
 
   streamMutexLock(&pTask->lock);
 
@@ -662,7 +660,7 @@ void handleTimeoutDownstreamTasks(SStreamTask* pTask, SArray* pTimeoutList) {
 
   pInfo->timeoutRetryCount += 1;
 
-  // timeout more than 100 sec, add into node update list
+  // timeout more than 600 sec, add into node update list
   if (pInfo->timeoutRetryCount > 10) {
     pInfo->timeoutRetryCount = 0;
 
@@ -675,8 +673,8 @@ void handleTimeoutDownstreamTasks(SStreamTask* pTask, SArray* pTimeoutList) {
       SDownstreamStatusInfo* p = NULL;
       findCheckRspStatus(pInfo, *pTaskId, &p);
       if (p != NULL) {
-        code = addIntoNodeUpdateList(pTask, p->vgId);
-        stDebug("s-task:%s vgId:%d downstream task:0x%x (vgId:%d) timeout more than 100sec, add into nodeUpate list",
+        code = streamTaskAddIntoNodeUpdateList(pTask, p->vgId);
+        stDebug("s-task:%s vgId:%d downstream task:0x%x (vgId:%d) timeout more than 600sec, add into nodeUpdate list",
                 id, vgId, p->taskId, p->vgId);
       }
     }
@@ -717,7 +715,7 @@ void handleNotReadyDownstreamTask(SStreamTask* pTask, SArray* pNotReadyList) {
 
 // the action of add status may incur the restart procedure, which should NEVER be executed in the timer thread.
 // The restart of all tasks requires that all tasks should not have active timer for now. Therefore, the execution
-// of restart in timer thread will result in a dead lock.
+// of restart in timer thread will result in a deadlock.
 int32_t addDownstreamFailedStatusResultAsync(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId) {
   return streamTaskSchedTask(pMsgCb, vgId, streamId, taskId, STREAM_EXEC_T_ADD_FAILED_TASK);
 }

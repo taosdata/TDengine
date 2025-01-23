@@ -403,7 +403,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x8000260D | Tags number not matched                                                                                | tag列个数不匹配                               | 检查并修正SQL语句                     |
 | 0x8000260E | Invalid tag name                                                                                       | 无效或不存在的tag名                           | 检查并修正SQL语句                     |
 | 0x80002610 | Value is too long                                                                                      | 值长度超出限制                                | 检查并修正SQL语句或API参数            |
-| 0x80002611 | Password can not be empty                                                                              | 密码为空                                      | 使用合法的密码                        |
+| 0x80002611 | Password too short or empty                                                                            | 密码为空或少于 8 个字符                                     | 使用合法的密码                        |
 | 0x80002612 | Port should be an integer that is less than 65535 and greater than 0                                   | 端口号非法                                    | 检查并修正端口号                      |
 | 0x80002613 | Endpoint should be in the format of 'fqdn:port'                                                        | 地址格式错误                                  | 检查并修正地址信息                    |
 | 0x80002614 | This statement is no longer supported                                                                  | 功能已经废弃                                  | 参考功能文档说明                      |
@@ -558,5 +558,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80004000 | Invalid message       | 订阅到的数据非法，一般不会出现                                                   | 具体查看client端的错误日志提示 |
 | 0x80004001 | Consumer mismatch     | 订阅请求的vnode和重新分配的vnode不一致，一般存在于有新消费者加入相同消费者组里时 | 内部错误，不暴露给用户         |
 | 0x80004002 | Consumer closed       | 消费者已经不存在了                                                               | 查看是否已经close掉了          |
+| 0x80004017 | Invalid status, please subscribe topic first | 数据订阅状态不对                                                                 | 没有调用 subscribe，直接 poll 数据     |
 | 0x80004100 | Stream task not exist | 流计算任务不存在                                                                 | 具体查看server端的错误日志     |
 

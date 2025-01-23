@@ -252,7 +252,7 @@ Description:
 - code: (`int`) 0 represents success.
 - column_meta: (`[][3]any`) Column information, each column is described by three values: column name (string), column type (string), and type length (int).
 - rows: (`int`) Number of data return rows.
-- data: (`[][]any`) Specific data content (time format only supports RFC3339, result set for timezone 0).
+- data: (`[][]any`) Specific data content (time format only supports RFC3339, result set for timezone 0, when specifying tz, the corresponding time zone is returned).
 
 Column types use the following strings:
 
@@ -434,7 +434,6 @@ curl http://<fqnd>:<port>/rest/login/<username>/<password>
 
 Here, `fqdn` is the FQDN or IP address of the TDengine database, `port` is the port number of the TDengine service, `username` is the database username, and `password` is the database password. The return is in JSON format, with the fields meaning as follows:
 
-- status: Flag of the request result.
 - code: Return code.
 - desc: Authorization code.
 

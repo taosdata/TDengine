@@ -1,6 +1,7 @@
 #include "qwInt.h"
 #include "qworker.h"
 
+#if 0
 void qwSetConcurrentTaskNumCb(int32_t taskNum) {
   int32_t finTaskNum = TMIN(taskNum, tsNumOfQueryThreads * QW_DEFAULT_THREAD_TASK_NUM);
   
@@ -33,6 +34,7 @@ void qwIncConcurrentTaskNumCb(void) {
 
   //TODO
 }
+#endif
 
 int32_t qwInitJobInfo(QW_FPARAMS_DEF, SQWJobInfo* pJob) {
   pJob->pSessions= taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
@@ -83,13 +85,16 @@ void qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session) {
 
   taosMemPoolDestroySession(gMemPoolHandle, session);
 
+  QW_LOCK(QW_WRITE, &pJobInfo->lock);
   int32_t remainSessions = atomic_sub_fetch_32(&pJobInfo->memInfo->remainSession, 1);
-
+  if (remainSessions != 0) {
+    QW_UNLOCK(QW_WRITE, &pJobInfo->lock);
+  }
+  
   QW_TASK_DLOG("task session destoryed, remainSessions:%d", remainSessions);
 
   if (0 == remainSessions) {
-    QW_LOCK(QW_WRITE, &pJobInfo->lock);
-    if (/*0 == taosHashGetSize(pJobInfo->pSessions) && */0 == atomic_load_32(&pJobInfo->memInfo->remainSession)) {
+//    if (/*0 == taosHashGetSize(pJobInfo->pSessions) && */0 == atomic_load_32(&pJobInfo->memInfo->remainSession)) {
       atomic_store_8(&pJobInfo->destroyed, 1);
       QW_UNLOCK(QW_WRITE, &pJobInfo->lock);
 
@@ -98,10 +103,10 @@ void qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session) {
       TAOS_UNUSED(taosHashRemove(gQueryMgmt.pJobInfo, id2, sizeof(id2)));
       
       QW_TASK_DLOG_E("the whole query job removed");
-    } else {
-      QW_TASK_DLOG("job not removed, remainSessions:%d, %d", taosHashGetSize(pJobInfo->pSessions), pJobInfo->memInfo->remainSession);
-      QW_UNLOCK(QW_WRITE, &pJobInfo->lock);
-    }
+//    } else {
+//      QW_TASK_DLOG("job not removed, remainSessions:%d, %d", taosHashGetSize(pJobInfo->pSessions), pJobInfo->memInfo->remainSession);
+//      QW_UNLOCK(QW_WRITE, &pJobInfo->lock);
+//    }
   }
 }
 
@@ -147,12 +152,15 @@ int32_t qwRetrieveJobInfo(QW_FPARAMS_DEF, SQWJobInfo** ppJob) {
     }
 
     QW_LOCK(QW_READ, &pJob->lock);
+    
     if (atomic_load_8(&pJob->destroyed)) {
       QW_UNLOCK(QW_READ, &pJob->lock);
+      taosHashRelease(gQueryMgmt.pJobInfo, pJob);
       continue;
     }
 
     (void)atomic_add_fetch_32(&pJob->memInfo->remainSession, 1);
+   
     QW_UNLOCK(QW_READ, &pJob->lock);
 
     break;

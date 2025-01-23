@@ -14,7 +14,7 @@ taosAdapter 是一个 TDengine 的配套工具，是 TDengine 集群和应用程
 
 taosAdapter 提供以下功能：
 
-- RESTful 接口
+- Websocket/RESTful 接口
 - 兼容 InfluxDB v1 写接口
 - 兼容 OpenTSDB JSON 和 telnet 格式写入
 - 无缝连接到 Telegraf
@@ -262,7 +262,21 @@ Prometheus 使用的由 \*NIX 内核暴露的硬件和操作系统指标的输�
 
 ### 获取 table 的 VGroup ID
 
-可以访问 http 接口 `http://<fqdn>:6041/rest/vgid?db=<db>&table=<table>` 获取 table 的 VGroup ID。
+可以 POST 请求 http 接口 `http://<fqdn>:<port>/rest/sql/<db>/vgid` 获取 table 的 VGroup ID，body 是多个表名 JSON 数组。
+
+样例：获取数据库为 power，表名为 d_bind_1 和 d_bind_2 的 VGroup ID
+
+```shell
+curl --location 'http://127.0.0.1:6041/rest/sql/power/vgid' \
+--user 'root:taosdata' \
+--data '["d_bind_1","d_bind_2"]'
+```
+
+响应：
+
+```json
+{"code":0,"vgIDs":[153,152]}
+```
 
 ## 内存使用优化方法
 

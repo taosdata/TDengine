@@ -15,6 +15,19 @@ import TabItem from "@theme/TabItem";
 
 **Tips: 数据写入推荐使用参数绑定方式**
 
+   :::note
+   我们只推荐使用下面两种形式的 SQL 进行参数绑定写入：
+
+    ```sql
+    一、确定子表存在：
+       1. INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?)  
+    二、自动建表：
+       1. INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)   
+       2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
+    ```
+
+   :::
+
 下面我们继续以智能电表为例，展示各语言连接器使用参数绑定高效写入的功能：
 1. 准备一个参数化的 SQL 插入语句，用于向超级表 `meters` 中插入数据。这个语句允许动态地指定子表名、标签和列值。
 2. 循环生成多个子表及其对应的数据行。对于每个子表：
@@ -26,10 +39,16 @@ import TabItem from "@theme/TabItem";
 ## WebSocket 连接
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
+
+参数绑定有两种接口使用方式，一种是 JDBC 标准接口，一种是扩展接口，扩展接口性能更好一些。
+
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/WSParameterBindingBasicDemo.java:para_bind}}
+{{#include docs/examples/java/src/main/java/com/taos/example/WSParameterBindingStdInterfaceDemo.java:para_bind}}
 ```
 
+```java
+{{#include docs/examples/java/src/main/java/com/taos/example/WSParameterBindingExtendInterfaceDemo.java:para_bind}}
+```
 
 这是一个[更详细的参数绑定示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/WSParameterBindingFullDemo.java)  
 
@@ -87,13 +106,24 @@ import TabItem from "@theme/TabItem";
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/stmt_native.py}}
+{{#include docs/examples/python/stmt2_native.py}}
 ```
 </TabItem>
 <TabItem label="Go" value="go">
+
+stmt2 绑定参数的示例代码如下（go 连接器 v3.6.0 及以上，TDengine v3.3.5.0 及以上）：
+
+```go
+{{#include docs/examples/go/stmt2/native/main.go}}
+```
+
+stmt 绑定参数的示例代码如下：
+
 ```go
 {{#include docs/examples/go/stmt/native/main.go}}
 ```
+
+
 </TabItem>
 <TabItem label="Rust" value="rust">
 

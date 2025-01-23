@@ -20,7 +20,7 @@
 
 #ifdef USE_ANALYTICS
 #include <curl/curl.h>
-#define ANAL_ALGO_SPLIT ","
+#define ANALYTICS_ALOG_SPLIT_CHAR ","
 
 typedef struct {
   int64_t       ver;
@@ -136,7 +136,7 @@ bool taosAnalGetOptStr(const char *option, const char *optName, char *optValue, 
     return false;
   }
 
-  pEnd = strstr(pStart, ANAL_ALGO_SPLIT);
+  pEnd = strstr(pStart, ANALYTICS_ALOG_SPLIT_CHAR);
   if (optMaxLen > 0) {
     if (pEnd > pStart) {
       int32_t len = (int32_t)(pEnd - pStart);
@@ -168,7 +168,7 @@ bool taosAnalGetOptInt(const char *option, const char *optName, int64_t *optValu
   int32_t bufLen = tsnprintf(buf, sizeof(buf), "%s=", optName);
 
   char *pos1 = strstr(option, buf);
-  char *pos2 = strstr(option, ANAL_ALGO_SPLIT);
+  char *pos2 = strstr(option, ANALYTICS_ALOG_SPLIT_CHAR);
   if (pos1 != NULL) {
     *optValue = taosStr2Int64(pos1 + bufLen, NULL, 10);
     return true;
@@ -216,14 +216,33 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
     return 0;
   }
 
-  pRsp->dataLen = (int64_t)contLen * (int64_t)nmemb;
-  pRsp->data = taosMemoryMalloc(pRsp->dataLen + 1);
+  int64_t newDataSize = (int64_t) contLen * nmemb;
+  int64_t size = pRsp->dataLen + newDataSize;
+
+  if (pRsp->data == NULL) {
+    pRsp->data = taosMemoryMalloc(size + 1);
+    if (pRsp->data == NULL) {
+      uError("failed to prepare recv buffer for post rsp, len:%d, code:%s", (int32_t) size + 1, tstrerror(terrno));
+      return 0;   // return the recv length, if failed, return 0
+    }
+  } else {
+    char* p = taosMemoryRealloc(pRsp->data, size + 1);
+    if (p == NULL) {
+      uError("failed to prepare recv buffer for post rsp, len:%d, code:%s", (int32_t) size + 1, tstrerror(terrno));
+      return 0;   // return the recv length, if failed, return 0
+    }
+
+    pRsp->data = p;
+  }
 
   if (pRsp->data != NULL) {
-    (void)memcpy(pRsp->data, pCont, pRsp->dataLen);
-    pRsp->data[pRsp->dataLen] = 0;
-    uDebugL("curl response is received, len:%" PRId64 ", content:%s", pRsp->dataLen, pRsp->data);
-    return pRsp->dataLen;
+    (void)memcpy(pRsp->data + pRsp->dataLen, pCont, newDataSize);
+
+    pRsp->dataLen = size;
+    pRsp->data[size] = 0;
+
+    uDebugL("curl response is received, len:%" PRId64 ", content:%s", size, pRsp->data);
+    return newDataSize;
   } else {
     pRsp->dataLen = 0;
     uError("failed to malloc curl response");
@@ -478,11 +497,13 @@ static int32_t taosAnalJsonBufWriteStrUseCol(SAnalyticBuf *pBuf, const char *buf
   }
 
   if (pBuf->bufType == ANALYTICS_BUF_TYPE_JSON) {
-    if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
+    int32_t ret = taosWriteFile(pBuf->filePtr, buf, bufLen);
+    if (ret != bufLen) {
       return terrno;
     }
   } else {
-    if (taosWriteFile(pBuf->pCols[colIndex].filePtr, buf, bufLen) != bufLen) {
+    int32_t ret = taosWriteFile(pBuf->pCols[colIndex].filePtr, buf, bufLen);
+    if (ret != bufLen) {
       return terrno;
     }
   }

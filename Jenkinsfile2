@@ -7,6 +7,9 @@ file_zh_changed = ''
 file_en_changed = ''
 file_no_doc_changed = '1'
 file_only_tdgpt_change_except = '1'
+tdgpt_file = "forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics"
+
+
 def abortPreviousBuilds() {
     def currentJobName = env.JOB_NAME
     def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -67,7 +70,7 @@ def check_docs(){
             returnStdout: true
         )
         
-        file_no_doc_changed = sh (
+        def file_no_doc_changed = sh (
             script: '''
                 cd ${WKC}
                 git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" || :
@@ -78,7 +81,7 @@ def check_docs(){
         file_only_tdgpt_change_except = sh (
             script: '''
                 cd ${WKC}
-                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | grep -v  "forecastoperator.c\\|anomalywindowoperator.c" |grep -v "tsim/analytics" |grep -v "tdgpt_cases.task" || :
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | grep -Ev "forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics" ||:
             ''',
             returnStdout: true
         ).trim()
@@ -365,8 +368,8 @@ def pre_test_build_win() {
     '''
     bat '''
         cd %WIN_COMMUNITY_ROOT%/tests/ci
-        pip3 install taospy==2.7.16 
-        pip3 install taos-ws-py==0.3.5
+        pip3 install taospy==2.7.21 
+        pip3 install taos-ws-py==0.3.8
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
     '''
     return 1
@@ -570,7 +573,7 @@ pipeline {
                                        cd ${WKC}/tests/parallel_test
                                        ./run_scan_container.sh -d ${WKDIR} -b ${BRANCH_NAME}_${BUILD_ID}  -f ${WKDIR}/tmp/${BRANCH_NAME}_${BUILD_ID}/docs_changed.txt ''' + extra_param + '''
                                     '''
-                                    if ( file_no_doc_changed =~ /forecastoperator.c|anomalywindowoperator.c|tsim\/analytics|tdgpt_cases.task/ ) {
+                                     if ( file_no_doc_changed =~ /forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics/ ) {
                                         sh '''
                                             cd ${WKC}/tests/parallel_test
                                             export DEFAULT_RETRY_TIME=2

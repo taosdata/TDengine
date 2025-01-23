@@ -356,6 +356,9 @@ static SKeyword keywordTable[] = {
     {"DISK_INFO",            TK_DISK_INFO},
     {"AUTO",                 TK_AUTO},
     {"COLS",                 TK_COLS},
+    {"NOTIFY",               TK_NOTIFY},
+    {"ON_FAILURE",           TK_ON_FAILURE},
+    {"NOTIFY_HISTORY",       TK_NOTIFY_HISTORY},
 };
 // clang-format on
 

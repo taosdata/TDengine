@@ -148,6 +148,7 @@ When using time windows, note:
 - The window width of the aggregation period is specified by the keyword INTERVAL, with the shortest interval being 10 milliseconds (10a); it also supports an offset (the offset must be less than the interval), which is the offset of the time window division compared to "UTC moment 0". The SLIDING statement is used to specify the forward increment of the aggregation period, i.e., the duration of each window slide forward.
 - When using the INTERVAL statement, unless in very special cases, it is required to configure the timezone parameter in the taos.cfg configuration files of both the client and server to the same value to avoid frequent cross-time zone conversions by time processing functions, which can cause severe performance impacts.
 - The returned results have a strictly monotonically increasing time-series.
+- When using AUTO as the window offset, if the WHERE time condition is complex, such as multiple AND/OR/IN combinations, AUTO may not take effect. In such cases, you can manually specify the window offset to resolve the issue.
 - When using AUTO as the window offset, if the window width unit is d (day), n (month), w (week), y (year), such as: INTERVAL(1d, AUTO), INTERVAL(3w, AUTO), the TSMA optimization cannot take effect. If TSMA is manually created on the target table, the statement will report an error and exit; in this case, you can explicitly specify the Hint SKIP_TSMA or not use AUTO as the window offset.
 
 ### State Window

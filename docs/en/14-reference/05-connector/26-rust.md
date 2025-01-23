@@ -1,4 +1,5 @@
 ---
+toc_max_heading_level: 4
 sidebar_label: Rust
 title: Rust Client Library
 slug: /tdengine-reference/client-libraries/rust

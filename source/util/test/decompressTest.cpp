@@ -524,23 +524,20 @@ static void decompressBasicTest(size_t dataSize, const CompF& compress, const De
   decltype(origData) decompData(origData.size());
 
   // test simple implementation without SIMD instructions
-  tsSIMDEnable = 0;
+  tsAVX2Supported = 0;
   cnt = decompress(compData.data(), compData.size(), decompData.size(), decompData.data(), decompData.size(),
                    ONE_STAGE_COMP, nullptr, 0);
   ASSERT_EQ(cnt, compData.size() - 1);
   EXPECT_EQ(origData, decompData);
 
-#ifdef __AVX2__
-  if (DataTypeSupportAvx<T>::value) {
+  taosGetSystemInfo();
+  if (DataTypeSupportAvx<T>::value && tsAVX2Supported) {
     // test AVX2 implementation
-    tsSIMDEnable = 1;
-    tsAVX2Supported = 1;
     cnt = decompress(compData.data(), compData.size(), decompData.size(), decompData.data(), decompData.size(),
                      ONE_STAGE_COMP, nullptr, 0);
     ASSERT_EQ(cnt, compData.size() - 1);
     EXPECT_EQ(origData, decompData);
   }
-#endif
 }
 
 template <typename T, typename CompF, typename DecompF>
@@ -557,7 +554,7 @@ static void decompressPerfTest(const char* typname, const CompF& compress, const
             << "; Compression ratio: " << 1.0 * (compData.size() - 1) / cnt << "\n";
   decltype(origData) decompData(origData.size());
 
-  tsSIMDEnable = 0;
+  tsAVX2Supported = 0;
   auto ms = measureRunTime(
       [&]() {
         decompress(compData.data(), compData.size(), decompData.size(), decompData.data(), decompData.size(),
@@ -567,10 +564,8 @@ static void decompressPerfTest(const char* typname, const CompF& compress, const
   std::cout << "Decompression of " << NROUND * DATA_SIZE << " " << typname << " without SIMD costs " << ms
             << " ms, avg speed: " << NROUND * DATA_SIZE * 1000 / ms << " tuples/s\n";
 
-#ifdef __AVX2__
-  if (DataTypeSupportAvx<T>::value) {
-    tsSIMDEnable = 1;
-    tsAVX2Supported = 1;
+  taosGetSystemInfo();
+  if (DataTypeSupportAvx<T>::value && tsAVX2Supported) {
     ms = measureRunTime(
         [&]() {
           decompress(compData.data(), compData.size(), decompData.size(), decompData.data(), decompData.size(),
@@ -580,7 +575,6 @@ static void decompressPerfTest(const char* typname, const CompF& compress, const
     std::cout << "Decompression of " << NROUND * DATA_SIZE << " " << typname << " using AVX2 costs " << ms
               << " ms, avg speed: " << NROUND * DATA_SIZE * 1000 / ms << " tuples/s\n";
   }
-#endif
 }
 
 #define RUN_PERF_TEST(typname, comp, decomp, min, max)             \

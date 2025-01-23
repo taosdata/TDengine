@@ -15,6 +15,7 @@
 
 #include "sync.h"
 #include "tcs.h"
+#include "tq.h"
 #include "tsdb.h"
 #include "vnd.h"
 
@@ -417,7 +418,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   pVnode->path = (char *)&pVnode[1];
-  tstrncpy(pVnode->path, path, strlen(path) + 1);
+  memcpy(pVnode->path, path, strlen(path) + 1);
   pVnode->config = info.config;
   pVnode->state.committed = info.state.committed;
   pVnode->state.commitTerm = info.state.commitTerm;
@@ -437,11 +438,6 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
   (void)taosThreadMutexInit(&pVnode->mutex, NULL);
   (void)taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
-
-  if (vnodeAChannelInit(1, &pVnode->commitChannel) != 0) {
-    vError("vgId:%d, failed to init commit channel", TD_VID(pVnode));
-    goto _err;
-  }
 
   int8_t rollback = vnodeShouldRollback(pVnode);
 
@@ -487,6 +483,14 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
   ret = taosRealPath(tdir, NULL, sizeof(tdir));
   TAOS_UNUSED(ret);
+
+  // init handle map for stream event notification
+  ret = tqInitNotifyHandleMap(&pVnode->pNotifyHandleMap);
+  if (ret != TSDB_CODE_SUCCESS) {
+    vError("vgId:%d, failed to init StreamNotifyHandleMap", TD_VID(pVnode));
+    terrno = ret;
+    goto _err;
+  }
 
   // open query
   vInfo("vgId:%d, start to open vnode query", TD_VID(pVnode));
@@ -558,12 +562,9 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
     vnodeAWait(&pVnode->commitTask);
-    if (vnodeAChannelDestroy(&pVnode->commitChannel, true) != 0) {
-      vError("vgId:%d, failed to destroy commit channel", TD_VID(pVnode));
-    }
-
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
+    tqDestroyNotifyHandleMap(&pVnode->pNotifyHandleMap);
     tqClose(pVnode->pTq);
     walClose(pVnode->pWal);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);

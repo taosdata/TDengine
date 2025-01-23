@@ -29,7 +29,7 @@ static int32_t mndCfgActionInsert(SSdb *pSdb, SConfigObj *obj);
 static int32_t mndCfgActionDelete(SSdb *pSdb, SConfigObj *obj);
 static int32_t mndCfgActionUpdate(SSdb *pSdb, SConfigObj *oldItem, SConfigObj *newObj);
 static int32_t mndCfgActionDeploy(SMnode *pMnode);
-static int32_t mndCfgActionPrepare(SMnode *pMnode);
+static int32_t mndCfgActionAfterRestored(SMnode *pMnode);
 
 static int32_t mndProcessConfigReq(SRpcMsg *pReq);
 #ifdef __cplusplus

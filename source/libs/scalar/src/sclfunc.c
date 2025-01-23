@@ -2985,279 +2985,93 @@ static int32_t doScalarFunction2(SScalarParam *pInput, int32_t inputNum, SScalar
   bool hasNullType = (IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[0])) || IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[1])));
 
   int32_t numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
-  if (pInput[0].numOfRows == pInput[1].numOfRows) {
-    for (int32_t i = 0; i < numOfRows; ++i) {
-      if (colDataIsNull_s(pInputData[0], i) || colDataIsNull_s(pInputData[1], i) || hasNullType) {
-        colDataSetNULL(pOutputData, i);
-        continue;
-      }
-      double in2;
-      GET_TYPED_DATA(in2, double, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInputData[1], i));
-      switch (GET_PARAM_TYPE(&pInput[0])) {
-        case TSDB_DATA_TYPE_DOUBLE: {
-          double  *in = (double *)pInputData[0]->pData;
-          double  *out = (double *)pOutputData->pData;
-          double  result = d1(in[i], in2);
-          if (isinf(result) || isnan(result)) {
-            colDataSetNULL(pOutputData, i);
-          } else {
-            out[i] = result;
-          }
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          float   *in = (float *)pInputData[0]->pData;
-          float   *out = (float *)pOutputData->pData;
-          float   result = f1(in[i], (float)in2);
-          if (isinf(result) || isnan(result)) {
-            colDataSetNULL(pOutputData, i);
-          } else {
-            out[i] = result;
-          }
-          break;
-        }
-        case TSDB_DATA_TYPE_TINYINT: {
-          int8_t *in = (int8_t *)pInputData[0]->pData;
-          int8_t *out = (int8_t *)pOutputData->pData;
-          int8_t result = (int8_t)d1((double)in[i], in2);
-          out[i] = result;
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          int16_t *in = (int16_t *)pInputData[0]->pData;
-          int16_t *out = (int16_t *)pOutputData->pData;
-          int16_t result = (int16_t)d1((double)in[i], in2);
-          out[i] = result;
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          int32_t *in = (int32_t *)pInputData[0]->pData;
-          int32_t *out = (int32_t *)pOutputData->pData;
-          int32_t result = (int32_t)d1((double)in[i], in2);
-          out[i] = result;
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          int64_t *in = (int64_t *)pInputData[0]->pData;
-          int64_t *out = (int64_t *)pOutputData->pData;
-          int64_t result = (int64_t)d1((double)in[i], in2);
-          out[i] = result;
-          break;
-        }
-        case TSDB_DATA_TYPE_UTINYINT: {
-          uint8_t *in = (uint8_t *)pInputData[0]->pData;
-          uint8_t *out = (uint8_t *)pOutputData->pData;
-          uint8_t result = (uint8_t)d1((double)in[i], in2);
-          out[i] = result;
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          uint16_t *in = (uint16_t *)pInputData[0]->pData;
-          uint16_t *out = (uint16_t *)pOutputData->pData;
-          uint16_t result = (uint16_t)d1((double)in[i], in2);
-          out[i] = result;
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          uint32_t *in = (uint32_t *)pInputData[0]->pData;
-          uint32_t *out = (uint32_t *)pOutputData->pData;
-          uint32_t result = (uint32_t)d1((double)in[i], in2);
-          out[i] = result;
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          uint64_t *in = (uint64_t *)pInputData[0]->pData;
-          uint64_t *out = (uint64_t *)pOutputData->pData;
-          uint64_t result = (uint64_t)d1((double)in[i], in2);
-          out[i] = result;
-          break;
-        }
-      }
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    int32_t colIdx1 = (pInput[0].numOfRows == 1) ? 0 : i;
+    int32_t colIdx2 = (pInput[1].numOfRows == 1) ? 0 : i;
+    if (colDataIsNull_s(pInputData[0], colIdx1) || colDataIsNull_s(pInputData[1], colIdx2) || hasNullType) {
+      colDataSetNULL(pOutputData, i);
+      continue;
     }
-  } else if (pInput[0].numOfRows == 1) {  // left operand is constant
-    if (colDataIsNull_s(pInputData[0], 0) || hasNullType) {
-      colDataSetNNULL(pOutputData, 0, pInput[1].numOfRows);
-    } else {
-      for (int32_t i = 0; i < numOfRows; ++i) {
-        if (colDataIsNull_s(pInputData[1], i)) {
+    double in2;
+    GET_TYPED_DATA(in2, double, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInputData[1], colIdx2));
+    switch (GET_PARAM_TYPE(&pInput[0])) {
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double  *in = (double *)pInputData[0]->pData;
+        double  *out = (double *)pOutputData->pData;
+        double  result = d1(in[colIdx1], in2);
+        if (isinf(result) || isnan(result)) {
           colDataSetNULL(pOutputData, i);
-          continue;
+        } else {
+          out[i] = result;
         }
-        double in2;
-        GET_TYPED_DATA(in2, double, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInputData[1], i));
-        switch (GET_PARAM_TYPE(&pInput[0])) {
-          case TSDB_DATA_TYPE_DOUBLE: {
-            double   *in = (double *)pInputData[0]->pData;
-            double   *out = (double *)pOutputData->pData;
-            double   result = d1(in[0], in2);
-            if (isinf(result) || isnan(result)) {
-              colDataSetNULL(pOutputData, i);
-            } else {
-              out[i] = result;
-            }
-            break;
-          }
-          case TSDB_DATA_TYPE_FLOAT: {
-            float   *in = (float *)pInputData[0]->pData;
-            float   *out = (float *)pOutputData->pData;
-            float   result = f1(in[0], (float)in2);
-            if (isinf(result) || isnan(result)) {
-              colDataSetNULL(pOutputData, i);
-            } else {
-              out[i] = result;
-            }
-            break;
-          }
-          case TSDB_DATA_TYPE_TINYINT: {
-            int8_t *in = (int8_t *)pInputData[0]->pData;
-            int8_t *out = (int8_t *)pOutputData->pData;
-            int8_t result = (int8_t)d1((double)in[0], in2);
-            out[i] = result;
-            break;
-          }
-          case TSDB_DATA_TYPE_SMALLINT: {
-            int16_t *in = (int16_t *)pInputData[0]->pData;
-            int16_t *out = (int16_t *)pOutputData->pData;
-            int16_t result = (int16_t)d1((double)in[0], in2);
-            out[i] = result;
-            break;
-          }
-          case TSDB_DATA_TYPE_INT: {
-            int32_t *in = (int32_t *)pInputData[0]->pData;
-            int32_t *out = (int32_t *)pOutputData->pData;
-            int32_t result = (int32_t)d1((double)in[0], in2);
-            out[i] = result;
-            break;
-          }
-          case TSDB_DATA_TYPE_BIGINT: {
-            int64_t *in = (int64_t *)pInputData[0]->pData;
-            int64_t *out = (int64_t *)pOutputData->pData;
-            int64_t result = (int64_t)d1((double)in[0], in2);
-            out[i] = result;
-            break;
-          }
-          case TSDB_DATA_TYPE_UTINYINT: {
-            uint8_t *in = (uint8_t *)pInputData[0]->pData;
-            uint8_t *out = (uint8_t *)pOutputData->pData;
-            uint8_t result = (uint8_t)d1((double)in[0], in2);
-            out[i] = result;
-            break;
-          }
-          case TSDB_DATA_TYPE_USMALLINT: {
-            uint16_t *in = (uint16_t *)pInputData[0]->pData;
-            uint16_t *out = (uint16_t *)pOutputData->pData;
-            uint16_t result = (uint16_t)d1((double)in[0], in2);
-            out[i] = result;
-            break;
-          }
-          case TSDB_DATA_TYPE_UINT: {
-            uint32_t *in = (uint32_t *)pInputData[0]->pData;
-            uint32_t *out = (uint32_t *)pOutputData->pData;
-            uint32_t result = (uint32_t)d1((double)in[0], in2);
-            out[i] = result;
-            break;
-          }
-          case TSDB_DATA_TYPE_UBIGINT: {
-            uint64_t *in = (uint64_t *)pInputData[0]->pData;
-            uint64_t *out = (uint64_t *)pOutputData->pData;
-            uint64_t result = (uint64_t)d1((double)in[0], in2);
-            out[i] = result;
-            break;
-          }
-        }
+        break;
       }
-    }
-  } else if (pInput[1].numOfRows == 1) {
-    if (colDataIsNull_s(pInputData[1], 0) || hasNullType) {
-      colDataSetNNULL(pOutputData, 0, pInput[0].numOfRows);
-    } else {
-      for (int32_t i = 0; i < numOfRows; ++i) {
-        if (colDataIsNull_s(pInputData[0], i)) {
+      case TSDB_DATA_TYPE_FLOAT: {
+        float   *in = (float *)pInputData[0]->pData;
+        float   *out = (float *)pOutputData->pData;
+        float   result = f1(in[colIdx1], (float)in2);
+        if (isinf(result) || isnan(result)) {
           colDataSetNULL(pOutputData, i);
-          continue;
+        } else {
+          out[i] = result;
         }
-        double in2;
-        GET_TYPED_DATA(in2, double, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInputData[1], 0));
-        switch (GET_PARAM_TYPE(&pInput[0])) {
-          case TSDB_DATA_TYPE_DOUBLE: {
-            double   *in = (double *)pInputData[0]->pData;
-            double   *out = (double *)pOutputData->pData;
-            double   result = d1(in[i], in2);
-            if (isinf(result) || isnan(result)) {
-              colDataSetNULL(pOutputData, i);
-            } else {
-              out[i] = result;
-            }
-            break;
-          }
-          case TSDB_DATA_TYPE_FLOAT: {
-            float   *in = (float *)pInputData[0]->pData;
-            float   *out = (float *)pOutputData->pData;
-            float   result = f1(in[i], in2);
-            if (isinf(result) || isnan(result)) {
-              colDataSetNULL(pOutputData, i);
-            } else {
-              out[i] = result;
-            }
-            break;
-          }
-          case TSDB_DATA_TYPE_TINYINT: {
-            int8_t *in = (int8_t *)pInputData[0]->pData;
-            int8_t *out = (int8_t *)pOutputData->pData;
-            int8_t result = (int8_t)d1((double)in[i], in2);
-            out[i] = result;
-            break;
-          }
-          case TSDB_DATA_TYPE_SMALLINT: {
-            int16_t *in = (int16_t *)pInputData[0]->pData;
-            int16_t *out = (int16_t *)pOutputData->pData;
-            int16_t result = (int16_t)d1((double)in[i], in2);
-            out[i] = result;
-            break;
-          }
-          case TSDB_DATA_TYPE_INT: {
-            int32_t *in = (int32_t *)pInputData[0]->pData;
-            int32_t *out = (int32_t *)pOutputData->pData;
-            int32_t result = (int32_t)d1((double)in[i], in2);
-            out[i] = result;
-            break;
-          }
-          case TSDB_DATA_TYPE_BIGINT: {
-            int64_t *in = (int64_t *)pInputData[0]->pData;
-            int64_t *out = (int64_t *)pOutputData->pData;
-            int64_t result = (int64_t)d1((double)in[i], in2);
-            out[i] = result;
-            break;
-          }
-          case TSDB_DATA_TYPE_UTINYINT: {
-            uint8_t *in = (uint8_t *)pInputData[0]->pData;
-            uint8_t *out = (uint8_t *)pOutputData->pData;
-            uint8_t result = (uint8_t)d1((double)in[i], in2);
-            out[i] = result;
-            break;
-          }
-          case TSDB_DATA_TYPE_USMALLINT: {
-            uint16_t *in = (uint16_t *)pInputData[0]->pData;
-            uint16_t *out = (uint16_t *)pOutputData->pData;
-            uint16_t result = (uint16_t)d1((double)in[i], in2);
-            out[i] = result;
-            break;
-          }
-          case TSDB_DATA_TYPE_UINT: {
-            uint32_t *in = (uint32_t *)pInputData[0]->pData;
-            uint32_t *out = (uint32_t *)pOutputData->pData;
-            uint32_t result = (uint32_t)d1((double)in[i], in2);
-            out[i] = result;
-            break;
-          }
-          case TSDB_DATA_TYPE_UBIGINT: {
-            uint64_t *in = (uint64_t *)pInputData[0]->pData;
-            uint64_t *out = (uint64_t *)pOutputData->pData;
-            uint64_t result = (uint64_t)d1((double)in[i], in2);
-            out[i] = result;
-            break;
-          }
-        }
+        break;
+      }
+      case TSDB_DATA_TYPE_TINYINT: {
+        int8_t *in = (int8_t *)pInputData[0]->pData;
+        int8_t *out = (int8_t *)pOutputData->pData;
+        int8_t result = (int8_t)d1((double)in[colIdx1], in2);
+        out[i] = result;
+        break;
+      }
+      case TSDB_DATA_TYPE_SMALLINT: {
+        int16_t *in = (int16_t *)pInputData[0]->pData;
+        int16_t *out = (int16_t *)pOutputData->pData;
+        int16_t result = (int16_t)d1((double)in[colIdx1], in2);
+        out[i] = result;
+        break;
+      }
+      case TSDB_DATA_TYPE_INT: {
+        int32_t *in = (int32_t *)pInputData[0]->pData;
+        int32_t *out = (int32_t *)pOutputData->pData;
+        int32_t result = (int32_t)d1((double)in[colIdx1], in2);
+        out[i] = result;
+        break;
+      }
+      case TSDB_DATA_TYPE_BIGINT: {
+        int64_t *in = (int64_t *)pInputData[0]->pData;
+        int64_t *out = (int64_t *)pOutputData->pData;
+        int64_t result = (int64_t)d1((double)in[colIdx1], in2);
+        out[i] = result;
+        break;
+      }
+      case TSDB_DATA_TYPE_UTINYINT: {
+        uint8_t *in = (uint8_t *)pInputData[0]->pData;
+        uint8_t *out = (uint8_t *)pOutputData->pData;
+        uint8_t result = (uint8_t)d1((double)in[colIdx1], in2);
+        out[i] = result;
+        break;
+      }
+      case TSDB_DATA_TYPE_USMALLINT: {
+        uint16_t *in = (uint16_t *)pInputData[0]->pData;
+        uint16_t *out = (uint16_t *)pOutputData->pData;
+        uint16_t result = (uint16_t)d1((double)in[colIdx1], in2);
+        out[i] = result;
+        break;
+      }
+      case TSDB_DATA_TYPE_UINT: {
+        uint32_t *in = (uint32_t *)pInputData[0]->pData;
+        uint32_t *out = (uint32_t *)pOutputData->pData;
+        uint32_t result = (uint32_t)d1((double)in[colIdx1], in2);
+        out[i] = result;
+        break;
+      }
+      case TSDB_DATA_TYPE_UBIGINT: {
+        uint64_t *in = (uint64_t *)pInputData[0]->pData;
+        uint64_t *out = (uint64_t *)pOutputData->pData;
+        uint64_t result = (uint64_t)d1((double)in[colIdx1], in2);
+        out[i] = result;
+        break;
       }
     }
   }
