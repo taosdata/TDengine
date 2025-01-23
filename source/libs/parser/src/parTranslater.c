@@ -12194,6 +12194,45 @@ static int32_t translateStreamOptions(STranslateContext* pCxt, SCreateStreamStmt
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t buildStreamNotifyOptions(STranslateContext* pCxt, SStreamNotifyOptions* pNotifyOptions,
+                                        SCMCreateStreamReq* pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
+
+  if (pNotifyOptions == NULL || pNotifyOptions->pAddrUrls->length == 0) {
+    return code;
+  }
+
+  pReq->pNotifyAddrUrls = taosArrayInit(pNotifyOptions->pAddrUrls->length, POINTER_BYTES);
+  if (pReq->pNotifyAddrUrls != NULL) {
+    FOREACH(pNode, pNotifyOptions->pAddrUrls) {
+      char *url = taosStrndup(((SValueNode*)pNode)->literal, TSDB_STREAM_NOTIFY_URL_LEN);
+      if (url == NULL) {
+        code = terrno;
+        break;
+      }
+      if (taosArrayPush(pReq->pNotifyAddrUrls, &url) == NULL) {
+        code = terrno;
+        taosMemoryFreeClear(url);
+        break;
+      }
+    }
+  } else {
+    code = terrno;
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    pReq->notifyEventTypes = pNotifyOptions->eventTypes;
+    pReq->notifyErrorHandle = pNotifyOptions->errorHandle;
+    pReq->notifyHistory = pNotifyOptions->notifyHistory;
+  } else {
+    taosArrayDestroyP(pReq->pNotifyAddrUrls, NULL);
+    pReq->pNotifyAddrUrls = NULL;
+  }
+
+  return code;
+}
+
 static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SCMCreateStreamReq* pReq) {
   pReq->igExists = pStmt->ignoreExists;
 
@@ -12240,6 +12279,10 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
     }
     pReq->recalculateInterval =
         (NULL != pStmt->pOptions->pRecInterval ? ((SValueNode*)pStmt->pOptions->pRecInterval)->datum.i : 0);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildStreamNotifyOptions(pCxt, pStmt->pNotifyOptions, pReq);
   }
 
   return code;

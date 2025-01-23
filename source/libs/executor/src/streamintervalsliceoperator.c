@@ -44,6 +44,7 @@ void destroyStreamIntervalSliceOperatorInfo(void* param) {
     pInfo->pOperator = NULL;
   }
 
+  destroyStreamBasicInfo(&pInfo->basic);
   clearGroupResInfo(&pInfo->groupResInfo);
   taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
   pInfo->pUpdated = NULL;
@@ -660,7 +661,8 @@ int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiN
 
   setOperatorInfo(pOperator, "StreamIntervalSliceOperator", pPhyNode->type, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
-  initStreamBasicInfo(&pInfo->basic);
+  code = initStreamBasicInfo(&pInfo->basic);
+  QUERY_CHECK_CODE(code, lino, _error);
   if (pIntervalPhyNode->window.triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
     if (pHandle->fillHistory) {
       setFillHistoryOperatorFlag(&pInfo->basic);

@@ -19,7 +19,10 @@
 extern "C" {
 #endif
 
+#include "cJSON.h"
+#include "cmdnodes.h"
 #include "executorInt.h"
+#include "querytask.h"
 #include "tutil.h"
 
 #define FILL_POS_INVALID 0
@@ -69,7 +72,8 @@ typedef enum SIntervalSliceType {
 void setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type);
 bool needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo);
 void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo);
-void initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo);
+int32_t initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo);
+void destroyStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo);
 void setFillHistoryOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
 bool isHistoryOperator(SSteamOpBasicInfo* pBasicInfo);
 void setFinalOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
@@ -126,6 +130,13 @@ int32_t getQualifiedRowNumDesc(SExprSupp* pExprSup, SSDataBlock* pBlock, TSKEY* 
 int32_t buildAllResultKey(SStateStore* pStateStore, SStreamState* pState, TSKEY ts, SArray* pUpdated);
 int32_t initOffsetInfo(int32_t** ppOffset, SSDataBlock* pRes);
 TSKEY   compareTs(void* pKey);
+
+int32_t addEventAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionKey* pSessionKey,
+                               const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t ri,
+                               SStreamNotifyEventSupp* sup);
+int32_t addAggResultNotifyEvent(const SSDataBlock* pResultBlock, const SSchemaWrapper* pSchemaWrapper,
+                                SStreamNotifyEventSupp* sup);
+int32_t buildNotifyEventBlock(const SExecTaskInfo* pTaskInfo, SStreamNotifyEventSupp* sup);
 void doStreamIntervalSaveCheckpoint(struct SOperatorInfo* pOperator);
 int32_t getIntervalSliceCurStateBuf(SStreamAggSupporter* pAggSup, SInterval* pInterval, bool needPrev, STimeWindow* pTWin, int64_t groupId,
                                     SInervalSlicePoint* pCurPoint, SInervalSlicePoint* pPrevPoint, int32_t* pWinCode);

@@ -784,6 +784,7 @@ static bool funcNotSupportStringSma(SFunctionNode* pFunc) {
     case FUNCTION_TYPE_SPREAD_PARTIAL:
     case FUNCTION_TYPE_SPREAD_MERGE:
     case FUNCTION_TYPE_TWA:
+    case FUNCTION_TYPE_ELAPSED:
       pParam = nodesListGetNode(pFunc->pParameterList, 0);
       if (pParam && nodesIsExprNode(pParam) && (IS_VAR_DATA_TYPE(((SExprNode*)pParam)->resType.type))) {
         return true;
