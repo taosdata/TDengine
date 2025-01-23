@@ -54,8 +54,8 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, SArray* list, SNode* p
 static int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
                             STableListInfo* pListInfo, uint8_t* digest, const char* idstr, SStorageAPI* pStorageAPI);
 
-static int64_t getLimit(const SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->limit; }
-static int64_t getOffset(const SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->offset; }
+static int64_t getLimit(const SNode* pLimit) { return (NULL == pLimit || NULL == ((SLimitNode*)pLimit)->limit) ? -1 : ((SLimitNode*)pLimit)->limit->datum.i; }
+static int64_t getOffset(const SNode* pLimit) { return (NULL == pLimit || NULL == ((SLimitNode*)pLimit)->offset) ? -1 : ((SLimitNode*)pLimit)->offset->datum.i; }
 static void    releaseColInfoData(void* pCol);
 
 void initResultRowInfo(SResultRowInfo* pResultRowInfo) {
