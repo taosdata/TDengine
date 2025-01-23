@@ -31,6 +31,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_create.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_select.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_alter_drop.py
+,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_auth_alter_drop_child.py
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_query.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_func_elapsed.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/function/test_function.py
