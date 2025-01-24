@@ -64,17 +64,17 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
   ASSERT(offset >= TSDB_FHDR_SIZE);
 
   int32_t encryptAlgoirthm = config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 #if 1
-  code = tsdbReadFile(reader[0]->fd, offset, (uint8_t *)(reader[0]->footer), sizeof(SSttFooter), 0, encryptAlgoirthm, 
+  code = tsdbReadFile(reader[0]->fd, offset, (uint8_t *)(reader[0]->footer), sizeof(SSttFooter), 0, encryptAlgoirthm,
                       encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 #else
   int64_t size = config->file->size;
 
   for (; size > TSDB_FHDR_SIZE; size--) {
-    code = tsdbReadFile(reader[0]->fd, size - sizeof(SSttFooter), (uint8_t *)(reader[0]->footer), sizeof(SSttFooter), 0, encryptAlgoirthm, 
-                      encryptKey);
+    code = tsdbReadFile(reader[0]->fd, size - sizeof(SSttFooter), (uint8_t *)(reader[0]->footer), sizeof(SSttFooter), 0,
+                        encryptAlgoirthm, encryptKey);
     if (code) continue;
     if ((*reader)->footer->sttBlkPtr->offset + (*reader)->footer->sttBlkPtr->size + sizeof(SSttFooter) == size ||
         (*reader)->footer->statisBlkPtr->offset + (*reader)->footer->statisBlkPtr->size + sizeof(SSttFooter) == size ||
@@ -121,10 +121,9 @@ int32_t tsdbSttFileReadStatisBlk(SSttFileReader *reader, const TStatisBlkArray *
       if (!data) return TSDB_CODE_OUT_OF_MEMORY;
 
       int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-      char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
-      int32_t code =
-          tsdbReadFile(reader->fd, reader->footer->statisBlkPtr->offset, data, reader->footer->statisBlkPtr->size, 0,
-                        encryptAlgorithm, encryptKey);
+      char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+      int32_t code = tsdbReadFile(reader->fd, reader->footer->statisBlkPtr->offset, data,
+                                  reader->footer->statisBlkPtr->size, 0, encryptAlgorithm, encryptKey);
       if (code) {
         taosMemoryFree(data);
         return code;
@@ -152,10 +151,9 @@ int32_t tsdbSttFileReadTombBlk(SSttFileReader *reader, const TTombBlkArray **tom
       if (!data) return TSDB_CODE_OUT_OF_MEMORY;
 
       int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-      char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
-      int32_t code =
-          tsdbReadFile(reader->fd, reader->footer->tombBlkPtr->offset, data, reader->footer->tombBlkPtr->size, 0, 
-                        encryptAlgorithm, encryptKey);
+      char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+      int32_t code = tsdbReadFile(reader->fd, reader->footer->tombBlkPtr->offset, data,
+                                  reader->footer->tombBlkPtr->size, 0, encryptAlgorithm, encryptKey);
       if (code) {
         taosMemoryFree(data);
         return code;
@@ -183,10 +181,9 @@ int32_t tsdbSttFileReadSttBlk(SSttFileReader *reader, const TSttBlkArray **sttBl
       if (!data) return TSDB_CODE_OUT_OF_MEMORY;
 
       int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-      char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
-      int32_t code =
-          tsdbReadFile(reader->fd, reader->footer->sttBlkPtr->offset, data, reader->footer->sttBlkPtr->size, 0,
-                        encryptAlgorithm, encryptKey);
+      char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+      int32_t code = tsdbReadFile(reader->fd, reader->footer->sttBlkPtr->offset, data, reader->footer->sttBlkPtr->size,
+                                  0, encryptAlgorithm, encryptKey);
       if (code) {
         taosMemoryFree(data);
         return code;
@@ -212,11 +209,11 @@ int32_t tsdbSttFileReadBlockData(SSttFileReader *reader, const SSttBlk *sttBlk, 
   SBuffer *assist = reader->buffers + 1;
 
   int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
   // load data
   tBufferClear(buffer0);
-  code = tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset, sttBlk->bInfo.szBlock, buffer0, 0,
-                              encryptAlgorithm, encryptKey);
+  code = tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset, sttBlk->bInfo.szBlock, buffer0, 0, encryptAlgorithm,
+                              encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
@@ -225,7 +222,9 @@ int32_t tsdbSttFileReadBlockData(SSttFileReader *reader, const SSttBlk *sttBlk, 
 
 _exit:
   if (code) {
-    TSDB_ERROR_LOG(TD_VID(reader->config->tsdb->pVnode), lino, code);
+    tsdbError("vgId:%d %s failed at line %d since %s, file name:%s", TD_VID(reader->config->tsdb->pVnode), __func__,
+              lino, tstrerror(code), reader->fd->path);
+    // TSDB_ERROR_LOG(TD_VID(reader->config->tsdb->pVnode), lino, code);
   }
   return code;
 }
@@ -241,11 +240,11 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
   SBuffer     *assist = reader->buffers + 2;
 
   int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
   // load key part
   tBufferClear(buffer0);
-  code = tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset, sttBlk->bInfo.szKey, buffer0, 0,
-                              encryptAlgorithm, encryptKey);
+  code = tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset, sttBlk->bInfo.szKey, buffer0, 0, encryptAlgorithm,
+                              encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // decode header
@@ -325,10 +324,9 @@ int32_t tsdbSttFileReadBlockDataByColumn(SSttFileReader *reader, const SSttBlk *
     } else if (cid == blockCol.cid) {
       // load from file
       tBufferClear(buffer1);
-      code =
-          tsdbReadFileToBuffer(reader->fd, sttBlk->bInfo.offset + sttBlk->bInfo.szKey + hdr.szBlkCol + blockCol.offset,
-                               blockCol.szBitmap + blockCol.szOffset + blockCol.szValue, buffer1, 0,
-                              encryptAlgorithm, encryptKey);
+      code = tsdbReadFileToBuffer(
+          reader->fd, sttBlk->bInfo.offset + sttBlk->bInfo.szKey + hdr.szBlkCol + blockCol.offset,
+          blockCol.szBitmap + blockCol.szOffset + blockCol.szValue, buffer1, 0, encryptAlgorithm, encryptKey);
       TSDB_CHECK_CODE(code, lino, _exit);
 
       // decode the buffer
@@ -353,11 +351,11 @@ int32_t tsdbSttFileReadTombBlock(SSttFileReader *reader, const STombBlk *tombBlk
   SBuffer *assist = reader->buffers + 1;
 
   int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
   // load
   tBufferClear(buffer0);
-  code = tsdbReadFileToBuffer(reader->fd, tombBlk->dp->offset, tombBlk->dp->size, buffer0, 0,
-                              encryptAlgorithm, encryptKey);
+  code = tsdbReadFileToBuffer(reader->fd, tombBlk->dp->offset, tombBlk->dp->size, buffer0, 0, encryptAlgorithm,
+                              encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // decode
@@ -393,11 +391,11 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
   SBuffer *assist = reader->buffers + 1;
 
   int32_t encryptAlgorithm = reader->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = reader->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
   // load data
   tBufferClear(buffer0);
-  code = tsdbReadFileToBuffer(reader->fd, statisBlk->dp->offset, statisBlk->dp->size, buffer0, 0,
-                              encryptAlgorithm, encryptKey);
+  code = tsdbReadFileToBuffer(reader->fd, statisBlk->dp->offset, statisBlk->dp->size, buffer0, 0, encryptAlgorithm,
+                              encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // decode data
@@ -486,7 +484,7 @@ struct SSttFileWriter {
 
 static int32_t tsdbFileDoWriteSttBlockData(STsdbFD *fd, SBlockData *blockData, SColCompressInfo *info,
                                            int64_t *fileSize, TSttBlkArray *sttBlkArray, SBuffer *buffers,
-                                           SVersionRange *range, int32_t encryptAlgorithm, char* encryptKey) {
+                                           SVersionRange *range, int32_t encryptAlgorithm, char *encryptKey) {
   if (blockData->nRow == 0) return 0;
 
   int32_t code = 0;
@@ -543,10 +541,9 @@ static int32_t tsdbSttFileDoWriteBlockData(SSttFileWriter *writer) {
   code = metaGetColCmpr(writer->config->tsdb->pVnode->pMeta, uid, &(info.pColCmpr));
 
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
   code = tsdbFileDoWriteSttBlockData(writer->fd, writer->blockData, &info, &writer->file->size, writer->sttBlkArray,
-                                     writer->buffers, &writer->ctx->range,
-                                    encryptAlgorithm, encryptKey);
+                                     writer->buffers, &writer->ctx->range, encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -586,7 +583,7 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
   statisBlk.maxTbid.uid = record.uid;
 
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
   // compress each column
   for (int32_t i = 0; i < ARRAY_SIZE(statisBlk.size); i++) {
@@ -600,8 +597,8 @@ static int32_t tsdbSttFileDoWriteStatisBlock(SSttFileWriter *writer) {
     code = tCompressDataToBuffer(statisBlock->buffers[i].data, &info, buffer0, assist);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    code = tsdbWriteFile(writer->fd, writer->file->size, buffer0->data, info.compressedSize,
-                        encryptAlgorithm, encryptKey);
+    code =
+        tsdbWriteFile(writer->fd, writer->file->size, buffer0->data, info.compressedSize, encryptAlgorithm, encryptKey);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     statisBlk.size[i] = info.compressedSize;
@@ -660,11 +657,11 @@ static int32_t tsdbSttFileDoWriteTombBlock(SSttFileWriter *writer) {
   int32_t lino = 0;
 
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
-  code = tsdbFileWriteTombBlock(writer->fd, writer->tombBlock, writer->config->cmprAlg, &writer->file->size,
-                                writer->tombBlkArray, writer->buffers, &writer->ctx->range,
-                                encryptAlgorithm, encryptKey);
+  code =
+      tsdbFileWriteTombBlock(writer->fd, writer->tombBlock, writer->config->cmprAlg, &writer->file->size,
+                             writer->tombBlkArray, writer->buffers, &writer->ctx->range, encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -675,13 +672,13 @@ _exit:
 }
 
 int32_t tsdbFileWriteSttBlk(STsdbFD *fd, const TSttBlkArray *sttBlkArray, SFDataPtr *ptr, int64_t *fileSize,
-                            int32_t encryptAlgorithm, char* encryptKey) {
+                            int32_t encryptAlgorithm, char *encryptKey) {
   ptr->size = TARRAY2_DATA_LEN(sttBlkArray);
   if (ptr->size > 0) {
     ptr->offset = *fileSize;
 
     int32_t code = tsdbWriteFile(fd, *fileSize, (const uint8_t *)TARRAY2_DATA(sttBlkArray), ptr->size, encryptAlgorithm,
-                                  encryptKey);
+                                 encryptKey);
     if (code) {
       return code;
     }
@@ -696,10 +693,10 @@ static int32_t tsdbSttFileDoWriteSttBlk(SSttFileWriter *writer) {
   int32_t lino;
 
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
   code = tsdbFileWriteSttBlk(writer->fd, writer->sttBlkArray, writer->footer->sttBlkPtr, &writer->file->size,
-                              encryptAlgorithm, encryptKey);
+                             encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -713,13 +710,13 @@ static int32_t tsdbSttFileDoWriteStatisBlk(SSttFileWriter *writer) {
   int32_t code = 0;
   int32_t lino;
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
   writer->footer->statisBlkPtr->size = TARRAY2_DATA_LEN(writer->statisBlkArray);
   if (writer->footer->statisBlkPtr->size) {
     writer->footer->statisBlkPtr->offset = writer->file->size;
     code = tsdbWriteFile(writer->fd, writer->file->size, (const uint8_t *)TARRAY2_DATA(writer->statisBlkArray),
-                          writer->footer->statisBlkPtr->size, encryptAlgorithm, encryptKey);
+                         writer->footer->statisBlkPtr->size, encryptAlgorithm, encryptKey);
     TSDB_CHECK_CODE(code, lino, _exit);
     writer->file->size += writer->footer->statisBlkPtr->size;
   }
@@ -736,7 +733,7 @@ static int32_t tsdbSttFileDoWriteTombBlk(SSttFileWriter *writer) {
   int32_t lino = 0;
 
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
   code = tsdbFileWriteTombBlk(writer->fd, writer->tombBlkArray, writer->footer->tombBlkPtr, &writer->file->size,
                               encryptAlgorithm, encryptKey);
@@ -749,8 +746,8 @@ _exit:
   return code;
 }
 
-int32_t tsdbFileWriteSttFooter(STsdbFD *fd, const SSttFooter *footer, int64_t *fileSize, int32_t encryptAlgorithm, 
-                                char* encryptKey) {
+int32_t tsdbFileWriteSttFooter(STsdbFD *fd, const SSttFooter *footer, int64_t *fileSize, int32_t encryptAlgorithm,
+                               char *encryptKey) {
   int32_t code = tsdbWriteFile(fd, *fileSize, (const uint8_t *)footer, sizeof(*footer), encryptAlgorithm, encryptKey);
   if (code) return code;
   *fileSize += sizeof(*footer);
@@ -759,7 +756,7 @@ int32_t tsdbFileWriteSttFooter(STsdbFD *fd, const SSttFooter *footer, int64_t *f
 
 static int32_t tsdbSttFileDoWriteFooter(SSttFileWriter *writer) {
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
   return tsdbFileWriteSttFooter(writer->fd, writer->footer, &writer->file->size, encryptAlgorithm, encryptKey);
 }
@@ -800,7 +797,7 @@ static int32_t tsdbSttFWriterDoOpen(SSttFileWriter *writer) {
 
   uint8_t hdr[TSDB_FHDR_SIZE] = {0};
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
 
   code = tsdbWriteFile(writer->fd, 0, hdr, sizeof(hdr), encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -868,7 +865,7 @@ static int32_t tsdbSttFWriterCloseCommit(SSttFileWriter *writer, TFileOpArray *o
   TSDB_CHECK_CODE(code, lino, _exit);
 
   int32_t encryptAlgorithm = writer->config->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char* encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  char   *encryptKey = writer->config->tsdb->pVnode->config.tsdbCfg.encryptKey;
   code = tsdbFsyncFile(writer->fd, encryptAlgorithm, encryptKey);
   TSDB_CHECK_CODE(code, lino, _exit);
 
