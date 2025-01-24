@@ -253,10 +253,10 @@ INFO: Spend 26.9530 second completed total queries: 30000, the QPS of all thread
 - The first line represents the percentile distribution of query execution and query request delay for each of the three threads executing 10000 queries. The SQL command is the test query statement
 - The second line indicates that a total of 10000 * 3 = 30000 queries have been completed
 - The third line indicates that the total query time is 26.9653 seconds, and the query rate per second (QPS) is 1113.049 times/second
--If the `continue_if_fail` option is set to `yes` in the query, the last line will output the number of failed requests and error rate, the format like "error + number of failed requests (error rate)"
+- If the `continue_if_fail` option is set to `yes` in the query, the last line will output the number of failed requests and error rate, the format like "error + number of failed requests (error rate)"
 **Indicator calculation**
--QPS        = number of successful requests / time spent (in seconds)
--Error rate = number of failed requests / (number of successful requests + number of failed requests)
+- QPS        = number of successful requests / time spent (in seconds)
+- Error rate = number of failed requests / (number of successful requests + number of failed requests)
 
 #### Subscription metrics
 
@@ -437,7 +437,7 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 - **result_file** : The path to the result output file, default is ./output.txt.
 
-- **confirm_parameter_prompt** : A toggle parameter that requires user confirmation after a prompt to continue. The value can be "yes" or "no", the default value is "no".
+- **confirm_parameter_prompt** : A toggle parameter that requires user confirmation after a prompt to continue. The value can be "yes" or "no", by default "no".
 
 - **interlace_rows** : Enables interleaved insertion mode and specifies the number of rows to insert into each subtable at a time. Interleaved insertion mode refers to inserting the specified number of rows into each subtable in sequence and repeating this process until all subtable data has been inserted. The default value is 0, meaning data is inserted into one subtable completely before moving to the next.
   This parameter can also be configured in `super_tables`; if configured, the settings in `super_tables` take higher priority and override the global settings.
@@ -466,12 +466,12 @@ For other common parameters, see Common Configuration Parameters.
 
 Configuration parameters for querying specified tables (can specify supertables, subtables, or regular tables) are set in `specified_table_query`.
 
-`General Query`: Each SQL in `sqls` starts `threads` threads to query this SQL, Each thread exits after executing the `query_times` queries, and only after all threads executing this SQL have completed can the next SQL be executed.  
-`Mixed Query`  : All SQL statements in `sqls` are divided into `threads` groups, with each thread executing one group. Each SQL statement needs to execute `query_times` queries.   
+- `General Query`: Each SQL in `sqls` starts `threads` threads to query this SQL, Each thread exits after executing the `query_times` queries, and only after all threads executing this SQL have completed can the next SQL be executed.  
 The total number of queries(`General Query`) = the number of `sqls` * `query_times` * `threads`  
+- `Mixed Query`  : All SQL statements in `sqls` are divided into `threads` groups, with each thread executing one group. Each SQL statement needs to execute `query_times` queries.   
 The total number of queries(`Mixed Query`)   = the number of `sqls` * `query_times`
 
-- **query_interval** : Query interval, in nanosecond, default is 0.
+- **query_interval** : Query interval, in millisecond, default is 0.
 
 - **threads** : Number of threads executing the SQL query, default is 1.
 
