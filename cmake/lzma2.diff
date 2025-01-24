@@ -1,0 +1,59 @@
+diff --git a/Makefile b/Makefile
+index e386021..850e9f8 100644
+--- a/Makefile
++++ b/Makefile
+@@ -45,6 +45,7 @@ libfast-lzma2 : $(OBJ)
+ 	@echo "Build static & dynamic library."
+ 	$(CC) -shared -pthread -Wl,-soname,$(SONAME) -o $(REAL_NAME) $(OBJ)
+ 	$(AR) $(STATIC_LIBNAME) $(OBJ)
++	touch libfast-lzma2
+ 	@echo "Library build SUCCESS."
+ 	
+ -include $(DEP)
+@@ -56,32 +57,42 @@ DESTDIR:=
+ PREFIX:=/usr/local
+ LIBDIR:=$(DESTDIR)$(PREFIX)/lib
+ 
+-.PHONY: install
+-install:
++install: libfast-lzma2
+ ifeq ($(OS),Windows_NT)
+ 	strip -g $(REAL_NAME)
++	touch install
+ else
+ 	mkdir -p $(LIBDIR)
++	cp $(STATIC_LIBNAME) $(LIBDIR)/$(STATIC_LIBNAME)
++	strip -g $(LIBDIR)/$(STATIC_LIBNAME)
+ 	cp $(REAL_NAME) $(LIBDIR)/$(REAL_NAME)
+ 	strip -g $(LIBDIR)/$(REAL_NAME)
+ 	chmod 0755 $(LIBDIR)/$(REAL_NAME)
+ 	cd $(LIBDIR) && ln -sf $(REAL_NAME) $(LINKER_NAME)
+-	ldconfig $(LIBDIR)
++	# ldconfig $(LIBDIR)
+ 	mkdir -p $(DESTDIR)$(PREFIX)/include
+ 	cp fast-lzma2.h $(DESTDIR)$(PREFIX)/include/
+ 	cp fl2_errors.h $(DESTDIR)$(PREFIX)/include/
++	cp xxhash.h     $(DESTDIR)$(PREFIX)/include/
++	touch install
+ endif
+ 
+ .PHONY: uninstall
+ uninstall:
+ ifeq ($(OS),Windows_NT)
+ 	rm -f libfast-lzma2.dll
++	rm -f install
++	rm -f libfast-lzma2
+ else
++	rm -f $(LIBDIR)/$(STATIC_LIBNAME)
+ 	rm -f $(LIBDIR)/$(LINKER_NAME)
+ 	rm -f $(LIBDIR)/$(REAL_NAME)
+-	ldconfig $(LIBDIR)
++	# ldconfig $(LIBDIR)
+ 	rm -f $(DESTDIR)$(PREFIX)/include/fast-lzma2.h
+ 	rm -f $(DESTDIR)$(PREFIX)/include/fl2_errors.h
++	rm -f $(DESTDIR)$(PREFIX)/include/xxhash.h
++	rm -f install
++	rm -f libfast-lzma2
+ endif
+ 
+ .PHONY: test
