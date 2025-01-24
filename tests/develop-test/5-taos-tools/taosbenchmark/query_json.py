@@ -74,6 +74,9 @@ class TDTestCase:
         cmd = "%s -f ./5-taos-tools/taosbenchmark/json/taosc_query.json" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
+        cmd = "%s -f ./5-taos-tools/taosbenchmark/json/taosc_query1.json" %binPath
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)        
         with open("%s" % "taosc_query_specified-0", 'r+') as f1:
             for line in f1.readlines():
                 queryTaosc = line.strip().split()[0]
@@ -84,9 +87,13 @@ class TDTestCase:
                 queryTaosc = line.strip().split()[0]
                 assert queryTaosc == '1', "result is %s != expect: 1" % queryTaosc
 
+        # split two
         cmd = "%s -f ./5-taos-tools/taosbenchmark/json/rest_query.json" %binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
+        cmd = "%s -f ./5-taos-tools/taosbenchmark/json/rest_query1.json" %binPath
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)        
 
         times = 0
         with open("rest_query_super-0", 'r+') as f1:

@@ -9,14 +9,15 @@
   "databases": "db",
   "query_times": 1,
   "reset_query_cache": "yes",
-  "specified_table_query":
-  {
+  "super_table_query": {
+    "stblname": "stb",
     "query_interval": 1,
-    "concurrent":1,
-    "sqls":
-    [{
-      "sql": "select count(*) from db.stb",
-      "result": "taosc_query_specified"
-    }]
+    "concurrent": 1,
+    "sqls": [
+      {
+        "sql": "select count(*) from xxxx",
+        "result": "taosc_query_super"
+      }
+    ]
   }
 }
