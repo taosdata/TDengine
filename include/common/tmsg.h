@@ -1089,6 +1089,7 @@ typedef struct {
   char*       sql;
   int8_t      isImport;
   int8_t      createDb;
+  char        longPass[TSDB_USET_PASSWORD_LONGLEN];
 } SCreateUserReq;
 
 int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
@@ -1159,6 +1160,7 @@ typedef struct {
   int64_t     privileges;
   int32_t     sqlLen;
   char*       sql;
+  char        longPass[TSDB_USET_PASSWORD_LONGLEN];
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
