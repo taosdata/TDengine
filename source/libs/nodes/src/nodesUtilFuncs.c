@@ -467,6 +467,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_WINDOW_OFFSET:
       code = makeNode(type, sizeof(SWindowOffsetNode), &pNode);
       break;
+    case QUERY_NODE_STREAM_NOTIFY_OPTIONS:
+      code = makeNode(type, sizeof(SStreamNotifyOptions), &pNode);
+      break;
     case QUERY_NODE_SET_OPERATOR:
       code = makeNode(type, sizeof(SSetOperator), &pNode);
       break;
@@ -1267,6 +1270,11 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pAround->pTimepoint);
       break;
     }
+    case QUERY_NODE_STREAM_NOTIFY_OPTIONS: {
+      SStreamNotifyOptions* pNotifyOptions = (SStreamNotifyOptions*)pNode;
+      nodesDestroyList(pNotifyOptions->pAddrUrls);
+      break;
+    }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pStmt = (SSetOperator*)pNode;
       nodesDestroyList(pStmt->pProjectionList);
@@ -1479,6 +1487,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pQuery);
       nodesDestroyList(pStmt->pTags);
       nodesDestroyNode(pStmt->pSubtable);
+      nodesDestroyNode((SNode*)pStmt->pNotifyOptions);
       tFreeSCMCreateStreamReq(pStmt->pReq);
       taosMemoryFreeClear(pStmt->pReq);
       break;

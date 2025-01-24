@@ -735,7 +735,7 @@ TEST(stmt2Case, insert_ntb_get_fields_Test) {
   {
     const char* sql = "insert into stmt2_testdb_4.? values(?,?)";
     printf("case 2 : %s\n", sql);
-    getFieldsError(taos, sql, TSDB_CODE_PAR_TABLE_NOT_EXIST);
+    getFieldsError(taos, sql, TSDB_CODE_TSC_STMT_TBNAME_ERROR);
   }
 
   // case 3 :  wrong para nums
@@ -1496,8 +1496,51 @@ TEST(stmt2Case, geometry) {
   checkError(stmt, code);
   ASSERT_EQ(affected_rows, 3);
 
+  // test wrong wkb input
+  unsigned char wkb2[3][61] = {
+      {
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0xF0, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40,
+      },
+      {0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0xf0, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0xf0, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f},
+      {0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+       0x00, 0xf0, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40}};
+  params[1].buffer = wkb2;
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  ASSERT_EQ(code, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
+
   taos_stmt2_close(stmt);
   do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_13");
   taos_close(taos);
+}
+
+// TD-33582
+TEST(stmt2Case, errcode) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+  do_query(taos, "DROP DATABASE IF EXISTS stmt2_testdb_14");
+  do_query(taos, "CREATE DATABASE IF NOT EXISTS stmt2_testdb_14");
+  do_query(taos, "use stmt2_testdb_14");
+
+  TAOS_STMT2_OPTION option = {0};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+  char* sql = "select * from t where ts > ? and name = ? foo = ?";
+  int   code = taos_stmt2_prepare(stmt, sql, 0);
+  checkError(stmt, code);
+
+  int             fieldNum = 0;
+  TAOS_FIELD_ALL* pFields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+  ASSERT_EQ(code, TSDB_CODE_PAR_SYNTAX_ERROR);
+
+  // get fail dont influence the next stmt prepare
+  sql = "nsert into ? (ts, name) values (?, ?)";
+  code = taos_stmt_prepare(stmt, sql, 0);
+  checkError(stmt, code);
 }
 #pragma GCC diagnostic pop

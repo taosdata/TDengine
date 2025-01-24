@@ -732,7 +732,11 @@ int32_t syncFsmExecute(SSyncNode* pNode, SSyncFSM* pFsm, ESyncState role, SyncTe
            pEntry->index, pEntry->term, TMSG_INFO(pEntry->originalRpcType), code, retry);
     if (retry) {
       taosMsleep(10);
-      sError("vgId:%d, retry on fsm commit since %s. index:%" PRId64, pNode->vgId, tstrerror(code), pEntry->index);
+      if (code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE) {
+        sError("vgId:%d, failed to execute fsm since %s. index:%" PRId64, pNode->vgId, terrstr(), pEntry->index);
+      } else {
+        sDebug("vgId:%d, retry on fsm commit since %s. index:%" PRId64, pNode->vgId, terrstr(), pEntry->index);
+      }
     }
   } while (retry);
 

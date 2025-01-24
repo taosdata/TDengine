@@ -90,7 +90,7 @@ fi
 
 kill_service_of() {
   _service=$1
-  pid=$(ps -C $_service | grep -v $uninstallScript | awk '{print $2}')
+  pid=$(ps -C $_service | grep -w $_service | grep -v $uninstallScript | awk '{print $1}')
   if [ -n "$pid" ]; then
     ${csudo}kill -9 $pid || :
   fi
@@ -140,9 +140,8 @@ clean_service_of() {
     clean_service_on_systemd_of $_service
   elif ((${service_mod} == 1)); then
     clean_service_on_sysvinit_of $_service
-  else
-    kill_service_of $_service
   fi
+  kill_service_of $_service
 }
 
 remove_service_of() {

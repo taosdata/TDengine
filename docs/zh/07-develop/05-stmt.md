@@ -15,6 +15,19 @@ import TabItem from "@theme/TabItem";
 
 **Tips: 数据写入推荐使用参数绑定方式**
 
+   :::note
+   我们只推荐使用下面两种形式的 SQL 进行参数绑定写入：
+
+    ```sql
+    一、确定子表存在：
+       1. INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?)  
+    二、自动建表：
+       1. INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)   
+       2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
+    ```
+
+   :::
+
 下面我们继续以智能电表为例，展示各语言连接器使用参数绑定高效写入的功能：
 1. 准备一个参数化的 SQL 插入语句，用于向超级表 `meters` 中插入数据。这个语句允许动态地指定子表名、标签和列值。
 2. 循环生成多个子表及其对应的数据行。对于每个子表：
