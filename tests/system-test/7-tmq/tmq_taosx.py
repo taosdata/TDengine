@@ -17,6 +17,8 @@ from tmqCommon import *
 
 class TDTestCase:
     updatecfgDict = {'debugFlag': 135, 'asynclog': 0}
+    clientCfgDict = {'debugFlag': 135, 'asynclog': 0}
+    updatecfgDict["clientCfg"] = clientCfgDict
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
@@ -248,6 +250,17 @@ class TDTestCase:
     def checkWalMultiVgroups(self):
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/tmq_taosx_ci -sv 3 -dv 5'%(buildPath)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+
+        self.checkData()
+        self.checkDropData(False)
+
+        return
+
+    def checkWalMultiVgroupsRawData(self):
+        buildPath = tdCom.getBuildPath()
+        cmdStr = '%s/build/bin/tmq_taosx_ci -sv 3 -dv 5 -raw'%(buildPath)
         tdLog.info(cmdStr)
         os.system(cmdStr)
 
@@ -681,6 +694,7 @@ class TDTestCase:
         self.checkSnapshot1VgroupTable()
 
         self.checkWalMultiVgroups()
+        self.checkWalMultiVgroupsRawData()
         self.checkSnapshotMultiVgroups()
 
         self.checkWalMultiVgroupsWithDropTable()
