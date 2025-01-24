@@ -71,7 +71,7 @@ class TDTestCase(TBase):
 
             count += 1
 
-        tdSql.execute("balance vgroup;")
+        tdSql.execute("BALANCE VGROUP FORCE;")
 
         count = 0
         while count < 100:
