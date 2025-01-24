@@ -1,0 +1,39 @@
+# frozen_string_literal: true
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+source 'https://rubygems.org'
+
+VERSION = File.open('../../share/VERSION.txt').read.sub('-SNAPSHOT', '.pre1').chomp
+File.write("lib/avro/VERSION.txt", VERSION)
+
+gemspec
+
+# Development and optional runtime dependencies are listed below.
+# Required runtime dependencies must be listed in avro.gemspec.
+
+gem 'rake'
+gem 'snappy'
+gem 'zstd-ruby'
+gem 'test-unit'
+gem 'parallel'
+# webrick is no longer included with Ruby 3.0+
+gem 'webrick'
+
+gem 'memory_profiler'
+
+# next major version will enable new cops
+gem 'rubocop', '~> 1.15'
+gem 'rdoc'

@@ -1,0 +1,94 @@
+{
+  "protocol" : "InteropProtocol",
+  "namespace" : "org.apache.avro",
+  "doc" : "* Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *     https://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.",
+  "types" : [ {
+    "type" : "record",
+    "name" : "Foo",
+    "fields" : [ {
+      "name" : "label",
+      "type" : "string"
+    } ]
+  }, {
+    "type" : "enum",
+    "name" : "Kind",
+    "symbols" : [ "A", "B", "C" ]
+  }, {
+    "type" : "fixed",
+    "name" : "MD5",
+    "size" : 16
+  }, {
+    "type" : "record",
+    "name" : "Node",
+    "fields" : [ {
+      "name" : "label",
+      "type" : "string"
+    }, {
+      "name" : "children",
+      "type" : {
+        "type" : "array",
+        "items" : "Node"
+      },
+      "default" : [ ]
+    } ]
+  }, {
+    "type" : "record",
+    "name" : "Interop",
+    "fields" : [ {
+      "name" : "intField",
+      "type" : "int",
+      "default" : 1
+    }, {
+      "name" : "longField",
+      "type" : "long",
+      "default" : -1
+    }, {
+      "name" : "stringField",
+      "type" : "string"
+    }, {
+      "name" : "boolField",
+      "type" : "boolean",
+      "default" : false
+    }, {
+      "name" : "floatField",
+      "type" : "float",
+      "default" : 0.0
+    }, {
+      "name" : "doubleField",
+      "type" : "double",
+      "default" : -1.0E12
+    }, {
+      "name" : "nullField",
+      "type" : "null"
+    }, {
+      "name" : "arrayField",
+      "type" : {
+        "type" : "array",
+        "items" : "double"
+      },
+      "default" : [ ]
+    }, {
+      "name" : "mapField",
+      "type" : {
+        "type" : "map",
+        "values" : "Foo"
+      }
+    }, {
+      "name" : "unionFIeld",
+      "type" : [ "boolean", "double", {
+        "type" : "array",
+        "items" : "bytes"
+      } ]
+    }, {
+      "name" : "enumField",
+      "type" : "Kind"
+    }, {
+      "name" : "fixedField",
+      "type" : "MD5"
+    }, {
+      "name" : "recordField",
+      "type" : "Node"
+    } ]
+  } ],
+  "messages" : { }
+}

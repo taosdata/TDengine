@@ -1,0 +1,30 @@
+{
+  "type" : "record",
+  "name" : "FullRecordV1",
+  "doc" : "Test schema changes: this is the 'old' schema the SpecificRecord expects to see",
+  "namespace" : "org.apache.avro.specific.test",
+  "fields" : [ {
+    "name" : "b",
+    "type" : "boolean"
+  }, {
+    "name" : "i32",
+    "type" : "int"
+  }, {
+    "name" : "i64",
+    "type" : "long"
+  }, {
+    "name" : "f32",
+    "type" : "float"
+  }, {
+    "name" : "f64",
+    "type" : "double"
+  }, {
+    "name" : "s",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "h",
+    "type" : [ "null", "string" ]
+  } ]
+}
+

@@ -1,0 +1,14 @@
+{"namespace": "org.apache.avro.codegentest.testdata",
+  "type": "record",
+  "name": "LogicalTypesWithCustomConversion",
+  "doc" : "Test unions with logical types in generated Java classes",
+  "fields": [
+    {"name": "nullableCustomField",  "type": ["null", {"type": "bytes", "logicalType": "decimal", "precision": 9, "scale": 2}], "default": null},
+    {"name": "nonNullCustomField",  "type": {"type": "bytes", "logicalType": "decimal", "precision": 9, "scale": 2}},
+    {"name": "nullableFixedSizeString",  "type": ["null", {"type": "bytes", "logicalType": "fixed-size-string", "minLength": 1, "maxLength": 50}], "default": null},
+    {"name": "nonNullFixedSizeString",  "type": {"type": "bytes", "logicalType": "fixed-size-string", "minLength": 1, "maxLength": 50}}
+  ]
+}
+
+
+

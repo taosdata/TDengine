@@ -1,0 +1,94 @@
+# Build matrix / environment variables are explained on:
+# http://about.travis-ci.org/docs/user/build-configuration/
+# This file can be validated on: http://lint.travis-ci.org/
+
+language: cpp
+dist: bionic
+osx_image: xcode10.3
+
+compiler:
+- gcc
+- clang
+os:
+- linux
+- osx
+
+env:
+- BUILD_TYPE=Debug CPU_LEVEL=AVX
+- BUILD_TYPE=Debug CPU_LEVEL=AVX2
+- BUILD_TYPE=RelWithDebInfo CPU_LEVEL=AVX
+- BUILD_TYPE=RelWithDebInfo CPU_LEVEL=AVX2
+
+matrix:
+  exclude:
+  # Travis OSX servers seem to run on pre-Haswell CPUs. Attempting to use AVX2
+  # results in crashes.
+  - env: BUILD_TYPE=Debug CPU_LEVEL=AVX2
+    os: osx
+  - env: BUILD_TYPE=RelWithDebInfo CPU_LEVEL=AVX2
+    os: osx
+
+addons:
+  apt:
+    sources:
+    - sourceline: 'deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main'
+      key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
+    - sourceline: 'ppa:ubuntu-toolchain-r/test'
+    packages:
+    - clang-9
+    - cmake
+    - gcc-9
+    - g++-9
+    - ninja-build
+  homebrew:
+    packages:
+    - cmake
+    - gcc@9
+    - llvm@9
+    - ninja
+    update: true
+
+install:
+# The following Homebrew packages aren't linked by default, and need to be
+# prepended to the path explicitly.
+- if [ "$TRAVIS_OS_NAME" = "osx" ]; then
+    export PATH="$(brew --prefix llvm)/bin:$PATH";
+  fi
+# Fuzzing is only supported on Clang. Perform fuzzing on Debug builds.
+- if [ "$CXX" = "clang++" ] && [ "$BUILD_TYPE" = "Debug" ]; then
+    export FUZZING=1;
+  else
+    export FUZZING=0;
+  fi
+# /usr/bin/gcc points to an older compiler on both Linux and macOS.
+- if [ "$CXX" = "g++" ]; then export CXX="g++-9" CC="gcc-9"; fi
+# /usr/bin/clang points to an older compiler on both Linux and macOS.
+#
+# Homebrew's llvm package doesn't ship a versioned clang++ binary, so the values
+# below don't work on macOS. Fortunately, the path change above makes the
+# default values (clang and clang++) resolve to the correct compiler on macOS.
+- if [ "$TRAVIS_OS_NAME" = "linux" ]; then
+    if [ "$CXX" = "clang++" ]; then export CXX="clang++-9" CC="clang-9"; fi;
+  fi
+- echo ${CC}
+- echo ${CXX}
+- ${CXX} --version
+- cmake --version
+
+before_script:
+- mkdir -p build && cd build
+- cmake .. -G Ninja -DCMAKE_BUILD_TYPE=$BUILD_TYPE
+    -DSNAPPY_REQUIRE_${CPU_LEVEL}=ON -DSNAPPY_FUZZING_BUILD=${FUZZING}
+    -DCMAKE_INSTALL_PREFIX=$HOME/.local
+- cmake --build .
+- cd ..
+
+script:
+- build/snappy_unittest
+- if [ -f build/snappy_compress_fuzzer ]; then
+    build/snappy_compress_fuzzer -runs=1000 -close_fd_mask=3;
+  fi
+- if [ -f build/snappy_uncompress_fuzzer ]; then
+    build/snappy_uncompress_fuzzer -runs=1000 -close_fd_mask=3;
+  fi
+- cd build && cmake --build . --target install

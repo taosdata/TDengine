@@ -1,0 +1,152 @@
+{
+    "type": "record",
+    "name": "AvroTweet",
+    "namespace": "com.bifflabs.grok.model.twitter.avro",
+    "fields": [{
+        "name": "ID",
+        "type": "long"
+    },
+    {
+        "name": "text",
+        "type": "string"
+    },
+    {
+        "name": "authorScreenName",
+        "type": "string"
+    },
+    {
+        "name": "authorProfileImageURL",
+        "type": "string"
+    },
+    {
+        "name": "authorUserID",
+        "type": ["null", "long"]
+    },
+    {
+        "name": "location",
+        "type": ["null", {
+            "type": "record",
+            "name": "AvroPoint",
+            "namespace": "com.bifflabs.grok.model.common.avro",
+            "fields": [{
+                "name": "latitude",
+                "type": "double"
+            },
+            {
+                "name": "longitude",
+                "type": "double"
+            }]
+        }]
+    },
+    {
+        "name": "placeID",
+        "type": ["null", "string"]
+    },
+    {
+        "name": "createdAt",
+        "type": {
+            "type": "record",
+            "name": "AvroDateTime",
+            "namespace": "com.bifflabs.grok.model.common.avro",
+            "fields": [{
+                "name": "dateTimeString",
+                "type": "string"
+            }]
+        }
+    },
+    {
+        "name": "metadata",
+        "type": {
+            "type": "record",
+            "name": "AvroTweetMetadata",
+            "fields": [{
+                "name": "inReplyToScreenName",
+                "type": {
+                    "type": "record",
+                    "name": "AvroKnowableOptionString",
+                    "namespace": "com.bifflabs.grok.model.common.avro",
+                    "fields": [{
+                        "name": "known",
+                        "type": "boolean"
+                    },
+                    {
+                        "name": "data",
+                        "type": ["null", "string"]
+                    }]
+                }
+            },
+            {
+                "name": "mentionedScreenNames",
+                "type": {
+                    "type": "record",
+                    "name": "AvroKnowableListString",
+                    "namespace": "com.bifflabs.grok.model.common.avro",
+                    "fields": [{
+                        "name": "known",
+                        "type": "boolean"
+                    },
+                    {
+                        "name": "data",
+                        "type": {
+                            "type": "array",
+                            "items": "string"
+                        }
+                    }]
+                }
+            },
+            {
+                "name": "links",
+                "type": "com.bifflabs.grok.model.common.avro.AvroKnowableListString"
+            },
+            {
+                "name": "hashtags",
+                "type": "com.bifflabs.grok.model.common.avro.AvroKnowableListString"
+            },
+            {
+                "name": "isBareCheckin",
+                "type": {
+                    "type": "record",
+                    "name": "AvroKnowableBoolean",
+                    "namespace": "com.bifflabs.grok.model.common.avro",
+                    "fields": [{
+                        "name": "known",
+                        "type": "boolean"
+                    },
+                    {
+                        "name": "data",
+                        "type": "boolean"
+                    }]
+                }
+            },
+            {
+                "name": "isBareRetweet",
+                "type": "com.bifflabs.grok.model.common.avro.AvroKnowableBoolean"
+            },
+            {
+                "name": "isRetweet",
+                "type": "com.bifflabs.grok.model.common.avro.AvroKnowableBoolean"
+            },
+            {
+                "name": "venueID",
+                "type": "com.bifflabs.grok.model.common.avro.AvroKnowableOptionString"
+            },
+            {
+                "name": "venuePoint",
+                "type": {
+                    "type": "record",
+                    "name": "AvroKnowableOptionPoint",
+                    "namespace": "com.bifflabs.grok.model.common.avro",
+                    "fields": [{
+                        "name": "known",
+                        "type": "boolean"
+                    },
+                    {
+                        "name": "data",
+                        "type": ["null", "AvroPoint"]
+                    }]
+                }
+            }
+            ]
+        }
+    }]
+}

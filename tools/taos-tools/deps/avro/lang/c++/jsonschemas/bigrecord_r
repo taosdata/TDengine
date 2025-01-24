@@ -1,0 +1,189 @@
+{
+    "type": "record",
+    "name": "RootRecord",
+    "fields": [
+        {
+            "name": "mylong",
+            "type": "long"
+        },
+        {
+            "name": "mymap",
+            "type": {
+                "type": "map",
+                "values": "int"
+            }
+        },
+        {
+            "name": "nestedrecord",
+            "type": {
+                "type": "record",
+                "name": "Nested",
+                "fields": [
+                    {
+                        "name": "inval2",
+                        "type": "string"
+                    },
+                    {
+                        "name": "inval1",
+                        "type": "double"
+                    },
+                    {
+                        "name": "inval3",
+                        "type": "int"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "recordmap",
+            "type": {
+                "type": "map",
+                "values": "Nested"
+            }
+        },
+        {
+            "name": "withDefaultValue",
+            "type": {
+                "type": "record",
+                "name": "WithDefaultValue",
+                "fields": [
+                    {
+                        "name": "s1",
+                        "type": "string"
+                    },
+                    {
+                        "name": "d1",
+                        "type": "double"
+                    },
+                    {
+                        "name": "i1",
+                        "type": "int"
+                    }
+                ]
+            },
+            "default": {
+                "s1": "\"sval\\u8352\"",
+                "d1": 5.67,
+                "i1": 99
+            }
+        },
+        {
+            "name": "union1WithDefaultValue",
+            "type": [ "string", "int" ],
+            "default": "sval"
+        },
+        {
+            "name": "union2WithDefaultValue",
+            "type": [ "null", "string" ],
+            "default": null
+        },
+        {
+            "name": "myarray",
+            "type": {
+                "type": "array",
+                "items": "double"
+            }
+        },
+        {
+            "name": "myarraywithDefaultValue",
+            "type": {
+                "type": "array",
+                "items": "int"
+            },
+            "default": [
+                2,
+                3
+            ]
+        },
+        {
+            "name": "myenum",
+            "type": {
+                "type": "enum",
+                "name": "ExampleEnum",
+                "symbols": [
+                    "zero",
+                    "one",
+                    "two",
+                    "three"
+                ]
+            }
+        },
+        {
+            "name": "myunion",
+            "type": [
+                "null",
+                {
+                    "type": "map",
+                    "values": "int"
+                },
+                "float"
+            ],
+            "default": null
+        },
+        {
+            "name": "anotherunion",
+            "type": [
+                "bytes",
+                "null"
+            ]
+        },
+        {
+            "name": "mybool",
+            "type": "boolean"
+        },
+        {
+            "name": "anothernested",
+            "type": "Nested"
+        },
+        {
+            "name": "rwd",
+            "type": {
+                "type": "record",
+                "name": "RecordWithDefault",
+                "fields": [
+                    {
+                        "name": "rwd_f1",
+                        "type": "Nested"
+                    }
+                ]
+            },
+            "default": {
+                "rwd_f1": {
+                    "inval2": "hello",
+                    "inval1": 4.23,
+                    "inval3": 100
+                }
+            }
+        },
+        {
+            "name": "myfixed",
+            "type": {
+                "type": "fixed",
+                "size": 16,
+                "name": "md5"
+            }
+        },
+        {
+            "name": "myfixedwithDefaultValue",
+            "type": [{
+                "type": "fixed",
+                "size": 1,
+                "name": "val"
+            }, "null"],
+            "default": "\u0001"
+        },
+        {
+            "name": "anotherint",
+            "type": "int"
+        },
+        {
+            "name": "bytes",
+            "type": "bytes"
+        },
+        {
+            "name": "byteswithDefaultValue",
+            "type": ["bytes", "null"],
+            "default": "\u00ff\u00AA"
+        }
+    ]
+}

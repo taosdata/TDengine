@@ -1,0 +1,9 @@
+{
+  "type": "record",
+  "name": "LongList",
+  "fields" : [
+    {"name": "value", "type": "long"},
+    {"type": "int", "name": "next", "metadata" : "two"}
+  ]
+}
+

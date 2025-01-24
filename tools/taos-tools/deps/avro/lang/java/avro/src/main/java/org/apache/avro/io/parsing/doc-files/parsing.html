@@ -1,0 +1,615 @@
+<html>
+<!--
+   Licensed to the Apache Software Foundation (ASF) under one or more
+   contributor license agreements.  See the NOTICE file distributed with
+   this work for additional information regarding copyright ownership.
+   The ASF licenses this file to You under the Apache License, Version 2.0
+   (the "License"); you may not use this file except in compliance with
+   the License.  You may obtain a copy of the License at
+
+       https://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<head>
+<title>Avro schemas as LL(1) CFG definitions</title>
+</head>
+<body>
+
+<center><h1>Avro schemas as LL(1) CFG definitions</h1></center>
+
+This document shows how an Avro schema can be interpreted as the definition of a context-free grammar in LL(1).  We use such an interpretation for two use-cases.  In one use-case, we use them to validate readers and writers of data against a single Avro schema.  Specifically, sequences of <code>Encoder.writeXyz</code> methods can be validated against a schema, and similarly sequences of <code>Decoder.readXyz</code> methods can be validated against a schema.
+
+The second use-case is using grammars to perform schema resolution.  For this use-case, we've developed a subclass of <code>Decoder</code> which takes two Avro schemas as input -- a reader and a writer schema.  This subclass accepts an input stream written according to the writer schema, and presents it to a client expecting the reader schema.  If the writer writes a long, for example, where the reader expects a double, then the <code>Decoder.readDouble</code> method will convert the writer's long into a double.
+
+This document looks at grammars in the context of these two use-cases.  We first look at the single-schema case, then the double-schema case.  In the future, we believe the interpretation of Avro schemas as CFGs will find other uses (for example, to determine whether or not a schema admits finite-sized values).
+
+
+<h1>The interpretation</h1>
+
+<p> We parse a schema into a set of JSON objects.  For each record, map, array, union schema inside this set, this parse is going to generate a unique identifier "n<sub>i</sub>" (the "pointer" to the schema).  By convention, n<sub>0</sub> is the identifier for the "top-level" schema (i.e., the schema we want to read or write).  In addition, where n<sub>i</sub> is a union, the parse will generate a unique identifier "b<sub>ij</sub>" for each branch of the union.
+
+<p> A context-free grammar (CFG) consists of a set of terminal symbols, a set of non-terminal symbols, a set of productions, and a start symbol.  Here's how we interpret an Avro schema as a CFG:
+
+<p> <b>Terminal symbols:</b> The terminal symbols of the CFG consist of <code>null</code>, <code>bool</code>, <code>int</code>, <code>long</code>, <code>float</code>, <code>double</code>, <code>string</code>, <code>bytes</code>, <code>enum</code>, <code>fixed</code>, <code>arraystart</code>, <code>arrayend</code>, <code>mapstart</code>, <code>mapend</code>, and <code>union</code>.  In addition, we define the special terminals <code>"1"</code>, <code>"2"</code>, <code>"3"</code>, <code>...</code> which designate the "tag" of a union (i.e., which branch of the union is actually being written or was found in the data).
+
+<p> Below, we use the variable <i>P</i> to represent any one of <code>null</code>, <code>bool</code>, <code>int</code>, <code>long</code>, <code>double</code>, <code>string</code>, <code>bytes</code> (i.e., the "primitives").
+
+<p><b>Non-terminal symbols:</b> The non-terminal symbols of the CFG consist of the identifiers n<sub>i</sub>, u<sub>i</sub>, r<sub>i</sub>, e<sub>i</sub>, f<sub>i</sub> and r<sub>p</sub> (there is a non-terminal r<sub>p</sub> for each symbol in <i>P</i>).
+
+<p><b>Productions:</b> The productions of the CFG are as follows:
+
+<p><i>Records:</i> If n<sub>i</sub> is a record-schema, then it defines the following production:
+<br>&nbsp;&nbsp;&nbsp;n<sub>i</sub> ::= sym(f<sub>i1</sub>) sym(f<sub>i2</sub>) .. sym(f<sub>im</sub>)
+<br>where f<sub>ij</sub> is field "j" of record n<sub>i</sub>, and sym(f<sub>ij</sub>) is the appropriate member of <i>P</i> if f<sub>ij</sub> is a primitive type, or the appropriate n<sub>k</sub> for some k if f<sub>ij</sub> is a map, array, union, or record schema.
+
+<p><i>Arrays:</i> If n<sub>i</sub> is an array schema, then it defines the following productions:
+<br> &nbsp;&nbsp;&nbsp;n<sub>i</sub> ::= <code>arraystart</code> r<sub>i</sub> <code>arrayend</code>
+<br> &nbsp;&nbsp;&nbsp;r<sub>i</sub> ::= sym(n<sub>i</sub>) r<sub>i</sub> | &#949;
+<br> where "sym(n<sub>i</sub>)" is either some <i>P</i>, if this is an array of primitives, or the non-terminal associated with the schema of the element-type of n<sub>k</sub>.
+
+<p><i>Maps:</i> If n<sub>i</sub> is a map schema of element type <i>P</i>, then it defines the following production:
+<br>&nbsp;&nbsp;&nbsp;n<sub>i</sub> ::= <code>mapstart</code> r<sub>i</sub> <code>mapend</code>
+<br>&nbsp;&nbsp;&nbsp;r<sub>i</sub> ::= <code>string</code> sym(n<sub>i</sub>) r<sub>i</sub> | &#949;
+<br> where "sym(n<sub>i</sub>)" is either some <i>P</i>, if the value-type is a primitive, or the non-terminal associated with the schema of the value-type of n<sub>k</sub>.
+
+<p><i>Unions:</i> If n<sub>i</sub> is a union schema, then it defines the following productions:
+<br>&nbsp;&nbsp;&nbsp;n<sub>i</sub> ::= <code>union</code> u<sub>i</sub>
+<br>&nbsp;&nbsp;&nbsp;u<sub>i</sub> ::= 1 sym(b<sub>i1</sub>) | 2 sym(b<sub>i2</sub>) | ... | j sym(b<sub>ij</sub>)
+<br> where the "1", "2", "3" are the tags for the union, and the b<sub>ij</sub> is branch "j" of union "n<sub>i</sub>", and sym(b<sub>ij</sub>) is the appropriate member of <i>P</i> if b<sub>ij</sub> is a primitive type, or the appropriate n<sub>k</sub> if b<sub>ij</sub> is a map, array, union, or record schema.  (The introduction of the terminal symbol "UNION" plus the introduction of the additional non-terminal "u<sub>i</sub>" is a convenience to our parsing implementation.)
+
+<p><i>Enum</i> If n<sub>i</sub> is an enum schema, then it defines the following production:
+<br>&nbsp;&nbsp;&nbsp;n<sub>i</sub> ::= <code>enum</code> e<sub>i</sub>
+<br>&nbsp;&nbsp;&nbsp;e<sub>i</sub> ::= &#949;
+
+<br> Here there is no real production for e<sub>i</sub>. The symbol is used to associate some meta information such as the number of values in the enumeration.
+
+<p><i>Fixed</i> If n<sub>i</sub> is an fixed binary schema, then it defines the following production:
+<br>&nbsp;&nbsp;&nbsp;n<sub>i</sub> ::= <code>enum</code> f<sub>i</sub>
+<br>&nbsp;&nbsp;&nbsp;f<sub>i</sub> ::= &#949;
+
+<br> Here there is no real production for f<sub>i</sub>. The symbol is used to associate some meta information such as the size of the fixed binary.
+
+<p><b>Start symbol:</b> the starting symbol of the grammar is n<sub>0</sub>.
+
+<p>
+This grammar defined by the above transformation is LL(1).  (Proof: The only alternatives in these grammars are for the u<sub>i</sub> ("union") symbols and the r<sub>i</sub> ("repeating") symbols.  For "union" the alternative productions correspond to each one of the branches of the union. Each alternative production for a union starts of a unique tag-terminal, so by looking at the very first terminal one can decide which of the productions to select. In the case of the r<sub>k</sub>, there are two alternative production, the second of which is &#949;. Since these only appear inside <code>array</code>- or <code>mapstart</code>/<code>end</code> pairs, the <code>arrayend</code> or <code>mapend</code> symbol serves to predict that the &#949; should be selected and any other terminal symbol predicts that the other production should be selected.)
+
+Here's an example.  Consider the schema:
+<pre>
+{
+  "type":"record", "name":"foo",
+  "fields":[
+    {"name":"bar","type":"double"},
+    {"name":"baz","type":{"type":"array", "items":"string"}},
+    {"name":"zip",
+     "type":{"type":"map",
+     "values":["null",{"type":"array", "items":"bytes"},"foo"]}},
+  ]
+}
+</pre>
+This schema generates the following grammar:
+<pre>
+  n0 ::= double n1 n2
+  r1 ::= string r1 | &#949;
+  n1 ::= arraystart r1 arrayend
+  r2 ::= string n3 r2 | &#949;
+  n2 ::= mapstart r2 mapend
+  u3 ::= 1 null | 2 n4 | 3 n0
+  n3 ::= union u3
+  r4 ::= bytes r4 | &#949;
+  n4 ::= arraystart r4 arrayend
+</pre>
+The symbol "n0" is the start-symbol for this grammar.
+
+<H1>Reminder on LL(1) parsing</H1>
+
+While there's lots of material on the Web on table-driven LL(1) parsing, it all tends to over complicate things.  The best discussion I've found is in <i><a href=https://www.amazon.com/Crafting-Compiler-C-Charles-Fischer/dp/0805321667>Crafting a compiler</a></i>, by Fischer and LeBlanc (my copy is from 1988 -- I hope they quality hasn't slid since then).  Here's a quick summary.
+
+Parsing is the process of attempting to prove that a string can be derived from a grammar.  Top-down parsing attempts this proof in a top-down manner.  You start with the start symbol of the grammar and you ask yourself "Hey, given the input string, how can I derive this start symbol?"
+
+Now, in general, the start-symbol can be derived from one of a finite number of alternative productions:
+<br>&nbsp;&nbsp;&nbsp;S ::= A<sub>11</sub> A<sub>12</sub> .. A<sub>1n<sub>1</sub></sub> | A<sub>21</sub> .. A<sub>2n<sub>2</sub></sub> | ... | A<sub>m1</sub> .. A<sub>mn<sub>m</sub></sub>
+<br>So the question of deriving the symbol "S" comes down to asking "Hey, given the input I'm looking at, which of these productions for S could have produced that input?"  The key property of LL(1) grammars is that this question is easy to answer.  All you need to do is look at the first token in your input, and that token tells you which of these alternatives could've produced that input.  (This token is sometimes called the "lookahead symbol.")
+
+<p>So the idea is that you put your start symbol on the stack to initialize things.  You pop that symbol off the stack, ask which production for S could've produced the input you're looking at, push that production back on the stack, and repeat.  Let's fill in the details.
+
+<p>The parsing table for this parsing procedure is a function of two inputs and one output:
+<pre>
+   T: Non-terminal x Terminal --> Production
+</pre>
+Remember, a "production" is a sequence of symbols -- a mix of terminals and non-terminals -- that derive a non-terminal in the grammar.
+
+<p>This function <code>T</code> takes a a non-terminal, a terminal, and returns a production for the non-terminal.  The non-terminal is the symbol you're trying to derive (from the top of the parsing stack); the terminal is the current symbol in your input stream (the lookahead symbol).  If <code>X</code> is the first input and <code>a</code>, then the output is the unique production for <code>X</code> that can produce the input symbol <code>a</code>.  (This function can also return the special result "Error" to indicate there is no such production, i.e., we can't parse the input.)
+
+<p>If you have such a table, then your parsing code looks like this:
+<pre>
+parse(Table T, TokenStream in):
+  Stack stack = new Stack(Table.startSymbol);
+  for (Token t = in.next(); t != EOF; t = in.next())
+    advance(stack, T, t);
+
+advance(Stack stack, Table T, Token t):
+  X = stack.pop();
+  while (! isTerminal(X)):
+    if T(X,t) yields production Y<sub>1</sub> Y<sub>2</sub> ... Y<sub>n</sub>):
+      // push production in reverse order, so we leave looking for
+      // the first symbol of the production
+      stack.push(Y<sub>n</sub>);
+      ...;
+      stack.push(Y<sub>2</sub>);
+      stack.push(Y<sub>1</sub>);
+    else, T(X,t) is undefined, so throw an error;
+    X = stack.pop(); // Repeat until we find a terminal
+
+  if X == t then return
+  else throw an error;
+</pre>
+
+
+
+<h1>Parsing tables for Avro</h1>
+
+Traditionally, the parsing table for an LL(1) grammar defined as follows:
+<pre>
+  T(A,y) = A ::= X<sub>1</sub> ... X<sub>n</sub>  -- if y is in Predict(A ::= X<sub>1</sub> ... X<sub>n</sub>)
+  T(A,y) = Error              -- otherwise
+</pre>
+where <code>Predict(A ::= X<sub>1</sub> ... X<sub>n</sub>)</code> returns the unique first symbol that predicts this particular production for <code>A</code>.
+
+<p>But in our case, almost all productions have a single alternative.  If a non-terminal symbol <code>A</code> is on the top of the stack, then we don't even have to look at the input to figure out which production could derive <code>A</code> because there's only one such production!  Thus, we can define a special parsing table for Avro-induced grammars as follows:
+<pre>
+  T(A,y) = A ::= sym(f<sub>i1</sub>) sym(f<sub>i2</sub>) .. sym(f<sub>im</sub>) -- if A is a record schema
+  T(A,y) = A ::= <code>arraystart</code> r<sub>i</sub> <code>arrayend</code>       -- if A is the non-terminal for an array schema
+  T(A,y) = A ::= <code>mapstart</code> r<sub>i</sub> <code>mapend</code>           -- if A is the non-terminal for an map schema
+  T(A,y) = A ::= <code>union</code> u<sub>i</sub>                     -- if A is a union schema
+  T(A,y) = A ::= y sym(b<sub>ij</sub>)                   -- if A is a u<sub>i</sub> schema (note the "y" inside this production)
+  T(A,y) = Error                              -- if A is "A ::= k sym(b<sub>ij</sub>)" and "y" isn't
+                                              --   in any of the branches of the corresponding union
+  T(A,y) = A ::= n<sub>i</sub> r<sub>i</sub>    -- if A is r<sub>i</sub> and y is neither <code>arrayend</code> nor <code>mapend</code>
+  T(A,y) = A ::= &#949;  -- if A is r<sub>i</sub> and y is either <code>arrayend</code> or <code>mapend</code>
+</pre>
+Note that only the last three rules for <code>T(A,y)</code> consider the lookahead symbol (i.e., only the last three rules actually look at the value of <code>y</code>).  These are the rules for dealing with productions that have alternatives, i.e., the rules for unions (where there is an alternative for each branch) and the rules for repeaters (where there is one alternative for the "repeat" case and another alternative for the "end" case).
+
+<p>The nice thing about this alternative formulation of the parsing table is that we don't actually have to compute the predict set, which is not super complicated, but would be a pile of code to test and maintain.
+
+<p>It should be noted that the resulting parsing table catches errors in different states than the traditional LL(1) parsing table.  For example, let's say our Schema is simply an array of ints, which induces the following grammar:
+<pre>
+  n<sub>0</sub> ::= <code>arraystart</code> r<sub>int</sub> <code>arrayend</code>
+  r<sub>int</sub> ::= int r<sub>int</sub> | &#949;
+</pre>
+The traditional LL(1) table would be:
+<pre>
+  T(n<sub>0</sub>,<code>arraystart</code>) = n<sub>0</sub> ::= <code>arraystart</code> r<sub>int</sub> <code>arrayend</code>
+  T(r<sub>int</sub>,int) = r<sub>int</sub> ::= int r<sub>int</sub>
+  T(r<sub>int</sub>,<code>arrayend</code>) = &#949;
+  T(A,y) = Error -- if (A,y) is none of the above
+</pre>
+while our parser table would be:
+<pre>
+  T'(n<sub>0</sub>,y) = n<sub>0</sub> ::= <code>arraystart</code> r<sub>int</sub> <code>arrayend</code> -- for all y
+  T'(r<sub>int</sub>,y) = r<sub>int</sub> ::= int r<sub>int</sub>             -- for all y other than <code>arrayend</code>
+  T'(r<sub>int</sub>,<code>arrayend</code>) = &#949;
+</pre>
+Note that <code>T</code> is defined as <code>Error</code> for a lot of <code>(A,y)</code> pairs, but <code>T'</code> is defined as <code>Error</code> for <i>none</i> of them.  How can this be?
+
+<p>The difference is that <code>T</code> catches many errors when terminals fail to appear in Predict sets, while <code>T'</code> catches the errors when terminals fail to match corresponding terminals on the parser stack.  For example, let's say <code>r<sub>int</sub></code> is on the top of the parser stack, and the symbol <code>double</code> is arrives (which means, in practice, that a <code>writeDouble</code> call is encountered).  In this case, a parser with the standard table will catch the error right away, because <code>double</code> is not in the predict-set for <code>r<sub>int</sub></code>.  A parser with our alternative table will first replace the <code>r<sub>int</sub></code> on the stack with the sequence <code>int&nbsp;r<sub>int</sub></code> (with <code>int</code> on the top of the stack).  It will <em>then</em> throw an error, because the input symbol <code>double</code> does not match the non-terminal <code>int</code> that's now on the top of the stack.
+
+<p>However, we believe that our modified parser will except exactly the same set of strings as the standard parser.
+
+
+<h1>Induction rules</h1>
+
+<p>The first section ("The interpretation") informally describes the grammer generated by an Avro schema.  This section provides a more formal description using a set of induction rules.  The earlier description in section one is fine for describing how a single Avro schema generates a grammar.  But soon we're going to describe how two schemas together define a "resolving" grammar, and for that description we'll need the more formal mechanism described here.
+
+<p>The terminal and non-terminal symbols in our grammar are as described in the first section.  Our induction rules will define a function "C(S)=&lt;G,a&gt;", which takes an Avro schema "S" and returns a pair consisting of a set of productions "G" and a symbol "a".  This symbol "a" -- which is either a terminal, or a non-terminal defined by G -- generates the values described by schema S.
+
+<p>The first rule applies to all Avro primitive types:
+
+<table align=center>
+  <tr align=center><td><i>p</i> in {<code>null</code>, <code>boolean</code>, <code>int</code>, <code>long</code>, <code>double</code>, <code>string</code>, <code>bytes</code>}</td></tr>
+  <tr><td><hr></td></tr>
+  <tr align=center><td>C(<i>p</i>)=&lt;{}, <i>p</i>&gt;</td></tr>
+</table>
+
+<p>This first rule does not generate any productions, and simply returns the terminal symbol corresponding to the primitive types of the schema.
+
+<p>The next rule applies to record schemas:
+
+<table align=center>
+  <tr><td align=center>
+  <table cellspacing=0 cellpadding=0><tr><td>S=</td><td><code>{"type":"record", "name":</code>a<code>,</code></td></tr>
+         <tr><td></td><td><code>"fields":[{"name":</code>F<sub>1</sub><code>, "type":</code>S<sub>1</sub><code>}, ..., {"name":</code>F<sub>n</sub><code>, "type":</code>S<sub>n</sub><code>}]}</code></td></tr></table></td></tr>
+  <tr align=center><td>C(S<sub>j</sub>)=&lt;G<sub>j</sub>, f<sub>j</sub>&gt;</td></tr>
+  <tr align=center><td><hr></td></tr>
+  <tr align=center><td>C(S)=&lt;G<sub>1</sub> &#8746; ... &#8746; G<sub>n</sub> &#8746; {a::=f<sub>1</sub> f<sub>2</sub> ... f<sub>n</sub>}, a&gt;</td></tr>
+</tr>
+</table>
+
+<p>In this case, the set of output-productions consists of all the productions generated by the element-types of the record, plus a production that defines the non-terminal "a" to be the sequence of field-types.  We return "a" as the grammar symbol representing this record-schema.
+
+<p>Next, we define the rule for arrays:
+
+<table align=center>
+  <tr align=center><td>S=<code>{"type":"array", "items":S<sub>e</sub>}</code></td></tr>
+  <tr align=center><td>C(S<sub>e</sub>)=&lt;G<sub>e</sub>,e&gt;</tr>
+  <tr><td><hr></td></tr>
+  <tr align=center><td>C(S)=&lt;G<sub>e</sub> &#8746; {r ::= e r, r ::= &#949;, a ::= <code>arraystart</code> r <code>arrayend</code>}, a&gt;</td></tr>
+</table>
+
+<p>For arrays, the set of output productions again contains all productions generated by the element-type.  In addition, we define <em>two</em> productions for "r", which represents the repetition of this element type.  The first production is the recursive case, which consists of the element-type followed by "r" all over again.  The next case is the base case, which is the empty production.  Having defined this repetition, we can then define "a" as this repetition bracketed by the terminal symbols <code>arraystart</code> and <code>arrayend</code>.
+
+<p>The rule for maps is almost identical to that for arrays:
+
+<table align=center>
+  <tr align=center><td>S=<code>{"type":"map", "values":S<sub>e</sub>}</code></td></tr>
+  <tr align=center><td>C(S<sub>e</sub>)=&lt;G<sub>e</sub>,e&gt;</tr>
+  <tr><td><hr></td></tr>
+  <tr align=center><td>C(S)=&lt;G<sub>e</sub> &#8746; {r ::= <code>string</code> e r, r ::= &#949;, a ::= <code>mapstart</code> r <code>mapend</code>}, a&gt;</td></tr>
+</table>
+
+<p>The only difference from arrays is that map-elements consists of a <code>string</code> together with an element-type (vs. just an element type).
+
+<p>The rule for unions:
+<table align=center>
+<tr align=center>
+<td>S=<code>[S<sub>1</sub>, S<sub>2</sub>, ..., S<sub>n</sub>]</code></td>
+</tr>
+<tr align=center>
+ <td>C(S<sub>j</sub>)=&lt;G<sub>j</sub>, b<sub>j</sub>&gt;</td>
+</tr>
+<tr align=center><td><hr></td></tr>
+<tr align=center><td>C(S)=&lt;G<sub>1</sub> &#8746; ... &#8746; G<sub>n</sub> &#8746; {u::=1 b<sub>1</sub>, u::=2 b<sub>2</sub>, ..., u::=n b<sub>n</sub>, a::=<code>union</code> u}, a&gt;</td></tr>
+</table>
+
+<p>In this rule, we again accumulate productions (G<sub>j</sub>) generated by each of the sub-schemas for each branch of the union.  If there are "k" branches, we define "k" different productions for the non-terminal symbol "u", one for each branch in the union.  These per-branch productions consist of the index of the branch (1 for the first branch, 2 for the second, and so forth), followed by the symbol representing the schema of that branch.  With these productions for "u" defined, we can define "a" as simply the terminal symbol <code>union</code> followed by this non-terminal "u".
+
+
+<p>The rule for fixed size binaries:
+<table align=center>
+<tr align=center>
+ <td>S=<code>{"type":"fixed", "name":a, "size":s}</code></td>
+</tr>
+<tr align=center><td><hr></td></tr>
+<tr align=center><td>C(S)=&lt;{a::=<code>fixed</code> f, f::=&#949;}, a&gt;</td></tr>
+</table>
+
+<p>In this rule, we define a new non-terminal f which has associated size of the fixed-binary.
+
+<p>The rule for enums:
+<table align=center>
+<tr align=center>
+ <td>S=<code>{"type":"enum", "name":a, "symbols":["s1", "s2", "s3", ...]}</code></td>
+</tr>
+<tr align=center><td><hr></td></tr>
+<tr align=center><td>C(S)=&lt;{a::=<code>enum</code> e, e::=&#949;}, a&gt;</td></tr>
+</table>
+
+<p>In this rule, we define a new non-terminal e which has associated range of values.
+
+<h1>Resolution using action symbols</h1>
+
+We want to use grammars to represent Avro's rules for schema resolution.  To do this, we need a way to encode certain actions that the parser should perform as part of the resolution.  In particular:
+
+<ul>
+<li> <b>Resolver action:</b> when the writer writes a primitive type that can be promoted into the reader's type, we use a "resolver action" to aid in this process.  This is used for only a limited number of cases: int->long, int->double, long->double, and double->long.
+
+<p> <li> <b>Skip action:</b> when writer's schema for a record contains fields that are not in the reader's schema, we to skip them.  "Skip actions" are used for this purpose.
+
+<p> <li> <b>Field action:</b> the fields of a record can appear in different orders in the reader's and writer's schemas.  In the API we're designing, to support streaming, fields will be returned to the reader in the order generated by the writer; we need to help the reader map this back to its own field-order.  Field actions support this requirement.
+
+<p> <li> <b>Reader union actions:</b> the reader's schema can have a union where the writer's schema did not.  For example, the writer's schema might call for simply a long, while the reader's schema calls for a union that contains a long among other things.  The reader should experience the writer's long values as if they came from a union.  Reader union actions support this requirement.
+
+<p> <li> <b>Writer union actions</b> are the dual of the previous case: the writer may write a union where the reader expects just one branch of the union.  Writer union actions help bridge such situations.
+
+<p> <li> <b>Enum actions:</b> when we have reader- and writer-schema has enumerations, enum actions are used to map the writer's numerical value to the reader's numeric value.
+
+<p> <li> <b>Error actions:</b> in general, errors in schema-resolution can only be detected when data is being read.  For example, if the writer writes a <code>[long,&nbsp;string]</code> union, and the reader is expecting just a <code>long</code>, an error is only reported when the writer sends a string rather than a long.  Further, the Avro spec recommends that <em>all</em> errors be detected at reading-time, even if they could be detected earlier.  Error actions support the deferral of errors.
+</ul>
+
+<p>These actions will become "action symbols" in our grammar.  Action symbols are symbols that cause our parser to perform special activities when they appear on the top of the parsing stack.  For example, when the skip-action makes it to the top of the stack, the parser will automatically skip the next value in the input stream.  (Again, Fischer and LeBlanc has a nice description of action symbols.)
+
+<p>We're going to use induction rules to define a grammar.  This time, our induction rules will define a two-argument function "C(W,R)=&lt;G,a&gt;", which takes two schema, the writer's and reader's schemas respectively.  The results of this function are the same as they were for the single-schema case.
+
+<p>The first rule applies to all Avro primitive types:
+
+<table align=center>
+  <tr align=center><td><i>p</i> in {<code>null</code>, <code>boolean</code>, <code>int</code>, <code>long</code>, <code>double</code>, <code>string</code>, <code>bytes</code>}</td></tr>
+  <tr><td><hr></td></tr>
+  <tr align=center><td>C(<i>p</i>,<i>p</i>)=&lt;{}, <i>p</i>&gt;</td></tr>
+</table>
+
+<p> In this case, the writer and reader schemas agree, so the resulting grammar should just expect the agreed-upon primitive type.
+
+<p>The next rule deals with resolution of primitive types:
+
+<table align=center>
+  <tr align=center><td>w in {<code>int</code>, <code>long</code>, <code>double</code>}</td></tr>
+  <tr align=center><td>r in {<code>long</code>, <code>double</code>}</td></tr>
+  <tr align=center><td>w != r</td></tr>
+  <tr><td><hr></td></tr>
+  <tr align=center><td>C(w,r)=&lt;{}, ResolverAction(w,r)&gt;</td></tr>
+</table>
+
+<p> When this parameterized action is encountered, the parser will resolve the writer's value into the reader's expected-type for that value.  In the parsing loop, when we encounter this symbol, we use the "r" parameter of this symbol to check that the reader is asking for the right type of value, and we use the "w" parameter to figure out how to parse the data in the input stream.
+
+<p>One final possibility for primitive types is that they are incompatible types:
+
+<table align=center>
+  <tr align=center><td>The w,r pair does not fit the previous two rules, AND neither</td></tr>
+  <tr align=center><td>of the pair is a union, AND the pair aren't both compounds</td></tr>
+  <tr align=center><td>of the same type (i.e., two arrays, two records, or two maps)</td></tr>
+  <tr><td><hr></td></tr>
+  <tr align=center><td>C(w,r)=&lt;{}, ErrorAction&gt;</td></tr>
+</table>
+
+<p> When this parameterized action is encountered, the parser will throw an error.  Keep in mind that this symbol might be generated in the middle of a recursive call to "G."  For example, if the reader's schema is long, and the writer's is [long,&nbsp;string], we'll generate an error symbol for the string-branch of the union; if this branch is occurred in actual input, an error will then be generated.
+
+<p>The next rule deals with resolution of fixed size binaries:
+
+<table align=center>
+  <tr align=center><td>w = <code>{"type":"fixed", "name":"n1", "size":s1}</code></td></tr>
+  <tr align=center><td>r = <code>{"type":"fixed", "name":"n2", "size":s2}</code></td></tr>
+  <tr align=center><td>n1 != n2 or s1 != s2</td></tr>
+  <tr><td><hr></td></tr>
+  <tr align=center><td>C(w,r)=&lt;{}, ErrorAction&gt;</td></tr>
+</table>
+
+<table align=center>
+  <tr align=center><td>w = <code>{"type":"fixed", "name":"n1", "size":s1}</code></td></tr>
+  <tr align=center><td>r = <code>{"type":"fixed", "name":"n2", "size":s2}</code></td></tr>
+  <tr align=center><td>n1 == n2 and s1 == s2</td></tr>
+  <tr><td><hr></td></tr>
+  <tr align=center><td>C(w,r)=&lt;{ a::=<code>fixed</code> f, f::=&#949;}, a&gt;</td></tr>
+</table>
+
+If the names are identical and sizes are identical, then we match otherwise an error is generated.
+
+<p>The next rule deals with resolution of enums:
+
+<table align=center>
+  <tr align=center><td>w = <code>{"type":"enum", "symbols":[sw<sub>1</sub>, sw<sub>2</sub>, ..., sw<sub>m</sub>] }</code></td></tr>
+  <tr align=center><td>r = <code>{"type":"enum", "symbols":[sr<sub>1</sub>, sr<sub>2</sub>, ..., sr<sub>n</sub>] }</code></td></tr>
+  <tr align=center><td>f<sub>i</sub> = EnumAction(i, j) if sw<sub>i</sub> == sr<sub>j</sub></td></tr>
+  <tr align=center><td>f<sub>i</sub> = ErrorAction if sw<sub>i</sub> does not match any sr<sub>j</sub></td></tr>
+  <tr><td><hr></td></tr>
+  <tr align=center><td>C(w,r)=&lt;{ a::=<code>enum</code> e, e::=&#949;}, a&gt;</td></tr>
+</table>
+
+The symbol e has the set of actions f<sub>i</sub> associated with it. It chooses the right action based on the runtime data.
+
+<p>Now that we have rules for primitive types, we can define rules for compound types.  First, let's look at records:
+
+<table align=center>
+<tr>
+ <td align=center>
+  <table cellspacing=0 cellpadding=0>
+  <tr>
+   <td>W=</td>
+   <td><code>{"type":"record","name":</code>w<code>,</code></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td><code>"fields":[{"name":</code>E<sub>1</sub><code>,
+                         "type":</code>S<sub>1</sub><code>},</code>...<code>,
+                         {"name":</code>E<sub>n</sub><code>,
+                         "type":</code>S<sub>n</sub><code>}]}</code></td>
+  </tr>
+  </table>
+ </td>
+</tr>
+<tr>
+ <td align=center>
+  <table cellspacing=0 cellpadding=0>
+  <tr>
+   <td>R=</td>
+   <td><code>{"type":"record", "name":</code>r<code>,</code></td>
+  </tr>
+  <tr>
+   <td></td>
+   <td><code>"fields":[{"name":</code>F<sub>1</sub><code>,
+                        "type":</code>T<sub>1</sub><code>},</code>...<code>,
+                       {"name":</code>F<sub>m</sub><code>,
+                        "type":</code>T<sub>m</sub><code>}]}</code>
+   </td>
+  </tr>
+  </table>
+ </td>
+</tr>
+<tr align=center>
+ <td>{F<sub>1</sub>, ..., F<sub>m</sub>} is a
+     subset of {E<sub>1</sub>, ..., E<sub>n</sub>}</td>
+</tr>
+<tr>
+ <td align=center>
+  C(S<sub>j</sub>, T<sub>i</sub>)
+   = &lt;G<sub>j</sub>, f<sub>j</sub>&gt;
+   -- for all E<sub>j</sub>=F<sub>i</sub></td>
+</tr>
+ <td align=center>
+  C(S<sub>j</sub>)
+   = &lt;G<sub>j</sub>, f<sub>j</sub>&gt;
+   -- for all E<sub>j</sub> not in {F<sub>1</sub>, ..., F<sub>m</sub>}</td>
+</tr>
+<tr>
+ <td align=center>
+  <table>
+  <tr>
+   <td rowspan=2 valign=middle>f'<sub>j</sub>=</td>
+   <td><sub>/ </sub>FieldAction(i, E<sub>i</sub>) f<sub>j</sub>
+        &nbsp;&nbsp;-- if E<sub>j</sub>=F<sub>i</sub></td>
+  </tr>
+  <tr>
+   <td><sup>\ </sup>SkipAction(f<sub>j</sub>)
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-- if E<sub>j</sub> not in {F<sub>1</sub>, ..., F<sub>m</sub>}</td>
+  </tr>
+  </table>
+ </td>
+</tr>
+<tr align=center><td><hr></td></tr>
+<tr align=center><td>C(W,R)=&lt;G<sub>1</sub> &#8746; G<sub>2</sub> &#8746; ... &#8746; G<sub>n</sub> &#8746; { w::=f'<sub>1</sub> f'<sub>2</sub> ... f'<sub>n</sub> }, w&gt;</td></tr>
+</table>
+
+<p>The substance of this rule lies in the definion of the "f'<sub>j</sub>".  If the writer's field F<sub>j</sub> is not a member of the reader's schema, then a skip-action is generated, which will cause the parser to automatically skip over the field without the reader knowing.  (In this case, note that we use the <em>single</em>-argument version of "C", i.e., the version defined in the previous section!)
+
+If the writer's field F<sub>j</sub> <em>is</em> a member f the reader's schema, then "f'<sub>j</sub>" is a two-symbol sequence: the first symbol is a (parameterized) field-action which is used to tell the reader which of its own fields is coming next, followed by the symbol for parsing the value written by the writer.
+
+<p>The above rule for records works only when the reader and writer have the same name, and the reader's fields are subset of the writer's.  In other cases, an error is producted.
+
+<p>The rule for arrays is straightforward:
+
+<table align=center>
+<tr align=center>
+ <td>W=<code>{"type":"array", "items":S<sub>w</sub>}</code></td>
+</tr>
+<tr align=center>
+ <td>R=<code>{"type":"array", "items":S<sub>r</sub>}</code></td>
+</tr>
+<tr align=center>
+ <td>C(S<sub>w</sub>, S<sub>r</sub>)=&lt;G<sub>e</sub>,e&gt;
+</tr>
+<tr><td><hr></td></tr>
+<tr align=center><td>C(W,R)=&lt;G<sub>e</sub> &#8746; {r ::= e r, r ::= &#949;, a ::= <code>arraystart</code> r <code>arrayend}, a&gt;</td></tr>
+</table>
+
+<p>Here the rule is largely the same as for the single-schema case, although the recursive use of G may result in productions that are very different.  The rule for maps changes in a similarly-small way, so we don't bother to detail that case in this document.
+
+<p>The final rules are for unions.  Let's first look at the case where the writer is a union but the reader is not:
+
+<table align=center>
+<tr align=center>
+ <td>W=[S<sub>1</sub>, ..., S<sub>n</sub>]</td>
+</tr>
+<tr align=center>
+ <td>R is not a union schema</td>
+</tr>
+<tr align=center>
+ <td>C(S<sub>j</sub>,R)=&lt;G<sub>j</sub>, b<sub>j</sub>&gt;</td>
+</tr>
+<tr><td><hr></td></tr>
+<tr align=center><td>C(R,W)=&lt;G<sub>1</sub> &#8746; G<sub>2</sub> &#8746; ... &#8746; G<sub>n</sub> &#8746; {a::=WriterUnionAction(b<sub>1</sub>, b<sub>2</sub>, ..., b<sub>n</sub>)}, a&gt;</td></tr>
+</table>
+
+<p>Here, a writer-union action is generated that looks much like a union did in the single-schema case.  However, unlike in that case, the writer-union action will cause the parser to automatically interpret the writer's union value.
+
+<p> Now let's look when the reader expects a union.  The first of these cases is an error case:
+
+<table align=center>
+<tr align=center>
+ <td>W is not a union schema</td>
+</tr>
+<tr align=center>
+ <td>R=[R<sub>1</sub>, ..., R<sub>n</sub>]</td>
+</tr>
+<tr><td>W does not resolve to any of the branches of R</td></tr>
+<tr><td><hr></td></tr>
+<tr><td align=center>C(W,R)=&lt;{}, ErrorAction&gt;</td></tr>
+</table>
+
+<p>In this case, there's no way to resolve the two schemas, so we generate an error action to remind us of this fact at run-time.  (Again, this error action might be under a branch of a containing union, and thus might never be triggered at run-time, so it wouldn't be correct to signal an error at "compile" time.)
+
+<p> Here's the non-error case:
+
+<table align=center>
+<tr align=center>
+ <td>W is not a union schema</td>
+</tr>
+<tr align=center>
+ <td>R=[R<sub>1</sub>, ..., R<sub>n</sub>]</td>
+</tr>
+<tr><td align=center>Branch "j" of R is the best match for W</td></tr>
+<tr><td align=center>C(W,R<sub>j</sub>)=&lt;G,w&gt;</td></tr>
+<tr><td><hr></td></tr>
+<tr><td align=center>C(W,R)=&lt;G, ReaderUnionAction(j,w)&gt;</td></tr>
+</table>
+
+<p> In this case, we can decide at "compile time" which of the branches of the reader will be the best match for the value that's going to be written by the writer.  We then generate a reader union action, which tells the parser first, which branch-number of the reader's we should report to the schema, and then second which symbol to use to parse the writer's actual value.
+
+<p> The interesting case is when the writer's and reader's schemas are both unions:
+
+<table align=center>
+<tr align=center>
+ <td>W=[W<sub>1</sub>, ..., W<sub>n</sub>]</td>
+</tr>
+<tr align=center>
+ <td>R=[R<sub>1</sub>, ..., R<sub>m</sub>]</td>
+</tr>
+<tr align=center>
+ <td>C(W<sub>j</sub>, R)=&lt;G<sub>j</sub>, b<sub>j</sub>&gt;</td>
+</tr>
+<tr><td><hr></td></tr>
+<tr align=center><td>C(W,R)=&lt;G<sub>1</sub> &#8746; ... &#8746; G<sub>n</sub> &#8746; {u::=1 b<sub>1</sub>, u::=2 b<sub>2</sub>, ..., u::=n b<sub>n</sub>, a::=<code>union</code> u}, a&gt;</td></tr>
+</table>
+
+<p> Note that in the inductive case ("C(W<sub>j</sub>, R)"), each <i>branch</i> of the writer ("W<sub>j</sub>") is compared to the <em>entire union</em> of the reader ("R").  Thus, one of the two previous cases (the error case or the reader-union case) gets generated for each branch of the writer's union.
+
+
+<h1>Resolving parser</h1>
+
+Here's a stylized version of the actual parsing code, with comments, to illustrate how a resolving-grammar is actually used.  To better understand this code, compare it to the simple code for "advance" given earlier in this document.
+
+<pre>
+  Symbol advance(Stack stack, Table T, Symbol t, TokenStream in):
+    Symbol X = stack.pop();
+    while (! isTerminal(X)):
+      case X:
+        FieldAction:
+          // In this case, the main parsing loop can "ask" for the
+          // field information by passing a FieldAction symbol as
+          // "t".  If it does, it'll get the (parameterized) symbol
+          // from the parsing table.  If it doesn't ask for this
+          // information, then the information will be ignored.
+          if (isFieldAction(t)) return X;
+
+        SkipAction(productionToSkip):
+          // In this case we automatically skip the production we've
+          // been asked to skip
+          in.skip(productionToSkip);
+
+        WriterUnionAction(b_1, b_2, ..., b_n):
+          // In this case, we read from the token input-stream to
+          // determine the actual branch witten by the writer.
+          // We then push this branch on the parsing stack, to tell
+          // the parser what type of value to look for
+          int i = in.readIndex();
+          stack.push(b_i);
+
+        NonTerminal:
+          if T(X,t) yields production Y<sub>1</sub> Y<sub>2</sub> ... Y<sub>n</sub>):
+            // push production in reverse order, so we leave looking for
+            // the first symbol of the production
+            stack.push(Y<sub>n</sub>);
+            ...;
+            stack.push(Y<sub>2</sub>);
+            stack.push(Y<sub>1</sub>);
+          else, T(X,t) is undefined, so throw an error;
+
+      X = stack.pop();
+
+    // We've left the loop, so X is a terminal symbol:
+    case X:
+      ResolvingTable(w,r):
+        // If reader is looking for an "r", then the reader's
+        // looking for the right thing according to the reader's
+        // schema, but return the type actually written so the
+        // proper conversion can happen.
+        if (r == t) return w;
+
+      ReaderUnionAction(index,writerSym):
+        // Reader-union actions are allowed where the reader
+        // is expecting a union.  In this case, we return the
+        // (parameterized!) reader-union-action symbol and 
+        // the code above figures out what to do
+        if (t == union) return X;
+
+      ErrorAction:
+        throw the deferred error;
+      
+    // Fall-through case:
+    if (X == t) then return X
+    else throw an error
+</pre>

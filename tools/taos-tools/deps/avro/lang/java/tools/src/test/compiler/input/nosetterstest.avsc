@@ -1,0 +1,6 @@
+{"type":"record", "name":"NoSettersTest", "namespace": "avro.examples.baseball","doc":"Test that setters are omitted",
+  "fields": [
+   {"name": "name", "type": "string"},
+   {"name": "favorite_number",  "type": ["int", "null"]}
+  ]
+}

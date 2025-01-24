@@ -1,0 +1,11 @@
+MANIFEST.bak
+META.yml
+MYMETA.json
+MYMETA.yml
+Makefile
+Makefile.old
+/inc
+pm_to_blib
+*~
+/blib
+Avro-*.tar.gz

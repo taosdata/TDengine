@@ -1,0 +1,30 @@
+NAME
+    Avro - the official Perl API for the Apache Avro project's serialization
+    and RPC framework
+
+SYNOPSIS
+      use Avro;
+
+DESCRIPTION
+    Apache Avro <https://avro.apache.org/> is a data serialization system
+    providing rich data structures and a compact, fast, binary data form.
+
+AUTHOR
+    Apache Avro <dev@avro.apache.org>
+
+HISTORY
+    Before contribution to the Apache Avro project, this module was
+    developed by Yann Kerhervé <yannk@cpank.org> with contributions from
+    Andy Grundman <andy@hybridized.org>, David Bushong
+    <dbushong@mashlogic.com>, and Ilya Martynov <ilya@iponweb.net>.
+
+COPYRIGHT
+    Copyright 2014 Apache Software Foundation.
+
+    Apache and Apache Avro are trademarks of the Apache Software Foundation.
+
+LICENSE
+    The Apache License, Version 2.0
+    <https://www.apache.org/licenses/LICENSE-2.0>
+
+SEE ALSO

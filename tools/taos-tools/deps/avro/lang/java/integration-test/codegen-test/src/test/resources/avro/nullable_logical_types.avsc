@@ -1,0 +1,11 @@
+{"namespace": "org.apache.avro.codegentest.testdata",
+  "type": "record",
+  "name": "NullableLogicalTypes",
+  "doc" : "Test unions with logical types in generated Java classes",
+  "fields": [
+    {"name": "nullableDate",  "type": ["null", {"type": "int", "logicalType": "date"}], "default": null}
+  ]
+}
+
+
+

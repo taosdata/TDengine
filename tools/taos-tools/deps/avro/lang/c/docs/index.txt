@@ -1,0 +1,758 @@
+Avro C
+======
+
+The current version of Avro is +{avro_version}+.  The current version of +libavro+ is +{libavro_version}+.
+This document was created +{docdate}+.
+
+== Introduction to Avro
+
+Avro is a data serialization system.
+
+Avro provides:
+
+* Rich data structures.
+* A compact, fast, binary data format.
+* A container file, to store persistent data.
+* Remote procedure call (RPC).
+
+This document will focus on the C implementation of Avro.  To learn more about
+Avro in general, https://avro.apache.org/[visit the Avro website].
+
+== Introduction to Avro C 
+
+....
+    ___                      ______
+   /   |_   ___________     / ____/
+  / /| | | / / ___/ __ \   / /     
+ / ___ | |/ / /  / /_/ /  / /___   
+/_/  |_|___/_/   \____/   \____/   
+                                   
+....
+
+[quote,Waldi Ravens,(walra%moacs11 @ nl.net) 94/03/18]
+____
+A C program is like a fast dance on a newly waxed dance floor by people carrying razors.
+____
+
+The C implementation has been tested on +MacOSX+ and +Linux+ but, over
+time, the number of support OSes should grow.  Please let us know if
+you're using +Avro C+ on other systems.
+
+Avro depends on the http://www.digip.org/jansson/[Jansson JSON parser],
+version 2.3 or higher.  On many operating systems this library is
+available through your package manager (for example,
++apt-get install libjansson-dev+ on Ubuntu/Debian, and
++brew install jansson+ on Mac OS).  If not, please download and install
+it from source.
+
+The C implementation supports:
+
+* binary encoding/decoding of all primitive and complex data types
+* storage to an Avro Object Container File
+* schema resolution, promotion and projection
+* validating and non-validating mode for writing Avro data
+
+The C implementation is lacking:
+
+* RPC
+
+To learn about the API, take a look at the examples and reference files
+later in this document.
+
+We're always looking for contributions so, if you're a C hacker, please
+feel free to https://avro.apache.org/[submit patches to the project].
+
+
+== Error reporting
+
+Most functions in the Avro C library return a single +int+ status code.
+Following the POSIX _errno.h_ convention, a status code of 0 indicates
+success.  Non-zero codes indicate an error condition.  Some functions
+return a pointer value instead of an +int+ status code; for these
+functions, a +NULL+ pointer indicates an error.
+
+You can retrieve
+a string description of the most recent error using the +avro_strerror+
+function:
+
+[source,c]
+----
+avro_schema_t  schema = avro_schema_string();
+if (schema == NULL) {
+    fprintf(stderr, "Error was %s\n", avro_strerror());
+}
+----
+
+
+== Avro values
+
+Starting with version 1.6.0, the Avro C library has a new API for
+handling Avro data.  To help distinguish between the two APIs, we refer
+to the old one as the _legacy_ or _datum_ API, and the new one as the
+_value_ API.  (These names come from the names of the C types used to
+represent Avro data in the corresponding API — +avro_datum_t+ and
++avro_value_t+.)  The legacy API is still present, but it's deprecated —
+you shouldn't use the +avro_datum_t+ type or the +avro_datum_*+
+functions in new code.
+
+One main benefit of the new value API is that you can treat any existing
+C type as an Avro value; you just have to provide a custom
+implementation of the value interface.  In addition, we provide a
+_generic_ value implementation; “generic”, in this sense, meaning that
+this single implementation works for instances of any Avro schema type.
+Finally, we also provide a wrapper implementation for the deprecated
++avro_datum_t+ type, which lets you gradually transition to the new
+value API.
+
+
+=== Avro value interface
+
+You interact with Avro values using the _value interface_, which defines
+methods for setting and retrieving the contents of an Avro value.  An
+individual value is represented by an instance of the +avro_value_t+
+type.
+
+This section provides an overview of the methods that you can call on an
++avro_value_t+ instance.  There are quite a few methods in the value
+interface, but not all of them make sense for all Avro schema types.
+For instance, you won't be able to call +avro_value_set_boolean+ on an
+Avro array value.  If you try to call an inappropriate method, we'll
+return an +EINVAL+ error code.
+
+Note that the functions in this section apply to _all_ Avro values,
+regardless of which value implementation is used under the covers.  This
+section doesn't describe how to _create_ value instances, since those
+constructors will be specific to a particular value implementation.
+
+
+==== Common methods
+
+There are a handful of methods that can be used with any value,
+regardless of which Avro schema it's an instance of:
+
+[source,c]
+----
+#include <stdint.h>
+#include <avro.h>
+
+avro_type_t avro_value_get_type(const avro_value_t *value);
+avro_schema_t avro_value_get_schema(const avro_value_t *value);
+
+int avro_value_equal(const avro_value_t *v1, const avro_value_t *v2);
+int avro_value_equal_fast(const avro_value_t *v1, const avro_value_t *v2);
+
+int avro_value_copy(avro_value_t *dest, const avro_value_t *src);
+int avro_value_copy_fast(avro_value_t *dest, const avro_value_t *src);
+
+uint32_t avro_value_hash(avro_value_t *value);
+
+int avro_value_reset(avro_value_t *value);
+----
+
+The +get_type+ and +get_schema+ methods can be used to get information
+about what kind of Avro value a given +avro_value_t+ instance
+represents.  (For +get_schema+, you borrow the value's reference to the
+schema; if you need to save it and ensure that it outlives the value,
+you need to call +avro_schema_incref+ on it.)
+
+The +equal+ and +equal_fast+ methods compare two values for equality.
+The two values do _not_ have to have the same value implementations, but
+they _do_ have to be instances of the same schema.  (Not _equivalent_
+schemas; the _same_ schema.)  The +equal+ method checks that the schemas
+match; the +equal_fast+ method assumes that they do.
+
+The +copy+ and +copy_fast+ methods copy the contents of one Avro value
+into another.  (Where possible, this is done without copying the actual
+content of a +bytes+, +string+, or +fixed+ value, using the
++avro_wrapped_buffer_t+ functions described in the next section.)  Like
++equal+, the two values must have the same schema; +copy+ checks this,
+while +copy_fast+ assumes it.
+
+The +hash+ method returns a hash value for the given Avro value.  This
+can be used to construct hash tables that use Avro values as keys.  The
+function works correctly even with maps; it produces a hash that doesn't
+depend on the ordering of the elements of the map.  Hash values are only
+meaningful for comparing values of exactly the same schema.  Hash values
+are _not_ guaranteed to be consistent across different platforms, or
+different versions of the Avro library.  That means that it's really
+only safe to use these hash values internally within the context of a
+single execution of a single application.
+
+The +reset+ method “clears out” an +avro_value_t instance, making sure
+that it's ready to accept the contents of a new value.  For scalars,
+this is usually a no-op, since the new value will just overwrite the old
+one.  For arrays and maps, this removes any existing elements from the
+container, so that we can append the elements of the new value.  For
+records and unions, this just recursively resets the fields or current
+branch.
+
+
+==== Scalar values
+
+The simplest case is handling instances of the scalar Avro schema types.
+In Avro, the scalars are all of the primitive schema types, as well as
++enum+ and +fixed+ — i.e., anything that can't contain another Avro
+value.  Note that we use standard C99 types to represent the primitive
+contents of an Avro scalar.
+
+To retrieve the contents of an Avro scalar, you can use one of the
+_getter_ methods:
+
+[source,c]
+----
+#include <stdint.h>
+#include <stdlib.h>
+#include <avro.h>
+
+int avro_value_get_boolean(const avro_value_t *value, int *dest);
+int avro_value_get_bytes(const avro_value_t *value,
+                         const void **dest, size_t *size);
+int avro_value_get_double(const avro_value_t *value, double *dest);
+int avro_value_get_float(const avro_value_t *value, float *dest);
+int avro_value_get_int(const avro_value_t *value, int32_t *dest);
+int avro_value_get_long(const avro_value_t *value, int64_t *dest);
+int avro_value_get_null(const avro_value_t *value);
+int avro_value_get_string(const avro_value_t *value,
+                          const char **dest, size_t *size);
+int avro_value_get_enum(const avro_value_t *value, int *dest);
+int avro_value_get_fixed(const avro_value_t *value,
+                         const void **dest, size_t *size);
+----
+
+For the most part, these should be self-explanatory.  For +bytes+,
++string+, and +fixed+ values, the pointer to the underlying content is
++const+ — you aren't allowed to modify the contents directly.  We
+guarantee that the content of a +string+ will be NUL-terminated, so you
+can use it as a C string as you'd expect.  The +size+ returned for a
++string+ object will include the NUL terminator; it will be one more
+than you'd get from calling +strlen+ on the content.
+
+Also, for +bytes+, +string+, and +fixed+, the +dest+ and +size+
+parameters are optional; if you only want to determine the length of a
++bytes+ value, you can use:
+
+[source,c]
+----
+avro_value_t  *value = /* from somewhere */;
+size_t  size;
+avro_value_get_bytes(value, NULL, &size);
+----
+
+To set the contents of an Avro scalar, you can use one of the _setter_
+methods:
+
+[source,c]
+----
+#include <stdint.h>
+#include <stdlib.h>
+#include <avro.h>
+
+int avro_value_set_boolean(avro_value_t *value, int src);
+int avro_value_set_bytes(avro_value_t *value,
+                         void *buf, size_t size);
+int avro_value_set_double(avro_value_t *value, double src);
+int avro_value_set_float(avro_value_t *value, float src);
+int avro_value_set_int(avro_value_t *value, int32_t src);
+int avro_value_set_long(avro_value_t *value, int64_t src);
+int avro_value_set_null(avro_value_t *value);
+int avro_value_set_string(avro_value_t *value, const char *src);
+int avro_value_set_string_len(avro_value_t *value,
+                              const char *src, size_t size);
+int avro_value_set_enum(avro_value_t *value, int src);
+int avro_value_set_fixed(avro_value_t *value,
+                         void *buf, size_t size);
+----
+
+These are also straightforward.  For +bytes+, +string+, and +fixed+
+values, the +set+ methods will make a copy of the underlying data.  For
++string+ values, the content must be NUL-terminated.  You can use
++set_string_len+ if you already know the length of the string content;
+the length you pass in should include the NUL terminator.  If you call
++set_string+, then we'll use +strlen+ to calculate the length.
+
+For +fixed+ values, the +size+ must match what's expected by the value's
+underlying +fixed+ schema; if the sizes don't match, you'll get an error
+code.
+
+If you don't want to copy the contents of a +bytes+, +string+, or
++fixed+ value, you can use the _giver_ and _grabber_ functions:
+
+[source,c]
+----
+#include <stdint.h>
+#include <stdlib.h>
+#include <avro.h>
+
+typedef void
+(*avro_buf_free_t)(void *ptr, size_t sz, void *user_data);
+
+int avro_value_give_bytes(avro_value_t *value, avro_wrapped_buffer_t *src);
+int avro_value_give_string_len(avro_value_t *value, avro_wrapped_buffer_t *src);
+int avro_value_give_fixed(avro_value_t *value, avro_wrapped_buffer_t *src);
+
+int avro_value_grab_bytes(const avro_value_t *value, avro_wrapped_buffer_t *dest);
+int avro_value_grab_string(const avro_value_t *value, avro_wrapped_buffer_t *dest);
+int avro_value_grab_fixed(const avro_value_t *value, avro_wrapped_buffer_t *dest);
+
+typedef struct avro_wrapped_buffer {
+    const void  *buf;
+    size_t  size;
+    void (*free)(avro_wrapped_buffer_t *self);
+    int (*copy)(avro_wrapped_buffer_t *dest,
+                const avro_wrapped_buffer_t *src,
+                size_t offset, size_t length);
+    int (*slice)(avro_wrapped_buffer_t *self,
+                 size_t offset, size_t length);
+} avro_wrapped_buffer_t;
+
+void
+avro_wrapped_buffer_free(avro_wrapped_buffer_t *buf);
+
+int
+avro_wrapped_buffer_copy(avro_wrapped_buffer_t *dest,
+                         const avro_wrapped_buffer_t *src,
+                         size_t offset, size_t length);
+
+int
+avro_wrapped_buffer_slice(avro_wrapped_buffer_t *self,
+                          size_t offset, size_t length);
+----
+
+The +give+ functions give control of an existing buffer to the value.
+(You should *not* try to free the +src+ wrapped buffer after calling
+this method.)  The +grab+ function fills in a wrapped buffer with a
+pointer to the contents of an Avro value.  (You *should* free the +dest+
+wrapped buffer when you're done with it.)
+
+The +avro_wrapped_buffer_t+ struct encapsulates the location and size of
+the existing buffer.  It also includes several methods.  The +free+
+method will be called when the content of the buffer is no longer
+needed.  The +slice+ method will be called when the wrapped buffer needs
+to be updated to point at a subset of what it pointed at before.  (This
+doesn't create a new wrapped buffer; it updates an existing one.)  The
++copy+ method will be called if the content needs to be copied.  Note
+that if you're wrapping a buffer with nice reference counting features,
+you don't need to perform an actual copy; you just need to ensure that
+the +free+ function can be called on both the original and the copy, and
+not have things blow up.
+
+The “generic” value implementation takes advantage of this feature; if
+you pass in a wrapped buffer with a +give+ method, and then retrieve it
+later with a +grab+ method, then we'll use the wrapped buffer's +copy+
+method to fill in the +dest+ parameter.  If your wrapped buffer
+implements a +slice+ method that updates reference counts instead of
+actually copying, then you've got nice zero-copy access to the contents
+of an Avro value.
+
+
+==== Compound values
+
+The following sections describe the getter and setter methods for
+handling compound Avro values.  All of the compound values are
+responsible for the storage of their children; this means that there
+isn't a method, for instance, that lets you add an existing
++avro_value_t+ to an array.  Instead, there's a method that creates a
+new, empty +avro_value_t+ of the appropriate type, adds it to the array,
+and returns it for you to fill in as needed.
+
+You also shouldn't try to free the child elements that are created this
+way; the container value is responsible for their life cycle.  The child
+element is guaranteed to be valid for as long as the container value
+is.  You'll usually define an +avro_value_t+ in the stack, and let it
+fall out of scope when you're done with it:
+
+[source,c]
+----
+avro_value_t  *array = /* from somewhere else */;
+
+{
+    avro_value_t  child;
+    avro_value_get_by_index(array, 0, &child, NULL);
+    /* do something interesting with the array element */
+}
+----
+
+
+==== Arrays
+
+There are three methods that can be used with array values:
+
+[source,c]
+----
+#include <stdlib.h>
+#include <avro.h>
+
+int avro_value_get_size(const avro_value_t *array, size_t *size);
+int avro_value_get_by_index(const avro_value_t *array, size_t index,
+                            avro_value_t *element, const char **unused);
+int avro_value_append(avro_value_t *array, avro_value_t *element,
+                      size_t *new_index);
+----
+
+The +get_size+ method returns the number of elements currently in the
+array.  The +get_by_index+ method fills in +element+ to point at the
+array element with the given index.  (You should use +NULL+ for the
++unused+ parameter; it's ignored for array values.)
+
+The +append+ method creates a new value, appends it to the array, and
+returns it in +element+.  If +new_index+ is given, then it will be
+filled in with the index of the new element.
+
+
+==== Maps
+
+There are four methods that can be used with map values:
+
+[source,c]
+----
+#include <stdlib.h>
+#include <avro.h>
+
+int avro_value_get_size(const avro_value_t *map, size_t *size);
+int avro_value_get_by_name(const avro_value_t *map, const char *key,
+                           avro_value_t *element, size_t *index);
+int avro_value_get_by_index(const avro_value_t *map, size_t index,
+                            avro_value_t *element, const char **key);
+int avro_value_add(avro_value_t *map,
+                   const char *key, avro_value_t *element,
+                   size_t *index, int *is_new);
+----
+
+The +get_size+ method returns the number of elements currently in the
+map.  Map elements can be retrieved either by their key (+get_by_name+)
+or by their numeric index (+get_by_index+).  (Numeric indices in a map
+are based on the order that the elements were added to the map.)  In
+either case, the method takes in an optional output parameter that let
+you retrieve the index associated with a key, and vice versa.
+
+The +add+ method will add a new value to the map, if the given key isn't
+already present.  If the key is present, then the existing value with be
+returned.  The +index+ parameter, if given, will be filled in the
+element's index.  The +is_new+ parameter, if given, can be used to
+determine whether the mapped value is new or not.
+
+
+==== Records
+
+There are three methods that can be used with record values:
+
+[source,c]
+----
+#include <stdlib.h>
+#include <avro.h>
+
+int avro_value_get_size(const avro_value_t *record, size_t *size);
+int avro_value_get_by_index(const avro_value_t *record, size_t index,
+                            avro_value_t *element, const char **field_name);
+int avro_value_get_by_name(const avro_value_t *record, const char *field_name,
+                           avro_value_t *element, size_t *index);
+----
+
+The +get_size+ method returns the number of fields in the record.  (You
+can also get this by querying the value's schema, but for some
+implementations, this method can be faster.)
+
+The +get_by_index+ and +get_by_name+ functions can be used to retrieve
+one of the fields in the record, either by its ordinal position within
+the record, or by the name of the underlying field.  Like with maps, the
+methods take in an additional parameter that let you retrieve the index
+associated with a field name, and vice versa.
+
+When possible, it's recommended that you access record fields by their
+numeric index, rather than by their field name.  For most
+implementations, this will be more efficient.
+
+
+==== Unions
+
+There are three methods that can be used with union values:
+
+[source,c]
+----
+#include <avro.h>
+
+int avro_value_get_discriminant(const avro_value_t *union_val, int *disc);
+int avro_value_get_current_branch(const avro_value_t *union_val, avro_value_t *branch);
+int avro_value_set_branch(avro_value_t *union_val,
+                          int discriminant, avro_value_t *branch);
+----
+
+The +get_discriminant+ and +get_current_branch+ methods return the
+current state of the union value, without modifying which branch is
+currently selected.  The +set_branch+ method can be used to choose the
+active branch, filling in the +branch+ value to point at the branch's
+value instance.  (Most implementations will be smart enough to detect
+when the desired branch is already selected, so you should always call
+this method unless you can _guarantee_ that the right branch is already
+current.)
+
+
+=== Creating value instances
+
+Okay, so we've described how to interact with a value that you already
+have a pointer to, but how do you create one in the first place?  Each
+implementation of the value interface must provide its own functions for
+creating +avro_value_t+ instances for that class.  The 10,000-foot view
+is to:
+
+1. Get an _implementation struct_ for the value implementation that you
+   want to use.  (This is represented by an +avro_value_iface_t+
+   pointer.)
+
+2. Use the implementation's constructor function to allocate instances
+   of that value implementation.
+
+3. Do whatever you need to the value (using the +avro_value_t+ methods
+   described in the previous section).
+
+4. Free the value instance, if necessary, using the implementation's
+   destructor function.
+
+5. Free the implementation struct when you're done creating value
+   instances.
+
+These steps use the following functions:
+
+[source,c]
+----
+#include <avro.h>
+
+avro_value_iface_t *avro_value_iface_incref(avro_value_iface_t *iface);
+void avro_value_iface_decref(avro_value_iface_t *iface);
+----
+
+Note that for most value implementations, it's fine to reuse a single
++avro_value_t+ instance for multiple values, using the
++avro_value_reset+ function before filling in the instance for each
+value.  (This helps reduce the number of +malloc+ and +free+ calls that
+your application will make.)
+
+We provide a “generic” value implementation that will work (efficiently)
+for any Avro schema.
+
+
+For most applications, you won't need to write your own value
+implementation; the Avro C library provides an efficient “generic”
+implementation, which supports the full range of Avro schema types.
+There's a good chance that you just want to use this implementation,
+rather than rolling your own.  (The primary reason for rolling your own
+would be if you want to access the elements of a compound value using C
+syntax — for instance, translating an Avro record into a C struct.) You
+can use the following functions to create and work with a generic value
+implementation for a particular schema:
+
+[source,c]
+----
+#include <avro.h>
+
+avro_value_iface_t *avro_generic_class_from_schema(avro_schema_t schema);
+int avro_generic_value_new(const avro_value_iface_t *iface, avro_value_t *dest);
+void avro_generic_value_free(avro_value_t *self);
+----
+
+Combining all of this together, you might have the following snippet of
+code:
+
+[source,c]
+----
+avro_schema_t  schema = avro_schema_long();
+avro_value_iface_t  *iface = avro_generic_class_from_schema(schema);
+
+avro_value_t  val;
+avro_generic_value_new(iface, &val);
+
+/* Generate Avro longs from 0-499 */
+int  i;
+for (i = 0; i < 500; i++) {
+    avro_value_reset(&val);
+    avro_value_set_long(&val, i);
+    /* do something with the value */
+}
+
+avro_generic_value_free(&val);
+avro_value_iface_decref(iface);
+avro_schema_decref(schema);
+----
+
+
+== Reference Counting
+
++Avro C+ does reference counting for all schema and data objects.
+When the number of references drops to zero, the memory is freed.
+
+For example, to create and free a string, you would use:
+----
+avro_datum_t string = avro_string("This is my string");
+
+...
+avro_datum_decref(string);
+----
+
+Things get a little more complicated when you consider more elaborate
+schema and data structures.
+
+For example, let's say that you create a record with a single
+string field:
+----
+avro_datum_t example = avro_record("Example");
+avro_datum_t solo_field = avro_string("Example field value");
+
+avro_record_set(example, "solo", solo_field);
+
+...
+avro_datum_decref(example);
+----
+
+In this example, the +solo_field+ datum would *not* be freed since it 
+has two references: the original reference and a reference inside
+the +Example+ record.  The +avro_datum_decref(example)+ call drops
+the number of reference to one.  If you are finished with the +solo_field+
+schema, then you need to +avro_schema_decref(solo_field)+ to
+completely dereference the +solo_field+ datum and free it.
+
+== Wrap It and Give It
+
+You'll notice that some datatypes can be "wrapped" and "given".  This
+allows C programmers the freedom to decide who is responsible for
+the memory.  Let's take strings for example.
+
+To create a string datum, you have three different methods:
+----
+avro_datum_t avro_string(const char *str);
+avro_datum_t avro_wrapstring(const char *str);
+avro_datum_t avro_givestring(const char *str);
+----
+
+If you use, +avro_string+ then +Avro C+ will make a copy of your
+string and free it when the datum is dereferenced.  In some cases,
+especially when dealing with large amounts of data, you want 
+to avoid this memory copy.  That's where +avro_wrapstring+ and
++avro_givestring+ can help.
+
+If you use, +avro_wrapstring+ then +Avro C+ will do no memory 
+management at all.  It will just save a pointer to your data and
+it's your responsibility to free the string.  
+
+WARNING: When using +avro_wrapstring+, do not free the string 
+before you dereference the string datum with +avro_datum_decref()+.
+
+Lastly, if you use +avro_givestring+ then +Avro C+ will free the
+string later when the datum is dereferenced.  In a sense, you
+are "giving" responsibility for freeing the string to +Avro C+.
+
+[WARNING] 
+===============================
+Don't "give" +Avro C+ a string that you haven't allocated from the heap with e.g. +malloc+ or +strdup+.
+
+For example, *don't* do this:
+----
+avro_datum_t bad_idea = avro_givestring("This isn't allocated on the heap");
+----
+===============================
+
+== Schema Validation
+
+If you want to write a datum, you would use the following function
+
+[source,c]
+----
+int avro_write_data(avro_writer_t writer,
+                    avro_schema_t writers_schema, avro_datum_t datum);
+----
+
+If you pass in a +writers_schema+, then you +datum+ will be validated *before*
+it is sent to the +writer+.  This check ensures that your data has the 
+correct format.  If you are certain your datum is correct, you can pass
+a +NULL+ value for +writers_schema+ and +Avro C+ will not validate before
+writing.
+
+NOTE: Data written to an Avro File Object Container is always validated.
+
+== Examples
+
+[quote,Dante Hicks]
+____
+I'm not even supposed to be here today!
+____
+
+Imagine you're a free-lance hacker in Leonardo, New Jersey and you've 
+been approached by the owner of the local *Quick Stop Convenience* store.
+He wants you to create a contact database case he needs to call employees
+to work on their day off.
+
+You might build a simple contact system using Avro C like the following...
+
+[source,c]
+----
+include::../examples/quickstop.c[]
+----
+
+When you compile and run this program, you should get the following output
+
+----
+Successfully added Hicks, Dante id=1
+Successfully added Graves, Randal id=2
+Successfully added Loughran, Veronica id=3
+Successfully added Bree, Caitlin id=4
+Successfully added Silent, Bob id=5
+Successfully added ???, Jay id=6
+
+Avro is compact. Here is the data for all 6 people.
+| 02 0A 44 61 6E 74 65 0A | 48 69 63 6B 73 1C 28 35 |	..Dante.Hicks.(5
+| 35 35 29 20 31 32 33 2D | 34 35 36 37 40 04 0C 52 |	55) 123-4567@..R
+| 61 6E 64 61 6C 0C 47 72 | 61 76 65 73 1C 28 35 35 |	andal.Graves.(55
+| 35 29 20 31 32 33 2D 35 | 36 37 38 3C 06 10 56 65 |	5) 123-5678<..Ve
+| 72 6F 6E 69 63 61 10 4C | 6F 75 67 68 72 61 6E 1C |	ronica.Loughran.
+| 28 35 35 35 29 20 31 32 | 33 2D 30 39 38 37 38 08 |	(555) 123-09878.
+| 0E 43 61 69 74 6C 69 6E | 08 42 72 65 65 1C 28 35 |	.Caitlin.Bree.(5
+| 35 35 29 20 31 32 33 2D | 32 33 32 33 36 0A 06 42 |	55) 123-23236..B
+| 6F 62 0C 53 69 6C 65 6E | 74 1C 28 35 35 35 29 20 |	ob.Silent.(555) 
+| 31 32 33 2D 36 34 32 32 | 3A 0C 06 4A 61 79 06 3F |	123-6422:..Jay.?
+| 3F 3F 1C 28 35 35 35 29 | 20 31 32 33 2D 39 31 38 |	??.(555) 123-918
+| 32 34 .. .. .. .. .. .. | .. .. .. .. .. .. .. .. |	24..............
+
+Now let's read all the records back out
+1 |           Dante |           Hicks |  (555) 123-4567 | 32
+2 |          Randal |          Graves |  (555) 123-5678 | 30
+3 |        Veronica |        Loughran |  (555) 123-0987 | 28
+4 |         Caitlin |            Bree |  (555) 123-2323 | 27
+5 |             Bob |          Silent |  (555) 123-6422 | 29
+6 |             Jay |             ??? |  (555) 123-9182 | 26
+
+
+Use projection to print only the First name and phone numbers
+          Dante |  (555) 123-4567 | 
+         Randal |  (555) 123-5678 | 
+       Veronica |  (555) 123-0987 | 
+        Caitlin |  (555) 123-2323 | 
+            Bob |  (555) 123-6422 | 
+            Jay |  (555) 123-9182 | 
+----
+
+The *Quick Stop* owner was so pleased, he asked you to create a 
+movie database for his *RST Video* store.
+
+== Reference files
+
+=== avro.h
+
+The +avro.h+ header file contains the complete public API
+for +Avro C+.  The documentation is rather sparse right now
+but we'll be adding more information soon.
+
+[source,c]
+----
+include::../src/avro.h[]
+----
+
+=== test_avro_data.c 
+
+Another good way to learn how to encode/decode data in +Avro C+ is
+to look at the +test_avro_data.c+ unit test.  This simple unit test
+checks that all the avro types can be encoded/decoded correctly.
+
+[source,c]
+----
+include::../tests/test_avro_data.c[]
+----
+

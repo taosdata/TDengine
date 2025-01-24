@@ -1,0 +1,6 @@
+{"type":"record", "name":"AddExtraOptionalGettersTest", "namespace": "avro.examples.baseball","doc":"Test that extra optional getters are added",
+  "fields": [
+   {"name": "name", "type": "string"},
+   {"name": "favorite_number",  "type": ["int", "null"]}
+  ]
+}

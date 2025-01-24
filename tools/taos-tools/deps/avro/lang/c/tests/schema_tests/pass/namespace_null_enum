@@ -1,0 +1,8 @@
+{"type": "record", "name": "R", "fields": [
+  {"name": "s", "type": {"type": "record", "namespace": "x", "name": "Y", "fields": [
+    {"name": "e", "type": {"type": "enum", "namespace": "", "name": "Z",
+     "symbols": ["Foo", "Bar"]}
+    }
+  ]}},
+  {"name": "t", "type": "Z"}
+]}

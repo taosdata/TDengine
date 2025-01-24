@@ -23,12 +23,31 @@ import frame.epath
 import frame.eos
 from frame.log import *
 
-# run taosBenchmark with command or json file mode
-def benchMark(command = "", json = "") :
-    # get taosBenchmark path
+# taosdump
+def taosDumpFile():
+    bmFile = frame.epath.binFile("taosdump")
+    if frame.eos.isWin():
+        bmFile += ".exe"
+    return bmFile
+
+# taosBenchmark
+def benchMarkFile():
     bmFile = frame.epath.binFile("taosBenchmark")
     if frame.eos.isWin():
         bmFile += ".exe"
+    return bmFile
+
+# taosAdapter
+def taosAdapterFile():
+    bmFile = frame.epath.binFile("taosAdapter")
+    if frame.eos.isWin():
+        bmFile += ".exe"
+    return bmFile
+
+# run taosBenchmark with command or json file mode
+def benchMark(command = "", json = "") :
+    # get taosBenchmark path
+    bmFile = benchMarkFile()
 
     # run
     if command != "":

@@ -1,0 +1,11 @@
+{
+  "protocol" : "OnTheClasspath",
+  "namespace" : "org.on.the.classpath",
+  "types" : [ {
+    "type" : "record",
+    "name" : "VeryFar",
+    "fields" : [ ]
+  } ],
+  "messages" : {
+  }
+}

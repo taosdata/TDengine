@@ -1,0 +1,51 @@
+{
+  "protocol" : "TestNamespace",
+  "namespace" : "avro.test.protocol",
+  "doc" : "* Licensed to the Apache Software Foundation (ASF) under one\n * or more contributor license agreements.  See the NOTICE file\n * distributed with this work for additional information\n * regarding copyright ownership.  The ASF licenses this file\n * to you under the Apache License, Version 2.0 (the\n * \"License\"); you may not use this file except in compliance\n * with the License.  You may obtain a copy of the License at\n *\n *     https://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.",
+  "types" : [ {
+    "type" : "fixed",
+    "name" : "FixedInOtherNamespace",
+    "namespace" : "avro.test.fixed",
+    "size" : 16
+  }, {
+    "type" : "fixed",
+    "name" : "FixedInThisNamespace",
+    "size" : 16
+  }, {
+    "type" : "record",
+    "name" : "RecordInOtherNamespace",
+    "namespace" : "avro.test.record",
+    "fields" : [ ]
+  }, {
+    "type" : "error",
+    "name" : "ErrorInOtherNamespace",
+    "namespace" : "avro.test.error",
+    "fields" : [ ]
+  }, {
+    "type" : "enum",
+    "name" : "EnumInOtherNamespace",
+    "namespace" : "avro.test.enum",
+    "symbols" : [ "FOO" ]
+  }, {
+    "type" : "record",
+    "name" : "RefersToOthers",
+    "fields" : [ {
+      "name" : "someFixed",
+      "type" : "avro.test.fixed.FixedInOtherNamespace"
+    }, {
+      "name" : "someRecord",
+      "type" : "avro.test.record.RecordInOtherNamespace"
+    }, {
+      "name" : "someError",
+      "type" : "avro.test.error.ErrorInOtherNamespace"
+    }, {
+      "name" : "someEnum",
+      "type" : "avro.test.enum.EnumInOtherNamespace"
+    }, {
+      "name" : "thisFixed",
+      "type" : "FixedInThisNamespace"
+    } ]
+  } ],
+  "messages" : {
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "type" : "record",
+  "name" : "FarAway",
+  "namespace" : "org.on.the.classpath",
+  "fields" : [ ]
+}

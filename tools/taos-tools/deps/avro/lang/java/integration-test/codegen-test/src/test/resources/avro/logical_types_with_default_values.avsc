@@ -1,0 +1,12 @@
+{"namespace": "org.apache.avro.codegentest.testdata",
+  "type": "record",
+  "name": "LogicalTypesWithDefaults",
+  "doc" : "Test logical types and default values in generated Java classes",
+  "fields": [
+    {"name": "nullableDate",  "type": [{"type": "int", "logicalType": "date"}, "null"], "default": 1234},
+    {"name": "nonNullDate",  "type": {"type": "int", "logicalType": "date"}, "default": 1234}
+  ]
+}
+
+
+

@@ -1,0 +1,270 @@
+{
+  "type" : "record",
+  "name" : "Words",
+  "namespace" : "org.apache.avro.example",
+  "fields" : [ {
+    "name" : "alignas",
+    "type" : "string"
+  }, {
+    "name" : "alignof",
+    "type" : "string"
+  }, {
+    "name" : "and",
+    "type" : "string"
+  }, {
+    "name" : "and_eq",
+    "type" : "string"
+  }, {
+    "name" : "asm",
+    "type" : "string"
+  }, {
+    "name" : "atomic_cancel",
+    "type" : "string"
+  }, {
+    "name" : "atomic_commit",
+    "type" : "string"
+  }, {
+    "name" : "atomic_noexcept",
+    "type" : "string"
+  }, {
+    "name" : "auto",
+    "type" : "string"
+  }, {
+    "name" : "bitand",
+    "type" : "string"
+  }, {
+    "name" : "bitor",
+    "type" : "string"
+  }, {
+    "name" : "bool",
+    "type" : "string"
+  }, {
+    "name" : "break",
+    "type" : "string"
+  }, {
+    "name" : "case",
+    "type" : "string"
+  }, {
+    "name" : "catch",
+    "type" : "string"
+  }, {
+    "name" : "char",
+    "type" : "string"
+  }, {
+    "name" : "char8_t",
+    "type" : "string"
+  }, {
+    "name" : "char16_t",
+    "type" : "string"
+  }, {
+    "name" : "char32_t",
+    "type" : "string"
+  }, {
+    "name" : "class",
+    "type" : "string"
+  }, {
+    "name" : "compl",
+    "type" : "string"
+  }, {
+    "name" : "concept",
+    "type" : "string"
+  }, {
+    "name" : "const",
+    "type" : "string"
+  }, {
+    "name" : "consteval",
+    "type" : "string"
+  }, {
+    "name" : "constexpr",
+    "type" : "string"
+  }, {
+    "name" : "constinit",
+    "type" : "string"
+  }, {
+    "name" : "const_cast",
+    "type" : "string"
+  }, {
+    "name" : "continue",
+    "type" : "string"
+  }, {
+    "name" : "co_await",
+    "type" : "string"
+  }, {
+    "name" : "co_return",
+    "type" : "string"
+  }, {
+    "name" : "co_yield",
+    "type" : "string"
+  }, {
+    "name" : "decltype",
+    "type" : "string"
+  }, {
+    "name" : "default",
+    "type" : "string"
+  }, {
+    "name" : "delete",
+    "type" : "string"
+  }, {
+    "name" : "do",
+    "type" : "string"
+  }, {
+    "name" : "dynamic_cast",
+    "type" : "string"
+  }, {
+    "name" : "else",
+    "type" : "string"
+  }, {
+    "name" : "explicit",
+    "type" : "string"
+  }, {
+    "name" : "export",
+    "type" : "string"
+  }, {
+    "name" : "extern",
+    "type" : "string"
+  }, {
+    "name" : "for",
+    "type" : "string"
+  }, {
+    "name" : "friend",
+    "type" : "string"
+  }, {
+    "name" : "goto",
+    "type" : "string"
+  }, {
+    "name" : "if",
+    "type" : "string"
+  }, {
+    "name" : "inline",
+    "type" : "string"
+  }, {
+    "name" : "mutable",
+    "type" : "string"
+  }, {
+    "name" : "namespace",
+    "type" : "string"
+  }, {
+    "name" : "new",
+    "type" : "string"
+  }, {
+    "name" : "noexcept",
+    "type" : "string"
+  }, {
+    "name" : "not",
+    "type" : "string"
+  }, {
+    "name" : "not_eq",
+    "type" : "string"
+  }, {
+    "name" : "nullptr",
+    "type" : "string"
+  }, {
+    "name" : "operator",
+    "type" : "string"
+  }, {
+    "name" : "or",
+    "type" : "string"
+  }, {
+    "name" : "or_eq",
+    "type" : "string"
+  }, {
+    "name" : "private",
+    "type" : "string"
+  }, {
+    "name" : "protected",
+    "type" : "string"
+  }, {
+    "name" : "public",
+    "type" : "string"
+  }, {
+    "name" : "reflexpr",
+    "type" : "string"
+  }, {
+    "name" : "register",
+    "type" : "string"
+  }, {
+    "name" : "reinterpret_cast",
+    "type" : "string"
+  }, {
+    "name" : "requires",
+    "type" : "string"
+  }, {
+    "name" : "return",
+    "type" : "string"
+  }, {
+    "name" : "short",
+    "type" : "string"
+  }, {
+    "name" : "signed",
+    "type" : "string"
+  }, {
+    "name" : "sizeof",
+    "type" : "string"
+  }, {
+    "name" : "static",
+    "type" : "string"
+  }, {
+    "name" : "static_assert",
+    "type" : "string"
+  }, {
+    "name" : "static_cast",
+    "type" : "string"
+  }, {
+    "name" : "struct",
+    "type" : "string"
+  }, {
+    "name" : "switch",
+    "type" : "string"
+  }, {
+    "name" : "synchronized",
+    "type" : "string"
+  }, {
+    "name" : "template",
+    "type" : "string"
+  }, {
+    "name" : "this",
+    "type" : "string"
+  }, {
+    "name" : "thread_local",
+    "type" : "string"
+  }, {
+    "name" : "throw",
+    "type" : "string"
+  }, {
+    "name" : "try",
+    "type" : "string"
+  }, {
+    "name" : "typedef",
+    "type" : "string"
+  }, {
+    "name" : "typeid",
+    "type" : "string"
+  }, {
+    "name" : "typename",
+    "type" : "string"
+  }, {
+    "name" : "unsigned",
+    "type" : "string"
+  }, {
+    "name" : "using",
+    "type" : "string"
+  }, {
+    "name" : "virtual",
+    "type" : "string"
+  }, {
+    "name" : "volatile",
+    "type" : "string"
+  }, {
+    "name" : "wchar_t",
+    "type" : "string"
+  }, {
+    "name" : "while",
+    "type" : "string"
+  }, {
+    "name" : "xor",
+    "type" : "string"
+  }, {
+    "name" : "xor_eq",
+    "type" : "string"
+  } ]
+}

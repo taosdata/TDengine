@@ -1,0 +1,107 @@
+#
+# Jamfile to build CUnit - internal testing
+# (see http://www.freetype.org/jam/index.html)
+#
+# Copyright (C) 2004-2006  Jerry St.Clair
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Library General Public
+# License as published by the Free Software Foundation; either
+# version 2 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Library General Public License for more details.
+#
+# You should have received a copy of the GNU Library General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+#---------------------------------------------------------------------------
+
+SubDir TOP CUnit Sources Test ;
+
+TEST_PROG = test_cunit ;
+
+SubDirHdrs $(CUNIT_HDR_DIR) ;
+SubDirCcFlags 
+  -I$(TOP)$(SLASH)CUnit$(SLASH)Sources$(SLASH)Test 
+  -DCUNIT_BUILD_TESTS
+  -DCUNIT_DO_NOT_DEFINE_UNLESS_BUILDING_TESTS 
+  -DMEMTRACE ;
+
+# set location for target, source, and temporary files
+LOCATE_TARGET = $(BUILD_DIR)$(SLASH)CUnit$(SLASH)test ;
+
+SEARCH_SOURCE +=
+  $(TOP)$(SLASH)CUnit
+  $(TOP)$(SLASH)CUnit$(SLASH)Headers
+  $(TOP)$(SLASH)CUnit$(SLASH)Sources$(SLASH)Framework
+  ;
+
+SOURCES =
+  test_cunit.c                                                     
+  CUError.c
+  MyMem.c
+  TestDB.c
+  TestRun.c
+  Util.c 
+  ;
+
+if $(BUILD_AUTOMATED)
+{ 
+  SEARCH_SOURCE += $(TOP)$(SLASH)CUnit$(SLASH)Sources$(SLASH)Automated ; 
+  SOURCES += Automated.c ; 
+}
+if $(BUILD_BASIC)
+{ 
+  SEARCH_SOURCE += $(TOP)$(SLASH)CUnit$(SLASH)Sources$(SLASH)Basic ; 
+  SOURCES += Basic.c ; 
+}
+if $(BUILD_CONSOLE)
+{ 
+  SEARCH_SOURCE += $(TOP)$(SLASH)CUnit$(SLASH)Sources$(SLASH)Console ; 
+  SOURCES += Console.c ; 
+}
+if $(BUILD_CURSES)
+{ 
+  SEARCH_SOURCE += $(TOP)$(SLASH)CUnit$(SLASH)Sources$(SLASH)Curses ; 
+  SOURCES += Curses.c ; 
+}
+if $(BUILD_WINDOWS)
+{ 
+  SEARCH_SOURCE += $(TOP)$(SLASH)CUnit$(SLASH)Sources$(SLASH)Win ; 
+  SOURCES += Win.c ; 
+}
+
+# extra symbolic targets for building test program
+DEPENDS test : $(TEST_PROG)$(SUFEXE) ;
+NOTFILE test ;
+
+
+if $(BUILD_TEST)
+{
+  Main $(TEST_PROG) : $(SOURCES) ;
+  MakeLocate $(TEST_PROG)$(SUFEXE) : $(BUILD_DIR) ;
+  LINKLIBS on $(TEST_PROG)$(SUFEXE) = $(SYS_LIBS) ;
+  
+  if $(NT)
+  {
+    if ($(BCCROOT) || ($(TOOLSET) = BORLANDC))
+    {
+      # need to fix Borland to include library location
+      LINKFLAGS on $(TEST_PROG)$(SUFEXE) += -L$(STDLIBPATH) -tWC ;
+    }
+    else if $(MSVCNT) || $(TOOLSET) = VISUALC)
+    {
+      # VC won't allow use of local exit() without link flag
+      LINKFLAGS on $(TEST_PROG)$(SUFEXE) += /FORCE:MULTIPLE ;
+    }
+  }
+
+  if $(INSTALL_TEST_DIR)
+  {
+    InstallCUnitBin $(INSTALL_TEST_DIR) : $(TEST_PROG)$(SUFEXE) ;
+  }
+}
+

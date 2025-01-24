@@ -1,0 +1,5 @@
+{
+    "type": "record",
+    "name": "Empty",
+    "fields": []
+}

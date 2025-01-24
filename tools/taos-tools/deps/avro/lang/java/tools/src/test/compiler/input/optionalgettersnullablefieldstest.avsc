@@ -1,0 +1,8 @@
+{"type":"record", "name":"OptionalGettersNullableFieldsTest", "namespace": "avro.examples.baseball","doc":"Test that optional getters are created only for nullable fields",
+  "fields": [
+    {"name": "name", "type": "string"},
+    {"name": "nullable_name",  "type": ["string", "null"]},
+    {"name": "favorite_number",  "type": ["int"]},
+    {"name": "nullable_favorite_number", "type": ["int", "null"]}
+  ]
+}

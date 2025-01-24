@@ -1,0 +1,28 @@
+{
+  "type": "record",
+  "name": "table",
+  "fields": [{
+    "name": "location",
+    "type": ["null", {
+      "type": "map",
+      "values": ["null", {
+        "type": "record",
+        "name": "r7",
+        "fields": [{
+          "name": "lat",
+          "type": "float",
+          "field-id": 1
+        }, {
+          "name": "long",
+          "type": ["null", "float"],
+          "default": null,
+          "field-id": 2
+        }]
+      }],
+      "key-id": 6,
+      "value-id": 7
+    }],
+    "default": null,
+    "field-id": 5
+  }]
+}

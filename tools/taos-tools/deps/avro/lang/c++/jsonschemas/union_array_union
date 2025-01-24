@@ -1,0 +1,14 @@
+{
+    "type": "record",
+    "name": "r1",
+    "fields" : [
+        {
+            "name": "f1",
+            "type":
+            [
+                "null",
+                { "type":"array", "items":[ "null", "int" ] }
+            ]
+        }
+    ]
+}

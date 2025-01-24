@@ -1,0 +1,82 @@
+{
+	"filetype":	"insert",
+	"cfgdir":	"/etc/taos",
+	"host":	"localhost",
+	"port":	6030,
+	"user":	"root",
+	"password":	"taosdata",
+	"connection_pool_size":	20,
+	"thread_count":	4,
+	"create_table_thread_count":	8,
+	"confirm_parameter_prompt":	"no",
+	"num_of_records_per_req":	300,
+	"thread_bind_vgroup":	"no",
+	"prepared_rand":	1000,
+	"chinese":	"no",
+	"escape_character":	"yes",
+	"continue_if_fail":	"no",
+	"databases":	[{
+			"dbinfo":	{
+				"name":	"nws",
+				"drop":	"yes",
+				"wal_retention_size":10,
+				"vgroups":	4,
+				"buffer":	30,
+				"stt_trigger":	1,
+				"wal_level":	0,
+				"precision":	"ms"
+			},
+			"super_tables":	[{
+					"name":	"product",
+					"child_table_exists":	"no",
+					"childtable_count":	9,
+					"childtable_prefix":	"d",
+					"auto_create_table":	"yes",
+					"batch_create_tbl_num":	10,
+					"data_source":	"rand",
+					"insert_mode":	"stmt2",
+					"non_stop_mode":	"no",
+					"line_protocol":	"line",
+					"insert_rows":	10340,
+					"childtable_limit":	0,
+					"childtable_offset":	0,
+					"interlace_rows":	0,
+					"insert_interval":	0,
+					"partial_col_num":	0,
+					"timestamp_step":	10,
+					"start_timestamp":	"2024-01-01 00:00:00.000",
+					"sample_format":	"csv",
+					"sample_file":	"./sample.csv",
+					"use_sample_ts":	"no",
+					"tags_file":	"",
+					"columns":	[{
+							"type":	"VARCHAR",
+							"name":	"datakey",
+							"len":	32,
+							"values":	["Grid_0_0"]
+						}, {
+							"type":	"VARCHAR",
+							"name":	"datavalue",
+							"len":	32768
+						}, {
+							"type":	"TIMESTAMP",
+							"name":	"itime"
+						}],
+					"tags":	[{
+							"type":	"VARCHAR",
+							"name":	"prodcode",
+							"values":	["AAA"]
+						}, {
+							"type":	"INT",
+							"name":	"validtime",
+							"max":	72,
+							"min":	1
+						}, {
+							"type":	"INT",
+							"name":	"heightcount",
+							"max":	21,
+							"min":	1
+						}]
+				}]
+		}]
+}

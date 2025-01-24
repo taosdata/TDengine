@@ -1,0 +1,21 @@
+{
+   "fields" : [
+      {
+         "name" : "title",
+         "type" : "string"
+      },
+      {
+         "name" : "created_at",
+         "type" : [
+            "null",
+            {
+               "logicalType" : "timestamp-millis",
+               "type" : "long"
+            }
+         ]
+      }
+   ],
+   "name" : "Bar",
+   "namespace" : "foo",
+   "type" : "record"
+}

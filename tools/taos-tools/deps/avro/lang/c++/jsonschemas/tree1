@@ -1,0 +1,25 @@
+{
+  "name": "Node",
+  "type": "record",
+  "fields": [
+    {
+      "name": "payload",
+      "type": "int",
+      "default": 0
+    },
+    {
+      "name": "edges",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "Edge",
+          "fields": [
+            { "name": "child", "type": "Node" },
+            { "name": "label", "type": "string" }
+          ]
+        }
+      }
+    }
+  ]
+}

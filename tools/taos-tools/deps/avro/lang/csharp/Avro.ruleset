@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Licensed to the Apache Software Foundation (ASF) under one or more
+   contributor license agreements.  See the NOTICE file distributed with
+   this work for additional information regarding copyright ownership.
+   The ASF licenses this file to You under the Apache License, Version 2.0
+   (the "License"); you may not use this file except in compliance with
+   the License.  You may obtain a copy of the License at
+
+       https://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<RuleSet Name="New Rule Set" Description=" " ToolsVersion="16.0">
+  <Rules AnalyzerId="Microsoft.Analyzers.ManagedCodeAnalysis" RuleNamespace="Microsoft.Rules.Managed">
+    <!-- CA1303: Do not pass literals as localized parameters -->
+    <Rule Id="CA1303" Action="None" />
+
+    <!--
+    AVRO-2454: We need to evaluate each of these rules to determine whether we should enforce them.
+    We disabled these rules initially to get the code analyzers installed in the project.
+    -->
+    <Rule Id="CA1062" Action="Info" />
+    <Rule Id="CA1707" Action="Info" />
+    <Rule Id="CA1710" Action="Info" />
+    <Rule Id="CA1716" Action="Info" />
+    <Rule Id="CA1720" Action="Info" />
+    <Rule Id="CA1801" Action="Info" />
+    <Rule Id="CA1819" Action="Info" />
+    <Rule Id="CA1820" Action="Info" />
+    <Rule Id="CA1822" Action="Info" />
+    <Rule Id="CA1825" Action="Info" />
+    <Rule Id="CA2000" Action="Info" />
+    <Rule Id="CA2008" Action="Info" />
+    <Rule Id="CA2208" Action="Info" />
+    <Rule Id="CA2211" Action="Info" />
+    <Rule Id="CA2213" Action="Info" />
+    <Rule Id="CA2227" Action="Info" />
+    <Rule Id="CA5351" Action="Info" />
+  </Rules>
+  <Rules AnalyzerId="StyleCop.Analyzers" RuleNamespace="StyleCop.Analyzers">
+    <!-- PrefixLocalCallsWithThis -->
+    <Rule Id="SA1101" Action="None" />
+
+    <!-- SplitParametersMustStartOnLineAfterDeclaration -->
+    <Rule Id="SA1116" Action="None" />
+
+    <!-- ParametersMustBeOnSameLineOrSeparateLines -->
+    <Rule Id="SA1117" Action="None" />
+
+    <!--
+    Element Ordering Rules
+    https://google.github.io/styleguide/javaguide.html#s3.4.2-ordering-class-contents
+    -->
+    <Rule Id="SA1201" Action="None" />
+    <Rule Id="SA1202" Action="None" />
+    <Rule Id="SA1203" Action="None" />
+    <Rule Id="SA1204" Action="None" />
+    <Rule Id="SA1214" Action="None" />
+    <Rule Id="SA1215" Action="None" />
+
+    <!--
+    FileMustHaveHeader: StyleCop does not recognize our headers. We're relying on RAT to enforce
+    file headers.
+    -->
+    <Rule Id="SA1633" Action="None" />
+
+    <!--
+    AVRO-2454: We need to evaluate each of these rules to determine whether we should enforce them.
+    We disabled these rules initially to get the code analyzers installed in the project.
+    -->
+    <Rule Id="SA1000" Action="Info" />
+    <Rule Id="SA1001" Action="Info" />
+    <Rule Id="SA1003" Action="Info" />
+    <Rule Id="SA1004" Action="Info" />
+    <Rule Id="SA1005" Action="Info" />
+    <Rule Id="SA1006" Action="Info" />
+    <Rule Id="SA1007" Action="Info" />
+    <Rule Id="SA1008" Action="Info" />
+    <Rule Id="SA1009" Action="Info" />
+    <Rule Id="SA1012" Action="Info" />
+    <Rule Id="SA1013" Action="Info" />
+    <Rule Id="SA1025" Action="Info" />
+    <Rule Id="SA1027" Action="Info" />
+    <Rule Id="SA1028" Action="Info" />
+    <Rule Id="SA1106" Action="Info" />
+    <Rule Id="SA1107" Action="Info" />
+    <Rule Id="SA1108" Action="Info" />
+    <Rule Id="SA1121" Action="Info" />
+    <Rule Id="SA1122" Action="Info" />
+    <Rule Id="SA1128" Action="Info" />
+    <Rule Id="SA1131" Action="Info" />
+    <Rule Id="SA1132" Action="Info" />
+    <Rule Id="SA1137" Action="Info" />
+    <Rule Id="SA1206" Action="Info" />
+    <Rule Id="SA1208" Action="Info" />
+    <Rule Id="SA1210" Action="Info" />
+    <Rule Id="SA1300" Action="Info" />
+    <Rule Id="SA1302" Action="Info" />
+    <Rule Id="SA1306" Action="Info" />
+    <Rule Id="SA1307" Action="Info" />
+    <Rule Id="SA1309" Action="Info" />
+    <Rule Id="SA1310" Action="Info" />
+    <Rule Id="SA1311" Action="Info" />
+    <Rule Id="SA1312" Action="Info" />
+    <Rule Id="SA1314" Action="Info" />
+    <Rule Id="SA1400" Action="Info" />
+    <Rule Id="SA1401" Action="Info" />
+    <Rule Id="SA1402" Action="Info" />
+    <Rule Id="SA1407" Action="Info" />
+    <Rule Id="SA1413" Action="Info" />
+    <Rule Id="SA1500" Action="Info" />
+    <Rule Id="SA1501" Action="Info" />
+    <Rule Id="SA1502" Action="Info" />
+    <Rule Id="SA1503" Action="Info" />
+    <Rule Id="SA1504" Action="Info" />
+    <Rule Id="SA1505" Action="Info" />
+    <Rule Id="SA1506" Action="Info" />
+    <Rule Id="SA1507" Action="Info" />
+    <Rule Id="SA1508" Action="Info" />
+    <Rule Id="SA1510" Action="Info" />
+    <Rule Id="SA1512" Action="Info" />
+    <Rule Id="SA1513" Action="Info" />
+    <Rule Id="SA1514" Action="Info" />
+    <Rule Id="SA1515" Action="Info" />
+    <Rule Id="SA1516" Action="Info" />
+    <Rule Id="SA1519" Action="Info" />
+    <Rule Id="SA1520" Action="Info" />
+    <Rule Id="SA1614" Action="Info" />
+    <Rule Id="SA1615" Action="Info" />
+    <Rule Id="SA1616" Action="Info" />
+    <Rule Id="SA1618" Action="Info" />
+    <Rule Id="SA1622" Action="Info" />
+    <Rule Id="SA1623" Action="Info" />
+    <Rule Id="SA1629" Action="Info" />
+    <Rule Id="SA1642" Action="Info" />
+    <Rule Id="SA1649" Action="Info" />
+  </Rules>
+</RuleSet>
