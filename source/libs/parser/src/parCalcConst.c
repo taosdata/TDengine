@@ -301,7 +301,10 @@ static int32_t createConstantValue(SValueNode** ppNode) {
 static int32_t calcConstProjections(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
   SNode* pProj = NULL;
   WHERE_EACH(pProj, pSelect->pProjectionList) {
-    if (subquery && !pSelect->isDistinct && !pSelect->tagScan && isUselessCol((SExprNode*)pProj) && nodeType(pSelect->pFromTable) != QUERY_NODE_VIRTUAL_TABLE) {
+    if (subquery && !pSelect->isDistinct && !pSelect->tagScan && isUselessCol((SExprNode*)pProj)) {
+      if (pSelect->pFromTable && nodeType(pSelect->pFromTable) == QUERY_NODE_VIRTUAL_TABLE) {
+        continue;
+      }
       ERASE_NODE(pSelect->pProjectionList);
       continue;
     }
