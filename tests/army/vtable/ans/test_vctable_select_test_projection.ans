@@ -4600,35 +4600,35 @@ taos> select tbname, int_tag, bool_tag, u_tinyint_col, u_smallint_col, u_int_col
 taos> select count(*) from (select int_tag from test_vtable_select.vtb_virtual_ctb_full);
        count(*)        |
 ========================
-                     0 |
+                 23333 |
 
 taos> select count(*) from (select int_tag, bool_tag, float_tag, double_tag, nchar_32_tag, binary_32_tag from test_vtable_select.vtb_virtual_ctb_full);
        count(*)        |
 ========================
-                     0 |
+                 23333 |
 
 taos> select count(*) from (select int_tag, bool_tag, * from test_vtable_select.vtb_virtual_ctb_full);
        count(*)        |
 ========================
-                     0 |
+                 23333 |
 
 taos> select count(*) from (select int_tag, bool_tag, ts from test_vtable_select.vtb_virtual_ctb_full);
        count(*)        |
 ========================
-                     0 |
+                 23333 |
 
 taos> select count(*) from (select int_tag, bool_tag, u_tinyint_col from test_vtable_select.vtb_virtual_ctb_full);
        count(*)        |
 ========================
-                     0 |
+                 10000 |
 
 taos> select count(*) from (select int_tag, bool_tag, u_tinyint_col, u_smallint_col from test_vtable_select.vtb_virtual_ctb_full);
        count(*)        |
 ========================
-                     0 |
+                 16666 |
 
 taos> select count(*) from (select int_tag, bool_tag, u_tinyint_col, u_smallint_col, u_int_col from test_vtable_select.vtb_virtual_ctb_full);
        count(*)        |
 ========================
-                     0 |
+                 23333 |
 

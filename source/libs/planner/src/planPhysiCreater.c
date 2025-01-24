@@ -1751,7 +1751,7 @@ static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
   pScanPhysiNode->scan.suid = pScanLogicNode->stableId;
   pScanPhysiNode->scan.tableType = pScanLogicNode->tableType;
   memcpy(&pScanPhysiNode->scan.tableName, &pScanLogicNode->tableName, sizeof(SName));
-  pScanPhysiNode->onlyTs = pScanLogicNode->onlyTs;
+  pScanPhysiNode->scanAllCols = pScanLogicNode->scanAllCols;
 
   *pPhyNode = (SPhysiNode*)pScanPhysiNode;
   return code;
