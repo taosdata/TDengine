@@ -10,15 +10,20 @@ on:
       - 'docs/**'
       - 'packaging/**'
       - 'tests/**'
-
+      - 'README.md'
+      - 'README-CN.md'
+      
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    name: Build and test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-20.04, ubuntu-22.04, ubuntu-24.04, macos-latest, macos-13, macos-14, macos-15]
+    name: Build and test on ${{ matrix.os }}
 
     steps:
       - name: Checkout the repository
@@ -29,12 +34,19 @@ jobs:
         with:
           go-version: 1.18
 
-      - name: Install system dependencies
+      - name: Install dependencies on Linux
+        if: runner.os == 'Linux'
         run: |
           sudo apt update -y
           sudo apt install -y build-essential cmake \
             libgeos-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev \
-            zlib1g pkg-config libssl-dev gawk
+            zlib1g-dev pkg-config libssl-dev gawk
+
+      - name: Install dependencies on macOS
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install argp-standalone gflags pkg-config  snappy zlib geos jansson gawk openssl
 
       - name: Build and install TDengine
         run: |
