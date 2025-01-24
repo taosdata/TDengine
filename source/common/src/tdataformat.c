@@ -4412,6 +4412,38 @@ int32_t tCompressData(void          *input,       // input
       return TSDB_CODE_COMPRESS_ERROR;
     }
 
+    {
+#if 1
+      if (info->dataType == TSDB_DATA_TYPE_VARCHAR) {
+        // decompose the compressed data
+        // int32_t code = tBufferEnsureCapacity(buffer, info->originalSize + COMP_OVERFLOW_BYTES);
+        int32_t cap = buffer->capacity * 2;
+        char   *buf[2] = {NULL, NULL};
+        // decompress out
+        buf[0] = taosMemoryCalloc(1, cap);
+        // temp buf
+        buf[1] = taosMemoryCalloc(1, cap);
+        int32_t decompSize = tDataCompress[info->dataType].decompFunc(
+            output,                                                 // input
+            info->compressedSize,                                   // inputSize
+            info->originalSize / tDataTypes[info->dataType].bytes,  // number of elements
+            buf[0],                                                 // output
+            info->originalSize,                                     // output size
+            info->cmprAlg,                                          // compression algorithm
+            buf[1],                                                 // helper buffer
+            cap                                                     // extra buffer size
+        );
+        taosMemoryFree(buf[0]);
+        taosMemoryFree(buf[1]);
+        if (decompSize < 0) {
+          uError("failed to decompress data, dataType:%d, compressedSize:%d, originalSize:%d", info->dataType,
+                 info->compressedSize, info->originalSize);
+          ASSERT(0);
+        }
+      }
+#endif
+    }
+
     tBufferDestroy(&local);
     // new col compress
   }
