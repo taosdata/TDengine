@@ -281,6 +281,7 @@ void notRetryLaunchFillHistoryTask(SStreamTask* pTask, SLaunchHTaskInfo* pInfo, 
   SStreamMeta*      pMeta = pTask->pMeta;
   SHistoryTaskInfo* pHTaskInfo = &pTask->hTaskInfo;
 
+//  int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
   int32_t code = streamMetaAddTaskLaunchResult(pMeta, pInfo->hTaskId.streamId, pInfo->hTaskId.taskId, 0, now, false);
 
   if (code) {
@@ -299,6 +300,7 @@ void doRetryLaunchFillHistoryTask(SStreamTask* pTask, SLaunchHTaskInfo* pInfo, i
   SHistoryTaskInfo* pHTaskInfo = &pTask->hTaskInfo;
 
   if (streamTaskShouldStop(pTask)) {  // record the failure
+//    int32_t ref = atomic_sub_fetch_32(&pTask->status.timerActive, 1);
     stDebug("s-task:0x%" PRIx64 " stopped, not launch rel history task:0x%" PRIx64, pInfo->id.taskId,
             pInfo->hTaskId.taskId);
 
