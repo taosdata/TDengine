@@ -11416,9 +11416,6 @@ int32_t tDecodeMqDataRspCommon(SDecoder *pDecoder, SMqDataRsp *pRsp) {
       if (taosArrayPush(pRsp->blockData, &data) == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
-//      for (int m= 0; m < 56; m++){
-//        printf("decode data[%d] = %d\n", m, *((int8_t *)data+18+m));
-//      }
       int32_t len = bLen;
       if (taosArrayPush(pRsp->blockDataLen, &len) == NULL) {
         TAOS_CHECK_EXIT(terrno);

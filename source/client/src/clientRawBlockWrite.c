@@ -1020,7 +1020,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
     return TSDB_CODE_INVALID_PARA;
   }
   SVCreateStbReq req = {0};
-  SDecoder       coder;
+  SDecoder       coder = {0};
   SMCreateStbReq pReq = {0};
   int32_t        code = TSDB_CODE_SUCCESS;
   SRequestObj*   pRequest = NULL;

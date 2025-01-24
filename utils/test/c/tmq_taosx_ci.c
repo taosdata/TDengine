@@ -427,7 +427,7 @@ int buildDatabase(TAOS* pConn, TAOS_RES* pRes) {
 
   pRes =
       taos_query(pConn,
-                 "insert into stt1 values(now - 2s, 3, 2, 'stt1')");
+                 "insert into stt1 values(now + 322s, 3, 2, 'stt1')");
   if (taos_errno(pRes) != 0) {
     printf("failed to create child table stt1, reason:%s\n", taos_errstr(pRes));
     return -1;

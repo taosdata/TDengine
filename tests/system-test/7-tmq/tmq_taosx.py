@@ -67,7 +67,7 @@ class TDTestCase:
         tdSql.checkData(1, 5, "sttb4")
 
         tdSql.query("select * from stt order by ts")
-        tdSql.checkRows(3)
+        tdSql.checkRows(5)
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(2, 1, 21)
         tdSql.checkData(0, 2, 2)
@@ -98,7 +98,7 @@ class TDTestCase:
         tdSql.checkData(1, 5, "sttb4")
 
         tdSql.query("select * from stt order by ts")
-        tdSql.checkRows(3)
+        tdSql.checkRows(5)
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(2, 1, 21)
         tdSql.checkData(0, 2, 2)

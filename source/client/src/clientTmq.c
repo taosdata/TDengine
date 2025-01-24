@@ -286,7 +286,7 @@ typedef struct {
 } SVgroupSaveInfo;
 
 static   TdThreadOnce   tmqInit = PTHREAD_ONCE_INIT;  // initialize only once
-volatile int32_t        tmqInitRes = -1;               // initialize rsp code
+volatile int32_t        tmqInitRes = 0;               // initialize rsp code
 static   SMqMgmt        tmqMgmt = {0};
 
 tmq_conf_t* tmq_conf_new() {
@@ -2364,10 +2364,6 @@ static SMqRspObj* buildRsp(SMqPollRspWrapper* pollRspWrapper){
     SMqDataRsp      dataRsp;
     SMqMetaRsp      metaRsp;
     SMqBatchMetaRsp batchMetaRsp;
-    struct{
-      int32_t len;
-      void*   rawData;
-    };
   } MEMSIZE;
 
   SMqRspObj* pRspObj = taosMemoryCalloc(1, sizeof(SMqRspObj));

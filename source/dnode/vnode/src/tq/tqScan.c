@@ -352,7 +352,7 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
   }
 
   // this submit data is metadata and previous data is data
-  if (rawList != NULL && *totalRows > 0 && pSubmitTbData->pCreateTbReq != NULL && taosArrayGetSize(pBlocks) > 0){
+  if (rawList != NULL && *totalRows > 0 && pSubmitTbData->pCreateTbReq != NULL && taosArrayGetSize(pBlocks) > 0 && pRsp->createTableNum <= 1){
     tqDebug("poll rawdata split,vgId:%d, uid:%" PRId64 ", this submit data is metadata and previous data is data", pTq->pVnode->config.vgId, pExec->pTqReader->lastBlkUid);
     terrno = TSDB_CODE_TMQ_DUPLICATE_UID;
     pRsp->createTableNum = 0;

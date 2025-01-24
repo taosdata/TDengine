@@ -222,10 +222,7 @@ typedef struct STableDataCxt {
   STSchema*      pSchema;
   SBoundColInfo  boundColsInfo;
   SArray*        pValues;
-  union {
-    SSubmitTbData* pData;
-    void*          raw;
-  };
+  SSubmitTbData* pData;
   SRowKey        lastKey;
   bool           ordered;
   bool           duplicateTs;
