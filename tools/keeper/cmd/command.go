@@ -58,7 +58,7 @@ func NewCommand(conf *config.Config) *Command {
 		panic(err)
 	}
 
-	imp := &Command{
+	return &Command{
 		client:   client,
 		conn:     conn,
 		username: conf.TDengine.Username,
@@ -70,7 +70,6 @@ func NewCommand(conf *config.Config) *Command {
 			RawQuery: fmt.Sprintf("db=%s&precision=ms", conf.Metrics.Database.Name),
 		},
 	}
-	return imp
 }
 
 func (cmd *Command) Process(conf *config.Config) {
@@ -101,7 +100,7 @@ func (cmd *Command) Process(conf *config.Config) {
 }
 
 func (cmd *Command) ProcessTransfer(conf *config.Config) {
-	fromTime, err := time.Parse("2006-01-02T15:04:05Z07:00", conf.FromTime)
+	fromTime, err := time.Parse(time.RFC3339, conf.FromTime)
 	if err != nil {
 		logger.Errorf("parse fromTime error, msg:%s", err)
 		return
@@ -156,6 +155,7 @@ func (cmd *Command) TransferTaosdDnodesInfo() error {
 	dstTable := "taosd_dnodes_info"
 	return cmd.TransferTableToDst(sql, dstTable, 3)
 }
+
 func (cmd *Command) TransferTaosdDnodesStatus() error {
 	sql := "select cluster_id, dnode_id, dnode_ep, CASE status WHEN 'ready' THEN 1 ELSE 0 END as status, ts from d_info a where "
 	dstTable := "taosd_dnodes_status"
@@ -167,6 +167,7 @@ func (cmd *Command) TransferTaosdDnodesLogDirs1() error {
 	dstTable := "taosd_dnodes_log_dirs"
 	return cmd.TransferTableToDst(sql, dstTable, 4)
 }
+
 func (cmd *Command) TransferTaosdDnodesLogDirs2() error {
 	sql := "select cluster_id, dnode_id, dnode_ep, name as log_dir_name, avail, used, total, ts from temp_dir a where "
 	dstTable := "taosd_dnodes_log_dirs"
@@ -224,12 +225,11 @@ func (cmd *Command) ProcessDrop(conf *config.Config) {
 }
 
 func (cmd *Command) TransferDataToDest(data *db.Data, dstTable string, tagNum int) {
-
-	var buf bytes.Buffer
-
 	if len(data.Data) < 1 {
 		return
 	}
+
+	var buf bytes.Buffer
 
 	for _, row := range data.Data {
 		// get one row here
@@ -262,7 +262,6 @@ func (cmd *Command) TransferDataToDest(data *db.Data, dstTable string, tagNum in
 
 		// write metrics
 		for j := tagNum; j < len(row)-1; j++ {
-
 			switch v := row[j].(type) {
 			case int:
 				buf.WriteString(fmt.Sprintf("%s=%ff64", data.Head[j], float64(v)))
@@ -292,8 +291,7 @@ func (cmd *Command) TransferDataToDest(data *db.Data, dstTable string, tagNum in
 			if logger.Logger.IsLevelEnabled(logrus.TraceLevel) {
 				logger.Tracef("buf:%v", buf.String())
 			}
-			err := cmd.lineWriteBody(&buf)
-			if err != nil {
+			if err := cmd.lineWriteBody(&buf); err != nil {
 				logger.Errorf("insert data error, msg:%s", err)
 				panic(err)
 			}
@@ -305,8 +303,7 @@ func (cmd *Command) TransferDataToDest(data *db.Data, dstTable string, tagNum in
 		if logger.Logger.IsLevelEnabled(logrus.TraceLevel) {
 			logger.Tracef("buf:%v", buf.String())
 		}
-		err := cmd.lineWriteBody(&buf)
-		if err != nil {
+		if err := cmd.lineWriteBody(&buf); err != nil {
 			logger.Errorf("insert data error, msg:%s", err)
 			panic(err)
 		}
@@ -401,7 +398,6 @@ func (cmd *Command) TransferTaosdClusterBasicInfo() error {
 
 // cluster_info
 func (cmd *Command) TransferTableToDst(sql string, dstTable string, tagNum int) error {
-
 	ctx := context.Background()
 
 	endTime := time.Now()
@@ -445,13 +441,12 @@ func (cmd *Command) lineWriteBody(buf *bytes.Buffer) error {
 
 	req.Body = io.NopCloser(buf)
 	resp, err := cmd.client.Do(req)
-
 	if err != nil {
 		logger.Errorf("writing metrics exception, msg:%s", err)
 		return err
 	}
-
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("unexpected status code %d:body:%s", resp.StatusCode, string(body))
