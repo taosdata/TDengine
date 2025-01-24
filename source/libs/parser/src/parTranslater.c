@@ -4419,7 +4419,8 @@ static bool isSingleTable(SRealTableNode* pRealTable) {
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_DISK_USAGE) &&
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS);
   }
-  return (TSDB_CHILD_TABLE == tableType || TSDB_NORMAL_TABLE == tableType);
+  return (TSDB_CHILD_TABLE == tableType || TSDB_NORMAL_TABLE == tableType ||
+          TSDB_VIRTUAL_CHILD_TABLE == tableType || TSDB_VIRTUAL_TABLE == tableType);
 }
 
 static int32_t setTableIndex(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
@@ -5141,6 +5142,8 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinPare
             break;
           }
           PAR_ERR_RET(translateVirtualTable(pCxt, pTable, &name));
+          SVirtualTableNode *pVirtualTable = (SVirtualTableNode*)*pTable;
+          pVirtualTable->table.singleTable = true;
           PAR_RET(addNamespace(pCxt, (SVirtualTableNode*)*pTable));
         }
 #endif
