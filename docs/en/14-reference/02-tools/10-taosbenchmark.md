@@ -493,7 +493,7 @@ The thread mode of the super table query is the same as the `Normal Query` mode 
 - **sqls** :
   - **sql** : The SQL command to execute, required; for supertable queries, keep "xxxx" in the SQL command, the program will automatically replace it with all subtable names of the supertable.
   - **result** : File to save the query results, if not specified, results are not saved.
-  - Note: The maximum number of SQL arrays configured under SQL is 100
+  - **Note**: The maximum number of SQL arrays configured under SQL is 100.
 
 ### Configuration Parameters for Subscription Scenarios
 
