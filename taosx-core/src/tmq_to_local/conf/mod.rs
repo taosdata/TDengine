@@ -138,6 +138,9 @@ impl BackupConfig {
         if self.raw_from.get("experimental.snapshot.enable").is_none() {
             dsn.set("experimental.snapshot.enable", "true");
         }
+        if self.raw_from.get("self.repeat").is_some() {
+            dsn.remove("self.repeat");
+        }
 
         dsn
     }
