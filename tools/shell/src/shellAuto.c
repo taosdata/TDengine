@@ -463,7 +463,7 @@ void printfIntroduction(EVersionType type) {
     printf(" ");
   }
   printf("*\n");
-  printf("  *   including database names, table names, function names and keywords.                *\n");
+  printf("  *   including database names, table names, function names and keywords                 *\n");
   printf("  *   The full list of shortcut keys is as follows:                                      *\n");
   printf("  *    [ TAB ]        ......  complete the current word                                  *\n");
   printf("  *                   ......  if used on a blank line, display all supported commands    *\n");
