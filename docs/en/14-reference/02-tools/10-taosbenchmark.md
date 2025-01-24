@@ -403,7 +403,7 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 - **min**: The minimum value for the data type of the column/tag. Generated values will be greater than or equal to the minimum value.
 
-- **max**: The maximum value for the data type of the column/tag. Generated values will be less than the minimum value.
+- **max**: The maximum value for the data type of the column/tag. Generated values will be less than the maximum value.
 
 - **scalingFactor**: Floating-point precision enhancement factor, only effective when the data type is float/double, valid values range from 1 to 1000000 positive integers. Used to enhance the precision of generated floating points, especially when min or max values are small. This attribute enhances the precision after the decimal point by powers of 10: a scalingFactor of 10 means enhancing the precision by 1 decimal place, 100 means 2 places, and so on.
 
