@@ -31,7 +31,7 @@ typedef struct SVirtualTableScanInfo {
   SSDataBlock*   pInputBlock;
   SHashObj*      dataSlotMap;
   int32_t        tsSlotId;
-  bool           onlyTs;
+  bool           scanAllCols;
 } SVirtualTableScanInfo;
 
 typedef struct SVirtualScanMergeOperatorInfo {
@@ -148,7 +148,7 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
     tsortGetBlockInfo(pTupleHandle, &info);
     int32_t blockId = (int32_t)info.id.blockId;
 
-    for (int32_t i = 0; i < (pInfo->virtualScanInfo.onlyTs ? 1 : tsortGetColNum(pTupleHandle)); i++) {
+    for (int32_t i = 0; i < (pInfo->virtualScanInfo.scanAllCols ? 1 : tsortGetColNum(pTupleHandle)); i++) {
       bool isNull = tsortIsNullVal(pTupleHandle, i);
       if (isNull) {
         colDataSetNULL(taosArrayGet(p->pDataBlock, i), rowNums);
@@ -177,7 +177,8 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
           int32_t slotKey = blockId << 16 | i;
           void *slotId = taosHashGet(pInfo->virtualScanInfo.dataSlotMap, &slotKey, sizeof(slotKey));
           if (slotId == NULL) {
-            VTS_ERR_RET(TSDB_CODE_VTABLE_SCAN_UNMATCHED_COLUMN);
+            qError("failed to get slotId from dataSlotMap, blockId:%d, slotId:%d", blockId, i);
+            VTS_ERR_RET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
           }
           VTS_ERR_RET(colDataSetVal(taosArrayGet(p->pDataBlock, *(int32_t *)slotId), rowNums, pData, false));
         }
@@ -442,7 +443,7 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, SReadHa
        pVirtualScanInfo->bufPageSize * (numOfDownstream + 1);  // one additional is reserved for merged result.
    VTS_ERR_JRET(extractColMap(pVirtualScanPhyNode->pTargets, &pVirtualScanInfo->dataSlotMap, &pVirtualScanInfo->tsSlotId));
 
-   pVirtualScanInfo->onlyTs = pVirtualScanPhyNode->onlyTs;
+   pVirtualScanInfo->scanAllCols = pVirtualScanPhyNode->scanAllCols;
 
    VTS_ERR_JRET(filterInitFromNode((SNode*)pVirtualScanPhyNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0));
 
