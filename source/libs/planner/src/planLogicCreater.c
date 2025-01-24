@@ -804,7 +804,7 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
 
   SNode  *pNode = NULL;
   int32_t slotId = 0;
-  bool    onlyTs = true;
+  bool    scanAllCols = true;
 
   pRefTablesMap = taosHashInit(LIST_LENGTH(pVtableScan->pScanCols), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (NULL == pRefTablesMap) {
@@ -818,7 +818,7 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
       if (pCol->isPrimTs || pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         PLAN_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
       }
-      onlyTs &= false;
+      scanAllCols &= false;
       SColRef *pColRef = &pVirtualTable->pMeta->colRef[index];
       tstrncpy(pCol->refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
       tstrncpy(pCol->refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
@@ -829,15 +829,13 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
       // do nothing
     } else {
       pCol->hasRef = false;
-      onlyTs &= false;
+      scanAllCols &= false;
     }
   }
 
-  if (onlyTs) {
-    pVtableScan->onlyTs = true;
-    if (0 != taosHashGetSize(pRefTablesMap)) {
-      PLAN_ERR_JRET(TSDB_CODE_VTABLE_SCAN_UNMATCHED_COLUMN);
-    }
+  if (scanAllCols) {
+    pVtableScan->scanAllCols = true;
+    taosHashClear(pRefTablesMap);
     for (int32_t i = 0; i < pVirtualTable->pMeta->tableInfo.numOfColumns; i++) {
       if (pVirtualTable->pMeta->schema[i].colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         continue;

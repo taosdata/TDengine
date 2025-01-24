@@ -526,7 +526,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
 
 static int32_t logicVirtualScanCopy(const SVirtualScanLogicNode * pSrc, SVirtualScanLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
-  COPY_SCALAR_FIELD(onlyTs);
+  COPY_SCALAR_FIELD(scanAllCols);
   CLONE_NODE_LIST_FIELD(pScanCols);
   CLONE_NODE_LIST_FIELD(pScanPseudoCols);
   COPY_SCALAR_FIELD(tableType);
@@ -781,7 +781,7 @@ static int32_t physiVirtualTableScanCopy(const SVirtualScanPhysiNode* pSrc, SVir
   COPY_BASE_OBJECT_FIELD(scan, physiScanCopy);
   CLONE_NODE_LIST_FIELD(pGroupTags);
   COPY_SCALAR_FIELD(groupSort);
-  COPY_SCALAR_FIELD(onlyTs);
+  COPY_SCALAR_FIELD(scanAllCols);
   CLONE_NODE_LIST_FIELD(pTargets);
   return TSDB_CODE_SUCCESS;
 }
