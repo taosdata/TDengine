@@ -514,6 +514,13 @@ int32_t tqReaderSetSubmitMsg(STqReader* pReader, void* msgStr, int32_t msgLen, i
   return code;
 }
 
+void tqReaderClearSubmitMsg(STqReader *pReader) {
+  tDestroySubmitReq(&pReader->submit, TSDB_MSG_FLG_DECODE);
+  pReader->nextBlk = 0;
+  pReader->msg.msgStr = NULL;
+}
+
+
 SWalReader* tqGetWalReader(STqReader* pReader) {
   if (pReader == NULL) {
     return NULL;
@@ -551,14 +558,12 @@ bool tqNextBlockImpl(STqReader* pReader, const char* idstr) {
     void* ret = taosHashGet(pReader->tbIdHash, &pSubmitTbData->uid, sizeof(int64_t));
     TSDB_CHECK_CONDITION(ret == NULL, code, lino, END, true);
 
-    tqDebug("iterator data block in hash continue, progress:%d/%d, total queried tables:%d, uid:%"PRId64, pReader->nextBlk, blockSz, taosHashGetSize(pReader->tbIdHash), uid);
+    tqDebug("iterator data block in hash jump block, progress:%d/%d, uid:%" PRId64 "", pReader->nextBlk, blockSz, uid);
     pReader->nextBlk++;
   }
 
-  tDestroySubmitReq(&pReader->submit, TSDB_MSG_FLG_DECODE);
-  pReader->nextBlk = 0;
-  pReader->msg.msgStr = NULL;
-  tqDebug("iterator data block end, block progress:%d/%d, uid:%"PRId64, pReader->nextBlk, blockSz, uid);
+  tqReaderClearSubmitMsg(pReader);
+  tqDebug("iterator data block end, total block num:%d, uid:%"PRId64, blockSz, uid);
 
 END:
   tqDebug("%s:%d return:%s, uid:%"PRId64, __FUNCTION__, lino, code?"true":"false", uid);
@@ -584,10 +589,7 @@ bool tqNextDataBlockFilterOut(STqReader* pReader, SHashObj* filterOutUids) {
     tqDebug("iterator data block in hash jump block, progress:%d/%d, uid:%" PRId64 "", pReader->nextBlk, blockSz, uid);
     pReader->nextBlk++;
   }
-
-  tDestroySubmitReq(&pReader->submit, TSDB_MSG_FLG_DECODE);
-  pReader->nextBlk = 0;
-  pReader->msg.msgStr = NULL;
+  tqReaderClearSubmitMsg(pReader);
   tqDebug("iterator data block end, total block num:%d, uid:%"PRId64, blockSz, uid);
 
 END:

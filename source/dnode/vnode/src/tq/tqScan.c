@@ -344,7 +344,6 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
     if (taosHashGet(pRequest->uidHash, &pExec->pTqReader->lastBlkUid, LONG_BYTES) != NULL) {
       tqDebug("poll rawdata split,vgId:%d, uid:%" PRId64 " is already exists", pTq->pVnode->config.vgId, pExec->pTqReader->lastBlkUid);
       terrno = TSDB_CODE_TMQ_DUPLICATE_UID;
-      pReader->nextBlk = 0;
       goto END;
     } else {
       code = taosHashPut(pRequest->uidHash, &pExec->pTqReader->lastBlkUid, LONG_BYTES, &pExec->pTqReader->lastBlkUid, LONG_BYTES);
@@ -357,7 +356,6 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
     tqDebug("poll rawdata split,vgId:%d, uid:%" PRId64 ", this submit data is metadata and previous data is data", pTq->pVnode->config.vgId, pExec->pTqReader->lastBlkUid);
     terrno = TSDB_CODE_TMQ_DUPLICATE_UID;
     pRsp->createTableNum = 0;
-    pReader->nextBlk = 0;
     goto END;
   }
 
@@ -391,26 +389,23 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
         continue;
       }
       *totalRows += pBlock->info.rows;
-      blockDataFreeRes(pBlock);
     }
 
-    SSchemaWrapper* pSW = taosArrayGetP(pSchemas, i);
-    if (taosArrayPush(pRsp->blockSchema, &pSW) == NULL){
+    void** pSW = taosArrayGet(pSchemas, i);
+    if (taosArrayPush(pRsp->blockSchema, pSW) == NULL){
       tqError("vgId:%d, failed to add schema to rsp msg", pTq->pVnode->config.vgId);
       continue;
     }
+    *pSW = NULL;
     pRsp->blockNum++;
   }
   tqDebug("vgId:%d, process sub data success, response blocknum:%d, rows:%d", pTq->pVnode->config.vgId, pRsp->blockNum, *totalRows);
 END:
-  if (code != 0){
+  if (code != 0) {
     tqError("%s failed at %d, failed to process sub data:%s", __FUNCTION__, lino, tstrerror(code));
-    taosArrayDestroyEx(pBlocks, (FDelete)blockDataFreeRes);
-    taosArrayDestroyP(pSchemas, (FDelete)tDeleteSchemaWrapper);
-  } else {
-    taosArrayDestroy(pBlocks);
-    taosArrayDestroy(pSchemas);
   }
+  taosArrayDestroyEx(pBlocks, (FDelete)blockDataFreeRes);
+  taosArrayDestroyP(pSchemas, (FDelete)tDeleteSchemaWrapper);
 }
 
 int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqDataRsp* pRsp, int32_t* totalRows, const SMqPollReq* pRequest) {
@@ -430,6 +425,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqData
     while (tqNextBlockImpl(pReader, NULL)) {
       tqProcessSubData(pTq, pHandle, pRsp, totalRows, pRequest, rawList);
       if (terrno == TSDB_CODE_TMQ_DUPLICATE_UID){
+        tqReaderClearSubmitMsg(pReader);
         goto END;
       }
     }
@@ -437,6 +433,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqData
     while (tqNextDataBlockFilterOut(pReader, pExec->execDb.pFilterOutTbUid)) {
       tqProcessSubData(pTq, pHandle, pRsp, totalRows, pRequest, rawList);
       if (terrno == TSDB_CODE_TMQ_DUPLICATE_UID){
+        tqReaderClearSubmitMsg(pReader);
         goto END;
       }
     }

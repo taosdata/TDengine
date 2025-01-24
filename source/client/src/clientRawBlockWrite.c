@@ -2385,7 +2385,7 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
 
   end:
   uDebug(LOG_ID_TAG " write raw rawdata return, msg:%s", LOG_ID_VALUE, tstrerror(code));
-  tDeleteSTaosxRsp(&rspObj.dataRsp);
+  tDeleteMqDataRsp(&rspObj.dataRsp);
   tDecoderClear(&decoder);
   qDestroyQuery(pQuery);
   taosHashCleanup(pVgroupHash);

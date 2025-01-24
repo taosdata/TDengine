@@ -11734,7 +11734,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
     }
 
     TAOS_CHECK_EXIT(tDecodeSVCreateTbReq(pCoder, pSubmitTbData->pCreateTbReq));
-    dataAfterCreate = pCoder->data;
+    dataAfterCreate = pCoder->data + pCoder->pos;
     posAfterCreate = pCoder->pos;
   }
 

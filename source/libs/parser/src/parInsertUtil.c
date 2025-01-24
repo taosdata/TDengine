@@ -859,13 +859,6 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = buildSubmitReq(src->vgId, src->pData, &dst->pData, &dst->size);
-      SSubmitReq2 *pSubmitReq = &(SSubmitReq2){0};
-      SDecoder dc = {0};
-      tDecoderInit(&dc, POINTER_SHIFT(dst->pData, sizeof(SSubmitReq2Msg)), dst->size - sizeof(SSubmitReq2Msg));
-      if (tDecodeSubmitReq(&dc, pSubmitReq, NULL) < 0) {
-        code = TSDB_CODE_INVALID_MSG;
-      }
-      tDecoderClear(&dc);
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = (NULL == taosArrayPush(pDataBlocks, &dst) ? terrno : TSDB_CODE_SUCCESS);
