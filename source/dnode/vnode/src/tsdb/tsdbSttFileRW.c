@@ -224,7 +224,6 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s, file name:%s", TD_VID(reader->config->tsdb->pVnode), __func__,
               lino, tstrerror(code), reader->fd->path);
-    // TSDB_ERROR_LOG(TD_VID(reader->config->tsdb->pVnode), lino, code);
   }
   return code;
 }
