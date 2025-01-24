@@ -371,6 +371,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_REAL_TABLE:
       code = makeNode(type, sizeof(SRealTableNode), &pNode);
       break;
+    case QUERY_NODE_VIRTUAL_TABLE:
+      code = makeNode(type, sizeof(SVirtualTableNode), &pNode);
+      break;
     case QUERY_NODE_TEMP_TABLE:
       code = makeNode(type, sizeof(STempTableNode), &pNode);
       break;
@@ -506,6 +509,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
       code = makeNode(type, sizeof(SCreateSubTableClause), &pNode);
       break;
+    case QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT:
+      code = makeNode(type, sizeof(SCreateVTableStmt), &pNode);
+      break;
+    case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
+      code = makeNode(type, sizeof(SCreateVSubTableStmt), &pNode);
+      break;
     case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE:
       code = makeNode(type, sizeof(SCreateSubTableFromFileClause), &pNode);
       break;
@@ -521,8 +530,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
       code = makeNode(type, sizeof(SDropSuperTableStmt), &pNode);
       break;
+    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
+      code = makeNode(type, sizeof(SDropVirtualTableStmt), &pNode);
+      break;
     case QUERY_NODE_ALTER_TABLE_STMT:
     case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
+    case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
       code = makeNode(type, sizeof(SAlterTableStmt), &pNode);
       break;
     case QUERY_NODE_CREATE_USER_STMT:
@@ -666,6 +679,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_STABLES_STMT:
     case QUERY_NODE_SHOW_STREAMS_STMT:
     case QUERY_NODE_SHOW_TABLES_STMT:
+    case QUERY_NODE_SHOW_VTABLES_STMT:
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_USERS_FULL_STMT:
     case QUERY_NODE_SHOW_LICENCES_STMT:
@@ -706,6 +720,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SShowAliveStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
+    case QUERY_NODE_SHOW_CREATE_VTABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       code = makeNode(type, sizeof(SShowCreateTableStmt), &pNode);
       break;
@@ -809,6 +824,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
       code = makeNode(type, sizeof(SDynQueryCtrlLogicNode), &pNode);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
+      code = makeNode(type, sizeof(SVirtualScanLogicNode), &pNode);
       break;
     case QUERY_NODE_LOGIC_SUBPLAN:
       code = makeNode(type, sizeof(SLogicSubplan), &pNode);
@@ -967,6 +985,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC:
       code = makeNode(type, sizeof(SStreamInterpFuncPhysiNode), &pNode);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
+      code = makeNode(type, sizeof(SVirtualScanPhysiNode), &pNode);
+      break;
     default:
       break;
   }
@@ -1037,6 +1058,7 @@ static void destroyTableCfg(STableCfg* pCfg) {
   taosMemoryFree(pCfg->pComment);
   taosMemoryFree(pCfg->pSchemas);
   taosMemoryFree(pCfg->pSchemaExt);
+  taosMemoryFree(pCfg->pColRefs);
   taosMemoryFree(pCfg->pTags);
   taosMemoryFree(pCfg);
 }
@@ -1094,6 +1116,13 @@ void nodesDestroyNode(SNode* pNode) {
       taosArrayDestroyEx(pReal->pSmaIndexes, destroySmaIndex);
       taosArrayDestroyP(pReal->tsmaTargetTbVgInfo, NULL);
       taosArrayDestroy(pReal->tsmaTargetTbInfo);
+      break;
+    }
+    case QUERY_NODE_VIRTUAL_TABLE: {
+      SVirtualTableNode *pVirtual = (SVirtualTableNode*)pNode;
+      taosMemoryFreeClear(pVirtual->pMeta);
+      taosMemoryFreeClear(pVirtual->pVgroupList);
+      nodesDestroyList(pVirtual->refTables);
       break;
     }
     case QUERY_NODE_TEMP_TABLE:
@@ -1374,6 +1403,19 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->pOptions);
       break;
     }
+    case QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT: {
+      SCreateVTableStmt* pStmt = (SCreateVTableStmt*)pNode;
+      nodesDestroyList(pStmt->pCols);
+      break;
+    }
+    case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT: {
+      SCreateVSubTableStmt* pStmt = (SCreateVSubTableStmt*)pNode;
+      nodesDestroyList(pStmt->pSpecificColRefs);
+      nodesDestroyList(pStmt->pColRefs);
+      nodesDestroyList(pStmt->pSpecificTags);
+      nodesDestroyList(pStmt->pValsOfTags);
+      break;
+    }
     case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE: {
       SCreateSubTableFromFileClause* pStmt = (SCreateSubTableFromFileClause*)pNode;
       nodesDestroyList(pStmt->pSpecificTags);
@@ -1387,10 +1429,12 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_DROP_TABLE_STMT:
       nodesDestroyList(((SDropTableStmt*)pNode)->pTables);
       break;
-    case QUERY_NODE_DROP_SUPER_TABLE_STMT:  // no pointer field
+    case QUERY_NODE_DROP_SUPER_TABLE_STMT:
+    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT: // no pointer field
       break;
     case QUERY_NODE_ALTER_TABLE_STMT:
-    case QUERY_NODE_ALTER_SUPER_TABLE_STMT: {
+    case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
+    case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT: {
       SAlterTableStmt* pStmt = (SAlterTableStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->pOptions);
       nodesDestroyNode((SNode*)pStmt->pVal);
@@ -1531,6 +1575,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_STABLES_STMT:
     case QUERY_NODE_SHOW_STREAMS_STMT:
     case QUERY_NODE_SHOW_TABLES_STMT:
+    case QUERY_NODE_SHOW_VTABLES_STMT:
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_USERS_FULL_STMT:
     case QUERY_NODE_SHOW_LICENCES_STMT:
@@ -1587,6 +1632,7 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFreeClear(((SShowCreateDatabaseStmt*)pNode)->pCfg);
       break;
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
+    case QUERY_NODE_SHOW_CREATE_VTABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       taosMemoryFreeClear(((SShowCreateTableStmt*)pNode)->pDbCfg);
       destroyTableCfg((STableCfg*)(((SShowCreateTableStmt*)pNode)->pTableCfg));
@@ -1689,6 +1735,14 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pRightEqNodes);
       nodesDestroyNode(pLogicNode->pLeftOnCond);
       nodesDestroyNode(pLogicNode->pRightOnCond);
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN: {
+      SVirtualScanLogicNode * pLogicNode = (SVirtualScanLogicNode*)pNode;
+      destroyLogicNode((SLogicNode*)pLogicNode);
+      nodesDestroyList(pLogicNode->pScanCols);
+      nodesDestroyList(pLogicNode->pScanPseudoCols);
+      taosMemoryFreeClear(pLogicNode->pVgroupList);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_AGG: {
@@ -1809,6 +1863,13 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN: {
+      SVirtualScanPhysiNode* pPhyNode = (SVirtualScanPhysiNode*)pNode;
+      destroyScanPhysiNode((SScanPhysiNode*)pNode);
+      nodesDestroyList(pPhyNode->pGroupTags);
+      nodesDestroyList(pPhyNode->pTargets);
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN: {
       SLastRowScanPhysiNode* pPhyNode = (SLastRowScanPhysiNode*)pNode;

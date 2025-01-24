@@ -441,7 +441,6 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   // rewrite the expression in subsequent clauses
   if (TSDB_CODE_SUCCESS == code) {
-    SNodeList* pNewScanPseudoCols = NULL;
     code = rewriteExprsForSelect(pScan->pScanPseudoCols, pSelect, SQL_CLAUSE_FROM, NULL);
     /*
         if (TSDB_CODE_SUCCESS == code && NULL != pScan->pScanPseudoCols) {
@@ -666,6 +665,211 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   return code;
 }
 
+static int32_t findRefTableNode(SNodeList *refTableList, const char *tableName, SNode **pRefTable) {
+  SNode *pRef = NULL;
+  FOREACH(pRef, refTableList) {
+    if (0 == strcasecmp(((SRealTableNode*)pRef)->table.tableName, tableName)) {
+      PLAN_RET(nodesCloneNode(pRef, pRefTable));
+    }
+  }
+  return TSDB_CODE_NOT_FOUND;
+}
+
+static int32_t findRefColId(SNode *pRefTable, const char *colName, col_id_t *colId) {
+  SRealTableNode *pRealTable = (SRealTableNode*)pRefTable;
+  for (int32_t i = 0; i < pRealTable->pMeta->tableInfo.numOfColumns; ++i) {
+    if (0 == strcasecmp(pRealTable->pMeta->schema[i].name, colName)) {
+      *colId = pRealTable->pMeta->schema[i].colId;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  return TSDB_CODE_NOT_FOUND;
+}
+
+static int32_t scanAddCol(SLogicNode* pLogicNode, SColRef* colRef, const SSchema* pSchema, col_id_t colId) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SColumnNode    *pRefTableScanCol = NULL;
+  SScanLogicNode *pLogicScan = (SScanLogicNode*)pLogicNode;
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pRefTableScanCol));
+  tstrncpy(pRefTableScanCol->tableAlias, colRef->refTableName, sizeof(pRefTableScanCol->tableAlias));
+  tstrncpy(pRefTableScanCol->tableName, colRef->refTableName, sizeof(pRefTableScanCol->tableName));
+  tstrncpy(pRefTableScanCol->colName, colRef->refColName, sizeof(pRefTableScanCol->colName));
+  pRefTableScanCol->colId = colId;
+  pRefTableScanCol->tableId = pLogicScan->tableId;
+  pRefTableScanCol->tableType = pLogicScan->tableType;
+  pRefTableScanCol->node.resType.type = pSchema->type;
+  pRefTableScanCol->node.resType.bytes = pSchema->bytes;
+  pRefTableScanCol->colType = COLUMN_TYPE_COLUMN;
+  pRefTableScanCol->isPk = false;
+  pRefTableScanCol->tableHasPk = false;
+  pRefTableScanCol->numOfPKs = 0;
+  PLAN_ERR_JRET(nodesListAppend(pLogicScan->pScanCols, (SNode*)pRefTableScanCol));
+  return code;
+_return:
+  nodesDestroyNode((SNode*)pRefTableScanCol);
+  return code;
+}
+
+static int32_t checkColRefType(const SSchema* vtbSchema, const SSchema* refSchema) {
+  if (vtbSchema->type != refSchema->type || vtbSchema->bytes != refSchema->bytes) {
+    qError("virtual table column:%s type mismatch, virtual table column type:%d, bytes:%d, "
+        "ref table column:%s, type:%d, bytes:%d",
+        vtbSchema->name, vtbSchema->type, vtbSchema->bytes, refSchema->name, refSchema->type, refSchema->bytes);
+    return TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t addSubScanNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SVirtualTableNode* pVirtualTable,
+                              int32_t index, SHashObj *refTablesMap) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  col_id_t    colId = 0;
+  SColRef    *pColRef = &pVirtualTable->pMeta->colRef[index];
+  SNode      *pRefTable = NULL;
+  SLogicNode *pRefScan = NULL;
+  bool        put = false;
+
+  PLAN_ERR_JRET(findRefTableNode(pVirtualTable->refTables, pColRef->refTableName, &pRefTable));
+  PLAN_ERR_JRET(findRefColId(pRefTable, pColRef->refColName, &colId));
+
+  SLogicNode **ppRefScan = (SLogicNode **)taosHashGet(refTablesMap, &pColRef->refTableName, strlen(pColRef->refTableName));
+  if (NULL == ppRefScan) {
+    PLAN_ERR_JRET(createScanLogicNode(pCxt, pSelect, (SRealTableNode*)pRefTable, &pRefScan));
+    PLAN_ERR_JRET(checkColRefType(&pVirtualTable->pMeta->schema[index], &((SRealTableNode*)pRefTable)->pMeta->schema[colId - 1]));
+    PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->pMeta->schema[index], colId));
+    PLAN_ERR_JRET(taosHashPut(refTablesMap, &pColRef->refTableName, strlen(pColRef->refTableName), &pRefScan, POINTER_BYTES));
+    put = true;
+  } else {
+    pRefScan = *ppRefScan;
+    PLAN_ERR_JRET(checkColRefType(&pVirtualTable->pMeta->schema[index], &((SRealTableNode*)pRefTable)->pMeta->schema[colId - 1]));
+    PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->pMeta->schema[index], colId));
+  }
+
+  nodesDestroyNode((SNode*)pRefTable);
+  return code;
+_return:
+  nodesDestroyNode((SNode*)pRefTable);
+  if (!put) {
+    nodesDestroyNode((SNode*)pRefScan);
+  }
+  return code;
+}
+
+
+static int32_t makeVirtualScanLogicNode(SLogicPlanContext* pCxt, SVirtualTableNode* pVirtualTable,
+                                        bool hasRepeatScanFuncs, SVirtualScanLogicNode* pScan) {
+
+  TSWAP(pScan->pVgroupList, pVirtualTable->pVgroupList);
+  pScan->tableId = pVirtualTable->pMeta->uid;
+  pScan->stableId = pVirtualTable->pMeta->suid;
+  pScan->tableType = pVirtualTable->pMeta->tableType;
+  pScan->tableName.type = TSDB_TABLE_NAME_T;
+  pScan->tableName.acctId = pCxt->pPlanCxt->acctId;
+  tstrncpy(pScan->tableName.dbname, pVirtualTable->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pScan->tableName.tname, pVirtualTable->table.tableName, TSDB_TABLE_NAME_LEN);
+  return TSDB_CODE_SUCCESS;
+}
+
+static void destroyScanLogicNode(void* data) {
+  if (data == NULL) {
+    return;
+  }
+  SScanLogicNode* pNode = *(SScanLogicNode **)data;
+  nodesDestroyNode((SNode*)pNode);
+}
+
+static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
+                                           SVirtualTableNode* pVirtualTable, SLogicNode** pLogicNode) {
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  SVirtualScanLogicNode  *pVtableScan = NULL;
+  SHashObj               *pRefTablesMap = NULL;
+  void                   *pIter = NULL;
+
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN, (SNode**)&pVtableScan));
+
+  PLAN_ERR_JRET(nodesMakeList(&pVtableScan->node.pChildren));
+
+  PLAN_ERR_JRET(makeVirtualScanLogicNode(pCxt, pVirtualTable, pSelect->hasRepeatScanFuncs, pVtableScan));
+
+  PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pVirtualTable->table.tableAlias, COLLECT_COL_TYPE_COL,
+                                    &pVtableScan->pScanCols));
+
+  PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pVirtualTable->table.tableAlias, COLLECT_COL_TYPE_TAG,
+                                    &pVtableScan->pScanPseudoCols));
+
+  PLAN_ERR_JRET(nodesCollectFuncs(pSelect, SQL_CLAUSE_FROM, pVirtualTable->table.tableAlias, fmIsScanPseudoColumnFunc,
+                                    &pVtableScan->pScanPseudoCols));
+
+  PLAN_ERR_JRET(rewriteExprsForSelect(pVtableScan->pScanPseudoCols, pSelect, SQL_CLAUSE_FROM, NULL));
+
+  SNode  *pNode = NULL;
+  int32_t slotId = 0;
+  bool    scanAllCols = true;
+
+  pRefTablesMap = taosHashInit(LIST_LENGTH(pVtableScan->pScanCols), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (NULL == pRefTablesMap) {
+    PLAN_ERR_JRET(terrno);
+  }
+
+  FOREACH(pNode, pVtableScan->pScanCols) {
+    SColumnNode *pCol = (SColumnNode*)pNode;
+    col_id_t index = (col_id_t)(pCol->colId - 1);
+    if (pVirtualTable->pMeta->colRef[index].hasRef) {
+      if (pCol->isPrimTs || pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        PLAN_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
+      }
+      scanAllCols &= false;
+      SColRef *pColRef = &pVirtualTable->pMeta->colRef[index];
+      tstrncpy(pCol->refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(pCol->refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
+      pCol->hasRef = true;
+
+      PLAN_ERR_JRET(addSubScanNode(pCxt, pSelect, pVirtualTable, index, pRefTablesMap));
+    } else if (pCol->isPrimTs || pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      // do nothing
+    } else {
+      pCol->hasRef = false;
+      scanAllCols &= false;
+    }
+  }
+
+  if (scanAllCols) {
+    pVtableScan->scanAllCols = true;
+    taosHashClear(pRefTablesMap);
+    for (int32_t i = 0; i < pVirtualTable->pMeta->tableInfo.numOfColumns; i++) {
+      if (pVirtualTable->pMeta->schema[i].colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        continue;
+      } else {
+        col_id_t index = (col_id_t)(pVirtualTable->pMeta->schema[i].colId - 1);
+        if (pVirtualTable->pMeta->colRef[index].hasRef) {
+          PLAN_ERR_JRET(addSubScanNode(pCxt, pSelect, pVirtualTable, index, pRefTablesMap));
+        }
+      }
+    }
+  }
+
+  while ((pIter = taosHashIterate(pRefTablesMap, pIter))) {
+    SScanLogicNode **pRefScanNode = (SScanLogicNode**)pIter;
+    nodesDestroyList((*pRefScanNode)->node.pTargets);
+    PLAN_ERR_JRET(createColumnByRewriteExprs((*pRefScanNode)->pScanCols, &(*pRefScanNode)->node.pTargets));
+    PLAN_ERR_JRET(nodesListStrictAppend(pVtableScan->node.pChildren, (SNode*)(*pRefScanNode)));
+  }
+
+  // set output
+  PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanCols, &pVtableScan->node.pTargets));
+  PLAN_ERR_JRET(createColumnByRewriteExprs(pVtableScan->pScanPseudoCols, &pVtableScan->node.pTargets));
+
+  *pLogicNode = (SLogicNode*)pVtableScan;
+  taosHashCleanup(pRefTablesMap);
+  return code;
+
+_return:
+  taosHashSetFreeFp(pRefTablesMap, destroyScanLogicNode);
+  taosHashCleanup(pRefTablesMap);
+  nodesDestroyNode((SNode*)pVtableScan);
+  return code;
+}
+
 static int32_t doCreateLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SNode* pTable,
                                         SLogicNode** pLogicNode) {
   switch (nodeType(pTable)) {
@@ -675,6 +879,8 @@ static int32_t doCreateLogicNodeByTable(SLogicPlanContext* pCxt, SSelectStmt* pS
       return createSubqueryLogicNode(pCxt, pSelect, (STempTableNode*)pTable, pLogicNode);
     case QUERY_NODE_JOIN_TABLE:
       return createJoinLogicNode(pCxt, pSelect, (SJoinTableNode*)pTable, pLogicNode);
+    case QUERY_NODE_VIRTUAL_TABLE:
+      return createVirtualTableLogicNode(pCxt, pSelect, (SVirtualTableNode*)pTable, pLogicNode);
     default:
       break;
   }
@@ -1985,10 +2191,14 @@ static int32_t getMsgType(ENodeType sqlType) {
     case QUERY_NODE_CREATE_TABLE_STMT:
     case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
     case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE:
+    case QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT:
+    case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
       return TDMT_VND_CREATE_TABLE;
     case QUERY_NODE_DROP_TABLE_STMT:
+    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
       return TDMT_VND_DROP_TABLE;
     case QUERY_NODE_ALTER_TABLE_STMT:
+    case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
       return TDMT_VND_ALTER_TABLE;
     case QUERY_NODE_FLUSH_DATABASE_STMT:
       return TDMT_VND_COMMIT;
