@@ -38,6 +38,8 @@ TDBlockBlobClient TDBlockBlobClient::CreateFromConnectionString(const std::strin
   return newClient;
 }
 
+TDBlockBlobClient::TDBlockBlobClient(BlobClient blobClient) : BlobClient(std::move(blobClient)) {}
+#if 0
 TDBlockBlobClient::TDBlockBlobClient(const std::string& blobUrl, std::shared_ptr<StorageSharedKeyCredential> credential,
                                      const BlobClientOptions& options)
     : BlobClient(blobUrl, std::move(credential), options) {}
@@ -49,8 +51,6 @@ TDBlockBlobClient::TDBlockBlobClient(const std::string&                         
 
 TDBlockBlobClient::TDBlockBlobClient(const std::string& blobUrl, const BlobClientOptions& options)
     : BlobClient(blobUrl, options) {}
-
-TDBlockBlobClient::TDBlockBlobClient(BlobClient blobClient) : BlobClient(std::move(blobClient)) {}
 
 TDBlockBlobClient TDBlockBlobClient::WithSnapshot(const std::string& snapshot) const {
   TDBlockBlobClient newClient(*this);
@@ -72,47 +72,6 @@ TDBlockBlobClient TDBlockBlobClient::WithVersionId(const std::string& versionId)
                                              _internal::UrlEncodeQueryParameter(versionId));
   }
   return newClient;
-}
-
-Azure::Response<Models::UploadBlockBlobResult> TDBlockBlobClient::Upload(Azure::Core::IO::BodyStream&  content,
-                                                                         const UploadBlockBlobOptions& options,
-                                                                         const Azure::Core::Context&   context) const {
-  _detail::BlockBlobClient::UploadBlockBlobOptions protocolLayerOptions;
-  if (options.TransactionalContentHash.HasValue()) {
-    if (options.TransactionalContentHash.Value().Algorithm == HashAlgorithm::Md5) {
-      protocolLayerOptions.TransactionalContentMD5 = options.TransactionalContentHash.Value().Value;
-    } else if (options.TransactionalContentHash.Value().Algorithm == HashAlgorithm::Crc64) {
-      protocolLayerOptions.TransactionalContentCrc64 = options.TransactionalContentHash.Value().Value;
-    }
-  }
-  protocolLayerOptions.BlobContentType = options.HttpHeaders.ContentType;
-  protocolLayerOptions.BlobContentEncoding = options.HttpHeaders.ContentEncoding;
-  protocolLayerOptions.BlobContentLanguage = options.HttpHeaders.ContentLanguage;
-  protocolLayerOptions.BlobContentMD5 = options.HttpHeaders.ContentHash.Value;
-  protocolLayerOptions.BlobContentDisposition = options.HttpHeaders.ContentDisposition;
-  protocolLayerOptions.BlobCacheControl = options.HttpHeaders.CacheControl;
-  protocolLayerOptions.Metadata = std::map<std::string, std::string>(options.Metadata.begin(), options.Metadata.end());
-  protocolLayerOptions.BlobTagsString = _detail::TagsToString(options.Tags);
-  protocolLayerOptions.Tier = options.AccessTier;
-  protocolLayerOptions.LeaseId = options.AccessConditions.LeaseId;
-  protocolLayerOptions.IfModifiedSince = options.AccessConditions.IfModifiedSince;
-  protocolLayerOptions.IfUnmodifiedSince = options.AccessConditions.IfUnmodifiedSince;
-  protocolLayerOptions.IfMatch = options.AccessConditions.IfMatch;
-  protocolLayerOptions.IfNoneMatch = options.AccessConditions.IfNoneMatch;
-  protocolLayerOptions.IfTags = options.AccessConditions.TagConditions;
-  if (m_customerProvidedKey.HasValue()) {
-    protocolLayerOptions.EncryptionKey = m_customerProvidedKey.Value().Key;
-    protocolLayerOptions.EncryptionKeySha256 = m_customerProvidedKey.Value().KeyHash;
-    protocolLayerOptions.EncryptionAlgorithm = m_customerProvidedKey.Value().Algorithm.ToString();
-  }
-  protocolLayerOptions.EncryptionScope = m_encryptionScope;
-  if (options.ImmutabilityPolicy.HasValue()) {
-    protocolLayerOptions.ImmutabilityPolicyExpiry = options.ImmutabilityPolicy.Value().ExpiresOn;
-    protocolLayerOptions.ImmutabilityPolicyMode = options.ImmutabilityPolicy.Value().PolicyMode;
-  }
-  protocolLayerOptions.LegalHold = options.HasLegalHold;
-
-  return _detail::BlockBlobClient::Upload(*m_pipeline, m_blobUrl, content, protocolLayerOptions, context);
 }
 
 Azure::Response<Models::UploadBlockBlobFromResult> TDBlockBlobClient::UploadFrom(
@@ -270,6 +229,47 @@ Azure::Response<Models::UploadBlockBlobFromResult> TDBlockBlobClient::UploadFrom
   return Azure::Response<Models::UploadBlockBlobFromResult>(std::move(result),
                                                             std::move(commitBlockListResponse.RawResponse));
 }
+#endif
+Azure::Response<Models::UploadBlockBlobResult> TDBlockBlobClient::Upload(Azure::Core::IO::BodyStream&  content,
+                                                                         const UploadBlockBlobOptions& options,
+                                                                         const Azure::Core::Context&   context) const {
+  _detail::BlockBlobClient::UploadBlockBlobOptions protocolLayerOptions;
+  if (options.TransactionalContentHash.HasValue()) {
+    if (options.TransactionalContentHash.Value().Algorithm == HashAlgorithm::Md5) {
+      protocolLayerOptions.TransactionalContentMD5 = options.TransactionalContentHash.Value().Value;
+    } else if (options.TransactionalContentHash.Value().Algorithm == HashAlgorithm::Crc64) {
+      protocolLayerOptions.TransactionalContentCrc64 = options.TransactionalContentHash.Value().Value;
+    }
+  }
+  protocolLayerOptions.BlobContentType = options.HttpHeaders.ContentType;
+  protocolLayerOptions.BlobContentEncoding = options.HttpHeaders.ContentEncoding;
+  protocolLayerOptions.BlobContentLanguage = options.HttpHeaders.ContentLanguage;
+  protocolLayerOptions.BlobContentMD5 = options.HttpHeaders.ContentHash.Value;
+  protocolLayerOptions.BlobContentDisposition = options.HttpHeaders.ContentDisposition;
+  protocolLayerOptions.BlobCacheControl = options.HttpHeaders.CacheControl;
+  protocolLayerOptions.Metadata = std::map<std::string, std::string>(options.Metadata.begin(), options.Metadata.end());
+  protocolLayerOptions.BlobTagsString = _detail::TagsToString(options.Tags);
+  protocolLayerOptions.Tier = options.AccessTier;
+  protocolLayerOptions.LeaseId = options.AccessConditions.LeaseId;
+  protocolLayerOptions.IfModifiedSince = options.AccessConditions.IfModifiedSince;
+  protocolLayerOptions.IfUnmodifiedSince = options.AccessConditions.IfUnmodifiedSince;
+  protocolLayerOptions.IfMatch = options.AccessConditions.IfMatch;
+  protocolLayerOptions.IfNoneMatch = options.AccessConditions.IfNoneMatch;
+  protocolLayerOptions.IfTags = options.AccessConditions.TagConditions;
+  if (m_customerProvidedKey.HasValue()) {
+    protocolLayerOptions.EncryptionKey = m_customerProvidedKey.Value().Key;
+    protocolLayerOptions.EncryptionKeySha256 = m_customerProvidedKey.Value().KeyHash;
+    protocolLayerOptions.EncryptionAlgorithm = m_customerProvidedKey.Value().Algorithm.ToString();
+  }
+  protocolLayerOptions.EncryptionScope = m_encryptionScope;
+  if (options.ImmutabilityPolicy.HasValue()) {
+    protocolLayerOptions.ImmutabilityPolicyExpiry = options.ImmutabilityPolicy.Value().ExpiresOn;
+    protocolLayerOptions.ImmutabilityPolicyMode = options.ImmutabilityPolicy.Value().PolicyMode;
+  }
+  protocolLayerOptions.LegalHold = options.HasLegalHold;
+
+  return _detail::BlockBlobClient::Upload(*m_pipeline, m_blobUrl, content, protocolLayerOptions, context);
+}
 
 Azure::Response<Models::UploadBlockBlobFromResult> TDBlockBlobClient::UploadFrom(
     const std::string& fileName, int64_t offset, int64_t size, const UploadBlockBlobFromOptions& options,
@@ -349,7 +349,7 @@ Azure::Response<Models::UploadBlockBlobFromResult> TDBlockBlobClient::UploadFrom
   return Azure::Response<Models::UploadBlockBlobFromResult>(std::move(result),
                                                             std::move(commitBlockListResponse.RawResponse));
 }
-
+#if 0
 Azure::Response<Models::UploadBlockBlobFromUriResult> TDBlockBlobClient::UploadFromUri(
     const std::string& sourceUri, const UploadBlockBlobFromUriOptions& options,
     const Azure::Core::Context& context) const {
@@ -396,7 +396,7 @@ Azure::Response<Models::UploadBlockBlobFromUriResult> TDBlockBlobClient::UploadF
 
   return _detail::BlockBlobClient::UploadFromUri(*m_pipeline, m_blobUrl, protocolLayerOptions, context);
 }
-
+#endif
 Azure::Response<Models::StageBlockResult> TDBlockBlobClient::StageBlock(const std::string&           blockId,
                                                                         Azure::Core::IO::BodyStream& content,
                                                                         const StageBlockOptions&     options,
@@ -419,7 +419,7 @@ Azure::Response<Models::StageBlockResult> TDBlockBlobClient::StageBlock(const st
   protocolLayerOptions.EncryptionScope = m_encryptionScope;
   return _detail::BlockBlobClient::StageBlock(*m_pipeline, m_blobUrl, content, protocolLayerOptions, context);
 }
-
+#if 0
 Azure::Response<Models::StageBlockFromUriResult> TDBlockBlobClient::StageBlockFromUri(
     const std::string& blockId, const std::string& sourceUri, const StageBlockFromUriOptions& options,
     const Azure::Core::Context& context) const {
@@ -457,7 +457,7 @@ Azure::Response<Models::StageBlockFromUriResult> TDBlockBlobClient::StageBlockFr
 
   return _detail::BlockBlobClient::StageBlockFromUri(*m_pipeline, m_blobUrl, protocolLayerOptions, context);
 }
-
+#endif
 Azure::Response<Models::CommitBlockListResult> TDBlockBlobClient::CommitBlockList(
     const std::vector<std::string>& blockIds, const CommitBlockListOptions& options,
     const Azure::Core::Context& context) const {
@@ -492,7 +492,7 @@ Azure::Response<Models::CommitBlockListResult> TDBlockBlobClient::CommitBlockLis
 
   return _detail::BlockBlobClient::CommitBlockList(*m_pipeline, m_blobUrl, protocolLayerOptions, context);
 }
-
+#if 0
 Azure::Response<Models::GetBlockListResult> TDBlockBlobClient::GetBlockList(const GetBlockListOptions&  options,
                                                                             const Azure::Core::Context& context) const {
   _detail::BlockBlobClient::GetBlockBlobBlockListOptions protocolLayerOptions;
@@ -502,6 +502,7 @@ Azure::Response<Models::GetBlockListResult> TDBlockBlobClient::GetBlockList(cons
   return _detail::BlockBlobClient::GetBlockList(*m_pipeline, m_blobUrl, protocolLayerOptions,
                                                 _internal::WithReplicaStatus(context));
 }
+#endif
 /*
 Azure::Response<Models::QueryBlobResult> TDBlockBlobClient::Query(const std::string&          querySqlExpression,
                                                                 const QueryBlobOptions&     options,

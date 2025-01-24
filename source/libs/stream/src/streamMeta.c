@@ -198,6 +198,7 @@ int32_t streamMetaCheckBackendCompatible(SStreamMeta* pMeta) {
     SCheckpointInfo info;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     if (tDecodeStreamTaskChkInfo(&decoder, &info) < 0) {
+      tDecoderClear(&decoder);
       continue;
     }
 
@@ -250,9 +251,10 @@ _EXIT:
   streamBackendCleanup((void*)pBackend);
 
   if (code == 0) {
-    char* state = taosMemoryCalloc(1, strlen(pMeta->path) + 32);
+    int32_t len = strlen(pMeta->path) + 32;
+    char*   state = taosMemoryCalloc(1, len);
     if (state != NULL) {
-      sprintf(state, "%s%s%s", pMeta->path, TD_DIRSEP, "state");
+      (void)snprintf(state, len, "%s%s%s", pMeta->path, TD_DIRSEP, "state");
       taosRemoveDir(state);
       taosMemoryFree(state);
     } else {
@@ -379,7 +381,7 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
   char*   tpath = taosMemoryCalloc(1, len);
   TSDB_CHECK_NULL(tpath, code, lino, _err, terrno);
 
-  sprintf(tpath, "%s%s%s", path, TD_DIRSEP, "stream");
+  (void)snprintf(tpath, len, "%s%s%s", path, TD_DIRSEP, "stream");
   pMeta->path = tpath;
 
   code = streamMetaOpenTdb(pMeta);
@@ -390,6 +392,22 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
             tstrerror(terrno));
     TSDB_CHECK_CODE(code, lino, _err);
   }
+
+  // set the attribute when running on Linux OS
+  TdThreadRwlockAttr attr;
+  code = taosThreadRwlockAttrInit(&attr);
+  TSDB_CHECK_CODE(code, lino, _err);
+
+#ifdef LINUX
+  code = pthread_rwlockattr_setkind_np(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+  TSDB_CHECK_CODE(code, lino, _err);
+#endif
+
+  code = taosThreadRwlockInit(&pMeta->lock, &attr);
+  TSDB_CHECK_CODE(code, lino, _err);
+
+  code = taosThreadRwlockAttrDestroy(&attr);
+  TSDB_CHECK_CODE(code, lino, _err);
 
   if ((code = streamMetaBegin(pMeta) < 0)) {
     stError("vgId:%d begin trans for stream meta failed", pMeta->vgId);
@@ -429,22 +447,6 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
   pMeta->closeFlag = false;
 
   stInfo("vgId:%d open stream meta succ, latest checkpoint:%" PRId64 ", stage:%" PRId64, vgId, pMeta->chkpId, stage);
-
-  // set the attribute when running on Linux OS
-  TdThreadRwlockAttr attr;
-  code = taosThreadRwlockAttrInit(&attr);
-  TSDB_CHECK_CODE(code, lino, _err);
-
-#ifdef LINUX
-  code = pthread_rwlockattr_setkind_np(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
-  TSDB_CHECK_CODE(code, lino, _err);
-#endif
-
-  code = taosThreadRwlockInit(&pMeta->lock, &attr);
-  TSDB_CHECK_CODE(code, lino, _err);
-
-  code = taosThreadRwlockAttrDestroy(&attr);
-  TSDB_CHECK_CODE(code, lino, _err);
 
   code = bkdMgtCreate(tpath, (SBkdMgt**)&pMeta->bkdChkptMgt);
   TSDB_CHECK_CODE(code, lino, _err);
@@ -575,6 +577,7 @@ void streamMetaClose(SStreamMeta* pMeta) {
   if (pMeta == NULL) {
     return;
   }
+
   int32_t code = taosRemoveRef(streamMetaRefPool, pMeta->rid);
   if (code) {
     stError("vgId:%d failed to remove meta ref:%" PRId64 ", code:%s", pMeta->vgId, pMeta->rid, tstrerror(code));
@@ -1030,6 +1033,7 @@ int64_t streamMetaGetLatestCheckpointId(SStreamMeta* pMeta) {
     SCheckpointInfo info;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     if (tDecodeStreamTaskChkInfo(&decoder, &info) < 0) {
+      tDecoderClear(&decoder);
       continue;
     }
     tDecoderClear(&decoder);

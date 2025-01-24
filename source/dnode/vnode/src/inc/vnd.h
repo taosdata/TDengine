@@ -78,6 +78,7 @@ int32_t vnodeAsyncC(SVAChannelID* channelID, EVAPriority priority, int32_t (*exe
 void    vnodeAWait(SVATaskID* taskID);
 int32_t vnodeACancel(SVATaskID* taskID);
 int32_t vnodeAsyncSetWorkers(int64_t async, int32_t numWorkers);
+bool    vnodeATaskValid(SVATaskID* taskID);
 
 const char* vnodeGetATaskName(EVATaskT task);
 

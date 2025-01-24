@@ -58,11 +58,12 @@ static int DemoInsertData() {
     taos_cleanup();
     return -1;
   }
-  taos_free_result(result);
 
   // you can check affectedRows here
   int rows = taos_affected_rows(result);
   fprintf(stdout, "Successfully inserted %d rows into power.meters.\n", rows);
+
+  taos_free_result(result);
 
   // close & clean
   taos_close(taos);

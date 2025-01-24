@@ -54,6 +54,23 @@ target_link_libraries(
   INTERFACE api
 )
 
+if(NOT ${TD_WINDOWS})
+  target_include_directories(
+    common
+    PUBLIC "$ENV{HOME}/.cos-local.2/include"
+  )
+
+  find_library(CURL_LIBRARY curl $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
+  find_library(SSL_LIBRARY ssl $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
+  find_library(CRYPTO_LIBRARY crypto $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
+  target_link_libraries(
+    common
+    PUBLIC ${CURL_LIBRARY}
+    PUBLIC ${SSL_LIBRARY}
+    PUBLIC ${CRYPTO_LIBRARY}
+  )
+endif()
+
 if(${BUILD_S3})
   if(${BUILD_WITH_S3})
     target_include_directories(
@@ -65,10 +82,6 @@ if(${BUILD_S3})
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
     set(CMAKE_PREFIX_PATH $ENV{HOME}/.cos-local.2)
     find_library(S3_LIBRARY s3)
-    find_library(CURL_LIBRARY curl $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
-    find_library(XML2_LIBRARY xml2)
-    find_library(SSL_LIBRARY ssl $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
-    find_library(CRYPTO_LIBRARY crypto $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
     target_link_libraries(
       common
 
@@ -77,7 +90,7 @@ if(${BUILD_S3})
       PUBLIC ${CURL_LIBRARY}
       PUBLIC ${SSL_LIBRARY}
       PUBLIC ${CRYPTO_LIBRARY}
-      PUBLIC ${XML2_LIBRARY}
+      PUBLIC _libxml2
     )
 
     add_definitions(-DUSE_S3)
@@ -88,7 +101,6 @@ if(${BUILD_S3})
     find_library(APR_LIBRARY apr-1 PATHS /usr/local/apr/lib/)
     find_library(APR_UTIL_LIBRARY aprutil-1 PATHS /usr/local/apr/lib/)
     find_library(MINIXML_LIBRARY mxml)
-    find_library(CURL_LIBRARY curl)
     target_link_libraries(
       common
 

@@ -112,6 +112,7 @@ void clearSearchBuff(SStreamFileState* pFileState) {
   }
 }
 
+#ifdef BUILD_NO_CALL
 int32_t getStateFromRocksdbByCur(SStreamFileState* pFileState, SStreamStateCur* pCur, SWinKey* pResKey, SRowBuffPos** ppPos, int32_t* pVLen, int32_t* pWinCode) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -135,6 +136,7 @@ _end:
   }
   return code;
 }
+#endif
 
 int32_t getHashSortNextRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** ppVal,
                            int32_t* pVLen, int32_t* pWinCode) {

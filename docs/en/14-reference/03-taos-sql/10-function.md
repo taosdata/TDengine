@@ -943,6 +943,7 @@ CHAR(expr1 [, expr2] [, expr3] ...)
 - NULL values in input parameters will be skipped.
 - If the input parameters are of string type, they will be converted to numeric type for processing.
 - If the character corresponding to the input parameter is a non-printable character, the return value will still contain the character corresponding to that parameter, but it may not be displayed.
+- This function can have at most 2^31 - 1 input parameters.
 
 **Examples**:
 
@@ -2170,7 +2171,7 @@ ignore_negative: {
 
 **Usage Instructions**:
 
-- Can be used with the columns associated with the selection. For example: select _rowts, DERIVATIVE() from.
+- Can be used with the columns associated with the selection. For example: select _rowts, DERIVATIVE(col1, 1s, 1) from tb1.
 
 ### DIFF
 

@@ -249,7 +249,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
       for (int32_t i = 0; i < expect.numOfRetensions; ++i) {
         SRetention* pReten = (SRetention*)taosArrayGet(req.pRetensions, i);
         SRetention* pExpectReten = (SRetention*)taosArrayGet(expect.pRetensions, i);
-        if(i == 0) {
+        if (i == 0) {
           ASSERT_EQ(pReten->freq, 0);
         } else {
           ASSERT_EQ(pReten->freq, pExpectReten->freq);
@@ -292,10 +292,11 @@ TEST_F(ParserInitialCTest, createDatabase) {
   setDbWalRetentionSize(-1);
   setDbWalRollPeriod(10);
   setDbWalSegmentSize(20);
-  setDbSstTrigger(16);
+  setDbSstTrigger(1);
   setDbHashPrefix(3);
   setDbHashSuffix(4);
   setDbTsdbPageSize(32);
+#ifndef _STORAGE
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
       "BUFFER 64 "
       "CACHEMODEL 'last_value' "
@@ -320,10 +321,41 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "WAL_RETENTION_SIZE -1 "
       "WAL_ROLL_PERIOD 10 "
       "WAL_SEGMENT_SIZE 20 "
-      "STT_TRIGGER 16 "
+      "STT_TRIGGER 1 "
       "TABLE_PREFIX 3 "
       "TABLE_SUFFIX 4 "
       "TSDB_PAGESIZE 32");
+#else
+  run("CREATE DATABASE IF NOT EXISTS wxy_db "
+      "BUFFER 64 "
+      "CACHEMODEL 'last_value' "
+      "CACHESIZE 20 "
+      "COMP 1 "
+      "DURATION 100 "
+      "WAL_FSYNC_PERIOD 100 "
+      "MAXROWS 1000 "
+      "MINROWS 100 "
+      "KEEP 1440 "
+      "PAGES 96 "
+      "PAGESIZE 8 "
+      "PRECISION 'ns' "
+      "REPLICA 3 "
+      "RETENTIONS -:7d,1m:21d,15m:500d "
+      //      "STRICT 'on' "
+      "WAL_LEVEL 2 "
+      "VGROUPS 100 "
+      "SINGLE_STABLE 1 "
+      "SCHEMALESS 1 "
+      "WAL_RETENTION_PERIOD -1 "
+      "WAL_RETENTION_SIZE -1 "
+      "WAL_ROLL_PERIOD 10 "
+      "WAL_SEGMENT_SIZE 20 "
+      "STT_TRIGGER 1 "
+      "TABLE_PREFIX 3 "
+      "TABLE_SUFFIX 4 "
+      "TSDB_PAGESIZE 32");
+
+#endif
   clearCreateDbReq();
 
   setCreateDbReq("wxy_db", 1);
@@ -583,8 +615,6 @@ TEST_F(ParserInitialCTest, createView) {
   clearCreateStreamReq();
 }
 
-
-
 /*
  * CREATE MNODE ON DNODE dnode_id
  */
@@ -679,7 +709,7 @@ TEST_F(ParserInitialCTest, createSmaIndex) {
     ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType(pQuery->pPrevRoot));
 
     SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pQuery->pRoot;
-    SCmdMsgInfo* pCmdMsg = (SCmdMsgInfo*)taosMemoryMalloc(sizeof(SCmdMsgInfo));
+    SCmdMsgInfo*      pCmdMsg = (SCmdMsgInfo*)taosMemoryMalloc(sizeof(SCmdMsgInfo));
     if (NULL == pCmdMsg) FAIL();
     pCmdMsg->msgType = TDMT_MND_CREATE_SMA;
     pCmdMsg->msgLen = tSerializeSMCreateSmaReq(NULL, 0, pStmt->pReq);
@@ -1068,7 +1098,8 @@ TEST_F(ParserInitialCTest, createStreamSemanticCheck) {
   run("CREATE STREAM s2 INTO st1 AS SELECT ts, to_json('{c1:1}') FROM st1 PARTITION BY TBNAME",
       TSDB_CODE_PAR_INVALID_STREAM_QUERY);
   run("CREATE STREAM s3 INTO st3 TAGS(tname VARCHAR(10), id INT) SUBTABLE(CONCAT('new-', tbname)) "
-      "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 INTERVAL(10S)", TSDB_CODE_PAR_INVALID_STREAM_QUERY);
+      "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 INTERVAL(10S)",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY);
 }
 
 /*
@@ -1296,10 +1327,10 @@ TEST_F(ParserInitialCTest, createTopic) {
   run("CREATE TOPIC IF NOT EXISTS tp1 AS STABLE st1 WHERE tag1 > 0");
   clearCreateTopicReq();
 
-  setCreateTopicReq("tp1", 1, "create topic if not exists tp1 with meta as stable st1 where tag1 > 0", nullptr, "test", "st1", 1);
+  setCreateTopicReq("tp1", 1, "create topic if not exists tp1 with meta as stable st1 where tag1 > 0", nullptr, "test",
+                    "st1", 1);
   run("CREATE TOPIC IF NOT EXISTS tp1 WITH META AS STABLE st1 WHERE tag1 > 0");
   clearCreateTopicReq();
-
 }
 
 /*

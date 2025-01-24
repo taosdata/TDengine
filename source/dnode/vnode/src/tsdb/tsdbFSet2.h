@@ -92,8 +92,9 @@ struct STFileSet {
   int64_t      maxVerValid;
   STFileObj   *farr[TSDB_FTYPE_MAX];  // file array
   TSttLvlArray lvlArr[1];             // level array
+  TSKEY        lastCompact;
+  TSKEY        lastCommit;
 
-  bool      mergeScheduled;
   SVATaskID mergeTask;
   SVATaskID compactTask;
   SVATaskID retentionTask;
