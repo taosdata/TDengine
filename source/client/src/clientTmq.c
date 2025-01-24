@@ -197,10 +197,6 @@ typedef struct {
     SMqDataRsp      dataRsp;
     SMqMetaRsp      metaRsp;
     SMqBatchMetaRsp batchMetaRsp;
-    struct{
-      int32_t len;
-      void*   rawData;
-    };
   };
 } SMqPollRspWrapper;
 
@@ -290,7 +286,7 @@ typedef struct {
 } SVgroupSaveInfo;
 
 static   TdThreadOnce   tmqInit = PTHREAD_ONCE_INIT;  // initialize only once
-volatile int32_t        tmqInitRes = 0;               // initialize rsp code
+volatile int32_t        tmqInitRes = -1;               // initialize rsp code
 static   SMqMgmt        tmqMgmt = {0};
 
 tmq_conf_t* tmq_conf_new() {
@@ -1135,9 +1131,7 @@ static void tmqFreeRspWrapper(SMqRspWrapper* rspWrapper) {
   } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_BATCH_META_RSP) {
     DELETE_POLL_RSP(tDeleteMqBatchMetaRsp,&pRsp->batchMetaRsp)
   } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_RAW_DATA_RSP) {
-    SMqPollRspWrapper* pRsp = &rspWrapper->pollRsp;
-    taosMemoryFreeClear(pRsp->pEpset);
-    taosMemoryFreeClear(pRsp->rawData);
+    DELETE_POLL_RSP(tDeleteMqRawDataRsp, &pRsp->dataRsp)
   }
 }
 
@@ -2051,7 +2045,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     goto END;
   }
   rspType = ((SMqRspHead*)pMsg->pData)->mqMsgType;
-  tqDebugC("consumer:0x%" PRIx64 " recv poll rsp, vgId:%d, type %d,QID:0x%" PRIx64, tmq->consumerId, vgId, rspType, requestId);
+  tqDebugC("consumer:0x%" PRIx64 " recv poll rsp, vgId:%d, type %d(%s),QID:0x%" PRIx64, tmq->consumerId, vgId, rspType, tmqMsgTypeStr[rspType], requestId);
   if (rspType == TMQ_MSG_TYPE__POLL_DATA_RSP) {
     PROCESS_POLL_RSP(tDecodeMqDataRsp, &pRspWrapper->pollRsp.dataRsp)
   } else if (rspType == TMQ_MSG_TYPE__POLL_META_RSP) {
@@ -2061,8 +2055,9 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   } else if (rspType == TMQ_MSG_TYPE__POLL_BATCH_META_RSP) {
     PROCESS_POLL_RSP(tSemiDecodeMqBatchMetaRsp, &pRspWrapper->pollRsp.batchMetaRsp)
   } else if (rspType == TMQ_MSG_TYPE__POLL_RAW_DATA_RSP) {
-    pRspWrapper->pollRsp.len = pMsg->len;
-    pRspWrapper->pollRsp.rawData = pMsg->pData;
+    PROCESS_POLL_RSP(tDecodeMqRawDataRsp, &pRspWrapper->pollRsp.dataRsp)
+    pRspWrapper->pollRsp.dataRsp.len = pMsg->len - sizeof(SMqRspHead);
+    pRspWrapper->pollRsp.dataRsp.rawData = POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead));
     pMsg->pData = NULL;
   } else {  // invalid rspType
     tqErrorC("consumer:0x%" PRIx64 " invalid rsp msg received, type:%d ignored", tmq->consumerId, rspType);
@@ -2085,8 +2080,8 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
       taosFreeQitem(pRspWrapper);
       tqErrorC("consumer:0x%" PRIx64 " put poll res into mqueue failed, code:%d", tmq->consumerId, code);
     } else {
-      tqDebugC("consumer:0x%" PRIx64 " put poll res into mqueue, type:%d, vgId:%d, total in queue:%d,QID:0x%" PRIx64,
-               tmq ? tmq->consumerId : 0, rspType, vgId, taosQueueItemSize(tmq->mqueue), requestId);
+      tqDebugC("consumer:0x%" PRIx64 " put poll res into mqueue, type:%d(%s), vgId:%d, total in queue:%d,QID:0x%" PRIx64,
+               tmq ? tmq->consumerId : 0, rspType, tmqMsgTypeStr[rspType], vgId, taosQueueItemSize(tmq->mqueue), requestId);
     }
   }
 
@@ -2453,8 +2448,7 @@ static SMqRspObj* processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
 
     char buf[TSDB_OFFSET_LEN] = {0};
     tFormatOffset(buf, TSDB_OFFSET_LEN, &pollRspWrapper->rspOffset);
-    if (pollRspWrapper->dataRsp.blockNum == 0 &&
-        pRspWrapper->tmqRspType != TMQ_MSG_TYPE__POLL_RAW_DATA_RSP) {
+    if (pollRspWrapper->dataRsp.blockNum == 0) {
       tqDebugC("consumer:0x%" PRIx64 " empty block received, vgId:%d, offset:%s, vg total:%" PRId64
                    ", total:%" PRId64 ",QID:0x%" PRIx64,
                tmq->consumerId, pVg->vgId, buf, pVg->numOfRows, tmq->totalRows, pollRspWrapper->reqId);
@@ -2471,9 +2465,6 @@ static SMqRspObj* processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
       if (pRspWrapper->tmqRspType != TMQ_MSG_TYPE__POLL_RAW_DATA_RSP){
         tmqBuildRspFromWrapperInner(pollRspWrapper, pVg, &numOfRows, pRspObj);
         tmq->totalRows += numOfRows;
-      } else {
-        pRspObj->rawData = pollRspWrapper->rawData;
-        pRspObj->len = pollRspWrapper->len;
       }
       pVg->emptyBlockReceiveTs = 0;
       if (tmq->replayEnable && pRspWrapper->tmqRspType != TMQ_MSG_TYPE__POLL_RAW_DATA_RSP) {
@@ -2773,7 +2764,7 @@ const char* tmq_get_table_name(TAOS_RES* res) {
   if (res == NULL) {
     return NULL;
   }
-  if (TD_RES_TMQ_RAW(res) || TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res) ) {
+  if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res) ) {
     SMqRspObj* pRspObj = (SMqRspObj*)res;
     SMqDataRsp* data = &pRspObj->dataRsp;
     if (!data->withTbName || data->blockTbName == NULL || pRspObj->resIter < 0 ||

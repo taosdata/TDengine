@@ -9270,7 +9270,13 @@ _exit:
   return code;
 }
 
-void    tDestroySMqPollReq(SMqPollReq *pReq) { tOffsetDestroy(&pReq->reqOffset); }
+void    tDestroySMqPollReq(SMqPollReq *pReq) {
+  tOffsetDestroy(&pReq->reqOffset);
+  if (pReq->uidHash != NULL) {
+    taosHashCleanup(pReq->uidHash);
+    pReq->uidHash = NULL;
+  }
+}
 int32_t tSerializeSTaskDropReq(void *buf, int32_t bufLen, STaskDropReq *pReq) {
   int32_t code = 0;
   int32_t lino;
@@ -11410,6 +11416,9 @@ int32_t tDecodeMqDataRspCommon(SDecoder *pDecoder, SMqDataRsp *pRsp) {
       if (taosArrayPush(pRsp->blockData, &data) == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
+//      for (int m= 0; m < 56; m++){
+//        printf("decode data[%d] = %d\n", m, *((int8_t *)data+18+m));
+//      }
       int32_t len = bLen;
       if (taosArrayPush(pRsp->blockDataLen, &len) == NULL) {
         TAOS_CHECK_EXIT(terrno);
@@ -11453,6 +11462,17 @@ int32_t tDecodeMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
   }
 
   return 0;
+}
+
+int32_t tDecodeMqRawDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tDecodeSTqOffsetVal(pDecoder, &pRsp->reqOffset));
+  TAOS_CHECK_EXIT(tDecodeSTqOffsetVal(pDecoder, &pRsp->rspOffset));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->blockNum));
+_exit:
+  return code;
 }
 
 static void tDeleteMqDataRspCommon(SMqDataRsp *pRsp) {
@@ -11526,6 +11546,14 @@ void tDeleteSTaosxRsp(SMqDataRsp *pRsp) {
   pRsp->createTableLen = NULL;
   taosArrayDestroyP(pRsp->createTableReq, NULL);
   pRsp->createTableReq = NULL;
+}
+
+void tDeleteMqRawDataRsp(SMqDataRsp *pRsp) {
+  tOffsetDestroy(&pRsp->reqOffset);
+  tOffsetDestroy(&pRsp->rspOffset);
+  if (pRsp->rawData != NULL){
+    taosMemoryFree(pRsp->rawData - sizeof(SMqRspHead));
+  }
 }
 
 int32_t tEncodeSSingleDeleteReq(SEncoder *pEncoder, const SSingleDeleteReq *pReq) {
@@ -11688,14 +11716,13 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
   uint8_t version;
 
   uint8_t*      dataAfterCreate = NULL;
-  uint8_t*      dataStart = pCoder->data;
-  uint32_t      posStart = pCoder->pos;
+  uint8_t*      dataStart = pCoder->data + pCoder->pos;
   uint32_t      posAfterCreate = 0;
 
   TAOS_CHECK_EXIT(tStartDecode(pCoder));
   uint32_t      pos = pCoder->pos;
   TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &flags));
-  uint32_t flagsLen = pCoder->pos - posStart;
+  uint32_t flagsLen = pCoder->pos - pos;
 
   pSubmitTbData->flags = flags & 0xff;
   version = (flags >> 8) & 0xff;
@@ -11716,56 +11743,35 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
   TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->uid));
   TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pSubmitTbData->sver));
 
-  if (rawData != NULL){   // no need to decode data
-    if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-      uint64_t nColData = 0;
+  if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+    uint64_t nColData = 0;
 
-      TAOS_CHECK_EXIT(tDecodeU64v(pCoder, &nColData));
+    TAOS_CHECK_EXIT(tDecodeU64v(pCoder, &nColData));
 
-      for (int32_t i = 0; i < nColData; ++i) {
-        SColData pColData = {0};
-        TAOS_CHECK_EXIT(tDecodeColData(version, pCoder, &pColData));
-      }
-    } else {
-      uint64_t nRow = 0;
-      TAOS_CHECK_EXIT(tDecodeU64v(pCoder, &nRow));
+    pSubmitTbData->aCol = taosArrayInit(nColData, sizeof(SColData));
+    if (pSubmitTbData->aCol == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
 
-      for (int32_t iRow = 0; iRow < nRow; ++iRow) {
-        SRow *ppRow = NULL;
-        TAOS_CHECK_EXIT(tDecodeRow(pCoder, &ppRow));
-      }
+    for (int32_t i = 0; i < nColData; ++i) {
+      TAOS_CHECK_EXIT(tDecodeColData(version, pCoder, taosArrayReserve(pSubmitTbData->aCol, 1)));
     }
   } else {
-    if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-      uint64_t nColData = 0;
+    uint64_t nRow = 0;
+    TAOS_CHECK_EXIT(tDecodeU64v(pCoder, &nRow));
 
-      TAOS_CHECK_EXIT(tDecodeU64v(pCoder, &nColData));
+    pSubmitTbData->aRowP = taosArrayInit(nRow, sizeof(SRow *));
+    if (pSubmitTbData->aRowP == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
 
-      pSubmitTbData->aCol = taosArrayInit(nColData, sizeof(SColData));
-      if (pSubmitTbData->aCol == NULL) {
+    for (int32_t iRow = 0; iRow < nRow; ++iRow) {
+      SRow **ppRow = taosArrayReserve(pSubmitTbData->aRowP, 1);
+      if (ppRow == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
 
-      for (int32_t i = 0; i < nColData; ++i) {
-        TAOS_CHECK_EXIT(tDecodeColData(version, pCoder, taosArrayReserve(pSubmitTbData->aCol, 1)));
-      }
-    } else {
-      uint64_t nRow = 0;
-      TAOS_CHECK_EXIT(tDecodeU64v(pCoder, &nRow));
-
-      pSubmitTbData->aRowP = taosArrayInit(nRow, sizeof(SRow *));
-      if (pSubmitTbData->aRowP == NULL) {
-        TAOS_CHECK_EXIT(terrno);
-      }
-
-      for (int32_t iRow = 0; iRow < nRow; ++iRow) {
-        SRow **ppRow = taosArrayReserve(pSubmitTbData->aRowP, 1);
-        if (ppRow == NULL) {
-          TAOS_CHECK_EXIT(terrno);
-        }
-
-        TAOS_CHECK_EXIT(tDecodeRow(pCoder, ppRow));
-      }
+      TAOS_CHECK_EXIT(tDecodeRow(pCoder, ppRow));
     }
   }
 
@@ -11774,7 +11780,6 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
     TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->ctimeMs));
   }
 
-  tEndDecode(pCoder);
   if (rawData != NULL){
     if (dataAfterCreate != NULL){
       TAOS_MEMCPY(dataAfterCreate - INT_BYTES - flagsLen, dataStart, INT_BYTES + flagsLen);
@@ -11784,7 +11789,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
       *(void**)rawData = dataStart;
     }
   }
-
+  tEndDecode(pCoder);
 
 _exit:
   return code;
@@ -11839,12 +11844,20 @@ int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq, SArray* rawList) {
     goto _exit;
   }
 
+  bool hasCreateTable = false;
   for (uint64_t i = 0; i < nSubmitTbData; i++) {
-    if (tDecodeSSubmitTbData(pCoder, taosArrayReserve(pReq->aSubmitTbData, 1),
+    SSubmitTbData* data = taosArrayReserve(pReq->aSubmitTbData, 1);
+    if (tDecodeSSubmitTbData(pCoder, data,
                              rawList != NULL ? taosArrayReserve(rawList, 1) : NULL) < 0) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
     }
+    if (data->flags & SUBMIT_REQ_AUTO_CREATE_TABLE){
+      hasCreateTable = true;
+    }
+  }
+  if (rawList != NULL && hasCreateTable){
+    taosArrayClear(rawList);
   }
 
   tEndDecode(pCoder);

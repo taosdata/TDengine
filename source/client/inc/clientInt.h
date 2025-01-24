@@ -253,10 +253,6 @@ typedef struct {
     SMqDataRsp      dataRsp;
     SMqMetaRsp      metaRsp;
     SMqBatchMetaRsp batchMetaRsp;
-    struct{
-      int32_t len;
-      void*   rawData;
-    };
   };
 } SMqRspObj;
 

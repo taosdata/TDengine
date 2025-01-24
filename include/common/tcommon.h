@@ -125,7 +125,7 @@ enum {
 };
 
 static char* tmqMsgTypeStr[] = {
-    "data", "meta", "ask ep", "meta data", "wal info", "batch meta"
+    "data", "meta", "ask ep", "meta data", "wal info", "batch meta", "raw data"
 };
 
 enum {

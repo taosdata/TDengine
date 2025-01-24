@@ -4182,6 +4182,7 @@ typedef struct {
   int8_t       sourceExcluded;
   int8_t       rawData;
   int8_t       enableBatchMeta;
+  SHashObj    *uidHash;  // to find if uid is duplicated
 } SMqPollReq;
 
 int32_t tSerializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);
@@ -4255,13 +4256,19 @@ typedef struct {
       SArray* createTableLen;
       SArray* createTableReq;
     };
+    struct{
+      int32_t len;
+      void*   rawData;
+    };
   };
 
 } SMqDataRsp;
 
 int32_t tEncodeMqDataRsp(SEncoder* pEncoder, const SMqDataRsp* pObj);
 int32_t tDecodeMqDataRsp(SDecoder* pDecoder, SMqDataRsp* pRsp);
+int32_t tDecodeMqRawDataRsp(SDecoder* pDecoder, SMqDataRsp* pRsp);
 void    tDeleteMqDataRsp(SMqDataRsp* pRsp);
+void    tDeleteMqRawDataRsp(SMqDataRsp* pRsp);
 
 int32_t tEncodeSTaosxRsp(SEncoder* pEncoder, const SMqDataRsp* pRsp);
 int32_t tDecodeSTaosxRsp(SDecoder* pDecoder, SMqDataRsp* pRsp);

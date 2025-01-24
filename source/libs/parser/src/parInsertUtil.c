@@ -723,7 +723,7 @@ int32_t tbNum) { SHashObj* pVgroupHash = taosHashInit(128, taosGetDefaultHashFun
 */
 
 int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool isRebuild) {
-  SHashObj* pVgroupHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
+  SHashObj* pVgroupHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   SArray*   pVgroupList = taosArrayInit(8, POINTER_BYTES);
   if (NULL == pVgroupHash || NULL == pVgroupList) {
     taosHashCleanup(pVgroupHash);
@@ -859,6 +859,13 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = buildSubmitReq(src->vgId, src->pData, &dst->pData, &dst->size);
+      SSubmitReq2 *pSubmitReq = &(SSubmitReq2){0};
+      SDecoder dc = {0};
+      tDecoderInit(&dc, POINTER_SHIFT(dst->pData, sizeof(SSubmitReq2Msg)), dst->size - sizeof(SSubmitReq2Msg));
+      if (tDecodeSubmitReq(&dc, pSubmitReq, NULL) < 0) {
+        code = TSDB_CODE_INVALID_MSG;
+      }
+      tDecoderClear(&dc);
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = (NULL == taosArrayPush(pDataBlocks, &dst) ? terrno : TSDB_CODE_SUCCESS);

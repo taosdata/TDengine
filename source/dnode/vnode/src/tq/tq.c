@@ -397,7 +397,14 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto END;
   }
-
+  if (req.rawData == 1){
+    req.uidHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    if (req.uidHash == NULL) {
+      tqError("tq poll rawData taosHashInit failed");
+      code = terrno;
+      goto END;
+    }
+  }
   int64_t      consumerId = req.consumerId;
   int32_t      reqEpoch = req.epoch;
   STqOffsetVal reqOffset = req.reqOffset;

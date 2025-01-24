@@ -555,8 +555,7 @@ void taos_free_result(TAOS_RES *res) {
   } else if (TD_RES_TMQ_BATCH_META(res)) {
     tDeleteMqBatchMetaRsp(&pRsp->batchMetaRsp);
   } else if (TD_RES_TMQ_RAW(res)) {
-    taosMemoryFree(pRsp->rawData);
-    doFreeReqResultInfo(&pRsp->resInfo);
+    tDeleteMqRawDataRsp(&pRsp->dataRsp);
   }
   taosMemoryFree(pRsp);
 }

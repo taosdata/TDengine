@@ -581,17 +581,17 @@ bool tqNextDataBlockFilterOut(STqReader* pReader, SHashObj* filterOutUids) {
     uid = pSubmitTbData->uid;
     void* ret = taosHashGet(filterOutUids, &pSubmitTbData->uid, sizeof(int64_t));
     TSDB_CHECK_NULL(ret, code, lino, END, true);
-    tqDebug("iterator data block in hash continue, progress:%d/%d, uid:%" PRId64 "", pReader->nextBlk, blockSz, uid);
+    tqDebug("iterator data block in hash jump block, progress:%d/%d, uid:%" PRId64 "", pReader->nextBlk, blockSz, uid);
     pReader->nextBlk++;
   }
 
   tDestroySubmitReq(&pReader->submit, TSDB_MSG_FLG_DECODE);
   pReader->nextBlk = 0;
   pReader->msg.msgStr = NULL;
-  tqDebug("iterator data block end, block progress:%d/%d, uid:%"PRId64, pReader->nextBlk, blockSz, uid);
+  tqDebug("iterator data block end, total block num:%d, uid:%"PRId64, blockSz, uid);
 
 END:
-  tqDebug("%s:%d return:%s, uid:%"PRId64, __FUNCTION__, lino, code?"true":"false", uid);
+  tqDebug("%s:%d get data:%s, uid:%"PRId64, __FUNCTION__, lino, code?"true":"false", uid);
   return code;
 }
 
@@ -1117,7 +1117,7 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SMqDataRsp* pRsp, SArray* block
     if (code != 0) {
       return code;
     }
-  } else if (rawList != NULL){
+  } else if (rawList != NULL && taosArrayGetSize(rawList) > 0) {
     if (taosArrayPush(schemas, &pReader->pSchemaWrapper) == NULL){
       return terrno;
     }

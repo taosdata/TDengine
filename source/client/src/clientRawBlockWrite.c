@@ -2319,8 +2319,8 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
   SRequestConnInfo conn = {0};
 
   RAW_RETURN_CHECK(buildRawRequest(taos, &pRequest, &pCatalog, &conn));
-  uDebug(LOG_ID_TAG " write raw metadata, data:%p, dataLen:%d", LOG_ID_VALUE, data, dataLen);
-  RAW_RETURN_CHECK(decodeRawData(&decoder, data, dataLen, tDecodeSTaosxRsp, &rspObj));
+  uDebug(LOG_ID_TAG " write raw rawdata, data:%p, dataLen:%d", LOG_ID_VALUE, data, dataLen);
+  RAW_RETURN_CHECK(decodeRawData(&decoder, data, dataLen, tDecodeMqDataRsp, &rspObj));
 
   SHashObj* pVgHash = NULL;
   SHashObj* pNameHash = NULL;
@@ -2329,9 +2329,9 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
   int retry = 0;
   while (1) {
     RAW_RETURN_CHECK(smlInitHandle(&pQuery));
-    uDebug(LOG_ID_TAG " write raw meta data block num:%d", LOG_ID_VALUE, rspObj.dataRsp.blockNum);
+    uDebug(LOG_ID_TAG " write raw rawdata block num:%d", LOG_ID_VALUE, rspObj.dataRsp.blockNum);
     SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)(pQuery)->pRoot;
-    pVgroupHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
+    pVgroupHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
     RAW_NULL_CHECK(pVgroupHash);
     pStmt->pVgDataBlocks = taosArrayInit(8, POINTER_BYTES);
     RAW_NULL_CHECK(pStmt->pVgDataBlocks);
@@ -2384,7 +2384,7 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
   }
 
   end:
-  uDebug(LOG_ID_TAG " write raw metadata return, msg:%s", LOG_ID_VALUE, tstrerror(code));
+  uDebug(LOG_ID_TAG " write raw rawdata return, msg:%s", LOG_ID_VALUE, tstrerror(code));
   tDeleteSTaosxRsp(&rspObj.dataRsp);
   tDecoderClear(&decoder);
   qDestroyQuery(pQuery);
@@ -2567,6 +2567,7 @@ int32_t tmq_get_raw(TAOS_RES* res, tmq_raw_data* raw) {
     uError("invalid parameter in %s", __func__);
     return TSDB_CODE_INVALID_PARA;
   }
+  *raw = (tmq_raw_data){0};
   SMqRspObj* rspObj = ((SMqRspObj*)res);
   if (TD_RES_TMQ_META(res)) {
     raw->raw = rspObj->metaRsp.metaRsp;
@@ -2595,8 +2596,9 @@ int32_t tmq_get_raw(TAOS_RES* res, tmq_raw_data* raw) {
     raw->raw_type = rspObj->resType;
     uDebug("tmq get raw batch meta:%p", raw);
   } else if (TD_RES_TMQ_RAW(res)) {
-    raw->raw = rspObj->rawData;
-    raw->raw_len = rspObj->len;
+    raw->raw = rspObj->dataRsp.rawData;
+    rspObj->dataRsp.rawData = NULL;
+    raw->raw_len = rspObj->dataRsp.len;
     raw->raw_type = rspObj->resType;
     uDebug("tmq get raw raw:%p", raw);
   } else {
@@ -2609,9 +2611,10 @@ int32_t tmq_get_raw(TAOS_RES* res, tmq_raw_data* raw) {
 void tmq_free_raw(tmq_raw_data raw) {
   uDebug("tmq free raw data type:%d", raw.raw_type);
   if (raw.raw_type == RES_TYPE__TMQ ||
-      raw.raw_type == RES_TYPE__TMQ_RAWDATA ||
       raw.raw_type == RES_TYPE__TMQ_METADATA) {
     taosMemoryFree(raw.raw);
+  } else if(raw.raw_type == RES_TYPE__TMQ_RAWDATA && raw.raw != NULL){
+    taosMemoryFree(raw.raw - sizeof(SMqRspHead));
   }
   (void)memset(terrMsg, 0, ERR_MSG_LEN);
 }
