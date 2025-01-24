@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbDataFileRW.h"
 #include "meta.h"
+#include "tsdbDataFileRW.h"
 
 // SDataFileReader =============================================
 struct SDataFileReader {
@@ -299,6 +299,7 @@ extern int32_t tBlockDataDecompress(SBufferReader *br, SBlockData *blockData, SB
 int32_t tsdbDataFileReadBlockData(SDataFileReader *reader, const SBrinRecord *record, SBlockData *bData) {
   int32_t code = 0;
   int32_t lino = 0;
+  int32_t fid = reader->config->files[TSDB_FTYPE_DATA].file.fid;
 
   SBuffer *buffer = reader->buffers + 0;
   SBuffer *assist = reader->buffers + 1;
@@ -321,8 +322,8 @@ int32_t tsdbDataFileReadBlockData(SDataFileReader *reader, const SBrinRecord *re
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, lino,
-              tstrerror(code));
+    tsdbError("vgId:%d %s fid %d failed at %s:%d since %s", TD_VID(reader->config->tsdb->pVnode), __func__, fid,
+              __FILE__, lino, tstrerror(code));
   }
   return code;
 }
@@ -331,6 +332,7 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
                                           STSchema *pTSchema, int16_t cids[], int32_t ncid) {
   int32_t code = 0;
   int32_t lino = 0;
+  int32_t fid = reader->config->files[TSDB_FTYPE_DATA].file.fid;
 
   SDiskDataHdr hdr;
   SBuffer     *buffer0 = reader->buffers + 0;
@@ -505,8 +507,8 @@ int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRe
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, lino,
-              tstrerror(code));
+    tsdbError("vgId:%d %s fid:%d failed at %s:%d since %s", TD_VID(reader->config->tsdb->pVnode), __func__, fid,
+              __FILE__, lino, tstrerror(code));
   }
   return code;
 }
