@@ -246,15 +246,12 @@ The query performance test mainly outputs the QPS indicator of query request spe
 
 ``` bash
 complete query with 3 threads and 10000 query delay avg: 	0.002686s min: 	0.001182s max: 	0.012189s p90: 	0.002977s p95: 	0.003493s p99: 	0.004645s SQL command: select ...
-INFO: Total specified queries: 30000
 INFO: Spend 26.9530 second completed total queries: 30000, the QPS of all threads: 1113.049
 ```
 
 - The first line represents the percentile distribution of query execution and query request delay for each of the three threads executing 10000 queries. The SQL command is the test query statement
-- The second line indicates that a total of 10000 * 3 = 30000 queries have been completed
-- The third line indicates that the total query time is 26.9653 seconds, and the query rate per second (QPS) is 1113.049 times/second
+- The second line indicates that the total query time is 26.9653 seconds, the total queries is 10000 * 3 = 30000, and the query rate per second (QPS) is 1113.049 times/second
 - If the `continue_if_fail` option is set to `yes` in the query, the last line will output the number of failed requests and error rate, the format like "error + number of failed requests (error rate)"
-**Indicator calculation**
 - QPS        = number of successful requests / time spent (in seconds)
 - Error rate = number of failed requests / (number of successful requests + number of failed requests)
 
