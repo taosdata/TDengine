@@ -2868,7 +2868,8 @@ static int32_t doBlockDataPrimaryKeyFilter(SSDataBlock* pBlock, STqOffsetVal* of
   SColumnInfoData* pColTs = taosArrayGet(pBlock->pDataBlock, 0);
   SColumnInfoData* pColPk = taosArrayGet(pBlock->pDataBlock, 1);
 
-  qDebug("doBlockDataWindowFilter primary key, ts:%" PRId64 " %" PRId64, offset->ts, offset->primaryKey.val);
+  qDebug("doBlockDataWindowFilter primary key, ts:%" PRId64 " %" PRId64, offset->ts,
+         VALUE_GET_TRIVIAL_DATUM(&offset->primaryKey));
   QUERY_CHECK_CONDITION((pColPk->info.type == offset->primaryKey.type), code, lino, _end,
                         TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
@@ -2885,7 +2886,7 @@ static int32_t doBlockDataPrimaryKeyFilter(SSDataBlock* pBlock, STqOffsetVal* of
       p[i] = (*ts > offset->ts) || (func(data, tmq) > 0);
       taosMemoryFree(tmq);
     } else {
-      p[i] = (*ts > offset->ts) || (func(data, &offset->primaryKey.val) > 0);
+      p[i] = (*ts > offset->ts) || (func(data, VALUE_GET_DATUM(&offset->primaryKey, pColPk->info.type)) > 0);
     }
 
     if (!p[i]) {
@@ -3124,7 +3125,7 @@ static int32_t processPrimaryKey(SSDataBlock* pBlock, bool hasPrimaryKey, STqOff
       val.nData = varDataLen(tmp);
       memcpy(val.pData, varDataVal(tmp), varDataLen(tmp));
     } else {
-      memcpy(&val.val, tmp, pColPk->info.bytes);
+      valueSetDatum(&val, pColPk->info.type, tmp, pColPk->info.bytes);
     }
   }
   tqOffsetResetToData(offset, pBlock->info.id.uid, pBlock->info.window.ekey, val);
