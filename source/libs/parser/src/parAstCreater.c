@@ -3873,7 +3873,7 @@ _err:
 
 SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
-  SAssignLeaderStmt* pStmt = NULL;
+  SBalanceVgroupStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_BALANCE_VGROUP_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   return (SNode*)pStmt;
@@ -3883,7 +3883,7 @@ _err:
 
 SNode* createAssignLeaderStmt(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
-  SBalanceVgroupStmt* pStmt = NULL;
+  SAssignLeaderStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_ASSIGN_LEADER_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   return (SNode*)pStmt;

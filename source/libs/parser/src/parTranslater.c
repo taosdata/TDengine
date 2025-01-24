@@ -12744,7 +12744,7 @@ static int32_t translateBalanceVgroup(STranslateContext* pCxt, SBalanceVgroupStm
 
 static int32_t translateAssignLeader(STranslateContext* pCxt, SAssignLeaderStmt* pStmt) {
   SAssignLeaderReq req = {0};
-  int32_t          code = buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP, (FSerializeFunc)tSerializeSAssignLeaderReq, &req);
+  int32_t          code = buildCmdMsg(pCxt, TDMT_MND_ASSIGN_LEADER, (FSerializeFunc)tSerializeSAssignLeaderReq, &req);
   tFreeSAssignLeaderReq(&req);
   return code;
 }
