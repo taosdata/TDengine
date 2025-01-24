@@ -2578,6 +2578,7 @@ typedef struct {
   char*   arbToken;
   int64_t arbTerm;
   char*   memberToken;
+  int8_t  force;
 } SVArbSetAssignedLeaderReq;
 
 int32_t tSerializeSVArbSetAssignedLeaderReq(void* buf, int32_t bufLen, SVArbSetAssignedLeaderReq* pReq);

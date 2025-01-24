@@ -8210,6 +8210,7 @@ int32_t tSerializeSVArbSetAssignedLeaderReq(void *buf, int32_t bufLen, SVArbSetA
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->arbToken));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->arbTerm));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->memberToken));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->force));
 
   tEndEncode(&encoder);
 
@@ -8239,6 +8240,9 @@ int32_t tDeserializeSVArbSetAssignedLeaderReq(void *buf, int32_t bufLen, SVArbSe
     TAOS_CHECK_EXIT(terrno);
   }
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->memberToken));
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->force));
+  }
 
   tEndDecode(&decoder);
 
