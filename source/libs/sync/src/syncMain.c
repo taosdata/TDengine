@@ -334,10 +334,12 @@ int32_t syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg) {
 
   ths->arbTerm = TMAX(req.arbTerm, ths->arbTerm);
 
-  if (strncmp(req.memberToken, ths->arbToken, TSDB_ARB_TOKEN_SIZE) != 0) {
-    sInfo("vgId:%d, skip to set assigned leader, token mismatch, local:%s, msg:%s", ths->vgId, ths->arbToken,
-          req.memberToken);
-    goto _OVER;
+  if (!req.force) {
+    if (strncmp(req.memberToken, ths->arbToken, TSDB_ARB_TOKEN_SIZE) != 0) {
+      sInfo("vgId:%d, skip to set assigned leader, token mismatch, local:%s, msg:%s", ths->vgId, ths->arbToken,
+            req.memberToken);
+      goto _OVER;
+    }
   }
 
   if (ths->state != TAOS_SYNC_STATE_ASSIGNED_LEADER) {
