@@ -205,7 +205,7 @@ REDISTRIBUTE VGROUP vgroup_no DNODE dnode_id1 [DNODE dnode_id2] [DNODE dnode_id3
 BALANCE VGROUP LEADER
 ```
 
-触发集群所有 vgroup 中的 leader 重新选主，对集群各节点进行负载再均衡操作。
+触发集群所有 vgroup 中的 leader 重新选主，对集群各节点进行负载再均衡操作。（企业版功能）
 
 ## 查看数据库工作状态
 

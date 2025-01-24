@@ -158,9 +158,21 @@ class TDTestCase:
             tdSql.query(f'show grants;')
             tdSql.checkEqual(len(tdSql.queryResult), 1)
             infoFile.write(";".join(map(str,tdSql.queryResult[0])) + "\n")
+            tdLog.info(f"show grants: {tdSql.queryResult[0]}")
+            expireTimeStr=tdSql.queryResult[0][1]
+            serviceTimeStr=tdSql.queryResult[0][2]
+            tdLog.info(f"expireTimeStr: {expireTimeStr}, serviceTimeStr: {serviceTimeStr}")
+            expireTime = time.mktime(time.strptime(expireTimeStr, "%Y-%m-%d %H:%M:%S"))
+            serviceTime = time.mktime(time.strptime(serviceTimeStr, "%Y-%m-%d %H:%M:%S"))
+            tdLog.info(f"expireTime: {expireTime}, serviceTime: {serviceTime}")
+            tdSql.checkEqual(True, abs(expireTime - serviceTime - 864000) < 15)
             tdSql.query(f'show grants full;')
-            tdSql.checkEqual(len(tdSql.queryResult), 31)
-            
+            nGrantItems = 31
+            tdSql.checkEqual(len(tdSql.queryResult), nGrantItems)
+            tdSql.checkEqual(tdSql.queryResult[0][2], serviceTimeStr)
+            for i in range(1, nGrantItems):
+                tdSql.checkEqual(tdSql.queryResult[i][2], expireTimeStr)
+
             if infoFile:
                 infoFile.flush()
 
