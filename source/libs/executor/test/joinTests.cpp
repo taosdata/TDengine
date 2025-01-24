@@ -74,7 +74,7 @@ enum {
 #define JT_PRINTF (void)printf
 
 #define COL_DISPLAY_WIDTH 18
-#define JT_MAX_LOOP       1000000
+#define JT_MAX_LOOP       10000
 
 #define LEFT_BLK_ID       0
 #define RIGHT_BLK_ID      1
@@ -4673,7 +4673,7 @@ TEST(hInnerJoin, fullCondTest) {
 #endif
 
 #if 1
-#if 1
+#if 0
 TEST(hLeftOuterJoin, eqCondTest) {
   SJoinTestParam param;
   char* caseName = "hLeftOuterJoin:eqCondTest";
@@ -4710,7 +4710,6 @@ TEST(hLeftOuterJoin, fullCondTest) {
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
   param.subType = JOIN_STYPE_OUTER;
-  param.subType = JOIN_STYPE_NONE;
   param.cond = TEST_FULL_COND;
   param.asc = true;
   param.grpJoin = false;

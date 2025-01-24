@@ -523,14 +523,72 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
   return 0;
 }
 
+int32_t colDataAssignNRowsFromReassignedCol(SColumnInfoData* pDst, int32_t dstIdx, const SColumnInfoData* pSrc, int32_t srcIdx,
+                           int32_t numOfRows) {
+  if (!IS_VAR_DATA_TYPE(pSrc->info.type)) {
+    uError("reassigned column but not var data type, type:%d", pSrc->info.type);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  getReassignedColsLen();
+
+  int32_t lastSrcOffset = -1;
+  int32_t allLen = 0;
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    if (colDataIsNull_var(pSrc, srcIdx + i)) {
+      pDst->varmeta.offset[dstIdx + i] = -1;
+      pDst->hasNull = true;
+      continue;
+    }
+
+    if (lastSrcOffset >= 0 && lastSrcOffset == pSrc->varmeta.offset[srcIdx + i]) {
+      pDst->varmeta.offset[dstIdx + i] = pDst->varmeta.offset[dstIdx + i - 1];
+      continue;
+    }
+    
+    char* pData = colDataGetVarData(pSrc, srcIdx + i);
+    int32_t dataLen = 0;
+    if (pSrc->info.type == TSDB_DATA_TYPE_JSON) {
+      dataLen = getJsonValueLen(pData);
+    } else {
+      dataLen = varDataTLen(pData);
+    }
+    
+    if (pDst->varmeta.allocLen < pDst->varmeta.length + dataLen) {
+      char* tmp = taosMemoryRealloc(pDst->pData, pDst->varmeta.length + dataLen);
+      if (tmp == NULL) {
+        return terrno;
+      }
+    
+      pDst->pData = tmp;
+      pDst->varmeta.allocLen = pDst->varmeta.length + dataLen;
+    }
+    
+    pDst->varmeta.offset[dstIdx + i] = pDst->varmeta.length + allLen;
+    allLen += dataLen;
+    
+    memcpy(pDst->pData + pDst->varmeta.offset[dstIdx + i], colDataGetVarData(pSrc, srcIdx), dataLen);
+
+    lastSrcOffset = pSrc->varmeta.offset[srcIdx + i];
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnInfoData* pSrc, int32_t srcIdx,
                            int32_t numOfRows) {
-  if (pDst->info.type != pSrc->info.type || pDst->info.bytes != pSrc->info.bytes || pSrc->reassigned) {
+  if (pDst->info.type != pSrc->info.type || pDst->info.bytes != pSrc->info.bytes) {
+    uError("%s column info mismatch, src - type:%d, bytes:%d, dst - type:%d, bytes:%d, reassigned:%d", 
+        __func__, pSrc->info.type, pSrc->info.bytes, pDst->info.type, pDst->info.bytes, pSrc->reassigned);
     return TSDB_CODE_INVALID_PARA;
   }
 
   if (numOfRows <= 0) {
     return numOfRows;
+  }
+
+  if (pSrc->reassigned) {
+    return colDataAssignNRowsFromReassignedCol(pDst, dstIdx, pSrc, srcIdx, numOfRows);
   }
 
   if (IS_VAR_DATA_TYPE(pDst->info.type)) {

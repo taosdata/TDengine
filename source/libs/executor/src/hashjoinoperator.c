@@ -81,6 +81,7 @@ int32_t hJoinCopyMergeMidBlk(SHJoinCtx* pCtx, SSDataBlock** ppMid, SSDataBlock**
 }
 
 int32_t hJoinSetImplFp(SHJoinOperatorInfo* pJoin) {
+  int32_t code = TSDB_CODE_SUCCESS;
   switch (pJoin->joinType) {
     case JOIN_TYPE_INNER:
       pJoin->joinFp = hInnerJoinDo;
@@ -92,15 +93,19 @@ int32_t hJoinSetImplFp(SHJoinOperatorInfo* pJoin) {
           pJoin->joinFp = hLeftJoinDo;
           break;
         default:
+          qError("Not supported join type, type:%d, subType:%d", pJoin->joinType, pJoin->subType);
+          code = TSDB_CODE_QRY_INVALID_PLAN;
           break;
       }
       break;
     }      
     default:
+      qError("Not supported join type, type:%d, subType:%d", pJoin->joinType, pJoin->subType);
+      code = TSDB_CODE_QRY_INVALID_PLAN;
       break;
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 

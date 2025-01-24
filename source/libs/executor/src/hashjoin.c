@@ -146,6 +146,14 @@ int32_t hLeftJoinHandleSeqProbeRows(struct SOperatorInfo* pOperator, SHJoinOpera
 
   for (; pCtx->probeStartIdx <= pCtx->probeEndIdx; ++pCtx->probeStartIdx) {
     if (hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen)) {
+      HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, pCtx->probeStartIdx, 1));
+      if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
+        ++pCtx->probeStartIdx;
+        *loopCont = false;
+        
+        return TSDB_CODE_SUCCESS;
+      }
+
       continue;
     }
     

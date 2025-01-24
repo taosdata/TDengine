@@ -168,6 +168,7 @@ typedef struct SHJoinOperatorInfo {
     int32_t _code = (c);              \
     if (_code != TSDB_CODE_SUCCESS) { \
       terrno = _code;                 \
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(_code)); \
       return _code;                   \
     }                                 \
   } while (0)
@@ -176,6 +177,7 @@ typedef struct SHJoinOperatorInfo {
   do {                               \
     code = (c);                      \
     if (code != TSDB_CODE_SUCCESS) { \
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code)); \
       terrno = code;                 \
       goto _return;                  \
     }                                \
