@@ -91,8 +91,6 @@ int32_t hInnerJoinDo(struct SOperatorInfo* pOperator) {
   return code;
 }
 
-#ifdef HASH_JOIN_FULL
-
 int32_t hLeftJoinHandleSeqRowRemains(struct SOperatorInfo* pOperator, SHJoinOperatorInfo* pJoin, bool* loopCont) {
   bool allFetched = false;
   SHJoinCtx* pCtx = &pJoin->ctx;
@@ -251,6 +249,14 @@ int32_t hLeftJoinHandleProbeRows(struct SOperatorInfo* pOperator, SHJoinOperator
 
   for (; pCtx->probeStartIdx <= pCtx->probeEndIdx; ++pCtx->probeStartIdx) {
     if (hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen)) {
+      HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, pCtx->probeStartIdx, 1));
+      if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
+        ++pCtx->probeStartIdx;
+        *loopCont = false;
+        
+        return TSDB_CODE_SUCCESS;
+      }
+
       continue;
     }
     
@@ -355,6 +361,4 @@ int32_t hLeftJoinDo(struct SOperatorInfo* pOperator) {
 
   return TSDB_CODE_SUCCESS;
 }
-
-#endif
 

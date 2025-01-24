@@ -84,6 +84,20 @@ int32_t taosMergeSort(void *src, int64_t numOfElem, int64_t size, __compar_fn_t 
  */
 void *taosbsearch(const void *key, const void *base, int32_t nmemb, int32_t size, __compar_fn_t compar, int32_t flags);
 
+
+/**
+ * binary search with reverse order data, with range support
+ *
+ * @param key
+ * @param base
+ * @param nmemb
+ * @param size
+ * @param fn
+ * @param flags
+ * @return
+ */
+ void *taosrbsearch(const void *key, const void *base, int32_t nmemb, int32_t size, __compar_fn_t compar, int32_t flags);
+
 /**
  * adjust heap
  *

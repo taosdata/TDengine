@@ -52,9 +52,11 @@ typedef enum EHJoinPhase {
 } EHJoinPhase;
 
 typedef struct SHJoinCtx {
+  int64_t      limit;
+  bool         ascTs;
+
   bool         rowRemains;
   bool         midRemains;
-  int64_t      limit;
   SBufRowInfo* pBuildRow;
   SSDataBlock* pProbeData;
   EHJoinPhase  probePhase;
@@ -68,7 +70,7 @@ typedef struct SHJoinCtx {
 typedef struct SHJoinColInfo {
   int32_t          srcSlot;
   int32_t          dstSlot;
-  bool             keyCol;
+  int32_t          keyIdx;
   bool             vardata;
   int32_t          offset;
   int32_t          bytes;

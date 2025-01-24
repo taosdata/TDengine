@@ -74,7 +74,7 @@ enum {
 #define JT_PRINTF (void)printf
 
 #define COL_DISPLAY_WIDTH 18
-#define JT_MAX_LOOP       10000
+#define JT_MAX_LOOP       1000000
 
 #define LEFT_BLK_ID       0
 #define RIGHT_BLK_ID      1
@@ -103,7 +103,7 @@ char* jtColCondStr[] = {"", "NO COND", "EQ COND", "ON COND", "FULL COND"};
 char* jtJoinTypeStr[] = {"INNER", "LEFT", "RIGHT", "FULL"};
 char* jtSubTypeStr[] = {"", "OUTER", "SEMI", "ANTI", "ASOF", "WINDOW"};
 
-
+#define JT_BLK_HAS_TR(_blk, _trTarget) ((LEFT_BLK_ID == (_blk)->info.id.blockId) ? ((_trTarget) & 0x1) : ((_trTarget) & 0x2))
 
 bool jtErrorRerun = false;
 bool jtInRerun = false;
@@ -188,6 +188,7 @@ typedef struct {
   SSHashObj* jtResRows;
 
   SOperatorInfo* pJoinOp;
+  SNode*         pPlanNode;
 
   int32_t  loopIdx;
 
@@ -203,6 +204,7 @@ typedef struct {
 
   int64_t  startTsUs;
   int64_t  runtimes;
+  jmp_buf  env;  
 } SJoinTestCtx;
 
 typedef struct {
@@ -663,8 +665,10 @@ void createColOnCondEnd(void* p, bool mJoin) {
     return;
   }
 
-  SNode* pTmp = nodesCloneNode(((SSortMergeJoinPhysiNode*)p)->pColOnCond);
-  jtMergeEqCond(&((SSortMergeJoinPhysiNode*)p)->pFullOnCond, &pTmp);
+  SNode* pTmp = NULL;
+  int32_t code = nodesCloneNode(((SSortMergeJoinPhysiNode*)p)->pColOnCond, &pTmp);
+  assert(pTmp);
+  assert(0 == jtMergeEqCond(&((SSortMergeJoinPhysiNode*)p)->pFullOnCond, &pTmp));
 }
 
 
@@ -971,13 +975,17 @@ SSortMergeJoinPhysiNode* createDummySortMergeJoinPhysiNode(SJoinTestParam* param
 SHashJoinPhysiNode* createDummyHashJoinPhysiNode(SJoinTestParam* param) {
   jtCtx.mJoin = false;
   
-  SHashJoinPhysiNode* p = (SHashJoinPhysiNode*)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN);
+  SHashJoinPhysiNode* p = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN, (SNode**)&p);
+  assert(p);
   p->joinType = param->joinType;
   p->subType = param->subType;
   //p->asofOpType = param->asofOp;
   //p->grpJoin = param->grpJoin;
   if (p->subType == JOIN_STYPE_WIN || param->jLimit > 1 || taosRand() % 2) {
-    SLimitNode* limitNode = (SLimitNode*)nodesMakeNode(QUERY_NODE_LIMIT);
+    SLimitNode* limitNode = NULL;
+    code = nodesMakeNode(QUERY_NODE_LIMIT, (SNode**)&limitNode);
+    assert(limitNode);
     limitNode->limit = param->jLimit;
     p->pJLimit = (SNode*)limitNode;
   }
@@ -986,9 +994,15 @@ SHashJoinPhysiNode* createDummyHashJoinPhysiNode(SJoinTestParam* param) {
   p->rightPrimSlotId = JT_PRIM_TS_SLOT_ID;
   p->node.inputTsOrder = param->asc ? ORDER_ASC : ORDER_DESC;
   if (JOIN_STYPE_WIN == p->subType) {
-    SWindowOffsetNode* pOffset = (SWindowOffsetNode*)nodesMakeNode(QUERY_NODE_WINDOW_OFFSET);
-    SValueNode* pStart = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
-    SValueNode* pEnd = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+    SWindowOffsetNode* pOffset = NULL;
+    code = nodesMakeNode(QUERY_NODE_WINDOW_OFFSET, (SNode**)&pOffset);
+    assert(pOffset);
+    SValueNode* pStart = NULL;
+    code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pStart);
+    assert(pStart);
+    SValueNode* pEnd = NULL;
+    code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pEnd);
+    assert(pEnd);
     pStart->node.resType.type = TSDB_DATA_TYPE_BIGINT;
     pStart->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
     pStart->datum.i = (taosRand() % 2) ? (((int32_t)-1) * (int64_t)(taosRand() % JT_MAX_WINDOW_OFFSET)) : (taosRand() % JT_MAX_WINDOW_OFFSET);
@@ -1024,6 +1038,8 @@ SHashJoinPhysiNode* createDummyHashJoinPhysiNode(SJoinTestParam* param) {
   createFilterEnd(&p->node.pConditions, param->filter);
   updateColRowInfo();
   createBlockDescNode(&p->node.pOutputDataBlockDesc);
+
+  jtCtx.pPlanNode = (SNode*)p;
 
   return p;
 }
@@ -2707,6 +2723,20 @@ void createTsEqGrpRows(SSDataBlock** ppLeft, SSDataBlock** ppRight, int32_t left
   }
 }
 
+bool jtFilterBlockRowsFromTimeRange(SSDataBlock* pBlk, int32_t rowIdx) {
+  SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pBlk->pDataBlock, JT_PRIM_TS_SLOT_ID);
+  assert(pCol);
+
+  SHashJoinPhysiNode* pHash = (SHashJoinPhysiNode*)jtCtx.pPlanNode;
+
+  TSKEY tskey = *(TSKEY*)colDataGetData(pCol, rowIdx);
+  if (tskey < pHash->timeRange.skey || tskey > pHash->timeRange.ekey) {
+    return true;
+  }
+
+  return false;
+}
+
 bool jtFilterBlockRows(SSDataBlock* pBlk, int32_t rowIdx) {
   int32_t blkId = pBlk->info.id.blockId;
   
@@ -2762,6 +2792,11 @@ bool jtFilterBlockRows(SSDataBlock* pBlk, int32_t rowIdx) {
 void jtAddBlockRowsToHash(SSDataBlock* pBlk, char* pBuf, int32_t blkIdx, SSHashObj* pHash) {
   int32_t value[2] = {blkIdx, 0};
   for (int32_t i = 0; i < pBlk->info.rows; ++i) {
+    if (!jtCtx.mJoin && jtCtx.tbTimeRange && JT_BLK_HAS_TR(pBlk, ((SHashJoinPhysiNode*)jtCtx.pPlanNode)->timeRangeTarget) && jtFilterBlockRowsFromTimeRange(pBlk, i)) {
+      qDebug("row [%d:%d] in right block filterd out cause of time range filter", blkIdx, i);
+      continue;
+    }
+
     if (jtFilterBlockRows(pBlk, i)) {
       qDebug("row [%d:%d] in right block filterd out", blkIdx, i);
       continue;
@@ -2799,6 +2834,9 @@ void jtAddBlockRowsToHash(SSDataBlock* pBlk, char* pBuf, int32_t blkIdx, SSHashO
 }
 
 void jtBuildHashFromBlkList(SArray* pRightBlkList, int32_t capacity, SSHashObj** pHash) {
+  if (NULL == pRightBlkList) {
+    return;
+  }
   *pHash = tSimpleHashInit(capacity, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
   char* pBuf = (char*)taosMemoryMalloc(jtCtx.colEqHashKeySize);
 
@@ -2959,29 +2997,32 @@ void jtHashInnerJoinAppendResRows(SArray* pRightBlkList, SSDataBlock* pBlk, int3
 
 }
 
-void jtHashLeftJoinAppendResRows(SArray* pRightBlkList, SSDataBlock* pBlk, int32_t blkIdx, SSHashObj* pHash, char* keyBuf, int32_t rowIdx) {
+void jtHashLeftJoinAppendResRows(SArray* pRightBlkList, SSDataBlock* pBlk, int32_t blkIdx, SSHashObj* pHash, char* keyBuf, int32_t rowIdx, bool nmatch) {
   int32_t appendNum = 0;
-  
-  if (!*(bool*)keyBuf) {
-    SArray** p = (SArray**)tSimpleHashGet(pHash, keyBuf, jtCtx.colEqHashKeySize);
-    if (NULL != p) {
-      jtAppendEqHashGroupResRows(pRightBlkList, pBlk, rowIdx, *p, &appendNum);
-      if (appendNum > 0) {
-        return;
+
+  if (!nmatch) {
+    if (!*(bool*)keyBuf) {
+      SArray** p = (SArray**)tSimpleHashGet(pHash, keyBuf, jtCtx.colEqHashKeySize);
+      if (NULL != p) {
+        jtAppendEqHashGroupResRows(pRightBlkList, pBlk, rowIdx, *p, &appendNum);
+        if (appendNum > 0) {
+          return;
+        }
+      } else {
+        qDebug("row [%d:%d] in left block not matched in hash", blkIdx, rowIdx);
       }
     } else {
-      qDebug("row [%d:%d] in left block not matched in hash", blkIdx, rowIdx);
+      qDebug("row [%d:%d] in left block not matched cause of NULL value", blkIdx, rowIdx);
     }
-  
-    jtAppendNMatchHashGroupResRows(pBlk, rowIdx);
-  } else {
-    qDebug("row [%d:%d] in left block filterd out cause of NULL value", blkIdx, rowIdx);
   }
 
+  if (!((pBlk->info.id.blockId == LEFT_BLK_ID) ? jtCtx.rightFilterNum : jtCtx.leftFilterNum)) {  
+    jtAppendNMatchHashGroupResRows(pBlk, rowIdx);
+  }
 }
 
 
-void jtHashJoinAppendResRows(SArray* pRightBlkList, SSDataBlock* pBlk, int32_t blkIdx, SSHashObj* pHash, char* keyBuf, int32_t rowIdx) {
+void jtHashJoinAppendResRows(SArray* pRightBlkList, SSDataBlock* pBlk, int32_t blkIdx, SSHashObj* pHash, char* keyBuf, int32_t rowIdx, bool nmatch) {
   switch (jtCtx.joinType) {
     case JOIN_TYPE_INNER:
       jtHashInnerJoinAppendResRows(pRightBlkList, pBlk, blkIdx, pHash, keyBuf, rowIdx);
@@ -2989,7 +3030,7 @@ void jtHashJoinAppendResRows(SArray* pRightBlkList, SSDataBlock* pBlk, int32_t b
     case JOIN_TYPE_LEFT: {
       switch (jtCtx.subType) {
         case JOIN_STYPE_OUTER:
-          jtHashLeftJoinAppendResRows(pRightBlkList, pBlk, blkIdx, pHash, keyBuf, rowIdx);
+          jtHashLeftJoinAppendResRows(pRightBlkList, pBlk, blkIdx, pHash, keyBuf, rowIdx, nmatch);
           break;
         case JOIN_STYPE_SEMI:
           break;
@@ -3013,31 +3054,45 @@ void jtHashJoinAppendResRows(SArray* pRightBlkList, SSDataBlock* pBlk, int32_t b
 
 
 void jtAppendBlkHashJoinResRows(SArray* pRightBlkList, SSDataBlock* pBlk, int32_t blkIdx, SSHashObj* pHash, char* keyBuf) {
+  bool nmatch = false;
+  
   for (int32_t i = 0; i < pBlk->info.rows; ++i) {
+    nmatch = false;
+    if (!jtCtx.mJoin && jtCtx.tbTimeRange && JT_BLK_HAS_TR(pBlk, ((SHashJoinPhysiNode*)jtCtx.pPlanNode)->timeRangeTarget) && jtFilterBlockRowsFromTimeRange(pBlk, i)) {
+      if (jtCtx.joinType == JOIN_TYPE_INNER || ((pBlk->info.id.blockId == LEFT_BLK_ID) ? jtCtx.rightFilterNum : jtCtx.leftFilterNum)) {
+        qDebug("row [%d:%d] in left block filterd out cause of time range filter", blkIdx, i);
+        continue;
+      }
+
+      nmatch = true;      
+    }
+
     if (jtFilterBlockRows(pBlk, i)) {
       qDebug("row [%d:%d] in left block filterd out", blkIdx, i);
       continue;
     }
 
     memset(keyBuf, 0, jtCtx.colEqHashKeySize);
-    
-    for (int32_t c = 0; c < jtCtx.colEqNum; ++c) {
-      SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pBlk->pDataBlock, jtCtx.colEqSlotList[c]);
-      
-      if (colDataIsNull_s(pCol, i)) {
-        *(bool*)keyBuf = true;
-        break;
+
+    if (!nmatch) {
+      for (int32_t c = 0; c < jtCtx.colEqNum; ++c) {
+        SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pBlk->pDataBlock, jtCtx.colEqSlotList[c]);
+        
+        if (colDataIsNull_s(pCol, i)) {
+          *(bool*)keyBuf = true;
+          break;
+        }
+        
+        memcpy(keyBuf + jtCtx.colEqHashOffset[c], colDataGetData(pCol, i), colDataGetRowLength(pCol, i));
       }
-      
-      memcpy(keyBuf + jtCtx.colEqHashOffset[c], colDataGetData(pCol, i), colDataGetRowLength(pCol, i));
     }
 
-    jtHashJoinAppendResRows(pRightBlkList, pBlk, blkIdx, pHash, keyBuf, i);
+    jtHashJoinAppendResRows(pRightBlkList, pBlk, blkIdx, pHash, keyBuf, i, nmatch);
   }
 }
 
 void jtCalcHJoinResRows() {
-  if (taosArrayGetSize(jtCtx.leftBlkList) <= 0 || taosArrayGetSize(jtCtx.rightBlkList) <= 0) {
+  if (JOIN_TYPE_INNER == jtCtx.joinType && (taosArrayGetSize(jtCtx.leftBlkList) <= 0 || taosArrayGetSize(jtCtx.rightBlkList) <= 0)) {
     return;
   }
 
@@ -3053,6 +3108,7 @@ void jtCalcHJoinResRows() {
     jtAppendBlkHashJoinResRows(jtCtx.rightBlkList, pBlk, i, pHash, keyBuf);
   }
 
+  taosMemoryFree(keyBuf);
   tSimpleHashCleanup(pHash);
 }
 
@@ -3139,8 +3195,6 @@ void createBothBlkRowsData(void) {
         break;
     }
   }
-
-  forceFlushResRows();
 }
 
 void createDummyBlkList(int32_t leftMaxRows, int32_t leftMaxGrpRows, int32_t rightMaxRows, int32_t rightMaxGrpRows, int32_t blkRows) {
@@ -3163,6 +3217,20 @@ void createDummyBlkList(int32_t leftMaxRows, int32_t leftMaxGrpRows, int32_t rig
   taosArrayClear(jtCtx.rightFilterOut);
 
   createBothBlkRowsData();
+
+  if (jtCtx.tbTimeRange) {
+    SHashJoinPhysiNode* p = (SHashJoinPhysiNode*)jtCtx.pPlanNode;
+    p->timeRangeTarget = taosRand() % 3 + 1;
+    int64_t range = jtCtx.beginTs < jtCtx.curTs ? (jtCtx.curTs - jtCtx.beginTs) : (jtCtx.beginTs - jtCtx.curTs);
+    int64_t offset = taosRand() % (0 == range ? 10 : 2 * range);
+    p->timeRange.skey = TMIN(jtCtx.beginTs, jtCtx.curTs) + ((taosRand() % 2) ? -1 * offset : offset);
+    p->timeRange.ekey = TMAX(jtCtx.beginTs, jtCtx.curTs) + ((taosRand() % 2) ? -1 * offset : offset);
+    if (p->timeRange.skey > p->timeRange.ekey) {
+      TSWAP(p->timeRange.skey, p->timeRange.ekey);
+    }
+  } 
+
+  forceFlushResRows();  
 }
 
 void rerunBlockedHere() {
@@ -3337,7 +3405,7 @@ void printInputData() {
   jtCtx.leftBlkReadIdx = jtCtx.rightBlkReadIdx = 0;
 }
 
-char* getInputStatStr(char* inputStat) {
+char* jtGetInputStatStr(char* inputStat) {
   if (jtCtx.inputStat & (1 << LEFT_BLK_ID)) {
     TAOS_STRCAT(inputStat, "L");
   }
@@ -3349,6 +3417,27 @@ char* getInputStatStr(char* inputStat) {
   }
   return inputStat;
 }
+
+char* jtGetTimeRangeFilterStr(char* buf) {
+  SHashJoinPhysiNode* pHash = (SHashJoinPhysiNode*)jtCtx.pPlanNode;
+
+  if (pHash->timeRangeTarget) {
+    sprintf(buf, "left-%s right-%s", (pHash->timeRangeTarget & 0x1) ? "true" : "false", (pHash->timeRangeTarget & 0x2) ? "true" : "false");    
+  } else {
+    sprintf(buf, "%s", "false");    
+  }
+  
+  return buf;
+}
+
+char* jtGetTimeRangeStr(char* buf) {
+  SHashJoinPhysiNode* pHash = (SHashJoinPhysiNode*)jtCtx.pPlanNode;
+
+  sprintf(buf, "[%" PRId64 ", %" PRId64 "]", pHash->timeRange.skey, pHash->timeRange.ekey);    
+  
+  return buf;
+}
+
 
 char* getAsofOpStr() {
   switch (jtCtx.asofOpType) {
@@ -3372,12 +3461,19 @@ void printBasicInfo(char* caseName) {
     return;
   }
 
+  char buf[128] = {0};
   char inputStat[4] = {0};
   JT_PRINTF("\n%dth TEST [%s] START\nBasic Info:\n\t asc:%d\n\t filter:%d\n\t maxRows:left-%d right-%d\n\t "
     "maxGrpRows:left-%d right-%d\n\t blkRows:%d\n\t colCond:%s\n\t joinType:%s\n\t "
-    "subType:%s\n\t inputStat:%s\n\t groupJoin:%s\n", jtCtx.loopIdx, caseName, jtCtx.asc, jtCtx.filter, jtCtx.leftMaxRows, jtCtx.rightMaxRows, 
+    "subType:%s\n\t inputStat:%s\n\t groupJoin:%s\n\t timeRangeFilter:%s\n", 
+    jtCtx.loopIdx, caseName, jtCtx.asc, jtCtx.filter, jtCtx.leftMaxRows, jtCtx.rightMaxRows, 
     jtCtx.leftMaxGrpRows, jtCtx.rightMaxGrpRows, jtCtx.blkRows, jtColCondStr[jtCtx.colCond], jtJoinTypeStr[jtCtx.joinType],
-    jtSubTypeStr[jtCtx.subType], getInputStatStr(inputStat), jtCtx.grpJoin ? "true" : "false");
+    jtSubTypeStr[jtCtx.subType], jtGetInputStatStr(inputStat), jtCtx.grpJoin ? "true" : "false",
+    jtCtx.tbTimeRange ? jtGetTimeRangeFilterStr(buf) : "false");
+
+  if (jtCtx.tbTimeRange) {
+    JT_PRINTF("\t timeRange:%s\n", jtGetTimeRangeStr(buf));
+  }
     
   if (JOIN_STYPE_ASOF == jtCtx.subType) {
     JT_PRINTF("\t asofOp:%s\n\t JLimit:%" PRId64 "\n", getAsofOpStr(), jtCtx.jLimit);
@@ -3561,18 +3657,6 @@ void resetForJoinRerun(int32_t dsNum, void* pNode, SExecTaskInfo* pTask) {
   TAOS_MEMSET(&jtRes, 0, sizeof(jtRes));
   jtRes.succeed = true;
 
-  if (!jtCtx.mJoin && jtCtx.tbTimeRange && jtCtx.runtimes <= 0) {
-    SHashJoinPhysiNode* pHashJoin = (SHashJoinPhysiNode*)pNode;
-    pHashJoin->timeRangeTarget = taosRand() % 3 + 1;
-    int64_t range = jtCtx.beginTs < jtCtx.curTs ? (jtCtx.curTs - jtCtx.beginTs) : (jtCtx.beginTs - jtCtx.curTs);
-    int64_t offset = taosRand() % (0 == range ? 10 : 2 * range);
-    pHashJoin->timeRange.skey = TMIN(jtCtx.beginTs, jtCtx.curTs) + (taosRand() % 2) ? -1 * offset : offset;
-    pHashJoin->timeRange.ekey = TMAX(jtCtx.beginTs, jtCtx.curTs) + (taosRand() % 2) ? -1 * offset : offset;
-    if (pHashJoin->timeRange.skey > pHashJoin->timeRange.ekey) {
-      TSWAP(pHashJoin->timeRange.skey, pHashJoin->timeRange.ekey);
-    }
-  }
-
   SOperatorInfo* pDownstreams[2];
   createDummyDownstreamOperators(2, pDownstreams);  
   SOperatorInfo* ppDownstreams[] = {pDownstreams[0], pDownstreams[1]};
@@ -3647,6 +3731,8 @@ void initJoinTest() {
 }
 
 void handleTestDone() {
+  jtCtx.pPlanNode = NULL;
+  
   if (jtCtrl.logHistory) {
     SJoinTestHistory h;
     TAOS_MEMCPY(&h.ctx, &jtCtx, sizeof(h.ctx));
@@ -3676,6 +3762,14 @@ void handleTestDone() {
   jtCtx.inputStat = 0;
 }
 
+void jtLaunchJoin(SSDataBlock** ppBlk) {
+  int32_t ret = setjmp(jtCtx.env);
+  assert(TSDB_CODE_SUCCESS == ret);
+
+  int32_t code = jtCtx.pJoinOp->fpSet.getNextFn(jtCtx.pJoinOp, ppBlk);
+  assert(TSDB_CODE_SUCCESS == code);
+}
+
 void runSingleMJoinTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
@@ -3693,7 +3787,7 @@ void runSingleMJoinTest(char* caseName, SJoinTestParam* param) {
     jtCtx.startTsUs = taosGetTimestampUs();
     while (true) {
       SSDataBlock* pBlock = NULL;
-      int32_t code = jtCtx.pJoinOp->fpSet.getNextFn(jtCtx.pJoinOp, &pBlock);
+      jtLaunchJoin(&pBlock);
       if (NULL == pBlock) {
         checkJoinDone(caseName);
         break;
@@ -3714,6 +3808,7 @@ void runSingleHJoinTest(char* caseName, SJoinTestParam* param) {
   
   SHashJoinPhysiNode* pNode = createDummyHashJoinPhysiNode(param);    
   createDummyBlkList(10, 10, 10, 10, 3);
+//  createDummyBlkList(1000, 1000, 1000, 1000, 100);
   
   while (contLoop) {
     rerunBlockedHere();
@@ -3723,7 +3818,8 @@ void runSingleHJoinTest(char* caseName, SJoinTestParam* param) {
 
     jtCtx.startTsUs = taosGetTimestampUs();
     while (true) {
-      SSDataBlock* pBlock = jtCtx.pJoinOp->fpSet.getNextFn(jtCtx.pJoinOp);
+      SSDataBlock* pBlock = NULL;
+      jtLaunchJoin(&pBlock);
       if (NULL == pBlock) {
         checkJoinDone(caseName);
         break;
@@ -4519,7 +4615,7 @@ TEST(mLeftWinJoin, noCondProjectionTest) {
 #endif
 
 
-#if 1
+#if 0
 #if 1
 TEST(hInnerJoin, eqCondTest) {
   SJoinTestParam param;
@@ -4575,6 +4671,65 @@ TEST(hInnerJoin, fullCondTest) {
 }
 #endif
 #endif
+
+#if 1
+#if 1
+TEST(hLeftOuterJoin, eqCondTest) {
+  SJoinTestParam param;
+  char* caseName = "hLeftOuterJoin:eqCondTest";
+  SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
+
+  param.pTask = pTask;
+  param.joinType = JOIN_TYPE_LEFT;
+  param.subType = JOIN_STYPE_OUTER;
+  param.cond = TEST_EQ_COND;
+  param.asc = true;
+  param.grpJoin = false;
+  
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
+    param.filter = false;
+    runSingleHJoinTest(caseName, &param);
+
+    param.filter = true;
+    runSingleHJoinTest(caseName, &param);
+  }
+  
+  printStatInfo(caseName); 
+  taosMemoryFree(pTask);
+}
+#endif
+
+
+#if 1
+TEST(hLeftOuterJoin, fullCondTest) {
+  SJoinTestParam param;
+  char* caseName = "hLeftOuterJoin:fullCondTest";
+  SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
+
+  param.pTask = pTask;
+  param.joinType = JOIN_TYPE_LEFT;
+  param.subType = JOIN_STYPE_OUTER;
+  param.subType = JOIN_STYPE_NONE;
+  param.cond = TEST_FULL_COND;
+  param.asc = true;
+  param.grpJoin = false;
+  
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
+    param.filter = false;
+    runSingleHJoinTest(caseName, &param);
+
+    param.filter = true;
+    runSingleHJoinTest(caseName, &param);
+  }
+  
+  printStatInfo(caseName);   
+  taosMemoryFree(pTask);
+}
+#endif
+#endif
+
 
 #if 1
 TEST(functionsTest, branch) {
