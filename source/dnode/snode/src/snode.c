@@ -43,7 +43,7 @@ int32_t sndBuildStreamTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProce
   tqSetRestoreVersionInfo(pTask);
 
   char *p = streamTaskGetStatus(pTask).name;
-  if (pTask->info.fillHistory) {
+  if (pTask->info.fillHistory == STREAM_HISTORY_TASK) {
     sndInfo("vgId:%d build stream task, s-task:%s, %p checkpointId:%" PRId64 " checkpointVer:%" PRId64
             " nextProcessVer:%" PRId64
             " child id:%d, level:%d, status:%s fill-history:%d, related stream task:0x%x trigger:%" PRId64 " ms",

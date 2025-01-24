@@ -29,7 +29,7 @@ void streamSetupScheduleTrigger(SStreamTask* pTask) {
   const char* id = pTask->id.idStr;
   int64_t*    pTaskRefId = NULL;
 
-  if (pTask->info.fillHistory == 1) {
+  if (pTask->info.fillHistory != STREAM_NORMAL_TASK) {
     return;
   }
 
@@ -44,7 +44,7 @@ void streamSetupScheduleTrigger(SStreamTask* pTask) {
       return;
     }
 
-    pTask->info.delaySchedParam = recInterval;//convertTimePrecision(recInterval, interval.precision, TSDB_TIME_PRECISION_MILLI);
+    pTask->info.delaySchedParam = 60000;//recInterval;
     stInfo("s-task:%s cont-window-close extract re-calculate delay:%" PRId64, id, pTask->info.delaySchedParam);
     delay = pTask->info.delaySchedParam;
 
@@ -345,7 +345,7 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
       }
     } else if (trigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE && level == TASK_LEVEL__SOURCE) {
       SStreamTrigger* pTrigger = NULL;
-      code = streamCreateTriggerBlock(&pTrigger, STREAM_INPUT__GET_RES, STREAM_RECALCULATE_START);
+      code = streamCreateTriggerBlock(&pTrigger, STREAM_INPUT__RECALCULATE, STREAM_RECALCULATE_START);
       if (code) {
         stError("s-task:%s failed to prepare recalculate data trigger, code:%s, try again in %dms", id, tstrerror(code),
                 nextTrigger);

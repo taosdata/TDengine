@@ -226,8 +226,7 @@ void tFreeStreamObj(SStreamObj *pStream) {
   }
 
   pStream->pTaskList = freeStreamTasks(pStream->pTaskList);
-  pStream->pHTasksList = freeStreamTasks(pStream->pHTasksList);
-  pStream->pReCalTaskList = freeStreamTasks(pStream->pReCalTaskList);
+  pStream->pHTaskList = freeStreamTasks(pStream->pHTaskList);
 
   // tagSchema.pSchema
   if (pStream->tagSchema.nCols > 0) {

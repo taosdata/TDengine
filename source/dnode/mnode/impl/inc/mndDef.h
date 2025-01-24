@@ -810,10 +810,8 @@ typedef struct {
   char*   physicalPlan;
 
   SArray* pTaskList;       // SArray<SArray<SStreamTask>>
-  SArray* pHTasksList;     // generate the results for already stored ts data
-  SArray* pReCalTaskList;  // generate the recalculation task
+  SArray* pHTaskList;     // generate the results for already stored ts data
   int64_t hTaskUid;        // stream task for history ts data
-  int64_t rTaskUid;
 
   SSchemaWrapper outputSchema;
   SSchemaWrapper tagSchema;

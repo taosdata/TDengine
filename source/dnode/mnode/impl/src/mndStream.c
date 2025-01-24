@@ -347,7 +347,6 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   snprintf(p, tListLen(p), "%s_%s", pObj->name, "fillhistory");
 
   pObj->hTaskUid = mndGenerateUid(pObj->name, strlen(pObj->name));
-  pObj->rTaskUid = mndGenerateUid(pObj->name, strlen(pObj->name));
   pObj->status = 0;
 
   pObj->conf.igExpired = pCreate->igExpired;
@@ -582,11 +581,11 @@ int32_t mndPersistStreamTasks(STrans *pTrans, SStreamObj *pStream) {
   destroyStreamTaskIter(pIter);
 
   // persistent stream task for already stored ts data
-  if (pStream->conf.fillHistory) {
-    int32_t level = taosArrayGetSize(pStream->pHTasksList);
+  if (pStream->conf.fillHistory || (pStream->conf.trigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE)) {
+    int32_t level = taosArrayGetSize(pStream->pHTaskList);
 
     for (int32_t i = 0; i < level; i++) {
-      SArray *pLevel = taosArrayGetP(pStream->pHTasksList, i);
+      SArray *pLevel = taosArrayGetP(pStream->pHTaskList, i);
 
       int32_t numOfTasks = taosArrayGetSize(pLevel);
       for (int32_t j = 0; j < numOfTasks; j++) {
@@ -808,9 +807,9 @@ static int32_t addStreamNotifyInfo(SCMCreateStreamReq *createReq, SStreamObj *pS
   }
 
   if (pStream->conf.fillHistory && createReq->notifyHistory) {
-    level = taosArrayGetSize(pStream->pHTasksList);
+    level = taosArrayGetSize(pStream->pHTaskList);
     for (int32_t i = 0; i < level; ++i) {
-      pLevel = taosArrayGetP(pStream->pHTasksList, i);
+      pLevel = taosArrayGetP(pStream->pHTaskList, i);
       nTasks = taosArrayGetSize(pLevel);
       for (int32_t j = 0; j < nTasks; ++j) {
         code = addStreamTaskNotifyInfo(createReq, pStream, taosArrayGetP(pLevel, j));

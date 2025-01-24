@@ -554,9 +554,9 @@ typedef struct STaskUpdateEntry {
 } STaskUpdateEntry;
 
 typedef enum {
-  NORMAL_STREAM_TASK = 0,
-  HISTORY_TASK = 1,
-  RECALCUL_TASK = 2,
+  STREAM_NORMAL_TASK = 0,
+  STREAM_HISTORY_TASK = 1,
+  STREAM_RECALCUL_TASK = 2,
 } EStreamTaskType;
 
 typedef int32_t (*__state_trans_user_fn)(SStreamTask*, void* param);
