@@ -23,14 +23,6 @@
     - [8.1 Introduction](#81-introduction)
     - [8.2 Prerequisites](#82-prerequisites)
     - [8.3 Testing Guide](#83-testing-guide)
-      - [8.3.1 Unit Test](#831-unit-test)
-      - [8.3.2 System Test](#832-system-test)
-      - [8.3.3 Legacy Test](#833-legacy-test)
-      - [8.3.4 Smoke Test](#834-smoke-test)
-      - [8.3.5 Chaos Test](#835-chaos-test)
-      - [8.3.6 CI Test](#836-ci-test)
-      - [8.3.7 TSBS Test](#837-tsbs-test)
-      - [8.3.8 TestNG Test](#838-testng-test)
 1. [Releasing](#9-releasing)
 1. [Workflow](#10-workflow)
 1. [Coverage](#11-coverage)
@@ -553,19 +545,16 @@ option "-c test/cfg" specifies the system configuration file directory.
 </details>
 
 # 8. Testing
-<details>
 
-<summary>How to run different types of tests on TDengine locally?</summary>
-
-## 8.1. Introduction
+## 8.1 Introduction
 
 This manual is intended to give developers a comprehensive guidance to test TDengine efficiently. It is divided into three main sections: introduction, prerequisites and testing guide.
 
-> **NOTE:**
+> [!NOTE]
 > - The commands and scripts below are verified on Linux (Ubuntu 18.04/20.04/22.04).
 > - The commands and steps described below are to run the tests on a single host.
 
-## 8.2. Prerequisites
+## 8.2 Prerequisites
 
 <details>
 
@@ -603,11 +592,11 @@ make && make install
 
 </details>
 
-## 8.3. Testing Guide
+## 8.3 Testing Guide
 
 <details>
 
-<summary>Detailed test guide on linux</summary>
+<summary>Detailed testing guide on Linux</summary>
 
 In `tests` directory, there are different types of tests for TDengine. Below is a brief introduction about how to run them and how to add new cases.
 
@@ -738,7 +727,6 @@ Smoke test is a group of test cases selected from system test, which is also kno
 
 #### 8.3.4.1 How to run test?
 
-
 ```bash
 cd /root/TDinternal/community/packaging/smokeTest
 ./test_smoking_selfhost.sh
@@ -747,7 +735,6 @@ cd /root/TDinternal/community/packaging/smokeTest
 #### 8.3.4.2 How to add new cases?
 
 New cases can be added by updating the value of `commands` variable in `test_smoking_selfhost.sh`.
-
 
 ### 8.3.5 Chaos Test
 
@@ -783,7 +770,6 @@ cd tests
 #### 8.3.6.2 How to add new cases?
 
 Please refer to the [Unit Test](#831-unit-test)、[System Test](#832-system-test) and [Legacy Test](#833-legacy-test) sections for detailed steps to add new test cases, when new cases are added in aboved tests, they will be run automatically by CI test.
-
 
 ### 8.3.7 TSBS Test
 
@@ -858,18 +844,16 @@ apt install -y python3-pip && \
 
 You can add python test case under `TestNG/cases`. When the case passes in the test branch, add the case to the `testng_cases.txt` file under `TestNG/scripts`, and then merge the pr into master branch .
 
-
-</details>
 </details>
 
-# 9 Releasing
+# 9. Releasing
 <details>
 
-<summary>For the complete list of TDengine Releases, please see [Releases](https://github.com/taosdata/TDengine/releases) or on NAS server:</summary>
+<summary>Detailed releasing information</summary>
 
 TDengine Enterprise installers can be found on the corporate NAS server:
 
-    NAS Server URL： http://192.168.1.252:5000/
+    NAS Server URL: http://192.168.1.252:5000/
     Directory: /Release/TDengine/
 
 NAS server write permission is enabled on `192.168.1.131`. To release, please follow steps below, take v3.3.4.0 for example:
@@ -884,11 +868,11 @@ scp <installer> root@192.168.1.131:/pkgs/TDengine/3.3/v3.3.4.0/enterprise/
 ```
 </details>
 
-# 10 Workflow
+# 10. Workflow
 
 TDengine build check workflow can be found in this [Github Action](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml). More workflows will be available soon.
 
-# 11 Coverage
+# 11. Coverage
 
 Latest TDengine test coverage report can be found on [coveralls.io](https://coveralls.io/github/taosdata/TDengine). 
 
@@ -908,7 +892,7 @@ bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -b main -c task
 
 </details>
 
-# 12 Contributing
+# 12. Contributing
 
 Guidelines for contributing to the project:
 
