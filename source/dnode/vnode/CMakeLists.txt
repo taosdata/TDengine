@@ -155,31 +155,58 @@ target_link_directories(
     PUBLIC "${CMAKE_BINARY_DIR}/build/lib"
 )
 
-target_link_libraries(
-    vnode
-    PUBLIC os
-    PUBLIC util
-    PUBLIC common
-    PUBLIC tfs
-    PUBLIC wal
-    PUBLIC qworker
-    PUBLIC sync
-    PUBLIC executor
-    PUBLIC scheduler
-    PUBLIC tdb
-    PUBLIC audit
-    PUBLIC crypt
-    PUBLIC tcs
+if(${FALLBACK})             # {
+    target_link_libraries(
+        vnode
+        PUBLIC os
+        PUBLIC util
+        PUBLIC common
+        PUBLIC tfs
+        PUBLIC wal
+        PUBLIC qworker
+        PUBLIC sync
+        PUBLIC executor
+        PUBLIC scheduler
+        PUBLIC tdb
+        PUBLIC audit
+        PUBLIC crypt
+        PUBLIC tcs
 
-    # PUBLIC bdb
-    # PUBLIC scalar
-    # PUBLIC zstd
-    PUBLIC rocksdb
-    PUBLIC transport
-    PUBLIC stream
-    PUBLIC index
-    PUBLIC tqCommon
-)
+        # PUBLIC bdb
+        # PUBLIC scalar
+        # PUBLIC zstd
+        PUBLIC rocksdb
+        PUBLIC transport
+        PUBLIC stream
+        PUBLIC index
+        PUBLIC tqCommon
+    )
+else()                      # }{
+    target_link_libraries(
+        vnode
+        PUBLIC os
+        PUBLIC util
+        PUBLIC common
+        PUBLIC tfs
+        PUBLIC wal
+        PUBLIC qworker
+        PUBLIC sync
+        PUBLIC executor
+        PUBLIC scheduler
+        PUBLIC tdb
+        PUBLIC audit
+        PUBLIC crypt
+        PUBLIC tcs
+
+        # PUBLIC bdb
+        # PUBLIC scalar
+        # PUBLIC zstd
+        PUBLIC transport
+        PUBLIC stream
+        PUBLIC index
+        PUBLIC tqCommon
+    )
+endif()                     # }
 
 if(TD_GRANT)
     TARGET_LINK_LIBRARIES(vnode PUBLIC grant)

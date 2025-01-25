@@ -358,36 +358,6 @@ if(${BUILD_TEST})
             )
         endif(${TD_DARWIN})
     else()                   # }{
-        init_external(ext_gtest)
-        ExternalProject_Add(ext_gtest
-            GIT_REPOSITORY https://github.com/taosdata-contrib/googletest.git
-            GIT_TAG release-1.11.0
-            PREFIX "${_base}"
-            CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
-            CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=MinSizeRel
-            GIT_SHALLOW true
-            EXCLUDE_FROM_ALL TRUE
-        )
-        # include_directories(${_ins}/include)
-        init_external(ext_stub)
-        ExternalProject_Add(ext_stub
-            GIT_REPOSITORY https://github.com/coolxv/cpp-stub.git
-            GIT_TAG 3137465194014d66a8402941e80d2bccc6346f51
-            # GIT_SUBMODULES "src"
-            PREFIX "${_base}"
-            CONFIGURE_COMMAND ""
-            BUILD_COMMAND ""
-            INSTALL_COMMAND ""
-            EXCLUDE_FROM_ALL TRUE
-        )
-        if(${TD_LINUX})          # {
-            set(ext_stub_addr_any ${_base}/src/ext_stub/src_linux PARENT_SCOPE)
-        elseif(${TD_DARWIN})     # }{
-            set(ext_stub_addr_any ${_base}/src/ext_stub/src_darwin PARENT_SCOPE)
-        elseif(${TD_WINDOWS})    # }{
-            set(ext_stub_addr_any ${_base}/src/ext_stub/src_win PARENT_SCOPE)
-        endif()                  # }
-        set(ext_stub_stub ${_base}/src/ext_stub/src PARENT_SCOPE)
     endif()                  # }
 endif(${BUILD_TEST})
 
@@ -406,22 +376,6 @@ if(${FALLBACK})          # {
         PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cJson>
     )
     unset(CMAKE_PROJECT_INCLUDE_BEFORE)
-else()                   # }{
-    init_external(ext_cjson)
-    ExternalProject_Add(ext_cjson
-        GIT_REPOSITORY https://github.com/taosdata-contrib/cJSON.git
-        GIT_TAG v1.7.15
-        PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
-        CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
-        CMAKE_ARGS -DCJSON_BUILD_SHARED_LIBS:BOOL=OFF
-        CMAKE_ARGS -DCJSON_OVERRIDE_BUILD_SHARED_LIBS:BOOL=OFF
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=MinSizeRel
-        CMAKE_ARGS -DENABLE_CJSON_TEST:BOOL=OFF
-        CMAKE_ARGS -DENABLE_TARGET_EXPORT:BOOL=OFF
-        GIT_SHALLOW true
-        EXCLUDE_FROM_ALL TRUE
-    )
 endif()                  # }
 
 # xml2
@@ -437,59 +391,11 @@ if(${FALLBACK})          # {
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/lz4/lib
     )
 else()                   # }{
-    init_external(ext_lz4)
-    ExternalProject_Add(ext_lz4
-        GIT_REPOSITORY https://github.com/taosdata-contrib/lz4.git
-        GIT_TAG v1.9.3
-        SOURCE_SUBDIR build/cmake
-        PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
-        CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
-        CMAKE_ARGS -DBUILD_STATIC_LIBS:BOOL=ON
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=MinSizeRel
-        CMAKE_ARGS -DLZ4_BUILD_CLI:BOOL=OFF
-        CMAKE_ARGS -DLZ4_BUILD_LEGACY_LZ4C:BOOL=OFF
-        GIT_SHALLOW true
-        EXCLUDE_FROM_ALL TRUE
-    )
 endif()                  # }
 
 # lzma2
 if(${FALLBACK})          # {
 else()                   # }{
-    init_external(ext_lzma2)
-    ExternalProject_Add(ext_lzma2
-        GIT_REPOSITORY https://github.com/conor42/fast-lzma2.git
-        PREFIX "${_base}"
-        BUILD_IN_SOURCE TRUE
-        PATCH_COMMAND
-            COMMAND git restore -- Makefile
-            COMMAND git apply ${CMAKE_CURRENT_SOURCE_DIR}/lzma2.diff
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND ""
-        INSTALL_COMMAND ""
-        GIT_SHALLOW true
-        EXCLUDE_FROM_ALL TRUE
-        VERBATIM
-    )
-    add_custom_command(
-        OUTPUT ${_ins}/usr/local/include/fast-lzma2.h
-               ${_ins}/usr/local/include/fl2_errors.h
-               ${_ins}/usr/local/include/xxhash.h
-               ${_ins}/usr/local/lib/libfast-lzma2.a
-        WORKING_DIRECTORY ${_base}/src/ext_lzma2
-        COMMAND make DESTDIR=${_ins}
-        COMMAND make DESTDIR=${_ins} install
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different xxhash.h ${_ins}/usr/local/include/
-    )
-    add_custom_target(
-        ext_lzma2_builder
-        DEPENDS ext_lzma2
-               ${_ins}/usr/local/include/fast-lzma2.h
-               ${_ins}/usr/local/include/fl2_errors.h
-               ${_ins}/usr/local/include/xxhash.h
-               ${_ins}/usr/local/lib/libfast-lzma2.a
-    )
 endif()                  # }
 
 # zlib
@@ -523,21 +429,6 @@ if(${FALLBACK})          # {
     )
     unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 else()                   # }{
-    init_external(ext_zlib)
-    ExternalProject_Add(ext_zlib
-        GIT_REPOSITORY https://github.com/taosdata-contrib/zlib.git
-        GIT_TAG v1.2.11
-        PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=MinSizeRel
-        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
-        # CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
-        # CMAKE_ARGS -DLIBUV_BUILD_BENCH:BOOL=OFF
-        # CMAKE_ARGS -DLIBUV_BUILD_SHARED:BOOL=OFF
-        # CMAKE_ARGS -DLIBUV_BUILD_TESTS:BOOL=OFF
-        GIT_SHALLOW true
-        EXCLUDE_FROM_ALL TRUE
-    )
 endif()                  # }
 
 # add_subdirectory(xz EXCLUDE_FROM_ALL)
@@ -692,40 +583,6 @@ if(${FALLBACK})          # {
 else()                   # }{
     if(${BUILD_WITH_ROCKSDB})              # {
         if(${BUILD_CONTRIB})               # {
-            init_external(ext_rocksdb)
-            ExternalProject_Add(ext_rocksdb
-                URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
-                URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
-                PREFIX "${_base}"
-                CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
-                CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=MinSizeRel
-                CMAKE_ARGS -DWITH_FALLOCATE:BOOL=OFF
-                CMAKE_ARGS -DWITH_JEMALLOC:BOOL=OFF
-                CMAKE_ARGS -DWITH_GFLAGS:BOOL=OFF
-                # CMAKE_ARGS -DPORTABLE:BOOL=ON         # freemine: to check later
-                CMAKE_ARGS -DWITH_LIBURING:BOOL=OFF
-                # CMAKE_ARGS -DFAIL_ON_WARNINGS:BOOL=ON
-                CMAKE_ARGS -DWITH_TESTS:BOOL=OFF
-                CMAKE_ARGS -DWITH_BENCHMARK_TOOLS:BOOL=OFF
-                CMAKE_ARGS -DWITH_TOOLS:BOOL=OFF
-                CMAKE_ARGS -DWITH_LIBURING:BOOL=OFF
-                CMAKE_ARGS -DROCKSDB_BUILD_SHARED:BOOL=OFF
-                # CMAKE_ARGS -DWITH_ALL_TESTS:BOOL=OFF
-                CMAKE_ARGS -DWITH_BENCHMARK_TOOLS:BOOL=OFF
-                CMAKE_ARGS -DWITH_CORE_TOOLS:BOOL=OFF
-                # CMAKE_ARGS -DWITH_RUNTIME_DEBUG:BOOL=OFF
-                CMAKE_ARGS -DWITH_TOOLS:BOOL=OFF
-                CMAKE_ARGS -DWITH_TRACE_TOOLS:BOOL=OFF
-                # CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
-                # // force building with AVX, even when PORTABLE=ON
-                # FORCE_AVX:BOOL=OFF
-                # // force building with AVX2, even when PORTABLE=ON
-                # FORCE_AVX2:BOOL=OFF
-                # // force building with SSE4.2, even when PORTABLE=ON
-                # FORCE_SSE42:BOOL=OFF
-                GIT_SHALLOW true
-                EXCLUDE_FROM_ALL TRUE
-            )
         endif()                            # }{
     endif()                                # }
 endif()                  # }
@@ -880,21 +737,6 @@ if(${BUILD_WITH_UV})
 
         add_subdirectory(libuv EXCLUDE_FROM_ALL)
     else()                   # }{
-        init_external(ext_libuv)
-        ExternalProject_Add(ext_libuv
-            GIT_REPOSITORY https://github.com/libuv/libuv.git
-            GIT_TAG v1.49.2
-            PREFIX "${_base}"
-            CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
-            CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
-            CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=MinSizeRel
-            CMAKE_ARGS -DLIBUV_BUILD_BENCH:BOOL=OFF
-            CMAKE_ARGS -DLIBUV_BUILD_SHARED:BOOL=OFF
-            CMAKE_ARGS -DLIBUV_BUILD_TESTS:BOOL=OFF
-            CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
-            GIT_SHALLOW true
-            EXCLUDE_FROM_ALL TRUE
-        )
     endif()                  # }
 endif(${BUILD_WITH_UV})
 
@@ -1000,21 +842,6 @@ if(${BUILD_GEOS})
             PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/geos/include>
         )
     else()                   # }{
-        init_external(ext_geos)
-        ExternalProject_Add(ext_geos
-            GIT_REPOSITORY https://github.com/libgeos/geos.git
-            GIT_TAG 3.12.0
-            PREFIX "${_base}"
-            CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
-            CMAKE_ARGS -DBUILD_GEOSOP:BOOL=OFF
-            CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
-            CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
-            CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=MinSizeRel
-            CMAKE_ARGS -DGEOS_BUILD_DEVELOPER:BOOL=OFF
-            CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
-            GIT_SHALLOW true
-            EXCLUDE_FROM_ALL TRUE
-        )
     endif()                  # }
 endif(${BUILD_GEOS})
 
@@ -1022,20 +849,6 @@ if(${BUILD_PCRE2})
     if(${FALLBACK})          # {
         add_subdirectory(pcre2 EXCLUDE_FROM_ALL)
     else()                   # }{
-        init_external(ext_pcre2)
-        ExternalProject_Add(ext_pcre2
-            GIT_REPOSITORY https://github.com/PCRE2Project/pcre2.git
-            GIT_TAG pcre2-10.43
-            PREFIX "${_base}"
-            CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
-            CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=MinSizeRel
-            CMAKE_ARGS -DPCRE2_BUILD_TESTS:BOOL=OFF
-            # CMAKE_ARGS -DPCRE2_SUPPORT_LIBBZ2:BOOL=ON
-            # CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
-            # BUILD_COMMAND "${CMAKE_COMMAND}" -E false
-            GIT_SHALLOW true
-            EXCLUDE_FROM_ALL TRUE
-        )
     endif()                  # }
 endif(${BUILD_PCRE2})
 
@@ -1068,28 +881,6 @@ if(NOT ${TD_WINDOWS})
                 ${TD_CONTRIB_DIR}/tz/localtime.c ${TD_CONTRIB_DIR}/tz/strftime.c
                 DESTINATION ${TZ_SRC_DIR})
     else()                   # }{
-        init_external(ext_tz)
-        ExternalProject_Add(ext_tz
-            GIT_REPOSITORY https://github.com/eggert/tz.git
-            GIT_TAG main       # freemine: or fixed?
-            PREFIX "${_base}"
-            CONFIGURE_COMMAND ""
-            BUILD_COMMAND ""
-            INSTALL_COMMAND ""
-            GIT_SHALLOW true
-            EXCLUDE_FROM_ALL TRUE
-        )
-        add_custom_command(
-            OUTPUT ${_ins}/usr/lib/libtz.a
-            WORKING_DIRECTORY ${_base}/src/ext_tz
-            COMMAND make DESTDIR=${_ins} CFLAGS=-fPIC
-            COMMAND make DESTDIR=${_ins} install
-        )
-        add_custom_target(
-            ext_tz_builder
-            DEPENDS ext_tz
-                   ${_ins}/usr/lib/libtz.a
-        )
     endif()                  # }
 endif(NOT ${TD_WINDOWS})
 

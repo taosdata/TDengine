@@ -52,19 +52,7 @@ if(${FALLBACK})                    # {
 else()                             # }{
     if(${BUILD_WITH_ROCKSDB} AND (${BUILD_CONTRIB} OR TD_LINUX))
         # freemine: check the original weird logic above
-        add_dependencies(util ext_rocksdb)
-        target_include_directories(
-            stream
-            PUBLIC ${ext_rocksdb_install}/include
-        )
-        target_link_directories(
-            stream
-            PUBLIC ${ext_rocksdb_install}/lib
-        )
-        target_link_libraries(
-            stream
-            PUBLIC rocksdb
-        )
+        DEP_ext_rocksdb(stream)
         add_definitions(-DUSE_ROCKSDB)
     endif()
 

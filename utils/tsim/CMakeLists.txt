@@ -8,14 +8,24 @@ TARGET_INCLUDE_DIRECTORIES(
     tsim_static
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
-TARGET_LINK_LIBRARIES(
-    tsim_static
-    PUBLIC ${TAOS_LIB}
-    PUBLIC util
-    PUBLIC common
-    PUBLIC os
-    PUBLIC cjson
-)
+if(${FALLBACK})               # {
+    TARGET_LINK_LIBRARIES(
+        tsim_static
+        PUBLIC ${TAOS_LIB}
+        PUBLIC util
+        PUBLIC common
+        PUBLIC os
+        PUBLIC cjson
+    )
+else()                        # }{
+    TARGET_LINK_LIBRARIES(
+        tsim_static
+        PUBLIC ${TAOS_LIB}
+        PUBLIC util
+        PUBLIC common
+        PUBLIC os
+    )
+endif()                       # }
 
 LIST(APPEND TSIM_EXE_SRC src/simMain.c)
 ADD_EXECUTABLE(tsim ${TSIM_EXE_SRC})

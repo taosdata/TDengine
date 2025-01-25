@@ -6,11 +6,19 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-target_link_libraries(
-    planner
-    PRIVATE os util nodes catalog cjson parser function qcom scalar index
-    PUBLIC transport
-)
+if(${FALLBACK})               # {
+    target_link_libraries(
+        planner
+        PRIVATE os util nodes catalog cjson parser function qcom scalar index
+        PUBLIC transport
+    )
+else()                        # }{
+    target_link_libraries(
+        planner
+        PRIVATE os util nodes catalog parser function qcom scalar index
+        PUBLIC transport
+    )
+endif()                       # }
 
 if(${BUILD_TEST})
     ADD_SUBDIRECTORY(test)

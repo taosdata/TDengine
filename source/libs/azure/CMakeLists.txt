@@ -18,13 +18,22 @@ target_include_directories(
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-target_link_libraries(
-  az
-  PUBLIC cjson
-  PUBLIC os
-  PUBLIC util
-  PUBLIC common
-)
+if(${FALLBACK})               # {
+  target_link_libraries(
+    az
+    PUBLIC cjson
+    PUBLIC os
+    PUBLIC util
+    PUBLIC common
+  )
+else()                        # }{
+  target_link_libraries(
+    az
+    PUBLIC os
+    PUBLIC util
+    PUBLIC common
+  )
+endif()                       # }
 
 if(${BUILD_S3})
 if(${BUILD_TEST})

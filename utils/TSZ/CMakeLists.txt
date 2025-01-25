@@ -22,19 +22,8 @@ ADD_LIBRARY(TSZ STATIC ${SRC1} ${SRC2} ${SRC3} ${SRC4} ${SRC5} ${SRC6} ${SRC7})
 TARGET_INCLUDE_DIRECTORIES(TSZ PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/sz/inc ${TD_SOURCE_DIR}/include)
 
 if(NOT ${FALLBACK})          # {
+  DEP_ext_lzma2(TSZ)
   add_dependencies(TSZ ext_lzma2_builder)
-  target_include_directories(
-      TSZ
-      PUBLIC ${ext_lzma2_install}/usr/local/include
-  )
-  target_link_directories(
-      TSZ
-      PUBLIC ${ext_lzma2_install}/usr/local/lib
-  )
-  target_link_libraries(
-      TSZ
-      PUBLIC fast-lzma2
-  )
 endif()                      # }
 
 # windows ignore warning

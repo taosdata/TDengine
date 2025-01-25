@@ -61,19 +61,7 @@ target_link_libraries(
 )
 
 if(NOT ${FALLBACK})        # {
-  add_dependencies(common ext_cjson)
-  target_include_directories(
-      common
-      PUBLIC ${ext_cjson_install}/include/cjson
-  )
-  target_link_directories(
-      common
-      PUBLIC ${ext_cjson_install}/lib
-  )
-  target_link_libraries(
-      common
-      PUBLIC cjson
-  )
+  DEP_ext_cjson(common)
 endif()                    # }
 
 if(${BUILD_S3})

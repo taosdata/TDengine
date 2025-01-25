@@ -28,9 +28,16 @@ target_include_directories(
   PUBLIC "${TD_SOURCE_DIR}/include/dnode/mnode"
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
-target_link_libraries(
-  mnode scheduler sdb wal transport cjson sync monitor executor qworker stream parser audit monitorfw
-)
+
+if(${FALLBACK})               # {
+  target_link_libraries(
+    mnode scheduler sdb wal transport cjson sync monitor executor qworker stream parser audit monitorfw
+  )
+else()                        # }{
+  target_link_libraries(
+    mnode scheduler sdb wal transport sync monitor executor qworker stream parser audit monitorfw
+  )
+endif()                       # }
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)

@@ -41,19 +41,7 @@ else()
 endif()
 
 if(NOT ${FALLBACK})           # {
-    add_dependencies(shell ext_taosws_builder)
-    target_include_directories(
-        shell
-        PUBLIC ${CMAKE_SOURCE_DIR}/.externals/ext_taosws/install/include        # freemine: hard-coded to be removed
-    )
-    target_link_directories(
-        shell
-        PUBLIC ${CMAKE_SOURCE_DIR}/.externals/ext_taosws/install/lib            # freemine: hard-coded to be removed
-    )
-    target_link_libraries(
-        shell
-        PUBLIC taosws
-    )
+    DEP_ext_taosws(shell)
 endif()                       # }
 target_link_libraries(
     shell
@@ -92,19 +80,7 @@ IF(TD_LINUX)
         )
     else()                    # }{
         # freemine: to be depended by shell target
-        add_dependencies(shell_ut ext_taosws_builder)
-        target_include_directories(
-            shell_ut
-            PUBLIC ${CMAKE_SOURCE_DIR}/.externals/ext_taosws/install/include        # freemine: hard-coded to be removed
-        )
-        target_link_directories(
-            shell_ut
-            PUBLIC ${CMAKE_SOURCE_DIR}/.externals/ext_taosws/install/lib            # freemine: hard-coded to be removed
-        )
-        target_link_libraries(
-            shell_ut
-            PUBLIC taosws
-        )
+        DEP_ext_taosws(shell_ut)
         target_link_libraries(shell_ut PUBLIC ${TAOS_LIB} ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
         target_link_libraries(shell_ut PRIVATE os common transport geometry util)
     endif()                   # }

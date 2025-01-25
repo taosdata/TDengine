@@ -53,19 +53,7 @@ if(${FALLBACK})             # {
         PUBLIC zlibstatic
     )
 else()                      # }{
-    add_dependencies(os ext_zlib)
-    target_include_directories(
-        os
-        PUBLIC ${ext_zlib_install}/include
-    )
-    target_link_directories(
-        os
-        PUBLIC ${ext_zlib_install}/lib
-    )
-    target_link_libraries(
-        os
-        PUBLIC libz.a
-    )
+    DEP_ext_zlib(os)
 
     target_link_libraries(
         os
@@ -86,22 +74,15 @@ else()                      # }{
             os
             PUBLIC gtest gtest_main
         )
-        add_dependencies(os ext_stub)
+        DEP_ext_stub(os)
         target_include_directories(
             os
-            PUBLIC ${ext_stub_addr_any} ${ext_stub_stub}
+            PUBLIC ${ext_stub_stub} ${ext_stub_addr_any}
         )
     endif()
 
+    DEP_ext_tz(os)
     add_dependencies(os ext_tz_builder)
-    target_link_directories(
-        os
-        PUBLIC ${ext_tz_install}/usr/lib
-    )
-    target_link_libraries(
-        os
-        PUBLIC tz
-    )
 
     set(_taos_h            "${CMAKE_BINARY_DIR}/build/include/taos.h")
     set(_taoserror_h       "${CMAKE_BINARY_DIR}/build/include/taoserror.h")

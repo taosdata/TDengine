@@ -76,63 +76,19 @@ else()                          # }{
         PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/zstd/"   # freemine: to remove?
     )
 
-    add_dependencies(util ext_lz4)
-    target_include_directories(
-        util
-        PUBLIC ${ext_lz4_install}/include
-    )
-    target_link_directories(
-        util
-        PUBLIC ${ext_lz4_install}/lib
-    )
+    DEP_ext_lz4(util)
+
+    DEP_ext_geos(util)
     target_link_libraries(
         util
-        PUBLIC lz4
+        PUBLIC m stdc++
     )
 
-    add_dependencies(util ext_geos)
-    target_include_directories(
-        util
-        PUBLIC ${ext_geos_install}/include
-    )
-    target_link_directories(
-        util
-        PUBLIC ${ext_geos_install}/lib
-    )
-    target_link_libraries(
-        util
-        PUBLIC geos_c geos m stdc++
-    )
-
-    add_dependencies(util ext_pcre2)
-    target_include_directories(
-        util
-        PUBLIC ${ext_pcre2_install}/include
-    )
-    target_link_directories(
-        util
-        PUBLIC ${ext_pcre2_install}/lib
-    )
-    target_link_libraries(
-        util
-        PUBLIC pcre2-8
-    )
+    DEP_ext_pcre2(util)
 
     if(${BUILD_WITH_UV_TRANS})
         if(${BUILD_WITH_UV})
-            add_dependencies(util ext_libuv)
-            target_include_directories(
-                util
-                PUBLIC ${ext_libuv_install}/include
-            )
-            target_link_directories(
-                util
-                PUBLIC ${ext_libuv_install}/lib
-            )
-            target_link_libraries(
-                util
-                PUBLIC uv
-            )
+            DEP_ext_libuv(util)
             add_definitions(-DUSE_UV)
         endif(${BUILD_WITH_UV})
     endif(${BUILD_WITH_UV_TRANS})

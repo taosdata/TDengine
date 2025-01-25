@@ -68,7 +68,10 @@ IF(TD_WEBSOCKET)
             )
         ENDIF()
     else()                             # }{
-        init_external(ext_taosws)
+        INIT_EXT(ext_taosws
+            INC_DIR           include
+            LIB               lib/${websocket_lib_file}
+        )
         ExternalProject_Add(ext_taosws
             GIT_REPOSITORY https://github.com/taosdata/taos-connector-rust.git
             GIT_TAG main # freemine: or fix?

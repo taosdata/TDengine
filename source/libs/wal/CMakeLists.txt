@@ -6,14 +6,24 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-target_link_libraries(
-    wal
-    PUBLIC cjson
-    PUBLIC os
-    PUBLIC util
-    PUBLIC common
-    PUBLIC crypt
-)
+if(${FALLBACK})               # {
+    target_link_libraries(
+        wal
+        PUBLIC cjson
+        PUBLIC os
+        PUBLIC util
+        PUBLIC common
+        PUBLIC crypt
+    )
+else()                        # }{
+    target_link_libraries(
+        wal
+        PUBLIC os
+        PUBLIC util
+        PUBLIC common
+        PUBLIC crypt
+    )
+endif()                       # }
 
 if(${BUILD_TEST})
     add_subdirectory(test)
