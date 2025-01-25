@@ -943,8 +943,6 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskRunReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_DISPATCH:
       return tqProcessTaskDispatchReq(pVnode->pTq, pMsg);
-    case TDMT_STREAM_TASK_DISPATCH_RSP:
-      return tqProcessTaskDispatchRsp(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_TASK_CHECK:
       return tqProcessTaskCheckReq(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_TASK_CHECK_RSP:
@@ -987,6 +985,8 @@ int32_t vnodeProcessStreamCtrlMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pIn
   switch (pMsg->msgType) {
     case TDMT_MND_STREAM_HEARTBEAT_RSP:
       return tqProcessStreamHbRsp(pVnode->pTq, pMsg);
+    case TDMT_STREAM_TASK_DISPATCH_RSP:
+      return tqProcessTaskDispatchRsp(pVnode->pTq, pMsg);
     default:
       vError("unknown msg type:%d in stream ctrl queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
