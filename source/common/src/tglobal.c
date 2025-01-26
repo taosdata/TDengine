@@ -144,10 +144,17 @@ bool     tsMonitorLogProtocol = false;
 bool     tsMonitorForceV2 = true;
 
 // audit
+#ifndef TD_ACORE
 bool    tsEnableAudit = true;
 bool    tsEnableAuditCreateTable = true;
 bool    tsEnableAuditDelete = true;
 int32_t tsAuditInterval = 5000;
+#else
+bool    tsEnableAudit = false;
+bool    tsEnableAuditCreateTable = false;
+bool    tsEnableAuditDelete = false;
+int32_t tsAuditInterval = INT64_MAX;
+#endif
 
 // telem
 #ifdef TD_ENTERPRISE
