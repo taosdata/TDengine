@@ -915,8 +915,31 @@ bool streamTaskReadyToRun(const SStreamTask* pTask, char** pStatus) {
   }
 }
 
+static bool shouldNotCont(SStreamTask* pTask) {
+  int32_t       level = pTask->info.taskLevel;
+  SStreamQueue* pQueue = pTask->inputq.queue;
+  ETaskStatus   status = streamTaskGetStatus(pTask).state;
+
+  // 1. task should jump out
+  bool quit = (status == TASK_STATUS__STOP) || (status == TASK_STATUS__PAUSE) || (status == TASK_STATUS__DROPPING);
+
+  // 2. checkpoint procedure, the source task's checkpoint queue is empty, not read from ordinary queue
+  bool notCkCont =
+      (taosQueueItemSize(pQueue->pChkptQueue) == 0) && (level == TASK_LEVEL__SOURCE) && (status == TASK_STATUS__CK);
+
+  // 3. no data in ordinary queue
+  int32_t numOfItems = streamQueueGetNumOfItems(pQueue);
+
+  if ((numOfItems == 0) || quit || notCkCont) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 int32_t streamResumeTask(SStreamTask* pTask) {
   const char* id = pTask->id.idStr;
+  int32_t     level = pTask->info.taskLevel;
   int32_t     code = 0;
 
   if (pTask->status.schedStatus != TASK_SCHED_STATUS__ACTIVE) {
@@ -929,11 +952,10 @@ int32_t streamResumeTask(SStreamTask* pTask) {
     if (code) {
       stError("s-task:%s failed to exec stream task, code:%s, continue", id, tstrerror(code));
     }
-    // check if continue
+
     streamMutexLock(&pTask->lock);
 
-    int32_t numOfItems = streamQueueGetNumOfItems(pTask->inputq.queue);
-    if ((numOfItems == 0) || streamTaskShouldStop(pTask) || streamTaskShouldPause(pTask)) {
+    if (shouldNotCont(pTask)) {
       atomic_store_8(&pTask->status.schedStatus, TASK_SCHED_STATUS__INACTIVE);
       streamTaskClearSchedIdleInfo(pTask);
       streamMutexUnlock(&pTask->lock);

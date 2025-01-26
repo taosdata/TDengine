@@ -113,7 +113,7 @@ void streamQueueNextItem(SStreamQueue* pQueue, SStreamQueueItem** pItem) {
   }
 }
 
-void streamQueueNextItemInSourceQ(SStreamQueue* pQueue, SStreamQueueItem** pItem, ETaskStatus status) {
+void streamQueueNextItemInSourceQ(SStreamQueue* pQueue, SStreamQueueItem** pItem, ETaskStatus status, const char* id) {
   *pItem = NULL;
   int8_t flag = atomic_exchange_8(&pQueue->status, STREAM_QUEUE__PROCESSING);
 
@@ -132,15 +132,14 @@ void streamQueueNextItemInSourceQ(SStreamQueue* pQueue, SStreamQueueItem** pItem
   pQueue->qChkptItem = NULL;
   taosReadQitem(pQueue->pChkptQueue, (void**)&pQueue->qChkptItem);
   if (pQueue->qChkptItem != NULL) {
-    stDebug("read data from checkpoint queue, status:%d", status);
-
+    stDebug("s-task:%s read data from checkpoint queue, status:%d", id, status);
     *pItem = pQueue->qChkptItem;
     return;
   }
 
   // if in checkpoint status, not read data from ordinary input q.
   if (status == TASK_STATUS__CK) {
-    stDebug("in checkpoint status, not ready data in normal queue");
+    stDebug("s-task:%s in checkpoint status, not read data in block queue, status:%d", id, status);
     return;
   }
 
@@ -260,7 +259,7 @@ EExtractDataCode streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueIte
 
     SStreamQueueItem* qItem = NULL;
     if (taskLevel == TASK_LEVEL__SOURCE) {
-      streamQueueNextItemInSourceQ(pQueue, &qItem, status);
+      streamQueueNextItemInSourceQ(pQueue, &qItem, status, id);
     } else {
       streamQueueNextItem(pQueue, &qItem);
     }
