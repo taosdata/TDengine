@@ -53,7 +53,7 @@ struct Generate {
     #[arg(long)]
     batch_size: usize,
     #[arg(long)]
-    batch_parallel: usize,
+    batch_parallel: Option<usize>,
     #[arg(long)]
     parallel: Option<usize>,
     #[arg(long, value_parser = fundu::parse_duration)]
@@ -135,9 +135,10 @@ fn generate(args: Generate) -> anyhow::Result<()> {
 
     let (tx, rx) = flume::bounded(parallel);
 
-    let write_stream = stream.try_clone().context("clone write stream error")?;
-
-    let ack_stream = stream.try_clone().context("clone ack stream error")?;
+    let (ack_stream, write_stream) = (
+        stream.try_clone().context("clone ack stream error")?,
+        stream.try_clone().context("clone write stream error")?,
+    );
 
     let ack_count = Arc::new(AtomicU64::default());
     let batch_count = Arc::new(AtomicU64::default());
@@ -172,14 +173,18 @@ fn generate(args: Generate) -> anyhow::Result<()> {
         }
     });
 
-    let (permit_tx, permit_rx) = flume::bounded(args.batch_parallel);
+    let (permit_tx, permit_rx) = args
+        .batch_parallel
+        .filter(|v| *v > 0)
+        .map(flume::bounded)
+        .unzip();
 
     std::thread::spawn(move || {
         let Ok(ack_reader) = StreamReader::try_new_buffered(ack_stream, None) else {
             return;
         };
         for ack in ack_reader {
-            if permit_rx.recv().is_err() {
+            if permit_rx.as_ref().is_some_and(|rx| rx.recv().is_err()) {
                 break;
             }
             let Ok(ack) = ack else { return };
@@ -215,7 +220,7 @@ fn generate(args: Generate) -> anyhow::Result<()> {
     let interval = args.interval.unwrap_or(Duration::ZERO);
     std::thread::spawn(move || {
         loop {
-            if permit_tx.send(()).is_err() {
+            if permit_tx.as_ref().is_some_and(|tx| tx.send(()).is_err()) {
                 break;
             }
             let Ok(batch) = rx.recv() else {
