@@ -744,6 +744,22 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
         goto _return;
       }
       pBindInfos[c].bind = taosArrayGetLast(ncharBinds);
+    } else if (TSDB_DATA_TYPE_GEOMETRY == pColSchema->type) {
+      code = initCtxAsText();
+      if (code) {
+        qError("geometry init failed");
+        goto _return;
+      }
+      uint8_t* buf = bind[c].buffer;
+      for (int j = 0; j < bind[c].num; j++) {
+        code = checkWKB(buf, bind[c].length[j]);
+        if (code) {
+          qError("geometry data must be in WKB format");
+          goto _return;
+        }
+        buf += bind[c].length[j];
+      }
+      pBindInfos[c].bind = bind + c;
     } else {
       pBindInfos[c].bind = bind + c;
     }
@@ -863,6 +879,22 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
         goto _return;
       }
       pBindInfos[c].bind = &ncharBind;
+    } else if (TSDB_DATA_TYPE_GEOMETRY == pColSchema->type) {
+      code = initCtxAsText();
+      if (code) {
+        qError("geometry init failed");
+        goto _return;
+      }
+      uint8_t *buf = bind[c].buffer;
+      for (int j = 0; j < bind[c].num; j++) {
+        code = checkWKB(buf, bind[c].length[j]);
+        if (code) {
+          qError("geometry data must be in WKB format");
+          goto _return;
+        }
+        buf += bind[c].length[j];
+      }
+      pBindInfos[c].bind = bind + c;
     } else {
       pBindInfos[c].bind = bind + c;
     }
