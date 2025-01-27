@@ -4344,7 +4344,8 @@ int32_t tCompressData(void          *input,       // input
   int32_t extraSizeNeeded;
   int32_t code;
 
-  extraSizeNeeded = (info->cmprAlg == NO_COMPRESSION) ? info->originalSize : info->originalSize + COMP_OVERFLOW_BYTES;
+  extraSizeNeeded =
+      (info->cmprAlg == NO_COMPRESSION) ? info->originalSize : info->originalSize * 2 + COMP_OVERFLOW_BYTES;
   ASSERT(outputSize >= extraSizeNeeded);
 
   if (info->cmprAlg == NO_COMPRESSION) {
@@ -4395,6 +4396,7 @@ int32_t tCompressData(void          *input,       // input
     if (buffer == NULL) {
       buffer = &local;
     }
+
     code = tBufferEnsureCapacity(buffer, extraSizeNeeded);
 
     info->compressedSize = tDataCompress[info->dataType].compFunc(  //
@@ -4457,6 +4459,7 @@ int32_t tDecompressData(void                *input,       // input
 ) {
   int32_t code;
 
+  int32_t extraSizeNeeded = info->originalSize * 2 + COMP_OVERFLOW_BYTES;
   ASSERT(outputSize >= info->originalSize);
 
   if (info->cmprAlg == NO_COMPRESSION) {
@@ -4507,7 +4510,7 @@ int32_t tDecompressData(void                *input,       // input
     if (buffer == NULL) {
       buffer = &local;
     }
-    code = tBufferEnsureCapacity(buffer, info->originalSize + COMP_OVERFLOW_BYTES);
+    code = tBufferEnsureCapacity(buffer, extraSizeNeeded);
 
     int32_t decompressedSize = tDataCompress[info->dataType].decompFunc(
         input,                                                  // input
@@ -4534,7 +4537,7 @@ int32_t tDecompressData(void                *input,       // input
 int32_t tCompressDataToBuffer(void *input, SCompressInfo *info, SBuffer *output, SBuffer *assist) {
   int32_t code;
 
-  code = tBufferEnsureCapacity(output, output->size + info->originalSize + COMP_OVERFLOW_BYTES);
+  code = tBufferEnsureCapacity(output, output->size + info->originalSize * 2 + COMP_OVERFLOW_BYTES);
   if (code) return code;
 
   code = tCompressData(input, info, tBufferGetDataEnd(output), output->capacity - output->size, assist);
@@ -4547,7 +4550,7 @@ int32_t tCompressDataToBuffer(void *input, SCompressInfo *info, SBuffer *output,
 int32_t tDecompressDataToBuffer(void *input, SCompressInfo *info, SBuffer *output, SBuffer *assist) {
   int32_t code;
 
-  code = tBufferEnsureCapacity(output, output->size + info->originalSize);
+  code = tBufferEnsureCapacity(output, output->size + info->originalSize * 2);
   if (code) return code;
 
   code = tDecompressData(input, info, tBufferGetDataEnd(output), output->capacity - output->size, assist);

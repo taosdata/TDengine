@@ -38,7 +38,7 @@ extern "C" {
 #define COMPRESS_L2_TYPE_LEVEL_U8(type) (((type) >> 6) & 0x03)
 // end compress flag
 
-#define COMP_OVERFLOW_BYTES 2
+#define COMP_OVERFLOW_BYTES 16
 #define BITS_PER_BYTE       8
 // Masks
 #define INT64MASK(_x) ((((uint64_t)1) << _x) - 1)
