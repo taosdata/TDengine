@@ -124,6 +124,12 @@ option(
     "If build with rocksdb"
     ON
 )
+
+option(
+    BUILD_WITH_LEMON
+    "If build with lemon"
+    ON
+)
 ENDIF ()
 
 
