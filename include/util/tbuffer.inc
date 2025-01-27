@@ -20,6 +20,7 @@ struct SBuffer {
   uint32_t size;
   uint32_t capacity;
   void    *data;
+  void*   checkData;
 };
 
 struct SBufferReader {
@@ -42,6 +43,10 @@ static FORCE_INLINE int32_t tBufferDestroy(SBuffer *buffer) {
     taosMemoryFree(buffer->data);
     buffer->data = NULL;
   }
+  if (buffer->checkData) {
+    taosMemoryFree(buffer->checkData);
+    buffer->checkData = NULL;
+  }
   return 0;
 }
 
@@ -51,17 +56,27 @@ static FORCE_INLINE int32_t tBufferClear(SBuffer *buffer) {
 }
 
 static FORCE_INLINE int32_t tBufferEnsureCapacity(SBuffer *buffer, uint32_t capacity) {
+  
   if (buffer->capacity < capacity) {
     uint32_t newCapacity = (buffer->capacity > 0) ? (buffer->capacity << 1) : 1024;
     while (newCapacity < capacity) {
       newCapacity <<= 1;
     }
+    void *newCheckData=taosMemoryRealloc(buffer->checkData, newCapacity);
+    if (newCheckData == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    buffer->checkData = newCheckData;
+    memcpy(buffer->checkData, buffer->data, buffer->size);
+     
     void *newData = taosMemoryRealloc(buffer->data, newCapacity);
     if (newData == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     buffer->data = newData;
     buffer->capacity = newCapacity;
+
+    ASSERT(memcmp(buffer->data, buffer->checkData, buffer->size) == 0);
   }
   return 0;
 }
