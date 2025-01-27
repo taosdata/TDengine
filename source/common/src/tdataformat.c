@@ -4413,7 +4413,7 @@ int32_t tCompressData(void          *input,       // input
     }
 
     {
-#if 1
+#if 0
       // decompose the compressed data
       // int32_t code = tBufferEnsureCapacity(buffer, info->originalSize + COMP_OVERFLOW_BYTES);
       int32_t cap = buffer->capacity * 2;
