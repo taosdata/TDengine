@@ -33,6 +33,7 @@ static FORCE_INLINE int32_t tBufferInit(SBuffer *buffer) {
   buffer->size = 0;
   buffer->capacity = 0;
   buffer->data = NULL;
+  buffer->checkData = NULL;
   return 0;
 }
 
