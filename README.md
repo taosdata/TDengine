@@ -74,6 +74,8 @@ For a full list of TDengine competitive advantages, please [check here](https://
 
 For user manual, system design and architecture, please refer to [TDengine Documentation](https://docs.tdengine.com) ([TDengine 文档](https://docs.taosdata.com))
 
+You can choose to install TDengine via [container](https://docs.tdengine.com/get-started/deploy-in-docker/), [installation package](https://docs.tdengine.com/get-started/deploy-from-package/), [Kubernetes](https://docs.tdengine.com/operations-and-maintenance/deploy-your-cluster/#kubernetes-deployment) or try [fully managed service](https://cloud.tdengine.com/) without installation. This quick guide is for developers who want to contribute, build, release and test TDengine by themselves. 
+
 # 3. Prerequisites
 
 ## 3.1 On Linux
@@ -147,8 +149,6 @@ cd TDengine
 # 4. Building
 
 At the moment, TDengine server supports running on Linux/Windows/MacOS systems. Any application can also choose the RESTful interface provided by taosAdapter to connect the taosd service. TDengine supports X64/ARM64 CPU, and it will support MIPS64, Alpha64, ARM32, RISC-V and other CPU architectures in the future. Right now we don't support build with cross-compiling environment.
-
-You can choose to install through source code, [container](https://docs.tdengine.com/get-started/deploy-in-docker/), [installation package](https://docs.tdengine.com/get-started/deploy-from-package/) or [Kubernetes](https://docs.tdengine.com/operations-and-maintenance/deploy-your-cluster/#kubernetes-deployment). This quick guide only applies to install from source.
 
 TDengine provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. By default, TDengine compiling does not include taosTools. You can use `cmake .. -DBUILD_TOOLS=true` to make them be compiled with TDengine.
 
