@@ -76,6 +76,8 @@ For user manual, system design and architecture, please refer to [TDengine Docum
 
 You can choose to install TDengine via [container](https://docs.tdengine.com/get-started/deploy-in-docker/), [installation package](https://docs.tdengine.com/get-started/deploy-from-package/), [Kubernetes](https://docs.tdengine.com/operations-and-maintenance/deploy-your-cluster/#kubernetes-deployment) or try [fully managed service](https://cloud.tdengine.com/) without installation. This quick guide is for developers who want to contribute, build, release and test TDengine by themselves. 
 
+For contributing/building/testing TDengine Connectors, please check the following repositories: [JDBC Connector](https://github.com/taosdata/taos-connector-jdbc), [Go Connector](https://github.com/taosdata/driver-go), [Python Connector](https://github.com/taosdata/taos-connector-python), [Node.js Connector](https://github.com/taosdata/taos-connector-node), [C# Connector](https://github.com/taosdata/taos-connector-dotnet), [Rust Connector](https://github.com/taosdata/taos-connector-rust).
+
 # 3. Prerequisites
 
 At the moment, TDengine server supports running on Linux/Windows/MacOS systems. Any application can also choose the RESTful interface provided by taosAdapter to connect the taosd service. TDengine supports X64/ARM64 CPU, and it will support MIPS64, Alpha64, ARM32, RISC-V and other CPU architectures in the future. Right now we don't support build with cross-compiling environment.
@@ -137,8 +139,6 @@ Clone the repository to the target machine:
 git clone https://github.com/taosdata/TDengine.git
 cd TDengine
 ```
-> **NOTE:**
-> TDengine Connectors can be found in following repositories: [JDBC Connector](https://github.com/taosdata/taos-connector-jdbc), [Go Connector](https://github.com/taosdata/driver-go), [Python Connector](https://github.com/taosdata/taos-connector-python), [Node.js Connector](https://github.com/taosdata/taos-connector-node), [C# Connector](https://github.com/taosdata/taos-connector-dotnet), [Rust Connector](https://github.com/taosdata/taos-connector-rust).
 
 </details>
 
