@@ -10,10 +10,10 @@
 
 [![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/taosdata/tdengine/taosd-ci-build.yml)](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml)
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=3.0)](https://coveralls.io/github/taosdata/TDengine?branch=3.0)
-![GitHub commit activity](https://img.shields.io/github/commit-activity/m/taosdata/tdengine)
+[![GitHub commit activity](https://img.shields.io/github/commit-activity/m/taosdata/tdengine)](https://github.com/feici02/TDengine/commits/main/)
 <br />
-![GitHub Release](https://img.shields.io/github/v/release/taosdata/tdengine)
-![GitHub License](https://img.shields.io/github/license/taosdata/tdengine)
+[![GitHub Release](https://img.shields.io/github/v/release/taosdata/tdengine)](https://github.com/taosdata/TDengine/releases)
+[![GitHub License](https://img.shields.io/github/license/taosdata/tdengine)](https://github.com/taosdata/TDengine/blob/main/LICENSE)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
 <br />
 [![Twitter Follow](https://img.shields.io/twitter/follow/tdenginedb?label=TDengine&style=social)](https://twitter.com/tdenginedb)
