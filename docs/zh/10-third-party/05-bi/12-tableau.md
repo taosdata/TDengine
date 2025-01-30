@@ -10,7 +10,7 @@ Tableau 是一款知名的商业智能工具，它支持多种数据源，可方
 准备以下环境：
 - TDengine 3.3.5.4以上版本集群已部署并正常运行（企业及社区版均可）
 - taosAdapter 能够正常运行。详细参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)
-- Tableau 桌面版安装并运行（如未安装，请下载并安装 Windows 操作系统 32/64 位 [Tableau 桌面版](https://www.tableau.com/products/desktop/download) ）。安装 Tableau 桌面版请参考 [官方文档](https://www.tableau.com)。
+- Tableau 桌面版安装并运行（如未安装，请下载并安装 Windows 操作系统 64 位 [Tableau 桌面版](https://www.tableau.com/products/desktop/download) ）。安装 Tableau 桌面版请参考 [官方文档](https://www.tableau.com)。
 - ODBC 驱动安装成功。详细参考[安装 ODBC 驱动](../../../reference/connector/odbc/#安装)
 - ODBC 数据源配置成功。详细参考[配置ODBC数据源](../../../reference/connector/odbc/#配置数据源)
 
@@ -18,7 +18,7 @@ Tableau 是一款知名的商业智能工具，它支持多种数据源，可方
 
 **第 1 步**，在 Windows 系统环境下启动 Tableau，之后在其连接页面中搜索 “ODBC”，并选择 “其他数据库 (ODBC)”。
 
-**第 2 步**，点击 DNS 单选框，接着选择已配置好的数据源(MyTDengine)，然后点击连接按钮。待连接成功后，删除字符串附加部分的内容，最后点击登录按钮即可。
+**第 2 步**，点击 `DSN` 单选框，接着选择已配置好的数据源(MyTDengine)，然后点击`连接`按钮。待连接成功后，删除字符串附加部分的内容，最后点击`登录`按钮即可。
 
 ![tableau-odbc](./tableau/tableau-odbc.jpg) 
 
