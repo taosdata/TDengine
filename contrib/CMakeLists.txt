@@ -1,6 +1,7 @@
 # ================================================================================================
 # Download
 # ================================================================================================
+include(ExternalProject)
 function(cat IN_FILE OUT_FILE)
     file(READ ${IN_FILE} CONTENTS)
     file(APPEND ${OUT_FILE} "${CONTENTS}")
@@ -97,33 +98,33 @@ if(${BUILD_TEST})
 endif(${BUILD_TEST})
 
 # lz4
-cat("${TD_SUPPORT_DIR}/lz4_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+include("${TD_SUPPORT_DIR}/lz4_CMakeLists.txt.in")
 
 # zlib
-cat("${TD_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+include("${TD_SUPPORT_DIR}/zlib_CMakeLists.txt.in")
 
 # cJson
-cat("${TD_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+include("${TD_SUPPORT_DIR}/cjson_CMakeLists.txt.in")
 
 if(NOT ${TD_WINDOWS})
-    cat("${TD_SUPPORT_DIR}/tz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    include("${TD_SUPPORT_DIR}/tz_CMakeLists.txt.in")
 endif(NOT ${TD_WINDOWS})
 
 # xz
 # cat("${TD_SUPPORT_DIR}/xz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
 # lzma2
-cat("${TD_SUPPORT_DIR}/lzma_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+include("${TD_SUPPORT_DIR}/lzma_CMakeLists.txt.in")
 
 if(${BUILD_CONTRIB})
     if(${BUILD_WITH_ROCKSDB})
-        cat("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+        include("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in")
         add_definitions(-DUSE_ROCKSDB)
     endif()
 else()
     if(NOT ${TD_LINUX})
         if(${BUILD_WITH_ROCKSDB})
-            cat("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+            include("${TD_SUPPORT_DIR}/rocksdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
             add_definitions(-DUSE_ROCKSDB)
         endif(${BUILD_WITH_ROCKSDB})
     else()
@@ -137,7 +138,7 @@ endif()
 
 # libuv
 if(${BUILD_WITH_UV})
-    cat("${TD_SUPPORT_DIR}/libuv_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    include("${TD_SUPPORT_DIR}/libuv_CMakeLists.txt.in")
 endif(${BUILD_WITH_UV})
 
 # sqlite
@@ -177,7 +178,7 @@ endif(${BUILD_ADDR2LINE})
 
 # geos
 if(${BUILD_GEOS})
-    cat("${TD_SUPPORT_DIR}/geos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    include("${TD_SUPPORT_DIR}/geos_CMakeLists.txt.in")
 endif()
 
 if (${BUILD_WITH_ANALYSIS})
@@ -187,7 +188,7 @@ endif()
 
 #
 if(${BUILD_PCRE2})
-    cat("${TD_SUPPORT_DIR}/pcre2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    include("${TD_SUPPORT_DIR}/pcre2_CMakeLists.txt.in")
 endif()
 
 find_program(C_COMPILER_LEMON NAMES gcc)
@@ -199,7 +200,7 @@ else()
 endif()
 
 # lemon
-cat("${TD_SUPPORT_DIR}/lemon_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+include("${TD_SUPPORT_DIR}/lemon_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
 # download dependencies
 configure_file(${CONTRIB_TMP_FILE} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
@@ -242,61 +243,10 @@ if(${BUILD_TEST})
     endif(${TD_DARWIN})
 endif(${BUILD_TEST})
 
-# cJson
-# see https://stackoverflow.com/questions/37582508/silence-cmp0048-warnings-in-vendored-projects
-set(CMAKE_PROJECT_INCLUDE_BEFORE "${TD_SUPPORT_DIR}/EnableCMP0048.txt.in")
-option(ENABLE_CJSON_TEST "Enable building cJSON test" OFF)
-option(CJSON_OVERRIDE_BUILD_SHARED_LIBS "Override BUILD_SHARED_LIBS with CJSON_BUILD_SHARED_LIBS" ON)
-option(CJSON_BUILD_SHARED_LIBS "Overrides BUILD_SHARED_LIBS if CJSON_OVERRIDE_BUILD_SHARED_LIBS is enabled" OFF)
-add_subdirectory(cJson EXCLUDE_FROM_ALL)
-target_include_directories(
-    cjson
-
-    # see https://stackoverflow.com/questions/25676277/cmake-target-include-directories-prints-an-error-when-i-try-to-add-the-source
-    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cJson>
-)
-unset(CMAKE_PROJECT_INCLUDE_BEFORE)
-
 # xml2
 # if(${BUILD_WITH_S3})
 # add_subdirectory(xml2 EXCLUDE_FROM_ALL)
 # endif()
-
-# lz4
-add_subdirectory(lz4/build/cmake EXCLUDE_FROM_ALL)
-target_include_directories(
-    lz4_static
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/lz4/lib
-)
-
-# zlib
-set(CMAKE_PROJECT_INCLUDE_BEFORE "${TD_SUPPORT_DIR}/EnableCMP0048.txt.in")
-
-if(${TD_DARWIN})
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=deprecated-non-prototype")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=deprecated-non-prototype")
-endif(${TD_DARWIN})
-
-add_subdirectory(zlib EXCLUDE_FROM_ALL)
-
-if(${TD_DARWIN})
-    target_compile_options(zlibstatic PRIVATE -Wno-error=deprecated-non-prototype)
-endif()
-target_include_directories(
-    zlibstatic
-    PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/zlib
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/zlib
-)
-
-if(${TD_DARWIN})
-    target_compile_options(zlib PRIVATE -Wno-error=deprecated-non-prototype)
-endif()
-target_include_directories(
-    zlib
-    PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/zlib
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/zlib
-)
-unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 
 # add_subdirectory(xz EXCLUDE_FROM_ALL)
 # target_include_directories(
@@ -327,119 +277,6 @@ if(${BUILD_WITH_UV})
         endif()
     endif(${TD_LINUX})
 endif(${BUILD_WITH_UV})
-
-if(${BUILD_WITH_ROCKSDB})
-    if(${BUILD_CONTRIB})
-        if(${TD_LINUX})
-            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL} -Wno-error=maybe-uninitialized -Wno-error=unused-but-set-variable -Wno-error=unused-variable -Wno-error=unused-function -Wno-errno=unused-private-field -Wno-error=unused-result")
-
-            if("${CMAKE_BUILD_TYPE}" STREQUAL "")
-                SET(CMAKE_BUILD_TYPE Release)
-            endif()
-        endif(${TD_LINUX})
-
-        MESSAGE(STATUS "ROCKSDB CXXXX STATUS CONFIG: " ${CMAKE_CXX_FLAGS})
-        MESSAGE(STATUS "ROCKSDB C STATUS CONFIG: " ${CMAKE_C_FLAGS})
-
-        if(${TD_DARWIN})
-            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized")
-        endif(${TD_DARWIN})
-
-        if(${TD_DARWIN_ARM64})
-            set(HAS_ARMV8_CRC true)
-        endif(${TD_DARWIN_ARM64})
-
-        if(${TD_WINDOWS})
-            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4244 /wd4819 /std:c++17")
-            SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /wd4244 /wd4819")
-            option(WITH_JNI "" OFF)
-
-            if(CMAKE_C_FLAGS MATCHES "/MT" OR CMAKE_C_FLAGS MATCHES "/MTd")
-                message("Rocksdb build runtime lib use /MT or /MTd")
-                option(WITH_MD_LIBRARY "build with MD" OFF)
-            endif()
-
-            set(SYSTEM_LIBS ${SYSTEM_LIBS} shlwapi.lib rpcrt4.lib)
-        endif(${TD_WINDOWS})
-
-        if(${TD_DARWIN})
-            option(HAVE_THREAD_LOCAL "" OFF)
-            option(WITH_IOSTATS_CONTEXT "" OFF)
-            option(WITH_PERF_CONTEXT "" OFF)
-        endif(${TD_DARWIN})
-
-        option(WITH_FALLOCATE "" OFF)
-        option(WITH_JEMALLOC "" OFF)
-        option(WITH_GFLAGS "" OFF)
-        option(PORTABLE "" ON)
-        option(WITH_LIBURING "" OFF)
-        option(FAIL_ON_WARNINGS OFF)
-
-        option(WITH_TESTS "" OFF)
-        option(WITH_BENCHMARK_TOOLS "" OFF)
-        option(WITH_TOOLS "" OFF)
-        option(WITH_LIBURING "" OFF)
-
-        option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
-        add_subdirectory(rocksdb EXCLUDE_FROM_ALL)
-        target_include_directories(
-            rocksdb
-            PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/include>
-        )
-    else()
-        if(NOT ${TD_LINUX})
-            MESSAGE(STATUS "ROCKSDB CXX STATUS CONFIG: " ${CMAKE_CXX_FLAGS})
-            MESSAGE(STATUS "ROCKSDB C STATUS CONFIG: " ${CMAKE_C_FLAGS})
-
-            if(${TD_DARWIN})
-                SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized")
-                SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=maybe-uninitialized")
-            endif(${TD_DARWIN})
-
-            if(${TD_DARWIN_ARM64})
-                set(HAS_ARMV8_CRC true)
-            endif(${TD_DARWIN_ARM64})
-
-            if(${TD_WINDOWS})
-                SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4244 /wd4819 /std:c++17")
-                SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /wd4244 /wd4819")
-                option(WITH_JNI "" OFF)
-
-                if(CMAKE_C_FLAGS MATCHES "/MT" OR CMAKE_C_FLAGS MATCHES "/MTd")
-                    message("Rocksdb build runtime lib use /MT or /MTd")
-                    option(WITH_MD_LIBRARY "build with MD" OFF)
-                endif()
-
-                set(SYSTEM_LIBS ${SYSTEM_LIBS} shlwapi.lib rpcrt4.lib)
-            endif(${TD_WINDOWS})
-
-            if(${TD_DARWIN})
-                option(HAVE_THREAD_LOCAL "" OFF)
-                option(WITH_IOSTATS_CONTEXT "" OFF)
-                option(WITH_PERF_CONTEXT "" OFF)
-            endif(${TD_DARWIN})
-
-            option(WITH_FALLOCATE "" OFF)
-            option(WITH_JEMALLOC "" OFF)
-            option(WITH_GFLAGS "" OFF)
-            option(PORTABLE "" ON)
-            option(WITH_LIBURING "" OFF)
-            option(FAIL_ON_WARNINGS OFF)
-
-            option(WITH_TESTS "" OFF)
-            option(WITH_BENCHMARK_TOOLS "" OFF)
-            option(WITH_TOOLS "" OFF)
-            option(WITH_LIBURING "" OFF)
-
-            option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
-            add_subdirectory(rocksdb EXCLUDE_FROM_ALL)
-            target_include_directories(
-                rocksdb
-                PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/include>
-            )
-        endif()
-    endif()
-endif()
 
 if(${BUILD_WITH_S3})
     INCLUDE_DIRECTORIES($ENV{HOME}/.cos-local.2/include)
@@ -545,14 +382,14 @@ endif(${BUILD_WCWIDTH})
 
 # LIBUV
 if(${BUILD_WITH_UV})
-    if(TD_WINDOWS)
-        # There is no GetHostNameW function on win7.
-        file(READ "libuv/src/win/util.c" LIBUV_WIN_UTIL_CONTENT)
-        string(REPLACE "if (GetHostNameW(buf, UV_MAXHOSTNAMESIZE" "DWORD  nSize = UV_MAXHOSTNAMESIZE;\n  if (GetComputerNameW(buf, &nSize" LIBUV_WIN_UTIL_CONTENT "${LIBUV_WIN_UTIL_CONTENT}")
-        file(WRITE "libuv/src/win/util.c" "${LIBUV_WIN_UTIL_CONTENT}")
-    endif()
+    # freemine: if(TD_WINDOWS)
+    # freemine:     # There is no GetHostNameW function on win7.
+    # freemine:     file(READ "libuv/src/win/util.c" LIBUV_WIN_UTIL_CONTENT)
+    # freemine:     string(REPLACE "if (GetHostNameW(buf, UV_MAXHOSTNAMESIZE" "DWORD  nSize = UV_MAXHOSTNAMESIZE;\n  if (GetComputerNameW(buf, &nSize" LIBUV_WIN_UTIL_CONTENT "${LIBUV_WIN_UTIL_CONTENT}")
+    # freemine:     file(WRITE "libuv/src/win/util.c" "${LIBUV_WIN_UTIL_CONTENT}")
+    # freemine: endif()
 
-    add_subdirectory(libuv EXCLUDE_FROM_ALL)
+    # freemine: add_subdirectory(libuv EXCLUDE_FROM_ALL)
 endif(${BUILD_WITH_UV})
 
 # SQLite
@@ -617,40 +454,13 @@ if(${BUILD_ADDR2LINE})
         string(REPLACE "main(" "main_addr2line(" ADDR2LINE_CONTENT "${ADDR2LINE_CONTENT}")
         file(WRITE "addr2line/addr2line.c" "${ADDR2LINE_CONTENT}")
         add_library(addr2line STATIC "addr2line/addr2line.c")
-        target_link_libraries(addr2line PUBLIC libdwarf dl z)
+        target_link_libraries(addr2line PUBLIC libdwarf dl z.a)
         target_include_directories(addr2line PUBLIC "libdwarf/src/lib/libdwarf")
     endif(NOT ${TD_WINDOWS})
 endif(${BUILD_ADDR2LINE})
 
-# geos
-if(${BUILD_GEOS})
-    if(${TD_LINUX})
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_REL}")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL}")
-
-        if("${CMAKE_BUILD_TYPE}" STREQUAL "")
-            SET(CMAKE_BUILD_TYPE Release)
-        endif()
-    endif(${TD_LINUX})
-
-    option(BUILD_SHARED_LIBS "Build GEOS with shared libraries" OFF)
-    add_subdirectory(geos EXCLUDE_FROM_ALL)
-
-    if(${TD_WINDOWS})
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
-    else()
-        unset(CMAKE_CXX_STANDARD CACHE) # undo libgeos's setting of global CMAKE_CXX_STANDARD
-    endif(${TD_WINDOWS})
-
-    target_include_directories(
-        geos_c
-        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/geos/include>
-    )
-endif(${BUILD_GEOS})
-
 if(${BUILD_PCRE2})
-    add_subdirectory(pcre2 EXCLUDE_FROM_ALL)
+    # add_subdirectory(pcre2 EXCLUDE_FROM_ALL)
 endif(${BUILD_PCRE2})
 
 if(${TD_LINUX} AND ${BUILD_WITH_S3})
@@ -665,19 +475,19 @@ ENDIF()
 
 
 if(NOT ${TD_WINDOWS})
-    MESSAGE(STATUS "timezone file path: " ${TZ_OUTPUT_PATH})
+    # MESSAGE(STATUS "timezone file path: " ${TZ_OUTPUT_PATH})
 
-    execute_process(
-            COMMAND make TZDIR=${TZ_OUTPUT_PATH}/ clean tzdir.h
-            WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
-    )
+    # execute_process(
+    #         COMMAND make TZDIR=${TZ_OUTPUT_PATH}/ clean tzdir.h
+    #         WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
+    # )
 
-    set(TZ_SRC_DIR "${TD_SOURCE_DIR}/source/os/src/timezone")
-    file(REMOVE_RECURSE ${TZ_SRC_DIR})
-    file(MAKE_DIRECTORY ${TZ_SRC_DIR})
-    file(COPY ${TD_CONTRIB_DIR}/tz/private.h ${TD_CONTRIB_DIR}/tz/tzdir.h ${TD_CONTRIB_DIR}/tz/tzfile.h
-            ${TD_CONTRIB_DIR}/tz/localtime.c ${TD_CONTRIB_DIR}/tz/strftime.c
-            DESTINATION ${TZ_SRC_DIR})
+    # set(TZ_SRC_DIR "${TD_SOURCE_DIR}/source/os/src/timezone")
+    # file(REMOVE_RECURSE ${TZ_SRC_DIR})
+    # file(MAKE_DIRECTORY ${TZ_SRC_DIR})
+    # file(COPY ${TD_CONTRIB_DIR}/tz/private.h ${TD_CONTRIB_DIR}/tz/tzdir.h ${TD_CONTRIB_DIR}/tz/tzfile.h
+    #         ${TD_CONTRIB_DIR}/tz/localtime.c ${TD_CONTRIB_DIR}/tz/strftime.c
+    #         DESTINATION ${TZ_SRC_DIR})
 endif(NOT ${TD_WINDOWS})
 
 #if(NOT ${TD_WINDOWS})

@@ -33,8 +33,9 @@ jobs:
         run: |
           sudo apt update -y
           sudo apt install -y build-essential cmake \
-            libgeos-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev \
+            libjansson-dev libsnappy-dev liblzma-dev libz-dev \
             zlib1g pkg-config libssl-dev gawk
+
 
       - name: Build and install TDengine
         run: |
@@ -42,9 +43,10 @@ jobs:
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
             -DBUILD_HTTP=false \
-            -DBUILD_TEST=true \
-            -DBUILD_DEPENDENCY_TESTS=false
-          make -j 4
+            -DBUILD_TEST=false \
+            -DBUILD_CONTRIB=true 
+            
+          make VERBOSE=1 -j 4
           sudo make install
           which taosd
           which taosadapter
