@@ -20,16 +20,5 @@
               "sql": "select last_row(*) from db.stb00_9 ",
               "result": "./query_res1.txt"
           }]
-      },
-      "super_table_query": {
-          "stblname": "stb1",
-          "query_interval":20,
-          "threads": 4,
-          "sqls": [
-            {
-              "sql": "select last_row(ts) from xxxx",
-              "result": "./query_res2.txt"
-            }
-          ]
-        }
+      }
   }

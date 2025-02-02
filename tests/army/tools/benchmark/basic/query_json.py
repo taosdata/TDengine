@@ -23,13 +23,11 @@ from frame.caseBase import *
 from frame import *
 
 
-class TDTestCase(TBase):
+class TDTestCase:
     def caseDescription(self):
         """
         [TD-11510] taosBenchmark test cases
         """
-
-
 
     def run(self):
         binPath = etool.benchMarkFile()
@@ -46,6 +44,10 @@ class TDTestCase(TBase):
         cmd = "%s -f ./tools/benchmark/basic/json/taosc_query.json" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
+        cmd = "%s -f ./tools/benchmark/basic/json/taosc_query1.json" % binPath
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+
         with open("%s" % "taosc_query_specified-0", "r+") as f1:
             for line in f1.readlines():
                 queryTaosc = line.strip().split()[0]
@@ -56,7 +58,11 @@ class TDTestCase(TBase):
                 queryTaosc = line.strip().split()[0]
                 assert queryTaosc == "1", "result is %s != expect: 1" % queryTaosc
 
+        # split two
         cmd = "%s -f ./tools/benchmark/basic/json/rest_query.json" % binPath
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        cmd = "%s -f ./tools/benchmark/basic/json/rest_query1.json" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
 

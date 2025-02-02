@@ -29,7 +29,7 @@
 			"super_tables":	[{
 					"name":	"product",
 					"child_table_exists":	"no",
-					"childtable_count":	9,
+					"childtable_count":	5,
 					"childtable_prefix":	"d",
 					"auto_create_table":	"yes",
 					"batch_create_tbl_num":	10,
@@ -37,7 +37,7 @@
 					"insert_mode":	"stmt2",
 					"non_stop_mode":	"no",
 					"line_protocol":	"line",
-					"insert_rows":	10340,
+					"insert_rows":	1034,
 					"childtable_limit":	0,
 					"childtable_offset":	0,
 					"interlace_rows":	0,

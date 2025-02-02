@@ -12,7 +12,6 @@
 # -*- coding: utf-8 -*-
 import os
 import json
-
 import frame
 import frame.etool
 from frame.log import *
@@ -31,11 +30,27 @@ def removeQuotation(origin):
 
     return value
 
-class TDTestCase(TBase):
+class TDTestCase:
     def caseDescription(self):
         """
         [TD-11510] taosBenchmark test cases
         """
+
+    def benchmarkQuery(self, benchmark, jsonFile,  keys, options=""):
+        # exe insert 
+        result = "query.log"
+        os.system(f"rm -f {result}")
+        cmd = f"{benchmark} {options} -f {jsonFile} >> {result}"
+        os.system(cmd)
+        tdLog.info(cmd)
+        with open(result) as file:
+            content = file.read()
+            for key in keys:
+                if content.find(key) == -1:
+                    tdLog.exit(f"not found key: {key} in content={content}")
+                else:
+                    tdLog.info(f"found key:{key} successful.")            
+
 
     def testBenchmarkJson(self, benchmark, jsonFile, options="", checkStep=False):
         # exe insert 
@@ -111,6 +126,11 @@ class TDTestCase(TBase):
         self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TS-5234-1.json")
         self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TS-5234-2.json")
         self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TS-5234-3.json")
+        # TS-5846
+        keys = ["completed total queries: 40"]
+        self.benchmarkQuery(benchmark, "./tools/benchmark/basic/json/TS-5846-Query.json", keys)
+        keys = ["completed total queries: 20"]
+        self.benchmarkQuery(benchmark, "./tools/benchmark/basic/json/TS-5846-Mixed-Query.json", keys)
 
     # bugs td
     def bugsTD(self, benchmark):
@@ -133,7 +153,6 @@ class TDTestCase(TBase):
 
     def run(self):
         benchmark = etool.benchMarkFile()
-
         # ts
         self.bugsTS(benchmark)
 

@@ -18,16 +18,5 @@
       "sql": "select count(*) from db.stb",
       "result": "taosc_query_specified"
     }]
-  },
-  "super_table_query": {
-    "stblname": "stb",
-    "query_interval": 1,
-    "concurrent": 1,
-    "sqls": [
-      {
-        "sql": "select count(*) from xxxx",
-        "result": "taosc_query_super"
-      }
-    ]
   }
 }

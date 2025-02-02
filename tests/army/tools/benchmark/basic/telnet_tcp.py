@@ -27,9 +27,6 @@ class TDTestCase(TBase):
         [TD-11510] taosBenchmark test cases
         """
 
-
-
-
     def run(self):
         tdSql.query("select client_version()")
         client_ver = "".join(tdSql.res[0])

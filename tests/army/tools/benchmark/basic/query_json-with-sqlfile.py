@@ -27,8 +27,6 @@ class TDTestCase(TBase):
         [TD-11510] taosBenchmark test cases
         """
 
-
-
     def run(self):
         binPath = etool.benchMarkFile()
         os.system(

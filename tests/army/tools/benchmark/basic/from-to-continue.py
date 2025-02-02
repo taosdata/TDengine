@@ -27,8 +27,6 @@ class TDTestCase(TBase):
         [TD-20424] taosBenchmark insert child table from and to test cases
         """
 
-
-
     def run(self):
         binPath = etool.benchMarkFile()
         cmd = "%s -t 6 -n 1 -y" % binPath
@@ -41,7 +39,6 @@ class TDTestCase(TBase):
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 6 + 3)
 
-        binPath = etool.benchMarkFile()
         cmd = "%s -t 5 -n 1 -y" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
@@ -54,7 +51,6 @@ class TDTestCase(TBase):
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 5 + 3)
 
-        binPath = etool.benchMarkFile()
         cmd = "%s -t 4 -n 1 -y" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)

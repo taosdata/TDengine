@@ -25,7 +25,7 @@ tools_cJSON*   root;
 #define CLIENT_INFO_LEN   20
 static char     g_client_info[CLIENT_INFO_LEN] = {0};
 
-int             g_majorVersionOfClient = 0;
+int32_t         g_majorVersionOfClient = 0;
 // set flag if command passed, see ARG_OPT_ ???
 uint64_t        g_argFlag = 0;
 
@@ -43,11 +43,6 @@ void* benchCancelHandler(void* arg) {
     g_arguments->terminate = true;
     toolsMsleep(10);
 
-    if (g_arguments->in_prompt || INSERT_TEST != g_arguments->test_mode) {
-        toolsMsleep(100);
-        postFreeResource();
-        exit(EXIT_SUCCESS);
-    }
     return NULL;
 }
 #endif
@@ -128,7 +123,11 @@ int main(int argc, char* argv[]) {
 #endif
     if (g_arguments->metaFile) {
         g_arguments->totalChildTables = 0;
-        if (getInfoFromJsonFile()) exit(EXIT_FAILURE);
+        if (readJsonConfig(g_arguments->metaFile)) {
+            errorPrint("failed to readJsonConfig %s\n", g_arguments->metaFile);
+            exitLog();
+            return -1;
+        }
     } else {
         modifyArgument();
     }

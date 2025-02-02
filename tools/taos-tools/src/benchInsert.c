@@ -16,11 +16,12 @@
 #include <benchData.h>
 #include <benchInsertMix.h>
 
-static int32_t stmt2BindVProgressive(
+static int32_t stmt2BindAndSubmit(
         threadInfo *pThreadInfo,
         SChildTable *childTbl,
-        int64_t *timestamp, uint64_t i, char *ttl, int32_t *pkCur, int32_t *pkCnt, int64_t *delay1);
-
+        int64_t *timestamp, uint64_t i, char *ttl, int32_t *pkCur, int32_t *pkCnt, int64_t *delay1,
+        int64_t *delay3, int64_t* startTs, int64_t* endTs, int32_t w);
+TAOS_STMT2* initStmt2(TAOS* taos, bool single);        
 
 #define FREE_PIDS_INFOS_RETURN_MINUS_1()            \
     do {                                            \
@@ -1710,6 +1711,159 @@ void loadChildTableInfo(threadInfo* pThreadInfo) {
     tmfree(buf);
 }
 
+// create conn again
+int32_t reCreateConn(threadInfo * pThreadInfo) {
+    // single
+    bool single = true;
+    if (pThreadInfo->dbInfo->superTbls->size > 1) {
+        single = false;
+    }
+
+    //
+    // retry stmt2 init 
+    //
+
+    // stmt2 close
+    if (pThreadInfo->conn->stmt2) {
+        taos_stmt2_close(pThreadInfo->conn->stmt2);
+        pThreadInfo->conn->stmt2 = NULL;
+    }
+
+    // retry stmt2 init , maybe success
+    pThreadInfo->conn->stmt2 = initStmt2(pThreadInfo->conn->taos, single);
+    if (pThreadInfo->conn->stmt2) {
+        succPrint("%s", "reCreateConn first taos_stmt2_init() success and return.\n");
+        return 0;
+    }
+
+    //
+    // close old
+    //
+    closeBenchConn(pThreadInfo->conn);
+    pThreadInfo->conn = NULL;
+
+    //
+    // create new
+    //
+
+    // conn
+    pThreadInfo->conn = initBenchConn();
+    if (pThreadInfo->conn == NULL) {
+        errorPrint("%s", "reCreateConn initBenchConn failed.");
+        return -1;
+    }
+    // stmt2
+    pThreadInfo->conn->stmt2 = initStmt2(pThreadInfo->conn->taos, single);
+    if (NULL == pThreadInfo->conn->stmt2) {
+        errorPrint("reCreateConn taos_stmt2_init() failed, reason: %s\n", taos_errstr(NULL));
+        return -1;
+    } 
+        
+    succPrint("%s", "reCreateConn second taos_stmt2_init() success.\n");
+    // select db 
+    if (taos_select_db(pThreadInfo->conn->taos, pThreadInfo->dbInfo->dbName)) {
+        errorPrint("second taos select database(%s) failed\n", pThreadInfo->dbInfo->dbName);
+        return -1;
+    }
+
+    return 0;
+}
+
+// reinit
+int32_t reConnectStmt2(threadInfo * pThreadInfo, int32_t w) {
+    // re-create connection
+    int32_t code = reCreateConn(pThreadInfo);
+    if (code != 0) {
+        return code;
+    }
+
+    // prepare
+    code = prepareStmt2(pThreadInfo->conn->stmt2, pThreadInfo->stbInfo, NULL, w);
+    if (code != 0) {
+        return code;
+    }
+
+    return code;
+}
+
+int32_t submitStmt2Impl(threadInfo * pThreadInfo, TAOS_STMT2_BINDV *bindv, int64_t *delay1, int64_t *delay3,
+                    int64_t* startTs, int64_t* endTs, uint32_t* generated) {
+    // call bind
+    int64_t start = toolsGetTimestampUs();
+    int32_t code = taos_stmt2_bind_param(pThreadInfo->conn->stmt2, bindv, -1);
+    if (code != 0) {
+        errorPrint("taos_stmt2_bind_param failed, reason: %s\n", taos_stmt2_error(pThreadInfo->conn->stmt2));
+        return code;
+    }
+    debugPrint("interlace taos_stmt2_bind_param() ok.  bindv->count=%d \n", bindv->count);
+    *delay1 += toolsGetTimestampUs() - start;
+
+    // execute
+    *startTs = toolsGetTimestampUs();
+    code = execInsert(pThreadInfo, *generated, delay3);
+    *endTs = toolsGetTimestampUs();
+    return code;
+}
+
+int32_t submitStmt2(threadInfo * pThreadInfo, TAOS_STMT2_BINDV *bindv, int64_t *delay1, int64_t *delay3,
+                    int64_t* startTs, int64_t* endTs, uint32_t* generated, int32_t w) {
+    // calc loop
+    int32_t loop = 1;
+    SSuperTable* stbInfo = pThreadInfo->stbInfo;
+    if(stbInfo->continueIfFail == YES_IF_FAILED) {          
+        if(stbInfo->keep_trying > 1) {
+            loop = stbInfo->keep_trying;
+        } else {
+            loop = 3; // default
+        }
+    }
+
+    // submit stmt2
+    int32_t i = 0;
+    bool connected = true;
+    while (1) {
+        int32_t code = -1;
+        if(connected) {
+            // reinit success to do submit
+            code = submitStmt2Impl(pThreadInfo, bindv, delay1, delay3, startTs, endTs, generated);
+        }
+
+        // check code
+        if ( code == 0) {
+            // success
+            break;
+        } else {
+            // failed to try
+            if (--loop == 0) {
+                // failed finally
+                char tip[64] = "";
+                if (i > 0) {
+                    snprintf(tip, sizeof(tip), " after retry %d", i);
+                }
+                errorPrint("finally faild execute submitStmt2()%s\n", tip);
+                return -1;
+            }
+
+            // wait a memont for trying
+            toolsMsleep(stbInfo->trying_interval);
+            // reinit
+            infoPrint("stmt2 start retry submit i=%d  after sleep %d ms...\n", i++, stbInfo->trying_interval);
+            code = reConnectStmt2(pThreadInfo, w);
+            if (code != 0) {
+                // faild and try again
+                errorPrint("faild reConnectStmt2 and retry again for next i=%d \n", i);
+                connected = false;
+            } else {
+                // succ 
+                connected = true;
+            }
+        }
+    }
+    
+    // success
+    return 0;
+}
+
 static void *syncWriteInterlace(void *sarg) {
     threadInfo * pThreadInfo = (threadInfo *)sarg;
     SDataBase *  database = pThreadInfo->dbInfo;
@@ -2138,28 +2292,26 @@ static void *syncWriteInterlace(void *sarg) {
             }
         }
 
-        // stmt2 bind param
+        // exec
         if(stbInfo->iface == STMT2_IFACE) {
+            // exec stmt2
             if(g_arguments->debug_print)
                 showBindV(bindv, stbInfo->tags, stbInfo->cols);
-            // call bind
-            int64_t start = toolsGetTimestampUs();
-            if (taos_stmt2_bind_param(pThreadInfo->conn->stmt2, bindv, -1)) {
-                errorPrint("taos_stmt2_bind_param failed, reason: %s\n", taos_stmt2_error(pThreadInfo->conn->stmt2));
+            // bind & exec stmt2
+            if (submitStmt2(pThreadInfo, bindv, &delay1, &delay3, &startTs, &endTs, &generated, w) != 0) {
                 g_fail = true;
                 goto free_of_interlace;
             }
-            debugPrint("succ to call taos_stmt2_bind_param() with interlace mode. interlaceRows=%d bindv->count=%d \n", interlaceRows, bindv->count);
-            delay1 += toolsGetTimestampUs() - start;
+        } else {
+            // exec other
+            startTs = toolsGetTimestampUs();
+            if (execInsert(pThreadInfo, generated, &delay3)) {
+                g_fail = true;
+                goto free_of_interlace;
+            }
+            endTs = toolsGetTimestampUs();
         }
 
-        // execute
-        startTs = toolsGetTimestampUs();
-        if (execInsert(pThreadInfo, generated, &delay3)) {
-            g_fail = true;
-            goto free_of_interlace;
-        }
-        endTs = toolsGetTimestampUs();
         debugPrint("execInsert tableIndex=%d left insert rows=%"PRId64" generated=%d\n", i, insertRows, generated);
                 
         // reset count
@@ -2839,9 +2991,10 @@ void *syncWriteProgressive(void *sarg) {
                     break;
                 }
                 case STMT2_IFACE: {
-                    generated = stmt2BindVProgressive(
+                    generated = stmt2BindAndSubmit(
                             pThreadInfo,
-                            childTbl, &timestamp, i, ttl, &pkCur, &pkCnt, &delay1);
+                            childTbl, &timestamp, i, ttl, &pkCur, &pkCnt, &delay1,
+                            &delay3, &startTs, &endTs, w);
                     break;
                 }
                 case SML_REST_IFACE:
@@ -2861,63 +3014,67 @@ void *syncWriteProgressive(void *sarg) {
             if (!stbInfo->non_stop) {
                 i += generated;
             }
-            // only measure insert
-            startTs = toolsGetTimestampUs();
-            int code = execInsert(pThreadInfo, generated, &delay3);
-            if (code) {
-                if (NO_IF_FAILED == stbInfo->continueIfFail) {
-                    warnPrint("The super table parameter "
-                              "continueIfFail: %d, STOP insertion!\n",
-                              stbInfo->continueIfFail);
-                    g_fail = true;
-                    goto free_of_progressive;
-                } else if (YES_IF_FAILED == stbInfo->continueIfFail) {
-                    infoPrint("The super table parameter "
-                              "continueIfFail: %d, "
-                              "will continue to insert ..\n",
-                              stbInfo->continueIfFail);
-                } else if (smart) {
-                    warnPrint("The super table parameter "
-                              "continueIfFail: %d, will create table "
-                              "then insert ..\n",
-                              stbInfo->continueIfFail);
 
-                    // generator
-                    if (w == 0) {
-                        if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
+            // stmt2 execInsert already execute on stmt2BindAndSubmit
+            if (stbInfo->iface != STMT2_IFACE) {
+                // no stmt2 exec
+                startTs = toolsGetTimestampUs();
+                int code = execInsert(pThreadInfo, generated, &delay3);
+                if (code) {
+                    if (NO_IF_FAILED == stbInfo->continueIfFail) {
+                        warnPrint("The super table parameter "
+                                "continueIfFail: %d, STOP insertion!\n",
+                                stbInfo->continueIfFail);
+                        g_fail = true;
+                        goto free_of_progressive;
+                    } else if (YES_IF_FAILED == stbInfo->continueIfFail) {
+                        infoPrint("The super table parameter "
+                                "continueIfFail: %d, "
+                                "will continue to insert ..\n",
+                                stbInfo->continueIfFail);
+                    } else if (smart) {
+                        warnPrint("The super table parameter "
+                                "continueIfFail: %d, will create table "
+                                "then insert ..\n",
+                                stbInfo->continueIfFail);
+
+                        // generator
+                        if (w == 0) {
+                            if(!generateTagData(stbInfo, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
+                                g_fail = true;
+                                goto free_of_progressive;
+                            }
+                        }
+
+                        code = smartContinueIfFail(
+                                pThreadInfo,
+                                childTbl, tagData, w, ttl);
+                        if (0 != code) {
                             g_fail = true;
                             goto free_of_progressive;
                         }
-                    }
 
-                    int ret = smartContinueIfFail(
-                            pThreadInfo,
-                            childTbl, tagData, w, ttl);
-                    if (0 != ret) {
+                        // move next
+                        if (++w >= TAG_BATCH_COUNT) {
+                            // reset for gen again
+                            w = 0;
+                        }
+
+                        code = execInsert(pThreadInfo, generated, &delay3);
+                        if (code) {
+                            g_fail = true;
+                            goto free_of_progressive;
+                        }
+                    } else {
+                        warnPrint("Unknown super table parameter "
+                                "continueIfFail: %d\n",
+                                stbInfo->continueIfFail);
                         g_fail = true;
                         goto free_of_progressive;
                     }
-
-                    // move next
-                    if (++w >= TAG_BATCH_COUNT) {
-                        // reset for gen again
-                        w = 0;
-                    }
-
-                    code = execInsert(pThreadInfo, generated, &delay3);
-                    if (code) {
-                        g_fail = true;
-                        goto free_of_progressive;
-                    }
-                } else {
-                    warnPrint("Unknown super table parameter "
-                              "continueIfFail: %d\n",
-                              stbInfo->continueIfFail);
-                    g_fail = true;
-                    goto free_of_progressive;
                 }
+                endTs = toolsGetTimestampUs() + 1;
             }
-            endTs = toolsGetTimestampUs()+1;
 
             if (stbInfo->insert_interval > 0) {
                 debugPrint("%s() LN%d, insert_interval: %"PRIu64"\n",
@@ -2931,7 +3088,7 @@ void *syncWriteProgressive(void *sarg) {
             if (database->flush) {
                 char sql[260] = "";
                 sprintf(sql, "flush database %s", database->dbName);
-                code = executeSql(pThreadInfo->conn->taos,sql);
+                int32_t code = executeSql(pThreadInfo->conn->taos,sql);
                 if (code != 0) {
                   perfPrint(" %s failed. error code = 0x%x\n", sql, code);
                 } else {
@@ -3602,6 +3759,9 @@ int32_t assignTableToThread(SDataBase* database, SSuperTable* stbInfo) {
     // calc table count per vgroup
     for (int64_t i = 0; i < stbInfo->childTblCount; i++) {
         int32_t vgIdx = calcGroupIndex(database->dbName, stbInfo->childTblArray[i]->name, database->vgroups);
+        if (vgIdx == -1) {
+            continue;
+        }
         SVGroup *vg = benchArrayGet(database->vgArray, vgIdx);
         vg->tbCountPerVgId ++;
     }
@@ -3609,7 +3769,7 @@ int32_t assignTableToThread(SDataBase* database, SSuperTable* stbInfo) {
     // malloc vg->childTblArray memory with table count
     for (int v = 0; v < database->vgroups; v++) {
         SVGroup *vg = benchArrayGet(database->vgArray, v);
-        infoPrint("Total %"PRId64" tables on %s's vgroup %d (id: %d)\n",
+        infoPrint("Local hash calc %"PRId64" tables on %s's vgroup %d (id: %d)\n",
                     vg->tbCountPerVgId, database->dbName, v, vg->vgId);
         if (vg->tbCountPerVgId) {
             threads++;
@@ -3623,6 +3783,9 @@ int32_t assignTableToThread(SDataBase* database, SSuperTable* stbInfo) {
     // set vg->childTblArray data
     for (int64_t i = 0; i < stbInfo->childTblCount; i++) {
         int32_t vgIdx = calcGroupIndex(database->dbName, stbInfo->childTblArray[i]->name, database->vgroups);
+        if (vgIdx == -1) {
+            continue;
+        }
         SVGroup *vg = benchArrayGet(database->vgArray, vgIdx);
         debugPrint("calc table hash to vgroup %s.%s vgIdx=%d\n",
                     database->dbName,
@@ -3655,8 +3818,13 @@ TAOS_STMT2* initStmt2(TAOS* taos, bool single) {
     memset(&op2, 0, sizeof(op2));
     op2.singleStbInsert      = single;
     op2.singleTableBindOnce  = single;
-    infoPrint("initStmt2 call taos_stmt2_init single=%d\n", single);
-    return taos_stmt2_init(taos, &op2);
+    
+    TAOS_STMT2* stmt2 = taos_stmt2_init(taos, &op2);
+    if (stmt2) 
+        succPrint("succ  taos_stmt2_init single=%d\n", single);
+    else
+        errorPrint("failed taos_stmt2_init single=%d\n", single);
+    return stmt2;
 }
 
 // init insert thread
@@ -4613,10 +4781,11 @@ int insertTestProcess() {
 //     ------- STMT 2 -----------
 //
 
-static int32_t stmt2BindVProgressive(
+static int32_t stmt2BindAndSubmit(
         threadInfo *pThreadInfo,
         SChildTable *childTbl,
-        int64_t *timestamp, uint64_t i, char *ttl, int32_t *pkCur, int32_t *pkCnt, int64_t *delay1) {
+        int64_t *timestamp, uint64_t i, char *ttl, int32_t *pkCur, int32_t *pkCnt, int64_t *delay1,
+        int64_t *delay3, int64_t* startTs, int64_t* endTs, int32_t w) {
     
     // create bindV
     int32_t count            = 1;
@@ -4647,8 +4816,13 @@ static int32_t stmt2BindVProgressive(
         batch = g_arguments->prepared_rand - pos;
     } 
 
-    int32_t generated = bindVColsProgressive(bindv, 0, pThreadInfo, batch, *timestamp, pos, childTbl, pkCur, pkCnt, &n);
-    if(generated <= 0) {
+    if (batch == 0) {
+        infoPrint("batch size is zero. pos = %"PRId64"\n", pos);
+        return 0;
+    }
+
+    uint32_t generated = bindVColsProgressive(bindv, 0, pThreadInfo, batch, *timestamp, pos, childTbl, pkCur, pkCnt, &n);
+    if(generated == 0) {
         errorPrint( "get cols data bind information failed. table: %s\n", childTbl->name);
         freeBindV(bindv);
         return -1;
@@ -4659,18 +4833,17 @@ static int32_t stmt2BindVProgressive(
         showBindV(bindv, stbInfo->tags, stbInfo->cols);
     }
 
-    // do bindv
-    int64_t start = toolsGetTimestampUs();
-    int32_t ret   = taos_stmt2_bind_param(stmt2, bindv, -1);
-    if(ret != 0) {
-        errorPrint( "taos_stmt2_bind_param failed, table: %s . engine error: %s\n", childTbl->name, taos_stmt2_error(stmt2));
-        freeBindV(bindv);
-        return -1;
-    }
-    debugPrint("succ to call taos_stmt2_bind_param() progressive mode. table=%s batch=%d pos=%" PRId64 " ts=%" PRId64 " generated=%d\n",
-                childTbl->name, batch, pos, *timestamp, generated);
-    *delay1 = toolsGetTimestampUs() - start;
+    // bind and submit
+    int32_t code = submitStmt2(pThreadInfo, bindv, delay1, delay3, startTs, endTs, &generated, w);
     // free
-    freeBindV(bindv);    
-    return generated;
+    freeBindV(bindv);
+
+    if(code != 0) {
+        errorPrint( "failed submitStmt2() progressive mode, table: %s . engine error: %s\n", childTbl->name, taos_stmt2_error(stmt2));
+        return code;
+    } else {
+        debugPrint("succ submitStmt2 progressive mode. table=%s batch=%d pos=%" PRId64 " ts=%" PRId64 " generated=%d\n",
+                childTbl->name, batch, pos, *timestamp, generated);
+        return generated;
+    }
 }

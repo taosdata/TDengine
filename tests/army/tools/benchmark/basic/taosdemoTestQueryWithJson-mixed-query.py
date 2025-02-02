@@ -12,6 +12,9 @@
 # -*- coding: utf-8 -*-
 
 import os
+import ast
+import re
+
 import frame
 import frame.etool
 from frame.log import *
@@ -19,17 +22,43 @@ from frame.cases import *
 from frame.sql import *
 from frame.caseBase import *
 from frame import *
-import ast
-import re
 
 # from assertpy import assert_that
 import subprocess
 
 
-class TDTestCase(TBase):
+class TDTestCase:
     # pylint: disable=R0201
+    def init(self, conn, logSql):
+        tdLog.debug("start to execute %s" % __file__)
+        tdSql.init(conn.cursor(), logSql)
 
     # pylint: disable=R0201
+    def getPath(self, tool="taosBenchmark"):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if "community" in selfPath:
+            projPath = selfPath[: selfPath.find("community")]
+        elif "src" in selfPath:
+            projPath = selfPath[: selfPath.find("src")]
+        elif "/tools/" in selfPath:
+            projPath = selfPath[: selfPath.find("/tools/")]
+        elif "/tests/" in selfPath:
+            projPath = selfPath[: selfPath.find("/tests/")]
+        else:
+            tdLog.info("cannot found %s in path: %s, use system's" % (tool, selfPath))
+            projPath = "/usr/local/taos/bin/"
+
+        paths = []
+        for root, dummy, files in os.walk(projPath):
+            if (tool) in files:
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if "packaging" not in rootRealPath:
+                    paths.append(os.path.join(root, tool))
+                    break
+        if len(paths) == 0:
+            return ""
+        return paths[0]
 
     # 获取taosc接口查询的结果文件中的内容,返回每行数据,并断言数据的第一列内容。
     def assertfileDataTaosc(self, filename, expectResult):
@@ -81,7 +110,7 @@ class TDTestCase(TBase):
         )
 
     def run(self):
-        binPath = etool.benchMarkFile()
+        binPath = self.getPath()
         if binPath == "":
             tdLog.exit("taosBenchmark not found!")
         else:
@@ -94,6 +123,7 @@ class TDTestCase(TBase):
         # taosc query: query specified  table  and query  super table
         os.system("%s -f ./tools/benchmark/basic/json/queryInsertdata.json" % binPath)
         os.system("%s -f ./tools/benchmark/basic/json/queryTaosc-mixed-query.json" % binPath)
+        os.system("%s -f ./tools/benchmark/basic/json/queryTaosc-mixed-query1.json" % binPath)
         os.system("cat query_res2.txt* > all_query_res2_taosc.txt")
 
         # correct Times testcases
@@ -111,6 +141,7 @@ class TDTestCase(TBase):
         # use restful api to query
         os.system("%s -f ./tools/benchmark/basic/json/queryInsertrestdata.json" % binPath)
         os.system("%s -f ./tools/benchmark/basic/json/queryRestful.json" % binPath)
+        os.system("%s -f ./tools/benchmark/basic/json/queryRestful1.json" % binPath)
         os.system("cat query_res2.txt*  > all_query_res2_rest.txt")
 
         # correct Times testcases

@@ -648,6 +648,8 @@ typedef struct SpecifiedQueryInfo_S {
     TAOS_RES *res[MAX_QUERY_SQL_COUNT];
     uint64_t  totalQueried;
     bool      mixed_query;
+    // error rate
+    uint64_t  totalFail;
 } SpecifiedQueryInfo;
 
 typedef struct SuperQueryInfo_S {
@@ -669,6 +671,8 @@ typedef struct SuperQueryInfo_S {
     TAOS_SUB *tsub[MAX_QUERY_SQL_COUNT];
     char **   childTblName;
     uint64_t  totalQueried;
+    // error rate
+    uint64_t  totalFail;
 } SuperQueryInfo;
 
 typedef struct SQueryMetaInfo_S {
@@ -856,14 +860,24 @@ typedef struct SThreadInfo_S {
 } threadInfo;
 
 typedef struct SQueryThreadInfo_S {
-    int start_sql;
-    int end_sql;
-    int threadId;
-    BArray*  query_delay_list;
-    int   sockfd;
     SBenchConn* conn;
-    int64_t total_delay;
-} queryThreadInfo;
+    int32_t   start_sql;
+    int32_t   end_sql;
+    int32_t   threadID;
+    BArray*   query_delay_list;
+    int32_t   sockfd;
+    double   total_delay;
+
+    char      filePath[MAX_PATH_LEN];
+    uint64_t  start_table_from;
+    uint64_t  end_table_to;
+    uint64_t  ntables;
+    uint64_t  querySeq;
+
+    // error rate
+    uint64_t  nSucc;
+    uint64_t  nFail;
+} qThreadInfo;
 
 typedef struct STSmaThreadInfo_S {
     char* dbName;
@@ -883,6 +897,7 @@ extern bool           g_fail;
 extern char           configDir[];
 extern tools_cJSON *  root;
 extern uint64_t       g_memoryUsage;
+extern int32_t        g_majorVersionOfClient;
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 #define BARRAY_GET_ELEM(array, index) \
@@ -895,11 +910,11 @@ void initArgument();
 void queryAggrFunc();
 void parseFieldDatatype(char *dataType, BArray *fields, bool isTag);
 /* demoJsonOpt.c */
-int getInfoFromJsonFile();
+int readJsonConfig(char * file);
 /* demoUtil.c */
 int     compare(const void *a, const void *b);
 void    encodeAuthBase64();
-void    replaceChildTblName(char *inSql, char *outSql, int tblIndex);
+int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex);
 void    setupForAnsiEscape(void);
 void    resetAfterAnsiEscape(void);
 char *  convertDatatypeToString(int type);
@@ -907,7 +922,7 @@ int     convertStringToDatatype(char *type, int length);
 unsigned int     taosRandom();
 void    tmfree(void *buf);
 void    tmfclose(FILE *fp);
-int64_t fetchResult(TAOS_RES *res, threadInfo *pThreadInfo);
+int64_t fetchResult(TAOS_RES *res, char *filePath);
 void    prompt(bool NonStopMode);
 void    ERROR_EXIT(const char *msg);
 int     getServerVersionRest(int16_t rest_port);
@@ -927,7 +942,8 @@ int     getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
                                     int64_t childTblCountOfSuperTbl);
 void*   benchCalloc(size_t nmemb, size_t size, bool record);
 BArray* benchArrayInit(size_t size, size_t elemSize);
-void* benchArrayPush(BArray* pArray, void* pData);
+void* benchArrayPush(BArray* pArray, void* pData); // free pData for auto
+void* benchArrayPushNoFree(BArray* pArray, void* pData); // not free pData
 void* benchArrayDestroy(BArray* pArray);
 void benchArrayClear(BArray* pArray);
 void* benchArrayGet(const BArray* pArray, size_t index);
@@ -1015,4 +1031,18 @@ bool isRest(int32_t iface);
 
 // get group index about dbname.tbname
 int32_t calcGroupIndex(char* dbName, char* tbName, int32_t groupCnt);
+
+// ------------  benchQuery util -------------
+void freeSpecialQueryInfo();
+// init conn
+int32_t initQueryConn(qThreadInfo * pThreadInfo, int iface);
+// close conn
+void closeQueryConn(qThreadInfo * pThreadInfo, int iface);
+
+void *queryKiller(void *arg);
+// kill show
+int killSlowQuery();
+// fetch super table child name from server
+int fetchChildTableName(char *dbName, char *stbName);
+
 #endif   // INC_BENCH_H_

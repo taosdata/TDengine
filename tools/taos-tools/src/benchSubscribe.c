@@ -23,7 +23,7 @@ static void stable_sub_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param,
         return;
     }
 
-    if (param) fetchResult(res, (threadInfo *)param);
+    if (param) fetchResult(res, ((threadInfo *)param)->filePath);
     // tao_unsubscribe() will free result.
 }
 
@@ -35,7 +35,7 @@ static void specified_sub_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param,
         return;
     }
 
-    if (param) fetchResult(res, (threadInfo *)param);
+    if (param) fetchResult(res, ((threadInfo *)param)->filePath);
     // tao_unsubscribe() will free result.
 }
 
@@ -127,7 +127,7 @@ static void *specifiedSubscribe(void *sarg) {
             }
             fetchResult(
                 g_queryInfo.specifiedQueryInfo.res[pThreadInfo->threadID],
-                pThreadInfo);
+                pThreadInfo->filePath);
 
             g_queryInfo.specifiedQueryInfo.consumed[pThreadInfo->threadID]++;
             if ((g_queryInfo.specifiedQueryInfo
@@ -247,7 +247,7 @@ static void *superSubscribe(void *sarg) {
                                 .result[pThreadInfo->querySeq],
                             pThreadInfo->threadID);
                 }
-                fetchResult(res, pThreadInfo);
+                fetchResult(res, pThreadInfo->filePath);
                 consumed[tsubSeq]++;
 
                 if ((g_queryInfo.superQueryInfo.resubAfterConsume != -1) &&

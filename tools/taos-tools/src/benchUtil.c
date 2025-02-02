@@ -240,19 +240,24 @@ static void appendResultBufToFile(char *resultBuf, char * filePath) {
     tmfclose(fp);
 }
 
-void replaceChildTblName(char *inSql, char *outSql, int tblIndex) {
-    char sourceString[32] = "xxxx";
-    char *pos = strstr(inSql, sourceString);
-    if (0 == pos) return;
+int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex) {
+    // child table mark
+    char mark[32] = "xxxx";
+    char *pos = strstr(inSql, mark);
+    if (0 == pos) {
+        errorPrint("sql format error, sql not found mark string '%s'", mark);
+        return -1;
+    }        
 
     char subTblName[TSDB_TABLE_NAME_LEN];
     snprintf(subTblName, TSDB_TABLE_NAME_LEN,
-            "%s.%s", g_queryInfo.dbName,
+            "`%s`.%s", g_queryInfo.dbName,
             g_queryInfo.superQueryInfo.childTblName[tblIndex]);
 
     tstrncpy(outSql, inSql, pos - inSql + 1);
-    snprintf(outSql + strlen(outSql), TSDB_MAX_ALLOWED_SQL_LEN -1,
-             "%s%s", subTblName, pos + strlen(sourceString));
+    snprintf(outSql + (pos - inSql), TSDB_MAX_ALLOWED_SQL_LEN - 1,
+             "%s%s", subTblName, pos + strlen(mark));
+    return 0;         
 }
 
 int64_t toolsGetTimestamp(int32_t precision) {
@@ -536,13 +541,20 @@ int postProceSqlImpl(char *sqlstr, char* dbName, int precision, int iface,
     do {
         bytes = recv(sockfd, responseBuf + received,
                 resp_len - received, 0);
+        if (bytes <= 0) {
+            errorPrint("%s", "reading no response from socket\n");
+            goto free_of_postImpl;
+        }
         responseBuf[resp_len] = 0;
-        debugPrint("response buffer: %s\n", responseBuf);
+        debugPrint("response buffer: %s bytes=%d\n", responseBuf, bytes);
         if (NULL != strstr(responseBuf, resEncodingChunk)) {
             chunked = true;
         }
         int64_t index = strlen(responseBuf) - 1;
         while (responseBuf[index] == '\n' || responseBuf[index] == '\r') {
+            if (index == 0) {
+                break;
+            }
             index--;
         }
         debugPrint("index: %" PRId64 "\n", index);
@@ -553,11 +565,6 @@ int postProceSqlImpl(char *sqlstr, char* dbName, int precision, int iface,
         if (!chunked && responseBuf[index] == '}') {
             code = 0;
             break;
-        }
-
-        if (bytes <= 0) {
-            errorPrint("%s", "reading no response from socket\n");
-            goto free_of_postImpl;
         }
 
         received += bytes;
@@ -820,14 +827,14 @@ free_of_post:
 }
 
 // fetch result fo file or nothing
-int64_t fetchResult(TAOS_RES *res, threadInfo *pThreadInfo) {
+int64_t fetchResult(TAOS_RES *res, char * filePath) {
     TAOS_ROW    row        = NULL;
     int         num_fields = 0;
     int64_t     totalLen   = 0;
     TAOS_FIELD *fields     = 0;
     int64_t     rows       = 0;
     char       *databuf    = NULL;
-    bool        toFile     = strlen(pThreadInfo->filePath) > 0;
+    bool        toFile     = strlen(filePath) > 0;
     
 
     if(toFile) {
@@ -841,7 +848,7 @@ int64_t fetchResult(TAOS_RES *res, threadInfo *pThreadInfo) {
         if (toFile) {
             if (totalLen >= (FETCH_BUFFER_SIZE - HEAD_BUFF_LEN * 2)) {
                 // buff is full
-                appendResultBufToFile(databuf, pThreadInfo->filePath);
+                appendResultBufToFile(databuf, filePath);
                 totalLen = 0;
                 memset(databuf, 0, FETCH_BUFFER_SIZE);
             }
@@ -860,7 +867,7 @@ int64_t fetchResult(TAOS_RES *res, threadInfo *pThreadInfo) {
 
     // end
     if (toFile) {
-        appendResultBufToFile(databuf, pThreadInfo->filePath);
+        appendResultBufToFile(databuf, filePath);
         free(databuf);
     }
     return rows;
@@ -1102,7 +1109,7 @@ static int32_t benchArrayEnsureCap(BArray* pArray, size_t newCap) {
 }
 
 void* benchArrayAddBatch(BArray* pArray, void* pData, int32_t elems, bool free) {
-    if (pData == NULL) {
+    if (pData == NULL || elems <=0) {
         return NULL;
     }
 
@@ -1122,6 +1129,11 @@ void* benchArrayAddBatch(BArray* pArray, void* pData, int32_t elems, bool free) 
 FORCE_INLINE void* benchArrayPush(BArray* pArray, void* pData) {
     return benchArrayAddBatch(pArray, pData, 1, true);
 }
+
+FORCE_INLINE void* benchArrayPushNoFree(BArray* pArray, void* pData) {
+    return benchArrayAddBatch(pArray, pData, 1, false);
+}
+
 
 void* benchArrayDestroy(BArray* pArray) {
     if (pArray) {
@@ -1302,7 +1314,7 @@ void destroySockFd(int sockfd) {
 FORCE_INLINE void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res) {    
     char buff[512];
     char *msg = cmd;
-    if (strlen(cmd) > sizeof(msg)) {
+    if (strlen(cmd) >= sizeof(buff)) {
         memcpy(buff, cmd, 500);
         buff[500] = 0;
         strcat(buff, "...");
@@ -1470,6 +1482,10 @@ void showBindV(TAOS_STMT2_BINDV *bindv, BArray *tags, BArray *cols) {
 uint32_t MurmurHash3_32(const char *key, uint32_t len);
 // get group index about dbname.tbname
 int32_t calcGroupIndex(char* dbName, char* tbName, int32_t groupCnt) {
+    // check valid
+    if (dbName == NULL || tbName == NULL) {
+        return -1;
+    }
     char key[1024];
     snprintf(key, sizeof(key), "1.%s.%s", dbName, tbName);
     uint32_t hash = MurmurHash3_32(key, strlen(key));
@@ -1544,3 +1560,205 @@ uint32_t MurmurHash3_32(const char *key, uint32_t len) {
   return h1;
 }
 #endif
+
+
+//
+// ---------------- benchQuery util ----------------------
+//
+
+// init conn
+int32_t initQueryConn(qThreadInfo * pThreadInfo, int iface) {
+    // create conn
+    if (iface == REST_IFACE) {
+        int sockfd = createSockFd();
+        if (sockfd < 0) {
+            return -1;
+        }
+        pThreadInfo->sockfd = sockfd;
+    } else {
+        pThreadInfo->conn = initBenchConn();
+        if (pThreadInfo->conn == NULL) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+// close conn
+void closeQueryConn(qThreadInfo * pThreadInfo, int iface) {
+    if (iface == REST_IFACE) {
+#ifdef WINDOWS
+        closesocket(pThreadInfo->sockfd);
+        WSACleanup();
+#else
+        close(pThreadInfo->sockfd);
+#endif
+    } else {
+        closeBenchConn(pThreadInfo->conn);
+        pThreadInfo->conn = NULL;
+    }
+}
+
+
+// free g_queryInfo.specailQueryInfo memory , can re-call
+void freeSpecialQueryInfo() {
+    // can re-call
+    if (g_queryInfo.specifiedQueryInfo.sqls == NULL) {
+        return;
+    }
+
+    // loop free each item memory
+    for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqls->size; ++i) {
+        SSQL *sql = benchArrayGet(g_queryInfo.specifiedQueryInfo.sqls, i);
+        tmfree(sql->command);
+        tmfree(sql->delay_list);
+    }
+
+    // free Array
+    benchArrayDestroy(g_queryInfo.specifiedQueryInfo.sqls);
+    g_queryInfo.specifiedQueryInfo.sqls = NULL;
+}
+
+
+#define KILLID_LEN  64
+
+void *queryKiller(void *arg) {
+    char host[MAX_HOSTNAME_LEN] = {0};
+    tstrncpy(host, g_arguments->host, MAX_HOSTNAME_LEN);
+
+    while (true) {
+        TAOS *taos = taos_connect(g_arguments->host, g_arguments->user,
+                g_arguments->password, NULL, g_arguments->port);
+        if (NULL == taos) {
+            errorPrint("Slow query killer thread "
+                    "failed to connect to the server %s\n",
+                    g_arguments->host);
+            return NULL;
+        }
+
+        char command[TSDB_MAX_ALLOWED_SQL_LEN] =
+            "SELECT kill_id,exec_usec,sql FROM performance_schema.perf_queries";
+        TAOS_RES *res = taos_query(taos, command);
+        int32_t code = taos_errno(res);
+        if (code) {
+            printErrCmdCodeStr(command, code, res);
+        }
+
+        TAOS_ROW row = NULL;
+        while ((row = taos_fetch_row(res)) != NULL) {
+            int32_t *lengths = taos_fetch_lengths(res);
+            if (lengths[0] <= 0) {
+                infoPrint("No valid query found by %s\n", command);
+            } else {
+                int64_t execUSec = *(int64_t*)row[1];
+
+                if (execUSec > g_queryInfo.killQueryThreshold * 1000000) {
+                    char sql[SHORT_1K_SQL_BUFF_LEN] = {0};
+                    tstrncpy(sql, (char*)row[2],
+                             min(strlen((char*)row[2])+1,
+                                 SHORT_1K_SQL_BUFF_LEN));
+
+                    char killId[KILLID_LEN] = {0};
+                    tstrncpy(killId, (char*)row[0],
+                            min(strlen((char*)row[0])+1, KILLID_LEN));
+                    char killCommand[KILLID_LEN + 32] = {0};
+                    snprintf(killCommand, sizeof(killCommand), "KILL QUERY '%s'", killId);
+                    TAOS_RES *resKill = taos_query(taos, killCommand);
+                    int32_t codeKill = taos_errno(resKill);
+                    if (codeKill) {
+                        printErrCmdCodeStr(killCommand, codeKill, resKill);
+                    } else {
+                        infoPrint("%s succeed, sql: %s killed!\n",
+                                  killCommand, sql);
+                        taos_free_result(resKill);
+                    }
+                }
+            }
+        }
+
+        taos_free_result(res);
+        taos_close(taos);
+        toolsMsleep(g_queryInfo.killQueryInterval*1000);
+    }
+
+    return NULL;
+}
+
+// kill show
+int killSlowQuery() {
+    pthread_t pidKiller = {0};
+    int32_t ret = pthread_create(&pidKiller, NULL, queryKiller, NULL);
+    if (ret != 0) {
+        errorPrint("pthread_create failed create queryKiller thread. error code =%d \n", ret);
+        return -1;
+    }
+    pthread_join(pidKiller, NULL);
+    toolsMsleep(1000);
+    return 0;
+}
+
+// fetch super table child name from server
+int fetchChildTableName(char *dbName, char *stbName) {
+    SBenchConn* conn = initBenchConn();
+    if (conn == NULL) {
+        return -1;
+    }
+
+    // get child count
+    char  cmd[SHORT_1K_SQL_BUFF_LEN] = "\0";
+    if (3 == g_majorVersionOfClient) {
+        snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
+                "SELECT COUNT(*) FROM( SELECT DISTINCT(TBNAME) FROM `%s`.`%s`)",
+                dbName, stbName);
+    } else {
+        snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
+                    "SELECT COUNT(TBNAME) FROM `%s`.`%s`",
+                dbName, stbName);
+    }
+    TAOS_RES *res = taos_query(conn->taos, cmd);
+    int32_t   code = taos_errno(res);
+    if (code) {
+        printErrCmdCodeStr(cmd, code, res);
+        closeBenchConn(conn);
+        return -1;
+    }
+
+    TAOS_ROW    row = NULL;
+    int         num_fields = taos_num_fields(res);
+    TAOS_FIELD *fields = taos_fetch_fields(res);
+    while ((row = taos_fetch_row(res)) != NULL) {
+        if (0 == strlen((char *)(row[0]))) {
+            errorPrint("stable %s have no child table\n", stbName);
+            taos_free_result(res);
+            closeBenchConn(conn);
+            return -1;
+        }
+        char temp[256] = {0};
+        taos_print_row(temp, row, fields, num_fields);
+
+        // set child table count
+        g_queryInfo.superQueryInfo.childTblCount = (int64_t)atol(temp);
+    }
+    infoPrint("%s's childTblCount: %" PRId64 "\n", stbName, g_queryInfo.superQueryInfo.childTblCount);
+    taos_free_result(res);
+
+    // malloc memory with child table count
+    g_queryInfo.superQueryInfo.childTblName =
+        benchCalloc(g_queryInfo.superQueryInfo.childTblCount,
+                sizeof(char *), false);
+    // fetch child table name
+    if (getAllChildNameOfSuperTable(
+                conn->taos, dbName, stbName,
+                g_queryInfo.superQueryInfo.childTblName,
+                g_queryInfo.superQueryInfo.childTblCount)) {
+        // faild            
+        tmfree(g_queryInfo.superQueryInfo.childTblName);
+        closeBenchConn(conn);
+        return -1;
+    }
+    closeBenchConn(conn);
+
+    // succ
+    return 0;
+}
