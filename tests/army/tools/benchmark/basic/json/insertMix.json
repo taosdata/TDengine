@@ -20,7 +20,6 @@
                 "name": "mixdb",
                 "drop": "yes",
                 "vgroups": 6,
-                "replica": 3,
                 "precision": "ms",
                 "keep": 3650,
                 "minRows": 100,
