@@ -37,7 +37,7 @@ def removeQuotation(origin):
 
     return value
 
-class TDTestCase:
+class TDTestCase(TBase):
     def caseDescription(self):
         """
         [TD-11510] taosBenchmark test cases
