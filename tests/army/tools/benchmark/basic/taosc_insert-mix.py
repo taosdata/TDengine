@@ -27,11 +27,6 @@ class TDTestCase(TBase):
         """
         taosBenchmark insert mix data
         """
-
-    @classmethod
-
-    @classmethod
-
     @classmethod
     def run(self):
         binPath = etool.benchMarkFile()
