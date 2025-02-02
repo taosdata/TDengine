@@ -26,37 +26,7 @@ from frame.caseBase import *
 from frame import *
 
 
-class TDTestCase:
-    def init(self, conn, logSql):
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
-
-    def getPath(self, tool="taosBenchmark"):
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        if "community" in selfPath:
-            projPath = selfPath[: selfPath.find("community")]
-        elif "src" in selfPath:
-            projPath = selfPath[: selfPath.find("src")]
-        elif "/tools/" in selfPath:
-            projPath = selfPath[: selfPath.find("/tools/")]
-        elif "/tests/" in selfPath:
-            projPath = selfPath[: selfPath.find("/tests/")]
-        else:
-            tdLog.info("cannot found %s in path: %s, use system's" % (tool, selfPath))
-            projPath = "/usr/local/taos/bin/"
-
-        paths = []
-        for root, dummy, files in os.walk(projPath):
-            if (tool) in files:
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if "packaging" not in rootRealPath:
-                    paths.append(os.path.join(root, tool))
-                    break
-        if len(paths) == 0:
-            return ""
-        return paths[0]
-
+class TDTestCase(TBase):
     # 获取taosc接口查询的结果文件中的内容,返回每行数据,并断言数据的第一列内容。
     def assertfileDataTaosc(self, filename, expectResult):
         self.filename = filename
@@ -107,7 +77,7 @@ class TDTestCase:
         )
 
     def run(self):
-        binPath = self.getPath()
+        binPath = etool.benchMarkFile()
         if binPath == "":
             tdLog.exit("taosBenchmark not found!")
         else:
@@ -118,11 +88,10 @@ class TDTestCase:
         os.system("rm -rf ./all_query*")
 
         # taosc query: query specified  table  and query  super table
-        os.system("%s -f ./taosbenchmark/json/queryInsertdata.json" % binPath)
-        os.system("%s -f ./taosbenchmark/json/queryTaosc.json" % binPath)
+        os.system("%s -f ./tools/benchmark/basic/json/queryInsertdata.json" % binPath)
+        os.system("%s -f ./tools/benchmark/basic/json/queryTaosc.json" % binPath)
         # forbid parallel spec query with super query
-        os.system("%s -f ./taosbenchmark/json/queryTaosc1.json" % binPath)
-
+        os.system("%s -f ./tools/benchmark/basic/json/queryTaosc1.json" % binPath)
         os.system("cat query_res0.txt* > all_query_res0_taosc.txt")
         os.system("cat query_res1.txt* > all_query_res1_taosc.txt")
         os.system("cat query_res2.txt* > all_query_res2_taosc.txt")
@@ -147,9 +116,9 @@ class TDTestCase:
         os.system("rm -rf ./all_query*")
 
         # use restful api to query
-        os.system("%s -f ./taosbenchmark/json/queryInsertrestdata.json" % binPath)
-        os.system("%s -f ./taosbenchmark/json/queryRestful.json" % binPath)
-        os.system("%s -f ./taosbenchmark/json/queryRestful1.json" % binPath)
+        os.system("%s -f ./tools/benchmark/basic/json/queryInsertrestdata.json" % binPath)
+        os.system("%s -f ./tools/benchmark/basic/json/queryRestful.json" % binPath)
+        os.system("%s -f ./tools/benchmark/basic/json/queryRestful1.json" % binPath)
         os.system("cat query_res0.txt*  > all_query_res0_rest.txt")
         os.system("cat query_res1.txt*  > all_query_res1_rest.txt")
         os.system("cat query_res2.txt*  > all_query_res2_rest.txt")
@@ -183,57 +152,31 @@ class TDTestCase:
 
         # query times less than or equal to 100
         assert (
-            os.system("%s -f ./taosbenchmark/json/queryInsertdata.json" % binPath) == 0
+            os.system("%s -f ./tools/benchmark/basic/json/queryInsertdata.json" % binPath) == 0
         )
         assert (
-            os.system("%s -f ./taosbenchmark/json/querySpeciMutisql100.json" % binPath)
+            os.system("%s -f ./tools/benchmark/basic/json/querySpeciMutisql100.json" % binPath)
             != 0
         )
         assert (
-            os.system("%s -f ./taosbenchmark/json/querySuperMutisql100.json" % binPath)
+            os.system("%s -f ./tools/benchmark/basic/json/querySuperMutisql100.json" % binPath)
             == 0
         )
 
         # query result print QPS
-        os.system("%s -f ./taosbenchmark/json/queryInsertdata.json" % binPath)
-        exceptcode = os.system("%s -f ./taosbenchmark/json/queryQps.json" % binPath)
+        os.system("%s -f ./tools/benchmark/basic/json/queryInsertdata.json" % binPath)
+        exceptcode = os.system("%s -f ./tools/benchmark/basic/json/queryQps.json" % binPath)
         assert exceptcode == 0
-        exceptcode = os.system("%s -f ./taosbenchmark/json/queryQps1.json" % binPath)
+        exceptcode = os.system("%s -f ./tools/benchmark/basic/json/queryQps1.json" % binPath)
         assert exceptcode == 0
 
         # 2021.02.09 need modify taosBenchmakr code
         # use illegal or out of range parameters query json file
-        os.system("%s -f ./taosbenchmark/json/queryInsertdata.json" % binPath)
-        # 2021.02.09 need modify taosBenchmakr code
-        # exceptcode = os.system(
-        #     "%s -f ./taosbenchmark/json/queryTimes0.json" %
-        #     binPath)
-        # assert exceptcode != 0
-
-        # 2021.02.09 need modify taosBenchmakr code
-        # exceptcode0 = os.system(
-        #     "%s -f ./taosbenchmark/json/queryTimesless0.json" %
-        #     binPath)
-        # assert exceptcode0 != 0
-
-        # exceptcode1 = os.system(
-        #     "%s -f ./taosbenchmark/json/queryConcurrent0.json" %
-        #     binPath)
-        # assert exceptcode2 != 0
-
-        # exceptcode3 = os.system(
-        #     "%s -f ./taosbenchmark/json/querrThreadsless0.json" %
-        #     binPath)
-        # assert exceptcode3 != 0
-
-        # exceptcode4 = os.system(
-        #     "%s -f ./taosbenchmark/json/querrThreads0.json" %
-        #     binPath)
-        # assert exceptcode4 != 0
+        os.system("%s -f ./tools/benchmark/basic/json/queryInsertdata.json" % binPath)
 
         # delete useless files
         os.system("rm -rf ./insert_res.txt")
-        os.system("rm -rf 5-taos-tools/taosbenchmark/*.py.sql")
+        os.system("rm -rf ./tools/benchmark/basic/*.py.sql")
         os.system("rm -rf ./querySystemInfo*")
         os.system("rm -rf ./query_res*")
         os.system("rm -rf ./all_query*")
