@@ -132,6 +132,15 @@ option(
     "If build with lemon"
     ON
 )
+
+ELSE ()
+
+option(
+    BUILD_WITH_LZMA2
+    "If build with lzma2"
+    ON
+)
+
 ENDIF ()
 
 
@@ -158,6 +167,12 @@ option(
 option(
     BUILD_WITH_ANALYSIS
     "If build with analysis"
+    ON
+)
+
+option(
+    BUILD_WITH_LZMA2
+    "If build with lzma2"
     ON
 )
 
