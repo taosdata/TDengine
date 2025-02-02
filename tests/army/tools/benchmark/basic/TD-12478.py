@@ -17,37 +17,33 @@ import os
 import sys
 import time
 import taos
-from util.log import tdLog
-from util.cases import tdCases
-from util.sql import tdSql
-from util.dnodes import tdDnodes
-from util.dnodes import *
+
+import frame
+import frame.etool
+from frame.log import *
+from frame.cases import *
+from frame.sql import *
+from frame.caseBase import *
+from frame import *
+from frame.srvCtl import *
+
 import itertools
 from itertools import product
 from itertools import combinations
 from faker import Faker
 import subprocess
 
-class TDTestCase:
+class TDTestCase(TBase):
     def caseDescription(self):
         '''
         case1<xyguo>[TD-12434]:taosdump null nchar/binary length can cause core:taos-tools/src/taosdump.c 
         case2<xyguo>[TD-12478]:taos_stmt_execute() failed! reason: WAL size exceeds limit 
         ''' 
         return
-
-    def init(self, conn, logSql, replicaVar=1):
-        self.replicaVar = int(replicaVar)
-        tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
-
-        os.system("rm -rf 5-taos-tools/TD-12478.py.sql")
-        os.system("rm db*")
-        os.system("rm dump_result.txt*")
     
     def restartDnodes(self):
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        sc.dnodeStop(1)
+        sc.dnodeStart(1)
 
     def dropandcreateDB_random(self,n):
         self.ts = 1630000000000
