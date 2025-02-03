@@ -35,7 +35,7 @@ extern "C" {
 // #endif
 #endif
 
-#if !defined(WINDOWS) && !defined(_ALPINE)
+#if !defined(WINDOWS) && !defined(_ALPINE) && !defined(TD_ACORE)
 #ifndef __USE_XOPEN2K
 #define TD_USE_SPINLOCK_AS_MUTEX
 typedef pthread_mutex_t pthread_spinlock_t;
