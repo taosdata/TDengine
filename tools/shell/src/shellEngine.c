@@ -99,7 +99,7 @@ int32_t shellRunSingleCommand(char *command) {
     strtok(command, " \t");
     strtok(NULL, " \t");
     char *p = strtok(NULL, " \t");
-    if (strncasecmp(p, "default", 7) == 0) {
+    if (taosStrncasecmp(p, "default", 7) == 0) {
       shell.args.displayWidth = SHELL_DEFAULT_MAX_BINARY_DISPLAY_WIDTH;
     } else {
       int32_t displayWidth = atoi(p);
@@ -137,7 +137,7 @@ int32_t shellRunSingleCommand(char *command) {
 }
 
 void shellRecordCommandToHistory(char *command) {
-  if (strncasecmp(command, "create user ", 12) == 0 || strncasecmp(command, "alter user ", 11) == 0) {
+  if (taosStrncasecmp(command, "create user ", 12) == 0 || taosStrncasecmp(command, "alter user ", 11) == 0) {
     if (taosStrCaseStr(command, " pass ")) {
       // have password command forbid record to history because security
       return;
@@ -166,7 +166,7 @@ int32_t shellRunCommand(char *command, bool recordHistory) {
   }
 
   // add help or help;
-  if (strncasecmp(command, "help", 4) == 0) {
+  if (taosStrncasecmp(command, "help", 4) == 0) {
     if (command[4] == ';' || command[4] == ' ' || command[4] == 0) {
       showHelp();
       return 0;

@@ -60,7 +60,7 @@ const char *taosAnalAlgoUrlStr(EAnalAlgoType type) {
 
 EAnalAlgoType taosAnalAlgoInt(const char *name) {
   for (EAnalAlgoType i = 0; i < ANAL_ALGO_TYPE_END; ++i) {
-    if (strcasecmp(name, taosAnalAlgoStr(i)) == 0) {
+    if (taosStrcasecmp(name, taosAnalAlgoStr(i)) == 0) {
       return i;
     }
   }

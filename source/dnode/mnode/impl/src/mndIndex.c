@@ -81,7 +81,7 @@ int32_t mndInitIdx(SMnode *pMnode) {
 
 static int32_t mndFindSuperTableTagId(const SStbObj *pStb, const char *tagName, int8_t *hasIdx) {
   for (int32_t tag = 0; tag < pStb->numOfTags; tag++) {
-    if (strcasecmp(pStb->pTags[tag].name, tagName) == 0) {
+    if (taosStrcasecmp(pStb->pTags[tag].name, tagName) == 0) {
       if (IS_IDX_ON(&pStb->pTags[tag])) {
         *hasIdx = 1;
       }
@@ -936,7 +936,7 @@ int32_t mndGetIdxsByTagName(SMnode *pMnode, SStbObj *pStb, char *tagName, SIdxOb
     pIter = sdbFetch(pSdb, SDB_IDX, pIter, (void **)&pIdx);
     if (pIter == NULL) break;
 
-    if (pIdx->stbUid == pStb->uid && strcasecmp(pIdx->colName, tagName) == 0) {
+    if (pIdx->stbUid == pStb->uid && taosStrcasecmp(pIdx->colName, tagName) == 0) {
       memcpy((char *)idx, (char *)pIdx, sizeof(SIdxObj));
       sdbRelease(pSdb, pIdx);
       sdbCancelFetch(pSdb, pIter);

@@ -795,7 +795,7 @@ int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, c
     if (pIter == NULL) break;
 
     if (pTrans->oper == oper) {
-      if (strcasecmp(dbname, pTrans->dbname) == 0) {
+      if (taosStrcasecmp(dbname, pTrans->dbname) == 0) {
         mInfo("trans:%d, db:%s oper:%d matched with input", pTrans->id, dbname, oper);
         taosWLockLatch(&pTrans->lockRpcArray);
         if (pTrans->pRpcArray == NULL) {
@@ -874,13 +874,13 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
 
 static bool mndCheckDbConflict(const char *conflict, STrans *pTrans) {
   if (conflict[0] == 0) return false;
-  if (strcasecmp(conflict, pTrans->dbname) == 0) return true;
+  if (taosStrcasecmp(conflict, pTrans->dbname) == 0) return true;
   return false;
 }
 
 static bool mndCheckStbConflict(const char *conflict, STrans *pTrans) {
   if (conflict[0] == 0) return false;
-  if (strcasecmp(conflict, pTrans->stbname) == 0) return true;
+  if (taosStrcasecmp(conflict, pTrans->stbname) == 0) return true;
   return false;
 }
 
@@ -996,7 +996,7 @@ int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans) {
       thisConflict = true;
     }
     if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
-      if (strcasecmp(pTrans->dbname, pCompact->dbname) == 0) thisConflict = true;
+      if (taosStrcasecmp(pTrans->dbname, pCompact->dbname) == 0) thisConflict = true;
     }
 
     if (thisConflict) {
