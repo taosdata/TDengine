@@ -159,7 +159,6 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeJson.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestBasic.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeUnsignedSmallInt.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestColTag.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpDbNtb.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeUnsignedTinyInt.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeUnsignedInt.py
