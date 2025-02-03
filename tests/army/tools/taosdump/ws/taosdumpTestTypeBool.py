@@ -34,7 +34,7 @@ class TDTestCase(TBase):
         tdSql.execute("create database db keep 3649 ")
 
         tdSql.execute("use db")
-        tdSql.execute("create table st(ts timestamp, c1 BOOL) tags(btag BOOL)")
+        tdSql.execute("create table db.st(ts timestamp, c1 BOOL) tags(btag BOOL)")
         tdSql.execute("create table db.t1 using  db.st tags(true)")
         tdSql.execute("insert into db.t1 values(1640000000000, true)")
         tdSql.execute("create table db.t2 using  db.st tags(false)")
