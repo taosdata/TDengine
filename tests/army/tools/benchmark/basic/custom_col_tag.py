@@ -26,8 +26,6 @@ class TDTestCase(TBase):
         [TD-13928] taosBenchmark improve user interface
         """
 
-
-
     def run(self):
         binPath = etool.benchMarkFile()
         cmd = "%s -f ./tools/benchmark/basic/json/custom_col_tag.json" % binPath

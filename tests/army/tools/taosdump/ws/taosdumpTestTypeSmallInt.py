@@ -3,7 +3,7 @@
 #                     All rights reserved.
 #
 #  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
+#  No part of this file may be reproduced, db.stored, transmitted,
 #  disclosed or used in any form or by any means other than as
 #  expressly provided by the written permission from Jianhui Tao
 #
@@ -27,10 +27,6 @@ class TDTestCase(TBase):
         case1<sdsang>: [TD-12526] taosdump supports small int
         """
 
-
-
-
-
     def run(self):
         tdSql.prepare()
 
@@ -38,18 +34,18 @@ class TDTestCase(TBase):
         tdSql.execute("create database db  keep 3649 ")
 
         tdSql.execute("use db")
-        tdSql.execute("create table st(ts timestamp, c1 SMALLINT) tags(sntag SMALLINT)")
-        tdSql.execute("create table t1 using st tags(1)")
-        tdSql.execute("insert into t1 values(1640000000000, 1)")
+        tdSql.execute("create table db.st(ts timestamp, c1 SMALLINT) tags(sntag SMALLINT)")
+        tdSql.execute("create table db.t1 using db.st tags(1)")
+        tdSql.execute("insert into db.t1 values(1640000000000, 1)")
 
-        tdSql.execute("create table t2 using st tags(32767)")
-        tdSql.execute("insert into t2 values(1640000000000, 32767)")
+        tdSql.execute("create table db.t2 using db.st tags(32767)")
+        tdSql.execute("insert into db.t2 values(1640000000000, 32767)")
 
-        tdSql.execute("create table t3 using st tags(-32767)")
-        tdSql.execute("insert into t3 values(1640000000000, -32767)")
+        tdSql.execute("create table db.t3 using db.st tags(-32767)")
+        tdSql.execute("insert into db.t3 values(1640000000000, -32767)")
 
-        tdSql.execute("create table t4 using st tags(NULL)")
-        tdSql.execute("insert into t4 values(1640000000000, NULL)")
+        tdSql.execute("create table db.t4 using db.st tags(NULL)")
+        tdSql.execute("insert into db.t4 values(1640000000000, NULL)")
 
         binPath = etool.taosDumpFile()
         if binPath == "":
@@ -84,32 +80,32 @@ class TDTestCase(TBase):
         assert found == True
 
         tdSql.execute("use db")
-        tdSql.query("show stables")
+        tdSql.query("show db.stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show tables")
+        tdSql.query("show db.tables")
         tdSql.checkRows(4)
 
-        tdSql.query("select * from st where sntag = 1")
+        tdSql.query("select * from db.st where sntag = 1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(0, 2, 1)
 
-        tdSql.query("select * from st where sntag = 32767")
+        tdSql.query("select * from db.st where sntag = 32767")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
         tdSql.checkData(0, 1, 32767)
         tdSql.checkData(0, 2, 32767)
 
-        tdSql.query("select * from st where sntag = -32767")
+        tdSql.query("select * from db.st where sntag = -32767")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
         tdSql.checkData(0, 1, -32767)
         tdSql.checkData(0, 2, -32767)
 
-        tdSql.query("select * from st where sntag is null")
+        tdSql.query("select * from db.st where sntag is null")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
         tdSql.checkData(0, 1, None)

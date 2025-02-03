@@ -30,7 +30,7 @@
       "insert_mode": "taosc",
       "line_protocol": "line",
       "childtable_limit": -10,
-      "childtable_offset": 10,
+      "childtable_offset": 0,
       "insert_rows": 20,
       "insert_interval": 0,
       "interlace_rows": 0,

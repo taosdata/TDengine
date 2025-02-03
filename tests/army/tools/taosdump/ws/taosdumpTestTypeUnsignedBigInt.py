@@ -3,7 +3,7 @@
 #                     All rights reserved.
 #
 #  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
+#  No part of this file may be reproduced, db.stored, transmitted,
 #  disclosed or used in any form or by any means other than as
 #  expressly provided by the written permission from Jianhui Tao
 #
@@ -27,10 +27,6 @@ class TDTestCase(TBase):
         case1<sdsang>: [TD-12655] taosdump supports unsigned big int
         """
 
-
-
-
-
     def run(self):
         tdSql.prepare()
 
@@ -39,15 +35,15 @@ class TDTestCase(TBase):
 
         tdSql.execute("use db")
         tdSql.execute(
-            "create table st(ts timestamp, c1 BIGINT UNSIGNED) \
+            "create table db.st(ts timestamp, c1 BIGINT UNSIGNED) \
                     tags(ubntag BIGINT UNSIGNED)"
         )
-        tdSql.execute("create table t1 using st tags(0)")
-        tdSql.execute("insert into t1 values(1640000000000, 0)")
-        tdSql.execute("create table t2 using st tags(18446744073709551614)")
-        tdSql.execute("insert into t2 values(1640000000000, 18446744073709551614)")
-        tdSql.execute("create table t3 using st tags(NULL)")
-        tdSql.execute("insert into t3 values(1640000000000, NULL)")
+        tdSql.execute("create table db.t1 using db.st tags(0)")
+        tdSql.execute("insert into db.t1 values(1640000000000, 0)")
+        tdSql.execute("create table db.t2 using db.st tags(18446744073709551614)")
+        tdSql.execute("insert into db.t2 values(1640000000000, 18446744073709551614)")
+        tdSql.execute("create table db.t3 using db.st tags(NULL)")
+        tdSql.execute("insert into db.t3 values(1640000000000, NULL)")
 
         #        sys.exit(1)
 
@@ -84,26 +80,26 @@ class TDTestCase(TBase):
         assert found == True
 
         tdSql.execute("use db")
-        tdSql.query("show stables")
+        tdSql.query("show db.stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show tables")
+        tdSql.query("show db.tables")
         tdSql.checkRows(3)
 
-        tdSql.query("select * from st where ubntag = 0")
+        tdSql.query("select * from db.st where ubntag = 0")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
         tdSql.checkData(0, 1, 0)
         tdSql.checkData(0, 2, 0)
 
-        tdSql.query("select * from st where ubntag = 18446744073709551614")
+        tdSql.query("select * from db.st where ubntag = 18446744073709551614")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
         tdSql.checkData(0, 1, 18446744073709551614)
         tdSql.checkData(0, 2, 18446744073709551614)
 
-        tdSql.query("select * from st where ubntag is null")
+        tdSql.query("select * from db.st where ubntag is null")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
         tdSql.checkData(0, 1, None)

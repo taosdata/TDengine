@@ -28,10 +28,6 @@ class TDTestCase(TBase):
         case1<sdsang>: [TD-12526] taosdump supports double
         """
 
-
-
-
-
     def run(self):
         tdSql.prepare()
 
@@ -39,18 +35,18 @@ class TDTestCase(TBase):
         tdSql.execute("create database db  keep 3649 ")
 
         tdSql.execute("use db")
-        tdSql.execute("create table st(ts timestamp, c1 DOUBLE) tags(dbtag DOUBLE)")
-        tdSql.execute("create table t1 using st tags(1.0)")
-        tdSql.execute("insert into t1 values(1640000000000, 1.0)")
+        tdSql.execute("create table db.st(ts timestamp, c1 DOUBLE) tags(dbtag DOUBLE)")
+        tdSql.execute("create table db.t1 using db.st tags(1.0)")
+        tdSql.execute("insert into db.t1 values(1640000000000, 1.0)")
 
-        tdSql.execute("create table t2 using st tags(1.7E308)")
-        tdSql.execute("insert into t2 values(1640000000000, 1.7E308)")
+        tdSql.execute("create table db.t2 using db.st tags(1.7E308)")
+        tdSql.execute("insert into db.t2 values(1640000000000, 1.7E308)")
 
-        tdSql.execute("create table t3 using st tags(-1.7E308)")
-        tdSql.execute("insert into t3 values(1640000000000, -1.7E308)")
+        tdSql.execute("create table db.t3 using db.st tags(-1.7E308)")
+        tdSql.execute("insert into db.t3 values(1640000000000, -1.7E308)")
 
-        tdSql.execute("create table t4 using st tags(NULL)")
-        tdSql.execute("insert into t4 values(1640000000000, NULL)")
+        tdSql.execute("create table db.t4 using db.st tags(NULL)")
+        tdSql.execute("insert into db.t4 values(1640000000000, NULL)")
 
         #        sys.exit(1)
 
@@ -87,14 +83,14 @@ class TDTestCase(TBase):
         assert found == True
 
         tdSql.execute("use db")
-        tdSql.query("show stables")
+        tdSql.query("show db.stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show tables")
+        tdSql.query("show db.tables")
         tdSql.checkRows(4)
 
-        tdSql.query("select * from st where dbtag = 1.0")
+        tdSql.query("select * from db.st where dbtag = 1.0")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
         if not math.isclose(tdSql.getData(0, 1), 1.0):
@@ -104,7 +100,7 @@ class TDTestCase(TBase):
             tdLog.debug("getData(0, 1): %f, to compare %f" % (tdSql.getData(0, 2), 1.0))
             tdLog.exit("data is different")
 
-        tdSql.query("select * from st where dbtag = 1.7E308")
+        tdSql.query("select * from db.st where dbtag = 1.7E308")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
         if not math.isclose(tdSql.getData(0, 1), 1.7e308):
@@ -118,7 +114,7 @@ class TDTestCase(TBase):
             )
             tdLog.exit("data is different")
 
-        tdSql.query("select * from st where dbtag = -1.7E308")
+        tdSql.query("select * from db.st where dbtag = -1.7E308")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1640000000000)
         if not math.isclose(tdSql.getData(0, 1), -1.7e308):
@@ -132,7 +128,7 @@ class TDTestCase(TBase):
             )
             tdLog.exit("data is different")
 
-        tdSql.query("select * from st where dbtag is null")
+        tdSql.query("select * from db.st where dbtag is null")
         dbresult = tdSql.res
         print(dbresult)
 

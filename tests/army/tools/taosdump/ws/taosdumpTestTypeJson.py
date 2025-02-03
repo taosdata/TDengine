@@ -3,7 +3,7 @@
 #                     All rights reserved.
 #
 #  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
+#  No part of this file may be reproduced, db.stored, transmitted,
 #  disclosed or used in any form or by any means other than as
 #  expressly provided by the written permission from Jianhui Tao
 #
@@ -27,26 +27,22 @@ class TDTestCase(TBase):
         case1<sdsang>: [TD-12362] taosdump supports JSON
         """
 
-
-
-
-
     def run(self):
         tdSql.prepare()
 
         tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  keep 3649 ")
+        tdSql.execute("create database db keep 3649 ")
 
         tdSql.execute("use db")
-        tdSql.execute("create table st(ts timestamp, c1 int) tags(jtag JSON)")
-        tdSql.execute('create table t1 using st tags(\'{"location": "beijing"}\')')
-        tdSql.execute("insert into t1 values(1500000000000, 1)")
+        tdSql.execute("create table db.st(ts timestamp, c1 int) tags(jtag JSON)")
+        tdSql.execute('create table db.t1 using db.st tags(\'{"location": "beijing"}\')')
+        tdSql.execute("insert into db.t1 values(1500000000000, 1)")
 
-        tdSql.execute("create table t2 using st tags(NULL)")
-        tdSql.execute("insert into t2 values(1500000000000, NULL)")
+        tdSql.execute("create table db.t2 using db.st tags(NULL)")
+        tdSql.execute("insert into db.t2 values(1500000000000, NULL)")
 
-        tdSql.execute("create table t3 using st tags('')")
-        tdSql.execute("insert into t3 values(1500000000000, 0)")
+        tdSql.execute("create table db.t3 using db.st tags('')")
+        tdSql.execute("insert into db.t3 values(1500000000000, 0)")
 
         #        sys.exit(1)
 
@@ -82,11 +78,11 @@ class TDTestCase(TBase):
         assert found == True
 
         tdSql.execute("use db")
-        tdSql.query("show stables")
+        tdSql.query("show db.stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show tables")
+        tdSql.query("show db.tables")
         tdSql.checkRows(3)
 
         dbresult = tdSql.res
@@ -98,7 +94,7 @@ class TDTestCase(TBase):
                 or (dbresult[i][0] == "t3")
             )
 
-        tdSql.query("select jtag->'location' from st")
+        tdSql.query("select jtag->'location' from db.st")
         tdSql.checkRows(3)
 
         dbresult = tdSql.res
@@ -111,12 +107,12 @@ class TDTestCase(TBase):
 
         assert found == True
 
-        tdSql.query("select * from st where jtag contains 'location'")
+        tdSql.query("select * from db.st where jtag contains 'location'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(0, 2, '{"location":"beijing"}')
 
-        tdSql.query("select jtag from st")
+        tdSql.query("select jtag from db.st")
         tdSql.checkRows(3)
 
         dbresult = tdSql.res

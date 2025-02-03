@@ -27,24 +27,20 @@ class TDTestCase(TBase):
         case1<sdsang>: [TD-12526] taosdump supports bool
         """
 
-
-
-
-
     def run(self):
         tdSql.prepare()
 
         tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  keep 3649 ")
+        tdSql.execute("create database db keep 3649 ")
 
         tdSql.execute("use db")
         tdSql.execute("create table st(ts timestamp, c1 BOOL) tags(btag BOOL)")
-        tdSql.execute("create table t1 using st tags(true)")
-        tdSql.execute("insert into t1 values(1640000000000, true)")
-        tdSql.execute("create table t2 using st tags(false)")
-        tdSql.execute("insert into t2 values(1640000000000, false)")
-        tdSql.execute("create table t3 using st tags(NULL)")
-        tdSql.execute("insert into t3 values(1640000000000, NULL)")
+        tdSql.execute("create table db.t1 using  db.st tags(true)")
+        tdSql.execute("insert into db.t1 values(1640000000000, true)")
+        tdSql.execute("create table db.t2 using  db.st tags(false)")
+        tdSql.execute("insert into db.t2 values(1640000000000, false)")
+        tdSql.execute("create table db.t3 using  db.st tags(NULL)")
+        tdSql.execute("insert into db.t3 values(1640000000000, NULL)")
 
         binPath = etool.taosDumpFile()
         if binPath == "":
@@ -79,11 +75,11 @@ class TDTestCase(TBase):
         assert found == True
 
         tdSql.execute("use db")
-        tdSql.query("show stables")
+        tdSql.query("show db.stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "st")
 
-        tdSql.query("show tables")
+        tdSql.query("show db.tables")
         tdSql.checkRows(3)
         dbresult = tdSql.res
         print(dbresult)
@@ -94,22 +90,22 @@ class TDTestCase(TBase):
                 or (dbresult[i][0] == "t3")
             )
 
-        tdSql.query("select btag from st")
+        tdSql.query("select btag from db.st")
         tdSql.checkRows(3)
         dbresult = tdSql.res
         print(dbresult)
 
-        tdSql.query("select * from st where btag = true")
+        tdSql.query("select * from  db.st where btag = true")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, "True")
         tdSql.checkData(0, 2, "True")
 
-        tdSql.query("select * from st where btag = false")
+        tdSql.query("select * from  db.st where btag = false")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, "False")
         tdSql.checkData(0, 2, "False")
 
-        tdSql.query("select * from st where btag is null")
+        tdSql.query("select * from  db.st where btag is null")
         dbresult = tdSql.res
         print(dbresult)
         tdSql.checkRows(1)
