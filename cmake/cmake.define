@@ -119,6 +119,9 @@ ENDIF()
 # force set all platform to JEMALLOC_ENABLED = false
 SET(JEMALLOC_ENABLED OFF)
 
+# geos
+ADD_DEFINITIONS(-DTD_GEOS)
+
 IF(TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
 

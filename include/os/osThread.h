@@ -76,6 +76,8 @@ typedef pthread_key_t        TdThreadKey;
 #if !defined(WINDOWS)
 #if defined(_TD_DARWIN_64)  // MACOS
 #define taosThreadRwlockAttrSetKindNP(A, B) ((void)0)
+#elif defined(TD_ACORE)
+#define taosThreadRwlockAttrSetKindNP(A, B) ((void)0)
 #else  // LINUX
 #if _XOPEN_SOURCE >= 500 || _POSIX_C_SOURCE >= 200809L
 #define taosThreadRwlockAttrSetKindNP(A, B) pthread_rwlockattr_setkind_np(A, B)
