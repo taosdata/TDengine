@@ -176,22 +176,23 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpInDiffType.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTest2.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeTinyInt.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeDouble.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedBigInt.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/ws/taosdumpEscapedDb.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/ws/taosdumpPrimaryKey.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeJson.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedSmallInt.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedTinyInt.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedInt.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeSmallInt.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeInt.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeBigInt.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeBinary.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeFloat.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeBool.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/ws/taosdumpRetry.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeTinyInt.py
+
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeDouble.py
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedBigInt.py
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpEscapedDb.py
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpPrimaryKey.py
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeJson.py
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedSmallInt.py
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedTinyInt.py
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedInt.py
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeSmallInt.py
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeInt.py
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeBigInt.py
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeBinary.py
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeFloat.py
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeBool.py
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpRetry.py
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeTinyInt.py
 
 #
 # system test
