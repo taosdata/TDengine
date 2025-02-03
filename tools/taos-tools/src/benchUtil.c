@@ -1110,17 +1110,23 @@ static int32_t benchArrayEnsureCap(BArray* pArray, size_t newCap) {
 
 void* benchArrayAddBatch(BArray* pArray, void* pData, int32_t elems, bool free) {
     if (pData == NULL || elems <=0) {
+        if (free) {
+            tmfree(pData);
+        }
         return NULL;
     }
 
     if (benchArrayEnsureCap(pArray, pArray->size + elems) != 0) {
+        if (free) {
+            tmfree(pData);
+        }
         return NULL;
     }
 
     void* dst = BARRAY_GET_ELEM(pArray, pArray->size);
     memcpy(dst, pData, pArray->elemSize * elems);
     if (free) {
-        tmfree(pData); // TODO remove this
+        tmfree(pData);
     }
     pArray->size += elems;
     return dst;
