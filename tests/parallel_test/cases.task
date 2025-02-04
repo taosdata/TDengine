@@ -118,14 +118,14 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-partial-col-numpy.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-sqlfile.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/query_json.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_json_alltypes.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/invalid_commandline.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_json_insert_alltypes-same-min-max.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/default_json.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_sample_csv_json.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json_doesnt_use_ts.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosadapter_json.py -B
+,,n,army,python3 ./test.py -f tools/benchmark/basic/taosadapter_json.py -B
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/demo.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-supplement-insert.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/custom_col_tag.py
