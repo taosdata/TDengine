@@ -118,7 +118,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-partial-col-numpy.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-sqlfile.py
-,,n,army,python3 ./test.py -f tools/benchmark/basic/query_json.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json.py -B
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_json_alltypes.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/invalid_commandline.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_json_insert_alltypes-same-min-max.py
