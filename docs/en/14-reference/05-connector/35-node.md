@@ -139,7 +139,7 @@ try {
     conf.setPwd('taosdata')
     conf.setDb('db')
     conf.setTimeOut(500)
-    let wsSql = await WsSql.open(conf);
+    let wsSql = await WsSql.sqlConnect(conf);
 } catch (e) {
     console.error(e);
 }
