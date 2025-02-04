@@ -55,6 +55,8 @@ else()                             # }{
         DEP_ext_rocksdb(stream)
         if(${TD_WINDOWS})
             target_link_libraries(stream PUBLIC Rpcrt4 Shlwapi)
+        else()
+            target_link_libraries(stream PUBLIC m stdc++)
         endif()
         add_definitions(-DUSE_ROCKSDB)
     endif()

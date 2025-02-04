@@ -10,10 +10,18 @@ IF(NOT TD_WINDOWS)
             "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
     )
 
-    TARGET_LINK_LIBRARIES(
-            tqTest
-            PUBLIC os util common vnode gtest_main
-    )
+    if(${FALLBACK})               # {
+            TARGET_LINK_LIBRARIES(
+                    tqTest
+                    PUBLIC os util common vnode gtest_main
+            )
+    else()                        # }{
+            TARGET_LINK_LIBRARIES(
+                    tqTest
+                    PUBLIC os util common vnode
+            )
+            DEP_ext_gtest(tqTest)
+    endif()                       # }
 
     enable_testing()
 

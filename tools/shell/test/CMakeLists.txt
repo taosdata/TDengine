@@ -7,10 +7,18 @@ IF(NOT TD_DARWIN)
         AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
         ADD_EXECUTABLE(shellTest ${SOURCE_LIST})
-        TARGET_LINK_LIBRARIES(
-                shellTest
-                PRIVATE shell_ut gtest os common transport geometry util
-        )
+        if(${FALLBACK})                 # {
+            TARGET_LINK_LIBRARIES(
+                    shellTest
+                    PRIVATE shell_ut gtest os common transport geometry util
+            )
+        else()                          # }{
+            TARGET_LINK_LIBRARIES(
+                    shellTest
+                    PUBLIC shell_ut os common transport geometry util
+            )
+            DEP_ext_gtest(shellTest)
+        endif()                         # }
 
         target_include_directories(
             shell_ut

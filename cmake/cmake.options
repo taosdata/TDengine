@@ -257,3 +257,10 @@ option(
    "If build thirdpart from source"
    OFF
 )
+
+option(
+   WEBSOCKET
+   "If build with taosws"
+   ON
+)
+

@@ -9,6 +9,10 @@ project(
 option(FALLBACK "fall back to original"     OFF)
 if(${FALLBACK})
     add_definitions(-D_FALLBACK)
+else()
+    if(NOT DEFINED CMAKE_POSITION_INDEPENDENT_CODE)
+      set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+    endif()
 endif()
 
 if(NOT DEFINED TD_SOURCE_DIR)

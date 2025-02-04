@@ -30,7 +30,9 @@ IF(NOT TD_DARWIN)
             )
             DEP_ext_gtest(plannerTest)
             DEP_ext_cjson_LIB(plannerTest)
-            DEP_ext_wingetopt(plannerTest)
+            if(${TD_WINDOWS})           # {
+                    DEP_ext_wingetopt(plannerTest)
+            endif()                     # }
             DEP_ext_stub(plannerTest)
             TARGET_INCLUDE_DIRECTORIES(plannerTest
                     PUBLIC ${ext_stub_stub} ${ext_stub_addr_any}

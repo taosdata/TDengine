@@ -26,7 +26,9 @@ IF(NOT TD_DARWIN)
         )
         DEP_ext_gtest(parserTest)
         DEP_ext_cjson_LIB(parserTest)
-        DEP_ext_wingetopt(parserTest)
+        if(${TD_WINDOWS})           # {
+                DEP_ext_wingetopt(parserTest)
+        endif()                     # }
         DEP_ext_stub(parserTest)
         target_include_directories(parserTest
                 PUBLIC

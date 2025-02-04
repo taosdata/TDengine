@@ -294,11 +294,13 @@ endif()                        # }
 
 # pcre2
 if(${TD_LINUX})
-    set(ext_pcre2_static libpcre2-8.a)
+    set(ext_pcre2_static      libpcre2-8.a)
+    set(ext_pcre2posix_static libpcre2-posix.a)
 elseif(${TD_DARWIN})
-    set(ext_pcre2_static libpcre2-8.dylib)
+    set(ext_pcre2_static      libpcre2-8.dylib)
+    set(ext_pcre2posix_static libpcre2-posix.dylib)
 elseif(${TD_WINDOWS})
-    set(ext_pcre2_static pcre2-8-static$<$<CONFIG:Debug>:D>.lib)
+    set(ext_pcre2_static      pcre2-8-static$<$<CONFIG:Debug>:D>.lib)
     set(ext_pcre2posix_static pcre2-posix-static$<$<CONFIG:Debug>:D>.lib)
 endif()
 if(${BUILD_PCRE2})           # {
@@ -335,36 +337,23 @@ if(NOT ${TD_WINDOWS})         # {
     )
     ExternalProject_Add(ext_lzma2
         GIT_REPOSITORY https://github.com/conor42/fast-lzma2.git
+        GIT_TAG ded964d203cabe1a572d2c813c55e8a94b4eda48
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
         PATCH_COMMAND
             COMMAND git restore -- Makefile
             COMMAND git apply ${CMAKE_SOURCE_DIR}/contrib/lzma2.diff
         CONFIGURE_COMMAND ""
-        BUILD_COMMAND ""
+        BUILD_COMMAND
+            COMMAND make DESTDIR=${_ins}
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different fast-lzma2.h ${_ins}/usr/local/include/fast-lzma2.h
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different fl2_errors.h ${_ins}/usr/local/include/fl2_errors.h
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different xxhash.h ${_ins}/usr/local/include/xxhash.h
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different libfast-lzma2.a ${_ins}/usr/local/lib/libfast-lzma2.a
         INSTALL_COMMAND ""
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
-    )
-    add_custom_command(
-        OUTPUT ${_ins}/usr/local/include/fast-lzma2.h
-            ${_ins}/usr/local/include/fl2_errors.h
-            ${_ins}/usr/local/include/xxhash.h
-            ${_ins}/usr/local/lib/${ext_lzma2_static}
-        WORKING_DIRECTORY ${_base}/src/ext_lzma2
-        COMMAND make DESTDIR=${_ins}
-        COMMAND make DESTDIR=${_ins} install
-        COMMAND "${CMAKE_COMMAND}" -E copy_if_different xxhash.h ${_ins}/usr/local/include/
-        VERBATIM
-    )
-    add_custom_target(
-        ext_lzma2_builder
-        DEPENDS ext_lzma2
-            ${_ins}/usr/local/include/fast-lzma2.h
-            ${_ins}/usr/local/include/fl2_errors.h
-            ${_ins}/usr/local/include/xxhash.h
-            ${_ins}/usr/local/lib/${ext_lzma2_static}
     )
 else()                        # }{
     if(${TD_WINDOWS})
@@ -441,8 +430,8 @@ if(${BUILD_TEST})              # {
     endif()
     INIT_EXT(ext_gtest
         INC_DIR                   include
-        LIB                       lib/${ext_gtest_static}
-                                  lib/${ext_gtest_main_static}
+        LIB                       lib/${ext_gtest_main_static}
+                                  lib/${ext_gtest_static}
     )
     ExternalProject_Add(ext_gtest
         GIT_REPOSITORY https://github.com/taosdata-contrib/googletest.git
@@ -635,6 +624,8 @@ if(${BUILD_WITH_ROCKSDB})              # {
         DEP_ext_rocksdb(main)
         if(${TD_WINDOWS})
             target_link_libraries(main PUBLIC Rpcrt4 Shlwapi)
+        else()                         # }{
+            target_link_libraries(main PUBLIC m stdc++)
         endif()
     endif()                            # }
 endif()                                # }

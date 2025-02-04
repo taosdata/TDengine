@@ -7,12 +7,14 @@ add_subdirectory(mgmt_vnode)
 add_subdirectory(mgmt_dnode)
 add_subdirectory(test)
 
-#### aux_source_directory(exe EXEC_SRC)
-#### add_executable(taosd ${EXEC_SRC})
-#### target_include_directories(
-####   taosd
-####   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/node_mgmt/inc"
-#### )
+if(NOT ${TD_WINDOWS})             # {
+  aux_source_directory(exe EXEC_SRC)
+  add_executable(taosd ${EXEC_SRC})
+  target_include_directories(
+    taosd
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/node_mgmt/inc"
+  )
+endif()                           # }
 
 IF(TD_ENTERPRISE)
   IF(${BUILD_WITH_S3})
@@ -29,11 +31,21 @@ ELSE()
   SET(LINK_JEMALLOC "")
 ENDIF()
 
-if(${FALLBACK})             # {
-  IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
-    ADD_DEPENDENCIES(taosd jemalloc)
-    target_link_libraries(taosd dnode crypt ${LINK_JEMALLOC})
-  ELSE()
-    target_link_libraries(taosd dnode crypt)
-  ENDIF()
+if(NOT ${TD_WINDOWS})       # {
+  if(${FALLBACK})          # {
+    IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
+      ADD_DEPENDENCIES(taosd jemalloc)
+      target_link_libraries(taosd dnode crypt ${LINK_JEMALLOC})
+    ELSE()
+      target_link_libraries(taosd dnode crypt)
+    ENDIF()
+  else()                   # }{
+    IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
+      ADD_DEPENDENCIES(taosd jemalloc)
+      target_link_libraries(taosd PUBLIC dnode crypt ${LINK_JEMALLOC})
+    ELSE()
+      target_link_libraries(taosd PUBLIC dnode crypt)
+    ENDIF()
+  endif()                  # }
 endif()                     # }
+

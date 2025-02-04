@@ -8,10 +8,18 @@ if(TD_LINUX)
         "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
     )
 
-    target_link_libraries(tcsTest
-        tcs
-        gtest_main
-    )
+    if(${FALLBACK})               # {
+        target_link_libraries(tcsTest
+            tcs
+            gtest_main
+        )
+    else()                        # }{
+        target_link_libraries(tcsTest
+            PUBLIC
+            tcs
+        )
+        DEP_ext_gtest(tcsTest)
+    endif()                       # }
     enable_testing()
     add_test(
         NAME tcs_test

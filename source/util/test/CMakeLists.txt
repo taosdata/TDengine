@@ -240,7 +240,13 @@ ENDIF()
 if(${TD_LINUX})
     # terrorTest
     add_executable(terrorTest "terrorTest.cpp")
-    target_link_libraries(terrorTest os util common gtest_main)
+    if(${FALLBACK})               # {
+        target_link_libraries(terrorTest os util common gtest_main)
+    else()                        # }{
+        target_link_libraries(terrorTest PUBLIC os util common)
+        DEP_ext_gtest(terrorTest)
+        DEP_ext_cjson_LIB(terrorTest)
+    endif()                       # }
     add_test(
         NAME terrorTest
         COMMAND terrorTest
@@ -254,7 +260,15 @@ if(${TD_LINUX})
 
     # memPoolTest
     add_executable(memPoolTest "memPoolTest.cpp")
-    target_link_libraries(memPoolTest os util common gtest_main)
+    if(${FALLBACK})               # {
+        target_link_libraries(memPoolTest os util common gtest_main)
+    else()                        # }{
+        target_link_libraries(memPoolTest PUBLIC os util common)
+        DEP_ext_gtest(memPoolTest)
+        DEP_ext_cjson_LIB(memPoolTest)
+        DEP_ext_stub(memPoolTest)
+        target_include_directories(memPoolTest PUBLIC ${ext_stub_stub} ${ext_stub_addr_any})
+    endif()                       # }
     add_test(
         NAME memPoolTest
         COMMAND memPoolTest

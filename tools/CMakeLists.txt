@@ -68,6 +68,8 @@ IF(TD_WEBSOCKET)
             )
         ENDIF()
     else()                             # }{
+        set(_taosws_so              "${CMAKE_BINARY_DIR}/build/lib/libtaosws.so")     # freemine: harded-coded to remove?
+        set(_taosws_h               "${CMAKE_BINARY_DIR}/build/include/taosws.h")     # freemine: harded-coded to remove?
         INIT_EXT(ext_taosws
             INC_DIR           include
             LIB               lib/${websocket_lib_file}
@@ -76,35 +78,19 @@ IF(TD_WEBSOCKET)
             GIT_REPOSITORY https://github.com/taosdata/taos-connector-rust.git
             GIT_TAG main # freemine: or fix?
             PREFIX "${_base}"
+            BUILD_IN_SOURCE TRUE
             CONFIGURE_COMMAND ""
-            BUILD_COMMAND ""
-            INSTALL_COMMAND ""
+            BUILD_COMMAND
+              # COMMAND cargo update
+              COMMAND cargo build --release -p taos-ws-sys --features rustls
+            INSTALL_COMMAND
+              COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/taosws.h ${_ins}/include/taosws.h
+              COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${websocket_lib_file} ${_ins}/lib/${websocket_lib_file}
+              COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/taosws.h ${_taosws_h}
+              COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${websocket_lib_file} ${_taosws_so}
             GIT_SHALLOW true
             EXCLUDE_FROM_ALL TRUE
-        )
-        set(_taosws_so              "${CMAKE_BINARY_DIR}/build/lib/libtaosws.so")     # freemine: harded-coded to remove?
-        set(_taosws_h               "${CMAKE_BINARY_DIR}/build/include/taosws.h")     # freemine: harded-coded to remove?
-        add_custom_command(
-            OUTPUT ${_ins}/include/taosws.h
-                   ${_ins}/lib/${websocket_lib_file}
-                   ${_taosws_so}
-                   ${_taosws_h}
-            WORKING_DIRECTORY ${_base}/src/ext_taosws
-            # COMMAND cargo update
-            COMMAND cargo build --release -p taos-ws-sys --features rustls
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/taosws.h ${_ins}/include/taosws.h
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${websocket_lib_file} ${_ins}/lib/${websocket_lib_file}
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/taosws.h ${_taosws_h}
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${websocket_lib_file} ${_taosws_so}
             VERBATIM
-        )
-        add_custom_target(
-            ext_taosws_builder
-            DEPENDS ext_taosws
-                    ${_ins}/include/taosws.h
-                    ${_ins}/lib/${websocket_lib_file}
-                    ${_taosws_so}
-                    ${_taosws_h}
         )
     endif()                            # }
 ENDIF()
@@ -119,7 +105,7 @@ IF(TD_TAOS_TOOLS)
         INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/libs/transport)
         ADD_SUBDIRECTORY(taos-tools)
     else()                             # }{
-        init_external(ext_taos_tools)
+        INIT_EXT(ext_taos_tools)
         ExternalProject_Add(ext_taos_tools
             GIT_REPOSITORY https://github.com/taosdata/taos-tools.git
             GIT_TAG main # freemine: or fix?
@@ -136,7 +122,7 @@ IF(TD_TAOS_TOOLS)
             EXCLUDE_FROM_ALL
             VERBATIM
         )
-        add_dependencies(ext_taos_tools ${TAOS_LIB} ext_taosws_builder)
+        add_dependencies(ext_taos_tools ${TAOS_LIB} ext_taosws)
         set(_taosBenchmark          "${CMAKE_BINARY_DIR}/build/bin/taosBenchmark")          # freemine: harded-coded to remove?
         set(_taosdump               "${CMAKE_BINARY_DIR}/build/bin/taosdump")               # freemine: harded-coded to remove?
         add_custom_command(
@@ -198,7 +184,7 @@ ELSE()
             OUTPUT_VARIABLE taosadapter_commit_sha1
         )
     else()                  # }{
-        init_external(ext_taosadapter)
+        INIT_EXT(ext_taosadapter)
         ExternalProject_Add(ext_taosadapter
             GIT_REPOSITORY https://github.com/taosdata/taosadapter.git
             GIT_TAG main # freemine: or fix?

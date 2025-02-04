@@ -16,7 +16,12 @@ INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
 
 if(TD_LINUX)
 add_executable(osAtomicTests "osAtomicTests.cpp")
-target_link_libraries(osAtomicTests os util gtest_main)
+if(${FALLBACK})           # {
+  target_link_libraries(osAtomicTests os util gtest_main)
+else()                    # }{
+  target_link_libraries(osAtomicTests PUBLIC os util)
+  DEP_ext_gtest(osAtomicTests)
+endif()                   # }
 add_test(
     NAME osAtomicTests
     COMMAND osAtomicTests
@@ -25,7 +30,13 @@ endif()
 
 if(TD_LINUX)
 add_executable(osDirTests "osDirTests.cpp")
-target_link_libraries(osDirTests os util gtest_main)
+if(${FALLBACK})           # {
+  target_link_libraries(osDirTests os util gtest_main)
+else()                    # }{
+  target_link_libraries(osDirTests PUBLIC os util)
+  DEP_ext_gtest(osDirTests)
+  DEP_ext_cjson_LIB(osDirTests)
+endif()                   # }
 add_test(
     NAME osDirTests
     COMMAND osDirTests
@@ -34,7 +45,12 @@ endif()
 
 if(TD_LINUX)
 add_executable(osEnvTests "osEnvTests.cpp")
-target_link_libraries(osEnvTests os util gtest_main)
+if(${FALLBACK})           # {
+  target_link_libraries(osEnvTests os util gtest_main)
+else()                    # }{
+  target_link_libraries(osEnvTests PUBLIC os util)
+  DEP_ext_gtest(osEnvTests)
+endif()                   # }
 add_test(
     NAME osEnvTests
     COMMAND osEnvTests
@@ -130,7 +146,12 @@ add_test(
 
 if(TD_LINUX)
 add_executable(osThreadTests "osThreadTests.cpp")
-target_link_libraries(osThreadTests os util gtest_main)
+if(${FALLBACK})           # {
+  target_link_libraries(osThreadTests os util gtest_main)
+else()                    # }{
+  target_link_libraries(osThreadTests PUBLIC os util)
+  DEP_ext_gtest(osThreadTests)
+endif()                   # }
 add_test(
     NAME osThreadTests
     COMMAND osThreadTests

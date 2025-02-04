@@ -88,7 +88,12 @@ target_sources(
     PRIVATE
     "cosTest.cpp"
 )
-target_link_libraries(cosTest gtest gtest_main util common)
+if(${FALLBACK})               # {
+    target_link_libraries(cosTest gtest gtest_main util common)
+else()                        # }{
+    target_link_libraries(cosTest PUBLIC util common)
+    DEP_ext_gtest(cosTest)
+endif()                       # }
 target_include_directories(
         cosTest
         PUBLIC "${TD_SOURCE_DIR}/include/common"
@@ -110,7 +115,12 @@ if (${TD_LINUX})
         "../src/msg/tmsg.c"
     )
     target_include_directories(tmsgTest PUBLIC "${TD_SOURCE_DIR}/include/common/")
-    target_link_libraries(tmsgTest PUBLIC os util gtest gtest_main)
+    if(${FALLBACK})               # {
+        target_link_libraries(tmsgTest PUBLIC os util gtest gtest_main)
+    else()                        # }{
+        target_link_libraries(tmsgTest PUBLIC os util)
+        DEP_ext_gtest(tmsgTest)
+    endif()                       # }
     add_test(
         NAME tmsgTest
         COMMAND tmsgTest
