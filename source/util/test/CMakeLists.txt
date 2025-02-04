@@ -34,7 +34,13 @@ INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/common)
 
 add_executable(heapTest "heapTest.cpp")
-target_link_libraries(heapTest os util gtest_main)
+if(${FALLBACK})               # {
+    target_link_libraries(heapTest os util gtest_main)
+else()                        # }{
+    target_link_libraries(heapTest PUBLIC os util)
+    DEP_ext_gtest(heapTest)
+    DEP_ext_cjson_LIB(heapTest)
+endif()                       # }
 add_test(
     NAME heapTest
     COMMAND heapTest
@@ -42,7 +48,13 @@ add_test(
 
 # arrayTest
 add_executable(arrayTest "arrayTest.cpp")
-target_link_libraries(arrayTest os util gtest_main)
+if(${FALLBACK})               # {
+    target_link_libraries(arrayTest os util gtest_main)
+else()                        # }{
+    target_link_libraries(arrayTest PUBLIC os util)
+    DEP_ext_gtest(arrayTest)
+    DEP_ext_cjson_LIB(arrayTest)
+endif()                       # }
 add_test(
     NAME arrayTest
     COMMAND arrayTest
@@ -62,7 +74,13 @@ add_test(
 
 # cfgTest
 add_executable(cfgTest "cfgTest.cpp")
-target_link_libraries(cfgTest os util gtest_main)
+if(${FALLBACK})                  # {
+    target_link_libraries(cfgTest os util gtest_main)
+else()                           # }{
+    target_link_libraries(cfgTest PUBLIC os util)
+    DEP_ext_gtest(cfgTest)
+    DEP_ext_cjson_LIB(cfgTest)
+endif()                          # }
 add_test(
     NAME cfgTest
     COMMAND cfgTest
@@ -70,7 +88,13 @@ add_test(
 
 # bloomFilterTest
 add_executable(bloomFilterTest "bloomFilterTest.cpp")
-target_link_libraries(bloomFilterTest os util gtest_main)
+if(${FALLBACK})                  # {
+    target_link_libraries(bloomFilterTest os util gtest_main)
+else()                           # }{
+    target_link_libraries(bloomFilterTest PUBLIC os util)
+    DEP_ext_gtest(bloomFilterTest)
+    DEP_ext_cjson_LIB(bloomFilterTest)
+endif()                          # }
 add_test(
     NAME bloomFilterTest
     COMMAND bloomFilterTest
@@ -78,7 +102,13 @@ add_test(
 
 # taosbsearchTest
 add_executable(taosbsearchTest "taosbsearchTest.cpp")
-target_link_libraries(taosbsearchTest os util gtest_main)
+if(${FALLBACK})                  # {
+    target_link_libraries(taosbsearchTest os util gtest_main)
+else()                           # }{
+    target_link_libraries(taosbsearchTest PUBLIC os util)
+    DEP_ext_gtest(taosbsearchTest)
+    DEP_ext_cjson_LIB(taosbsearchTest)
+endif()                          # }
 add_test(
     NAME taosbsearchTest
     COMMAND taosbsearchTest
@@ -86,7 +116,13 @@ add_test(
 
 # trbtreeTest
 add_executable(rbtreeTest "trbtreeTest.cpp")
-target_link_libraries(rbtreeTest os util gtest_main)
+if(${FALLBACK})                  # {
+    target_link_libraries(rbtreeTest os util gtest_main)
+else()                           # }{
+    target_link_libraries(rbtreeTest PUBLIC os util)
+    DEP_ext_gtest(rbtreeTest)
+    DEP_ext_cjson_LIB(rbtreeTest)
+endif()                          # }
 add_test(
     NAME rbtreeTest
     COMMAND rbtreeTest
@@ -94,7 +130,13 @@ add_test(
 
 # pageBufferTest
 add_executable(pageBufferTest "pageBufferTest.cpp")
-target_link_libraries(pageBufferTest os util gtest_main)
+if(${FALLBACK})                  # {
+    target_link_libraries(pageBufferTest os util gtest_main)
+else()                           # }{
+    target_link_libraries(pageBufferTest PUBLIC os util)
+    DEP_ext_gtest(pageBufferTest)
+    DEP_ext_cjson_LIB(pageBufferTest)
+endif()                          # }
 add_test(
     NAME pageBufferTest
     COMMAND pageBufferTest
@@ -102,7 +144,13 @@ add_test(
 
 # talgoTest
 add_executable(talgoTest "talgoTest.cpp")
-target_link_libraries(talgoTest os util gtest_main)
+if(${FALLBACK})                  # {
+    target_link_libraries(talgoTest os util gtest_main)
+else()                           # }{
+    target_link_libraries(talgoTest PUBLIC os util)
+    DEP_ext_gtest(talgoTest)
+    DEP_ext_cjson_LIB(talgoTest)
+endif()                          # }
 add_test(
     NAME talgoTest
     COMMAND talgoTest
@@ -110,7 +158,13 @@ add_test(
 
 # tbaseCodecTest
 add_executable(tbaseCodecTest "tbaseCodecTest.cpp")
-target_link_libraries(tbaseCodecTest os util common gtest_main)
+if(${FALLBACK})                  # {
+    target_link_libraries(tbaseCodecTest os util common gtest_main)
+else()                           # }{
+    target_link_libraries(tbaseCodecTest PUBLIC os util common)
+    DEP_ext_gtest(tbaseCodecTest)
+    DEP_ext_cjson_LIB(tbaseCodecTest)
+endif()                          # }
 add_test(
     NAME tbaseCodecTest
     COMMAND tbaseCodecTest
@@ -118,21 +172,39 @@ add_test(
 
 # bufferTest
 add_executable(bufferTest "bufferTest.cpp")
-target_link_libraries(bufferTest os util gtest_main)
+if(${FALLBACK})               # {
+    target_link_libraries(bufferTest os util gtest_main)
+else()                        # }{
+    target_link_libraries(bufferTest PUBLIC os util)
+    DEP_ext_gtest(bufferTest)
+    DEP_ext_cjson_LIB(bufferTest)
+endif()                       # }
 add_test(
     NAME bufferTest
     COMMAND bufferTest
 )
 
 add_executable(regexTest "regexTest.cpp")
-target_link_libraries(regexTest os util gtest_main)
+if(${FALLBACK})                  # {
+    target_link_libraries(regexTest os util gtest_main)
+else()                           # }{
+    target_link_libraries(regexTest PUBLIC os util)
+    DEP_ext_gtest(regexTest)
+    DEP_ext_cjson_LIB(regexTest)
+endif()                          # }
 add_test(
     NAME regexTest
     COMMAND regexTest
 )
 
 add_executable(logTest "log.cpp")
-target_link_libraries(logTest os util common gtest_main)
+if(${FALLBACK})                  # {
+    target_link_libraries(logTest os util common gtest_main)
+else()                           # }{
+    target_link_libraries(logTest PUBLIC os util common)
+    DEP_ext_gtest(logTest)
+    DEP_ext_cjson_LIB(logTest)
+endif()                          # }
 add_test(
     NAME logTest
     COMMAND logTest
@@ -143,7 +215,13 @@ target_include_directories(
 )
 
 add_executable(decompressTest "decompressTest.cpp")
-target_link_libraries(decompressTest os util common gtest_main)
+if(${FALLBACK})                  # {
+    target_link_libraries(decompressTest os util common gtest_main)
+else()                           # }{
+    target_link_libraries(decompressTest PUBLIC os util common)
+    DEP_ext_gtest(decompressTest)
+    DEP_ext_cjson_LIB(decompressTest)
+endif()                          # }
 add_test(
     NAME decompressTest
     COMMAND decompressTest

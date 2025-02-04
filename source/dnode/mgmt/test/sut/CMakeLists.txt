@@ -5,6 +5,13 @@ target_include_directories(
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-target_link_libraries(
-    sut dnode gtest_main
-)
+if(${FALLBACK})        # {
+    target_link_libraries(
+        sut dnode gtest_main
+    )
+else()                 # }{
+    target_link_libraries(
+        sut PUBLIC dnode
+    )
+    DEP_ext_gtest(sut)
+endif()                # }

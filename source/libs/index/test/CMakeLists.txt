@@ -86,72 +86,123 @@ IF(NOT TD_DARWIN)
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
   )
 
-  target_link_libraries(idxTest
-    os
-    util
-    common
-    gtest_main
-    index
-  )
-  target_link_libraries(idxFstTest
-    os
-    util
-    common
-    gtest_main
-    index
-  )
-  target_link_libraries(idxFstUT
-    os
-    util
-    common
-    gtest_main
-    index
-  )
+  if(${FALLBACK})                            # {
+    target_link_libraries(idxTest
+      os
+      util
+      common
+      gtest_main
+      index
+    )
+  else()                                     # }{
+    target_link_libraries(idxTest
+      PUBLIC
+      os
+      util
+      common
+      index
+    )
+    DEP_ext_gtest(idxTest)
+    DEP_ext_cjson_LIB(idxTest)
+  endif()                                    # }
+  if(${FALLBACK})                            # {
+    target_link_libraries(idxFstTest
+      os
+      util
+      common
+      gtest_main
+      index
+    )
+  else()                                     # }{
+    target_link_libraries(idxFstTest
+      PUBLIC
+      os
+      util
+      common
+      index
+    )
+    DEP_ext_gtest(idxFstTest)
+    DEP_ext_cjson_LIB(idxFstTest)
+  endif()                                    # }
 
-  target_link_libraries(idxTest
-    os
-    util
-    common
-    gtest_main
-    index
-  )
-  target_link_libraries(idxFstTest
-    os
-    util
-    common
-    gtest_main
-    index
-  )
-  target_link_libraries(idxFstUT
-    os
-    util
-    common
-    gtest_main
-    index
-  )
+  if(${FALLBACK})                            # {
+    target_link_libraries(idxFstUT
+      os
+      util
+      common
+      gtest_main
+      index
+    )
+  else()                                     # }{
+    target_link_libraries(idxFstUT
+      PUBLIC
+      os
+      util
+      common
+      index
+    )
+    DEP_ext_gtest(idxFstUT)
+    DEP_ext_cjson_LIB(idxFstUT)
+  endif()                                    # }
 
-  target_link_libraries(idxUtilUT
-    os
-    util
-    common
-    gtest_main
-    index
-  )
+  if(${FALLBACK})                            # {
+    target_link_libraries(idxUtilUT
+      os
+      util
+      common
+      gtest_main
+      index
+    )
+  else()                                     # }{
+    target_link_libraries(idxUtilUT
+      PUBLIC
+      os
+      util
+      common
+      index
+    )
+    DEP_ext_gtest(idxUtilUT)
+    DEP_ext_cjson_LIB(idxUtilUT)
+  endif()                                    # }
 
-  target_link_libraries(idxJsonUT
-    os
-    util
-    common
-    gtest_main
-    index
-  )
-  target_link_libraries(idxFstUtilUT
-    os
-    util
-    common
-    gtest_main
-    index
-  )
+  if(${FALLBACK})                            # {
+    target_link_libraries(idxJsonUT
+      os
+      util
+      common
+      gtest_main
+      index
+    )
+  else()                                     # }{
+    target_link_libraries(idxJsonUT
+      PUBLIC
+      os
+      util
+      common
+      index
+    )
+    DEP_ext_gtest(idxJsonUT)
+    DEP_ext_cjson_LIB(idxJsonUT)
+  endif()                                    # }
+  if(${FALLBACK})                            # {
+    target_link_libraries(idxFstUtilUT
+      os
+      util
+      common
+      gtest_main
+      index
+    )
+  else()                                     # }{
+    target_link_libraries(idxFstUtilUT
+      PUBLIC
+      os
+      util
+      common
+      index
+    )
+    DEP_ext_gtest(idxFstUtilUT)
+    DEP_ext_cjson_LIB(idxFstUtilUT)
+  endif()                                    # }
 
   add_test(
     NAME idxJsonUT

@@ -16,7 +16,12 @@ aux_source_directory(src OS_SRC)
 
 # taoscTest
 add_executable(taoscTest "taoscTest.cpp")
-target_link_libraries(taoscTest ${TAOS_LIB} os gtest_main)
+if(${FALLBACK})                    # {
+    target_link_libraries(taoscTest ${TAOS_LIB} os gtest_main)
+else()                             # }{
+    target_link_libraries(taoscTest PUBLIC ${TAOS_LIB} os util)
+    DEP_ext_gtest(taoscTest)
+endif()                            # }
 target_include_directories(
     taoscTest
     PUBLIC "${TD_SOURCE_DIR}/include/os"

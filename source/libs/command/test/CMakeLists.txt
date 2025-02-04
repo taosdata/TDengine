@@ -12,7 +12,15 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${TD_SOURCE_DIR}/source/libs/command/inc"
 )
 
-TARGET_LINK_LIBRARIES(
-        commandTest
-        PUBLIC os util common nodes parser catalog transport gtest function qcom
-)
+if(${FALLBACK})                  # {
+        TARGET_LINK_LIBRARIES(
+                commandTest
+                PUBLIC os util common nodes parser catalog transport gtest function qcom
+        )
+else()                           # }{
+        TARGET_LINK_LIBRARIES(
+                commandTest
+                PUBLIC os util common nodes parser catalog transport function qcom
+        )
+        DEP_ext_gtest(commandTest)
+endif()                          # }

@@ -53,6 +53,9 @@ else()                             # }{
     if(${BUILD_WITH_ROCKSDB} AND (${BUILD_CONTRIB} OR TD_LINUX))
         # freemine: check the original weird logic above
         DEP_ext_rocksdb(stream)
+        if(${TD_WINDOWS})
+            target_link_libraries(stream PUBLIC Rpcrt4 Shlwapi)
+        endif()
         add_definitions(-DUSE_ROCKSDB)
     endif()
 

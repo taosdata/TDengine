@@ -90,8 +90,10 @@ IF(NOT TD_DARWIN)
         else()                          # }{
             TARGET_LINK_LIBRARIES(
                     backendTest
-                    PUBLIC os common gtest stream executor qcom index transport util vnode
+                    PUBLIC os common stream executor qcom index transport util vnode
             )
+            DEP_ext_gtest(backendTest)
+            DEP_ext_cjson_LIB(backendTest)
         endif()                         # }
 
         TARGET_INCLUDE_DIRECTORIES(

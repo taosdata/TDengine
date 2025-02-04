@@ -61,7 +61,7 @@ target_link_libraries(
 )
 
 if(NOT ${FALLBACK})        # {
-  DEP_ext_cjson(common)
+  DEP_ext_cjson_INC(common)
 endif()                    # }
 
 if(${BUILD_S3})

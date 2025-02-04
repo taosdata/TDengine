@@ -6,28 +6,64 @@ SET(CMAKE_CXX_STANDARD 11)
 AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
 ADD_EXECUTABLE(clientTest clientTests.cpp)
-TARGET_LINK_LIBRARIES(
-        clientTest
-        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
-)
+if(${FALLBACK})                  # {
+        TARGET_LINK_LIBRARIES(
+                clientTest
+                os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+        )
+else()                           # }{
+        TARGET_LINK_LIBRARIES(
+                clientTest
+                PUBLIC os util common transport parser catalog scheduler ${TAOS_LIB_STATIC} qcom executor function
+        )
+        DEP_ext_gtest(clientTest)
+        DEP_ext_cjson_LIB(clientTest)
+endif()                          # }
 
 ADD_EXECUTABLE(connectOptionsTest connectOptionsTest.cpp)
-TARGET_LINK_LIBRARIES(
-        connectOptionsTest
-        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
-)
+if(${FALLBACK})                  # {
+        TARGET_LINK_LIBRARIES(
+                connectOptionsTest
+                os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+        )
+else()                           # }{
+        TARGET_LINK_LIBRARIES(
+                connectOptionsTest
+                PUBLIC os util common transport parser catalog scheduler ${TAOS_LIB_STATIC} qcom executor function
+        )
+        DEP_ext_gtest(connectOptionsTest)
+        DEP_ext_cjson_LIB(connectOptionsTest)
+endif()                          # }
 
 ADD_EXECUTABLE(tmqTest tmqTest.cpp)
-TARGET_LINK_LIBRARIES(
-        tmqTest
-        PUBLIC os util common transport parser catalog scheduler function gtest ${TAOS_LIB_STATIC} qcom
-)
+if(${FALLBACK})                  # {
+        TARGET_LINK_LIBRARIES(
+                tmqTest
+                PUBLIC os util common transport parser catalog scheduler function gtest ${TAOS_LIB_STATIC} qcom
+        )
+else()                           # }{
+        TARGET_LINK_LIBRARIES(
+                tmqTest
+                PUBLIC os util common transport parser catalog scheduler function ${TAOS_LIB_STATIC} qcom
+        )
+        DEP_ext_gtest(tmqTest)
+        DEP_ext_cjson_LIB(tmqTest)
+endif()                          # }
 
 ADD_EXECUTABLE(smlTest smlTest.cpp)
-TARGET_LINK_LIBRARIES(
-        smlTest
-        PUBLIC os util common transport parser catalog scheduler function gtest ${TAOS_LIB_STATIC} qcom geometry
-)
+if(${FALLBACK})                  # {
+        TARGET_LINK_LIBRARIES(
+                smlTest
+                PUBLIC os util common transport parser catalog scheduler function gtest ${TAOS_LIB_STATIC} qcom geometry
+        )
+else()                           # }{
+        TARGET_LINK_LIBRARIES(
+                smlTest
+                PUBLIC os util common transport parser catalog scheduler function ${TAOS_LIB_STATIC} qcom geometry
+        )
+        DEP_ext_gtest(smlTest)
+        DEP_ext_cjson_LIB(smlTest)
+endif()                          # }
 
 #ADD_EXECUTABLE(clientMonitorTest clientMonitorTests.cpp)
 #TARGET_LINK_LIBRARIES(
@@ -42,16 +78,34 @@ TARGET_LINK_LIBRARIES(
 )
 
 ADD_EXECUTABLE(stmt2Test stmt2Test.cpp)
-TARGET_LINK_LIBRARIES(
-        stmt2Test
-        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
-)
+if(${FALLBACK})                  # {
+        TARGET_LINK_LIBRARIES(
+                stmt2Test
+                os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+        )
+else()                           # }{
+        TARGET_LINK_LIBRARIES(
+                stmt2Test
+                PUBLIC os util common transport parser catalog scheduler ${TAOS_LIB_STATIC} qcom executor function
+        )
+        DEP_ext_gtest(stmt2Test)
+        DEP_ext_cjson_LIB(stmt2Test)
+endif()                          # }
 
 ADD_EXECUTABLE(stmtTest stmtTest.cpp)
-TARGET_LINK_LIBRARIES(
-        stmtTest
-        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
-)
+if(${FALLBACK})                  # {
+        TARGET_LINK_LIBRARIES(
+                stmtTest
+                os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+        )
+else()                           # }{
+        TARGET_LINK_LIBRARIES(
+                stmtTest
+                PUBLIC os util common transport parser catalog scheduler ${TAOS_LIB_STATIC} qcom executor function
+        )
+        DEP_ext_gtest(stmtTest)
+        DEP_ext_cjson_LIB(stmtTest)
+endif()                          # }
 
 TARGET_INCLUDE_DIRECTORIES(
         clientTest

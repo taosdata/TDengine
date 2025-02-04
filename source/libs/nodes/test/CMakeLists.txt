@@ -14,10 +14,19 @@ IF(NOT TD_DARWIN)
         PRIVATE "${TD_SOURCE_DIR}/source/nodes/inc"
     )
     
-    TARGET_LINK_LIBRARIES(
-        nodesTest
-        PUBLIC os util common nodes qcom gtest
-    )
+    if(${FALLBACK})                            # {
+        TARGET_LINK_LIBRARIES(
+            nodesTest
+            PUBLIC os util common nodes qcom gtest
+        )
+    else()                                     # }{
+        TARGET_LINK_LIBRARIES(
+            nodesTest
+            PUBLIC os util common nodes qcom
+        )
+        DEP_ext_gtest(nodesTest)
+        DEP_ext_cjson_LIB(nodesTest)
+    endif()                                    # }
     
     add_test(
         NAME nodesTest

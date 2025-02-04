@@ -22,10 +22,18 @@ target_sources(transTest2
     PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/trans2.cpp"
 )
-target_link_libraries(
-    transTest2
-    PUBLIC dnode mnode gtest_main
-)
+if(${FALLBACK})                # {
+    target_link_libraries(
+        transTest2
+        PUBLIC dnode mnode gtest_main
+    )
+else()                         # }{
+    target_link_libraries(
+        transTest2
+        PUBLIC dnode mnode
+    )
+    DEP_ext_gtest(transTest2)
+endif()                        # }
 target_include_directories(
     transTest2
     PUBLIC "${TD_SOURCE_DIR}/include/dnode/mnode"

@@ -13,7 +13,17 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${TD_SOURCE_DIR}/source/libs/qcom/inc"
 )
 
-TARGET_LINK_LIBRARIES(
-        queryUtilTest
-        PUBLIC os util gtest qcom common transport
-)
+if(${FALLBACK})                   # {
+        TARGET_LINK_LIBRARIES(
+                queryUtilTest
+                PUBLIC os util gtest qcom common transport
+        )
+else()                            # }{
+        TARGET_LINK_LIBRARIES(
+                queryUtilTest
+                PUBLIC os util qcom common transport
+        )
+        DEP_ext_gtest(queryUtilTest)
+        DEP_ext_cjson_LIB(queryUtilTest)
+endif()                           # }
+

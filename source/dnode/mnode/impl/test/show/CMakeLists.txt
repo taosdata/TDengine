@@ -5,6 +5,10 @@ target_link_libraries(
     PUBLIC sut
 )
 
+if(NOT ${FALLBACK})               # {
+    DEP_ext_cjson_LIB(showTest)
+endif()                           # }
+
 add_test(
     NAME showTest
     COMMAND showTest

@@ -6,19 +6,35 @@ if(NOT ${TD_WINDOWS})
 else()
     add_library(os STATIC ${OS_SRC})
 endif(NOT ${TD_WINDOWS})
-target_include_directories(
-    os
-    PUBLIC "${TD_SOURCE_DIR}/include/os"
-    PUBLIC "${TD_SOURCE_DIR}/include"
-    PUBLIC "${TD_SOURCE_DIR}/include/util"
-    PUBLIC "${TD_SOURCE_DIR}/contrib/pthread"
-    PUBLIC "${TD_SOURCE_DIR}/contrib/iconv"
-    PUBLIC "${TD_SOURCE_DIR}/contrib/msvcregex"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
+if(${FALLBACK})            # {
+    target_include_directories(
+        os
+        PUBLIC "${TD_SOURCE_DIR}/include/os"
+        PUBLIC "${TD_SOURCE_DIR}/include"
+        PUBLIC "${TD_SOURCE_DIR}/include/util"
+        PUBLIC "${TD_SOURCE_DIR}/contrib/pthread"
+        PUBLIC "${TD_SOURCE_DIR}/contrib/iconv"
+        PUBLIC "${TD_SOURCE_DIR}/contrib/msvcregex"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    )
+else()                     # }{
+    target_include_directories(
+        os
+        PUBLIC "${TD_SOURCE_DIR}/include/os"
+        PUBLIC "${TD_SOURCE_DIR}/include"
+        PUBLIC "${TD_SOURCE_DIR}/include/util"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    )
+endif()                    # }
 # iconv
 if(TD_WINDOWS)
-    find_path(IconvApiIncludes iconv.h "${TD_SOURCE_DIR}/contrib/iconv")
+    if(${FALLBACK})        # {
+        find_path(IconvApiIncludes iconv.h "${TD_SOURCE_DIR}/contrib/iconv")
+    else()                 # }{
+        if(${BUILD_WITH_ICONV})
+            set(IconvApiIncludes TRUE)
+        endif()
+    endif()                # }
 else()
     find_path(IconvApiIncludes iconv.h PATHS)
 endif(TD_WINDOWS)
@@ -54,35 +70,32 @@ if(${FALLBACK})             # {
     )
 else()                      # }{
     DEP_ext_zlib(os)
-
-    target_link_libraries(
-        os
-        PUBLIC pthread
-    )
-
-    if(${BUILD_TEST})
-        add_dependencies(os ext_gtest)
-        target_include_directories(
-            os
-            PUBLIC ${ext_gtest_install}/include
-        )
-        target_link_directories(
-            os
-            PUBLIC ${ext_gtest_install}/lib
-        )
+    if(${TD_WINDOWS})        # {
+        DEP_ext_msvcregex(os)
+        DEP_ext_pthread(os)
+        if(${BUILD_WITH_ICONV})
+            DEP_ext_iconv(os)
+        endif()
+    else()                   # }{
         target_link_libraries(
             os
-            PUBLIC gtest gtest_main
+            PUBLIC pthread
         )
-        DEP_ext_stub(os)
-        target_include_directories(
-            os
-            PUBLIC ${ext_stub_stub} ${ext_stub_addr_any}
-        )
+    endif()                  # }
+
+    if(${BUILD_TEST})
+        # freemine: DEP_ext_gtest(os)
+        # freemine: DEP_ext_stub(os)
+        # freemine: target_include_directories(
+        # freemine:     os
+        # freemine:     PUBLIC ${ext_stub_stub} ${ext_stub_addr_any}
+        # freemine: )
     endif()
 
-    DEP_ext_tz(os)
-    add_dependencies(os ext_tz_builder)
+    if(NOT ${TD_WINDOWS})
+        DEP_ext_tz(os)
+        add_dependencies(os ext_tz_builder)
+    endif()
 
     set(_taos_h            "${CMAKE_BINARY_DIR}/build/include/taos.h")
     set(_taoserror_h       "${CMAKE_BINARY_DIR}/build/include/taoserror.h")
@@ -101,15 +114,26 @@ else()                      # }{
     )
     add_dependencies(os copy_taos_headers)
 
-    target_link_libraries(
-        os
-        PUBLIC pthread
-    )
+    if(NOT ${TD_WINDOWS})         # {
+        target_link_libraries(
+            os
+            PUBLIC pthread
+        )
+    endif()                       # }
 endif()                     # }
 if(TD_WINDOWS)
-    target_link_libraries(
-        os PUBLIC ws2_32 iconv msvcregex wcwidth winmm crashdump dbghelp version KtmW32
-    )
+    if(${FALLBACK})         # {
+        target_link_libraries(
+            os PUBLIC ws2_32 iconv msvcregex wcwidth winmm crashdump dbghelp version KtmW32
+        )
+    else()                  # }{
+        DEP_ext_wcwidth(os)
+        DEP_ext_pcre2(os)
+        DEP_ext_crashdump(os)
+        target_link_libraries(
+            os PUBLIC ws2_32 version KtmW32 Dbghelp Winmm Iphlpapi Userenv
+        )
+    endif()                 # }
 elseif(TD_DARWIN_64)
     find_library(CORE_FOUNDATION_FRAMEWORK CoreFoundation)
     target_link_libraries(os  PUBLIC ${CORE_FOUNDATION_FRAMEWORK})

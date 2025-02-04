@@ -4,11 +4,7 @@ set(TD_BUILD_TAOSA_INTERNAL FALSE)
 set(TD_BUILD_KEEPER_INTERNAL FALSE)
 
 # set output directory
-if(${FALLBACK})            # {
-    SET(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/lib)
-else()                     # }{
-    SET(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR}/build/lib)
-endif()                    # }
+SET(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/lib)
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/bin)
 SET(TD_TESTS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/test)
 
@@ -36,6 +32,7 @@ if(${FALLBACK})             # {
         SET(TD_WEBSOCKET FALSE)
     ENDIF()
 else()                      # }{
+    # freemine: WEBSOCKET is an option defined in cmake.options
     if(${WEBSOCKET})
         SET(TD_WEBSOCKET TRUE)
         MESSAGE("Enable websocket")
@@ -146,44 +143,49 @@ endif()                  # }
 if(${FALLBACK})          # {
     # force set all platform to JEMALLOC_ENABLED = false
     SET(JEMALLOC_ENABLED OFF)
+else()                   # }{
+    # freemine: JEMALLOC_ENABLED is defined as an option in cmake.options
 endif()                  # }
 
 IF(TD_WINDOWS)
-    MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
+    if(${FALLBACK})       # {
+        MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
 
-    IF(${CMAKE_BUILD_TYPE} MATCHES "Release")
-        MESSAGE("${Green} will build Release version! ${ColourReset}")
-        SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi- /O2 /GL /MD")
+        IF(${CMAKE_BUILD_TYPE} MATCHES "Release")
+            MESSAGE("${Green} will build Release version! ${ColourReset}")
+            SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi- /O2 /GL /MD")
 
-    ELSE()
-        MESSAGE("${Green} will build Debug version! ${ColourReset}")
-        SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MTd")
-    ENDIF()
+        ELSE()
+            MESSAGE("${Green} will build Debug version! ${ColourReset}")
+            SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MTd")
+        ENDIF()
 
-    SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO /FORCE:MULTIPLE")
+        SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO /FORCE:MULTIPLE")
 
-    # IF (MSVC AND (MSVC_VERSION GREATER_EQUAL 1900))
-    # SET(COMMON_FLAGS "${COMMON_FLAGS} /Wv:18")
-    # ENDIF ()
-    IF(CMAKE_DEPFILE_FLAGS_C)
-        SET(CMAKE_DEPFILE_FLAGS_C "")
-    ENDIF()
+        # IF (MSVC AND (MSVC_VERSION GREATER_EQUAL 1900))
+        # SET(COMMON_FLAGS "${COMMON_FLAGS} /Wv:18")
+        # ENDIF ()
+        IF(CMAKE_DEPFILE_FLAGS_C)
+            SET(CMAKE_DEPFILE_FLAGS_C "")
+        ENDIF()
 
-    IF(CMAKE_DEPFILE_FLAGS_CXX)
-        SET(CMAKE_DEPFILE_FLAGS_CXX "")
-    ENDIF()
+        IF(CMAKE_DEPFILE_FLAGS_CXX)
+            SET(CMAKE_DEPFILE_FLAGS_CXX "")
+        ENDIF()
 
-    IF(CMAKE_C_FLAGS_DEBUG)
-        SET(CMAKE_C_FLAGS_DEBUG "" CACHE STRING "" FORCE)
-    ENDIF()
+        IF(CMAKE_C_FLAGS_DEBUG)
+            SET(CMAKE_C_FLAGS_DEBUG "" CACHE STRING "" FORCE)
+        ENDIF()
 
-    IF(CMAKE_CXX_FLAGS_DEBUG)
-        SET(CMAKE_CXX_FLAGS_DEBUG "" CACHE STRING "" FORCE)
-    ENDIF()
+        IF(CMAKE_CXX_FLAGS_DEBUG)
+            SET(CMAKE_CXX_FLAGS_DEBUG "" CACHE STRING "" FORCE)
+        ENDIF()
 
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS}")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS}")
-
+        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS}")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS}")
+    else()                # }{
+        # freemine: not very much clear about why CMAKE_xxx_FLAGS are defined that way
+    endif()               # }
 ELSE()
     IF(${TD_DARWIN})
         set(CMAKE_MACOSX_RPATH 0)
@@ -334,28 +336,24 @@ ELSE()
     endif()                     # }
 
     # build mode
-    SET(CMAKE_C_FLAGS_REL "${CMAKE_C_FLAGS} -Werror -Werror=return-type -fPIC -O3 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
-    if(${FALLBACK})           # {
+    if(${FALLBACK})     # {
+        SET(CMAKE_C_FLAGS_REL "${CMAKE_C_FLAGS} -Werror -Werror=return-type -fPIC -O3 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
         SET(CMAKE_CXX_FLAGS_REL "${CMAKE_CXX_FLAGS} -Werror -Wno-reserved-user-defined-literal -Wno-literal-suffix -Werror=return-type -fPIC -O3 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
-    else()                    # }{
-        SET(CMAKE_CXX_FLAGS_REL "${CMAKE_CXX_FLAGS} -Werror -Wno-literal-suffix -Werror=return-type -fPIC -O3 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
-    endif()                   # }
 
-    IF(${BUILD_SANITIZER})
-        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}     -Werror -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize=undefined -fsanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
+        IF(${BUILD_SANITIZER})
+            SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}     -Werror -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize=undefined -fsanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
 
-        # SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-literal-suffix -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize=undefined -fsanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-literal-suffix -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
-        MESSAGE(STATUS "Compile with Address Sanitizer!")
-    ELSEIF(${BUILD_RELEASE})
-        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_REL}")
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL}")
-    ELSE()
-        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Werror=return-type -fPIC -g3 -gdwarf-2 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
-        if(${FALLBACK})           # {
+            # SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-literal-suffix -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize=undefined -fsanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
+            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-literal-suffix -Werror=return-type -fPIC -gdwarf-2 -fsanitize=address -fsanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=shift-base -fno-sanitize=alignment -g3 -Wformat=0")
+            MESSAGE(STATUS "Compile with Address Sanitizer!")
+        ELSEIF(${BUILD_RELEASE})
+            SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_REL}")
+            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL}")
+        ELSE()
+            SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Werror=return-type -fPIC -g3 -gdwarf-2 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
             SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-reserved-user-defined-literal -g3 -Wno-literal-suffix -Werror=return-type -fPIC -gdwarf-2 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
-        else()                    # }{
-            SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g3 -Wno-literal-suffix -Werror=return-type -fPIC -gdwarf-2 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
-        endif()                   # }
-    ENDIF()
+        ENDIF()
+    else()              # }{
+        # freemine: not very much clear about why CMAKE_xxx_FLAGS are defined that way
+    endif()             # }
 ENDIF()

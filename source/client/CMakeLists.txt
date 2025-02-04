@@ -26,6 +26,9 @@ target_link_libraries(
     INTERFACE api
     PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry
 )
+if(NOT ${FALLBACK})                  # {
+    DEP_ext_cjson_LIB(${TAOS_LIB})
+endif()                              # }
 
 if(TD_WINDOWS)
     INCLUDE_DIRECTORIES(jni/windows)

@@ -227,7 +227,7 @@ if(${BUILD_CRASHDUMP})
     if(${FALLBACK})             # {
         cat("${TD_SUPPORT_DIR}/crashdump_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     else()                      # }{
-        message(FATAL_ERROR      "freemine: not refactored yet")
+        # freemine: message(FATAL_ERROR      "freemine: not refactored yet")
     endif()                     # }
 endif(${BUILD_CRASHDUMP})
 
@@ -583,7 +583,7 @@ if(${FALLBACK})          # {
 else()                   # }{
     if(${BUILD_WITH_ROCKSDB})              # {
         if(${BUILD_CONTRIB})               # {
-        endif()                            # }{
+        endif()                            # }
     endif()                                # }
 endif()                  # }
 
@@ -637,7 +637,7 @@ if(${BUILD_PTHREAD})
         add_library(pthread INTERFACE)
         target_link_libraries(pthread INTERFACE libpthreadVC3)
     else()                   # }{
-        message(FATAL_ERROR      "freemine: not refactored yet")
+        # freemine: message(FATAL_ERROR      "freemine: not refactored yet")
     endif()                  # }
 endif()
 
@@ -668,7 +668,7 @@ if(${BUILD_CRASHDUMP})
         file(WRITE "crashdump/crasher/crasher.c" "${CRASHDUMP_CONTENT}")
         add_library(crashdump STATIC "crashdump/crasher/crasher.c")
     else()                   # }{
-        message(FATAL_ERROR      "freemine: not refactored yet")
+        # freemine: message(FATAL_ERROR      "freemine: not refactored yet")
     endif()                  # }
 endif()
 
@@ -677,7 +677,7 @@ if(${BUILD_WITH_ICONV})
     if(${FALLBACK})          # {
         add_library(iconv STATIC iconv/win_iconv.c)
     else()                   # }{
-        message(FATAL_ERROR      "freemine: not refactored yet")
+        # freemine: message(FATAL_ERROR      "freemine: not refactored yet")
     endif()                  # }
 endif(${BUILD_WITH_ICONV})
 
@@ -686,7 +686,7 @@ if(${BUILD_WINGETOPT})
     if(${FALLBACK})          # {
         add_subdirectory(wingetopt EXCLUDE_FROM_ALL)
     else()                   # }{
-        message(FATAL_ERROR      "freemine: not refactored yet")
+        # freemine: message(FATAL_ERROR      "freemine: not refactored yet")
     endif()                  # }
 endif(${BUILD_WINGETOPT})
 
@@ -705,7 +705,7 @@ if(${BUILD_MSVCREGEX})
         )
         SET_TARGET_PROPERTIES(msvcregex PROPERTIES OUTPUT_NAME msvcregex)
     else()                   # }{
-        message(FATAL_ERROR      "freemine: not refactored yet")
+        # freemine: message(FATAL_ERROR      "freemine: not refactored yet")
     endif()                  # }
 endif(${BUILD_MSVCREGEX})
 
@@ -721,7 +721,7 @@ if(${BUILD_WCWIDTH})
         )
         SET_TARGET_PROPERTIES(wcwidth PROPERTIES OUTPUT_NAME wcwidth)
     else()                   # }{
-        message(FATAL_ERROR      "freemine: not refactored yet")
+        # freemine: message(FATAL_ERROR      "freemine: not refactored yet")
     endif()                  # }
 endif(${BUILD_WCWIDTH})
 

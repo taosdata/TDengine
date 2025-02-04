@@ -11,10 +11,19 @@ TARGET_SOURCES(
     PRIVATE
     "commonTests.cpp"
 )
-TARGET_LINK_LIBRARIES(
-        commonTest
-        PUBLIC os util common gtest
-)
+if(${FALLBACK})                        # {
+    TARGET_LINK_LIBRARIES(
+            commonTest
+            PUBLIC os util common gtest
+    )
+else()                                 # }{
+    TARGET_LINK_LIBRARIES(
+            commonTest
+            PUBLIC os util common
+    )
+    DEP_ext_gtest(commonTest)
+    DEP_ext_cjson_LIB(commonTest)
+endif()                                # }
 
 TARGET_INCLUDE_DIRECTORIES(
         commonTest
@@ -29,7 +38,13 @@ target_sources(
     PRIVATE
     "dataformatTest.cpp"
 )
-target_link_libraries(dataformatTest gtest gtest_main util common)
+if(${FALLBACK})                        # {
+    target_link_libraries(dataformatTest gtest gtest_main util common)
+else()                                 # }{
+    target_link_libraries(dataformatTest PUBLIC util common)
+    DEP_ext_gtest(dataformatTest)
+    DEP_ext_cjson_LIB(dataformatTest)
+endif()                                # }
 target_include_directories(
         dataformatTest
         PUBLIC "${TD_SOURCE_DIR}/include/common"
@@ -47,7 +62,13 @@ target_sources(
     PRIVATE
     "cosCpTest.cpp"
 )
-target_link_libraries(cosCpTest gtest gtest_main util common)
+if(${FALLBACK})                        # {
+    target_link_libraries(cosCpTest gtest gtest_main util common)
+else()                                 # }{
+    target_link_libraries(cosCpTest PUBLIC util common)
+    DEP_ext_gtest(cosCpTest)
+    DEP_ext_cjson_LIB(cosCpTest)
+endif()                                # }
 target_include_directories(
         cosCpTest
         PUBLIC "${TD_SOURCE_DIR}/include/common"

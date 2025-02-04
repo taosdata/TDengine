@@ -42,49 +42,87 @@ add_test(
 endif()
 
 add_executable(osMathTests "osMathTests.cpp")
-target_link_libraries(osMathTests os util gtest_main)
+if(${FALLBACK})                 # {
+    target_link_libraries(osMathTests os util gtest_main)
+else()                          # }{
+    target_link_libraries(osMathTests PUBLIC os util)
+    DEP_ext_gtest(osMathTests)
+endif()                         # }
 add_test(
     NAME osMathTests
     COMMAND osMathTests
 )
 
 add_executable(osSemaphoreTests "osSemaphoreTests.cpp")
-target_link_libraries(osSemaphoreTests os util gtest_main)
+if(${FALLBACK})                 # {
+    target_link_libraries(osSemaphoreTests os util gtest_main)
+else()                          # }{
+    target_link_libraries(osSemaphoreTests PUBLIC os util)
+    DEP_ext_gtest(osSemaphoreTests)
+endif()                         # }
 add_test(
     NAME osSemaphoreTests
     COMMAND osSemaphoreTests
 )
 
 add_executable(osSignalTests "osSignalTests.cpp")
-target_link_libraries(osSignalTests os util gtest_main)
+if(${FALLBACK})                 # {
+    target_link_libraries(osSignalTests os util gtest_main)
+else()                          # }{
+    target_link_libraries(osSignalTests PUBLIC os util)
+    DEP_ext_gtest(osSignalTests)
+endif()                         # }
 add_test(
     NAME osSignalTests
     COMMAND osSignalTests
 )
 
 add_executable(osSleepTests "osSleepTests.cpp")
-target_link_libraries(osSleepTests os util gtest_main)
+if(${FALLBACK})                 # {
+    target_link_libraries(osSleepTests os util gtest_main)
+else()                          # }{
+    target_link_libraries(osSleepTests PUBLIC os util)
+    DEP_ext_gtest(osSleepTests)
+endif()                         # }
 add_test(
     NAME osSleepTests
     COMMAND osSleepTests
 )
 
 add_executable(osStringTests "osStringTests.cpp")
-target_link_libraries(osStringTests os util gtest_main)
+if(${FALLBACK})                 # {
+    target_link_libraries(osStringTests os util gtest_main)
+else()                          # }{
+    target_link_libraries(osStringTests PUBLIC os util)
+    DEP_ext_gtest(osStringTests)
+    DEP_ext_cjson_LIB(osStringTests)
+endif()                         # }
 add_test(
     NAME osStringTests
     COMMAND osStringTests
 )
 
 add_executable(osTests "osTests.cpp")
-target_link_libraries(osTests os util gtest_main)
+if(${FALLBACK})                 # {
+    target_link_libraries(osTests os util gtest_main)
+else()                          # }{
+    target_link_libraries(osTests PUBLIC os util)
+    DEP_ext_gtest(osTests)
+    DEP_ext_cjson_LIB(osTests)
+endif()                         # }
 add_test(
     NAME osTests
     COMMAND osTests
 )
 
 add_executable(osSystemTests "osSystemTests.cpp")
-target_link_libraries(osSystemTests os util gtest_main)
+if(${FALLBACK})                 # {
+    target_link_libraries(osSystemTests os util gtest_main)
+else()                          # }{
+    target_link_libraries(osSystemTests PUBLIC os util)
+    DEP_ext_gtest(osSystemTests)
+    DEP_ext_cjson_LIB(osSystemTests)
+endif()                         # }
 add_test(
     NAME osSystemTests
     COMMAND osSystemTests
@@ -100,7 +138,13 @@ add_test(
 endif()
 
 add_executable(osTimeTests "osTimeTests.cpp")
-target_link_libraries(osTimeTests os util gtest_main)
+if(${FALLBACK})                 # {
+    target_link_libraries(osTimeTests os util gtest_main)
+else()                          # }{
+    target_link_libraries(osTimeTests PUBLIC os util)
+    DEP_ext_gtest(osTimeTests)
+    DEP_ext_cjson_LIB(osTimeTests)
+endif()                         # }
 add_test(
     NAME osTimeTests
     COMMAND osTimeTests

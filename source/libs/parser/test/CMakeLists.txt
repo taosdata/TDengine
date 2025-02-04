@@ -14,17 +14,34 @@ IF(NOT TD_DARWIN)
             PRIVATE "${TD_SOURCE_DIR}/source/libs/parser/inc"
     )
 
-    TARGET_LINK_LIBRARIES(
-            parserTest
-            PUBLIC os util common nodes parser catalog transport gtest function planner qcom
-    )
+    if(${FALLBACK})                            # {
+        TARGET_LINK_LIBRARIES(
+                parserTest
+                PUBLIC os util common nodes parser catalog transport gtest function planner qcom
+        )
+    else()                                     # }{
+        TARGET_LINK_LIBRARIES(
+                parserTest
+                PUBLIC os util common nodes parser catalog transport function planner qcom
+        )
+        DEP_ext_gtest(parserTest)
+        DEP_ext_cjson_LIB(parserTest)
+        DEP_ext_wingetopt(parserTest)
+        DEP_ext_stub(parserTest)
+        target_include_directories(parserTest
+                PUBLIC
+                ${ext_stub_stub} ${ext_stub_addr_any}
+        )
+    endif()                                    # }
 
     if(${BUILD_WINGETOPT})
-        target_include_directories(
-            parserTest
-            PUBLIC "${TD_SOURCE_DIR}/contrib/wingetopt/src"
-        )
-        target_link_libraries(parserTest PUBLIC wingetopt)
+        if(${FALLBACK})         # {
+            target_include_directories(
+                parserTest
+                PUBLIC "${TD_SOURCE_DIR}/contrib/wingetopt/src"
+            )
+            target_link_libraries(parserTest PUBLIC wingetopt)
+        endif()                 # }
     endif()
 
     add_test(

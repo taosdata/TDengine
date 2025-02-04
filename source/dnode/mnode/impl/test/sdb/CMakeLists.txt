@@ -6,6 +6,10 @@ target_link_libraries(
     PUBLIC sdb
 )
 
+if(NOT ${FALLBACK})               # {
+    DEP_ext_cjson_LIB(sdbTest)
+endif()                           # }
+
 add_test(
     NAME sdbTest
     COMMAND sdbTest

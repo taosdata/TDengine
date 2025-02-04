@@ -41,7 +41,10 @@ else()
 endif()
 
 if(NOT ${FALLBACK})           # {
-    DEP_ext_taosws(shell)
+    if(TD_WEBSOCKET) # freemine: what if -DWEBSOCKET=true is specified on command line?
+        DEP_ext_taosws(shell)
+    endif()
+    DEP_ext_cjson_LIB(shell)
 endif()                       # }
 target_link_libraries(
     shell

@@ -18,10 +18,24 @@ IF(NOT TD_DARWIN)
                 PUBLIC os util common nodes planner parser catalog transport gtest function qcom grant
         )
     ELSE ()
-        TARGET_LINK_LIBRARIES(
-                plannerTest
-                PUBLIC os util common nodes planner parser catalog transport gtest function qcom
-        )
+        if(${FALLBACK})               # {
+            TARGET_LINK_LIBRARIES(
+                    plannerTest
+                    PUBLIC os util common nodes planner parser catalog transport gtest function qcom
+            )
+        else()                        # }{
+            TARGET_LINK_LIBRARIES(
+                    plannerTest
+                    PUBLIC os util common nodes planner parser catalog transport function qcom
+            )
+            DEP_ext_gtest(plannerTest)
+            DEP_ext_cjson_LIB(plannerTest)
+            DEP_ext_wingetopt(plannerTest)
+            DEP_ext_stub(plannerTest)
+            TARGET_INCLUDE_DIRECTORIES(plannerTest
+                    PUBLIC ${ext_stub_stub} ${ext_stub_addr_any}
+            )
+        endif()                       # }
     ENDIF()
 
     TARGET_INCLUDE_DIRECTORIES(
@@ -33,11 +47,13 @@ IF(NOT TD_DARWIN)
 
 
     if(${BUILD_WINGETOPT})
-        target_include_directories(
-            plannerTest
-            PUBLIC "${TD_SOURCE_DIR}/contrib/wingetopt/src"
-        )
-        target_link_libraries(plannerTest PUBLIC wingetopt)
+        if(${FALLBACK})          # {
+            target_include_directories(
+                plannerTest
+                PUBLIC "${TD_SOURCE_DIR}/contrib/wingetopt/src"
+            )
+            target_link_libraries(plannerTest PUBLIC wingetopt)
+        endif()                  # }
     endif()
 
     add_test(

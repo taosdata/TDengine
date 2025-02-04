@@ -14,10 +14,23 @@ IF(NOT TD_DARWIN)
                         PUBLIC os util common catalog transport gtest qcom ${TAOS_LIB_STATIC} planner scheduler grant
                 )
         ELSE ()
-                TARGET_LINK_LIBRARIES(
-                        schedulerTest
-                        PUBLIC os util common catalog transport gtest qcom ${TAOS_LIB_STATIC} planner scheduler
-                )
+                if(${FALLBACK})                  # {
+                        TARGET_LINK_LIBRARIES(
+                                schedulerTest
+                                PUBLIC os util common catalog transport gtest qcom ${TAOS_LIB_STATIC} planner scheduler
+                        )
+                else()                           # }{
+                        TARGET_LINK_LIBRARIES(
+                                schedulerTest
+                                PUBLIC os util common catalog transport qcom ${TAOS_LIB_STATIC} planner scheduler
+                        )
+                        DEP_ext_gtest(schedulerTest)
+                        DEP_ext_cjson_LIB(schedulerTest)
+                        DEP_ext_stub(schedulerTest)
+                        target_include_directories(schedulerTest
+                                PUBLIC ${ext_stub_stub} ${ext_stub_addr_any}
+                        )
+                endif()                          # }
         ENDIF()
 
         TARGET_INCLUDE_DIRECTORIES(

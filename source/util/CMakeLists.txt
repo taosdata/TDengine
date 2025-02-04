@@ -79,10 +79,12 @@ else()                          # }{
     DEP_ext_lz4(util)
 
     DEP_ext_geos(util)
-    target_link_libraries(
-        util
-        PUBLIC m stdc++
-    )
+    if(NOT ${TD_WINDOWS})          # {
+        target_link_libraries(
+            util
+            PUBLIC m stdc++
+        )
+    endif()                        # }
 
     DEP_ext_pcre2(util)
 

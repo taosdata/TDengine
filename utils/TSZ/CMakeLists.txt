@@ -22,8 +22,12 @@ ADD_LIBRARY(TSZ STATIC ${SRC1} ${SRC2} ${SRC3} ${SRC4} ${SRC5} ${SRC6} ${SRC7})
 TARGET_INCLUDE_DIRECTORIES(TSZ PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/sz/inc ${TD_SOURCE_DIR}/include)
 
 if(NOT ${FALLBACK})          # {
-  DEP_ext_lzma2(TSZ)
-  add_dependencies(TSZ ext_lzma2_builder)
+    if(NOT ${TD_WINDOWS})      # {
+        DEP_ext_lzma2(TSZ)
+        add_dependencies(TSZ ext_lzma2_builder)
+    else()                     # }{
+        DEP_ext_lzma2(TSZ)
+    endif()                    # }
 endif()                      # }
 
 # windows ignore warning

@@ -15,7 +15,12 @@ ENDIF()
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
 
 ADD_EXECUTABLE(simTests "simTests.cpp")
-TARGET_LINK_LIBRARIES(simTests os util tsim_static gtest_main)
+if(${FALLBACK})                      # {
+    TARGET_LINK_LIBRARIES(simTests os util tsim_static gtest_main)
+else()                               # }{
+    TARGET_LINK_LIBRARIES(simTests PUBLIC os util tsim_static)
+    DEP_ext_gtest(simTests)
+endif()                              # }
 
 ADD_TEST(
     NAME simTests
