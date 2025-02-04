@@ -101,7 +101,7 @@ class TDTestCase(TBase):
         print(dbresult)
         found = False
         for i in range(len(dbresult)):
-            if dbresult[i][0] == "beijing":
+            if dbresult[i][0] == '"beijing"':
                 found = True
                 break
 

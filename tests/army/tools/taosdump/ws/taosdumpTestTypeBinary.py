@@ -37,10 +37,10 @@ class TDTestCase(TBase):
         tdSql.execute(
             "create table db.st(ts timestamp, c1 BINARY(5), c2 BINARY(5)) tags(btag BINARY(5))"
         )
-        tdSql.execute("create table db.t1 using  db.sttags('test')")
+        tdSql.execute("create table db.t1 using  db.st tags('test')")
         tdSql.execute("insert into db.t1 values(1640000000000, '01234', '56789')")
         tdSql.execute("insert into db.t1 values(1640000000001, 'abcd', 'efgh')")
-        tdSql.execute("create table db.t2 using  db.sttags(NULL)")
+        tdSql.execute("create table db.t2 using  db.st tags(NULL)")
         tdSql.execute("insert into db.t2 values(1640000000000, NULL, NULL)")
 
         binPath = etool.taosDumpFile()

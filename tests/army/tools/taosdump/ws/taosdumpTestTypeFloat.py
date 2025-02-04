@@ -36,8 +36,8 @@ class TDTestCase(TBase):
 
         tdSql.execute("use db")
         tdSql.execute("create table db.st(ts timestamp, c1 FLOAT) tags(ftag FLOAT)")
-        tdSql.execute("create table db.db.t1 using db.st tags(1.0)")
-        tdSql.execute("insert into db.db.t1 values(1640000000000, 1.0)")
+        tdSql.execute("create table db.t1 using db.st tags(1.0)")
+        tdSql.execute("insert into db.t1 values(1640000000000, 1.0)")
 
         tdSql.execute("create table db.t2 using db.st tags(3.40E+38)")
         tdSql.execute("insert into db.t2 values(1640000000000, 3.40E+38)")
