@@ -16,7 +16,7 @@
     "sqls":
     [{
       "sql": "select count(*) from db.stb",
-      "result": "taosc_query_specified"
+      "result": "./taosc_query_specified"
     }]
   }
 }

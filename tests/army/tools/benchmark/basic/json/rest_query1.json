@@ -11,7 +11,7 @@
     "sqls": [
       {
         "sql": "select count(*) from xxxx",
-        "result": "rest_query_super"
+        "result": "./rest_query_super"
       }
     ]
   }

@@ -101,7 +101,7 @@ class TDTestCase(TBase):
         print(dbresult)
         found = False
         for i in range(len(dbresult)):
-            if dbresult[i][0] == '"beijing"':
+            if dbresult[i][0] == "beijing":
                 found = True
                 break
 
@@ -110,7 +110,7 @@ class TDTestCase(TBase):
         tdSql.query("select * from db.st where jtag contains 'location'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 1)
-        tdSql.checkData(0, 2, '{"location":"beijing"}')
+        tdSql.checkData(0, 2, "{'location': 'beijing'}")
 
         tdSql.query("select jtag from db.st")
         tdSql.checkRows(3)
@@ -118,8 +118,9 @@ class TDTestCase(TBase):
         dbresult = tdSql.res
         print(dbresult)
         found = False
+        value = {'location': 'beijing'}
         for i in range(len(dbresult)):
-            if dbresult[i][0] == '{"location":"beijing"}':
+            if dbresult[i][0] == value:
                 found = True
                 break
 

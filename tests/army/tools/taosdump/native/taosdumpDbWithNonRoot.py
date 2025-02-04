@@ -74,10 +74,10 @@ class TDTestCase(TBase):
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        pwd = "Taos@123456"
+        pwd = "Taos@123456"        
         tdSql.execute(f"create user test pass '{pwd}'")
 
-        os.system(f"%s -utest -p{pwd} -D db -o %s -T 1" % (binPath, self.tmpdir))
+        os.system(f"%s -D db -o %s -T 1" % (binPath, self.tmpdir))
 
         tdSql.execute("drop database db")
         #        sys.exit(1)

@@ -12,7 +12,7 @@
     "sqls":
     [{
       "sql": "select count(*) from db.stb",
-      "result": "rest_query_specified"
+      "result": "./rest_query_specified"
     }]
   }
 }

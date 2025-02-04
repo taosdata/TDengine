@@ -17,7 +17,7 @@
     "sqls": [
       {
         "sql": "select count(*) from xxxx",
-        "result": "taosc_query_super"
+        "result": "./taosc_query_super"
       }
     ]
   }
