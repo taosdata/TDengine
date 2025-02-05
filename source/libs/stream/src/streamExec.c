@@ -924,19 +924,19 @@ static bool shouldNotCont(SStreamTask* pTask) {
   bool quit = (status == TASK_STATUS__STOP) || (status == TASK_STATUS__PAUSE) || (status == TASK_STATUS__DROPPING);
 
   // 2. checkpoint procedure, the source task's checkpoint queue is empty, not read from ordinary queue
-  bool emptyCkQueue = (taosQueueItemSize(pQueue->pChkptQueue) == 0) && (level == TASK_LEVEL__SOURCE);
+  bool emptyCkQueue = (taosQueueItemSize(pQueue->pChkptQueue) == 0);
 
   // 3. no data in ordinary queue
-  int32_t emptyBlockQueue = (streamQueueGetNumOfItems(pQueue) == 0);
+  bool emptyBlockQueue = (streamQueueGetNumOfItems(pQueue) == 0);
 
   if (quit) {
     return true;
   } else {
-    if (status == TASK_STATUS__CK) {
+    if (status == TASK_STATUS__CK && level == TASK_LEVEL__SOURCE) {
       // in checkpoint procedure, we only check whether the controller queue is empty or not
       return emptyCkQueue;
     } else { // otherwise, if the block queue is empty, not continue.
-      return emptyBlockQueue;
+      return emptyBlockQueue && emptyCkQueue;
     }
   }
 }
