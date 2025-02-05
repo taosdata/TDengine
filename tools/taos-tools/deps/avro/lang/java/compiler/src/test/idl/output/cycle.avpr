@@ -1,0 +1,56 @@
+{
+  "protocol" : "Cycle",
+  "namespace" : "org.apache.avro.gen",
+  "types" : [ {
+    "type" : "record",
+    "name" : "SampleNode",
+    "fields" : [ {
+      "name" : "count",
+      "type" : "int",
+      "default" : 0
+    }, {
+      "name" : "subNodes",
+      "type" : {
+        "type" : "array",
+        "items" : {
+          "type" : "record",
+          "name" : "SamplePair",
+          "fields" : [ {
+            "name" : "method",
+            "type" : {
+              "type" : "record",
+              "name" : "Method",
+              "fields" : [ {
+                "name" : "declaringClass",
+                "type" : "string",
+                "testAttribute":"testValue"
+              }, {
+                "name" : "methodName",
+                "type" : "string"
+              } ]
+            }
+          }, {
+            "name" : "node",
+            "type" : "SampleNode"
+          } ]
+        }
+      }
+    } ]
+  }, {
+    "type" : "record",
+    "name" : "SelfRef",
+    "fields" : [ {
+      "name" : "something",
+      "type" : "string"
+    }, {
+      "name" : "subNodes",
+      "type" : {
+        "type" : "array",
+        "items" : "SelfRef"
+      },
+      "default" : [ ]
+    } ]
+  } ],
+  "messages" : { }
+}
+

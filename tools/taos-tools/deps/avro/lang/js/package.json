@@ -1,0 +1,59 @@
+{
+  "name": "avro-js",
+  "version": "1.11.0",
+  "author": "Avro Developers <dev@avro.apache.org>",
+  "description": "JavaScript Avro implementation",
+  "contributors": [
+    {
+      "name": "Matthieu Monsch",
+      "email": "monsch@alum.mit.edu"
+    },
+    {
+      "name": "Quinn Slack",
+      "email": "sqs@cs.stanford.edu"
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/apache/avro"
+  },
+  "keywords": [
+    "avro",
+    "json"
+  ],
+  "files": [
+    "LICENSE",
+    "NOTICE",
+    "lib",
+    "etc/browser",
+    "etc/deprecated/validator.js"
+  ],
+  "main": "./lib",
+  "browser": {
+    "./lib": "./etc/browser/avro.js",
+    "crypto": "./etc/browser/crypto.js"
+  },
+  "scripts": {
+    "cover": "istanbul cover _mocha -- -f interop -i",
+    "test": "mocha -f interop -i",
+    "clean": "rm -rf coverage node_modules",
+    "lint": "jshint lib test",
+    "interop-data-generate": "node test/interop_data_generate.js",
+    "interop-data-test": "mocha test/interop_data_test.js"
+  },
+  "dependencies": {
+    "underscore": "^1.12.0"
+  },
+  "devDependencies": {
+    "coveralls": "^3.1.0",
+    "istanbul": "^0.4.5",
+    "jshint": "^2.12.0",
+    "mocha": "^6.2.3",
+    "tmp": "^0.0.28"
+  },
+  "noAnalyze": true,
+  "license": "Apache-2.0",
+  "engine": {
+    "node": ">=0.11"
+  }
+}
