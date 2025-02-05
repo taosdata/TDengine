@@ -147,11 +147,13 @@ static void taosGetProcIOnfos() {
   tsPageSizeKB = sysconf(_SC_PAGESIZE) / 1024;
   tsOpenMax = sysconf(_SC_OPEN_MAX);
   tsStreamMax = TMAX(sysconf(_SC_STREAM_MAX), 0);
+#ifndef TD_ACORE
   tsProcId = (pid_t)syscall(SYS_gettid);
 
   (void)snprintf(tsProcMemFile, sizeof(tsProcMemFile), "/proc/%d/status", tsProcId);
   (void)snprintf(tsProcCpuFile, sizeof(tsProcCpuFile), "/proc/%d/stat", tsProcId);
   (void)snprintf(tsProcIOFile, sizeof(tsProcIOFile), "/proc/%d/io", tsProcId);
+#endif
 }
 #endif
 
@@ -172,7 +174,7 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
     cpuInfo->user = CompareFileTime(&pre_userTime, &userTime);
     cpuInfo->nice = 0;
   }
-#elif defined(DARWIN)
+#elif defined(DARWIN) || defined(TD_ACORE)
   cpuInfo->idle = 0;
   cpuInfo->system = 0;
   cpuInfo->user = 0;
@@ -223,7 +225,7 @@ static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
     cpuInfo->cutime = 0;
     cpuInfo->cstime = 0;
   }
-#elif defined(DARWIN)
+#elif defined(DARWIN) || defined(TD_ACORE)
   cpuInfo->stime = 0;
   cpuInfo->utime = 0;
   cpuInfo->cutime = 0;
@@ -281,9 +283,14 @@ void taosGetSystemInfo() {
   tsTotalMemoryKB = physical_pages * page_size / 1024;
   tsPageSizeKB = page_size / 1024;
   tsNumOfCores = sysconf(_SC_NPROCESSORS_ONLN);
-#else
+#elif defined(TD_ACORE)
   taosGetProcIOnfos();
   TAOS_SKIP_ERROR(taosGetCpuCores(&tsNumOfCores, false));
+  TAOS_SKIP_ERROR(taosGetTotalMemory(&tsTotalMemoryKB));
+  TAOS_SKIP_ERROR(taosGetCpuUsage(NULL, NULL));
+#else
+  taosGetProcIOnfos();
+  TAOS_SKIP_ERROR(taosGetCpuCores(&tsNumOfCores, false)); 
   TAOS_SKIP_ERROR(taosGetTotalMemory(&tsTotalMemoryKB));
   TAOS_SKIP_ERROR(taosGetCpuUsage(NULL, NULL));
   TAOS_SKIP_ERROR(taosGetCpuInstructions(&tsSSE42Supported, &tsAVXSupported, &tsAVX2Supported, &tsFMASupported, &tsAVX512Supported));
@@ -488,6 +495,10 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   taosCloseCmd(&pCmd);
 
   return code;
+#elif defined(TD_ACORE) // TD_ACORE_TODO
+  tstrncpy(cpuModel, "ft_2000_4", maxLen);
+  TAOS_SKIP_ERROR(taosGetCpuCores(numOfCores, false));
+  return 0;
 #else
   char    line[1024] = {0};
   size_t  size = 0;
@@ -553,7 +564,7 @@ static int32_t taosCntrGetCpuCores(float *numOfCores) {
   OS_PARAM_CHECK(numOfCores);
 #ifdef WINDOWS
   return TSDB_CODE_UNSUPPORT_OS;
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ACORE)
   return TSDB_CODE_UNSUPPORT_OS;
 #else
   TdFilePtr pFile = NULL;
@@ -621,6 +632,9 @@ int32_t taosGetCpuCores(float *numOfCores, bool physical) {
   if(*numOfCores <= 0) {
     return TAOS_SYSTEM_ERROR(errno);
   }
+  return 0;
+#elif defined(TD_ACORE)
+  *numOfCores = 4;
   return 0;
 #else
   if (physical) {
@@ -723,7 +737,7 @@ int32_t taosGetTotalMemory(int64_t *totalKB) {
 
   *totalKB = memsStat.ullTotalPhys / 1024;
   return 0;
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ACORE)
   return 0;
 #else
   *totalKB = (int64_t)(sysconf(_SC_PHYS_PAGES) * tsPageSizeKB);
@@ -750,7 +764,7 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
 
   *usedKB = bytes_used / 1024;
   return 0;
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ACORE)
   *usedKB = 0;
   return 0;
 #else
@@ -794,7 +808,7 @@ int32_t taosGetSysAvailMemory(int64_t *availSize) {
 
   *availSize = nMemTotal - nMemFree;
   return 0;
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ACORE)
   *availSize = 0;
   return 0;
 #else
@@ -848,7 +862,7 @@ int32_t taosGetSysMemory(int64_t *usedKB) {
 
   *usedKB = nMemTotal - nMemFree;
   return 0;
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ACORE)
   *usedKB = 0;
   return 0;
 #else
@@ -892,6 +906,19 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
     diskSize->used = (info.f_blocks - info.f_bfree) * info.f_frsize;
     return 0;
   }
+#elif defined(TD_ACORE) // TD_ACORE_TODO
+//  if (-1 == ioctl(dataDir, FIOFSTATVFSGETBYNAME, &info)) { // TODO:try to check whether the API is available
+//     terrno = TAOS_SYSTEM_ERROR(errno);
+//     return terrno;
+    diskSize->total = 100LL*1024*1024*1024;
+    diskSize->avail = 50LL*1024*1024*1024;
+    diskSize->used = 50LL*1024*1024*1024;
+//  } else {
+//    diskSize->total = info.f_blocks * info.f_frsize;
+//    diskSize->avail = info.f_bavail * info.f_frsize;
+//    diskSize->used = diskSize->total - diskSize->avail;
+//  }
+//   return 0;
 #else
   struct statvfs info;
   if (-1 == statvfs(dataDir, &info)) {
@@ -922,7 +949,7 @@ int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int
     return 0;
   }
   return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ACORE)
   *rchars = 0;
   *wchars = 0;
   *read_bytes = 0;
@@ -1022,7 +1049,7 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
 
 #ifdef WINDOWS
   return 0;
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ACORE)
   return 0;
 #else
   TdFilePtr pFile = taosOpenFile(tsSysNetFile, TD_FILE_READ | TD_FILE_STREAM);
@@ -1105,7 +1132,7 @@ void taosKillSystem() {
 #ifdef WINDOWS
   printf("function taosKillSystem, exit!");
   exit(0);
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ACORE)
   printf("function taosKillSystem, exit!");
   exit(0);
 #else
@@ -1137,6 +1164,25 @@ int32_t taosGetSystemUUIDLimit36(char *uid, int32_t uidlen) {
   // it's caller's responsibility to make enough space for `uid`, that's 36-char + 1-null
   uuid_unparse_lower(uuid, buf);
   (void)snprintf(uid, uidlen, "%.*s", (int)sizeof(buf), buf);
+  return 0;
+#elif defined(TD_ACORE)
+  const char *template = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx";
+  const char *hex_chars = "0123456789abcdef";
+  int32_t     len = uidlen > 36 ? 36 : uidlen;
+
+  for (int32_t i = 0; i < len; i++) {
+    if (template[i] == 'x') {
+      uid[i] = hex_chars[taosRand() & 15];
+    } else if (template[i] == 'y') {
+      uid[i] = hex_chars[(taosRand() & 3) + 8];  // 8, 9, a, or b
+    } else {
+      uid[i] = template[i];
+    }
+  }
+  if (len >= 0) {
+    uid[len] = 0;
+  }
+
   return 0;
 #else
   int64_t len = 0;
@@ -1191,6 +1237,8 @@ char *taosGetCmdlineByPID(int pid) {
   }
 
   return cmdline;
+#elif defined(TD_ACORE)
+  return "";
 #else
   static char cmdline[1024];
   (void)snprintf(cmdline, sizeof(cmdline), "/proc/%d/cmdline", pid);
@@ -1216,7 +1264,7 @@ char *taosGetCmdlineByPID(int pid) {
 
 int64_t taosGetOsUptime() {
 #ifdef WINDOWS
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ACORE)
 #else
   struct sysinfo info;
   if (-1 == sysinfo(&info)) {
@@ -1235,7 +1283,7 @@ void taosSetCoreDump(bool enable) {
 #ifdef WINDOWS
   SetUnhandledExceptionFilter(exceptionHandler);
   SetUnhandledExceptionFilter(&FlCrashDump);
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ACORE)
 #else
   // 1. set ulimit -c unlimited
   struct rlimit rlim;

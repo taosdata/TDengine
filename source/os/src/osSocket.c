@@ -45,6 +45,20 @@
 #endif
 #endif
 
+#ifdef TD_ACORE
+#ifndef __BYTE_ORDER
+#define __BYTE_ORDER _BYTE_ORDER
+#endif
+
+#ifndef __BIG_ENDIAN
+#define __BIG_ENDIAN _BIG_ENDIAN
+#endif
+
+#ifndef __LITTLE_ENDIAN
+#define __LITTLE_ENDIAN _LITTLE_ENDIAN
+#endif
+#endif // TD_ACORE
+
 #ifndef INVALID_SOCKET
 #define INVALID_SOCKET -1
 #endif
@@ -449,6 +463,14 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
   //  taosCloseSocketNoCheck1(fd);
   //  return -1;
   //}
+#elif defined(TD_ACORE) // TD_ACORE_TODO
+  uint32_t conn_timeout_ms = timeout;
+  if (0 != setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms)) || 
+      0 != setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    TAOS_SKIP_ERROR(taosCloseSocketNoCheck1(fd));
+    return terrno;
+  }
 #else  // Linux like systems
   uint32_t conn_timeout_ms = timeout;
   if (-1 == setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
@@ -508,7 +530,7 @@ uint64_t taosNtoh64(uint64_t val) {
 }
 
 int32_t taosSetSockOpt2(int32_t fd) {
-#if defined(WINDOWS) || defined(DARWIN)
+#if defined(WINDOWS) || defined(DARWIN) || defined(TD_ACORE)
   return 0;
 #else
   int32_t ret = setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (int[]){1}, sizeof(int));
