@@ -3578,7 +3578,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
     // PROCESS FOR CHILD TABLE
 
-    if (lastSuid && tbMeta->suid == lastSuid && lastTableMeta) {
+    if (lastSuid && tbMeta->suid == lastSuid && lastTableMeta && tbMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
       code = cloneTableMeta(lastTableMeta, &pTableMeta);
       if (code) {
         CTG_UNLOCK(CTG_READ, &pCache->metaLock);

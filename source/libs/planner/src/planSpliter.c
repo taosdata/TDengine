@@ -52,7 +52,7 @@ static void splSetSubplanVgroups(SLogicSubplan* pSubplan, SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
     TSWAP(pSubplan->pVgroupList, ((SScanLogicNode*)pNode)->pVgroupList);
   } else if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pNode)) {
-    TSWAP(pSubplan->pVgroupList, ((SVirtualScanLogicNode *)pNode)->pVgroupList);
+    // do nothing, since virtual table scan node is SUBPLAN_TYPE_MERGE
   } else {
     if (1 == LIST_LENGTH(pNode->pChildren)) {
       splSetSubplanVgroups(pSubplan, (SLogicNode*)nodesListGetNode(pNode->pChildren, 0));
@@ -2166,7 +2166,7 @@ static void setVgroupsInfo(SLogicNode* pNode, SLogicSubplan* pSubplan) {
     TSWAP(((SScanLogicNode*)pNode)->pVgroupList, pSubplan->pVgroupList);
     return;
   } else if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pNode)) {
-    TSWAP(((SVirtualScanLogicNode *)pNode)->pVgroupList, pSubplan->pVgroupList);
+    // do nothing, since virtual table scan node is SUBPLAN_TYPE_MERGE
     return;
   }
 
