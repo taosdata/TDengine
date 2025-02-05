@@ -146,7 +146,7 @@ cd TDengine
 
 TDengine provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. By default, TDengine compiling does not include taosTools. You can use `cmake .. -DBUILD_TOOLS=true` to make them be compiled with TDengine.
 
-To build TDengine, use [CMake](https://cmake.org/) 3.13.0 or higher versions in the project directory.
+To build TDengine, use [CMake](https://cmake.org/) 3.13.0 or higher versions in the project directory. Additionally, the minimum required version of GCC should be increased to 7.5. 
 
 ## 4.1 Build on Linux
 
