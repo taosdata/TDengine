@@ -19,3 +19,19 @@ import sys
 import os
 import time
 import datetime
+import psutil
+
+
+# cpu frequent as random
+def cpuRand(max):
+    decimal = int(str(psutil.cpu_freq().current).split(".")[1])
+    return decimal % max
+
+# remove single and doulbe quotation
+def removeQuota(origin):
+    value = ""
+    for c in origin:
+        if c != '\'' and c != '"':
+            value += c
+
+    return value
