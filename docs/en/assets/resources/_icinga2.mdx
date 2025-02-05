@@ -1,4 +1,4 @@
-### Configuring taosAdapter
+#### Configuring taosAdapter
 
 Method to configure taosAdapter to receive icinga2 data:
 
@@ -21,7 +21,7 @@ The default database name written by taosAdapter is `icinga2`, but you can also 
 
 - You can also use taosAdapter command line parameters or set environment variables to enable taosAdapter to receive icinga2 data, for more details please refer to the taosAdapter reference manual
 
-### Configuring icinga2
+#### Configuring icinga2
 
 - Enable icinga2's opentsdb-writer (reference link https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer)
 - Modify the configuration file `/etc/icinga2/features-enabled/opentsdb.conf` filling in \<taosAdapter's host> with the domain name or IP address of the server running taosAdapter, \<port for icinga2> with the corresponding port supported by taosAdapter for receiving icinga2 data (default is 6048)

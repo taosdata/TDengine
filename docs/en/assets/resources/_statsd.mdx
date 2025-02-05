@@ -1,4 +1,4 @@
-### Configure taosAdapter
+#### Configure taosAdapter
 
 Method to configure taosAdapter to receive StatsD data:
 
@@ -29,7 +29,7 @@ The default database name written by taosAdapter is `statsd`, but you can also m
 
 - You can also use taosAdapter command line arguments or set environment variables to enable the taosAdapter to receive StatsD data. For more details, please refer to the taosAdapter reference manual.
 
-### Configure StatsD
+#### Configure StatsD
 
 To use StatsD, download its [source code](https://github.com/statsd/statsd). Modify its configuration file according to the example file `exampleConfig.js` found in the root directory of the local source code download. Replace \<taosAdapter's host> with the domain name or IP address of the server running taosAdapter, and \<port for StatsD> with the port that taosAdapter uses to receive StatsD data (default is 6044).
 

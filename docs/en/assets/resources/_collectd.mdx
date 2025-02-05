@@ -1,4 +1,4 @@
-### Configuring taosAdapter
+#### Configuring taosAdapter
 
 Method to configure taosAdapter to receive collectd data:
 
@@ -21,11 +21,11 @@ The default database name written by taosAdapter is `collectd`, but you can also
 
 - You can also use taosAdapter command line parameters or set environment variables to start, to enable taosAdapter to receive collectd data, for more details please refer to the taosAdapter reference manual.
 
-### Configuring collectd
+#### Configuring collectd
 
 collectd uses a plugin mechanism that can write the collected monitoring data to different data storage software in various forms. TDengine supports direct collection plugins and write_tsdb plugins.
 
-#### Configuring to receive direct collection plugin data
+1. **Configuring to receive direct collection plugin data**
 
 Modify the related configuration items in the collectd configuration file (default location /etc/collectd/collectd.conf).
 
@@ -47,7 +47,7 @@ LoadPlugin network
 </Plugin>
 ```
 
-#### Configuring write_tsdb plugin data
+2. **Configuring write_tsdb plugin data**
 
 Modify the related configuration items in the collectd configuration file (default location /etc/collectd/collectd.conf).
 

@@ -63,7 +63,7 @@ Supported InfluxDB parameters are as follows:
 - `ttl` the lifespan of automatically created subtables, determined by the TTL parameter of the first data entry in the subtable, which cannot be updated. For more information, please refer to the TTL parameter in the [table creation document](../../sql-manual/manage-tables/).
 
 Note: Currently, InfluxDB's token authentication method is not supported, only Basic authentication and query parameter verification are supported.
-Example: curl --request POST `http://127.0.0.1:6041/influxdb/v1/write?db=test` --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"
+Example: `curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"`
 
 ### Compatible with OpenTSDB JSON and telnet format writing
 
@@ -113,7 +113,6 @@ taosAdapter is part of the TDengine server software. If you are using TDengine s
 After the installation is complete, you can start the taosAdapter service using the command `systemctl start taosadapter`.
 
 ## Configuration
-
 
 taosAdapter supports configuration through command-line parameters, environment variables, and configuration files. The default configuration file is `/etc/taos/taosadapter.toml`.
 
