@@ -18,6 +18,10 @@ ANOMALY_WINDOW(foo.i32, "algo=lof")
 后续待添加基于数据挖掘检测算法
 - DBSCAN (Density-Based Spatial Clustering of Applications with Noise)
 - K-Nearest Neighbors (KNN)
+- Principal Component Analysis (PCA)
+
+第三方异常检测算法库
+- PyOD
 
 ### 参考文献
 
