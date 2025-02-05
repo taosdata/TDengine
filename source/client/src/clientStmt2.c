@@ -1430,7 +1430,7 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
                                     pStmt->taos->optionInfo.charsetCxt);
     } else {
       taosArrayDestroy(pCols);
-      (*pDataBlock)->pData->aCol = taosArrayInit(bind->num, POINTER_BYTES);
+      (*pDataBlock)->pData->aCol = taosArrayInit(20, POINTER_BYTES);
       code =
           qBindStmtColsValue2(*pDataBlock, (*pDataBlock)->pData->aRowP, bind, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen,
                               &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo, pStmt->taos->optionInfo.charsetCxt);

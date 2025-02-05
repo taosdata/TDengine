@@ -58,8 +58,7 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
       SColData* pCol = (SColData*)taosArrayGet(pNew->aCol, i);
       tColDataDeepClear(pCol);
     } else {
-      SRow* pRowp = (SRow*)taosArrayGet(pNew->aCol, i);
-      tRowDataClear(pRowp);
+      pNew->aCol = taosArrayInit(20, POINTER_BYTES);
     }
   }
 
@@ -1174,12 +1173,7 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
         tColDataClear(pCol);
       }
     } else {
-      SRow* aRowP = (SRow*)taosArrayGet(pBlock->pData->aRowP, i);
-      if (aRowP == NULL) {
-        qError("qResetStmtDataBlock row pointer is NULL");
-        return terrno;
-      }
-      tRowDataClear(aRowP);
+      pBlock->pData->aRowP = taosArrayInit(20, POINTER_BYTES);
     }
   }
 
