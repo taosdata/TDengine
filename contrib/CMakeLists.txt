@@ -180,10 +180,12 @@ if(${BUILD_GEOS})
     cat("${TD_SUPPORT_DIR}/geos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
-if (${BUILD_WITH_ANALYSIS})
+# libcurl
+if(NOT ${TD_WINDOWS})
+    file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
     cat("${TD_SUPPORT_DIR}/ssl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif()
+endif(NOT ${TD_WINDOWS})
 
 #
 if(${BUILD_PCRE2})
@@ -200,6 +202,11 @@ endif()
 
 # lemon
 cat("${TD_SUPPORT_DIR}/lemon_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+
+# Force specify CC=cc on MacOS. Because the default CC setting in the generated Makefile has issues finding standard library headers
+IF(${TD_DARWIN})
+    SET(CONTRIB_CONFIG_ENV "CC=cc")
+ENDIF()
 
 # download dependencies
 configure_file(${CONTRIB_TMP_FILE} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
