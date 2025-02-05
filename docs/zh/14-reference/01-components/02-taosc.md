@@ -222,14 +222,44 @@ TDengine 客户端驱动提供了应用编程所需要的全部 API，并且在�
 - 支持版本：从 v3.0.0.0 版本开始引入
 
 ### 写入相关
-|参数名称|支持版本|动态修改|参数含义|
-|----------------------|----------|-------------------------|-------------|
-|smlChildTableName             |          |支持动态修改 立即生效       |schemaless 自定义的子表名的 key，无缺省值|
-|smlAutoChildTableNameDelimiter|          |支持动态修改 立即生效       |schemaless tag 之间的连接符，连起来作为子表名，无缺省值|
-|smlTagName                    |          |支持动态修改 立即生效       |schemaless tag 为空时默认的 tag 名字，缺省值 "_tag_null"|
-|smlTsDefaultName              |          |支持动态修改 立即生效       |schemaless 自动建表的时间列名字通过该配置设置，缺省值 "_ts"|
-|smlDot2Underline              |          |支持动态修改 立即生效       |schemaless 把超级表名中的 dot 转成下划线|
-|maxInsertBatchRows            |          |支持动态修改 立即生效       |内部参数，一批写入的最大条数|
+
+#### smlChildTableName
+- 说明：schemaless 自定义的子表名的 key
+- 默认值：无
+- 动态修改：支持通过 SQL 修改，立即生效
+- 支持版本：从 v3.0.0.0 版本开始引入
+
+#### smlAutoChildTableNameDelimiter
+- 说明：schemaless tag 之间的连接符，连起来作为子表名
+- 默认值：无
+- 动态修改：支持通过 SQL 修改，立即生效
+- 支持版本：从 v3.0.0.0 版本开始引入
+
+#### smlTagName
+- 说明：schemaless tag 为空时默认的 tag 名字
+- 默认值："_tag_null"
+- 动态修改：支持通过 SQL 修改，立即生效
+- 支持版本：从 v3.0.0.0 版本开始引入
+
+#### smlTsDefaultName
+- 说明：schemaless 自动建表的时间列名字通过该配置设置
+- 默认值："_ts"
+- 动态修改：支持通过 SQL 修改，立即生效
+- 支持版本：从 v3.0.0.0 版本开始引入
+
+#### smlDot2Underline
+- 说明：schemaless 把超级表名中的 dot 转成下划线
+- 默认值：true
+- 动态修改：支持通过 SQL 修改，立即生效
+- 支持版本：从 v3.0.0.0 版本开始引入
+
+#### maxInsertBatchRows
+- 说明：一批写入的最大条数 
+- 默认值：1000000
+- 最小值：1
+- 最大值：2147483647
+- 动态修改：支持通过 SQL 修改，立即生效
+- 支持版本：从 v3.0.0.0 版本开始引入
 
 ### 区域相关
 |参数名称|支持版本|动态修改|参数含义|
