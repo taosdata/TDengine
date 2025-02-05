@@ -69,6 +69,10 @@ extern "C" {
 #define HEAD_MODE(x) x % 2
 #define HEAD_ALGO(x) x / 2
 
+#ifdef TD_ACORE
+#define TD_TSZ
+#endif
+
 #ifdef TD_TSZ
 extern bool lossyFloat;
 extern bool lossyDouble;

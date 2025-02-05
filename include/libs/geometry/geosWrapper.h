@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#ifdef TD_GEOS
 #include <stdint.h>
 #include "os.h"
 
@@ -54,6 +55,7 @@ int32_t doContainsProperly(const GEOSGeometry *geom1, const GEOSPreparedGeometry
 int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom,
                      const GEOSPreparedGeometry **outputPreparedGeom);
 void    destroyGeometry(GEOSGeometry **geom, const GEOSPreparedGeometry **preparedGeom);
+#endif
 
 #ifdef __cplusplus
 }

@@ -122,6 +122,9 @@ SET(JEMALLOC_ENABLED OFF)
 # geos
 ADD_DEFINITIONS(-DTD_GEOS)
 
+# pcre2
+ADD_DEFINITIONS(-DTD_PRCE2)
+
 IF(TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
 
