@@ -1702,7 +1702,7 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateColsFunction(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+static int32_t invalidColsFunction(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
 }
 
@@ -5654,7 +5654,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   },
   {
     .name = "cols",
-    .translateFunc = translateColsFunction,
+    .translateFunc = invalidColsFunction,
   },
 };
 // clang-format on

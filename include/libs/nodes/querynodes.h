@@ -699,6 +699,8 @@ char*   getJoinSTypeString(EJoinSubType type);
 char*   getFullJoinTypeString(EJoinType type, EJoinSubType stype);
 int32_t mergeJoinConds(SNode** ppDst, SNode** ppSrc);
 
+int32_t rewriteExprAliasName(SExprNode* pNode, int64_t num);
+
 #ifdef __cplusplus
 }
 #endif

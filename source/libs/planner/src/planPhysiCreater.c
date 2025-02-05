@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "nodes.h"
 #include "planInt.h"
 
 #include "catalog.h"
@@ -30,98 +31,106 @@ typedef struct SSlotIndex {
   SArray* pSlotIdsInfo;  // duplicate name slot
 } SSlotIndex;
 
+static int64_t getExprBindIndexStr(SNode* pNode, char* bindInfo) {
+  if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (pCol->dataBlockId == 0) {
+      return 0;
+    }
+  }
+  if (nodesIsExprNode(pNode)) {
+    SExprNode* pExpr = (SExprNode*)pNode;
+    if (pExpr->bindTupleFuncIdx > 0 && pExpr->bindTupleFuncIdx <= 9) {
+      bindInfo[0] = '0' + pExpr->bindTupleFuncIdx;
+      return 1;
+    } else if (pExpr->bindTupleFuncIdx != 0) {
+      return tsnprintf(bindInfo, sizeof(bindInfo), "%d", pExpr->bindTupleFuncIdx);
+    }
+  }
+  return 0;
+}
+
+enum {
+  SLOT_KEY_TYPE_ALL = 1,
+  SLOT_KEY_TYPE_COLNAME = 2,
+};
+
+static int32_t getSlotKeyHelper(SNode* pNode, const char* pPreName, const char* name, char** ppKey, int32_t callocLen,
+                                int32_t* pLen, uint16_t extraBufLen, int8_t slotKeyType) {
+  int32_t code = 0;
+  char    bindInfo[16] = {0};
+  //int     exBindInfoLen = getExprBindIndexStr(pNode, bindInfo);
+  *ppKey = taosMemoryCalloc(1, callocLen);
+  if (!*ppKey) {
+    return terrno;
+  }
+  if (slotKeyType == SLOT_KEY_TYPE_ALL) {
+    TAOS_STRNCAT(*ppKey, pPreName, TSDB_TABLE_NAME_LEN);
+    TAOS_STRNCAT(*ppKey, ".", 2);
+    TAOS_STRNCAT(*ppKey, name, TSDB_COL_NAME_LEN);
+    // if (exBindInfoLen > 0) {
+    //   TAOS_STRNCAT(*ppKey, bindInfo, exBindInfoLen);
+    // }
+    *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
+  } else {
+    TAOS_STRNCAT(*ppKey, name, TSDB_COL_NAME_LEN);
+    *pLen = strlen(*ppKey);
+  }
+
+  return code;
+}
+
 static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int32_t* pLen, uint16_t extraBufLen) {
   int32_t code = 0;
+  int32_t callocLen = 0;
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
     if (NULL != pStmtName) {
       if ('\0' != pStmtName[0]) {
-        *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
-        if (!*ppKey) {
-          return terrno;
-        }
-        TAOS_STRNCAT(*ppKey, pStmtName, TSDB_TABLE_NAME_LEN);
-        TAOS_STRNCAT(*ppKey, ".", 2);
-        TAOS_STRNCAT(*ppKey, pCol->node.aliasName, TSDB_COL_NAME_LEN);
-        *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
-        return code;
+        callocLen = TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen;
+        return getSlotKeyHelper(pNode, pStmtName, pCol->node.aliasName, ppKey, callocLen, pLen, extraBufLen,
+                                SLOT_KEY_TYPE_ALL);
       } else {
-        *ppKey = taosMemoryCalloc(1, TSDB_COL_NAME_LEN + 1 + extraBufLen);
-        if (!*ppKey) {
-          return terrno;
-        }
-        TAOS_STRNCAT(*ppKey, pCol->node.aliasName, TSDB_COL_NAME_LEN);
-        *pLen = strlen(*ppKey);
-        return code;
+        callocLen = TSDB_COL_NAME_LEN + 1 + extraBufLen;
+        return getSlotKeyHelper(pNode, pStmtName, pCol->node.aliasName, ppKey, callocLen, pLen, extraBufLen,
+                                SLOT_KEY_TYPE_COLNAME);
       }
     }
     if ('\0' == pCol->tableAlias[0]) {
-      *ppKey = taosMemoryCalloc(1, TSDB_COL_NAME_LEN + 1 + extraBufLen);
-      if (!*ppKey) {
-        return terrno;
-      }
-      TAOS_STRNCAT(*ppKey, pCol->colName, TSDB_COL_NAME_LEN);
-      *pLen = strlen(*ppKey);
-      return code;
+      callocLen = TSDB_COL_NAME_LEN + 1 + extraBufLen;
+      return getSlotKeyHelper(pNode, pStmtName, pCol->colName, ppKey, callocLen, pLen, extraBufLen,
+                              SLOT_KEY_TYPE_COLNAME);
     }
-
-    *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
-    if (!*ppKey) {
-      return terrno;
-    }
-    TAOS_STRNCAT(*ppKey, pCol->tableAlias, TSDB_TABLE_NAME_LEN);
-    TAOS_STRNCAT(*ppKey, ".", 2);
-    TAOS_STRNCAT(*ppKey, pCol->colName, TSDB_COL_NAME_LEN);
-    *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
-    return code;
+    callocLen = TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen;
+    return getSlotKeyHelper(pNode, pCol->tableAlias, pCol->colName, ppKey, callocLen, pLen, extraBufLen,
+                            SLOT_KEY_TYPE_ALL);
   } else if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     if (FUNCTION_TYPE_TBNAME == pFunc->funcType) {
       SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 0);
       if (pVal) {
         if (NULL != pStmtName && '\0' != pStmtName[0]) {
-          *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
-          if (!*ppKey) {
-            return terrno;
-          }
-          TAOS_STRNCAT(*ppKey, pStmtName, TSDB_TABLE_NAME_LEN);
-          TAOS_STRNCAT(*ppKey, ".", 2);
-          TAOS_STRNCAT(*ppKey, ((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN);
-          *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
-          return code;
+          callocLen = TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen;
+          return getSlotKeyHelper(pNode, pStmtName, ((SExprNode*)pNode)->aliasName, ppKey, callocLen, pLen, extraBufLen,
+                                  SLOT_KEY_TYPE_ALL);
         }
         int32_t literalLen = strlen(pVal->literal);
-        *ppKey = taosMemoryCalloc(1, literalLen + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
-        if (!*ppKey) {
-          return terrno;
-        }
-        TAOS_STRNCAT(*ppKey, pVal->literal, literalLen);
-        TAOS_STRNCAT(*ppKey, ".", 2);
-        TAOS_STRNCAT(*ppKey, ((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN);
-        *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
-        return code;
+        callocLen = literalLen + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen;
+        return getSlotKeyHelper(pNode, pVal->literal, ((SExprNode*)pNode)->aliasName, ppKey, callocLen, pLen,
+                                extraBufLen, SLOT_KEY_TYPE_ALL);
       }
     }
   }
 
   if (NULL != pStmtName && '\0' != pStmtName[0]) {
-    *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
-    if (!*ppKey) {
-      return terrno;
-    }
-    TAOS_STRNCAT(*ppKey, pStmtName, TSDB_TABLE_NAME_LEN);
-    TAOS_STRNCAT(*ppKey, ".", 2);
-    TAOS_STRNCAT(*ppKey, ((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN);
-    *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
-    return code;
+    callocLen = TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen;
+    return getSlotKeyHelper(pNode, pStmtName, ((SExprNode*)pNode)->aliasName, ppKey, callocLen, pLen, extraBufLen,
+                            SLOT_KEY_TYPE_ALL);
   }
 
-  *ppKey = taosMemoryCalloc(1, TSDB_COL_NAME_LEN + 1 + extraBufLen);
-  if (!*ppKey) {
-    return terrno;
-  }
-  TAOS_STRNCAT(*ppKey, ((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN);
-  *pLen = strlen(*ppKey);
+  callocLen = TSDB_COL_NAME_LEN + 1 + extraBufLen;
+  return getSlotKeyHelper(pNode, pStmtName, ((SExprNode*)pNode)->aliasName, ppKey, callocLen, pLen, extraBufLen,
+                          SLOT_KEY_TYPE_COLNAME);
   return code;
 }
 

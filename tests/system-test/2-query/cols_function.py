@@ -506,9 +506,35 @@ class TDTestCase:
         tdSql.checkData(1, 5, 1734574929003)
         tdSql.checkData(1, 6, 3)
         
-        # todo 2, sub query has cols func
-        # select * from (select cols(last_row(c0), ts as t1, c1 as c11), cols(first(c0), ts as t2, c1 c21), first(c0)  from test.meters where c0 < 4);
-        # todo 3, cols on system table
+        # sub query has cols func
+        tdSql.query(f'select  c11 from (select cols(last_row(c0), ts as t1, c1 as c11), cols(first(c0), ts as t2, c1 c21), first(c0)  from test.meters where c0 < 4)')
+        tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, 3)
+        tdSql.query(f'select  c11, c21 from (select cols(last_row(c0), ts as t1, c1 as c11), cols(first(c0), ts as t2, c1 c21), first(c0)  from test.meters where c0 < 4)')
+        tdSql.checkRows(1)
+        tdSql.checkCols(2)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(0, 1, 1)
+        tdSql.query(f'select  c1, c21 from (select cols(last_row(c0), ts as t1, c1), cols(first(c0), ts as t2, c1 c21), first(c0)  from test.meters where c0 < 4)')
+        tdSql.checkRows(1)
+        tdSql.checkCols(2)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(0, 1, 1)
+        tdSql.error(f'select  c1 from (select cols(last_row(c0), ts as t1, c1), cols(first(c0), ts as t2, c1), first(c0)  from test.meters where c0 < 4)')
+
+        # cols on system table
+        tdSql.query(f'select cols(max(vgroup_id), uid) from information_schema.ins_tables')
+        tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.query(f'select cols(max(vgroup_id), uid, `ttl`, create_time) from information_schema.ins_tables')
+        tdSql.checkRows(1)
+        tdSql.checkCols(3)
+        tdSql.query(f'select cols(max(vgroup_id), uid as uidname) from information_schema.ins_tables')
+        tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.error(f'select cols(last(vgroup_id), uid, `ttl`, create_time) from information_schema.ins_tables')
+        tdSql.error(f'select cols(first(vgroup_id), uid, `ttl`, create_time) from information_schema.ins_tables')     
 
     def funcSupperTableTest(self):
         tdSql.execute('create database if not exists db;')
@@ -534,7 +560,7 @@ class TDTestCase:
         tdSql.checkData(0, 6, 'c2')
         tdSql.checkData(0, 7, True)
         
-        #tdSql.execute(f'drop table if exists db.st')
+        tdSql.execute(f'drop table if exists db.st')
 
     
     def funcNestTest(self):

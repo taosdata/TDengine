@@ -1574,22 +1574,28 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
     STempTableNode* pTempTable = (STempTableNode*)pTable;
     SNodeList*      pProjectList = getProjectList(pTempTable->pSubquery);
     SNode*          pNode;
+    SExprNode*      pFoundExpr = NULL;
     FOREACH(pNode, pProjectList) {
       SExprNode* pExpr = (SExprNode*)pNode;
-      if (0 == strcmp(pCol->colName, pExpr->aliasName)) {
+      if (0 == strcmp(pCol->colName, pExpr->aliasName) || 0 == strcmp(pCol->colName, pExpr->userAlias)) {
         if (*pFound) {
           return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, pCol->colName);
         }
-        code = setColumnInfoByExpr(pTempTable, pExpr, pColRef);
-        if (TSDB_CODE_SUCCESS != code) {
-          break;
-        }
+        pFoundExpr = pExpr;
         *pFound = true;
       } else if (isPrimaryKeyImpl(pNode) && isInternalPrimaryKey(pCol)) {
-        code = setColumnInfoByExpr(pTempTable, pExpr, pColRef);
-        if (TSDB_CODE_SUCCESS != code) break;
+        if (*pFound) {
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, pCol->colName);
+        }
+        pFoundExpr = pExpr;
         pCol->isPrimTs = true;
         *pFound = true;
+      }
+    }
+    if (pFoundExpr) {
+      code = setColumnInfoByExpr(pTempTable, pFoundExpr, pColRef);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
       }
     }
   }
@@ -5561,7 +5567,7 @@ static int32_t rewriteProjectAlias(SNodeList* pProjectionList) {
     if ('\0' == pExpr->userAlias[0]) {
       tstrncpy(pExpr->userAlias, pExpr->aliasName, TSDB_COL_NAME_LEN);
     }
-    snprintf(pExpr->aliasName, TSDB_COL_NAME_LEN,"#expr_%d", no++);
+    rewriteExprAliasName(pExpr, no++);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -7622,6 +7628,16 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
 }
 
 static int32_t translateColsFunction(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable)) {
+    SNode* pSubquery = ((STempTableNode*)pSelect->pFromTable)->pSubquery;
+    if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
+      SSelectStmt* pSubSelect = (SSelectStmt*)pSubquery;
+      int32_t      code = translateColsFunction(pCxt, pSubSelect);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+    }
+  }
   SNodeList* selectFuncList = NULL;
   int32_t    code = rewriteColsFunction(pCxt, &pSelect->pProjectionList, &selectFuncList);
   if (code == TSDB_CODE_SUCCESS) {
@@ -7647,9 +7663,9 @@ _end:
 static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrStmt = (SNode*)pSelect;
   pCxt->dual = false;
-  int32_t code = translateFrom(pCxt, &pSelect->pFromTable);
+  int32_t code = translateColsFunction(pCxt, pSelect);
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateColsFunction(pCxt, pSelect);
+    code = translateFrom(pCxt, &pSelect->pFromTable);
   }
   if (TSDB_CODE_SUCCESS == code) {
     pSelect->precision = ((STableNode*)pSelect->pFromTable)->precision;

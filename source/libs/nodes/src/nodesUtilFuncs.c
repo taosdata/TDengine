@@ -3237,3 +3237,7 @@ int32_t nodesListDeduplicate(SNodeList** ppList) {
   }
   return code;
 }
+
+int32_t rewriteExprAliasName(SExprNode* pNode, int64_t num) {
+  return tsnprintf(pNode->aliasName, TSDB_COL_NAME_LEN, "expr_%d", num);
+}

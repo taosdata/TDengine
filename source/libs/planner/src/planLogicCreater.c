@@ -152,7 +152,7 @@ static EDealRes doNameExpr(SNode* pNode, void* pContext) {
     case QUERY_NODE_LOGIC_CONDITION:
     case QUERY_NODE_FUNCTION: {
       if ('\0' == ((SExprNode*)pNode)->aliasName[0]) {
-        snprintf(((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN, "#expr_%p", pNode);
+        rewriteExprAliasName((SExprNode*)pNode, (int64_t)pNode);
       }
       return DEAL_RES_IGNORE_CHILD;
     }
