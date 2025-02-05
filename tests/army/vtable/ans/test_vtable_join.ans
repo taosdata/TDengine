@@ -4859,7 +4859,6 @@ taos> select "test1234!@#$%^&*():'><?/.,][}{" from test_vtable_join.vtb_virtual_
 ===================================
  test1234!@#$%^&*():'><?/.,][}{   |
 
-taos>
 taos> select tb1.binary_16_col from test_vtable_join.vtb_virtual_ctb_1 as tb1 join test_vtable_join.vtb_virtual_ctb_2 as tb2 on tb1.ts=tb2.ts where tb1.binary_16_col is not null group by tb1.binary_16_col having tb1.binary_16_col is not null slimit 20 limit 20;
    binary_16_col    |
 =====================
