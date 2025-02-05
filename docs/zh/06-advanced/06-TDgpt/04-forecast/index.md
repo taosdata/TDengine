@@ -91,3 +91,18 @@ taos> select _flow, _fhigh, _frowts, forecast(i32) from foo;
 ## 内置预测算法
 - [arima](./02-arima.md)
 - [holtwinters](./03-holtwinters.md)
+- CES (Complex Exponential Smoothing) 
+- Theta
+- Prophet
+- XGBoost
+- LightGBM
+- Multiple Seasonal-Trend decomposition using LOESS (MSTL)
+- ETS (Error, Trend, Seasonal)
+- Long Short-Term Memory (LSTM)
+- Multilayer Perceptron (MLP)
+- DeepAR
+- N-BEATS
+- N-HiTS
+- PatchTST (Patch Time Series Transformer)
+- Temporal Fusion Transformer
+- TimesNet
