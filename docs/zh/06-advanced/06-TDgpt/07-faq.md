@@ -26,4 +26,10 @@ curl: (7) Failed to connect to 127.0.0.1 port 6090: Connection refused
 
 >请勿使用 systemctl status taosanode 检查 taosanode 是否正常
 
-<b>2. 查询结果不正确</b>
+<b>2. 服务正常，查询过程返回服务不可用</b>
+```bash
+taos>   select _frowts,forecast(current, 'algo=arima, alpha=95, wncheck=0, rows=20, start=1500000000000,every=864000') from d1 where ts<='2017-07-14 10:40:09.999';
+
+DB error: Analysis service can't access[0x80000441] (60.195613s)
+```
+
