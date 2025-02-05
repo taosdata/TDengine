@@ -27,59 +27,59 @@ collectd 使用插件机制可以以多种形式将采集到的监控数据写�
 
 1. **配置直接采集插件**
 
-修改 collectd 配置文件（默认位置 /etc/collectd/collectd.conf）相关配置项。
+    修改 collectd 配置文件（默认位置 /etc/collectd/collectd.conf）相关配置项。
 
-```xml
-LoadPlugin network
-<Plugin network>
-         Server "<taosAdapter's host>" "<port for collectd direct>"
-</Plugin>
-```
+    ```xml
+    LoadPlugin network
+    <Plugin network>
+             Server "<taosAdapter's host>" "<port for collectd direct>"
+    </Plugin>
+    ```
 
-其中 \<taosAdapter's host> 填写运行 taosAdapter 的服务器域名或 IP 地址。\<port for collectd direct> 填写 taosAdapter 用于接收 collectd 数据的端口（默认为 6045）。
+    其中 \<taosAdapter's host> 填写运行 taosAdapter 的服务器域名或 IP 地址。\<port for collectd direct> 填写 taosAdapter 用于接收 collectd 数据的端口（默认为 6045）。
 
-示例如下：
+    示例如下：
 
-```xml
-LoadPlugin network
-<Plugin network>
-         Server "127.0.0.1" "6045"
-</Plugin>
-```
+    ```xml
+    LoadPlugin network
+    <Plugin network>
+             Server "127.0.0.1" "6045"
+    </Plugin>
+    ```
 
 2. **配置 write_tsdb 插件**
 
-修改 collectd 配置文件（默认位置 /etc/collectd/collectd.conf）相关配置项。
+    修改 collectd 配置文件（默认位置 /etc/collectd/collectd.conf）相关配置项。
 
-```xml
-LoadPlugin write_tsdb
-<Plugin write_tsdb>
-        <Node>
-                Host "<taosAdapter's host>"
-                Port "<port for collectd write_tsdb plugin>"
-                ...
-        </Node>
-</Plugin>
-```
+    ```xml
+    LoadPlugin write_tsdb
+    <Plugin write_tsdb>
+            <Node>
+                    Host "<taosAdapter's host>"
+                    Port "<port for collectd write_tsdb plugin>"
+                    ...
+            </Node>
+    </Plugin>
+    ```
 
-其中 \<taosAdapter's host> 填写运行 taosAdapter 的服务器域名或 IP 地址。\<port for collectd write_tsdb plugin> 填写 taosAdapter 用于接收 collectd write_tsdb 插件的数据（默认为 6047）。
+    其中 \<taosAdapter's host> 填写运行 taosAdapter 的服务器域名或 IP 地址。\<port for collectd write_tsdb plugin> 填写 taosAdapter 用于接收 collectd write_tsdb 插件的数据（默认为 6047）。
 
-```xml
-LoadPlugin write_tsdb
-<Plugin write_tsdb>
-        <Node>
-                Host "127.0.0.1"
-                Port "6047"
-                HostTags "status=production"
-                StoreRates false
-                AlwaysAppendDS false
-        </Node>
-</Plugin>
-```
+    ```xml
+    LoadPlugin write_tsdb
+    <Plugin write_tsdb>
+            <Node>
+                    Host "127.0.0.1"
+                    Port "6047"
+                    HostTags "status=production"
+                    StoreRates false
+                    AlwaysAppendDS false
+            </Node>
+    </Plugin>
+    ```
 
-然后重启 collectd：
+    然后重启 collectd：
 
-```shell
-systemctl restart collectd
-```
+    ```shell
+    systemctl restart collectd
+    ```
 
