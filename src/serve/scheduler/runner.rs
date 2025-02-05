@@ -1569,7 +1569,6 @@ impl TaskJob {
                         _ = opts.cancellation.cancelled() => {
                             tracing::info!("task cancelled");
                             opts.last_state.write().await.replace(LastState::Stopped);
-                            global.send_task_activity(Activity::stop(opts.task.id));
                             (&mut future).await;
                             true
                         }

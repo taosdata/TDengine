@@ -675,11 +675,12 @@ script_runner = "@duckscript"
 script = """
 !include_files .github/helpers.duck
 
+cus_prompt = get_env CUS_PROMPT
 profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
-  cp target/debug/taosx.exe target/deploy/taosx.exe
+  cp target/debug/taosx.exe target/deploy/${cus_prompt}x.exe
 else
-  upx_run target/${profile}/taosx.exe target/deploy/taosx.exe
+  upx_run target/${profile}/taosx.exe target/deploy/${cus_prompt}x.exe
 end
 """
 
@@ -718,6 +719,7 @@ command = "cargo"
 args = ["fmt", "--check", "--all"]
 
 [tasks.clippy]
+dependencies = ["assert-explorer-dist"]
 command = "cargo"
 args = [
   "clippy",
@@ -775,6 +777,7 @@ script_runner = "@duckscript"
 script = """
 !include_files .github/helpers.duck
 
+cus_prompt = get_env CUS_PROMPT
 profile = get_env "BUILD_PROFILE"
 if eq ${profile} "dev"
   cp target/debug/taos-explorer target/deploy/${cus_prompt}-explorer
@@ -809,10 +812,11 @@ install_crate = { crate_name = "cargo-nextest", binary = "cargo-nextest", test_a
 [tasks.install-toml-cli]
 install_crate = { crate_name = "toml-cli", binary = "toml", test_arg = "--version" }
 [tasks.assert-explorer-dist]
+private = true
 script_runner = "@duckscript"
 script = """
-if not is_dir explorer/server/dist/
-  mkdir explorer/server/dist/
+if not is_dir explorer/dist/
+  mkdir explorer/dist/
 end
 """
 

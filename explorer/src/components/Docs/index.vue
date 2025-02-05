@@ -176,7 +176,7 @@ export default {
       if (name == "TDengine CLI") {
         name = "tdenginecli";
       }
-      if (name == "Google Data Studio") {
+      if (name == "Looker Studio") {
         name = "gdStudio";
       }
       try {

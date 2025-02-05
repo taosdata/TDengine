@@ -226,7 +226,61 @@ export function getDataSources(lang) {
               },
               description: "Indicates the number of allowed write errors during the health check duration. Exceeding the threshold will trigger a Fatal alert.",
               value: "10"
-            }
+            },
+            {
+              name: "num.of.consumers",
+              display: "Number of Consumers",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 1000,
+              },
+              description: "Number of Consumers",
+              value: "0",
+            },
+            {
+              name: "num.of.writers",
+              display: "Number of Writers",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 1000,
+              },
+              description: "Number of Writers",
+              value: "0",
+            },
+            {
+              name: "prefer",
+              display: "Prefer",
+              hint: {
+                type: "str",
+                choices: ["auto", "raw"],
+              },
+              description: "Prefer",
+              value: "auto",
+            },
+            {
+              name: "commit.chunk.size",
+              display: "Commit Chunk Size",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 1000000000,
+              },
+              description: "Commit Chunk Size",
+              value: "0",
+            },
+            {
+              name: "commit.interval.ms",
+              display: "Commit Inerval(ms)",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 1000000,
+              },
+              description: "Commit Inerval(ms)",
+              value: "0",
+            },
           ],
         },
       },
@@ -6105,6 +6159,60 @@ export function getDataSources(lang) {
               },
               description: "表示健康监测时段中允许写入错误的数量。超出阈值，则发送 Fatal 警告。",
               value: "10",
+            },
+            {
+              name: "num.of.consumers",
+              display: "消费者数量",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 1000,
+              },
+              description: "消费者数量",
+              value: "0",
+            },
+            {
+              name: "num.of.writers",
+              display: "写入线程数",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 1000,
+              },
+              description: "写入线程数",
+              value: "0",
+            },
+            {
+              name: "prefer",
+              display: "写入偏好",
+              hint: {
+                type: "str",
+                choices: ["auto", "raw"],
+              },
+              description: "写入偏好，auto: 根据读取的数据程序自动选择",
+              value: "auto",
+            },
+            {
+              name: "commit.chunk.size",
+              display: "缓冲区大小",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 1000000000,
+              },
+              description: "缓冲区大小",
+              value: "0",
+            },
+            {
+              name: "commit.interval.ms",
+              display: "Commit 间隔(毫秒)",
+              hint: {
+                type: "integer",
+                min: 0,
+                max: 1000000,
+              },
+              description: "Commit 间隔(毫秒)",
+              value: "0",
             },
           ],
         },

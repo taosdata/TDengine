@@ -188,9 +188,12 @@ impl Service<Uri> for Svc {
                     };
                 }
                 Box::pin(async move {
-                    Ok::<_, tower::BoxError>(TokioIo::new(
-                        socket.connect(uri.to_string().parse()?).await?,
-                    ))
+                    Ok::<_, tower::BoxError>(TokioIo::new({
+                        let host = uri.host().ok_or("URI must have a host")?;
+                        let port = uri.port_u16().ok_or("URI must have a port")?;
+                        let addr = format!("{}:{}", host, port);
+                        socket.connect(addr.parse()?).await?
+                    }))
                 })
             }
             Err(err) => Box::pin(async move { Err(Box::new(err) as _) }),

@@ -1100,8 +1100,18 @@ async fn sync_concurrently(
         DEFAULT_POLL_INTERVAL
     };
     let timeout = Timeout::from_millis(poll_interval.as_millis() as _);
+
+    static REFRESH_PROGRESS_INTERVAL: std::sync::OnceLock<Duration> = std::sync::OnceLock::new();
+    let refresh_progress_interval = REFRESH_PROGRESS_INTERVAL.get_or_init(|| {
+        Duration::from_secs(
+            std::env::var("REFRESH_PROGRESS_INTERVAL")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(300),
+        )
+    });
     let refresh_progress_interval =
-        crate::utils::interval::IntervalLimit::new(Duration::from_secs(1));
+        crate::utils::interval::IntervalLimit::new(*refresh_progress_interval);
 
     let async_loop = async {
         loop {

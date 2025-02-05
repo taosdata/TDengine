@@ -1,0 +1,18 @@
+1. Get first POD name:
+
+```sh
+export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} \
+  -l "app.kubernetes.io/name={{ include "tdengine.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
+```
+
+2. Show dnodes/mnodes:
+
+```sh
+kubectl --namespace {{ .Release.Namespace }} exec $POD_NAME -- taos -s "show dnodes; show mnodes"
+```
+
+3. Run into taos shell:
+
+```sh
+  kubectl --namespace {{ .Release.Namespace }} exec -it $POD_NAME -- taos
+```

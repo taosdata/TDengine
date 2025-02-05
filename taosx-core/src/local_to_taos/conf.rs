@@ -9,6 +9,12 @@ use taos::{AsyncQueryable, Dsn, Taos};
 
 #[derive(Debug, Clone)]
 pub struct LocalRestoreConfig {
+    #[allow(unused)]
+    task_id: Option<String>,
+    #[allow(unused)]
+    raw_from: Dsn,
+    #[allow(unused)]
+    raw_to: Dsn,
     /// 备份对象的元信息
     pub backup_obj: BackupObject,
     /// 备份文件的目录，默认是 $TAOSX_DATA_DIR/backup/$TASK_ID
@@ -26,8 +32,6 @@ pub struct LocalRestoreConfig {
     #[allow(unused)]
     /// 错误重试的间隔。默认为 5s。
     pub error_retry_interval: Duration,
-    /// taos 的原始 dsn
-    pub raw_to: Dsn,
     /// 恢复到指定的数据库，如果为 None，则使用 topic_meta.db_name
     pub database: Option<String>,
     /// 强制恢复，如果为 true，则删除已存在的数据库或表。默认为 true
@@ -115,7 +119,19 @@ impl LocalRestoreConfig {
                 // create stable
                 let sql = format!("USE `{}`", db_name);
                 tracing::info!("exec sql: {}", sql);
-                taos.exec(sql).await?;
+                let res = taos.exec(sql.clone()).await;
+                if let Err(e) = res {
+                    if e.to_string().to_lowercase().contains("database not exist") {
+                        let db_sql = self.backup_obj.db_sql.clone();
+                        let db_sql = db_sql.replace(&self.backup_obj.db_name, &db_name);
+                        tracing::info!("exec sql: {}", db_sql);
+                        taos.exec(db_sql).await?;
+                        taos.exec(sql).await?;
+                    } else {
+                        return Err(anyhow::Error::from(e).context("failed to use database"));
+                    }
+                }
+
                 let sql = stable_sql.clone();
                 let sql = sql.replace(&self.backup_obj.db_name, &db_name);
                 tracing::info!("exec sql: {}", sql);
@@ -197,6 +213,9 @@ impl LocalRestoreConfigBuilder {
         let force = utils::parse_key_in_dsn::<bool>(&self.to, "force")?.unwrap_or(true);
 
         Ok(LocalRestoreConfig {
+            task_id: self.task_id.clone(),
+            raw_from: self.from.clone(),
+            raw_to: self.to.clone(),
             backup_obj,
             backup_dir,
             start_from,
@@ -204,7 +223,6 @@ impl LocalRestoreConfigBuilder {
             error_restore_dir,
             error_retry_max,
             error_retry_interval,
-            raw_to: self.to.clone(),
             database: self.to.subject.clone(),
             force,
         })

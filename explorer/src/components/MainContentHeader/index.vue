@@ -39,7 +39,7 @@ export default {
   font-size: 28px;
   font-weight: 700;
   color: $title-color;
-  text-transform: capitalize;
+  // text-transform: capitalize; 首字母大写
   padding-left: 15px;
   border-left: 4px solid $color-primary;
   border-radius: 2px;

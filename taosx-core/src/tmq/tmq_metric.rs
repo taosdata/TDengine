@@ -241,6 +241,7 @@ impl TaskMetrics for TmqMetrics {
         self.write_raw_fails.store(0, SeqCst);
         self.success_blocks.store(0, SeqCst);
         self.out_of_range_rows.store(0, SeqCst);
+        self.commits.store(0, SeqCst);
     }
 
     fn com(&self) -> &CommonMetrics {

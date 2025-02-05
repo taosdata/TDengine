@@ -146,6 +146,7 @@ export default {
         let dom = document.querySelector(".block-title.top");
         if (dom) {
           const mainDom = document.querySelector(".main_content");
+          const parserDom = document.querySelector('#parser')
 
           const scrollTop = mainDom.scrollTop;
           let top = scrollTop >= dom.offsetTop ? scrollTop : dom.offsetTop;
@@ -158,6 +159,7 @@ export default {
             }else{
               let commomtop=scrollTop >= dom.offsetTop ? scrollTop -160 : dom.offsetTop;
                 this.$refs.result.style.top = commomtop + "px";
+                this.$refs.result.style.maxHeight = parserDom?.offsetHeight-30 + "px";
             }
           }
         }
