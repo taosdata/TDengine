@@ -40,13 +40,12 @@ fn upx_run
     echo "UPX found: ${upx}"
   end
 
-  output = exec ${upx} --version | grep 'upx 4'
+  output = exec ${upx} --version
 
-  stdout = set ${output.stdout}
-
-  if contains stdout "upx 4"
+  if contains ${output.stdout} "upx 4.2.4"
     echo "Use upx version: ${stdout}"
   else
+    echo "${output.stdout}"
     echo "UPX version not 4, use local upx in ${upx_dir}"
     if use_local_upx
       echo "WARN: Local upx is not 4.x, please remove ${upx_dir} and update it"

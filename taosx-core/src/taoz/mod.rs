@@ -36,12 +36,10 @@ pub struct ZFile {
     name: (String, Option<DateTime<Utc>>, i32, u64),
     /// 压缩级别
     compression_level: async_compression::Level,
-
     /// 最大文件大小
     max_file_size: u64,
     /// 文件写完后，移动到的目录
     move_to: Option<PathBuf>,
-
     /// 当前文件路径
     current_file: PathBuf,
     /// writer
@@ -256,6 +254,11 @@ impl ZFile {
 
                 let old_file = self.current_file.clone();
                 let new_file = self.dir.clone().join(&new_name);
+                tracing::debug!(
+                    "rename file from {} to {}",
+                    old_file.display(),
+                    new_file.display()
+                );
                 tokio::fs::rename(old_file.as_path(), new_file.as_path())
                     .await
                     .map_err(|err| {
@@ -270,15 +273,7 @@ impl ZFile {
                 self.name.1 = Some(now);
             }
 
-            // 如果 move_to 不为空，则将备份文件移动到 move_to 目录
-            if let Some(new_dir) = &self.move_to {
-                let path = self.dir.clone().join(self.get_file_name());
-                let new_path = new_dir.clone().join(self.get_file_name());
-                tokio::fs::rename(path, new_path).await.map_err(|error| {
-                    tracing::error!("failed to move file: {:#?}", error);
-                    error
-                })?;
-            }
+            self.move_to().await?;
 
             // create a new ZFile
             self.name.3 += 1;
@@ -336,6 +331,24 @@ impl ZFile {
     pub async fn finish_raw_block(&mut self) -> anyhow::Result<()> {
         self.current_size += self.writer.finish_data_async().await?;
         self.check_or_next().await?;
+        Ok(())
+    }
+
+    /// 如果 move_to 不为空，则将当前备份文件移动到 move_to 目录
+    pub async fn move_to(&self) -> anyhow::Result<()> {
+        if let Some(new_dir) = &self.move_to {
+            let path = self.dir.clone().join(self.get_file_name());
+            let new_path = new_dir.clone().join(self.get_file_name());
+            tracing::debug!(
+                "move file from {} to {}",
+                path.display(),
+                new_path.display()
+            );
+            tokio::fs::rename(path, new_path).await.map_err(|error| {
+                tracing::error!("failed to move file: {:#?}", error);
+                error
+            })?;
+        }
         Ok(())
     }
 

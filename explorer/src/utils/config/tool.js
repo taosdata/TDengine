@@ -84,7 +84,7 @@ export default () => [
     ]
   },
   {
-    name: "Google Data Studio",
+    name: "Looker Studio",
     desc: i18n.t("docs.virtual.gds.desc"),
     docs: {
       zh:mdx.gdsDoc,
