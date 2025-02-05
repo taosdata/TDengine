@@ -75,7 +75,9 @@ void taos_block_sigalrm(void) {
 }
 
 #else
+#ifndef TD_ACORE
 #include <sys/syscall.h>
+#endif
 #include <unistd.h>
 
 static void taosDeleteTimer(void *tharg) {

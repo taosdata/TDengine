@@ -40,7 +40,7 @@
 #if defined(DARWIN)
 #include <dispatch/dispatch.h>
 #include "osEok.h"
-#else
+#elif !defined(TD_ACORE)
 #include <sys/epoll.h>
 #endif
 #endif

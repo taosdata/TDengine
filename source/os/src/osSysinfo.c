@@ -124,11 +124,13 @@ LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception);
 #else
 
 #include <argp.h>
+#ifndef TD_ACORE
 #include <linux/sysctl.h>
 #include <sys/file.h>
 #include <sys/resource.h>
 #include <sys/statvfs.h>
 #include <sys/syscall.h>
+#endif
 #include <sys/utsname.h>
 #include <unistd.h>
 
