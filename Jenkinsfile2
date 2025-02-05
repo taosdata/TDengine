@@ -167,7 +167,7 @@ def pre_test(){
             cd ${WK}
             git checkout feat/3.0/TS-4897
             cd ${WKC}
-            git checkout feat/3.0/TS-4897
+            git checkout ''' + env.CHANGE_TARGET + '''
         '''
     }
     if (env.CHANGE_URL =~ /\/TDengine\//) {
@@ -278,7 +278,7 @@ def pre_test_win(){
         '''
         bat '''
             cd %WIN_COMMUNITY_ROOT%
-            git checkout feat/3.0/TS-4897
+            git checkout ''' + env.CHANGE_TARGET + '''
         '''
     }
     script {
