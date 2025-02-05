@@ -11,7 +11,6 @@
  */
 
 #include <bench.h>
-#include "benchLog.h"
 #include <toolsdef.h>
 
 extern char      g_configDir[MAX_PATH_LEN];
@@ -29,6 +28,8 @@ extern char      g_configDir[MAX_PATH_LEN];
 #define TAOSBENCHMARK_STATUS "unknown"
 #endif
 
+// libtaos.so
+extern char buildinfo[];
 
 char *g_aggreFuncDemo[] = {"*",
                            "count(*)",
@@ -48,7 +49,9 @@ void printVersion() {
 
     // version
     printf("taosBenchmark version: %s\ngit: %s\n", taosBenchmark_ver, taosBenchmark_commit);
-    printf("build: %s\n", getBuildInfo());
+#ifdef LINUX
+    printf("build: %s\n", buildinfo);
+#endif
     if (strlen(taosBenchmark_status) > 0) {
         printf("status: %s\n", taosBenchmark_status);
     } 
@@ -61,7 +64,7 @@ void parseFieldDatatype(char *dataType, BArray *fields, bool isTag) {
         benchArrayPush(fields, field);
         field = benchArrayGet(fields, 0);
         if (1 == regexMatch(dataType,
-                    "^(BINARY|NCHAR|GEOMETRY|VARBINARY|VARCHAR)(\\([1-9][0-9]*\\))$",
+                    "^(BINARY|NCHAR|JSON)(\\([1-9][0-9]*\\))$",
                     REG_ICASE | REG_EXTENDED)) {
             char type[DATATYPE_BUFF_LEN];
             char length[BIGINT_BUFF_LEN];
@@ -140,30 +143,27 @@ static void initStable() {
 
     c1->min = 9;
     c1->max = 10;    
-    //fun = "4*sin(x)+10*random(5)+10"
+    // fun = "3*sin(x)+10*random(2)"
     c1->funType  = FUNTYPE_SIN;
-    c1->multiple = 4;
-    c1->random   = 5;
+    c1->multiple = 3;
+    c1->random   = 2;
     c1->addend   = 10;
-    c1->base     = 10;
 
     c2->min = 110;
     c2->max = 119;
-    //fun = "1*square(0,60,50,0)+100*random(20)+120"
-    c2->funType  = FUNTYPE_SQUARE;
-    c2->multiple = 1;
-    c2->random   = 20;
-    c2->addend   = 100;
-    c2->base     = 120;
+    // fun = "40*sin(x)+200*random(10)"
+    c2->funType  = FUNTYPE_SIN;
+    c2->multiple = 40;
+    c2->random   = 10;
+    c2->addend   = 200;
 
     c3->min = 115;
     c3->max = 125;
-    // fun = "1*saw(0,40,40,0)+50*random(10)+30"
-    c3->funType  = FUNTYPE_SAW;
+    // fun = "1*sin(x)+1*random(3)"
+    c3->funType  = FUNTYPE_SIN;
     c3->multiple = 1;
-    c3->random   = 10;
-    c3->addend   = 50;
-    c3->base     = 30;
+    c3->random   = 3;
+    c3->addend   = 1;
 
     stbInfo->tags = benchArrayInit(2, sizeof(Field));
     for (int i = 0; i < 2; ++i) {
@@ -183,7 +183,7 @@ static void initStable() {
     tstrncpy(t2->name, "location", TSDB_COL_NAME_LEN + 1);
 
     t1->min = 1;
-    t1->max = 100000;
+    t1->max = 10;
 
 
     stbInfo->insert_interval = 0;
@@ -242,6 +242,7 @@ void initArgument() {
     g_arguments->performance_print = 0;
     g_arguments->output_file = DEFAULT_OUTPUT;
     g_arguments->nthreads = DEFAULT_NTHREADS;
+    g_arguments->nthreads_auto = true;
     g_arguments->table_threads = DEFAULT_NTHREADS;
     g_arguments->prepared_rand = DEFAULT_PREPARED_RAND;
     g_arguments->reqPerReq = DEFAULT_REQ_PER_REQ;
@@ -260,7 +261,7 @@ void initArgument() {
     g_arguments->startTimestamp = DEFAULT_START_TIME;
     g_arguments->partialColNum = 0;
 
-    g_arguments->keep_trying = 3;
+    g_arguments->keep_trying = 0;
     g_arguments->trying_interval = 0;
     g_arguments->iface = TAOSC_IFACE;
     g_arguments->rest_server_ver_major = -1;
@@ -294,7 +295,7 @@ void modifyArgument() {
 #else
             taos_options(TSDB_OPTION_CONFIGDIR, g_configDir);
 #endif
-            g_arguments->host = DEFAULT_HOST;
+            g_arguments->host = NULL;
             g_arguments->port = 0;
         }
 #ifdef WEBSOCKET
@@ -305,6 +306,15 @@ void modifyArgument() {
 
     if (0 != g_arguments->partialColNum) {
         superTable->partialColNum = g_arguments->partialColNum;
+    }
+
+    if (superTable->iface == STMT_IFACE) {
+        //if (g_arguments->reqPerReq > INT16_MAX) {
+        //    g_arguments->reqPerReq = INT16_MAX;
+        //}
+        if (g_arguments->prepared_rand > g_arguments->reqPerReq) {
+            g_arguments->prepared_rand = g_arguments->reqPerReq;
+        }
     }
 
     for (int i = 0; i < superTable->cols->size; ++i) {
@@ -346,6 +356,18 @@ void modifyArgument() {
     if (g_arguments->keep_trying) {
         superTable->keep_trying = g_arguments->keep_trying;
         superTable->trying_interval = g_arguments->trying_interval;
+    }
+
+    if (REST_IFACE == g_arguments->iface) {
+        if (0 != convertServAddr(g_arguments->iface,
+                                 false,
+                                 1)) {
+            errorPrint("%s", "Failed to convert server address\n");
+            return;
+        }
+        encodeAuthBase64();
+        g_arguments->rest_server_ver_major =
+            getServerVersionRest(g_arguments->port);
     }
 }
 

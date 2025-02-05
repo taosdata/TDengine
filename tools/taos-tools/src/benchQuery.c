@@ -11,7 +11,6 @@
  */
 
 #include <bench.h>
-#include "benchLog.h"
 
 extern int g_majorVersionOfClient;
 
@@ -36,27 +35,31 @@ int selectAndGetResult(threadInfo *pThreadInfo, char *command) {
         }
     } else {
         TAOS *taos = pThreadInfo->conn->taos;
-        int64_t rows  = 0;
-        TAOS_RES *res = taos_query(taos, command);
-        int code = taos_errno(res);
-        if (res == NULL || code) {
-            if (YES_IF_FAILED == g_arguments->continueIfFail) {
-                warnPrint("failed to execute sql:%s, "
-                            "code: 0x%08x, reason:%s\n",
-                            command, code, taos_errstr(res));
-            } else {
-                errorPrint("failed to execute sql:%s, "
-                            "code: 0x%08x, reason:%s\n",
-                            command, code, taos_errstr(res));
-                ret = -1;
-            }
+        if (taos_select_db(taos, g_queryInfo.dbName)) {
+            errorPrint("thread[%u]: failed to select database(%s)\n",
+                threadID, dbName);
+            ret = -2;
         } else {
-            //if (strlen(pThreadInfo->filePath) > 0) {
-                rows = fetchResult(res, pThreadInfo);
-            //}
+            TAOS_RES *res = taos_query(taos, command);
+            int code = taos_errno(res);
+            if (res == NULL || code) {
+                if (YES_IF_FAILED == g_arguments->continueIfFail) {
+                    warnPrint("failed to execute sql:%s, "
+                              "code: 0x%08x, reason:%s\n",
+                               command, code, taos_errstr(res));
+                } else {
+                    errorPrint("failed to execute sql:%s, "
+                               "code: 0x%08x, reason:%s\n",
+                               command, code, taos_errstr(res));
+                    ret = -1;
+                }
+            } else {
+                //if (strlen(pThreadInfo->filePath) > 0) {
+                    fetchResult(res, pThreadInfo);
+                //}
+            }
+            taos_free_result(res);
         }
-        taos_free_result(res);
-        debugPrint("query sql:%s rows:%"PRId64"\n", command, rows);
     }
     return ret;
 }
@@ -66,16 +69,6 @@ static void *mixedQuery(void *sarg) {
 #ifdef LINUX
     prctl(PR_SET_NAME, "mixedQuery");
 #endif
-    // use db
-    if (g_queryInfo.dbName) {
-        if (pThreadInfo->conn &&
-            pThreadInfo->conn->taos &&
-            taos_select_db(pThreadInfo->conn->taos, g_queryInfo.dbName)) {
-                errorPrint("thread[%d]: failed to select database(%s)\n", pThreadInfo->threadId, g_queryInfo.dbName);
-                return NULL;
-        }
-    }
-
     int64_t lastPrintTs = toolsGetTimestampMs();
     int64_t st;
     int64_t et;
@@ -106,6 +99,16 @@ static void *mixedQuery(void *sarg) {
                     continue;
                 }
             } else {
+                if (g_queryInfo.dbName != NULL) {
+                    if (taos_select_db(pThreadInfo->conn->taos,
+                                       g_queryInfo.dbName)) {
+                        errorPrint("thread[%d]: failed to "
+                                   "select database(%s)\n",
+                                   pThreadInfo->threadId,
+                                   g_queryInfo.dbName);
+                        return NULL;
+                    }
+                }
                 TAOS_RES *res = taos_query(pThreadInfo->conn->taos,
                                            sql->command);
                 if (res == NULL || taos_errno(res) != 0) {
@@ -168,16 +171,6 @@ static void *specifiedTableQuery(void *sarg) {
     uint64_t totalDelay = 0;
     int32_t  index = 0;
 
-    // use db
-    if (g_queryInfo.dbName) {
-        if (pThreadInfo->conn &&
-            pThreadInfo->conn->taos &&
-            taos_select_db(pThreadInfo->conn->taos, g_queryInfo.dbName)) {
-                errorPrint("thread[%d]: failed to select database(%s)\n", pThreadInfo->threadID, g_queryInfo.dbName);
-                return NULL;
-        }
-    }
-
     uint64_t  queryTimes = g_queryInfo.specifiedQueryInfo.queryTimes;
     pThreadInfo->query_delay_list = benchCalloc(queryTimes,
             sizeof(uint64_t), false);
@@ -205,8 +198,8 @@ static void *specifiedTableQuery(void *sarg) {
                         - (et - st)));  // ms
         }
         if (g_queryInfo.reset_query_cache) {
-            // execute sql 
-            if (selectAndGetResult(pThreadInfo, "RESET QUERY CACHE")) {
+            if (queryDbExecCall(pThreadInfo->conn,
+                                "RESET QUERY CACHE")) {
                 errorPrint("%s() LN%d, reset query cache failed\n",
                            __func__, __LINE__);
                 return NULL;
@@ -435,9 +428,9 @@ static int multi_thread_specified_table_query(uint16_t iface, char* dbName) {
     // check invaid
     if(nSqlCount == 0 || nConcurrent == 0 ) {
         if(nSqlCount == 0)
-           warnPrint("specified table query sql count is %" PRIu64 ".\n", nSqlCount);
+           infoPrint(" query sql count is %" PRIu64 ".  must set query sqls. \n", nSqlCount);
         if(nConcurrent == 0)
-           warnPrint("concurrent is %d , specified_table_query->concurrent is zero. \n", nConcurrent);
+           infoPrint(" concurrent is %d , specified_table_query->concurrent must not zero. \n", nConcurrent);
         return 0;
     }
 
@@ -559,7 +552,8 @@ static int multi_thread_specified_table_query(uint16_t iface, char* dbName) {
                              sql->delay_list[(uint64_t)(totalQueryTimes * 0.95)] / 1E6,
                              /*  p99 */
                              sql->delay_list[(uint64_t)(totalQueryTimes * 0.99)] / 1E6, sql->command);
-        infoPrintNoTimestampToFile("complete query with %d threads and %" PRIu64
+        infoPrintNoTimestampToFile(g_arguments->fpOfInsertResult,
+                                   "complete query with %d threads and %" PRIu64
                                    " query delay "
                                    "avg: \t%.6fs "
                                    "min: \t%.6fs "
@@ -581,7 +575,7 @@ static int multi_thread_specified_table_query(uint16_t iface, char* dbName) {
     }
 
     g_queryInfo.specifiedQueryInfo.totalQueried =
-        nSqlCount * g_queryInfo.specifiedQueryInfo.queryTimes * nConcurrent;
+        g_queryInfo.specifiedQueryInfo.queryTimes * nConcurrent;
     tmfree((char *)pids);
     tmfree((char *)infos);
 
@@ -641,7 +635,7 @@ static int multi_thread_specified_mixed_query(uint16_t iface, char* dbName) {
     for (int i = 0; i < thread; ++i) {
         queryThreadInfo * pThreadInfo = infos + i;
         benchArrayAddBatch(delay_list, pThreadInfo->query_delay_list->pData,
-                pThreadInfo->query_delay_list->size, true);
+                pThreadInfo->query_delay_list->size);
         total_delay += pThreadInfo->total_delay;
         tmfree(pThreadInfo->query_delay_list);
         pThreadInfo->query_delay_list = NULL;
@@ -661,7 +655,7 @@ static int multi_thread_specified_mixed_query(uint16_t iface, char* dbName) {
     if (delay_list->size) {
         infoPrint(
                 "spend %.6fs using "
-                "%d threads complete query %d times,  "
+                "%d threads complete query %d times,cd  "
                 "min delay: %.6fs, "
                 "avg delay: %.6fs, "
                 "p90: %.6fs, "
@@ -686,9 +680,6 @@ static int multi_thread_specified_mixed_query(uint16_t iface, char* dbName) {
     }
     benchArrayDestroy(delay_list);
     code = 0;
-    g_queryInfo.specifiedQueryInfo.totalQueried = 
-        g_queryInfo.specifiedQueryInfo.sqls->size * g_queryInfo.specifiedQueryInfo.queryTimes * thread;
-
 OVER:
     tmfree(pids);
     tmfree(infos);
@@ -859,27 +850,19 @@ int queryTestProcess() {
     uint64_t endTs = toolsGetTimestampMs();
     int64_t t = endTs - startTs;
     double  tInS = (double)t / 1000.0;
-
-    // specifiedQuery
-    if (g_queryInfo.specifiedQueryInfo.totalQueried) {
+    if (g_queryInfo.specifiedQueryInfo.totalQueried)
         infoPrint("Total specified queries: %" PRIu64 "\n",
               g_queryInfo.specifiedQueryInfo.totalQueried);
-    }
-    
-    // superQuery
-    if (g_queryInfo.superQueryInfo.totalQueried) {
-        infoPrint("Total super queries: %" PRIu64 "\n",
-                g_queryInfo.superQueryInfo.totalQueried);
-    }
-
-    // total QPS
+    if (g_queryInfo.superQueryInfo.totalQueried)
+    infoPrint("Total super queries: %" PRIu64 "\n",
+              g_queryInfo.superQueryInfo.totalQueried);
     uint64_t totalQueried = g_queryInfo.specifiedQueryInfo.totalQueried
         + g_queryInfo.superQueryInfo.totalQueried;
     infoPrint(
             "Spend %.4f second completed total queries: %" PRIu64
             ", the QPS of all threads: %10.3f\n\n",
             tInS, totalQueried, (double)totalQueried / tInS);
-    infoPrintToFile(
+    infoPrintToFile(g_arguments->fpOfInsertResult,
             "Spend %.4f second completed total queries: %" PRIu64
             ", the QPS of all threads: %10.3f\n\n",
             tInS, totalQueried, (double)totalQueried / tInS);

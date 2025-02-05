@@ -11,9 +11,10 @@
  */
 
 #include "bench.h"
-#include "benchLog.h"
 #include "benchDataMix.h"
 #include <float.h>
+
+#define VAL_NULL "NULL"
 
 #define VBOOL_CNT 3
 
@@ -96,16 +97,13 @@ uint32_t genRadomString(char* val, uint32_t len, char* prefix) {
 
 
 // data row generate by randowm
-uint32_t dataGenByField(Field* fd, char* pstr, uint32_t len, char* prefix, int64_t *k, char* nullVal) {
+uint32_t dataGenByField(Field* fd, char* pstr, uint32_t len, char* prefix, int64_t *k) {
     uint32_t size = 0;
-    int64_t  nowts= 0;
-    char val[512] = {0};
+    char val[512] = VAL_NULL;
     if( fd->fillNull && RD(inul) == 0 ) {
-        size = sprintf(pstr + len, ",%s", nullVal);
+        size = sprintf(pstr + len, ",%s", VAL_NULL);
         return size;
     }
-
-    const char * format = ",%s";
 
     switch (fd->type) {    
     case TSDB_DATA_TYPE_BOOL:
@@ -113,10 +111,7 @@ uint32_t dataGenByField(Field* fd, char* pstr, uint32_t len, char* prefix, int64
         break;
     // timestamp    
     case TSDB_DATA_TYPE_TIMESTAMP:
-        nowts = toolsGetTimestampMs();
-        strcpy(val, "\'");
-        toolsFormatTimestamp(val, nowts, TSDB_TIME_PRECISION_MILLI);
-        strcat(val, "\'");
+        strcpy(val, "now");
         break;
     // signed    
     case TSDB_DATA_TYPE_TINYINT:
@@ -154,18 +149,17 @@ uint32_t dataGenByField(Field* fd, char* pstr, uint32_t len, char* prefix, int64
     // binary nchar
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_VARBINARY:
-        format = ",\'%s\'";
-        tmpStr(val, 0, fd, *k);
-        break;
-    case TSDB_DATA_TYPE_GEOMETRY:
-        tmpGeometry(val, 0, fd, 0);
+        if(fd->gen == GEN_ORDER) {
+            tmpStr(val, 0, fd, *k);
+        } else {
+            genRadomString(val, fd->length > sizeof(val) ? sizeof(val) : fd->length, prefix);
+        }
         break;
     default:
         break;
     }
 
-    size += sprintf(pstr + len, format, val);
+    size += sprintf(pstr + len, ",%s", val);
     return size;
 }
 
@@ -208,7 +202,6 @@ uint32_t dataGenByCalcTs(Field* fd, char* pstr, uint32_t len, int64_t ts) {
         break;
     // binary nchar
     case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_NCHAR:
         sprintf(val, "%" PRId64, ts);
         break;

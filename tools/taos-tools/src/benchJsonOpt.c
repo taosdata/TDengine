@@ -11,9 +11,7 @@
  */
 
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <bench.h>
-#include "benchLog.h"
 
 extern char      g_configDir[MAX_PATH_LEN];
 
@@ -199,9 +197,6 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         int count = 1;
         int64_t max = RAND_MAX >> 1;
         int64_t min = 0;
-        double  maxInDbl = max;
-        double  minInDbl = min;
-        uint32_t scalingFactor = 1;
         int32_t length = 4;
         // fun type
         uint8_t funType = FUNTYPE_NONE;
@@ -245,39 +240,15 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         tools_cJSON *dataMax = tools_cJSON_GetObjectItem(column, "max");
         if (tools_cJSON_IsNumber(dataMax)) {
             max = dataMax->valueint;
-            maxInDbl = dataMax->valuedouble;
         } else {
             max = convertDatatypeToDefaultMax(type);
-            maxInDbl = max;
         }
 
         tools_cJSON *dataMin = tools_cJSON_GetObjectItem(column, "min");
         if (tools_cJSON_IsNumber(dataMin)) {
             min = dataMin->valueint;
-            minInDbl = dataMin->valuedouble;
         } else {
             min = convertDatatypeToDefaultMin(type);
-            minInDbl = min;
-        }
-
-        double valueRange = maxInDbl - minInDbl;
-        tools_cJSON *dataScalingFactor = tools_cJSON_GetObjectItem(column, "scalingFactor");
-        if (tools_cJSON_IsNumber(dataScalingFactor)) {
-            scalingFactor = dataScalingFactor->valueint;
-            if (scalingFactor > 1) {
-                max = maxInDbl * scalingFactor;
-                min = minInDbl * scalingFactor;
-            } else {
-                scalingFactor = 1;
-            }
-        } else {
-            if (0 < valueRange && valueRange <= 1) {
-                scalingFactor = 1000;
-                max = maxInDbl * scalingFactor;
-                min = minInDbl * scalingFactor;
-            } else {
-                scalingFactor = 1;
-            }
         }
 
         // gen
@@ -333,8 +304,7 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         } else {
             if (type == TSDB_DATA_TYPE_BINARY
                 || type == TSDB_DATA_TYPE_JSON
-                || type == TSDB_DATA_TYPE_NCHAR
-                || type == TSDB_DATA_TYPE_GEOMETRY) {
+                || type == TSDB_DATA_TYPE_NCHAR) {
                 length = g_arguments->binwidth;
             } else {
                 length = convertTypeToLength(type);
@@ -353,9 +323,6 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             col->sma = sma;
             col->max = max;
             col->min = min;
-            col->maxInDbl = maxInDbl;
-            col->minInDbl = minInDbl;
-            col->scalingFactor = scalingFactor;
             col->gen = gen;
             col->fillNull = fillNull;
             col->values = dataValues;
@@ -427,9 +394,6 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         int count = 1;
         int64_t max = RAND_MAX >> 1;
         int64_t min = 0;
-        double  maxInDbl = max;
-        double  minInDbl = min;
-        uint32_t scalingFactor = 1;
         int32_t length = 4;
         tools_cJSON *tagObj = tools_cJSON_GetArrayItem(tags, k);
         if (!tools_cJSON_IsObject(tagObj)) {
@@ -454,15 +418,7 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         }
         type = convertStringToDatatype(dataType->valuestring, 0);
 
-        if(type == TSDB_DATA_TYPE_JSON) {
-            if (tagSize > 1) {
-                // if tag type is json, must one tag column
-                errorPrint("tag datatype is json, only one column tag is allowed, currently tags columns count is %d. quit programe.\n", tagSize);
-                code = -1;
-                goto PARSE_OVER;
-            }
-
-            // create on stbInfo->tags
+        if ((tagSize == 1) && (type == TSDB_DATA_TYPE_JSON)) {
             Field * tag = benchCalloc(1, sizeof(Field), true);
             benchArrayPush(stbInfo->tags, tag);
             tag = benchArrayGet(stbInfo->tags, stbInfo->tags->size - 1);
@@ -473,46 +429,23 @@ static int getColumnAndTagTypeFromInsertJsonFile(
                 snprintf(tag->name, TSDB_COL_NAME_LEN, "jtag");
             }
             tag->type = type;
-            tag->length = JSON_FIXED_LENGTH; // json datatype is fixed length: 4096
+            tag->length = length;
+            stbInfo->tags->size = count;
             return 0;
         }
 
         tools_cJSON *dataMax = tools_cJSON_GetObjectItem(tagObj, "max");
         if (tools_cJSON_IsNumber(dataMax)) {
             max = dataMax->valueint;
-            maxInDbl = dataMax->valuedouble;
         } else {
             max = convertDatatypeToDefaultMax(type);
-            maxInDbl = max;
         }
 
         tools_cJSON *dataMin = tools_cJSON_GetObjectItem(tagObj, "min");
         if (tools_cJSON_IsNumber(dataMin)) {
             min = dataMin->valueint;
-            minInDbl = dataMin->valuedouble;
         } else {
             min = convertDatatypeToDefaultMin(type);
-            minInDbl = min;
-        }
-
-        double valueRange = maxInDbl - minInDbl;
-        tools_cJSON *dataScalingFactor = tools_cJSON_GetObjectItem(tagObj, "scalingFactor");
-        if (tools_cJSON_IsNumber(dataScalingFactor)) {
-            scalingFactor = dataScalingFactor->valueint;
-            if (scalingFactor > 1) {
-                max = maxInDbl * scalingFactor;
-                min = minInDbl * scalingFactor;
-            } else {
-                scalingFactor = 1;
-            }
-        } else {
-            if (0 < valueRange && valueRange <= 1) {
-                scalingFactor = 1000;
-                max = maxInDbl * scalingFactor;
-                min = minInDbl * scalingFactor;
-            } else {
-                scalingFactor = 1;
-            }
         }
 
         tools_cJSON *dataValues = tools_cJSON_GetObjectItem(tagObj, "values");
@@ -523,8 +456,6 @@ static int getColumnAndTagTypeFromInsertJsonFile(
         } else {
             if (type == TSDB_DATA_TYPE_BINARY
                 || type == TSDB_DATA_TYPE_JSON
-                || type == TSDB_DATA_TYPE_VARBINARY
-                || type == TSDB_DATA_TYPE_GEOMETRY
                 || type == TSDB_DATA_TYPE_NCHAR) {
                 length = g_arguments->binwidth;
             } else {
@@ -543,9 +474,6 @@ static int getColumnAndTagTypeFromInsertJsonFile(
             }
             tag->max = max;
             tag->min = min;
-            tag->maxInDbl = maxInDbl;
-            tag->minInDbl = minInDbl;
-            tag->scalingFactor = scalingFactor;
             tag->values = dataValues;
             if (customName) {
                 if (n >= 1) {
@@ -592,58 +520,17 @@ int32_t getDurationVal(tools_cJSON *jsonObj) {
     return durMinute;
 }
 
-void setDBCfgString(SDbCfg* cfg , char * value) {
-    int32_t len = strlen(value);
-
-    // need add quotation
-    bool add = false;
-    if (0 == strcasecmp(cfg->name, "cachemodel") ||
-        0 == strcasecmp(cfg->name, "dnodes"    ) ||
-        0 == strcasecmp(cfg->name, "precision" ) ) {
-            add = true;
-    }    
-
-    if (value[0] == '\'' || value[0] == '\"') {
-        // already have quotation
-        add = false;
-    }
-
-    if (!add) {
-        // unnecesary add
-        cfg->valuestring = value;
-        cfg->free = false;
-        return ;
-    }
-
-    // new
-    int32_t nlen = len + 2 + 1;
-    char * nval  = calloc(nlen, sizeof(char));
-    nval[0]      = '\'';
-    memcpy(nval + 1, value, len);
-    nval[nlen - 2] = '\'';
-    nval[nlen - 1] = 0;
-    cfg->valuestring = nval;
-    cfg->free = true;
-    return ;
-}
-
 static int getDatabaseInfo(tools_cJSON *dbinfos, int index) {
     SDataBase *database;
     if (index > 0) {
         database = benchCalloc(1, sizeof(SDataBase), true);
-        database->superTbls = benchArrayInit(1, sizeof(SSuperTable));
         benchArrayPush(g_arguments->databases, database);
     }
     database = benchArrayGet(g_arguments->databases, index);
     if (database->cfgs == NULL) {
         database->cfgs = benchArrayInit(1, sizeof(SDbCfg));
     }
-
-    // check command line input no
-    if(!(g_argFlag & ARG_OPT_NODROP)) {
-        database->drop = true;
-    }
-  
+    database->drop = true;
     database->flush = false;
     database->precision = TSDB_TIME_PRECISION_MILLI;
     database->sml_precision = TSDB_SML_TIMESTAMP_MILLI_SECONDS;
@@ -691,7 +578,7 @@ static int getDatabaseInfo(tools_cJSON *dbinfos, int index) {
             }
 
             if (tools_cJSON_IsString(cfg_object)) {
-                setDBCfgString(cfg, cfg_object->valuestring);
+                cfg->valuestring = cfg_object->valuestring;
             } else if (tools_cJSON_IsNumber(cfg_object)) {
                 cfg->valueint = (int)cfg_object->valueint;
                 cfg->valuestring = NULL;
@@ -810,24 +697,6 @@ void parseStringToIntArray(char *str, BArray *arr) {
         }
         tmfree(dup_str);
     }
-}
-
-// get interface name
-uint16_t getInterface(char *name) {
-    uint16_t iface = TAOSC_IFACE;
-    if (0 == strcasecmp(name, "rest")) {
-        iface = REST_IFACE;
-    } else if (0 == strcasecmp(name, "stmt")) {
-        iface = STMT_IFACE;
-    } else if (0 == strcasecmp(name, "stmt2")) {
-        iface = STMT2_IFACE;
-    } else if (0 == strcasecmp(name, "sml")) {
-        iface = SML_IFACE;
-    } else if (0 == strcasecmp(name, "sml-rest")) {
-        iface = SML_REST_IFACE;
-    }
-
-    return iface;
 }
 
 static int getStableInfo(tools_cJSON *dbinfos, int index) {
@@ -953,23 +822,30 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
         tools_cJSON *stbIface =
             tools_cJSON_GetObjectItem(stbInfo, "insert_mode");
         if (tools_cJSON_IsString(stbIface)) {
-            superTable->iface = getInterface(stbIface->valuestring);
-            if (superTable->iface == STMT_IFACE) {
+            if (0 == strcasecmp(stbIface->valuestring, "rest")) {
+                superTable->iface = REST_IFACE;
+            } else if (0 == strcasecmp(stbIface->valuestring, "stmt")) {
+                superTable->iface = STMT_IFACE;
+                //if (g_arguments->reqPerReq > INT16_MAX) {
+                //    g_arguments->reqPerReq = INT16_MAX;
+                //}
                 if (g_arguments->reqPerReq > g_arguments->prepared_rand) {
                     g_arguments->prepared_rand = g_arguments->reqPerReq;
                 }
-            } else if (superTable->iface == SML_IFACE) {
+            } else if (0 == strcasecmp(stbIface->valuestring, "sml")) {
                 if (g_arguments->reqPerReq > SML_MAX_BATCH) {
                     errorPrint("reqPerReq (%u) larger than maximum (%d)\n",
                                g_arguments->reqPerReq, SML_MAX_BATCH);
                     return -1;
                 }
-            } else if (isRest(superTable->iface)) {
+                superTable->iface = SML_IFACE;
+            } else if (0 == strcasecmp(stbIface->valuestring, "sml-rest")) {
                 if (g_arguments->reqPerReq > SML_MAX_BATCH) {
                     errorPrint("reqPerReq (%u) larger than maximum (%d)\n",
                                g_arguments->reqPerReq, SML_MAX_BATCH);
                     return -1;
                 }
+                superTable->iface = SML_REST_IFACE;
                 if (0 != convertServAddr(REST_IFACE,
                                          false,
                                          1)) {
@@ -980,16 +856,16 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
                 g_arguments->rest_server_ver_major =
                     getServerVersionRest(g_arguments->port + TSDB_PORT_HTTP);
             }
-#ifdef WEBSOCKET
-            if (g_arguments->websocket) {
-                infoPrint("Since WebSocket interface is enabled, "
-                        "the interface %s is changed to use WebSocket.\n",
-                        stbIface->valuestring);
-                superTable->iface = TAOSC_IFACE;
-            }
-#endif
         }
 
+#ifdef WEBSOCKET
+        if (g_arguments->websocket) {
+            infoPrint("Since WebSocket interface is enabled, "
+                    "the interface %s is changed to use WebSocket.\n",
+                    stbIface->valuestring);
+            superTable->iface = TAOSC_IFACE;
+        }
+#endif
 
         tools_cJSON *stbLineProtocol =
             tools_cJSON_GetObjectItem(stbInfo, "line_protocol");
@@ -1026,8 +902,11 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
                     superTable->childTblLimit = superTable->childTblCount;
                 }
             } else {
-                warnPrint("child table limit %"PRId64" is invalid, set to zero. \n",childTbl_limit->valueint);
-                superTable->childTblLimit = 0;
+                warnPrint("child table limit %"PRId64" is invalid, "
+                          "set to %"PRId64"\n",
+                          childTbl_limit->valueint,
+                          superTable->childTblCount);
+                superTable->childTblLimit = superTable->childTblCount;
             }
         }
         tools_cJSON *childTbl_offset =
@@ -1035,14 +914,6 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
         if (tools_cJSON_IsNumber(childTbl_offset)) {
             superTable->childTblOffset = childTbl_offset->valueint;
         }
-
-        // check limit offset 
-        if( superTable->childTblOffset + superTable->childTblLimit > superTable->childTblCount ) {
-            errorPrint("json config invalid. childtable_offset(%"PRId64") + childtable_limit(%"PRId64") > childtable_count(%"PRId64")",
-                  superTable->childTblOffset, superTable->childTblLimit, superTable->childTblCount);
-            return -1;          
-        }
-
         tools_cJSON *childTbl_from =
             tools_cJSON_GetObjectItem(stbInfo, "childtable_from");
         if (tools_cJSON_IsNumber(childTbl_from)) {
@@ -1532,10 +1403,6 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
             warnPrint("command line already pass port is %d, json config port(%d) had been ignored.\n", g_arguments->port, (uint16_t)port->valueint);
         } else {
             g_arguments->port = (uint16_t)port->valueint;
-            if(g_arguments->port != DEFAULT_PORT) {
-                infoPrint("json file config special port %d .\n", g_arguments->port);
-                g_arguments->port_inputted = true;
-            }
         }
     }
 
@@ -1576,27 +1443,6 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
         }
     }
 
-    g_arguments->csvPath[0] = 0;
-    tools_cJSON *csv = tools_cJSON_GetObjectItem(json, "csvPath");
-    if (csv && (csv->type == tools_cJSON_String)
-            && (csv->valuestring != NULL)) {
-        tstrncpy(g_arguments->csvPath, csv->valuestring, MAX_FILE_NAME_LEN);
-    }
-
-    size_t len = strlen(g_arguments->csvPath);
-
-    if(len == 0) {
-        // set default with current path
-        strcpy(g_arguments->csvPath, "./output/");
-        mkdir(g_arguments->csvPath, 0775);
-    } else {
-        // append end
-        if (g_arguments->csvPath[len-1] != '/' ) {
-            strcat(g_arguments->csvPath, "/");
-        }
-        mkdir(g_arguments->csvPath, 0775);
-    }
-
     code = 0;
     return code;
 }
@@ -1609,7 +1455,6 @@ static int getMetaFromInsertJsonFile(tools_cJSON *json) {
     if (tools_cJSON_IsString(dsn)) {
         g_arguments->dsn = dsn->valuestring;
         g_arguments->websocket = true;
-        infoPrint("set websocket true from json->dsn=%s\n", g_arguments->dsn);
     }
 #endif
 
@@ -1637,17 +1482,7 @@ static int getMetaFromInsertJsonFile(tools_cJSON *json) {
 
     tools_cJSON *threads = tools_cJSON_GetObjectItem(json, "thread_count");
     if (threads && threads->type == tools_cJSON_Number) {
-        if(!(g_argFlag & ARG_OPT_THREAD)) {
-            // only command line no -T use json value
-            g_arguments->nthreads = (uint32_t)threads->valueint;
-        }
-    }
-
-    tools_cJSON *bindVGroup = tools_cJSON_GetObjectItem(json, "thread_bind_vgroup");
-    if (tools_cJSON_IsString(bindVGroup)) {
-        if (0 == strcasecmp(bindVGroup->valuestring, "yes")) {
-            g_arguments->bind_vgroup = true;
-        }
+        g_arguments->nthreads = (uint32_t)threads->valueint;
     }
 
     tools_cJSON *keepTrying = tools_cJSON_GetObjectItem(json, "keep_trying");
@@ -1734,7 +1569,9 @@ static int getMetaFromInsertJsonFile(tools_cJSON *json) {
     tools_cJSON *insert_mode = tools_cJSON_GetObjectItem(json, "insert_mode");
     if (insert_mode && insert_mode->type == tools_cJSON_String
             && insert_mode->valuestring != NULL) {
-        g_arguments->iface = getInterface(insert_mode->valuestring);
+        if (0 == strcasecmp(insert_mode->valuestring, "rest")) {
+            g_arguments->iface = REST_IFACE;
+        }
     }
 
     tools_cJSON *dbinfos = tools_cJSON_GetObjectItem(json, "databases");
@@ -2259,7 +2096,7 @@ static int getMetaFromTmqJsonFile(tools_cJSON *json) {
     if (tools_cJSON_IsString(groupMode)) {
         g_tmqInfo.consumerInfo.groupMode = groupMode->valuestring;
     }
-
+	
 
     tools_cJSON *pollDelay = tools_cJSON_GetObjectItem(tmqInfo, "poll_delay");
     if (tools_cJSON_IsNumber(pollDelay)) {
@@ -2411,8 +2248,6 @@ int getInfoFromJsonFile() {
             g_arguments->test_mode = QUERY_TEST;
         } else if (0 == strcasecmp("subscribe", filetype->valuestring)) {
             g_arguments->test_mode = SUBSCRIBE_TEST;
-        } else if (0 == strcasecmp("csvfile", filetype->valuestring)) {
-            g_arguments->test_mode = CSVFILE_TEST;
         } else {
             errorPrint("%s",
                        "failed to read json, filetype not support\n");
@@ -2424,7 +2259,7 @@ int getInfoFromJsonFile() {
 
     // read common item
     code = getMetaFromCommonJsonFile(root);
-    if (INSERT_TEST == g_arguments->test_mode || CSVFILE_TEST == g_arguments->test_mode) {
+    if (INSERT_TEST == g_arguments->test_mode) {
         code = getMetaFromInsertJsonFile(root);
 #ifdef TD_VER_COMPATIBLE_3_0_0_0
     } else if (QUERY_TEST == g_arguments->test_mode) {

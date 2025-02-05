@@ -11,7 +11,6 @@
  */
 #include <time.h>
 #include <bench.h>
-#include "benchLog.h"
 #include <benchData.h>
 
 typedef struct {
@@ -31,25 +30,25 @@ void printfTmqConfigIntoFile() {
       return;
   }
 
-  infoPrintToFile( "%s\n", "============================================");
+  infoPrintToFile(g_arguments->fpOfInsertResult, "%s\n", "============================================");
 
   SConsumerInfo*  pConsumerInfo = &g_tmqInfo.consumerInfo;
-  infoPrintToFile( "concurrent: %d\n", pConsumerInfo->concurrent);
-  infoPrintToFile( "pollDelay: %d\n", pConsumerInfo->pollDelay);
-  infoPrintToFile( "groupId: %s\n", pConsumerInfo->groupId);
-  infoPrintToFile( "clientId: %s\n", pConsumerInfo->clientId);
-  infoPrintToFile( "autoOffsetReset: %s\n", pConsumerInfo->autoOffsetReset);
-  infoPrintToFile( "enableAutoCommit: %s\n", pConsumerInfo->enableAutoCommit);
-  infoPrintToFile( "autoCommitIntervalMs: %d\n", pConsumerInfo->autoCommitIntervalMs);
-  infoPrintToFile( "enableHeartbeatBackground: %s\n", pConsumerInfo->enableHeartbeatBackground);
-  infoPrintToFile( "snapshotEnable: %s\n", pConsumerInfo->snapshotEnable);
-  infoPrintToFile( "msgWithTableName: %s\n", pConsumerInfo->msgWithTableName);
-  infoPrintToFile( "rowsFile: %s\n", pConsumerInfo->rowsFile);
-  infoPrintToFile( "expectRows: %d\n", pConsumerInfo->expectRows);
+  infoPrintToFile(g_arguments->fpOfInsertResult, "concurrent: %d\n", pConsumerInfo->concurrent);
+  infoPrintToFile(g_arguments->fpOfInsertResult, "pollDelay: %d\n", pConsumerInfo->pollDelay);
+  infoPrintToFile(g_arguments->fpOfInsertResult, "groupId: %s\n", pConsumerInfo->groupId);
+  infoPrintToFile(g_arguments->fpOfInsertResult, "clientId: %s\n", pConsumerInfo->clientId);
+  infoPrintToFile(g_arguments->fpOfInsertResult, "autoOffsetReset: %s\n", pConsumerInfo->autoOffsetReset);
+  infoPrintToFile(g_arguments->fpOfInsertResult, "enableAutoCommit: %s\n", pConsumerInfo->enableAutoCommit);
+  infoPrintToFile(g_arguments->fpOfInsertResult, "autoCommitIntervalMs: %d\n", pConsumerInfo->autoCommitIntervalMs);
+  infoPrintToFile(g_arguments->fpOfInsertResult, "enableHeartbeatBackground: %s\n", pConsumerInfo->enableHeartbeatBackground);
+  infoPrintToFile(g_arguments->fpOfInsertResult, "snapshotEnable: %s\n", pConsumerInfo->snapshotEnable);
+  infoPrintToFile(g_arguments->fpOfInsertResult, "msgWithTableName: %s\n", pConsumerInfo->msgWithTableName);
+  infoPrintToFile(g_arguments->fpOfInsertResult, "rowsFile: %s\n", pConsumerInfo->rowsFile);
+  infoPrintToFile(g_arguments->fpOfInsertResult, "expectRows: %d\n", pConsumerInfo->expectRows);
   
   for (int i = 0; i < pConsumerInfo->topicCount; ++i) {
-      infoPrintToFile( "topicName[%d]: %s\n", i, pConsumerInfo->topicName[i]);
-      infoPrintToFile( "topicSql[%d]: %s\n", i, pConsumerInfo->topicSql[i]);
+      infoPrintToFile(g_arguments->fpOfInsertResult, "topicName[%d]: %s\n", i, pConsumerInfo->topicName[i]);
+      infoPrintToFile(g_arguments->fpOfInsertResult, "topicSql[%d]: %s\n", i, pConsumerInfo->topicSql[i]);
   }  
 }
 
@@ -198,13 +197,13 @@ int buildConsumerAndSubscribe(tmqThreadInfo * pThreadInfo, char* groupId) {
 static void* tmqConsume(void* arg) {
     tmqThreadInfo* pThreadInfo = (tmqThreadInfo*)arg;
 	SConsumerInfo* pConsumerInfo = &g_tmqInfo.consumerInfo;
-    char groupId[16] = {0};
 	
 	// "sequential" or "parallel"
 	if (pConsumerInfo->createMode && 0 != strncasecmp(pConsumerInfo->createMode, "sequential", 10)) {			
 
         char* tPtr = pConsumerInfo->groupId;
 	    // "share" or "independent"
+		char groupId[16] = {0};
 	    if (pConsumerInfo->groupMode && 0 != strncasecmp(pConsumerInfo->groupMode, "share", 5)) {
 
 			if ((NULL == pConsumerInfo->groupId) || (0 == strlen(pConsumerInfo->groupId))) {
@@ -295,7 +294,7 @@ static void* tmqConsume(void* arg) {
     pThreadInfo->tmq = NULL;
 
     infoPrint("consumerId: %d, consume msgs: %" PRId64 ", consume rows: %" PRId64 "\n", pThreadInfo->id, totalMsgs, totalRows);
-    infoPrintToFile(
+    infoPrintToFile(g_arguments->fpOfInsertResult,
             "consumerId: %d, consume msgs: %" PRId64 ", consume rows: %" PRId64 "\n", pThreadInfo->id, totalMsgs, totalRows);
 
     return NULL;
@@ -311,17 +310,16 @@ int subscribeTestProcess() {
             return -1;
         }
     }
-    char groupId[16] = {0};
-    char* tPtr = pConsumerInfo->groupId;
 
     // "share" or "independent"
     if (pConsumerInfo->groupMode && 0 == strncasecmp(pConsumerInfo->groupMode, "share", 5)) {
+		char groupId[16] = {0};
 		if ((NULL == pConsumerInfo->groupId) || (0 == strlen(pConsumerInfo->groupId))) {
 			// rand string
 			memset(groupId, 0, sizeof(groupId));
 			rand_string(groupId, sizeof(groupId) - 1, 0);
 			infoPrint("rand generate group id: %s\n", groupId);
-		    tPtr = groupId;
+		    pConsumerInfo->groupId = groupId;
 		}
     }
 	
@@ -349,7 +347,7 @@ int subscribeTestProcess() {
 
         // "sequential" or "parallel"
 		if (pConsumerInfo->createMode && 0 == strncasecmp(pConsumerInfo->createMode, "sequential", 10)) {			
-            int retVal = buildConsumerAndSubscribe(pThreadInfo, tPtr);
+            int retVal = buildConsumerAndSubscribe(pThreadInfo, pConsumerInfo->groupId);
             if (0 != retVal) {
                 infoPrint("%s\n", "buildConsumerAndSubscribe() fail!");
                 ret = -1;
@@ -380,7 +378,7 @@ int subscribeTestProcess() {
 
     infoPrint("Consumed total msgs: %" PRId64 ", total rows: %" PRId64 "\n",
               totalMsgs, totalRows);
-    infoPrintToFile(
+    infoPrintToFile(g_arguments->fpOfInsertResult,
                     "Consumed total msgs: %" PRId64 ","
                     "total rows: %" PRId64 "\n", totalMsgs, totalRows);
 

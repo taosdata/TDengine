@@ -11,6 +11,7 @@
 	"query_times": 10,
 	"query_mode": "taosc",
 	"specified_table_query": {
+		"query_interval": 1,
 		"concurrent": 3,
 		"sqls": [
 			{
@@ -25,6 +26,7 @@
 	},
 	"super_table_query": {
 		"stblname": "meters",
+		"query_interval": 1,
 		"threads": 3,
 		"sqls": [
 			{

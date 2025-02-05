@@ -17,7 +17,7 @@
 #define __BENCHDATAMIX_H_
 
 
-uint32_t dataGenByField(Field* fd, char* pstr, uint32_t len, char* prefix, int64_t *k, char* nullVal);
+uint32_t dataGenByField(Field* fd, char* pstr, uint32_t len, char* prefix, int64_t *k);
 
 // data generate by calc ts 
 uint32_t dataGenByCalcTs(Field* fd, char* pstr, uint32_t len, int64_t ts);

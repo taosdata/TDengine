@@ -11,7 +11,6 @@
  */
 
 #include "bench.h"
-#include "benchLog.h"
 #include "wrapDb.h"
 
 // executeSql

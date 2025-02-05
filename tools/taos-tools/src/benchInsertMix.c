@@ -11,7 +11,6 @@
  */
 
 #include "bench.h"
-#include "benchLog.h"
 #include "wrapDb.h"
 #include "benchData.h"
 #include "benchDataMix.h"
@@ -318,7 +317,7 @@ uint32_t genRowMixAll(threadInfo* info, SSuperTable* stb, char* pstr, uint32_t l
       }
     }
 
-    size += dataGenByField(fd, pstr, len + size, prefix, k, VAL_NULL);
+    size += dataGenByField(fd, pstr, len + size, prefix, k);
   }
 
   // end
@@ -767,6 +766,7 @@ bool checkCorrect(threadInfo* info, SDataBase* db, SSuperTable* stb, char* tbNam
 //
 bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
   int64_t lastPrintTime = 0;
+
   // check interface
   if (stb->iface != TAOSC_IFACE) {
     return false;
@@ -776,8 +776,6 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
   if(stb->genRowRule == RULE_OLD)   {
     return false;
   }
-
-  infoPrint("insert mode is mix. generate_row_rule=%d\n", stb->genRowRule);
 
   FILE* csvFile = NULL;
   char* tagData = NULL;
@@ -799,14 +797,7 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
 
   // loop insert child tables
   for (uint64_t tbIdx = info->start_table_from; tbIdx <= info->end_table_to; ++tbIdx) {
-    // get child table
-    SChildTable *childTbl;
-    if (g_arguments->bind_vgroup) {
-        childTbl = info->vg->childTblArray[tbIdx];
-    } else {
-        childTbl = stb->childTblArray[tbIdx];
-    }
-    char* tbName = childTbl->name;
+    char* tbName = stb->childTblArray[tbIdx]->name;
 
     SMixRatio mixRatio;
     mixRatioInit(&mixRatio, stb);
@@ -826,7 +817,7 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
       if(acreate) {
           // generator
           if (w == 0) {
-              if(!generateTagData(stb, tagData, TAG_BATCH_COUNT, csvFile, NULL)) {
+              if(!generateTagData(stb, tagData, TAG_BATCH_COUNT, csvFile)) {
                  FAILED_BREAK()                
               }
           }
@@ -852,7 +843,7 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
       int64_t startTs = toolsGetTimestampUs();
       //g_arguments->debug_print = false;
 
-      if(execInsert(info, batchRows, NULL) != 0) {
+      if(execInsert(info, batchRows) != 0) {
         FAILED_BREAK()
       }
       //g_arguments->debug_print = true;
@@ -902,7 +893,7 @@ bool insertDataMix(threadInfo* info, SDataBase* db, SSuperTable* stb) {
         batTotal.delRows = genBatchDelSql(stb, &mixRatio, batStartTime, info->conn->taos,  tbName, info->buffer, len, querySql);
         if (batTotal.delRows > 0) {
           // g_arguments->debug_print = false;
-          if (execInsert(info, batTotal.delRows, NULL) != 0) {
+          if (execInsert(info, batTotal.delRows) != 0) {
             FAILED_BREAK()
           }
 

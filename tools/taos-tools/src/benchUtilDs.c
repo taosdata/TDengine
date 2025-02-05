@@ -11,7 +11,6 @@
  */
 
 #include "bench.h"
-#include "benchLog.h"
 
 static dstr * ds_header(char *s)
 {

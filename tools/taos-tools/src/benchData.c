@@ -11,7 +11,6 @@
  */
 
 #include <bench.h>
-#include "benchLog.h"
 #include <math.h>
 #include <benchData.h>
 
@@ -44,10 +43,6 @@ const char* locations_sml[] = {
 #endif
 
 int32_t funCount(int32_t min, int32_t max, int32_t step, int32_t loop) {
-    if(step == 0) {
-        step = 1;
-    }
-
     int32_t range = abs(max - min);
     int32_t maxCnt = range / step;
     int32_t val = min + (loop % maxCnt) * step ;
@@ -56,9 +51,6 @@ int32_t funCount(int32_t min, int32_t max, int32_t step, int32_t loop) {
 }
 
 int32_t funSaw(int32_t min, int32_t max, int32_t period, int32_t loop) {
-    if(period == 0) {
-        period = 1;
-    }
     int32_t range = abs(max - min);
     int32_t step = range / period;
     int32_t val = min + (loop % period) * step ;
@@ -66,9 +58,6 @@ int32_t funSaw(int32_t min, int32_t max, int32_t period, int32_t loop) {
 }
 
 int32_t funSquare(int32_t min, int32_t max, int32_t period, int32_t loop) {
-    if(period == 0) {
-        period = 1;
-    }
     int32_t change = (loop/period) % 2;
     if (change)
        return min;
@@ -77,12 +66,9 @@ int32_t funSquare(int32_t min, int32_t max, int32_t period, int32_t loop) {
 }
 
 int32_t funTriAngle(int32_t min, int32_t max, int32_t period, int32_t loop) {
-    if(period == 0) {
-        period = 1;
-    }
     int32_t range = abs(max - min);
     int32_t change = (loop/period) % 2;
-    int32_t step = range/period;
+    int32_t step = range / period;
     int32_t cnt = 0;    
     if(change)
        cnt = period - loop % period;
@@ -228,23 +214,10 @@ void rand_string(char *str, int size, bool chinese) {
     }
 }
 
-// generate prepare sql
-char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq) {
+int prepareStmt(SSuperTable *stbInfo, TAOS_STMT *stmt, char* tagData, uint64_t tableSeq) {
     int   len = 0;
     char *prepare = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, true);
     int n;
-    char *tagQ = NULL;
-    char *colQ = genQMark(stbInfo->cols->size);
-    bool  tagQFree = false;
-
-    if(tagData == NULL) {
-        // if no tagData , replace with QMark
-        tagQ = genQMark(stbInfo->tags->size);
-        tagQFree = true;
-    } else {
-        tagQ = tagData + stbInfo->lenOfTags * tableSeq;
-    }
-
     if (stbInfo->autoTblCreating) {
         char ttl[SMALL_BUFF_LEN] = "";
         if (stbInfo->ttl != 0) {
@@ -252,21 +225,34 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq) {
         }
         n = snprintf(prepare + len,
                        TSDB_MAX_ALLOWED_SQL_LEN - len,
-                       "INSERT INTO ? USING `%s` TAGS (%s) %s VALUES(?,%s)",
-                       stbInfo->stbName, tagQ, ttl, colQ);
+                       "INSERT INTO ? USING `%s` TAGS (%s) %s VALUES(?",
+                       stbInfo->stbName,
+                       tagData + stbInfo->lenOfTags * tableSeq,
+                       ttl);
     } else {
         n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
-                        "INSERT INTO ? VALUES(?,%s)", colQ);
+                        "INSERT INTO ? VALUES(?");
     }
-    len += n;
 
-    // free from genQMark
-    if(tagQFree) {
-        tmfree(tagQ);
+    if (n < 0 || n >= TSDB_MAX_ALLOWED_SQL_LEN - len) {
+        errorPrint("%s() LN%d snprintf overflow\n", __func__, __LINE__);
+        tmfree(prepare);
+        return -1;
+    } else {
+        len += n;
     }
-    tmfree(colQ);
 
-    // check valid
+    for (int col = 0; col < stbInfo->cols->size; col++) {
+        n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len, ",?");
+        if (n < 0 || n >= TSDB_MAX_ALLOWED_SQL_LEN - len) {
+            errorPrint("%s() LN%d snprintf overflow on %d\n",
+                       __func__, __LINE__, col);
+            break;;
+        } else {
+            len += n;
+        }
+    }
+    snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len, ")");
     if (g_arguments->prepared_rand < g_arguments->reqPerReq) {
         infoPrint(
                   "in stmt mode, batch size(%u) can not larger than prepared "
@@ -277,33 +263,14 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq) {
                   g_arguments->prepared_rand);
         g_arguments->reqPerReq = g_arguments->prepared_rand;
     }
-
-    return prepare;
-}
-
-int prepareStmt(TAOS_STMT *stmt, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq) {
-    char *prepare = genPrepareSql(stbInfo, tagData, tableSeq);
     if (taos_stmt_prepare(stmt, prepare, strlen(prepare))) {
-        errorPrint("taos_stmt_prepare(%s) failed. errstr=%s\n", prepare, taos_stmt_errstr(stmt));
+        errorPrint("taos_stmt_prepare(%s) failed\n", prepare);
         tmfree(prepare);
         return -1;
     }
     tmfree(prepare);
     return 0;
 }
-
-int prepareStmt2(TAOS_STMT2 *stmt2, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq) {
-    char *prepare = genPrepareSql(stbInfo, tagData, tableSeq);
-    if (taos_stmt2_prepare(stmt2, prepare, strlen(prepare))) {
-        errorPrint("taos_stmt2_prepare(%s) failed. errstr=%s\n", prepare, taos_stmt2_error(stmt2));
-        tmfree(prepare);
-        return -1;
-    }
-    debugPrint("succ call taos_stmt2_prepare. sql=%s\n", prepare);
-    tmfree(prepare);
-    return 0;
-}
-
 
 static bool getSampleFileNameByPattern(char *filePath,
                                        SSuperTable *stbInfo,
@@ -373,8 +340,15 @@ static int generateSampleFromCsv(char *buffer, char* file, FILE* fp, int32_t len
             continue;
         }
 
-        int64_t offset = ((int64_t)getRows) * length;
-        memcpy(buffer + offset, line, readLen + 1);
+        if (readLen > length) {
+            infoPrint(
+                "sample row len[%d] overflow define schema len[%d], so discard "
+                "this row\n",
+                (int32_t)readLen, length);
+            continue;
+        }
+
+        memcpy(buffer + getRows * length, line, readLen + 1);
         getRows++;
 
         if (getRows == size) {
@@ -387,7 +361,6 @@ static int generateSampleFromCsv(char *buffer, char* file, FILE* fp, int32_t len
     }
 
     tmfree(line);
-    infoPrint("read data from csv file %s, read rows=%d\n", file, getRows);
     return 0;
 }
 
@@ -424,8 +397,6 @@ uint32_t accumulateRowLen(BArray *fields, int iface) {
         Field *field = benchArrayGet(fields, i);
         switch (field->type) {
             case TSDB_DATA_TYPE_BINARY:
-            case TSDB_DATA_TYPE_VARBINARY:
-            case TSDB_DATA_TYPE_GEOMETRY:
             case TSDB_DATA_TYPE_NCHAR:
                 len += field->length + 3;
                 break;
@@ -465,7 +436,7 @@ uint32_t accumulateRowLen(BArray *fields, int iface) {
                 len += TIMESTAMP_BUFF_LEN;
                 break;
             case TSDB_DATA_TYPE_JSON:
-                len += field->length * fields->size;
+                len += (JSON_BUFF_LEN + field->length) * fields->size;
                 return len;
         }
         len += 1;
@@ -482,21 +453,7 @@ uint32_t accumulateRowLen(BArray *fields, int iface) {
 
 
 int tmpStr(char *tmp, int iface, Field *field, int64_t k) {
-    if (field->values) {
-        int arraySize = tools_cJSON_GetArraySize(field->values);
-        if (arraySize) {
-            tools_cJSON *buf = tools_cJSON_GetArrayItem(
-                    field->values,
-                    taosRandom() % arraySize);
-            snprintf(tmp, field->length,
-                     "%s", buf->valuestring);
-        } else {
-            errorPrint("%s() cannot read correct value "
-                       "from json file. array size: %d\n",
-                       __func__, arraySize);
-            return -1;
-        }
-    } else if (g_arguments->demo_mode) {
+    if (g_arguments->demo_mode) {
         unsigned int tmpRand = taosRandom();
         if (g_arguments->chinese) {
             snprintf(tmp, field->length, "%s",
@@ -508,19 +465,7 @@ int tmpStr(char *tmp, int iface, Field *field, int64_t k) {
             snprintf(tmp, field->length, "%s",
                      locations[tmpRand % 10]);
         }
-    } else {
-        if(field->gen == GEN_ORDER) {
-            snprintf(tmp, field->length, "%"PRId64, k);
-        } else {
-            rand_string(tmp, taosRandom() % field->length, g_arguments->chinese);
-        }
-    }
-    return 0;
-}
-
-int tmpGeometry(char *tmp, int iface, Field *field, int64_t k) {
-    // values
-    if (field->values) {
+    } else if (field->values) {
         int arraySize = tools_cJSON_GetArraySize(field->values);
         if (arraySize) {
             tools_cJSON *buf = tools_cJSON_GetArrayItem(
@@ -534,26 +479,13 @@ int tmpGeometry(char *tmp, int iface, Field *field, int64_t k) {
                        __func__, arraySize);
             return -1;
         }
-        return 0;
+    } else {
+        if(field->gen == GEN_ORDER) {
+            snprintf(tmp, field->length, "%"PRId64, k);
+        } else {
+            rand_string(tmp, field->length, g_arguments->chinese);
+        }
     }
-
-    // gen point count
-    int32_t cnt = field->length / 24;
-    if(cnt < 2) {
-        snprintf(tmp, field->length, "POINT(%d %d)", tmpUint16(field), tmpUint16(field));
-        return 0;
-    }
-    
-    int32_t pos = snprintf(tmp, field->length, "LINESTRING(");
-    char * format = "%d %d,";
-    for(int32_t i = 0; i < cnt; i++) {
-        if (i == cnt - 1) {
-            format = "%d %d";
-        } 
-        pos += snprintf(tmp + pos, field->length - pos, format, tmpUint16(field), tmpUint16(field));
-    }
-    strcat(tmp, ")");
-
     return 0;
 }
 
@@ -624,23 +556,6 @@ int tmpInt32Impl(Field *field, int i, int angle, int32_t k) {
     return intTmp;
 }
 
-int tmpInt32ImplTag(Field *field, int i, int k) {
-    int intTmp;
-
-    if (field->min < (-1 * (RAND_MAX >> 1))) {
-        field->min = -1 * (RAND_MAX >> 1);
-    }
-    if (field->max > (RAND_MAX >> 1)) {
-        field->max = RAND_MAX >> 1;
-    }
-    intTmp = field->min;
-    if (field->max != field->min) {
-        intTmp += (COL_GEN % (field->max - field->min));
-    }
-    return intTmp;
-}
-
-
 uint32_t tmpUint32Impl(Field *field, int i, int angle, int64_t k) {
     uint32_t intTmp;
     if (field->funType != FUNTYPE_NONE) {
@@ -702,17 +617,6 @@ float tmpFloatImpl(Field *field, int i, int32_t angle, int32_t k) {
                 + floatTmp / 1000000000) / 360);
         }
     }
-
-    if (field->scalingFactor > 0) {
-        if (field->scalingFactor > 1)
-            floatTmp = floatTmp / field->scalingFactor;
-
-        if (floatTmp > field->maxInDbl)
-            floatTmp = field->maxInDbl;
-        else if (floatTmp < field->minInDbl)
-            floatTmp = field->minInDbl;
-    }
-
     return floatTmp;
 }
 
@@ -729,60 +633,57 @@ double tmpDoubleImpl(Field *field, int32_t angle, int32_t k) {
                 taosRandom() % 1000000 / 1000000.0);
         }
     }
-
-    if (field->scalingFactor > 0) {
-        if (field->scalingFactor > 1)
-            doubleTmp = doubleTmp / field->scalingFactor;
-
-        if (doubleTmp > field->maxInDbl)
-            doubleTmp = field->maxInDbl;
-        else if (doubleTmp < field->minInDbl)
-            doubleTmp = field->minInDbl;
-    }
-
     return doubleTmp;
 }
 
 static int tmpJson(char *sampleDataBuf,
                    int bufLen, int64_t pos,
                    int fieldsSize, Field *field) {
-    int n = snprintf(sampleDataBuf + pos, bufLen - pos, "'{");
+    int n;
+    n = snprintf(sampleDataBuf + pos, bufLen - pos, "'{");
     if (n < 0 || n >= bufLen - pos) {
         errorPrint("%s() LN%d snprintf overflow\n",
                    __func__, __LINE__);
         return -1;
+    } else {
+        pos += n;
     }
     for (int j = 0; j < fieldsSize; ++j) {
-        // key
-        n += snprintf(sampleDataBuf + pos + n, bufLen - pos - n,
+        n = snprintf(sampleDataBuf + pos, bufLen - pos,
                         "\"k%d\":", j);
         if (n < 0 || n >= bufLen - pos) {
             errorPrint("%s() LN%d snprintf overflow\n",
                        __func__, __LINE__);
             return -1;
+        } else {
+            pos += n;
         }
-        // value
         char *buf = benchCalloc(1, field->length + 1, false);
-        rand_string(buf, 12, g_arguments->chinese);
-        n += snprintf(sampleDataBuf + pos + n, bufLen - pos - n,
+        rand_string(buf, field->length,
+                    g_arguments->chinese);
+        n = snprintf(sampleDataBuf + pos, bufLen - pos,
                         "\"%s\",", buf);
         if (n < 0 || n >= bufLen - pos) {
             errorPrint("%s() LN%d snprintf overflow\n",
                        __func__, __LINE__);
             tmfree(buf);
             return -1;
+        } else {
+            pos += n;
         }
         tmfree(buf);
     }
-    n += snprintf(sampleDataBuf + pos + n - 1,
-                    bufLen - pos - n, "}'");
+    n = snprintf(sampleDataBuf + pos - 1,
+                    bufLen - pos, "}'");
     if (n < 0 || n >= bufLen - pos) {
         errorPrint("%s() LN%d snprintf overflow\n",
                    __func__, __LINE__);
         return -1;
+    } else {
+        pos += n;
     }
 
-    return n;
+    return pos;
 }
 
 static int generateRandDataSQL(SSuperTable *stbInfo, char *sampleDataBuf,
@@ -892,7 +793,6 @@ static int generateRandDataSQL(SSuperTable *stbInfo, char *sampleDataBuf,
                     break;
                 }
                 case TSDB_DATA_TYPE_BINARY:
-                case TSDB_DATA_TYPE_VARBINARY:
                 case TSDB_DATA_TYPE_NCHAR: {
                     char *tmp = benchCalloc(1, field->length + 1, false);
                     if (0 != tmpStr(tmp, stbInfo->iface, field, k)) {
@@ -904,23 +804,9 @@ static int generateRandDataSQL(SSuperTable *stbInfo, char *sampleDataBuf,
                     tmfree(tmp);
                     break;
                 }
-                case TSDB_DATA_TYPE_GEOMETRY: {
-                    int   bufferSize = field->length + 1;
-                    char *tmp = benchCalloc(1, bufferSize, false);
-                    if (0 != tmpGeometry(tmp, stbInfo->iface, field, i)) {
-                        free(tmp);
-                        return -1;
-                    }
-                    n = snprintf(sampleDataBuf + pos, bufLen - pos, "'%s',", tmp);
-                    tmfree(tmp);
-                    break;
-                }
                 case TSDB_DATA_TYPE_JSON: {
-                    n = tmpJson(sampleDataBuf, bufLen, pos, fieldsSize, field);
-                    if (n == -1) {
-                        return -1;
-                    }
-                    pos += n;
+                    pos += tmpJson(sampleDataBuf, bufLen, pos,
+                                   fieldsSize, field);
                     goto skip_sql;
                 }
             }
@@ -952,10 +838,8 @@ static int fillStmt(
     int lenOfOneRow, BArray *fields,
     int64_t loop, bool tag, BArray *childCols) {
     int angle = stbInfo->startTimestamp % 360; // 0 ~ 360
-    debugPrint("fillStml stbname=%s loop=%"PRId64" istag=%d  fieldsSize=%d\n", stbInfo->stbName, loop, tag, (int32_t)fields->size);
     for (int64_t k = 0; k < loop; ++k) {
         int64_t pos = k * lenOfOneRow;
-        char* line = sampleDataBuf + pos;
         int fieldsSize = fields->size;
         for (int i = 0; i < fieldsSize; ++i) {
             Field * field = benchArrayGet(fields, i);
@@ -964,16 +848,6 @@ static int fillStmt(
                 childCol = benchArrayGet(childCols, i);
             }
             int64_t n = 0;
-
-            // 
-            if (childCol) {
-                childCol->stmtData.is_null[k] = 0;
-                childCol->stmtData.lengths[k] = field->length;
-            } else {
-                field->stmtData.is_null[k] = 0;
-                field->stmtData.lengths[k] = field->length;
-            }
-
             switch (field->type) {
                 case TSDB_DATA_TYPE_BOOL: {
                     bool boolTmp = tmpBool(field);
@@ -1098,7 +972,6 @@ static int fillStmt(
                     break;
                 }
                 case TSDB_DATA_TYPE_BINARY:
-                case TSDB_DATA_TYPE_VARBINARY:
                 case TSDB_DATA_TYPE_NCHAR: {
                     char *tmp = benchCalloc(1, field->length + 1, false);
                     if (0 != tmpStr(tmp, stbInfo->iface, field, k)) {
@@ -1121,34 +994,9 @@ static int fillStmt(
                     tmfree(tmp);
                     break;
                 }
-                case TSDB_DATA_TYPE_GEOMETRY: {
-                    char *tmp = benchCalloc(1, field->length + 1, false);
-                    if (0 != tmpGeometry(tmp, stbInfo->iface, field, k)) {
-                        tmfree(tmp);
-                        return -1;
-                    }
-                    if (childCol) {
-                        snprintf((char *)childCol->stmtData.data
-                                    + k * field->length,
-                                 field->length,
-                                "%s", tmp);
-                    } else {
-                        snprintf((char *)field->stmtData.data
-                                    + k * field->length,
-                                 field->length,
-                                "%s", tmp);
-                    }
-                    n = snprintf(sampleDataBuf + pos, bufLen - pos,
-                                        "'%s',", tmp);
-                    tmfree(tmp);
-                    break;
-                }
                 case TSDB_DATA_TYPE_JSON: {
-                    n = tmpJson(sampleDataBuf, bufLen, pos, fieldsSize, field);
-                    if (n == -1) {
-                        return -1;
-                    }
-                    pos += n;
+                    pos += tmpJson(sampleDataBuf, bufLen, pos,
+                                   fieldsSize, field);
                     goto skip_stmt;
                 }
             }
@@ -1162,8 +1010,6 @@ static int fillStmt(
                 }
             }
         }
-        debugPrint(" k=%" PRId64 " pos=%" PRId64 " line=%s\n", k, pos, line);
-
 skip_stmt:
         if (pos > 0)
             *(sampleDataBuf + pos - 1) = 0;
@@ -1194,15 +1040,6 @@ static int generateRandDataStmtForChildTable(
             childField->stmtData.data = benchCalloc(
                     1, loop * field->length, true);
         }
-
-        // is_null
-        childField->stmtData.is_null = benchCalloc(sizeof(char), loop, true);
-        // lengths
-        childField->stmtData.lengths = benchCalloc(sizeof(int32_t), loop, true);
-
-        // log
-        debugPrint("i=%d generateRandDataStmtForChildTable fields=%p %s malloc stmtData.data=%p\n", i, fields, field->name ,field->stmtData.data);
-
     }
     return fillStmt(
         stbInfo,
@@ -1221,22 +1058,11 @@ static int generateRandDataStmt(
     // generateRandDataStmt()
     for (int i = 0; i < fields->size; ++i) {
         Field *field = benchArrayGet(fields, i);
-        if (field->stmtData.data == NULL) {
-            // data
-            if (field->type == TSDB_DATA_TYPE_BINARY
-                    || field->type == TSDB_DATA_TYPE_NCHAR) {
-                field->stmtData.data = benchCalloc(1, loop * (field->length + 1), true);
-            } else {
-                field->stmtData.data = benchCalloc(1, loop * field->length, true);
-            }
-
-            // is_null
-            field->stmtData.is_null = benchCalloc(sizeof(char), loop, true);
-            // lengths
-            field->stmtData.lengths = benchCalloc(sizeof(int32_t), loop, true);
-
-            // log
-            debugPrint("i=%d generateRandDataStmt tag=%d fields=%p %s malloc stmtData.data=%p\n", i, tag, fields, field->name ,field->stmtData.data);
+        if (field->type == TSDB_DATA_TYPE_BINARY
+                || field->type == TSDB_DATA_TYPE_NCHAR) {
+            field->stmtData.data = benchCalloc(1, loop * (field->length + 1), true);
+        } else {
+            field->stmtData.data = benchCalloc(1, loop * field->length, true);
         }
     }
 
@@ -1394,14 +1220,13 @@ static int generateRandDataSmlTelnet(SSuperTable *stbInfo, char *sampleDataBuf,
                     break;
                 }
                 case TSDB_DATA_TYPE_BINARY:
-                case TSDB_DATA_TYPE_VARBINARY:
                 case TSDB_DATA_TYPE_NCHAR: {
                     char *tmp = benchCalloc(1, field->length + 1, false);
                     if (0 != tmpStr(tmp, stbInfo->iface, field, k)) {
-                        tmfree(tmp);
+                        free(tmp);
                         return -1;
                     }
-                    if (field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_VARBINARY) {
+                    if (field->type == TSDB_DATA_TYPE_BINARY) {
                         if (tag) {
                             n = snprintf(sampleDataBuf + pos, bufLen - pos,
                                             "%s=L\"%s\" ",
@@ -1439,37 +1264,9 @@ static int generateRandDataSmlTelnet(SSuperTable *stbInfo, char *sampleDataBuf,
                     tmfree(tmp);
                     break;
                 }
-                case TSDB_DATA_TYPE_GEOMETRY: {
-                    char *tmp = benchCalloc(1, field->length + 1, false);
-                    if (0 != tmpGeometry(tmp, stbInfo->iface, field, k)) {
-                        tmfree(tmp);
-                        return -1;
-                    }
-                    if (tag) {
-                        n = snprintf(sampleDataBuf + pos, bufLen - pos,
-                                        "%s=L\"%s\" ",
-                                        field->name, tmp);
-                    } else {
-                        n = snprintf(sampleDataBuf + pos, bufLen - pos,
-                                        "\"%s\" ", tmp);
-                    }
-                    if (n < 0 || n >= bufLen - pos) {
-                        errorPrint("%s() LN%d snprintf overflow\n",
-                                    __func__, __LINE__);
-                        tmfree(tmp);
-                        return -1;
-                    } else {
-                        pos += n;
-                    }
-                    tmfree(tmp);
-                    break;
-                }
                 case TSDB_DATA_TYPE_JSON: {
-                    n = tmpJson(sampleDataBuf, bufLen, pos, fieldsSize, field);
-                    if (n == -1) {
-                        return -1;
-                    }
-                    pos += n;
+                    pos += tmpJson(sampleDataBuf, bufLen, pos,
+                                   fieldsSize, field);
                     goto skip_telnet;
                 }
             }
@@ -1575,7 +1372,6 @@ static int generateRandDataSmlJson(SSuperTable *stbInfo, char *sampleDataBuf,
                     break;
                 }
                 case TSDB_DATA_TYPE_BINARY:
-                case TSDB_DATA_TYPE_VARBINARY:
                 case TSDB_DATA_TYPE_NCHAR: {
                     char *tmp = benchCalloc(1, field->length + 1, false);
                     if (0 != tmpStr(tmp, stbInfo->iface, field, k)) {
@@ -1588,11 +1384,8 @@ static int generateRandDataSmlJson(SSuperTable *stbInfo, char *sampleDataBuf,
                     break;
                 }
                 case TSDB_DATA_TYPE_JSON: {
-                    n = tmpJson(sampleDataBuf, bufLen, pos, fieldsSize, field);
-                    if (n == -1) {
-                        return -1;
-                    }
-                    pos += n;
+                    pos += tmpJson(sampleDataBuf, bufLen, pos,
+                                   fieldsSize, field);
                     goto skip_json;
                 }
             }
@@ -1674,12 +1467,7 @@ static int generateRandDataSmlLine(SSuperTable *stbInfo, char *sampleDataBuf,
                     break;
                 }
                 case TSDB_DATA_TYPE_INT: {
-                    int32_t intTmp;
-                    if (tag) {
-                        intTmp = tmpInt32ImplTag(field, i, k);
-                    } else {
-                        intTmp = tmpInt32Impl(field, i, angle, k);
-                    }                    
+                    int32_t intTmp = tmpInt32Impl(field, i, angle, k);
                     n = snprintf(sampleDataBuf + pos, bufLen - pos,
                                     "%s=%di32,",
                                     field->name, intTmp);
@@ -1718,7 +1506,6 @@ static int generateRandDataSmlLine(SSuperTable *stbInfo, char *sampleDataBuf,
                     break;
                 }
                 case TSDB_DATA_TYPE_BINARY:
-                case TSDB_DATA_TYPE_VARBINARY:
                 case TSDB_DATA_TYPE_NCHAR: {
                     char *tmp = benchCalloc(1, field->length + 1, false);
                     if (0 != tmpStr(tmp, stbInfo->iface, field, k)) {
@@ -1734,18 +1521,6 @@ static int generateRandDataSmlLine(SSuperTable *stbInfo, char *sampleDataBuf,
                                         "%s=L\"%s\",",
                                        field->name, tmp);
                     }
-                    tmfree(tmp);
-                    break;
-                }
-                case TSDB_DATA_TYPE_GEOMETRY: {
-                    char *tmp = benchCalloc(1, field->length + 1, false);
-                    if (0 != tmpGeometry(tmp, stbInfo->iface, field, k)) {
-                        tmfree(tmp);
-                        return -1;
-                    }
-                    n = snprintf(sampleDataBuf + pos, bufLen - pos,
-                                    "%s=\"%s\",",
-                                    field->name, tmp);
                     tmfree(tmp);
                     break;
                 }
@@ -1817,7 +1592,6 @@ int generateRandData(SSuperTable *stbInfo, char *sampleDataBuf,
             return generateRandDataSQL(stbInfo, sampleDataBuf,
                                     bufLen, lenOfOneRow, fields, loop, tag);
         case STMT_IFACE:
-        case STMT2_IFACE:
             if (childCols) {
                 return generateRandDataStmtForChildTable(stbInfo,
                                                          sampleDataBuf,
@@ -1924,7 +1698,7 @@ int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
             stbInfo->childTblCount, g_arguments->prepared_rand, stbInfo->lenOfCols);
             for (int64_t child = 0; child < stbInfo->childTblCount; child++) {
                 SChildTable *childTbl = stbInfo->childTblArray[child];
-                if (STMT_IFACE == stbInfo->iface || STMT2_IFACE == stbInfo->iface) {
+                if (STMT_IFACE == stbInfo->iface) {
                     childTbl->childCols = initChildCols(stbInfo->cols->size);
                 }
                 childTbl->sampleDataBuf =
@@ -2005,7 +1779,7 @@ int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
                                     child);
                     return -1;
                 }
-                if (STMT_IFACE == stbInfo->iface || STMT2_IFACE == stbInfo->iface) {
+                if (STMT_IFACE == stbInfo->iface) {
                     childTbl->childCols = initChildCols(stbInfo->cols->size);
                 }
                 childTbl->useOwnSample = true;
@@ -2036,20 +1810,19 @@ int64_t getTSRandTail(int64_t timeStampStep, int32_t seq, int disorderRatio,
 }
 
 uint32_t bindParamBatch(threadInfo *pThreadInfo,
-                        uint32_t batch, int64_t startTime, int64_t pos,
+                        uint32_t batch, int64_t startTime,
                         SChildTable *childTbl, int32_t *pkCur, int32_t *pkCnt, int32_t *n, int64_t *delay2, int64_t *delay3) {
     TAOS_STMT   *stmt = pThreadInfo->conn->stmt;
     SSuperTable *stbInfo = pThreadInfo->stbInfo;
     uint32_t     columnCount = stbInfo->cols->size;
 
-    //if (!pThreadInfo->stmtBind || stbInfo->interlaceRows > 0 ) {
-    {
+    if (!pThreadInfo->stmtBind) {
         pThreadInfo->stmtBind = true;
         memset(pThreadInfo->bindParams, 0,
             (sizeof(TAOS_MULTI_BIND) * (columnCount + 1)));
         memset(pThreadInfo->is_null, 0, batch);
 
-        for (int c = 0; c <= columnCount; c++) {
+        for (int c = 0; c < columnCount + 1; c++) {
             TAOS_MULTI_BIND *param =
                 (TAOS_MULTI_BIND *)(pThreadInfo->bindParams +
                                     sizeof(TAOS_MULTI_BIND) * c);
@@ -2057,21 +1830,17 @@ uint32_t bindParamBatch(threadInfo *pThreadInfo,
             if (c == 0) {
                 data_type = TSDB_DATA_TYPE_TIMESTAMP;
                 param->buffer_length = sizeof(int64_t);
-                if (stbInfo->useSampleTs) {
-                    param->buffer = pThreadInfo->bind_ts_array + pos;
-                } else {
-                    param->buffer = pThreadInfo->bind_ts_array;
-                }
+                param->buffer = pThreadInfo->bind_ts_array;
             } else {
                 Field *col = benchArrayGet(stbInfo->cols, c - 1);
                 data_type = col->type;
                 if (childTbl->useOwnSample) {
                     ChildField *childCol = benchArrayGet(childTbl->childCols, c-1);
-                    param->buffer = (char *)childCol->stmtData.data + pos * col->length;
-                    param->is_null = childCol->stmtData.is_null + pos;
+                    param->buffer = childCol->stmtData.data;
+                    param->is_null = childCol->stmtData.is_null;
                 } else {
-                    param->buffer = (char *)col->stmtData.data + pos * col->length;
-                    param->is_null = col->stmtData.is_null + pos;
+                    param->buffer = col->stmtData.data;
+                    param->is_null = col->stmtData.is_null;
                 }
                 param->buffer_length = col->length;
                 debugPrint("col[%d]: type: %s, len: %d\n", c,
@@ -2079,7 +1848,7 @@ uint32_t bindParamBatch(threadInfo *pThreadInfo,
                         col->length);
             }
             param->buffer_type = data_type;
-            param->length = pThreadInfo->lengths[c];
+            param->length = benchCalloc(batch, sizeof(int32_t), true);
 
             for (int b = 0; b < batch; b++) {
                 param->length[b] = (int32_t)param->buffer_length;
@@ -2088,37 +1857,21 @@ uint32_t bindParamBatch(threadInfo *pThreadInfo,
         }
     }
 
-    if (!stbInfo->useSampleTs) {
-        // set first column ts array values
-        for (uint32_t k = 0; k < batch; k++) {
-            /* columnCount + 1 (ts) */
-            if (stbInfo->disorderRatio) {
-                *(pThreadInfo->bind_ts_array + k) =
-                    startTime + getTSRandTail(stbInfo->timestamp_step, *n,
-                                            stbInfo->disorderRatio,
-                                            stbInfo->disorderRange);
-            } else {
-                *(pThreadInfo->bind_ts_array + k) = startTime + stbInfo->timestamp_step * (*n);
-            }
-
-            // check n need add
-            if (!stbInfo->primary_key || needChangeTs(stbInfo, pkCur, pkCnt)) {
-                *n = *n + 1;
-            }
+    // set ts array values
+    for (uint32_t k = 0; k < batch; k++) {
+        /* columnCount + 1 (ts) */
+        if (stbInfo->disorderRatio) {
+            *(pThreadInfo->bind_ts_array + k) =
+                startTime + getTSRandTail(stbInfo->timestamp_step, *n,
+                                          stbInfo->disorderRatio,
+                                          stbInfo->disorderRange);
+        } else {
+            *(pThreadInfo->bind_ts_array + k) = startTime + stbInfo->timestamp_step * (*n);
         }
-    }
 
-    /*
-      1. The last batch size may be smaller than the previous batch size.
-      2. When inserting another table, the batch size reset again(bigger than lastBatchSize)
-    */        
-    int lastBatchSize = ((TAOS_MULTI_BIND *) pThreadInfo->bindParams)->num;
-    if (batch != lastBatchSize) {
-        for (int c = 0; c < columnCount + 1; c++) {
-            TAOS_MULTI_BIND *param =
-                    (TAOS_MULTI_BIND *) (pThreadInfo->bindParams +
-                    sizeof(TAOS_MULTI_BIND) * c);
-            param->num = batch;
+        // check n need add
+        if (!stbInfo->primary_key || needChangeTs(stbInfo, pkCur, pkCnt)) {
+            *n = *n + 1;
         }
     }
 
@@ -2131,17 +1884,14 @@ uint32_t bindParamBatch(threadInfo *pThreadInfo,
     }
     *delay2 += toolsGetTimestampUs() - start;
 
-    if(stbInfo->autoTblCreating) {
-        start = toolsGetTimestampUs();
-        if (taos_stmt_add_batch(pThreadInfo->conn->stmt) != 0) {
-            errorPrint("taos_stmt_add_batch() failed! reason: %s\n",
-                    taos_stmt_errstr(pThreadInfo->conn->stmt));
-            return 0;
-        }
-        if(delay3) {
-            *delay3 += toolsGetTimestampUs() - start;
-        }
+    // if msg > 3MB, break
+    start = toolsGetTimestampUs();
+    if (taos_stmt_add_batch(stmt)) {
+        errorPrint("taos_stmt_add_batch() failed! reason: %s\n",
+                   taos_stmt_errstr(stmt));
+        return 0;
     }
+    *delay3 += toolsGetTimestampUs() - start;
     return batch;
 }
 
@@ -2175,11 +1925,10 @@ void generateSmlJsonTags(tools_cJSON *tagsList,
             }
 
             case TSDB_DATA_TYPE_BINARY:
-            case TSDB_DATA_TYPE_VARBINARY:
             case TSDB_DATA_TYPE_NCHAR: {
                 char *buf = (char *)benchCalloc(tag->length + 1, 1, false);
                 rand_string(buf, tag->length, g_arguments->chinese);
-                if (tag->type == TSDB_DATA_TYPE_BINARY || tag->type == TSDB_DATA_TYPE_VARBINARY) {
+                if (tag->type == TSDB_DATA_TYPE_BINARY) {
                     tools_cJSON_AddStringToObject(tags, tagName, buf);
                 } else {
                     tools_cJSON_AddStringToObject(tags, tagName, buf);
@@ -2242,11 +1991,10 @@ void generateSmlTaosJsonTags(tools_cJSON *tagsList, SSuperTable *stbInfo,
             }
 
             case TSDB_DATA_TYPE_BINARY:
-            case TSDB_DATA_TYPE_VARBINARY:
             case TSDB_DATA_TYPE_NCHAR: {
                 char *buf = (char *)benchCalloc(tag->length + 1, 1, false);
                 rand_string(buf, tag->length, g_arguments->chinese);
-                if (tag->type == TSDB_DATA_TYPE_BINARY || tag->type == TSDB_DATA_TYPE_VARBINARY) {
+                if (tag->type == TSDB_DATA_TYPE_BINARY) {
                     tools_cJSON_AddStringToObject(tagObj, "value", buf);
                     tools_cJSON_AddStringToObject(tagObj, "type", "binary");
                 } else {
@@ -2302,19 +2050,9 @@ void generateSmlJsonValues(
             break;
         }
         case TSDB_DATA_TYPE_BINARY:
-        case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_NCHAR: {
             char *buf = (char *)benchCalloc(col->length + 1, 1, false);
             rand_string(buf, col->length, g_arguments->chinese);
-            value_buf = benchCalloc(len_key + col->length + 3, 1, true);
-            snprintf(value_buf, len_key + col->length + 3,
-                     "\"value\":\"%s\",", buf);
-            tmfree(buf);
-            break;
-        }
-        case TSDB_DATA_TYPE_GEOMETRY: {
-            char *buf = (char *)benchCalloc(col->length + 1, 1, false);
-            tmpGeometry(buf, stbInfo->iface, col, 0);
             value_buf = benchCalloc(len_key + col->length + 3, 1, true);
             snprintf(value_buf, len_key + col->length + 3,
                      "\"value\":\"%s\",", buf);
@@ -2354,7 +2092,6 @@ void generateSmlJsonCols(tools_cJSON *array, tools_cJSON *tag,
             break;
         }
         case TSDB_DATA_TYPE_BINARY:
-        case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_NCHAR: {
             char *buf = (char *)benchCalloc(col->length + 1, 1, false);
             rand_string(buf, col->length, g_arguments->chinese);
@@ -2363,13 +2100,6 @@ void generateSmlJsonCols(tools_cJSON *array, tools_cJSON *tag,
             } else {
                 tools_cJSON_AddStringToObject(record, "value", buf);
             }
-            tmfree(buf);
-            break;
-        }
-        case TSDB_DATA_TYPE_GEOMETRY: {
-            char *buf = (char *)benchCalloc(col->length + 1, 1, false);
-            tmpGeometry(buf, stbInfo->iface, col, 0);
-            tools_cJSON_AddStringToObject(record, "value", buf);
             tmfree(buf);
             break;
         }
@@ -2419,11 +2149,10 @@ void generateSmlTaosJsonCols(tools_cJSON *array, tools_cJSON *tag,
             break;
         }
         case TSDB_DATA_TYPE_BINARY:
-        case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_NCHAR: {
             char *buf = (char *)benchCalloc(col->length + 1, 1, false);
             rand_string(buf, col->length, g_arguments->chinese);
-            if (col->type == TSDB_DATA_TYPE_BINARY || col->type == TSDB_DATA_TYPE_VARBINARY) {
+            if (col->type == TSDB_DATA_TYPE_BINARY) {
                 tools_cJSON_AddStringToObject(value, "value", buf);
                 tools_cJSON_AddStringToObject(value, "type", "binary");
             } else {
@@ -2432,13 +2161,6 @@ void generateSmlTaosJsonCols(tools_cJSON *array, tools_cJSON *tag,
             }
             tmfree(buf);
             break;
-        }
-        case TSDB_DATA_TYPE_GEOMETRY: {
-            char *buf = (char *)benchCalloc(col->length + 1, 1, false);
-            tmpGeometry(buf, stbInfo->iface, col, 0);
-            tools_cJSON_AddStringToObject(value, "value", buf);
-            tools_cJSON_AddStringToObject(value, "type", "geometry");
-            tmfree(buf);
         }
         default: {
             double dblTmp = (double)col->min;
@@ -2459,7 +2181,7 @@ void generateSmlTaosJsonCols(tools_cJSON *array, tools_cJSON *tag,
 }
 
 // generateTag data from random or csv file
-bool generateTagData(SSuperTable *stbInfo, char *buf, int64_t cnt, FILE* csv, BArray* tagsStmt) {
+bool generateTagData(SSuperTable *stbInfo, char *buf, int64_t cnt, FILE* csv) {
     if(csv) {
         if (generateSampleFromCsv(
                 buf, NULL, csv,
@@ -2472,7 +2194,7 @@ bool generateTagData(SSuperTable *stbInfo, char *buf, int64_t cnt, FILE* csv, BA
                             buf,
                             cnt * stbInfo->lenOfTags,
                             stbInfo->lenOfTags,
-                            tagsStmt ? tagsStmt : stbInfo->tags,
+                            stbInfo->tags,
                             cnt, true, NULL)) {
             errorPrint("Generate Tag Rand Data Failed. stb=%s\n", stbInfo->stbName);
             return false;
@@ -2488,219 +2210,9 @@ FILE* openTagCsv(SSuperTable* stbInfo) {
     if (stbInfo->tagsFile[0] != 0) {
         csvFile = fopen(stbInfo->tagsFile, "r");
         if (csvFile == NULL) {
-            errorPrint("Failed to open tag sample file: %s, reason:%s\n", stbInfo->tagsFile, strerror(errno));
+            errorPrint("Failed to open sample file: %s, reason:%s\n", stbInfo->tagsFile, strerror(errno));
             return NULL;
         }
-        infoPrint("open tag csv file :%s \n", stbInfo->tagsFile);
     }
     return csvFile;
-}
-
-//
-// STMT2 bind cols param progressive
-//
-uint32_t bindVColsProgressive(TAOS_STMT2_BINDV *bindv, int32_t tbIndex,
-                 threadInfo *pThreadInfo,
-                 uint32_t batch, int64_t startTime, int64_t pos,
-                 SChildTable *childTbl, int32_t *pkCur, int32_t *pkCnt, int32_t *n) {
-    
-    SSuperTable *stbInfo = pThreadInfo->stbInfo;
-    uint32_t     columnCount = stbInfo->cols->size;
-
-    // clear
-    memset(pThreadInfo->bindParams, 0, sizeof(TAOS_STMT2_BIND) * (columnCount + 1));
-    memset(pThreadInfo->is_null, 0, batch);
-    debugPrint("stmt2 bindVColsProgressive child=%s batch=%d pos=%" PRId64 "\n", childTbl->name, batch, pos);
-    // loop cols
-    for (int c = 0; c <= columnCount; c++) {
-        // des
-        TAOS_STMT2_BIND *param = (TAOS_STMT2_BIND *)(pThreadInfo->bindParams + sizeof(TAOS_STMT2_BIND) * c);
-        char data_type;
-        int32_t length = 0;
-        if (c == 0) {
-            data_type = TSDB_DATA_TYPE_TIMESTAMP;
-            if (stbInfo->useSampleTs) {
-                param->buffer = pThreadInfo->bind_ts_array + pos;
-            } else {
-                param->buffer = pThreadInfo->bind_ts_array;
-            }
-            length = sizeof(int64_t);
-        } else {
-            Field *col = benchArrayGet(stbInfo->cols, c - 1);
-            data_type = col->type;
-            length    = col->length;
-            if (childTbl->useOwnSample) {
-                ChildField *childCol = benchArrayGet(childTbl->childCols, c-1);
-                param->buffer = (char *)childCol->stmtData.data + pos * col->length;
-                param->is_null = childCol->stmtData.is_null + pos;
-            } else {
-                param->buffer = (char *)col->stmtData.data + pos * col->length;
-                param->is_null = col->stmtData.is_null + pos;
-            }
-            debugPrint("col[%d]: type: %s, len: %d\n", c,
-                    convertDatatypeToString(data_type),
-                    col->length);
-        }
-        param->buffer_type = data_type;
-        param->length = pThreadInfo->lengths[c];
-
-        for (int b = 0; b < batch; b++) {
-            param->length[b] = length;
-        }
-        param->num = batch;
-    }
-    
-    // ts key
-    if (!stbInfo->useSampleTs) {
-        // set first column ts array values
-        for (uint32_t k = 0; k < batch; k++) {
-            /* columnCount + 1 (ts) */
-            if (stbInfo->disorderRatio) {
-                *(pThreadInfo->bind_ts_array + k) =
-                    startTime + getTSRandTail(stbInfo->timestamp_step, *n,
-                                            stbInfo->disorderRatio,
-                                            stbInfo->disorderRange);
-            } else {
-                *(pThreadInfo->bind_ts_array + k) = startTime + stbInfo->timestamp_step * (*n);
-            }
-
-            // check n need add
-            if (!stbInfo->primary_key || needChangeTs(stbInfo, pkCur, pkCnt)) {
-                *n = *n + 1;
-            }
-        }
-    }
-
-    // set to bindv (only one table, so always is 0 index table)
-    bindv->bind_cols[tbIndex] = (TAOS_STMT2_BIND *)pThreadInfo->bindParams;
-    return batch;
-}
-
-
-//
-// STMT2 bind tags param progressive
-//
-uint32_t bindVTags(TAOS_STMT2_BINDV *bindv, int32_t tbIndex, int32_t w, BArray* fields) {
-
-    TAOS_STMT2_BIND *tagsTb = bindv->tags[tbIndex];
-
-    // loop 
-    for (int32_t i = 0; i < fields->size; i++) {
-        Field* field = benchArrayGet(fields, i);
-
-        // covert field data to bind struct
-        tagsTb[i].buffer      = (char *)(field->stmtData.data) + field->length * w ;
-        tagsTb[i].buffer_type = field->type;
-        tagsTb[i].is_null     = field->stmtData.is_null;
-        if (IS_VAR_DATA_TYPE(field->type)) {
-            // only var set length
-            tagsTb[i].length  = field->stmtData.lengths;
-        }
-
-        // tag always one line
-        tagsTb[i].num = 1;
-    }
-    
-    return 1;
-}
-
-//
-// STMT2 bind cols param progressive
-//
-uint32_t bindVColsInterlace(TAOS_STMT2_BINDV *bindv, int32_t tbIndex,
-                 threadInfo *pThreadInfo,
-                 uint32_t batch, int64_t startTime, int64_t pos,
-                 SChildTable *childTbl, int32_t *pkCur, int32_t *pkCnt, int32_t *n) {
-    // count
-    bindv->count += 1;
-    // info
-    SSuperTable *stbInfo    = pThreadInfo->stbInfo;
-    TAOS_STMT2_BIND *colsTb = bindv->bind_cols[tbIndex];
-    BArray* fields          = stbInfo->cols;
-
-
-    // loop 
-    for (int32_t i = 0; i < fields->size + 1; i++) {
-        // col bind
-        if (i == 0) {
-            // ts 
-            colsTb[i].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-            colsTb[i].length      = pThreadInfo->lengths[0];
-            for (int32_t j = 0; j < batch; j++) {
-                colsTb[i].length[j] = sizeof(int64_t); 
-            }
-            if (stbInfo->useSampleTs) {
-                colsTb[i].buffer = pThreadInfo->bind_ts_array + pos;
-            } else {
-                colsTb[i].buffer = pThreadInfo->bind_ts_array;
-            }
-            // no need set is_null for main key
-        } else {
-            Field* field = benchArrayGet(fields, i - 1);
-            colsTb[i].buffer_type = field->type;
-
-            if (childTbl->useOwnSample) {
-                ChildField *childCol = benchArrayGet(childTbl->childCols, i - 1);
-                colsTb[i].buffer  = (char *)childCol->stmtData.data + pos * field->length;
-                colsTb[i].is_null = childCol->stmtData.is_null + pos;
-                colsTb[i].length  = childCol->stmtData.lengths + pos;
-            } else {
-                colsTb[i].buffer  = (char *)field->stmtData.data + pos * field->length;
-                colsTb[i].is_null = field->stmtData.is_null + pos;
-                colsTb[i].length  = field->stmtData.lengths + pos;
-            }
-        }
-
-        // set batch
-        colsTb[i].num = batch;
-    }
-
-    // ts key
-    if (!stbInfo->useSampleTs) {
-        // set first column ts array values
-        for (uint32_t k = 0; k < batch; k++) {
-            /* columnCount + 1 (ts) */
-            if (stbInfo->disorderRatio) {
-                *(pThreadInfo->bind_ts_array + k) =
-                    startTime + getTSRandTail(stbInfo->timestamp_step, *n,
-                                            stbInfo->disorderRatio,
-                                            stbInfo->disorderRange);
-            } else {
-                *(pThreadInfo->bind_ts_array + k) = startTime + stbInfo->timestamp_step * (*n);
-            }
-
-            // check n need add
-            if (!stbInfo->primary_key || needChangeTs(stbInfo, pkCur, pkCnt)) {
-                *n = *n + 1;
-            }
-        }
-    }    
-    
-    return batch;
-}
-
-// early malloc tags for stmt
-void prepareTagsStmt(SSuperTable* stbInfo) {
-    BArray *fields = stbInfo->tags;
-    int32_t loop   = TAG_BATCH_COUNT;
-    for (int i = 0; i < fields->size; ++i) {
-        Field *field = benchArrayGet(fields, i);
-        if (field->stmtData.data == NULL) {
-            // data
-            if (field->type == TSDB_DATA_TYPE_BINARY
-                    || field->type == TSDB_DATA_TYPE_NCHAR) {
-                field->stmtData.data = benchCalloc(1, loop * (field->length + 1), true);
-            } else {
-                field->stmtData.data = benchCalloc(1, loop * field->length, true);
-            }
-
-            // is_null
-            field->stmtData.is_null = benchCalloc(sizeof(char), loop, true);
-            // lengths
-            field->stmtData.lengths = benchCalloc(sizeof(int32_t), loop, true);
-
-            // log
-            debugPrint("i=%d prepareTags fields=%p %s malloc stmtData.data=%p\n", i, fields, field->name ,field->stmtData.data);
-        }
-    }
 }
