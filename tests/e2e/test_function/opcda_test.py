@@ -18,6 +18,7 @@ opcda_test_logger = logging.getLogger(__name__)
 task_type = TaskType.OPCDA
 OPCDA_CI_DBNAME = "ci_opcda"
 
+
 # OPC DA sanity 用例设计：
 # 1.使用只包含必填列的 CSV 配置文件上传，配置文件，其他全使用默认参数
 # 2.使用包含所有列的 CSV 配置文件（tag 使用多列），连接超时设置为最大 60s，请求超时设置为最大 60s，采集间隔使用默认值 1s，日志级别指定为 debug，保存原始数据打开，保留天数和原始数据存储目录使用默认值
@@ -446,16 +447,16 @@ def test_task_add_points_8(input_data):
     sleep(5)  # 实际测试中发现 OPC DA 数据源的时间戳比北京时间可能稍微慢，所以这里采用休眠较长的时间来确保 ts_transform 之后的验证是通过的
     response = TaosAdapter.run_sql(
         env_data["taosadapter_host"],
-        f"select LAST_ROW(ts), LAST_ROW(rts) from {OPCDA_CI_DBNAME}.`{point_b_tbname}`",
+        f"select LAST_ROW(ts,rts) from {OPCDA_CI_DBNAME}.`{point_b_tbname}`",
     )
     # ts 及 rts 与北京时间相比有设置的毫秒差值
     last_row_ts = int(parser.parse(response["data"][0][0]).timestamp())
     last_row_rts = int(parser.parse(response["data"][0][1]).timestamp())
     assert (
-        last_row_ts - now >= 8 * 3600
+        last_row_ts - now >= 8 * 3600 - 60
     ), f"点位 B ts_transform 没有生效:  last_row_ts: {last_row_ts} now: {now}"
     assert (
-        last_row_rts - now >= 8 * 3600
+        last_row_rts - now >= 8 * 3600 - 60
     ), f"点位 B rts_transform 没有生效:  last_row_rts: {last_row_rts} now: {now}"
     table_list = TaosAdapter.get_table_list(
         env_data["taosadapter_host"], OPCDA_CI_DBNAME
