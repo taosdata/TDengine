@@ -18,11 +18,17 @@ concurrency:
 
 jobs:
   build:
+    name: Build and test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, ubuntu-20.04, ubuntu-22.04, ubuntu-24.04, macos-latest, macos-13, macos-14, macos-15]
-    name: Build and test on ${{ matrix.os }}
+        os:
+          - ubuntu-20.04
+          - ubuntu-22.04
+          - ubuntu-24.04
+          - macos-13
+          - macos-14
+          - macos-15
 
     steps:
       - name: Checkout the repository
