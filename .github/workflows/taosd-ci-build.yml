@@ -10,8 +10,7 @@ on:
       - 'docs/**'
       - 'packaging/**'
       - 'tests/**'
-      - 'README.md'
-      - 'README-CN.md'
+      - '*.md'
       
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
