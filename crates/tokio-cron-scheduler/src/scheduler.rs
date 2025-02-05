@@ -195,7 +195,7 @@ impl Scheduler {
                                     .unwrap_or(FixedOffset::east_opt(0).unwrap());
                                 let now = now.with_timezone(&fixed_offset);
                                 let repeated_every = job.repeated_every();
-                                let next_tick = job
+                                let mut next_tick = job
                                     .next_tick_utc()
                                     .map(|nt| nt.with_timezone(&fixed_offset));
                                 let next_tick = match job_type {
@@ -203,13 +203,23 @@ impl Scheduler {
                                         schedule.and_then(|s| s.iter_after(now).next())
                                     }
                                     JobType::OneShot => None,
-                                    JobType::Repeated => repeated_every.and_then(|r| {
-                                        next_tick.and_then(|nt| {
-                                            nt.checked_add_signed(chrono::Duration::seconds(
-                                                r as i64,
-                                            ))
-                                        })
-                                    }),
+                                    JobType::Repeated => loop {
+                                        next_tick = repeated_every.and_then(|r| {
+                                            next_tick.and_then(|nt| {
+                                                nt.checked_add_signed(chrono::Duration::seconds(
+                                                    r as i64,
+                                                ))
+                                            })
+                                        });
+                                        match next_tick {
+                                            None => break None,
+                                            Some(nt) if nt >= now => break Some(nt),
+                                            // last tick is less than now? should it be ticked
+                                            // directly or skip util next next tick. Now we choose
+                                            // option 2.
+                                            _ => continue,
+                                        }
+                                    },
                                 };
                                 let last_tick = Some(now);
                                 Some((
