@@ -471,7 +471,7 @@ pipeline {
             }
             parallel {
                 stage('windows test') {
-                    agent{label "windows10_01"}
+                    agent{label "windows10_01_test"}
                     environment{
                         WIN_INTERNAL_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal"
                         WIN_COMMUNITY_ROOT="C:\\workspace\\${env.EXECUTOR_NUMBER}\\TDinternal\\community"
