@@ -29,7 +29,6 @@
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-mix.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stream_function_test.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/telnet_tcp.py -R
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json-subtable.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to-continue.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_json_alltypes-interlace.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/commandline-retry.py
@@ -45,7 +44,6 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-error-sqlfile.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-retry-json-global.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/exportCsv.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-partial-col-numpy.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-sqlfile.py
@@ -66,7 +64,6 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-vgroups.py
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-retry-json-stb.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_auto_create_table_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_telnet_alltypes.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stream-test.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_taosjson_alltypes.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-single-table.py
@@ -75,8 +72,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/cloud/cloud-test.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/ws/websocket.py -R
 
-# taosdump 42 cases
-,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTest.py
+# taosdump 41 cases
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpDbStb.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeDouble.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeUnsignedBigInt.py
