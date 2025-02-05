@@ -1584,9 +1584,6 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
         pFoundExpr = pExpr;
         *pFound = true;
       } else if (isPrimaryKeyImpl(pNode) && isInternalPrimaryKey(pCol)) {
-        if (*pFound) {
-          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, pCol->colName);
-        }
         pFoundExpr = pExpr;
         pCol->isPrimTs = true;
         *pFound = true;
@@ -7628,7 +7625,7 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
 }
 
 static int32_t translateColsFunction(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable)) {
+  if (pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable)) {
     SNode* pSubquery = ((STempTableNode*)pSelect->pFromTable)->pSubquery;
     if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
       SSelectStmt* pSubSelect = (SSelectStmt*)pSubquery;
