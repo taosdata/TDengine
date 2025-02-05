@@ -11,6 +11,7 @@ import Icinga2 from "./_icinga2.mdx"
 import TCollector from "./_tcollector.mdx"
 
 taosAdapter 是一个 TDengine 的配套工具，是 TDengine 集群和应用程序之间的桥梁和适配器。它提供了一种易于使用和高效的方式来直接从数据收集代理软件（如 Telegraf、StatsD、collectd 等）摄取数据。它还提供了 InfluxDB/OpenTSDB 兼容的数据摄取接口，允许 InfluxDB/OpenTSDB 应用程序无缝移植到 TDengine。
+TDengine 的各语言连接器通过 WebSocket 接口与 TDengine 进行通信，因此必须安装 taosAdapter。
 
 架构图如下：
 
@@ -20,8 +21,6 @@ taosAdapter 是一个 TDengine 的配套工具，是 TDengine 集群和应用程
 
 taosAdapter 提供了以下功能：
 
-- RESTful 接口：
-  [RESTful API](../../connector/rest-api)
 - WebSocket 接口：
   支持通过 WebSocket 协议执行 SQL、无模式数据写入、参数绑定和数据订阅功能。
 - 兼容 InfluxDB v1 写接口：
@@ -41,10 +40,8 @@ taosAdapter 提供了以下功能：
   node_export 是一个机器指标的导出器。请访问 [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) 了解更多信息。
 - Prometheus remote_read 和 remote_write：
   remote_read 和 remote_write 是 Prometheus 数据读写分离的集群方案。请访问[https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) 了解更多信息。
-
-### RESTful 接口
-
-您可以使用任何支持 HTTP 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/rest/sql` 来写入数据到 TDengine 或从 TDengine 中查询数据。细节请参考[REST API 文档](../../connector/rest-api/)。
+- RESTful 接口：
+  [RESTful API](../../connector/rest-api)
 
 ### WebSocket 接口
 
@@ -105,6 +102,10 @@ Prometheus 使用的由 \*NIX 内核暴露的硬件和操作系统指标的输�
 ### Prometheus remote_read 和 remote_write
 
 <Prometheus />
+
+### RESTful 接口
+
+您可以使用任何支持 HTTP 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/rest/sql` 来写入数据到 TDengine 或从 TDengine 中查询数据。细节请参考[REST API 文档](../../connector/rest-api/)。
 
 ## 安装
 
