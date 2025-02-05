@@ -1,0 +1,72 @@
+<!--
+   Licensed to the Apache Software Foundation (ASF) under one or more
+   contributor license agreements.  See the NOTICE file distributed with
+   this work for additional information regarding copyright ownership.
+   The ASF licenses this file to You under the Apache License, Version 2.0
+   (the "License"); you may not use this file except in compliance with
+   the License.  You may obtain a copy of the License at
+
+       https://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../../../common.props" />
+  <Import Project="../../../versions.props" />
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!--
+    Support .NET Core 3.1 (LTS) and .NET 5.0 (latest)
+    When installing with 'dotnet tool install', the proper/supported framwork will be selected,
+    unless framework is explicitly specified with 'dotnet tool install'
+    https://docs.microsoft.com/en-us/dotnet/core/tools/dotnet-tool-install
+    -->
+    <TargetFrameworks>netcoreapp3.1;net5.0</TargetFrameworks>
+    <AssemblyName>avrogen</AssemblyName>
+    <RootNamespace>Avro.codegen</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\..\..\Avro.snk</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- NuGet Package Settings -->
+    <PackageId>Apache.Avro.Tools</PackageId>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>avrogen</ToolCommandName>
+    <Description>
+      Avro provides:
+
+      Rich data structures.
+      A compact, fast, binary data format.
+      A container file, to store persistent data.
+      Remote procedure call (RPC).
+      Simple integration with dynamic languages. Code generation is not required to read or write data files nor to use or implement RPC protocols. Code generation as an optional optimization, only worth implementing for statically typed languages.
+    </Description>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsAsErrors />
+  </PropertyGroup>
+
+  <!-- See lang/csharp/README.md for tool and library dependency update strategy -->
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="$(NewtonsoftJsonVersion)" />
+    <PackageReference Include="System.CodeDom" Version="$(SystemCodeDomVersion)" />
+    <PackageReference Include="System.Reflection" Version="$(SystemReflectionVersion)" />
+    <PackageReference Include="System.Reflection.Emit.ILGeneration" Version="$(SystemReflectionEmitILGenerationVersion)" />
+    <PackageReference Include="System.Reflection.Emit.Lightweight" Version="$(SystemReflectionEmitLightweightVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\main\Avro.main.csproj" />
+  </ItemGroup>
+
+</Project>

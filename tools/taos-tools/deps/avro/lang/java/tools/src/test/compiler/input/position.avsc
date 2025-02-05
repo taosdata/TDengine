@@ -1,0 +1,3 @@
+{"type":"enum", "name": "Position", "namespace": "avro.examples.baseball",
+    "symbols": ["P", "C", "B1", "B2", "B3", "SS", "LF", "CF", "RF", "DH"]
+}
