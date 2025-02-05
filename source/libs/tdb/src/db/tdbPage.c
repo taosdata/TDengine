@@ -212,6 +212,8 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
       return ret;
     }
 
+    tdbInfo("tdb/page-insert-cell: cell: %p, size: %d, free start: %p, free end: %p", pNewCell, szCell,
+            pPage->pFreeStart, pPage->pFreeEnd);
     memcpy(pNewCell, pCell, szCell);
 
     // no overflow cell exists in this page
@@ -384,6 +386,8 @@ static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
     pPage->pFreeEnd -= szCell;
     pCell = pPage->pFreeEnd;
     TDB_PAGE_CCELLS_SET(pPage, pPage->pFreeEnd - pPage->pData);
+    tdbInfo("tdb/page-allocate by free space block: cell: %p, size: %d, free start: %p, free end: %p", pCell, szCell,
+            pPage->pFreeStart, pPage->pFreeEnd);
     goto _alloc_finish;
   }
 
@@ -425,7 +429,8 @@ static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
             TDB_PAGE_FCELL_SET(pPage, nxFreeCell);
           }
         }
-
+        tdbInfo("tdb/page-allocate by page free list: cell: %p, size: %d, szFreeCell: %d, nxFreeCell: %d", pCell,
+                szCell, szFreeCell, nxFreeCell);
         goto _alloc_finish;
       } else {
         pPrevFreeCell = pFreeCell;
@@ -454,6 +459,8 @@ static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
   pPage->pFreeEnd -= szCell;
   pCell = pPage->pFreeEnd;
   TDB_PAGE_CCELLS_SET(pPage, pPage->pFreeEnd - pPage->pData);
+  tdbInfo("tdb/page-allocate by defragment: cell: %p, size: %d, free start: %p, free end: %p", pCell, szCell,
+          pPage->pFreeStart, pPage->pFreeEnd);
 
 _alloc_finish:
   if (NULL == pCell) {
