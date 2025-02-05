@@ -38,10 +38,12 @@ arrow = { workspace = true }
 arrow-schema = { workspace = true }
 parquet = { workspace = true }
 bytes = { workspace = true }
+signal-hook = "0.3.17"
+socket2 = "0.5.8"
 
 [lints]
 workspace = true
 
 [[bin]]
-name="read-parquet"
-path="src/bin/read_parquet.rs"
+name = "read-parquet"
+path = "src/bin/read_parquet.rs"

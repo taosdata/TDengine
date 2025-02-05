@@ -12,7 +12,7 @@ use rdkafka::producer::{FutureProducer, FutureRecord, Producer};
 use rdkafka::util::Timeout;
 
 use taosx_tools::codec::{Encoding, Processor};
-use taosx_tools::faker::DataFaker;
+use taosx_tools::fake_json::DataFakeSchema;
 use tokio::signal::ctrl_c;
 use tokio::task::JoinSet;
 use tokio_stream::wrappers::IntervalStream;
@@ -50,7 +50,7 @@ async fn main() {
 
     let token = CancellationToken::new();
 
-    let faker = Arc::new(DataFaker::from_file(args.schema).unwrap());
+    let faker = Arc::new(DataFakeSchema::from_file(args.schema).unwrap());
 
     let mut config = ClientConfig::new();
     config.set("bootstrap.servers", args.servers);
@@ -123,7 +123,7 @@ async fn main() {
                                 let faker = faker.clone();
                                 move || {
                                     let value = faker
-                                        .rand_json()
+                                        .rand_json_value()
                                         .context("gen fake data error")
                                         .and_then(|value| serde_json::to_vec(&value).context("serialize json error"))
                                         .and_then(|value| processor.process(value).context("processer process error"))
