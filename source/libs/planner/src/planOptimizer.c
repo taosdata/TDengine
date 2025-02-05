@@ -223,6 +223,13 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order, SLogicNode* pNode
       // Use window output ts order instead.
       order = pNode->outputTsOrder;
       break;
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      if (projectCouldMergeUnsortDataBlock((SProjectLogicNode*)pNode)) {
+        pNode->outputTsOrder = TSDB_ORDER_NONE;
+        return;
+      }
+      pNode->outputTsOrder = order;
+      break;
     default:
       pNode->outputTsOrder = order;
       break;
@@ -3698,8 +3705,14 @@ static int32_t rewriteTailOptCreateLimit(SNode* pLimit, SNode* pOffset, SNode** 
   if (NULL == pLimitNode) {
     return code;
   }
-  pLimitNode->limit = NULL == pLimit ? -1 : ((SValueNode*)pLimit)->datum.i;
-  pLimitNode->offset = NULL == pOffset ? 0 : ((SValueNode*)pOffset)->datum.i;
+  code = nodesMakeValueNodeFromInt64(NULL == pLimit ? -1 : ((SValueNode*)pLimit)->datum.i, (SNode**)&pLimitNode->limit);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  code = nodesMakeValueNodeFromInt64(NULL == pOffset ? 0 : ((SValueNode*)pOffset)->datum.i, (SNode**)&pLimitNode->offset);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   *pOutput = (SNode*)pLimitNode;
   return TSDB_CODE_SUCCESS;
 }

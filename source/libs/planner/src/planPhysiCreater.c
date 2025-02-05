@@ -1823,9 +1823,9 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
   if (NULL == pAgg) {
     return terrno;
   }
-  if (pAgg->node.pSlimit) {
+  if (pAgg->node.pSlimit && ((SLimitNode*)pAgg->node.pSlimit)->limit) {
     pSubPlan->dynamicRowThreshold = true;
-    pSubPlan->rowsThreshold = ((SLimitNode*)pAgg->node.pSlimit)->limit;
+    pSubPlan->rowsThreshold = ((SLimitNode*)pAgg->node.pSlimit)->limit->datum.i;
   }
 
   pAgg->mergeDataBlock = (GROUP_ACTION_KEEP == pAggLogicNode->node.groupAction ? false : true);
@@ -2051,6 +2051,23 @@ static bool projectCanMergeDataBlock(SProjectLogicNode* pProject) {
   }
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
   return DATA_ORDER_LEVEL_GLOBAL == pChild->resultDataOrder ? true : false;
+}
+
+bool projectCouldMergeUnsortDataBlock(SProjectLogicNode* pProject) {
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProject->node.pChildren, 0);
+  if (DATA_ORDER_LEVEL_GLOBAL == pChild->resultDataOrder) {
+    return false;
+  }
+  if (GROUP_ACTION_KEEP == pProject->node.groupAction) {
+    return false;
+  }
+  if (DATA_ORDER_LEVEL_NONE == pProject->node.resultDataOrder) {
+    return true;
+  }
+  if (1 != LIST_LENGTH(pProject->node.pChildren)) {
+    return true;
+  }
+  return false;
 }
 
 static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,

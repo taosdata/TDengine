@@ -843,3 +843,21 @@ const char *vnodeGetATaskName(EVATaskT taskType) {
       return "unknown";
   }
 }
+
+bool vnodeATaskValid(SVATaskID *taskID) {
+  if (taskID == NULL || taskID->async < MIN_ASYNC_ID || taskID->async > MAX_ASYNC_ID || taskID->id <= 0) {
+    return false;
+  }
+
+  SVAsync *async = GVnodeAsyncs[taskID->async].async;
+  SVATask  task2 = {
+       .taskId = taskID->id,
+  };
+  SVATask *task = NULL;
+
+  (void)taosThreadMutexLock(&async->mutex);
+  int32_t ret = vHashGet(async->taskTable, &task2, (void **)&task);
+  (void)taosThreadMutexUnlock(&async->mutex);
+
+  return ret == 0 && task != NULL;
+}

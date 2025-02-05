@@ -13,7 +13,7 @@ Apache Flink 是一款由 Apache 软件基金会支持的开源分布式流批�
 ## 前置条件 
 
 准备以下环境：
-- TDengine 集群已部署并正常运行（企业及社区版均可）
+- TDengine 服务已部署并正常运行（企业及社区版均可）
 - taosAdapter 能够正常运行。详细参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)
 - Apache Flink v1.19.0 或以上版本已安装。安装 Apache Flink 请参考 [官方文档](https://flink.apache.org/)
 
@@ -24,7 +24,8 @@ Flink Connector 支持所有能运行 Flink 1.19 及以上版本的平台。
 ## 版本历史
 | Flink Connector 版本 |                   主要变化         |   TDengine 版本   |
 | ------------------| ------------------------------------ | ---------------- |
-|        2.0.0      | 1. 支持 SQL 查询 TDengine 数据库中的数据<br/> 2. 支持 CDC 订阅 TDengine 数据库中的数据<br/> 3. 支持 Table SQL 方式读取和写入 TDengine 数据库| 3.3.5.0 及以上版本 |
+|        2.0.1      | Sink 支持对所有继承自 RowData 并已实现的类型进行数据写入| - |
+|        2.0.0      | 1. 支持 SQL 查询 TDengine 数据库中的数据<br/> 2. 支持 CDC 订阅 TDengine 数据库中的数据<br/> 3. 支持 Table SQL 方式读取和写入 TDengine 数据库| 3.3.5.1 及以上版本 |
 |        1.0.0      | 支持 Sink 功能，将来着其他数据源的数据写入到 TDengine| 3.3.2.0 及以上版本|
 
 ## 异常和错误码
@@ -111,7 +112,7 @@ env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.AT_LEAST_ONCE);
 <dependency>
     <groupId>com.taosdata.flink</groupId>
     <artifactId>flink-connector-tdengine</artifactId>
-    <version>2.0.0</version>
+    <version>2.0.1</version>
 </dependency>
 ```
 

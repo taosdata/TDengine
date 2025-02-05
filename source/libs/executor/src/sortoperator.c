@@ -84,9 +84,11 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
   
   calcSortOperMaxTupleLength(pInfo, pSortNode->pSortKeys);
   pInfo->maxRows = -1;
-  if (pSortNode->node.pLimit) {
+  if (pSortNode->node.pLimit && ((SLimitNode*)pSortNode->node.pLimit)->limit) {
     SLimitNode* pLimit = (SLimitNode*)pSortNode->node.pLimit;
-    if (pLimit->limit > 0) pInfo->maxRows = pLimit->limit + pLimit->offset;
+    if (pLimit->limit->datum.i > 0) {
+      pInfo->maxRows = pLimit->limit->datum.i + (pLimit->offset ? pLimit->offset->datum.i : 0);
+    }
   }
 
   pOperator->exprSupp.pCtx =
