@@ -367,7 +367,7 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 
 ### 日志配置
 
-1. 可以通过设置 --log.level 参数或者环境变量 TAOS_ADAPTER_LOG_LEVEL 来设置 taosAdapter 日志输出详细程度。有效值包括： panic、fatal、error、warn、warning、info、debug 以及 trace。
+1. 可以通过设置 --log.level 参数或者环境变量 TAOS_ADAPTER_LOG_LEVEL 来设置 taosAdapter 日志输出详细程度。有效值包括：panic、fatal、error、warn、warning、info、debug 以及 trace。
 2. 从 **3.3.5.0 版本** 开始，taosAdapter 支持通过 HTTP 接口动态修改日志级别。用户可以通过发送 HTTP PUT 请求到 /config 接口，动态调整日志级别。该接口的验证方式与 /rest/sql 接口相同，请求体中需传入 JSON 格式的配置项键值对。
 
 以下是通过 curl 命令将日志级别设置为 debug 的示例：

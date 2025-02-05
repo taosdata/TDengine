@@ -24,6 +24,8 @@ The architecture diagram is as follows:
 
 ## Feature List
 
+The taosAdapter provides the following features:
+
 - WebSocket Interface:
   Supports executing SQL, schemaless writing, parameter binding, and data subscription through the WebSocket protocol.
 - Compatible with InfluxDB v1 write interface:
@@ -228,13 +230,14 @@ See the example configuration file at [example/config/taosadapter.toml](https://
 
 ### Cross-Origin Configuration
 
-When using the RESTful API, the system will manage TDengine connections through a connection pool. The connection pool can be configured with the following parameters:
+When making API calls from the browser, please configure the following Cross-Origin Resource Sharing (CORS) parameters based on your actual situation:
 
-- **`pool.maxConnect`**: The maximum number of connections allowed in the pool, default is twice the number of CPU cores. It is recommended to keep the default setting.
-- **`pool.maxIdle`**: The maximum number of idle connections in the pool, default is the same as `pool.maxConnect`. It is recommended to keep the default setting.
-- **`pool.idleTimeout`**: Connection idle timeout, default is never timeout. It is recommended to keep the default setting.
-- **`pool.waitTimeout`**: Timeout for obtaining a connection from the pool, default is set to 60 seconds. If a connection is not obtained within the timeout period, HTTP status code 503 will be returned. This parameter is available starting from version 3.3.3.0.
-- **`pool.maxWait`**: The maximum number of requests waiting to get a connection in the pool, default is 0, which means no limit. When the number of queued requests exceeds this value, new requests will return HTTP status code 503. This parameter is available starting from version 3.3.3.0.
+- **`cors.allowAllOrigins`**: Whether to allow all origins to access, default is true.
+- **`cors.allowOrigins`**: A comma-separated list of origins allowed to access. Multiple origins can be specified.
+- **`cors.allowHeaders`**: A comma-separated list of request headers allowed for cross-origin access. Multiple headers can be specified.
+- **`cors.exposeHeaders`**: A comma-separated list of response headers exposed for cross-origin access. Multiple headers can be specified.
+- **`cors.allowCredentials`**: Whether to allow cross-origin requests to include user credentials, such as cookies, HTTP authentication information, or client SSL certificates.
+- **`cors.allowWebSockets`**: Whether to allow WebSockets connections.
   
 If you are not making API calls through a browser, you do not need to worry about these configurations.
 
@@ -253,11 +256,11 @@ taosAdapter uses a connection pool to manage connections to TDengine, improving 
 
 * RESTful API requests
 * InfluxDB v1 write interface
-* OpenTSDB JSON and telnet format writes
-* Telegraf data writes
-* collectd data writes
-* StatsD data writes
-* node_exporter data collection writes
+* OpenTSDB JSON and telnet format writing
+* Telegraf data writing
+* collectd data writing
+* StatsD data writing
+* node_exporter data collection writing
 * Prometheus remote_read and remote_write
 
 The configuration parameters for the connection pool are as follows:
@@ -336,11 +339,11 @@ Starting from **version 3.0.4.0**, taosAdapter provides the parameter `smlAutoCr
 The `smlAutoCreateDB` parameter only affects the following interfaces:
 
 - InfluxDB v1 write interface
-- OpenTSDB JSON and telnet format write
-- Telegraf data write
-- collectd data write
-- StatsD data write
-- node_exporter data write
+- OpenTSDB JSON and telnet format writing
+- Telegraf data writing
+- collectd data writing
+- StatsD data writing
+- node_exporter data writing
 
 **Parameter Description**
 
