@@ -75,14 +75,14 @@ void stratWindowsService(MainWindows mainWindows) {
   StartServiceCtrlDispatcher(ServiceTable);
 }
 
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ACORE)
 #else
 #include <dlfcn.h>
 #include <termios.h>
 #include <unistd.h>
 #endif
 
-#if !defined(WINDOWS)
+#if !defined(WINDOWS) && !defined(TD_ACORE)
 struct termios oldtio;
 #endif
 
@@ -143,6 +143,8 @@ int32_t taosSetConsoleEcho(bool on) {
   }
 
   return 0;
+#elif defined(TD_ACORE)
+  return 0;
 #else
 #define ECHOFLAGS (ECHO | ECHOE | ECHOK | ECHONL)
   int            err;
@@ -169,7 +171,7 @@ int32_t taosSetConsoleEcho(bool on) {
 }
 
 int32_t taosSetTerminalMode() {
-#if defined(WINDOWS)
+#if defined(WINDOWS) || defined(TD_ACORE)
   return 0;
 #else
   struct termios newtio;
@@ -205,7 +207,8 @@ int32_t taosSetTerminalMode() {
 }
 
 int32_t taosGetOldTerminalMode() {
-#if defined(WINDOWS)
+#if defined(WINDOWS) || defined(TD_ACORE)
+  return 0;
 #else
   /* Make sure stdin is a terminal. */
   if (!isatty(STDIN_FILENO)) {
@@ -224,7 +227,8 @@ int32_t taosGetOldTerminalMode() {
 }
 
 int32_t taosResetTerminalMode() {
-#if defined(WINDOWS)
+#if defined(WINDOWS) || defined(TD_ACORE)
+  return 0;
 #else
   if (-1 == tcsetattr(0, TCSANOW, &oldtio)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -243,6 +247,8 @@ TdCmdPtr taosOpenCmd(const char* cmd) {
   
 #ifdef WINDOWS
   return (TdCmdPtr)_popen(cmd, "r");
+#elif defined(TD_ACORE)
+  return NULL;
 #else
   TdCmdPtr p = (TdCmdPtr)popen(cmd, "r");
   if (NULL == p) {
