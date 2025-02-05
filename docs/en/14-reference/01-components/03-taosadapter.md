@@ -31,15 +31,15 @@ The architecture diagram is as follows:
 - Compatible with OpenTSDB JSON and telnet format writing:
   - [http://opentsdb.net/docs/build/html/api_http/put.html](http://opentsdb.net/docs/build/html/api_http/put.html)
   - [http://opentsdb.net/docs/build/html/api_telnet/put.html](http://opentsdb.net/docs/build/html/api_telnet/put.html)
-- Seamless connection with collectd:
+- collectd data writing:
   collectd is a system statistics collection daemon, visit [https://collectd.org/](https://collectd.org/) for more information.
-- Seamless connection with StatsD:
+- StatsD data writing:
   StatsD is a simple yet powerful daemon for gathering statistics. Visit [https://github.com/statsd/statsd](https://github.com/statsd/statsd) for more information.
-- Seamless connection with icinga2:
+- icinga2 OpenTSDB writer data writing:
   icinga2 is a software for collecting check results metrics and performance data. Visit [https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer](https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer) for more information.
-- Seamless connection with TCollector:
+- TCollector data writing:
   TCollector is a client process that collects data from local collectors and pushes it to OpenTSDB. Visit [http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html) for more information.
-- Seamless connection with node_exporter:
+- node_exporter data collection and writing:
   node_exporter is an exporter of machine metrics. Visit [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) for more information.
 - Supports Prometheus remote_read and remote_write:
   remote_read and remote_write are Prometheus's data read-write separation cluster solutions. Visit [https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) for more information.
@@ -74,23 +74,23 @@ You can use any client that supports the HTTP protocol to write data in OpenTSDB
 /opentsdb/v1/put/telnet/<db>
 ```
 
-### Seamless connection with collectd
+### collectd data writing
 
 <CollectD />
 
-### Seamless connection with StatsD
+### StatsD data writing
 
 <StatsD />
 
-### Seamless connection with icinga2
+### icinga2 OpenTSDB writer data writing
 
 <Icinga2 />
 
-### Seamless connection with TCollector
+### TCollector data writing
 
 <TCollector />
 
-### Seamless connection with node_exporter
+### node_exporter data collection and writing
 
 An exporter used by Prometheus that exposes hardware and operating system metrics from \*NIX kernels
 
