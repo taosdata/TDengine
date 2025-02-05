@@ -5,7 +5,6 @@ if(${FALLBACK})                 # {
 else()                          # }{
     target_link_libraries(tdbTest PUBLIC tdb)
     DEP_ext_gtest(tdbTest)
-    DEP_ext_cjson_LIB(tdbTest)
 endif()                         # }
 
 # tdbUtilTest
@@ -15,7 +14,6 @@ if(${FALLBACK})                 # {
 else()                          # }{
     target_link_libraries(tdbUtilTest PUBLIC tdb)
     DEP_ext_gtest(tdbUtilTest)
-    DEP_ext_cjson_LIB(tdbUtilTest)
 endif()                         # }
 
 # overflow pages testing
@@ -25,7 +23,6 @@ if(${FALLBACK})                 # {
 else()                          # }{
     target_link_libraries(tdbExOVFLTest PUBLIC tdb)
     DEP_ext_gtest(tdbExOVFLTest)
-    DEP_ext_cjson_LIB(tdbExOVFLTest)
 endif()                         # }
 
 # page defragment testing
@@ -35,7 +32,6 @@ if(${FALLBACK})                 # {
 else()                          # }{
     target_link_libraries(tdbPageDefragmentTest PUBLIC tdb)
     DEP_ext_gtest(tdbPageDefragmentTest)
-    DEP_ext_cjson_LIB(tdbPageDefragmentTest)
 endif()                         # }
 
 # page recycling testing
@@ -45,5 +41,4 @@ if(${FALLBACK})                 # {
 else()                          # }{
     target_link_libraries(tdbPageRecycleTest PUBLIC tdb)
     DEP_ext_gtest(tdbPageRecycleTest)
-    DEP_ext_cjson_LIB(tdbPageRecycleTest)
 endif()                         # }

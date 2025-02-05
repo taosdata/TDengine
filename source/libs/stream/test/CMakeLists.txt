@@ -93,7 +93,6 @@ IF(NOT TD_DARWIN)
                     PUBLIC os common stream executor qcom index transport util vnode
             )
             DEP_ext_gtest(backendTest)
-            DEP_ext_cjson_LIB(backendTest)
         endif()                         # }
 
         TARGET_INCLUDE_DIRECTORIES(

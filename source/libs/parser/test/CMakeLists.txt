@@ -25,7 +25,6 @@ IF(NOT TD_DARWIN)
                 PUBLIC os util common nodes parser catalog transport function planner qcom
         )
         DEP_ext_gtest(parserTest)
-        DEP_ext_cjson_LIB(parserTest)
         if(${TD_WINDOWS})           # {
                 DEP_ext_wingetopt(parserTest)
         endif()                     # }

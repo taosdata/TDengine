@@ -13,7 +13,6 @@ else()                      # }{
                 PRIVATE dnode nodes planner qcom tcs
         )
         DEP_ext_gtest(arbgroupTest)
-        DEP_ext_cjson_LIB(arbgroupTest)
 endif()                     # }
 
 add_test(

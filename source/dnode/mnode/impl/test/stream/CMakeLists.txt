@@ -13,7 +13,6 @@ else()                         # }{
                 PRIVATE dnode nodes planner qcom
         )
         DEP_ext_gtest(streamTest)
-        DEP_ext_cjson_LIB(streamTest)
 endif()                        # }
 
 add_test(

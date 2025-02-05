@@ -59,9 +59,6 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
-if(NOT ${FALLBACK})         # {
-    DEP_ext_cjson_LIB(tmq_sim)
-endif()                     # }
 target_link_libraries(
     tmq_ts5466
     PUBLIC ${TAOS_LIB}
@@ -90,21 +87,13 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
-if(${FALLBACK})            # {
-    target_link_libraries(
-        tmq_taosx_ci
-        PUBLIC ${TAOS_LIB}
-        PUBLIC util
-        PUBLIC common
-        PUBLIC os
-    )
-else()                     # }{
-    target_link_libraries(
-        tmq_taosx_ci
-        PUBLIC ${TAOS_LIB}
-        PUBLIC common
-    )
-endif()                    # }
+target_link_libraries(
+    tmq_taosx_ci
+    PUBLIC ${TAOS_LIB}
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+)
 target_link_libraries(
     tmq_offset_test
     PUBLIC ${TAOS_LIB}

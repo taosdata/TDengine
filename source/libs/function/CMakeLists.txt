@@ -107,7 +107,6 @@ else()                           # }{
         runUdf
         PRIVATE os util common nodes function ${LINK_JEMALLOC}
     )
-    DEP_ext_cjson_LIB(runUdf)
 endif()                          # }
 
 add_library(udf1 STATIC MODULE test/udf1.c)
@@ -262,7 +261,6 @@ else()                                # }{
         "${TD_SOURCE_DIR}/include/client"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
     )
-    DEP_ext_cjson_LIB(udfd)
 endif()                               # }
 
 IF(TD_LINUX_64 AND JEMALLOC_ENABLED)

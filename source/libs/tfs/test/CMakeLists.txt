@@ -14,7 +14,6 @@ else()                         # }{
     PUBLIC tfs
   )
   DEP_ext_gtest(tfs_test)
-  DEP_ext_cjson_LIB(tfs_test)
 endif()                        # }
 target_include_directories(
   tfs_test

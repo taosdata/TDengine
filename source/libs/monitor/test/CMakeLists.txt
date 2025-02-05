@@ -14,7 +14,6 @@ else()                                     # }{
     PUBLIC monitor
   )
   DEP_ext_gtest(monitorTest)
-  DEP_ext_cjson_LIB(monitorTest)
 endif()                                    # }
 
 add_test(

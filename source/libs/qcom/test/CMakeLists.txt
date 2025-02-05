@@ -24,6 +24,5 @@ else()                            # }{
                 PUBLIC os util qcom common transport
         )
         DEP_ext_gtest(queryUtilTest)
-        DEP_ext_cjson_LIB(queryUtilTest)
 endif()                           # }
 

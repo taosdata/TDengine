@@ -18,7 +18,6 @@ IF(NOT TD_DARWIN)
                         PUBLIC os util common qcom function nodes scalar parser catalog transport
                 )
                 DEP_ext_gtest(scalarTest)
-                DEP_ext_cjson_LIB(scalarTest)
                 DEP_ext_stub(scalarTest)
                 target_include_directories(scalarTest
                         PUBLIC ${ext_stub_stub} ${ext_stub_addr_any}

@@ -18,7 +18,6 @@ IF(NOT TD_DARWIN)
       PUBLIC os util qcom nodes geometry scalar function scalar
     )
     DEP_ext_gtest(geomTest)
-    DEP_ext_cjson_LIB(geomTest)
   endif()                                # }
 
   add_test(

@@ -25,7 +25,6 @@ IF(NOT TD_DARWIN)
             PUBLIC os util common nodes qcom
         )
         DEP_ext_gtest(nodesTest)
-        DEP_ext_cjson_LIB(nodesTest)
     endif()                                    # }
     
     add_test(

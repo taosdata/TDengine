@@ -3,6 +3,8 @@ IF(TD_WEBSOCKET)
         SET(websocket_lib_file "libtaosws.so")
     ELSEIF(TD_DARWIN)
         SET(websocket_lib_file "libtaosws.dylib")
+    ELSEIF(TD_WINDOWS)
+        SET(websocket_lib_file "taosws.lib")
     ENDIF()
 
     MESSAGE("${Green} use libtaos-ws${ColourReset}")
@@ -68,7 +70,7 @@ IF(TD_WEBSOCKET)
             )
         ENDIF()
     else()                             # }{
-        set(_taosws_so              "${CMAKE_BINARY_DIR}/build/lib/libtaosws.so")     # freemine: harded-coded to remove?
+        set(_taosws_so              "${CMAKE_BINARY_DIR}/build/lib/${websocket_lib_file}")     # freemine: harded-coded to remove?
         set(_taosws_h               "${CMAKE_BINARY_DIR}/build/include/taosws.h")     # freemine: harded-coded to remove?
         INIT_EXT(ext_taosws
             INC_DIR           include

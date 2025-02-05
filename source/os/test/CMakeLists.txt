@@ -35,7 +35,6 @@ if(${FALLBACK})           # {
 else()                    # }{
   target_link_libraries(osDirTests PUBLIC os util)
   DEP_ext_gtest(osDirTests)
-  DEP_ext_cjson_LIB(osDirTests)
 endif()                   # }
 add_test(
     NAME osDirTests
@@ -111,7 +110,6 @@ if(${FALLBACK})                 # {
 else()                          # }{
     target_link_libraries(osStringTests PUBLIC os util)
     DEP_ext_gtest(osStringTests)
-    DEP_ext_cjson_LIB(osStringTests)
 endif()                         # }
 add_test(
     NAME osStringTests
@@ -124,7 +122,6 @@ if(${FALLBACK})                 # {
 else()                          # }{
     target_link_libraries(osTests PUBLIC os util)
     DEP_ext_gtest(osTests)
-    DEP_ext_cjson_LIB(osTests)
 endif()                         # }
 add_test(
     NAME osTests
@@ -137,7 +134,6 @@ if(${FALLBACK})                 # {
 else()                          # }{
     target_link_libraries(osSystemTests PUBLIC os util)
     DEP_ext_gtest(osSystemTests)
-    DEP_ext_cjson_LIB(osSystemTests)
 endif()                         # }
 add_test(
     NAME osSystemTests
@@ -164,7 +160,6 @@ if(${FALLBACK})                 # {
 else()                          # }{
     target_link_libraries(osTimeTests PUBLIC os util)
     DEP_ext_gtest(osTimeTests)
-    DEP_ext_cjson_LIB(osTimeTests)
 endif()                         # }
 add_test(
     NAME osTimeTests

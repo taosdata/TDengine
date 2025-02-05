@@ -19,7 +19,6 @@ else()                        # }{
         PUBLIC wal
     )
     DEP_ext_gtest(walTest)
-    DEP_ext_cjson_LIB(walTest)
 endif()                       # }
 enable_testing()
 add_test(

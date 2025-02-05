@@ -33,7 +33,6 @@ else()                                 # }{
                 PRIVATE os util common executor qcom function planner scalar nodes vnode
         )
         DEP_ext_gtest(joinTests)
-        DEP_ext_cjson_LIB(joinTests)
         DEP_ext_stub(joinTests)
         TARGET_INCLUDE_DIRECTORIES(
                 joinTests
@@ -59,7 +58,6 @@ else()                                 # }{
                 PRIVATE os util common executor qcom function planner scalar nodes vnode
         )
         DEP_ext_gtest(queryPlanTests)
-        DEP_ext_cjson_LIB(queryPlanTests)
         DEP_ext_stub(queryPlanTests)
         TARGET_INCLUDE_DIRECTORIES(
                 queryPlanTests
@@ -85,7 +83,6 @@ else()                                 # }{
                 PRIVATE os util common executor qcom function planner scalar nodes vnode
         )
         DEP_ext_gtest(execUtilTests)
-        DEP_ext_cjson_LIB(execUtilTests)
 endif()                                # }
 
 TARGET_INCLUDE_DIRECTORIES(

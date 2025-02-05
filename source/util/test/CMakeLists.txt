@@ -39,7 +39,6 @@ if(${FALLBACK})               # {
 else()                        # }{
     target_link_libraries(heapTest PUBLIC os util)
     DEP_ext_gtest(heapTest)
-    DEP_ext_cjson_LIB(heapTest)
 endif()                       # }
 add_test(
     NAME heapTest
@@ -53,7 +52,6 @@ if(${FALLBACK})               # {
 else()                        # }{
     target_link_libraries(arrayTest PUBLIC os util)
     DEP_ext_gtest(arrayTest)
-    DEP_ext_cjson_LIB(arrayTest)
 endif()                       # }
 add_test(
     NAME arrayTest
@@ -79,7 +77,6 @@ if(${FALLBACK})                  # {
 else()                           # }{
     target_link_libraries(cfgTest PUBLIC os util)
     DEP_ext_gtest(cfgTest)
-    DEP_ext_cjson_LIB(cfgTest)
 endif()                          # }
 add_test(
     NAME cfgTest
@@ -93,7 +90,6 @@ if(${FALLBACK})                  # {
 else()                           # }{
     target_link_libraries(bloomFilterTest PUBLIC os util)
     DEP_ext_gtest(bloomFilterTest)
-    DEP_ext_cjson_LIB(bloomFilterTest)
 endif()                          # }
 add_test(
     NAME bloomFilterTest
@@ -107,7 +103,6 @@ if(${FALLBACK})                  # {
 else()                           # }{
     target_link_libraries(taosbsearchTest PUBLIC os util)
     DEP_ext_gtest(taosbsearchTest)
-    DEP_ext_cjson_LIB(taosbsearchTest)
 endif()                          # }
 add_test(
     NAME taosbsearchTest
@@ -121,7 +116,6 @@ if(${FALLBACK})                  # {
 else()                           # }{
     target_link_libraries(rbtreeTest PUBLIC os util)
     DEP_ext_gtest(rbtreeTest)
-    DEP_ext_cjson_LIB(rbtreeTest)
 endif()                          # }
 add_test(
     NAME rbtreeTest
@@ -135,7 +129,6 @@ if(${FALLBACK})                  # {
 else()                           # }{
     target_link_libraries(pageBufferTest PUBLIC os util)
     DEP_ext_gtest(pageBufferTest)
-    DEP_ext_cjson_LIB(pageBufferTest)
 endif()                          # }
 add_test(
     NAME pageBufferTest
@@ -149,7 +142,6 @@ if(${FALLBACK})                  # {
 else()                           # }{
     target_link_libraries(talgoTest PUBLIC os util)
     DEP_ext_gtest(talgoTest)
-    DEP_ext_cjson_LIB(talgoTest)
 endif()                          # }
 add_test(
     NAME talgoTest
@@ -163,7 +155,6 @@ if(${FALLBACK})                  # {
 else()                           # }{
     target_link_libraries(tbaseCodecTest PUBLIC os util common)
     DEP_ext_gtest(tbaseCodecTest)
-    DEP_ext_cjson_LIB(tbaseCodecTest)
 endif()                          # }
 add_test(
     NAME tbaseCodecTest
@@ -177,7 +168,6 @@ if(${FALLBACK})               # {
 else()                        # }{
     target_link_libraries(bufferTest PUBLIC os util)
     DEP_ext_gtest(bufferTest)
-    DEP_ext_cjson_LIB(bufferTest)
 endif()                       # }
 add_test(
     NAME bufferTest
@@ -190,7 +180,6 @@ if(${FALLBACK})                  # {
 else()                           # }{
     target_link_libraries(regexTest PUBLIC os util)
     DEP_ext_gtest(regexTest)
-    DEP_ext_cjson_LIB(regexTest)
 endif()                          # }
 add_test(
     NAME regexTest
@@ -203,7 +192,6 @@ if(${FALLBACK})                  # {
 else()                           # }{
     target_link_libraries(logTest PUBLIC os util common)
     DEP_ext_gtest(logTest)
-    DEP_ext_cjson_LIB(logTest)
 endif()                          # }
 add_test(
     NAME logTest
@@ -220,7 +208,6 @@ if(${FALLBACK})                  # {
 else()                           # }{
     target_link_libraries(decompressTest PUBLIC os util common)
     DEP_ext_gtest(decompressTest)
-    DEP_ext_cjson_LIB(decompressTest)
 endif()                          # }
 add_test(
     NAME decompressTest
@@ -245,7 +232,6 @@ if(${TD_LINUX})
     else()                        # }{
         target_link_libraries(terrorTest PUBLIC os util common)
         DEP_ext_gtest(terrorTest)
-        DEP_ext_cjson_LIB(terrorTest)
     endif()                       # }
     add_test(
         NAME terrorTest
@@ -265,7 +251,6 @@ if(${TD_LINUX})
     else()                        # }{
         target_link_libraries(memPoolTest PUBLIC os util common)
         DEP_ext_gtest(memPoolTest)
-        DEP_ext_cjson_LIB(memPoolTest)
         DEP_ext_stub(memPoolTest)
         target_include_directories(memPoolTest PUBLIC ${ext_stub_stub} ${ext_stub_addr_any})
     endif()                       # }

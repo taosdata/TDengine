@@ -44,7 +44,7 @@ if(NOT ${FALLBACK})           # {
     if(TD_WEBSOCKET) # freemine: what if -DWEBSOCKET=true is specified on command line?
         DEP_ext_taosws(shell)
     endif()
-    DEP_ext_cjson_LIB(shell)
+    target_link_libraries(shell PUBLIC Ntdll Bcrypt Secur32 Crypt32 Ncrypt)
 endif()                       # }
 target_link_libraries(
     shell

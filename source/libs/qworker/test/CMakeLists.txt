@@ -18,7 +18,6 @@ IF(NOT TD_DARWIN)
                         PUBLIC os util common transport qcom nodes planner qworker executor index
                 )
                 DEP_ext_gtest(qworkerTest)
-                DEP_ext_cjson_LIB(qworkerTest)
                 DEP_ext_stub(qworkerTest)
                 target_include_directories(qworkerTest
                         PUBLIC ${ext_stub_stub} ${ext_stub_addr_any}

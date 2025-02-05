@@ -17,7 +17,6 @@ else()                           # }{
                 PUBLIC os util common transport parser catalog scheduler ${TAOS_LIB_STATIC} qcom executor function
         )
         DEP_ext_gtest(clientTest)
-        DEP_ext_cjson_LIB(clientTest)
 endif()                          # }
 
 ADD_EXECUTABLE(connectOptionsTest connectOptionsTest.cpp)
@@ -32,7 +31,6 @@ else()                           # }{
                 PUBLIC os util common transport parser catalog scheduler ${TAOS_LIB_STATIC} qcom executor function
         )
         DEP_ext_gtest(connectOptionsTest)
-        DEP_ext_cjson_LIB(connectOptionsTest)
 endif()                          # }
 
 ADD_EXECUTABLE(tmqTest tmqTest.cpp)
@@ -47,7 +45,6 @@ else()                           # }{
                 PUBLIC os util common transport parser catalog scheduler function ${TAOS_LIB_STATIC} qcom
         )
         DEP_ext_gtest(tmqTest)
-        DEP_ext_cjson_LIB(tmqTest)
 endif()                          # }
 
 ADD_EXECUTABLE(smlTest smlTest.cpp)
@@ -62,7 +59,6 @@ else()                           # }{
                 PUBLIC os util common transport parser catalog scheduler function ${TAOS_LIB_STATIC} qcom geometry
         )
         DEP_ext_gtest(smlTest)
-        DEP_ext_cjson_LIB(smlTest)
 endif()                          # }
 
 #ADD_EXECUTABLE(clientMonitorTest clientMonitorTests.cpp)
@@ -89,7 +85,6 @@ else()                           # }{
                 PUBLIC os util common transport parser catalog scheduler ${TAOS_LIB_STATIC} qcom executor function
         )
         DEP_ext_gtest(stmt2Test)
-        DEP_ext_cjson_LIB(stmt2Test)
 endif()                          # }
 
 ADD_EXECUTABLE(stmtTest stmtTest.cpp)
@@ -104,7 +99,6 @@ else()                           # }{
                 PUBLIC os util common transport parser catalog scheduler ${TAOS_LIB_STATIC} qcom executor function
         )
         DEP_ext_gtest(stmtTest)
-        DEP_ext_cjson_LIB(stmtTest)
 endif()                          # }
 
 TARGET_INCLUDE_DIRECTORIES(

@@ -103,7 +103,6 @@ IF(NOT TD_DARWIN)
       index
     )
     DEP_ext_gtest(idxTest)
-    DEP_ext_cjson_LIB(idxTest)
   endif()                                    # }
   if(${FALLBACK})                            # {
     target_link_libraries(idxFstTest
@@ -122,7 +121,6 @@ IF(NOT TD_DARWIN)
       index
     )
     DEP_ext_gtest(idxFstTest)
-    DEP_ext_cjson_LIB(idxFstTest)
   endif()                                    # }
 
   if(${FALLBACK})                            # {
@@ -142,7 +140,6 @@ IF(NOT TD_DARWIN)
       index
     )
     DEP_ext_gtest(idxFstUT)
-    DEP_ext_cjson_LIB(idxFstUT)
   endif()                                    # }
 
   if(${FALLBACK})                            # {
@@ -162,7 +159,6 @@ IF(NOT TD_DARWIN)
       index
     )
     DEP_ext_gtest(idxUtilUT)
-    DEP_ext_cjson_LIB(idxUtilUT)
   endif()                                    # }
 
   if(${FALLBACK})                            # {
@@ -182,7 +178,6 @@ IF(NOT TD_DARWIN)
       index
     )
     DEP_ext_gtest(idxJsonUT)
-    DEP_ext_cjson_LIB(idxJsonUT)
   endif()                                    # }
   if(${FALLBACK})                            # {
     target_link_libraries(idxFstUtilUT
@@ -201,7 +196,6 @@ IF(NOT TD_DARWIN)
       index
     )
     DEP_ext_gtest(idxFstUtilUT)
-    DEP_ext_cjson_LIB(idxFstUtilUT)
   endif()                                    # }
 
   add_test(

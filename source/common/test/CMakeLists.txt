@@ -22,7 +22,6 @@ else()                                 # }{
             PUBLIC os util common
     )
     DEP_ext_gtest(commonTest)
-    DEP_ext_cjson_LIB(commonTest)
 endif()                                # }
 
 TARGET_INCLUDE_DIRECTORIES(
@@ -43,7 +42,6 @@ if(${FALLBACK})                        # {
 else()                                 # }{
     target_link_libraries(dataformatTest PUBLIC util common)
     DEP_ext_gtest(dataformatTest)
-    DEP_ext_cjson_LIB(dataformatTest)
 endif()                                # }
 target_include_directories(
         dataformatTest
@@ -67,7 +65,6 @@ if(${FALLBACK})                        # {
 else()                                 # }{
     target_link_libraries(cosCpTest PUBLIC util common)
     DEP_ext_gtest(cosCpTest)
-    DEP_ext_cjson_LIB(cosCpTest)
 endif()                                # }
 target_include_directories(
         cosCpTest

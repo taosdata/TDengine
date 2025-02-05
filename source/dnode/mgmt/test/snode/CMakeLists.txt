@@ -4,9 +4,6 @@ target_link_libraries(
     dsnodeTest
     PUBLIC sut
 )
-if(NOT ${FALLBACK})             # {
-    DEP_ext_cjson_LIB(dsnodeTest)
-endif()                         # }
 
 #add_test(
 #    NAME dsnodeTest
