@@ -412,6 +412,7 @@ static bool paramSupportGeometry(uint64_t typeFlag) {
 
 static bool paramSupportDecimal(uint64_t typeFlag) {
   return FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_DECIMAL_TYPE) ||
+         FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_NUMERIC_TYPE) ||
          FUNC_MGT_TEST_MASK(typeFlag, FUNC_PARAM_SUPPORT_ALL_TYPE);
 }
 
@@ -1025,15 +1026,20 @@ static int32_t translateSum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
   uint8_t paraType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
   uint8_t resType = 0;
+  uint8_t prec = 0, scale = 0;
   if (IS_SIGNED_NUMERIC_TYPE(paraType) || TSDB_DATA_TYPE_BOOL == paraType || IS_NULL_TYPE(paraType)) {
     resType = TSDB_DATA_TYPE_BIGINT;
   } else if (IS_UNSIGNED_NUMERIC_TYPE(paraType)) {
     resType = TSDB_DATA_TYPE_UBIGINT;
   } else if (IS_FLOAT_TYPE(paraType)) {
     resType = TSDB_DATA_TYPE_DOUBLE;
+  } else if (IS_DECIMAL_TYPE(paraType)) {
+    resType = TSDB_DATA_TYPE_DECIMAL;
+    prec = TSDB_DECIMAL_MAX_PRECISION;
+    scale = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.scale;
   }
 
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[resType].bytes, .type = resType};
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[resType].bytes, .type = resType, .precision = prec, .scale = scale};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1859,7 +1865,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
-                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE | FUNC_PARAM_SUPPORT_DOUBLE_TYPE | FUNC_PARAM_SUPPORT_UBIGINT_TYPE}},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE | FUNC_PARAM_SUPPORT_DOUBLE_TYPE | FUNC_PARAM_SUPPORT_UBIGINT_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE}},
     .translateFunc = translateSum,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getSumFuncEnv,
@@ -1885,7 +1891,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .inputParaInfo[0][0] = {.isLastParam = true,
                                            .startParam = 1,
                                            .endParam = 1,
-                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_STRING_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_STRING_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
@@ -1912,7 +1918,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .inputParaInfo[0][0] = {.isLastParam = true,
                                            .startParam = 1,
                                            .endParam = 1,
-                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_STRING_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE |FUNC_PARAM_SUPPORT_DECIMAL_TYPE,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_STRING_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
@@ -2057,7 +2063,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
-                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE}},
     .translateFunc = translateOutDouble,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getAvgFuncEnv,
