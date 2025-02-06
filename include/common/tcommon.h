@@ -166,13 +166,31 @@ typedef enum EStreamType {
 
 #pragma pack(push, 1)
 typedef struct SColumnDataAgg {
-  int16_t colId;
+  int32_t colId;
   int16_t numOfNull;
-  int64_t sum;
-  int64_t max;
-  int64_t min;
+  union {
+    struct {
+      int64_t sum;
+      int64_t max;
+      int64_t min;
+    };
+    struct {
+      uint64_t decimal128Sum[2];
+      uint64_t decimal128Max[2];
+      uint64_t decimal128Min[2];
+    };
+  };
 } SColumnDataAgg;
 #pragma pack(pop)
+
+#define COL_AGG_GET_SUM_PTR(pAggs, dataType) \
+  (dataType != TSDB_DATA_TYPE_DECIMAL ? (void*)&pAggs->sum : (void*)pAggs->decimal128Sum)
+
+#define COL_AGG_GET_MAX_PTR(pAggs, dataType) \
+  (dataType != TSDB_DATA_TYPE_DECIMAL ? (void*)&pAggs->max : (void*)pAggs->decimal128Max)
+
+#define COL_AGG_GET_MIN_PTR(pAggs, dataType) \
+  (dataType != TSDB_DATA_TYPE_DECIMAL ? (void*)&pAggs->min : (void*)pAggs->decimal128Min)
 
 typedef struct SBlockID {
   // The uid of table, from which current data block comes. And it is always 0, if current block is the

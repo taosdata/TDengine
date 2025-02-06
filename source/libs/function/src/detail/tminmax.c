@@ -396,6 +396,40 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
         }
         break;
       }
+      case TSDB_DATA_TYPE_DECIMAL64: {
+        const Decimal64*   pData = (const Decimal64*)pCol->pData;
+        const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
+        int32_t            code = 0;
+        for (; i < end; ++i) {
+          if (colDataIsNull_f(pCol->nullbitmap, i)) {
+            continue;
+          }
+          if (pOps->gt(&pBuf->v, &pData[i], WORD_NUM(Decimal64))) {
+            pBuf->v = DECIMAL64_GET_VALUE(&pData[i]);
+            if (pCtx->subsidiaries.num > 0) {
+              code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (TSDB_CODE_SUCCESS != code) return code;
+            }
+          }
+        }
+      } break;
+      case TSDB_DATA_TYPE_DECIMAL: {
+        int32_t            code = 0;
+        const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+        const Decimal128*  pData = (const Decimal128*)pCol->pData;
+        for (; i < end; ++i) {
+          if (colDataIsNull_f(pCol->nullbitmap, i)) {
+            continue;
+          }
+          if (pOps->gt(pBuf->str, &pData[i], WORD_NUM(Decimal128))) {
+            memcpy(pBuf->str, pData + i, pCol->info.bytes);
+            if (pCtx->subsidiaries.num > 0) {
+              code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (TSDB_CODE_SUCCESS != code) return code;
+            }
+          }
+        }
+      } break;
     }
   } else {
     switch (pCol->info.type) {
@@ -459,7 +493,7 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
         __COMPARE_ACQUIRED_MAX(i, end, pCol->nullbitmap, pData, pCtx, *(double*)&(pBuf->v), &pBuf->tuplePos)
         break;
       }
-      case TSDB_DATA_TYPE_DECIMAL64: {// TODO wjm merge decimal64 and decimal
+      case TSDB_DATA_TYPE_DECIMAL64: {
         const Decimal64* pData = (const Decimal64*)pCol->pData;
         const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
         int32_t code = 0;
@@ -584,11 +618,20 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
     }
 
     int16_t index = 0;
-    void*   tval = (isMinFunc) ? &pInput->pColumnDataAgg[0]->min : &pInput->pColumnDataAgg[0]->max;
+    void*   tval = NULL;
+    if (type == TSDB_DATA_TYPE_DECIMAL) {
+      tval = isMinFunc ? pInput->pColumnDataAgg[0]->decimal128Min : pInput->pColumnDataAgg[0]->decimal128Max;
+    } else {
+      tval = (isMinFunc) ? &pInput->pColumnDataAgg[0]->min : &pInput->pColumnDataAgg[0]->max;
+    }
 
     if (!pBuf->assign) {
       if (type == TSDB_DATA_TYPE_FLOAT) {
         GET_FLOAT_VAL(&pBuf->v) = GET_DOUBLE_VAL(tval);
+      } else if (type == TSDB_DATA_TYPE_DECIMAL) {
+        pBuf->str = taosMemoryCalloc(1, pCol->info.bytes);
+        if (!pBuf->str) return terrno;
+        memcpy(pBuf->str, tval, pCol->info.bytes);
       } else {
         pBuf->v = GET_INT64_VAL(tval);
       }
@@ -630,6 +673,18 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
         if ((prev < val) ^ isMinFunc) {
           GET_FLOAT_VAL(&pBuf->v) = val;
           code = saveRelatedTupleTag(pCtx, pInput, tval);
+        }
+      } else if (type == TSDB_DATA_TYPE_DECIMAL64) {
+        SDecimalOps* pOps = getDecimalOps(type);
+        if (pOps->lt(&pBuf->v, tval, WORD_NUM(Decimal64)) ^ isMinFunc) {
+          DECIMAL64_SET_VALUE((Decimal64*)&pBuf->v, *(int64_t*)tval);
+          code =saveRelatedTupleTag(pCtx, pInput, tval);
+        }
+      } else if (type == TSDB_DATA_TYPE_DECIMAL) {
+        SDecimalOps* pOps = getDecimalOps(type);
+        if (pOps->lt(pBuf->str, tval, WORD_NUM(Decimal128)) ^ isMinFunc) {
+          DECIMAL128_CLONE((Decimal128*)pBuf->str, (Decimal128*)tval);
+          code =saveRelatedTupleTag(pCtx, pInput, tval);
         }
       }
     }

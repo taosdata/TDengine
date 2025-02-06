@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include <tlog.h>
+#include "decimal.h"
 #include "nodes.h"
 #include "os.h"
 #include "tglobal.h"
@@ -3922,6 +3923,8 @@ typedef enum {
   FLT_SCL_DATUM_KIND_FLOAT64,
   FLT_SCL_DATUM_KIND_VARCHAR,
   FLT_SCL_DATUM_KIND_NCHAR,
+  FLT_SCL_DATUM_KIND_DECIMAL64,
+  FLT_SCL_DATUM_KIND_DECIMAL,
   FLT_SCL_DATUM_KIND_MAX,
 } SFltSclDatumKind;
 
@@ -4008,6 +4011,12 @@ int32_t fltSclCompareDatum(SFltSclDatum *val1, SFltSclDatum *val2) {
     }
     case FLT_SCL_DATUM_KIND_FLOAT64: {
       return fltSclCompareWithFloat64(val1, val2);
+    }
+    case FLT_SCL_DATUM_KIND_DECIMAL64: {
+      return compareDecimal64SameScale(&val1->i, &val2->i);
+    }
+    case FLT_SCL_DATUM_KIND_DECIMAL: {
+      return compareDecimal128SameScale(val1->pData, val2->pData);
     }
     // TODO: varchar/nchar
     default:
@@ -4157,7 +4166,61 @@ int32_t fltSclGetOrCreateColumnRange(SColumnNode *colNode, SArray *colRangeList,
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SValueNode *valNode) {
+static int32_t fltSclBuildDecimalDatumFromValueNode(SFltSclDatum* datum, SColumnNode* pColNode, SValueNode* valNode) {
+  datum->type = pColNode->node.resType;
+  if (valNode->isNull) {
+    datum->kind = FLT_SCL_DATUM_KIND_NULL;
+  } else {
+    void* pInput = NULL;
+    switch (valNode->node.resType.type) {
+      case TSDB_DATA_TYPE_NULL:
+        datum->kind = FLT_SCL_DATUM_KIND_NULL;
+        FLT_RET(0);
+      case TSDB_DATA_TYPE_BOOL:
+        pInput = &valNode->datum.b;
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+      case TSDB_DATA_TYPE_SMALLINT:
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        pInput = &valNode->datum.i;
+        break;
+      case TSDB_DATA_TYPE_UTINYINT:
+      case TSDB_DATA_TYPE_USMALLINT:
+      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_UBIGINT:
+        pInput = &valNode->datum.u;
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+      case TSDB_DATA_TYPE_DOUBLE:
+        pInput = &valNode->datum.d;
+        break;
+      default:
+        qError("not supported type %d when build decimal datum from value node", valNode->node.resType.type);
+        return TSDB_CODE_INVALID_PARA;
+    }
+
+    void *pData = NULL;
+    if (datum->type.type == TSDB_DATA_TYPE_DECIMAL64) {
+      pData = &datum->i; // TODO wjm set kind
+    } else if (datum->type.type == TSDB_DATA_TYPE_DECIMAL) {
+      pData = taosMemoryCalloc(1, pColNode->node.resType.bytes);
+      if (!pData) FLT_ERR_RET(terrno);
+      datum->pData = pData;
+      datum->kind = FLT_SCL_DATUM_KIND_DECIMAL;
+    }
+    int32_t code = convertToDecimal(pInput, &valNode->node.resType, pData, &datum->type);
+    if (TSDB_CODE_SUCCESS != code) return code; // TODO wjm handle overflow error
+    valNode->node.resType = datum->type;
+  }
+  FLT_RET(0);
+}
+
+int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SColumnNode* pColNode, SValueNode *valNode) {
+  if (IS_DECIMAL_TYPE(pColNode->node.resType.type)) {
+    return fltSclBuildDecimalDatumFromValueNode(datum, pColNode, valNode);
+  }
   datum->type = valNode->node.resType;
 
   if (valNode->isNull) {
@@ -4206,7 +4269,7 @@ int32_t fltSclBuildDatumFromValueNode(SFltSclDatum *datum, SValueNode *valNode) 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum *datum, uint8_t type, int64_t val) {
+int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum *datum, uint8_t type, void* val) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
@@ -4215,7 +4278,7 @@ int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum *datum, uint8_t type, int
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
       datum->kind = FLT_SCL_DATUM_KIND_INT64;
-      datum->i = val;
+      datum->i = *(int64_t*)val;
       break;
     }
     case TSDB_DATA_TYPE_UTINYINT:
@@ -4223,15 +4286,25 @@ int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum *datum, uint8_t type, int
     case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_UBIGINT: {
       datum->kind = FLT_SCL_DATUM_KIND_UINT64;
-      datum->u = *(uint64_t *)&val;
+      datum->u = *(uint64_t *)val;
       break;
     }
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE: {
       datum->kind = FLT_SCL_DATUM_KIND_FLOAT64;
-      datum->d = *(double *)&val;
+      datum->d = *(double *)val;
       break;
     }
+    case TSDB_DATA_TYPE_DECIMAL64:
+      datum->kind = FLT_SCL_DATUM_KIND_DECIMAL;
+      datum->u = *(uint64_t *)val;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL:
+      datum->kind = FLT_SCL_DATUM_KIND_DECIMAL;
+      datum->pData = taosMemoryCalloc(1, tDataTypes[type].bytes);
+      memcpy(datum->pData, val, tDataTypes[type].bytes);
+      break;
+
     // TODO:varchar/nchar/json
     default: {
       datum->kind = FLT_SCL_DATUM_KIND_NULL;
@@ -4268,11 +4341,14 @@ int32_t fltSclBuildRangeFromBlockSma(SFltSclColumnRange *colRange, SColumnDataAg
       FLT_ERR_RET(terrno);
     }
   }
+  int8_t type = colRange->colNode->node.resType.type;
   SFltSclDatum min = {0};
-  FLT_ERR_RET(fltSclBuildDatumFromBlockSmaValue(&min, colRange->colNode->node.resType.type, pAgg->min));
+  min.type = colRange->colNode->node.resType;
+  FLT_ERR_RET(fltSclBuildDatumFromBlockSmaValue(&min, type, COL_AGG_GET_MIN_PTR(pAgg, type)));
   SFltSclPoint minPt = {.excl = false, .start = true, .val = min};
   SFltSclDatum max = {0};
-  FLT_ERR_RET(fltSclBuildDatumFromBlockSmaValue(&max, colRange->colNode->node.resType.type, pAgg->max));
+  max.type = min.type;
+  FLT_ERR_RET(fltSclBuildDatumFromBlockSmaValue(&max, type, COL_AGG_GET_MAX_PTR(pAgg, type)));
   SFltSclPoint maxPt = {.excl = false, .start = false, .val = max};
   if (NULL == taosArrayPush(points, &minPt)) {
     FLT_ERR_RET(terrno);
@@ -4917,11 +4993,66 @@ _return:
   FLT_RET(code);
 }
 
+// TODO wjm start from here, check why 这里将double赋值给整数?????
+static int32_t fltSclBuildRangePointsForInOper(SFltSclOperator* oper, SArray* points) {
+  SNodeListNode *listNode = (SNodeListNode *)oper->valNode;
+  SFltSclDatum minDatum = {.kind = FLT_SCL_DATUM_KIND_INT64, .i = INT64_MAX, .type = oper->colNode->node.resType};
+  SFltSclDatum maxDatum = {.kind = FLT_SCL_DATUM_KIND_INT64, .i = INT64_MIN, .type = oper->colNode->node.resType};
+  SNode* nodeItem = NULL;
+  FOREACH(nodeItem, listNode->pNodeList) {
+    SValueNode *valueNode = (SValueNode *)nodeItem;
+    SFltSclDatum valDatum;
+    FLT_ERR_RET(fltSclBuildDatumFromValueNode(&valDatum, oper->colNode, valueNode));
+    if(valueNode->node.resType.type == TSDB_DATA_TYPE_FLOAT || valueNode->node.resType.type == TSDB_DATA_TYPE_DOUBLE) {
+      minDatum.i = TMIN(minDatum.i, valDatum.d);
+      maxDatum.i = TMAX(maxDatum.i, valDatum.d);
+    } else if (IS_DECIMAL_TYPE(valueNode->node.resType.type)) {
+      // TODO wjm test it, looks like we cannot assign double or decimal values to int64, what if in (0, 1.9), and there is a block with all col range in 1.1-1.8.
+      SDecimalOps* pOps = getDecimalOps(valueNode->node.resType.type);
+      if (valueNode->node.resType.type == TSDB_DATA_TYPE_DECIMAL64) {
+        // TODO wjm do i need to convert precision and scale???
+        if (pOps->gt(&minDatum.i, &valDatum.i, WORD_NUM(Decimal64))) minDatum.i = valDatum.i;
+        if (pOps->lt(&maxDatum.i, &valDatum.i, WORD_NUM(Decimal64))) maxDatum.i = valDatum.i;
+        maxDatum.kind = minDatum.kind = FLT_SCL_DATUM_KIND_DECIMAL64;
+      } else if (valueNode->node.resType.type == TSDB_DATA_TYPE_DECIMAL) {
+        if (listNode->pNodeList->pHead->pNode == nodeItem) {
+          // first node in list, set min/max datum
+          minDatum.pData = taosMemoryCalloc(1, sizeof(Decimal));
+          if (!minDatum.pData) return terrno;
+          maxDatum.pData = taosMemoryCalloc(1, sizeof(Decimal));
+          if (!maxDatum.pData) {
+            taosMemoryFreeClear(minDatum.pData);
+            return terrno;
+          }
+          DECIMAL128_CLONE((Decimal*)minDatum.pData, &decimal128Max);
+          DECIMAL128_CLONE((Decimal*)maxDatum.pData, &decimal128Min);
+        }
+        if (pOps->gt(minDatum.pData, valDatum.pData, WORD_NUM(Decimal))) DECIMAL128_CLONE((Decimal*)minDatum.pData, (Decimal*)valDatum.pData);
+
+        if (pOps->lt(maxDatum.pData, valDatum.pData, WORD_NUM(Decimal))) DECIMAL128_CLONE((Decimal*)maxDatum.pData, (Decimal*)valDatum.pData);
+        maxDatum.kind = minDatum.kind = FLT_SCL_DATUM_KIND_DECIMAL;
+      }
+    } else {
+      minDatum.i = TMIN(minDatum.i, valDatum.i);
+      maxDatum.i = TMAX(maxDatum.i, valDatum.i);
+    }
+  }
+  SFltSclPoint startPt = {.start = true, .excl = false, .val = minDatum};
+  SFltSclPoint endPt = {.start = false, .excl = false, .val = maxDatum};
+  if (NULL == taosArrayPush(points, &startPt)) {
+    FLT_ERR_RET(terrno);
+  }
+  if (NULL == taosArrayPush(points, &endPt)) {
+    FLT_ERR_RET(terrno);
+  }
+  FLT_RET(0);
+}
+
 int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
   switch (oper->type) {
     case OP_TYPE_GREATER_THAN: {
       SFltSclDatum start;
-      FLT_ERR_RET(fltSclBuildDatumFromValueNode(&start, oper->valNode));
+      FLT_ERR_RET(fltSclBuildDatumFromValueNode(&start, oper->colNode, oper->valNode));
       SFltSclPoint startPt = {.start = true, .excl = true, .val = start};
       SFltSclDatum end = {.kind = FLT_SCL_DATUM_KIND_MAX, .type = oper->colNode->node.resType};
       SFltSclPoint endPt = {.start = false, .excl = false, .val = end};
@@ -4935,7 +5066,7 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
     }
     case OP_TYPE_GREATER_EQUAL: {
       SFltSclDatum start;
-      FLT_ERR_RET(fltSclBuildDatumFromValueNode(&start, oper->valNode));
+      FLT_ERR_RET(fltSclBuildDatumFromValueNode(&start, oper->colNode, oper->valNode));
       SFltSclPoint startPt = {.start = true, .excl = false, .val = start};
       SFltSclDatum end = {.kind = FLT_SCL_DATUM_KIND_MAX, .type = oper->colNode->node.resType};
       SFltSclPoint endPt = {.start = false, .excl = false, .val = end};
@@ -4949,7 +5080,7 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
     }
     case OP_TYPE_LOWER_THAN: {
       SFltSclDatum end;
-      FLT_ERR_RET(fltSclBuildDatumFromValueNode(&end, oper->valNode));
+      FLT_ERR_RET(fltSclBuildDatumFromValueNode(&end, oper->colNode, oper->valNode));
       SFltSclPoint endPt = {.start = false, .excl = true, .val = end};
       SFltSclDatum start = {.kind = FLT_SCL_DATUM_KIND_MIN, .type = oper->colNode->node.resType};
       SFltSclPoint startPt = {.start = true, .excl = false, .val = start};
@@ -4963,7 +5094,7 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
     }
     case OP_TYPE_LOWER_EQUAL: {
       SFltSclDatum end;
-      FLT_ERR_RET(fltSclBuildDatumFromValueNode(&end, oper->valNode));
+      FLT_ERR_RET(fltSclBuildDatumFromValueNode(&end, oper->colNode, oper->valNode));
       SFltSclPoint endPt = {.start = false, .excl = false, .val = end};
       SFltSclDatum start = {.kind = FLT_SCL_DATUM_KIND_MIN, .type = oper->colNode->node.resType};
       SFltSclPoint startPt = {.start = true, .excl = false, .val = start};
@@ -4977,7 +5108,7 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
     }
     case OP_TYPE_EQUAL: {
       SFltSclDatum valDatum;
-      FLT_ERR_RET(fltSclBuildDatumFromValueNode(&valDatum, oper->valNode));
+      FLT_ERR_RET(fltSclBuildDatumFromValueNode(&valDatum, oper->colNode, oper->valNode));
       SFltSclPoint startPt = {.start = true, .excl = false, .val = valDatum};
       SFltSclPoint endPt = {.start = false, .excl = false, .val = valDatum};
       if (NULL == taosArrayPush(points, &startPt)) {
@@ -4990,7 +5121,7 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
     }
     case OP_TYPE_NOT_EQUAL: {
       SFltSclDatum valDatum;
-      FLT_ERR_RET(fltSclBuildDatumFromValueNode(&valDatum, oper->valNode));
+      FLT_ERR_RET(fltSclBuildDatumFromValueNode(&valDatum, oper->colNode, oper->valNode));
       {
         SFltSclDatum start = {.kind = FLT_SCL_DATUM_KIND_MIN, .type = oper->colNode->node.resType};
         SFltSclPoint startPt = {.start = true, .excl = false, .val = start};
@@ -5041,31 +5172,8 @@ int32_t fltSclBuildRangePoints(SFltSclOperator *oper, SArray *points) {
       break;
     }
     case OP_TYPE_IN: {
-        SNodeListNode *listNode = (SNodeListNode *)oper->valNode;
-        SFltSclDatum minDatum = {.kind = FLT_SCL_DATUM_KIND_INT64, .i = INT64_MAX, .type = oper->colNode->node.resType};
-        SFltSclDatum maxDatum = {.kind = FLT_SCL_DATUM_KIND_INT64, .i = INT64_MIN, .type = oper->colNode->node.resType};
-        SNode* nodeItem = NULL;
-        FOREACH(nodeItem, listNode->pNodeList) {
-          SValueNode *valueNode = (SValueNode *)nodeItem;
-          SFltSclDatum valDatum;
-          FLT_ERR_RET(fltSclBuildDatumFromValueNode(&valDatum, valueNode));
-          if(valueNode->node.resType.type == TSDB_DATA_TYPE_FLOAT || valueNode->node.resType.type == TSDB_DATA_TYPE_DOUBLE) {
-            minDatum.i = TMIN(minDatum.i, valDatum.d);
-            maxDatum.i = TMAX(maxDatum.i, valDatum.d);
-          } else {
-            minDatum.i = TMIN(minDatum.i, valDatum.i);
-            maxDatum.i = TMAX(maxDatum.i, valDatum.i);
-          }
-        }
-        SFltSclPoint startPt = {.start = true, .excl = false, .val = minDatum};
-        SFltSclPoint endPt = {.start = false, .excl = false, .val = maxDatum};
-        if (NULL == taosArrayPush(points, &startPt)) {
-          FLT_ERR_RET(terrno);
-        }
-        if (NULL == taosArrayPush(points, &endPt)) {
-          FLT_ERR_RET(terrno);
-        }
-        break;
+      FLT_ERR_RET(fltSclBuildRangePointsForInOper(oper, points));
+      break;
     }
     default: {
       qError("not supported operator type : %d when build range points", oper->type);
