@@ -275,6 +275,7 @@ bool fmIsForbidSysTableFunc(int32_t funcId);
 bool fmIsIntervalInterpoFunc(int32_t funcId);
 bool fmIsInterpFunc(int32_t funcId);
 bool fmIsLastRowFunc(int32_t funcId);
+bool fmIsLastFunc(int32_t funcId);
 bool fmIsForecastFunc(int32_t funcId);
 bool fmIsNotNullOutputFunc(int32_t funcId);
 bool fmIsSelectValueFunc(int32_t funcId);
