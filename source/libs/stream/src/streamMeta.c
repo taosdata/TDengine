@@ -198,6 +198,7 @@ int32_t streamMetaCheckBackendCompatible(SStreamMeta* pMeta) {
     SCheckpointInfo info;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     if (tDecodeStreamTaskChkInfo(&decoder, &info) < 0) {
+      tDecoderClear(&decoder);
       continue;
     }
 
@@ -1032,6 +1033,7 @@ int64_t streamMetaGetLatestCheckpointId(SStreamMeta* pMeta) {
     SCheckpointInfo info;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     if (tDecodeStreamTaskChkInfo(&decoder, &info) < 0) {
+      tDecoderClear(&decoder);
       continue;
     }
     tDecoderClear(&decoder);

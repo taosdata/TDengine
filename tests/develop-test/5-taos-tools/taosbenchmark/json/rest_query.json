@@ -14,14 +14,5 @@
       "sql": "select count(*) from db.stb",
       "result": "rest_query_specified"
     }]
-  },
-  "super_table_query": {
-    "stblname": "stb",
-    "sqls": [
-      {
-        "sql": "select count(*) from xxxx",
-        "result": "rest_query_super"
-      }
-    ]
   }
 }

@@ -81,6 +81,8 @@ typedef struct SCommitInfo        SCommitInfo;
 typedef struct SCompactInfo       SCompactInfo;
 typedef struct SQueryNode         SQueryNode;
 
+typedef struct SStreamNotifyHandleMap SStreamNotifyHandleMap;
+
 #define VNODE_META_TMP_DIR    "meta.tmp"
 #define VNODE_META_BACKUP_DIR "meta.backup"
 
@@ -499,6 +501,9 @@ struct SVnode {
   int64_t       blockSeq;
   SQHandle*     pQuery;
   SVMonitorObj  monitor;
+
+  // Notification Handles
+  SStreamNotifyHandleMap* pNotifyHandleMap;
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)

@@ -152,7 +152,11 @@ let v3 = data["voltage"].split(",");
 
 使用 json 规则解析出的电压是字符串表达的带单位形式，最终入库希望能使用 int 类型记录电压值和电流值，便于统计分析，此时就需要对电压进一步拆分；另外日期期望拆分为日期和时间入库。
 
-如下图所示可以对源字段`ts`使用 split 规则拆分成日期和时间，对字段`voltage`使用 regex 提取出电压值和电压单位。split 规则需要设置**分隔符**和**拆分数量**，拆分后的字段命名规则为`{原字段名}_{顺序号}`，Regex 规则同解析过程中的一样，使用**命名捕获组**命名提取字段。
+如下图所示
+
+* 对字段`ts`使用 split 规则拆分成日期和时间。split 规则需要设置**分隔符**和**拆分数量**，拆分后的字段命名规则为`{原字段名}_{顺序号}`。
+* 对字段`voltage`使用正则表达式 `^(?<voltage>[0-9]+)(?<voltage_unit>[a-zA-Z]+)$` 提取出电压值和电压单位，Regex 规则同解析过程中的一样，使用**命名捕获组**命名提取字段。
+* 对字段 `location` 使用 convert 转换，填写一个 JSON map 对象，其中 key 为字段 `current` 的值，`value` 为转换后的值。如图，`location` 字段的值 `"beijing.chaoyang.datun"` 被转换为 `"beijing.chaoyang.datunludong"`。
 
 ![拆分和提取](./pic/transform-04.png)
 

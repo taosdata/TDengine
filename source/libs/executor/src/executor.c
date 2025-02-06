@@ -250,6 +250,28 @@ int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
   return code;
 }
 
+int32_t qSetStreamNotifyInfo(qTaskInfo_t tinfo, int32_t eventTypes, const SSchemaWrapper* pSchemaWrapper,
+                             const char* stbFullName, bool newSubTableRule) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SStreamTaskInfo *pStreamInfo = NULL;
+
+  if (tinfo == 0 || eventTypes == 0 || pSchemaWrapper == NULL || stbFullName == NULL) {
+    goto _end;
+  }
+
+  pStreamInfo = &((SExecTaskInfo*)tinfo)->streamInfo;
+  pStreamInfo->eventTypes = eventTypes;
+  pStreamInfo->notifyResultSchema = tCloneSSchemaWrapper(pSchemaWrapper);
+  if (pStreamInfo->notifyResultSchema == NULL) {
+    code = terrno;
+  }
+  pStreamInfo->stbFullName = taosStrdup(stbFullName);
+  pStreamInfo->newSubTableRule = newSubTableRule;
+
+_end:
+  return code;
+}
+
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
   if (tinfo == NULL) {
     return TSDB_CODE_APP_ERROR;

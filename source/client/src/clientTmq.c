@@ -1435,7 +1435,7 @@ static int32_t askEp(tmq_t* pTmq, void* param, bool sync, bool updateEpSet) {
   tqDebugC("consumer:0x%" PRIx64 " ask ep from mnode,QID:0x%" PRIx64, pTmq->consumerId, sendInfo->requestId);
   code = asyncSendMsgToServer(pTmq->pTscObj->pAppInfo->pTransporter, &epSet, NULL, sendInfo);
 
-  END:
+END:
   if (code != 0) {
     tqErrorC("%s failed at %d, msg:%s", __func__, lino, tstrerror(code));
   }
@@ -1650,6 +1650,7 @@ void tmqMgmtClose(void) {
     tmqMgmt.rsetId = -1;
     (void)taosThreadMutexUnlock(&tmqMgmt.lock);
   }
+  (void)taosThreadMutexUnlock(&tmqMgmt.lock);
 }
 
 tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
@@ -2271,7 +2272,7 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
   pVg->seekUpdated = false;  // reset this flag.
   pTmq->pollCnt++;
 
-  END:
+END:
   if (code != 0){
     tqErrorC("%s failed at %d msg:%s", __func__, lino, tstrerror(code));
   }
@@ -2496,7 +2497,7 @@ static SMqRspObj* processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
     pRspObj->resType = pRspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_META_RSP ? RES_TYPE__TMQ_META : RES_TYPE__TMQ_BATCH_META;
   }
 
-  END:
+END:
   terrno = code;
   taosWUnLockLatch(&tmq->lock);
   return pRspObj;
@@ -2534,7 +2535,7 @@ static void* tmqHandleAllRsp(tmq_t* tmq) {
     }
   }
 
-  END:
+END:
   terrno = code;
   return returnVal;
 }
@@ -2577,7 +2578,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     }
   }
 
-  END:
+END:
   terrno = code;
   if (tmq != NULL) {
     tqErrorC("consumer:0x%" PRIx64 " poll error at line:%d, msg:%s", tmq->consumerId, lino, tstrerror(terrno));
@@ -2646,7 +2647,7 @@ int32_t tmq_unsubscribe(tmq_t* tmq) {
 int32_t tmq_consumer_close(tmq_t* tmq) {
   if (tmq == NULL) return TSDB_CODE_INVALID_PARA;
   int32_t code = 0;
-  code = taosThreadMutexLock(&tmqMgmt.lock);
+  (void) taosThreadMutexLock(&tmqMgmt.lock);
   if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__CLOSED){
     goto end;
   }
@@ -2660,8 +2661,8 @@ int32_t tmq_consumer_close(tmq_t* tmq) {
     }
   }
 
-  end:
-  code = taosThreadMutexUnlock(&tmqMgmt.lock);
+end:
+  (void)taosThreadMutexUnlock(&tmqMgmt.lock);
   return code;
 }
 
