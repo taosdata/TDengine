@@ -239,7 +239,7 @@ Please refer to the [Unit Test](#31-unit-test)、[System Test](#32-system-test) 
 
 ### 3.7.1 How to run tests?
 
-1. Clone the code and  run the tests locally on your machine. Ensure that your virtual machine supports the AVX instruction set:
+1. Clone the code and run the tests locally on your machine. Ensure that your virtual machine supports the AVX instruction set:
 ```bash
   cd /usr/local/src && git clone https://github.com/taosdata/tsbs-internal.git tsbs && \
   cd tsbs &&  git checkout enh/chr-td-33357 && \
