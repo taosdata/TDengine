@@ -918,8 +918,11 @@ static int32_t seqStableJoinComposeRes(SStbJoinDynCtrlInfo* pStbJoin, SSDataBloc
           return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         }
         SColumnInfoData colInfo = createColumnInfoData(pSlot->dataType.type, pSlot->dataType.bytes, pSlot->slotId);
-        colInfoDataEnsureCapacity(&colInfo, pBlock->info.rows, true);
-        int32_t code = blockDataAppendColInfo(pBlock, &colInfo);
+        int32_t code = colInfoDataEnsureCapacity(&colInfo, pBlock->info.rows, true);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+        code = blockDataAppendColInfo(pBlock, &colInfo);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
@@ -933,6 +936,51 @@ static int32_t seqStableJoinComposeRes(SStbJoinDynCtrlInfo* pStbJoin, SSDataBloc
 }
 
 int32_t seqStableJoin(SOperatorInfo* pOperator, SSDataBlock** pRes) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
+  SStbJoinDynCtrlInfo*       pStbJoin = (SStbJoinDynCtrlInfo*)&pInfo->stbJoin;
+
+  QRY_PARAM_CHECK(pRes);
+  if (pOperator->status == OP_EXEC_DONE) {
+    return code;
+  }
+
+  int64_t st = 0;
+  if (pOperator->cost.openCost == 0) {
+    st = taosGetTimestampUs();
+  }
+
+  if (!pStbJoin->ctx.prev.joinBuild) {
+    buildStbJoinTableList(pOperator);
+    if (pStbJoin->execInfo.prevBlkRows <= 0) {
+      setOperatorCompleted(pOperator);
+      goto _return;
+    }
+  }
+
+  QRY_ERR_JRET(seqJoinContinueCurrRetrieve(pOperator, pRes));
+  if (*pRes) {
+    goto _return;
+  }
+
+  QRY_ERR_JRET(seqJoinLaunchNewRetrieve(pOperator, pRes));
+
+_return:
+  if (pOperator->cost.openCost == 0) {
+    pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
+  }
+
+  if (code) {
+    qError("%s failed since %s", __func__, tstrerror(code));
+    pOperator->pTaskInfo->code = code;
+    T_LONG_JMP(pOperator->pTaskInfo->env, code);
+  } else {
+    code = seqStableJoinComposeRes(pStbJoin, *pRes);
+  }
+  return code;
+}
+
+int32_t vtbScan(SOperatorInfo* pOperator, SSDataBlock** pRes) {
   int32_t                    code = TSDB_CODE_SUCCESS;
   SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
   SStbJoinDynCtrlInfo*       pStbJoin = (SStbJoinDynCtrlInfo*)&pInfo->stbJoin;
@@ -1005,9 +1053,46 @@ int32_t initSeqStbJoinTableHash(SStbJoinPrevJoinCtx* pPrev, bool batchFetch) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t getVirtualChildTableMeta(SReadHandle* pHandle, uint64_t suid) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      line = 0;
+  SMetaReader  mr = {0};
+  SArray      *pList = NULL;
+  pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
+  pList = taosArrayInit(4, sizeof(uint64_t));
+  QUERY_CHECK_NULL(pList, code, line, _return, terrno);
+
+  QUERY_CHECK_CODE(pHandle->api.metaFn.getChildTableList(&mr, suid, pList), line, _return);
+
+  size_t num = taosArrayGetSize(pList);
+  for (int32_t i = 0; i < num; ++i) {
+    uint64_t* id = taosArrayGet(pList, i);
+    QUERY_CHECK_NULL(id, code, line, _return, terrno);
+    QUERY_CHECK_CODE(pHandle->api.metaReaderFn.getTableEntryByUid(&mr, *id), line, _return);
+
+    SColRefExWrapper colRefExWrapper = {0};
+    colRefExWrapper.nCols = mr.me.colRef.nCols;
+    for (int32_t j = 0; j < mr.me.colRef.nCols; j++) {
+      colRefExWrapper.pColRefEx[j].colRef.id = mr.me.colRef.pColRef[j].id;
+      colRefExWrapper.pColRefEx[j].colRef.hasRef = mr.me.colRef.pColRef[j].hasRef;
+      tstrncpy(colRefExWrapper.pColRefEx[j].colRef.refColName, mr.me.colRef.pColRef[j].refColName, TSDB_COL_NAME_LEN);
+      tstrncpy(colRefExWrapper.pColRefEx[j].colRef.refTableName, mr.me.colRef.pColRef[j].refTableName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(colRefExWrapper.pColRefEx[j].colRef.refDbName, mr.me.colRef.pColRef[j].refDbName, TSDB_DB_NAME_LEN);
+    }
+  }
+  taosArrayDestroy(pList);
+  pList = NULL;
+
+
+
+_return:
+
+  return code;
+}
+
 int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                        SDynQueryCtrlPhysiNode* pPhyciNode, SExecTaskInfo* pTaskInfo,
-                                       SOperatorInfo** pOptrInfo) {
+                                       SReadHandle* pHandle, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t                    code = TSDB_CODE_SUCCESS;
@@ -1042,6 +1127,9 @@ int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numO
         goto _error;
       }
       nextFp = seqStableJoin;
+      break;
+    case DYN_QTYPE_VTB_SCAN:
+      nextFp = vtbScan;
       break;
     default:
       qError("unsupported dynamic query ctrl type: %d", pInfo->qType);

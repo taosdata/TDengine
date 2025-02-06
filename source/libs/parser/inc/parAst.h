@@ -105,6 +105,12 @@ typedef struct STokenPair {
   SToken second;
 } STokenPair;
 
+typedef struct STokenTriplet {
+  ENodeType type;
+  int32_t   numOfName;
+  SToken    name[3];
+} STokenTriplet;
+
 typedef struct SShowTablesOption {
   EShowKind kind;
   SToken    dbName;
@@ -209,11 +215,15 @@ SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeLi
 SNode* createDefaultTableOptions(SAstCreateContext* pCxt);
 SNode* createAlterTableOptions(SAstCreateContext* pCxt);
 SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, void* pVal);
-SNode* createColumnRefNode(SAstCreateContext* pCxt, SToken* pColName, SToken* pRefTableName, SToken* pRefColName);
+
+STokenTriplet* createTokenTriplet(SAstCreateContext* pCxt, SToken pName);
+STokenTriplet* setColumnName(SAstCreateContext* pCxt, STokenTriplet* pTokenTri, SToken pName);
+SNode* createColumnRefNodeByName(SAstCreateContext* pCxt, STokenTriplet* pTokenTri);
+SNode* createColumnRefNodeByNode(SAstCreateContext* pCxt, SToken* pColName, SNode* pRef);
 SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, SNode* pOptions);
 SNode* setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal1, void* pVal2);
 SNode* setColumnOptionsPK(SAstCreateContext* pCxt, SNode* pOptions);
-SNode* setColumnReference(SAstCreateContext* pCxt, SNode* pOptions, SToken* pTableRef, SToken* pColumnRef);
+SNode* setColumnReference(SAstCreateContext* pCxt, SNode* pOptions, SNode* pRef);
 SNode* createDefaultColumnOptions(SAstCreateContext* pCxt);
 SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols,
                              SNodeList* pTags, SNode* pOptions);
@@ -239,13 +249,11 @@ SNode* createAlterTableAddModifyColOptions2(SAstCreateContext* pCxt, SNode* pRea
 
 SNode* createAlterTableAddModifyColOptions(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType,
                                            SToken* pColName, SNode* pOptions);
-SNode* createAlterTableAddColWithRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType,
-                                     SToken* pColName, SDataType dataType, SToken* pRefTableName, SToken* pRefColName);
 SNode* createAlterTableDropCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName);
 SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pOldColName,
                                  SToken* pNewColName);
 SNode* createAlterTableAlterColRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
-                                   SToken* pRefTableName, SToken* pRefColName);
+                                  SNode* pRef);
 SNode* createAlterTableRemoveColRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
                                     const SToken* pLiteral);
 SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, SToken* pTagName, SNode* pVal);

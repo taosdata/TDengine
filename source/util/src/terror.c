@@ -770,6 +770,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal er
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_EXPECTED_TS_EQUAL,         "Expect ts equal")
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN,    "Cross join not support")
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND,     "Not supported join conditions")
+TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_SLOT_NOT_FOUND,            "Planner slot key not found")
 
 //function
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_ERROR,            "Function internal error")

@@ -253,10 +253,15 @@ typedef struct SDynQueryCtrlStbJoin {
   bool       srcScan[2];
 } SDynQueryCtrlStbJoin;
 
+typedef struct SDynQueryCtrlVtbScan {
+  SVgroupsInfo* pVgroupList;
+} SDynQueryCtrlVtbScan;
+
 typedef struct SDynQueryCtrlLogicNode {
   SLogicNode           node;
   EDynQueryType        qType;
   SDynQueryCtrlStbJoin stbJoin;
+  SDynQueryCtrlVtbScan vtbScan;
 } SDynQueryCtrlLogicNode;
 
 typedef enum EModifyTableType { MODIFY_TABLE_TYPE_INSERT = 1, MODIFY_TABLE_TYPE_DELETE } EModifyTableType;
@@ -631,11 +636,18 @@ typedef struct SStbJoinDynCtrlBasic {
   bool    srcScan[2];
 } SStbJoinDynCtrlBasic;
 
+typedef struct SVtbScanDynCtrlBasic {
+  uint64_t   suid;
+  int32_t    dbNums;
+  SDBVgInfo *pVgInfo;
+} SVtbScanDynCtrlBasic;
+
 typedef struct SDynQueryCtrlPhysiNode {
   SPhysiNode    node;
   EDynQueryType qType;
   union {
     SStbJoinDynCtrlBasic stbJoin;
+    SVtbScanDynCtrlBasic vtbScan;
   };
 } SDynQueryCtrlPhysiNode;
 

@@ -132,6 +132,7 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
   int32_t code = 0;
   int64_t lastTs = 0;
   int64_t rowNums = -1;
+  blockDataEmpty(p);
   while (1) {
     STupleHandle* pTupleHandle = NULL;
     if (!pInfo->pSavedTuple) {

@@ -131,9 +131,11 @@ static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_SCALAR_FIELD(numOfPKs);
   COPY_SCALAR_FIELD(projRefIdx);
   COPY_SCALAR_FIELD(resIdx);
+  COPY_SCALAR_FIELD(hasDep);
   COPY_SCALAR_FIELD(hasRef);
-  COPY_CHAR_ARRAY_FIELD(refColName);
+  COPY_CHAR_ARRAY_FIELD(refDbName);
   COPY_CHAR_ARRAY_FIELD(refTableName);
+  COPY_CHAR_ARRAY_FIELD(refColName);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -459,7 +461,6 @@ static int32_t virtualTableNodeCopy(const SVirtualTableNode * pSrc, SVirtualTabl
   COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
   CLONE_OBJECT_FIELD(pMeta, tableMetaClone);
   CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
-  COPY_CHAR_ARRAY_FIELD(qualDbName);
   CLONE_NODE_LIST_FIELD(refTables);
   return TSDB_CODE_SUCCESS;
 }
@@ -748,6 +749,7 @@ static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQue
   CLONE_NODE_LIST_FIELD(stbJoin.pVgList);
   CLONE_NODE_LIST_FIELD(stbJoin.pUidList);
   COPY_OBJECT_FIELD(stbJoin.srcScan, sizeof(pDst->stbJoin.srcScan));
+  CLONE_OBJECT_FIELD(vtbScan.pVgroupList, vgroupsInfoClone);
   return TSDB_CODE_SUCCESS;
 }
 
