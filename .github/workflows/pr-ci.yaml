@@ -95,7 +95,7 @@ jobs:
           clean: false
       - name: check
         run: |
-          cargo make check-arm64
+          cargo make zigbuild-aarch64-taosx
 
   build_taosx:
     needs: [check]
