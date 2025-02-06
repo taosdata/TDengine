@@ -78,23 +78,6 @@ else()
   )
 endif()
 
-if(NOT ${TD_WINDOWS})
-  target_include_directories(
-    common
-    PUBLIC "$ENV{HOME}/.cos-local.2/include"
-  )
-
-  find_library(CURL_LIBRARY curl $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
-  find_library(SSL_LIBRARY ssl $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
-  find_library(CRYPTO_LIBRARY crypto $ENV{HOME}/.cos-local.2/lib64 $ENV{HOME}/.cos-local.2/lib NO_DEFAULT_PATH)
-  target_link_libraries(
-    common
-    PUBLIC ${CURL_LIBRARY}
-    PUBLIC ${SSL_LIBRARY}
-    PUBLIC ${CRYPTO_LIBRARY}
-  )
-endif()
-
 if(${BUILD_S3})
   if(${BUILD_WITH_S3})
     set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")

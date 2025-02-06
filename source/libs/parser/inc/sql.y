@@ -1557,7 +1557,7 @@ window_offset_literal(A) ::= NK_MINUS(B) NK_VARIABLE(C).                        
                                                                                     A = createRawExprNode(pCxt, &t, createTimeOffsetValueNode(pCxt, &t));
                                                                                   }
 
-jlimit_clause_opt(A) ::= .                                                        { A = NULL; }
+jlimit_clause_opt(A) ::= . [JLIMIT]                                               { A = NULL; }
 jlimit_clause_opt(A) ::= JLIMIT unsigned_integer(B).                              { A = createLimitNode(pCxt, B, NULL); }
 
 /************************************************ query_specification *************************************************/
