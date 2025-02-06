@@ -39,6 +39,7 @@ fn test_td_33256_with_taos() -> anyhow::Result<(), anyhow::Error> {
             .append_context("taos", "create topic without meta")
             .success();
     }
+    let data_dir = tempfile::tempdir()?;
     let mut cmd = Command::cargo_bin("taosx")?;
     cmd.arg("run")
         .arg("-f")
@@ -47,7 +48,7 @@ fn test_td_33256_with_taos() -> anyhow::Result<(), anyhow::Error> {
         ))
         .arg("-t")
         .arg(format!("taos:///{}", SINK))
-        .env("TAOSX_DATA_DIR", std::env::temp_dir())
+        .env("TAOSX_DATA_DIR", data_dir.path())
         .timeout(std::time::Duration::from_secs(30))
         .assert()
         .append_context("taosx", "with default parameters")

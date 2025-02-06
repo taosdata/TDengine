@@ -1,5 +1,3 @@
-use std::env::temp_dir;
-
 use assert_cmd::{prelude::*, Command};
 
 #[test]
@@ -34,15 +32,15 @@ fn test_td_33080_with_taos() -> anyhow::Result<(), anyhow::Error> {
             .append_context("taos", "create topic without meta")
             .success();
     }
+    let data_dir = tempfile::tempdir()?;
     let mut cmd = Command::cargo_bin("taosx")?;
-    let temp_data_dir = temp_dir();
     let now = chrono::Utc::now().timestamp_millis();
     cmd.arg("run")
         .arg("-f")
         .arg(format!("tmq:///{}?group.id={}&timeout=1s", SOURCE, now))
         .arg("-t")
         .arg(format!("taos:///{}", SINK))
-        .env("TAOSX_DATA_DIR", &temp_data_dir)
+        .env("TAOSX_DATA_DIR", data_dir.path())
         .timeout(std::time::Duration::from_secs(30))
         .assert()
         .append_context("taosx", "with default parameters")
@@ -55,6 +53,7 @@ fn test_td_33080_with_taos() -> anyhow::Result<(), anyhow::Error> {
         .append_context("taos", "drop table meters in sink database")
         .success();
     let now = chrono::Utc::now().timestamp_millis();
+    let data_dir = tempfile::tempdir()?;
     let mut cmd = Command::cargo_bin("taosx")?;
     cmd.arg("run")
         .arg("-f")
@@ -64,7 +63,7 @@ fn test_td_33080_with_taos() -> anyhow::Result<(), anyhow::Error> {
         ))
         .arg("-t")
         .arg(format!("taos:///{}", SINK))
-        .env("TAOSX_DATA_DIR", &temp_data_dir)
+        .env("TAOSX_DATA_DIR", data_dir.path())
         .timeout(std::time::Duration::from_secs(30))
         .assert()
         .append_context("taosx", "with enable.concurrent.polling=false")

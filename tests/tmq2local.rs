@@ -32,16 +32,15 @@ mod test_tmq_to_local {
         .await?;
         let backup_path = tempfile::TempDir::new()?;
 
-        let temp_data_dir = std::env::temp_dir();
-
         // when：备份 5 行数据
+        let data_dir = tempfile::tempdir()?;
         let mut cmd = Command::cargo_bin("taosx")?;
         cmd.arg("run")
             .arg("-f")
             .arg(format!("{ADDR}/{SRC_DB}"))
             .arg("-t")
             .arg(format!("local:{}", backup_path.path().to_str().unwrap()))
-            .env("TAOSX_DATA_DIR", &temp_data_dir)
+            .env("TAOSX_DATA_DIR", data_dir.path())
             .assert()
             .success();
         // then
@@ -58,6 +57,7 @@ mod test_tmq_to_local {
         let file_name = files[0];
         let (topic, to, _, _) = ZFile::parse_file_name(file_name)?;
         taos.exec(format!("CREATE DATABASE `{DST_DB}`")).await?;
+        let data_dir = tempfile::tempdir()?;
         let mut cmd = Command::cargo_bin("taosx")?;
         cmd.arg("run")
             .arg("-f")
@@ -71,7 +71,7 @@ mod test_tmq_to_local {
             ))
             .arg("-t")
             .arg(format!("{ADDR}/{DST_DB}"))
-            .env("TAOSX_DATA_DIR", &temp_data_dir)
+            .env("TAOSX_DATA_DIR", data_dir.path())
             .assert()
             .success();
         // then
