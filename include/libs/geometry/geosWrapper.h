@@ -20,10 +20,10 @@
 extern "C" {
 #endif
 
-#ifdef TD_GEOS
 #include <stdint.h>
 #include "os.h"
 
+#ifndef TD_ACORE
 #include "tgeosctx.h"
 
 void geosFreeBuffer(void *buffer);
@@ -55,6 +55,14 @@ int32_t doContainsProperly(const GEOSGeometry *geom1, const GEOSPreparedGeometry
 int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom,
                      const GEOSPreparedGeometry **outputPreparedGeom);
 void    destroyGeometry(GEOSGeometry **geom, const GEOSPreparedGeometry **preparedGeom);
+
+#else
+FORCE_INLINE int32_t initCtxAsText() { return TSDB_CODE_OPS_NOT_SUPPORT; }
+FORCE_INLINE int32_t doAsText(const unsigned char *inputGeom, size_t size, char **outputWKT) {
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+FORCE_INLINE int32_t checkWKB(const unsigned char *wkb, size_t size) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+
 #endif
 
 #ifdef __cplusplus
