@@ -9,6 +9,7 @@
     - [3.4 Smoke Test](#34-smoke-test)
     - [3.5 Chaos Test](#35-chaos-test)
     - [3.6 CI Test](#36-ci-test)
+    - [3.7 TSBS Test](#37-tsbs-test)
 
 # 1. Introduction
 
@@ -239,7 +240,7 @@ Please refer to the [Unit Test](#31-unit-test)、[System Test](#32-system-test) 
 
 ### 3.7.1 How to run tests?
 
-1. TSBS test can be started locally by running command below. Ensure that your virtual machine supports the AVX instruction set:
+TSBS test can be started locally by running command below. Ensure that your virtual machine supports the AVX instruction set:
 
 ```bash
 cd /usr/local/src && \
@@ -250,9 +251,11 @@ cd scripts/tsdbComp && \
 ./testTsbs.sh 
 ```
 
-2. By default, both client and server will be started on the local host. To start the client and server on separate hosts, please follow steps below to configure `test.ini` before starting the test:
+### 3.7.2 How to start client and server on different hosts?
 
-2.1 Modify IP and hostname of client and server in `test.ini`:
+By default, both client and server will be started on the local host. To start the client and server on separate hosts, please follow steps below to configure `test.ini` before starting the test:
+
+1. Modify IP and hostname of client and server in `test.ini`:
 
 ```ini
 clientIP="192.168.0.203"   # client ip
@@ -261,10 +264,12 @@ serverIP="192.168.0.204"   # server ip
 serverHost="trd04"         # server hostname
 ```
 
-2.2 Passwordless ssh login between the client and server is required; otherwise, please set the ssh login password in `test.int`, for example:
+2. Passwordless ssh login between the client and server is required; otherwise, please set the ssh login password in `test.int`, for example:
 
 ```ini
 serverPass="taosdata123"   # server root password
 ```
 
-3. When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
+### 3.7.3 Check test results
+
+When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
