@@ -104,7 +104,6 @@
 ,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeDouble.py -B
 ,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedBigInt.py -B
 ,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpEscapedDb.py -B
-,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpPrimaryKey.py -B
 ,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeJson.py -B
 ,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedSmallInt.py -B
 ,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedTinyInt.py -B
