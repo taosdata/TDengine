@@ -576,6 +576,7 @@ int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
 }
 
 static int32_t tfsFormatDir(char *idir, char *odir) {
+#ifndef TD_ACORE
   int32_t   code = 0, lino = 0;
   wordexp_t wep = {0};
   int32_t   dirLen = 0;
@@ -602,6 +603,10 @@ _exit:
            dirLen);
   }
   TAOS_RETURN(code);
+#else
+  tstrncpy(odir, idir, TSDB_FILENAME_LEN);
+  TAOS_RETURN(0);
+#endif
 }
 
 static int32_t tfsCheck(STfs *pTfs) {

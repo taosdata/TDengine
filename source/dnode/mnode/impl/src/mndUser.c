@@ -15,7 +15,9 @@
 
 #define _DEFAULT_SOURCE
 // clang-format off
+#ifndef TD_ACORE
 #include <uv.h>
+#endif
 #include "mndUser.h"
 #include "audit.h"
 #include "mndDb.h"

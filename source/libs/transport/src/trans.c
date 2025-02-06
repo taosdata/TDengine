@@ -497,7 +497,9 @@ int32_t rpcRegisterBrokenLinkArg(SRpcMsg* msg) {
   return transRegisterMsg(msg);
 #endif
 }
-int32_t rpcReleaseHandle(void* handle, int8_t type) { return (*transReleaseHandle[type])(handle, 0); }
+int32_t rpcReleaseHandle(void* handle, int8_t type, int32_t status) {
+  return (*transReleaseHandle[type])(handle, status);
+}
 
 // client only
 int32_t rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {

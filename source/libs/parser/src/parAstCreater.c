@@ -14,8 +14,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include <regex.h>
+#ifndef TD_ACORE
 #include <uv.h>
-
+#endif
 #include "parAst.h"
 #include "parUtil.h"
 #include "tglobal.h"
