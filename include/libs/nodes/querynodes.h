@@ -96,6 +96,9 @@ typedef struct SColumnNode {
   bool        hasRef;
   char        refColName[TSDB_COL_NAME_LEN];
   char        refTableName[TSDB_TABLE_NAME_LEN];
+  bool        hasDep;
+  char        depColName[TSDB_COL_NAME_LEN];
+  char        depTableName[TSDB_TABLE_NAME_LEN];
 } SColumnNode;
 
 typedef struct SColumnRefNode {
