@@ -241,9 +241,12 @@ Please refer to the [Unit Test](#31-unit-test)、[System Test](#32-system-test) 
 
 1. Clone the code and run the tests locally on your machine. Ensure that your virtual machine supports the AVX instruction set:
 ```bash
-  cd /usr/local/src && git clone https://github.com/taosdata/tsbs-internal.git tsbs && \
-  cd tsbs &&  git checkout enh/chr-td-33357 && \
-  cd scripts/tsdbComp && ./testTsbs.sh 
+cd /usr/local/src && \
+git clone https://github.com/taosdata/tsbs-internal.git tsbs && \
+cd tsbs && \
+git checkout enh/chr-td-33357 && \
+cd scripts/tsdbComp && \
+./testTsbs.sh 
 ```
 2. When testing the client and server on separate machines, you should set up your environment as outlined in the steps below:
 
