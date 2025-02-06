@@ -10427,8 +10427,9 @@ int32_t tEncodeSColRefWrapper(SEncoder *pCoder, const SColRefWrapper *pWrapper) 
     TAOS_CHECK_EXIT(tEncodeI8(pCoder, p->hasRef));
     TAOS_CHECK_EXIT(tEncodeI16v(pCoder, p->id));
     if (p->hasRef) {
-      TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refColName));
+      TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refDbName));
       TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refTableName));
+      TAOS_CHECK_EXIT(tEncodeCStr(pCoder, p->refColName));
     }
   }
 
@@ -10453,8 +10454,9 @@ int32_t tDecodeSColRefWrapperEx(SDecoder *pDecoder, SColRefWrapper *pWrapper) {
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, (int8_t *)&p->hasRef));
     TAOS_CHECK_EXIT(tDecodeI16v(pDecoder, &p->id));
     if (p->hasRef) {
-      TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->refColName));
+      TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->refDbName));
       TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->refTableName));
+      TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, p->refColName));
     }
   }
 
@@ -11041,6 +11043,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       break;
     case TSDB_ALTER_TABLE_ALTER_COLUMN_REF:
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->refDbName));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->refTbName));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->refColName));
       break;
@@ -11052,6 +11055,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->type));
       TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->flags));
       TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pReq->bytes));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->refDbName));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->refTbName));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->refColName));
       break;
@@ -11145,6 +11149,7 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       break;
     case TSDB_ALTER_TABLE_ALTER_COLUMN_REF:
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refDbName));
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refTbName));
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refColName));
       break;
@@ -11156,6 +11161,7 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->type));
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->flags));
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pReq->bytes));
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refDbName));
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refTbName));
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refColName));
       break;

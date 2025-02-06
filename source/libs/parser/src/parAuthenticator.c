@@ -251,9 +251,6 @@ static int32_t authShowTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
 }
 
 static int32_t authShowVtables(SAuthCxt* pCxt, SShowStmt* pStmt) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
   return authShowTables(pCxt, pStmt);
 }
 
@@ -282,9 +279,6 @@ static int32_t authCreateTable(SAuthCxt* pCxt, SCreateTableStmt* pStmt) {
 }
 
 static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
   PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, NULL, AUTH_TYPE_WRITE, NULL));
   SNode  *pCol = NULL;
   FOREACH(pCol, pStmt->pCols) {
@@ -294,16 +288,13 @@ static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
     }
     SColumnOptions *pOptions = (SColumnOptions*)pColDef->pOptions;
     if (pOptions && pOptions->hasRef) {
-      PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pOptions->refTable, AUTH_TYPE_READ, NULL));
+      PAR_ERR_RET(checkAuth(pCxt, pOptions->refDb, pOptions->refTable, AUTH_TYPE_READ, NULL));
     }
   }
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
   int32_t   code = TSDB_CODE_SUCCESS;
   SNode     *pNode = NULL;
   SNodeList* pTmpList = pStmt->pSpecificColRefs ? pStmt->pSpecificColRefs : pStmt->pColRefs;
@@ -318,7 +309,7 @@ static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) 
     if (NULL == pColRef) {
       PAR_ERR_RET(TSDB_CODE_PAR_INVALID_COLUMN);
     }
-    PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pColRef->refTableName, AUTH_TYPE_READ, NULL));
+    PAR_ERR_RET(checkAuth(pCxt, pColRef->refDbName, pColRef->refTableName, AUTH_TYPE_READ, NULL));
   }
   return code;
 }
@@ -368,9 +359,6 @@ static int32_t authDropStable(SAuthCxt* pCxt, SDropSuperTableStmt* pStmt) {
 }
 
 static int32_t authDropVtable(SAuthCxt* pCxt, SDropVirtualTableStmt* pStmt) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
   if (pStmt->withOpt && !pCxt->pParseCxt->isSuperUser) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
@@ -384,9 +372,6 @@ static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
 }
 
 static int32_t authAlterVTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
   PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_WRITE, NULL));
   if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
       pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF) {

@@ -629,7 +629,6 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
   while (((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_TABLE_MAX)) == 0)) {
     char typeName[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    char refColName[TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
 
     SSchemaWrapper* schemaRow = NULL;
     SColRefWrapper* colRef = NULL;
@@ -1312,8 +1311,10 @@ static int32_t sysTableUserColsFillOneTableCols(const SSysTableScanInfo* pInfo, 
     if (!colRef || !colRef->pColRef[i].hasRef) {
       colDataSetNULL(pColInfoData, numOfRows);
     } else {
-      char refColName[TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      char tmpColName[TSDB_COL_FNAME_LEN] = {0};
+      char refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      char tmpColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
+      strcat(tmpColName, colRef->pColRef[i].refDbName);
+      strcat(tmpColName, ".");
       strcat(tmpColName, colRef->pColRef[i].refTableName);
       strcat(tmpColName, ".");
       strcat(tmpColName, colRef->pColRef[i].refColName);
