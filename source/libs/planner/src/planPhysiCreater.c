@@ -64,7 +64,17 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
       *pLen = strlen(*ppKey);
       return code;
     }
-
+    if (pCol->hasDep) {
+      *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
+      if (!*ppKey) {
+        return terrno;
+      }
+      TAOS_STRNCAT(*ppKey, pCol->depTableName, TSDB_TABLE_NAME_LEN);
+      TAOS_STRNCAT(*ppKey, ".", 2);
+      TAOS_STRNCAT(*ppKey, pCol->depColName, TSDB_COL_NAME_LEN);
+      *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
+      return code;
+    }
     *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
     if (!*ppKey) {
       return terrno;
@@ -448,11 +458,6 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t getVTableScanDataBlockDescNode(SNodeList* pChildren, int32_t idx, SDataBlockDescNode** ppDesc) {
-  *ppDesc = ((SPhysiNode*)nodesListGetNode(pChildren, idx))->pOutputDataBlockDesc;
-  return TSDB_CODE_SUCCESS;
-}
-
 static EDealRes doSetVtableSlotId(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode) && 0 != strcmp(((SColumnNode*)pNode)->colName, "*")) {
     if (!((SColumnNode*)pNode)->hasRef) {
@@ -461,7 +466,7 @@ static EDealRes doSetVtableSlotId(SNode* pNode, void* pContext) {
     SVTableSetSlotIdCxt* pCxt = (SVTableSetSlotIdCxt*)pContext;
     char*          name = NULL;
     int32_t        len = 0;
-    pCxt->errCode = getVirtualSlotKey(pNode, &name, &len, 16);
+    pCxt->errCode = getSlotKey(pNode, NULL, &name, &len, 16);
     if (TSDB_CODE_SUCCESS != pCxt->errCode) {
       return DEAL_RES_ERROR;
     }
