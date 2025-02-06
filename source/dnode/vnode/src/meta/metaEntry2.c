@@ -626,10 +626,10 @@ static void metaBuildEntryInfo(const SMetaEntry *pEntry, SMetaInfo *pInfo) {
   if (pEntry->type == TSDB_SUPER_TABLE) {
     pInfo->suid = pEntry->uid;
     pInfo->skmVer = pEntry->stbEntry.schemaRow.version;
-  } else if (pEntry->type == TSDB_CHILD_TABLE) {
+  } else if (pEntry->type == TSDB_CHILD_TABLE || pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
     pInfo->suid = pEntry->ctbEntry.suid;
     pInfo->skmVer = 0;
-  } else if (pEntry->type == TSDB_NORMAL_TABLE) {
+  } else if (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_TABLE) {
     pInfo->suid = 0;
     pInfo->skmVer = pEntry->ntbEntry.schemaRow.version;
   }
