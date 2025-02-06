@@ -2675,7 +2675,6 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
   }
   *pChildPos = (SNode*)pSort;
   pSort->node.pParent = (SLogicNode*)pJoin;
-  ;
 
 _return:
 
@@ -7585,6 +7584,54 @@ static int32_t tsmaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan
   return code;
 }
 
+static bool eliminateVirtualScanMayBeOptimized(SLogicNode* pNode, void* pCtx) {
+  SLogicNode* pParent = pNode->pParent;
+  if (NULL == pParent) {
+    return false;
+  }
+
+  if (nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN || LIST_LENGTH(pNode->pChildren) != 1) {
+    return false;
+  }
+
+  if (pNode->pConditions || ((SVirtualScanLogicNode *)pNode)->pScanPseudoCols) {
+    return false;
+  }
+
+  return true;
+}
+
+static int32_t eliminateVirtualScanOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan,
+                                                SLogicNode* pVirtualScanNode) {
+  SNode* pSibling;
+  FOREACH(pSibling, pVirtualScanNode->pParent->pChildren) {
+    if (nodesEqualNode(pSibling, (SNode*)pVirtualScanNode)) {
+      SNode* pChild;
+      FOREACH(pChild, pVirtualScanNode->pChildren) {
+        OPTIMIZE_FLAG_CLEAR_MASK(((SScanLogicNode*)pChild)->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
+        ((SLogicNode*)pChild)->pParent = pVirtualScanNode->pParent;
+      }
+      INSERT_LIST(pVirtualScanNode->pParent->pChildren, pVirtualScanNode->pChildren);
+
+      pVirtualScanNode->pChildren = NULL;
+      ERASE_NODE(pVirtualScanNode->pParent->pChildren);
+      pCxt->optimized = true;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  return TSDB_CODE_PLAN_INTERNAL_ERROR;
+}
+
+static int32_t eliminateVirtualScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SLogicNode* pVirtualScanNode = optFindPossibleNode(pLogicSubplan->pNode, eliminateVirtualScanMayBeOptimized, NULL);
+  if (NULL == pVirtualScanNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return eliminateVirtualScanOptimizeImpl(pCxt, pLogicSubplan, pVirtualScanNode);
+}
+
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize},
@@ -7611,6 +7658,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "EliminateSetOperator",       .optimizeFunc = eliminateSetOpOptimize},
   {.pName = "PartitionCols",              .optimizeFunc = partitionColsOpt},
   {.pName = "Tsma",                       .optimizeFunc = tsmaOptimize},
+  {.pName = "EliminateVirtualScan",       .optimizeFunc = eliminateVirtualScanOptimize},
 };
 // clang-format on
 
