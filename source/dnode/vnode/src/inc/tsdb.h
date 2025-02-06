@@ -333,6 +333,7 @@ struct STsdbFS {
   SArray   *aDFileSet;  // SArray<SDFileSet>
 };
 
+#ifdef USE_ROCKSDB
 typedef struct {
   rocksdb_t                           *db;
   rocksdb_comparator_t                *my_comparator;
@@ -349,7 +350,7 @@ typedef struct {
   STSchema                            *pTSchema;
   SArray                              *ctxArray;
 } SRocksCache;
-
+#endif
 typedef struct {
   STsdb *pTsdb;
   int    flush_count;
@@ -375,7 +376,9 @@ struct STsdb {
   SLRUCache           *pgCache;
   TdThreadMutex        pgMutex;
   struct STFileSystem *pFS;  // new
+#ifdef USE_ROCKSDB
   SRocksCache          rCache;
+#endif
   SCompMonitor        *pCompMonitor;
   struct {
     SVHashTable *ht;

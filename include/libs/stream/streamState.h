@@ -18,7 +18,7 @@
 
 #include "tdatablock.h"
 
-#ifndef TD_ACORE
+#ifdef USE_ROCKSDB
 #include "rocksdb/c.h"
 #endif
 #include "tdbInt.h"
