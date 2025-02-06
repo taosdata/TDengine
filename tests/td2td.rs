@@ -47,6 +47,7 @@ fn test_td_33256_with_taos() -> anyhow::Result<(), anyhow::Error> {
         ))
         .arg("-t")
         .arg(format!("taos:///{}", SINK))
+        .env("TAOSX_DATA_DIR", std::env::temp_dir())
         .timeout(std::time::Duration::from_secs(30))
         .assert()
         .append_context("taosx", "with default parameters")

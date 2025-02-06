@@ -1,3 +1,5 @@
+use std::env::temp_dir;
+
 use assert_cmd::{prelude::*, Command};
 
 #[test]
@@ -33,12 +35,14 @@ fn test_td_33080_with_taos() -> anyhow::Result<(), anyhow::Error> {
             .success();
     }
     let mut cmd = Command::cargo_bin("taosx")?;
+    let temp_data_dir = temp_dir();
     let now = chrono::Utc::now().timestamp_millis();
     cmd.arg("run")
         .arg("-f")
         .arg(format!("tmq:///{}?group.id={}&timeout=1s", SOURCE, now))
         .arg("-t")
         .arg(format!("taos:///{}", SINK))
+        .env("TAOSX_DATA_DIR", &temp_data_dir)
         .timeout(std::time::Duration::from_secs(30))
         .assert()
         .append_context("taosx", "with default parameters")
@@ -60,6 +64,7 @@ fn test_td_33080_with_taos() -> anyhow::Result<(), anyhow::Error> {
         ))
         .arg("-t")
         .arg(format!("taos:///{}", SINK))
+        .env("TAOSX_DATA_DIR", &temp_data_dir)
         .timeout(std::time::Duration::from_secs(30))
         .assert()
         .append_context("taosx", "with enable.concurrent.polling=false")
