@@ -127,6 +127,7 @@ int32_t cfgUpdateFromArray(SConfig *pCfg, SArray *pArgs) {
       case CFG_DTYPE_LOCALE:
       case CFG_DTYPE_CHARSET:
       case CFG_DTYPE_TIMEZONE:
+        uInfo("config item %s updated tslocale from %s to %s", pItemOld->name, pItemOld->str, pItemNew->str);
         taosMemoryFree(pItemOld->str);
         pItemOld->str = taosStrdup(pItemNew->str);
         if (pItemOld->str == NULL) {
@@ -362,6 +363,7 @@ static int32_t cfgSetLocale(SConfigItem *pItem, const char *value, ECfgSrcType s
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
 
+  uInfo("cfgSetLocale set tslocale:%s", value);
   if (value == NULL || strlen(value) == 0 || taosSetSystemLocale(value) != 0) {
     uError("cfg:%s, type:%s src:%s, value:%s, skip to set locale", pItem->name, cfgDtypeStr(pItem->dtype),
            cfgStypeStr(stype), value);
@@ -475,6 +477,8 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
 
+  uInfo("cfgSetItem set cfg:%s, type:%s src:%s, value:%s", pItem->name, cfgDtypeStr(pItem->dtype), cfgStypeStr(stype),
+        value);
   code = cfgSetItemVal(pItem, name, value, stype);
   if (code != TSDB_CODE_SUCCESS) {
     if (lock) {
@@ -505,6 +509,8 @@ int32_t cfgGetAndSetItem(SConfig *pCfg, SConfigItem **pItem, const char *name, c
     goto _exit;
   }
 
+  uInfo("cfgGetAndSetItem set cfg:%s, type:%s src:%s, value:%s", (*pItem)->name, cfgDtypeStr((*pItem)->dtype),
+        cfgStypeStr(stype), value);
   TAOS_CHECK_GOTO(cfgSetItemVal(*pItem, name, value, stype), NULL, _exit);
 
 _exit:
@@ -835,6 +841,7 @@ int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, int8_
 int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal, int8_t scope, int8_t dynScope,
                      int8_t category) {
   SConfigItem item = {.dtype = CFG_DTYPE_LOCALE, .scope = scope, .dynScope = dynScope, .category = category};
+  uInfo("cfgAddLocale tslocale:%s", defaultVal);
   TAOS_CHECK_RETURN(cfgCheckAndSetConf(&item, defaultVal));
   return cfgAddItem(pCfg, &item, name);
 }
@@ -939,6 +946,7 @@ int32_t cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t
     case CFG_DTYPE_LOCALE:
     case CFG_DTYPE_CHARSET:
     case CFG_DTYPE_NONE:
+      uInfo("cfgDumpItemValue name:%s str:%s", pItem->name, pItem->str);
       len = tsnprintf(buf, bufSize, "%s", pItem->str);
       break;
   }

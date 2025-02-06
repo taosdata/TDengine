@@ -86,7 +86,7 @@ int32_t taosSetSystemLocale(const char *inLocale) {
     uError("failed to set locale:%s", inLocale);
     return terrno;
   }
-
+  uInfo("taosSetSystemLocale tslocale:%s %s", locale, inLocale);
   tstrncpy(tsLocale, locale, TD_LOCALE_LEN);
   return 0;
 }

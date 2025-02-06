@@ -500,7 +500,7 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
   }
 
   if (0 != strcasecmp(pCfg->locale, tsLocale)) {
-    mError("dnode:%d, locale:%s inconsistent with cluster:%s", pDnode->id, pCfg->locale, tsLocale);
+    mError("dnode:%d, tslocale:%s inconsistent with cluster:%s", pDnode->id, pCfg->locale, tsLocale);
     terrno = TSDB_CODE_DNODE_INVALID_LOCALE;
     return DND_REASON_LOCALE_NOT_MATCH;
   }

@@ -207,7 +207,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
   (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to get vnode loads", pMgmt->statusSeq);
+  dInfo("send status req to mnode, statusSeq:%d, tslocale:%s begin to get vnode loads", pMgmt->statusSeq, tsLocale);
   if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
     dError("failed to lock status info lock");
     return;

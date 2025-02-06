@@ -2640,7 +2640,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
 
         const char *locale = pLocaleItem->str;
         TAOS_CHECK_GOTO(taosSetSystemLocale(locale), &lino, _out);
-        uInfo("locale set to '%s'", locale);
+        uInfo("tslocale set to '%s'", locale);
         matched = true;
       }
       break;
@@ -3053,6 +3053,7 @@ int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version
   char *serialized = NULL;
   TAOS_CHECK_GOTO(globalConfigSerialize(version, array, &serialized), &lino, _exit);
 
+  uInfo("persist global config to file:%s tslocale values;%s", filename, serialized);
   if (taosWriteFile(pConfigFile, serialized, strlen(serialized)) < 0) {
     lino = __LINE__;
     code = TAOS_SYSTEM_ERROR(errno);

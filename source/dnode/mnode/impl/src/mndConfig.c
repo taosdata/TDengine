@@ -746,6 +746,7 @@ static int32_t initConfigArrayFromSdb(SMnode *pMnode, SArray *array) {
       case CFG_DTYPE_LOCALE:
       case CFG_DTYPE_CHARSET:
       case CFG_DTYPE_TIMEZONE:
+        mInfo("init config array from sdb, tslocale name:%s, str:%s", obj->name, obj->str);
         item.str = taosStrdup(obj->str);
         if (item.str == NULL) {
           sdbCancelFetch(pSdb, pIter);
