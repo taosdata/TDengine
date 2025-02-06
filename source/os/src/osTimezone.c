@@ -795,6 +795,8 @@ int32_t taosGetLocalTimezoneOffset() {
   }
 #ifdef WINDOWS
   return -_timezone;
+#elif defined(TD_ACORE)
+  return (int32_t)timezone; // TD_ACORE_TODO - or +?
 #else
   return (int32_t)(tm1.tm_gmtoff);
 #endif
