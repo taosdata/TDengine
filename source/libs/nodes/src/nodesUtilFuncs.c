@@ -1986,7 +1986,6 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_INSERT: {
       SDataInserterNode* pSink = (SDataInserterNode*)pNode;
       destroyDataSinkNode((SDataSinkNode*)pSink);
-      taosMemoryFreeClear(pSink->pData);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {

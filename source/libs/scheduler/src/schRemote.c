@@ -1110,7 +1110,7 @@ _return:
 }
 
 int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr, int32_t msgType, void* param) {
-  int32_t msgSize = 0;
+  int32_t  msgSize = 0;
   void    *msg = NULL;
   int32_t  code = 0;
   bool     isCandidateAddr = false;
@@ -1136,13 +1136,8 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     case TDMT_VND_SUBMIT:
     case TDMT_VND_COMMIT: {
       msgSize = pTask->msgLen;
-      msg = taosMemoryCalloc(1, msgSize);
-      if (NULL == msg) {
-        SCH_TASK_ELOG("calloc %d failed", msgSize);
-        SCH_ERR_RET(terrno);
-      }
-
-      TAOS_MEMCPY(msg, pTask->msg, msgSize);
+      msg = pTask->msg;
+      pTask->msg = NULL;
       break;
     }
 

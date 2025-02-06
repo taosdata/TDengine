@@ -28,7 +28,7 @@ if __name__ == "__main__":
 
     if not os.path.isdir("taosx-perf"):
         os.system("mkdir taosx-perf")
-        os.system("git clone https://github.com/brendangregg/FlameGraph.git taosx-perf")
+        # os.system("git clone https://github.com/brendangregg/FlameGraph.git taosx-perf")
     os.chdir("taosx-perf")
     print(os.getcwd())
 
@@ -43,6 +43,7 @@ if __name__ == "__main__":
     tdDnodes2.deploy(1,updatecfgDict2)
     tdDnodes2.start(1)
 
+    os.system("taos -c ./dnode1/sim/dnode1/cfg -s \"drop topic if exists test\"")
     os.system("taos -c ./dnode2/sim/dnode1/cfg -s \"drop database if exists test\"")
     os.system("taos -c ./dnode2/sim/dnode1/cfg -s \"create database test vgroups 8\"")
     if insertData :
@@ -51,12 +52,13 @@ if __name__ == "__main__":
     print("create test in dst")
 
     print("start to run taosx")
-    os.system("taosx run -f \"tmq://root:taosdata@localhost:6030/test?group.id=taosx-new-`date +%s`&timeout=50s&experimental.snapshot.enable=false&auto.offset.reset=earliest&prefer=raw\" -t \"taos://root:taosdata@localhost:7030/test\" > /dev/null 2>&1 &")
-    time.sleep(10)
+    os.system("flamegraph -o raw.svg -- taosx run -f \"tmq://root:taosdata@localhost:6030/test?group.id=taosx-new-`date +%s`&timeout=50s&experimental.snapshot.enable=false&auto.offset.reset=earliest&prefer=raw\" -t \"taos://root:taosdata@localhost:7030/test\" > /dev/null 2>&1 &")
+    # os.system("taosx run -f \"tmq://root:taosdata@localhost:6030/test?group.id=taosx-new-`date +%s`&timeout=50s&experimental.snapshot.enable=false&auto.offset.reset=earliest&prefer=raw\" -t \"taos://root:taosdata@localhost:7030/test\" > /dev/null 2>&1 &")
+    # time.sleep(10)
 
-    print("start to run perf")
+    # print("start to run perf")
     #os.system("perf record -a -g -F 99 -p `pidof taosx` sleep 60")
 
-    #os.system("perf script | ./FlameGraph/stackcollapse-perf.pl| ./FlameGraph/flamegraph.pl > flame.svg")
+    #os.system("perf script | ./stackcollapse-perf.pl| ./flamegraph.pl > flame.svg")
 
     tdLog.info("Procedures for tdengine deployed in")

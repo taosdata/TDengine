@@ -53,7 +53,7 @@
           "columns": [
             {"type": "TINYINT", "name": "current", "max": 128, "min": 1 },
             { "type": "BOOL", "name": "phaseewe" },
-            { "type": "BINARY", "name": "locatin", "len":16374 },
+            { "type": "BINARY", "name": "str", "len":1024 },
             { "type": "BIGINT", "name": "cnt", "max" : 2563332323232, "min":1 },
             { "type": "DOUBLE", "name": "phase", "max": 1000, "min": 0 }
           ],
