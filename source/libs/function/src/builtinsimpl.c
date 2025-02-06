@@ -15,6 +15,7 @@
 
 #include "builtinsimpl.h"
 #include "cJSON.h"
+#include "decimal.h"
 #include "function.h"
 #include "functionResInfoInt.h"
 #include "query.h"
@@ -101,6 +102,19 @@ typedef enum {
         continue;                                                        \
       };                                                                 \
       (_res) += (d)[i];                                                  \
+      (numOfElem)++;                                                     \
+    }                                                                    \
+  } while (0)
+
+#define LIST_ADD_DECIMAL_N(_res, _col, _start, _rows, _t, numOfElem)     \
+  do {                                                                   \
+    _t*                d = (_t*)(_col->pData);                           \
+    const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);     \
+    for (int32_t i = (_start); i < (_rows) + (_start); ++i) {            \
+      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) { \
+        continue;                                                        \
+      };                                                                 \
+      pOps->add(_res, d + i, WORD_NUM(_t));                              \
       (numOfElem)++;                                                     \
     }                                                                    \
   } while (0)
@@ -635,6 +649,15 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
       pSumRes->usum += pAgg->sum;
     } else if (IS_FLOAT_TYPE(type)) {
       pSumRes->dsum += GET_DOUBLE_VAL((const char*)&(pAgg->sum));
+    } else if (IS_DECIMAL_TYPE(type)) {
+      SDecimalSumRes* pDecimalSum = (SDecimalSumRes*)pSumRes;
+      pDecimalSum->type = TSDB_DATA_TYPE_DECIMAL;
+      const SDecimalOps* pOps = getDecimalOps(type);
+      if (TSDB_DATA_TYPE_DECIMAL64 == type) {
+        pOps->add(&pDecimalSum->sum, &pAgg->sum, WORD_NUM(Decimal64));
+      } else if (TSDB_DATA_TYPE_DECIMAL == type) {
+        pOps->add(&pDecimalSum->sum, pAgg->decimal128Sum, WORD_NUM(Decimal));
+      }
     }
   } else {  // computing based on the true data block
     SColumnInfoData* pCol = pInput->pData[0];
@@ -666,6 +689,15 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
       LIST_ADD_N(pSumRes->dsum, pCol, start, numOfRows, double, numOfElem);
     } else if (type == TSDB_DATA_TYPE_FLOAT) {
       LIST_ADD_N(pSumRes->dsum, pCol, start, numOfRows, float, numOfElem);
+    } else if (IS_DECIMAL_TYPE(type)) {
+      SDecimalSumRes* pDecimalSum = (SDecimalSumRes*)pSumRes;
+      pSumRes->type = TSDB_DATA_TYPE_DECIMAL;
+      if (TSDB_DATA_TYPE_DECIMAL64 == type) {
+        LIST_ADD_DECIMAL_N(&pDecimalSum->sum, pCol, start, numOfRows, Decimal64, numOfElem);
+      } else if (TSDB_DATA_TYPE_DECIMAL == type) {
+        LIST_ADD_DECIMAL_N(&pDecimalSum->sum, pCol, start, numOfRows, Decimal128, numOfElem);
+      }
+      // TODO wjm check overflow
     }
   }
 
@@ -766,8 +798,11 @@ int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-bool getSumFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize = sizeof(SSumRes);
+bool getSumFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  if (pFunc->node.resType.type == TSDB_DATA_TYPE_DECIMAL)
+    pEnv->calcMemSize = sizeof(SDecimalSumRes);
+  else
+    pEnv->calcMemSize = sizeof(SSumRes);
   return true;
 }
 

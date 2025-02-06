@@ -1574,11 +1574,22 @@ int32_t tGetDiskDataHdr(SBufferReader *br, SDiskDataHdr *pHdr) {
 int32_t tPutColumnDataAgg(SBuffer *buffer, SColumnDataAgg *pColAgg) {
   int32_t code;
 
-  if ((code = tBufferPutI16v(buffer, pColAgg->colId))) return code;
-  if ((code = tBufferPutI16v(buffer, pColAgg->numOfNull))) return code;
-  if ((code = tBufferPutI64(buffer, pColAgg->sum))) return code;
-  if ((code = tBufferPutI64(buffer, pColAgg->max))) return code;
-  if ((code = tBufferPutI64(buffer, pColAgg->min))) return code;
+  if (pColAgg->colId & 0x80000000) {
+    if ((code = tBufferPutI32v(buffer, pColAgg->colId))) return code;
+    if ((code = tBufferPutI16v(buffer, pColAgg->numOfNull))) return code;
+    if ((code = tBufferPutI64(buffer, pColAgg->decimal128Sum[0]))) return code;
+    if ((code = tBufferPutI64(buffer, pColAgg->decimal128Sum[1]))) return code;
+    if ((code = tBufferPutI64(buffer, pColAgg->decimal128Max[0]))) return code;
+    if ((code = tBufferPutI64(buffer, pColAgg->decimal128Max[1]))) return code;
+    if ((code = tBufferPutI64(buffer, pColAgg->decimal128Min[0]))) return code;
+    if ((code = tBufferPutI64(buffer, pColAgg->decimal128Min[1]))) return code;
+  } else {
+    if ((code = tBufferPutI32v(buffer, pColAgg->colId))) return code;
+    if ((code = tBufferPutI16v(buffer, pColAgg->numOfNull))) return code;
+    if ((code = tBufferPutI64(buffer, pColAgg->sum))) return code;
+    if ((code = tBufferPutI64(buffer, pColAgg->max))) return code;
+    if ((code = tBufferPutI64(buffer, pColAgg->min))) return code;
+  }
 
   return 0;
 }
@@ -1586,11 +1597,21 @@ int32_t tPutColumnDataAgg(SBuffer *buffer, SColumnDataAgg *pColAgg) {
 int32_t tGetColumnDataAgg(SBufferReader *br, SColumnDataAgg *pColAgg) {
   int32_t code;
 
-  if ((code = tBufferGetI16v(br, &pColAgg->colId))) return code;
+  if ((code = tBufferGetI32v(br, &pColAgg->colId))) return code;
   if ((code = tBufferGetI16v(br, &pColAgg->numOfNull))) return code;
-  if ((code = tBufferGetI64(br, &pColAgg->sum))) return code;
-  if ((code = tBufferGetI64(br, &pColAgg->max))) return code;
-  if ((code = tBufferGetI64(br, &pColAgg->min))) return code;
+  if (pColAgg->colId & 0x80000000) {
+    pColAgg->colId &= 0xFFFF;
+    if ((code = tBufferGetI64(br, &pColAgg->decimal128Sum[0]))) return code;
+    if ((code = tBufferGetI64(br, &pColAgg->decimal128Sum[1]))) return code;
+    if ((code = tBufferGetI64(br, &pColAgg->decimal128Max[0]))) return code;
+    if ((code = tBufferGetI64(br, &pColAgg->decimal128Max[1]))) return code;
+    if ((code = tBufferGetI64(br, &pColAgg->decimal128Min[0]))) return code;
+    if ((code = tBufferGetI64(br, &pColAgg->decimal128Min[1]))) return code;
+  } else {
+    if ((code = tBufferGetI64(br, &pColAgg->sum))) return code;
+    if ((code = tBufferGetI64(br, &pColAgg->max))) return code;
+    if ((code = tBufferGetI64(br, &pColAgg->min))) return code;
+  }
 
   return 0;
 }

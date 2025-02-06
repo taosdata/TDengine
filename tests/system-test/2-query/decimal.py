@@ -227,7 +227,7 @@ class TableInserter:
         self.tags_types = tags_types
         self.columns_types = columns_types
 
-    def insert(self, rows: int, start_ts: int, step: int):
+    def insert(self, rows: int, start_ts: int, step: int, flush_database: bool = False):
         pre_insert = f"insert into {self.dbName}.{self.tbName} values"
         sql = pre_insert
         for i in range(rows):
@@ -242,12 +242,17 @@ class TableInserter:
             sql += ")"
             if i != rows - 1:
                 sql += ", "
+            local_flush_database = i % 5000 == 0;
             if len(sql) > 1000:
                 tdLog.debug(f"insert into with sql{sql}")
+                if flush_database and local_flush_database:
+                    self.conn.execute(f"flush database {self.dbName}", queryTimes=1)
                 self.conn.execute(sql, queryTimes=1)
                 sql = pre_insert
         if len(sql) > len(pre_insert):
             tdLog.debug(f"insert into with sql{sql}")
+            if flush_database:
+                self.conn.execute(f"flush database {self.dbName}", queryTimes=1)
             self.conn.execute(sql, queryTimes=1)
 
 class TDTestCase:
@@ -461,7 +466,7 @@ class TDTestCase:
             pass
             #TableInserter(tdSql, self.db_name, f"{self.c_table_prefix}{i}", self.columns, self.tags).insert(1, 1537146000000, 500)
 
-        TableInserter(tdSql, self.db_name, self.norm_table_name, self.columns).insert(100, 1537146000000, 500)
+        TableInserter(tdSql, self.db_name, self.norm_table_name, self.columns).insert(100000, 1537146000000, 500, flush_database=True)
 
 
         ## insert null/None for decimal type
@@ -478,7 +483,7 @@ class TDTestCase:
                 DataType(TypeEnum.VARCHAR, 255),
                 ]
         DecimalColumnTableCreater(tdSql, self.db_name, "tt", columns, []).create()
-        TableInserter(tdSql, self.db_name, 'tt', columns).insert(1, 1537146000000, 500)
+        TableInserter(tdSql, self.db_name, 'tt', columns).insert(100000, 1537146000000, 500, flush_database=True)
 
     def test_decimal_ddl(self):
         tdSql.execute("create database test", queryTimes=1)

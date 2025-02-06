@@ -32,8 +32,13 @@ typedef struct Decimal64 {
 #define DECIMAL64_GET_VALUE(pDec)      (int64_t)((pDec)->words[0])
 #define DECIMAL64_SET_VALUE(pDec, val) (*(int64_t*)((pDec)->words)) = (int64_t)(val)
 #define DECIMAL64_CLONE(pDst, pFrom)   ((Decimal64*)(pDst))->words[0] = ((Decimal64*)(pFrom))->words[0]
-#define DECIMAL64_MAX                  999999999999999999LL
-#define DECIMAL64_MIN                  -999999999999999999LL
+
+static const Decimal64 decimal64Zero = {0};
+static const Decimal64 decimal64Min = {(uint64_t)-999999999999999999LL};
+static const Decimal64 decimal64Max = {(uint64_t)999999999999999999LL};
+#define DECIMAL64_ZERO decimal64Zero
+#define DECIMAL64_MAX decimal64Max
+#define DECIMAL64_MIN decimal64Min
 
 typedef struct Decimal128 {
   DecimalWord words[2];  // do not touch it directly, use DECIMAL128_HIGH_WORD/DECIMAL128_LOW_WORD
@@ -42,6 +47,23 @@ typedef struct Decimal128 {
 #define Decimal        Decimal128
 #define decimalFromStr decimal128FromStr
 #define makeDecimal    makeDecimal128
+
+// TODO wjm handle endian problem
+#define DEFINE_DECIMAL128(lo, hi) {lo, hi}
+static const Decimal128 decimal128Zero = DEFINE_DECIMAL128(0, 0);
+static const Decimal128 decimal128Two = DEFINE_DECIMAL128(2, 0);
+static const Decimal128 decimal128Max = DEFINE_DECIMAL128(687399551400673280ULL - 1, 5421010862427522170LL);
+static const Decimal128 decimal128Min = DEFINE_DECIMAL128(17759344522308878337ULL, 13025733211282029445ULL);
+// TODO wjm handle endian problem
+#define DECIMAL128_LOW_WORD(pDec)           (uint64_t)((pDec)->words[0])
+#define DECIMAL128_SET_LOW_WORD(pDec, val)  (pDec)->words[0] = val
+#define DECIMAL128_HIGH_WORD(pDec)          (int64_t)((pDec)->words[1])
+#define DECIMAL128_SET_HIGH_WORD(pDec, val) *(int64_t*)((pDec)->words + 1) = val
+
+#define DECIMAL128_ZERO decimal128Zero
+#define DECIMAL128_MAX  decimal128Max
+#define DECIMAL128_MIN  decimal128Min
+#define DECIMAL128_CLONE(pDst, pFrom) makeDecimal128(pDst, DECIMAL128_HIGH_WORD(pFrom), DECIMAL128_LOW_WORD(pFrom))
 
 typedef struct SDecimalCompareCtx {
   void*    pData;

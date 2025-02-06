@@ -178,6 +178,7 @@ class Numeric {
   }
   Numeric(const Numeric& o) = default;
   ~Numeric() = default;
+  Numeric& operator=(const Numeric& o) = default;
 
   SDataType getRetType(EOperatorType op, const SDataType& lt, const SDataType& rt) const {
     SDataType ot = {0};
@@ -424,6 +425,23 @@ TEST(decimal, numeric) {
   ASSERT_EQ(os.toStringTrimTailingZeros(), "0.0000000100270361075880117");
 
   double dv = dec4 / 123123.123;
+
+  Numeric<128> max{38, 0, "99999999999999999999999999999999999999.000"};
+  ASSERT_EQ(max.toString(), "99999999999999999999999999999999999999");
+  Numeric<128> zero{38, 0, "0"};
+  auto min = zero - max;
+  ASSERT_EQ(min.toString(), "-99999999999999999999999999999999999999");
+
+  dec = 123.456;
+  ASSERT_EQ(dec.toString(), "123.4560");
+
+  dec = 47563.36;
+  dec128 = 0;
+  o = dec128 + dec; // (37, 10) + (10, 4) = (38, 10)
+  ASSERT_EQ(o.toString(), "47563.3600000000");
+  dec = 3749.00;
+  o = o + dec;// (38, 10) + (10, 4) = (38, 9)
+  ASSERT_EQ(o.toString(), "51312.360000000");
 }
 
 TEST(decimal, decimalFromType) {

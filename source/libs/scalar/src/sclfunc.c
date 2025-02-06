@@ -3257,6 +3257,7 @@ int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
   return TSDB_CODE_SUCCESS;
 }
 
+// TODO wjm what is sum scalar function???
 int32_t sumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
