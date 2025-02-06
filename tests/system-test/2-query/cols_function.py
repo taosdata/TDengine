@@ -890,8 +890,53 @@ class TDTestCase:
     
     def window_test(self):
         tdSql.query(f'select tbname, _wstart,_wend, max(c0), max(c1), cols( max(c0), c1)  from test.meters partition \
-                    by tbname  count_window(2) order by tbname')        
+                    by tbname  count_window(2) order by tbname')
+        tdSql.checkRows(4)
+        tdSql.checkCols(6)
+        tdSql.checkData(0, 0, 'd0')
+        tdSql.checkData(3, 0, 'd1')
+        tdSql.checkData(3, 5, 1)
+        tdSql.query(f'select  _wstart,_wend, max(c0), max(c1), cols( max(c0), c1)  from test.d1 count_window(2);')
+        tdSql.checkRows(1)
+        tdSql.checkCols(5)
+        tdSql.checkData(0, 4, 1)
+        tdSql.query(f'select  _wstart,_wend, max(c0), max(c1), cols( max(c0), c1)  from test.normal_table count_window(2);')
+        tdSql.checkRows(3)
+        tdSql.checkCols(5)
+        tdSql.checkData(0, 4, 2)
+        
 
+    def join_test(self):
+        tdSql.query(f'select cols(last(a.ts), a.c0) from test.d0 a join test.d1 b on a.ts = b.ts;')
+        tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.query(f'select cols(last(a.ts), a.c0) from test.d0 a join test.d1 b on a.ts = b.ts and a.c0 = b.c0;')
+        tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, 1)  
+        tdSql.query(f'select cols(last(a.ts), a.c0) from test.d0 a join test.d1 b on a.ts = b.ts and a.c0 > b.c0;')
+        tdSql.checkRows(0)
+        tdSql.query(f'select tbname, ts, c0 from (select cols(last(a.ts), a.tbname, a.ts, a.c0) from test.d0 a join test.d1 b on a.ts = b.ts and a.c0=b.c0)')
+        tdSql.checkRows(1)
+        tdSql.checkCols(3)
+        tdSql.checkData(0, 0, 'd0')
+        tdSql.checkData(0, 1, 1734574929000)
+        tdSql.checkData(0, 2, 1)      
+        tdSql.query(f'select tbname, ts, c0 from (select cols(first(a.ts), a.tbname, a.ts, a.c0) from test.d0 a join test.d1 b on a.ts = b.ts and a.c0=b.c0)')
+        tdSql.checkRows(1)
+        tdSql.checkCols(3)
+        tdSql.checkData(0, 0, 'd0')
+        tdSql.checkData(0, 1, 1734574929000)
+        tdSql.checkData(0, 2, 1)
+        tdSql.error(f'select tbname, ts, c0 from (select cols(first(a.ts), a.tbname, a.ts, a.c0), cols(last(a.ts), b.tbname, b.ts, b.c0) from test.d0 a join test.d1 b on a.ts = b.ts and a.c0=b.c0)')
+        tdSql.query(f'select tbname, ts, c0 from (select cols(first(a.ts), a.tbname, a.ts, a.c0), cols(last(a.ts), b.tbname tbname1, b.ts ts2, b.c0 c02) from test.d0 a join test.d1 b on a.ts = b.ts and a.c0=b.c0)')
+        tdSql.checkRows(1)
+        tdSql.checkCols(3)
+        tdSql.checkData(0, 0, 'd0')
+        tdSql.checkData(0, 1, 1734574929000)
+        tdSql.checkData(0, 2, 1)     
+        
     def run(self):
         self.funcNestTest()
         self.funcSupperTableTest()
@@ -901,6 +946,7 @@ class TDTestCase:
         self.multi_cols_output_test()
         self.subquery_test()
         self.window_test()
+        self.join_test()
 
     def stop(self):
         tdSql.close()
