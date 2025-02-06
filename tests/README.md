@@ -239,30 +239,32 @@ Please refer to the [Unit Test](#31-unit-test)、[System Test](#32-system-test) 
 
 ### 3.7.1 How to run tests?
 
-1. Clone the code and run the tests locally on your machine. Ensure that your virtual machine supports the AVX instruction set:
+1. TSBS test can be started locally by running command below. Ensure that your virtual machine supports the AVX instruction set:
+
 ```bash
 cd /usr/local/src && \
-git clone https://github.com/taosdata/tsbs-internal.git tsbs && \
+git clone https://github.com/taosdata/tsbs.git && \
 cd tsbs && \
 git checkout enh/chr-td-33357 && \
 cd scripts/tsdbComp && \
 ./testTsbs.sh 
 ```
-2. When testing the client and server on separate machines, you should set up your environment as outlined in the steps below:
 
-2.1 Modify IP and host of client and server in `test.ini`
+2. By default, both client and server will be started on the local host. To start the client and server on separate hosts, please follow steps below to configure `test.ini` before starting the test:
+
+2.1 Modify IP and hostname of client and server in `test.ini`:
+
 ```ini
-  clientIP="192.168.0.203"   # client ip
-  clientHost="trd03"         # client hostname
-  serverIP="192.168.0.204"   # server ip
-  serverHost="trd04"         # server hostname
+clientIP="192.168.0.203"   # client ip
+clientHost="trd03"         # client hostname
+serverIP="192.168.0.204"   # server ip
+serverHost="trd04"         # server hostname
 ```
-2.2 Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
+
+2.2 Passwordless ssh login between the client and server is required; otherwise, please set the ssh login password in `test.int`, for example:
+
 ```ini
-  serverPass="taosdata123"   # server root password
+serverPass="taosdata123"   # server root password
 ```
-2.3 Run the following command to start the test:
-```bash
-  ./testTsbs.sh  
-```
+
 3. When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
