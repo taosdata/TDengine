@@ -189,7 +189,7 @@ void hJoinSetDone(struct SOperatorInfo* pOperator);
 void hJoinAppendResToBlock(struct SOperatorInfo* pOperator, SSDataBlock* pRes, bool* allFetched);
 bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t *pBufLen);
 int32_t hJoinCopyMergeMidBlk(SHJoinCtx* pCtx, SSDataBlock** ppMid, SSDataBlock** ppFin);
-int32_t hJoinHandleMidRemains(SHJoinOperatorInfo* pJoin, SHJoinCtx* pCtx);
+int32_t hJoinHandleMidRemains(SHJoinOperatorInfo* pJoin);
 bool hJoinBlkReachThreshold(SHJoinOperatorInfo* pInfo, int64_t blkRows);
 int32_t hJoinCopyNMatchRowsToBlock(SHJoinOperatorInfo* pJoin, SSDataBlock* pRes, int32_t startIdx, int32_t rows);
 

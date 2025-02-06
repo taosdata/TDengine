@@ -37,13 +37,24 @@ bool hJoinBlkReachThreshold(SHJoinOperatorInfo* pInfo, int64_t blkRows) {
   return (pInfo->execInfo.resRows + blkRows) >= pInfo->ctx.limit;
 }
 
-int32_t hJoinHandleMidRemains(SHJoinOperatorInfo* pJoin, SHJoinCtx* pCtx) {
+int32_t hJoinHandleMidRemains(SHJoinOperatorInfo* pJoin) {
   TSWAP(pJoin->midBlk, pJoin->finBlk);
 
-  pCtx->midRemains = false;
+  pJoin->ctx.midRemains = false;
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t hJoinHandleRowRemains(struct SOperatorInfo* pOperator, SHJoinOperatorInfo* pJoin) {
+  HJ_ERR_RET((*pJoin->joinFp)(pOperator));
+  
+  if (pJoin->finBlk->info.rows > 0 && pJoin->pFinFilter != NULL) {
+    doFilter(pJoin->finBlk, pJoin->pFinFilter, NULL);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t hJoinCopyMergeMidBlk(SHJoinCtx* pCtx, SSDataBlock** ppMid, SSDataBlock** ppFin) {
   SSDataBlock* pLess = *ppMid;
@@ -1063,21 +1074,24 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
   }
 
   blockDataCleanup(pRes);
-
+  
   while (true) {
-    if (pJoin->ctx.rowRemains) {
-      code = (*pJoin->joinFp)(pOperator);
-      if (code) {
-        pTaskInfo->code = code;
-        T_LONG_JMP(pTaskInfo->env, code);
-      }
+    if (pJoin->ctx.midRemains) {
+      code = hJoinHandleMidRemains(pJoin);
+      QUERY_CHECK_CODE(code, lino, _end);
       
-      if (pRes->info.rows > 0 && pJoin->pFinFilter != NULL) {
-        doFilter(pRes, pJoin->pFinFilter, NULL);
+      pRes = pJoin->finBlk;
+      if (hJoinBlkReachThreshold(pJoin, pRes->info.rows)) {
+        goto _end;
       }
+    }
+    
+    if (pJoin->ctx.rowRemains) {
+      code = hJoinHandleRowRemains(pOperator, pJoin);
+      QUERY_CHECK_CODE(code, lino, _end);
       
       if (pRes->info.rows > 0) {
-        break;
+        goto _end;
       }
 
       continue;

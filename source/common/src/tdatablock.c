@@ -523,6 +523,36 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
   return 0;
 }
 
+int32_t getReassignedColsLen(const SColumnInfoData* pSrc, int32_t srcIdx, int32_t numOfRows, int64_t* len) {
+  int32_t lastSrcOffset = -1;
+  int64_t allLen = 0;
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    if (colDataIsNull_var(pSrc, srcIdx + i)) {
+      continue;
+    }
+  
+    if (lastSrcOffset >= 0 && lastSrcOffset == pSrc->varmeta.offset[srcIdx + i]) {
+      continue;
+    }
+    
+    char* pData = colDataGetVarData(pSrc, srcIdx + i);
+    int32_t dataLen = 0;
+    if (pSrc->info.type == TSDB_DATA_TYPE_JSON) {
+      dataLen = getJsonValueLen(pData);
+    } else {
+      dataLen = varDataTLen(pData);
+    }
+    
+    allLen += dataLen;
+    
+    lastSrcOffset = pSrc->varmeta.offset[srcIdx + i];
+  }
+
+  *len = allLen;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t colDataAssignNRowsFromReassignedCol(SColumnInfoData* pDst, int32_t dstIdx, const SColumnInfoData* pSrc, int32_t srcIdx,
                            int32_t numOfRows) {
   if (!IS_VAR_DATA_TYPE(pSrc->info.type)) {
@@ -530,7 +560,21 @@ int32_t colDataAssignNRowsFromReassignedCol(SColumnInfoData* pDst, int32_t dstId
     return TSDB_CODE_INVALID_PARA;
   }
 
-  getReassignedColsLen();
+  int64_t totalLen = 0;
+  int32_t code = getReassignedColsLen(pSrc, srcIdx, numOfRows, &totalLen);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (pDst->varmeta.allocLen < pDst->varmeta.length + totalLen) {
+    char* tmp = taosMemoryRealloc(pDst->pData, pDst->varmeta.length + totalLen);
+    if (tmp == NULL) {
+      return terrno;
+    }
+  
+    pDst->pData = tmp;
+    pDst->varmeta.allocLen = pDst->varmeta.length + totalLen;
+  }
 
   int32_t lastSrcOffset = -1;
   int32_t allLen = 0;
@@ -543,6 +587,7 @@ int32_t colDataAssignNRowsFromReassignedCol(SColumnInfoData* pDst, int32_t dstId
 
     if (lastSrcOffset >= 0 && lastSrcOffset == pSrc->varmeta.offset[srcIdx + i]) {
       pDst->varmeta.offset[dstIdx + i] = pDst->varmeta.offset[dstIdx + i - 1];
+      pDst->reassigned = true;
       continue;
     }
     
@@ -553,21 +598,12 @@ int32_t colDataAssignNRowsFromReassignedCol(SColumnInfoData* pDst, int32_t dstId
     } else {
       dataLen = varDataTLen(pData);
     }
-    
-    if (pDst->varmeta.allocLen < pDst->varmeta.length + dataLen) {
-      char* tmp = taosMemoryRealloc(pDst->pData, pDst->varmeta.length + dataLen);
-      if (tmp == NULL) {
-        return terrno;
-      }
-    
-      pDst->pData = tmp;
-      pDst->varmeta.allocLen = pDst->varmeta.length + dataLen;
-    }
-    
+   
     pDst->varmeta.offset[dstIdx + i] = pDst->varmeta.length + allLen;
     allLen += dataLen;
     
     memcpy(pDst->pData + pDst->varmeta.offset[dstIdx + i], colDataGetVarData(pSrc, srcIdx), dataLen);
+    pDst->varmeta.length += dataLen;
 
     lastSrcOffset = pSrc->varmeta.offset[srcIdx + i];
   }
@@ -819,6 +855,62 @@ int32_t blockDataMergeNRows(SSDataBlock* pDest, const SSDataBlock* pSrc, int32_t
   return code;
 }
 
+int64_t colDataGetVarNRowsLen(SColumnInfoData* pColInfoData, int32_t n) {
+  if (0 == pColInfoData->varmeta.length || n <= 0) {
+    return 0;
+  }
+
+  if (pColInfoData->reassigned) {
+    int32_t newLen = pColInfoData->varmeta.offset[n - 1];
+    if (-1 != newLen) {
+      if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+        newLen += getJsonValueLen(pColInfoData->pData + newLen);
+      } else {
+        newLen += varDataTLen(pColInfoData->pData + newLen);
+      }
+
+      return newLen;
+    }
+
+    for (int i = n - 1; i >= 0; --i) {
+      newLen = pColInfoData->varmeta.offset[i];
+      if (newLen != -1) {
+        if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+          newLen += getJsonValueLen(pColInfoData->pData + newLen);
+        } else {
+          newLen += varDataTLen(pColInfoData->pData + newLen);
+        }
+        break;
+      }
+    }
+
+    return (newLen < 0) ? 0 : newLen;    
+  }
+  
+  int32_t newLen = pColInfoData->varmeta.offset[n];
+  if (-1 == newLen) {
+    for (int i = n - 1; i >= 0; --i) {
+      newLen = pColInfoData->varmeta.offset[i];
+      if (newLen != -1) {
+        if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+          newLen += getJsonValueLen(pColInfoData->pData + newLen);
+        } else {
+          newLen += varDataTLen(pColInfoData->pData + newLen);
+        }
+        break;
+      }
+    }
+  }
+  
+  if (newLen <= -1) {
+    uDebug("colDataGetVarNRowsLen: newLen:%d  old:%d", newLen, pColInfoData->varmeta.length);
+    return 0;
+  }
+  
+  return newLen;
+}
+
+
 void blockDataShrinkNRows(SSDataBlock* pBlock, int32_t numOfRows) {
   if (numOfRows == 0) {
     return;
@@ -837,7 +929,7 @@ void blockDataShrinkNRows(SSDataBlock* pBlock, int32_t numOfRows) {
     }
 
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
-      pCol->varmeta.length = pCol->varmeta.offset[pBlock->info.rows - numOfRows];
+      pCol->varmeta.length = colDataGetVarNRowsLen(pCol, pBlock->info.rows - numOfRows);
       memset(pCol->varmeta.offset + pBlock->info.rows - numOfRows, 0, sizeof(*pCol->varmeta.offset) * numOfRows);
     } else {
       int32_t i = pBlock->info.rows - numOfRows;
@@ -2374,25 +2466,7 @@ static void colDataKeepFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_
   if (n >= total || n == 0) return;
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
     if (pColInfoData->varmeta.length != 0) {
-      int32_t newLen = pColInfoData->varmeta.offset[n];
-      if (-1 == newLen) {
-        for (int i = n - 1; i >= 0; --i) {
-          newLen = pColInfoData->varmeta.offset[i];
-          if (newLen != -1) {
-            if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
-              newLen += getJsonValueLen(pColInfoData->pData + newLen);
-            } else {
-              newLen += varDataTLen(pColInfoData->pData + newLen);
-            }
-            break;
-          }
-        }
-      }
-      if (newLen <= -1) {
-        uFatal("colDataKeepFirstNRows: newLen:%d  old:%d", newLen, pColInfoData->varmeta.length);
-      } else {
-        pColInfoData->varmeta.length = newLen;
-      }
+      pColInfoData->varmeta.length = colDataGetVarNRowsLen(pColInfoData, n);
     }
     // pColInfoData->varmeta.length = colDataMoveVarData(pColInfoData, 0, n);
     memset(&pColInfoData->varmeta.offset[n], 0, total - n);
