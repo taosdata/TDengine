@@ -16,6 +16,7 @@
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
+#ifndef TD_ACORE
 static char* notify = "a";
 
 typedef struct {
@@ -2071,3 +2072,33 @@ int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
   }
   return code;
 }
+#else
+int32_t transReleaseSrvHandle(void *handle) { return 0; }
+void    transRefSrvHandle(void *handle) { return; }
+
+void    transUnrefSrvHandle(void *handle) { return; }
+int32_t transSendResponse(STransMsg *msg) {
+  int32_t code = 0;
+  if (rpcIsReq(msg->info.msgType) && msg->info.msgType != 0) {
+    msg->msgType = msg->info.msgType + 1;
+  }
+  if (msg->info.noResp) {
+    rpcFreeCont(msg->pCont);
+    return 0;
+  }
+  int32_t svrVer = 0;
+  code = taosVersionStrToInt(td_version, &svrVer);
+  msg->info.cliVer = svrVer;
+  msg->type = msg->info.connType;
+  return transSendResp(msg);
+}
+int32_t transRegisterMsg(const STransMsg *msg) { return 0; }
+int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 0; }
+
+void *transInitServer(uint32_t ip, uint32_t port, char *label, int numOfThreads, void *fp, void *pInit) { return NULL; }
+void  transCloseServer(void *arg) {
+  // impl later
+  return;
+}
+
+#endif

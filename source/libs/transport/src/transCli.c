@@ -15,10 +15,12 @@
 // clang-format off
 #include "taoserror.h"
 #include "transComm.h"
+#include "tversion.h"
 #include "tmisce.h"
 #include "transLog.h"
 // clang-format on
 
+#ifndef TD_ACORE
 typedef struct {
   int32_t numOfConn;
   queue   msgQ;
@@ -3941,3 +3943,109 @@ int32_t transHeapBalance(SHeap* heap, SCliConn* p) {
   heapInsert(heap->heap, &p->node);
   return 0;
 }
+
+#else
+void    transRefCliHandle(void* handle) { return; }
+void    transUnrefCliHandle(void* handle) { return; }
+int32_t transReleaseCliHandle(void* handle) { return 0; }
+int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) {
+  int32_t code = 0;
+  int32_t cliVer = 0;
+
+  code = taosVersionStrToInt(td_version, &cliVer);
+  STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
+  if (pTransInst == NULL) {
+    return TSDB_CODE_RPC_MODULE_QUIT;
+  }
+
+  TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
+  pReq->type = pTransInst->type;
+  pReq->info.connType = pReq->type;
+  pReq->info.cliVer = cliVer;
+  pReq->info.msgType = pReq->msgType;
+  // pReq->info.ahandle = pReq->ahandle;
+  if (pReq->info.handle != NULL) {
+    pReq->info.qId = (int64_t)pReq->info.handle;
+  } else {
+    pReq->info.handle = (void*)-1;
+  }
+
+  if (pReq->info.qId != 0) {
+    taosThreadMutexLock(&pTransInst->sidMutx);
+    /******/
+    if (ctx != NULL) {
+      STransCtx* pUserCtx = taosHashGet(pTransInst->sidTable, &pReq->info.qId, sizeof(pReq->info.qId));
+      if (pUserCtx != NULL) {
+        transCtxMerge(pUserCtx, ctx);
+      } else {
+        taosHashPut(pTransInst->sidTable, &pReq->info.qId, sizeof(pReq->info.qId), ctx, sizeof(STransCtx));
+      }
+    }
+    taosThreadMutexUnlock(&pTransInst->sidMutx);
+  }
+  taosThreadMutexLock(&pTransInst->seqMutex);
+  pReq->info.seq = pTransInst->seq++;
+  pReq->parent = pTransInst;
+  taosHashPut(pTransInst->seqTable, &pReq->info.seq, sizeof(pReq->info.seq), &pReq->msgType, sizeof(pReq->msgType));
+  taosThreadMutexUnlock(&pTransInst->seqMutex);
+
+  sprintf(pReq->info.conn.user, "root");
+
+  code = transSendReq(pTransInst, pReq, NULL);
+  TAOS_UNUSED(transReleaseExHandle(transGetInstMgt(), (int64_t)shandle));
+  return code;
+}
+
+int32_t transSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
+  int32_t code;
+  // int32_t cliVer = 0;
+  // code = taosVersionStrToInt(version, &cliVer);
+  return transSendRequest(shandle, pEpSet, pReq, NULL);
+
+  return 0;
+}
+
+int32_t transCreateSyncMsg(STransMsg* pTransMsg, int64_t* refId) { return 0; }
+int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
+                                 int32_t timeoutMs) {
+  int32_t code = 0;
+  STrans* pTransInst = (STrans*)transAcquireExHandle(transGetInstMgt(), (int64_t)shandle);
+  if (pTransInst == NULL) {
+    transFreeMsg(pReq->pCont);
+    pReq->pCont = NULL;
+    return TSDB_CODE_RPC_MODULE_QUIT;
+  }
+
+  if (pReq->info.traceId.msgId == 0) TRACE_SET_MSGID(&pReq->info.traceId, tGenIdPI64());
+
+  STransReqWithSem* tmsg = taosMemoryCalloc(1, sizeof(STransReqWithSem));
+  tmsg->sem = taosMemoryCalloc(1, sizeof(tsem_t));
+  code = tsem_init(tmsg->sem, 0, 0);
+  if (code != 0) {
+    taosMemoryFree(tmsg->sem);
+    return code;
+  }
+  pReq->info.reqWithSem = tmsg;
+  transSendRequest(shandle, NULL, pReq, NULL);
+  TAOS_UNUSED(tsem_wait(tmsg->sem));
+  tsem_destroy(tmsg->sem);
+
+  memcpy(pRsp, &tmsg->pMsg, sizeof(STransMsg));
+  taosMemoryFree(tmsg);
+
+  taosReleaseRef(transGetInstMgt(), (int64_t)shandle);
+  return 0;
+}
+int32_t transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp) {
+  return transSendRecvWithTimeout(shandle, (SEpSet*)pEpSet, pReq, pRsp, NULL, 0);
+}
+int32_t transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) { return 0; }
+int32_t transAllocHandle(int64_t* refId) { return 0; }
+int32_t transFreeConnById(void* shandle, int64_t transpointId) { return 0; }
+
+void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) {
+  return NULL;
+}
+void transCloseClient(void* arg) { return; }
+
+#endif
