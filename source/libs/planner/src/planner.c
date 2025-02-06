@@ -43,18 +43,33 @@ static int32_t dumpQueryPlan(SQueryPlan* pPlan) {
   return code;
 }
 
-static int32_t printPlanNode(SLogicNode *pNode, int32_t level) {
+static void printPlanNode(SLogicNode *pNode, int32_t level) {
   // print pnode and it's child for each level
   const char *nodename = nodesNodeName(nodeType((pNode)));
-  char *blanks = taosMemoryMalloc(level * 4);
-  memset(blanks, ' ', level * 4);
-  qInfo("%s%s", blanks, nodename);
-  taosMemFree(blanks);
+  for (int32_t i = 0; i < level; i++) {
+    printf("    ");
+  }
+  printf("%s\n", nodename);
   SNode *tmp = NULL;
   FOREACH(tmp, pNode->pChildren) {
     printPlanNode((SLogicNode *)tmp, level + 1);
   }
-  return TSDB_CODE_SUCCESS;
+  return;
+}
+
+static void dumpLogicPlan(SLogicSubplan* pLogicSubplan, int32_t level) {
+  for (int32_t i = 0; i < level; i++) {
+    printf("    ");
+  }
+  printf("Sub Plan:\n");
+  if (pLogicSubplan->pNode) {
+     printPlanNode(pLogicSubplan->pNode, level);
+  }
+  SNode *pNode = NULL;
+  FOREACH(pNode, pLogicSubplan->pChildren) {
+    dumpLogicPlan((SLogicSubplan *)pNode, level + 2);
+  }
+  return;
 }
 
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
@@ -74,6 +89,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   if (TSDB_CODE_SUCCESS == code) {
     code = scaleOutLogicPlan(pCxt, pLogicSubplan, &pLogicPlan);
   }
+  //dumpLogicPlan((SLogicSubplan*)pLogicPlan->pTopSubplans->pHead->pNode, 0);
   if (TSDB_CODE_SUCCESS == code) {
     code = createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList);
   }

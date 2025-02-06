@@ -34,6 +34,7 @@ typedef struct SSlotIndex {
 enum {
   SLOT_KEY_TYPE_ALL = 1,
   SLOT_KEY_TYPE_COLNAME = 2,
+  SLOT_KEY_TYPE_REF = 3,
 };
 
 static int32_t getSlotKeyHelper(SNode* pNode, const char* pPreName, const char* name, char** ppKey, int32_t callocLen,
@@ -77,6 +78,32 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
       return getSlotKeyHelper(pNode, pStmtName, pCol->colName, ppKey, callocLen, pLen, extraBufLen,
                               SLOT_KEY_TYPE_COLNAME);
     }
+    if (pCol->hasRef) {
+      *ppKey = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
+      if (!*ppKey) {
+        return terrno;
+      }
+      TAOS_STRNCAT(*ppKey, pCol->refDbName, TSDB_DB_NAME_LEN);
+      TAOS_STRNCAT(*ppKey, ".", 2);
+      TAOS_STRNCAT(*ppKey, pCol->refTableName, TSDB_TABLE_NAME_LEN);
+      TAOS_STRNCAT(*ppKey, ".", 2);
+      TAOS_STRNCAT(*ppKey, pCol->refColName, TSDB_COL_NAME_LEN);
+      *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
+      return code;
+    }
+    if (pCol->hasDep) {
+      *ppKey = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
+      if (!*ppKey) {
+        return terrno;
+      }
+      TAOS_STRNCAT(*ppKey, pCol->dbName, TSDB_DB_NAME_LEN);
+      TAOS_STRNCAT(*ppKey, ".", 2);
+      TAOS_STRNCAT(*ppKey, pCol->tableAlias, TSDB_TABLE_NAME_LEN);
+      TAOS_STRNCAT(*ppKey, ".", 2);
+      TAOS_STRNCAT(*ppKey, pCol->colName, TSDB_COL_NAME_LEN);
+      *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
+      return code;
+    }
     callocLen = TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen;
     return getSlotKeyHelper(pNode, pCol->tableAlias, pCol->colName, ppKey, callocLen, pLen, extraBufLen,
                             SLOT_KEY_TYPE_ALL);
@@ -107,23 +134,6 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
   callocLen = TSDB_COL_NAME_LEN + 1 + extraBufLen;
   return getSlotKeyHelper(pNode, pStmtName, ((SExprNode*)pNode)->aliasName, ppKey, callocLen, pLen, extraBufLen,
                           SLOT_KEY_TYPE_COLNAME);
-  return code;
-}
-
-static int32_t getVirtualSlotKey(SNode* pNode, char** ppKey, int32_t* pLen, uint16_t extraBufLen) {
-  int32_t code = 0;
-  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    SColumnNode* pCol = (SColumnNode*)pNode;
-    *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
-    if (!*ppKey) {
-      return terrno;
-    }
-    strcat(*ppKey, pCol->refTableName);
-    strcat(*ppKey, ".");
-    strcat(*ppKey, pCol->refColName);
-    *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
-    return code;
-  }
   return code;
 }
 
@@ -371,12 +381,13 @@ typedef struct SSetSlotIdCxt {
   SHashObj* pRightProdIdxHash;
 } SSetSlotIdCxt;
 
-typedef struct SVTableSetSlotIdCxt {
+typedef struct SMultiTableSetSlotIdCxt {
   int32_t    errCode;
   SArray*    hashArray;
   SArray*    projIdxHashArray;
   SNodeList* pChild;
-} SVTableSetSlotIdCxt;
+  bool       isVtb;
+} SMultiTableSetSlotIdCxt;
 
 static void dumpSlots(const char* pName, SHashObj* pHash) {
   if (NULL == pHash) {
@@ -421,7 +432,7 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
       planError("doSetSlotId failed, invalid slot name %s", name);
       dumpSlots("left datablock desc", pCxt->pLeftHash);
       dumpSlots("right datablock desc", pCxt->pRightHash);
-      pCxt->errCode = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      pCxt->errCode = TSDB_CODE_PLAN_SLOT_NOT_FOUND;
       taosMemoryFree(name);
       return DEAL_RES_ERROR;
     }
@@ -433,20 +444,16 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t getVTableScanDataBlockDescNode(SNodeList* pChildren, int32_t idx, SDataBlockDescNode** ppDesc) {
-  *ppDesc = ((SPhysiNode*)nodesListGetNode(pChildren, idx))->pOutputDataBlockDesc;
-  return TSDB_CODE_SUCCESS;
-}
-
-static EDealRes doSetVtableSlotId(SNode* pNode, void* pContext) {
+static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode) && 0 != strcmp(((SColumnNode*)pNode)->colName, "*")) {
-    if (!((SColumnNode*)pNode)->hasRef) {
+    SMultiTableSetSlotIdCxt* pCxt = (SMultiTableSetSlotIdCxt*)pContext;
+    char*                    name = NULL;
+    int32_t                  len = 0;
+    if (pCxt->isVtb && !((SColumnNode*)pNode)->hasRef) {
       return DEAL_RES_CONTINUE;
     }
-    SVTableSetSlotIdCxt* pCxt = (SVTableSetSlotIdCxt*)pContext;
-    char*          name = NULL;
-    int32_t        len = 0;
-    pCxt->errCode = getVirtualSlotKey(pNode, &name, &len, 16);
+    
+    pCxt->errCode = getSlotKey(pNode, NULL, &name, &len, 16);
     if (TSDB_CODE_SUCCESS != pCxt->errCode) {
       return DEAL_RES_ERROR;
     }
@@ -472,11 +479,11 @@ static EDealRes doSetVtableSlotId(SNode* pNode, void* pContext) {
     }
     // pIndex is definitely not NULL, otherwise it is a bug
     if (NULL == pIndex) {
-      planError("doSetSlotId failed, invalid slot name %s", name);
+      planError("doSetMultiTableSlotId failed, invalid slot name %s", name);
       for (int32_t i = 0; i < taosArrayGetSize(pCxt->hashArray); i++) {
         //dumpSlots("vtable datablock desc", taosArrayGetP(pCxt->hashArray, i));
       }
-      pCxt->errCode = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      pCxt->errCode = TSDB_CODE_PLAN_SLOT_NOT_FOUND;
       taosMemoryFree(name);
       return DEAL_RES_ERROR;
     }
@@ -526,14 +533,14 @@ static int32_t setVtableNodeSlotId(SPhysiPlanContext* pCxt, SNodeList* pChild, S
   SNode* pRes = NULL;
   PLAN_ERR_JRET(nodesCloneNode(pNode, &pRes));
 
-  SVTableSetSlotIdCxt cxt = {
+  SMultiTableSetSlotIdCxt cxt = {
       .errCode = TSDB_CODE_SUCCESS,
       .hashArray = pCxt->pLocationHelper,
       .projIdxHashArray = pCxt->pProjIdxLocHelper,
       .pChild = pChild
   };
 
-  nodesWalkExpr(pRes, doSetVtableSlotId, &cxt);
+  nodesWalkExpr(pRes, doSetMultiTableSlotId, &cxt);
   PLAN_ERR_JRET(cxt.errCode);
 
   *pOutput = pRes;
@@ -570,7 +577,7 @@ static int32_t setListSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, i
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t setVtableListSlotId(SPhysiPlanContext* pCxt, SNodeList* pChild, const SNodeList* pList,
+static int32_t setMultiBlockSlotId(SPhysiPlanContext* pCxt, SNodeList* pChild, bool isVtb, const SNodeList* pList,
                                    SNodeList** pOutput) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == pList) {
@@ -580,14 +587,15 @@ static int32_t setVtableListSlotId(SPhysiPlanContext* pCxt, SNodeList* pChild, c
   SNodeList* pRes = NULL;
   PLAN_ERR_JRET(nodesCloneList(pList, &pRes));
 
-  SVTableSetSlotIdCxt cxt = {
+  SMultiTableSetSlotIdCxt cxt = {
     .errCode = TSDB_CODE_SUCCESS,
     .hashArray = pCxt->pLocationHelper,
     .projIdxHashArray = pCxt->pProjIdxLocHelper,
-    .pChild = pChild
+    .pChild = pChild,
+    .isVtb = isVtb
   };
 
-  nodesWalkExprs(pRes, doSetVtableSlotId, &cxt);
+  nodesWalkExprs(pRes, doSetMultiTableSlotId, &cxt);
   PLAN_ERR_JRET(cxt.errCode);
 
   *pOutput = pRes;
@@ -625,14 +633,6 @@ static int32_t setConditionsSlotId(SPhysiPlanContext* pCxt, const SLogicNode* pL
   if (NULL != pLogicNode->pConditions) {
     return setNodeSlotId(pCxt, pPhysiNode->pOutputDataBlockDesc->dataBlockId, -1, pLogicNode->pConditions,
                          &pPhysiNode->pConditions);
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t setVtableConditionsSlotId(SPhysiPlanContext* pCxt, SNodeList* pChild, const SLogicNode* pLogicNode,
-                                         SPhysiNode* pPhysiNode) {
-  if (NULL != pLogicNode->pConditions) {
-    return setVtableNodeSlotId(pCxt, pChild, pLogicNode->pConditions, &pPhysiNode->pConditions);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1730,7 +1730,6 @@ static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
   }
 
   PLAN_ERR_JRET(setConditionsSlotId(pCxt, (const SLogicNode*)pScanLogicNode, (SPhysiNode*)pScanPhysiNode));
-  //PLAN_ERR_JRET(setVtableConditionsSlotId(pCxt, pChild, (const SLogicNode*)pScanLogicNode, (SPhysiNode*)pScanPhysiNode));
 
   pScanPhysiNode->scan.uid = pScanLogicNode->tableId;
   pScanPhysiNode->scan.suid = pScanLogicNode->stableId;
@@ -1761,7 +1760,7 @@ static int32_t createVirtualTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan
   }
 
   PLAN_ERR_RET(createVirtualTableScanPhysiNodeFinalize(pCxt, pChildren, pScanLogicNode, (SVirtualScanPhysiNode*)pVirtualScan, pPhyNode));
-  PLAN_ERR_RET(setVtableListSlotId(pCxt, pChildren, pScanLogicNode->node.pTargets, &pVirtualScan->pTargets));
+  PLAN_ERR_RET(setMultiBlockSlotId(pCxt, pChildren, true, pScanLogicNode->node.pTargets, &pVirtualScan->pTargets));
   return code;
 }
 
@@ -1833,6 +1832,8 @@ static int32_t createDynQueryCtrlPhysiNode(SPhysiPlanContext* pCxt, SNodeList* p
   switch (pLogicNode->qType) {
     case DYN_QTYPE_STB_HASH:
       code = updateDynQueryCtrlStbJoinInfo(pCxt, pChildren, pLogicNode, pDynCtrl);
+      break;
+    case DYN_QTYPE_VTB_SCAN:
       break;
     default:
       planError("Invalid dyn query ctrl type:%d", pLogicNode->qType);
@@ -2898,49 +2899,31 @@ static int32_t createMergePhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildre
   pMerge->inputWithGroupId = pMergeLogicNode->inputWithGroupId;
 
   if (!pMergeLogicNode->colsMerge) {
-    code = addDataBlockSlots(pCxt, pMergeLogicNode->pInputs, pMerge->node.pOutputDataBlockDesc);
+    PLAN_ERR_JRET(addDataBlockSlots(pCxt, pMergeLogicNode->pInputs, pMerge->node.pOutputDataBlockDesc));
 
-    if (TSDB_CODE_SUCCESS == code) {
-      for (int32_t j = 0; j < pMergeLogicNode->numOfSubplans; ++j) {
-        for (int32_t i = 0; i < pMerge->numOfChannels; ++i) {
-          code = createExchangePhysiNodeByMerge(pMerge, j);
-          if (TSDB_CODE_SUCCESS != code) {
-            break;
-          }
-        }
-        if (code) break;
+    for (int32_t j = 0; j < pMergeLogicNode->numOfSubplans; ++j) {
+      for (int32_t i = 0; i < pMerge->numOfChannels; ++i) {
+        PLAN_ERR_JRET(createExchangePhysiNodeByMerge(pMerge, j));
       }
     }
 
-    if (TSDB_CODE_SUCCESS == code && NULL != pMergeLogicNode->pMergeKeys) {
-      code = setListSlotId(pCxt, pMerge->node.pOutputDataBlockDesc->dataBlockId, -1, pMergeLogicNode->pMergeKeys,
-                           &pMerge->pMergeKeys);
+    if (NULL != pMergeLogicNode->pMergeKeys) {
+      PLAN_ERR_JRET(setListSlotId(pCxt, pMerge->node.pOutputDataBlockDesc->dataBlockId, -1, pMergeLogicNode->pMergeKeys,
+                                  &pMerge->pMergeKeys));
     }
 
-    if (TSDB_CODE_SUCCESS == code) {
-      code = setListSlotId(pCxt, pMerge->node.pOutputDataBlockDesc->dataBlockId, -1, pMergeLogicNode->node.pTargets,
-                           &pMerge->pTargets);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      code = addDataBlockSlots(pCxt, pMerge->pTargets, pMerge->node.pOutputDataBlockDesc);
-    }
+    PLAN_ERR_JRET(setListSlotId(pCxt, pMerge->node.pOutputDataBlockDesc->dataBlockId, -1, pMergeLogicNode->node.pTargets,
+                                &pMerge->pTargets));
+    PLAN_ERR_JRET(addDataBlockSlots(pCxt, pMerge->pTargets, pMerge->node.pOutputDataBlockDesc));
   } else {
-    SDataBlockDescNode* pLeftDesc = ((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc;
-    SDataBlockDescNode* pRightDesc = ((SPhysiNode*)nodesListGetNode(pChildren, 1))->pOutputDataBlockDesc;
-
-    code = setListSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pMergeLogicNode->node.pTargets,
-                         &pMerge->pTargets);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = addDataBlockSlots(pCxt, pMerge->pTargets, pMerge->node.pOutputDataBlockDesc);
-    }
+    PLAN_ERR_JRET(setMultiBlockSlotId(pCxt, pChildren, false, pMergeLogicNode->node.pTargets, &pMerge->pTargets));
+    PLAN_ERR_JRET(addDataBlockSlots(pCxt, pMerge->pTargets, pMerge->node.pOutputDataBlockDesc));
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
-    *pPhyNode = (SPhysiNode*)pMerge;
-  } else {
-    nodesDestroyNode((SNode*)pMerge);
-  }
-
+  *pPhyNode = (SPhysiNode*)pMerge;
+  return code;
+_return:
+  nodesDestroyNode((SNode*)pMerge);
   return code;
 }
 

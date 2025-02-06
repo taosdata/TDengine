@@ -87,7 +87,12 @@ static int32_t scaleOutByVgroups(SScaleOutContext* pCxt, SLogicSubplan* pSubplan
 }
 
 static int32_t scaleOutForMerge(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pGroup) {
-  return nodesListStrictAppend(pGroup, (SNode*)singleCloneSubLogicPlan(pCxt, pSubplan, level));
+  if (QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(pSubplan->pNode) &&
+      ((SDynQueryCtrlLogicNode*)pSubplan->pNode)->qType == DYN_QTYPE_VTB_SCAN) {
+    return scaleOutByVgroups(pCxt, pSubplan, level, pGroup);
+  } else {
+    return nodesListStrictAppend(pGroup, (SNode*)singleCloneSubLogicPlan(pCxt, pSubplan, level));
+  }
 }
 
 static int32_t scaleOutForInsertValues(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level,
