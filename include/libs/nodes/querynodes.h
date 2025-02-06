@@ -96,16 +96,19 @@ typedef struct SColumnNode {
   bool        isPk;
   int32_t     projRefIdx;
   int32_t     resIdx;
+  bool        hasDep;
   bool        hasRef;
-  char        refColName[TSDB_COL_NAME_LEN];
+  char        refDbName[TSDB_DB_NAME_LEN];
   char        refTableName[TSDB_TABLE_NAME_LEN];
+  char        refColName[TSDB_COL_NAME_LEN];
 } SColumnNode;
 
 typedef struct SColumnRefNode {
   ENodeType type;
   char      colName[TSDB_COL_NAME_LEN];
-  char      refColName[TSDB_COL_NAME_LEN];
+  char      refDbName[TSDB_DB_NAME_LEN];
   char      refTableName[TSDB_TABLE_NAME_LEN];
+  char      refColName[TSDB_COL_NAME_LEN];
 } SColumnRefNode;
 
 typedef struct STargetNode {
@@ -245,7 +248,6 @@ typedef struct SVirtualTableNode {
   STableNode         table;  // QUERY_NODE_VIRTUAL_TABLE
   struct STableMeta* pMeta;
   SVgroupsInfo*      pVgroupList;
-  char               qualDbName[TSDB_DB_NAME_LEN];  // SHOW qualDbName.TABLES
   SNodeList*         refTables;
 } SVirtualTableNode;
 
@@ -292,6 +294,7 @@ typedef enum EJoinAlgorithm {
 
 typedef enum EDynQueryType {
   DYN_QTYPE_STB_HASH = 1,
+  DYN_QTYPE_VTB_SCAN,
 } EDynQueryType;
 
 typedef struct SJoinTableNode {

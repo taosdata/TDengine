@@ -339,13 +339,13 @@ static int32_t collectMetaKeyFromCreateVTable(SCollectMetaKeyCxt* pCxt, SCreateV
       }
       SColumnOptions *pOptions = (SColumnOptions*)pCol->pOptions;
       if (pOptions && pOptions->hasRef) {
-        code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pOptions->refTable, pCxt->pMetaCache);
+        code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable, pCxt->pMetaCache);
         if (TSDB_CODE_SUCCESS == code) {
-          code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pOptions->refTable, pCxt->pMetaCache);
+          code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pOptions->refDb, pOptions->refTable, pCxt->pMetaCache);
         }
         if (TSDB_CODE_SUCCESS == code) {
-          code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pOptions->refTable,
-                                        AUTH_TYPE_READ, pCxt->pMetaCache);
+          code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pOptions->refDb,
+                                        pOptions->refTable, AUTH_TYPE_READ, pCxt->pMetaCache);
         }
         if (TSDB_CODE_SUCCESS != code) {
           break;
@@ -380,11 +380,11 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
       code = TSDB_CODE_PAR_INVALID_COLUMN;
       break;
     }
-    PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pColRef->refTableName,
+    PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pColRef->refDbName, pColRef->refTableName,
                                         pCxt->pMetaCache));
-    PAR_ERR_RET(reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pColRef->refTableName,
+    PAR_ERR_RET(reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pColRef->refDbName, pColRef->refTableName,
                                           pCxt->pMetaCache));
-    PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName,
+    PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pColRef->refDbName,
                                        pColRef->refTableName, AUTH_TYPE_READ, pCxt->pMetaCache));
   }
   return code;
@@ -544,8 +544,8 @@ static int32_t collectMetaKeyFromAlterVtable(SCollectMetaKeyCxt* pCxt, SAlterTab
   PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->tableName,
                                      AUTH_TYPE_WRITE, pCxt->pMetaCache));
   if (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF || pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) {
-    PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->refTableName, pCxt->pMetaCache));
-    PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->dbName, pStmt->refTableName,
+    PAR_ERR_RET(reserveTableMetaInCache(pCxt->pParseCxt->acctId, pStmt->refDbName, pStmt->refTableName, pCxt->pMetaCache));
+    PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->refDbName, pStmt->refTableName,
                                        AUTH_TYPE_READ, pCxt->pMetaCache));
   }
   return TSDB_CODE_SUCCESS;
