@@ -2356,17 +2356,13 @@ EColumnOptionType getColumnOptionType(const char* optionType) {
   return 0;
 }
 
-SNode* setColumnReference(SAstCreateContext* pCxt, SNode* pOptions, SToken* pTableRef, SToken* pColumnRef) {
+SNode* setColumnReference(SAstCreateContext* pCxt, SNode* pOptions, SNode* pRef) {
   CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkTableName(pCxt, pTableRef));
-  CHECK_NAME(checkColumnName(pCxt, pColumnRef));
 
-  if (NULL == pTableRef || NULL == pColumnRef) {
-    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
-  }
   ((SColumnOptions*)pOptions)->hasRef = true;
-  COPY_STRING_FORM_ID_TOKEN(((SColumnOptions*)pOptions)->refTable, pTableRef);
-  COPY_STRING_FORM_ID_TOKEN(((SColumnOptions*)pOptions)->refColumn, pColumnRef);
+  tstrncpy(((SColumnOptions*)pOptions)->refDb, ((SColumnRefNode*)pRef)->refDbName, TSDB_DB_NAME_LEN);
+  tstrncpy(((SColumnOptions*)pOptions)->refTable, ((SColumnRefNode*)pRef)->refTableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(((SColumnOptions*)pOptions)->refColumn, ((SColumnRefNode*)pRef)->refColName, TSDB_COL_NAME_LEN);
   return pOptions;
 _err:
   nodesDestroyNode(pOptions);
@@ -2425,11 +2421,9 @@ _err:
   return NULL;
 }
 
-SNode* createColumnRefNode(SAstCreateContext* pCxt, SToken* pColName, SToken* pRefTableName, SToken* pRefColName) {
+SNode* createColumnRefNodeByNode(SAstCreateContext* pCxt, SToken* pColName, SNode* pRef) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkColumnName(pCxt, pColName));
-  CHECK_NAME(checkColumnName(pCxt, pRefColName));
-  CHECK_NAME(checkTableName(pCxt, pRefTableName));
 
   SColumnRefNode* pCol = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN_REF, (SNode**)&pCol);
@@ -2437,14 +2431,77 @@ SNode* createColumnRefNode(SAstCreateContext* pCxt, SToken* pColName, SToken* pR
   if (pColName) {
     COPY_STRING_FORM_ID_TOKEN(pCol->colName, pColName);
   }
-  if (!pRefTableName || !pRefColName) {
+  tstrncpy(pCol->refDbName, ((SColumnRefNode*)pRef)->refDbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pCol->refTableName, ((SColumnRefNode*)pRef)->refTableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pCol->refColName, ((SColumnRefNode*)pRef)->refColName, TSDB_COL_NAME_LEN);
+  return (SNode*)pCol;
+_err:
+  return NULL;
+}
+
+STokenTriplet* createTokenTriplet(SAstCreateContext* pCxt, SToken pName) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  STokenTriplet *pTokenTri = taosMemoryMalloc(sizeof(STokenTriplet));
+  CHECK_OUT_OF_MEM(pTokenTri);
+  pTokenTri->name[0] = pName;
+  pTokenTri->numOfName = 1;
+
+  return pTokenTri;
+_err:
+  return NULL;
+}
+
+STokenTriplet* setColumnName(SAstCreateContext* pCxt, STokenTriplet* pTokenTri, SToken pName) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  if (pTokenTri->numOfName >= 3) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
     goto _err;
   }
-  COPY_STRING_FORM_ID_TOKEN(pCol->refTableName, pRefTableName);
-  COPY_STRING_FORM_ID_TOKEN(pCol->refColName, pRefColName);
+
+  pTokenTri->name[pTokenTri->numOfName] = pName;
+  pTokenTri->numOfName++;
+  return pTokenTri;
+_err:
+  return NULL;
+}
+
+SNode* createColumnRefNodeByName(SAstCreateContext* pCxt, STokenTriplet* pTokenTri) {
+  SColumnRefNode* pCol = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN_REF, (SNode**)&pCol);
+  CHECK_MAKE_NODE(pCol);
+
+  switch(pTokenTri->numOfName) {
+    case 2: {
+      CHECK_NAME(checkTableName(pCxt, &pTokenTri->name[0]));
+      CHECK_NAME(checkColumnName(pCxt, &pTokenTri->name[1]));
+      snprintf(pCol->refDbName, TSDB_DB_NAME_LEN, "%s", pCxt->pQueryCxt->db);
+      COPY_STRING_FORM_ID_TOKEN(pCol->refTableName, &pTokenTri->name[0]);
+      COPY_STRING_FORM_ID_TOKEN(pCol->refColName, &pTokenTri->name[1]);
+      break;
+    }
+    case 3: {
+      CHECK_NAME(checkDbName(pCxt, &pTokenTri->name[0], true));
+      CHECK_NAME(checkTableName(pCxt, &pTokenTri->name[1]));
+      CHECK_NAME(checkColumnName(pCxt, &pTokenTri->name[2]));
+      COPY_STRING_FORM_ID_TOKEN(pCol->refDbName, &pTokenTri->name[0]);
+      COPY_STRING_FORM_ID_TOKEN(pCol->refTableName, &pTokenTri->name[1]);
+      COPY_STRING_FORM_ID_TOKEN(pCol->refColName, &pTokenTri->name[2]);
+      break;
+    }
+    default: {
+      pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+      goto _err;
+    }
+  }
+
+  taosMemFree(pTokenTri);
   return (SNode*)pCol;
 _err:
+  taosMemFree(pTokenTri);
+  nodesDestroyNode((SNode*)pCol);
   return NULL;
 }
 
@@ -2728,6 +2785,7 @@ SNode* createAlterTableAddModifyColOptions2(SAstCreateContext* pCxt, SNode* pRea
         pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
       }
       pStmt->alterType = TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF;
+      tstrncpy(pStmt->refDbName, pOption->refDb, TSDB_DB_NAME_LEN);
       tstrncpy(pStmt->refTableName, pOption->refTable, TSDB_TABLE_NAME_LEN);
       tstrncpy(pStmt->refColName, pOption->refColumn, TSDB_COL_NAME_LEN);
       CHECK_PARSER_STATUS(pCxt);
@@ -2770,25 +2828,6 @@ _err:
   return NULL;
 }
 
-SNode* createAlterTableAddColWithRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType,
-                                     SToken* pColName, SDataType dataType, SToken* pRefTableName, SToken* pRefColName) {
-  SAlterTableStmt* pStmt = NULL;
-  CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkColumnName(pCxt, pColName));
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-  pStmt->alterType = alterType;
-  pStmt->dataType = dataType;
-  COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->refColName, pRefColName);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->refTableName, pRefTableName);
-  return createAlterTableStmtFinalize(pRealTable, pStmt);
-_err:
-  nodesDestroyNode((SNode*)pStmt);
-  nodesDestroyNode(pRealTable);
-  return NULL;
-}
-
 SNode* createAlterTableDropCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkColumnName(pCxt, pColName));
@@ -2821,18 +2860,17 @@ _err:
 }
 
 SNode* createAlterTableAlterColRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
-                                   SToken* pRefTableName, SToken* pRefColName) {
+                                   SNode* pRef) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkColumnName(pCxt, pColName));
-  CHECK_NAME(checkTableName(pCxt, pRefTableName));
-  CHECK_NAME(checkColumnName(pCxt, pRefColName));
   SAlterTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->alterType = alterType;
   COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->refTableName, pRefTableName);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->refColName, pRefColName);
+  tstrncpy(pStmt->refDbName, ((SColumnRefNode*)pRef)->refDbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->refTableName, ((SColumnRefNode*)pRef)->refTableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pStmt->refColName, ((SColumnRefNode*)pRef)->refColName, TSDB_COL_NAME_LEN);
   return createAlterTableStmtFinalize(pRealTable, pStmt);
 _err:
   nodesDestroyNode(pRealTable);

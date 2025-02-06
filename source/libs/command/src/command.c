@@ -203,9 +203,11 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
         COL_DATA_SET_VAL_AND_CHECK(pCol7, pBlock->info.rows, buf, false);
       }
     } else if (hasRefCol(pMeta->tableType) && pMeta->colRef) {
-      if (i < pMeta->tableInfo.numOfColumns) {
+      if (i < pMeta->numOfColRefs) {
         if (pMeta->colRef[i].hasRef) {
-          char refColName[TSDB_COL_FNAME_LEN] = {0};
+          char refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
+          strcat(refColName, pMeta->colRef[i].refDbName);
+          strcat(refColName, ".");
           strcat(refColName, pMeta->colRef[i].refTableName);
           strcat(refColName, ".");
           strcat(refColName, pMeta->colRef[i].refColName);
@@ -554,7 +556,7 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
     SColRef* pRef = pCfg->pColRefs + i;
-#define LTYPE_LEN (32 + 60 + TSDB_COL_FNAME_LEN + 10)  // 60 byte for compress info, TSDB_COL_FNAME_LEN for column ref
+#define LTYPE_LEN (32 + 60 + TSDB_COL_FNAME_LEN + TSDB_DB_NAME_LEN + 10)  // 60 byte for compress info, TSDB_COL_FNAME_LEN + TSDB_DB_NAME_LEN for column ref
     char type[LTYPE_LEN];
     snprintf(type, LTYPE_LEN, "%s", tDataTypes[pSchema->type].name);
     int typeLen = strlen(type);
@@ -576,7 +578,9 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
     }
 
     if (hasRefCol(pCfg->tableType) && pCfg->pColRefs && pRef->hasRef) {
-      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, " FROM \'%s\'", pRef->refTableName);
+      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, " FROM \'%s\'", pRef->refDbName);
+      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, ".");
+      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "\'%s\'", pRef->refTableName);
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, ".");
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "\'%s\'", pRef->refColName);
     }
@@ -596,11 +600,13 @@ static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 1; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
     SColRef* pRef = pCfg->pColRefs + i;
-    char type[TSDB_COL_NAME_LEN + 10 + TSDB_COL_FNAME_LEN];
+    char type[TSDB_COL_NAME_LEN + 10 + TSDB_COL_FNAME_LEN + TSDB_DB_NAME_LEN];
     int typeLen = 0;
 
     if (hasRefCol(pCfg->tableType) && pCfg->pColRefs && pRef->hasRef) {
-      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "FROM \'%s\'", pRef->refTableName);
+      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "FROM \'%s\'", pRef->refDbName);
+      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, ".");
+      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "\'%s\'", pRef->refTableName);
       typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, ".");
       typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "\'%s\'", pRef->refColName);
     } else {

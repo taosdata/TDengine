@@ -435,8 +435,9 @@ alter_table_clause(A) ::=
 alter_table_clause(A) ::=
   full_table_name(B) RENAME TAG column_name(C) column_name(D).                    { A = createAlterTableRenameCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_TAG_NAME, &C, &D); }
 alter_table_clause(A) ::=
-  full_table_name(B) ALTER COLUMN column_name(C) SET table_name(D) NK_DOT column_name(E).
-                                                                                  { A = createAlterTableAlterColRef(pCxt, B, TSDB_ALTER_TABLE_ALTER_COLUMN_REF, &C, &D, &E); }
+  full_table_name(B) ALTER COLUMN column_name(C) SET column_ref(D).
+                                                                                  { A = createAlterTableAlterColRef(pCxt, B, TSDB_ALTER_TABLE_ALTER_COLUMN_REF, &C, D); }
+
 alter_table_clause(A) ::=
   full_table_name(B) ALTER COLUMN column_name(C) SET NULL(D).                     { A = createAlterTableRemoveColRef(pCxt, B, TSDB_ALTER_TABLE_REMOVE_COLUMN_REF, &C, &D); }
 
@@ -497,14 +498,12 @@ column_def(A) ::= column_name(B) type_name(C) column_options(D).                
 specific_column_ref_list(A) ::= specific_column_ref(B).                                      { A = createNodeList(pCxt, B); }
 specific_column_ref_list(A) ::= specific_column_ref_list(B) NK_COMMA specific_column_ref(C). { A = addNodeToList(pCxt, B, C); }
 
-specific_column_ref(A) ::= column_name(B) FROM table_name(C) NK_DOT column_name(D).          { A = createColumnRefNode(pCxt, &B, &C, &D); }
+specific_column_ref(A) ::= column_name(B) FROM column_ref(C).                    { A = createColumnRefNodeByNode(pCxt, &B, C); }
 
 %type column_ref_list                                                             { SNodeList* }
 %destructor column_ref_list                                                       { nodesDestroyList($$); }
 column_ref_list(A) ::= column_ref(B).                                             { A = createNodeList(pCxt, B); }
 column_ref_list(A) ::= column_ref_list(B) NK_COMMA column_ref(C).                 { A = addNodeToList(pCxt, B, C); }
-
-column_ref(A) ::= table_name(B) NK_DOT column_name(C).                            { A = createColumnRefNode(pCxt, NULL, &B, &C); }
 
 %type type_name                                                                   { SDataType }
 %destructor type_name                                                             { }
@@ -1854,4 +1853,11 @@ null_ordering_opt(A) ::= NULLS LAST.                                            
 column_options(A) ::= .                                                           { A = createDefaultColumnOptions(pCxt); }
 column_options(A) ::= column_options(B) PRIMARY KEY.                              { A = setColumnOptionsPK(pCxt, B); }
 column_options(A) ::= column_options(B) NK_ID(C) NK_STRING(D).                    { A = setColumnOptions(pCxt, B, &C, &D); }
-column_options(A) ::= column_options(B) FROM table_name(C) NK_DOT column_name(D). { A = setColumnReference(pCxt, B, &C, &D); }
+column_options(A) ::= column_options(B) FROM column_ref(C).                       { A = setColumnReference(pCxt, B, C); }
+
+column_ref(A) ::= column_name_list(B).                                            { A = createColumnRefNodeByName(pCxt, B); }
+
+%type column_name_list                                                            { STokenTriplet* }
+%destructor column_name_list                                                      { }
+column_name_list(A) ::= NK_ID(B).                                                 { A = createTokenTriplet(pCxt, B); }
+column_name_list(A) ::= column_name_list(B) NK_DOT NK_ID(C).                      { A = setColumnName(pCxt, B, C); }

@@ -1901,7 +1901,7 @@ static int32_t jsonToLogicVirtualTableScanNode(const SJson* pJson, void* pObj) {
   int32_t objSize = 0;
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
-    tjsonGetBoolValue(pJson, jkVirtualTableScanLogicPlanscanAllCols, &pNode->scanAllCols);
+    code = tjsonGetBoolValue(pJson, jkVirtualTableScanLogicPlanscanAllCols, &pNode->scanAllCols);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkVirtualTableScanLogicPlanScanCols, &pNode->pScanCols);
@@ -6071,16 +6071,20 @@ static int32_t jsonToStreamNotifyOptions(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkColumnReferenceColumnName = "ColumnName";
-static const char* jkColumnReferenceRefColumnName = "RefColumnName";
+static const char* jkColumnReferenceRefDbName = "RefDbName";
 static const char* jkColumnReferenceRefTableName = "RefTableName";
+static const char* jkColumnReferenceRefColumnName = "RefColumnName";
 static int32_t     columnReferenceToJson(const void* pObj, SJson* pJson) {
   const SColumnRefNode* pNode = (const SColumnRefNode*)pObj;
   int32_t               code = tjsonAddStringToObject(pJson, jkColumnReferenceColumnName, pNode->colName);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddStringToObject(pJson, jkColumnReferenceRefColumnName, pNode->refColName);
+    code = tjsonAddStringToObject(pJson, jkColumnReferenceRefDbName, pNode->refDbName);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkColumnReferenceRefTableName, pNode->refTableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkColumnReferenceRefColumnName, pNode->refColName);
   }
   return code;
 }
@@ -6090,10 +6094,13 @@ static int32_t jsonToColumnReference(const SJson* pJson, void* pObj) {
 
   int32_t code = tjsonGetStringValue(pJson, jkColumnReferenceColumnName, pNode->colName);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetStringValue(pJson, jkColumnReferenceRefColumnName, pNode->refColName);
+    code = tjsonGetStringValue(pJson, jkColumnReferenceRefDbName, pNode->refDbName);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue(pJson, jkColumnReferenceRefTableName, pNode->refTableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkColumnReferenceRefColumnName, pNode->refColName);
   }
   return code;
 }

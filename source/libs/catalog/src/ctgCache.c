@@ -563,6 +563,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     if (hasRefCol(tbMeta->tableType) && tbMeta->colRef) {
       (*pTableMeta)->colRef = (SColRef *)((char *)*pTableMeta + metaSize + schemaExtSize);
       TAOS_MEMCPY((*pTableMeta)->colRef, tbMeta->colRef, colRefSize);
+      (*pTableMeta)->numOfColRefs = tbMeta->numOfColRefs;
     } else {
       (*pTableMeta)->colRef = NULL;
     }
@@ -574,10 +575,12 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   // PROCESS FOR CHILD TABLE
   int32_t metaSize = sizeof(SCTableMeta);
   int32_t colRefSize = 0;
+  int32_t numOfColRefs = 0;
   SColRef *tmpRef = NULL;
 
   if (hasRefCol(tbMeta->tableType) && tbMeta->colRef != NULL) {
     colRefSize += tbMeta->numOfColRefs * sizeof(SColRef);
+    numOfColRefs = tbMeta->numOfColRefs;
     tmpRef = taosMemoryMalloc(colRefSize);
     TAOS_MEMCPY(tmpRef, tbMeta->colRef, colRefSize);
   }
@@ -628,6 +631,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   (*pTableMeta)->schemaExt =  NULL;
   if (colRefSize != 0) {
     (*pTableMeta)->colRef = (SColRef *)((char *)*pTableMeta + metaSize);
+    (*pTableMeta)->numOfColRefs = numOfColRefs;
     TAOS_MEMCPY((*pTableMeta)->colRef, tmpRef, colRefSize);
   } else {
     (*pTableMeta)->colRef = NULL;
@@ -3558,6 +3562,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       }
       if (hasRefCol(tbMeta->tableType) && tbMeta->colRef) {
         pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
+        pTableMeta->numOfColRefs = tbMeta->tableInfo.numOfColumns;
         TAOS_MEMCPY(pTableMeta->colRef, tbMeta->colRef, colRefSize);
       } else {
         pTableMeta->colRef = NULL;
@@ -3603,6 +3608,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
     int32_t metaSize = sizeof(SCTableMeta);
     int32_t colRefSize = 0;
+    int32_t colRefNum = 0;
 
     pTableMeta = taosMemoryCalloc(1, metaSize);
     if (NULL == pTableMeta) {
@@ -3612,6 +3618,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
     if (hasRefCol(tbMeta->tableType) && tbMeta->colRef != NULL) {
       colRefSize = tbMeta->numOfColRefs * sizeof(SColRef);
+      colRefNum = tbMeta->numOfColRefs;
       taosMemoryFreeClear(tmpRef);
       tmpRef = taosMemoryMalloc(colRefSize);
       TAOS_MEMCPY(tmpRef, tbMeta->colRef, colRefSize);
@@ -3712,6 +3719,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     }
 
     if (colRefSize != 0) {
+      pTableMeta->numOfColRefs = colRefNum;
       pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
       TAOS_MEMCPY(pTableMeta->colRef, tmpRef, colRefSize);
     } else {

@@ -603,6 +603,7 @@ int32_t tPrintFixedSchemaSubmitReq(SSubmitReq* pReq, STSchema* pSchema);
 typedef struct {
   bool     hasRef;
   col_id_t id;
+  char     refDbName[TSDB_DB_NAME_LEN];
   char     refTableName[TSDB_TABLE_NAME_LEN];
   char     refColName[TSDB_COL_NAME_LEN];
 } SColRef;
@@ -612,6 +613,16 @@ typedef struct {
   int32_t   version;
   SColRef*  pColRef;
 } SColRefWrapper;
+
+typedef struct {
+  int32_t vgId;
+  SColRef colRef;
+} SColRefEx;
+
+typedef struct {
+  int32_t     nCols;
+  SColRefEx*  pColRefEx;
+} SColRefExWrapper;
 
 struct SSchema {
   int8_t   type;
@@ -903,6 +914,7 @@ static FORCE_INLINE int32_t tEncodeSColRef(SEncoder* pEncoder, const SColRef* pC
   TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pColRef->hasRef));
   TAOS_CHECK_RETURN(tEncodeI16(pEncoder, pColRef->id));
   if (pColRef->hasRef) {
+    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refDbName));
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refTableName));
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refColName));
   }
@@ -913,6 +925,7 @@ static FORCE_INLINE int32_t tDecodeSColRef(SDecoder* pDecoder, SColRef* pColRef)
   TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t*)&pColRef->hasRef));
   TAOS_CHECK_RETURN(tDecodeI16(pDecoder, &pColRef->id));
   if (pColRef->hasRef) {
+    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refDbName));
     TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refTableName));
     TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refColName));
   }
@@ -3476,6 +3489,7 @@ typedef struct SVAlterTbReq{
   uint32_t compress;   // TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS
   SArray*  pMultiTag;  // TSDB_ALTER_TABLE_ADD_MULTI_TAGS
   // TSDB_ALTER_TABLE_ALTER_COLUMN_REF
+  char*    refDbName;
   char*    refTbName;
   char*    refColName;
   // TSDB_ALTER_TABLE_REMOVE_COLUMN_REF
