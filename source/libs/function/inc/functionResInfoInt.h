@@ -25,6 +25,7 @@ extern "C" {
 #include "tdigest.h"
 #include "functionResInfo.h"
 #include "tpercentile.h"
+#include "decimal.h"
 
 #define USE_ARRAYLIST
 
@@ -39,12 +40,23 @@ typedef struct SSumRes {
     int64_t  isum;
     uint64_t usum;
     double   dsum;
+    void*    pData; // for decimal128
   };
   int16_t type;
   int64_t prevTs;
   bool    isPrevTsSet;
   bool    overflow;  // if overflow is true, dsum to be used for any type;
 } SSumRes;
+
+typedef struct SDecimalSumRes {
+  int64_t   flag; // currently not used
+  // TODO wjm use same struct for the following four fields as SSumRes
+  int16_t    type;
+  int64_t    prevTs;
+  bool       isPrevTsSet;
+  bool       overflow;  // if overflow is true, dsum to be used for any type;
+  Decimal128 sum;
+} SDecimalSumRes;
 
 typedef struct SMinmaxResInfo {
   bool      assign;  // assign the first value or not

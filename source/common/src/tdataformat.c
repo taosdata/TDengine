@@ -18,6 +18,7 @@
 #include "tRealloc.h"
 #include "tdatablock.h"
 #include "tlog.h"
+#include "decimal.h"
 
 static int32_t (*tColDataAppendValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData);
 static int32_t (*tColDataUpdateValueImpl[8][3])(SColData *pColData, uint8_t *pData, uint32_t nData, bool forward);
@@ -3793,8 +3794,9 @@ int32_t tGetColData(uint8_t version, uint8_t *pBuf, SColData *pColData) {
     if ((MIN) > (VAL)) (MIN) = (VAL);        \
   } while (0)
 
-static FORCE_INLINE void tColDataCalcSMABool(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                             int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMABool(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t*numOfNull = &pAggs->numOfNull;
   *sum = 0;
   *max = 0;
   *min = 1;
@@ -3824,8 +3826,9 @@ static FORCE_INLINE void tColDataCalcSMABool(SColData *pColData, int64_t *sum, i
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMATinyInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                                int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMATinyInt(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *sum = 0;
   *max = INT8_MIN;
   *min = INT8_MAX;
@@ -3855,8 +3858,9 @@ static FORCE_INLINE void tColDataCalcSMATinyInt(SColData *pColData, int64_t *sum
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMATinySmallInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                                     int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMATinySmallInt(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *sum = 0;
   *max = INT16_MIN;
   *min = INT16_MAX;
@@ -3886,8 +3890,9 @@ static FORCE_INLINE void tColDataCalcSMATinySmallInt(SColData *pColData, int64_t
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMAInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                            int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMAInt(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *sum = 0;
   *max = INT32_MIN;
   *min = INT32_MAX;
@@ -3917,8 +3922,9 @@ static FORCE_INLINE void tColDataCalcSMAInt(SColData *pColData, int64_t *sum, in
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMABigInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                               int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMABigInt(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *sum = 0;
   *max = INT64_MIN;
   *min = INT64_MAX;
@@ -3948,8 +3954,9 @@ static FORCE_INLINE void tColDataCalcSMABigInt(SColData *pColData, int64_t *sum,
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMAFloat(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                              int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMAFloat(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *(double *)sum = 0;
   *(double *)max = -FLT_MAX;
   *(double *)min = FLT_MAX;
@@ -3979,8 +3986,9 @@ static FORCE_INLINE void tColDataCalcSMAFloat(SColData *pColData, int64_t *sum, 
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMADouble(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                               int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMADouble(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *(double *)sum = 0;
   *(double *)max = -DBL_MAX;
   *(double *)min = DBL_MAX;
@@ -4010,8 +4018,9 @@ static FORCE_INLINE void tColDataCalcSMADouble(SColData *pColData, int64_t *sum,
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMAUTinyInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                                 int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMAUTinyInt(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *(uint64_t *)sum = 0;
   *(uint64_t *)max = 0;
   *(uint64_t *)min = UINT8_MAX;
@@ -4041,8 +4050,9 @@ static FORCE_INLINE void tColDataCalcSMAUTinyInt(SColData *pColData, int64_t *su
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMATinyUSmallInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                                      int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMATinyUSmallInt(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *(uint64_t *)sum = 0;
   *(uint64_t *)max = 0;
   *(uint64_t *)min = UINT16_MAX;
@@ -4072,8 +4082,9 @@ static FORCE_INLINE void tColDataCalcSMATinyUSmallInt(SColData *pColData, int64_
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMAUInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                             int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMAUInt(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *(uint64_t *)sum = 0;
   *(uint64_t *)max = 0;
   *(uint64_t *)min = UINT32_MAX;
@@ -4103,8 +4114,9 @@ static FORCE_INLINE void tColDataCalcSMAUInt(SColData *pColData, int64_t *sum, i
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMAUBigInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                                int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMAUBigInt(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *(uint64_t *)sum = 0;
   *(uint64_t *)max = 0;
   *(uint64_t *)min = UINT64_MAX;
@@ -4134,8 +4146,9 @@ static FORCE_INLINE void tColDataCalcSMAUBigInt(SColData *pColData, int64_t *sum
   }
 }
 
-static FORCE_INLINE void tColDataCalcSMAVarType(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
-                                                int16_t *numOfNull) {
+static FORCE_INLINE void tColDataCalcSMAVarType(SColData *pColData, SColumnDataAgg* pAggs) {
+  int64_t *sum = &pAggs->sum, *max = &pAggs->max, *min = &pAggs->min;
+  int16_t *numOfNull = &pAggs->numOfNull;
   *(uint64_t *)sum = 0;
   *(uint64_t *)max = 0;
   *(uint64_t *)min = 0;
@@ -4170,7 +4183,76 @@ static FORCE_INLINE void tColDataCalcSMAVarType(SColData *pColData, int64_t *sum
   }
 }
 
-void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull) = {
+#define CALC_DECIMAL_SUM_MAX_MIN(TYPE, pOps, pColData, pSum, pMax, pMin) \
+  for (int32_t iVal = 0; iVal < pColData->nVal; ++iVal) {                \
+    pVal = ((TYPE *)pColData->pData) + iVal;                             \
+    pOps->add(pSum, pVal, WORD_NUM(TYPE));                               \
+    if (pOps->gt(pVal, pMax, WORD_NUM(TYPE))) {                          \
+      *(pMax) = *pVal;                                                   \
+    }                                                                    \
+    if (pOps->lt(pVal, pMin, WORD_NUM(TYPE))) {                          \
+      *(pMin) = *pVal;                                                   \
+    }                                                                    \
+  }
+
+static FORCE_INLINE void tColDataCalcSMADecimal64Type(SColData* pColData, SColumnDataAgg* pAggs) {
+  Decimal64* pSum = (Decimal64*)&pAggs->sum, *pMax = (Decimal64*)&pAggs->max, *pMin = (Decimal64*)&pAggs->min;
+  *pSum = DECIMAL64_ZERO;
+  *pMax = DECIMAL64_MIN;
+  *pMin = DECIMAL64_MAX;
+  pAggs->numOfNull = 0;
+
+  Decimal64   *pVal = NULL;
+  SDecimalOps *pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
+  if (HAS_VALUE == pColData->flag) {
+    CALC_DECIMAL_SUM_MAX_MIN(Decimal64, pOps, pColData, pSum, pMax, pMin);
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; ++iVal) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          pAggs->numOfNull++;
+          break;
+        case 2:
+          CALC_DECIMAL_SUM_MAX_MIN(Decimal64, pOps, pColData, pSum, pMax, pMin);
+          break;
+        default:
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMADecimal128Type(SColData* pColData, SColumnDataAgg* pAggs) {
+  Decimal128* pSum = (Decimal128*)pAggs->decimal128Sum, *pMax = (Decimal128*)pAggs->decimal128Max, *pMin = (Decimal128*)pAggs->decimal128Min;
+  *pSum = DECIMAL128_ZERO;
+  *pMax = DECIMAL128_MIN;
+  *pMin = DECIMAL128_MAX;
+  pAggs->numOfNull = 0;
+  pAggs->colId |= 0x80000000; // TODO wjm define it
+
+  Decimal128 *pVal = NULL;
+  SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+  if (HAS_VALUE == pColData->flag) {
+    CALC_DECIMAL_SUM_MAX_MIN(Decimal128, pOps, pColData, pSum, pMax, pMin);
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; ++iVal) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          pAggs->numOfNull++;
+          break;
+        case 2:
+          CALC_DECIMAL_SUM_MAX_MIN(Decimal128, pOps, pColData, pSum, pMax, pMin);
+          break;
+        default:
+          break;
+      }
+    }
+  }
+}
+
+void (*tColDataCalcSMA[])(SColData *pColData, SColumnDataAgg* pAggs) = {
     NULL,
     tColDataCalcSMABool,           // TSDB_DATA_TYPE_BOOL
     tColDataCalcSMATinyInt,        // TSDB_DATA_TYPE_TINYINT
@@ -4188,10 +4270,11 @@ void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_
     tColDataCalcSMAUBigInt,        // TSDB_DATA_TYPE_UBIGINT
     tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_JSON
     tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_VARBINARY
-    tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_DECIMAL
+    tColDataCalcSMADecimal128Type, // TSDB_DATA_TYPE_DECIMAL
     tColDataCalcSMAVarType,        // TSDB_DATA_TYPE_BLOB
     NULL,                          // TSDB_DATA_TYPE_MEDIUMBLOB
-    tColDataCalcSMAVarType         // TSDB_DATA_TYPE_GEOMETRY
+    tColDataCalcSMAVarType,         // TSDB_DATA_TYPE_GEOMETRY
+    tColDataCalcSMADecimal64Type,  // TSDB_DATA_TYPE_DECIMAL64
 };
 
 // SValueColumn ================================

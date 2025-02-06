@@ -51,7 +51,7 @@ else()
         util
         PUBLIC os common
         PUBLIC lz4_static pcre2-8
-        PUBLIC api cjson geos_c TSZ
+        PUBLIC api cjson geos_c TSZ decimal
     )
 endif()
 

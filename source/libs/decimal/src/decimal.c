@@ -234,10 +234,7 @@ static Decimal64 SCALE_MULTIPLIER_64[TSDB_DECIMAL64_MAX_PRECISION + 1] = {1LL,
                                                                           10000000000000000LL,
                                                                           100000000000000000LL,
                                                                           1000000000000000000LL};
-
-static const Decimal64 decimal64Zero = {0};
 #define DECIMAL64_ONE  SCALE_MULTIPLIER_64[0]
-#define DECIMAL64_ZERO decimal64Zero
 
 #define DECIMAL64_GET_MAX(precision, pMax)                                \
   do {                                                                    \
@@ -339,6 +336,7 @@ static SDecimalOps* getDecimalOpsImp(DecimalInternalType t) {
       return NULL;
   }
 }
+// TODO wjm const??
 SDecimalOps* getDecimalOps(int8_t dataType) { return getDecimalOpsImp(DECIMAL_GET_INTERNAL_TYPE(dataType)); }
 
 void makeDecimal64(Decimal64* pDec64, int64_t w) { DECIMAL64_SET_VALUE(pDec64, w); }
@@ -431,16 +429,8 @@ int32_t decimal64ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32
   return 0;
 }
 
-// TODO wjm handle endian problem
-#define DECIMAL128_LOW_WORD(pDec)           (uint64_t)((pDec)->words[0])
-#define DECIMAL128_SET_LOW_WORD(pDec, val)  (pDec)->words[0] = val
-#define DECIMAL128_HIGH_WORD(pDec)          (int64_t)((pDec)->words[1])
-#define DECIMAL128_SET_HIGH_WORD(pDec, val) *(int64_t*)((pDec)->words + 1) = val
 // return 1 if positive or zero, else return -1
 #define DECIMAL128_SIGN(pDec) (1 | (DECIMAL128_HIGH_WORD(pDec) >> 63))
-
-// TODO wjm handle endian problem
-#define DEFINE_DECIMAL128(lo, hi) {lo, hi}
 
 static const Decimal128 SCALE_MULTIPLIER_128[TSDB_DECIMAL128_MAX_PRECISION + 1] = {
     DEFINE_DECIMAL128(1LL, 0),
@@ -497,12 +487,6 @@ static double getDoubleScaleMultiplier(uint8_t scale) {
   return SCALE_MULTIPLIER_DOUBLE[scale];
 };
 
-static const Decimal128 decimal128Zero = DEFINE_DECIMAL128(0, 0);
-static const Decimal128 decimal128Two = DEFINE_DECIMAL128(2, 0);
-static const Decimal128 decimal128Max = DEFINE_DECIMAL128(687399551400673280ULL - 1, 5421010862427522170LL);
-
-#define DECIMAL128_ZERO decimal128Zero
-#define DECIMAL128_MAX  decimal128Max
 #define DECIMAL128_ONE  SCALE_MULTIPLIER_128[0]
 #define DECIMAL128_TEN  SCALE_MULTIPLIER_128[1]
 
@@ -1013,7 +997,28 @@ static int32_t decimal64FromUint64(DecimalType* pDec, uint8_t prec, uint8_t scal
   return 0;
 }
 
-static int32_t decimal64FromDouble(DecimalType* pDec, uint8_t prec, uint8_t scale, double val) { return 0; }
+static int32_t decimal64FromDouble(DecimalType* pDec, uint8_t prec, uint8_t scale, double val) {
+  double unscaled = val * getDoubleScaleMultiplier(scale);
+  if (isnan(unscaled)) {
+    goto _OVERFLOW;
+  }
+  unscaled = round(unscaled);
+
+  bool negative = unscaled < 0 ? true : false;
+  double abs = TABS(unscaled);
+  if (abs > ldexp(1.0, 63) - 1) {
+    goto _OVERFLOW;
+  }
+
+  uint64_t result = (uint64_t)abs;
+  makeDecimal64(pDec, result);
+  if (negative) decimal64Negate(pDec);
+  return 0;
+
+_OVERFLOW:
+  makeDecimal64(pDec, 0);
+  return TSDB_CODE_DECIMAL_OVERFLOW;
+}
 
 static int32_t decimal64FromDecimal128(DecimalType* pDec, uint8_t prec, uint8_t scale, const DecimalType* pVal,
                                        uint8_t valPrec, uint8_t valScale) {

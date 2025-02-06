@@ -90,6 +90,9 @@ int32_t compareLenBinaryVal(const void *pLeft, const void *pRight);
 int32_t compareDecimal64(const void* pleft, const void* pright);
 int32_t compareDecimal128(const void* pleft, const void* pright);
 
+int32_t compareDecimal64SameScale(const void* pleft, const void* pright);
+int32_t compareDecimal128SameScale(const void* pleft, const void* pright);
+
 int32_t comparestrRegexMatch(const void *pLeft, const void *pRight);
 int32_t comparestrRegexNMatch(const void *pLeft, const void *pRight);
 
