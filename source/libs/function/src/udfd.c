@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef TD_UDF
 // clang-format off
 #include "uv.h"
 #include "os.h"
@@ -1865,3 +1866,5 @@ _exit:
 
   return code;
 }
+
+#endif

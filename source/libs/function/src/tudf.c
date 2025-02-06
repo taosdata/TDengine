@@ -12,6 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifdef TD_UDF
 #include "uv.h"
 
 #include "os.h"
@@ -2323,3 +2324,5 @@ _exit:
 
   return code;
 }
+
+#endif

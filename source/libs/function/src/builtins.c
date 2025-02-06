@@ -4354,6 +4354,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = NULL,
     .finalizeFunc = NULL
   },
+  #ifdef TD_GEOS
   {
     .name = "st_geomfromtext",
     .type = FUNCTION_TYPE_GEOM_FROM_TEXT,
@@ -4543,6 +4544,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = containsProperlyFunction,
     .finalizeFunc = NULL
   },
+#endif
   {
     .name = "_tbuid",
     .type = FUNCTION_TYPE_TBUID,
