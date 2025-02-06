@@ -18,7 +18,6 @@ elseif(${BUILD_WITH_COS})
         file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.1/)
         cat("${TD_SUPPORT_DIR}/mxml_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
         cat("${TD_SUPPORT_DIR}/apr_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
-        cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
     endif(${BUILD_WITH_COS})
 
     configure_file(${CONTRIB_TMP_FILE3} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
@@ -149,9 +148,7 @@ endif(${BUILD_WITH_SQLITE})
 
 # s3
 if(${BUILD_WITH_S3})
-    cat("${TD_SUPPORT_DIR}/ssl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/xml2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-    cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/libs3_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/azure_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     add_definitions(-DUSE_S3)
@@ -184,6 +181,13 @@ if(${BUILD_GEOS})
     include("${TD_SUPPORT_DIR}/geos_CMakeLists.txt.in")
 endif()
 
+# libcurl
+if(NOT ${TD_WINDOWS})
+    file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
+    cat("${TD_SUPPORT_DIR}/ssl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(NOT ${TD_WINDOWS})
+
 #
 if(${BUILD_PCRE2})
     include("${TD_SUPPORT_DIR}/pcre2_CMakeLists.txt.in")
@@ -199,6 +203,11 @@ endif()
 
 # lemon
 include("${TD_SUPPORT_DIR}/lemon_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+
+# Force specify CC=cc on MacOS. Because the default CC setting in the generated Makefile has issues finding standard library headers
+IF(${TD_DARWIN})
+    SET(CONTRIB_CONFIG_ENV "CC=cc")
+ENDIF()
 
 # download dependencies
 configure_file(${CONTRIB_TMP_FILE} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
