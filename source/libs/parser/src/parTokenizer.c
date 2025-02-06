@@ -358,6 +358,7 @@ static SKeyword keywordTable[] = {
     {"NOTIFY",               TK_NOTIFY},
     {"ON_FAILURE",           TK_ON_FAILURE},
     {"NOTIFY_HISTORY",       TK_NOTIFY_HISTORY},
+    {"REGEXP",               TK_REGEXP},
 };
 // clang-format on
 
