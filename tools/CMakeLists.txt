@@ -1,3 +1,33 @@
+macro(create_taosws_rs_project)
+    include(ExternalProject)
+    ExternalProject_Add(taosws-rs
+        PREFIX "taosws-rs"
+        SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
+        BUILD_ALWAYS off
+        DEPENDS ${TAOS_LIB}
+        BUILD_IN_SOURCE 1
+        CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
+        UPDATE_DISCONNECTED 0
+        UPDATE_COMMAND
+            COMMAND echo "Starting to switch branch"
+            COMMAND git fetch origin && git checkout -f origin/main 
+            COMMAND echo "Switched to the main branch successfully"
+        PATCH_COMMAND
+            COMMAND git clean -f -d
+        BUILD_COMMAND
+            COMMAND cargo update
+            COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static cargo build --release -p taos-ws-sys --features rustls
+        INSTALL_COMMAND
+            # set different copy command for different platform
+            $<$<BOOL:${TD_ALPINE}>:COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib>
+            $<$<BOOL:${TD_WINDOWS}>:COMMAND cp target/release/taosws.dll ${CMAKE_BINARY_DIR}/build/lib>
+            $<$<BOOL:${TD_WINDOWS}>:COMMAND cp target/release/taosws.dll.lib ${CMAKE_BINARY_DIR}/build/lib/taosws.lib>
+            $<$<NOT:$<OR:$<BOOL:${TD_ALPINE}>,$<BOOL:${TD_WINDOWS}>>>:COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib>
+            COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
+            COMMAND cmake -E copy target/release/taosws.h ${CMAKE_BINARY_DIR}/build/include
+    )
+endmacro()
+
 IF(TD_WEBSOCKET)
     IF(TD_LINUX)
         SET(websocket_lib_file "libtaosws.so")
@@ -6,68 +36,17 @@ IF(TD_WEBSOCKET)
     ENDIF()
 
     MESSAGE("${Green} use libtaos-ws${ColourReset}")
+    MESSAGE("TD_ALPINE value: ${TD_ALPINE}")
+    MESSAGE("TAOS_LIB value: ${TAOS_LIB}")
 
     IF(TD_ALPINE)
-        include(ExternalProject)
-        ExternalProject_Add(taosws-rs
-            PREFIX "taosws-rs"
-            SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
-            BUILD_ALWAYS off
-            DEPENDS ${TAOS_LIB}
-            BUILD_IN_SOURCE 1
-            CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
-            PATCH_COMMAND
-            COMMAND git clean -f -d
-            BUILD_COMMAND
-            COMMAND cargo update
-            COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static cargo build --release -p taos-ws-sys --features rustls
-            INSTALL_COMMAND
-            COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
-            COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
-            COMMAND cmake -E copy target/release/taosws.h ${CMAKE_BINARY_DIR}/build/include
-        )
+        create_taosws_rs_project()
     ELSEIF(TD_WINDOWS)
-        include(ExternalProject)
-        ExternalProject_Add(taosws-rs
-            PREFIX "taosws-rs"
-            SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
-            BUILD_ALWAYS off
-            DEPENDS ${TAOS_LIB}
-            BUILD_IN_SOURCE 1
-            CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
-            PATCH_COMMAND
-            COMMAND git clean -f -d
-            BUILD_COMMAND
-            COMMAND cargo update
-            COMMAND cargo build --release -p taos-ws-sys --features rustls
-            INSTALL_COMMAND
-            COMMAND cp target/release/taosws.dll ${CMAKE_BINARY_DIR}/build/lib
-            COMMAND cp target/release/taosws.dll.lib ${CMAKE_BINARY_DIR}/build/lib/taosws.lib
-            COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
-            COMMAND cmake -E copy target/release/taosws.h ${CMAKE_BINARY_DIR}/build/include
-        )
+        create_taosws_rs_project()
     ELSE()
-        include(ExternalProject)
-        ExternalProject_Add(taosws-rs
-            PREFIX "taosws-rs"
-            SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
-            BUILD_ALWAYS off
-            DEPENDS ${TAOS_LIB}
-            BUILD_IN_SOURCE 1
-            CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
-            PATCH_COMMAND
-            COMMAND git clean -f -d
-            BUILD_COMMAND
-            COMMAND cargo update
-            COMMAND cargo build --release -p taos-ws-sys --features rustls
-            INSTALL_COMMAND
-            COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
-            COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
-            COMMAND cmake -E copy target/release/taosws.h ${CMAKE_BINARY_DIR}/build/include
-        )
+        create_taosws_rs_project()
     ENDIF()
 ENDIF()
-
 IF(TD_TAOS_TOOLS)
     INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/tools/taos_tools/deps/avro/lang/c/src)
     INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/client)
