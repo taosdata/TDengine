@@ -74,7 +74,7 @@ enum {
 #define JT_PRINTF (void)printf
 
 #define COL_DISPLAY_WIDTH 18
-#define JT_MAX_LOOP       100000
+#define JT_MAX_LOOP       200000
 
 #define LEFT_BLK_ID       0
 #define RIGHT_BLK_ID      1
@@ -243,7 +243,7 @@ void printResRow(char* value, int32_t type) {
     int32_t slot = jtCtx.resColInSlot[i];
     if (0 == type && ((jtCtx.leftColOnly && slot >= MAX_SLOT_NUM) ||
         (jtCtx.rightColOnly && slot < MAX_SLOT_NUM))) {
-      ("%18s", " ");
+      JT_PRINTF("%18s", " ");
       continue;
     }
     
@@ -1774,6 +1774,10 @@ void putMatchRowToRes(char* lrow, char* rrow, int32_t cols) {
     if (cols & LEFT_TABLE_COLS) {
       for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
         if (jtCtx.resColList[c]) {
+          if (jtCtx.rightColOnly) {
+            continue;
+          }
+
           if (*(bool*)(lrow + c)) {
             *(bool*)(jtCtx.resColBuf + c) = true;
           } else {
@@ -1786,6 +1790,9 @@ void putMatchRowToRes(char* lrow, char* rrow, int32_t cols) {
     if (cols & RIGHT_TABLE_COLS) {
       for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
         if (jtCtx.resColList[MAX_SLOT_NUM + c]) {
+          if (jtCtx.leftColOnly) {
+            continue;
+          }
           if (*(bool*)(rrow + c)) {
             *(bool*)(jtCtx.resColBuf + MAX_SLOT_NUM + c) = true;
           } else {
@@ -2961,6 +2968,10 @@ void jtAppendEqHashGroupResRows(SArray* pRightBlkList, SSDataBlock* pLeftBlk, in
     if (appendNum) {
       (*appendNum)++;
     }
+
+    if (JOIN_STYPE_SEMI == jtCtx.subType) {
+      break;
+    }
   }
 }
 
@@ -3021,6 +3032,27 @@ void jtHashLeftJoinAppendResRows(SArray* pRightBlkList, SSDataBlock* pBlk, int32
   }
 }
 
+void jtHashSemiJoinAppendResRows(SArray* pRightBlkList, SSDataBlock* pBlk, int32_t blkIdx, SSHashObj* pHash, char* keyBuf, int32_t rowIdx, bool nmatch) {
+  int32_t appendNum = 0;
+
+  if (!nmatch) {
+    if (!*(bool*)keyBuf) {
+      SArray** p = (SArray**)tSimpleHashGet(pHash, keyBuf, jtCtx.colEqHashKeySize);
+      if (NULL != p) {
+        jtAppendEqHashGroupResRows(pRightBlkList, pBlk, rowIdx, *p, &appendNum);
+        if (appendNum > 0) {
+          return;
+        }
+      } else {
+        qDebug("row [%d:%d] in left block not matched in hash", blkIdx, rowIdx);
+      }
+    } else {
+      qDebug("row [%d:%d] in left block not matched cause of NULL value", blkIdx, rowIdx);
+    }
+  }
+}
+
+
 
 void jtHashJoinAppendResRows(SArray* pRightBlkList, SSDataBlock* pBlk, int32_t blkIdx, SSHashObj* pHash, char* keyBuf, int32_t rowIdx, bool nmatch) {
   switch (jtCtx.joinType) {
@@ -3033,6 +3065,7 @@ void jtHashJoinAppendResRows(SArray* pRightBlkList, SSDataBlock* pBlk, int32_t b
           jtHashLeftJoinAppendResRows(pRightBlkList, pBlk, blkIdx, pHash, keyBuf, rowIdx, nmatch);
           break;
         case JOIN_STYPE_SEMI:
+          jtHashSemiJoinAppendResRows(pRightBlkList, pBlk, blkIdx, pHash, keyBuf, rowIdx, nmatch);
           break;
         case JOIN_STYPE_ANTI:
           break;
@@ -3552,15 +3585,28 @@ void printStatInfo(char* caseName) {
   
 }
 
+void printResKey(char* info, char* key, int32_t len) {
+  char tmp[256] = {0};
+  int32_t n = 0;
+  for (int32_t i = 0; i < len; ++i) {
+    n += sprintf(&tmp[n], "%02X ", (uint8_t)key[i]);
+  }
+  
+  qDebug("%s: len:%d, value:[%s]", info, len, tmp);
+}
+
 void checkJoinDone(char* caseName) {
   int32_t iter = 0;
   void* p = NULL;
   void* key = NULL;
+  size_t klen = 0;
   if (!jtCtrl.noKeepResRows) {
     while (NULL != (p = tSimpleHashIterate(jtCtx.jtResRows, p, &iter))) {
-      key = tSimpleHashGetKey(p, NULL);
+      key = tSimpleHashGetKey(p, &klen);
       jtRes.succeed = false;
       jtRes.subRowNum += *(int32_t*)p;
+      printResKey("missed expected key info", (char*)key, klen);
+      
       for (int32_t i = 0; i < *(int32_t*)p; ++i) {
         printResRow((char*)key, 0);
       }
@@ -3633,6 +3679,8 @@ void checkJoinRes(SSDataBlock* pBlock) {
       
       char* value = (char*)tSimpleHashGet(jtCtx.jtResRows, jtCtx.resColBuf, jtCtx.resColSize);
       if (NULL == value) {
+        printResKey("nmatched actual key info", jtCtx.resColBuf, jtCtx.resColSize);
+
         putRowToResColBuf(pBlock, r, false);
         printResRow(jtCtx.resColBuf, 1);
         jtRes.succeed = false;
@@ -3640,6 +3688,7 @@ void checkJoinRes(SSDataBlock* pBlock) {
         continue;
       }
 
+      printResKey("matched key info", jtCtx.resColBuf, jtCtx.resColSize);
       rmResRow();
       
       putRowToResColBuf(pBlock, r, false);
@@ -3766,6 +3815,7 @@ void jtLaunchJoin(SSDataBlock** ppBlk) {
   int32_t ret = setjmp(jtCtx.env);
   assert(TSDB_CODE_SUCCESS == ret);
 
+  qDebug("New join start to run");
   int32_t code = jtCtx.pJoinOp->fpSet.getNextFn(jtCtx.pJoinOp, ppBlk);
   assert(TSDB_CODE_SUCCESS == code);
 }
@@ -4672,7 +4722,7 @@ TEST(hInnerJoin, fullCondTest) {
 #endif
 #endif
 
-#if 1
+#if 0
 #if 1
 TEST(hLeftOuterJoin, eqCondTest) {
   SJoinTestParam param;
@@ -4710,6 +4760,63 @@ TEST(hLeftOuterJoin, fullCondTest) {
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
   param.subType = JOIN_STYPE_OUTER;
+  param.cond = TEST_FULL_COND;
+  param.asc = true;
+  param.grpJoin = false;
+  
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
+    param.filter = false;
+    runSingleHJoinTest(caseName, &param);
+
+    param.filter = true;
+    runSingleHJoinTest(caseName, &param);
+  }
+  
+  printStatInfo(caseName);   
+  taosMemoryFree(pTask);
+}
+#endif
+#endif
+
+#if 1
+#if 1
+TEST(hLeftSemiJoin, eqCondTest) {
+  SJoinTestParam param;
+  char* caseName = "hLeftSemiJoin:eqCondTest";
+  SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
+
+  param.pTask = pTask;
+  param.joinType = JOIN_TYPE_LEFT;
+  param.subType = JOIN_STYPE_SEMI;
+  param.cond = TEST_EQ_COND;
+  param.asc = true;
+  param.grpJoin = false;
+  
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+    param.asc = !param.asc;
+    param.filter = false;
+    runSingleHJoinTest(caseName, &param);
+
+    param.filter = true;
+    runSingleHJoinTest(caseName, &param);
+  }
+  
+  printStatInfo(caseName); 
+  taosMemoryFree(pTask);
+}
+#endif
+
+
+#if 1
+TEST(hLeftSemiJoin, fullCondTest) {
+  SJoinTestParam param;
+  char* caseName = "hLeftSemiJoin:fullCondTest";
+  SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
+
+  param.pTask = pTask;
+  param.joinType = JOIN_TYPE_LEFT;
+  param.subType = JOIN_STYPE_SEMI;
   param.cond = TEST_FULL_COND;
   param.asc = true;
   param.grpJoin = false;

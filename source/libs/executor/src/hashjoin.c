@@ -91,7 +91,7 @@ int32_t hInnerJoinDo(struct SOperatorInfo* pOperator) {
   return code;
 }
 
-int32_t hLeftJoinHandleSeqRowRemains(struct SOperatorInfo* pOperator, SHJoinOperatorInfo* pJoin, bool* loopCont) {
+int32_t hLeftJoinHandleSeqRemainBuildRows(struct SOperatorInfo* pOperator, SHJoinOperatorInfo* pJoin, bool* loopCont) {
   bool allFetched = false;
   SHJoinCtx* pCtx = &pJoin->ctx;
   
@@ -226,7 +226,7 @@ int32_t hLeftJoinHandleSeqProbeRows(struct SOperatorInfo* pOperator, SHJoinOpera
 }
 
 
-int32_t hLeftJoinHandleRowRemains(struct SOperatorInfo* pOperator, SHJoinOperatorInfo* pJoin, bool* loopCont) {
+int32_t hLeftJoinHandleRemainBuildRows(struct SOperatorInfo* pOperator, SHJoinOperatorInfo* pJoin, bool* loopCont) {
   bool allFetched = false;
   SHJoinCtx* pCtx = &pJoin->ctx;
   
@@ -336,7 +336,7 @@ int32_t hLeftJoinDo(struct SOperatorInfo* pOperator) {
         if (NULL == pJoin->ctx.pBuildRow) {
           HJ_ERR_RET(pJoin->pPreFilter ? hLeftJoinHandleSeqProbeRows(pOperator, pJoin, &loopCont) : hLeftJoinHandleProbeRows(pOperator, pJoin, &loopCont));
         } else {
-          HJ_ERR_RET(pJoin->pPreFilter ? hLeftJoinHandleSeqRowRemains(pOperator, pJoin, &loopCont) : hLeftJoinHandleRowRemains(pOperator, pJoin, &loopCont));
+          HJ_ERR_RET(pJoin->pPreFilter ? hLeftJoinHandleSeqRemainBuildRows(pOperator, pJoin, &loopCont) : hLeftJoinHandleRemainBuildRows(pOperator, pJoin, &loopCont));
         }
 
         if (!loopCont) {
@@ -369,4 +369,126 @@ int32_t hLeftJoinDo(struct SOperatorInfo* pOperator) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t hSemiJoinHandleSeqProbeRows(struct SOperatorInfo* pOperator, SHJoinOperatorInfo* pJoin) {
+  SHJoinTableCtx* pProbe = pJoin->pProbe;
+  SHJoinCtx* pCtx = &pJoin->ctx;
+  size_t bufLen = 0;
+  bool allFetched = false;
+
+  if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
+    goto _return;
+  }
+
+  for (; pCtx->probeStartIdx <= pCtx->probeEndIdx; ++pCtx->probeStartIdx) {
+    if (hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen)) {
+      continue;
+    }
+    
+    SGroupData* pGroup = tSimpleHashGet(pJoin->pKeyHash, pProbe->keyData, bufLen);
+/*
+    size_t keySize = 0;
+    int32_t* pKey = tSimpleHashGetKey(pGroup, &keySize);
+    A S S E R T(keySize == bufLen && 0 == memcmp(pKey, pProbe->keyData, bufLen));
+    int64_t rows = getSingleKeyRowsNum(pGroup->rows);
+    pJoin->execInfo.expectRows += rows;    
+    qTrace("hash_key:%d, rows:%" PRId64, *pKey, rows);
+*/
+
+    if (NULL == pGroup) {
+      continue;
+    }
+    
+    pCtx->pBuildRow = pGroup->rows;
+    allFetched = false;
+
+    while (!allFetched) {
+      hJoinAppendResToBlock(pOperator, pJoin->midBlk, &allFetched);
+      if (pJoin->midBlk->info.rows > 0) {
+        HJ_ERR_RET(mJoinFilterAndKeepSingleRow(pJoin->midBlk, pJoin->pPreFilter));
+        if (pJoin->midBlk->info.rows > 0) {
+          HJ_ERR_RET(hJoinCopyMergeMidBlk(pCtx, &pJoin->midBlk, &pJoin->finBlk));
+          ASSERT(!pCtx->midRemains);
+          pCtx->pBuildRow = NULL;
+          break;
+        }
+      }
+    }
+
+    if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
+      ++pCtx->probeStartIdx;
+    
+      goto _return;
+    }
+  }
+
+_return:
+
+  pCtx->rowRemains = (pCtx->probeStartIdx <= pCtx->probeEndIdx);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t hSemiJoinHandleProbeRows(struct SOperatorInfo* pOperator, SHJoinOperatorInfo* pJoin) {
+  SHJoinTableCtx* pProbe = pJoin->pProbe;
+  SHJoinCtx* pCtx = &pJoin->ctx;
+  size_t bufLen = 0;
+  bool allFetched = false;
+
+  if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
+    goto _return;
+  }
+
+  for (; pCtx->probeStartIdx <= pCtx->probeEndIdx; ++pCtx->probeStartIdx) {
+    if (hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen)) {
+      continue;
+    }
+    
+    SGroupData* pGroup = tSimpleHashGet(pJoin->pKeyHash, pProbe->keyData, bufLen);
+/*
+    size_t keySize = 0;
+    int32_t* pKey = tSimpleHashGetKey(pGroup, &keySize);
+    A S S E R T(keySize == bufLen && 0 == memcmp(pKey, pProbe->keyData, bufLen));
+    int64_t rows = getSingleKeyRowsNum(pGroup->rows);
+    pJoin->execInfo.expectRows += rows;    
+    qTrace("hash_key:%d, rows:%" PRId64, *pKey, rows);
+*/
+
+    if (NULL == pGroup) {
+      continue;
+    }
+    
+    pCtx->pBuildRow = pGroup->rows;
+    if (pCtx->pBuildRow->next) {
+      qError("semi join got more than one row in group");
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    
+    allFetched = false;
+    hJoinAppendResToBlock(pOperator, pJoin->finBlk, &allFetched);
+
+    if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
+      ++pCtx->probeStartIdx;
+    
+      goto _return;
+    }
+  }
+
+_return:
+
+  pCtx->rowRemains = (pCtx->probeStartIdx <= pCtx->probeEndIdx);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t hSemiJoinDo(struct SOperatorInfo* pOperator) {
+  SHJoinOperatorInfo* pJoin = pOperator->info;
+  SHJoinCtx* pCtx = &pJoin->ctx;
+
+  HJ_ERR_RET(pJoin->pPreFilter ? hSemiJoinHandleSeqProbeRows(pOperator, pJoin) : hSemiJoinHandleProbeRows(pOperator, pJoin));
+
+  return TSDB_CODE_SUCCESS;
+}
+
 

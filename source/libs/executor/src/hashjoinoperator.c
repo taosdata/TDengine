@@ -103,6 +103,9 @@ int32_t hJoinSetImplFp(SHJoinOperatorInfo* pJoin) {
         case JOIN_STYPE_OUTER:          
           pJoin->joinFp = hLeftJoinDo;
           break;
+        case JOIN_STYPE_SEMI:
+          pJoin->joinFp = hSemiJoinDo;
+          break;
         default:
           qError("Not supported join type, type:%d, subType:%d", pJoin->joinType, pJoin->subType);
           code = TSDB_CODE_QRY_INVALID_PLAN;
@@ -818,6 +821,8 @@ static int32_t hJoinAddRowToHashImpl(SHJoinOperatorInfo* pJoin, SGroupData* pGro
       return terrno;
     }
     pRow = group.rows;
+  } else if (pJoin->ctx.grpSingleRow) {
+    return TSDB_CODE_SUCCESS;
   } else {
     pRow = taosMemoryMalloc(sizeof(SBufRowInfo));
     if (NULL == pRow) {
@@ -991,7 +996,7 @@ static int32_t hJoinPrepareStart(struct SOperatorInfo* pOperator, SSDataBlock* p
   SHJoinTableCtx* pProbe = pJoin->pProbe;
   int32_t startIdx = 0, endIdx = pBlock->info.rows - 1;
   if (pProbe->hasTimeRange && !hJoinFilterTimeRange(&pJoin->ctx, pBlock, &pJoin->tblTimeRange, pProbe->primCol->srcSlot, &startIdx, &endIdx)) {
-    if (!IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType)) {
+    if (IS_NEED_NMATCH_JOIN(pJoin->joinType, pJoin->subType)) {
       pJoin->ctx.probeEndIdx = -1;
       pJoin->ctx.probePostIdx = 0;
       pJoin->ctx.pProbeData = pBlock;
@@ -1023,7 +1028,7 @@ static int32_t hJoinPrepareStart(struct SOperatorInfo* pOperator, SSDataBlock* p
   pJoin->ctx.probePreIdx = 0;
   pJoin->ctx.probePostIdx = endIdx + 1;
 
-  if (!IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType) && startIdx > 0) {
+  if (IS_NEED_NMATCH_JOIN(pJoin->joinType, pJoin->subType) && startIdx > 0) {
     pJoin->ctx.probePhase = E_JOIN_PHASE_PRE;
   } else {
     pJoin->ctx.probePhase = E_JOIN_PHASE_CUR;
@@ -1235,6 +1240,17 @@ int32_t hJoinInitResBlocks(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinN
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t hJoinInitJoinCtx(SHJoinCtx* pCtx, SHashJoinPhysiNode* pJoinNode) {
+  pCtx->limit = pJoinNode->node.pLimit ? ((SLimitNode*)pJoinNode->node.pLimit)->limit : INT64_MAX;
+  if (pJoinNode->node.inputTsOrder != ORDER_DESC) {
+    pCtx->ascTs = true;
+  }
+
+  pCtx->grpSingleRow = (NULL == pJoinNode->pFullOnCond) && (JOIN_STYPE_SEMI == pJoinNode->subType || JOIN_STYPE_ANTI == pJoinNode->subType);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                            SHashJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -1249,11 +1265,8 @@ int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDow
 
   pInfo->tblTimeRange.skey = pJoinNode->timeRange.skey;
   pInfo->tblTimeRange.ekey = pJoinNode->timeRange.ekey;
-  
-  pInfo->ctx.limit = pJoinNode->node.pLimit ? ((SLimitNode*)pJoinNode->node.pLimit)->limit : INT64_MAX;
-  if (pJoinNode->node.inputTsOrder != ORDER_DESC) {
-    pInfo->ctx.ascTs = true;
-  }
+
+  HJ_ERR_JRET(hJoinInitJoinCtx(&pInfo->ctx, pJoinNode));
 
   setOperatorInfo(pOperator, "HashJoinOperator", QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN, false, OP_NOT_OPENED, pInfo, pTaskInfo);
 
