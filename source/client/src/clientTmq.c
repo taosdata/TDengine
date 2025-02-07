@@ -1308,13 +1308,13 @@ static void doUpdateLocalEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) 
 static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
   SMqAskEpCbParam* pParam = (SMqAskEpCbParam*)param;
   if (pParam == NULL) {
-    goto FAIL;
+    goto _ERR;
   }
 
   tmq_t* tmq = taosAcquireRef(tmqMgmt.rsetId, pParam->refId);
   if (tmq == NULL) {
     code = TSDB_CODE_TMQ_CONSUMER_CLOSED;
-    goto FAIL;
+    goto _ERR;
   }
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -1370,7 +1370,7 @@ static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
-  FAIL:
+  _ERR:
   if (pParam && pParam->sync) {
     SAskEpInfo* pInfo = pParam->pParam;
     if (pInfo) {

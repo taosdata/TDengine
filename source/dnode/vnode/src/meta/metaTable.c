@@ -171,14 +171,15 @@ int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchem
   indexMultiTermDestroy(terms);
 
   taosArrayDestroy(pTagVals);
-#endif
   return code;
 _exception:
   indexMultiTermDestroy(terms);
   taosArrayDestroy(pTagVals);
+#endif
   return code;
 }
 int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema) {
+int32_t code = 0;
 #ifdef USE_INVERTED_INDEX
   if (pMeta->pTagIvtIdx == NULL || pCtbEntry == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -192,7 +193,7 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
   int32_t     nTagData = 0;
 
   SArray *pTagVals = NULL;
-  int32_t code = tTagToValArray((const STag *)data, &pTagVals);
+  code = tTagToValArray((const STag *)data, &pTagVals);
   if (code) {
     return code;
   }
@@ -253,11 +254,11 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
   code = indexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
   indexMultiTermDestroy(terms);
   taosArrayDestroy(pTagVals);
-#endif
   return code;
 _exception:
   indexMultiTermDestroy(terms);
   taosArrayDestroy(pTagVals);
+#endif
   return code;
 }
 
@@ -272,7 +273,7 @@ void metaTimeSeriesNotifyCheck(SMeta *pMeta) {
       }
     }
   }
-#endif
+#endif 
 }
 
 static int32_t metaDropTables(SMeta *pMeta, SArray *tbUids) {

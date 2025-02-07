@@ -72,7 +72,7 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
   code = startRsync();
   if (code != 0) {
     terrno = code;
-    goto FAIL;
+    goto _ERR;
   }
 
   pSnode->msgCb = pOption->msgCb;
@@ -80,13 +80,13 @@ SSnode *sndOpen(const char *path, const SSnodeOpt *pOption) {
                         taosGetTimestampMs(), tqStartTaskCompleteCallback, &pSnode->pMeta);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
-    goto FAIL;
+    goto _ERR;
   }
 
   streamMetaLoadAllTasks(pSnode->pMeta);
   return pSnode;
 
-FAIL:
+_ERR:
   taosMemoryFree(pSnode);
   return NULL;
 }
