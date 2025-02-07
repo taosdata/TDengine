@@ -1,6 +1,6 @@
 
 # taosws-rs
-set(TAOSWS_RS_GIT_TAG "main")
+set(TAOSWS_RS_GIT_TAG "origin/main")
 ExternalProject_Add(taosws-rs
         GIT_REPOSITORY https://github.com/taosdata/taos-connector-rust.git
         GIT_TAG ${TAOSWS_RS_GIT_TAG}
