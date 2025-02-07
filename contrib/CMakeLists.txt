@@ -140,6 +140,13 @@ if(${BUILD_WITH_SQLITE})
     cat("${TD_SUPPORT_DIR}/sqlite_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_WITH_SQLITE})
 
+# libcurl
+if(NOT ${TD_WINDOWS})
+    file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
+    cat("${TD_SUPPORT_DIR}/ssl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(NOT ${TD_WINDOWS})
+
 # s3
 if(${BUILD_WITH_S3})
     cat("${TD_SUPPORT_DIR}/xml2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -174,13 +181,6 @@ endif(${BUILD_ADDR2LINE})
 if(${BUILD_GEOS})
     cat("${TD_SUPPORT_DIR}/geos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
-
-# libcurl
-if(NOT ${TD_WINDOWS})
-    file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
-    cat("${TD_SUPPORT_DIR}/ssl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-    cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif(NOT ${TD_WINDOWS})
 
 #
 if(${BUILD_PCRE2})
