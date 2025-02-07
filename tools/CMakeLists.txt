@@ -60,10 +60,13 @@ IF(TD_WEBSOCKET)
             DEPENDS ${TAOS_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
+            UPDATE_DISCONNECTED 0
+            UPDATE_COMMAND
+                COMMAND echo "Starting to switch branch"
+                COMMAND git checkout -f origin/main || (echo "Failed to switch to the main branch" && exit 1)
+                COMMAND echo "Switched to the main branch successfully"
             PATCH_COMMAND
-            COMMAND echo "Starting PATCH_COMMAND: Cleaning working directory"
-            COMMAND git clean -f -d && git checkout -f origin/main || (echo "Failed to switch to the main branch" && exit 1)
-
+            COMMAND git clean -f -d
             BUILD_COMMAND
             COMMAND cargo update
             COMMAND cargo build --release -p taos-ws-sys --features rustls
