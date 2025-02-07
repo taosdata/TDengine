@@ -20,11 +20,11 @@ tdDnodes1 = TDDnodes()
 tdDnodes2 = TDDnodes()
 
 if __name__ == "__main__":
-    args = sys.argv[1:]
-    
-    insertData = False
-    if len(sys.argv[1:]) == 1:
-        insertData = True
+    if len(sys.argv[1:]) != 1:
+        print("Usage: python3 taosx-performance.py [path of taosx]")
+        sys.exit(1)
+
+    taosx = sys.argv[1]
 
     if not os.path.isdir("taosx-perf"):
         os.system("mkdir taosx-perf")
@@ -46,13 +46,11 @@ if __name__ == "__main__":
     os.system("taos -c ./dnode1/sim/dnode1/cfg -s \"drop topic if exists test\"")
     os.system("taos -c ./dnode2/sim/dnode1/cfg -s \"drop database if exists test\"")
     os.system("taos -c ./dnode2/sim/dnode1/cfg -s \"create database test vgroups 8\"")
-    if insertData :
-        os.system("taosBenchmark -f ../taosx-performance.json")
+    os.system("taosBenchmark -f ../taosx-performance.json")
 
-    print("create test in dst")
-
-    print("start to run taosx")
-    os.system("flamegraph -o raw.svg -- taosx run -f \"tmq://root:taosdata@localhost:6030/test?group.id=taosx-new-`date +%s`&timeout=50s&experimental.snapshot.enable=false&auto.offset.reset=earliest&prefer=raw\" -t \"taos://root:taosdata@localhost:7030/test\" > /dev/null 2>&1 &")
+    cmd = f"flamegraph -o raw.svg -- {taosx} run -f \"tmq://root:taosdata@localhost:6030/test?group.id=taosx-new-`date +%s`&timeout=1s&experimental.snapshot.enable=false&auto.offset.reset=earliest&prefer=raw\" -t \"taos://root:taosdata@localhost:7030/test\""
+    print("taosx start to run:%s" % cmd)
+    os.system(cmd)
     # os.system("taosx run -f \"tmq://root:taosdata@localhost:6030/test?group.id=taosx-new-`date +%s`&timeout=50s&experimental.snapshot.enable=false&auto.offset.reset=earliest&prefer=raw\" -t \"taos://root:taosdata@localhost:7030/test\" > /dev/null 2>&1 &")
     # time.sleep(10)
 
@@ -61,4 +59,4 @@ if __name__ == "__main__":
 
     #os.system("perf script | ./stackcollapse-perf.pl| ./flamegraph.pl > flame.svg")
 
-    tdLog.info("Procedures for tdengine deployed in")
+    tdLog.info("taosx stop")
