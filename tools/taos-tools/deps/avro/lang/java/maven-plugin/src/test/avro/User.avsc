@@ -1,0 +1,45 @@
+{
+    "type": "record", 
+    "namespace": "test",
+    "name": "SchemaUser",
+    "doc": "User Test Bean",
+    "fields": [
+        {
+            "name": "id", 
+            "type": ["null", "string"],
+            "default": null
+        },
+        {
+            "name": "createdOn", 
+            "type": ["null", "long"],
+            "default": null
+        },
+        {
+            "name": "privacy", 
+            "type": ["null", { 
+                    "type": "enum",
+                    "name": "SchemaPrivacy",
+                    "namespace": "test",
+                    "symbols" : ["Public","Private"]
+                }],
+            "default": null
+        },
+        {
+            "name": "privacyImported", 
+            "type": ["null", "test.PrivacyImport"],
+            "default": null
+        },
+        {
+            "name": "privacyDirectImport", 
+            "type": ["null", "test.PrivacyDirectImport"],
+            "default": null
+        },
+        {
+            "name": "time",
+            "type": {
+                "type": "long",
+                "logicalType": "timestamp-millis"
+            }
+        }
+    ]
+}
