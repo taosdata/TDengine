@@ -1193,6 +1193,7 @@ static void destroyStreamDataScanOperatorInfo(void* param) {
   taosMemoryFree(pStreamScan);
 }
 
+#if 0
 static int32_t doStreamScanTest(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
@@ -1247,6 +1248,7 @@ _end:
   }
   return code;
 }
+#endif
 
 int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
                                          STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
