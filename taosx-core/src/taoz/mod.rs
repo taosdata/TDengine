@@ -90,6 +90,7 @@ impl ZFile {
         Self::file_name((self.name.0.as_str(), self.name.1, self.name.2, self.name.3))
     }
 
+    /// 根据 topic, timestamp, vg_id, index 生成文件名。注意：timestamp 的秒和纳秒部分都会被忽略
     fn file_name(name: (&str, Option<DateTime<Utc>>, i32, u64)) -> String {
         let ts = match name.1 {
             None => Utc::now()
@@ -521,8 +522,21 @@ pub async fn is_taos_valid(dsn: &Dsn) -> DataSourceValidation {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeZone;
     use std::str::FromStr;
     use std::sync::Arc;
+
+    /// 两次备份任务的间隔时间必须大于 1 分钟，否则会导致文件名相同
+    #[test]
+    fn test_file_name() {
+        let ts = Utc.with_ymd_and_hms(2021, 8, 27, 12, 0, 0).unwrap();
+        let name = ZFile::file_name(("abc", Some(ts), 1, 1));
+        assert_eq!("abc-1630065600-1-1.z", name);
+
+        let ts = Utc.with_ymd_and_hms(2021, 8, 27, 12, 0, 33).unwrap();
+        let name = ZFile::file_name(("abc", Some(ts), 1, 1));
+        assert_eq!("abc-1630065600-1-1.z", name);
+    }
 
     #[tokio::test]
     async fn test_parse_file_name() {
