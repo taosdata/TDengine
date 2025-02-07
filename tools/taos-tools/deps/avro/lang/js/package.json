@@ -48,7 +48,7 @@
     "coveralls": "^3.1.0",
     "istanbul": "^0.4.5",
     "jshint": "^2.12.0",
-    "mocha": "^6.2.3",
+    "mocha": "^11.1.0",
     "tmp": "^0.0.28"
   },
   "noAnalyze": true,
