@@ -7557,9 +7557,13 @@ static int32_t partitionDeleteWhere(STranslateContext* pCxt, SDeleteStmt* pDelet
   }
   if (TSDB_CODE_SUCCESS == code) {
     bool isStrict = false;
-    code = getTimeRange(&pPrimaryKeyCond, &pDelete->timeRange, &isStrict);
-    if (TSDB_CODE_SUCCESS == code && !isStrict) {
-      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DELETE_WHERE);
+    if (NULL != pPrimaryKeyCond) {
+      code = getTimeRange(&pPrimaryKeyCond, &pDelete->timeRange, &isStrict);
+      if (TSDB_CODE_SUCCESS == code && !isStrict) {
+        code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DELETE_WHERE);
+      }
+    } else {
+      pDelete->timeRange = TSWINDOW_INITIALIZER;
     }
   }
   nodesDestroyNode(pPrimaryKeyCond);
