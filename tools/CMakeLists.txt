@@ -5,7 +5,10 @@ IF(TD_WEBSOCKET)
         SET(websocket_lib_file "libtaosws.dylib")
     ENDIF()
 
-    MESSAGE("${Green} ${TD_ALPINE} use libtaos-ws${ColourReset}")
+    MESSAGE("${Green} use libtaos-ws${ColourReset}")
+    MESSAGE("TD_ALPINE value: ${TD_ALPINE}")
+    MESSAGE("TAOS_LIB value: ${TAOS_LIB}")
+    MESSAGE(STATUS "SOURCE_DIR value: ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs")
 
     IF(TD_ALPINE)
         include(ExternalProject)   
@@ -19,7 +22,6 @@ IF(TD_WEBSOCKET)
             PATCH_COMMAND
             COMMAND echo "Starting PATCH_COMMAND: Cleaning working directory"
             COMMAND git clean -f -d && git checkout -f origin/main || (echo "Failed to switch to the main branch" && exit 1)
-            COMMAND echo "Finished cleaning, now switching to main branch"
 
             BUILD_COMMAND
             COMMAND cargo update
