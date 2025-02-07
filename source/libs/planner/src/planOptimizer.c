@@ -2142,6 +2142,14 @@ static int32_t pdcTrivialPushDown(SOptimizeContext* pCxt, SLogicNode* pLogicNode
   return code;
 }
 
+static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode* pVScan) {
+  // TODO: remove it after full implementation of pushing down to child
+  if (1 != LIST_LENGTH(pVScan->node.pChildren) || 0 != LIST_LENGTH(pVScan->pScanPseudoCols)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return pdcTrivialPushDown(pCxt, (SLogicNode*)pVScan);
+}
+
 static int32_t pdcOptimizeImpl(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pLogicNode)) {
@@ -2160,6 +2168,9 @@ static int32_t pdcOptimizeImpl(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
     case QUERY_NODE_LOGIC_PLAN_SORT:
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
       code = pdcTrivialPushDown(pCxt, pLogicNode);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
+      code = pdcDealVirtualTable(pCxt, (SVirtualScanLogicNode*)pLogicNode);
       break;
     default:
       break;
