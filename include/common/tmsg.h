@@ -4503,6 +4503,7 @@ typedef struct {
     SArray* aCol;
   };
   int64_t ctimeMs;
+  SArray* aBlowRow;
 } SSubmitTbData;
 
 typedef struct {
