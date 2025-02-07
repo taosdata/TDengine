@@ -2186,6 +2186,18 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   return code;
 }
 
+static int8_t schemaHasBlob(STSchema* pSchema) {
+  if (pSchema == NULL) {
+    return 0;
+  }
+  for (int i = 0; i < pSchema->numOfCols; ++i) {
+    if (pSchema->columns[i].type == TSDB_DATA_TYPE_BLOB || pSchema->columns[i].type == TSDB_DATA_TYPE_MEDIUMBLOB ||
+        pSchema->columns[i].type == TSDB_DATA_TYPE_BINARY) {
+      return 1;
+    }
+  }
+  return 0;
+}
 static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataCxt* pTableCxt, bool* pGotRow,
                        SToken* pToken) {
   SBoundColInfo* pCols = &pTableCxt->boundColsInfo;

@@ -293,6 +293,8 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
         if (NULL == pTableCxt->pData->aRowP) {
           code = terrno;
         }
+
+        pTableCxt->pData->aRowP = taosArrayInit(128, POINTER_BYTES);
       }
     }
   }
