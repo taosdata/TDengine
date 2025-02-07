@@ -63,7 +63,7 @@ IF(TD_WEBSOCKET)
             UPDATE_DISCONNECTED 0
             UPDATE_COMMAND
                 COMMAND echo "Starting to switch branch"
-                COMMAND git checkout -f origin/main || (echo "Failed to switch to the main branch" && exit 1)
+                COMMAND git fetch origin && git checkout -f origin/main 
                 COMMAND echo "Switched to the main branch successfully"
             PATCH_COMMAND
             COMMAND git clean -f -d
