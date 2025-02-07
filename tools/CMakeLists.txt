@@ -9,6 +9,11 @@ IF(TD_WEBSOCKET)
 
     IF(TD_ALPINE)
         include(ExternalProject)
+        set(CHECK_BRANCH_COMMAND
+            COMMAND git -C "${TAOSWS_RS_SOURCE_DIR}/taos-ws" rev-parse --abbrev-ref HEAD
+            COMMAND git -C "${TAOSWS_RS_SOURCE_DIR}/taos-ws" fetch origin
+            COMMAND git -C "${TAOSWS_RS_SOURCE_DIR}/taos-ws" checkout main || (echo "Failed to switch to branch main" && exit 1)
+        )        
         ExternalProject_Add(taosws-rs
             PREFIX "taosws-rs"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
@@ -18,6 +23,7 @@ IF(TD_WEBSOCKET)
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
             PATCH_COMMAND
             COMMAND git clean -f -d
+            UPDATE_COMMAND ${CHECK_BRANCH_COMMAND}
             BUILD_COMMAND
             COMMAND cargo update
             COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static cargo build --release -p taos-ws-sys --features rustls
