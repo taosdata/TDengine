@@ -50,6 +50,13 @@ FROM foo
 ANOMALY_WINDOW(foo.i32, "algo=shesd,direction=both,anoms=0.05")
 ```
 
+后续待添加异常检测算法
+- Gaussian Process Regression
+
+基于变点检测的异常检测算法  
+- CUSUM (Cumulative Sum Control Chart)
+- PELT (Pruned Exact Linear Time)
+
 ### 参考文献
 1. [https://en.wikipedia.org/wiki/68–95–99.7 rule](https://en.wikipedia.org/wiki/68%E2%80%9395%E2%80%9399.7_rule)
 2. https://en.wikipedia.org/wiki/Interquartile_range

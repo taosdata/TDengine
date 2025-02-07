@@ -323,7 +323,7 @@ int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
     return TSDB_CODE_INVALID_MSG;
   }
 
-  EQItype  itype = APPLY_QUEUE == qtype ? DEF_QITEM : RPC_QITEM;
+  EQItype  itype = APPLY_QUEUE == qtype ? APPLY_QITEM : RPC_QITEM;
   SRpcMsg *pMsg;
   code = taosAllocateQitem(sizeof(SRpcMsg), itype, pRpc->contLen, (void **)&pMsg);
   if (code) {
