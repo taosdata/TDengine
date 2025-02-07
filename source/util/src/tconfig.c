@@ -109,10 +109,40 @@ int32_t cfgUpdateFromArray(SConfig *pCfg, SArray *pArgs) {
       (void)taosThreadMutexUnlock(&pCfg->lock);
       TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
     }
-    code = cfgSetItemVal(pItemOld, pItemNew->name, pItemNew->str, pItemNew->stype);
-    if (code != 0) {
-      (void)taosThreadMutexUnlock(&pCfg->lock);
-      TAOS_RETURN(code);
+    switch (pItemNew->dtype) {
+      case CFG_DTYPE_BOOL:
+        pItemOld->bval = pItemNew->bval;
+        break;
+      case CFG_DTYPE_INT32:
+        pItemOld->i32 = pItemNew->i32;
+        break;
+      case CFG_DTYPE_INT64:
+        pItemOld->i64 = pItemNew->i64;
+        break;
+      case CFG_DTYPE_FLOAT:
+      case CFG_DTYPE_DOUBLE:
+        pItemOld->fval = pItemNew->fval;
+        break;
+      case CFG_DTYPE_STRING:
+      case CFG_DTYPE_DIR:
+        taosMemoryFree(pItemOld->str);
+        pItemOld->str = taosStrdup(pItemNew->str);
+        if (pItemOld->str == NULL) {
+          (void)taosThreadMutexUnlock(&pCfg->lock);
+          TAOS_RETURN(terrno);
+        }
+        break;
+      case CFG_DTYPE_LOCALE:
+      case CFG_DTYPE_CHARSET:
+      case CFG_DTYPE_TIMEZONE:
+        code = cfgSetItemVal(pItemOld, pItemNew->name, pItemNew->str, pItemNew->stype);
+        if (code != TSDB_CODE_SUCCESS) {
+          (void)taosThreadMutexUnlock(&pCfg->lock);
+          TAOS_RETURN(code);
+        }
+        break;
+      default:
+        break;
     }
 
     (void)taosThreadMutexUnlock(&pCfg->lock);
