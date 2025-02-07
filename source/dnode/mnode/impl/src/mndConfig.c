@@ -251,7 +251,7 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   configRsp.cver = vObj->i32;
   if (configRsp.forceReadConfig) {
     // compare config array from configReq with current config array
-    if (compareSConfigItemArrays(pMnode->pSdb, configReq.array, array)) {
+    if (compareSConfigItemArrays(pMnode, configReq.array, array)) {
       configRsp.array = array;
     } else {
       configRsp.isConifgVerified = 1;
