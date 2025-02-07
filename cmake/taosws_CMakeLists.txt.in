@@ -11,13 +11,4 @@ ExternalProject_Add(taosws-rs
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
         TEST_COMMAND ""
-        # Fix: Exit if branch checkout fails
-        UPDATE_COMMAND "
-                cd ${TD_SOURCE_DIR}/tools/taosws-rs &&
-                git checkout -f ${TAOSWS_RS_GIT_TAG}
-                if [ $(git rev-parse --abbrev-ref HEAD) != '${TAOSWS_RS_GIT_TAG}' ]; then
-                echo 'Failed to switch to branch ${TAOSWS_RS_GIT_TAG} in ${TD_SOURCE_DIR}/tools/taosws-rs';
-                exit 1;
-                fi
-        "
 )
