@@ -229,8 +229,8 @@ TEST_F(StreamTest, kill_checkpoint_trans) {
 
   pStream->uid = defStreamId;
   pStream->lock = 0;
-  pStream->tasks = taosArrayInit(1, POINTER_BYTES);
-  pStream->pHTasksList = taosArrayInit(1, POINTER_BYTES);
+  pStream->pTaskList = taosArrayInit(1, POINTER_BYTES);
+  pStream->pHTaskList = taosArrayInit(1, POINTER_BYTES);
 
   SArray* pLevel = taosArrayInit(1, POINTER_BYTES);
   SStreamTask* pTask = static_cast<SStreamTask*>(taosMemoryCalloc(1, sizeof(SStreamTask)));

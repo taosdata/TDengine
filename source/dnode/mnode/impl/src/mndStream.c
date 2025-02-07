@@ -581,11 +581,11 @@ int32_t mndPersistStreamTasks(STrans *pTrans, SStreamObj *pStream) {
   destroyStreamTaskIter(pIter);
 
   // persistent stream task for already stored ts data
-  if (pStream->conf.fillHistory) {
-    int32_t level = taosArrayGetSize(pStream->pHTasksList);
+  if (pStream->conf.fillHistory || (pStream->conf.trigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE)) {
+    int32_t level = taosArrayGetSize(pStream->pHTaskList);
 
     for (int32_t i = 0; i < level; i++) {
-      SArray *pLevel = taosArrayGetP(pStream->pHTasksList, i);
+      SArray *pLevel = taosArrayGetP(pStream->pHTaskList, i);
 
       int32_t numOfTasks = taosArrayGetSize(pLevel);
       for (int32_t j = 0; j < numOfTasks; j++) {
@@ -796,9 +796,9 @@ static int32_t addStreamNotifyInfo(SCMCreateStreamReq *createReq, SStreamObj *pS
     goto _end;
   }
 
-  level = taosArrayGetSize(pStream->tasks);
+  level = taosArrayGetSize(pStream->pTaskList);
   for (int32_t i = 0; i < level; ++i) {
-    pLevel = taosArrayGetP(pStream->tasks, i);
+    pLevel = taosArrayGetP(pStream->pTaskList, i);
     nTasks = taosArrayGetSize(pLevel);
     for (int32_t j = 0; j < nTasks; ++j) {
       code = addStreamTaskNotifyInfo(createReq, pStream, taosArrayGetP(pLevel, j));
@@ -807,9 +807,9 @@ static int32_t addStreamNotifyInfo(SCMCreateStreamReq *createReq, SStreamObj *pS
   }
 
   if (pStream->conf.fillHistory && createReq->notifyHistory) {
-    level = taosArrayGetSize(pStream->pHTasksList);
+    level = taosArrayGetSize(pStream->pHTaskList);
     for (int32_t i = 0; i < level; ++i) {
-      pLevel = taosArrayGetP(pStream->pHTasksList, i);
+      pLevel = taosArrayGetP(pStream->pHTaskList, i);
       nTasks = taosArrayGetSize(pLevel);
       for (int32_t j = 0; j < nTasks; ++j) {
         code = addStreamTaskNotifyInfo(createReq, pStream, taosArrayGetP(pLevel, j));
@@ -1178,9 +1178,9 @@ static int32_t mndProcessStreamCheckpointTrans(SMnode *pMnode, SStreamObj *pStre
   pStream->currentTick = 1;
 
   // 1. redo action: broadcast checkpoint source msg for all source vg
-  int32_t totalLevel = taosArrayGetSize(pStream->tasks);
+  int32_t totalLevel = taosArrayGetSize(pStream->pTaskList);
   for (int32_t i = 0; i < totalLevel; i++) {
-    SArray      *pLevel = taosArrayGetP(pStream->tasks, i);
+    SArray      *pLevel = taosArrayGetP(pStream->pTaskList, i);
     SStreamTask *p = taosArrayGetP(pLevel, 0);
 
     if (p->info.taskLevel == TASK_LEVEL__SOURCE) {

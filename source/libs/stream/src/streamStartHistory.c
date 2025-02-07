@@ -157,14 +157,19 @@ int32_t streamTaskOnNormalTaskReady(SStreamTask* pTask) {
 int32_t streamTaskOnScanHistoryTaskReady(SStreamTask* pTask) {
   // set the state to be ready
   int32_t code = streamTaskSetReady(pTask);
-  if (code == 0) {
-    code = streamTaskSetRangeStreamCalc(pTask);
-  }
 
-  if (code == 0) {
-    SStreamTaskState p = streamTaskGetStatus(pTask);
-    stDebug("s-task:%s fill-history task enters into scan-history data stage, status:%s", pTask->id.idStr, p.name);
-    code = streamTaskStartScanHistory(pTask);
+  if (pTask->info.fillHistory == STREAM_RECALCUL_TASK) {
+    // if this task is used as the recalculate task, do nothing
+  } else {
+    if (code == 0) {
+      code = streamTaskSetRangeStreamCalc(pTask);
+    }
+
+    if (code == 0) {
+      SStreamTaskState p = streamTaskGetStatus(pTask);
+      stDebug("s-task:%s fill-history task enters into scan-history data stage, status:%s", pTask->id.idStr, p.name);
+      code = streamTaskStartScanHistory(pTask);
+    }
   }
 
   // NOTE: there will be a deadlock if launch fill history here.
@@ -191,7 +196,7 @@ int32_t streamSetParamForStreamScannerStep2(SStreamTask* pTask, SVersionRange* p
   return qStreamSourceScanParamForHistoryScanStep2(pTask->exec.pExecutor, pVerRange, pWindow);
 }
 
-// an fill history task needs to be started.
+// A fill history task needs to be started.
 int32_t streamLaunchFillHistoryTask(SStreamTask* pTask) {
   SStreamMeta*         pMeta = pTask->pMeta;
   STaskExecStatisInfo* pExecInfo = &pTask->execInfo;
@@ -261,19 +266,26 @@ void checkFillhistoryTaskStatus(SStreamTask* pTask, SStreamTask* pHTask) {
   // the query version range should be limited to the already processed data
   pHTask->execInfo.checkTs = taosGetTimestampMs();
 
-  if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-    stDebug("s-task:%s set the launch condition for fill-history s-task:%s, window:%" PRId64 " - %" PRId64
-            " verRange:%" PRId64 " - %" PRId64 ", init:%" PRId64,
-            pTask->id.idStr, pHTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer,
-            pRange->range.maxVer, pHTask->execInfo.checkTs);
-  } else {
-    stDebug("s-task:%s no fill-history condition for non-source task:%s", pTask->id.idStr, pHTask->id.idStr);
-  }
+  if (pHTask->info.fillHistory == STREAM_HISTORY_TASK) {
+    if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+      stDebug("s-task:%s set the launch condition for fill-history s-task:%s, window:%" PRId64 " - %" PRId64
+              " verRange:%" PRId64 " - %" PRId64 ", init:%" PRId64,
+              pTask->id.idStr, pHTask->id.idStr, pRange->window.skey, pRange->window.ekey, pRange->range.minVer,
+              pRange->range.maxVer, pHTask->execInfo.checkTs);
+    } else {
+      stDebug("s-task:%s no fill-history condition for non-source task:%s", pTask->id.idStr, pHTask->id.idStr);
+    }
 
-  // check if downstream tasks have been ready
-  int32_t code = streamTaskHandleEvent(pHTask->status.pSM, TASK_EVENT_INIT_SCANHIST);
-  if (code) {
-    stError("s-task:%s handle event init_scanhist failed", pTask->id.idStr);
+    int32_t code = streamTaskHandleEvent(pHTask->status.pSM, TASK_EVENT_INIT_SCANHIST);
+    if (code) {
+      stError("s-task:%s rel hist task:%s handle event init_scanhist failed", pTask->id.idStr, pHTask->id.idStr);
+    }
+  } else { // check if downstream tasks have been ready
+    stDebug("s-task:%s start rel recalculate task:%s, handle event init", pTask->id.idStr, pHTask->id.idStr);
+    int32_t code = streamTaskHandleEvent(pHTask->status.pSM, TASK_EVENT_INIT);
+    if (code) {
+      stError("s-task:%s rel hist task:%s handle event init failed", pTask->id.idStr, pHTask->id.idStr);
+    }
   }
 }
 

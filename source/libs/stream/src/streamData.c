@@ -340,23 +340,23 @@ int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t interv
   return code;
 }
 
-int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger) {
+int32_t streamCreateTriggerBlock(SStreamTrigger** pTrigger, int32_t type, int32_t blockType) {
   QRY_PARAM_CHECK(pTrigger);
-  SStreamTrigger* p = NULL;
 
-  int32_t code = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0, (void**)&p);
+  SStreamTrigger* p = NULL;
+  int32_t         code = taosAllocateQitem(sizeof(SStreamTrigger), DEF_QITEM, 0, (void**)&p);
   if (code) {
     return code;
   }
 
-  p->type = STREAM_INPUT__GET_RES;
+  p->type = (int8_t) type;
   p->pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (p->pBlock == NULL) {
     taosFreeQitem(p);
     return terrno;
   }
 
-  p->pBlock->info.type = STREAM_GET_ALL;
+  p->pBlock->info.type = blockType;
   *pTrigger = p;
   return code;
 }

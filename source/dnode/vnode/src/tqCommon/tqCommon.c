@@ -797,13 +797,11 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   }
 
   pMeta->startInfo.startAllTasks = 1;
-  streamMetaWUnLock(pMeta);
 
   terrno = 0;
   tqInfo("vgId:%d tasks are all updated and stopped, restart all tasks, triggered by transId:%d, ts:%" PRId64, vgId,
          pMeta->updateInfo.completeTransId, pMeta->updateInfo.completeTs);
 
-  streamMetaWLock(pMeta);
   streamMetaClear(pMeta);
 
   int64_t el = taosGetTimestampMs() - st;

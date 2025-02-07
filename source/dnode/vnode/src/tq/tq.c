@@ -1036,7 +1036,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   // the following procedure should be executed, no matter status is stop/pause or not
   tqDebug("s-task:%s scan-history(step 1) ended, elapsed time:%.2fs", id, pTask->execInfo.step1El);
 
-  if (pTask->info.fillHistory != 1) {
+  if (pTask->info.fillHistory != STREAM_HISTORY_TASK) {
     tqError("s-task:%s fill-history is disabled, unexpected", id);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }

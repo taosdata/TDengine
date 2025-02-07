@@ -553,9 +553,15 @@ typedef struct STaskUpdateEntry {
   int32_t transId;
 } STaskUpdateEntry;
 
+typedef enum {
+  STREAM_NORMAL_TASK = 0,
+  STREAM_HISTORY_TASK = 1,
+  STREAM_RECALCUL_TASK = 2,
+} EStreamTaskType;
+
 typedef int32_t (*__state_trans_user_fn)(SStreamTask*, void* param);
 
-int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool fillHistory, int32_t trigger,
+int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, EStreamTaskType type, int32_t trigger,
                        int64_t triggerParam, SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5,
                        SStreamTask** pTask);
 void    tFreeStreamTask(void* pTask);
