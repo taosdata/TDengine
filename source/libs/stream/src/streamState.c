@@ -692,8 +692,8 @@ int32_t streamStateTsDataCommit(STableTsDataState* pState) {
   return  doRangeDataCommit(pState);
 }
 
-int32_t streamStateInitTsDataState(STableTsDataState* pTsDataState, int8_t pkType, int32_t pkLen, void* pState) {
-  return initTsDataState(pTsDataState, pkType, pkLen, pState);
+int32_t streamStateInitTsDataState(STableTsDataState** ppTsDataState, int8_t pkType, int32_t pkLen, void* pState) {
+  return initTsDataState(ppTsDataState, pkType, pkLen, pState);
 }
 
 void streamStateDestroyTsDataState(STableTsDataState* pTsDataState) {
@@ -771,3 +771,10 @@ int32_t streamStateSessionDeleteAll(SStreamState* pState) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t streamStateSetRecFlag(SStreamState* pState, const SWinKey* pKey, int32_t mode) {
+  return setStateRecFlag(pState->pFileState, pKey, mode);
+}
+
+int32_t streamStateGetRecFlag(SStreamState* pState, const SWinKey* pKey, int32_t* pMode) {
+  return getStateRecFlag(pState->pFileState, pKey, pMode);
+}

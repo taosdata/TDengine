@@ -30,6 +30,9 @@ int32_t createFinalIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNo
 int32_t createSemiIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                              SReadHandle* pHandle, SOperatorInfo** ppOptInfo);
 int32_t copyNewResult(SSHashObj** ppWinUpdated, SArray* pUpdated, __compar_fn_t compar);
+int32_t copyRecDataToBuff(TSKEY calStart, TSKEY calEnd, uint64_t uid, uint64_t version, EStreamType mode,
+                          const SColumnInfoData* pPkColDataInfo, int32_t rowId, SRecDataInfo* pValueBuff,
+                          int32_t buffLen);
 
 #ifdef __cplusplus
 }

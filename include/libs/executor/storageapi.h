@@ -425,6 +425,8 @@ typedef struct SStateStore {
   int32_t (*streamStateGetKVByCur)(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 
   void (*streamStateClearExpiredState)(SStreamState* pState, int32_t numOfKeep, TSKEY minTs);
+  int32_t (*streamStateSetRecFlag)(SStreamState* pState, const SWinKey* pKey, int32_t mode);
+  int32_t (*streamStateGetRecFlag)(SStreamState* pState, const SWinKey* pKey, int32_t* pMode);
 
   int32_t (*streamStateSessionAddIfNotExist)(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal,
                                              int32_t* pVLen, int32_t* pWinCode);
@@ -497,7 +499,7 @@ typedef struct SStateStore {
   int32_t (*streamStateGetAndSetTsData)(STableTsDataState* pState, uint64_t tableUid, TSKEY* pCurTs, void** ppCurPkVal,
                                         TSKEY lastTs, void* pLastPkVal, int32_t lastPkLen, int32_t* pWinCode);
   int32_t (*streamStateTsDataCommit)(STableTsDataState* pState);
-  int32_t (*streamStateInitTsDataState)(STableTsDataState* pTsDataState, int8_t pkType, int32_t pkLen, void* pState);
+  int32_t (*streamStateInitTsDataState)(STableTsDataState** ppTsDataState, int8_t pkType, int32_t pkLen, void* pState);
   void (*streamStateDestroyTsDataState)(STableTsDataState* pTsDataState);
   int32_t (*streamStateRecoverTsData)(STableTsDataState* pTsDataState);
   int32_t (*streamStateReloadTsDataState)(STableTsDataState* pTsDataState);

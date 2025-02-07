@@ -159,7 +159,7 @@ int32_t getAndSetTsData(STableTsDataState* pTsDataState, uint64_t tableUid, TSKE
                         TSKEY lastTs, void* pLastPkVal, int32_t lastPkLen, int32_t* pWinCode);
 int32_t doTsDataCommit(STableTsDataState* pTsDataState);
 int32_t doRangeDataCommit(STableTsDataState* pTsDataState);
-int32_t initTsDataState(STableTsDataState* pTsDataState, int8_t pkType, int32_t pkLen, void* pState);
+int32_t initTsDataState(STableTsDataState** ppTsDataState, int8_t pkType, int32_t pkLen, void* pState);
 void destroyTsDataState(STableTsDataState* pTsDataState);
 int32_t recoverTsData(STableTsDataState* pTsDataState);
 int32_t mergeAndSaveScanRange(STableTsDataState* pTsDataState, STimeWindow* pWin, uint64_t gpId, SRecDataInfo* pRecData, int32_t len);
@@ -173,6 +173,8 @@ void moveOneStateCurNext(SStreamStateCur* pCur);
 int32_t getLastStateKVByCur(SStreamStateCur* pCur, void** ppVal);
 int32_t getNLastStateKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes);
 int32_t reloadTsDataState(STableTsDataState* pTsDataState);
+int32_t setStateRecFlag(SStreamFileState* pState, const SWinKey* pKey, int32_t mode);
+int32_t getStateRecFlag(SStreamFileState* pFileState, const SWinKey* pKey, int32_t* pMode);
 
 #ifdef __cplusplus
 }

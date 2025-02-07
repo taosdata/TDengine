@@ -55,7 +55,7 @@ static int32_t getMaxTsKeyInfo(SStreamScanInfo* pInfo, SSDataBlock* pBlock, TSKE
     lastPkLen = colDataGetRowLength(pPkColDataInfo, pBlock->info.rows - 1);
   }
 
-  code = pInfo->stateStore.streamStateGetAndSetTsData(&pInfo->tsDataState, pBlock->info.id.uid, pCurTs, ppPkVal,
+  code = pInfo->stateStore.streamStateGetAndSetTsData(pInfo->basic.pTsDataState, pBlock->info.id.uid, pCurTs, ppPkVal,
                                                       pBlock->info.window.ekey, pLastPkVal, lastPkLen, pWinCode);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -66,9 +66,9 @@ _end:
   return code;
 }
 
-static int32_t copyRecDataToBuff(TSKEY calStart, TSKEY calEnd, uint64_t uid, uint64_t version, EStreamType mode,
-                                 const SColumnInfoData* pPkColDataInfo, int32_t rowId, SRecDataInfo* pValueBuff,
-                                 int32_t buffLen) {
+int32_t copyRecDataToBuff(TSKEY calStart, TSKEY calEnd, uint64_t uid, uint64_t version, EStreamType mode,
+                          const SColumnInfoData* pPkColDataInfo, int32_t rowId, SRecDataInfo* pValueBuff,
+                          int32_t buffLen) {
   pValueBuff->calWin.skey = calStart;
   pValueBuff->calWin.ekey = calEnd;
   pValueBuff->tableUid = uid;
@@ -114,9 +114,9 @@ static int32_t saveRecalculateData(SStreamScanInfo* pInfo, SSDataBlock* pSrcBloc
       calEnd = srcEndTsCol[i];
     }
     int32_t     len = copyRecDataToBuff(calStart, calEnd, srcUidData[i], pSrcBlock->info.version, mode, NULL, 0,
-                                        pInfo->tsDataState.pRecValueBuff, pInfo->tsDataState.recValueLen);
-    code = pInfo->stateStore.streamStateSessionSaveToDisk(pInfo->tsDataState.pState, &key,
-                                                          pInfo->tsDataState.pRecValueBuff, len);
+                                        pInfo->basic.pTsDataState->pRecValueBuff, pInfo->basic.pTsDataState->recValueLen);
+    code = pInfo->stateStore.streamStateSessionSaveToDisk(pInfo->basic.pTsDataState->pState, &key,
+                                                          pInfo->basic.pTsDataState->pRecValueBuff, len);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -137,10 +137,10 @@ static void buildRecalculateDataSnapshort(SStreamScanInfo* pInfo, SExecTaskInfo*
     return;
   }
 
-  int32_t recID = pInfo->stateStore.streamStateGetNumber(pInfo->tsDataState.pState);
+  int32_t recID = pInfo->stateStore.streamStateGetNumber(pInfo->basic.pTsDataState->pState);
   pInfo->stateStore.streamStateSaveInfo(pTaskInfo->streamInfo.pState, STREAM_DATA_SCAN_OP_REC_ID_NAME,
                                         strlen(STREAM_DATA_SCAN_OP_REC_ID_NAME), &recID, sizeof(int32_t));
-  pInfo->stateStore.streamStateSetNumber(pInfo->tsDataState.pState, recID + 1, pInfo->primaryTsIndex);
+  pInfo->stateStore.streamStateSetNumber(pInfo->basic.pTsDataState->pState, recID + 1, pInfo->primaryTsIndex);
 }
 
 static int32_t getRecalculateId(SStateStore* pStateStore, void* pState, int32_t* pRecId) {
@@ -169,11 +169,11 @@ static int32_t deleteRecalculateDataSnapshort(SStreamScanInfo* pInfo, SExecTaskI
   pInfo->stateStore.streamStateDeleteInfo(pTaskInfo->streamInfo.pState, STREAM_DATA_SCAN_OP_REC_ID_NAME,
                                           strlen(STREAM_DATA_SCAN_OP_REC_ID_NAME));
 
-  int32_t curID = pInfo->stateStore.streamStateGetNumber(pInfo->tsDataState.pState);
-  pInfo->stateStore.streamStateSetNumber(pInfo->tsDataState.pState, prevRecId, pInfo->primaryTsIndex);
-  pInfo->stateStore.streamStateSessionDeleteAll(pInfo->tsDataState.pState);
+  int32_t curID = pInfo->stateStore.streamStateGetNumber(pInfo->basic.pTsDataState->pState);
+  pInfo->stateStore.streamStateSetNumber(pInfo->basic.pTsDataState->pState, prevRecId, pInfo->primaryTsIndex);
+  pInfo->stateStore.streamStateSessionDeleteAll(pInfo->basic.pTsDataState->pState);
 
-  pInfo->stateStore.streamStateSetNumber(pInfo->tsDataState.pState, curID, pInfo->primaryTsIndex);
+  pInfo->stateStore.streamStateSetNumber(pInfo->basic.pTsDataState->pState, curID, pInfo->primaryTsIndex);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -239,12 +239,16 @@ static int32_t doStreamBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
         QUERY_CHECK_CODE(code, lino, _end);
         code = rebuildDeleteBlockData(pInfo->pDeleteDataRes, &pStreamInfo->fillHistoryWindow, GET_TASKID(pTaskInfo));
         QUERY_CHECK_CODE(code, lino, _end);
-        if (pInfo->pDeleteDataRes->info.rows > 0) {
-          printSpecDataBlock(pInfo->pDeleteDataRes, getStreamOpName(pOperator->operatorType), "delete recv filtered",
-                             GET_TASKID(pTaskInfo));
-          saveRecalculateData(pInfo, pInfo->pDeleteDataRes, STREAM_DELETE_DATA);
+        if (pInfo->pDeleteDataRes->info.rows == 0) {
+          continue;
         }
-        continue;
+        printSpecDataBlock(pInfo->pDeleteDataRes, getStreamOpName(pOperator->operatorType), "delete recv filtered",
+                           GET_TASKID(pTaskInfo));
+        if (isHistoryOperator(&pInfo->basic)) {
+          saveRecalculateData(pInfo, pInfo->pDeleteDataRes, STREAM_DELETE_DATA);
+          continue;
+        }
+        (*ppRes) = pInfo->pDeleteDataRes;
       } break;
       case STREAM_DROP_CHILD_TABLE: {
         int32_t deleteNum = 0;
@@ -298,7 +302,7 @@ _end:
 }
 
 // data
-static int32_t buildRecalculateData(SSDataBlock* pSrcBlock, TSKEY* pTsCol, SColumnInfoData* pPkColDataInfo, int32_t num,
+static int32_t buildAndSaveRecalculateData(SSDataBlock* pSrcBlock, TSKEY* pTsCol, SColumnInfoData* pPkColDataInfo, int32_t num,
                                     SPartitionBySupporter* pParSup, SExprSupp* pPartScalarSup, SStateStore* pStateStore,
                                     STableTsDataState* pTsDataState) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -316,6 +320,30 @@ static int32_t buildRecalculateData(SSDataBlock* pSrcBlock, TSKEY* pTsCol, SColu
                               STREAM_DELETE_DATA, NULL, 0, pTsDataState->pRecValueBuff,
                               pTsDataState->recValueLen);
       code = pStateStore->streamStateSessionSaveToDisk(pTsDataState->pState, &key, pTsDataState->pRecValueBuff, len);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t buildRecalculateData(SSDataBlock* pSrcBlock, TSKEY* pTsCol, SColumnInfoData* pPkColDataInfo,
+                                    SSDataBlock* pDestBlock, int32_t num, SPartitionBySupporter* pParSup,
+                                    SExprSupp* pPartScalarSup) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  blockDataEnsureCapacity(pDestBlock, num);
+  for (int32_t rowId = 0; rowId < num; rowId++) {
+    uint64_t gpId = 0;
+    code = appendPkToSpecialBlock(pDestBlock, pTsCol, pPkColDataInfo, rowId, &pSrcBlock->info.id.uid, &gpId, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (pParSup->needCalc) {
+      gpId = calGroupIdByData(pParSup, pPartScalarSup, pSrcBlock, rowId);
+      code = appendPkToSpecialBlock(pDestBlock, pTsCol, pPkColDataInfo, rowId, &pSrcBlock->info.id.uid, &gpId, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -446,8 +474,13 @@ static int32_t doStreamWALScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
                 ", block start key:%" PRId64 ", end key:%" PRId64,
                 GET_TASKID(pTaskInfo), num, pInfo->pRes->info.id.uid, curTs, pInfo->pRes->info.window.skey,
                 pInfo->pRes->info.window.ekey);
-          code = buildRecalculateData(pInfo->pRes, (TSKEY*)pTsCol->pData, pPkColDataInfo, num, &pInfo->partitionSup,
-                                      pInfo->pPartScalarSup, &pInfo->stateStore, &pInfo->tsDataState);
+          if (isHistoryOperator(&pInfo->basic)) {
+            code = buildAndSaveRecalculateData(pInfo->pRes, (TSKEY*)pTsCol->pData, pPkColDataInfo, num, &pInfo->partitionSup,
+                                        pInfo->pPartScalarSup, &pInfo->stateStore, pInfo->basic.pTsDataState);
+          } else {
+            code = buildRecalculateData(pInfo->pRes, (TSKEY*)pTsCol->pData, pPkColDataInfo, pInfo->pUpdateRes, num,
+                                        &pInfo->partitionSup, pInfo->pPartScalarSup);
+          }
           QUERY_CHECK_CODE(code, lino, _end);
           code = blockDataTrimFirstRows(pInfo->pRes, num);
           QUERY_CHECK_CODE(code, lino, _end);
@@ -502,7 +535,7 @@ void streamDataScanOperatorSaveCheckpoint(SStreamScanInfo* pInfo) {
   int32_t lino = 0;
 
   if (needSaveStreamOperatorInfo(&pInfo->basic)) {
-    pInfo->stateStore.streamStateTsDataCommit(&pInfo->tsDataState);
+    pInfo->stateStore.streamStateTsDataCommit(pInfo->basic.pTsDataState);
     saveStreamOperatorStateComplete(&pInfo->basic);
   }
 
@@ -666,14 +699,14 @@ _end:
 
 void streamDataScanReleaseState(SOperatorInfo* pOperator) {
   SStreamScanInfo* pInfo = pOperator->info;
-  pInfo->stateStore.streamStateTsDataCommit(&pInfo->tsDataState);
+  pInfo->stateStore.streamStateTsDataCommit(pInfo->basic.pTsDataState);
 }
 
 void streamDataScanReloadState(SOperatorInfo* pOperator) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   SStreamScanInfo* pInfo = pOperator->info;
-  code = pInfo->stateStore.streamStateReloadTsDataState(&pInfo->tsDataState);
+  code = pInfo->stateStore.streamStateReloadTsDataState(pInfo->basic.pTsDataState);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
@@ -790,9 +823,9 @@ static int32_t generateIntervalPrevVersionScanRange(SStreamScanInfo* pInfo, SSDa
                                        pInfo->partitionSup.needCalc);
     TSKEY       calEndTs = srcStartTsCol[i - 1];
     int32_t     len = copyRecDataToBuff(calStartTs, calEndTs, srcUid, ver, mode, pSrcPkCol, i - 1,
-                                        pInfo->tsDataState.pRecValueBuff, pInfo->tsDataState.recValueLen);
-    pInfo->stateStore.streamStateMergeAndSaveScanRange(&pInfo->tsDataState, &win, groupId,
-                                                       pInfo->tsDataState.pRecValueBuff, len);
+                                        pInfo->basic.pTsDataState->pRecValueBuff, pInfo->basic.pTsDataState->recValueLen);
+    pInfo->stateStore.streamStateMergeAndSaveScanRange(pInfo->basic.pTsDataState, &win, groupId,
+                                                       pInfo->basic.pTsDataState->pRecValueBuff, len);
   }
 
 _end:
@@ -835,7 +868,7 @@ static int32_t generateIntervalDataScanRange(SStreamScanInfo* pInfo, char* pTask
   tmpInfo.rows = 1;
   STimeWindow win = getSlidingWindow(&pSeKey->win.skey, &pSeKey->win.ekey, &pSeKey->groupId, &pInfo->interval, &tmpInfo,
                                      &rowId, pInfo->partitionSup.needCalc);
-  pInfo->stateStore.streamStateMergeAndSaveScanRange(&pInfo->tsDataState, &win, groupId, pRecData, len);
+  pInfo->stateStore.streamStateMergeAndSaveScanRange(pInfo->basic.pTsDataState, &win, groupId, pRecData, len);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -850,7 +883,7 @@ static int32_t generateDataScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr) {
 
   SSessionKey      firstKey = {.win.skey = INT64_MIN, .win.ekey = INT64_MIN, .groupId = 0};
   SStreamStateCur* pCur =
-      pInfo->stateStore.streamStateSessionSeekKeyCurrentNext(pInfo->tsDataState.pStreamTaskState, &firstKey);
+      pInfo->stateStore.streamStateSessionSeekKeyCurrentNext(pInfo->basic.pTsDataState->pStreamTaskState, &firstKey);
   while (1) {
     SSessionKey rangKey = {0};
     void*       pVal = NULL;
@@ -870,7 +903,7 @@ static int32_t generateDataScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr) {
       default:
         break;
     }
-    pInfo->stateStore.streamStateCurNext(pInfo->tsDataState.pStreamTaskState, pCur);
+    pInfo->stateStore.streamStateCurNext(pInfo->basic.pTsDataState->pStreamTaskState, pCur);
   }
   pInfo->stateStore.streamStateFreeCur(pCur);
 
@@ -1042,10 +1075,10 @@ static int32_t doDataRangeScan(SStreamScanInfo* pInfo, SExecTaskInfo* pTaskInfo,
   pInfo->pRecoverRes = NULL;
   while (1) {
     if (IS_INVALID_RANGE(pInfo->curRange)) {
-      code = pInfo->stateStore.streamStateMergeAllScanRange(&pInfo->tsDataState);
+      code = pInfo->stateStore.streamStateMergeAllScanRange(pInfo->basic.pTsDataState);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      code = pInfo->stateStore.streamStatePopScanRange(&pInfo->tsDataState, &pInfo->curRange);
+      code = pInfo->stateStore.streamStatePopScanRange(pInfo->basic.pTsDataState, &pInfo->curRange);
       QUERY_CHECK_CODE(code, lino, _end);
       if (IS_INVALID_RANGE(pInfo->curRange)) {
         break;
@@ -1086,15 +1119,15 @@ int32_t doStreamRecalculateScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   char*            pTaskIdStr = GET_TASKID(pTaskInfo);
   SStreamScanInfo* pInfo = pOperator->info;
 
-  if (pInfo->tsDataState.curRecId == -1) {
+  if (pInfo->basic.pTsDataState->curRecId == -1) {
     int32_t recId = 0;
-    code = getRecalculateId(&pInfo->stateStore, pInfo->tsDataState.pStreamTaskState, &recId);
+    code = getRecalculateId(&pInfo->stateStore, pInfo->basic.pTsDataState->pStreamTaskState, &recId);
     qDebug("===stream===do recalculate.recId:%d", recId);
     QUERY_CHECK_CODE(code, lino, _end);
-    pInfo->stateStore.streamStateSetNumber(pInfo->tsDataState.pStreamTaskState, recId, pInfo->primaryTsIndex);
+    pInfo->stateStore.streamStateSetNumber(pInfo->basic.pTsDataState->pStreamTaskState, recId, pInfo->primaryTsIndex);
     code = generateDataScanRange(pInfo, pTaskIdStr);
     QUERY_CHECK_CODE(code, lino, _end);
-    pInfo->tsDataState.curRecId = recId;
+    pInfo->basic.pTsDataState->curRecId = recId;
   }
 
   (*ppRes) = NULL;
@@ -1102,8 +1135,8 @@ int32_t doStreamRecalculateScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
   QUERY_CHECK_CODE(code, lino, _end);
 
   if ((*ppRes) == NULL) {
-    pInfo->stateStore.streamStateSessionDeleteAll(pInfo->tsDataState.pState);
-    pInfo->tsDataState.curRecId = -1;
+    pInfo->stateStore.streamStateSessionDeleteAll(pInfo->basic.pTsDataState->pState);
+    pInfo->basic.pTsDataState->curRecId = -1;
   }
 
 _end:
@@ -1150,7 +1183,7 @@ static void destroyStreamDataScanOperatorInfo(void* param) {
   blockDataDestroy(pStreamScan->pUpdateRes);
 
   if (pStreamScan->stateStore.streamStateDestroyTsDataState) {
-    pStreamScan->stateStore.streamStateDestroyTsDataState(&pStreamScan->tsDataState);
+    pStreamScan->stateStore.streamStateDestroyTsDataState(pStreamScan->basic.pTsDataState);
   }
 
   if (pStreamScan->stateStore.updateInfoDestroy != NULL && pStreamScan->pUpdateInfo != NULL) {
@@ -1167,9 +1200,9 @@ static int32_t doStreamScanTest(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SSDataBlock* pBlock = NULL;
 
-  pInfo->tsDataState.pStreamTaskState = (SStreamState*)taosMemoryCalloc(1, sizeof(SStreamState));
-  QUERY_CHECK_NULL(pInfo->tsDataState.pStreamTaskState, code, lino, _end, terrno);
-  *((SStreamState*)pInfo->tsDataState.pStreamTaskState) = *pTaskInfo->streamInfo.pState;
+  pInfo->basic.pTsDataState->pStreamTaskState = (SStreamState*)taosMemoryCalloc(1, sizeof(SStreamState));
+  QUERY_CHECK_NULL(pInfo->basic.pTsDataState->pStreamTaskState, code, lino, _end, terrno);
+  *((SStreamState*)pInfo->basic.pTsDataState->pStreamTaskState) = *pTaskInfo->streamInfo.pState;
 
   doStreamDataScanNext(pOperator, ppRes);
   if ((*ppRes) != NULL) {
@@ -1380,8 +1413,8 @@ int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNo
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   pInfo->stateStore.streamStateSetNumber(pTempState, 1, pInfo->primaryTsIndex);
 
-  pAPI->stateStore.streamStateInitTsDataState(&pInfo->tsDataState, pkType.type, pkType.bytes, pTempState);
-  pAPI->stateStore.streamStateRecoverTsData(&pInfo->tsDataState);
+  pAPI->stateStore.streamStateInitTsDataState(&pInfo->basic.pTsDataState, pkType.type, pkType.bytes, pTempState);
+  pAPI->stateStore.streamStateRecoverTsData(pInfo->basic.pTsDataState);
   pInfo->pStreamScanOp = pOperator;
 
   // for stream

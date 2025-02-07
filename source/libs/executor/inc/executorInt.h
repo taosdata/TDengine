@@ -468,6 +468,7 @@ typedef struct SSteamOpBasicInfo {
   SSDataBlock*           pDelRes;
   SArray*                pUpdated;
   bool                   destHasPrimaryKey;
+  STableTsDataState*     pTsDataState;
 } SSteamOpBasicInfo;
 
 typedef struct SStreamFillSupporter {
@@ -559,7 +560,6 @@ typedef struct SStreamScanInfo {
   bool              hasPart;
 
   //nonblock data scan
-  STableTsDataState      tsDataState;
   TSKEY                  recalculateInterval;
   __compar_fn_t          comparePkColFn;
   SScanRange             curRange;

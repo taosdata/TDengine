@@ -535,6 +535,7 @@ int32_t initIntervalSliceDownStream(SOperatorInfo* downstream, SStreamAggSupport
   if (!hasSrcPrimaryKeyCol(pBasic)) {
     pBasic->primaryPkIndex = pScanInfo->basic.primaryPkIndex;
   }
+  pBasic->pTsDataState = pScanInfo->basic.pTsDataState;
 
   if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL) {
     pScanInfo->scanAllTables = true;

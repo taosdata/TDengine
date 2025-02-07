@@ -66,6 +66,7 @@ struct SStreamFileState {
   void*      searchBuff;
   SSHashObj* pGroupIdMap;
   bool       hasFillCatch;
+  SSHashObj* pRecFlagMap;
 
   _state_buff_cleanup_fn         stateBuffCleanupFn;
   _state_buff_remove_fn          stateBuffRemoveFn;
@@ -275,6 +276,10 @@ int32_t streamFileStateInit(int64_t memSize, uint32_t keySize, uint32_t rowSize,
 
   pFileState->pGroupIdMap = tSimpleHashInit(1024, hashFn);
   QUERY_CHECK_NULL(pFileState->pGroupIdMap, code, lino, _end, terrno);
+
+  pFileState->pRecFlagMap = tSimpleHashInit(1024, hashFn);
+  QUERY_CHECK_NULL(pFileState->pRecFlagMap, code, lino, _end, terrno);
+
 
   pFileState->hasFillCatch = true;
 
@@ -1356,6 +1361,10 @@ void clearExpiredState(SStreamFileState* pFileState, int32_t numOfKeep, TSKEY mi
         int32_t code_file = pFileState->stateFileRemoveFn(pFileState, pKey);
         qTrace("clear expired file, ts:%" PRId64 ". %s at line %d res:%d", pKey->ts, __func__, __LINE__, code_file);
       }
+
+      if (tSimpleHashGetSize(pFileState->pRecFlagMap) > 0) {
+        tSimpleHashRemove(pFileState->pRecFlagMap, pKey, sizeof(SWinKey));
+      }
     }
     taosArrayRemoveBatch(pWinStates, 0, size, NULL);
   }
@@ -1710,13 +1719,21 @@ _end:
   return code;
 }
 
-int32_t initTsDataState(STableTsDataState* pTsDataState, int8_t pkType, int32_t pkLen, void* pState) {
+int32_t initTsDataState(STableTsDataState** ppTsDataState, int8_t pkType, int32_t pkLen, void* pState) {
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    lino = 0;
+
+  STableTsDataState* pTsDataState = taosMemoryCalloc(1, sizeof(STableTsDataState));
+  QUERY_CHECK_NULL(pTsDataState, code, lino, _end, terrno);
+
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT);
   pTsDataState->pTableTsDataMap = tSimpleHashInit(DEFAULT_STATE_MAP_CAPACITY, hashFn);
+  QUERY_CHECK_NULL(pTsDataState->pTableTsDataMap, code, lino, _end, terrno);
+
   pTsDataState->pkValLen = sizeof(TSKEY) + pkLen + sizeof(char);
   pTsDataState->pPkValBuff = taosMemoryCalloc(1, pTsDataState->pkValLen);
+  QUERY_CHECK_NULL(pTsDataState->pPkValBuff, code, lino, _end, terrno);
+
   if (pkLen != 0) {
     pTsDataState->comparePkColFn = getKeyComparFunc(pkType, TSDB_ORDER_ASC);
   } else {
@@ -1724,10 +1741,15 @@ int32_t initTsDataState(STableTsDataState* pTsDataState, int8_t pkType, int32_t 
   }
 
   pTsDataState->pScanRanges = taosArrayInit(64, sizeof(SScanRange));
+  QUERY_CHECK_NULL(pTsDataState->pScanRanges, code, lino, _end, terrno);
+
   pTsDataState->pState = pState;
   pTsDataState->recValueLen = sizeof(SRecDataInfo) + pkLen;
   pTsDataState->pRecValueBuff = taosMemoryCalloc(1, pTsDataState->recValueLen);
+  QUERY_CHECK_NULL(pTsDataState->pRecValueBuff, code, lino, _end, terrno);
+
   pTsDataState->curRecId = -1;
+  (*ppTsDataState) = pTsDataState;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1971,3 +1993,17 @@ _end:
   }
   return code;
 }
+
+int32_t setStateRecFlag(SStreamFileState* pFileState, const SWinKey* pKey, int32_t mode) {
+  return tSimpleHashPut(pFileState->pRecFlagMap, pKey, sizeof(SWinKey), &mode, sizeof(int32_t));
+}
+
+int32_t getStateRecFlag(SStreamFileState* pFileState, const SWinKey* pKey, int32_t* pMode) {
+  void* pVal = tSimpleHashGet(pFileState->pRecFlagMap, pKey, sizeof(SWinKey));
+  if (pVal == NULL) {
+    return TSDB_CODE_FAILED;
+  }
+  *pMode = *(int32_t*) pVal;
+  return TSDB_CODE_SUCCESS;
+}
+

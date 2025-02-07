@@ -199,6 +199,8 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateGetKVByCur = streamStateGetKVByCur;
 
   pStore->streamStateClearExpiredState = streamStateClearExpiredState;
+  pStore->streamStateSetRecFlag = streamStateSetRecFlag;
+  pStore->streamStateGetRecFlag = streamStateGetRecFlag;
 
   pStore->streamStateSessionAddIfNotExist = streamStateSessionAddIfNotExist;
   pStore->streamStateSessionPut = streamStateSessionPut;
