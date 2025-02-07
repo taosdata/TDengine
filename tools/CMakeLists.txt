@@ -61,7 +61,9 @@ IF(TD_WEBSOCKET)
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
             PATCH_COMMAND
-            COMMAND git clean -f -d
+            COMMAND echo "Starting PATCH_COMMAND: Cleaning working directory"
+            COMMAND git clean -f -d && git checkout -f origin/main || (echo "Failed to switch to the main branch" && exit 1)
+
             BUILD_COMMAND
             COMMAND cargo update
             COMMAND cargo build --release -p taos-ws-sys --features rustls
