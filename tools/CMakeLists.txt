@@ -5,19 +5,21 @@ IF(TD_WEBSOCKET)
         SET(websocket_lib_file "libtaosws.dylib")
     ENDIF()
 
-    MESSAGE("${Green} use libtaos-ws${ColourReset}")
+    MESSAGE("${Green} ${TD_ALPINE} use libtaos-ws${ColourReset}")
 
     IF(TD_ALPINE)
         include(ExternalProject)   
         ExternalProject_Add(taosws-rs
             PREFIX "taosws-rs"
             SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
-            BUILD_ALWAYS off
+            BUILD_ALWAYS on
             DEPENDS ${TAOS_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
             PATCH_COMMAND
-            COMMAND git clean -f -d && git checkout -f main 
+            COMMAND echo "Starting PATCH_COMMAND: Cleaning working directory"
+            COMMAND git clean -f -d && git checkout -f origin/main || (echo "Failed to switch to the main branch" && exit 1)
+            COMMAND echo "Finished cleaning, now switching to main branch"
 
             BUILD_COMMAND
             COMMAND cargo update
