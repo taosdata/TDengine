@@ -2,7 +2,7 @@
 # taosws-rs
 ExternalProject_Add(taosws-rs
         GIT_REPOSITORY https://github.com/taosdata/taos-connector-rust.git
-        GIT_TAG main
+        GIT_TAG 3.0
         SOURCE_DIR "${TD_SOURCE_DIR}/tools/taosws-rs"
         BINARY_DIR ""
         #BUILD_IN_SOURCE TRUE
@@ -10,4 +10,13 @@ ExternalProject_Add(taosws-rs
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
         TEST_COMMAND ""
+        # Fix: Exit if branch checkout fails
+        UPDATE_COMMAND "
+                cd ${TD_SOURCE_DIR}/tools/taosws-rs &&
+                git checkout -f 3.0 
+                if [ $(git rev-parse --abbrev-ref HEAD) != '3.0' ]; then
+                echo 'Failed to switch to branch 3.0 in ${TD_SOURCE_DIR}/tools/taosws-rs';
+                exit 1;
+                fi
+        "
 )
