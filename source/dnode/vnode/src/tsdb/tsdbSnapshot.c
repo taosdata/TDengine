@@ -790,7 +790,6 @@ static int32_t tsdbSnapWriteFileSetOpenWriter(STsdbSnapWriter* writer) {
       .cmprAlg = writer->cmprAlg,
       .fid = writer->ctx->fid,
       .cid = writer->commitID,
-      .did = writer->ctx->did,
       .level = 0,
   };
   // merge stt files to either data or a new stt file

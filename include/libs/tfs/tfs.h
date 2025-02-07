@@ -94,6 +94,8 @@ int32_t tfsGetLevel(STfs *pTfs);
  */
 int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, SDiskID *pDiskId);
 
+int32_t tfsAllocDiskAtLevel(STfs *pTfs, int32_t level, SDiskID *pDiskId);
+
 /**
  * @brief Get the primary path.
  *

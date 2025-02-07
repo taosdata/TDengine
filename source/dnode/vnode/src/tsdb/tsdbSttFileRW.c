@@ -778,9 +778,12 @@ static int32_t tsdbSttFileDoWriteFooter(SSttFileWriter *writer) {
   return tsdbFileWriteSttFooter(writer->fd, writer->footer, &writer->file->size, encryptAlgorithm, encryptKey);
 }
 
+extern int32_t tsdbAllocateDisk(STsdb *tsdb, int32_t fid, const char *label, SDiskID *diskId);
+
 static int32_t tsdbSttFWriterDoOpen(SSttFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
+  STsdb  *tsdb = writer->config->tsdb;
 
   // set
   if (!writer->config->skmTb) writer->config->skmTb = writer->skmTb;
@@ -790,9 +793,14 @@ static int32_t tsdbSttFWriterDoOpen(SSttFileWriter *writer) {
     writer->buffers = writer->local;
   }
 
+  // alloc disk id
+  SDiskID diskId = {0};
+  code = tsdbAllocateDisk(tsdb, writer->config->fid, "stt", &diskId);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   writer->file[0] = (STFile){
       .type = TSDB_FTYPE_STT,
-      .did = writer->config->did,
+      .did = diskId,
       .fid = writer->config->fid,
       .cid = writer->config->cid,
       .size = 0,

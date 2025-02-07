@@ -61,22 +61,22 @@ typedef struct {
   STfsDisk *pDisk;
 } SDiskIter;
 
-typedef struct STfsDir {
+struct STfsDir {
   SDiskIter iter;
   SDiskID   did;
   char      dirName[TSDB_FILENAME_LEN];
   STfsFile  tfile;
   TdDirPtr  pDir;
   STfs     *pTfs;
-} STfsDir;
+};
 
-typedef struct STfs {
+struct STfs {
   TdThreadSpinlock lock;
   SDiskSize        size;
   int32_t          nlevel;
   STfsTier         tiers[TFS_MAX_TIERS];
   SHashObj        *hash;  // name to did map
-} STfs;
+};
 
 int32_t   tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg);
 int32_t   tfsNewDisk(int32_t level, int32_t id, int8_t disable, const char *dir, STfsDisk **ppDisk);
