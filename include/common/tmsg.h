@@ -4507,6 +4507,7 @@ typedef struct {
 
 typedef struct {
   SArray* aSubmitTbData;  // SArray<SSubmitTbData>
+  SArray* aSbumitBlobData;
 } SSubmitReq2;
 
 typedef struct {

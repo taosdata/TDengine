@@ -41,6 +41,7 @@ typedef struct STagVal    STagVal;
 typedef struct STag       STag;
 typedef struct SColData   SColData;
 typedef struct SBlobRow   SBlobRow;
+typedef struct SBlobRow2  SBlobRow2;
 
 typedef struct SRowKey      SRowKey;
 typedef struct SValueColumn SValueColumn;
@@ -248,6 +249,14 @@ struct SBlobRow {
   uint16_t sver;
   uint32_t len;
   uint8_t  data[];
+};
+
+struct SBlobRow2 {
+  int64_t  seq;
+  int64_t  len;
+  int32_t  cap;
+  SArray  *pOffset;
+  uint8_t *data;
 };
 
 typedef struct {

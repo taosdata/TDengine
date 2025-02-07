@@ -624,10 +624,36 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
   return code;
 }
 
+int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow) {
+  SBlobRow2 *p = taosMemCalloc(1, sizeof(SBlobRow2));
+  if (p == NULL) {
+    return terrno;
+  }
+  p->pOffset = taosArrayInit(16, sizeof(uint64_t));
+  p->data = taosMemCalloc(1, cap * sizeof(uint8_t));
+  p->cap = cap;
+  p->len = 0;
+  p->seq = 0;
+
+  *ppBlobRow = p;
+  return 0;
+}
+int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len) {
+  if (pBlobRow->len + len > pBlobRow->cap) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  (void)memcpy(pBlobRow->data + pBlobRow->len, data, len);
+  pBlobRow->len += len;
+  return 0;
+}
+
 int32_t tRowBuild2(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobRow **ppBlobRow) {
   int32_t           code;
   SRowBuildScanInfo sinfo;
   sinfo.hasBlob = 1;
+
+  SBlobRow2 *p = taosMemCalloc(1, sizeof(SBlobRow2) + 4096);
+  p->cap = 4096;
 
   code = tRowBuildScan(aColVal, pTSchema, &sinfo);
   if (code) return code;
