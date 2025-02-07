@@ -24,6 +24,7 @@ IF(TD_WEBSOCKET)
             PATCH_COMMAND
             COMMAND git clean -f -d
             UPDATE_COMMAND ${CHECK_BRANCH_COMMAND}
+            UPDATE_DISCONNECTED 0
             BUILD_COMMAND
             COMMAND cargo update
             COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static cargo build --release -p taos-ws-sys --features rustls
