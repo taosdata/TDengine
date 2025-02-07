@@ -1,0 +1,138 @@
+{
+  "protocol" : "Simple",
+  "namespace" : "org.apache.avro.test",
+  "doc" : "* A simple test case.",
+  "version" : "1.0.5",
+  "types" : [ {
+    "type" : "enum",
+    "name" : "Kind",
+    "doc" : "A kind of record.",
+    "symbols" : [ "FOO", "BAR", "BAZ" ],
+    "aliases" : [ "org.foo.KindOf" ]
+  }, {
+   "type" : "enum",
+   "name" : "Status",
+   "symbols" : [ "A", "B", "C" ],
+   "default" : "C"
+  }, {
+    "type" : "fixed",
+    "name" : "MD5",
+    "doc" : "An MD5 hash.",
+    "size" : 16,
+    "foo" : "bar"
+  }, {
+    "type" : "record",
+    "name" : "TestRecord",
+    "doc" : "A TestRecord.",
+    "fields" : [ {
+      "name" : "name",
+      "type" : "string",
+      "default" : "foo",
+      "order" : "ignore"
+    }, {
+      "name" : "kind",
+      "type" : "Kind",
+      "doc" : "The kind of record.",
+      "order" : "descending"
+    }, {
+      "name" : "status",
+      "type" : "Status",
+      "doc" : "The status of the record.",
+      "default" : "A"
+    }, {
+      "name" : "hash",
+      "type" : "MD5",
+      "default" : "0000000000000000"
+    }, {
+      "name" : "nullableHash",
+      "type" : [ "null", "MD5" ],
+      "default" : null,
+      "aliases" : [ "hash", "hsh" ]
+    }, {
+      "name" : "value",
+      "type" : "double",
+      "default" : "NaN"
+    }, {
+      "name" : "average",
+      "type" : "float",
+      "default" : "-Infinity"
+    }, {
+      "name": "d",
+      "type": {"type": "int", "logicalType": "date"},
+      "default": 0
+    }, {
+      "name": "t",
+      "type": {"type": "int", "logicalType": "time-millis"},
+      "default": 0
+    } , {
+      "name": "l",
+      "type": {"type": "long", "foo.bar": "bar.foo"},
+      "default": 0
+    } , {
+      "name": "prop",
+      "type": [ "null" , {"type":"string", "foo.foo.bar": 42, "foo.foo.foo": "3foo"} ],
+      "default": null
+    }],
+    "my-property" : {
+      "key" : 3
+    }
+  }, {
+    "type" : "error",
+    "name" : "TestError",
+    "fields" : [ {
+      "name" : "message",
+      "type" : "string"
+    } ]
+  } ],
+  "messages" : {
+    "hello" : {
+      "doc" : "method 'hello' takes @parameter 'greeting'",
+      "request" : [ {
+        "name" : "greeting",
+        "type" : "string"
+      } ],
+      "response" : "string"
+    },
+    "echo" : {
+      "request" : [ {
+        "name" : "record",
+        "type" : "TestRecord",
+        "default" : {
+          "name" : "bar",
+          "kind" : "BAR"
+        }
+      } ],
+      "response" : "TestRecord"
+    },
+    "add" : {
+      "doc" : "method 'add' takes @parameter 'arg1' @parameter 'arg2'",
+      "specialProp" : "test",
+      "request" : [ {
+        "name" : "arg1",
+        "type" : "int"
+      }, {
+        "name" : "arg2",
+        "type" : "int",
+        "default" : 0
+      } ],
+      "response" : "int"
+    },
+    "echoBytes" : {
+      "request" : [ {
+        "name" : "data",
+        "type" : "bytes"
+      } ],
+      "response" : "bytes"
+    },
+    "error" : {
+      "request" : [ ],
+      "response" : "null",
+      "errors" : [ "TestError" ]
+    },
+    "ping" : {
+      "request" : [ ],
+      "response" : "null",
+      "one-way" : true
+    }
+  }
+}
