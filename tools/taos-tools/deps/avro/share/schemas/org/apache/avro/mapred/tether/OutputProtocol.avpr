@@ -1,0 +1,82 @@
+{"namespace":"org.apache.avro.mapred.tether",
+ "protocol": "OutputProtocol",
+ "doc": "Transmit outputs from a map or reduce task to parent.",
+
+ "messages": {
+
+     "configure": {
+         "doc": "Configure task.  Sent before any other message.",
+         "request": [
+             {"name": "port", "type": "int",
+              "doc": "The port to transmit inputs to this task on."}
+         ],
+         "response": "null",
+         "one-way": true
+     },
+
+     "output": {
+         "doc": "Send an output datum.",
+         "request": [
+             {"name": "datum", "type": "bytes",
+              "doc": "A binary-encoded instance of the declared schema."}
+         ],
+         "response": "null",
+         "one-way": true
+     },
+
+     "outputPartitioned": {
+         "doc": "Send map output datum explicitly naming its partition.",
+         "request": [
+             {"name": "partition", "type": "int",
+              "doc": "The map output partition for this datum."},
+             {"name": "datum", "type": "bytes",
+              "doc": "A binary-encoded instance of the declared schema."}
+         ],
+         "response": "null",
+         "one-way": true
+     },
+
+     "status": {
+         "doc": "Update the task's status message.  Also acts as keepalive.",
+         "request": [
+             {"name": "message", "type": "string",
+              "doc": "The new status message for the task."}
+         ],
+         "response": "null",
+         "one-way": true
+     },
+
+     "count": {
+         "doc": "Increment a task/job counter.",
+         "request": [
+             {"name": "group", "type": "string",
+              "doc": "The name of the counter group."},
+             {"name": "name", "type": "string",
+              "doc": "The name of the counter to increment."},
+             {"name": "amount", "type": "long",
+              "doc": "The amount to incrment the counter."}
+         ],
+         "response": "null",
+         "one-way": true
+     },
+
+     "fail": {
+         "doc": "Called by a failing task to abort.",
+         "request": [
+             {"name": "message", "type": "string",
+              "doc": "The reason for failure."}
+         ],
+         "response": "null",
+         "one-way": true
+     },
+
+     "complete": {
+         "doc": "Called when a task's output has completed without error.",
+         "request": [],
+         "response": "null",
+         "one-way": true
+     }
+
+ }
+
+}

@@ -1,0 +1,2 @@
+{"protocol": "org.foo.Bar",
+ "messages": { "bar": {"request": [], "response": "null"}}}

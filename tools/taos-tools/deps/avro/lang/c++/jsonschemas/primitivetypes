@@ -1,0 +1,15 @@
+{
+    "name": "TestPrimitiveTypes",
+    "type": "record",
+    "fields": [
+        { "name": "Null", "type": "null" },
+        { "name": "Boolean", "type": "boolean" },
+        { "name": "Int", "type": "int" },
+        { "name": "Long", "type": "long" },
+        { "name": "Float", "type": "float" },
+        { "name": "Double", "type": "double" },
+        { "name": "Bytes", "type": "bytes" },
+        { "name": "String", "type": "string" },
+        { "name": "SecondNull", "type": "null" }
+    ]
+}

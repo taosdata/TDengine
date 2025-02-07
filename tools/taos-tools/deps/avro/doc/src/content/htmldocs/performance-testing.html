@@ -1,0 +1,173 @@
+<html>
+<!--
+   Licensed to the Apache Software Foundation (ASF) under one or more
+   contributor license agreements.  See the NOTICE file distributed with
+   this work for additional information regarding copyright ownership.
+   The ASF licenses this file to You under the Apache License, Version 2.0
+   (the "License"); you may not use this file except in compliance with
+   the License.  You may obtain a copy of the License at
+       https://www.apache.org/licenses/LICENSE-2.0
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<head>
+<title>Testing performance improvements</title>
+</head>
+
+<body>
+
+(Note: This document pertains only to the Java implementation Avro.)
+
+
+<h1>1.0 Introduction</h1>
+
+<p>Recent work on improving the performance of "specific record" (<a href="https://issues.apache.org/jira/browse/AVRO-2090">AVRO-2090</a> and <a href="https://issues.apache.org/jira/browse/AVRO-2247">AVRO-2247</a> has highlighted the need for a benchmark that can be used to test the validity of alleged performance "improvements."</p>
+
+<p> As a starting point, the Avro project has class called <code>Perf</code> (in the test source of the <code>ipc</code> subproject).  <code>Perf</code> is a command-line tool contains close to 70 performance individual performance tests.  These tests include tests for reading and writing primitive values, arrays and maps, plus tests for reading and writing records through all of the APIs (generic, specific, reflect).</p>
+
+<p> When using <code>Perf</code> for some recent performance work, we encountered two problems.  First, because it depends on build artifacts from across the Avro project, it can be tricky to invoke.  Second, and more seriously, independent runs of the tests in <code>Perf</code> can vary in performance by as much as 40%.  While typical variance is less than that, the variance is high enough that it makes it impossible to tell if a change in performance is simply this noise, or can be properly attributed to a proposed optimization. </p>
+
+<p> This document addresses both problems, the usability problem in Section 2 and the variability issue in Section 3.  Regarding the variability issue, as you will see, we haven't really been able to manage it in a fundamental manner.  As <a href="https://issues.apache.org/jira/browse/AVRO-2269?focusedCommentId=16688925&page=com.atlassian.jira.plugin.system.issuetabpanels%3Acomment-tabpanel#comment-16688925">suggested by Zoltan Frakas</a>, we should look into porting <code>Perf</code> over to using the <a href="https://java-performance.info/jmh/">Java Microbenchmark Harness (JMH)</a>.</p>
+
+
+<h1>2.0 Invoking <code>Perf</code></h1>
+
+<h2>2.1 Simple invocation</h2>
+
+<p>Here is the easiest way we found to directly invoke <code>Perf</code>.</p>
+
+<p>As mentioned in the Introduction, <code>Perf</code> is dependent upon build artifacts from some of the other Avro subprojects.  When you invoke <code>Perf</code>, it should be invoked with your most recent build of those artifacts (assuming you're performance-testing your current work).  We have found that the easiest way to ensure the proper artifacts are used is to use Maven to invoke <code>Perf</code>. </p>
+
+<p>The recipe for using Maven in this way is simple.  First, from the <code>lang/java</code> directoy, you need to build <em>and install</em> Avro:</p>
+
+<p><code>&nbsp;&nbsp;&nbsp;&nbsp;mvn clean install</code></p>
+
+<p>(You can add <code>-DskipTests</code> to the above command line if you don't need to run test suite.)  When this is done, you need to change your working directory to the <code>lang/java/ipc</code> directory.  From there, you can invoke <code>Perf</code> with the following command line:</p>
+
+<p><code>
+&nbsp;&nbsp;&nbsp;&nbsp;mvn exec:java -Dexec.classpathScope=test -Dexec.mainClass=org.apache.avro.io.Perf -Dexec.args="..."
+</code></p>
+
+<p>The <code>exec.args</code> string contains the arguments you want to pass through to the <code>Perf.main</code> function.</p>
+
+<p>To speed up your edit-compile-test loop, you can do a selective build of Avro in addition to skipping tests:
+
+<p><code>&nbsp;&nbsp;&nbsp;&nbsp;mvn clean && mvn -pl "avro,compiler,maven-plugin,ipc" install -DskipTests</code></p>
+
+
+
+<h2>2.2 Using the run-perf.sh script</h2>
+
+<p>If you're using <code>Perf</code>, chances are that you want to compare the performance of a proposed optimization against the performance of a baseline (that baseline most likely being the current master branch of Avro).  Generating this comparative data can be tedious if you're running <code>Perf</code> by hand.  To relieve this tedium, you can use the <code>run-perf.sh</code> script instead (found in the <code>share/test</code> directory from the Avro top-level directory).</p>
+
+<p>To use this script, you put different implementations of Avro onto different branches of your Avro git repository.  One of these branches is designated the "baseline" branch and the others are the "treatment" branches.  The script will run the baseline and all the treatments, and will compare generate a CSV file containing a comparison of the treatments against the baseline.</p>
+
+<p>Running <code>run-perf.sh&nbsp;--help</code> will output a detailed manual-page for this script.  Appendix A of this document contains sample invocations of this test script for different use cases.</p>
+
+<p>NOTE: as mentioned in <code>run-perf.sh&nbsp;--help</code>, <b>this script is designed to be run from the <code>lang/java/ipc</code> directory</b>, which is the Maven project containing the <code>Perf</code> program.</p>
+
+
+
+<h1>3.0 Managing variance</h1>
+
+As mentioned in the introduction, we tried a number of different mechanisms to reduce variance, including:
+<ul>
+<li> Varying <code>org.apache.avro.io.perf.count</code>, <code>org.apache.io.perf.cycles</code>, and <code>org.apache.avro.io.perf.use-direct</code>, as well as the number of times we run <code>Perf.java</code> within a single "run" of a test.
+
+<p> <li> Taking the minimum times across runs, rather than the maximum times, using the second or third run as a baseline rather than the first, using statistical methods to eliminate outlying values.
+
+<p> <li> Modified the code slightly, for example: starting the timer of a cycle after, rather than before, encoders or decoders are constructed; cacheing encoders and decoders; and reusing record objects during read tests rather than construct new ones for each record being read.
+
+<p> <li> Using Docker's <code>--cpuset-cpus</code> flag to force the tests onto a single core.
+
+<p> <li> Using a dedicated EC2 instance (<code>c5d.2xlarge</code>).
+</ul>
+Of the above, the only change that made a significant difference was the last: in going from a laptop and desktop computer to a dedicated EC2 instances, we went from over 70 tests (out of 200) with a variance of 5% or more between runs to 35.  As mentioned in the introduction, we should switch to a framework like <a href="https://java-performance.info/jmh/">JMH</a> to attack this problem more fundamentally.
+
+<p> If you want to setup your own EC2 instance for testing, here's how we did it.  We launched a dedicated EC2 <code>c5d.2xlarge</code> instance from the AWS console, using the "Amazon Linux 64-bit HVM GP2" AMI.  We logged into this instance and ran the following commands to install Docker and Git (we did all our Avro build and testing inside the Docker image):
+<pre>
+  sudo yum update
+  sudo yum install -y git-all
+  git config --global user.name "Your Name"
+  git config --global user.email email-address-used@github.com
+  git config --global core.editor emacs
+  sudo install -y docker
+  sudo usermod -aG docker ec2-user ## Need to log back in for this to take effect
+  sudo service docker start
+</pre>
+At this point you can checkout Avro and launch your Docker container:
+<pre>
+  git clone https://github.com/apache/avro.git
+  cd avro
+  screen
+  ./build.sh docker --args "--cpuset-cpus 2,6"
+</pre>
+Note the use of <code>screen</code> here: executions of <code>run-perf.sh</code> can take a few hours, depending on the configuration.  By running it inside of <code>screen</code>, you are protected from an SSH disconnection causing <code>run-perf.sh</code> to prematurely terminate.
+
+<p>The <code>--args</code> flag in the last command deserves some explanation.  In general, the <code>--args</code> allows you to pass additional arguments to the <code>docker&nbsp;run</code> command executed inside <code>build.sh</code>.  In this case, the <code>--cpuset-cpus</code> flag for <code>docker</code> tells docker to schedule the contianer exclusively on the listed (virtual) CPUs.  We identified vCPUs 2 and 6 using the <code>lscpu</code> Linux command:
+<pre>
+  [ec2-user@ip-0-0-0-0 avro]$ lscpu --extended
+  CPU NODE SOCKET CORE L1d:L1i:L2:L3 ONLINE
+  0   0    0      0    0:0:0:0       yes
+  1   0    0      1    1:1:1:0       yes
+  2   0    0      2    2:2:2:0       yes
+  3   0    0      3    3:3:3:0       yes
+  4   0    0      0    0:0:0:0       yes
+  5   0    0      1    1:1:1:0       yes
+  6   0    0      2    2:2:2:0       yes
+  7   0    0      3    3:3:3:0       yes
+</pre>
+Notice that (v)CPUs 2 and 6 are both on core 2: it's sufficient to schedule the container on the same core, vs a single vCPU.  One final tip: to confirm that your container is running on the expected CPUs, run <code>top</code> and then press the <code>1</code> key -- this will show you the load on each individual CPU.
+
+
+<h1>Appendix A: Sample uses of run-perf.sh</h1>
+
+<p>A detailed explanation of <code>run-perf.sh</code> is printed when you give it the <code>--help</code> flag.  To help you more quickly understand how to use <code>run-perf.sh</code> we present here a few examples of how we used it in our recent testing efforts.
+
+<p>  To summarize, you invoke it as follows:
+<pre>
+    ../../../share/test/run-perf.sh [--out-dir D] \
+       [--perf-args STRING] [-Dkey=value]* [--] \
+       [-Dkey=value]* branch_baseline[:name_baseline_run] \
+       [-Dkey=value]* branch_1[:name_treatment_run_1] \
+       ... <br>
+       [-Dkey=value]* branch_n[:name_treatment_run_n] <br>
+</pre>
+The path given here is relative to the <code>lang/java/ipc</code> directory, which needs to be the current working directory when calling this script.  The script executes multiple <em>runs</em> of testing.  The first run is called the <em>baseline run</em>, the subsequent runs are the <em>treatment runs</em>.  Each run consists of four identical executions of <code>Perf.java</code>.  The running times for each <code>Perf.java</code> test are averaged to obtain the final running time for the test.  For each treatment run, the final running times for each test are compared, as a percentage, to the running time for the test in the baseline run.  These percentages are output in the file <code>summary.csv</code>.
+
+<p>The following invocation is what we used to measure the variance of <code>Perf.java</code>:
+<pre>
+../../../share/test/run-perf.sh --out-dir ~/calibration \
+    -Dorg.apache.avro.specific.use_custom_coders=true \
+    AVRO-2269:baseline AVRO-2269:run1 AVRO-2269:run2 AVRO-2269:run3
+</pre>
+In this invocation, the baseline run and all three treatment runs come from the same Git branch: <code>AVRO-2269</code>.  We need to give a name to each run: in this case runs have been named "baseline"--the baseline run--and "run1", "run2", and "run3"--the treatment runs.  Note that the name of the Git branch to be used for a run must always be provided, but the name for the run itself (e.g., "baseline") is optional.  If a name for the run is not provided, then the name of the Git branch will be used as the name of the run.  However, each run must have a unique name, so in this example we had to explicitly name the branches since all runs are on the same branch.
+
+<p><code>run-perf.sh</code> uses Maven to invoke <code>Perf.java</code>.  The <code>-D</code> flag is used to pass system properties to Maven, which in turn will pass them through to <code>Perf.java</code>.  In the example above, we use this flag to turn on the custom-coders feature recently checked into Avro.  Note that initial <code>-D</code> flags will be passed to <em>all</em> runs, while <code>-D</code> switches that come just before the name of Git branch of a run apply to only that run.  In the case of the baseline run, which comes first, if you want to pass <code>-D</code> flags to just that run, then use the <code>--</code> flag to indicate that all global parameters for <code>run-perf.sh</code> have been provided, followed by the <code>-D</code> flags you want to pass to only the baseline run.
+
+<p>Finally, note that <code>run-perf.sh</code> generates a lot of intermediate files as well as the final <code>summary.csv</code> file.  Thus, it is recommended that the output of each execution of <code>run-pref.sh</code> is sent to a dedicated directory, provided by the <code>--out-dir</code> flag.  If that directory does not exist, it will be created.  (Observe that <code>run-perf.sh</code> outputs a file called <code>command.txt</code> containing the full command-line used to invoke it.  This can be helpful if you run a lot of experiments and forget the detailed setup of some of them along the way.)
+
+<p>The next invocation is what we used to ensure that the new "custom coders" optimization for specific records does indeed improve performance:
+<pre>
+../../../share/test/run-perf.sh --out-dir ~/retest-codegen \
+    --perf-args "-Sf" \
+    AVRO-2269:baseline \
+    -Dorg.apache.avro.specific.use_custom_coders=true AVRO-2269:custom-coders
+</pre>
+In this case, unlike the previous one, the <code>-D</code> flag that turns on the use of custom coders is applied specifically to the treatment run, and not globally.  Also, since this flag only affects the Specific Record case, we use the <code>--perf-args</code> flag to pass additional arguments to <code>Perf.java</code>; in this case, the <code>-Sf</code> flag tells <code>Perf.java</code> to run just the specific-record related tests and not the entire test suite.
+
+<p>This last example shows how we checked the performance impact of two new feature-branches we've been developing:
+<pre>
+../../../share/test/run-perf.sh --out-dir ~/new-branches \
+    -Dorg.apache.avro.specific.use_custom_coders=true \
+    AVRO-2269:baseline combined-opts full-refactor
+</pre>
+In this case, once again, we turn on custom-coders for all runs.  In this case, again, the Git branch <code>AVRO-2269</code> is used for our baseline run.  However, in this case, the treatment runs come from two other Git branches: <code>combined-opts</code> and <code>full-refactor</code>.  We didn't provide run-names for these runs because the Git branch-name were fine to be used as run names (we explicitly named the first run "baseline" not because we had to, but because we like the convention of using that name).
+
+<p>Although we didn't state it before, in preparing for a run, <code>run-perf.sh</code> will checkout the Git branch to be used for the run and use <code>mvn&nbsp;install</code> to build and install it.  It does this for each branch, so the invocation just given will checkout and build three different branches during its overall execution.  (As an optimization, if one run uses the same branch as the previous run, then the branch is <em>not</em> checked-out or rebuilt between runs.)
+
+</body>
+</html>
