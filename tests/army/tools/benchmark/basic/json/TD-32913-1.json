@@ -1,0 +1,67 @@
+{
+	"filetype":	"insert",
+	"cfgdir":	"/etc/taos",
+	"dsn":	"http://127.0.0.1:6041",
+	"host":	"127.0.0.1",
+	"port":	"6030",
+	"user":	"root",
+	"password":	"taosdata",
+	"connection_pool_size":	100,
+	"thread_count":	10,
+	"create_table_thread_count":	3,
+	"result_file":	"./res.txt",
+	"confirm_parameter_prompt":	"no",
+	"num_of_records_per_req":	1000,
+	"thread_bind_vgroup":	"yes",
+	"prepared_rand":	1000,
+	"chinese":	"no",
+	"escape_character":	"yes",
+	"continue_if_fail":	"no",
+	"databases":	[{
+			"dbinfo":	{
+				"name":	"td32913db",
+				"drop":	"no",
+				"vgroups":	4,
+				"precision":	"ms"
+			},
+			"super_tables":	[{
+					"name":	"ntsp_realtime_hf",
+					"child_table_exists":	"no",
+					"childtable_count":	17,
+					"childtable_prefix":	"d",
+					"auto_create_table":	"no",
+					"batch_create_tbl_num":	500,
+					"data_source":	"rand",
+					"insert_mode":	"taosc",
+					"non_stop_mode":	"no",
+					"line_protocol":	"line",
+					"insert_rows":	1000,
+					"childtable_limit":	0,
+					"childtable_offset":	0,
+					"interlace_rows":	10,
+					"insert_interval":	0,
+					"partial_col_num":	0,
+					"timestamp_step":	1000,
+					"start_timestamp":	"2024-10-01 00:00:00.000",
+					"use_sample_ts":	"no",
+					"tags_file":	"",
+					"columns":	[{
+							"type":	"TIMESTAMP",
+							"name":	"st"
+						}, {
+							"type":	"VARCHAR",
+							"name":	"data",
+							"len":	512
+						}],
+					"tags":	[{
+							"type":	"VARCHAR",
+							"name":	"type",
+							"len":	2
+						}, {
+							"type":	"VARCHAR",
+							"name":	"vin",
+							"len":	100
+						}]
+				}]
+		}]
+}
