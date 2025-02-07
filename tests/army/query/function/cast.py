@@ -540,6 +540,18 @@ class TDTestCase(TBase):
 
         tdSql.query(f"select cast({add1}+{test_str} as nchar(2)) re;")
         tdSql.checkData(0, 0, "12")
+        
+    def ts5972(self):
+        tdSql.execute("CREATE DATABASE IF NOT EXISTS ts5972;")
+        tdSql.execute("DROP TABLE IF EXISTS ts5972.t1;")
+        tdSql.execute("DROP TABLE IF EXISTS ts5972.t1;")
+        tdSql.execute("CREATE TABLE ts5972.t1(time TIMESTAMP, c0 DOUBLE);")
+        tdSql.execute("INSERT INTO ts5972.t1(time, c0) VALUES (1641024000000, 0.018518518518519), (1641024005000, 0.015151515151515), (1641024010000, 0.1234567891012345);")
+        tdSql.query("SELECT c0, CAST(c0 AS BINARY(50)) FROM ts5972.t1 WHERE CAST(c0 AS BINARY(50)) != c0;")
+        tdSql.checkRows(0)
+        tdSql.query("SELECT c0, CAST(c0 AS BINARY(50)) FROM ts5972.t1 WHERE CAST(c0 AS BINARY(50)) == c0;")
+        tdSql.checkRows(3)
+
 
     def cast_without_from(self):
         self.cast_from_int_to_other()
@@ -556,6 +568,7 @@ class TDTestCase(TBase):
     def run(self):
         # 'from table' case see system-test/2-query/cast.py
         self.cast_without_from()
+        self.ts5972()
 
         tdLog.success(f"{__file__} successfully executed")
 
