@@ -45,7 +45,8 @@ TDengine 支持 `UNION ALL` 和 `UNION` 操作符。UNION ALL 将查询返回的
 | 9   |       LIKE        | BINARY、NCHAR 和 VARCHAR                                             | 通配符匹配所指定的模式串          |
 | 10   |      NOT LIKE        | BINARY、NCHAR 和 VARCHAR                                             | 通配符不匹配所指定的模式串           |
 | 11   |   MATCH, NMATCH   | BINARY、NCHAR 和 VARCHAR                                             | 正则表达式匹配       |
-| 12  |     CONTAINS      | JSON                                                                 | JSON 中是否存在某键  |
+| 12   |   REGEXP, NOT REGEXP   | BINARY、NCHAR 和 VARCHAR                                          | 正则表达式匹配       |
+| 13  |     CONTAINS      | JSON                                                                 | JSON 中是否存在某键  |
 
 LIKE 条件使用通配符字符串进行匹配检查，规则如下：
 
@@ -53,7 +54,7 @@ LIKE 条件使用通配符字符串进行匹配检查，规则如下：
 - 如果希望匹配字符串中原本就带有的 \_（下划线）字符，那么可以在通配符字符串中写作 \_，即加一个反斜线来进行转义。
 - 通配符字符串最长不能超过 100 字节。不建议使用太长的通配符字符串，否则将有可能严重影响 LIKE 操作的执行性能。
 
-MATCH 条件和 NMATCH 条件使用正则表达式进行匹配，规则如下：
+MATCH/REGEXP 条件和 NMATCH/NOT REGEXP 条件使用正则表达式进行匹配，规则如下：
 
 - 支持符合 POSIX 规范的正则表达式，具体规范内容可参见 Regular Expressions。
 - MATCH 和正则表达式匹配时, 返回 TURE.  NMATCH 和正则表达式不匹配时, 返回 TRUE. 
