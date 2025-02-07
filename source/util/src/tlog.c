@@ -385,13 +385,20 @@ static void taosReserveOldLog(char *oldName, char *keepName) {
 
 static void taosKeepOldLog(char *oldName) {
   if (oldName[0] != 0) {
-    char compressFileName[PATH_MAX + 20];
-    snprintf(compressFileName, PATH_MAX + 20, "%s.gz", oldName);
-    if (taosCompressFile(oldName, compressFileName) == 0) {
-      int32_t code = taosRemoveFile(oldName);
-      if (code != 0) {
-        TAOS_UNUSED(printf("failed to remove file:%s, reason:%s\n", oldName, tstrerror(code)));
+    TdFilePtr oldFile = NULL;
+    if ((oldFile = taosOpenFile(oldName, TD_FILE_READ)) && (0 == taosLockFile(oldFile))) {
+      char compressFileName[PATH_MAX + 20];
+      snprintf(compressFileName, PATH_MAX + 20, "%s.gz", oldName);
+      if (taosCompressFile(oldName, compressFileName) == 0) {
+        int32_t code = taosRemoveFile(oldName);
+        if (code != 0) {
+          TAOS_UNUSED(printf("failed to remove old log file:%s, reason:%s\n", oldName, tstrerror(code)));
+        }
       }
+      TAOS_UNUSED(taosUnLockFile(oldFile));
+      TAOS_UNUSED(taosCloseFile(&oldFile));
+    } else if (oldFile) {
+      TAOS_UNUSED(taosCloseFile(&oldFile));
     }
   }
 }
@@ -1041,7 +1048,7 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
 }
 
 #define LOG_ROTATE_INTERVAL 3600
-#if !defined(TD_ENTERPRISE) || defined(ASSERT_NOT_CORE)
+#if !defined(TD_ENTERPRISE) || defined(ASSERT_NOT_CORE) || defined(GRANTS_CFG)
 #define LOG_INACTIVE_TIME 7200
 #define LOG_ROTATE_BOOT   900
 #else
