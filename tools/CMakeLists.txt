@@ -1,3 +1,4 @@
+# define  macro to create taosws-rs external project
 macro(create_taosws_rs_project)
     include(ExternalProject)
     ExternalProject_Add(taosws-rs
@@ -18,14 +19,36 @@ macro(create_taosws_rs_project)
             COMMAND cargo update
             COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static cargo build --release -p taos-ws-sys --features rustls
         INSTALL_COMMAND
-            # set different copy command for different platform
-            $<$<BOOL:${TD_ALPINE}>:COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib>
-            $<$<BOOL:${TD_WINDOWS}>:COMMAND cp target/release/taosws.dll ${CMAKE_BINARY_DIR}/build/lib>
-            $<$<BOOL:${TD_WINDOWS}>:COMMAND cp target/release/taosws.dll.lib ${CMAKE_BINARY_DIR}/build/lib/taosws.lib>
-            $<$<NOT:$<OR:$<BOOL:${TD_ALPINE}>,$<BOOL:${TD_WINDOWS}>>>:COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib>
+            # 根据不同操作系统设置不同的复制命令
             COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
             COMMAND cmake -E copy target/release/taosws.h ${CMAKE_BINARY_DIR}/build/include
     )
+
+    # set different install command for different platform
+    if(TD_ALPINE)
+        ExternalProject_Add_Step(taosws-rs install_alpine_lib
+            COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
+            DEPENDS taosws-rs-build
+            ALWAYS 1
+        )
+    elseif(TD_WINDOWS)
+        ExternalProject_Add_Step(taosws-rs install_windows_dll
+            COMMAND cp target/release/taosws.dll ${CMAKE_BINARY_DIR}/build/lib
+            DEPENDS taosws-rs-build
+            ALWAYS 1
+        )
+        ExternalProject_Add_Step(taosws-rs install_windows_lib
+            COMMAND cp target/release/taosws.dll.lib ${CMAKE_BINARY_DIR}/build/lib/taosws.lib
+            DEPENDS taosws-rs-build
+            ALWAYS 1
+        )
+    else()
+        ExternalProject_Add_Step(taosws-rs install_other_lib
+            COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
+            DEPENDS taosws-rs-build
+            ALWAYS 1
+        )
+    endif()
 endmacro()
 
 IF(TD_WEBSOCKET)
@@ -47,6 +70,7 @@ IF(TD_WEBSOCKET)
         create_taosws_rs_project()
     ENDIF()
 ENDIF()
+
 IF(TD_TAOS_TOOLS)
     INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/tools/taos_tools/deps/avro/lang/c/src)
     INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/client)
