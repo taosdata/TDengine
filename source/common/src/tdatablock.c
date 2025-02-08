@@ -3339,7 +3339,7 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
     if (IS_DECIMAL_TYPE(pColInfoData->info.type)) {
       pColInfoData->info.scale = *(char*)pStart;
       pColInfoData->info.precision = *((char*)pStart + 2);
-      pColInfoData->info.bytes >>= *((char*)pStart + 3);
+      pColInfoData->info.bytes &= 0xFF;
     }
     pStart += sizeof(int32_t);
 
@@ -3733,7 +3733,7 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
           } else if (TSDB_DATA_TYPE_DOUBLE == pCol->info.type) {
             double v = 0;
             GET_TYPED_DATA(v, double, pCol->info.type, colDataGetNumData(pCol, r), typeGetTypeModFromColInfo(&pCol->info));
-          } else {
+          } else {// TODO wjm add decimal type
             GET_TYPED_DATA(typeValue, int64_t, pCol->info.type, colDataGetNumData(pCol, r), typeGetTypeModFromColInfo(&pCol->info));
           }
         }
