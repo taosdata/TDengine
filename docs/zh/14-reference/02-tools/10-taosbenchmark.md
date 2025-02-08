@@ -8,11 +8,7 @@ taosBenchmark 是 TDengine 产品性能基准测试工具，提供对 TDengine �
 
 ## 安装
 
-taosBenchmark 提供两种安装方式:
-
-- taosBenchmark 是 TDengine 安装包中默认安装组件，安装 TDengine 后即可使用，参考 [TDengine 安装](../../../get-started/)
-
-- 单独编译 taos-tools 并安装, 参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
+taosBenchmark 是 TDengine 安装包中默认安装组件，安装 TDengine 后即可使用，参考 [TDengine 安装](../../../get-started/)
 
 ## 运行
 
@@ -62,7 +58,7 @@ taosBenchmark -f <json file>
 <summary>insert.json</summary>
 
 ```json
-{{#include /taos-tools/example/insert.json}}
+{{#include TDengine/tools/taos-tools/example/insert.json}}
 ```
 
 </details>
@@ -73,7 +69,7 @@ taosBenchmark -f <json file>
 <summary>query.json</summary>
 
 ```json
-{{#include /taos-tools/example/query.json}}
+{{#include TDengine/tools/taos-tools/example/query.json}}
 ```
 
 </details>
@@ -84,12 +80,12 @@ taosBenchmark -f <json file>
 <summary>tmq.json</summary>
 
 ```json
-{{#include /taos-tools/example/tmq.json}}
+{{#include TDengine/tools/taos-tools/example/tmq.json}}
 ```
 
 </details>
 
-查看更多 json 配置文件示例可 [点击这里](https://github.com/taosdata/taos-tools/tree/main/example)
+查看更多 json 配置文件示例可 [点击这里](https://github.com/taosdata/TDengine/tree/main/tools/taos-tools/example)
 
 ## 命令行参数详解
 | 命令行参数                     | 功能说明                                         |
