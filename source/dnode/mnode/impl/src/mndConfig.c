@@ -977,6 +977,7 @@ int32_t compareSConfigItemArrays(SMnode *pMnode, const SArray *dArray, SArray *d
     if (mObj == NULL) {
       code = terrno;
       mError("failed to acquire config:%s from sdb, since %s", dItem->name, tstrerror(code));
+      return code;
     }
     if (!compareSConfigItem(mObj, dItem)) {
       code = TSDB_CODE_FAILED;
