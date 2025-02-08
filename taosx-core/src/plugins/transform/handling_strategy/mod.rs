@@ -38,6 +38,39 @@ impl HandlingStrategy {
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
+pub enum HandlingConnectionError {
+    #[default]
+    Archive,
+    Skip,
+    Retry,
+    Break,
+}
+
+impl HandlingConnectionError {
+    pub fn handle(&self, err: String) -> anyhow::Result<(HandlingResult, String)> {
+        match self {
+            HandlingConnectionError::Archive => {
+                tracing::trace!("{err}: archive record");
+                Ok((HandlingResult::Archive, err))
+            }
+            HandlingConnectionError::Skip => {
+                tracing::warn!("{err}: skip record");
+                Ok((HandlingResult::Skip, err))
+            }
+            HandlingConnectionError::Retry => {
+                tracing::debug!("{err}: retry record");
+                Ok((HandlingResult::Retry, err))
+            }
+            HandlingConnectionError::Break => {
+                tracing::error!("{err}: break task");
+                anyhow::bail!(err)
+            }
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
+#[serde(rename_all = "snake_case")]
 pub enum HandlingPrimaryTimestampNull {
     #[default]
     Archive,
@@ -302,7 +335,7 @@ pub struct ProcessOnAbnormal {
     #[serde(default)]
     pub table_not_exist: HandlingStrategy,
     #[serde(default)]
-    pub database_connection_error: HandlingStrategy,
+    pub database_connection_error: HandlingConnectionError,
 
     /// Cache configuration, when the database reports a resource shortage error
     #[serde(default)]
@@ -334,7 +367,7 @@ impl Default for ProcessOnAbnormal {
             database_not_exist: HandlingStrategy::default(),
             stable_not_exist: HandlingStrategy::default(),
             table_not_exist: HandlingStrategy::default(),
-            database_connection_error: HandlingStrategy::default(),
+            database_connection_error: HandlingConnectionError::default(),
             cache: Cache::default(),
             archive: Archive::default(),
         }
@@ -349,4 +382,5 @@ pub enum HandlingResult {
     Archive,
     Modify(String),
     ModifyAndArchive(String),
+    Retry,
 }

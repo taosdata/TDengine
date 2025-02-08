@@ -1260,6 +1260,7 @@ impl Parser {
                         }
                         Ok((HandlingResult::Modify(_), _)) => todo!(),
                         Ok((HandlingResult::ModifyAndArchive(_), _)) => todo!(),
+                        Ok((HandlingResult::Retry, _)) => unreachable!(),
                         Err(e) => {
                             Err(Error::FieldNameLengthOverflowError(
                                 field_name.to_string(),
@@ -1354,6 +1355,7 @@ impl Parser {
                                 let _ = use_current_time_indices.upsert(row, err.clone());
                                 let _ = archive_indices.upsert(row, err);
                             }
+                            Ok((HandlingResult::Retry, _)) => unreachable!(),
                             Err(_) => {
                                 Err(Error::NullPrimaryKey(all_fields[0].name().clone()))?;
                             }
@@ -1389,6 +1391,7 @@ impl Parser {
                             }
                             Ok((HandlingResult::Modify(_), _)) => unreachable!(),
                             Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                            Ok((HandlingResult::Retry, _)) => unreachable!(),
                             Err(e) => {
                                 Err(Error::PrimaryTimestampOverflow(format!("{e:#}")))?;
                             }
@@ -1428,6 +1431,7 @@ impl Parser {
                             let _ = archive_indices.upsert(row, err);
                             Ok((name, row))
                         }
+                        Ok((HandlingResult::Retry, _)) => unreachable!(),
                         Err(e) => {
                             anyhow::bail!("{:#}", e);
                         }

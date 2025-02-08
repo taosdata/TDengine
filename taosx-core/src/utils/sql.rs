@@ -88,6 +88,11 @@ pub async fn get_current_precision(
                 let errno: i32 = code.into();
                 match errno {
                     0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                        // 0xE001: internal error
+                        // 0xE002: connection closed
+                        // 0xE003: send timeout
+                        // 0xE004: receive timeout
+                        // 0x000B: unable to establish connection
                         if reconnected {
                             return Err(err.context("Can't get precision"));
                         }
@@ -220,6 +225,11 @@ pub async fn get_minimum_timestamp(
                 let errno: i32 = code.into();
                 match errno {
                     0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                        // 0xE001: internal error
+                        // 0xE002: connection closed
+                        // 0xE003: send timeout
+                        // 0xE004: receive timeout
+                        // 0x000B: unable to establish connection
                         if reconnected {
                             return Err(err.context("Can't get minimum timestamp"));
                         }
@@ -336,6 +346,11 @@ pub async fn exec_sql_with_connection_retries(
             tracing::debug!(%code, error = format!("{err:#}"), sql, "exec sql error");
             match errno {
                 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                    // 0xE001: internal error
+                    // 0xE002: connection closed
+                    // 0xE003: send timeout
+                    // 0xE004: receive timeout
+                    // 0x000B: unable to establish connection
                     taos.replace(
                         reconnect_with_max_retries(pool, max_retries, cancel)
                             .in_current_span()
@@ -348,7 +363,7 @@ pub async fn exec_sql_with_connection_retries(
                         .await
                 }
                 0x032C => {
-                    // Object is creating.
+                    // 0x032C: Object is creating
                     tokio::time::sleep(Duration::from_millis(200)).await;
                     taos.as_ref()
                         .unwrap()
@@ -395,6 +410,11 @@ pub async fn write_raw_block_with_connection_retries(
             let errno: i32 = code.into();
             match errno {
                 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                    // 0xE001: internal error
+                    // 0xE002: connection closed
+                    // 0xE003: send timeout
+                    // 0xE004: receive timeout
+                    // 0x000B: unable to establish connection
                     taos.replace(
                         reconnect_with_max_retries(pool, max_retries, cancel)
                             .in_current_span()
@@ -444,6 +464,11 @@ pub async fn describe_table_with_connection_retries(
             let errno: i32 = code.into();
             match errno {
                 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                    // 0xE001: internal error
+                    // 0xE002: connection closed
+                    // 0xE003: send timeout
+                    // 0xE004: receive timeout
+                    // 0x000B: unable to establish connection
                     taos.replace(
                         reconnect_with_max_retries(pool, max_retries, cancel)
                             .in_current_span()

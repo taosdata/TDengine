@@ -177,8 +177,15 @@ async fn assert_create_stable(
                 let errno: i32 = code.into();
                 tracing::warn!(sql, "Exec SQL error: {err:#}");
                 match errno {
-                    0x0603 | 0x0360 | 0x03C7 => return Ok(()),
-                    0x03D3 /* MND_TRANS_CONFLICT */ | 0x032C /* SDB_OBJ_CREATING */ => {
+                    0x0603 | 0x0360 | 0x03C7 => {
+                        // 0x0603: table already exists
+                        // 0x0360: stable already exists
+                        // 0x03C7: stable uid not match
+                        return Ok(());
+                    }
+                    0x03D3 | 0x032C => {
+                        // 0x03D3: conflict transaction not completed
+                        // 0x032C: object is creating
                         // 等待一段时间后再次尝试创建，直到等到表已存在的错误后再退出
                         tokio::time::sleep(Duration::from_millis(100)).await;
                         continue;
@@ -239,15 +246,22 @@ async fn write_stable_with_sql(
                 "flat message write sql encountered unrecoverable err: {err:#}"
             );
             match errno {
-                0x2602 => Err(FlatWriteError::InvalidColumn),
+                0x2602 => {
+                    // TODO: the column does not exist
+                    // 0x2602: invalid column
+                    Err(FlatWriteError::InvalidColumn)
+                }
                 0x2603 | 0x0618 => {
-                    // stable/table not exists
+                    // TODO: the table does not exist
+                    // 0x2603: the table does not exist
+                    // 0x0618: the table does not exist
                     Err(FlatWriteError::TableNotExits(
                         records.stable.as_deref().unwrap_or("unknown").to_string(),
                     ))
                 }
                 0x2653 => {
-                    // Value too long for column/tag
+                    // TODO: the column length not enough
+                    // 0x2653: Value too long for column/tag
                     let message = err.message();
                     if let Some(caps) = RE_0X2653.captures(&message) {
                         let field = caps.get(1).unwrap().as_str();
@@ -256,8 +270,8 @@ async fn write_stable_with_sql(
                     Err(Into::into(err))
                 }
                 0x267B => {
-                    // TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL
-                    // SQL internal error, ignore for now
+                    // TODO
+                    // 0x267B: the primary key is null
                     Ok(0)
                 }
                 _ => Err(err)
@@ -307,9 +321,10 @@ pub async fn flat_write_with_sql(
 
     let database_name = match get_database(taos).await {
         Ok(db) => Some(db),
-        Err(err) => {
-            return handling_database_not_exist(task_id, global, messages, err);
-        }
+        Err(err) => match handling_database_not_exist(task_id, global, messages, err) {
+            Ok(_) => return Ok(0),
+            Err(e) => return Err(e),
+        },
     };
     // insert into stable
     for (stable, messages) in groups.into_iter() {
@@ -385,11 +400,11 @@ pub async fn flat_write_with_sql(
                                         if let Err(e) = taos.exec(&sql).await {
                                             match e.code().into() {
                                                 0x036B => {
-                                                    // Column already exists
+                                                    // 0x036B: Column already exists
                                                     continue 'OUTER;
                                                 }
                                                 0x03D3 => {
-                                                    // Conflict transaction not completed
+                                                    // 0x03D3: Conflict transaction not completed
                                                     tracing::warn!(
                                                         "add columns transaction conflict"
                                                     );
@@ -607,6 +622,12 @@ pub async fn flat_write_with_raw_block(
                             Err(err) => {
                                 let code: i32 = err.code().into();
                                 if !matches!(code, 0x0218 | 0x2603 | 0x2602 | 0x0618 | 0x0362) {
+                                    // TODO
+                                    // 0x0218: the table does not exist
+                                    // 0x2603: the table does not exist
+                                    // 0x2602: invalid column
+                                    // 0x0618: the table does not exist
+                                    // 0x0362: the table does not exist
                                     Err(err).with_context(|| {
                                         format!("Get table schema error for `{table_name}`")
                                     })?;
@@ -628,8 +649,9 @@ pub async fn flat_write_with_raw_block(
                                         }
                                         Err(err) => {
                                             let code: i32 = err.code().into();
-                                            // STable already exists
                                             if code != 0x0360 {
+                                                // TODO
+                                                // 0x0360: stable already exists
                                                 Err(err)?;
                                             }
                                         }
@@ -655,6 +677,8 @@ pub async fn flat_write_with_raw_block(
                                                 let code: i32 = err.code().into();
 
                                                 if code == 0x2605 {
+                                                    // TODO
+                                                    // 0x2605: wrong value type
                                                     let table = records.stable_name().unwrap();
                                                     let desc =
                                                         describe_table_with_connection_retries(
@@ -689,7 +713,8 @@ pub async fn flat_write_with_raw_block(
                                                     }
                                                     continue;
                                                 } else if code == 0x260D {
-                                                    // Tags number not matched
+                                                    // TODO
+                                                    // 0x260D: Tags number not matched
                                                     // add Tag
                                                     let table = records.stable_name().unwrap();
                                                     let tags = records.tag_meta().unwrap();
@@ -733,6 +758,8 @@ pub async fn flat_write_with_raw_block(
                                                         }
                                                     }
                                                 } else if code == 0x2602 {
+                                                    // TODO: the column does not exist
+                                                    // 0x2602: invalid column
                                                     let Some(stable) = messages
                                                         .first()
                                                         .and_then(|m| m.table.using.as_ref())
@@ -764,11 +791,11 @@ pub async fn flat_write_with_raw_block(
                                                             if let Err(e) = taos.exec(&sql).await {
                                                                 match e.code().into() {
                                                                     0x036B => {
-                                                                        // Column already exists
+                                                                        // 0x036B: Column already exists
                                                                         continue 'OUTER;
                                                                     }
                                                                     0x03D3 => {
-                                                                        // Conflict transaction not completed
+                                                                        // 0x03D3: Conflict transaction not completed
                                                                         tracing::warn!("add columns transaction conflict");
                                                                         tokio::time::sleep(Duration::from_millis(100)).await;
                                                                         continue;
@@ -830,6 +857,9 @@ pub async fn flat_write_with_raw_block(
                     break;
                 }
                 if errno == 0x2603 || errno == 0x0618 {
+                    // TODO: the table does not exist
+                    // 0x2603: the table does not exist
+                    // 0x0618: the table does not exist
                     if let Some(sql) = records.stable_sql() {
                         // dbg!(&sql);
 
@@ -851,11 +881,16 @@ pub async fn flat_write_with_raw_block(
                                 let code: i32 = err.code().into();
                                 match code {
                                     0x032C => {
-                                        // Object is creating
+                                        // 0x032C: Object is creating
                                         tracing::warn!("error code [0x032C] encountered, ignore");
                                         continue;
                                     }
                                     0x0360 | 0x0115 | 0x0603 | 0x03C7 | 0x03D3 => {
+                                        // 0x0360: stable already exists
+                                        // 0x0115: invalid msg
+                                        // 0x0603: table already exists
+                                        // 0x03C7: stable uid not match
+                                        // 0x03D3: conflict transaction not completed
                                         // Table already exists, do nothing
                                         tracing::debug!("error encountered, ignore(table already exists): {err:#}",);
                                     }
@@ -886,6 +921,8 @@ pub async fn flat_write_with_raw_block(
                             Err(err) => {
                                 let code: i32 = err.code().into();
                                 if code == 0x2605 {
+                                    // TODO
+                                    // 0x2605: wrong value type
                                     let table = records.stable_name().unwrap();
                                     let desc = describe_table_with_connection_retries(
                                         pool,
@@ -939,6 +976,8 @@ pub async fn flat_write_with_raw_block(
 
                     continue;
                 } else if errno == 0x2605 {
+                    // TODO
+                    // 0x2605: wrong value type
                     // container length is too short.
                     let desc = describe_table_with_connection_retries(
                         pool,
@@ -969,6 +1008,8 @@ pub async fn flat_write_with_raw_block(
                         .await;
                     }
                 } else if errno == 0x0118 {
+                    // TODO
+                    // 0x0118: invalid parameter
                     // Code([0x0118] Unknown or common error)
                     // column or tag not exists
                     let mut index = 0;
@@ -1021,13 +1062,52 @@ pub async fn flat_write_with_raw_block(
                     || errno == 0xE004
                     || errno == 0x000B
                 {
-                    tokio::time::sleep(Duration::from_secs(2)).await;
-                    if cancel.is_cancelled() {
-                        return Err(err)?;
+                    // TODO
+                    // 0xE001: internal error
+                    // 0xE002: connection closed
+                    // 0xE003: send timeout
+                    // 0xE004: receive timeout
+                    // 0x000B: unable to establish connection
+                    match global
+                        .process_on_abnormal
+                        .primary_timestamp_overflow
+                        .handle(format!("{err:#}"))
+                    {
+                        Ok((HandlingResult::Skip, _)) => {
+                            break;
+                        }
+                        Ok((HandlingResult::Archive, err)) => {
+                            let err_vec = vec![err.clone(); records.records.num_rows()];
+                            let err_timestamp_vec = vec![
+                                Utc::now().timestamp_nanos_opt().unwrap();
+                                records.records.num_rows()
+                            ];
+                            let _ = archive_records(
+                                task_id,
+                                &global.process_on_abnormal.archive.location,
+                                &records.records,
+                                err_vec,
+                                err_timestamp_vec,
+                            );
+                            break;
+                        }
+                        Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+                        Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                        Ok((HandlingResult::Retry, _)) => {
+                            tokio::time::sleep(Duration::from_secs(2)).await;
+                            if cancel.is_cancelled() {
+                                return Err(err)?;
+                            }
+                            taos.replace(pool.get().await?);
+                            continue;
+                        }
+                        Err(e) => {
+                            return Err(e)?;
+                        }
                     }
-                    taos.replace(pool.get().await?);
-                    continue;
                 } else if errno == 0x2653 {
+                    // TODO: the column length not enough
+                    // 0x2653: value too long for column/tag
                     // retry with sql
                     let records_copy = MessageArrowRecords {
                         table: records.table.clone(),
@@ -1049,11 +1129,14 @@ pub async fn flat_write_with_raw_block(
                     .await?;
                     break;
                 } else if errno == 0x267B {
+                    // TODO
+                    // 0x267B: the primary key is null
                     // TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL
                     // SQL internal error, ignore for now
                     tracing::warn!("write raw block sql error: {err:#}",);
                     break;
                 } else {
+                    // TODO
                     error!(table = table_name.as_ref(), code = %code, "write {} records failed: {err:?}", records.records.num_rows());
                     metrics.add_failed_raw_blocks(1);
                     metrics.add_failed_rows(raw.nrows() as u64);
@@ -1079,13 +1162,13 @@ fn handling_database_not_exist(
     global: &TableOptions,
     messages: &[MessageArrowRecords],
     err: taos::Error,
-) -> anyhow::Result<usize> {
+) -> anyhow::Result<()> {
     match global
         .process_on_abnormal
         .database_not_exist
         .handle(format!("get database error: {err:#}"))
     {
-        Ok((HandlingResult::Skip, _)) => Ok(0),
+        Ok((HandlingResult::Skip, _)) => Ok(()),
         Ok((HandlingResult::Archive, err)) => {
             for batch in messages.iter().map(|m| m.records.clone()) {
                 let err_vec = vec![err.clone(); batch.num_rows()];
@@ -1099,10 +1182,11 @@ fn handling_database_not_exist(
                     err_timestamp_vec,
                 );
             }
-            Ok(0)
+            Ok(())
         }
         Ok((HandlingResult::Modify(_), _)) => unreachable!(),
         Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+        Ok((HandlingResult::Retry, _)) => unreachable!(),
         Err(e) => Err(e),
     }
 }
