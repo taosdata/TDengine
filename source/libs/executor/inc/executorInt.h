@@ -708,6 +708,9 @@ typedef struct SNonBlockAggSupporter {
   int32_t       numOfKeep;
   TSKEY         tsOfKeep;
   AggImplFn     pWindowAggFn;
+  SArray*       pPullWins;
+  int32_t       pullIndex;
+  SSDataBlock*  pPullDataRes;
 } SNonBlockAggSupporter;
 
 typedef struct SStreamSessionAggOperatorInfo {

@@ -2175,7 +2175,7 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
   QUERY_CHECK_NULL(pInfo->historyWins, code, lino, _error, terrno);
 
   if (pHandle) {
-    pInfo->isHistoryOp = pHandle->fillHistory;
+    pInfo->isHistoryOp = (pHandle->fillHistory == STREAM_HISTORY_OPERATOR);
   }
 
   pInfo->pCloseTs = taosArrayInit(1024, sizeof(TSKEY));

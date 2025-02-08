@@ -79,11 +79,19 @@ int32_t buildIntervalSliceResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
 
   (*ppRes) = NULL;
 
+  if (isFinalOperator(&pInfo->basic)) {
+    doBuildPullDataBlock(pInfo->nbSup.pPullWins, &pInfo->nbSup.pullIndex, pInfo->nbSup.pPullDataRes);
+    if (pInfo->nbSup.pPullDataRes->info.rows != 0) {
+      printDataBlock(pInfo->nbSup.pPullDataRes, getStreamOpName(opType), GET_TASKID(pTaskInfo));
+      (*ppRes) = pInfo->nbSup.pPullDataRes;
+      return code;
+    }
+  }
+
   if (pOperator->status == OP_RES_TO_RETURN) {
     doBuildDeleteResultImpl(&pInfo->streamAggSup.stateStore, pTaskInfo->streamInfo.pState, pInfo->pDelWins,
                             &pInfo->delIndex, pInfo->pDelRes);
     if (pInfo->pDelRes->info.rows != 0) {
-      // process the rest of the data
       printDataBlock(pInfo->pDelRes, getStreamOpName(opType), GET_TASKID(pTaskInfo));
       (*ppRes) = pInfo->pDelRes;
       return code;
@@ -561,6 +569,25 @@ static bool windowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols) {
   return needed;
 }
 
+int32_t initNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup, SInterval* pInterval) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  pNbSup->numOfKeep = ceil(((double)pInterval->interval) / pInterval->sliding);
+  pNbSup->tsOfKeep = INT64_MAX;
+  pNbSup->pullIndex = 0;
+  pNbSup->pPullWins = taosArrayInit(8, sizeof(SPullWindowInfo));
+  QUERY_CHECK_NULL(pNbSup->pPullWins, code, lino, _end, terrno);
+
+  code = createSpecialDataBlock(STREAM_RETRIEVE, &pNbSup->pPullDataRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                               SReadHandle* pHandle, SOperatorInfo** ppOptInfo) {
   int32_t                           code = TSDB_CODE_SUCCESS;
@@ -658,16 +685,17 @@ int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiN
   pInfo->pOperator = pOperator;
   pInfo->hasFill = false;
   pInfo->hasInterpoFunc = windowinterpNeeded(pExpSup->pCtx, numOfExprs);
-  pInfo->nbSup.numOfKeep = ceil(((double)pInfo->interval.interval) / pInfo->interval.sliding);
-  pInfo->nbSup.tsOfKeep = INT64_MAX;
+  initNonBlockAggSupptor(&pInfo->nbSup, &pInfo->interval);
 
   setOperatorInfo(pOperator, "StreamIntervalSliceOperator", pPhyNode->type, true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
   code = initStreamBasicInfo(&pInfo->basic);
   QUERY_CHECK_CODE(code, lino, _error);
   if (pIntervalPhyNode->window.triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
-    if (pHandle->fillHistory) {
+    if (pHandle->fillHistory == STREAM_HISTORY_OPERATOR) {
       setFillHistoryOperatorFlag(&pInfo->basic);
+    } else if (pHandle->fillHistory == STREAM_RECALCUL_OPERATOR) {
+      setRecalculateOperatorFlag(&pInfo->basic);
     }
     pInfo->nbSup.pWindowAggFn = doStreamIntervalNonblockAggImpl;
     if (pPhyNode->type == QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL) {

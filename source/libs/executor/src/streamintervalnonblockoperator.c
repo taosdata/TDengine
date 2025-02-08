@@ -512,6 +512,38 @@ _end:
   return code;
 }
 
+int32_t buildRetriveRequest(SExecTaskInfo* pTaskInfo, SStreamAggSupporter* pAggSup, STableTsDataState* pTsDataState, SArray* pRetrives) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  code = pAggSup->stateStore.streamStateMergeAllScanRange(pTsDataState);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  while (1) {
+    SScanRange range = {0};
+    code = pAggSup->stateStore.streamStatePopScanRange(pTsDataState, &range);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (IS_INVALID_RANGE(range)) {
+      break;
+    }
+    void*   pIte = NULL;
+    int32_t iter = 0;
+    while ((pIte = tSimpleHashIterate(range.pGroupIds, pIte, &iter)) != NULL) {
+      uint64_t groupId = *(uint64_t*) tSimpleHashGetKey(pIte, NULL);
+      SPullWindowInfo pullReq = {
+          .window = range.win, .groupId = groupId, .calWin = range.calWin};
+      void* pTemp = taosArrayPush(pRetrives, &pullReq);
+      QUERY_CHECK_NULL(pTemp, code, lino, _end, terrno);
+    }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+    pTaskInfo->code = code;
+  }
+  return code;
+}
+
 int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                           code = TSDB_CODE_SUCCESS;
   int32_t                           lino = 0;
@@ -556,6 +588,9 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
 
     if (pBlock == NULL) {
       qDebug("===stream===return data:%s.", getStreamOpName(pOperator->operatorType));
+      if (isFinalOperator(&pInfo->basic) && isRecalculateOperator(&pInfo->basic)) {
+        code = buildRetriveRequest(pTaskInfo, pAggSup, pInfo->basic.pTsDataState, pInfo->nbSup.pPullWins);
+      }
       pOperator->status = OP_RES_TO_RETURN;
       break;
     }
@@ -586,10 +621,17 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
       } break;
       case STREAM_RECALCULATE_DATA:
       case STREAM_RECALCULATE_DELETE: {
-        if (isRecalculateOperator(&pInfo->basic) && !isSemiOperator(&pInfo->basic)) {
-          code = doTransformRecalculateWindows(pTaskInfo, &pInfo->interval, pBlock, pInfo->pDelWins);
-          QUERY_CHECK_CODE(code, lino, _end);
-        } else if (isSemiOperator(&pInfo->basic)) {
+        if (isRecalculateOperator(&pInfo->basic)) {
+          if (isSingleOperator(&pInfo->basic)) {
+            code = doTransformRecalculateWindows(pTaskInfo, &pInfo->interval, pBlock, pInfo->pDelWins);
+            QUERY_CHECK_CODE(code, lino, _end);
+            continue;
+          } else if (isFinalOperator(&pInfo->basic)) {
+            saveRecalculateData(&pAggSup->stateStore, pInfo->basic.pTsDataState, pBlock, pBlock->info.type);
+          }
+        }
+        
+        if (isSemiOperator(&pInfo->basic)) {
           (*ppRes) = pBlock;
           return code;
         } else {
@@ -881,7 +923,7 @@ int32_t createFinalIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNo
 
   SStreamIntervalSliceOperatorInfo* pInfo = (SStreamIntervalSliceOperatorInfo*)(*ppOptInfo)->info;
   pInfo->nbSup.pWindowAggFn = doStreamFinalntervalNonblockAggImpl;
-  pInfo->streamAggSup.pScanBlock->info.type = STREAM_MID_RETRIEVE;
+  pInfo->streamAggSup.pScanBlock->info.type = STREAM_RETRIEVE;
   pInfo->nbSup.tsOfKeep = INT64_MIN;
   pInfo->twAggSup.waterMark = 0;
   setFinalOperatorFlag(&pInfo->basic);

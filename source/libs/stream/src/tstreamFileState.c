@@ -1749,6 +1749,8 @@ int32_t initTsDataState(STableTsDataState** ppTsDataState, int8_t pkType, int32_
   QUERY_CHECK_NULL(pTsDataState->pRecValueBuff, code, lino, _end, terrno);
 
   pTsDataState->curRecId = -1;
+
+  pTsDataState->pStreamTaskState = pState; //todo(liuyao) for debug
   (*ppTsDataState) = pTsDataState;
 
 _end:

@@ -346,19 +346,6 @@ typedef struct SScanRange {
   SSHashObj* pUIds;
 } SScanRange;
 
-typedef struct STableTsDataState {
-  SSHashObj*    pTableTsDataMap;
-  __compar_fn_t comparePkColFn;
-  void*         pPkValBuff;
-  int32_t       pkValLen;
-  void*         pState;
-  int32_t       curRecId;
-  void*         pStreamTaskState;
-  SArray*       pScanRanges;
-  SRecDataInfo* pRecValueBuff;
-  int32_t       recValueLen;
-} STableTsDataState;
-
 typedef struct {
   void*   iter;      //  rocksdb_iterator_t*    iter;
   void*   snapshot;  //  rocksdb_snapshot_t*    snapshot;
@@ -372,6 +359,20 @@ typedef struct {
   void*   pHashData;
   int64_t minGpId;
 } SStreamStateCur;
+
+typedef struct STableTsDataState {
+  SSHashObj*       pTableTsDataMap;
+  __compar_fn_t    comparePkColFn;
+  void*            pPkValBuff;
+  int32_t          pkValLen;
+  void*            pState;
+  int32_t          curRecId;
+  void*            pStreamTaskState;
+  SArray*          pScanRanges;
+  SRecDataInfo*    pRecValueBuff;
+  int32_t          recValueLen;
+  SStreamStateCur* pRecCur;
+} STableTsDataState;
 
 typedef struct SStateStore {
   int32_t (*streamStatePutParName)(SStreamState* pState, int64_t groupId, const char* tbname);

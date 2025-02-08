@@ -21,6 +21,12 @@ extern "C" {
 
 #include "executorInt.h"
 
+typedef struct SPullWindowInfo {
+  STimeWindow window;
+  uint64_t    groupId;
+  STimeWindow calWin;
+} SPullWindowInfo;
+
 int32_t doStreamIntervalNonblockAggImpl(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
 STimeWindow getFinalTimeWindow(int64_t ts, SInterval* pInterval);
 int32_t getNextQualifiedFinalWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,

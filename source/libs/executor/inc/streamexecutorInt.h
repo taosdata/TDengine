@@ -45,6 +45,15 @@ extern "C" {
 
 #define IS_FILL_CONST_VALUE(type) ((type == TSDB_FILL_NULL || type == TSDB_FILL_NULL_F || type == TSDB_FILL_SET_VALUE ||  type == TSDB_FILL_SET_VALUE_F))
 
+#define IS_INVALID_RANGE(range)             (range.pGroupIds == NULL)
+
+// 
+enum {
+  STREAM_NORMAL_OPERATOR = 0,
+  STREAM_HISTORY_OPERATOR = 1,
+  STREAM_RECALCUL_OPERATOR = 2,
+};
+
 typedef struct SSliceRowData {
   TSKEY key;
   char  pRowVal[];
@@ -187,6 +196,11 @@ int32_t setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock);
 int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
                                          STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
                                          struct SOperatorInfo** pOptrInfo);
+int32_t saveRecalculateData(SStateStore* pStateStore, STableTsDataState* pTsDataState, SSDataBlock* pSrcBlock, EStreamType mode);
+void doBuildPullDataBlock(SArray* array, int32_t* pIndex, SSDataBlock* pBlock);
+int32_t doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32_t tsColIndex, int32_t* pRowIndex,
+                    SSDataBlock** ppRes);
+void prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t* pRowIndex, bool* pRes);
 
 #ifdef __cplusplus
 }
