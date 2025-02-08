@@ -251,7 +251,12 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   configRsp.cver = vObj->i32;
   if (configRsp.forceReadConfig) {
     // compare config array from configReq with current config array
-    if (compareSConfigItemArrays(pMnode, configReq.array, array)) {
+    code = compareSConfigItemArrays(pMnode, configReq.array, array);
+    if (code != TSDB_CODE_SUCCESS) {
+      mError("failed to compare config array, since %s", tstrerror(code));
+      goto _OVER;
+    }
+    if (taosArrayGetSize(array) > 0) {
       configRsp.array = array;
     } else {
       configRsp.isConifgVerified = 1;
@@ -294,7 +299,7 @@ _OVER:
   }
   sdbRelease(pMnode->pSdb, vObj);
   cfgArrayCleanUp(array);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t mndInitWriteCfg(SMnode *pMnode) {
@@ -969,7 +974,7 @@ int32_t compareSConfigItem(const SConfigObj *item1, SConfigItem *item2, bool *co
       return TSDB_CODE_INVALID_CFG;
   }
   *compare = true;
-  return TSDB_CODE_SUCCESS
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t compareSConfigItemArrays(SMnode *pMnode, const SArray *dArray, SArray *diffArray) {
@@ -985,6 +990,7 @@ int32_t compareSConfigItemArrays(SMnode *pMnode, const SArray *dArray, SArray *d
       mError("failed to acquire config:%s from sdb, since %s", dItem->name, tstrerror(code));
       return code;
     }
+
     code = compareSConfigItem(mObj, dItem, &compare);
     if (code != TSDB_CODE_SUCCESS) {
       sdbRelease(pMnode->pSdb, mObj);
@@ -992,7 +998,6 @@ int32_t compareSConfigItemArrays(SMnode *pMnode, const SArray *dArray, SArray *d
     }
 
     if (!compare) {
-      code = TSDB_CODE_FAILED;
       if (taosArrayPush(diffArray, dItem) == NULL) {
         sdbRelease(pMnode->pSdb, mObj);
         return terrno;
