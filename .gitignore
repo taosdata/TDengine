@@ -164,6 +164,7 @@ zconf.h
 version.h
 geos_c.h
 source/libs/parser/src/sql.c
+include/common/ttokenauto.h
 !packaging/smokeTest/pytest_require.txt
 tdengine-test-dir/
 localtime.c

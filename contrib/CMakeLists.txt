@@ -188,7 +188,11 @@ endif()
 
 # lemon
 if(${BUILD_WITH_LEMON})
-    find_program(C_COMPILER_LEMON NAMES gcc)
+    if(${TD_ACORE})
+        set(C_COMPILER_LEMON ${CMAKE_C_COMPILER})
+    else()
+        find_program(C_COMPILER_LEMON NAMES gcc)
+    endif()
     if(C_COMPILER_LEMON)
         message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
     else()

@@ -72,6 +72,12 @@ ELSEIF (TD_DARWIN_64)
     ENDIF ()
 ENDIF ()
 
+option(
+    BUILD_WITH_LEMON
+    "If build with lemon"
+    ON
+)
+
 IF(NOT TD_ACORE)
 option(
         BUILD_GEOS
@@ -124,12 +130,6 @@ option(
 option(
     BUILD_WITH_ROCKSDB
     "If build with rocksdb"
-    ON
-)
-
-option(
-    BUILD_WITH_LEMON
-    "If build with lemon"
     ON
 )
 
