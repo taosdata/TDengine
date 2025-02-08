@@ -59,7 +59,7 @@ taosBenchmark -f <json file>
 <summary>insert.json</summary>
 
 ```json
-{{#include TDengine/tools/taos-tools/example/insert.json}}
+{{#include /TDengine/tools/taos-tools/example/insert.json}}
 ```
 
 </details>
@@ -70,7 +70,7 @@ taosBenchmark -f <json file>
 <summary>query.json</summary>
 
 ```json
-{{#include TDengine/tools/taos-tools/example/query.json}}
+{{#include /TDengine/tools/taos-tools/example/query.json}}
 ```
 
 </details>
@@ -81,7 +81,7 @@ taosBenchmark -f <json file>
 <summary>tmq.json</summary>
 
 ```json
-{{#include TDengine/tools/taos-tools/example/tmq.json}}
+{{#include /TDengine/tools/taos-tools/example/tmq.json}}
 ```
 
 </details>
