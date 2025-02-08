@@ -205,7 +205,7 @@ typedef struct {
 
 typedef struct {
   int64_t id;
-  char    name[TSDB_CLUSTER_ID_LEN];
+  char    nameX[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
   int64_t updateTime;
   int32_t upTime;
