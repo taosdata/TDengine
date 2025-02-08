@@ -1,0 +1,75 @@
+Welcome to the TDengine Command Line Interface, Client Version:3.3.5.2
+Copyright (c) 2023 by TDengine, all rights reserved.
+
+taos> select now();
+          now()          |
+==========================
+ 2025-02-07 11:16:36.916 |
+Query OK, 1 row(s) in set (0.000672s)
+
+taos> insert into test.d30 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d30.csv';
+Insert OK, 10000000 row(s) affected (58.180991s)
+
+taos> insert into test.d31 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d31.csv';
+Insert OK, 10000000 row(s) affected (58.073219s)
+
+taos> insert into test.d32 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d32.csv';
+Insert OK, 10000000 row(s) affected (58.989940s)
+
+taos> insert into test.d33 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d33.csv';
+Insert OK, 10000000 row(s) affected (58.789557s)
+
+taos> insert into test.d34 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d34.csv';
+Insert OK, 10000000 row(s) affected (58.035381s)
+
+taos> insert into test.d35 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d35.csv';
+Insert OK, 10000000 row(s) affected (58.122026s)
+
+taos> insert into test.d36 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d36.csv';
+Insert OK, 10000000 row(s) affected (57.052629s)
+
+taos> insert into test.d37 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d37.csv';
+Insert OK, 10000000 row(s) affected (57.765854s)
+
+taos> insert into test.d38 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d38.csv';
+Insert OK, 10000000 row(s) affected (58.017940s)
+
+taos> insert into test.d39 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d39.csv';
+Insert OK, 10000000 row(s) affected (57.780444s)
+
+taos> insert into test.d80 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d80.csv';
+Insert OK, 10000000 row(s) affected (57.968658s)
+
+taos> insert into test.d81 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d81.csv';
+Insert OK, 10000000 row(s) affected (57.853972s)
+
+taos> insert into test.d82 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d82.csv';
+Insert OK, 10000000 row(s) affected (57.442450s)
+
+taos> insert into test.d83 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d83.csv';
+Insert OK, 10000000 row(s) affected (57.640936s)
+
+taos> insert into test.d84 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d84.csv';
+Insert OK, 10000000 row(s) affected (58.665015s)
+
+taos> insert into test.d85 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d85.csv';
+Insert OK, 10000000 row(s) affected (58.176729s)
+
+taos> insert into test.d86 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d86.csv';
+Insert OK, 10000000 row(s) affected (57.513966s)
+
+taos> insert into test.d87 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d87.csv';
+Insert OK, 10000000 row(s) affected (58.460233s)
+
+taos> insert into test.d88 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d88.csv';
+Insert OK, 10000000 row(s) affected (58.452444s)
+
+taos> insert into test.d89 file '/data4/guoxy/td_iotdb/tdengine/csv/tdout/3/d89.csv';
+Insert OK, 10000000 row(s) affected (54.629509s)
+
+taos> select now()
+          now()          |
+==========================
+ 2025-02-07 11:35:54.553 |
+Query OK, 1 row(s) in set (0.001606s)
+
