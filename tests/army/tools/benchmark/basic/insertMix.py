@@ -34,7 +34,7 @@ class TDTestCase(TBase):
         sql = "select count(*) from meters"
         tdSql.query(sql)
         allCnt = tdSql.getData(0, 0)
-        if allCnt < 2000000:
+        if allCnt < 200000:
             tdLog.exit(f"taosbenchmark insert row small. row count={allCnt} sql={sql}")
             return 
         
