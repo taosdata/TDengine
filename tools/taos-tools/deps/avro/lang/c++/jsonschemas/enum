@@ -1,0 +1,10 @@
+        {
+            "type": "enum",
+            "symbols": [
+                "zero",
+                "int",
+                "two",
+                "three"
+            ],
+            "name": "myenum"
+        }

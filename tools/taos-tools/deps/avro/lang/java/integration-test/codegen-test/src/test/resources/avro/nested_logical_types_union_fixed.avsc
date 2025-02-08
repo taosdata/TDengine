@@ -1,0 +1,21 @@
+{"namespace": "org.apache.avro.codegentest.testdata",
+  "type": "record",
+  "name": "NestedLogicalTypesUnionFixedDecimal",
+  "doc" : "Test nested types with logical types in generated Java classes",
+  "fields": [
+    {
+      "name": "unionOfFixedDecimal",
+      "type": ["null", {
+        "namespace": "org.apache.avro.codegentest.testdata",
+        "name": "FixedInUnion",
+        "type": "fixed",
+        "size": 12,
+        "logicalType": "decimal",
+        "precision": 28,
+        "scale": 15
+      }]
+    }]
+}
+
+
+
