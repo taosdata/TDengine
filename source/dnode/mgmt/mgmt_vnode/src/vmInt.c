@@ -711,7 +711,8 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
   pMgmt->state.openVnodes = 0;
   dInfo("close %d vnodes with %d threads", numOfVnodes, threadNum);
 
-  dInfo("notify all streams closed in all %d vnodes", numOfVnodes);
+  int64_t st = taosGetTimestampMs();
+  dInfo("notify all streams closed in all %d vnodes, ts:%" PRId64, numOfVnodes, st);
   if (ppVnodes != NULL) {
     for (int32_t i = 0; i < numOfVnodes; ++i) {
       if (ppVnodes[i] != NULL) {
@@ -721,7 +722,9 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
       }
     }
   }
-  dInfo("notify close stream completed in %d vnodes", numOfVnodes);
+
+  int64_t et = taosGetTimestampMs();
+  dInfo("notify close stream completed in %d vnodes, elapsed time: %" PRId64 "ms", numOfVnodes, et - st);
 
   for (int32_t t = 0; t < threadNum; ++t) {
     SVnodeThread *pThread = &threads[t];
