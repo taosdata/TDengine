@@ -686,7 +686,8 @@ async fn consume_lush_record(
                     Err(err) => {
                         let errstr = format!("{err:#}");
                         if errstr.contains("0x2603") || errstr.contains("0x2662") {
-                            // table not exists
+                            // 0x2603: the table does not exist
+                            // 0x2662: the table does not exist
                             let table_sql = table.to_sql(None);
                             if table_sql.is_some() {
                                 let stable_name = table.stable_name().unwrap();
@@ -755,6 +756,7 @@ async fn consume_lush_record(
                             tracing::warn!(sql = sql.0, error = err_str, "create table error");
                             if err_str.contains("0x2653") {
                                 // column or tag length not enough
+                                // 0x2653: value too long for column/tag
                                 let desc = taos.describe(stable_name.as_str()).await?;
                                 let fields = message_modify
                                     .tags
@@ -883,16 +885,26 @@ async fn consume_lush_record(
                                     );
                                     let code: i32 = err.code().into();
                                     match code {
-                                        0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                                        0xE000 | 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                                            // TODO
+                                            // 0xE000: dsn error
+                                            // 0xE001: internal error
+                                            // 0xE002: connection closed
+                                            // 0xE003: send timeout
+                                            // 0xE004: receive timeout
+                                            // 0x000B: unable to establish connection
                                             taos.replace(pool.get().await?);
                                             retry += 1;
                                         }
                                         0x2603 | 0x0618 => {
-                                            // table not exists
+                                            // TODO: the table does not exist
+                                            // 0x2603: the table does not exist
+                                            // 0x0618: the table does not exist
                                             tokio::time::sleep(Duration::from_millis(100)).await;
                                         }
                                         0x2653 => {
-                                            // column or tag length not enough
+                                            // TODO: the column length not enough
+                                            // 0x2653: value too long for column/tag
                                             let fields = Vec::from_iter(field_map.clone());
                                             // get stable name
                                             let stable_name = record.stable_name();
@@ -2396,7 +2408,9 @@ async fn consume_point_record(
                             );
 
                             if errstr.contains("[0x2603]") || errstr.contains("0x0200") {
-                                // 超级表或子表不存在, 创建超级表
+                                // TODO: the table does not exist
+                                // 0x2603: the table does not exist
+                                // 0x0200: stmt bind param does not support normal value in sql
                                 let value_column_config = sql_insertion
                                     .point_insertion
                                     .value_column_config
@@ -2438,6 +2452,12 @@ async fn consume_point_record(
                                             code,
                                             0x0360 | 0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3
                                         ) {
+                                            // 0x0360: stable already exists
+                                            // 0x032C: Object is creating
+                                            // 0x0115: invalid msg
+                                            // 0x0603: table already exists
+                                            // 0x03C7: stable uid not match
+                                            // 0x03D3: Conflict transaction not completed
                                             tracing::debug!("error encountered, ignore: {err:#}",);
                                         } else {
                                             tracing::warn!(
@@ -2445,6 +2465,7 @@ async fn consume_point_record(
                                             );
                                             let err_str = err.to_string();
                                             if err_str.contains("0xE00") {
+                                                // 0xE00: connection error
                                                 taos.replace(pool.get().await?);
                                                 break_err = Err(err);
                                             } else {
@@ -2499,9 +2520,11 @@ async fn consume_point_record(
                                             tracing::warn!("create child table error: {err:#}");
                                             let err_str = err.to_string();
                                             if err.to_string().contains("0x032C") {
+                                                // 0x032C: Object is creating
                                                 // Object is creating, maybe should ignore
                                                 tracing::warn!("create table sql encounter 0x032C");
                                             } else if err_str.contains("0xE00") {
+                                                // 0xE00: connection error
                                                 taos.replace(pool.get().await?);
                                                 break_err = Err(err);
                                             } else {
@@ -2516,7 +2539,9 @@ async fn consume_point_record(
                                     }
                                 }
                             } else if errstr.contains("[0x2602]") || errstr.contains("[0x263F]") {
-                                // Illegal number of columns or tags, alter to add columns or tag
+                                // TODO: the column does not exist
+                                // 0x2602: invalid column
+                                // 0x263F: invalid columns number
                                 for column_config in &sql_insertion.point_insertion.column_configs {
                                     // alter stable column not supported by taosd
                                     let desc = taos.as_ref().unwrap().describe(&stable_name).await;
@@ -2527,7 +2552,12 @@ async fn consume_point_record(
                                             let code: i32 = err.code().into();
                                             let _err_str = err.to_string();
                                             match code {
-                                                0x0E001..=0x0E003 => {
+                                                0xE000..=0xE004 => {
+                                                    // 0xE000: dsn error
+                                                    // 0xE001: internal error
+                                                    // 0xE002: connection closed
+                                                    // 0xE003: send timeout
+                                                    // 0xE004: receive timeout
                                                     taos.replace(pool.get().await?);
                                                     break_err = Err(err);
                                                     retry += 1;
@@ -2572,11 +2602,17 @@ async fn consume_point_record(
                                             let _err_str = err.to_string();
                                             match code {
                                                 0x032C => {
+                                                    // 0x032C: Object is creating
                                                     tracing::warn!(
                                                         "create table sql encounter 0x032C"
                                                     );
                                                 }
-                                                0x0E001..=0x0E003 => {
+                                                0xE000..=0xE004 => {
+                                                    // 0xE000: dsn error
+                                                    // 0xE001: internal error
+                                                    // 0xE002: connection closed
+                                                    // 0xE003: send timeout
+                                                    // 0xE004: receive timeout
                                                     taos.replace(pool.get().await?);
                                                     break_err = Err(err);
                                                     continue 'outer;
@@ -2626,6 +2662,7 @@ async fn consume_point_record(
                                                 }
                                                 Err(err) => {
                                                     if err.to_string().contains("0x0369") {
+                                                        // 0x0369: Tag already exists
                                                         // Tag already exists occur when concurrent exec same alter
                                                         tracing::warn!(
                                                             "alter table err: {}, will be ignored",
@@ -2648,7 +2685,8 @@ async fn consume_point_record(
                                 retry += 1;
                                 continue 'outer;
                             } else if errstr.contains("[0x2653]") {
-                                // column or tag length not enough
+                                // TODO: the column length not enough
+                                // 0x2653: value too long for column/tag
                                 let desc = taos
                                     .as_ref()
                                     .unwrap()
@@ -2727,7 +2765,20 @@ async fn consume_point_record(
                                 }
                                 retry += 1;
                                 continue 'outer;
-                            } else if errstr.contains("[0xE002]") || errstr.contains("[0xE003]") {
+                            } else if errstr.contains("[0xE000]")
+                                || errstr.contains("[0xE001]")
+                                || errstr.contains("[0xE002]")
+                                || errstr.contains("[0xE003]")
+                                || errstr.contains("[0xE004]")
+                                || errstr.contains("[0x000B]")
+                            {
+                                // TODO
+                                // 0xE000: dsn error
+                                // 0xE001: internal error
+                                // 0xE002: connection closed
+                                // 0xE003: send timeout
+                                // 0xE004: receive timeout
+                                // 0x000B: unable to establish connection
                                 taos.replace(pool.get().await?);
                                 retry += 1;
                                 continue 'outer;

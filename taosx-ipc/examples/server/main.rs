@@ -533,10 +533,11 @@ fn handle_point_message<R: Read, W: Write>(
                             let errstr = err.to_string();
                             tracing::debug!("error: {}", errstr);
                             if errstr.contains("[0x2603]") {
-                                // stable not exists
+                                // 0x2603: the table does not exist
                                 println!("create stable sql: {}", &stable_sql);
                                 taos::taos_query::Queryable::exec(&taos, &stable_sql).unwrap();
                             } else if errstr.contains("[0x2602]") {
+                                // 0x2602: the column does not exist
                                 // Illegal number of columns, alter to add columns
                                 // let query_info_sql = format!("select table_comment from information_schema.ins_stables where stable_name = '{}'", &stable_name);
                                 // comment should't be null
@@ -595,7 +596,7 @@ fn handle_point_message<R: Read, W: Write>(
                                 // println!("update_stable_comment :{}", &update_stable_comment);
                                 // taos::taos_query::Queryable::exec(&taos, &update_stable_comment).unwrap();
                             } else if errstr.contains("[0x2653]") {
-                                // column length not enough
+                                // 0x2653: Value too long for column/tag
                                 runtime.block_on(async {
                                         let desc = taos::taos_query::Queryable::describe(&taos, stable_name.as_str()).unwrap();
                                         desc.into_iter().for_each(|column_meta| {

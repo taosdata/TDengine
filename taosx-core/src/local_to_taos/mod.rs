@@ -484,10 +484,15 @@ async fn restore(
                             let code: i32 = err.code().into();
                             match code {
                                 0x0603 => {
+                                    // 0x0603: table already exists
                                     tracing::debug!("Table already exists");
                                     // do nothing and continue
                                 }
                                 0x032C | 0x0115 | 0x03C7 | 0x03D3 => {
+                                    // 0x032C: object is creating
+                                    // 0x0115: invalid msg
+                                    // 0x03C7: stable uid not match
+                                    // 0x03D3: conflict transaction not completed
                                     tracing::debug!("Found recoverable error: {err:#}, retry once");
                                     tokio::time::sleep(Duration::from_millis(100)).await;
                                     let res = taos.write_raw_meta(&meta).await;
@@ -502,6 +507,7 @@ async fn restore(
                                     }
                                 }
                                 0x2603 => {
+                                    // 0x2603: the table does not exist
                                     tracing::debug!("Found 0x2603 error: {err:#}, retry once");
                                     taos.write_raw_meta(&meta)
                                         .await
@@ -526,7 +532,7 @@ async fn restore(
                                 let code: i32 = err.code().into();
                                 match code {
                                     0x2603 => {
-                                        // table not exists
+                                        // 0x2603: the table does not exist
                                         if let Some(meta) = raw.to_create() {
                                             if let Err(err) = taos.exec(format!("{}", meta)).await {
                                                 if err.to_string().contains("0x032C") {
@@ -559,6 +565,12 @@ async fn restore(
                             let code: i32 = err.code().into();
                             match code {
                                 0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3 | 0x2603 => {
+                                    // 0x032C: object is creating
+                                    // 0x0115: invalid msg
+                                    // 0x0603: table already exists
+                                    // 0x03C7: stable uid not match
+                                    // 0x03D3: conflict transaction not completed
+                                    // 0x2603: the table does not exist
                                     tracing::debug!(raw.r#type = ?raw_type, "Found recoverable error: {:#}, retry once", err);
                                     tokio::time::sleep(Duration::from_millis(100)).await;
                                     match taos.write_raw_meta(&raw_meta).await {

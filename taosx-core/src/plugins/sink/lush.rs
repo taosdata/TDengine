@@ -665,7 +665,13 @@ async fn alter_stable(
             let code = err.code();
             let errno: i32 = code.into();
             match errno {
-                0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                0xE000 | 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                    // 0xE000: dns error
+                    // 0xE001: internal error
+                    // 0xE002: connection closed
+                    // 0xE003: send timeout
+                    // 0xE004: receive timeout
+                    // 0x000B: unable to establish connection
                     tokio::time::sleep(std::time::Duration::from_millis(50 * retry)).await;
                     if retry > alter_table_max_retry {
                         tracing::error!("Alter table retry exceeded {retry}, {err:#}");
@@ -727,14 +733,23 @@ async fn alter_stable(
                     let errno: i32 = code.into();
                     match errno {
                         0x264B | 0x036F => {
+                            // 0x264B: invalid modify column
+                            // 0x036F: invalid row bytes
                             tracing::warn!(sql, "Ignore alter table error: {err:#}");
                             return Ok(());
                         }
                         0x03D3 => {
+                            // 0x03D3: Conflict transaction not completed
                             tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                             return Ok(());
                         }
-                        0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                        0xE000 | 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                            // 0xE000: dns error
+                            // 0xE001: internal error
+                            // 0xE002: connection closed
+                            // 0xE003: send timeout
+                            // 0xE004: receive timeout
+                            // 0x000B: unable to establish connection
                             tokio::time::sleep(std::time::Duration::from_millis(50 * retry)).await;
                             taos.replace(pool.get().await?);
                             if retry > alter_table_max_retry {
@@ -795,10 +810,18 @@ async fn alter_stable(
                     let errno: i32 = code.into();
                     match errno {
                         0x264B | 0x036F => {
+                            // 0x264B: invalid modify column
+                            // 0x036F: invalid row bytes
                             tracing::warn!(sql, "Ignore alter table error: {err:#}");
                             return Ok(());
                         }
-                        0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                        0xE000 | 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                            // 0xE000: dns error
+                            // 0xE001: internal error
+                            // 0xE002: connection closed
+                            // 0xE003: send timeout
+                            // 0xE004: receive timeout
+                            // 0x000B: unable to establish connection
                             taos.replace(pool.get().await?);
                             if retry > alter_table_max_retry {
                                 tracing::error!("Alter table retry exceeded {retry}, {err:#}");
@@ -905,13 +928,24 @@ pub async fn assert_create_table(
             }
             match errno {
                 0x032C | 0x0603 | 0x03C7 | 0x03D3 | 0x0360 => {
+                    // 0x032C: object is creating
+                    // 0x0603: table already exists
+                    // 0x03C7: stable uid not match
+                    // 0x03D3: conflict transaction not completed
+                    // 0x0360: stable already exists
                     break Ok(());
                 }
-                0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                0xE000 | 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                    // 0xE000: dsn error
+                    // 0xE001: internal error
+                    // 0xE002: connection closed
+                    // 0xE003: send timeout
+                    // 0xE004: receive timeout
+                    // 0x000B: unable to establish connection
                     taos.replace(pool.get().await?);
                 }
                 0x2653 => {
-                    // Value too long for column/tag
+                    // 0x2653: value too long for column/tag
                     let message = err.message();
                     if let Some(caps) = RE_0X2653.captures(&message) {
                         let field = caps.get(1).unwrap().as_str();
@@ -920,9 +954,9 @@ pub async fn assert_create_table(
                     }
                     break Err(err)?;
                 }
-                // [0x2603] Internal error: `Table does not exist`
                 0x2603 => {
                     // retry
+                    // 0x2603: the table does not exist
                     tokio::time::sleep(std::time::Duration::from_millis(1)).await;
                     tracing::warn!(retry = write_retries, "{:#}", err);
                 }
@@ -995,13 +1029,16 @@ async fn write_lush_stable_with_sql(
                 }
                 match errno {
                     0x2603 | 0x0618 => {
-                        // stable/table not exists
+                        // TODO: the table does not exist
+                        // 0x2603: the table does not exist
+                        // 0x0618: the table does not exist
                         break Err(WriteError::TableNotExits(
                             records.stable().unwrap_or("unknown").to_string(),
                         ));
                     }
                     0x2653 => {
-                        // Value too long for column/tag
+                        // TODO: the column length not enough
+                        // 0x2653: Value too long for column/tag
                         let message = err.message();
                         tracing::debug!("Write stable error: {}", message);
                         if let Some(caps) = RE_0X2653.captures(&message) {
@@ -1010,7 +1047,14 @@ async fn write_lush_stable_with_sql(
                         }
                         break Err(Into::into(err));
                     }
-                    0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                    0xE000 | 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                        // TODO
+                        // 0xE000: dsn error
+                        // 0xE001: internal error
+                        // 0xE002: connection closed
+                        // 0xE003: send timeout
+                        // 0xE004: receive timeout
+                        // 0x000B: unable to establish connection
                         let period = match write_retries {
                             errors if errors < 8 => 8,
                             errors if errors < 16 => 16,
@@ -1165,10 +1209,20 @@ pub(crate) async fn exec_sql(pool: &TaosPool, sql: &str) -> anyhow::Result<()> {
                         .map_err(Into::into);
                 }
                 match errno {
-                    0x0E001 | 0x0E002 | 0x0E003 | 0x000B => {
+                    0xE000 | 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
+                        // TODO
+                        // 0xE000: dsn error
+                        // 0xE001: internal error
+                        // 0xE002: connection closed
+                        // 0xE003: send timeout
+                        // 0xE004: receive timeout
+                        // 0x000B: unable to establish connection
                         taos.replace(pool.get().await?);
                     }
                     0x2603 | 0x0618 => {
+                        // TODO: the table does not exist
+                        // 0x2603: the table does not exist
+                        // 0x0618: the table does not exist
                         tracing::warn!("Table not exists, sql={}", sql);
                         return Ok(());
                     }
