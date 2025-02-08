@@ -156,7 +156,7 @@ int32_t tfsAllocDiskAtLevel(STfs *pTfs, int32_t level, const char *label, SDiskI
   pDiskId->level = level;
   pDiskId->id = -1;
 
-  pDiskId->id = tfsAllocDiskOnTier(&pTfs->tiers[pDiskId->level]);
+  pDiskId->id = tfsAllocDiskOnTier(&pTfs->tiers[pDiskId->level], label);
   if (pDiskId->id < 0) {
     TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
   }
@@ -165,10 +165,8 @@ int32_t tfsAllocDiskAtLevel(STfs *pTfs, int32_t level, const char *label, SDiskI
 }
 
 int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, const char *label, SDiskID *pDiskId) {
-  if (expLevel >= pTfs->nlevel) {
+  if (expLevel >= pTfs->nlevel || expLevel < 0) {
     expLevel = pTfs->nlevel - 1;
-  } else if (expLevel < 0) {
-    expLevel = 0;
   }
 
   for (; expLevel >= 0; expLevel--) {

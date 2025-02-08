@@ -50,10 +50,11 @@ typedef struct {
 typedef struct {
   TdThreadSpinlock lock;
   int32_t          level;
-  int32_t          nextid;       // next disk id to allocate
+  int32_t          nextid;
   int32_t          ndisk;        // # of disks mounted to this tier
   int32_t          nAvailDisks;  // # of Available disks
   STfsDisk        *disks[TFS_MAX_DISKS_PER_TIER];
+  SHashObj        *hash;  // label -> nextid
   SDiskSize        size;
 } STfsTier;
 
@@ -87,7 +88,7 @@ int32_t tfsInitTier(STfsTier *pTier, int32_t level);
 void    tfsDestroyTier(STfsTier *pTier);
 int32_t tfsMountDiskToTier(STfsTier *pTier, SDiskCfg *pCfg, STfsDisk **ppDisk);
 void    tfsUpdateTierSize(STfsTier *pTier);
-int32_t tfsAllocDiskOnTier(STfsTier *pTier);
+int32_t tfsAllocDiskOnTier(STfsTier *pTier, const char *label);
 void    tfsPosNextId(STfsTier *pTier);
 
 #define tfsLockTier(pTier)   taosThreadSpinLock(&(pTier)->lock)

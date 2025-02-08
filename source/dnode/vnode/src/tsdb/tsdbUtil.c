@@ -1813,12 +1813,14 @@ int32_t tsdbAllocateDisk(STsdb *tsdb, int32_t fid, const char *label, SDiskID *d
   int32_t expectedLevel = tsdbFidLevel(fid, &tsdb->keepCfg, taosGetTimestampSec());
   code = tfsAllocDisk(tfs, expectedLevel, label, &did);
   if (code) {
-    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, __LINE__,
+              tstrerror(code));
     return code;
   }
 
   if (tfsMkdirRecurAt(tfs, tsdb->path, did) != 0) {
-    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, __LINE__,
+              tstrerror(code));
   }
 
   if (diskId) {
@@ -1840,7 +1842,8 @@ int32_t tsdbAllocateDiskAtLevel(STsdb *tsdb, int32_t fid, int32_t level, const c
   }
 
   if (tfsMkdirRecurAt(tfs, tsdb->path, did) != 0) {
-    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, __LINE__,
+              tstrerror(code));
   }
 
   if (diskId) {
