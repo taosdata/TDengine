@@ -1249,7 +1249,12 @@ impl CsvSource {
                     .read_record(&mut record)
                     .with_context(|| format!("Reading file {} record error", path))?;
                 if ok {
-                    samples.push(record.iter().map(String::from).collect::<Vec<String>>());
+                    samples.push(
+                        record
+                            .iter()
+                            .map(|value| value.trim().replace("\0", "").to_string())
+                            .collect::<Vec<String>>(),
+                    );
                 } else {
                     break;
                 }
@@ -1772,6 +1777,10 @@ mod tests {
             assert_eq!(headers, vec!["ts".to_string(), "payload".to_string()]);
             let mut record = StringRecord::new();
             let _ = reader.read_record(&mut record);
+            let record = record
+                .iter()
+                .map(|value| value.trim().replace("\0", "").to_string())
+                .collect::<Vec<String>>();
             assert_eq!(
                 record,
                 vec![
@@ -1803,6 +1812,10 @@ mod tests {
             let _ = reader.read_record(&mut record);
             assert_eq!(record, vec!["ts".to_string(), "payload".to_string()]);
             let _ = reader.read_record(&mut record);
+            let record = record
+                .iter()
+                .map(|value| value.trim().replace("\0", "").to_string())
+                .collect::<Vec<String>>();
             assert_eq!(
                 record,
                 vec![
@@ -1835,6 +1848,10 @@ mod tests {
             let _ = reader.read_record(&mut record);
             assert_eq!(record, vec!["ts".to_string(), "payload".to_string()]);
             let _ = reader.read_record(&mut record);
+            let record = record
+                .iter()
+                .map(|value| value.trim().replace("\0", "").to_string())
+                .collect::<Vec<String>>();
             assert_eq!(
                 record,
                 vec![
@@ -1912,8 +1929,8 @@ mod tests {
     fn test_get_breakpoint() {
         let task_id = Some(1);
         let result = get_breakpoint(task_id);
+        dbg!(&result);
         assert!(result.is_ok());
-        dbg!(result.unwrap());
     }
 
     #[test]
@@ -1963,6 +1980,30 @@ mod tests {
         dbg!(&paths);
     }
 
+    #[tokio::test]
+    async fn test_open_reader_into_stream() {
+        let path = tempfile::NamedTempFile::new()
+            .unwrap()
+            .path()
+            .to_str()
+            .unwrap()
+            .to_string();
+        create_csv_file(&path).await.unwrap();
+
+        let option = CsvOption {
+            quote: Some(b'"'),
+            comment: Some(b'#'),
+            batch_size: 1,
+            concurrent: 1,
+            ..Default::default()
+        };
+        let reader = option.open_many(&[path]).unwrap().pop().unwrap();
+        let mut stream = option.open_reader_into_stream(reader);
+        while let Some(batch) = stream.next().await {
+            dbg!(&batch);
+        }
+    }
+
     async fn create_csv_file(path: impl AsRef<Path>) -> anyhow::Result<()> {
         let path = path.as_ref();
         // let csv;
@@ -1972,17 +2013,17 @@ mod tests {
             let mut csv = csv_lib::Writer::from_writer(gz);
 
             csv.write_record(["ts", "payload"])?;
-            csv.write_record(["2001-01-01T00:00:00Z", "location,1,2,3"])?;
-            csv.write_record(["2001-01-01T00:00:01Z", "location,1,2,3"])?;
+            csv.write_record(["2001-01-01T00:00:00Z", "   location,1,2,3"])?;
+            csv.write_record(["2001-01-01T00:00:01Z", "location,1,2,3   "])?;
             csv.flush()?;
         } else {
             let file = tokio::fs::File::create(path).await?;
             let mut csv = csv_async::AsyncWriter::from_writer(file);
 
             csv.write_record(&["ts", "payload"]).await?;
-            csv.write_record(&["2001-01-01T00:00:00Z", "location,1,2,3"])
+            csv.write_record(&["2001-01-01T00:00:00Z", "   location,1,2,3"])
                 .await?;
-            csv.write_record(&["2001-01-01T00:00:01Z", "location,1,2,3"])
+            csv.write_record(&["2001-01-01T00:00:01Z", "location,1,2,3   "])
                 .await?;
             csv.flush().await?;
         }
