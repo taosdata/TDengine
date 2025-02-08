@@ -566,6 +566,24 @@ impl<R: Read> IpcReader<R> {
         rx.into_stream()
     }
 
+    pub fn into_raw_stream_with_capycity(
+        self,
+        cap: usize,
+    ) -> flume::r#async::RecvStream<'static, Result<RecordBatch, ArrowError>>
+    where
+        R: Send + 'static,
+    {
+        let (tx, rx) = flume::bounded(cap);
+        std::thread::spawn(move || {
+            for item in self.reader {
+                tx.send(item)?; // send under blocking thread
+            }
+            tracing::info!("Raw ipc reader stream closed");
+            Ok::<_, flume::SendError<_>>(())
+        });
+        rx.into_stream()
+    }
+
     #[instrument(skip_all)]
     pub fn into_raw_stream_qos_0(
         self,

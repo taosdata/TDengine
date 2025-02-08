@@ -20,7 +20,7 @@ type Result<T> = std::result::Result<T, Error>;
 /// {::max}
 /// {charset:fixed}
 /// {:fixed}
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TopicFaker {
     delimiter: char,
     pattern: String,

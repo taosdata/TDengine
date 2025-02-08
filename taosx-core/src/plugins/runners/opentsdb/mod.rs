@@ -109,6 +109,7 @@ pub async fn opentsdb_to_taos(
         transferred,
         task_id,
         notify,
+        None,
     )
     .await?;
 

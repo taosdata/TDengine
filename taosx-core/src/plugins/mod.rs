@@ -4,8 +4,8 @@ use std::time::Duration;
 use anyhow::Context;
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
-use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, TaosBuilder};
-use taos::{Dsn, IntoDsn};
+use sink::persist::PersistConfig;
+use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, IntoDsn, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 use tracing::Instrument;
@@ -112,9 +112,10 @@ pub async fn build_ipc(
     lush_model_config: Option<LushModelConfig>,
     cancel: &CancellationToken,
     with_agent: Option<(i64, String, String)>,
-    transferred: Option<Arc<Transferred>>,
+    _transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
+    persist_config: Option<PersistConfig>,
 ) -> anyhow::Result<(IpcHandler, std::net::SocketAddr)> {
     tracing::info!(ipc.target = % mask_dsn(to), "build ipc listener");
     if with_agent.is_none() {
@@ -143,9 +144,9 @@ pub async fn build_ipc(
             with_agent,
             parser,
             connector,
-            transferred,
             task_id,
             notify,
+            persist_config,
         )
         .in_current_span()
         .await
@@ -155,6 +156,7 @@ pub async fn build_ipc(
             cancel.clone(),
             with_agent.unwrap(),
             opc_model_config,
+            persist_config,
         )
         .in_current_span()
         .await

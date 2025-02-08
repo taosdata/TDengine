@@ -209,6 +209,7 @@ pub async fn mongodb_to_taos(
         transferred,
         task_id,
         notify,
+        None,
     )
     .await?;
 

@@ -1,0 +1,37 @@
+[package]
+name = "persist-queue"
+edition = "2021"
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+bytes.workspace = true
+futures.workspace = true
+serde = { workspace = true, features = ["derive"] }
+snafu.workspace = true
+tokio = { workspace = true, features = ["fs", "macros", "io-util"] }
+tokio-util = { workspace = true, features = ["codec"] }
+notify.workspace = true
+flume.workspace = true
+crc32fast = "1.4.2"
+tokio-stream = { workspace = true, features = ["fs", "sync"] }
+tracing.workspace = true
+parking_lot.workspace = true
+fs2 = "0.4.3"
+bitfield.workspace = true
+futures-ext = { path = "../futures-ext" }
+
+[dev-dependencies]
+anyhow.workspace = true
+clap.workspace = true
+rand.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = [
+    "fs",
+    "macros",
+    "rt",
+    "rt-multi-thread",
+] }
+
+[lints]
+workspace = true

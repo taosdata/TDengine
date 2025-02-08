@@ -274,6 +274,7 @@ pub async fn historian_to_taos(
         transferred,
         task_id,
         notify,
+        None,
     )
     .await?;
 

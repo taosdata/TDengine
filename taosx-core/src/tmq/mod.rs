@@ -1117,7 +1117,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_create_topic_no_wal() {
+    async fn test_create_topic_no_wal_with_taos() {
         let taos_builder = taos::TaosBuilder::from_dsn("taos://").unwrap();
         let taos = taos_builder.build().await.unwrap();
 
@@ -1142,7 +1142,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_alter_database_no_wal() {
+    async fn test_alter_database_no_wal_with_taos() {
         let taos_builder = taos::TaosBuilder::from_dsn("taos://").unwrap();
         let taos = taos_builder.build().await.unwrap();
 
@@ -1176,7 +1176,7 @@ mod tests {
     /// only test the normal case, the error case is tested in `test_create_topic_no_wal` and `test_alter_database_no_wal`
     ///
     #[tokio::test]
-    async fn test_check_wal_enabled() {
+    async fn test_check_wal_enabled_with_taos() {
         let taos_builder = taos::TaosBuilder::from_dsn("taos://").unwrap();
         let taos = taos_builder.build().await.unwrap();
 

@@ -116,10 +116,10 @@ async fn task_opts_init(
 
     let (notify, notify_rx) = flume::unbounded();
 
-    let parser: Option<plugins::Parser> = task.parser.as_ref().map(|v| {
-        tracing::info!("task parser: {:#}", v);
-        serde_json::from_value(v.clone()).unwrap()
-    });
+    let parser: Option<plugins::Parser> = task
+        .parser
+        .as_ref()
+        .map(|v| serde_json::from_value(v.clone()).unwrap());
     let parser = if let Some(parser) = parser {
         let pool = {
             let builder = taos::TaosBuilder::from_dsn(&to_dsn)?;

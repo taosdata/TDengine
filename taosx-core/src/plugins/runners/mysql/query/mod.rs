@@ -358,7 +358,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_select_distinct_values() {
+    async fn test_select_distinct_values_with_datasource() {
         // prepare data
         let _ = test_create_table("test_select_distinct_values").await;
         let _ = test_insert_data("test_select_distinct_values", 7).await;
@@ -379,7 +379,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_select_one_for_schema() {
+    async fn test_select_one_for_schema_with_datasource() {
         // prepare data
         let _ = test_create_table("test_select_one_for_schema").await;
         let _ = test_insert_data("test_select_one_for_schema", 1).await;
@@ -400,7 +400,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_select_all() {
+    async fn test_select_all_with_datasource() {
         // prepare data
         let _ = test_create_table("test_select_all").await;
         let _ = test_insert_data("test_select_all", 7).await;
@@ -422,7 +422,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_select_by_stream() {
+    async fn test_select_by_stream_with_datasource() {
         // prepare data
         let _ = test_create_table("test_select_by_stream").await;
         let _ = test_insert_data("test_select_by_stream", 7).await;
@@ -453,7 +453,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_top_n() {
+    async fn test_top_n_with_datasource() {
         // prepare data
         let _ = test_create_table("test_top_n").await;
         let _ = test_insert_data("test_top_n", 3).await;

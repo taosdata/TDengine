@@ -544,7 +544,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn replica() {
+    fn replica_with_taos() {
         let replica = Replica::new("id", "localhost:6030", "other:6030").unwrap();
         assert_eq!(replica.canonical_source(), "localhost:6030");
         assert_eq!(replica.canonical_sink(), "other:6030");

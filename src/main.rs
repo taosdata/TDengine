@@ -200,6 +200,9 @@ struct Global {
     #[clap(long, action = clap::ArgAction::SetTrue, env = "DRY_RUN", global = true, hide = true)]
     dry_run: Option<bool>,
 
+    #[clap(long, action = clap::ArgAction::SetTrue, env = "DRY_RUN_DATASOURCE", global = true, hide = true)]
+    dry_run_datasource: Option<bool>,
+
     #[clap(long, env = "SQL_TAG_CACHE_CAPACITY", global = true, hide = true)]
     sql_tag_cache_capacity: Option<usize>,
 }
@@ -925,6 +928,11 @@ fn main() -> Result<()> {
     if args.global.dry_run.unwrap_or(false) {
         tracing::info!("dry run mode enabled");
         unsafe { taosx_core::global::DRY_RUN = true };
+    }
+
+    if args.global.dry_run_datasource.unwrap_or(false) {
+        tracing::info!("datasource dry run mode enabled");
+        unsafe { taosx_core::global::DRY_RUN_DATASOURCE = true };
     }
 
     let sql_tag_cache_capacity = args.global.sql_tag_cache_capacity.unwrap_or(0);

@@ -1,5 +1,4 @@
 use std::{
-    any::Any,
     clone::Clone,
     collections::{HashMap, HashSet},
     sync::{
@@ -15,6 +14,7 @@ use arrow_schema::{ArrowError, Field};
 use async_backtrace::framed;
 use chrono::Utc;
 use flume::Sender;
+use futures::{future::Either, pin_mut};
 use futures_util::{Sink, SinkExt, Stream, StreamExt};
 use lazy_static::lazy_static;
 use serde_json::json;
@@ -23,13 +23,10 @@ use taoslog::{
     utils::{QidMetadataGetter, QidMetadataSetter, Span},
     QidManager,
 };
-use taosx_ipc::{
-    ack::LushAck,
-    stream::{flat::FlatMessage, reader::IpcMessage},
-};
+use taosx_ipc::ack::LushAck;
 use thiserror::Error;
 
-use tokio::task::JoinSet;
+use tokio::{sync::oneshot, task::JoinSet};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument, trace, Instrument};
 
@@ -39,7 +36,7 @@ use crate::{
         get_primary_timestamp_ns, parse::ArrayForTaos, MessageArrowRecords, MessageTableMeta,
     },
     sink::{
-        consume_flat_record, transform::handling_strategy::HandlingResult,
+        consume_flat_record, persist::get_stream, transform::handling_strategy::HandlingResult,
         DEFAULT_MAX_RETRIES_FOR_CONNECTION,
     },
     utils::{
@@ -57,6 +54,7 @@ use crate::global::TABLE_TAG_CACHE;
 
 use super::{
     ipc_metric::IpcMetrics,
+    persist::PersistComponent,
     transform::{archive_records, TableOptions},
     IpcErrorStrategy,
 };
@@ -2448,21 +2446,19 @@ impl FlatSink {
 #[instrument(skip_all, fields(writer.count = count))]
 async fn consume_flat_record_with_sink(
     sink: &FlatSink,
-    record: &FlatMessage,
+    batch: &RecordBatch,
     count: &mut usize,
     parser: &Parser,
     archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
-    for message in record.records() {
-        let batch = message.record();
-        let batch = parser.parse_message_from_records(batch, true, archive_tx.clone())?;
-        match batch {
-            crate::plugins::transform::Message::Raw(_) => todo!(),
-            crate::plugins::transform::Message::Tables(_) => todo!(),
-            crate::plugins::transform::Message::ChildTables(_) => todo!(),
-            crate::plugins::transform::Message::Records(messages) => {
-                sink.write(messages).await?;
-            }
+    let batch = parser.parse_message_from_records(batch, true, archive_tx.clone())?;
+
+    match batch {
+        crate::plugins::transform::Message::Raw(_) => todo!(),
+        crate::plugins::transform::Message::Tables(_) => todo!(),
+        crate::plugins::transform::Message::ChildTables(_) => todo!(),
+        crate::plugins::transform::Message::Records(messages) => {
+            sink.write(messages).await?;
         }
     }
     Ok(())
@@ -2472,7 +2468,7 @@ async fn consume_flat_record_with_sink(
 #[instrument(skip_all)]
 pub async fn ipc_flat_stream_worker_vgroup(
     pool: &TaosPool,
-    stream: impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>> + Unpin,
+    stream: impl Stream<Item = Result<RecordBatch, ArrowError>>,
     sink: impl Sink<LushAck, Error = ArrowError> + Send + 'static,
     parser: &Parser,
     target_precision: taos::Precision,
@@ -2498,7 +2494,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
 
     let workers = parser.global().concurrent_limit();
 
-    let (msg_tx, msg_rx) = flume::bounded::<Box<dyn IpcMessage>>(workers * 4);
+    let (msg_tx, msg_rx) = flume::bounded::<RecordBatch>(workers * 4);
     let (ack_tx, ack_rx) = flume::bounded(workers * 4);
 
     let mut writer_set = tokio::task::JoinSet::new();
@@ -2533,7 +2529,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
                 let metrics = metrics_arc.ipc();
                 let mut worker_written = 0;
                 while let Ok(record) = msg_rx.recv_async().await {
-                    let raw_rows = record.nrows();
+                    let raw_rows = record.num_rows();
                     let batch_number = if let Some(batch_counter) = batch_counter.as_ref() {
                         let batch_number = batch_counter.next().await?;
                         qid.set_batch_id(batch_number);
@@ -2543,10 +2539,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
                     };
                     trace!(batch_number, "Writing batch");
                     let mut written = 0;
-                    let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
-                        std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
-                    })
-                    .unwrap();
+
                     let res = consume_flat_record_with_sink(
                         &flat_sink,
                         &record,
@@ -2621,7 +2614,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
                 metrics_arc.ipc().add_received_batches(1);
                 metrics_arc
                     .ipc()
-                    .add_received_messages(record.nrows() as u64);
+                    .add_received_messages(record.num_rows() as u64);
                 msg_tx.send_async(record).await?;
             }
             Err(err) => {
@@ -2662,7 +2655,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
 
 pub async fn ipc_flat_stream_worker_vgroup_sequential(
     pool: &TaosPool,
-    stream: impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>> + Unpin,
+    stream: impl Stream<Item = Result<RecordBatch, ArrowError>>,
     sink: impl Sink<LushAck, Error = ArrowError> + Send + 'static,
     parser: &Parser,
     target_precision: taos::Precision,
@@ -2709,7 +2702,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
                 metrics_arc.ipc().add_received_batches(1);
                 metrics_arc
                     .ipc()
-                    .add_received_messages(record.nrows() as u64);
+                    .add_received_messages(record.num_rows() as u64);
                 // msg_tx.send_async(record).await?;
                 let batch_number = if let Some(batch_counter) = batch_counter.clone() {
                     Some(batch_counter.next().await?)
@@ -2718,10 +2711,6 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
                 };
                 trace!(batch_number, "Writing batch");
                 let mut written = 0;
-                let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
-                    std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
-                })
-                .unwrap();
                 let res = consume_flat_record_with_sink(
                     &flat_sink,
                     &record,
@@ -2809,7 +2798,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
 #[instrument(skip_all, fields(precision = %target_precision))]
 pub async fn ipc_flat_stream_worker_concurrent(
     pool: &TaosPool,
-    stream: impl Stream<Item = Result<Box<dyn IpcMessage>, ArrowError>> + Unpin,
+    stream: impl Stream<Item = Result<RecordBatch, ArrowError>> + Send + 'static,
     sink: impl Sink<LushAck, Error = ArrowError> + Send + 'static,
     cancel: CancellationToken,
     parser: &Parser,
@@ -2819,8 +2808,9 @@ pub async fn ipc_flat_stream_worker_concurrent(
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
     archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    persist_component: Option<PersistComponent>,
 ) -> anyhow::Result<()> {
-    tokio::pin!(stream);
+    // tokio::pin!(stream);
     let count = Arc::new(AtomicUsize::new(0));
     let context = WriterContext {
         pool: pool.clone(),
@@ -2831,11 +2821,31 @@ pub async fn ipc_flat_stream_worker_concurrent(
     let workers = parser.global().concurrent_limit();
     tracing::info!("flat stream concurrent workers count: {:?}", workers);
 
-    let (msg_tx, msg_rx) = flume::bounded::<Box<dyn IpcMessage>>(workers);
+    let (msg_tx, msg_rx) =
+        flume::bounded::<(RecordBatch, Option<oneshot::Sender<LushAck>>)>(workers);
     let (ack_tx, ack_rx) = flume::bounded(workers);
 
     let (cancel, upstream) = (cancel.child_token(), cancel);
     let mut writer_set = tokio::task::JoinSet::new();
+
+    let (stream, ack_tx) = match persist_component {
+        None => (Either::Left(stream.map(|v| (v, None))), Some(ack_tx)),
+        Some(persist) => (
+            Either::Right(
+                get_stream(
+                    persist,
+                    stream,
+                    ack_tx,
+                    &cancel,
+                    Some(metrics_arc.clone()),
+                    &mut writer_set,
+                    true,
+                )?
+                .into_stream(),
+            ),
+            None,
+        ),
+    };
 
     writer_set.spawn({
         let cancel = cancel.clone();
@@ -2851,6 +2861,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
         }
         .in_current_span()
     });
+
     let qid = Span.get_qid().unwrap_or_else(Qid::init);
     // debug_assert!(qid.task_id() > 0);
     tracing::info!(num = workers, "create flat stream concurrent workers");
@@ -2876,56 +2887,70 @@ pub async fn ipc_flat_stream_worker_concurrent(
                 let mut taos = None;
                 let metrics = metrics_arc.ipc();
                 let mut worker_written = 0;
-                while let Ok(record) = msg_rx.recv_async().await {
-                    let raw_rows = record.nrows();
+                while let Ok((record, ack_wait_tx)) = msg_rx.recv_async().await {
+                    let raw_rows = record.num_rows();
                     if let Some(batch_counter) = batch_counter.as_ref() {
                         let batch_number = batch_counter.next().await?;
                         qid.set_batch_id(batch_number);
                     }
                     tracing::trace!("Writing batch");
                     let mut written = 0;
-                    let record = *Box::<dyn Any>::downcast::<FlatMessage>(unsafe {
-                        std::mem::transmute::<Box<dyn IpcMessage>, Box<dyn Any>>(record)
-                    })
-                    .unwrap();
-                    let res = consume_flat_record(
-                        &context.pool,
-                        &mut taos,
-                        &record,
-                        &mut written,
-                        &cancel,
-                        &context.parser,
-                        context.target_precision,
-                        metrics,
-                        Some(&notifier),
-                        archive_tx.clone(),
-                    )
-                    .await;
+                    let res = if unsafe { crate::global::DRY_RUN_DATASOURCE } {
+                        let num_rows = record.num_rows();
+                        if num_rows != 0 {
+                            metrics.add_processed_rows(num_rows as u64);
+                        }
+                        Ok(())
+                    } else {
+                        consume_flat_record(
+                            &context.pool,
+                            &mut taos,
+                            &record,
+                            &mut written,
+                            &cancel,
+                            &context.parser,
+                            context.target_precision,
+                            metrics,
+                            Some(&notifier),
+                            archive_tx.clone(),
+                        )
+                        .await
+                    };
                     worker_written += written;
                     count.fetch_add(written, Ordering::SeqCst);
                     metrics.add_processed_messages(raw_rows as u64);
+                    let meta = {
+                        let metadata = record.schema_ref().metadata();
+                        let meta = serde_json::Map::from_iter(
+                            metadata.iter().map(|(k, v)| (k.clone(), json!(v))).chain([
+                                ("stream".to_string(), serde_json::json!("flat")),
+                                ("written".to_string(), serde_json::json!(written)),
+                            ]),
+                        );
+                        serde_json::Value::from(meta)
+                    };
                     match res {
                         Err(err) => {
                             metrics.add_failed_batches(1);
                             error!("Writing batch error: {err:#}");
                             let ack = LushAck {
                                 code: 0xFFFF,
-                                message: Some(err.to_string()),
-                                context: Some(
-                                    json!({
-                                        "stream": "flat",
-                                        "written":  written,
-                                    })
-                                    .to_string(),
-                                ),
+                                message: Some(format!("{err:#}")),
+                                context: Some(meta.to_string()),
                             };
-                            ack_tx
-                                .send_async(ack)
-                                .await
-                                .inspect_err(|error| {
-                                    error!(%error, "ACK send error");
-                                })
-                                .context("ACK writer error")?;
+
+                            if let Some(ack_tx) = &ack_tx {
+                                ack_tx
+                                    .send_async(ack)
+                                    .await
+                                    .inspect_err(|error| {
+                                        error!(%error, "ACK send error");
+                                    })
+                                    .context("ACK writer error")?;
+                            } else if let Some(ack_tx) = ack_wait_tx {
+                                ack_tx.send(ack).ok();
+                            }
+
                             if let Err(error) =
                                 notifier.send(crate::TaskNotify::sink_error(format!("{:#}", err)))
                             {
@@ -2946,21 +2971,20 @@ pub async fn ipc_flat_stream_worker_concurrent(
                             let ack = LushAck {
                                 code: 0,
                                 message: None,
-                                context: Some(
-                                    json!({
-                                        "stream": "flat",
-                                        "written":  written
-                                    })
-                                    .to_string(),
-                                ),
+                                context: Some(meta.to_string()),
                             };
-                            ack_tx
-                                .send_async(ack)
-                                .await
-                                .inspect_err(|error| {
-                                    error!(%error, "ACK send error");
-                                })
-                                .context("ACK writer error")?;
+
+                            if let Some(ack_tx) = ack_tx.clone() {
+                                ack_tx
+                                    .send_async(ack)
+                                    .await
+                                    .inspect_err(|error| {
+                                        error!(%error, "ACK send error");
+                                    })
+                                    .context("ACK writer error")?;
+                            } else if let Some(ack_tx) = ack_wait_tx {
+                                ack_tx.send(ack).ok();
+                            }
                         }
                     }
                 }
@@ -2986,6 +3010,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
 
     let mut batches = 0;
 
+    pin_mut!(stream);
     loop {
         if cancel.is_cancelled() {
             if !upstream.is_cancelled() {
@@ -3006,7 +3031,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
 
         tokio::select! {
             res = stream.next() => {
-                let Some(record) = res else {
+                let Some((record, ack_wait_tx)) = res else {
                     break;
                 };
                 batches += 1;
@@ -3015,23 +3040,29 @@ pub async fn ipc_flat_stream_worker_concurrent(
                         metrics_arc.ipc().add_received_batches(1);
                         metrics_arc
                             .ipc()
-                            .add_received_messages(record.nrows() as u64);
-                        msg_tx.send_async(record).await?;
+                            .add_received_messages(record.num_rows() as u64);
+                        msg_tx.send_async((record, ack_wait_tx)).await?;
                     }
                     Err(err) => {
                         tracing::warn!("Consume message error: {err:#}");
-                        ack_tx
-                            .send_async(LushAck {
-                                code: 0xFFFF,
-                                message: Some(format!("Parse message error: {err:#}")),
-                                context: Some(
-                                    json!({
-                                        "stream": "flat",
-                                    })
-                                    .to_string(),
-                                ),
-                            })
+                        let ack = LushAck {
+                            code: 0xFFFF,
+                            message: Some(format!("Parse message error: {err:#}")),
+                            context: Some(
+                                json!({
+                                    "stream": "flat",
+                                })
+                                .to_string(),
+                            ),
+                        };
+
+                        if let Some(ack_tx) = &ack_tx {
+                            ack_tx
+                            .send_async(ack)
                             .await?;
+                        } else if let Some(ack_tx) = ack_wait_tx {
+                            ack_tx.send(ack).ok();
+                        }
                     }
                 };
             }
@@ -3041,6 +3072,17 @@ pub async fn ipc_flat_stream_worker_concurrent(
 
     if batches == 0 {
         info!("None batches received");
+        while let Some(res) = writer_set.try_join_next() {
+            match res {
+                Ok(Ok(_)) => {}
+                Ok(Err(e)) => {
+                    tracing::error!("flat task exit with error: {e:#}");
+                }
+                Err(e) => {
+                    tracing::error!("flat task paniced: {e:#}");
+                }
+            }
+        }
         writer_set.abort_all();
         return Ok(());
     }

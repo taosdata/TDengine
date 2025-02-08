@@ -249,6 +249,12 @@ if [ "$1" == "--all" ]; then
 fi
 """
 
+[tasks.explorer-ui]
+cwd = "explorer"
+script = """
+pnpm install && pnpm run build
+"""
+
 [tasks.build-all]
 dependencies = ["explorer-ui"]
 script = """
@@ -740,7 +746,7 @@ args = [
   "-Dwarnings",
 ]
 
-[tasks.test-without-cov]
+[tasks.test-taosx-without-cov]
 command = "cargo"
 args = [
   "nextest",
@@ -751,13 +757,34 @@ args = [
   "0",
   "--filterset",
   "not test(/(_with_taos|_with_datasource)$/)",
+  "--exclude",
+  "taos-explorer",
+]
+
+[tasks.test-explorer-without-cov]
+command = "cargo"
+args = [
+  "nextest",
+  "run",
+  "-p",
+  "taos-explorer",
+  "--no-fail-fast",
+  "--retries",
+  "0",
+  "--filterset",
+  "not test(/(_with_taos|_with_datasource)$/)",
 ]
 
 [tasks.pre-commit]
-dependencies = ["fmt", "clippy", "test-without-cov"]
+dependencies = [
+  "fmt",
+  "clippy",
+  "test-taosx-without-cov",
+  "test-explorer-without-cov",
+]
 
 [tasks.explorer-ui-nonlinux]
-condition = { platforms = [ "windows", "mac" ] }
+condition = { platforms = ["windows", "mac"] }
 cwd = "explorer"
 script = """
 pnpm install && pnpm run build
@@ -765,7 +792,7 @@ pnpm install && pnpm run build
 
 # linux 环境下使用 docker 构建
 [tasks.explorer-ui-linux]
-condition = { platforms = [ "linux" ] }
+condition = { platforms = ["linux"] }
 cwd = "explorer"
 script_runner = "bash"
 script = """
@@ -782,7 +809,11 @@ cp ./static ./dist
 """
 
 [tasks.explorer]
-dependencies = ["explorer-ui-linux", "explorer-ui-nonlinux", "explorer-ui-static"]
+dependencies = [
+  "explorer-ui-linux",
+  "explorer-ui-nonlinux",
+  "explorer-ui-static",
+]
 command = "cargo"
 args = ["build", "-p", "taos-explorer", "--profile", "${BUILD_PROFILE}"]
 
