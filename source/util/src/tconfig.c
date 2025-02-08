@@ -134,7 +134,14 @@ int32_t cfgUpdateFromArray(SConfig *pCfg, SArray *pArgs) {
         break;
       case CFG_DTYPE_LOCALE:
       case CFG_DTYPE_CHARSET:
+        code = cfgSetItemVal(pItemOld, pItemNew->name, pItemNew->str, pItemNew->stype);
+        if (code != TSDB_CODE_SUCCESS) {
+          (void)taosThreadMutexUnlock(&pCfg->lock);
+          TAOS_RETURN(code);
+        }
+        break;
       case CFG_DTYPE_TIMEZONE:
+        truncateTimezoneString(pItemNew->str);
         code = cfgSetItemVal(pItemOld, pItemNew->name, pItemNew->str, pItemNew->stype);
         if (code != TSDB_CODE_SUCCESS) {
           (void)taosThreadMutexUnlock(&pCfg->lock);
