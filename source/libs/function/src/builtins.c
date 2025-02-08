@@ -979,6 +979,33 @@ static int32_t translateMinMax(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateAvg(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+
+  uint8_t dt = TSDB_DATA_TYPE_DOUBLE, prec = 0, scale = 0;
+
+  bool       isMergeFunc = pFunc->funcType == FUNCTION_TYPE_AVG_MERGE || pFunc->funcType == FUNCTION_TYPE_AVG_STATE_MERGE;
+  SDataType* pInputDt = getSDataTypeFromNode(
+      nodesListGetNode(isMergeFunc ? pFunc->pSrcFuncRef->pParameterList : pFunc->pParameterList, 0));
+  if (IS_DECIMAL_TYPE(pInputDt->type)) {
+    pFunc->srcFuncInputType = *pInputDt;
+    SDataType sumDt = {.type = TSDB_DATA_TYPE_DECIMAL,
+                       .bytes = tDataTypes[TSDB_DATA_TYPE_DECIMAL].bytes,
+                       .precision = TSDB_DECIMAL_MAX_PRECISION,
+                       .scale = pInputDt->scale};
+    SDataType countDt = {
+        .type = TSDB_DATA_TYPE_BIGINT, .bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .precision = 0, .scale = 0};
+    SDataType avgDt = {0};
+    int32_t   code = decimalGetRetType(&sumDt, &countDt, OP_TYPE_DIV, &avgDt);
+    if (code != 0) return code;
+    dt = TSDB_DATA_TYPE_DECIMAL;
+    prec = TSDB_DECIMAL_MAX_PRECISION;
+    scale = avgDt.scale;
+  }
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[dt].bytes, .type = dt, .precision = prec, .scale = scale};
+  return TSDB_CODE_SUCCESS;
+}
+
 // The return type is DOUBLE type
 static int32_t translateOutDouble(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
@@ -1665,8 +1692,12 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
       break;
     case FUNCTION_TYPE_AVG_PARTIAL:
     case FUNCTION_TYPE_AVG_STATE:
+      pFunc->srcFuncInputType = ((SExprNode*)pFunc->pParameterList->pHead->pNode)->resType;
+      bytes = getAvgInfoSize(pFunc) + VARSTR_HEADER_SIZE;
+      break;
     case FUNCTION_TYPE_AVG_STATE_MERGE:
-      bytes = getAvgInfoSize() + VARSTR_HEADER_SIZE;
+      pFunc->srcFuncInputType = pFunc->pSrcFuncRef->srcFuncInputType;
+      bytes = getAvgInfoSize(pFunc) + VARSTR_HEADER_SIZE;
       break;
     case FUNCTION_TYPE_HISTOGRAM_PARTIAL:
       bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE;
@@ -2064,7 +2095,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE}},
-    .translateFunc = translateOutDouble,
+    .translateFunc = translateAvg,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getAvgFuncEnv,
     .initFunc     = avgFunctionSetup,
@@ -2121,7 +2152,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
-    .translateFunc = translateOutDouble,
+    .translateFunc = translateAvg,
     .getEnvFunc   = getAvgFuncEnv,
     .initFunc     = avgFunctionSetup,
     .processFunc  = avgFunctionMerge,
