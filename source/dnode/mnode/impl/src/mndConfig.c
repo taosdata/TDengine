@@ -924,30 +924,30 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-bool compareSConfigItem(const SConfigObj *item1, SConfigItem *item2) {
+int32_t compareSConfigItem(const SConfigObj *item1, SConfigItem *item2, bool *compare) {
   switch (item1->dtype) {
     case CFG_DTYPE_BOOL:
       if (item1->bval != item2->bval) {
         item2->bval = item1->bval;
-        return false;
+        compare = false;
       }
       break;
     case CFG_DTYPE_FLOAT:
       if (item1->fval != item2->fval) {
         item2->fval = item1->fval;
-        return false;
+        compare = false;
       }
       break;
     case CFG_DTYPE_INT32:
       if (item1->i32 != item2->i32) {
         item2->i32 = item1->i32;
-        return false;
+        compare = false;
       }
       break;
     case CFG_DTYPE_INT64:
       if (item1->i64 != item2->i64) {
         item2->i64 = item1->i64;
-        return false;
+        compare = false;
       }
       break;
     case CFG_DTYPE_STRING:
@@ -958,18 +958,24 @@ bool compareSConfigItem(const SConfigObj *item1, SConfigItem *item2) {
       if (strcmp(item1->str, item2->str) != 0) {
         taosMemoryFree(item2->str);
         item2->str = taosStrdup(item1->str);
-        return false;
+        if (item2->str == NULL) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+        compare = false;
       }
       break;
     default:
-      return false;
+      compare = false;
+      return TSDB_CODE_INVALID_CFG;
   }
-  return true;
+  compare = true;
+  return TSDB_CODE_SUCCESS
 }
 
 int32_t compareSConfigItemArrays(SMnode *pMnode, const SArray *dArray, SArray *diffArray) {
   int32_t code = 0;
   int32_t dsz = taosArrayGetSize(dArray);
+  bool    compare = false;
 
   for (int i = 0; i < dsz; i++) {
     SConfigItem *dItem = (SConfigItem *)taosArrayGet(dArray, i);
@@ -979,17 +985,20 @@ int32_t compareSConfigItemArrays(SMnode *pMnode, const SArray *dArray, SArray *d
       mError("failed to acquire config:%s from sdb, since %s", dItem->name, tstrerror(code));
       return code;
     }
-    if (!compareSConfigItem(mObj, dItem)) {
+    code = compareSConfigItem(mObj, dItem, &compare);
+    if (code != TSDB_CODE_SUCCESS) {
+      sdbRelease(pMnode->pSdb, mObj);
+      return code;
+    }
+
+    if (!compare) {
       code = TSDB_CODE_FAILED;
       if (taosArrayPush(diffArray, dItem) == NULL) {
         sdbRelease(pMnode->pSdb, mObj);
         return terrno;
       }
     }
-    if (terrno != 0) {
-      sdbRelease(pMnode->pSdb, mObj);
-      return terrno;
-    }
+
     sdbRelease(pMnode->pSdb, mObj);
   }
 
