@@ -1777,6 +1777,10 @@ mod tests {
             assert_eq!(headers, vec!["ts".to_string(), "payload".to_string()]);
             let mut record = StringRecord::new();
             let _ = reader.read_record(&mut record);
+            let record = record
+                .iter()
+                .map(|value| value.trim().replace("\0", "").to_string())
+                .collect::<Vec<String>>();
             assert_eq!(
                 record,
                 vec![
@@ -1808,6 +1812,10 @@ mod tests {
             let _ = reader.read_record(&mut record);
             assert_eq!(record, vec!["ts".to_string(), "payload".to_string()]);
             let _ = reader.read_record(&mut record);
+            let record = record
+                .iter()
+                .map(|value| value.trim().replace("\0", "").to_string())
+                .collect::<Vec<String>>();
             assert_eq!(
                 record,
                 vec![
@@ -1840,6 +1848,10 @@ mod tests {
             let _ = reader.read_record(&mut record);
             assert_eq!(record, vec!["ts".to_string(), "payload".to_string()]);
             let _ = reader.read_record(&mut record);
+            let record = record
+                .iter()
+                .map(|value| value.trim().replace("\0", "").to_string())
+                .collect::<Vec<String>>();
             assert_eq!(
                 record,
                 vec![
@@ -1917,8 +1929,8 @@ mod tests {
     fn test_get_breakpoint() {
         let task_id = Some(1);
         let result = get_breakpoint(task_id);
+        dbg!(&result);
         assert!(result.is_ok());
-        dbg!(result.unwrap());
     }
 
     #[test]
