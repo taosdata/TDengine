@@ -768,7 +768,7 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
         SLogicSubplan* pSubplan = (SLogicSubplan*)pNode;
         pSubplan->id.groupId = pCxt->groupId;
         pSubplan->id.queryId = pCxt->queryId;
-        pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
+        //pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
         splSetSubplanVgroups(pSubplan, pSubplan->pNode);
         code = stbSplCreatePartWindowNode((SWindowLogicNode*)pSubplan->pNode, &pPartWindow);
         if (TSDB_CODE_SUCCESS == code) {
@@ -1201,7 +1201,7 @@ static int32_t stbSplSplitAggNodeForCrossTableMulSubplan(SSplitContext* pCxt, SS
         SLogicSubplan* pSubplan = (SLogicSubplan*)pNode;
         pSubplan->id.groupId = pCxt->groupId;
         pSubplan->id.queryId = pCxt->queryId;
-        pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
+        //pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
         splSetSubplanVgroups(pSubplan, pSubplan->pNode);
         code = stbSplCreatePartAggNode((SAggLogicNode*)pSubplan->pNode, &pPartAgg);
         if (code) break;
@@ -2009,7 +2009,7 @@ static int32_t insertSelectSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     code = splMountSubplan(pNewSubplan, pSubplanChildren);
   }
 
-  SPLIT_FLAG_SET_MASK(info.pSubplan->splitFlag, SPLIT_FLAG_INSERT_SPLIT);
+  //SPLIT_FLAG_SET_MASK(info.pSubplan->splitFlag, SPLIT_FLAG_INSERT_SPLIT);
   ++(pCxt->groupId);
   pCxt->split = true;
   return code;
