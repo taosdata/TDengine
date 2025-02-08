@@ -396,12 +396,13 @@ typedef struct SSetSlotIdCxt {
   SHashObj* pRightProdIdxHash;
 } SSetSlotIdCxt;
 
-typedef struct SVTableSetSlotIdCxt {
+typedef struct SMultiTableSetSlotIdCxt {
   int32_t    errCode;
   SArray*    hashArray;
   SArray*    projIdxHashArray;
   SNodeList* pChild;
-} SVTableSetSlotIdCxt;
+  bool       isVtb;
+} SMultiTableSetSlotIdCxt;
 
 static void dumpSlots(const char* pName, SHashObj* pHash) {
   if (NULL == pHash) {
@@ -458,14 +459,15 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static EDealRes doSetVtableSlotId(SNode* pNode, void* pContext) {
+static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode) && 0 != strcmp(((SColumnNode*)pNode)->colName, "*")) {
-    if (!((SColumnNode*)pNode)->hasRef) {
+    SMultiTableSetSlotIdCxt* pCxt = (SMultiTableSetSlotIdCxt*)pContext;
+    char*                    name = NULL;
+    int32_t                  len = 0;
+    if (pCxt->isVtb && !((SColumnNode*)pNode)->hasRef) {
       return DEAL_RES_CONTINUE;
     }
-    SVTableSetSlotIdCxt* pCxt = (SVTableSetSlotIdCxt*)pContext;
-    char*          name = NULL;
-    int32_t        len = 0;
+    
     pCxt->errCode = getSlotKey(pNode, NULL, &name, &len, 16);
     if (TSDB_CODE_SUCCESS != pCxt->errCode) {
       return DEAL_RES_ERROR;
@@ -492,7 +494,7 @@ static EDealRes doSetVtableSlotId(SNode* pNode, void* pContext) {
     }
     // pIndex is definitely not NULL, otherwise it is a bug
     if (NULL == pIndex) {
-      planError("doSetSlotId failed, invalid slot name %s", name);
+      planError("doSetMultiTableSlotId failed, invalid slot name %s", name);
       for (int32_t i = 0; i < taosArrayGetSize(pCxt->hashArray); i++) {
         //dumpSlots("vtable datablock desc", taosArrayGetP(pCxt->hashArray, i));
       }
@@ -546,14 +548,14 @@ static int32_t setVtableNodeSlotId(SPhysiPlanContext* pCxt, SNodeList* pChild, S
   SNode* pRes = NULL;
   PLAN_ERR_JRET(nodesCloneNode(pNode, &pRes));
 
-  SVTableSetSlotIdCxt cxt = {
+  SMultiTableSetSlotIdCxt cxt = {
       .errCode = TSDB_CODE_SUCCESS,
       .hashArray = pCxt->pLocationHelper,
       .projIdxHashArray = pCxt->pProjIdxLocHelper,
       .pChild = pChild
   };
 
-  nodesWalkExpr(pRes, doSetVtableSlotId, &cxt);
+  nodesWalkExpr(pRes, doSetMultiTableSlotId, &cxt);
   PLAN_ERR_JRET(cxt.errCode);
 
   *pOutput = pRes;
@@ -590,7 +592,7 @@ static int32_t setListSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId, i
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t setVtableListSlotId(SPhysiPlanContext* pCxt, SNodeList* pChild, const SNodeList* pList,
+static int32_t setMultiBlockSlotId(SPhysiPlanContext* pCxt, SNodeList* pChild, bool isVtb, const SNodeList* pList,
                                    SNodeList** pOutput) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == pList) {
@@ -600,14 +602,15 @@ static int32_t setVtableListSlotId(SPhysiPlanContext* pCxt, SNodeList* pChild, c
   SNodeList* pRes = NULL;
   PLAN_ERR_JRET(nodesCloneList(pList, &pRes));
 
-  SVTableSetSlotIdCxt cxt = {
+  SMultiTableSetSlotIdCxt cxt = {
     .errCode = TSDB_CODE_SUCCESS,
     .hashArray = pCxt->pLocationHelper,
     .projIdxHashArray = pCxt->pProjIdxLocHelper,
-    .pChild = pChild
+    .pChild = pChild,
+    .isVtb = isVtb
   };
 
-  nodesWalkExprs(pRes, doSetVtableSlotId, &cxt);
+  nodesWalkExprs(pRes, doSetMultiTableSlotId, &cxt);
   PLAN_ERR_JRET(cxt.errCode);
 
   *pOutput = pRes;
@@ -645,14 +648,6 @@ static int32_t setConditionsSlotId(SPhysiPlanContext* pCxt, const SLogicNode* pL
   if (NULL != pLogicNode->pConditions) {
     return setNodeSlotId(pCxt, pPhysiNode->pOutputDataBlockDesc->dataBlockId, -1, pLogicNode->pConditions,
                          &pPhysiNode->pConditions);
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t setVtableConditionsSlotId(SPhysiPlanContext* pCxt, SNodeList* pChild, const SLogicNode* pLogicNode,
-                                         SPhysiNode* pPhysiNode) {
-  if (NULL != pLogicNode->pConditions) {
-    return setVtableNodeSlotId(pCxt, pChild, pLogicNode->pConditions, &pPhysiNode->pConditions);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1750,7 +1745,6 @@ static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
   }
 
   PLAN_ERR_JRET(setConditionsSlotId(pCxt, (const SLogicNode*)pScanLogicNode, (SPhysiNode*)pScanPhysiNode));
-  //PLAN_ERR_JRET(setVtableConditionsSlotId(pCxt, pChild, (const SLogicNode*)pScanLogicNode, (SPhysiNode*)pScanPhysiNode));
 
   pScanPhysiNode->scan.uid = pScanLogicNode->tableId;
   pScanPhysiNode->scan.suid = pScanLogicNode->stableId;
@@ -1781,7 +1775,7 @@ static int32_t createVirtualTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan
   }
 
   PLAN_ERR_RET(createVirtualTableScanPhysiNodeFinalize(pCxt, pChildren, pScanLogicNode, (SVirtualScanPhysiNode*)pVirtualScan, pPhyNode));
-  PLAN_ERR_RET(setVtableListSlotId(pCxt, pChildren, pScanLogicNode->node.pTargets, &pVirtualScan->pTargets));
+  PLAN_ERR_RET(setMultiBlockSlotId(pCxt, pChildren, true, pScanLogicNode->node.pTargets, &pVirtualScan->pTargets));
   return code;
 }
 
@@ -2915,49 +2909,31 @@ static int32_t createMergePhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildre
   pMerge->inputWithGroupId = pMergeLogicNode->inputWithGroupId;
 
   if (!pMergeLogicNode->colsMerge) {
-    code = addDataBlockSlots(pCxt, pMergeLogicNode->pInputs, pMerge->node.pOutputDataBlockDesc);
+    PLAN_ERR_JRET(addDataBlockSlots(pCxt, pMergeLogicNode->pInputs, pMerge->node.pOutputDataBlockDesc));
 
-    if (TSDB_CODE_SUCCESS == code) {
-      for (int32_t j = 0; j < pMergeLogicNode->numOfSubplans; ++j) {
-        for (int32_t i = 0; i < pMerge->numOfChannels; ++i) {
-          code = createExchangePhysiNodeByMerge(pMerge, j);
-          if (TSDB_CODE_SUCCESS != code) {
-            break;
-          }
-        }
-        if (code) break;
+    for (int32_t j = 0; j < pMergeLogicNode->numOfSubplans; ++j) {
+      for (int32_t i = 0; i < pMerge->numOfChannels; ++i) {
+        PLAN_ERR_JRET(createExchangePhysiNodeByMerge(pMerge, j));
       }
     }
 
-    if (TSDB_CODE_SUCCESS == code && NULL != pMergeLogicNode->pMergeKeys) {
-      code = setListSlotId(pCxt, pMerge->node.pOutputDataBlockDesc->dataBlockId, -1, pMergeLogicNode->pMergeKeys,
-                           &pMerge->pMergeKeys);
+    if (NULL != pMergeLogicNode->pMergeKeys) {
+      PLAN_ERR_JRET(setListSlotId(pCxt, pMerge->node.pOutputDataBlockDesc->dataBlockId, -1, pMergeLogicNode->pMergeKeys,
+                                  &pMerge->pMergeKeys));
     }
 
-    if (TSDB_CODE_SUCCESS == code) {
-      code = setListSlotId(pCxt, pMerge->node.pOutputDataBlockDesc->dataBlockId, -1, pMergeLogicNode->node.pTargets,
-                           &pMerge->pTargets);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      code = addDataBlockSlots(pCxt, pMerge->pTargets, pMerge->node.pOutputDataBlockDesc);
-    }
+    PLAN_ERR_JRET(setListSlotId(pCxt, pMerge->node.pOutputDataBlockDesc->dataBlockId, -1, pMergeLogicNode->node.pTargets,
+                                &pMerge->pTargets));
+    PLAN_ERR_JRET(addDataBlockSlots(pCxt, pMerge->pTargets, pMerge->node.pOutputDataBlockDesc));
   } else {
-    SDataBlockDescNode* pLeftDesc = ((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc;
-    SDataBlockDescNode* pRightDesc = ((SPhysiNode*)nodesListGetNode(pChildren, 1))->pOutputDataBlockDesc;
-
-    code = setListSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pMergeLogicNode->node.pTargets,
-                         &pMerge->pTargets);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = addDataBlockSlots(pCxt, pMerge->pTargets, pMerge->node.pOutputDataBlockDesc);
-    }
+    PLAN_ERR_JRET(setMultiBlockSlotId(pCxt, pChildren, false, pMergeLogicNode->node.pTargets, &pMerge->pTargets));
+    PLAN_ERR_JRET(addDataBlockSlots(pCxt, pMerge->pTargets, pMerge->node.pOutputDataBlockDesc));
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
-    *pPhyNode = (SPhysiNode*)pMerge;
-  } else {
-    nodesDestroyNode((SNode*)pMerge);
-  }
-
+  *pPhyNode = (SPhysiNode*)pMerge;
+  return code;
+_return:
+  nodesDestroyNode((SNode*)pMerge);
   return code;
 }
 
