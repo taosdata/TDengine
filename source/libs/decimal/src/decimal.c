@@ -887,7 +887,7 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
                   .scale = pRightT->scale};
   if (TSDB_DATA_TYPE_DECIMAL != pLeftT->type) {
     code = convertToDecimal(pLeftData, pLeftT, &left, &lt);
-    if (TSDB_CODE_SUCCESS != code) return code;
+    if (TSDB_CODE_SUCCESS != code) return code; // TODO add some logs here
   } else {
     left = *(Decimal*)pLeftData;
   }

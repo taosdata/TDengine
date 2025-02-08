@@ -265,6 +265,7 @@ typedef struct SqlFunctionCtx {
   bool                 bInputFinished;
   bool                 hasWindowOrGroup; // denote that the function is used with time window or group
   bool                 needCleanup; // denote that the function need to be cleaned up
+  int32_t              inputType; // TODO wjm rename it 
 } SqlFunctionCtx;
 
 typedef struct tExprNode {
