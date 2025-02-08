@@ -39,7 +39,8 @@ typedef struct SNonSortMergeInfo {
 
 typedef struct SColsMergeInfo {
   SNodeList* pTargets;
-  uint64_t   srcBlkIds[2]; 
+  size_t     sourceNum;
+  uint64_t*  srcBlkIds;
 } SColsMergeInfo;
 
 typedef struct SMultiwayMergeOperatorInfo {
@@ -437,7 +438,7 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   qDebug("start to merge columns, %s", GET_TASKID(pTaskInfo));
 
-  for (int32_t i = 0; i < 2; ++i) {
+  for (int32_t i = 0; i < pColsMerge->sourceNum; ++i) {
     pBlock = getNextBlockFromDownstream(pOperator, i);
     if (pBlock && pBlock->info.rows > 1) {
       qError("more than 1 row returned from downstream, rows:%" PRId64, pBlock->info.rows);
@@ -453,7 +454,7 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   }
 
   setOperatorCompleted(pOperator);
-  if (2 == nullBlkNum) {
+  if (pColsMerge->sourceNum == nullBlkNum) {
     return code;
   }
 
@@ -464,6 +465,8 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 }
 
 void destroyColsMergeOperatorInfo(void* param) {
+  SColsMergeInfo* pColsMergeInfo = param;
+  taosMemoryFreeClear(pColsMergeInfo->srcBlkIds);
 }
 
 int32_t getColsMergeExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
@@ -640,8 +643,11 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
       TSDB_CHECK_CODE(code, lino, _error);
 
       pColsMerge->pTargets = pMergePhyNode->pTargets;
-      pColsMerge->srcBlkIds[0] = getOperatorResultBlockId(downStreams[0], 0);
-      pColsMerge->srcBlkIds[1] = getOperatorResultBlockId(downStreams[1], 0);
+      pColsMerge->sourceNum = numStreams;
+      pColsMerge->srcBlkIds = taosMemoryCalloc(numStreams, sizeof(uint64_t));
+      for (size_t i = 0; i < numStreams; ++i) {
+        pColsMerge->srcBlkIds[i] = getOperatorResultBlockId(downStreams[i], 0);
+      }
       break;
     }
     default:
