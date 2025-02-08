@@ -669,7 +669,7 @@ int32_t tBlobDestroy(SBlobRow2 *pBlowRow) {
   return code;
 }
 
-int32_t tRowBuild2(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobRow **ppBlobRow) {
+int32_t tRowBuild2(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobRow2 **ppBlobRow) {
   int32_t           code;
   SRowBuildScanInfo sinfo;
   sinfo.hasBlob = 1;
@@ -688,6 +688,8 @@ int32_t tRowBuild2(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlo
   } else {
     code = tRowBuildKVRow2(aColVal, &sinfo, pTSchema, ppRow, &pBlobRow);
   }
+
+  *ppBlobRow = pBlobRow;
   return code;
 }
 
