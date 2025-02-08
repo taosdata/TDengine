@@ -929,25 +929,25 @@ int32_t compareSConfigItem(const SConfigObj *item1, SConfigItem *item2, bool *co
     case CFG_DTYPE_BOOL:
       if (item1->bval != item2->bval) {
         item2->bval = item1->bval;
-        compare = false;
+        *compare = false;
       }
       break;
     case CFG_DTYPE_FLOAT:
       if (item1->fval != item2->fval) {
         item2->fval = item1->fval;
-        compare = false;
+        *compare = false;
       }
       break;
     case CFG_DTYPE_INT32:
       if (item1->i32 != item2->i32) {
         item2->i32 = item1->i32;
-        compare = false;
+        *compare = false;
       }
       break;
     case CFG_DTYPE_INT64:
       if (item1->i64 != item2->i64) {
         item2->i64 = item1->i64;
-        compare = false;
+        *compare = false;
       }
       break;
     case CFG_DTYPE_STRING:
@@ -961,14 +961,14 @@ int32_t compareSConfigItem(const SConfigObj *item1, SConfigItem *item2, bool *co
         if (item2->str == NULL) {
           return TSDB_CODE_OUT_OF_MEMORY;
         }
-        compare = false;
+        *compare = false;
       }
       break;
     default:
-      compare = false;
+      *compare = false;
       return TSDB_CODE_INVALID_CFG;
   }
-  compare = true;
+  *compare = true;
   return TSDB_CODE_SUCCESS
 }
 
