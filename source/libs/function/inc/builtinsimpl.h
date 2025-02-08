@@ -78,7 +78,7 @@ int32_t avgInvertFunction(SqlFunctionCtx* pCtx);
 #endif
 
 int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
-int32_t getAvgInfoSize();
+int32_t getAvgInfoSize(SFunctionNode* pFunc);
 
 bool    getStdFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t stdFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);

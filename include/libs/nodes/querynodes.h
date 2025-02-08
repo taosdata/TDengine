@@ -191,6 +191,8 @@ typedef struct SFunctionNode {
   bool       dual; // whether select stmt without from stmt, true for without.
   timezone_t tz;
   void      *charsetCxt;
+  const struct SFunctionNode* pSrcFuncRef;
+  SDataType  srcFuncInputType;
 } SFunctionNode;
 
 typedef struct STableNode {

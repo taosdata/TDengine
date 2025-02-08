@@ -631,9 +631,10 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnDataAgg*       pAgg = pInput->pColumnDataAgg[0];
   int32_t               type = pInput->pData[0]->info.type;
+  pCtx->inputType = type;
 
-  SSumRes* pSumRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  pSumRes->type = type;
+  void* pSumRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  SUM_RES_SET_TYPE(pSumRes, pCtx->inputType, type);
 
   if (IS_NULL_TYPE(type)) {
     numOfElem = 0;
@@ -644,19 +645,18 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
     numOfElem = pInput->numOfRows - pAgg->numOfNull;
 
     if (IS_SIGNED_NUMERIC_TYPE(type)) {
-      pSumRes->isum += pAgg->sum;
+      SUM_RES_INC_ISUM(pSumRes, pAgg->sum);
     } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-      pSumRes->usum += pAgg->sum;
+      SUM_RES_INC_USUM(pSumRes, pAgg->sum);
     } else if (IS_FLOAT_TYPE(type)) {
-      pSumRes->dsum += GET_DOUBLE_VAL((const char*)&(pAgg->sum));
+      SUM_RES_INC_DSUM(pSumRes, GET_DOUBLE_VAL((const char*)&(pAgg->sum)));
     } else if (IS_DECIMAL_TYPE(type)) {
-      SDecimalSumRes* pDecimalSum = (SDecimalSumRes*)pSumRes;
-      pDecimalSum->type = TSDB_DATA_TYPE_DECIMAL;
+      SUM_RES_SET_TYPE(pSumRes, pCtx->inputType, TSDB_DATA_TYPE_DECIMAL);
       const SDecimalOps* pOps = getDecimalOps(type);
       if (TSDB_DATA_TYPE_DECIMAL64 == type) {
-        pOps->add(&pDecimalSum->sum, &pAgg->sum, WORD_NUM(Decimal64));
+        pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), &pAgg->sum, WORD_NUM(Decimal64));
       } else if (TSDB_DATA_TYPE_DECIMAL == type) {
-        pOps->add(&pDecimalSum->sum, pAgg->decimal128Sum, WORD_NUM(Decimal));
+        pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), &pAgg->decimal128Sum, WORD_NUM(Decimal));
       }
     }
   } else {  // computing based on the true data block
@@ -667,42 +667,41 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
 
     if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
       if (type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_BOOL) {
-        LIST_ADD_N(pSumRes->isum, pCol, start, numOfRows, int8_t, numOfElem);
+        LIST_ADD_N(SUM_RES_GET_ISUM(pSumRes), pCol, start, numOfRows, int8_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_SMALLINT) {
-        LIST_ADD_N(pSumRes->isum, pCol, start, numOfRows, int16_t, numOfElem);
+        LIST_ADD_N(SUM_RES_GET_ISUM(pSumRes), pCol, start, numOfRows, int16_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_INT) {
-        LIST_ADD_N(pSumRes->isum, pCol, start, numOfRows, int32_t, numOfElem);
+        LIST_ADD_N(SUM_RES_GET_ISUM(pSumRes), pCol, start, numOfRows, int32_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_BIGINT) {
-        LIST_ADD_N(pSumRes->isum, pCol, start, numOfRows, int64_t, numOfElem);
+        LIST_ADD_N(SUM_RES_GET_ISUM(pSumRes), pCol, start, numOfRows, int64_t, numOfElem);
       }
     } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
       if (type == TSDB_DATA_TYPE_UTINYINT) {
-        LIST_ADD_N(pSumRes->usum, pCol, start, numOfRows, uint8_t, numOfElem);
+        LIST_ADD_N(SUM_RES_GET_USUM(pSumRes), pCol, start, numOfRows, uint8_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_USMALLINT) {
-        LIST_ADD_N(pSumRes->usum, pCol, start, numOfRows, uint16_t, numOfElem);
+        LIST_ADD_N(SUM_RES_GET_USUM(pSumRes), pCol, start, numOfRows, uint16_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_UINT) {
-        LIST_ADD_N(pSumRes->usum, pCol, start, numOfRows, uint32_t, numOfElem);
+        LIST_ADD_N(SUM_RES_GET_USUM(pSumRes), pCol, start, numOfRows, uint32_t, numOfElem);
       } else if (type == TSDB_DATA_TYPE_UBIGINT) {
-        LIST_ADD_N(pSumRes->usum, pCol, start, numOfRows, uint64_t, numOfElem);
+        LIST_ADD_N(SUM_RES_GET_USUM(pSumRes), pCol, start, numOfRows, uint64_t, numOfElem);
       }
     } else if (type == TSDB_DATA_TYPE_DOUBLE) {
-      LIST_ADD_N(pSumRes->dsum, pCol, start, numOfRows, double, numOfElem);
+      LIST_ADD_N(SUM_RES_GET_DSUM(pSumRes), pCol, start, numOfRows, double, numOfElem);
     } else if (type == TSDB_DATA_TYPE_FLOAT) {
-      LIST_ADD_N(pSumRes->dsum, pCol, start, numOfRows, float, numOfElem);
+      LIST_ADD_N(SUM_RES_GET_DSUM(pSumRes), pCol, start, numOfRows, float, numOfElem);
     } else if (IS_DECIMAL_TYPE(type)) {
-      SDecimalSumRes* pDecimalSum = (SDecimalSumRes*)pSumRes;
-      pSumRes->type = TSDB_DATA_TYPE_DECIMAL;
+      SUM_RES_SET_TYPE(pSumRes, pCtx->inputType, TSDB_DATA_TYPE_DECIMAL);
       if (TSDB_DATA_TYPE_DECIMAL64 == type) {
-        LIST_ADD_DECIMAL_N(&pDecimalSum->sum, pCol, start, numOfRows, Decimal64, numOfElem);
+        LIST_ADD_DECIMAL_N(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pCol, start, numOfRows, Decimal64, numOfElem);
       } else if (TSDB_DATA_TYPE_DECIMAL == type) {
-        LIST_ADD_DECIMAL_N(&pDecimalSum->sum, pCol, start, numOfRows, Decimal128, numOfElem);
+        LIST_ADD_DECIMAL_N(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pCol, start, numOfRows, Decimal128, numOfElem);
       }
       // TODO wjm check overflow
     }
   }
 
   // check for overflow
-  if (IS_FLOAT_TYPE(type) && (isinf(pSumRes->dsum) || isnan(pSumRes->dsum))) {
+  if (IS_FLOAT_TYPE(type) && (isinf(SUM_RES_GET_DSUM(pSumRes)) || isnan(SUM_RES_GET_DSUM(pSumRes)))) {
     numOfElem = 0;
   }
 
@@ -778,6 +777,7 @@ int32_t sumInvertFunction(SqlFunctionCtx* pCtx) {
 }
 #endif
 
+// TODO wjm impl for decimal
 int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
   SSumRes*             pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
@@ -799,10 +799,7 @@ int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
 }
 
 bool getSumFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
-  if (pFunc->node.resType.type == TSDB_DATA_TYPE_DECIMAL)
-    pEnv->calcMemSize = sizeof(SDecimalSumRes);
-  else
-    pEnv->calcMemSize = sizeof(SSumRes);
+  pEnv->calcMemSize = SUM_RES_GET_SIZE(pFunc->node.resType.type);
   return true;
 }
 

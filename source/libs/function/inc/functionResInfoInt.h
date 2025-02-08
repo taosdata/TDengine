@@ -40,7 +40,6 @@ typedef struct SSumRes {
     int64_t  isum;
     uint64_t usum;
     double   dsum;
-    void*    pData; // for decimal128
   };
   int16_t type;
   int64_t prevTs;
@@ -49,14 +48,53 @@ typedef struct SSumRes {
 } SSumRes;
 
 typedef struct SDecimalSumRes {
-  int64_t   flag; // currently not used
+  Decimal128 sum;
   // TODO wjm use same struct for the following four fields as SSumRes
   int16_t    type;
   int64_t    prevTs;
   bool       isPrevTsSet;
   bool       overflow;  // if overflow is true, dsum to be used for any type;
-  Decimal128 sum;
+  uint32_t   flag; // currently not used
 } SDecimalSumRes;
+
+#define SUM_RES_GET_RES(pSumRes) ((SSumRes*)pSumRes)
+#define SUM_RES_GET_DECIMAL_RES(pSumRes) ((SDecimalSumRes*)pSumRes)
+
+#define SUM_RES_GET_SIZE(type) IS_DECIMAL_TYPE(type) ? sizeof(SDecimalSumRes) : sizeof(SSumRes)
+
+#define SUM_RES_SET_TYPE(pSumRes, inputType, _type)   \
+  do {                                                \
+    if (IS_DECIMAL_TYPE(inputType))                   \
+      SUM_RES_GET_DECIMAL_RES(pSumRes)->type = _type; \
+    else                                              \
+      SUM_RES_GET_RES(pSumRes)->type = _type;         \
+  } while (0)
+
+#define SUM_RES_GET_TYPE(pSumRes, inputType) \
+  (IS_DECIMAL_TYPE(inputType) ? SUM_RES_GET_DECIMAL_RES(pSumRes)->type : SUM_RES_GET_RES(pSumRes)->type)
+#define SUM_RES_GET_PREV_TS(pSumRes, inputType) \
+  (IS_DECIMAL_TYPE(inputType) ? SUM_RES_GET_DECIMAL_RES(pSumRes)->prevTs : SUM_RES_GET_RES(pSumRes)->prevTs)
+#define SUM_RES_GET_OVERFLOW(pSumRes, checkInputType, inputType)                             \
+  (checkInputType && IS_DECIMAL_TYPE(inputType) ? SUM_RES_GET_DECIMAL_RES(pSumRes)->overflow \
+                                                : SUM_RES_GET_RES(pSumRes)->overflow)
+
+#define SUM_RES_GET_ISUM(pSumRes) (((SSumRes*)(pSumRes))->isum)
+#define SUM_RES_GET_USUM(pSumRes) (((SSumRes*)(pSumRes))->usum)
+#define SUM_RES_GET_DSUM(pSumRes) (((SSumRes*)(pSumRes))->dsum)
+#define SUM_RES_INC_ISUM(pSumRes, val) ((SSumRes*)(pSumRes))->isum += val
+#define SUM_RES_INC_USUM(pSumRes, val) ((SSumRes*)(pSumRes))->usum += val
+#define SUM_RES_INC_DSUM(pSumRes, val) ((SSumRes*)(pSumRes))->dsum += val
+
+#define SUM_RES_GET_DECIMAL_SUM(pSumRes) ((SDecimalSumRes*)(pSumRes))->sum
+// TODO wjm check for overflow
+#define SUM_RES_INC_DECIMAL_SUM(pSumRes, pVal, type)                           \
+  do {                                                                         \
+    const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);           \
+    if (type == TSDB_DATA_TYPE_DECIMAL64)                                      \
+      pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pVal, WORD_NUM(Decimal64)); \
+    else                                                                       \
+      pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pVal, WORD_NUM(Decimal));   \
+  } while (0)
 
 typedef struct SMinmaxResInfo {
   bool      assign;  // assign the first value or not
@@ -145,6 +183,55 @@ typedef struct SAvgRes {
   int16_t type;  // store the original input type, used in merge function
 } SAvgRes;
 
+typedef struct SDecimalAvgRes {
+  Decimal128     avg;
+  SDecimalSumRes sum;
+  int64_t        count;
+  int16_t        type; // store the original input type and scale, used in merge function
+  uint8_t        scale;
+} SDecimalAvgRes;
+
+#define AVG_RES_GET_RES(pAvgRes) ((SAvgRes*)pAvgRes)
+#define AVG_RES_GET_DECIMAL_RES(pAvgRes) ((SDecimalAvgRes*)pAvgRes)
+#define AVG_RES_SET_TYPE(pAvgRes, inputType, _type)   \
+  do {                                                \
+    if (IS_DECIMAL_TYPE(inputType))                   \
+      AVG_RES_GET_DECIMAL_RES(pAvgRes)->type = _type; \
+    else                                              \
+      AVG_RES_GET_RES(pAvgRes)->type = _type;          \
+  } while (0)
+
+#define AVG_RES_SET_INPUT_SCALE(pAvgRes, _scale)      \
+  do {                                                \
+    AVG_RES_GET_DECIMAL_RES(pAvgRes)->scale = _scale; \
+  } while (0)
+
+#define AVG_RES_GET_INPUT_SCALE(pAvgRes) (AVG_RES_GET_DECIMAL_RES(pAvgRes)->scale)
+
+#define AVG_RES_GET_TYPE(pAvgRes, inputType) \
+  (IS_DECIMAL_TYPE(inputType) ? AVG_RES_GET_DECIMAL_RES(pAvgRes)->type : AVG_RES_GET_RES(pAvgRes)->type)
+
+#define AVG_RES_GET_SIZE(inputType) (IS_DECIMAL_TYPE(inputType) ? sizeof(SDecimalAvgRes) : sizeof(SAvgRes))
+#define AVG_RES_GET_AVG(pAvgRes)    (AVG_RES_GET_RES(pAvgRes)->result)
+#define AVG_RES_GET_SUM(pAvgRes) (AVG_RES_GET_RES(pAvgRes)->sum)
+#define AVG_RES_GET_COUNT(pAvgRes, checkInputType, inputType)                              \
+  (checkInputType && IS_DECIMAL_TYPE(inputType) ? AVG_RES_GET_DECIMAL_RES(pAvgRes)->count \
+                                                : AVG_RES_GET_RES(pAvgRes)->count)
+#define AVG_RES_INC_COUNT(pAvgRes, inputType, val)    \
+  do {                                                \
+    if (IS_DECIMAL_TYPE(inputType))                   \
+      AVG_RES_GET_DECIMAL_RES(pAvgRes)->count += val; \
+    else                                              \
+      AVG_RES_GET_RES(pAvgRes)->count += val;         \
+  } while (0)
+
+#define AVG_RES_GET_DECIMAL_AVG(pAvgRes) (((SDecimalAvgRes*)(pAvgRes))->avg)
+#define AVG_RES_GET_DECIMAL_SUM(pAvgRes) (((SDecimalAvgRes*)(pAvgRes))->sum)
+
+#define AVG_RES_GET_SUM_OVERFLOW(pAvgRes, checkInputType, inputType)             \
+  checkInputType&& IS_DECIMAL_TYPE(inputType)                                    \
+      ? SUM_RES_GET_OVERFLOW(&AVG_RES_GET_DECIMAL_SUM(pAvgRes), true, inputType) \
+      : SUM_RES_GET_OVERFLOW(&AVG_RES_GET_SUM(pAvgRes), false, inputType)
 
 // structs above are used in stream
 

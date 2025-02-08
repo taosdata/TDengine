@@ -430,6 +430,7 @@ int32_t createFunctionWithSrcFunc(const char* pName, const SFunctionNode* pSrcFu
 
   (*ppFunc)->hasPk = pSrcFunc->hasPk;
   (*ppFunc)->pkBytes = pSrcFunc->pkBytes;
+  (*ppFunc)->pSrcFuncRef = pSrcFunc;
 
   (void)snprintf((*ppFunc)->functionName, sizeof((*ppFunc)->functionName), "%s", pName);
   (*ppFunc)->pParameterList = pParameterList;
