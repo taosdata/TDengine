@@ -398,8 +398,9 @@ static void taosKeepOldLog(char *oldName) {
     TAOS_UNUSED(taosUnLockFile(oldFile));
   _exit2:
     TAOS_UNUSED(taosCloseFile(&oldFile));
-    if (code != 0) {
-      uWarn("failed at line %d to keep old log file:%s, reason:%s\n", lino, oldName, tstrerror(code));
+    if (code != 0 && tsLogEmbedded == 1) {  // only print error message in embedded log mode
+      // don't use uWarn or uError, because it may open new log file and cause dead lock
+      fprintf(stderr, "failed at line %d to keep old log file:%s, reason:%s\n", lino, oldName, tstrerror(code));
     }
   }
 }
