@@ -2365,6 +2365,10 @@ void taskDbInitOpt(STaskDbWrapper* pTaskDb) {
   rocksdb_options_set_db_write_buffer_size(opts, 256 << 20);
   rocksdb_options_set_write_buffer_size(opts, 128 << 20);
   rocksdb_options_set_atomic_flush(opts, 1);
+  rocksdb_options_set_max_bytes_for_level_multiplier(opts, 20);
+  rocksdb_options_set_target_file_size_base(opts, 512 << 20);
+  rocksdb_options_set_level_compaction_dynamic_level_bytes(opts, 1);
+  // rocksdb_options_set_compression(opts, rocksdb_lz4_compression);
 
   pTaskDb->dbOpt = opts;
   pTaskDb->env = env;
@@ -4350,7 +4354,7 @@ int32_t streamStateGetParName_rocksdb(SStreamState* pState, int64_t groupId, voi
 }
 
 int32_t streamStateDeleteParName_rocksdb(SStreamState* pState, int64_t groupId) {
-  int    code = 0;
+  int code = 0;
   STREAM_STATE_DEL_ROCKSDB(pState, "parname", &groupId);
   return code;
 }
