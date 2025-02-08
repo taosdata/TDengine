@@ -711,6 +711,18 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
   pMgmt->state.openVnodes = 0;
   dInfo("close %d vnodes with %d threads", numOfVnodes, threadNum);
 
+  dInfo("notify all streams closed in all %d vnodes", numOfVnodes);
+  if (ppVnodes != NULL) {
+    for (int32_t i = 0; i < numOfVnodes; ++i) {
+      if (ppVnodes[i] != NULL) {
+        if (ppVnodes[i]->pImpl != NULL) {
+          tqNotifyClose(ppVnodes[i]->pImpl->pTq);
+        }
+      }
+    }
+  }
+  dInfo("notify close stream completed in %d vnodes", numOfVnodes);
+
   for (int32_t t = 0; t < threadNum; ++t) {
     SVnodeThread *pThread = &threads[t];
     if (pThread->vnodeNum == 0) continue;
@@ -718,6 +730,7 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
     TdThreadAttr thAttr;
     (void)taosThreadAttrInit(&thAttr);
     (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+
     if (taosThreadCreate(&pThread->thread, &thAttr, vmCloseVnodeInThread, pThread) != 0) {
       dError("thread:%d, failed to create thread to close vnode since %s", pThread->threadIndex, strerror(errno));
     }
