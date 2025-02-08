@@ -1147,7 +1147,7 @@ int32_t ctgGetHashFunction(int8_t hashMethod, tableNameHashFp* fp) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgVgInfoIdComp2(void const *lp, void const *rp) {
+int32_t ctgVgInfoIdComp(void const *lp, void const *rp) {
   SVgroupInfo* pVg1 = (SVgroupInfo*)lp;
   SVgroupInfo* pVg2 = (SVgroupInfo*)rp;
 
@@ -1190,7 +1190,7 @@ int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList, cons
   }
 
   if (IS_SYS_DBNAME(name.dbname))
-    taosArraySort(vgList, ctgVgInfoIdComp2);
+    taosArraySort(vgList, ctgVgInfoIdComp);
   else
     taosArraySort(vgList, ctgVgInfoComp);
 
@@ -1592,7 +1592,7 @@ int32_t ctgMakeVgArray(SDBVgInfo* dbInfo, const char* dbName, bool isFullName) {
       CTG_ERR_RET(code);
       realDbName = name.dbname;
     }
-    if (IS_SYS_DBNAME(realDbName)) sortFunc = ctgVgInfoIdComp2;
+    if (IS_SYS_DBNAME(realDbName)) sortFunc = ctgVgInfoIdComp;
   }
   return ctgMakeVgArraySortBy(dbInfo, sortFunc);
 }
