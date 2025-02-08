@@ -1116,7 +1116,7 @@ int32_t ctgUpdateVgroupEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId
     dbFName = p + 1;
   }
 
-  code = ctgMakeVgArray(dbInfo);
+  code = ctgMakeVgArray(dbInfo, dbFName, false);
   if (code) {
     taosMemoryFree(op);
     taosMemoryFree(msg);
