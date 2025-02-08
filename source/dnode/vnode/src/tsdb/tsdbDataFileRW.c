@@ -733,8 +733,6 @@ _exit:
   return code;
 }
 
-extern int32_t tsdbAllocateDisk(STsdb *tsdb, int32_t fid, const char *label, SDiskID *diskId);
-
 static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;

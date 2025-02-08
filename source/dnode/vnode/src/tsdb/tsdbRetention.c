@@ -240,8 +240,6 @@ _exit:
   return code;
 }
 
-extern int32_t tsdbAllocateDiskAtLevel(STsdb *tsdb, int32_t fid, int32_t level, const char *label, SDiskID *diskId);
-
 static int32_t tsdbRemoveOrMoveFileObject(SRTNer *rtner, STFileObj *fobj) {
   int32_t code = 0;
   int32_t lino = 0;

@@ -778,8 +778,6 @@ static int32_t tsdbSttFileDoWriteFooter(SSttFileWriter *writer) {
   return tsdbFileWriteSttFooter(writer->fd, writer->footer, &writer->file->size, encryptAlgorithm, encryptKey);
 }
 
-extern int32_t tsdbAllocateDisk(STsdb *tsdb, int32_t fid, const char *label, SDiskID *diskId);
-
 static int32_t tsdbSttFWriterDoOpen(SSttFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;

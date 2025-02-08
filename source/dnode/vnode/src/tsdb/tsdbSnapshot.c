@@ -544,7 +544,6 @@ struct STsdbSnapWriter {
     bool       fsetWriteBegin;
     int32_t    fid;
     STFileSet* fset;
-    SDiskID    did;
     bool       hasData;  // if have time series data
     bool       hasTomb;  // if have tomb data
 
@@ -825,15 +824,6 @@ static int32_t tsdbSnapWriteFileSetBegin(STsdbSnapWriter* writer, int32_t fid) {
   writer->ctx->fid = fid;
   STFileSet** fsetPtr = TARRAY2_SEARCH(writer->fsetArr, &fset, tsdbTFileSetCmprFn, TD_EQ);
   writer->ctx->fset = (fsetPtr == NULL) ? NULL : *fsetPtr;
-
-  int32_t level = tsdbFidLevel(fid, &writer->tsdb->keepCfg, taosGetTimestampSec());
-  if (tfsAllocDisk(writer->tsdb->pVnode->pTfs, level, &writer->ctx->did)) {
-    code = TSDB_CODE_NO_AVAIL_DISK;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-  if (tfsMkdirRecurAt(writer->tsdb->pVnode->pTfs, writer->tsdb->path, writer->ctx->did) != 0) {
-    tsdbError("vgId:%d failed to create directory %s", TD_VID(writer->tsdb->pVnode), writer->tsdb->path);
-  }
 
   writer->ctx->hasData = true;
   writer->ctx->hasTomb = true;

@@ -79,7 +79,6 @@ typedef struct SDataFileRAWWriterConfig {
   STsdb  *tsdb;
   int32_t szPage;
 
-  SDiskID did;
   int64_t fid;
   int64_t cid;
   int32_t level;
@@ -105,8 +104,8 @@ int32_t tsdbDataFileRAWWriterOpen(const SDataFileRAWWriterConfig *config, SDataF
 int32_t tsdbDataFileRAWWriterClose(SDataFileRAWWriter **writer, bool abort, TFileOpArray *opArr);
 
 int32_t tsdbDataFileRAWWriterDoOpen(SDataFileRAWWriter *writer);
-int32_t tsdbDataFileRAWWriteBlockData(SDataFileRAWWriter *writer, const STsdbDataRAWBlockHeader *bHdr, 
-                                      int32_t encryptAlgorithm, char* encryptKey);
+int32_t tsdbDataFileRAWWriteBlockData(SDataFileRAWWriter *writer, const STsdbDataRAWBlockHeader *bHdr,
+                                      int32_t encryptAlgorithm, char *encryptKey);
 int32_t tsdbDataFileRAWFlush(SDataFileRAWWriter *writer);
 
 #ifdef __cplusplus
