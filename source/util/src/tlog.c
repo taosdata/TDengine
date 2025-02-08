@@ -399,7 +399,7 @@ static void taosKeepOldLog(char *oldName) {
   _exit2:
     TAOS_UNUSED(taosCloseFile(&oldFile));
     if (code != 0) {
-      uWarn("failed at line %d to keep old log file:%s, reason:%s\n", oldName, lino, tstrerror(code));
+      uWarn("failed at line %d to keep old log file:%s, reason:%s\n", lino, oldName, tstrerror(code));
     }
   }
 }
