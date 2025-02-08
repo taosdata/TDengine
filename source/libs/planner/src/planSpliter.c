@@ -892,7 +892,7 @@ static int32_t stbSplSplitSessionOrStateForBatch(SSplitContext* pCxt, SStableSpl
   if (TSDB_CODE_SUCCESS == code) {
     stbSplSetTableMergeScan(pChild);
     pInfo->pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
-    SPLIT_FLAG_SET_MASK(pInfo->pSubplan->splitFlag, SPLIT_FLAG_STABLE_SPLIT);
+    //SPLIT_FLAG_SET_MASK(pInfo->pSubplan->splitFlag, SPLIT_FLAG_STABLE_SPLIT);
     ++(pCxt->groupId);
   } else {
     nodesDestroyList(pMergeKeys);
