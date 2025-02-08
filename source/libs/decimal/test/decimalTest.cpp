@@ -1,12 +1,10 @@
 #include <gtest/gtest.h>
 #include <iostream>
-#include <memory>
+#include <array>
+#include <random>
 
 #include "decimal.h"
-#include "libs/nodes/querynodes.h"
-#include "tcommon.h"
 #include "tdatablock.h"
-#include "wideInteger.h"
 using namespace std;
 
 template <int N>
@@ -310,7 +308,7 @@ class Numeric {
 
   Numeric operator=(const char* str) {
     std::string s = str;
-    int32_t code = 0;
+    int32_t     code = 0;
     if (BitNum == 64) {
       code = decimal64FromStr(s.c_str(), s.size(), prec(), scale(), (Decimal64*)&dec_);
     } else if (BitNum == 128) {
@@ -322,12 +320,12 @@ class Numeric {
     return *this;
   }
 
-#define DEFINE_OPERATOR_FROM_FOR_BITNUM(type, BitNum)                              \
-  if (std::is_floating_point<type>::value) {                                       \
+#define DEFINE_OPERATOR_FROM_FOR_BITNUM(type, BitNum)                                        \
+  if (std::is_floating_point<type>::value) {                                                 \
     code = TEST_decimal##BitNum##From_double((Decimal##BitNum*)&dec_, prec(), scale(), v);   \
-  } else if (std::is_signed<type>::value) {                                        \
+  } else if (std::is_signed<type>::value) {                                                  \
     code = TEST_decimal##BitNum##From_int64_t((Decimal##BitNum*)&dec_, prec(), scale(), v);  \
-  } else if (std::is_unsigned<type>::value) {                                      \
+  } else if (std::is_unsigned<type>::value) {                                                \
     code = TEST_decimal##BitNum##From_uint64_t((Decimal##BitNum*)&dec_, prec(), scale(), v); \
   }
 
@@ -429,7 +427,7 @@ TEST(decimal, numeric) {
   Numeric<128> max{38, 0, "99999999999999999999999999999999999999.000"};
   ASSERT_EQ(max.toString(), "99999999999999999999999999999999999999");
   Numeric<128> zero{38, 0, "0"};
-  auto min = zero - max;
+  auto         min = zero - max;
   ASSERT_EQ(min.toString(), "-99999999999999999999999999999999999999");
 
   dec = 123.456;
@@ -437,10 +435,10 @@ TEST(decimal, numeric) {
 
   dec = 47563.36;
   dec128 = 0;
-  o = dec128 + dec; // (37, 10) + (10, 4) = (38, 10)
+  o = dec128 + dec;  // (37, 10) + (10, 4) = (38, 10)
   ASSERT_EQ(o.toString(), "47563.3600000000");
   dec = 3749.00;
-  o = o + dec;// (38, 10) + (10, 4) = (38, 9)
+  o = o + dec;  // (38, 10) + (10, 4) = (38, 9)
   ASSERT_EQ(o.toString(), "51312.360000000");
 }
 
@@ -502,9 +500,9 @@ TEST(decimal, typeFromDecimal) {
   ASSERT_FALSE(boolv);
 }
 
-// TEST where decimal column in (...)
-// TEST same decimal type with different scale doing comparing or operations
-// TEST case when select common type
+// TODO wjm TEST where decimal column in (...)
+//  TEST same decimal type with different scale doing comparing or operations
+//  TEST case when select common type
 
 TEST(decimal, a) {
   __int128 a = generate_big_int128(37);
@@ -805,6 +803,98 @@ TEST(decimal, op) {
   code = decimalOp(op, &ta, &tb, &tc, &a, &b, &res128);
   ASSERT_EQ(code, 0);
   checkDecimal(&res128, 0, tExpect.precision, tExpect.scale, "9888888.88890");
+}
+
+struct DecimalStringRandomGeneratorConfig {
+  uint8_t prec = 38;
+  uint8_t scale = 10;
+  bool    enableWeightOverflow = false;
+  float   weightOverflowRatio = 0.001;
+  bool    enableScaleOverflow = true;
+  float   scaleOverFlowRatio = 0.1;
+  bool    enablePositiveSign = false;
+  bool    withCornerCase = true;
+  float   cornerCaseRatio = 0.1;
+  float   positiveRatio = 0.7;
+};
+
+class DecimalStringRandomGenerator {
+  std::random_device                 rd_;
+  std::mt19937                       gen_;
+  std::uniform_int_distribution<int> dis_;
+  static const std::array<string, 5> cornerCases;
+  static const unsigned int ratio_base = 1000000;
+
+ public:
+  DecimalStringRandomGenerator() : gen_(rd_()), dis_(0, ratio_base) {}
+  std::string generate(const DecimalStringRandomGeneratorConfig& config) {
+    std::string ret;
+    auto        sign = generateSign(config.positiveRatio);
+    if (config.enablePositiveSign || sign != '+') ret.push_back(sign);
+    if (config.withCornerCase && currentShouldGenerateCornerCase(config.cornerCaseRatio)) {
+      ret += generateCornerCase(config);
+    } else {
+      uint8_t prec = randomInt(config.prec - config.scale), scale = randomInt(config.scale);
+      for (int i = 0; i < prec; ++i) {
+        ret.push_back(generateDigit());
+      }
+      if (config.enableWeightOverflow && possible(config.weightOverflowRatio)) {
+        int extra_weight = config.prec - prec + 1 + randomInt(TSDB_DECIMAL_MAX_PRECISION);
+        while (extra_weight--) {
+          ret.push_back(generateDigit());
+        }
+      }
+      ret.push_back('.');
+      for (int i = 0; i < scale; ++i) {
+        ret.push_back(generateDigit());
+      }
+      if (config.enableScaleOverflow && possible(config.scaleOverFlowRatio)) {
+        int extra_scale = config.scale - scale + 1 + randomInt(TSDB_DECIMAL_MAX_SCALE);
+        while (extra_scale--) {
+          ret.push_back(generateDigit());
+        }
+      }
+    }
+    return ret;
+  }
+
+ private:
+  int  randomInt(int modulus) { return dis_(gen_) % modulus; }
+  char generateSign(float positive_ratio) { return possible(positive_ratio) ? '+' : '-'; }
+  char generateDigit() { return randomInt(10) + '0'; }
+  bool currentShouldGenerateCornerCase(float corner_case_ratio) {
+    return possible(corner_case_ratio);
+  }
+  string generateCornerCase(const DecimalStringRandomGeneratorConfig& config) {
+    string res{};
+    if (possible(0.8)) {
+      res = cornerCases[randomInt(cornerCases.size())];
+    } else {
+      res = std::string(config.prec - config.scale, generateDigit());
+      if (possible(0.8)) {
+        res.push_back('.');
+        if (possible(0.8)) {
+          res += std::string(config.scale, generateDigit());
+        }
+      }
+    }
+    return res;
+  }
+
+  bool possible(float ratio) {
+    return randomInt(ratio_base) <= ratio * ratio_base;
+  }
+};
+
+const std::array<string, 5> DecimalStringRandomGenerator::cornerCases = {"0", "NULL", "0.", ".0", "00000.000000"};
+
+TEST(decimal, randomGenerator) {
+  DecimalStringRandomGeneratorConfig config;
+  DecimalStringRandomGenerator       generator;
+  for (int i = 0; i < 1000; ++i) {
+    auto str = generator.generate(config);
+    cout << str << endl;
+  }
 }
 
 int main(int argc, char** argv) {
