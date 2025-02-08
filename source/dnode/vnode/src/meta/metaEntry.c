@@ -289,13 +289,11 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
       if (!tDecodeIsEnd(pCoder)) {
         uDebug("set type: %d, tableName:%s", pME->type, pME->name);
         TAOS_CHECK_RETURN(meteDecodeColRefEntry(pCoder, pME));
-        if (pME->colRef.nCols == 0 && pME->type == TSDB_VIRTUAL_TABLE) {
-          TAOS_CHECK_RETURN(metatInitDefaultSColRefWrapper(pCoder, &pME->colRef, &pME->ntbEntry.schemaRow));
-        }
       } else {
         uDebug("set default type: %d, tableName:%s", pME->type, pME->name);
-        // TODO(smj) this may cause crash since child table do not have schemarow
-        TAOS_CHECK_RETURN(metatInitDefaultSColRefWrapper(pCoder, &pME->colRef, &pME->ntbEntry.schemaRow));
+        if (pME->type == TSDB_VIRTUAL_TABLE) {
+           TAOS_CHECK_RETURN(metatInitDefaultSColRefWrapper(pCoder, &pME->colRef, &pME->ntbEntry.schemaRow));
+        }
       }
     }
   }

@@ -694,7 +694,7 @@ static int32_t vtableRewritePrimaryTsCol(SRealTableNode* pTable, SLogicNode* pLo
     if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pCol)->colId) {
       pCol->hasDep = true;
       tstrncpy(pCol->depColName, pSchema->name, sizeof(pCol->depColName));
-      tstrncpy(pCol->depTableName, pVirtualTableNode->tableName, sizeof(pCol->depTableName));
+      tstrncpy(pCol->depTableName, pVirtualTableNode->tableAlias, sizeof(pCol->depTableName));
       break;
     }
   }
@@ -721,7 +721,7 @@ static int32_t scanAddCol(SLogicNode* pLogicNode, SColRef* colRef, STableNode* p
   pRefTableScanCol->hasRef = false;
   pRefTableScanCol->hasDep = true;
   tstrncpy(pRefTableScanCol->depColName, pSchema->name, sizeof(pRefTableScanCol->depColName));
-  tstrncpy(pRefTableScanCol->depTableName, pVirtualTableNode->tableName, sizeof(pRefTableScanCol->depTableName));
+  tstrncpy(pRefTableScanCol->depTableName, pVirtualTableNode->tableAlias, sizeof(pRefTableScanCol->depTableName));
 
   PLAN_ERR_JRET(nodesListAppend(pLogicScan->pScanCols, (SNode*)pRefTableScanCol));
   return code;

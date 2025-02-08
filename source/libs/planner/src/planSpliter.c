@@ -2052,6 +2052,50 @@ _return:
   return code;
 }
 
+typedef struct SMergeAggColsSplitInfo {
+  SAggLogicNode   *pAgg;
+  SLogicNode      *pSplitNode;
+  SLogicSubplan   *pSubplan;
+} SMergeAggColsSplitInfo;
+
+static bool mergeAggColsNeedSplit(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode) && 1 == LIST_LENGTH(pNode->pChildren) &&
+      NULL != pNode->pParent &&
+      QUERY_NODE_LOGIC_PLAN_MERGE == nodeType(pNode->pParent) &&
+      ((SMergeLogicNode *)pNode->pParent)->colsMerge &&
+      QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(nodesListGetNode(pNode->pChildren, 0))) {
+    return true;
+  }
+  return false;
+}
+
+
+static bool mergeAggColsFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode,
+                                      SMergeAggColsSplitInfo* pInfo) {
+  if (mergeAggColsNeedSplit(pNode)) {
+    pInfo->pAgg = (SAggLogicNode *)pNode;
+    pInfo->pSplitNode = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+    pInfo->pSubplan = pSubplan;
+    return true;
+  }
+  return false;
+}
+
+static int32_t mergeAggColsSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
+  int32_t                code = TSDB_CODE_SUCCESS;
+  SMergeAggColsSplitInfo info = {0};
+  if (!splMatch(pCxt, pSubplan, 0, (FSplFindSplitNode)mergeAggColsFindSplitNode, &info)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, SUBPLAN_TYPE_MERGE));
+  PLAN_ERR_RET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, info.pSplitNode, 0)));
+
+  ++(pCxt->groupId);
+  pCxt->split = true;
+  return code;
+}
+
 typedef struct SQnodeSplitInfo {
   SLogicNode*    pSplitNode;
   SLogicSubplan* pSubplan;
@@ -2109,7 +2153,8 @@ static const SSplitRule splitRuleSet[] = {
   {.pName = "UnionDistinctSplit",   .splitFunc = unionDistinctSplit},
   {.pName = "SmaIndexSplit",        .splitFunc = smaIndexSplit}, // not used yet
   {.pName = "InsertSelectSplit",    .splitFunc = insertSelectSplit},
-  {.pName = "VirtualtableSplit",    .splitFunc = virtualTableSplit}
+  {.pName = "VirtualtableSplit",    .splitFunc = virtualTableSplit},
+  {.pName = "MergeAggColsSplit",    .splitFunc = mergeAggColsSplit}
 };
 // clang-format on
 

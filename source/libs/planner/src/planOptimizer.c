@@ -7596,8 +7596,7 @@ static int32_t tsmaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan
 }
 
 static bool eliminateVirtualScanMayBeOptimized(SLogicNode* pNode, void* pCtx) {
-  SLogicNode* pParent = pNode->pParent;
-  if (NULL == pParent) {
+  if (NULL == pNode->pParent) {
     return false;
   }
 
@@ -7619,12 +7618,13 @@ static int32_t eliminateVirtualScanOptimizeImpl(SOptimizeContext* pCxt, SLogicSu
     if (nodesEqualNode(pSibling, (SNode*)pVirtualScanNode)) {
       SNode* pChild;
       FOREACH(pChild, pVirtualScanNode->pChildren) {
+        // clear the mask to try scanPathOptimize again.
         OPTIMIZE_FLAG_CLEAR_MASK(((SScanLogicNode*)pChild)->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
         ((SLogicNode*)pChild)->pParent = pVirtualScanNode->pParent;
       }
       INSERT_LIST(pVirtualScanNode->pParent->pChildren, pVirtualScanNode->pChildren);
-
       pVirtualScanNode->pChildren = NULL;
+
       ERASE_NODE(pVirtualScanNode->pParent->pChildren);
       pCxt->optimized = true;
       return TSDB_CODE_SUCCESS;
@@ -7634,6 +7634,7 @@ static int32_t eliminateVirtualScanOptimizeImpl(SOptimizeContext* pCxt, SLogicSu
   return TSDB_CODE_PLAN_INTERNAL_ERROR;
 }
 
+// eliminate virtual scan node when it has only one child
 static int32_t eliminateVirtualScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SLogicNode* pVirtualScanNode = optFindPossibleNode(pLogicSubplan->pNode, eliminateVirtualScanMayBeOptimized, NULL);
   if (NULL == pVirtualScanNode) {
@@ -7642,6 +7643,210 @@ static int32_t eliminateVirtualScanOptimize(SOptimizeContext* pCxt, SLogicSubpla
 
   return eliminateVirtualScanOptimizeImpl(pCxt, pLogicSubplan, pVirtualScanNode);
 }
+
+static bool pdaMayBeOptimized(SLogicNode* pNode, void* pCtx) {
+  if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
+      QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0))) {
+    return false;
+  }
+
+  // virtual table scan should have more than one child.
+  if (LIST_LENGTH(((SVirtualScanLogicNode *)nodesListGetNode(pNode->pChildren, 0))->node.pChildren) < 2) {
+    return false;
+  }
+
+  SAggLogicNode*  pAgg = (SAggLogicNode*)pNode;
+  SNode*          pAggFunc = NULL;
+  FOREACH(pAggFunc, pAgg->pAggFuncs) {
+    SFunctionNode *pFunc = (SFunctionNode *)pAggFunc;
+    if (fmIsSelectFunc(pFunc->funcId) || fmIsGroupKeyFunc(pFunc->funcId)) {
+      return false;
+    }
+  }
+
+  if (pAgg->hasGroup || 0 != LIST_LENGTH(pAgg->pTsmaSubplans) || NULL != pAgg->node.pConditions ||
+      NULL != pAgg->node.pLimit || NULL != pAgg->node.pSlimit) {
+    return false;
+  }
+
+  return true;
+}
+
+static int32_t findDepTableScanNode(SColumnNode* pCol, SVirtualScanLogicNode *pVScan, SNode **ppNode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode  *pScan = NULL;
+  FOREACH(pScan, pVScan->node.pChildren) {
+    SScanLogicNode *pScanNode = (SScanLogicNode *)pScan;
+    SNode *pScanCol = NULL;
+    FOREACH(pScanCol, pScanNode->pScanCols) {
+      if (QUERY_NODE_COLUMN == nodeType(pScanCol)) {
+        SColumnNode *pScanColNode = (SColumnNode *)pScanCol;
+        if (pScanColNode->hasDep) {
+          if (strcmp(pScanColNode->depTableName, pCol->tableAlias) == 0 &&
+              strcmp(pScanColNode->depColName, pCol->colName) == 0) {
+            PLAN_RET(nodesCloneNode(pScan, ppNode));
+          }
+        } else {
+          // TODO(smj): make a proper error code.
+          *ppNode = NULL;
+          planError("column %s.%s has no depend column", pCol->tableAlias, pCol->colName);
+          return TSDB_CODE_PLAN_INTERNAL_ERROR;
+        }
+      }
+    }
+  }
+  *ppNode = NULL;
+  planError("column %s.%s's depend column not found in virtual scan node", pCol->tableAlias, pCol->colName);
+  // TODO(smj): make a proper error code.
+  return TSDB_CODE_PLAN_INTERNAL_ERROR;
+}
+
+static int32_t mergeAggFuncToAggNode(SAggLogicNode* pAgg, SFunctionNode* pFunc) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode  *ppFuncNode = NULL;
+  PLAN_ERR_JRET(nodesCloneNode((SNode *)pFunc, &ppFuncNode));
+  PLAN_ERR_JRET(nodesListMakeAppend(&pAgg->pAggFuncs, (SNode *)ppFuncNode));
+  pAgg->hasLast |= fmIsLastFunc(((SFunctionNode *)ppFuncNode)->funcId);
+  pAgg->hasLastRow |= fmIsLastRowFunc(((SFunctionNode *)ppFuncNode)->funcId);
+  pAgg->hasTimeLineFunc |= fmIsTimelineFunc(((SFunctionNode *)ppFuncNode)->funcId);
+  pAgg->onlyHasKeepOrderFunc &= fmIsKeepOrderFunc(((SFunctionNode *)ppFuncNode)->funcId);
+  pAgg->hasGroupKeyOptimized = false;
+  pAgg->hasGroup = false;
+  pAgg->isGroupTb = false;
+  pAgg->isPartTb = false;
+  return code;
+_return:
+  nodesDestroyNode(ppFuncNode);
+  return code;
+}
+
+static int32_t rebuildPlanForPdaOptimize(SColumnNode* pCol, SFunctionNode* pAggFunc, SVirtualScanLogicNode* pVScan,
+                                         SHashObj* pAggNodeMap) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SScanLogicNode* pDepScan = NULL;
+  SAggLogicNode*  pAggNode = NULL;
+  bool            append = false;
+  SAggLogicNode** pNodeFound = NULL;
+
+  // pAggNodeMap is a hash map, the key is the vtable's origin table's name, the value is the SAggLogicNode ptr.
+  // if 2 more agg func has the same origin table, we should merge them into one agg node.
+  PLAN_ERR_JRET(findDepTableScanNode(pCol, pVScan, (SNode**)&pDepScan));
+  pNodeFound = (SAggLogicNode **)taosHashGet(pAggNodeMap, &pDepScan->tableName.tname, strlen(pDepScan->tableName.tname));
+  if (NULL == pNodeFound) {
+    // make new agg node.
+    PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_AGG, (SNode**)&pAggNode));
+    PLAN_ERR_JRET(mergeAggFuncToAggNode(pAggNode, pAggFunc));
+    PLAN_ERR_JRET(nodesListMakeAppend(&pAggNode->node.pChildren, (SNode*)pDepScan));
+    append = true;
+    PLAN_ERR_JRET(taosHashPut(pAggNodeMap, &pDepScan->tableName.tname, strlen(pDepScan->tableName.tname), &pAggNode, POINTER_BYTES));
+  } else {
+    pAggNode = *pNodeFound;
+    // merge the agg func to the existed agg node.
+    PLAN_ERR_JRET(mergeAggFuncToAggNode(pAggNode, pAggFunc));
+    nodesDestroyNode((SNode*)pDepScan);
+  }
+  return code;
+_return:
+  if (!append) {
+    nodesDestroyNode((SNode*)pDepScan);
+  }
+  return code;
+}
+
+static void destroyAggLogicNode(void* data) {
+  if (data == NULL) {
+    return;
+  }
+  SAggLogicNode* pNode = *(SAggLogicNode **)data;
+  nodesDestroyNode((SNode*)pNode);
+}
+
+// This optimization rule will optimize plan tree from
+// Agg -> VirtualScan -> TableScan
+//                    \> TableScan
+//                    \> TableScan
+// to
+// Merge -> Agg -> TableScan
+//       \> Agg -> TableScan
+//       \> Agg -> TableScan
+
+static int32_t pdaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  SMergeLogicNode* pMerge = NULL;
+  SAggLogicNode*   pAgg = (SAggLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, pdaMayBeOptimized, &code);
+  if (NULL == pAgg) {
+    return code;
+  }
+
+  SVirtualScanLogicNode *pVScan = (SVirtualScanLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+  SNode                 *pAggFunc = NULL;
+  SHashObj              *pAggNodeMap = taosHashInit(LIST_LENGTH(pAgg->pAggFuncs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (NULL == pAggNodeMap) {
+    PLAN_ERR_JRET(terrno);
+  }
+
+  FOREACH(pAggFunc, pAgg->pAggFuncs) {
+    SFunctionNode *pFunc = (SFunctionNode *)pAggFunc;
+    SNode         *pParam = NULL;
+    FOREACH(pParam, pFunc->pParameterList) {
+      if (QUERY_NODE_COLUMN == nodeType(pParam)) {
+        SColumnNode *pCol = (SColumnNode *)pParam;
+        if (pCol->colType == COLUMN_TYPE_TAG) {
+          // If the column is a tag column, we should not optimize the aggregation. Since tag will be read from the
+          // virtual tablescan operator.
+          goto _return;
+        }
+        PLAN_ERR_JRET(rebuildPlanForPdaOptimize(pCol, pFunc, pVScan, pAggNodeMap));
+      }
+    }
+  }
+
+  if (taosHashGetSize(pAggNodeMap) != LIST_LENGTH(pVScan->node.pChildren)) {
+      // The number of agg nodes should be equal to the number of virtual scan nodes.
+      // If not, it means that some virtual scan nodes are not used in the aggregation.
+      // In this case, we should not optimize the aggregation.
+      goto _return;
+  }
+
+
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_MERGE, (SNode**)&pMerge));
+
+  pMerge->colsMerge = true;
+  pMerge->numOfChannels = LIST_LENGTH(pAgg->pAggFuncs);
+  pMerge->srcGroupId = -1;
+  pMerge->node.precision = pAgg->node.precision;
+
+  void *pIter = NULL;
+  while ((pIter = taosHashIterate(pAggNodeMap, pIter))) {
+    SAggLogicNode **pAggNode = (SAggLogicNode**)pIter;
+    (*pAggNode)->node.pParent = (SLogicNode*)pMerge;
+    SNode* pNode = NULL;
+    FOREACH(pNode, (*pAggNode)->node.pChildren) {
+      // clear the mask to try scanPathOptimize again.
+      OPTIMIZE_FLAG_CLEAR_MASK(((SScanLogicNode*)pNode)->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
+      ((SLogicNode*)pNode)->pParent = (SLogicNode*)*pAggNode;
+    }
+    PLAN_ERR_JRET(createColumnByRewriteExprs((*pAggNode)->pAggFuncs, &(*pAggNode)->node.pTargets));
+    PLAN_ERR_JRET(nodesListMakeAppend(&pMerge->node.pChildren, (SNode*)*pAggNode));
+    FOREACH(pNode, (*pAggNode)->node.pTargets) {
+      PLAN_ERR_JRET(nodesListMakeStrictAppend(&pMerge->node.pTargets, pNode));
+    }
+  }
+
+  PLAN_ERR_JRET(replaceLogicNode(pLogicSubplan, (SLogicNode*)pAgg, (SLogicNode*)pMerge));
+
+  nodesDestroyNode((SNode*)pVScan);
+  nodesDestroyNode((SNode*)pAgg);
+  taosHashCleanup(pAggNodeMap);
+
+  pCxt->optimized = true;
+_return:
+  nodesDestroyNode((SNode*)pMerge);
+  taosHashSetFreeFp(pAggNodeMap, destroyAggLogicNode);
+  taosHashCleanup(pAggNodeMap);
+  return code;
+}
+
 
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
@@ -7670,6 +7875,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "PartitionCols",              .optimizeFunc = partitionColsOpt},
   {.pName = "Tsma",                       .optimizeFunc = tsmaOptimize},
   {.pName = "EliminateVirtualScan",       .optimizeFunc = eliminateVirtualScanOptimize},
+  {.pName = "PushDownAgg",                .optimizeFunc = pdaOptimize},
 };
 // clang-format on
 
