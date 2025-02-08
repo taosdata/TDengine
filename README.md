@@ -91,7 +91,7 @@ At the moment, TDengine server supports running on Linux/Windows/MacOS systems. 
 ### For Ubuntu 18.04、20.04、22.04
 
 ```bash
-sudo apt-get udpate
+sudo apt-get update
 sudo apt-get install -y gcc cmake build-essential git libjansson-dev \
   libsnappy-dev liblzma-dev zlib1g-dev pkg-config
 ```
