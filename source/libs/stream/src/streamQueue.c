@@ -119,13 +119,11 @@ void streamQueueNextItemInSourceQ(SStreamQueue* pQueue, SStreamQueueItem** pItem
 
   if (flag == STREAM_QUEUE__CHKPTFAILED) {
     *pItem = pQueue->qChkptItem;
-    ASSERT(status != TASK_STATUS__CK && pQueue->qItem == NULL);
     return;
   }
 
   if (flag == STREAM_QUEUE__FAILED) {
     *pItem = pQueue->qItem;
-    ASSERT(status != TASK_STATUS__CK && pQueue->qChkptItem == NULL);
     return;
   }
 
