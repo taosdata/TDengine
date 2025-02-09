@@ -1480,6 +1480,8 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
       case TSFKW_TZH:{
 #ifdef WINDOWS
         int32_t gmtoff = -_timezone;
+#elif defined(TD_ACORE)
+        int32_t gmtoff = -timezone;
 #else
         int32_t gmtoff = tm->tm.tm_gmtoff;
 #endif
@@ -1909,6 +1911,8 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   if (tzHour != 0) {
 #ifdef WINDOWS
     int32_t gmtoff = -_timezone;
+#elif defined(TD_ACORE)
+    int32_t gmtoff = -timezone;
 #else
     int32_t gmtoff = tm.tm.tm_gmtoff;
 #endif
