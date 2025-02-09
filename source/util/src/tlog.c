@@ -393,13 +393,15 @@ static void taosKeepOldLog(char *oldName) {
       snprintf(compressFileName, PATH_MAX + 20, "%s.gz", oldName);
       TAOS_CHECK_GOTO(taosCompressFile(oldName, compressFileName), &lino, _exit1);
       TAOS_CHECK_GOTO(taosRemoveFile(oldName), &lino, _exit1);
+    _exit1:
+      TAOS_UNUSED(taosUnLockFile(oldFile));
+    _exit2:
+      TAOS_UNUSED(taosCloseFile(&oldFile));
+    } else {
+      code = terrno;
     }
-  _exit1:
-    TAOS_UNUSED(taosUnLockFile(oldFile));
-  _exit2:
-    TAOS_UNUSED(taosCloseFile(&oldFile));
-    if (code != 0 && tsLogEmbedded == 1) {  // only print error message in embedded log mode
-      // don't use uWarn or uError, because it may open new log file and cause dead lock
+    if (code != 0 && tsLogEmbedded == 1) {  // print error messages only in embedded log mode
+      // avoid using uWarn or uError, as they may open a new log file and potentially cause a deadlock.
       fprintf(stderr, "failed at line %d to keep old log file:%s, reason:%s\n", lino, oldName, tstrerror(code));
     }
   }
