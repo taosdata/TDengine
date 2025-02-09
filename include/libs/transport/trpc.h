@@ -248,8 +248,8 @@ typedef struct SRpcHandleInfo {
   int64_t      seq;
   int64_t      qId;
   int32_t      msgType;
-  int32_t      refIdMgt;
   void        *reqWithSem;
+  int32_t      refIdMgt;
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {
@@ -316,6 +316,10 @@ typedef struct SRpcInit {
   int8_t  supportBatch;  // 0: no batch, 1. batch
   int32_t batchSize;
   int8_t  notWaitAvaliableConn;  // 1: wait to get, 0: no wait
+  int32_t shareConnLimit;
+  int8_t  shareConn;  // 0: no share, 1. share
+  int8_t  startReadTimer;
+  int64_t readTimeout;  // s
   void   *parent;
 
 } SRpcInit;
@@ -354,7 +358,7 @@ void *rpcReallocCont(void *ptr, int64_t contLen);
 int32_t rpcSendRequest(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid);
 int32_t rpcSendResponse(SRpcMsg *pMsg);
 int32_t rpcRegisterBrokenLinkArg(SRpcMsg *msg);
-int32_t rpcReleaseHandle(void *handle, int8_t type, int32_t code);  // just release conn to rpc instance, no close sock
+int32_t rpcReleaseHandle(void *handle, int8_t type, int32_t status);  // just release conn to rpc instance, no close sock
 
 // These functions will not be called in the child process
 int32_t rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);
