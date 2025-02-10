@@ -170,6 +170,45 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 1, 2)
         tdSql.checkData(2, 1, 1)
 
+    def FIX_TS_5984(self):
+        tdLog.info("check bug TS_5984 ...\n")
+        # prepare data
+        sqls = [
+            "drop database if exists ts_5984;",
+            "create database ts_5984 minrows 10;",
+            "use ts_5984;",
+            "create table t1 (ts timestamp, str varchar(10) primary key, c1 int);",
+            """insert into t1 values
+               ('2025-01-01 00:00:00', 'a', 1),
+               ('2025-01-01 00:00:00', 'b', 2),
+               ('2025-01-01 00:00:00', 'c', 3),
+               ('2025-01-01 00:00:00', 'd', 4),
+               ('2025-01-01 00:00:00', 'e', 5),
+               ('2025-01-01 00:00:00', 'f', 6),
+               ('2025-01-01 00:00:00', 'g', 7),
+               ('2025-01-01 00:00:00', 'h', 8),
+               ('2025-01-01 00:00:00', 'i', 9),
+               ('2025-01-01 00:00:00', 'j', 10),
+               ('2025-01-01 00:00:00', 'k', 11),
+               ('2025-01-01 00:00:00', 'l', 12),
+               ('2025-01-01 00:00:00', 'm', 13),
+               ('2025-01-01 00:00:00', 'n', 14);"""
+        ]
+        tdSql.executes(sqls)
+        # do flush and compact
+        tdSql.execute("flush database ts_5984;")
+        time.sleep(3)
+        tdSql.execute("compact database ts_5984;")
+        while True:
+            tdSql.query("show compacts;")
+            # break if no compact task
+            if tdSql.getRows() == 0:
+                break
+            time.sleep(3)
+
+        tdSql.query("select * from t1 where ts > '2025-01-01 00:00:00';")
+        tdSql.checkRows(0)
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -182,6 +221,7 @@ class TDTestCase(TBase):
         self.FIX_TS_5105()
         self.FIX_TS_5143()
         self.FIX_TS_5239()
+        self.FIX_TS_5984()
 
         tdLog.success(f"{__file__} successfully executed")
 
