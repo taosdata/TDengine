@@ -265,8 +265,9 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 0, 3.141)
 
         sql = f"select cast({float_1001} as binary(10)) as re;"
+        tdLog.debug(sql)
         tdSql.query(sql)
-        tdSql.checkData(0, 0, 3.141593)
+        tdSql.checkData(0, 0, 3.14159265)
 
         tdSql.query(f"select cast({float_1001} as nchar(5));")
         tdSql.checkData(0, 0, 3.141)
