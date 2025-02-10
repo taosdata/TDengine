@@ -2,6 +2,7 @@
 #include <iostream>
 #include <array>
 #include <random>
+#include <memory>
 
 #include "decimal.h"
 #include "tdatablock.h"
@@ -124,6 +125,7 @@ struct NumericType<64> {
   using Type = Numeric64;
   static constexpr int8_t dataType = TSDB_DATA_TYPE_DECIMAL64;
   static constexpr int8_t maxPrec = TSDB_DECIMAL64_MAX_PRECISION;
+  static constexpr int8_t bytes = DECIMAL64_BYTES;
 };
 
 template <>
@@ -131,6 +133,7 @@ struct NumericType<128> {
   using Type = Numeric128;
   static constexpr int8_t dataType = TSDB_DATA_TYPE_DECIMAL;
   static constexpr int8_t maxPrec = TSDB_DECIMAL_MAX_PRECISION;
+  static constexpr int8_t bytes = DECIMAL128_BYTES;
 };
 
 template <typename T>
@@ -174,14 +177,18 @@ class Numeric {
       throw std::string(tstrerror(code));
     }
   }
+  Numeric() = default;
   Numeric(const Numeric& o) = default;
   ~Numeric() = default;
   Numeric& operator=(const Numeric& o) = default;
 
-  SDataType getRetType(EOperatorType op, const SDataType& lt, const SDataType& rt) const {
+  static SDataType getRetType(EOperatorType op, const SDataType& lt, const SDataType& rt) {
     SDataType ot = {0};
     decimalGetRetType(&lt, &rt, op, &ot);
     return ot;
+  }
+  SDataType type() const {
+    return {.type = NumericType<BitNum>::dataType, .precision = prec(), .scale = scale(), .bytes = NumericType<BitNum>::bytes}; 
   }
   uint8_t     prec() const { return prec_; }
   uint8_t     scale() const { return scale_; }
@@ -195,8 +202,8 @@ class Numeric {
 
   template <int BitNum2, int BitNumO>
   Numeric<BitNumO> binaryOp(const Numeric<BitNum2>& r, EOperatorType op) {
-    SDataType lt{.type = NumericType<BitNum>::dataType, .precision = prec_, .scale = scale_, .bytes = BitNum};
-    SDataType rt{.type = NumericType<BitNum2>::dataType, .precision = r.prec(), .scale = r.scale(), .bytes = BitNum2};
+    SDataType lt{.type = NumericType<BitNum>::dataType, .precision = prec_, .scale = scale_, .bytes = NumericType<BitNum>::bytes};
+    SDataType rt{.type = NumericType<BitNum2>::dataType, .precision = r.prec(), .scale = r.scale(), .bytes = NumericType<BitNum2>::bytes};
     SDataType ot = getRetType(op, lt, rt);
     Numeric<BitNumO> out{ot.precision, ot.scale, "0"};
     int32_t          code = decimalOp(op, &lt, &rt, &ot, &dec_, &r.dec(), &out);
@@ -207,12 +214,13 @@ class Numeric {
   template <int BitNumO, typename T>
   Numeric<BitNumO> binaryOp(const T& r, EOperatorType op) {
     using TypeInfo = TrivialTypeInfo<T>;
-    SDataType        lt{.type = NumericType<BitNum>::dataType, .precision = prec_, .scale = scale_, .bytes = BitNum};
+    SDataType        lt{.type = NumericType<BitNum>::dataType, .precision = prec_, .scale = scale_, .bytes = NumericType<BitNum>::bytes};
     SDataType        rt{.type = TypeInfo::dataType, .precision = 0, .scale = 0, .bytes = TypeInfo::bytes};
     SDataType        ot = getRetType(op, lt, rt);
     Numeric<BitNumO> out{ot.precision, ot.scale, "0"};
     int32_t          code = decimalOp(op, &lt, &rt, &ot, &dec_, &r, &out);
-    if (code != 0) throw std::overflow_error(tstrerror(code));
+    if (code == TSDB_CODE_DECIMAL_OVERFLOW) throw std::overflow_error(tstrerror(code));
+    if (code != 0) throw std::runtime_error(tstrerror(code));
     return out;
   }
 #define DEFINE_OPERATOR(op, op_type)                        \
@@ -233,7 +241,13 @@ class Numeric {
   template <typename T, int BitNumO = 128>                                        \
   Numeric<BitNumO> operator op(const T & r) {                                     \
     cout << *this << " " #op " " << r << "(" << typeid(T).name() << ")" << " = "; \
-    auto res = binaryOp<BitNumO, T>(r, op_type);                                  \
+    Numeric<BitNumO>        res = {};                                             \
+    try {                                                                         \
+      res = binaryOp<BitNumO, T>(r, op_type);                                     \
+    } catch (...) {                                                               \
+      cout << "Exception caught during binaryOp" << endl;                         \
+      throw;                                                                      \
+    }                                                                             \
     cout << res << endl;                                                          \
     return res;                                                                   \
   }
@@ -306,7 +320,7 @@ class Numeric {
   DEFINE_OPERATOR_T(float);
   DEFINE_OPERATOR_T(double);
 
-  Numeric operator=(const char* str) {
+  Numeric& operator=(const char* str) {
     std::string s = str;
     int32_t     code = 0;
     if (BitNum == 64) {
@@ -330,7 +344,7 @@ class Numeric {
   }
 
 #define DEFINE_OPERATOR_EQ_T(type)                \
-  Numeric operator=(type v) {                     \
+  Numeric& operator=(type v) {                     \
     int32_t code = 0;                             \
     if (BitNum == 64) {                           \
       DEFINE_OPERATOR_FROM_FOR_BITNUM(type, 64);  \
@@ -352,6 +366,23 @@ class Numeric {
   DEFINE_OPERATOR_EQ_T(bool);
   DEFINE_OPERATOR_EQ_T(double);
   DEFINE_OPERATOR_EQ_T(float);
+
+  Numeric& operator=(const Decimal128& d) {
+    SDataType inputDt = {.type = TSDB_DATA_TYPE_DECIMAL, .precision = prec(), .scale = scale(), .bytes = DECIMAL128_BYTES};
+    SDataType outputDt = {.type = NumericType<BitNum>::dataType, .precision = prec(), .scale = scale(), .bytes = NumericType<BitNum>::bytes};
+    int32_t   code = convertToDecimal(&d, &inputDt, &dec_, &outputDt);
+    if (code == TSDB_CODE_DECIMAL_OVERFLOW) throw std::overflow_error(tstrerror(code));
+    if (code != 0) throw std::runtime_error(tstrerror(code));
+    return *this;
+  }
+  Numeric& operator=(const Decimal64& d) {
+    SDataType inputDt = {.type = TSDB_DATA_TYPE_DECIMAL64, .precision = prec(), .scale = scale(), .bytes = DECIMAL64_BYTES};
+    SDataType outputDt = {.type = NumericType<BitNum>::dataType, .precision = prec_, .scale = scale_, .bytes = NumericType<BitNum>::bytes};
+    int32_t code = convertToDecimal(&d, &inputDt, &dec_, &outputDt);
+    if (code == TSDB_CODE_DECIMAL_OVERFLOW) throw std::overflow_error(tstrerror(code));
+    if (code != 0) throw std::runtime_error(tstrerror(code));
+    return *this;
+  }
 };
 
 template <int BitNum>
@@ -895,6 +926,69 @@ TEST(decimal, randomGenerator) {
     auto str = generator.generate(config);
     cout << str << endl;
   }
+}
+
+TEST(deicmal, decimalFromStr_all) {
+  // TODO test e/E
+}
+
+#define ASSERT_OVERFLOW(op)           \
+  try {                               \
+    auto res = op;                  \
+  } catch (std::overflow_error & e) { \
+  } catch (std::exception & e) {      \
+    FAIL();                           \
+  }
+
+TEST(decimal, op_overflow) {
+  // divide 0 error
+  Numeric<128> dec{38, 2, string(36, '9') + ".99"};
+  ASSERT_OVERFLOW(dec / 0); // TODO wjm add divide by 0 error code
+
+  // test decimal128Max
+  Numeric<128> max{38, 10, "0"};
+  max = decimal128Max;
+  ASSERT_EQ(max.toString(), "9999999999999999999999999999.9999999999");
+
+  {
+    // multiply overflow
+    ASSERT_OVERFLOW(max * 10);
+  }
+  {
+    // multiply not overflow, no trim scale
+    Numeric<64> dec64{18, 10, "99999999.9999999999"};
+    Numeric<128> dec128{19, 10, "999999999.9999999999"};
+
+    auto rett = Numeric<64>::getRetType(OP_TYPE_MULTI, dec64.type(), dec128.type());
+    ASSERT_EQ(rett.precision, 38);
+    ASSERT_EQ(rett.type, TSDB_DATA_TYPE_DECIMAL);
+    ASSERT_EQ(rett.scale, dec64.scale() + dec128.scale());
+
+    auto res = dec64 * dec128;
+    ASSERT_EQ(res.toString(), "99999999999999999.89000000000000000001");
+
+    // multiply not overflow, trim scale from 20 - 19
+    Numeric<128> dec128_2{20, 10, "9999999999.9999999999"};
+    rett = Numeric<128>::getRetType(OP_TYPE_MULTI, dec64.type(), dec128_2.type());
+    ASSERT_EQ(rett.scale, 19);
+    res = dec64 * dec128_2;
+    ASSERT_EQ(res.toString(), "999999999999999998.9900000000000000000");
+
+    // trim scale from 20 - 18
+    dec128_2 = {21, 10, "99999999999.9999999999"};
+    rett = Numeric<128>::getRetType(OP_TYPE_MULTI, dec64.type(), dec128_2.type());
+    ASSERT_EQ(rett.scale, 18);
+    res = dec64 * dec128_2;
+    ASSERT_EQ(res.toString(), "9999999999999999990.000000000000000000");
+  }
+
+
+  {
+    // multiply middle res overflow, but final res not overflow
+    // same scale multiply
+    // different scale multiply
+  }
+
 }
 
 int main(int argc, char** argv) {

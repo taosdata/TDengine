@@ -170,8 +170,7 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
           if (afterPoint) {
             break;
           } else {
-            // TODO wjm value too large
-            return TSDB_CODE_INVALID_DATA_FMT;
+            return TSDB_CODE_DECIMAL_OVERFLOW;
           }
         } else {
           result->precision += places;
@@ -250,9 +249,6 @@ static int32_t decimalGetWhole(const DecimalType* pDec, DecimalInternalType type
     DECIMAL64_CLONE(pWhole, pDec);
     Decimal64 scaleMul = SCALE_MULTIPLIER_64[scale];
     pOps->divide(pWhole, &scaleMul, 1, NULL);
-    if (TSDB_CODE_SUCCESS != 0) {
-      // TODO wjm
-    }
     pOps->abs(pWhole);
   } else {
     memcpy(pWhole, pDec, DECIMAL_GET_WORD_NUM(type) * sizeof(DecimalWord));
@@ -646,7 +642,7 @@ static void extractDecimal128Digits(const Decimal128* pDec, uint64_t* digits, in
   *digitNum = 0;
   makeUInt128(&a, DECIMAL128_HIGH_WORD(pDec), DECIMAL128_LOW_WORD(pDec));
   while (!uInt128Eq(&a, &uInt128Zero)) {
-    uint64_t hi = a >> 64;  // TODO wjm ???
+    uint64_t hi = a >> 64;  // TODO wjm use function, UInt128 may be a struct.
     uint64_t lo = a;
 
     uint64_t hiQuotient = hi / k1e18;
@@ -901,6 +897,7 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
 
   switch (op) {
     case OP_TYPE_ADD:
+    // TODO wjm check overflow
       decimalAdd(&left, &lt, &right, &rt, pOutT);
       break;
     case OP_TYPE_SUB:
