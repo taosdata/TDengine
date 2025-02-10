@@ -2166,11 +2166,18 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
-  if (pStmt->options.asyncExecFn && !pStmt->semWaited) {
-    if (tsem_wait(&pStmt->asyncQuerySem) != 0) {
-      tscError("wait async query sem failed");
+  if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
+    if (tsem_wait(&pStmt->asyncExecSem) != 0) {
+      tscError("wait asyncExecSem failed");
     }
-    pStmt->semWaited = true;
+    pStmt->execSemWaited = true;
+  }
+
+  if (!pStmt->bindSemWaited) {
+    if (tsem_wait(&pStmt->asyncBindSem) != 0) {
+      tscError("wait asyncBindSem failed");
+    }
+    pStmt->bindSemWaited = true;
   }
 
   SSHashObj *hashTbnames = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR));
@@ -2241,6 +2248,11 @@ out:
   tSimpleHashCleanup(hashTbnames);
 
   return code;
+}
+
+int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp,
+                            void *param) {
+  return stmt2AsyncBind(stmt, bindv,col_idx, fp, param);
 }
 
 int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows) {

@@ -153,8 +153,10 @@ typedef struct {
   char         *db;
   int64_t       reqid;
   int32_t       errCode;
-  tsem_t        asyncQuerySem;
-  bool          semWaited;
+  tsem_t        asyncExecSem;
+  bool          execSemWaited;
+  tsem_t        asyncBindSem;
+  bool          bindSemWaited;
   SStmtStatInfo stat;
 } STscStmt2;
 /*
@@ -226,6 +228,7 @@ int         stmtGetParamNum2(TAOS_STMT2 *stmt, int *nums);
 int         stmtIsInsert2(TAOS_STMT2 *stmt, int *insert);
 TAOS_RES   *stmtUseResult2(TAOS_STMT2 *stmt);
 const char *stmtErrstr2(TAOS_STMT2 *stmt);
+int         stmt2AsyncBind(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp, void *param);
 
 #ifdef __cplusplus
 }

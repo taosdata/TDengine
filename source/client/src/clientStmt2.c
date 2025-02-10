@@ -835,13 +835,13 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
 
   pStmt->sql.siInfo.tableColsReady = true;
   if (pStmt->options.asyncExecFn) {
-    if (tsem_init(&pStmt->asyncQuerySem, 0, 1) != 0) {
+    if (tsem_init(&pStmt->asyncExecSem, 0, 1) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       (void)stmtClose(pStmt);
       return NULL;
     }
   }
-  pStmt->semWaited = false;
+  pStmt->execSemWaited = false;
 
   STMT_LOG_SEQ(STMT_INIT);
 
@@ -1656,8 +1656,8 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
   (void)stmtCleanExecInfo(pStmt, (code ? false : true), false);
   ++pStmt->sql.runTimes;
 
-  if (tsem_post(&pStmt->asyncQuerySem) != 0) {
-    tscError("failed to post asyncQuerySem");
+  if (tsem_post(&pStmt->asyncExecSem) != 0) {
+    tscError("failed to post asyncExecSem");
   }
 }
 
@@ -1746,7 +1746,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     pRequest->body.queryFp = asyncQueryCb;
     ((SSyncQueryParam*)(pRequest)->body.interParam)->userParam = pStmt;
 
-    pStmt->semWaited = false;
+    pStmt->execSemWaited = false;
     launchAsyncQuery(pRequest, pStmt->sql.pQuery, NULL, pWrapper);
   }
 
@@ -1775,9 +1775,9 @@ int stmtClose2(TAOS_STMT2* stmt) {
   (void)taosThreadCondDestroy(&pStmt->queue.waitCond);
   (void)taosThreadMutexDestroy(&pStmt->queue.mutex);
 
-  if (pStmt->options.asyncExecFn && !pStmt->semWaited) {
-    if (tsem_wait(&pStmt->asyncQuerySem) != 0) {
-      tscError("failed to wait asyncQuerySem");
+  if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
+    if (tsem_wait(&pStmt->asyncExecSem) != 0) {
+      tscError("failed to wait asyncExecSem");
     }
   }
 
@@ -1795,8 +1795,8 @@ int stmtClose2(TAOS_STMT2* stmt) {
   STMT_ERR_RET(stmtCleanSQLInfo(pStmt));
 
   if (pStmt->options.asyncExecFn) {
-    if (tsem_destroy(&pStmt->asyncQuerySem) != 0) {
-      tscError("failed to destroy asyncQuerySem");
+    if (tsem_destroy(&pStmt->asyncExecSem) != 0) {
+      tscError("failed to destroy asyncExecSem");
     }
   }
   taosMemoryFree(stmt);
@@ -1924,4 +1924,52 @@ TAOS_RES* stmtUseResult2(TAOS_STMT2* stmt) {
   }
 
   return pStmt->exec.pRequest;
+}
+typedef struct {
+  TAOS_STMT2*       stmt;
+  TAOS_STMT2_BINDV* bindv;
+  int32_t           col_idx;
+  __taos_async_fn_t fp;
+  void*             param;
+} ThreadArgs;
+
+static void* stmtAsyncBindThreadFunc(void* args) {
+  ThreadArgs* targs = (ThreadArgs*)args;
+
+  int code = taos_stmt2_bind_param(targs->stmt, targs->bindv, targs->col_idx);
+  targs->fp(targs->param, NULL, code);
+  taosMemoryFree(args);
+
+  return NULL;
+}
+
+int stmt2AsyncBind(TAOS_STMT2* stmt, TAOS_STMT2_BINDV* bindv, int32_t col_idx, __taos_async_fn_t fp, void* param) {
+  STscStmt2* pStmt = (STscStmt2*)stmt;
+
+  TdThreadAttr thAttr;
+  if (taosThreadAttrInit(&thAttr) != 0) {
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
+  }
+  if (taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_DETACHED) != 0) {
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
+  }
+
+  ThreadArgs* args = (ThreadArgs*)taosMemoryMalloc(sizeof(ThreadArgs));
+  args->stmt = stmt;
+  args->bindv = bindv;
+  args->col_idx = col_idx;
+  args->fp = fp;
+  args->param = param;
+
+  if (taosThreadCreate(&pStmt->bindThread, &thAttr, stmtAsyncBindThreadFunc, args) != 0) {
+    (void)taosThreadAttrDestroy(&thAttr);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    STMT_ERR_RET(terrno);
+  }
+
+  // pStmt->bindThreadInUse = true;
+
+  (void)taosThreadAttrDestroy(&thAttr);
+
+  return TSDB_CODE_SUCCESS;
 }
