@@ -92,6 +92,8 @@ def build_package(internal_root, new_version) {
         time ./container_build.sh -w ${WORK_DIR} -e
 		rm ${INTERNAL_ROOT}/enterprise/contrib/deps-download/CMakeCache.txt
 		rm ${INTERNAL_ROOT}/community/contrib/deps-download/CMakeCache.txt
+		rm -rf ${INTERNAL_ROOT}/community/contrib/libs3
+		rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/libs3-prefix
     '''
 }
 def check_cases_to_run() {
