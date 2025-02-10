@@ -1910,7 +1910,7 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       pDbOptions->cacheLastSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_COMP:
-      pDbOptions->compressionLevel = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);tms
+      pDbOptions->compressionLevel = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_DAYS: {
       SToken* pToken = pVal;
