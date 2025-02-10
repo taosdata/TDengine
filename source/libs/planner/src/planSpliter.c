@@ -2009,7 +2009,7 @@ static int32_t insertSelectSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     code = splMountSubplan(pNewSubplan, pSubplanChildren);
   }
 
-  //SPLIT_FLAG_SET_MASK(info.pSubplan->splitFlag, SPLIT_FLAG_INSERT_SPLIT);
+  SPLIT_FLAG_SET_MASK(info.pSubplan->splitFlag, SPLIT_FLAG_INSERT_SPLIT);
   ++(pCxt->groupId);
   pCxt->split = true;
   return code;
