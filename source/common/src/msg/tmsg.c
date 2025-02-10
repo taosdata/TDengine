@@ -11668,8 +11668,7 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
     for (int32_t iRow = 0; iRow < TARRAY_SIZE(pSubmitTbData->aRowP); ++iRow) {
       TAOS_CHECK_EXIT(tEncodeRow(pCoder, rows[iRow]));
     }
-
-    SBlobRow2 **blobRows = (SBlobRow2 **)TARRAY_DATA(pSubmitTbData->aBlobRow);
+    // SBlobRow2 **blobRows = (SBlobRow2 **)TARRAY_DATA(pSubmitTbData->aBlobRow);
   }
   TAOS_CHECK_EXIT(tEncodeI64(pCoder, pSubmitTbData->ctimeMs));
 

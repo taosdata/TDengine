@@ -243,9 +243,37 @@ _exit:
 }
 
 extern int64_t tsMaxKeyByPrecision[];
+
+static int32_t vnodePreProcessBlobData(SDecoder *pCoder, SArray **ppBlobData) {
+  int32_t  code = 0;
+  uint64_t nBlob;
+
+  SArray *pBlobData = taosArrayInit(8, sizeof(SBlobRow2 *));
+
+  if (tDecodeU64v(pCoder, &nBlob) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  for (int32_t i = 0; i < nBlob; i++) {
+    SBlobRow2 **ppBlobRow = taosArrayReserve(pBlobData, 1);
+    if (ppBlobRow == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+
+    code = tDecodeBlobRow2(pCoder, ppBlobRow);
+    if (code != 0) {
+      goto _exit;
+    }
+  }
+  *ppBlobData = pBlobData;
+_exit:
+  return code;
+}
 static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int64_t btimeMs, int64_t ctimeMs) {
   int32_t code = 0;
   int32_t lino = 0;
+  int32_t hasBlob = 0;
 
   if (tStartDecode(pCoder) < 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -258,6 +286,11 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     code = TSDB_CODE_INVALID_MSG;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
+
+  if (submitTbData.flags & SUBMIT_REQ_WITH_BLOB) {
+    hasBlob = 1;
+  }
+
   version = (submitTbData.flags >> 8) & 0xff;
   submitTbData.flags = submitTbData.flags & 0xff;
 
@@ -364,6 +397,10 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   if (!tDecodeIsEnd(pCoder)) {
     *(int64_t *)(pCoder->data + pCoder->pos) = ctimeMs;
     pCoder->pos += sizeof(int64_t);
+  }
+  if (!tDecodeIsEnd(pCoder) && hasBlob) {
+    SArray *blobArray = NULL;
+    vnodePreProcessBlobData(pCoder, &blobArray);
   }
 
   tEndDecode(pCoder);

@@ -35,7 +35,7 @@ static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson);
 #define BIT_FLG_VALUE ((uint8_t)0x2)
 
 static int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow);
-static int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len, int64_t *offset);
+static int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len, uint64_t *seq);
 static int32_t tBlobDestroy(SBlobRow2 *pBlowRow);
 
 #pragma pack(push, 1)
@@ -414,10 +414,10 @@ static int32_t tRowBuildTupleRow2(SArray *aColVal, const SRowBuildScanInfo *sinf
                 (void)memcpy(varlen, colValArray[colValIndex].value.pData, colValArray[colValIndex].value.nData);
                 varlen += colValArray[colValIndex].value.nData;
               } else {
-                int64_t offset = -1;
+                uint64_t seq = 0;
                 tBlobRowPush(*ppBlobRow, colValArray[colValIndex].value.pData, colValArray[colValIndex].value.nData,
-                             &offset);
-                varlen += tPutU64(varlen, offset);
+                             &seq);
+                varlen += tPutU64(varlen, seq);
               }
             }
           } else {
@@ -644,7 +644,7 @@ int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow) {
   *ppBlobRow = p;
   return 0;
 }
-int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len, int64_t *offset) {
+int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len, uint64_t *seq) {
   if (pBlobRow->len + len > pBlobRow->cap) {
     int64_t cap = pBlobRow->cap * 2;
     while ((pBlobRow->len + len) > cap) {
@@ -654,10 +654,11 @@ int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len, int64_t
   }
   (void)memcpy(pBlobRow->data + pBlobRow->len, data, len);
 
-  *offset = pBlobRow->len;
-  taosArrayPush(pBlobRow->pOffset, offset);
-
+  int64_t offset = pBlobRow->len;
+  taosArrayPush(pBlobRow->pOffset, &offset);
   pBlobRow->len += len;
+
+  *seq = taosArrayGetSize(pBlobRow->pOffset) - 1;
   return 0;
 }
 
