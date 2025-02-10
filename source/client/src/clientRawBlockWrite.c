@@ -205,7 +205,7 @@ end:
 
 static cJSON* processCreateStb(SMqMetaRsp* metaRsp) {
   SVCreateStbReq req = {0};
-  SDecoder       coder;
+  SDecoder       coder = {0};
   cJSON*         pJson = NULL;
 
   uDebug("create stable data:%p", metaRsp);
@@ -226,7 +226,7 @@ _err:
 
 static cJSON* processAlterStb(SMqMetaRsp* metaRsp) {
   SVCreateStbReq req = {0};
-  SDecoder       coder;
+  SDecoder       coder = {0};
   cJSON*         pJson = NULL;
   uDebug("alter stable data:%p", metaRsp);
 
@@ -679,7 +679,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
     return terrno;
   }
   SVCreateStbReq req = {0};
-  SDecoder       coder;
+  SDecoder       coder = {0};
   SMCreateStbReq pReq = {0};
   int32_t        code = TSDB_CODE_SUCCESS;
   SRequestObj*   pRequest = NULL;
@@ -1975,7 +1975,7 @@ static cJSON* processSimpleMeta(SMqMetaRsp* pMetaRsp) {
   return NULL;
 }
 static char* processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp) {
-  SDecoder        coder;
+  SDecoder        coder = {0};
   SMqBatchMetaRsp rsp = {0};
   cJSON*          pJson = NULL;
   tDecoderInit(&coder, pMsgRsp->pMetaBuff, pMsgRsp->metaBuffLen);
@@ -2152,7 +2152,7 @@ static int32_t tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, int32_t metaLen
     return terrno;
   }
   SMqBatchMetaRsp rsp = {0};
-  SDecoder        coder;
+  SDecoder        coder = {0};
   int32_t         code = TSDB_CODE_SUCCESS;
 
   // decode and process req
