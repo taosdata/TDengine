@@ -2643,6 +2643,7 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
     code = mndGetStreamObj(pMnode, pInfo->streamId, &pStream);
     if (pStream == NULL || code != 0) {  // stream has been dropped already
       mDebug("stream:0x%" PRIx64 " dropped already, continue", pInfo->streamId);
+      void *p = taosArrayPush(pStreamList, &pInfo->streamId);
       taosArrayDestroy(pList);
       continue;
     }
