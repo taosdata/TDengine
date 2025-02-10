@@ -93,9 +93,9 @@ void streamSetupScheduleTrigger(SStreamTask* pTask) {
   }
 }
 
-int32_t streamTrySchedExec(SStreamTask* pTask) {
+int32_t streamTrySchedExec(SStreamTask* pTask, bool chkptQueue) {
   if (streamTaskSetSchedStatusWait(pTask)) {
-    return streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pTask->id.streamId, pTask->id.taskId, 0);
+    return streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pTask->id.streamId, pTask->id.taskId, 0, chkptQueue);
   } else {
     stTrace("s-task:%s not launch task since sched status:%d", pTask->id.idStr, pTask->status.schedStatus);
   }
@@ -103,7 +103,7 @@ int32_t streamTrySchedExec(SStreamTask* pTask) {
   return 0;
 }
 
-int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId, int32_t execType) {
+int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId, int32_t execType, bool chkptExec) {
   int32_t code = 0;
   int32_t tlen = 0;
 
@@ -142,10 +142,18 @@ int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int3
     stDebug("vgId:%d create msg to exec, type:%d, %s", vgId, execType, streamTaskGetExecType(execType));
   }
 
-  SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = buf, .contLen = tlen + sizeof(SMsgHead)};
-  code = tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
-  if (code) {
-    stError("vgId:%d failed to put msg into stream queue, code:%s, %x", vgId, tstrerror(code), taskId);
+  if (chkptExec) {
+    SRpcMsg msg = {.msgType = TDMT_STREAM_CHKPT_EXEC, .pCont = buf, .contLen = tlen + sizeof(SMsgHead)};
+    code = tmsgPutToQueue(pMsgCb, STREAM_CHKPT_QUEUE, &msg);
+    if (code) {
+      stError("vgId:%d failed to put msg into stream chkpt queue, code:%s, %x", vgId, tstrerror(code), taskId);
+    }
+  } else {
+    SRpcMsg msg = {.msgType = TDMT_STREAM_TASK_RUN, .pCont = buf, .contLen = tlen + sizeof(SMsgHead)};
+    code = tmsgPutToQueue(pMsgCb, STREAM_QUEUE, &msg);
+    if (code) {
+      stError("vgId:%d failed to put msg into stream queue, code:%s, %x", vgId, tstrerror(code), taskId);
+    }
   }
   return code;
 }
@@ -191,12 +199,17 @@ void streamTaskResumeHelper(void* param, void* tmrId) {
     return;
   }
 
-  code = streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pId->streamId, pId->taskId, STREAM_EXEC_T_RESUME_TASK);
+  code = streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pId->streamId, pId->taskId, STREAM_EXEC_T_RESUME_TASK,
+                             (p.state == TASK_STATUS__CK));
   if (code) {
     stError("s-task:%s sched task failed, code:%s", pId->idStr, tstrerror(code));
   } else {
-    stDebug("trigger to resume s-task:%s after idled for %dms", pId->idStr, pTask->status.schedIdleTime);
-
+    if (p.state == TASK_STATUS__CK) {
+      stDebug("trigger to resume s-task:%s in stream chkpt queue after idled for %dms", pId->idStr,
+              pTask->status.schedIdleTime);
+    } else {
+      stDebug("trigger to resume s-task:%s after idled for %dms", pId->idStr, pTask->status.schedIdleTime);
+    }
     // release the task ref count
     streamTaskClearSchedIdleInfo(pTask);
   }
@@ -339,7 +352,7 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
       }
     }
 
-    code = streamTrySchedExec(pTask);
+    code = streamTrySchedExec(pTask, false);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s failed to sched to run, wait for next time", pTask->id.idStr);
     }

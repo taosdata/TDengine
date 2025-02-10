@@ -109,7 +109,7 @@ static void doStartScanWal(void* param, void* tmrId) {
   taosMsleep(10000);
 #endif
 
-  code = streamTaskSchedTask(&pParam->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA);
+  code = streamTaskSchedTask(&pParam->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA, false);
   if (code) {
     tqError("vgId:%d failed sched task to scan wal, code:%s", vgId, tstrerror(code));
   }
@@ -170,7 +170,7 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
 int32_t tqStopStreamTasksAsync(STQ* pTq) {
   SStreamMeta* pMeta = pTq->pStreamMeta;
   int32_t      vgId = pMeta->vgId;
-  return streamTaskSchedTask(&pTq->pVnode->msgCb, vgId, 0, 0, STREAM_EXEC_T_STOP_ALL_TASKS);
+  return streamTaskSchedTask(&pTq->pVnode->msgCb, vgId, 0, 0, STREAM_EXEC_T_STOP_ALL_TASKS, false);
 }
 
 int32_t setWalReaderStartOffset(SStreamTask* pTask, int32_t vgId) {
@@ -276,7 +276,7 @@ bool taskReadyForDataFromWal(SStreamTask* pTask) {
   // check whether input queue is full or not
   if (streamQueueIsFull(pTask->inputq.queue)) {
     tqTrace("s-task:%s input queue is full, launch task without scanning wal", pTask->id.idStr);
-    streamTrySchedExec(pTask);
+    streamTrySchedExec(pTask, false);
     return false;
   }
 
@@ -412,7 +412,7 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta) {
     streamMutexUnlock(&pTask->lock);
 
     if ((numOfItems > 0) || hasNewData) {
-      code = streamTrySchedExec(pTask);
+      code = streamTrySchedExec(pTask, false);
       if (code != TSDB_CODE_SUCCESS) {
         streamMetaReleaseTask(pStreamMeta, pTask);
         taosArrayDestroy(pTaskList);
@@ -465,7 +465,7 @@ int32_t doScanWalAsync(STQ* pTq, bool ckPause) {
   tqDebug("vgId:%d create msg to start wal scan to launch stream tasks, numOfTasks:%d, vnd restored:%d", vgId,
           numOfTasks, alreadyRestored);
 
-  return streamTaskSchedTask(&pTq->pVnode->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA);
+  return streamTaskSchedTask(&pTq->pVnode->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA, false);
 }
 
 void streamMetaFreeTQDuringScanWalError(STQ* pTq) {
