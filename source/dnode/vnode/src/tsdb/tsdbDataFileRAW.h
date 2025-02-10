@@ -98,8 +98,6 @@ typedef struct SDataFileRAWWriter {
   STsdbFD *fd;
 } SDataFileRAWWriter;
 
-typedef struct SDataFileRAWWriter SDataFileRAWWriter;
-
 int32_t tsdbDataFileRAWWriterOpen(const SDataFileRAWWriterConfig *config, SDataFileRAWWriter **writer);
 int32_t tsdbDataFileRAWWriterClose(SDataFileRAWWriter **writer, bool abort, TFileOpArray *opArr);
 

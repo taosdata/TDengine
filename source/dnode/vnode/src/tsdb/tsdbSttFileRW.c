@@ -793,7 +793,7 @@ static int32_t tsdbSttFWriterDoOpen(SSttFileWriter *writer) {
 
   // alloc disk id
   SDiskID diskId = {0};
-  code = tsdbAllocateDisk(tsdb, writer->config->fid, "stt", &diskId);
+  code = tsdbAllocateDisk(tsdb, tsdbFTypeLabel(TSDB_FTYPE_STT), writer->config->expLevel, &diskId);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   writer->file[0] = (STFile){

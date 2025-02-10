@@ -152,18 +152,6 @@ int32_t tfsGetDisksAtLevel(STfs *pTfs, int32_t level) {
 
 int32_t tfsGetLevel(STfs *pTfs) { return pTfs->nlevel; }
 
-int32_t tfsAllocDiskAtLevel(STfs *pTfs, int32_t level, const char *label, SDiskID *pDiskId) {
-  pDiskId->level = level;
-  pDiskId->id = -1;
-
-  pDiskId->id = tfsAllocDiskOnTier(&pTfs->tiers[pDiskId->level], label);
-  if (pDiskId->id < 0) {
-    TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
-  }
-
-  TAOS_RETURN(0);
-}
-
 int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, const char *label, SDiskID *pDiskId) {
   if (expLevel >= pTfs->nlevel || expLevel < 0) {
     expLevel = pTfs->nlevel - 1;
@@ -176,6 +164,22 @@ int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, const char *label, SDiskID *p
   }
 
   TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
+}
+
+int32_t tfsAllocDiskAtLevel(STfs *pTfs, int32_t level, const char *label, SDiskID *pDiskId) {
+  if (level < 0 || level >= pTfs->nlevel) {
+    TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
+  }
+
+  pDiskId->level = level;
+  pDiskId->id = -1;
+
+  pDiskId->id = tfsAllocDiskOnTier(&pTfs->tiers[pDiskId->level], label);
+  if (pDiskId->id < 0) {
+    TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
+  }
+
+  TAOS_RETURN(0);
 }
 
 const char *tfsGetPrimaryPath(STfs *pTfs) { return TFS_PRIMARY_DISK(pTfs)->path; }

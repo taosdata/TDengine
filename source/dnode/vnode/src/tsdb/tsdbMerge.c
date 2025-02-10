@@ -275,6 +275,7 @@ static int32_t tsdbMergeFileSetBeginOpenWriter(SMerger *merger) {
       .cmprAlg = merger->cmprAlg,
       .fid = merger->ctx->fset->fid,
       .cid = merger->cid,
+      .expLevel = tsdbFidLevel(merger->ctx->fset->fid, &merger->tsdb->keepCfg, merger->ctx->now),
       .level = merger->ctx->level,
   };
 

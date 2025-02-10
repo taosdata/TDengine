@@ -544,6 +544,7 @@ struct STsdbSnapWriter {
     bool       fsetWriteBegin;
     int32_t    fid;
     STFileSet* fset;
+    int32_t    expLevel;
     bool       hasData;  // if have time series data
     bool       hasTomb;  // if have tomb data
 
@@ -799,6 +800,7 @@ static int32_t tsdbSnapWriteFileSetOpenWriter(STsdbSnapWriter* writer) {
       .cmprAlg = writer->cmprAlg,
       .fid = writer->ctx->fid,
       .cid = writer->commitID,
+      .expLevel = writer->ctx->expLevel,
       .level = writer->ctx->toSttOnly ? 1 : 0,
   };
   // merge stt files to either data or a new stt file
@@ -834,6 +836,8 @@ static int32_t tsdbSnapWriteFileSetBegin(STsdbSnapWriter* writer, int32_t fid) {
   writer->ctx->fid = fid;
   STFileSet** fsetPtr = TARRAY2_SEARCH(writer->fsetArr, &fset, tsdbTFileSetCmprFn, TD_EQ);
   writer->ctx->fset = (fsetPtr == NULL) ? NULL : *fsetPtr;
+
+  writer->ctx->expLevel = tsdbFidLevel(fid, &writer->tsdb->keepCfg, taosGetTimestampSec());
 
   writer->ctx->hasData = true;
   writer->ctx->hasTomb = true;

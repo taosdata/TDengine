@@ -1083,8 +1083,8 @@ void tsdbRemoveFile(const char *path);
     }                                    \
   } while (0)
 
-int32_t tsdbAllocateDisk(STsdb *tsdb, int32_t fid, const char *label, SDiskID *diskId);
-int32_t tsdbAllocateDiskAtLevel(STsdb *tsdb, int32_t fid, int32_t level, const char *label, SDiskID *diskId);
+int32_t tsdbAllocateDisk(STsdb *tsdb, const char *label, int32_t expLevel, SDiskID *diskId);
+int32_t tsdbAllocateDiskAtLevel(STsdb *tsdb, int32_t level, const char *label, SDiskID *diskId);
 
 #ifdef __cplusplus
 }

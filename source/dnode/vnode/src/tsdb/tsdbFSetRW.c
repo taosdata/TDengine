@@ -155,6 +155,7 @@ int32_t tsdbFSetWriterOpen(SFSetWriterConfig *config, SFSetWriter **writer) {
         .szPage = config->szPage,
         .fid = config->fid,
         .cid = config->cid,
+        .expLevel = config->expLevel,
         .compactVersion = config->compactVersion,
         .skmTb = writer[0]->skmTb,
         .skmRow = writer[0]->skmRow,
@@ -177,12 +178,14 @@ int32_t tsdbFSetWriterOpen(SFSetWriterConfig *config, SFSetWriter **writer) {
       .szPage = config->szPage,
       .cmprAlg = config->cmprAlg,
       .compactVersion = config->compactVersion,
+      .expLevel = config->expLevel,
       .fid = config->fid,
       .cid = config->cid,
       .level = config->level,
       .skmTb = writer[0]->skmTb,
       .skmRow = writer[0]->skmRow,
       .buffers = writer[0]->buffers,
+
   };
   code = tsdbSttFileWriterOpen(&sttWriterConfig, &writer[0]->sttWriter);
   TSDB_CHECK_CODE(code, lino, _exit);

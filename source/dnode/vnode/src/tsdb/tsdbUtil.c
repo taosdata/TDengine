@@ -1804,14 +1804,13 @@ uint32_t tsdbCvtTimestampAlg(uint32_t alg) {
   return 0;
 }
 
-int32_t tsdbAllocateDisk(STsdb *tsdb, int32_t fid, const char *label, SDiskID *diskId) {
+int32_t tsdbAllocateDisk(STsdb *tsdb, const char *label, int32_t expLevel, SDiskID *diskId) {
   int32_t code = 0;
   int32_t lino = 0;
   SDiskID did = {0};
   STfs   *tfs = tsdb->pVnode->pTfs;
 
-  int32_t expectedLevel = tsdbFidLevel(fid, &tsdb->keepCfg, taosGetTimestampSec());
-  code = tfsAllocDisk(tfs, expectedLevel, label, &did);
+  code = tfsAllocDisk(tfs, expLevel, label, &did);
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, __LINE__,
               tstrerror(code));
@@ -1829,12 +1828,10 @@ int32_t tsdbAllocateDisk(STsdb *tsdb, int32_t fid, const char *label, SDiskID *d
   return code;
 }
 
-int32_t tsdbAllocateDiskAtLevel(STsdb *tsdb, int32_t fid, int32_t level, const char *label, SDiskID *diskId) {
+int32_t tsdbAllocateDiskAtLevel(STsdb *tsdb, int32_t level, const char *label, SDiskID *diskId) {
   int32_t code = 0;
-  SDiskID did = {
-      .level = level,
-  };
-  STfs *tfs = tsdb->pVnode->pTfs;
+  SDiskID did = {0};
+  STfs   *tfs = tsdb->pVnode->pTfs;
 
   code = tfsAllocDiskAtLevel(tfs, level, label, &did);
   if (code) {

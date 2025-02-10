@@ -240,7 +240,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbRemoveOrMoveFileObject(SRTNer *rtner, STFileObj *fobj) {
+static int32_t tsdbRemoveOrMoveFileObject(SRTNer *rtner, int32_t expLevel, STFileObj *fobj) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -248,7 +248,6 @@ static int32_t tsdbRemoveOrMoveFileObject(SRTNer *rtner, STFileObj *fobj) {
     return code;
   }
 
-  int32_t expLevel = tsdbFidLevel(fobj->f->fid, &rtner->tsdb->keepCfg, rtner->now);
   if (expLevel < 0) {
     // remove the file
     code = tsdbDoRemoveFileObject(rtner, fobj);
@@ -257,7 +256,7 @@ static int32_t tsdbRemoveOrMoveFileObject(SRTNer *rtner, STFileObj *fobj) {
     // Try to move the file to a new level
     SDiskID diskId = {0};
 
-    code = tsdbAllocateDiskAtLevel(rtner->tsdb, fobj->f->fid, expLevel, tsdbFTypeLabel(fobj->f->type), &diskId);
+    code = tsdbAllocateDiskAtLevel(rtner->tsdb, expLevel, tsdbFTypeLabel(fobj->f->type), &diskId);
     if (code) {
       tsdbTrace("vgId:%d, cannot allocate disk for file %s, level:%d, reason:%s, skip!", TD_VID(rtner->tsdb->pVnode),
                 fobj->fname, expLevel, tstrerror(code));
@@ -289,8 +288,9 @@ static int32_t tsdbDoRetention(SRTNer *rtner) {
   STFileSet *fset = rtner->fset;
 
   // handle data file sets
+  int32_t expLevel = tsdbFidLevel(fobj->f->fid, &rtner->tsdb->keepCfg, rtner->now);
   for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ++ftype) {
-    code = tsdbRemoveOrMoveFileObject(rtner, fset->farr[ftype]);
+    code = tsdbRemoveOrMoveFileObject(rtner, expLevel, fset->farr[ftype]);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -298,7 +298,7 @@ static int32_t tsdbDoRetention(SRTNer *rtner) {
   SSttLvl *lvl;
   TARRAY2_FOREACH(fset->lvlArr, lvl) {
     TARRAY2_FOREACH(lvl->fobjArr, fobj) {
-      code = tsdbRemoveOrMoveFileObject(rtner, fobj);
+      code = tsdbRemoveOrMoveFileObject(rtner, expLevel, fobj);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }

@@ -37,6 +37,7 @@ typedef struct {
   struct {
     SFileSetCommitInfo *info;
 
+    int32_t expLevel;
     TSKEY   minKey;
     TSKEY   maxKey;
     TABLEID tbid[1];
@@ -73,6 +74,7 @@ static int32_t tsdbCommitOpenWriter(SCommitter2 *committer) {
       .cmprAlg = committer->cmprAlg,
       .fid = committer->ctx->info->fid,
       .cid = committer->cid,
+      .expLevel = committer->ctx->expLevel,
       .level = 0,
   };
 
@@ -321,6 +323,7 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
   // check if can commit
   tsdbFSCheckCommit(tsdb, committer->ctx->info->fid);
 
+  committer->ctx->expLevel = tsdbFidLevel(committer->ctx->info->fid, &tsdb->keepCfg, committer->now);
   tsdbFidKeyRange(committer->ctx->info->fid, committer->minutes, committer->precision, &committer->ctx->minKey,
                   &committer->ctx->maxKey);
 
@@ -335,8 +338,9 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
   } else {
-    tsdbDebug("vgId:%d %s done, fid:%d minKey:%" PRId64 " maxKey:%" PRId64, TD_VID(tsdb->pVnode), __func__,
-              committer->ctx->info->fid, committer->ctx->minKey, committer->ctx->maxKey);
+    tsdbDebug("vgId:%d %s done, fid:%d minKey:%" PRId64 " maxKey:%" PRId64 " expLevel:%d", TD_VID(tsdb->pVnode),
+              __func__, committer->ctx->info->fid, committer->ctx->minKey, committer->ctx->maxKey,
+              committer->ctx->expLevel);
   }
   return code;
 }

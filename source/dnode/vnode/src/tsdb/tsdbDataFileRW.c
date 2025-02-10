@@ -751,7 +751,7 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
 
   // .head
   ftype = TSDB_FTYPE_HEAD;
-  code = tsdbAllocateDisk(writer->config->tsdb, writer->config->fid, tsdbFTypeLabel(ftype), &diskId);
+  code = tsdbAllocateDisk(writer->config->tsdb, tsdbFTypeLabel(ftype), writer->config->expLevel, &diskId);
   TSDB_CHECK_CODE(code, lino, _exit);
   writer->files[ftype] = (STFile){
       .type = ftype,
@@ -768,7 +768,7 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
   if (writer->config->files[ftype].exist) {
     writer->files[ftype] = writer->config->files[ftype].file;
   } else {
-    code = tsdbAllocateDisk(writer->config->tsdb, writer->config->fid, tsdbFTypeLabel(ftype), &diskId);
+    code = tsdbAllocateDisk(writer->config->tsdb, tsdbFTypeLabel(ftype), writer->config->expLevel, &diskId);
     TSDB_CHECK_CODE(code, lino, _exit);
     writer->files[ftype] = (STFile){
         .type = ftype,
@@ -787,7 +787,7 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
   if (writer->config->files[ftype].exist) {
     writer->files[ftype] = writer->config->files[ftype].file;
   } else {
-    code = tsdbAllocateDisk(writer->config->tsdb, writer->config->fid, tsdbFTypeLabel(ftype), &diskId);
+    code = tsdbAllocateDisk(writer->config->tsdb, tsdbFTypeLabel(ftype), writer->config->expLevel, &diskId);
     TSDB_CHECK_CODE(code, lino, _exit);
     writer->files[ftype] = (STFile){
         .type = ftype,
@@ -802,7 +802,7 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
 
   // .tomb
   ftype = TSDB_FTYPE_TOMB;
-  code = tsdbAllocateDisk(writer->config->tsdb, writer->config->fid, tsdbFTypeLabel(ftype), &diskId);
+  code = tsdbAllocateDisk(writer->config->tsdb, tsdbFTypeLabel(ftype), writer->config->expLevel, &diskId);
   TSDB_CHECK_CODE(code, lino, _exit);
   writer->files[ftype] = (STFile){
       .type = ftype,

@@ -35,6 +35,7 @@ typedef struct {
   int8_t  cmprAlg;
   int32_t fid;
   int64_t cid;
+  int32_t expLevel;
   int32_t level;
   int32_t lcn;
   struct {

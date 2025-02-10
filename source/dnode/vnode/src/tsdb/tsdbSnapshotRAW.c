@@ -370,6 +370,7 @@ static int32_t tsdbSnapRAWWriteFileSetOpenWriter(STsdbSnapRAWWriter* writer) {
       .szPage = writer->szPage,
       .fid = writer->ctx->fid,
       .cid = writer->commitID,
+      .expLevel = writer->ctx->level,
       .level = writer->ctx->level,
   };
 
@@ -396,6 +397,8 @@ static int32_t tsdbSnapRAWWriteFileSetBegin(STsdbSnapRAWWriter* writer, int32_t 
   writer->ctx->fid = fid;
   STFileSet** fsetPtr = TARRAY2_SEARCH(writer->fsetArr, &fset, tsdbTFileSetCmprFn, TD_EQ);
   writer->ctx->fset = (fsetPtr == NULL) ? NULL : *fsetPtr;
+
+  int32_t level = tsdbFidLevel(fid, &writer->tsdb->keepCfg, taosGetTimestampSec());
 
   code = tsdbSnapRAWWriteFileSetOpenWriter(writer);
   TSDB_CHECK_CODE(code, lino, _exit);
