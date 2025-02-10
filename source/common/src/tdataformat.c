@@ -4253,7 +4253,7 @@ static FORCE_INLINE void tColDataCalcSMADecimal64Type(SColData* pColData, SColum
           pAggs->numOfNull++;
           break;
         case 2:
-          CALC_DECIMAL_SUM_MAX_MIN(Decimal64, pOps, pColData, pSum, pMax, pMin);
+          CALC_DECIMAL_SUM_MAX_MIN(Decimal64, pOps, pColData, pSum, pMax, pMin);// TODO wjm what if overflow
           break;
         default:
           break;
