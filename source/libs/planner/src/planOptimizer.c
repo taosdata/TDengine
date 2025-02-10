@@ -635,7 +635,9 @@ static EDealRes pdcJoinIsCrossTableCond(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     if (pdcJoinColInTableList(pNode, pCxt->pLeftTbls)) {
       pCxt->havaLeftCol = true;
-    } else if (pdcJoinColInTableList(pNode, pCxt->pRightTbls)) {
+    } 
+
+    if (pdcJoinColInTableList(pNode, pCxt->pRightTbls)) {
       pCxt->haveRightCol = true;
     }
     return pCxt->havaLeftCol && pCxt->haveRightCol ? DEAL_RES_END : DEAL_RES_CONTINUE;
