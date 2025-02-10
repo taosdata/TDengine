@@ -672,12 +672,8 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       if (tsEnableScience) {
         printf("%*.7e", width, GET_FLOAT_VAL(val));
       } else {
-        n = tsnprintf(buf, LENGTH, "%*.7f", width, GET_FLOAT_VAL(val));
-        if (n > SHELL_FLOAT_WIDTH) {
-          printf("%*.7e", width, GET_FLOAT_VAL(val));
-        } else {
-          printf("%s", buf);
-        }
+        n = snprintf(buf, LENGTH, "%.*g", FLT_DIG, GET_FLOAT_VAL(val));
+        printf("%s", buf);
       }
       break;
     case TSDB_DATA_TYPE_DOUBLE:
@@ -685,12 +681,8 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
         snprintf(buf, LENGTH, "%*.15e", width, GET_DOUBLE_VAL(val));
         printf("%s", buf);
       } else {
-        n = tsnprintf(buf, LENGTH, "%*.15f", width, GET_DOUBLE_VAL(val));
-        if (n > SHELL_DOUBLE_WIDTH) {
-          printf("%*.15e", width, GET_DOUBLE_VAL(val));
-        } else {
-          printf("%*s", width, buf);
-        }
+        n = snprintf(buf, LENGTH, "%.*g", DBL_DIG, GET_DOUBLE_VAL(val));
+        printf("%s", buf);
       }
       break;
     case TSDB_DATA_TYPE_VARBINARY: {
