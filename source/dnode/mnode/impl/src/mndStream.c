@@ -1312,7 +1312,7 @@ static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {
   }
 
   int32_t numOfQual = taosArrayGetSize(pList);
-  if (numOfCheckpointTrans > tsMaxConcurrentCheckpoint) {
+  if (numOfCheckpointTrans >= tsMaxConcurrentCheckpoint) {
     mDebug(
         "%d stream(s) checkpoint interval longer than %ds, ongoing checkpoint trans:%d reach maximum allowed:%d, new "
         "checkpoint trans are not allowed, wait for 30s",
