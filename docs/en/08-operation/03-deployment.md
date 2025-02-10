@@ -639,244 +639,474 @@ Helm operates Kubernetes using kubectl and kubeconfig configurations, which can 
 The TDengine Chart has not yet been released to the Helm repository, it can currently be downloaded directly from GitHub:
 
 ```shell
-wget https://github.com/taosdata/TDengine-Operator/raw/3.0/helm/tdengine-3.0.2.tgz
+wget https://github.com/taosdata/TDengine-Operator/raw/3.0/helm/tdengine-enterpise-3.5.0.tgz
 ```
 
-Retrieve the current Kubernetes storage class:
+Note that it's for the enterprise edition, and the community edition is not yet available.
+
+Follow the steps below to install the TDengine Chart:
 
 ```shell
-kubectl get storageclass
+# Edit the values.yaml file to set the topology of the cluster
+vim values.yaml
+helm install tdengine tdengine-enterprise-3.5.0.tgz -f values.yaml
 ```
 
-In minikube, the default is standard. Then, use the helm command to install:
+#### Case 1: Simple 1-node Deployment
 
-```shell
-helm install tdengine tdengine-3.0.2.tgz \
-  --set storage.className=<your storage class name> \
-  --set image.tag=3.2.3.0
-
-```
-
-In a minikube environment, you can set a smaller capacity to avoid exceeding disk space:
-
-```shell
-helm install tdengine tdengine-3.0.2.tgz \
-  --set storage.className=standard \
-  --set storage.dataSize=2Gi \
-  --set storage.logSize=10Mi \
-  --set image.tag=3.2.3.0
-```
-
-After successful deployment, the TDengine Chart will output instructions for operating TDengine:
-
-```shell
-export POD_NAME=$(kubectl get pods --namespace default \
-  -l "app.kubernetes.io/name=tdengine,app.kubernetes.io/instance=tdengine" \
-  -o jsonpath="{.items[0].metadata.name}")
-kubectl --namespace default exec $POD_NAME -- taos -s "show dnodes; show mnodes"
-kubectl --namespace default exec -it $POD_NAME -- taos
-```
-
-You can create a table for testing:
-
-```shell
-kubectl --namespace default exec $POD_NAME -- \
-  taos -s "create database test;
-    use test;
-    create table t1 (ts timestamp, n int);
-    insert into t1 values(now, 1)(now + 1s, 2);
-    select * from t1;"
-```
-
-### Configuring values
-
-TDengine supports customization through `values.yaml`.
-You can obtain the complete list of values supported by the TDengine Chart with helm show values:
-
-```shell
-helm show values tdengine-3.0.2.tgz
-```
-
-You can save the results as `values.yaml`, then modify various parameters in it, such as the number of replicas, storage class name, capacity size, TDengine configuration, etc., and then use the following command to install the TDengine cluster:
-
-```shell
-helm install tdengine tdengine-3.0.2.tgz -f values.yaml
-```
-
-All parameters are as follows:
+The following is a simple example of deploying a single-node TDengine cluster using Helm.
 
 ```yaml
-# Default values for tdengine.
-# This is a YAML-formatted file.
-# Declare variables to be passed into helm templates.
-
-replicaCount: 1
+# This example is a simple deployment with one server replica.
+name: "tdengine"
 
 image:
-  prefix: tdengine/tdengine
-  #pullPolicy: Always
-  # Overrides the image tag whose default is the chart appVersion.
-#  tag: "3.0.2.0"
-
-service:
-  # ClusterIP is the default service type, use NodeIP only if you know what you are doing.
-  type: ClusterIP
-  ports:
-    # TCP range required
-    tcp: [6030, 6041, 6042, 6043, 6044, 6046, 6047, 6048, 6049, 6060]
-    # UDP range
-    udp: [6044, 6045]
-
+  repository: image.cloud.taosdata.com/  # Leave a trailing slash for the repository, or "" for no repository
+  server: taosx/integrated:3.3.5.1-b0a54bdd
 
 # Set timezone here, not in taoscfg
 timezone: "Asia/Shanghai"
 
-resources:
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  # limits:
-  #   cpu: 100m
-  #   memory: 128Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
+labels:
+  app: "tdengine"
+  # Add more labels as needed.
 
-storage:
-  # Set storageClassName for pvc. K8s use default storage class if not set.
-  #
-  className: ""
-  dataSize: "100Gi"
-  logSize: "10Gi"
-
-nodeSelectors:
-  taosd:
-    # node selectors
-
-clusterDomainSuffix: ""
-# Config settings in taos.cfg file.
-#
-# The helm/k8s support will use environment variables for taos.cfg,
-# converting an upper-snake-cased variable like `TAOS_DEBUG_FLAG`,
-# to a camelCase taos config variable `debugFlag`.
-#
-# Note:
-# 1. firstEp/secondEp: should not be set here, it's auto generated at scale-up.
-# 2. serverPort: should not be set, we'll use the default 6030 in many places.
-# 3. fqdn: will be auto generated in kubernetes, user should not care about it.
-# 4. role: currently role is not supported - every node is able to be mnode and vnode.
-#
-# Btw, keep quotes "" around the value like below, even the value will be number or not.
-taoscfg:
-  # Starts as cluster or not, must be 0 or 1.
-  #   0: all pods will start as a separate TDengine server
-  #   1: pods will start as TDengine server cluster. [default]
-  CLUSTER: "1"
-
-  # number of replications, for cluster only
-  TAOS_REPLICA: "1"
-
-
-  # TAOS_NUM_OF_RPC_THREADS: number of threads for RPC
-  #TAOS_NUM_OF_RPC_THREADS: "2"
-
-  #
-  # TAOS_NUM_OF_COMMIT_THREADS: number of threads to commit cache data
-  #TAOS_NUM_OF_COMMIT_THREADS: "4"
-
-  # enable/disable installation / usage report
-  #TAOS_TELEMETRY_REPORTING: "1"
-
-  # time interval of system monitor, seconds
-  #TAOS_MONITOR_INTERVAL: "30"
-
-  # time interval of dnode status reporting to mnode, seconds, for cluster only
-  #TAOS_STATUS_INTERVAL: "1"
-
-  # time interval of heart beat from shell to dnode, seconds
-  #TAOS_SHELL_ACTIVITY_TIMER: "3"
-
-  # minimum sliding window time, milli-second
-  #TAOS_MIN_SLIDING_TIME: "10"
-
-  # minimum time window, milli-second
-  #TAOS_MIN_INTERVAL_TIME: "1"
-
-  # the compressed rpc message, option:
-  #  -1 (no compression)
-  #   0 (all message compressed),
-  # > 0 (rpc message body which larger than this value will be compressed)
-  #TAOS_COMPRESS_MSG_SIZE: "-1"
-
-  # max number of connections allowed in dnode
-  #TAOS_MAX_SHELL_CONNS: "50000"
-
-  # stop writing logs when the disk size of the log folder is less than this value
-  #TAOS_MINIMAL_LOG_DIR_G_B: "0.1"
-
-  # stop writing temporary files when the disk size of the tmp folder is less than this value
-  #TAOS_MINIMAL_TMP_DIR_G_B: "0.1"
-
-  # if disk free space is less than this value, taosd service exit directly within startup process
-  #TAOS_MINIMAL_DATA_DIR_G_B: "0.1"
-
-  # One mnode is equal to the number of vnode consumed
-  #TAOS_MNODE_EQUAL_VNODE_NUM: "4"
-
-  # enbale/disable http service
-  #TAOS_HTTP: "1"
-
-  # enable/disable system monitor
-  #TAOS_MONITOR: "1"
-
-  # enable/disable async log
-  #TAOS_ASYNC_LOG: "1"
-
-  #
-  # time of keeping log files, days
-  #TAOS_LOG_KEEP_DAYS: "0"
-
-  # The following parameters are used for debug purpose only.
-  # debugFlag 8 bits mask: FILE-SCREEN-UNUSED-HeartBeat-DUMP-TRACE_WARN-ERROR
-  # 131: output warning and error
-  # 135: output debug, warning and error
-  # 143: output trace, debug, warning and error to log
-  # 199: output debug, warning and error to both screen and file
-  # 207: output trace, debug, warning and error to both screen and file
-  #
-  # debug flag for all log type, take effect when non-zero value\
-  #TAOS_DEBUG_FLAG: "143"
-
-  # generate core file when service crash
-  #TAOS_ENABLE_CORE_FILE: "1"
+services:
+  server:
+    type: ClusterIP
+    replica: 1
+    ports:
+      # TCP range required
+      tcp: [6041, 6030, 6060]
+      # UDP range, optional
+      udp:
+    volumes:
+      - name: data
+        mountPath: /var/lib/taos
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+      - name: log
+        mountPath: /var/log/taos/
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+    files:
+      - name: cfg # must be lower case.
+        mountPath: /etc/taos/taos.cfg
+        content: |
+          dataDir /var/lib/taos/
+          logDir /var/log/taos/
 ```
 
-### Expansion
+Let's explain the above configuration:
 
-For expansion, refer to the explanation in the previous section, with some additional operations needed from the helm deployment.
-First, retrieve the name of the StatefulSet from the deployment.
+- name: The name of the deployment, here it is "tdengine".
+- image:
+  - repository: The image repository address, remember to leave a trailing slash for the repository, or set it to an empty string to use docker.io.
+  - server: The specific name and tag of the server image. You need to ask your business partner for the TDengine Enterprise image.
+- timezone: Set the timezone, here it is "Asia/Shanghai".
+- labels: Add labels to the deployment, here is an app label with the value "tdengine", more labels can be added as needed.
+- services:
+  - server: Configure the server service.
+    - type: The service type, here it is **ClusterIP**.
+    - replica: The number of replicas, here it is 1.
+    - ports: Configure the ports of the service.
+      - tcp: The required TCP port range, here it is [6041, 6030, 6060].
+      - udp: The optional UDP port range, which is not configured here.
+    - volumes: Configure the volumes.
+      - name: The name of the volume, here there are two volumes, data and log.
+      - mountPath: The mount path of the volume.
+      - spec: The specification of the volume.
+        - storageClassName: The storage class name, here it is **local-path**.
+        - accessModes: The access mode, here it is **ReadWriteOnce**.
+        - resources.requests.storage: The requested storage size, here it is **10Gi**.
+    - files: Configure the files to mount in TDengine server.
+      - name: The name of the file, here it is **cfg**.
+      - mountPath: The mount path of the file, which is **taos.cfg**.
+      - content: The content of the file, here the **dataDir** and **logDir** are configured.
+
+After configuring the values.yaml file, use the following command to install the TDengine Chart:
 
 ```shell
-export STS_NAME=$(kubectl get statefulset \
-  -l "app.kubernetes.io/name=tdengine" \
-  -o jsonpath="{.items[0].metadata.name}")
+helm install simple tdengine-enterprise-3.5.0.tgz -f values.yaml
 ```
 
-The expansion operation is extremely simple, just increase the replica. The following command expands TDengine to three nodes:
+After installation, you can see the instructions to see the status of the TDengine cluster:
 
 ```shell
-kubectl scale --replicas 3 statefulset/$STS_NAME
+NAME: simple
+LAST DEPLOYED: Sun Feb  9 13:40:00 2025 default
+STATUS: deployed
+REVISION: 1
+TEST SUITE: None
+NOTES:
+1. Get first POD name:
+                                                                                                           
+export POD_NAME=$(kubectl get pods --namespace default \
+  -l "app.kubernetes.io/name=tdengine,app.kubernetes.io/instance=simple" -o jsonpath="{.items[0].metadata.name}")
+
+2. Show dnodes/mnodes:
+
+kubectl --namespace default exec $POD_NAME -- taos -s "show dnodes; show mnodes"
+
+3. Run into taos shell:
+
+kubectl --namespace default exec -it $POD_NAME -- taos
 ```
 
-Use the commands `show dnodes` and `show mnodes` to check if the expansion was successful.
-
-### Cleaning up the Cluster
-
-Under Helm management, the cleanup operation also becomes simple:
+Follow the instructions to check the status of the TDengine cluster:
 
 ```shell
-helm uninstall tdengine
+root@u1-58:/data1/projects/helm# kubectl --namespace default exec $POD_NAME -- taos -s "show dnodes; show mnodes"
+Welcome to the TDengine Command Line Interface, Client Version:3.3.5.1
+Copyright (c) 2023 by TDengine, all rights reserved.
+
+taos> show dnodes; show mnodes
+     id      |            endpoint            | vnodes | support_vnodes |    status    |       create_time       |       reboot_time       |              note              |         machine_id         |
+==========================================================================================================================================================================================================
+           1 | simple-tdengine-0.simple-td... |      0 |             85 | ready        | 2025-02-07 21:17:34.903 | 2025-02-08 15:52:34.781 |                                | BWhWyPiEBrWZrQCSqTSc2a/H   |
+Query OK, 1 row(s) in set (0.005133s)
+
+     id      |            endpoint            |      role      |   status    |       create_time       |        role_time        |
+==================================================================================================================================
+           1 | simple-tdengine-0.simple-td... | leader         | ready       | 2025-02-07 21:17:34.906 | 2025-02-08 15:52:34.878 |
+Query OK, 1 row(s) in set (0.004299s)
 ```
 
-However, Helm will not automatically remove PVCs, you need to manually retrieve and then delete the PVCs.
+To clean up the TDengine cluster, use the following command:
+
+```shell
+helm uninstall simple
+kubectl delete pvc -l app.kubernetes.io/instance=simple
+```
+
+#### Case 2: Tiered-Storage Deployment
+
+The following is an example of deploying a TDengine cluster with tiered storage using Helm.
+
+```yaml
+# This is an example of a 3-tiered storage deployment with one server replica.
+name: "tdengine"
+
+image:
+  repository: image.cloud.taosdata.com/  # Leave a trailing slash for the repository, or "" for no repository
+  server: taosx/integrated:3.3.5.1-b0a54bdd
+
+# Set timezone here, not in taoscfg
+timezone: "Asia/Shanghai"
+
+labels:
+  # Add more labels as needed.
+
+services:
+  server:
+    type: ClusterIP
+    replica: 1
+    ports:
+      # TCP range required
+      tcp: [6041, 6030, 6060]
+      # UDP range, optional
+      udp:
+    volumes:
+      - name: tier0
+        mountPath: /data/taos0/
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+      - name: tier1
+        mountPath: /data/taos1/
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+      - name: tier2
+        mountPath: /data/taos2/
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+      - name: log
+        mountPath: /var/log/taos/
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+    environment:
+      TAOS_DEBUG_FLAG: "131"
+    files:
+      - name: cfg # must be lower case.
+        mountPath: /etc/taos/taos.cfg
+        content: |
+          dataDir /data/taos0/  0 1
+          dataDir /data/taos1/  1 0
+          dataDir /data/taos2/  2 0
+```
+
+You can see that the configuration is similar to the previous one, with the addition of the tiered storage configuration. The dataDir configuration in the taos.cfg file is also modified to support tiered storage.
+
+After configuring the values.yaml file, use the following command to install the TDengine Chart:
+
+```shell
+helm install tiered tdengine-enterprise-3.5.0.tgz -f values.yaml
+```
+
+#### Case 3: 2-replica Deployment
+
+TDengine support 2-replica deployment with an arbitrator, which can be configured as follows:
+
+```yaml
+# This example shows how to deploy a 2-replica TDengine cluster with an arbitrator.
+name: "tdengine"
+
+image:
+  repository: image.cloud.taosdata.com/  # Leave a trailing slash for the repository, or "" for no repository
+  server: taosx/integrated:3.3.5.1-b0a54bdd
+
+# Set timezone here, not in taoscfg
+timezone: "Asia/Shanghai"
+
+labels:
+  my-app: "tdengine"
+  # Add more labels as needed.
+
+services:
+  arbitrator:
+    type: ClusterIP
+    volumes:
+      - name: arb-data
+        mountPath: /var/lib/taos
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+      - name: arb-log
+        mountPath: /var/log/taos/
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+  server:
+    type: ClusterIP
+    replica: 2
+    ports:
+      # TCP range required
+      tcp: [6041, 6030, 6060]
+      # UDP range, optional
+      udp:
+    volumes:
+      - name: data
+        mountPath: /var/lib/taos
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+      - name: log
+        mountPath: /var/log/taos/
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+```
+
+You can see that the configuration is similar to the first one, with the addition of the arbitrator configuration. The arbitrator service is configured with the same storage as the server service, and the server service is configured with 2 replicas (the arbitrator should be 1 replica and not able to be changed).
+
+#### Case 4: 3-replica Deployment with Single taosX
+
+```yaml
+# This example shows how to deploy a 3-replica TDengine cluster with separate taosx/explorer service.
+# Users should know that the explorer/taosx service is not cluster-ready, so it is recommended to deploy it separately.
+name: "tdengine"
+
+image:
+  repository: image.cloud.taosdata.com/ # Leave a trailing slash for the repository, or "" for no repository
+  server: taosx/integrated:3.3.5.1-b0a54bdd
+
+# Set timezone here, not in taoscfg
+timezone: "Asia/Shanghai"
+
+labels:
+  # Add more labels as needed.
+
+services:
+  server:
+    type: ClusterIP
+    replica: 3
+    ports:
+      # TCP range required
+      tcp: [6041, 6030]
+      # UDP range, optional
+      udp:
+    volumes:
+      - name: data
+        mountPath: /var/lib/taos
+        spec:
+          storageClassName: "local-path"
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: "10Gi"
+      - name: log
+        mountPath: /var/log/taos/
+        spec:
+          storageClassName: "local-path"
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: "10Gi"
+    environment:
+      ENABLE_TAOSX: "0" # Disable taosx in server replicas.
+  taosx:
+    type: ClusterIP
+    volumes:
+      - name: taosx-data
+        mountPath: /var/lib/taos
+        spec:
+          storageClassName: "local-path"
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: "10Gi"
+      - name: taosx-log
+        mountPath: /var/log/taos/
+        spec:
+          storageClassName: "local-path"
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: "10Gi"
+    files:
+      - name: taosx
+        mountPath: /etc/taos/taosx.toml
+        content: |-
+          # TAOSX configuration in TOML format.
+          [monitor]
+          # FQDN of taosKeeper service, no default value
+          fqdn = "localhost"
+          # How often to send metrics to taosKeeper, default every 10 seconds. Only value from 1 to 10 is valid.
+          interval = 10
+
+          # log configuration
+          [log]
+          # All log files are stored in this directory
+          #
+          #path = "/var/log/taos" # on linux/macOS
+
+          # log filter level
+          #
+          #level = "info"
+
+          # Compress archived log files or not
+          #
+          #compress = false
+
+          # The number of log files retained by the current explorer server instance in the `path` directory
+          #
+          #rotationCount = 30
+
+          # Rotate when the log file reaches this size
+          #
+          #rotationSize = "1GB"
+
+          # Log downgrade when the remaining disk space reaches this size, only logging `ERROR` level logs
+          #
+          #reservedDiskSize = "1GB"
+
+          # The number of days log files are retained
+          #
+          #keepDays = 30
+
+          # Watching the configuration file for log.loggers changes, default to true.
+          #
+          #watching = true
+
+          # Customize the log output level of modules, and changes will be applied after modifying the file when log.watching is enabled
+          #
+          # ## Examples:
+          #
+          # crate = "error"
+          # crate::mod1::mod2 = "info"
+          # crate::span[field=value] = "warn"
+          #
+          [log.loggers]
+          #"actix_server::accept" = "warn"
+          #"taos::query" = "warn"
+```
+
+You can see that the configuration is similar to the first one, with the addition of the taosx configuration. The taosx service is configured with similar storage configuration as the server service, and the server service is configured with 3 replicas. Since the taosx service is not cluster-ready, it is recommended to deploy it separately.
+
+After configuring the values.yaml file, use the following command to install the TDengine Chart:
+
+```shell
+helm install replica3 tdengine-enterprise-3.5.0.tgz -f values.yaml
+```
+
+You can use the following command to expose the explorer service to the outside world with ingress:
+
+```shell
+tee replica3-ingress.yaml <<EOF
+# This is a helm chart example for deploying 3 replicas of TDengine Explorer
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: replica3-ingress
+  namespace: default
+spec:
+  rules:
+    - host: replica3.local.tdengine.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name:  replica3-tdengine-taosx
+                port:
+                  number: 6060
+EOF
+
+kubectl apply -f replica3-ingress.yaml
+```
+
+Use `kubectl get ingress` to view the ingress service.
+
+```shell
+root@server:/data1/projects/helm# kubectl get ingress
+NAME               CLASS   HOSTS                         ADDRESS        PORTS   AGE
+replica3-ingress   nginx   replica3.local.tdengine.com   192.168.1.58   80      48m
+```
+
+You can configure the domain name resolution to point to the ingress service's external IP address. For example, add the following line to the hosts file:
+
+```conf
+192.168.1.58    replica3.local.tdengine.com
+```
+
+Now you can access the explorer service through the domain name `replica3.local.tdengine.com`.
+
+```shell
+curl http://replica3.local.tdengine.com
+```
