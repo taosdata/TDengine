@@ -254,22 +254,26 @@ static int32_t tsdbRemoveOrMoveFileObject(SRTNer *rtner, int32_t expLevel, STFil
     TSDB_CHECK_CODE(code, lino, _exit);
   } else if (expLevel > fobj->f->did.level) {
     // Try to move the file to a new level
-    SDiskID diskId = {0};
+    for (; expLevel > fobj->f->did.level; expLevel--) {
+      SDiskID diskId = {0};
 
-    code = tsdbAllocateDiskAtLevel(rtner->tsdb, expLevel, tsdbFTypeLabel(fobj->f->type), &diskId);
-    if (code) {
-      tsdbTrace("vgId:%d, cannot allocate disk for file %s, level:%d, reason:%s, skip!", TD_VID(rtner->tsdb->pVnode),
-                fobj->fname, expLevel, tstrerror(code));
-      code = 0;
-    } else {
-      tsdbInfo("vgId:%d start to migrate file %s from level %d to %d, size:%" PRId64, TD_VID(rtner->tsdb->pVnode),
-               fobj->fname, fobj->f->did.level, diskId.level, fobj->f->size);
+      code = tsdbAllocateDiskAtLevel(rtner->tsdb, expLevel, tsdbFTypeLabel(fobj->f->type), &diskId);
+      if (code) {
+        tsdbTrace("vgId:%d, cannot allocate disk for file %s, level:%d, reason:%s, skip!", TD_VID(rtner->tsdb->pVnode),
+                  fobj->fname, expLevel, tstrerror(code));
+        code = 0;
+        continue;
+      } else {
+        tsdbInfo("vgId:%d start to migrate file %s from level %d to %d, size:%" PRId64, TD_VID(rtner->tsdb->pVnode),
+                 fobj->fname, fobj->f->did.level, diskId.level, fobj->f->size);
 
-      code = tsdbDoMigrateFileObj(rtner, fobj, &diskId);
-      TSDB_CHECK_CODE(code, lino, _exit);
+        code = tsdbDoMigrateFileObj(rtner, fobj, &diskId);
+        TSDB_CHECK_CODE(code, lino, _exit);
 
-      tsdbInfo("vgId:%d end to migrate file %s from level %d to %d, size:%" PRId64, TD_VID(rtner->tsdb->pVnode),
-               fobj->fname, fobj->f->did.level, diskId.level, fobj->f->size);
+        tsdbInfo("vgId:%d end to migrate file %s from level %d to %d, size:%" PRId64, TD_VID(rtner->tsdb->pVnode),
+                 fobj->fname, fobj->f->did.level, diskId.level, fobj->f->size);
+        break;
+      }
     }
   }
 
@@ -288,7 +292,7 @@ static int32_t tsdbDoRetention(SRTNer *rtner) {
   STFileSet *fset = rtner->fset;
 
   // handle data file sets
-  int32_t expLevel = tsdbFidLevel(fobj->f->fid, &rtner->tsdb->keepCfg, rtner->now);
+  int32_t expLevel = tsdbFidLevel(fset->fid, &rtner->tsdb->keepCfg, rtner->now);
   for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ++ftype) {
     code = tsdbRemoveOrMoveFileObject(rtner, expLevel, fset->farr[ftype]);
     TSDB_CHECK_CODE(code, lino, _exit);
