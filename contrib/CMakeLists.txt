@@ -92,7 +92,9 @@ if(${BUILD_TEST})
 endif(${BUILD_TEST})
 
 # lz4
-cat("${TD_SUPPORT_DIR}/lz4_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+if(${BUILD_WITH_LZ4})
+    cat("${TD_SUPPORT_DIR}/lz4_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(${BUILD_WITH_LZ4})
 
 # zlib
 cat("${TD_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -270,11 +272,13 @@ unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 # endif()
 
 # lz4
-add_subdirectory(lz4/build/cmake EXCLUDE_FROM_ALL)
-target_include_directories(
-    lz4_static
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/lz4/lib
-)
+if(${BUILD_WITH_LZ4})
+    add_subdirectory(lz4/build/cmake EXCLUDE_FROM_ALL)
+    target_include_directories(
+        lz4_static
+        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/lz4/lib
+    )
+endif(${BUILD_WITH_LZ4})
 
 # zlib
 set(CMAKE_PROJECT_INCLUDE_BEFORE "${TD_SUPPORT_DIR}/EnableCMP0048.txt.in")

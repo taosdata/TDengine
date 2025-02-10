@@ -133,12 +133,24 @@ option(
     ON
 )
 
+option(
+    BUILD_WITH_LZ4
+    "If build with lz4"
+    ON
+)
+
 ELSE ()
 
 option(
     BUILD_WITH_LZMA2
     "If build with lzma2"
     ON
+)
+
+option(
+    BUILD_WITH_LZ4
+    "If build with lz4"
+    OFF
 )
 
 ENDIF ()
