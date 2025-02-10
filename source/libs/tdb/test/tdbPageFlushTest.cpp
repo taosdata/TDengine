@@ -1,3 +1,18 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
 
 #define ALLOW_FORBID_FUNC
@@ -83,23 +98,6 @@ static void poolFree(void *arg, void *ptr) {
   taosMemoryFree(pMem);
 }
 
-static int tKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
-  int k1, k2;
-
-  std::string s1((char *)pKey1 + 3, kLen1 - 3);
-  std::string s2((char *)pKey2 + 3, kLen2 - 3);
-  k1 = stoi(s1);
-  k2 = stoi(s2);
-
-  if (k1 < k2) {
-    return -1;
-  } else if (k1 > k2) {
-    return 1;
-  } else {
-    return 0;
-  }
-}
-
 static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2) {
   int mlen;
   int cret;
@@ -120,6 +118,23 @@ static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, in
   return cret;
 }
 
+static int tKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
+  int k1, k2;
+
+  std::string s1((char *)pKey1 + 3, kLen1 - 3);
+  std::string s2((char *)pKey2 + 3, kLen2 - 3);
+  k1 = stoi(s1);
+  k2 = stoi(s2);
+
+  if (k1 < k2) {
+    return -1;
+  } else if (k1 > k2) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
 static TDB *openEnv(char const *envName, int const pageSize, int const pageNum) {
   TDB *pEnv = NULL;
 
@@ -130,6 +145,8 @@ static TDB *openEnv(char const *envName, int const pageSize, int const pageNum) 
 
   return pEnv;
 }
+
+static void clearDb(char const *db) { taosRemoveDir(db); }
 
 static void generateBigVal(char *val, int valLen) {
   for (int i = 0; i < valLen; ++i) {
@@ -190,11 +207,8 @@ static void insertOfp(void) {
   tdbClose(pEnv);
 }
 
-static void clearDb(char const *db) { taosRemoveDir(db); }
-
 TEST(TdbPageFlushTest, DISABLED_TbInsertTest) {
   // TEST(TdbPageFlushTest, TbInsertTest) {
-  // ofp inserting
   clearDb("tdb");
   insertOfp();
 }
