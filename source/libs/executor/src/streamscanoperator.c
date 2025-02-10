@@ -303,22 +303,35 @@ _end:
 // data
 static int32_t buildAndSaveRecalculateData(SSDataBlock* pSrcBlock, TSKEY* pTsCol, SColumnInfoData* pPkColDataInfo, int32_t num,
                                     SPartitionBySupporter* pParSup, SExprSupp* pPartScalarSup, SStateStore* pStateStore,
-                                    STableTsDataState* pTsDataState) {
+                                    STableTsDataState* pTsDataState, SSDataBlock* pDestBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t len = 0;
+  if (pParSup->needCalc) {
+    blockDataEnsureCapacity(pDestBlock, num * 2);
+  } else {
+    blockDataEnsureCapacity(pDestBlock, num);
+  }
+
   for (int32_t rowId = 0; rowId < num; rowId++) {
     len = copyRecDataToBuff(pTsCol[rowId], pTsCol[rowId], pSrcBlock->info.id.uid, pSrcBlock->info.version, STREAM_CLEAR,
                             NULL, 0, pTsDataState->pRecValueBuff, pTsDataState->recValueLen);
     SSessionKey key = {.win.skey = pTsCol[rowId], .win.ekey = pTsCol[rowId], .groupId = 0};
     code = pStateStore->streamStateSessionSaveToDisk(pTsDataState->pState, &key, pTsDataState->pRecValueBuff, len);
     QUERY_CHECK_CODE(code, lino, _end);
+    uint64_t gpId = 0;
+    code = appendPkToSpecialBlock(pDestBlock, pTsCol, pPkColDataInfo, rowId, &pSrcBlock->info.id.uid, &gpId, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+
     if (pParSup->needCalc) {
       key.groupId = calGroupIdByData(pParSup, pPartScalarSup, pSrcBlock, rowId);
       len = copyRecDataToBuff(pTsCol[rowId], pTsCol[rowId], pSrcBlock->info.id.uid, pSrcBlock->info.version,
                               STREAM_DELETE_DATA, NULL, 0, pTsDataState->pRecValueBuff,
                               pTsDataState->recValueLen);
       code = pStateStore->streamStateSessionSaveToDisk(pTsDataState->pState, &key, pTsDataState->pRecValueBuff, len);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      code = appendPkToSpecialBlock(pDestBlock, pTsCol, pPkColDataInfo, rowId, &pSrcBlock->info.id.uid, &gpId, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -473,13 +486,8 @@ static int32_t doStreamWALScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
                 ", block start key:%" PRId64 ", end key:%" PRId64,
                 GET_TASKID(pTaskInfo), num, pInfo->pRes->info.id.uid, curTs, pInfo->pRes->info.window.skey,
                 pInfo->pRes->info.window.ekey);
-          if (isHistoryOperator(&pInfo->basic)) {
-            code = buildAndSaveRecalculateData(pInfo->pRes, (TSKEY*)pTsCol->pData, pPkColDataInfo, num, &pInfo->partitionSup,
-                                        pInfo->pPartScalarSup, &pInfo->stateStore, pInfo->basic.pTsDataState);
-          } else {
-            code = buildRecalculateData(pInfo->pRes, (TSKEY*)pTsCol->pData, pPkColDataInfo, pInfo->pUpdateRes, num,
-                                        &pInfo->partitionSup, pInfo->pPartScalarSup);
-          }
+          code = buildAndSaveRecalculateData(pInfo->pRes, (TSKEY*)pTsCol->pData, pPkColDataInfo, num, &pInfo->partitionSup,
+                                             pInfo->pPartScalarSup, &pInfo->stateStore, pInfo->basic.pTsDataState, pInfo->pUpdateRes);
           QUERY_CHECK_CODE(code, lino, _end);
           code = blockDataTrimFirstRows(pInfo->pRes, num);
           QUERY_CHECK_CODE(code, lino, _end);

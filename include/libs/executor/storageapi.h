@@ -444,7 +444,7 @@ typedef struct SStateStore {
   int32_t (*streamStateCountGetKeyByRange)(SStreamState* pState, const SSessionKey* range, SSessionKey* curKey);
   int32_t (*streamStateSessionAllocWinBuffByNextPosition)(SStreamState* pState, SStreamStateCur* pCur,
                                                           const SSessionKey* pKey, void** pVal, int32_t* pVLen);
-  int32_t (*streamStateSessionSaveToDisk)(SStreamState* pState, SSessionKey* pKey, void* pVal, int32_t vLen);
+  int32_t (*streamStateSessionSaveToDisk)(SStreamState* pState, SSessionKey* pKey, SRecDataInfo* pVal, int32_t vLen);
   int32_t (*streamStateSessionDeleteAll)(SStreamState* pState);
 
   int32_t (*streamStateCountWinAddIfNotExist)(SStreamState* pState, SSessionKey* pKey, COUNT_TYPE winCount,
