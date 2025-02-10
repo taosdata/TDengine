@@ -2248,18 +2248,17 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
   }
 
   if (TSDB_CODE_SUCCESS == code && !pCxt->isStmtBind) {
-    SRow*      pRow = taosArrayGet(pTableCxt->pData->aRowP, 0);
-    SBlobRow2* pBlowRow = taosArrayGet(pTableCxt->pData->aBlowRow, 0);
+    SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
     if (schemaHasBlob(pTableCxt->pSchema)) {
-      code = tRowBuild2(pTableCxt->pValues, pTableCxt->pSchema, &pRow, &pBlowRow);
+      SBlobRow2** pBlowRow = taosArrayReserve(pTableCxt->pData->aBlobRow, 1);
+      code = tRowBuild2(pTableCxt->pValues, pTableCxt->pSchema, pRow, pBlowRow);
     } else {
-      SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
       code = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
-      if (TSDB_CODE_SUCCESS == code) {
-        SRowKey key;
-        tRowGetKey(*pRow, &key);
-        insCheckTableDataOrder(pTableCxt, &key);
-      }
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      SRowKey key;
+      tRowGetKey(*pRow, &key);
+      insCheckTableDataOrder(pTableCxt, &key);
     }
   }
 

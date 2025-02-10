@@ -210,6 +210,9 @@ int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData);
 int32_t tEncodeRow(SEncoder *pEncoder, SRow *pRow);
 int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow);
 
+int32_t tEncodeBlobRow2(SEncoder *pEncoder, SBlobRow2 *pRow);
+int32_t tDecodeBlobRow2(SDecoder *pDecoder, SBlobRow2 **pBlobRow);
+
 // STRUCT ================================
 struct STColumn {
   col_id_t colId;

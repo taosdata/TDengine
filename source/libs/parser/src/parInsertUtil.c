@@ -294,7 +294,10 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
           code = terrno;
         }
 
-        pTableCxt->pData->aRowP = taosArrayInit(128, POINTER_BYTES);
+        pTableCxt->pData->aBlobRow = taosArrayInit(128, POINTER_BYTES);
+        if (NULL == pTableCxt->pData->aBlobRow) {
+          code = terrno;
+        }
       }
     }
   }
@@ -337,6 +340,13 @@ static int32_t rebuildTableData(SSubmitTbData* pSrc, SSubmitTbData** pDst) {
         pTmp->aRowP = taosArrayInit(128, POINTER_BYTES);
         if (NULL == pTmp->aRowP) {
           code = terrno;
+          taosMemoryFree(pTmp);
+        }
+
+        pTmp->aBlobRow = taosArrayInit(128, POINTER_BYTES);
+        if (NULL == pTmp->aBlobRow) {
+          code = terrno;
+          taosArrayDestroy(pTmp->aRowP);
           taosMemoryFree(pTmp);
         }
       }
