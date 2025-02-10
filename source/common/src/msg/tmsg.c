@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tmsg.h"
 #include "tglobal.h"
+#include "tmsg.h"
 
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
@@ -1432,6 +1432,8 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pload->learnerProgress));
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->roleTimeMs));
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->startTimeMs));
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->syncAppliedIndex));
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->syncCommitIndex));
   }
 
   // mnode loads
@@ -1542,6 +1544,8 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &vload.learnerProgress));
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &vload.roleTimeMs));
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &vload.startTimeMs));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &vload.syncAppliedIndex));
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &vload.syncCommitIndex));
     if (taosArrayPush(pReq->pVloads, &vload) == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }

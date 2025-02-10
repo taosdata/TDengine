@@ -540,6 +540,8 @@ static bool mndUpdateVnodeState(int32_t vgId, SVnodeGid *pGid, SVnodeLoad *pVloa
   bool roleChanged = pGid->syncState != pVload->syncState ||
                      (pVload->syncTerm != -1 && pGid->syncTerm != pVload->syncTerm) ||
                      pGid->roleTimeMs != pVload->roleTimeMs;
+  pGid->syncAppliedIndex = pVload->syncAppliedIndex;
+  pGid->syncCommitIndex = pVload->syncCommitIndex;
   if (roleChanged || pGid->syncRestore != pVload->syncRestore || pGid->syncCanRead != pVload->syncCanRead ||
       pGid->startTimeMs != pVload->startTimeMs) {
     mInfo(
