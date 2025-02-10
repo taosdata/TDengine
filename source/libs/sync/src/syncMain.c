@@ -422,13 +422,11 @@ int32_t syncSendTimeoutRsp(int64_t rid, int64_t seq) {
 SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode) {
   SyncIndex minMatchIndex = SYNC_INDEX_INVALID;
 
-  if (pSyncNode->peersNum > 0) {
-    minMatchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[0]));
-  }
-
-  for (int32_t i = 1; i < pSyncNode->peersNum; ++i) {
+  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
     SyncIndex matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[i]));
-    if (matchIndex < minMatchIndex) {
+    if (minMatchIndex == SYNC_INDEX_INVALID) {
+      minMatchIndex = matchIndex;
+    } else if (matchIndex > 0 && matchIndex < minMatchIndex) {
       minMatchIndex = matchIndex;
     }
   }
@@ -3430,7 +3428,8 @@ _out:;
            ths->pLogBuf->matchIndex, ths->pLogBuf->endIndex);
 
   if (code == 0 && ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
-    TAOS_CHECK_RETURN(syncNodeUpdateAssignedCommitIndex(ths, matchIndex));
+    int64_t index = syncNodeUpdateAssignedCommitIndex(ths, matchIndex);
+    sTrace("vgId:%d, update assigned commit index %" PRId64 "", ths->vgId, index);
 
     if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
         syncLogBufferCommit(ths->pLogBuf, ths, ths->assignedCommitIndex) < 0) {

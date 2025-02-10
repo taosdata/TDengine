@@ -16,10 +16,14 @@
 #include "executorInt.h"
 #include "filter.h"
 #include "function.h"
+#include "nodes.h"
 #include "operator.h"
 #include "os.h"
+#include "plannodes.h"
+#include "query.h"
 #include "querynodes.h"
 #include "querytask.h"
+#include "tarray.h"
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "thash.h"
@@ -901,10 +905,31 @@ static int32_t seqJoinLaunchNewRetrieve(SOperatorInfo* pOperator, SSDataBlock** 
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE void seqStableJoinComposeRes(SStbJoinDynCtrlInfo* pStbJoin, SSDataBlock* pBlock) {
-  if (pBlock != NULL) {
-    pBlock->info.id.blockId = pStbJoin->outputBlkId;
+static int32_t seqStableJoinComposeRes(SStbJoinDynCtrlInfo* pStbJoin, SSDataBlock* pBlock) {
+  if (pBlock) {
+    if (pStbJoin && pStbJoin->pOutputDataBlockDesc) {
+      pBlock->info.id.blockId = pStbJoin->pOutputDataBlockDesc->dataBlockId;
+      if (!pBlock->pDataBlock) return TSDB_CODE_SUCCESS;
+
+      for (int i = pBlock->pDataBlock->size; i < pStbJoin->pOutputDataBlockDesc->pSlots->length; i++) {
+        SSlotDescNode* pSlot = (SSlotDescNode*)nodesListGetNode(pStbJoin->pOutputDataBlockDesc->pSlots, i);
+        if (pSlot == NULL) {
+          qError("seqStableJoinComposeRes: pSlot is NULL, i:%d", i);
+          return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        }
+        SColumnInfoData colInfo = createColumnInfoData(pSlot->dataType.type, pSlot->dataType.bytes, pSlot->slotId);
+        colInfoDataEnsureCapacity(&colInfo, pBlock->info.rows, true);
+        int32_t code = blockDataAppendColInfo(pBlock, &colInfo);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+      }
+    } else {
+      qError("seqStableJoinComposeRes: pBlock or pStbJoin is NULL");
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t seqStableJoin(SOperatorInfo* pOperator, SSDataBlock** pRes) {
@@ -947,7 +972,7 @@ _return:
     pOperator->pTaskInfo->code = code;
     T_LONG_JMP(pOperator->pTaskInfo->env, code);
   } else {
-    seqStableJoinComposeRes(pStbJoin, *pRes);
+    code = seqStableJoinComposeRes(pStbJoin, *pRes);
   }
   return code;
 }
@@ -1011,7 +1036,7 @@ int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numO
   switch (pInfo->qType) {
     case DYN_QTYPE_STB_HASH:
       TAOS_MEMCPY(&pInfo->stbJoin.basic, &pPhyciNode->stbJoin, sizeof(pPhyciNode->stbJoin));
-      pInfo->stbJoin.outputBlkId = pPhyciNode->node.pOutputDataBlockDesc->dataBlockId;
+      pInfo->stbJoin.pOutputDataBlockDesc = pPhyciNode->node.pOutputDataBlockDesc;
       code = initSeqStbJoinTableHash(&pInfo->stbJoin.ctx.prev, pInfo->stbJoin.basic.batchFetch);
       if (TSDB_CODE_SUCCESS != code) {
         goto _error;

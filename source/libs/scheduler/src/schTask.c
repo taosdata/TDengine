@@ -273,18 +273,18 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
       if (taskDone < pTask->level->taskNum) {
         SCH_TASK_DLOG("wait all tasks, done:%d, all:%d", taskDone, pTask->level->taskNum);
         return TSDB_CODE_SUCCESS;
-      } else if (taskDone > pTask->level->taskNum) {
-        SCH_TASK_ELOG("taskDone number invalid, done:%d, total:%d", taskDone, pTask->level->taskNum);
       }
+      
+      SCH_TASK_DLOG("taskDone number reach level task number, done:%d, total:%d", taskDone, pTask->level->taskNum);
 
       if (pTask->level->taskFailed > 0) {
         SCH_RET(schHandleJobFailure(pJob, pJob->errCode));
-      } else {
-        SCH_RET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_PART_SUCC, NULL));
       }
-    } else {
-      pJob->resNode = pTask->succeedAddr;
+
+      SCH_RET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_PART_SUCC, NULL));
     }
+    
+    pJob->resNode = pTask->succeedAddr;
 
     pJob->fetchTask = pTask;
 
@@ -600,12 +600,12 @@ int32_t schPushTaskToExecList(SSchJob *pJob, SSchTask *pTask) {
   int32_t code = taosHashPut(pJob->execTasks, &pTask->taskId, sizeof(pTask->taskId), &pTask, POINTER_BYTES);
   if (0 != code) {
     if (HASH_NODE_EXIST(code)) {
-      SCH_TASK_DLOG("task already in execTask list, code:%x", code);
+      SCH_TASK_DLOG("task already in execTask list, code:0x%x", code);
       return TSDB_CODE_SUCCESS;
     }
 
-    SCH_TASK_ELOG("taosHashPut task to execTask list failed, errno:0x%x", errno);
-    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCH_TASK_ELOG("taosHashPut task to execTask list failed, code:0x%x", code);
+    SCH_ERR_RET(code);
   }
 
   SCH_TASK_DLOG("task added to execTask list, numOfTasks:%d", taosHashGetSize(pJob->execTasks));
@@ -800,11 +800,6 @@ int32_t schSetAddrsFromNodeList(SSchJob *pJob, SSchTask *pTask) {
 
     for (int32_t i = 0; i < nodeNum; ++i) {
       SQueryNodeLoad *nload = taosArrayGet(pJob->nodeList, i);
-      if (NULL == nload) {
-        SCH_TASK_ELOG("fail to get the %dth node in nodeList, nodeNum:%d", i, nodeNum);
-        SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
-      }
-
       SQueryNodeAddr *naddr = &nload->addr;
 
       if (NULL == taosArrayPush(pTask->candidateAddrs, naddr)) {

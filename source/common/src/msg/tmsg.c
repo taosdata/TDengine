@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tglobal.h"
 #include "tmsg.h"
+#include "tglobal.h"
 
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
@@ -9963,6 +9963,16 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   }
 
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->smaId));
+
+  int32_t addrSize = taosArrayGetSize(pReq->pNotifyAddrUrls);
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, addrSize));
+  for (int32_t i = 0; i < addrSize; ++i) {
+    const char *url = taosArrayGetP(pReq->pNotifyAddrUrls, i);
+    TAOS_CHECK_EXIT((tEncodeCStr(&encoder, url)));
+  }
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->notifyEventTypes));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->notifyErrorHandle));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->notifyHistory));
   tEndEncode(&encoder);
 
 _exit:
@@ -10097,6 +10107,30 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->smaId));
   }
 
+  if (!tDecodeIsEnd(&decoder)) {
+    int32_t addrSize = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &addrSize));
+    pReq->pNotifyAddrUrls = taosArrayInit(addrSize, POINTER_BYTES);
+    if (pReq->pNotifyAddrUrls == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i < addrSize; ++i) {
+      char *url = NULL;
+      TAOS_CHECK_EXIT(tDecodeCStr(&decoder, &url));
+      url = taosStrndup(url, TSDB_STREAM_NOTIFY_URL_LEN);
+      if (url == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      if (taosArrayPush(pReq->pNotifyAddrUrls, &url) == NULL) {
+        taosMemoryFree(url);
+        TAOS_CHECK_EXIT(terrno);
+      }
+    }
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->notifyEventTypes));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->notifyErrorHandle));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->notifyHistory));
+  }
+
   tEndDecode(&decoder);
 _exit:
   tDecoderClear(&decoder);
@@ -10159,6 +10193,7 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosArrayDestroy(pReq->fillNullCols);
   taosArrayDestroy(pReq->pVgroupVerList);
   taosArrayDestroy(pReq->pCols);
+  taosArrayDestroyP(pReq->pNotifyAddrUrls, NULL);
 }
 
 int32_t tEncodeSRSmaParam(SEncoder *pCoder, const SRSmaParam *pRSmaParam) {
@@ -11643,16 +11678,14 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
     TAOS_CHECK_EXIT(tEncodeU64v(pCoder, nColData));
 
     for (uint64_t i = 0; i < nColData; i++) {
-      pCoder->pos +=
-          tPutColData(SUBMIT_REQUEST_VERSION, pCoder->data ? pCoder->data + pCoder->pos : NULL, &aColData[i]);
+      TAOS_CHECK_EXIT(tEncodeColData(SUBMIT_REQUEST_VERSION, pCoder, &aColData[i]));
     }
   } else {
     TAOS_CHECK_EXIT(tEncodeU64v(pCoder, TARRAY_SIZE(pSubmitTbData->aRowP)));
 
     SRow **rows = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
     for (int32_t iRow = 0; iRow < TARRAY_SIZE(pSubmitTbData->aRowP); ++iRow) {
-      if (pCoder->data) memcpy(pCoder->data + pCoder->pos, rows[iRow], rows[iRow]->len);
-      pCoder->pos += rows[iRow]->len;
+      TAOS_CHECK_EXIT(tEncodeRow(pCoder, rows[iRow]));
     }
   }
   TAOS_CHECK_EXIT(tEncodeI64(pCoder, pSubmitTbData->ctimeMs));
@@ -11699,7 +11732,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
     }
 
     for (int32_t i = 0; i < nColData; ++i) {
-      pCoder->pos += tGetColData(version, pCoder->data + pCoder->pos, taosArrayReserve(pSubmitTbData->aCol, 1));
+      TAOS_CHECK_EXIT(tDecodeColData(version, pCoder, taosArrayReserve(pSubmitTbData->aCol, 1)));
     }
   } else {
     uint64_t nRow;
@@ -11716,8 +11749,7 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
         TAOS_CHECK_EXIT(terrno);
       }
 
-      *ppRow = (SRow *)(pCoder->data + pCoder->pos);
-      pCoder->pos += (*ppRow)->len;
+      TAOS_CHECK_EXIT(tDecodeRow(pCoder, ppRow));
     }
   }
 
@@ -12017,6 +12049,43 @@ int32_t tDeserializeSMResumeStreamReq(void *buf, int32_t bufLen, SMResumeStreamR
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->name));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igNotExists));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igUntreated));
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSMResetStreamReq(void *buf, int32_t bufLen, const SMResetStreamReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->name));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->igNotExists));
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMResetStreamReq(void *buf, int32_t bufLen, SMResetStreamReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+
+  tDecoderInit(&decoder, buf, bufLen);
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->name));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igNotExists));
   tEndDecode(&decoder);
 
 _exit:

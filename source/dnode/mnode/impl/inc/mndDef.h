@@ -134,6 +134,12 @@ typedef enum {
 } ETrnExec;
 
 typedef enum {
+  TRN_KILL_MODE_SKIP = 0,
+  TRN_KILL_MODE_INTERUPT = 1,
+  //TRN_KILL_MODE_ROLLBACK = 2,
+} ETrnKillMode;
+
+typedef enum {
   DND_REASON_ONLINE = 0,
   DND_REASON_STATUS_MSG_TIMEOUT,
   DND_REASON_STATUS_NOT_RECEIVED,
@@ -201,6 +207,8 @@ typedef struct {
   SRWLatch      lockRpcArray;
   int64_t       mTraceId;
   TdThreadMutex mutex;
+  bool          ableToBeKilled;
+  ETrnKillMode  killMode;
 } STrans;
 
 typedef struct {
@@ -330,12 +338,12 @@ typedef struct {
   };
 } SConfigObj;
 
-int32_t     tEncodeSConfigObj(SEncoder* pEncoder, const SConfigObj* pObj);
-int32_t     tDecodeSConfigObj(SDecoder* pDecoder, SConfigObj* pObj);
-SConfigObj* mndInitConfigObj(SConfigItem* pItem);
-SConfigObj* mndInitConfigVersion();
-int32_t     mndUpdateObj(SConfigObj* pObj, const char* name, char* value);
-void        tFreeSConfigObj(SConfigObj* obj);
+int32_t    tEncodeSConfigObj(SEncoder* pEncoder, const SConfigObj* pObj);
+int32_t    tDecodeSConfigObj(SDecoder* pDecoder, SConfigObj* pObj);
+int32_t    mndInitConfigObj(SConfigItem* pItem, SConfigObj* pObj);
+SConfigObj mndInitConfigVersion();
+int32_t    mndUpdateObj(SConfigObj* pObj, const char* name, char* value);
+void       tFreeSConfigObj(SConfigObj* obj);
 
 typedef struct {
   int32_t maxUsers;

@@ -915,8 +915,7 @@ int32_t streamResumeTask(SStreamTask* pTask) {
   while (1) {
     code = doStreamExecTask(pTask);
     if (code) {
-      stError("s-task:%s failed to exec stream task, code:%s", id, tstrerror(code));
-      return code;
+      stError("s-task:%s failed to exec stream task, code:%s, continue", id, tstrerror(code));
     }
     // check if continue
     streamMutexLock(&pTask->lock);

@@ -268,7 +268,7 @@ typedef struct SStoreMeta {
   const void* (*extractTagVal)(const void* tag, int16_t type, STagVal* tagVal);  // todo remove it
 
   int32_t (*getTableUidByName)(void* pVnode, char* tbName, uint64_t* uid);
-  int32_t (*getTableTypeByName)(void* pVnode, char* tbName, ETableType* tbType);
+  int32_t (*getTableTypeSuidByName)(void* pVnode, char* tbName, ETableType* tbType, uint64_t* suid);
   int32_t (*getTableNameByUid)(void* pVnode, uint64_t uid, char* tbName);
   bool (*isTableExisted)(void* pVnode, tb_uid_t uid);
 
@@ -389,7 +389,6 @@ typedef struct SStateStore {
   int32_t (*streamStateFillGetGroupKVByCur)(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
   int32_t (*streamStateGetKVByCur)(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
 
-  void (*streamStateSetFillInfo)(SStreamState* pState);
   void (*streamStateClearExpiredState)(SStreamState* pState);
 
   int32_t (*streamStateSessionAddIfNotExist)(SStreamState* pState, SSessionKey* key, TSKEY gap, void** pVal,
@@ -455,7 +454,6 @@ typedef struct SStateStore {
   int32_t (*streamStateBegin)(SStreamState* pState);
   void (*streamStateCommit)(SStreamState* pState);
   void (*streamStateDestroy)(SStreamState* pState, bool remove);
-  int32_t (*streamStateDeleteCheckPoint)(SStreamState* pState, TSKEY mark);
   void (*streamStateReloadInfo)(SStreamState* pState, TSKEY ts);
   void (*streamStateCopyBackend)(SStreamState* src, SStreamState* dst);
 } SStateStore;

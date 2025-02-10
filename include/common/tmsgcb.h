@@ -37,6 +37,7 @@ typedef enum {
   SYNC_RD_QUEUE,
   STREAM_QUEUE,
   ARB_QUEUE,
+  STREAM_CTRL_QUEUE,
   QUEUE_MAX,
 } EQueueType;
 

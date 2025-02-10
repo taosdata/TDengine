@@ -203,7 +203,9 @@ TEST_F(ParserInitialATest, alterDatabase) {
   setAlterDbWalRetentionPeriod(10);
   setAlterDbWalRetentionSize(20);
   run("ALTER DATABASE test BUFFER 16 CACHEMODEL 'last_row' CACHESIZE 32 WAL_FSYNC_PERIOD 200 KEEP 10 PAGES 128 "
-      "REPLICA 3 WAL_LEVEL 1 STT_TRIGGER 16 WAL_RETENTION_PERIOD 10 WAL_RETENTION_SIZE 20");
+      "REPLICA 3 WAL_LEVEL 1 "
+      "STT_TRIGGER 16 "
+      "WAL_RETENTION_PERIOD 10 WAL_RETENTION_SIZE 20");
   clearAlterDbReq();
 
   initAlterDb("test");
@@ -286,6 +288,7 @@ TEST_F(ParserInitialATest, alterDatabase) {
   run("ALTER DATABASE test REPLICA 3");
   clearAlterDbReq();
 
+#ifdef _STORAGE
   initAlterDb("test");
   setAlterDbSttTrigger(1);
   run("ALTER DATABASE test STT_TRIGGER 1");
@@ -294,6 +297,7 @@ TEST_F(ParserInitialATest, alterDatabase) {
   setAlterDbSttTrigger(16);
   run("ALTER DATABASE test STT_TRIGGER 16");
   clearAlterDbReq();
+#endif
 
   initAlterDb("test");
   setAlterDbMinRows(10);
@@ -335,9 +339,9 @@ TEST_F(ParserInitialATest, alterDatabaseSemanticCheck) {
   run("ALTER DATABASE test KEEP 1000000000s", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test KEEP 1w", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test PAGES 63", TSDB_CODE_PAR_INVALID_DB_OPTION);
-  //run("ALTER DATABASE test WAL_LEVEL 0", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  // run("ALTER DATABASE test WAL_LEVEL 0", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test WAL_LEVEL 3", TSDB_CODE_PAR_INVALID_DB_OPTION);
-  //run("ALTER DATABASE test REPLICA 2", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  // run("ALTER DATABASE test REPLICA 2", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test STT_TRIGGER 0", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test STT_TRIGGER 17", TSDB_CODE_PAR_INVALID_DB_OPTION);
   // Regardless of the specific sentence

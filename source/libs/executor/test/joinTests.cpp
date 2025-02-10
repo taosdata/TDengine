@@ -41,6 +41,7 @@
 #include "tvariant.h"
 #include "stub.h"
 #include "querytask.h"
+#include "hashjoin.h"
 
 
 namespace {
@@ -863,7 +864,11 @@ SSortMergeJoinPhysiNode* createDummySortMergeJoinPhysiNode(SJoinTestParam* param
     SLimitNode* limitNode = NULL;
     code = nodesMakeNode(QUERY_NODE_LIMIT, (SNode**)&limitNode);
     assert(limitNode);
-    limitNode->limit = param->jLimit;
+    code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&limitNode->limit);
+    assert(limitNode->limit);
+    limitNode->limit->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+    limitNode->limit->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    limitNode->limit->datum.i = param->jLimit;
     p->pJLimit = (SNode*)limitNode;
   }
   
@@ -3766,6 +3771,21 @@ TEST(leftWinJoin, noCondProjectionTest) {
 
 #endif
 
+#if 1
+TEST(functionsTest, branch) {
+  struct SOperatorInfo op = {0};
+  SHJoinOperatorInfo join;
+  SBufRowInfo bufrow = {0};
+  SSDataBlock blk = {0};
+
+  op.info = &join;
+  memset(&join, 0, sizeof(join));
+  join.ctx.pBuildRow = &bufrow;
+  blk.info.rows = 1;
+  join.finBlk = &blk;
+  hInnerJoinDo(&op);
+}
+#endif
 
 
 int main(int argc, char** argv) {

@@ -1645,7 +1645,6 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
         metaFetchEntryFree(&pOldEntry);
         return code;
       }
-      // TAOS_CHECK_RETURN(metaGetSubtables(pMeta, pEntry->uid, uids));
       TAOS_CHECK_RETURN(tsdbCacheNewSTableColumn(pTsdb, uids, cid, col_type));
     } else if (deltaCol == -1) {
       int16_t cid = -1;
@@ -1667,7 +1666,6 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
           metaFetchEntryFree(&pOldEntry);
           return code;
         }
-        // TAOS_CHECK_RETURN(metaGetSubtables(pMeta, pEntry->uid, uids));
         TAOS_CHECK_RETURN(tsdbCacheDropSTableColumn(pTsdb, uids, cid, hasPrimaryKey));
       }
     }
@@ -1916,4 +1914,13 @@ int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry) {
     metaErr(vgId, code);
   }
   TAOS_RETURN(code);
+}
+
+void metaHandleSyncEntry(SMeta *pMeta, const SMetaEntry *pEntry) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  code = metaHandleEntry2(pMeta, pEntry);
+  if (code) {
+    metaErr(TD_VID(pMeta->pVnode), code);
+  }
+  return;
 }

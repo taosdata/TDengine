@@ -16,6 +16,10 @@ IF(TD_WEBSOCKET)
             DEPENDS ${TAOS_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
+            UPDATE_COMMAND
+                COMMAND echo "Starting to switch branch"
+                COMMAND git fetch origin main && git checkout -f origin/main 
+                COMMAND echo "Switched to the main branch successfully"
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
@@ -35,6 +39,10 @@ IF(TD_WEBSOCKET)
             DEPENDS ${TAOS_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
+            UPDATE_COMMAND
+                COMMAND echo "Starting to switch branch"
+                COMMAND git fetch origin main && git checkout -f origin/main 
+                COMMAND echo "Switched to the main branch successfully"
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
@@ -55,6 +63,10 @@ IF(TD_WEBSOCKET)
             DEPENDS ${TAOS_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
+            UPDATE_COMMAND
+                COMMAND echo "Starting to switch branch"
+                COMMAND git fetch origin main && git checkout -f origin/main 
+                COMMAND echo "Switched to the main branch successfully"
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
@@ -251,7 +263,7 @@ IF(TD_BUILD_KEEPER)
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
-            COMMAND go build -a -ldflags "-X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}' -X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+            COMMAND go build -a -ldflags "-X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}' -X 'github.com/taosdata/taoskeeper/version.Gitinfo=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
             INSTALL_COMMAND
             COMMAND cmake -E echo "Comparessing taoskeeper.exe"
             COMMAND cmake -E time upx taoskeeper.exe
@@ -278,7 +290,7 @@ IF(TD_BUILD_KEEPER)
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
-            COMMAND go build -a -ldflags "-X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}' -X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+            COMMAND go build -a -ldflags "-X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}' -X 'github.com/taosdata/taoskeeper/version.Gitinfo=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
             INSTALL_COMMAND
             COMMAND cmake -E echo "Copy taoskeeper"
             COMMAND cmake -E copy taoskeeper ${CMAKE_BINARY_DIR}/build/bin

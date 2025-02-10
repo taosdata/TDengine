@@ -34,6 +34,9 @@ extern "C" {
 #define GLOBAL_CONFIG_FILE_VERSION 1
 #define LOCAL_CONFIG_FILE_VERSION  1
 
+#define RPC_MEMORY_USAGE_RATIO   0.1
+#define QUEUE_MEMORY_USAGE_RATIO 0.6
+
 typedef enum {
   DND_CA_SM4 = 1,
 } EEncryptAlgor;
@@ -110,11 +113,11 @@ extern int32_t tsNumOfQnodeFetchThreads;
 extern int32_t tsNumOfSnodeStreamThreads;
 extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsQueueMemoryAllowed;
+extern int64_t tsApplyMemoryAllowed;
 extern int32_t tsRetentionSpeedLimitMB;
 
-extern const char *tsAlterCompactTaskKeywords;
-extern int32_t     tsNumOfCompactThreads;
-extern int32_t     tsNumOfRetentionThreads;
+extern int32_t tsNumOfCompactThreads;
+extern int32_t tsNumOfRetentionThreads;
 
 // sync raft
 extern int32_t tsElectInterval;
@@ -291,7 +294,6 @@ extern int     tsStreamAggCnt;
 extern bool    tsFilterScalarMode;
 extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
-extern int32_t tsResolveFQDNRetryTime;
 extern bool    tsStreamCoverage;
 extern int8_t  tsS3EpNum;
 
