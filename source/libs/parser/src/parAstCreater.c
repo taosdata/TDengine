@@ -1287,14 +1287,14 @@ _err:
   return NULL;
 }
 
-SNode* createLimitNode(SAstCreateContext* pCxt, const SToken* pLimit, const SToken* pOffset) {
+SNode* createLimitNode(SAstCreateContext* pCxt, SNode* pLimit, SNode* pOffset) {
   CHECK_PARSER_STATUS(pCxt);
   SLimitNode* limitNode = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_LIMIT, (SNode**)&limitNode);
   CHECK_MAKE_NODE(limitNode);
-  limitNode->limit = taosStr2Int64(pLimit->z, NULL, 10);
+  limitNode->limit = (SValueNode*)pLimit;
   if (NULL != pOffset) {
-    limitNode->offset = taosStr2Int64(pOffset->z, NULL, 10);
+    limitNode->offset = (SValueNode*)pOffset;
   }
   return (SNode*)limitNode;
 _err:

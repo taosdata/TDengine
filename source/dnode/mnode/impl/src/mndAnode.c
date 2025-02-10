@@ -637,6 +637,32 @@ static void mndCancelGetNextAnode(SMnode *pMnode, void *pIter) {
   sdbCancelFetchByType(pSdb, pIter, SDB_ANODE);
 }
 
+// todo handle multiple anode case, remove the duplicate algos
+void mndRetrieveAlgoList(SMnode* pMnode, SArray* pFc, SArray* pAd) {
+  SSdb      *pSdb = pMnode->pSdb;
+  void      *pIter = NULL;
+  SAnodeObj *pObj = NULL;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_ANODE, pIter, (void **)&pObj);
+    if (pIter == NULL) {
+      break;
+    }
+
+    if (pObj->numOfAlgos >= ANAL_ALGO_TYPE_END) {
+      if (pObj->algos[ANAL_ALGO_TYPE_ANOMALY_DETECT] != NULL) {
+        taosArrayAddAll(pAd, pObj->algos[ANAL_ALGO_TYPE_ANOMALY_DETECT]);
+      }
+
+      if (pObj->algos[ANAL_ALGO_TYPE_FORECAST] != NULL) {
+        taosArrayAddAll(pFc, pObj->algos[ANAL_ALGO_TYPE_FORECAST]);
+      }
+    }
+
+    sdbRelease(pSdb, pObj);
+  }
+}
+
 static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode    *pMnode = pReq->info.node;
   SSdb      *pSdb = pMnode->pSdb;
@@ -661,7 +687,7 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
         if (code != 0) goto _end;
 
-        STR_TO_VARSTR(buf, taosAnalAlgoStr(t));
+        STR_TO_VARSTR(buf, taosAnalysisAlgoType(t));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
@@ -900,5 +926,6 @@ int32_t mndInitAnode(SMnode *pMnode) {
 }
 
 void mndCleanupAnode(SMnode *pMnode) {}
+void mndRetrieveAlgoList(SMnode *pMnode, SArray *pFc, SArray *pAd) {}
 
 #endif

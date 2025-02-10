@@ -41,33 +41,31 @@ func (s *sysMonitor) collect() {
 	}
 
 	s.Lock()
+	defer s.Unlock()
+
 	for output := range s.outputs {
 		select {
 		case output <- *s.status:
 		default:
 		}
 	}
-	s.Unlock()
 }
 
 func (s *sysMonitor) Register(c chan<- SysStatus) {
 	s.Lock()
+	defer s.Unlock()
 	if s.outputs == nil {
-		s.outputs = map[chan<- SysStatus]struct{}{
-			c: {},
-		}
-	} else {
-		s.outputs[c] = struct{}{}
+		s.outputs = map[chan<- SysStatus]struct{}{}
 	}
-	s.Unlock()
+	s.outputs[c] = struct{}{}
 }
 
 func (s *sysMonitor) Deregister(c chan<- SysStatus) {
 	s.Lock()
+	defer s.Unlock()
 	if s.outputs != nil {
 		delete(s.outputs, c)
 	}
-	s.Unlock()
 }
 
 var SysMonitor = &sysMonitor{status: &SysStatus{}}
