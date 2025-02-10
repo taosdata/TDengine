@@ -1100,4 +1100,107 @@ mod tests {
         assert_eq!("tmq", dsv.data_source);
         assert_eq!("failed to check dsn: tmq+ws://192.168.1.92:6041/non_exist_topic?group.id=test_tmq_is_valid, cause: unknown topic name: non_exist_topic", dsv.message.unwrap());
     }
+
+    async fn drop_topic_and_database(taos: &Taos, topic: &str, database: &str) {
+        let _ = taos.exec(format!("drop topic if exists {}", topic)).await;
+        let _ = taos
+            .exec(format!("drop database if exists {}", database))
+            .await;
+    }
+
+    #[tokio::test]
+    async fn test_create_topic_no_wal() {
+        let taos_builder = taos::TaosBuilder::from_dsn("taos://").unwrap();
+        let taos = taos_builder.build().await.unwrap();
+
+        // create a database without wal, drop it first if exists
+        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
+        let _ = taos
+            .exec("create database if not exists test_no_wal WAL_RETENTION_PERIOD 0")
+            .await;
+
+        // create a topic, there should be an error
+        let create_topic_res = taos
+            .exec("create topic if not exists test_no_wal with meta as database test_no_wal")
+            .await;
+
+        // clear the test data
+        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
+
+        // assert the result
+        assert!(create_topic_res.is_err());
+        assert_eq!(
+            create_topic_res.unwrap_err().to_string(),
+            "[0x038C] Error while querying with sql \"create topic if not exists test_no_wal with meta as database test_no_wal\": Internal error: `WAL retention period is zero`"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_alter_database_no_wal() {
+        let taos_builder = taos::TaosBuilder::from_dsn("taos://").unwrap();
+        let taos = taos_builder.build().await.unwrap();
+
+        // create a database, drop it first if exists
+        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
+        let _ = taos.exec("create database if not exists test_no_wal").await;
+
+        // create a topic
+        let _ = taos
+            .exec("create topic if not exists test_no_wal with meta as database test_no_wal")
+            .await;
+
+        // alter database to disable wal, there should be an error
+        let alter_database_res = taos
+            .exec("alter database test_no_wal wal_retention_period 0")
+            .await;
+
+        // clear the test data
+        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
+
+        // assert the result
+        assert!(alter_database_res.is_err());
+        assert_eq!(
+            alter_database_res.unwrap_err().to_string(),
+            "[0x038C] Error while querying with sql \"alter database test_no_wal wal_retention_period 0\": Internal error: `WAL retention period is zero`"
+        );
+    }
+
+    /// Test `check_wal_enabled` function
+    ///
+    /// only test the normal case, the error case is tested in `test_create_topic_no_wal` and `test_alter_database_no_wal`
+    ///
+    #[tokio::test]
+    async fn test_check_wal_enabled() {
+        let taos_builder = taos::TaosBuilder::from_dsn("taos://").unwrap();
+        let taos = taos_builder.build().await.unwrap();
+
+        // create a database, drop it first if exists
+        drop_topic_and_database(&taos, "test_with_wal", "test_with_wal").await;
+        let _ = taos
+            .exec("create database if not exists test_with_wal")
+            .await;
+
+        // create a topic
+        let _ = taos
+            .exec("create topic if not exists test_with_wal with meta as database test_with_wal")
+            .await;
+
+        // check if wal is enabled
+        let topics = vec![Topic {
+            name: "test_with_wal".to_string(),
+            database: "test_with_wal".to_string(),
+            database_sql: None,
+            vgroups: 2,
+            table: None,
+            use_table_name: None,
+            topic_type: TopicType::DatabaseWithMeta,
+        }];
+        let res = check_wal_enabled(&taos_builder, &topics).await;
+
+        // clear the test data
+        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
+
+        // assert the result
+        assert!(res.is_ok());
+    }
 }
