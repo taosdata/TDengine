@@ -27,6 +27,10 @@ typedef struct _UInt128 {
   uint64_t high;
 } _UInt128;
 
+typedef struct Int256 {
+  char data[32];
+} Int256;
+
 // TODO wjm use cmake to check if the compiler supports __int128_t
 #if defined(__GNUC__) || defined(__clang__)
 // #if 0
