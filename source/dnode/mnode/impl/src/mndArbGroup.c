@@ -1355,19 +1355,27 @@ static int32_t mndRetrieveArbGroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     mInfo("vgId:%d, arb group sync:%d, code:%d, update time:%" PRId64, pGroup->vgId, pGroup->isSync, pGroup->code,
           pGroup->updateTimeMs);
 
-    char strSync[100] = {0};
-    char bufUpdateTime[40] = {0};
-    (void)formatTimestamp(bufUpdateTime, pGroup->updateTimeMs, TSDB_TIME_PRECISION_MILLI);
+    char strSync[6] = {0};
     if (pGroup->isSync == 1) {
-      tsnprintf(strSync, 100, "true(code:%d,%s)", pGroup->code, bufUpdateTime);
+      tsnprintf(strSync, 6, "true");
     } else {
-      tsnprintf(strSync, 100, "false(code:%d,%s)", 100, pGroup->code, bufUpdateTime);
+      tsnprintf(strSync, 6, "false");
     }
 
     char sync[100 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(sync, strSync, 100 + VARSTR_HEADER_SIZE);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)sync, false), pGroup, &lino, _OVER);
+
+    char strCheckSyncCode[100] = {0};
+    char bufUpdateTime[40] = {0};
+    (void)formatTimestamp(bufUpdateTime, pGroup->updateTimeMs, TSDB_TIME_PRECISION_MILLI);
+    tsnprintf(strCheckSyncCode, 100, "%d(%s)", pGroup->code, bufUpdateTime);
+
+    char checkSyncCode[100 + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(checkSyncCode, strCheckSyncCode, 100 + VARSTR_HEADER_SIZE);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)checkSyncCode, false), pGroup, &lino, _OVER);
 
     if (pGroup->assignedLeader.dnodeId != 0) {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
