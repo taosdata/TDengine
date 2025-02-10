@@ -2368,7 +2368,7 @@ void taskDbInitOpt(STaskDbWrapper* pTaskDb) {
   rocksdb_options_set_max_bytes_for_level_multiplier(opts, 20);
   rocksdb_options_set_target_file_size_base(opts, 512 << 20);
   rocksdb_options_set_level_compaction_dynamic_level_bytes(opts, 1);
-  // rocksdb_options_set_compression(opts, rocksdb_lz4_compression);
+  rocksdb_options_set_compression(opts, rocksdb_snappy_compression);
 
   pTaskDb->dbOpt = opts;
   pTaskDb->env = env;

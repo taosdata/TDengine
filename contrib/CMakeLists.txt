@@ -385,6 +385,7 @@ if(${BUILD_WITH_ROCKSDB})
         option(PORTABLE "" ON)
         option(WITH_LIBURING "" OFF)
         option(FAIL_ON_WARNINGS OFF)
+        option(WITH_SNAPPY ON)
 
         option(WITH_TESTS "" OFF)
         option(WITH_BENCHMARK_TOOLS "" OFF)
