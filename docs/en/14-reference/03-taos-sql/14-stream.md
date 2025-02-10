@@ -11,7 +11,7 @@ import imgStream from './assets/stream-processing-01.png';
 ```sql
 CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery
 stream_options: {
- TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
+ TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time | FORCE_WINDOW_CLOSE]
  WATERMARK      time
  IGNORE EXPIRED [0|1]
  DELETE_MARK    time
@@ -57,6 +57,10 @@ window_clause: {
 ```
 
 Where SESSION is a session window, tol_val is the maximum range of the time interval. All data within the tol_val time interval belong to the same window. If the time between two consecutive data points exceeds tol_val, the next window automatically starts. The window's_wend equals the last data point's time plus tol_val.
+
+STATE_WINDOW is a state window. The col is used to identify the state value. Values with the same state value belong to the same state window. When the value of col changes, the current window ends and the next window is automatically opened.
+
+INTERVAL is a time window, which can be further divided into sliding time windows and tumbling time windows.The INTERVAL clause is used to specify the equal time period of the window, and the SLIDING clause is used to specify the time by which the window slides forward. When the value of interval_val is equal to the value of sliding_val, the time window is a tumbling time window; otherwise, it is a sliding time window. Note: The value of sliding_val must be less than or equal to the value of interval_val.
 
 EVENT_WINDOW is an event window, defined by start and end conditions. The window starts when the start_trigger_condition is met and closes when the end_trigger_condition is met. start_trigger_condition and end_trigger_condition can be any condition expression supported by TDengine and can include different columns.
 

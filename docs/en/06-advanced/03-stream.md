@@ -26,7 +26,7 @@ CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name
 SUBTABLE(expression) AS subquery
 
 stream_options: {
- TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
+ TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time | FORCE_WINDOW_CLOSE]
  WATERMARK      time
  IGNORE EXPIRED [0|1]
  DELETE_MARK    time
