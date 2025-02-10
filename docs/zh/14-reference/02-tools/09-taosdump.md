@@ -9,11 +9,7 @@ taosdump 是为开源用户提供的 TDengine 数据备份/恢复工具，备份
 
 ## 安装
 
-taosdump 提供两种安装方式:
-
-- taosdump 是 TDengine 安装包中默认安装组件，安装 TDengine 后即可使用，可参考[TDengine 安装](../../../get-started/)
-
-- 单独编译 taos-tools 并安装, 参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
+taosdump 是 TDengine 安装包中默认安装组件，安装 TDengine 后即可使用，可参考 [TDengine 安装](../../../get-started/)
 
 
 ## 常用使用场景

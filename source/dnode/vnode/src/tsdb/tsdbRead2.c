@@ -978,6 +978,10 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
     if (pRecord->firstKey.key.ts > w.ekey || pRecord->lastKey.key.ts < w.skey) {
       continue;
     }
+    // The data block's time range must intersect with the query time range
+    if (pRecord->firstKey.key.ts > pReader->info.window.ekey || pRecord->lastKey.key.ts < pReader->info.window.skey) {
+      continue;
+    }
 
     if (asc) {
       if (pkCompEx(&pRecord->lastKey.key, &pScanInfo->lastProcKey) <= 0) {
