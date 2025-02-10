@@ -34,7 +34,6 @@ static void mndArbGroupDupObj(SArbGroup *pGroup, SArbGroup *pNew);
 static void mndArbGroupSetAssignedLeader(SArbGroup *pGroup, int32_t index);
 static void mndArbGroupResetAssignedLeader(SArbGroup *pGroup);
 
-// static int32_t mndArbGroupUpdateTrans(SMnode *pMnode, SArbGroup *pNew);
 static int32_t mndUpdateArbGroup(SMnode *pMnode, SArbGroup *pNewGroup);
 static int32_t mndBatchUpdateArbGroup(SMnode *pMnode, SArray *newGroupArray);
 
@@ -963,39 +962,6 @@ static void mndArbGroupResetAssignedLeader(SArbGroup *pGroup) {
   pGroup->assignedLeader.acked = false;
 }
 
-// static int32_t mndArbGroupUpdateTrans(SMnode *pMnode, SArbGroup *pNew) {
-//   int32_t code = -1;
-//   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_ARBGROUP, NULL, "update-arbgroup");
-//   if (pTrans == NULL) {
-//     mError("failed to update arbgroup in create trans, vgId:%d, since %s", pNew->vgId, terrstr());
-//     if (terrno != 0) code = terrno;
-//     goto _OVER;
-//   }
-
-//   mInfo("trans:%d, used to update arbgroup:%d, member0:[%d][%s] member1:[%d][%s] isSync:%d assigned:[%d][%s][%d]",
-//         pTrans->id, pNew->vgId, pNew->members[0].info.dnodeId, pNew->members[0].state.token,
-//         pNew->members[1].info.dnodeId, pNew->members[1].state.token, pNew->isSync, pNew->assignedLeader.dnodeId,
-//         pNew->assignedLeader.token, pNew->assignedLeader.acked);
-
-//   mndTransAddArbGroupId(pTrans, pNew->vgId);
-//   if ((code = mndTransCheckConflict(pMnode, pTrans)) != 0) {
-//     goto _OVER;
-//   }
-
-//   if ((code = mndSetCreateArbGroupCommitLogs(pTrans, pNew)) != 0) {
-//     mError("failed to update arbgroup in set commit log, vgId:%d, since %s", pNew->vgId, tstrerror(code));
-//     goto _OVER;
-//   }
-
-//   if ((code = mndTransPrepare(pMnode, pTrans)) != 0) goto _OVER;
-
-//   code = 0;
-
-// _OVER:
-//   mndTransDrop(pTrans);
-//   return code;
-// }
-
 bool mndCheckArbGroupByHeartBeat(SArbGroup *pGroup, SVArbHbRspMember *pRspMember, int64_t nowMs, int32_t dnodeId,
                                  SArbGroup *pNewGroup) {
   bool             updateToken = false;
@@ -1392,15 +1358,16 @@ static int32_t mndRetrieveArbGroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     char strSync[100] = {0};
     char bufUpdateTime[40] = {0};
     (void)formatTimestamp(bufUpdateTime, pGroup->updateTimeMs, TSDB_TIME_PRECISION_MILLI);
-    sprintf(strSync, "%d,%d,%s", pGroup->isSync, pGroup->code, bufUpdateTime);
+    if (pGroup->isSync == 1) {
+      tsnprintf(strSync, 100, "true(code:%d,%s)", pGroup->code, bufUpdateTime);
+    } else {
+      tsnprintf(strSync, 100, "false(code:%d,%s)", 100, pGroup->code, bufUpdateTime);
+    }
+
     char sync[100 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(sync, strSync, 100 + VARSTR_HEADER_SIZE);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)sync, false), pGroup, &lino, _OVER);
-
-    // pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    // RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)&pGroup->code, false), pGroup, &lino,
-    // _OVER);
 
     if (pGroup->assignedLeader.dnodeId != 0) {
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
