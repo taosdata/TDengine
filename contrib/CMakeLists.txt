@@ -205,9 +205,18 @@ ENDIF()
 # download dependencies
 configure_file(${CONTRIB_TMP_FILE} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
 execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
-    WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
+    WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download"
+    RESULT_VARIABLE result)
+IF(NOT result EQUAL "0")
+    message(FATAL_ERROR "CMake step for dowloading dependencies failed: ${result}")
+ENDIF()
+
 execute_process(COMMAND "${CMAKE_COMMAND}" --build .
-    WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
+    WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download"
+    RESULT_VARIABLE result)
+IF(NOT result EQUAL "0")
+    message(FATAL_ERROR "CMake step for building dependencies failed: ${result}")
+ENDIF()
 
 # ================================================================================================
 # Build

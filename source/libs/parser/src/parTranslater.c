@@ -4757,16 +4757,20 @@ static int32_t translateJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoin
     return buildInvalidOperationMsg(&pCxt->msgBuf, "WINDOW_OFFSET required for WINDOW join");
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pJoinTable->pJLimit) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinTable->pJLimit && NULL != ((SLimitNode*)pJoinTable->pJLimit)->limit) {
     if (*pSType != JOIN_STYPE_ASOF && *pSType != JOIN_STYPE_WIN) {
       return buildInvalidOperationMsgExt(&pCxt->msgBuf, "JLIMIT not supported for %s join",
                                          getFullJoinTypeString(type, *pSType));
     }
     SLimitNode* pJLimit = (SLimitNode*)pJoinTable->pJLimit;
-    if (pJLimit->limit > JOIN_JLIMIT_MAX_VALUE || pJLimit->limit < 0) {
+    code = translateExpr(pCxt, (SNode**)&pJLimit->limit);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    if (pJLimit->limit->datum.i > JOIN_JLIMIT_MAX_VALUE || pJLimit->limit->datum.i < 0) {
       return buildInvalidOperationMsg(&pCxt->msgBuf, "JLIMIT value is out of valid range [0, 1024]");
     }
-    if (0 == pJLimit->limit) {
+    if (0 == pJLimit->limit->datum.i) {
       pCurrSmt->isEmptyResult = true;
     }
   }
@@ -7022,16 +7026,32 @@ static int32_t translateFrom(STranslateContext* pCxt, SNode** pTable) {
 }
 
 static int32_t checkLimit(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if ((NULL != pSelect->pLimit && pSelect->pLimit->offset < 0) ||
-      (NULL != pSelect->pSlimit && pSelect->pSlimit->offset < 0)) {
+  int32_t code = 0;
+
+  if (pSelect->pLimit && pSelect->pLimit->limit) {
+    code = translateExpr(pCxt, (SNode**)&pSelect->pLimit->limit);
+  }
+  if (TSDB_CODE_SUCCESS == code && pSelect->pLimit && pSelect->pLimit->offset) {
+    code = translateExpr(pCxt, (SNode**)&pSelect->pLimit->offset);
+  }
+  if (TSDB_CODE_SUCCESS == code && pSelect->pSlimit && pSelect->pSlimit->limit) {
+    code = translateExpr(pCxt, (SNode**)&pSelect->pSlimit->limit);
+  }
+  if (TSDB_CODE_SUCCESS == code && pSelect->pSlimit && pSelect->pSlimit->offset) {
+    code = translateExpr(pCxt, (SNode**)&pSelect->pSlimit->offset);
+  }
+
+  if ((TSDB_CODE_SUCCESS == code) && 
+      ((NULL != pSelect->pLimit && pSelect->pLimit->offset && pSelect->pLimit->offset->datum.i < 0) ||
+      (NULL != pSelect->pSlimit && pSelect->pSlimit->offset && pSelect->pSlimit->offset->datum.i < 0))) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OFFSET_LESS_ZERO);
   }
 
-  if (NULL != pSelect->pSlimit && (NULL == pSelect->pPartitionByList && NULL == pSelect->pGroupByList)) {
+  if ((TSDB_CODE_SUCCESS == code) && NULL != pSelect->pSlimit && (NULL == pSelect->pPartitionByList && NULL == pSelect->pGroupByList)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_GROUP_BY);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t createPrimaryKeyColByTable(STranslateContext* pCxt, STableNode* pTable, SNode** pPrimaryKey) {
@@ -7510,7 +7530,14 @@ static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pS
 }
 
 static int32_t checkSetOperLimit(STranslateContext* pCxt, SLimitNode* pLimit) {
-  if ((NULL != pLimit && pLimit->offset < 0)) {
+  int32_t code = 0;
+  if (pLimit && pLimit->limit) {
+    code = translateExpr(pCxt, (SNode**)&pLimit->limit);
+  }
+  if (TSDB_CODE_SUCCESS == code && pLimit && pLimit->offset) {
+    code = translateExpr(pCxt, (SNode**)&pLimit->offset);
+  }
+  if (TSDB_CODE_SUCCESS == code && (NULL != pLimit && NULL != pLimit->offset && pLimit->offset->datum.i < 0)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OFFSET_LESS_ZERO);
   }
   return TSDB_CODE_SUCCESS;
@@ -7558,9 +7585,13 @@ static int32_t partitionDeleteWhere(STranslateContext* pCxt, SDeleteStmt* pDelet
   }
   if (TSDB_CODE_SUCCESS == code) {
     bool isStrict = false;
-    code = getTimeRange(&pPrimaryKeyCond, &pDelete->timeRange, &isStrict);
-    if (TSDB_CODE_SUCCESS == code && !isStrict) {
-      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DELETE_WHERE);
+    if (NULL != pPrimaryKeyCond) {
+      code = getTimeRange(&pPrimaryKeyCond, &pDelete->timeRange, &isStrict);
+      if (TSDB_CODE_SUCCESS == code && !isStrict) {
+        code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DELETE_WHERE);
+      }
+    } else {
+      pDelete->timeRange = TSWINDOW_INITIALIZER;
     }
   }
   nodesDestroyNode(pPrimaryKeyCond);

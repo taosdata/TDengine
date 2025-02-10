@@ -271,7 +271,7 @@ typedef struct SStoreMeta {
   const void* (*extractTagVal)(const void* tag, int16_t type, STagVal* tagVal);  // todo remove it
 
   int32_t (*getTableUidByName)(void* pVnode, char* tbName, uint64_t* uid);
-  int32_t (*getTableTypeByName)(void* pVnode, char* tbName, ETableType* tbType);
+  int32_t (*getTableTypeSuidByName)(void* pVnode, char* tbName, ETableType* tbType, uint64_t* suid);
   int32_t (*getTableNameByUid)(void* pVnode, uint64_t uid, char* tbName);
   bool (*isTableExisted)(void* pVnode, tb_uid_t uid);
 

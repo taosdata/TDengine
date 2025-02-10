@@ -133,8 +133,12 @@ static int32_t splCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pChild, SE
       nodesDestroyNode((SNode*)pExchange);
       return code;
     }
-    ((SLimitNode*)pChild->pLimit)->limit += ((SLimitNode*)pChild->pLimit)->offset;
-    ((SLimitNode*)pChild->pLimit)->offset = 0;
+    if (((SLimitNode*)pChild->pLimit)->limit && ((SLimitNode*)pChild->pLimit)->offset) {
+      ((SLimitNode*)pChild->pLimit)->limit->datum.i += ((SLimitNode*)pChild->pLimit)->offset->datum.i;
+    }
+    if (((SLimitNode*)pChild->pLimit)->offset) {
+      ((SLimitNode*)pChild->pLimit)->offset->datum.i = 0;
+    }
   }
 
   *pOutput = pExchange;
@@ -679,8 +683,12 @@ static int32_t stbSplCreateMergeNode(SSplitContext* pCxt, SLogicSubplan* pSubpla
   if (TSDB_CODE_SUCCESS == code && NULL != pSplitNode->pLimit) {
     pMerge->node.pLimit = NULL;
     code = nodesCloneNode(pSplitNode->pLimit, &pMerge->node.pLimit);
-    ((SLimitNode*)pSplitNode->pLimit)->limit += ((SLimitNode*)pSplitNode->pLimit)->offset;
-    ((SLimitNode*)pSplitNode->pLimit)->offset = 0;
+    if (((SLimitNode*)pSplitNode->pLimit)->limit && ((SLimitNode*)pSplitNode->pLimit)->offset) {
+      ((SLimitNode*)pSplitNode->pLimit)->limit->datum.i += ((SLimitNode*)pSplitNode->pLimit)->offset->datum.i;
+    }
+    if (((SLimitNode*)pSplitNode->pLimit)->offset) {
+      ((SLimitNode*)pSplitNode->pLimit)->offset->datum.i = 0;
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = stbSplRewriteFromMergeNode(pMerge, pSplitNode);
@@ -1432,8 +1440,12 @@ static int32_t stbSplGetSplitNodeForScan(SStableSplitInfo* pInfo, SLogicNode** p
       if (NULL == (*pSplitNode)->pLimit) {
         return code;
       }
-      ((SLimitNode*)pInfo->pSplitNode->pLimit)->limit += ((SLimitNode*)pInfo->pSplitNode->pLimit)->offset;
-      ((SLimitNode*)pInfo->pSplitNode->pLimit)->offset = 0;
+      if (((SLimitNode*)pInfo->pSplitNode->pLimit)->limit && ((SLimitNode*)pInfo->pSplitNode->pLimit)->offset) {
+        ((SLimitNode*)pInfo->pSplitNode->pLimit)->limit->datum.i += ((SLimitNode*)pInfo->pSplitNode->pLimit)->offset->datum.i;
+      }
+      if (((SLimitNode*)pInfo->pSplitNode->pLimit)->offset) {
+        ((SLimitNode*)pInfo->pSplitNode->pLimit)->offset->datum.i = 0;
+      }
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -1584,8 +1596,12 @@ static int32_t stbSplSplitMergeScanNode(SSplitContext* pCxt, SLogicSubplan* pSub
   int32_t     code = stbSplCreateMergeScanNode(pScan, &pMergeScan, &pMergeKeys);
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL != pMergeScan->pLimit) {
-      ((SLimitNode*)pMergeScan->pLimit)->limit += ((SLimitNode*)pMergeScan->pLimit)->offset;
-      ((SLimitNode*)pMergeScan->pLimit)->offset = 0;
+      if (((SLimitNode*)pMergeScan->pLimit)->limit && ((SLimitNode*)pMergeScan->pLimit)->offset) {
+        ((SLimitNode*)pMergeScan->pLimit)->limit->datum.i += ((SLimitNode*)pMergeScan->pLimit)->offset->datum.i;
+      }
+      if (((SLimitNode*)pMergeScan->pLimit)->offset) {
+        ((SLimitNode*)pMergeScan->pLimit)->offset->datum.i = 0;
+      }
     }
     code = stbSplCreateMergeNode(pCxt, pSubplan, (SLogicNode*)pScan, pMergeKeys, pMergeScan, groupSort, true);
   }
