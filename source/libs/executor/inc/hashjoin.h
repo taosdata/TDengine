@@ -189,6 +189,7 @@ typedef struct SHJoinOperatorInfo {
 int32_t hInnerJoinDo(struct SOperatorInfo* pOperator);
 int32_t hLeftJoinDo(struct SOperatorInfo* pOperator);
 int32_t hSemiJoinDo(struct SOperatorInfo* pOperator);
+int32_t hAntiJoinDo(struct SOperatorInfo* pOperator);
 void hJoinSetDone(struct SOperatorInfo* pOperator);
 void hJoinAppendResToBlock(struct SOperatorInfo* pOperator, SSDataBlock* pRes, bool* allFetched);
 bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t *pBufLen);
@@ -198,6 +199,7 @@ bool hJoinBlkReachThreshold(SHJoinOperatorInfo* pInfo, int64_t blkRows);
 int32_t hJoinCopyNMatchRowsToBlock(SHJoinOperatorInfo* pJoin, SSDataBlock* pRes, int32_t startIdx, int32_t rows);
 
 int32_t mJoinFilterAndKeepSingleRow(SSDataBlock* pBlock, SFilterInfo* pFilterInfo);
+int32_t mJoinFilterAndNoKeepRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo);
 
 
 #ifdef __cplusplus

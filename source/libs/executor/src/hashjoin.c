@@ -149,7 +149,6 @@ int32_t hLeftJoinHandleSeqProbeRows(struct SOperatorInfo* pOperator, SHJoinOpera
       HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, pCtx->probeStartIdx, 1));
       if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
         ++pCtx->probeStartIdx;
-        *loopCont = false;
         
         return TSDB_CODE_SUCCESS;
       }
@@ -171,7 +170,6 @@ int32_t hLeftJoinHandleSeqProbeRows(struct SOperatorInfo* pOperator, SHJoinOpera
       HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, pCtx->probeStartIdx, 1));
       if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
         ++pCtx->probeStartIdx;
-        *loopCont = false;
         
         return TSDB_CODE_SUCCESS;
       }
@@ -196,8 +194,6 @@ int32_t hLeftJoinHandleSeqProbeRows(struct SOperatorInfo* pOperator, SHJoinOpera
               ++pCtx->probeStartIdx;
             }
 
-            *loopCont = false;
-            
             return TSDB_CODE_SUCCESS;
           }
         }
@@ -211,8 +207,6 @@ int32_t hLeftJoinHandleSeqProbeRows(struct SOperatorInfo* pOperator, SHJoinOpera
         if (allFetched) {
           ++pCtx->probeStartIdx;
         }
-
-        *loopCont = false;
         
         return TSDB_CODE_SUCCESS;
       }
@@ -260,7 +254,6 @@ int32_t hLeftJoinHandleProbeRows(struct SOperatorInfo* pOperator, SHJoinOperator
       HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, pCtx->probeStartIdx, 1));
       if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
         ++pCtx->probeStartIdx;
-        *loopCont = false;
         
         return TSDB_CODE_SUCCESS;
       }
@@ -282,7 +275,6 @@ int32_t hLeftJoinHandleProbeRows(struct SOperatorInfo* pOperator, SHJoinOperator
       HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, pCtx->probeStartIdx, 1));
       if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
         ++pCtx->probeStartIdx;
-        *loopCont = false;
         
         return TSDB_CODE_SUCCESS;
       }
@@ -297,7 +289,6 @@ int32_t hLeftJoinHandleProbeRows(struct SOperatorInfo* pOperator, SHJoinOperator
       if (allFetched) {
         ++pCtx->probeStartIdx;
       }
-      *loopCont = false;
       
       return TSDB_CODE_SUCCESS;
     }
@@ -487,6 +478,191 @@ int32_t hSemiJoinDo(struct SOperatorInfo* pOperator) {
   SHJoinCtx* pCtx = &pJoin->ctx;
 
   HJ_ERR_RET(pJoin->pPreFilter ? hSemiJoinHandleSeqProbeRows(pOperator, pJoin) : hSemiJoinHandleProbeRows(pOperator, pJoin));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t hAntiJoinHandleSeqProbeRows(struct SOperatorInfo* pOperator, SHJoinOperatorInfo* pJoin, bool* loopCont) {
+  SHJoinTableCtx* pProbe = pJoin->pProbe;
+  SHJoinCtx* pCtx = &pJoin->ctx;
+  size_t bufLen = 0;
+  bool allFetched = false;
+
+  if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (; pCtx->probeStartIdx <= pCtx->probeEndIdx; ++pCtx->probeStartIdx) {
+    if (hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen)) {
+      HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, pCtx->probeStartIdx, 1));
+      if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
+        ++pCtx->probeStartIdx;
+        
+        return TSDB_CODE_SUCCESS;
+      }
+
+      continue;
+    }
+    
+    SGroupData* pGroup = tSimpleHashGet(pJoin->pKeyHash, pProbe->keyData, bufLen);
+/*
+    size_t keySize = 0;
+    int32_t* pKey = tSimpleHashGetKey(pGroup, &keySize);
+    A S S E R T(keySize == bufLen && 0 == memcmp(pKey, pProbe->keyData, bufLen));
+    int64_t rows = getSingleKeyRowsNum(pGroup->rows);
+    pJoin->execInfo.expectRows += rows;    
+    qTrace("hash_key:%d, rows:%" PRId64, *pKey, rows);
+*/
+
+    if (NULL == pGroup) {
+      HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, pCtx->probeStartIdx, 1));
+      if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
+        ++pCtx->probeStartIdx;
+        
+        return TSDB_CODE_SUCCESS;
+      }
+
+      continue;
+    }
+    
+    pCtx->pBuildRow = pGroup->rows;
+    allFetched = false;
+
+    while (!allFetched) {
+      hJoinAppendResToBlock(pOperator, pJoin->midBlk, &allFetched);
+      if (pJoin->midBlk->info.rows > 0) {
+        HJ_ERR_RET(mJoinFilterAndNoKeepRows(pJoin->midBlk, pJoin->pPreFilter));
+        if (pJoin->midBlk->info.rows > 0) {
+          blockDataCleanup(pJoin->midBlk);
+          pCtx->pBuildRow = NULL;
+          break;
+        }
+      }
+
+      if (!allFetched) {
+        continue;
+      }
+
+      HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, pCtx->probeStartIdx, 1));
+    }
+
+    if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
+      ++pCtx->probeStartIdx;
+    
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+_return:
+
+  pCtx->probePhase = E_JOIN_PHASE_POST;
+  *loopCont = true;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t hAntiJoinHandleProbeRows(struct SOperatorInfo* pOperator, SHJoinOperatorInfo* pJoin, bool* loopCont) {
+  SHJoinTableCtx* pProbe = pJoin->pProbe;
+  SHJoinCtx* pCtx = &pJoin->ctx;
+  size_t bufLen = 0;
+  bool allFetched = false;
+
+  if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (; pCtx->probeStartIdx <= pCtx->probeEndIdx; ++pCtx->probeStartIdx) {
+    if (hJoinCopyKeyColsDataToBuf(pProbe, pCtx->probeStartIdx, &bufLen)) {
+      HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, pCtx->probeStartIdx, 1));
+      if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
+        ++pCtx->probeStartIdx;
+        
+        return TSDB_CODE_SUCCESS;
+      }
+
+      continue;
+    }
+    
+    SGroupData* pGroup = tSimpleHashGet(pJoin->pKeyHash, pProbe->keyData, bufLen);
+/*
+    size_t keySize = 0;
+    int32_t* pKey = tSimpleHashGetKey(pGroup, &keySize);
+    A S S E R T(keySize == bufLen && 0 == memcmp(pKey, pProbe->keyData, bufLen));
+    int64_t rows = getSingleKeyRowsNum(pGroup->rows);
+    pJoin->execInfo.expectRows += rows;    
+    qTrace("hash_key:%d, rows:%" PRId64, *pKey, rows);
+*/
+
+    if (NULL == pGroup || NULL == pGroup->rows) {
+      HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, pCtx->probeStartIdx, 1));
+      if (hJoinBlkReachThreshold(pJoin, pJoin->finBlk->info.rows)) {
+        ++pCtx->probeStartIdx;
+        
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+  }
+
+_return:
+
+  pCtx->probePhase = E_JOIN_PHASE_POST;
+  *loopCont = true;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t hAntiJoinDo(struct SOperatorInfo* pOperator) {
+  SHJoinOperatorInfo* pJoin = pOperator->info;
+  SHJoinCtx* pCtx = &pJoin->ctx;
+
+  while (pCtx->rowRemains) {
+    switch (pCtx->probePhase) {
+      case E_JOIN_PHASE_PRE: {
+        int32_t rows = pCtx->probeStartIdx - pCtx->probePreIdx;
+        int32_t rowsLeft = pJoin->finBlk->info.capacity - pJoin->finBlk->info.rows;
+        if (rows <= rowsLeft) {
+          HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, 0, rows));        
+          pCtx->probePhase = E_JOIN_PHASE_CUR;
+        } else {
+          HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, 0, rowsLeft));
+          pJoin->ctx.probePreIdx += rowsLeft;
+          
+          return TSDB_CODE_SUCCESS;
+        }
+        break;
+      }
+      case E_JOIN_PHASE_CUR: {
+        bool loopCont = false;
+        HJ_ERR_RET(pJoin->pPreFilter ? hAntiJoinHandleSeqProbeRows(pOperator, pJoin, &loopCont) : hAntiJoinHandleProbeRows(pOperator, pJoin, &loopCont));
+
+        if (!loopCont) {
+          return TSDB_CODE_SUCCESS;
+        }
+        break;
+      }
+      case E_JOIN_PHASE_POST: {
+        if (pCtx->probeEndIdx < (pCtx->pProbeData->info.rows - 1) && pCtx->probePostIdx <= (pCtx->pProbeData->info.rows - 1)) {
+          int32_t rowsLeft = pJoin->finBlk->info.capacity - pJoin->finBlk->info.rows;
+          int32_t rows = pCtx->pProbeData->info.rows - pCtx->probePostIdx;
+          if (rows <= rowsLeft) {
+            HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, pJoin->ctx.probePostIdx, rows));
+            pCtx->rowRemains = false;
+          } else {
+            HJ_ERR_RET(hJoinCopyNMatchRowsToBlock(pJoin, pJoin->finBlk, pJoin->ctx.probePostIdx, rowsLeft));
+            pCtx->probePostIdx += rowsLeft;
+            
+            return TSDB_CODE_SUCCESS;
+          }
+        } else {
+          pJoin->ctx.rowRemains = false;
+        }
+        break;
+      }
+      default:
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+  }
 
   return TSDB_CODE_SUCCESS;
 }

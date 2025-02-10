@@ -155,7 +155,7 @@ static int32_t colDataSetValHelp(SColumnInfoData* pColumnInfoData, uint32_t rowI
 
 int32_t colDataSetVal(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull) {
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
-   pColumnInfoData->varmeta.offset[rowIndex] = -1;
+    pColumnInfoData->varmeta.offset[rowIndex] = -1;
   }
 
   return colDataSetValHelp(pColumnInfoData, rowIndex, pData, isNull);
@@ -3492,6 +3492,7 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
       int32_t numOfRows = 0;
       if (IS_VAR_DATA_TYPE(pDst->info.type)) {
         pDst->varmeta.length = 0;
+        memset(pDst->varmeta.offset, 0, sizeof(*pDst->varmeta.offset) * totalRows);
       } else {
         memset(pDst->nullbitmap, 0, bmLen);
       }

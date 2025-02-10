@@ -106,6 +106,9 @@ int32_t hJoinSetImplFp(SHJoinOperatorInfo* pJoin) {
         case JOIN_STYPE_SEMI:
           pJoin->joinFp = hSemiJoinDo;
           break;
+        case JOIN_STYPE_ANTI:
+          pJoin->joinFp = hAntiJoinDo;
+          break;
         default:
           qError("Not supported join type, type:%d, subType:%d", pJoin->joinType, pJoin->subType);
           code = TSDB_CODE_QRY_INVALID_PLAN;

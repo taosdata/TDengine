@@ -88,7 +88,7 @@ int32_t mJoinTrimKeepFirstRow(SSDataBlock* pBlock) {
         } else {
           len = varDataTLen(p1);
         }
-        pDst->varmeta.length = len;
+        pDst->varmeta.length = len + pDst->varmeta.offset[0];
       }
     } else {
       bool isNull = colDataIsNull_f(pDst->nullbitmap, 0);
@@ -407,7 +407,7 @@ int32_t mJoinFilterAndKeepSingleRow(SSDataBlock* pBlock, SFilterInfo* pFilterInf
     pBlock->info.rows = 1;
     MJ_ERR_JRET(mJoinTrimKeepFirstRow(pBlock));
   } else if (status == FILTER_RESULT_NONE_QUALIFIED) {
-    pBlock->info.rows = 0;
+    blockDataCleanup(pBlock);
   } else if (status == FILTER_RESULT_PARTIAL_QUALIFIED) {
     MJ_ERR_JRET(mJoinTrimKeepOneRow(pBlock, pBlock->info.rows, (bool*)p->pData));
   }
@@ -442,7 +442,7 @@ int32_t mJoinFilterAndNoKeepRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo) 
   }
   
   if (status == FILTER_RESULT_NONE_QUALIFIED) {
-    pBlock->info.rows = 0;
+    blockDataCleanup(pBlock);
   }
 
   code = TSDB_CODE_SUCCESS;
