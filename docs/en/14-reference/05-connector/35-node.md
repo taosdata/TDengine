@@ -139,7 +139,7 @@ const taos = require("@tdengine/websocket");
 async function createConnect() {
     try {
         let url = 'ws://127.0.0.1:6041'
-        let conf = WsSql.NewConfig(url)
+        let conf = new taos.WSConfig(dsn)
         conf.setUser('root')
         conf.setPwd('taosdata')
         conf.setDb('db')
