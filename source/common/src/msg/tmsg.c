@@ -8295,13 +8295,17 @@ int32_t tSerializeSMArbUpdateGroupBatchReq(void *buf, int32_t bufLen, SMArbUpdat
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pGroup->assignedLeader.dnodeId));
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pGroup->assignedLeader.token));
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pGroup->version));
-    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pGroup->code));
-    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pGroup->updateTimeMs));
   }
 
   for (int32_t i = 0; i < sz; i++) {
     SMArbUpdateGroup *pGroup = taosArrayGet(pReq->updateArray, i);
     TAOS_CHECK_EXIT(tEncodeI8(&encoder, pGroup->assignedLeader.acked));
+  }
+
+  for (int32_t i = 0; i < sz; i++) {
+    SMArbUpdateGroup *pGroup = taosArrayGet(pReq->updateArray, i);
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pGroup->code));
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pGroup->updateTimeMs));
   }
 
   tEndEncode(&encoder);
@@ -8350,8 +8354,6 @@ int32_t tDeserializeSMArbUpdateGroupBatchReq(void *buf, int32_t bufLen, SMArbUpd
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, group.assignedLeader.token));
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &group.version));
     group.assignedLeader.acked = false;
-    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &group.code));
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &group.updateTimeMs));
 
     if (taosArrayPush(updateArray, &group) == NULL) {
       TAOS_CHECK_EXIT(terrno);
@@ -8362,6 +8364,14 @@ int32_t tDeserializeSMArbUpdateGroupBatchReq(void *buf, int32_t bufLen, SMArbUpd
     for (int32_t i = 0; i < sz; i++) {
       SMArbUpdateGroup *pGroup = taosArrayGet(updateArray, i);
       TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pGroup->assignedLeader.acked));
+    }
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    for (int32_t i = 0; i < sz; i++) {
+      SMArbUpdateGroup *pGroup = taosArrayGet(updateArray, i);
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pGroup->code));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pGroup->updateTimeMs));
     }
   }
 
