@@ -47,8 +47,14 @@ void checkError(TAOS_STMT2* stmt, int code) {
   }
 }
 
+typedef struct AsyncArgs {
+  int    async_affected_rows;
+  tsem_t sem;
+} AsyncArgs;
+
 void stmtAsyncQueryCb(void* param, TAOS_RES* pRes, int code) {
-  int affected_rows = taos_affected_rows(pRes);
+  ((AsyncArgs*)param)->async_affected_rows = taos_affected_rows(pRes);
+  ASSERT_EQ(tsem_post(&((AsyncArgs*)param)->sem), TSDB_CODE_SUCCESS);
   return;
 }
 
@@ -199,7 +205,14 @@ void do_stmt(TAOS* taos, TAOS_STMT2_OPTION* option, const char* sql, int CTB_NUM
     // exec
     int affected = 0;
     code = taos_stmt2_exec(stmt, &affected);
-    total_affected += affected;
+    if (option->asyncExecFn == NULL) {
+      total_affected += affected;
+    } else {
+      AsyncArgs* params = (AsyncArgs*)option->userdata;
+      code = tsem_wait(&params->sem);
+      ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+      total_affected += params->async_affected_rows;
+    }
     checkError(stmt, code);
 
     for (int i = 0; i < CTB_NUMS; i++) {
@@ -219,9 +232,7 @@ void do_stmt(TAOS* taos, TAOS_STMT2_OPTION* option, const char* sql, int CTB_NUM
       taosMemoryFree(tags);
     }
   }
-  if (option->asyncExecFn == NULL) {
-    ASSERT_EQ(total_affected, CYC_NUMS * ROW_NUMS * CTB_NUMS);
-  }
+  ASSERT_EQ(total_affected, CYC_NUMS * ROW_NUMS * CTB_NUMS);
   for (int i = 0; i < CTB_NUMS; i++) {
     taosMemoryFree(tbs[i]);
   }
@@ -908,7 +919,11 @@ TEST(stmt2Case, stmt2_stb_insert) {
   }
 
   // async
-  option = {0, true, true, stmtAsyncQueryCb, NULL};
+  AsyncArgs* aa = (AsyncArgs*)taosMemMalloc(sizeof(AsyncArgs));
+  aa->async_affected_rows = 0;
+  ASSERT_EQ(tsem_init(&aa->sem, 0, 0), TSDB_CODE_SUCCESS);
+  void* param = aa;
+  option = {0, true, true, stmtAsyncQueryCb, param};
   {
     do_stmt(taos, &option, "insert into stmt2_testdb_1.stb (ts,b,tbname,t1,t2) values(?,?,?,?,?)", 3, 3, 3, true, true);
   }
@@ -926,12 +941,14 @@ TEST(stmt2Case, stmt2_stb_insert) {
   { do_stmt(taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true); }
 
   // interlace = 1
-  option = {0, true, true, stmtAsyncQueryCb, NULL};
+  option = {0, true, true, stmtAsyncQueryCb, param};
   { do_stmt(taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true); }
   option = {0, true, true, NULL, NULL};
   { do_stmt(taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true); }
 
   do_query(taos, "drop database if exists stmt2_testdb_1");
+  (void)tsem_destroy(&aa->sem);
+  taosMemFree(aa);
   taos_close(taos);
 }
 
