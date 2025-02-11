@@ -1639,11 +1639,6 @@ void tmqMgmtClose(void) {
         break;
       }
       atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__CLOSED);
-
-      if (taosRemoveRef(tmqMgmt.rsetId, tmq->refId) != 0) {
-        qWarn("taosRemoveRef tmq refId:%" PRId64 " failed, error:%s", refId, tstrerror(terrno));
-      }
-
       tmq = taosIterateRef(tmqMgmt.rsetId, refId);
     }
     taosCloseRef(tmqMgmt.rsetId);
