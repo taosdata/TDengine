@@ -35,7 +35,9 @@ class TDTestCase(TBase):
             tdLog.exit(f"checkVersion return lines count {len(outputs) != 3}")
         # version string len
         assert len(outputs[0]) > 34
+        # commit id
         assert len(outputs[1]) > 43
+        # build info
         assert len(outputs[2]) > 36
 
         tdLog.info("check taosBenchmark version successfully.")
