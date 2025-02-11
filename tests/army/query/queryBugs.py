@@ -248,6 +248,43 @@ class TDTestCase(TBase):
             tdSql.checkData(0, 1, pscode)
             tdSql.checkData(0, 2, pscode)
             tdLog.debug(f"execute sql: {pscode}")
+            
+            querySql = f"select t2.ts ,tt.ps_code,t2.ps_code from ( select last(t1.dt) dt,  t1.ps_code, first(dt)  \
+                from ctg_tsdb.stb_sxny_cn t1 where ps_code<>'0' and dt >= '2022-07-07 00:00:00.000' and \
+                t1.ps_code='{pscode}' group by tbname order by dt) tt left join \
+                ctg_tsdb.stb_popo_power_station_all t2  on TIMETRUNCATE(tt.dt, 1d, 1)=TIMETRUNCATE(t2.ts, 1d, 1) \
+                and tt.ps_code = t2.ps_code"
+            tdSql.query(querySql)
+            tdSql.checkData(0, 1, pscode)
+            tdSql.checkData(0, 2, pscode)
+            tdLog.debug(f"execute sql: {pscode}")
+            
+            querySql = f"select t2.ts ,tt.ps_code,t2.ps_code from ( select last(t1.dt) dt,  last(ps_code) ps_code \
+                from ctg_tsdb.stb_sxny_cn t1 where ps_code<>'0' and dt >= '2022-07-07 00:00:00.000' and \
+                t1.ps_code='{pscode}'  order by dt) tt left join ctg_tsdb.stb_popo_power_station_all t2  on \
+                TIMETRUNCATE(tt.dt, 1d, 1)=TIMETRUNCATE(t2.ts, 1d, 1) and tt.ps_code = t2.ps_code"
+            tdSql.query(querySql)
+            tdSql.checkData(0, 1, pscode)
+            tdSql.checkData(0, 2, pscode)
+            tdLog.debug(f"execute sql: {pscode}")
+            
+            querySql = f"select t2.ts ,tt.ps_code,t2.ps_code from ( select _wstart dt,  t1.ps_code, first(dt)  \
+                from ctg_tsdb.stb_sxny_cn t1 where ps_code<>'0' and dt >= '2022-07-07 00:00:00.000' and \
+                t1.ps_code='{pscode}' interval(1m) order by dt) tt left join ctg_tsdb.stb_popo_power_station_all t2  \
+                on TIMETRUNCATE(tt.dt, 1d, 1)=TIMETRUNCATE(t2.ts, 1d, 1) and tt.ps_code = t2.ps_code"
+            tdSql.query(querySql)
+            tdSql.checkData(0, 1, pscode)
+            tdSql.checkData(0, 2, pscode)
+            tdLog.debug(f"execute sql: {pscode}")
+
+            querySql = f"select t2.ts ,tt.ps_code,t2.ps_code from (select first(dt) dt, t1.ps_code from \
+                ctg_tsdb.stb_sxny_cn t1 where ps_code<>'0' and dt >= '2022-07-07 00:00:00.000' and t1.ps_code='{pscode}' \
+                session(dt, 1m) order by dt) tt left join ctg_tsdb.stb_popo_power_station_all t2  on \
+                TIMETRUNCATE(tt.dt, 1d, 1)=TIMETRUNCATE(t2.ts, 1d, 1) and tt.ps_code = t2.ps_code"
+            tdSql.query(querySql)
+            tdSql.checkData(0, 1, pscode)
+            tdSql.checkData(0, 2, pscode)
+            tdLog.debug(f"execute sql: {pscode}")
 
     def FIX_TS_5984(self):
         tdLog.info("check bug TS_5984 ...\n")
