@@ -10,7 +10,7 @@ TDengine 命令行程序（以下简称 TDengine CLI）是用户操作 TDengine 
 
 TDengine CLI 是 TDengine 服务器及客户端安装包中默认安装组件，安装后即可使用，参考 [TDengine 安装](../../../get-started/)
 
-## 启动
+## 运行
 
 要进入 TDengine CLI，您在终端执行 `taos` 即可。
 
