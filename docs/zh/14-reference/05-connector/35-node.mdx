@@ -130,16 +130,20 @@ Node.js 连接器（`@tdengine/websocket`）, 其通过 taosAdapter 提供的 We
 除了通过指定的 URL 获取连接，还可以使用 WSConfig 指定建立连接时的参数。
 
 ```js
-try {
-    let url = 'ws://127.0.0.1:6041'
-    let conf = WsSql.NewConfig(url)
-    conf.setUser('root')
-    conf.setPwd('taosdata')
-    conf.setDb('db')
-    conf.setTimeOut(500)
-    let wsSql = await WsSql.open(conf);
-} catch (e) {
-    console.error(e);
+const taos = require("@tdengine/websocket");
+
+async function createConnect() {
+    try {
+        let url = 'ws://127.0.0.1:6041'
+        let conf = WsSql.NewConfig(url)
+        conf.setUser('root')
+        conf.setPwd('taosdata')
+        conf.setDb('db')
+        conf.setTimeOut(500)
+        let wsSql = await taos.sqlConnect(conf)
+    } catch (e) {
+        console.error(e);
+    }
 }
 ```
 
