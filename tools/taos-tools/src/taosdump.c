@@ -236,8 +236,6 @@ struct arguments g_args = {
     1000        // retrySleepMs
 };
 
-
-
 static uint64_t getUniqueIDFromEpoch() {
     struct timeval tv;
 
@@ -256,24 +254,17 @@ static uint64_t getUniqueIDFromEpoch() {
     return id;
 }
 
-
+// --version -V 
 static void printVersion(FILE *file) {
-    char taostools_longver[] = TAOSDUMP_TAG;
-    char taosdump_status[] = TAOSDUMP_STATUS;
-
-    char *dupSeq = strdup(taostools_longver);
-    char *running = dupSeq;
-    char *taostools_ver = strsep(&running, "-");
-
-    char taosdump_commit[] = TAOSDUMP_COMMIT_SHA1;
-
-    fprintf(file,"taosdump version: %s\ngit: %s\n", taostools_ver, taosdump_commit);
-    printf("build: %s\n", getBuildInfo());
-    if (strlen(taosdump_status) > 0) {
-        fprintf(file, "status:%s\n", taosdump_status);
+    if (file == NULL) {
+        printf("fail, printVersion file is null.\n");
+        return ;
     }
 
-    free(dupSeq);
+    // version, macro define in src/CMakeLists.txt
+    fprintf(file, "taosBenchmark version: %s\n", TD_VER_NUMBER);
+    fprintf(file, "git: %s\n", TAOSDUMP_COMMIT_ID);
+    fprintf(file, "build: %s\n", BUILD_DATA);
 }
 
 static char *typeToStr(int type) {
