@@ -2219,7 +2219,7 @@ int32_t callUdf(UdfcFuncHandle handle, int8_t callType, SSDataBlock *input, SUdf
         break;
       }
     }
-  };
+  }
   taosMemoryFree(task);
   return code;
 }
