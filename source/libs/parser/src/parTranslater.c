@@ -2572,7 +2572,7 @@ static int32_t translateInterpFunc(STranslateContext* pCxt, SFunctionNode* pFunc
   if (!fmIsInterpFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
-  if (!isSelectStmt(pCxt->pCurrStmt) || SQL_CLAUSE_SELECT != pCxt->currClause) {
+  if (!isSelectStmt(pCxt->pCurrStmt) || (SQL_CLAUSE_SELECT != pCxt->currClause && SQL_CLAUSE_ORDER_BY != pCxt->currClause)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
   }
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
@@ -6415,7 +6415,7 @@ static int32_t translateInterpAround(STranslateContext* pCxt, SSelectStmt* pSele
     SRangeAroundNode* pAround = (SRangeAroundNode*)pSelect->pRangeAround;
     code = translateExpr(pCxt, &pAround->pInterval);
     if (TSDB_CODE_SUCCESS == code) {
-      if (nodeType(pAround->pInterval) == QUERY_NODE_VALUE) {
+      if (nodeType(pAround->pInterval) == QUERY_NODE_VALUE && ((SValueNode*)pAround->pInterval)->flag & VALUE_FLAG_IS_DURATION) {
         SValueNode* pVal = (SValueNode*)pAround->pInterval;
         if (pVal->datum.i == 0) {
           return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
@@ -6475,14 +6475,8 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
                                          "Missing RANGE clause, EVERY clause or FILL clause");
         }
       }
-    } else {
-      if (pSelect->pEvery) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
-                                       "Range clause with around interval can't be used with EVERY clause");
-      }
-      if (!pSelect->pFill) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE, "Missing FILL clause");
-      }
+    } else if (!pSelect->pFill) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE, "Missing FILL clause");
     }
   }
 
