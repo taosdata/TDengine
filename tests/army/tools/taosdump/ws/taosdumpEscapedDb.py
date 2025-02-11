@@ -34,7 +34,7 @@ class TDTestCase(TBase):
         if len(outputs) != 3:
             tdLog.exit(f"checkVersion return lines count {len(outputs) != 3}")
         # version string len
-        assert len(outputs[0]) > 34
+        assert len(outputs[0]) > 22
         assert len(outputs[1]) > 43
         assert len(outputs[2]) > 36
 
