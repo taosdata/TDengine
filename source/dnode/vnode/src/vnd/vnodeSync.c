@@ -120,6 +120,7 @@ static int32_t inline decodeSSubmitData(SVnode *pVnode, SDecoder *pCoder, SSubmi
   int32_t lino;
   int32_t flags;
   uint8_t version;
+  int8_t  hasBlob = 0;
 
   TAOS_CHECK_EXIT(tStartDecode(pCoder));
   TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &flags));
@@ -128,6 +129,7 @@ static int32_t inline decodeSSubmitData(SVnode *pVnode, SDecoder *pCoder, SSubmi
   if (!(pSubmitTbData->flags & SUBMIT_REQ_WITH_BLOB)) {
     return code;
   }
+  hasBlob = 1;
 
   version = (flags >> 8) & 0xff;
 
@@ -153,28 +155,7 @@ static int32_t inline decodeSSubmitData(SVnode *pVnode, SDecoder *pCoder, SSubmi
     if (ppRow == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
-
     TAOS_CHECK_EXIT(tDecodeRow(pCoder, ppRow));
-
-    for (int32_t i = 0; i < pTSchema->numOfCols; ++i) {
-      // SColData *pColData = taosArrayGet(pSubmitTbData->aCol, i);
-      // if (pColData == NULL) {
-      //   TAOS_CHECK_EXIT(terrno);
-      // }
-
-      SColVal colVal = {0};
-      code = tRowGet(*ppRow, pTSchema, i, &colVal);
-      TAOS_CHECK_EXIT(code);
-
-      // if (colVal.cid < pColData->info.colId) {
-      //   continue;
-      // } else if (colVal.cid == pColData->info.colId) {
-      //   code = doSetVal(pColData, iRow, &colVal);
-      //   TAOS_CHECK_EXIT(code);
-      // } else {
-      //   colDataSetNULL(pColData, iRow);
-      // }
-    }
   }
 
   pSubmitTbData->ctimeMs = 0;
@@ -182,7 +163,52 @@ static int32_t inline decodeSSubmitData(SVnode *pVnode, SDecoder *pCoder, SSubmi
     TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->ctimeMs));
   }
 
-  tEndDecode(pCoder);
+  if (!tDecodeIsEnd(pCoder) && hasBlob) {
+    uint64_t nBlob;
+    TAOS_CHECK_EXIT(tDecodeU64v(pCoder, &nBlob));
+    pSubmitTbData->aBlobRow = taosArrayInit(nBlob, sizeof(SBlobRow2 *));
+    if (pSubmitTbData->aBlobRow == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    for (int32_t i = 0; i < nBlob; i++) {
+      SBlobRow2 **ppBlobRow = taosArrayReserve(pSubmitTbData->aBlobRow, 1);
+      if (ppBlobRow == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      TAOS_CHECK_EXIT(tDecodeBlobRow2(pCoder, ppBlobRow));
+    }
+  }
+
+  if (taosArrayGetSize(pSubmitTbData->aRowP) != taosArrayGetSize(pSubmitTbData->aBlobRow)) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pSubmitTbData->aRowP); i++) {
+    SRow      **pRow = taosArrayGet(pSubmitTbData->aRowP, i);
+    SBlobRow2 **pBlob = taosArrayGet(pSubmitTbData->aBlobRow, i);
+    SArray     *pOffset = (*pBlob)->pOffset;
+    uint8_t    *data = (*pBlob)->data;
+
+    int32_t idx = 0;
+    for (int32_t j = 0; j < pTSchema->numOfCols; j++) {
+      STColumn *pTColumn = pTSchema->columns + j;
+      if (pTColumn->type == TSDB_DATA_TYPE_BLOB || pTColumn->type == TSDB_DATA_TYPE_BINARY) {
+        int32_t  len = 0;
+        uint64_t offset = 0;
+        if (idx == 0) {
+          len = *(uint64_t *)taosArrayGet(pOffset, idx);
+        } else {
+          len = *(uint64_t *)taosArrayGet(pOffset, idx) - (*(uint64_t *)taosArrayGet(pOffset, idx - 1));
+          offset = *(uint64_t *)taosArrayGet(pOffset, idx - 1);
+        }
+        uint64_t seq = 0;
+        code = bseAppend(pVnode->pBse, &seq, data + offset, len);
+        SColVal colVal = {0};
+        tRowGet2(*pRow, pTSchema, j, &colVal);
+        idx++;
+      }
+    }
+  }
 
 _exit:
   return code;

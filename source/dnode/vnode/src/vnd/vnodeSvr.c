@@ -398,10 +398,10 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     *(int64_t *)(pCoder->data + pCoder->pos) = ctimeMs;
     pCoder->pos += sizeof(int64_t);
   }
-  if (!tDecodeIsEnd(pCoder) && hasBlob) {
-    SArray *blobArray = NULL;
-    vnodePreProcessBlobData(pCoder, &blobArray);
-  }
+  // if (!tDecodeIsEnd(pCoder) && hasBlob) {
+  //   SArray *blobArray = NULL;
+  //   vnodePreProcessBlobData(pCoder, &blobArray);
+  // }
 
   tEndDecode(pCoder);
 

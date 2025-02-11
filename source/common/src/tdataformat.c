@@ -645,6 +645,7 @@ int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow) {
   return 0;
 }
 int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len, uint64_t *seq) {
+  uint64_t offset;
   if (pBlobRow->len + len > pBlobRow->cap) {
     int64_t cap = pBlobRow->cap * 2;
     while ((pBlobRow->len + len) > cap) {
@@ -654,9 +655,10 @@ int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len, uint64_
   }
   (void)memcpy(pBlobRow->data + pBlobRow->len, data, len);
 
-  int64_t offset = pBlobRow->len;
-  taosArrayPush(pBlobRow->pOffset, &offset);
   pBlobRow->len += len;
+  offset = pBlobRow->len;
+  taosArrayPush(pBlobRow->pOffset, &offset);
+  // pBlobRow->len += len;
 
   *seq = taosArrayGetSize(pBlobRow->pOffset) - 1;
   return 0;
@@ -791,6 +793,139 @@ int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted,
 _exit:
   taosArrayDestroy(colValArray);
   return code;
+}
+int32_t tRowGet2(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
+  if (!(iCol < pTSchema->numOfCols)) return TSDB_CODE_INVALID_PARA;
+  if (!(pRow->sver == pTSchema->version)) return TSDB_CODE_INVALID_PARA;
+
+  STColumn *pTColumn = pTSchema->columns + iCol;
+
+  if (iCol == 0) {
+    pColVal->cid = pTColumn->colId;
+    pColVal->value.type = pTColumn->type;
+    pColVal->flag = CV_FLAG_VALUE;
+    (void)memcpy(&pColVal->value.val, &pRow->ts, sizeof(TSKEY));
+    return 0;
+  }
+
+  if (pRow->flag == HAS_NONE) {
+    *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
+    return 0;
+  }
+
+  if (pRow->flag == HAS_NULL) {
+    *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
+    return 0;
+  }
+
+  SPrimaryKeyIndex index;
+  uint8_t         *data = pRow->data;
+  for (int32_t i = 0; i < pRow->numOfPKs; i++) {
+    data += tGetPrimaryKeyIndex(data, &index);
+  }
+
+  if (pRow->flag >> 4) {  // KV Row
+    SKVIdx  *pIdx = (SKVIdx *)data;
+    uint8_t *pv = NULL;
+
+    if (pRow->flag & KV_FLG_LIT) {
+      pv = pIdx->idx + pIdx->nCol;
+    } else if (pRow->flag & KV_FLG_MID) {
+      pv = pIdx->idx + (pIdx->nCol << 1);
+    } else {
+      pv = pIdx->idx + (pIdx->nCol << 2);
+    }
+
+    int16_t lidx = 0;
+    int16_t ridx = pIdx->nCol - 1;
+    while (lidx <= ridx) {
+      int16_t  mid = (lidx + ridx) >> 1;
+      uint8_t *pData = NULL;
+      if (pRow->flag & KV_FLG_LIT) {
+        pData = pv + ((uint8_t *)pIdx->idx)[mid];
+      } else if (pRow->flag & KV_FLG_MID) {
+        pData = pv + ((uint16_t *)pIdx->idx)[mid];
+      } else {
+        pData = pv + ((uint32_t *)pIdx->idx)[mid];
+      }
+
+      int16_t cid;
+      pData += tGetI16v(pData, &cid);
+
+      if (TABS(cid) == pTColumn->colId) {
+        if (cid < 0) {
+          *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
+        } else {
+          pColVal->cid = pTColumn->colId;
+          pColVal->value.type = pTColumn->type;
+          pColVal->flag = CV_FLAG_VALUE;
+
+          if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+            pData += tGetU32v(pData, &pColVal->value.nData);
+            if (pColVal->value.nData > 0) {
+              pColVal->value.pData = pData;
+            } else {
+              pColVal->value.pData = NULL;
+            }
+          } else {
+            (void)memcpy(&pColVal->value.val, pData, pTColumn->bytes);
+          }
+        }
+        return 0;
+      } else if (TABS(cid) < pTColumn->colId) {
+        lidx = mid + 1;
+      } else {
+        ridx = mid - 1;
+      }
+    }
+
+    *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
+  } else {  // Tuple Row
+    uint8_t *bitmap = data;
+    uint8_t *fixed;
+    uint8_t *varlen;
+    uint8_t  bit;
+
+    if (pRow->flag == HAS_VALUE) {
+      fixed = bitmap;
+      bit = BIT_FLG_VALUE;
+    } else if (pRow->flag == (HAS_NONE | HAS_NULL | HAS_VALUE)) {
+      fixed = BIT2_SIZE(pTSchema->numOfCols - 1) + bitmap;
+      bit = GET_BIT2(bitmap, iCol - 1);
+    } else {
+      fixed = BIT1_SIZE(pTSchema->numOfCols - 1) + bitmap;
+      bit = GET_BIT1(bitmap, iCol - 1);
+
+      if (pRow->flag == (HAS_NONE | HAS_VALUE)) {
+        if (bit) bit++;
+      } else if (pRow->flag == (HAS_NULL | HAS_VALUE)) {
+        bit++;
+      }
+    }
+    varlen = fixed + pTSchema->flen;
+
+    if (bit == BIT_FLG_NONE) {
+      *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
+      return 0;
+    } else if (bit == BIT_FLG_NULL) {
+      *pColVal = COL_VAL_NULL(pTColumn->colId, pTColumn->type);
+      return 0;
+    }
+
+    pColVal->cid = pTColumn->colId;
+    pColVal->value.type = pTColumn->type;
+    pColVal->flag = CV_FLAG_VALUE;
+    if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+      if (pTColumn->type == TSDB_DATA_TYPE_BINARY || pTColumn->type == TSDB_DATA_TYPE_BLOB) {
+      }
+      pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
+      pColVal->value.pData += tGetU32v(pColVal->value.pData, &pColVal->value.nData);
+    } else {
+      (void)memcpy(&pColVal->value.val, fixed + pTColumn->offset, TYPE_BYTES[pTColumn->type]);
+    }
+  }
+
+  return 0;
 }
 
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {

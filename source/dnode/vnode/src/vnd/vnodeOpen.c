@@ -360,6 +360,7 @@ static int32_t vnodeCheckDisk(int32_t diskPrimary, STfs *pTfs) {
 }
 
 SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgCb, bool force) {
+  int32_t    code = 0;
   SVnode    *pVnode = NULL;
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN] = {0};
@@ -504,6 +505,16 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
     vError("vgId:%d, failed to open vnode sma since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
+  // open blob store engine
+  vInfo("vgId:%d, start to open blob store engine", TD_VID(pVnode));
+  (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_BSE_DIR);
+
+  code = bseOpen(tdir, NULL, &pVnode->pBse);
+  if (code != 0) {
+    vError("vgId:%d, failed to open blob store engine since %s", TD_VID(pVnode), tstrerror(code));
+    terrno = code;
+    goto _err;
+  }
 
   // vnode begin
   vInfo("vgId:%d, start to begin vnode", TD_VID(pVnode));
@@ -561,6 +572,10 @@ void vnodeClose(SVnode *pVnode) {
     smaClose(pVnode->pSma);
     if (pVnode->pMeta) metaClose(&pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
+
+    if (pVnode->pBse) {
+      bseClose(pVnode->pBse);
+    }
 
     // destroy handle
     if (tsem_destroy(&pVnode->syncSem) != 0) {
