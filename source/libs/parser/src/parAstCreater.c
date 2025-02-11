@@ -375,6 +375,7 @@ SNodeList* createColsFuncParamNodeList(SAstCreateContext* pCxt, SNode* pNode, SN
   pCxt->errCode = nodesListAppend(list, pFuncNode);
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesListAppendList(list, pNodeList);
+  CHECK_PARSER_STATUS(pCxt);
   return list;
 
   _err:
@@ -1174,24 +1175,6 @@ _err:
   nodesDestroyNode((SNode*)func);
   nodesDestroyNode(pExpr);
   nodesDestroyNode(pExpr2);
-  return NULL;
-}
-
-SNode* createColsFunctionNode(SAstCreateContext* pCxt, SNode* pColFunc, SNodeList* pExpr){
-  SFunctionNode* func = NULL;
-  CHECK_PARSER_STATUS(pCxt);
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&func);
-  CHECK_MAKE_NODE(func);
-  strcpy(func->functionName, "cols");
-  pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pColFunc);
-  CHECK_PARSER_STATUS(pCxt);
-  pCxt->errCode = nodesListMakeStrictAppendList(&func->pParameterList, pExpr);
-  CHECK_PARSER_STATUS(pCxt);
-  return (SNode*)func;
-_err:
-  nodesDestroyNode((SNode*)func);
-  nodesDestroyNode(pColFunc);
-  nodesDestroyList(pExpr);
   return NULL;
 }
 

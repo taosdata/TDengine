@@ -31,25 +31,6 @@ typedef struct SSlotIndex {
   SArray* pSlotIdsInfo;  // duplicate name slot
 } SSlotIndex;
 
-static int64_t getExprBindIndexStr(SNode* pNode, char* bindInfo) {
-  if (nodeType(pNode) == QUERY_NODE_COLUMN) {
-    SColumnNode* pCol = (SColumnNode*)pNode;
-    if (pCol->dataBlockId == 0) {
-      return 0;
-    }
-  }
-  if (nodesIsExprNode(pNode)) {
-    SExprNode* pExpr = (SExprNode*)pNode;
-    if (pExpr->bindTupleFuncIdx > 0 && pExpr->bindTupleFuncIdx <= 9) {
-      bindInfo[0] = '0' + pExpr->bindTupleFuncIdx;
-      return 1;
-    } else if (pExpr->bindTupleFuncIdx != 0) {
-      return tsnprintf(bindInfo, sizeof(bindInfo), "%d", pExpr->bindTupleFuncIdx);
-    }
-  }
-  return 0;
-}
-
 enum {
   SLOT_KEY_TYPE_ALL = 1,
   SLOT_KEY_TYPE_COLNAME = 2,
@@ -59,7 +40,6 @@ static int32_t getSlotKeyHelper(SNode* pNode, const char* pPreName, const char* 
                                 int32_t* pLen, uint16_t extraBufLen, int8_t slotKeyType) {
   int32_t code = 0;
   char    bindInfo[16] = {0};
-  //int     exBindInfoLen = getExprBindIndexStr(pNode, bindInfo);
   *ppKey = taosMemoryCalloc(1, callocLen);
   if (!*ppKey) {
     return terrno;
@@ -68,9 +48,6 @@ static int32_t getSlotKeyHelper(SNode* pNode, const char* pPreName, const char* 
     TAOS_STRNCAT(*ppKey, pPreName, TSDB_TABLE_NAME_LEN);
     TAOS_STRNCAT(*ppKey, ".", 2);
     TAOS_STRNCAT(*ppKey, name, TSDB_COL_NAME_LEN);
-    // if (exBindInfoLen > 0) {
-    //   TAOS_STRNCAT(*ppKey, bindInfo, exBindInfoLen);
-    // }
     *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
   } else {
     TAOS_STRNCAT(*ppKey, name, TSDB_COL_NAME_LEN);

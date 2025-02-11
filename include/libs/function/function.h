@@ -276,13 +276,13 @@ typedef struct tExprNode {
       int32_t               num;
       struct SFunctionNode *pFunctNode;
       int32_t               functionType;
+      int32_t               bindTupleFuncIdx;
     } _function;
 
     struct {
       struct SNode *pRootNode;
     } _optrRoot;
   };
-  int32_t   bindTupleFuncIdx;
   int32_t   tupleFuncIdx;
 } tExprNode;
 

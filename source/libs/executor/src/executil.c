@@ -1992,7 +1992,9 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     QUERY_CHECK_CODE(code, lino, _end);
   }
-  pExp->pExpr->bindTupleFuncIdx = ((SExprNode*)pNode)->bindTupleFuncIdx;
+  if(type == QUERY_NODE_FUNCTION) {
+    pExp->pExpr->_function.bindTupleFuncIdx = ((SExprNode*)pNode)->bindTupleFuncIdx;
+  }
   pExp->pExpr->tupleFuncIdx = ((SExprNode*)pNode)->tupleFuncIdx;
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -2132,7 +2134,7 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
       if (pValCtxArray == NULL) {
         pValCtx[num++] = &pCtx[i];
       } else {
-        int32_t bindFuncIndex = pCtx[i].pExpr->pExpr->bindTupleFuncIdx;  // start from index 1;
+        int32_t bindFuncIndex = pCtx[i].pExpr->pExpr->_function.bindTupleFuncIdx;  // start from index 1;
         if (bindFuncIndex > 0) {  // 0 is default index related to the select function
           bindFuncIndex -= 1;
         }
