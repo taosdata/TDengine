@@ -133,6 +133,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
     PUBLIC geometry
+    PRIVATE transport
 )
 
 target_link_libraries(

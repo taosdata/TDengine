@@ -1,11 +1,8 @@
 # lemon
 
-ExternalProject_Add(
-    lemon
-    SOURCE_DIR ${TD_CONTRIB_DIR}/lemon
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND "${C_COMPILER_LEMON}" -o ${TD_CONTRIB_DIR}/lemon/lemon ${TD_CONTRIB_DIR}/lemon/lemon.c
-    INSTALL_COMMAND ""
-    BUILD_IN_SOURCE 1
-    BUILD_ALWAYS 1
-)
+add_subdirectory(lemon)
+
+# NOTE: freemine: choose a better approach later
+set(TD_CONTRIB_LEMON         "${CMAKE_BINARY_DIR}/build/bin/lemon" PARENT_SCOPE)
+set(TD_CONTRIB_LEMON_SRC_DIR "${TD_CONTRIB_DIR}/lemon"             PARENT_SCOPE)
+

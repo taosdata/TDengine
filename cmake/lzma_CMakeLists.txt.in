@@ -2,15 +2,22 @@
 # xz
 
 if (${TD_LINUX})
-ExternalProject_Add(lzma2
-        GIT_REPOSITORY https://github.com/conor42/fast-lzma2.git
-        SOURCE_DIR "${TD_CONTRIB_DIR}/lzma2"
-        #BINARY_DIR ""
-        BUILD_IN_SOURCE TRUE
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND make
-        INSTALL_COMMAND ""
-        TEST_COMMAND ""
-        GIT_SHALLOW true
-)
+  set(_base         "${TD_CONTRIB_DIR}/lzma")
+  set(_ins          "${TD_CONTRIB_DIR}/lzma/install")
+
+  ExternalProject_Add(ext_lzma2
+          GIT_REPOSITORY https://github.com/conor42/fast-lzma2.git
+          PREFIX "${_base}"
+          BUILD_IN_SOURCE TRUE
+          PATCH_COMMAND git restore -- Makefile && git apply ${TD_SUPPORT_DIR}/lzma2.diff
+          CONFIGURE_COMMAND ""
+          BUILD_COMMAND pwd && make
+          INSTALL_COMMAND make DESTDIR=${_ins} install
+          TEST_COMMAND ""
+          GIT_SHALLOW true
+          EXCLUDE_FROM_ALL true
+  )
+
+  set(TD_CONTRIB_EXT_LZMA2_INC_DIR   "${_ins}/usr/local/include" PARENT_SCOPE)
+  set(TD_CONTRIB_EXT_LZMA2_LIB_DIR   "${_ins}/usr/local/lib"     PARENT_SCOPE)
 endif()

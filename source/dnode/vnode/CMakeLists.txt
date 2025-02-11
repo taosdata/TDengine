@@ -139,14 +139,14 @@ else()
     )
 
     if(${TD_LINUX})
-        target_include_directories(
-            vnode
-            PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
-        )
-        target_link_directories(
-            vnode
-            PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
-        )
+        # freemine: target_include_directories(
+        # freemine:     vnode
+        # freemine:     PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
+        # freemine: )
+        # freemine: target_link_directories(
+        # freemine:     vnode
+        # freemine:     PUBLIC "${TD_SOURCE_DIR}/deps/${TD_DEPS_DIR}/rocksdb_static"
+        # freemine: )
     endif()
 endif()
 
