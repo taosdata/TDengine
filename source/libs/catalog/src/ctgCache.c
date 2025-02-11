@@ -1116,7 +1116,7 @@ int32_t ctgUpdateVgroupEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId
     dbFName = p + 1;
   }
 
-  code = ctgMakeVgArray(dbInfo);
+  code = ctgMakeVgArray(dbInfo, dbFName, false);
   if (code) {
     taosMemoryFree(op);
     taosMemoryFree(msg);
@@ -2082,7 +2082,7 @@ void ctgFreeAllHandles(void) {
   taosHashClear(gCtgMgmt.pCluster);
 }
 
-int32_t ctgVgInfoIdComp(void const *lp, void const *rp) {
+int32_t ctgVgInfoIdCompId(void const *lp, void const *rp) {
   int32_t     *key = (int32_t *)lp;
   SVgroupInfo *pVg = (SVgroupInfo *)rp;
 
@@ -2695,7 +2695,7 @@ int32_t ctgOpUpdateEpset(SCtgCacheOperation *operation) {
     goto _return;
   }
 
-  SVgroupInfo *pInfo2 = taosArraySearch(vgInfo->vgArray, &msg->vgId, ctgVgInfoIdComp, TD_EQ);
+  SVgroupInfo *pInfo2 = taosArraySearch(vgInfo->vgArray, &msg->vgId, ctgVgInfoIdCompId, TD_EQ);
   if (NULL == pInfo2) {
     ctgDebug("no vgroup %d in db %s vgArray, ignore epset update", msg->vgId, msg->dbFName);
     goto _return;
