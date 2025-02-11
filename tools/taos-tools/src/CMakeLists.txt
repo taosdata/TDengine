@@ -39,12 +39,11 @@ ENDIF ()
 #
 # collect --version information
 #
-
 MESSAGE("collect --version show info:")
 # version
 IF (DEFINED TD_VER_NUMBER)
     ADD_DEFINITIONS(-DTD_VER_NUMBER="${TD_VER_NUMBER}")
-    MESSAGE("version:${TD_VER_NUMBER}")
+    MESSAGE("-- version:${TD_VER_NUMBER}")
 ELSE ()    
     # abort build
     MESSAGE(FATAL_ERROR "build taos-tools not found TD_VER_NUMBER define.")
@@ -66,11 +65,8 @@ IF(GIT_FOUND)
         )
     
     # show
-    MESSAGE("")
-    MESSAGE("taosdump commit id: ${TAOSDUMP_COMMIT_ID}")
-    MESSAGE("taosBenchmark commit id: ${TAOSBENCHMARK_COMMIT_ID}")
-    MESSAGE("")    
-
+    MESSAGE("-- taosdump commit id: ${TAOSDUMP_COMMIT_ID}")
+    MESSAGE("-- taosBenchmark commit id: ${TAOSBENCHMARK_COMMIT_ID}")
     # define
     ADD_DEFINITIONS(-DTAOSDUMP_COMMIT_ID="${TAOSDUMP_COMMIT_ID}")
     ADD_DEFINITIONS(-DTAOSBENCHMARK_COMMIT_ID="${TAOSBENCHMARK_COMMIT_ID}")        
@@ -78,10 +74,11 @@ ELSE()
     MESSAGE(FATAL_ERROR "build taos-tools FIND_PACKAGE(Git) failed.")
 ENDIF (GIT_FOUND)
 
-# build date
-ADD_DEFINITIONS(-DBUILD_DATA="${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}")
-MESSAGE("build:${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}")
-
+# build info
+SET(BUILD_INFO, "${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}")
+ADD_DEFINITIONS(-DBUILD_INFO="${BUILD_INFO}")
+MESSAGE("-- build:${BUILD_INFO}")
+MESSAGE("")
 
 
 #

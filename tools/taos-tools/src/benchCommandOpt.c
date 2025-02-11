@@ -31,7 +31,7 @@ void printVersion() {
     // version, macro define in src/CMakeLists.txt
     printf("taosBenchmark version: %s\n", TD_VER_NUMBER);
     printf("git: %s\n", TAOSBENCHMARK_COMMIT_ID);
-    printf("build: %s\n", BUILD_DATA);
+    printf("build: %s\n", BUILD_INFO);
 }
 
 void parseFieldDatatype(char *dataType, BArray *fields, bool isTag) {
