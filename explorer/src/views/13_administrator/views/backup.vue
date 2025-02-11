@@ -510,15 +510,33 @@ export default {
     },
     async activeBackupFileOf(id) {
       this.currentId = id;
-      this.backupActiveTab = "backupFile";
-      this.historyList = await getBackupHistory(this.currentId);
+      try {
+        const res = await getBackupHistory(this.currentId);
+        if (res && res.code > 0) {
+          Message.error(res.message);
+        } else {
+          this.historyList = res;
+          this.backupActiveTab = "backupFile";
+        }
+      } catch (err) {
+        Message.error(err);
+      }
     },
     async displayMetrics(id) {
       getMetrics(id);
     },
     async showBackupHistory() {
-      this.historyList = await getBackupHistory(this.currentId);
-
+      try {
+        const res = await getBackupHistory(this.currentId);
+        if (res && res.code > 0) {
+          Message.error(res.message);
+        } else {
+          this.historyList = res;
+        }
+      } catch (err) {
+        Message.error(err);
+      }
+      
       // let currentItem = {"id": 0, "point": res[0].point, "file_size": 0, "file_count": 0, "hasChildren":true, "children": []};
       // const groupedList = [currentItem];
 
