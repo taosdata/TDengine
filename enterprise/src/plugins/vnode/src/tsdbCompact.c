@@ -47,8 +47,7 @@ typedef struct {
   TFileOpArray fopArr[1];
 
   struct {
-    SDiskID did;
-
+    int32_t expLevel;
     // reader
     SDataFileReader    *dataReader;
     TSttFileReaderArray sttReaderArr[1];
@@ -244,7 +243,7 @@ static int32_t tsdbCompactFSetOpenWriter(SCompactor2 *compactor) {
       .cmprAlg = compactor->cmprAlg,
       .fid = compactor->fset->fid,
       .cid = compactor->cid,
-      .did = compactor->ctx->did,
+      .expLevel = compactor->ctx->expLevel,
       .level = 0,
       .lcn = lcn,
   };
@@ -490,12 +489,8 @@ static int32_t tsdbDoCompact(SCompactor2 *compactor) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  STsdb  *tsdb = compactor->tsdb;
-  int32_t expLevel = tsdbFidLevel(compactor->fset->fid, &compactor->tsdb->keepCfg, taosGetTimestampSec());
-  if (expLevel < 0) return 0;
-
-  code = tfsAllocDisk(compactor->tsdb->pVnode->pTfs, expLevel, &compactor->ctx->did);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  STsdb *tsdb = compactor->tsdb;
+  compactor->ctx->expLevel = tsdbFidLevel(compactor->fset->fid, &compactor->tsdb->keepCfg, taosGetTimestampSec());
 
   tsdbInfo("vgId:%d compact fileset:%d start", TD_VID(tsdb->pVnode), compactor->fset->fid);
 
