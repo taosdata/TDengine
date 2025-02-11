@@ -505,7 +505,7 @@ int32_t ctgGetTbDistVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTabl
   }
 
   if (tbMeta->tableType == TSDB_SUPER_TABLE) {
-    CTG_ERR_JRET(ctgGenerateVgList(pCtg, vgHash, pVgList));
+    CTG_ERR_JRET(ctgGenerateVgList(pCtg, vgHash, pVgList, db));
   } else {
     // USE HASH METHOD INSTEAD OF VGID IN TBMETA
     ctgError("invalid method to get none stb vgInfo, tbType:%d", tbMeta->tableType);
@@ -1029,7 +1029,7 @@ int32_t catalogGetDBVgList(SCatalog* pCtg, SRequestConnInfo* pConn, const char* 
     vgHash = vgInfo->vgHash;
   }
 
-  CTG_ERR_JRET(ctgGenerateVgList(pCtg, vgHash, &vgList));
+  CTG_ERR_JRET(ctgGenerateVgList(pCtg, vgHash, &vgList, dbFName));
 
   *vgroupList = vgList;
   vgList = NULL;
