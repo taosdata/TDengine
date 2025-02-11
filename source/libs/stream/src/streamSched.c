@@ -97,7 +97,11 @@ int32_t streamTrySchedExec(SStreamTask* pTask, bool chkptQueue) {
   if (streamTaskSetSchedStatusWait(pTask)) {
     return streamTaskSchedTask(pTask->pMsgCb, pTask->info.nodeId, pTask->id.streamId, pTask->id.taskId, 0, chkptQueue);
   } else {
-    stTrace("s-task:%s not launch task since sched status:%d", pTask->id.idStr, pTask->status.schedStatus);
+    if (chkptQueue) {
+      stWarn("s-task:%s not launch task in chkpt queue, may delay checkpoint procedure", pTask->id.idStr);
+    } else {
+      stTrace("s-task:%s not launch task since sched status:%d", pTask->id.idStr, pTask->status.schedStatus);
+    }
   }
 
   return 0;
