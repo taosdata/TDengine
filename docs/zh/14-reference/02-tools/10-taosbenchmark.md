@@ -6,9 +6,9 @@ toc_max_heading_level: 4
 
 taosBenchmark 是 TDengine 产品性能基准测试工具，提供对 TDengine 产品写入、查询及订阅性能测试，输出性能指标。
 
-## 安装
+## 工具获取
 
-taosBenchmark 是 TDengine 安装包中默认安装组件，安装 TDengine 后即可使用，参考 [TDengine 安装](../../../get-started/)
+taosBenchmark 是 TDengine 服务器及客户端安装包安装包中默认安装组件，安装后即可使用，参考 [TDengine 安装](../../../get-started/)
 
 ## 运行
 
@@ -423,7 +423,7 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为
   - **sql** : 执行的 SQL 命令，必填。
     
  
-#### 配置文件中数据类型书写对照表
+### 配置文件中数据类型书写对照表
 
 | #   |     **引擎**      | **taosBenchmark** 
 | --- | :----------------: | :---------------:

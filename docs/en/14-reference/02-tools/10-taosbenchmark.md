@@ -501,7 +501,7 @@ Configuration parameters for subscribing to specified tables (can specify supert
 - **sqls** :
   - **sql** : The SQL command to execute, required.
 
-#### Data Type Writing Comparison Table in Configuration File
+### Data Type Writing Comparison Table in Configuration File
 
 | #   |     **Engine**      | **taosBenchmark**
 | --- | :----------------: | :---------------:

@@ -4,7 +4,11 @@ sidebar_label: taos
 toc_max_heading_level: 4
 ---
 
-TDengine 命令行程序（以下简称 TDengine CLI）是用户操作 TDengine 实例并与之交互的最简洁最常用工具。 使用前需要安装 TDengine Server 安装包或 TDengine Client 安装包。
+TDengine 命令行程序（以下简称 TDengine CLI）是用户操作 TDengine 实例并与之交互最简洁常用工具。 
+
+## 工具获取
+
+TDengine CLI 是 TDengine 服务器及客户端安装包中默认安装组件，安装后即可使用，参考 [TDengine 安装](../../../get-started/)
 
 ## 启动
 
