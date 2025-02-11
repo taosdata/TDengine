@@ -30,7 +30,7 @@ char *g_aggreFunc[] = {"*",       "count(*)", "avg(C0)",   "sum(C0)",
 void printVersion() {
     // version, macro define in src/CMakeLists.txt
     printf("taosBenchmark version: %s\n", TD_VER_NUMBER);
-    printf("git: %s\n", TAOSBENCHMARK_COMMIT_ID);
+    printf("git: %s\n", TAOSBENCHMAR_COMMIT_ID);
     printf("build: %s\n", BUILD_INFO);
 }
 
