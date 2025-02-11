@@ -1243,12 +1243,19 @@ int64_t mndGetVnodesMemory(SMnode *pMnode, int32_t dnodeId) {
   return vnodeMemory;
 }
 
-double calculatePercentage(double part, double total) {
-  if (total == 0) {
-    return 0.0;
+void calculateRstoreFinishTime(double rate, int64_t applyCount, char *restoreStr, size_t restoreStrSize) {
+  if (rate == 0) {
+    snprintf(restoreStr, restoreStrSize, "0:0:0");
+    return;
   }
-  double percentage = (part / total) * 100;
-  return round(percentage * 100) / 100;
+
+  int64_t costTime = applyCount / rate;
+  int64_t totalSeconds = costTime / 1000;
+  int64_t hours = totalSeconds / 3600;
+  totalSeconds %= 3600;
+  int64_t minutes = totalSeconds / 60;
+  int64_t seconds = totalSeconds % 60;
+  snprintf(restoreStr, restoreStrSize, "%" PRId64 ":%" PRId64 ":%" PRId64, hours, minutes, seconds);
 }
 
 static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
@@ -1332,20 +1339,25 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       }
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      char restoreBuf[20] = {0};
-      if (pGid->syncRestore) {
-        sprintf(restoreBuf, "true");
-      } else {
-        double percentage = calculatePercentage(pGid->syncAppliedIndex, pGid->syncCommitIndex);
-        sprintf(restoreBuf, "%.2f", percentage);
-      }
-
-      STR_TO_VARSTR(buf, restoreBuf);
-      code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)&pGid->syncRestore, false);
       if (code != 0) {
         mError("vgId:%d, failed to set syncRestore, since %s", pVgroup->vgId, tstrerror(code));
         return code;
       }
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      char restoreStr[20] = {0};
+      if (!pGid->syncRestore) {
+        calculateRstoreFinishTime(pGid->appliedRate, pGid->syncCommitIndex - pGid->syncAppliedIndex, restoreStr,
+                                  sizeof(restoreStr));
+      }
+      STR_TO_VARSTR(buf, restoreStr);
+      colDataSetVal(pColInfo, numOfRows, (const char *)&buf, false);
+      if (code != 0) {
+        mError("vgId:%d, failed to set syncRestore finish time, since %s", pVgroup->vgId, tstrerror(code));
+        return code;
+      }
+
       numOfRows++;
       sdbRelease(pSdb, pDnode);
     }

@@ -477,6 +477,8 @@ typedef struct {
   ESyncState syncState;
   int64_t    syncTerm;
   int64_t    syncAppliedIndex;
+  int64_t    lastSyncAppliedIndexUpdateTime;
+  double     appliedRate;
   int64_t    syncCommitIndex;
   bool       syncRestore;
   bool       syncCanRead;
