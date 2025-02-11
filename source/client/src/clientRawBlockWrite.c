@@ -1948,10 +1948,10 @@ static int32_t initRawCacheHash() {
 }
 
 static bool needRefreshMeta(void* rawData, STableMeta* pTableMeta, SSchemaWrapper* pSW) {
-  if (rawData == NULL){
+  if (rawData == NULL || pSW == NULL){
     return false;
   }
-  if (pTableMeta == NULL || pSW == NULL) {
+  if (pTableMeta == NULL) {
     uError("invalid parameter in %s", __func__);
     return false;
   }
@@ -2074,7 +2074,7 @@ static int32_t processCacheMeta(SHashObj* pVgHash, SHashObj* pNameHash, SHashObj
                                 SVCreateTbReq* pCreateReqDst, SCatalog* pCatalog, SRequestConnInfo* conn, SName* pName,
                                 STableMeta** pMeta, SSchemaWrapper* pSW, void* rawData, int32_t retry) {
   if (pVgHash == NULL || pNameHash == NULL || pMetaHash == NULL || pCatalog == NULL || conn == NULL || pName == NULL ||
-      pMeta == NULL || pSW == NULL) {
+      pMeta == NULL) {
     uError("invalid parameter in %s", __func__);
     return TSDB_CODE_INVALID_PARA;
   }
@@ -2337,14 +2337,8 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
     RAW_NULL_CHECK(pStmt->pVgDataBlocks);
 
     while (++rspObj.resIter < rspObj.dataRsp.blockNum) {
-      if (!rspObj.dataRsp.withSchema) {
-        goto end;
-      }
-
       const char* tbName = (const char*)taosArrayGetP(rspObj.dataRsp.blockTbName, rspObj.resIter);
       RAW_NULL_CHECK(tbName);
-      SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(rspObj.dataRsp.blockSchema, rspObj.resIter);
-      RAW_NULL_CHECK(pSW);
       void* pRetrieve = taosArrayGetP(rspObj.dataRsp.blockData, rspObj.resIter);
       RAW_NULL_CHECK(pRetrieve);
       void* rawData = getRawDataFromRes(pRetrieve);
@@ -2358,7 +2352,7 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
       // find schema data info
       STableMeta*    pTableMeta = NULL;
       RAW_RETURN_CHECK(processCacheMeta(pVgHash, pNameHash, pMetaHash, NULL, pCatalog, &conn, &pName,
-                                        &pTableMeta, pSW, NULL, retry));
+                                        &pTableMeta, NULL, NULL, retry));
       char err[ERR_MSG_LEN] = {0};
       code = rawBlockBindRawData(pVgroupHash, pStmt->pVgDataBlocks, pTableMeta, rawData);
       if (code != TSDB_CODE_SUCCESS) {

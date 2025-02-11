@@ -263,7 +263,7 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBat
         tbName = NULL;
       }
       if (pRsp->withSchema) {
-        SSchemaWrapper* pSW = tCloneSSchemaWrapper(qExtractSchemaFromTask(task));
+        pSW = tCloneSSchemaWrapper(qExtractSchemaFromTask(task));
         TSDB_CHECK_NULL(pSW, code, lino, END, terrno);
         TSDB_CHECK_NULL(taosArrayPush(pRsp->blockSchema, &pSW), code, lino, END, terrno);
         pSW = NULL;

@@ -533,7 +533,7 @@ int32_t tqSendMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPoll
   return 0;
 }
 
-int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
+int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever) {
   if (pRpcHandleInfo == NULL || pRsp == NULL) {
     return TSDB_CODE_TMQ_INVALID_MSG;
@@ -541,6 +541,9 @@ int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* 
   int32_t len = 0;
   int32_t code = 0;
 
+  if (type == TMQ_MSG_TYPE__POLL_RAW_DATA_RSP){
+    pRsp->withSchema = 0;
+  }
   if (type == TMQ_MSG_TYPE__POLL_DATA_RSP ||
       type == TMQ_MSG_TYPE__WALINFO_RSP ||
       type == TMQ_MSG_TYPE__POLL_RAW_DATA_RSP) {
