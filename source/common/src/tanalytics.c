@@ -36,7 +36,7 @@ typedef struct {
 static SAlgoMgmt tsAlgos = {0};
 static int32_t   taosAnalBufGetCont(SAnalyticBuf *pBuf, char **ppCont, int64_t *pContLen);
 
-const char *taosAnalAlgoStr(EAnalAlgoType type) {
+const char *taosAnalysisAlgoType(EAnalAlgoType type) {
   switch (type) {
     case ANAL_ALGO_TYPE_ANOMALY_DETECT:
       return "anomaly-detection";
@@ -60,7 +60,7 @@ const char *taosAnalAlgoUrlStr(EAnalAlgoType type) {
 
 EAnalAlgoType taosAnalAlgoInt(const char *name) {
   for (EAnalAlgoType i = 0; i < ANAL_ALGO_TYPE_END; ++i) {
-    if (taosStrcasecmp(name, taosAnalAlgoStr(i)) == 0) {
+    if (taosStrcasecmp(name, taosAnalysisAlgoType(i)) == 0) {
       return i;
     }
   }
@@ -188,12 +188,12 @@ int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, 
     SAnalyticsUrl *pUrl = taosHashAcquire(tsAlgos.hash, name, nameLen);
     if (pUrl != NULL) {
       tstrncpy(url, pUrl->url, urlLen);
-      uDebug("algo:%s, type:%s, url:%s", algoName, taosAnalAlgoStr(type), url);
+      uDebug("algo:%s, type:%s, url:%s", algoName, taosAnalysisAlgoType(type), url);
     } else {
       url[0] = 0;
       terrno = TSDB_CODE_ANA_ALGO_NOT_FOUND;
       code = terrno;
-      uError("algo:%s, type:%s, url not found", algoName, taosAnalAlgoStr(type));
+      uError("algo:%s, type:%s, url not found", algoName, taosAnalysisAlgoType(type));
     }
 
     if (taosThreadMutexUnlock(&tsAlgos.lock) != 0) {
@@ -216,20 +216,20 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
     return 0;
   }
 
-  int64_t newDataSize = (int64_t) contLen * nmemb;
+  int64_t newDataSize = (int64_t)contLen * nmemb;
   int64_t size = pRsp->dataLen + newDataSize;
 
   if (pRsp->data == NULL) {
     pRsp->data = taosMemoryMalloc(size + 1);
     if (pRsp->data == NULL) {
-      uError("failed to prepare recv buffer for post rsp, len:%d, code:%s", (int32_t) size + 1, tstrerror(terrno));
-      return 0;   // return the recv length, if failed, return 0
+      uError("failed to prepare recv buffer for post rsp, len:%d, code:%s", (int32_t)size + 1, tstrerror(terrno));
+      return 0;  // return the recv length, if failed, return 0
     }
   } else {
-    char* p = taosMemoryRealloc(pRsp->data, size + 1);
+    char *p = taosMemoryRealloc(pRsp->data, size + 1);
     if (p == NULL) {
-      uError("failed to prepare recv buffer for post rsp, len:%d, code:%s", (int32_t) size + 1, tstrerror(terrno));
-      return 0;   // return the recv length, if failed, return 0
+      uError("failed to prepare recv buffer for post rsp, len:%d, code:%s", (int32_t)size + 1, tstrerror(terrno));
+      return 0;  // return the recv length, if failed, return 0
     }
 
     pRsp->data = p;
@@ -473,7 +473,7 @@ static int32_t taosAnalJsonBufWriteColMeta(SAnalyticBuf *pBuf, int32_t colIndex,
   }
 
   int32_t bufLen = tsnprintf(buf, sizeof(buf), "  [\"%s\", \"%s\", %d]%s\n", colName, tDataTypes[colType].name,
-                            tDataTypes[colType].bytes, last ? "" : ",");
+                             tDataTypes[colType].bytes, last ? "" : ",");
   if (taosWriteFile(pBuf->filePtr, buf, bufLen) != bufLen) {
     return terrno;
   }
@@ -779,7 +779,9 @@ int32_t tsosAnalBufOpen(SAnalyticBuf *pBuf, int32_t numOfCols) { return 0; }
 int32_t taosAnalBufWriteOptStr(SAnalyticBuf *pBuf, const char *optName, const char *optVal) { return 0; }
 int32_t taosAnalBufWriteOptInt(SAnalyticBuf *pBuf, const char *optName, int64_t optVal) { return 0; }
 int32_t taosAnalBufWriteOptFloat(SAnalyticBuf *pBuf, const char *optName, float optVal) { return 0; }
-int32_t taosAnalBufWriteColMeta(SAnalyticBuf *pBuf, int32_t colIndex, int32_t colType, const char *colName) { return 0; }
+int32_t taosAnalBufWriteColMeta(SAnalyticBuf *pBuf, int32_t colIndex, int32_t colType, const char *colName) {
+  return 0;
+}
 int32_t taosAnalBufWriteDataBegin(SAnalyticBuf *pBuf) { return 0; }
 int32_t taosAnalBufWriteColBegin(SAnalyticBuf *pBuf, int32_t colIndex) { return 0; }
 int32_t taosAnalBufWriteColData(SAnalyticBuf *pBuf, int32_t colIndex, int32_t colType, void *colValue) { return 0; }
@@ -788,7 +790,7 @@ int32_t taosAnalBufWriteDataEnd(SAnalyticBuf *pBuf) { return 0; }
 int32_t taosAnalBufClose(SAnalyticBuf *pBuf) { return 0; }
 void    taosAnalBufDestroy(SAnalyticBuf *pBuf) {}
 
-const char   *taosAnalAlgoStr(EAnalAlgoType algoType) { return 0; }
+const char   *taosAnalysisAlgoType(EAnalAlgoType algoType) { return 0; }
 EAnalAlgoType taosAnalAlgoInt(const char *algoName) { return 0; }
 const char   *taosAnalAlgoUrlStr(EAnalAlgoType algoType) { return 0; }
 

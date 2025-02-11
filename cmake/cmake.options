@@ -204,6 +204,10 @@ IF(${BUILD_WITH_ANALYSIS})
     set(BUILD_WITH_S3 ON)
 ENDIF()
 
+IF(${TD_LINUX})
+    set(BUILD_WITH_ANALYSIS ON)
+ENDIF()
+
 IF(${BUILD_S3})
 
 IF(${BUILD_WITH_S3})
@@ -243,7 +247,6 @@ option(
     off
 )
 
-
 option(
     BUILD_WITH_NURAFT
     "If build with NuRaft"
@@ -251,6 +254,7 @@ option(
 )
 
 IF(NOT TD_ACORE)
+
 option(
     BUILD_WITH_UV
     "If build with libuv"

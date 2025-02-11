@@ -33,37 +33,6 @@ function printHelp() {
       exit 0
 }
 
-# Initialization parameter
-PROJECT_DIR=""
-BRANCH=""
-TEST_TYPE=""
-SAVE_LOG="notsave"
-
-# Parse command line parameters
-while getopts "hb:d:t:s:" arg; do
-  case $arg in
-    d)
-      PROJECT_DIR=$OPTARG
-      ;;
-    b)
-      BRANCH=$OPTARG
-      ;;
-    t)
-      TEST_TYPE=$OPTARG
-      ;;
-    s)
-      SAVE_LOG=$OPTARG
-      ;;
-    h)
-      printHelp
-      ;;
-    ?)
-      echo "Usage: ./$(basename $0) -h"
-      exit 1
-      ;;
-  esac
-done
-
 function get_DIR() {
     today=`date +"%Y%m%d"`
     if [ -z "$PROJECT_DIR" ]; then
@@ -72,7 +41,7 @@ function get_DIR() {
         CODE_DIR=$(pwd)
         if [[ "$CODE_DIR" == *"/community/"*  ]]; then
             PROJECT_DIR=$(realpath ../..)
-            TDENGINE_DIR="$PROJECT_DIR"
+            TDENGINE_DIR="$PROJECT_DIR/community"
             BUILD_DIR="$PROJECT_DIR/debug"
             TDENGINE_ALLCI_REPORT="$TDENGINE_DIR/tests/all-ci-report-$today.log"
             BACKUP_DIR="$TDENGINE_DIR/tests/ci_bak"
@@ -102,13 +71,6 @@ function get_DIR() {
     fi
 }
 
-get_DIR
-echo "PROJECT_DIR = $PROJECT_DIR"
-echo "TDENGINE_DIR = $TDENGINE_DIR"
-echo "BUILD_DIR = $BUILD_DIR"
-echo "BACKUP_DIR = $BACKUP_DIR"
-
-
 function buildTDengine() {
     print_color "$GREEN" "TDengine build start"
     
@@ -118,14 +80,14 @@ function buildTDengine() {
         # pull tdinternal code
         cd "$TDENGINE_DIR/../"
         print_color "$GREEN" "Git pull TDinternal code..."
-        git remote prune origin > /dev/null
-        git remote update > /dev/null
+        # git remote prune origin > /dev/null
+        # git remote update > /dev/null
 
         # pull tdengine code
         cd $TDENGINE_DIR
         print_color "$GREEN" "Git pull TDengine code..."
-        git remote prune origin > /dev/null
-        git remote update > /dev/null
+        # git remote prune origin > /dev/null
+        # git remote update > /dev/null
         REMOTE_COMMIT=`git rev-parse --short remotes/origin/$branch`
         LOCAL_COMMIT=`git rev-parse --short @`
         print_color "$GREEN" " LOCAL: $LOCAL_COMMIT"
@@ -137,12 +99,12 @@ function buildTDengine() {
             print_color "$GREEN" "Repo need to pull"
         fi
 
-        git reset --hard
-        git checkout -- .
+        # git reset --hard
+        # git checkout -- .
         git checkout $branch
-        git checkout -- .
-        git clean -f
-        git pull
+        # git checkout -- .
+        # git clean -f
+        # git pull
 
         [ -d $TDENGINE_DIR/../debug ] || mkdir $TDENGINE_DIR/../debug
         cd $TDENGINE_DIR/../debug
@@ -155,15 +117,15 @@ function buildTDengine() {
         print_color "$GREEN" "$makecmd"
         $makecmd
 
-        make -j 8 install  
+        make -j $(nproc) install  
 
     else
         TDENGINE_DIR="$PROJECT_DIR"
         # pull tdengine code
         cd $TDENGINE_DIR
         print_color "$GREEN" "Git pull TDengine code..."
-        git remote prune origin > /dev/null
-        git remote update > /dev/null
+        # git remote prune origin > /dev/null
+        # git remote update > /dev/null
         REMOTE_COMMIT=`git rev-parse --short remotes/origin/$branch`
         LOCAL_COMMIT=`git rev-parse --short @`
         print_color "$GREEN" " LOCAL: $LOCAL_COMMIT"
@@ -175,12 +137,12 @@ function buildTDengine() {
             print_color "$GREEN" "Repo need to pull"
         fi
 
-        git reset --hard
-        git checkout -- .
+        # git reset --hard
+        # git checkout -- .
         git checkout $branch
-        git checkout -- .
-        git clean -f
-        git pull
+        # git checkout -- .
+        # git clean -f
+        # git pull
 
         [ -d $TDENGINE_DIR/debug ] || mkdir $TDENGINE_DIR/debug
         cd $TDENGINE_DIR/debug
@@ -193,23 +155,11 @@ function buildTDengine() {
         print_color "$GREEN" "$makecmd"
         $makecmd
 
-        make -j 8 install  
+        make -j $(nproc) install  
     fi
 
     print_color "$GREEN" "TDengine build end"
 }
-
-
-# Check and get the branch name
-if [ -n "$BRANCH" ] ; then
-    branch="$BRANCH"
-    print_color "$GREEN" "Testing branch: $branch "
-    print_color "$GREEN" "Build is required for this test！"
-    buildTDengine
-else
-    print_color "$GREEN" "Build is not required for this test！"
-fi
-
 
 function runCasesOneByOne () {
     while read -r line; do
@@ -264,7 +214,7 @@ function runUnitTest() {
     cd $BUILD_DIR
     pgrep taosd || taosd >> /dev/null 2>&1 &
     sleep 10
-    ctest -E "cunit_test" -j8
+    ctest -E "cunit_test" -j4
     print_color "$GREEN" "3.0 unit test done"
 }
 
@@ -314,7 +264,6 @@ function runPythonCases() {
     fi
 }
 
-
 function runTest() {
     print_color "$GREEN" "run Test"
 
@@ -344,7 +293,7 @@ function stopTaosd {
         sleep 1
         PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
     done
-    print_color "$GREEN" "Stop tasod end"
+    print_color "$GREEN" "Stop taosd end"
 }
 
 function stopTaosadapter {
@@ -357,10 +306,52 @@ function stopTaosadapter {
         sleep 1
         PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
     done
-    print_color "$GREEN" "Stop tasoadapter end"
+    print_color "$GREEN" "Stop taosadapter end"
 
 }
 
+######################
+# main entry
+######################
+
+# Initialization parameter
+PROJECT_DIR=""
+BRANCH=""
+TEST_TYPE=""
+SAVE_LOG="notsave"
+
+# Parse command line parameters
+while getopts "hb:d:t:s:" arg; do
+  case $arg in
+    d)
+      PROJECT_DIR=$OPTARG
+      ;;
+    b)
+      BRANCH=$OPTARG
+      ;;
+    t)
+      TEST_TYPE=$OPTARG
+      ;;
+    s)
+      SAVE_LOG=$OPTARG
+      ;;
+    h)
+      printHelp
+      ;;
+    ?)
+      echo "Usage: ./$(basename $0) -h"
+      exit 1
+      ;;
+  esac
+done
+
+get_DIR
+echo "PROJECT_DIR = $PROJECT_DIR"
+echo "TDENGINE_DIR = $TDENGINE_DIR"
+echo "BUILD_DIR = $BUILD_DIR"
+echo "BACKUP_DIR = $BACKUP_DIR"
+
+# Run all ci case
 WORK_DIR=$TDENGINE_DIR
 
 date >> $WORK_DIR/date.log
@@ -368,6 +359,17 @@ print_color "$GREEN" "Run all ci test cases" | tee -a $WORK_DIR/date.log
 
 stopTaosd
 
+# Check and get the branch name
+if [ -n "$BRANCH" ] ; then
+    branch="$BRANCH"
+    print_color "$GREEN" "Testing branch: $branch "
+    print_color "$GREEN" "Build is required for this test!"
+    buildTDengine
+else
+    print_color "$GREEN" "Build is not required for this test!"
+fi
+
+# Run different types of case
 if [ -z "$TEST_TYPE" -o "$TEST_TYPE" = "all" -o "$TEST_TYPE" = "ALL" ]; then
     runTest
 elif [ "$TEST_TYPE" = "python" -o "$TEST_TYPE" = "PYTHON" ]; then
