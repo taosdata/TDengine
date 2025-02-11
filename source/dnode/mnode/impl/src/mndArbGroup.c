@@ -22,7 +22,7 @@
 #include "mndVgroup.h"
 
 #define ARBGROUP_VER_NUMBER   1
-#define ARBGROUP_RESERVE_SIZE 63
+#define ARBGROUP_RESERVE_SIZE 51
 
 static SHashObj *arbUpdateHash = NULL;
 
@@ -639,7 +639,7 @@ void mndArbCheckSync(SArbGroup *pArbGroup, int64_t nowMs, ECheckSyncOp *pOp, SAr
       mInfo("arb skip to set assigned leader to vgId:%d dnodeId:%d, arb group is not sync", vgId,
             pMember->info.dnodeId);
     }
-    *pOp = CHECK_SYNC_CHECK_SYNC;
+    //*pOp = CHECK_SYNC_CHECK_SYNC;
     return;
   }
 
