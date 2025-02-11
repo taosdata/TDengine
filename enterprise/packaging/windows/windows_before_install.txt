@@ -2,4 +2,4 @@ TDengine will be installed under C:\TDengine, users can modify configuration fil
 - To start/stop TDengine with administrator privileges:  sc.exe start/stop taosd
 - To start/stop taosAdapter with administrator privileges: sc.exe start/stop taosadapter
 - To access TDengine from your local machine, run taos
-- Please manually remove C:\TDengine from your system PATH environment after you remove TDengine software.
+- Please manually remove C:\TDengine from your system PATH environment variable after TDengine is uninstalled.
