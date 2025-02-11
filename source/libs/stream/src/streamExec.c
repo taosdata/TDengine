@@ -778,6 +778,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
 
   // merge multiple input data if possible in the input queue.
   stDebug("s-task:%s start to extract data block from inputQ", id);
+  int64_t st = taosGetTimestampMs();
 
   while (1) {
     int32_t           blockSize = 0;
@@ -807,7 +808,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
       return 0;
     }
 
-    int64_t st = taosGetTimestampMs();
+
 
     EExtractDataCode ret = streamTaskGetDataFromInputQ(pTask, &pInput, &numOfBlocks, &blockSize);
     if (ret == EXEC_AFTER_IDLE) {
