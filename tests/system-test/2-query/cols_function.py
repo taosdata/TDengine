@@ -4,6 +4,7 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 from util.common import *
+from util.tserror import *
 import numpy as np
 
 
@@ -935,8 +936,12 @@ class TDTestCase:
         tdSql.checkCols(3)
         tdSql.checkData(0, 0, 'd0')
         tdSql.checkData(0, 1, 1734574929000)
-        tdSql.checkData(0, 2, 1)     
-        
+        tdSql.checkData(0, 2, 1)
+    
+    def stream_cols_test(self):
+        tdSql.error(f'CREATE STREAM last_col_s1 INTO last_col1 AS SELECT cols(last(ts), ts, c0) FROM meters PARTITION BY tbname INTERVAL(1s) SLIDING(1s);', TSDB_CODE_PAR_INVALID_COLS_FUNCTION)
+        tdSql.query(f'CREATE STREAM last_col_s INTO last_col AS SELECT last(ts), c0 FROM meters PARTITION BY tbname INTERVAL(1s) SLIDING(1s);')
+                
     def run(self):
         self.funcNestTest()
         self.funcSupperTableTest()
@@ -947,6 +952,7 @@ class TDTestCase:
         self.subquery_test()
         self.window_test()
         self.join_test()
+        self.stream_cols_test()
 
     def stop(self):
         tdSql.close()
