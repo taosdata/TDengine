@@ -4267,6 +4267,7 @@ typedef struct {
       void*   rawData;
     };
   };
+  void*   data;  //for free, only effected if type is data or metadata. raw data not effected
 
 } SMqDataRsp;
 

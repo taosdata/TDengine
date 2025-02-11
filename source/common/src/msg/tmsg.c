@@ -11518,6 +11518,7 @@ static void tDeleteMqDataRspCommon(SMqDataRsp *pRsp) {
   pRsp->blockTbName = NULL;
   tOffsetDestroy(&pRsp->reqOffset);
   tOffsetDestroy(&pRsp->rspOffset);
+  taosMemoryFreeClear(pRsp->data);
 }
 
 void tDeleteMqDataRsp(SMqDataRsp *rsp) { tDeleteMqDataRspCommon(rsp); }
