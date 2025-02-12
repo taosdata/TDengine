@@ -420,7 +420,7 @@ typedef struct SWindowOffsetNode {
 
 typedef struct SRangeAroundNode {
   ENodeType type;
-  SNode*    pTimepoint;
+  SNode*    pRange;
   SNode*    pInterval;
 } SRangeAroundNode;
 
