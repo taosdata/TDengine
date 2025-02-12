@@ -87,7 +87,7 @@ taosBenchmark -f <json file>
 
 查看更多 json 配置文件示例可 [点击这里](https://github.com/taosdata/TDengine/tree/main/tools/taos-tools/example)
 
-## 命令行参数详解
+## 命令行参数
 | 命令行参数                     | 功能说明                                         |
 | ---------------------------- | ----------------------------------------------- |
 | -f/--file \<json file>       | 要使用的 JSON 配置文件，由该文件指定所有参数，本参数与命令行其他参数不能同时使用。没有默认值 |

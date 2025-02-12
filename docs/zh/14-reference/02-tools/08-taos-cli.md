@@ -12,13 +12,13 @@ TDengine CLI 是 TDengine 服务器及客户端安装包中默认安装组件，
 
 ## 运行
 
-要进入 TDengine CLI，您在终端执行 `taos` 即可。
+进入 TDengine CLI 交互执行模式，在终端命令行执行：
 
 ```bash
 taos
 ```
 
-如果连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息。
+如果连接服务成功，将会打印出欢迎消息和版本信息。若失败，打印错误消息。
 
 TDengine CLI 的提示符号如下：
 
@@ -32,36 +32,17 @@ taos>
 taos> quit
 ```
 
-
-## 执行 SQL 脚本
-
-在 TDengine CLI 里可以通过 `source` 命令来运行脚本文件中的多条 SQL 命令。
-
-```sql
-taos> source <filename>;
-```
-
-## 在线修改显示字符宽度
-
-可以在 TDengine CLI 里使用如下命令调整字符显示宽度
-
-```sql
-taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
-```
-
-如显示的内容后面以 ... 结尾时，表示该内容已被截断，可通过本命令修改显示字符宽度以显示完整的内容。
-
 ## 命令行参数
 
 您可通过配置命令行参数来改变 TDengine CLI 的行为。以下为常用的几个命令行参数：
 
-- -h HOST: 要连接的 TDengine 服务端所在服务器的 FQDN, 默认为连接本地服务
-- -P PORT: 指定服务端所用端口号
-- -u USER: 连接时使用的用户名
-- -p PASSWORD: 连接服务端时使用的密码，特殊字符如 `! & ( ) < > ; |` 需使用字符 `\` 进行转义处理
+- -h HOST: 要连接的 TDengine 服务端所在服务器的 FQDN, 默认值： 127.0.0.1
+- -P PORT: 指定服务端所用端口号，默认值：6030
+- -u USER: 连接时使用的用户名，默认值：root
+- -p PASSWORD: 连接服务端时使用的密码，特殊字符如 `! & ( ) < > ; |` 需使用字符 `\` 进行转义处理, 默认值：taosdata
 - -?, --help: 打印出所有命令行参数
 
-还有更多其他参数：
+更多参数：
 
 - -a AUTHSTR: 连接服务端的授权信息
 - -A: 通过用户名和密码计算授权信息
@@ -83,15 +64,39 @@ taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
 - -z TIMEZONE: 指定时区，默认为本地时区
 - -V: 打印出当前版本号
 
-示例：
+### 非交互式执行
 
+使用 `-s` 参数可进行非交互式执行 SQL，执行完成后退出，此模式适合在自动化脚本中使用。  
+如以下命令连接到服务器 h1.taos.com, 执行 -s 指定的 SQL:
 ```bash
 taos -h h1.taos.com -s "use db; show tables;"
 ```
 
-## 配置文件
+### taosc 配置文件
 
-也可以通过配置文件中的参数设置来控制 TDengine CLI 的行为。可用配置参数请参考[客户端配置](../../components/taosc)
+可通过 `-c` 参数改变 `taosc` 客户端加载配置文件的位置，客户端配置参数参考 [客户端配置](../../components/taosc)
+如以下命令指定了 `taosc` 客户端加载 `/root/cfg/` 下的 `taos.cfg` 配置文件
+```bash
+taos -c /root/cfg/
+```
+
+## 执行 SQL 脚本
+
+在 TDengine CLI 里可以通过 `source` 命令来运行脚本文件中的多条 SQL 命令。
+
+```sql
+taos> source <filename>;
+```
+
+## 在线修改显示字符宽度
+
+可以在 TDengine CLI 里使用如下命令调整字符显示宽度
+
+```sql
+taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
+```
+
+如显示的内容后面以 ... 结尾时，表示该内容已被截断，可通过本命令修改显示字符宽度以显示完整的内容。
 
 ## 错误代码表
 在 TDengine 3.3.4.8 版本后 TDengine CLI 在返回错误信息中返回了具体错误码，用户可到 TDengine 官网错误码页面查找具体原因及解决措施，见：[错误码参考表](https://docs.taosdata.com/reference/error-code/)

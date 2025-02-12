@@ -43,7 +43,7 @@ taosdump 内部使用 TDengine stmt binding API 进行恢复数据的写入，�
 
 :::
 
-## 详细命令行参数列表
+## 命令行参数
 
 以下为 taosdump 详细命令行参数列表：
 
