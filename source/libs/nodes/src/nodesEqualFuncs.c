@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "functionMgt.h"
 #include "querynodes.h"
 
 #define COMPARE_SCALAR_FIELD(fldname)           \
@@ -137,6 +138,14 @@ static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
   COMPARE_SCALAR_FIELD(funcId);
   COMPARE_STRING_FIELD(functionName);
   COMPARE_NODE_LIST_FIELD(pParameterList);
+  if (a->funcType == FUNCTION_TYPE_SELECT_VALUE) {
+    if ((a->node.bindTupleFuncIdx != b->node.bindTupleFuncIdx)) return false;
+  } else {
+    if ((a->node.tupleFuncIdx != b->node.tupleFuncIdx)) {
+      return false;
+    }
+  }
+
   return true;
 }
 

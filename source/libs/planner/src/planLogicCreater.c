@@ -123,6 +123,8 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
           tstrncpy(pCol->node.userAlias, ((SExprNode*)pExpr)->userAlias, TSDB_COL_NAME_LEN);
           tstrncpy(pCol->colName, ((SExprNode*)pExpr)->aliasName, TSDB_COL_NAME_LEN);
           pCol->node.projIdx = ((SExprNode*)(*pNode))->projIdx;
+          pCol->node.bindTupleFuncIdx = ((SExprNode*)(*pNode))->bindTupleFuncIdx;
+          pCol->node.tupleFuncIdx = ((SExprNode*)(*pNode))->tupleFuncIdx;
           if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
             setColumnInfo((SFunctionNode*)pExpr, pCol, pCxt->isPartitionBy);
           }
@@ -150,7 +152,7 @@ static EDealRes doNameExpr(SNode* pNode, void* pContext) {
     case QUERY_NODE_LOGIC_CONDITION:
     case QUERY_NODE_FUNCTION: {
       if ('\0' == ((SExprNode*)pNode)->aliasName[0]) {
-        snprintf(((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN, "#expr_%p", pNode);
+        rewriteExprAliasName((SExprNode*)pNode, (int64_t)pNode);
       }
       return DEAL_RES_IGNORE_CHILD;
     }
@@ -710,6 +712,8 @@ static SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) 
   if (NULL != pStmtName) {
     snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", pStmtName);
   }
+  pCol->node.bindTupleFuncIdx = pExpr->bindTupleFuncIdx;
+  pCol->node.tupleFuncIdx = pExpr->tupleFuncIdx;
   return pCol;
 }
 
@@ -1596,6 +1600,9 @@ static int32_t createColumnByProjections(SLogicPlanContext* pCxt, const char* pS
   int32_t projIdx = 1;
   FOREACH(pNode, pExprs) {
     SColumnNode* pCol = createColumnByExpr(pStmtName, (SExprNode*)pNode);
+    if (pCol->node.tupleFuncIdx != 0) {
+      continue;
+    }
     if (TSDB_CODE_SUCCESS != (code = nodesListStrictAppend(pList, (SNode*)pCol))) {
       nodesDestroyList(pList);
       return code;

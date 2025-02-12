@@ -41,7 +41,7 @@ int32_t sendSyncReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
 }
 
 char *i642str(int64_t val) {
-  static char str[24] = {0};
+  static threadlocal char str[24] = {0};
   (void)snprintf(str, sizeof(str), "%" PRId64, val);
   return str;
 }

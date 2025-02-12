@@ -79,6 +79,8 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
           }
         }
       }
+      pCol->node.bindTupleFuncIdx = pExpr->bindTupleFuncIdx;
+      pCol->node.tupleFuncIdx = pExpr->tupleFuncIdx;
       return (TSDB_CODE_SUCCESS == nodesListStrictAppend(pCxt->pList, (SNode*)pCol) ? DEAL_RES_IGNORE_CHILD
                                                                                     : DEAL_RES_ERROR);
     }

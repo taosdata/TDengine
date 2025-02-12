@@ -106,6 +106,8 @@ static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   COPY_SCALAR_FIELD(asParam);
   COPY_SCALAR_FIELD(asPosition);
   COPY_SCALAR_FIELD(projIdx);
+  COPY_SCALAR_FIELD(bindTupleFuncIdx);
+  COPY_SCALAR_FIELD(tupleFuncIdx);
   return TSDB_CODE_SUCCESS;
 }
 

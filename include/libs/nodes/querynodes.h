@@ -16,6 +16,7 @@
 #ifndef _TD_QUERY_NODES_H_
 #define _TD_QUERY_NODES_H_
 
+#include <stdint.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -61,6 +62,8 @@ typedef struct SExprNode {
   bool      asParam;
   bool      asPosition;
   int32_t   projIdx;
+  int32_t   bindTupleFuncIdx;
+  int32_t   tupleFuncIdx;
 } SExprNode;
 
 typedef enum EColumnType {
@@ -696,6 +699,8 @@ char*   getJoinTypeString(EJoinType type);
 char*   getJoinSTypeString(EJoinSubType type);
 char*   getFullJoinTypeString(EJoinType type, EJoinSubType stype);
 int32_t mergeJoinConds(SNode** ppDst, SNode** ppSrc);
+
+int32_t rewriteExprAliasName(SExprNode* pNode, int64_t num);
 
 #ifdef __cplusplus
 }

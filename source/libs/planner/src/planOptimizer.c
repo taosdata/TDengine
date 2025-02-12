@@ -3044,7 +3044,7 @@ static int32_t smaIndexOptCreateSmaCols(SNodeList* pFuncs, uint64_t tableId, SNo
       }
       SExprNode exprNode;
       exprNode.resType = ((SExprNode*)pWsNode)->resType;
-      snprintf(exprNode.aliasName, TSDB_COL_NAME_LEN, "#expr_%d", index + 1);
+      rewriteExprAliasName(&exprNode, index + 1);
       SColumnNode* pkNode = NULL;
       code = smaIndexOptCreateSmaCol((SNode*)&exprNode, tableId, PRIMARYKEY_TIMESTAMP_COL_ID, &pkNode);
       if (TSDB_CODE_SUCCESS != code) {
@@ -3487,6 +3487,10 @@ static bool eliminateProjOptCanChildConditionUseChildTargets(SLogicNode* pChild,
     nodesWalkExpr(pJoinLogicNode->pFullOnCond, eliminateProjOptCanUseNewChildTargetsImpl, &cxt);
     if (!cxt.canUse) return false;
   }
+  //if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pChild) &&
+  //    ((SAggLogicNode*)pChild)->node.pTargets->length != pNewChildTargets->length) {
+  //  return false;
+  //}
   return true;
 }
 
@@ -3615,7 +3619,8 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     } else {
       FOREACH(pProjection, pProjectNode->pProjections) {
         FOREACH(pChildTarget, pChild->pTargets) {
-          if (0 == strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName)) {
+          if (0 == strcmp(((SColumnNode*)pProjection)->colName, ((SColumnNode*)pChildTarget)->colName)
+          && ((SColumnNode*)pProjection)->node.tupleFuncIdx == 0) {
             SNode* pNew = NULL;
             code = nodesCloneNode(pChildTarget, &pNew);
             if (TSDB_CODE_SUCCESS == code) {
