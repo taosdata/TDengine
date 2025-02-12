@@ -165,6 +165,55 @@ int32_t colDataSetValOrCover(SColumnInfoData* pColumnInfoData, uint32_t rowIndex
   return colDataSetValHelp(pColumnInfoData, rowIndex, pData, isNull);
 }
 
+int32_t varColSetVarData(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pVarData, int32_t varDataLen,
+                         bool isNull) {
+  if (!IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (isNull || pVarData == NULL) {
+    pColumnInfoData->varmeta.offset[rowIndex] = -1;  // it is a null value of VAR type.
+    pColumnInfoData->hasNull = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t dataLen = VARSTR_HEADER_SIZE + varDataLen;
+  if (pColumnInfoData->varmeta.offset[rowIndex] > 0) {
+    pColumnInfoData->varmeta.length = pColumnInfoData->varmeta.offset[rowIndex];
+  }
+
+  SVarColAttr* pAttr = &pColumnInfoData->varmeta;
+  if (pAttr->allocLen < pAttr->length + dataLen) {
+    uint32_t newSize = pAttr->allocLen;
+    if (newSize <= 1) {
+      newSize = 8;
+    }
+
+    while (newSize < pAttr->length + dataLen) {
+      newSize = newSize * 1.5;
+      if (newSize > UINT32_MAX) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
+
+    char* buf = taosMemoryRealloc(pColumnInfoData->pData, newSize);
+    if (buf == NULL) {
+      return terrno;
+    }
+
+    pColumnInfoData->pData = buf;
+    pAttr->allocLen = newSize;
+  }
+
+  uint32_t len = pColumnInfoData->varmeta.length;
+  pColumnInfoData->varmeta.offset[rowIndex] = len;
+
+  (void)memmove(varDataVal(pColumnInfoData->pData + len), pVarData, varDataLen);
+  varDataSetLen(pColumnInfoData->pData + len, varDataLen);
+  pColumnInfoData->varmeta.length += dataLen;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t colDataReassignVal(SColumnInfoData* pColumnInfoData, uint32_t dstRowIdx, uint32_t srcRowIdx,
                            const char* pData) {
   int32_t type = pColumnInfoData->info.type;

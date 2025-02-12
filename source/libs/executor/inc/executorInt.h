@@ -450,16 +450,17 @@ typedef struct STimeWindowAggSupp {
 } STimeWindowAggSupp;
 
 typedef struct SStreamNotifyEventSupp {
-  SArray*      pWindowEvents;      // Array of SStreamNotifyEvent, storing window events and trigger values.
-  SHashObj*    pTableNameHashMap;  // Hash map from groupid to the dest child table name.
-  SHashObj*    pResultHashMap;     // Hash map from groupid+skey to the window agg result.
-  SSDataBlock* pEventBlock;        // The datablock contains all window events and results.
+  SHashObj*    pWindowEventHashMap;  // Hash map from gorupid+skey+eventType to the list node of window event.
+  SHashObj*    pTableNameHashMap;    // Hash map from groupid to the dest child table name.
+  SSDataBlock* pEventBlock;          // The datablock contains all window events and results.
+  SArray*      pSessionKeys;
+  const char*  windowType;
 } SStreamNotifyEventSupp;
 
 typedef struct SSteamOpBasicInfo {
   int32_t                primaryPkIndex;
   bool                   updateOperatorInfo;
-  SStreamNotifyEventSupp windowEventSup;
+  SStreamNotifyEventSupp notifyEventSup;
 } SSteamOpBasicInfo;
 
 typedef struct SStreamFillSupporter {
@@ -1036,8 +1037,8 @@ int32_t initDownStream(struct SOperatorInfo* downstream, SStreamAggSupporter* pA
 int32_t getMaxTsWins(const SArray* pAllWins, SArray* pMaxWins);
 void    initGroupResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
 void    getSessionHashKey(const SSessionKey* pKey, SSessionKey* pHashKey);
-int32_t deleteSessionWinState(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SSHashObj* pMapUpdate,
-                              SSHashObj* pMapDelete, SSHashObj* pPkDelete, bool needAdd);
+int32_t deleteSessionWinState(SStreamAggSupporter* pAggSup, SStreamNotifyEventSupp* pNotifySup, SSDataBlock* pBlock,
+                              SSHashObj* pMapUpdate, SSHashObj* pMapDelete, SSHashObj* pPkDelete, bool needAdd);
 int32_t getAllSessionWindow(SSHashObj* pHashMap, SSHashObj* pStUpdated);
 int32_t closeSessionWindow(SSHashObj* pHashMap, STimeWindowAggSupp* pTwSup, SSHashObj* pClosed);
 int32_t copyUpdateResult(SSHashObj** ppWinUpdated, SArray* pUpdated, __compar_fn_t compar);
@@ -1053,13 +1054,13 @@ int32_t saveDeleteRes(SSHashObj* pStDelete, SSessionKey key);
 void    removeSessionResult(SStreamAggSupporter* pAggSup, SSHashObj* pHashMap, SSHashObj* pResMap, SSessionKey* pKey);
 void    doBuildDeleteDataBlock(struct SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlock* pBlock, void** Ite);
 void    doBuildSessionResult(struct SOperatorInfo* pOperator, void* pState, SGroupResInfo* pGroupResInfo,
-                             SSDataBlock* pBlock);
+                             SSDataBlock* pBlock, SArray* pSessionKeys);
 int32_t getSessionWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SResultWindowInfo* pWinInfo);
 void    getNextSessionWinInfo(SStreamAggSupporter* pAggSup, SSHashObj* pStUpdated, SResultWindowInfo* pCurWin,
                               SResultWindowInfo* pNextWin);
-int32_t compactTimeWindow(SExprSupp* pSup, SStreamAggSupporter* pAggSup, STimeWindowAggSupp* pTwAggSup,
-                          SExecTaskInfo* pTaskInfo, SResultWindowInfo* pCurWin, SResultWindowInfo* pNextWin,
-                          SSHashObj* pStUpdated, SSHashObj* pStDeleted, bool addGap);
+int32_t compactTimeWindow(SExprSupp* pSup, SStreamAggSupporter* pAggSup, SStreamNotifyEventSupp* pNotifySup,
+                          STimeWindowAggSupp* pTwAggSup, SExecTaskInfo* pTaskInfo, SResultWindowInfo* pCurWin,
+                          SResultWindowInfo* pNextWin, SSHashObj* pStUpdated, SSHashObj* pStDeleted, bool addGap);
 void    releaseOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI);
 void    resetWinRange(STimeWindow* winRange);
 bool    checkExpiredData(SStateStore* pAPI, SUpdateInfo* pUpdateInfo, STimeWindowAggSupp* pTwSup, uint64_t tableId,
@@ -1090,7 +1091,7 @@ void    freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamT
 int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam,
                                        SSDataBlock** pResBlock);
 void getCountWinRange(SStreamAggSupporter* pAggSup, const SSessionKey* pKey, EStreamType mode, SSessionKey* pDelRange);
-void doDeleteSessionWindow(SStreamAggSupporter* pAggSup, SSessionKey* pKey);
+void    doDeleteSessionWindow(SStreamAggSupporter* pAggSup, SStreamNotifyEventSupp* pNotifySup, SSessionKey* pKey);
 
 int32_t saveDeleteInfo(SArray* pWins, SSessionKey key);
 void    removeSessionResults(SStreamAggSupporter* pAggSup, SSHashObj* pHashMap, SArray* pWins);
@@ -1101,7 +1102,8 @@ bool inSlidingWindow(SInterval* pInterval, STimeWindow* pWin, SDataBlockInfo* pB
 bool inCalSlidingWindow(SInterval* pInterval, STimeWindow* pWin, TSKEY calStart, TSKEY calEnd, EStreamType blockType);
 bool compareVal(const char* v, const SStateKeys* pKey);
 bool inWinRange(STimeWindow* range, STimeWindow* cur);
-int32_t doDeleteTimeWindows(SStreamAggSupporter* pAggSup, SSDataBlock* pBlock, SArray* result);
+int32_t doDeleteTimeWindows(SStreamAggSupporter* pAggSup, SStreamNotifyEventSupp* pNotifySup, SSDataBlock* pBlock,
+                            SArray* result);
 
 int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
                                TSKEY* primaryKeys, int32_t prevPosition, int32_t order);
