@@ -137,6 +137,10 @@ if(${BUILD_S3})
   endif(${BUILD_WITH_COS})
 endif()
 
+add_dependencies(common ext_libuv)
+target_include_directories(common PUBLIC "${TD_CONTRIB_EXT_LIBUV_INC_DIR}")
+target_link_directories(common PUBLIC "${TD_CONTRIB_EXT_LIBUV_LIB_DIR}")
+
 if(${BUILD_TEST})
   ADD_SUBDIRECTORY(test)
 endif(${BUILD_TEST})
