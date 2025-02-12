@@ -12,6 +12,7 @@ ExternalProject_Add(ext_zlib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=Release
         CMAKE_ARGS -DCMAKE_C_FLAGS:STRING=-fPIC
         GIT_SHALLOW true
+        EXCLUDE_FROM_ALL true
         )
 
 set(TD_CONTRIB_EXT_ZLIB_INC_DIR "${_ins}/include" PARENT_SCOPE)
