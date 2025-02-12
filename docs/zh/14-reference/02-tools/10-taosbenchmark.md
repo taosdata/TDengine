@@ -12,10 +12,11 @@ taosBenchmark 是 TDengine 服务器及客户端安装包中默认安装组件�
 
 ## 运行
 
-taosBenchmark 支持无参数、命令行、配置文件三种运行模式  
-`命令行` 为 `配置文件` 功能子集，两者同时使用时，以命令行方式优先。  
+taosBenchmark 支持无参数、命令行、配置文件三种运行模式，`命令行` 为 `配置文件` 功能子集，两者同时使用时，以命令行方式优先。  
 
-**在运行 taosBenchmark 之前要确保 TDengine 集群已经在正确运行。**
+:::tip
+在运行 taosBenchmark 之前要确保 TDengine 集群已经在正确运行
+:::
 
 ### 无参数模式
 
@@ -314,7 +315,7 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为
 - **auto.commit.interval.ms** : 自动提交间隔时间，单位为毫秒
 - **rows_file** : 存储消费数据的文件，可以为全路径或相对路径，带文件名。实际保存的文件会在后面加上消费者序号，如 rows_file 为 result, 实际文件名为 result_1（消费者 1） result_2（消费者 2） ...
 - **expect_rows** : 期望每个消费者消费的行数，数据类型，当消费达到这个数，消费会退出，不设置会一直消费
-- **topic_list** : 指定消费的 topic 列表，数组类型。topic 列表格式示例： {"name": "topic1", "sql": "select * from test.meters;"}， name： 指定 topic 名， sql： 指定创建 topic 的 sql 语句，需保证 sql 正确，框架会自动创建出 topic。
+- **topic_list** : 指定消费的 topic 列表，数组类型。topic 列表格式示例： `{"name": "topic1", "sql": "select * from test.meters;"}` ，name：指定 topic 名，sql：指定创建 topic 的 sql 语句，需保证 sql 正确，框架会自动创建出 topic。
 
  
 ### 数据类型对照表
