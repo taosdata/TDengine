@@ -4204,6 +4204,7 @@ static int32_t fltSclBuildDecimalDatumFromValueNode(SFltSclDatum* datum, SColumn
     void *pData = NULL;
     if (datum->type.type == TSDB_DATA_TYPE_DECIMAL64) {
       pData = &datum->i; // TODO wjm set kind
+      datum->kind = FLT_SCL_DATUM_KIND_DECIMAL64;
     } else if (datum->type.type == TSDB_DATA_TYPE_DECIMAL) {
       pData = taosMemoryCalloc(1, pColNode->node.resType.bytes);
       if (!pData) FLT_ERR_RET(terrno);

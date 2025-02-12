@@ -63,6 +63,13 @@ static const uint8_t typeConvertDecimalPrec[] = {
 
 int32_t decimalGetRetType(const SDataType* pLeftT, const SDataType* pRightT, EOperatorType opType,
                           SDataType* pOutType) {
+  if (pLeftT->type == TSDB_DATA_TYPE_JSON || pRightT->type == TSDB_DATA_TYPE_JSON ||
+      pLeftT->type == TSDB_DATA_TYPE_VARBINARY || pRightT->type == TSDB_DATA_TYPE_VARBINARY)
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  if ((pLeftT->type >= TSDB_DATA_TYPE_BLOB && pLeftT->type <= TSDB_DATA_TYPE_GEOMETRY) ||
+      (pRightT->type >= TSDB_DATA_TYPE_BLOB && pRightT->type <= TSDB_DATA_TYPE_GEOMETRY)) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
   if (IS_FLOAT_TYPE(pLeftT->type) || IS_FLOAT_TYPE(pRightT->type) || IS_VAR_DATA_TYPE(pLeftT->type) ||
       IS_VAR_DATA_TYPE(pRightT->type)) {
     pOutType->type = TSDB_DATA_TYPE_DOUBLE;
@@ -75,8 +82,6 @@ int32_t decimalGetRetType(const SDataType* pLeftT, const SDataType* pRightT, EOp
     pOutType->bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
     return 0;
   }
-
-  // TODO wjm check not supported types
   uint8_t p1 = pLeftT->precision, s1 = pLeftT->scale, p2 = pRightT->precision, s2 = pRightT->scale;
 
   if (!IS_DECIMAL_TYPE(pLeftT->type)) {
@@ -466,7 +471,7 @@ static const Decimal128 SCALE_MULTIPLIER_128[TSDB_DECIMAL128_MAX_PRECISION + 1] 
     DEFINE_DECIMAL128(4003012203950112768ULL, 542101086242752LL),
     DEFINE_DECIMAL128(3136633892082024448ULL, 5421010862427522LL),
     DEFINE_DECIMAL128(12919594847110692864ULL, 54210108624275221LL),
-    DEFINE_DECIMAL128(68739955140067328ULL, 542101086242752217LL),
+    DEFINE_DECIMAL128(68739955140067328ULL, 542101086242752217LL), // TODO wjm TEST it
     DEFINE_DECIMAL128(687399551400673280ULL, 5421010862427522170LL),
 };
 
@@ -518,7 +523,7 @@ static void decimal128Negate(DecimalType* pWord) {
   Decimal128* pDec = (Decimal128*)pWord;
   uint64_t    lo = ~DECIMAL128_LOW_WORD(pDec) + 1;
   int64_t     hi = ~DECIMAL128_HIGH_WORD(pDec);
-  if (lo == 0) hi = SAFE_INT64_ADD(hi, 1);
+  if (lo == 0) hi = SAFE_INT64_ADD(hi, 1); // TODO wjm test if overflow?
   makeDecimal128(pDec, hi, lo);
 }
 
@@ -567,7 +572,7 @@ static void decimal128Multiply(DecimalType* pLeft, const DecimalType* pRight, ui
   bool       negate = DECIMAL128_SIGN(pLeftDec) != DECIMAL128_SIGN(pRightDec);
   Decimal128 x = *pLeftDec, y = *pRightDec;
   decimal128Abs(&x);
-  decimal128Abs(&y);
+  decimal128Abs(&y); // TODO wjm use too much abs, optimize it.
 
   UInt128 res = {0}, tmp = {0};
   makeUInt128(&res, DECIMAL128_HIGH_WORD(&x), DECIMAL128_LOW_WORD(&x));
@@ -615,7 +620,8 @@ static void decimal128Mod(DecimalType* pLeft, const DecimalType* pRight, uint8_t
   Decimal128 pLeftDec = *(Decimal128*)pLeft, *pRightDec = (Decimal128*)pRight, right = {0};
   DECIMAL128_CHECK_RIGHT_WORD_NUM(rightWordNum, pRightDec, right, pRight);
 
-  decimal128Divide(&pLeftDec, pRightDec, WORD_NUM(Decimal128), pLeft);
+  decimal128Divide(&pLeftDec, pRightDec, WORD_NUM(Decimal128),
+                   pLeft);  // TODO wjm test it pLeft and pRemainder use the same pointer
 }
 
 static bool decimal128Gt(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum) {
@@ -642,8 +648,8 @@ static void extractDecimal128Digits(const Decimal128* pDec, uint64_t* digits, in
   *digitNum = 0;
   makeUInt128(&a, DECIMAL128_HIGH_WORD(pDec), DECIMAL128_LOW_WORD(pDec));
   while (!uInt128Eq(&a, &uInt128Zero)) {
-    uint64_t hi = a >> 64;  // TODO wjm use function, UInt128 may be a struct.
-    uint64_t lo = a;
+    uint64_t hi = uInt128Hi(&a);
+    uint64_t lo = uInt128Lo(&a);
 
     uint64_t hiQuotient = hi / k1e18;
     uint64_t hiRemainder = hi % k1e18;
@@ -793,6 +799,66 @@ static void decimalAdd(Decimal* pX, const SDataType* pXT, const Decimal* pY, con
   }
 }
 
+static void makeInt256FromDecimal128(Int256* pTarget, const Decimal128* pDec) {
+  bool negative = DECIMAL128_SIGN(pDec) == -1;
+  Decimal128 abs = *pDec;
+  decimal128Abs(&abs);
+  UInt128 tmp = {DECIMAL128_LOW_WORD(&abs), DECIMAL128_HIGH_WORD(&abs)};
+  *pTarget = makeInt256(int128Zero, tmp);
+  if (negative) {
+    int256Negate(pTarget);
+  }
+}
+
+static Int256 int256ScaleBy(const Int256* pX, int32_t scale) {
+  Int256 result = *pX;
+  if (scale > 0) {
+    Int256 multiplier = {0};
+    makeInt256FromDecimal128(&multiplier, &SCALE_MULTIPLIER_128[scale]);
+    result = int256Multiply(pX, &multiplier);
+  } else if (scale < 0) {
+    Int256 divisor = {0};
+    makeInt256FromDecimal128(&divisor, &SCALE_MULTIPLIER_128[-scale]);
+    result = int256Divide(pX, &divisor);
+    Int256 remainder = int256Mod(pX, &divisor);
+    Int256 afterShift = int256RightShift(&divisor, 1);
+    remainder = int256Abs(&remainder);
+    if (int256Gt(&remainder, &afterShift)) {
+      if (int256Gt(&result, &int256Zero)) {
+        result = int256Add(&result, &int256One);
+      } else {
+        result = int256Subtract(&result, &int256One);
+      }
+    }
+  }
+  return result;
+}
+
+static bool convertInt256ToDecimal128(const Int256* pX, Decimal128* pDec) {
+  bool overflow = false;
+  Int256 abs = int256Abs(pX);
+  bool isNegative = int256Lt(pX, &int256Zero);
+  UInt128 low = int256Lo(&abs);
+  uint64_t lowLow= uInt128Lo(&low);
+  uint64_t lowHigh = uInt128Hi(&low);
+  Int256 afterShift = int256RightShift(&abs, 128);
+
+  if (int256Gt(&afterShift, &int256Zero)) {
+    overflow = true;
+  } else if (lowHigh > INT64_MAX) {
+    overflow = true;
+  } else {
+    makeDecimal128(pDec, lowHigh, lowLow);
+    if (decimal128Gt(pDec, &decimal128Max, WORD_NUM(Decimal128))) {
+      overflow = true;
+    }
+  }
+  if (isNegative) {
+    decimal128Negate(pDec);
+  }
+  return overflow;
+}
+
 static int32_t decimalMultiply(Decimal* pX, const SDataType* pXT, const Decimal* pY, const SDataType* pYT,
                                const SDataType* pOT) {
   if (pOT->precision < TSDB_DECIMAL_MAX_PRECISION) {
@@ -819,7 +885,15 @@ static int32_t decimalMultiply(Decimal* pX, const SDataType* pXT, const Decimal*
       int32_t leadingZeros = decimal128CountLeadingBinaryZeros(&xAbs) + decimal128CountLeadingBinaryZeros(&yAbs);
       if (leadingZeros <= 128) {
         // need to trim scale
-        return TSDB_CODE_DECIMAL_OVERFLOW;
+        Int256 x256 = {0}, y256 = {0};
+        makeInt256FromDecimal128(&x256, pX);
+        makeInt256FromDecimal128(&y256, pY);
+        Int256 res = int256Multiply(&x256, &y256);
+        if (deltaScale != 0) {
+          res = int256ScaleBy(&res, -deltaScale);
+        }
+        bool overflow = convertInt256ToDecimal128(&res, pX);
+        if (overflow) return TSDB_CODE_DECIMAL_OVERFLOW;
       } else {
         // no need to trim scale
         if (deltaScale <= 38) {
@@ -834,7 +908,7 @@ static int32_t decimalMultiply(Decimal* pX, const SDataType* pXT, const Decimal*
   return 0;
 }
 
-int32_t decimalDivide(Decimal* pX, const SDataType* pXT, const Decimal* pY, const SDataType* pYT,
+static int32_t decimalDivide(Decimal* pX, const SDataType* pXT, const Decimal* pY, const SDataType* pYT,
                       const SDataType* pOT) {
   if (decimal128Eq(pY, &DECIMAL128_ZERO, WORD_NUM(Decimal))) {
     return TSDB_CODE_DECIMAL_OVERFLOW;  // TODO wjm divide zero error
@@ -860,10 +934,68 @@ int32_t decimalDivide(Decimal* pX, const SDataType* pXT, const Decimal* pY, cons
       Decimal64 extra = {(DECIMAL128_SIGN(pX) ^ DECIMAL128_SIGN(pY)) + 1};
       decimal128Add(&xTmp, &extra, WORD_NUM(Decimal64));
     }
+    *pX = xTmp;
   } else {
-    return TSDB_CODE_DECIMAL_OVERFLOW;
+    Int256 x256 = {0}, y256 = {0};
+    makeInt256FromDecimal128(&x256, pX);
+    Int256 xScaledUp = int256ScaleBy(&x256, deltaScale);
+    makeInt256FromDecimal128(&y256, pY);
+    Int256 res = int256Divide(&xScaledUp, &y256);
+    Int256 remainder = int256Mod(&xScaledUp, &y256);
+
+    remainder = int256Multiply(&remainder, &int256Two);
+    remainder = int256Abs(&remainder);
+    y256 = int256Abs(&y256);
+    if (!int256Lt(&remainder, &y256)) {
+      if ((DECIMAL128_SIGN(pX) ^ DECIMAL128_SIGN(pY)) == 0) {
+        res = int256Add(&res, &int256One);
+      } else {
+        res = int256Subtract(&res, &int256One);
+      }
+    }
+    bool overflow = convertInt256ToDecimal128(&res, pX);
+    if (overflow) return TSDB_CODE_DECIMAL_OVERFLOW;
   }
-  *pX = xTmp;
+  return 0;
+}
+
+static int32_t decimalMod(Decimal* pX, const SDataType* pXT, const Decimal* pY, const SDataType* pYT,
+                          const SDataType* pOT) {
+  if (decimal128Eq(pY, &DECIMAL128_ZERO, WORD_NUM(Decimal))) {
+    return TSDB_CODE_DECIMAL_OVERFLOW;  // TODO wjm mod zero error
+  }
+  Decimal xAbs = *pX, yAbs = *pY;
+  decimal128Abs(&xAbs);
+  decimal128Abs(&yAbs);
+  int32_t xlz = decimal128CountLeadingBinaryZeros(&xAbs), ylz = decimal128CountLeadingBinaryZeros(&yAbs);
+  if (pXT->scale < pYT->scale) {
+    // x scale up
+    xlz = xlz - bitsForNumDigits[pYT->scale - pXT->scale];
+  } else if (pXT->scale > pYT->scale) {
+    // y scale up
+    ylz = ylz - bitsForNumDigits[pXT->scale - pYT->scale];
+  }
+  int32_t lz = TMIN(xlz, ylz);
+  if (lz >= 2) {
+    // it's safe to scale up
+    yAbs = *pY;
+    decimal128ScaleTo(pX, pXT->scale, TMAX(pXT->scale, pYT->scale));
+    decimal128ScaleTo(&yAbs, pYT->scale, TMAX(pXT->scale, pYT->scale));
+    decimal128Mod(pX, &yAbs, WORD_NUM(Decimal));
+  } else {
+    Int256 x256 = {0}, y256 = {0};
+    makeInt256FromDecimal128(&x256, pX);
+    makeInt256FromDecimal128(&y256, pY);
+    if (pXT->scale < pYT->scale) {
+      x256 = int256ScaleBy(&x256, pYT->scale - pXT->scale);
+    } else if (pXT->scale > pYT->scale) {
+      y256 = int256ScaleBy(&y256, pXT->scale - pYT->scale);
+    }
+    Int256 res = int256Mod(&x256, &y256);
+    if (convertInt256ToDecimal128(&res, pX)) {
+      return TSDB_CODE_DECIMAL_OVERFLOW;
+    }
+  }
   return 0;
 }
 
@@ -909,6 +1041,9 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
       break;
     case OP_TYPE_DIV:
       code = decimalDivide(&left, &lt, &right, &rt, pOutT);
+      break;
+    case OP_TYPE_REM:
+      code = decimalMod(&left, &lt, &right, &rt, pOutT);
       break;
     default:
       code = TSDB_CODE_TSC_INVALID_OPERATION;
