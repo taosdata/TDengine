@@ -106,15 +106,8 @@ ELSE()
     SET(TAOS_LIB_PLATFORM_SPEC taos)
 ENDIF()
 
-# build TSZ by default
-IF("${TSZ_ENABLED}" MATCHES "false")
-    set(VAR_TSZ "" CACHE INTERNAL "global variant empty")
-ELSE()
-    # define add
-    MESSAGE(STATUS "build with TSZ enabled")
-    ADD_DEFINITIONS(-DTD_TSZ)
-    set(VAR_TSZ "TSZ" CACHE INTERNAL "global variant tsz")
-ENDIF()
+MESSAGE(STATUS "build with TSZ enabled")
+ADD_DEFINITIONS(-DTD_TSZ)
 
 # force set all platform to JEMALLOC_ENABLED = false
 SET(JEMALLOC_ENABLED OFF)

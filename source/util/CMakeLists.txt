@@ -52,19 +52,11 @@ target_link_directories(
     PUBLIC "${TD_SOURCE_DIR}/contrib/pcre2"
 )
 
-if(TD_LINUX)
-    target_link_libraries(
-        util
-        PUBLIC os common
-        PUBLIC api TSZ
-    )
-else()
-    target_link_libraries(
-        util
-        PUBLIC os common
-        PUBLIC api TSZ
-    )
-endif()
+target_link_libraries(
+    util
+    PUBLIC os common
+    PUBLIC api TSZ
+)
 
 if(${BUILD_TEST})
     ADD_SUBDIRECTORY(test)
