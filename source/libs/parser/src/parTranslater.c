@@ -6417,9 +6417,9 @@ static int32_t translateInterpAround(STranslateContext* pCxt, SSelectStmt* pSele
     if (TSDB_CODE_SUCCESS == code) {
       if (nodeType(pAround->pInterval) == QUERY_NODE_VALUE && ((SValueNode*)pAround->pInterval)->flag & VALUE_FLAG_IS_DURATION) {
         SValueNode* pVal = (SValueNode*)pAround->pInterval;
-        if (pVal->datum.i == 0) {
+        if (pVal->datum.i <= 0) {
           return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                      "Range interval cannot be 0");
+                                      "Range interval must be greater than 0");
         }
         int8_t unit = pVal->unit;
         if (unit == TIME_UNIT_YEAR || unit == TIME_UNIT_MONTH) {
