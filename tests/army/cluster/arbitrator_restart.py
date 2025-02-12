@@ -77,7 +77,7 @@ class TDTestCase(TBase):
             tdLog.exit("wait candidate failed")
             return
         
-        tdSql.execute("BALANCE LEADER FORCE;")
+        tdSql.execute("ASSIGN LEADER FORCE;")
 
         count = 0
         while count < 100:
