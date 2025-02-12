@@ -402,7 +402,7 @@ static void taosKeepOldLog(char *oldName) {
     }
     if (code != 0 && tsLogEmbedded == 1) {  // print error messages only in embedded log mode
       // avoid using uWarn or uError, as they may open a new log file and potentially cause a deadlock.
-      fprintf(stderr, "failed at line %d to keep old log file:%s, reason:%s\n", lino, oldName, tstrerror(code));
+      fprintf(stderr, "WARN: failed at line %d to keep old log file:%s, reason:%s\n", lino, oldName, tstrerror(code));
     }
   }
 }

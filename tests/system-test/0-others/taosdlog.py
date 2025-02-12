@@ -118,6 +118,8 @@ class TDTestCase:
             tdLog.info(f"wait {i+1} second(s) for log compress")
             time.sleep(1)
         tdSql.checkEqual(True, logCompress)
+        tdSql.execute("alter all dnodes 'numOfLogLines 1000000'")
+        tdSql.execute("alter all dnodes 'debugFlag 131'")
 
     def prepareCfg(self, cfgPath, cfgDict):
         tdLog.info("make dir %s" % cfgPath)
