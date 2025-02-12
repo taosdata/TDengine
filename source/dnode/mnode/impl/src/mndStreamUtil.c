@@ -814,17 +814,18 @@ int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
 
 int32_t mndCreateSetConsensusChkptIdTrans(SMnode *pMnode, SStreamObj *pStream, int32_t taskId, int64_t checkpointId,
                                           int64_t ts) {
-  char msg[128] = {0};
+  char         msg[128] = {0};
+  STrans      *pTrans = NULL;
+  SStreamTask *pTask = NULL;
+
   snprintf(msg, tListLen(msg), "set consen-chkpt-id for task:0x%x", taskId);
 
-  STrans *pTrans = NULL;
   int32_t code = doCreateTrans(pMnode, pStream, NULL, TRN_CONFLICT_NOTHING, MND_STREAM_CHKPT_CONSEN_NAME, msg, &pTrans);
   if (pTrans == NULL || code != 0) {
     return terrno;
   }
 
-  STaskId      id = {.streamId = pStream->uid, .taskId = taskId};
-  SStreamTask *pTask = NULL;
+  STaskId id = {.streamId = pStream->uid, .taskId = taskId};
   code = mndGetStreamTask(&id, pStream, &pTask);
   if (code) {
     mError("failed to get task:0x%x in stream:%s, failed to create consensus-checkpointId", taskId, pStream->name);
