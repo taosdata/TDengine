@@ -287,8 +287,8 @@ IF(TD_BUILD_KEEPER)
             BUILD_ALWAYS off
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taoskeeper no need cmake to config"
-            PATCH_COMMAND
-            COMMAND git clean -f -d
+            # PATCH_COMMAND
+            # COMMAND git clean -f -d
             BUILD_COMMAND
             COMMAND go build -a -ldflags "-X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}' -X 'github.com/taosdata/taoskeeper/version.Gitinfo=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
             INSTALL_COMMAND
