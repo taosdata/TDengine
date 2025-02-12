@@ -46,14 +46,17 @@ class TDTestCase(TBase):
         while count < 100:        
             tdSql.query("show arbgroups;")
 
-            if tdSql.getData(0, 4) == 1:
+            if tdSql.getData(0, 4) == True:
                 break
 
             tdLog.info("wait 1 seconds for is sync")
             time.sleep(1)
 
             count += 1
-            
+        if count == 100:
+            tdLog.exit("arbgroup sync failed")
+            return 
+
         sc.dnodeStop(2) 
         sc.dnodeStop(3)
 
@@ -70,8 +73,11 @@ class TDTestCase(TBase):
             time.sleep(1)
 
             count += 1
-
-        tdSql.execute("BALANCE VGROUP FORCE;")
+        if count == 100:
+            tdLog.exit("wait candidate failed")
+            return
+        
+        tdSql.execute("BALANCE LEADER FORCE;")
 
         count = 0
         while count < 100:
@@ -84,6 +90,9 @@ class TDTestCase(TBase):
             time.sleep(1)
 
             count += 1
+        if count == 100:
+            tdLog.exit("assign leader failed")
+            return
 
         tdSql.execute("INSERT INTO d0 VALUES (NOW, 10.3, 219, 0.31);")
 
@@ -101,6 +110,9 @@ class TDTestCase(TBase):
             time.sleep(1)
 
             count += 1
+        if count == 100:
+            tdLog.exit("arbgroup sync failed")
+            return
 
     def stop(self):
         tdSql.close()
