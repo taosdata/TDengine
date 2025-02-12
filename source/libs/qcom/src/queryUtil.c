@@ -578,7 +578,7 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
     schemaExtSize = pSrc->tableInfo.numOfColumns * sizeof(SSchemaExt);
   }
   if (hasRefCol(pSrc->tableType) && pSrc->colRef) {
-    colRefSize = pSrc->tableInfo.numOfColumns * sizeof(SColRef);
+    colRefSize = pSrc->numOfColRefs * sizeof(SColRef);
   }
   *pDst = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize);
   if (NULL == *pDst) {

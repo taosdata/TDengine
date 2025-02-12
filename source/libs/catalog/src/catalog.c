@@ -240,7 +240,7 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
         TAOS_MEMCPY(output->tbMeta, output->vctbMeta, sizeof(SVCTableMeta) + colRefSize);
         output->tbMeta->colRef = (SColRef *)((char *)output->tbMeta + sizeof(SVCTableMeta));
       }
-
+      output->tbMeta->numOfColRefs = output->vctbMeta->numOfColRefs;
       taosMemoryFreeClear(output->vctbMeta);
       *pTableMeta = output->tbMeta;
       goto _return;

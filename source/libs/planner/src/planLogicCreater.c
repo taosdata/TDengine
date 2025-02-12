@@ -693,11 +693,11 @@ static int32_t vtableRewritePrimaryTsCol(SRealTableNode* pTable, SLogicNode* pLo
   FOREACH(pNode, pLogicScan->pScanCols) {
     SColumnNode* pCol = (SColumnNode*)pNode;
     if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pCol)->colId) {
-      pCol->hasDep = true;
-      tstrncpy(pCol->depDbName, pVirtualTableNode->dbName, sizeof(pCol->depDbName));
-      tstrncpy(pCol->depTableName, pVirtualTableNode->tableAlias, sizeof(pCol->depTableName));
-      tstrncpy(pCol->depColName, pSchema->name, sizeof(pCol->depColName));
-      break;
+      if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pCol)->colId) {
+        pCol->hasDep = true;
+        break;
+      }
+
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -723,10 +723,6 @@ static int32_t scanAddCol(SLogicNode* pLogicNode, SColRef* colRef, STableNode* p
   pRefTableScanCol->numOfPKs = 0;
   pRefTableScanCol->hasRef = false;
   pRefTableScanCol->hasDep = true;
-
-  tstrncpy(pRefTableScanCol->depDbName, pVirtualTableNode->dbName, sizeof(pRefTableScanCol->depDbName));
-  tstrncpy(pRefTableScanCol->depTableName, pVirtualTableNode->tableAlias, sizeof(pRefTableScanCol->depTableName));
-  tstrncpy(pRefTableScanCol->depColName, pSchema->name, sizeof(pRefTableScanCol->depColName));
 
   PLAN_ERR_JRET(nodesListAppend(pLogicScan->pScanCols, (SNode*)pRefTableScanCol));
   return code;
@@ -809,6 +805,46 @@ static void destroyScanLogicNode(void* data) {
   nodesDestroyNode((SNode*)pNode);
 }
 
+static int32_t findColRefIndex(SColRef* pColRef, SVirtualTableNode* pVirtualTable, col_id_t colId) {
+  for (int32_t i = 0; i < pVirtualTable->pMeta->numOfColRefs; i++) {
+    if (pColRef[i].hasRef && pColRef[i].id == colId) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+static int32_t eliminateDupScanCols(SNodeList* pScanCols) {
+  int32_t   code = TSDB_CODE_SUCCESS;
+  SNode*    pCols = NULL;
+  SHashObj* colsMap = taosHashInit(LIST_LENGTH(pScanCols), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  if (NULL == colsMap) {
+    return terrno;
+  }
+
+  FOREACH(pCols, pScanCols) {
+    SColumnNode* pCol = (SColumnNode*)pCols;
+    if (!pCol->hasRef) {
+      continue;
+    }
+    char         key[TSDB_COL_FNAME_EX_LEN] = {0};
+    strcat(key, pCol->refDbName);
+    strcat(key, ".");
+    strcat(key, pCol->refTableName);
+    strcat(key, ".");
+    strcat(key, pCol->refColName);
+    if (NULL != taosHashGet(colsMap, key, strlen(key))) {
+      ERASE_NODE(pScanCols);
+    } else {
+      PLAN_ERR_JRET(taosHashPut(colsMap, key, strlen(key), NULL, 0));
+    }
+  }
+
+_return:
+  taosHashCleanup(colsMap);
+  return code;
+}
+
 static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
                                            SVirtualTableNode* pVirtualTable, SLogicNode** pLogicNode) {
   int32_t                 code = TSDB_CODE_SUCCESS;
@@ -842,21 +878,20 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
     PLAN_ERR_JRET(terrno);
   }
 
+  PLAN_ERR_JRET(eliminateDupScanCols(pVtableScan->pScanCols));
+
   FOREACH(pNode, pVtableScan->pScanCols) {
     SColumnNode *pCol = (SColumnNode*)pNode;
-    col_id_t index = (col_id_t)(pCol->colId - 1);
-    if (pVirtualTable->pMeta->colRef[index].hasRef) {
+    int32_t index = findColRefIndex(pVirtualTable->pMeta->colRef, pVirtualTable, pCol->colId);
+    if (index != -1 && pVirtualTable->pMeta->colRef[index].hasRef) {
       if (pCol->isPrimTs || pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         PLAN_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
       }
       scanAllCols &= false;
-      pCol->hasRef = true;
-
       PLAN_ERR_JRET(addSubScanNode(pCxt, pSelect, pVirtualTable, index, pRefTablesMap));
     } else if (pCol->isPrimTs || pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
       // do nothing
     } else {
-      pCol->hasRef = false;
       scanAllCols &= false;
     }
   }
@@ -868,13 +903,14 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
       if (pVirtualTable->pMeta->schema[i].colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         continue;
       } else {
-        col_id_t index = (col_id_t)(pVirtualTable->pMeta->schema[i].colId - 1);
-        if (pVirtualTable->pMeta->colRef[index].hasRef) {
+        col_id_t index = findColRefIndex(pVirtualTable->pMeta->colRef, pVirtualTable, pVirtualTable->pMeta->schema[i].colId);
+        if (index != -1 && pVirtualTable->pMeta->colRef[index].hasRef) {
           PLAN_ERR_JRET(addSubScanNode(pCxt, pSelect, pVirtualTable, index, pRefTablesMap));
         }
       }
     }
   }
+
 
   while ((pIter = taosHashIterate(pRefTablesMap, pIter))) {
     SScanLogicNode **pRefScanNode = (SScanLogicNode**)pIter;

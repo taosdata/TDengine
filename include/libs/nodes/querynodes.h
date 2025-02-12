@@ -93,11 +93,11 @@ typedef struct SColumnNode {
   bool        isPk;
   int32_t     projRefIdx;
   int32_t     resIdx;
-  bool        hasRef;
   bool        hasDep;
-  char        depDbName[TSDB_DB_NAME_LEN];
-  char        depTableName[TSDB_TABLE_NAME_LEN];
-  char        depColName[TSDB_COL_NAME_LEN];
+  bool        hasRef;
+  char        refDbName[TSDB_DB_NAME_LEN];
+  char        refTableName[TSDB_TABLE_NAME_LEN];
+  char        refColName[TSDB_COL_NAME_LEN];
 } SColumnNode;
 
 typedef struct SColumnRefNode {

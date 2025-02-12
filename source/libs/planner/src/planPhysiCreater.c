@@ -64,14 +64,29 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
       *pLen = strlen(*ppKey);
       return code;
     }
-    if (pCol->hasDep) {
-      *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
+    if (pCol->hasRef) {
+      *ppKey = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
       if (!*ppKey) {
         return terrno;
       }
-      TAOS_STRNCAT(*ppKey, pCol->depTableName, TSDB_TABLE_NAME_LEN);
+      TAOS_STRNCAT(*ppKey, pCol->refDbName, TSDB_DB_NAME_LEN);
       TAOS_STRNCAT(*ppKey, ".", 2);
-      TAOS_STRNCAT(*ppKey, pCol->depColName, TSDB_COL_NAME_LEN);
+      TAOS_STRNCAT(*ppKey, pCol->refTableName, TSDB_TABLE_NAME_LEN);
+      TAOS_STRNCAT(*ppKey, ".", 2);
+      TAOS_STRNCAT(*ppKey, pCol->refColName, TSDB_COL_NAME_LEN);
+      *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
+      return code;
+    }
+    if (pCol->hasDep) {
+      *ppKey = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
+      if (!*ppKey) {
+        return terrno;
+      }
+      TAOS_STRNCAT(*ppKey, pCol->dbName, TSDB_DB_NAME_LEN);
+      TAOS_STRNCAT(*ppKey, ".", 2);
+      TAOS_STRNCAT(*ppKey, pCol->tableAlias, TSDB_TABLE_NAME_LEN);
+      TAOS_STRNCAT(*ppKey, ".", 2);
+      TAOS_STRNCAT(*ppKey, pCol->colName, TSDB_COL_NAME_LEN);
       *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
       return code;
     }
@@ -430,7 +445,7 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
       planError("doSetSlotId failed, invalid slot name %s", name);
       dumpSlots("left datablock desc", pCxt->pLeftHash);
       dumpSlots("right datablock desc", pCxt->pRightHash);
-      pCxt->errCode = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      pCxt->errCode = TSDB_CODE_PLAN_SLOT_NOT_FOUND;
       taosMemoryFree(name);
       return DEAL_RES_ERROR;
     }

@@ -4059,8 +4059,7 @@ static int32_t rewriteUniqueOptCreateProjectCol(SFunctionNode* pFunc, SNode** pp
   if (FUNCTION_TYPE_UNIQUE == pFunc->funcType) {
     SExprNode* pExpr = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
     if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
-      tstrncpy(pCol->tableAlias, ((SColumnNode*)pExpr)->tableAlias, TSDB_TABLE_NAME_LEN);
-      tstrncpy(pCol->colName, ((SColumnNode*)pExpr)->colName, TSDB_COL_NAME_LEN);
+      nodesCloneNode((SNode*)pExpr, (SNode**)&pCol);
     } else {
       tstrncpy(pCol->colName, pExpr->aliasName, TSDB_COL_NAME_LEN);
     }
@@ -6104,6 +6103,7 @@ static int32_t stbJoinOptCreateTagScanNode(SLogicNode* pJoin, SNodeList** ppList
     }
 
     SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    // If join node's two children are scan on same table and on only one vgroup, don't need to split. Vice versa.
     if (pScan->pVgroupList && 1 == pScan->pVgroupList->numOfVgroups) {
       if (NULL == pPrev || 0 == strcmp(pPrev->dbname, pScan->tableName.dbname)) {
         pPrev = &pScan->tableName;
@@ -7617,12 +7617,24 @@ static bool eliminateVirtualScanMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
+  SVirtualScanLogicNode* pVScan = (SVirtualScanLogicNode *)pNode;
+  SNode*                 pCol;
+  FOREACH(pCol, pVScan->pScanCols) {
+    SColumnNode* pScanCol = (SColumnNode* )pCol;
+    if (!pScanCol->hasRef) {
+      // if col don't have ref, it can't be eliminated. If the vscan operator is eliminated,
+      // the upper operator can't find the right slot id.
+      return false;
+    }
+  }
   return true;
 }
 
 static int32_t eliminateVirtualScanOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan,
                                                 SLogicNode* pVirtualScanNode) {
-  SNode* pSibling;
+  SNode* pTargets = NULL;
+  SNode* pSibling = NULL;
+
   FOREACH(pSibling, pVirtualScanNode->pParent->pChildren) {
     if (nodesEqualNode(pSibling, (SNode*)pVirtualScanNode)) {
       SNode* pChild;
@@ -7664,6 +7676,17 @@ static bool pdaMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
+  SVirtualScanLogicNode* pVScan = (SVirtualScanLogicNode *)nodesListGetNode(pNode->pChildren, 0);
+  SNode*                 pCol;
+  FOREACH(pCol, pVScan->pScanCols) {
+    SColumnNode* pScanCol = (SColumnNode* )pCol;
+    if (!pScanCol->hasRef) {
+      // if col don't have ref, it can't be eliminated. If the vscan operator is eliminated,
+      // the upper operator can't find the right slot id.
+      return false;
+    }
+  }
+
   SAggLogicNode*  pAgg = (SAggLogicNode*)pNode;
   SNode*          pAggFunc = NULL;
   FOREACH(pAggFunc, pAgg->pAggFuncs) {
@@ -7690,10 +7713,10 @@ static int32_t findDepTableScanNode(SColumnNode* pCol, SVirtualScanLogicNode *pV
     FOREACH(pScanCol, pScanNode->pScanCols) {
       if (QUERY_NODE_COLUMN == nodeType(pScanCol)) {
         SColumnNode *pScanColNode = (SColumnNode *)pScanCol;
-        if (pScanColNode->hasDep) {
-          if (strcmp(pScanColNode->depDbName, pCol->dbName) == 0 &&
-              strcmp(pScanColNode->depTableName, pCol->tableAlias) == 0 &&
-              strcmp(pScanColNode->depColName, pCol->colName) == 0) {
+        if (pScanColNode->hasDep && pCol->hasRef) {
+          if (strcmp(pScanColNode->dbName, pCol->refDbName) == 0 &&
+              strcmp(pScanColNode->tableAlias, pCol->refTableName) == 0 &&
+              strcmp(pScanColNode->colName, pCol->refColName) == 0) {
             PLAN_RET(nodesCloneNode(pScan, ppNode));
           }
         } else {
@@ -7741,14 +7764,19 @@ static int32_t rebuildPlanForPdaOptimize(SColumnNode* pCol, SFunctionNode* pAggF
   // pAggNodeMap is a hash map, the key is the vtable's origin table's name, the value is the SAggLogicNode ptr.
   // if 2 more agg func has the same origin table, we should merge them into one agg node.
   PLAN_ERR_JRET(findDepTableScanNode(pCol, pVScan, (SNode**)&pDepScan));
-  pNodeFound = (SAggLogicNode **)taosHashGet(pAggNodeMap, &pDepScan->tableName.tname, strlen(pDepScan->tableName.tname));
+  char tableFNameKey[TSDB_TABLE_FNAME_LEN] = {0};
+  TAOS_STRNCAT(tableFNameKey, pDepScan->tableName.tname, TSDB_TABLE_NAME_LEN);
+  TAOS_STRNCAT(tableFNameKey, ".", 1);
+  TAOS_STRNCAT(tableFNameKey, pCol->colName, TSDB_COL_NAME_LEN);
+
+  pNodeFound = (SAggLogicNode **)taosHashGet(pAggNodeMap, &tableFNameKey, strlen(tableFNameKey));
   if (NULL == pNodeFound) {
     // make new agg node.
     PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_AGG, (SNode**)&pAggNode));
     PLAN_ERR_JRET(mergeAggFuncToAggNode(pAggNode, pAggFunc));
     PLAN_ERR_JRET(nodesListMakeAppend(&pAggNode->node.pChildren, (SNode*)pDepScan));
     append = true;
-    PLAN_ERR_JRET(taosHashPut(pAggNodeMap, &pDepScan->tableName.tname, strlen(pDepScan->tableName.tname), &pAggNode, POINTER_BYTES));
+    PLAN_ERR_JRET(taosHashPut(pAggNodeMap, &tableFNameKey, strlen(tableFNameKey), &pAggNode, POINTER_BYTES));
   } else {
     pAggNode = *pNodeFound;
     // merge the agg func to the existed agg node.
@@ -7850,6 +7878,7 @@ static int32_t pdaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan)
   taosHashCleanup(pAggNodeMap);
 
   pCxt->optimized = true;
+  return code;
 _return:
   nodesDestroyNode((SNode*)pMerge);
   taosHashSetFreeFp(pAggNodeMap, destroyAggLogicNode);

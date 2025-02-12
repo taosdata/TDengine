@@ -594,7 +594,7 @@ static int32_t rewriteDropTableWithMetaCache(STranslateContext* pCxt) {
         sizeof(STableMeta) + sizeof(SSchema) * (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags);
     int32_t schemaExtSize =
         (useCompress(pMeta->tableType) && pMeta->schemaExt) ? sizeof(SSchemaExt) * pMeta->tableInfo.numOfColumns : 0;
-    int32_t colRefSize = (hasRefCol(pMeta->tableType) && pMeta->colRef) ? sizeof(SColRef) * pMeta->tableInfo.numOfColumns : 0;
+    int32_t colRefSize = (hasRefCol(pMeta->tableType) && pMeta->colRef) ? sizeof(SColRef) * pMeta->numOfColRefs : 0;
     const char* pTbName = (const char*)pMeta + metaSize + schemaExtSize + colRefSize;
 
     SName name = {0};
@@ -1326,7 +1326,7 @@ static bool hasPkInTable(const STableMeta* pTableMeta) {
 }
 
 static void setVtbColumnInfoBySchema(const SVirtualTableNode* pTable, const SSchema* pColSchema, int32_t tagFlag,
-                                  SColumnNode* pCol) {
+                                     SColumnNode* pCol) {
   strcpy(pCol->dbName, pTable->table.dbName);
   strcpy(pCol->tableAlias, pTable->table.tableAlias);
   strcpy(pCol->tableName, pTable->table.tableName);
@@ -1350,6 +1350,14 @@ static void setVtbColumnInfoBySchema(const SVirtualTableNode* pTable, const SSch
   pCol->tableHasPk = false;
   pCol->isPk = false;
   pCol->numOfPKs = 0;
+  for (int32_t i = 0; i < pTable->pMeta->numOfColRefs; i++) {
+    if (pTable->pMeta->colRef[i].hasRef && pTable->pMeta->colRef[i].id == pCol->colId) {
+      pCol->hasRef = true;
+      tstrncpy(pCol->refDbName, pTable->pMeta->colRef[i].refDbName, TSDB_DB_NAME_LEN);
+      tstrncpy(pCol->refTableName, pTable->pMeta->colRef[i].refTableName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(pCol->refColName, pTable->pMeta->colRef[i].refColName, TSDB_COL_NAME_LEN);
+    }
+  }
 }
 
 static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* pColSchema, int32_t tagFlag,
@@ -4958,11 +4966,11 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
   TSWAP(pVTable->pMeta, pRealTable->pMeta);
   TSWAP(pVTable->pVgroupList, pRealTable->pVgroupList);
 
-  pTableNameHash = taosHashInit(pMeta->tableInfo.numOfColumns, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  pTableNameHash = taosHashInit(pMeta->numOfColRefs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   bool tmpAsync = pCxt->pParseCxt->async;
   pCxt->pParseCxt->async = false;
   pCxt->refTable = true;
-  for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; i++) {
+  for (int32_t i = 0; i < pMeta->numOfColRefs; i++) {
     if (pMeta->colRef[i].hasRef) {
       char tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
       strcat(tableNameKey, pMeta->colRef[i].refDbName);
@@ -16713,6 +16721,15 @@ static int32_t buildDropColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t findColRefIndex(SColRef* pColRef, const STableMeta* pTableMeta, col_id_t colId) {
+  for (int32_t i = 0; i < pTableMeta->numOfColRefs; i++) {
+    if (pColRef[i].hasRef && pColRef[i].id == colId) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 static int32_t buildUpdateColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, const STableMeta* pTableMeta,
                                  SVAlterTbReq* pReq) {
   if (TSDB_CHILD_TABLE == pTableMeta->tableType || TSDB_VIRTUAL_CHILD_TABLE == pTableMeta->tableType) {
@@ -16740,7 +16757,8 @@ static int32_t buildUpdateColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
   }
 
   if (TSDB_VIRTUAL_TABLE == pTableMeta->tableType) {
-    if (pTableMeta->colRef[pSchema->colId - 1].hasRef) {
+    int32_t index = findColRefIndex(pTableMeta->colRef, pTableMeta, pSchema->colId);
+    if (index != -1) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
     }
   }

@@ -203,7 +203,7 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
         COL_DATA_SET_VAL_AND_CHECK(pCol7, pBlock->info.rows, buf, false);
       }
     } else if (hasRefCol(pMeta->tableType) && pMeta->colRef) {
-      if (i < pMeta->tableInfo.numOfColumns) {
+      if (i < pMeta->numOfColRefs) {
         if (pMeta->colRef[i].hasRef) {
           char refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
           strcat(refColName, pMeta->colRef[i].refDbName);
