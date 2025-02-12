@@ -80,7 +80,7 @@ class RestoreBasic:
         for i in range(8):
             leader = False
             for j in range(3):
-                status = tdSql.getData(i, 4 + j*2)
+                status = tdSql.getData(i, 4 + j*3)
                 if status == "leader":
                     leader = True
                 elif status == "follower":

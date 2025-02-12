@@ -291,9 +291,9 @@ class ClusterComCheck:
                         return True
 
             elif self.db_replica == 3 :
-                vgroup_status_first=[tdSql.res[0][4],tdSql.res[0][6],tdSql.res[0][8]]
+                vgroup_status_first=[tdSql.res[0][4],tdSql.res[0][7],tdSql.res[0][10]]
 
-                vgroup_status_last=[tdSql.res[last_number][4],tdSql.res[last_number][6],tdSql.res[last_number][8]]
+                vgroup_status_last=[tdSql.res[last_number][4],tdSql.res[last_number][7],tdSql.res[last_number][10]]
                 if  vgroup_status_first.count('leader') == 1 and vgroup_status_first.count('follower') == 2:
                     if vgroup_status_last.count('leader') == 1 and vgroup_status_last.count('follower') == 2:
                         tdSql.query(f"select `replica` from information_schema.ins_databases where `name`='{db_name}';")
