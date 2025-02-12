@@ -61,7 +61,7 @@ jobs:
             -DBUILD_HTTP=false \
             -DBUILD_TEST=true \
             -DBUILD_DEPENDENCY_TESTS=false
-          make -j 4
+          make VERBOSE=1
           sudo make install
           which taosd
           which taosadapter

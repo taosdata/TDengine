@@ -1,15 +1,26 @@
 # timezone
-ExternalProject_Add(tz
+
+if(TD_LINUX)
+    set(TZ_OUTPUT_PATH /usr/share/zoneinfo)
+elseif(TD_DARWIN)
+    set(TZ_OUTPUT_PATH /var/db/timezone/zoneinfo)
+endif()
+
+set(_base         "${TD_CONTRIB_DIR}/ext_tz")
+set(_ins          "${TD_CONTRIB_DIR}/ext_tz/install")
+
+ExternalProject_Add(ext_tz
         GIT_REPOSITORY https://github.com/eggert/tz.git
         GIT_TAG main
-        SOURCE_DIR "${TD_CONTRIB_DIR}/tz"
-        BINARY_DIR ""
+        PREFIX "${_base}"
+        BUILD_IN_SOURCE true
         CONFIGURE_COMMAND ""
-        #BUILD_COMMAND ""
-        INSTALL_COMMAND ""
+        BUILD_COMMAND make CFLAGS+=-fPIC CFLAGS+=-DTHREAD_SAFE=1 TZDIR=${TZ_OUTPUT_PATH}/ clean tzdir.h
+        INSTALL_COMMAND make CFLAGS+=-fPIC CFLAGS+=-DTHREAD_SAFE=1 TZDIR=${TZ_OUTPUT_PATH}/ DESTDIR=${_ins} install
         TEST_COMMAND ""
         GIT_SHALLOW true
-        GIT_PROGRESS true
-        BUILD_COMMAND ""
 )
+
+set(TD_CONTRIB_EXT_TZ_INC_DIR "${_ins}/usr/include" PARENT_SCOPE)
+set(TD_CONTRIB_EXT_TZ_LIB_DIR "${_ins}/usr/lib" PARENT_SCOPE)
 
