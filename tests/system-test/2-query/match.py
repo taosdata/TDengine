@@ -114,6 +114,16 @@ class TDTestCase:
         tdSql.query("select * from db.t3x where c1 match '中文'")
         tdSql.checkRows(5)
         tdSql.error("select * from db.t1x where c1 match '*d'")
+        
+        tdSql.query("select * from db.t3x where c1 regexp '%中文'")
+        tdSql.checkRows(2)
+        tdSql.query("select * from db.t3x where c1 regexp '中文'")
+        tdSql.checkRows(5)
+        tdSql.query("select * from db.t3x where c1 not regexp '%中文'")
+        tdSql.checkRows(3)
+        tdSql.query("select * from db.t3x where c1 not regexp '中文'")
+        tdSql.checkRows(0)
+        tdSql.error("select * from db.t1x where c1 regexp '*d'")
 
         for thread in threads:
             print(f"Thread waitting for finish...")

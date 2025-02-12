@@ -86,6 +86,14 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
     if (code) {
       return code;
     }
+
+    code =
+        qSetStreamNotifyInfo(pTask->exec.pExecutor, pTask->notifyInfo.notifyEventTypes,
+                             pTask->notifyInfo.pSchemaWrapper, pTask->notifyInfo.stbFullName, IS_NEW_SUBTB_RULE(pTask));
+    if (code) {
+      tqError("s-task:%s failed to set stream notify info, code:%s", pTask->id.idStr, tstrerror(code));
+      return code;
+    }
   }
 
   streamSetupScheduleTrigger(pTask);
@@ -960,9 +968,9 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, char* pMsg) {
   tqDebug("s-task:%s receive task-reset msg from mnode, reset status and ready for data processing", pTask->id.idStr);
 
   streamMutexLock(&pTask->lock);
-  streamTaskClearCheckInfo(pTask, true);
 
   streamTaskSetFailedCheckpointId(pTask, pReq->chkptId);
+  streamTaskClearCheckInfo(pTask, true);
 
   // clear flag set during do checkpoint, and open inputQ for all upstream tasks
   SStreamTaskState pState = streamTaskGetStatus(pTask);

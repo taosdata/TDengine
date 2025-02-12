@@ -245,6 +245,7 @@ typedef enum ELogicConditionType {
 #define TSDB_OFFSET_LEN               64                                 // it is a null-terminated string
 #define TSDB_USER_CGROUP_LEN          (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
 #define TSDB_STREAM_NAME_LEN          193                                // it is a null-terminated string
+#define TSDB_STREAM_NOTIFY_URL_LEN    128                                // it includes the terminating '\0'
 #define TSDB_DB_NAME_LEN              65
 #define TSDB_DB_FNAME_LEN             (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_PRIVILEDGE_CONDITION_LEN 48 * 1024
@@ -460,13 +461,13 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_SCHEMALESS_OFF          0
 #define TSDB_DEFAULT_DB_SCHEMALESS      TSDB_DB_SCHEMALESS_OFF
 #define TSDB_MIN_STT_TRIGGER            1
-#ifdef TD_ENTERPRISE
+// #ifdef TD_ENTERPRISE
 #define TSDB_MAX_STT_TRIGGER     16
 #define TSDB_DEFAULT_SST_TRIGGER 2
-#else
-#define TSDB_MAX_STT_TRIGGER     1
-#define TSDB_DEFAULT_SST_TRIGGER 1
-#endif
+// #else
+// #define TSDB_MAX_STT_TRIGGER     1
+// #define TSDB_DEFAULT_SST_TRIGGER 1
+// #endif
 #define TSDB_STT_TRIGGER_ARRAY_SIZE 16  // maximum of TSDB_MAX_STT_TRIGGER of TD_ENTERPRISE and TD_COMMUNITY
 #define TSDB_MIN_HASH_PREFIX        (2 - TSDB_TABLE_NAME_LEN)
 #define TSDB_MAX_HASH_PREFIX        (TSDB_TABLE_NAME_LEN - 2)
@@ -562,6 +563,7 @@ typedef enum ELogicConditionType {
 #define TSDB_QUERY_CLEAR_TYPE(x, _type) ((x) &= (~_type))
 #define TSDB_QUERY_RESET_TYPE(x)        ((x) = TSDB_QUERY_TYPE_NON_TYPE)
 
+#define TSDB_ORDER_NONE 0
 #define TSDB_ORDER_ASC  1
 #define TSDB_ORDER_DESC 2
 
@@ -667,6 +669,14 @@ typedef enum {
   ANAL_ALGO_TYPE_FORECAST = 1,
   ANAL_ALGO_TYPE_END,
 } EAnalAlgoType;
+
+typedef enum {
+  TSDB_VERSION_UNKNOWN = 0,
+  TSDB_VERSION_OSS,
+  TSDB_VERSION_ENTERPRISE,
+  TSDB_VERSION_CLOUD,
+  TSDB_VERSION_END,
+} EVersionType;
 
 #define MIN_RESERVE_MEM_SIZE 1024 // MB
 

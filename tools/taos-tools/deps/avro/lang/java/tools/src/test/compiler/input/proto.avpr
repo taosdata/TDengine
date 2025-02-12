@@ -1,0 +1,12 @@
+{
+  "protocol": "Proto",
+  "namespace": "avro.examples.baseball",
+  "doc" : "This is protocol",
+  "messages": {
+    "bar": {
+      "doc" : "method 'bar' does nothing */",
+      "request": [],
+      "response": "null"
+    }
+  }
+}

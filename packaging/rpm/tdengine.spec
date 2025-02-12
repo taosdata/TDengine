@@ -76,12 +76,12 @@ if [ -f %{_compiledir}/test/cfg/taoskeeper.service ]; then
     cp %{_compiledir}/test/cfg/taoskeeper.service %{buildroot}%{homepath}/cfg ||:
 fi
 
-if [ -f %{_compiledir}/../../../explorer/target/taos-explorer.service ]; then
-    cp %{_compiledir}/../../../explorer/target/taos-explorer.service %{buildroot}%{homepath}/cfg ||:
+if [ -f %{_taosxdir}/explorer/server/examples/explorer.service ]; then
+    cp %{_taosxdir}/explorer/server/examples/explorer.service %{buildroot}%{homepath}/cfg/taos-explorer.service ||:
 fi
 
-if [ -f %{_compiledir}/../../../explorer/server/examples/explorer.toml ]; then
-    cp %{_compiledir}/../../../explorer/server/examples/explorer.toml %{buildroot}%{homepath}/cfg ||:
+if [ -f %{_taosxdir}/explorer/server/examples/explorer.toml ]; then
+    cp %{_taosxdir}/explorer/server/examples/explorer.toml %{buildroot}%{homepath}/cfg ||:
 fi
 
 #cp %{_compiledir}/../packaging/rpm/taosd            %{buildroot}%{homepath}/init.d
@@ -100,8 +100,8 @@ cp %{_compiledir}/../../enterprise/packaging/stop-all.sh  %{buildroot}%{homepath
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/start-all.sh
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/stop-all.sh
 
-if [ -f %{_compiledir}/../../../explorer/target/release/taos-explorer ]; then
-    cp %{_compiledir}/../../../explorer/target/release/taos-explorer %{buildroot}%{homepath}/bin
+if [ -f %{_taosxdir}/target/release/taos-explorer ]; then
+    cp %{_taosxdir}/target/release/taos-explorer %{buildroot}%{homepath}/bin
 fi
 
 if [ -f %{_compiledir}/build/bin//taoskeeper ]; then

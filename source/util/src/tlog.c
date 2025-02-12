@@ -21,6 +21,7 @@
 #include "tjson.h"
 #include "ttime.h"
 #include "tutil.h"
+#include "tcommon.h"
 
 #define LOG_MAX_LINE_SIZE              (10024)
 #define LOG_MAX_LINE_BUFFER_SIZE       (LOG_MAX_LINE_SIZE + 3)
@@ -411,9 +412,9 @@ static OldFileKeeper *taosOpenNewFile() {
 
   TdFilePtr pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    tsLogObj.openInProgress = 0;
+    tsLogObj.flag ^= 1;
     tsLogObj.lines = tsNumOfLogLines - 1000;
-    uError("open new log file fail! reason:%s, reuse lastlog", strerror(errno));
+    uError("open new log file %s fail! reason:%s, reuse lastlog", name, tstrerror(terrno));
     return NULL;
   }
 
@@ -425,7 +426,6 @@ static OldFileKeeper *taosOpenNewFile() {
   TdFilePtr pOldFile = tsLogObj.logHandle->pFile;
   tsLogObj.logHandle->pFile = pFile;
   tsLogObj.lines = 0;
-  tsLogObj.openInProgress = 0;
   OldFileKeeper *oldFileKeeper = taosMemoryMalloc(sizeof(OldFileKeeper));
   if (oldFileKeeper == NULL) {
     uError("create old log keep info faild! mem is not enough.");
@@ -468,7 +468,9 @@ static int32_t taosOpenNewLogFile() {
 
     OldFileKeeper *oldFileKeeper = taosOpenNewFile();
     if (!oldFileKeeper) {
+      tsLogObj.openInProgress = 0;
       TAOS_UNUSED(taosThreadMutexUnlock(&tsLogObj.logMutex));
+      (void)taosThreadAttrDestroy(&attr);
       return terrno;
     }
     if (taosThreadCreate(&thread, &attr, taosThreadToCloseOldFile, oldFileKeeper) != 0) {
@@ -476,6 +478,7 @@ static int32_t taosOpenNewLogFile() {
       taosMemoryFreeClear(oldFileKeeper);
     }
     (void)taosThreadAttrDestroy(&attr);
+    tsLogObj.openInProgress = 0;
   }
 
   (void)taosThreadMutexUnlock(&tsLogObj.logMutex);
@@ -728,10 +731,7 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
     if (tsNumOfLogLines > 0) {
       TAOS_UNUSED(atomic_add_fetch_32(&tsLogObj.lines, 1));
       if ((tsLogObj.lines > tsNumOfLogLines) && (tsLogObj.openInProgress == 0)) {
-        int32_t code = taosOpenNewLogFile();
-        if (code != 0) {
-          uError("failed to open new log file, reason:%s", tstrerror(code));
-        }
+        TAOS_UNUSED(taosOpenNewLogFile());
       }
     }
   }
@@ -1265,6 +1265,8 @@ _return:
 
   taosPrintLog(flags, level, dflag, "crash signal is %d", signum);
 
+// print the stack trace
+#if 0
 #ifdef _TD_DARWIN_64
   taosPrintTrace(flags, level, dflag, 4);
 #elif !defined(WINDOWS)
@@ -1274,8 +1276,107 @@ _return:
 #else
   taosPrintTrace(flags, level, dflag, 8);
 #endif
-
+#endif
   taosMemoryFree(pMsg);
+}
+
+typedef enum {
+  CRASH_LOG_WRITER_UNKNOWN = 0,
+  CRASH_LOG_WRITER_INIT = 1,
+  CRASH_LOG_WRITER_WAIT,
+  CRASH_LOG_WRITER_RUNNING,
+  CRASH_LOG_WRITER_QUIT
+} CrashStatus;
+typedef struct crashBasicInfo {
+  int8_t  status;
+  int64_t clusterId;
+  int64_t startTime;
+  char   *nodeType;
+  int     signum;
+  void   *sigInfo;
+  tsem_t  sem;
+  int64_t reportThread;
+} crashBasicInfo;
+
+crashBasicInfo gCrashBasicInfo = {0};
+
+void setCrashWriterStatus(int8_t status) { atomic_store_8(&gCrashBasicInfo.status, status); }
+bool reportThreadSetQuit() {
+  CrashStatus status =
+      atomic_val_compare_exchange_8(&gCrashBasicInfo.status, CRASH_LOG_WRITER_INIT, CRASH_LOG_WRITER_QUIT);
+  if (status == CRASH_LOG_WRITER_INIT) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool setReportThreadWait() {
+  CrashStatus status =
+      atomic_val_compare_exchange_8(&gCrashBasicInfo.status, CRASH_LOG_WRITER_INIT, CRASH_LOG_WRITER_WAIT);
+  if (status == CRASH_LOG_WRITER_INIT) {
+    return true;
+  } else {
+    return false;
+  }
+}
+bool setReportThreadRunning() {
+  CrashStatus status =
+      atomic_val_compare_exchange_8(&gCrashBasicInfo.status, CRASH_LOG_WRITER_WAIT, CRASH_LOG_WRITER_RUNNING);
+  if (status == CRASH_LOG_WRITER_WAIT) {
+    return true;
+  } else {
+    return false;
+  }
+}
+static void checkWriteCrashLogToFileInNewThead() {
+  if (setReportThreadRunning()) {
+    char       *pMsg = NULL;
+    const char *flags = "UTL FATAL ";
+    ELogLevel   level = DEBUG_FATAL;
+    int32_t     dflag = 255;
+    int64_t     msgLen = -1;
+
+    if (tsEnableCrashReport) {
+      if (taosGenCrashJsonMsg(gCrashBasicInfo.signum, &pMsg, gCrashBasicInfo.clusterId, gCrashBasicInfo.startTime)) {
+        taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
+      } else {
+        msgLen = strlen(pMsg);
+      }
+    }
+    taosLogCrashInfo(gCrashBasicInfo.nodeType, pMsg, msgLen, gCrashBasicInfo.signum, gCrashBasicInfo.sigInfo);
+    setCrashWriterStatus(CRASH_LOG_WRITER_INIT);
+    tsem_post(&gCrashBasicInfo.sem);
+  }
+}
+
+void checkAndPrepareCrashInfo() {
+  return checkWriteCrashLogToFileInNewThead();
+}
+
+int32_t initCrashLogWriter() {
+  int32_t code = tsem_init(&gCrashBasicInfo.sem, 0, 0);
+  if (code != 0) {
+    uError("failed to init sem for crashLogWriter, code:%d", code);
+    return code;
+  }
+  gCrashBasicInfo.reportThread = taosGetSelfPthreadId();
+  setCrashWriterStatus(CRASH_LOG_WRITER_INIT);
+  return code;
+}
+
+void writeCrashLogToFile(int signum, void *sigInfo, char *nodeType, int64_t clusterId, int64_t startTime) {
+  if (gCrashBasicInfo.reportThread == taosGetSelfPthreadId()) {
+    return;
+  }
+  if (setReportThreadWait()) {
+    gCrashBasicInfo.clusterId = clusterId;
+    gCrashBasicInfo.startTime = startTime;
+    gCrashBasicInfo.nodeType = nodeType;
+    gCrashBasicInfo.signum = signum;
+    gCrashBasicInfo.sigInfo = sigInfo;
+    tsem_wait(&gCrashBasicInfo.sem);
+  }
 }
 
 void taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr *pFd) {
@@ -1389,3 +1490,32 @@ bool taosAssertRelease(bool condition) {
   return true;
 }
 #endif
+
+char* u64toaFastLut(uint64_t val, char* buf) {
+  static const char* lut =
+      "0001020304050607080910111213141516171819202122232425262728293031323334353637383940414243444546474849505152535455"
+      "5657585960616263646566676869707172737475767778798081828384858687888990919293949596979899";
+
+  char  temp[24];
+  char* p = temp;
+
+  while (val >= 100) {
+    strncpy(p, lut + (val % 100) * 2, 2);
+    val /= 100;
+    p += 2;
+  }
+
+  if (val >= 10) {
+    strncpy(p, lut + val * 2, 2);
+    p += 2;
+  } else if (val > 0 || p == temp) {
+    *(p++) = val + '0';
+  }
+
+  while (p != temp) {
+    *buf++ = *--p;
+  }
+
+  *buf = '\0';
+  return buf;
+}

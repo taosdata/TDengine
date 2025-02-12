@@ -1,27 +1,27 @@
-### Configuring taosAdapter
+#### Configuring taosAdapter
 
 To configure taosAdapter to receive data from TCollector:
 
 - Enable the configuration in the taosAdapter configuration file (default location /etc/taos/taosadapter.toml)
 
-```
-...
-[opentsdb_telnet]
-enable = true
-maxTCPConnections = 250
-tcpKeepAlive = false
-dbs = ["opentsdb_telnet", "collectd", "icinga2", "tcollector"]
-ports = [6046, 6047, 6048, 6049]
-user = "root"
-password = "taosdata"
-...
-```
+    ```toml
+    ...
+    [opentsdb_telnet]
+    enable = true
+    maxTCPConnections = 250
+    tcpKeepAlive = false
+    dbs = ["opentsdb_telnet", "collectd", "icinga2", "tcollector"]
+    ports = [6046, 6047, 6048, 6049]
+    user = "root"
+    password = "taosdata"
+    ...
+    ```
 
-The default database name that taosAdapter writes to is `tcollector`, but you can specify a different name by modifying the dbs option in the taosAdapter configuration file. Fill in the user and password with the actual values configured in TDengine. After modifying the configuration file, taosAdapter needs to be restarted.
+    The default database name that taosAdapter writes to is `tcollector`, but you can specify a different name by modifying the dbs option in the taosAdapter configuration file. Fill in the user and password with the actual values configured in TDengine. After modifying the configuration file, taosAdapter needs to be restarted.
 
 - You can also use taosAdapter command line arguments or set environment variables to enable the taosAdapter to receive tcollector data. For more details, please refer to the taosAdapter reference manual.
 
-### Configuring TCollector
+#### Configuring TCollector
 
 To use TCollector, download its [source code](https://github.com/OpenTSDB/tcollector). Its configuration options are in its source code. Note: There are significant differences between different versions of TCollector; this only refers to the latest code in the current master branch (git commit: 37ae920).
 
@@ -29,7 +29,7 @@ Modify the contents of `collectors/etc/config.py` and `tcollector.py`. Change th
 
 Example of git diff output for source code modifications:
 
-```
+```diff
 index e7e7a1c..ec3e23c 100644
 --- a/collectors/etc/config.py
 +++ b/collectors/etc/config.py

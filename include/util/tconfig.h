@@ -160,8 +160,6 @@ int32_t cfgGetApollUrl(const char **envCmd, const char *envFile, char *apolloUrl
 SArray *taosGetLocalCfg(SConfig *pCfg);
 SArray *taosGetGlobalCfg(SConfig *pCfg);
 
-void taosSetLocalCfg(SConfig *pCfg, SArray *pArray);
-void taosSetGlobalCfg(SConfig *pCfg, SArray *pArray);
 #ifdef __cplusplus
 }
 #endif

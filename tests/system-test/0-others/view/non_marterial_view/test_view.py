@@ -566,8 +566,18 @@ class TDTestCase:
         tdSql.execute(f"drop database {paraDict['dbName']}")
         tdSql.execute("drop database cdb;")
         tdLog.debug("Finish test case 'test_tmq_from_view'")
+    def test_TD_33390(self):
+        tdSql.execute('create database test')
+        tdSql.execute('create table test.nt(ts timestamp, c1 int)')
+        for i in range(0, 200):
+            tdSql.execute(f'create view test.view{i} as select * from test.nt')
+        tdSql.query("show test.views")
+
+        for i in range(0, 200):
+            tdSql.execute(f'drop view test.view{i}')
 
     def run(self):
+        self.test_TD_33390()
         self.test_create_view_from_one_database()
         self.test_create_view_from_multi_database()
         self.test_create_view_name_params()
