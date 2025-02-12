@@ -9,9 +9,10 @@ target_include_directories(
 )
 target_link_libraries(
     decimal
-    PRIVATE os common
+    PRIVATE os common wideInteger
 )
 
 if(${BUILD_TEST})
     ADD_SUBDIRECTORY(test)
 endif(${BUILD_TEST})
+ADD_SUBDIRECTORY(src/detail)

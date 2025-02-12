@@ -1655,37 +1655,40 @@ int32_t vectorMathRemainder(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
   int32_t          leftConvert = 0, rightConvert = 0;
   SColumnInfoData *pLeftCol = NULL;
   SColumnInfoData *pRightCol = NULL;
-  SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
-  SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
+  if (pOutputCol->info.type == TSDB_DATA_TYPE_DECIMAL) {
+    SCL_ERR_JRET(vectorMathOpForDecimal(pLeft, pRight, pOut, step, i, OP_TYPE_REM));
+  } else {
+    SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
+    SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
 
-  _getDoubleValue_fn_t getVectorDoubleValueFnLeft;
-  _getDoubleValue_fn_t getVectorDoubleValueFnRight;
-  SCL_ERR_JRET(getVectorDoubleValueFn(pLeftCol->info.type, &getVectorDoubleValueFnLeft));
-  SCL_ERR_JRET(getVectorDoubleValueFn(pRightCol->info.type, &getVectorDoubleValueFnRight));
+    _getDoubleValue_fn_t getVectorDoubleValueFnLeft;
+    _getDoubleValue_fn_t getVectorDoubleValueFnRight;
+    SCL_ERR_JRET(getVectorDoubleValueFn(pLeftCol->info.type, &getVectorDoubleValueFnLeft));
+    SCL_ERR_JRET(getVectorDoubleValueFn(pRightCol->info.type, &getVectorDoubleValueFnRight));
 
-  double *output = (double *)pOutputCol->pData;
+    double *output = (double *)pOutputCol->pData;
 
-  int32_t numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
-  for (; i < numOfRows && i >= 0; i += step, output += 1) {
-    int32_t leftidx = pLeft->numOfRows == 1 ? 0 : i;
-    int32_t rightidx = pRight->numOfRows == 1 ? 0 : i;
-    if (IS_HELPER_NULL(pLeftCol, leftidx) || IS_HELPER_NULL(pRightCol, rightidx)) {
-      colDataSetNULL(pOutputCol, i);
-      continue;
+    int32_t numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+    for (; i < numOfRows && i >= 0; i += step, output += 1) {
+      int32_t leftidx = pLeft->numOfRows == 1 ? 0 : i;
+      int32_t rightidx = pRight->numOfRows == 1 ? 0 : i;
+      if (IS_HELPER_NULL(pLeftCol, leftidx) || IS_HELPER_NULL(pRightCol, rightidx)) {
+        colDataSetNULL(pOutputCol, i);
+        continue;
+      }
+
+      double lx = 0;
+      double rx = 0;
+      SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, leftidx, &lx));
+      SCL_ERR_JRET(getVectorDoubleValueFnRight(RIGHT_COL, rightidx, &rx));
+      if (isnan(lx) || isinf(lx) || isnan(rx) || isinf(rx) || FLT_EQUAL(rx, 0)) {
+        colDataSetNULL(pOutputCol, i);
+        continue;
+      }
+
+      *output = lx - ((int64_t)(lx / rx)) * rx;
     }
-
-    double lx = 0;
-    double rx = 0;
-    SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, leftidx, &lx));
-    SCL_ERR_JRET(getVectorDoubleValueFnRight(RIGHT_COL, rightidx, &rx));
-    if (isnan(lx) || isinf(lx) || isnan(rx) || isinf(rx) || FLT_EQUAL(rx, 0)) {
-      colDataSetNULL(pOutputCol, i);
-      continue;
-    }
-
-    *output = lx - ((int64_t)(lx / rx)) * rx;
   }
-
 _return:
   doReleaseVec(pLeftCol, leftConvert);
   doReleaseVec(pRightCol, rightConvert);
@@ -2276,15 +2279,28 @@ static int32_t vectorMathOpOneRowForDecimal(SScalarParam *pLeft, SScalarParam *p
             outType = GET_COL_DATA_TYPE(pOut->columnData->info);
   if (IS_HELPER_NULL(pOneRowParam->columnData, 0)) {
     colDataSetNNULL(pOut->columnData, 0, pNotOneRowParam->numOfRows);
+  }
+  Decimal oneRowData = {0};
+  SDataType oneRowType = outType;
+  if (pLeft == pOneRowParam) {
+    oneRowType.scale = leftType.scale;
+    code = convertToDecimal(colDataGetData(pLeft->columnData, 0), &leftType, &oneRowData, &oneRowType);
   } else {
-    for (; i < pNotOneRowParam->numOfRows && i >= 0 && TSDB_CODE_SUCCESS == code; i += step, output += 1) {
-      if (IS_HELPER_NULL(pNotOneRowParam->columnData, i)) {
-        colDataSetNULL(pOut->columnData, i);
-        continue;
-      }
-      code = decimalOp(op, &leftType, &rightType, &outType,
-                       colDataGetData(pLeft->columnData, pLeft == pOneRowParam ? 0 : i),
-                       colDataGetData(pRight->columnData, pRight == pOneRowParam ? 0 : i), output);
+    oneRowType.scale = rightType.scale;
+    code = convertToDecimal(colDataGetData(pRight->columnData, 0), &rightType, &oneRowData, &oneRowType);
+  }
+  if (code != 0) return code;
+
+  for (; i < pNotOneRowParam->numOfRows && i >= 0 && TSDB_CODE_SUCCESS == code; i += step, output += 1) {
+    if (IS_HELPER_NULL(pNotOneRowParam->columnData, i)) {
+      colDataSetNULL(pOut->columnData, i);
+      continue;
+    }
+    if (pOneRowParam == pLeft) {
+      code =
+          decimalOp(op, &oneRowType, &rightType, &outType, &oneRowData, colDataGetData(pRight->columnData, i), output);
+    } else {
+      code = decimalOp(op, &leftType, &oneRowType, &outType, colDataGetData(pLeft->columnData, i), &oneRowData, output);
     }
   }
   return code;
