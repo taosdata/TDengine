@@ -257,7 +257,7 @@ taosBenchmark -f <json file>
 查询场景可以通过设置 `kill_slow_query_threshold` 和 `kill_slow_query_interval` 参数来控制杀掉慢查询语句的执行，threshold 控制如果 exec_usec 超过指定时间的查询将被 taosBenchmark 杀掉，单位为秒；
 interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为秒。
 
-其它通用参数详见[通用配置参数](#通用配置参数)。
+其它通用参数详见 [通用配置参数](#通用配置参数)。
 
 #### 执行指定查询语句
 
