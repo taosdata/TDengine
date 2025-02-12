@@ -557,6 +557,7 @@ typedef struct {
   col_id_t colId;
   int32_t  cmprAlg;
 } SCmprObj;
+
 typedef struct {
   char      name[TSDB_TABLE_FNAME_LEN];
   char      db[TSDB_DB_FNAME_LEN];
@@ -586,6 +587,7 @@ typedef struct {
   SRWLatch  lock;
   int8_t    source;
   SColCmpr* pCmpr;
+  int8_t    virtualStb;
 } SStbObj;
 
 typedef struct {
