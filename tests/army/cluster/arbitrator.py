@@ -46,7 +46,7 @@ class TDTestCase(TBase):
         while count < 100:        
             tdSql.query("show arbgroups;")
 
-            if tdSql.getData(0, 4) == 'true':
+            if tdSql.getData(0, 4) == True:
                 break
 
             tdLog.info("wait %d seconds for is sync"%count)
