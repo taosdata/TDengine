@@ -706,7 +706,7 @@ static int32_t doSetVal(SColumnInfoData* pColumnInfoData, int32_t rowIndex, SCol
       colDataSetNULL(pColumnInfoData, rowIndex);
     }
   } else {
-    code = colDataSetVal(pColumnInfoData, rowIndex, (void*)&pColVal->value.val, !COL_VAL_IS_VALUE(pColVal));
+    code = colDataSetVal(pColumnInfoData, rowIndex, VALUE_GET_DATUM(&pColVal->value, pColVal->value.type), !COL_VAL_IS_VALUE(pColVal));
   }
 
   return code;

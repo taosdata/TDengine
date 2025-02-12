@@ -676,10 +676,13 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
   void* skey = colDataGetData(pColInfoData, 0);
   void* ekey = colDataGetData(pColInfoData, (pInfo->rows - 1));
 
+  int64_t val = 0;
   if (asc) {
     if (IS_NUMERIC_TYPE(pColInfoData->info.type)) {
-      GET_TYPED_DATA(pInfo->pks[0].val, int64_t, pColInfoData->info.type, skey);
-      GET_TYPED_DATA(pInfo->pks[1].val, int64_t, pColInfoData->info.type, ekey);
+      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, skey);
+      VALUE_SET_TRIVIAL_DATUM(&pInfo->pks[0], val);
+      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, ekey);
+      VALUE_SET_TRIVIAL_DATUM(&pInfo->pks[1], val);
     } else {  // todo refactor
       memcpy(pInfo->pks[0].pData, varDataVal(skey), varDataLen(skey));
       pInfo->pks[0].nData = varDataLen(skey);
@@ -689,8 +692,10 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
     }
   } else {
     if (IS_NUMERIC_TYPE(pColInfoData->info.type)) {
-      GET_TYPED_DATA(pInfo->pks[0].val, int64_t, pColInfoData->info.type, ekey);
-      GET_TYPED_DATA(pInfo->pks[1].val, int64_t, pColInfoData->info.type, skey);
+      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, ekey);
+      VALUE_SET_TRIVIAL_DATUM(&pInfo->pks[0], val);
+      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, skey);
+      VALUE_SET_TRIVIAL_DATUM(&pInfo->pks[1], val);
     } else {  // todo refactor
       memcpy(pInfo->pks[0].pData, varDataVal(ekey), varDataLen(ekey));
       pInfo->pks[0].nData = varDataLen(ekey);
@@ -2754,7 +2759,9 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
                 terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
                 return terrno;
               }
-              SColVal cv = COL_VAL_VALUE(pCol->colId, ((SValue){.type = pCol->type, .val = *(TSKEY*)var}));
+              SValue val = {.type = pCol->type};
+              VALUE_SET_TRIVIAL_DATUM(&val, *(TSKEY*)var);
+              SColVal cv = COL_VAL_VALUE(pCol->colId, val);
               void*   px = taosArrayPush(pVals, &cv);
               if (px == NULL) {
                 return terrno;
@@ -2767,7 +2774,9 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
                 return terrno;
               }
             } else {
-              SColVal cv = COL_VAL_VALUE(pCol->colId, ((SValue){.type = pCol->type, .val = *(int64_t*)var}));
+              SValue val = {.type = pCol->type};
+              VALUE_SET_TRIVIAL_DATUM(&val, *(int64_t*)var);
+              SColVal cv = COL_VAL_VALUE(pCol->colId, val);
               void*   px = taosArrayPush(pVals, &cv);
               if (px == NULL) {
                 return terrno;
@@ -2820,13 +2829,13 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
               } else {
                 SValue sv = {.type = pCol->type};
                 if (pCol->type == pColInfoData->info.type) {
-                  memcpy(&sv.val, var, tDataTypes[pCol->type].bytes);
+                  valueSetDatum(&sv, sv.type, var, tDataTypes[pCol->type].bytes);
                 } else {
                   /**
                    *  1. sum/avg would convert to int64_t/uint64_t/double during aggregation
                    *  2. below conversion may lead to overflow or loss, the app should select the right data type.
                    */
-                  char tv[8] = {0};
+                  char tv[DATUM_MAX_SIZE] = {0};
                   if (pColInfoData->info.type == TSDB_DATA_TYPE_FLOAT) {
                     float v = 0;
                     GET_TYPED_DATA(v, float, pColInfoData->info.type, var);
@@ -2844,7 +2853,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
                     GET_TYPED_DATA(v, uint64_t, pColInfoData->info.type, var);
                     SET_TYPED_DATA(&tv, pCol->type, v);
                   }
-                  memcpy(&sv.val, tv, tDataTypes[pCol->type].bytes);
+                  valueSetDatum(&sv, sv.type, tv, tDataTypes[pCol->type].bytes);
                 }
                 SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
                 void* px = taosArrayPush(pVals, &cv);

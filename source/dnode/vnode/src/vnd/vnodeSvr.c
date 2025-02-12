@@ -1749,11 +1749,11 @@ static int32_t vnodeCellValConvertToColVal(STColumn *pCol, SCellVal *pCellVal, S
     pColVal->value.pData = (uint8_t *)varDataVal(pCellVal->val);
   } else if (TSDB_DATA_TYPE_FLOAT == pCol->type) {
     float f = GET_FLOAT_VAL(pCellVal->val);
-    memcpy(&pColVal->value.val, &f, sizeof(f));
+    valueSetDatum(&pColVal->value, pCol->type, &f, sizeof(f));
   } else if (TSDB_DATA_TYPE_DOUBLE == pCol->type) {
-    pColVal->value.val = *(int64_t *)pCellVal->val;
+    VALUE_SET_TRIVIAL_DATUM(&pColVal->value, *(int64_t*)pCellVal->val);
   } else {
-    GET_TYPED_DATA(pColVal->value.val, int64_t, pCol->type, pCellVal->val);
+    valueSetDatum(&pColVal->value, pCol->type, pCellVal->val, tDataTypes[pCol->type].bytes);
   }
 
   pColVal->flag = CV_FLAG_VALUE;

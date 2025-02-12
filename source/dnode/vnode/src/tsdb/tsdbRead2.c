@@ -130,7 +130,7 @@ static int32_t tColRowGetPriamyKeyDeepCopy(SBlockData* pBlock, int32_t irow, int
   pKey->pks[0].type = cv.value.type;
 
   if (IS_NUMERIC_TYPE(cv.value.type)) {
-    pKey->pks[0].val = cv.value.val;
+    valueCloneDatum(pKey->pks, &cv.value, cv.value.type);
   } else {
     pKey->pks[0].nData = cv.value.nData;
     TAOS_MEMCPY(pKey->pks[0].pData, cv.value.pData, cv.value.nData);
@@ -182,7 +182,7 @@ static int32_t tRowGetPrimaryKeyDeepCopy(SRow* pRow, SRowKey* pKey) {
       tdata += tGetU32v(tdata, &pKey->pks[i].nData);
       TAOS_MEMCPY(pKey->pks[i].pData, tdata, pKey->pks[i].nData);
     } else {
-      TAOS_MEMCPY(&pKey->pks[i].val, data + indices[i].offset, tDataTypes[pKey->pks[i].type].bytes);
+      valueSetDatum(pKey->pks + i, indices[i].type, data + indices[i].offset, tDataTypes[pKey->pks[i].type].bytes);
     }
   }
 
@@ -1083,7 +1083,7 @@ static int32_t updateLastKeyInfo(SRowKey* pKey, SFileDataBlockInfo* pBlockInfo, 
 
   TSDB_CHECK_NULL(pBlockInfo, code, lino, _end, TSDB_CODE_INVALID_PARA);
   if (IS_NUMERIC_TYPE(pKey->pks[0].type)) {
-    pKey->pks[0].val = asc ? pBlockInfo->lastPk.val : pBlockInfo->firstPk.val;
+    VALUE_SET_TRIVIAL_DATUM(pKey->pks, asc ? pBlockInfo->lastPk.val : pBlockInfo->firstPk.val);
   } else {
     uint8_t* p = asc ? pBlockInfo->lastPk.pData : pBlockInfo->firstPk.pData;
     pKey->pks[0].nData = asc ? varDataLen(pBlockInfo->lastPk.pData) : varDataLen(pBlockInfo->firstPk.pData);
@@ -1126,7 +1126,8 @@ static int32_t doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int
       TSDB_CHECK_CODE(code, lino, _end);
     }
   } else {
-    code = colDataSetVal(pColInfoData, rowIndex, (const char*)&pColVal->value.val, !COL_VAL_IS_VALUE(pColVal));
+    code = colDataSetVal(pColInfoData, rowIndex, VALUE_GET_DATUM(&pColVal->value, pColVal->value.type),
+                         !COL_VAL_IS_VALUE(pColVal));
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
@@ -1442,8 +1443,8 @@ static void blockInfoToRecord(SBrinRecord* record, SFileDataBlockInfo* pBlockInf
       pLast->pData = (uint8_t*)varDataVal(pBlockInfo->lastPk.pData);
       pLast->nData = varDataLen(pBlockInfo->lastPk.pData);
     } else {
-      pFirst->val = pBlockInfo->firstPk.val;
-      pLast->val = pBlockInfo->lastPk.val;
+      VALUE_SET_TRIVIAL_DATUM(pFirst, pBlockInfo->firstPk.val);
+      VALUE_SET_TRIVIAL_DATUM(pLast, pBlockInfo->lastPk.val);
     }
   }
 
@@ -1898,7 +1899,7 @@ static bool overlapWithNeighborBlock2(SFileDataBlockInfo* pBlock, SBrinRecord* p
         if (IS_VAR_DATA_TYPE(pkType)) {
           v1.pData = (uint8_t*)varDataVal(pBlock->lastPk.pData), v1.nData = varDataLen(pBlock->lastPk.pData);
         } else {
-          v1.val = pBlock->lastPk.val;
+          VALUE_SET_TRIVIAL_DATUM(&v1, pBlock->lastPk.val);
         }
         return (tValueCompare(&v1, &pRec->firstKey.key.pks[0]) == 0);
       } else {  // no pk
@@ -1914,7 +1915,7 @@ static bool overlapWithNeighborBlock2(SFileDataBlockInfo* pBlock, SBrinRecord* p
         if (IS_VAR_DATA_TYPE(pkType)) {
           v1.pData = (uint8_t*)varDataVal(pBlock->firstPk.pData), v1.nData = varDataLen(pBlock->firstPk.pData);
         } else {
-          v1.val = pBlock->firstPk.val;
+          VALUE_SET_TRIVIAL_DATUM(&v1, pBlock->firstPk.val);
         }
         return (tValueCompare(&v1, &pRec->lastKey.key.pks[0]) == 0);
       } else {  // no pk
@@ -2191,7 +2192,7 @@ static int32_t nextRowFromSttBlocks(SSttBlockReader* pSttBlockReader, STableBloc
       pNextProc->ts += step;
       if (pSttBlockReader->numOfPks > 0) {
         if (IS_NUMERIC_TYPE(pNextProc->pks[0].type)) {
-          pNextProc->pks[0].val = INT64_MIN;
+          VALUE_SET_TRIVIAL_DATUM(pNextProc->pks, INT64_MAX);
         } else {
           memset(pNextProc->pks[0].pData, 0, pNextProc->pks[0].nData);
         }
@@ -3758,8 +3759,8 @@ static int32_t buildCleanBlockFromDataFiles(STsdbReader* pReader, STableBlockSca
 
   if (pReader->suppInfo.numOfPks > 0) {
     if (IS_NUMERIC_TYPE(pReader->suppInfo.pk.type)) {
-      pInfo->pks[0].val = pBlockInfo->firstPk.val;
-      pInfo->pks[1].val = pBlockInfo->lastPk.val;
+      VALUE_SET_TRIVIAL_DATUM(pInfo->pks, pBlockInfo->firstPk.val);
+      VALUE_SET_TRIVIAL_DATUM(pInfo->pks + 1, pBlockInfo->lastPk.val);
     } else {
       (void)memcpy(pInfo->pks[0].pData, varDataVal(pBlockInfo->firstPk.pData), varDataLen(pBlockInfo->firstPk.pData));
       (void)memcpy(pInfo->pks[1].pData, varDataVal(pBlockInfo->lastPk.pData), varDataLen(pBlockInfo->lastPk.pData));
