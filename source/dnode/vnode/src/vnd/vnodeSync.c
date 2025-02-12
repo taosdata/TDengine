@@ -204,7 +204,7 @@ static int32_t inline decodeSSubmitData(SVnode *pVnode, SDecoder *pCoder, SSubmi
         uint64_t seq = 0;
         code = bseAppend(pVnode->pBse, &seq, data + offset, len);
         SColVal colVal = {0};
-        tRowGet2(*pRow, pTSchema, j, &colVal);
+        tRowGet2AndSetSeq(*pRow, pTSchema, j, &colVal, seq);
         idx++;
       }
     }
