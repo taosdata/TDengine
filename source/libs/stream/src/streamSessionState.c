@@ -562,6 +562,33 @@ SStreamStateCur* sessionWinStateSeekKeyCurrentPrev(SStreamFileState* pFileState,
   pCur->pStreamFileState = pFileState;
   return pCur;
 }
+
+SStreamStateCur* sessionWinStateSeekKeyPrev(SStreamFileState *pFileState, const SSessionKey *pWinKey) {
+  SArray*          pWinStates = NULL;
+  int32_t          index = -1;
+  SStreamStateCur *pCur = seekKeyCurrentPrev_buff(pFileState, pWinKey, &pWinStates, &index);
+  if (pCur) {
+    int32_t cmpRes= sessionStateRangeKeyCompare(pWinKey, pWinStates, index);
+    if (cmpRes > 0) {
+      return pCur;
+    } else if (cmpRes == 0 && index > 0) {
+      sessionWinStateMoveToPrev(pCur);
+      return pCur;
+    }
+    streamStateFreeCur(pCur);
+    pCur = NULL;
+  }
+
+  void* pFileStore = getStateFileStore(pFileState);
+  pCur = streamStateSessionSeekKeyPrev_rocksdb(pFileStore, pWinKey);
+  if (!pCur) {
+    return NULL;
+  }
+  pCur->buffIndex = -1;
+  pCur->pStreamFileState = pFileState;
+  return pCur;
+}
+
 static void transformCursor(SStreamFileState* pFileState, SStreamStateCur* pCur) {
   if (!pCur) {
     return;
@@ -744,6 +771,15 @@ void sessionWinStateMoveToNext(SStreamStateCur* pCur) {
     pCur->buffIndex++;
   } else {
     streamStateCurNext_rocksdb(pCur);
+  }
+}
+
+void sessionWinStateMoveToPrev(SStreamStateCur* pCur) {
+  qTrace("move cursor to prev");
+  if (pCur && pCur->buffIndex >= 1) {
+    pCur->buffIndex--;
+  } else {
+    streamStateCurPrev_rocksdb(pCur);
   }
 }
 

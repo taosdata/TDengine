@@ -765,7 +765,7 @@ static int32_t addStreamTaskNotifyInfo(const SCMCreateStreamReq *createReq, cons
   TSDB_CHECK_NULL(pTask->notifyInfo.pNotifyAddrUrls, code, lino, _end, terrno);
   pTask->notifyInfo.notifyEventTypes = createReq->notifyEventTypes;
   pTask->notifyInfo.notifyErrorHandle = createReq->notifyErrorHandle;
-  pTask->notifyInfo.streamName = taosStrdup(createReq->name);
+  pTask->notifyInfo.streamName = taosStrdup(mndGetDbStr(createReq->name));
   TSDB_CHECK_NULL(pTask->notifyInfo.streamName, code, lino, _end, terrno);
   pTask->notifyInfo.stbFullName = taosStrdup(createReq->targetStbFullName);
   TSDB_CHECK_NULL(pTask->notifyInfo.stbFullName, code, lino, _end, terrno);

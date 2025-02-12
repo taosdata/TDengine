@@ -463,6 +463,7 @@ struct SStreamTask {
   SUpstreamInfo       upstreamInfo;
   STaskCheckInfo      taskCheckInfo;
   SNotifyInfo         notifyInfo;
+  STaskNotifyEventStat notifyEventStat;
 
   // the followings attributes don't be serialized
   SScanhistorySchedInfo schedHistoryInfo;
@@ -632,6 +633,7 @@ typedef struct STaskStatusEntry {
   int64_t       startCheckpointVer;
   int64_t       hTaskId;
   STaskCkptInfo checkpointInfo;
+  STaskNotifyEventStat notifyEventStat;
 } STaskStatusEntry;
 
 //typedef struct SNodeUpdateInfo {
