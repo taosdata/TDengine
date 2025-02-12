@@ -539,7 +539,7 @@ double calcAppliedRate(int64_t currentCount, int64_t lastCount, int64_t currentT
   if ((currentTimeMs <= lastTimeMs) || (currentCount <= lastCount)) {
     return 0.0;
   }
-  
+
   int64_t deltaCount = currentCount - lastCount;
   int64_t deltaMs = currentTimeMs - lastTimeMs;
   double  rate = (double)deltaCount / (double)deltaMs;
@@ -552,7 +552,7 @@ static bool mndUpdateVnodeState(int32_t vgId, SVnodeGid *pGid, SVnodeLoad *pVloa
                      (pVload->syncTerm != -1 && pGid->syncTerm != pVload->syncTerm) ||
                      pGid->roleTimeMs != pVload->roleTimeMs;
 
-  if (!pVload->syncRestore) {
+  if (pVload->syncCommitIndex > pVload->syncAppliedIndex) {
     if (pGid->lastSyncAppliedIndexUpdateTime == 0) {
       pGid->lastSyncAppliedIndexUpdateTime = taosGetTimestampMs();
     } else if (pGid->syncAppliedIndex != pVload->syncAppliedIndex) {

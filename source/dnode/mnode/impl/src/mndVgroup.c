@@ -1067,13 +1067,6 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
           return code;
         }
 
-        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-        code = colDataSetVal(pColInfo, numOfRows, (const char *)&pVgroup->vnodeGid[i].syncAppliedIndex, false);
-        if (code != 0) {
-          mError("vgId:%d, failed to set role, since %s", pVgroup->vgId, tstrerror(code));
-          return code;
-        }
-
         bool       exist = false;
         bool       online = false;
         SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgroup->vnodeGid[i].dnodeId);
@@ -1127,6 +1120,19 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, (const char *)buf1, false);
+        if (code != 0) {
+          mError("vgId:%d, failed to set role, since %s", pVgroup->vgId, tstrerror(code));
+          return code;
+        }
+
+        char applyStr[TSDB_SYNC_APPLY_COMMIT_LEN] = {0};
+        char buf[TSDB_SYNC_APPLY_COMMIT_LEN] = {0};
+        snprintf(applyStr, sizeof(applyStr), "%" PRId64 "/%" PRId64, pVgroup->vnodeGid[i].syncAppliedIndex,
+                 pVgroup->vnodeGid[i].syncCommitIndex);
+        STR_WITH_MAXSIZE_TO_VARSTR(buf, applyStr, pShow->pMeta->pSchemas[cols].bytes);
+
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        code = colDataSetVal(pColInfo, numOfRows, (const char *)&buf, false);
         if (code != 0) {
           mError("vgId:%d, failed to set role, since %s", pVgroup->vgId, tstrerror(code));
           return code;
@@ -1348,7 +1354,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       int64_t unappliedCount = pGid->syncCommitIndex - pGid->syncAppliedIndex;
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       char restoreStr[20] = {0};
-      if (!pGid->syncRestore) {
+      if (unappliedCount > 0) {
         calculateRstoreFinishTime(pGid->appliedRate, unappliedCount, restoreStr, sizeof(restoreStr));
       }
       STR_TO_VARSTR(buf, restoreStr);
