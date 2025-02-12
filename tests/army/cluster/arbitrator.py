@@ -61,11 +61,11 @@ class TDTestCase(TBase):
 
         tdSql.query("show db.vgroups;")
 
-        if(tdSql.getData(0, 4) == "follower") and (tdSql.getData(0, 6) == "leader"):
+        if(tdSql.getData(0, 4) == "follower") and (tdSql.getData(0, 7) == "leader"):
             tdLog.info("stop dnode2")
             sc.dnodeStop(2)
 
-        if(tdSql.getData(0, 6) == "follower") and (tdSql.getData(0, 4) == "leader"):
+        if(tdSql.getData(0, 7) == "follower") and (tdSql.getData(0, 4) == "leader"):
             tdLog.info("stop dnode 3")
             sc.dnodeStop(3)
 
@@ -74,7 +74,7 @@ class TDTestCase(TBase):
         while count < 100:
             tdSql.query("show db.vgroups;")
 
-            if(tdSql.getData(0, 4) == "assigned ") or (tdSql.getData(0, 6) == "assigned "):
+            if(tdSql.getData(0, 4) == "assigned ") or (tdSql.getData(0, 7) == "assigned "):
                 break
             
             tdLog.info("wait %d seconds for set assigned"%count)
