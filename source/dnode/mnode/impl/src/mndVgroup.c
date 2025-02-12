@@ -1345,16 +1345,23 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         return code;
       }
 
+      int64_t unappliedCount = pGid->syncCommitIndex - pGid->syncAppliedIndex;
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       char restoreStr[20] = {0};
       if (!pGid->syncRestore) {
-        calculateRstoreFinishTime(pGid->appliedRate, pGid->syncCommitIndex - pGid->syncAppliedIndex, restoreStr,
-                                  sizeof(restoreStr));
+        calculateRstoreFinishTime(pGid->appliedRate, unappliedCount, restoreStr, sizeof(restoreStr));
       }
       STR_TO_VARSTR(buf, restoreStr);
       colDataSetVal(pColInfo, numOfRows, (const char *)&buf, false);
       if (code != 0) {
         mError("vgId:%d, failed to set syncRestore finish time, since %s", pVgroup->vgId, tstrerror(code));
+        return code;
+      }
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)&unappliedCount, false);
+      if (code != 0) {
+        mError("vgId:%d, failed to set syncRestore, since %s", pVgroup->vgId, tstrerror(code));
         return code;
       }
 

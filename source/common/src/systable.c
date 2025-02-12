@@ -372,6 +372,7 @@ static const SSysDbTableSchema vnodesSchema[] = {
     {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
     {.name = "restored", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = true},
     {.name = "restored_finish", .bytes = TSDB_SYNC_RESOTRE_lEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "unapplied", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
 };
 
 static const SSysDbTableSchema userUserPrivilegesSchema[] = {
