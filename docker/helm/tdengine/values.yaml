@@ -3,13 +3,11 @@
 # Declare variables to be passed into helm templates.
 name: "tdengine"
 
-replicaCount: 1
-
 image:
   repository: image.cloud.taosdata.com/  # Leave a trailing slash for the repository, or "" for no repository
-  server: taosx/integrated:3.3.5.1-d128a65b
-  taosx: taosx/integrated:3.3.5.1-d128a65b
-  arbitrator: taosx/integrated:3.3.5.1-d128a65b
+  server: taosx/integrated:3.3.5.1-b0a54bdd
+  #taosx: taosx/integrated:3.3.5.1-b0a54bdd
+  #arbitrator: taosx/integrated:3.3.5.1-b0a54bdd
   #pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
   #tag: ""
@@ -17,21 +15,13 @@ image:
 # Set timezone here, not in taoscfg
 timezone: "Asia/Shanghai"
 
-resources:
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  # limits:
-  #   cpu: 100m
-  #   memory: 128Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
+labels:
+  # Add more labels as needed.
 
 services:
   server:
     type: ClusterIP
+    replica: 1
     ports:
       # TCP range required
       tcp: [6041, 6030, 6060]
@@ -111,6 +101,8 @@ services:
   #     ENABLE_MONITOR: "0"
 
 # DEPRECATED: use the above services.server.files instead.
+#
+# You can still use environment variables to set configurations with `services.server.environment`.
 #
 # Config settings in taos.cfg file.
 #

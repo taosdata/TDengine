@@ -17,7 +17,7 @@ COPY ./startup.sh /root/startup.sh
 RUN chmod +x /tini \
   && chmod +x /root/startup.sh \
   && cd /root/TDengine-enterprise \
-  && /bin/bash install.sh -e no \
+  && HOSTNAME=localhost /bin/bash install.sh -e no \
   && rm -rf ../TDengine-enterprise
 
 COPY ./release/taosx /usr/bin/taosx
@@ -29,13 +29,6 @@ COPY ./release/plugins/taosx-opc /taosx/plugins/opc/taosx-opc
 ENV LC_CTYPE=en_US.UTF-8
 ENV LANG=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
-ENV TAOS_MONITOR=1
-
-ENV TAOSX_PLUGINS_HOME=/taosx/plugins/
-ENV TAOSX_DATA_DIR=/data/taosx/
-ENV TAOSX_LOGS_HOME=/data/taosx/log/
-ENV TAOSX_CONFIG=/data/taosx/config/taosx.toml
-ENV EXPLORER_CONFIG_FILE=/data/taosx/config/explorer.toml
 
 VOLUME [ "/etc/taos", "/var/lib/taos", "/var/log/taos", "/corefile", "/data/taosx/" ]
 EXPOSE 6030

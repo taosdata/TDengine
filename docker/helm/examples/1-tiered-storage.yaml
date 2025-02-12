@@ -1,0 +1,64 @@
+# This is an example of a 3-tiered storage deployment with one server replica.
+name: "tdengine"
+
+image:
+  repository: image.cloud.taosdata.com/  # Leave a trailing slash for the repository, or "" for no repository
+  server: taosx/integrated:3.3.5.1-b0a54bdd
+
+# Set timezone here, not in taoscfg
+timezone: "Asia/Shanghai"
+
+labels:
+  # Add more labels as needed.
+
+services:
+  server:
+    type: ClusterIP
+    replica: 1
+    ports:
+      # TCP range required
+      tcp: [6041, 6030, 6060]
+      # UDP range, optional
+      udp:
+    volumes:
+      - name: tier0
+        mountPath: /data/taos0/
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+      - name: tier1
+        mountPath: /data/taos1/
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+      - name: tier2
+        mountPath: /data/taos2/
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+      - name: log
+        mountPath: /var/log/taos/
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+    environment:
+      TAOS_DEBUG_FLAG: "131"
+    files:
+      - name: cfg # must be lower case.
+        mountPath: /etc/taos/taos.cfg
+        content: |
+          dataDir /data/taos0/  0 1
+          dataDir /data/taos1/  1 0
+          dataDir /data/taos2/  2 0
