@@ -135,23 +135,6 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
   return code;
 }
 
-static int32_t getVirtualSlotKey(SNode* pNode, char** ppKey, int32_t* pLen, uint16_t extraBufLen) {
-  int32_t code = 0;
-  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    SColumnNode* pCol = (SColumnNode*)pNode;
-    *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
-    if (!*ppKey) {
-      return terrno;
-    }
-    strcat(*ppKey, pCol->refTableName);
-    strcat(*ppKey, ".");
-    strcat(*ppKey, pCol->refColName);
-    *pLen = taosHashBinary(*ppKey, strlen(*ppKey));
-    return code;
-  }
-  return code;
-}
-
 static SNode* createSlotDesc(SPhysiPlanContext* pCxt, const char* pName, const SNode* pNode, int16_t slotId,
                              bool output, bool reserve) {
   SSlotDescNode* pSlot = NULL;

@@ -822,8 +822,9 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
     } else {
       tmpRef.hasRef = true;
       tmpRef.id = pColumn->colId;
-      tstrncpy(tmpRef.refColName, pReq->refColName, TSDB_COL_NAME_LEN);
+      tstrncpy(tmpRef.refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
       tstrncpy(tmpRef.refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(tmpRef.refColName, pReq->refColName, TSDB_COL_NAME_LEN);
     }
     code = updataTableColRef(&pEntry->colRef, pColumn, 1, &tmpRef);
     if (code) {
@@ -870,6 +871,7 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
         pRsp->pColRefs[i].hasRef = p->hasRef;
         pRsp->pColRefs[i].id = p->id;
         if (p->hasRef) {
+          tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
         }
@@ -1010,6 +1012,7 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
         pRsp->pColRefs[i].hasRef = p->hasRef;
         pRsp->pColRefs[i].id = p->id;
         if (p->hasRef) {
+          tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
         }
@@ -1117,6 +1120,7 @@ int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
         pRsp->pColRefs[i].hasRef = p->hasRef;
         pRsp->pColRefs[i].id = p->id;
         if (p->hasRef) {
+          tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
         }
@@ -1235,6 +1239,7 @@ int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *p
         pRsp->pColRefs[i].hasRef = p->hasRef;
         pRsp->pColRefs[i].id = p->id;
         if (p->hasRef) {
+          tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
         }
@@ -1807,6 +1812,12 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
     TAOS_RETURN(code);
   }
 
+  if (NULL == pReq->refDbName) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid ref db name, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, version);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
   if (NULL == pReq->refTbName) {
     metaError("vgId:%d, %s failed at %s:%d since invalid ref table name, version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, version);
@@ -1872,6 +1883,7 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
   pEntry->version = version;
   pColRef->hasRef = true;
   pColRef->id = pSchema->pSchema[iColumn].colId;
+  tstrncpy(pColRef->refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(pColRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pColRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN);
   pSchema->version++;
@@ -1899,6 +1911,7 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
       pRsp->pColRefs[i].hasRef = p->hasRef;
       pRsp->pColRefs[i].id = p->id;
       if (p->hasRef) {
+        tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
         tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
         tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
       }
@@ -1996,6 +2009,7 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
       pRsp->pColRefs[i].hasRef = p->hasRef;
       pRsp->pColRefs[i].id = p->id;
       if (p->hasRef) {
+        tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
         tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
         tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
       }
