@@ -5484,7 +5484,7 @@ static int32_t doCheckFillValues(STranslateContext* pCxt, SFillNode* pFill, SNod
   SNodeListNode* pFillValues = (SNodeListNode*)pFill->pValues;
   SNode*         pProject = NULL;
   if (!pFillValues)
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
   FOREACH(pProject, pProjectionList) {
     if (needFill(pProject)) {
       if (fillNo >= LIST_LENGTH(pFillValues->pNodeList)) {
@@ -6418,16 +6418,16 @@ static int32_t translateInterpAround(STranslateContext* pCxt, SSelectStmt* pSele
       if (nodeType(pAround->pInterval) == QUERY_NODE_VALUE && ((SValueNode*)pAround->pInterval)->flag & VALUE_FLAG_IS_DURATION) {
         SValueNode* pVal = (SValueNode*)pAround->pInterval;
         if (pVal->datum.i == 0) {
-          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                       "Range interval cannot be 0");
         }
         int8_t unit = pVal->unit;
         if (unit == TIME_UNIT_YEAR || unit == TIME_UNIT_MONTH) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE,
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                          "Unsupported time unit in RANGE clause");
         }
       } else {
-        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE, "Invalid range interval");
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid range interval");
       }
     }
   }
@@ -6465,30 +6465,26 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                      "Missing EVERY clause or FILL clause");
     }
-  } else {
-    if (!pSelect->pRangeAround) {
-      if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {
-        if (pSelect->pRange != NULL && QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
-          // single point interp every can be omitted
-        } else {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
-                                         "Missing RANGE clause, EVERY clause or FILL clause");
-        }
-      }
-    } else if (!pSelect->pFill) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE, "Missing FILL clause");
+  } else if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {
+    if (pSelect->pRange != NULL && QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
+      // single point interp every can be omitted
+    } else {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
+                                     "Missing RANGE clause, EVERY clause or FILL clause");
     }
   }
 
-  code = translateExpr(pCxt, &pSelect->pRange);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateInterpAround(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateExpr(pCxt, &pSelect->pRange);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterpEvery(pCxt, &pSelect->pEvery);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterpFill(pCxt, pSelect);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateInterpAround(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkInterpForStream(pCxt, pSelect);
