@@ -20,7 +20,8 @@
 #include "curl/curl.h"
 #endif
 
-#define STREAM_EVENT_NOTIFY_RETRY_MS 50  // 50ms
+#define STREAM_EVENT_NOTIFY_RETRY_MS   50          // 50 ms
+#define STREAM_EVENT_NOTIFY_FRAME_SIZE 256 * 1024  // 256 KB
 
 typedef struct SStreamNotifyHandle {
   TdThreadMutex mutex;
@@ -49,6 +50,7 @@ static void stopStreamNotifyConn(SStreamNotifyHandle* pHandle) {
   }
   // TODO: add wait mechanism for peer connection close response
   curl_easy_cleanup(pHandle->curl);
+  pHandle->curl = NULL;
 #endif
 }
 
@@ -354,9 +356,21 @@ static int32_t sendSingleStreamNotify(SStreamNotifyHandle* pHandle, char* msg) {
   TSDB_CHECK_NULL(pHandle->curl, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   totalLen = strlen(msg);
-  while (sentLen < totalLen) {
-    res = curl_ws_send(pHandle->curl, msg + sentLen, totalLen - sentLen, &nbytes, 0, CURLWS_TEXT);
+  if (totalLen > 0) {
+    // send PING frame to check if the connection is still alive
+    res = curl_ws_send(pHandle->curl, "", 0, &sentLen, 0, CURLWS_PING);
     TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
+  }
+  sentLen = 0;
+  while (sentLen < totalLen) {
+    size_t   chunkSize = TMIN(totalLen - sentLen, STREAM_EVENT_NOTIFY_FRAME_SIZE);
+    if (sentLen == 0) {
+      res = curl_ws_send(pHandle->curl, msg, chunkSize, &nbytes, totalLen, CURLWS_TEXT | CURLWS_OFFSET);
+      TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
+    } else {
+      res = curl_ws_send(pHandle->curl, msg + sentLen, chunkSize, &nbytes, 0, CURLWS_TEXT | CURLWS_OFFSET);
+      TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
+    }
     sentLen += nbytes;
   }
 

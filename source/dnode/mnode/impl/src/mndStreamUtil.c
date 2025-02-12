@@ -1231,6 +1231,8 @@ int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlo
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 
+  // todo(kjq): add stream notification stats like this
+
   // stream name
   char streamName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
   STR_WITH_MAXSIZE_TO_VARSTR(streamName, mndGetDbStr(pStream->name), sizeof(streamName));

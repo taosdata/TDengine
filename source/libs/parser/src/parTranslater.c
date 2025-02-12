@@ -11419,7 +11419,7 @@ static int32_t checkStreamQuery(STranslateContext* pCxt, SCreateStreamStmt* pStm
       !hasTbnameFunction(pSelect->pPartitionByList) && pSelect->pWindow != NULL &&
       pSelect->pWindow->type == QUERY_NODE_EVENT_WINDOW) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                   "Event window for stream on super table must patitioned by table name");
+                                   "Event window for stream on super table must partitioned by table name");
   }
 
   if (pSelect->pWindow != NULL && pSelect->pWindow->type == QUERY_NODE_EVENT_WINDOW &&
