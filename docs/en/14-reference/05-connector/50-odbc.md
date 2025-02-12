@@ -138,7 +138,7 @@ The table below explains how the ODBC connector maps server data types to defaul
 | BIGINT             | SQL_BIGINT        | SQL_C_SBIGINT     |
 | BIGINT UNSIGNED    | SQL_BIGINT        | SQL_C_UBIGINT     |
 | FLOAT              | SQL_REAL          | SQL_C_FLOAT       |
-| DOUBLE             | SQL_REAL          | SQL_C_DOUBLE      |
+| DOUBLE             | SQL_DOUBLE        | SQL_C_DOUBLE      |
 | BINARY             | SQL_BINARY        | SQL_C_BINARY      |
 | SMALLINT           | SQL_SMALLINT      | SQL_C_SSHORT      |
 | SMALLINT UNSIGNED  | SQL_SMALLINT      | SQL_C_USHORT      |
@@ -146,8 +146,8 @@ The table below explains how the ODBC connector maps server data types to defaul
 | TINYINT UNSIGNED   | SQL_TINYINT       | SQL_C_UTINYINT    |
 | BOOL               | SQL_BIT           | SQL_C_BIT         |
 | NCHAR              | SQL_VARCHAR       | SQL_C_CHAR        |
-| JSON               | SQL_VARCHAR       | SQL_C_CHAR        |
 | VARCHAR            | SQL_VARCHAR       | SQL_C_CHAR        |
+| JSON               | SQL_WVARCHAR      | SQL_C_WCHAR       |
 | GEOMETRY           | SQL_VARBINARY     | SQL_C_BINARY      |
 | VARBINARY          | SQL_VARBINARY     | SQL_C_BINARY      |
 
@@ -161,7 +161,7 @@ The table below explains how the ODBC connector maps server data types to defaul
 | :----- | :---- | :---- | :---- | :---- |
 | ConfigDSN | ❌ | ❌ | ✅ | |
 | ConfigDriver | ❌ | ❌ | ✅ | |
-| ConfigTranslator | ❌ | ❌ | ✅ | |
+| ConfigTranslator | ❌ | ❌ | ❌ | |
 | SQLAllocHandle | ✅ | ✅ | ✅ | |
 | SQLBindCol  | ✅ | ✅ | ✅ | Column-Wise Binding only |
 | SQLBindParameter | ✅ | ✅ | ✅ | Column-Wise Binding only |
@@ -270,17 +270,17 @@ This section summarizes the ODBC API by functionality. For a complete ODBC API r
 #### Data Source and Driver Management
 
 - API: ConfigDSN
-  - **Supported**: Yes
+  - **Supported**: Yes (Windows only)
   - **Standard**: ODBC
   - **Function**: Configures data sources
   
 - API: ConfigDriver
-  - **Supported**: Yes
+  - **Supported**: Yes (Windows only)
   - **Standard**: ODBC
   - **Function**: Used to perform installation and configuration tasks related to a specific driver
   
 - API: ConfigTranslator
-  - **Supported**: Yes
+  - **Supported**: No
   - **Standard**: ODBC
   - **Function**: Used to parse the DSN configuration, translating or converting between DSN configuration and actual database driver configuration
 
@@ -610,7 +610,7 @@ This section summarizes the ODBC API by functionality. For a complete ODBC API r
 - API: SQLEndTran
   - **Support**: Supported
   - **Standard**: ISO 92
-  - **Function**: Used to commit or rollback transactions, TDengine does not support transactions, therefore rollback operation is not supported
+  - **Function**: Used to commit or rollback transactions. TDengine is non-transactional, so this function can at most simulate commit or rollback operations. If there are any outstanding connections or statements, neither commit nor rollback will succeed
 
 #### Connection Termination
 
