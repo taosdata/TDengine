@@ -142,7 +142,10 @@ class TestServer:
             if "succeed to write dnode" in line:
                 time.sleep(5)
                 # 发送终止信号
-                os.kill(process.pid, signal.SIGKILL)
+                if system == 'Windows':
+                    os.kill(process.pid, signal.SIGTERM)
+                else:
+                    os.kill(process.pid, signal.SIGKILL)
                 # Waiting for the process to be completely killed
                 time.sleep(5)
                 break
