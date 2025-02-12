@@ -2500,7 +2500,6 @@ static int32_t rewriteCountTbname(STranslateContext* pCxt, SFunctionNode* pCount
 }
 
 static bool hasInvalidFuncNesting(SFunctionNode* pFunc) {
-  if(pFunc->funcType == FUNCTION_TYPE_COLS) return false;
   bool hasInvalidFunc = false;
   nodesWalkExprs(pFunc->pParameterList, haveVectorFunction, &hasInvalidFunc);
   return hasInvalidFunc;

@@ -3478,10 +3478,10 @@ static bool eliminateProjOptCanChildConditionUseChildTargets(SLogicNode* pChild,
     nodesWalkExpr(pJoinLogicNode->pFullOnCond, eliminateProjOptCanUseNewChildTargetsImpl, &cxt);
     if (!cxt.canUse) return false;
   }
-  if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pChild) &&
-      ((SAggLogicNode*)pChild)->node.pTargets->length != pNewChildTargets->length) {
-    return false;
-  }
+  //if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pChild) &&
+  //    ((SAggLogicNode*)pChild)->node.pTargets->length != pNewChildTargets->length) {
+  //  return false;
+  //}
   return true;
 }
 
