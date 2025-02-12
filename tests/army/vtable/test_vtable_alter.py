@@ -190,7 +190,7 @@ class TDTestCase(TBase):
         # 1.2. add column with column reference
         tdSql.execute("alter vtable vtb_virtual_ntb0 add column extra_intcol int from vtb_org_child_19.int_col")
         self.check_col_num(True, 22)
-        self.check_col(True, "extra_intcol", "INT", "vtb_org_child_19.int_col")
+        self.check_col(True, "extra_intcol", "INT", "test_vtable_alter.vtb_org_child_19.int_col")
 
         # 2. drop column
         tdSql.execute("alter vtable vtb_virtual_ntb0 drop column extra_intcol;")
@@ -200,7 +200,7 @@ class TDTestCase(TBase):
         # 3.1. change column reference to another column
         tdSql.execute("alter vtable vtb_virtual_ntb0 alter column extra_boolcol set vtb_org_child_19.bool_col;")
         self.check_col_num(True, 21)
-        self.check_col(True, "extra_boolcol", "BOOL", "vtb_org_child_19.bool_col")
+        self.check_col(True, "extra_boolcol", "BOOL", "test_vtable_alter.vtb_org_child_19.bool_col")
 
         # 3.2. change column reference to NULL
         tdSql.execute("alter vtable vtb_virtual_ntb0 alter column extra_boolcol set NULL;")
@@ -208,7 +208,7 @@ class TDTestCase(TBase):
         self.check_col(True, "extra_boolcol", "BOOL", None)
 
         # 4. change column type length
-        self.check_col(True, "nchar_16_col", "NCHAR(16)", "vtb_org_normal_13.nchar_16_col")
+        self.check_col(True, "nchar_16_col", "NCHAR(16)", "test_vtable_alter.vtb_org_normal_13.nchar_16_col")
         tdSql.execute("alter vtable vtb_virtual_ntb0 alter column nchar_16_col set NULL;")
         self.check_col_num(True, 21)
         self.check_col(True, "nchar_16_col", "NCHAR(16)", None)
@@ -219,13 +219,13 @@ class TDTestCase(TBase):
 
         tdSql.execute("alter vtable vtb_virtual_ntb0 alter column nchar_16_col set vtb_org_child_19.nchar_32_col;")
         self.check_col_num(True, 21)
-        self.check_col(True, "nchar_16_col", "NCHAR(32)", "vtb_org_child_19.nchar_32_col")
+        self.check_col(True, "nchar_16_col", "NCHAR(32)", "test_vtable_alter.vtb_org_child_19.nchar_32_col")
 
         # 5. change column name
-        self.check_col(True, "u_smallint_col", "SMALLINT UNSIGNED", "vtb_org_normal_1.u_smallint_col")
+        self.check_col(True, "u_smallint_col", "SMALLINT UNSIGNED", "test_vtable_alter.vtb_org_normal_1.u_smallint_col")
         tdSql.execute("alter vtable vtb_virtual_ntb0 rename column u_smallint_col u_smallint_col_rename;")
         self.check_col_num(True, 21)
-        self.check_col(True, "u_smallint_col_rename", "SMALLINT UNSIGNED", "vtb_org_normal_1.u_smallint_col")
+        self.check_col(True, "u_smallint_col_rename", "SMALLINT UNSIGNED", "test_vtable_alter.vtb_org_normal_1.u_smallint_col")
 
     def test_alter_virtual_child_table(self):
         tdLog.info(f"test alter virtual child tables.")
@@ -237,7 +237,7 @@ class TDTestCase(TBase):
         # 1.1. change column reference to another column
         tdSql.execute("alter vtable vtb_virtual_ctb0 alter column bool_col set vtb_org_child_19.bool_col;")
         self.check_col_num(False, 20)
-        self.check_col(False, "bool_col", "BOOL", "vtb_org_child_19.bool_col")
+        self.check_col(False, "bool_col", "BOOL", "test_vtable_alter.vtb_org_child_19.bool_col")
 
         # 1.2. change column reference to NULL
         tdSql.execute("alter vtable vtb_virtual_ctb0 alter column bool_col set NULL;")
@@ -268,7 +268,7 @@ class TDTestCase(TBase):
 
         # 3. change column type length
         # first, set child table's column reference to NULL
-        self.check_col(False, "nchar_16_col", "NCHAR(16)", "vtb_org_child_13.nchar_16_col")
+        self.check_col(False, "nchar_16_col", "NCHAR(16)", "test_vtable_alter.vtb_org_child_13.nchar_16_col")
         tdSql.execute("alter vtable vtb_virtual_ctb0 alter column nchar_16_col set NULL;")
         self.check_col_num(False, 20)
         self.check_col(False, "nchar_16_col", "NCHAR(16)", None)

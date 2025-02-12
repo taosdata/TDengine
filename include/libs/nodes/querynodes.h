@@ -94,18 +94,21 @@ typedef struct SColumnNode {
   int32_t     projRefIdx;
   int32_t     resIdx;
   bool        hasRef;
-  char        refColName[TSDB_COL_NAME_LEN];
+  char        refDbName[TSDB_DB_NAME_LEN];
   char        refTableName[TSDB_TABLE_NAME_LEN];
+  char        refColName[TSDB_COL_NAME_LEN];
   bool        hasDep;
-  char        depColName[TSDB_COL_NAME_LEN];
+  char        depDbName[TSDB_DB_NAME_LEN];
   char        depTableName[TSDB_TABLE_NAME_LEN];
+  char        depColName[TSDB_COL_NAME_LEN];
 } SColumnNode;
 
 typedef struct SColumnRefNode {
   ENodeType type;
   char      colName[TSDB_COL_NAME_LEN];
-  char      refColName[TSDB_COL_NAME_LEN];
+  char      refDbName[TSDB_DB_NAME_LEN];
   char      refTableName[TSDB_TABLE_NAME_LEN];
+  char      refColName[TSDB_COL_NAME_LEN];
 } SColumnRefNode;
 
 typedef struct STargetNode {

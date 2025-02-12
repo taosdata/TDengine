@@ -7691,7 +7691,8 @@ static int32_t findDepTableScanNode(SColumnNode* pCol, SVirtualScanLogicNode *pV
       if (QUERY_NODE_COLUMN == nodeType(pScanCol)) {
         SColumnNode *pScanColNode = (SColumnNode *)pScanCol;
         if (pScanColNode->hasDep) {
-          if (strcmp(pScanColNode->depTableName, pCol->tableAlias) == 0 &&
+          if (strcmp(pScanColNode->depDbName, pCol->dbName) == 0 &&
+              strcmp(pScanColNode->depTableName, pCol->tableAlias) == 0 &&
               strcmp(pScanColNode->depColName, pCol->colName) == 0) {
             PLAN_RET(nodesCloneNode(pScan, ppNode));
           }

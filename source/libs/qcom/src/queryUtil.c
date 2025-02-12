@@ -548,11 +548,12 @@ end:
   *jsonStr = string;
 }
 
-int32_t setColRef(SColRef* colRef, col_id_t colId, char* refColName, char* refTableName) {
+int32_t setColRef(SColRef* colRef, col_id_t colId, char* refColName, char* refTableName, char* refDbName) {
   colRef->id = colId;
   colRef->hasRef = true;
-  tstrncpy(colRef->refColName, refColName, TSDB_COL_NAME_LEN);
+  tstrncpy(colRef->refDbName, refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(colRef->refTableName, refTableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(colRef->refColName, refColName, TSDB_COL_NAME_LEN);
   return TSDB_CODE_SUCCESS;
 }
 

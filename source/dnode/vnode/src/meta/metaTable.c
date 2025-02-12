@@ -88,6 +88,7 @@ int32_t updataTableColRef(SColRefWrapper *pWp, const SSchema *pSchema, int8_t ad
       pCol->hasRef = pColRef->hasRef;
       pCol->id = pSchema->colId;
       if (pCol->hasRef) {
+        tstrncpy(pCol->refDbName, pColRef->refDbName, TSDB_DB_NAME_LEN);
         tstrncpy(pCol->refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
         tstrncpy(pCol->refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
       }

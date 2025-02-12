@@ -294,7 +294,7 @@ static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
     }
     SColumnOptions *pOptions = (SColumnOptions*)pColDef->pOptions;
     if (pOptions && pOptions->hasRef) {
-      PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pOptions->refTable, AUTH_TYPE_READ, NULL));
+      PAR_ERR_RET(checkAuth(pCxt, pOptions->refDb, pOptions->refTable, AUTH_TYPE_READ, NULL));
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -318,7 +318,7 @@ static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) 
     if (NULL == pColRef) {
       PAR_ERR_RET(TSDB_CODE_PAR_INVALID_COLUMN);
     }
-    PAR_ERR_RET(checkAuth(pCxt, pStmt->dbName, pColRef->refTableName, AUTH_TYPE_READ, NULL));
+    PAR_ERR_RET(checkAuth(pCxt, pColRef->refDbName, pColRef->refTableName, AUTH_TYPE_READ, NULL));
   }
   return code;
 }
