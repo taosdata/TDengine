@@ -13035,20 +13035,13 @@ static int32_t translateShowCreateTable(STranslateContext* pCxt, SShowCreateTabl
 }
 
 static int32_t translateShowCreateVTable(STranslateContext* pCxt, SShowCreateTableStmt* pStmt) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
   return translateShowCreateTable(pCxt, pStmt);
 }
 
 static int32_t translateShowCreateView(STranslateContext* pCxt, SShowCreateViewStmt* pStmt) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#else
   SName name = {0};
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->viewName, &name);
   return getViewMetaFromMetaCache(pCxt, &name, (SViewMeta**)&pStmt->pViewMeta);
-#endif
 }
 
 static int32_t createColumnNodeWithName(const char* name, SNode** ppCol) {
@@ -13818,11 +13811,6 @@ static int32_t extractExplainResultSchema(int32_t* numOfCols, SSchema** pSchema)
 }
 
 static int32_t extractDescribeResultSchema(STableMeta* pMeta, int32_t* numOfCols, SSchema** pSchema) {
-#ifndef TD_ENTERPRISE
-  if (pMeta->tableType == TSDB_VIRTUAL_TABLE || pMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE) {
-    return TSDB_CODE_OPS_NOT_SUPPORT;
-  }
-#endif
   *numOfCols = DESCRIBE_RESULT_COLS;
   if (pMeta) {
     if (useCompress(pMeta->tableType)) {
@@ -13914,9 +13902,6 @@ static int32_t extractShowCreateTableResultSchema(int32_t* numOfCols, SSchema** 
 }
 
 static int32_t extractShowCreateVTableResultSchema(int32_t* numOfCols, SSchema** pSchema) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
   *numOfCols = 2;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
@@ -14568,11 +14553,7 @@ static int32_t rewriteShow(STranslateContext* pCxt, SQuery* pQuery) {
 }
 
 static int32_t rewriteShowVtables(STranslateContext* pCxt, SQuery* pQuery) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
   return rewriteShow(pCxt, pQuery);
-
 }
 
 static int32_t checkShowVgroups(STranslateContext* pCxt, SShowStmt* pShow) {
@@ -16317,9 +16298,6 @@ static int32_t rewriteDropVirtualTableWithOpt(STranslateContext* pCxt, SQuery* p
 }
 
 static int32_t rewriteDropVirtualTable(STranslateContext* pCxt, SQuery* pQuery) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
   SDropVirtualTableStmt* pStmt = (SDropVirtualTableStmt*)pQuery->pRoot;
   int8_t          tableType;
   SNode*          pNode;
@@ -17087,9 +17065,6 @@ _return:
 }
 
 static int32_t rewriteAlterVirtualTable(STranslateContext* pCxt, SQuery* pQuery) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
   return rewriteAlterTable(pCxt, pQuery);
 }
 
@@ -17118,10 +17093,6 @@ _return:
 }
 
 static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
-
   SCreateVTableStmt* pStmt = (SCreateVTableStmt*)pQuery->pRoot;
   int32_t            code = TSDB_CODE_SUCCESS;// TODO(smj):checkCreateTable(pCxt, pStmt, false);
   SVgroupInfo        info = {0};
@@ -17164,10 +17135,6 @@ _return:
 }
 
 static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQuery) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
-
   int32_t               code = TSDB_CODE_SUCCESS;// TODO(smj):checkCreateTable(pCxt, pStmt, false);
   SCreateVSubTableStmt* pStmt = (SCreateVSubTableStmt*)pQuery->pRoot;
   SVgroupInfo           info = {0};
