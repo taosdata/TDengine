@@ -101,10 +101,10 @@ taos> source <filename>;
 
 ## 设置字符类型显示宽度
 
-可以在 TDengine CLI 里使用如下命令调整字符显示宽度
-
+可以在 TDengine CLI 里使用如下命令调整字符串类型字段列显示宽度，默认显示宽度为 30 个字符。  
+以下命令设置了显示宽度为 120 个字符：
 ```sql
-taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
+taos> SET MAX_BINARY_DISPLAY_WIDTH 120;
 ```
 
 如显示的内容后面以 ... 结尾时，表示该内容已被截断，可通过本命令修改显示字符宽度以显示完整的内容。
