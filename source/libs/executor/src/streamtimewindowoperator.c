@@ -4659,17 +4659,20 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
       getNextStateWin(pAggSup, &prevWin, false);
       qDebug("===stream===get state prev win buff. skey:%" PRId64 ", endkey:%" PRId64,
              prevWin.winInfo.sessionWin.win.skey, prevWin.winInfo.sessionWin.win.ekey);
+      releaseOutputBuf(pAggSup->pState, prevWin.winInfo.pStatePos, &pAPI->stateStore);
+      // For ordered data, the previous window's closure did not record the corresponding state values, so they need to
+      // be added here.
       if (BIT_FLAG_TEST_MASK(pTaskInfo->streamInfo.eventTypes, SNOTIFY_EVENT_WINDOW_CLOSE) &&
           IS_VALID_SESSION_WIN(prevWin.winInfo)) {
         code = addStateAggNotifyEvent(SNOTIFY_EVENT_WINDOW_CLOSE, &prevWin.winInfo.sessionWin, prevWin.pStateKey,
                                       curWin.pStateKey, &pInfo->basic.notifyEventSup);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
       if (BIT_FLAG_TEST_MASK(pTaskInfo->streamInfo.eventTypes, SNOTIFY_EVENT_WINDOW_OPEN)) {
         code = addStateAggNotifyEvent(SNOTIFY_EVENT_WINDOW_OPEN, &curWin.winInfo.sessionWin, curWin.pStateKey,
                                       prevWin.pStateKey, &pInfo->basic.notifyEventSup);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
-      releaseOutputBuf(pAggSup->pState, prevWin.winInfo.pStatePos, &pAPI->stateStore);
-      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     if (isWinResult(&nextWin.winInfo.sessionWin, pSeUpdated, pAggSup->pResultRows) == false) {
@@ -4717,6 +4720,14 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
       getSessionHashKey(&curWin.winInfo.sessionWin, &key);
       code =
           tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &curWin.winInfo, sizeof(SResultWindowInfo));
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
+    // If this is a windown recalculation, add the corresponding state values here since the next window may not require
+    // recalculation.
+    if (BIT_FLAG_TEST_MASK(pTaskInfo->streamInfo.eventTypes, SNOTIFY_EVENT_WINDOW_CLOSE) && nextWin.pStateKey) {
+      code = addStateAggNotifyEvent(SNOTIFY_EVENT_WINDOW_CLOSE, &curWin.winInfo.sessionWin, curWin.pStateKey,
+                                    nextWin.pStateKey, &pInfo->basic.notifyEventSup);
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
