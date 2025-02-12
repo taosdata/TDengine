@@ -644,6 +644,3 @@ This section summarizes the ODBC API by functionality. For a complete ODBC API r
   - **Standard**: ODBC
   - **Function**: Closes the cursor associated with the current statement handle and releases all resources used by the cursor
 
-## Integration with Third Parties
-
-As an example of using the TDengine ODBC driver, you can use Power BI to analyze time-series data with TDengine. For more details, please refer to [Power BI](../../../third-party-tools/analytics/power-bi/)
