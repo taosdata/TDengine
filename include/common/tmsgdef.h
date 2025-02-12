@@ -187,7 +187,7 @@
   TD_DEF_MSG_TYPE(TDMT_MND_BATCH_META, "batch-meta", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_TABLE_CFG, "table-cfg", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_TMQ_CREATE_TOPIC, "create-topic", SMCreateTopicReq, SMCreateTopicRsp)
-  TD_DEF_MSG_TYPE(TDMT_MND_ASSIGN_LEADER, "assign-leader", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_UNUSED1, "unused", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_TMQ_DROP_TOPIC, "drop-topic", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_TMQ_SUBSCRIBE, "subscribe", SCMSubscribeReq, SCMSubscribeRsp)
   TD_DEF_MSG_TYPE(TDMT_MND_TMQ_ASK_EP, "ask-ep", SMqAskEpReq, SMqAskEpRsp)
@@ -421,6 +421,7 @@
   TD_DEF_MSG_TYPE(TDMT_MND_ARB_CHECK_SYNC_TIMER, "mnd-arb-check-sync-tmr", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_ARB_UPDATE_GROUP, "mnd-arb-update-group", NULL, NULL) // no longer used
   TD_DEF_MSG_TYPE(TDMT_MND_ARB_UPDATE_GROUP_BATCH, "mnd-arb-update-group-batch", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_ARB_ASSIGN_LEADER, "mnd-arb-assign-leader", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_MND_ARB_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MAX_MSG)  // msg end mark

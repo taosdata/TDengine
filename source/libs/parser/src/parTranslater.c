@@ -8532,7 +8532,7 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SBalanceVgroupReq, pReq);
       break;
     }
-    case TDMT_MND_ASSIGN_LEADER: {
+    case TDMT_MND_ARB_ASSIGN_LEADER: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SAssignLeaderReq, pReq);
       break;
     }
@@ -12786,7 +12786,7 @@ static int32_t translateBalanceVgroup(STranslateContext* pCxt, SBalanceVgroupStm
 
 static int32_t translateAssignLeader(STranslateContext* pCxt, SAssignLeaderStmt* pStmt) {
   SAssignLeaderReq req = {0};
-  int32_t          code = buildCmdMsg(pCxt, TDMT_MND_ASSIGN_LEADER, (FSerializeFunc)tSerializeSAssignLeaderReq, &req);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_ARB_ASSIGN_LEADER, (FSerializeFunc)tSerializeSAssignLeaderReq, &req);
   tFreeSAssignLeaderReq(&req);
   return code;
 }
