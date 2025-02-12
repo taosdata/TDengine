@@ -24,4 +24,3 @@ for i in  `find tools/taosdump/native/ -name "*.py"`
      ((count=count+1))
 done
 
-
