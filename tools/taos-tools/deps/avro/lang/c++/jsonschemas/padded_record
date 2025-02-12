@@ -1,0 +1,14 @@
+{
+    "type" : "record",
+    "name" : "PaddedRecord",
+    "fields" : [
+        {
+            "type" : "int",
+            "name" : "index"
+        },
+        {
+            "type" : "bytes",
+            "name" : "padding"
+        }
+    ]
+}

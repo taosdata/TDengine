@@ -699,13 +699,13 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
       case TSDB_DATA_TYPE_FLOAT: {
         float fv = 0;
         fv = GET_FLOAT_VAL(row[i]);
-        len += tsnprintf(str + len, size - len, "%f", fv);
+        len += snprintf(str + len, size - len, "%.*g", FLT_DIG, fv);
       } break;
 
       case TSDB_DATA_TYPE_DOUBLE: {
         double dv = 0;
         dv = GET_DOUBLE_VAL(row[i]);
-        len += tsnprintf(str + len, size - len, "%lf", dv);
+        len += snprintf(str + len, size - len, "%.*g", DBL_DIG, dv);
       } break;
 
       case TSDB_DATA_TYPE_VARBINARY: {

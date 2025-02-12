@@ -152,9 +152,9 @@ int64_t taosQueueMemorySize(STaosQueue *queue) {
 int32_t taosAllocateQitem(int32_t size, EQItype itype, int64_t dataSize, void **item) {
   int64_t alloced = -1;
 
-  if (alloced > tsQueueMemoryAllowed) {
+  if (itype == RPC_QITEM) {
     alloced = atomic_add_fetch_64(&tsQueueMemoryUsed, size + dataSize);
-    if (itype == RPC_QITEM) {
+    if (alloced > tsQueueMemoryAllowed) {
       uError("failed to alloc qitem, size:%" PRId64 " alloc:%" PRId64 " allowed:%" PRId64, size + dataSize, alloced,
              tsQueueMemoryAllowed);
       (void)atomic_sub_fetch_64(&tsQueueMemoryUsed, size + dataSize);

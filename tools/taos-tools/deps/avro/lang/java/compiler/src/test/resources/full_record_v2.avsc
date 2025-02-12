@@ -1,0 +1,29 @@
+{
+  "type" : "record",
+  "name" : "FullRecordV2",
+  "doc" : "Test schema changes: this is the 'new' schema actually used to write data",
+  "namespace" : "org.apache.avro.specific.test",
+  "fields" : [ {
+    "name" : "b",
+    "type" : "boolean"
+  }, {
+    "name" : "i64",
+    "type" : "int"
+  }, {
+    "name" : "i32",
+    "type" : "int"
+  }, {
+    "name" : "f64",
+    "type" : "long"
+  }, {
+    "name" : "f32",
+    "type" : [ "float", "null" ]
+  }, {
+    "name" : "newfield",
+    "type" : "string"
+  }, {
+    "name" : "h",
+    "type" : "bytes"
+  } ]
+}
+

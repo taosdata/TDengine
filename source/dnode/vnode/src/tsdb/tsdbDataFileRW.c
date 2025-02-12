@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "meta.h"
 #include "tsdbDataFileRW.h"
+#include "meta.h"
 
 // SDataFileReader =============================================
 struct SDataFileReader {
@@ -737,6 +737,7 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
   int32_t ftype;
+  SDiskID diskId = {0};
 
   if (!writer->config->skmTb) writer->config->skmTb = writer->skmTb;
   if (!writer->config->skmRow) writer->config->skmRow = writer->skmRow;
@@ -750,9 +751,11 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
 
   // .head
   ftype = TSDB_FTYPE_HEAD;
+  code = tsdbAllocateDisk(writer->config->tsdb, tsdbFTypeLabel(ftype), writer->config->expLevel, &diskId);
+  TSDB_CHECK_CODE(code, lino, _exit);
   writer->files[ftype] = (STFile){
       .type = ftype,
-      .did = writer->config->did,
+      .did = diskId,
       .fid = writer->config->fid,
       .cid = writer->config->cid,
       .size = 0,
@@ -765,9 +768,11 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
   if (writer->config->files[ftype].exist) {
     writer->files[ftype] = writer->config->files[ftype].file;
   } else {
+    code = tsdbAllocateDisk(writer->config->tsdb, tsdbFTypeLabel(ftype), writer->config->expLevel, &diskId);
+    TSDB_CHECK_CODE(code, lino, _exit);
     writer->files[ftype] = (STFile){
         .type = ftype,
-        .did = writer->config->did,
+        .did = diskId,
         .fid = writer->config->fid,
         .cid = writer->config->cid,
         .size = 0,
@@ -782,9 +787,11 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
   if (writer->config->files[ftype].exist) {
     writer->files[ftype] = writer->config->files[ftype].file;
   } else {
+    code = tsdbAllocateDisk(writer->config->tsdb, tsdbFTypeLabel(ftype), writer->config->expLevel, &diskId);
+    TSDB_CHECK_CODE(code, lino, _exit);
     writer->files[ftype] = (STFile){
         .type = ftype,
-        .did = writer->config->did,
+        .did = diskId,
         .fid = writer->config->fid,
         .cid = writer->config->cid,
         .size = 0,
@@ -795,9 +802,11 @@ static int32_t tsdbDataFileWriterDoOpen(SDataFileWriter *writer) {
 
   // .tomb
   ftype = TSDB_FTYPE_TOMB;
+  code = tsdbAllocateDisk(writer->config->tsdb, tsdbFTypeLabel(ftype), writer->config->expLevel, &diskId);
+  TSDB_CHECK_CODE(code, lino, _exit);
   writer->files[ftype] = (STFile){
       .type = ftype,
-      .did = writer->config->did,
+      .did = diskId,
       .fid = writer->config->fid,
       .cid = writer->config->cid,
       .size = 0,

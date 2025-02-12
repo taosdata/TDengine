@@ -1,0 +1,82 @@
+<!--
+   Licensed to the Apache Software Foundation (ASF) under one or more
+   contributor license agreements.  See the NOTICE file distributed with
+   this work for additional information regarding copyright ownership.
+   The ASF licenses this file to You under the Apache License, Version 2.0
+   (the "License"); you may not use this file except in compliance with
+   the License.  You may obtain a copy of the License at
+
+       https://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../../../common.props" />
+  <Import Project="../../../versions.props" />
+
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;netstandard2.1</TargetFrameworks>
+    <AssemblyName>Avro</AssemblyName>
+    <RootNamespace>Avro</RootNamespace>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\..\..\Avro.snk</AssemblyOriginatorKeyFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <CodeAnalysisRuleSet>..\..\..\Avro.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- NuGet Package Settings -->
+    <PackageId>Apache.Avro</PackageId>
+    <Description>
+      Avro provides:
+
+      Rich data structures.
+      A compact, fast, binary data format.
+      A container file, to store persistent data.
+      Remote procedure call (RPC).
+      Simple integration with dynamic languages. Code generation is not required to read or write data files nor to use or implement RPC protocols. Code generation as an optional optimization, only worth implementing for statically typed languages.
+    </Description>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Release'">
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsAsErrors />
+  </PropertyGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="..\..\..\stylecop.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="$(MicrosoftCodeAnalysisNetAnalyzersVersion)">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="StyleCop.Analyzers" Version="$(StyleCopAnalyzersVersion)">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+    
+  <!-- See lang/csharp/README.md for tool and library dependency update strategy -->
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="$(NewtonsoftJsonMinimumVersion)" />
+    <PackageReference Include="System.CodeDom" Version="$(SystemCodeDomMinimumVersion)" />
+    <PackageReference Include="System.Reflection" Version="$(SystemReflectionMinimumVersion)" />
+    <PackageReference Include="System.Reflection.Emit.ILGeneration" Version="$(SystemReflectionEmitILGenerationMinimumVersion)" />
+    <PackageReference Include="System.Reflection.Emit.Lightweight" Version="$(SystemReflectionEmitLightweightMinimumVersion)" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.0'">
+    <Compile Remove="**/*.notnetstandard2.0.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' != 'netstandard2.0'">
+    <Compile Remove="**/*.netstandard2.0.cs" />
+  </ItemGroup>
+
+</Project>

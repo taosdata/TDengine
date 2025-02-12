@@ -1,0 +1,16 @@
+{
+  "deps": [
+    "vendor/phpunit/phpunit",
+    "vendor/squizlabs/php_codesniffer"
+  ],
+  "autoload": {
+    "psr-4": {
+      "Apache\\Avro\\": "lib/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Apache\\Avro\\Tests\\": "test/"
+    }
+  }
+}

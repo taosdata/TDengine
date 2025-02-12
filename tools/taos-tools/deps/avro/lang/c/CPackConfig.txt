@@ -1,0 +1,39 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+set(CPACK_PACKAGE_NAME "avro-c")
+set(CPACK_PACKAGE_DESCRIPTION "C bindings for Avro data serialization framework")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "C bindings for Avro data serialization framework")
+set(CPACK_PACKAGE_VENDOR "Apache Software Foundation")
+set(CPACK_PACKAGE_DESCRIPTION_FILE "${CMAKE_CURRENT_SOURCE_DIR}/README")
+set(CPACK_PACKAGE_VERSION_MAJOR "${AVRO_MAJOR_VERSION}")
+set(CPACK_PACKAGE_VERSION_MINOR "${AVRO_MINOR_VERSION}")
+set(CPACK_PACKAGE_VERSION_PATCH "${AVRO_PATCH_VERSION}${AVRO_VERSION_EXTENSION}")
+set(CPACK_PACKAGE_VERSION "${AVRO_VERSION}")
+set(CPACK_PACKAGE_CONTACT "avro-dev@apache.org")
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_STRIP_FILES true)
+
+set(CPACK_SOURCE_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}")
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "/usr")
+set(CPACK_GENERATOR "TGZ")
+set(CPACK_SOURCE_GENERATOR "TGZ")
+
+set(CPACK_SOURCE_IGNORE_FILES "^${CMAKE_BINARY_DIR};/\\\\.gitignore;/\\\\.svn;\\\\.swp$;\\\\.#;/#;.*~")
+
+include(CPack)
