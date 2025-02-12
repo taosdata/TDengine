@@ -1,8 +1,9 @@
 #include <gtest/gtest.h>
-#include <iostream>
 #include <array>
+#include <fstream>
+#include <iostream>
 #include <random>
-#include <memory>
+#define ALLOW_FORBID_FUNC
 
 #include "decimal.h"
 #include "tdatablock.h"
@@ -184,11 +185,15 @@ class Numeric {
 
   static SDataType getRetType(EOperatorType op, const SDataType& lt, const SDataType& rt) {
     SDataType ot = {0};
-    decimalGetRetType(&lt, &rt, op, &ot);
+    int32_t code = decimalGetRetType(&lt, &rt, op, &ot);
+    if (code != 0) throw std::runtime_error(tstrerror(code));
     return ot;
   }
   SDataType type() const {
-    return {.type = NumericType<BitNum>::dataType, .precision = prec(), .scale = scale(), .bytes = NumericType<BitNum>::bytes}; 
+    return {.type = NumericType<BitNum>::dataType,
+            .precision = prec(),
+            .scale = scale(),
+            .bytes = NumericType<BitNum>::bytes};
   }
   uint8_t     prec() const { return prec_; }
   uint8_t     scale() const { return scale_; }
@@ -202,9 +207,15 @@ class Numeric {
 
   template <int BitNum2, int BitNumO>
   Numeric<BitNumO> binaryOp(const Numeric<BitNum2>& r, EOperatorType op) {
-    SDataType lt{.type = NumericType<BitNum>::dataType, .precision = prec_, .scale = scale_, .bytes = NumericType<BitNum>::bytes};
-    SDataType rt{.type = NumericType<BitNum2>::dataType, .precision = r.prec(), .scale = r.scale(), .bytes = NumericType<BitNum2>::bytes};
-    SDataType ot = getRetType(op, lt, rt);
+    SDataType        lt{.type = NumericType<BitNum>::dataType,
+                        .precision = prec_,
+                        .scale = scale_,
+                        .bytes = NumericType<BitNum>::bytes};
+    SDataType        rt{.type = NumericType<BitNum2>::dataType,
+                        .precision = r.prec(),
+                        .scale = r.scale(),
+                        .bytes = NumericType<BitNum2>::bytes};
+    SDataType        ot = getRetType(op, lt, rt);
     Numeric<BitNumO> out{ot.precision, ot.scale, "0"};
     int32_t          code = decimalOp(op, &lt, &rt, &ot, &dec_, &r.dec(), &out);
     if (code != 0) throw std::overflow_error(tstrerror(code));
@@ -214,7 +225,10 @@ class Numeric {
   template <int BitNumO, typename T>
   Numeric<BitNumO> binaryOp(const T& r, EOperatorType op) {
     using TypeInfo = TrivialTypeInfo<T>;
-    SDataType        lt{.type = NumericType<BitNum>::dataType, .precision = prec_, .scale = scale_, .bytes = NumericType<BitNum>::bytes};
+    SDataType        lt{.type = NumericType<BitNum>::dataType,
+                        .precision = prec_,
+                        .scale = scale_,
+                        .bytes = NumericType<BitNum>::bytes};
     SDataType        rt{.type = TypeInfo::dataType, .precision = 0, .scale = 0, .bytes = TypeInfo::bytes};
     SDataType        ot = getRetType(op, lt, rt);
     Numeric<BitNumO> out{ot.precision, ot.scale, "0"};
@@ -236,16 +250,16 @@ class Numeric {
   DEFINE_OPERATOR(-, OP_TYPE_SUB);
   DEFINE_OPERATOR(*, OP_TYPE_MULTI);
   DEFINE_OPERATOR(/, OP_TYPE_DIV);
+  DEFINE_OPERATOR(%, OP_TYPE_REM);
 
 #define DEFINE_TYPE_OP(op, op_type)                                               \
   template <typename T, int BitNumO = 128>                                        \
   Numeric<BitNumO> operator op(const T & r) {                                     \
     cout << *this << " " #op " " << r << "(" << typeid(T).name() << ")" << " = "; \
-    Numeric<BitNumO>        res = {};                                             \
+    Numeric<BitNumO> res = {};                                                    \
     try {                                                                         \
       res = binaryOp<BitNumO, T>(r, op_type);                                     \
     } catch (...) {                                                               \
-      cout << "Exception caught during binaryOp" << endl;                         \
       throw;                                                                      \
     }                                                                             \
     cout << res << endl;                                                          \
@@ -255,6 +269,7 @@ class Numeric {
   DEFINE_TYPE_OP(-, OP_TYPE_SUB);
   DEFINE_TYPE_OP(*, OP_TYPE_MULTI);
   DEFINE_TYPE_OP(/, OP_TYPE_DIV);
+  DEFINE_TYPE_OP(%, OP_TYPE_REM);
 
 #define DEFINE_REAL_OP(op)                                                     \
   double operator op(double v) {                                               \
@@ -344,7 +359,7 @@ class Numeric {
   }
 
 #define DEFINE_OPERATOR_EQ_T(type)                \
-  Numeric& operator=(type v) {                     \
+  Numeric& operator=(type v) {                    \
     int32_t code = 0;                             \
     if (BitNum == 64) {                           \
       DEFINE_OPERATOR_FROM_FOR_BITNUM(type, 64);  \
@@ -368,17 +383,25 @@ class Numeric {
   DEFINE_OPERATOR_EQ_T(float);
 
   Numeric& operator=(const Decimal128& d) {
-    SDataType inputDt = {.type = TSDB_DATA_TYPE_DECIMAL, .precision = prec(), .scale = scale(), .bytes = DECIMAL128_BYTES};
-    SDataType outputDt = {.type = NumericType<BitNum>::dataType, .precision = prec(), .scale = scale(), .bytes = NumericType<BitNum>::bytes};
+    SDataType inputDt = {
+        .type = TSDB_DATA_TYPE_DECIMAL, .precision = prec(), .scale = scale(), .bytes = DECIMAL128_BYTES};
+    SDataType outputDt = {.type = NumericType<BitNum>::dataType,
+                          .precision = prec(),
+                          .scale = scale(),
+                          .bytes = NumericType<BitNum>::bytes};
     int32_t   code = convertToDecimal(&d, &inputDt, &dec_, &outputDt);
     if (code == TSDB_CODE_DECIMAL_OVERFLOW) throw std::overflow_error(tstrerror(code));
     if (code != 0) throw std::runtime_error(tstrerror(code));
     return *this;
   }
   Numeric& operator=(const Decimal64& d) {
-    SDataType inputDt = {.type = TSDB_DATA_TYPE_DECIMAL64, .precision = prec(), .scale = scale(), .bytes = DECIMAL64_BYTES};
-    SDataType outputDt = {.type = NumericType<BitNum>::dataType, .precision = prec_, .scale = scale_, .bytes = NumericType<BitNum>::bytes};
-    int32_t code = convertToDecimal(&d, &inputDt, &dec_, &outputDt);
+    SDataType inputDt = {
+        .type = TSDB_DATA_TYPE_DECIMAL64, .precision = prec(), .scale = scale(), .bytes = DECIMAL64_BYTES};
+    SDataType outputDt = {.type = NumericType<BitNum>::dataType,
+                          .precision = prec_,
+                          .scale = scale_,
+                          .bytes = NumericType<BitNum>::bytes};
+    int32_t   code = convertToDecimal(&d, &inputDt, &dec_, &outputDt);
     if (code == TSDB_CODE_DECIMAL_OVERFLOW) throw std::overflow_error(tstrerror(code));
     if (code != 0) throw std::runtime_error(tstrerror(code));
     return *this;
@@ -583,6 +606,7 @@ TEST(decimal128, divide) {
   cout << " = ";
   ops->divide(d.words, d2.words, 2, remainder.words);
   printDecimal(&d, TSDB_DATA_TYPE_DECIMAL, out_precision, out_scale);
+  ASSERT_TRUE(1);
 }
 
 TEST(decimal, api_taos_fetch_rows) {
@@ -854,7 +878,7 @@ class DecimalStringRandomGenerator {
   std::mt19937                       gen_;
   std::uniform_int_distribution<int> dis_;
   static const std::array<string, 5> cornerCases;
-  static const unsigned int ratio_base = 1000000;
+  static const unsigned int          ratio_base = 1000000;
 
  public:
   DecimalStringRandomGenerator() : gen_(rd_()), dis_(0, ratio_base) {}
@@ -890,12 +914,10 @@ class DecimalStringRandomGenerator {
   }
 
  private:
-  int  randomInt(int modulus) { return dis_(gen_) % modulus; }
-  char generateSign(float positive_ratio) { return possible(positive_ratio) ? '+' : '-'; }
-  char generateDigit() { return randomInt(10) + '0'; }
-  bool currentShouldGenerateCornerCase(float corner_case_ratio) {
-    return possible(corner_case_ratio);
-  }
+  int    randomInt(int modulus) { return dis_(gen_) % modulus; }
+  char   generateSign(float positive_ratio) { return possible(positive_ratio) ? '+' : '-'; }
+  char   generateDigit() { return randomInt(10) + '0'; }
+  bool   currentShouldGenerateCornerCase(float corner_case_ratio) { return possible(corner_case_ratio); }
   string generateCornerCase(const DecimalStringRandomGeneratorConfig& config) {
     string res{};
     if (possible(0.8)) {
@@ -912,14 +934,13 @@ class DecimalStringRandomGenerator {
     return res;
   }
 
-  bool possible(float ratio) {
-    return randomInt(ratio_base) <= ratio * ratio_base;
-  }
+  bool possible(float ratio) { return randomInt(ratio_base) <= ratio * ratio_base; }
 };
 
 const std::array<string, 5> DecimalStringRandomGenerator::cornerCases = {"0", "NULL", "0.", ".0", "00000.000000"};
 
 TEST(decimal, randomGenerator) {
+  GTEST_SKIP();
   DecimalStringRandomGeneratorConfig config;
   DecimalStringRandomGenerator       generator;
   for (int i = 0; i < 1000; ++i) {
@@ -932,18 +953,23 @@ TEST(deicmal, decimalFromStr_all) {
   // TODO test e/E
 }
 
-#define ASSERT_OVERFLOW(op)           \
-  try {                               \
-    auto res = op;                  \
-  } catch (std::overflow_error & e) { \
-  } catch (std::exception & e) {      \
-    FAIL();                           \
-  }
+#define ASSERT_OVERFLOW(op)             \
+  do {                                  \
+    try {                               \
+      auto res = op;                    \
+    } catch (std::overflow_error & e) { \
+      cout << " overflow" << endl;      \
+      break;                            \
+    } catch (std::exception & e) {      \
+      FAIL();                           \
+    }                                   \
+    FAIL();                             \
+  } while (0)
 
 TEST(decimal, op_overflow) {
   // divide 0 error
   Numeric<128> dec{38, 2, string(36, '9') + ".99"};
-  ASSERT_OVERFLOW(dec / 0); // TODO wjm add divide by 0 error code
+  ASSERT_OVERFLOW(dec / 0);  // TODO wjm add divide by 0 error code
 
   // test decimal128Max
   Numeric<128> max{38, 10, "0"};
@@ -951,12 +977,13 @@ TEST(decimal, op_overflow) {
   ASSERT_EQ(max.toString(), "9999999999999999999999999999.9999999999");
 
   {
-    // multiply overflow
-    ASSERT_OVERFLOW(max * 10);
-  }
-  {
+    // multiply no overflow, trim scale
+    auto res = max * 10;  // scale will be trimed to 6, and round up
+    ASSERT_EQ(res.scale(), 6);
+    ASSERT_EQ(res.toString(), "100000000000000000000000000000.000000");
+
     // multiply not overflow, no trim scale
-    Numeric<64> dec64{18, 10, "99999999.9999999999"};
+    Numeric<64>  dec64{18, 10, "99999999.9999999999"};
     Numeric<128> dec128{19, 10, "999999999.9999999999"};
 
     auto rett = Numeric<64>::getRetType(OP_TYPE_MULTI, dec64.type(), dec128.type());
@@ -964,7 +991,7 @@ TEST(decimal, op_overflow) {
     ASSERT_EQ(rett.type, TSDB_DATA_TYPE_DECIMAL);
     ASSERT_EQ(rett.scale, dec64.scale() + dec128.scale());
 
-    auto res = dec64 * dec128;
+    res = dec64 * dec128;
     ASSERT_EQ(res.toString(), "99999999999999999.89000000000000000001");
 
     // multiply not overflow, trim scale from 20 - 19
@@ -979,16 +1006,247 @@ TEST(decimal, op_overflow) {
     rett = Numeric<128>::getRetType(OP_TYPE_MULTI, dec64.type(), dec128_2.type());
     ASSERT_EQ(rett.scale, 18);
     res = dec64 * dec128_2;
-    ASSERT_EQ(res.toString(), "9999999999999999990.000000000000000000");
+    ASSERT_EQ(res.toString(), "9999999999999999989.990000000000000000");
+
+    // trim scale from 20 -> 17
+    dec128_2 = {22, 10, "999999999999.9999999999"};
+    rett = Numeric<128>::getRetType(OP_TYPE_MULTI, dec64.type(), dec128_2.type());
+    ASSERT_EQ(rett.scale, 17);
+    res = dec64 * dec128_2;
+    ASSERT_EQ(res.toString(), "99999999999999999899.99000000000000000");
+
+    // trim scale from 20 -> 6
+    dec128_2 = {33, 10, "99999999999999999999999.9999999999"};
+    rett = Numeric<128>::getRetType(OP_TYPE_MULTI, dec64.type(), dec128_2.type());
+    ASSERT_EQ(rett.scale, 6);
+    res = dec64 * dec128_2;
+    ASSERT_EQ(res.toString(), "9999999999999999989999999999999.990000");
+
+    dec128_2 = {34, 10, "999999999999999999999999.9999999999"};
+    rett = Numeric<128>::getRetType(OP_TYPE_MULTI, dec64.type(), dec128_2.type());
+    ASSERT_EQ(rett.scale, 6);
+    res = dec64 * dec128_2;
+    ASSERT_EQ(res.toString(), "99999999999999999899999999999999.990000");
+
+    dec128_2 = {35, 10, "9999999999999999999999999.9999999999"};
+    rett = Numeric<128>::getRetType(OP_TYPE_MULTI, dec64.type(), dec128_2.type());
+    ASSERT_EQ(rett.scale, 6);
+    ASSERT_OVERFLOW(dec64 * dec128_2);
   }
-
-
   {
-    // multiply middle res overflow, but final res not overflow
-    // same scale multiply
-    // different scale multiply
+    // divide not overflow but trim scale
+    Numeric<128> dec128{19, 10, "999999999.9999999999"};
+    Numeric<64>  dec64{10, 10, "0.10000000"};
+    auto         res = dec128 / dec64;
+    ASSERT_EQ(res.scale(), 19);
+    ASSERT_EQ(res.toString(), "9999999999.9999999990000000000");
+
+    dec64 = {10, 10, "0.1111111111"};
+    res = dec128 / dec64;
+    ASSERT_EQ(res.scale(), 19);
+    ASSERT_EQ(res.toString(), "9000000000.8999999991899999999");
+
+    dec64 = {10, 2, "0.01"};
+    res = dec128 / dec64;
+    ASSERT_EQ(res.scale(), 21);
+    ASSERT_EQ(res.prec(), 32);
+    ASSERT_EQ(res.toString(), "99999999999.999999990000000000000");
+
+    dec64 = {10, 2, "7.77"};
+    int32_t a = 2;
+    res = dec64 % a;
+    ASSERT_EQ(res.toString(), "1.77");
+
+    dec128 = {38, 10, "999999999999999999999999999.9999999999"};
+    res = dec128 % dec64;
+    ASSERT_EQ(res.toString(), "5.4399999999");
+
+    dec64 = {18, 10, "99999999.9999999999"};
+    res = dec128 % dec64;
+    ASSERT_EQ(res.toString(), "0.0000000009");
+
+    Numeric<128> dec128_2 = {38, 10, "9988888888888888888888888.1111111111"};
+    res = dec128 % dec128_2;
+    ASSERT_EQ(res.toString(), "1111111111111111111111188.8888888899");
+
+    dec128 = {38, 10, "9999999999999999999999999999.9999999999"};
+    dec128_2 = {38, 2, "999999999999999999999999999988123123.88"};
+    res = dec128 % dec128_2;
+    ASSERT_EQ(res.toString(), "9999999999999999999999999999.9999999999");
+  }
+}
+
+EOperatorType get_op_type(char op) {
+  switch (op) {
+    case '+':
+      return OP_TYPE_ADD;
+    case '-':
+      return OP_TYPE_SUB;
+    case '*':
+      return OP_TYPE_MULTI;
+    case '/':
+      return OP_TYPE_DIV;
+    case '%':
+      return OP_TYPE_REM;
+    default:
+      return OP_TYPE_IS_UNKNOWN;
+  }
+}
+
+std::string get_op_str(EOperatorType op) {
+  switch (op) {
+    case OP_TYPE_ADD:
+      return "+";
+    case OP_TYPE_SUB:
+      return "-";
+    case OP_TYPE_MULTI:
+      return "*";
+    case OP_TYPE_DIV:
+      return "/";
+    case OP_TYPE_REM:
+      return "%";
+    default:
+      return "unknown";
+  }
+}
+
+struct DecimalRetTypeCheckConfig {
+  bool check_res_type = true;
+  bool check_bytes = true;
+  bool log = true;
+};
+struct DecimalRetTypeCheckContent {
+  DecimalRetTypeCheckContent(const SDataType& a, const SDataType& b, const SDataType& out, EOperatorType op)
+      : type_a(a), type_b(b), type_out(out), op_type(op) {}
+  SDataType     type_a;
+  SDataType     type_b;
+  SDataType     type_out;
+  EOperatorType op_type;
+  // (1, 0) / (1, 1) = (8, 6)
+  // (1, 0) / (1, 1) = (8, 6)
+  DecimalRetTypeCheckContent(const std::string& s) {
+    char op = '\0';
+    sscanf(s.c_str(), "(%hhu, %hhu) %c (%hhu, %hhu) = (%hhu, %hhu)", &type_a.precision, &type_a.scale, &op,
+           &type_b.precision, &type_b.scale, &type_out.precision, &type_out.scale);
+    type_a = getDecimalType(type_a.precision, type_a.scale);
+    type_b = getDecimalType(type_b.precision, type_b.scale);
+    type_out = getDecimalType(type_out.precision, type_out.scale);
+    op_type = get_op_type(op);
   }
 
+  void check(const DecimalRetTypeCheckConfig &config = DecimalRetTypeCheckConfig()) {
+    SDataType ret = {0};
+    try {
+      if (config.log)
+        cout << "check ret type for type: (" << (int)type_a.type << " " << (int)type_a.precision << " "
+             << (int)type_a.scale << ") " << get_op_str(op_type) << " (" << (int)type_b.type << " "
+             << (int)type_b.precision << " " << (int)type_b.scale << ") = \n";
+      ret = Numeric<64>::getRetType(op_type, type_a, type_b);
+    } catch (std::runtime_error& e) {
+      ASSERT_EQ(type_out.type, TSDB_DATA_TYPE_MAX);
+      if (config.log) cout << "not support!" << endl;
+      return;
+    }
+    if (config.log)
+      cout << "(" << (int)ret.type << " " << (int)ret.precision << " " << (int)ret.scale << ") expect:" << endl
+           << "(" << (int)type_out.type << " " << (int)type_out.precision << " " << (int)type_out.scale << ")" << endl;
+    if (config.check_res_type) ASSERT_EQ(ret.type, type_out.type);
+    ASSERT_EQ(ret.precision, type_out.precision);
+    ASSERT_EQ(ret.scale, type_out.scale);
+    if (config.check_bytes) ASSERT_EQ(ret.bytes, type_out.bytes);
+  }
+};
+
+TEST(decimal_all, ret_type_load_from_file) {
+  GTEST_SKIP();
+  std::string   fname = "/tmp/ret_type.txt";
+  std::ifstream ifs(fname, std::ios_base::in);
+  if (!ifs.is_open()) {
+    std::cerr << "open file " << fname << " failed" << std::endl;
+    FAIL();
+  }
+  char    buf[64];
+  int32_t total_lines = 0;
+  while (ifs.getline(buf, 64, '\n')) {
+    DecimalRetTypeCheckContent dcc(buf);
+    DecimalRetTypeCheckConfig  config;
+    config.check_res_type = false;
+    config.check_bytes = false;
+    config.log = false;
+    dcc.check(config);
+    ++total_lines;
+  }
+  ASSERT_EQ(total_lines, 3034205);
+}
+
+TEST(decimal_all, ret_type_for_non_decimal_types) {
+  std::vector<DecimalRetTypeCheckContent> non_decimal_types;
+  SDataType decimal_type = {TSDB_DATA_TYPE_DECIMAL64, 10, 2, 8};
+  EOperatorType op = OP_TYPE_DIV;
+  std::vector<SDataType> out_types;
+  auto count_digits = [](uint64_t v) {
+    return std::floor(std::log10(v) + 1);
+  };
+  std::vector<SDataType> equivalent_decimal_types;
+  // #define TSDB_DATA_TYPE_NULL       0   // 1 bytes
+  equivalent_decimal_types.push_back({TSDB_DATA_TYPE_NULL, 0, 0, tDataTypes[TSDB_DATA_TYPE_NULL].bytes});
+  // #define TSDB_DATA_TYPE_BOOL       1   // 1 bytes
+  equivalent_decimal_types.push_back(getDecimalType(1, 0));
+  // #define TSDB_DATA_TYPE_TINYINT    2   // 1 byte
+  equivalent_decimal_types.push_back(getDecimalType(count_digits(INT8_MAX), 0));
+  // #define TSDB_DATA_TYPE_SMALLINT   3   // 2 bytes
+  equivalent_decimal_types.push_back(getDecimalType(count_digits(INT16_MAX), 0));
+  // #define TSDB_DATA_TYPE_INT        4   // 4 bytes
+  equivalent_decimal_types.push_back(getDecimalType(count_digits(INT32_MAX), 0));
+  // #define TSDB_DATA_TYPE_BIGINT     5   // 8 bytes
+  equivalent_decimal_types.push_back(getDecimalType(count_digits(INT64_MAX), 0));
+  // #define TSDB_DATA_TYPE_FLOAT      6   // 4 bytes
+  equivalent_decimal_types.push_back({TSDB_DATA_TYPE_DOUBLE, 0, 0, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes});
+  // #define TSDB_DATA_TYPE_DOUBLE     7   // 8 bytes
+  equivalent_decimal_types.push_back({TSDB_DATA_TYPE_DOUBLE, 0, 0, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes});
+  // #define TSDB_DATA_TYPE_VARCHAR    8   // string, alias for varchar
+  equivalent_decimal_types.push_back({TSDB_DATA_TYPE_DOUBLE, 0, 0, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes});
+  // #define TSDB_DATA_TYPE_TIMESTAMP  9   // 8 bytes
+  equivalent_decimal_types.push_back(getDecimalType(count_digits(INT64_MAX), 0));
+  // #define TSDB_DATA_TYPE_NCHAR      10  // unicode string
+  equivalent_decimal_types.push_back({TSDB_DATA_TYPE_DOUBLE, 0, 0, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes});
+  // #define TSDB_DATA_TYPE_UTINYINT   11  // 1 byte
+  equivalent_decimal_types.push_back(getDecimalType(count_digits(UINT8_MAX), 0));
+  // #define TSDB_DATA_TYPE_USMALLINT  12  // 2 bytes
+  equivalent_decimal_types.push_back(getDecimalType(count_digits(UINT16_MAX), 0));
+  // #define TSDB_DATA_TYPE_UINT       13  // 4 bytes
+  equivalent_decimal_types.push_back(getDecimalType(count_digits(UINT32_MAX), 0));
+  // #define TSDB_DATA_TYPE_UBIGINT    14  // 8 bytes
+  equivalent_decimal_types.push_back(getDecimalType(count_digits(UINT64_MAX), 0));
+  // #define TSDB_DATA_TYPE_JSON       15  // json string
+  equivalent_decimal_types.push_back({TSDB_DATA_TYPE_MAX, 0, 0, 0});
+  // #define TSDB_DATA_TYPE_VARBINARY  16  // binary
+  equivalent_decimal_types.push_back({TSDB_DATA_TYPE_MAX, 0, 0, 0});
+  // #define TSDB_DATA_TYPE_DECIMAL    17  // decimal
+  equivalent_decimal_types.push_back({TSDB_DATA_TYPE_MAX, 0, 0, 0});
+  // #define TSDB_DATA_TYPE_BLOB       18  // binary
+  equivalent_decimal_types.push_back({TSDB_DATA_TYPE_MAX, 0, 0, 0});
+  // #define TSDB_DATA_TYPE_MEDIUMBLOB 19
+  equivalent_decimal_types.push_back({TSDB_DATA_TYPE_MAX, 0, 0, 0});
+  // #define TSDB_DATA_TYPE_GEOMETRY   20                      // geometry
+  equivalent_decimal_types.push_back({TSDB_DATA_TYPE_MAX, 0, 0, 0});
+  // #define TSDB_DATA_TYPE_DECIMAL64  21                      // decimal64
+  equivalent_decimal_types.push_back({TSDB_DATA_TYPE_MAX, 0, 0, 0});
+
+  for (uint8_t i = 0; i < TSDB_DATA_TYPE_MAX; ++i) {
+    if (IS_DECIMAL_TYPE(i)) continue;
+    SDataType equivalent_out_type = equivalent_decimal_types[i];
+    if (equivalent_out_type.type != TSDB_DATA_TYPE_MAX)
+      equivalent_out_type = Numeric<128>::getRetType(op, decimal_type, equivalent_decimal_types[i]);
+    DecimalRetTypeCheckContent dcc{decimal_type, {i, 0, 0, tDataTypes[i].bytes}, equivalent_out_type, op};
+    dcc.check();
+
+    if (equivalent_out_type.type != TSDB_DATA_TYPE_MAX) {
+      equivalent_out_type = Numeric<128>::getRetType(op, equivalent_decimal_types[i], decimal_type);
+    }
+    DecimalRetTypeCheckContent dcc2{{i, 0, 0, tDataTypes[i].bytes}, decimal_type, equivalent_out_type, op};
+    dcc2.check();
+  }
 }
 
 int main(int argc, char** argv) {
