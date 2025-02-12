@@ -352,7 +352,7 @@ int32_t tqReaderSeek(STqReader* pReader, int64_t ver, const char* id) {
     return TSDB_CODE_INVALID_PARA;
   }
   if (walReaderSeekVer(pReader->pWalReader, ver) < 0) {
-    return -1;
+    return terrno;
   }
   tqDebug("wal reader seek to ver:%" PRId64 " %s", ver, id);
   return 0;
@@ -485,14 +485,14 @@ bool tqNextBlockInWal(STqReader* pReader, const char* id, int sourceExcluded) {
     void*   pBody = POINTER_SHIFT(pWalReader->pHead->head.body, sizeof(SSubmitReq2Msg));
     int32_t bodyLen = pWalReader->pHead->head.bodyLen - sizeof(SSubmitReq2Msg);
     int64_t ver = pWalReader->pHead->head.version;
-    if (tqReaderSetSubmitMsg(pReader, pBody, bodyLen, ver) != 0) {
+    if (tqReaderSetSubmitMsg(pReader, pBody, bodyLen, ver, NULL) != 0) {
       return false;
     }
     pReader->nextBlk = 0;
   }
 }
 
-int32_t tqReaderSetSubmitMsg(STqReader* pReader, void* msgStr, int32_t msgLen, int64_t ver) {
+int32_t tqReaderSetSubmitMsg(STqReader* pReader, void* msgStr, int32_t msgLen, int64_t ver, SArray* rawList) {
   if (pReader == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -504,7 +504,7 @@ int32_t tqReaderSetSubmitMsg(STqReader* pReader, void* msgStr, int32_t msgLen, i
   SDecoder decoder = {0};
 
   tDecoderInit(&decoder, pReader->msg.msgStr, pReader->msg.msgLen);
-  int32_t code = tDecodeSubmitReq(&decoder, &pReader->submit);
+  int32_t code = tDecodeSubmitReq(&decoder, &pReader->submit, rawList);
   tDecoderClear(&decoder);
 
   if (code != 0) {
@@ -513,6 +513,13 @@ int32_t tqReaderSetSubmitMsg(STqReader* pReader, void* msgStr, int32_t msgLen, i
 
   return code;
 }
+
+void tqReaderClearSubmitMsg(STqReader *pReader) {
+  tDestroySubmitReq(&pReader->submit, TSDB_MSG_FLG_DECODE);
+  pReader->nextBlk = 0;
+  pReader->msg.msgStr = NULL;
+}
+
 
 SWalReader* tqGetWalReader(STqReader* pReader) {
   if (pReader == NULL) {
@@ -551,14 +558,12 @@ bool tqNextBlockImpl(STqReader* pReader, const char* idstr) {
     void* ret = taosHashGet(pReader->tbIdHash, &pSubmitTbData->uid, sizeof(int64_t));
     TSDB_CHECK_CONDITION(ret == NULL, code, lino, END, true);
 
-    tqDebug("iterator data block in hash continue, progress:%d/%d, total queried tables:%d, uid:%"PRId64, pReader->nextBlk, blockSz, taosHashGetSize(pReader->tbIdHash), uid);
+    tqDebug("iterator data block in hash jump block, progress:%d/%d, uid:%" PRId64 "", pReader->nextBlk, blockSz, uid);
     pReader->nextBlk++;
   }
 
-  tDestroySubmitReq(&pReader->submit, TSDB_MSG_FLG_DECODE);
-  pReader->nextBlk = 0;
-  pReader->msg.msgStr = NULL;
-  tqDebug("iterator data block end, block progress:%d/%d, uid:%"PRId64, pReader->nextBlk, blockSz, uid);
+  tqReaderClearSubmitMsg(pReader);
+  tqDebug("iterator data block end, total block num:%d, uid:%"PRId64, blockSz, uid);
 
 END:
   tqDebug("%s:%d return:%s, uid:%"PRId64, __FUNCTION__, lino, code?"true":"false", uid);
@@ -581,17 +586,14 @@ bool tqNextDataBlockFilterOut(STqReader* pReader, SHashObj* filterOutUids) {
     uid = pSubmitTbData->uid;
     void* ret = taosHashGet(filterOutUids, &pSubmitTbData->uid, sizeof(int64_t));
     TSDB_CHECK_NULL(ret, code, lino, END, true);
-    tqDebug("iterator data block in hash continue, progress:%d/%d, uid:%" PRId64 "", pReader->nextBlk, blockSz, uid);
+    tqDebug("iterator data block in hash jump block, progress:%d/%d, uid:%" PRId64 "", pReader->nextBlk, blockSz, uid);
     pReader->nextBlk++;
   }
-
-  tDestroySubmitReq(&pReader->submit, TSDB_MSG_FLG_DECODE);
-  pReader->nextBlk = 0;
-  pReader->msg.msgStr = NULL;
-  tqDebug("iterator data block end, block progress:%d/%d, uid:%"PRId64, pReader->nextBlk, blockSz, uid);
+  tqReaderClearSubmitMsg(pReader);
+  tqDebug("iterator data block end, total block num:%d, uid:%"PRId64, blockSz, uid);
 
 END:
-  tqDebug("%s:%d return:%s, uid:%"PRId64, __FUNCTION__, lino, code?"true":"false", uid);
+  tqDebug("%s:%d get data:%s, uid:%"PRId64, __FUNCTION__, lino, code?"true":"false", uid);
   return code;
 }
 
@@ -1046,7 +1048,45 @@ END:
   return code;
 }
 
-int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas, SSubmitTbData** pSubmitTbDataRet, int64_t *createTime) {
+static int32_t buildCreateTbInfo(SMqDataRsp* pRsp, SVCreateTbReq* pCreateTbReq){
+  int32_t code = 0;
+  int32_t lino = 0;
+  void*   createReq = NULL;
+  TSDB_CHECK_NULL(pRsp, code, lino, END, TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_NULL(pCreateTbReq, code, lino, END, TSDB_CODE_INVALID_PARA);
+
+  if (pRsp->createTableNum == 0) {
+    pRsp->createTableLen = taosArrayInit(0, sizeof(int32_t));
+    TSDB_CHECK_NULL(pRsp->createTableLen, code, lino, END, terrno);
+    pRsp->createTableReq = taosArrayInit(0, sizeof(void*));
+    TSDB_CHECK_NULL(pRsp->createTableReq, code, lino, END, terrno);
+  }
+
+  uint32_t len = 0;
+  tEncodeSize(tEncodeSVCreateTbReq, pCreateTbReq, len, code);
+  TSDB_CHECK_CODE(code, lino, END);
+  createReq = taosMemoryCalloc(1, len);
+  TSDB_CHECK_NULL(createReq, code, lino, END, terrno);
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, createReq, len);
+  code = tEncodeSVCreateTbReq(&encoder, pCreateTbReq);
+  tEncoderClear(&encoder);
+  TSDB_CHECK_CODE(code, lino, END);
+  TSDB_CHECK_NULL(taosArrayPush(pRsp->createTableLen, &len), code, lino, END, terrno);
+  TSDB_CHECK_NULL(taosArrayPush(pRsp->createTableReq, &createReq), code, lino, END, terrno);
+  pRsp->createTableNum++;
+  tqDebug("build create table info msg success");
+
+  END:
+  if (code != 0){
+    tqError("%s failed at %d, failed to build create table info msg:%s", __FUNCTION__, lino, tstrerror(code));
+    taosMemoryFree(createReq);
+  }
+  return code;
+}
+
+int32_t tqRetrieveTaosxBlock(STqReader* pReader, SMqDataRsp* pRsp, SArray* blocks, SArray* schemas, SSubmitTbData** pSubmitTbDataRet, SArray* rawList, int8_t fetchMeta) {
   tqDebug("tq reader retrieve data block msg pointer:%p, index:%d", pReader->msg.msgStr, pReader->nextBlk);
   SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
   if (pSubmitTbData == NULL) {
@@ -1062,13 +1102,29 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SArray* blocks, SArray* schemas
   int64_t uid = pSubmitTbData->uid;
   pReader->lastBlkUid = uid;
 
+  int64_t createTime = INT64_MAX;
   tDeleteSchemaWrapper(pReader->pSchemaWrapper);
-  pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1, createTime);
+  pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1, &createTime);
   if (pReader->pSchemaWrapper == NULL) {
     tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", version %d, possibly dropped table",
            pReader->pWalReader->pWal->cfg.vgId, uid, pReader->cachedSchemaVer);
     pReader->cachedSchemaSuid = 0;
     return TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
+  }
+
+  if (fetchMeta != WITH_DATA &&
+      pSubmitTbData->pCreateTbReq != NULL &&
+      pSubmitTbData->ctimeMs - createTime <= 0) {  // judge if table is already created to avoid sending crateTbReq
+    int32_t code = buildCreateTbInfo(pRsp, pSubmitTbData->pCreateTbReq);
+    if (code != 0) {
+      return code;
+    }
+  } else if (rawList != NULL && taosArrayGetSize(rawList) > 0) {
+    if (taosArrayPush(schemas, &pReader->pSchemaWrapper) == NULL){
+      return terrno;
+    }
+    pReader->pSchemaWrapper = NULL;
+    return 0;
   }
 
   if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {

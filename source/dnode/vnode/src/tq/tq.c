@@ -211,7 +211,7 @@ void tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId) {
   tDeleteMqDataRsp(&dataRsp);
 }
 
-int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp, int32_t type,
+int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, SMqDataRsp* pRsp, int32_t type,
                       int32_t vgId) {
   if (pHandle == NULL || pMsg == NULL || pReq == NULL || pRsp == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -414,7 +414,14 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto END;
   }
-
+  if (req.rawData == 1){
+    req.uidHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    if (req.uidHash == NULL) {
+      tqError("tq poll rawData taosHashInit failed");
+      code = terrno;
+      goto END;
+    }
+  }
   int64_t      consumerId = req.consumerId;
   int32_t      reqEpoch = req.epoch;
   STqOffsetVal reqOffset = req.reqOffset;
