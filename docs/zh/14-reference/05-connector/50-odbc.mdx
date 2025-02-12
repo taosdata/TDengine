@@ -133,7 +133,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
 | BIGINT             | SQL_BIGINT        | SQL_C_SBIGINT     |
 | BIGINT UNSIGNED    | SQL_BIGINT        | SQL_C_UBIGINT     |
 | FLOAT              | SQL_REAL          | SQL_C_FLOAT       |
-| DOUBLE             | SQL_REAL          | SQL_C_DOUBLE      |
+| DOUBLE             | SQL_DOUBLE        | SQL_C_DOUBLE      |
 | BINARY             | SQL_BINARY        | SQL_C_BINARY      |
 | SMALLINT           | SQL_SMALLINT      | SQL_C_SSHORT      |
 | SMALLINT UNSIGNED  | SQL_SMALLINT      | SQL_C_USHORT      |
@@ -141,8 +141,8 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
 | TINYINT UNSIGNED   | SQL_TINYINT       | SQL_C_UTINYINT    |
 | BOOL               | SQL_BIT           | SQL_C_BIT         |
 | NCHAR              | SQL_VARCHAR       | SQL_C_CHAR        |
-| JSON               | SQL_VARCHAR       | SQL_C_CHAR        |
 | VARCHAR            | SQL_VARCHAR       | SQL_C_CHAR        |
+| JSON               | SQL_WVARCHAR      | SQL_C_WCHAR       |
 | GEOMETRY           | SQL_VARBINARY     | SQL_C_BINARY      |
 | VARBINARY          | SQL_VARBINARY     | SQL_C_BINARY      |
 
@@ -157,7 +157,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
 | :----- | :---- | :---- | :---- | :---- |
 | ConfigDSN | ❌ | ❌ | ✅ | |
 | ConfigDriver | ❌ | ❌ | ✅ | |
-| ConfigTranslator | ❌ | ❌ | ✅ | |
+| ConfigTranslator | ❌ | ❌ | ❌ | |
 | SQLAllocHandle | ✅ | ✅ | ✅ | |
 | SQLBindCol  | ✅ | ✅ | ✅ | 只能按列绑定 |
 | SQLBindParameter | ✅ | ✅ | ✅ | 只能按列绑定 |
@@ -268,17 +268,17 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
 #### 数据源和驱动程序管理
 
 - API: ConfigDSN
-  - **是否支持**: 支持
+  - **是否支持**: 支持（仅 Windows）
   - **标准**: ODBC
   - **作用**: 配置数据源
   
 - API: ConfigDriver
-  - **是否支持**: 支持
+  - **是否支持**: 支持（仅 Windows）
   - **标准**: ODBC
   - **作用**: 用于执行与特定驱动程序相关的安装和配置任务
   
 - API: ConfigTranslator
-  - **是否支持**: 支持
+  - **是否支持**: 不支持
   - **标准**: ODBC
   - **作用**: 用于解析DSN的配置，在DSN配置和实际数据库驱动程序配置之间进行翻译或转换
 
@@ -617,7 +617,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
 - API: SQLEndTran
   - **是否支持**: 支持
   - **标准**: ISO 92
-  - **作用**: 用于提交或回滚事务，TDengine 不支持事务，因此不支持回滚操作
+  - **作用**: 用于提交或回滚事务。TDengine 是非事务性的，因此 SQLEndTran 函数最多只能模拟提交或回滚操作。如果有任何未完成的连接或语句，无论是提交（commit）还是回滚（rollback）都不会成功
 
 
 #### 终止连接
