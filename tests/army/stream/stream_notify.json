@@ -1,0 +1,71 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "thread_count": 4,
+    "create_table_thread_count": 4,
+    "result_file": "./insert_res.txt",
+    "confirm_parameter_prompt": "no",
+    "num_of_records_per_req": 10000,
+    "prepared_rand": 10000,
+    "chinese": "no",
+    "escape_character": "yes",
+    "continue_if_fail": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "test",
+                "drop": "no",
+                "vgroups": 4,
+                "precision": "ms"
+            },
+            "super_tables": [
+                {
+                    "name": "st",
+                    "child_table_exists": "no",
+                    "childtable_count": 5,
+                    "childtable_prefix": "ct",
+                    "auto_create_table": "yes",
+                    "batch_create_tbl_num": 5,
+                    "data_source": "rand",
+                    "insert_mode": "taosc",
+                    "non_stop_mode": "no",
+                    "line_protocol": "line",
+                    "insert_rows": 10000,
+                    "childtable_limit": 0,
+                    "childtable_offset": 0,
+                    "interlace_rows": 50,
+                    "insert_interval": 10,
+                    "partial_col_num": 0,
+                    "timestamp_step": 500,
+                    "start_timestamp": "2025-01-13 17:30:00.000",
+                    "sample_format": "csv",
+                    "sample_file": "./sample.csv",
+                    "use_sample_ts": "no",
+                    "tags_file": "",
+                    "columns": [
+                        {"type": "TINYINT", "name": "c0"},
+                        {"type": "SMALLINT", "name": "c1"},
+                        {"type": "INT", "name": "c2"},
+                        {"type": "BIGINT", "name": "c3"},
+                        {"type": "DOUBLE", "name": "c4"},
+                        {"type": "FLOAT", "name": "c5"},
+                        {"type": "BOOL", "name": "c6"},
+                        {"type": "VARCHAR", "name": "c7", "len": 10},
+                        {"type": "NCHAR", "name": "c8", "len": 10},
+                        {"type": "UTINYINT", "name": "c9"},
+                        {"type": "USMALLINT", "name": "c10"},
+                        {"type": "UINT", "name": "c11"},
+                        {"type": "UBIGINT", "name": "c12"}
+                    ],
+                    "tags": [
+                        {"type": "INT", "name": "groupid", "max": 100, "min": 1}
+                    ]
+                }
+            ]
+        }
+    ]
+}
