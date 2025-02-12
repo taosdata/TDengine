@@ -778,6 +778,15 @@ static void destroyScanLogicNode(void* data) {
   nodesDestroyNode((SNode*)pNode);
 }
 
+static int32_t findColRefIndex(SColRef* pColRef, SVirtualTableNode* pVirtualTable, col_id_t colId) {
+  for (int32_t i = 0; i < pVirtualTable->pMeta->tableInfo.numOfColumns; i++) {
+    if (pColRef[i].hasRef && pColRef[i].id == colId) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
                                            SVirtualTableNode* pVirtualTable, SLogicNode** pLogicNode) {
   int32_t                 code = TSDB_CODE_SUCCESS;
@@ -813,8 +822,8 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
 
   FOREACH(pNode, pVtableScan->pScanCols) {
     SColumnNode *pCol = (SColumnNode*)pNode;
-    col_id_t index = (col_id_t)(pCol->colId - 1);
-    if (pVirtualTable->pMeta->colRef[index].hasRef) {
+    int32_t index = findColRefIndex(pVirtualTable->pMeta->colRef, pVirtualTable, pCol->colId);
+    if (index != -1 && pVirtualTable->pMeta->colRef[index].hasRef) {
       if (pCol->isPrimTs || pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         PLAN_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
       }

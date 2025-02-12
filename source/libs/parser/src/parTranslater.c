@@ -16639,6 +16639,15 @@ static int32_t buildDropColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t findColRefIndex(SColRef* pColRef, const STableMeta* pTableMeta, col_id_t colId) {
+  for (int32_t i = 0; i < pTableMeta->tableInfo.numOfColumns; i++) {
+    if (pColRef[i].hasRef && pColRef[i].id == colId) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 static int32_t buildUpdateColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, const STableMeta* pTableMeta,
                                  SVAlterTbReq* pReq) {
   if (TSDB_CHILD_TABLE == pTableMeta->tableType || TSDB_VIRTUAL_CHILD_TABLE == pTableMeta->tableType) {
@@ -16666,7 +16675,8 @@ static int32_t buildUpdateColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
   }
 
   if (TSDB_VIRTUAL_TABLE == pTableMeta->tableType) {
-    if (pTableMeta->colRef[pSchema->colId - 1].hasRef) {
+    int32_t index = findColRefIndex(pTableMeta->colRef, pTableMeta, pSchema->colId);
+    if (index != -1) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
     }
   }
