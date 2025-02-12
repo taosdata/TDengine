@@ -65,12 +65,10 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
       return code;
     }
     if (pCol->hasDep) {
-      *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
+      *ppKey = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen);
       if (!*ppKey) {
         return terrno;
       }
-      TAOS_STRNCAT(*ppKey, pCol->depDbName, TSDB_DB_NAME_LEN);
-      TAOS_STRNCAT(*ppKey, ".", 2);
       TAOS_STRNCAT(*ppKey, pCol->depTableName, TSDB_TABLE_NAME_LEN);
       TAOS_STRNCAT(*ppKey, ".", 2);
       TAOS_STRNCAT(*ppKey, pCol->depColName, TSDB_COL_NAME_LEN);

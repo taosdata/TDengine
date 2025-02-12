@@ -741,12 +741,6 @@ static int32_t columnNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
     code = tlvEncodeValueBool(pEncoder, pNode->hasRef);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeValueCStr(pEncoder, pNode->refColName);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeValueCStr(pEncoder, pNode->refTableName);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueBool(pEncoder, pNode->hasDep);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -813,12 +807,6 @@ static int32_t msgToColumnNodeInline(STlvDecoder* pDecoder, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueBool(pDecoder, &pNode->hasRef);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->refColName);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->refTableName);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueBool(pDecoder, &pNode->hasDep);

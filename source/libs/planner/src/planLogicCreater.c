@@ -850,10 +850,6 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
         PLAN_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
       }
       scanAllCols &= false;
-      SColRef *pColRef = &pVirtualTable->pMeta->colRef[index];
-      tstrncpy(pCol->refDbName, pColRef->refDbName, TSDB_DB_NAME_LEN);
-      tstrncpy(pCol->refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
-      tstrncpy(pCol->refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
       pCol->hasRef = true;
 
       PLAN_ERR_JRET(addSubScanNode(pCxt, pSelect, pVirtualTable, index, pRefTablesMap));

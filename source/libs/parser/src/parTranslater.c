@@ -4940,6 +4940,60 @@ int32_t validateJoinConds(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
   return code;
 }
 
+static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SName* pName) {
+  SRealTableNode*    pRealTable = (SRealTableNode*)*pTable;
+  int32_t            code = TSDB_CODE_SUCCESS;
+  STableMeta*        pMeta = pRealTable->pMeta;
+  SVirtualTableNode* pVTable = NULL;
+  SRealTableNode*    pRTNode = NULL;
+  SHashObj*          pTableNameHash = NULL;
+
+  PAR_ERR_RET(nodesMakeNode(QUERY_NODE_VIRTUAL_TABLE, (SNode**)&pVTable));
+  tstrncpy(pVTable->table.dbName, pRealTable->table.dbName, sizeof(pVTable->table.dbName));
+  tstrncpy(pVTable->table.tableName, pRealTable->table.tableName, sizeof(pVTable->table.tableName));
+  tstrncpy(pVTable->table.tableAlias, pRealTable->table.tableAlias, sizeof(pVTable->table.tableAlias));
+
+  pVTable->table.precision = pRealTable->pMeta->tableInfo.precision;
+  pVTable->table.singleTable = false;
+  TSWAP(pVTable->pMeta, pRealTable->pMeta);
+  TSWAP(pVTable->pVgroupList, pRealTable->pVgroupList);
+
+  pTableNameHash = taosHashInit(pMeta->tableInfo.numOfColumns, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  bool tmpAsync = pCxt->pParseCxt->async;
+  pCxt->pParseCxt->async = false;
+  pCxt->refTable = true;
+  for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; i++) {
+    if (pMeta->colRef[i].hasRef) {
+      char tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
+      strcat(tableNameKey, pMeta->colRef[i].refDbName);
+      strcat(tableNameKey, ".");
+      strcat(tableNameKey, pMeta->colRef[i].refTableName);
+      if (taosHashGet(pTableNameHash, tableNameKey, strlen(tableNameKey)) == NULL) {
+        PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pRTNode));
+        tstrncpy(pRTNode->table.dbName, pMeta->colRef[i].refDbName, sizeof(pRTNode->table.dbName));
+        tstrncpy(pRTNode->table.tableName, pMeta->colRef[i].refTableName, sizeof(pRTNode->table.tableName));
+        tstrncpy(pRTNode->table.tableAlias, pMeta->colRef[i].refTableName, sizeof(pRTNode->table.tableAlias));
+        PAR_ERR_JRET(translateTable(pCxt, (SNode**)&pRTNode, NULL));
+        PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRTNode));
+        PAR_ERR_JRET(taosHashPut(pTableNameHash, tableNameKey, strlen(tableNameKey), NULL, 0));
+      }
+    }
+  }
+  pCxt->refTable = false;
+  pCxt->pParseCxt->async = tmpAsync;
+  nodesDestroyNode(*pTable);
+  *pTable = (SNode*)pVTable;
+
+  taosHashCleanup(pTableNameHash);
+  return code;
+
+_return:
+  taosHashCleanup(pTableNameHash);
+  nodesDestroyNode((SNode*)pVTable);
+  nodesDestroyNode((SNode*)pRTNode);
+  return code;
+}
+
 static int32_t translateAudit(STranslateContext* pCxt, SRealTableNode* pRealTable, SName* pName) {
   if (pRealTable->pMeta->tableType == TSDB_SUPER_TABLE) {
     if (IS_AUDIT_DBNAME(pName->dbname) && IS_AUDIT_STB_NAME(pName->tname)) {

@@ -94,9 +94,6 @@ typedef struct SColumnNode {
   int32_t     projRefIdx;
   int32_t     resIdx;
   bool        hasRef;
-  char        refDbName[TSDB_DB_NAME_LEN];
-  char        refTableName[TSDB_TABLE_NAME_LEN];
-  char        refColName[TSDB_COL_NAME_LEN];
   bool        hasDep;
   char        depDbName[TSDB_DB_NAME_LEN];
   char        depTableName[TSDB_TABLE_NAME_LEN];
