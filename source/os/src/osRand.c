@@ -19,7 +19,9 @@
 #include "wincrypt.h"
 #include "windows.h"
 #else
+#ifndef TD_ACORE
 #include <sys/file.h>
+#endif // !TD_ACORE
 #include <unistd.h>
 #endif
 

@@ -168,19 +168,19 @@ int32_t dmReadEps(SDnodeData *pData) {
 
         bool success = false;
 
-        if (strcasecmp(str, "tsdb") == 0 || strcasecmp(str, "all") == 0) {
+        if (taosStrcasecmp(str, "tsdb") == 0 || taosStrcasecmp(str, "all") == 0) {
           pData->encryptScope |= DND_CS_TSDB;
           success = true;
         }
-        if (strcasecmp(str, "vnode_wal") == 0 || strcasecmp(str, "all") == 0) {
+        if (taosStrcasecmp(str, "vnode_wal") == 0 || taosStrcasecmp(str, "all") == 0) {
           pData->encryptScope |= DND_CS_VNODE_WAL;
           success = true;
         }
-        if (strcasecmp(str, "sdb") == 0 || strcasecmp(str, "all") == 0) {
+        if (taosStrcasecmp(str, "sdb") == 0 || taosStrcasecmp(str, "all") == 0) {
           pData->encryptScope |= DND_CS_SDB;
           success = true;
         }
-        if (strcasecmp(str, "mnode_wal") == 0 || strcasecmp(str, "all") == 0) {
+        if (taosStrcasecmp(str, "mnode_wal") == 0 || taosStrcasecmp(str, "all") == 0) {
           pData->encryptScope |= DND_CS_MNODE_WAL;
           success = true;
         }

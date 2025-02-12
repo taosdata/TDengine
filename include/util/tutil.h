@@ -54,6 +54,21 @@ int32_t parseCfgReal(const char *str, float *out);
 bool    tIsValidFileName(const char *fileName, const char *pattern);
 bool    tIsValidFilePath(const char *filePath, const char *pattern);
 
+#ifdef TD_ACORE
+static FORCE_INLINE int32_t taosStrcasecmp(const char *s1, const char *s2) {
+  if (s1[0] == 0 && s2[0] == 0) return 0;
+  return strcasecmp(s1, s2);
+}
+
+static FORCE_INLINE int32_t taosStrncasecmp(const char *s1, const char *s2, size_t n) {
+  if (s1[0] == 0 && s2[0] == 0) return 0;
+  return strncasecmp(s1, s2, n);
+}
+#else
+#define taosStrcasecmp strcasecmp
+#define taosStrncasecmp strncasecmp
+#endif
+
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {
   T_MD5_CTX context;
   tMD5Init(&context);

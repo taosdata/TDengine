@@ -9,67 +9,76 @@ option(
 )
 
 IF(${TD_WINDOWS})
+    IF(NOT TD_ACORE)
+        MESSAGE("build pthread Win32")
+        option(
+                BUILD_PTHREAD
+                "If build pthread on Windows"
+                ON
+            )
 
-    MESSAGE("build pthread Win32")
-    option(
-            BUILD_PTHREAD
-            "If build pthread on Windows"
-            ON
-          )
+        MESSAGE("build gnu regex for Windows")
+        option(
+                BUILD_GNUREGEX
+                "If build gnu regex on Windows"
+                ON
+            )
 
-    MESSAGE("build gnu regex for Windows")
-    option(
-            BUILD_GNUREGEX
-            "If build gnu regex on Windows"
-            ON
-          )
+        MESSAGE("build iconv Win32")
+        option(
+                BUILD_WITH_ICONV
+                "If build iconv on Windows"
+                ON
+            )
 
-    MESSAGE("build iconv Win32")
-    option(
-            BUILD_WITH_ICONV
-            "If build iconv on Windows"
-            ON
-          )
+    ENDIF ()
+        MESSAGE("build msvcregex Win32")
+        option(
+                BUILD_MSVCREGEX
+                "If build msvcregex on Windows"
+                ON
+            )
 
-    MESSAGE("build msvcregex Win32")
-    option(
-            BUILD_MSVCREGEX
-            "If build msvcregex on Windows"
-            ON
-          )
+    IF(NOT TD_ACORE)
+        MESSAGE("build wcwidth Win32")
+        option(
+                BUILD_WCWIDTH
+                "If build wcwidth on Windows"
+                ON
+            )
 
-    MESSAGE("build wcwidth Win32")
-    option(
-            BUILD_WCWIDTH
-            "If build wcwidth on Windows"
-            ON
-          )
+        MESSAGE("build wingetopt Win32")
+        option(
+                BUILD_WINGETOPT
+                    "If build wingetopt on Windows"
+                ON
+            )
 
-    MESSAGE("build wingetopt Win32")
-    option(
-            BUILD_WINGETOPT
-                "If build wingetopt on Windows"
-            ON
-        )
+        option(
+                TDENGINE_3
+                "TDengine 3.x for taos-tools"
+                ON
+            )
 
-    option(
-            TDENGINE_3
-            "TDengine 3.x for taos-tools"
-            ON
-        )
-
-    option(
-            BUILD_CRASHDUMP
-            "If build crashdump on Windows"
-            ON
-        )
-
+        option(
+                BUILD_CRASHDUMP
+                "If build crashdump on Windows"
+                ON
+            )
+    ENDIF ()
 ELSEIF (TD_DARWIN_64)
     IF(${BUILD_TEST})
         add_definitions(-DCOMPILER_SUPPORTS_CXX13)
     ENDIF ()
 ENDIF ()
 
+option(
+    BUILD_WITH_LEMON
+    "If build with lemon"
+    ON
+)
+
+IF(NOT TD_ACORE)
 option(
         BUILD_GEOS
         "If build with geos"
@@ -124,6 +133,29 @@ option(
     ON
 )
 
+option(
+    BUILD_WITH_LZ4
+    "If build with lz4"
+    ON
+)
+
+ELSE ()
+
+option(
+    BUILD_WITH_LZMA2
+    "If build with lzma2"
+    ON
+)
+
+option(
+    BUILD_WITH_LZ4
+    "If build with lz4"
+    OFF
+)
+
+ENDIF ()
+
+
 IF(${TD_LINUX})
 
 option(
@@ -147,6 +179,12 @@ option(
 option(
     BUILD_WITH_ANALYSIS
     "If build with analysis"
+    ON
+)
+
+option(
+    BUILD_WITH_LZMA2
+    "If build with lzma2"
     ON
 )
 
@@ -210,6 +248,14 @@ option(
 )
 
 option(
+    BUILD_WITH_NURAFT
+    "If build with NuRaft"
+    OFF
+)
+
+IF(NOT TD_ACORE)
+
+option(
     BUILD_WITH_UV
     "If build with libuv"
     ON
@@ -242,6 +288,7 @@ option(
    "If use invertedIndex"
    ON
 )
+ENDIF ()
 
 option(
    BUILD_RELEASE

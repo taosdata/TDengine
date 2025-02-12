@@ -20,6 +20,10 @@
 extern "C" {
 #endif
 
+#ifdef TD_ACORE
+#define DISALLOW_NCHAR_WITHOUT_ICONV
+#endif
+
 typedef wchar_t TdWchar;
 typedef int32_t TdUcs4;
 #if !defined(DISALLOW_NCHAR_WITHOUT_ICONV)// && defined(DARWIN)

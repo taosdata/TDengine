@@ -14,8 +14,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include <regex.h>
+#ifndef TD_ACORE
 #include <uv.h>
-
+#endif
 #include "parAst.h"
 #include "parUtil.h"
 #include "tglobal.h"
@@ -1037,7 +1038,7 @@ _err:
 
 SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList) {
   CHECK_PARSER_STATUS(pCxt);
-  if (0 == strncasecmp("_rowts", pFuncName->z, pFuncName->n) || 0 == strncasecmp("_c0", pFuncName->z, pFuncName->n)) {
+  if (0 == taosStrncasecmp("_rowts", pFuncName->z, pFuncName->n) || 0 == taosStrncasecmp("_c0", pFuncName->z, pFuncName->n)) {
     return createPrimaryKeyCol(pCxt, pFuncName);
   }
   SFunctionNode* func = NULL;
@@ -2294,11 +2295,11 @@ _err:
 }
 
 EColumnOptionType getColumnOptionType(const char* optionType) {
-  if (0 == strcasecmp(optionType, "ENCODE")) {
+  if (0 == taosStrcasecmp(optionType, "ENCODE")) {
     return COLUMN_OPTION_ENCODE;
-  } else if (0 == strcasecmp(optionType, "COMPRESS")) {
+  } else if (0 == taosStrcasecmp(optionType, "COMPRESS")) {
     return COLUMN_OPTION_COMPRESS;
-  } else if (0 == strcasecmp(optionType, "LEVEL")) {
+  } else if (0 == taosStrcasecmp(optionType, "LEVEL")) {
     return COLUMN_OPTION_LEVEL;
   }
   return 0;
@@ -3449,7 +3450,7 @@ _err:
 
 SNode* setExplainVerbose(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal) {
   CHECK_PARSER_STATUS(pCxt);
-  ((SExplainOptions*)pOptions)->verbose = (0 == strncasecmp(pVal->z, "true", pVal->n));
+  ((SExplainOptions*)pOptions)->verbose = (0 == taosStrncasecmp(pVal->z, "true", pVal->n));
   return pOptions;
 _err:
   return NULL;
@@ -3503,9 +3504,9 @@ _err:
 }
 
 static int32_t convertUdfLanguageType(SAstCreateContext* pCxt, const SToken* pLanguageToken, int8_t* pLanguage) {
-  if (TK_NK_NIL == pLanguageToken->type || 0 == strncasecmp(pLanguageToken->z + 1, "c", pLanguageToken->n - 2)) {
+  if (TK_NK_NIL == pLanguageToken->type || 0 == taosStrncasecmp(pLanguageToken->z + 1, "c", pLanguageToken->n - 2)) {
     *pLanguage = TSDB_FUNC_SCRIPT_BIN_LIB;
-  } else if (0 == strncasecmp(pLanguageToken->z + 1, "python", pLanguageToken->n - 2)) {
+  } else if (0 == taosStrncasecmp(pLanguageToken->z + 1, "python", pLanguageToken->n - 2)) {
     *pLanguage = TSDB_FUNC_SCRIPT_PYTHON;
   } else {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -3668,7 +3669,7 @@ static bool validateNotifyUrl(const char* url) {
   if (!url || *url == '\0') return false;
 
   for (int32_t i = 0; i < ARRAY_SIZE(prefix); ++i) {
-    if (strncasecmp(url, prefix[i], strlen(prefix[i])) == 0) {
+    if (taosStrncasecmp(url, prefix[i], strlen(prefix[i])) == 0) {
       host = url + strlen(prefix[i]);
       break;
     }
@@ -3714,9 +3715,9 @@ SNode* createStreamNotifyOptions(SAstCreateContext* pCxt, SNodeList* pAddrUrls, 
 
   FOREACH(pNode, pEventTypes) {
     char *eventStr = ((SValueNode *)pNode)->literal;
-    if (strncasecmp(eventStr, eWindowOpenStr, strlen(eWindowOpenStr) + 1) == 0) {
+    if (taosStrncasecmp(eventStr, eWindowOpenStr, strlen(eWindowOpenStr) + 1) == 0) {
       BIT_FLAG_SET_MASK(eventTypes, SNOTIFY_EVENT_WINDOW_OPEN);
-    } else if (strncasecmp(eventStr, eWindowCloseStr, strlen(eWindowCloseStr) + 1) == 0) {
+    } else if (taosStrncasecmp(eventStr, eWindowCloseStr, strlen(eWindowCloseStr) + 1) == 0) {
       BIT_FLAG_SET_MASK(eventTypes, SNOTIFY_EVENT_WINDOW_CLOSE);
     } else {
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,

@@ -18,7 +18,9 @@
 
 #include "tdatablock.h"
 
+#ifdef USE_ROCKSDB
 #include "rocksdb/c.h"
+#endif
 #include "tdbInt.h"
 #include "tsimplehash.h"
 #include "tstreamFileState.h"

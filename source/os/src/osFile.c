@@ -31,10 +31,12 @@
 
 #else
 #include <fcntl.h>
+#ifndef TD_ACORE
 #include <sys/file.h>
 
 #if !defined(_TD_DARWIN_64)
 #include <sys/sendfile.h>
+#endif
 #endif
 #include <sys/stat.h>
 #include <unistd.h>
@@ -993,11 +995,24 @@ int32_t taosLockFile(TdFilePtr pFile) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
+#ifndef TD_ACORE
   int32_t code = (int32_t)flock(pFile->fd, LOCK_EX | LOCK_NB);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
+#else
+  struct flock lock;
+  lock.l_type = F_WRLCK;
+  lock.l_whence = SEEK_SET;
+  lock.l_start = 0;
+  lock.l_len = 0;
+  int32_t code = fcntl(pFile->fd, F_SETLK, &lock);
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+#endif
   return 0;
 }
 
@@ -1006,11 +1021,24 @@ int32_t taosUnLockFile(TdFilePtr pFile) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
+#ifndef TD_ACORE
   int32_t code = (int32_t)flock(pFile->fd, LOCK_UN | LOCK_NB);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
+#else
+  struct flock lock;
+  lock.l_type = F_UNLCK;
+  lock.l_whence = SEEK_SET;
+  lock.l_start = 0;
+  lock.l_len = 0;
+  int32_t code = fcntl(pFile->fd, F_SETLK, &lock);
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return terrno;
+  }
+#endif
   return 0;
 }
 

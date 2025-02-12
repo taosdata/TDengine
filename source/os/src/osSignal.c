@@ -115,7 +115,7 @@ int32_t taosDflSignal(int32_t signum) {
 }
 
 int32_t taosKillChildOnParentStopped() {
-#ifndef _TD_DARWIN_64
+#if !defined(_TD_DARWIN_64) && !defined(TD_ACORE)
   int32_t code = prctl(PR_SET_PDEATHSIG, SIGKILL);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
