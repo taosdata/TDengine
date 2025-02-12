@@ -524,6 +524,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/fsync.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/retention_test.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/retention_test2.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/multilevel_createdb.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttl.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 0-others/ttlChangeOnWrite.py
