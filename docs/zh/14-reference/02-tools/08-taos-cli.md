@@ -75,8 +75,8 @@ taos -h h1.taos.com -s "use db; show tables;"
 
 ### taosc 配置文件
 
-可通过 `-c` 参数改变 `taosc` 客户端加载配置文件的位置，客户端配置参数参考 [客户端配置](../../components/taosc)
-如以下命令指定了 `taosc` 客户端加载 `/root/cfg/` 下的 `taos.cfg` 配置文件
+使用 `-c` 参数改变 `taosc` 客户端加载配置文件的位置，客户端配置参数参考 [客户端配置](../../components/taosc)   
+以下命令指定了 `taosc` 客户端加载 `/root/cfg/` 下的 `taos.cfg` 配置文件
 ```bash
 taos -c /root/cfg/
 ```
