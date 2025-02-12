@@ -2,6 +2,14 @@
 # Download
 # ================================================================================================
 include(ExternalProject)
+
+set(CMAKE_PROJECT_INCLUDE_BEFORE "${TD_SUPPORT_DIR}/EnableCMP0048.txt.in")
+
+if(${TD_DARWIN})
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=deprecated-non-prototype")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=deprecated-non-prototype")
+endif(${TD_DARWIN})
+
 function(cat IN_FILE OUT_FILE)
     file(READ ${IN_FILE} CONTENTS)
     file(APPEND ${OUT_FILE} "${CONTENTS}")
@@ -288,6 +296,58 @@ if(${BUILD_WITH_UV})
         endif()
     endif(${TD_LINUX})
 endif(${BUILD_WITH_UV})
+
+if(NOT ${TD_LINUX})
+    MESSAGE(STATUS "ROCKSDB CXX STATUS CONFIG: " ${CMAKE_CXX_FLAGS})
+    MESSAGE(STATUS "ROCKSDB C STATUS CONFIG: " ${CMAKE_C_FLAGS})
+
+    if(${TD_DARWIN})
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized")
+        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=maybe-uninitialized")
+    endif(${TD_DARWIN})
+
+    if(${TD_DARWIN_ARM64})
+        set(HAS_ARMV8_CRC true)
+    endif(${TD_DARWIN_ARM64})
+
+    if(${TD_WINDOWS})
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4244 /wd4819 /std:c++17")
+        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /wd4244 /wd4819")
+        option(WITH_JNI "" OFF)
+
+        if(CMAKE_C_FLAGS MATCHES "/MT" OR CMAKE_C_FLAGS MATCHES "/MTd")
+            message("Rocksdb build runtime lib use /MT or /MTd")
+            option(WITH_MD_LIBRARY "build with MD" OFF)
+        endif()
+
+        set(SYSTEM_LIBS ${SYSTEM_LIBS} shlwapi.lib rpcrt4.lib)
+    endif(${TD_WINDOWS})
+
+    if(${TD_DARWIN})
+        option(HAVE_THREAD_LOCAL "" OFF)
+        option(WITH_IOSTATS_CONTEXT "" OFF)
+        option(WITH_PERF_CONTEXT "" OFF)
+    endif(${TD_DARWIN})
+
+    option(WITH_FALLOCATE "" OFF)
+    option(WITH_JEMALLOC "" OFF)
+    option(WITH_GFLAGS "" OFF)
+    option(PORTABLE "" ON)
+    option(WITH_LIBURING "" OFF)
+    option(FAIL_ON_WARNINGS OFF)
+
+    option(WITH_TESTS "" OFF)
+    option(WITH_BENCHMARK_TOOLS "" OFF)
+    option(WITH_TOOLS "" OFF)
+    option(WITH_LIBURING "" OFF)
+
+    option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
+    add_subdirectory(rocksdb EXCLUDE_FROM_ALL)
+    target_include_directories(
+        rocksdb
+        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/include>
+    )
+endif()
 
 if(${BUILD_WITH_S3})
     INCLUDE_DIRECTORIES($ENV{HOME}/.cos-local.2/include)

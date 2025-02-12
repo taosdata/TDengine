@@ -14,6 +14,7 @@ ExternalProject_Add(ext_cjson
         CMAKE_ARGS -DCJSON_OVERRIDE_BUILD_SHARED_LIBS:BOOL=ON
         CMAKE_ARGS -DCJSON_BUILD_SHARED_LIBS:BOOL=OFF
         GIT_SHALLOW true
+        EXCLUDE_FROM_ALL true
         )
 
 set(TD_CONTRIB_EXT_CJSON_INC_DIR "${_ins}/include" PARENT_SCOPE)

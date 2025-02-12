@@ -15,6 +15,7 @@ ExternalProject_Add(ext_lz4
         CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
         CMAKE_ARGS -DBUILD_STATIC_LIBS:BOOL=ON
         GIT_SHALLOW true
+        EXCLUDE_FROM_ALL true
         )
 
 set(TD_CONTRIB_EXT_LZ4_INC_DIR "${_ins}/include" PARENT_SCOPE)
