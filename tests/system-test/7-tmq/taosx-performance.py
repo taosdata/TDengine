@@ -31,6 +31,7 @@ taosd = "taosd"
 taosxLog = "taosx.log"
 taosxTimeout = 2
 timeCost = []
+speedupStr = []
 insertJson = '''{
   "filetype": "insert",
   "cfgdir": "/etc/taos",
@@ -270,7 +271,10 @@ if __name__ == "__main__":
             if i % 2 == 1 :
                 print(f"opti cost:{float(timeCost[0]) - taosxTimeout}")
                 print(f"old  cost:{float(timeCost[1]) - taosxTimeout}")
-                print(str(paras[i]) + f" speedup:{(float(timeCost[1]) - taosxTimeout)/(float(timeCost[0]) - taosxTimeout)}\n\n\n")
+                tmp = str(paras[i]) + f" speedup:{(float(timeCost[1]) - taosxTimeout)/(float(timeCost[0]) - taosxTimeout)}"
+                speedupStr.append(tmp)
+                print(tmp + "\n\n\n")
                 timeCost.clear()
 
+    print("performance result:\n" + str(speedupStr))
     tdLog.info("run performance end")
