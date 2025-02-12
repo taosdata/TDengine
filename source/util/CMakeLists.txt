@@ -44,6 +44,7 @@ target_include_directories(
     PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
     PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/sz/inc"
     PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/zstd/"
+    PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/zstd/common"
     PRIVATE "${TD_SOURCE_DIR}/contrib/pcre2/"
 )
 
