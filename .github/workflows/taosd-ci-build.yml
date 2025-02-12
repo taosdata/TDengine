@@ -45,7 +45,7 @@ jobs:
           sudo apt update -y
           sudo apt install -y build-essential cmake \
             libgeos-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev \
-            zlib1g pkg-config libssl-dev gawk
+            zlib1g-dev pkg-config libssl-dev gawk
 
       - name: Install dependencies on macOS
         if: runner.os == 'macOS'
@@ -53,17 +53,15 @@ jobs:
           brew update
           brew install argp-standalone gflags pkg-config  snappy zlib geos jansson gawk openssl
 
-
       - name: Build and install TDengine
         run: |
           mkdir debug && cd debug
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
             -DBUILD_HTTP=false \
-            -DBUILD_TEST=false \
-            -DBUILD_CONTRIB=true 
-            
-          make VERBOSE=1 -j 4
+            -DBUILD_TEST=true \
+            -DBUILD_DEPENDENCY_TESTS=false
+          make VERBOSE=1
           sudo make install
           which taosd
           which taosadapter
