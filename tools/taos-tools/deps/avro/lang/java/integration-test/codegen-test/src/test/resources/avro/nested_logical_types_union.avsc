@@ -1,0 +1,23 @@
+{"namespace": "org.apache.avro.codegentest.testdata",
+  "type": "record",
+  "name": "NestedLogicalTypesUnion",
+  "doc" : "Test nested types with logical types in generated Java classes",
+  "fields": [
+    {
+      "name": "unionOfRecords",
+      "type": ["null", {
+        "namespace": "org.apache.avro.codegentest.testdata",
+        "name": "RecordInUnion",
+        "type": "record",
+        "fields": [
+          {
+            "name": "nullableDateField",
+            "type": ["null", {"type": "int", "logicalType": "date"}]
+          }
+        ]
+      }]
+    }]
+}
+
+
+
