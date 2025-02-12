@@ -123,7 +123,7 @@ enum {
   TMQ_MSG_TYPE__POLL_BATCH_META_RSP,
 };
 
-static char* tmqMsgTypeStr[] = {
+static const char* tmqMsgTypeStr[] = {
     "data", "meta", "ask ep", "meta data", "wal info", "batch meta"
 };
 

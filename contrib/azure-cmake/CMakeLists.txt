@@ -53,7 +53,7 @@ target_link_libraries(
     PRIVATE ${XML2_LIBRARY}
 
     # PRIVATE xml2
-    PRIVATE zlib
+    # PRIVATE zlib
 
     # PRIVATE ${CoreFoundation_Library}
     # PRIVATE ${SystemConfiguration_Library}
