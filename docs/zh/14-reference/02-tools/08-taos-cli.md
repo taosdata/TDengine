@@ -26,7 +26,7 @@ TDengine CLI 的提示符号如下：
 taos>
 ```
 
-进入 TDengine CLI 后，你可执行各种 SQL 语句，包括插入、查询以及各种管理命令。
+进入 TDengine CLI 后，可执行各种 SQL 语句，包括插入、查询以及各种管理命令。
 退出 TDengine CLI， 执行 `q` 或 `quit` 或 `exit` 回车即可
 ```shell
 taos> quit
@@ -34,7 +34,8 @@ taos> quit
 
 ## 命令行参数
 
-您可通过配置命令行参数来改变 TDengine CLI 的行为。以下为常用的几个命令行参数：
+### 常用参数
+可通过配置命令行参数来改变 TDengine CLI 的行为。以下为常用的几个命令行参数：
 
 - -h HOST: 要连接的 TDengine 服务端所在服务器的 FQDN, 默认值： 127.0.0.1
 - -P PORT: 指定服务端所用端口号，默认值：6030
@@ -42,7 +43,7 @@ taos> quit
 - -p PASSWORD: 连接服务端时使用的密码，特殊字符如 `! & ( ) < > ; |` 需使用字符 `\` 进行转义处理, 默认值：taosdata
 - -?, --help: 打印出所有命令行参数
 
-更多参数：
+### 更多参数
 
 - -a AUTHSTR: 连接服务端的授权信息
 - -A: 通过用户名和密码计算授权信息
