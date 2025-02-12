@@ -320,7 +320,7 @@ INFO: Consumed total msgs: 3000, total rows: 30000000
 
 - **fillNull**: 字符串类型，指定此列是否随机插入 NULL 值，可指定为 “true” 或 "false", 只有当 generate_row_rule 为 2 时有效
 
-#### 插入行为
+#### 插入行为相关
 
 - **thread_count** : 插入数据的线程数量，默认为 8。
 
@@ -346,7 +346,7 @@ INFO: Consumed total msgs: 3000, total rows: 30000000
 
 - **pre_load_tb_meta** ：是否提前加载子表的 meta 数据，取值为 “yes” or "no"。当子表数量非常多时，打开此选项可提高写入速度。
 
-### 数据查询
+### 查询场景配置参数
 
 查询场景下 `filetype` 必须设置为 `query`。
 `query_times` 指定运行查询的次数，数值类型
