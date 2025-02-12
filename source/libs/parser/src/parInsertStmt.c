@@ -54,8 +54,12 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
 
   int32_t colNum = taosArrayGetSize(pNew->aCol);
   for (int32_t i = 0; i < colNum; ++i) {
-    SColData* pCol = (SColData*)taosArrayGet(pNew->aCol, i);
-    tColDataDeepClear(pCol);
+    if (pDataBlock->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      SColData* pCol = (SColData*)taosArrayGet(pNew->aCol, i);
+      tColDataDeepClear(pCol);
+    } else {
+      pNew->aCol = taosArrayInit(20, POINTER_BYTES);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -739,6 +743,22 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
         goto _return;
       }
       pBindInfos[c].bind = taosArrayGetLast(ncharBinds);
+    } else if (TSDB_DATA_TYPE_GEOMETRY == pColSchema->type) {
+      code = initCtxAsText();
+      if (code) {
+        qError("geometry init failed");
+        goto _return;
+      }
+      uint8_t* buf = bind[c].buffer;
+      for (int j = 0; j < bind[c].num; j++) {
+        code = checkWKB(buf, bind[c].length[j]);
+        if (code) {
+          qError("geometry data must be in WKB format");
+          goto _return;
+        }
+        buf += bind[c].length[j];
+      }
+      pBindInfos[c].bind = bind + c;
     } else {
       pBindInfos[c].bind = bind + c;
     }
@@ -816,7 +836,8 @@ static int32_t convertStmtNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STM
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen, void *charsetCxt) {
+int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
+                            STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
   SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
   SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
@@ -825,13 +846,19 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
   TAOS_STMT2_BIND  ncharBind = {0};
   TAOS_STMT2_BIND* pBind = NULL;
   int32_t          code = 0;
+  int16_t          lastColId = -1;
+  bool             colInOrder = true;
+
+  if (NULL == *pTSchema) {
+    *pTSchema = tBuildTSchema(pSchema, pDataBlock->pMeta->tableInfo.numOfColumns, pDataBlock->pMeta->sversion);
+  }
 
   for (int c = 0; c < boundInfo->numOfBound; ++c) {
     SSchema*  pColSchema = &pSchema[boundInfo->pColIndex[c]];
-    SColData* pCol = taosArrayGet(pCols, c);
-    if (pCol == NULL || pColSchema == NULL) {
-      code = buildInvalidOperationMsg(&pBuf, "get column schema or column data failed");
-      goto _return;
+    if (pColSchema->colId <= lastColId) {
+      colInOrder = false;
+    } else {
+      lastColId = pColSchema->colId;
     }
 
     if (bind[c].num != rowNum) {
@@ -850,19 +877,43 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
       if (code) {
         goto _return;
       }
-      pBind = &ncharBind;
+      pBindInfos[c].bind = &ncharBind;
+    } else if (TSDB_DATA_TYPE_GEOMETRY == pColSchema->type) {
+      code = initCtxAsText();
+      if (code) {
+        qError("geometry init failed");
+        goto _return;
+      }
+      uint8_t *buf = bind[c].buffer;
+      for (int j = 0; j < bind[c].num; j++) {
+        code = checkWKB(buf, bind[c].length[j]);
+        if (code) {
+          qError("geometry data must be in WKB format");
+          goto _return;
+        }
+        buf += bind[c].length[j];
+      }
+      pBindInfos[c].bind = bind + c;
     } else {
-      pBind = bind + c;
+      pBindInfos[c].bind = bind + c;
     }
 
-    code = tColDataAddValueByBind2(pCol, pBind,
-                                   IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
-                                   initCtxAsText, checkWKB);
+    pBindInfos[c].columnId = pColSchema->colId;
+    pBindInfos[c].type = pColSchema->type;
+    pBindInfos[c].bytes = pColSchema->bytes;
+
     if (code) {
       goto _return;
     }
   }
 
+  pDataBlock->pData->flags &= ~SUBMIT_REQ_COLUMN_DATA_FORMAT;
+  if (pDataBlock->pData->pCreateTbReq != NULL) {
+    pDataBlock->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
+  }
+
+  code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, &pDataBlock->ordered,
+                            &pDataBlock->duplicateTs);
   qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
 
 _return:
@@ -1110,15 +1161,19 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
   int32_t        colNum = taosArrayGetSize(pBlock->pData->aCol);
 
   for (int32_t i = 0; i < colNum; ++i) {
-    SColData* pCol = (SColData*)taosArrayGet(pBlock->pData->aCol, i);
-    if (pCol == NULL) {
-      qError("qResetStmtDataBlock column is NULL");
-      return terrno;
-    }
-    if (deepClear) {
-      tColDataDeepClear(pCol);
+    if (pBlock->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+      SColData* pCol = (SColData*)taosArrayGet(pBlock->pData->aCol, i);
+      if (pCol == NULL) {
+        qError("qResetStmtDataBlock column is NULL");
+        return terrno;
+      }
+      if (deepClear) {
+        tColDataDeepClear(pCol);
+      } else {
+        tColDataClear(pCol);
+      }
     } else {
-      tColDataClear(pCol);
+      pBlock->pData->aRowP = taosArrayInit(20, POINTER_BYTES);
     }
   }
 
