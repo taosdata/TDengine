@@ -183,7 +183,7 @@ INFO: Consumed total msgs: 3000, total rows: 30000000
 - 4 ~ 6 行是测试完成后每个消费者总体统计，统计共消费了多少条消息，共计多少行  
 - 第 7 行所有消费者总体统计，`msgs` 表示共消费了多少条消息， `rows` 表示共消费了多少行数据
 
-## 配置文件参数详解
+## 配置文件参数
 
 ### 通用配置参数
 
@@ -215,7 +215,7 @@ INFO: Consumed total msgs: 3000, total rows: 30000000
   “continue_if_fail”: “yes”, 失败 taosBenchmark 警告用户，并继续写入
   “continue_if_fail”: “smart”, 如果子表不存在失败，taosBenchmark 会建立子表并继续写入
 
-#### 数据库相关配置参数
+#### 数据库相关
 
 创建数据库时的相关参数在 json 配置文件中的 `dbinfo` 中配置，个别具体参数如下。其余参数均与 TDengine 中 `create database` 时所指定的数据库参数相对应，详见[../../taos-sql/database]
 
@@ -223,23 +223,7 @@ INFO: Consumed total msgs: 3000, total rows: 30000000
 
 - **drop** : 数据库已存在时是否删除，可选项为 "yes" 或 "no", 默认为 “yes”
 
-#### 流式计算相关配置参数
-
-创建流式计算的相关参数在 json 配置文件中的 `stream` 中配置，具体参数如下。
-
-- **stream_name** : 流式计算的名称，必填项。
-
-- **stream_stb** : 流式计算对应的超级表名称，必填项。
-
-- **stream_sql** : 流式计算的sql语句，必填项。
-
-- **trigger_mode** : 流式计算的触发模式，可选项。
-
-- **watermark** : 流式计算的水印，可选项。
-
-- **drop** : 是否创建流式计算，可选项为 "yes" 或者 "no", 为 "no" 时不创建。
-
-#### 超级表相关配置参数
+#### 超级表相关
 
 创建超级表时的相关参数在 json 配置文件中的 `super_tables` 中配置，具体参数如下。
 
@@ -301,7 +285,7 @@ INFO: Consumed total msgs: 3000, total rows: 30000000
 - **sqls** : 字符串数组类型，指定超级表创建成功后要执行的 sql 数组，sql 中指定表名前面要带数据库名，否则会报未指定数据库错误
 
 
-#### 标签列与数据列配置参数
+#### 标签列与数据列
 
 指定超级表标签列与数据列的配置参数分别在 `super_tables` 中的 `columns` 和 `tag` 中。
 
@@ -336,7 +320,7 @@ INFO: Consumed total msgs: 3000, total rows: 30000000
 
 - **fillNull**: 字符串类型，指定此列是否随机插入 NULL 值，可指定为 “true” 或 "false", 只有当 generate_row_rule 为 2 时有效
 
-#### 插入行为配置参数
+#### 插入行为
 
 - **thread_count** : 插入数据的线程数量，默认为 8。
 
@@ -362,7 +346,7 @@ INFO: Consumed total msgs: 3000, total rows: 30000000
 
 - **pre_load_tb_meta** ：是否提前加载子表的 meta 数据，取值为 “yes” or "no"。当子表数量非常多时，打开此选项可提高写入速度。
 
-### 查询场景配置参数
+### 数据查询
 
 查询场景下 `filetype` 必须设置为 `query`。
 `query_times` 指定运行查询的次数，数值类型
@@ -372,7 +356,7 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为
 
 其它通用参数详见[通用配置参数](#通用配置参数)。
 
-#### 执行指定查询语句的配置参数
+#### 执行指定查询语句
 
 查询指定表（可以指定超级表、子表或普通表）的配置参数在 `specified_table_query` 中设置。
 
@@ -393,7 +377,7 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为
   - **sql**: 执行的 SQL 命令，必填。
   - **result**: 保存查询结果的文件，未指定则不保存。
 
-#### 查询超级表的配置参数
+#### 查询超级表
 
 查询超级表的配置参数在 `super_table_query` 中设置。   
 超级表查询的线程模式与上面介绍的指定查询语句查询的 `正常查询` 模式相同，不同之处是本 `sqls` 使用所有子表填充。  
@@ -412,8 +396,6 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为
 ### 订阅场景配置参数
 
 订阅场景下 `filetype` 必须设置为 `subscribe`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
-
-#### 执行指定订阅语句的配置参数
 
 订阅指定表（可以指定超级表、子表或者普通表）的配置参数在 `specified_table_query` 中设置。
 

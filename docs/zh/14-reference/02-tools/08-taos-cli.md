@@ -89,7 +89,17 @@ taos -c /root/cfg/
 taos> source <filename>;
 ```
 
-## 在线修改显示字符宽度
+## 数据导入/导出
+
+## 导出查询结果
+
+- 可以使用符号 “>>” 导出查询结果到某个文件中，语法为： sql 查询语句 >> ‘输出文件名’; 输出文件如果不写路径的话，将输出至当前目录下。如 select * from d0 >> ‘/root/d0.csv’;  将把查询结果输出到 /root/d0.csv 中。
+
+## 数据从文件导入
+
+- 可以使用 insert into table_name file '输入文件名'，把上一步中导出的数据文件再导入到指定表中。如 insert into d0 file '/root/d0.csv'; 表示把上面导出的数据全部再导致至 d0 表中。
+
+## 设置显示字符宽度
 
 可以在 TDengine CLI 里使用如下命令调整字符显示宽度
 
@@ -99,17 +109,14 @@ taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
 
 如显示的内容后面以 ... 结尾时，表示该内容已被截断，可通过本命令修改显示字符宽度以显示完整的内容。
 
-## 错误代码表
-在 TDengine 3.3.4.8 版本后 TDengine CLI 在返回错误信息中返回了具体错误码，用户可到 TDengine 官网错误码页面查找具体原因及解决措施，见：[错误码参考表](https://docs.taosdata.com/reference/error-code/)
-
-## TDengine CLI TAB 键补全
+## TAB 键自动补全
 
 - TAB 键前为空命令状态下按 TAB 键，会列出 TDengine CLI 支持的所有命令
 - TAB 键前为空格状态下按 TAB 键，会显示此位置可以出现的所有命令词的第一个，再次按 TAB 键切为下一个
 - TAB 键前为字符串，会搜索与此字符串前缀匹配的所有可出现命令词，并显示第一个，再次按 TAB 键切为下一个
 - 输入反斜杠 `\` + TAB 键, 会自动补全为列显示模式命令词 `\G;` 
 
-## TDengine CLI 小技巧
+## 使用小技巧
 
 - 可以使用上下光标键查看历史输入的指令
 - 在 TDengine CLI 中使用 `alter user` 命令可以修改用户密码，缺省密码为 `taosdata`
@@ -117,10 +124,5 @@ taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
 - 执行 `RESET QUERY CACHE` 可清除本地表 Schema 的缓存
 - 批量执行 SQL 语句。可以将一系列的 TDengine CLI 命令（以英文 ; 结尾，每个 SQL 语句为一行）按行存放在文件里，在 TDengine CLI 里执行命令 `source <file-name>` 自动执行该文件里所有的 SQL 语句
 
-## TDengine CLI 导出查询结果到文件中
-
-- 可以使用符号 “>>” 导出查询结果到某个文件中，语法为： sql 查询语句 >> ‘输出文件名’; 输出文件如果不写路径的话，将输出至当前目录下。如 select * from d0 >> ‘/root/d0.csv’;  将把查询结果输出到 /root/d0.csv 中。
-
-## TDengine CLI 导入文件中的数据到表中
-
-- 可以使用 insert into table_name file '输入文件名'，把上一步中导出的数据文件再导入到指定表中。如 insert into d0 file '/root/d0.csv'; 表示把上面导出的数据全部再导致至 d0 表中。
+## 错误代码表
+在 TDengine 3.3.4.8 版本后 TDengine CLI 在返回错误信息中返回了具体错误码，用户可到 TDengine 官网错误码页面查找具体原因及解决措施，见：[错误码参考表](https://docs.taosdata.com/reference/error-code/)
