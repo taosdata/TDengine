@@ -99,7 +99,7 @@ taos> source <filename>;
 
 - 可以使用 insert into table_name file '输入文件名'，把上一步中导出的数据文件再导入到指定表中。如 insert into d0 file '/root/d0.csv'; 表示把上面导出的数据全部再导致至 d0 表中。
 
-## 设置显示字符宽度
+## 设置字符类型显示宽度
 
 可以在 TDengine CLI 里使用如下命令调整字符显示宽度
 
