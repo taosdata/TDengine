@@ -8,11 +8,7 @@ taosBenchmark 是 TDengine 产品性能基准测试工具，提供对 TDengine �
 
 ## 安装
 
-taosBenchmark 提供两种安装方式:
-
-- taosBenchmark 是 TDengine 安装包中默认安装组件，安装 TDengine 后即可使用，参考 [TDengine 安装](../../../get-started/)
-
-- 单独编译 taos-tools 并安装, 参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
+taosBenchmark 是 TDengine 安装包中默认安装组件，安装 TDengine 后即可使用，参考 [TDengine 安装](../../../get-started/)
 
 ## 运行
 
@@ -62,7 +58,7 @@ taosBenchmark -f <json file>
 <summary>insert.json</summary>
 
 ```json
-{{#include /taos-tools/example/insert.json}}
+{{#include /TDengine/tools/taos-tools/example/insert.json}}
 ```
 
 </details>
@@ -73,7 +69,7 @@ taosBenchmark -f <json file>
 <summary>query.json</summary>
 
 ```json
-{{#include /taos-tools/example/query.json}}
+{{#include /TDengine/tools/taos-tools/example/query.json}}
 ```
 
 </details>
@@ -84,12 +80,12 @@ taosBenchmark -f <json file>
 <summary>tmq.json</summary>
 
 ```json
-{{#include /taos-tools/example/tmq.json}}
+{{#include /TDengine/tools/taos-tools/example/tmq.json}}
 ```
 
 </details>
 
-查看更多 json 配置文件示例可 [点击这里](https://github.com/taosdata/taos-tools/tree/main/example)
+查看更多 json 配置文件示例可 [点击这里](https://github.com/taosdata/TDengine/tree/main/tools/taos-tools/example)
 
 ## 命令行参数详解
 | 命令行参数                     | 功能说明                                         |
@@ -319,7 +315,7 @@ INFO: Consumed total msgs: 3000, total rows: 30000000
 
 - **min** : 数据类型的 列/标签 的最小值。生成的值将大于或等于最小值。
 
-- **max** : 数据类型的 列/标签 的最大值。生成的值将小于最小值。
+- **max** : 数据类型的 列/标签 的最大值。生成的值将小于最大值。
 
 - **scalingFactor** : 浮点数精度增强因子，仅当数据类型是 float/double 时生效，有效值范围为 1 至 1000000 的正整数。用于增强生成浮点数的精度，特别是在 min 或 max 值较小的情况下。此属性按 10 的幂次增强小数点后的精度：scalingFactor 为 10 表示增强 1 位小数精度，100 表示增强 2 位，依此类推。
 

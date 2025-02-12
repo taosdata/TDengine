@@ -1,0 +1,25 @@
+{
+  "protocol" : "MyProtocol",
+  "namespace" : "org.apache.avro",
+  "doc" : "Testing UUID fields",
+  "types" : [ {
+    "type" : "record",
+    "name" : "APlaygroundEvent",
+    "fields" : [ {
+      "name" : "identifier",
+      "type" : {
+        "type" : "string",
+        "logicalType" : "uuid"
+      },
+      "doc" : "* Documentation must be provided for each attribute"
+    }, {
+      "name" : "optionalString",
+      "type" : [ "null", {
+        "type" : "string",
+        "logicalType" : "uuid"
+      } ],
+      "doc" : "* a nullable uuid field"
+    } ]
+  } ],
+  "messages" : { }
+}

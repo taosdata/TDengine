@@ -464,8 +464,8 @@ int32_t streamTransferStateDoPrepare(SStreamTask* pTask) {
   // 2. send msg to mnode to launch a checkpoint to keep the state for current stream
   code = streamTaskSendCheckpointReq(pStreamTask);
 
-  // 3. assign the status to the value that will be kept in disk
-  pStreamTask->status.taskStatus = streamTaskGetStatus(pStreamTask).state;
+  // 3. the default task status should be ready or something, not halt.
+  // status to the value that will be kept in disk
 
   // 4. open the inputQ for all upstream tasks
   streamTaskOpenAllUpstreamInput(pStreamTask);

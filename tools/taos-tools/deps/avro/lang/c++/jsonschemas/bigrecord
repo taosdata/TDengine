@@ -1,0 +1,113 @@
+{
+    "type": "record",
+    "doc": "Top level Doc.",
+    "name": "RootRecord",
+    "fields": [
+        {
+            "name": "mylong",
+            "doc": "mylong field doc.",
+            "type": "long"
+        },
+        {
+            "name": "nestedrecord",
+            "type": {
+                "type": "record",
+                "name": "Nested",
+                "fields": [
+                    {
+                        "name": "inval1",
+                        "type": "double"
+                    },
+                    {
+                        "name": "inval2",
+                        "type": "string"
+                    },
+                    {
+                        "name": "inval3",
+                        "type": "int"
+                    }
+                ]
+            }
+        },
+        {
+            "name": "mymap",
+            "type": {
+                "type": "map",
+                "values": "int"
+            }
+        },
+        {
+            "name": "recordmap",
+            "type": {
+                "type": "map",
+                "values": "Nested"
+            }
+        },
+        {
+            "name": "myarray",
+            "type": {
+                "type": "array",
+                "items": "double"
+            }
+        },
+        {
+            "name": "myenum",
+            "type": {
+                "type": "enum",
+                "name": "ExampleEnum",
+                "symbols": [
+                    "zero",
+                    "one",
+                    "two",
+                    "three"
+                ]
+            }
+        },
+        {
+            "name": "myunion",
+            "type": [
+                "null",
+                {
+                    "type": "map",
+                    "values": "int"
+                },
+                "float"
+            ]
+        },
+        {
+            "name": "anotherunion",
+            "type": [
+                "bytes",
+                "null"
+            ]
+        },
+        {
+            "name": "mybool",
+            "type": "boolean"
+        },
+        {
+            "name": "anothernested",
+            "type": "Nested"
+        },
+        {
+            "name": "myfixed",
+            "type": {
+                "type": "fixed",
+                "size": 16,
+                "name": "md5"
+            }
+        },
+        {
+            "name": "anotherint",
+            "type": "int"
+        },
+        {
+            "name": "bytes",
+            "type": "bytes"
+        },
+		        {
+            "name": "null",
+            "type": "null"
+        }
+    ]
+}
