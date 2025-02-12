@@ -1,0 +1,35 @@
+#!/bin/bash
+#set -x
+#path=`pwd`
+insmetaPath="/usr/local/taos/script"
+
+csudo=""
+if command -v sudo > /dev/null; then
+    csudo="sudo "
+fi
+
+${csudo} mkdir -p /usr/local/bin || :
+${csudo} ln -sf /usr/local/taos/bin/taosdump          /usr/bin/taosdump
+${csudo} ln -sf /usr/local/taos/bin/TDinsight.sh      /usr/bin/TDinsight.sh
+#${csudo} ln -sf /usr/local/taos/bin/taosBenchmark     /usr/bin/taosBenchmark
+#${csudo} ln -sf /usr/local/taos/bin/taosBenchmark     /usr/bin/taosdemo
+
+#if [[ -d /usr/local/lib64 ]]; then
+#    ${csudo} ln -sf /usr/local/lib/libavro.so.23.0.0 /usr/local/lib64/libavro.so.23.0.0 || :
+#    ${csudo} ln -sf /usr/local/lib64/libavro.so.23.0.0 /usr/local/lib64/libavro.so.23 || :
+#    ${csudo} ln -sf /usr/local/lib64/libavro.so.23 /usr/local/lib64/libavro.so || :
+
+#    if [ -d /etc/ld.so.conf.d ]; then
+#        ${csudo} echo "/usr/local/lib64" > /etc/ld.so.conf.d/libavro.conf
+#        ${csudo} ldconfig
+#    else
+#        echo "/etc/ld.so.conf.d not found!"
+#    fi
+#else
+#    if [ -d /etc/ld.so.conf.d ]; then
+#        ${csudo} echo "/usr/local/lib" > /etc/ld.so.conf.d/libavro.conf
+#        ${csudo} ldconfig
+#    else
+#        echo "/etc/ld.so.conf.d not found!"
+#    fi
+#fi

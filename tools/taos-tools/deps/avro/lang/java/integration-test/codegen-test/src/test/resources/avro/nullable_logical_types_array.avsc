@@ -1,0 +1,16 @@
+{"namespace": "org.apache.avro.codegentest.testdata",
+  "type": "record",
+  "name": "NullableLogicalTypesArray",
+  "doc" : "Test nested types with logical types in generated Java classes",
+  "fields": [
+    {
+      "name": "arrayOfLogicalType",
+      "type": {
+        "type": "array",
+        "items": ["null", {"type": "int", "logicalType": "date"}]
+      }
+    }]
+}
+
+
+

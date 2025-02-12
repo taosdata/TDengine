@@ -66,8 +66,6 @@ static int32_t mndProcessDropOrphanTaskReq(SRpcMsg *pReq);
 static void    saveTaskAndNodeInfoIntoBuf(SStreamObj *pStream, SStreamExecInfo *pExecNode);
 
 static void     addAllStreamTasksIntoBuf(SMnode *pMnode, SStreamExecInfo *pExecInfo);
-static void     removeExpiredNodeInfo(const SArray *pNodeSnapshot);
-static int32_t  doKillCheckpointTrans(SMnode *pMnode, const char *pDbName, size_t len);
 static SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw);
 
 SSdbRaw       *mndStreamSeqActionEncode(SStreamObj *pStream);
@@ -872,6 +870,13 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   if (createReq.sql != NULL) {
     sql = taosStrdup(createReq.sql);
     TSDB_CHECK_NULL(sql, code, lino, _OVER, terrno);
+  }
+
+  // check for the taskEp update trans
+  if (isNodeUpdateTransActive()) {
+    mError("stream:%s failed to create stream, node update trans is active", createReq.name);
+    code = TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+    goto _OVER;
   }
 
   SDbObj *pSourceDb = mndAcquireDb(pMnode, createReq.sourceDB);
@@ -2528,8 +2533,8 @@ static bool validateChkptReport(const SCheckpointReport *pReport, int64_t report
   return true;
 }
 
-static void doAddReportStreamTask(SArray *pList, int64_t reportChkptId, const SCheckpointReport *pReport) {
-  bool valid = validateChkptReport(pReport, reportChkptId);
+static void doAddReportStreamTask(SArray *pList, int64_t reportedChkptId, const SCheckpointReport *pReport) {
+  bool valid = validateChkptReport(pReport, reportedChkptId);
   if (!valid) {
     return;
   }
@@ -2545,7 +2550,7 @@ static void doAddReportStreamTask(SArray *pList, int64_t reportChkptId, const SC
         mError("s-task:0x%x invalid checkpoint-report msg, existed:%" PRId64 " req checkpointId:%" PRId64 ", discard",
                pReport->taskId, p->checkpointId, pReport->checkpointId);
       } else if (p->checkpointId < pReport->checkpointId) {  // expired checkpoint-report msg, update it
-        mDebug("s-task:0x%x expired checkpoint-report msg in checkpoint-report list update from %" PRId64 "->%" PRId64,
+        mInfo("s-task:0x%x expired checkpoint-report info in checkpoint-report list update from %" PRId64 "->%" PRId64,
                pReport->taskId, p->checkpointId, pReport->checkpointId);
 
         // update the checkpoint report info
@@ -2577,7 +2582,8 @@ static void doAddReportStreamTask(SArray *pList, int64_t reportChkptId, const SC
     mError("failed to put into task list, taskId:0x%x", pReport->taskId);
   } else {
     int32_t size = taosArrayGetSize(pList);
-    mDebug("stream:0x%" PRIx64 " %d tasks has send checkpoint-report", pReport->streamId, size);
+    mDebug("stream:0x%" PRIx64 " taskId:0x%x checkpoint-report recv, %d tasks has send checkpoint-report",
+           pReport->streamId, pReport->taskId, size);
   }
 }
 
@@ -2603,7 +2609,7 @@ int32_t mndProcessCheckpointReport(SRpcMsg *pReq) {
          " checkpointVer:%" PRId64 " transId:%d",
          req.nodeId, req.taskId, req.checkpointId, req.checkpointVer, req.transId);
 
-  // register to the stream task done map, if all tasks has sent this kinds of message, start the checkpoint trans.
+  // register to the stream task done map, if all tasks has sent these kinds of message, start the checkpoint trans.
   streamMutexLock(&execInfo.lock);
 
   SStreamObj *pStream = NULL;
@@ -2612,7 +2618,7 @@ int32_t mndProcessCheckpointReport(SRpcMsg *pReq) {
     mWarn("failed to find the stream:0x%" PRIx64 ", not handle checkpoint-report, try to acquire in buf", req.streamId);
 
     // not in meta-store yet, try to acquire the task in exec buffer
-    // the checkpoint req arrives too soon before the completion of the create stream trans.
+    // the checkpoint req arrives too soon before the completion of the creation of stream trans.
     STaskId id = {.streamId = req.streamId, .taskId = req.taskId};
     void   *p = taosHashGet(execInfo.pTaskMap, &id, sizeof(id));
     if (p == NULL) {
@@ -2645,7 +2651,7 @@ int32_t mndProcessCheckpointReport(SRpcMsg *pReq) {
   }
 
   int32_t total = taosArrayGetSize(pInfo->pTaskList);
-  if (total == numOfTasks) {  // all tasks has send the reqs
+  if (total == numOfTasks) {  // all tasks have sent the reqs
     mInfo("stream:0x%" PRIx64 " %s all %d tasks send checkpoint-report, checkpoint meta-info for checkpointId:%" PRId64
           " will be issued soon",
           req.streamId, pStream->name, total, req.checkpointId);
@@ -2749,6 +2755,7 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
     code = mndGetStreamObj(pMnode, pInfo->streamId, &pStream);
     if (pStream == NULL || code != 0) {  // stream has been dropped already
       mDebug("stream:0x%" PRIx64 " dropped already, continue", pInfo->streamId);
+      void *p = taosArrayPush(pStreamList, &pInfo->streamId);
       taosArrayDestroy(pList);
       continue;
     }

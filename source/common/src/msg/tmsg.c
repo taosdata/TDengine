@@ -8310,6 +8310,12 @@ int32_t tSerializeSMArbUpdateGroupBatchReq(void *buf, int32_t bufLen, SMArbUpdat
     TAOS_CHECK_EXIT(tEncodeI8(&encoder, pGroup->assignedLeader.acked));
   }
 
+  for (int32_t i = 0; i < sz; i++) {
+    SMArbUpdateGroup *pGroup = taosArrayGet(pReq->updateArray, i);
+    TAOS_CHECK_EXIT(tEncodeI32(&encoder, pGroup->code));
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pGroup->updateTimeMs));
+  }
+
   tEndEncode(&encoder);
 
 _exit:
@@ -8366,6 +8372,14 @@ int32_t tDeserializeSMArbUpdateGroupBatchReq(void *buf, int32_t bufLen, SMArbUpd
     for (int32_t i = 0; i < sz; i++) {
       SMArbUpdateGroup *pGroup = taosArrayGet(updateArray, i);
       TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pGroup->assignedLeader.acked));
+    }
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    for (int32_t i = 0; i < sz; i++) {
+      SMArbUpdateGroup *pGroup = taosArrayGet(updateArray, i);
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pGroup->code));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pGroup->updateTimeMs));
     }
   }
 

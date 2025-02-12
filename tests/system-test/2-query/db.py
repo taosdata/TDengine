@@ -47,7 +47,8 @@ class TDTestCase:
     
     def case2(self):
         tdSql.query("show variables")        
-        tdSql.checkRows(94)
+        tdSql.checkRows(89)
+
 
         for i in range(self.replicaVar):
             tdSql.query("show dnode %d variables like 'debugFlag'" % (i + 1))

@@ -94,7 +94,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->getTableTagsByUid = metaGetTableTagsByUids;
 
   pMeta->getTableUidByName = metaGetTableUidByName;
-  pMeta->getTableTypeByName = metaGetTableTypeByName;
+  pMeta->getTableTypeSuidByName = metaGetTableTypeSuidByName;
   pMeta->getTableNameByUid = metaGetTableNameByUid;
 
   pMeta->getTableSchema = vnodeGetTableSchema;

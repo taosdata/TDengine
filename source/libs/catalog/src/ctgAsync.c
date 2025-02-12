@@ -1970,7 +1970,7 @@ static int32_t ctgHandleGetTbNamesRsp(SCtgTaskReq* tReq, int32_t reqType, const 
   switch (reqType) {
     case TDMT_MND_USE_DB: {
       SUseDbOutput* pOut = (SUseDbOutput*)pMsgCtx->out;
-      CTG_ERR_RET(ctgMakeVgArray(pOut->dbVgroup));
+      CTG_ERR_RET(ctgMakeVgArray(pOut->dbVgroup, pName->dbname, false));
       SArray* pVgArray = NULL;
       TSWAP(pVgArray, pOut->dbVgroup->vgArray);
       int32_t vgSize = taosArrayGetSize(pVgArray);
@@ -2142,7 +2142,7 @@ int32_t ctgHandleGetDbVgRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* 
       SUseDbOutput* pOut = (SUseDbOutput*)pTask->msgCtx.out;
       SDBVgInfo*    pDb = NULL;
 
-      CTG_ERR_JRET(ctgGenerateVgList(pCtg, pOut->dbVgroup->vgHash, (SArray**)&pTask->res));
+      CTG_ERR_JRET(ctgGenerateVgList(pCtg, pOut->dbVgroup->vgHash, (SArray**)&pTask->res, ctx->dbFName));
 
       CTG_ERR_JRET(cloneDbVgInfo(pOut->dbVgroup, &pDb));
       CTG_ERR_JRET(ctgUpdateVgroupEnqueue(pCtg, ctx->dbFName, pOut->dbId, pDb, false));
@@ -3175,7 +3175,7 @@ int32_t ctgLaunchGetDbVgTask(SCtgTask* pTask) {
       CTG_ERR_JRET(ctgBuildUseDbOutput((SUseDbOutput**)&pMsgCtx->out, dbCache->vgCache.vgInfo));
     }
 
-    CTG_ERR_JRET(ctgGenerateVgList(pCtg, dbCache->vgCache.vgInfo->vgHash, (SArray**)&pTask->res));
+    CTG_ERR_JRET(ctgGenerateVgList(pCtg, dbCache->vgCache.vgInfo->vgHash, (SArray**)&pTask->res, pCtx->dbFName));
 
     ctgReleaseVgInfoToCache(pCtg, dbCache);
     dbCache = NULL;

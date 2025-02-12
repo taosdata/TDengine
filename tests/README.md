@@ -9,6 +9,7 @@
     - [3.4 Smoke Test](#34-smoke-test)
     - [3.5 Chaos Test](#35-chaos-test)
     - [3.6 CI Test](#36-ci-test)
+    - [3.7 TSBS Test](#37-tsbs-test)
 
 # 1. Introduction
 
@@ -16,6 +17,7 @@ This manual is intended to give developers a comprehensive guidance to test TDen
 
 > [!NOTE]
 > - The commands and scripts below are verified on Linux (Ubuntu 18.04/20.04/22.04).
+> - [taos-connector-python](https://github.com/taosdata/taos-connector-python) is used by tests written in Python, which requires Python 3.7+.
 > - The commands and steps described below are to run the tests on a single host.
 
 # 2. Prerequisites
@@ -231,3 +233,44 @@ cd tests
 ### 3.6.2 How to add new cases?
 
 Please refer to the [Unit Test](#31-unit-test)、[System Test](#32-system-test) and [Legacy Test](#33-legacy-test) sections for detailed steps to add new test cases, when new cases are added in aboved tests, they will be run automatically by CI test.
+
+
+## 3.7 TSBS Test
+
+[Time Series Benchmark Suite (TSBS)](https://github.com/timescale/tsbs) is an open-source performance benchmarking platform specifically designed for time-series data processing systems, such as databases. It provides a standardized approach to evaluating the performance of various databases by simulating typical use cases such as IoT and DevOps.
+
+### 3.7.1 How to run tests?
+
+TSBS test can be started locally by running command below. Ensure that your virtual machine supports the AVX instruction set:
+
+```bash
+cd /usr/local/src && \
+git clone https://github.com/taosdata/tsbs.git && \
+cd tsbs && \
+git checkout enh/chr-td-33357 && \
+cd scripts/tsdbComp && \
+./testTsbs.sh 
+```
+
+### 3.7.2 How to start client and server on different hosts?
+
+By default, both client and server will be started on the local host. To start the client and server on separate hosts, please follow steps below to configure `test.ini` before starting the test:
+
+1. Modify IP and hostname of client and server in `test.ini`:
+
+```ini
+clientIP="192.168.0.203"   # client ip
+clientHost="trd03"         # client hostname
+serverIP="192.168.0.204"   # server ip
+serverHost="trd04"         # server hostname
+```
+
+2. Passwordless ssh login between the client and server is required; otherwise, please set the ssh login password in `test.int`, for example:
+
+```ini
+serverPass="taosdata123"   # server root password
+```
+
+### 3.7.3 Check test results
+
+When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
