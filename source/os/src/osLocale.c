@@ -16,6 +16,7 @@
 #define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
 #include "osLocale.h"
+#include "tutil.h"
 
 #ifdef WINDOWS
 #if (_WIN64)

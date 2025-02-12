@@ -373,7 +373,7 @@ void    transRefSrvHandle(void* handle);
 void    transUnrefSrvHandle(void* handle);
 
 void    transRefCliHandle(void* handle);
-void    transUnrefCliHandle(void* handle);
+int32_t transUnrefCliHandle(void* handle);
 int32_t transGetRefCount(void* handle);
 
 int32_t transReleaseCliHandle(void* handle, int32_t status);

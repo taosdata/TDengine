@@ -1945,8 +1945,6 @@ int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf) { return 0; }
 
 int32_t transUtilSWhiteListToStr(SIpWhiteList* pList, char** ppBuf) { return 0; }
 
-#endif
-
 int32_t transInitBuffer(SConnBuffer* buf) {
   buf->buf = taosMemoryCalloc(1, BUFFER_CAP);
   if (buf->buf == NULL) {
@@ -2077,6 +2075,8 @@ int32_t transValidReqEpset(SReqEpSet* pReqEpSet) {
   }
   return TSDB_CODE_SUCCESS;
 }
+
+#endif // TD_ACORE
 
 int32_t transQueueInit(STransQueue* wq, void (*freeFunc)(void* arg)) {
   QUEUE_INIT(&wq->node);
