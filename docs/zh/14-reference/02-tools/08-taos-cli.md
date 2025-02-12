@@ -47,10 +47,11 @@ taos> quit
     使用 `-s` 参数可进行非交互式执行 SQL，执行完成后退出，此模式适合在自动化脚本中使用。  
     如以下命令连接到服务器 h1.taos.com, 执行 -s 指定的 SQL:
     ```bash
-    taos -h h1.taos.com -s "use db; show tables;"
+    taos -h my-server -s "use db; show tables;"
     ```
 
 - -c CONFIGDIR: 指定配置文件目录
+ 
     Linux 环境下默认为 `/etc/taos`，该目录下的配置文件默认名称为 `taos.cfg`
     使用 `-c` 参数改变 `taosc` 客户端加载配置文件的位置，客户端配置参数参考 [客户端配置](../../components/taosc)   
     以下命令指定了 `taosc` 客户端加载 `/root/cfg/` 下的 `taos.cfg` 配置文件
@@ -84,11 +85,11 @@ taos> quit
 
 ### 数据导出
 
-- 可以使用符号 “>>” 导出查询结果到某个文件中，语法为： sql 查询语句 >> ‘输出文件名’; 输出文件如果不写路径的话，将输出至当前目录下。如 select * from d0 >> ‘/root/d0.csv’;  将把查询结果输出到 /root/d0.csv 中。
+- 可以使用符号 “>>” 导出查询结果到某个文件中，语法为： sql 查询语句 >> ‘输出文件名’; 输出文件如果不写路径的话，将输出至当前目录下。如 `select * from d0 >> ‘/root/d0.csv’;`  将把查询结果输出到 /root/d0.csv 中。
 
 ### 数据导入
 
-- 可以使用 insert into table_name file '输入文件名'，把上一步中导出的数据文件再导入到指定表中。如 insert into d0 file '/root/d0.csv'; 表示把上面导出的数据全部再导致至 d0 表中。
+- 可以使用 insert into table_name file '输入文件名'，把上一步中导出的数据文件再导入到指定表中。如 `insert into d0 file '/root/d0.csv';` 表示把上面导出的数据全部再导致至 d0 表中。
 
 ## 执行 SQL 脚本
 

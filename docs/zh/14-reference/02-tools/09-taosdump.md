@@ -13,14 +13,14 @@ taosdump 是 TDengine 服务器及客户端安装包中默认安装组件，安�
 ## 运行
 taosdump 需在命令行终端中运行，运行时必须带参数，指明是备份操作或还原操作，如：
 ``` bash
-taosdump -h dev126  -D test -o /root/test/
+taosdump -h my-server -D test -o /root/test/
 ```
-以上命令表示备份主机名为 `dev126` 机器上的 `test` 数据库到 `/root/test/` 目录下
+以上命令表示备份主机名为 `my-server` 机器上的 `test` 数据库到 `/root/test/` 目录下
 
 ``` bash
-taosdump -h dev126 -i /root/test/
+taosdump -h my-server -i /root/test/
 ```
-以上命令表示把 `/root/test/` 目录下之前备份的数据文件恢复到主机名为 `dev126` 的主机上
+以上命令表示把 `/root/test/` 目录下之前备份的数据文件恢复到主机名为 `my-server` 的主机上
 
 
 ## 命令行参数
@@ -102,7 +102,7 @@ Report bugs to <support@taosdata.com>.
 
 ## 常用使用场景
 
-### taosdump 备份数据
+### 备份数据
 
 1.  备份所有数据库：指定 `-A` 或 `--all-databases` 参数；
 2.  备份多个指定数据库：使用 `-D db1,db2,...` 参数；
@@ -120,13 +120,13 @@ Report bugs to <support@taosdata.com>.
 
 :::
 
-### taosdump 恢复数据
+### 恢复数据
 
 - 恢复指定路径下的数据文件：使用 `-i` 参数加上数据文件所在路径。如前面提及，不应该使用同一个目录备份不同数据集合，也不应该在同一路径多次备份同一数据集，否则备份数据会造成覆盖或多次备份。  
 - taosdump 支持数据恢复至新数据库名下，参数是 -W, 详细见命令行参数说明。
 
 
 :::tip
-taosdump 内部使用 TDengine stmt binding API 进行恢复数据的写入，为提高数据恢复性能，目前使用 16384 为一次写入批次。如果备份数据中有比较多列数据，可能会导致产生 "WAL size exceeds limit" 错误，此时可以通过使用 `-B` 参数调整为一个更小的值进行尝试。
+taosdump 内部使用 TDengine stmt binding API 进行恢复数据的写入，为提高数据恢复性能，目前使用 16384 为一次写入批次。如果备份数据中有较多列数据，可能会导致产生 "WAL size exceeds limit" 错误，此时可以通过使用 `-B` 参数调整为一个更小的值进行尝试。
 
 :::
