@@ -10,14 +10,16 @@
 
 #include "meta.h"
 
+extern SDmNotifyHandle dmNotifyHdl;
+
 int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry);
 void    metaCloneEntryFree(SMetaEntry **ppEntry);
 void    metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
 int     metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 int     metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
-void    metaTimeSeriesNotifyCheck(SMeta *pMeta);
 int     tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
+static void    metaTimeSeriesNotifyCheck(SMeta *pMeta);
 static int32_t metaGetChildUidsOfSuperTable(SMeta *pMeta, tb_uid_t suid, SArray **childList);
 static int32_t metaFetchTagIdxKey(SMeta *pMeta, const SMetaEntry *pEntry, const SSchema *pTagColumn,
                                   STagIdxKey **ppTagIdxKey, int32_t *pTagIdxKeySize);
@@ -990,6 +992,20 @@ static int32_t metaTtlIdxDelete(SMeta *pMeta, const SMetaHandleParam *pParam) {
   return code;
 }
 
+static void metaTimeSeriesNotifyCheck(SMeta *pMeta) {
+#if defined(TD_ENTERPRISE)
+  int64_t nTimeSeries = metaGetTimeSeriesNum(pMeta, 0);
+  int64_t deltaTS = nTimeSeries - pMeta->pVnode->config.vndStats.numOfReportedTimeSeries;
+  if (deltaTS > tsTimeSeriesThreshold) {
+    if (0 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 2)) {
+      if (tsem_post(&dmNotifyHdl.sem) != 0) {
+        metaError("vgId:%d, failed to post semaphore, errno:%d", TD_VID(pMeta->pVnode), errno);
+      }
+    }
+  }
+#endif
+}
+
 static int32_t (*metaTableOpFn[META_TABLE_MAX][META_TABLE_OP_MAX])(SMeta *pMeta, const SMetaHandleParam *pParam) =
     {
         [META_ENTRY_TABLE] =
@@ -1139,6 +1155,7 @@ static int32_t metaHandleNormalTableCreate(SMeta *pMeta, const SMetaEntry *pEntr
         metaError("vgId:%d, failed to create table:%s since %s", TD_VID(pMeta->pVnode), pEntry->name, tstrerror(rc));
       }
     }
+    metaTimeSeriesNotifyCheck(pMeta);
   } else {
     metaErr(TD_VID(pMeta->pVnode), code);
   }
@@ -1228,7 +1245,7 @@ static int32_t metaHandleChildTableCreate(SMeta *pMeta, const SMetaEntry *pEntry
   } else {
     metaErr(TD_VID(pMeta->pVnode), code);
   }
-
+  metaTimeSeriesNotifyCheck(pMeta);
   metaFetchEntryFree(&pSuperEntry);
   return code;
 }
@@ -1673,7 +1690,7 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
 
     tsdbCacheInvalidateSchema(pTsdb, pEntry->uid, -1, pEntry->stbEntry.schemaRow.version);
   }
-
+  metaTimeSeriesNotifyCheck(pMeta);
   metaFetchEntryFree(&pOldEntry);
   return code;
 }
