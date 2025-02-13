@@ -2173,7 +2173,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) {
       void* rawData = getRawDataFromRes(pRetrieve);
       RAW_NULL_CHECK(rawData);
 
-      uDebug(LOG_ID_TAG " write raw data block tbname:%s", LOG_ID_VALUE, tbName);
+      uTrace(LOG_ID_TAG " write raw data block tbname:%s", LOG_ID_VALUE, tbName);
       SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
       tstrncpy(pName.dbname, pRequest->pDb, TSDB_DB_NAME_LEN);
       tstrncpy(pName.tname, tbName, TSDB_TABLE_NAME_LEN);
@@ -2256,7 +2256,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, uint32_t dataLen)
       void* rawData = getRawDataFromRes(pRetrieve);
       RAW_NULL_CHECK(rawData);
 
-      uDebug(LOG_ID_TAG " write raw data block tbname:%s", LOG_ID_VALUE, tbName);
+      uTrace(LOG_ID_TAG " write raw data block tbname:%s", LOG_ID_VALUE, tbName);
       SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
       tstrncpy(pName.dbname, pRequest->pDb, TSDB_DB_NAME_LEN);
       tstrncpy(pName.tname, tbName, TSDB_TABLE_NAME_LEN);
@@ -2344,7 +2344,7 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
       void* rawData = getRawDataFromRes(pRetrieve);
       RAW_NULL_CHECK(rawData);
 
-      uDebug(LOG_ID_TAG " write raw data block tbname:%s", LOG_ID_VALUE, tbName);
+      uTrace(LOG_ID_TAG " write raw data block tbname:%s", LOG_ID_VALUE, tbName);
       SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
       tstrncpy(pName.dbname, pRequest->pDb, TSDB_DB_NAME_LEN);
       tstrncpy(pName.tname, tbName, TSDB_TABLE_NAME_LEN);

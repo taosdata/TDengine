@@ -378,7 +378,10 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
 
       if ((pRequest->rawData == 0 && totalRows >= tmqRowSize) ||
           (taosGetTimestampMs() - st > TMIN(TQ_POLL_MAX_TIME, pRequest->timeout)) ||
-          (pRequest->rawData != 0 && (totalRows >= TQ_POLL_MAX_BYTES || taosxRsp.createTableNum > 0 || terrno == TSDB_CODE_TMQ_DUPLICATE_UID))) {
+          (pRequest->rawData != 0 && (totalRows >= TQ_POLL_MAX_BYTES ||
+                                      taosxRsp.createTableNum > 0 ||
+                                      taosArrayGetSize(taosxRsp.blockData) > tmqRowSize ||
+                                      terrno == TSDB_CODE_TMQ_DUPLICATE_UID))) {
         tqOffsetResetToLog(&taosxRsp.rspOffset, terrno == TSDB_CODE_TMQ_DUPLICATE_UID ? fetchVer : fetchVer + 1);
         code = tqSendDataRsp(pHandle, pMsg, pRequest, &taosxRsp,
                              POLL_RSP_TYPE(pRequest, taosxRsp), vgId);

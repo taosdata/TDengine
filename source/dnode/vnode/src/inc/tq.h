@@ -183,7 +183,7 @@ int32_t tqSendAllNotifyEvents(const SArray* pBlocks, SStreamTask* pTask, SVnode*
 #define TQ_SUBSCRIBE_NAME "subscribe"
 #define TQ_OFFSET_NAME    "offset-ver0"
 #define TQ_POLL_MAX_TIME  1000
-#define TQ_POLL_MAX_BYTES 10485760
+#define TQ_POLL_MAX_BYTES 1048576
 
 #ifdef __cplusplus
 }

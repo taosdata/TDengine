@@ -500,7 +500,7 @@ int32_t tqReaderSetSubmitMsg(STqReader* pReader, void* msgStr, int32_t msgLen, i
   pReader->msg.msgLen = msgLen;
   pReader->msg.ver = ver;
 
-  tqDebug("tq reader set msg pointer:%p, msg len:%d", msgStr, msgLen);
+  tqTrace("tq reader set msg pointer:%p, msg len:%d", msgStr, msgLen);
   SDecoder decoder = {0};
 
   tDecoderInit(&decoder, pReader->msg.msgStr, pReader->msg.msgLen);
@@ -558,15 +558,15 @@ bool tqNextBlockImpl(STqReader* pReader, const char* idstr) {
     void* ret = taosHashGet(pReader->tbIdHash, &pSubmitTbData->uid, sizeof(int64_t));
     TSDB_CHECK_CONDITION(ret == NULL, code, lino, END, true);
 
-    tqDebug("iterator data block in hash jump block, progress:%d/%d, uid:%" PRId64 "", pReader->nextBlk, blockSz, uid);
+    tqTrace("iterator data block in hash jump block, progress:%d/%d, uid:%" PRId64 "", pReader->nextBlk, blockSz, uid);
     pReader->nextBlk++;
   }
 
   tqReaderClearSubmitMsg(pReader);
-  tqDebug("iterator data block end, total block num:%d, uid:%"PRId64, blockSz, uid);
+  tqTrace("iterator data block end, total block num:%d, uid:%"PRId64, blockSz, uid);
 
 END:
-  tqDebug("%s:%d return:%s, uid:%"PRId64, __FUNCTION__, lino, code?"true":"false", uid);
+  tqTrace("%s:%d return:%s, uid:%"PRId64, __FUNCTION__, lino, code?"true":"false", uid);
   return code;
 }
 
@@ -586,14 +586,14 @@ bool tqNextDataBlockFilterOut(STqReader* pReader, SHashObj* filterOutUids) {
     uid = pSubmitTbData->uid;
     void* ret = taosHashGet(filterOutUids, &pSubmitTbData->uid, sizeof(int64_t));
     TSDB_CHECK_NULL(ret, code, lino, END, true);
-    tqDebug("iterator data block in hash jump block, progress:%d/%d, uid:%" PRId64 "", pReader->nextBlk, blockSz, uid);
+    tqTrace("iterator data block in hash jump block, progress:%d/%d, uid:%" PRId64 "", pReader->nextBlk, blockSz, uid);
     pReader->nextBlk++;
   }
   tqReaderClearSubmitMsg(pReader);
-  tqDebug("iterator data block end, total block num:%d, uid:%"PRId64, blockSz, uid);
+  tqTrace("iterator data block end, total block num:%d, uid:%"PRId64, blockSz, uid);
 
 END:
-  tqDebug("%s:%d get data:%s, uid:%"PRId64, __FUNCTION__, lino, code?"true":"false", uid);
+  tqTrace("%s:%d get data:%s, uid:%"PRId64, __FUNCTION__, lino, code?"true":"false", uid);
   return code;
 }
 
@@ -936,7 +936,7 @@ static int32_t tqProcessColData(STqReader* pReader, SSubmitTbData* pSubmitTbData
   TQ_NULL_GO_TO_END(pCol);
   int32_t numOfRows = pCol->nVal;
   int32_t numOfCols = taosArrayGetSize(pCols);
-  tqDebug("vgId:%d, tqProcessColData start, col num: %d, rows:%d", pReader->pWalReader->pWal->cfg.vgId, numOfCols, numOfRows);
+  tqTrace("vgId:%d, tqProcessColData start, col num: %d, rows:%d", pReader->pWalReader->pWal->cfg.vgId, numOfCols, numOfRows);
   for (int32_t i = 0; i < numOfRows; i++) {
     bool buildNew = false;
 
@@ -976,7 +976,7 @@ static int32_t tqProcessColData(STqReader* pReader, SSubmitTbData* pSubmitTbData
   }
   SSDataBlock* pLastBlock = taosArrayGetLast(blocks);
   pLastBlock->info.rows = curRow - lastRow;
-  tqDebug("vgId:%d, tqProcessColData end, col num: %d, rows:%d, block num:%d", pReader->pWalReader->pWal->cfg.vgId, numOfCols, numOfRows, (int)taosArrayGetSize(blocks));
+  tqTrace("vgId:%d, tqProcessColData end, col num: %d, rows:%d, block num:%d", pReader->pWalReader->pWal->cfg.vgId, numOfCols, numOfRows, (int)taosArrayGetSize(blocks));
 END:
   if (code != TSDB_CODE_SUCCESS) {
     tqError("vgId:%d, process col data failed, code:%d", pReader->pWalReader->pWal->cfg.vgId, code);
@@ -999,7 +999,7 @@ int32_t tqProcessRowData(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArra
   int32_t numOfRows = taosArrayGetSize(pRows);
   pTSchema = tBuildTSchema(pSchemaWrapper->pSchema, pSchemaWrapper->nCols, pSchemaWrapper->version);
   TQ_NULL_GO_TO_END(pTSchema);
-  tqDebug("vgId:%d, tqProcessRowData start, rows:%d", pReader->pWalReader->pWal->cfg.vgId, numOfRows);
+  tqTrace("vgId:%d, tqProcessRowData start, rows:%d", pReader->pWalReader->pWal->cfg.vgId, numOfRows);
 
   for (int32_t i = 0; i < numOfRows; i++) {
     bool  buildNew = false;
@@ -1038,7 +1038,7 @@ int32_t tqProcessRowData(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArra
   SSDataBlock* pLastBlock = taosArrayGetLast(blocks);
   pLastBlock->info.rows = curRow - lastRow;
 
-  tqDebug("vgId:%d, tqProcessRowData end, rows:%d, block num:%d", pReader->pWalReader->pWal->cfg.vgId, numOfRows, (int)taosArrayGetSize(blocks));
+  tqTrace("vgId:%d, tqProcessRowData end, rows:%d, block num:%d", pReader->pWalReader->pWal->cfg.vgId, numOfRows, (int)taosArrayGetSize(blocks));
 END:
   if (code != TSDB_CODE_SUCCESS) {
     tqError("vgId:%d, process row data failed, code:%d", pReader->pWalReader->pWal->cfg.vgId, code);
@@ -1076,7 +1076,7 @@ static int32_t buildCreateTbInfo(SMqDataRsp* pRsp, SVCreateTbReq* pCreateTbReq){
   TSDB_CHECK_NULL(taosArrayPush(pRsp->createTableLen, &len), code, lino, END, terrno);
   TSDB_CHECK_NULL(taosArrayPush(pRsp->createTableReq, &createReq), code, lino, END, terrno);
   pRsp->createTableNum++;
-  tqDebug("build create table info msg success");
+  tqTrace("build create table info msg success");
 
   END:
   if (code != 0){
@@ -1087,7 +1087,7 @@ static int32_t buildCreateTbInfo(SMqDataRsp* pRsp, SVCreateTbReq* pCreateTbReq){
 }
 
 int32_t tqRetrieveTaosxBlock(STqReader* pReader, SMqDataRsp* pRsp, SArray* blocks, SArray* schemas, SSubmitTbData** pSubmitTbDataRet, SArray* rawList, int8_t fetchMeta) {
-  tqDebug("tq reader retrieve data block msg pointer:%p, index:%d", pReader->msg.msgStr, pReader->nextBlk);
+  tqTrace("tq reader retrieve data block msg pointer:%p, index:%d", pReader->msg.msgStr, pReader->nextBlk);
   SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, pReader->nextBlk);
   if (pSubmitTbData == NULL) {
     return terrno;

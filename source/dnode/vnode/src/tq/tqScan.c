@@ -31,11 +31,8 @@ static int32_t tqAddRawDataToRsp(const void* rawData, SMqDataRsp* pRsp, int8_t p
   memcpy(pRetrieve->data, rawData, *(uint32_t *)rawData + INT_BYTES);
   TSDB_CHECK_NULL(taosArrayPush(pRsp->blockDataLen, &dataStrLen), code, lino, END, terrno);
   TSDB_CHECK_NULL(taosArrayPush(pRsp->blockData, &buf), code, lino, END, terrno);
-//  for (int m= 0; m < 56; m++){
-//    printf("add data[%d] = %d\n", m, *((int8_t *)rawData+m));
-//  }
 
-  tqDebug("add block data to block array, blockDataLen:%d, blockData:%p", dataStrLen, buf);
+  tqTrace("add block data to block array, blockDataLen:%d, blockData:%p", dataStrLen, buf);
   END:
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(buf);
@@ -95,7 +92,7 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, SMqDataRsp* pRsp, i
       tqError("failed to push tbName to blockTbName:%s, uid:%"PRId64, tbName, uid);
       continue;
     }
-    tqDebug("add tbName to response success tbname:%s, uid:%"PRId64, tbName, uid);
+    tqTrace("add tbName to response success tbname:%s, uid:%"PRId64, tbName, uid);
   }
 
 END:
@@ -399,7 +396,7 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
     *pSW = NULL;
     pRsp->blockNum++;
   }
-  tqDebug("vgId:%d, process sub data success, response blocknum:%d, rows:%d", pTq->pVnode->config.vgId, pRsp->blockNum, *totalRows);
+  tqTrace("vgId:%d, process sub data success, response blocknum:%d, rows:%d", pTq->pVnode->config.vgId, pRsp->blockNum, *totalRows);
 END:
   if (code != 0) {
     tqError("%s failed at %d, failed to process sub data:%s", __FUNCTION__, lino, tstrerror(code));
