@@ -38,7 +38,6 @@
 
 #include <taos.h>
 #include <taoserror.h>
-#include <tdef.h>
 #include <toolsdef.h>
 
 #ifdef WEBSOCKET

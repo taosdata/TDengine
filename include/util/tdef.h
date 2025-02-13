@@ -17,7 +17,7 @@
 #define _TD_UTIL_DEF_H_
 
 #include "os.h"
-#include "cur_name.h"
+#include "cus_name.h"
 
 #ifdef __cplusplus
 extern "C" {

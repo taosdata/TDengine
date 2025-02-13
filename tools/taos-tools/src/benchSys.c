@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <bench.h>
 #include "benchLog.h"
+#include "cus_name.h"
 
 #ifdef LINUX
 #include <argp.h>
