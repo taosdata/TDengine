@@ -10,33 +10,34 @@
 
 简体中文 | [English](README.md) | [TDengine 云服务](https://cloud.taosdata.com/?utm_medium=cn&utm_source=github) | 很多职位正在热招中，请看[这里](https://www.taosdata.com/careers/)
 
+<!-- omit in toc -->
 # 目录
 
-1. [TDengine 简介](#1-tdengine-简介)
-1. [文档](#2-文档)
-1. [必备工具](#3-必备工具)
-    - [3.1 Linux预备](#31-linux系统)
-    - [3.2 macOS预备](#32-macos系统)
-    - [3.3 Windows预备](#33-windows系统) 
-    - [3.4 克隆仓库](#34-克隆仓库) 
-1. [构建](#4-构建)
-    - [4.1 Linux系统上构建](#41-linux系统上构建)
-    - [4.2 macOS系统上构建](#42-macos系统上构建)
-    - [4.3 Windows系统上构建](#43-windows系统上构建) 
-1. [打包](#5-打包)
-1. [安装](#6-安装)
-    - [6.1 Linux系统上安装](#61-linux系统上安装)
-    - [6.2 macOS系统上安装](#62-macos系统上安装)
-    - [6.3 Windows系统上安装](#63-windows系统上安装)
-1. [快速运行](#7-快速运行)
-    - [7.1 Linux系统上运行](#71-linux系统上运行)
-    - [7.2 macOS系统上运行](#72-macos系统上运行)
-    - [7.3 Windows系统上运行](#73-windows系统上运行)
-1. [测试](#8-测试)
-1. [版本发布](#9-版本发布)
-1. [工作流](#10-工作流)
-1. [覆盖率](#11-覆盖率)
-1. [成为社区贡献者](#12-成为社区贡献者)
+- [1. 简介](#1-简介)
+- [2. 文档](#2-文档)
+- [3. 前置条件](#3-前置条件)
+  - [3.1 Linux系统](#31-linux系统)
+  - [3.2 macOS系统](#32-macos系统)
+  - [3.3 Windows系统](#33-windows系统)
+  - [3.4 克隆仓库](#34-克隆仓库)
+- [4. 构建](#4-构建)
+  - [4.1 Linux系统上构建](#41-linux系统上构建)
+  - [4.2 macOS系统上构建](#42-macos系统上构建)
+  - [4.3 Windows系统上构建](#43-windows系统上构建)
+- [5. 打包](#5-打包)
+- [6. 安装](#6-安装)
+  - [6.1 Linux系统上安装](#61-linux系统上安装)
+  - [6.2 macOS系统上安装](#62-macos系统上安装)
+  - [6.3 Windows系统上安装](#63-windows系统上安装)
+- [7. 快速运行](#7-快速运行)
+  - [7.1 Linux系统上运行](#71-linux系统上运行)
+  - [7.2 macOS系统上运行](#72-macos系统上运行)
+  - [7.3 Windows系统上运行](#73-windows系统上运行)
+- [8. 测试](#8-测试)
+- [9. 版本发布](#9-版本发布)
+- [10. 工作流](#10-工作流)
+- [11. 覆盖率](#11-覆盖率)
+- [12. 成为社区贡献者](#12-成为社区贡献者)
 
 
 # 1. 简介
@@ -155,9 +156,9 @@ cmake .. -DBUILD_TOOLS=true -DBUILD_CONTRIB=true
 make
 ```
 
-如果你想要编译 taosAdapter，可以添加 `-DBUILD_HTTP=false` 选项。
+如果你想要编译 taosAdapter，需要添加 `-DBUILD_HTTP=false` 选项。
 
-如果你想要编译 taosKeeper，可以添加 `--DBUILD_KEEPER=true` 选项。
+如果你想要编译 taosKeeper，需要添加 `--DBUILD_KEEPER=true` 选项。
 
 可以使用Jemalloc作为内存分配器，而不是使用glibc:
 
@@ -186,9 +187,9 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
-如果你想要编译 taosAdapter，可以添加 `-DBUILD_HTTP=false` 选项。
+如果你想要编译 taosAdapter，需要添加 `-DBUILD_HTTP=false` 选项。
 
-如果你想要编译 taosKeeper，可以添加 `--DBUILD_KEEPER=true` 选项。
+如果你想要编译 taosKeeper，需要添加 `--DBUILD_KEEPER=true` 选项。
 
 </details>
 
