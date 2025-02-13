@@ -98,6 +98,55 @@ int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
   return winKeyCmprImpl(&pWin1->key, &pWin2->key);
 }
 
+
+SStreamState* streamStateOpenRecalation(const char* path, void* pTask, int64_t streamId, int32_t taskId) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SStreamTask* pStreamTask = pTask;
+  if (!streamTaskShouldRecalated(pStreamTask)) {
+    stError("failed to open recalation stream state %s", path);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+
+  SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
+  stDebug("open stream state %p, %s", pState, path);
+
+  if (pState == NULL) {
+    code = terrno;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  pState->pTdbState = taosMemoryCalloc(1, sizeof(STdbState));
+  if (pState->pTdbState == NULL) {
+    streamStateDestroy(pState, true);
+    code = terrno;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  pState->streamId = streamId;
+  pState->taskId = taskId;
+
+  TAOS_UNUSED(tsnprintf(pState->pTdbState->idstr, sizeof(pState->pTdbState->idstr), "0x%" PRIx64 "-0x%x-%s",
+                        pState->streamId, pState->taskId, "recalc"));
+
+  code = streamTaskSetDb(pStreamTask->pMeta, pTask, pState->pTdbState->idstr);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SStreamMeta* pMeta = pStreamTask->pMeta;
+  pState->pTdbState->pOwner = pTask;
+  pState->pFileState = NULL;
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT);
+  pState->parNameMap = tSimpleHashInit(1024, hashFn);
+  QUERY_CHECK_NULL(pState->parNameMap, code, lino, _end, terrno);
+
+  stInfo("open state %p on backend %p 0x%" PRIx64 "-%d succ", pState, pMeta->streamBackend, pState->streamId,
+         pState->taskId);
+  return pState;
+  return pState;
+_end:
+  return NULL;
+}
 SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, int32_t taskId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -122,7 +171,7 @@ SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, i
   pState->taskId = taskId;
   TAOS_UNUSED(tsnprintf(pState->pTdbState->idstr, sizeof(pState->pTdbState->idstr), "0x%" PRIx64 "-0x%x",
                         pState->streamId, pState->taskId));
-
+  // recal id + cal
   code = streamTaskSetDb(pStreamTask->pMeta, pTask, pState->pTdbState->idstr);
   QUERY_CHECK_CODE(code, lino, _end);
 
@@ -296,7 +345,7 @@ int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* pKey, void
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  bool isEnd = false;
+  bool       isEnd = false;
   SSHashObj* pSearchBuff = getSearchBuff(pState->pFileState);
   if (pSearchBuff != NULL) {
     SArray* pWinStates = NULL;
@@ -532,7 +581,7 @@ int32_t streamStateGetParName(SStreamState* pState, int64_t groupId, void** pVal
     return code;
   }
 
-  void*   pStr = tSimpleHashGet(pState->parNameMap, &groupId, sizeof(int64_t));
+  void* pStr = tSimpleHashGet(pState->parNameMap, &groupId, sizeof(int64_t));
   if (!pStr) {
     if (onlyCache && tSimpleHashGetSize(pState->parNameMap) < MAX_TABLE_NAME_NUM) {
       (*pWinCode) = TSDB_CODE_FAILED;
@@ -689,61 +738,43 @@ int32_t streamStateGetAndSetTsData(STableTsDataState* pState, uint64_t tableUid,
 int32_t streamStateTsDataCommit(STableTsDataState* pState) {
   int32_t code = doTsDataCommit(pState);
   if (code != TSDB_CODE_SUCCESS) return code;
-  return  doRangeDataCommit(pState);
+  return doRangeDataCommit(pState);
 }
 
 int32_t streamStateInitTsDataState(STableTsDataState** ppTsDataState, int8_t pkType, int32_t pkLen, void* pState) {
   return initTsDataState(ppTsDataState, pkType, pkLen, pState);
 }
 
-void streamStateDestroyTsDataState(STableTsDataState* pTsDataState) {
-  destroyTsDataState(pTsDataState);
-}
+void streamStateDestroyTsDataState(STableTsDataState* pTsDataState) { destroyTsDataState(pTsDataState); }
 
-int32_t streamStateRecoverTsData(STableTsDataState* pTsDataState) {
-  return recoverTsData(pTsDataState);
-}
+int32_t streamStateRecoverTsData(STableTsDataState* pTsDataState) { return recoverTsData(pTsDataState); }
 
-SStreamStateCur* streamStateGetLastStateCur(SStreamState* pState) {
-  return getLastStateCur(pState->pFileState);
-}
+SStreamStateCur* streamStateGetLastStateCur(SStreamState* pState) { return getLastStateCur(pState->pFileState); }
 
-void streamStateLastStateCurNext(SStreamStateCur* pCur) {
-  moveLastStateCurNext(pCur);
-}
+void streamStateLastStateCurNext(SStreamStateCur* pCur) { moveLastStateCurNext(pCur); }
 
-void streamStateOneStateCurNext(SStreamStateCur* pCur) {
-  moveOneStateCurNext(pCur);
-}
+void streamStateOneStateCurNext(SStreamStateCur* pCur) { moveOneStateCurNext(pCur); }
 
-int32_t streamStateLastStateGetKVByCur(SStreamStateCur* pCur, void** ppVal) {
-  return getLastStateKVByCur(pCur, ppVal);
-}
+int32_t streamStateLastStateGetKVByCur(SStreamStateCur* pCur, void** ppVal) { return getLastStateKVByCur(pCur, ppVal); }
 
 int32_t streamStateNLastStateGetKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes) {
   return getNLastStateKVByCur(pCur, num, pRes);
 }
 
-int32_t streamStateReloadTsDataState(STableTsDataState* pTsDataState) {
-  return reloadTsDataState(pTsDataState);
-}
+int32_t streamStateReloadTsDataState(STableTsDataState* pTsDataState) { return reloadTsDataState(pTsDataState); }
 
 int32_t streamStateMergeAndSaveScanRange(STableTsDataState* pTsDataState, STimeWindow* pWin, uint64_t gpId,
                                          SRecDataInfo* pRecData, int32_t len) {
   return mergeAndSaveScanRange(pTsDataState, pWin, gpId, pRecData, len);
 }
 
-int32_t streamStateMergeAllScanRange(STableTsDataState* pTsDataState) {
-  return mergeAllScanRange(pTsDataState);
-}
+int32_t streamStateMergeAllScanRange(STableTsDataState* pTsDataState) { return mergeAllScanRange(pTsDataState); }
 
 int32_t streamStatePopScanRange(STableTsDataState* pTsDataState, SScanRange* pRange) {
   return popScanRange(pTsDataState, pRange);
 }
 
-int32_t streamStateGetNumber(SStreamState* pState) {
-  return pState->number;
-}
+int32_t streamStateGetNumber(SStreamState* pState) { return pState->number; }
 
 int32_t streamStateDeleteInfo(SStreamState* pState, void* pKey, int32_t keyLen) {
   return streamDefaultDel_rocksdb(pState, pKey);
@@ -758,11 +789,11 @@ int32_t streamStateSessionSaveToDisk(SStreamState* pState, SSessionKey* pKey, SR
 }
 
 int32_t streamStateSessionDeleteAll(SStreamState* pState) {
-  SSessionKey      key = {.win.skey = INT64_MIN, .win.ekey = INT64_MIN, .groupId = 0};
+  SSessionKey key = {.win.skey = INT64_MIN, .win.ekey = INT64_MIN, .groupId = 0};
   while (1) {
     SStreamStateCur* pCur = streamStateSessionSeekKeyCurrentNext_rocksdb(pState, &key);
-    SSessionKey delKey = {0};
-    int32_t     winRes = streamStateSessionGetKVByCur_rocksdb(pState, pCur, &delKey, NULL, 0);
+    SSessionKey      delKey = {0};
+    int32_t          winRes = streamStateSessionGetKVByCur_rocksdb(pState, pCur, &delKey, NULL, 0);
     if (winRes != TSDB_CODE_SUCCESS) {
       streamStateFreeCur(pCur);
       break;
