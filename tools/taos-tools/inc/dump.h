@@ -38,6 +38,7 @@
 
 #include <taos.h>
 #include <taoserror.h>
+#include <tdef.h>
 #include <toolsdef.h>
 
 #ifdef WEBSOCKET
@@ -48,22 +49,6 @@
 //
 // ---------------- define ----------------
 //
-
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
-#include <cus_name.h>
-#else
-#ifndef CUS_NAME
-    #define CUS_NAME      "TDengine"
-#endif
-
-#ifndef CUS_PROMPT
-    #define CUS_PROMPT    "taos"
-#endif
-
-#ifndef CUS_EMAIL
-    #define CUS_EMAIL     "<support@taosdata.com>"
-#endif
-#endif
 
 
 // use 256 as normal buffer length

@@ -79,6 +79,10 @@ extern const int32_t TYPE_BYTES[21];
 #define TSDB_DEFAULT_PASS "taosdata"
 #endif
 
+
+//
+// support OEM
+//
 #ifndef TD_PRODUCT_NAME
 #ifdef TD_ENTERPRISE
 #define TD_PRODUCT_NAME "TDengine Enterprise Edition"
@@ -86,6 +90,19 @@ extern const int32_t TYPE_BYTES[21];
 #define TD_PRODUCT_NAME "TDengine Community Edition"
 #endif
 #endif
+
+#ifndef CUS_NAME
+#define CUS_NAME    "TDengine"
+#endif
+
+#ifndef CUS_PROMPT
+#define CUS_PROMPT "taos"
+#endif
+
+#ifndef CUS_EMAIL
+#define CUS_EMAIL   "<support@taosdata.com>"
+#endif
+
 
 #define TSDB_TRUE  1
 #define TSDB_FALSE 0

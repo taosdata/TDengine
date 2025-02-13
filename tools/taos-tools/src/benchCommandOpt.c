@@ -10,7 +10,8 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#include <bench.h>
+ #include <tdef.h>  // include/util/
+ #include <bench.h>
 #include "benchLog.h"
 #include <toolsdef.h>
 
