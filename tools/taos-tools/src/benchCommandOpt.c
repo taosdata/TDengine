@@ -16,20 +16,6 @@
 
 extern char      g_configDir[MAX_PATH_LEN];
 
-// get taosBenchmark commit number version
-#ifndef TAOSBENCHMARK_COMMIT_SHA1
-#define TAOSBENCHMARK_COMMIT_SHA1 "unknown"
-#endif
-
-#ifndef TAOSBENCHMARK_TAG
-#define TAOSBENCHMARK_TAG "0.1.0"
-#endif
-
-#ifndef TAOSBENCHMARK_STATUS
-#define TAOSBENCHMARK_STATUS "unknown"
-#endif
-
-
 char *g_aggreFuncDemo[] = {"*",
                            "count(*)",
                            "avg(current)",
@@ -42,16 +28,10 @@ char *g_aggreFunc[] = {"*",       "count(*)", "avg(C0)",   "sum(C0)",
                        "max(C0)", "min(C0)",  "first(C0)", "last(C0)"};
 
 void printVersion() {
-    char taosBenchmark_ver[] = TAOSBENCHMARK_TAG;
-    char taosBenchmark_commit[] = TAOSBENCHMARK_COMMIT_SHA1;
-    char taosBenchmark_status[] = TAOSBENCHMARK_STATUS;
-
-    // version
-    printf("taosBenchmark version: %s\ngit: %s\n", taosBenchmark_ver, taosBenchmark_commit);
-    printf("build: %s\n", getBuildInfo());
-    if (strlen(taosBenchmark_status) > 0) {
-        printf("status: %s\n", taosBenchmark_status);
-    } 
+    // version, macro define in src/CMakeLists.txt
+    printf("taosBenchmark version: %s\n", TD_VER_NUMBER);
+    printf("git: %s\n", TAOSBENCHMARK_COMMIT_ID);
+    printf("build: %s\n", BUILD_INFO);
 }
 
 void parseFieldDatatype(char *dataType, BArray *fields, bool isTag) {
