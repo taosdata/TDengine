@@ -308,9 +308,11 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为
 - **group_mode** : 生成消费者 groupId 模式，可取值 share：所有消费者只生成一个 groupId， independent：每个消费者生成一个独立的 groupId，如果 `group.id` 未设置，此项为必填项，无默认值
 - **poll_delay** : 调用 tmq_consumer_poll 传入的轮询超时时间，单位为毫秒，负数表示默认超时 1 秒
 - **group.id** : 指定消费者 groupId, 字符串类型，如果此值不指定，将由 `group_mode` 指定规则生成 groupId，如指定此值，`group_mode` 参数不再有效
-- **client.id** : 客户端 ID 标识号，字符串类型
-- **auto.offset.reset** : 消费组订阅的初始位置。可取值 earliest: 从头开始订阅，latest: 仅从最新数据开始订阅。默认值： latest
-- **enable.auto.commit** : 是否允许自动提交，可取值 true：允许自动提交， false：不允许自动提交
+- **client.id** : 透传订阅属性，参见 [订阅创建参数](../../../develop/tmq/#创建参数)
+- **auto.offset.reset** : 透传订阅参数，参见 [订阅创建参数](../../../develop/tmq/#创建参数)
+- **enable.auto.commit** : 透传订阅参数，参见 [订阅创建参数](../../../develop/tmq/#创建参数)
+- **enable.auto.commit** : 透传订阅参数，参见 [订阅创建参数](../../../develop/tmq/#创建参数)
+- **msg.with.table.name** : 透传订阅参数，参见 [订阅创建参数](../../../develop/tmq/#创建参数)
 - **enable.manual.commit** : 是否允许手动提交，可取值 true：允许手动提交，每次消费完消息后手动调用 tmq_commit_sync 完成提交， false：不进行提交，默认值: false
 - **auto.commit.interval.ms** : 自动提交间隔时间，单位为毫秒
 - **rows_file** : 存储消费数据的文件，可以为全路径或相对路径，带文件名。实际保存的文件会在后面加上消费者序号，如 rows_file 为 result, 实际文件名为 result_1（消费者 1） result_2（消费者 2） ...
@@ -320,7 +322,7 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为
  
 ### 数据类型对照表
 
-| #   |     **引擎**      | **taosBenchmark** 
+| #   |   **TDengine**     | **taosBenchmark** 
 | --- | :----------------: | :---------------:
 | 1   |  TIMESTAMP         |    timestamp
 | 2   |  INT               |    int
