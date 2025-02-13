@@ -29,8 +29,8 @@ void geosFreeBuffer(void *buffer) {
 }
 
 void geosErrMsgeHandler(const char *errMsg, void *userData) {
-  char *targetErrMsg = userData;
-  (void)snprintf(targetErrMsg, 512, "%s", errMsg);
+  SGeosContext *geosCtx = (SGeosContext*)userData;
+  (void)snprintf(geosCtx->errMsg, sizeof(geosCtx->errMsg), "%s", errMsg);
 }
 
 int32_t initCtxMakePoint() {
@@ -45,7 +45,7 @@ int32_t initCtxMakePoint() {
       return code;
     }
 
-    (void)GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx->errMsg);
+    (void)GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx);
   }
 
   if (geosCtx->WKBWriter == NULL) {
@@ -92,81 +92,6 @@ _exit:
   return code;
 }
 
-static int32_t initWktRegex(pcre2_code **ppRegex, pcre2_match_data **ppMatchData) {
-  int32_t code = 0;
-  char   *wktPatternWithSpace = taosMemoryCalloc(4, 1024);
-  if (NULL == wktPatternWithSpace) {
-    return terrno;
-  }
-
-  (void)tsnprintf(
-      wktPatternWithSpace, 4 * 1024,
-      "^( *)point( *)z?m?( *)((empty)|(\\(( *)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *)\\)))|linestring( *)z?m?( "
-      "*)((empty)|(\\(( *)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}(( *)(,)( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *))*( *)\\)))|polygon( *)z?m?( "
-      "*)((empty)|(\\(( *)((empty)|(\\(( *)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}(( *)(,)( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *))*( *)\\)))(( *)(,)( "
-      "*)((empty)|(\\(( *)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}(( *)(,)( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *))*( *)\\)))( *))*( "
-      "*)\\)))|multipoint( *)z?m?( *)((empty)|(\\(( "
-      "*)((([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}|((empty)|(\\(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *)\\))))(( *)(,)( "
-      "*)((([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}|((empty)|(\\(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *)\\))))( *))*( "
-      "*)\\)))|multilinestring( *)z?m?( *)((empty)|(\\(( *)((empty)|(\\(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}(( *)(,)( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *))*( *)\\)))(( *)(,)( "
-      "*)((empty)|(\\(( *)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}(( *)(,)( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *))*( *)\\)))( *))*( "
-      "*)\\)))|multipolygon( *)z?m?( *)((empty)|(\\(( *)((empty)|(\\(( *)((empty)|(\\(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}(( *)(,)( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *))*( *)\\)))(( *)(,)( "
-      "*)((empty)|(\\(( *)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}(( *)(,)( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *))*( *)\\)))( *))*( *)\\)))(( *)(,)( "
-      "*)((empty)|(\\(( *)((empty)|(\\(( *)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}(( *)(,)( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *))*( *)\\)))(( *)(,)( "
-      "*)((empty)|(\\(( *)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}(( *)(,)( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
-      "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *))*( *)\\)))( *))*( *)\\)))( *))*( "
-      "*)\\)))|(GEOCOLLECTION\\((?R)(( *)(,)( *)(?R))*( *)\\))( *)$");
-
-  pcre2_code       *pRegex = NULL;
-  pcre2_match_data *pMatchData = NULL;
-  code = doRegComp(&pRegex, &pMatchData, wktPatternWithSpace);
-  if (code < 0) {
-    taosMemoryFree(wktPatternWithSpace);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  *ppRegex = pRegex;
-  *ppMatchData = pMatchData;
-
-  taosMemoryFree(wktPatternWithSpace);
-  return code;
-}
-
 int32_t initCtxGeomFromText() {
   int32_t       code = TSDB_CODE_FAILED;
   SGeosContext *geosCtx = NULL;
@@ -179,7 +104,7 @@ int32_t initCtxGeomFromText() {
       return code;
     }
 
-    (void)GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx->errMsg);
+    (void)GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx);
   }
 
   if (geosCtx->WKTReader == NULL) {
@@ -196,10 +121,6 @@ int32_t initCtxGeomFromText() {
     }
   }
 
-  if (geosCtx->WKTRegex == NULL) {
-    if (initWktRegex(&geosCtx->WKTRegex, &geosCtx->WKTMatchData) != 0) return code;
-  }
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -213,11 +134,6 @@ int32_t doGeomFromText(const char *inputWKT, unsigned char **outputGeom, size_t 
 
   GEOSGeometry  *geom = NULL;
   unsigned char *wkb = NULL;
-
-  if (doRegExec(inputWKT, geosCtx->WKTRegex, geosCtx->WKTMatchData) != 0) {
-    code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
-    goto _exit;
-  }
 
   geom = GEOSWKTReader_read_r(geosCtx->handle, geosCtx->WKTReader, inputWKT);
   if (geom == NULL) {
@@ -254,7 +170,7 @@ int32_t initCtxAsText() {
       return code;
     }
 
-    (void)GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx->errMsg);
+    (void)GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx);
   }
 
   if (geosCtx->WKBReader == NULL) {
@@ -345,7 +261,7 @@ int32_t initCtxRelationFunc() {
       return code;
     }
 
-    (void)GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx->errMsg);
+    (void)GEOSContext_setErrorMessageHandler_r(geosCtx->handle, geosErrMsgeHandler, geosCtx);
   }
 
   if (geosCtx->WKBReader == NULL) {

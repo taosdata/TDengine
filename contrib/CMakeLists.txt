@@ -182,11 +182,6 @@ if(${BUILD_GEOS})
     cat("${TD_SUPPORT_DIR}/geos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
-#
-if(${BUILD_PCRE2})
-    cat("${TD_SUPPORT_DIR}/pcre2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif()
-
 find_program(C_COMPILER_LEMON NAMES gcc)
 if(C_COMPILER_LEMON)
     message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
@@ -659,10 +654,6 @@ if(${BUILD_GEOS})
         PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/geos/include>
     )
 endif(${BUILD_GEOS})
-
-if(${BUILD_PCRE2})
-    add_subdirectory(pcre2 EXCLUDE_FROM_ALL)
-endif(${BUILD_PCRE2})
 
 if(${TD_LINUX} AND ${BUILD_WITH_S3})
     add_subdirectory(azure-cmake EXCLUDE_FROM_ALL)

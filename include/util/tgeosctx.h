@@ -21,7 +21,8 @@ extern "C" {
 #endif
 
 #include <geos_c.h>
-#include <tpcre2.h>
+
+#include <stdint.h>
 
 typedef struct SGeosContext {
   GEOSContextHandle_t handle;
@@ -31,9 +32,6 @@ typedef struct SGeosContext {
 
   GEOSWKBReader *WKBReader;
   GEOSWKBWriter *WKBWriter;
-
-  pcre2_code       *WKTRegex;
-  pcre2_match_data *WKTMatchData;
 
   char errMsg[512];
 } SGeosContext;

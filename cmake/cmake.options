@@ -89,12 +89,6 @@ option(
     )
 
 option(
-    BUILD_PCRE2
-    "If build with pcre2"
-    ON
-)
-
-option(
     JEMALLOC_ENABLED
     "If build with jemalloc"
     OFF

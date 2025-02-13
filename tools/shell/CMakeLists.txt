@@ -70,7 +70,6 @@ IF(TD_LINUX)
     target_link_directories(
         shell_ut
         PUBLIC "${TD_SOURCE_DIR}/contrib/lzma2"
-        PUBLIC "${TD_SOURCE_DIR}/contrib/pcre2"
     )
 
     # unit test

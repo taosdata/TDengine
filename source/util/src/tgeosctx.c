@@ -51,12 +51,6 @@ static void destroyThreadLocalGeosCtx(void *param) {
     pGeosCtx->WKBWriter = NULL;
   }
 
-  if (pGeosCtx->WKTRegex) {
-    destroyRegexes(pGeosCtx->WKTRegex, pGeosCtx->WKTMatchData);
-    pGeosCtx->WKTRegex = NULL;
-    pGeosCtx->WKTMatchData = NULL;
-  }
-
   if (pGeosCtx->handle) {
     GEOS_finish_r(pGeosCtx->handle);
     pGeosCtx->handle = NULL;
