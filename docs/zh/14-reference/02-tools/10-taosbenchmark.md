@@ -15,7 +15,7 @@ taosBenchmark 是 TDengine 服务器及客户端安装包中默认安装组件�
 taosBenchmark 支持无参数、命令行、配置文件三种运行模式，`命令行` 为 `配置文件` 功能子集，两者同时使用时，以命令行方式优先。  
 
 :::tip
-在运行 taosBenchmark 之前要确保 TDengine 集群已经在正确运行
+在运行 taosBenchmark 之前要确保 TDengine 集群已经在正确运行。
 :::
 
 ### 无参数模式
@@ -253,7 +253,7 @@ taosBenchmark -f <json file>
 ### 查询配置参数
 
 查询场景下 `filetype` 必须设置为 `query`。
-`query_times` 指定运行查询的次数，数值类型
+`query_times` 指定运行查询的次数，数值类型。
 
 查询场景可以通过设置 `kill_slow_query_threshold` 和 `kill_slow_query_interval` 参数来控制杀掉慢查询语句的执行，threshold 控制如果 exec_usec 超过指定时间的查询将被 taosBenchmark 杀掉，单位为秒。
 interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为秒。
@@ -344,7 +344,7 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为
 | 17  |  GEOMETRY          |    geometry
 | 18  |  JSON              |    json
 
-注意：taosBenchmark 配置文件中数据类型必须小写方可识别
+注意：taosBenchmark 配置文件中数据类型必须小写方可识别。
 
 ## 配置文件示例
 
