@@ -635,7 +635,9 @@ static EDealRes pdcJoinIsCrossTableCond(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     if (pdcJoinColInTableList(pNode, pCxt->pLeftTbls)) {
       pCxt->havaLeftCol = true;
-    } else if (pdcJoinColInTableList(pNode, pCxt->pRightTbls)) {
+    } 
+
+    if (pdcJoinColInTableList(pNode, pCxt->pRightTbls)) {
       pCxt->haveRightCol = true;
     }
     return pCxt->havaLeftCol && pCxt->haveRightCol ? DEAL_RES_END : DEAL_RES_CONTINUE;
@@ -2809,10 +2811,17 @@ static bool joinCondMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
+  if (pJoin->pPrimKeyEqCond && QUERY_NODE_OPERATOR == nodeType(pJoin->pPrimKeyEqCond)) {
+    SOperatorNode* pOp = (SOperatorNode*)pJoin->pPrimKeyEqCond;
+    if ((pOp->pLeft && QUERY_NODE_COLUMN != nodeType(pOp->pLeft)) || (pOp->pRight && QUERY_NODE_COLUMN != nodeType(pOp->pRight))) {
+      return false;
+    }
+  }
+
   return true;
 }
 
-static void joinCondMergeScanRand(STimeWindow* pDst, STimeWindow* pSrc) {
+static void joinCondMergeScanRange(STimeWindow* pDst, STimeWindow* pSrc) {
   if (pSrc->skey > pDst->skey) {
     pDst->skey = pSrc->skey;
   }
@@ -2840,7 +2849,7 @@ static int32_t joinCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       }
       SNode*      pNode = NULL;
       STimeWindow scanRange = TSWINDOW_INITIALIZER;
-      FOREACH(pNode, pScanList) { joinCondMergeScanRand(&scanRange, &((SScanLogicNode*)pNode)->scanRange); }
+      FOREACH(pNode, pScanList) { joinCondMergeScanRange(&scanRange, &((SScanLogicNode*)pNode)->scanRange); }
       FOREACH(pNode, pScanList) {
         ((SScanLogicNode*)pNode)->scanRange.skey = scanRange.skey;
         ((SScanLogicNode*)pNode)->scanRange.ekey = scanRange.ekey;
@@ -2857,7 +2866,7 @@ static int32_t joinCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       if (NULL == pLScan || NULL == pRScan) {
         return TSDB_CODE_SUCCESS;
       }
-      joinCondMergeScanRand(&pRScan->scanRange, &pLScan->scanRange);
+      joinCondMergeScanRange(&pRScan->scanRange, &pLScan->scanRange);
       break;
     }
     case JOIN_TYPE_RIGHT: {
@@ -2869,7 +2878,7 @@ static int32_t joinCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       if (NULL == pLScan || NULL == pRScan) {
         return TSDB_CODE_SUCCESS;
       }
-      joinCondMergeScanRand(&pLScan->scanRange, &pRScan->scanRange);
+      joinCondMergeScanRange(&pLScan->scanRange, &pRScan->scanRange);
       break;
     }
     default:

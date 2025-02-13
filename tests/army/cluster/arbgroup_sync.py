@@ -35,12 +35,6 @@ class TDTestCase(TBase):
 
         time.sleep(1)
 
-        tdSql.execute("use db;")
-
-        tdSql.execute("CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);")
-
-        tdSql.execute("CREATE TABLE d0 USING meters TAGS (\"California.SanFrancisco\", 2);");
-
         count = 0
 
         while count < 100:        
@@ -56,16 +50,15 @@ class TDTestCase(TBase):
 
         if count == 100:
             tdLog.exit("arbgroup sync failed")
-            return 
-            
+            return    
 
         tdSql.query("show db.vgroups;")
 
-        if(tdSql.getData(0, 4) == "follower") and (tdSql.getData(0, 7) == "leader"):
+        if(tdSql.getData(0, 4) == "follower") and (tdSql.getData(0, 6) == "leader"):
             tdLog.info("stop dnode2")
             sc.dnodeStop(2)
 
-        if(tdSql.getData(0, 7) == "follower") and (tdSql.getData(0, 4) == "leader"):
+        if(tdSql.getData(0, 6) == "follower") and (tdSql.getData(0, 4) == "leader"):
             tdLog.info("stop dnode 3")
             sc.dnodeStop(3)
 
@@ -74,7 +67,7 @@ class TDTestCase(TBase):
         while count < 100:
             tdSql.query("show db.vgroups;")
 
-            if(tdSql.getData(0, 4) == "assigned ") or (tdSql.getData(0, 7) == "assigned "):
+            if(tdSql.getData(0, 4) == "assigned ") or (tdSql.getData(0, 6) == "assigned "):
                 break
             
             tdLog.info("wait %d seconds for set assigned"%count)
@@ -85,8 +78,6 @@ class TDTestCase(TBase):
         if count == 100:
             tdLog.exit("check assigned failed")
             return
-
-        tdSql.execute("INSERT INTO d0 VALUES (NOW, 10.3, 219, 0.31);")
 
     def stop(self):
         tdSql.close()
