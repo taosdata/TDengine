@@ -305,7 +305,7 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为
 
 - **concurrent** : 消费订阅的消费者数量，或称并发消费数量，默认值：1。
 - **create_mode** : 创建消费者模式，可取值 sequential：顺序创建， parallel：并发同时创建，必填项，无默认值。
-- **group_mode** : 生成消费者 groupId 模式，可取值 share：所有消费者只生成一个 groupId， independent：每个消费者生成一个独立的 groupId，如果 `group.id` 未设置，此项为必填项，无默认值
+- **group_mode** : 生成消费者 groupId 模式，可取值 share：所有消费者只生成一个 groupId， independent：每个消费者生成一个独立的 groupId，如果 `group.id` 未设置，此项为必填项，无默认值。
 - **poll_delay** : 调用 tmq_consumer_poll 传入的轮询超时时间，单位为毫秒，负数表示默认超时 1 秒。
 - **enable.manual.commit** : 是否允许手动提交，可取值 true：允许手动提交，每次消费完消息后手动调用 tmq_commit_sync 完成提交， false：不进行提交，默认值: false。
 - **rows_file** : 存储消费数据的文件，可以为全路径或相对路径，带文件名。实际保存的文件会在后面加上消费者序号，如 rows_file 为 result, 实际文件名为 result_1（消费者 1） result_2（消费者 2） ...
