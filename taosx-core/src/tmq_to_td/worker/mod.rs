@@ -223,6 +223,11 @@ impl WriteStrategy {
     }
 
     #[inline]
+    pub fn prefer_raw(&self) -> bool {
+        matches!(self, WriteStrategy::Raw)
+    }
+
+    #[inline]
     pub fn is_default(&self) -> bool {
         matches!(self, WriteStrategy::Auto)
     }
@@ -271,11 +276,7 @@ impl WriteOptions {
         Ok(RawMessage::meta_only(self.next_mid(), raw, json_meta))
     }
     async fn parse_data(&self, data: &Data, metrics: &TmqMetrics) -> Result<RawMessage> {
-        let raw = unsafe {
-            std::mem::transmute::<taos::taos_query::common::RawData, taos::RawMeta>(
-                data.as_raw_data().await?,
-            )
-        };
+        let raw = data.as_raw_data().await?;
 
         if self.actions.is_empty() && !self.strategy.require_blocks() {
             return Ok(RawMessage::raw_only(

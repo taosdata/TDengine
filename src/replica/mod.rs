@@ -264,6 +264,7 @@ impl Replica {
         tmq.subject.replace(database.to_string());
         tmq.set("replica", "");
         tmq.set("timeout", "never");
+        tmq.set("prefer", "raw");
         if topic != database {
             tmq.set("use.topic.name", topic);
         }
@@ -1338,8 +1339,6 @@ impl Cli {
 
 #[cfg(test)]
 mod tests {
-    use std::mem::transmute;
-
     use rand::distributions::DistString;
     use taos::{AsAsyncConsumer, IsAsyncData, IsAsyncMeta, IsOffset, MessageSet};
 
@@ -1396,10 +1395,7 @@ mod tests {
                 match message {
                     MessageSet::Data(data) => {
                         let raw = data.as_raw_data().await?;
-                        taos.write_raw_meta(unsafe {
-                            &transmute::<taos::taos_query::common::RawData, taos::RawMeta>(raw)
-                        })
-                        .await?;
+                        taos.write_raw_meta(&raw).await?;
                     }
                     MessageSet::Meta(data) => {
                         tracing::info!("{target}: {:?}", data.as_json_meta().await?);
