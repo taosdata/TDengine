@@ -75,10 +75,10 @@ endi
 if $data(2)[4] == leader then
   $leaderExist = 1
 endi
-if $data(2)[6] == leader then
+if $data(2)[7] == leader then
   $leaderExist = 1
 endi
-if $data(2)[8] == leader then
+if $data(2)[10] == leader then
   $leaderExist = 1
 endi
 if  $leaderExist != 1 then
@@ -105,10 +105,10 @@ endi
 if $data(3)[4] == leader then
   $leaderExist = 1
 endi
-if $data(3)[6] == leader then
+if $data(3)[7] == leader then
   $leaderExist = 1
 endi
-if $data(3)[8] == leader then
+if $data(3)[10] == leader then
   $leaderExist = 1
 endi
 if  $leaderExist != 1 then
@@ -135,10 +135,10 @@ endi
 if $data(4)[4] == leader then
   $leaderExist = 1
 endi
-if $data(4)[6] == leader then
+if $data(4)[7] == leader then
   $leaderExist = 1
 endi
-if $data(4)[8] == leader then
+if $data(4)[10] == leader then
   $leaderExist = 1
 endi
 if  $leaderExist != 1 then
@@ -165,10 +165,10 @@ endi
 if $data(4)[4] == leader then
   $leaderExist = 1
 endi
-if $data(4)[6] == leader then
+if $data(4)[7] == leader then
   $leaderExist = 1
 endi
-if $data(4)[8] == leader then
+if $data(4)[10] == leader then
   $leaderExist = 1
 endi
 if  $leaderExist != 1 then
@@ -247,10 +247,10 @@ endi
 if $data(2)[4] == leader then
   $leaderExist = 1
 endi
-if $data(2)[6] == leader then
+if $data(2)[7] == leader then
   $leaderExist = 1
 endi
-if $data(2)[8] == leader then
+if $data(2)[10] == leader then
   $leaderExist = 1
 endi
 if  $leaderExist != 1 then
@@ -307,10 +307,10 @@ endi
 if $data(4)[4] == leader then
   $leaderExist = 1
 endi
-if $data(4)[6] == leader then
+if $data(4)[7] == leader then
   $leaderExist = 1
 endi
-if $data(4)[8] == leader then
+if $data(4)[10] == leader then
   $leaderExist = 1
 endi
 if  $leaderExist != 1 then
@@ -337,10 +337,10 @@ endi
 if $data(4)[4] == leader then
   $leaderExist = 1
 endi
-if $data(4)[6] == leader then
+if $data(4)[7] == leader then
   $leaderExist = 1
 endi
-if $data(4)[8] == leader then
+if $data(4)[10] == leader then
   $leaderExist = 1
 endi
 if  $leaderExist != 1 then
