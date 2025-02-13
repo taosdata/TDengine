@@ -1,7 +1,7 @@
 <!-- omit in toc -->
 # taosKeeper
 
-[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/taosdata/TDengine/taoskeeper-ci.yml)](https://github.com/taosdata/TDengine/actions/workflows/taoskeeper-ci.yml)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/taosdata/TDengine/taoskeeper-ci-build.yml)](https://github.com/taosdata/TDengine/actions/workflows/taoskeeper-ci-build.yml)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/taosdata/TDengine)
 ![GitHub License](https://img.shields.io/github/license/taosdata/TDengine)
 ![GitHub Release](https://img.shields.io/github/v/release/taosdata/tdengine)
@@ -90,7 +90,8 @@ Performance testing is under development.
 
 ## 6. CI/CD
 
-[Build Workflow](https://github.com/taosdata/TDengine/actions/workflows/taoskeeper-ci.yml)
+- [Build Workflow](https://github.com/taosdata/TDengine/actions/workflows/taoskeeper-ci-build.yml)
+- Code Coverage - TODO
 
 ## 7. Submitting Issues
 
