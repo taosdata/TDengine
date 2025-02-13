@@ -65,18 +65,6 @@
 #endif
 #endif
 
-// get taosdump commit number version
-#ifndef TAOSDUMP_COMMIT_SHA1
-#define TAOSDUMP_COMMIT_SHA1 "unknown"
-#endif
-
-#ifndef TAOSDUMP_TAG
-#define TAOSDUMP_TAG "0.1.0"
-#endif
-
-#ifndef TAOSDUMP_STATUS
-#define TAOSDUMP_STATUS "unknown"
-#endif
 
 // use 256 as normal buffer length
 #define BUFFER_LEN              256
