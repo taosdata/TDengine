@@ -141,6 +141,7 @@ static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
   if (a->funcType == FUNCTION_TYPE_SELECT_VALUE) {
     if ((a->node.bindTupleFuncIdx != b->node.bindTupleFuncIdx)) return false;
   } else {
+    // select cols(cols(first(c0), ts),  first(c0) from meters;
     if ((a->node.tupleFuncIdx != b->node.tupleFuncIdx)) {
       return false;
     }

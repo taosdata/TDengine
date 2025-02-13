@@ -941,6 +941,22 @@ class TDTestCase:
     def stream_cols_test(self):
         tdSql.error(f'CREATE STREAM last_col_s1 INTO last_col1 AS SELECT cols(last(ts), ts, c0) FROM meters PARTITION BY tbname INTERVAL(1s) SLIDING(1s);', TSDB_CODE_PAR_INVALID_COLS_FUNCTION)
         tdSql.query(f'CREATE STREAM last_col_s INTO last_col AS SELECT last(ts), c0 FROM meters PARTITION BY tbname INTERVAL(1s) SLIDING(1s);')
+        
+    def include_null_test(self):
+        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574929010, 0, NULL, NULL, NULL)')
+        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574929011, NULL, 1, NULL, NULL)')
+        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574929012, NULL, NULL, 2, NULL)')
+        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574929013, NULL, NULL, NULL, false)')
+        tdSql.execute(f'insert into {self.dbname}.d0 values(1734574929014, NULL, NULL, NULL, NULL)')
+        
+        tdSql.query(f'select cols(last(c0), ts), cols(last(c1), ts), cols(last(c2), ts), cols(last(c3), ts) from {self.dbname}.d0')
+        tdSql.checkRows(1)
+        tdSql.checkCols(4)
+        tdSql.checkData(0, 0, 1734574929010)
+        tdSql.checkData(0, 1, 1734574929011)
+        tdSql.checkData(0, 2, 1734574929012)
+        tdSql.checkData(0, 3, 1734574929013)
+        
                 
     def run(self):
         self.funcNestTest()
@@ -953,6 +969,7 @@ class TDTestCase:
         self.window_test()
         self.join_test()
         self.stream_cols_test()
+        self.include_null_test()
 
     def stop(self):
         tdSql.close()

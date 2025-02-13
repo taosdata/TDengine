@@ -5461,12 +5461,17 @@ static int32_t translateClausePosition(STranslateContext* pCxt, SNodeList* pProj
 }
 
 static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList, SNodeList** selectFuncList);
+static int32_t preGetBindCols(STranslateContext* pCxt,  SSelectStmt* pSelect, SNodeList** selectFuncList) {
+  return rewriteColsFunction(pCxt, &pSelect->pOrderByList, selectFuncList);
+}
+
 static int32_t translateSelectColsFunction(STranslateContext* pCxt, SSelectStmt* pSelect) {
   SNodeList* selectFuncList = NULL;
   int32_t    code = rewriteColsFunction(pCxt, &pSelect->pProjectionList, &selectFuncList);
   if (TSDB_CODE_SUCCESS != code) {
     goto _end;
   }
+  code = preGetBindCols(pCxt, pSelect, &selectFuncList);
   if (selectFuncList != NULL) {
     code = nodesListAppendList(pSelect->pProjectionList, selectFuncList);
     if (TSDB_CODE_SUCCESS != code) {
@@ -5481,62 +5486,9 @@ _end:
   return code;
 }
 
-static int32_t getBindedExprList(STranslateContext* pCxt, SNodeList* projectionList, SNodeList** selectFuncList) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  for (int32_t i = 0; i < LIST_LENGTH(projectionList); ++i) {
-    SNode* pNode = nodesListGetNode(projectionList, i);
-    if (((SExprNode*)pNode)->bindTupleFuncIdx > 0) {
-      if (NULL == *selectFuncList) {
-        code = nodesMakeList(selectFuncList);
-        if (TSDB_CODE_SUCCESS != code) {
-          return code;
-        }
-      }
-      code = nodesListStrictAppend(*selectFuncList, pNode);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
-    }
-  }
-  return code;
-}
-
-static int32_t translateOrderbyColsFunction(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  SNodeList* selectFuncList = NULL;
-  int32_t    code = getBindedExprList(pCxt, pSelect->pProjectionList, &selectFuncList);
-  if (TSDB_CODE_SUCCESS != code) {
-    goto _end;
-  }
-  int len = LIST_LENGTH(selectFuncList);
-  code = rewriteColsFunction(pCxt, &pSelect->pOrderByList, &selectFuncList);
-  if (TSDB_CODE_SUCCESS != code) {
-    goto _end;
-  }
-  if(LIST_LENGTH(selectFuncList) - len > 0) {
-    for (int i = len; i < LIST_LENGTH(selectFuncList); ++i) {
-      SNode* pNode = nodesListGetNode(selectFuncList, i);
-      int32_t code = nodesListStrictAppend(pSelect->pProjectionList, pNode);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
-    }
-  }
-  nodesClearList(selectFuncList);
-  return code;
-_end:
-  if (selectFuncList) {
-    nodesDestroyList(selectFuncList);
-  }
-  return code;
-}
-
 static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   bool    other;
-  int32_t code = translateOrderbyColsFunction(pCxt, pSelect);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
-  }
-  code = translateClausePosition(pCxt, pSelect->pProjectionList, pSelect->pOrderByList, &other);
+  int32_t code = translateClausePosition(pCxt, pSelect->pProjectionList, pSelect->pOrderByList, &other);
   if (TSDB_CODE_SUCCESS == code) {
     if (0 == LIST_LENGTH(pSelect->pOrderByList)) {
       NODES_DESTORY_LIST(pSelect->pOrderByList);
@@ -5756,7 +5708,6 @@ static int32_t translatePartitionByList(STranslateContext* pCxt, SSelectStmt* pS
 static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_SELECT;
   int32_t code = translateSelectColsFunction(pCxt, pSelect);
-  code = translateOrderbyColsFunction(pCxt, pSelect);
   if (TSDB_CODE_SUCCESS == code) {
     code = translateExprList(pCxt, pSelect->pProjectionList);
   }
