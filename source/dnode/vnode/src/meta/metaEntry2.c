@@ -1214,7 +1214,7 @@ static int32_t metaHandleChildTableCreate(SMeta *pMeta, const SMetaEntry *pEntry
       if (ret < 0) {
         metaErr(TD_VID(pMeta->pVnode), ret);
       }
-      pMeta->pVnode->config.vndStats.numOfNTimeSeries += (nCols - 1);
+      pMeta->pVnode->config.vndStats.numOfTimeSeries += (nCols > 0 ? nCols - 1 : 0);
     }
 
     if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
