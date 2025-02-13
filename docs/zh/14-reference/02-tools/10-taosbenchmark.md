@@ -312,14 +312,14 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为
 - **expect_rows** : 期望每个消费者消费的行数，数据类型，当消费达到这个数，消费会退出，不设置会一直消费
 - **topic_list** : 指定消费的 topic 列表，数组类型。topic 列表格式示例： `{"name": "topic1", "sql": "select * from test.meters;"}` ，name：指定 topic 名，sql：指定创建 topic 的 sql 语句，需保证 sql 正确，框架会自动创建出 topic。
 
-以下参数透传订阅属性，参见 [订阅创建参数](../../../develop/tmq/#创建参数) 说明
+以下参数透传订阅属性，参见 [订阅创建参数](../../../develop/tmq/#创建参数) 说明：
 - **client.id**
 - **auto.offset.reset** 
 - **enable.auto.commit** 
 - **enable.auto.commit**
 - **msg.with.table.name**
 - **auto.commit.interval.ms**
-- **group.id** : 若此值不指定，将由 `group_mode` 指定规则生成 groupId，若指定此值，`group_mode` 参数不再有效
+- **group.id** : 若此值不指定，将由 `group_mode` 指定规则生成 groupId，若指定此值，`group_mode` 参数不再有效。
  
 ### 数据类型对照表
 
