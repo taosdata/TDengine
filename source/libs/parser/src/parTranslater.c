@@ -9460,7 +9460,11 @@ static int32_t checkTableTagsSchema(STranslateContext* pCxt, SHashObj* pHash, SN
     } else {
       break;
     }
-    // TODO wjm can't create tag with decimal type
+    if (TSDB_CODE_SUCCESS == code) {
+      if (IS_DECIMAL_TYPE(pTag->dataType.type)) {
+        code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, "Decimal type is not allowed for tag");
+      }
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code && tagsSize > TSDB_MAX_TAGS_LEN) {
@@ -16675,6 +16679,12 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
     int8_t code = setColCompressByOption(pReq->type, columnEncodeVal(pStmt->pColOptions->encode),
                                          columnCompressVal(pStmt->pColOptions->compress),
                                          columnLevelVal(pStmt->pColOptions->compressLevel), true, &pReq->compress);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  pReq->typeMod = 0;
+  if (IS_DECIMAL_TYPE(pStmt->dataType.type)) {
+    pReq->typeMod = decimalCalcTypeMod(pStmt->dataType.precision, pStmt->dataType.scale);
+    pReq->flags |= COL_HAS_TYPE_MOD;
   }
 
   return TSDB_CODE_SUCCESS;

@@ -428,6 +428,15 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
     metaCloneEntryFree(ppEntry);
     return code;
   }
+  if (pEntry->pExtSchemas && pEntry->colCmpr.nCols > 0) {
+    (*ppEntry)->pExtSchemas = taosMemoryCalloc(pEntry->colCmpr.nCols, sizeof(SExtSchema));
+    if (!(*ppEntry)->pExtSchemas) {
+      code = terrno;
+      metaCloneEntryFree(ppEntry);
+      return code;
+    }
+    memcpy((*ppEntry)->pExtSchemas, pEntry->pExtSchemas, sizeof(SExtSchema) * pEntry->colCmpr.nCols);
+  }
 
   return code;
 }
