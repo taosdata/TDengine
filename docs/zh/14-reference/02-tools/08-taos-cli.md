@@ -27,7 +27,7 @@ taos>
 ```
 
 进入 TDengine CLI 后，可执行各种 SQL 语句，包括插入、查询以及各种管理命令。
-退出 TDengine CLI， 执行 `q` 或 `quit` 或 `exit` 回车即可
+退出 TDengine CLI， 执行 `q` 或 `quit` 或 `exit` 回车即可。
 ```shell
 taos> quit
 ```
@@ -50,7 +50,7 @@ taos> quit
     taos -h my-server -s "use db; show tables;"
     ```
 
-- -c CONFIGDIR: 指定配置文件目录
+- -c CONFIGDIR: 指定配置文件目录。
  
     Linux 环境下默认为 `/etc/taos`，该目录下的配置文件默认名称为 `taos.cfg` 。
     使用 `-c` 参数改变 `taosc` 客户端加载配置文件的位置，客户端配置参数参考 [客户端配置](../../components/taosc) 。  
@@ -73,7 +73,7 @@ taos> quit
 - -l PKTLEN: 网络测试时使用的测试包大小。
 - -n NETROLE: 网络连接测试时的测试范围，默认为 `client`, 可选值为 `client`、`server` 。
 - -N PKTNUM: 网络测试时使用的测试包数量。
-- -r: 将时间列转化为无符号 64 位整数类型输出(即 C 语言中 uint64_t)。
+- -r: 将时间列转化为无符号 64 位整数类型输出(即 C 语言中 uint64_t) 。
 - -R: 使用 RESTful 模式连接服务端。
 - -t: 测试服务端启动状态，状态同 -k 。
 - -w DISPLAYWIDTH: 客户端列显示宽度。

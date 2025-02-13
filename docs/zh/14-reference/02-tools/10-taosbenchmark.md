@@ -96,11 +96,11 @@ taosBenchmark -f <json file>
 - **filetype** : 功能分类，可选值为 `insert`, `query` 和 `subscribe`。分别对应插入、查询和订阅功能。每个配置文件中只能指定其中之一。
 - **cfgdir** : TDengine 客户端配置文件所在的目录，默认路径是 /etc/taos 。
 
-- **host** : 指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost。
+- **host** : 指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost 。
 
-- **port** : 要连接的 TDengine 服务器的端口号，默认值为 6030。
+- **port** : 要连接的 TDengine 服务器的端口号，默认值为 6030 。
 
-- **user** : 用于连接 TDengine 服务端的用户名，默认为 root。
+- **user** : 用于连接 TDengine 服务端的用户名，默认为 root 。
 
 - **password** : 用于连接 TDengine 服务端的密码，默认值为 taosdata。
 
@@ -111,7 +111,7 @@ taosBenchmark -f <json file>
 - **keep_trying** : 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
 
 - **trying_interval** : 失败重试间隔时间，单位为毫秒，仅在 keep_trying 指定重试后有效。需使用 v3.0.9 以上版本。
-- **childtable_from 和 childtable_to** : 指定写入子表范围，开闭区间为 [childtable_from, childtable_to)。
+- **childtable_from 和 childtable_to** : 指定写入子表范围，开闭区间为 [childtable_from, childtable_to) 。
  
 - **continue_if_fail** : 允许用户定义失败后行为。
 
@@ -125,7 +125,7 @@ taosBenchmark -f <json file>
 
 - **name** : 数据库名。
 
-- **drop** : 数据库已存在时是否删除，可选项为 "yes" 或 "no", 默认为 “yes”。
+- **drop** : 数据库已存在时是否删除，可选项为 "yes" 或 "no", 默认为 “yes” 。
 
 #### 超级表相关
 
@@ -133,13 +133,13 @@ taosBenchmark -f <json file>
 
 - **name**: 超级表名，必须配置，没有默认值。
 
-- **child_table_exists** : 子表是否已经存在，默认值为 "no"，可选值为 "yes" 或 "no"。
+- **child_table_exists** : 子表是否已经存在，默认值为 "no"，可选值为 "yes" 或 "no" 。
 
 - **childtable_count** : 子表的数量，默认值为 10。
 
 - **childtable_prefix** : 子表名称的前缀，必选配置项，没有默认值。
 
-- **escape_character** : 超级表和子表名称中是否包含转义字符，默认值为 "no"，可选值为 "yes" 或 "no"。
+- **escape_character** : 超级表和子表名称中是否包含转义字符，默认值为 "no"，可选值为 "yes" 或 "no" 。
 
 - **auto_create_table** : 仅当 insert_mode 为 taosc, rest, stmt 并且 child_table_exists 为 "no" 时生效，该参数为 "yes" 表示 taosBenchmark 在插入数据时会自动创建不存在的表；为 "no" 则表示先提前建好所有表再进行插入。
 
