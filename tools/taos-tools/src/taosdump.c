@@ -11,7 +11,7 @@
 
 #define _GNU_SOURCE
 
-#include <tdef.h>  // include/util/
+#include "cus_name.h"  // include/util/
 #include "dump.h"
 #include "dumpUtil.h"
 #ifdef WEBSOCKET

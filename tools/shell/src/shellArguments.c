@@ -17,6 +17,7 @@
 #include <pwd.h>
 #endif
 
+#include "cus_name.h"
 #include "shellInt.h"
 #include "version.h"
 

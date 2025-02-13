@@ -31,6 +31,7 @@
 extern "C" {
 #endif
 
+#include "cus_name.h"
 
 #ifdef WINDOWS
 

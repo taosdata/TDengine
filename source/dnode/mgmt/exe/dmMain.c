@@ -27,7 +27,7 @@
 #include "dmUtil.h"
 #include "tcs.h"
 #include "qworker.h"
-#include "tdef.h"
+#include "cus_name.h"
 
 // clang-format off
 #define DM_APOLLO_URL    "The apollo string to use when configuring the server, such as: -a 'jsonFile:./tests/cfg.json', cfg.json text can be '{\"fqdn\":\"td1\"}'."

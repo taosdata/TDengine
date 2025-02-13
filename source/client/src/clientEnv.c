@@ -39,9 +39,7 @@
 #include "tconv.h"
 
 
-#ifndef CUS_PROMPT
-#define CUS_PROMPT "taos"
-#endif
+#include "cus_name.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0

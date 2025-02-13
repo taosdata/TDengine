@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
-
+#include "cus_name.h"
 
 #define PROCESS_ITEM 12
 #define UUIDLEN37 37
