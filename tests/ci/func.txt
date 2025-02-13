@@ -79,7 +79,7 @@
 (void)streamMetaAddFailedTask
 (void)streamMetaAddTaskLaunchResult
 (void)streamMetaCommit
-(void)streamMetaRemoveTask
+(void)streamMetaRemoveTaskInMeta
 (void)streamMetaSendHbHelper
 (void)streamMetaStartAllTasks
 (void)streamMetaStartOneTask
