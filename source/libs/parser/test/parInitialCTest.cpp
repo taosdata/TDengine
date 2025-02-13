@@ -1362,7 +1362,7 @@ TEST_F(ParserInitialCTest, createUser) {
     ASSERT_EQ(req.sysInfo, expect.sysInfo);
     ASSERT_EQ(req.enable, expect.enable);
     ASSERT_EQ(std::string(req.user), std::string(expect.user));
-    ASSERT_EQ(std::string(req.longPass), std::string(expect.pass));
+    ASSERT_EQ(std::string(req.pass), std::string(expect.pass));
     tFreeSCreateUserReq(&req);
   });
 

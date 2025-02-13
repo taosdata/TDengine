@@ -104,7 +104,37 @@ static bool invalidPassword(const char* pPassword) {
   /* Execute regular expression */
   int32_t res = regexec(&regex, pPassword, 0, NULL, 0);
   regfree(&regex);
-  return 0 == res;
+  if(0 != res) return false;
+
+  if (strcmp(pPassword, "taosdata") == 0) {
+    return false;
+  }
+
+  bool charTypes[4] = {0};
+  for (int32_t i = 0; i < strlen(pPassword); ++i) {
+    if (taosIsBigChar(pPassword[i])) {
+      charTypes[0] = true;
+    } else if (taosIsSmallChar(pPassword[i])) {
+      charTypes[1] = true;
+    } else if (taosIsNumberChar(pPassword[i])) {
+      charTypes[2] = true;
+    } else if (taosIsSpecialChar(pPassword[i])) {
+      charTypes[3] = true;
+    } else {
+      return false;
+    }
+  }
+
+  int32_t numOfTypes = 0;
+  for (int32_t i = 0; i < 4; ++i) {
+    numOfTypes += charTypes[i];
+  }
+
+  if (numOfTypes < 3) {
+    return false;
+  }
+
+  return true;
 }
 
 static bool checkPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken, char* pPassword) {
@@ -115,7 +145,7 @@ static bool checkPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken,
   } else {
     strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
     (void)strdequote(pPassword);
-    if (strtrim(pPassword) <= 0) {
+    if (strtrim(pPassword) < TSDB_PASSWORD_MIN_LEN) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY);
     } else if (invalidPassword(pPassword)) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PASSWD);

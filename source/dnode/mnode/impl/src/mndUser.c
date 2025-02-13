@@ -1705,23 +1705,18 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   int32_t  code = 0;
   int32_t  lino = 0;
   SUserObj userObj = {0};
-  char     pass[TSDB_USET_PASSWORD_LONGLEN] = {0};
-
-  int32_t len = strlen(pCreate->longPass);
-
-  if (len > 0) {
-    strncpy(pass, pCreate->longPass, TSDB_USET_PASSWORD_LONGLEN);
-  } else {
-    len = strlen(pCreate->pass);
-    strncpy(pass, pCreate->pass, TSDB_PASSWORD_LEN);
-  }
 
   if (pCreate->isImport != 1) {
-    taosEncryptPass_c((uint8_t *)pass, strlen(pass), userObj.pass);
+    if (pCreate->passIsMd5 == 1) {
+      memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
+    } else {
+      taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.pass);
+    }
   } else {
     // mInfo("pCreate->pass:%s", pCreate->eass)
-    memcpy(userObj.pass, pass, TSDB_PASSWORD_LEN);
+    memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
   }
+
   tstrncpy(userObj.user, pCreate->user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
   userObj.createdTime = taosGetTimestampMs();
@@ -1816,52 +1811,6 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndCheckPasswordMinLen(const char *pwd, int32_t len) {
-  if (len < TSDB_PASSWORD_MIN_LEN) {
-    return -1;
-  }
-  return 0;
-}
-
-static int32_t mndCheckPasswordMaxLen(const char *pwd, int32_t len) {
-  if (len > TSDB_PASSWORD_MAX_LEN) {
-    return -1;
-  }
-  return 0;
-}
-
-static int32_t mndCheckPasswordFmt(const char *pwd, int32_t len) {
-  if (strcmp(pwd, "taosdata") == 0) {
-    return 0;
-  }
-
-  bool charTypes[4] = {0};
-  for (int32_t i = 0; i < len; ++i) {
-    if (taosIsBigChar(pwd[i])) {
-      charTypes[0] = true;
-    } else if (taosIsSmallChar(pwd[i])) {
-      charTypes[1] = true;
-    } else if (taosIsNumberChar(pwd[i])) {
-      charTypes[2] = true;
-    } else if (taosIsSpecialChar(pwd[i])) {
-      charTypes[3] = true;
-    } else {
-      return -1;
-    }
-  }
-
-  int32_t numOfTypes = 0;
-  for (int32_t i = 0; i < 4; ++i) {
-    numOfTypes += charTypes[i];
-  }
-
-  if (numOfTypes < 3) {
-    return -1;
-  }
-
-  return 0;
-}
-
 static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = 0;
@@ -1893,31 +1842,6 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
 
   if (createReq.user[0] == 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
-  }
-
-  char pass[TSDB_USET_PASSWORD_LONGLEN] = {0};
-
-  int32_t len = strlen(createReq.longPass);
-
-  if (len > 0) {
-    strncpy(pass, createReq.longPass, TSDB_USET_PASSWORD_LONGLEN);
-  } else {
-    len = strlen(createReq.pass);
-    strncpy(pass, createReq.pass, TSDB_PASSWORD_LEN);
-  }
-
-  if (createReq.isImport != 1) {
-    if (mndCheckPasswordMinLen(pass, len) != 0) {
-      TAOS_CHECK_GOTO(TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY, &lino, _OVER);
-    }
-    if (mndCheckPasswordMaxLen(pass, len) != 0) {
-      TAOS_CHECK_GOTO(TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG, &lino, _OVER);
-    }
-    if (tsEnableStrongPassword) {
-      if (mndCheckPasswordFmt(pass, len) != 0) {
-        TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_PASS_FORMAT, &lino, _OVER);
-      }
-    }
   }
 
   code = mndAcquireUser(pMnode, createReq.user, &pUser);
@@ -2399,30 +2323,6 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
   }
 
-  char    userSetPass[TSDB_USET_PASSWORD_LONGLEN] = {0};
-  int32_t len = strlen(alterReq.longPass);
-
-  if (TSDB_ALTER_USER_PASSWD == alterReq.alterType) {
-    if (len > 0) {
-      strncpy(userSetPass, alterReq.longPass, TSDB_USET_PASSWORD_LONGLEN);
-    } else {
-      len = strlen(alterReq.pass);
-      strncpy(userSetPass, alterReq.pass, TSDB_USET_PASSWORD_LEN);
-    }
-
-    if (mndCheckPasswordMinLen(userSetPass, len) != 0) {
-      TAOS_CHECK_GOTO(TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY, &lino, _OVER);
-    }
-    if (mndCheckPasswordMaxLen(userSetPass, len) != 0) {
-      TAOS_CHECK_GOTO(TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG, &lino, _OVER);
-    }
-    if (tsEnableStrongPassword) {
-      if (mndCheckPasswordFmt(userSetPass, len) != 0) {
-        TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_PASS_FORMAT, &lino, _OVER);
-      }
-    }
-  }
-
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, alterReq.user, &pUser), &lino, _OVER);
 
   (void)mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser);
@@ -2435,11 +2335,13 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
   TAOS_CHECK_GOTO(mndUserDupObj(pUser, &newUser), &lino, _OVER);
 
   if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
-    char pass[TSDB_PASSWORD_LEN + 1] = {0};
+    if (alterReq.passIsMd5 == 1) {
+      (void)memcpy(newUser.pass, alterReq.pass, TSDB_PASSWORD_LEN);
+    } else {
+      taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), newUser.pass);
+    }
 
-    taosEncryptPass_c((uint8_t *)userSetPass, len, pass);
-    (void)memcpy(newUser.pass, pass, TSDB_PASSWORD_LEN);
-    if (0 != strncmp(pUser->pass, pass, TSDB_PASSWORD_LEN)) {
+    if (0 != strncmp(pUser->pass, newUser.pass, TSDB_PASSWORD_LEN)) {
       ++newUser.passVersion;
     }
   }
