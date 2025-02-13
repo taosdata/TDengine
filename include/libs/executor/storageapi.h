@@ -342,8 +342,8 @@ typedef struct SRecDataInfo {
 typedef struct SScanRange {
   STimeWindow win;
   STimeWindow calWin;
-  SSHashObj* pGroupIds;
-  SSHashObj* pUIds;
+  SSHashObj*  pGroupIds;
+  SSHashObj*  pUIds;
 } SScanRange;
 
 typedef struct {
@@ -490,6 +490,7 @@ typedef struct SStateStore {
   bool (*needClearDiskBuff)(struct SStreamFileState* pFileState);
 
   SStreamState* (*streamStateOpen)(const char* path, void* pTask, int64_t streamId, int32_t taskId);
+  SStreamState* (*streamStateRecalatedOpen)(const char* path, void* pTask, int64_t streamId, int32_t taskId);
   void (*streamStateClose)(SStreamState* pState, bool remove);
   int32_t (*streamStateBegin)(SStreamState* pState);
   void (*streamStateCommit)(SStreamState* pState);

@@ -98,7 +98,6 @@ int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
   return winKeyCmprImpl(&pWin1->key, &pWin2->key);
 }
 
-
 SStreamState* streamStateOpenRecalation(const char* path, void* pTask, int64_t streamId, int32_t taskId) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
@@ -143,8 +142,11 @@ SStreamState* streamStateOpenRecalation(const char* path, void* pTask, int64_t s
   stInfo("open state %p on backend %p 0x%" PRIx64 "-%d succ", pState, pMeta->streamBackend, pState->streamId,
          pState->taskId);
   return pState;
-  return pState;
 _end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("0x%x %s recalated failed at line %d since %s", taskId, __func__, lino, tstrerror(code));
+  }
+
   return NULL;
 }
 SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, int32_t taskId) {

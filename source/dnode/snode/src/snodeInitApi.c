@@ -136,6 +136,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateNLastStateGetKVByCur = streamStateNLastStateGetKVByCur;
 
   pStore->streamStateOpen = streamStateOpen;
+  pStore->streamStateRecalatedOpen = streamStateRecalatedOpen;
   pStore->streamStateClose = streamStateClose;
   pStore->streamStateBegin = streamStateBegin;
   pStore->streamStateCommit = streamStateCommit;
