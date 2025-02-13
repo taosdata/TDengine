@@ -10975,6 +10975,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->type));
       TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->flags));
       TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pReq->bytes));
+      TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->typeMod));
       break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
@@ -11031,6 +11032,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->flags));
       TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pReq->bytes));
       TAOS_CHECK_EXIT(tEncodeU32(pEncoder, pReq->compress));
+      TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->typeMod));
       break;
     default:
       break;
@@ -11056,6 +11058,9 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->type));
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->flags));
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pReq->bytes));
+      if (!tDecodeIsEnd(pDecoder)) {
+        TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->typeMod));
+      }
       break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
@@ -11119,6 +11124,9 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->flags));
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pReq->bytes));
       TAOS_CHECK_EXIT(tDecodeU32(pDecoder, &pReq->compress));
+      if (!tDecodeIsEnd(pDecoder)) {
+        TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->typeMod));
+      }
     default:
       break;
   }
