@@ -2166,18 +2166,16 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
+  if( atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum)>1) {
+    tscError("async bind param is still working, please try again later");
+    return TSDB_CODE_TSC_STMT_API_ERROR;
+  }
+
   if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
     if (tsem_wait(&pStmt->asyncExecSem) != 0) {
       tscError("wait asyncExecSem failed");
     }
     pStmt->execSemWaited = true;
-  }
-
-  if (!pStmt->bindSemWaited) {
-    if (tsem_wait(&pStmt->asyncBindSem) != 0) {
-      tscError("wait asyncBindSem failed");
-    }
-    pStmt->bindSemWaited = true;
   }
 
   SSHashObj *hashTbnames = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR));
@@ -2252,7 +2250,20 @@ out:
 
 int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp,
                             void *param) {
-  return stmt2AsyncBind(stmt, bindv,col_idx, fp, param);
+  if (stmt == NULL || bindv == NULL || fp == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  STscStmt2 *pStmt = (STscStmt2 *)stmt;
+  (void)atomic_add_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
+  int code = stmt2AsyncBind(stmt, bindv, col_idx, fp, param);
+  if (code != TSDB_CODE_SUCCESS) {
+    (void)atomic_sub_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
+    // terrno = TAOS_SYSTEM_ERROR(errno);
+  }
+
+  return code;
 }
 
 int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows) {

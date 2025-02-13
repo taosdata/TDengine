@@ -752,6 +752,14 @@ static int32_t stmtInitQueue(STscStmt2* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t stmtIniAsyncBind(STscStmt2* pStmt) {
+  (void)taosThreadCondInit(&pStmt->asyncBindParam.waitCond, NULL);
+  (void)taosThreadMutexInit(&pStmt->asyncBindParam.mutex, NULL);
+  pStmt->asyncBindParam.asyncBindNum = 0;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t stmtInitTableBuf(STableBufInfo* pTblBuf) {
   pTblBuf->buffUnit = sizeof(SStmtQNode);
   pTblBuf->buffSize = pTblBuf->buffUnit * 1000;
@@ -812,13 +820,13 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
     pStmt->sql.siInfo.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
     pStmt->sql.siInfo.pTableHash = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
     if (NULL == pStmt->sql.siInfo.pTableHash) {
-      (void)stmtClose(pStmt);
+      (void)stmtClose2(pStmt);
       return NULL;
     }
     pStmt->sql.siInfo.pTableCols = taosArrayInit(STMT_TABLE_COLS_NUM, POINTER_BYTES);
     if (NULL == pStmt->sql.siInfo.pTableCols) {
       terrno = terrno;
-      (void)stmtClose(pStmt);
+      (void)stmtClose2(pStmt);
       return NULL;
     }
 
@@ -831,7 +839,7 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
     }
     if (TSDB_CODE_SUCCESS != code) {
       terrno = code;
-      (void)stmtClose(pStmt);
+      (void)stmtClose2(pStmt);
       return NULL;
     }
   }
@@ -840,10 +848,17 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
   if (pStmt->options.asyncExecFn) {
     if (tsem_init(&pStmt->asyncExecSem, 0, 1) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
-      (void)stmtClose(pStmt);
+      (void)stmtClose2(pStmt);
       return NULL;
     }
   }
+  code = stmtIniAsyncBind(pStmt);
+  if (TSDB_CODE_SUCCESS != code) {
+    terrno = code;
+    (void)stmtClose2(pStmt);
+    return NULL;
+  }
+
   pStmt->execSemWaited = false;
 
   STMT_LOG_SEQ(STMT_INIT);
@@ -1675,6 +1690,12 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     return pStmt->errCode;
   }
 
+  taosThreadMutexLock(&pStmt->asyncBindParam.mutex);
+  if (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 0) {
+    (void)taosThreadCondWait(&pStmt->asyncBindParam.waitCond, &pStmt->asyncBindParam.mutex);
+  }
+  taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex);
+
   if (pStmt->sql.stbInterlaceMode) {
     STMT_ERR_RET(stmtAddBatch2(pStmt));
   }
@@ -1775,8 +1796,16 @@ int stmtClose2(TAOS_STMT2* stmt) {
     pStmt->bindThreadInUse = false;
   }
 
+  taosThreadMutexLock(&pStmt->asyncBindParam.mutex);
+  if (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 0) {
+    (void)taosThreadCondWait(&pStmt->asyncBindParam.waitCond, &pStmt->asyncBindParam.mutex);
+  }
+  taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex);
   (void)taosThreadCondDestroy(&pStmt->queue.waitCond);
   (void)taosThreadMutexDestroy(&pStmt->queue.mutex);
+
+  (void)taosThreadCondDestroy(&pStmt->asyncBindParam.waitCond);
+  (void)taosThreadMutexDestroy(&pStmt->asyncBindParam.mutex);
 
   if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
     if (tsem_wait(&pStmt->asyncExecSem) != 0) {
@@ -1937,17 +1966,32 @@ typedef struct {
 } ThreadArgs;
 
 static void* stmtAsyncBindThreadFunc(void* args) {
+  setThreadName("stmtAsyncBind");
+
+  qInfo("async stmt bind thread started");
+
   ThreadArgs* targs = (ThreadArgs*)args;
+  STscStmt2*  pStmt = (STscStmt2*)targs->stmt;
 
   int code = taos_stmt2_bind_param(targs->stmt, targs->bindv, targs->col_idx);
   targs->fp(targs->param, NULL, code);
+  (void)taosThreadMutexLock(&(pStmt->asyncBindParam.mutex));
+  (void)atomic_sub_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
+  (void)taosThreadCondSignal(&(pStmt->asyncBindParam.waitCond));
+  (void)taosThreadMutexUnlock(&(pStmt->asyncBindParam.mutex));
   taosMemoryFree(args);
+
+  qInfo("async stmt bind thread stopped");
 
   return NULL;
 }
 
 int stmt2AsyncBind(TAOS_STMT2* stmt, TAOS_STMT2_BINDV* bindv, int32_t col_idx, __taos_async_fn_t fp, void* param) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
+  if (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 1) {
+    tscError("async bind param is still working, please try again later");
+    return TSDB_CODE_TSC_STMT_API_ERROR;
+  }
 
   TdThreadAttr thAttr;
   if (taosThreadAttrInit(&thAttr) != 0) {

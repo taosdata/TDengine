@@ -134,6 +134,12 @@ uint64_t    qRemainNum;
 } SStmtQueue;
 */
 
+typedef struct AsyncBindParam {
+  TdThreadMutex mutex;
+  TdThreadCond  waitCond;
+  uint8_t       asyncBindNum;
+} AsyncBindParam;
+
 typedef struct {
   STscObj          *taos;
   SCatalog         *pCatalog;
@@ -150,14 +156,13 @@ typedef struct {
   SStmtExecInfo exec;
   SStmtBindInfo bInfo;
 
-  char         *db;
-  int64_t       reqid;
-  int32_t       errCode;
-  tsem_t        asyncExecSem;
-  bool          execSemWaited;
-  tsem_t        asyncBindSem;
-  bool          bindSemWaited;
-  SStmtStatInfo stat;
+  char          *db;
+  int64_t        reqid;
+  int32_t        errCode;
+  tsem_t         asyncExecSem;
+  bool           execSemWaited;
+  AsyncBindParam asyncBindParam;
+  SStmtStatInfo  stat;
 } STscStmt2;
 /*
 extern char *gStmtStatusStr[];
