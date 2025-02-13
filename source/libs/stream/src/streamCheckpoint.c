@@ -625,14 +625,10 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
     {  // destroy the related fill-history tasks
       // drop task should not in the meta-lock, and drop the related fill-history task now
       if (pReq->dropRelHTask) {
-        code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
-        int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-        stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped in update checkpointInfo, remain tasks:%d",
-                id, vgId, pReq->taskId, numOfTasks);
-      }
-
-      if (pReq->dropRelHTask) {
-        code = streamMetaCommit(pMeta);
+        code = streamTaskSchedTask(pTask->pMsgCb, vgId, pReq->hStreamId, pReq->hTaskId, STREAM_EXEC_T_DROP_ONE_TASK);
+        if (code) {
+          stError("s-task:%s failed to create msg to drop related fill-history task, code:%s", id, tstrerror(code));
+        }
       }
     }
 
@@ -697,7 +693,7 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
   pTask->status.taskStatus = TASK_STATUS__READY;
 
-  code = streamMetaSaveTask(pMeta, pTask);
+  code = streamMetaSaveTaskInMeta(pMeta, pTask);
   streamMutexUnlock(&pTask->lock);
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -708,10 +704,12 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
   // drop task should not in the meta-lock, and drop the related fill-history task now
   if (pReq->dropRelHTask) {
-    code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
-    int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-    stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped, remain tasks:%d", id, vgId,
-            (int32_t)pReq->hTaskId, numOfTasks);
+    code = streamTaskSchedTask(pTask->pMsgCb, vgId, pReq->hStreamId, pReq->hTaskId, STREAM_EXEC_T_DROP_ONE_TASK);
+    if (code) {
+      stError("s-task:%s failed to create msg to drop related fill-history task, code:%s", id, tstrerror(code));
+    } else {
+      stDebug("s-task:%s vgId:%d create msg to drop related fill-history task:0x%x", id, vgId, (int32_t)pReq->hTaskId);
+    }
   }
 
   code = streamMetaCommit(pMeta);

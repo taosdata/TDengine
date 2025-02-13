@@ -260,13 +260,13 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   // stream do update the nodeEp info, write it into stream meta.
   if (updated) {
     tqDebug("s-task:%s vgId:%d save task after update epset, and stop task", idstr, vgId);
-    code = streamMetaSaveTask(pMeta, pTask);
+    code = streamMetaSaveTaskInMeta(pMeta, pTask);
     if (code) {
       tqError("s-task:%s vgId:%d failed to save task, code:%s", idstr, vgId, tstrerror(code));
     }
 
     if (pHTask != NULL) {
-      code = streamMetaSaveTask(pMeta, pHTask);
+      code = streamMetaSaveTaskInMeta(pMeta, pHTask);
       if (code) {
         tqError("s-task:%s vgId:%d failed to save related history task, code:%s", idstr, vgId, tstrerror(code));
       }
@@ -688,7 +688,7 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
   return code;
 }
 
-int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen) {
+int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, SMsgCb* cb, char* msg, int32_t msgLen) {
   SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
   int32_t              code = 0;
   int32_t              vgId = pMeta->vgId;
@@ -720,29 +720,40 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
 
   // drop the related fill-history task firstly
   if (hTaskId.taskId != 0 && hTaskId.streamId != 0) {
-    tqDebug("s-task:0x%x vgId:%d drop rel fill-history task:0x%x firstly", pReq->taskId, vgId, (int32_t)hTaskId.taskId);
-    code = streamMetaUnregisterTask(pMeta, hTaskId.streamId, hTaskId.taskId);
+    code = streamTaskSchedTask(cb, vgId, hTaskId.streamId, hTaskId.taskId, STREAM_EXEC_T_DROP_ONE_TASK);
     if (code) {
-      tqDebug("s-task:0x%x vgId:%d drop rel fill-history task:0x%x failed", pReq->taskId, vgId,
+      tqError("s-task:0x%x vgId:%d failed to create msg to drop rel fill-history task:0x%x, code:%s", pReq->taskId,
+              vgId, (int32_t)hTaskId.taskId, tstrerror(code));
+    } else {
+      tqDebug("s-task:0x%x vgId:%d create msg to drop rel fill-history task:0x%x succ", pReq->taskId, vgId,
               (int32_t)hTaskId.taskId);
     }
   }
 
   // drop the stream task now
-  code = streamMetaUnregisterTask(pMeta, pReq->streamId, pReq->taskId);
+  code = streamTaskSchedTask(cb, vgId, pReq->streamId, pReq->taskId, STREAM_EXEC_T_DROP_ONE_TASK);
   if (code) {
-    tqDebug("s-task:0x%x vgId:%d drop task failed", pReq->taskId, vgId);
+    tqError("s-task:0x%x vgId:%d failed to create msg to drop task, code:%s", pReq->taskId, vgId, tstrerror(code));
+  } else {
+    tqDebug("s-task:0x%x vgId:%d create msg to drop succ", pReq->taskId, vgId);
   }
 
+//  code = streamMetaUnregisterTask(pMeta, pReq->streamId, pReq->taskId);
+//  if (code) {
+//    tqDebug("s-task:0x%x vgId:%d drop task failed", pReq->taskId, vgId);
+//  }
+
   // commit the update
-  int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-  tqDebug("vgId:%d task:0x%x dropped, remain tasks:%d", vgId, pReq->taskId, numOfTasks);
+//  int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
+//  tqDebug("vgId:%d task:0x%x dropped, remain tasks:%d", vgId, pReq->taskId, numOfTasks);
 
   if (streamMetaCommit(pMeta) < 0) {
     // persist to disk
   }
 
   streamMetaWUnLock(pMeta);
+
+  tqDebug("vgId:%d process drop task:0x%x async completed", vgId, pReq->taskId);
   return 0;  // always return success
 }
 
@@ -856,6 +867,9 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
     return 0;
   } else if (type == STREAM_EXEC_T_ADD_FAILED_TASK) {
     code = streamMetaAddFailedTask(pMeta, req.streamId, req.taskId);
+    return code;
+  } else if (type == STREAM_EXEC_T_DROP_ONE_TASK) {
+    code = streamMetaDropTask(pMeta, req.streamId, req.taskId);
     return code;
   } else if (type == STREAM_EXEC_T_RESUME_TASK) {  // task resume to run after idle for a while
     SStreamTask* pTask = NULL;
