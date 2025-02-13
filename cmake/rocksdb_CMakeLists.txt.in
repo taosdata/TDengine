@@ -1,38 +1,38 @@
-
 # rocksdb
-if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
-  set(_base             "${TD_CONTRIB_DIR}/rocksdb")
-  set(_ins              "${TD_CONTRIB_DIR}/rocksdb/install")
-  ExternalProject_Add(ext_rocksdb
-    URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
-    URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
-    # DOWNLOAD_NO_PROGRESS 1
-    
-	  DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
-	  SOURCE_DIR "${TD_CONTRIB_DIR}/rocksdb"
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND ""
-    INSTALL_COMMAND ""
-    TEST_COMMAND ""
+if(${BUILD_CONTRIB} OR NOT ${TD_LINUX})
+    set(_base "${TD_CONTRIB_DIR}/rocksdb")
+    set(_ins "${TD_CONTRIB_DIR}/rocksdb/install")
 
-    # PREFIX "${_base}"
-    # CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-    # CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=Release
-    # CMAKE_ARGS -DWITH_JEMALLOC:BOOL=OFF
-    # CMAKE_ARGS -DWITH_FALLOCATE:BOOL=OFF
-    # CMAKE_ARGS -DWITH_GFLAGS:BOOL=OFF
-    # CMAKE_ARGS -DPORTABLE:BOOL=ON
-    # CMAKE_ARGS -DWITH_LIBURING:BOOL=OFF
-    # CMAKE_ARGS -DFAIL_ON_WARNINGS:BOOL=OFF
-    # CMAKE_ARGS -DWITH_ALL_TESTS:BOOL=OFF
-    # CMAKE_ARGS -DWITH_BENCHMARK_TOOLS:BOOL=OFF
-    # CMAKE_ARGS -DWITH_TOOLS:BOOL=OFF
-    # CMAKE_ARGS -DROCKSDB_BUILD_SHARED:BOOL=OFF
+    ExternalProject_Add(ext_rocksdb
+        URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
+        URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
+        DOWNLOAD_NO_PROGRESS 1
 
-    GIT_SHALLOW true
-  )
+        DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
+        SOURCE_DIR "${TD_CONTRIB_DIR}/rocksdb"
+        UPDATE_COMMAND ""
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
 
-  set(TD_CONTRIB_EXT_ROCKSDB_INC_DIR     "${_ins}/include" PARENT_SCOPE)
-  set(TD_CONTRIB_EXT_ROCKSDB_LIB_DIR     "${_ins}/lib"     PARENT_SCOPE)
+        # PREFIX "${_base}"
+        # CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        # CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=Release
+        # CMAKE_ARGS -DWITH_JEMALLOC:BOOL=OFF
+        # CMAKE_ARGS -DWITH_FALLOCATE:BOOL=OFF
+        # CMAKE_ARGS -DWITH_GFLAGS:BOOL=OFF
+        # CMAKE_ARGS -DPORTABLE:BOOL=ON
+        # CMAKE_ARGS -DWITH_LIBURING:BOOL=OFF
+        # CMAKE_ARGS -DFAIL_ON_WARNINGS:BOOL=OFF
+        # CMAKE_ARGS -DWITH_ALL_TESTS:BOOL=OFF
+        # CMAKE_ARGS -DWITH_BENCHMARK_TOOLS:BOOL=OFF
+        # CMAKE_ARGS -DWITH_TOOLS:BOOL=OFF
+        # CMAKE_ARGS -DROCKSDB_BUILD_SHARED:BOOL=OFF
+        GIT_SHALLOW true
+    )
+
+    set(TD_CONTRIB_EXT_ROCKSDB_INC_DIR "${_ins}/include" PARENT_SCOPE)
+    set(TD_CONTRIB_EXT_ROCKSDB_LIB_DIR "${_ins}/lib" PARENT_SCOPE)
 endif()
 
