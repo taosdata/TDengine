@@ -27,11 +27,11 @@ class TDTestCase(TBase):
 
     def run(self):
         # strong
-        tdSql.error("create user test pass '12345678' sysinfo 0;", expectErrInfo="Invalid password format")
+        tdSql.error("create user test pass '12345678' sysinfo 0;", expectErrInfo="Invalid password")
 
         tdSql.execute("create user test pass '12345678@Abc' sysinfo 0;")
 
-        tdSql.error("alter user test pass '23456789'", expectErrInfo="Invalid password format")
+        tdSql.error("alter user test pass '23456789'", expectErrInfo="Invalid password")
 
         tdSql.execute("alter user test pass '23456789@Abc';")
 
