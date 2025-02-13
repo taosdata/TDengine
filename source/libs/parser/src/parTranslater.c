@@ -10093,8 +10093,11 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   alterReq.sysInfo = pStmt->sysinfo;
   alterReq.createdb = pStmt->createdb ? 1 : 0;
 
-  taosEncryptPass_c((uint8_t*)pStmt->password, strlen(pStmt->password), alterReq.pass);
-  alterReq.passIsMd5 = 1;
+  int32_t len = strlen(pStmt->password);
+  if (len > 0) {
+    taosEncryptPass_c((uint8_t*)pStmt->password, len, alterReq.pass);
+    alterReq.passIsMd5 = 1;
+  }
 
   if (NULL != pCxt->pParseCxt->db) {
     snprintf(alterReq.objname, sizeof(alterReq.objname), "%s", pCxt->pParseCxt->db);
