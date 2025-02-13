@@ -609,94 +609,6 @@ TEST(decimal128, divide) {
   ASSERT_TRUE(1);
 }
 
-TEST(decimal, api_taos_fetch_rows) {
-  const char* host = "127.0.0.1";
-  const char* user = "root";
-  const char* passwd = "taosdata";
-  const char* db = "test_api";
-  const char* create_tb = "create table if not exists test_api.nt(ts timestamp, c1 decimal(10, 2), c2 decimal(38, 10))";
-  const char* sql = "select c1, c2 from test_api.nt";
-  const char* sql_insert = "insert into test_api.nt values(now, 123456.123, 98472981092.1209111)";
-
-  TAOS* pTaos = taos_connect(host, user, passwd, NULL, 0);
-  if (!pTaos) {
-    cout << "taos connect failed: " << host << " " << taos_errstr(NULL);
-    FAIL();
-  }
-
-  auto* res = taos_query(pTaos, (std::string("create database if not exists ") + db).c_str());
-  taos_free_result(res);
-  res = taos_query(pTaos, create_tb);
-  taos_free_result(res);
-  res = taos_query(pTaos, sql_insert);
-  taos_free_result(res);
-
-  res = taos_query(pTaos, sql);
-  int32_t code = taos_errno(res);
-  if (code != 0) {
-    cout << "taos_query with sql: " << sql << " failed: " << taos_errstr(res);
-    FAIL();
-  }
-
-  char  buf[1024] = {0};
-  auto* fields = taos_fetch_fields(res);
-  auto  fieldNum = taos_field_count(res);
-  while (auto row = taos_fetch_row(res)) {
-    taos_print_row(buf, row, fields, fieldNum);
-    cout << buf << endl;
-  }
-  taos_free_result(res);
-
-  res = taos_query(pTaos, sql);
-  code = taos_errno(res);
-  if (code != 0) {
-    cout << "taos_query with sql: " << sql << " failed: " << taos_errstr(res);
-    taos_free_result(res);
-    FAIL();
-  }
-
-  void*   pData = NULL;
-  int32_t numOfRows = 0;
-  code = taos_fetch_raw_block(res, &numOfRows, &pData);
-  if (code != 0) {
-    cout << "taos_query with sql: " << sql << " failed: " << taos_errstr(res);
-    FAIL();
-  }
-  if (numOfRows > 0) {
-    int32_t version = *(int32_t*)pData;
-    ASSERT_EQ(version, BLOCK_VERSION_1);
-    int32_t rows = *(int32_t*)((char*)pData + 4 + 4);
-    int32_t colNum = *(int32_t*)((char*)pData + 4 + 4 + 4);
-    int32_t bytes_skip = 4 + 4 + 4 + 4 + 4 + 8;
-    char*   p = (char*)pData + bytes_skip;
-    // col1
-    int8_t  t = *(int8_t*)p;
-    int32_t type_mod = *(int32_t*)(p + 1);
-
-    ASSERT_EQ(t, TSDB_DATA_TYPE_DECIMAL64);
-    auto check_type_mod = [](char* pStart, uint8_t prec, uint8_t scale, int32_t bytes) {
-      ASSERT_EQ(*pStart, bytes);
-      ASSERT_EQ(*(pStart + 2), prec);
-      ASSERT_EQ(*(pStart + 3), scale);
-    };
-    check_type_mod(p + 1, 10, 2, 8);
-
-    // col2
-    p += 5;
-    t = *(int8_t*)p;
-    type_mod = *(int32_t*)(p + 1);
-    check_type_mod(p + 1, 38, 10, 16);
-
-    p = p + 5 + BitmapLen(numOfRows) + colNum * 4;
-    int64_t row1Val = *(int64_t*)p;
-    ASSERT_EQ(row1Val, 12345612);
-  }
-  taos_free_result(res);
-
-  taos_close(pTaos);
-  taos_cleanup();
-}
-
 TEST(decimal, conversion) {
   // convert uint8 to decimal
   char      buf[64] = {0};
@@ -1248,6 +1160,126 @@ TEST(decimal_all, ret_type_for_non_decimal_types) {
     dcc2.check();
   }
 }
+
+class DecimalTest : public ::testing::Test {
+  TAOS* get_connection() {
+    auto conn = taos_connect(host, user, passwd, db, 0);
+    if (!conn) {
+      cout << "taos connect failed: " << host << " " << taos_errstr(NULL);
+    }
+    return conn;
+  }
+  TAOS*                        default_conn_ = NULL;
+  static constexpr const char* host = "127.0.0.1";
+  static constexpr const char* user = "root";
+  static constexpr const char* passwd = "taosdata";
+  static constexpr const char* db = "test_api";
+
+ public:
+  void SetUp() override {
+    default_conn_ = get_connection();
+    if (!default_conn_) {
+      FAIL();
+    }
+  }
+  void TearDown() override {
+    if (default_conn_) {
+      taos_close(default_conn_);
+    }
+  }
+};
+
+TEST_F(DecimalTest, insert) {
+  
+}
+
+TEST_F(DecimalTest, api_taos_fetch_rows) {
+  const char* host = "127.0.0.1";
+  const char* user = "root";
+  const char* passwd = "taosdata";
+  const char* db = "test_api";
+  const char* create_tb = "create table if not exists test_api.nt(ts timestamp, c1 decimal(10, 2), c2 decimal(38, 10))";
+  const char* sql = "select c1, c2 from test_api.nt";
+  const char* sql_insert = "insert into test_api.nt values(now, 123456.123, 98472981092.1209111)";
+
+  TAOS* pTaos = taos_connect(host, user, passwd, NULL, 0);
+  if (!pTaos) {
+    cout << "taos connect failed: " << host << " " << taos_errstr(NULL);
+    FAIL();
+  }
+
+  auto* res = taos_query(pTaos, (std::string("create database if not exists ") + db).c_str());
+  taos_free_result(res);
+  res = taos_query(pTaos, create_tb);
+  taos_free_result(res);
+  res = taos_query(pTaos, sql_insert);
+  taos_free_result(res);
+
+  res = taos_query(pTaos, sql);
+  int32_t code = taos_errno(res);
+  if (code != 0) {
+    cout << "taos_query with sql: " << sql << " failed: " << taos_errstr(res);
+    FAIL();
+  }
+
+  char  buf[1024] = {0};
+  auto* fields = taos_fetch_fields(res);
+  auto  fieldNum = taos_field_count(res);
+  while (auto row = taos_fetch_row(res)) {
+    taos_print_row(buf, row, fields, fieldNum);
+    cout << buf << endl;
+  }
+  taos_free_result(res);
+
+  res = taos_query(pTaos, sql);
+  code = taos_errno(res);
+  if (code != 0) {
+    cout << "taos_query with sql: " << sql << " failed: " << taos_errstr(res);
+    taos_free_result(res);
+    FAIL();
+  }
+
+  void*   pData = NULL;
+  int32_t numOfRows = 0;
+  code = taos_fetch_raw_block(res, &numOfRows, &pData);
+  if (code != 0) {
+    cout << "taos_query with sql: " << sql << " failed: " << taos_errstr(res);
+    FAIL();
+  }
+  if (numOfRows > 0) {
+    int32_t version = *(int32_t*)pData;
+    ASSERT_EQ(version, BLOCK_VERSION_1);
+    int32_t rows = *(int32_t*)((char*)pData + 4 + 4);
+    int32_t colNum = *(int32_t*)((char*)pData + 4 + 4 + 4);
+    int32_t bytes_skip = 4 + 4 + 4 + 4 + 4 + 8;
+    char*   p = (char*)pData + bytes_skip;
+    // col1
+    int8_t  t = *(int8_t*)p;
+    int32_t type_mod = *(int32_t*)(p + 1);
+
+    ASSERT_EQ(t, TSDB_DATA_TYPE_DECIMAL64);
+    auto check_type_mod = [](char* pStart, uint8_t prec, uint8_t scale, int32_t bytes) {
+      ASSERT_EQ(*pStart, bytes);
+      ASSERT_EQ(*(pStart + 2), prec);
+      ASSERT_EQ(*(pStart + 3), scale);
+    };
+    check_type_mod(p + 1, 10, 2, 8);
+
+    // col2
+    p += 5;
+    t = *(int8_t*)p;
+    type_mod = *(int32_t*)(p + 1);
+    check_type_mod(p + 1, 38, 10, 16);
+
+    p = p + 5 + BitmapLen(numOfRows) + colNum * 4;
+    int64_t row1Val = *(int64_t*)p;
+    ASSERT_EQ(row1Val, 12345612);
+  }
+  taos_free_result(res);
+
+  taos_close(pTaos);
+}
+
 
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);

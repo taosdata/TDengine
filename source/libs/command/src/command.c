@@ -166,7 +166,15 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
     STR_TO_VARSTR(buf, pMeta->schema[i].name);
     COL_DATA_SET_VAL_AND_CHECK(pCol1, pBlock->info.rows, buf, false);
 
-    STR_TO_VARSTR(buf, tDataTypes[pMeta->schema[i].type].name);
+    if (IS_DECIMAL_TYPE(pMeta->schema[i].type) && withExtSchema(pMeta->tableType)) {
+      uint8_t prec = 0, scale = 0;
+      decimalFromTypeMod(pMeta->schemaExt[i].typeMod, &prec, &scale);
+      size_t len = snprintf(buf + VARSTR_HEADER_SIZE, DESCRIBE_RESULT_FIELD_LEN - VARSTR_HEADER_SIZE, "%s(%hhu, %hhu)",
+                            tDataTypes[pMeta->schema[i].type].name, prec, scale);
+      varDataSetLen(buf, len);
+    } else {
+      STR_TO_VARSTR(buf, tDataTypes[pMeta->schema[i].type].name);
+    }
     COL_DATA_SET_VAL_AND_CHECK(pCol2, pBlock->info.rows, buf, false);
     int32_t bytes = getSchemaBytes(pMeta->schema + i);
     COL_DATA_SET_VAL_AND_CHECK(pCol3, pBlock->info.rows, (const char*)&bytes, false);

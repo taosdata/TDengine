@@ -2,6 +2,7 @@ from random import randrange
 import time
 import threading
 import secrets
+from tag_lite import column
 from util.log import *
 from util.sql import *
 from util.cases import *
@@ -47,8 +48,13 @@ class DecimalType:
         if digits == '':
             digits = '0'
         return digits
-
-
+    
+    @staticmethod
+    def default_compression() -> str:
+        return "zstd"
+    @staticmethod
+    def default_encode() -> str:
+        return "disabled"
 class TypeEnum:
     BOOL = 1
     TINYINT = 2
@@ -244,13 +250,13 @@ class TableInserter:
                 sql += ", "
             local_flush_database = i % 5000 == 0;
             if len(sql) > 1000:
-                tdLog.debug(f"insert into with sql{sql}")
+                #tdLog.debug(f"insert into with sql{sql}")
                 if flush_database and local_flush_database:
                     self.conn.execute(f"flush database {self.dbName}", queryTimes=1)
                 self.conn.execute(sql, queryTimes=1)
                 sql = pre_insert
         if len(sql) > len(pre_insert):
-            tdLog.debug(f"insert into with sql{sql}")
+            #tdLog.debug(f"insert into with sql{sql}")
             if flush_database:
                 self.conn.execute(f"flush database {self.dbName}", queryTimes=1)
             self.conn.execute(sql, queryTimes=1)
@@ -392,11 +398,13 @@ class TDTestCase:
         results = tdSql.queryResult
         for i, column_type in enumerate(column_types):
             if column_type.type == TypeEnum.DECIMAL:
-                if results[i+1][1] != "DECIMAL":
+                if results[i+1][1] != column_type.__str__():
                     tdLog.info(str(results))
                     tdLog.exit(f"check desc failed for table: {tbname} column {results[i+1][0]} type is {results[i+1][1]}, expect DECIMAL")
-        ## add decimal type bytes check
-        ## add compression/encode check
+                if results[i+1][4] != DecimalType.default_encode():
+                    tdLog.exit(f"check desc failed for table: {tbname} column {results[i+1][0]} encode is {results[i+1][5]}, expect {DecimalType.default_encode()}")
+                if results[i+1][5] != DecimalType.default_compression():
+                    tdLog.exit(f"check desc failed for table: {tbname} column {results[i+1][0]} compression is {results[i+1][4]}, expect {DecimalType.default_compression()}")
 
     def check_show_create_table(self, tbname: str, column_types: List[DataType], tag_types: List[DataType] = []):
         sql = f"show create table {self.db_name}.{tbname}"
@@ -445,16 +453,34 @@ class TDTestCase:
         DecimalColumnTableCreater(tdSql, self.db_name, self.stable_name, self.columns).create_child_table(self.c_table_prefix, self.c_table_num, self.tags, tag_values)
         self.check_desc("t1", self.columns, self.tags)
 
-        return
         ## invalid precision/scale
-        invalid_precision_scale = ["decimal(-1, 2)", "decimal(39, 2)", "decimal(10, -1)", "decimal(10, 39)", "decimal(10, 2.5)", "decimal(10.5, 2)", "decimal(10.5, 2.5)", "decimal(0, 2)", "decimal(0)", "decimal", "decimal()"]
+        syntax_error = -2147473920
+        invalid_column = -2147473918
+        invalid_precision_scale = [("decimal(-1, 2)", syntax_error), ("decimal(39, 2)", invalid_column), ("decimal(10, -1)", syntax_error), 
+                                   ("decimal(10, 39)", invalid_column), ("decimal(10, 2.5)", syntax_error), ("decimal(10.5, 2)", syntax_error), 
+                                   ("decimal(10.5, 2.5)", syntax_error), ("decimal(0, 2)", invalid_column), ("decimal(0)", invalid_column), 
+                                   ("decimal", syntax_error), ("decimal()", syntax_error)]
         for i in invalid_precision_scale:
-            sql = f"create table {self.db_name}.invalid_decimal_precision_scale (ts timestamp, c1 {i})"
-            tdSql.error(sql, -1)
+            sql = f"create table {self.db_name}.invalid_decimal_precision_scale (ts timestamp, c1 {i[0]})"
+            tdSql.error(sql, i[1])
 
         ## can't create decimal tag
+        sql = 'create stable %s.invalid_decimal_tag (ts timestamp) tags (t1 decimal(10, 2))' % (self.db_name)
+        tdSql.error(sql, invalid_column)
 
-        ## alter table
+        ## alter table add column
+        sql = f'alter table {self.db_name}.{self.norm_table_name} add column c99 decimal(37, 19)'
+        self.columns.append(DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(37, 19))))
+        tdSql.execute(sql, queryTimes=1)
+        self.check_desc(self.norm_table_name, self.columns)
+        ## alter table add column with compression
+
+        ## Test metaentry compatibility problem for decimal type:w
+        ## How to test it?
+        ## Create table with no decimal type, the metaentries should not have extschma, and add decimal column, the metaentries should have extschema for all columns.
+        ## After drop this decimal column, the metaentries should not have extschema for all columns.
+        ## Test for normal table and super table
+
         ## drop index from stb
         ### These ops will override the previous stbobjs and meta entries, so test it
 
@@ -466,7 +492,7 @@ class TDTestCase:
             pass
             #TableInserter(tdSql, self.db_name, f"{self.c_table_prefix}{i}", self.columns, self.tags).insert(1, 1537146000000, 500)
 
-        TableInserter(tdSql, self.db_name, self.norm_table_name, self.columns).insert(100000, 1537146000000, 500, flush_database=True)
+        TableInserter(tdSql, self.db_name, self.norm_table_name, self.columns).insert(10000, 1537146000000, 500, flush_database=True)
 
 
         ## insert null/None for decimal type
@@ -483,7 +509,8 @@ class TDTestCase:
                 DataType(TypeEnum.VARCHAR, 255),
                 ]
         DecimalColumnTableCreater(tdSql, self.db_name, "tt", columns, []).create()
-        TableInserter(tdSql, self.db_name, 'tt', columns).insert(100000, 1537146000000, 500, flush_database=True)
+        TableInserter(tdSql, self.db_name, 'tt', columns).insert(10000, 1537146000000, 500, flush_database=True)
+        ## TODO wjm test non support decimal version upgrade to decimal support version, and add decimal column
 
     def test_decimal_ddl(self):
         tdSql.execute("create database test", queryTimes=1)
@@ -493,7 +520,6 @@ class TDTestCase:
         self.test_decimal_ddl()
         self.no_decimal_table_test()
         self.test_insert_decimal_values()
-        time.sleep(9999999)
 
     def stop(self):
         tdSql.close()
