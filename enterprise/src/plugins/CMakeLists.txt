@@ -276,7 +276,7 @@ IF(TD_BUILD_KEEPER_INTERNAL)
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
-            COMMAND go build -a -ldflags "-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true' -X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}' -X 'github.com/taosdata/taoskeeper/version.Gitinfo=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+            COMMAND go build -a -ldflags "-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true' -X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}' -X 'github.com/taosdata/taoskeeper/version.Gitinfo=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}' -X 'github.com/taosdata/taoskeeper/version.CUS_NAME=${TAOSA_CUS_NAME}' -X 'github.com/taosdata/taoskeeper/version.CUS_PROMPT=${TAOSA_CUS_PROMPT}'"
             INSTALL_COMMAND
             COMMAND cmake -E echo "Copy taoskeeper.exe"
             COMMAND cmake -E copy taoskeeper.exe ${CMAKE_BINARY_DIR}/build/bin
@@ -303,7 +303,7 @@ IF(TD_BUILD_KEEPER_INTERNAL)
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
-            COMMAND go build -a -ldflags "-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true' -X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}' -X 'github.com/taosdata/taoskeeper/version.Gitinfo=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+            COMMAND go build -a -ldflags "-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true' -X 'github.com/taosdata/taoskeeper/version.Version=${taos_version}' -X 'github.com/taosdata/taoskeeper/version.Gitinfo=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.CommitID=${taoskeeper_commit_sha1}' -X 'github.com/taosdata/taoskeeper/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}' -X 'github.com/taosdata/taoskeeper/version.CUS_NAME=${TAOSA_CUS_NAME}' -X 'github.com/taosdata/taoskeeper/version.CUS_PROMPT=${TAOSA_CUS_PROMPT}'"
             INSTALL_COMMAND
             COMMAND cmake -E echo "Copy taoskeeper"
             COMMAND cmake -E copy taoskeeper ${CMAKE_BINARY_DIR}/build/bin/
