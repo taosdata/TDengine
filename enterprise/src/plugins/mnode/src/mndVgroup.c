@@ -64,6 +64,7 @@ int32_t mndProcessVgroupBalanceLeaderMsgImp(SRpcMsg *pReq) {
   }
   mndTransSetSerial(pTrans);
   mndTransSetChangeless(pTrans);
+  mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
   mInfo("trans:%d, used to balance vgroup leader", pTrans->id);
   mInfo("trans:%d, the transaction will balance vgroups for vgId:%d, db:%s", pTrans->id, req.vgId, req.db);
 
