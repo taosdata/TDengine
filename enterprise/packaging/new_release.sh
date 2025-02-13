@@ -319,19 +319,26 @@ function build_TDengine() {
     repoDir=""
     echo "start to cmake tdengine"
     echo "versionType $versionType"
+
+    if [[ "$allocator" == "jemalloc" ]]; then
+        allocator_macro="-DJEMALLOC_ENABLED=true"
+    else
+        allocator_macro=""
+    fi
+
     if [ "$versionType" != "community" ];then
         echo "build enterprise or industry version"
         BUILD_KEEPER="internal"
         mkdir -p ${internalDir}/debug
         cd ${internalDir}/debug
-        cmd="cmake ../ -DCMAKE_BUILD_TYPE=Release -DASSERT_NOT_CORE=true -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE=\"${build_time}\" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=internal -DBUILD_TOOLS=true -DGRANT_VALUE=${grantValue} -DTD_PRODUCT_NAME=\"TDengine Enterprise Edition\" -DBUILD_KEEPER=${BUILD_KEEPER} -DBUILD_SANITIZER=0 "
+        cmd_compile_enterprise="cmake ../ -DCMAKE_BUILD_TYPE=Release -DASSERT_NOT_CORE=true -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE=\"${build_time}\" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=internal -DBUILD_TOOLS=true -DGRANT_VALUE=${grantValue} -DTD_PRODUCT_NAME=\"TDengine Enterprise Edition\" -DBUILD_KEEPER=${BUILD_KEEPER} -DBUILD_SANITIZER=0 ${allocator_macro} "
         if [ "$versionType" == "enterprise" ]; then
             echo "build TDengine enterprise version"
-            echo $cmd
-            eval $cmd
+            echo $cmd_compile_enterprise
+            eval $cmd_compile_enterprise
         elif [ "$versionType" == "industry" ]; then
             echo "build TDengine industry version"
-            industry_cmd="$cmd $(industry_options)"
+            industry_cmd="$cmd_compile_enterprise $(industry_options)"
             echo $industry_cmd
             eval $industry_cmd
         fi
@@ -342,11 +349,10 @@ function build_TDengine() {
         mkdir -p ${communityDir}/debug
         cd ${communityDir}/debug
         BUILD_KEEPER=true
-        echo "cmake ../ -DCMAKE_BUILD_TYPE=Release -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE='${build_time}' -DGITINFO=${gitinfo} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=false -DBUILD_TOOLS=true  -DBUILD_KEEPER=${BUILD_KEEPER}"
-        cmake ../ -DCMAKE_BUILD_TYPE=Release -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type}          \
-            -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE="${build_time}" -DGITINFO=${gitinfo}        \
-            -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_KEEPER=${BUILD_KEEPER} 
-
+        cmd_compile_community="cmake ../ -DCMAKE_BUILD_TYPE=Release -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE='${build_time}' -DGITINFO=${gitinfo} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=false -DBUILD_TOOLS=true  -DBUILD_KEEPER=${BUILD_KEEPER}"
+        echo $cmd_compile_community
+        eval $cmd_compile_community
+        
         binPath="${communityDir}/debug/build/bin"
         repoDir="${communityDir}"
     fi
