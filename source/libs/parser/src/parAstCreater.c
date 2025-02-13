@@ -109,7 +109,7 @@ static bool invalidPassword(const char* pPassword) {
 
 static bool invalidStrongPassword(const char* pPassword) {
   if (strcmp(pPassword, "taosdata") == 0) {
-    return true;
+    return false;
   }
 
   bool charTypes[4] = {0};
