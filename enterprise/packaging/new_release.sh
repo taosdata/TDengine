@@ -349,7 +349,7 @@ function build_TDengine() {
         mkdir -p ${communityDir}/debug
         cd ${communityDir}/debug
         BUILD_KEEPER=true
-        cmd_compile_community="cmake ../ -DCMAKE_BUILD_TYPE=Release -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE='${build_time}' -DGITINFO=${gitinfo} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=false -DBUILD_TOOLS=true  -DBUILD_KEEPER=${BUILD_KEEPER}"
+        cmd_compile_community="cmake ../ -DCMAKE_BUILD_TYPE=Release -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE='${build_time}' -DGITINFO=${gitinfo} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=false -DBUILD_TOOLS=true  -DBUILD_KEEPER=${BUILD_KEEPER} ${allocator_macro}"
         echo $cmd_compile_community
         eval $cmd_compile_community
         
