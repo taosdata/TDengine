@@ -65,7 +65,7 @@ insertJson = '''{
           "child_table_exists": "no",
           "childtable_count": 10000,
           "childtable_prefix": "d",
-          "auto_create_table": "no",
+          "auto_create_table": "yes",
           "batch_create_tbl_num": 500,
           "data_source": "rand",
           "insert_mode": "taosc",
