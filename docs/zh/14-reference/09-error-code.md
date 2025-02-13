@@ -478,7 +478,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80002687 | Invalid using cols function                                                                            | cols函数使用错误                             | 检查并修正SQL语句                        |
 | 0x80002688 | Cols function's first param must be a select function                                                  | cols函数第一个参数应该为选择函数                | 检查并修正SQL语句                     |
 | 0x80002689 | Invalid using cols function with multiple output columns                                               | 多列输出的 cols 函数使用错误                   | 检查并修正SQL语句                      |
-| 0x80002690 | Invalid using alias for cols function                                                                  | cols 函数输出列重命名错误                      | 检查并修正SQL语句                     |
+| 0x8000268A | Invalid using alias for cols function                                                                  | cols 函数输出列重命名错误                      | 检查并修正SQL语句                     |
 | 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                | 保留现场和日志，github上报issue       |
 | 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                | 保留现场和日志，github上报issue       |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN条件校验失败                              | 保留现场和日志，github上报issue       |
