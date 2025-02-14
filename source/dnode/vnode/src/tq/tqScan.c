@@ -336,26 +336,9 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
   TSDB_CHECK_CODE(code, lino, END);
   bool tmp = (pSubmitTbData->flags & pRequest->sourceExcluded) != 0;
   TSDB_CHECK_CONDITION(!tmp, code, lino, END, TSDB_CODE_SUCCESS);
+
+
   int32_t blockNum = taosArrayGetSize(pBlocks) == 0 ? 1 : taosArrayGetSize(pBlocks);
-  if (rawList != NULL && taosArrayGetSize(pBlocks) == 0){
-    if (taosHashGet(pRequest->uidHash, &pExec->pTqReader->lastBlkUid, LONG_BYTES) != NULL) {
-      tqDebug("poll rawdata split,vgId:%d, uid:%" PRId64 " is already exists", pTq->pVnode->config.vgId, pExec->pTqReader->lastBlkUid);
-      terrno = TSDB_CODE_TMQ_DUPLICATE_UID;
-      goto END;
-    } else {
-      code = taosHashPut(pRequest->uidHash, &pExec->pTqReader->lastBlkUid, LONG_BYTES, &pExec->pTqReader->lastBlkUid, LONG_BYTES);
-      TSDB_CHECK_CODE(code, lino, END);
-    }
-  }
-
-  // this submit data is metadata and previous data is data
-  if (rawList != NULL && *totalRows > 0 && pSubmitTbData->pCreateTbReq != NULL && taosArrayGetSize(pBlocks) > 0 && pRsp->createTableNum <= 1){
-    tqDebug("poll rawdata split,vgId:%d, uid:%" PRId64 ", this submit data is metadata and previous data is data", pTq->pVnode->config.vgId, pExec->pTqReader->lastBlkUid);
-    terrno = TSDB_CODE_TMQ_DUPLICATE_UID;
-    pRsp->createTableNum = 0;
-    goto END;
-  }
-
   if (pRsp->withTbName) {
     int64_t uid = pExec->pTqReader->lastBlkUid;
     code = tqAddTbNameToRsp(pTq, uid, pRsp, blockNum);
@@ -405,6 +388,52 @@ END:
   taosArrayDestroyP(pSchemas, (FDelete)tDeleteSchemaWrapper);
 }
 
+static void preProcessSubmitMsg(STqHandle* pHandle, const SMqPollReq* pRequest, SArray** rawList){
+  STqExecHandle* pExec = &pHandle->execHandle;
+  STqReader* pReader = pExec->pTqReader;
+  int32_t blockSz = taosArrayGetSize(pReader->submit.aSubmitTbData);
+  for (int32_t i = 0; i < blockSz; i++){
+    SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, i);
+    if (pSubmitTbData== NULL){
+      tqReaderClearSubmitMsg(pReader);
+      taosArrayDestroy(*rawList);
+      *rawList = NULL;
+      return;
+    }
+    if (pSubmitTbData->pCreateTbReq == NULL){
+      continue;
+    }
+    int64_t createTime = 0;
+    int64_t uid = pSubmitTbData->uid;
+    if (taosHashGet(pRequest->uidHash, &uid, LONG_BYTES) != NULL) {
+      tqDebug("poll rawdata split,uid:%" PRId64 " is already exists", uid);
+      terrno = TSDB_CODE_TMQ_RAW_DATA_SPLIT;
+      return;
+    } else {
+      if (taosHashPut(pRequest->uidHash, &uid, LONG_BYTES, &uid, LONG_BYTES) != 0){
+        tqError("failed to add table create time to hash, uid:%"PRId64, uid);
+      }
+    }
+
+    int64_t *cTime = (int64_t*)taosHashGet(pHandle->tableCreateTimeHash, &uid, LONG_BYTES);
+    if (cTime != NULL){
+      createTime = *cTime;
+    } else{
+      createTime = metaGetTableCreateTime(pReader->pVnodeMeta, uid, 1);
+      if (taosHashPut(pHandle->tableCreateTimeHash, &uid, LONG_BYTES, &createTime, LONG_BYTES) != 0){
+        tqError("failed to add table create time to hash, uid:%"PRId64, uid);
+      }
+    }
+    if (pHandle->fetchMeta == WITH_DATA || pSubmitTbData->ctimeMs > createTime){
+      tDestroySVCreateTbReq(pSubmitTbData->pCreateTbReq, TSDB_MSG_FLG_DECODE);
+      pSubmitTbData->pCreateTbReq = NULL;
+    } else{
+      taosArrayDestroy(*rawList);
+      *rawList = NULL;
+    }
+  }
+}
+
 int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqDataRsp* pRsp, int32_t* totalRows, const SMqPollReq* pRequest) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -417,26 +446,32 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqData
   }
   code = tqReaderSetSubmitMsg(pReader, submit.msgStr, submit.msgLen, submit.ver, rawList);
   TSDB_CHECK_CODE(code, lino, END);
+  preProcessSubmitMsg(pHandle, pRequest, &rawList);
+
+  // data could not contains same uid data in rawdata mode
+  if (pRequest->rawData != 0 && terrno == TSDB_CODE_TMQ_RAW_DATA_SPLIT){
+    goto END;
+  }
+
+  // this submit data is metadata and previous data is rawdata
+  if (pRequest->rawData != 0 && *totalRows > 0 && rawList == NULL){
+    tqDebug("poll rawdata split,vgId:%d, uid:%" PRId64 ", this submit data is metadata and previous data is data", pTq->pVnode->config.vgId, pExec->pTqReader->lastBlkUid);
+    terrno = TSDB_CODE_TMQ_RAW_DATA_SPLIT;
+    goto END;
+  }
 
   if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
     while (tqNextBlockImpl(pReader, NULL)) {
       tqProcessSubData(pTq, pHandle, pRsp, totalRows, pRequest, rawList);
-      if (terrno == TSDB_CODE_TMQ_DUPLICATE_UID){
-        tqReaderClearSubmitMsg(pReader);
-        goto END;
-      }
     }
   } else if (pExec->subType == TOPIC_SUB_TYPE__DB) {
     while (tqNextDataBlockFilterOut(pReader, pExec->execDb.pFilterOutTbUid)) {
       tqProcessSubData(pTq, pHandle, pRsp, totalRows, pRequest, rawList);
-      if (terrno == TSDB_CODE_TMQ_DUPLICATE_UID){
-        tqReaderClearSubmitMsg(pReader);
-        goto END;
-      }
     }
   }
 
 END:
+  tqReaderClearSubmitMsg(pReader);
   taosArrayDestroy(rawList);
   if (code != 0){
     tqError("%s failed at %d, failed to scan log:%s", __FUNCTION__, lino, tstrerror(code));

@@ -11877,32 +11877,17 @@ int32_t tDecodeSubmitReq(SDecoder *pCoder, SSubmitReq2 *pReq, SArray* rawList) {
     goto _exit;
   }
 
-  bool hasCreateTable = false;
   for (uint64_t i = 0; i < nSubmitTbData; i++) {
     SSubmitTbData* data = taosArrayReserve(pReq->aSubmitTbData, 1);
-    if (tDecodeSSubmitTbData(pCoder, data,
-                             rawList != NULL ? taosArrayReserve(rawList, 1) : NULL) < 0) {
+    if (tDecodeSSubmitTbData(pCoder, data, rawList != NULL ? taosArrayReserve(rawList, 1) : NULL) < 0) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
     }
-    if (data->flags & SUBMIT_REQ_AUTO_CREATE_TABLE){
-      hasCreateTable = true;
-    }
-  }
-  if (rawList != NULL && hasCreateTable){
-    taosArrayClear(rawList);
   }
 
   tEndDecode(pCoder);
 
 _exit:
-  if (code) {
-    if (pReq->aSubmitTbData) {
-      // todo
-      taosArrayDestroy(pReq->aSubmitTbData);
-      pReq->aSubmitTbData = NULL;
-    }
-  }
   return code;
 }
 

@@ -1100,7 +1100,7 @@ int rawBlockBindRawData(SHashObj* pVgroupHash, SArray* pVgroupList, STableMeta* 
     return terrno;
   }
 
-  qDebug("add raw data to vgId:%d", pTableMeta->vgId);
+  qDebug("add raw data to vgId:%d, len:%d", pTableMeta->vgId, *(int32_t*)data);
 
   return 0;
 }

@@ -283,7 +283,7 @@ void tqSetTablePrimaryKey(STqReader* pReader, int64_t uid) {
     return;
   }
   bool            ret = false;
-  SSchemaWrapper* schema = metaGetTableSchema(pReader->pVnodeMeta, uid, -1, 1, NULL);
+  SSchemaWrapper* schema = metaGetTableSchema(pReader->pVnodeMeta, uid, -1, 1);
   if (schema && schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY) {
     ret = true;
   }
@@ -742,7 +742,7 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
       (pReader->cachedSchemaVer != sversion)) {
     tDeleteSchemaWrapper(pReader->pSchemaWrapper);
 
-    pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1, NULL);
+    pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1);
     if (pReader->pSchemaWrapper == NULL) {
       tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", uid:%" PRId64
              "version %d, possibly dropped table",
@@ -1102,9 +1102,9 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SMqDataRsp* pRsp, SArray* block
   int64_t uid = pSubmitTbData->uid;
   pReader->lastBlkUid = uid;
 
-  int64_t createTime = INT64_MAX;
+  int64_t createTime = 0;
   tDeleteSchemaWrapper(pReader->pSchemaWrapper);
-  pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1, &createTime);
+  pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1);
   if (pReader->pSchemaWrapper == NULL) {
     tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", version %d, possibly dropped table",
            pReader->pWalReader->pWal->cfg.vgId, uid, pReader->cachedSchemaVer);
@@ -1112,14 +1112,12 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SMqDataRsp* pRsp, SArray* block
     return TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
   }
 
-  if (fetchMeta != WITH_DATA &&
-      pSubmitTbData->pCreateTbReq != NULL &&
-      pSubmitTbData->ctimeMs - createTime <= 0) {  // judge if table is already created to avoid sending crateTbReq
+  if (pSubmitTbData->pCreateTbReq != NULL) {
     int32_t code = buildCreateTbInfo(pRsp, pSubmitTbData->pCreateTbReq);
     if (code != 0) {
       return code;
     }
-  } else if (rawList != NULL && taosArrayGetSize(rawList) > 0) {
+  } else if (rawList != NULL) {
     if (taosArrayPush(schemas, &pReader->pSchemaWrapper) == NULL){
       return terrno;
     }

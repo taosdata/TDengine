@@ -57,6 +57,7 @@ void tqDestroyTqHandle(void* data) {
   if (pData->pRef) {
     walCloseRef(pData->pRef->pWal, pData->pRef->refId);
   }
+  taosHashCleanup(pData->tableCreateTimeHash);
 }
 
 static bool tqOffsetEqual(const STqOffset* pLeft, const STqOffset* pRight) {

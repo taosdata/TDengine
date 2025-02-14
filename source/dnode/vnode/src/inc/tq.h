@@ -90,6 +90,7 @@ typedef struct {
   // for replay
   SSDataBlock* block;
   int64_t      blockTime;
+  SHashObj*    tableCreateTimeHash;  // for process create table msg in submit if fetch raw data
 } STqHandle;
 
 struct STQ {
