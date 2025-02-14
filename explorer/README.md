@@ -1,65 +1,35 @@
-# Explorer
+# Vue 3 + TypeScript + Vite
 
-## Online Demo
+This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
 
-[Preview.](http://192.168.0.201:6060)
+Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
 
-## Project setup
+# project link
 
-```shell
-# clone the project
-git clone https://github.com/taosdata/explorer.git
-cd explorer
-yarn
+## link taos-ui
 
-# develop
-yarn dev
+export taos-ui, in the taos-ui root path, execute the following shell:
 
-# develop community
-COMMUNITY=community yarn dev
+```bash
+pnpm link -g
 ```
 
-### Build
+then, in the explorer root path, execute:
 
-Build frontend distribution.
-
-```shell
-yarn build
+```bash
+pnpm link taos-ui -g
 ```
 
-Build explorer binary.
+## link @tdengine/websocket
 
-```shell
-cargo build --release
+export @tdengine/websocket, in path `taos-connector-node/WebSocket`, execute the following shell:
+
+```bash
+pnpm link -g
 ```
 
-### Usage
+then, in the taos-ui root path, execute:
 
-```text
-Usage: taos-explorer [OPTIONS]
-
-Options:
-  -p, --port <PORT>
-          Port
-
-          [env: EXPLORER_PORT=]
-          [default: 6060]
-
-  -v, --verbose...
-          More output per occurrence
-
-  -q, --quiet...
-          Less output per occurrence
-
-  -x, --x-api <X_API>
-          API end point for data streaming task management
-
-          [env: EXPLORER_X_API=]
-  -C, --cluster <CLUSTER>
-  
-  -h, --help
-          Print help (see a summary with '-h')
-
-  -V, --version
-          Print version
+```bash
+pnpm link @tdengine/websocket -g
 ```

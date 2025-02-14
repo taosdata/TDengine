@@ -2,32 +2,30 @@
 <template>
   <div class="update-modal">
     <div class="title">
-      {{ i18n.t('systemUpdate') }}
+      {{ $t('systemUpdate') }}
     </div>
     <div class="content">
-      {{ i18n.t('updateContent')}} <br/>
+      {{ $t('updateContent')}} <br/>
     </div>
     <div class="actions">
-      <el-button size="small" @click="handleAfterLeave">{{ i18n.t('ignore')}}</el-button>
-      <el-button size="small" type='primary' @click="refresh">{{ i18n.t('update')}}</el-button>
+      <el-button size="small" @click="handleAfterLeave">{{ $t('ignore')}}</el-button>
+      <el-button size="small" type='primary' @click="refresh">{{ $t('update')}}</el-button>
     </div>
   </div>
 </template>
  
-<script>
-export default {
-  methods: {
-    handleAfterLeave() {
-      this.$destroy(true);
-      this.$el.parentNode.removeChild(this.$el);
-    },
-    refresh() {
-      this.handleAfterLeave();
-      // window.location.replace(window.location.href); //没有刷新缓存
-        location.reload(true);  // 刷新了缓存
-    },
-  },
-};
+<script setup lang="ts">
+function handleAfterLeave() {
+  const modalElement = document.querySelector('.update-modal');
+  if (modalElement) {
+    modalElement.remove();
+  }
+}
+function refresh() {
+  handleAfterLeave();
+  location.reload();  // 刷新了缓存
+}
+
 </script>
  
 <style scoped>

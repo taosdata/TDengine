@@ -1,48 +1,45 @@
 <template>
-  <div class="inter_wrapper">
-    <el-dropdown trigger="hover" placement="bottom" @command="handleSetLanguage">
-      <div>
-        <Icon name="inter" class="inter_svg"></Icon>
-      </div>
-      <el-dropdown-menu slot="dropdown">
-        <el-dropdown-item :disabled="language === 'zh'" command="zh"> 中文 </el-dropdown-item>
-        <el-dropdown-item :disabled="language === 'en'" command="en"> English </el-dropdown-item>
-      </el-dropdown-menu>
-    </el-dropdown>
-  </div>
+  <div class="language" @click="switchLanguage">{{ locallanguage }}</div>
 </template>
 
-<script>
-  import Icon from "@/components/Icon";
+<script setup lang="ts">
+import { getLocalLang } from '@/utils';
+import i18n from '@/lang';
+import { setLocale } from 'taos-ui/config';
 
-  export default {
-    components: { Icon },
-    computed: {
-      language() {
-        return this.$store.state.language;
-      },
-    },
-    methods: {
-      handleSetLanguage(lang) {
-        this.$i18n.locale = lang;
-        this.$store.commit("SET_LANGUAGE", lang);
-        this.$message({
-          message: "Switch Language Success",
-          type: "success",
-        });
-      },
-    },
-  };
+const locallanguage = computed(() => {
+  if (getLocalLang() == 'zh') {
+    return 'EN';
+  } else {
+    return '中';
+  }
+});
+
+function switchLanguage() {
+  if (getLocalLang() == 'zh') {
+    (i18n.global.locale as WritableComputedRef<string>).value = 'en';
+    localStorage.setItem('local_language', 'en');
+    setLocale('en');
+  } else {
+    (i18n.global.locale as WritableComputedRef<string>).value = 'zh';
+    localStorage.setItem('local_language', 'zh');
+    setLocale('zh');
+  }
+}
 </script>
 
 <style scoped>
-  .inter_wrapper {
-    cursor: pointer;
-  }
-
-  .inter_svg {
-    width: 22px;
-    height: 22px;
-    margin-top: 6px;
-  }
+.language {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-top: 4px;
+  margin-right: 20px;
+  color: #4259ce;
+  cursor: pointer;
+  border: 1px solid #4259ce;
+  border-radius: 50%;
+}
 </style>

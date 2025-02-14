@@ -1,9 +1,9 @@
-import { kebabCase } from 'element-ui/src/utils/util';
+import { kebabCase } from 'element-plus/src/utils/util';
 /**
  * Show migrating guide in browser console.
  *
  * Usage:
- * import Migrating from 'element-ui/src/mixins/migrating';
+ * import Migrating from 'element-plus/src/mixins/migrating';
  *
  * mixins: [Migrating]
  *
@@ -22,7 +22,7 @@ import { kebabCase } from 'element-ui/src/utils/util';
  */
 export default {
   mounted() {
-    if (process.env.NODE_ENV === 'production') return;
+    if (import.meta.env.NODE_ENV === 'production') return;
     if (!this.$vnode) return;
     const { props = {}, events = {} } = this.getMigratingConfig();
     const { data, componentOptions } = this.$vnode;

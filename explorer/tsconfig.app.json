@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "baseUrl": "./", // 这里需要配置
+    "paths": {
+      "@/*": ["./src/*"] // 这里需要配置
+    },
+    "target": "ES2023",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+    "composite": true,
+    "allowJs": false,
+    "rootDir": ".",
+    /* Bundler mode */
+    "moduleResolution": "Node",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "preserve",
+    "importHelpers": true,
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "allowSyntheticDefaultImports": true,
+    "types": ["vite/client", "vitest/globals", "element-plus/global"]
+  },
+  "include": ["**/*"],
+  "exclude": ["node_modules", "dist"]
+}

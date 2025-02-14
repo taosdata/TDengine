@@ -1,0 +1,160 @@
+@use '../variables.scss' as *;
+
+.el-menu-item {
+  height: 38px;
+  line-height: 38px;
+  color: $form-text-color;
+}
+
+.el-menu-item.is-active {
+  background-color: #eceefa;
+  outline: none;
+}
+
+.el-tooltip__popper {
+  max-width: 800px;
+  font-size: 14px;
+}
+
+.el-dialog__title {
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 26px;
+  color: $form-text-color;
+}
+
+.el-form-item {
+  margin-bottom: 18px;
+}
+
+.el-form-item__label {
+  font-family: 'Amazon Ember', 'Helvetica Neue', Roboto, Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 500;
+  color: $form-text-color;
+}
+
+.el-card {
+  border-radius: 2px;
+}
+
+.el-tabs__item {
+  font-size: 15px;
+}
+
+.el-form--label-top .el-form-item__label {
+  padding: 0 !important;
+  font-size: 16px;
+}
+
+.el-table thead {
+  font-weight: 600;
+  color: rgb(1 17 42);
+}
+
+.el-table {
+  color: rgb(1 17 42);
+}
+
+.el-table td {
+  color: $td-color;
+}
+
+.el-divider {
+  background: rgb(217 221 228);
+}
+
+.el-divider--horizontal {
+  margin: 18px 0;
+}
+
+.el-table .el-table__row:hover {
+  box-shadow: rgb(0 0 0 / 10%);
+}
+
+.el-table__body {
+  width: 100%;
+}
+
+.el-upload-list__item-name {
+  line-height: inherit;
+}
+
+.el-dialog__body,
+.el-dialog--center .el-dialog__body {
+  padding: 10px 20px 20px;
+}
+
+.el-drawer__header {
+  margin-bottom: 10px;
+}
+
+.el-drawer__body {
+  padding: 0 20px 20px !important;
+}
+
+.el-button--default {
+  padding: 6px 10px;
+}
+
+.el-button--small {
+  padding: 6px 10px !important;
+}
+
+$step-icon-size: 48px;
+
+.el-step__icon {
+  width: $step-icon-size;
+  height: $step-icon-size;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.el-step__icon.is-icon {
+  width: 48px;
+  border: 2px solid;
+  border-color: inherit;
+  border-radius: 50%;
+}
+
+.el-step.is-horizontal .el-step__line {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.el-table--small {
+  font-size: 14px;
+}
+
+.el-table--small .el-table__cell {
+  padding: 3px 0;
+}
+
+[class^='el-icon'] {
+  cursor: pointer;
+}
+
+.el-descriptions-item__label,
+.el-descriptions-item__label.is-bordered-label {
+  font-size: 18px;
+  color: #16191f;
+}
+
+.el-descriptions .is-bordered .el-descriptions-item__cell {
+  padding: 6px 5px;
+}
+
+.el-message-box__message p {
+  overflow-x: auto;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 25px;
+  text-align: center;
+}
+
+.el-select {
+  min-width: 192px;
+}

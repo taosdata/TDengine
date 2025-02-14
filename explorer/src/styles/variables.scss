@@ -1,0 +1,36 @@
+@forward 'element-plus/theme-chalk/src/common/var.scss' with (
+  $table: (
+    'header-text-color': rgb(1 17 42),
+    'text-color': #4d6992
+  ),
+  $colors: (
+    'primary': (
+      'base': rgb(25.8789% 34.8999% 80.7785%)
+    ),
+    'success': (
+      'base': #49ae18
+    ),
+    'danger': (
+      'base': #f56c6c
+    ),
+    'warning': (
+      'base': #e2a603
+    ),
+    'info': (
+      'base': #909399
+    )
+  )
+);
+
+$item-border-color: #e3e4e6;
+$text-color: rgb(77 105 146);
+$title-color: #444;
+$color-description: rgb(137 130 130);
+$form-text-color: rgb(77 105 146);
+$td-color: rgb(77 105 146);
+
+:root {
+  --el-color-primary: rgb(25.8789% 34.8999% 80.7785%);
+  --el-color-primary-light-5: #8e9be2;
+  --el-color-primary-light-3: #687ad8;
+}
