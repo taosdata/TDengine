@@ -214,7 +214,7 @@ In insertion scenarios, `filetype` must be set to `insert`. For this parameter a
   “continue_if_fail”: “yes”, taosBenchmark warns the user and continues writing
   “continue_if_fail”: “smart”, if the child table does not exist upon failure, taosBenchmark will create the child table and continue writing
 
-#### Database Related Configuration Parameters
+#### Database Parameters
 
 Parameters related to database creation are configured in the `dbinfo` section of the json configuration file, specific parameters are as follows. Other parameters correspond to those specified in TDengine's `create database`, see [../../taos-sql/database]
 
@@ -222,7 +222,7 @@ Parameters related to database creation are configured in the `dbinfo` section o
 
 - **drop**: Whether to delete the database before insertion, options are "yes" or "no", "no" means do not create. Default is to delete.
 
-#### Supertable Related Configuration Parameters
+#### Supertable Parameters
 
 Parameters related to supertable creation are configured in the `super_tables` section of the json configuration file, specific parameters are as follows.
 
@@ -256,7 +256,7 @@ Parameters related to supertable creation are configured in the `super_tables` s
 
 - **childtable_limit** : Effective only when child_table_exists is yes, specifies the limit when getting the subtable list from the supertable.
 
-- **interlace_rows** : Enables interlaced insertion mode and specifies the number of rows to insert into each subtable at a time. Interlaced insertion mode means inserting the number of rows specified by this parameter into each subtable in turn and repeating this process until all subtable data is inserted. The default value is 0, i.e., data is inserted into one subtable before moving to the next subtable.
+- **interlace_rows** : Enables interlaced insertion mode and specifies the number of rows to insert into each subtable at a time. Interlaced insertion mode means inserting the number of rows specified by this parameter into each subtable in turn and repeating this process until all subtable data is inserted. The default is 0, i.e., data is inserted into one subtable before moving to the next subtable.
 
 - **insert_interval** : Specifies the insertion interval for interlaced insertion mode, in ms, default value is 0. Only effective when `-B/--interlace-rows` is greater than 0. It means that the data insertion thread will wait for the time interval specified by this value after inserting interlaced records for each subtable before proceeding to the next round of writing.
 
@@ -284,7 +284,7 @@ Parameters related to supertable creation are configured in the `super_tables` s
 - **sqls** : Array of strings type, specifies the array of sql to be executed after the supertable is successfully created, the table name specified in sql must be prefixed with the database name, otherwise an unspecified database error will occur
 
 
-#### Tag and Data Column Configuration Parameters
+#### Tag and Data Columns
 
 Specify the configuration parameters for tag and data columns in `super_tables` under `columns` and `tag`.
 
@@ -319,7 +319,7 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 - **fillNull**: String type, specifies whether this column randomly inserts NULL values, can be specified as "true" or "false", only effective when generate_row_rule is 2.
 
-#### Insertion Behavior Configuration Parameters
+#### Insertion Behavior Parameters
 
 - **thread_count**: The number of threads for inserting data, default is 8.
 
@@ -331,7 +331,7 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 - **confirm_parameter_prompt** : A toggle parameter that requires user confirmation after a prompt to continue. The value can be "yes" or "no", by default "no".
 
-- **interlace_rows** : Enables interleaved insertion mode and specifies the number of rows to insert into each subtable at a time. Interleaved insertion mode refers to inserting the specified number of rows into each subtable in sequence and repeating this process until all subtable data has been inserted. The default value is 0, meaning data is inserted into one subtable completely before moving to the next.
+- **interlace_rows** : Enables interleaved insertion mode and specifies the number of rows to insert into each subtable at a time. Interleaved insertion mode refers to inserting the specified number of rows into each subtable in sequence and repeating this process until all subtable data has been inserted. The default is 0, meaning data is inserted into one subtable completely before moving to the next.
   This parameter can also be configured in `super_tables`; if configured, the settings in `super_tables` take higher priority and override the global settings.
 
 - **insert_interval** :
@@ -341,20 +341,20 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 - **num_of_records_per_req** :
   The number of data rows requested per write to TDengine, default is 30000. If set too high, the TDengine client driver will return corresponding error messages, and this parameter needs to be reduced to meet the writing requirements.
 
-- **prepare_rand** : The number of unique values in the generated random data. If it is 1, it means all data are the same. The default value is 10000.
+- **prepare_rand** : The number of unique values in the generated random data. If it is 1, it means all data are the same. The default is 10000.
 
 - **pre_load_tb_meta** : Whether to pre-load the meta data of subtables, values are “yes” or "no". When there are a large number of subtables, turning on this option can improve the writing speed.
 
-### Query Configuration Parameters
+### Query Parameters
 
 In query scenarios, `filetype` must be set to `query`.
 `query_times` specifies the number of times to run the query, numeric type.
 
 Query scenarios can control the execution of slow query statements by setting `kill_slow_query_threshold` and `kill_slow_query_interval` parameters, where threshold controls that queries exceeding the specified exec_usec time will be killed by taosBenchmark, in seconds; interval controls the sleep time to avoid continuous slow query CPU consumption, in seconds.
 
-For other common parameters, see [General Configuration Parameters](#General Configuration Parameters)
+For other common parameters, see [General Configuration Parameters](#general-configuration-parameters)
 
-#### Configuration Parameters for Executing Specified Query Statements
+#### Specified Query
 
 Configuration parameters for querying specified tables (can specify supertables, subtables, or regular tables) are set in `specified_table_query`.  
 - **mixed_query** : Query Mode . "yes" is `Mixed Query`, "no" is `General Query`, default is "no".   
@@ -370,7 +370,7 @@ Configuration parameters for querying specified tables (can specify supertables,
   - **sql**: The SQL command to execute, required.
   - **result**: File to save the query results, if not specified, results are not saved.
 
-#### Configuration Parameters for Querying Supertables
+#### Supertables
 
 Configuration parameters for querying supertables are set in `super_table_query`.  
 The thread mode of the super table query is the same as the `Normal Query` mode of the specified query statement described above, except that `sqls` is filled all sub tables.
@@ -383,13 +383,9 @@ The thread mode of the super table query is the same as the `Normal Query` mode 
   - **result** : File to save the query results, if not specified, results are not saved.
   - **Note**: The maximum number of SQL arrays configured under SQL is 100.
 
-### Subscription Configuration Parameters
+### Subscription Parameters
 
-In subscription scenarios, `filetype` must be set to `subscribe`, this parameter and other common parameters see Common Configuration Parameters.
-
-#### Configuration Parameters for Executing Specified Subscription Statements
-
-In the subscription scenario, `filetype` must be set to `subscribe`. For details of this parameter and other general parameters, see [General Configuration Parameters](#General Configuration Parameters)
+In the subscription scenario, `filetype` must be set to `subscribe`. For details of this parameter and other general parameters, see [General Configuration Parameters](#general-configuration-parameters)
 The subscription configuration parameters are set under `tmq_info`. The parameters are as follows:
 
 - **concurrent**: the number of consumers who consume subscriptions, or the number of concurrent consumers. The default value is 1.
@@ -449,7 +445,7 @@ Note: Data types in the taosBenchmark configuration file must be in lowercase to
 
 **Below are a few examples of configuration files:**
 
-#### JSON Configuration File Example for Insertion Scenario
+#### Insertion Example
 
 <details>
 <summary>insert.json</summary>
@@ -460,7 +456,7 @@ Note: Data types in the taosBenchmark configuration file must be in lowercase to
 
 </details>
 
-#### Example JSON Configuration File for Query Scenario
+#### Query Example
 
 <details>
 <summary>query.json</summary>
@@ -471,7 +467,7 @@ Note: Data types in the taosBenchmark configuration file must be in lowercase to
 
 </details>
 
-#### Example JSON Configuration File for Subscription Scenario
+#### Subscription Example
 
 <details>
 <summary>tmq.json</summary>
@@ -482,7 +478,7 @@ Note: Data types in the taosBenchmark configuration file must be in lowercase to
 
 </details>
 
-
+Other json examples see [here](https://github.com/taosdata/TDengine/tree/main/tools/taos-tools/example)
 
 ## Output Performance Indicators
 
@@ -523,7 +519,7 @@ INFO: Spend 26.9530 second completed total queries: 30000, the QPS of all thread
 - QPS        = number of successful requests / time spent (in seconds)
 - Error rate = number of failed requests / (number of successful requests + number of failed requests)
 
-#### Subscription metrics
+#### Subscription indicators
 
 The subscription performance test mainly outputs consumer consumption speed indicators, with the following output format:
 ``` bash
