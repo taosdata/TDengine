@@ -191,18 +191,24 @@ class TDTestCase:
             tdSql.execute("alter stable db100.stb100 add column c6 int")
             tdSql.execute("alter table db100.stb100 add tag t1 int")
             tss_grant += 4
-            self.checkGrantsTimeSeries("alter table column/tag and check", tss_grant)
+            self.checkGrantsTimeSeries("add stable column and check", tss_grant)
             tdSql.execute("create table db100.ctb102 using db100.stb100 tags(102, 102)")
             tdSql.execute("alter table db100.ctb100 set tag t0=1000")
             tdSql.execute("alter table db100.ntb100 add column c5 int")
             tss_grant += 8
-            self.checkGrantsTimeSeries("alter table column/tag and check", tss_grant)
+            self.checkGrantsTimeSeries("add ntable column and check", tss_grant)
+            tdSql.execute("alter table db100.stb100 drop column c5")
+            tdSql.execute("alter table db100.stb100 drop tag t1")
+            tdSql.execute("alter table db100.ntb100 drop column c0")
+            tdSql.execute("alter table db100.stb100 drop column c0")
+            tss_grant -= 7
+            self.checkGrantsTimeSeries("drop stb/ntb column and check", tss_grant)
             tdSql.execute("drop table db100.ctb100")
             tdSql.execute("drop table db100.ntb100")
-            tss_grant -= 13
+            tss_grant -= 10
             self.checkGrantsTimeSeries("drop ctb/ntb and check", tss_grant)
             tdSql.execute("drop table db100.stb100")
-            tss_grant -= 14
+            tss_grant -= 10
             self.checkGrantsTimeSeries("drop stb and check", tss_grant)
             tdSql.execute("drop database db100")
             tss_grant -= 5
