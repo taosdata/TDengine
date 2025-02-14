@@ -747,8 +747,8 @@ int32_t streamStateTsDataCommit(STableTsDataState* pState) {
   return doRangeDataCommit(pState);
 }
 
-int32_t streamStateInitTsDataState(STableTsDataState** ppTsDataState, int8_t pkType, int32_t pkLen, void* pState) {
-  return initTsDataState(ppTsDataState, pkType, pkLen, pState);
+int32_t streamStateInitTsDataState(STableTsDataState** ppTsDataState, int8_t pkType, int32_t pkLen, void* pState, void* pOtherState) {
+  return initTsDataState(ppTsDataState, pkType, pkLen, pState, pOtherState);
 }
 
 void streamStateDestroyTsDataState(STableTsDataState* pTsDataState) { destroyTsDataState(pTsDataState); }
@@ -818,13 +818,13 @@ int32_t streamStateGetRecFlag(SStreamState* pState, const void* pKey, int32_t ke
   return getStateRecFlag(pState->pFileState, pKey, keyLen, pMode);
 }
 
-void streamStateClearExpiredSessionState(SStreamState* pState, int32_t numOfKeep, TSKEY minTs) {
+void streamStateClearExpiredSessionState(SStreamState* pState, int32_t numOfKeep, TSKEY minTs, SSHashObj* pFlushGroup) {
   if (numOfKeep == 0) {
     void* pBuff = getRowStateBuff(pState->pFileState);
     tSimpleHashSetFreeFp(pBuff, (_hash_free_fn_t)taosArrayDestroy);
     streamFileStateClear(pState->pFileState);
     return;
   }
-  clearExpiredSessionState(pState->pFileState, numOfKeep, minTs);
+  clearExpiredSessionState(pState->pFileState, numOfKeep, minTs, pFlushGroup);
 }
 

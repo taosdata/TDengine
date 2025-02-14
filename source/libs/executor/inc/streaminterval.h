@@ -27,19 +27,21 @@ typedef struct SPullWindowInfo {
   STimeWindow calWin;
 } SPullWindowInfo;
 
-int32_t doStreamIntervalNonblockAggImpl(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
+int32_t     doStreamIntervalNonblockAggImpl(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
 STimeWindow getFinalTimeWindow(int64_t ts, SInterval* pInterval);
-int32_t getNextQualifiedFinalWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
-                                    TSKEY* primaryKeys, int32_t prevPosition);
+int32_t     getNextQualifiedFinalWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
+                                        TSKEY* primaryKeys, int32_t prevPosition);
 int32_t createFinalIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                              SReadHandle* pHandle, SOperatorInfo** ppOptInfo);
 int32_t createSemiIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
-                                             SReadHandle* pHandle, SOperatorInfo** ppOptInfo);
+                                            SReadHandle* pHandle, SOperatorInfo** ppOptInfo);
 int32_t copyNewResult(SSHashObj** ppWinUpdated, SArray* pUpdated, __compar_fn_t compar);
 int32_t copyRecDataToBuff(TSKEY calStart, TSKEY calEnd, uint64_t uid, uint64_t version, EStreamType mode,
                           const SColumnInfoData* pPkColDataInfo, int32_t rowId, SRecDataInfo* pValueBuff,
                           int32_t buffLen);
-int32_t saveRecWindowToDisc(SSessionKey* pWinKey, uint64_t uid, EStreamType mode, STableTsDataState* pTsDataState, SStreamAggSupporter* pAggSup);
+int32_t saveRecWindowToDisc(SSessionKey* pWinKey, uint64_t uid, EStreamType mode, STableTsDataState* pTsDataState,
+                            SStreamAggSupporter* pAggSup);
+int32_t initNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup, SInterval* pInterval);
 
 #ifdef __cplusplus
 }

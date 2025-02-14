@@ -711,6 +711,7 @@ typedef struct SNonBlockAggSupporter {
   SArray*       pPullWins;
   int32_t       pullIndex;
   SSDataBlock*  pPullDataRes;
+  SSHashObj*    pHistoryGroup;
 } SNonBlockAggSupporter;
 
 typedef struct SStreamSessionAggOperatorInfo {

@@ -1719,7 +1719,7 @@ _end:
   return code;
 }
 
-int32_t initTsDataState(STableTsDataState** ppTsDataState, int8_t pkType, int32_t pkLen, void* pState) {
+int32_t initTsDataState(STableTsDataState** ppTsDataState, int8_t pkType, int32_t pkLen, void* pState, void* pOtherState) {
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    lino = 0;
 
@@ -1750,7 +1750,7 @@ int32_t initTsDataState(STableTsDataState** ppTsDataState, int8_t pkType, int32_
 
   pTsDataState->curRecId = -1;
 
-  pTsDataState->pStreamTaskState = pState; //todo(liuyao) for debug
+  pTsDataState->pStreamTaskState = pOtherState;
   (*ppTsDataState) = pTsDataState;
 
 _end:
@@ -2009,10 +2009,14 @@ int32_t getStateRecFlag(SStreamFileState* pFileState, const void* pKey, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-void clearExpiredSessionState(SStreamFileState* pFileState, int32_t numOfKeep, TSKEY minTs) {
+void clearExpiredSessionState(SStreamFileState* pFileState, int32_t numOfKeep, TSKEY minTs, SSHashObj* pFlushGroup) {
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    lino = 0;
   SSHashObj* pSessionBuff = pFileState->rowStateBuff;
+  SStreamSnapshot* pFlushList = NULL;
+  if (pFlushGroup != NULL) {
+    pFlushList = tdListNew(POINTER_BYTES);
+  }
   void*      pIte = NULL;
   int32_t    iter = 0;
   while ((pIte = tSimpleHashIterate(pSessionBuff, pIte, &iter)) != NULL) {
@@ -2030,6 +2034,21 @@ void clearExpiredSessionState(SStreamFileState* pFileState, int32_t numOfKeep, T
     for (int32_t i = 0; i < size; i++) {
       SRowBuffPos* pPos = taosArrayGetP(pWinStates, i);
       SSessionKey* pKey = pPos->pKey;
+      if (tSimpleHashGetSize(pFileState->pRecFlagMap) > 0) {
+        tSimpleHashRemove(pFileState->pRecFlagMap, pKey, sizeof(SSessionKey));
+      }
+      pPos->invalid = true;
+
+      if (i = 0 && pFlushGroup != NULL) {
+        void* pGpVal = tSimpleHashGet(pFlushGroup, &pKey->groupId, sizeof(uint64_t));
+        if (pGpVal == NULL) {
+          code = tdListAppend(pFlushList, &pPos);
+          QUERY_CHECK_CODE(code, lino, _end);
+          code = tSimpleHashPut(pFlushGroup, &pKey->groupId, sizeof(uint64_t), NULL, 0);
+          QUERY_CHECK_CODE(code, lino, _end);
+          continue;
+        }
+      }
       pPos->beFlushed = true;
       qTrace("clear expired session buff, ts:%" PRId64 ",groupid:%" PRIu64 ". %s at line %d", pKey->win.skey, pKey->groupId, __func__, __LINE__);
 
@@ -2037,15 +2056,13 @@ void clearExpiredSessionState(SStreamFileState* pFileState, int32_t numOfKeep, T
         int32_t code_file = pFileState->stateFileRemoveFn(pFileState, pKey);
         qTrace("clear expired file, ts:%" PRId64 ". %s at line %d res:%d", pKey->win.skey, __func__, __LINE__, code_file);
       }
-
-      if (tSimpleHashGetSize(pFileState->pRecFlagMap) > 0) {
-        tSimpleHashRemove(pFileState->pRecFlagMap, pKey, sizeof(SSessionKey));
-      }
     }
     taosArrayRemoveBatch(pWinStates, 0, size, NULL);
   }
+  flushSnapshot(pFileState, pFlushList, false);
   code = clearRowBuffNonFlush(pFileState);
   QUERY_CHECK_CODE(code, lino, _end);
+  tdListFreeP(pFlushList, destroyRowBuffPosPtr);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {

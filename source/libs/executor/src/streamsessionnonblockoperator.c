@@ -34,7 +34,7 @@
 void streamSessionNonblockReleaseState(SOperatorInfo* pOperator) {
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
   SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
-  pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, pInfo->nbSup.numOfKeep, pInfo->nbSup.tsOfKeep);
+  pAggSup->stateStore.streamStateClearExpiredSessionState(pAggSup->pState, pInfo->nbSup.numOfKeep, pInfo->nbSup.tsOfKeep, NULL);
   pAggSup->stateStore.streamStateCommit(pAggSup->pState);
   // todo(liuyao) add
 
@@ -90,6 +90,11 @@ int32_t doStreamSessionNonblockAggImpl(SOperatorInfo* pOperator, SSDataBlock* pB
   pAggSup->winRange = pTaskInfo->streamInfo.fillHistoryWindow;
   if (pAggSup->winRange.ekey <= 0) {
     pAggSup->winRange.ekey = INT64_MAX;
+  }
+
+  if (pAggSup->winRange.skey != INT64_MIN && pInfo->nbSup.pHistoryGroup == NULL) {
+    _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+    pInfo->nbSup.pHistoryGroup = tSimpleHashInit(1024, hashFn);
   }
 
   for (int32_t i = 0; i < rows;) {
@@ -254,7 +259,7 @@ static int32_t buildOtherResult(SOperatorInfo* pOperator, SOptrBasicInfo* pBinfo
   }
 
   if (!isHistoryOperator(pBasic) || !isFinalOperator(pBasic)) {
-    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, pNbSup->numOfKeep, pNbSup->tsOfKeep);
+    pAggSup->stateStore.streamStateClearExpiredSessionState(pAggSup->pState, pNbSup->numOfKeep, pNbSup->tsOfKeep, pNbSup->pHistoryGroup);
   }
   pTwAggSup->minTs = INT64_MAX;
   setStreamOperatorCompleted(pOperator);
@@ -339,7 +344,7 @@ int32_t doStreamSessionNonblockAggNextImpl(SOperatorInfo* pOperator, SOptrBasicI
   }
 
   if (isHistoryOperator(pBasic) && !isFinalOperator(pBasic)) {
-    pAggSup->stateStore.streamStateClearExpiredSessionState(pAggSup->pState, pNbSup->numOfKeep, pNbSup->tsOfKeep);
+    pAggSup->stateStore.streamStateClearExpiredSessionState(pAggSup->pState, pNbSup->numOfKeep, pNbSup->tsOfKeep, pNbSup->pHistoryGroup);
   }
 
   if (pOperator->status == OP_RES_TO_RETURN) {
