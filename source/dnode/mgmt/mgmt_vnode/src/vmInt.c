@@ -398,10 +398,14 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal,
 
   dInfo("vgId:%d, wait for vnode stream queue:%p is empty, %d remains", pVnode->vgId,
         pVnode->pStreamQ, taosQueueItemSize(pVnode->pStreamQ));
-  while (!taosQueueEmpty(pVnode->pStreamQ)) taosMsleep(10);
+  while (!taosQueueEmpty(pVnode->pStreamQ)) taosMsleep(50);
 
   dInfo("vgId:%d, wait for vnode stream ctrl queue:%p is empty", pVnode->vgId, pVnode->pStreamCtrlQ);
-  while (!taosQueueEmpty(pVnode->pStreamCtrlQ)) taosMsleep(10);
+  while (!taosQueueEmpty(pVnode->pStreamCtrlQ)) taosMsleep(50);
+
+  dInfo("vgId:%d, wait for vnode stream long-exec queue:%p is empty, %d remains", pVnode->vgId,
+        pVnode->pStreamLongExecQ, taosQueueItemSize(pVnode->pStreamLongExecQ));
+  while (!taosQueueEmpty(pVnode->pStreamLongExecQ)) taosMsleep(50);
 
   dInfo("vgId:%d, all vnode queues is empty", pVnode->vgId);
 

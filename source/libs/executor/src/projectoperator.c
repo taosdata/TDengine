@@ -42,9 +42,7 @@ typedef struct SIndefOperatorInfo {
 } SIndefOperatorInfo;
 
 static int32_t      doGenerateSourceData(SOperatorInfo* pOperator);
-static SSDataBlock* doProjectOperation1(SOperatorInfo* pOperator);
 static int32_t      doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
-static SSDataBlock* doApplyIndefinitFunction1(SOperatorInfo* pOperator);
 static int32_t      doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 static int32_t      setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols, SArray** pResList);
 static int32_t      setFunctionResultOutput(SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup,
@@ -555,12 +553,6 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
-}
-
-SSDataBlock* doApplyIndefinitFunction1(SOperatorInfo* pOperator) {
-  SSDataBlock* pResBlock = NULL;
-  pOperator->pTaskInfo->code = doApplyIndefinitFunction(pOperator, &pResBlock);
-  return pResBlock;
 }
 
 int32_t doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
