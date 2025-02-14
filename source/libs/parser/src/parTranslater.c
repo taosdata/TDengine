@@ -10053,8 +10053,9 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   }
   else{
     taosEncryptPass_c((uint8_t*)pStmt->password, strlen(pStmt->password), createReq.pass);
-    createReq.passIsMd5 = 1;  
-  }  
+     
+  }
+  createReq.passIsMd5 = 1;   
 
   createReq.numIpRanges = pStmt->numIpRanges;
   if (pStmt->numIpRanges > 0) {
