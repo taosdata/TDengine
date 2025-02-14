@@ -66,6 +66,17 @@ static void destroyThreadLocalGeosCtx(void *param) {
 
 SGeosContext *acquireThreadLocalGeosCtx() { return tlGeosCtx; }
 
+static int with_pcre2 = 0;    // freemine: default is by non-pcre2
+
+void set_with_pcre2(int set)
+{
+  // freemine: yes, we know this introduces race-condition
+  //           but this is for demonstration only
+  //           do NOT forget to remove this function if this is to be merged!!!
+
+  with_pcre2 = !!set;
+}
+
 int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
   if ((*ppCtx = tlGeosCtx)) {
     return 0;
@@ -100,6 +111,9 @@ int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
     TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
   }
 
+  GEOS_set_strict_mode(!with_pcre2); // freemine: set_strict_mode if only !with_pcre2
+  tlGeosCtxObj->with_pcre2 = with_pcre2;
+
   *ppCtx = tlGeosCtx = tlGeosCtxObj;
 
 _exit:
@@ -108,16 +122,6 @@ _exit:
     uError("failed to get geos context at line:%d since %s", lino, tstrerror(code));
   }
   TAOS_RETURN(code);
-}
-
-void set_with_pcre2(int set)
-{
-  GEOS_set_strict_mode(!set); // freemine: set_strict_mode if only set == 0
-  SGeosContext *ctx = NULL;
-  int32_t r = getThreadLocalGeosCtx(&ctx);
-  if (r == 0 && ctx) {
-    ctx->with_pcre2 = !!set;
-  }
 }
 
 const char *getGeosErrMsg(int32_t code) {

@@ -70,12 +70,12 @@ int main(int argc, char *argv[])
     }
   }
 
+  set_with_pcre2(with_pcre2);
   int32_t r = initCtxGeomFromText();
   if (r) {
     fprintf(stderr, "initCtxGeomFromText failed\n");
     return 1;
   }
-  set_with_pcre2(with_pcre2);
 
   for (int i=optind; i<argc; ++i) {
     printf("argument = %s\n", argv[i]);
