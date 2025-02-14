@@ -124,7 +124,7 @@ int32_t checkAndSaveWinStateToDisc(int32_t startIndex, SArray* pUpdated, uint64_
   for (int32_t i = startIndex; i < size; i++) {
     SRowBuffPos* pWinPos = taosArrayGetP(pUpdated, i);
     SWinKey* pKey = pWinPos->pKey;
-    int32_t winRes = pAggSup->stateStore.streamStateGetRecFlag(pAggSup->pState, pKey, &mode);
+    int32_t winRes = pAggSup->stateStore.streamStateGetRecFlag(pAggSup->pState, pKey, sizeof(SWinKey), &mode);
     if (winRes == TSDB_CODE_SUCCESS) {
       SSessionKey winKey = {.win.skey = pKey->ts, .win.ekey = pKey->ts, .groupId = pKey->groupId};
       code = saveRecWindowToDisc(&winKey, uid, mode, pTsDataState,
@@ -195,7 +195,7 @@ int32_t doStreamIntervalNonblockAggImpl(SOperatorInfo* pOperator, SSDataBlock* p
         QUERY_CHECK_NULL(pResPtr, code, lino, _end, terrno);
         int32_t mode = 0;
         SWinKey* pKey = prevPoint.pResPos->pKey;
-        int32_t winRes = pInfo->streamAggSup.stateStore.streamStateGetRecFlag(pInfo->streamAggSup.pState, pKey, &mode);
+        int32_t winRes = pInfo->streamAggSup.stateStore.streamStateGetRecFlag(pInfo->streamAggSup.pState, pKey, sizeof(SWinKey), &mode);
         if (winRes == TSDB_CODE_SUCCESS) {
           code = saveRecWindowToDisc(&prevPoint.winKey, pBlock->info.id.uid, mode,
                                      pInfo->basic.pTsDataState, &pInfo->streamAggSup);
@@ -500,7 +500,7 @@ static int32_t doSetWindowRecFlag(SOperatorInfo* pOperator, SSDataBlock* pBlock)
 
       SWinKey key = {.ts = win.skey, .groupId = pGpDatas[i]};
       if (pInfo->streamAggSup.stateStore.streamStateCheck(pInfo->streamAggSup.pState, &key)) {
-        pInfo->streamAggSup.stateStore.streamStateSetRecFlag(pInfo->streamAggSup.pState, &key, pBlock->info.type);
+        pInfo->streamAggSup.stateStore.streamStateSetRecFlag(pInfo->streamAggSup.pState, &key, sizeof(SWinKey), pBlock->info.type);
       }
       getNextTimeWindow(pInterval, &win, TSDB_ORDER_ASC);
     } while (win.ekey <= endTsCols[i]);

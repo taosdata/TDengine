@@ -463,6 +463,10 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentNext(SStreamState* pState, cons
   return streamStateSessionSeekKeyCurrentNext_rocksdb(pState, key);
 }
 
+SStreamStateCur *streamStateSessionSeekKeyPrev(SStreamState *pState, const SSessionKey *key) {
+  return sessionWinStateSeekKeyPrev(pState->pFileState, key);
+}
+
 SStreamStateCur* streamStateSessionSeekKeyNext(SStreamState* pState, const SSessionKey* key) {
   return sessionWinStateSeekKeyNext(pState->pFileState, key);
 }
@@ -773,10 +777,21 @@ int32_t streamStateSessionDeleteAll(SStreamState* pState) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t streamStateSetRecFlag(SStreamState* pState, const SWinKey* pKey, int32_t mode) {
-  return setStateRecFlag(pState->pFileState, pKey, mode);
+int32_t streamStateSetRecFlag(SStreamState* pState, const void* pKey, int32_t keyLen, int32_t mode) {
+  return setStateRecFlag(pState->pFileState, pKey, keyLen, mode);
 }
 
-int32_t streamStateGetRecFlag(SStreamState* pState, const SWinKey* pKey, int32_t* pMode) {
-  return getStateRecFlag(pState->pFileState, pKey, pMode);
+int32_t streamStateGetRecFlag(SStreamState* pState, const void* pKey, int32_t keyLen, int32_t* pMode) {
+  return getStateRecFlag(pState->pFileState, pKey, keyLen, pMode);
 }
+
+void streamStateClearExpiredSessionState(SStreamState* pState, int32_t numOfKeep, TSKEY minTs) {
+  if (numOfKeep == 0) {
+    void* pBuff = getRowStateBuff(pState->pFileState);
+    tSimpleHashSetFreeFp(pBuff, (_hash_free_fn_t)taosArrayDestroy);
+    streamFileStateClear(pState->pFileState);
+    return;
+  }
+  clearExpiredSessionState(pState->pFileState, numOfKeep, minTs);
+}
+

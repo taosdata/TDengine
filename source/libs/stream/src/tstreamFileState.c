@@ -33,7 +33,7 @@
 #define MAX_GROUP_ID_NUM               200000
 #define NUM_OF_CACHE_WIN               64
 #define MAX_NUM_OF_CACHE_WIN           128
-#define MIN_NUM_OF_SORT_CACHE_WIN      4096
+#define MIN_NUM_OF_SORT_CACHE_WIN      40960
 
 #define DEFAULT_STATE_MAP_CAPACITY 10240
 #define MAX_STATE_MAP_SIZE         10240000
@@ -1345,7 +1345,7 @@ void clearExpiredState(SStreamFileState* pFileState, int32_t numOfKeep, TSKEY mi
     int32_t arraySize = TARRAY_SIZE(pWinStates);
     if (minTs != INT64_MAX && arraySize > numOfKeep) {
       SWinKey key = {.ts = minTs};
-      key.groupId = *(int64_t*)tSimpleHashGetKey(pIte, NULL);
+      key.groupId = *(uint64_t*)tSimpleHashGetKey(pIte, NULL);
       int32_t index = binarySearch(pWinStates, arraySize, &key, fillStateKeyCompare);
       numOfKeep = TMAX(arraySize - index, MIN_NUM_OF_SORT_CACHE_WIN);
       qDebug("modify numOfKeep, numOfKeep:%d. %s at line %d", numOfKeep, __func__, __LINE__);
@@ -1996,12 +1996,12 @@ _end:
   return code;
 }
 
-int32_t setStateRecFlag(SStreamFileState* pFileState, const SWinKey* pKey, int32_t mode) {
-  return tSimpleHashPut(pFileState->pRecFlagMap, pKey, sizeof(SWinKey), &mode, sizeof(int32_t));
+int32_t setStateRecFlag(SStreamFileState* pFileState, const void* pKey, int32_t keyLen, int32_t mode) {
+  return tSimpleHashPut(pFileState->pRecFlagMap, pKey, keyLen, &mode, sizeof(int32_t));
 }
 
-int32_t getStateRecFlag(SStreamFileState* pFileState, const SWinKey* pKey, int32_t* pMode) {
-  void* pVal = tSimpleHashGet(pFileState->pRecFlagMap, pKey, sizeof(SWinKey));
+int32_t getStateRecFlag(SStreamFileState* pFileState, const void* pKey, int32_t keyLen, int32_t* pMode) {
+  void* pVal = tSimpleHashGet(pFileState->pRecFlagMap, pKey, keyLen);
   if (pVal == NULL) {
     return TSDB_CODE_FAILED;
   }
@@ -2009,3 +2009,46 @@ int32_t getStateRecFlag(SStreamFileState* pFileState, const SWinKey* pKey, int32
   return TSDB_CODE_SUCCESS;
 }
 
+void clearExpiredSessionState(SStreamFileState* pFileState, int32_t numOfKeep, TSKEY minTs) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  int32_t    lino = 0;
+  SSHashObj* pSessionBuff = pFileState->rowStateBuff;
+  void*      pIte = NULL;
+  int32_t    iter = 0;
+  while ((pIte = tSimpleHashIterate(pSessionBuff, pIte, &iter)) != NULL) {
+    SArray* pWinStates = *((void**)pIte);
+    int32_t arraySize = TARRAY_SIZE(pWinStates);
+    if (minTs != INT64_MAX && arraySize > numOfKeep) {
+      SSessionKey key = {.win.skey = minTs, .win.ekey = minTs};
+      key.groupId = *(uint64_t*)tSimpleHashGetKey(pIte, NULL);
+      int32_t index = binarySearch(pWinStates, arraySize, &key, fillStateKeyCompare);
+      numOfKeep = TMAX(arraySize - index, MIN_NUM_OF_SORT_CACHE_WIN);
+      qDebug("modify numOfKeep, numOfKeep:%d. %s at line %d", numOfKeep, __func__, __LINE__);
+    }
+
+    int32_t size = arraySize - numOfKeep;
+    for (int32_t i = 0; i < size; i++) {
+      SRowBuffPos* pPos = taosArrayGetP(pWinStates, i);
+      SSessionKey* pKey = pPos->pKey;
+      pPos->beFlushed = true;
+      qTrace("clear expired session buff, ts:%" PRId64 ",groupid:%" PRIu64 ". %s at line %d", pKey->win.skey, pKey->groupId, __func__, __LINE__);
+
+      if (isFlushedState(pFileState, pKey->win.skey, 0)) {
+        int32_t code_file = pFileState->stateFileRemoveFn(pFileState, pKey);
+        qTrace("clear expired file, ts:%" PRId64 ". %s at line %d res:%d", pKey->win.skey, __func__, __LINE__, code_file);
+      }
+
+      if (tSimpleHashGetSize(pFileState->pRecFlagMap) > 0) {
+        tSimpleHashRemove(pFileState->pRecFlagMap, pKey, sizeof(SSessionKey));
+      }
+    }
+    taosArrayRemoveBatch(pWinStates, 0, size, NULL);
+  }
+  code = clearRowBuffNonFlush(pFileState);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+}

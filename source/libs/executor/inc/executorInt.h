@@ -807,6 +807,7 @@ typedef struct SStreamEventAggOperatorInfo {
   struct SOperatorInfo* pOperator;
   SNodeList*            pStartCondCols;
   SNodeList*            pEndCondCols;
+  SNonBlockAggSupporter nbSup;
 } SStreamEventAggOperatorInfo;
 
 typedef struct SStreamCountAggOperatorInfo {

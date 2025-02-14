@@ -25,6 +25,12 @@ int32_t doStreamSessionNonblockAggNextImpl(SOperatorInfo* pOperator, SOptrBasicI
                                            SStreamAggSupporter* pAggSup, STimeWindowAggSupp* pTwAggSup,
                                            SGroupResInfo* pGroupResInfo, SNonBlockAggSupporter* pNbSup,
                                            SExprSupp* pScalarSupp, SSDataBlock** ppRes);
+int32_t updateSessionWindowInfo(SStreamAggSupporter* pAggSup, SResultWindowInfo* pWinInfo, TSKEY* pStartTs,
+                                TSKEY* pEndTs, uint64_t groupId, int32_t rows, int32_t start, int64_t gap,
+                                SSHashObj* pResultRows, SSHashObj* pStUpdated, SSHashObj* pStDeleted,
+                                int32_t* pWinRos);
+int32_t setSessionOutputBuf(SStreamAggSupporter* pAggSup, TSKEY startTs, TSKEY endTs, uint64_t groupId,
+                            SResultWindowInfo* pCurWin, int32_t* pWinCode);
 
 #ifdef __cplusplus
 }
