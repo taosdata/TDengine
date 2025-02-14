@@ -64,7 +64,6 @@ taos> quit
 - -a AUTHSTR: 连接服务端的授权信息。
 - -A: 通过用户名和密码计算授权信息。
 - -B: 设置 BI 工具显示模式，设置后所有输出都遵循 BI 工具的格式进行输出。
-
 - -C: 打印 -c 指定的目录中 `taos.cfg` 的配置参数。
 - -d DATABASE: 指定连接到服务端时使用的数据库。
 - -E dsn: 使用 WebSocket DSN 连接云服务或者提供 WebSocket 连接的服务端。
@@ -93,8 +92,7 @@ taos> quit
 
 ## 执行 SQL 脚本
 
-在 TDengine CLI 里可以通过 `source` 命令来运行脚本文件中的多条 SQL 命令。
-
+在 TDengine CLI 里可以通过 `source` 命令来运行脚本文件中的多条 SQL 命令，脚本文件中多条 SQL 按行书写即可
 ```sql
 taos> source <filename>;
 ```

@@ -71,28 +71,27 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
                              restore, please adjust the value to a smaller one
                              and try. The workable value is related to the
                              length of the row and type of table schema.
-  -I, --inspect              inspect avro file content and print on screen
+  -I, --inspect              inspect avro file content and print on screen.
   -L, --loose-mode           Using loose mode if the table name and column name
                              use letter and number only. Default is NOT.
   -n, --no-escape            No escape char '`'. Default is using it.
   -Q, --dot-replace          Repalce dot character with underline character in
-                             the table name.(Version 2.5.3)
-  -T, --thread-num=THREAD_NUM   Number of thread for dump in file. Default is
-                             8.
+                             the table name.(Version 2.5.3).
+  -T, --thread-num=THREAD_NUM   Number of thread for dump in file. Default is 8
   -W, --rename=RENAME-LIST   Rename database name with new name during
                              importing data. RENAME-LIST: 
                              "db1=newDB1|db2=newDB2" means rename db1 to newDB1
-                             and rename db2 to newDB2 (Version 2.5.4)
+                             and rename db2 to newDB2 (Version 2.5.4).
   -k, --retry-count=VALUE    Set the number of retry attempts for connection or
-                             query failures
-  -z, --retry-sleep-ms=VALUE retry interval sleep time, unit ms
-  -C, --cloud=CLOUD_DSN      specify a DSN to access TDengine cloud service
-  -R, --restful              Use RESTful interface to connect TDengine
+                             query failures.
+  -z, --retry-sleep-ms=VALUE retry interval sleep time, unit ms.
+  -C, --cloud=CLOUD_DSN      specify a DSN to access TDengine cloud service.
+  -R, --restful              Use RESTful interface to connect TDengine.
   -t, --timeout=SECONDS      The timeout seconds for websocket to interact.
   -g, --debug                Print debug info.
-  -?, --help                 Give this help list
-      --usage                Give a short usage message
-  -V, --version              Print program version
+  -?, --help                 Give this help list.
+      --usage                Give a short usage message.
+  -V, --version              Print program version.
 
 Mandatory or optional arguments to long options are also mandatory or optional
 for any corresponding short options.
