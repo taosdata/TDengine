@@ -54,7 +54,7 @@ static bool stringLengthCheck(const char* str, size_t maxsize) {
 
 static bool validateUserName(const char* user) { return stringLengthCheck(user, TSDB_USER_LEN - 1); }
 
-static bool validatePassword(const char* passwd) { return stringLengthCheck(passwd, TSDB_PASSWORD_LEN - 1); }
+static bool validatePassword(const char* passwd) { return stringLengthCheck(passwd, TSDB_PASSWORD_MAX_LEN); }
 
 static bool validateDbName(const char* db) { return stringLengthCheck(db, TSDB_DB_NAME_LEN - 1); }
 
