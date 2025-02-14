@@ -301,7 +301,7 @@ typedef struct SStreamStatus {
   bool             appendTranstateBlock;  // has appended the transfer state data block already
   bool             removeBackendFiles;    // remove backend files on disk when free stream tasks
   SConsenChkptInfo consenChkptInfo;
-  STimeWindow      latestForceWindow;     // latest generated time window, only valid in
+  STimeWindow      latestForceWindow;  // latest generated time window, only valid in
 } SStreamStatus;
 
 typedef struct SDataRange {
@@ -316,7 +316,7 @@ typedef struct SSTaskBasicInfo {
   int32_t   selfChildId;
   int32_t   trigger;
   int8_t    taskLevel;
-  int8_t    fillHistory;      // is fill history task or not
+  int8_t    fillHistory;      // enum , 1. is fill history task or not 2. recal
   int64_t   delaySchedParam;  // in msec
   int64_t   watermark;        // extracted from operators
   SInterval interval;
@@ -459,7 +459,6 @@ struct SStreamTask {
   STaskExecStatisInfo execInfo;
   TdThreadMutex       lock;    // secure the operation of set task status and puting data into inputQ
   SMsgCb*             pMsgCb;  // msg handle
-  SStreamState*       pState;  // state backend
   SUpstreamInfo       upstreamInfo;
   STaskCheckInfo      taskCheckInfo;
   SNotifyInfo         notifyInfo;
@@ -469,10 +468,15 @@ struct SStreamTask {
   int32_t               transferStateAlignCnt;
   struct SStreamMeta*   pMeta;
   SSHashObj*            pNameMap;
-  void*                 pBackend;
-  int8_t                subtableWithoutMd5; // only for tsma stream tasks
-  char                  reserve[256];
-  char*                 backendPath;
+
+  SStreamState* pState;  // state backend
+  void*         pBackend;
+  int8_t        subtableWithoutMd5;  // only for tsma stream tasks
+  char          reserve[256];
+  char*         backendPath;
+  char*         recalPath;
+  void*         pRecalBackend;
+  SStreamState* pRecalState;
 };
 
 typedef int32_t (*startComplete_fn_t)(struct SStreamMeta*);
@@ -640,11 +644,11 @@ typedef struct STaskStatusEntry {
   STaskCkptInfo checkpointInfo;
 } STaskStatusEntry;
 
-//typedef struct SNodeUpdateInfo {
-//  int32_t nodeId;
-//  SEpSet  prevEp;
-//  SEpSet  newEp;
-//} SNodeUpdateInfo;
+// typedef struct SNodeUpdateInfo {
+//   int32_t nodeId;
+//   SEpSet  prevEp;
+//   SEpSet  newEp;
+// } SNodeUpdateInfo;
 
 typedef struct SStreamTaskState {
   ETaskStatus state;
@@ -662,7 +666,7 @@ typedef struct SCheckpointConsensusEntry {
   int64_t                ts;
 } SCheckpointConsensusEntry;
 
-void    streamSetupScheduleTrigger(SStreamTask* pTask);
+void streamSetupScheduleTrigger(SStreamTask* pTask);
 
 // dispatch related
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
@@ -756,6 +760,7 @@ void    streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
 int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key);
 bool    streamTaskIsSinkTask(const SStreamTask* pTask);
 void    streamTaskSetRemoveBackendFiles(SStreamTask* pTask);
+int8_t  streamTaskShouldRecalated(SStreamTask* pTask);
 
 void             streamTaskStatusInit(STaskStatusEntry* pEntry, const SStreamTask* pTask);
 void             streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc);
