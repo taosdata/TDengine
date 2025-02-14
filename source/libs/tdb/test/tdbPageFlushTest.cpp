@@ -207,6 +207,134 @@ static void insertOfp(void) {
   tdbClose(pEnv);
 }
 
+// TEST(TdbPageFlushTest, DISABLED_TbRestoreTest) {
+TEST(TdbPageFlushTest, TbRestoreTest) {
+  clearDb("tdb");
+
+  insertOfp();
+
+  // exit in the middle of page flushing
+}
+
+TEST(TdbPageFlushTest, DISABLED_TbRestoreTest2) {
+  // TEST(TdbPageFlushTest, TbRestoreTest2) {
+  // open db
+
+  // complete the inserting after journal restoring
+
+  // tranversing the completed db
+
+  // close db
+
+  // reopen for tranvering again
+  // open Env
+  int const pageSize = 4096;
+  int const pageNum = 64;
+  TDB      *pEnv = openEnv("tdb", pageSize, pageNum);
+  GTEST_ASSERT_NE(pEnv, nullptr);
+
+  // open db
+  TTB          *pDb = NULL;
+  tdb_cmpr_fn_t compFunc = tKeyCmpr;
+  // int           ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  int ret = tdbTbOpen("ofp_insert.db", 12, -1, compFunc, pEnv, &pDb, 0);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // generate value payload
+  // char val[((4083 - 4 - 3 - 2) + 1) * 100];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
+  char val[32605];
+  int  valLen = sizeof(val) / sizeof(val[0]);
+  generateBigVal(val, valLen);
+
+  {  // Query the data
+    void *pVal = NULL;
+    int   vLen;
+
+    // char const *key = "key1";
+    char const *key = "key123456789";
+    ret = tdbTbGet(pDb, key, strlen(key), &pVal, &vLen);
+    ASSERT(ret == 0);
+    GTEST_ASSERT_EQ(ret, 0);
+
+    GTEST_ASSERT_EQ(vLen, valLen);
+    GTEST_ASSERT_EQ(memcmp(val, pVal, vLen), 0);
+
+    tdbFree(pVal);
+  }
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  tdbClose(pEnv);
+}
+
+// TEST(TdbPageFlushTest, DISABLED_TbRestoreTest3) {
+TEST(TdbPageFlushTest, TbRestoreTest3) {
+  // delete db with page flushing
+
+  // exit in the middle of page flushing
+}
+
+TEST(TdbPageFlushTest, DISABLED_TbRestoreTest4) {
+  // TEST(TdbPageFlushTest, TbRestoreTest4) {
+  // open db
+
+  // complete the deleting after journal restoring
+
+  // tranversing the deleted db
+
+  // close db
+
+  // reopen for tranvering again
+  // open Env
+  int const pageSize = 4096;
+  int const pageNum = 64;
+  TDB      *pEnv = openEnv("tdb", pageSize, pageNum);
+  GTEST_ASSERT_NE(pEnv, nullptr);
+
+  // open db
+  TTB          *pDb = NULL;
+  tdb_cmpr_fn_t compFunc = tKeyCmpr;
+  // int           ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  int ret = tdbTbOpen("ofp_insert.db", 12, -1, compFunc, pEnv, &pDb, 0);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // generate value payload
+  // char val[((4083 - 4 - 3 - 2) + 1) * 100];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
+  char val[32605];
+  int  valLen = sizeof(val) / sizeof(val[0]);
+  generateBigVal(val, valLen);
+
+  {  // Query the data
+    void *pVal = NULL;
+    int   vLen;
+
+    // char const *key = "key1";
+    char const *key = "key123456789";
+    ret = tdbTbGet(pDb, key, strlen(key), &pVal, &vLen);
+    ASSERT(ret == 0);
+    GTEST_ASSERT_EQ(ret, 0);
+
+    GTEST_ASSERT_EQ(vLen, valLen);
+    GTEST_ASSERT_EQ(memcmp(val, pVal, vLen), 0);
+
+    tdbFree(pVal);
+  }
+
+  // commit current transaction
+  // tdbCommit(pEnv, txn);
+  // tdbPostCommit(pEnv, txn);
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  tdbClose(pEnv);
+
+  clearDb("tdb");
+}
+
 TEST(TdbPageFlushTest, DISABLED_TbInsertTest) {
   // TEST(TdbPageFlushTest, TbInsertTest) {
   clearDb("tdb");
