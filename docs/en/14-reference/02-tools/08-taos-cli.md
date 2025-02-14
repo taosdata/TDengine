@@ -7,8 +7,7 @@ slug: /tdengine-reference/tools/tdengine-cli
 The TDengine command line program (hereinafter referred to as TDengine CLI) is the simplest and most commonly used tool for users to operate and interact with TDengine instances. It requires the installation of either the TDengine Server package or the TDengine Client package before use.
 
 ## Get
-TDengine CLI is the default installation component in the TDengine server and client installation package. It can be used after installation.   
-Refer to [TDengine Installation](../../../get started/)
+TDengine CLI is the default installation component in the TDengine server and client installation package. It can be used after installation, refer to TDengine [Installation](../../../get started/)
 
 ## Startup
 
