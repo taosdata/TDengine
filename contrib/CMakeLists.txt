@@ -180,6 +180,8 @@ endif(${BUILD_ADDR2LINE})
 # geos
 if(${BUILD_GEOS})
     cat("${TD_SUPPORT_DIR}/geos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+else()
+    message(FATAL_ERROR "BUILD_GEOS must be set for the moment")
 endif()
 
 #

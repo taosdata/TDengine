@@ -12,6 +12,12 @@ target_link_libraries(
   PRIVATE os util nodes function scalar qcom
 )
 
+add_executable(bm_pcre2 bm_pcre2.cpp)
+target_link_libraries(
+  bm_pcre2
+  PRIVATE os util geometry function
+)
+
 if(${BUILD_TEST})
   ADD_SUBDIRECTORY(test)
 endif(${BUILD_TEST})

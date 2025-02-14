@@ -5,6 +5,9 @@ ExternalProject_Add(geos
         GIT_TAG 3.12.0
         SOURCE_DIR "${TD_CONTRIB_DIR}/geos"
         BINARY_DIR ""
+        PATCH_COMMAND
+                COMMAND git restore -- .
+                COMMAND git apply ${TD_SUPPORT_DIR}/geos.diff
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
         INSTALL_COMMAND ""

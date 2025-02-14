@@ -110,6 +110,16 @@ _exit:
   TAOS_RETURN(code);
 }
 
+void set_with_pcre2(int set)
+{
+  GEOS_set_strict_mode(!set); // freemine: set_strict_mode if only set == 0
+  SGeosContext *ctx = NULL;
+  int32_t r = getThreadLocalGeosCtx(&ctx);
+  if (r == 0 && ctx) {
+    ctx->with_pcre2 = !!set;
+  }
+}
+
 const char *getGeosErrMsg(int32_t code) {
   return (tlGeosCtx && tlGeosCtx->errMsg[0] != 0) ? tlGeosCtx->errMsg : (code ? tstrerror(code) : "");
 }

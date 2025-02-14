@@ -32,6 +32,10 @@ typedef struct SGeosContext {
   GEOSWKBReader *WKBReader;
   GEOSWKBWriter *WKBWriter;
 
+  int               with_pcre2;     // freemine: default is by non-pcre2
+  // freemine: do NOT forget to remove all pcre2-releated-code if this PR is
+ //            get merged!
+
   pcre2_code       *WKTRegex;
   pcre2_match_data *WKTMatchData;
 
@@ -41,6 +45,7 @@ typedef struct SGeosContext {
 SGeosContext *acquireThreadLocalGeosCtx();
 int32_t       getThreadLocalGeosCtx(SGeosContext **ppCtx);
 const char   *getGeosErrMsg(int32_t code);
+void          set_with_pcre2(int set);
 
 #ifdef __cplusplus
 }
