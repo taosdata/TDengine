@@ -1,0 +1,33 @@
+{
+     "type" : "record",
+    "name" : "Item",
+    "fields" : [ {
+            "name" : "id",
+            "type" : "string",
+            "ctor" : "true"
+          },
+		  {
+            "name" : "entities",
+            "type" :
+             [ "null", {
+                "type" : "record",
+                "name" : "Information",
+                "fields" : [ {
+                  "name" : "id",
+                  "type" : "string"
+                }, {
+                  "name" : "externalItem",
+                  "type" : "Item"
+                }, {
+                  "name" : "innerUnion",
+                  "type" : ["int", "double"]
+                }
+			]
+
+            }
+		]
+		
+	}
+]
+}
+	

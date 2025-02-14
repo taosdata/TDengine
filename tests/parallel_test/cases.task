@@ -73,6 +73,124 @@
 ,,n,army,python3 ./test.py -f whole/checkErrorCode.py
 
 #
+# army/tools
+#
+
+# benchmark 64 cases
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/rest_insert_alltypes_json.py -R
+,,n,army,python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson-mixed-query.py -R
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestInsertWithJsonStmt-otherPara.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_telnet_insert_alltypes-same-min-max.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/default_tmq_json.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/reuse-exist-stb.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_interlace.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt2_insert.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_offset_json.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/json_tag.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-sml-rest.py -R
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_auto_create_table_json.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insert-json-csv.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert-table-creating-interval.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertMix.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-mix.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stream_function_test.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/telnet_tcp.py -R
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json-subtable.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to-continue.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_json_alltypes-interlace.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/commandline-retry.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmq_case.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/limit_offset_json.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/commandline-sml.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_insert_alltypes_json.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert_alltypes_json.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/sml_taosjson_insert_alltypes-same-min-max.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert_alltypes-same-min-max.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/bugs.py -B
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_sample_csv_json-subtable.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-error-sqlfile.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-retry-json-global.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/exportCsv.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson.py -R
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-partial-col-numpy.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json-with-sqlfile.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json.py -B
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_json_alltypes.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/invalid_commandline.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_json_insert_alltypes-same-min-max.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/default_json.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_sample_csv_json.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json_doesnt_use_ts.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/taosadapter_json.py -B
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/demo.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-supplement-insert.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/custom_col_tag.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_auto_create_table_json.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_insert_alltypes_json.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_insert_alltypes-same-min-max.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-vgroups.py
+,,n,army,python3 ./test.py -f tools/benchmark/basic/taosc_insert-retry-json-stb.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_auto_create_table_json.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_telnet_alltypes.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stream-test.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/sml_taosjson_alltypes.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-single-table.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stt.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosc_insert_alltypes_json-partial-col.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/cloud/cloud-test.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/ws/websocket.py -R
+
+# taosdump 43 cases
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTest.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpDbStb.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeDouble.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeUnsignedBigInt.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpManyCols.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpStartEndTime.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTypeVarbinary.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTypeGeometry.py
+,,n,army,python3 ./test.py -f tools/taosdump/native/taosdumpDbWithNonRoot.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpEscapedDb.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeJson.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestBasic.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeUnsignedSmallInt.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpDbNtb.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeUnsignedTinyInt.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeUnsignedInt.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeSmallInt.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeInt.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestNanoSupport.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeBigInt.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeBinary.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeFloat.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpStartEndTimeLong.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestLooseMode.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeBool.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestInspect.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpInDiffType.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTest2.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/taosdump/native/taosdumpTestTypeTinyInt.py
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeDouble.py -B
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedBigInt.py -B
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpEscapedDb.py -B
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpPrimaryKey.py -B
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeJson.py -B
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedSmallInt.py -B
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedTinyInt.py -B
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeUnsignedInt.py -B
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeSmallInt.py -B
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeInt.py -B
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeBigInt.py -B
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeBinary.py -B
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeFloat.py -B
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeBool.py -B
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpRetry.py -B
+,,n,army,python3 ./test.py -f tools/taosdump/ws/taosdumpTestTypeTinyInt.py -B
+
+#
 # system test
 #
 ,,y,system-test,./pytest.sh python3 ./test.py -f 8-stream/stream_multi_agg.py
@@ -1120,8 +1238,6 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/state_window.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
-,,n,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/insertMix.py -N 3
-,,n,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/stt.py -N 3
 ,,n,system-test,python3 ./test.py -f eco-system/meta/database/keep_time_offset.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 2
@@ -1668,15 +1784,3 @@
 ,,n,develop-test,python3 ./test.py -f 2-query/ts-range.py
 ,,n,develop-test,python3 ./test.py -f 2-query/tag_scan.py
 ,,n,develop-test,python3 ./test.py -f 2-query/show_create_db.py
-,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/auto_create_table_json.py
-,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/custom_col_tag.py
-,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/default_json.py
-,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/demo.py
-,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/insert_alltypes_json.py
-,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/invalid_commandline.py
-,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/json_tag.py
-,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/query_json.py
-,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sample_csv_json.py
-,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_json_alltypes.py
-,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestQueryWithJson.py -R
-,,n,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/telnet_tcp.py -R

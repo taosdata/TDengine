@@ -1,0 +1,27 @@
+{
+	"filetype": "query",
+	"cfgdir": "/etc/taos",
+	"host": "127.0.0.1",
+	"port": 6030,
+	"user": "root",
+	"password": "taosdata",
+	"confirm_parameter_prompt": "no",
+	"databases": "test",
+	"query_times": 100,
+	"query_mode": "rest",
+	"specified_table_query": {
+		"concurrent": 3,
+		"sqls": [
+			{
+				"sql": "select last_row(*) from meters"
+			},
+			{
+				"sql": "select count(*) from d0",
+				"result": "./query_res1.txt"
+			},
+			{
+				"sql": "select count(*) from meters"
+			}
+		]
+	}
+}

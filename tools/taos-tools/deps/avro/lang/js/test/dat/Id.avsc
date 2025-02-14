@@ -1,0 +1,6 @@
+{
+  "type": "fixed",
+  "name": "Id",
+  "namespace": "id",
+  "size": 64
+}

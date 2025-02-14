@@ -286,6 +286,7 @@ db_options(A) ::= db_options(B) S3_KEEPLOCAL NK_INTEGER(C).                     
 db_options(A) ::= db_options(B) S3_KEEPLOCAL NK_VARIABLE(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_S3_KEEPLOCAL, &C); }
 db_options(A) ::= db_options(B) S3_COMPACT NK_INTEGER(C).                         { A = setDatabaseOption(pCxt, B, DB_OPTION_S3_COMPACT, &C); }
 db_options(A) ::= db_options(B) KEEP_TIME_OFFSET NK_INTEGER(C).                   { A = setDatabaseOption(pCxt, B, DB_OPTION_KEEP_TIME_OFFSET, &C); }
+db_options(A) ::= db_options(B) KEEP_TIME_OFFSET NK_VARIABLE(C).                  { A = setDatabaseOption(pCxt, B, DB_OPTION_KEEP_TIME_OFFSET, &C); }
 db_options(A) ::= db_options(B) ENCRYPT_ALGORITHM NK_STRING(C).                   { A = setDatabaseOption(pCxt, B, DB_OPTION_ENCRYPT_ALGORITHM, &C); }
 db_options(A) ::= db_options(B) DNODES NK_STRING(C).                              { A = setDatabaseOption(pCxt, B, DB_OPTION_DNODES, &C); }
 db_options(A) ::= db_options(B) COMPACT_INTERVAL NK_INTEGER (C).                  { A = setDatabaseOption(pCxt, B, DB_OPTION_COMPACT_INTERVAL, &C); }
@@ -327,6 +328,7 @@ alter_db_option(A) ::= S3_KEEPLOCAL NK_INTEGER(B).                              
 alter_db_option(A) ::= S3_KEEPLOCAL NK_VARIABLE(B).                               { A.type = DB_OPTION_S3_KEEPLOCAL; A.val = B; }
 alter_db_option(A) ::= S3_COMPACT NK_INTEGER(B).                                  { A.type = DB_OPTION_S3_COMPACT, A.val = B; }
 alter_db_option(A) ::= KEEP_TIME_OFFSET NK_INTEGER(B).                            { A.type = DB_OPTION_KEEP_TIME_OFFSET; A.val = B; }
+alter_db_option(A) ::= KEEP_TIME_OFFSET NK_VARIABLE(B).                           { A.type = DB_OPTION_KEEP_TIME_OFFSET; A.val = B; }
 alter_db_option(A) ::= ENCRYPT_ALGORITHM NK_STRING(B).                            { A.type = DB_OPTION_ENCRYPT_ALGORITHM; A.val = B; }
 alter_db_option(A) ::= COMPACT_INTERVAL NK_INTEGER(B).                            { A.type = DB_OPTION_COMPACT_INTERVAL; A.val = B; }
 alter_db_option(A) ::= COMPACT_INTERVAL NK_VARIABLE(B).                           { A.type = DB_OPTION_COMPACT_INTERVAL; A.val = B; }

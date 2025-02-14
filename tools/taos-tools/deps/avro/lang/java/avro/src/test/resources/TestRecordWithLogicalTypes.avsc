@@ -1,0 +1,45 @@
+{
+  "type" : "record",
+  "name" : "TestRecordWithLogicalTypes",
+  "doc" : "Schema for TestRecordWithLogicalTypes and TestRecordWithoutLogicalTypes, see TestSpecificLogicalTypes",
+  "namespace" : "org.apache.avro.specific",
+  "fields" : [ {
+    "name" : "b",
+    "type" : "boolean"
+  }, {
+    "name" : "i32",
+    "type" : "int"
+  }, {
+    "name" : "i64",
+    "type" : "long"
+  }, {
+    "name" : "f32",
+    "type" : "float"
+  }, {
+    "name" : "f64",
+    "type" : "double"
+  }, {
+    "name" : "s",
+    "type" : [ "null", "string" ],
+    "default" : null
+  }, {
+    "name" : "d",
+    "type" : {
+      "type" : "int",
+      "logicalType" : "date"
+    }
+  }, {
+    "name" : "t",
+    "type" : {
+      "type" : "int",
+      "logicalType" : "time-millis"
+    }
+  }, {
+    "name" : "ts",
+    "type" : {
+      "type" : "long",
+      "logicalType" : "timestamp-millis"
+    }
+  } ]
+}
+

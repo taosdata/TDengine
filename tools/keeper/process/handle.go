@@ -411,9 +411,11 @@ func (p *Processor) Prepare() {
 
 func (p *Processor) withDBName(tableName string) string {
 	b := pool.BytesPoolGet()
+	b.WriteByte('`')
 	b.WriteString(p.db)
-	b.WriteByte('.')
+	b.WriteString("`.`")
 	b.WriteString(tableName)
+	b.WriteByte('`')
 	return b.String()
 }
 

@@ -1,0 +1,23 @@
+{"namespace": "org.apache.avro.codegentest.some",
+  "type": "record",
+  "name": "NestedSomeNamespaceRecord",
+  "doc" : "Test nested types with different namespace than the outer type",
+  "fields": [
+    {
+      "name": "nestedRecord",
+      "type": {
+        "namespace": "org.apache.avro.codegentest.other",
+        "type": "record",
+        "name": "NestedOtherNamespaceRecord",
+        "fields": [
+          {
+            "name": "someField",
+            "type": "int"
+          }
+        ]
+      }
+    }]
+}
+
+
+

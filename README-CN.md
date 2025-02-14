@@ -61,7 +61,13 @@ TDengine 是一款开源、高性能、云原生的时序数据库 (Time-Series 
 
 关于完整的使用手册，系统架构和更多细节，请参考 [TDengine](https://www.taosdata.com/) 或者 [TDengine 官方文档](https://docs.taosdata.com)。
 
-# 3. 必备工具
+用户可根据需求选择通过[容器](https://docs.taosdata.com/get-started/docker/)、[安装包](https://docs.taosdata.com/get-started/package/)、[Kubernetes](https://docs.taosdata.com/deployment/k8s/)来安装或直接使用无需安装部署的[云服务](https://cloud.taosdata.com/)。本快速指南是面向想自己编译、打包、测试的开发者的。
+  
+如果想编译或测试TDengine连接器，请访问以下仓库: [JDBC连接器](https://github.com/taosdata/taos-connector-jdbc), [Go连接器](https://github.com/taosdata/driver-go), [Python连接器](https://github.com/taosdata/taos-connector-python), [Node.js连接器](https://github.com/taosdata/taos-connector-node), [C#连接器](https://github.com/taosdata/taos-connector-dotnet), [Rust连接器](https://github.com/taosdata/taos-connector-rust).
+
+# 3. 前置条件
+
+TDengine 目前可以在 Linux、 Windows、macOS 等平台上安装和运行。任何 OS 的应用也可以选择 taosAdapter 的 RESTful 接口连接服务端 taosd。CPU 支持 X64/ARM64，后续会支持 MIPS64、Alpha64、ARM32、RISC-V 等 CPU 架构。目前不支持使用交叉编译器构建。
 
 ## 3.1 Linux系统
 
@@ -114,10 +120,6 @@ brew install argp-standalone gflags pkgconfig
 
 ## 3.4 克隆仓库
 
-<details>
-
-<summary>克隆仓库</summary>
-
 通过如下命令将TDengine仓库克隆到指定计算机:
 
 ```bash
@@ -125,16 +127,8 @@ git clone https://github.com/taosdata/TDengine.git
 cd TDengine
 ```
 
-> **注意:**
-> 想连接更多TDengine连接器，可参考以下仓库: [JDBC连接器](https://github.com/taosdata/taos-connector-jdbc), [Go连接器](https://github.com/taosdata/driver-go), [Python连接器](https://github.com/taosdata/taos-connector-python), [Node.js连接器](https://github.com/taosdata/taos-connector-node), [C#连接器](https://github.com/taosdata/taos-connector-dotnet), [Rust连接器](https://github.com/taosdata/taos-connector-rust).
-
-</details>
-
 # 4. 构建
-TDengine 目前可以在 Linux、 Windows、macOS 等平台上安装和运行。任何 OS 的应用也可以选择 taosAdapter 的 RESTful 接口连接服务端 taosd。CPU 支持 X64/ARM64，后续会支持 MIPS64、Alpha64、ARM32、RISC-V 等 CPU 架构。目前不支持使用交叉编译器构建。
 
-用户可根据需求选择通过源码、[容器](https://docs.taosdata.com/get-started/docker/)、[安装包](https://docs.taosdata.com/get-started/package/)或[Kubernetes](https://docs.taosdata.com/deployment/k8s/)来安装。本快速指南仅适用于通过源码安装。
-  
 TDengine 还提供一组辅助工具软件 taosTools，目前它包含 taosBenchmark（曾命名为 taosdemo）和 taosdump 两个软件。默认 TDengine 编译不包含 taosTools, 您可以在编译 TDengine 时使用`cmake .. -DBUILD_TOOLS=true` 来同时编译 taosTools。
 
 为了构建TDengine, 请使用 [CMake](https://cmake.org/) 3.13.0 或者更高版本。

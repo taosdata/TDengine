@@ -7557,9 +7557,13 @@ static int32_t partitionDeleteWhere(STranslateContext* pCxt, SDeleteStmt* pDelet
   }
   if (TSDB_CODE_SUCCESS == code) {
     bool isStrict = false;
-    code = getTimeRange(&pPrimaryKeyCond, &pDelete->timeRange, &isStrict);
-    if (TSDB_CODE_SUCCESS == code && !isStrict) {
-      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DELETE_WHERE);
+    if (NULL != pPrimaryKeyCond) {
+      code = getTimeRange(&pPrimaryKeyCond, &pDelete->timeRange, &isStrict);
+      if (TSDB_CODE_SUCCESS == code && !isStrict) {
+        code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DELETE_WHERE);
+      }
+    } else {
+      pDelete->timeRange = TSWINDOW_INITIALIZER;
     }
   }
   nodesDestroyNode(pPrimaryKeyCond);
@@ -7925,6 +7929,17 @@ static int32_t checkDbKeepOption(STranslateContext* pCxt, SDatabaseOptions* pOpt
 }
 
 static int32_t checkDbKeepTimeOffsetOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
+  if (pOptions->pKeepTimeOffsetNode) {
+    if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pKeepTimeOffsetNode)) {
+      return pCxt->errCode;
+    }
+    if (TIME_UNIT_HOUR != pOptions->pKeepTimeOffsetNode->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option keep_time_offset unit: %c, only %c allowed",
+                                     pOptions->pKeepTimeOffsetNode->unit, TIME_UNIT_HOUR);
+    }
+    pOptions->keepTimeOffset = getBigintFromValueNode(pOptions->pKeepTimeOffsetNode) / 60;
+  }
   if (pOptions->keepTimeOffset < TSDB_MIN_KEEP_TIME_OFFSET || pOptions->keepTimeOffset > TSDB_MAX_KEEP_TIME_OFFSET) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                    "Invalid option keep_time_offset: %d"

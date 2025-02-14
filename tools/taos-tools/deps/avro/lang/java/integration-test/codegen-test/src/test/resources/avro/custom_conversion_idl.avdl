@@ -1,0 +1,27 @@
+@namespace("org.apache.avro.codegentest.testdata")
+protocol LogicalTypesWithCustomConversionIdlProtocol {
+
+  /** Test unions with logical types in generated Java classes */
+  record LogicalTypesWithCustomConversionIdl {
+
+    union {
+      null,
+      decimal(9,2)
+    } nullableCustomField = null;
+
+    decimal(9,2) nonNullCustomField;
+
+    union {
+      null,
+      @logicalType("fixed-size-string")
+      @minLength(1)
+      @maxLength(50)
+      bytes
+    } nullableFixedSizeString = null;
+
+    @logicalType("fixed-size-string")
+    @minLength(1)
+    @maxLength(50)
+    bytes nonNullFixedSizeString;
+  }
+}
