@@ -98,7 +98,7 @@ int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
   return winKeyCmprImpl(&pWin1->key, &pWin2->key);
 }
 
-SStreamState* streamStateOpenRecalation(const char* path, void* pTask, int64_t streamId, int32_t taskId) {
+SStreamState* streamStateRecalatedOpen(const char* path, void* pTask, int64_t streamId, int32_t taskId) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SStreamTask* pStreamTask = pTask;
