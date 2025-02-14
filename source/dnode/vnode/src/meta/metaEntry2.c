@@ -1612,6 +1612,10 @@ static int32_t metaHandleSuperTableUpdateImpl(SMeta *pMeta, SMetaHandleParam *pP
     }
   }
 
+  if (TSDB_CODE_SUCCESS == code) {
+    metaUpdateStbStats(pMeta, pEntry->uid, 0, pEntry->stbEntry.schemaRow.nCols - pOldEntry->stbEntry.schemaRow.nCols);
+  }
+
   return code;
 }
 
@@ -1690,7 +1694,16 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
 
     tsdbCacheInvalidateSchema(pTsdb, pEntry->uid, -1, pEntry->stbEntry.schemaRow.version);
   }
-  metaTimeSeriesNotifyCheck(pMeta);
+  if (updStat) {
+    int64_t ctbNum = 0;
+    int32_t ret = metaGetStbStats(pMeta->pVnode, pEntry->uid, &ctbNum, NULL);
+    if (ret < 0) {
+      metaError("vgId:%d, failed to get stb stats:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pEntry->name,
+                pEntry->uid, tstrerror(ret));
+    }
+    pMeta->pVnode->config.vndStats.numOfTimeSeries += (ctbNum * deltaCol);
+    if (deltaCol > 0) metaTimeSeriesNotifyCheck(pMeta);
+  }
   metaFetchEntryFree(&pOldEntry);
   return code;
 }
@@ -1789,7 +1802,9 @@ static int32_t metaHandleNormalTableUpdate(SMeta *pMeta, const SMetaEntry *pEntr
 #endif
     tsdbCacheInvalidateSchema(pMeta->pVnode->pTsdb, 0, pEntry->uid, pEntry->ntbEntry.schemaRow.version);
   }
-  metaTimeSeriesNotifyCheck(pMeta);
+  int32_t deltaCol = pEntry->ntbEntry.schemaRow.nCols - pOldEntry->ntbEntry.schemaRow.nCols;
+  pMeta->pVnode->config.vndStats.numOfNTimeSeries += deltaCol;  
+  if (deltaCol > 0) metaTimeSeriesNotifyCheck(pMeta);
   metaFetchEntryFree(&pOldEntry);
   return code;
 }

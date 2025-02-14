@@ -176,36 +176,37 @@ class TDTestCase:
 
         # check timeseries
         tss_grant = 5
-        self.checkGrantsTimeSeries("initial check", tss_grant)
-        tdSql.execute("create database if not exists db100")
-        tdSql.execute("create table db100.stb100(ts timestamp, c0 int,c1 bigint,c2 int,c3 float,c4 double) tags(t0 bigint unsigned)")
-        tdSql.execute("create table db100.ctb100 using db100.stb100 tags(100)")
-        tdSql.execute("create table db100.ctb101 using db100.stb100 tags(101)")
-        tdSql.execute("create table db100.ntb100 (ts timestamp, c0 int,c1 bigint,c2 int,c3 float,c4 double)")
-        tdSql.execute("create table db100.ntb101 (ts timestamp, c0 int,c1 bigint,c2 int,c3 float,c4 double)")
-        tss_grant += 20
-        self.checkGrantsTimeSeries("create tables and check", tss_grant)
-        tdSql.execute("alter table db100.stb100 add column c5 int")
-        tdSql.execute("alter stable db100.stb100 add column c6 int")
-        tss_grant += 4
-        self.checkGrantsTimeSeries("alter table column/tag and tss_grant", tss_grant)
-        
-        # tdSql.execute("alter table db100.stb100 add tag t1 int")
-        # tdSql.execute("create table db100.ctb102 using db100.stb100 tags(102, 102)")
-        # tdSql.execute("alter table db100.ctb100 set tag t0=1000")
-        # tdSql.execute("alter table db100.ntb100 add column c5 int")
-        # tss_grant += 12
-        # self.checkGrantsTimeSeries("alter table column/tag and tss_grant", tss_grant)
-        # tdSql.execute("drop table db100.ctb100")
-        # tdSql.execute("drop table db100.ntb100")
-        # tss_grant -= 13
-        # self.checkGrantsTimeSeries("drop ctb/ntb and check: tss_grant", tss_grant)
-        # tdSql.execute("drop table db100.stb100")
-        # tss_grant -= 14
-        # self.checkGrantsTimeSeries("drop stb and check: tss_grant", tss_grant)
-        # tdSql.execute("drop database db100")
-        # tss_grant -= 7
-        # self.checkGrantsTimeSeries("drop database and check: tss_grant", tss_grant)        
+        for i in range(0, 3):
+            tdLog.printNoPrefix(f"======== test timeseries: loop{i}")
+            self.checkGrantsTimeSeries("initial check", tss_grant)
+            tdSql.execute("create database if not exists db100")
+            tdSql.execute("create table db100.stb100(ts timestamp, c0 int,c1 bigint,c2 int,c3 float,c4 double) tags(t0 bigint unsigned)")
+            tdSql.execute("create table db100.ctb100 using db100.stb100 tags(100)")
+            tdSql.execute("create table db100.ctb101 using db100.stb100 tags(101)")
+            tdSql.execute("create table db100.ntb100 (ts timestamp, c0 int,c1 bigint,c2 int,c3 float,c4 double)")
+            tdSql.execute("create table db100.ntb101 (ts timestamp, c0 int,c1 bigint,c2 int,c3 float,c4 double)")
+            tss_grant += 20
+            self.checkGrantsTimeSeries("create tables and check", tss_grant)
+            tdSql.execute("alter table db100.stb100 add column c5 int")
+            tdSql.execute("alter stable db100.stb100 add column c6 int")
+            tdSql.execute("alter table db100.stb100 add tag t1 int")
+            tss_grant += 4
+            self.checkGrantsTimeSeries("alter table column/tag and check", tss_grant)
+            tdSql.execute("create table db100.ctb102 using db100.stb100 tags(102, 102)")
+            tdSql.execute("alter table db100.ctb100 set tag t0=1000")
+            tdSql.execute("alter table db100.ntb100 add column c5 int")
+            tss_grant += 8
+            self.checkGrantsTimeSeries("alter table column/tag and check", tss_grant)
+            tdSql.execute("drop table db100.ctb100")
+            tdSql.execute("drop table db100.ntb100")
+            tss_grant -= 13
+            self.checkGrantsTimeSeries("drop ctb/ntb and check", tss_grant)
+            tdSql.execute("drop table db100.stb100")
+            tss_grant -= 14
+            self.checkGrantsTimeSeries("drop stb and check", tss_grant)
+            tdSql.execute("drop database db100")
+            tss_grant -= 5
+            self.checkGrantsTimeSeries("drop database and check", tss_grant)
 
     def s2_check_show_grants_ungranted(self):
         tdLog.printNoPrefix("======== test show grants ungranted: ")
@@ -285,8 +286,8 @@ class TDTestCase:
         # keep the order of following steps
         self.s0_five_dnode_one_mnode()
         self.s1_check_timeseries()
-        # self.s2_check_show_grants_ungranted()
-        # self.s3_check_show_grants_granted() 
+        self.s2_check_show_grants_ungranted()
+        self.s3_check_show_grants_granted() 
 
 
     def stop(self):
