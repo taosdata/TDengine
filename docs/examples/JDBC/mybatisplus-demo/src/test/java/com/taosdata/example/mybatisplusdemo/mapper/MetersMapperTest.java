@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.taosdata.example.mybatisplusdemo.domain.Meters;
 import com.taosdata.example.mybatisplusdemo.domain.Weather;
+import org.apache.ibatis.executor.BatchResult;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -17,6 +18,8 @@ import java.sql.Timestamp;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
+
+import static java.sql.Statement.SUCCESS_NO_INFO;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @SpringBootTest
@@ -63,8 +66,19 @@ public class MetersMapperTest {
             metersList.add(one);
 
         }
-        int affectRows = mapper.insertBatch(metersList);
-        Assert.assertEquals(100, affectRows);
+        List<BatchResult> affectRowsList = mapper.insert(metersList, 10000);
+
+        long totalAffectedRows = 0;
+        for (BatchResult batchResult : affectRowsList) {
+            int[] updateCounts = batchResult.getUpdateCounts();
+            for (int status : updateCounts) {
+                if (status == SUCCESS_NO_INFO) {
+                    totalAffectedRows++;
+                }
+            }
+        }
+
+        Assert.assertEquals(100, totalAffectedRows);
     }
 
     @Test
@@ -93,7 +107,7 @@ public class MetersMapperTest {
 
     @Test
     public void testSelectCount() {
-        int count = mapper.selectCount(null);
+        long count = mapper.selectCount(null);
 //        Assert.assertEquals(5, count);
         System.out.println(count);
     }

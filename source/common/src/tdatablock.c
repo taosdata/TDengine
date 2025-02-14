@@ -3061,6 +3061,33 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, cha
   return code;
 }
 
+int32_t buildSinkDestTableName(char* parTbName, const char* stbFullName, uint64_t gid, bool newSubTableRule,
+                               char** dstTableName) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (parTbName[0]) {
+    if (newSubTableRule && !isAutoTableName(parTbName) && !alreadyAddGroupId(parTbName, gid) && gid != 0 &&
+        stbFullName) {
+      *dstTableName = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
+      TSDB_CHECK_NULL(*dstTableName, code, lino, _end, terrno);
+
+      tstrncpy(*dstTableName, parTbName, TSDB_TABLE_NAME_LEN);
+      code = buildCtbNameAddGroupId(stbFullName, *dstTableName, gid, TSDB_TABLE_NAME_LEN);
+      TSDB_CHECK_CODE(code, lino, _end);
+    } else {
+      *dstTableName = taosStrdup(parTbName);
+      TSDB_CHECK_NULL(*dstTableName, code, lino, _end, terrno);
+    }
+  } else {
+    code = buildCtbNameByGroupId(stbFullName, gid, dstTableName);
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  return code;
+}
+
 // return length of encoded data, return -1 if failed
 int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, int32_t numOfCols) {
   int32_t code = blockDataCheck(pBlock);

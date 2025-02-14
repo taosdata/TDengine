@@ -124,7 +124,7 @@ In addition to this, the WebSocket connection method also supports 32-bit applic
 |      v1.1.0   | 1. Supports view functionality. <br/>2. Supports VARBINARY/GEOMETRY data types. <br/>3. Supports ODBC 32-bit WebSocket connection method (Enterprise edition only). <br/>4. Supports ODBC data source configuration dialog settings for compatibility adaptation options for industrial software like KingSCADA, Kepware, etc. (Enterprise edition only). | 3.3.3.0 and higher |
 |      v1.0.2   | Supports CP1252 character encoding.                                                                                 | 3.2.3.0 and higher |
 |      v1.0.1   | 1. Supports DSN settings for BI mode, in BI mode TDengine database does not return system database and supertable subtable information. <br/>2. Refactored character set conversion module, improving read and write performance. <br/> 3. Default connection method in ODBC data source configuration dialog changed to "WebSocket". <br/>4. Added "Test Connection" control in ODBC data source configuration dialog. <br/>5. ODBC data source configuration supports Chinese/English interface. |         -          |
-|    v1.0.0.0   | Initial release, supports interacting with Tdengine database to read and write data, refer to the "API Reference" section for details.                                | 3.2.2.0 and higher |
+|    v1.0.0.0   | Initial release, supports interacting with TDengine database to read and write data, refer to the "API Reference" section for details.                                | 3.2.2.0 and higher |
 
 ## Data Type Mapping
 

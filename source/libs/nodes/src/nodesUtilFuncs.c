@@ -467,6 +467,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_WINDOW_OFFSET:
       code = makeNode(type, sizeof(SWindowOffsetNode), &pNode);
       break;
+    case QUERY_NODE_STREAM_NOTIFY_OPTIONS:
+      code = makeNode(type, sizeof(SStreamNotifyOptions), &pNode);
+      break;
     case QUERY_NODE_SET_OPERATOR:
       code = makeNode(type, sizeof(SSetOperator), &pNode);
       break;
@@ -614,6 +617,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_RESUME_STREAM_STMT:
       code = makeNode(type, sizeof(SResumeStreamStmt), &pNode);
+      break;
+    case QUERY_NODE_RESET_STREAM_STMT:
+      code = makeNode(type, sizeof(SResetStreamStmt), &pNode);
       break;
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       code = makeNode(type, sizeof(SBalanceVgroupStmt), &pNode);
@@ -1109,8 +1115,12 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_ORDER_BY_EXPR:
       nodesDestroyNode(((SOrderByExprNode*)pNode)->pExpr);
       break;
-    case QUERY_NODE_LIMIT:  // no pointer field
+    case QUERY_NODE_LIMIT: {
+      SLimitNode* pLimit = (SLimitNode*)pNode;
+      nodesDestroyNode((SNode*)pLimit->limit);
+      nodesDestroyNode((SNode*)pLimit->offset);
       break;
+    }
     case QUERY_NODE_STATE_WINDOW: {
       SStateWindowNode* pState = (SStateWindowNode*)pNode;
       nodesDestroyNode(pState->pCol);
@@ -1166,6 +1176,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pOptions->pCompactIntervalNode);
       nodesDestroyList(pOptions->pCompactTimeRangeList);
       nodesDestroyNode((SNode*)pOptions->pCompactTimeOffsetNode);
+      nodesDestroyNode((SNode*)pOptions->pKeepTimeOffsetNode);
       break;
     }
     case QUERY_NODE_TABLE_OPTIONS: {
@@ -1262,6 +1273,11 @@ void nodesDestroyNode(SNode* pNode) {
       SRangeAroundNode* pAround = (SRangeAroundNode*)pNode;
       nodesDestroyNode(pAround->pInterval);
       nodesDestroyNode(pAround->pTimepoint);
+      break;
+    }
+    case QUERY_NODE_STREAM_NOTIFY_OPTIONS: {
+      SStreamNotifyOptions* pNotifyOptions = (SStreamNotifyOptions*)pNode;
+      nodesDestroyList(pNotifyOptions->pAddrUrls);
       break;
     }
     case QUERY_NODE_SET_OPERATOR: {
@@ -1476,6 +1492,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pQuery);
       nodesDestroyList(pStmt->pTags);
       nodesDestroyNode(pStmt->pSubtable);
+      nodesDestroyNode((SNode*)pStmt->pNotifyOptions);
       tFreeSCMCreateStreamReq(pStmt->pReq);
       taosMemoryFreeClear(pStmt->pReq);
       break;
@@ -1483,6 +1500,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_DROP_STREAM_STMT:                     // no pointer field
     case QUERY_NODE_PAUSE_STREAM_STMT:                    // no pointer field
     case QUERY_NODE_RESUME_STREAM_STMT:                   // no pointer field
+    case QUERY_NODE_RESET_STREAM_STMT:                    // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_STMT:                  // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:           // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:  // no pointer field
@@ -3104,6 +3122,25 @@ int32_t nodesMakeValueNodeFromInt32(int32_t value, SNode** ppNode) {
   }
   return code;
 }
+
+int32_t nodesMakeValueNodeFromInt64(int64_t value, SNode** ppNode) {
+  SValueNode* pValNode = NULL;
+  int32_t     code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pValNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    pValNode->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+    pValNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    code = nodesSetValueNodeValue(pValNode, &value);
+    if (TSDB_CODE_SUCCESS == code) {
+      pValNode->translate = true;
+      pValNode->isNull = false;
+      *ppNode = (SNode*)pValNode;
+    } else {
+      nodesDestroyNode((SNode*)pValNode);
+    }
+  }
+  return code;
+}
+
 
 bool nodesIsStar(SNode* pNode) {
   return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' == ((SColumnNode*)pNode)->tableAlias[0]) &&

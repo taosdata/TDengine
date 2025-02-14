@@ -35,18 +35,28 @@ class TDTestCase(TBase):
 
         time.sleep(1)
 
+        tdSql.execute("use db;")
+
+        tdSql.execute("CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);")
+
+        tdSql.execute("CREATE TABLE d0 USING meters TAGS (\"California.SanFrancisco\", 2);");
+
         count = 0
 
         while count < 100:        
             tdSql.query("show arbgroups;")
 
-            if tdSql.getData(0, 4) == 1:
+            if tdSql.getData(0, 4) == True:
                 break
 
-            tdLog.info("wait 1 seconds for is sync")
+            tdLog.info("wait %d seconds for is sync"%count)
             time.sleep(1)
 
             count += 1
+
+        if count == 100:
+            tdLog.exit("arbgroup sync failed")
+            return 
             
 
         tdSql.query("show db.vgroups;")
@@ -67,10 +77,16 @@ class TDTestCase(TBase):
             if(tdSql.getData(0, 4) == "assigned ") or (tdSql.getData(0, 6) == "assigned "):
                 break
             
-            tdLog.info("wait 1 seconds for set assigned")
+            tdLog.info("wait %d seconds for set assigned"%count)
             time.sleep(1)
 
             count += 1
+        
+        if count == 100:
+            tdLog.exit("check assigned failed")
+            return
+
+        tdSql.execute("INSERT INTO d0 VALUES (NOW, 10.3, 219, 0.31);")
 
     def stop(self):
         tdSql.close()

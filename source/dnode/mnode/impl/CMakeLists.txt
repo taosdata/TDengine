@@ -16,10 +16,10 @@ if(TD_ENTERPRISE)
   ELSEIF(${BUILD_WITH_COS})
     add_definitions(-DUSE_COS)
   endif()
+endif()
 
-  if(${BUILD_WITH_ANALYSIS})
-    add_definitions(-DUSE_ANALYTICS)
-  endif()
+if(${BUILD_WITH_ANALYSIS})
+  add_definitions(-DUSE_ANALYTICS)
 endif()
 
 add_library(mnode STATIC ${MNODE_SRC})

@@ -6,12 +6,6 @@ SUCCESS_FILE="success.txt"
 FAILED_FILE="failed.txt"
 REPORT_FILE="report.txt"
 
-# Initialize/clear result files
-> "$SUCCESS_FILE"
-> "$FAILED_FILE"
-> "$LOG_FILE"
-> "$REPORT_FILE"
-
 # Switch to the target directory
 TARGET_DIR="../../tests/system-test/"
 
@@ -23,6 +17,12 @@ else
     echo "ERROR: Failed to change directory to $TARGET_DIR" | tee -a "$LOG_FILE"
     exit 1
 fi
+
+# Initialize/clear result files
+> "$SUCCESS_FILE"
+> "$FAILED_FILE"
+> "$LOG_FILE"
+> "$REPORT_FILE"
 
 # Define the Python commands to execute
 commands=(

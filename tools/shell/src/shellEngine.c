@@ -58,7 +58,7 @@ static void    shellWriteHistory();
 static void    shellPrintError(TAOS_RES *tres, int64_t st);
 static bool    shellIsCommentLine(char *line);
 static void    shellSourceFile(const char *file);
-static bool    shellGetGrantInfo(char* buf);
+static int32_t shellGetGrantInfo(char* buf);
 
 static void  shellCleanup(void *arg);
 static void *shellCancelHandler(void *arg);
@@ -672,7 +672,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       if (tsEnableScience) {
         printf("%*.7e", width, GET_FLOAT_VAL(val));
       } else {
-        n = tsnprintf(buf, LENGTH, "%*.7f", width, GET_FLOAT_VAL(val));
+        n = snprintf(buf, LENGTH, "%*.*g", width, FLT_DIG, GET_FLOAT_VAL(val));
         if (n > SHELL_FLOAT_WIDTH) {
           printf("%*.7e", width, GET_FLOAT_VAL(val));
         } else {
@@ -685,7 +685,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
         snprintf(buf, LENGTH, "%*.15e", width, GET_DOUBLE_VAL(val));
         printf("%s", buf);
       } else {
-        n = tsnprintf(buf, LENGTH, "%*.15f", width, GET_DOUBLE_VAL(val));
+        n = snprintf(buf, LENGTH, "%*.*g", width, DBL_DIG, GET_DOUBLE_VAL(val));
         if (n > SHELL_DOUBLE_WIDTH) {
           printf("%*.15e", width, GET_DOUBLE_VAL(val));
         } else {
@@ -1163,9 +1163,9 @@ void shellSourceFile(const char *file) {
   taosCloseFile(&pFile);
 }
 
-bool shellGetGrantInfo(char *buf) {
-  bool community = true;
-  char sinfo[256] = {0};
+int32_t shellGetGrantInfo(char *buf) {
+  int32_t verType = TSDB_VERSION_UNKNOWN;
+  char    sinfo[256] = {0};
   tstrncpy(sinfo, taos_get_server_info(shell.conn), sizeof(sinfo));
   strtok(sinfo, "\r\n");
 
@@ -1180,7 +1180,7 @@ bool shellGetGrantInfo(char *buf) {
       fprintf(stderr, "Failed to check Server Edition, Reason:0x%04x:%s\r\n\r\n", code, taos_errstr(tres));
     }
     taos_free_result(tres);
-    return community;
+    return verType;
   }
 
   int32_t num_fields = taos_field_count(tres);
@@ -1208,12 +1208,12 @@ bool shellGetGrantInfo(char *buf) {
     memcpy(expired, row[2], fields[2].bytes);
 
     if (strcmp(serverVersion, "community") == 0) {
-      community = true;
+      verType = TSDB_VERSION_OSS;
     } else if (strcmp(expiretime, "unlimited") == 0) {
-      community = false;
+      verType = TSDB_VERSION_ENTERPRISE;
       sprintf(buf, "Server is %s, %s and will never expire.\r\n", serverVersion, sinfo);
     } else {
-      community = false;
+      verType = TSDB_VERSION_ENTERPRISE;
       sprintf(buf, "Server is %s, %s and will expire at %s.\r\n", serverVersion, sinfo, expiretime);
     }
 
@@ -1221,7 +1221,7 @@ bool shellGetGrantInfo(char *buf) {
   }
 
   fprintf(stdout, "\r\n");
-  return community;
+  return verType;
 }
 
 #ifdef WINDOWS
@@ -1381,22 +1381,21 @@ int32_t shellExecute() {
 #ifdef WEBSOCKET
   if (!shell.args.restful && !shell.args.cloud) {
 #endif
-    char *buf = taosMemoryMalloc(512);
-    bool  community = shellGetGrantInfo(buf);
+    char    buf[512] = {0};
+    int32_t verType = shellGetGrantInfo(buf);
 #ifndef WINDOWS
-    printfIntroduction(community);
+    printfIntroduction(verType);
 #else
 #ifndef WEBSOCKET
-  if (community) {
+  if (verType == TSDB_VERSION_OSS) {
     showAD(false);
   }
 #endif
 #endif
     // printf version
-    if (!community) {
+    if (verType == TSDB_VERSION_ENTERPRISE || verType == TSDB_VERSION_CLOUD) {
       printf("%s\n", buf);
     }
-    taosMemoryFree(buf);
 
 #ifdef WEBSOCKET
   }
@@ -1412,7 +1411,7 @@ int32_t shellExecute() {
   }
 #ifndef WEBSOCKET
   // commnuity
-  if (community) {
+  if (verType == TSDB_VERSION_OSS) {
     showAD(true);
   }
 #endif
