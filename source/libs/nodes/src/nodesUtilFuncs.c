@@ -1272,7 +1272,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_RANGE_AROUND: {
       SRangeAroundNode* pAround = (SRangeAroundNode*)pNode;
       nodesDestroyNode(pAround->pInterval);
-      nodesDestroyNode(pAround->pTimepoint);
+      nodesDestroyNode(pAround->pRange);
       break;
     }
     case QUERY_NODE_STREAM_NOTIFY_OPTIONS: {
