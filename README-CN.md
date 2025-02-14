@@ -10,7 +10,6 @@
 
 简体中文 | [English](README.md) | [TDengine 云服务](https://cloud.taosdata.com/?utm_medium=cn&utm_source=github) | 很多职位正在热招中，请看[这里](https://www.taosdata.com/careers/)
 
-<!-- omit in toc -->
 # 目录
 
 1. [TDengine 简介](#1-tdengine-简介)
