@@ -10,7 +10,7 @@ slug: /tdengine-reference/tools/taosdump
 
 ## Get
 
-taosdump is the default installation component in the TDengine server and client installation package. It can be used after installation, refer to TDengine [Installation](../../../get started/)
+taosdump is the default installation component in the TDengine server and client installation package. It can be used after installation, refer to [TDengine Installation](../../../get-started/)
 
 ## Startup
 

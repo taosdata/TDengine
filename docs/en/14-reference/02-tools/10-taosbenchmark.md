@@ -8,7 +8,7 @@ TaosBenchmark is a performance benchmarking tool for TDengine products, providin
 
 ## Get
 
-taosBenchmark is the default installation component in the TDengine server and client installation package. It can be used after installation, refer to TDengine [Installation](../../../get started/)
+taosBenchmark is the default installation component in the TDengine server and client installation package. It can be used after installation, refer to [TDengine Installation](../../../get-started/)
 
 ## Startup
 
