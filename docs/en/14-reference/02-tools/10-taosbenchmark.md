@@ -2,6 +2,7 @@
 title: taosBenchmark Reference
 sidebar_label: taosBenchmark
 slug: /tdengine-reference/tools/taosbenchmark
+toc_max_heading_level: 4
 ---
 
 TaosBenchmark is a performance benchmarking tool for TDengine products, providing insertion, query, and subscription performance testing for TDengine products, and outputting performance indicators.
