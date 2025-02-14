@@ -7,7 +7,6 @@
         class="menu-item"
         style="display: flex; align-items: center"
         @contextmenu.prevent="menuRight(item.path)"
-        @click="menuClick($t(item.title))"
       >
         <div :aria-data="item.path">
           <span>
@@ -43,14 +42,17 @@ function isDisabled() {
 function menuRight(path: string) {
   OpenNewTab(path);
 }
-function menuClick(val: string) {
-  const url = localStorage.getItem('local_grafana');
-  if (val === 'Dashboard' || val === '面板') {
-    if (url) {
-      OpenNewTab(url);
-    }
-  }
-}
+
+// @click="menuClick($t(item.title))"
+
+// function menuClick(val: string) {
+  // const url = localStorage.getItem('local_grafana');
+  // if (val === 'Dashboard' || val === '面板') {
+    // if (url) {
+    //   OpenNewTab(url);
+    // }
+  // }
+// }
 </script>
 
 <style lang="scss" scoped>
