@@ -462,6 +462,13 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqData
     goto END;
   }
 
+  // this submit data is rawdata and previous data is metadata
+  if (pRequest->rawData != 0 && pRsp->createTableNum > 0 && rawList != NULL){
+    tqDebug("poll rawdata split,vgId:%d, uid:%" PRId64 ", this submit data is metadata and previous data is data", pTq->pVnode->config.vgId, pExec->pTqReader->lastBlkUid);
+    terrno = TSDB_CODE_TMQ_RAW_DATA_SPLIT;
+    goto END;
+  }
+
   if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
     while (tqNextBlockImpl(pReader, NULL)) {
       tqProcessSubData(pTq, pHandle, pRsp, totalRows, pRequest, rawList);
