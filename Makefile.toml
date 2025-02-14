@@ -752,7 +752,7 @@ dependencies = ["fmt", "clippy", "test-without-cov"]
 [tasks.explorer-ui]
 cwd = "explorer"
 script = """
-yarn install && yarn build
+pnpm install && pnpm run build
 """
 [tasks.explorer-ui.linux]
 script_runner = "bash"
