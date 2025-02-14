@@ -34,7 +34,7 @@ typedef struct SGeosContext {
 
   int               with_pcre2;     // freemine: default is by non-pcre2
   // freemine: do NOT forget to remove all pcre2-releated-code if this PR is
- //            get merged!
+  //            get merged!
 
   pcre2_code       *WKTRegex;
   pcre2_match_data *WKTMatchData;
