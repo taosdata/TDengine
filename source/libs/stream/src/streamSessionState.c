@@ -499,6 +499,9 @@ void sessionWinStateClear(SStreamFileState* pFileState) {
 }
 
 void sessionWinStateCleanup(void* pBuff) {
+  if (pBuff == NULL) {
+    return;
+  }
   tSimpleHashSetFreeFp(pBuff, (_hash_free_fn_t)taosArrayDestroy);
   tSimpleHashCleanup(pBuff);
 }
