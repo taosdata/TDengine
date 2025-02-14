@@ -1709,7 +1709,12 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   if (pCreate->passIsMd5 == 1) {
     memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
   } else {
-    taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.pass);
+    if (pCreate->isImport != 1) {
+      taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.pass);
+    } else {
+      // mInfo("pCreate->pass:%s", pCreate->eass)
+      memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
+    }
   }
 
   tstrncpy(userObj.user, pCreate->user, TSDB_USER_LEN);
@@ -1806,6 +1811,52 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+static int32_t mndCheckPasswordMinLen(const char *pwd, int32_t len) {
+  if (len < TSDB_PASSWORD_MIN_LEN) {
+    return -1;
+  }
+  return 0;
+}
+
+static int32_t mndCheckPasswordMaxLen(const char *pwd, int32_t len) {
+  if (len > TSDB_PASSWORD_MAX_LEN) {
+    return -1;
+  }
+  return 0;
+}
+
+static int32_t mndCheckPasswordFmt(const char *pwd, int32_t len) {
+  if (strcmp(pwd, "taosdata") == 0) {
+    return 0;
+  }
+
+  bool charTypes[4] = {0};
+  for (int32_t i = 0; i < len; ++i) {
+    if (taosIsBigChar(pwd[i])) {
+      charTypes[0] = true;
+    } else if (taosIsSmallChar(pwd[i])) {
+      charTypes[1] = true;
+    } else if (taosIsNumberChar(pwd[i])) {
+      charTypes[2] = true;
+    } else if (taosIsSpecialChar(pwd[i])) {
+      charTypes[3] = true;
+    } else {
+      return -1;
+    }
+  }
+
+  int32_t numOfTypes = 0;
+  for (int32_t i = 0; i < 4; ++i) {
+    numOfTypes += charTypes[i];
+  }
+
+  if (numOfTypes < 3) {
+    return -1;
+  }
+
+  return 0;
+}
+
 static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = 0;
@@ -1837,6 +1888,21 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
 
   if (createReq.user[0] == 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
+  }
+
+  if(createReq.passIsMd5 == 0){
+    int32_t len = strlen(createReq.pass);
+    if (createReq.isImport != 1) {
+      if (mndCheckPasswordMinLen(createReq.pass, len) != 0) {
+        TAOS_CHECK_GOTO(TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY, &lino, _OVER);
+      }
+      if (mndCheckPasswordMaxLen(createReq.pass, len) != 0) {
+        TAOS_CHECK_GOTO(TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG, &lino, _OVER);
+      }
+      if (mndCheckPasswordFmt(createReq.pass, len) != 0) {
+        TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_PASS_FORMAT, &lino, _OVER);
+      }
+    }
   }
 
   code = mndAcquireUser(pMnode, createReq.user, &pUser);
@@ -2316,6 +2382,20 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
 
   if (alterReq.user[0] == 0) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_USER_FORMAT, &lino, _OVER);
+  }
+  if(alterReq.passIsMd5 == 0){
+    if (TSDB_ALTER_USER_PASSWD == alterReq.alterType) {
+      int32_t len = strlen(alterReq.pass);
+      if (mndCheckPasswordMinLen(alterReq.pass, len) != 0) {
+        TAOS_CHECK_GOTO(TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY, &lino, _OVER);
+      }
+      if (mndCheckPasswordMaxLen(alterReq.pass, len) != 0) {
+        TAOS_CHECK_GOTO(TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG, &lino, _OVER);
+      }
+      if (mndCheckPasswordFmt(alterReq.pass, len) != 0) {
+        TAOS_CHECK_GOTO(TSDB_CODE_MND_INVALID_PASS_FORMAT, &lino, _OVER);
+      }
+    }
   }
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, alterReq.user, &pUser), &lino, _OVER);
