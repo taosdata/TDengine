@@ -215,7 +215,7 @@ SHOW db_name.ALIVE;
 
 查询数据库 db_name 的可用状态，返回值 0：不可用 1：完全可用 2：部分可用（即数据库包含的 VNODE 部分节点可用，部分节点不可用）
 
-## 查看DB 的磁盘空间占用
+## 查看 DB 的磁盘空间占用
 
 ```sql 
 select * from  INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db_name'   
