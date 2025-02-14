@@ -400,10 +400,7 @@ static void preProcessSubmitMsg(STqHandle* pHandle, const SMqPollReq* pRequest, 
       *rawList = NULL;
       return;
     }
-    if (pSubmitTbData->pCreateTbReq == NULL){
-      continue;
-    }
-    int64_t createTime = 0;
+
     int64_t uid = pSubmitTbData->uid;
     if (taosHashGet(pRequest->uidHash, &uid, LONG_BYTES) != NULL) {
       tqDebug("poll rawdata split,uid:%" PRId64 " is already exists", uid);
@@ -415,6 +412,11 @@ static void preProcessSubmitMsg(STqHandle* pHandle, const SMqPollReq* pRequest, 
       }
     }
 
+    if (pSubmitTbData->pCreateTbReq == NULL){
+      continue;
+    }
+
+    int64_t createTime = 0;
     int64_t *cTime = (int64_t*)taosHashGet(pHandle->tableCreateTimeHash, &uid, LONG_BYTES);
     if (cTime != NULL){
       createTime = *cTime;
