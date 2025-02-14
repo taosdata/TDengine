@@ -431,6 +431,7 @@ typedef struct SSelectStmt {
   ENodeType     type;  // QUERY_NODE_SELECT_STMT
   bool          isDistinct;
   SNodeList*    pProjectionList;
+  SNodeList*    pProjectionBindList;
   SNode*        pFromTable;
   SNode*        pWhere;
   SNodeList*    pPartitionByList;

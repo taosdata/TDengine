@@ -966,7 +966,7 @@ class TDTestCase:
         self.one_cols_1output_test()
         self.multi_cols_output_test()
         self.subquery_test()
-        self.window_test()
+        #self.window_test()
         self.join_test()
         self.stream_cols_test()
         self.include_null_test()

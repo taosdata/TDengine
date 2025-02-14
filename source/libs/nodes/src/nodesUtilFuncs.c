@@ -15,6 +15,7 @@
 
 #include "cmdnodes.h"
 #include "functionMgt.h"
+#include "nodes.h"
 #include "nodesUtil.h"
 #include "plannodes.h"
 #include "querynodes.h"
@@ -1287,6 +1288,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pStmt = (SSelectStmt*)pNode;
       nodesDestroyList(pStmt->pProjectionList);
+      nodesDestroyList(pStmt->pProjectionBindList);
       nodesDestroyNode(pStmt->pFromTable);
       nodesDestroyNode(pStmt->pWhere);
       nodesDestroyList(pStmt->pPartitionByList);
@@ -3239,5 +3241,5 @@ int32_t nodesListDeduplicate(SNodeList** ppList) {
 }
 
 int32_t rewriteExprAliasName(SExprNode* pNode, int64_t num) {
-  return tsnprintf(pNode->aliasName, TSDB_COL_NAME_LEN, "expr_%d", num);
+  return tsnprintf(pNode->aliasName, TSDB_COL_NAME_LEN, "expr_%ld", num);
 }

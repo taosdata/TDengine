@@ -5461,34 +5461,31 @@ static int32_t translateClausePosition(STranslateContext* pCxt, SNodeList* pProj
 }
 
 static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList, SNodeList** selectFuncList);
-static int32_t preGetBindCols(STranslateContext* pCxt,  SSelectStmt* pSelect, SNodeList** selectFuncList) {
-  return rewriteColsFunction(pCxt, &pSelect->pOrderByList, selectFuncList);
-}
 
-static int32_t translateSelectColsFunction(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  SNodeList* selectFuncList = NULL;
-  int32_t    code = rewriteColsFunction(pCxt, &pSelect->pProjectionList, &selectFuncList);
-  if (TSDB_CODE_SUCCESS != code) {
-    goto _end;
-  }
-  code = preGetBindCols(pCxt, pSelect, &selectFuncList);
-  if (selectFuncList != NULL) {
-    code = nodesListAppendList(pSelect->pProjectionList, selectFuncList);
-    if (TSDB_CODE_SUCCESS != code) {
-      goto _end;
+static int32_t prepareColumnExpansion(STranslateContext* pCxt, ESqlClause clause, SSelectStmt* pSelect) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (clause == SQL_CLAUSE_SELECT) {
+    code = rewriteColsFunction(pCxt, &pSelect->pProjectionList, &pSelect->pProjectionBindList);
+    code = translateExprList(pCxt, pSelect->pProjectionBindList);
+  } else if (clause == SQL_CLAUSE_ORDER_BY) {
+    code = rewriteColsFunction(pCxt, &pSelect->pOrderByList, &pSelect->pProjectionBindList);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = translateExprList(pCxt, pSelect->pProjectionBindList);
     }
-    selectFuncList = NULL;
-  }
-_end:
-  if (selectFuncList) {
-    nodesDestroyList(selectFuncList);
+  } else {
+    code =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Invalid clause for column expansion");
   }
   return code;
 }
 
 static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   bool    other;
-  int32_t code = translateClausePosition(pCxt, pSelect->pProjectionList, pSelect->pOrderByList, &other);
+  int32_t    code = prepareColumnExpansion(pCxt, SQL_CLAUSE_ORDER_BY, pSelect);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  code = translateClausePosition(pCxt, pSelect->pProjectionList, pSelect->pOrderByList, &other);
   if (TSDB_CODE_SUCCESS == code) {
     if (0 == LIST_LENGTH(pSelect->pOrderByList)) {
       NODES_DESTORY_LIST(pSelect->pOrderByList);
@@ -5618,14 +5615,14 @@ static int32_t checkProjectAlias(STranslateContext* pCxt, SNodeList* pProjection
 }
 
 static int32_t translateProjectionList(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  SNode*  pNode;
+  int32_t projIdx = 1;
+  FOREACH(pNode, pSelect->pProjectionList) { ((SExprNode*)pNode)->projIdx = projIdx++; }
+
   if (!pSelect->isSubquery) {
     return rewriteProjectAlias(pSelect->pProjectionList);
-  } else {
-    SNode*  pNode;
-    int32_t projIdx = 1;
-    FOREACH(pNode, pSelect->pProjectionList) { ((SExprNode*)pNode)->projIdx = projIdx++; }
-    return TSDB_CODE_SUCCESS;
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 typedef struct SReplaceGroupByAliasCxt {
@@ -5707,7 +5704,7 @@ static int32_t translatePartitionByList(STranslateContext* pCxt, SSelectStmt* pS
 
 static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_SELECT;
-  int32_t code = translateSelectColsFunction(pCxt, pSelect);
+  int32_t code = prepareColumnExpansion(pCxt, SQL_CLAUSE_SELECT, pSelect);
   if (TSDB_CODE_SUCCESS == code) {
     code = translateExprList(pCxt, pSelect->pProjectionList);
   }
@@ -7411,23 +7408,6 @@ static EDealRes pushDownBindSelectFunc(SNode** pNode, void* pContext) {
     SFunctionNode* pFunc = (SFunctionNode*)*pNode;
   }
   return DEAL_RES_CONTINUE;
-}
-
-static bool invalidColsAlias(SFunctionNode* pFunc) {
-  if (pFunc->node.asAlias) {
-    if (pFunc->pParameterList->length > 2) {
-      return true;
-    } else {
-      SNode* pNode;
-      FOREACH(pNode, pFunc->pParameterList) {
-        SExprNode* pExpr = (SExprNode*)pNode;
-        if (pExpr->asAlias) {
-          return true;
-        }
-      }
-    }
-  }
-  return false;
 }
 
 static int32_t getSelectFuncIndex(SNodeList* FuncNodeList, SNode* pSelectFunc) {
