@@ -164,6 +164,21 @@ static bool checkPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken,
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
+static bool checkImportPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken, char* pPassword) {
+  if (NULL == pPasswordToken) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+  } else if (pPasswordToken->n > (32 + 2)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
+  } else {
+    strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
+    (void)strdequote(pPassword);
+    if (strtrim(pPassword) < 32) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY);
+    }
+  }
+  return TSDB_CODE_SUCCESS == pCxt->errCode;
+}
+
 static int32_t parsePort(SAstCreateContext* pCxt, const char* p, int32_t* pPort) {
   *pPort = taosStr2Int32(p, NULL, 10);
   if (*pPort >= UINT16_MAX || *pPort <= 0) {
@@ -3068,11 +3083,15 @@ _err:
 }
 
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword, int8_t sysinfo,
-                            int8_t createDb, int8_t is_import) {
+                            int8_t is_import, int8_t createDb) {
   CHECK_PARSER_STATUS(pCxt);
   char password[TSDB_USET_PASSWORD_LONGLEN + 3] = {0};
   CHECK_NAME(checkUserName(pCxt, pUserName));
-  CHECK_NAME(checkPassword(pCxt, pPassword, password));
+  if (is_import == 0) {
+    CHECK_NAME(checkPassword(pCxt, pPassword, password));
+  } else {
+    CHECK_NAME(checkImportPassword(pCxt, pPassword, password));
+  }
   SCreateUserStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_USER_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);

@@ -1706,15 +1706,10 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
   int32_t  lino = 0;
   SUserObj userObj = {0};
 
-  if (pCreate->isImport != 1) {
-    if (pCreate->passIsMd5 == 1) {
-      memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
-    } else {
-      taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.pass);
-    }
-  } else {
-    // mInfo("pCreate->pass:%s", pCreate->eass)
+  if (pCreate->passIsMd5 == 1) {
     memcpy(userObj.pass, pCreate->pass, TSDB_PASSWORD_LEN);
+  } else {
+    taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.pass);
   }
 
   tstrncpy(userObj.user, pCreate->user, TSDB_USER_LEN);

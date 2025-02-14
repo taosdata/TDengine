@@ -10048,8 +10048,13 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   createReq.isImport = pStmt->isImport;
   createReq.createDb = pStmt->createDb;
 
-  taosEncryptPass_c((uint8_t*)pStmt->password, strlen(pStmt->password), createReq.pass);
-  createReq.passIsMd5 = 1;
+  if(pStmt->isImport == 1){
+    tstrncpy(createReq.pass, pStmt->password, TSDB_USET_PASSWORD_LEN);
+  }
+  else{
+    taosEncryptPass_c((uint8_t*)pStmt->password, strlen(pStmt->password), createReq.pass);
+    createReq.passIsMd5 = 1;  
+  }  
 
   createReq.numIpRanges = pStmt->numIpRanges;
   if (pStmt->numIpRanges > 0) {
