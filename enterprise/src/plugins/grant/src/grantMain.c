@@ -891,22 +891,22 @@ static int32_t fillGrantStatusFromObj(SGrantStatus *pStatus, SGrantUniqObj *pObj
                                grantHandle.showOpts[GRANT_OPT_ACTIVE_ACTIVE]);
         } break;
         case GRANT_OPT_DUAL_REPLICA_HA: {
-#if defined(ASSERT_NOT_CORE) && !defined(GRANTS_CFG)  // release version
-          GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dualReplicaHAExpireSec, 86400, dftExpireEpoch,
-                               grantHandle.showOpts[GRANT_OPT_DUAL_REPLICA_HA]);
-#else
+// #if defined(ASSERT_NOT_CORE) && !defined(GRANTS_CFG)  // release version
+//           GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dualReplicaHAExpireSec, 86400, dftExpireEpoch,
+//                                grantHandle.showOpts[GRANT_OPT_DUAL_REPLICA_HA]);
+// #else
           GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dualReplicaHAExpireSec, 86400, dftExpireSec,
                                grantHandle.showOpts[GRANT_OPT_DUAL_REPLICA_HA]);
-#endif
+// #endif
         } break;
         case GRANT_OPT_DB_ENCRYPTION: {
-#if defined(ASSERT_NOT_CORE) && !defined(GRANTS_CFG)  // release version
-          GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dbEncryptionExpireSec, 86400, dftExpireEpoch,
-                               grantHandle.showOpts[GRANT_OPT_DB_ENCRYPTION]);
-#else
+// #if defined(ASSERT_NOT_CORE) && !defined(GRANTS_CFG)  // release version
+//           GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dbEncryptionExpireSec, 86400, dftExpireEpoch,
+//                                grantHandle.showOpts[GRANT_OPT_DB_ENCRYPTION]);
+// #else
           GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dbEncryptionExpireSec, 86400, dftExpireSec,
                                grantHandle.showOpts[GRANT_OPT_DB_ENCRYPTION]);
-#endif
+// #endif
         } break;
         case GRANT_OPT_DATA_SYNC: {
           GRANT_EXPIRE_CONVERT(pItemI64->expire, gStatus.dataSyncExpireSec, 86400, dftExpireSec,
@@ -1740,19 +1740,19 @@ static void grantResetMaster(SMnode *pMnode, int64_t upgradeSec) {
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.activeActiveExpireSec, optExpireSec, gStatus.placeHolder, 0,
                             GRANT_OPT_ACTIVE_ACTIVE);
 
-#ifndef ASSERT_NOT_CORE
+// #ifndef ASSERT_NOT_CORE
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.dualReplicaHAExpireSec, optExpireSec, gStatus.dualReplicaHAExpired, optExpired,
                             GRANT_OPT_DUAL_REPLICA_HA);
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.dbEncryptionExpireSec, optExpireSec, gStatus.dbEncryptionExpired, optExpired,
                             GRANT_OPT_DB_ENCRYPTION);
-#else  // release version
-    int64_t optExpireEpoch = grantClusterEpoch;
-    GRANT_EXPIRE_TUNE_INDUSTRY(optExpireEpoch);
-    GRANT_OPT_EXPIRE_ASSIGN(gStatus.dualReplicaHAExpireSec, optExpireEpoch, gStatus.dualReplicaHAExpired, true,
-                            GRANT_OPT_DUAL_REPLICA_HA);
-    GRANT_OPT_EXPIRE_ASSIGN(gStatus.dbEncryptionExpireSec, optExpireEpoch, gStatus.dbEncryptionExpired, true,
-                            GRANT_OPT_DB_ENCRYPTION);
-#endif
+// #else  // release version
+//     int64_t optExpireEpoch = grantClusterEpoch;
+//     GRANT_EXPIRE_TUNE_INDUSTRY(optExpireEpoch);
+//     GRANT_OPT_EXPIRE_ASSIGN(gStatus.dualReplicaHAExpireSec, optExpireEpoch, gStatus.dualReplicaHAExpired, true,
+//                             GRANT_OPT_DUAL_REPLICA_HA);
+//     GRANT_OPT_EXPIRE_ASSIGN(gStatus.dbEncryptionExpireSec, optExpireEpoch, gStatus.dbEncryptionExpired, true,
+//                             GRANT_OPT_DB_ENCRYPTION);
+// #endif
     GRANT_OPT_EXPIRE_ASSIGN(gStatus.dataSyncExpireSec, optExpireSec, gStatus.placeHolder, 0, GRANT_OPT_DATA_SYNC);
 
     // fixed dataIns
