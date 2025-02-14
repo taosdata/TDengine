@@ -13,11 +13,11 @@ impl HandlingArchiveFailed {
     pub fn handle(&self, err: String) -> anyhow::Result<()> {
         match self {
             HandlingArchiveFailed::Rotate => {
-                // TODO: Implement delete old files
+                // TODO1: Implement delete old files
                 Ok(())
             }
             HandlingArchiveFailed::Skip => {
-                // TODO: Implement skip
+                // TODO1: Implement skip
                 Ok(())
             }
             HandlingArchiveFailed::Break => {

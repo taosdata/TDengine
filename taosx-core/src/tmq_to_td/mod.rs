@@ -139,7 +139,7 @@ async fn write_data(
             match code {
                 // Table not exist error codes or invalid input.
                 0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 | 0x0118 | 0x4000 | 0x060B => {
-                    // TODO: the table does not exist
+                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                     // 0x070F: invalid input
                     // 0x0218: the table does not exist
                     // 0x2603: the table does not exist
@@ -652,7 +652,7 @@ async fn sync_msg(
             {
                 let msg = format!("{:#}", err);
                 if msg.contains("0xE00") && retries < max_retries {
-                    // TODO
+                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                     // 0xE00: connection error
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                     *taos = target_pool.get().await.context("Target connection error")?;
@@ -711,7 +711,7 @@ async fn sync_msg(
                 {
                     let msg = format!("{:#}", err);
                     if msg.contains("0xE00") && retries < max_retries {
-                        // TODO
+                        // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                         // 0xE00: connection error
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                         *taos = target_pool.get().await.context("Target connection error")?;
@@ -1747,13 +1747,12 @@ pub async fn tmq_to_td(
                                     || err_str.contains("0xE004")
                                     || err_str.contains("0xE00B"))
                                 {
-                                    // TODO
+                                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                     // 0xE001: internal error
                                     // 0xE002: connection closed
                                     // 0xE003: send timeout
                                     // 0xE004: receive timeout
                                     // 0x000B: unable to establish connection
-                                    // TODO: connection error
                                     return Err(err);
                                 }
                                 if retries > max_retries {

@@ -9,8 +9,9 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{bail, Context};
-use arrow_schema::ArrowError;
+use anyhow::Context;
+use arrow_array::{Array, RecordBatch, StringArray, TimestampNanosecondArray};
+use arrow_schema::{ArrowError, Field};
 use async_backtrace::framed;
 use chrono::Utc;
 use futures_util::{Sink, SinkExt, Stream, StreamExt};
@@ -33,7 +34,9 @@ use tracing::{error, info, instrument, trace, Instrument};
 
 use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
-    plugins::transform::MessageArrowRecords,
+    plugins::transform::{
+        get_primary_timestamp_ns, parse::ArrayForTaos, MessageArrowRecords, MessageTableMeta,
+    },
     sink::{
         consume_flat_record, transform::handling_strategy::HandlingResult,
         DEFAULT_MAX_RETRIES_FOR_CONNECTION,
@@ -75,12 +78,17 @@ pub(crate) fn message_to_sql<'a>(
                 .into_iter()
                 .flat_map(|m| {
                     m.sql_insert_part(precision, with_meta, with_field_names, database_name)
+                        .into_iter()
+                        .map(|(sql_part, row_count, table_not_in_cache, start, end)| {
+                            let batch = m.records.slice(start, end - start + 1);
+                            (sql_part, row_count, table_not_in_cache, batch)
+                        })
                 })
-                .map(|(sql_part, row_count, full_tablename_not_in_cache)| {
-                    if let Some(full_table_name) = full_tablename_not_in_cache {
-                        full_tablenames_need_to_cache.push(full_table_name);
+                .map(|(sql_part, row_count, table_not_in_cache, batch)| {
+                    if let Some(table) = table_not_in_cache {
+                        full_tablenames_need_to_cache.push(table);
                     }
-                    (sql_part, row_count)
+                    (sql_part, row_count, batch)
                 })
                 .collect_vec();
             let stable_name_iter = std::iter::repeat(key);
@@ -88,15 +96,132 @@ pub(crate) fn message_to_sql<'a>(
             values_to_sqls(&values)
                 .into_iter()
                 .zip(stable_name_iter)
-                .map(|((sql, tables, records), stable)| Records {
+                .map(|((sql, tables, records, batches), stable)| Records {
                     stable: stable.map(|s| s.to_string()),
                     sql,
                     tables,
                     records,
+                    batches,
                 })
         })
         .collect_vec();
     (sql_records, full_tablenames_need_to_cache)
+}
+
+fn recordbatch_to_sql(
+    database_name: Option<&str>,
+    super_table_name: &str,
+    batch: &RecordBatch,
+    precision: taos::Precision,
+    with_meta: bool,
+    with_field_names: bool,
+    table: &MessageTableMeta,
+    opts: &Arc<TableOptions>,
+) -> Vec<Records> {
+    if batch.num_rows() == 0 || batch.num_rows() == batch.column(0).null_count() {
+        return vec![];
+    }
+
+    let tbname = opts.canonical_table_name(table.name.as_str());
+    // panic on ArrowError
+    let values =
+        crate::utils::sql::sql_values_from_record_batch(batch, precision, with_field_names)
+            .expect("Sql values should be recognizable")
+            .into_iter()
+            .map(|(col_values, rows, start, end)| {
+                if !with_meta || table.using.is_none() {
+                    return (format!("`{}` {}", tbname, col_values), rows, start, end);
+                }
+                let using = table.using.as_ref().unwrap();
+                // TODO: with field name in tags.
+                if true {
+                    // with_field_names
+                    let names = table
+                        .tags
+                        .as_ref()
+                        .unwrap()
+                        .schema()
+                        .fields()
+                        .iter()
+                        .map(|f| format!("`{}`", f.name()))
+                        .join(",");
+                    let tag_values = table
+                        .tags
+                        .as_ref()
+                        .unwrap()
+                        .columns()
+                        .iter()
+                        .map(|c| c.taos_value(0).to_sql_value())
+                        .join(",");
+                    if unsafe { SQL_TAG_CACHE_CAPACITY > 0 } && database_name.is_some() {
+                        // 根据 database.tablename 来判断缓存，如果缓存在则不需要带 using
+                        let table_existed = TABLE_TAG_CACHE.get_or_init(|| {
+                            tracing::info!("Init tag cache with capacity: {}", unsafe {
+                                SQL_TAG_CACHE_CAPACITY
+                            });
+                            scc::HashSet::with_capacity(unsafe { SQL_TAG_CACHE_CAPACITY })
+                        });
+                        let tag_key = format!("{}.{}", database_name.unwrap(), tbname);
+                        if table_existed.contains(&tag_key) {
+                            return (format!("`{}` {}", tbname, col_values), rows, start, end);
+                        }
+                    }
+
+                    (
+                        format!(
+                            "`{}` using `{}` ({}) tags({}) {}",
+                            tbname,
+                            using.name(),
+                            names,
+                            tag_values,
+                            col_values
+                        ),
+                        rows,
+                        start,
+                        end,
+                    )
+                } else {
+                    let tag_values = table
+                        .tags
+                        .as_ref()
+                        .unwrap()
+                        .columns()
+                        .iter()
+                        .map(|c| c.taos_value(0).to_sql_value())
+                        .join(",");
+                    (
+                        format!(
+                            "`{}` using `{}` tags ({}) {}",
+                            tbname,
+                            using.name(),
+                            tag_values,
+                            col_values
+                        ),
+                        rows,
+                        start,
+                        end,
+                    )
+                }
+            })
+            .map(|(sql_part, row_count, start, end)| {
+                let batch = batch.slice(start, end - start + 1);
+                (sql_part, row_count, batch)
+            })
+            .collect_vec();
+
+    let stable_name_iter = std::iter::repeat(super_table_name);
+
+    values_to_sqls(&values)
+        .into_iter()
+        .zip(stable_name_iter)
+        .map(|((sql, tables, records, batches), stable)| Records {
+            stable: Some(stable.to_string()),
+            sql,
+            tables,
+            records,
+            batches,
+        })
+        .collect_vec()
 }
 
 /// Write records to TDengine with `sql`, which contains `tables` num of tables,
@@ -108,6 +233,7 @@ pub(crate) struct Records {
     pub sql: String,
     pub tables: usize,
     pub records: usize,
+    pub batches: Vec<RecordBatch>,
 }
 impl Records {
     #[inline]
@@ -141,6 +267,8 @@ pub enum FlatWriteError {
     TableNotExits(String),
     #[error("Invalid column")]
     InvalidColumn,
+    #[error("Primary timestamp is null")]
+    PrimaryTimestampNull,
     #[error("Container length too short: {0:#}")]
     ContainerLengthTooShort(String),
     #[error("Write SQL error: {0:#}")]
@@ -247,12 +375,10 @@ async fn write_stable_with_sql(
             );
             match errno {
                 0x2602 => {
-                    // TODO: the column does not exist
                     // 0x2602: invalid column
                     Err(FlatWriteError::InvalidColumn)
                 }
                 0x2603 | 0x0618 => {
-                    // TODO: the table does not exist
                     // 0x2603: the table does not exist
                     // 0x0618: the table does not exist
                     Err(FlatWriteError::TableNotExits(
@@ -260,7 +386,6 @@ async fn write_stable_with_sql(
                     ))
                 }
                 0x2653 => {
-                    // TODO: the column length not enough
                     // 0x2653: Value too long for column/tag
                     let message = err.message();
                     if let Some(caps) = RE_0X2653.captures(&message) {
@@ -270,9 +395,8 @@ async fn write_stable_with_sql(
                     Err(Into::into(err))
                 }
                 0x267B => {
-                    // TODO
                     // 0x267B: the primary key is null
-                    Ok(0)
+                    Err(FlatWriteError::PrimaryTimestampNull)
                 }
                 _ => Err(err)
                     .context("flat message write sql error")
@@ -371,6 +495,34 @@ pub async fn flat_write_with_sql(
                         error!(stable, "write stable with sql error: {err:#}");
                         match err {
                             FlatWriteError::InvalidColumn => {
+                                match global
+                                    .process_on_abnormal
+                                    .field_name_not_found
+                                    .handle(format!("{err:#}"))
+                                {
+                                    Ok((HandlingResult::Skip, _)) => {
+                                        break;
+                                    }
+                                    Ok((HandlingResult::Archive, err)) => {
+                                        records.batches.iter().for_each(|batch| {
+                                            if let Err(e) =
+                                                process_archive(task_id, global, err.clone(), batch)
+                                            {
+                                                tracing::error!("archive error: {e:#}");
+                                            }
+                                        });
+                                        break;
+                                    }
+                                    Ok((HandlingResult::Modify(_), _)) => {
+                                        // do nothing, continue the below codes
+                                    }
+                                    Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                                    Ok((HandlingResult::Retry, _)) => unreachable!(),
+                                    Err(e) => {
+                                        return Err(e)?;
+                                    }
+                                }
+
                                 let Some(stable) = messages
                                     .first()
                                     .and_then(|m| m.table.using.as_ref())
@@ -426,6 +578,34 @@ pub async fn flat_write_with_sql(
                                 }
                             }
                             FlatWriteError::TableNotExits(_) => {
+                                match global
+                                    .process_on_abnormal
+                                    .stable_not_exist
+                                    .handle(format!("{err:#}"))
+                                {
+                                    Ok((HandlingResult::Skip, _)) => {
+                                        break;
+                                    }
+                                    Ok((HandlingResult::Archive, err)) => {
+                                        records.batches.iter().for_each(|batch| {
+                                            if let Err(e) =
+                                                process_archive(task_id, global, err.clone(), batch)
+                                            {
+                                                tracing::error!("archive error: {e:#}");
+                                            }
+                                        });
+                                        break;
+                                    }
+                                    Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+                                    Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                                    Ok((HandlingResult::Retry, _)) => {
+                                        // do nothing, continue the below codes
+                                    }
+                                    Err(e) => {
+                                        return Err(e)?;
+                                    }
+                                }
+
                                 if let Some(stable_sql) = messages[0].stable_sql() {
                                     qid.add_sub_batch_id();
                                     tracing::info!(
@@ -450,55 +630,107 @@ pub async fn flat_write_with_sql(
                                         .await?;
                                 }
                             }
-                            FlatWriteError::ContainerLengthTooShort(field) => {
+                            FlatWriteError::PrimaryTimestampNull => {
+                                // handling abnormal
+                                handle_primary_timestamp_null_and_rewrite(
+                                    pool,
+                                    taos,
+                                    task_id,
+                                    global,
+                                    target_precision,
+                                    true,
+                                    true,
+                                    &messages[0].table,
+                                    &messages[0].opts,
+                                    &qid,
+                                    cancel,
+                                    database_name.as_deref(),
+                                    stable.as_deref().unwrap_or_default(),
+                                    &records.batches,
+                                    &err,
+                                )
+                                .await?;
+                                // only rewrite once
+                                break;
+                            }
+                            FlatWriteError::ContainerLengthTooShort(ref field) => {
                                 if let Some(stable) = stable.as_deref() {
-                                    let desc = taos.as_ref().unwrap().describe(stable).await?;
-                                    let f = desc.iter().find(|f| f.field() == field).ok_or_else(
-                                        || {
-                                            anyhow::anyhow!(
-                                                "field `{}` not found in table `{}`",
-                                                field,
-                                                stable
-                                            )
-                                        },
-                                    )?;
-                                    let length = messages
-                                        .iter()
-                                        .flat_map(|m| m.max_var_length(f.field()))
-                                        .max();
-                                    if f.is_tag() {
-                                        let sql = format!(
-                                            "alter table `{}` modify tag `{}` {}({})",
-                                            stable,
-                                            f.field(),
-                                            f.ty(),
-                                            length.unwrap_or_else(|| {
-                                                let max = if f.ty() == Ty::VarChar {
-                                                    16382
-                                                } else {
-                                                    4093
-                                                };
-                                                (f.length() * 2).min(max)
-                                            })
-                                        );
-                                        let _ = taos.as_ref().unwrap().exec(&sql).await;
-                                    } else {
-                                        let sql = format!(
-                                            "alter table `{}` modify column `{}` {}({})",
-                                            stable,
-                                            f.field(),
-                                            f.ty(),
-                                            length.unwrap_or_else(|| {
-                                                let max = if f.ty() == Ty::VarChar {
-                                                    65517
-                                                } else {
-                                                    16382
-                                                };
-                                                (f.length() * 2).min(max)
-                                            })
-                                        );
-                                        let _ = taos.as_ref().unwrap().exec(&sql).await;
+                                    // 是否自动扩展长度
+                                    if global.process_on_abnormal.field_length_extend {
+                                        let desc = taos.as_ref().unwrap().describe(stable).await?;
+                                        let f = desc
+                                            .iter()
+                                            .find(|f| f.field() == field)
+                                            .ok_or_else(|| {
+                                                anyhow::anyhow!(
+                                                    "field `{}` not found in table `{}`",
+                                                    field,
+                                                    stable
+                                                )
+                                            })?;
+                                        let length = messages
+                                            .iter()
+                                            .flat_map(|m| m.max_var_length(f.field()))
+                                            .max();
+                                        if f.is_tag() {
+                                            let sql = format!(
+                                                "alter table `{}` modify tag `{}` {}({})",
+                                                stable,
+                                                f.field(),
+                                                f.ty(),
+                                                length.unwrap_or_else(|| {
+                                                    let max = if f.ty() == Ty::VarChar {
+                                                        16382
+                                                    } else {
+                                                        4093
+                                                    };
+                                                    (f.length() * 2).min(max)
+                                                })
+                                            );
+                                            let _ = taos.as_ref().unwrap().exec(&sql).await;
+                                        } else {
+                                            let sql = format!(
+                                                "alter table `{}` modify column `{}` {}({})",
+                                                stable,
+                                                f.field(),
+                                                f.ty(),
+                                                length.unwrap_or_else(|| {
+                                                    let max = if f.ty() == Ty::VarChar {
+                                                        65517
+                                                    } else {
+                                                        16382
+                                                    };
+                                                    (f.length() * 2).min(max)
+                                                })
+                                            );
+                                            let _ = taos.as_ref().unwrap().exec(&sql).await;
+                                        }
                                     }
+
+                                    // handling abnormal
+                                    handle_field_length_overflow_and_rewrite(
+                                        pool,
+                                        taos,
+                                        task_id,
+                                        global,
+                                        target_precision,
+                                        true,
+                                        true,
+                                        &messages[0].table,
+                                        &messages[0].opts,
+                                        &qid,
+                                        cancel,
+                                        database_name.as_deref(),
+                                        stable,
+                                        field,
+                                        &records.batches,
+                                        &err,
+                                    )
+                                    .await?;
+                                    // only rewrite once
+                                    break;
+                                } else {
+                                    return Err(err)?;
                                 }
                             }
                             _ => {
@@ -511,6 +743,254 @@ pub async fn flat_write_with_sql(
         }
     }
     Ok(count)
+}
+
+async fn handle_primary_timestamp_null_and_rewrite(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    task_id: i64,
+    global: &TableOptions,
+    target_precision: taos::Precision,
+    with_meta: bool,
+    with_field_names: bool,
+    table: &MessageTableMeta,
+    opts: &Arc<TableOptions>,
+    qid: &Qid,
+    cancel: &CancellationToken,
+    database_name: Option<&str>,
+    stable: &str,
+    batches: &Vec<RecordBatch>,
+    err: &FlatWriteError,
+) -> anyhow::Result<()> {
+    // loop the batches
+    for batch in batches {
+        let all_fields: Vec<&Arc<Field>> = batch.schema_ref().fields().iter().collect();
+        let field_name = all_fields[0].name();
+
+        let time_array: Vec<_> = (0..batch.num_rows())
+            .map(
+                |row| match get_primary_timestamp_ns(field_name, batch.column(0), row) {
+                    Ok(Some(ts)) => Some(ts),
+                    _ => Utc::now().timestamp_nanos_opt(),
+                },
+            )
+            .collect();
+        let col_new = Arc::new(TimestampNanosecondArray::from(time_array.clone()));
+
+        // handling the abnormal
+        match global
+            .process_on_abnormal
+            .primary_timestamp_null
+            .handle(format!("{err:?}"))
+        {
+            Ok((HandlingResult::Skip, _)) => {
+                // do nothing
+            }
+            Ok((HandlingResult::Archive, err)) => {
+                let res = process_archive(task_id, global, err, batch);
+                if let Err(e) = res {
+                    tracing::error!("archive error: {e:#}");
+                }
+            }
+            Ok((HandlingResult::Modify(_), _)) => {
+                // modify and rewrite
+                let res = modify_batch_and_rewrite(
+                    pool,
+                    taos,
+                    target_precision,
+                    with_meta,
+                    with_field_names,
+                    table,
+                    opts,
+                    qid,
+                    cancel,
+                    database_name,
+                    stable,
+                    batch,
+                    field_name,
+                    col_new,
+                )
+                .await;
+                if let Err(e) = res {
+                    tracing::error!("rewrite error: {e:#}");
+                }
+            }
+            Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+            Ok((HandlingResult::Retry, _)) => unreachable!(),
+            Err(e) => {
+                return Err(e);
+            }
+        };
+    }
+    Ok(())
+}
+
+async fn handle_field_length_overflow_and_rewrite(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    task_id: i64,
+    global: &TableOptions,
+    target_precision: taos::Precision,
+    with_meta: bool,
+    with_field_names: bool,
+    table: &MessageTableMeta,
+    opts: &Arc<TableOptions>,
+    qid: &Qid,
+    cancel: &CancellationToken,
+    database_name: Option<&str>,
+    stable: &str,
+    field: &str,
+    batches: &Vec<RecordBatch>,
+    err: &FlatWriteError,
+) -> anyhow::Result<()> {
+    // get the length of the field
+    let desc = taos.as_ref().unwrap().describe(stable).await;
+    if let Err(e) = desc {
+        return Err(e)?;
+    }
+    let desc = desc.unwrap();
+    let length = desc.iter().find(|f| f.field() == field).unwrap().length();
+
+    // loop the batches
+    for batch in batches {
+        let field_values = batch
+            .column_by_name(field)
+            .unwrap()
+            .as_any()
+            .downcast_ref::<StringArray>();
+        // if the field is not found, skip the batch
+        if field_values.is_none() {
+            return Ok(());
+        }
+        let field_values = field_values.unwrap();
+        let values = field_values
+            .iter()
+            .map(|v| v.unwrap_or_default().to_string())
+            .collect_vec();
+
+        // handling the abnormal
+        match global.process_on_abnormal.field_length_overflow.handle(
+            values,
+            length,
+            format!("{err:?}"),
+        ) {
+            Ok((HandlingResult::Skip, _)) => {
+                // do nothing
+            }
+            Ok((HandlingResult::Archive, err)) => {
+                let res = process_archive(task_id, global, err, batch);
+                if let Err(e) = res {
+                    tracing::error!("archive error: {e:#}");
+                }
+            }
+            Ok((HandlingResult::Modify(values), _)) => {
+                let col_new = Arc::new(StringArray::from(values));
+                // modify and rewrite
+                let res = modify_batch_and_rewrite(
+                    pool,
+                    taos,
+                    target_precision,
+                    with_meta,
+                    with_field_names,
+                    table,
+                    opts,
+                    qid,
+                    cancel,
+                    database_name,
+                    stable,
+                    batch,
+                    field,
+                    col_new,
+                )
+                .await;
+                if let Err(e) = res {
+                    tracing::error!("rewrite error: {e:#}");
+                }
+            }
+            Ok((HandlingResult::ModifyAndArchive(values), err)) => {
+                let col_new = Arc::new(StringArray::from(values));
+                // modify and rewrite
+                if let Err(e) = modify_batch_and_rewrite(
+                    pool,
+                    taos,
+                    target_precision,
+                    with_meta,
+                    with_field_names,
+                    table,
+                    opts,
+                    qid,
+                    cancel,
+                    database_name,
+                    stable,
+                    batch,
+                    field,
+                    col_new,
+                )
+                .await
+                {
+                    tracing::error!("rewrite error: {e:#}");
+                }
+                // archive
+                if let Err(e) = process_archive(task_id, global, err, batch) {
+                    tracing::error!("archive error: {e:#}");
+                }
+            }
+            Ok((HandlingResult::Retry, _)) => unreachable!(),
+            Err(e) => {
+                return Err(e);
+            }
+        };
+    }
+    Ok(())
+}
+
+async fn modify_batch_and_rewrite(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    target_precision: taos::Precision,
+    with_meta: bool,
+    with_field_names: bool,
+    table: &MessageTableMeta,
+    opts: &Arc<TableOptions>,
+    qid: &Qid,
+    cancel: &CancellationToken,
+    database_name: Option<&str>,
+    stable: &str,
+    batch: &RecordBatch,
+    field: &str,
+    col_new: Arc<dyn Array>,
+) -> anyhow::Result<()> {
+    // modify the recordbatch
+    let new_batch = RecordBatch::try_new(
+        batch.schema(),
+        batch
+            .columns()
+            .iter()
+            .enumerate()
+            .map(|(i, col)| {
+                if batch.schema().field(i).name() == field {
+                    col_new.clone()
+                } else {
+                    col.clone()
+                }
+            })
+            .collect::<Vec<_>>(),
+    )?;
+    let records = recordbatch_to_sql(
+        database_name,
+        stable,
+        &new_batch,
+        target_precision,
+        with_meta,
+        with_field_names,
+        table,
+        opts,
+    );
+    // only rewrite once
+    for record in records {
+        let _ = write_stable_with_sql(pool, taos, qid.get(), &record, cancel).await;
+    }
+    Ok(())
 }
 
 pub async fn flat_write_with_raw_block(
@@ -535,7 +1015,27 @@ pub async fn flat_write_with_raw_block(
             continue;
         }
         if records.records.column(0).null_count() > 0 {
-            bail!("Timestamp field contains null or invalid values");
+            // retry with sql
+            let records_copy = MessageArrowRecords {
+                table: records.table.clone(),
+                records: records.records.clone(),
+                opts: records.opts.clone(),
+            };
+            let retry_messages = vec![records_copy];
+            count += flat_write_with_sql(
+                pool,
+                taos,
+                target_precision,
+                &retry_messages,
+                metrics,
+                notifier,
+                cancel,
+                task_id,
+                global,
+            )
+            .await?;
+            // only retry once
+            continue;
         }
         tracing::debug!("Write records with rows {}", records.records.num_rows());
         let views = taosx_ipc::stream::reader::record_batch_to_column_view(
@@ -622,7 +1122,6 @@ pub async fn flat_write_with_raw_block(
                             Err(err) => {
                                 let code: i32 = err.code().into();
                                 if !matches!(code, 0x0218 | 0x2603 | 0x2602 | 0x0618 | 0x0362) {
-                                    // TODO
                                     // 0x0218: the table does not exist
                                     // 0x2603: the table does not exist
                                     // 0x2602: invalid column
@@ -650,7 +1149,6 @@ pub async fn flat_write_with_raw_block(
                                         Err(err) => {
                                             let code: i32 = err.code().into();
                                             if code != 0x0360 {
-                                                // TODO
                                                 // 0x0360: stable already exists
                                                 Err(err)?;
                                             }
@@ -677,7 +1175,6 @@ pub async fn flat_write_with_raw_block(
                                                 let code: i32 = err.code().into();
 
                                                 if code == 0x2605 {
-                                                    // TODO
                                                     // 0x2605: wrong value type
                                                     let table = records.stable_name().unwrap();
                                                     let desc =
@@ -713,7 +1210,6 @@ pub async fn flat_write_with_raw_block(
                                                     }
                                                     continue;
                                                 } else if code == 0x260D {
-                                                    // TODO
                                                     // 0x260D: Tags number not matched
                                                     // add Tag
                                                     let table = records.stable_name().unwrap();
@@ -758,7 +1254,6 @@ pub async fn flat_write_with_raw_block(
                                                         }
                                                     }
                                                 } else if code == 0x2602 {
-                                                    // TODO: the column does not exist
                                                     // 0x2602: invalid column
                                                     let Some(stable) = messages
                                                         .first()
@@ -837,6 +1332,16 @@ pub async fn flat_write_with_raw_block(
             }
             qid.add_sub_batch_id();
             trace!("write raw block");
+
+            // define a macro to handle the error
+            macro_rules! metrics_failed {
+                ($metrics:expr, $raw:expr) => {
+                    $metrics.add_failed_raw_blocks(1);
+                    $metrics.add_failed_rows($raw.nrows() as u64);
+                    $metrics.add_failed_points(($raw.nrows() * $raw.column_views().len()) as u64);
+                };
+            }
+
             if let Err(err) = taos
                 .as_ref()
                 .unwrap()
@@ -850,16 +1355,42 @@ pub async fn flat_write_with_raw_block(
                     tracing::warn!(
                         "flat message write raw block encounter unrecoverable err: {err:#}"
                     );
-                    metrics.add_failed_raw_blocks(1);
-                    metrics.add_failed_rows(raw.nrows() as u64);
-                    metrics.add_failed_points((raw.nrows() * raw.column_views().len()) as u64);
+                    metrics_failed!(metrics, raw);
                     Err(err)?;
                     break;
                 }
                 if errno == 0x2603 || errno == 0x0618 {
-                    // TODO: the table does not exist
                     // 0x2603: the table does not exist
                     // 0x0618: the table does not exist
+                    match global
+                        .process_on_abnormal
+                        .stable_not_exist
+                        .handle(format!("{err:#}"))
+                    {
+                        Ok((HandlingResult::Skip, _)) => {
+                            metrics_failed!(metrics, raw);
+                            break;
+                        }
+                        Ok((HandlingResult::Archive, err)) => {
+                            if let Err(e) =
+                                process_archive(task_id, global, err.clone(), &records.records)
+                            {
+                                tracing::error!("archive error: {e:#}");
+                            }
+                            metrics_failed!(metrics, raw);
+                            break;
+                        }
+                        Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+                        Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                        Ok((HandlingResult::Retry, _)) => {
+                            // do nothing, continue the below codes
+                        }
+                        Err(e) => {
+                            metrics_failed!(metrics, raw);
+                            return Err(e)?;
+                        }
+                    }
+
                     if let Some(sql) = records.stable_sql() {
                         // dbg!(&sql);
 
@@ -921,7 +1452,6 @@ pub async fn flat_write_with_raw_block(
                             Err(err) => {
                                 let code: i32 = err.code().into();
                                 if code == 0x2605 {
-                                    // TODO
                                     // 0x2605: wrong value type
                                     let table = records.stable_name().unwrap();
                                     let desc = describe_table_with_connection_retries(
@@ -973,45 +1503,71 @@ pub async fn flat_write_with_raw_block(
                         .await
                         .inspect(|_| metrics.add_created_tables(1))?;
                     }
-
                     continue;
-                } else if errno == 0x2605 {
-                    // TODO
-                    // 0x2605: wrong value type
-                    // container length is too short.
-                    let desc = describe_table_with_connection_retries(
-                        pool,
-                        taos,
-                        &table_name,
-                        DEFAULT_MAX_RETRIES_FOR_CONNECTION,
-                        cancel,
-                    )
-                    .in_current_span()
-                    .await?;
-                    let table = records.stable_name().unwrap_or(&table_name);
-                    for f in desc.iter().filter(|f| !f.is_tag() && f.ty().is_var_type()) {
-                        let sql = format!(
-                            "alter table `{table}` modify column `{}` {}({})",
-                            f.field(),
-                            f.ty(),
-                            f.length() * 2
-                        );
-                        qid.add_sub_batch_id();
-                        let _ = exec_sql_with_connection_retries(
-                            pool,
-                            taos,
-                            &sql,
-                            qid.get(),
-                            DEFAULT_MAX_RETRIES_FOR_CONNECTION,
-                            cancel,
-                        )
-                        .await;
-                    }
+                // } else if errno == 0x2605 {
+                //     // 0x2605: wrong value type
+                //     // container length is too short.
+                //     let desc = describe_table_with_connection_retries(
+                //         pool,
+                //         taos,
+                //         &table_name,
+                //         DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                //         cancel,
+                //     )
+                //     .in_current_span()
+                //     .await?;
+                //     let table = records.stable_name().unwrap_or(&table_name);
+                //     for f in desc.iter().filter(|f| !f.is_tag() && f.ty().is_var_type()) {
+                //         let sql = format!(
+                //             "alter table `{table}` modify column `{}` {}({})",
+                //             f.field(),
+                //             f.ty(),
+                //             f.length() * 2
+                //         );
+                //         qid.add_sub_batch_id();
+                //         let _ = exec_sql_with_connection_retries(
+                //             pool,
+                //             taos,
+                //             &sql,
+                //             qid.get(),
+                //             DEFAULT_MAX_RETRIES_FOR_CONNECTION,
+                //             cancel,
+                //         )
+                //         .await;
+                //     }
                 } else if errno == 0x0118 {
-                    // TODO
                     // 0x0118: invalid parameter
                     // Code([0x0118] Unknown or common error)
                     // column or tag not exists
+                    match global
+                        .process_on_abnormal
+                        .field_name_not_found
+                        .handle(format!("{err:#}"))
+                    {
+                        Ok((HandlingResult::Skip, _)) => {
+                            metrics_failed!(metrics, raw);
+                            break;
+                        }
+                        Ok((HandlingResult::Archive, err)) => {
+                            if let Err(e) =
+                                process_archive(task_id, global, err.clone(), &records.records)
+                            {
+                                tracing::error!("archive error: {e:#}");
+                            }
+                            metrics_failed!(metrics, raw);
+                            break;
+                        }
+                        Ok((HandlingResult::Modify(_), _)) => {
+                            // do nothing, continue the below codes
+                        }
+                        Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                        Ok((HandlingResult::Retry, _)) => unreachable!(),
+                        Err(e) => {
+                            metrics_failed!(metrics, raw);
+                            return Err(e)?;
+                        }
+                    }
+
                     let mut index = 0;
                     while index < columns.len() {
                         // let column_view = views.get(index).unwrap();
@@ -1062,7 +1618,6 @@ pub async fn flat_write_with_raw_block(
                     || errno == 0xE004
                     || errno == 0x000B
                 {
-                    // TODO
                     // 0xE001: internal error
                     // 0xE002: connection closed
                     // 0xE003: send timeout
@@ -1074,21 +1629,16 @@ pub async fn flat_write_with_raw_block(
                         .handle(format!("{err:#}"))
                     {
                         Ok((HandlingResult::Skip, _)) => {
+                            metrics_failed!(metrics, raw);
                             break;
                         }
                         Ok((HandlingResult::Archive, err)) => {
-                            let err_vec = vec![err.clone(); records.records.num_rows()];
-                            let err_timestamp_vec = vec![
-                                Utc::now().timestamp_nanos_opt().unwrap();
-                                records.records.num_rows()
-                            ];
-                            let _ = archive_records(
-                                task_id,
-                                &global.process_on_abnormal.archive.location,
-                                &records.records,
-                                err_vec,
-                                err_timestamp_vec,
-                            );
+                            if let Err(e) =
+                                process_archive(task_id, global, err.clone(), &records.records)
+                            {
+                                tracing::error!("archive error: {e:#}");
+                            }
+                            metrics_failed!(metrics, raw);
                             break;
                         }
                         Ok((HandlingResult::Modify(_), _)) => unreachable!(),
@@ -1102,11 +1652,12 @@ pub async fn flat_write_with_raw_block(
                             continue;
                         }
                         Err(e) => {
+                            metrics_failed!(metrics, raw);
                             return Err(e)?;
                         }
                     }
-                } else if errno == 0x2653 {
-                    // TODO: the column length not enough
+                } else if errno == 0x2605 || errno == 0x2653 {
+                    // 0x2605: wrong value type
                     // 0x2653: value too long for column/tag
                     // retry with sql
                     let records_copy = MessageArrowRecords {
@@ -1129,20 +1680,59 @@ pub async fn flat_write_with_raw_block(
                     .await?;
                     break;
                 } else if errno == 0x267B {
-                    // TODO
                     // 0x267B: the primary key is null
-                    // TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL
-                    // SQL internal error, ignore for now
-                    tracing::warn!("write raw block sql error: {err:#}",);
+                    // retry with sql
+                    let records_copy = MessageArrowRecords {
+                        table: records.table.clone(),
+                        records: records.records.clone(),
+                        opts: records.opts.clone(),
+                    };
+                    let retry_messages = vec![records_copy];
+                    count += flat_write_with_sql(
+                        pool,
+                        taos,
+                        target_precision,
+                        &retry_messages,
+                        metrics,
+                        notifier,
+                        cancel,
+                        task_id,
+                        global,
+                    )
+                    .await?;
+                    // only retry once
                     break;
                 } else {
-                    // TODO
                     error!(table = table_name.as_ref(), code = %code, "write {} records failed: {err:?}", records.records.num_rows());
                     metrics.add_failed_raw_blocks(1);
                     metrics.add_failed_rows(raw.nrows() as u64);
                     metrics.add_failed_points((raw.nrows() * raw.column_views().len()) as u64);
-                    Err(err)?;
-                    break;
+                    match global
+                        .process_on_abnormal
+                        .ingesting_error
+                        .handle(format!("{err:#}"))
+                    {
+                        Ok((HandlingResult::Skip, _)) => {
+                            metrics_failed!(metrics, raw);
+                            break;
+                        }
+                        Ok((HandlingResult::Archive, err)) => {
+                            if let Err(e) =
+                                process_archive(task_id, global, err.clone(), &records.records)
+                            {
+                                tracing::error!("archive error: {e:#}");
+                            }
+                            metrics_failed!(metrics, raw);
+                            break;
+                        }
+                        Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+                        Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                        Ok((HandlingResult::Retry, _)) => unreachable!(),
+                        Err(e) => {
+                            metrics_failed!(metrics, raw);
+                            return Err(e)?;
+                        }
+                    }
                 }
                 continue;
             } else {
@@ -1171,16 +1761,9 @@ fn handling_database_not_exist(
         Ok((HandlingResult::Skip, _)) => Ok(()),
         Ok((HandlingResult::Archive, err)) => {
             for batch in messages.iter().map(|m| m.records.clone()) {
-                let err_vec = vec![err.clone(); batch.num_rows()];
-                let err_timestamp_vec =
-                    vec![Utc::now().timestamp_nanos_opt().unwrap(); batch.num_rows()];
-                let _ = archive_records(
-                    task_id,
-                    &global.process_on_abnormal.archive.location,
-                    &batch,
-                    err_vec,
-                    err_timestamp_vec,
-                );
+                if let Err(e) = process_archive(task_id, global, err.clone(), &batch) {
+                    tracing::error!("archive error: {e:#}");
+                }
             }
             Ok(())
         }
@@ -1189,6 +1772,24 @@ fn handling_database_not_exist(
         Ok((HandlingResult::Retry, _)) => unreachable!(),
         Err(e) => Err(e),
     }
+}
+
+fn process_archive(
+    task_id: i64,
+    global: &TableOptions,
+    err: String,
+    batch: &RecordBatch,
+) -> anyhow::Result<()> {
+    // possible difference in schema, so archive them separately
+    let err_vec = vec![err.clone(); batch.num_rows()];
+    let err_timestamp_vec = vec![Utc::now().timestamp_nanos_opt().unwrap(); batch.num_rows()];
+    archive_records(
+        task_id,
+        &global.process_on_abnormal.archive.location,
+        batch,
+        err_vec.clone(),
+        err_timestamp_vec.clone(),
+    )
 }
 
 pub type FlatItem = (
@@ -2101,7 +2702,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
     Ok(())
 }
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
 
     use arrow::array::*;
@@ -2113,7 +2714,7 @@ mod tests {
 
     use crate::{plugins::transform::MessageTableMeta, sink::transform::STable};
 
-    struct STableMessagesBuilder {
+    pub struct STableMessagesBuilder {
         /// The stable name of the table, if not set, use ordinary table instead.
         stable: String,
         /// The name of the primary key column in the table.
@@ -2223,9 +2824,15 @@ mod tests {
         (field, value)
     }
 
+    impl Default for STableMessagesBuilder {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     #[allow(dead_code)]
     impl STableMessagesBuilder {
-        fn new() -> Self {
+        pub fn new() -> Self {
             Self {
                 stable: String::from("stb1"),
                 primary_key: String::from("ts"),
@@ -2276,7 +2883,7 @@ mod tests {
             }
         }
 
-        fn stable(mut self, stable: &str) -> Self {
+        pub fn stable(mut self, stable: &str) -> Self {
             self.stable = stable.to_string();
             self
         }
@@ -2286,36 +2893,36 @@ mod tests {
             self
         }
 
-        fn column_names(mut self, names: Vec<&str>) -> Self {
+        pub fn column_names(mut self, names: Vec<&str>) -> Self {
             self.column_names = names.iter().map(|s| s.to_string()).collect();
             self
         }
-        fn column_num(mut self, num: usize) -> Self {
+        pub fn column_num(mut self, num: usize) -> Self {
             self.table_num = num;
             self
         }
 
-        fn table_prefix(mut self, prefix: &str) -> Self {
+        pub fn table_prefix(mut self, prefix: &str) -> Self {
             self.table_prefix = Some(prefix.to_string());
             self
         }
 
-        fn table_suffix(mut self, suffix: &str) -> Self {
+        pub fn table_suffix(mut self, suffix: &str) -> Self {
             self.table_suffix = Some(suffix.to_string());
             self
         }
 
-        fn table_num(mut self, num: usize) -> Self {
+        pub fn table_num(mut self, num: usize) -> Self {
             self.table_num = num;
             self
         }
 
-        fn string_repeats(mut self, repeats: usize) -> Self {
+        pub fn string_repeats(mut self, repeats: usize) -> Self {
             self.string_repeats = repeats;
             self
         }
 
-        fn build(&self) -> Vec<MessageArrowRecords> {
+        pub fn build(&self) -> Vec<MessageArrowRecords> {
             let stable = self.stable.as_str();
             let table_prefix = self.table_prefix.as_deref().unwrap_or("");
             let table_suffix = self.table_suffix.as_deref().unwrap_or("");
@@ -2497,5 +3104,26 @@ mod tests {
         for (sql, _, _) in sqls {
             assert!(sql.len() < MAX_SQL_LENGTH);
         }
+    }
+
+    #[test]
+    fn test_message_to_sql() {
+        let builder = STableMessagesBuilder::new()
+            .stable("meters")
+            .table_num(2)
+            .table_prefix("tb_")
+            .table_suffix("_suffix")
+            .column_names(vec!["v"])
+            .table_num(2)
+            .string_repeats(2);
+        let messages = builder.build();
+
+        let (records, _) =
+            message_to_sql(&messages, taos::Precision::Millisecond, true, true, None);
+        dbg!(&records);
+        // assert_eq!(records[0].sql, "INSERT INTO `tb_0_suffix` using `meters` (`t0`,`t1`,`t2`,`t3`,`t4`,`t5`,`t6`,`t7`,`t8`,`t9`,`t10`,`t11`,`t12`) tags(true,0,0,0,0,0,0,0,0,0,0,\"varchar_0varchar_0\",\"nchar_0nchar_0\") (`ts`,`v0`,`v1`,`v2`,`v3`,`v4`,`v5`,`v6`,`v7`,`v8`,`v9`,`v10`,`v11`,`v12`) values(1739328233033,true,0,0,0,0,0,0,0,0,0,0,'varchar_0varchar_0','nchar_0nchar_0')(1739328234033,false,1,1,1,1,1,1,1,1,1,1,'varchar_1varchar_1','nchar_1nchar_1')`tb_1_suffix` using `meters` (`t0`,`t1`,`t2`,`t3`,`t4`,`t5`,`t6`,`t7`,`t8`,`t9`,`t10`,`t11`,`t12`) tags(false,1,1,1,1,1,1,1,1,1,1,\"varchar_1varchar_1\",\"nchar_1nchar_1\") (`ts`,`v0`,`v1`,`v2`,`v3`,`v4`,`v5`,`v6`,`v7`,`v8`,`v9`,`v10`,`v11`,`v12`) values(1739328233033,true,0,0,0,0,0,0,0,0,0,0,'varchar_0varchar_0','nchar_0nchar_0')(1739328234033,false,1,1,1,1,1,1,1,1,1,1,'varchar_1varchar_1','nchar_1nchar_1')");
+        assert_eq!(records[0].tables, 2);
+        assert_eq!(records[0].records, 4);
+        assert_eq!(records[0].batches[0].num_rows(), 2);
     }
 }

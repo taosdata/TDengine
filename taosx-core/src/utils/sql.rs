@@ -652,7 +652,7 @@ pub fn sql_values_from_record_batch(
     batch: &RecordBatch,
     precision: taos::Precision,
     with_field_names: bool,
-) -> Result<Vec<(String, usize)>, arrow::error::ArrowError> {
+) -> Result<Vec<(String, usize, usize, usize)>, arrow::error::ArrowError> {
     if batch.num_rows() == 0 {
         return Ok(vec![]);
     }
@@ -673,9 +673,10 @@ pub fn sql_values_from_record_batch(
         })
         .map(|f| format!("`{}`", f.name()))
         .join(",");
+    let columns = batch.columns();
     let vec = Vec::with_capacity(1);
     let mut rows = 0;
-    let columns = batch.columns();
+    let mut start = 0;
 
     let (mut vec, cursor) =
         (0..batch.num_rows()).try_fold((vec, None), |(mut vec, cursor), row| {
@@ -941,7 +942,9 @@ pub fn sql_values_from_record_batch(
             cursor.flush()?;
             if cursor.position() > 900_000 {
                 let values = unsafe { String::from_utf8_unchecked(cursor.into_inner()) };
-                vec.push((values, rows));
+                vec.push((values, rows, start, row));
+                rows = 0;
+                start = row + 1;
                 Ok((vec, None))
             } else {
                 Ok((vec, Some(cursor)))
@@ -949,7 +952,7 @@ pub fn sql_values_from_record_batch(
         })?;
     if let Some(cursor) = cursor {
         let values = unsafe { String::from_utf8_unchecked(cursor.into_inner()) };
-        vec.push((values, rows));
+        vec.push((values, rows, start, batch.num_rows() - 1));
     }
 
     Ok(vec)
@@ -962,7 +965,7 @@ pub fn sql_values_from_record_batch_skip_null(
     table_name: &str,
     batch: &RecordBatch,
     target_precision: taos::Precision,
-) -> Result<Vec<String>, arrow::error::ArrowError> {
+) -> Result<Vec<(String, usize, usize, usize)>, arrow::error::ArrowError> {
     let mut vec = Vec::with_capacity(1);
     let schema = batch.schema();
     let col_names = schema
@@ -972,6 +975,8 @@ pub fn sql_values_from_record_batch_skip_null(
         .collect::<Vec<_>>();
     let columns = batch.columns();
     let mut sql = String::with_capacity(256);
+    let mut rows = 0;
+    let mut start = 0;
 
     for row in 0..batch.num_rows() {
         if columns[0].is_null(row) {
@@ -1219,17 +1224,20 @@ pub fn sql_values_from_record_batch_skip_null(
         insert_col_values.pop();
         insert_col_names.pop();
 
+        rows += 1;
         sql.push_str(&format!(
             " `{}` ({}) values ({})",
             table_name, insert_col_names, insert_col_values
         ));
         if sql.len() > 900_000 {
-            vec.push(sql);
+            vec.push((sql, rows, start, row));
             sql = String::with_capacity(256);
+            rows = 0;
+            start = row + 1;
         }
     }
     if !sql.is_empty() {
-        vec.push(sql);
+        vec.push((sql, rows, start, batch.num_rows() - 1));
     }
     Ok(vec)
 }
@@ -1239,7 +1247,10 @@ const MAX_SQL_LENGTH: usize = 1_000_000;
 /// 二分法递归拼装 SQL 语句
 /// 输入是一个元组数组，元组的第一个元素是一个 SQL 片段，只包含 insert into 后面的部分，第二个元素是记录数， 比如 ("table_name using super_table tags(a int) (c1, c2, c3) values (1,2,3) (4, 5, 6),(7, 8, 9)", 3)
 /// 返回值是一个元组，第一个元素是完整的 SQL 语句，第二个元素是表的数量，第三个元素 SQL 的记录数
-pub fn values_to_sqls(slice: &[(String, usize)]) -> Vec<(String, usize, usize)> {
+#[allow(clippy::type_complexity)]
+pub fn values_to_sqls(
+    slice: &[(String, usize, RecordBatch)],
+) -> Vec<(String, usize, usize, Vec<RecordBatch>)> {
     if slice.is_empty() {
         return vec![];
     }
@@ -1257,26 +1268,37 @@ pub fn values_to_sqls(slice: &[(String, usize)]) -> Vec<(String, usize, usize)> 
 /// 尝试将多个 table 的 values 部分拼装到一起，如果长度超过 MAX_SQL_LENGTH，则返回 None
 fn valid_sql_or_none(
     slice: &[(
-        String, // One table values SQL
-        usize,  // One table records
+        String,      // One table values SQL
+        usize,       // One table records
+        RecordBatch, // transformed from this RecordBatch
     )],
 ) -> Option<(
-    String, // SQL to insert into.
-    usize,  // number of tables
-    usize,  // number of records
+    String,           // SQL to insert into.
+    usize,            // number of tables
+    usize,            // number of records
+    Vec<RecordBatch>, // transformed from these RecordBatches
 )> {
     if slice.len() == 1 {
-        return Some((format!("INSERT INTO {}", slice[0].0), 1, slice[0].1));
+        return Some((
+            format!("INSERT INTO {}", slice[0].0),
+            1,
+            slice[0].1,
+            vec![slice[0].2.clone()],
+        ));
     }
-    let len = slice.iter().map(|(sql, _)| sql.len()).sum::<usize>();
+    let len = slice.iter().map(|(sql, _, _)| sql.len()).sum::<usize>();
     if len < MAX_SQL_LENGTH - 12 {
         let mut sql = String::with_capacity(len + 12);
         sql.push_str("INSERT INTO ");
-        let (sql, records) = slice.iter().fold((sql, 0), |(mut sql, records), (s, n)| {
-            sql.push_str(s);
-            (sql, records + n)
-        });
-        Some((sql, slice.len(), records))
+        let (sql, records, batches) = slice.iter().fold(
+            (sql, 0, Vec::new()),
+            |(mut sql, records, mut batches), (s, n, batch)| {
+                sql.push_str(s);
+                batches.push(batch.clone());
+                (sql, records + n, batches)
+            },
+        );
+        Some((sql, slice.len(), records, batches))
     } else {
         None
     }
@@ -1481,7 +1503,7 @@ mod tests {
             let table_prefix = "tb";
             let tables = 100;
 
-            let (values, _size) =
+            let (values, _size, _start, _end) =
                 &sql_values_from_record_batch(&batch, precision, true).unwrap()[0];
             let mut sql = String::new();
             sql.push_str("insert into ");
@@ -1504,6 +1526,104 @@ mod tests {
     }
 
     #[test]
+    fn test_sql_values_from_record_batch() -> anyhow::Result<()> {
+        let ts_array: ArrayRef = Arc::new(Int64Array::from(vec![100, 101]));
+        let value_array: ArrayRef = Arc::new(Float64Array::from(vec![Some(0.1), None]));
+        let batch = RecordBatch::try_from_iter_with_nullable(vec![
+            ("ts", ts_array, false),
+            ("value", value_array, true),
+        ])?;
+
+        let values = sql_values_from_record_batch(&batch, taos::Precision::Nanosecond, false)?;
+        assert_eq!(
+            values,
+            vec![("values(100,0.1)(101,NULL)".to_string(), 2, 0, 1)]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_sql_values_from_record_batch_skip_null() -> anyhow::Result<()> {
+        let ts_array: ArrayRef = Arc::new(Int64Array::from(vec![100, 101]));
+        let value_array: ArrayRef = Arc::new(Float64Array::from(vec![Some(0.1), None]));
+        let batch = RecordBatch::try_from_iter_with_nullable(vec![
+            ("ts", ts_array, false),
+            ("value", value_array, true),
+        ])?;
+
+        let values =
+            sql_values_from_record_batch_skip_null("table", &batch, taos::Precision::Nanosecond)?;
+        assert_eq!(
+            values,
+            vec![(
+                " `table` (`ts`,`value`) values (100,0.1) `table` (`ts`) values (101)".to_string(),
+                2,
+                0,
+                1
+            )]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_values_to_sqls() {
+        let ts_array: ArrayRef = Arc::new(Int64Array::from(vec![100, 101]));
+        let value_array: ArrayRef = Arc::new(Float64Array::from(vec![Some(0.1), None]));
+        let batch = RecordBatch::try_from_iter_with_nullable(vec![
+            ("ts", ts_array, false),
+            ("value", value_array, true),
+        ])
+        .unwrap();
+
+        let values = sql_values_from_record_batch(&batch, taos::Precision::Nanosecond, false)
+            .unwrap()
+            .into_iter()
+            .map(|(sql, size, start, end)| {
+                let batch = batch.slice(start, end - start + 1);
+                (sql, size, batch)
+            })
+            .collect::<Vec<_>>();
+
+        let sqls = values_to_sqls(&values);
+        assert_eq!(sqls.len(), 1);
+        assert_eq!(
+            sqls[0].0,
+            "INSERT INTO values(100,0.1)(101,NULL)".to_string()
+        );
+        assert_eq!(sqls[0].1, 1);
+        assert_eq!(sqls[0].2, 2);
+        assert_eq!(sqls[0].3[0].num_rows(), 2);
+    }
+
+    #[test]
+    fn test_valid_sql_or_none() {
+        let ts_array: ArrayRef = Arc::new(Int64Array::from(vec![100, 101]));
+        let value_array: ArrayRef = Arc::new(Float64Array::from(vec![Some(0.1), None]));
+        let batch = RecordBatch::try_from_iter_with_nullable(vec![
+            ("ts", ts_array, false),
+            ("value", value_array, true),
+        ])
+        .unwrap();
+
+        let values = sql_values_from_record_batch(&batch, taos::Precision::Nanosecond, false)
+            .unwrap()
+            .into_iter()
+            .map(|(sql, size, start, end)| {
+                let batch = batch.slice(start, end - start + 1);
+                (sql, size, batch)
+            })
+            .collect::<Vec<_>>();
+
+        let sql = valid_sql_or_none(&values);
+        assert!(sql.is_some());
+        let sql = sql.unwrap();
+        assert_eq!(sql.0, "INSERT INTO values(100,0.1)(101,NULL)".to_string());
+        assert_eq!(sql.1, 1);
+        assert_eq!(sql.2, 2);
+        assert_eq!(sql.3[0].num_rows(), 2);
+    }
+
+    #[test]
     fn sql_values_from_record_batch_test() -> anyhow::Result<()> {
         let ts_array: ArrayRef = Arc::new(Int64Array::from(vec![100, 101]));
         let value_array: ArrayRef = Arc::new(Float64Array::from(vec![Some(0.1), None]));
@@ -1513,7 +1633,12 @@ mod tests {
         ])?;
         assert_eq!(
             sql_values_from_record_batch(&batch, taos::Precision::Nanosecond, true)?,
-            vec![("(`ts`,`value`) values(100,0.1)(101,NULL)".to_string(), 2)]
+            vec![(
+                "(`ts`,`value`) values(100,0.1)(101,NULL)".to_string(),
+                2,
+                0,
+                1
+            )]
         );
         Ok(())
     }
