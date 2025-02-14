@@ -1,0 +1,1674 @@
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Some portions of this file were modeled after the example Java 1.5
+ * parser included with JavaCC. The following license applies to those
+ * portions:
+ *
+ * Copyright (c) 2006, Sun Microsystems, Inc.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ *     * Redistributions of source code must retain the above copyright notice,
+ *       this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of the Sun Microsystems, Inc. nor the names of its
+ *       contributors may be used to endorse or promote products derived from
+ *       this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+ * THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+options {
+  JAVA_UNICODE_ESCAPE = true;
+  UNICODE_INPUT = true;
+  ERROR_REPORTING = true;
+  STATIC = false;
+  FORCE_LA_CHECK = true;
+  JDK_VERSION = "1.8";
+}
+
+PARSER_BEGIN(Idl)
+
+package org.apache.avro.compiler.idl;
+
+import java.io.*;
+import java.net.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.net.URL;
+
+import org.apache.avro.Schema;
+import org.apache.avro.LogicalTypes;
+import org.apache.avro.Schema.*;
+import org.apache.avro.Protocol;
+import org.apache.avro.Protocol.*;
+import org.apache.avro.util.internal.Accessor;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.*;
+
+import org.apache.commons.lang3.StringEscapeUtils;
+
+/**
+ * Grammar to parse a higher-level language into an Avro Schema.
+ *
+ * Note: each instance is not thread-safe, but multiple separate
+ * instances are safely independent.
+ */
+public class Idl implements Closeable {
+  static JsonNodeFactory FACTORY = JsonNodeFactory.instance;
+
+  URI inputDir;
+  ClassLoader resourceLoader = null;
+  String namespace;
+  Map<String,Schema> names = new LinkedHashMap<String,Schema>();
+
+  private static final ThreadLocal<String> DOC = new ThreadLocal<String>();
+  static void setDoc(String doc) { DOC.set(doc.trim()); }
+  static String getDoc() {
+    String doc = DOC.get();
+    DOC.set(null);
+    return doc;
+  }
+
+  public Idl(File inputFile) throws IOException {
+    this(new FileInputStream(inputFile), "UTF-8");
+    this.inputDir = inputFile.getParentFile().toURI();
+  }
+
+  public Idl(File inputFile, ClassLoader resourceLoader) throws IOException {
+    this(inputFile);
+    this.resourceLoader = resourceLoader;
+  }
+
+  private static URI resourceParent(URL jar) throws IOException {
+    String path = jar.toExternalForm();
+    String name = path.substring(path.indexOf("!/") + 1);
+    try {
+      URI uri = new URI("classpath", null, name, null);
+      return uri.resolve(".");
+    } catch (URISyntaxException e) {
+      throw new IOException("Could not handle resource import in " + jar, e);
+    }
+  }
+
+  private Idl(URL input, Idl parent) throws IOException {
+    this(input.openStream(), "UTF-8");
+    this.inputDir = "file".equals(input.getProtocol())
+      ? new File(input.getPath()).getParentFile().toURI()
+      : "jar".equals(input.getProtocol())
+      ?  resourceParent(input)
+      : parent.inputDir;
+    this.resourceLoader = parent.resourceLoader;
+  }
+
+  public void close() throws IOException {
+    jj_input_stream.inputStream.close();
+  }
+
+  private ParseException error(String message, Token token) {
+    return new ParseException
+      (message+", at line "+token.beginLine+", column "+token.beginColumn);
+  }
+
+  private String getTextProp(String key, Map<String,JsonNode> props,
+                             Token token) throws ParseException {
+    JsonNode value = props.get(key);
+    if (value.isTextual())
+      return value.textValue();
+    throw error(key+" property must be textual: "+value, token);
+  }
+
+  private List<String> getTextProps(String key, Map<String,JsonNode> props,
+                             Token token) throws ParseException {
+    JsonNode value = props.get(key);
+    if (!value.isArray())
+      throw error(key+" property must be array: "+value, token);
+    List<String> values = new ArrayList<String>();
+    for (JsonNode n : value)
+      if (n.isTextual())
+        values.add(n.textValue());
+      else
+        throw error(key+" values must be textual: "+n, token);
+    return values;
+  }
+
+  private URL findFile(String importFile) throws IOException {
+    URI uri = this.inputDir.resolve(importFile);
+    File file = "file".equals(uri.getScheme()) ? new File(uri.getPath()) : null;
+    URL result = null;
+    if (file != null && file.exists())
+      result = file.toURI().toURL();
+    else if (this.resourceLoader != null)
+      if ("classpath".equals(uri.getScheme()))
+        result = this.resourceLoader.getResource(uri.getPath().substring(1));
+      else
+        result = this.resourceLoader.getResource(importFile);
+    if (result == null)
+      throw new FileNotFoundException(importFile);
+    return result;
+  }
+
+}
+
+PARSER_END(Idl)
+
+/* WHITE SPACE */
+
+SKIP :
+{
+  " "
+| "\t"
+| "\n"
+| "\r"
+| "\f"
+}
+
+/* COMMENTS */
+
+SKIP :
+{
+  <SINGLE_LINE_COMMENT: "//" (~["\n", "\r"])* ("\n" | "\r" | "\r\n")?>
+}
+
+SKIP :
+{
+  <"/**" ~["/"]> { input_stream.backup(1); } : DOC_COMMENT
+|
+  "/*" : MULTI_LINE_COMMENT
+}
+
+<DOC_COMMENT,MULTI_LINE_COMMENT>
+MORE :
+{
+  < ~[] >
+}
+
+<DOC_COMMENT>
+SPECIAL_TOKEN :
+{
+  <"*/" > {Idl.setDoc(image.substring(0, image.length()-2));} : DEFAULT
+}
+
+<MULTI_LINE_COMMENT>
+SKIP :
+{
+  <"*/" > : DEFAULT
+}
+
+/* RESERVED WORDS AND LITERALS */
+
+TOKEN :
+{
+  < ARRAY: "array" >
+| < BOOLEAN: "boolean" >
+| < DOUBLE: "double" >
+| < ENUM: "enum" >
+| < ERROR: "error" >
+| < FALSE: "false" >
+| < FIXED: "fixed" >
+| < FLOAT: "float" >
+| < IDL: "idl" >
+| < IMPORT: "import" >
+| < INT: "int" >
+| < LONG: "long" >
+| < MAP: "map" >
+| < ONEWAY: "oneway" >
+| < BYTES: "bytes" >
+| < SCHEMA: "schema" >
+| < STRING: "string" >
+| < NULL: "null" >
+| < PROTOCOL: "protocol" >
+| < RECORD: "record" >
+| < THROWS: "throws" >
+| < TRUE: "true" >
+| < UNION: "union" >
+| < VOID: "void" >
+| < DATE: "date" >
+| < TIME: "time_ms" >
+| < TIMESTAMP: "timestamp_ms" >
+| < DECIMAL: "decimal" >
+| < LOCAL_TIMESTAMP: "local_timestamp_ms" >
+| < UUID: "uuid" >
+}
+
+/* LITERALS */
+
+TOKEN :
+{
+  < INTEGER_LITERAL:
+  ("-")?
+    (   <DECIMAL_LITERAL> (["l","L"])?
+      | <HEX_LITERAL> (["l","L"])?
+      | <OCTAL_LITERAL> (["l","L"])?
+        )
+  >
+|
+  < #DECIMAL_LITERAL: ["1"-"9"] (["0"-"9"])* >
+|
+  < #HEX_LITERAL: "0" ["x","X"] (["0"-"9","a"-"f","A"-"F"])+ >
+|
+  < #OCTAL_LITERAL: "0" (["0"-"7"])* >
+|
+  < FLOATING_POINT_LITERAL:
+  ("-")?
+    ( "NaN" | "Infinity" |
+      <DECIMAL_FLOATING_POINT_LITERAL> | <HEXADECIMAL_FLOATING_POINT_LITERAL> )
+  >
+|
+  < #DECIMAL_FLOATING_POINT_LITERAL:
+        (["0"-"9"])+ "." (["0"-"9"])* (<DECIMAL_EXPONENT>)? (["f","F","d","D"])?
+      | "." (["0"-"9"])+ (<DECIMAL_EXPONENT>)? (["f","F","d","D"])?
+      | (["0"-"9"])+ <DECIMAL_EXPONENT> (["f","F","d","D"])?
+      | (["0"-"9"])+ (<DECIMAL_EXPONENT>)? ["f","F","d","D"]
+  >
+|
+  < #DECIMAL_EXPONENT: ["e","E"] (["+","-"])? (["0"-"9"])+ >
+|
+  < #HEXADECIMAL_FLOATING_POINT_LITERAL:
+        "0" ["x", "X"] (["0"-"9","a"-"f","A"-"F"])+ (".")? <HEXADECIMAL_EXPONENT> (["f","F","d","D"])?
+      | "0" ["x", "X"] (["0"-"9","a"-"f","A"-"F"])* "." (["0"-"9","a"-"f","A"-"F"])+ <HEXADECIMAL_EXPONENT> (["f","F","d","D"])?
+  >
+|
+  < #HEXADECIMAL_EXPONENT: ["p","P"] (["+","-"])? (["0"-"9"])+ >
+|
+  < CHARACTER_LITERAL:
+      "'"
+      (   (~["'","\\","\n","\r"])
+        | ("\\"
+            ( ["n","t","b","r","f","\\","'","\""]
+            | ["0"-"7"] ( ["0"-"7"] )?
+            | ["0"-"3"] ["0"-"7"] ["0"-"7"]
+            )
+          )
+      )
+      "'"
+  >
+|
+  < STRING_LITERAL:
+      "\""
+      (   (~["\"","\\","\n","\r"])
+        | ("\\"
+            ( ["n","t","b","r","f","\\","'","\""]
+            | ["0"-"7"] ( ["0"-"7"] )?
+            | ["0"-"3"] ["0"-"7"] ["0"-"7"]
+            )
+          )
+      )*
+      "\""
+  >
+}
+
+/* IDENTIFIERS */
+
+TOKEN :
+{
+  < IDENTIFIER: <LETTER> (<PART_LETTER>)* >
+|
+  < #LETTER:
+      [  // all chars for which Character.isIdentifierStart is true
+         "$",
+         "A"-"Z",
+         "_",
+         "a"-"z",
+         "\u00a2"-"\u00a5",
+         "\u00aa",
+         "\u00b5",
+         "\u00ba",
+         "\u00c0"-"\u00d6",
+         "\u00d8"-"\u00f6",
+         "\u00f8"-"\u021f",
+         "\u0222"-"\u0233",
+         "\u0250"-"\u02ad",
+         "\u02b0"-"\u02b8",
+         "\u02bb"-"\u02c1",
+         "\u02d0"-"\u02d1",
+         "\u02e0"-"\u02e4",
+         "\u02ee",
+         "\u037a",
+         "\u0386",
+         "\u0388"-"\u038a",
+         "\u038c",
+         "\u038e"-"\u03a1",
+         "\u03a3"-"\u03ce",
+         "\u03d0"-"\u03d7",
+         "\u03da"-"\u03f3",
+         "\u0400"-"\u0481",
+         "\u048c"-"\u04c4",
+         "\u04c7"-"\u04c8",
+         "\u04cb"-"\u04cc",
+         "\u04d0"-"\u04f5",
+         "\u04f8"-"\u04f9",
+         "\u0531"-"\u0556",
+         "\u0559",
+         "\u0561"-"\u0587",
+         "\u05d0"-"\u05ea",
+         "\u05f0"-"\u05f2",
+         "\u0621"-"\u063a",
+         "\u0640"-"\u064a",
+         "\u0671"-"\u06d3",
+         "\u06d5",
+         "\u06e5"-"\u06e6",
+         "\u06fa"-"\u06fc",
+         "\u0710",
+         "\u0712"-"\u072c",
+         "\u0780"-"\u07a5",
+         "\u0905"-"\u0939",
+         "\u093d",
+         "\u0950",
+         "\u0958"-"\u0961",
+         "\u0985"-"\u098c",
+         "\u098f"-"\u0990",
+         "\u0993"-"\u09a8",
+         "\u09aa"-"\u09b0",
+         "\u09b2",
+         "\u09b6"-"\u09b9",
+         "\u09dc"-"\u09dd",
+         "\u09df"-"\u09e1",
+         "\u09f0"-"\u09f3",
+         "\u0a05"-"\u0a0a",
+         "\u0a0f"-"\u0a10",
+         "\u0a13"-"\u0a28",
+         "\u0a2a"-"\u0a30",
+         "\u0a32"-"\u0a33",
+         "\u0a35"-"\u0a36",
+         "\u0a38"-"\u0a39",
+         "\u0a59"-"\u0a5c",
+         "\u0a5e",
+         "\u0a72"-"\u0a74",
+         "\u0a85"-"\u0a8b",
+         "\u0a8d",
+         "\u0a8f"-"\u0a91",
+         "\u0a93"-"\u0aa8",
+         "\u0aaa"-"\u0ab0",
+         "\u0ab2"-"\u0ab3",
+         "\u0ab5"-"\u0ab9",
+         "\u0abd",
+         "\u0ad0",
+         "\u0ae0",
+         "\u0b05"-"\u0b0c",
+         "\u0b0f"-"\u0b10",
+         "\u0b13"-"\u0b28",
+         "\u0b2a"-"\u0b30",
+         "\u0b32"-"\u0b33",
+         "\u0b36"-"\u0b39",
+         "\u0b3d",
+         "\u0b5c"-"\u0b5d",
+         "\u0b5f"-"\u0b61",
+         "\u0b85"-"\u0b8a",
+         "\u0b8e"-"\u0b90",
+         "\u0b92"-"\u0b95",
+         "\u0b99"-"\u0b9a",
+         "\u0b9c",
+         "\u0b9e"-"\u0b9f",
+         "\u0ba3"-"\u0ba4",
+         "\u0ba8"-"\u0baa",
+         "\u0bae"-"\u0bb5",
+         "\u0bb7"-"\u0bb9",
+         "\u0c05"-"\u0c0c",
+         "\u0c0e"-"\u0c10",
+         "\u0c12"-"\u0c28",
+         "\u0c2a"-"\u0c33",
+         "\u0c35"-"\u0c39",
+         "\u0c60"-"\u0c61",
+         "\u0c85"-"\u0c8c",
+         "\u0c8e"-"\u0c90",
+         "\u0c92"-"\u0ca8",
+         "\u0caa"-"\u0cb3",
+         "\u0cb5"-"\u0cb9",
+         "\u0cde",
+         "\u0ce0"-"\u0ce1",
+         "\u0d05"-"\u0d0c",
+         "\u0d0e"-"\u0d10",
+         "\u0d12"-"\u0d28",
+         "\u0d2a"-"\u0d39",
+         "\u0d60"-"\u0d61",
+         "\u0d85"-"\u0d96",
+         "\u0d9a"-"\u0db1",
+         "\u0db3"-"\u0dbb",
+         "\u0dbd",
+         "\u0dc0"-"\u0dc6",
+         "\u0e01"-"\u0e30",
+         "\u0e32"-"\u0e33",
+         "\u0e3f"-"\u0e46",
+         "\u0e81"-"\u0e82",
+         "\u0e84",
+         "\u0e87"-"\u0e88",
+         "\u0e8a",
+         "\u0e8d",
+         "\u0e94"-"\u0e97",
+         "\u0e99"-"\u0e9f",
+         "\u0ea1"-"\u0ea3",
+         "\u0ea5",
+         "\u0ea7",
+         "\u0eaa"-"\u0eab",
+         "\u0ead"-"\u0eb0",
+         "\u0eb2"-"\u0eb3",
+         "\u0ebd",
+         "\u0ec0"-"\u0ec4",
+         "\u0ec6",
+         "\u0edc"-"\u0edd",
+         "\u0f00",
+         "\u0f40"-"\u0f47",
+         "\u0f49"-"\u0f6a",
+         "\u0f88"-"\u0f8b",
+         "\u1000"-"\u1021",
+         "\u1023"-"\u1027",
+         "\u1029"-"\u102a",
+         "\u1050"-"\u1055",
+         "\u10a0"-"\u10c5",
+         "\u10d0"-"\u10f6",
+         "\u1100"-"\u1159",
+         "\u115f"-"\u11a2",
+         "\u11a8"-"\u11f9",
+         "\u1200"-"\u1206",
+         "\u1208"-"\u1246",
+         "\u1248",
+         "\u124a"-"\u124d",
+         "\u1250"-"\u1256",
+         "\u1258",
+         "\u125a"-"\u125d",
+         "\u1260"-"\u1286",
+         "\u1288",
+         "\u128a"-"\u128d",
+         "\u1290"-"\u12ae",
+         "\u12b0",
+         "\u12b2"-"\u12b5",
+         "\u12b8"-"\u12be",
+         "\u12c0",
+         "\u12c2"-"\u12c5",
+         "\u12c8"-"\u12ce",
+         "\u12d0"-"\u12d6",
+         "\u12d8"-"\u12ee",
+         "\u12f0"-"\u130e",
+         "\u1310",
+         "\u1312"-"\u1315",
+         "\u1318"-"\u131e",
+         "\u1320"-"\u1346",
+         "\u1348"-"\u135a",
+         "\u13a0"-"\u13f4",
+         "\u1401"-"\u166c",
+         "\u166f"-"\u1676",
+         "\u1681"-"\u169a",
+         "\u16a0"-"\u16ea",
+         "\u1780"-"\u17b3",
+         "\u17db",
+         "\u1820"-"\u1877",
+         "\u1880"-"\u18a8",
+         "\u1e00"-"\u1e9b",
+         "\u1ea0"-"\u1ef9",
+         "\u1f00"-"\u1f15",
+         "\u1f18"-"\u1f1d",
+         "\u1f20"-"\u1f45",
+         "\u1f48"-"\u1f4d",
+         "\u1f50"-"\u1f57",
+         "\u1f59",
+         "\u1f5b",
+         "\u1f5d",
+         "\u1f5f"-"\u1f7d",
+         "\u1f80"-"\u1fb4",
+         "\u1fb6"-"\u1fbc",
+         "\u1fbe",
+         "\u1fc2"-"\u1fc4",
+         "\u1fc6"-"\u1fcc",
+         "\u1fd0"-"\u1fd3",
+         "\u1fd6"-"\u1fdb",
+         "\u1fe0"-"\u1fec",
+         "\u1ff2"-"\u1ff4",
+         "\u1ff6"-"\u1ffc",
+         "\u203f"-"\u2040",
+         "\u207f",
+         "\u20a0"-"\u20af",
+         "\u2102",
+         "\u2107",
+         "\u210a"-"\u2113",
+         "\u2115",
+         "\u2119"-"\u211d",
+         "\u2124",
+         "\u2126",
+         "\u2128",
+         "\u212a"-"\u212d",
+         "\u212f"-"\u2131",
+         "\u2133"-"\u2139",
+         "\u2160"-"\u2183",
+         "\u3005"-"\u3007",
+         "\u3021"-"\u3029",
+         "\u3031"-"\u3035",
+         "\u3038"-"\u303a",
+         "\u3041"-"\u3094",
+         "\u309d"-"\u309e",
+         "\u30a1"-"\u30fe",
+         "\u3105"-"\u312c",
+         "\u3131"-"\u318e",
+         "\u31a0"-"\u31b7",
+         "\u3400"-"\u4db5",
+         "\u4e00"-"\u9fa5",
+         "\ua000"-"\ua48c",
+         "\uac00"-"\ud7a3",
+         "\uf900"-"\ufa2d",
+         "\ufb00"-"\ufb06",
+         "\ufb13"-"\ufb17",
+         "\ufb1d",
+         "\ufb1f"-"\ufb28",
+         "\ufb2a"-"\ufb36",
+         "\ufb38"-"\ufb3c",
+         "\ufb3e",
+         "\ufb40"-"\ufb41",
+         "\ufb43"-"\ufb44",
+         "\ufb46"-"\ufbb1",
+         "\ufbd3"-"\ufd3d",
+         "\ufd50"-"\ufd8f",
+         "\ufd92"-"\ufdc7",
+         "\ufdf0"-"\ufdfb",
+         "\ufe33"-"\ufe34",
+         "\ufe4d"-"\ufe4f",
+         "\ufe69",
+         "\ufe70"-"\ufe72",
+         "\ufe74",
+         "\ufe76"-"\ufefc",
+         "\uff04",
+         "\uff21"-"\uff3a",
+         "\uff3f",
+         "\uff41"-"\uff5a",
+         "\uff65"-"\uffbe",
+         "\uffc2"-"\uffc7",
+         "\uffca"-"\uffcf",
+         "\uffd2"-"\uffd7",
+         "\uffda"-"\uffdc",
+         "\uffe0"-"\uffe1",
+         "\uffe5"-"\uffe6"
+      ]
+  >
+|
+  < #PART_LETTER:
+      [  // all chars for which Character.isIdentifierPart is true
+         "\u0000"-"\u0008",
+         "\u000e"-"\u001b",
+         "$",
+         "0"-"9",
+         "A"-"Z",
+         "_",
+         "a"-"z",
+         "\u007f"-"\u009f",
+         "\u00a2"-"\u00a5",
+         "\u00aa",
+         "\u00b5",
+         "\u00ba",
+         "\u00c0"-"\u00d6",
+         "\u00d8"-"\u00f6",
+         "\u00f8"-"\u021f",
+         "\u0222"-"\u0233",
+         "\u0250"-"\u02ad",
+         "\u02b0"-"\u02b8",
+         "\u02bb"-"\u02c1",
+         "\u02d0"-"\u02d1",
+         "\u02e0"-"\u02e4",
+         "\u02ee",
+         "\u0300"-"\u034e",
+         "\u0360"-"\u0362",
+         "\u037a",
+         "\u0386",
+         "\u0388"-"\u038a",
+         "\u038c",
+         "\u038e"-"\u03a1",
+         "\u03a3"-"\u03ce",
+         "\u03d0"-"\u03d7",
+         "\u03da"-"\u03f3",
+         "\u0400"-"\u0481",
+         "\u0483"-"\u0486",
+         "\u048c"-"\u04c4",
+         "\u04c7"-"\u04c8",
+         "\u04cb"-"\u04cc",
+         "\u04d0"-"\u04f5",
+         "\u04f8"-"\u04f9",
+         "\u0531"-"\u0556",
+         "\u0559",
+         "\u0561"-"\u0587",
+         "\u0591"-"\u05a1",
+         "\u05a3"-"\u05b9",
+         "\u05bb"-"\u05bd",
+         "\u05bf",
+         "\u05c1"-"\u05c2",
+         "\u05c4",
+         "\u05d0"-"\u05ea",
+         "\u05f0"-"\u05f2",
+         "\u0621"-"\u063a",
+         "\u0640"-"\u0655",
+         "\u0660"-"\u0669",
+         "\u0670"-"\u06d3",
+         "\u06d5"-"\u06dc",
+         "\u06df"-"\u06e8",
+         "\u06ea"-"\u06ed",
+         "\u06f0"-"\u06fc",
+         "\u070f"-"\u072c",
+         "\u0730"-"\u074a",
+         "\u0780"-"\u07b0",
+         "\u0901"-"\u0903",
+         "\u0905"-"\u0939",
+         "\u093c"-"\u094d",
+         "\u0950"-"\u0954",
+         "\u0958"-"\u0963",
+         "\u0966"-"\u096f",
+         "\u0981"-"\u0983",
+         "\u0985"-"\u098c",
+         "\u098f"-"\u0990",
+         "\u0993"-"\u09a8",
+         "\u09aa"-"\u09b0",
+         "\u09b2",
+         "\u09b6"-"\u09b9",
+         "\u09bc",
+         "\u09be"-"\u09c4",
+         "\u09c7"-"\u09c8",
+         "\u09cb"-"\u09cd",
+         "\u09d7",
+         "\u09dc"-"\u09dd",
+         "\u09df"-"\u09e3",
+         "\u09e6"-"\u09f3",
+         "\u0a02",
+         "\u0a05"-"\u0a0a",
+         "\u0a0f"-"\u0a10",
+         "\u0a13"-"\u0a28",
+         "\u0a2a"-"\u0a30",
+         "\u0a32"-"\u0a33",
+         "\u0a35"-"\u0a36",
+         "\u0a38"-"\u0a39",
+         "\u0a3c",
+         "\u0a3e"-"\u0a42",
+         "\u0a47"-"\u0a48",
+         "\u0a4b"-"\u0a4d",
+         "\u0a59"-"\u0a5c",
+         "\u0a5e",
+         "\u0a66"-"\u0a74",
+         "\u0a81"-"\u0a83",
+         "\u0a85"-"\u0a8b",
+         "\u0a8d",
+         "\u0a8f"-"\u0a91",
+         "\u0a93"-"\u0aa8",
+         "\u0aaa"-"\u0ab0",
+         "\u0ab2"-"\u0ab3",
+         "\u0ab5"-"\u0ab9",
+         "\u0abc"-"\u0ac5",
+         "\u0ac7"-"\u0ac9",
+         "\u0acb"-"\u0acd",
+         "\u0ad0",
+         "\u0ae0",
+         "\u0ae6"-"\u0aef",
+         "\u0b01"-"\u0b03",
+         "\u0b05"-"\u0b0c",
+         "\u0b0f"-"\u0b10",
+         "\u0b13"-"\u0b28",
+         "\u0b2a"-"\u0b30",
+         "\u0b32"-"\u0b33",
+         "\u0b36"-"\u0b39",
+         "\u0b3c"-"\u0b43",
+         "\u0b47"-"\u0b48",
+         "\u0b4b"-"\u0b4d",
+         "\u0b56"-"\u0b57",
+         "\u0b5c"-"\u0b5d",
+         "\u0b5f"-"\u0b61",
+         "\u0b66"-"\u0b6f",
+         "\u0b82"-"\u0b83",
+         "\u0b85"-"\u0b8a",
+         "\u0b8e"-"\u0b90",
+         "\u0b92"-"\u0b95",
+         "\u0b99"-"\u0b9a",
+         "\u0b9c",
+         "\u0b9e"-"\u0b9f",
+         "\u0ba3"-"\u0ba4",
+         "\u0ba8"-"\u0baa",
+         "\u0bae"-"\u0bb5",
+         "\u0bb7"-"\u0bb9",
+         "\u0bbe"-"\u0bc2",
+         "\u0bc6"-"\u0bc8",
+         "\u0bca"-"\u0bcd",
+         "\u0bd7",
+         "\u0be7"-"\u0bef",
+         "\u0c01"-"\u0c03",
+         "\u0c05"-"\u0c0c",
+         "\u0c0e"-"\u0c10",
+         "\u0c12"-"\u0c28",
+         "\u0c2a"-"\u0c33",
+         "\u0c35"-"\u0c39",
+         "\u0c3e"-"\u0c44",
+         "\u0c46"-"\u0c48",
+         "\u0c4a"-"\u0c4d",
+         "\u0c55"-"\u0c56",
+         "\u0c60"-"\u0c61",
+         "\u0c66"-"\u0c6f",
+         "\u0c82"-"\u0c83",
+         "\u0c85"-"\u0c8c",
+         "\u0c8e"-"\u0c90",
+         "\u0c92"-"\u0ca8",
+         "\u0caa"-"\u0cb3",
+         "\u0cb5"-"\u0cb9",
+         "\u0cbe"-"\u0cc4",
+         "\u0cc6"-"\u0cc8",
+         "\u0cca"-"\u0ccd",
+         "\u0cd5"-"\u0cd6",
+         "\u0cde",
+         "\u0ce0"-"\u0ce1",
+         "\u0ce6"-"\u0cef",
+         "\u0d02"-"\u0d03",
+         "\u0d05"-"\u0d0c",
+         "\u0d0e"-"\u0d10",
+         "\u0d12"-"\u0d28",
+         "\u0d2a"-"\u0d39",
+         "\u0d3e"-"\u0d43",
+         "\u0d46"-"\u0d48",
+         "\u0d4a"-"\u0d4d",
+         "\u0d57",
+         "\u0d60"-"\u0d61",
+         "\u0d66"-"\u0d6f",
+         "\u0d82"-"\u0d83",
+         "\u0d85"-"\u0d96",
+         "\u0d9a"-"\u0db1",
+         "\u0db3"-"\u0dbb",
+         "\u0dbd",
+         "\u0dc0"-"\u0dc6",
+         "\u0dca",
+         "\u0dcf"-"\u0dd4",
+         "\u0dd6",
+         "\u0dd8"-"\u0ddf",
+         "\u0df2"-"\u0df3",
+         "\u0e01"-"\u0e3a",
+         "\u0e3f"-"\u0e4e",
+         "\u0e50"-"\u0e59",
+         "\u0e81"-"\u0e82",
+         "\u0e84",
+         "\u0e87"-"\u0e88",
+         "\u0e8a",
+         "\u0e8d",
+         "\u0e94"-"\u0e97",
+         "\u0e99"-"\u0e9f",
+         "\u0ea1"-"\u0ea3",
+         "\u0ea5",
+         "\u0ea7",
+         "\u0eaa"-"\u0eab",
+         "\u0ead"-"\u0eb9",
+         "\u0ebb"-"\u0ebd",
+         "\u0ec0"-"\u0ec4",
+         "\u0ec6",
+         "\u0ec8"-"\u0ecd",
+         "\u0ed0"-"\u0ed9",
+         "\u0edc"-"\u0edd",
+         "\u0f00",
+         "\u0f18"-"\u0f19",
+         "\u0f20"-"\u0f29",
+         "\u0f35",
+         "\u0f37",
+         "\u0f39",
+         "\u0f3e"-"\u0f47",
+         "\u0f49"-"\u0f6a",
+         "\u0f71"-"\u0f84",
+         "\u0f86"-"\u0f8b",
+         "\u0f90"-"\u0f97",
+         "\u0f99"-"\u0fbc",
+         "\u0fc6",
+         "\u1000"-"\u1021",
+         "\u1023"-"\u1027",
+         "\u1029"-"\u102a",
+         "\u102c"-"\u1032",
+         "\u1036"-"\u1039",
+         "\u1040"-"\u1049",
+         "\u1050"-"\u1059",
+         "\u10a0"-"\u10c5",
+         "\u10d0"-"\u10f6",
+         "\u1100"-"\u1159",
+         "\u115f"-"\u11a2",
+         "\u11a8"-"\u11f9",
+         "\u1200"-"\u1206",
+         "\u1208"-"\u1246",
+         "\u1248",
+         "\u124a"-"\u124d",
+         "\u1250"-"\u1256",
+         "\u1258",
+         "\u125a"-"\u125d",
+         "\u1260"-"\u1286",
+         "\u1288",
+         "\u128a"-"\u128d",
+         "\u1290"-"\u12ae",
+         "\u12b0",
+         "\u12b2"-"\u12b5",
+         "\u12b8"-"\u12be",
+         "\u12c0",
+         "\u12c2"-"\u12c5",
+         "\u12c8"-"\u12ce",
+         "\u12d0"-"\u12d6",
+         "\u12d8"-"\u12ee",
+         "\u12f0"-"\u130e",
+         "\u1310",
+         "\u1312"-"\u1315",
+         "\u1318"-"\u131e",
+         "\u1320"-"\u1346",
+         "\u1348"-"\u135a",
+         "\u1369"-"\u1371",
+         "\u13a0"-"\u13f4",
+         "\u1401"-"\u166c",
+         "\u166f"-"\u1676",
+         "\u1681"-"\u169a",
+         "\u16a0"-"\u16ea",
+         "\u1780"-"\u17d3",
+         "\u17db",
+         "\u17e0"-"\u17e9",
+         "\u180b"-"\u180e",
+         "\u1810"-"\u1819",
+         "\u1820"-"\u1877",
+         "\u1880"-"\u18a9",
+         "\u1e00"-"\u1e9b",
+         "\u1ea0"-"\u1ef9",
+         "\u1f00"-"\u1f15",
+         "\u1f18"-"\u1f1d",
+         "\u1f20"-"\u1f45",
+         "\u1f48"-"\u1f4d",
+         "\u1f50"-"\u1f57",
+         "\u1f59",
+         "\u1f5b",
+         "\u1f5d",
+         "\u1f5f"-"\u1f7d",
+         "\u1f80"-"\u1fb4",
+         "\u1fb6"-"\u1fbc",
+         "\u1fbe",
+         "\u1fc2"-"\u1fc4",
+         "\u1fc6"-"\u1fcc",
+         "\u1fd0"-"\u1fd3",
+         "\u1fd6"-"\u1fdb",
+         "\u1fe0"-"\u1fec",
+         "\u1ff2"-"\u1ff4",
+         "\u1ff6"-"\u1ffc",
+         "\u200c"-"\u200f",
+         "\u202a"-"\u202e",
+         "\u203f"-"\u2040",
+         "\u206a"-"\u206f",
+         "\u207f",
+         "\u20a0"-"\u20af",
+         "\u20d0"-"\u20dc",
+         "\u20e1",
+         "\u2102",
+         "\u2107",
+         "\u210a"-"\u2113",
+         "\u2115",
+         "\u2119"-"\u211d",
+         "\u2124",
+         "\u2126",
+         "\u2128",
+         "\u212a"-"\u212d",
+         "\u212f"-"\u2131",
+         "\u2133"-"\u2139",
+         "\u2160"-"\u2183",
+         "\u3005"-"\u3007",
+         "\u3021"-"\u302f",
+         "\u3031"-"\u3035",
+         "\u3038"-"\u303a",
+         "\u3041"-"\u3094",
+         "\u3099"-"\u309a",
+         "\u309d"-"\u309e",
+         "\u30a1"-"\u30fe",
+         "\u3105"-"\u312c",
+         "\u3131"-"\u318e",
+         "\u31a0"-"\u31b7",
+         "\u3400"-"\u4db5",
+         "\u4e00"-"\u9fa5",
+         "\ua000"-"\ua48c",
+         "\uac00"-"\ud7a3",
+         "\uf900"-"\ufa2d",
+         "\ufb00"-"\ufb06",
+         "\ufb13"-"\ufb17",
+         "\ufb1d"-"\ufb28",
+         "\ufb2a"-"\ufb36",
+         "\ufb38"-"\ufb3c",
+         "\ufb3e",
+         "\ufb40"-"\ufb41",
+         "\ufb43"-"\ufb44",
+         "\ufb46"-"\ufbb1",
+         "\ufbd3"-"\ufd3d",
+         "\ufd50"-"\ufd8f",
+         "\ufd92"-"\ufdc7",
+         "\ufdf0"-"\ufdfb",
+         "\ufe20"-"\ufe23",
+         "\ufe33"-"\ufe34",
+         "\ufe4d"-"\ufe4f",
+         "\ufe69",
+         "\ufe70"-"\ufe72",
+         "\ufe74",
+         "\ufe76"-"\ufefc",
+         "\ufeff",
+         "\uff04",
+         "\uff10"-"\uff19",
+         "\uff21"-"\uff3a",
+         "\uff3f",
+         "\uff41"-"\uff5a",
+         "\uff65"-"\uffbe",
+         "\uffc2"-"\uffc7",
+         "\uffca"-"\uffcf",
+         "\uffd2"-"\uffd7",
+         "\uffda"-"\uffdc",
+         "\uffe0"-"\uffe1",
+         "\uffe5"-"\uffe6",
+         "\ufff9"-"\ufffb"
+      ]
+  >
+}
+
+/* SEPARATORS */
+
+TOKEN :
+{
+  < LPAREN: "(" >
+| < RPAREN: ")" >
+| < LBRACE: "{" >
+| < RBRACE: "}" >
+| < LBRACK: "[" >
+| < RBRACK: "]" >
+| < COLON:  ":" >
+| < SEMICOLON: ";" >
+| < COMMA: "," >
+| < AT: "@" >
+| < EQUALS: "=" >
+| < DOT: "." >
+| < DASH: "-" >
+}
+
+TOKEN :
+{
+  < LT: "<" >
+| < GT: ">" >
+| < TICK: "`" >
+}
+
+
+/********************************************
+ * THE AVRO IDL LANGUAGE GRAMMAR STARTS HERE *
+ ********************************************/
+
+/**
+ * The input to Idl is a CompilationUnit, which is currently
+ * just a single Protocol.
+ */
+Protocol CompilationUnit():
+{
+  Protocol p;
+}
+{
+  p = ProtocolDeclaration()
+  ( < "\u001a" > )?
+  ( <STUFF_TO_IGNORE: ~[]> )?
+  <EOF>
+  { return SchemaResolver.resolve(p); }
+}
+
+/*
+ * Declaration syntax follows.
+ */
+private Schema NamedSchemaDeclaration(Map<String, JsonNode> props):
+{
+  Schema s;
+  String savedSpace = this.namespace;
+}
+{
+  {
+    if (props.containsKey("namespace"))
+      this.namespace = getTextProp("namespace", props, token);
+  }
+ (
+     s = FixedDeclaration()
+   | s = EnumDeclaration()
+   | s = RecordDeclaration()
+ )
+ {
+   this.namespace = savedSpace;
+
+   for (String key : props.keySet())
+     if ("namespace".equals(key)) {               // already handled: ignore
+     } else if ("aliases".equals(key)) {          // aliases
+       for (String alias : getTextProps("aliases", props, token))
+         s.addAlias(alias);
+     } else {                                     // add all other props
+       Accessor.addProp(s, key, props.get(key));
+     }
+
+   return s;
+ }
+}
+
+Schema UnionDefinition():
+{
+  Schema s;
+  List<Schema> schemata = new ArrayList<Schema>();
+}
+{
+ // TODO should probably disallow other unions here in the parser?
+
+  "union"
+  "{"
+  s = Type()
+  { schemata.add(s); }
+
+  (
+    ","
+    s = Type()
+    { schemata.add(s); }
+  )*
+  "}"
+  {
+    return Schema.createUnion(schemata);
+  }
+}
+
+
+Protocol ProtocolDeclaration():
+{
+  String name;
+  Protocol p;
+  Map<String, JsonNode> props = new LinkedHashMap<String, JsonNode>();
+}
+{
+  ( SchemaProperty(props) )*
+  {
+    if (props.containsKey("namespace"))
+      namespace = getTextProp("namespace", props, token);
+  }
+ "protocol"
+   name = Identifier()
+ {
+   p = new Protocol(name, getDoc(), namespace);
+   for (String key : props.keySet())
+     if ("namespace".equals(key)) {               // already handled: ignore
+     } else {                                     // add all other props
+       Accessor.addProp(p, key, props.get(key));
+     }
+ }
+ ProtocolBody(p)
+ {
+   return p;
+ }
+}
+
+
+Schema EnumDeclaration():
+{
+  String name;
+  List<String> symbols;
+  String defaultSymbol = null;
+}
+{
+  "enum" {   String doc = getDoc(); }
+  name = Identifier()
+  symbols = EnumBody()
+      [ <EQUALS> defaultSymbol=Identifier() <SEMICOLON>]
+  {
+    Schema s = Schema.createEnum(name, doc, this.namespace, symbols,
+                                 defaultSymbol);
+    names.put(s.getFullName(), s);
+    return s;
+  }
+}
+
+List<String> EnumBody():
+{
+  List<String> symbols = new ArrayList<String>();
+}
+{
+  "{"
+  [ EnumConstant(symbols) ( LOOKAHEAD(2) "," EnumConstant(symbols) )* ]
+  "}"
+  {
+    return symbols;
+  }
+}
+
+void EnumConstant(List<String> symbols):
+{
+  String sym;
+}
+{
+  sym = Identifier() { symbols.add(sym); }
+}
+
+void ProtocolBody(Protocol p):
+{
+  Schema schema;
+  Message message;
+  Protocol importProtocol;
+  Map<String, JsonNode> props = new LinkedHashMap<String, JsonNode>();
+}
+{
+  "{"
+  (
+   <IMPORT>
+   ((( importProtocol = ImportIdl() | importProtocol = ImportProtocol()) {
+       for (Schema s : importProtocol.getTypes())
+         names.put(s.getFullName(), s);
+       p.getMessages().putAll(importProtocol.getMessages());
+     })
+     | schema = ImportSchema()
+     )
+   |
+   ( SchemaProperty(props) )*
+   (
+     schema = NamedSchemaDeclaration(props)
+     |
+     message = MessageDeclaration(p, props) {
+       p.getMessages().put(message.getName(), message);
+     }
+    )  { props.clear(); }
+  ) *
+  "}"
+
+  {
+    p.setTypes(names.values());
+  }
+}
+
+
+Protocol ImportIdl() : {
+  String importFile;
+}
+{
+  <IDL> importFile = JsonString() ";"
+    {
+      try {
+        Idl idl = new Idl(findFile(importFile), this);
+        try {
+          return idl.CompilationUnit();
+        } finally {
+          idl.close();
+        }
+      } catch (IOException e) {
+        throw error("Error importing "+importFile+": "+e, token);
+      }
+    }
+}
+
+Protocol ImportProtocol() : {
+  String importFile;
+}
+{
+  <PROTOCOL> importFile = JsonString() ";"
+    {
+
+      try {
+        InputStream stream = findFile(importFile).openStream();
+        try {
+          return Protocol.parse(stream);
+        } finally {
+          stream.close();
+        }
+      } catch (IOException e) {
+        throw error("Error importing "+importFile+": "+e, token);
+      }
+    }
+}
+
+Schema ImportSchema() : {
+  String importFile;
+}
+{
+  <SCHEMA> importFile = JsonString() ";"
+    {
+      try {
+        Parser parser = new Schema.Parser();
+        parser.addTypes(names);                   // inherit names
+        InputStream stream = findFile(importFile).openStream();
+        try {
+          Schema value = parser.parse(stream);
+          names = parser.getTypes();                // update names
+          return value;
+        } finally {
+          stream.close();
+        }
+      } catch (IOException e) {
+        throw error("Error importing "+importFile+": "+e, token);
+      }
+    }
+}
+
+Schema FixedDeclaration():
+{
+  String name;
+  Token sizeTok;
+}
+{
+  "fixed" name = Identifier() "(" sizeTok = <INTEGER_LITERAL> ")"
+  ";"
+  {
+    Schema s = Schema.createFixed(name, getDoc(), this.namespace,
+                                  Integer.parseInt(sizeTok.image));
+    names.put(s.getFullName(), s);
+    return s;
+  }
+}
+
+Schema RecordDeclaration():
+{
+  String name;
+  List<Field> fields = new ArrayList<Field>();
+  boolean isError;
+}
+{
+  (
+    "record" { isError = false; }
+    | "error" { isError = true; }
+  )
+  name = Identifier()
+  {
+    Schema result = Schema.createRecord(
+      name, getDoc(), this.namespace, isError);
+    names.put(result.getFullName(), result);
+  }
+  "{"
+    ( FieldDeclaration(fields) )*
+  "}"
+  {
+    result.setFields(fields);
+    return result;
+  }
+}
+
+private void SchemaProperty(Map<String, JsonNode> properties):
+{
+  String key;
+  JsonNode val;
+}
+{
+  "@" key = PropertyName() "(" val = Json() ")"
+  {
+    if (properties.containsKey(key))
+      throw error("Property '" + key + "' already specified", token);
+    properties.put(key, val);
+  }
+}
+
+
+void FieldDeclaration(List<Field> fields):
+{
+  Schema type;
+  Map<String, JsonNode> props = new LinkedHashMap<String, JsonNode>();
+}
+{
+  // TODO should we be able to specify properties on any Type?
+  // or just on field declarations as done here
+
+  ( SchemaProperty(props) )*
+  type = Type()
+  VariableDeclarator(type, fields) ( "," VariableDeclarator(type, fields) )*
+  ";"
+  {
+    for (String key : props.keySet())
+      Accessor.addProp(type, key, props.get(key));
+  }
+}
+
+void VariableDeclarator(Schema type, List<Field> fields):
+{
+  String name;
+  JsonNode defaultValue = null;
+  Map<String, JsonNode> props = new LinkedHashMap<String, JsonNode>();
+}
+{
+    ( SchemaProperty(props) )*
+
+  name = Identifier()
+
+    [ <EQUALS> defaultValue=Json() ]
+
+  {
+    Field.Order order = Field.Order.ASCENDING;
+    for (String key : props.keySet())
+      if ("order".equals(key))
+        order = Field.Order.valueOf(getTextProp(key,props,token).toUpperCase());
+
+    boolean validate = !SchemaResolver.isUnresolvedSchema(type);
+    Field field = Accessor.createField(name, type, getDoc(), defaultValue, validate, order);
+    for (String key : props.keySet())
+      if ("order".equals(key)) {                  // already handled: ignore
+      } else if ("aliases".equals(key)) {         // aliases
+        for (String alias : getTextProps("aliases", props, token))
+          field.addAlias(alias);
+      } else {                                    // add all other props
+        Accessor.addProp(field, key, props.get(key));
+      }
+    fields.add(field);
+  }
+}
+
+
+String MessageDocumentation():
+{}
+{
+   // Don't parse anything, just return the doc string
+   {
+       return getDoc();
+   }
+}
+
+private Message MessageDeclaration(Protocol p, Map<String, JsonNode> props):
+{
+  String msgDoc;
+  String name;
+  Schema request;
+  Schema response;
+  boolean oneWay = false;
+  List<Schema> errorSchemata = new ArrayList<Schema>();
+  errorSchemata.add(Protocol.SYSTEM_ERROR);
+}
+{
+  msgDoc = MessageDocumentation()
+  response = ResultType()
+  name = Identifier()
+  request = FormalParameters()
+  [ "oneway" {oneWay = true; } | "throws" ErrorList(errorSchemata) ]
+  ";"
+  {
+    Schema errors = Schema.createUnion(errorSchemata);
+    if (oneWay && response.getType() != Type.NULL)
+      throw error("One-way message'"+name+"' must return void", token);
+    return oneWay
+    ? p.createMessage(name, msgDoc, props, request)
+    : p.createMessage(name, msgDoc, props, request, response, errors);
+
+  }
+}
+
+void ErrorList(List<Schema> errors):
+{
+  Schema s;
+}
+{
+  s = ReferenceType() { errors.add(s); }
+  ( "," s = ReferenceType() { errors.add(s); } )*
+}
+
+Schema FormalParameters():
+{
+  List<Field> fields = new ArrayList<Field>();
+}
+{
+  (
+    "(" [ FormalParameter(fields) ( "," FormalParameter(fields) )* ] ")"
+  )
+  {
+    return Schema.createRecord(fields);
+  }
+}
+
+void FormalParameter(List<Field> fields):
+{
+  Schema type;
+}
+{
+  type = Type()
+  VariableDeclarator(type, fields)
+}
+
+Schema Type():
+{
+  Schema s;
+  Map<String, JsonNode> props = new LinkedHashMap<String, JsonNode>();
+}
+{
+
+    ( SchemaProperty(props) )*
+  (
+      LOOKAHEAD(2) s = ReferenceType()
+    | s = PrimitiveType()
+    | s = UnionDefinition()
+    | s = ArrayType()
+    | s = MapType()
+  )
+  {
+    for (String key : props.keySet())
+      Accessor.addProp(s, key, props.get(key));
+    return s;
+  }
+}
+
+Schema ArrayType():
+{
+  Schema elemSchema;
+}
+{
+  "array" "<" elemSchema = Type() ">"
+  {
+    return Schema.createArray(elemSchema);
+  }
+}
+
+Schema MapType():
+{
+  Schema elemSchema;
+}
+{
+  "map" "<" elemSchema = Type() ">"
+  {
+    return Schema.createMap(elemSchema);
+  }
+}
+
+/**
+ * A reference to some other existing type
+ */
+Schema ReferenceType():
+{
+  String part;
+  Token tok;
+  StringBuilder sb = new StringBuilder();
+}
+{
+  (
+    part = Identifier() { sb.append(part); }
+    ("." tok = AnyIdentifier() { sb.append(".").append(tok.image); })*
+    )
+  {
+    String name = sb.toString();
+    if ((name.indexOf('.') == -1) && namespace != null)
+      name = namespace + "." + name;
+    Schema type = names.get(name);
+    if (type == null)
+    {
+      type = SchemaResolver.unresolvedSchema(name);
+    }
+    return type;
+  }
+}
+
+Schema PrimitiveType():
+{}
+{
+  "boolean" { return Schema.create(Type.BOOLEAN); }
+| "bytes" { return Schema.create(Type.BYTES); }
+| "int" { return Schema.create(Type.INT); }
+| "string" { return Schema.create(Type.STRING); }
+| "float" { return Schema.create(Type.FLOAT); }
+| "double" { return Schema.create(Type.DOUBLE); }
+| "long" { return Schema.create(Type.LONG); }
+| "null" { return Schema.create(Type.NULL); }
+| "date" { return LogicalTypes.date().addToSchema(Schema.create(Type.INT)); }
+| "time_ms" { return LogicalTypes.timeMillis().addToSchema(Schema.create(Type.INT)); }
+| "timestamp_ms" { return LogicalTypes.timestampMillis().addToSchema(Schema.create(Type.LONG)); }
+| "local_timestamp_ms" { return LogicalTypes.localTimestampMillis().addToSchema(Schema.create(Type.LONG)); }
+| "decimal" { return DecimalTypeProperties(); }
+| "uuid" {return LogicalTypes.uuid().addToSchema(Schema.create(Type.STRING));}
+}
+
+Schema DecimalTypeProperties():
+{
+  int precision;
+  int scale;
+}
+{
+  "(" {precision = Json().asInt();} "," {scale = Json().asInt();} ")"
+  {
+    return LogicalTypes.decimal(precision, scale).addToSchema(Schema.create(Type.BYTES)); 
+  }
+}
+
+/**
+ * Result types are like other types, except we provide "void" as
+ * an alias of "null"
+ */
+Schema ResultType():
+{
+  Schema schema;
+}
+{
+  LOOKAHEAD(2)
+    "void"          { return Schema.create(Type.NULL); }
+  | schema = Type() { return schema; }
+}
+
+String PropertyName():
+{
+  Token t;
+  StringBuilder name = new StringBuilder();
+}
+{
+  t = <IDENTIFIER>   { name.append(t.image); }
+  ( t = <DASH>       { name.append(t.image); }
+    t = <IDENTIFIER> { name.append(t.image); } |
+    t = <DOT>        { name.append(t.image); }
+    t = <IDENTIFIER> { name.append(t.image); }
+  ) *
+  { return name.toString(); }
+}
+
+String Identifier():
+{
+  Token t;
+}
+{
+  ( t = <IDENTIFIER> { return t.image; } )
+| ( "`" t = AnyIdentifier() "`" {
+    return t.image;
+  })
+}
+
+Token AnyIdentifier():
+{
+  Token t;
+}
+{
+  (t = <ARRAY> |
+   t = <BOOLEAN> |
+   t = <DOUBLE> |
+   t = <ENUM> |
+   t = <ERROR> |
+   t = <FALSE> |
+   t = <FIXED> |
+   t = <FLOAT> |
+   t = <INT> |
+   t = <LONG> |
+   t = <MAP> |
+   t = <BYTES> |
+   t = <STRING> |
+   t = <PROTOCOL> |
+   t = <RECORD> |
+   t = <SCHEMA> |
+   t = <THROWS> |
+   t = <TRUE> |
+   t = <UNION> |
+   t = <VOID> |
+   t = <DATE> |
+   t = <TIME> |
+   t = <TIMESTAMP> |
+   t = <LOCAL_TIMESTAMP> |
+   t = <DECIMAL> |
+   t = <IDENTIFIER>)
+  {
+    return t;
+  }
+}
+
+private JsonNode Json() :
+{ String s; Token t; JsonNode n; }
+{ 
+( s = JsonString() { n = new TextNode(s); }
+| (t=<INTEGER_LITERAL> { n = new LongNode(Long.parseLong(t.image)); })
+| (t=<FLOATING_POINT_LITERAL> {n=new DoubleNode(Double.parseDouble(t.image));})
+| n=JsonObject()
+| n=JsonArray()
+| ( "true" { n = BooleanNode.TRUE; } )
+| ( "false" { n = BooleanNode.FALSE; } )
+| ( "null" { n = NullNode.instance; } )
+ )
+  { return n; }
+}
+
+String JsonString() :
+{ Token t; }
+{
+  t = <STRING_LITERAL>
+  {
+    String betweenQuotes = t.image.substring(1, t.image.length() - 1);
+    return StringEscapeUtils.unescapeJava(betweenQuotes);
+  }
+}
+
+private JsonNode JsonObject() :
+{ 
+  ObjectNode o = FACTORY.objectNode();
+}
+{
+  "{" [ JsonFields(o) ] "}"
+  { return o; }
+}
+
+private void JsonFields(ObjectNode o) :
+{}
+{
+  JsonPair(o) [ "," JsonFields(o) ]
+}
+
+private void JsonPair(ObjectNode o) :
+{
+  String name;
+  JsonNode value;
+}
+{
+  name=JsonString() <COLON> value=Json()
+    { o.set(name, value); }
+}
+
+private JsonNode JsonArray() :
+{ ArrayNode a = FACTORY.arrayNode(); }
+{
+  <LBRACK> [ JsonElements(a) ] <RBRACK>
+    { return a; }
+}
+
+private void JsonElements(ArrayNode a) :
+{ JsonNode element; }
+{
+  element=Json() { a.add(element); } [ "," JsonElements(a) ]
+}

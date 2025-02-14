@@ -385,13 +385,24 @@ static void taosReserveOldLog(char *oldName, char *keepName) {
 
 static void taosKeepOldLog(char *oldName) {
   if (oldName[0] != 0) {
-    char compressFileName[PATH_MAX + 20];
-    snprintf(compressFileName, PATH_MAX + 20, "%s.gz", oldName);
-    if (taosCompressFile(oldName, compressFileName) == 0) {
-      int32_t code = taosRemoveFile(oldName);
-      if (code != 0) {
-        TAOS_UNUSED(printf("failed to remove file:%s, reason:%s\n", oldName, tstrerror(code)));
-      }
+    int32_t   code = 0, lino = 0;
+    TdFilePtr oldFile = NULL;
+    if ((oldFile = taosOpenFile(oldName, TD_FILE_READ))) {
+      TAOS_CHECK_GOTO(taosLockFile(oldFile), &lino, _exit2);
+      char compressFileName[PATH_MAX + 20];
+      snprintf(compressFileName, PATH_MAX + 20, "%s.gz", oldName);
+      TAOS_CHECK_GOTO(taosCompressFile(oldName, compressFileName), &lino, _exit1);
+      TAOS_CHECK_GOTO(taosRemoveFile(oldName), &lino, _exit1);
+    _exit1:
+      TAOS_UNUSED(taosUnLockFile(oldFile));
+    _exit2:
+      TAOS_UNUSED(taosCloseFile(&oldFile));
+    } else {
+      code = terrno;
+    }
+    if (code != 0 && tsLogEmbedded == 1) {  // print error messages only in embedded log mode
+      // avoid using uWarn or uError, as they may open a new log file and potentially cause a deadlock.
+      fprintf(stderr, "WARN: failed at line %d to keep old log file:%s, reason:%s\n", lino, oldName, tstrerror(code));
     }
   }
 }
@@ -1041,7 +1052,7 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
 }
 
 #define LOG_ROTATE_INTERVAL 3600
-#if !defined(TD_ENTERPRISE) || defined(ASSERT_NOT_CORE)
+#if !defined(TD_ENTERPRISE) || defined(ASSERT_NOT_CORE) || defined(GRANTS_CFG)
 #define LOG_INACTIVE_TIME 7200
 #define LOG_ROTATE_BOOT   900
 #else
@@ -1490,3 +1501,32 @@ bool taosAssertRelease(bool condition) {
   return true;
 }
 #endif
+
+char* u64toaFastLut(uint64_t val, char* buf) {
+  static const char* lut =
+      "0001020304050607080910111213141516171819202122232425262728293031323334353637383940414243444546474849505152535455"
+      "5657585960616263646566676869707172737475767778798081828384858687888990919293949596979899";
+
+  char  temp[24];
+  char* p = temp;
+
+  while (val >= 100) {
+    strncpy(p, lut + (val % 100) * 2, 2);
+    val /= 100;
+    p += 2;
+  }
+
+  if (val >= 10) {
+    strncpy(p, lut + val * 2, 2);
+    p += 2;
+  } else if (val > 0 || p == temp) {
+    *(p++) = val + '0';
+  }
+
+  while (p != temp) {
+    *buf++ = *--p;
+  }
+
+  *buf = '\0';
+  return buf;
+}

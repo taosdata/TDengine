@@ -33,6 +33,8 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 
 | taos-jdbcdriver 版本 |                                                                        主要变化                                                                        |   TDengine 版本    |
 | ------------------| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+|        3.5.3        | 在 WebSocket 连接上支持无符号数据类型     |  -  |
+|        3.5.2        | 解决了 WebSocket 查询结果集释放 bug     |  -  |
 |        3.5.1        | 解决了数据订阅获取时间戳对象类型问题     |  -  |
 |        3.5.0        | 1. 优化了 WebSocket 连接参数绑定性能，支持参数绑定查询使用二进制数据 <br/> 2. 优化了 WebSocket 连接在小查询上的性能 <br/> 3. WebSocket 连接上支持设置时区和应用信息     |       3.3.5.0 及更高版本  |
 |        3.4.0        | 1. 使用 jackson 库替换 fastjson 库 <br/> 2. WebSocket 采用独立协议标识 <br/> 3. 优化后台拉取线程使用，避免用户误用导致超时     |       -        |
@@ -127,24 +129,27 @@ JDBC 连接器可能报错的错误码包括 4 种：
 
 TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
 
-| TDengine DataType | JDBCType           |
-| ----------------- | ------------------ |
-| TIMESTAMP         | java.sql.Timestamp |
-| INT               | java.lang.Integer  |
-| BIGINT            | java.lang.Long     |
-| FLOAT             | java.lang.Float    |
-| DOUBLE            | java.lang.Double   |
-| SMALLINT          | java.lang.Short    |
-| TINYINT           | java.lang.Byte     |
-| BOOL              | java.lang.Boolean  |
-| BINARY            | byte array         |
-| NCHAR             | java.lang.String   |
-| JSON              | java.lang.String   |
-| VARBINARY         | byte[]             |
-| GEOMETRY          | byte[]             |
+| TDengine DataType | JDBCType             | 备注|
+| ----------------- | -------------------- |-------------------- |
+| TIMESTAMP         | java.sql.Timestamp   ||
+| BOOL              | java.lang.Boolean    ||
+| TINYINT           | java.lang.Byte       ||
+| TINYINT UNSIGNED  | java.lang.Short      |仅在 WebSocket 连接方式支持|
+| SMALLINT          | java.lang.Short      ||
+| SMALLINT UNSIGNED | java.lang.Integer    |仅在 WebSocket 连接方式支持|
+| INT               | java.lang.Integer    ||
+| INT UNSIGNED      | java.lang.Long       |仅在 WebSocket 连接方式支持|
+| BIGINT            | java.lang.Long       ||
+| BIGINT UNSIGNED   | java.math.BigInteger |仅在 WebSocket 连接方式支持|
+| FLOAT             | java.lang.Float      ||
+| DOUBLE            | java.lang.Double     ||
+| BINARY            | byte array           ||
+| NCHAR             | java.lang.String     ||
+| JSON              | java.lang.String     |仅在 tag 中支持|
+| VARBINARY         | byte[]               ||
+| GEOMETRY          | byte[]               ||
 
-**注意**：JSON 类型仅在 tag 中支持。  
-由于历史原因，TDengine中的BINARY底层不是真正的二进制数据，已不建议使用。请用VARBINARY类型代替。  
+**注意**：由于历史原因，TDengine中的BINARY底层不是真正的二进制数据，已不建议使用。请用VARBINARY类型代替。  
 GEOMETRY类型是little endian字节序的二进制数据，符合WKB规范。详细信息请参考 [数据类型](../../taos-sql/data-type/#数据类型)  
 WKB规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)  
 对于java连接器，可以使用jts库来方便的创建GEOMETRY类型对象，序列化后写入TDengine，这里有一个样例[Geometry示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/GeometryDemo.java)  

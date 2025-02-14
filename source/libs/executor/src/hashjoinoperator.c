@@ -1244,7 +1244,7 @@ int32_t hJoinInitResBlocks(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode* pJoinN
 }
 
 int32_t hJoinInitJoinCtx(SHJoinCtx* pCtx, SHashJoinPhysiNode* pJoinNode) {
-  pCtx->limit = pJoinNode->node.pLimit ? ((SLimitNode*)pJoinNode->node.pLimit)->limit : INT64_MAX;
+  pCtx->limit = (pJoinNode->node.pLimit && ((SLimitNode*)pJoinNode->node.pLimit)->limit) ? ((SLimitNode*)pJoinNode->node.pLimit)->limit->datum.i : INT64_MAX;
   if (pJoinNode->node.inputTsOrder != ORDER_DESC) {
     pCtx->ascTs = true;
   }
@@ -1270,7 +1270,7 @@ int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDow
   pInfo->tblTimeRange.ekey = pJoinNode->timeRange.ekey;
 
   HJ_ERR_JRET(hJoinInitJoinCtx(&pInfo->ctx, pJoinNode));
-
+  
   setOperatorInfo(pOperator, "HashJoinOperator", QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN, false, OP_NOT_OPENED, pInfo, pTaskInfo);
 
   HJ_ERR_JRET(hJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 0, &pJoinNode->inputStat[0]));

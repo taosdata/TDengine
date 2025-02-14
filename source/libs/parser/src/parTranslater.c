@@ -2572,7 +2572,7 @@ static int32_t translateInterpFunc(STranslateContext* pCxt, SFunctionNode* pFunc
   if (!fmIsInterpFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
-  if (!isSelectStmt(pCxt->pCurrStmt) || SQL_CLAUSE_SELECT != pCxt->currClause) {
+  if (!isSelectStmt(pCxt->pCurrStmt) || (SQL_CLAUSE_SELECT != pCxt->currClause && SQL_CLAUSE_ORDER_BY != pCxt->currClause)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
   }
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
@@ -4757,16 +4757,20 @@ static int32_t translateJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoin
     return buildInvalidOperationMsg(&pCxt->msgBuf, "WINDOW_OFFSET required for WINDOW join");
   }
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pJoinTable->pJLimit) {
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinTable->pJLimit && NULL != ((SLimitNode*)pJoinTable->pJLimit)->limit) {
     if (*pSType != JOIN_STYPE_ASOF && *pSType != JOIN_STYPE_WIN) {
       return buildInvalidOperationMsgExt(&pCxt->msgBuf, "JLIMIT not supported for %s join",
                                          getFullJoinTypeString(type, *pSType));
     }
     SLimitNode* pJLimit = (SLimitNode*)pJoinTable->pJLimit;
-    if (pJLimit->limit > JOIN_JLIMIT_MAX_VALUE || pJLimit->limit < 0) {
+    code = translateExpr(pCxt, (SNode**)&pJLimit->limit);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    if (pJLimit->limit->datum.i > JOIN_JLIMIT_MAX_VALUE || pJLimit->limit->datum.i < 0) {
       return buildInvalidOperationMsg(&pCxt->msgBuf, "JLIMIT value is out of valid range [0, 1024]");
     }
-    if (0 == pJLimit->limit) {
+    if (0 == pJLimit->limit->datum.i) {
       pCurrSmt->isEmptyResult = true;
     }
   }
@@ -5480,7 +5484,7 @@ static int32_t doCheckFillValues(STranslateContext* pCxt, SFillNode* pFill, SNod
   SNodeListNode* pFillValues = (SNodeListNode*)pFill->pValues;
   SNode*         pProject = NULL;
   if (!pFillValues)
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
   FOREACH(pProject, pProjectionList) {
     if (needFill(pProject)) {
       if (fillNo >= LIST_LENGTH(pFillValues->pNodeList)) {
@@ -6411,19 +6415,19 @@ static int32_t translateInterpAround(STranslateContext* pCxt, SSelectStmt* pSele
     SRangeAroundNode* pAround = (SRangeAroundNode*)pSelect->pRangeAround;
     code = translateExpr(pCxt, &pAround->pInterval);
     if (TSDB_CODE_SUCCESS == code) {
-      if (nodeType(pAround->pInterval) == QUERY_NODE_VALUE) {
+      if (nodeType(pAround->pInterval) == QUERY_NODE_VALUE && ((SValueNode*)pAround->pInterval)->flag & VALUE_FLAG_IS_DURATION) {
         SValueNode* pVal = (SValueNode*)pAround->pInterval;
-        if (pVal->datum.i == 0) {
-          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
-                                      "Range interval cannot be 0");
+        if (pVal->datum.i <= 0) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                      "Range interval must be greater than 0");
         }
         int8_t unit = pVal->unit;
         if (unit == TIME_UNIT_YEAR || unit == TIME_UNIT_MONTH) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE,
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                          "Unsupported time unit in RANGE clause");
         }
       } else {
-        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE, "Invalid range interval");
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid range interval");
       }
     }
   }
@@ -6461,36 +6465,26 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                      "Missing EVERY clause or FILL clause");
     }
-  } else {
-    if (!pSelect->pRangeAround) {
-      if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {
-        if (pSelect->pRange != NULL && QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
-          // single point interp every can be omitted
-        } else {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
-                                         "Missing RANGE clause, EVERY clause or FILL clause");
-        }
-      }
+  } else if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {
+    if (pSelect->pRange != NULL && QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
+      // single point interp every can be omitted
     } else {
-      if (pSelect->pEvery) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
-                                       "Range clause with around interval can't be used with EVERY clause");
-      }
-      if (!pSelect->pFill) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE, "Missing FILL clause");
-      }
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
+                                     "Missing RANGE clause, EVERY clause or FILL clause");
     }
   }
 
-  code = translateExpr(pCxt, &pSelect->pRange);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateInterpAround(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateExpr(pCxt, &pSelect->pRange);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterpEvery(pCxt, &pSelect->pEvery);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterpFill(pCxt, pSelect);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateInterpAround(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkInterpForStream(pCxt, pSelect);
@@ -7022,16 +7016,32 @@ static int32_t translateFrom(STranslateContext* pCxt, SNode** pTable) {
 }
 
 static int32_t checkLimit(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if ((NULL != pSelect->pLimit && pSelect->pLimit->offset < 0) ||
-      (NULL != pSelect->pSlimit && pSelect->pSlimit->offset < 0)) {
+  int32_t code = 0;
+
+  if (pSelect->pLimit && pSelect->pLimit->limit) {
+    code = translateExpr(pCxt, (SNode**)&pSelect->pLimit->limit);
+  }
+  if (TSDB_CODE_SUCCESS == code && pSelect->pLimit && pSelect->pLimit->offset) {
+    code = translateExpr(pCxt, (SNode**)&pSelect->pLimit->offset);
+  }
+  if (TSDB_CODE_SUCCESS == code && pSelect->pSlimit && pSelect->pSlimit->limit) {
+    code = translateExpr(pCxt, (SNode**)&pSelect->pSlimit->limit);
+  }
+  if (TSDB_CODE_SUCCESS == code && pSelect->pSlimit && pSelect->pSlimit->offset) {
+    code = translateExpr(pCxt, (SNode**)&pSelect->pSlimit->offset);
+  }
+
+  if ((TSDB_CODE_SUCCESS == code) && 
+      ((NULL != pSelect->pLimit && pSelect->pLimit->offset && pSelect->pLimit->offset->datum.i < 0) ||
+      (NULL != pSelect->pSlimit && pSelect->pSlimit->offset && pSelect->pSlimit->offset->datum.i < 0))) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OFFSET_LESS_ZERO);
   }
 
-  if (NULL != pSelect->pSlimit && (NULL == pSelect->pPartitionByList && NULL == pSelect->pGroupByList)) {
+  if ((TSDB_CODE_SUCCESS == code) && NULL != pSelect->pSlimit && (NULL == pSelect->pPartitionByList && NULL == pSelect->pGroupByList)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_GROUP_BY);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t createPrimaryKeyColByTable(STranslateContext* pCxt, STableNode* pTable, SNode** pPrimaryKey) {
@@ -7510,7 +7520,14 @@ static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pS
 }
 
 static int32_t checkSetOperLimit(STranslateContext* pCxt, SLimitNode* pLimit) {
-  if ((NULL != pLimit && pLimit->offset < 0)) {
+  int32_t code = 0;
+  if (pLimit && pLimit->limit) {
+    code = translateExpr(pCxt, (SNode**)&pLimit->limit);
+  }
+  if (TSDB_CODE_SUCCESS == code && pLimit && pLimit->offset) {
+    code = translateExpr(pCxt, (SNode**)&pLimit->offset);
+  }
+  if (TSDB_CODE_SUCCESS == code && (NULL != pLimit && NULL != pLimit->offset && pLimit->offset->datum.i < 0)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OFFSET_LESS_ZERO);
   }
   return TSDB_CODE_SUCCESS;
@@ -7558,9 +7575,13 @@ static int32_t partitionDeleteWhere(STranslateContext* pCxt, SDeleteStmt* pDelet
   }
   if (TSDB_CODE_SUCCESS == code) {
     bool isStrict = false;
-    code = getTimeRange(&pPrimaryKeyCond, &pDelete->timeRange, &isStrict);
-    if (TSDB_CODE_SUCCESS == code && !isStrict) {
-      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DELETE_WHERE);
+    if (NULL != pPrimaryKeyCond) {
+      code = getTimeRange(&pPrimaryKeyCond, &pDelete->timeRange, &isStrict);
+      if (TSDB_CODE_SUCCESS == code && !isStrict) {
+        code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DELETE_WHERE);
+      }
+    } else {
+      pDelete->timeRange = TSWINDOW_INITIALIZER;
     }
   }
   nodesDestroyNode(pPrimaryKeyCond);
@@ -7926,6 +7947,17 @@ static int32_t checkDbKeepOption(STranslateContext* pCxt, SDatabaseOptions* pOpt
 }
 
 static int32_t checkDbKeepTimeOffsetOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
+  if (pOptions->pKeepTimeOffsetNode) {
+    if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pKeepTimeOffsetNode)) {
+      return pCxt->errCode;
+    }
+    if (TIME_UNIT_HOUR != pOptions->pKeepTimeOffsetNode->unit) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option keep_time_offset unit: %c, only %c allowed",
+                                     pOptions->pKeepTimeOffsetNode->unit, TIME_UNIT_HOUR);
+    }
+    pOptions->keepTimeOffset = getBigintFromValueNode(pOptions->pKeepTimeOffsetNode) / 60;
+  }
   if (pOptions->keepTimeOffset < TSDB_MIN_KEEP_TIME_OFFSET || pOptions->keepTimeOffset > TSDB_MAX_KEEP_TIME_OFFSET) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
                                    "Invalid option keep_time_offset: %d"
@@ -12192,6 +12224,45 @@ static int32_t translateStreamOptions(STranslateContext* pCxt, SCreateStreamStmt
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t buildStreamNotifyOptions(STranslateContext* pCxt, SStreamNotifyOptions* pNotifyOptions,
+                                        SCMCreateStreamReq* pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
+
+  if (pNotifyOptions == NULL || pNotifyOptions->pAddrUrls->length == 0) {
+    return code;
+  }
+
+  pReq->pNotifyAddrUrls = taosArrayInit(pNotifyOptions->pAddrUrls->length, POINTER_BYTES);
+  if (pReq->pNotifyAddrUrls != NULL) {
+    FOREACH(pNode, pNotifyOptions->pAddrUrls) {
+      char *url = taosStrndup(((SValueNode*)pNode)->literal, TSDB_STREAM_NOTIFY_URL_LEN);
+      if (url == NULL) {
+        code = terrno;
+        break;
+      }
+      if (taosArrayPush(pReq->pNotifyAddrUrls, &url) == NULL) {
+        code = terrno;
+        taosMemoryFreeClear(url);
+        break;
+      }
+    }
+  } else {
+    code = terrno;
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    pReq->notifyEventTypes = pNotifyOptions->eventTypes;
+    pReq->notifyErrorHandle = pNotifyOptions->errorHandle;
+    pReq->notifyHistory = pNotifyOptions->notifyHistory;
+  } else {
+    taosArrayDestroyP(pReq->pNotifyAddrUrls, NULL);
+    pReq->pNotifyAddrUrls = NULL;
+  }
+
+  return code;
+}
+
 static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SCMCreateStreamReq* pReq) {
   pReq->igExists = pStmt->ignoreExists;
 
@@ -12236,6 +12307,10 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
     if (TSDB_CODE_SUCCESS == code) {
       code = columnDefNodeToField(pStmt->pCols, &pReq->pCols, false);
     }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildStreamNotifyOptions(pCxt, pStmt->pNotifyOptions, pReq);
   }
 
   return code;

@@ -1,0 +1,20 @@
+{
+  "namespace": "org.apache.avro.codegentest.testdata",
+  "type": "record",
+  "name": "CustomConversionWithLogicalTypes",
+  "doc" : "Test custom conversion and logical types in generated Java classes",
+  "fields": [
+    {
+      "name": "customEnum",
+      "type": ["null", {
+        "namespace": "org.apache.avro.codegentest.testdata",
+        "name": "CustomAvroEnum",
+        "type": "enum",
+        "logicalType": "custom-enum",
+        "symbols": ["ONE", "TWO", "THREE"]
+      }]
+    }]
+}
+
+
+

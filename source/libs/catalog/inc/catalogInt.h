@@ -1119,7 +1119,7 @@ void    ctgFreeBatch(SCtgBatch* pBatch);
 void    ctgFreeBatchs(SHashObj* pBatchs);
 int32_t ctgCloneVgInfo(SDBVgInfo* src, SDBVgInfo** dst);
 int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput);
-int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList);
+int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList, const char* dbFName);
 void    ctgFreeJob(void* job);
 void    ctgFreeHandleImpl(SCatalog* pCtg);
 int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* dbInfo, const SName* pTableName,
@@ -1159,7 +1159,8 @@ int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName*
 int32_t ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch, SName** ppName);
 int32_t ctgdGetOneHandle(SCatalog** pHandle);
 int     ctgVgInfoComp(const void* lp, const void* rp);
-int32_t ctgMakeVgArray(SDBVgInfo* dbInfo);
+int32_t ctgMakeVgArray(SDBVgInfo* dbInfo, const char* dbName, bool isFullName);
+int32_t ctgMakeVgArraySortBy(SDBVgInfo* dbInfo, __compar_fn_t sort_func);
 int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res);
 int32_t ctgReadDBCfgFromCache(SCatalog* pCtg, const char* dbFName, SDbCfgInfo* pDbCfg);
 
