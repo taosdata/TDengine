@@ -1,12 +1,12 @@
 import { createApp } from 'vue';
 import App from './App.vue';
-import store from './store/index.ts';
+import store from './store';
 import router from './router/index.ts';
 import { setupI18n } from './lang/index.ts';
 import 'virtual:uno.css';
 import '@/styles/font.css';
 import ELEMENT, { ElMessage } from 'element-plus';
-import { setupElementIcons, setupPinia } from './plugins/index.ts';
+import { setupElementIcons, setupPinia } from './plugins';
 import '@/assets/fonts/iconfont/iconfont.css';
 import { registerDirective } from './directive.ts';
 import './permission.ts';
