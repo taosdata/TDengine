@@ -3419,6 +3419,8 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   code = 0;
 _out:;
   // proceed match index, with replicating on needed
+
+  // persist log
   SyncIndex matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, NULL, "Append");
 
   if (pEntry != NULL)
