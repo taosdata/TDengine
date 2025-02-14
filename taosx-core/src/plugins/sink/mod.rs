@@ -886,7 +886,7 @@ async fn consume_lush_record(
                                     let code: i32 = err.code().into();
                                     match code {
                                         0xE000 | 0xE001 | 0xE002 | 0xE003 | 0xE004 | 0x000B => {
-                                            // TODO
+                                            // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                             // 0xE000: dsn error
                                             // 0xE001: internal error
                                             // 0xE002: connection closed
@@ -897,13 +897,13 @@ async fn consume_lush_record(
                                             retry += 1;
                                         }
                                         0x2603 | 0x0618 => {
-                                            // TODO: the table does not exist
+                                            // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                             // 0x2603: the table does not exist
                                             // 0x0618: the table does not exist
                                             tokio::time::sleep(Duration::from_millis(100)).await;
                                         }
                                         0x2653 => {
-                                            // TODO: the column length not enough
+                                            // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                             // 0x2653: value too long for column/tag
                                             let fields = Vec::from_iter(field_map.clone());
                                             // get stable name
@@ -1234,6 +1234,7 @@ async fn consume_lush_record_with_transform(
                         let metrics_ref = metrics_arc.clone();
                         let breakpoints = breakpoint_db.clone();
                         let table_id_column_name = name_of_table_id_column.to_string();
+                        let parser = parser.clone();
                         if let Err(err) = tx.send(async move {
                             let metrics = metrics_ref.ipc();
                             lush::write(
@@ -1245,6 +1246,8 @@ async fn consume_lush_record_with_transform(
                                 skip_null,
                                 table_id_column_name.as_str(),
                                 breakpoints,
+                                task_id,
+                                &parser,
                             ).in_current_span().await.map(|(written_rows, gen_sql_time, write_time)| {
                                 tracing::info!(
                             "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed,{},write_elapsed,{}",
@@ -2408,7 +2411,7 @@ async fn consume_point_record(
                             );
 
                             if errstr.contains("[0x2603]") || errstr.contains("0x0200") {
-                                // TODO: the table does not exist
+                                // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                 // 0x2603: the table does not exist
                                 // 0x0200: stmt bind param does not support normal value in sql
                                 let value_column_config = sql_insertion
@@ -2539,7 +2542,7 @@ async fn consume_point_record(
                                     }
                                 }
                             } else if errstr.contains("[0x2602]") || errstr.contains("[0x263F]") {
-                                // TODO: the column does not exist
+                                // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                 // 0x2602: invalid column
                                 // 0x263F: invalid columns number
                                 for column_config in &sql_insertion.point_insertion.column_configs {
@@ -2685,7 +2688,7 @@ async fn consume_point_record(
                                 retry += 1;
                                 continue 'outer;
                             } else if errstr.contains("[0x2653]") {
-                                // TODO: the column length not enough
+                                // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                 // 0x2653: value too long for column/tag
                                 let desc = taos
                                     .as_ref()
@@ -2772,7 +2775,7 @@ async fn consume_point_record(
                                 || errstr.contains("[0xE004]")
                                 || errstr.contains("[0x000B]")
                             {
-                                // TODO
+                                // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                 // 0xE000: dsn error
                                 // 0xE001: internal error
                                 // 0xE002: connection closed

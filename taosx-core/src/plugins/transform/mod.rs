@@ -1233,7 +1233,7 @@ impl Parser {
                         .process_on_abnormal
                         .field_name_length_overflow
                         .handle(
-                            field_name,
+                            vec![field_name.clone()],
                             64,
                             format!("the length of field name '{field_name}' should not exceed 64"),
                         ) {
@@ -1258,8 +1258,8 @@ impl Parser {
                             )?;
                             break 'table;
                         }
-                        Ok((HandlingResult::Modify(_), _)) => todo!(),
-                        Ok((HandlingResult::ModifyAndArchive(_), _)) => todo!(),
+                        Ok((HandlingResult::Modify(_), _)) => todo!(), // TODO1
+                        Ok((HandlingResult::ModifyAndArchive(_), _)) => todo!(), // TODO1
                         Ok((HandlingResult::Retry, _)) => unreachable!(),
                         Err(e) => {
                             Err(Error::FieldNameLengthOverflowError(
@@ -1275,64 +1275,7 @@ impl Parser {
             if filter_ts {
                 for row in 0..columns.num_rows() {
                     let col = columns.column(0);
-                    let ts = if let DataType::Timestamp(unit, _) = col.data_type() {
-                        match unit {
-                            arrow_schema::TimeUnit::Second => {
-                                let array =
-                                    col.as_any().downcast_ref::<TimestampSecondArray>().unwrap();
-                                if array.is_null(row) {
-                                    Ok(None)
-                                } else {
-                                    let ts = array.value(row);
-                                    let ts = ts * 1_000;
-                                    Ok(Some(ts))
-                                }
-                            }
-                            arrow_schema::TimeUnit::Millisecond => {
-                                let array = col
-                                    .as_any()
-                                    .downcast_ref::<TimestampMillisecondArray>()
-                                    .unwrap();
-                                if array.is_null(row) {
-                                    Ok(None)
-                                } else {
-                                    let ts = array.value(row);
-                                    Ok(Some(ts))
-                                }
-                            }
-                            arrow_schema::TimeUnit::Microsecond => {
-                                let array = col
-                                    .as_any()
-                                    .downcast_ref::<TimestampMicrosecondArray>()
-                                    .unwrap();
-                                if array.is_null(row) {
-                                    Ok(None)
-                                } else {
-                                    let ts = array.value(row);
-                                    let ts = ts / 1_000;
-                                    Ok(Some(ts))
-                                }
-                            }
-                            arrow_schema::TimeUnit::Nanosecond => {
-                                let array = col
-                                    .as_any()
-                                    .downcast_ref::<TimestampNanosecondArray>()
-                                    .unwrap();
-                                if array.is_null(row) {
-                                    Ok(None)
-                                } else {
-                                    let ts = array.value(row);
-                                    let ts = ts / 1_000_000;
-                                    Ok(Some(ts))
-                                }
-                            }
-                        }
-                    } else {
-                        Err(Error::PrimaryKeyCastError(
-                            all_fields[0].name().clone(),
-                            arrow_schema::ArrowError::CastError(col.data_type().to_string()),
-                        ))
-                    }?;
+                    let ts = get_primary_timestamp_ns(all_fields[0].name(), col, row)?;
                     // primary timestamp null
                     if ts.is_none() {
                         match self
@@ -1364,6 +1307,7 @@ impl Parser {
                     }
                     // primary timestamp overflow
                     let ts = ts.unwrap();
+                    let ts = ts / 1_000_000;
                     let mut primary_timestamp_overflow_flag = false;
                     if let Some(max_ts) = self.global.maximum_timestamp {
                         if ts > max_ts.timestamp_millis() {
@@ -1426,10 +1370,12 @@ impl Parser {
                             let _ = archive_indices.upsert(row, err);
                             Ok((String::default(), row))
                         }
-                        Ok((HandlingResult::Modify(name), _)) => Ok((name, row)),
-                        Ok((HandlingResult::ModifyAndArchive(name), err)) => {
+                        Ok((HandlingResult::Modify(mut name), _)) => {
+                            Ok((name.pop().unwrap_or_default(), row))
+                        }
+                        Ok((HandlingResult::ModifyAndArchive(mut name), err)) => {
                             let _ = archive_indices.upsert(row, err);
-                            Ok((name, row))
+                            Ok((name.pop().unwrap_or_default(), row))
                         }
                         Ok((HandlingResult::Retry, _)) => unreachable!(),
                         Err(e) => {
@@ -1510,14 +1456,14 @@ impl Parser {
                             if use_current_time_indices.contains(&row) {
                                 Utc::now().timestamp_nanos_opt()
                             } else {
-                                columns.column(0).is_null(row).then(|| {
-                                    transformed_batch
-                                        .column(0)
-                                        .as_any()
-                                        .downcast_ref::<TimestampMillisecondArray>()
-                                        .unwrap()
-                                        .value(row)
-                                })
+                                match get_primary_timestamp_ns(
+                                    all_fields[0].name(),
+                                    columns.column(0),
+                                    row,
+                                ) {
+                                    Ok(Some(ts)) => Some(ts),
+                                    _ => None,
+                                }
                             }
                         })
                         .collect();
@@ -1678,10 +1624,81 @@ fn to_json_valid_batches(batches: &[RecordBatch]) -> Vec<RecordBatch> {
         })
         .collect()
 }
+
+/// get primary timestamp from record
+///
+/// - name: the name of column
+/// - col: the record column
+/// - row: the record row
+pub fn get_primary_timestamp_ns(
+    name: &str,
+    col: &ArrayRef,
+    row: usize,
+) -> Result<Option<i64>, Error> {
+    if let DataType::Timestamp(unit, _) = col.data_type() {
+        match unit {
+            arrow_schema::TimeUnit::Second => {
+                let array = col.as_any().downcast_ref::<TimestampSecondArray>().unwrap();
+                if array.is_null(row) {
+                    Ok(None)
+                } else {
+                    let ts = array.value(row);
+                    let ts = ts * 1_000_000_000;
+                    Ok(Some(ts))
+                }
+            }
+            arrow_schema::TimeUnit::Millisecond => {
+                let array = col
+                    .as_any()
+                    .downcast_ref::<TimestampMillisecondArray>()
+                    .unwrap();
+                if array.is_null(row) {
+                    Ok(None)
+                } else {
+                    let ts = array.value(row);
+                    let ts = ts * 1_000_000;
+                    Ok(Some(ts))
+                }
+            }
+            arrow_schema::TimeUnit::Microsecond => {
+                let array = col
+                    .as_any()
+                    .downcast_ref::<TimestampMicrosecondArray>()
+                    .unwrap();
+                if array.is_null(row) {
+                    Ok(None)
+                } else {
+                    let ts = array.value(row);
+                    let ts = ts * 1_000;
+                    Ok(Some(ts))
+                }
+            }
+            arrow_schema::TimeUnit::Nanosecond => {
+                let array = col
+                    .as_any()
+                    .downcast_ref::<TimestampNanosecondArray>()
+                    .unwrap();
+                if array.is_null(row) {
+                    Ok(None)
+                } else {
+                    let ts = array.value(row);
+                    Ok(Some(ts))
+                }
+            }
+        }
+    } else {
+        Err(Error::PrimaryKeyCastError(
+            name.to_string(),
+            arrow_schema::ArrowError::CastError(col.data_type().to_string()),
+        ))
+    }
+}
+
 /// generate subtable name by template and record value
 ///
 /// - process_on_abnormal: the configuration of abnormal handling method
 /// - template: such as 'table_{tag1}'
+/// - table_name_org: the original table name
 /// - data: the record processed by mutate
 fn generate_table_name(
     process_on_abnormal: ProcessOnAbnormal,
@@ -1695,7 +1712,7 @@ fn generate_table_name(
             // the length of table name should not exceed 192
             if name.len() > 192 {
                 return process_on_abnormal.table_name_length_overflow.handle(
-                    &name,
+                    vec![name.clone()],
                     192,
                     format!("the length of table name '{name}' should not exceed 192"),
                 );
@@ -1707,7 +1724,7 @@ fn generate_table_name(
                     format!("the table name '{name}' should not contain illegal characters"),
                 );
             }
-            Ok((HandlingResult::Modify(name), String::new()))
+            Ok((HandlingResult::Modify(vec![name]), String::new()))
         }
         Err(e) => {
             // render table name failed
@@ -1727,6 +1744,8 @@ fn generate_table_name(
 /// - task_id: the id of task
 /// - location: the location of parquet file
 /// - batch: the record batch
+/// - err_vec: the error message vector
+/// - err_timestamp_vec: the error timestamp vector
 pub fn archive_records(
     task_id: i64,
     location: &String,
@@ -2589,7 +2608,7 @@ impl MessageArrowRecords {
         with_meta: bool,
         with_field_names: bool,
         database_name: Option<&str>,
-    ) -> Vec<(String, usize, Option<String>)> {
+    ) -> Vec<(String, usize, Option<String>, usize, usize)> {
         let primary_key_null_count = self.records.column(0).null_count();
         if primary_key_null_count == self.records.num_rows() {
             return vec![];
@@ -2612,9 +2631,15 @@ impl MessageArrowRecords {
         let tbname = self.opts.canonical_table_name(self.table.name.as_str());
         col_values
             .into_iter()
-            .map(|(col_values, rows)| {
+            .map(|(col_values, rows, start, end)| {
                 if !with_meta || self.table.using.is_none() {
-                    return (format!("`{}` {}", tbname, col_values), rows, None);
+                    return (
+                        format!("`{}` {}", tbname, col_values),
+                        rows,
+                        None,
+                        start,
+                        end,
+                    );
                 }
                 let using = self.table.using.as_ref().unwrap();
 
@@ -2652,7 +2677,13 @@ impl MessageArrowRecords {
                         });
                         let tag_key = format!("{}.{}", database_name.unwrap(), tbname);
                         if table_existed.contains(&tag_key) {
-                            return (format!("`{}` {}", tbname, col_values), rows, None);
+                            return (
+                                format!("`{}` {}", tbname, col_values),
+                                rows,
+                                None,
+                                start,
+                                end,
+                            );
                         }
                     }
                     let full_name_to_cache = if unsafe { SQL_TAG_CACHE_CAPACITY > 0 } {
@@ -2672,6 +2703,8 @@ impl MessageArrowRecords {
                         ),
                         rows,
                         full_name_to_cache,
+                        start,
+                        end,
                     )
                 } else {
                     let tag_values = self
@@ -2693,13 +2726,18 @@ impl MessageArrowRecords {
                         ),
                         rows,
                         None,
+                        start,
+                        end,
                     )
                 }
             })
             .collect()
     }
 
-    pub fn sql_insert_part_skip_null(&self, target_precision: taos::Precision) -> Vec<String> {
+    pub fn sql_insert_part_skip_null(
+        &self,
+        target_precision: taos::Precision,
+    ) -> Vec<(String, usize, usize, usize)> {
         if self.records.num_rows() == 0 {
             return vec![];
         }
@@ -4352,6 +4390,79 @@ mod parser_tests {
             }
         } else {
             panic!("not parsed as records");
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::Parser;
+
+    #[test]
+    fn test_sql_insert_part() {
+        let parser = r#"{
+            "parse": {
+                "value": {"json": ""}
+            },
+            "model": {
+                "name": "t_${DEV_ID}",
+                "using": "deva",
+                "tags": [ "dev_id" ],
+                "columns": [ "_ts", "_val0", "_val1" ]
+            },
+            "mutate": [{
+                "map": {
+                    "_ts": {
+                        "cast": "_ts",
+                        "as": "TIMESTAMP(ms)"
+                    },
+                    "_val0": {
+                        "cast": "_val0",
+                        "as": "INT"
+                    },
+                    "_val1": {
+                        "cast": "_val1",
+                        "as": "INT"
+                    },
+                    "dev_id": {
+                        "cast": "DEV_ID",
+                        "as": "VARCHAR"
+                    }
+                }
+            }]
+
+        }"#;
+        let parser: Parser = serde_json::from_str(parser).unwrap();
+
+        let raw_data = arrow_array::record_batch!(
+            ("topic", Utf8, ["test", "test", "test"]),
+            (
+                "value",
+                Utf8,
+                [
+                    r#"{"_ts": "2024-12-02T18:00:00+08:00", "_val0": 12, "DEV_ID": "2212"}"#,
+                    r#"{"_ts": "2024-12-02T18:00:00+08:00", "_val1": 13, "DEV_ID": "2213"}"#,
+                    r#"{"_ts": "2024-12-02T18:00:01+08:00", "DEV_ID": "2212"}"#
+                ]
+            )
+        )
+        .unwrap();
+
+        let records = parser
+            .parse_message_from_records(1, &raw_data, false)
+            .unwrap();
+
+        if let super::Message::Records(records) = records {
+            println!("--sql_insert_part--");
+            for record in &records {
+                let sql = record.sql_insert_part(taos::Precision::Millisecond, true, true, None);
+                dbg!(&sql);
+            }
+            println!("--sql_insert_part_skip_null--");
+            for record in &records {
+                let sql = record.sql_insert_part_skip_null(taos::Precision::Millisecond);
+                dbg!(&sql);
+            }
         }
     }
 }

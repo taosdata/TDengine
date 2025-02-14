@@ -3,6 +3,7 @@ use archive::Archive;
 use cache::Cache;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use taos::Itertools;
 use tinytemplate::TinyTemplate;
 
 pub mod archive;
@@ -71,6 +72,39 @@ impl HandlingConnectionError {
 
 #[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
+pub enum HandlingTableNotExist {
+    #[default]
+    Archive,
+    Skip,
+    Retry,
+    Break,
+}
+
+impl HandlingTableNotExist {
+    pub fn handle(&self, err: String) -> anyhow::Result<(HandlingResult, String)> {
+        match self {
+            HandlingTableNotExist::Archive => {
+                tracing::trace!("{err}: archive record");
+                Ok((HandlingResult::Archive, err))
+            }
+            HandlingTableNotExist::Skip => {
+                tracing::warn!("{err}: skip record");
+                Ok((HandlingResult::Skip, err))
+            }
+            HandlingTableNotExist::Retry => {
+                tracing::debug!("{err}: retry record");
+                Ok((HandlingResult::Retry, err))
+            }
+            HandlingTableNotExist::Break => {
+                tracing::error!("{err}: break task");
+                anyhow::bail!(err)
+            }
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
+#[serde(rename_all = "snake_case")]
 pub enum HandlingPrimaryTimestampNull {
     #[default]
     Archive,
@@ -96,7 +130,7 @@ impl HandlingPrimaryTimestampNull {
             }
             HandlingPrimaryTimestampNull::UseCurrentTime => {
                 tracing::debug!("{err}: use current time");
-                Ok((HandlingResult::Modify(String::default()), err))
+                Ok((HandlingResult::Modify(vec![]), err))
             }
         }
     }
@@ -116,7 +150,7 @@ pub enum HandlingDataOverflow {
 impl HandlingDataOverflow {
     pub fn handle(
         &self,
-        data: &String,
+        datas: Vec<String>,
         length: usize,
         err: String,
     ) -> anyhow::Result<(HandlingResult, String)> {
@@ -134,13 +168,27 @@ impl HandlingDataOverflow {
                 anyhow::bail!(err)
             }
             HandlingDataOverflow::Truncate => {
-                let data_truncated = data.chars().take(length).collect();
-                tracing::warn!("{err}, truncate '{data}' to '{data_truncated}'");
+                let data_truncated = datas
+                    .iter()
+                    .map(|data| {
+                        let data_truncated = data.chars().take(length).collect();
+                        tracing::warn!("{err}, truncate '{data}' to '{data_truncated}'");
+                        data_truncated
+                    })
+                    .collect_vec();
                 Ok((HandlingResult::Modify(data_truncated), err))
             }
             HandlingDataOverflow::TruncateAndArchive => {
-                let data_truncated = data.chars().take(length).collect();
-                tracing::warn!("{err}, truncate '{data}' to '{data_truncated}' and archive record");
+                let data_truncated = datas
+                    .iter()
+                    .map(|data| {
+                        let data_truncated = data.chars().take(length).collect();
+                        tracing::warn!(
+                            "{err}, truncate '{data}' to '{data_truncated}' and archive record"
+                        );
+                        data_truncated
+                    })
+                    .collect_vec();
                 Ok((HandlingResult::ModifyAndArchive(data_truncated), err))
             }
         }
@@ -184,7 +232,7 @@ impl HandlingTableNameContainsIllegalChar {
                 tracing::warn!(
                     "{err}, convert table name '{table_name}' to '{table_name_replaced}'"
                 );
-                Ok((HandlingResult::Modify(table_name_replaced), err))
+                Ok((HandlingResult::Modify(vec![table_name_replaced]), err))
             }
         }
     }
@@ -235,12 +283,12 @@ impl HandlingTableNameVariableMistake {
                 let mut template = TinyTemplate::new();
                 template.add_template("name", table_name_org)?;
                 match template.render_value("name", &serde_json::Value::from(data)) {
-                    Ok(name) => Ok((HandlingResult::Modify(name), err)),
+                    Ok(name) => Ok((HandlingResult::Modify(vec![name]), err)),
                     Err(e) => {
                         tracing::error!(
                             "{err}, set to left blank, but rendering table name failed: {e:#}"
                         );
-                        Ok((HandlingResult::Modify(String::default()), err))
+                        Ok((HandlingResult::Modify(vec![String::new()]), err))
                     }
                 }
             }
@@ -254,12 +302,12 @@ impl HandlingTableNameVariableMistake {
                 let mut template = TinyTemplate::new();
                 template.add_template("name", table_name_org)?;
                 match template.render_value("name", &serde_json::Value::from(data)) {
-                    Ok(name) => Ok((HandlingResult::Modify(name), err)),
+                    Ok(name) => Ok((HandlingResult::Modify(vec![name]), err)),
                     Err(e) => {
                         tracing::error!(
                             "{err}, set to replace to specified string, but rendering table name failed: {e:#}"
                         );
-                        Ok((HandlingResult::Modify(String::default()), err))
+                        Ok((HandlingResult::Modify(vec![String::new()]), err))
                     }
                 }
             }
@@ -294,7 +342,7 @@ impl HandlingFieldNameNotFound {
             }
             HandlingFieldNameNotFound::AddField => {
                 tracing::warn!("{err}: add field");
-                Ok((HandlingResult::Modify(String::default()), err))
+                Ok((HandlingResult::Modify(vec![]), err))
             }
         }
     }
@@ -331,9 +379,9 @@ pub struct ProcessOnAbnormal {
     #[serde(default)]
     pub database_not_exist: HandlingStrategy,
     #[serde(default)]
-    pub stable_not_exist: HandlingStrategy,
+    pub stable_not_exist: HandlingTableNotExist,
     #[serde(default)]
-    pub table_not_exist: HandlingStrategy,
+    pub table_not_exist: HandlingTableNotExist,
     #[serde(default)]
     pub database_connection_error: HandlingConnectionError,
 
@@ -365,8 +413,8 @@ impl Default for ProcessOnAbnormal {
             ingesting_error: HandlingStrategy::default(),
             connection_timeout_in_second: 0,
             database_not_exist: HandlingStrategy::default(),
-            stable_not_exist: HandlingStrategy::default(),
-            table_not_exist: HandlingStrategy::default(),
+            stable_not_exist: HandlingTableNotExist::default(),
+            table_not_exist: HandlingTableNotExist::default(),
             database_connection_error: HandlingConnectionError::default(),
             cache: Cache::default(),
             archive: Archive::default(),
@@ -380,7 +428,7 @@ pub enum HandlingResult {
     #[default]
     Skip,
     Archive,
-    Modify(String),
-    ModifyAndArchive(String),
+    Modify(Vec<String>),
+    ModifyAndArchive(Vec<String>),
     Retry,
 }

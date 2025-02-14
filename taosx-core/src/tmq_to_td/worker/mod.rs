@@ -387,7 +387,7 @@ pub(super) async fn write_with_raw_block(
         if let Some(source_table_name) = source_table_name {
             match code {
                 0x0118 => {
-                    // TODO: the table does not exist
+                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                     // 0x0118: the table does not exist
                     let from = source.get().await?;
                     // sync schema
@@ -418,7 +418,7 @@ pub(super) async fn write_with_raw_block(
                         .context("Write raw block into target error after 0x0118 fix")?;
                 }
                 0x0218 | 0x2603 | 0x2662 | 0x036D | 0x0618 => {
-                    // TODO: the table does not exist
+                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                     // 0x0218: the table does not exist
                     // 0x2603: the table does not exist
                     // 0x2662: the table does not exist
@@ -471,7 +471,7 @@ pub(super) async fn write_with_raw_block(
                     }
                 }
                 0x060B => {
-                    // TODO: the primary timestamp is out of range
+                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                     // 0x060B: the primary timestamp is out of range
                     let cancel = CancellationToken::new();
                     let _guard = cancel.clone().drop_guard();
@@ -505,7 +505,7 @@ pub(super) async fn write_with_raw_block(
                     }
                 }
                 0x061B => {
-                    // TODO: the column does not exist
+                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                     // 0x061B: invalid table schema version
                     let _ = taos.describe(raw.table_name().unwrap()).await;
                     let mut max_retries = 5;
@@ -1054,7 +1054,7 @@ impl Worker {
                     if let Some(source_table_name) = source_table_name {
                         match code {
                             0x0118 => {
-                                // TODO: the table does not exist
+                                // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                 // 0x0118: invalid parameter
                                 let from = self.source.get().await?;
                                 // sync schema
@@ -1094,7 +1094,7 @@ impl Worker {
                                 )?;
                             }
                             0x0218 | 0x2603 | 0x2662 | 0x036D | 0x0618 => {
-                                // TODO: the table does not exist
+                                // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                 // 0x0218: the table does not exist
                                 // 0x2603: the table does not exist
                                 // 0x2662: the table does not exist
@@ -1168,7 +1168,7 @@ impl Worker {
                                 }
                             }
                             0x061B => {
-                                // TODO: the column does not exist
+                                // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                                 // 0x061B: invalid table schema version
                                 let _ = taos.describe(raw.table_name().unwrap()).await;
                                 let mut max_retries = 5;
@@ -1309,7 +1309,7 @@ impl Worker {
                 match code {
                     // Table not exist error codes.
                     0x0218 | 0x2603 | 0x036D | 0x0618 => {
-                        // TODO: the table does not exist
+                        // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                         // 0x0218: the table does not exist
                         // 0x2603: the table does not exist
                         // 0x036D: the table does not exist
@@ -1368,7 +1368,6 @@ impl Worker {
                         }
                     }
                     0x0603 => {
-                        // TODO
                         // 0x0603: table already exists
                         // Fallback to sql method.
                         tracing::debug!("Fallback to sql method due to: {err:#}.");
@@ -1379,7 +1378,7 @@ impl Worker {
                             .context("Write raw meta with sql error");
                     }
                     0x032C | 0x0115 | 0x03C7 | 0x03D3 | 0x0900..=0x09FF => {
-                        // TODO
+                        // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                         // 0x032C: object is creating
                         // 0x0115: invalid msg
                         // 0x03C7: stable uid not match
@@ -1414,7 +1413,7 @@ impl Worker {
                     // Table not exist error codes or invalid input.
                     0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 | 0x0118 | 0x4000
                     | 0x0603 => {
-                        // TODO: the table does not exist
+                        // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                         // 0x070F: invalid input
                         // 0x0218: the table does not exist
                         // 0x2603: the table does not exist
@@ -1429,7 +1428,7 @@ impl Worker {
                         self.write_blocks(data).await?;
                     }
                     0x060B => {
-                        // TODO
+                        // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
                         // 0x060B: the primary timestamp out of range
                         let cancel = CancellationToken::new();
                         let _guard = cancel.clone().drop_guard();
