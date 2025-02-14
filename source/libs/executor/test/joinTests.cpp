@@ -74,7 +74,7 @@ enum {
 #define JT_PRINTF (void)printf
 
 #define COL_DISPLAY_WIDTH 18
-#define JT_MAX_LOOP       50000
+#define JT_MAX_LOOP       100000
 
 #define LEFT_BLK_ID       0
 #define RIGHT_BLK_ID      1
@@ -4767,7 +4767,7 @@ TEST(mLeftWinJoin, noCondProjectionTest) {
 #endif
 
 
-#if 0
+#if 1
 #if 1
 TEST(hInnerJoin, eqCondTest) {
   SJoinTestParam param;
@@ -4824,7 +4824,7 @@ TEST(hInnerJoin, fullCondTest) {
 #endif
 #endif
 
-#if 0
+#if 1
 #if 1
 TEST(hLeftOuterJoin, eqCondTest) {
   SJoinTestParam param;
@@ -4881,7 +4881,7 @@ TEST(hLeftOuterJoin, fullCondTest) {
 #endif
 #endif
 
-#if 0
+#if 1
 #if 1
 TEST(hLeftSemiJoin, eqCondTest) {
   SJoinTestParam param;
