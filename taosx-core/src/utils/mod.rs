@@ -380,6 +380,7 @@ pub fn parse_datetime_in_dsn(dsn: &Dsn, key: &str) -> anyhow::Result<Option<Date
         .transpose()
 }
 
+/// 从 DSN 的参数中解析目录路径，返回绝对路径，但不保证路径存在
 pub fn parse_dir_in_dsn(dsn: &Dsn, key: Option<&str>) -> anyhow::Result<Option<PathBuf>> {
     let p = match key {
         None => dsn.path.as_ref().filter(|p| !p.is_empty()),

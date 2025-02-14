@@ -5,6 +5,7 @@ use std::ops::Deref;
 use std::ops::DerefMut;
 use std::path::Path;
 use std::path::PathBuf;
+use std::str::FromStr;
 use taos::taos_query::common::RawData;
 use taos::*;
 use tokio::io::AsyncRead;
@@ -19,6 +20,58 @@ use tokio::fs::File;
 use tokio::io::BufReader;
 
 mod header;
+
+#[derive(Debug)]
+pub struct ZFileName {
+    raw_path: Option<PathBuf>,
+    pub topic: String,
+    pub timestamp: Option<DateTime<Utc>>,
+    pub vg_id: i32,
+    pub index: u64,
+}
+
+impl FromStr for ZFileName {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        ZFile::parse_file_name(s)
+            .map(|(tp, ts, vg, seq)| ZFileName {
+                raw_path: None,
+                topic: tp,
+                timestamp: Some(ts),
+                vg_id: vg,
+                index: seq,
+            })
+            .map_err(|_| ())
+    }
+}
+
+impl ZFileName {
+    pub fn from_path(path: impl AsRef<Path>) -> Option<Self> {
+        path.as_ref()
+            .file_name()
+            .and_then(|f| f.to_str())
+            .and_then(|f| f.parse::<ZFileName>().ok())
+            .map(|mut f| {
+                f.raw_path = Some(path.as_ref().to_path_buf());
+                f
+            })
+    }
+
+    pub fn compare(a: &ZFileName, b: &ZFileName) -> std::cmp::Ordering {
+        a.topic
+            .cmp(&b.topic)
+            .then_with(|| match a.timestamp.cmp(&b.timestamp) {
+                std::cmp::Ordering::Less => std::cmp::Ordering::Less,
+                std::cmp::Ordering::Greater => std::cmp::Ordering::Greater,
+                std::cmp::Ordering::Equal => match a.vg_id.cmp(&b.vg_id) {
+                    std::cmp::Ordering::Less => std::cmp::Ordering::Less,
+                    std::cmp::Ordering::Greater => std::cmp::Ordering::Greater,
+                    std::cmp::Ordering::Equal => a.index.cmp(&b.index),
+                },
+            })
+    }
+}
 
 type ZFileInner = ZCodec<ZstdEncoder<BufReader<File>>>;
 
@@ -366,6 +419,24 @@ impl ZFile {
         self.writer.shutdown().await?;
         Ok(())
     }
+
+    /// 从目录中读取所有后缀为 .z 的备份文件
+    pub async fn list_in_dir(dir: impl AsRef<Path>) -> anyhow::Result<Vec<ZFileName>> {
+        let mut files = vec![];
+
+        let mut entries = tokio::fs::read_dir(dir).await?;
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+            if path.is_file() {
+                let file_name = ZFileName::from_path(&path);
+                if let Some(zfile) = file_name {
+                    files.push(zfile);
+                }
+            }
+        }
+        files.sort_by(ZFileName::compare);
+        Ok(files)
+    }
 }
 
 pub struct ZCodec<W>(W);
@@ -536,6 +607,26 @@ mod tests {
         let ts = Utc.with_ymd_and_hms(2021, 8, 27, 12, 0, 33).unwrap();
         let name = ZFile::file_name(("abc", Some(ts), 1, 1));
         assert_eq!("abc-1630065600-1-1.z", name);
+    }
+
+    #[tokio::test]
+    async fn test_list_zfile_in_dir() {
+        // given
+        let tmp_dir = tempfile::tempdir().unwrap();
+        for i in 1..=10 {
+            let ts = Utc::now().timestamp() + i;
+            let file = tmp_dir.as_ref().join(format!("abc-{}-{}-{}.z", ts, i, i));
+            std::fs::write(file.as_path(), b"hello world").unwrap();
+        }
+
+        // when
+        let files = ZFile::list_in_dir(tmp_dir.as_ref()).await.unwrap();
+
+        // then
+        assert_eq!(files.len(), 10);
+        assert_eq!(files[0].index, 1);
+        assert_eq!(files[4].index, 5);
+        assert_eq!(files[9].index, 10);
     }
 
     #[tokio::test]

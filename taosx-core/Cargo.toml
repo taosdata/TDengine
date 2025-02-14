@@ -160,9 +160,8 @@ mongodb = { version = "3.0.0", features = [
   "snappy-compression",
   "openssl-tls",
 ] }
-
 rdkafka = { version = "0.37.0", features = ["cmake-build", "ssl", "tracing"] }
-
+opendal = { version = "0", features = ["services-s3"] }
 taoslog.workspace = true
 bitfield = { version = "0.16.1" }
 deadpool-tiberius = "0.1.8"
@@ -212,7 +211,7 @@ shadow-rs = { workspace = true }
 [dev-dependencies]
 pretty_env_logger = "0.5.0"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-
+urlencoding = "2"
 shadow-rs = { workspace = true }
 
 [lints]
