@@ -101,7 +101,7 @@ for any corresponding short options.
 
 ## Common Use Cases
 
-### taosdump Backup Data
+### Backup Data
 
 1. Backup all databases: specify the `-A` or `--all-databases` parameter.
 2. Backup multiple specified databases: use the `-D db1,db2,...` parameter.
@@ -121,7 +121,7 @@ for any corresponding short options.
 
 :::
 
-### taosdump Restore Data
+### Restore Data
 
 - Restore data files from a specified path: use the `-i` parameter along with the data file path. As mentioned earlier, the same directory should not be used to back up different data sets, nor should the same path be used to back up the same data set multiple times, otherwise, the backup data will cause overwriting or multiple backups.
 - taosdump supports data recovery to a new database name with the parameter `-W`, please refer to the command line parameter description for details.
