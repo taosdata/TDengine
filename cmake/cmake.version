@@ -25,7 +25,7 @@ ENDIF ()
 
 IF (CUS_EMAIL)
   ADD_DEFINITIONS(-DCUS_EMAIL="${CUS_EMAIL}")
-
+ENDIF ()
 
 find_program(HAVE_GIT NAMES git)
 
