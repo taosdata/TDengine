@@ -123,8 +123,8 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
           tstrncpy(pCol->node.userAlias, ((SExprNode*)pExpr)->userAlias, TSDB_COL_NAME_LEN);
           tstrncpy(pCol->colName, ((SExprNode*)pExpr)->aliasName, TSDB_COL_NAME_LEN);
           pCol->node.projIdx = ((SExprNode*)(*pNode))->projIdx;
-          pCol->node.bindTupleFuncIdx = ((SExprNode*)(*pNode))->bindTupleFuncIdx;
-          pCol->node.tupleFuncIdx = ((SExprNode*)(*pNode))->tupleFuncIdx;
+          pCol->node.relatedTo = ((SExprNode*)(*pNode))->relatedTo;
+          //pCol->node.bindExprID = ((SExprNode*)(*pNode))->bindExprID;
           if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
             setColumnInfo((SFunctionNode*)pExpr, pCol, pCxt->isPartitionBy);
           }
@@ -712,7 +712,7 @@ static SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) 
   if (NULL != pStmtName) {
     snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", pStmtName);
   }
-  pCol->node.bindTupleFuncIdx = pExpr->bindTupleFuncIdx;
+  pCol->node.relatedTo = pExpr->relatedTo;
   return pCol;
 }
 
@@ -818,7 +818,7 @@ static int32_t addWinJoinPrimKeyToAggFuncs(SSelectStmt* pSelect, SNodeList** pLi
 }
 
 static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (!pSelect->hasAggFuncs && NULL == pSelect->pGroupByList && !pSelect->pProjectionBindList) {
+  if (!pSelect->hasAggFuncs && NULL == pSelect->pGroupByList) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1598,9 +1598,6 @@ static int32_t createColumnByProjections(SLogicPlanContext* pCxt, const char* pS
   SNode*  pNode;
   int32_t projIdx = 1;
   FOREACH(pNode, pExprs) {
-    if (((SExprNode*)pNode)->tupleFuncIdx != 0) {
-      continue;
-    }
     SColumnNode* pCol = createColumnByExpr(pStmtName, (SExprNode*)pNode);
     if (TSDB_CODE_SUCCESS != (code = nodesListStrictAppend(pList, (SNode*)pCol))) {
       nodesDestroyList(pList);

@@ -670,10 +670,10 @@ static int32_t exprNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SExprNode* pNode = (const SExprNode*)pObj;
   int32_t          code = tlvEncodeObj(pEncoder, EXPR_CODE_RES_TYPE, dataTypeToMsg, &pNode->resType);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI32(pEncoder, EXPR_CODE_BIND_TUPLE_FUNC_IDX, pNode->bindTupleFuncIdx);
+    code = tlvEncodeI32(pEncoder, EXPR_CODE_BIND_TUPLE_FUNC_IDX, pNode->relatedTo);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI32(pEncoder, EXPR_CODE_TUPLE_FUNC_IDX, pNode->tupleFuncIdx);
+    code = tlvEncodeI32(pEncoder, EXPR_CODE_TUPLE_FUNC_IDX, pNode->bindExprID);
   }
   return code;
 }
@@ -689,10 +689,10 @@ static int32_t msgToExprNode(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeObjFromTlv(pTlv, msgToDataType, &pNode->resType);
         break;
       case EXPR_CODE_BIND_TUPLE_FUNC_IDX:
-        code = tlvDecodeI32(pTlv, &pNode->bindTupleFuncIdx);
+        code = tlvDecodeI32(pTlv, &pNode->relatedTo);
         break;
       case EXPR_CODE_TUPLE_FUNC_IDX:
-        code = tlvDecodeI32(pTlv, &pNode->tupleFuncIdx);
+        code = tlvDecodeI32(pTlv, &pNode->bindExprID);
         break;
       default:
         break;
@@ -709,10 +709,10 @@ static int32_t columnNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
 
   int32_t code = dataTypeInlineToMsg(&pNode->node.resType, pEncoder);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeValueI32(pEncoder, pNode->node.bindTupleFuncIdx);
+    code = tlvEncodeValueI32(pEncoder, pNode->node.relatedTo);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeValueI32(pEncoder, pNode->node.tupleFuncIdx);
+    code = tlvEncodeValueI32(pEncoder, pNode->node.bindExprID);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueU64(pEncoder, pNode->tableId);
@@ -765,10 +765,10 @@ static int32_t msgToColumnNodeInline(STlvDecoder* pDecoder, void* pObj) {
 
   int32_t code = msgToDataTypeInline(pDecoder, &pNode->node.resType);
     if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueI32(pDecoder, &pNode->node.bindTupleFuncIdx);
+    code = tlvDecodeValueI32(pDecoder, &pNode->node.relatedTo);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueI32(pDecoder, &pNode->node.tupleFuncIdx);
+    code = tlvDecodeValueI32(pDecoder, &pNode->node.bindExprID);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueU64(pDecoder, &pNode->tableId);

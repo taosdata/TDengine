@@ -62,8 +62,8 @@ typedef struct SExprNode {
   bool      asParam;
   bool      asPosition;
   int32_t   projIdx;
-  int32_t   bindTupleFuncIdx;
-  int32_t   tupleFuncIdx;
+  int32_t   relatedTo;
+  int32_t   bindExprID;
 } SExprNode;
 
 typedef enum EColumnType {
@@ -701,6 +701,7 @@ char*   getFullJoinTypeString(EJoinType type, EJoinSubType stype);
 int32_t mergeJoinConds(SNode** ppDst, SNode** ppSrc);
 
 int32_t rewriteExprAliasName(SExprNode* pNode, int64_t num);
+bool isRelatedToOtherExpr(SExprNode* pExpr);
 
 #ifdef __cplusplus
 }

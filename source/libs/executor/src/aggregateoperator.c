@@ -397,7 +397,7 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
 
   // if the last expression is a tuple function, we don't need to create a empty data block
   int32_t lastExprIndex = pOperator->exprSupp.numOfExprs - 1;
-  if(pOperator->exprSupp.pExprInfo[lastExprIndex].pExpr->tupleFuncIdx > 0) {
+  if(pOperator->exprSupp.pExprInfo[lastExprIndex].pExpr->_function.bindExprID > 0) {
     return TSDB_CODE_SUCCESS;
   }
 

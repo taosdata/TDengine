@@ -522,6 +522,12 @@ class TDTestCase:
         tdSql.checkCols(2)
         tdSql.checkData(0, 0, 3)
         tdSql.checkData(0, 1, 1)
+        tdSql.query(f'select  * from (select cols(last_row(c0), ts as t1, c1), cols(first(c0), ts as t2, c1 c21), first(c0)  from test.meters where c0 < 4)')
+        tdSql.checkRows(1)
+        tdSql.checkCols(5)
+        tdSql.checkData(0, 1, 3)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 1)
         tdSql.error(f'select  c1 from (select cols(last_row(c0), ts as t1, c1), cols(first(c0), ts as t2, c1), first(c0)  from test.meters where c0 < 4)')
 
         # cols on system table
@@ -966,10 +972,11 @@ class TDTestCase:
         self.one_cols_1output_test()
         self.multi_cols_output_test()
         self.subquery_test()
-        #self.window_test()
+        self.window_test()
         self.join_test()
         self.stream_cols_test()
         self.include_null_test()
+
 
     def stop(self):
         tdSql.close()

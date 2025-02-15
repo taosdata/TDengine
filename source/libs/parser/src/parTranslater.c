@@ -1105,11 +1105,11 @@ static bool isForecastPseudoColumnFunc(const SNode* pNode) {
 }
 
 static bool isColsFunctionResult(const SNode* pNode) {
-  return ((nodesIsExprNode(pNode)) && ((SExprNode*)pNode)->bindTupleFuncIdx > 0);
+  return ((nodesIsExprNode(pNode)) && ((SExprNode*)pNode)->relatedTo > 0);
 }
 
 static bool isInvalidColsBindFunction(const SFunctionNode* pFunc) {
-  return (!fmIsSelectFunc(pFunc->funcId) && pFunc->node.tupleFuncIdx != 0);
+  return (!fmIsSelectFunc(pFunc->funcId) && pFunc->node.bindExprID != 0);
 }
 
 #ifdef BUILD_NO_CALL
@@ -3582,8 +3582,8 @@ static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode
   tstrncpy(pFunc->functionName, "_select_value", TSDB_FUNC_NAME_LEN);
   tstrncpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName, TSDB_COL_NAME_LEN);
   tstrncpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias, TSDB_COL_NAME_LEN);
-  pFunc->node.bindTupleFuncIdx = ((SExprNode*)*pNode)->bindTupleFuncIdx;
-  pFunc->node.tupleFuncIdx = ((SExprNode*)*pNode)->tupleFuncIdx;
+  pFunc->node.relatedTo = ((SExprNode*)*pNode)->relatedTo;
+  pFunc->node.bindExprID = ((SExprNode*)*pNode)->bindExprID;
   pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     pCxt->errCode = getFuncInfo(pCxt, pFunc);
@@ -3894,7 +3894,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
 
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
     if ((pSelect->selectFuncNum > 1 || (isDistinctOrderBy(pCxt) && pCxt->currClause == SQL_CLAUSE_ORDER_BY)) &&
-                                          ((SExprNode*)*pNode)->bindTupleFuncIdx == 0) {
+                                          !isRelatedToOtherExpr((SExprNode*)*pNode)) {
       return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
     }
     if (isWindowJoinStmt(pSelect) &&
@@ -3903,7 +3903,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
 
-    if ((pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc) && ((SExprNode*)*pNode)->bindTupleFuncIdx == 0) {
+    if ((pSelect->hasOtherVectorFunc || !pSelect->hasSelectFunc) && !isRelatedToOtherExpr((SExprNode*)*pNode)) {
       return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
     }
 
@@ -3983,7 +3983,7 @@ static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
     return rewriteExprToSelectTagFunc(pCxt->pTranslateCxt, pNode);
   }
   if ((isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) &&
-      ((!nodesIsExprNode(*pNode) || ((SExprNode*)*pNode)->bindTupleFuncIdx == 0))) {
+      ((!nodesIsExprNode(*pNode) || !isRelatedToOtherExpr((SExprNode*)*pNode)))) {
     pCxt->existCol = true;
   }
   return DEAL_RES_CONTINUE;
@@ -5466,15 +5466,17 @@ static int32_t prepareColumnExpansion(STranslateContext* pCxt, ESqlClause clause
   int32_t code = TSDB_CODE_SUCCESS;
   if (clause == SQL_CLAUSE_SELECT) {
     code = rewriteColsFunction(pCxt, &pSelect->pProjectionList, &pSelect->pProjectionBindList);
-    code = translateExprList(pCxt, pSelect->pProjectionBindList);
   } else if (clause == SQL_CLAUSE_ORDER_BY) {
     code = rewriteColsFunction(pCxt, &pSelect->pOrderByList, &pSelect->pProjectionBindList);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = translateExprList(pCxt, pSelect->pProjectionBindList);
-    }
   } else {
     code =
         generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Invalid clause for column expansion");
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateExprList(pCxt, pSelect->pProjectionBindList);
+  }
+  if (pSelect->pProjectionBindList != NULL) {
+     pSelect->hasAggFuncs = true;
   }
   return code;
 }
@@ -7391,19 +7393,19 @@ static bool isMultiColsFuncNode(SNode* pNode) {
 }
 
 typedef struct SBindTupleFuncCxt {
-  int32_t bindTupleFuncIdx;
+  int32_t bindExprID;
 } SBindTupleFuncCxt;
 
 static EDealRes pushDownBindSelectFunc(SNode** pNode, void* pContext) {
   SBindTupleFuncCxt* pCxt = pContext;
   if (nodesIsExprNode(*pNode)) {
-    ((SExprNode*)*pNode)->bindTupleFuncIdx = pCxt->bindTupleFuncIdx;
+    ((SExprNode*)*pNode)->relatedTo = pCxt->bindExprID;
     int32_t len = strlen(((SExprNode*)*pNode)->aliasName);
     if (len + TSDB_COL_NAME_EXLEN >= TSDB_COL_NAME_LEN) {
       parserError("%s The alias name is too long, the extra part will be truncated", __func__);
       return DEAL_RES_ERROR;
     } else {
-      tsnprintf(((SExprNode*)*pNode)->aliasName + len, TSDB_COL_NAME_EXLEN, ".%d", pCxt->bindTupleFuncIdx);
+      tsnprintf(((SExprNode*)*pNode)->aliasName + len, TSDB_COL_NAME_EXLEN, ".%d", pCxt->bindExprID);
     }
     SFunctionNode* pFunc = (SFunctionNode*)*pNode;
   }
@@ -7512,7 +7514,7 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
       selectFuncIndex = selectFuncCount;
       SNode*  pNewNode = NULL;
       code = nodesCloneNode(pSelectFunc, &pNewNode);
-      ((SExprNode*)pNewNode)->tupleFuncIdx = selectFuncIndex;
+      ((SExprNode*)pNewNode)->bindExprID = selectFuncIndex;
       nodesListMakeStrictAppend(pCxt->selectFuncList, pNewNode);
     }
 
@@ -7595,7 +7597,7 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
           ++selectFuncCount;
           selectFuncIndex = selectFuncCount;
           code = nodesCloneNode(pSelectFunc, &pNewNode);
-          ((SExprNode*)pNewNode)->tupleFuncIdx = selectFuncIndex;
+          ((SExprNode*)pNewNode)->bindExprID = selectFuncIndex;
           nodesListMakeStrictAppend(selectFuncList, pNewNode);
         }
         // start from index 1, because the first parameter is select function which needn't to output.
@@ -13905,10 +13907,6 @@ static int32_t extractQueryResultSchema(const SNodeList* pProjections, int32_t* 
   int32_t index = 0;
   FOREACH(pNode, pProjections) {
     SExprNode* pExpr = (SExprNode*)pNode;
-    if(pExpr->tupleFuncIdx != 0) {
-      *numOfCols -= 1;
-      continue;
-    }
     if (TSDB_DATA_TYPE_NULL == pExpr->resType.type) {
       (*pSchema)[index].type = TSDB_DATA_TYPE_VARCHAR;
       (*pSchema)[index].bytes = VARSTR_HEADER_SIZE;
