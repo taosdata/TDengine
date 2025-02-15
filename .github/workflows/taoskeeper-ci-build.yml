@@ -1,4 +1,4 @@
-name: taosKeeper CI
+name: taosKeeper Build
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    name: Run unit tests
+    name: Build and test on ubuntu-latest
 
     steps:
       - name: Checkout the repository
