@@ -1789,6 +1789,7 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
       .stbEntry.schemaRow = pReq->schemaRow,
       .stbEntry.schemaTag = pReq->schemaTag,
       .colCmpr = pReq->colCmpr,
+      .pExtSchemas = pReq->pExtSchemas,
   };
   TABLE_SET_COL_COMPRESSED(entry.flags);
 
