@@ -145,22 +145,22 @@ def stopTaosd(str):
         os.system(cmd)
 
 def cleanDb():
-    dropTopic = f"taos -c {dnode1}/{cfg} -s \"drop topic if exists test\""
+    dropTopic = f"{taosd}/bin/taos -c {dnode1}/{cfg} -s \"drop topic if exists test\""
     print("dropTopic:%s" % dropTopic)
     os.system(dropTopic)
 
-    dropDb = f"taos -c {dnode2}/{cfg} -s \"drop database if exists test\""
+    dropDb = f"{taosd}/bin/taos -c {dnode2}/{cfg} -s \"drop database if exists test\""
     print("dropDb:%s" % dropDb)
     os.system(dropDb)
 
-    createDb = f"taos -c {dnode2}/{cfg} -s \"create database test vgroups {vgroups}\""
+    createDb = f"{taosd}/bin/taos -c {dnode2}/{cfg} -s \"create database test vgroups {vgroups}\""
     print("createDb:%s" % createDb)
     os.system(createDb)
 
 
 def restartTaosd():
-    cmd1 = f"{taosd} -c {dnode1}/{cfg} > /dev/null 2>&1 &"
-    cmd2 = f"{taosd} -c {dnode2}/{cfg} > /dev/null 2>&1 &"
+    cmd1 = f"{taosd}/bin/taosd -c {dnode1}/{cfg} > /dev/null 2>&1 &"
+    cmd2 = f"{taosd}/bin/taosd -c {dnode2}/{cfg} > /dev/null 2>&1 &"
     print("start taosd1 :%s" % cmd1)
     print("start taosd2 :%s" % cmd2)
     os.system(cmd1)
@@ -168,7 +168,7 @@ def restartTaosd():
 
 
 def runTaosx():
-    cmd = f"{taosx} run -f \"tmq://root:taosdata@localhost:6030/test?group.id=taosx-new-`date +%s`&timeout={taosxTimeout}s&experimental.snapshot.enable=false&auto.offset.reset=earliest&prefer=raw\" -t \"taos://root:taosdata@localhost:7030/test\" > {taosxLog}"
+    cmd = f"{taosx} run -f \"tmq://root:taosdata@localhost:6030/test?group.id=taosx-new-`date +%s`&timeout={taosxTimeout}s&experimental.snapshot.enable=false&auto.offset.reset=earliest&prefer=raw&libraryPath={taosd}/lib/libtaos.so\" -t \"taos://root:taosdata@localhost:7030/test?libraryPath={taosd}/lib/libtaos.so\" > {taosxLog}"
     print("run taosx:%s" % cmd)
     os.system(cmd)
 

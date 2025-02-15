@@ -395,7 +395,6 @@ static void preProcessSubmitMsg(STqHandle* pHandle, const SMqPollReq* pRequest, 
   for (int32_t i = 0; i < blockSz; i++){
     SSubmitTbData* pSubmitTbData = taosArrayGet(pReader->submit.aSubmitTbData, i);
     if (pSubmitTbData== NULL){
-      tqReaderClearSubmitMsg(pReader);
       taosArrayDestroy(*rawList);
       *rawList = NULL;
       return;
@@ -456,15 +455,15 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqData
   }
 
   // this submit data is metadata and previous data is rawdata
-  if (pRequest->rawData != 0 && *totalRows > 0 && rawList == NULL){
-    tqDebug("poll rawdata split,vgId:%d, uid:%" PRId64 ", this submit data is metadata and previous data is data", pTq->pVnode->config.vgId, pExec->pTqReader->lastBlkUid);
+  if (pRequest->rawData != 0 && *totalRows > 0 && pRsp->createTableNum == 0 && rawList == NULL){
+    tqDebug("poll rawdata split,vgId:%d, this wal submit data contains metadata and previous data is data", pTq->pVnode->config.vgId);
     terrno = TSDB_CODE_TMQ_RAW_DATA_SPLIT;
     goto END;
   }
 
   // this submit data is rawdata and previous data is metadata
   if (pRequest->rawData != 0 && pRsp->createTableNum > 0 && rawList != NULL){
-    tqDebug("poll rawdata split,vgId:%d, uid:%" PRId64 ", this submit data is metadata and previous data is data", pTq->pVnode->config.vgId, pExec->pTqReader->lastBlkUid);
+    tqDebug("poll rawdata split,vgId:%d, this wal submit data is data and previous data is metadata", pTq->pVnode->config.vgId);
     terrno = TSDB_CODE_TMQ_RAW_DATA_SPLIT;
     goto END;
   }
