@@ -54,7 +54,7 @@ TEST(log, misc) {
   taosRemoveDir(path);
   taosMkDir(path);
   tstrncpy(tsLogDir, path, PATH_MAX);
-  EXPECT_EQ(taosInitLog("taoslog", 1, true), 0);
+  EXPECT_EQ(taosInitLog("taoslog", 1, LOG_MODE_TAOSC), 0);
 
   taosOpenNewSlowLogFile();
   taosLogObjSetToday(INT64_MIN);
