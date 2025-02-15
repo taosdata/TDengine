@@ -81,7 +81,7 @@ class TDTestCase(TBase):
         
         # find
         taosdump, tmpdir = self.findPrograme()
-        data = "./tools/taosdump/native/compa/"
+        data = "./tools/taosdump/native/compa"
 
         # dump in
         self.dumpIn(taosdump, data)
