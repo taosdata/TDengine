@@ -1,5 +1,0 @@
-{"type": "record", "namespace": "x", "name": "Y", "fields": [
-  {"name": "e", "type": {"type": "record", "name": "Z", "fields": [
-    {"name": "f", "type": "x.Z"}
-  ]}}
-]}
