@@ -69,6 +69,11 @@ do
       make -C $build_dir test
       ;;
 
+    docs)
+      prepare_build
+      make -C $build_dir docs
+      ;;
+
     dist)
       prepare_build
       cp ../../share/VERSION.txt $root_dir

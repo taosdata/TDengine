@@ -117,7 +117,7 @@ This section provides an overview of the methods that you can call on an
 interface, but not all of them make sense for all Avro schema types.
 For instance, you won't be able to call +avro_value_set_boolean+ on an
 Avro array value.  If you try to call an inappropriate method, we'll
-return an +EINVAL+ error code.
+return an +EINVAL+/+AVRO_INVALID+ error code.
 
 Note that the functions in this section apply to _all_ Avro values,
 regardless of which value implementation is used under the covers.  This
@@ -178,7 +178,7 @@ different versions of the Avro library.  That means that it's really
 only safe to use these hash values internally within the context of a
 single execution of a single application.
 
-The +reset+ method “clears out” an +avro_value_t instance, making sure
+The +reset+ method “clears out” an +avro_value_t+ instance, making sure
 that it's ready to accept the contents of a new value.  For scalars,
 this is usually a no-op, since the new value will just overwrite the old
 one.  For arrays and maps, this removes any existing elements from the

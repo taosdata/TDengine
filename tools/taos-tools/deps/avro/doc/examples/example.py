@@ -16,18 +16,28 @@
 # specific language governing permissions and limitations
 # under the License.
 #
+from pathlib import Path
+
 import avro.schema
 from avro.datafile import DataFileReader, DataFileWriter
 from avro.io import DatumReader, DatumWriter
 
-schema = avro.schema.parse(open("user.avsc").read())
+# read in the schema file
+schema_text = Path("user.avsc").read_text()
+# then parse it
+schema = avro.schema.parse(schema_text)
 
-writer = DataFileWriter(open("/tmp/users.avro", "w"), DatumWriter(), schema)
-writer.append({"name": "Alyssa", "favorite_number": 256, "WTF": 2})
-writer.append({"name": "Ben", "favorite_number": 7, "favorite_color": "red"})
-writer.close()
+# create a DataFileWriter to write data to a file
+users_file = Path("/tmp/users.avro")
+with users_file.open("wb") as users_fh, DataFileWriter(
+    users_fh, DatumWriter(), schema
+) as writer:
+    writer.append({"name": "Alyssa", "favorite_number": 256})
+    writer.append({"name": "Ben", "favorite_number": 7, "favorite_color": "red"})
 
-reader = DataFileReader(open("/tmp/users.avro", "r"), DatumReader())
-for user in reader:
-    print user
-reader.close()
+# create a DataFileReader to read data from a file
+with users_file.open("rb") as users_fh, DataFileReader(
+    users_fh, DatumReader()
+) as reader:
+    for user in reader:
+        print(user)

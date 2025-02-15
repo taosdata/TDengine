@@ -322,6 +322,9 @@ avro_consume_binary(avro_reader_t reader, avro_consumer_t *consumer, void *ud)
 	case AVRO_LINK:
 		avro_set_error("Consumer can't consume a link schema directly");
 		return EINVAL;
+	case AVRO_INVALID:
+		avro_set_error("Consumer can't consume an invalid schema");
+		return EINVAL;
 	}
 
 	return 0;

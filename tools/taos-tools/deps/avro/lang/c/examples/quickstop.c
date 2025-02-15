@@ -107,7 +107,7 @@ int print_person(avro_file_reader_t db, avro_schema_t reader_schema)
 	if (rval == 0) {
 		int64_t id;
 		int32_t age;
-		char *p = NULL;
+		const char *p;
 		size_t size;
 		avro_value_t id_value;
 		avro_value_t first_value;

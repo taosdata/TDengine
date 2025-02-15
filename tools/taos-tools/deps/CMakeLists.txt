@@ -97,20 +97,6 @@ ELSEIF(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 
     MESSAGE(STATUS "deps' cmake detected BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
     ExternalProject_Add(
-        deps-libargp
-        PREFIX ${CMAKE_CURRENT_BINARY_DIR}/libargp/
-        SOURCE_DIR ${PROJECT_SOURCE_DIR}/deps/libargp
-        PATCH_COMMAND
-        COMMAND sed -i "s/strcasecmp/_stricmp/g" ${PROJECT_SOURCE_DIR}/deps/libargp/src/argp-help.c
-        COMMAND sed -i "s/#include <unistd.h>/#define ssize_t int/g" ${PROJECT_SOURCE_DIR}/deps/libargp/src/argp-fmtstream.h
-        COMMAND sed -i "s/#include <unistd.h>//g" ${PROJECT_SOURCE_DIR}/deps/libargp/src/argp-parse.c
-        COMMAND sed -i "s/#ifdef __MINGW32__/#ifndef __MINGW32__/g" ${PROJECT_SOURCE_DIR}/deps/libargp/src/argp-parse.c
-        COMMAND sed -i "s/#include <unistd.h>//g" ${PROJECT_SOURCE_DIR}/deps/libargp/src/getopt_init.c
-        COMMAND sed -i "s/add_executable(libargp-mingw \${SRC_LIST} argp-test.c)/ADD_LIBRARY(libargp \${SRC_LIST})\\ninstall(TARGETS libargp ARCHIVE DESTINATION lib)\\ninstall(FILES \${CMAKE_CURRENT_SOURCE_DIR}\\/src\\/argp.h DESTINATION include)/g" ${PROJECT_SOURCE_DIR}/deps/libargp/CMakeLists.txt
-        CMAKE_ARGS "-DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/build/"
-        )
-
-    ExternalProject_Add(
         deps-snappy
         PREFIX ${CMAKE_CURRENT_BINARY_DIR}/snappy
         SOURCE_DIR ${PROJECT_SOURCE_DIR}/deps/snappy

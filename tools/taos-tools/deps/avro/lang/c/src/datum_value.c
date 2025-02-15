@@ -80,19 +80,7 @@ avro_datum_value_get_type(const avro_value_iface_t *iface, const void *vself)
 {
 	AVRO_UNUSED(iface);
 	const avro_datum_t  self = (const avro_datum_t) vself;
-#ifdef _WIN32
-#pragma message("#warning: Bug: EINVAL is not of type avro_type_t.")
-#else
-#warning "Bug: EINVAL is not of type avro_type_t."
-#endif
-        /* We shouldn't use EINVAL as the return value to
-         * check_param(), because EINVAL (= 22) is not a valid enum
-         * avro_type_t. This is a structural issue -- we would need a
-         * different interface on all the get_type functions to fix
-         * this. For now, suppressing the error by casting EINVAL to
-         * (avro_type_t) so the code compiles under C++.
-         */
-	check_param((avro_type_t) EINVAL, self, "datum instance");
+	check_param(AVRO_INVALID, self, "datum instance");
 	return avro_typeof(self);
 }
 

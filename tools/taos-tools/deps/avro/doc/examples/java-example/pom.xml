@@ -26,6 +26,7 @@
   <name>java-example</name>
   <url>https://maven.apache.org</url>
   <properties>
+    <avro.version>1.12.0</avro.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
   <dependencies>
@@ -38,7 +39,7 @@
     <dependency>
       <groupId>org.apache.avro</groupId>
       <artifactId>avro</artifactId>
-      <version>1.11.0</version>
+      <version>${avro.version}</version>
     </dependency>
   </dependencies>
   <build>
@@ -48,35 +49,26 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.8.1</version>
         <configuration>
-          <source>1.8</source>
-          <target>1.8</target>
+          <source>11</source>
+          <target>11</target>
         </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.avro</groupId>
         <artifactId>avro-maven-plugin</artifactId>
-        <version>1.11.0</version>
+        <version>${avro.version}</version>
+        <configuration>
+          <sourceDirectory>${project.basedir}/../</sourceDirectory>
+          <outputDirectory>${project.basedir}/src/main/java/</outputDirectory>
+        </configuration>
         <executions>
           <execution>
             <phase>generate-sources</phase>
             <goals>
               <goal>schema</goal>
             </goals>
-            <configuration>
-              <sourceDirectory>${project.basedir}/../</sourceDirectory>
-              <outputDirectory>${project.basedir}/src/main/java/</outputDirectory>
-            </configuration>
           </execution>
         </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-plugin</artifactId>
-        <version>1.11.0</version>
-        <configuration>
-          <source>1.8</source>
-          <target>1.8</target>
-        </configuration>
       </plugin>
     </plugins>
     <pluginManagement>
@@ -92,7 +84,7 @@
                   <pluginExecutionFilter>
                     <groupId>org.apache.avro</groupId>
                     <artifactId>avro-maven-plugin</artifactId>
-                    <versionRange>[1.11.0,)</versionRange>
+                    <versionRange>[${avro.version},)</versionRange>
                     <goals>
                       <goal>schema</goal>
                     </goals>

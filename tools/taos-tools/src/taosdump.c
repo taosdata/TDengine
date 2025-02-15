@@ -2731,7 +2731,7 @@ static void freeFileList(AVROTYPE avroType, int64_t count) {
 
 static AVROTYPE createDumpinList(const char *dbPath,
         const char *ext, int64_t count) {
-    AVROTYPE avroType = AVRO_INVALID;
+    AVROTYPE avroType = AVRO_INVALIDEX;
     if (0 == strcmp(ext, "sql")) {
         avroType = AVRO_UNKNOWN;
     } else if (0 == strncmp(ext, "avro-ntb",

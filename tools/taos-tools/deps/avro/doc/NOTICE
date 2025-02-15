@@ -1,5 +1,5 @@
 Apache Avro
-Copyright 2010-2015 The Apache Software Foundation
+Copyright 2010-2022 The Apache Software Foundation
 
 This product includes software developed at
 The Apache Software Foundation (https://www.apache.org/).
@@ -26,16 +26,9 @@ is:
 | implied.  See the License for the specific language governing
 | permissions and limitations under the License.
 
-The Odiago NOTICE at the time of the contribution:
-
-| This product includes software developed by Odiago, Inc.
-| (https://www.wibidata.com).
-
-The documentation contains the default Apache Forrest skin.
-Apache Forrest includes the following in its NOTICE file:
-
-| Apache Forrest
-| Copyright 2002-2007 The Apache Software Foundation.
+|--------------------------------------------------------------------------
+| This product includes software developed by The Docsy Authors.
+| (https://www.docsy.dev/).
 |
 | This product includes software developed at
 | The Apache Software Foundation (https://www.apache.org/).
@@ -49,35 +42,3 @@ Apache Forrest includes the following in its NOTICE file:
 | Other accompanying products do not require attribution, so are not listed.
 |
 | ------------------------------------------------------------------------
-| This product includes software developed by the OpenSymphony Group
-| http://www.opensymphony.com/
-|
-| This product includes software developed for project Krysalis
-| http://www.krysalis.org/
-|
-| This product includes software developed by Andy Clark.
-| https://people.apache.org/~andyc/neko/
-|
-| This product includes software developed by the ExoLab Project
-| https://www.exolab.org/
-|
-| This product includes software developed by TouchGraph LLC
-| https://www.touchgraph.com/
-|
-| This product includes software developed by Marc De Scheemaecker
-| http://nanoxml.cyberelf.be/
-|
-| This product includes software developed by the ANTLR project
-| https://www.antlr.org/
-|
-| This product includes software developed by Chaperon
-| http://chaperon.sourceforge.net/
-|
-| This product includes software developed by Sal Mangano (included in the XSLT Cookbook published by O'Reilly)
-| https://www.oreilly.com/catalog/xsltckbk/
-|
-| This product includes software developed by The Werken Company.
-| http://jaxen.werken.com/
-|
-| This product includes software developed by the jfor project
-| http://www.jfor.org/

@@ -39,8 +39,8 @@ struct st_table_entry {
 static int numcmp(long, long);
 static int numhash(long);
 static struct st_hash_type type_numhash = {
-	HASH_FUNCTION_CAST numcmp,
-	HASH_FUNCTION_CAST numhash
+	(hash_function_compare) numcmp,
+	(hash_function_hash) numhash
 };
 
 /*
@@ -48,8 +48,8 @@ static struct st_hash_type type_numhash = {
  */
 static int strhash(const char *);
 static struct st_hash_type type_strhash = {
-	HASH_FUNCTION_CAST strcmp,
-	HASH_FUNCTION_CAST strhash
+	(hash_function_compare) strcmp,
+	(hash_function_hash) strhash
 };
 
 static void rehash(st_table *);
@@ -212,7 +212,7 @@ void st_free_table(st_table *table)
 }
 
 #define PTR_NOT_EQUAL(table, ptr, hash_val, key) \
-((ptr) != 0 && (ptr->hash != (hash_val) || !EQUAL((table), (key), (ptr)->key)))
+((ptr) != 0 && (ptr->hash != (hash_val) || !EQUAL((table), (void*) (key), (void*) (ptr)->key)))
 
 #ifdef HASH_LOG
 #define COLLISION collision++
@@ -237,7 +237,7 @@ int st_lookup(st_table *table, register st_data_t key, st_data_t *value)
 	unsigned int hash_val, bin_pos;
 	register st_table_entry *ptr;
 
-	hash_val = do_hash(key, table);
+	hash_val = do_hash((void*) key, table);
 	FIND_ENTRY(table, ptr, hash_val, bin_pos);
 
 	if (ptr == 0) {
@@ -272,7 +272,7 @@ int st_insert(register st_table *table, register st_data_t key, st_data_t value)
 	unsigned int hash_val, bin_pos;
 	register st_table_entry *ptr;
 
-	hash_val = do_hash(key, table);
+	hash_val = do_hash((void*) key, table);
 	FIND_ENTRY(table, ptr, hash_val, bin_pos);
 
 	if (ptr == 0) {
@@ -288,7 +288,7 @@ void st_add_direct(st_table *table,st_data_t key,st_data_t value)
 {
 	unsigned int hash_val, bin_pos;
 
-	hash_val = do_hash(key, table);
+	hash_val = do_hash((void*) key, table);
 	bin_pos = hash_val % table->num_bins;
 	ADD_DIRECT(table, key, value, hash_val, bin_pos);
 }
@@ -363,7 +363,7 @@ int st_delete(register st_table *table,register st_data_t *key,st_data_t *value)
 	st_table_entry *tmp;
 	register st_table_entry *ptr;
 
-	hash_val = do_hash_bin(*key, table);
+	hash_val = do_hash_bin((void*) *key, table);
 	ptr = table->bins[hash_val];
 
 	if (ptr == 0) {
@@ -372,7 +372,7 @@ int st_delete(register st_table *table,register st_data_t *key,st_data_t *value)
 		return 0;
 	}
 
-	if (EQUAL(table, *key, ptr->key)) {
+	if (EQUAL(table, (void*) *key, (void*) ptr->key)) {
 		table->bins[hash_val] = ptr->next;
 		table->num_entries--;
 		if (value != 0)
@@ -383,7 +383,7 @@ int st_delete(register st_table *table,register st_data_t *key,st_data_t *value)
 	}
 
 	for (; ptr->next != 0; ptr = ptr->next) {
-		if (EQUAL(table, ptr->next->key, *key)) {
+		if (EQUAL(table, (void*) ptr->next->key, (void*) *key)) {
 			tmp = ptr->next;
 			ptr->next = ptr->next->next;
 			table->num_entries--;
@@ -403,7 +403,7 @@ int st_delete_safe(register st_table *table,register st_data_t *key,st_data_t *v
 	unsigned int hash_val;
 	register st_table_entry *ptr;
 
-	hash_val = do_hash_bin(*key, table);
+	hash_val = do_hash_bin((void*) *key, table);
 	ptr = table->bins[hash_val];
 
 	if (ptr == 0) {
@@ -413,7 +413,7 @@ int st_delete_safe(register st_table *table,register st_data_t *key,st_data_t *v
 	}
 
 	for (; ptr != 0; ptr = ptr->next) {
-		if ((ptr->key != never) && EQUAL(table, ptr->key, *key)) {
+		if ((ptr->key != never) && EQUAL(table, (void*) ptr->key, (void*) *key)) {
 			table->num_entries--;
 			*key = ptr->key;
 			if (value != 0)
@@ -439,11 +439,11 @@ void st_cleanup_safe(st_table *table,st_data_t never)
 {
 	int num_entries = table->num_entries;
 
-	st_foreach(table, HASH_FUNCTION_CAST delete_never, never);
+	st_foreach(table, (hash_function_foreach) delete_never, never);
 	table->num_entries = num_entries;
 }
 
-int st_foreach(st_table *table,int (*func) (ANYARGS),st_data_t arg)
+int st_foreach(st_table *table,int (*func) (void*, void*, void*),st_data_t arg)
 {
 	st_table_entry *ptr, *last, *tmp;
 	enum st_retval retval;
@@ -452,7 +452,9 @@ int st_foreach(st_table *table,int (*func) (ANYARGS),st_data_t arg)
 	for (i = 0; i < table->num_bins; i++) {
 		last = 0;
 		for (ptr = table->bins[i]; ptr != 0;) {
-			retval = (enum st_retval) (*func) (ptr->key, ptr->record, arg);
+			retval = (enum st_retval) (*func) ((void*) ptr->key,
+							   (void*) ptr->record,
+							   (void*) arg);
 			switch (retval) {
 			case ST_CHECK:	/* check if hash is modified during
 					 * iteration */

@@ -25,7 +25,9 @@ set -e
 
 for lang in /avro/lang/*/
 do
-  headline "Run tests: $lang"
-  cd "$lang"
-  ./build.sh lint test
+  if [ -f "${lang}/build.sh" ]; then
+    headline "Run tests: $lang"
+    cd "$lang"
+    ./build.sh lint test
+  fi
 done

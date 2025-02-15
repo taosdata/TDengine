@@ -196,6 +196,9 @@ int avro_skip_data(avro_reader_t reader, avro_schema_t writers_schema)
 		    avro_skip_data(reader,
 				   (avro_schema_to_link(writers_schema))->to);
 		break;
+	case AVRO_INVALID:
+		rval = EINVAL;
+		break;
 	}
 
 	return rval;

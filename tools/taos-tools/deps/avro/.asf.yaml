@@ -39,6 +39,12 @@ github:
     rebase: true
     squash: true
 
+  collaborators:
+    - jbonofre
+
+publish:
+  whoami: asf-site
+
 notifications:
   commits: commits@avro.apache.org
   issues: issues@avro.apache.org

@@ -78,7 +78,7 @@ static int map_equal(struct avro_map_datum_t *a, struct avro_map_datum_t *b)
 	if (a->map->num_entries != b->map->num_entries) {
 		return 0;
 	}
-	st_foreach(a->map, HASH_FUNCTION_CAST st_equal_foreach, (st_data_t) & args);
+	st_foreach(a->map, (hash_function_foreach) st_equal_foreach, (st_data_t) & args);
 	return args.rval;
 }
 
@@ -93,7 +93,7 @@ static int record_equal(struct avro_record_datum_t *a,
 	if (a->fields_byname->num_entries != b->fields_byname->num_entries) {
 		return 0;
 	}
-	st_foreach(a->fields_byname, HASH_FUNCTION_CAST st_equal_foreach, (st_data_t) & args);
+	st_foreach(a->fields_byname, (hash_function_foreach) st_equal_foreach, (st_data_t) & args);
 	return args.rval;
 }
 
@@ -179,6 +179,12 @@ int avro_datum_equal(const avro_datum_t a, const avro_datum_t b)
 	case AVRO_LINK:
 		/*
 		 * TODO 
+		 */
+		return 0;
+	case AVRO_INVALID:
+		/*
+		 * Invalid datums should not be compared and returning 0
+		 * matches the other error conditions
 		 */
 		return 0;
 	}

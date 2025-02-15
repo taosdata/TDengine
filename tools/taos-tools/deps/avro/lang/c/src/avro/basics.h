@@ -24,6 +24,7 @@ extern "C" {
 #define CLOSE_EXTERN
 #endif
 
+#include <errno.h>
 
 enum avro_type_t {
 	AVRO_STRING,
@@ -40,7 +41,8 @@ enum avro_type_t {
 	AVRO_MAP,
 	AVRO_ARRAY,
 	AVRO_UNION,
-	AVRO_LINK
+	AVRO_LINK,
+	AVRO_INVALID = EINVAL,
 };
 typedef enum avro_type_t avro_type_t;
 

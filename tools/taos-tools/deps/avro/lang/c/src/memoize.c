@@ -52,8 +52,8 @@ avro_memoize_key_hash(avro_memoize_key_t *a)
 
 
 static struct st_hash_type  avro_memoize_hash_type = {
-	HASH_FUNCTION_CAST avro_memoize_key_cmp,
-	HASH_FUNCTION_CAST avro_memoize_key_hash
+	(hash_function_compare) avro_memoize_key_cmp,
+	(hash_function_hash) avro_memoize_key_hash
 };
 
 
@@ -78,7 +78,7 @@ avro_memoize_free_key(avro_memoize_key_t *key, void *result, void *dummy)
 void
 avro_memoize_done(avro_memoize_t *mem)
 {
-	st_foreach((st_table *) mem->cache, HASH_FUNCTION_CAST avro_memoize_free_key, 0);
+	st_foreach((st_table *) mem->cache, (hash_function_foreach) avro_memoize_free_key, 0);
 	st_free_table((st_table *) mem->cache);
 	memset(mem, 0, sizeof(avro_memoize_t));
 }

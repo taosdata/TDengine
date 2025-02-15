@@ -123,7 +123,7 @@ avro_schema_datum_validate(avro_schema_t expected_schema, avro_datum_t datum)
 			    { avro_schema_to_map(expected_schema)->values, 1
 			};
 			st_foreach(avro_datum_to_map(datum)->map,
-				   HASH_FUNCTION_CAST schema_map_validate_foreach,
+				   (hash_function_foreach) schema_map_validate_foreach,
 				   (st_data_t) & vst);
 			return vst.rval;
 		}
@@ -188,6 +188,8 @@ avro_schema_datum_validate(avro_schema_t expected_schema, avro_datum_t datum)
 						       datum);
 		}
 		break;
+	case AVRO_INVALID:
+		return EINVAL;
 	}
 	return 0;
 }

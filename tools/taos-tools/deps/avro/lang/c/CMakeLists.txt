@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.5)
 project(AvroC C)
 enable_testing()
 
@@ -151,7 +151,7 @@ endif (ZLIB_FOUND)
 
 find_package(Snappy)
 if (SNAPPY_FOUND AND ZLIB_FOUND)  # Snappy borrows crc32 from zlib
-    set(SNAPPY_PKG libsnappy)
+    set(SNAPPY_PKG snappy)
     add_definitions(-DSNAPPY_CODEC)
     include_directories(${SNAPPY_INCLUDE_DIRS})
     message("Enabled snappy codec")
@@ -176,7 +176,7 @@ else (LZMA_FOUND)
 endif (LZMA_FOUND)
 
 set(CODEC_LIBRARIES ${ZLIB_LIBRARIES} ${LZMA_LIBRARIES} ${SNAPPY_LIBRARIES})
-set(CODEC_PKG "@ZLIB_PKG@ @LZMA_PKG@ @SNAPPY_PKG@")
+set(CODEC_PKG "${ZLIB_PKG} ${LZMA_PKG} ${SNAPPY_PKG}")
 
 # Jansson JSON library
 pkg_check_modules(JANSSON jansson>=2.3)

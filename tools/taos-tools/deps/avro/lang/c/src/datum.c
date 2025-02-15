@@ -1086,6 +1086,7 @@ static void avro_datum_free(avro_datum_t datum)
 			}
 			break;
 		case AVRO_NULL:
+		case AVRO_INVALID:
 			/* Nothing allocated */
 			break;
 
@@ -1094,7 +1095,7 @@ static void avro_datum_free(avro_datum_t datum)
 				record = avro_datum_to_record(datum);
 				avro_schema_decref(record->schema);
 				st_foreach(record->fields_byname,
-					   HASH_FUNCTION_CAST char_datum_free_foreach, 0);
+					   (hash_function_foreach) char_datum_free_foreach, 0);
 				st_free_table(record->field_order);
 				st_free_table(record->fields_byname);
 				avro_freet(struct avro_record_datum_t, record);
@@ -1122,7 +1123,7 @@ static void avro_datum_free(avro_datum_t datum)
 				struct avro_map_datum_t *map;
 				map = avro_datum_to_map(datum);
 				avro_schema_decref(map->schema);
-				st_foreach(map->map, HASH_FUNCTION_CAST char_datum_free_foreach,
+				st_foreach(map->map, (hash_function_foreach) char_datum_free_foreach,
 					   0);
 				st_free_table(map->map);
 				st_free_table(map->indices_by_key);
@@ -1134,7 +1135,7 @@ static void avro_datum_free(avro_datum_t datum)
 				struct avro_array_datum_t *array;
 				array = avro_datum_to_array(datum);
 				avro_schema_decref(array->schema);
-				st_foreach(array->els, HASH_FUNCTION_CAST array_free_foreach, 0);
+				st_foreach(array->els, (hash_function_foreach) array_free_foreach, 0);
 				st_free_table(array->els);
 				avro_freet(struct avro_array_datum_t, array);
 			}
@@ -1182,7 +1183,7 @@ avro_datum_reset(avro_datum_t datum)
 		{
 			struct avro_array_datum_t *array;
 			array = avro_datum_to_array(datum);
-			st_foreach(array->els, HASH_FUNCTION_CAST array_free_foreach, 0);
+			st_foreach(array->els, (hash_function_foreach) array_free_foreach, 0);
 			st_free_table(array->els);
 
 			rval = avro_init_array(array);
@@ -1197,7 +1198,7 @@ avro_datum_reset(avro_datum_t datum)
 		{
 			struct avro_map_datum_t *map;
 			map = avro_datum_to_map(datum);
-			st_foreach(map->map, HASH_FUNCTION_CAST char_datum_free_foreach, 0);
+			st_foreach(map->map, (hash_function_foreach) char_datum_free_foreach, 0);
 			st_free_table(map->map);
 			st_free_table(map->indices_by_key);
 			st_free_table(map->keys_by_index);
@@ -1216,7 +1217,7 @@ avro_datum_reset(avro_datum_t datum)
 			record = avro_datum_to_record(datum);
 			rval = 0;
 			st_foreach(record->fields_byname,
-				   HASH_FUNCTION_CAST datum_reset_foreach, (st_data_t) &rval);
+				   (hash_function_foreach) datum_reset_foreach, (st_data_t) &rval);
 			return rval;
 		}
 

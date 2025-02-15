@@ -268,7 +268,7 @@ enum enAVROTYPE {
     AVRO_NTB,
     AVRO_DATA,
     AVRO_UNKNOWN,
-    AVRO_INVALID
+    AVRO_INVALIDEX
 };
 
 typedef enum enAVROTYPE AVROTYPE;

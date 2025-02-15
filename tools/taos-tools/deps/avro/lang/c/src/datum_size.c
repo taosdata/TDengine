@@ -126,7 +126,7 @@ size_map(avro_writer_t writer, const avro_encoding_t * enc,
 	if (datum->map->num_entries) {
 		size_accum(rval, size,
 			   enc->size_long(writer, datum->map->num_entries));
-		st_foreach(datum->map, HASH_FUNCTION_CAST size_map_foreach, (st_data_t) & args);
+		st_foreach(datum->map, (hash_function_foreach) size_map_foreach, (st_data_t) & args);
 		size += args.size;
 	}
 	if (!args.rval) {
@@ -271,6 +271,7 @@ static int64_t size_datum(avro_writer_t writer, const avro_encoding_t * enc,
 				  avro_datum_to_union(datum));
 
 	case AVRO_LINK:
+	case AVRO_INVALID:
 		break;
 	}
 

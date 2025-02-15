@@ -39,6 +39,9 @@ change_java_version() {
 
 # ===========================================================================
 
+# This might not have been sourced if the entrypoint is not bash
+[[ -f "$HOME/.cargo/env" ]] && . "$HOME/.cargo/env"
+
 set -xe
 cd "${0%/*}"
 
@@ -52,6 +55,9 @@ DOCKER_RUN_ENTRYPOINT=${DOCKER_RUN_ENTRYPOINT-bash}
 DOCKER_BUILD_XTRA_ARGS=${DOCKER_BUILD_XTRA_ARGS-}
 # Override the docker image name used.
 DOCKER_IMAGE_NAME=${DOCKER_IMAGE_NAME-}
+
+# When building a docker container, these are the files that will sent and available.
+DOCKER_EXTRA_CONTEXT="lang/ruby/Gemfile lang/ruby/avro.gemspec lang/ruby/Manifest share/VERSION.txt"
 
 usage() {
   echo "Usage: $0 {lint|test|dist|sign|clean|veryclean|docker [--args \"docker-args\"]|rat|githooks|docker-test}"
@@ -101,7 +107,6 @@ do
       (cd lang/ruby; ./build.sh lint test)
       (cd lang/php; ./build.sh lint test)
       (cd lang/perl; ./build.sh lint test)
-      (cd lang/rust; ./build.sh lint test)
 
       (cd lang/py; ./build.sh interop-data-generate)
       (cd lang/c; ./build.sh interop-data-generate)
@@ -151,6 +156,9 @@ do
       # runs RAT on artifacts
       mvn -N -P rat antrun:run verify
 
+      # install java artifacts required by other builds and interop tests
+      mvn -B install -DskipTests
+
       mkdir -p dist
       (cd build; tar czf "../dist/${SRC_DIR}.tar.gz" "${SRC_DIR}")
 
@@ -167,14 +175,21 @@ do
       (cd lang/js; ./build.sh dist)
       (cd lang/ruby; ./build.sh dist)
       (cd lang/php; ./build.sh dist)
-      (cd lang/rust; ./build.sh dist)
 
       mkdir -p dist/perl
       (cd lang/perl; ./build.sh dist)
       cp "lang/perl/Avro-$VERSION.tar.gz" dist/perl/
 
       # build docs
-      (cd doc; ant)
+      cp -r doc/ build/staging-web/
+      find build/staging-web/ -type f -print0 | xargs -0 sed -r -i "s#\+\+version\+\+#${VERSION,,}#g"
+      mkdir -p build/staging-web/public/docs/
+      mv build/staging-web/doc/content/en/docs/++version++ build/staging-web/public/docs/"${VERSION,,}"
+      read -n 1 -s -r -p "Build build/staging-web/ manually now. Press a key to continue..."
+      # If it was a SNAPSHOT, it was lowercased during the build.
+      cp -R build/staging-web/public/docs/"${VERSION,,}"/* "build/$DOC_DIR/"
+      cp -R "build/$DOC_DIR/api" build/staging-web/public/docs/"${VERSION,,}"/
+      ( cd build/staging-web/public/docs/; ln -s "${VERSION,,}" current )
       # add LICENSE and NOTICE for docs
       mkdir -p "build/$DOC_DIR"
       cp doc/LICENSE "build/$DOC_DIR"
@@ -198,7 +213,13 @@ do
         \! -name '*.asc' \! -name '*.txt' );
       do
         (cd "${f%/*}" && shasum -a 512 "${f##*/}") > "$f.sha512"
-        gpg --passphrase "$password" --armor --output "$f.asc" --detach-sig "$f"
+
+        if [ -z "$GPG_LOCAL_USER" ]; then
+          gpg --pinentry-mode loopback --passphrase "$password" --armor --output "$f.asc" --detach-sig "$f"
+        else
+          gpg --pinentry-mode loopback --local-user="$GPG_LOCAL_USER" --passphrase "$password" --armor --output "$f.asc" --detach-sig "$f"
+        fi
+
       done
 
       set -x
@@ -206,7 +227,7 @@ do
 
     clean)
       rm -rf build dist
-      (cd doc; ant clean)
+      rm -rf doc/public/ doc/resources/ doc/node_modules/ doc/package-lock.json doc/.hugo_build.lock
 
       (mvn -B clean)
       rm -rf lang/java/*/userlogs/
@@ -229,12 +250,11 @@ do
 
       (cd lang/perl; ./build.sh clean)
 
-      (cd lang/rust; ./build.sh clean)
       ;;
 
     veryclean)
       rm -rf build dist
-      (cd doc; ant clean)
+      rm -rf doc/public/ doc/resources/ doc/node_modules/ doc/package-lock.json doc/.hugo_build.lock
 
       (mvn -B clean)
       rm -rf lang/java/*/userlogs/
@@ -256,20 +276,18 @@ do
       (cd lang/php; ./build.sh clean)
 
       (cd lang/perl; ./build.sh clean)
-
-      (cd lang/rust; ./build.sh clean)
 
       rm -rf lang/c++/build
       rm -rf lang/js/node_modules
       rm -rf lang/perl/inc/
       rm -rf lang/ruby/.gem/
       rm -rf lang/ruby/Gemfile.lock
-      rm -rf lang/py/lib/ivy-2.2.0.jar
       rm -rf lang/csharp/src/apache/ipc.test/bin/
       rm -rf lang/csharp/src/apache/ipc.test/obj
       ;;
 
     docker)
+      echo "NB: for Docker Desktop users on MacOS, the default file sharing implementation (VirtioFS) has issues with some operations. You should better use gRPC FUSE or osxfs."
       if [[ $1 =~ ^--args ]]; then
         DOCKER_RUN_XTRA_ARGS=$2
         shift 2
@@ -286,15 +304,20 @@ do
       DOCKER_IMAGE_NAME=${DOCKER_IMAGE_NAME:-"avro-build-$USER_NAME:latest"}
       {
         cat share/docker/Dockerfile
-        grep -vF 'FROM avro-build-ci' share/docker/DockerfileLocal
         echo "ENV HOME /home/$USER_NAME"
         echo "RUN getent group $GROUP_ID || groupadd -g $GROUP_ID $USER_NAME"
         echo "RUN getent passwd $USER_ID || useradd -g $GROUP_ID -u $USER_ID -k /root -m $USER_NAME"
+        echo "RUN mkdir -p /home/$USER_NAME/.m2/repository"
       } > Dockerfile
+
+      if [ -z "$BUILDPLATFORM" ]; then
+        export BUILDPLATFORM=$(docker info --format "{{.OSType}}/{{.Architecture}}")
+      fi
+      # Include the ruby gemspec for preinstallation.
       # shellcheck disable=SC2086
-      tar -cf- lang/ruby/Gemfile Dockerfile | docker build $DOCKER_BUILD_XTRA_ARGS -t "$DOCKER_IMAGE_NAME" -
+      tar -cf- Dockerfile $DOCKER_EXTRA_CONTEXT | DOCKER_BUILDKIT=1 docker build $DOCKER_BUILD_XTRA_ARGS --build-arg="BUILDPLATFORM=${BUILDPLATFORM}" -t "$DOCKER_IMAGE_NAME" -
       rm Dockerfile
-      # By mapping the .m2 directory you can do an mvn install from
+      # By mapping the .m2/repository directory you can do an mvn install from
       # within the container and use the result on your normal
       # system.  And this also is a significant speedup in subsequent
       # builds because the dependencies are downloaded only once.
@@ -306,10 +329,13 @@ do
       # extra second before the changes are available within the docker container.
       # shellcheck disable=SC2086
       docker run --rm -t -i \
-        --env "JAVA=${JAVA:-8}" \
+        --env "JAVA=${JAVA:-21}" \
         --user "${USER_NAME}" \
         --volume "${HOME}/.gnupg:/home/${USER_NAME}/.gnupg" \
-        --volume "${HOME}/.m2:/home/${USER_NAME}/.m2${DOCKER_MOUNT_FLAG}" \
+        --volume "${PWD}/share/docker/m2:/home/${USER_NAME}/.m2/" \
+        --volume "${PWD}/share/docker/m2/toolchains.xml:/home/${USER_NAME}/.m2/toolchains.xml" \
+        --volume "${HOME}/.m2/repository:/home/${USER_NAME}/.m2/repository${DOCKER_MOUNT_FLAG}" \
+        --volume "${HOME}/.m2/build-cache:/home/${USER_NAME}/.m2/build-cache${DOCKER_MOUNT_FLAG}" \
         --volume "${PWD}:/home/${USER_NAME}/avro${DOCKER_MOUNT_FLAG}" \
         --workdir "/home/${USER_NAME}/avro" \
         ${DOCKER_RUN_XTRA_ARGS} "$DOCKER_IMAGE_NAME" ${DOCKER_RUN_ENTRYPOINT}
@@ -327,9 +353,15 @@ do
       ;;
 
     docker-test)
-      tar -cf- share/docker/Dockerfile lang/ruby/Gemfile |
-        docker build -t avro-test -f share/docker/Dockerfile -
-      docker run --rm -v "${PWD}:/avro${DOCKER_MOUNT_FLAG}" --env "JAVA=${JAVA:-8}" avro-test /avro/share/docker/run-tests.sh
+      if [ -z "$BUILDPLATFORM" ]; then
+        export BUILDPLATFORM=$(docker info --format "{{.OSType}}/{{.Architecture}}")
+      fi
+      tar -cf- share/docker/Dockerfile $DOCKER_EXTRA_CONTEXT |
+        DOCKER_BUILDKIT=1 docker build -t avro-test --build-arg BUILDPLATFORM="${BUILDPLATFORM}" -f share/docker/Dockerfile -
+      docker run --rm \
+        --volume "${PWD}:/avro${DOCKER_MOUNT_FLAG}" \
+        --volume "${PWD}/share/docker/m2/:/root/.m2/" \
+        --env "JAVA=${JAVA:-11}" avro-test /avro/share/docker/run-tests.sh
       ;;
 
     *)

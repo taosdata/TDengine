@@ -22,12 +22,12 @@
   <parent>
     <groupId>org.apache</groupId>
     <artifactId>apache</artifactId>
-    <version>23</version>
+    <version>33</version>
   </parent>
 
   <groupId>org.apache.avro</groupId>
   <artifactId>avro-toplevel</artifactId>
-  <version>1.11.0</version>
+  <version>1.13.0-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <name>Apache Avro Toplevel</name>
@@ -40,21 +40,33 @@
        Java artifacts are copied to the final build destination with a custom profile.
        -->
   <properties>
-    <maven.compiler.source>1.8</maven.compiler.source>
-    <maven.compiler.target>1.8</maven.compiler.target>
+    <maven.compiler.source>11</maven.compiler.source>
+    <maven.compiler.release>11</maven.compiler.release>
     <main.basedir>${project.basedir}</main.basedir>
     <avro.distDir>dist</avro.distDir>
     <avro.docDir>build/avro-doc-${project.version}/api</avro.docDir>
+
     <!-- plugin versions -->
-    <antrun-plugin.version>3.0.0</antrun-plugin.version>
-    <checkstyle-plugin.version>3.1.2</checkstyle-plugin.version>
-    <checkstyle.version>8.42</checkstyle.version>
-    <enforcer-plugin.version>3.0.0-M3</enforcer-plugin.version>
-    <maven-plugin-plugin.version>3.6.1</maven-plugin-plugin.version>
-    <plugin-tools-javadoc.version>3.5</plugin-tools-javadoc.version>
-    <extra-enforcer-rules.version>1.3</extra-enforcer-rules.version>
-    <spotless-maven-plugin.version>2.11.1</spotless-maven-plugin.version>
-    <surefire.version>3.0.0-M5</surefire.version>
+    <apache-rat-plugin.version>0.16.1</apache-rat-plugin.version>
+    <checkstyle-plugin.version>3.6.0</checkstyle-plugin.version>
+    <checkstyle.version>10.21.1</checkstyle.version>
+    <enforcer-plugin.version>3.5.0</enforcer-plugin.version>
+    <extra-enforcer-rules.version>1.9.0</extra-enforcer-rules.version>
+    <maven-antrun-plugin.version>3.1.0</maven-antrun-plugin.version>
+    <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
+    <maven-gpg-plugin.version>3.2.7</maven-gpg-plugin.version>
+    <maven-javadoc-plugin.version>3.11.2</maven-javadoc-plugin.version>
+    <maven-plugin-plugin.version>3.15.1</maven-plugin-plugin.version>
+    <maven-remote-resources-plugin.version>3.3.0</maven-remote-resources-plugin.version>
+    <maven-shade-plugin.version>3.6.0</maven-shade-plugin.version>
+    <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
+    <maven-toolchains-plugin.version>3.2.0</maven-toolchains-plugin.version>
+    <plugin-tools-javadoc.version>3.5.2</plugin-tools-javadoc.version>
+    <spotless-maven-plugin.version>2.44.2</spotless-maven-plugin.version>
+    <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
+
+    <!-- Pin output timestamp to make the Java build reproducible -->
+    <project.build.outputTimestamp>1723122283</project.build.outputTimestamp>
   </properties>
 
   <modules>
@@ -108,16 +120,113 @@
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-antrun-plugin</artifactId>
+          <version>${maven-antrun-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-gpg-plugin</artifactId>
+          <version>${maven-gpg-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-javadoc-plugin</artifactId>
+          <version>${maven-javadoc-plugin.version}</version>
+          <configuration>
+            <notimestamp>true</notimestamp>
+            <legacyMode>true</legacyMode>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-plugin-plugin</artifactId>
           <version>${maven-plugin-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-shade-plugin</artifactId>
+          <version>${maven-shade-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-source-plugin</artifactId>
+          <version>${maven-source-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.rat</groupId>
+          <artifactId>apache-rat-plugin</artifactId>
+          <version>${apache-rat-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-remote-resources-plugin</artifactId>
+          <version>${maven-remote-resources-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-enforcer-plugin</artifactId>
+          <version>${enforcer-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-toolchains-plugin</artifactId>
+          <version>${maven-toolchains-plugin.version}</version>
         </plugin>
       </plugins>
     </pluginManagement>
     <plugins>
+
+      <!-- By trying to activate all toolchains referenced in this project we get a fail-fast if any of them is missing. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-toolchains-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>Ensure ToolChain for JDK 11 is available</id>
+            <goals>
+              <goal>toolchain</goal>
+            </goals>
+            <configuration>
+              <toolchains>
+                <jdk>
+                  <version>11</version>
+                </jdk>
+              </toolchains>
+            </configuration>
+          </execution>
+          <execution>
+            <id>Ensure ToolChain for JDK 17 is available</id>
+            <goals>
+              <goal>toolchain</goal>
+            </goals>
+            <configuration>
+              <toolchains>
+                <jdk>
+                  <version>17</version>
+                </jdk>
+              </toolchains>
+            </configuration>
+          </execution>
+          <execution>
+            <!-- The last one in this list is the version used for actually building the software -->
+            <id>Build using JDK 21</id>
+            <goals>
+              <goal>toolchain</goal>
+            </goals>
+            <configuration>
+              <toolchains>
+                <jdk>
+                  <version>21</version>
+                </jdk>
+              </toolchains>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-enforcer-plugin</artifactId>
-        <version>${enforcer-plugin.version}</version>
         <executions>
           <execution>
             <id>default-cli</id>
@@ -127,9 +236,13 @@
             <configuration>
               <rules>
                 <enforceBytecodeVersion>
-                  <maxJdkVersion>1.8</maxJdkVersion>
+                  <maxJdkVersion>11</maxJdkVersion>
+                  <ignoredScopes>
+                    <ignoredScope>test</ignoredScope>
+                    <ignoredScope>provided</ignoredScope>
+                  </ignoredScopes>
                   <!--
-                    Multi release jars that are Java 8 compatible should pass,
+                    Multi release jars that are Java 11 compatible should pass,
                     but the extra-enforcer-plugin does not detect them
                     correctly so we should ignore them explicitly.
                     -->
@@ -145,10 +258,10 @@
                   </excludes>
                 </enforceBytecodeVersion>
                 <requireJavaVersion>
-                  <version>[1.8,)</version>
+                  <version>21</version>
                 </requireJavaVersion>
                 <requireMavenVersion>
-                  <version>[3.8.1,)</version>
+                  <version>[3.9.6,)</version>
                 </requireMavenVersion>
               </rules>
             </configuration>
@@ -162,15 +275,11 @@
               <rules>
                 <requireProperty>
                   <property>project.version</property>
+                  <!--suppress UnresolvedMavenProperty -->
                   <regex>${env.VERSION}</regex>
+                  <!--suppress UnresolvedMavenProperty -->
                   <regexMessage>*****!!!!! Version of project must be ${env.VERSION} !!!!!*****</regexMessage>
                 </requireProperty>
-                <enforceBytecodeVersion>
-                  <maxJdkVersion>1.8</maxJdkVersion>
-                </enforceBytecodeVersion>
-                <requireJavaVersion>
-                  <version>[1.8,)</version>
-                </requireJavaVersion>
               </rules>
             </configuration>
           </execution>
@@ -271,6 +380,12 @@
                 <goals>
                   <goal>sign</goal>
                 </goals>
+                <configuration>
+                  <gpgArguments>
+                    <arg>--pinentry-mode</arg>
+                    <arg>loopback</arg>
+                  </gpgArguments>
+                </configuration>
               </execution>
             </executions>
           </plugin>
@@ -297,32 +412,30 @@
               </execution>
             </executions>
             <configuration>
-              <licenses>
-                <!-- TODO (low prio): Remove this simple workaround when Apache Rat 0.14 has been released. -->
-                <!-- See also: https://issues.apache.org/jira/browse/RAT-212 -->
-                <!-- and       https://issues.apache.org/jira/browse/LEGAL-265 -->
-                <license implementation="org.apache.rat.analysis.license.ApacheSoftwareLicense20">
-                  <notes>Also allow the license url to be https.</notes>
-                  <patterns>
-                    <pattern>https://www.apache.org/licenses/LICENSE-2.0</pattern>
-                  </patterns>
-                </license>
-              </licenses>
               <consoleOutput>true</consoleOutput>
               <excludeSubProjects>false</excludeSubProjects>
               <excludes>
                 <!-- version control files -->
                 <!-- may not be in the root folder if using git-svn -->
                 <exclude>**/.git/**</exclude>
+                <exclude>**/.gitattributes</exclude>
                 <exclude>**/.gitignore</exclude>
+                <exclude>**/.gitmodules</exclude>
+                <!-- Hugo / Docsy -->
+                <exclude>doc/build/**</exclude>
+                <exclude>doc/content/**</exclude>
+                <exclude>doc/themes/docsy/**</exclude>
+                <exclude>doc/examples/java-example/target/**</exclude>
+                <exclude>doc/examples/mr-example/target/**</exclude>
+                <exclude>doc/node_modules/**</exclude>
+                <exclude>**/.hugo_build.lock</exclude>
+                <exclude>doc/go.sum</exclude>
                 <!-- build or test files (some are generated files that we commit as-is for testing purposes) -->
                 <exclude>**/*.log</exclude>
                 <exclude>**/*.rej</exclude>
                 <exclude>**/*.egg-info/**</exclude>
                 <exclude>build/**</exclude>
-                <exclude>doc/build/**</exclude>
-                <exclude>doc/examples/java-example/target/**</exclude>
-                <exclude>doc/examples/mr-example/target/**</exclude>
+                <exclude>share/docker/m2/build-cache/**</exclude>
                 <exclude>lang/java/archetypes/**</exclude>
                 <exclude>lang/java/**/target/**</exclude>
                 <exclude>lang/js/node_modules/**</exclude>
@@ -339,13 +452,12 @@
                 <exclude>lang/ruby/.gem/**</exclude>
                 <exclude>lang/ruby/pkg/**</exclude>
                 <exclude>lang/ruby/.bundle/**</exclude>
-                <exclude>lang/rust/target/**</exclude>
-                <exclude>lang/rust/precommit_venv/**</exclude>
-                <exclude>lang/rust/Cargo.lock</exclude>
-                <exclude>lang/rust/README.tpl</exclude>
-                <exclude>lang/rust/.requirements-precommit.txt</exclude>
+                <exclude>lang/rust/README.md</exclude>
                 <exclude>lang/java/avro/src/test/java/org/apache/avro/specific/TestRecordWithLogicalTypes.java</exclude>
                 <exclude>lang/java/avro/src/test/java/org/apache/avro/specific/TestRecordWithoutLogicalTypes.java</exclude>
+                <exclude>lang/java/avro/src/test/java/org/apache/avro/specific/int$.java</exclude>
+                <exclude>lang/java/ipc-netty/src/test/resources/**/*.txt</exclude>
+                <exclude>lang/java/tools/src/test/compiler/output-string/avro/examples/baseball/NullSafeAnnotationsFieldsTest.java</exclude>
                 <exclude>lang/java/tools/src/test/compiler/output-string/avro/examples/baseball/Player.java</exclude>
                 <exclude>lang/java/tools/src/test/compiler/output-string/avro/examples/baseball/Position.java</exclude>
                 <exclude>lang/java/tools/src/test/compiler/output-string/avro/examples/baseball/FieldTest.java</exclude>
@@ -396,13 +508,13 @@
                 <exclude>**/README.md</exclude>
                 <exclude>**/VERSION.txt</exclude>
                 <exclude>**/dependency-reduced-pom.xml</exclude>
-                <exclude>.travis.yml</exclude>
                 <exclude>BUILD.md</exclude>
                 <exclude>lang/c/src/avro-c.pc.in</exclude>
                 <exclude>lang/csharp/**/bin/Debug/**/Avro.xml</exclude>
                 <exclude>lang/csharp/**/bin/Release/**/Avro.xml</exclude>
                 <exclude>lang/csharp/TestResult.xml</exclude>
                 <exclude>lang/csharp/src/apache/*/obj/**</exclude>
+                <exclude>lang/csharp/src/apache/codec/*/obj/**</exclude>
                 <exclude>lang/java/archetypes/avro-service-archetype/src/test/integration/projects/basic/goal.txt</exclude>
                 <exclude>lang/java/mapred/userlogs/**</exclude>
                 <exclude>lang/java/tools/userlogs/**</exclude>
@@ -420,6 +532,7 @@
                 <exclude>lang/py/build/**</exclude>
                 <exclude>lang/py/dist/**</exclude>
                 <exclude>lang/py/userlogs/**</exclude>
+                <exclude>lang/py/docs/build/**</exclude>
                 <exclude>lang/ruby/Manifest</exclude>
                 <!-- text documentation files -->
                 <exclude>CHANGES.txt</exclude>
@@ -439,11 +552,13 @@
                 <exclude>lang/c++/m4/*.m4</exclude>
                 <exclude>lang/java/ipc/src/main/velocity/org/apache/avro/ipc/stats/static/protovis-r3.2.js</exclude>
                 <exclude>lang/java/ipc/src/main/velocity/org/apache/avro/ipc/stats/static/g.bar.js</exclude>
-                <exclude>lang/java/ipc/src/main/velocity/org/apache/avro/ipc/stats/static/jquery-1.4.2.min.js</exclude>
+                <exclude>lang/java/ipc/src/main/velocity/org/apache/avro/ipc/stats/static/jquery-1.6.3.min.js</exclude>
                 <!-- License files -->
                 <exclude>lang/java/tools/src/main/resources/META-INF/cddl-1.0.text</exclude>
                 <exclude>lang/java/tools/src/main/resources/META-INF/cddl-1.1.text</exclude>
                 <exclude>lang/java/tools/src/main/resources/META-INF/mpl-2.0.text</exclude>
+                <!-- Other -->
+                <exclude>lang/py/avro/py.typed</exclude> <!-- Included in package but contains no code (see PEP561)  -->
               </excludes>
             </configuration>
           </plugin>
@@ -472,7 +587,7 @@
                   <fileset dir="lang/java/target/site/apidocs"/>
                 </copy>
                 <copy todir="build/avro-doc-${project.version}/trevni">
-                  <fileset dir="lang/java/trevni/doc/target/site"/>
+                  <fileset dir="lang/java/trevni/target/site"/>
                 </copy>
               </target>
             </configuration>
