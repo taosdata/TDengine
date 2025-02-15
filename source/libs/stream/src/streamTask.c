@@ -1287,8 +1287,8 @@ const char* streamTaskGetExecType(int32_t type) {
       return "resume-task-from-idle";
     case STREAM_EXEC_T_ADD_FAILED_TASK:
       return "record-start-failed-task";
-    case STREAM_EXEC_T_DROP_ONE_TASK:
-      return "drop-one-task";
+    case STREAM_EXEC_T_STOP_ONE_TASK:
+      return "stop-one-task";
     case 0:
       return "exec-all-tasks";
     default:

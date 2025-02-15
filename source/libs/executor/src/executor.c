@@ -982,24 +982,24 @@ int32_t qKillTask(qTaskInfo_t tinfo, int32_t rspCode, int64_t waitingDuration) {
   qDebug("%s sync killed execTask, and waiting for %.2fs", GET_TASKID(pTaskInfo), waitingDuration/1000.0);
   setTaskKilled(pTaskInfo, TSDB_CODE_TSC_QUERY_KILLED);
 
-  while (1) {
-    taosWLockLatch(&pTaskInfo->lock);
-    if (qTaskIsExecuting(pTaskInfo)) {  // let's wait for 100 ms and try again
-      taosWUnLockLatch(&pTaskInfo->lock);
-
-      taosMsleep(200);
-
-      int64_t d = taosGetTimestampMs() - st;
-      if (d >= waitingDuration && waitingDuration >= 0) {
-        qWarn("%s waiting more than %.2fs, not wait anymore", GET_TASKID(pTaskInfo), waitingDuration/1000.0);
-        return TSDB_CODE_SUCCESS;
-      }
-    } else {  // not running now
-      pTaskInfo->code = rspCode;
-      taosWUnLockLatch(&pTaskInfo->lock);
+//  while (1) {
+//    taosWLockLatch(&pTaskInfo->lock);
+//    if (qTaskIsExecuting(pTaskInfo)) {  // let's wait for 100 ms and try again
+//      taosWUnLockLatch(&pTaskInfo->lock);
+//
+//      taosMsleep(200);
+//
+//      int64_t d = taosGetTimestampMs() - st;
+//      if (d >= waitingDuration && waitingDuration >= 0) {
+//        qWarn("%s waiting more than %.2fs, not wait anymore", GET_TASKID(pTaskInfo), waitingDuration/1000.0);
+//        return TSDB_CODE_SUCCESS;
+//      }
+//    } else {  // not running now
+//      pTaskInfo->code = rspCode;
+//      taosWUnLockLatch(&pTaskInfo->lock);
       return TSDB_CODE_SUCCESS;
-    }
-  }
+//    }
+//  }
 }
 
 bool qTaskIsExecuting(qTaskInfo_t qinfo) {
