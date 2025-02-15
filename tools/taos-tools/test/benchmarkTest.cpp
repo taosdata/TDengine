@@ -15,10 +15,6 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
-#include "shellAuto.h"
-
-#include <gtest/gtest.h>
-#include <iostream>
 
 TEST(jsonTest, taosBenchmarkTest) {
   printf("hello world taosBenchmark unit test for C \n");

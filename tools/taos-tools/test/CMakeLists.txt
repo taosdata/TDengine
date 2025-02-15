@@ -8,7 +8,7 @@ IF(TD_LINUX)
     AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
     # benchmark
-    ADD_EXECUTABLE(benchmarkTest ${SOURCE_LIST})
+    ADD_EXECUTABLE(benchmarkTest benchmarkTest.cpp)
     TARGET_LINK_LIBRARIES(
             benchmarkTest
             PRIVATE gtest 
@@ -25,7 +25,7 @@ IF(TD_LINUX)
     )
 
     # taosdump
-    ADD_EXECUTABLE(taosdumpTest ${SOURCE_LIST})
+    ADD_EXECUTABLE(taosdumpTest taosdumpTest.cpp)
     TARGET_LINK_LIBRARIES(
         taosdumpTest
             PRIVATE gtest 
