@@ -161,7 +161,7 @@ char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
 uint16_t tsTelemPort = 80;
 char    *tsTelemUri = "/report";
 
-#if defined(TD_ENTERPRISE) || defined(TD_ACORE)
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA)
 bool tsEnableCrashReport = false;
 #else
 bool    tsEnableCrashReport = false;
