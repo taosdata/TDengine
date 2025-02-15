@@ -20,7 +20,7 @@
 #include "transLog.h"
 // clang-format on
 
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 typedef struct {
   int32_t numOfConn;
   queue   msgQ;

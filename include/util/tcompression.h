@@ -69,7 +69,7 @@ extern "C" {
 #define HEAD_MODE(x) x % 2
 #define HEAD_ALGO(x) x / 2
 
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
 #define TD_TSZ
 #endif
 

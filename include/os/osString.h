@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
 #define DISALLOW_NCHAR_WITHOUT_ICONV
 #endif
 

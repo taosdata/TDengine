@@ -19,9 +19,9 @@
 #include "wincrypt.h"
 #include "windows.h"
 #else
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 #include <sys/file.h>
-#endif // !TD_ACORE
+#endif // !TD_ASTRA
 #include <unistd.h>
 #endif
 

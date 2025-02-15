@@ -81,7 +81,7 @@ typedef struct TdDir {
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 #include <wordexp.h>
 #endif
 
@@ -340,7 +340,7 @@ int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
   OS_PARAM_CHECK(outname);
   if (dirname[0] == 0) return 0;
 
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
   wordexp_t full_path = {0};
   int32_t   code = wordexp(dirname, &full_path, 0);
   switch (code) {
@@ -531,7 +531,7 @@ bool taosDirEntryIsDir(TdDirEntryPtr pDirEntry) {
   }
 #ifdef WINDOWS
   return (pDirEntry->findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-#elif defined(TD_ACORE)
+#elif defined(TD_ASTRA)
   return ((dirent *)pDirEntry)->d_mode == 1;  // DIRECTORY_ENTRY;
 #else
   return (((dirent *)pDirEntry)->d_type & DT_DIR) != 0;

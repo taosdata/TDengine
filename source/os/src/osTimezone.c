@@ -733,7 +733,7 @@ char *tz_win[W_TZ_CITY_NUM][2] = {{"Asia/Shanghai", "China Standard Time"},
 #include <libproc.h>
 #else
 #include <argp.h>
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 #include <linux/sysctl.h>
 #include <sys/file.h>
 #include <sys/resource.h>
@@ -795,7 +795,7 @@ int32_t taosGetLocalTimezoneOffset() {
   }
 #ifdef WINDOWS
   return -_timezone;
-#elif defined(TD_ACORE)
+#elif defined(TD_ASTRA)
   return -(int32_t)timezone;
 #else
   return (int32_t)(tm1.tm_gmtoff);

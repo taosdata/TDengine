@@ -9,7 +9,7 @@ option(
 )
 
 IF(${TD_WINDOWS})
-    IF(NOT TD_ACORE)
+    IF(NOT TD_ASTRA)
         MESSAGE("build pthread Win32")
         option(
                 BUILD_PTHREAD
@@ -39,7 +39,7 @@ IF(${TD_WINDOWS})
                 ON
             )
 
-    IF(NOT TD_ACORE)
+    IF(NOT TD_ASTRA)
         MESSAGE("build wcwidth Win32")
         option(
                 BUILD_WCWIDTH
@@ -78,7 +78,7 @@ option(
     ON
 )
 
-IF(NOT TD_ACORE)
+IF(NOT TD_ASTRA)
 option(
         BUILD_GEOS
         "If build with geos"
@@ -253,7 +253,7 @@ option(
     OFF
 )
 
-IF(NOT TD_ACORE)
+IF(NOT TD_ASTRA)
 
 option(
     BUILD_WITH_UV

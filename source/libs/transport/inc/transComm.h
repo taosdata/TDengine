@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
 #include "tmsg.h"
 #include "transLog.h"
 #include "transportInt.h"
@@ -245,7 +245,7 @@ typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } Co
 #define transIsReq(type)             (type & 1U)
 
 #define transLabel(trans) ((STrans*)trans)->label
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
 typedef struct SConnBuffer {
   char* buf;
   int   len;
@@ -336,7 +336,7 @@ int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf);
 int32_t transSetConnOption(uv_tcp_t* stream, int keepalive);
 #endif
 
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
 int32_t transSendRequest2(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
 int32_t transSendRecv2(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp);
 int32_t transSendRecvWithTimeout2(void* pInit, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
@@ -381,7 +381,7 @@ int32_t transReleaseSrvHandle(void* handle, int32_t status);
 
 #endif
 
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 void    transSockInfo2Str(struct sockaddr* sockname, char* dst);
 int32_t transAllocHandle(int64_t* refId);
 void*   transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
@@ -472,7 +472,7 @@ void transQueueClear(STransQueue* queue);
  */
 void transQueueDestroy(STransQueue* queue);
 
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 /*
  * delay queue based on uv loop and uv timer, and only used in retry
  */
@@ -548,7 +548,7 @@ int32_t subnetDebugInfoToBuf(SubnetUtils* pUtils, char* buf);
 int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf);
 int32_t transUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf);
 
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
 
 #define ASYNC_CHECK_HANDLE(idMgt, id, exh1)                                              \
   do {                                                                                   \
@@ -584,7 +584,7 @@ enum { REQ_STATUS_INIT = 0, REQ_STATUS_PROCESSING };
 #define HEAP_MISS_HIT_LIMIT 100000
 #define READ_TIMEOUT        100000
 
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 typedef struct {
   queue      node;  // queue for write
   queue      q;     // queue for reqs

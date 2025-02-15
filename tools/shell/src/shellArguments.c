@@ -102,7 +102,7 @@ void shellPrintHelp() {
 #endif
 }
 
-#if defined(LINUX) && !defined(TD_ACORE)
+#if defined(LINUX) && !defined(TD_ASTRA)
 #include <argp.h>
 #ifdef _ALPINE
 #include <termios.h>

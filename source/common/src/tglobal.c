@@ -65,7 +65,7 @@ int32_t tsShellActivityTimer = 3;  // second
 
 // memory pool
 int8_t  tsMemPoolFullFunc = 0;
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 int8_t  tsQueryUseMemoryPool = 1;
 #else
 int8_t  tsQueryUseMemoryPool = 0;
@@ -148,7 +148,7 @@ bool     tsMonitorLogProtocol = false;
 bool     tsMonitorForceV2 = true;
 
 // audit
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 bool    tsEnableAudit = true;
 bool    tsEnableAuditCreateTable = true;
 bool    tsEnableAuditDelete = true;

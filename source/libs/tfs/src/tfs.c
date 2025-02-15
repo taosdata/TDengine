@@ -581,7 +581,7 @@ int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
 }
 
 static int32_t tfsFormatDir(char *idir, char *odir) {
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
   int32_t   code = 0, lino = 0;
   wordexp_t wep = {0};
   int32_t   dirLen = 0;

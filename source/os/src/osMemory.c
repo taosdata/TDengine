@@ -235,7 +235,7 @@ void taosPrintBackTrace() { return; }
 #endif
 
 int32_t taosMemoryDbgInit() {
-#if defined(LINUX) && !defined(_ALPINE) && !defined(TD_ACORE)
+#if defined(LINUX) && !defined(_ALPINE) && !defined(TD_ASTRA)
   int ret = mallopt(M_MMAP_THRESHOLD, 0);
   if (0 == ret) {
     return TAOS_SYSTEM_ERROR(errno);
@@ -248,7 +248,7 @@ int32_t taosMemoryDbgInit() {
 }
 
 int32_t taosMemoryDbgInitRestore() {
-#if defined(LINUX) && !defined(_ALPINE) && !defined(TD_ACORE)
+#if defined(LINUX) && !defined(_ALPINE) && !defined(TD_ASTRA)
   int ret = mallopt(M_MMAP_THRESHOLD, 128 * 1024);
   if (0 == ret) {
     return TAOS_SYSTEM_ERROR(errno);
@@ -436,7 +436,7 @@ int64_t taosMemSize(void *ptr) {
 }
 
 int32_t taosMemTrim(int32_t size, bool* trimed) {
-#if defined(WINDOWS) || defined(DARWIN) || defined(_ALPINE) || defined(TD_ACORE)
+#if defined(WINDOWS) || defined(DARWIN) || defined(_ALPINE) || defined(TD_ASTRA)
   // do nothing
   return TSDB_CODE_SUCCESS;
 #else

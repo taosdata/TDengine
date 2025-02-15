@@ -35,7 +35,7 @@ extern "C" {
 // #endif
 #endif
 
-#if !defined(WINDOWS) && !defined(_ALPINE) && !defined(TD_ACORE)
+#if !defined(WINDOWS) && !defined(_ALPINE) && !defined(TD_ASTRA)
 #ifndef __USE_XOPEN2K
 #define TD_USE_SPINLOCK_AS_MUTEX
 typedef pthread_mutex_t pthread_spinlock_t;
@@ -76,7 +76,7 @@ typedef pthread_key_t        TdThreadKey;
 #if !defined(WINDOWS)
 #if defined(_TD_DARWIN_64)  // MACOS
 #define taosThreadRwlockAttrSetKindNP(A, B) ((void)0)
-#elif defined(TD_ACORE)
+#elif defined(TD_ASTRA)
 #define taosThreadRwlockAttrSetKindNP(A, B) ((void)0)
 #else  // LINUX
 #if _XOPEN_SOURCE >= 500 || _POSIX_C_SOURCE >= 200809L

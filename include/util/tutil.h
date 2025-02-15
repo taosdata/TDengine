@@ -54,7 +54,7 @@ int32_t parseCfgReal(const char *str, float *out);
 bool    tIsValidFileName(const char *fileName, const char *pattern);
 bool    tIsValidFilePath(const char *filePath, const char *pattern);
 
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
 static FORCE_INLINE int32_t taosStrcasecmp(const char *s1, const char *s2) {
   if (s1[0] == 0 && s2[0] == 0) return 0;
   return strcasecmp(s1, s2);

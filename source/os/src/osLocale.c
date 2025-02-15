@@ -38,7 +38,7 @@
 #include <libproc.h>
 #else
 #include <argp.h>
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 #include <linux/sysctl.h>
 #include <sys/file.h>
 #include <sys/resource.h>

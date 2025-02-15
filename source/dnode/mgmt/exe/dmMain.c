@@ -103,7 +103,7 @@ static void dmStopDnode(int signum, void *sigInfo, void *context) {
   }
 
   dInfo("shut down signal is %d", signum);
-#if !defined(WINDOWS) && !defined(TD_ACORE)
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
   dInfo("sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
         taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
 #endif

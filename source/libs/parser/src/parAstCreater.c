@@ -14,7 +14,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include <regex.h>
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 #include <uv.h>
 #endif
 #include "parAst.h"

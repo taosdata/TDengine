@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
 #include <posix/semaphore.h>
 #else
 #include <semaphore.h>

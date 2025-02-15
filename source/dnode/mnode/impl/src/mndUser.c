@@ -15,7 +15,7 @@
 
 #define _DEFAULT_SOURCE
 // clang-format off
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 #include <uv.h>
 #endif
 #include "mndUser.h"

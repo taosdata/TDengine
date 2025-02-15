@@ -16,7 +16,7 @@
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 static char* notify = "a";
 
 typedef struct {

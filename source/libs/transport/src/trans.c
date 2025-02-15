@@ -15,7 +15,7 @@
 
 #include "transComm.h"
 
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 void* (*taosInitHandle[])(uint32_t ip, uint32_t port, char* label, int32_t numOfThreads, void* fp, void* pInit) = {
     transInitServer, transInitClient};
 
@@ -252,7 +252,7 @@ void rpcCleanup(void) {
   return;
 }
 #else
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
 void* (*taosInitHandle[])(uint32_t ip, uint32_t port, char* label, int32_t numOfThreads, void* fp, void* shandle) = {
     transInitServer2, transInitClient2};
 void (*taosCloseHandle[])(void* arg) = {transCloseServer2, transCloseClient2};
@@ -270,11 +270,11 @@ typedef struct {
   RPC_TYPE type;
 } SLableSet;
 static SLableSet labelSet[] = {
-    {"TSC", TD_ACORE_CLIENT | TD_ACORE_DSVR},
-    {"DNODE-CLI", TD_ACORE_DSVR_CLIENT | TD_ACORE_DSVR},
-    {"DNODE-STA-CLI", TD_ACORE_DSVR_STA_CLIENT | TD_ACORE_DSVR},
-    {"DNODE-SYNC-CLI", TD_ACORE_DSVR_SYNC_CLIENT | TD_ACORE_DSVR},
-    {"DND-S", TD_ACORE_DSVR},
+    {"TSC", TD_ASTRA_CLIENT | TD_ASTRA_DSVR},
+    {"DNODE-CLI", TD_ASTRA_DSVR_CLIENT | TD_ASTRA_DSVR},
+    {"DNODE-STA-CLI", TD_ASTRA_DSVR_STA_CLIENT | TD_ASTRA_DSVR},
+    {"DNODE-SYNC-CLI", TD_ASTRA_DSVR_SYNC_CLIENT | TD_ASTRA_DSVR},
+    {"DND-S", TD_ASTRA_DSVR},
 };
 
 void* rpcOpen(const SRpcInit* pInit) {
@@ -429,14 +429,14 @@ void* rpcReallocCont(void* ptr, int64_t contLen) {
 }
 
 int32_t rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
   return transSendRequest2(shandle, pEpSet, pMsg, NULL);
 #else
   return transSendRequest(shandle, pEpSet, pMsg, NULL);
 #endif
 }
 int32_t rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
   if (pCtx != NULL || pMsg->info.handle != 0 || pMsg->info.noResp != 0 || pRid == NULL) {
     return transSendRequest2(shandle, pEpSet, pMsg, pCtx);
   } else {
@@ -452,7 +452,7 @@ int32_t rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg
 }
 
 int32_t rpcSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId) {
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
   return transSendRequestWithId2(shandle, pEpSet, pReq, transpointId);
 #else
   return transSendRequestWithId(shandle, pEpSet, pReq, transpointId);
@@ -460,7 +460,7 @@ int32_t rpcSendRequestWithId(void* shandle, const SEpSet* pEpSet, STransMsg* pRe
 }
 
 int32_t rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
   return transSendRecv2(shandle, pEpSet, pMsg, pRsp);
 #else
   return transSendRecv(shandle, pEpSet, pMsg, pRsp);
@@ -468,14 +468,14 @@ int32_t rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp)
 }
 int32_t rpcSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp, int8_t* epUpdated,
                                int32_t timeoutMs) {
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
   return transSendRecvWithTimeout2(shandle, pEpSet, pMsg, pRsp, epUpdated, timeoutMs);
 #else
   return transSendRecvWithTimeout(shandle, pEpSet, pMsg, pRsp, epUpdated, timeoutMs);
 #endif
 }
 int32_t rpcFreeConnById(void* shandle, int64_t connId) {
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
   return transFreeConnById2(shandle, connId);
 #else
   return transFreeConnById(shandle, connId);
@@ -483,7 +483,7 @@ int32_t rpcFreeConnById(void* shandle, int64_t connId) {
 }
 
 int32_t rpcSendResponse(SRpcMsg* pMsg) {
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
   return transSendResponse2(pMsg);
 #else
   return transSendResponse(pMsg);
@@ -491,7 +491,7 @@ int32_t rpcSendResponse(SRpcMsg* pMsg) {
 }
 
 int32_t rpcRegisterBrokenLinkArg(SRpcMsg* msg) {
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
   return transRegisterMsg2(msg);
 #else
   return transRegisterMsg(msg);
@@ -504,7 +504,7 @@ int32_t rpcReleaseHandle(void* handle, int8_t type, int32_t status) {
 // client only
 int32_t rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   // later
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
   return transSetDefaultAddr2(thandle, ip, fqdn);
 #else
   return transSetDefaultAddr(thandle, ip, fqdn);
@@ -512,7 +512,7 @@ int32_t rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
 }
 // server only
 int32_t rpcSetIpWhite(void* thandle, void* arg) {
-#ifdef TD_ACORE
+#ifdef TD_ASTRA
   return transSetIpWhiteList2(thandle, arg, NULL);
 #else
   return transSetIpWhiteList(thandle, arg, NULL);

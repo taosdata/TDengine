@@ -16,7 +16,7 @@
 #include "transComm.h"
 #include "tqueue.h"
 
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 #define BUFFER_CAP 8 * 1024
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
@@ -1738,8 +1738,8 @@ void* procClientMsg(void* arg) {
       // void*  parent;
       STrans* pTrans = NULL;
       taosThreadMutexLock(&mutex[1]);
-      if ((pRpcMsg->type & TD_ACORE_DSVR) != 0) {
-        transGetCb(TD_ACORE_DSVR, &pTrans);
+      if ((pRpcMsg->type & TD_ASTRA_DSVR) != 0) {
+        transGetCb(TD_ASTRA_DSVR, &pTrans);
       }
       taosThreadMutexUnlock(&mutex[1]);
       if (pTrans->cfp != NULL) {
@@ -2076,7 +2076,7 @@ int32_t transValidReqEpset(SReqEpSet* pReqEpSet) {
   return TSDB_CODE_SUCCESS;
 }
 
-#endif // TD_ACORE
+#endif // TD_ASTRA
 
 int32_t transQueueInit(STransQueue* wq, void (*freeFunc)(void* arg)) {
   QUEUE_INIT(&wq->node);

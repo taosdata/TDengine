@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 // clang-format off
 #include <uv.h>
 #include "zlib.h"
@@ -1121,4 +1121,4 @@ _end:
   return code;
 }
 
-#endif // TD_ACORE
+#endif // TD_ASTRA

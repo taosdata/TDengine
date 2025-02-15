@@ -202,7 +202,7 @@ int32_t taosGetPIdByName(const char* name, int32_t* pPId) {return -1;}
 /*
  * linux implementation
  */
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 #include <sys/syscall.h>
 #endif
 #include <unistd.h>
@@ -212,7 +212,7 @@ bool taosCheckPthreadValid(TdThread thread) { return thread != 0; }
 int64_t taosGetSelfPthreadId() {
   static __thread int64_t id = 0;
   if (id != 0) return id;
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
   id = syscall(SYS_gettid);
 #else
   id = (int64_t) taosThreadSelf();
@@ -236,7 +236,7 @@ int32_t taosGetPId() {
 }
 
 int32_t taosGetAppName(char* name, int32_t* len) {
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
   OS_PARAM_CHECK(name);
   const char* self = "/proc/self/exe";
   char        path[PATH_MAX] = {0};
@@ -266,7 +266,7 @@ int32_t taosGetAppName(char* name, int32_t* len) {
 }
 
 int32_t taosGetPIdByName(const char* name, int32_t* pPId) {
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
   OS_PARAM_CHECK(name);
   OS_PARAM_CHECK(pPId);
   DIR*           dir = NULL;

@@ -75,7 +75,7 @@ void taos_block_sigalrm(void) {
 }
 
 #else
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 #include <sys/syscall.h>
 #endif
 #include <unistd.h>
@@ -104,7 +104,7 @@ static void *taosProcessAlarmSignal(void *tharg) {
 #ifdef _ALPINE
   sevent.sigev_notify = SIGEV_THREAD_ID;
   sevent.sigev_notify_thread_id = syscall(__NR_gettid);
-#elif defined(TD_ACORE) // TD_ACORE_TODO
+#elif defined(TD_ASTRA) // TD_ASTRA_TODO
   sevent.sigev_notify = SIGEV_THREAD;
 #else
   sevent.sigev_notify = SIGEV_THREAD_ID;

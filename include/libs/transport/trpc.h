@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 #include <stdbool.h>
 #include <stdint.h>
 #include "taosdef.h"
@@ -213,11 +213,11 @@ typedef struct {
 } SRpcConnInfo;
 
 typedef enum {
-  TD_ACORE_CLIENT = 1,
-  TD_ACORE_DSVR_CLIENT = 2,
-  TD_ACORE_DSVR_STA_CLIENT = 4,
-  TD_ACORE_DSVR_SYNC_CLIENT = 8,
-  TD_ACORE_DSVR = 16
+  TD_ASTRA_CLIENT = 1,
+  TD_ASTRA_DSVR_CLIENT = 2,
+  TD_ASTRA_DSVR_STA_CLIENT = 4,
+  TD_ASTRA_DSVR_SYNC_CLIENT = 8,
+  TD_ASTRA_DSVR = 16
 } RPC_TYPE;
 
 typedef struct SRpcHandleInfo {

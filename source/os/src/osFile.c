@@ -31,7 +31,7 @@
 
 #else
 #include <fcntl.h>
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
 #include <sys/file.h>
 
 #if !defined(_TD_DARWIN_64)
@@ -995,7 +995,7 @@ int32_t taosLockFile(TdFilePtr pFile) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
   int32_t code = (int32_t)flock(pFile->fd, LOCK_EX | LOCK_NB);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1021,7 +1021,7 @@ int32_t taosUnLockFile(TdFilePtr pFile) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
-#ifndef TD_ACORE
+#ifndef TD_ASTRA
   int32_t code = (int32_t)flock(pFile->fd, LOCK_UN | LOCK_NB);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);

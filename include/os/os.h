@@ -28,11 +28,11 @@ extern "C" {
 #if !defined(WINDOWS)
 #include <dirent.h>
 
-#if !defined(_ALPINE) && !defined(TD_ACORE)
+#if !defined(_ALPINE) && !defined(TD_ASTRA)
 #include <execinfo.h>
 #endif
 
-#if !defined(TD_ACORE)
+#if !defined(TD_ASTRA)
 #include <libgen.h>
 #include <wordexp.h>
 #include <sys/param.h>
@@ -54,7 +54,7 @@ extern "C" {
 
 #if defined(DARWIN)
 #else
-#if !defined(TD_ACORE)
+#if !defined(TD_ASTRA)
 #include <argp.h>
 #include <sys/prctl.h>
 #include <sys/sysinfo.h>
