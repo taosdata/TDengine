@@ -720,40 +720,31 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, SMsgCb* cb, char* msg, in
 
   // drop the related fill-history task firstly
   if (hTaskId.taskId != 0 && hTaskId.streamId != 0) {
-    code = streamTaskSchedTask(cb, vgId, hTaskId.streamId, (int32_t)hTaskId.taskId, STREAM_EXEC_T_DROP_ONE_TASK);
+    tqDebug("s-task:0x%x vgId:%d drop rel fill-history task:0x%x firstly", pReq->taskId, vgId, (int32_t)hTaskId.taskId);
+    code = streamMetaUnregisterTask(pMeta, hTaskId.streamId, hTaskId.taskId);
     if (code) {
-      tqError("s-task:0x%x vgId:%d failed to create msg to drop rel fill-history task:0x%x, code:%s", pReq->taskId,
-              vgId, (int32_t)hTaskId.taskId, tstrerror(code));
-    } else {
-      tqDebug("s-task:0x%x vgId:%d create msg to drop rel fill-history task:0x%x succ", pReq->taskId, vgId,
+      tqDebug("s-task:0x%x vgId:%d drop rel fill-history task:0x%x failed", pReq->taskId, vgId,
               (int32_t)hTaskId.taskId);
     }
   }
 
   // drop the stream task now
-  code = streamTaskSchedTask(cb, vgId, pReq->streamId, pReq->taskId, STREAM_EXEC_T_DROP_ONE_TASK);
+  code = streamMetaUnregisterTask(pMeta, pReq->streamId, pReq->taskId);
   if (code) {
-    tqError("s-task:0x%x vgId:%d failed to create msg to drop task, code:%s", pReq->taskId, vgId, tstrerror(code));
-  } else {
-    tqDebug("s-task:0x%x vgId:%d create msg to drop succ", pReq->taskId, vgId);
+    tqDebug("s-task:0x%x vgId:%d drop task failed", pReq->taskId, vgId);
   }
 
-//  code = streamMetaUnregisterTask(pMeta, pReq->streamId, pReq->taskId);
-//  if (code) {
-//    tqDebug("s-task:0x%x vgId:%d drop task failed", pReq->taskId, vgId);
-//  }
-
   // commit the update
-//  int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-//  tqDebug("vgId:%d task:0x%x dropped, remain tasks:%d", vgId, pReq->taskId, numOfTasks);
+  int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
+  tqDebug("vgId:%d task:0x%x dropped, remain tasks:%d", vgId, pReq->taskId, numOfTasks);
 
   if (streamMetaCommit(pMeta) < 0) {
     // persist to disk
   }
 
   streamMetaWUnLock(pMeta);
+  tqDebug("vgId:%d process drop task:0x%x completed", vgId, pReq->taskId);
 
-  tqDebug("vgId:%d process drop task:0x%x async completed", vgId, pReq->taskId);
   return 0;  // always return success
 }
 
@@ -868,7 +859,7 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
   } else if (type == STREAM_EXEC_T_ADD_FAILED_TASK) {
     code = streamMetaAddFailedTask(pMeta, req.streamId, req.taskId);
     return code;
-  } else if (type == STREAM_EXEC_T_DROP_ONE_TASK) {
+  } else if (type == STREAM_EXEC_T_STOP_ONE_TASK) {
     code = streamMetaDropTask(pMeta, req.streamId, req.taskId);
     return code;
   } else if (type == STREAM_EXEC_T_RESUME_TASK) {  // task resume to run after idle for a while

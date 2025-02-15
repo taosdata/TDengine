@@ -965,7 +965,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   return 0;
 }
 
-int32_t streamMetaDropTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
+int32_t streamMetaStopTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
   SStreamTask* pTask = NULL;
   int32_t      code = 0;
   int32_t      vgId = pMeta->vgId;
@@ -973,18 +973,18 @@ int32_t streamMetaDropTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId)
 
   streamMetaWLock(pMeta);
 
-  code = streamMetaUnregisterTask(pMeta, streamId, taskId);
-  numOfTasks = streamMetaGetNumOfTasks(pMeta);
-  if (code) {
-    stError("vgId:%d failed to drop task:0x%x, code:%s", vgId, taskId, tstrerror(code));
-  }
-
-  code = streamMetaCommit(pMeta);
-  if (code) {
-    stError("vgId:%d failed to commit after drop task:0x%x, code:%s", vgId, taskId, tstrerror(code));
-  } else {
-    stDebug("s-task:0x%"PRIx64"-0x%x vgId:%d dropped, remain tasks:%d", streamId, taskId, pMeta->vgId, numOfTasks);
-  }
+//  code = streamMetaUnregisterTask(pMeta, streamId, taskId);
+//  numOfTasks = streamMetaGetNumOfTasks(pMeta);
+//  if (code) {
+//    stError("vgId:%d failed to drop task:0x%x, code:%s", vgId, taskId, tstrerror(code));
+//  }
+//
+//  code = streamMetaCommit(pMeta);
+//  if (code) {
+//    stError("vgId:%d failed to commit after drop task:0x%x, code:%s", vgId, taskId, tstrerror(code));
+//  } else {
+//    stDebug("s-task:0x%"PRIx64"-0x%x vgId:%d dropped, remain tasks:%d", streamId, taskId, pMeta->vgId, numOfTasks);
+//  }
 
   streamMetaWUnLock(pMeta);
 
