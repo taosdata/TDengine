@@ -3199,10 +3199,8 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
     int32_t bytes = pColInfoData->info.bytes;
     *((int32_t*)data) = bytes;
     if (IS_DECIMAL_TYPE(pColInfoData->info.type)) {
-      *(char*)data = bytes;
-      *((char*)data + 1) = 0;
-      *((char*)data + 2) = pColInfoData->info.precision;
-      *((char*)data + 3) = pColInfoData->info.scale;
+      fillBytesForDecimalType((int32_t*)data, pColInfoData->info.type, pColInfoData->info.precision,
+                              pColInfoData->info.scale);
     }
     data += sizeof(int32_t);
   }
@@ -3345,9 +3343,8 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
 
     pColInfoData->info.bytes = *(int32_t*)pStart;
     if (IS_DECIMAL_TYPE(pColInfoData->info.type)) {
-      pColInfoData->info.scale = *(char*)pStart;
-      pColInfoData->info.precision = *((char*)pStart + 2);
-      pColInfoData->info.bytes &= 0xFF;
+      extractDecimalTypeInfoFromBytes(&pColInfoData->info.bytes, &pColInfoData->info.precision,
+                                      &pColInfoData->info.scale);
     }
     pStart += sizeof(int32_t);
 

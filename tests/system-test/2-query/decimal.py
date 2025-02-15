@@ -1,4 +1,5 @@
 from random import randrange
+from re import A
 import time
 import threading
 import secrets
@@ -9,6 +10,10 @@ from util.cases import *
 from util.dnodes import *
 from util.common import *
 
+syntax_error = -2147473920
+invalid_column = -2147473918
+invalid_compress_level = -2147483084
+invalid_encode_param = -2147483087
 class DecimalType:
     def __init__(self, precision: int, scale: int):
         self.precision = precision
@@ -240,15 +245,10 @@ class TableInserter:
             sql += f"({start_ts + i * step}"
             for column in self.columns_types:
                 sql += f", {column.generate_value()}"
-            if self.tags_types:
-                sql += ") tags("
-                for tag in self.tags_types:
-                    sql += f"{tag.generate_value()},"
-                sql = sql[:-2]
             sql += ")"
             if i != rows - 1:
                 sql += ", "
-            local_flush_database = i % 5000 == 0;
+            local_flush_database = i % 5000 == 0
             if len(sql) > 1000:
                 #tdLog.debug(f"insert into with sql{sql}")
                 if flush_database and local_flush_database:
@@ -269,13 +269,18 @@ class TDTestCase:
         self.ctbNum = 10
         self.rowsPerTbl = 10000
         self.duraion = '1h'
-        self.columns = []
+        self.norm_tb_columns = []
         self.tags = []
         self.stable_name = "meters"
         self.norm_table_name = "nt"
         self.c_table_prefix = "t"
         self.db_name = "test"
         self.c_table_num = 10
+        self.no_decimal_col_tb_name = 'tt'
+        self.stb_columns = []
+        self.stream_name = 'stream1'
+        self.stream_out_stb = 'stream_out_stb'
+        self.tsma_name = 'tsma1'
 
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -289,7 +294,6 @@ class TDTestCase:
         tsql.execute("create database if not exists %s vgroups %d replica %d duration %s" % (
             dbName, vgroups, replica, duration))
         tdLog.debug("complete to create database %s" % (dbName))
-        return
 
     def create_stable(self, tsql, paraDict):
         colString = tdCom.gen_column_type_str(
@@ -300,7 +304,6 @@ class TDTestCase:
             paraDict["dbName"], paraDict["stbName"], colString, tagString)
         tdLog.debug("%s" % (sqlString))
         tsql.execute(sqlString)
-        return
 
     def create_ctable(self, tsql=None, dbName='dbx', stbName='stb', ctbPrefix='ctb', ctbNum=1, ctbStartIdx=0):
         for i in range(ctbNum):
@@ -310,7 +313,6 @@ class TDTestCase:
 
         tdLog.debug("complete to create %d child tables by %s.%s" %
                     (ctbNum, dbName, stbName))
-        return
 
     def init_normal_tb(self, tsql, db_name: str, tb_name: str, rows: int, start_ts: int, ts_step: int):
         sql = 'CREATE TABLE %s.%s (ts timestamp, c1 INT, c2 INT, c3 INT, c4 double, c5 VARCHAR(255))' % (
@@ -392,6 +394,10 @@ class TDTestCase:
         self.init_normal_tb(tdSql, paraDict['dbName'], 'norm_tb',
                             paraDict['rowsPerTbl'], paraDict['startTs'], paraDict['tsStep'])
 
+    def check_desc_for_one_ctb(self, ctbPrefix: str, columns: List[DataType], tags: List[DataType] = []):
+        ctb_idx = randrange(self.c_table_num)
+        return self.check_desc(f"{ctbPrefix}{ctb_idx}", columns, tags)
+
     def check_desc(self, tbname: str, column_types: List[DataType], tag_types: List[DataType] = []):
         sql = f"desc {self.db_name}.{tbname}"
         tdSql.query(sql, queryTimes=1)
@@ -405,6 +411,8 @@ class TDTestCase:
                     tdLog.exit(f"check desc failed for table: {tbname} column {results[i+1][0]} encode is {results[i+1][5]}, expect {DecimalType.default_encode()}")
                 if results[i+1][5] != DecimalType.default_compression():
                     tdLog.exit(f"check desc failed for table: {tbname} column {results[i+1][0]} compression is {results[i+1][4]}, expect {DecimalType.default_compression()}")
+        if tbname == self.stable_name:
+            self.check_desc_for_one_ctb(self.c_table_prefix, column_types, tag_types)
 
     def check_show_create_table(self, tbname: str, column_types: List[DataType], tag_types: List[DataType] = []):
         sql = f"show create table {self.db_name}.{tbname}"
@@ -418,11 +426,47 @@ class TDTestCase:
                 if result_type != column_type.get_decimal_type():
                     tdLog.exit(f"check show create table failed for: {tbname} column {i} type is {result_type}, expect {column_type.get_decimal_type()}")
                 decimal_idx += 1
+    
+    def test_add_drop_columns_with_decimal(self, tbname: str, columns: List[DataType]):
+        is_stb = tbname == self.stable_name
+        ## alter table add column
+        create_c99_sql = f'alter table {self.db_name}.{tbname} add column c99 decimal(37, 19)'
+        columns.append(DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(37, 19))))
+        tdSql.execute(create_c99_sql, queryTimes=1, show=True)
+        self.check_desc(tbname, columns)
+        ## alter table add column with compression
+        create_c100_sql = f'ALTER TABLE {self.db_name}.{tbname} ADD COLUMN c100 decimal(36, 18) COMPRESS "zstd"'
+        tdSql.execute(create_c100_sql, queryTimes=1, show=True)
+        columns.append(DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(36, 18))))
+        self.check_desc(tbname, columns)
 
-    def test_create_decimal_column(self):
+        ## drop non decimal column
+        drop_c6_sql = f'alter table {self.db_name}.{tbname} drop column c6'
+        tdSql.execute(drop_c6_sql, queryTimes=1, show=True)
+        c6 = columns.pop(5)
+        self.check_desc(tbname, columns)
+        ## drop decimal column and not last column
+        drop_c99_sql = f'alter table {self.db_name}.{tbname} drop column c99'
+        tdSql.execute(drop_c99_sql, queryTimes=1, show=True)
+        c99 = columns.pop(len(columns) - 2)
+        self.check_desc(tbname, columns)
+        ## drop decimal column and last column
+        drop_c100_sql = f'alter table {self.db_name}.{tbname} drop column c100'
+        tdSql.execute(drop_c100_sql, queryTimes=1, show=True)
+        c100 = columns.pop(len(columns) - 1)
+        self.check_desc(tbname, columns)
+
+        ## create decimal back
+        tdSql.execute(create_c99_sql, queryTimes=1, show=True)
+        tdSql.execute(create_c100_sql, queryTimes=1, show=True)
+        columns.append(c99)
+        columns.append(c100)
+        self.check_desc(tbname, columns)
+
+    def test_decimal_column_ddl(self):
         ## create decimal type table, normal/super table, decimal64/decimal128
         tdLog.printNoPrefix("-------- test create decimal column")
-        self.columns = [
+        self.norm_tb_columns = [
             DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(10, 2))),
             DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(20, 4))),
             DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(30, 8))),
@@ -438,24 +482,23 @@ class TDTestCase:
             DataType(TypeEnum.INT),
             DataType(TypeEnum.VARCHAR, 255)
         ]
-        DecimalColumnTableCreater(tdSql, self.db_name, self.stable_name, self.columns, self.tags).create()
-        self.check_desc("meters", self.columns, self.tags)
-        self.check_show_create_table("meters", self.columns, self.tags)
+        self.stb_columns = self.norm_tb_columns.copy()
+        DecimalColumnTableCreater(tdSql, self.db_name, self.stable_name, self.stb_columns, self.tags).create()
+        self.check_show_create_table("meters", self.stb_columns, self.tags)
 
-        DecimalColumnTableCreater(tdSql, self.db_name, self.norm_table_name, self.columns).create()
-        self.check_desc(self.norm_table_name, self.columns)
-        self.check_show_create_table(self.norm_table_name, self.columns)
+        DecimalColumnTableCreater(tdSql, self.db_name, self.norm_table_name, self.norm_tb_columns).create()
+        self.check_desc(self.norm_table_name, self.norm_tb_columns)
+        self.check_show_create_table(self.norm_table_name, self.norm_tb_columns)
 
         ## TODO add more values for all rows
         tag_values = [
             "1", "t1"
         ]
-        DecimalColumnTableCreater(tdSql, self.db_name, self.stable_name, self.columns).create_child_table(self.c_table_prefix, self.c_table_num, self.tags, tag_values)
-        self.check_desc("t1", self.columns, self.tags)
+        DecimalColumnTableCreater(tdSql, self.db_name, self.stable_name, self.norm_tb_columns).create_child_table(self.c_table_prefix, self.c_table_num, self.tags, tag_values)
+        self.check_desc("meters", self.stb_columns, self.tags)
+        self.check_desc("t1", self.norm_tb_columns, self.tags)
 
         ## invalid precision/scale
-        syntax_error = -2147473920
-        invalid_column = -2147473918
         invalid_precision_scale = [("decimal(-1, 2)", syntax_error), ("decimal(39, 2)", invalid_column), ("decimal(10, -1)", syntax_error), 
                                    ("decimal(10, 39)", invalid_column), ("decimal(10, 2.5)", syntax_error), ("decimal(10.5, 2)", syntax_error), 
                                    ("decimal(10.5, 2.5)", syntax_error), ("decimal(0, 2)", invalid_column), ("decimal(0)", invalid_column), 
@@ -468,31 +511,28 @@ class TDTestCase:
         sql = 'create stable %s.invalid_decimal_tag (ts timestamp) tags (t1 decimal(10, 2))' % (self.db_name)
         tdSql.error(sql, invalid_column)
 
-        ## alter table add column
-        sql = f'alter table {self.db_name}.{self.norm_table_name} add column c99 decimal(37, 19)'
-        self.columns.append(DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(37, 19))))
-        tdSql.execute(sql, queryTimes=1)
-        self.check_desc(self.norm_table_name, self.columns)
-        ## alter table add column with compression
-
-        ## Test metaentry compatibility problem for decimal type:w
-        ## How to test it?
-        ## Create table with no decimal type, the metaentries should not have extschma, and add decimal column, the metaentries should have extschema for all columns.
-        ## After drop this decimal column, the metaentries should not have extschema for all columns.
-        ## Test for normal table and super table
+        ## alter table add/drop column
+        self.test_add_drop_columns_with_decimal(self.norm_table_name, self.norm_tb_columns)
+        self.test_add_drop_columns_with_decimal(self.stable_name, self.stb_columns)
 
         ## drop index from stb
         ### These ops will override the previous stbobjs and meta entries, so test it
 
         ## TODO test encode and compress for decimal type
+        sql = f'ALTER TABLE {self.db_name}.{self.norm_table_name} ADD COLUMN c101 decimal(37, 19) ENCODE "simple8b" COMPRESS "zstd"'
+        tdSql.error(sql, invalid_encode_param)
+        sql = f'ALTER TABLE {self.db_name}.{self.norm_table_name} ADD COLUMN c101 decimal(37, 19) ENCODE "delta-i" COMPRESS "zstd"'
+        tdSql.error(sql, invalid_encode_param)
+        sql = f'ALTER TABLE {self.db_name}.{self.norm_table_name} ADD COLUMN c101 decimal(37, 19) ENCODE "delta-d" COMPRESS "zstd"'
+        tdSql.error(sql, invalid_encode_param)
+        sql = f'ALTER TABLE {self.db_name}.{self.norm_table_name} ADD COLUMN c101 decimal(37, 19) ENCODE "bit-packing" COMPRESS "zstd"'
+        tdSql.error(sql, invalid_encode_param)
 
     def test_insert_decimal_values(self):
-
         for i in range(self.c_table_num):
-            pass
-            #TableInserter(tdSql, self.db_name, f"{self.c_table_prefix}{i}", self.columns, self.tags).insert(1, 1537146000000, 500)
+            TableInserter(tdSql, self.db_name, f"{self.c_table_prefix}{i}", self.stb_columns, self.tags).insert(1000, 1537146000000, 500)
 
-        TableInserter(tdSql, self.db_name, self.norm_table_name, self.columns).insert(10000, 1537146000000, 500, flush_database=True)
+        TableInserter(tdSql, self.db_name, self.norm_table_name, self.norm_tb_columns).insert(10000, 1537146000000, 500, flush_database=True)
 
 
         ## insert null/None for decimal type
@@ -508,18 +548,48 @@ class TDTestCase:
                 DataType(TypeEnum.FLOAT),
                 DataType(TypeEnum.VARCHAR, 255),
                 ]
-        DecimalColumnTableCreater(tdSql, self.db_name, "tt", columns, []).create()
-        TableInserter(tdSql, self.db_name, 'tt', columns).insert(10000, 1537146000000, 500, flush_database=True)
+        DecimalColumnTableCreater(tdSql, self.db_name, self.no_decimal_col_tb_name, columns, []).create()
+        TableInserter(tdSql, self.db_name, self.no_decimal_col_tb_name, columns).insert(10000, 1537146000000, 500, flush_database=True)
         ## TODO wjm test non support decimal version upgrade to decimal support version, and add decimal column
+
+        ## Test metaentry compatibility problem for decimal type
+        ## How to test it?
+        ## Create table with no decimal type, the metaentries should not have extschma, and add decimal column, the metaentries should have extschema for all columns.
+        sql = f'ALTER TABLE {self.db_name}.{self.no_decimal_col_tb_name} ADD COLUMN c200 decimal(37, 19)'
+        tdSql.execute(sql, queryTimes=1) ## now meta entry has ext schemas
+        columns.append(DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(37, 19))))
+        self.check_desc(self.no_decimal_col_tb_name, columns)
+
+        ## After drop this only decimal column, the metaentries should not have extschema for all columns.
+        sql = f'ALTER TABLE {self.db_name}.{self.no_decimal_col_tb_name} DROP COLUMN c200'
+        tdSql.execute(sql, queryTimes=1) ## now meta entry has no ext schemas
+        columns.pop(len(columns) - 1)
+        self.check_desc(self.no_decimal_col_tb_name, columns)
+        sql = f'ALTER TABLE {self.db_name}.{self.no_decimal_col_tb_name} ADD COLUMN c200 int'
+        tdSql.execute(sql, queryTimes=1) ## meta entry has no ext schemas
+        columns.append(DataType(TypeEnum.INT))
+        self.check_desc(self.no_decimal_col_tb_name, columns)
+
+        self.test_add_drop_columns_with_decimal(self.no_decimal_col_tb_name, columns)
 
     def test_decimal_ddl(self):
         tdSql.execute("create database test", queryTimes=1)
-        self.test_create_decimal_column()
+        self.test_decimal_column_ddl()
+        ## TODO test decimal column for tmq
+
+    def test_decimal_and_stream(self):
+        create_stream = f'CREATE STREAM {self.stream_name} FILL_HISTORY 1 INTO {self.db_name}.{self.stream_out_stb} AS SELECT _wstart, count(c1), avg(c2), sum(c3) FROM {self.db_name}.{self.stable_name} INTERVAL(10s)'
+        tdSql.execute(create_stream, queryTimes=1, show=True)
+    
+    def test_decimal_and_tsma(self):
+        pass
 
     def run(self):
         self.test_decimal_ddl()
         self.no_decimal_table_test()
         self.test_insert_decimal_values()
+        self.test_decimal_and_stream()
+        self.test_decimal_and_tsma()
 
     def stop(self):
         tdSql.close()

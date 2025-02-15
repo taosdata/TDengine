@@ -1482,7 +1482,7 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
         return generateSyntaxErrMsg(&pCxt->msgBuf, code);
       }
       SSchemaExt* pSchemaExt =
-          pMeta->schemaExt ? (i > pMeta->tableInfo.numOfColumns ? NULL : (pMeta->schemaExt + i)) : NULL;
+          pMeta->schemaExt ? (i >= pMeta->tableInfo.numOfColumns ? NULL : (pMeta->schemaExt + i)) : NULL;
       setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns), pCol,
                             pSchemaExt);
       setColumnPrimTs(pCxt, pCol, pTable);
@@ -1562,7 +1562,7 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
       if (0 == strcmp(pCol->colName, pMeta->schema[i].name) &&
           !invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
 
-        SSchemaExt* pSchemaExt = pMeta->schemaExt ? (i > pMeta->tableInfo.numOfColumns ? NULL : (pMeta->schemaExt + i)) : NULL;
+        SSchemaExt* pSchemaExt = pMeta->schemaExt ? (i >= pMeta->tableInfo.numOfColumns ? NULL : (pMeta->schemaExt + i)) : NULL;
         setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns), pCol, pSchemaExt);
         setColumnPrimTs(pCxt, pCol, pTable);
         *pFound = true;
@@ -9480,7 +9480,7 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calB
     if (pCol->pOptions && ((SColumnOptions*)pCol->pOptions)->bPrimaryKey) {
       field.flags |= COL_IS_KEY;
     }
-    if (field.typeMod > 0) {
+    if (field.typeMod != 0) {
       field.flags |= COL_HAS_TYPE_MOD;
     }
     if (NULL == taosArrayPush(*pArray, &field)) {
@@ -10427,9 +10427,15 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
   if (NULL == pAlterReq->pFields) {
     return terrno;
   }
+  pAlterReq->pTypeMods = taosArrayInit(2, sizeof(STypeMod));
+  if (!pAlterReq->pTypeMods) return terrno;
+  STypeMod typeMod = calcTypeMod(&pStmt->dataType);
 
   switch (pStmt->alterType) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
+      if (NULL == taosArrayPush(pAlterReq->pTypeMods, &typeMod)) {
+        return terrno;
+      }  // fall through
     case TSDB_ALTER_TABLE_ADD_TAG:
     case TSDB_ALTER_TABLE_DROP_TAG:
     case TSDB_ALTER_TABLE_DROP_COLUMN:
@@ -10498,6 +10504,7 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
         }
       }
       if (NULL == taosArrayPush(pAlterReq->pFields, &field)) return terrno;
+      if (NULL == taosArrayPush(pAlterReq->pTypeMods, &typeMod)) return terrno;
       break;
     }
     default:
@@ -12330,11 +12337,16 @@ static int32_t adjustDataTypeOfProjections(STranslateContext* pCxt, const STable
   }
 
   SSchema* pSchemas = getTableColumnSchema(pMeta);
+  const SSchemaExt* pExtSchemas = getTableColumnExtSchema(pMeta);
   int32_t  index = 0;
   SNode*   pProj = NULL;
   FOREACH(pProj, pProjections) {
     SSchema*  pSchema = pSchemas + index++;
     SDataType dt = {.type = pSchema->type, .bytes = pSchema->bytes};
+    if (IS_DECIMAL_TYPE(pSchema->type)) {
+      STypeMod typeMod = (pExtSchemas + (index - 1))->typeMod;
+      extractTypeFromTypeMod(pSchema->type, typeMod, &dt.precision, &dt.scale, NULL);
+    }
     if (!dataTypeEqual(&dt, &((SExprNode*)pProj)->resType)) {
       SNode*  pFunc = NULL;
       int32_t code = createCastFunc(pCxt, pProj, dt, &pFunc);

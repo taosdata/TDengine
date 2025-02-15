@@ -330,6 +330,7 @@ void metaCloneEntryFree(SMetaEntry **ppEntry) {
     return;
   }
   metaCloneColCmprFree(&(*ppEntry)->colCmpr);
+  taosMemoryFreeClear((*ppEntry)->pExtSchemas);
 
   taosMemoryFreeClear(*ppEntry);
   return;

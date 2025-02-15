@@ -705,8 +705,10 @@ typedef struct {
 } SMonitorParas;
 
 typedef struct {
-  STypeMod typeMod;
+  STypeMod typeMod; // TODO wjm copy it with a struct, not it's internal members
 } SExtSchema;
+
+bool hasExtSchema(const SExtSchema* pExtSchema);
 
 typedef struct {
   int32_t  nCols;
@@ -1005,6 +1007,7 @@ typedef struct {
   int32_t sqlLen;
   char*   sql;
   int64_t keep;
+  SArray* pTypeMods;
 } SMAlterStbReq;
 
 int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);

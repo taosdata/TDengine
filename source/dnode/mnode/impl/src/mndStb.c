@@ -354,6 +354,7 @@ _OVER:
       taosMemoryFreeClear(pStb->pTags);
       taosMemoryFreeClear(pStb->comment);
       taosMemoryFree(pStb->pCmpr);
+      taosMemoryFreeClear(pStb->pExtSchemas);
     }
     taosMemoryFreeClear(pRow);
     return NULL;
@@ -371,6 +372,7 @@ void mndFreeStb(SStbObj *pStb) {
   taosMemoryFreeClear(pStb->pAst1);
   taosMemoryFreeClear(pStb->pAst2);
   taosMemoryFreeClear(pStb->pCmpr);
+  taosMemoryFreeClear(pStb->pExtSchemas);
 }
 
 static int32_t mndStbActionInsert(SSdb *pSdb, SStbObj *pStb) {
@@ -484,6 +486,12 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
     memcpy(pOld->pCmpr, pNew->pCmpr, pNew->numOfColumns * sizeof(SColCmpr));
   } else {
     memcpy(pOld->pCmpr, pNew->pCmpr, pNew->numOfColumns * sizeof(SColCmpr));
+  }
+
+  taosMemoryFreeClear(pOld->pExtSchemas);
+  if (pNew->pExtSchemas) {
+    pOld->pExtSchemas = taosMemoryCalloc(pNew->numOfColumns, sizeof(SExtSchema));
+    memcpy(pOld->pExtSchemas, pNew->pExtSchemas, pNew->numOfColumns * sizeof(SExtSchema));
   }
 
   taosWUnLockLatch(&pOld->lock);
@@ -961,7 +969,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
     memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
     pSchema->colId = pDst->nextColId;
     pDst->nextColId++;
-    hasTypeMods = hasTypeMods || pField->typeMod != 0;
+    hasTypeMods = hasTypeMods || HAS_TYPE_MOD(pSchema);
   }
 
   for (int32_t i = 0; i < pDst->numOfTags; ++i) {
@@ -1290,8 +1298,15 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
     } else {
       p->alg = pField->compress;
     }
+    // TODO wjm test it with tmq
+    if (pField->flags & COL_HAS_TYPE_MOD) {
+      if (!pDst->pExtSchemas) {
+        pDst->pExtSchemas = taosMemoryCalloc(pDst->numOfColumns, sizeof(SExtSchema));
+        if (!pDst->pExtSchemas) TAOS_RETURN(terrno);
+      }
+      pDst->pExtSchemas[i].typeMod = pField->typeMod;
+    }
   }
-  // TODO wjm alter table with deicmal table
   pDst->tagVer = createReq->tagVer;
   pDst->colVer = createReq->colVer;
   return TSDB_CODE_SUCCESS;
@@ -1423,6 +1438,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
       taosMemoryFreeClear(pDst.pTags);
       taosMemoryFreeClear(pDst.pColumns);
       taosMemoryFreeClear(pDst.pCmpr);
+      taosMemoryFreeClear(pDst.pExtSchemas);
       goto _OVER;
     }
 
@@ -1430,6 +1446,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     taosMemoryFreeClear(pDst.pTags);
     taosMemoryFreeClear(pDst.pColumns);
     taosMemoryFreeClear(pDst.pCmpr);
+    taosMemoryFreeClear(pDst.pExtSchemas);
   } else {
     code = mndCreateStb(pMnode, pReq, &createReq, pDb);
   }
@@ -1496,6 +1513,13 @@ int32_t mndAllocStbSchemas(const SStbObj *pOld, SStbObj *pNew) {
   memcpy(pNew->pColumns, pOld->pColumns, sizeof(SSchema) * pOld->numOfColumns);
   memcpy(pNew->pTags, pOld->pTags, sizeof(SSchema) * pOld->numOfTags);
   memcpy(pNew->pCmpr, pOld->pCmpr, sizeof(SColCmpr) * pOld->numOfColumns);
+  if (pOld->pExtSchemas) {
+    pNew->pExtSchemas = taosMemoryCalloc(pNew->numOfColumns, sizeof(SExtSchema));
+    if (pNew->pExtSchemas == NULL) {
+      TAOS_RETURN(terrno);
+    }
+    memcpy(pNew->pExtSchemas, pOld->pExtSchemas, sizeof(SExtSchema) * pOld->numOfColumns);
+  }
 
   TAOS_RETURN(0);
 }
@@ -1918,7 +1942,7 @@ static int32_t mndUpdateSuperTableColumnCompress(SMnode *pMnode, const SStbObj *
 
   TAOS_RETURN(code);
 }
-static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray *pFields, int32_t ncols,
+static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const SMAlterStbReq* pReq, int32_t ncols,
                                       int8_t withCompress) {
   int32_t code = 0;
   if (pOld->numOfColumns + ncols + pOld->numOfTags > TSDB_MAX_COLUMNS) {
@@ -1930,7 +1954,7 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
     TAOS_RETURN(code);
   }
 
-  if (!mndValidateSchema(pOld->pColumns, pOld->numOfColumns, pFields, TSDB_MAX_BYTES_PER_ROW)) {
+  if (!mndValidateSchema(pOld->pColumns, pOld->numOfColumns, pReq->pFields, TSDB_MAX_BYTES_PER_ROW)) {
     code = TSDB_CODE_PAR_INVALID_ROW_LENGTH;
     TAOS_RETURN(code);
   }
@@ -1946,7 +1970,7 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
 
   for (int32_t i = 0; i < ncols; i++) {
     if (withCompress) {
-      SFieldWithOptions *pField = taosArrayGet(pFields, i);
+      SFieldWithOptions *pField = taosArrayGet(pReq->pFields, i);
       if (mndFindSuperTableColumnIndex(pOld, pField->name) >= 0) {
         code = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
         TAOS_RETURN(code);
@@ -1969,7 +1993,7 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
       pCmpr->alg = pField->compress;
       mInfo("stb:%s, start to add column %s", pNew->name, pSchema->name);
     } else {
-      SField *pField = taosArrayGet(pFields, i);
+      SField *pField = taosArrayGet(pReq->pFields, i);
       if (mndFindSuperTableColumnIndex(pOld, pField->name) >= 0) {
         code = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
         TAOS_RETURN(code);
@@ -1991,6 +2015,25 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
       pCmpr->id = pSchema->colId;
       pCmpr->alg = createDefaultColCmprByType(pSchema->type);
       mInfo("stb:%s, start to add column %s", pNew->name, pSchema->name);
+    }
+  }
+  // 1. old schema already has extschemas
+  // 2. new schema has extschemas
+  if (pReq->pTypeMods || pOld->pExtSchemas) {
+    if (!pNew->pExtSchemas) {
+      // all ext schemas reset to zero
+      pNew->pExtSchemas = taosMemoryCalloc(pNew->numOfColumns, sizeof(SExtSchema));
+      if (!pNew->pExtSchemas) TAOS_RETURN(terrno);
+    }
+    if (pOld->pExtSchemas) {
+      memcpy(pNew->pExtSchemas, pOld->pExtSchemas, pOld->numOfColumns * sizeof(SExtSchema));
+    }
+    if (taosArrayGetSize(pReq->pTypeMods) > 0) {
+      // copy added column ext schema
+      for (int32_t i = 0; i < ncols; ++i) {
+        pNew->pColumns[pOld->numOfColumns + i].flags |= COL_HAS_TYPE_MOD;
+        pNew->pExtSchemas[pOld->numOfColumns + i].typeMod = *(STypeMod *)taosArrayGet(pReq->pTypeMods, i);
+      }
     }
   }
 
@@ -2024,6 +2067,9 @@ static int32_t mndDropSuperTableColumn(SMnode *pMnode, const SStbObj *pOld, SStb
   int32_t sz = pNew->numOfColumns - col - 1;
   memmove(pNew->pColumns + col, pNew->pColumns + col + 1, sizeof(SSchema) * sz);
   memmove(pNew->pCmpr + col, pNew->pCmpr + col + 1, sizeof(SColCmpr) * sz);
+  if (pOld->pExtSchemas) {
+    memmove(pNew->pExtSchemas + col, pNew->pExtSchemas + col + 1, sizeof(SExtSchema) * sz);
+  }
   pNew->numOfColumns--;
 
   pNew->colVer++;
@@ -2648,6 +2694,7 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
   stbObj.pTags = NULL;
   stbObj.pFuncs = NULL;
   stbObj.pCmpr = NULL;
+  stbObj.pExtSchemas = NULL;
   stbObj.updateTime = taosGetTimestampMs();
   stbObj.lock = 0;
   bool updateTagIndex = false;
@@ -2669,7 +2716,7 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
       code = mndAlterStbTagBytes(pMnode, pOld, &stbObj, pField0);
       break;
     case TSDB_ALTER_TABLE_ADD_COLUMN:
-      code = mndAddSuperTableColumn(pOld, &stbObj, pAlter->pFields, pAlter->numOfFields, 0);
+      code = mndAddSuperTableColumn(pOld, &stbObj, pAlter, pAlter->numOfFields, 0);
       break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
       pField0 = taosArrayGet(pAlter->pFields, 0);
@@ -2687,7 +2734,7 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
       code = mndUpdateSuperTableColumnCompress(pMnode, pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
       break;
     case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
-      code = mndAddSuperTableColumn(pOld, &stbObj, pAlter->pFields, pAlter->numOfFields, 1);
+      code = mndAddSuperTableColumn(pOld, &stbObj, pAlter, pAlter->numOfFields, 1);
       break;
     default:
       needRsp = false;
@@ -2709,6 +2756,7 @@ _OVER:
   if (pAlter->commentLen > 0) {
     taosMemoryFreeClear(stbObj.comment);
   }
+  taosMemoryFreeClear(stbObj.pExtSchemas);
   TAOS_RETURN(code);
 }
 

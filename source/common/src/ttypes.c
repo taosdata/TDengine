@@ -279,3 +279,16 @@ uint8_t getScaleFromTypeMod(int32_t type, STypeMod mod) {
   if (IS_DECIMAL_TYPE(type)) return (uint8_t)(mod & 0xFF);
   return 0;
 }
+
+void fillBytesForDecimalType(int32_t *pBytes, int32_t type, uint8_t precision, uint8_t scale) {
+  *(char *)pBytes = tDataTypes[type].bytes;
+  *((char *)pBytes + 1) = 0;
+  *((char *)pBytes + 2) = precision;
+  *((char *)pBytes + 3) = scale;
+}
+
+void extractDecimalTypeInfoFromBytes(int32_t *pBytes, uint8_t *precision, uint8_t *scale) {
+  *scale = *(uint8_t *)pBytes;
+  *precision = *((uint8_t *)pBytes + 2);
+  *pBytes &= 0xFF;
+}

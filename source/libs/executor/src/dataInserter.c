@@ -264,7 +264,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
           }
           break;
         }
-        case TSDB_DATA_TYPE_DECIMAL:
+        case TSDB_DATA_TYPE_DECIMAL:// TODO wjm what are you doing here?
         case TSDB_DATA_TYPE_BLOB:
         case TSDB_DATA_TYPE_JSON:
         case TSDB_DATA_TYPE_MEDIUMBLOB:
