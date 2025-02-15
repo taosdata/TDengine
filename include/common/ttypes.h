@@ -416,6 +416,9 @@ void     decimalFromTypeMod(STypeMod typeMod, uint8_t *precision, uint8_t *scale
 // pType->type should has been set
 void    fillTypeFromTypeMod(SDataType *pType, STypeMod mod);
 uint8_t getScaleFromTypeMod(int32_t type, STypeMod mod);
+// TODO fix me!! for compatibility issue, save precision in scale in bytes, move it to somewhere else
+void    fillBytesForDecimalType(int32_t *pBytes, int32_t type, uint8_t precision, uint8_t scale);
+void    extractDecimalTypeInfoFromBytes(int32_t *pBytes, uint8_t *precision, uint8_t *scale);
 
 #ifdef __cplusplus
 }

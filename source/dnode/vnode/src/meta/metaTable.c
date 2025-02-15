@@ -96,6 +96,14 @@ int32_t dropTableExtSchema(SMetaEntry *pEntry, int32_t dropColId, int32_t newCol
     memmove(pEntry->pExtSchemas + dropColId, pEntry->pExtSchemas + dropColId + 1,
             (newColNum - dropColId) * sizeof(SExtSchema));
   }
+  for (int32_t i = 0; i < newColNum; i++) { // TODO wjm test it..
+    if (hasExtSchema(pEntry->pExtSchemas + i)) return 0;
+  }
+  // if no column has ext schemas, free the memory.
+  // TODO wjm looks like we can remove it
+  // Actually it's not necessary, if there's no ext schemas, it will not encode extschemas when encoding meta
+  // entry
+  taosMemoryFreeClear(pEntry->pExtSchemas);
   return 0;
 }
 

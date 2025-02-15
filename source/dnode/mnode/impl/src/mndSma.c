@@ -1630,6 +1630,9 @@ static int32_t mndCreateTSMABuildCreateStreamReq(SCreateTSMACxt *pCxt) {
       f.type = pExprNode->resType.type;
       f.flags = COL_SMA_ON;
       tstrncpy(f.name, pExprNode->userAlias, TSDB_COL_NAME_LEN);
+      if (IS_DECIMAL_TYPE(f.type)) {
+        fillBytesForDecimalType(&f.bytes, f.type, pExprNode->resType.precision, pExprNode->resType.scale);
+      }
       if (NULL == taosArrayPush(pCxt->pCreateStreamReq->pCols, &f)) {
         code = terrno;
         break;

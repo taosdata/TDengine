@@ -4610,7 +4610,7 @@ static int32_t functionNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddIntegerToObject(pJson, jkFunctionTrimType, pNode->trimType);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = dataTypeToJson(&pNode->srcFuncInputType, pJson);
+    code = tjsonAddObject(pJson, jkFunctionSrcFuncInputDT, dataTypeToJson, &pNode->srcFuncInputType);
   }
   return code;
 }
@@ -4650,7 +4650,7 @@ static int32_t jsonToFunctionNode(const SJson* pJson, void* pObj) {
     tjsonGetNumberValue(pJson, jkFunctionTrimType, pNode->trimType, code);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToDataType(pJson, &pNode->srcFuncInputType);
+    code = tjsonToObject(pJson, jkFunctionSrcFuncInputDT, jsonToDataType, &pNode->srcFuncInputType);
   }
 
   return code;
