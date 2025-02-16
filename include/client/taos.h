@@ -444,7 +444,7 @@ DLL_EXPORT TSDB_SERVER_STATUS taos_check_server_status(const char *fqdn, int por
 DLL_EXPORT char              *getBuildInfo();
 
 #if defined(TAOSD_INTEGRATED) && !defined(TD_AS_LIB)
-DLL_EXPORT int taosShellStart(int argc, char *argv[])
+DLL_EXPORT int taosShellStart(int argc, char *argv[]);
 #endif
 
 #ifdef __cplusplus
