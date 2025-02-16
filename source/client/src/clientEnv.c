@@ -943,7 +943,6 @@ extern int  dmStartDaemon(int argc, char const *argv[]);
 extern void dmStopDaemon();
 
 SDaemonObj daemonObj = {0};
-tsTaosdIntegrated = true;
 
 typedef struct {
   int32_t argc;
@@ -1077,14 +1076,18 @@ void taos_init_imp(void) {
 
   const char *logName = CUS_PROMPT "log";
   ENV_ERR_RET(taosInitLogOutput(&logName), "failed to init log output");
-  if (taosCreateLog(logName, 10, configDir, NULL, NULL, NULL, NULL,
-                    tsTaosdIntegrated ? LOG_MODE_BOTH : LOG_MODE_TAOSC) != 0) {
+  bool taosdIntegrated = false;
+#ifdef TAOSD_INTEGRATED
+  taosdIntegrated = true;
+#endif
+  if (taosCreateLog(logName, 10, configDir, NULL, NULL, NULL, NULL, taosdIntegrated ? LOG_MODE_BOTH : LOG_MODE_TAOSC) !=
+      0) {
     (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logName, strerror(errno), configDir);
     tscInitRes = terrno;
     return;
   }
 
-  ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, tsTaosdIntegrated ? 0 : 1), "failed to init cfg");
+  ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, taosdIntegrated ? 0 : 1), "failed to init cfg");
 
   initQueryModuleMsgHandle();
   if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL){
