@@ -17,7 +17,7 @@ TEST(log, check_log_refactor) {
   tsAsyncLog = 0;
   // idxDebugFlag = 143;
   strcpy(tsLogDir, (char *)logDir);
-  taosInitLog(tsLogDir, 10, false);
+  taosInitLog(tsLogDir, 10, LOG_MODE_TAOSD);
   tsAsyncLog = 0;
   uDebugFlag = 143;
 
@@ -54,7 +54,7 @@ TEST(log, misc) {
   taosRemoveDir(path);
   taosMkDir(path);
   tstrncpy(tsLogDir, path, PATH_MAX);
-  EXPECT_EQ(taosInitLog("taoslog", 1, true), 0);
+  EXPECT_EQ(taosInitLog("taoslog", 1, LOG_MODE_TAOSC), 0);
 
   taosOpenNewSlowLogFile();
   taosLogObjSetToday(INT64_MIN);

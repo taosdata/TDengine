@@ -229,6 +229,14 @@ option(BUILD_WITH_COS "If build with cos" OFF)
 
 ENDIF ()
 
+IF(${TAOSD_INTEGRATED})
+    add_definitions(-DTAOSD_INTEGRATED)
+ENDIF()
+
+IF(${TAOSD_AS_LIB})
+    add_definitions(-DTAOSD_AS_LIB)
+ENDIF()
+
 option(
     BUILD_WITH_SQLITE
     "If build with sqlite"

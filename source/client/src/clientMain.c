@@ -259,10 +259,13 @@ void taos_cleanup(void) {
 
   taosConvDestroy();
   DestroyRegexCache();
-
+#ifdef TAOSD_INTEGRATED
+  shellStopDaemon();
+#endif
   tscInfo("all local resources released");
   taosCleanupCfg();
   taosCloseLog();
+  if (!tsTaosdIntegrated) taosCloseLog();  
 }
 
 static setConfRet taos_set_config_imp(const char *config) {
