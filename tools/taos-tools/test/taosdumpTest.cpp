@@ -21,13 +21,13 @@
 
 TEST(taosdump, toolsSys) {
   // errorPrintReqArg3
-  errorPrintReqArg3("taosdump", "test parameters")
-  printf("ut function errorPrintReqArg3 ....................  [Passed]")
+  errorPrintReqArg3((char *)"taosdump", (char *)"test parameters");
+  printf("ut function errorPrintReqArg3 ....................  [Passed]");
 
   // setConsoleEcho
-  setConsoleEcho(true)
-  setConsoleEcho(false)
-  printf("ut function setConsoleEcho .......................  [Passed]")  
+  setConsoleEcho(true);
+  setConsoleEcho(false);
+  printf("ut function setConsoleEcho .......................  [Passed]");
 }
 
 int main(int argc, char **argv) {
