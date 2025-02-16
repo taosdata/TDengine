@@ -309,6 +309,7 @@ int32_t tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4)
 }
 
 iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt) {
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if(idx == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return (iconv_t)-1;
@@ -364,21 +365,27 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt) {
   } else {
     return info->gConv[type][startId].conv;
   }
+#else
+  terrno = TSDB_CODE_APP_ERROR;
+  return (iconv_t)-1;
+#endif
 }
 
-void taosReleaseConv(int32_t idx, iconv_t conv, ConvType type, void* charsetCxt) {
+void taosReleaseConv(int32_t idx, iconv_t conv, ConvType type, void *charsetCxt) {
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if (idx < 0) {
     (void)iconv_close(conv);
     return;
   }
 
-  if (charsetCxt == NULL){
+  if (charsetCxt == NULL) {
     charsetCxt = tsCharsetCxt;
   }
   SConvInfo *info = (SConvInfo *)charsetCxt;
 
   atomic_store_8(&info->gConv[type][idx].inUse, 0);
   (void)atomic_sub_fetch_32(&info->convUsed[type], 1);
+#endif
 }
 
 bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len, void* charsetCxt) {

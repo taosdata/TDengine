@@ -280,7 +280,7 @@ int32_t taosInitLogOutput(const char **ppLogName) {
   return 0;
 }
 
-int32_t taosInitLog(const char *logName, int32_t maxFiles, bool tsc) {
+int32_t taosInitLog(const char *logName, int32_t maxFiles, ELogMode mode) {
   if (atomic_val_compare_exchange_8(&tsLogInited, 0, 1) != 0) return 0;
   int32_t code = osUpdate();
   if (code != 0) {
@@ -293,7 +293,7 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles, bool tsc) {
   }
 
   TAOS_CHECK_RETURN(taosInitNormalLog(logName, maxFiles));
-  if (tsc) {
+  if (mode & LOG_MODE_TAOSC) {
     TAOS_CHECK_RETURN(taosInitSlowLog());
   }
   TAOS_CHECK_RETURN(taosStartLog());
@@ -738,7 +738,7 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
 
   int fd = 0;
   if (tsLogObj.outputType == LOG_OUTPUT_FILE) {
-    if (dflag & DEBUG_SCREEN) fd = 1;
+    if ((dflag & DEBUG_SCREEN) && tsLogEmbedded) fd = 1;
   } else if (tsLogObj.outputType == LOG_OUTPUT_STDOUT) {
     fd = 1;
   } else if (tsLogObj.outputType == LOG_OUTPUT_STDERR) {

@@ -1299,7 +1299,8 @@ void *shellThreadLoop(void *arg) {
   return NULL;
 }
 
-int32_t shellExecute() {
+int32_t shellExecute(int argc, char *argv[]) {
+  int32_t code = 0;
   printf(shell.info.clientVersion, shell.info.cusName, taos_get_client_info(), shell.info.cusName);
   fflush(stdout);
 
@@ -1366,9 +1367,9 @@ int32_t shellExecute() {
     return 0;
   }
 
-  if (tsem_init(&shell.cancelSem, 0, 0) != 0) {
-    printf("failed to create cancel semaphore\r\n");
-    return -1;
+  if ((code = tsem_init(&shell.cancelSem, 0, 0)) != 0) {
+    printf("failed to create cancel semaphore since %s\r\n", tstrerror(code));
+    return code;
   }
 
   TdThread spid = {0};
@@ -1422,5 +1423,5 @@ int32_t shellExecute() {
   taos_kill_query(shell.conn);
   taos_close(shell.conn);
 
-  return 0;
+  TAOS_RETURN(code);
 }

@@ -120,4 +120,5 @@ END:
 
 void taosConvDestroy() {
   taosHashCleanup(gConvInfo);
+  gConvInfo = NULL;  
 }

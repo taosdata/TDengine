@@ -151,6 +151,7 @@ extern bool    tsEnableWhiteList;
 extern int64_t tsDndStart;
 extern int64_t tsDndStartOsUptime;
 extern int64_t tsDndUpTime;
+extern int64_t tsDndStarted;
 
 // dnode misc
 extern uint32_t tsEncryptionKeyChksum;
@@ -270,6 +271,9 @@ extern int64_t tsmaDataDeleteMark;
 // wal
 extern int64_t tsWalFsyncDataSizeLimit;
 
+// misc
+extern bool tsTaosdIntegrated;
+
 // internal
 extern bool    tsDiskIDCheckEnabled;
 extern int32_t tsTransPullupInterval;
@@ -301,7 +305,7 @@ extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
-                      const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
+                      const char *envFile, char *apolloUrl, SArray *pArgs, ELogMode mode);
 int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl,
                            SArray *pArgs);
 int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
