@@ -265,7 +265,9 @@ void taos_cleanup(void) {
   tscInfo("all local resources released");
   taosCleanupCfg();
   taosCloseLog();
-  if (!tsTaosdIntegrated) taosCloseLog();  
+#ifndef TAOSD_INTEGRATED
+  taosCloseLog();
+#endif
 }
 
 static setConfRet taos_set_config_imp(const char *config) {
