@@ -32,7 +32,7 @@ class TDTestCase(TBase):
         outputs = etool.runBinFile("taosdump", "-V")
         print(outputs)
         if len(outputs) != 4:
-            tdLog.exit(f"checkVersion return lines count {len(outputs) != 3}")
+            tdLog.exit(f"checkVersion return lines count {len(outputs)} != 4")
         # version string len
         assert len(outputs[1]) > 19
         # commit id
