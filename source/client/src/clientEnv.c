@@ -992,7 +992,7 @@ static int32_t shellStartDaemon(int argc, char *argv[]) {
   pArgs->argc = argc;
   pArgs->argv = argv;
 
-#ifndef TAOSD_AS_LIB
+#ifndef TD_AS_LIB
   tsLogEmbedded = 1;
 #endif
 
@@ -1026,14 +1026,14 @@ _exit:
   } else {
     printf("\r\n The daemon started successfully, cost %" PRIi64 " ms\r\n", endMs - startMs);
   }
-#ifndef TAOSD_AS_LIB
+#ifndef TD_AS_LIB
   tsLogEmbedded = 0;
 #endif
   return code;
 }
 
 void shellStopDaemon() {
-#ifndef TAOSD_AS_LIB
+#ifndef TD_AS_LIB
   tsLogEmbedded = 1;
 #endif
   dmStopDaemon();

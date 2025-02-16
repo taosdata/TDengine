@@ -41,7 +41,11 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
 #endif
 }
 
+#if defined(TAOSD_INTEGRATED) && !defined(TD_AS_LIB)
+int taosShellStart(int argc, char *argv[], char *envp[]) {
+#else
 int main(int argc, char *argv[]) {
+#endif
   shell.exit = false;
 #ifdef WEBSOCKET
   shell.args.timeout = SHELL_WS_TIMEOUT;
