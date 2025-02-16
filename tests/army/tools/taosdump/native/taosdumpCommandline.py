@@ -158,12 +158,15 @@ class TDTestCase(TBase):
         self.clearPath(tmpdir)
     
     # check except
-    def checkExcept(self, command, tips):
+    def checkExcept(self, command):
         try:
-            self.exec(command)
-            tdLog.exit(f"Failed, not report error for command {command}")
+            code = self.exec(command)
+            if code == 0:
+                tdLog.exit(f"Failed, not report error for command {command}")
+            else:
+                tdLog.info(f"Passed, expect report error for command {command}")
         except:
-            tdLog.info(f"Passed, expect report error for command {command}")
+            tdLog.info(f"Passed, catch expect report error for command {command}")
 
 
     # except commandline

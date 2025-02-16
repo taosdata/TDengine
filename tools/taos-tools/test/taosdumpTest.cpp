@@ -18,16 +18,15 @@
 
 #include "toolsdef.h"
 
-
 TEST(taosdump, toolsSys) {
   // errorPrintReqArg3
   errorPrintReqArg3((char *)"taosdump", (char *)"test parameters");
-  printf("ut function errorPrintReqArg3 ....................  [Passed]");
+  printf("ut function errorPrintReqArg3 ....................  [Passed]\n");
 
   // setConsoleEcho
   setConsoleEcho(true);
   setConsoleEcho(false);
-  printf("ut function setConsoleEcho .......................  [Passed]");
+  printf("ut function setConsoleEcho .......................  [Passed]\n");
 }
 
 int main(int argc, char **argv) {
