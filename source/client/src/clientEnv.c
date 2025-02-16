@@ -1090,11 +1090,13 @@ void taos_init_imp(void) {
   ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, taosdIntegrated ? 0 : 1), "failed to init cfg");
 
   initQueryModuleMsgHandle();
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV  
   if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL){
     tscInitRes = terrno;
     tscError("failed to init conv");
     return;
   }
+#endif
 #ifndef WINDOWS
   ENV_ERR_RET(tzInit(), "failed to init timezone");
 #endif

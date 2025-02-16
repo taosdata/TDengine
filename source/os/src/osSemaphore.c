@@ -231,7 +231,11 @@ bool    taosComparePthread(TdThread first, TdThread second) { return first == se
 int32_t taosGetPId() {
   static int32_t pid;
   if (pid != 0) return pid;
-  pid = getpid();
+#ifndef TD_ASTRA
+  pid = getPid();
+#else
+  pid = (int32_t)taosThreadSelf(); // TD_ASTRA_TODO
+#endif
   return pid;
 }
 

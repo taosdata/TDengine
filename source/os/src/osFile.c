@@ -24,6 +24,7 @@
 #include <ktmw32.h>
 #include <windows.h>
 #define F_OK 0
+#define X_OK 1
 #define W_OK 2
 #define R_OK 4
 
@@ -98,7 +99,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
 
   char rand[8] = {0};
   taosRandStr(rand, tListLen(rand) - 1);
-  snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
+  snprintf(dstPath, PATH_MAX, tmpPath, taosGetPid(), rand);
 
 #else
 
@@ -117,7 +118,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
 
   (void)snprintf(rand, sizeof(rand), "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
 
-  (void)snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
+  (void)snprintf(dstPath, PATH_MAX, tmpPath, taosGetPid(), rand);
 
 #endif
 }

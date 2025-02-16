@@ -153,6 +153,7 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
     val = NULL;
   }
 
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if (option == TSDB_OPTION_CONNECTION_CHARSET || option == TSDB_OPTION_CONNECTION_CLEAR) {
     if (val != NULL) {
       if (!taosValidateEncodec(val)) {
@@ -169,7 +170,7 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
       pObj->optionInfo.charsetCxt = NULL;
     }
   }
-
+#endif
   if (option == TSDB_OPTION_CONNECTION_TIMEZONE || option == TSDB_OPTION_CONNECTION_CLEAR) {
 #ifndef WINDOWS
     if (val != NULL) {

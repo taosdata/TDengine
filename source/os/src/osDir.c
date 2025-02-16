@@ -366,7 +366,7 @@ int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
 
 int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
   OS_PARAM_CHECK(dirname);
-
+#ifndef TD_ASTRA
   char tmp[PATH_MAX] = {0};
 #ifdef WINDOWS
   if (_fullpath(tmp, dirname, maxlen) != NULL) {
@@ -388,6 +388,10 @@ int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
+#else
+  tstrncpy(realPath, dirname, maxlen);
+  return 0;
+#endif
 }
 
 bool taosIsDir(const char *dirname) {

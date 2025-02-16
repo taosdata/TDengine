@@ -355,7 +355,7 @@ static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType 
            cfgStypeStr(stype), value);
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
-
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if (!taosValidateEncodec(value)) {
     uError("invalid charset:%s", value);
     TAOS_RETURN(terrno);
@@ -366,7 +366,7 @@ static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType 
   }
   (void)memcpy(tsCharset, value, strlen(value) + 1);
   TAOS_CHECK_RETURN(doSetConf(pItem, value, stype));
-
+#endif
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 

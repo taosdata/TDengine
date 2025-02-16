@@ -491,13 +491,14 @@ int mainWindows(int argc, char **argv) {
     return code;
   }
 
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL) {
     dError("failed to init conv");
     taosCloseLog();
     taosCleanupArgs();
     return code;
   }
-
+#endif
   if (global.checkS3) {
     code = dmCheckS3();
     taosCleanupCfg();
