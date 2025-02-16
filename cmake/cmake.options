@@ -233,8 +233,8 @@ IF(${TAOSD_INTEGRATED})
     add_definitions(-DTAOSD_INTEGRATED)
 ENDIF()
 
-IF(${TAOSD_AS_LIB})
-    add_definitions(-DTAOSD_AS_LIB)
+IF(${TD_AS_LIB})
+    add_definitions(-DTD_AS_LIB)
 ENDIF()
 
 option(
