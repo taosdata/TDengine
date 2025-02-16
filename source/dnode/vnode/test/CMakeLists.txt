@@ -1,7 +1,11 @@
 MESSAGE(STATUS "tq unit test")
 
 # GoogleTest requires at least C++11
-SET(CMAKE_CXX_STANDARD 11)
+if(${FALLBACK})          # {
+    SET(CMAKE_CXX_STANDARD 11)
+else()                   # }{
+    SET(CMAKE_CXX_STANDARD 14)
+endif()                  # }
 
 IF(NOT TD_WINDOWS)
     add_executable(tqTest tqTest.cpp)

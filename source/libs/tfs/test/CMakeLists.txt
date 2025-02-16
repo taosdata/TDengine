@@ -1,5 +1,9 @@
 enable_testing()
 
+if(NOT ${FALLBACK})      # {
+    SET(CMAKE_CXX_STANDARD 14)
+endif()                  # }
+
 aux_source_directory(. TFS_TEST_SRC)
 add_executable(tfs_test ${TFS_TEST_SRC})
 if(${FALLBACK})                # {

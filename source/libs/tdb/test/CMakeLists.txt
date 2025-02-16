@@ -1,3 +1,7 @@
+if(NOT ${FALLBACK})      # {
+    SET(CMAKE_CXX_STANDARD 14)
+endif()                  # }
+
 # tdbTest
 add_executable(tdbTest "tdbTest.cpp")
 if(${FALLBACK})                 # {

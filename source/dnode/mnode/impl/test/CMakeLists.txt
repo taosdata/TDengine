@@ -1,5 +1,9 @@
 enable_testing()
 
+if(NOT ${FALLBACK})      # {
+    SET(CMAKE_CXX_STANDARD 14)
+endif()                  # }
+
 add_subdirectory(acct)
 add_subdirectory(arbgroup)
 #add_subdirectory(db)

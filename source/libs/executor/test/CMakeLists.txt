@@ -18,7 +18,11 @@ MESSAGE(STATUS "build parser unit test")
 # PRIVATE "${TD_SOURCE_DIR}/source/libs/executor/inc"
 # )
 # ENDIF ()
-SET(CMAKE_CXX_STANDARD 11)
+if(${FALLBACK})          # {
+    SET(CMAKE_CXX_STANDARD 11)
+else()                   # }{
+    SET(CMAKE_CXX_STANDARD 14)
+endif()                  # }
 AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
 ADD_EXECUTABLE(joinTests joinTests.cpp)

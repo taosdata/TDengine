@@ -2,7 +2,11 @@
 MESSAGE(STATUS "build parser unit test")
 
 # GoogleTest requires at least C++11
-SET(CMAKE_CXX_STANDARD 11)
+if(${FALLBACK})          # {
+    SET(CMAKE_CXX_STANDARD 11)
+else()                   # }{
+    SET(CMAKE_CXX_STANDARD 14)
+endif()                  # }
 AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
 ADD_EXECUTABLE(clientTest clientTests.cpp)

@@ -1,5 +1,9 @@
 enable_testing()
 
+if(NOT ${FALLBACK})      # {
+    SET(CMAKE_CXX_STANDARD 14)
+endif()                  # }
+
 aux_source_directory(. MONITOR_TEST_SRC)
 add_executable(monitorTest ${MONITOR_TEST_SRC})
 if(${FALLBACK})                            # {

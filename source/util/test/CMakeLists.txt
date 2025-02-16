@@ -1,30 +1,66 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8...3.20)
 PROJECT(TDengine)
 
-FIND_PATH(HEADER_GTEST_INCLUDE_DIR gtest.h /usr/include/gtest /usr/local/include/gtest)
-FIND_LIBRARY(LIB_GTEST_STATIC_DIR libgtest.a /usr/lib/ /usr/local/lib /usr/lib64)
-FIND_LIBRARY(LIB_GTEST_SHARED_DIR libgtest.so /usr/lib/ /usr/local/lib /usr/lib64)
+if(NOT ${FALLBACK})      # {
+    SET(CMAKE_CXX_STANDARD 14)
+endif()                  # }
 
-IF(HEADER_GTEST_INCLUDE_DIR AND(LIB_GTEST_STATIC_DIR OR LIB_GTEST_SHARED_DIR))
-    MESSAGE(STATUS "gTest library found, build unit test")
+if(${FALLBACK})      # {
+  FIND_PATH(HEADER_GTEST_INCLUDE_DIR gtest.h /usr/include/gtest /usr/local/include/gtest)
+  FIND_LIBRARY(LIB_GTEST_STATIC_DIR libgtest.a /usr/lib/ /usr/local/lib /usr/lib64)
+  FIND_LIBRARY(LIB_GTEST_SHARED_DIR libgtest.so /usr/lib/ /usr/local/lib /usr/lib64)
+  IF(HEADER_GTEST_INCLUDE_DIR AND(LIB_GTEST_STATIC_DIR OR LIB_GTEST_SHARED_DIR))
+      MESSAGE(STATUS "gTest library found, build unit test")
 
-    INCLUDE_DIRECTORIES(${HEADER_GTEST_INCLUDE_DIR})
-    AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
+      INCLUDE_DIRECTORIES(${HEADER_GTEST_INCLUDE_DIR})
+      AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
-    LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/trefTest.c)
-    LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/terrorTest.cpp)
-    ADD_EXECUTABLE(utilTest ${SOURCE_LIST})
-    TARGET_LINK_LIBRARIES(utilTest util common os gtest pthread)
+      LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/trefTest.c)
+      LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/terrorTest.cpp)
+      ADD_EXECUTABLE(utilTest ${SOURCE_LIST})
+      TARGET_LINK_LIBRARIES(utilTest util common os gtest pthread)
 
-    LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/cacheTest.cpp)
-    LIST(APPEND SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/hashTest.cpp)
-    ADD_EXECUTABLE(hashTest ${SOURCE_LIST})
-    TARGET_LINK_LIBRARIES(hashTest util common os gtest pthread)
+      LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/cacheTest.cpp)
+      LIST(APPEND SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/hashTest.cpp)
+      ADD_EXECUTABLE(hashTest ${SOURCE_LIST})
+      TARGET_LINK_LIBRARIES(hashTest util common os gtest pthread)
 
-    LIST(APPEND BIN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/trefTest.c)
-    ADD_EXECUTABLE(trefTest ${BIN_SRC})
-    TARGET_LINK_LIBRARIES(trefTest common util)
-ENDIF()
+      LIST(APPEND BIN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/trefTest.c)
+      ADD_EXECUTABLE(trefTest ${BIN_SRC})
+      TARGET_LINK_LIBRARIES(trefTest common util)
+  ENDIF()
+else()               # }{
+  # TODO: freemine: better approach later!!!
+  #       utility source files mixed with main-embedded-source files
+  #       what a ugly approach (aux_source_directory, list remove and list append)!!!
+  #       check with TDengine guys to confirm what are util-test-files and what are utility-files
+  ### AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
+  ### LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/trefTest.c)
+  ### LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/terrorTest.cpp)
+  ### LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/hashTest.cpp)
+  ### LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/hashTest.cpp)
+  ### LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/memPoolTest.cpp)
+  ### LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/terrorTest.cpp)
+
+  ### ADD_EXECUTABLE(utilTest ${SOURCE_LIST})
+  ### target_include_directories(utilTest
+  ###   PUBLIC ${ext_stub_stub} ${ext_stub_addr_any}
+  ### )
+  ### TARGET_LINK_LIBRARIES(utilTest
+  ###   PUBLIC os util common
+  ### )
+  ### DEP_ext_gtest(utilTest)
+  ### DEP_ext_stub(utilTest)
+
+  ### LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/cacheTest.cpp)
+  ### LIST(APPEND SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/hashTest.cpp)
+  ### ADD_EXECUTABLE(hashTest ${SOURCE_LIST})
+  ### TARGET_LINK_LIBRARIES(hashTest util common os gtest pthread)
+
+  ### LIST(APPEND BIN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/trefTest.c)
+  ### ADD_EXECUTABLE(trefTest ${BIN_SRC})
+  ### TARGET_LINK_LIBRARIES(trefTest common util)
+endif()              # }
 
 # IF (TD_LINUX)
 # ADD_EXECUTABLE(trefTest ./trefTest.c)

@@ -69,7 +69,7 @@ else()                          # }{
     target_include_directories(
         util
         PUBLIC "${TD_SOURCE_DIR}/include/util"
-        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc"
         PRIVATE "${TD_SOURCE_DIR}/include/common"
         PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
         PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/sz/inc"  # freemine: to remove?

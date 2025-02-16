@@ -1,3 +1,7 @@
+if(NOT ${FALLBACK})      # {
+    SET(CMAKE_CXX_STANDARD 14)
+endif()                  # }
+
 add_executable(walTest "")
 target_sources(walTest
     PRIVATE

@@ -89,11 +89,31 @@ macro(INIT_EXT name)
     endmacro()
 endmacro()
 
+macro(get_from_local_repo_if_exists git_url)              # {
+  if(NOT DEFINED LOCAL_REPO)
+    set(_git_url "${git_url}")
+  else()
+    string(FIND ${git_url} "/" _pos REVERSE)
+    string(SUBSTRING ${git_url} ${_pos} -1 _name)
+    set(_git_url "${LOCAL_REPO}/${_name}")
+  endif()
+endmacro()                                                # }
+
+macro(get_from_local_if_exists url)                       # {
+  if(NOT DEFINED LOCAL_URL)
+    set(_url "${url}")
+  else()
+    string(FIND ${url} "/" _pos REVERSE)
+    string(SUBSTRING ${url} ${_pos} -1 _name)
+    set(_url "${LOCAL_URL}/${_name}")
+  endif()
+endmacro()                                                # }
+
 # cjson
 if(${TD_LINUX})
     set(ext_cjson_static libcjson.a)
 elseif(${TD_DARWIN})
-    set(ext_cjson_static libcjson.dylib)
+    set(ext_cjson_static libcjson.a)
 elseif(${TD_WINDOWS})
     set(ext_cjson_static cjson.lib)
 endif()
@@ -101,8 +121,9 @@ INIT_EXT(ext_cjson
     INC_DIR         include/cjson
     LIB             lib/${ext_cjson_static}
 )
+get_from_local_repo_if_exists("https://github.com/taosdata-contrib/cJSON.git")
 ExternalProject_Add(ext_cjson
-    GIT_REPOSITORY https://github.com/taosdata-contrib/cJSON.git
+    GIT_REPOSITORY ${_git_url}
     GIT_TAG v1.7.15
     PREFIX "${_base}"
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
@@ -122,7 +143,7 @@ ExternalProject_Add(ext_cjson
 if(${TD_LINUX})
     set(ext_lz4_static liblz4.a)
 elseif(${TD_DARWIN})
-    set(ext_lz4_static liblz4.dylib)
+    set(ext_lz4_static liblz4.a)
 elseif(${TD_WINDOWS})
     set(ext_lz4_static lz4.lib)
 endif()
@@ -130,8 +151,9 @@ INIT_EXT(ext_lz4
     INC_DIR          include
     LIB              lib/${ext_lz4_static}
 )
+get_from_local_repo_if_exists("https://github.com/taosdata-contrib/lz4.git")
 ExternalProject_Add(ext_lz4
-    GIT_REPOSITORY https://github.com/taosdata-contrib/lz4.git
+    GIT_REPOSITORY ${_git_url}
     GIT_TAG v1.9.3
     SOURCE_SUBDIR build/cmake
     PREFIX "${_base}"
@@ -149,7 +171,7 @@ ExternalProject_Add(ext_lz4
 if(${TD_LINUX})
     set(ext_zlib_static libz.a)
 elseif(${TD_DARWIN})
-    set(ext_zlib_static libz.dylib)
+    set(ext_zlib_static libz.a)
 elseif(${TD_WINDOWS})
     set(ext_zlib_static zlibstatic$<$<CONFIG:Debug>:D>.lib)
 endif()
@@ -157,8 +179,9 @@ INIT_EXT(ext_zlib
     INC_DIR          include
     LIB              lib/${ext_zlib_static}
 )
+get_from_local_repo_if_exists("https://github.com/taosdata-contrib/zlib.git")
 ExternalProject_Add(ext_zlib
-    GIT_REPOSITORY https://github.com/taosdata-contrib/zlib.git
+    GIT_REPOSITORY ${_git_url}
     GIT_TAG v1.2.11
     PREFIX "${_base}"
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -177,7 +200,7 @@ if(${BUILD_WITH_ROCKSDB})              # {
         if(${TD_LINUX})
             set(ext_rocksdb_static librocksdb.a)
         elseif(${TD_DARWIN})
-            set(ext_rocksdb_static librocksdb.dylib)
+            set(ext_rocksdb_static librocksdb.a)
         elseif(${TD_WINDOWS})
             set(ext_rocksdb_static rocksdb.lib)
         endif()
@@ -185,8 +208,9 @@ if(${BUILD_WITH_ROCKSDB})              # {
             INC_DIR            include
             LIB                lib/${ext_rocksdb_static}
         )
+        get_from_local_if_exists("https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz")
         ExternalProject_Add(ext_rocksdb
-            URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
+            URL ${_url}
             URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
             BUILD_ALWAYS TRUE
             DOWNLOAD_EXTRACT_TIMESTAMP TRUE
@@ -226,7 +250,7 @@ if(${BUILD_WITH_UV})           # {
     if(${TD_LINUX})
         set(ext_libuv_static libuv.a)
     elseif(${TD_DARWIN})
-        set(ext_libuv_static libuv.dylib)
+        set(ext_libuv_static libuv.a)
     elseif(${TD_WINDOWS})
         set(ext_libuv_static libuv.lib)
     endif()
@@ -234,8 +258,9 @@ if(${BUILD_WITH_UV})           # {
         INC_DIR            include
         LIB                lib/${ext_libuv_static}
     )
+    get_from_local_repo_if_exists("https://github.com/libuv/libuv.git")
     ExternalProject_Add(ext_libuv
-        GIT_REPOSITORY https://github.com/libuv/libuv.git
+        GIT_REPOSITORY ${_git_url}
         GIT_TAG v1.49.2
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
@@ -255,14 +280,14 @@ if(${BUILD_GEOS})              # {
     if(${TD_LINUX})
         set(ext_geos_c_static libgeos_c.a)
     elseif(${TD_DARWIN})
-        set(ext_geos_c_static libgeos_c.dylib)
+        set(ext_geos_c_static libgeos_c.a)
     elseif(${TD_WINDOWS})
         set(ext_geos_c_static geos_c.lib)
     endif()
     if(${TD_LINUX})
         set(ext_geos_static libgeos.a)
     elseif(${TD_DARWIN})
-        set(ext_geos_static libgeos.dylib)
+        set(ext_geos_static libgeos.a)
     elseif(${TD_WINDOWS})
         set(ext_geos_static geos.lib)
     endif()
@@ -271,8 +296,9 @@ if(${BUILD_GEOS})              # {
         LIB               lib/${ext_geos_c_static}
                           lib/${ext_geos_static}
     )
+    get_from_local_repo_if_exists("https://github.com/libgeos/geos.git")
     ExternalProject_Add(ext_geos
-        GIT_REPOSITORY https://github.com/libgeos/geos.git
+        GIT_REPOSITORY ${_git_url}
         GIT_TAG 3.12.0
         PREFIX "${_base}"
         CONFIGURE_COMMAND
@@ -298,8 +324,8 @@ if(${TD_LINUX})
     set(ext_pcre2_static      libpcre2-8.a)
     set(ext_pcre2posix_static libpcre2-posix.a)
 elseif(${TD_DARWIN})
-    set(ext_pcre2_static      libpcre2-8.dylib)
-    set(ext_pcre2posix_static libpcre2-posix.dylib)
+    set(ext_pcre2_static      libpcre2-8.a)
+    set(ext_pcre2posix_static libpcre2-posix.a)
 elseif(${TD_WINDOWS})
     set(ext_pcre2_static      pcre2-8-static$<$<CONFIG:Debug>:D>.lib)
     set(ext_pcre2posix_static pcre2-posix-static$<$<CONFIG:Debug>:D>.lib)
@@ -310,8 +336,9 @@ if(${BUILD_PCRE2})           # {
         LIB                    lib/${ext_pcre2posix_static}
                                lib/${ext_pcre2_static}
     )
+    get_from_local_repo_if_exists("https://github.com/PCRE2Project/pcre2.git")
     ExternalProject_Add(ext_pcre2
-        GIT_REPOSITORY https://github.com/PCRE2Project/pcre2.git
+        GIT_REPOSITORY ${_git_url}
         GIT_TAG pcre2-10.43
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
@@ -325,37 +352,52 @@ endif()                      # }
 
 # lzma2
 if(NOT ${TD_WINDOWS})         # {
-    if(${TD_LINUX})
+    if(NOT ${TD_DARWIN})    # {
         set(ext_lzma2_static libfast-lzma2.a)
-    elseif(${TD_DARWIN})
-        set(ext_lzma2_static libfast-lzma2.dylib)
-    elseif(${TD_WINDOWS})
-        set(ext_lzma2_static fast-lzma2.lib)
-    endif()
-    INIT_EXT(ext_lzma2
-        INC_DIR            usr/local/include
-        LIB                usr/local/lib/${ext_lzma2_static}
-    )
-    ExternalProject_Add(ext_lzma2
-        GIT_REPOSITORY https://github.com/conor42/fast-lzma2.git
-        GIT_TAG ded964d203cabe1a572d2c813c55e8a94b4eda48
-        PREFIX "${_base}"
-        BUILD_IN_SOURCE TRUE
-        PATCH_COMMAND
-            COMMAND git restore -- Makefile
-            COMMAND git apply ${CMAKE_SOURCE_DIR}/contrib/lzma2.diff
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND
-            COMMAND make DESTDIR=${_ins}
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different fast-lzma2.h ${_ins}/usr/local/include/fast-lzma2.h
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different fl2_errors.h ${_ins}/usr/local/include/fl2_errors.h
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different xxhash.h ${_ins}/usr/local/include/xxhash.h
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different libfast-lzma2.a ${_ins}/usr/local/lib/libfast-lzma2.a
-        INSTALL_COMMAND ""
-        GIT_SHALLOW TRUE
-        EXCLUDE_FROM_ALL TRUE
-        VERBATIM
-    )
+        INIT_EXT(ext_lzma2
+            INC_DIR            usr/local/include
+            LIB                usr/local/lib/${ext_lzma2_static}
+        )
+        get_from_local_repo_if_exists("https://github.com/conor42/fast-lzma2.git")
+        ExternalProject_Add(ext_lzma2
+            GIT_REPOSITORY ${_git_url}
+            GIT_TAG ded964d203cabe1a572d2c813c55e8a94b4eda48
+            PREFIX "${_base}"
+            BUILD_IN_SOURCE TRUE
+            PATCH_COMMAND
+                COMMAND git restore -- Makefile
+                COMMAND git apply ${CMAKE_SOURCE_DIR}/contrib/lzma2.diff
+            CONFIGURE_COMMAND ""
+            BUILD_COMMAND
+                COMMAND make DESTDIR=${_ins}
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different fast-lzma2.h ${_ins}/usr/local/include/fast-lzma2.h
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different fl2_errors.h ${_ins}/usr/local/include/fl2_errors.h
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different xxhash.h ${_ins}/usr/local/include/xxhash.h
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different libfast-lzma2.a ${_ins}/usr/local/lib/libfast-lzma2.a
+            INSTALL_COMMAND ""
+            GIT_SHALLOW TRUE
+            EXCLUDE_FROM_ALL TRUE
+            VERBATIM
+        )
+    else()                  # }{
+        set(ext_lzma2_static libfast-lzma2.a)
+        INIT_EXT(ext_lzma2
+            INC_DIR            include
+            LIB                lib/${ext_lzma2_static}
+        )
+        get_from_local_repo_if_exists("https://github.com/conor42/fast-lzma2.git")
+        ExternalProject_Add(ext_lzma2
+            GIT_REPOSITORY ${_git_url}
+            GIT_TAG ded964d203cabe1a572d2c813c55e8a94b4eda48
+            PREFIX "${_base}"
+            CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
+            PATCH_COMMAND
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_SOURCE_DIR}/contrib/lzma2_darwin.CMakeLists.txt.cmake" ${_base}/src/ext_lzma2/CMakeLists.txt
+            GIT_SHALLOW TRUE
+            EXCLUDE_FROM_ALL TRUE
+            VERBATIM
+        )
+    endif()                 # }
 else()                        # }{
     if(${TD_WINDOWS})
         set(ext_lzma2_static fast-lzma2.lib)
@@ -364,8 +406,9 @@ else()                        # }{
         INC_DIR            include
         LIB                lib/${ext_lzma2_static}
     )
+    get_from_local_repo_if_exists("https://github.com/conor42/fast-lzma2.git")
     ExternalProject_Add(ext_lzma2
-        GIT_REPOSITORY https://github.com/conor42/fast-lzma2.git
+        GIT_REPOSITORY ${_git_url}
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
         PATCH_COMMAND COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/lzma2.cmake ${_base}/src/ext_lzma2/CMakeLists.txt
@@ -380,7 +423,7 @@ if(NOT ${TD_WINDOWS})              # {
     if(${TD_LINUX})
         set(ext_tz_static libtz.a)
     elseif(${TD_DARWIN})
-        set(ext_tz_static libtz.dylib)
+        set(ext_tz_static libtz.a)
     elseif(${TD_WINDOWS})
         set(ext_tz_static tz.lib)
     endif()
@@ -388,8 +431,9 @@ if(NOT ${TD_WINDOWS})              # {
         INC_DIR           usr/include
         LIB               usr/lib/${ext_tz_static}
     )
+    get_from_local_repo_if_exists("https://github.com/eggert/tz.git")
     ExternalProject_Add(ext_tz
-        GIT_REPOSITORY https://github.com/eggert/tz.git
+        GIT_REPOSITORY ${_git_url}
         GIT_TAG main       # freemine: or fixed?
         PREFIX "${_base}"
         CONFIGURE_COMMAND ""
@@ -399,11 +443,15 @@ if(NOT ${TD_WINDOWS})              # {
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
+    set(_cflags "-fPIC")
+    if(${TD_DARWIN})         # {
+      set(_cflags "${_cflags} -DHAVE_GETTEXT=0")
+    endif()                  # }
     add_custom_command(
         OUTPUT ${_ins}/usr/lib/${ext_tz_static}
         WORKING_DIRECTORY ${_base}/src/ext_tz
-        COMMAND make DESTDIR=${_ins} CFLAGS=-fPIC
-        COMMAND make DESTDIR=${_ins} install
+        COMMAND make DESTDIR=${_ins} CFLAGS=${_cflags}
+        COMMAND make DESTDIR=${_ins} CFLAGS=${_cflags} install
         VERBATIM
     )
     add_custom_target(
@@ -418,14 +466,14 @@ if(${BUILD_TEST})              # {
     if(${TD_LINUX})
         set(ext_gtest_static libgtest.a)
     elseif(${TD_DARWIN})
-        set(ext_gtest_static libgtest.dylib)
+        set(ext_gtest_static libgtest.a)
     elseif(${TD_WINDOWS})
         set(ext_gtest_static gtest$<$<CONFIG:Debug>:D>.lib)
     endif()
     if(${TD_LINUX})
         set(ext_gtest_main_static libgtest_main.a)
     elseif(${TD_DARWIN})
-        set(ext_gtest_main_static libgtest_main.dylib)
+        set(ext_gtest_main_static libgtest_main.a)
     elseif(${TD_WINDOWS})
         set(ext_gtest_main_static gtest_main$<$<CONFIG:Debug>:D>.lib)
     endif()
@@ -434,8 +482,9 @@ if(${BUILD_TEST})              # {
         LIB                       lib/${ext_gtest_main_static}
                                   lib/${ext_gtest_static}
     )
+    get_from_local_repo_if_exists("https://github.com/taosdata-contrib/googletest.git")
     ExternalProject_Add(ext_gtest
-        GIT_REPOSITORY https://github.com/taosdata-contrib/googletest.git
+        GIT_REPOSITORY ${_git_url}
         GIT_TAG release-1.11.0
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -447,8 +496,9 @@ if(${BUILD_TEST})              # {
     )
 
     INIT_EXT(ext_stub)
+    get_from_local_repo_if_exists("https://github.com/coolxv/cpp-stub.git")
     ExternalProject_Add(ext_stub
-        GIT_REPOSITORY https://github.com/coolxv/cpp-stub.git
+        GIT_REPOSITORY ${_git_url}
         GIT_TAG 3137465194014d66a8402941e80d2bccc6346f51
         # GIT_SUBMODULES "src"
         PREFIX "${_base}"
@@ -481,8 +531,9 @@ if(${BUILD_PTHREAD})     # {
             INC_DIR               x86_64/$<CONFIG>/include
             LIB                   x86_64/$<CONFIG>/lib/${ext_pthread_static}
         )
+        get_from_local_repo_if_exists("https://github.com/GerHobbelt/pthread-win32")
         ExternalProject_Add(ext_pthread
-                GIT_REPOSITORY https://github.com/GerHobbelt/pthread-win32
+                GIT_REPOSITORY ${_git_url}
                 GIT_TAG v3.0.3.1
                 PREFIX "${_base}"
                 CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
@@ -513,8 +564,9 @@ if(${BUILD_WITH_ICONV})  # {
             INC_DIR               include
             LIB                   lib/${ext_iconv_static}
         )
+        get_from_local_repo_if_exists("https://github.com/win-iconv/win-iconv.git")
         ExternalProject_Add(ext_iconv
-                GIT_REPOSITORY https://github.com/win-iconv/win-iconv.git
+                GIT_REPOSITORY ${_git_url}
                 GIT_TAG v0.0.8
                 PREFIX "${_base}"
                 CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
@@ -537,8 +589,9 @@ if(${BUILD_MSVCREGEX})       # {
             INC_DIR               include
             LIB                   lib/${ext_msvcregex_static}
         )
+        get_from_local_repo_if_exists("https://gitee.com/l0km/libgnurx-msvc.git")
         ExternalProject_Add(ext_msvcregex
-                GIT_REPOSITORY https://gitee.com/l0km/libgnurx-msvc.git
+                GIT_REPOSITORY ${_git_url}
                 GIT_TAG master
                 PREFIX "${_base}"
                 CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
@@ -560,8 +613,9 @@ if(${BUILD_WCWIDTH})         # {
             LIB                   lib/${ext_wcwidth_static}
             BYPRODUCTS            include/wcwidth.h
         )
+        get_from_local_repo_if_exists("https://github.com/fumiyas/wcwidth-cjk.git")
         ExternalProject_Add(ext_wcwidth
-                GIT_REPOSITORY https://github.com/fumiyas/wcwidth-cjk.git
+                GIT_REPOSITORY ${_git_url}
                 GIT_TAG master
                 PREFIX "${_base}"
                 CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
@@ -582,8 +636,9 @@ if(${BUILD_CRASHDUMP})       # {
         INC_DIR         include/crashdump
         LIB             lib/${ext_crashdump_static}
     )
+    get_from_local_repo_if_exists("https://github.com/Arnavion/crashdump.git")
     ExternalProject_Add(ext_crashdump
-        GIT_REPOSITORY https://github.com/Arnavion/crashdump.git
+        GIT_REPOSITORY ${_git_url}
         GIT_TAG 149b43c10debdf28a2c50d79dee5ff344d83bd06
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
@@ -605,8 +660,9 @@ if(${BUILD_WINGETOPT})
         INC_DIR         include
         LIB             lib/${ext_wingetopt_static}
     )
+    get_from_local_repo_if_exists("https://github.com/alex85k/wingetopt.git")
     ExternalProject_Add(ext_wingetopt
-        GIT_REPOSITORY https://github.com/alex85k/wingetopt.git
+        GIT_REPOSITORY ${_git_url}
         GIT_TAG master
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
@@ -617,6 +673,10 @@ if(${BUILD_WINGETOPT})
 endif(${BUILD_WINGETOPT})
 
 add_executable(main main.c)
+if(${TD_DARWIN})          # {
+  target_include_directories(main PRIVATE /usr/local/include)
+  target_link_directories(main PRIVATE /usr/local/lib)
+endif()                   # }
 DEP_ext_cjson(main)
 DEP_ext_lz4(main)
 DEP_ext_zlib(main)

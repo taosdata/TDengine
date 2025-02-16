@@ -1,4 +1,8 @@
-SET(CMAKE_CXX_STANDARD 11)
+if(${FALLBACK})          # {
+    SET(CMAKE_CXX_STANDARD 11)
+else()                   # }{
+    SET(CMAKE_CXX_STANDARD 14)
+endif()                  # }
 
 aux_source_directory(. MNODE_ARBGROUP_TEST_SRC)
 add_executable(arbgroupTest ${MNODE_ARBGROUP_TEST_SRC})
