@@ -16,11 +16,22 @@
 #include <gtest/gtest.h>
 #include <iostream>
 
-TEST(taosdumpMain, taosdumpTest) {
-  printf("hello world taosdump unit test for C\n");
+#include "toolsdef.h"
+
+
+TEST(taosdump, toolsSys) {
+  // errorPrintReqArg3
+  errorPrintReqArg3("taosdump", "test parameters")
+  printf("ut function errorPrintReqArg3 ....................  [Passed]")
+
+  // setConsoleEcho
+  setConsoleEcho(true)
+  setConsoleEcho(false)
+  printf("ut function setConsoleEcho .......................  [Passed]")  
 }
 
 int main(int argc, char **argv) {
+  printf("hello world taosdump unit test for C\n");
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
