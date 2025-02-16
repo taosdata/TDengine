@@ -319,7 +319,7 @@ function build_TDengine() {
     repoDir=""
     echo "start to cmake tdengine"
     echo "versionType $versionType"
-
+    allocator="jemalloc"
     if [[ "$allocator" == "jemalloc" ]]; then
         allocator_macro="-DJEMALLOC_ENABLED=true"
     else
@@ -583,6 +583,42 @@ function preparepkg() {
         cp ${explorerDir}/server/examples/explorer.toml ${install_dir}/cfg || :
     fi
     
+    #copy jemalloc
+    if [ "${versionType}" != "community" ]; then
+        build_dir="${debugDir}/build"
+        mkdir -p ${install_dir}/jemalloc/{bin,lib,lib/pkgconfig,include/jemalloc,share/doc/jemalloc,share/man/man3} 
+        if [ -f ${build_dir}/bin/jemalloc-config ]; then
+            cp ${build_dir}/bin/jemalloc-config ${install_dir}/jemalloc/bin
+        fi
+        if [ -f ${build_dir}/bin/jemalloc.sh ]; then
+            cp ${build_dir}/bin/jemalloc.sh ${install_dir}/jemalloc/bin
+        fi
+        if [ -f ${build_dir}/bin/jeprof ]; then
+            cp ${build_dir}/bin/jeprof ${install_dir}/jemalloc/bin
+        fi
+        if [ -f ${build_dir}/include/jemalloc/jemalloc.h ]; then
+            cp ${build_dir}/include/jemalloc/jemalloc.h ${install_dir}/jemalloc/include/jemalloc
+        fi
+        if [ -f ${build_dir}/lib/libjemalloc.so.2 ]; then
+            cp ${build_dir}/lib/libjemalloc.so.2 ${install_dir}/jemalloc/lib
+            ln -sf ${install_dir}/jemalloc/lib/libjemalloc.so.2 ${install_dir}/jemalloc/lib/libjemalloc.so
+        fi
+        # if [ -f ${build_dir}/lib/libjemalloc.a ]; then
+        #   cp ${build_dir}/lib/libjemalloc.a ${install_dir}/jemalloc/lib
+        # fi
+        # if [ -f ${build_dir}/lib/libjemalloc_pic.a ]; then
+        #   cp ${build_dir}/lib/libjemalloc_pic.a ${install_dir}/jemalloc/lib
+        # fi
+        if [ -f ${build_dir}/lib/pkgconfig/jemalloc.pc ]; then
+            cp ${build_dir}/lib/pkgconfig/jemalloc.pc ${install_dir}/jemalloc/lib/pkgconfig
+        fi
+        if [ -f ${build_dir}/share/doc/jemalloc/jemalloc.html ]; then
+            cp ${build_dir}/share/doc/jemalloc/jemalloc.html ${install_dir}/jemalloc/share/doc/jemalloc
+        fi
+        if [ -f ${build_dir}/share/man/man3/jemalloc.3 ]; then
+            cp ${build_dir}/share/man/man3/jemalloc.3 ${install_dir}/jemalloc/share/man/man3
+        fi    
+    fi
     # copy others    
     cp ${internalDir}/enterprise/packaging/start-all.sh ${install_dir} || :
     cp ${internalDir}/enterprise/packaging/stop-all.sh ${install_dir} || :
@@ -655,6 +691,11 @@ function make_linux_pkg() {
         cd ${install_dir}
         cp -r inc/ ${install_dir}/${serverPackageName}
         cp -r init.d/ ${install_dir}/${serverPackageName}
+        
+        # cp jemalloc
+        if [ "${versionType}" != "community" ]; then
+            cp -r jemalloc/ ${install_dir}/${serverPackageName}
+        fi
 
         cd ${serverPackageName}
         tar -zcv -f package.tar.gz * --remove-files ||:
@@ -688,6 +729,11 @@ function make_linux_pkg() {
         
         cd ${install_dir}
         cp -r inc/ ${install_dir}/${clientPackageName}
+        
+        # cp jemalloc
+        if [ "${versionType}" != "community" ]; then
+            cp -r jemalloc/ ${install_dir}/${serverPackageName}
+        fi
 
         cd ${clientPackageName}
         tar -zcv -f package.tar.gz * --remove-files ||:
