@@ -203,7 +203,7 @@ toc_max_heading_level: 4
 通过 “工具” 页面，用户可以了解如下 TDengine 周边工具的使用方法。
 - TDengine CLI。
 - taosBenchmark。
-- taosDump。
+- taosdump。
 - TDengine 与 BI 工具的集成，例如 Google Data Studio、Power BI、永洪 BI 等。
 - TDengine 与 Grafana、Seeq 的集成。
 

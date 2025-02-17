@@ -55,7 +55,7 @@ For dnodes wishing to join the cluster, it is essential to ensure that the param
 
 ### 5. Start
 
-Start the first dnode, such as `h1.tdengine.com`, following the steps mentioned above. Then execute taos in the terminal to start TDengine's CLI program taos, and execute the `show dnodes` command within it to view all dnode information in the current cluster.
+Start the first dnode, such as `h1.tdengine.com`, following the steps mentioned above. Then execute taos in the terminal to start TDengine CLI program taos, and execute the `show dnodes` command within it to view all dnode information in the current cluster.
 
 ```shell
 taos> show dnodes;
@@ -68,7 +68,7 @@ You can see that the endpoint of the dnode node that has just started is `h1.tde
 
 ### 6. Adding dnode
 
-Follow the steps mentioned earlier, start taosd on each physical node. Each dnode needs to configure the firstEp parameter in the taos.cfg file to the endpoint of the first node of the new cluster, which in this case is `h1.tdengine.com:6030`. On the machine where the first dnode is located, run taos in the terminal, open TDengine's CLI program taos, then log into the TDengine cluster, and execute the following SQL.
+Follow the steps mentioned earlier, start taosd on each physical node. Each dnode needs to configure the firstEp parameter in the taos.cfg file to the endpoint of the first node of the new cluster, which in this case is `h1.tdengine.com:6030`. On the machine where the first dnode is located, run taos in the terminal, open TDengine CLI program taos, then log into the TDengine cluster, and execute the following SQL.
 
 ```shell
 create dnode "h2.tdengine.com:6030"
@@ -84,13 +84,13 @@ In the logs, please confirm that the fqdn and port of the output dnode are consi
 
 **Tips**
 
-- Any dnode that has joined the cluster can serve as the firstEp for subsequent nodes to be added. The firstEp parameter only functions when that dnode first joins the cluster. After joining, the dnode will save the latest mnode's endpoint list, and subsequently, it no longer depends on this parameter. The firstEp parameter in the configuration file is mainly used for client connections, and if no parameters are set for TDengine's CLI, it will default to connecting to the node specified by firstEp.
+- Any dnode that has joined the cluster can serve as the firstEp for subsequent nodes to be added. The firstEp parameter only functions when that dnode first joins the cluster. After joining, the dnode will save the latest mnode's endpoint list, and subsequently, it no longer depends on this parameter. The firstEp parameter in the configuration file is mainly used for client connections, and if no parameters are set for TDengine CLI, it will default to connecting to the node specified by firstEp.
 - Two dnodes that have not configured the firstEp parameter will run independently after starting. At this time, it is not possible to join one dnode to another to form a cluster.
 - TDengine does not allow merging two independent clusters into a new cluster.
 
 ### 7. Adding mnode
 
-When creating a TDengine cluster, the first dnode automatically becomes the mnode of the cluster, responsible for managing and coordinating the cluster. To achieve high availability of mnode, subsequent dnodes need to manually create mnode. Please note that a cluster can create up to 3 mnodes, and only one mnode can be created on each dnode. When the number of dnodes in the cluster reaches or exceeds 3, you can create mnode for the existing cluster. In the first dnode, first log into TDengine through the CLI program taos, then execute the following SQL.
+When creating a TDengine cluster, the first dnode automatically becomes the mnode of the cluster, responsible for managing and coordinating the cluster. To achieve high availability of mnode, subsequent dnodes need to manually create mnode. Please note that a cluster can create up to 3 mnodes, and only one mnode can be created on each dnode. When the number of dnodes in the cluster reaches or exceeds 3, you can create mnode for the existing cluster. In the first dnode, first log into TDengine through TDengine CLI program taos, then execute the following SQL.
 
 ```shell
 create mnode on dnode <dnodeId>

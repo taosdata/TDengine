@@ -304,7 +304,7 @@ Not supported
 
 ## Querying the Written Data
 
-By running the example code from the previous section, tables will be automatically created in the power database. We can query the data using taos shell or an application. Below is an example of querying the data from the supertable and meters table using taos shell.
+By running the example code from the previous section, tables will be automatically created in the power database. We can query the data using TDengine CLI or an application. Below is an example of querying the data from the supertable and meters table using TDengine CLI.
 
 ```shell
 taos> show power.stables;

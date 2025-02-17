@@ -87,7 +87,7 @@ RawDataSize = numOfTables × rowSizePerTable × rowsPerTable
 **技巧** 如何估算 TDengine 压缩率
 ```text
 用户可以利用性能测试工具 taosBenchmark 来评估 TDengine 的数据压缩效果。通过使用 -f 选项指定写入配置文件，taosBenchmark 可以将指定数量的 CSV 样例数据写入指定的库参数和表结构中。
-在完成数据写入后，用户可以在 taos shell 中执行 flush database 命令，将所有数据强制写入硬盘。接着，通过 Linux 操作系统的 du 命令获取指定 vnode 的数据文件夹大小。最后，将原始数据大小除以实际存储的数据大小，即可计算出真实的压缩率。
+在完成数据写入后，用户可以在 TDengine CLI 中执行 flush database 命令，将所有数据强制写入硬盘。接着，通过 Linux 操作系统的 du 命令获取指定 vnode 的数据文件夹大小。最后，将原始数据大小除以实际存储的数据大小，即可计算出真实的压缩率。
 ```
 
 通过如下命令可以获得 TDengine 占用的存储空间。

@@ -58,7 +58,7 @@ serverPort 6030
 
 #### 5. 启动
 
-按照前述步骤启动第 1 个 dnode，例如 h1.taosdata.com。接着在终端中执行 taos，启动 TDengine 的 CLI 程序 taos，并在其中执行 show dnodes 命令，以查看当前集群中的所有 dnode 信息。
+按照前述步骤启动第 1 个 dnode，例如 h1.taosdata.com。接着在终端中执行 taos，启动 TDengine CLI 程序 taos，并在其中执行 show dnodes 命令，以查看当前集群中的所有 dnode 信息。
 
 ```shell
 taos> show dnodes;
@@ -71,7 +71,7 @@ taos> show dnodes;
 
 #### 6. 添加 dnode
 
-按照前述步骤，在每个物理节点启动 taosd。每个 dnode 都需要在 taos.cfg 文件中将 firstEp 参数配置为新建集群首个节点的 endpoint，在本例中是 h1.taosdata.com:6030。在第 1 个 dnode 所在机器，在终端中运行 taos，打开 TDengine 的 CLI 程序 taos，然后登录TDengine 集群，执行如下 SQL。
+按照前述步骤，在每个物理节点启动 taosd。每个 dnode 都需要在 taos.cfg 文件中将 firstEp 参数配置为新建集群首个节点的 endpoint，在本例中是 h1.taosdata.com:6030。在第 1 个 dnode 所在机器，在终端中运行 taos，打开 TDengine CLI 程序 taos，然后登录TDengine 集群，执行如下 SQL。
 
 ```shell
 create dnode "h2.taosdata.com:6030"
@@ -86,13 +86,13 @@ show dnodes;
 在日志中，请确认输出的 dnode 的 fqdn 和端口是否与你刚刚尝试添加的 endpoint 一致。如果不一致，请修正为正确的 endpoint。遵循上述步骤，你可以持续地将新的 dnode 逐个加入集群，从而扩展集群规模并提高整体性能。确保在添加新节点时遵循正确的流程，这有助于维持集群的稳定性和可靠性。
 
 **Tips**
-- 任何已经加入集群的 dnode 都可以作为后续待加入节点的 firstEp。firstEp 参数仅仅在该 dnode 首次加入集群时起作用，加入集群后，该 dnode 会保存最新的 mnode 的 endpoint 列表，后续不再依赖这个参数。之后配置文件中的 firstEp 参数主要用于客户端连接，如果没有为 TDengine 的 CLI 设置参数，则默认连接由 firstEp 指定的节点。
+- 任何已经加入集群的 dnode 都可以作为后续待加入节点的 firstEp。firstEp 参数仅仅在该 dnode 首次加入集群时起作用，加入集群后，该 dnode 会保存最新的 mnode 的 endpoint 列表，后续不再依赖这个参数。之后配置文件中的 firstEp 参数主要用于客户端连接，如果没有为 TDengine CLI 设置参数，则默认连接由 firstEp 指定的节点。
 - 两个没有配置 firstEp 参数的 dnode 在启动后会独立运行。这时无法将其中一个dnode 加入另外一个 dnode，形成集群。
 - TDengine 不允许将两个独立的集群合并成新的集群。
 
 #### 7. 添加 mnode
 
-在创建 TDengine 集群时，首个 dnode 将自动成为集群的 mnode，负责集群的管理和协调工作。为了实现 mnode 的高可用性，后续添加的 dnode 需要手动创建 mnode。请注意，一个集群最多允许创建 3 个 mnode，且每个 dnode 上只能创建一个 mnode。当集群中的 dnode 数量达到或超过 3 个时，你可以为现有集群创建 mnode。在第 1个 dnode 中，首先通过 TDengine 的 CLI 程序 taos 登录 TDengine，然后执行如下 SQL。
+在创建 TDengine 集群时，首个 dnode 将自动成为集群的 mnode，负责集群的管理和协调工作。为了实现 mnode 的高可用性，后续添加的 dnode 需要手动创建 mnode。请注意，一个集群最多允许创建 3 个 mnode，且每个 dnode 上只能创建一个 mnode。当集群中的 dnode 数量达到或超过 3 个时，你可以为现有集群创建 mnode。在第 1个 dnode 中，首先通过 TDengine CLI 程序 taos 登录 TDengine，然后执行如下 SQL。
 
 ```shell
 create mnode on dnode <dnodeId>
