@@ -11513,7 +11513,7 @@ static void tDeleteMqDataRspCommon(SMqDataRsp *pRsp) {
   taosArrayDestroy(pRsp->blockDataLen);
   pRsp->blockDataLen = NULL;
   if (pRsp->blockDataElementFree){
-    taosArrayDestroyP(pRsp->blockData)
+    taosArrayDestroyP(pRsp->blockData, NULL);
   } else {
     taosArrayDestroy(pRsp->blockData);
   }

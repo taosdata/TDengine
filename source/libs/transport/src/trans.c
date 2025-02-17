@@ -155,7 +155,7 @@ void rpcCloseImpl(void* arg) {
 
 void* rpcMallocCont(int64_t contLen) {
   int64_t size = contLen + TRANS_MSG_OVERHEAD;
-  char*   start = taosMemoryMalloc(size);
+  char*   start = taosMemoryCalloc(1, size);
   if (start == NULL) {
     tError("failed to malloc msg, size:%" PRId64, size);
     return NULL;
@@ -163,7 +163,6 @@ void* rpcMallocCont(int64_t contLen) {
     tTrace("malloc mem:%p size:%" PRId64, start, size);
   }
 
-  memset(start, 0, TRANS_MSG_OVERHEAD);
   return start + TRANS_MSG_OVERHEAD;
 }
 

@@ -830,6 +830,7 @@ static int32_t buildSubmitReq(int32_t vgId, SSubmitReq2* pReq, void** pData, uin
 }
 
 static void destroyVgDataBlocks(void* p) {
+  if (p == NULL) return;
   SVgDataBlocks* pVg = p;
   taosMemoryFree(pVg->pData);
   taosMemoryFree(pVg);
@@ -855,13 +856,15 @@ int32_t insBuildVgDataBlocks(SHashObj* pVgroupsHashObj, SArray* pVgDataCxtList, 
     if (TSDB_CODE_SUCCESS == code) {
       dst->numOfTables = taosArrayGetSize(src->pData->aSubmitTbData);
       code = taosHashGetDup(pVgroupsHashObj, (const char*)&src->vgId, sizeof(src->vgId), &dst->vg);
-      //      uError("td23101 3vgId:%d, numEps:%d", src->vgId, dst->vg.epSet.numOfEps);
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = buildSubmitReq(src->vgId, src->pData, &dst->pData, &dst->size);
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = (NULL == taosArrayPush(pDataBlocks, &dst) ? terrno : TSDB_CODE_SUCCESS);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      destroyVgDataBlocks(dst);
     }
   }
 
