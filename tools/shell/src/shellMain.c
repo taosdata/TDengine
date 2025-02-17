@@ -108,7 +108,7 @@ int main(int argc, char *argv[]) {
 
   // support port feature
   shellAutoInit();
-  int32_t ret = shellExecute();
+  int32_t ret = shellExecute(argc, argv);
   shellAutoExit();
   return ret;
 }
