@@ -476,7 +476,7 @@ struct SStreamTask {
   char*         backendPath;
   char*         recalPath;
   void*         pRecalBackend;
-  SStreamState* pRecalState;
+  SStreamState* pOtherState;
 };
 
 typedef int32_t (*startComplete_fn_t)(struct SStreamMeta*);

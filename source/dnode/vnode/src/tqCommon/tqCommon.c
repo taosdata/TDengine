@@ -40,7 +40,7 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
 
   tqDebug("s-task:%s vgId:%d start to expand stream task", pTask->id.idStr, vgId);
 
-  if (pTask->info.fillHistory) {
+  if (pTask->info.fillHistory != STREAM_NORMAL_TASK) {
     streamId = pTask->streamTaskId.streamId;
     taskId = pTask->streamTaskId.taskId;
   } else {
@@ -50,7 +50,20 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
 
   // sink task does not need the pState
   if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
-    pTask->pState = streamStateOpen(pMeta->path, pTask, streamId, taskId);
+    if (pTask->info.fillHistory == STREAM_RECALCUL_TASK) {
+      pTask->pState = streamStateOpen(pMeta->path, pTask, pTask->id.streamId, pTask->id.taskId);
+      pTask->pOtherState = streamStateRecalatedOpen(pMeta->path, pTask, streamId, taskId);
+      if (pTask->pOtherState == NULL) {
+        tqError("s-task:%s (vgId:%d) failed to open state for task, expand task failed", pTask->id.idStr, vgId);
+        return terrno;
+      } else {
+        tqDebug("s-task:%s other state:%p", pTask->id.idStr, pTask->pOtherState);
+      }
+    } else {
+      pTask->pState = streamStateOpen(pMeta->path, pTask, streamId, taskId);
+      pTask->pOtherState = NULL;
+    }
+
     if (pTask->pState == NULL) {
       tqError("s-task:%s (vgId:%d) failed to open state for task, expand task failed", pTask->id.idStr, vgId);
       return terrno;
@@ -64,6 +77,7 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
       .pStateBackend = pTask->pState,
       .fillHistory = pTask->info.fillHistory,
       .winRange = pTask->dataRange.window,
+      .pOtherStateBackend = pTask->pOtherState,
   };
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {

@@ -1604,7 +1604,7 @@ int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNo
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   pInfo->stateStore.streamStateSetNumber(pTempState, 1, pInfo->primaryTsIndex);
 
-  void* pOtherState = pTaskInfo->streamInfo.pState; //todo(liuyao) for debug
+  void* pOtherState = pTaskInfo->streamInfo.pOtherState;
   pAPI->stateStore.streamStateInitTsDataState(&pInfo->basic.pTsDataState, pkType.type, pkType.bytes, pTempState, pOtherState);
   pAPI->stateStore.streamStateRecoverTsData(pInfo->basic.pTsDataState);
   pInfo->pStreamScanOp = pOperator;
