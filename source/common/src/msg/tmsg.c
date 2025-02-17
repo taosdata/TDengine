@@ -11451,6 +11451,8 @@ int32_t tDecodeMqDataRspCommon(SDecoder *pDecoder, SMqDataRsp *pRsp) {
       if (taosArrayPush(pRsp->blockData, &data) == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
+      pRsp->blockDataElementFree = false;
+
       int32_t len = bLen;
       if (taosArrayPush(pRsp->blockDataLen, &len) == NULL) {
         TAOS_CHECK_EXIT(terrno);
@@ -11510,7 +11512,11 @@ _exit:
 static void tDeleteMqDataRspCommon(SMqDataRsp *pRsp) {
   taosArrayDestroy(pRsp->blockDataLen);
   pRsp->blockDataLen = NULL;
-  taosArrayDestroy(pRsp->blockData);
+  if (pRsp->blockDataElementFree){
+    taosArrayDestroyP(pRsp->blockData)
+  } else {
+    taosArrayDestroy(pRsp->blockData);
+  }
   pRsp->blockData = NULL;
   taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSchemaWrapper);
   pRsp->blockSchema = NULL;

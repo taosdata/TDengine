@@ -4267,7 +4267,8 @@ typedef struct {
       void*   rawData;
     };
   };
-  void*   data;  //for free, only effected if type is data or metadata. raw data not effected
+  void*   data;  //for free in client, only effected if type is data or metadata. raw data not effected
+  bool    blockDataElementFree;   // if true, free blockDataElement in blockData,(true in server, false in client)
 
 } SMqDataRsp;
 

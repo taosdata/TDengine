@@ -62,7 +62,7 @@ static int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, 
   actualLen += sizeof(SRetrieveTableRspForTmq);
   TSDB_CHECK_NULL(taosArrayPush(pRsp->blockDataLen, &actualLen), code, lino, END, terrno);
   TSDB_CHECK_NULL(taosArrayPush(pRsp->blockData, &buf), code, lino, END, terrno);
-
+  pRsp->blockDataElementFree = true;
   buf = NULL;
 END:
   if (code != 0){
