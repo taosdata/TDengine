@@ -11605,7 +11605,7 @@ void tDeleteMqRawDataRsp(SMqDataRsp *pRsp) {
   tOffsetDestroy(&pRsp->reqOffset);
   tOffsetDestroy(&pRsp->rspOffset);
   if (pRsp->rawData != NULL){
-    taosMemoryFree(pRsp->rawData - sizeof(SMqRspHead));
+    taosMemoryFree(POINTER_SHIFT(pRsp->rawData, - sizeof(SMqRspHead)));
   }
 }
 
