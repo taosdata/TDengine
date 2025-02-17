@@ -410,6 +410,10 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
   }
 
   return 0;
+#elif defined(TD_ASTRA) // TD_ASTRA_TODO
+  if(sName) snprintf(sName, maxLen, "Astra");
+  snprintf(releaseName, maxLen, "Astra");
+  return 0;
 #else
   char    line[1024];
   char   *dest = NULL;
