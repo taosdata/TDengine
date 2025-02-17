@@ -214,7 +214,7 @@ int32_t doGeomFromText(const char *inputWKT, unsigned char **outputGeom, size_t 
   GEOSGeometry  *geom = NULL;
   unsigned char *wkb = NULL;
 
-  if (doRegExec(inputWKT, geosCtx->WKTRegex, geosCtx->WKTMatchData) != 0) {
+  if (geosCtx->with_pcre2 && doRegExec(inputWKT, geosCtx->WKTRegex, geosCtx->WKTMatchData) != 0) {
     code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
     goto _exit;
   }
