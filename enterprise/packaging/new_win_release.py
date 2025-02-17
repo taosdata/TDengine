@@ -20,7 +20,7 @@ internal_dir = os.path.join(directory, branch, "TDinternal")
 community_dir = os.path.join(internal_dir, "community")
 build_dir = os.path.join(community_dir, "debug")
 release_dir = os.path.join(community_dir, "release")
-
+odbc_build_type = "Release"
 
 timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 logname = f"{timestamp}.log"
@@ -132,34 +132,9 @@ def set_release_path():
 
     if not os.path.exists(install_info.release_dir):
         os.mkdir(install_info.release_dir)
-        logging.info("mkdir: {0}", install_info.release_dir)
+        logging.info(f"mkdir: {install_info.release_dir}")
 
-    logging.info("release_dir: {0}".format(install_info.release_dir))
-
-
-def industry_options():
-    TD_INDUSTRY_NAME = "TDengine " + industry_name + " Edition"
-    if td_version.verType == "industry":
-        if industry_name == "Power":
-            options = (f" -DTD_INDUSTRY=true -DTD_PRODUCT_NAME=\"{TD_INDUSTRY_NAME}\" -DTD_FUNC_STREAM=false "
-                       "-DTD_FUNC_SUBSCRIPTION=false -DTD_FUNC_AUDIT=false -DTD_FUNC_CSV=false -DTD_FUNC_VIEW=false "
-                       "-DTD_FUNC_MULTI_TIER_STORAGE=false -DTD_FUNC_DATA_BAK_RESTORE=false -DTD_FUNC_OBJECT_STORAGE=false "
-                       "-DTD_FUNC_ACTIVE_ACTIVE=false -DTD_FUNC_DUAL_REPLICA_HA=false -DTD_FUNC_DB_ENCRYPTION=false "
-                       "-DTD_DATAIN_OPC_DA=false -DTD_DATAIN_OPC_UA=false -DTD_DATAIN_PI=false -DTD_DATAIN_KAFKA=false "
-                       "-DTD_DATAIN_INFLUXDB=false -DTD_DATAIN_MQTT=false -DTD_DATAIN_AVEVAHISTORIAN=false "
-                       "-DTD_DATAIN_OPENTSDB=false -DTD_DATAIN_TDENGINE_2_6=false -DTD_DATAIN_TDENGINE_3_0=false "
-                       "-DTD_DATAIN_MYSQL=false -DTD_DATAIN_POSTGRES=false -DTD_DATAIN_ORACLE=false -DTD_DATAIN_MONGODB=false")
-        elif industry_name == "Powerfull":
-            option = (f" -DTD_INDUSTRY=true -DTD_PRODUCT_NAME=\"{TD_INDUSTRY_NAME}\" -DTD_FUNC_STREAM=false "
-                      "-DTD_FUNC_SUBSCRIPTION=true -DTD_FUNC_AUDIT=true -DTD_FUNC_CSV=true -DTD_FUNC_VIEW=true "
-                      "-DTD_FUNC_MULTI_TIER_STORAGE=true -DTD_FUNC_DATA_BAK_RESTORE=true -DTD_FUNC_OBJECT_STORAGE=true "
-                      "-DTD_FUNC_ACTIVE_ACTIVE=true -DTD_FUNC_DUAL_REPLICA_HA=true -DTD_FUNC_DB_ENCRYPTION=true "
-                      "-DTD_DATAIN_OPC_DA=true -DTD_DATAIN_OPC_UA=true -DTD_DATAIN_PI=true -DTD_DATAIN_KAFKA=true "
-                      "-DTD_DATAIN_INFLUXDB=true -DTD_DATAIN_MQTT=true -DTD_DATAIN_AVEVAHISTORIAN=true "
-                      "-DTD_DATAIN_OPENTSDB=true -DTD_DATAIN_TDENGINE_2_6=true -DTD_DATAIN_TDENGINE_3_0=true "
-                      "-DTD_DATAIN_MYSQL=true -DTD_DATAIN_POSTGRES=true -DTD_DATAIN_ORACLE=true -DTD_DATAIN_MONGODB=true")
-
-    return options
+    logging.info(f"release_dir: {install_info.release_dir}")
 
 
 def parse_arguments():
@@ -227,10 +202,7 @@ def git_pull(repo_dir, source_branch, target):
         logging.info(f"{repo_dir}: restore changed files")
         repo.git.reset("--hard")
         logging.info(f"{repo_dir}: reset to HEAD done")
-    except:
-        pass
 
-    try:
         os.system("git remote prune origin")
         repo.git.checkout(source_branch)
         repo.git.checkout(source_branch)
@@ -239,35 +211,27 @@ def git_pull(repo_dir, source_branch, target):
         os.system("git gc --prune=now")
         repo.git.pull()
         logging.info(f"{repo_dir}: pull latest code done")
-    except:
-        logging.error(f"{repo_dir}: pull latest code failed")
+    except Exception as e:
+        logging.info(f"ERROR: {repo_dir} pull latest code failed")
         sys.exit(1)
-
     try:
         repo.git.tag('-d', target)
         logging.info(f"{repo_dir}: delete old tag {target} done")
-    except:
-        pass
-
-    if target != "main" and target != "3.1" and target != "3.0":
-        try:
+    except Exception as e:
+        logging.info(f"ERROR: {repo_dir} git tag -d {target} failed")
+    try:
+        if target != "main" and target != "3.1" and target != "3.0":
             repo.git.branch('-D', target)
             logging.info(f"{repo_dir}: delete old branch {target} done")
-        except:
-            pass
-
+    except Exception as e:
+        logging.info(f"ERROR: {repo_dir} git branch -D {target} failed")
     for i in range(5):
         try:
             repo.git.fetch("--all")
-        except:
-            pass
-
-        try:
             repo.git.checkout(target)
             break
-        except:
-            pass
-
+        except Exception as e:
+            logging.error(f"ERROR:{repo_dir} fetch or checkout failed")
         time.sleep(1)
 
 
@@ -292,7 +256,7 @@ def get_latest_code():
 
     # pull taosws
     taosws_dir = os.path.join(install_info.community_dir, "tools", "taosws-rs")
-    git_pull(taosws_dir, "install_info.branch", f"ver-{td_version.version}")
+    git_pull(taosws_dir, "main", f"ver-{td_version.version}")
 
 
 def init_release_dir():
@@ -303,31 +267,64 @@ def init_release_dir():
     logging.info(f"init release directory {install_info.release_dir} done")
 
 
+def industry_options():
+    if industry_name == "Power":
+        return (" -DTD_FUNC_STREAM=false "
+                "-DTD_FUNC_SUBSCRIPTION=false -DTD_FUNC_AUDIT=false -DTD_FUNC_CSV=false -DTD_FUNC_VIEW=false "
+                "-DTD_FUNC_MULTI_TIER_STORAGE=false -DTD_FUNC_DATA_BAK_RESTORE=false -DTD_FUNC_OBJECT_STORAGE=false "
+                "-DTD_FUNC_ACTIVE_ACTIVE=false -DTD_FUNC_DUAL_REPLICA_HA=false -DTD_FUNC_DB_ENCRYPTION=false "
+                "-DTD_DATAIN_OPC_DA=false -DTD_DATAIN_OPC_UA=false -DTD_DATAIN_PI=false -DTD_DATAIN_KAFKA=false "
+                "-DTD_DATAIN_INFLUXDB=false -DTD_DATAIN_MQTT=false -DTD_DATAIN_AVEVAHISTORIAN=false "
+                "-DTD_DATAIN_OPENTSDB=false -DTD_DATAIN_TDENGINE_2_6=false -DTD_DATAIN_TDENGINE_3_0=false "
+                "-DTD_DATAIN_MYSQL=false -DTD_DATAIN_POSTGRES=false -DTD_DATAIN_ORACLE=false -DTD_DATAIN_MONGODB=false")
+    elif industry_name == "Powerfull":
+        return (" -DTD_FUNC_STREAM=true "
+                "-DTD_FUNC_SUBSCRIPTION=true -DTD_FUNC_AUDIT=true -DTD_FUNC_CSV=true -DTD_FUNC_VIEW=true "
+                "-DTD_FUNC_MULTI_TIER_STORAGE=true -DTD_FUNC_DATA_BAK_RESTORE=true -DTD_FUNC_OBJECT_STORAGE=true "
+                "-DTD_FUNC_ACTIVE_ACTIVE=true -DTD_FUNC_DUAL_REPLICA_HA=true -DTD_FUNC_DB_ENCRYPTION=true "
+                "-DTD_DATAIN_OPC_DA=true -DTD_DATAIN_OPC_UA=true -DTD_DATAIN_PI=true -DTD_DATAIN_KAFKA=true "
+                "-DTD_DATAIN_INFLUXDB=true -DTD_DATAIN_MQTT=true -DTD_DATAIN_AVEVAHISTORIAN=true "
+                "-DTD_DATAIN_OPENTSDB=true -DTD_DATAIN_TDENGINE_2_6=true -DTD_DATAIN_TDENGINE_3_0=true "
+                "-DTD_DATAIN_MYSQL=true -DTD_DATAIN_POSTGRES=true -DTD_DATAIN_ORACLE=true -DTD_DATAIN_MONGODB=true")
+    elif industry_name == "Powerlite":
+        return (" -DTD_FUNC_STREAM=false "
+                "-DTD_FUNC_SUBSCRIPTION=false -DTD_FUNC_AUDIT=false -DTD_FUNC_CSV=false -DTD_FUNC_VIEW=false "
+                "-DTD_FUNC_MULTI_TIER_STORAGE=false -DTD_FUNC_DATA_BAK_RESTORE=false -DTD_FUNC_OBJECT_STORAGE=false "
+                "-DTD_FUNC_ACTIVE_ACTIVE=false -DTD_FUNC_DUAL_REPLICA_HA=false -DTD_FUNC_DB_ENCRYPTION=false "
+                "-DTD_DATAIN_OPC_DA=false -DTD_DATAIN_OPC_UA=false -DTD_DATAIN_PI=false -DTD_DATAIN_KAFKA=false "
+                "-DTD_DATAIN_INFLUXDB=false -DTD_DATAIN_MQTT=false -DTD_DATAIN_AVEVAHISTORIAN=false "
+                "-DTD_DATAIN_OPENTSDB=false -DTD_DATAIN_TDENGINE_2_6=false -DTD_DATAIN_TDENGINE_3_0=false "
+                "-DTD_DATAIN_MYSQL=false -DTD_DATAIN_POSTGRES=false -DTD_DATAIN_ORACLE=false -DTD_DATAIN_MONGODB=false")
+    else:
+        return ""
+
+
 def process_cmake():
     os.chdir(install_info.release_dir)
     logging.info("start cmake...")
-    logging.info("current path: {0}".format(os.getcwd()))
-
-    if td_version.verType != 'community':
-        cmd = (f'cmake .. -G "NMake Makefiles JOM" '
-               f'-DCMAKE_MAKE_PROGRAM=jom -DASSERT_NOT_CORE=true -DCMAKE_BUILD_TYPE=Release -DBUILD_TOOLS=true '
-               f'-DBUILD_EXPLORER=false -DBUILD_TAOSX=false -DWEBSOCKET=true -DBUILD_KEEPER=true '
-               f'-DBUILD_HTTP=internal -DBUILD_TEST=false -DVERNUMBER={td_version.version} '
-               f'-DCPUTYPE=x64 -DCUS_NAME={tdCustomer.Name} -DCUS_PROMPT={tdCustomer.Prompt} '
-               f'-DCUS_EMAIL={tdCustomer.Email}  -DTD_PRODUCT_NAME=\"{tdCustomer.Name} Enterprise Edition\" -DGRANT_VALUE={tdCustomer.grantValue} ')
-        if td_version.verType == "industry":
-            cmd += industry_options()
+    logging.info(f"current path: {os.getcwd()}")
+    base_cmd = (f'cmake .. -G "NMake Makefiles JOM" '
+                f'-DCMAKE_MAKE_PROGRAM=jom -DCMAKE_BUILD_TYPE=Release -DBUILD_TOOLS=true '
+                f'-DWEBSOCKET=true -DBUILD_TEST=false '
+                f'-DVERNUMBER={td_version.version} -DCPUTYPE=x64')
+    if td_version.verType == 'community':
+        cmd = base_cmd + ' -DBUILD_HTTP=false -DBUILD_KEEPER=true'
     else:
-        cmd = (f'cmake .. -G "NMake Makefiles JOM" '
-               f'-DCMAKE_MAKE_PROGRAM=jom -DCMAKE_BUILD_TYPE=Release -DBUILD_TOOLS=true '
-               f'-DWEBSOCKET=true -DBUILD_HTTP=false -DBUILD_TEST=false '
-               f'-DVERNUMBER={td_version.version} -DCPUTYPE=x64')
-
+        if td_version.verType == "industry":
+            TD_INDUSTRY_NAME = "TDengine " + industry_name + " Edition"
+            cmd += ' -DTD_INDUSTRY=true' + industry_options()
+        else:
+            TD_INDUSTRY_NAME = f"{tdCustomer.Name} Enterprise Edition"
+        cmd = base_cmd + (f' -DBUILD_EXPLORER=false -DBUILD_TAOSX=false -DBUILD_KEEPER=internal '
+                          f'-DASSERT_NOT_CORE=true -DBUILD_HTTP=internal -DCUS_NAME={tdCustomer.Name} '
+                          f'-DCUS_PROMPT={tdCustomer.Prompt} -DCUS_EMAIL={tdCustomer.Email} -DTD_PRODUCT_NAME=\"{TD_INDUSTRY_NAME}\" '
+                          f'-DGRANT_VALUE={tdCustomer.grantValue} ')
     logging.info(cmd)
     try:
         subprocess.check_call(cmd, shell=True)
-    except:
+    except Exception as e:
         logging.error("cmake failed")
+        thread1_exception = e
         sys.exit(1)
     os.chdir(script_dir)
 
@@ -338,8 +335,8 @@ def process_build():
     logging.info("start building ....")
     try:
         subprocess.check_call("jom -j8 ", shell=True)
-    except:
-        logging.error("build failed")
+    except Exception as e:
+        logging.error(f"ERROR: build failed: {e}")
         sys.exit(1)
     logging.info("build done")
     os.chdir(script_dir)
@@ -384,7 +381,7 @@ def process_build_taosx():
         git_pull(taosx_dir, "main", f"ver-{td_version.version}")
 
         # remove unnecessary files
-        taosx_release_dir = os.path.join(taosx_dir, "release", "taosx")
+        taosx_release_dir = os.path.join(taosx_dir, "release", f"{tdCustomer.Prompt}x")
         if os.path.exists(taosx_release_dir):
             shutil.rmtree(taosx_release_dir)
 
@@ -400,18 +397,18 @@ def process_build_taosx():
                 logging.info(f"set VUE_APP_INDUSTRY={industry_name}")
                 os.environ["VUE_APP_INDUSTRY"] = industry_name
 
-            subprocess.call(
+            subprocess.check_call(
                 f"python release.py -ob -vn {td_version.version} -cn {tdCustomer.Name} -cp {tdCustomer.Prompt} -ce {tdCustomer.Email}")
-        except:
-            logging.error("taosx build failed")
+        except Exception as e:
+            logging.error(f"ERROR: taosx build failed: {e}")
             sys.exit(1)
 
-        if not os.path.exists(f"{taosx_dir}\\release\\taosx"):
-            logging.error("taosx build failed")
+        if not os.path.exists(f"{taosx_dir}\\release\\{tdCustomer.Prompt}x"):
+            logging.error(f"{tdCustomer.Prompt}x build failed")
             sys.exit(1)
 
-        verify_commit_id(f"{taosx_dir}\\release\\taosx\\bin", "taosx.exe", taosx_dir)
-        verify_commit_id(f"{taosx_dir}\\release\\taosx\\bin", "taos-explorer.exe", taosx_dir)
+        verify_commit_id(f"{taosx_dir}\\release\\{tdCustomer.Prompt}x\\bin", f"{tdCustomer.Prompt}sx.exe", taosx_dir)
+        verify_commit_id(f"{taosx_dir}\\release\\{tdCustomer.Prompt}x\\bin", f"{tdCustomer.Prompt}-explorer.exe", taosx_dir)
 
 
 def process_build_keeper():
@@ -438,8 +435,8 @@ def process_build_keeper():
         else:
             subprocess.call(
                 f"go build -ldflags=\"-s -w -X '{keeper_repo_url}/version.Version={td_version.version}' -X '{keeper_repo_url}/version.Gitinfo={gitinfo}' -X '{keeper_repo_url}/version.BuildInfo={buildInfo}'\" -o taoskeeper.exe main.go")
-    except:
-        logging.error("keeper build failed")
+    except Exception as e:
+        logging.error(f"ERROR: keeper build failed: {e}")
         sys.exit(1)
 
     verify_commit_id(keeper_dir, "taoskeeper.exe", keeper_dir)
@@ -470,14 +467,15 @@ def process_build_taosws_32bit():
 
     logging.info("copy {}\\taosws.dll.lib to {}\\taosws.lib".format(dll_dir, x86_target_lib_dir))
     os.system("copy /Y {}\\taosws.dll.lib {}\\taosws.lib".format(dll_dir, x86_target_lib_dir))
-    print("copy {}\\taosws.dll to {}".format(dll_dir, x86_target_bin_dir))
+    logging.info("copy  {}\\taosws.dll to {}".format(dll_dir, x86_target_bin_dir))
     os.system("copy /Y {}\\taosws.dll {}".format(dll_dir, x86_target_bin_dir))
 
     logging.info("32bit taosws build done")
 
 
 def process_build_odbc():
-    odbc_dir = os.path.join(directory, branch, "taos_odbc")
+    # only directory/main/3.0  has  taos-connector-odbc
+    odbc_dir = os.path.join(directory, branch, "taos-connector-odbc")
     os.chdir(odbc_dir)
     os.system("git checkout main")
     os.system("git pull")
@@ -485,7 +483,7 @@ def process_build_odbc():
 
     # build 32 bit ODBC
     os.system("vcvarsall.bat amd64_x86")
-    print("vcvarsall.bat amd64_x86")
+    logging.info("vcvarsall.bat amd64_x86")
     os.system("rm -rf .externals && rm -rf build32")
     os.system(
         '''cmake --no-warn-unused-cli -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DWS_FOR_TEST:STRING=127.0.0.1:6041 -DSERVER_FOR_TEST:STRING=127.0.0.1:6030  -B build32 -G "Visual Studio 17 2022" -A Win32''')
@@ -501,7 +499,7 @@ def process_build_odbc():
     os.system(
         "xcopy /YS {}\\win_odbc_install.ini {}\\taos_odbc\\x86".format(x86_template_dir, install_info.install_dir))
 
-    # build 64 bit ODBC
+    # build 64 bit ODBC    
 
     driver_dir = os.path.join(install_info.install_dir, "driver")
     x64_target_lib_dir = os.path.join(install_info.install_dir, "taos_odbc", "x64", "lib")
@@ -597,7 +595,7 @@ def process_add_enterprice_extent():
 
 def copy_taosx_files():
     if td_version.verType != "community":
-        taosx_source_dir = os.path.join(install_info.directory, install_info.branch, "taosx", "release", "taosx")
+        taosx_source_dir = os.path.join(install_info.directory, install_info.branch, "taosx", "release", f"{tdCustomer.Prompt}x")
 
         os.system(f"xcopy /S /E {taosx_source_dir}\\plugins\\* {install_info.install_dir}\\plugins\\*")
         os.system(f"xcopy /S {taosx_source_dir}\\bin {install_info.install_dir}\\*")
@@ -687,7 +685,7 @@ def process_package_server():
             shutil.rmtree(odbc_dir)
 
     try:
-        subprocess.check_call(f"iscc /DMyAppInstallName=\"{install_info.packagServerName}\" \
+        package_process_cmd = f"iscc /DMyAppInstallName=\"{install_info.packagServerName}\" \
                 /DMyAppIco=\"{ico_path}\" \
                 /DMyAppInstallDir=\"C:\\{tdCustomer.Name}\" \
                 /DMyAppVersion=\"{td_version.version}\" \
@@ -699,8 +697,8 @@ def process_package_server():
 
         subprocess.check_call(package_process_cmd, shell=True)
         logging.info(f"packaging {install_info.packagServerName} server done")
-    except:
-        logging.error(f"packaging {install_info.packagServerName} server failed")
+    except Exception as e:
+        logging.error(f"ERROR: packaging {install_info.packagServerName} server failed: {e}")
         sys.exit(1)
 
     if upload is True:
@@ -725,12 +723,12 @@ def process_package_client():
         subprocess.check_call(f"iscc /DMyAppInstallName=\"{install_info.packagClientName}\" \
               /DMyAppIco=\"{ico_path}\" \
               /DMyAppVersion=\"{td_version.version}\" \
-              /DMyAppExcludeSource=\"taosd.exe,tmq*.exe,tsim.exe, create_table.exe, runUdf.exe, dumper.exe, udfd.exe, taosadapter.exe\" \
+              /DMyAppExcludeSource=\"taosd.exe,tmq*.exe,tsim.exe, create_table.exe, runUdf.exe, dumper.exe, udfd.exe, taoskeeper.exe, taosadapter.exe\" \
               /DCusName=\"{tdCustomer.Name}\" \
               /DCusPrompt=\"{tdCustomer.Prompt}\" \
               {iss_path} /O{install_info.directory}\\{install_info.branch}\\release", shell=True)
-    except:
-        logging.error(f"packaging {install_info.packagClientName} server failed")
+    except Exception as e:
+        logging.error(f"ERROR: packaging {install_info.packagClientName} client failed: {e}")
         sys.exit(1)
 
     if upload is True:
@@ -754,7 +752,7 @@ def process_OEM_client_rename_process():
     # iss_path = os.path.join(script_dir,"oem_release_cfg","oem.iss")
     # replace_iss_in_file(iss_path)
 
-    # add new client.bat replacing  for oem
+    # add new client.bat replacing  for oem 
     start_dir = os.path.join(script_dir, "oem_release_cfg")
     os.chdir(start_dir)
     replace_in_file("client.bat")
@@ -865,7 +863,7 @@ def process_OEM_rename_process():
     replace_in_file("stop-all.bat")
     replace_in_file("taos.bat")
 
-    # not sure oem need this
+    # not sure oem need this 
     if tdCustomer.Name == "TDengine":
         odbc_x86_dir = os.path.join(install_info.install_dir, f"{tdCustomer.Prompt}_odbc", "x86")
         os.chdir(odbc_x86_dir)
@@ -901,8 +899,8 @@ def verify_commit_id(bin_dir, bin_name, repo_dir):
             result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
             actual_community_commit_id = result.stdout.splitlines()[0].split(" ")[1]
             actual_internal_commit_id = result.stdout.splitlines()[1].split(" ")[1]
-        except:
-            logging.error(f"get commit id failed")
+        except Exception as e:
+            logging.error(f"ERROR: get commit id failed: {e}")
             sys.exit(1)
 
         length_community_commit_id = len(except_community_commit_id)
@@ -922,8 +920,8 @@ def verify_commit_id(bin_dir, bin_name, repo_dir):
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
             actual_commit_id = result.stdout.split()[1]
-        except:
-            logging.error(f"get commit id failed")
+        except Exception as e:
+            logging.error(f"ERROR: get commit id failed: {e}")
             sys.exit(1)
 
         length_commit_id = len(except_commit_id)
@@ -931,7 +929,7 @@ def verify_commit_id(bin_dir, bin_name, repo_dir):
             logging.error(f"commit id not match, except: {except_commit_id}, actual: {actual_commit_id}")
             sys.exit(1)
 
-    if bin_name == "taosd.exe" or bin_name == "taosx.exe" or bin_name == "taos-explorer.exe":
+    if bin_name == "taosd.exe" or bin_name == f"{tdCustomer.Prompt}x.exe" or bin_name == f"{tdCustomer.Prompt}-explorer.exe":
         index = 2
     else:
         index = 1
@@ -940,8 +938,8 @@ def verify_commit_id(bin_dir, bin_name, repo_dir):
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, shell=True)
         actual_version = result.stdout.split(" ")[index]
-    except:
-        logging.error(f"get version failed")
+    except Exception as e:
+        logging.error(f"ERROR: get version failed: {e}")
         sys.exit(1)
 
     if actual_version != td_version.version:
@@ -1017,9 +1015,9 @@ if __name__ == "__main__":
 
     init_release_dir()
 
-    p1 = Process(target=process_build_TD)
-    p2 = Process(target=process_build_taosx)
-    p3 = Process(target=process_build_keeper)
+    # p1 = Process(target=process_build_TD)
+    # p2 = Process(target=process_build_taosx)
+    # p3 = Process(target=process_build_keeper)
 
     # # p1.start()
     # # p2.start()
@@ -1028,40 +1026,38 @@ if __name__ == "__main__":
     # # p1.join()
     # # p2.join()
     # # p3.join()
-
-    logging.info("start to build taosd and taosx")
     try:
+        logging.info("start to build taosd and taosx")
         process_build_TD()
         process_build_taosx()
         logging.info("finish  building taosd nad taosx ")
-    except:
-        logging.error("build taosd and taosx  failed")
-        sys.exit(1)
 
-    # # add -DBUILD_KEEPER=true  and comment process_build_keeper
-    # process_build_keeper()
-
-    process_install()
-    if install_info.branch != "3.1":
-        if tdCustomer.Name == "TDengine":
-            process_build_taosws_32bit()
-            process_build_odbc()
+        # # add -DBUILD_KEEPER=true  and comment process_build_keeper
+        # process_build_keeper()
+        process_install()
+        if install_info.branch != "3.1":
+            if tdCustomer.Name == "TDengine":
+                process_build_taosws_32bit()
+                process_build_odbc()
+                process_add_enterprice_extent()
+                process_package_client()
+            else:
+                process_OEM_client_rename_process()
+                process_package_OEM_client()
+        else:
+            process_download_odbc()
             process_add_enterprice_extent()
             process_package_client()
-        else:
-            process_OEM_client_rename_process()
-            process_package_OEM_client()
-    else:
-        process_download_odbc()
-        process_add_enterprice_extent()
-        process_package_client()
 
-    if only_client is False:
-        if td_version.verType != "community":
-            copy_taosx_files()
-            if tdCustomer.Name != "TDengine":
-                process_OEM_rename_process()
-        process_package_server()
+        if only_client is False:
+            if td_version.verType != "community":
+                copy_taosx_files()
+                if tdCustomer.Name != "TDengine":
+                    process_OEM_rename_process()
+            process_package_server()
+    except Exception as e:
+        logging.error(f"ERROR: build or package on Windows failed: {e}")
+        sys.exit(1)
 
     end_time = time.time()
     excute_time = (end_time - start_time) / 60

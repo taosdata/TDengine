@@ -3,13 +3,28 @@
 1. [Introduction](#1-introduction)
 1. [Documentation](#2-documentation)
 1. [Prerequisites](#3-prerequisites)
+    - [3.1 Prerequisites On Linux](#31-on-linux)
+    - [3.2 Prerequisites On macOS](#32-on-macos)
+    - [3.3 Prerequisites On Windows](#33-on-windows) 
 1. [Building](#4-building)
+    - [4.1 Build on Linux](#41-build-on-linux)
+    - [4.2 Build on macOS](#42-build-on-macos)
+    - [4.3 Build On Windows](#43-build-on-windows) 
 1. [Packaging](#5-packaging)
 1. [Installation](#6-installing)
+    - [6.1 Install on Linux](#61-install-on-linux)
+    - [6.2 Install on macOS](#62-install-on-macos)
+    - [6.3 Install on Windows](#63-install-on-windows)
 1. [Running](#7-running)
+    - [7.1 Run TDengine on Linux](#71-run-tdengine-on-linux)
+    - [7.2 Run TDengine on macOS](#72-run-tdengine-on-macos)
+    - [7.3 Run TDengine on Windows](#73-run-tdengine-on-windows)
 1. [Testing](#8-testing)
+    - [8.1 Introduction](#81-introduction)
+    - [8.2 Prerequisites](#82-prerequisites)
+    - [8.3 Testing Guide](#83-testing-guide)
 1. [Releasing](#9-releasing)
-1. [CI/CD](#10-cicd)
+1. [Workflow](#10-workflow)
 1. [Coverage](#11-coverage)
 1. [Contributing](#12-contributing)
 
@@ -30,6 +45,12 @@ For user manual, system design and architecture, please refer to [TDengine Docum
 
 # 3. Prerequisites
 
+## 3.1 On Linux
+
+<details>
+
+<summary>Install required tools on Linux</summary>
+
 List the software and tools required to work on the project.
 
 - go 1.20+ (for taosadapter and taosx)
@@ -38,15 +59,23 @@ List the software and tools required to work on the project.
 - node 16.20.2 (for taos-explorer)
 - python 3.10.12+ (for test)
 
-Step-by-step instructions to set up the prerequisites software.
+Run the script to set up the prerequisite software:
 
-## 3.1 Install the required package
+```bash
+wget https://raw.githubusercontent.com/taosdata/TDengine/main/packaging/setup_env.sh
+chmod +x setup_env.sh
+./setup_env.sh TDinternal && ./setup_env.sh install_packages && source ~/.bashrc
+```
+
+You can also set up the prerequisite software by following the step-by-step instructions.
+
+### 3.1.1 Install the required package
 
 ```bash
 apt-get install -y llvm gcc make cmake libssl-dev pkg-config perl g++ lzma curl locales psmisc sudo tree libgeos-dev libgflags2.2 libgflags-dev libgoogle-glog-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g build-essential valgrind rsync vim libjemalloc-dev openssh-server screen sshpass net-tools dirmngr gnupg apt-transport-https ca-certificates software-properties-common  r-base iputils-ping
 ```
 
-## 3.2 Install Go
+### 3.1.2 Install Go
 
 Update the installation package to version 1.23.3.
 
@@ -84,7 +113,7 @@ go env
 go version
 ```
 
-## 3.3 Install Cargo
+### 3.1.3 Install Cargo
 
 Better start it from [rustup](https://rustup.rs/)(the installer for Rust).
 
@@ -145,7 +174,7 @@ Install the cargo-make component.
 cargo install cargo-make
 ```
 
-## 3.4 Install Jdk & maven
+### 3.1.4 Install Jdk & maven
 
 Install JDK & maven
 
@@ -167,7 +196,7 @@ Then make the environment variables take effect.
 source ~/.bashrc
 ```
 
-## 3.5 Install node
+### 3.1.5 Install node
 
 Recommend install node using nvm.
 
@@ -175,7 +204,7 @@ Recommend install node using nvm.
 curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.8/install.sh | bash
 ```
 
-Set up environment variables, add the following content to the end of the `~/.bashrc` file.
+Ensure that the following content is added to your `~/.bashrc` file:
 
 ```bash
 export NVM_DIR="$HOME/.nvm"
@@ -196,7 +225,7 @@ npm config set registry=https://registry.npmmirror.com
 npm install -g yarn
 ```
 
-## 3.6 Install Python-connector
+### 3.1.6 Install Python-connector
 
 Install Python3.
 
@@ -208,7 +237,8 @@ apt install python3-pip
 Install the dependent Python components.
 
 ```bash
-pip3 install pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog
+pip3 install pandas psutil fabric2 requests faker simplejson toml \
+     pexpect tzlocal distro decorator loguru hyperloglog toml
 ```
 
 Install the Python connector for TDengine.
@@ -217,13 +247,46 @@ Install the Python connector for TDengine.
 pip3 install taospy taos-ws-py
 ```
 
+
+</details>
+
+
+## 3.2 On macOS
+
+<details>
+
+<summary>Install required tools on macOS</summary>
+
+Work in Progress.
+
+</details>
+
+## 3.3 On Windows
+
+<details>
+
+<summary>Install required tools on Windows</summary>
+
+Work in Progress.
+
+</details>
+
 # 4. Building
 
 At the moment, TDengine server supports running on Linux/Windows/macOS systems. Any application can also choose the WebSocket interface provided by taosAdapter to connect the taosd service . TDengine supports X64/ARM64 CPU, and it will support MIPS64, Alpha64, ARM32, RISC-V and other CPU architectures in the future. Right now we don't support build with cross-compiling environment.
 
 You can choose to install through source code or [installation package](http://192.168.1.252:5000/). This quick guide only applies to installing from source.
 
-## 4.1 Building the Project
+TDengine provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. By default, TDengine compiling does not include taosTools. You can use `cmake .. -DBUILD_TOOLS=true` to make them be compiled with TDengine.
+
+To build TDengine, use [CMake](https://cmake.org/) 3.13.0 or higher versions in the project directory.
+
+
+## 4.1 Build on Linux
+
+<details>
+
+<summary>Detailed steps to build on Linux</summary>
 
 Clone TDinternal repository to a local directory (for example, /root).
 
@@ -232,7 +295,7 @@ cd /root
 git clone git@github.com:taosdata/TDinternal.git
 ```
 
-Execute the cmake command to download the community and other repositories (this may take about twenty minutes).
+Execute the cmake command to download the community and other repositories (this may take some minutes).
 
 ```bash
 cd /root/TDinternal && git checkout main
@@ -247,36 +310,109 @@ Select the current branch of community repositorie.
 cd /root/TDinternal/community && git checkout main
 ```
 
-Compile
+Run the following commands to compile and obtain the executables in debug/build/bin after a successful compilation.
 
 ```bash
 cd /root/TDinternal/debug
-cmake .. -DBUILD_TEST=true
+cmake .. -DBUILD_TEST=true 
 make -j4
 ```
 
 Install
+Run the following command to install the executables to /usr/bin and perform some additional configurations.
 
 ```bash
 make install
 ```
 
+</details>
+
+## 4.2 Build On macOS
+
+<details>
+
+<summary>Detailed steps to build on macOS</summary>
+
+
+Please install XCode command line tools and cmake. Verified with XCode 11.4+ on Catalina and Big Sur.
+Clone TDinternal repository to a local directory (for example, /root).
+
+```shell
+cd /root
+git clone git@github.com:taosdata/TDinternal.git
+```
+
+Execute the cmake command to download the community and other repositories (this may take about twenty minutes).
+
+```shell
+cd /root/TDinternal && git checkout main
+mkdir /root/TDinternal/debug
+cd /root/TDinternal/debug
+cmake .. 
+```
+
+Select the current branch of community repositorie.
+
+```shell
+cd /root/TDinternal/community && git checkout main
+```
+
+Compile
+
+
+```shell
+cd ../debug
+cmake .. && cmake --build .
+```
+
+</details>
+
+## 4.3 Build On Windows
+
+<details>
+
+<summary>Detailed steps to build on Windows</summary>
+
+Work in Progress.
+
+</details>
+
 # 5. Packaging
+
+<details>
+
+<summary>How to package the  enterprise edition locally?</summary>
 
 Using the following script to package the enterprise edition.
 
 ```bash
 cd /root/TDinternal/enterprise/packaging
-./new_ver_release.sh -n <version_number>
+# version_number should be in the format x.x.x.x[.x], e.g., 3.3.5.0 or 3.3.5.0.1234
+./new_ver_release.sh -n <version_number>   
 ```
 
-After the packaging is complete, you can see the following files.
+Once the packaging process is complete, you can find the installation package files listed below by executing the command:
 
 ```bash
 ll /root/TDinternal/community/release
 ```
+</details>
 
 # 6. Installing
+
+## 6.1 Install on Linux
+
+<details>
+
+<summary>Detailed steps to install on Linux</summary>
+
+After building successfully, TDengine can be installed by:
+
+```bash
+sudo make install
+```
+
+Installing from source code will also configure service management for TDengine. Users can also choose to [install from packages](https://docs.tdengine.com/get-started/deploy-from-package/) for it.
 
 ```bash
 tar -xvzf TDengine-enterprise-<version_number>-Linux-x64.tar.gz
@@ -284,74 +420,394 @@ cd TDengine-enterprise-<version_number>-Linux-x64
 ./install.sh
 ```
 
-# 7. Running
+</details>
+
+## 6.2 Install on macOS
+
+<details>
+
+<summary>Detailed steps to install on macOS</summary>
+
+After building successfully, TDengine can be installed by:
 
 ```bash
-cd TDengine-enterprise-<version_number>-Linux-x64
-./start-all.sh
-./stop-all.sh
+sudo make install
 ```
+
+</details>
+
+## 6.3 Install on Windows
+
+<details>
+
+<summary>Detailed steps to install on Windows</summary>
+
+After building successfully, TDengine can be installed by:
+
+```cmd
+nmake install
+```
+
+</details>
+
+
+# 7. Running
+
+
+## 7.1 Run TDengine on Linux
+
+<details>
+
+<summary>Detailed steps to run on Linux</summary>
+
+To start the service after installation on linux, in a terminal, use:
+
+```bash
+sudo systemctl start taosd
+```
+
+Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
+
+```bash
+taos
+```
+
+If TDengine CLI connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
+
+If you don't want to run TDengine as a service, you can run it in current shell. For example, to quickly start a TDengine server after building, run the command below in terminal: 
+
+```bash
+./build/bin/taosd -c test/cfg
+```
+
+In another terminal, use the TDengine CLI to connect the server:
+
+```bash
+./build/bin/taos -c test/cfg
+```
+
+Option `-c test/cfg` specifies the system configuration file directory.
+
+
+Running from source code will also configure service management for TDengine. Users can also choose to [install from packages](https://docs.tdengine.com/get-started/deploy-from-package/) for it.
+
+
+```bash
+start-all.sh
+stop-all.sh
+```
+
+</details>
+
+## 7.2 Run TDengine on macOS
+
+<details>
+
+<summary>Detailed steps to run on macOS</summary>
+
+To start the service after installation on macOS, double-click the /applications/TDengine to start the program, or in a terminal, use:
+
+```bash
+sudo launchctl start com.tdengine.taosd
+```
+
+Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
+
+```bash
+taos
+```
+
+If TDengine CLI connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
+
+</details>
+
+
+## 7.3 Run TDengine on Windows
+
+<details>
+
+<summary>Detailed steps to run on Windows</summary>
+
+You can start TDengine server on Windows platform with below commands:
+
+```cmd
+.\build\bin\taosd.exe -c test\cfg
+```
+
+In another terminal, use the TDengine CLI to connect the server:
+
+```cmd
+.\build\bin\taos.exe -c test\cfg
+```
+
+option "-c test/cfg" specifies the system configuration file directory.
+
+</details>
 
 # 8. Testing
 
-## 8.1 Run the TSIM test script
+## 8.1 Introduction
+
+This manual is intended to give developers a comprehensive guidance to test TDengine efficiently. It is divided into three main sections: introduction, prerequisites and testing guide.
+
+> [!NOTE]
+> - The commands and scripts below are verified on Linux (Ubuntu 18.04/20.04/22.04).
+> - The commands and steps described below are to run the tests on a single host.
+
+## 8.2 Prerequisites
+
+<details>
+
+<summary>Detailed prerequisites on Linux</summary>
+
+- Install Python3
 
 ```bash
-cd /root/TDinternal/community/tests/script
+apt install python3
+apt install python3-pip
+```
+
+- Install Python dependencies
+
+```bash
+pip3 install pandas psutil fabric2 requests faker simplejson \
+  toml pexpect tzlocal distro decorator loguru hyperloglog
+```
+
+- Install Python connector for TDengine
+
+```bash
+pip3 install taospy taos-ws-py
+```
+
+- Building
+
+Before testing, please make sure the building operation with option `-DBUILD_TOOLS=true -DBUILD_TEST=true -DBUILD_CONTRIB=true` has been done, otherwise execute commands below:
+
+```bash
+cd debug
+cmake .. -DBUILD_TOOLS=true -DBUILD_TEST=true -DBUILD_CONTRIB=true
+make && make install
+```
+
+</details>
+
+## 8.3 Testing Guide
+
+<details>
+
+<summary>Detailed testing guide on Linux</summary>
+
+In `tests` directory, there are different types of tests for TDengine. Below is a brief introduction about how to run them and how to add new cases.
+
+### 8.3.1 Unit Test
+
+Unit tests are the smallest testable units, which are used to test functions, methods or classes in TDengine code.
+
+#### 8.3.1.1 How to run single test case?
+
+```bash
+cd debug/build/bin
+./osTimeTests
+```
+
+#### 8.3.1.2 How to run all unit test cases?
+
+```bash
+cd tests/unit-test/
+bash test.sh 
+```
+
+#### 8.3.1.3 How to add new cases? 
+
+The Google test framwork is used for unit testing to specific function module, please refer to steps below to add a new test case:
+
+##### a. Create test case file and develop the test scripts
+
+In the test directory corresponding to the target function module, create test files in CPP format and write corresponding test cases.
+
+##### b. Update build configuration
+
+Modify the CMakeLists.txt file in this directory to ensure that the new test files are properly included in the compilation process. See the `source/os/test/CMakeLists.txt` file for configuration examples.
+
+##### c. Compile test code
+
+In the root directory of the project, create a compilation directory (e.g., debug), switch to the directory and run CMake commands (e.g., `cmake .. -DBUILD_TEST=1`) to generate a compilation file,
+
+and then run a compilation command (e.g. make) to complete the compilation of the test code. 
+
+##### d. Execute the test program
+
+Find the executable file in the compiled directory(e.g. `TDengine/debug/build/bin/`) and run it.
+
+##### e. Integrate into CI tests
+
+Use the add_test command to add new compiled test cases into CI test collection, ensure that the new added test cases can be run for every build.
+
+
+### 8.3.2 System Test
+
+System tests are end-to-end test cases written in Python from a system point of view. Some of them are designed to test features only in enterprise ediiton, so when running on community edition, they may fail. We'll fix this issue by separating the cases into different gruops in the future.
+
+#### 8.3.2.1 How to run a single test case?
+
+Take test file `system-test/2-query/avg.py` for example:
+
+```bash
+cd tests/system-test
+python3 ./test.py -f 2-query/avg.py
+```
+
+#### 8.3.2.2 How to run all system test cases?
+
+```bash
+cd tests
+./run_all_ci_cases.sh -t python # all python cases
+
+```
+
+#### 8.3.2.3 How to add new case?
+
+
+The Python test framework is developed by TDengine team, and test.py is the test case execution and monitoring of the entry program, Use `python3 ./test.py -h` to view more features.
+
+Please refer to steps below for how to add a new test case:
+
+##### a. Create a test case file and develop the test cases
+
+Create a file in `tests/system-test` containing each functional directory and refer to the use case template `tests/system-test/0-others/test_case_template.py` to add a new test case. 
+
+##### b. Execute the test case 
+
+Ensure the test case execution is successful.
+
+``` bash
+cd tests/system-test && python3 ./test.py -f 0-others/test_case_template.py 
+```
+
+##### c. Integrate into CI tests
+
+Edit `tests/parallel_test/cases.task` and add the testcase path and executions in the specified format. The third column indicates whether to use Address Sanitizer mode for testing.
+
+```bash
+#caseID,rerunTimes,Run with Sanitizer,casePath,caseCommand
+,,n,system-test, python3 ./test.py  -f 0-others/test_case_template.py 
+```
+
+
+### 8.3.3 Legacy Test
+
+In the early stage of TDengine development, test cases are run by an internal test framework called TSIM, which is developed in C++.
+
+#### 8.3.3.1 How to run single test case?
+
+To run the legacy test cases, please execute the following commands:
+
+```bash
+cd tests/script
 ./test.sh -f tsim/db/basic1.sim
 ```
 
-## 8.2 Run the Python test script
+#### 8.3.3.2 How to run all legacy test cases?
 
 ```bash
-cd /root/TDinternal/community/tests/system-test
-python3 ./test.py -f 2-query/floor.py
+cd tests
+./run_all_ci_cases.sh -t legacy # all legacy cases
 ```
 
-## 8.3 Run unittest
+#### 8.3.3.3 How to add new cases?
 
-```bash
-cd /root/TDinternal/community/tests/unit-test/
-bash test.sh
-```
+> **NOTE:**
+> TSIM test framwork is deprecated by system test now, it is encouraged to add new test cases in system test, please refer to [System Test](#832-system-test) for details.
 
-## 8.4 Smoke Testing
+
+### 8.3.4 Smoke Test
+
+Smoke test is a group of test cases selected from system test, which is also known as sanity test to ensure the critical functionalities of TDengine.
+
+#### 8.3.4.1 How to run test?
 
 ```bash
 cd /root/TDinternal/community/packaging/smokeTest
 ./test_smoking_selfhost.sh
 ```
 
-## 8.5 TSBS Test
+#### 8.3.4.2 How to add new cases?
 
-1. Clone the code
-```bash
-cd /root && git clone https://github.com/taosdata/tsbs.git && cd tsbs/scripts/tsdbComp
-```
-2. Modify IP and host of client and server in `test.ini`
-```ini
-clientIP="192.168.0.203"   # client ip
-clientHost="trd03"         # client hostname
-serverIP="192.168.0.204"   # server ip
-serverHost="trd04"         # server hostname
-```
-3. Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
-```ini
-serverPass="taosdata123"   # server root password
-```
-4. Run the following command to start the test:
- ```bash
-nohup bash tsdbComparison.sh > test.log &
-```
-5. When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
+New cases can be added by updating the value of `commands` variable in `test_smoking_selfhost.sh`.
 
-## 8.6 Crash_gen Test
+### 8.3.5 Chaos Test
+
+A simple tool to execute various functions of the system in a randomized way, hoping to expose potential problems without a pre-defined test scenario.
+
+#### 8.3.5.1 How to run test?
 
 ```bash
-cd /root/TDinternal/community/tests/pytest/ && ./crash_gen.sh
+cd tests/pytest
+python3 auto_crash_gen.py
 ```
 
-## 8.7 TestNG Test
+#### 8.3.5.2 How to add new cases?
+
+1. Add a function, such as `TaskCreateNewFunction` in `pytest/crash_gen/crash_gen_main.py`.
+2. Integrate `TaskCreateNewFunction` into the `balance_pickTaskType` function in `crash_gen_main.py`.
+
+### 8.3.6 CI Test
+
+CI testing (Continuous Integration testing), is an important practice in software development that aims to automate frequent integration of code into a shared codebase, build and test it to ensure code quality and stability.
+
+TDengine CI testing will run all the test cases from the following three types of tests: unit test, system test and legacy test.
+
+#### 8.3.6.1 How to run all CI test cases?
+
+If this is the first time to run all the CI test cases, it is recommended to add the test branch, please run it with following commands:
+
+```bash
+cd tests
+./run_all_ci_cases.sh -b main # on main branch
+```
+
+#### 8.3.6.2 How to add new cases?
+
+Please refer to the [Unit Test](#831-unit-test)、[System Test](#832-system-test) and [Legacy Test](#833-legacy-test) sections for detailed steps to add new test cases, when new cases are added in aboved tests, they will be run automatically by CI test.
+
+### 8.3.7 TSBS Test
+
+[Time Series Benchmark Suite (TSBS)](https://github.com/timescale/tsbs) is an open-source performance benchmarking platform specifically designed for time-series data processing systems, such as databases. It provides a standardized approach to evaluating the performance of various databases by simulating typical use cases such as IoT and DevOps.
+
+#### 8.3.7.1 How to run tests?
+
+1. Clone the code and  run the tests locally on your machine. Ensure that your virtual machine supports the AVX instruction set:
+```bash
+  cd /usr/local/src && git clone https://github.com/taosdata/tsbs-internal.git tsbs && \
+  cd tsbs &&  git checkout enh/chr-td-33357 && \
+  cd scripts/tsdbComp && ./testTsbs.sh 
+```
+2. When testing the client and server on separate machines, you should set up your environment as outlined in the steps below:
+
+2.1 Modify IP and host of client and server in `test.ini`
+```ini
+  clientIP="192.168.0.203"   # client ip
+  clientHost="trd03"         # client hostname
+  serverIP="192.168.0.204"   # server ip
+  serverHost="trd04"         # server hostname
+```
+2.2 Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
+```ini
+  serverPass="taosdata123"   # server root password
+```
+2.3 Run the following command to start the test:
+```bash
+  ./testTsbs.sh  
+```
+3. When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
+
+
+### 8.3.8 TestNG Test
+
+TestNG Test is another test framwork which developed by python, functionally speaking, it's a supplement for system test, and also run longer time than system test for stability testing purposes.
+
+#### 8.3.8.1 How to run tests?
 
 1. Clone the code:
 ```bash
@@ -384,11 +840,20 @@ apt install -y python3-pip && \
 ```
 5. When the test is done, the result can be found in `/root/TestNG/testlog_$(date +"%Y-%m-%d_%H-%M-%S")` directory.
 
-# 9 Releasing
+#### 8.3.8.2 How to add new cases?
+
+You can add python test case under `TestNG/cases`. When the case passes in the test branch, add the case to the `testng_cases.txt` file under `TestNG/scripts`, and then merge the pr into master branch .
+
+</details>
+
+# 9. Releasing
+<details>
+
+<summary>Detailed releasing information</summary>
 
 TDengine Enterprise installers can be found on the corporate NAS server:
 
-    NAS Server URL： http://192.168.1.252:5000/
+    NAS Server URL: http://192.168.1.252:5000/
     Directory: /Release/TDengine/
 
 NAS server write permission is enabled on `192.168.1.131`. To release, please follow steps below, take v3.3.4.0 for example:
@@ -401,28 +866,33 @@ mkdir -p /pkgs/TDengine/3.3/v3.3.4.0/enterprise
 # copy the installer to release directory
 scp <installer> root@192.168.1.131:/pkgs/TDengine/3.3/v3.3.4.0/enterprise/
 ```
+</details>
 
-# 10 CI/CD
+# 10. Workflow
 
-We use jenkins for CI/CD workflow configuration. See http://ci.bl.taosdata.com:8080/job/NewTest/view/change-requests/
-We can also run ci script locally.
+TDengine build check workflow can be found in this [Github Action](https://github.com/taosdata/TDengine/actions/workflows/taosd-ci-build.yml). More workflows will be available soon.
+
+# 11. Coverage
+
+Latest TDengine test coverage report can be found on [coveralls.io](https://coveralls.io/github/taosdata/TDengine). 
+
+<details>
+
+<summary>How to run the coverage report locally?</summary>
+To create the test coverage report (in HTML format) locally, please run following commands:
 
 ```bash
-cd /root/TDinternal/community/tests
-./run_all_ci_cases.sh
+cd tests
+bash setup-lcov.sh -v 1.16 && ./run_local_coverage.sh -b main -c task 
+# on main branch and run cases in longtimeruning_cases.task 
+
 ```
+> **NOTE:**
+> Please note that the -b and -i options will recompile TDengine with the -DCOVER=true option, which may take a amount of time.
 
-# 11 Coverage
+</details>
 
-We can see coverage result in https://coveralls.io/github/taosdata/TDengine
-We can also run coverage script locally.
-
-```bash
-cd /root/TDinternal/community/tests
-./run_local_coverage.sh
-```
-
-# 12 Contributing
+# 12. Contributing
 
 Guidelines for contributing to the project:
 

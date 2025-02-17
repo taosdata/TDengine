@@ -3,7 +3,7 @@
 #define MyAppPublisher "taosdata"
 #define MyAppURL "http://www.taosdata.com/"
 #define MyAppBeforeInstallTxt "..\windows\windows_before_install.txt"
-#define MyAppIco "favicon.ico"
+;#define MyAppIco "favicon.ico"
 ;#define MyAppInstallDir "C:\TDengine"
 #define MyAppOutputDir "./"
 #define MyAppSourceDir "C:\TDengine"
@@ -67,11 +67,11 @@ Source: {#MyAppSourceDir}{#MyAppDLLName}; DestDir: "{win}\System32"; Flags: igNo
 Source: {#MyAppSourceDir}\append\opc_gdba_32\*; DestDir: "{#OPCGdbaInstallPath}\"; Flags: uninsneveruninstall onlyifdoesntexist skipifsourcedoesntexist; Check: ShouldInstallOPC
 Source: {#MyAppSourceDir}{#MyAppCfgName}; DestDir: "{app}\cfg"; Flags: igNoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
 Source: {#MyAppSourceDir}{#MyAppDriverName}; DestDir: "{app}\driver"; Flags: igNoreversion recursesubdirs createallsubdirs
-Source: {#MyAppSourceDir}{#MyAppConnectorName}; DestDir: "{app}\connector"; Flags: igNoreversion recursesubdirs createallsubdirs
-Source: {#MyAppSourceDir}{#MyAppExamplesName}; DestDir: "{app}\examples"; Flags: igNoreversion recursesubdirs createallsubdirs
+;Source: {#MyAppSourceDir}{#MyAppConnectorName}; DestDir: "{app}\connector"; Flags: igNoreversion recursesubdirs createallsubdirs
+;Source: {#MyAppSourceDir}{#MyAppExamplesName}; DestDir: "{app}\examples"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppIncludeName}; DestDir: "{app}\include"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}\plugins\*; DestDir: "{app}\plugins"; Flags: igNoreversion recursesubdirs createallsubdirs
-Source: {#MyAppSourceDir}\{#CusPrompt}_odbc\*; DestDir: "{app}\{#CusPrompt}_odbc"; Flags: igNoreversion recursesubdirs createallsubdirs
+;Source: {#MyAppSourceDir}\{#CusPrompt}_odbc\*; DestDir: "{app}\{#CusPrompt}_odbc"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppExeName}; DestDir: "{app}"; Excludes: {#MyAppExcludeSource} ; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppTaosdemoExeName}; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}\*.dll; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs
@@ -89,8 +89,8 @@ Filename: "{app}\{#CusPrompt}x-srv.exe"; Parameters: "install"; Flags: runhidden
 Filename: "{app}\{#CusPrompt}-explorer-srv.exe"; Parameters: "install" ; Flags: runhidden; Check: FileExists(ExpandConstant('{app}\{#CusPrompt}-explorer-srv.exe'))
 Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " ""{#OPCGdbaInstallPath}\gbda_aut.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
 Filename: "C:\Windows\SysWOW64\regsvr32.exe"; Parameters: " ""{#OPCGdbaInstallPath}\gbhda_aw.dll"" /s"; Flags: RunHidden WaitUntilTerminated; Check: ShouldInstallOPC
-Filename: "C:\Windows\System32\odbcconf.exe"; Parameters: " /S /F win_odbc_install.ini"; WorkingDir: "{app}\{#CusPrompt}_odbc\x64"; Flags: runhidden; StatusMsg: "Configuring ODBC x64"
-Filename: "C:\Windows\SysWOW64\odbcconf.exe"; Parameters: " /S /F win_odbc_install.ini"; WorkingDir: "{app}\{#CusPrompt}_odbc\x86"; Flags: runhidden; StatusMsg: "Configuring ODBC x86"
+;Filename: "C:\Windows\System32\odbcconf.exe"; Parameters: " /S /F win_odbc_install.ini"; WorkingDir: "{app}\{#CusPrompt}_odbc\x64"; Flags: runhidden; StatusMsg: "Configuring ODBC x64"
+;Filename: "C:\Windows\SysWOW64\odbcconf.exe"; Parameters: " /S /F win_odbc_install.ini"; WorkingDir: "{app}\{#CusPrompt}_odbc\x86"; Flags: runhidden; StatusMsg: "Configuring ODBC x86"
 
 
 [Registry]
@@ -134,8 +134,20 @@ function IsVC2015x64Installed(): Boolean;
 var
   InstallKey: String;
 begin
-  InstallKey := 'SOFTWARE\Classes\Installer\Dependencies\VC,redist.x64,amd64,14.40,bundle';
-  Result := RegKeyExists(HKEY_LOCAL_MACHINE, InstallKey)
+  // Check for any VC++ 2015-2022 Redistributable (14.x versions)
+  InstallKey := 'SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64';
+  Result := RegKeyExists(HKEY_LOCAL_MACHINE, InstallKey);
+  
+  if not Result then
+  begin
+    InstallKey := 'SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x64';
+    Result := RegKeyExists(HKEY_LOCAL_MACHINE, InstallKey);
+  end;
+  
+  if Result then
+    Log('find VC++ Redistributable x64,version 14.0+')
+  else
+    Log('find VC++ Redistributable x64，need to install version 14.0');
 end;
 
 function InitializeSetup(): Boolean;
@@ -143,7 +155,7 @@ begin
   Result :=True
   if not IsVC2015x64Installed() then  
   begin
-    MsgBox('Please install Visual C++ Redistributable 2015-2022 (x64) before install TDengine', mbInformation, MB_OK);
+    MsgBox('Please install Visual C++ Redistributable 2015-2022 (x64) version 14.x before install {#CusName}', mbInformation, MB_OK);
     Result :=False
   end;
 end;
@@ -161,6 +173,7 @@ var
   CustomFinishedLabel1: TLabel;
   CustomFinishedLabel2: TLabel;
   CustomFinishedLabel3: TLabel;
+  SilentMode: Boolean;
 
 
 function ReplaceLineInFile(FileName, SearchText, ReplaceText: String): Boolean;
@@ -273,6 +286,7 @@ var
   FileContent: TArrayOfString;
   StartIndex: Integer;
   EndIndex:   Integer;
+  i: Integer;
 begin
   Log('InitializeSetup called');
   OutputFile := ExpandConstant('{tmp}\java_version.txt');
@@ -283,16 +297,28 @@ begin
   else
   begin
     LoadStringsFromFile(OutputFile, FileContent);
-    OutputText := FileContent[0];
+    JavaReady := False;
+    for i := 0 to High(FileContent) do
+    begin
+      OutputText := FileContent[i];
 
-    StartIndex := Pos('"', OutputText);
-    EndIndex := Pos('"', Copy(OutputText, StartIndex+1, Length(OutputText)-StartIndex));
-    JavaVersion := Copy(OutputText, StartIndex+1, EndIndex-1);
-    JavaReady := CheckJavaVersion(JavaVersion)
-    if JavaReady = True then begin
-      JavaVersionString := 'JAVA 1.8+ required' + #13#10 + JavaVersion + ' has been installed.' + #13#10 + 'OK.';
-    end else
-      JavaVersionString := 'JAVA 1.8+ required' + #13#10 + 'No suitable version found.' + #13#10 + 'Please check it.';
+      StartIndex := Pos('"', OutputText);
+      EndIndex := Pos('"', Copy(OutputText, StartIndex+1, Length(OutputText)-StartIndex));
+      JavaVersion := Copy(OutputText, StartIndex+1, EndIndex-1);
+      if CheckJavaVersion(JavaVersion) then
+      begin
+        JavaReady := True; 
+        Break;
+      end;
+    end;
+    if JavaReady = True then
+    begin
+        JavaVersionString := 'JAVA 1.8+ required' + #13#10 + JavaVersion + ' has been installed.' + #13#10 + 'OK.';
+    end
+    else
+    begin
+        JavaVersionString := 'JAVA 1.8+ required' + #13#10 + 'No suitable version found.' + #13#10 + 'Please check it.';
+    end;
   end;
   Result := JavaVersionString;
 end;
@@ -460,6 +486,50 @@ begin
     end;
 end;
 
+function IsSilentMode: Boolean;
+var
+  I: Integer;
+  Param: String;
+begin
+  Result := False;
+  for I := 1 to ParamCount do
+  begin
+    Param := ParamStr(I);
+    if (Param = '/SILENT') or (Param = '-SILENT') or (Param = '/silent') or (Param = '-SILENT')  then
+    begin
+      Result := True;
+      Break;
+    end;
+  end;
+end;
+
+procedure DeleteDirectory(const DirPath: string; const Recursive: Boolean; const Confirm: Boolean; const ErrorDialogs: Boolean);
+begin
+  if DirExists(ExpandConstant(DirPath)) then
+    DelTree(ExpandConstant(DirPath), Recursive, Confirm, ErrorDialogs);
+end;
+
+procedure DeleteDirectoriesIfConfirmed;
+begin
+  SilentMode := IsSilentMode;
+  if  not SilentMode then
+    begin
+      if MsgBox('Please confirm if you would like to delete cfg, data and log directory ?', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+      begin
+        DeleteDirectory('{app}\cfg', True, True, True);
+        DeleteDirectory('{app}\log', True, True, True);
+        DeleteDirectory('{app}\data', True, True, True);
+      end;
+    end
+  else
+    begin
+      // silent mode, no confirm dialog, delete directory directly
+      DeleteDirectory('{app}\cfg', True, True, True);
+      DeleteDirectory('{app}\log', True, True, True);
+      DeleteDirectory('{app}\data', True, True, True);
+    end;
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   case CurUninstallStep of
@@ -484,22 +554,7 @@ begin
           begin            
             DelayDeleteFile(ExpandConstant('{app}\output.txt'), 5);
           end;
-
-        if MsgBox('Please confirm if you would like to delete cfg, data and log directory ?', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
-          begin
-            if DirExists(ExpandConstant('{app}\cfg')) then
-              begin
-                DelTree(ExpandConstant('{app}\cfg'), True, True, True);
-              end;
-            if DirExists(ExpandConstant('{app}\log')) then  
-              begin
-                DelTree(ExpandConstant('{app}\log'), True, True, True);
-              end;
-            if DirExists(ExpandConstant('{app}\data')) then  
-              begin
-                DelTree(ExpandConstant('{app}\data'), True, True, True);
-              end;
-          end;        
+        DeleteDirectoriesIfConfirmed       
       end;    
   end;
 end;
