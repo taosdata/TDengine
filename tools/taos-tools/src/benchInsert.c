@@ -623,22 +623,13 @@ int32_t toolsGetDefaultVGroups() {
 int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
     int dataLen = 0;
     int n;
-    if (-1 != g_arguments->inputted_vgroups) {
-        n = snprintf(command + dataLen, SHORT_1K_SQL_BUFF_LEN - dataLen,
-                    g_arguments->escape_character
-                        ? "CREATE DATABASE IF NOT EXISTS `%s` VGROUPS %d"
-                        : "CREATE DATABASE IF NOT EXISTS %s VGROUPS %d",
-                            database->dbName,
-                            (-1 != g_arguments->inputted_vgroups)?
-                            g_arguments->inputted_vgroups:
-                            min(remainVnodes, toolsGetNumberOfCores()));
-    } else {
-        n = snprintf(command + dataLen, SHORT_1K_SQL_BUFF_LEN - dataLen,
-                    g_arguments->escape_character
-                        ? "CREATE DATABASE IF NOT EXISTS `%s`"
-                        : "CREATE DATABASE IF NOT EXISTS %s",
-                            database->dbName);
-    }
+
+    // create database
+    n = snprintf(command + dataLen, SHORT_1K_SQL_BUFF_LEN - dataLen,
+                g_arguments->escape_character
+                    ? "CREATE DATABASE IF NOT EXISTS `%s`"
+                    : "CREATE DATABASE IF NOT EXISTS %s",
+                    database->dbName);
 
     if (n < 0 || n >= SHORT_1K_SQL_BUFF_LEN - dataLen) {
         errorPrint("%s() LN%d snprintf overflow\n",
@@ -648,9 +639,21 @@ int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
         dataLen += n;
     }
 
+    int vgroups = g_arguments->inputted_vgroups;
+
+    // append config items
     if (database->cfgs) {
         for (int i = 0; i < database->cfgs->size; i++) {
             SDbCfg* cfg = benchArrayGet(database->cfgs, i);
+
+            // check vgroups
+            if (strncasecmp(cfg->name, "vgroups") == 0) {
+                if (vgroups < 1) {
+                    vgroups = cfg->valueint;
+                    debugPrint("vgroup set with json config. vgroups=%d\n", vgroups);
+                }
+            }
+
             if (cfg->valuestring) {
                 n = snprintf(command + dataLen,
                                         TSDB_MAX_ALLOWED_SQL_LEN - dataLen,
@@ -668,6 +671,17 @@ int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
                 dataLen += n;
             }
         }
+    }
+
+    // benchmark default
+    if (vgroups < 1) {
+        vgroups = toolsGetDefaultVGroups();
+        debugPrint("vgroup set with toolsGetDefaultVGroups(). vgroups=%d\n", vgroups);
+    }
+
+    // not found vgroups
+    if (vgroups > 0) {
+        dataLen += snprintf(command + dataLen, TSDB_MAX_ALLOWED_SQL_LEN - dataLen, " VGROUPS %d", vgroups);
     }
 
     switch (database->precision) {

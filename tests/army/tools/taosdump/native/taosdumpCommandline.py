@@ -162,9 +162,9 @@ class TDTestCase(TBase):
         try:
             code = self.exec(command)
             if code == 0:
-                tdLog.exit(f"Failed, not report error for command {command}")
+                tdLog.exit(f"Failed, not report error cmd:{command}")
             else:
-                tdLog.info(f"Passed, expect report error for command {command}")
+                tdLog.info(f"Passed, report error code={code} is expect, cmd:{command}")
         except:
             tdLog.info(f"Passed, catch expect report error for command {command}")
 
