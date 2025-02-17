@@ -3062,7 +3062,14 @@ static int32_t fillIpRangesFromWhiteList(SAstCreateContext* pCxt, SNodeList* pIp
 }
 
 SNode* addCreateUserStmtWhiteList(SAstCreateContext* pCxt, SNode* pCreateUserStmt, SNodeList* pIpRangesNodeList) {
-  if (NULL == pCreateUserStmt || NULL == pIpRangesNodeList) {
+  if (NULL == pCreateUserStmt) {
+    if (pIpRangesNodeList != NULL) {
+      nodesDestroyList(pIpRangesNodeList);
+    }
+    return NULL;
+  }
+
+  if (NULL == pIpRangesNodeList) {
     return pCreateUserStmt;
   }
 
