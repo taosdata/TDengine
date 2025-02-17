@@ -1302,7 +1302,7 @@ _checkpoint:
           }
 
           streamMetaWLock(pMeta);
-          if ((code = streamMetaSaveTask(pMeta, pTask)) != 0) {
+          if ((code = streamMetaSaveTaskInMeta(pMeta, pTask)) != 0) {
             streamMetaWUnLock(pMeta);
             taosHashCancelIterate(pInfoHash, infoHash);
             TSDB_CHECK_CODE(code, lino, _exit);

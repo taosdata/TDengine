@@ -622,19 +622,19 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
             pReq->transId);
     streamMutexUnlock(&pTask->lock);
 
-    {  // destroy the related fill-history tasks
-      // drop task should not in the meta-lock, and drop the related fill-history task now
-      if (pReq->dropRelHTask) {
-        code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
-        int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
-        stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped in update checkpointInfo, remain tasks:%d",
-                id, vgId, pReq->taskId, numOfTasks);
-      }
+    {   // destroy the related fill-history tasks
+       // drop task should not in the meta-lock, and drop the related fill-history task now
+       if (pReq->dropRelHTask) {
+         code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
+         int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
+         stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped in update checkpointInfo, remain tasks:%d",
+                 id, vgId, pReq->taskId, numOfTasks);
+       }
 
-      if (pReq->dropRelHTask) {
-        code = streamMetaCommit(pMeta);
-      }
-    }
+       if (pReq->dropRelHTask) {
+         code = streamMetaCommit(pMeta);
+       }
+     }
 
     // always return true
     return TSDB_CODE_SUCCESS;
@@ -697,7 +697,7 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
   pTask->status.taskStatus = TASK_STATUS__READY;
 
-  code = streamMetaSaveTask(pMeta, pTask);
+  code = streamMetaSaveTaskInMeta(pMeta, pTask);
   streamMutexUnlock(&pTask->lock);
 
   if (code != TSDB_CODE_SUCCESS) {

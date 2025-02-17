@@ -76,7 +76,7 @@ int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated) {
   memcpy(serializedReq, &req, len);
 
   SRpcMsg rpcMsg = {.contLen = len, .pCont = serializedReq, .msgType = TDMT_VND_STREAM_SCAN_HISTORY};
-  return tmsgPutToQueue(pTask->pMsgCb, STREAM_QUEUE, &rpcMsg);
+  return tmsgPutToQueue(pTask->pMsgCb, STREAM_LONG_EXEC_QUEUE, &rpcMsg);
 }
 
 void streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration) {

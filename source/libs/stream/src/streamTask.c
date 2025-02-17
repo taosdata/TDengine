@@ -703,7 +703,7 @@ int32_t streamTaskStop(SStreamTask* pTask) {
   }
 
   if (pTask->info.taskLevel != TASK_LEVEL__SINK && pTask->exec.pExecutor != NULL) {
-    code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
+    code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS, 5000);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s failed to kill task related query handle, code:%s", id, tstrerror(code));
     }
@@ -862,7 +862,7 @@ int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt) {
       pStreamTask->status.taskStatus = TASK_STATUS__READY;
     }
 
-    code = streamMetaSaveTask(pMeta, pStreamTask);
+    code = streamMetaSaveTaskInMeta(pMeta, pStreamTask);
     streamMutexUnlock(&(pStreamTask->lock));
 
     streamMetaReleaseTask(pMeta, pStreamTask);
@@ -1025,7 +1025,7 @@ static int32_t taskPauseCallback(SStreamTask* pTask, void* param) {
   // in case of fill-history task, stop the tsdb file scan operation.
   if (pTask->info.fillHistory == 1) {
     void* pExecutor = pTask->exec.pExecutor;
-    code = qKillTask(pExecutor, TSDB_CODE_SUCCESS);
+    code = qKillTask(pExecutor, TSDB_CODE_SUCCESS, 10000);
   }
 
   stDebug("vgId:%d s-task:%s set pause flag and pause task", pMeta->vgId, pTask->id.idStr);
@@ -1287,6 +1287,8 @@ const char* streamTaskGetExecType(int32_t type) {
       return "resume-task-from-idle";
     case STREAM_EXEC_T_ADD_FAILED_TASK:
       return "record-start-failed-task";
+    case STREAM_EXEC_T_STOP_ONE_TASK:
+      return "stop-one-task";
     case 0:
       return "exec-all-tasks";
     default:
