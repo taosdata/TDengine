@@ -1408,3 +1408,32 @@ _end:
   }
   return code;
 }
+
+int32_t getNLastSessionStateKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  if (pCur->pHashData == NULL) {
+    return TSDB_CODE_FAILED;
+  }
+  SArray*  pWinStates = *((void**)pCur->pHashData);
+  int32_t size = taosArrayGetSize(pWinStates);
+  if (size == 0) {
+    return TSDB_CODE_FAILED;
+  }
+
+  int32_t i = TMAX(size - num, 0);
+
+  for ( ; i < size; i++) {
+    void* pPos = taosArrayGet(pWinStates, i);
+    QUERY_CHECK_NULL(pPos, code, lino, _end, terrno);
+
+    void* pTempRes = taosArrayPush(pRes, &pPos);
+    QUERY_CHECK_NULL(pTempRes, code, lino, _end, terrno);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}

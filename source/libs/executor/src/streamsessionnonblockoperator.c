@@ -34,14 +34,9 @@
 void streamSessionNonblockReleaseState(SOperatorInfo* pOperator) {
   SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
   SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
-  pAggSup->stateStore.streamStateClearExpiredSessionState(pAggSup->pState, pInfo->nbSup.numOfKeep, pInfo->nbSup.tsOfKeep, NULL);
-  pAggSup->stateStore.streamStateCommit(pAggSup->pState);
-  // todo(liuyao) add
-
-  SOperatorInfo* downstream = pOperator->pDownstream[0];
-  if (downstream->fpSet.releaseStreamStateFn) {
-    downstream->fpSet.releaseStreamStateFn(downstream);
-  }
+  pAggSup->stateStore.streamStateClearExpiredSessionState(pAggSup->pState, pInfo->nbSup.numOfKeep,
+                                                          pInfo->nbSup.tsOfKeep, NULL);
+  streamSessionReleaseState(pOperator);
   qDebug("%s===stream===streamSessionNonblockReleaseState:%" PRId64, GET_TASKID(pOperator->pTaskInfo),
          pInfo->twAggSup.maxTs);
 }
@@ -58,7 +53,44 @@ void streamSessionNonblockReloadState(SOperatorInfo* pOperator) {
                                                 strlen(STREAM_SESSION_NONBLOCK_OP_STATE_NAME), &pBuf, &size);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  // todo(liuyao) add
+  int32_t      num = (size - sizeof(TSKEY)) / sizeof(SSessionKey);
+  SSessionKey* pSeKeyBuf = (SSessionKey*)pBuf;
+
+  TSKEY ts = *(TSKEY*)((char*)pBuf + size - sizeof(TSKEY));
+  pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, ts);
+  pAggSup->stateStore.streamStateReloadInfo(pAggSup->pState, ts);
+
+  for (int32_t i = 0; i < num; i++) {
+    SResultWindowInfo winInfo = {0};
+    code = getSessionWindowInfoByKey(pAggSup, pSeKeyBuf + i, &winInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (!IS_VALID_SESSION_WIN(winInfo)) {
+      continue;
+    }
+
+    int32_t winNum = 0;
+    bool    isEnd = false;
+    code = compactSessionWindow(pOperator, &winInfo, pInfo->pStUpdated, pInfo->basic.pSeDeleted, true, &winNum, &isEnd);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    if (winNum > 0) {
+      if (isEnd) {
+        code = saveDeleteRes(pInfo->basic.pSeDeleted, winInfo.sessionWin);
+        QUERY_CHECK_CODE(code, lino, _end);
+        qDebug("===stream=== reload state. save delete result %" PRId64 ", %" PRIu64, winInfo.sessionWin.win.skey,
+               winInfo.sessionWin.groupId);
+      } else {
+        void* pResPtr = taosArrayPush(pInfo->pUpdated, &winInfo.pStatePos);
+        QUERY_CHECK_NULL(pResPtr, code, lino, _end, terrno);
+        reuseOutputBuf(pAggSup->pState, winInfo.pStatePos, &pAggSup->stateStore);
+        qDebug("===stream=== reload state. save result %" PRId64 ", %" PRIu64, winInfo.sessionWin.win.skey,
+               winInfo.sessionWin.groupId);
+      }
+    }
+    code = saveSessionOutputBuf(pAggSup, &winInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  taosMemoryFree(pBuf);
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   if (downstream->fpSet.reloadStreamStateFn) {
@@ -159,16 +191,14 @@ int32_t getSessionHistoryRemainResultInfo(SStreamAggSupporter* pAggSup, int32_t 
 
   int32_t num = capacity - taosArrayGetSize(pUpdated);
   for (int32_t i = 0; i < num; i++) {
-    // todo(liuyao) add
-    // winCode = pAggSup->stateStore.streamStateNLastStateGetKVByCur(pAggSup->pCur, numOfState, pUpdated);
+    winCode = pAggSup->stateStore.streamStateNLastSessionStateGetKVByCur(pAggSup->pCur, numOfState, pUpdated);
     if (winCode == TSDB_CODE_FAILED) {
       pAggSup->stateStore.streamStateFreeCur(pAggSup->pCur);
       pAggSup->pCur = NULL;
       break;
     }
 
-    // todo(liuyao) add
-    // pAggSup->stateStore.streamStateLastStateCurNext(pAggSup->pCur);
+    pAggSup->stateStore.streamStateLastSessionStateCurNext(pAggSup->pCur);
     num = capacity - taosArrayGetSize(pUpdated);
   }
 
@@ -259,7 +289,8 @@ static int32_t buildOtherResult(SOperatorInfo* pOperator, SOptrBasicInfo* pBinfo
   }
 
   if (!isHistoryOperator(pBasic) || !isFinalOperator(pBasic)) {
-    pAggSup->stateStore.streamStateClearExpiredSessionState(pAggSup->pState, pNbSup->numOfKeep, pNbSup->tsOfKeep, pNbSup->pHistoryGroup);
+    pAggSup->stateStore.streamStateClearExpiredSessionState(pAggSup->pState, pNbSup->numOfKeep, pNbSup->tsOfKeep,
+                                                            pNbSup->pHistoryGroup);
   }
   pTwAggSup->minTs = INT64_MAX;
   setStreamOperatorCompleted(pOperator);
@@ -323,7 +354,7 @@ int32_t buildNonBlockSessionResult(SOperatorInfo* pOperator, SStreamAggSupporter
 int32_t doStreamSessionNonblockAggNextImpl(SOperatorInfo* pOperator, SOptrBasicInfo* pBInfo, SSteamOpBasicInfo* pBasic,
                                            SStreamAggSupporter* pAggSup, STimeWindowAggSupp* pTwAggSup,
                                            SGroupResInfo* pGroupResInfo, SNonBlockAggSupporter* pNbSup,
-                                           SExprSupp* pScalarSupp, SSDataBlock** ppRes) {
+                                           SExprSupp* pScalarSupp, SArray* pHistoryWins, SSDataBlock** ppRes) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
@@ -344,7 +375,8 @@ int32_t doStreamSessionNonblockAggNextImpl(SOperatorInfo* pOperator, SOptrBasicI
   }
 
   if (isHistoryOperator(pBasic) && !isFinalOperator(pBasic)) {
-    pAggSup->stateStore.streamStateClearExpiredSessionState(pAggSup->pState, pNbSup->numOfKeep, pNbSup->tsOfKeep, pNbSup->pHistoryGroup);
+    pAggSup->stateStore.streamStateClearExpiredSessionState(pAggSup->pState, pNbSup->numOfKeep, pNbSup->tsOfKeep,
+                                                            pNbSup->pHistoryGroup);
   }
 
   if (pOperator->status == OP_RES_TO_RETURN) {
@@ -440,7 +472,7 @@ int32_t doStreamSessionNonblockAggNextImpl(SOperatorInfo* pOperator, SOptrBasicI
 
     if (isSingleOperator(pBasic)) {
       if (pAggSup->pCur == NULL) {
-        pAggSup->pCur = pAggSup->stateStore.streamStateGetLastStateCur(pAggSup->pState);
+        pAggSup->pCur = pAggSup->stateStore.streamStateGetLastSessionStateCur(pAggSup->pState);
       }
       code = getSessionHistoryRemainResultInfo(pAggSup, pNbSup->numOfKeep, pBasic->pUpdated,
                                                pOperator->resultInfo.capacity);
@@ -459,6 +491,11 @@ int32_t doStreamSessionNonblockAggNextImpl(SOperatorInfo* pOperator, SOptrBasicI
   }
   if (pNbSup->numOfKeep > 0 && !pBasic->destHasPrimaryKey) {
     removeSessionDeleteResults(pBasic->pSeDeleted, pBasic->pUpdated);
+  }
+
+  if (isHistoryOperator(pBasic)) {
+    code = getMaxTsWins(pBasic->pUpdated, pHistoryWins);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   initMultiResInfoFromArrayList(pGroupResInfo, pBasic->pUpdated);
@@ -488,7 +525,7 @@ int32_t doStreamSessionNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock* pB
   SStreamSessionAggOperatorInfo* pInfo = (SStreamSessionAggOperatorInfo*)pOperator->info;
   return doStreamSessionNonblockAggNextImpl(pOperator, &pInfo->binfo, &pInfo->basic, &pInfo->streamAggSup,
                                             &pInfo->twAggSup, &pInfo->groupResInfo, &pInfo->nbSup, &pInfo->scalarSupp,
-                                            &pBlock);
+                                            pInfo->historyWins, &pBlock);
 }
 
 int32_t doStreamSemiSessionNonblockAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {

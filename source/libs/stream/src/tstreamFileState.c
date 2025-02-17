@@ -1817,12 +1817,12 @@ _end:
   return code;
 }
 
-SStreamStateCur* getLastStateCur(SStreamFileState* pFileState) {
+SStreamStateCur* getLastStateCur(SStreamFileState* pFileState, getStateBuffFn fn) {
   SStreamStateCur* pCur = createStateCursor(pFileState);
   if (pCur == NULL) {
     return NULL;
   }
-  SSHashObj* pSearchBuff = pFileState->searchBuff;
+  SSHashObj* pSearchBuff = fn(pFileState);
   pCur->buffIndex = 0;
   pCur->hashIter = 0;
   pCur->pHashData = NULL;
@@ -1830,39 +1830,9 @@ SStreamStateCur* getLastStateCur(SStreamFileState* pFileState) {
   return pCur;
 }
 
-void moveLastStateCurNext(SStreamStateCur* pCur) {
-  SSHashObj* pSearchBuff = ((SStreamFileState*)(pCur->pStreamFileState))->searchBuff;
+void moveLastStateCurNext(SStreamStateCur* pCur, getStateBuffFn fn) {
+  SSHashObj* pSearchBuff = fn(pCur->pStreamFileState);
   pCur->pHashData = tSimpleHashIterate(pSearchBuff, pCur->pHashData, &pCur->hashIter);
-}
-
-void moveOneStateCurNext(SStreamStateCur* pCur) {
-  SSHashObj* pSearchBuff = ((SStreamFileState*)(pCur->pStreamFileState))->searchBuff;
-  SArray*  pWinStates = *((void**)pCur->pHashData);
-  if (pCur->buffIndex + 1 < taosArrayGetSize(pWinStates)) {
-    pCur->buffIndex++;
-    return;
-  }
-  pCur->pHashData = tSimpleHashIterate(pSearchBuff, pCur->pHashData, &pCur->hashIter);
-  pCur->buffIndex = 0;
-}
-
-int32_t getLastStateKVByCur(SStreamStateCur* pCur, void** ppVal) {
-  if (pCur->pHashData == NULL) {
-    return TSDB_CODE_FAILED;
-  }
-  SArray*  pWinStates = *((void**)pCur->pHashData);
-  if (taosArrayGetSize(pWinStates) == 0) {
-    return TSDB_CODE_FAILED;
-  }
-  SWinKey* pKey = taosArrayGetLast(pWinStates);
-  int32_t  len = 0;
-  int32_t  winCode = TSDB_CODE_SUCCESS;
-  int32_t  code = addRowBuffIfNotExist(pCur->pStreamFileState, (void*)pKey, sizeof(SWinKey), ppVal, &len, &winCode);
-  if (winCode != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since window not exist. ts:%" PRId64 ",groupId:%" PRIu64, __func__, __LINE__, pKey->ts,
-           pKey->groupId);
-  }
-  return code;
 }
 
 int32_t getNLastStateKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes) {

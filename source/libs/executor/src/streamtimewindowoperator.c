@@ -2569,8 +2569,8 @@ _end:
   return code;
 }
 
-static int32_t compactSessionWindow(SOperatorInfo* pOperator, SResultWindowInfo* pCurWin, SSHashObj* pStUpdated,
-                                    SSHashObj* pStDeleted, bool addGap, int32_t* pWinNum) {
+int32_t compactSessionWindow(SOperatorInfo* pOperator, SResultWindowInfo* pCurWin, SSHashObj* pStUpdated,
+                             SSHashObj* pStDeleted, bool addGap, int32_t* pWinNum, bool* pIsEnd) {
   int32_t                        code = TSDB_CODE_SUCCESS;
   int32_t                        lino = 0;
   SExprSupp*                     pSup = &pOperator->exprSupp;
@@ -2582,11 +2582,21 @@ static int32_t compactSessionWindow(SOperatorInfo* pOperator, SResultWindowInfo*
   int32_t                        numOfOutput = pOperator->exprSupp.numOfExprs;
   SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
 
+  if (pIsEnd != NULL) {
+    (*pIsEnd) = false;
+  }
   // Just look for the window behind StartIndex
   while (1) {
     SResultWindowInfo winInfo = {0};
     getNextSessionWinInfo(pAggSup, pStUpdated, pCurWin, &winInfo);
-    if (!IS_VALID_SESSION_WIN(winInfo) || !isInWindow(pCurWin, winInfo.sessionWin.win.skey, pAggSup->gap) ||
+    if (!IS_VALID_SESSION_WIN(winInfo)) {
+      if (pIsEnd != NULL) {
+        (*pIsEnd) = true;
+      }
+      releaseOutputBuf(pAggSup->pState, winInfo.pStatePos, &pAggSup->pSessionAPI->stateStore);
+      break;
+    }
+    if (!isInWindow(pCurWin, winInfo.sessionWin.win.skey, pAggSup->gap) ||
         !inWinRange(&pAggSup->winRange, &winInfo.sessionWin.win)) {
       releaseOutputBuf(pAggSup->pState, winInfo.pStatePos, &pAggSup->pSessionAPI->stateStore);
       break;
@@ -2708,7 +2718,7 @@ static void doStreamSessionAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSData
                               pOperator, winDelta);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    code = compactSessionWindow(pOperator, &winInfo, pStUpdated, pStDeleted, addGap, NULL);
+    code = compactSessionWindow(pOperator, &winInfo, pStUpdated, pStDeleted, addGap, NULL, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     code = saveSessionOutputBuf(pAggSup, &winInfo);
@@ -2927,7 +2937,7 @@ static int32_t rebuildSessionWindow(SOperatorInfo* pOperator, SArray* pWinArray,
                                   &pInfo->twAggSup.timeWindowData);
           QUERY_CHECK_CODE(code, lino, _end);
 
-          code = compactSessionWindow(pOperator, &parentWin, pStUpdated, NULL, true, NULL);
+          code = compactSessionWindow(pOperator, &parentWin, pStUpdated, NULL, true, NULL, NULL);
           QUERY_CHECK_CODE(code, lino, _end);
 
           releaseOutputBuf(pAggSup->pState, childWin.pStatePos, &pAggSup->stateStore);
@@ -3766,7 +3776,7 @@ void streamSessionReloadState(SOperatorInfo* pOperator) {
     }
 
     int32_t winNum = 0;
-    code = compactSessionWindow(pOperator, &winInfo, pInfo->pStUpdated, pInfo->pStDeleted, true, &winNum);
+    code = compactSessionWindow(pOperator, &winInfo, pInfo->pStUpdated, pInfo->pStDeleted, true, &winNum, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (winNum > 0) {

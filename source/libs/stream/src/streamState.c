@@ -758,16 +758,20 @@ void streamStateDestroyTsDataState(STableTsDataState* pTsDataState) { destroyTsD
 
 int32_t streamStateRecoverTsData(STableTsDataState* pTsDataState) { return recoverTsData(pTsDataState); }
 
-SStreamStateCur* streamStateGetLastStateCur(SStreamState* pState) { return getLastStateCur(pState->pFileState); }
+SStreamStateCur* streamStateGetLastStateCur(SStreamState* pState) { return getLastStateCur(pState->pFileState, getSearchBuff); }
 
-void streamStateLastStateCurNext(SStreamStateCur* pCur) { moveLastStateCurNext(pCur); }
-
-void streamStateOneStateCurNext(SStreamStateCur* pCur) { moveOneStateCurNext(pCur); }
-
-int32_t streamStateLastStateGetKVByCur(SStreamStateCur* pCur, void** ppVal) { return getLastStateKVByCur(pCur, ppVal); }
+void streamStateLastStateCurNext(SStreamStateCur* pCur) { moveLastStateCurNext(pCur, getSearchBuff); }
 
 int32_t streamStateNLastStateGetKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes) {
   return getNLastStateKVByCur(pCur, num, pRes);
+}
+
+SStreamStateCur* streamStateGetLastSessionStateCur(SStreamState* pState) { return getLastStateCur(pState->pFileState, getRowStateBuff); }
+
+void streamStateLastSessionStateCurNext(SStreamStateCur* pCur) { moveLastStateCurNext(pCur, getRowStateBuff); }
+
+int32_t streamStateNLastSessionStateGetKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes) {
+  return getNLastSessionStateKVByCur(pCur, num, pRes);
 }
 
 int32_t streamStateReloadTsDataState(STableTsDataState* pTsDataState) { return reloadTsDataState(pTsDataState); }

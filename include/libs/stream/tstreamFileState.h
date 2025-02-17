@@ -171,11 +171,12 @@ int32_t mergeAllScanRange(STableTsDataState* pTsDataState);
 int32_t popScanRange(STableTsDataState* pTsDataState, SScanRange* pRange);
 
 // continuous
-SStreamStateCur* getLastStateCur(SStreamFileState* pFileState);
-void             moveLastStateCurNext(SStreamStateCur* pCur);
+typedef void* (*getStateBuffFn)(SStreamFileState* pFileState);
+SStreamStateCur* getLastStateCur(SStreamFileState* pFileState, getStateBuffFn fn);
+void             moveLastStateCurNext(SStreamStateCur* pCur, getStateBuffFn fn);
 void             moveOneStateCurNext(SStreamStateCur* pCur);
-int32_t          getLastStateKVByCur(SStreamStateCur* pCur, void** ppVal);
 int32_t          getNLastStateKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes);
+int32_t          getNLastSessionStateKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes);
 int32_t          reloadTsDataState(STableTsDataState* pTsDataState);
 int32_t          setStateRecFlag(SStreamFileState* pState, const void* pKey, int32_t keyLen, int32_t mode);
 int32_t          getStateRecFlag(SStreamFileState* pFileState, const void* pKey, int32_t keyLen, int32_t* pMode);

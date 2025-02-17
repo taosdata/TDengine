@@ -1129,7 +1129,7 @@ static int32_t buildStreamRecalculateBlock(SOperatorInfo* pOperator, SSDataBlock
   if (pInfo->basic.pTsDataState->curRecId == -1) {
     int32_t recId = 0;
     code = getRecalculateId(&pInfo->stateStore, pInfo->basic.pTsDataState->pStreamTaskState, &recId);
-     QUERY_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     qDebug("===stream===do recalculate.recId:%d", recId);
     pInfo->basic.pTsDataState->curRecId = recId;
@@ -1185,8 +1185,8 @@ static int32_t doStreamRecalculateDataScan(SOperatorInfo* pOperator, SSDataBlock
   if (pInfo->basic.pTsDataState->curRecId == -1) {
     int32_t recId = 0;
     code = getRecalculateId(&pInfo->stateStore, pInfo->basic.pTsDataState->pStreamTaskState, &recId);
-    qDebug("===stream===do recalculate.recId:%d", recId);
     QUERY_CHECK_CODE(code, lino, _end);
+    qDebug("===stream===do recalculate.recId:%d", recId);
     pInfo->stateStore.streamStateSetNumber(pInfo->basic.pTsDataState->pStreamTaskState, recId, pInfo->primaryTsIndex);
     code = generateDataScanRange(pInfo, GET_TASKID(pTaskInfo));
     QUERY_CHECK_CODE(code, lino, _end);

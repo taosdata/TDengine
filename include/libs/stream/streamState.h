@@ -150,9 +150,10 @@ int32_t streamStatePopScanRange(STableTsDataState* pTsDataState, SScanRange* pRa
 // continuous
 SStreamStateCur* streamStateGetLastStateCur(SStreamState* pState);
 void             streamStateLastStateCurNext(SStreamStateCur* pCur);
-void             streamStateOneStateCurNext(SStreamStateCur* pCur);
-int32_t          streamStateLastStateGetKVByCur(SStreamStateCur* pCur, void** ppVal);
 int32_t          streamStateNLastStateGetKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes);
+SStreamStateCur* streamStateGetLastSessionStateCur(SStreamState* pState);
+void             streamStateLastSessionStateCurNext(SStreamStateCur* pCur);
+int32_t          streamStateNLastSessionStateGetKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes);
 
 void streamStateReloadInfo(SStreamState* pState, TSKEY ts);
 
