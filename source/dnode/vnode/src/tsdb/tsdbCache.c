@@ -2031,9 +2031,11 @@ _exit:
   taosMemoryFree(keys_list);
   taosMemoryFree(keys_list_sizes);
   if (values_list) {
+  #ifdef USE_ROCKSDB
     for (int i = 0; i < num_keys; ++i) {
       rocksdb_free(values_list[i]);
     }
+  #endif
     taosMemoryFree(values_list);
   }
   taosMemoryFree(values_list_sizes);
@@ -4109,6 +4111,7 @@ int32_t tsdbCacheGetElems(SVnode *pVnode) {
   return elems;
 }
 
+#ifdef USE_S3
 // block cache
 static void getBCacheKey(int32_t fid, int64_t commitID, int64_t blkno, char *key, int *len) {
   struct {
@@ -4228,3 +4231,4 @@ void tsdbCacheSetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *
 
   tsdbCacheRelease(pFD->pTsdb->pgCache, handle);
 }
+#endif

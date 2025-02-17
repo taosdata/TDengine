@@ -518,7 +518,7 @@ _exit:
   return TSDB_CODE_INTERNAL_ERROR;
 #endif
 }
-#endif
+
 int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint,
                      int32_t encryptAlgorithm, char *encryptKey) {
   int32_t code = 0;

@@ -116,6 +116,16 @@ char *stpncpy(char *dest, const char *src, int n) {
   if (size == n) return dest;
   return memset(dest, '\0', n - size);
 }
+char *taosStrndupi(const char *s, int64_t size) {
+  if (s == NULL) {
+    return NULL;
+  }
+  char *p = strndup(s, size);
+  if (NULL == p) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return p;
+}
 #else
 char *taosStrndupi(const char *s, int64_t size) {
   if (s == NULL) {
