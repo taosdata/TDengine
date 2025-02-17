@@ -78,11 +78,6 @@ void taos_block_sigalrm(void) {
 #include <sys/syscall.h>
 #include <unistd.h>
 
-static void taosDeleteTimer(void *tharg) {
-  timer_t *pTimer = tharg;
-  TAOS_SKIP_ERROR(timer_delete(*pTimer));
-}
-
 static TdThread      timerThread;
 static timer_t       timerId;
 static volatile bool stopTimer = false;
@@ -110,11 +105,9 @@ static void *taosProcessAlarmSignal(void *tharg) {
   sevent.sigev_signo = SIGALRM;
 
   if (timer_create(CLOCK_REALTIME, &sevent, &timerId) == -1) {
-     terrno = TAOS_SYSTEM_ERROR(errno);
-     return NULL;
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return NULL;
   }
-
-  taosThreadCleanupPush(taosDeleteTimer, &timerId);
 
   do {
     struct itimerspec ts;
@@ -128,7 +121,7 @@ static void *taosProcessAlarmSignal(void *tharg) {
       break;
     }
 
-    int signo;
+    int     signo;
     int32_t code = 0;
     while (!stopTimer) {
       code = sigwait(&sigset, &signo);
@@ -141,7 +134,7 @@ static void *taosProcessAlarmSignal(void *tharg) {
     }
   } while (0);
 
-  taosThreadCleanupPop(1);
+  timer_delete(timerId);
 
   return NULL;
 }
