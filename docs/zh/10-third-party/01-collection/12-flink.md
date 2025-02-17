@@ -85,7 +85,8 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Flink RowD
 | SMALLINT          | Short         |
 | TINYINT           | Byte          |
 | BOOL              | Boolean       |
-| BINARY            | byte[]        |
+| VARCHAR           | StringData    |
+| BINARY            | StringData    |
 | NCHAR             | StringData    |
 | JSON              | StringData    |
 | VARBINARY         | byte[]        |

@@ -87,7 +87,8 @@ TDengine currently supports timestamp, number, character, and boolean types, and
 | SMALLINT          | Short         |
 | TINYINT           | Byte          |
 | BOOL              | Boolean       |
-| BINARY            | byte[]        |
+| VARCHAR           | StringData    |
+| BINARY            | StringData    |
 | NCHAR             | StringData    |
 | JSON              | StringData    |
 | VARBINARY         | byte[]        |
