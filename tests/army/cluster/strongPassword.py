@@ -40,13 +40,13 @@ class TDTestCase(TBase):
 
         tdSql.error("CREATE USER `_xTest2` PASS '2729c41a99b2c5222aa7dd9fc1ce3de7' SYSINFO 1 CREATEDB 0 IS_IMPORT 0 HOST '127.0.0.1';", expectErrInfo="Invalid password")
 
-        tdSql.error("CREATE USER `_xTest3` PASS '2729c41' SYSINFO 1 CREATEDB 0 IS_IMPORT 1 HOST '127.0.0.1';", expectErrInfo="Invalid password")
+        tdSql.error("CREATE USER `_xTest3` PASS '2729c41' SYSINFO 1 CREATEDB 0 IS_IMPORT 1 HOST '127.0.0.1';", expectErrInfo="Password too short or empty")
 
         tdSql.error("CREATE USER `_xTest4` PASS '2729c417' SYSINFO 1 CREATEDB 0 IS_IMPORT 0 HOST '127.0.0.1';", expectErrInfo="Invalid password")
 
-        tdSql.error("CREATE USER `_xTest5` PASS '2xF' SYSINFO 1 CREATEDB 0 IS_IMPORT 1 HOST '127.0.0.1';", expectErrInfo="Invalid password")
+        tdSql.error("CREATE USER `_xTest5` PASS '2xF' SYSINFO 1 CREATEDB 0 IS_IMPORT 1 HOST '127.0.0.1';", expectErrInfo="Password too short or empty")
 
-        tdSql.error("CREATE USER `_xTest6` PASS '2xF' SYSINFO 1 CREATEDB 0 IS_IMPORT 0 HOST '127.0.0.1';", expectErrInfo="Invalid password")
+        tdSql.error("CREATE USER `_xTest6` PASS '2xF' SYSINFO 1 CREATEDB 0 IS_IMPORT 0 HOST '127.0.0.1';", expectErrInfo="Password too short or empty")
 
         # change setting
         tdSql.execute("ALTER ALL DNODES 'enableStrongPassword' '0'")
