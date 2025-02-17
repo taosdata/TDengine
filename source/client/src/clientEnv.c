@@ -38,13 +38,7 @@
 #include "tversion.h"
 #include "tconv.h"
 
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
-#endif
-
-#ifndef CUS_PROMPT
-#define CUS_PROMPT "taos"
-#endif
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0

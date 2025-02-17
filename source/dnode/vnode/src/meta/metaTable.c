@@ -261,20 +261,6 @@ _exception:
   return code;
 }
 
-void metaTimeSeriesNotifyCheck(SMeta *pMeta) {
-#if defined(TD_ENTERPRISE)
-  int64_t nTimeSeries = metaGetTimeSeriesNum(pMeta, 0);
-  int64_t deltaTS = nTimeSeries - pMeta->pVnode->config.vndStats.numOfReportedTimeSeries;
-  if (deltaTS > tsTimeSeriesThreshold) {
-    if (0 == atomic_val_compare_exchange_8(&dmNotifyHdl.state, 1, 2)) {
-      if (tsem_post(&dmNotifyHdl.sem) != 0) {
-        metaError("vgId:%d, failed to post semaphore, errno:%d", TD_VID(pMeta->pVnode), errno);
-      }
-    }
-  }
-#endif
-}
-
 static int32_t metaDropTables(SMeta *pMeta, SArray *tbUids) {
   int32_t code = 0;
   if (taosArrayGetSize(tbUids) == 0) return TSDB_CODE_SUCCESS;

@@ -69,6 +69,8 @@ TDengine 是一款开源、高性能、云原生的时序数据库 (Time-Series 
 
 TDengine 目前可以在 Linux、 Windows、macOS 等平台上安装和运行。任何 OS 的应用也可以选择 taosAdapter 的 RESTful 接口连接服务端 taosd。CPU 支持 X64/ARM64，后续会支持 MIPS64、Alpha64、ARM32、RISC-V 等 CPU 架构。目前不支持使用交叉编译器构建。
 
+如果你想要编译 taosAdapter 或者 taosKeeper，需要安装 Go 1.18 及以上版本。
+
 ## 3.1 Linux系统
 
 <details>
@@ -153,6 +155,10 @@ cmake .. -DBUILD_TOOLS=true -DBUILD_CONTRIB=true
 make
 ```
 
+如果你想要编译 taosAdapter，需要添加 `-DBUILD_HTTP=false` 选项。
+
+如果你想要编译 taosKeeper，需要添加 `--DBUILD_KEEPER=true` 选项。
+
 可以使用Jemalloc作为内存分配器，而不是使用glibc:
 
 ```bash
@@ -179,6 +185,10 @@ cmake .. -DCPUTYPE=aarch64 && cmake --build .
 mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
+
+如果你想要编译 taosAdapter，需要添加 `-DBUILD_HTTP=false` 选项。
+
+如果你想要编译 taosKeeper，需要添加 `--DBUILD_KEEPER=true` 选项。
 
 </details>
 
