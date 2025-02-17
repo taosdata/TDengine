@@ -2313,16 +2313,16 @@ static int32_t comparePkDataWithSValue(int8_t pkType, char* pkData, SValue* pVal
   char numVal[8] = {0};
   switch (pkType) {
     case TSDB_DATA_TYPE_INT:
-      *(int32_t*)numVal = (int32_t)pVal->val;
+      *(int32_t*)numVal = (int32_t)VALUE_GET_TRIVIAL_DATUM(pVal);
       break;
     case TSDB_DATA_TYPE_UINT:
-      *(uint32_t*)numVal = (uint32_t)pVal->val;
+      *(uint32_t*)numVal = (uint32_t)VALUE_GET_TRIVIAL_DATUM(pVal);
       break;
     case TSDB_DATA_TYPE_BIGINT:
-      *(int64_t*)numVal = (int64_t)pVal->val;
+      *(int64_t*)numVal = (int64_t)VALUE_GET_TRIVIAL_DATUM(pVal);
       break;
     case TSDB_DATA_TYPE_UBIGINT:
-      *(uint64_t*)numVal = (uint64_t)pVal->val;
+      *(uint64_t*)numVal = (uint64_t)VALUE_GET_TRIVIAL_DATUM(pVal);
       break;
     default:
       break;
