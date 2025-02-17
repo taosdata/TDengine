@@ -1105,7 +1105,7 @@ static bool isForecastPseudoColumnFunc(const SNode* pNode) {
 }
 
 static bool isColsFunctionResult(const SNode* pNode) {
-  return ((nodesIsExprNode(pNode)) && ((SExprNode*)pNode)->relatedTo > 0);
+  return ((nodesIsExprNode(pNode)) && (isRelatedToOtherExpr((SExprNode*)pNode)));
 }
 
 static bool isInvalidColsBindFunction(const SFunctionNode* pFunc) {
@@ -3582,6 +3582,14 @@ static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode
   tstrncpy(pFunc->functionName, "_select_value", TSDB_FUNC_NAME_LEN);
   tstrncpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName, TSDB_COL_NAME_LEN);
   tstrncpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias, TSDB_COL_NAME_LEN);
+  if (isRelatedToOtherExpr((SExprNode*)*pNode)) {
+    int len = strlen(((SExprNode*)*pNode)->aliasName);
+    if (len + TSDB_COL_NAME_EXLEN >= TSDB_COL_NAME_LEN) {
+      parserError("%s The alias name is too long, the extra part will be truncated", __func__);
+      return DEAL_RES_ERROR;
+    }
+    tsnprintf(pFunc->node.aliasName + len, TSDB_COL_NAME_EXLEN, ".%d", ((SExprNode*)*pNode)->relatedTo);
+  }
   pFunc->node.relatedTo = ((SExprNode*)*pNode)->relatedTo;
   pFunc->node.bindExprID = ((SExprNode*)*pNode)->bindExprID;
   pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
@@ -7400,13 +7408,6 @@ static EDealRes pushDownBindSelectFunc(SNode** pNode, void* pContext) {
   SBindTupleFuncCxt* pCxt = pContext;
   if (nodesIsExprNode(*pNode)) {
     ((SExprNode*)*pNode)->relatedTo = pCxt->bindExprID;
-    int32_t len = strlen(((SExprNode*)*pNode)->aliasName);
-    if (len + TSDB_COL_NAME_EXLEN >= TSDB_COL_NAME_LEN) {
-      parserError("%s The alias name is too long, the extra part will be truncated", __func__);
-      return DEAL_RES_ERROR;
-    } else {
-      tsnprintf(((SExprNode*)*pNode)->aliasName + len, TSDB_COL_NAME_EXLEN, ".%d", pCxt->bindExprID);
-    }
     SFunctionNode* pFunc = (SFunctionNode*)*pNode;
   }
   return DEAL_RES_CONTINUE;
