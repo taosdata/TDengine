@@ -71,6 +71,7 @@ int32_t streamStateSessionAllocWinBuffByNextPosition(SStreamState* pState, SStre
 int32_t streamStateSessionSaveToDisk(SStreamState* pState, SSessionKey* pKey, SRecDataInfo* pVal, int32_t vLen);
 int32_t streamStateSessionDeleteAll(SStreamState* pState);
 
+SStreamStateCur *streamStateSessionSeekKeyPrev(SStreamState *pState, const SSessionKey *key);
 SStreamStateCur* streamStateSessionSeekKeyNext(SStreamState* pState, const SSessionKey* key);
 SStreamStateCur* streamStateCountSeekKeyPrev(SStreamState* pState, const SSessionKey* pKey, COUNT_TYPE count);
 SStreamStateCur* streamStateSessionSeekKeyCurrentPrev(SStreamState* pState, const SSessionKey* key);
@@ -115,8 +116,9 @@ int32_t streamStateGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void**
 
 // twa
 void    streamStateClearExpiredState(SStreamState* pState, int32_t numOfKeep, TSKEY minTs);
-int32_t streamStateSetRecFlag(SStreamState* pState, const SWinKey* pKey, int32_t mode);
-int32_t streamStateGetRecFlag(SStreamState* pState, const SWinKey* pKey, int32_t* pMode);
+void    streamStateClearExpiredSessionState(SStreamState* pState, int32_t numOfKeep, TSKEY minTs, SSHashObj* pFlushGroup);
+int32_t streamStateSetRecFlag(SStreamState* pState, const void* pKey, int32_t keyLen, int32_t mode);
+int32_t streamStateGetRecFlag(SStreamState* pState, const void* pKey, int32_t keyLen, int32_t* pMode);
 
 void streamStateCurNext(SStreamState* pState, SStreamStateCur* pCur);
 void streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur);
@@ -136,7 +138,7 @@ int32_t          streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey
 int32_t streamStateGetAndSetTsData(STableTsDataState* pState, uint64_t tableUid, TSKEY* pCurTs, void** ppCurPkVal,
                                    TSKEY lastTs, void* pLastPkVal, int32_t lastPkLen, int32_t* pWinCode);
 int32_t streamStateTsDataCommit(STableTsDataState* pState);
-int32_t streamStateInitTsDataState(STableTsDataState** ppTsDataState, int8_t pkType, int32_t pkLen, void* pState);
+int32_t streamStateInitTsDataState(STableTsDataState** ppTsDataState, int8_t pkType, int32_t pkLen, void* pState, void* pOtherState);
 void    streamStateDestroyTsDataState(STableTsDataState* pTsDataState);
 int32_t streamStateRecoverTsData(STableTsDataState* pTsDataState);
 int32_t streamStateReloadTsDataState(STableTsDataState* pTsDataState);

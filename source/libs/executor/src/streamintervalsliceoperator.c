@@ -572,7 +572,11 @@ static bool windowinterpNeeded(SqlFunctionCtx* pCtx, int32_t numOfCols) {
 int32_t initNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup, SInterval* pInterval) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  pNbSup->numOfKeep = ceil(((double)pInterval->interval) / pInterval->sliding);
+  if (pInterval != NULL) {
+    pNbSup->numOfKeep = ceil(((double)pInterval->interval) / pInterval->sliding);
+  } else {
+    pNbSup->numOfKeep = 1;
+  }
   pNbSup->tsOfKeep = INT64_MAX;
   pNbSup->pullIndex = 0;
   pNbSup->pPullWins = taosArrayInit(8, sizeof(SPullWindowInfo));

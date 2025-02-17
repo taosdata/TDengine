@@ -199,6 +199,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateGetKVByCur = streamStateGetKVByCur;
 
   pStore->streamStateClearExpiredState = streamStateClearExpiredState;
+  pStore->streamStateClearExpiredSessionState = streamStateClearExpiredSessionState;
   pStore->streamStateSetRecFlag = streamStateSetRecFlag;
   pStore->streamStateGetRecFlag = streamStateGetRecFlag;
 
@@ -234,6 +235,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->updateInfoSerialize = updateInfoSerialize;
   pStore->updateInfoDeserialize = updateInfoDeserialize;
 
+  pStore->streamStateSessionSeekKeyPrev = streamStateSessionSeekKeyPrev;
   pStore->streamStateSessionSeekKeyNext = streamStateSessionSeekKeyNext;
   pStore->streamStateCountSeekKeyPrev = streamStateCountSeekKeyPrev;
   pStore->streamStateSessionSeekKeyCurrentPrev = streamStateSessionSeekKeyCurrentPrev;

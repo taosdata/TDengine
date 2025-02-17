@@ -2304,24 +2304,23 @@ bool inWinRange(STimeWindow* range, STimeWindow* cur) {
 void clearOutputBuf(void* pState, SRowBuffPos* pPos, SStateStore* pAPI) { pAPI->streamStateClearBuff(pState, pPos); }
 
 int32_t setSessionOutputBuf(SStreamAggSupporter* pAggSup, TSKEY startTs, TSKEY endTs, uint64_t groupId,
-                            SResultWindowInfo* pCurWin) {
+                            SResultWindowInfo* pCurWin, int32_t* pWinCode) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   pCurWin->sessionWin.groupId = groupId;
   pCurWin->sessionWin.win.skey = startTs;
   pCurWin->sessionWin.win.ekey = endTs;
   int32_t size = pAggSup->resultRowSize;
-  int32_t winCode = TSDB_CODE_SUCCESS;
   code = pAggSup->stateStore.streamStateSessionAddIfNotExist(pAggSup->pState, &pCurWin->sessionWin, pAggSup->gap,
-                                                             (void**)&pCurWin->pStatePos, &size, &winCode);
+                                                             (void**)&pCurWin->pStatePos, &size, pWinCode);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  if (winCode == TSDB_CODE_SUCCESS && !inWinRange(&pAggSup->winRange, &pCurWin->sessionWin.win)) {
-    winCode = TSDB_CODE_FAILED;
+  if (*pWinCode == TSDB_CODE_SUCCESS && !inWinRange(&pAggSup->winRange, &pCurWin->sessionWin.win)) {
+    *pWinCode = TSDB_CODE_FAILED;
     clearOutputBuf(pAggSup->pState, pCurWin->pStatePos, &pAggSup->pSessionAPI->stateStore);
   }
 
-  if (winCode == TSDB_CODE_SUCCESS) {
+  if (*pWinCode == TSDB_CODE_SUCCESS) {
     pCurWin->isOutput = true;
     if (pCurWin->pStatePos->needFree) {
       pAggSup->stateStore.streamStateSessionDel(pAggSup->pState, &pCurWin->sessionWin);
@@ -2332,7 +2331,6 @@ int32_t setSessionOutputBuf(SStreamAggSupporter* pAggSup, TSKEY startTs, TSKEY e
   }
   qDebug("===stream===set session window buff .start:%" PRId64 ",end:%" PRId64 ",groupid:%" PRIu64,
          pCurWin->sessionWin.win.skey, pCurWin->sessionWin.win.ekey, pCurWin->sessionWin.groupId);
-
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -2447,7 +2445,9 @@ int32_t updateSessionWindowInfo(SStreamAggSupporter* pAggSup, SResultWindowInfo*
         code = saveDeleteRes(pStDeleted, pWinInfo->sessionWin);
         QUERY_CHECK_CODE(code, lino, _end);
       }
-      removeSessionResult(pAggSup, pStUpdated, pResultRows, &pWinInfo->sessionWin);
+      if (pStUpdated != NULL) {
+        removeSessionResult(pAggSup, pStUpdated, pResultRows, &pWinInfo->sessionWin);
+      }
       pWinInfo->sessionWin.win.skey = pStartTs[i];
     }
     pWinInfo->sessionWin.win.ekey = TMAX(pWinInfo->sessionWin.win.ekey, pStartTs[i]);
@@ -2687,7 +2687,8 @@ static void doStreamSessionAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSData
       continue;
     }
     SResultWindowInfo winInfo = {0};
-    code = setSessionOutputBuf(pAggSup, startTsCols[i], endTsCols[i], groupId, &winInfo);
+    int32_t           winCode = TSDB_CODE_SUCCESS;
+    code = setSessionOutputBuf(pAggSup, startTsCols[i], endTsCols[i], groupId, &winInfo, &winCode);
     QUERY_CHECK_CODE(code, lino, _end);
 
     // coverity scan error
@@ -2903,7 +2904,8 @@ static int32_t rebuildSessionWindow(SOperatorInfo* pOperator, SArray* pWinArray,
 
         if (winCode == TSDB_CODE_SUCCESS && inWinRange(&pWinKey->win, &childWin.sessionWin.win)) {
           if (num == 0) {
-            code = setSessionOutputBuf(pAggSup, pWinKey->win.skey, pWinKey->win.ekey, pWinKey->groupId, &parentWin);
+            int32_t tmpWinCode = TSDB_CODE_SUCCESS;
+            code = setSessionOutputBuf(pAggSup, pWinKey->win.skey, pWinKey->win.ekey, pWinKey->groupId, &parentWin, &tmpWinCode);
             QUERY_CHECK_CODE(code, lino, _end);
 
             parentWin.sessionWin = childWin.sessionWin;
@@ -3899,6 +3901,7 @@ int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   pInfo->pPkDeleted = tSimpleHashInit(64, hashFn);
   QUERY_CHECK_NULL(pInfo->pPkDeleted, code, lino, _error, terrno);
   pInfo->pOperator = pOperator;
+  initNonBlockAggSupptor(&pInfo->nbSup, NULL);
 
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION;
   setOperatorInfo(pOperator, getStreamOpName(pOperator->operatorType), QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION, true,

@@ -1471,13 +1471,19 @@ _err:
   return NULL;
 }
 
-SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd) {
+SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd, SNode* pInterval) {
   CHECK_PARSER_STATUS(pCxt);
-  if (pEnd && nodeType(pEnd) == QUERY_NODE_VALUE && ((SValueNode*)pEnd)->flag & VALUE_FLAG_IS_DURATION) {
-    return createInterpTimeAround(pCxt, pStart, pEnd);
+  if (NULL == pInterval) {
+    if (pEnd && nodeType(pEnd) == QUERY_NODE_VALUE && ((SValueNode*)pEnd)->flag & VALUE_FLAG_IS_DURATION) {
+      return createInterpTimeAround(pCxt, pStart, NULL, pEnd);
+    }
+    return createBetweenAnd(pCxt, createPrimaryKeyCol(pCxt, NULL), pStart, pEnd);
   }
-  return createBetweenAnd(pCxt, createPrimaryKeyCol(pCxt, NULL), pStart, pEnd);
+
+  return createInterpTimeAround(pCxt, pStart, pEnd, pInterval);
+  
 _err:
+
   nodesDestroyNode(pStart);
   nodesDestroyNode(pEnd);
   return NULL;
@@ -1491,12 +1497,16 @@ _err:
   return NULL;
 }
 
-SNode* createInterpTimeAround(SAstCreateContext* pCxt, SNode* pTimepoint, SNode* pInterval) {
+SNode* createInterpTimeAround(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd, SNode* pInterval) {
   CHECK_PARSER_STATUS(pCxt);
   SRangeAroundNode* pAround = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_RANGE_AROUND, (SNode**)&pAround);
   CHECK_PARSER_STATUS(pCxt);
-  pAround->pTimepoint = createInterpTimePoint(pCxt, pTimepoint);
+  if (NULL == pEnd) {
+    pAround->pRange = createInterpTimePoint(pCxt, pStart);
+  } else {
+    pAround->pRange = createBetweenAnd(pCxt, createPrimaryKeyCol(pCxt, NULL), pStart, pEnd);
+  }
   pAround->pInterval = pInterval;
   CHECK_PARSER_STATUS(pCxt);
   return (SNode*)pAround;
@@ -1668,7 +1678,7 @@ SNode* addRangeClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pRange) {
     if (pRange && nodeType(pRange) == QUERY_NODE_RANGE_AROUND) {
       pSelect->pRangeAround = pRange;
       SRangeAroundNode* pAround = (SRangeAroundNode*)pRange;
-      TSWAP(pSelect->pRange, pAround->pTimepoint);
+      TSWAP(pSelect->pRange, pAround->pRange);
     } else {
       pSelect->pRange = pRange;
     }
@@ -2023,7 +2033,11 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       pDbOptions->s3Compact = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_KEEP_TIME_OFFSET:
-      pDbOptions->keepTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      if (TK_NK_INTEGER == ((SToken*)pVal)->type) {
+        pDbOptions->keepTimeOffset = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      } else {
+        pDbOptions->pKeepTimeOffsetNode = (SValueNode*)createDurationValueNode(pCxt, (SToken*)pVal);
+      }      
       break;
     case DB_OPTION_ENCRYPT_ALGORITHM:
       COPY_STRING_FORM_STR_TOKEN(pDbOptions->encryptAlgorithmStr, (SToken*)pVal);

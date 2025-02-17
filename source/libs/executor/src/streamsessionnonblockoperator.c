@@ -1,0 +1,633 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+#include "executorInt.h"
+#include "filter.h"
+#include "function.h"
+#include "functionMgt.h"
+#include "operator.h"
+#include "querytask.h"
+#include "streamexecutorInt.h"
+#include "streaminterval.h"
+#include "streamsession.h"
+#include "tchecksum.h"
+#include "tcommon.h"
+#include "tcompare.h"
+#include "tdatablock.h"
+#include "tglobal.h"
+#include "tlog.h"
+#include "ttime.h"
+
+#define STREAM_SESSION_NONBLOCK_OP_STATE_NAME "StreamSessionNonblockHistoryState"
+
+void streamSessionNonblockReleaseState(SOperatorInfo* pOperator) {
+  SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
+  SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
+  pAggSup->stateStore.streamStateClearExpiredSessionState(pAggSup->pState, pInfo->nbSup.numOfKeep, pInfo->nbSup.tsOfKeep, NULL);
+  pAggSup->stateStore.streamStateCommit(pAggSup->pState);
+  // todo(liuyao) add
+
+  SOperatorInfo* downstream = pOperator->pDownstream[0];
+  if (downstream->fpSet.releaseStreamStateFn) {
+    downstream->fpSet.releaseStreamStateFn(downstream);
+  }
+  qDebug("%s===stream===streamSessionNonblockReleaseState:%" PRId64, GET_TASKID(pOperator->pTaskInfo),
+         pInfo->twAggSup.maxTs);
+}
+
+void streamSessionNonblockReloadState(SOperatorInfo* pOperator) {
+  int32_t                        code = TSDB_CODE_SUCCESS;
+  int32_t                        lino = 0;
+  SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
+  SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
+  SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
+  int32_t                        size = 0;
+  void*                          pBuf = NULL;
+  code = pAggSup->stateStore.streamStateGetInfo(pAggSup->pState, STREAM_SESSION_NONBLOCK_OP_STATE_NAME,
+                                                strlen(STREAM_SESSION_NONBLOCK_OP_STATE_NAME), &pBuf, &size);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  // todo(liuyao) add
+
+  SOperatorInfo* downstream = pOperator->pDownstream[0];
+  if (downstream->fpSet.reloadStreamStateFn) {
+    downstream->fpSet.reloadStreamStateFn(downstream);
+  }
+  qDebug("%s===stream===streamSessionNonblockReloadState", GET_TASKID(pOperator->pTaskInfo));
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+}
+
+int32_t doStreamSessionNonblockAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+  int32_t                        code = TSDB_CODE_SUCCESS;
+  int32_t                        lino = 0;
+  SStreamSessionAggOperatorInfo* pInfo = (SStreamSessionAggOperatorInfo*)pOperator->info;
+  SResultRowInfo*                pResultRowInfo = &(pInfo->binfo.resultRowInfo);
+  SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
+  SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
+  SResultRow*                    pResult = NULL;
+  int64_t                        groupId = pBlock->info.id.groupId;
+  int64_t                        rows = pBlock->info.rows;
+  int32_t                        winRows = 0;
+  int32_t                        numOfOutput = pOperator->exprSupp.numOfExprs;
+  SColumnInfoData*               pStartTsCol = taosArrayGet(pBlock->pDataBlock, pInfo->primaryTsIndex);
+  TSKEY*                         startTsCols = (int64_t*)pStartTsCol->pData;
+
+  pAggSup->winRange = pTaskInfo->streamInfo.fillHistoryWindow;
+  if (pAggSup->winRange.ekey <= 0) {
+    pAggSup->winRange.ekey = INT64_MAX;
+  }
+
+  if (pAggSup->winRange.skey != INT64_MIN && pInfo->nbSup.pHistoryGroup == NULL) {
+    _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+    pInfo->nbSup.pHistoryGroup = tSimpleHashInit(1024, hashFn);
+  }
+
+  for (int32_t i = 0; i < rows;) {
+    SResultWindowInfo curWinInfo = {0};
+    int32_t           winCode = TSDB_CODE_SUCCESS;
+    code = setSessionOutputBuf(pAggSup, startTsCols[i], startTsCols[i], groupId, &curWinInfo, &winCode);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    if (winCode != TSDB_CODE_SUCCESS) {
+      SStreamStateCur* pCur =
+          pAggSup->stateStore.streamStateSessionSeekKeyPrev(pAggSup->pState, &curWinInfo.sessionWin);
+      int32_t           size = 0;
+      SResultWindowInfo prevWinInfo = {0};
+      int32_t           tmpWinCode = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, &prevWinInfo.sessionWin,
+                                                                                      (void**)&prevWinInfo.pStatePos, &size);
+      if (tmpWinCode == TSDB_CODE_SUCCESS) {
+        void* pResPtr = taosArrayPush(pInfo->pUpdated, &prevWinInfo.pStatePos);
+        QUERY_CHECK_NULL(pResPtr, code, lino, _end, terrno);
+        reuseOutputBuf(pAggSup->pState, prevWinInfo.pStatePos, &pAggSup->stateStore);
+        int32_t mode = 0;
+        int32_t winRes = pAggSup->stateStore.streamStateGetRecFlag(pAggSup->pState, &prevWinInfo.sessionWin,
+                                                                   sizeof(SSessionKey), &mode);
+        if (winRes == TSDB_CODE_SUCCESS) {
+          code = saveRecWindowToDisc(&prevWinInfo.sessionWin, pBlock->info.id.uid, mode, pInfo->basic.pTsDataState,
+                                     pAggSup);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+      }
+    }
+
+    code = updateSessionWindowInfo(pAggSup, &curWinInfo, startTsCols, startTsCols, groupId, rows, i, pAggSup->gap,
+                                   pAggSup->pResultRows, NULL, NULL, &winRows);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    code = doOneWindowAggImpl(&pInfo->twAggSup.timeWindowData, &curWinInfo, &pResult, i, winRows, rows, numOfOutput,
+                              pOperator, pAggSup->gap);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    code = saveSessionOutputBuf(pAggSup, &curWinInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
+    releaseOutputBuf(pAggSup->pState, curWinInfo.pStatePos, &pAggSup->stateStore);
+
+    i += winRows;
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+  return code;
+}
+
+int32_t getSessionHistoryRemainResultInfo(SStreamAggSupporter* pAggSup, int32_t numOfState, SArray* pUpdated,
+                                          int32_t capacity) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t winCode = TSDB_CODE_SUCCESS;
+
+  if (pAggSup->pCur == NULL) {
+    goto _end;
+  }
+
+  int32_t num = capacity - taosArrayGetSize(pUpdated);
+  for (int32_t i = 0; i < num; i++) {
+    // todo(liuyao) add
+    // winCode = pAggSup->stateStore.streamStateNLastStateGetKVByCur(pAggSup->pCur, numOfState, pUpdated);
+    if (winCode == TSDB_CODE_FAILED) {
+      pAggSup->stateStore.streamStateFreeCur(pAggSup->pCur);
+      pAggSup->pCur = NULL;
+      break;
+    }
+
+    // todo(liuyao) add
+    // pAggSup->stateStore.streamStateLastStateCurNext(pAggSup->pCur);
+    num = capacity - taosArrayGetSize(pUpdated);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s.", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t buildSessionHistoryResult(SOperatorInfo* pOperator, SOptrBasicInfo* pBinfo, SSteamOpBasicInfo* pBasic,
+                                  SStreamAggSupporter* pAggSup, SNonBlockAggSupporter* pNbSup,
+                                  SGroupResInfo* pGroupResInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  code =
+      getSessionHistoryRemainResultInfo(pAggSup, pNbSup->numOfKeep, pBasic->pUpdated, pOperator->resultInfo.capacity);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (taosArrayGetSize(pBasic->pUpdated) > 0) {
+    taosArraySort(pBasic->pUpdated, sessionKeyCompareAsc);
+    if (pNbSup->numOfKeep > 1) {
+      taosArrayRemoveDuplicate(pBasic->pUpdated, sessionKeyCompareAsc, releaseFlusedPos);
+    }
+    initMultiResInfoFromArrayList(pGroupResInfo, pBasic->pUpdated);
+    pBasic->pUpdated = taosArrayInit(1024, POINTER_BYTES);
+    QUERY_CHECK_NULL(pBasic->pUpdated, code, lino, _end, terrno);
+
+    doBuildSessionResult(pOperator, pAggSup->pState, pGroupResInfo, pBinfo->pRes);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s.", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t doDeleteSessionRecalculateWindows(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SSHashObj* pDeleteMap) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SColumnInfoData* pStartTsCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
+  TSKEY*           startTsCols = (TSKEY*)pStartTsCol->pData;
+  SColumnInfoData* pEndTsCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
+  TSKEY*           endTsCols = (TSKEY*)pEndTsCol->pData;
+  SColumnInfoData* pCalStTsCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
+  TSKEY*           calStTsCols = (TSKEY*)pCalStTsCol->pData;
+  SColumnInfoData* pCalEnTsCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
+  TSKEY*           calEnTsCols = (TSKEY*)pCalEnTsCol->pData;
+  SColumnInfoData* pGpCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
+  uint64_t*        pGpDatas = (uint64_t*)pGpCol->pData;
+  for (int32_t i = 0; i < pBlock->info.rows; i++) {
+    SSessionKey winRes = {.win.skey = startTsCols[i], .win.ekey = endTsCols[i], .groupId = pGpDatas[i]};
+    code = tSimpleHashPut(pDeleteMap, &winRes, sizeof(SSessionKey), NULL, 0);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+  return code;
+}
+
+static int32_t buildOtherResult(SOperatorInfo* pOperator, SOptrBasicInfo* pBinfo, SSteamOpBasicInfo* pBasic,
+                                SStreamAggSupporter* pAggSup, STimeWindowAggSupp* pTwAggSup,
+                                SNonBlockAggSupporter* pNbSup, SGroupResInfo* pGroupResInfo, SSDataBlock** ppRes) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  if (isHistoryOperator(pBasic) && isSingleOperator(pBasic)) {
+    code = buildSessionHistoryResult(pOperator, pBinfo, pBasic, pAggSup, pNbSup, pGroupResInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (pBinfo->pRes->info.rows != 0) {
+      printDataBlock(pBinfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+      (*ppRes) = pBinfo->pRes;
+      return code;
+    }
+  }
+
+  if (pBasic->recvCkBlock) {
+    pBasic->recvCkBlock = false;
+    printDataBlock(pBasic->pCheckpointRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    (*ppRes) = pBasic->pCheckpointRes;
+    return code;
+  }
+
+  if (pTwAggSup->minTs != INT64_MAX) {
+    pNbSup->tsOfKeep = pTwAggSup->minTs;
+  }
+
+  if (!isHistoryOperator(pBasic) || !isFinalOperator(pBasic)) {
+    pAggSup->stateStore.streamStateClearExpiredSessionState(pAggSup->pState, pNbSup->numOfKeep, pNbSup->tsOfKeep, pNbSup->pHistoryGroup);
+  }
+  pTwAggSup->minTs = INT64_MAX;
+  setStreamOperatorCompleted(pOperator);
+  (*ppRes) = NULL;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+  return code;
+}
+
+static int32_t closeNonBlockSessionWindow(SSHashObj* pHashMap, STimeWindowAggSupp* pTwSup, SArray* pUpdated,
+                                          SExecTaskInfo* pTaskInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  void*   pIte = NULL;
+  int32_t iter = 0;
+  while ((pIte = tSimpleHashIterate(pHashMap, pIte, &iter)) != NULL) {
+    void*        key = tSimpleHashGetKey(pIte, NULL);
+    SSessionKey* pWinKey = (SSessionKey*)key;
+
+    if (isCloseWindow(&pWinKey->win, pTwSup)) {
+      void* pTemp = taosArrayPush(pUpdated, pIte);
+      QUERY_CHECK_NULL(pTemp, code, lino, _end, terrno);
+
+      int32_t tmpRes = tSimpleHashIterateRemove(pHashMap, pWinKey, sizeof(SSessionKey), &pIte, &iter);
+      qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
+    }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+  return code;
+}
+
+int32_t buildNonBlockSessionResult(SOperatorInfo* pOperator, SStreamAggSupporter* pAggSup, SOptrBasicInfo* pBInfo,
+                                   SSteamOpBasicInfo* pBasic, SGroupResInfo* pGroupResInfo, SSDataBlock** ppRes) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SSDataBlock*   pDelRes = pBasic->pDelRes;
+  doBuildDeleteDataBlock(pOperator, pBasic->pSeDeleted, pDelRes, &pBasic->pDelIterator);
+  if (pDelRes->info.rows > 0) {
+    printDataBlock(pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    (*ppRes) = pDelRes;
+    return code;
+  }
+
+  doBuildSessionResult(pOperator, pAggSup->pState, pGroupResInfo, pBInfo->pRes);
+  if (pBInfo->pRes->info.rows > 0) {
+    printDataBlock(pBInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+    (*ppRes) = pBInfo->pRes;
+    return code;
+  }
+  (*ppRes) = NULL;
+  return code;
+}
+
+int32_t doStreamSessionNonblockAggNextImpl(SOperatorInfo* pOperator, SOptrBasicInfo* pBInfo, SSteamOpBasicInfo* pBasic,
+                                           SStreamAggSupporter* pAggSup, STimeWindowAggSupp* pTwAggSup,
+                                           SGroupResInfo* pGroupResInfo, SNonBlockAggSupporter* pNbSup,
+                                           SExprSupp* pScalarSupp, SSDataBlock** ppRes) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*   pAPI = &pOperator->pTaskInfo->storageAPI;
+  SExprSupp*     pSup = &pOperator->exprSupp;
+
+  qDebug("stask:%s  %s status: %d", GET_TASKID(pTaskInfo), getStreamOpName(pOperator->operatorType), pOperator->status);
+
+  if (pOperator->status == OP_EXEC_DONE) {
+    (*ppRes) = NULL;
+    return code;
+  }
+
+  code = buildNonBlockSessionResult(pOperator, pAggSup, pBInfo, pBasic, pGroupResInfo, ppRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if ((*ppRes) != NULL) {
+    return code;
+  }
+
+  if (isHistoryOperator(pBasic) && !isFinalOperator(pBasic)) {
+    pAggSup->stateStore.streamStateClearExpiredSessionState(pAggSup->pState, pNbSup->numOfKeep, pNbSup->tsOfKeep, pNbSup->pHistoryGroup);
+  }
+
+  if (pOperator->status == OP_RES_TO_RETURN) {
+    return buildOtherResult(pOperator, pBInfo, pBasic, pAggSup, pTwAggSup, pNbSup, pGroupResInfo, ppRes);
+  }
+
+  SOperatorInfo* downstream = pOperator->pDownstream[0];
+
+  while (1) {
+    if (isTaskKilled(pTaskInfo)) {
+      qInfo("===stream=== %s task is killed, code %s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
+      (*ppRes) = NULL;
+      return code;
+    }
+    SSDataBlock* pBlock = NULL;
+    code = downstream->fpSet.getNextFn(downstream, &pBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    if (pBlock == NULL) {
+      qDebug("===stream===return data:%s.", getStreamOpName(pOperator->operatorType));
+      pOperator->status = OP_RES_TO_RETURN;
+      break;
+    }
+
+    printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
+    setStreamOperatorState(pBasic, pBlock->info.type);
+
+    switch (pBlock->info.type) {
+      case STREAM_NORMAL:
+      case STREAM_INVALID: {
+        SExprSupp* pExprSup = pScalarSupp;
+        if (pExprSup->pExprInfo != NULL) {
+          code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+      } break;
+      case STREAM_CHECKPOINT: {
+        pBasic->recvCkBlock = true;
+        pAggSup->stateStore.streamStateCommit(pAggSup->pState);
+        code = copyDataBlock(pBasic->pCheckpointRes, pBlock);
+        QUERY_CHECK_CODE(code, lino, _end);
+        continue;
+      } break;
+      case STREAM_CREATE_CHILD_TABLE:
+      case STREAM_DROP_CHILD_TABLE: {
+        (*ppRes) = pBlock;
+        return code;
+      } break;
+      case STREAM_RECALCULATE_DATA:
+      case STREAM_RECALCULATE_DELETE: {
+        if (isRecalculateOperator(pBasic) && !isSemiOperator(pBasic)) {
+          code = doDeleteSessionRecalculateWindows(pTaskInfo, pBlock, pBasic->pSeDeleted);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        continue;
+      } break;
+      default:
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        QUERY_CHECK_CODE(code, lino, _end);
+    }
+
+    if (pBlock->info.type == STREAM_NORMAL && pBlock->info.version != 0) {
+      // set input version
+      pTaskInfo->version = pBlock->info.version;
+    }
+
+    code = setInputDataBlock(pSup, pBlock, TSDB_ORDER_ASC, MAIN_SCAN, true);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    pTwAggSup->maxTs = TMAX(pTwAggSup->maxTs, pBlock->info.window.ekey);
+    code = pNbSup->pWindowAggFn(pOperator, pBlock);
+    if (code == TSDB_CODE_STREAM_INTERNAL_ERROR) {
+      pOperator->status = OP_RES_TO_RETURN;
+      code = TSDB_CODE_SUCCESS;
+    }
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    if (pAggSup->pScanBlock->info.rows > 0) {
+      (*ppRes) = pAggSup->pScanBlock;
+      printDataBlock(pAggSup->pScanBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+      return code;
+    }
+
+    if (taosArrayGetSize(pBasic->pUpdated) > 0) {
+      break;
+    }
+  }
+
+  if (pOperator->status == OP_RES_TO_RETURN &&
+      (isHistoryOperator(pBasic) || isRecalculateOperator(pBasic) || isSemiOperator(pBasic))) {
+    code = copyNewResult(&pAggSup->pResultRows, pBasic->pUpdated, sessionKeyCompareAsc);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    if (isSingleOperator(pBasic)) {
+      if (pAggSup->pCur == NULL) {
+        pAggSup->pCur = pAggSup->stateStore.streamStateGetLastStateCur(pAggSup->pState);
+      }
+      code = getSessionHistoryRemainResultInfo(pAggSup, pNbSup->numOfKeep, pBasic->pUpdated,
+                                               pOperator->resultInfo.capacity);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  }
+
+  if (pOperator->status == OP_RES_TO_RETURN && pBasic->destHasPrimaryKey && isFinalOperator(pBasic)) {
+    code = closeNonBlockSessionWindow(pAggSup->pResultRows, pTwAggSup, pBasic->pUpdated, pTaskInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  taosArraySort(pBasic->pUpdated, sessionKeyCompareAsc);
+  if (pNbSup->numOfKeep > 1) {
+    taosArrayRemoveDuplicate(pBasic->pUpdated, sessionKeyCompareAsc, releaseFlusedPos);
+  }
+  if (pNbSup->numOfKeep > 0 && !pBasic->destHasPrimaryKey) {
+    removeSessionDeleteResults(pBasic->pSeDeleted, pBasic->pUpdated);
+  }
+
+  initMultiResInfoFromArrayList(pGroupResInfo, pBasic->pUpdated);
+  pBasic->pUpdated = taosArrayInit(1024, POINTER_BYTES);
+  QUERY_CHECK_NULL(pBasic->pUpdated, code, lino, _end, terrno);
+
+  code = blockDataEnsureCapacity(pBInfo->pRes, pOperator->resultInfo.capacity);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  code = buildNonBlockSessionResult(pOperator, pAggSup, pBInfo, pBasic, pGroupResInfo, ppRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if ((*ppRes) != NULL) {
+    return code;
+  }
+
+  return buildOtherResult(pOperator, pBInfo, pBasic, pAggSup, pTwAggSup, pNbSup, pGroupResInfo, ppRes);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+    pTaskInfo->code = code;
+  }
+  return code;
+}
+
+int32_t doStreamSessionNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+  SStreamSessionAggOperatorInfo* pInfo = (SStreamSessionAggOperatorInfo*)pOperator->info;
+  return doStreamSessionNonblockAggNextImpl(pOperator, &pInfo->binfo, &pInfo->basic, &pInfo->streamAggSup,
+                                            &pInfo->twAggSup, &pInfo->groupResInfo, &pInfo->nbSup, &pInfo->scalarSupp,
+                                            &pBlock);
+}
+
+int32_t doStreamSemiSessionNonblockAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+  int32_t                        code = TSDB_CODE_SUCCESS;
+  int32_t                        lino = 0;
+  SStreamSessionAggOperatorInfo* pInfo = (SStreamSessionAggOperatorInfo*)pOperator->info;
+  SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
+  SResultRowInfo*                pResultRowInfo = &(pInfo->binfo.resultRowInfo);
+  SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
+  SExprSupp*                     pSup = &pOperator->exprSupp;
+  int32_t                        numOfOutput = pSup->numOfExprs;
+  TSKEY*                         tsCols = NULL;
+  int64_t                        groupId = pBlock->info.id.groupId;
+  SResultRow*                    pResult = NULL;
+  int32_t                        forwardRows = 0;
+
+  SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, pInfo->primaryTsIndex);
+  tsCols = (int64_t*)pColDataInfo->pData;
+  // todo(liuyao) add
+
+  if (isHistoryOperator(&pInfo->basic) &&
+      tSimpleHashGetSize(pAggSup->pResultRows) > pOperator->resultInfo.capacity * 10) {
+    code = copyNewResult(&pAggSup->pResultRows, pInfo->pUpdated, sessionKeyCompareAsc);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+  return code;
+}
+
+int32_t createSessionNonblockOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
+                                          SReadHandle* pHandle, SOperatorInfo** ppOptInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  code = createStreamSessionAggOperatorInfo(downstream, pPhyNode, pTaskInfo, pHandle, ppOptInfo);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SStreamSessionAggOperatorInfo* pInfo = (SStreamSessionAggOperatorInfo*)(*ppOptInfo)->info;
+  pInfo->nbSup.numOfKeep = 1;
+  pInfo->nbSup.pWindowAggFn = doStreamSessionNonblockAggImpl;
+  setSingleOperatorFlag(&pInfo->basic);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+  return code;
+}
+
+int32_t createSemiSessionNonblockOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
+                                              SReadHandle* pHandle, SOperatorInfo** ppOptInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  code = createStreamSessionAggOperatorInfo(downstream, pPhyNode, pTaskInfo, pHandle, ppOptInfo);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SStreamSessionAggOperatorInfo* pInfo = (SStreamSessionAggOperatorInfo*)(*ppOptInfo)->info;
+  pInfo->nbSup.numOfKeep = 0;
+  pInfo->nbSup.pWindowAggFn = doStreamSemiSessionNonblockAggImpl;
+  setSemiOperatorFlag(&pInfo->basic);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+  return code;
+}
+
+bool isDataDeletedStreamWindow(SStreamAggSupporter* pAggSup, SNonBlockAggSupporter* pNbSup, STimeWindow* pWin,
+                               uint64_t groupId) {
+  if (pWin->skey < pNbSup->tsOfKeep) {
+    SSessionKey key = {.win = *pWin, .groupId = groupId};
+    // todo(liuyao) add
+    //  return !(pAggSup->stateStore.streamStateCheck(pAggSup->pState, &key));
+  }
+  return false;
+}
+
+static int32_t doStreamFinalSessionNonblockAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+  int32_t                        code = TSDB_CODE_SUCCESS;
+  int32_t                        lino = 0;
+  SStreamSessionAggOperatorInfo* pInfo = (SStreamSessionAggOperatorInfo*)pOperator->info;
+  SStreamAggSupporter*           pAggSup = &pInfo->streamAggSup;
+  SResultRowInfo*                pResultRowInfo = &(pInfo->binfo.resultRowInfo);
+  SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
+  SExprSupp*                     pSup = &pOperator->exprSupp;
+  int32_t                        numOfOutput = pSup->numOfExprs;
+  SResultRow*                    pResult = NULL;
+  int32_t                        forwardRows = 1;
+  SColumnInfoData*               pColDataInfo = taosArrayGet(pBlock->pDataBlock, pInfo->primaryTsIndex);
+  TSKEY*                         tsCols = (int64_t*)pColDataInfo->pData;
+  int32_t                        startPos = 0;
+  uint64_t                       groupId = pBlock->info.id.groupId;
+  SInervalSlicePoint             curPoint = {0};
+  SInervalSlicePoint             prevPoint = {0};
+
+  if (pAggSup->pScanBlock->info.rows > 0) {
+    blockDataCleanup(pAggSup->pScanBlock);
+  }
+
+  // todo(liuyao) add
+
+  if (!pInfo->destHasPrimaryKey && !isHistoryOperator(&pInfo->basic)) {
+    code = closeNonBlockSessionWindow(pAggSup->pResultRows, &pInfo->twAggSup, pInfo->pUpdated, pTaskInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else if ((isHistoryOperator(&pInfo->basic) || isRecalculateOperator(&pInfo->basic)) &&
+             tSimpleHashGetSize(pAggSup->pResultRows) > pOperator->resultInfo.capacity * 10) {
+    code = copyNewResult(&pAggSup->pResultRows, pInfo->pUpdated, sessionKeyCompareAsc);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+  return code;
+}
+
+int32_t createFinalSessionNonblockOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
+                                               SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
+                                               SOperatorInfo** ppOptInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  code = createStreamSessionAggOperatorInfo(downstream, pPhyNode, pTaskInfo, pHandle, ppOptInfo);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SStreamSessionAggOperatorInfo* pInfo = (SStreamSessionAggOperatorInfo*)(*ppOptInfo)->info;
+  pInfo->nbSup.pWindowAggFn = doStreamFinalSessionNonblockAggImpl;
+  pInfo->streamAggSup.pScanBlock->info.type = STREAM_MID_RETRIEVE;
+  pInfo->nbSup.tsOfKeep = INT64_MIN;
+  pInfo->twAggSup.waterMark = 0;
+  setFinalOperatorFlag(&pInfo->basic);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+  return code;
+}
