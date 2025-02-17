@@ -2781,9 +2781,11 @@ _exit:
   taosMemoryFree(keys_list);
   taosMemoryFree(keys_list_sizes);
   if (values_list) {
+ #if USE_ROCKSDB   
     for (int i = 0; i < numKeys; ++i) {
       rocksdb_free(values_list[i]);
     }
+#endif
     taosMemoryFree(values_list);
   }
   taosMemoryFree(values_list_sizes);

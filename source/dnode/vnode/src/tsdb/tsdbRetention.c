@@ -356,7 +356,9 @@ static int32_t tsdbRetention(void *arg) {
   // do retention
   if (rtner.fset) {
     if (rtnArg->s3Migrate) {
+#ifdef USE_S3
       TAOS_CHECK_GOTO(tsdbDoS3Migrate(&rtner), &lino, _exit);
+#endif
     } else {
       TAOS_CHECK_GOTO(tsdbDoRetention(&rtner), &lino, _exit);
     }

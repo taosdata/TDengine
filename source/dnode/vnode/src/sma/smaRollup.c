@@ -1013,6 +1013,7 @@ static int32_t tdExecuteRSmaAsync(SSma *pSma, int64_t version, const void *pMsg,
 }
 
 int32_t tdProcessRSmaSubmit(SSma *pSma, int64_t version, void *pReq, void *pMsg, int32_t len) {
+#ifdef USE_RSMA
   if (!SMA_RSMA_ENV(pSma)) return TSDB_CODE_SUCCESS;
 
   int32_t code = 0;
@@ -1047,9 +1048,13 @@ int32_t tdProcessRSmaSubmit(SSma *pSma, int64_t version, void *pReq, void *pMsg,
 _exit:
   tdUidStoreDestory(&uidStore);
   TAOS_RETURN(code);
+#else
+  return TSDB_CODE_SUCCESS;
+#endif
 }
 
 int32_t tdProcessRSmaDelete(SSma *pSma, int64_t version, void *pReq, void *pMsg, int32_t len) {
+#ifdef USE_RSMA
   if (!SMA_RSMA_ENV(pSma)) return TSDB_CODE_SUCCESS;
 
   int32_t code = 0;
@@ -1065,6 +1070,9 @@ int32_t tdProcessRSmaDelete(SSma *pSma, int64_t version, void *pReq, void *pMsg,
   }
 _exit:
   TAOS_RETURN(code);
+#else
+  return TSDB_CODE_SUCCESS;
+#endif
 }
 
 /**

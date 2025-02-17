@@ -409,8 +409,9 @@ _exit:
   }
   return code;
 }
-
+#endif
 static int32_t tsdbReadFileS3(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint) {
+#ifdef USE_S3
   int32_t code = 0;
   int32_t lino;
   int64_t n = 0;
@@ -513,6 +514,9 @@ _exit:
     TSDB_ERROR_LOG(TD_VID(pFD->pTsdb->pVnode), lino, code);
   }
   return code;
+#else
+  return TSDB_CODE_INTERNAL_ERROR;
+#endif
 }
 #endif
 int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint,

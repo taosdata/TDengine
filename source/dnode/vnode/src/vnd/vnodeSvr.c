@@ -2143,6 +2143,7 @@ _exit:
 }
 
 static int32_t vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+#ifdef USE_TSMA
   SVCreateTSmaReq req = {0};
   SDecoder        coder = {0};
 
@@ -2177,6 +2178,9 @@ _err:
   vError("vgId:%d, failed to create tsma %s:%" PRIi64 " version %" PRIi64 "for table %" PRIi64 " since %s",
          TD_VID(pVnode), req.indexName, req.indexUid, ver, req.tableUid, terrstr());
   return terrno;
+#else
+  return TSDB_CODE_INTERNAL_ERROR;
+#endif
 }
 
 /**
