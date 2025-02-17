@@ -440,6 +440,10 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentNext(SStreamState* pState, cons
   return sessionWinStateSeekKeyCurrentNext(pState->pFileState, key);
 }
 
+SStreamStateCur *streamStateSessionSeekKeyPrev(SStreamState *pState, const SSessionKey *key) {
+  return sessionWinStateSeekKeyPrev(pState->pFileState, key);
+}
+
 SStreamStateCur* streamStateSessionSeekKeyNext(SStreamState* pState, const SSessionKey* key) {
   return sessionWinStateSeekKeyNext(pState->pFileState, key);
 }
