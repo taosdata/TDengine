@@ -53,7 +53,7 @@ typedef struct {
   int32_t     numOfVgroups;
   void*       sContext;  // SSnapContext*
   void*       pStateBackend;
-  void*       pOtherStateBackend;
+  void*       pOtherBackend;
   int8_t      fillHistory;
   STimeWindow winRange;
 
