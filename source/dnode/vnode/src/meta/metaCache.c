@@ -402,6 +402,7 @@ int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo) {
 
   if (*ppEntry) {  // update
     (*ppEntry)->info.ctbNum = pInfo->ctbNum;
+    (*ppEntry)->info.colNum = pInfo->colNum;
   } else {  // insert
     if (pCache->sStbStatsCache.nEntry >= pCache->sStbStatsCache.nBucket) {
       TAOS_UNUSED(metaRehashStatsCache(pCache, 1));
