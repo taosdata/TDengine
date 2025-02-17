@@ -78,10 +78,17 @@ void taos_block_sigalrm(void) {
 #include <sys/syscall.h>
 #include <unistd.h>
 
+static void taosDeleteTimer(void *tharg) {
+  timer_t *pTimer = tharg;
+  TAOS_SKIP_ERROR(timer_delete(*pTimer));
+}
+
 static TdThread      timerThread;
 static timer_t       timerId;
 static volatile bool stopTimer = false;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
 static void *taosProcessAlarmSignal(void *tharg) {
   // Block the signal
   sigset_t sigset;
@@ -109,6 +116,8 @@ static void *taosProcessAlarmSignal(void *tharg) {
     return NULL;
   }
 
+  taosThreadCleanupPush(taosDeleteTimer, &timerId);
+
   do {
     struct itimerspec ts;
     ts.it_value.tv_sec = 0;
@@ -134,10 +143,11 @@ static void *taosProcessAlarmSignal(void *tharg) {
     }
   } while (0);
 
-  timer_delete(timerId);
+  taosThreadCleanupPop(1);
 
   return NULL;
 }
+#pragma GCC diagnostic pop
 #endif
 
 int taosInitTimer(void (*callback)(int), int ms) {
