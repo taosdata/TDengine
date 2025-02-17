@@ -1,3 +1,0 @@
-{"type": "record", "name": "org.foo.Foo",
- "fields": [ {"name": "x", "type": "int"} ]
-}

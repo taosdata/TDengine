@@ -1,8 +1,0 @@
-{"type":"record", "name":"Player", "namespace": "avro.examples.baseball","doc":"選手 is Japanese for player.",
-  "fields": [
-   {"name": "number", "type": "int", "doc": "The number of the player"},
-   {"name": "first_name", "type": "string"},
-   {"name": "last_name", "type": "string"},
-   {"name": "position", "type": {"type": "array", "items": "Position"} }
-  ]
-}

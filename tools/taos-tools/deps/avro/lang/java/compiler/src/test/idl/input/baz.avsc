@@ -1,3 +1,0 @@
-{"type": "record", "name": "ns.other.schema.Baz",
- "fields": [ {"name": "x", "type": "int"} ]
-}

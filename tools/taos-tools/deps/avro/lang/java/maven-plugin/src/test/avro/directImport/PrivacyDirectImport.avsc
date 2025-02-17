@@ -1,7 +1,0 @@
-{
-    "type": "enum", 
-    "namespace": "test",
-    "name": "PrivacyDirectImport",
-    "doc": "Privacy Test Enum",
-    "symbols" : ["Public","Private"]
-}

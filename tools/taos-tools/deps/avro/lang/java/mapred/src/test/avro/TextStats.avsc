@@ -1,9 +1,0 @@
-{
-  "namespace": "org.apache.avro.mapreduce",
-  "type": "record",
-  "name": "TextStats",
-  "fields": [
-    { "name": "name", "type": "string", "default": "" },
-    { "name": "count", "type": "int", "default": 0 }
-  ]
-}
