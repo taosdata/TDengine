@@ -1,3 +1,4 @@
+import { debounce } from 'lodash-es';
 import { createApp } from 'vue';
 
 import store from './store';
@@ -5,7 +6,7 @@ import router from './router/index.ts';
 import { setupI18n } from './lang/index.ts';
 import 'virtual:uno.css';
 import '@/styles/font.css';
-import ELEMENT, { ElMessage } from 'element-plus';
+import ELEMENT, { ElMessage, ElTooltip } from 'element-plus';
 import { setupElementIcons, setupPinia } from './plugins';
 import './styles/reset.css';
 import '@/assets/fonts/iconfont/iconfont.css';
@@ -22,8 +23,8 @@ const app = createApp(App);
 setupI18n(app);
 setInit();
 registerDirective(app);
-// 修改tooltip的openDelay属性默认值为1000
-// ELEMENT.Tooltip.props.openDelay = { type: Number, default: 1000 };
+// 修改tooltip的showAfter属性默认值为 500
+ElTooltip.props.showAfter.default = 500;
 app.use(ELEMENT);
 app.use(VueDOMPurifyHTML);
 app.component('Icon', SvgIcon);
