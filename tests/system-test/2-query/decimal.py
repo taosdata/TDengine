@@ -3,6 +3,7 @@ from re import A
 import time
 import threading
 import secrets
+import query
 from tag_lite import column
 from util.log import *
 from util.sql import *
@@ -580,9 +581,12 @@ class TDTestCase:
     def test_decimal_and_stream(self):
         create_stream = f'CREATE STREAM {self.stream_name} FILL_HISTORY 1 INTO {self.db_name}.{self.stream_out_stb} AS SELECT _wstart, count(c1), avg(c2), sum(c3) FROM {self.db_name}.{self.stable_name} INTERVAL(10s)'
         tdSql.execute(create_stream, queryTimes=1, show=True)
+        self.wait_query_result(f"select count(*) from {self.db_name}.{self.stream_out_stb}", [(50,)], 30)
     
     def test_decimal_and_tsma(self):
-        pass
+        create_tsma = f"CREATE TSMA {self.tsma_name} ON {self.db_name}.{self.stable_name} FUNCTION(count(c1), min(c2), max(c3), avg(C3)) INTERVAL(1m)"
+        tdSql.execute(create_tsma, queryTimes=1, show=True)
+        self.wait_query_result(f"select count(*) from {self.db_name}.{self.tsma_name}_tsma_res_stb_", [(9*self.c_table_num,)], 30)
 
     def run(self):
         self.test_decimal_ddl()
@@ -594,6 +598,17 @@ class TDTestCase:
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
+
+    def wait_query_result(self, sql: str, expect_result, times):
+        for i in range(times):
+            tdLog.info(f"wait query result for {sql}, times: {i}")
+            tdSql.query(sql, queryTimes=1)
+            results = tdSql.queryResult
+            if results != expect_result:
+                time.sleep(1)
+                continue
+            return True
+        tdLog.exit(f"wait query result timeout for {sql} failed after {times} time, expect {expect_result}, but got {results}")
 
 
 event = threading.Event()
