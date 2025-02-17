@@ -7764,9 +7764,9 @@ static int32_t rebuildPlanForPdaOptimize(SColumnNode* pCol, SFunctionNode* pAggF
   // pAggNodeMap is a hash map, the key is the vtable's origin table's name, the value is the SAggLogicNode ptr.
   // if 2 more agg func has the same origin table, we should merge them into one agg node.
   PLAN_ERR_JRET(findDepTableScanNode(pCol, pVScan, (SNode**)&pDepScan));
-  char tableFNameKey[TSDB_TABLE_FNAME_LEN] = {0};
+  char tableFNameKey[TSDB_COL_FNAME_LEN + 1] = {0};
   TAOS_STRNCAT(tableFNameKey, pDepScan->tableName.tname, TSDB_TABLE_NAME_LEN);
-  TAOS_STRNCAT(tableFNameKey, ".", 1);
+  TAOS_STRNCAT(tableFNameKey, ".", 2);
   TAOS_STRNCAT(tableFNameKey, pCol->colName, TSDB_COL_NAME_LEN);
 
   pNodeFound = (SAggLogicNode **)taosHashGet(pAggNodeMap, &tableFNameKey, strlen(tableFNameKey));
