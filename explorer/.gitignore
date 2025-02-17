@@ -25,3 +25,5 @@ target
 *.njsproj
 *.sln
 *.sw?
+types
+public/version.txt

@@ -4,32 +4,29 @@ This template should help get you started developing with Vue 3 and TypeScript i
 
 Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
 
-# project link
+## Prerequisites
 
-## link taos-ui
+Explorer depends on the following projects:
 
-export taos-ui, in the taos-ui root path, execute the following shell:
+- [taos-ui](https://github.com/taosdata/taos-ui/tree/datain)
+- [@tdengine/websocket](https://github.com/taosdata.com/taos-connector-node/tree/cloud)
+
+They are injected as subtree in the explorer project, so you don't need to clone them separately.
+
+For contributing to these projects, you can clone them separately and link them to the explorer project.
+
+You can also use the following command to pull the latest code of these projects:
 
 ```bash
-pnpm link -g
+git subtree pull --prefix explorer/taos-ui
+git subtree pull --prefix explorer/taos-connector-node
 ```
 
-then, in the explorer root path, execute:
+## Build
+
+The project is built with Vite, and managed by PNPM.
 
 ```bash
-pnpm link taos-ui -g
-```
-
-## link @tdengine/websocket
-
-export @tdengine/websocket, in path `taos-connector-node/WebSocket`, execute the following shell:
-
-```bash
-pnpm link -g
-```
-
-then, in the taos-ui root path, execute:
-
-```bash
-pnpm link @tdengine/websocket -g
+pnpm install
+pnpm build
 ```

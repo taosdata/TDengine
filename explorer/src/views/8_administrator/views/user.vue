@@ -100,7 +100,7 @@
   </div>
 </template>
 <script setup lang="ts">
-import UserForm from './components/UserForm/index.vue';
+import UserForm from './components/userForm/index.vue';
 import ImportInfo from './components/ImportForm/index.vue';
 import { sendSQLReq } from '@/api/explorer';
 import { useStore } from 'vuex';

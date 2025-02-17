@@ -762,7 +762,11 @@ if [ -d "$NVM_DIR" ]; then
   [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
   nvm --version && [ -e .nvmrc ] && nvm use || true
 fi
-yarn install && yarn build
+
+# Update PNPM to latest
+pnpm --version && pnpm self-update || npm install -g pnpm
+
+pnpm install && pnpm build
 """
 
 [tasks.explorer]
