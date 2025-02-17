@@ -252,7 +252,7 @@ static void *dmAuditThreadFp(void *param) {
 
   return NULL;
 }
-
+#ifdef USE_REPORT
 static void *dmCrashReportThreadFp(void *param) {
   int32_t     code = 0;
   SDnodeMgmt *pMgmt = param;
@@ -330,6 +330,7 @@ static void *dmCrashReportThreadFp(void *param) {
 
   return NULL;
 }
+#endif
 
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
   int32_t      code = 0;
@@ -399,7 +400,7 @@ void dmStopStatusInfoThread(SDnodeMgmt *pMgmt) {
     taosThreadClear(&pMgmt->statusInfoThread);
   }
 }
-
+#ifdef TD_ENTERPRISE
 int32_t dmStartNotifyThread(SDnodeMgmt *pMgmt) {
   int32_t      code = 0;
   TdThreadAttr thAttr;
@@ -429,7 +430,7 @@ void dmStopNotifyThread(SDnodeMgmt *pMgmt) {
     dError("failed to destroy notify sem");
   }
 }
-
+#endif
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt) {
   int32_t      code = 0;
   TdThreadAttr thAttr;

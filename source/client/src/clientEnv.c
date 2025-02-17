@@ -799,7 +799,7 @@ void stopAllQueries(SRequestObj *pRequest) {
     }
   }
 }
-
+#ifdef USE_REPORT
 void crashReportThreadFuncUnexpectedStopped(void) { atomic_store_32(&clientStop, -1); }
 
 static void *tscCrashReportThreadFp(void *param) {
@@ -931,6 +931,7 @@ void tscStopCrashReport() {
 void tscWriteCrashInfo(int signum, void *sigInfo, void *context) {
   writeCrashLogToFile(signum, sigInfo, CUS_PROMPT, lastClusterId, appInfo.startTime);
 }
+#endif
 
 
 #ifdef TAOSD_INTEGRATED
