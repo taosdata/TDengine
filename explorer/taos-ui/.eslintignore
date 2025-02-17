@@ -1,0 +1,5 @@
+**/node_modules/**
+**/*.svg
+/*/dist/**
+/*/public/**
+/*/src/assets
