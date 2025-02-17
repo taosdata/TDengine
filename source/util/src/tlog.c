@@ -21,6 +21,7 @@
 #include "tjson.h"
 #include "ttime.h"
 #include "tutil.h"
+#include "tcommon.h"
 
 #define LOG_MAX_LINE_SIZE              (10024)
 #define LOG_MAX_LINE_BUFFER_SIZE       (LOG_MAX_LINE_SIZE + 3)
@@ -384,13 +385,24 @@ static void taosReserveOldLog(char *oldName, char *keepName) {
 
 static void taosKeepOldLog(char *oldName) {
   if (oldName[0] != 0) {
-    char compressFileName[PATH_MAX + 20];
-    snprintf(compressFileName, PATH_MAX + 20, "%s.gz", oldName);
-    if (taosCompressFile(oldName, compressFileName) == 0) {
-      int32_t code = taosRemoveFile(oldName);
-      if (code != 0) {
-        TAOS_UNUSED(printf("failed to remove file:%s, reason:%s\n", oldName, tstrerror(code)));
-      }
+    int32_t   code = 0, lino = 0;
+    TdFilePtr oldFile = NULL;
+    if ((oldFile = taosOpenFile(oldName, TD_FILE_READ))) {
+      TAOS_CHECK_GOTO(taosLockFile(oldFile), &lino, _exit2);
+      char compressFileName[PATH_MAX + 20];
+      snprintf(compressFileName, PATH_MAX + 20, "%s.gz", oldName);
+      TAOS_CHECK_GOTO(taosCompressFile(oldName, compressFileName), &lino, _exit1);
+      TAOS_CHECK_GOTO(taosRemoveFile(oldName), &lino, _exit1);
+    _exit1:
+      TAOS_UNUSED(taosUnLockFile(oldFile));
+    _exit2:
+      TAOS_UNUSED(taosCloseFile(&oldFile));
+    } else {
+      code = terrno;
+    }
+    if (code != 0 && tsLogEmbedded == 1) {  // print error messages only in embedded log mode
+      // avoid using uWarn or uError, as they may open a new log file and potentially cause a deadlock.
+      fprintf(stderr, "WARN: failed at line %d to keep old log file:%s, reason:%s\n", lino, oldName, tstrerror(code));
     }
   }
 }
@@ -411,9 +423,9 @@ static OldFileKeeper *taosOpenNewFile() {
 
   TdFilePtr pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
-    tsLogObj.openInProgress = 0;
+    tsLogObj.flag ^= 1;
     tsLogObj.lines = tsNumOfLogLines - 1000;
-    uError("open new log file fail! reason:%s, reuse lastlog", strerror(errno));
+    uError("open new log file %s fail! reason:%s, reuse lastlog", name, tstrerror(terrno));
     return NULL;
   }
 
@@ -425,7 +437,6 @@ static OldFileKeeper *taosOpenNewFile() {
   TdFilePtr pOldFile = tsLogObj.logHandle->pFile;
   tsLogObj.logHandle->pFile = pFile;
   tsLogObj.lines = 0;
-  tsLogObj.openInProgress = 0;
   OldFileKeeper *oldFileKeeper = taosMemoryMalloc(sizeof(OldFileKeeper));
   if (oldFileKeeper == NULL) {
     uError("create old log keep info faild! mem is not enough.");
@@ -468,7 +479,9 @@ static int32_t taosOpenNewLogFile() {
 
     OldFileKeeper *oldFileKeeper = taosOpenNewFile();
     if (!oldFileKeeper) {
+      tsLogObj.openInProgress = 0;
       TAOS_UNUSED(taosThreadMutexUnlock(&tsLogObj.logMutex));
+      (void)taosThreadAttrDestroy(&attr);
       return terrno;
     }
     if (taosThreadCreate(&thread, &attr, taosThreadToCloseOldFile, oldFileKeeper) != 0) {
@@ -476,6 +489,7 @@ static int32_t taosOpenNewLogFile() {
       taosMemoryFreeClear(oldFileKeeper);
     }
     (void)taosThreadAttrDestroy(&attr);
+    tsLogObj.openInProgress = 0;
   }
 
   (void)taosThreadMutexUnlock(&tsLogObj.logMutex);
@@ -728,10 +742,7 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
     if (tsNumOfLogLines > 0) {
       TAOS_UNUSED(atomic_add_fetch_32(&tsLogObj.lines, 1));
       if ((tsLogObj.lines > tsNumOfLogLines) && (tsLogObj.openInProgress == 0)) {
-        int32_t code = taosOpenNewLogFile();
-        if (code != 0) {
-          uError("failed to open new log file, reason:%s", tstrerror(code));
-        }
+        TAOS_UNUSED(taosOpenNewLogFile());
       }
     }
   }
@@ -1041,7 +1052,7 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
 }
 
 #define LOG_ROTATE_INTERVAL 3600
-#if !defined(TD_ENTERPRISE) || defined(ASSERT_NOT_CORE)
+#if !defined(TD_ENTERPRISE) || defined(ASSERT_NOT_CORE) || defined(GRANTS_CFG)
 #define LOG_INACTIVE_TIME 7200
 #define LOG_ROTATE_BOOT   900
 #else
@@ -1265,6 +1276,8 @@ _return:
 
   taosPrintLog(flags, level, dflag, "crash signal is %d", signum);
 
+// print the stack trace
+#if 0
 #ifdef _TD_DARWIN_64
   taosPrintTrace(flags, level, dflag, 4);
 #elif !defined(WINDOWS)
@@ -1274,8 +1287,107 @@ _return:
 #else
   taosPrintTrace(flags, level, dflag, 8);
 #endif
-
+#endif
   taosMemoryFree(pMsg);
+}
+
+typedef enum {
+  CRASH_LOG_WRITER_UNKNOWN = 0,
+  CRASH_LOG_WRITER_INIT = 1,
+  CRASH_LOG_WRITER_WAIT,
+  CRASH_LOG_WRITER_RUNNING,
+  CRASH_LOG_WRITER_QUIT
+} CrashStatus;
+typedef struct crashBasicInfo {
+  int8_t  status;
+  int64_t clusterId;
+  int64_t startTime;
+  char   *nodeType;
+  int     signum;
+  void   *sigInfo;
+  tsem_t  sem;
+  int64_t reportThread;
+} crashBasicInfo;
+
+crashBasicInfo gCrashBasicInfo = {0};
+
+void setCrashWriterStatus(int8_t status) { atomic_store_8(&gCrashBasicInfo.status, status); }
+bool reportThreadSetQuit() {
+  CrashStatus status =
+      atomic_val_compare_exchange_8(&gCrashBasicInfo.status, CRASH_LOG_WRITER_INIT, CRASH_LOG_WRITER_QUIT);
+  if (status == CRASH_LOG_WRITER_INIT) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool setReportThreadWait() {
+  CrashStatus status =
+      atomic_val_compare_exchange_8(&gCrashBasicInfo.status, CRASH_LOG_WRITER_INIT, CRASH_LOG_WRITER_WAIT);
+  if (status == CRASH_LOG_WRITER_INIT) {
+    return true;
+  } else {
+    return false;
+  }
+}
+bool setReportThreadRunning() {
+  CrashStatus status =
+      atomic_val_compare_exchange_8(&gCrashBasicInfo.status, CRASH_LOG_WRITER_WAIT, CRASH_LOG_WRITER_RUNNING);
+  if (status == CRASH_LOG_WRITER_WAIT) {
+    return true;
+  } else {
+    return false;
+  }
+}
+static void checkWriteCrashLogToFileInNewThead() {
+  if (setReportThreadRunning()) {
+    char       *pMsg = NULL;
+    const char *flags = "UTL FATAL ";
+    ELogLevel   level = DEBUG_FATAL;
+    int32_t     dflag = 255;
+    int64_t     msgLen = -1;
+
+    if (tsEnableCrashReport) {
+      if (taosGenCrashJsonMsg(gCrashBasicInfo.signum, &pMsg, gCrashBasicInfo.clusterId, gCrashBasicInfo.startTime)) {
+        taosPrintLog(flags, level, dflag, "failed to generate crash json msg");
+      } else {
+        msgLen = strlen(pMsg);
+      }
+    }
+    taosLogCrashInfo(gCrashBasicInfo.nodeType, pMsg, msgLen, gCrashBasicInfo.signum, gCrashBasicInfo.sigInfo);
+    setCrashWriterStatus(CRASH_LOG_WRITER_INIT);
+    tsem_post(&gCrashBasicInfo.sem);
+  }
+}
+
+void checkAndPrepareCrashInfo() {
+  return checkWriteCrashLogToFileInNewThead();
+}
+
+int32_t initCrashLogWriter() {
+  int32_t code = tsem_init(&gCrashBasicInfo.sem, 0, 0);
+  if (code != 0) {
+    uError("failed to init sem for crashLogWriter, code:%d", code);
+    return code;
+  }
+  gCrashBasicInfo.reportThread = taosGetSelfPthreadId();
+  setCrashWriterStatus(CRASH_LOG_WRITER_INIT);
+  return code;
+}
+
+void writeCrashLogToFile(int signum, void *sigInfo, char *nodeType, int64_t clusterId, int64_t startTime) {
+  if (gCrashBasicInfo.reportThread == taosGetSelfPthreadId()) {
+    return;
+  }
+  if (setReportThreadWait()) {
+    gCrashBasicInfo.clusterId = clusterId;
+    gCrashBasicInfo.startTime = startTime;
+    gCrashBasicInfo.nodeType = nodeType;
+    gCrashBasicInfo.signum = signum;
+    gCrashBasicInfo.sigInfo = sigInfo;
+    tsem_wait(&gCrashBasicInfo.sem);
+  }
 }
 
 void taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr *pFd) {

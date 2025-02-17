@@ -1106,8 +1106,12 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_ORDER_BY_EXPR:
       nodesDestroyNode(((SOrderByExprNode*)pNode)->pExpr);
       break;
-    case QUERY_NODE_LIMIT:  // no pointer field
+    case QUERY_NODE_LIMIT: {
+      SLimitNode* pLimit = (SLimitNode*)pNode;
+      nodesDestroyNode((SNode*)pLimit->limit);
+      nodesDestroyNode((SNode*)pLimit->offset);
       break;
+    }
     case QUERY_NODE_STATE_WINDOW: {
       SStateWindowNode* pState = (SStateWindowNode*)pNode;
       nodesDestroyNode(pState->pCol);
@@ -1163,6 +1167,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pOptions->pCompactIntervalNode);
       nodesDestroyList(pOptions->pCompactTimeRangeList);
       nodesDestroyNode((SNode*)pOptions->pCompactTimeOffsetNode);
+      nodesDestroyNode((SNode*)pOptions->pKeepTimeOffsetNode);
       break;
     }
     case QUERY_NODE_TABLE_OPTIONS: {
@@ -3096,6 +3101,25 @@ int32_t nodesMakeValueNodeFromInt32(int32_t value, SNode** ppNode) {
   }
   return code;
 }
+
+int32_t nodesMakeValueNodeFromInt64(int64_t value, SNode** ppNode) {
+  SValueNode* pValNode = NULL;
+  int32_t     code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pValNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    pValNode->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+    pValNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    code = nodesSetValueNodeValue(pValNode, &value);
+    if (TSDB_CODE_SUCCESS == code) {
+      pValNode->translate = true;
+      pValNode->isNull = false;
+      *ppNode = (SNode*)pValNode;
+    } else {
+      nodesDestroyNode((SNode*)pValNode);
+    }
+  }
+  return code;
+}
+
 
 bool nodesIsStar(SNode* pNode) {
   return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' == ((SColumnNode*)pNode)->tableAlias[0]) &&

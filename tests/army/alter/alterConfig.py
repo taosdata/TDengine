@@ -176,7 +176,12 @@ class TDTestCase(TBase):
     def alter_err_case(self):
         tdSql.error(f"alter local 'audit 0'",expectErrInfo="Config not found")
         tdSql.error(f"alter dnode 1 'audit 1'",expectErrInfo="Invalid config option")
-        
+    
+    def alter_dnode_1_case(self):
+        tdSql.execute("alter dnode 1 'numOfRpcThreads' '5'")
+        tdSql.execute("alter dnode 1 'rpcQueueMemoryAllowed' '15242880'")
+        tdSql.execute("alter dnode 1 'syncLogBufferMemoryAllowed' '115728640'")
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -191,6 +196,7 @@ class TDTestCase(TBase):
         self.alterBypassFlag()
         # TS-5007
         self.alter_err_case()
+        self.alter_dnode_1_case()
 
         tdLog.success(f"{__file__} successfully executed")
 

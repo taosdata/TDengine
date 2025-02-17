@@ -75,12 +75,14 @@ int32_t tqOpen(const char* path, SVnode* pVnode) {
   if (pTq == NULL) {
     return terrno;
   }
+
   pVnode->pTq = pTq;
+  pTq->pVnode = pVnode;
+
   pTq->path = taosStrdup(path);
   if (pTq->path == NULL) {
     return terrno;
   }
-  pTq->pVnode = pVnode;
 
   pTq->pHandle = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
   if (pTq->pHandle == NULL) {
@@ -131,11 +133,19 @@ void tqClose(STQ* pTq) {
     return;
   }
 
+  int32_t vgId = 0;
+  if (pTq->pVnode != NULL) {
+    vgId = TD_VID(pTq->pVnode);
+  } else if (pTq->pStreamMeta != NULL) {
+    vgId = pTq->pStreamMeta->vgId;
+  }
+
+  // close the stream meta firstly
+  streamMetaClose(pTq->pStreamMeta);
+
   void* pIter = taosHashIterate(pTq->pPushMgr, NULL);
   while (pIter) {
     STqHandle* pHandle = *(STqHandle**)pIter;
-    int32_t    vgId = TD_VID(pTq->pVnode);
-
     if (pHandle->msg != NULL) {
       tqPushEmptyDataRsp(pHandle, vgId);
       rpcFreeCont(pHandle->msg->pCont);
@@ -151,8 +161,12 @@ void tqClose(STQ* pTq) {
   taosHashCleanup(pTq->pOffset);
   taosMemoryFree(pTq->path);
   tqMetaClose(pTq);
-  qDebug("vgId:%d end to close tq", pTq->pStreamMeta != NULL ? pTq->pStreamMeta->vgId : -1);
-  streamMetaClose(pTq->pStreamMeta);
+  qDebug("vgId:%d end to close tq", vgId);
+
+#if 0
+  streamMetaFreeTQDuringScanWalError(pTq);
+#endif
+
   taosMemoryFree(pTq);
 }
 
@@ -160,7 +174,10 @@ void tqNotifyClose(STQ* pTq) {
   if (pTq == NULL) {
     return;
   }
-  streamMetaNotifyClose(pTq->pStreamMeta);
+
+  if (pTq->pStreamMeta != NULL) {
+    streamMetaNotifyClose(pTq->pStreamMeta);
+  }
 }
 
 void tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId) {
@@ -207,7 +224,7 @@ int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq*
   (void)tFormatOffset(buf1, TSDB_OFFSET_LEN, &(pRsp->reqOffset));
   (void)tFormatOffset(buf2, TSDB_OFFSET_LEN, &(pRsp->rspOffset));
 
-  tqDebug("tmq poll vgId:%d consumer:0x%" PRIx64 " (epoch %d) send rsp, block num:%d, req:%s, rsp:%s,QID:0x%" PRIx64,
+  tqDebug("tmq poll vgId:%d consumer:0x%" PRIx64 " (epoch %d) start to send rsp, block num:%d, req:%s, rsp:%s,QID:0x%" PRIx64,
           vgId, pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2, pReq->reqId);
 
   return tqDoSendDataRsp(&pMsg->info, pRsp, pReq->epoch, pReq->consumerId, type, sver, ever);

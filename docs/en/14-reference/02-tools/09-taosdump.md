@@ -10,11 +10,7 @@ slug: /tdengine-reference/tools/taosdump
 
 ## Installation
 
-Taosdump provides two installation methods:
-
-- Taosdump is the default installation component in the TDengine installation package, which can be used after installing TDengine. For how to install TDengine, please refer to [TDengine Installation](../../../get-started/)
-
-- Compile and install taos tools separately, refer to [taos tools](https://github.com/taosdata/taos-tools) .
+taosdump is the default installation component in the TDengine installation package, which can be used after installing TDengine. For how to install TDengine, please refer to [TDengine Installation](../../../get-started/)
 
 ## Common Use Cases
 

@@ -151,15 +151,28 @@ static int32_t pushHierarchicalPlanForCompute(SNodeList* pParentsGroup, SNodeLis
   SNode*  pChild = NULL;
   SNode*  pParent = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
-  FORBOTH(pChild, pCurrentGroup, pParent, pParentsGroup) {
-    code = nodesListMakeAppend(&(((SLogicSubplan*)pParent)->pChildren), pChild);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = nodesListMakeAppend(&(((SLogicSubplan*)pChild)->pParents), pParent);
+  if (pParentsGroup->length == pCurrentGroup->length) {  
+    FORBOTH(pChild, pCurrentGroup, pParent, pParentsGroup) {
+      code = nodesListMakeAppend(&(((SLogicSubplan*)pParent)->pChildren), pChild);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = nodesListMakeAppend(&(((SLogicSubplan*)pChild)->pParents), pParent);
+      }
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
     }
-    if (TSDB_CODE_SUCCESS != code) {
-      break;
+  } else {
+    FOREACH(pChild, pCurrentGroup) {
+      SNode* pParent = NULL;
+      FOREACH(pParent, pParentsGroup) {
+        code = nodesListMakeAppend(&(((SLogicSubplan*)pParent)->pChildren), pChild);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = nodesListMakeAppend(&(((SLogicSubplan*)pChild)->pParents), pParent);
+        }
+      }
     }
   }
+  
   return code;
 }
 

@@ -592,8 +592,12 @@ int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, b
   if (pParent->pLimit && (cloneWhat & CLONE_LIMIT)) {
     code = nodesCloneNode(pParent->pLimit, (SNode**)&pLimit);
     if (TSDB_CODE_SUCCESS == code) {
-      pLimit->limit += pLimit->offset;
-      pLimit->offset = 0;
+      if (pLimit->limit && pLimit->offset) {
+        pLimit->limit->datum.i += pLimit->offset->datum.i;
+      }
+      if (pLimit->offset) {
+        pLimit->offset->datum.i = 0;
+      }
       cloned = true;
     }
   }
@@ -601,8 +605,12 @@ int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, b
   if (pParent->pSlimit && (cloneWhat & CLONE_SLIMIT)) {
     code = nodesCloneNode(pParent->pSlimit, (SNode**)&pSlimit);
     if (TSDB_CODE_SUCCESS == code) {
-      pSlimit->limit += pSlimit->offset;
-      pSlimit->offset = 0;
+      if (pSlimit->limit && pSlimit->offset) {
+        pSlimit->limit->datum.i += pSlimit->offset->datum.i;
+      }
+      if (pSlimit->offset) {
+        pSlimit->offset->datum.i = 0;
+      }
       cloned = true;
     }
   }

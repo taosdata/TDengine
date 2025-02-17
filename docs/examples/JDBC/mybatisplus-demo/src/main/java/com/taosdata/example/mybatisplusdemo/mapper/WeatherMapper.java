@@ -10,7 +10,7 @@ public interface WeatherMapper extends BaseMapper<Weather> {
     @Update("CREATE TABLE if not exists weather(ts timestamp, temperature float, humidity int, location nchar(100))")
     int createTable();
 
-    @Insert("insert into weather (ts, temperature, humidity, location) values(#{ts}, #{temperature}, #{humidity}, #{location})")
+    @Insert("insert into weather (ts, temperature, humidity, location) values(#{ts}, #{temperature}, #{humidity}, #{location, jdbcType=NCHAR})")
     int insertOne(Weather one);
 
     @Update("drop table if exists weather")

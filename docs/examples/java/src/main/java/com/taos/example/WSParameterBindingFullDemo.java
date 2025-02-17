@@ -2,6 +2,7 @@ package com.taos.example;
 
 import com.taosdata.jdbc.ws.TSWSPreparedStatement;
 
+import java.math.BigInteger;
 import java.sql.*;
 import java.util.Random;
 
@@ -26,7 +27,12 @@ public class WSParameterBindingFullDemo {
                     "binary_col BINARY(100), " +
                     "nchar_col NCHAR(100), " +
                     "varbinary_col VARBINARY(100), " +
-                    "geometry_col GEOMETRY(100)) " +
+                    "geometry_col GEOMETRY(100)," +
+                    "utinyint_col tinyint unsigned," +
+                    "usmallint_col smallint unsigned," +
+                    "uint_col int unsigned," +
+                    "ubigint_col bigint unsigned" +
+                    ") " +
                     "tags (" +
                     "int_tag INT, " +
                     "double_tag DOUBLE, " +
@@ -34,7 +40,12 @@ public class WSParameterBindingFullDemo {
                     "binary_tag BINARY(100), " +
                     "nchar_tag NCHAR(100), " +
                     "varbinary_tag VARBINARY(100), " +
-                    "geometry_tag GEOMETRY(100))"
+                    "geometry_tag GEOMETRY(100)," +
+                    "utinyint_tag tinyint unsigned," +
+                    "usmallint_tag smallint unsigned," +
+                    "uint_tag int unsigned," +
+                    "ubigint_tag bigint unsigned" +
+                    ")"
     };
     private static final int numOfSubTable = 10, numOfRow = 10;
 
@@ -79,7 +90,7 @@ public class WSParameterBindingFullDemo {
                 // set table name
                 pstmt.setTableName("ntb_json_" + i);
                 // set tags
-                pstmt.setTagJson(1, "{\"device\":\"device_" + i + "\"}");
+                pstmt.setTagJson(0, "{\"device\":\"device_" + i + "\"}");
                 // set columns
                 long current = System.currentTimeMillis();
                 for (int j = 0; j < numOfRow; j++) {
@@ -94,25 +105,29 @@ public class WSParameterBindingFullDemo {
     }
 
     private static void stmtAll(Connection conn) throws SQLException {
-        String sql = "INSERT INTO ? using stb tags(?,?,?,?,?,?,?) VALUES (?,?,?,?,?,?,?,?)";
+        String sql = "INSERT INTO ? using stb tags(?,?,?,?,?,?,?,?,?,?,?) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)";
 
         try (TSWSPreparedStatement pstmt = conn.prepareStatement(sql).unwrap(TSWSPreparedStatement.class)) {
 
             // set table name
             pstmt.setTableName("ntb");
             // set tags
-            pstmt.setTagInt(1, 1);
-            pstmt.setTagDouble(2, 1.1);
-            pstmt.setTagBoolean(3, true);
-            pstmt.setTagString(4, "binary_value");
-            pstmt.setTagNString(5, "nchar_value");
-            pstmt.setTagVarbinary(6, new byte[] { (byte) 0x98, (byte) 0xf4, 0x6e });
-            pstmt.setTagGeometry(7, new byte[] {
+            pstmt.setTagInt(0, 1);
+            pstmt.setTagDouble(1, 1.1);
+            pstmt.setTagBoolean(2, true);
+            pstmt.setTagString(3, "binary_value");
+            pstmt.setTagNString(4, "nchar_value");
+            pstmt.setTagVarbinary(5, new byte[] { (byte) 0x98, (byte) 0xf4, 0x6e });
+            pstmt.setTagGeometry(6, new byte[] {
                     0x01, 0x01, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x59,
                     0x40, 0x00, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x59, 0x40 });
+            pstmt.setTagShort(7, (short)255);
+            pstmt.setTagInt(8, 65535);
+            pstmt.setTagLong(9, 4294967295L);
+            pstmt.setTagBigInteger(10, new BigInteger("18446744073709551615"));
 
             long current = System.currentTimeMillis();
 
@@ -129,6 +144,10 @@ public class WSParameterBindingFullDemo {
                     0x00, 0x00, 0x00, 0x59,
                     0x40, 0x00, 0x00, 0x00,
                     0x00, 0x00, 0x00, 0x59, 0x40 });
+            pstmt.setShort(9, (short)255);
+            pstmt.setInt(10, 65535);
+            pstmt.setLong(11, 4294967295L);
+            pstmt.setObject(12, new BigInteger("18446744073709551615"));
             pstmt.addBatch();
             pstmt.executeBatch();
             System.out.println("Successfully inserted rows to example_all_type_stmt.ntb");

@@ -1,0 +1,18 @@
+{
+  "type": "record",
+  "name": "Rec1",
+  "fields" : [
+    {"name": "val1", "type": "long"},
+    {"name": "val2", "type": {
+          "type": "record",
+          "name": "Rec2",
+          "fields" : [
+            {"name": "inval1", "type": "double"},
+            {"name": "inval2", "type": "int" }
+          ]
+      }
+    },
+    {"name": "val3", "type": "float"}
+  ]
+}
+
