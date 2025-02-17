@@ -3083,7 +3083,7 @@ _err:
 }
 
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword, int8_t sysinfo,
-                            int8_t is_import, int8_t createDb) {
+                            int8_t createDb, int8_t is_import) {
   CHECK_PARSER_STATUS(pCxt);
   char password[TSDB_USET_PASSWORD_LONGLEN + 3] = {0};
   CHECK_NAME(checkUserName(pCxt, pUserName));
