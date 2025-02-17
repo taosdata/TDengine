@@ -262,25 +262,23 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   submitTbData.flags = submitTbData.flags & 0xff;
 
   int64_t uid;
-  if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
-    code = vnodePreprocessCreateTableReq(pVnode, pCoder, btimeMs, &uid);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
   // submit data
   if (tDecodeI64(pCoder, &submitTbData.suid) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+  if (tDecodeI64(pCoder, &submitTbData.uid) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  if ((submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) && (submitTbData.uid == 0)) {
+    code = vnodePreprocessCreateTableReq(pVnode, pCoder, btimeMs, &uid);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    pCoder->pos -= sizeof(int64_t);
     *(int64_t *)(pCoder->data + pCoder->pos) = uid;
     pCoder->pos += sizeof(int64_t);
-  } else {
-    if (tDecodeI64(pCoder, &submitTbData.uid) < 0) {
-      code = TSDB_CODE_INVALID_MSG;
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
   }
 
   if (tDecodeI32v(pCoder, &submitTbData.sver) < 0) {
@@ -1473,7 +1471,8 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     vAlterTbRsp.pMeta = &vMetaRsp;
   }
 
-  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL || vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
+  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ||
+      vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
     int64_t uid = metaGetTableEntryUidByName(pVnode->pMeta, vAlterTbReq.tbName);
     if (uid == 0) {
       vError("vgId:%d, %s failed at %s:%d since table %s not found", TD_VID(pVnode), __func__, __FILE__, __LINE__,
@@ -1481,8 +1480,8 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
       goto _exit;
     }
 
-    SArray* tbUids = taosArrayInit(4, sizeof(int64_t));
-    void* p = taosArrayPush(tbUids, &uid);
+    SArray *tbUids = taosArrayInit(4, sizeof(int64_t));
+    void   *p = taosArrayPush(tbUids, &uid);
     TSDB_CHECK_NULL(p, code, lino, _exit, terrno);
 
     vDebug("vgId:%d, remove tags value altered table:%s from query table list", TD_VID(pVnode), vAlterTbReq.tbName);
@@ -2016,7 +2015,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
 
     // create table
-    if (pSubmitTbData->pCreateTbReq) {
+    if ((pSubmitTbData->pCreateTbReq) && pSubmitTbData->uid == 0) {
       // alloc if need
       if (pSubmitRsp->aCreateTbRsp == NULL &&
           (pSubmitRsp->aCreateTbRsp = taosArrayInit(TARRAY_SIZE(pSubmitReq->aSubmitTbData), sizeof(SVCreateTbRsp))) ==
