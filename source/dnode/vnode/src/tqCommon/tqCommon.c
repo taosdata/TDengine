@@ -688,7 +688,7 @@ int32_t tqStreamTaskProcessDeployReq(SStreamMeta* pMeta, SMsgCb* cb, int64_t sve
   return code;
 }
 
-int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, SMsgCb* cb, char* msg, int32_t msgLen) {
+int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen) {
   SVDropStreamTaskReq* pReq = (SVDropStreamTaskReq*)msg;
   int32_t              code = 0;
   int32_t              vgId = pMeta->vgId;
@@ -860,7 +860,7 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
     code = streamMetaAddFailedTask(pMeta, req.streamId, req.taskId);
     return code;
   } else if (type == STREAM_EXEC_T_STOP_ONE_TASK) {
-    code = streamMetaDropTask(pMeta, req.streamId, req.taskId);
+    code = streamMetaStopOneTask(pMeta, req.streamId, req.taskId);
     return code;
   } else if (type == STREAM_EXEC_T_RESUME_TASK) {  // task resume to run after idle for a while
     SStreamTask* pTask = NULL;

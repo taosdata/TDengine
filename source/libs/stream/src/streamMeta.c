@@ -897,7 +897,7 @@ static int32_t streamTaskSendTransSuccessMsg(SStreamTask* pTask, void* param) {
 
   // let's kill the query procedure within stream, to end it ASAP.
   if (pTask->info.taskLevel != TASK_LEVEL__SINK && pTask->exec.pExecutor != NULL) {
-    code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS, 5000);
+    code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS, -1);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s failed to kill task related query handle, code:%s", pTask->id.idStr, tstrerror(code));
     }
@@ -965,7 +965,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   return 0;
 }
 
-int32_t streamMetaStopTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
+int32_t streamMetaStopOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
   SStreamTask* pTask = NULL;
   int32_t      code = 0;
   int32_t      vgId = pMeta->vgId;
