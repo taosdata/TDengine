@@ -968,9 +968,9 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, char* pMsg) {
   tqDebug("s-task:%s receive task-reset msg from mnode, reset status and ready for data processing", pTask->id.idStr);
 
   streamMutexLock(&pTask->lock);
-  streamTaskClearCheckInfo(pTask, true);
 
   streamTaskSetFailedCheckpointId(pTask, pReq->chkptId);
+  streamTaskClearCheckInfo(pTask, true);
 
   // clear flag set during do checkpoint, and open inputQ for all upstream tasks
   SStreamTaskState pState = streamTaskGetStatus(pTask);
@@ -1225,6 +1225,7 @@ int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* m
     streamMetaReleaseTask(pMeta, pHTask);
   }
 
+  streamMetaReleaseTask(pMeta, pTask);
   return TSDB_CODE_SUCCESS;
 }
 

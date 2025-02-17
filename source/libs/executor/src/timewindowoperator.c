@@ -1417,15 +1417,15 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
   pInfo->interval = interval;
   pInfo->twAggSup = as;
   pInfo->binfo.mergeResultBlock = pPhyNode->window.mergeDataBlock;
-  if (pPhyNode->window.node.pLimit) {
+  if (pPhyNode->window.node.pLimit && ((SLimitNode*)pPhyNode->window.node.pLimit)->limit) {
     SLimitNode* pLimit = (SLimitNode*)pPhyNode->window.node.pLimit;
     pInfo->limited = true;
-    pInfo->limit = pLimit->limit + pLimit->offset;
+    pInfo->limit = pLimit->limit->datum.i + (pLimit->offset ? pLimit->offset->datum.i : 0);
   }
-  if (pPhyNode->window.node.pSlimit) {
+  if (pPhyNode->window.node.pSlimit && ((SLimitNode*)pPhyNode->window.node.pSlimit)->limit) {
     SLimitNode* pLimit = (SLimitNode*)pPhyNode->window.node.pSlimit;
     pInfo->slimited = true;
-    pInfo->slimit = pLimit->limit + pLimit->offset;
+    pInfo->slimit = pLimit->limit->datum.i + (pLimit->offset ? pLimit->offset->datum.i : 0);
     pInfo->curGroupId = UINT64_MAX;
   }
 

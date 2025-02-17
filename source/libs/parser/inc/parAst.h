@@ -152,7 +152,7 @@ SNode*     createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, SToken
 SNode*     createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, EJoinSubType stype, SNode* pLeft, SNode* pRight,
                                SNode* pJoinCond);
 SNode*     createViewNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pViewName);
-SNode*     createLimitNode(SAstCreateContext* pCxt, const SToken* pLimit, const SToken* pOffset);
+SNode*     createLimitNode(SAstCreateContext* pCxt, SNode* pLimit, SNode* pOffset);
 SNode*     createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder order, ENullOrder nullOrder);
 SNode*     createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, SNode* pGap);
 SNode*     createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr);
@@ -164,9 +164,9 @@ SNode*     createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, S
 SNode*     createWindowOffsetNode(SAstCreateContext* pCxt, SNode* pStartOffset, SNode* pEndOffset);
 SNode*     createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues);
 SNode*     createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode);
-SNode*     createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd);
+SNode*     createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd, SNode* pInterval);
 SNode*     createInterpTimePoint(SAstCreateContext* pCxt, SNode* pPoint);
-SNode*     createInterpTimeAround(SAstCreateContext* pCxt, SNode* pTimepoint, SNode* pInterval);
+SNode*     createInterpTimeAround(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd, SNode* pInterval);
 SNode*     createWhenThenNode(SAstCreateContext* pCxt, SNode* pWhen, SNode* pThen);
 SNode*     createCaseWhenNode(SAstCreateContext* pCxt, SNode* pCase, SNodeList* pWhenThenList, SNode* pElse);
 SNode*     createAlterSingleTagColumnNode(SAstCreateContext* pCtx, SToken* token, SNode* pVal);

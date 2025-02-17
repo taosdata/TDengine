@@ -1823,9 +1823,9 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
   if (NULL == pAgg) {
     return terrno;
   }
-  if (pAgg->node.pSlimit) {
+  if (pAgg->node.pSlimit && ((SLimitNode*)pAgg->node.pSlimit)->limit) {
     pSubPlan->dynamicRowThreshold = true;
-    pSubPlan->rowsThreshold = ((SLimitNode*)pAgg->node.pSlimit)->limit;
+    pSubPlan->rowsThreshold = ((SLimitNode*)pAgg->node.pSlimit)->limit->datum.i;
   }
 
   pAgg->mergeDataBlock = (GROUP_ACTION_KEEP == pAggLogicNode->node.groupAction ? false : true);

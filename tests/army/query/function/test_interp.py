@@ -40,6 +40,9 @@ class TDTestCase(TBase):
         )
         tdSql.execute("create table if not exists test.td32861(ts timestamp, c1 int);")
 
+        tdSql.execute("create stable if not exists test.ts5941(ts timestamp, c1 int, c2 int) tags (t1 varchar(30));")
+        tdSql.execute("create table if not exists test.ts5941_child using test.ts5941 tags ('testts5941');")
+
         tdLog.printNoPrefix("==========step2:insert data")
 
         tdSql.execute(f"insert into test.td32727 values ('2020-02-01 00:00:05', 5, 5, 5, 5, 5.0, 5.0, true, 'varchar', 'nchar', 5, 5, 5, 5)")
@@ -56,6 +59,9 @@ class TDTestCase(TBase):
                 ('2020-01-01 00:00:15', 15),
                 ('2020-01-01 00:00:21', 21);"""
         )
+        tdSql.execute(f"insert into test.ts5941_child values ('2020-02-01 00:00:05', 5, 5)")
+        tdSql.execute(f"insert into test.ts5941_child values ('2020-02-01 00:00:10', 10, 10)")
+        tdSql.execute(f"insert into test.ts5941_child values ('2020-02-01 00:00:15', 15, 15)")
 
     def test_normal_query_new(self, testCase):
         # read sql from .sql file and execute
@@ -65,8 +71,30 @@ class TDTestCase(TBase):
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
+    def test_abnormal_query(self, testCase):
+        tdLog.info("test abnormal query.")
+        tdSql.error("select interp(c1) from test.td32727 range('2020-02-01 00:00:00.000', '2020-02-01 00:00:30.000', -1s) every(2s) fill(prev, 99);")
+        tdSql.error("select interp(c1), interp(c4) from test.td32727 range('2020-02-01 00:00:00.000', '2020-02-01 00:00:30.000', 1s) every(2s) fill(prev, 99);")
+        tdSql.error("select _irowts from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(2s) fill(near);")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(2s);")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) fill(near, 2);")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(2s) fill(near);")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(2s) fill(near, c1);")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', 1s, '2020-01-01 00:00:30.000') every(2s) fill(near, 99);")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', '1s') every(2s) fill(near, 99);")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(2s) fill(linear, 99);")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(2s) fill(value, 99);")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(2s) fill(value_f, 99);")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(2s) fill(null, 99);")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(2s) fill(null_f, 99);")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1n) every(2s) fill(prev, 99);")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1y) every(2s) fill(prev, 99);")
+        tdSql.error("select interp(c1) from test.td32861 range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1) every(2s) fill(prev, 99);")
+        tdSql.error("create stream s1 trigger force_window_close into test.s1res as select _irowts, interp(c1), interp(c2)from test.td32727 partition by tbname range('2020-01-01 00:00:00.000', '2020-01-01 00:00:30.000', 1s) every(1s) fill(near, 1, 1);")
+
     def test_interp(self):
         self.test_normal_query_new("interp")
+        self.test_abnormal_query("interp")
 
     def run(self):
         tdLog.debug(f"start to excute {__file__}")

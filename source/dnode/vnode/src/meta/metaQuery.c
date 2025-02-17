@@ -190,13 +190,20 @@ int metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid) {
   return 0;
 }
 
-int metaGetTableTypeByName(void *pVnode, char *tbName, ETableType *tbType) {
+int metaGetTableTypeSuidByName(void *pVnode, char *tbName, ETableType *tbType, uint64_t* suid) {
   int         code = 0;
   SMetaReader mr = {0};
   metaReaderDoInit(&mr, ((SVnode *)pVnode)->pMeta, META_READER_LOCK);
 
   code = metaGetTableEntryByName(&mr, tbName);
   if (code == 0) *tbType = mr.me.type;
+  if (TSDB_CHILD_TABLE == mr.me.type) {
+    *suid = mr.me.ctbEntry.suid;
+  } else if (TSDB_SUPER_TABLE == mr.me.type) {
+    *suid = mr.me.uid;
+  } else {
+    *suid = 0;
+  }
 
   metaReaderClear(&mr);
   return code;

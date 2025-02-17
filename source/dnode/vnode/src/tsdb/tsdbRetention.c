@@ -240,59 +240,70 @@ _exit:
   return code;
 }
 
+static int32_t tsdbRemoveOrMoveFileObject(SRTNer *rtner, int32_t expLevel, STFileObj *fobj) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  if (fobj == NULL) {
+    return code;
+  }
+
+  if (expLevel < 0) {
+    // remove the file
+    code = tsdbDoRemoveFileObject(rtner, fobj);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  } else if (expLevel > fobj->f->did.level) {
+    // Try to move the file to a new level
+    for (; expLevel > fobj->f->did.level; expLevel--) {
+      SDiskID diskId = {0};
+
+      code = tsdbAllocateDiskAtLevel(rtner->tsdb, expLevel, tsdbFTypeLabel(fobj->f->type), &diskId);
+      if (code) {
+        tsdbTrace("vgId:%d, cannot allocate disk for file %s, level:%d, reason:%s, skip!", TD_VID(rtner->tsdb->pVnode),
+                  fobj->fname, expLevel, tstrerror(code));
+        code = 0;
+        continue;
+      } else {
+        tsdbInfo("vgId:%d start to migrate file %s from level %d to %d, size:%" PRId64, TD_VID(rtner->tsdb->pVnode),
+                 fobj->fname, fobj->f->did.level, diskId.level, fobj->f->size);
+
+        code = tsdbDoMigrateFileObj(rtner, fobj, &diskId);
+        TSDB_CHECK_CODE(code, lino, _exit);
+
+        tsdbInfo("vgId:%d end to migrate file %s from level %d to %d, size:%" PRId64, TD_VID(rtner->tsdb->pVnode),
+                 fobj->fname, fobj->f->did.level, diskId.level, fobj->f->size);
+        break;
+      }
+    }
+  }
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d, %s failed at %s:%d since %s", TD_VID(rtner->tsdb->pVnode), __func__, __FILE__, lino,
+              tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t tsdbDoRetention(SRTNer *rtner) {
   int32_t    code = 0;
   int32_t    lino = 0;
   STFileObj *fobj = NULL;
   STFileSet *fset = rtner->fset;
-  int32_t    expLevel = tsdbFidLevel(fset->fid, &rtner->tsdb->keepCfg, rtner->now);
 
-  if (expLevel < 0) {  // remove the fileset
-    for (int32_t ftype = 0; (ftype < TSDB_FTYPE_MAX) && (fobj = fset->farr[ftype], 1); ++ftype) {
-      if (fobj == NULL) continue;
-      TAOS_CHECK_GOTO(tsdbDoRemoveFileObject(rtner, fobj), &lino, _exit);
-    }
-
-    SSttLvl *lvl;
-    TARRAY2_FOREACH(fset->lvlArr, lvl) {
-      TARRAY2_FOREACH(lvl->fobjArr, fobj) { TAOS_CHECK_GOTO(tsdbDoRemoveFileObject(rtner, fobj), &lino, _exit); }
-    }
-  } else if (expLevel == 0) {  // only migrate to upper level
-    return 0;
-  } else {  // migrate
-    SDiskID did;
-
-    TAOS_CHECK_GOTO(tfsAllocDisk(rtner->tsdb->pVnode->pTfs, expLevel, &did), &lino, _exit);
-    code = tfsMkdirRecurAt(rtner->tsdb->pVnode->pTfs, rtner->tsdb->path, did);
+  // handle data file sets
+  int32_t expLevel = tsdbFidLevel(fset->fid, &rtner->tsdb->keepCfg, rtner->now);
+  for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ++ftype) {
+    code = tsdbRemoveOrMoveFileObject(rtner, expLevel, fset->farr[ftype]);
     TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
-    // data
-    for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX && (fobj = fset->farr[ftype], 1); ++ftype) {
-      if (fobj == NULL) continue;
-
-      if (fobj->f->did.level == did.level) {
-        continue;
-      }
-
-      if (fobj->f->did.level > did.level) {
-        continue;
-      }
-      tsdbInfo("file:%s size: %" PRId64 " do migrate from %d to %d", fobj->fname, fobj->f->size, fobj->f->did.level,
-               did.level);
-
-      TAOS_CHECK_GOTO(tsdbDoMigrateFileObj(rtner, fobj, &did), &lino, _exit);
-    }
-
-    // stt
-    SSttLvl *lvl;
-    TARRAY2_FOREACH(fset->lvlArr, lvl) {
-      TARRAY2_FOREACH(lvl->fobjArr, fobj) {
-        if (fobj->f->did.level == did.level) {
-          continue;
-        }
-
-        TAOS_CHECK_GOTO(tsdbDoMigrateFileObj(rtner, fobj, &did), &lino, _exit);
-      }
+  // handle stt file
+  SSttLvl *lvl;
+  TARRAY2_FOREACH(fset->lvlArr, lvl) {
+    TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+      code = tsdbRemoveOrMoveFileObject(rtner, expLevel, fobj);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
 
