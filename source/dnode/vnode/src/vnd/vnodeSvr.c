@@ -243,37 +243,9 @@ _exit:
 }
 
 extern int64_t tsMaxKeyByPrecision[];
-
-static int32_t vnodePreProcessBlobData(SDecoder *pCoder, SArray **ppBlobData) {
-  int32_t  code = 0;
-  uint64_t nBlob;
-
-  SArray *pBlobData = taosArrayInit(8, sizeof(SBlobRow2 *));
-
-  if (tDecodeU64v(pCoder, &nBlob) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto _exit;
-  }
-  for (int32_t i = 0; i < nBlob; i++) {
-    SBlobRow2 **ppBlobRow = taosArrayReserve(pBlobData, 1);
-    if (ppBlobRow == NULL) {
-      code = terrno;
-      goto _exit;
-    }
-
-    code = tDecodeBlobRow2(pCoder, ppBlobRow);
-    if (code != 0) {
-      goto _exit;
-    }
-  }
-  *ppBlobData = pBlobData;
-_exit:
-  return code;
-}
 static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int64_t btimeMs, int64_t ctimeMs) {
   int32_t code = 0;
   int32_t lino = 0;
-  int32_t hasBlob = 0;
 
   if (tStartDecode(pCoder) < 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -286,11 +258,6 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     code = TSDB_CODE_INVALID_MSG;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-
-  if (submitTbData.flags & SUBMIT_REQ_WITH_BLOB) {
-    hasBlob = 1;
-  }
-
   version = (submitTbData.flags >> 8) & 0xff;
   submitTbData.flags = submitTbData.flags & 0xff;
 
@@ -398,10 +365,6 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     *(int64_t *)(pCoder->data + pCoder->pos) = ctimeMs;
     pCoder->pos += sizeof(int64_t);
   }
-  // if (!tDecodeIsEnd(pCoder) && hasBlob) {
-  //   SArray *blobArray = NULL;
-  //   vnodePreProcessBlobData(pCoder, &blobArray);
-  // }
 
   tEndDecode(pCoder);
 
@@ -967,7 +930,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 }
 
 int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
-  vTrace("vgId:%d, msg:%p in fetch queue is processing", pVnode->config.vgId, pMsg);
+  vTrace("vgId:%d, msg:%p in stream queue is processing", pVnode->config.vgId, pMsg);
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
        pMsg->msgType == TDMT_VND_BATCH_META) &&
       !syncIsReadyForRead(pVnode->sync)) {
@@ -978,14 +941,6 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
   switch (pMsg->msgType) {
     case TDMT_STREAM_TASK_RUN:
       return tqProcessTaskRunReq(pVnode->pTq, pMsg);
-    case TDMT_STREAM_TASK_DISPATCH:
-      return tqProcessTaskDispatchReq(pVnode->pTq, pMsg);
-    case TDMT_STREAM_TASK_DISPATCH_RSP:
-      return tqProcessTaskDispatchRsp(pVnode->pTq, pMsg);
-    case TDMT_VND_STREAM_TASK_CHECK:
-      return tqProcessTaskCheckReq(pVnode->pTq, pMsg);
-    case TDMT_VND_STREAM_TASK_CHECK_RSP:
-      return tqProcessTaskCheckRsp(pVnode->pTq, pMsg);
     case TDMT_STREAM_RETRIEVE:
       return tqProcessTaskRetrieveReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_RETRIEVE_RSP:
@@ -1000,8 +955,6 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskRetrieveTriggerReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_RETRIEVE_TRIGGER_RSP:
       return tqProcessTaskRetrieveTriggerRsp(pVnode->pTq, pMsg);
-    case TDMT_MND_STREAM_HEARTBEAT_RSP:
-      return tqProcessStreamHbRsp(pVnode->pTq, pMsg);
     case TDMT_MND_STREAM_REQ_CHKPT_RSP:
       return tqProcessStreamReqCheckpointRsp(pVnode->pTq, pMsg);
     case TDMT_VND_GET_STREAM_PROGRESS:
@@ -1010,6 +963,32 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskChkptReportRsp(pVnode->pTq, pMsg);
     default:
       vError("unknown msg type:%d in stream queue", pMsg->msgType);
+      return TSDB_CODE_APP_ERROR;
+  }
+}
+
+int32_t vnodeProcessStreamCtrlMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
+  vTrace("vgId:%d, msg:%p in stream ctrl queue is processing", pVnode->config.vgId, pMsg);
+  if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
+       pMsg->msgType == TDMT_VND_BATCH_META) &&
+      !syncIsReadyForRead(pVnode->sync)) {
+    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
+    return 0;
+  }
+
+  switch (pMsg->msgType) {
+    case TDMT_MND_STREAM_HEARTBEAT_RSP:
+      return tqProcessStreamHbRsp(pVnode->pTq, pMsg);
+    case TDMT_STREAM_TASK_DISPATCH:
+      return tqProcessTaskDispatchReq(pVnode->pTq, pMsg);
+    case TDMT_STREAM_TASK_DISPATCH_RSP:
+      return tqProcessTaskDispatchRsp(pVnode->pTq, pMsg);
+    case TDMT_VND_STREAM_TASK_CHECK:
+      return tqProcessTaskCheckReq(pVnode->pTq, pMsg);
+    case TDMT_VND_STREAM_TASK_CHECK_RSP:
+      return tqProcessTaskCheckRsp(pVnode->pTq, pMsg);
+    default:
+      vError("unknown msg type:%d in stream ctrl queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
   }
 }
@@ -1494,8 +1473,7 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
     vAlterTbRsp.pMeta = &vMetaRsp;
   }
 
-  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ||
-      vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
+  if (vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL || vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TAG_VAL) {
     int64_t uid = metaGetTableEntryUidByName(pVnode->pMeta, vAlterTbReq.tbName);
     if (uid == 0) {
       vError("vgId:%d, %s failed at %s:%d since table %s not found", TD_VID(pVnode), __func__, __FILE__, __LINE__,
@@ -1503,8 +1481,8 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
       goto _exit;
     }
 
-    SArray *tbUids = taosArrayInit(4, sizeof(int64_t));
-    void   *p = taosArrayPush(tbUids, &uid);
+    SArray* tbUids = taosArrayInit(4, sizeof(int64_t));
+    void* p = taosArrayPush(tbUids, &uid);
     TSDB_CHECK_NULL(p, code, lino, _exit, terrno);
 
     vDebug("vgId:%d, remove tags value altered table:%s from query table list", TD_VID(pVnode), vAlterTbReq.tbName);
@@ -2124,8 +2102,7 @@ _exit:
                                    pVnode->monitor.strVgId,
                                    pOriginalMsg->info.conn.user,
                                    "Success"};
-
-    int tv = taos_counter_add(tsInsertCounter, pSubmitRsp->affectedRows, sample_labels);
+    int         tv = taos_counter_add(tsInsertCounter, pSubmitRsp->affectedRows, sample_labels);
   }
 
   if (code == 0) {
