@@ -109,12 +109,14 @@ int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool 
                        SStreamTask** p) {
   *p = NULL;
 
-  SStreamTask* pTask = (SStreamTask*)taosMemoryCalloc(1, sizeof(SStreamTask));
-  if (pTask == NULL) {
-    stError("s-task:0x%" PRIx64 " failed malloc new stream task, size:%d, code:%s", streamId,
-            (int32_t)sizeof(SStreamTask), tstrerror(terrno));
-    return terrno;
-  }
+  //for test
+  SStreamTask* pTask = NULL;
+  // SStreamTask* pTask = (SStreamTask*)taosMemoryCalloc(1, sizeof(SStreamTask));
+  // if (pTask == NULL) {
+  //   stError("s-task:0x%" PRIx64 " failed malloc new stream task, size:%d, code:%s", streamId,
+  //           (int32_t)sizeof(SStreamTask), tstrerror(terrno));
+  //   return terrno;
+  // }
 
   pTask->ver = SSTREAM_TASK_VER;
   pTask->id.taskId = tGenIdPI32();
