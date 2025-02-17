@@ -11,7 +11,7 @@
 #
 # army-test
 #
-
+,,y,army,./pytest.sh python3 ./test.py -f cluster/strongPasswrd.py
 
 #
 # army/tools
