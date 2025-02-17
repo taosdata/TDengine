@@ -447,7 +447,6 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
       continue;
     }
 
-    int64_t refId = pTask->id.refId;
     int32_t ret = streamTaskStop(pTask);
     if (ret) {
       stError("s-task:0x%x failed to stop task, code:%s", pTaskId->taskId, tstrerror(ret));

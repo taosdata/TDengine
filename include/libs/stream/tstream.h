@@ -760,7 +760,6 @@ int32_t streamMetaRemoveTaskInMeta(SStreamMeta* pMeta, STaskId* pKey);
 int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask, bool* pAdded);
 int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 int32_t streamMetaGetNumOfTasks(SStreamMeta* pMeta);
-int32_t streamMetaDropTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 
 int32_t streamMetaAcquireTaskNoLock(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, SStreamTask** pTask);
 int32_t streamMetaAcquireTaskUnsafe(SStreamMeta* pMeta, STaskId* pId, SStreamTask** pTask);
@@ -800,6 +799,7 @@ void    streamMetaLoadAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStartAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStopAllTasks(SStreamMeta* pMeta);
 int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
+int32_t streamMetaStopOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
 bool    streamMetaAllTasksReady(const SStreamMeta* pMeta);
 int32_t streamTaskSendNegotiateChkptIdMsg(SStreamTask* pTask);
 int32_t streamTaskCheckIfReqConsenChkptId(SStreamTask* pTask, int64_t ts);
