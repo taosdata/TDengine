@@ -1,23 +1,30 @@
 #[cfg(test)]
 mod test_tmq_to_local {
     use anyhow::bail;
-    use assert_cmd::assert::OutputAssertExt;
     use assert_cmd::Command;
+    use std::env;
     use taos::{
         AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, Taos, TaosBuilder, TryStreamExt,
     };
     use taosx_core::taoz::ZFile;
 
-    /// 备份数据库到本地，备份 5 行数据，然后恢复备份的数据
+    /// # 用例
+    /// 创建一个名称为 backup_5rows 的数据库，写入 5 行数据，用 taosx 备份到本地，然后恢复到新的数据库 backup_5rows_target
+    /// # Example
+    /// ```shell
+    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' cargo nextest run test_backup_and_restore_5rows_with_taos --nocapture
+    /// ```
     #[tokio::test]
-    async fn test_td31475_5rows_with_taos() -> anyhow::Result<()> {
+    async fn test_backup_and_restore_5rows_with_taos() -> anyhow::Result<()> {
         // given
-        const ADDR: &str = "tmq://";
-        const SRC_DB: &str = "td31475_backup_5rows";
-        const DST_DB: &str = "td31475_backup_5rows_target";
+        let addr = env::var("TAOS_ADDR").unwrap_or("tmq://".to_string());
+        const SRC_DB: &str = "backup_5rows";
+        const DST_DB: &str = "backup_5rows_target";
 
         // prepare
-        let taos = TaosBuilder::from_dsn(ADDR)?.build().await?;
+        let taos = TaosBuilder::from_dsn(addr.clone().into_dsn()?)?
+            .build()
+            .await?;
         drop_topic_and_database(&taos, SRC_DB).await?;
         drop_topic_and_database(&taos, DST_DB).await?;
         taos.exec_many(vec![
@@ -37,7 +44,7 @@ mod test_tmq_to_local {
         let mut cmd = Command::cargo_bin("taosx")?;
         cmd.arg("run")
             .arg("-f")
-            .arg(format!("{ADDR}/{SRC_DB}"))
+            .arg(format!("{addr}/{SRC_DB}"))
             .arg("-t")
             .arg(format!("local:{}", backup_path.path().to_str().unwrap()))
             .env("TAOSX_DATA_DIR", data_dir.path())
@@ -70,7 +77,7 @@ mod test_tmq_to_local {
                 to.to_rfc3339().as_str()
             ))
             .arg("-t")
-            .arg(format!("{ADDR}/{DST_DB}"))
+            .arg(format!("{addr}/{DST_DB}"))
             .env("TAOSX_DATA_DIR", data_dir.path())
             .assert()
             .success();
@@ -102,45 +109,6 @@ mod test_tmq_to_local {
         Ok(())
     }
 
-    /// 备份数据库到本地，备份 1 亿行数据，然后恢复备份的数据
-    #[tokio::test]
-    #[ignore]
-    async fn test_td31475_1e8rows_with_taos() -> anyhow::Result<()> {
-        // given
-        let addr = "tmq+ws://192.168.0.201:6041";
-        let db = "td31475_backup_1e8rows";
-        let backup_path = tempfile::TempDir::new()?;
-
-        // prepare
-        let taos = TaosBuilder::from_dsn(format!("{addr}/").into_dsn()?)?
-            .build()
-            .await?;
-        drop_topic_and_database(&taos, db).await?;
-        insert_1e8rows(db).await?;
-
-        // when
-        let mut cmd = Command::cargo_bin("taosx")?;
-        cmd.arg("run")
-            .arg("-f")
-            .arg(format!("{addr}/{db}"))
-            .arg("-t")
-            .arg(format!("local:{}", backup_path.path().to_str().unwrap()))
-            .assert()
-            .success();
-
-        // then
-        assert!(backup_path.path().exists());
-        let assert = Command::new("ls").arg(backup_path.path()).assert();
-        let files = String::from_utf8(assert.get_output().stdout.clone())?;
-        let files = files.lines().collect::<Vec<_>>();
-        dbg!(&files);
-
-        // clean-up resources
-        drop_topic_and_database(&taos, db).await?;
-
-        Ok(())
-    }
-
     pub async fn drop_topic_and_database(taos: &Taos, db_name: &str) -> anyhow::Result<()> {
         let topics: Vec<String> = taos
             .query(format!(
@@ -150,6 +118,7 @@ mod test_tmq_to_local {
             .deserialize()
             .try_collect()
             .await?;
+        // drop topics
         for t in topics {
             let mut count = 0;
             loop {
@@ -164,20 +133,9 @@ mod test_tmq_to_local {
                 break;
             }
         }
+        // drop database
         taos.exec(format!("DROP DATABASE IF EXISTS `{db_name}`"))
             .await?;
-
-        Ok(())
-    }
-
-    pub async fn insert_1e8rows(db_name: &str) -> anyhow::Result<()> {
-        Command::new("taosBenchmark")
-            .args(["-y", "-d", db_name, "-n", "10000", "-t", "10000"])
-            .output()
-            .expect("failed to execute process")
-            .assert()
-            .append_context("taosBenchmark", "insert with benchmark tool")
-            .success();
 
         Ok(())
     }

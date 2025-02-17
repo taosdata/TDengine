@@ -52,21 +52,22 @@ pub async fn get_backup_points(
     let id = id.into_inner();
 
     match get_backup_points_impl(id, task_store).await {
-        Ok(Some(v)) => Ok(HttpResponse::Ok().json(v)),
-        Ok(None) => Ok(HttpResponse::NotFound().finish()),
-        Err(err) => Err(Failed::from_error(err)),
+        Ok(v) => Ok(HttpResponse::Ok().json(v)),
+        Err(err) => {
+            tracing::error!("failed to get backup points: {:?}", err);
+            Err(Failed::from_error(err))
+        }
     }
 }
 
 async fn get_backup_points_impl(
     id: i64,
     task_store: Data<TaskControllerRef>,
-) -> anyhow::Result<Option<Vec<BackupPoint>>> {
-    let task = task_store.get(id).await?;
-    if task.is_none() {
-        return Ok(None);
-    }
-    let task = task.unwrap();
+) -> anyhow::Result<Vec<BackupPoint>> {
+    let task = task_store
+        .get(id)
+        .await?
+        .ok_or(anyhow::anyhow!("task not found, id: {}", id))?;
 
     let from = task.from.as_str().into_dsn().map_err(|err| {
         anyhow::Error::from(err).context(format!("failed to convert dsn: {}", &task.from))
@@ -81,6 +82,12 @@ async fn get_backup_points_impl(
         .ok_or_else(|| anyhow::anyhow!("oneshot topic not found, task_id: {}", id))?;
 
     let backup_dir = BackupConfig::parse_backup_dir(&to, Some(task_id.as_str()))?;
+    // 如果目录不存在，返回空列表，不报错，因为可能是备份计划还没有执行
+    if tokio::fs::metadata(&backup_dir).await.is_err() {
+        tracing::warn!("backup dir not found: {:?}", backup_dir);
+        return Ok(vec![]);
+    }
+
     // 列出目录下的所有文件名
     let mut backup_files = vec![];
     let mut entries = tokio::fs::read_dir(backup_dir).await?;
@@ -110,9 +117,17 @@ async fn get_backup_points_impl(
     backup_obj.task_id = Some(task_id.clone());
     backup_obj.topic = Some(topic.clone());
 
-    // 按照 point 合并
-    let points = backup_files
+    Ok(group_by_point(backup_files, &backup_obj))
+}
+
+/// 备份文件按照备份点的时间戳分组，计算分组的文件大小和文件数量
+fn group_by_point(
+    files: Vec<(DateTime<Utc>, u64, u64)>,
+    backup_obj: &BackupObject,
+) -> Vec<BackupPoint> {
+    files
         .into_iter()
+        .sorted_by(|(a, _, _), (b, _, _)| b.cmp(a))
         .chunk_by(|p| p.0)
         .into_iter()
         .map(|(ts, group)| {
@@ -125,15 +140,53 @@ async fn get_backup_points_impl(
                 file_count,
             }
         })
-        .sorted_by(|a, b| b.point.cmp(&a.point))
-        .collect();
-
-    Ok(Some(points))
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_group_by_point() {
+        let files = vec![
+            (DateTime::<Utc>::from_timestamp(1738995480, 0), 126532449, 1),
+            (DateTime::<Utc>::from_timestamp(1738997280, 0), 7749230, 1),
+            (DateTime::<Utc>::from_timestamp(1738995480, 0), 44466371, 1),
+            (DateTime::<Utc>::from_timestamp(1738999080, 0), 880408, 1),
+            (DateTime::<Utc>::from_timestamp(1738997280, 0), 292196, 1),
+            (DateTime::<Utc>::from_timestamp(1738999080, 0), 293548, 1),
+        ]
+        .into_iter()
+        .map(|(s, size, count)| (s.unwrap(), size, count))
+        .collect_vec();
+
+        let backup_obj = BackupObject {
+            task_id: Some("82".to_string()),
+            topic: Some("abc".to_string()),
+            db_name: "abc".to_string(),
+            db_sql: "abc".to_string(),
+            stable_name: None,
+            stable_sql: None,
+        };
+
+        let points = group_by_point(files, &backup_obj);
+        dbg!(&points);
+        assert_eq!(3, points.len());
+
+        assert_eq!("2025-02-08T07:18:00+00:00", points[0].point.to_rfc3339());
+        assert_eq!(880408 + 293548, points[0].file_size);
+        assert_eq!(2, points[0].file_count);
+
+        assert_eq!("2025-02-08T06:48:00+00:00", points[1].point.to_rfc3339());
+        assert_eq!(7749230 + 292196, points[1].file_size);
+        assert_eq!(2, points[1].file_count);
+
+        assert_eq!("2025-02-08T06:18:00+00:00", points[2].point.to_rfc3339());
+        assert_eq!(126532449 + 44466371, points[2].file_size);
+        assert_eq!(2, points[2].file_count);
+    }
 
     #[test]
     fn test_serialize_backup_point() {
@@ -146,12 +199,22 @@ mod tests {
                 stable_name: None,
                 stable_sql: None,
             },
-            point: Utc::now(),
+            point: DateTime::parse_from_rfc3339("2021-08-01T00:00:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
             file_size: 1024 * 1024 * 30,
             file_count: 2,
         };
 
-        let json = serde_json::to_string(&p).unwrap();
-        dbg!(json);
+        let json = serde_json::to_value(&p).unwrap();
+        let expect = json!({
+            "topic": "abc",
+            "db_name": "abc",
+            "db_sql": "abc",
+            "point": "2021-08-01T00:00:00Z",
+            "file_size": "30.00 MB",
+            "file_count": 2,
+        });
+        assert_eq!(json, expect);
     }
 }

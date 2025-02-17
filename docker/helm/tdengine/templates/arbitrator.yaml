@@ -1,3 +1,11 @@
+{{- $releaseName := .Release.Name }}
+{{- $serviceName := include "tdengine.fullname" . }}
+{{/* Global labels from .Values.labels */}}
+{{- $labels := .Values.labels -}}
+{{/* Chart labels from _helpers.tpl */}}
+{{- $chartLabels := include "tdengine.labels" . -}}
+{{/* Chart selector labels from _helpers.tpl */}}
+{{- $selectorLabels := include "tdengine.selectorLabels" . -}}
 {{- if .Values.services.arbitrator }}
 ---
 # The arbitrator service is disabled by default. To enable it, set the following values:
@@ -9,7 +17,13 @@ kind: ConfigMap
 metadata:
   name: {{ include "tdengine.fullname" . }}-arbitrator
   labels:
-    {{- include "tdengine.labels" . | nindent 4 }}
+    {{- $chartLabels | nindent 4 }}
+    {{- with $labels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+    app: "tdengine"
+    component: "taosd"
+    role: "arbitrator"
 data:
   env: |-
 {{ .Values.services.arbitrator.environment | toYaml | indent 4 }}
@@ -18,33 +32,51 @@ data:
   {{ .name }}: |-
 {{ .content |trim | indent 6 }}
   {{- end }}
-{{- end }}
 
 ---
 # Arbitrator Service
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
-  name: {{ include "tdengine.fullname" . }}-arbitrator
+  name: {{ include "tdengine.fullname" . }}-arb
   labels:
-    {{- include "tdengine.labels" . | nindent 4 }}
-    app: "arbitrator"
+    {{- $chartLabels | nindent 4 }}
+    {{- with .Values.labels }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+    app: "tdengine"
+    component: "taosd"
+    role: "arbitrator"
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{- include "tdengine.selectorLabels" . | nindent 6 }}
-      app: "arbitrator"
+      {{- $selectorLabels | nindent 6 }}
+      {{- with .Values.labels }}
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+      app: "tdengine"
+      component: "taosd"
+      role: "arbitrator"
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
+      {{- with .Values.services.arbitrator.annotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "tdengine.selectorLabels" . | nindent 8 }}
-        app: "arbitrator"
+        {{- $chartLabels | nindent 8 }}
+        {{- with $labels }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        app: "tdengine"
+        component: "taosd"
+        role: "arbitrator"
     spec:
+      {{- with .Values.services.server.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: arbitrator
           image: "{{ .Values.image.repository }}{{ .Values.image.arbitrator | default .Values.image.server }}"
@@ -63,9 +95,11 @@ spec:
           # SERVICE_NAME and NAMESPACE for fqdn resolve
           - name: SERVICE_NAME
             value: {{ include "tdengine.fullname" . }}
-          - name: STS_NAME
+          - name: ARB_SERVICE_NAME
+            value: {{ include "tdengine.fullname" . }}-arb
+          - name: SERVER_STS_NAME
             value: {{ include "tdengine.fullname" . }}
-          - name: STS_NAMESPACE
+          - name: NAMESPACE
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace
@@ -74,17 +108,18 @@ spec:
             value: {{ .Values.timezone }}
           - name: TAOS_SUPPORT_VNODES
             value: "0"
+          - name: ENABLE_TAOSX
+            value: "0"
           # TAOS_ prefix will configured in taos.cfg, strip prefix and camelCase.
           - name: TAOS_SERVER_PORT
             value: "6030"
           # Must set if you want a cluster.
           - name: TAOS_FIRST_EP
-            value: "$(STS_NAME)-0.$(SERVICE_NAME).$(STS_NAMESPACE).svc.cluster.local:$(TAOS_SERVER_PORT)"
+            value: "$(SERVER_STS_NAME)-0.$(SERVICE_NAME).$(NAMESPACE).svc.cluster.local:$(TAOS_SERVER_PORT)"
           # TAOS_FQND should always be setted in k8s env.
           - name: TAOS_FQDN
-            value: "$(POD_NAME).$(SERVICE_NAME).$(STS_NAMESPACE).svc.cluster.local"
+            value: "$(POD_NAME).$(ARB_SERVICE_NAME).$(NAMESPACE).svc.cluster.local"
 
-          
           volumeMounts:
           
           {{- range .Values.services.arbitrator.files }}
@@ -103,12 +138,12 @@ spec:
               - taos
               - -s
               - "select server_version()"
-            initialDelaySeconds: 15
-            timeoutSeconds: 15000
+            initialDelaySeconds: 10
+            timeoutSeconds: 1500
           livenessProbe:
             tcpSocket:
               port: 6030
-            initialDelaySeconds: 15
+            initialDelaySeconds: 10
             periodSeconds: 20
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
@@ -138,6 +173,14 @@ spec:
   {{- range .Values.services.arbitrator.volumes }}
   - metadata:
       name: {{ printf "%s-%s" $serviceName .name }}
+      labels:
+        {{- $chartLabels | nindent 8 }}
+        {{- with $labels }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+        app: "tdengine"
+        component: "taosd"
+        role: "arbitrator"
     spec:
       {{- toYaml .spec | nindent 6 }}
   {{- end }}
