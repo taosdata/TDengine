@@ -548,6 +548,15 @@ end:
   *jsonStr = string;
 }
 
+int32_t setColRef(SColRef* colRef, col_id_t colId, char* refColName, char* refTableName, char* refDbName) {
+  colRef->id = colId;
+  colRef->hasRef = true;
+  tstrncpy(colRef->refDbName, refDbName, TSDB_DB_NAME_LEN);
+  tstrncpy(colRef->refTableName, refTableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(colRef->refColName, refColName, TSDB_COL_NAME_LEN);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   QUERY_PARAM_CHECK(pDst);
   if (NULL == pSrc) {
@@ -564,10 +573,14 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
 
   int32_t metaSize = sizeof(STableMeta) + numOfField * sizeof(SSchema);
   int32_t schemaExtSize = 0;
+  int32_t colRefSize = 0;
   if (useCompress(pSrc->tableType) && pSrc->schemaExt) {
     schemaExtSize = pSrc->tableInfo.numOfColumns * sizeof(SSchemaExt);
   }
-  *pDst = taosMemoryMalloc(metaSize + schemaExtSize);
+  if (hasRefCol(pSrc->tableType) && pSrc->colRef) {
+    colRefSize = pSrc->numOfColRefs * sizeof(SColRef);
+  }
+  *pDst = taosMemoryMalloc(metaSize + schemaExtSize + colRefSize);
   if (NULL == *pDst) {
     return terrno;
   }
@@ -577,6 +590,12 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
     memcpy((*pDst)->schemaExt, pSrc->schemaExt, schemaExtSize);
   } else {
     (*pDst)->schemaExt = NULL;
+  }
+  if (hasRefCol(pSrc->tableType) && pSrc->colRef) {
+    (*pDst)->colRef = (SColRef*)((char*)*pDst + metaSize + schemaExtSize);
+    memcpy((*pDst)->colRef, pSrc->colRef, colRefSize);
+  } else {
+    (*pDst)->colRef = NULL;
   }
 
   return TSDB_CODE_SUCCESS;

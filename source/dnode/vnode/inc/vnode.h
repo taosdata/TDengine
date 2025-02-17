@@ -292,6 +292,8 @@ typedef struct {
   int64_t numOfSTables;
   int64_t numOfCTables;
   int64_t numOfNTables;
+  int64_t numOfVTables;
+  int64_t numOfVCTables;
   int64_t numOfReportedTimeSeries;
   int64_t numOfNTimeSeries;
   int64_t numOfTimeSeries;
@@ -341,6 +343,10 @@ struct SVnodeCfg {
 #define TABLE_COL_COMPRESSED          ((int8_t)0x2)
 #define TABLE_IS_COL_COMPRESSED(FLG)  (((FLG) & (TABLE_COL_COMPRESSED)) != 0)
 #define TABLE_SET_COL_COMPRESSED(FLG) ((FLG) |= TABLE_COL_COMPRESSED)
+
+#define TABLE_VIRTUAL          ((int8_t)0x4)
+#define TABLE_IS_VIRTUAL(FLG)  (((FLG) & (TABLE_VIRTUAL)) != 0)
+#define TABLE_SET_VIRTUAL(FLG) ((FLG) |= TABLE_VIRTUAL)
 
 struct SFileSetReader;
 int32_t tsdbFileSetReaderOpen(void *pVnode, struct SFileSetReader **ppReader);

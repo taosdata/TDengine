@@ -227,6 +227,14 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Some functions cannot appear in the select list at the same time";
     case TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR:
       return "Syntax error in regular expression";
+    case TSDB_CODE_PAR_INVALID_REF_COLUMN:
+      return "Invalid virtual table's ref column";
+    case TSDB_CODE_PAR_INVALID_TABLE_TYPE:
+      return "Invalid table type";
+    case TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE:
+      return "Invalid virtual table's ref column type";
+    case TSDB_CODE_PAR_MISMATCH_STABLE_TYPE:
+      return "Create child table using virtual super table";
     default:
       return "Unknown error";
   }
@@ -327,16 +335,23 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
 
   bool   hasSchemaExt = pTableMeta->schemaExt == NULL ? false : true;
   size_t schemaExtSize = hasSchemaExt ? pTableMeta->tableInfo.numOfColumns * sizeof(SSchemaExt) : 0;
+  bool   hasColRef = pTableMeta->colRef == NULL ? false : true;
+  size_t colRefSize = hasColRef ? pTableMeta->numOfColRefs * sizeof(SColRef) : 0;
 
   size_t      size = sizeof(STableMeta) + numOfFields * sizeof(SSchema);
-  STableMeta* p = taosMemoryMalloc(size + schemaExtSize);
+  STableMeta* p = taosMemoryMalloc(size + schemaExtSize + colRefSize);
   if (NULL == p) return NULL;
 
-  memcpy(p, pTableMeta, schemaExtSize + size);
+  memcpy(p, pTableMeta, colRefSize + schemaExtSize + size);
   if (hasSchemaExt) {
     p->schemaExt = (SSchemaExt*)(((char*)p) + size);
   } else {
     p->schemaExt = NULL;
+  }
+  if (hasColRef) {
+    p->colRef = (SColRef*)(((char*)p) + size + schemaExtSize);
+  } else {
+    p->colRef = NULL;
   }
   return p;
 }
@@ -1067,7 +1082,8 @@ int32_t getTableNameFromCache(SParseMetaCache* pMetaCache, const SName* pName, c
         sizeof(STableMeta) + sizeof(SSchema) * (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags);
     int32_t schemaExtSize =
         (useCompress(pMeta->tableType) && pMeta->schemaExt) ? sizeof(SSchemaExt) * pMeta->tableInfo.numOfColumns : 0;
-    const char* pTableName = (const char*)pMeta + metaSize + schemaExtSize;
+    int32_t colRefSize = (hasRefCol(pMeta->tableType) && pMeta->colRef) ? sizeof(SColRef) * pMeta->numOfColRefs : 0;
+    const char* pTableName = (const char*)pMeta + metaSize + schemaExtSize + colRefSize;
     tstrncpy(pTbName, pTableName, TSDB_TABLE_NAME_LEN);
   }
 
@@ -1374,6 +1390,7 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   pNew->pTags = NULL;
   pNew->pSchemas = NULL;
   pNew->pSchemaExt = NULL;
+  pNew->pColRefs = NULL;
   if (NULL != pCfg->pComment) {
     pNew->pComment = taosMemoryCalloc(pNew->commentLen + 1, 1);
     if (!pNew->pComment) goto err;
@@ -1405,6 +1422,16 @@ STableCfg* tableCfgDup(STableCfg* pCfg) {
   }
 
   pNew->pSchemaExt = pSchemaExt;
+
+  SColRef *pColRef = NULL;
+  if (hasRefCol(pCfg->tableType) && pCfg->pColRefs) {
+    int32_t colRefSize = pCfg->numOfColumns * sizeof(SColRef);
+    pColRef = taosMemoryMalloc(colRefSize);
+    if (!pColRef) goto err;
+    memcpy(pColRef, pCfg->pColRefs, colRefSize);
+  }
+
+  pNew->pColRefs = pColRef;
 
   return pNew;
 err:

@@ -43,6 +43,20 @@ static int32_t dumpQueryPlan(SQueryPlan* pPlan) {
   return code;
 }
 
+static int32_t printPlanNode(SLogicNode *pNode, int32_t level) {
+  // print pnode and it's child for each level
+  const char *nodename = nodesNodeName(nodeType((pNode)));
+  char *blanks = taosMemoryMalloc(level * 4);
+  memset(blanks, ' ', level * 4);
+  qInfo("%s%s", blanks, nodename);
+  taosMemFree(blanks);
+  SNode *tmp = NULL;
+  FOREACH(tmp, pNode->pChildren) {
+    printPlanNode((SLogicNode *)tmp, level + 1);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
   SLogicSubplan*   pLogicSubplan = NULL;
   SQueryLogicPlan* pLogicPlan = NULL;
