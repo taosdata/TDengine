@@ -400,19 +400,20 @@ static void preProcessSubmitMsg(STqHandle* pHandle, const SMqPollReq* pRequest, 
       return;
     }
 
+    if (pSubmitTbData->pCreateTbReq == NULL){
+      continue;
+    }
+
     int64_t uid = pSubmitTbData->uid;
     if (taosHashGet(pRequest->uidHash, &uid, LONG_BYTES) != NULL) {
       tqDebug("poll rawdata split,uid:%" PRId64 " is already exists", uid);
       terrno = TSDB_CODE_TMQ_RAW_DATA_SPLIT;
       return;
     } else {
-      if (taosHashPut(pRequest->uidHash, &uid, LONG_BYTES, &uid, LONG_BYTES) != 0){
-        tqError("failed to add table create time to hash, uid:%"PRId64, uid);
+      int32_t code = taosHashPut(pRequest->uidHash, &uid, LONG_BYTES, &uid, LONG_BYTES);
+      if (code != 0){
+        tqError("failed to add table uid to hash, code:%d, uid:%"PRId64, code, uid);
       }
-    }
-
-    if (pSubmitTbData->pCreateTbReq == NULL){
-      continue;
     }
 
     int64_t createTime = 0;
@@ -421,8 +422,9 @@ static void preProcessSubmitMsg(STqHandle* pHandle, const SMqPollReq* pRequest, 
       createTime = *cTime;
     } else{
       createTime = metaGetTableCreateTime(pReader->pVnodeMeta, uid, 1);
-      if (taosHashPut(pHandle->tableCreateTimeHash, &uid, LONG_BYTES, &createTime, LONG_BYTES) != 0){
-        tqError("failed to add table create time to hash, uid:%"PRId64, uid);
+      int32_t code = taosHashPut(pHandle->tableCreateTimeHash, &uid, LONG_BYTES, &createTime, LONG_BYTES);
+      if (code != 0){
+        tqError("failed to add table create time to hash,code:%d, uid:%"PRId64, code, uid);
       }
     }
     if (pHandle->fetchMeta == WITH_DATA || pSubmitTbData->ctimeMs > createTime){
@@ -447,8 +449,9 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqData
   }
   code = tqReaderSetSubmitMsg(pReader, submit.msgStr, submit.msgLen, submit.ver, rawList);
   TSDB_CHECK_CODE(code, lino, END);
-  preProcessSubmitMsg(pHandle, pRequest, &rawList);
-
+  if (pRequest->rawData) {
+    preProcessSubmitMsg(pHandle, pRequest, &rawList);
+  }
   // data could not contains same uid data in rawdata mode
   if (pRequest->rawData != 0 && terrno == TSDB_CODE_TMQ_RAW_DATA_SPLIT){
     goto END;
