@@ -426,6 +426,7 @@ int32_t tsdbAsyncRetention(STsdb *tsdb, int64_t now) {
   return code;
 }
 
+#ifdef USE_S3
 static int32_t tsdbS3FidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int32_t s3KeepLocal, int64_t nowSec) {
   int32_t localFid;
   TSKEY   key;
@@ -784,3 +785,4 @@ int32_t tsdbGetS3Size(STsdb *tsdb, int64_t *size) {
   (void)taosThreadMutexUnlock(&tsdb->mutex);
   return code;
 }
+#endif

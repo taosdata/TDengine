@@ -796,13 +796,13 @@ int32_t tsdbCacheCommit(STsdb *pTsdb) {
   rocksdb_flush(pTsdb->rCache.db, pTsdb->rCache.flushoptions, &err);
 #endif
   (void)taosThreadMutexUnlock(&pTsdb->lruMutex);
-
+#ifdef USE_ROCKSDB
   if (NULL != err) {
     tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, err);
     rocksdb_free(err);
     code = TSDB_CODE_FAILED;
   }
-
+#endif
   TAOS_RETURN(code);
 }
 
@@ -937,13 +937,12 @@ int32_t tsdbCacheCommitNoLock(STsdb *pTsdb) {
 #ifdef USE_ROCKSDB
   rocksMayWrite(pTsdb, true);
   rocksdb_flush(pTsdb->rCache.db, pTsdb->rCache.flushoptions, &err);
-#endif
   if (NULL != err) {
     tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__, err);
     rocksdb_free(err);
     code = TSDB_CODE_FAILED;
   }
-
+#endif
   TAOS_RETURN(code);
 }
 

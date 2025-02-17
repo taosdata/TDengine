@@ -342,7 +342,7 @@ _exit:
   }
   return code;
 }
-
+#ifdef USE_S3
 static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, bool check, uint8_t **ppBlock) {
   int32_t    code = 0;
   int32_t    lino;
@@ -514,7 +514,7 @@ _exit:
   }
   return code;
 }
-
+#endif
 int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size, int64_t szHint,
                      int32_t encryptAlgorithm, char *encryptKey) {
   int32_t code = 0;

@@ -570,6 +570,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   walApplyVer(pVnode->pWal, commitIdx);
   pVnode->restored = true;
 
+#ifdef USE_STREAM
   SStreamMeta *pMeta = pVnode->pTq->pStreamMeta;
   streamMetaWLock(pMeta);
 
@@ -606,6 +607,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   }
 
   streamMetaWUnLock(pMeta);
+#endif
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
