@@ -479,6 +479,7 @@ void dmStopAuditThread(SDnodeMgmt *pMgmt) {
 
 int32_t dmStartCrashReportThread(SDnodeMgmt *pMgmt) {
   int32_t code = 0;
+#ifdef USE_REPORT
   if (!tsEnableCrashReport) {
     return 0;
   }
@@ -494,10 +495,12 @@ int32_t dmStartCrashReportThread(SDnodeMgmt *pMgmt) {
 
   (void)taosThreadAttrDestroy(&thAttr);
   tmsgReportStartup("dnode-crashReport", "initialized");
+#endif
   return 0;
 }
 
 void dmStopCrashReportThread(SDnodeMgmt *pMgmt) {
+#ifdef USE_REPORT
   if (!tsEnableCrashReport) {
     return;
   }
@@ -506,6 +509,7 @@ void dmStopCrashReportThread(SDnodeMgmt *pMgmt) {
     (void)taosThreadJoin(pMgmt->crashReportThread, NULL);
     taosThreadClear(&pMgmt->crashReportThread);
   }
+#endif
 }
 
 static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
