@@ -286,11 +286,11 @@ int32_t streamMetaMayCvtDbFormat(SStreamMeta* pMeta) {
 
 int8_t streamTaskShouldRecalated(SStreamTask* pTask) { return pTask->info.fillHistory == 2 ? 1 : 0; }
 
-int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key) {
+int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key, uint8_t recalated) {
   int32_t code = 0;
   int64_t chkpId = pTask->chkInfo.checkpointId;
 
-  int8_t recalated = streamTaskShouldRecalated(pTask);
+  // int8_t recalated = streamTaskShouldRecalated(pTask);
 
   streamMutexLock(&pMeta->backendMutex);
   // streamId--taskId

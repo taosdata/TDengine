@@ -757,7 +757,7 @@ int32_t streamTaskReloadState(SStreamTask* pTask);
 void    streamTaskOpenUpstreamInput(SStreamTask* pTask, int32_t taskId);
 void    streamTaskCloseUpstreamInput(SStreamTask* pTask, int32_t taskId);
 void    streamTaskOpenAllUpstreamInput(SStreamTask* pTask);
-int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key);
+int32_t streamTaskSetDb(SStreamMeta* pMeta, SStreamTask* pTask, const char* key, uint8_t recalated);
 bool    streamTaskIsSinkTask(const SStreamTask* pTask);
 void    streamTaskSetRemoveBackendFiles(SStreamTask* pTask);
 int8_t  streamTaskShouldRecalated(SStreamTask* pTask);

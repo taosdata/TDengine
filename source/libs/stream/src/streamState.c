@@ -126,10 +126,12 @@ SStreamState* streamStateRecalatedOpen(const char* path, void* pTask, int64_t st
   pState->streamId = streamId;
   pState->taskId = taskId;
 
+  pState->pTdbState->recalc = 1;
+
   TAOS_UNUSED(tsnprintf(pState->pTdbState->idstr, sizeof(pState->pTdbState->idstr), "0x%" PRIx64 "-0x%x-%s",
                         pState->streamId, pState->taskId, "recalc"));
 
-  code = streamTaskSetDb(pStreamTask->pMeta, pTask, pState->pTdbState->idstr);
+  code = streamTaskSetDb(pStreamTask->pMeta, pTask, pState->pTdbState->idstr, 1);
   QUERY_CHECK_CODE(code, lino, _end);
 
   SStreamMeta* pMeta = pStreamTask->pMeta;
@@ -174,7 +176,7 @@ SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, i
   TAOS_UNUSED(tsnprintf(pState->pTdbState->idstr, sizeof(pState->pTdbState->idstr), "0x%" PRIx64 "-0x%x",
                         pState->streamId, pState->taskId));
   // recal id + cal
-  code = streamTaskSetDb(pStreamTask->pMeta, pTask, pState->pTdbState->idstr);
+  code = streamTaskSetDb(pStreamTask->pMeta, pTask, pState->pTdbState->idstr, 0);
   QUERY_CHECK_CODE(code, lino, _end);
 
   SStreamMeta* pMeta = pStreamTask->pMeta;
@@ -514,7 +516,7 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentNext(SStreamState* pState, cons
   return streamStateSessionSeekKeyCurrentNext_rocksdb(pState, key);
 }
 
-SStreamStateCur *streamStateSessionSeekKeyPrev(SStreamState *pState, const SSessionKey *key) {
+SStreamStateCur* streamStateSessionSeekKeyPrev(SStreamState* pState, const SSessionKey* key) {
   return sessionWinStateSeekKeyPrev(pState->pFileState, key);
 }
 
@@ -747,7 +749,8 @@ int32_t streamStateTsDataCommit(STableTsDataState* pState) {
   return doRangeDataCommit(pState);
 }
 
-int32_t streamStateInitTsDataState(STableTsDataState** ppTsDataState, int8_t pkType, int32_t pkLen, void* pState, void* pOtherState) {
+int32_t streamStateInitTsDataState(STableTsDataState** ppTsDataState, int8_t pkType, int32_t pkLen, void* pState,
+                                   void* pOtherState) {
   return initTsDataState(ppTsDataState, pkType, pkLen, pState, pOtherState);
 }
 
@@ -827,4 +830,3 @@ void streamStateClearExpiredSessionState(SStreamState* pState, int32_t numOfKeep
   }
   clearExpiredSessionState(pState->pFileState, numOfKeep, minTs, pFlushGroup);
 }
-
