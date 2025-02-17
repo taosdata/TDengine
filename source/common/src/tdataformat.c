@@ -925,8 +925,11 @@ int32_t tRowGet2AndSetSeq(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal 
 
         offset = tGetU32v(pColVal->value.pData, &pColVal->value.nData);
         pColVal->value.pData += offset;
+        // memcpy(&pColVal->value.val, &pColVal->value.pData, sizeof(uint64_t));
         memcpy(pColVal->value.pData, &seq, sizeof(uint64_t));
-        // pColVal->value.pData += tGetU64(pColVal->value.pData, &seq);
+        uint64_t cSeq = 0;
+        tGetU64(pColVal->value.pData, &cSeq);
+        tGetU64(pColVal->value.pData, &cSeq);
         // tGetU64(uint8_t *p, uint64_t *v);
       } else {
         pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
@@ -1061,9 +1064,26 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
     pColVal->cid = pTColumn->colId;
     pColVal->value.type = pTColumn->type;
     pColVal->flag = CV_FLAG_VALUE;
+    uint8_t hasBlob = 0;
     if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-      pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
-      pColVal->value.pData += tGetU32v(pColVal->value.pData, &pColVal->value.nData);
+      if (pTColumn->type == TSDB_DATA_TYPE_BINARY || pTColumn->type == TSDB_DATA_TYPE_BLOB) {
+        hasBlob = 1;
+      }
+      if (hasBlob == 1) {
+        uint64_t seq = 0;
+        uint32_t offset = 0;
+        pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
+
+        offset = tGetU32v(pColVal->value.pData, &pColVal->value.nData);
+        pColVal->value.pData += offset;
+        tGetU64(pColVal->value.pData, &seq);
+        pColVal->cid = pTColumn->colId;
+        pColVal->value.type = TSDB_DATA_TYPE_BIGINT;
+        memcpy(&pColVal->value.val, &seq, sizeof(uint64_t));
+      } else {
+        pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
+        pColVal->value.pData += tGetU32v(pColVal->value.pData, &pColVal->value.nData);
+      }
     } else {
       (void)memcpy(&pColVal->value.val, fixed + pTColumn->offset, TYPE_BYTES[pTColumn->type]);
     }

@@ -649,7 +649,7 @@ void tsdbReleaseDataBlock2(STsdbReader* pReader) {
 
   SReaderStatus* pStatus = &pReader->status;
   if (!pStatus->composedDataBlock) {
-    (void) tsdbReleaseReader(pReader);
+    (void)tsdbReleaseReader(pReader);
   }
 }
 
@@ -5177,6 +5177,28 @@ _end:
   return code;
 }
 
+int32_t doRebuildBlobCol(STsdbReader* pReader, STSchema* pTSchema, int32_t i, SColVal* pSrcVal, SColVal* pDstVal) {
+  // if (!(i < pTSchema->numOfCols)) return TSDB_CODE_INVALID_PARA;
+  // if (!(pRow->sver == pTSchema->version)) return TSDB_CODE_INVALID_PARA;
+  STColumn* pColumn = pTSchema->columns + i;
+  if (pColumn->type != TSDB_DATA_TYPE_BINARY || pColumn->type == TSDB_DATA_TYPE_BLOB) {
+    return 0;
+  }
+
+  int32_t  lino = 0;
+  int32_t  code = TSDB_CODE_SUCCESS;
+  SVnode*  pVnode = pReader->pTsdb->pVnode;
+  uint64_t seq = 0;
+  uint8_t* pValue = NULL;
+  int32_t  len = 0;
+  code = bseGet(pVnode->pBse, seq, &pValue, &len);
+
+_err:
+  if (code != 0) {
+    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
 int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, SRow* pTSRow, STableBlockScanInfo* pScanInfo) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
@@ -5185,6 +5207,7 @@ int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, SRow* pT
   SBlockLoadSuppInfo* pSupInfo = NULL;
   STSchema*           pSchema = NULL;
   SColVal             colVal = {0};
+  SColVal             dstVal = {0};
   int32_t             i = 0, j = 0;
 
   TSDB_CHECK_NULL(pBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -5216,6 +5239,9 @@ int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, SRow* pT
 
       code = tRowGet(pTSRow, pSchema, j, &colVal);
       TSDB_CHECK_CODE(code, lino, _end);
+
+      doRebuildBlobCol(pReader, pSchema, j, &colVal, &dstVal);
+      // TSDB_CHECK_CODE(code, lino, _end);
 
       code = doCopyColVal(pColInfoData, outputRowIndex, i, &colVal, pSupInfo);
       TSDB_CHECK_CODE(code, lino, _end);
@@ -5705,9 +5731,9 @@ void tsdbReaderClose2(STsdbReader* pReader) {
     pReader->pReadSnap = NULL;
   }
 
-  (void) tsem_destroy(&pReader->resumeAfterSuspend);
-  (void) tsdbReleaseReader(pReader);
-  (void) tsdbUninitReaderLock(pReader);
+  (void)tsem_destroy(&pReader->resumeAfterSuspend);
+  (void)tsdbReleaseReader(pReader);
+  (void)tsdbUninitReaderLock(pReader);
 
   tsdbDebug(
       "%p :io-cost summary: head-file:%" PRIu64 ", head-file time:%.2f ms, SMA:%" PRId64
@@ -6435,7 +6461,7 @@ int32_t tsdbRetrieveDataBlock2(STsdbReader* pReader, SSDataBlock** pBlock, SArra
   code = doRetrieveDataBlock(pTReader, pBlock);
 
   tsdbTrace("tsdb/read-retrieve: %p, unlock read mutex", pReader);
-  (void) tsdbReleaseReader(pReader);
+  (void)tsdbReleaseReader(pReader);
   TSDB_CHECK_CODE(code, lino, _end);
 
   //  tsdbReaderSuspend2(pReader);
@@ -6816,7 +6842,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
   // alloc
   STsdbReadSnap* pSnap = (STsdbReadSnap*)taosMemoryCalloc(1, sizeof(STsdbReadSnap));
   if (pSnap == NULL) {
-    (void) taosThreadMutexUnlock(&pTsdb->mutex);
+    (void)taosThreadMutexUnlock(&pTsdb->mutex);
     TSDB_CHECK_NULL(pSnap, code, lino, _exit, terrno);
   }
 
@@ -6825,7 +6851,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
     pSnap->pMem = pTsdb->mem;
     pSnap->pNode = taosMemoryMalloc(sizeof(*pSnap->pNode));
     if (pSnap->pNode == NULL) {
-      (void) taosThreadMutexUnlock(&pTsdb->mutex);
+      (void)taosThreadMutexUnlock(&pTsdb->mutex);
       TSDB_CHECK_NULL(pSnap->pNode, code, lino, _exit, terrno);
     }
 
@@ -6846,7 +6872,7 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
         tsdbUnrefMemTable(pTsdb->mem, pSnap->pNode, true);  // unref the previous refed mem
       }
 
-      (void) taosThreadMutexUnlock(&pTsdb->mutex);
+      (void)taosThreadMutexUnlock(&pTsdb->mutex);
       goto _exit;
     }
 
@@ -6868,12 +6894,12 @@ int32_t tsdbTakeReadSnap2(STsdbReader* pReader, _query_reseek_func_t reseek, STs
       tsdbUnrefMemTable(pTsdb->imem, pSnap->pINode, true);
     }
 
-    (void) taosThreadMutexUnlock(&pTsdb->mutex);
+    (void)taosThreadMutexUnlock(&pTsdb->mutex);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // unlock
-  (void) taosThreadMutexUnlock(&pTsdb->mutex);
+  (void)taosThreadMutexUnlock(&pTsdb->mutex);
   *ppSnap = pSnap;
 
   tsdbTrace("%s vgId:%d, take read snapshot", id, TD_VID(pTsdb->pVnode));
@@ -6933,7 +6959,8 @@ _end:
   return code;
 }
 
-void tsdbReaderSetCloseFlag(STsdbReader* pReader) { /*pReader->code = TSDB_CODE_TSC_QUERY_CANCELLED;*/ }
+void tsdbReaderSetCloseFlag(STsdbReader* pReader) { /*pReader->code = TSDB_CODE_TSC_QUERY_CANCELLED;*/
+}
 
 void tsdbSetFilesetDelimited(STsdbReader* pReader) { pReader->bFilesetDelimited = true; }
 
