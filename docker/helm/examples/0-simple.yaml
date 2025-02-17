@@ -1,0 +1,46 @@
+# This example is a simple deployment with one server replica.
+name: "tdengine"
+
+image:
+  repository: image.cloud.taosdata.com/  # Leave a trailing slash for the repository, or "" for no repository
+  server: taosx/integrated:3.3.5.1-b0a54bdd
+
+# Set timezone here, not in taoscfg
+timezone: "Asia/Shanghai"
+
+labels:
+  app: "tdengine"
+  # Add more labels as needed.
+
+services:
+  server:
+    type: ClusterIP
+    replica: 1
+    ports:
+      # TCP range required
+      tcp: [6041, 6030, 6060]
+      # UDP range, optional
+      udp:
+    volumes:
+      - name: data
+        mountPath: /var/lib/taos
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+      - name: log
+        mountPath: /var/log/taos/
+        spec:
+          storageClassName: "local-path"
+          accessModes: [ "ReadWriteOnce" ]
+          resources:
+            requests:
+              storage: "10Gi"
+    files:
+      - name: cfg # must be lower case.
+        mountPath: /etc/taos/taos.cfg
+        content: |
+          dataDir /var/lib/taos/
+          logDir /var/log/taos/

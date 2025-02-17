@@ -1928,6 +1928,7 @@ Windows: <code>C:\\TDengine\\cfg\\</code>`,
         totaldesc2:
           "Telegraf's data can be written to TDengine by simply adding the output configuration of Telegraf to the URL corresponding to taosAdapter and modifying several configuration items. The presence of Telegraf data in TDengine can take advantage of TDengine's efficient storage query performance and clustering capabilities for time-series data.",
         step1: "Prerequisites",
+        step1desc: "To write Telegraf data to TDengine, you first need to create a database manually. Log in to TDengine, click Data Explorer in the left menu, and then click the + button next to the Database tab to add a database with the name telegraf using default parameters.",
         step2: "Install Telegraf",
         step2desc:
           "Before telegraf can write data into TDengine  service, you need to firstly manually create a database. Log in TDengine , click 'Explorer' on the left navigation bar, then click the '+' button besides 'Databases' to add a database named as 'telegraf' using all default parameters.",

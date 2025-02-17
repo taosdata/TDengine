@@ -963,7 +963,6 @@ async fn backup(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracing_subscriber::EnvFilter;
 
     #[tokio::test]
     async fn test_wait_for_upcoming() {
@@ -985,83 +984,5 @@ mod tests {
             .unwrap();
         let current = Utc::now();
         assert_eq!(current.timestamp() - now.timestamp(), 0);
-    }
-
-    #[tokio::test(flavor = "multi_thread")]
-    #[ignore]
-    async fn test_tmq_to_local_with_taos() {
-        tracing_subscriber::fmt::fmt()
-            .with_env_filter(EnvFilter::from_default_env().add_directive("debug".parse().unwrap()))
-            .with_file(true)
-            .pretty()
-            .try_init()
-            .unwrap();
-
-        // let addr = "tmq:///";
-        let addr = "tmq+http://192.168.0.201:6041";
-        let database = "test_tmq_to_local_with_taos";
-        let back_dir = "/tmp/test_tmq_to_local_with_taos";
-
-        std::fs::create_dir_all(back_dir).unwrap();
-
-        let taos = TaosBuilder::from_dsn(addr.to_string())
-            .unwrap()
-            .build()
-            .await
-            .unwrap();
-
-        let from = format!("{addr}/{database}?").into_dsn().unwrap();
-        let to = format!("local:{back_dir}").into_dsn().unwrap();
-
-        let config = BackupConfigBuilder::new(None, &from, &to)
-            .build()
-            .await
-            .unwrap();
-
-        let topic = config.topic.clone();
-
-        taos.exec_many([
-            format!("DROP TOPIC IF EXISTS `{topic}`"),
-            format!("DROP DATABASE IF EXISTS `{database}`"),
-            format!("CREATE DATABASE `{database}` wal_retention_period 3600"),
-            format!("CREATE STABLE `{database}`.`Stb` (ts TIMESTAMP, f1 double) TAGS(t1 int)"),
-        ])
-        .await
-        .unwrap();
-
-        let writer = tokio::spawn(async move {
-            let taos = TaosBuilder::from_dsn(addr.to_string())
-                .unwrap()
-                .build()
-                .await
-                .unwrap();
-
-            for table_idx in 0..10 {
-                for idx in 0..10 {
-                    let sql = format!(
-                        "INSERT INTO `{database}`.`Tb{table_idx}` USING `{database}`.`Stb` tags({table_idx}) VALUES (now+{idx}s, {idx}.{idx})",
-                    );
-                    taos.exec(sql).await.unwrap();
-                }
-            }
-        });
-
-        let backup = tokio::spawn(async move {
-            tmq_to_local(None, from, to, Default::default())
-                .await
-                .unwrap();
-        });
-
-        writer.await.unwrap();
-        backup.await.unwrap();
-
-        // clean up
-        std::fs::remove_dir_all(back_dir).unwrap();
-        taos.exec_many([
-            format!("DROP TOPIC IF EXISTS `{topic}`"),
-            format!("DROP DATABASE IF EXISTS `{database}`"),
-        ])
-        .await
-        .expect("clean up for unit test failed");
     }
 }

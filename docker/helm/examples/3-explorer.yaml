@@ -1,0 +1,18 @@
+# This is a helm chart example for deploying 3 replicas of TDengine Explorer
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: replica3-ingress
+  namespace: default
+spec:
+  rules:
+    - host: replica3.local.tdengine.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name:  replica3-tdengine-taosx
+                port:
+                  number: 6060

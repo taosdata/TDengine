@@ -132,14 +132,26 @@ impl BackupConfig {
         // 设置 group.id 为 topic
         dsn.params
             .insert("group.id".to_string(), self.topic.clone());
+        // 默认从最早的 offset 开始消费
         if self.raw_from.get("auto.offset.reset").is_none() {
             dsn.set("auto.offset.reset", "earliest");
         }
+        // 默认开始从 TSDB 快照开始消费
         if self.raw_from.get("experimental.snapshot.enable").is_none() {
             dsn.set("experimental.snapshot.enable", "true");
         }
+        // tmq 不接受自定义的参数，删除 self.repeat
         if self.raw_from.get("self.repeat").is_some() {
             dsn.remove("self.repeat");
+        }
+        // 如果是 ws 协议，则默认启用压缩
+        if let Some(protocol) = dsn.protocol.as_ref() {
+            if protocol == "ws" || protocol == "wss" || protocol == "http" || protocol == "https" {
+                // 默认启用压缩
+                if dsn.get("compression").is_none() {
+                    dsn.set("compression", "true");
+                }
+            }
         }
 
         dsn
@@ -451,6 +463,179 @@ impl BackupConfigBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_backup_config_to_tmq_dsn() {
+        // 使用 tmq，不设置 compression 参数
+        let config = BackupConfig {
+            raw_from: "tmq://host:6030/db".into_dsn().unwrap(),
+            topic: "abc".to_string(),
+            task_id: None,
+            raw_to: Default::default(),
+            server_version: Default::default(),
+            database: Default::default(),
+            stable: None,
+            self_repeat: false,
+            upcoming: None,
+            interval: None,
+            backup_point_gen_mode: BackupPointGenMode::ByOffset,
+            error_retry_max: 0,
+            error_retry_interval: Default::default(),
+            backup_dir: Default::default(),
+            move_to: None,
+            backup_max_size: 0,
+            backup_comp_level: async_compression::Level::Fastest,
+        };
+        // when
+        let dsn = config.to_tmq_dsn();
+        // then
+        assert_eq!("abc", dsn.get("group.id").unwrap());
+        assert_eq!("earliest", dsn.get("auto.offset.reset").unwrap());
+        assert_eq!("true", dsn.get("experimental.snapshot.enable").unwrap());
+        assert!(dsn.get("compression").is_none());
+
+        // 使用 ws 协议，默认启用压缩
+        let config = BackupConfig {
+            raw_from: "tmq+ws://host:6041/db".into_dsn().unwrap(),
+            topic: "abc".to_string(),
+            task_id: None,
+            raw_to: Default::default(),
+            server_version: Default::default(),
+            database: Default::default(),
+            stable: None,
+            self_repeat: false,
+            upcoming: None,
+            interval: None,
+            backup_point_gen_mode: BackupPointGenMode::ByOffset,
+            error_retry_max: 0,
+            error_retry_interval: Default::default(),
+            backup_dir: Default::default(),
+            move_to: None,
+            backup_max_size: 0,
+            backup_comp_level: async_compression::Level::Fastest,
+        };
+        // when
+        let dsn = config.to_tmq_dsn();
+        // then
+        assert_eq!("abc", dsn.get("group.id").unwrap());
+        assert_eq!("earliest", dsn.get("auto.offset.reset").unwrap());
+        assert_eq!("true", dsn.get("experimental.snapshot.enable").unwrap());
+        assert_eq!("true", dsn.get("compression").unwrap());
+
+        // 使用 http 协议，默认启用压缩
+        let config = BackupConfig {
+            raw_from: "tmq+http://host:6041/db".into_dsn().unwrap(),
+            topic: "abc".to_string(),
+            task_id: None,
+            raw_to: Default::default(),
+            server_version: Default::default(),
+            database: Default::default(),
+            stable: None,
+            self_repeat: false,
+            upcoming: None,
+            interval: None,
+            backup_point_gen_mode: BackupPointGenMode::ByOffset,
+            error_retry_max: 0,
+            error_retry_interval: Default::default(),
+            backup_dir: Default::default(),
+            move_to: None,
+            backup_max_size: 0,
+            backup_comp_level: async_compression::Level::Fastest,
+        };
+        // when
+        let dsn = config.to_tmq_dsn();
+        // then
+        assert_eq!("abc", dsn.get("group.id").unwrap());
+        assert_eq!("earliest", dsn.get("auto.offset.reset").unwrap());
+        assert_eq!("true", dsn.get("experimental.snapshot.enable").unwrap());
+        assert_eq!("true", dsn.get("compression").unwrap());
+
+        // 使用 wss 协议，默认启用压缩
+        let config = BackupConfig {
+            raw_from: "tmq+wss://host:6041/db".into_dsn().unwrap(),
+            topic: "abc".to_string(),
+            task_id: None,
+            raw_to: Default::default(),
+            server_version: Default::default(),
+            database: Default::default(),
+            stable: None,
+            self_repeat: false,
+            upcoming: None,
+            interval: None,
+            backup_point_gen_mode: BackupPointGenMode::ByOffset,
+            error_retry_max: 0,
+            error_retry_interval: Default::default(),
+            backup_dir: Default::default(),
+            move_to: None,
+            backup_max_size: 0,
+            backup_comp_level: async_compression::Level::Fastest,
+        };
+        // when
+        let dsn = config.to_tmq_dsn();
+        // then
+        assert_eq!("abc", dsn.get("group.id").unwrap());
+        assert_eq!("earliest", dsn.get("auto.offset.reset").unwrap());
+        assert_eq!("true", dsn.get("experimental.snapshot.enable").unwrap());
+        assert_eq!("true", dsn.get("compression").unwrap());
+
+        // 使用 https 协议，默认启用压缩
+        let config = BackupConfig {
+            raw_from: "tmq+https://host:6041/db".into_dsn().unwrap(),
+            topic: "abc".to_string(),
+            task_id: None,
+            raw_to: Default::default(),
+            server_version: Default::default(),
+            database: Default::default(),
+            stable: None,
+            self_repeat: false,
+            upcoming: None,
+            interval: None,
+            backup_point_gen_mode: BackupPointGenMode::ByOffset,
+            error_retry_max: 0,
+            error_retry_interval: Default::default(),
+            backup_dir: Default::default(),
+            move_to: None,
+            backup_max_size: 0,
+            backup_comp_level: async_compression::Level::Fastest,
+        };
+        // when
+        let dsn = config.to_tmq_dsn();
+        // then
+        assert_eq!("abc", dsn.get("group.id").unwrap());
+        assert_eq!("earliest", dsn.get("auto.offset.reset").unwrap());
+        assert_eq!("true", dsn.get("experimental.snapshot.enable").unwrap());
+        assert_eq!("true", dsn.get("compression").unwrap());
+
+        // 使用 ws 协议，不启用压缩
+        let config = BackupConfig {
+            raw_from: "tmq+ws://host:6041/db?compression=false"
+                .into_dsn()
+                .unwrap(),
+            topic: "abc".to_string(),
+            task_id: None,
+            raw_to: Default::default(),
+            server_version: Default::default(),
+            database: Default::default(),
+            stable: None,
+            self_repeat: false,
+            upcoming: None,
+            interval: None,
+            backup_point_gen_mode: BackupPointGenMode::ByOffset,
+            error_retry_max: 0,
+            error_retry_interval: Default::default(),
+            backup_dir: Default::default(),
+            move_to: None,
+            backup_max_size: 0,
+            backup_comp_level: async_compression::Level::Fastest,
+        };
+        // when
+        let dsn = config.to_tmq_dsn();
+        // then
+        assert_eq!("abc", dsn.get("group.id").unwrap());
+        assert_eq!("earliest", dsn.get("auto.offset.reset").unwrap());
+        assert_eq!("true", dsn.get("experimental.snapshot.enable").unwrap());
+        assert_eq!("false", dsn.get("compression").unwrap());
+    }
 
     /// 测试解析备份文件的压缩等级
     /// 测试用例：
