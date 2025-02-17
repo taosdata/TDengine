@@ -714,6 +714,19 @@ else
 end
 """
 
+[tasks.zigbuild-aarch64-image]
+script = "docker build -t taosx/zigbuilder -f docker/ci/build.arm64.Dockerfile ."
+
+[tasks.zigbuild-aarch64-taosx]
+script = """
+docker run --rm -v .:/app -w /app \
+  -v $HOME/.cargo/registry:/root/.cargo/registry \
+  -v $HOME/.cargo/git:/root/.cargo/git \
+  -e DATABASE_URL=sqlite:/app/target/taosx.dev.db \
+  taosx/zigbuilder \
+  cargo zigbuild --target aarch64-unknown-linux-gnu.2.39
+"""
+
 [tasks.fmt]
 command = "cargo"
 args = ["fmt", "--check", "--all"]

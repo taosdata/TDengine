@@ -17,7 +17,7 @@ COPY ./startup.sh /root/startup.sh
 RUN chmod +x /tini \
   && chmod +x /root/startup.sh \
   && cd /root/TDengine-enterprise \
-  && /bin/bash install.sh -e no \
+  && HOSTNAME=localhost /bin/bash install.sh -e no \
   && rm -rf ../TDengine-enterprise
 
 COPY ./release/taosx /usr/bin/taosx

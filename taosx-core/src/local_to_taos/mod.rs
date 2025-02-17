@@ -141,7 +141,15 @@ pub async fn local_to_taos(
                 }
             }
         }
-        if !files_to_send.is_empty() {
+
+        if files_to_send.is_empty() {
+            if let Some(stop_at) = config.stop_at.as_ref() {
+                if stop_at < &chrono::Utc::now() {
+                    tracing::debug!("local_to_taos has no files to read");
+                    stop_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+            }
+        } else {
             tracing::debug!("local_to_taos send files: {:?} to worker", files_to_send);
             tx.send(files_to_send).map_err(|err| {
                 tracing::error!("failed to send files to worker: {:#}", err);
