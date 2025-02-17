@@ -1,9 +1,0 @@
-{
-  "type": "record",
-  "name": "uc",
-  "fields" : [
-    {"name": "rev_t", "type": "string"},
-    {"name": "data", "type": "bytes"},
-    {"name": "rev", "type": ["string", "null"]}
-  ]
-}
