@@ -113,6 +113,7 @@ typedef struct SQueryExecMetric {
 typedef struct {
   SMonitorParas monitorParas;
   int8_t        enableAuditDelete;
+  int8_t        enableStrongPass;
 } SAppInstServerCFG;
 struct SAppInstInfo {
   int64_t            numOfConns;
