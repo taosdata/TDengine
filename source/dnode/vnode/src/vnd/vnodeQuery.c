@@ -530,6 +530,8 @@ _exit:
 
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   SSyncState state = syncGetState(pVnode->sync);
+  pLoad->syncAppliedIndex = pVnode->state.applied;
+  syncGetCommitIndex(pVnode->sync, &pLoad->syncCommitIndex);
 
   pLoad->vgId = TD_VID(pVnode);
   pLoad->syncState = state.state;
