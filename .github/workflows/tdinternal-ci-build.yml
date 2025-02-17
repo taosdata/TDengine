@@ -59,6 +59,8 @@ jobs:
             -DBUILD_KEEPER=true \
             -DBUILD_HTTP=false \
             -DBUILD_TEST=true \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TAOSX=false \
             -DBUILD_DEPENDENCY_TESTS=false
           make -j 4
           sudo make install
