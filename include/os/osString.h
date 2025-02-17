@@ -135,6 +135,13 @@ int32_t  taosAscii2Hex(const char *z, uint32_t n, void **data, uint32_t *size);
 bool isHex(const char *z, uint32_t n);
 bool isValidateHex(const char *z, uint32_t n);
 
+#ifdef TD_ASTRA
+static FORCE_INLINE size_t strnlen(const char *s, size_t maxlen) {
+  const char *end = (const char *)memchr(s, '\0', maxlen);
+  return end ? (size_t)(end - s) : maxlen;
+}
+#endif
+
 #ifdef __cplusplus
 }
 #endif

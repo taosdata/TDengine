@@ -2960,7 +2960,8 @@ _err:
 
 static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange) {
   int32_t code = TSDB_CODE_SUCCESS;
-  char*   ipCopy = taosStrdup(ipRange);
+#ifndef TD_ASTRA
+  char* ipCopy = taosStrdup(ipRange);
   if (!ipCopy) return terrno;
   char* slash = strchr(ipCopy, '/');
   if (slash) {
@@ -2993,6 +2994,7 @@ static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange
   }
 
   taosMemoryFreeClear(ipCopy);
+#endif
   return code;
 }
 
