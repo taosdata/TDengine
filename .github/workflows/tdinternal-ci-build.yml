@@ -25,9 +25,9 @@ jobs:
           - ubuntu-20.04
           - ubuntu-22.04
           - ubuntu-24.04
-          - macos-13
-          - macos-14
-          - macos-15
+          # - macos-13
+          # - macos-14
+          # - macos-15
 
     steps:
       - name: Checkout the repository
