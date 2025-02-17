@@ -1473,6 +1473,12 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->analVer));
   TAOS_CHECK_EXIT(tSerializeSMonitorParas(&encoder, &pReq->clusterCfg.monitorParas));
 
+  for (int32_t i = 0; i < vlen; ++i) {
+    SVnodeLoad *pload = taosArrayGet(pReq->pVloads, i);
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->syncAppliedIndex));
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->syncCommitIndex));
+  }
+
   tEndEncode(&encoder);
 
 _exit:
@@ -1544,8 +1550,6 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &vload.learnerProgress));
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &vload.roleTimeMs));
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &vload.startTimeMs));
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &vload.syncAppliedIndex));
-    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &vload.syncCommitIndex));
     if (taosArrayPush(pReq->pVloads, &vload) == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
@@ -1602,6 +1606,14 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
 
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDeserializeSMonitorParas(&decoder, &pReq->clusterCfg.monitorParas));
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    for (int32_t i = 0; i < vlen; ++i) {
+      SVnodeLoad *pLoad = taosArrayGet(pReq->pVloads, i);
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pLoad->syncAppliedIndex));
+      TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pLoad->syncCommitIndex));
+    }
   }
 
   tEndDecode(&decoder);
