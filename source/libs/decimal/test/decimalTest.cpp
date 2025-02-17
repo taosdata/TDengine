@@ -1173,7 +1173,7 @@ class DecimalTest : public ::testing::Test {
   static constexpr const char* host = "127.0.0.1";
   static constexpr const char* user = "root";
   static constexpr const char* passwd = "taosdata";
-  static constexpr const char* db = "test_api";
+  static constexpr const char* db = "test";
 
  public:
   void SetUp() override {
@@ -1191,6 +1191,18 @@ class DecimalTest : public ::testing::Test {
 
 TEST_F(DecimalTest, insert) {
   
+}
+
+TEST(decimal, fillDecimalInfoInBytes) {
+  auto d = getDecimalType(10, 2);
+  int32_t bytes = 0;
+  fillBytesForDecimalType(&bytes, d.type, d.precision, d.scale);
+
+  uint8_t prec = 0, scale = 0;
+  extractDecimalTypeInfoFromBytes(&bytes, &prec, &scale);
+  ASSERT_EQ(bytes, tDataTypes[d.type].bytes);
+  ASSERT_EQ(prec, d.precision);
+  ASSERT_EQ(scale, d.scale);
 }
 
 TEST_F(DecimalTest, api_taos_fetch_rows) {
@@ -1259,9 +1271,10 @@ TEST_F(DecimalTest, api_taos_fetch_rows) {
 
     ASSERT_EQ(t, TSDB_DATA_TYPE_DECIMAL64);
     auto check_type_mod = [](char* pStart, uint8_t prec, uint8_t scale, int32_t bytes) {
-      ASSERT_EQ(*pStart, bytes);
-      ASSERT_EQ(*(pStart + 2), prec);
-      ASSERT_EQ(*(pStart + 3), scale);
+      int32_t d = *(int32_t*)pStart;
+      ASSERT_EQ(d >> 24, bytes);
+      ASSERT_EQ((d & 0xFF00) >> 8, prec);
+      ASSERT_EQ(d & 0xFF, scale);
     };
     check_type_mod(p + 1, 10, 2, 8);
 
