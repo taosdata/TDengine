@@ -128,6 +128,7 @@ typedef struct SScanLogicNode {
   bool          paraTablesSort;    // for table merge scan
   bool          smallDataTsSort;   // disable row id sort for table merge scan
   bool          needSplit;
+  bool          noPseudoRefAfterGrp;  // no pseudo columns referenced ater group/partition clause
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {

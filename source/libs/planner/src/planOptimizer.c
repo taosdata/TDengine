@@ -3302,6 +3302,17 @@ static int32_t partTagsRewriteGroupTagsToFuncs(SNodeList* pGroupTags, int32_t st
   return code;
 }
 
+static int32_t partTagsOptRemovePseudoCols(SScanLogicNode* pScan) {
+  if (!pScan->noPseudoRefAfterGrp || NULL == pScan->pScanPseudoCols || pScan->pScanPseudoCols->length <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  nodesDestroyList(pScan->pScanPseudoCols);
+  pScan->pScanPseudoCols = NULL;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SLogicNode* pNode = optFindPossibleNode(pLogicSubplan->pNode, partTagsOptMayBeOptimized, NULL);
   if (NULL == pNode) {
@@ -3361,6 +3372,9 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
     if (TSDB_CODE_SUCCESS == code && start >= 0) {
       code = partTagsRewriteGroupTagsToFuncs(pScan->pGroupTags, start, pAgg);
     }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = partTagsOptRemovePseudoCols(pScan);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = partTagsOptRebuildTbanme(pScan->pGroupTags);
