@@ -118,3 +118,11 @@ ELSEIF (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     SET(MAKE_INSTALL_SH "${PROJECT_SOURCE_DIR}/packaging/tools/make_install.bat")
     INSTALL(CODE "execute_process(COMMAND ${MAKE_INSTALL_SH} :needAdmin ${PROJECT_SOURCE_DIR} ${PROJECT_BINARY_DIR} Windows)")
 ENDIF ()
+
+# add test
+IF(TD_LINUX)
+    # unit test
+    IF(${BUILD_TEST})
+        ADD_SUBDIRECTORY(test)
+    ENDIF(${BUILD_TEST})    
+ENDIF()
