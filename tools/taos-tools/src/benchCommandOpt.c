@@ -10,7 +10,8 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
-#include <bench.h>
+ #include "cus_name.h"  // include/util/
+ #include <bench.h>
 #include "benchLog.h"
 #include <toolsdef.h>
 
@@ -29,7 +30,7 @@ char *g_aggreFunc[] = {"*",       "count(*)", "avg(C0)",   "sum(C0)",
 
 void printVersion() {
     // version, macro define in src/CMakeLists.txt
-    printf("taosBenchmark version: %s\n", TD_VER_NUMBER);
+    printf("%s\n%sBenchmark version: %s\n", TD_PRODUCT_NAME, CUS_PROMPT, TD_VER_NUMBER);
     printf("git: %s\n", TAOSBENCHMARK_COMMIT_ID);
     printf("build: %s\n", BUILD_INFO);
 }

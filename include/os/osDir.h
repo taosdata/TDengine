@@ -31,9 +31,7 @@
 extern "C" {
 #endif
 
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
-#endif
 
 #ifdef WINDOWS
 

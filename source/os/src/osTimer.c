@@ -87,6 +87,8 @@ static TdThread      timerThread;
 static timer_t       timerId;
 static volatile bool stopTimer = false;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
 static void *taosProcessAlarmSignal(void *tharg) {
   // Block the signal
   sigset_t sigset;
@@ -110,8 +112,8 @@ static void *taosProcessAlarmSignal(void *tharg) {
   sevent.sigev_signo = SIGALRM;
 
   if (timer_create(CLOCK_REALTIME, &sevent, &timerId) == -1) {
-     terrno = TAOS_SYSTEM_ERROR(errno);
-     return NULL;
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return NULL;
   }
 
   taosThreadCleanupPush(taosDeleteTimer, &timerId);
@@ -128,7 +130,7 @@ static void *taosProcessAlarmSignal(void *tharg) {
       break;
     }
 
-    int signo;
+    int     signo;
     int32_t code = 0;
     while (!stopTimer) {
       code = sigwait(&sigset, &signo);
@@ -145,6 +147,7 @@ static void *taosProcessAlarmSignal(void *tharg) {
 
   return NULL;
 }
+#pragma GCC diagnostic pop
 #endif
 
 int taosInitTimer(void (*callback)(int), int ms) {
