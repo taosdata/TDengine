@@ -786,7 +786,7 @@ Please refer to the [Unit Test](#831-unit-test)、[System Test](#832-system-test
   cd scripts/tsdbComp && ./testTsbs.sh 
 ```
 > **NOTE:**
-> Please confirm that you are running this script within China, as it modifies the default GOPROXY. If you are in another region, you need to remove the proxy configuration  before executing `./testTsbs.sh`:  `sed -i '/GOPROXY/d' /usr/local/src/tsbs/scripts/tsdbComp/installTsbsCommand.sh`
+> Please confirm that you are running this script within China, as it modifies the default GOPROXY. If you are in another region, you need to remove the proxy configuration  before executing `./testTsbs.sh`:  `cd /usr/local/src/tsbs/scripts/tsdbComp/ && sed -i '/GOPROXY/d' installTsbsCommand.sh && go env -u GOPROXY`
 
 2. When testing the client and server on separate machines, you should set up your environment as outlined in the steps below:
 
