@@ -3585,8 +3585,7 @@ static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode
   if (isRelatedToOtherExpr((SExprNode*)*pNode)) {
     int len = strlen(((SExprNode*)*pNode)->aliasName);
     if (len + TSDB_COL_NAME_EXLEN >= TSDB_COL_NAME_LEN) {
-      parserError("%s The alias name is too long, the extra part will be truncated", __func__);
-      return DEAL_RES_ERROR;
+      parserWarn("%s The alias name is too long, the extra part will be truncated", __func__);
     }
     tsnprintf(pFunc->node.aliasName + len, TSDB_COL_NAME_EXLEN, ".%d", ((SExprNode*)*pNode)->relatedTo);
   }

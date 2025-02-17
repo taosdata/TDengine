@@ -15,6 +15,7 @@
 
 #include "filter.h"
 #include "function.h"
+#include "nodes.h"
 #include "os.h"
 #include "querynodes.h"
 #include "tfill.h"
@@ -395,10 +396,12 @@ static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBloc
     return TSDB_CODE_SUCCESS;
   }
 
-  // if the last expression is a tuple function, we don't need to create a empty data block
-  int32_t lastExprIndex = pOperator->exprSupp.numOfExprs - 1;
-  if(pOperator->exprSupp.pExprInfo[lastExprIndex].pExpr->_function.bindExprID > 0) {
-    return TSDB_CODE_SUCCESS;
+  // if the expression is a bind expression, we don't need to create a empty data block
+  for (int i = pOperator->exprSupp.numOfExprs - 1; i >= 0; i--) {
+    SExprInfo* pExprInfo = &pOperator->exprSupp.pExprInfo[i];
+    if (nodeType(pExprInfo->pExpr) == QUERY_NODE_FUNCTION && pExprInfo->pExpr->_function.bindExprID > 0) {
+      return TSDB_CODE_SUCCESS;
+    }
   }
 
   code = createDataBlock(&pBlock);
