@@ -103,6 +103,19 @@ char *stpncpy(char *dest, const char *src, int n) {
   if (size == n) return dest;
   return memset(dest, '\0', n - size);
 }
+#elif defined(TD_ASTRA)
+/* Copy no more than N characters of SRC to DEST, returning the address of
+   the terminating '\0' in DEST, if any, or else DEST + N.  */
+char *stpncpy(char *dest, const char *src, int n) {
+  size_t size = 0;
+  while(size < n && src[size] != '\0') {
+    ++size;
+  }
+  memcpy(dest, src, size);
+  dest += size;
+  if (size == n) return dest;
+  return memset(dest, '\0', n - size);
+}
 #else
 char *taosStrndupi(const char *s, int64_t size) {
   if (s == NULL) {

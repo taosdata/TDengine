@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#ifdef TD_GEOS
+#ifdef USE_GEOS
 #include <geos_c.h>
 #include <tpcre2.h>
 

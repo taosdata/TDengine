@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef TD_UDF
+#ifdef USE_UDF
 // clang-format off
 #include "uv.h"
 #include "os.h"

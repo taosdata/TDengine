@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef TD_GEOS
+#ifdef USE_GEOS
 #include <geos_c.h>
 #include "geosWrapper.h"
 #include "geomFunc.h"

@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#ifdef TD_GEOS
+#ifdef USE_GEOS
 #include "function.h"
 
 int32_t makePointFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);

@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifdef TD_STREAM
+#ifdef USE_STREAM
 #ifndef _STREAM_BACKEND_ROCKSDB_H_
 #define _STREAM_BACKEND_ROCKSDB_H_
 
@@ -285,4 +285,4 @@ uint32_t nextPow2(uint32_t x);
 #endif
 
 #endif /* _STREAM_BACKEND_ROCKSDB_H_ */
-#endif /* TD_STREAM */
+#endif /* USE_STREAM */
