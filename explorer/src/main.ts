@@ -1,5 +1,5 @@
 import { createApp } from 'vue';
-import App from './App.vue';
+
 import store from './store';
 import router from './router/index.ts';
 import { setupI18n } from './lang/index.ts';
@@ -7,6 +7,7 @@ import 'virtual:uno.css';
 import '@/styles/font.css';
 import ELEMENT, { ElMessage } from 'element-plus';
 import { setupElementIcons, setupPinia } from './plugins';
+import './styles/reset.css';
 import '@/assets/fonts/iconfont/iconfont.css';
 import { registerDirective } from './directive.ts';
 import './permission.ts';
@@ -15,6 +16,7 @@ import { TextCopy, SvgIcon, Pagination, PageHeader, RouterTabs, DatePicker } fro
 import VueDOMPurifyHTML from 'vue-dompurify-html';
 import 'virtual:svg-icons-register';
 import './utils/update.ts';
+import App from './App.vue';
 
 const app = createApp(App);
 setupI18n(app);
