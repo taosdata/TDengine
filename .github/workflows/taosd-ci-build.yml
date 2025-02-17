@@ -45,7 +45,7 @@ jobs:
           sudo apt update -y
           sudo apt install -y build-essential cmake \
             libgeos-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev \
-            zlib1g-dev pkg-config libssl-dev gawk
+            zlib1g pkg-config libssl-dev gawk
 
       - name: Install dependencies on macOS
         if: runner.os == 'macOS'
