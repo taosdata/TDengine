@@ -456,7 +456,7 @@ export POD_NAME=$(kubectl get pods --namespace default \
 
 kubectl --namespace default exec $POD_NAME -- taos -s "show dnodes; show mnodes"
 
-3. Run into taos shell:
+3. Run into TDengine CLI:
 
 kubectl --namespace default exec -it $POD_NAME -- taos
 ```

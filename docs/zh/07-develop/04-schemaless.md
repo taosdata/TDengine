@@ -299,7 +299,7 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 
 ## 查询写入的数据
 
-运行上节的样例代码，会在 power 数据库中自动建表，我们可以通过 taos shell 或者应用程序来查询数据。下面给出用 taos shell 查询超级表和 meters 表数据的样例。
+运行上节的样例代码，会在 power 数据库l中自动建表，我们可以通过 TDengine CLI 或者应用程序来查询数据。下面给出用 TDengine CLI 查询超级表和 meters 表数据的样例。
 
 ```shell
 taos> show power.stables;

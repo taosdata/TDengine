@@ -1,6 +1,6 @@
 ---
 title: TDengine CLI 参考手册
-sidebar_label: taos
+sidebar_label: TDengine CLI
 toc_max_heading_level: 4
 ---
 

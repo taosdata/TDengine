@@ -6,7 +6,7 @@ slug: /tdengine-reference/tools/taosdump
 
 `taosdump` is a TDengine data backup/recovery tool provided for open source users, and the backed up data files adopt the standard [Apache AVRO](https://avro.apache.org/)
   Format, convenient for exchanging data with the external ecosystem.  
- Taosdump provides multiple data backup and recovery options to meet different data needs, and all supported options can be viewed through --help.
+ taosdump provides multiple data backup and recovery options to meet different data needs, and all supported options can be viewed through --help.
 
 ## Get
 
@@ -14,7 +14,7 @@ taosdump is the default installation component in the TDengine server and client
 
 ## Startup
 
-Taosdump needs to be run in the command line terminal. It must be run with parameters to indicate backup or restore operations, such as:
+taosdump needs to be run in the command line terminal. It must be run with parameters to indicate backup or restore operations, such as:
 ``` bash
 taosdump -h my-server -D test -o /root/test/
 ```
