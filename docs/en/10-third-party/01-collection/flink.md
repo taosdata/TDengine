@@ -26,6 +26,7 @@ Flink Connector supports all platforms that can run Flink 1.19 and above version
 
 | Flink Connector Version | Major Changes | TDengine Version|
 |-------------------------| ------------------------------------ | ---------------- |
+| 2.1.0                   | Fix the issue of writing varchar types from different data sources.| - |
 | 2.0.2                   | The Table Sink supports types such as RowKind.UPDATE_BEFORE, RowKind.UPDATE_AFTER, and RowKind.DELETE.| - |
 | 2.0.1                   | Sink supports writing types from Rowdata implementations.| - |
 | 2.0.0                   | 1.Support SQL queries on data in TDengine database. <br/> 2. Support CDC subscription to data in TDengine database.<br/> 3. Supports reading and writing to TDengine database using Table SQL. | 3.3.5.1  and higher|
@@ -86,7 +87,8 @@ TDengine currently supports timestamp, number, character, and boolean types, and
 | SMALLINT          | Short         |
 | TINYINT           | Byte          |
 | BOOL              | Boolean       |
-| BINARY            | byte[]        |
+| VARCHAR           | StringData    |
+| BINARY            | StringData    |
 | NCHAR             | StringData    |
 | JSON              | StringData    |
 | VARBINARY         | byte[]        |
@@ -116,7 +118,7 @@ If using Maven to manage a project, simply add the following dependencies in pom
 <dependency>
     <groupId>com.taosdata.flink</groupId>
     <artifactId>flink-connector-tdengine</artifactId>
-    <version>2.0.2</version>
+    <version>2.1.0</version>
 </dependency>
 ```
 
