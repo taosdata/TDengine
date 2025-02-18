@@ -360,7 +360,8 @@ typedef enum tmq_res_t {
   TMQ_RES_INVALID = -1,
   TMQ_RES_DATA = 1,
   TMQ_RES_TABLE_META = 2,
-  TMQ_RES_METADATA = 3
+  TMQ_RES_METADATA = 3,
+  TMQ_RES_RAWDATA = 4
 } tmq_res_t;
 
 typedef struct tmq_topic_assignment {

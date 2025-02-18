@@ -2312,6 +2312,10 @@ typedef struct SSysTableSchema {
 int32_t tSerializeSRetrieveTableReq(void* buf, int32_t bufLen, SRetrieveTableReq* pReq);
 int32_t tDeserializeSRetrieveTableReq(void* buf, int32_t bufLen, SRetrieveTableReq* pReq);
 
+#define RETRIEVE_TABLE_RSP_VERSION          0
+#define RETRIEVE_TABLE_RSP_TMQ_VERSION      1
+#define RETRIEVE_TABLE_RSP_TMQ_RAW_VERSION  2
+
 typedef struct {
   int64_t useconds;
   int8_t  completed;  // all results are returned to client
@@ -4200,7 +4204,9 @@ typedef struct {
   STqOffsetVal reqOffset;
   int8_t       enableReplay;
   int8_t       sourceExcluded;
+  int8_t       rawData;
   int8_t       enableBatchMeta;
+  SHashObj    *uidHash;  // to find if uid is duplicated
 } SMqPollReq;
 
 int32_t tSerializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);
@@ -4274,13 +4280,21 @@ typedef struct {
       SArray* createTableLen;
       SArray* createTableReq;
     };
+    struct{
+      int32_t len;
+      void*   rawData;
+    };
   };
+  void*   data;  //for free in client, only effected if type is data or metadata. raw data not effected
+  bool    blockDataElementFree;   // if true, free blockDataElement in blockData,(true in server, false in client)
 
 } SMqDataRsp;
 
 int32_t tEncodeMqDataRsp(SEncoder* pEncoder, const SMqDataRsp* pObj);
 int32_t tDecodeMqDataRsp(SDecoder* pDecoder, SMqDataRsp* pRsp);
+int32_t tDecodeMqRawDataRsp(SDecoder* pDecoder, SMqDataRsp* pRsp);
 void    tDeleteMqDataRsp(SMqDataRsp* pRsp);
+void    tDeleteMqRawDataRsp(SMqDataRsp* pRsp);
 
 int32_t tEncodeSTaosxRsp(SEncoder* pEncoder, const SMqDataRsp* pRsp);
 int32_t tDecodeSTaosxRsp(SDecoder* pDecoder, SMqDataRsp* pRsp);
@@ -4530,6 +4544,7 @@ typedef struct {
 
 typedef struct {
   SArray* aSubmitTbData;  // SArray<SSubmitTbData>
+  bool    raw;
 } SSubmitReq2;
 
 typedef struct {
@@ -4538,8 +4553,9 @@ typedef struct {
   char     data[];  // SSubmitReq2
 } SSubmitReq2Msg;
 
+int32_t transformRawSSubmitTbData(void* data, int64_t suid, int64_t uid, int32_t sver);
 int32_t tEncodeSubmitReq(SEncoder* pCoder, const SSubmitReq2* pReq);
-int32_t tDecodeSubmitReq(SDecoder* pCoder, SSubmitReq2* pReq);
+int32_t tDecodeSubmitReq(SDecoder* pCoder, SSubmitReq2* pReq, SArray* rawList);
 void    tDestroySubmitTbData(SSubmitTbData* pTbData, int32_t flag);
 void    tDestroySubmitReq(SSubmitReq2* pReq, int32_t flag);
 
