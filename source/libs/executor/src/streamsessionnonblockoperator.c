@@ -443,7 +443,8 @@ int32_t doStreamSessionNonblockAggNextImpl(SOperatorInfo* pOperator, SOptrBasicI
 
     switch (pBlock->info.type) {
       case STREAM_NORMAL:
-      case STREAM_INVALID: {
+      case STREAM_INVALID: 
+      case STREAM_PULL_DATA: {
         SExprSupp* pExprSup = pScalarSupp;
         if (pExprSup->pExprInfo != NULL) {
           code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL);

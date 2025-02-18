@@ -600,7 +600,8 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
 
     switch (pBlock->info.type) {
       case STREAM_NORMAL:
-      case STREAM_INVALID: {
+      case STREAM_INVALID:
+      case STREAM_PULL_DATA: {
         SExprSupp* pExprSup = &pInfo->scalarSup;
         if (pExprSup->pExprInfo != NULL) {
           code = projectApplyFunctions(pExprSup->pExprInfo, pBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL);
