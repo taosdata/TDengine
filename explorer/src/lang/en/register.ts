@@ -12,6 +12,8 @@ export default {
     signin: 'Submit',
     imageVerificationCode: 'Image Verification code',
     nameTips: "Please enter your name, maximum of 80 characters",
+    firstnameTips: "Please enter first name",
+    lastnameTips: "Please enter last name",
     phoneTips: "Please enter email",
     emailTips: "Please enter email",
     verificationCodeTips: "Please enter the verification code",

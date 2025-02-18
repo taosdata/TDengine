@@ -40,7 +40,7 @@
                 v-model="dynamicValidateForm.username"
                 :placeholder="$t('login.usernamePlaceholder')"
               ></el-input>
-            </el-form-item>
+              </el-form-item>
           </div>
           <div>
             <p class="lable-form">
@@ -81,13 +81,21 @@
             <p class="lable-form">
               <span>{{ $t('register.name') }}</span>
             </p>
-            <el-form-item prop="name" label>
+            <el-form-item v-if="!isLocaleLanguageEn" prop="username">
               <el-input
                 ref="name"
                 v-model="registerValidateForm.name"
                 :placeholder="$t('register.nameTips')"
               ></el-input>
             </el-form-item>
+            <div v-else style="display: flex; justify-content: space-between;">
+              <el-form-item prop="firstname" style="width: 49%;">
+                <el-input ref="firstname" v-model="registerValidateForm.firstname" :placeholder="$t('register.firstnameTips')"></el-input>
+              </el-form-item>
+              <el-form-item prop="lastname" style="width: 49%;">
+                <el-input ref="lastname" v-model="registerValidateForm.lastname" :placeholder="$t('register.lastnameTips')"></el-input>
+              </el-form-item>
+            </div>
           </div>
           <div style="margin-bottom: 20px">
             <p class="lable-form">
@@ -280,6 +288,8 @@ const registerValidateForm = reactive({
   ts: '',
   lang: '',
   name: '',
+  firstname: '',
+  lastname: '',
   phone_email: '',
   verification_code: ''
 });
@@ -302,10 +312,27 @@ const registerFormRules = reactive({
   name: [
     {
       required: true,
+      min: 2,
       max: 80,
       message: t('register.nameTips'),
       trigger: 'change'
     }
+  ],
+  firstname: [
+    {
+      required: true,
+      max: 80,
+      message: t("register.firstnameTips"),
+      trigger: "change",
+    },
+  ],
+  lastname: [
+    {
+      required: true,
+      max: 80,
+      message: t("register.lastnameTips"),
+      trigger: "change",
+    },
   ],
   verification_code: [
     {
@@ -476,7 +503,6 @@ async function getUserAuthority() {
         );
       });
       if (result.length > 0 && ['official', 'trial', 'community'].includes(result[0].version)) {
-        console.log('result', result);
         router.push({
           path: '/explorer'
         });
@@ -592,17 +618,28 @@ function submitRegisterForm(formEl: FormInstance | undefined) {
   formEl.validate(async valid => {
     if (valid) {
       pageLoading.value = true;
-      // 提交注册接口
-      registerValidateForm.ts = ts.value;
-      registerValidateForm.lang = getLocalLang();
 
-      const result = await getVerificationResult(registerValidateForm);
+      const formData: any = {
+        ts: ts.value,
+        lang: getLocalLang(),
+        phone_email: registerValidateForm.phone_email,
+        verification_code: registerValidateForm.verification_code
+      }
+      if (!isLocaleLanguageEn.value) {
+        formData['name'] = registerValidateForm.name;
+      } else {
+        formData['firstname'] = registerValidateForm.firstname;
+        formData['lastname'] = registerValidateForm.lastname;
+      }
+
+      // 提交注册接口
+      const result = await getVerificationResult(formData);
       if (result && result.code == 0) {
         switch (result.data) {
           case 'pass':
             // 如果校验通过，则注册成功 切换到登陆框
             registered.value = true;
-            sessionStorage.setItem('registerKey', registerValidateForm.phone_email);
+            sessionStorage.setItem('registerKey', formData.phone_email);
 
             setTimeout(() => {
               pageLoading.value = false;
@@ -635,6 +672,7 @@ function switchLanguage() {
     localStorage.setItem('local_language', 'zh');
     setLocale('zh');
   }
+  buttonTextOfGetVerificationCode.value = t('register.getVerificationCode');
 }
 </script>
 <style lang="scss" scoped>

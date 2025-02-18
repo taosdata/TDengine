@@ -576,7 +576,7 @@ $color-description: rgb(137 130 130);
 
     .doc-part {
       padding: 2rem;
-      margin: 1rem;
+      margin: 10px 1rem;
       background: rgb(251 251 251);
       border-radius: 0.8rem;
       box-shadow: rgb(0 0 0 / 10%) 0 0 15px;
