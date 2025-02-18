@@ -4012,7 +4012,9 @@ pub async fn listen_tcp_socket_with_agent(
                         ipc_tcp_forward(stream, cancel, remote, token, id, batch_counter, config).in_current_span().await;
                     if let Err(err) = res {
                         let error_msg = format!("{:?}", err);
-                        if error_msg.contains("os error 10060") {
+                        // 如果不以"transport error"开头，且包含"os error 10060"
+                        // 则认为是 windows 下的 IPC 连接断开，可能是 connector 的正常行为，仅记录 warn 日志
+                        if error_msg.contains("os error 10060") && !error_msg.starts_with("transport error") {
                             tracing::warn!("IPC reader stopped with warn: {}", error_msg);
                         } else {
                             tracing::error!("{:?}", err);
