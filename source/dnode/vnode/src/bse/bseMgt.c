@@ -852,6 +852,7 @@ void bseClose(SBse *pBse) {
   if (pBse == NULL) {
     return;
   }
+  bseInfo("start to close bse");
   tableClose(pBse->pTable);
   taosArrayDestroy(pBse->fileSet);
   taosThreadMutexDestroy(&pBse->mutex);
