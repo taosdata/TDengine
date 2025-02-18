@@ -1432,8 +1432,6 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     TAOS_CHECK_EXIT(tEncodeI32(&encoder, pload->learnerProgress));
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->roleTimeMs));
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->startTimeMs));
-    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->syncAppliedIndex));
-    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->syncCommitIndex));
   }
 
   // mnode loads

@@ -1125,8 +1125,8 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
           return code;
         }
 
-        char applyStr[TSDB_SYNC_APPLY_COMMIT_LEN] = {0};
-        char buf[TSDB_SYNC_APPLY_COMMIT_LEN] = {0};
+        char applyStr[TSDB_SYNC_APPLY_COMMIT_LEN + 1] = {0};
+        char buf[TSDB_SYNC_APPLY_COMMIT_LEN + VARSTR_HEADER_SIZE + 1] = {0};
         snprintf(applyStr, sizeof(applyStr), "%" PRId64 "/%" PRId64, pVgroup->vnodeGid[i].syncAppliedIndex,
                  pVgroup->vnodeGid[i].syncCommitIndex);
         STR_WITH_MAXSIZE_TO_VARSTR(buf, applyStr, pShow->pMeta->pSchemas[cols].bytes);
@@ -1358,7 +1358,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
         calculateRstoreFinishTime(pGid->appliedRate, unappliedCount, restoreStr, sizeof(restoreStr));
       }
       STR_TO_VARSTR(buf, restoreStr);
-      colDataSetVal(pColInfo, numOfRows, (const char *)&buf, false);
+      code = colDataSetVal(pColInfo, numOfRows, (const char *)&buf, false);
       if (code != 0) {
         mError("vgId:%d, failed to set syncRestore finish time, since %s", pVgroup->vgId, tstrerror(code));
         return code;
