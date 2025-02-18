@@ -322,7 +322,7 @@ uint64_t schGenUUID(void) {
   }
 
   int64_t  ts = taosGetTimestampMs();
-  uint64_t pid = taosGetPId();
+  uint64_t pid = taosGetPid();
   int32_t  val = atomic_add_fetch_32(&requestSerialId, 1);
 
   uint64_t id =

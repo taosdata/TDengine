@@ -1066,7 +1066,7 @@ int32_t hbGetAppInfo(int64_t clusterId, SClientHbReq *req) {
     (void)memcpy(&req->app, pApp, sizeof(*pApp));
   } else {
     (void)memset(&req->app.summary, 0, sizeof(req->app.summary));
-    req->app.pid = taosGetPId();
+    req->app.pid = taosGetPid();
     req->app.appId = clientHbMgr.appId;
     TSC_ERR_RET(taosGetAppName(req->app.name, NULL));
   }
@@ -1253,7 +1253,7 @@ int32_t hbGatherAppInfo(void) {
   int32_t   code = TSDB_CODE_SUCCESS;
   int       sz = taosArrayGetSize(clientHbMgr.appHbMgrs);
   if (sz > 0) {
-    req.pid = taosGetPId();
+    req.pid = taosGetPid();
     req.appId = clientHbMgr.appId;
     TSC_ERR_RET(taosGetAppName(req.name, NULL));
   }

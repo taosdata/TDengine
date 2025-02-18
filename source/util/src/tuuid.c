@@ -55,7 +55,7 @@ int32_t tGenIdPI32(void) {
   }
 
   int64_t  ts = taosGetTimestampMs();
-  uint64_t pid = taosGetPId();
+  uint64_t pid = taosGetPid();
   int32_t  val = atomic_add_fetch_32(&tUUIDSerialNo, 1);
 
   int32_t id = ((tUUIDHashId & 0x1F) << 26) | ((pid & 0x3F) << 20) | ((ts & 0xFFF) << 8) | (val & 0xFF);
@@ -74,7 +74,7 @@ int64_t tGenIdPI64(void) {
 
   while (true) {
     int64_t  ts = taosGetTimestampMs() >> 8;
-    uint64_t pid = taosGetPId();
+    uint64_t pid = taosGetPid();
     int32_t  val = atomic_add_fetch_32(&tUUIDSerialNo, 1);
 
     id = (((uint64_t)(tUUIDHashId & 0x07FF)) << 52) | ((pid & 0x0F) << 48) | ((ts & 0x3FFFFFF) << 20) | (val & 0xFFFFF);

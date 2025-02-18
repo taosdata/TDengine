@@ -196,7 +196,7 @@ int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t 
   // environment. The lock operation by taosGetFqdn may cause this program deadlock.
   TAOS_CHECK_GOTO(tjsonAddStringToObject(pJson, "fqdn", tsLocalFqdn), NULL, _exit);
 
-  TAOS_CHECK_GOTO(tjsonAddIntegerToObject(pJson, "pid", taosGetPId()), NULL, _exit);
+  TAOS_CHECK_GOTO(tjsonAddIntegerToObject(pJson, "pid", taosGetPid()), NULL, _exit);
 
   code = taosGetAppName(tmp, NULL);
   if (code != 0) {

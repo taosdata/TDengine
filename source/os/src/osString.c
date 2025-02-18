@@ -107,23 +107,40 @@ char *stpncpy(char *dest, const char *src, int n) {
 /* Copy no more than N characters of SRC to DEST, returning the address of
    the terminating '\0' in DEST, if any, or else DEST + N.  */
 char *stpncpy(char *dest, const char *src, int n) {
-  size_t size = 0;
-  while(size < n && src[size] != '\0') {
-    ++size;
+  if (dest == NULL || src == NULL) { 
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
   }
-  memcpy(dest, src, size);
-  dest += size;
-  if (size == n) return dest;
-  return memset(dest, '\0', n - size);
+  if (n == 0) {
+    return dest;
+  }
+  char *orig_dest = dest;
+  const char *end = (const char *)memchr(src, '\0', n);
+  size_t      len = (end != NULL) ? (size_t)(end - src) : n;
+  memcpy(dest, src, len);
+  if (len < n) {
+    memset(dest + len, '\0', n - len);
+  }
+  return orig_dest + n;
 }
 char *taosStrndupi(const char *s, int64_t size) {
   if (s == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
-  char *p = strndup(s, size);
-  if (NULL == p) {
+
+  const char *end = (const char *)memchr(s, '\0', size);
+  size_t      actual_len = (end != NULL) ? (size_t)(end - s) : (size_t)size;
+
+  char *p = (char *)malloc(actual_len + 1);
+  if (p == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
   }
+
+  memcpy(p, s, actual_len);
+  p[actual_len] = '\0';
+
   return p;
 }
 #else

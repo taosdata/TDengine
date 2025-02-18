@@ -690,11 +690,12 @@ void mndCleanupUser(SMnode *pMnode) { ipWhiteMgtCleanup(); }
 static void ipRangeToStr(SIpV4Range *range, char *buf) {
   struct in_addr addr;
   addr.s_addr = range->ip;
-
+#ifndef TD_ASTRA
   (void)uv_inet_ntop(AF_INET, &addr, buf, 32);
   if (range->mask != 32) {
     (void)tsnprintf(buf + strlen(buf), 36 - strlen(buf), "/%d", range->mask);
   }
+#endif
   return;
 }
 static bool isDefaultRange(SIpV4Range *pRange) {
@@ -841,12 +842,13 @@ static int32_t createDefaultIpWhiteList(SIpWhiteList **ppWhiteList) {
   }
   (*ppWhiteList)->num = 1;
   SIpV4Range *range = &((*ppWhiteList)->pIpRange[0]);
-
+#ifndef TD_ASTRA
   struct in_addr addr;
   if (uv_inet_pton(AF_INET, "127.0.0.1", &addr) == 0) {
     range->ip = addr.s_addr;
     range->mask = 32;
   }
+#endif
   return 0;
 }
 
