@@ -537,7 +537,7 @@ int32_t rpcInit() { return transInit(); }
 
 void rpcCleanup(void) {
   transCleanup();
-  transHttpEnvDestroy();
+  // transHttpEnvDestroy();
 
   return;
 }
