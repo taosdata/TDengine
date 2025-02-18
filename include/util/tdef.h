@@ -17,6 +17,7 @@
 #define _TD_UTIL_DEF_H_
 
 #include "os.h"
+#include "cus_name.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -77,14 +78,6 @@ extern const int32_t TYPE_BYTES[21];
 #define TSDB_DEFAULT_PASS "prodb"
 #else
 #define TSDB_DEFAULT_PASS "taosdata"
-#endif
-
-#ifndef TD_PRODUCT_NAME
-#ifdef TD_ENTERPRISE
-#define TD_PRODUCT_NAME "TDengine Enterprise Edition"
-#else
-#define TD_PRODUCT_NAME "TDengine Community Edition"
-#endif
 #endif
 
 #define TSDB_TRUE  1
@@ -246,6 +239,7 @@ typedef enum ELogicConditionType {
 #define TSDB_USER_CGROUP_LEN          (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
 #define TSDB_STREAM_NAME_LEN          193                                // it is a null-terminated string
 #define TSDB_STREAM_NOTIFY_URL_LEN    128                                // it includes the terminating '\0'
+#define TSDB_STREAM_NOTIFY_STAT_LEN   350                                // it includes the terminating '\0'
 #define TSDB_DB_NAME_LEN              65
 #define TSDB_DB_FNAME_LEN             (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_PRIVILEDGE_CONDITION_LEN 48 * 1024

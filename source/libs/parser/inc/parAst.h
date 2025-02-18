@@ -164,9 +164,9 @@ SNode*     createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, S
 SNode*     createWindowOffsetNode(SAstCreateContext* pCxt, SNode* pStartOffset, SNode* pEndOffset);
 SNode*     createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues);
 SNode*     createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode);
-SNode*     createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd);
+SNode*     createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd, SNode* pInterval);
 SNode*     createInterpTimePoint(SAstCreateContext* pCxt, SNode* pPoint);
-SNode*     createInterpTimeAround(SAstCreateContext* pCxt, SNode* pTimepoint, SNode* pInterval);
+SNode*     createInterpTimeAround(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd, SNode* pInterval);
 SNode*     createWhenThenNode(SAstCreateContext* pCxt, SNode* pWhen, SNode* pThen);
 SNode*     createCaseWhenNode(SAstCreateContext* pCxt, SNode* pCase, SNodeList* pWhenThenList, SNode* pElse);
 SNode*     createAlterSingleTagColumnNode(SAstCreateContext* pCtx, SToken* token, SNode* pVal);

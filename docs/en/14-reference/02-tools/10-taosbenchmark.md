@@ -246,7 +246,7 @@ INFO: Spend 26.9530 second completed total queries: 30000, the QPS of all thread
 ```
 
 - The first line represents the percentile distribution of query execution and query request delay for each of the three threads executing 10000 queries. The SQL command is the test query statement
-- The second line indicates that the total query time is 26.9653 seconds, the total queries is 10000 * 3 = 30000, and the query rate per second (QPS) is 1113.049 times/second
+- The second line indicates that the total query time is 26.9653 seconds, and the query rate per second (QPS) is 1113.049 times/second
 - If the `continue_if_fail` option is set to `yes` in the query, the last line will output the number of failed requests and error rate, the format like "error + number of failed requests (error rate)"
 - QPS        = number of successful requests / time spent (in seconds)
 - Error rate = number of failed requests / (number of successful requests + number of failed requests)
@@ -459,7 +459,7 @@ For other common parameters, see Common Configuration Parameters.
 
 Configuration parameters for querying specified tables (can specify supertables, subtables, or regular tables) are set in `specified_table_query`.
 
-- `General Query`: Each SQL in `sqls` starts `threads` threads to query this SQL, Each thread exits after executing the `query_times` queries, and only after all threads executing this SQL have completed can the next SQL be executed.  
+`General Query`: Each SQL in `sqls` starts `threads` threads to query this SQL, Each thread exits after executing the `query_times` queries, and only after all threads executing this SQL have completed can the next SQL be executed.  
 The total number of queries(`General Query`) = the number of `sqls` * `query_times` * `threads`  
 - `Mixed Query`  : All SQL statements in `sqls` are divided into `threads` groups, with each thread executing one group. Each SQL statement needs to execute `query_times` queries.   
 The total number of queries(`Mixed Query`)   = the number of `sqls` * `query_times`
@@ -501,7 +501,7 @@ Configuration parameters for subscribing to specified tables (can specify supert
 - **sqls** :
   - **sql** : The SQL command to execute, required.
 
-#### Data Type Writing Comparison Table in Configuration File
+### Data Type Writing Comparison Table in Configuration File
 
 | #   |     **Engine**      | **taosBenchmark**
 | --- | :----------------: | :---------------:

@@ -150,7 +150,6 @@ void destroyStreamTimeSliceOperatorInfo(void* param) {
                               &pInfo->groupResInfo);
     pInfo->pOperator = NULL;
   }
-  destroyStreamBasicInfo(&pInfo->basic);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   destroyStreamAggSupporter(&pInfo->streamAggSup);
   resetPrevAndNextWindow(pInfo->pFillSup);
@@ -2202,7 +2201,7 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamTimeSliceReleaseState, streamTimeSliceReloadState);
 
-  code = initStreamBasicInfo(&pInfo->basic);
+  code = initStreamBasicInfo(&pInfo->basic, pOperator);
   QUERY_CHECK_CODE(code, lino, _error);
   if (downstream) {
     code = initTimeSliceDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex,

@@ -212,6 +212,7 @@ static const SSysDbTableSchema streamTaskSchema[] = {
     {.name = "extra_info", .bytes = 25 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "history_task_id", .bytes = 16 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "history_task_status", .bytes = 12 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "notify_event_stat", .bytes = TSDB_STREAM_NOTIFY_STAT_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
 };
 
 static const SSysDbTableSchema userTblsSchema[] = {
