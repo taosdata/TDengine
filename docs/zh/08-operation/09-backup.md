@@ -61,7 +61,7 @@ TDengine Enterprise 的备份和恢复功能包括以下几个概念：
 
 ## 2.2. 数据备份
 
-通过浏览器访问 taosExplorer 服务，访问地址通常为 TDengine 集群所在 IP 地址的端口 6060，如 http://localhost:6060。 在
+通过浏览器访问 taosExplorer 服务，访问地址通常为 TDengine 集群所在 IP 地址的端口 6060，如 `http://localhost:6060`。 在
 taosExplorer 服务页面中，进入“系统管理 - 备份”页面，在“备份计划”标签页下，点击“创建备份计划”，填写备份计划的相关信息。
 
 需要填写的信息包括：
