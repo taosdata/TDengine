@@ -278,7 +278,7 @@ char *paGetToken(char *string, char **token, int32_t *tokenLen) {
   return string;
 }
 
-int64_t strnatoi(char *num, int32_t len) {
+int64_t strnatoi(const char *num, int32_t len) {
   int64_t ret = 0, i, dig, base = 1;
 
   if (len > (int32_t)strlen(num)) {

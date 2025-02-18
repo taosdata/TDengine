@@ -1,8 +1,12 @@
+from pydoc import doc
 from random import randrange
 from re import A
 import time
 import threading
 import secrets
+
+from sympy import true
+from torch import randint
 import query
 from tag_lite import column
 from util.log import *
@@ -10,57 +14,142 @@ from util.sql import *
 from util.cases import *
 from util.dnodes import *
 from util.common import *
+from decimal import Decimal
 
 syntax_error = -2147473920
 invalid_column = -2147473918
 invalid_compress_level = -2147483084
 invalid_encode_param = -2147483087
-class DecimalType:
-    def __init__(self, precision: int, scale: int):
-        self.precision = precision
-        self.scale = scale
 
-    def __str__(self):
-        return f"DECIMAL({self.precision}, {self.scale})"
+class DecimalTypeGeneratorConfig:
+    def __init__(self):
+        self.enable_weight_overflow: bool = False
+        self.weightOverflowRatio: float = 0.001
+        self.enable_scale_overflow: bool = True
+        self.scale_overflow_ratio = 0.1
+        self.enable_positive_sign = False
+        self.with_corner_case = True
+        self.corner_case_ratio = 0.1
+        self.positive_ratio = 0.7
+        self.prec = 38
+        self.scale = 10
 
-    def __eq__(self, other):
-        return self.precision == other.precision and self.scale == other.scale
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def __hash__(self):
-        return hash((self.precision, self.scale))
-
-    def __repr__(self):
-        return f"DecimalType({self.precision}, {self.scale})"
+class DecimalStringRandomGenerator:
+    def __init__(self):
+        self.corner_cases = ["0", "NULL", "0.", ".0", "000.000000"]
+        self.ratio_base: int = 1000000
     
-    def generate_value(self, allow_weight_overflow = False, allow_scale_overflow = False) -> str:
-        if allow_weight_overflow:
-            weight = secrets.randbelow(40)
-        else:
-            weight = secrets.randbelow(self.precision - self.scale)
-        if allow_scale_overflow:
-            dscale = secrets.randbelow(40 - weight + 1)
-        else:
-            dscale = secrets.randbelow(self.precision - weight + 1)
-        digits :str = ''
-        for _ in range(weight):
-            digits += str(secrets.randbelow(10))
-        if dscale > 0:
-            digits += '.'
-        for _ in range(dscale):
-            digits += str(secrets.randbelow(10))
-        if digits == '':
-            digits = '0'
-        return digits
+    def possible(self, possibility: float) -> bool:
+        return random.randint(0, self.ratio_base) < possibility * self.ratio_base
     
-    @staticmethod
-    def default_compression() -> str:
-        return "zstd"
-    @staticmethod
-    def default_encode() -> str:
-        return "disabled"
+    def generate_sign(self, positive_ratio: float) -> str:
+        if self.possible(positive_ratio):
+            return "+"
+        return "-"
+    
+    def generate_digit(self) -> str:
+        return str(random.randint(0, 9))
+
+    def current_should_generate_corner_case(self, corner_case_ratio: float) -> bool:
+        return self.possible(corner_case_ratio)
+    
+    def generate_corner_case(self, config: DecimalTypeGeneratorConfig) -> str:
+        if self.possible(0.8):
+            return random.choice(self.corner_cases)
+        else:
+            res = self.generate_digit() * (config.prec - config.scale)
+            if self.possible(0.8):
+                res += '.'
+                if self.possible(0.8):
+                    res += self.generate_digit() * config.scale
+        return res
+    
+    ## 写入大整数的例子, 如10000000000, scale解析时可能为负数
+    def generate_(self, config: DecimalTypeGeneratorConfig) -> str:
+        ret: str = ''
+        sign = self.generate_sign(config.positive_ratio)
+        if config.with_corner_case and self.current_should_generate_corner_case(config.corner_case_ratio):
+            ret += self.generate_corner_case(config)
+        else:
+            if config.enable_positive_sign or sign != '+':
+                ret += sign
+            weight = random.randint(1, config.prec - config.scale)
+            scale = random.randint(1, config.scale)
+            for i in range(weight):
+                ret += self.generate_digit()
+            
+            if config.enable_weight_overflow and self.possible(config.weightOverflowRatio):
+                extra_weight = config.prec - weight + 1 + random.randint(1, self.get_max_prec(config.prec))
+                while extra_weight > 0:
+                    ret += self.generate_digit()
+                    extra_weight -= 1
+            ret += '.'
+            for i in range(scale):
+                ret += self.generate_digit()
+            if config.enable_scale_overflow and self.possible(config.scale_overflow_ratio):
+                extra_scale = config.scale - scale + 1 + random.randint(1, self.get_max_prec(config.prec))
+                while extra_scale > 0:
+                    ret += self.generate_digit()
+                    extra_scale -= 1
+        return ret
+    
+    def get_max_prec(self, prec):
+        if prec <= 18:
+            return 18
+        else:
+            return 38
+    
+class DecimalColumnAggregator:
+    def __init__(self):
+        self.max: Decimal = Decimal("0")
+        self.min: Decimal = Decimal("0")
+        self.count: int = 0
+        self.sum: Decimal = Decimal("0")
+        self.null_num: int = 0
+        self.none_num: int = 0
+
+    def add_value(self, value: str):
+        self.count += 1
+        if value == "NULL":
+            self.null_num += 1
+        elif value == "None":
+            self.none_num += 1
+        else:
+            v: Decimal = Decimal(value)
+            self.sum += v
+            if v > self.max:
+                self.max = v
+            if v < self.min:
+                self.min = v
+
+class TaosShell:
+    def __init__(self):
+        self.queryResult = []
+        self.tmp_file_path = "/tmp/taos_shell_result"
+
+    def read_result(self):
+        with open(self.tmp_file_path, 'r') as f:
+            lines = f.readlines()
+            lines = lines[1:]
+            for line in lines:
+                col = 0
+                vals: List[str] = line.split(',')
+                if len(self.queryResult) == 0:
+                    self.queryResult = [[] for i in range(len(vals))]
+                for val in vals:
+                    self.queryResult[col].append(val)
+                    col += 1
+
+    def query(self, sql: str):
+        try:
+            command = f'taos -s "{sql} >> {self.tmp_file_path}"'
+            result = subprocess.run(command, shell=True, check=True, stderr=subprocess.PIPE)
+            self.read_result()
+        except subprocess.CalledProcessError as e:
+            tdLog.error(f"Command '{sql}' failed with error: {e.stderr.decode('utf-8')}")
+            self.queryResult = []
+        return self.queryResult
+
 class TypeEnum:
     BOOL = 1
     TINYINT = 2
@@ -152,13 +241,6 @@ class DataType:
     def __repr__(self):
         return f"DataType({self.type}, {self.length}, {self.type_mod})"
     
-    @staticmethod
-    def get_decimal_type_mod(type: DecimalType) -> int:
-        return type.precision * 100 + type.scale
-
-    def get_decimal_type(self) -> DecimalType:
-        return DecimalType(self.type_mod // 100, self.type_mod % 100)
-    
     def construct_type_value(self, val: str):
         if self.type == TypeEnum.BINARY or self.type == TypeEnum.VARCHAR or self.type == TypeEnum.NCHAR or self.type == TypeEnum.VARBINARY:
             return f"'{val}'"
@@ -192,8 +274,68 @@ class DataType:
             return str(secrets.randbelow(9223372036854775808))
         if self.type == TypeEnum.JSON:
             return f'{{"key": "{secrets.token_urlsafe(10)}"}}'
-        if self.type == TypeEnum.DECIMAL:
-            return self.get_decimal_type().generate_value()
+        raise Exception(f"unsupport type {self.type}")
+    def check(self, values, offset: int):
+        return True
+
+class DecimalType(DataType):
+    def __init__(self, type, precision: int, scale: int):
+        self.precision = precision
+        self.scale = scale
+        if type == TypeEnum.DECIMAL64:
+            bytes = 8
+        else:
+            bytes = 16
+        super().__init__(type, bytes, self.get_decimal_type_mod())
+        self.generator: DecimalStringRandomGenerator = DecimalStringRandomGenerator()
+        self.generator_config: DecimalTypeGeneratorConfig = DecimalTypeGeneratorConfig()
+        self.generator_config.prec = precision
+        self.generator_config.scale = scale
+        self.aggregator: DecimalColumnAggregator = DecimalColumnAggregator()
+        self.values: List[str] = []
+
+    def get_decimal_type_mod(self) -> int:
+        return self.precision * 100 + self.scale
+
+    def __str__(self):
+        return f"DECIMAL({self.precision}, {self.scale})"
+
+    def __eq__(self, other):
+        return self.precision == other.precision and self.scale == other.scale
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return hash((self.precision, self.scale))
+
+    def __repr__(self):
+        return f"DecimalType({self.precision}, {self.scale})"
+    
+    def generate_value(self) -> str:
+        val = self.generator.generate_(self.generator_config)
+        self.aggregator.add_value(val)
+        self.values.append(val)
+        return val
+    
+    @staticmethod
+    def default_compression() -> str:
+        return "zstd"
+    @staticmethod
+    def default_encode() -> str:
+        return "disabled"
+    
+    def check(self, values, offset: int):
+        val_from_query = values
+        val_insert = self.values[offset:]
+        for v1, v2 in zip(val_from_query, val_insert):
+            dec1: Decimal = Decimal(v1)
+            dec2: Decimal = Decimal(v2)
+            dec2 = dec2.quantize(Decimal(10) ** -self.scale)
+            if dec1 != dec2:
+                tdLog.error(f"check decimal column failed, expect {dec2}, but get {dec1}")
+                return False
+
 
 class DecimalColumnTableCreater:
     def __init__(self, conn, dbName: str, tbName: str, columns_types: List[DataType], tags_types: List[DataType] = []):
@@ -262,6 +404,23 @@ class TableInserter:
                 self.conn.execute(f"flush database {self.dbName}", queryTimes=1)
             self.conn.execute(sql, queryTimes=1)
 
+class TableDataValidator:
+    def __init__(self, columns: List[DataType], tbName: str, dbName: str, tbIdx: int = 0):
+        self.columns = columns
+        self.tbName = tbName
+        self.dbName = dbName
+        self.tbIdx = tbIdx
+    
+    def validate(self):
+        sql = f"select * from {self.dbName}.{self.tbName}"
+        res = TaosShell().query(sql)
+        row_num = len(res)
+        colIdx = 1
+        for col in self.columns:
+            if col.type == TypeEnum.DECIMAL or col.type == TypeEnum.DECIMAL64:
+                col.check(res[colIdx], row_num * self.tbIdx)
+            colIdx += 1
+                
 class TDTestCase:
     updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'debugFlag': 143}
 
@@ -422,9 +581,9 @@ class TDTestCase:
         decimal_idx = 0
         results = re.findall(r"DECIMAL\((\d+),(\d+)\)", create_table_sql)
         for i, column_type in enumerate(column_types):
-            if column_type.type == TypeEnum.DECIMAL:
-                result_type = DecimalType(int(results[decimal_idx][0]), int(results[decimal_idx][1]))
-                if result_type != column_type.get_decimal_type():
+            if column_type.type == TypeEnum.DECIMAL or column_type.type == TypeEnum.DECIMAL64:
+                result_type = DecimalType(column_type.type, int(results[decimal_idx][0]), int(results[decimal_idx][1]))
+                if result_type != column_type:
                     tdLog.exit(f"check show create table failed for: {tbname} column {i} type is {result_type}, expect {column_type.get_decimal_type()}")
                 decimal_idx += 1
     
@@ -432,13 +591,13 @@ class TDTestCase:
         is_stb = tbname == self.stable_name
         ## alter table add column
         create_c99_sql = f'alter table {self.db_name}.{tbname} add column c99 decimal(37, 19)'
-        columns.append(DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(37, 19))))
+        columns.append(DecimalType(TypeEnum.DECIMAL, 37, 19))
         tdSql.execute(create_c99_sql, queryTimes=1, show=True)
         self.check_desc(tbname, columns)
         ## alter table add column with compression
         create_c100_sql = f'ALTER TABLE {self.db_name}.{tbname} ADD COLUMN c100 decimal(36, 18) COMPRESS "zstd"'
         tdSql.execute(create_c100_sql, queryTimes=1, show=True)
-        columns.append(DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(36, 18))))
+        columns.append(DecimalType(TypeEnum.DECIMAL, 36, 18))
         self.check_desc(tbname, columns)
 
         ## drop non decimal column
@@ -468,10 +627,10 @@ class TDTestCase:
         ## create decimal type table, normal/super table, decimal64/decimal128
         tdLog.printNoPrefix("-------- test create decimal column")
         self.norm_tb_columns = [
-            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(10, 2))),
-            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(20, 4))),
-            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(30, 8))),
-            DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(38, 10))),
+            DecimalType(TypeEnum.DECIMAL, 10, 2),
+            DecimalType(TypeEnum.DECIMAL, 20, 4),
+            DecimalType(TypeEnum.DECIMAL, 30, 8),
+            DecimalType(TypeEnum.DECIMAL, 38, 10),
             DataType(TypeEnum.TINYINT),
             DataType(TypeEnum.INT),
             DataType(TypeEnum.BIGINT),
@@ -483,7 +642,18 @@ class TDTestCase:
             DataType(TypeEnum.INT),
             DataType(TypeEnum.VARCHAR, 255)
         ]
-        self.stb_columns = self.norm_tb_columns.copy()
+        self.stb_columns = [
+            DecimalType(TypeEnum.DECIMAL, 10, 2),
+            DecimalType(TypeEnum.DECIMAL, 20, 4),
+            DecimalType(TypeEnum.DECIMAL, 30, 8),
+            DecimalType(TypeEnum.DECIMAL, 38, 10),
+            DataType(TypeEnum.TINYINT),
+            DataType(TypeEnum.INT),
+            DataType(TypeEnum.BIGINT),
+            DataType(TypeEnum.DOUBLE),
+            DataType(TypeEnum.FLOAT),
+            DataType(TypeEnum.VARCHAR, 255),
+        ]
         DecimalColumnTableCreater(tdSql, self.db_name, self.stable_name, self.stb_columns, self.tags).create()
         self.check_show_create_table("meters", self.stb_columns, self.tags)
 
@@ -533,7 +703,8 @@ class TDTestCase:
         for i in range(self.c_table_num):
             TableInserter(tdSql, self.db_name, f"{self.c_table_prefix}{i}", self.stb_columns, self.tags).insert(1000, 1537146000000, 500)
 
-        TableInserter(tdSql, self.db_name, self.norm_table_name, self.norm_tb_columns).insert(10000, 1537146000000, 500, flush_database=True)
+        TableInserter(tdSql, self.db_name, self.norm_table_name, self.norm_tb_columns).insert(10, 1537146000000, 500, flush_database=True)
+        TableDataValidator(self.norm_tb_columns, self.norm_table_name, self.db_name).validate()
 
 
         ## insert null/None for decimal type
@@ -558,7 +729,7 @@ class TDTestCase:
         ## Create table with no decimal type, the metaentries should not have extschma, and add decimal column, the metaentries should have extschema for all columns.
         sql = f'ALTER TABLE {self.db_name}.{self.no_decimal_col_tb_name} ADD COLUMN c200 decimal(37, 19)'
         tdSql.execute(sql, queryTimes=1) ## now meta entry has ext schemas
-        columns.append(DataType(TypeEnum.DECIMAL, type_mod=DataType.get_decimal_type_mod(DecimalType(37, 19))))
+        columns.append(DecimalType(TypeEnum.DECIMAL, 37, 19))
         self.check_desc(self.no_decimal_col_tb_name, columns)
 
         ## After drop this only decimal column, the metaentries should not have extschema for all columns.

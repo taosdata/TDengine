@@ -34,6 +34,7 @@ typedef struct Decimal64 {
 #define DECIMAL64_CLONE(pDst, pFrom)   ((Decimal64*)(pDst))->words[0] = ((Decimal64*)(pFrom))->words[0]
 
 static const Decimal64 decimal64Zero = {0};
+static const Decimal64 decimal64Two = {2};
 static const Decimal64 decimal64Min = {(uint64_t)-999999999999999999LL};
 static const Decimal64 decimal64Max = {(uint64_t)999999999999999999LL};
 #define DECIMAL64_ZERO decimal64Zero

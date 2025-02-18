@@ -174,8 +174,8 @@ class Numeric {
     if (prec > NumericType<BitNum>::maxPrec) throw std::string("prec too big") + std::to_string(prec);
     int32_t code = dec_.fromStr(str, prec, scale) != 0;
     if (code != 0) {
-      cout << "failed to init decimal from str: " << str << endl;
-      throw std::string(tstrerror(code));
+      cout << "failed to init decimal from str: " << str << "\t";
+      throw std::overflow_error(tstrerror(code));
     }
   }
   Numeric() = default;
@@ -505,7 +505,7 @@ TEST(decimal, decimalFromType) {
   dec1 = (int64_t)-9999999;
   ASSERT_EQ(dec1.toString(), "-9999999.0000");
   dec1 = "99.99999";
-  ASSERT_EQ(dec1.toString(), "99.9999");
+  ASSERT_EQ(dec1.toString(), "100.0000");
 }
 
 TEST(decimal, typeFromDecimal) {
@@ -579,7 +579,7 @@ TEST(decimal128, to_string) {
   ASSERT_STREQ(buf, "1234567890123456789012345678.901234567");
 }
 
-TEST(decimal128, divide) {
+TEST(decimal, divide) {
   __int128   i = generate_big_int128(15);
   int64_t    hi = i >> 64;
   uint64_t   lo = i;
@@ -666,6 +666,7 @@ TEST(decimal, decimalFromStr) {
   code = decimal64FromStr(buf, strlen(buf), 6, 3, &dec64);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(999999, DECIMAL64_GET_VALUE(&dec64));
+
 }
 
 TEST(decimal, toStr) {
@@ -861,10 +862,6 @@ TEST(decimal, randomGenerator) {
   }
 }
 
-TEST(deicmal, decimalFromStr_all) {
-  // TODO test e/E
-}
-
 #define ASSERT_OVERFLOW(op)             \
   do {                                  \
     try {                               \
@@ -877,6 +874,98 @@ TEST(deicmal, decimalFromStr_all) {
     }                                   \
     FAIL();                             \
   } while (0)
+
+template <int32_t BitNum>
+struct DecimalFromStrTestUnit {
+  uint8_t     precision;
+  uint8_t     scale;
+  std::string input;
+  std::string expect;
+  bool        overflow;
+};
+
+template <int32_t BitNum>
+void testDecimalFromStr(std::vector<DecimalFromStrTestUnit<BitNum>>& units) {
+  for (auto& unit : units) {
+    if (unit.overflow) {
+      auto ff = [&]() {
+        Numeric<BitNum> dec = {unit.precision, unit.scale, unit.input};
+        return dec;
+      };
+      ASSERT_OVERFLOW(ff());
+      continue;
+    }
+    cout << unit.input << " convert to decimal: (" << (int32_t)unit.precision << "," << (int32_t)unit.scale
+         << "): " << unit.expect << endl;
+    Numeric<BitNum> dec = {unit.precision, unit.scale, unit.input};
+    ASSERT_EQ(dec.toString(), unit.expect);
+  }
+}
+
+TEST(decimal, decimalFromStr_all) {
+  std::vector<DecimalFromStrTestUnit<64>> units = {
+    {10, 2, "123.45", "123.45", false},
+    {10, 2, "123.456", "123.46", false},
+    {10, 2, "123.454", "123.45"},
+    {18, 2, "1234567890123456.456", "1234567890123456.46", false},
+    {18, 2, "9999999999999999.995", "", true},
+    {18, 2, "9999999999999999.994", "9999999999999999.99", false},
+    {18, 2, "-9999999999999999.995", "", true},
+    {18, 2, "-9999999999999999.994", "-9999999999999999.99", false},
+    {18, 2, "-9999999999999999.9999999", "", true},
+    {10, 2, "12345678.456", "12345678.46", false},
+    {10, 2, "12345678.454", "12345678.45", false},
+    {10, 2, "99999999.999", "", true},
+    {10, 2, "-99999999.992", "-99999999.99", false},
+    {10, 2, "-99999999.999", "", true},
+    {10, 2, "-99999989.998", "-99999990.00", false},
+    {10, 2, "-99999998.997", "-99999999.00", false},
+    {10, 2, "-99999999.009", "-99999999.01", false},
+    {18, 17, "-9.99999999999999999999", "", true},
+    {18, 16, "-99.999999999999999899999", "-99.9999999999999999", false},
+    {18, 16, "-99.999999999999990099999", "-99.9999999999999901", false},
+    {18, 18, "0.0000000000000000099", "0.000000000000000010", false},
+    {18, 18, "0.0000000000000000001", "0", false},
+    {18, 18, "0.0000000000000000005", "0.000000000000000001", false},
+    {18, 18, "-0.0000000000000000001", "0", false},
+    {18, 18, "-0.00000000000000000019999", "0", false},
+    {18, 18, "-0.0000000000000000005", "-0.000000000000000001", false},
+    {18, 18, "-0.00000000000000000000000000123123123", "0", false},
+    {18, 18, "0.10000000000000000000000000123123123", "0.100000000000000000", false},
+    {18, 18, "0.000000000000000000000000000000000000006", "0", false},
+    {18, 17, "1.00000000000000000999", "1.00000000000000001", false},
+    {18, 17, "1.00000000000000000199", "1.00000000000000000", false},
+    {15, 1, "-00000.", "0", false},
+    {14, 12, "-.000", "0", false},
+    {14, 12, "-.000000000000", "0", false},
+    {14, 12, "-.", "0", false},
+    //{10, 2, "1.2345e8", "12345000.00", false},
+  };
+  testDecimalFromStr(units);
+
+  std::vector<DecimalFromStrTestUnit<128>> dec128Units = {
+   {38, 10, "123456789012345678901234567.89012345679", "123456789012345678901234567.8901234568", false},
+   {38, 10, "123456789012345678901234567.89012345670", "123456789012345678901234567.8901234567", false},
+   {38, 10, "-123456789012345678901234567.89012345671", "-123456789012345678901234567.8901234567", false},
+   {38, 10, "-123456789012345678901234567.89012345679", "-123456789012345678901234567.8901234568", false},
+   {38, 10, "-9999999999999999999999999999.99999999995", "", true},
+   {38, 10, "-9999999999999999999999999999.99999999994", "-9999999999999999999999999999.9999999999", false},
+   {38, 10, "9999999999999999999999999999.99999999996", "", true},
+   {38, 10, "9999999999999999999999999999.99999999994", "9999999999999999999999999999.9999999999", false},
+   {36, 35, "9.99999999999999999999999999999999999", "9.99999999999999999999999999999999999", false},
+   {36, 35, "9.999999999999999999999999999999999999111231231", "", true},
+   {38, 38, "0.000000000000000000000000000000000000001", "0", false},
+   {38, 38, "0.000000000000000000000000000000000000006", "0.00000000000000000000000000000000000001", false},
+   {38, 35, "123.000000000000000000000000000000001", "123.00000000000000000000000000000000100", false},
+   {38, 5, "123.", "123.00000", false},
+    {20, 4, "-.12345", "-0.1235", false},
+  };
+  testDecimalFromStr(dec128Units);
+
+  // TODO test e/E
+
+  // TODO test weight overflow
+}
 
 TEST(decimal, op_overflow) {
   // divide 0 error
@@ -1174,6 +1263,8 @@ class DecimalTest : public ::testing::Test {
   static constexpr const char* user = "root";
   static constexpr const char* passwd = "taosdata";
   static constexpr const char* db = "test";
+  DecimalStringRandomGenerator generator_;
+  DecimalStringRandomGeneratorConfig generator_config_;
 
  public:
   void SetUp() override {
@@ -1187,6 +1278,8 @@ class DecimalTest : public ::testing::Test {
       taos_close(default_conn_);
     }
   }
+
+  std::string generate_decimal_str() { return generator_.generate(generator_config_); }
 };
 
 TEST_F(DecimalTest, insert) {
@@ -1291,6 +1384,17 @@ TEST_F(DecimalTest, api_taos_fetch_rows) {
   taos_free_result(res);
 
   taos_close(pTaos);
+}
+
+TEST_F(DecimalTest, decimalFromStr) {
+  Numeric<64> numeric64 = {10, 2, "0"};
+
+  numeric64 = {18, 0, "0"};
+
+  numeric64 = { 18, 18, "0"};
+
+  numeric64 = {18, 2, "0"};
+  Numeric<128> numeric128 = {38, 10, "0"};
 }
 
 
