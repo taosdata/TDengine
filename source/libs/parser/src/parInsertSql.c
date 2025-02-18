@@ -1038,6 +1038,8 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
 }
 
 static int32_t storeChildTableMeta(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+  pStmt->pTableMeta->suid = pStmt->pTableMeta->uid;
+  pStmt->pTableMeta->uid = pStmt->totalTbNum;
   pStmt->pTableMeta->tableType = TSDB_CHILD_TABLE;
 
   STableMeta* pBackup = NULL;
@@ -1316,7 +1318,7 @@ static int32_t parseUsingTableNameImpl(SInsertParseContext* pCxt, SVnodeModifyOp
   NEXT_TOKEN(pStmt->pSql, token);
   int32_t code = preParseUsingTableName(pCxt, pStmt, &token);
   if (TSDB_CODE_SUCCESS == code) {
-    code = getTargetTableSchema(pCxt, pStmt);
+    code = getUsingTableSchema(pCxt, pStmt);
   }
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = storeChildTableMeta(pCxt, pStmt);
@@ -1324,28 +1326,26 @@ static int32_t parseUsingTableNameImpl(SInsertParseContext* pCxt, SVnodeModifyOp
   return code;
 }
 
-// static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-//   SToken  token;
-//   int32_t index = 0;
-//   int32_t code = TSDB_CODE_SUCCESS;
+static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+  SToken  token;
+  int32_t index = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
 
-//   NEXT_TOKEN_KEEP_SQL(pStmt->pSql, token, index);
-//   code = getTargetTableSchema(pCxt, pStmt);
-//   if ((token.type != TK_USING) || (TSDB_CODE_SUCCESS != code)) {
-//     return code;
-//   }
+  NEXT_TOKEN_KEEP_SQL(pStmt->pSql, token, index);
+  code = getTargetTableSchema(pCxt, pStmt);
+  if ((token.type != TK_USING) || (!pCxt->missCache)) {
+    return code;
+  }
 
-//   int32_t uid = pStmt->pTableMeta->uid;
-
-//   pStmt->usingTableProcessing = true;
-//   // pStmt->pSql -> stb_name [(tag1_name, ...)
-//   pStmt->pSql += index;
-//   code = parseDuplicateUsingClause(pCxt, pStmt, &pCxt->usingDuplicateTable);
-//   if (TSDB_CODE_SUCCESS == code && !pCxt->usingDuplicateTable) {
-//     code = parseUsingTableNameImpl(pCxt, pStmt);
-//   }
-//   return code;
-// }
+  pStmt->usingTableProcessing = true;
+  // pStmt->pSql -> stb_name [(tag1_name, ...)
+  pStmt->pSql += index;
+  code = parseDuplicateUsingClause(pCxt, pStmt, &pCxt->usingDuplicateTable);
+  if (TSDB_CODE_SUCCESS == code && !pCxt->usingDuplicateTable) {
+    code = parseUsingTableNameImpl(pCxt, pStmt);
+  }
+  return code;
+}
 
 // input pStmt->pSql:
 //   1(care). [USING stb_name [(tag1_name, ...)] TAGS (tag1_value, ...) [table_options]] ...
@@ -1353,23 +1353,23 @@ static int32_t parseUsingTableNameImpl(SInsertParseContext* pCxt, SVnodeModifyOp
 // output pStmt->pSql:
 //   1. [(tag1_name, ...)] TAGS (tag1_value, ...) [table_options]] ...
 //   2. VALUES ... | FILE ...
-static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  SToken  token;
-  int32_t index = 0;
-  NEXT_TOKEN_KEEP_SQL(pStmt->pSql, token, index);
-  if (TK_USING != token.type) {
-    return getTargetTableSchema(pCxt, pStmt);
-  }
+// static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+//   SToken  token;
+//   int32_t index = 0;
+//   NEXT_TOKEN_KEEP_SQL(pStmt->pSql, token, index);
+//   if (TK_USING != token.type) {
+//     return getTargetTableSchema(pCxt, pStmt);
+//   }
 
-  pStmt->usingTableProcessing = true;
-  // pStmt->pSql -> stb_name [(tag1_name, ...)
-  pStmt->pSql += index;
-  int32_t code = parseDuplicateUsingClause(pCxt, pStmt, &pCxt->usingDuplicateTable);
-  if (TSDB_CODE_SUCCESS == code && !pCxt->usingDuplicateTable) {
-    return parseUsingTableNameImpl(pCxt, pStmt);
-  }
-  return code;
-}
+//   pStmt->usingTableProcessing = true;
+//   // pStmt->pSql -> stb_name [(tag1_name, ...)
+//   pStmt->pSql += index;
+//   int32_t code = parseDuplicateUsingClause(pCxt, pStmt, &pCxt->usingDuplicateTable);
+//   if (TSDB_CODE_SUCCESS == code && !pCxt->usingDuplicateTable) {
+//     return parseUsingTableNameImpl(pCxt, pStmt);
+//   }
+//   return code;
+// }
 
 static int32_t preParseTargetTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SToken* pTbName) {
   int32_t code = insCreateSName(&pStmt->targetTableName, pTbName, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg);
@@ -2469,6 +2469,7 @@ static int32_t parseDataClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   NEXT_TOKEN(pStmt->pSql, token);
   switch (token.type) {
     case TK_VALUES:
+    case TK_USING:
       if (TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_FILE_INSERT)) {
         return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is exclusive", token.z);
       }

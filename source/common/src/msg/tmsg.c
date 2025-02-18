@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tmsg.h"
 #include "tglobal.h"
+#include "tmsg.h"
 
 #undef TD_MSG_NUMBER_
 #undef TD_MSG_DICT_
@@ -11668,18 +11668,18 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
   int32_t flags = pSubmitTbData->flags | ((SUBMIT_REQUEST_VERSION) << 8);
   TAOS_CHECK_EXIT(tEncodeI32v(pCoder, flags));
 
+  // submit data
+  TAOS_CHECK_EXIT(tEncodeI64(pCoder, pSubmitTbData->suid));
+  TAOS_CHECK_EXIT(tEncodeI64(pCoder, pSubmitTbData->uid));
+  TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pSubmitTbData->sver));
+
   // auto create table
-  if (pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+  if ((pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) && pSubmitTbData->uid == 0) {
     if (!(pSubmitTbData->pCreateTbReq)) {
       return TSDB_CODE_INVALID_MSG;
     }
     TAOS_CHECK_EXIT(tEncodeSVCreateTbReq(pCoder, pSubmitTbData->pCreateTbReq));
   }
-
-  // submit data
-  TAOS_CHECK_EXIT(tEncodeI64(pCoder, pSubmitTbData->suid));
-  TAOS_CHECK_EXIT(tEncodeI64(pCoder, pSubmitTbData->uid));
-  TAOS_CHECK_EXIT(tEncodeI32v(pCoder, pSubmitTbData->sver));
 
   if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
     uint64_t  nColData = TARRAY_SIZE(pSubmitTbData->aCol);
@@ -11717,7 +11717,12 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
   pSubmitTbData->flags = flags & 0xff;
   version = (flags >> 8) & 0xff;
 
-  if (pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+  // submit data
+  TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->suid));
+  TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->uid));
+  TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pSubmitTbData->sver));
+
+  if ((pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) && pSubmitTbData->uid == 0) {
     pSubmitTbData->pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
     if (pSubmitTbData->pCreateTbReq == NULL) {
       TAOS_CHECK_EXIT(terrno);
@@ -11725,11 +11730,6 @@ static int32_t tDecodeSSubmitTbData(SDecoder *pCoder, SSubmitTbData *pSubmitTbDa
 
     TAOS_CHECK_EXIT(tDecodeSVCreateTbReq(pCoder, pSubmitTbData->pCreateTbReq));
   }
-
-  // submit data
-  TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->suid));
-  TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->uid));
-  TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pSubmitTbData->sver));
 
   if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
     uint64_t nColData;

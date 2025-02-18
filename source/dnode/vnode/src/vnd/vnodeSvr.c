@@ -273,17 +273,19 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
+  if (tDecodeI32v(pCoder, &submitTbData.sver) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
   if ((submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) && (submitTbData.uid == 0)) {
     code = vnodePreprocessCreateTableReq(pVnode, pCoder, btimeMs, &uid);
     TSDB_CHECK_CODE(code, lino, _exit);
     pCoder->pos -= sizeof(int64_t);
+    pCoder->pos -= sizeof(int32_t);
     *(int64_t *)(pCoder->data + pCoder->pos) = uid;
     pCoder->pos += sizeof(int64_t);
-  }
-
-  if (tDecodeI32v(pCoder, &submitTbData.sver) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    TSDB_CHECK_CODE(code, lino, _exit);
+    pCoder->pos += sizeof(int32_t);
   }
 
   // scan and check
@@ -2015,7 +2017,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
 
     // create table
-    if ((pSubmitTbData->pCreateTbReq) && pSubmitTbData->uid == 0) {
+    if (pSubmitTbData->pCreateTbReq) {
       // alloc if need
       if (pSubmitRsp->aCreateTbRsp == NULL &&
           (pSubmitRsp->aCreateTbRsp = taosArrayInit(TARRAY_SIZE(pSubmitReq->aSubmitTbData), sizeof(SVCreateTbRsp))) ==
