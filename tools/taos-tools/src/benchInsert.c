@@ -647,7 +647,7 @@ int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
             SDbCfg* cfg = benchArrayGet(database->cfgs, i);
 
             // check vgroups
-            if (strncasecmp(cfg->name, "vgroups") == 0) {
+            if (strcasecmp(cfg->name, "vgroups") == 0) {
                 if (vgroups < 1) {
                     vgroups = cfg->valueint;
                     debugPrint("vgroup set with json config. vgroups=%d\n", vgroups);
