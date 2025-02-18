@@ -318,6 +318,8 @@ int32_t tableClose(STable *pTable) {
 
   taosHashCleanup(pTable->pCache);
 
+  tableCommit(pTable);
+  pTable->commited = 1;
   code = taosCloseFile(&pTable->pDataFile);
   TAOS_CHECK_GOTO(code, &line, _err);
 
@@ -453,6 +455,9 @@ _err:
 
 int32_t tableCommit(STable *pTable) {
   // Generate static info and footer info;
+  if (pTable->commited) {
+    return 0;
+  }
   return tableAppendMeta(pTable);
 }
 

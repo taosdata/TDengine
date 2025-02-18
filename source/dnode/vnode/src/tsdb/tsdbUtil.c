@@ -620,13 +620,87 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
                         ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP, .val = pRow->pBlockData->aTSKEY[pRow->iRow]}));
     } else {
       SColData *pColData = tBlockDataGetColData(pRow->pBlockData, pTColumn->colId);
-
-      if (pColData) {
-        if (tColDataGetValue(pColData, pRow->iRow, pColVal) != 0){
-          tsdbError("failed to tColDataGetValue");
+      uint8_t   hasBlob = 0;
+      if (pTColumn->type == TSDB_DATA_TYPE_BINARY || pTColumn->type == TSDB_DATA_TYPE_BLOB) {
+        hasBlob = 1;
+      }
+      if (hasBlob == 1 && pColData) {
+        uint32_t offset = 0;
+        if (iCol + 1 < pColData->nVal) {
+          offset = pColData->aOffset[iCol + 1] - pColData->aOffset[iCol];
+        } else {
+          offset = pColData->nData - pColData->aOffset[iCol];
         }
+        uint8_t *colData = pColData->pData + pColData->aOffset[iCol];
+        uint64_t seq = 0;
+        memcpy(&seq, colData, sizeof(uint64_t));
+        tsdbError("col seq: %d, offset %d", (int32_t)(seq), offset);
+        uint8_t *value = NULL;
+        int32_t  len = 0;
+        // bseGet(pReader->pTsdb->pVnode->pBse, seq, &value, &len);
+
+        pColVal->value.pData = value;
+        pColVal->value.nData = len;
+        pColVal->value.type = pColData->type;
+        pColVal->cid = pColData->cid;
       } else {
-        *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
+        if (pColData) {
+          if (tColDataGetValue(pColData, pRow->iRow, pColVal) != 0) {
+            tsdbError("failed to tColDataGetValue");
+          }
+        } else {
+          *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
+        }
+      }
+    }
+  }
+}
+void tsdbRowGetColVal2(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
+  STColumn *pTColumn = &pTSchema->columns[iCol];
+  SValue    value;
+
+  if (pRow->type == TSDBROW_ROW_FMT) {
+    int32_t ret = tRowGet(pRow->pTSRow, pTSchema, iCol, pColVal);
+    if (ret != 0) {
+      tsdbError("failed to get column value, code:%d", ret);
+    }
+  } else if (pRow->type == TSDBROW_COL_FMT) {
+    if (iCol == 0) {
+      *pColVal =
+          COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID,
+                        ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP, .val = pRow->pBlockData->aTSKEY[pRow->iRow]}));
+    } else {
+      SColData *pColData = tBlockDataGetColData(pRow->pBlockData, pTColumn->colId);
+      uint8_t   hasBlob = 0;
+      if (pTColumn->type == TSDB_DATA_TYPE_BINARY || pTColumn->type == TSDB_DATA_TYPE_BLOB) {
+        hasBlob = 1;
+      }
+      if (hasBlob == 1 && pColData) {
+        uint32_t offset = 0;
+        if (iCol + 1 < pColData->nVal) {
+          offset = pColData->aOffset[iCol + 1] - pColData->aOffset[iCol];
+        } else {
+          offset = pColData->nData - pColData->aOffset[iCol];
+        }
+        uint8_t *colData = pColData->pData + pColData->aOffset[iCol];
+        uint64_t seq = 0;
+        memcpy(&seq, colData, sizeof(uint64_t));
+        uint8_t *value = NULL;
+        int32_t  len = 0;
+        // bseGet(pReader->pTsdb->pVnode->pBse, seq, &value, &len);
+
+        pColVal->value.pData = value;
+        pColVal->value.nData = len;
+        pColVal->value.type = pColData->type;
+        pColVal->cid = pColData->cid;
+      } else {
+        if (pColData) {
+          if (tColDataGetValue(pColData, pRow->iRow, pColVal) != 0) {
+            tsdbError("failed to tColDataGetValue");
+          }
+        } else {
+          *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
+        }
       }
     }
   }
@@ -647,7 +721,7 @@ void tColRowGetPrimaryKey(SBlockData *pBlock, int32_t irow, SRowKey *key) {
     SColData *pColData = &pBlock->aColData[i];
     if (pColData->cflag & COL_IS_KEY) {
       SColVal cv;
-      if (tColDataGetValue(pColData, irow, &cv) != 0){
+      if (tColDataGetValue(pColData, irow, &cv) != 0) {
         break;
       }
       key->pks[key->numOfPKs] = cv.value;
@@ -723,7 +797,8 @@ SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
     }
 
     if (pIter->iColData <= pIter->pRow->pBlockData->nColData) {
-      if (tColDataGetValue(&pIter->pRow->pBlockData->aColData[pIter->iColData - 1], pIter->pRow->iRow, &pIter->cv) != 0){
+      if (tColDataGetValue(&pIter->pRow->pBlockData->aColData[pIter->iColData - 1], pIter->pRow->iRow, &pIter->cv) !=
+          0) {
         return NULL;
       }
       ++pIter->iColData;

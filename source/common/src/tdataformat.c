@@ -1072,8 +1072,8 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
       if (hasBlob == 1) {
         uint64_t seq = 0;
         uint32_t offset = 0;
-        pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
 
+        pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
         offset = tGetU32v(pColVal->value.pData, &pColVal->value.nData);
         pColVal->value.pData += offset;
         tGetU64(pColVal->value.pData, &seq);

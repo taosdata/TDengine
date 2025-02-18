@@ -98,6 +98,7 @@ typedef struct {
   SHashObj    *pCache;
   int32_t      blockId;
   uint64_t     initSeq;
+  uint8_t      commited;
 } STable;
 
 typedef struct {

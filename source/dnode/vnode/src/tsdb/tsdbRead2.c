@@ -5178,20 +5178,23 @@ _end:
 }
 
 int32_t doRebuildBlobCol(STsdbReader* pReader, STSchema* pTSchema, int32_t i, SColVal* pSrcVal, SColVal* pDstVal) {
-  // if (!(i < pTSchema->numOfCols)) return TSDB_CODE_INVALID_PARA;
-  // if (!(pRow->sver == pTSchema->version)) return TSDB_CODE_INVALID_PARA;
   STColumn* pColumn = pTSchema->columns + i;
   if (pColumn->type != TSDB_DATA_TYPE_BINARY || pColumn->type == TSDB_DATA_TYPE_BLOB) {
     return 0;
   }
+  int32_t lino = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+  SVnode* pVnode = pReader->pTsdb->pVnode;
 
-  int32_t  lino = 0;
-  int32_t  code = TSDB_CODE_SUCCESS;
-  SVnode*  pVnode = pReader->pTsdb->pVnode;
-  uint64_t seq = 0;
   uint8_t* pValue = NULL;
   int32_t  len = 0;
-  code = bseGet(pVnode->pBse, seq, &pValue, &len);
+
+  code = bseGet(pVnode->pBse, pSrcVal->value.val, &pValue, &len);
+  TSDB_CHECK_CODE(code, lino, _err);
+
+  pDstVal->value.pData = pValue;
+  pDstVal->value.nData = len;
+  pDstVal->value.type = pColumn->type;
 
 _err:
   if (code != 0) {
@@ -5240,10 +5243,13 @@ int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, SRow* pT
       code = tRowGet(pTSRow, pSchema, j, &colVal);
       TSDB_CHECK_CODE(code, lino, _end);
 
-      doRebuildBlobCol(pReader, pSchema, j, &colVal, &dstVal);
+      if (doRebuildBlobCol(pReader, pSchema, j, &colVal, &dstVal) == 0) {
+        code = doCopyColVal(pColInfoData, outputRowIndex, i, &dstVal, pSupInfo);
+      } else {
+        code = doCopyColVal(pColInfoData, outputRowIndex, i, &colVal, pSupInfo);
+      }
       // TSDB_CHECK_CODE(code, lino, _end);
-
-      code = doCopyColVal(pColInfoData, outputRowIndex, i, &colVal, pSupInfo);
+      // code = doCopyColVal(pColInfoData, outputRowIndex, i, &dstVal, pSupInfo);
       TSDB_CHECK_CODE(code, lino, _end);
       i += 1;
       j += 1;
@@ -5307,11 +5313,36 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
       j += 1;
       continue;
     }
-
+    uint8_t          hasBlob = 0;
     SColumnInfoData* pCol = TARRAY_GET_ELEM(pResBlock->pDataBlock, pSupInfo->slotId[i]);
     if (pData->cid == pSupInfo->colId[i]) {
-      code = tColDataGetValue(pData, rowIndex, &cv);
-      TSDB_CHECK_CODE(code, lino, _end);
+      if (pData->type == TSDB_DATA_TYPE_BINARY || pData->type == TSDB_DATA_TYPE_BLOB) {
+        hasBlob = 1;
+      }
+      if (hasBlob == 1) {
+        uint32_t offset = 0;
+        if (rowIndex + 1 < pData->nVal) {
+          offset = pData->aOffset[rowIndex + 1] - pData->aOffset[rowIndex];
+        } else {
+          offset = pData->nData - pData->aOffset[rowIndex];
+        }
+        uint8_t* colData = pData->pData + pData->aOffset[rowIndex];
+        uint64_t seq = 0;
+        memcpy(&seq, colData, sizeof(uint64_t));
+        uint8_t* value = NULL;
+        int32_t  len = 0;
+        bseGet(pReader->pTsdb->pVnode->pBse, seq, &value, &len);
+
+        cv.value.pData = value;
+        cv.value.nData = len;
+        cv.value.type = pData->type;
+        cv.cid = pData->cid;
+
+      } else {
+        code = tColDataGetValue(pData, rowIndex, &cv);
+        TSDB_CHECK_CODE(code, lino, _end);
+      }
+
       code = doCopyColVal(pCol, outputRowIndex, i, &cv, pSupInfo);
       TSDB_CHECK_CODE(code, lino, _end);
       j += 1;
