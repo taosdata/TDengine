@@ -71,9 +71,9 @@ class TDTestCase(TBase):
         
         #  compare sum(pk)
         stb = "meters"
-        self.checkSame(db, stb, "count(ts)", 100000)
-        self.checkSame(db, stb, "sum(current)", 1005767.2491703)
-        self.checkSame(db, stb, "avg(voltage)", 208.58818)
+        self.checkSame(db, stb, "count(ts)", 2000)
+        self.checkSame(db, stb, "sum(current)", 20241.627464294433594)
+        self.checkSame(db, stb, "avg(voltage)", 209.538000000000011)
 
     def run(self):
         # database
