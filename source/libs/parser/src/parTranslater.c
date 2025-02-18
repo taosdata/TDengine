@@ -1577,7 +1577,7 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
     SExprNode*      pFoundExpr = NULL;
     FOREACH(pNode, pProjectList) {
       SExprNode* pExpr = (SExprNode*)pNode;
-      if (0 == strcmp(pCol->colName, pExpr->aliasName) || 0 == strcmp(pCol->colName, pExpr->userAlias)) {
+      if (0 == strcmp(pCol->colName, pExpr->aliasName)) {
         if (*pFound) {
           return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, pCol->colName);
         }
@@ -3572,23 +3572,6 @@ static int32_t getGroupByErrorCode(STranslateContext* pCxt) {
   return TSDB_CODE_PAR_INVALID_OPTR_USAGE;
 }
 
-static void rewriteAliasNameWithRelate(SFunctionNode* pFunc, SExprNode* pExpr) {
-  if (isRelatedToOtherExpr(pExpr)) {
-    int len = strlen(pExpr->aliasName);
-    if (len + TSDB_COL_NAME_EXLEN >= TSDB_COL_NAME_LEN) {
-      char buffer[TSDB_COL_NAME_EXLEN + TSDB_COL_NAME_LEN + 1] = {0};
-      tsnprintf(buffer, sizeof(buffer), "%s.%d", pExpr->aliasName, pExpr->relatedTo);
-      uint64_t hashVal = MurmurHash3_64(buffer, TSDB_COL_NAME_EXLEN + TSDB_COL_NAME_LEN + 1);
-      tsnprintf(pFunc->node.aliasName, TSDB_COL_NAME_EXLEN, "%" PRIu64, hashVal);
-    } else {
-      tstrncpy(pFunc->node.aliasName, pExpr->aliasName, TSDB_COL_NAME_LEN);
-      tsnprintf(pFunc->node.aliasName + len, TSDB_COL_NAME_EXLEN, ".%d", pExpr->relatedTo);
-    }
-  } else {
-    tstrncpy(pFunc->node.aliasName, pExpr->aliasName, TSDB_COL_NAME_LEN);
-  }
-}
-
 static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode) {
   SFunctionNode* pFunc = NULL;
   int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
@@ -3597,8 +3580,8 @@ static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode
     return DEAL_RES_ERROR;
   }
   tstrncpy(pFunc->functionName, "_select_value", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName, TSDB_COL_NAME_LEN);
   tstrncpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias, TSDB_COL_NAME_LEN);
-  rewriteAliasNameWithRelate(pFunc, (SExprNode*)*pNode);
   
   pFunc->node.relatedTo = ((SExprNode*)*pNode)->relatedTo;
   pFunc->node.bindExprID = ((SExprNode*)*pNode)->bindExprID;
@@ -7411,14 +7394,27 @@ static bool isMultiColsFuncNode(SNode* pNode) {
 }
 
 typedef struct SBindTupleFuncCxt {
+  SNode*  root;
   int32_t bindExprID;
 } SBindTupleFuncCxt;
 
 static EDealRes pushDownBindSelectFunc(SNode** pNode, void* pContext) {
   SBindTupleFuncCxt* pCxt = pContext;
   if (nodesIsExprNode(*pNode)) {
-    ((SExprNode*)*pNode)->relatedTo = pCxt->bindExprID;
-    SFunctionNode* pFunc = (SFunctionNode*)*pNode;
+    SExprNode* pExpr = (SExprNode*)*pNode;
+    pExpr->relatedTo = pCxt->bindExprID;
+
+    if (isRelatedToOtherExpr(pExpr) && *pNode != pCxt->root) {
+      int len = strlen(pExpr->aliasName);
+      if (len + TSDB_COL_NAME_EXLEN >= TSDB_COL_NAME_LEN) {
+        char buffer[TSDB_COL_NAME_EXLEN + TSDB_COL_NAME_LEN + 1] = {0};
+        tsnprintf(buffer, sizeof(buffer), "%s.%d", pExpr->aliasName, pExpr->relatedTo);
+        uint64_t hashVal = MurmurHash3_64(buffer, TSDB_COL_NAME_EXLEN + TSDB_COL_NAME_LEN + 1);
+        tsnprintf(pExpr->aliasName, TSDB_COL_NAME_EXLEN, "%" PRIu64, hashVal);
+      } else {
+        tsnprintf(pExpr->aliasName + len, TSDB_COL_NAME_EXLEN, ".%d", pExpr->relatedTo);
+      }
+    }
   }
   return DEAL_RES_CONTINUE;
 }
@@ -7532,7 +7528,7 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
     SNode*  pNewNode = NULL;
     code = nodesCloneNode(pExpr, &pNewNode);
     if (nodesIsExprNode(pNewNode)) {
-      SBindTupleFuncCxt pCxt = {selectFuncIndex};
+      SBindTupleFuncCxt pCxt = {pNewNode, selectFuncIndex};
       nodesRewriteExpr(&pNewNode, pushDownBindSelectFunc, &pCxt);
     } else {
       pCxt->status = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
@@ -7617,7 +7613,7 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
 
           code = nodesCloneNode(pExpr, &pNewNode);
           if (nodesIsExprNode(pNewNode)) {
-            SBindTupleFuncCxt pCxt = {selectFuncIndex};
+            SBindTupleFuncCxt pCxt = {pNewNode, selectFuncIndex};
             nodesRewriteExpr(&pNewNode, pushDownBindSelectFunc, &pCxt);
           } else {
             code = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
