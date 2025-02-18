@@ -30,7 +30,7 @@
                     "name": "meters",
                     "child_table_exists": "no",
                     "childtable_count": 10,
-                    "insert_rows": 300000,
+                    "insert_rows": 30000,
                     "childtable_prefix": "d",
                     "insert_mode": "taosc",
                     "insert_interval": 0,

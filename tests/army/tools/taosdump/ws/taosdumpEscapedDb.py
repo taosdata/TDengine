@@ -27,10 +27,28 @@ class TDTestCase(TBase):
         case1<sdsang>: [TS-3072] taosdump dump escaped db name test
         """
 
+    def checkVersion(self):
+        # run
+        outputs = etool.runBinFile("taosdump", "-V")
+        print(outputs)
+        if len(outputs) != 4:
+            tdLog.exit(f"checkVersion return lines count {len(outputs)} != 4")
+        # version string len
+        assert len(outputs[1]) > 19
+        # commit id
+        assert len(outputs[2]) > 43
+        assert outputs[2][:4] == "git:"
+        # build info
+        assert len(outputs[3]) > 36
+        assert outputs[3][:6] == "build:"
 
+        tdLog.info("check taosdump version successfully.")
 
 
     def run(self):
+        # check version
+        self.checkVersion()
+
         tdSql.prepare()
 
         tdSql.execute("drop database if exists db")

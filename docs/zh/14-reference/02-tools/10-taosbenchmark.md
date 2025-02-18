@@ -6,9 +6,9 @@ toc_max_heading_level: 4
 
 taosBenchmark 是 TDengine 产品性能基准测试工具，提供对 TDengine 产品写入、查询及订阅性能测试，输出性能指标。
 
-## 安装
+## 工具获取
 
-taosBenchmark 是 TDengine 安装包中默认安装组件，安装 TDengine 后即可使用，参考 [TDengine 安装](../../../get-started/)
+taosBenchmark 是 TDengine 服务器及客户端安装包中默认安装组件，安装后即可使用，参考 [TDengine 安装](../../../get-started/)
 
 ## 运行
 
@@ -87,7 +87,7 @@ taosBenchmark -f <json file>
 
 查看更多 json 配置文件示例可 [点击这里](https://github.com/taosdata/TDengine/tree/main/tools/taos-tools/example)
 
-## 命令行参数详解
+## 命令行参数
 | 命令行参数                     | 功能说明                                         |
 | ---------------------------- | ----------------------------------------------- |
 | -f/--file \<json file>       | 要使用的 JSON 配置文件，由该文件指定所有参数，本参数与命令行其他参数不能同时使用。没有默认值 |
@@ -159,12 +159,13 @@ SUCC: insert delay, min: 19.6780ms, avg: 64.9390ms, p90: 94.6900ms, p95: 105.187
 查询性能测试主要输出查询请求速度 QPS 指标, 输出格式如下：
 ``` bash
 complete query with 3 threads and 10000 query delay avg: 	0.002686s min: 	0.001182s max: 	0.012189s p90: 	0.002977s p95: 	0.003493s p99: 	0.004645s SQL command: select ...
-INFO: Total specified queries: 30000
 INFO: Spend 26.9530 second completed total queries: 30000, the QPS of all threads:   1113.049
 ```
 - 第一行表示 3 个线程每个线程执行 10000 次查询及查询请求延时百分位分布情况，`SQL command` 为测试的查询语句  
-- 第二行表示总共完成了 10000 * 3 = 30000 次查询总数  
-- 第三行表示查询总耗时为 26.9653 秒，每秒查询率(QPS)为：1113.049 次/秒
+- 第二行表示查询总耗时为 26.9653 秒，每秒查询率(QPS)为：1113.049 次/秒
+- 如果在查询中设置了 `continue_if_fail` 选项为 `yes`，在最后一行中会输出失败请求个数及错误率，格式 error + 失败请求个数 (错误率)
+- QPS   = 成功请求数量 / 花费时间(单位秒)
+- 错误率 = 失败请求数量 /（成功请求数量 + 失败请求数量）
 
 #### 订阅指标
 
@@ -182,7 +183,7 @@ INFO: Consumed total msgs: 3000, total rows: 30000000
 - 4 ~ 6 行是测试完成后每个消费者总体统计，统计共消费了多少条消息，共计多少行  
 - 第 7 行所有消费者总体统计，`msgs` 表示共消费了多少条消息， `rows` 表示共消费了多少行数据
 
-## 配置文件参数详解
+## 配置文件参数
 
 ### 通用配置参数
 
@@ -203,42 +204,26 @@ INFO: Consumed total msgs: 3000, total rows: 30000000
 
 插入场景下 `filetype` 必须设置为 `insert`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
 
-- ** keep_trying ** : 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
+- **keep_trying** : 失败后进行重试的次数，默认不重试。需使用 v3.0.9 以上版本。
 
-- ** trying_interval ** : 失败重试间隔时间，单位为毫秒，仅在 keep_trying 指定重试后有效。需使用 v3.0.9 以上版本。
-- ** childtable_from 和 childtable_to ** : 指定写入子表范围，开闭区间为 [childtable_from, childtable_to).
+- **trying_interval** : 失败重试间隔时间，单位为毫秒，仅在 keep_trying 指定重试后有效。需使用 v3.0.9 以上版本。
+- **childtable_from 和 childtable_to** : 指定写入子表范围，开闭区间为 [childtable_from, childtable_to).
  
-- ** continue_if_fail ** : 允许用户定义失败后行为
+- **continue_if_fail** : 允许用户定义失败后行为
 
   “continue_if_fail”:  “no”, 失败 taosBenchmark 自动退出，默认行为
   “continue_if_fail”: “yes”, 失败 taosBenchmark 警告用户，并继续写入
   “continue_if_fail”: “smart”, 如果子表不存在失败，taosBenchmark 会建立子表并继续写入
 
-#### 数据库相关配置参数
+#### 数据库相关
 
 创建数据库时的相关参数在 json 配置文件中的 `dbinfo` 中配置，个别具体参数如下。其余参数均与 TDengine 中 `create database` 时所指定的数据库参数相对应，详见[../../taos-sql/database]
 
 - **name** : 数据库名。
 
-- **drop** : 数据库已存在时是否删除重建，可选项为 "yes" 或 "no", 默认为 “yes”
+- **drop** : 数据库已存在时是否删除，可选项为 "yes" 或 "no", 默认为 “yes”
 
-#### 流式计算相关配置参数
-
-创建流式计算的相关参数在 json 配置文件中的 `stream` 中配置，具体参数如下。
-
-- **stream_name** : 流式计算的名称，必填项。
-
-- **stream_stb** : 流式计算对应的超级表名称，必填项。
-
-- **stream_sql** : 流式计算的sql语句，必填项。
-
-- **trigger_mode** : 流式计算的触发模式，可选项。
-
-- **watermark** : 流式计算的水印，可选项。
-
-- **drop** : 是否创建流式计算，可选项为 "yes" 或者 "no", 为 "no" 时不创建。
-
-#### 超级表相关配置参数
+#### 超级表相关
 
 创建超级表时的相关参数在 json 配置文件中的 `super_tables` 中配置，具体参数如下。
 
@@ -246,9 +231,9 @@ INFO: Consumed total msgs: 3000, total rows: 30000000
 
 - **child_table_exists** : 子表是否已经存在，默认值为 "no"，可选值为 "yes" 或 "no"。
 
-- **child_table_count** : 子表的数量，默认值为 10。
+- **childtable_count** : 子表的数量，默认值为 10。
 
-- **child_table_prefix** : 子表名称的前缀，必选配置项，没有默认值。
+- **childtable_prefix** : 子表名称的前缀，必选配置项，没有默认值。
 
 - **escape_character** : 超级表和子表名称中是否包含转义字符，默认值为 "no"，可选值为 "yes" 或 "no"。
 
@@ -300,7 +285,7 @@ INFO: Consumed total msgs: 3000, total rows: 30000000
 - **sqls** : 字符串数组类型，指定超级表创建成功后要执行的 sql 数组，sql 中指定表名前面要带数据库名，否则会报未指定数据库错误
 
 
-#### 标签列与数据列配置参数
+#### 标签列与数据列
 
 指定超级表标签列与数据列的配置参数分别在 `super_tables` 中的 `columns` 和 `tag` 中。
 
@@ -335,19 +320,17 @@ INFO: Consumed total msgs: 3000, total rows: 30000000
 
 - **fillNull**: 字符串类型，指定此列是否随机插入 NULL 值，可指定为 “true” 或 "false", 只有当 generate_row_rule 为 2 时有效
 
-#### 插入行为配置参数
+#### 插入行为相关
 
 - **thread_count** : 插入数据的线程数量，默认为 8。
 
-- **thread_bind_vgroup** : 写入时 vgroup 是否和写入线程绑定，绑定后可提升写入速度, 取值为 "yes" 或 "no"，默认值为 “no”, 设置为 “no” 后与原来行为一致。 当设为 “yes” 时，如果 thread_count 数量大小写入数据库的 vgroups 数量， thread_count 自动调整为 vgroups 数量；如果 thread_count 数量小于 vgroups 数量，写入线程数量不做调整，一个线程写完一个 vgroup 数据后再写下一个，同时保持一个 vgroup 同时只能由一个线程写入的规则。
+**thread_bind_vgroup** : 写入时 vgroup 是否和写入线程绑定，绑定后可提升写入速度, 取值为 "yes" 或 "no"，默认值为 “no”, 设置为 “no” 后与原来行为一致。 当设为 “yes” 时，如果 thread_count 大于写入数据库 vgroups 数量， thread_count 自动调整为 vgroups 数量；如果 thread_count 小于 vgroups 数量，写入线程数量不做调整，一个线程写完一个 vgroup 数据后再写下一个，同时保持一个 vgroup 同时只能由一个线程写入的规则。
 
 - **create_table_thread_count** : 建表的线程数量，默认为 8。
 
-- **connection_pool_size** : 预先建立的与 TDengine 服务端之间的连接的数量。若不配置，则与所指定的线程数相同。
-
 - **result_file** : 结果输出文件的路径，默认值为 ./output.txt。
 
-- **confirm_parameter_prompt** : 开关参数，要求用户在提示后确认才能继续。默认值为 false 。
+- **confirm_parameter_prompt** : 开关参数，要求用户在提示后确认才能继续， 可取值 "yes" or "no"。默认值为 "no" 。
 
 - **interlace_rows** : 启用交错插入模式并同时指定向每个子表每次插入的数据行数。交错插入模式是指依次向每张子表插入由本参数所指定的行数并重复这个过程，直到所有子表的数据都插入完成。默认值为 0， 即向一张子表完成数据插入后才会向下一张子表进行数据插入。
   在 `super_tables` 中也可以配置该参数，若配置则以 `super_tables` 中的配置为高优先级，覆盖全局设置。
@@ -373,16 +356,20 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为
 
 其它通用参数详见[通用配置参数](#通用配置参数)。
 
-#### 执行指定查询语句的配置参数
+#### 执行指定查询语句
 
 查询指定表（可以指定超级表、子表或普通表）的配置参数在 `specified_table_query` 中设置。
 
-- **mixed_query** : 查询模式，取值 “yes” 为`混合查询`， "no" 为`正常查询` , 默认值为 “no”  
-  `混合查询`：`sqls` 中所有 sql 按 `threads` 线程数分组，每个线程执行一组， 线程中每个 sql 都需执行 `query_times` 次查询  
-  `正常查询`：`sqls` 中每个 sql 启动 `threads` 个线程，每个线程执行完 `query_times` 次后退出，下个 sql 需等待上个 sql 线程全部执行完退出后方可执行  
-  不管 `正常查询` 还是 `混合查询` ，执行查询总次数是相同的 ，查询总次数 = `sqls` 个数 * `threads` * `query_times`， 区别是 `正常查询` 每个 sql 都会启动 `threads` 个线程，而 `混合查询` 只启动一次 `threads` 个线程执行完所有 SQL, 两者启动线程次数不一样。
+- **mixed_query** : 查询模式  
+  “yes” :`混合查询`  
+  "no"(默认值) :`普通查询`  
+  `普通查询`：`sqls` 中每个 sql 启动 `threads` 个线程查询此 sql, 执行完 `query_times` 次查询后退出，执行此 sql 的所有线程都完成后进入下一个 sql   
+  `查询总次数` = `sqls` 个数 * `query_times` * `threads`   
+  
+  `混合查询`：`sqls` 中所有 sql 分成 `threads` 个组，每个线程执行一组， 每个 sql 都需执行 `query_times` 次查询  
+  `查询总次数` = `sqls` 个数 * `query_times` 
 
-- **query_interval** : 查询时间间隔，单位是秒，默认值为 0。
+- **query_interval** : 查询时间间隔，单位: millisecond，默认值为 0。
 
 - **threads** : 执行查询 SQL 的线程数，默认值为 1。
 
@@ -390,7 +377,7 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为
   - **sql**: 执行的 SQL 命令，必填。
   - **result**: 保存查询结果的文件，未指定则不保存。
 
-#### 查询超级表的配置参数
+#### 查询超级表
 
 查询超级表的配置参数在 `super_table_query` 中设置。   
 超级表查询的线程模式与上面介绍的指定查询语句查询的 `正常查询` 模式相同，不同之处是本 `sqls` 使用所有子表填充。  
@@ -402,15 +389,13 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为
 - **threads** : 执行查询 SQL 的线程数，默认值为 1。
 
 - **sqls** ：
-  - **sql** : 执行的 SQL 命令，必填；对于超级表的查询 SQL，在 SQL 命令中保留 "xxxx"，程序会自动将其替换为超级表的所有子表名。
-    替换为超级表中所有的子表名。
+  - **sql** : 执行的 SQL 命令，必填；对于超级表的查询 SQL，在 SQL 命令中必须保留 "xxxx"，会替换为超级下所有子表名后再执行。
   - **result** : 保存查询结果的文件，未指定则不保存。
+  - **限制项** : sqls 下配置 sql 数组最大为 100 个
 
 ### 订阅场景配置参数
 
 订阅场景下 `filetype` 必须设置为 `subscribe`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
-
-#### 执行指定订阅语句的配置参数
 
 订阅指定表（可以指定超级表、子表或者普通表）的配置参数在 `specified_table_query` 中设置。
 
@@ -420,7 +405,7 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为
   - **sql** : 执行的 SQL 命令，必填。
     
  
-#### 配置文件中数据类型书写对照表
+### 配置文件中数据类型书写对照表
 
 | #   |     **引擎**      | **taosBenchmark** 
 | --- | :----------------: | :---------------:

@@ -378,10 +378,6 @@ static int32_t metaCreateChildTable(SMeta *pMeta, int64_t version, SVCreateTbReq
               pReq->ctb.suid, version);
   }
   return code;
-
-#if 0
-  metaTimeSeriesNotifyCheck(pMeta);
-#endif
 }
 
 // Drop Child Table
@@ -489,9 +485,6 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
               __func__, __FILE__, __LINE__, tstrerror(code), pReq->uid, pReq->name, version);
   }
   TAOS_RETURN(code);
-#if 0
-  metaTimeSeriesNotifyCheck(pMeta);
-#endif
 }
 
 // Drop Normal Table

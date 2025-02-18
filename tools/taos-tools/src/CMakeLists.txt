@@ -36,158 +36,52 @@ ELSEIF (CMAKE_SYSTEM_PROCESSOR MATCHES "loongarch64")
     MESSAGE(STATUS "Set CPUTYPE to loongarch64")
 ENDIF ()
 
+#
+# collect --version information
+#
+MESSAGE("collect --version show info:")
+# version
+IF (DEFINED TD_VER_NUMBER)
+    ADD_DEFINITIONS(-DTD_VER_NUMBER="${TD_VER_NUMBER}")
+    MESSAGE(STATUS "version:${TD_VER_NUMBER}")
+ELSE ()    
+    # abort build
+    MESSAGE(FATAL_ERROR "build taos-tools not found TD_VER_NUMBER define.")
+ENDIF ()
+
+# commit id
 FIND_PACKAGE(Git)
 IF(GIT_FOUND)
-    IF (EXISTS "${CMAKE_CURRENT_LIST_DIR}/../VERSION")
-        MESSAGE("Found VERSION file")
-        EXECUTE_PROCESS(
-            COMMAND grep "^taosdump" "${CMAKE_CURRENT_LIST_DIR}/../VERSION"
-            RESULT_VARIABLE RESULT
-            OUTPUT_VARIABLE TAOSDUMP_FULLTAG
-            )
-        EXECUTE_PROCESS(
-            COMMAND sh -c "git --git-dir=${CMAKE_CURRENT_LIST_DIR}/../.git --work-tree=${CMAKE_CURRENT_LIST_DIR}/.. log --pretty=oneline -n 1 HEAD"
-            WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-            RESULT_VARIABLE RESULT
-            OUTPUT_VARIABLE TAOSDUMP_COMMIT_SHA1
-            )
-        EXECUTE_PROCESS(
-            COMMAND grep "^taosbenchmark" "${CMAKE_CURRENT_LIST_DIR}/../VERSION"
-            RESULT_VARIABLE RESULT
-            OUTPUT_VARIABLE TAOSBENCHMARK_FULLTAG
-            )
-        EXECUTE_PROCESS(
-            COMMAND sh -c "git --git-dir=${CMAKE_CURRENT_LIST_DIR}/../.git --work-tree=${CMAKE_CURRENT_LIST_DIR}/.. log --pretty=oneline -n 1 HEAD"
-            WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-            RESULT_VARIABLE RESULT
-            OUTPUT_VARIABLE TAOSBENCHMARK_COMMIT_SHA1
-            )
-    ELSE ()
-        MESSAGE("Use git tag")
-        EXECUTE_PROCESS(
-            COMMAND sh -c "git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep taosdump|tail -1"
-            WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-            RESULT_VARIABLE TAG_RESULT
-            OUTPUT_VARIABLE TAOSDUMP_FULLTAG
-            )
-        EXECUTE_PROCESS(
-            COMMAND sh -c "git --git-dir=${CMAKE_CURRENT_LIST_DIR}/../.git --work-tree=${CMAKE_CURRENT_LIST_DIR}/.. log --pretty=oneline -n 1 ${TAOSDUMP_FULLTAG}"
-            WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-            RESULT_VARIABLE RESULT
-            OUTPUT_VARIABLE TAOSDUMP_COMMIT_SHA1
-            )
-        EXECUTE_PROCESS(
-            COMMAND sh -c "git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep taosbenchmark|tail -1"
-            WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-            RESULT_VARIABLE TAG_RESULT
-            OUTPUT_VARIABLE TAOSBENCHMARK_FULLTAG
-            )
-        EXECUTE_PROCESS(
-            COMMAND sh -c "git --git-dir=${CMAKE_CURRENT_LIST_DIR}/../.git --work-tree=${CMAKE_CURRENT_LIST_DIR}/.. log --pretty=oneline -n 1 ${TAOSBENCHMARK_FULLTAG}"
-            WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
-            RESULT_VARIABLE RESULT
-            OUTPUT_VARIABLE TAOSBENCHMARK_COMMIT_SHA1
-            )
-    ENDIF ()
+    # get
     EXECUTE_PROCESS(
-        COMMAND sh -c "git --git-dir=${CMAKE_CURRENT_LIST_DIR}/../.git --work-tree=${CMAKE_CURRENT_LIST_DIR}/.. status -z -s ${CMAKE_CURRENT_LIST_DIR}/taosdump.c"
-        RESULT_VARIABLE RESULT
-        OUTPUT_VARIABLE TAOSDUMP_STATUS
-        ERROR_QUIET
-        )
+        COMMAND git log -1 --format=%H
+        WORKING_DIRECTORY ${TD_COMMUNITY_DIR}
+        OUTPUT_VARIABLE GIT_COMMIT_ID
+        )    
 
-    # version    
-    IF (DEFINED TD_VER_NUMBER)
-        # use tdengine version
-        SET(TAOSBENCHMARK_TAG ${TD_VER_NUMBER})   
-        SET(TAOSDUMP_TAG ${TD_VER_NUMBER})
-        MESSAGE(STATUS "use TD_VER_NUMBER version: " ${TD_VER_NUMBER})
-    ELSE ()    
-        # use internal version
-        EXECUTE_PROCESS(
-            COMMAND sh "-c" "echo '${TAOSDUMP_FULLTAG}' | awk -F '-' '{print $2}'"
-            RESULT_VARIABLE RESULT
-            OUTPUT_VARIABLE TAOSDUMP_TAG
-            )
-        MESSAGE(STATUS "taosdump use origin version: " ${TAOSDUMP_TAG})    
-        EXECUTE_PROCESS(
-            COMMAND sh "-c" "echo '${TAOSBENCHMARK_FULLTAG}' | awk -F '-' '{print $2}'"
-            RESULT_VARIABLE RESULT
-            OUTPUT_VARIABLE TAOSBENCHMARK_TAG
-            )
-        MESSAGE(STATUS "taosBenchmark use origin version: " ${TAOSBENCHMARK_TAG})        
-    ENDIF ()
+    STRING(SUBSTRING "${GIT_COMMIT_ID}" 0 40 TAOSBENCHMARK_COMMIT_ID)
+    SET(TAOSDUMP_COMMIT_ID "${TAOSBENCHMARK_COMMIT_ID}")
 
-    EXECUTE_PROCESS(
-        COMMAND sh -c "git --git-dir=${CMAKE_CURRENT_LIST_DIR}/../.git --work-tree=${CMAKE_CURRENT_LIST_DIR}/.. status -z -s ${CMAKE_CURRENT_LIST_DIR}/bench*.c"
-        RESULT_VARIABLE RESULT
-        OUTPUT_VARIABLE TAOSBENCHMARK_STATUS
-        ERROR_QUIET
-        )
-    IF ("${TAOSDUMP_COMMIT_SHA1}" STREQUAL "")
-        SET(TAOSDUMP_COMMIT_SHA1 "unknown")
-    ELSE ()
-        STRING(SUBSTRING "${TAOSDUMP_COMMIT_SHA1}" 0 40 TAOSDUMP_COMMIT_SHA1)
-        STRING(STRIP "${TAOSDUMP_COMMIT_SHA1}" TAOSDUMP_COMMIT_SHA1)
-    ENDIF ()
-    IF ("${TAOSDUMP_TAG}" STREQUAL "")
-        SET(TAOSDUMP_TAG "0.1.0")
-    ELSE ()
-        STRING(STRIP "${TAOSDUMP_TAG}" TAOSDUMP_TAG)
-    ENDIF ()
-
-    IF ("${TAOSBENCHMARK_COMMIT_SHA1}" STREQUAL "")
-        SET(TAOSBENCHMARK_COMMIT_SHA1 "unknown")
-    ELSE ()
-        STRING(SUBSTRING "${TAOSBENCHMARK_COMMIT_SHA1}" 0 40 TAOSBENCHMARK_COMMIT_SHA1)
-        STRING(STRIP "${TAOSBENCHMARK_COMMIT_SHA1}" TAOSBENCHMARK_COMMIT_SHA1)
-    ENDIF ()
-    IF ("${TAOSBENCHMARK_TAG}" STREQUAL "")
-        SET(TAOSBENCHMARK_TAG "0.1.0")
-    ELSE ()
-        STRING(STRIP "${TAOSBENCHMARK_TAG}" TAOSBENCHMARK_TAG)
-    ENDIF ()
+    # show
+    MESSAGE(STATUS "taosdump commit id: ${TAOSDUMP_COMMIT_ID}")
+    MESSAGE(STATUS "taosBenchmark commit id: ${TAOSBENCHMARK_COMMIT_ID}")
+    # define
+    ADD_DEFINITIONS(-DTAOSDUMP_COMMIT_ID="${TAOSDUMP_COMMIT_ID}")
+    ADD_DEFINITIONS(-DTAOSBENCHMARK_COMMIT_ID="${TAOSBENCHMARK_COMMIT_ID}")        
 ELSE()
-    MESSAGE("Git not found")
-    SET(TAOSDUMP_COMMIT_SHA1 "unknown")
-    SET(TAOSBENCHMARK_COMMIT_SHA1 "unknown")
-    SET(TAOSDUMP_TAG "0.1.0")
-    SET(TAOSDUMP_STATUS "unknown")
-    SET(TAOSBENCHMARK_STATUS "unknown")
+    MESSAGE(FATAL_ERROR "build taos-tools FIND_PACKAGE(Git) failed.")
 ENDIF (GIT_FOUND)
 
-STRING(STRIP "${TAOSDUMP_STATUS}" TAOSDUMP_STATUS)
-STRING(STRIP "${TAOSBENCHMARK_STATUS}" TAOSBENCHMARK_STATUS)
-
-IF (TAOSDUMP_STATUS MATCHES "M")
-    SET(TAOSDUMP_STATUS "modified")
-ELSE()
-    SET(TAOSDUMP_STATUS "")
-ENDIF ()
-
-IF (TAOSBENCHMARK_STATUS MATCHES "M")
-    SET(TAOSBENCHMARK_STATUS "modified")
-ELSE()
-    SET(TAOSBENCHMARK_STATUS "")
-ENDIF ()
-
-MESSAGE("")
-MESSAGE("taosdump last tag: ${TAOSDUMP_TAG}")
-MESSAGE("taosdump commit: ${TAOSDUMP_COMMIT_SHA1}")
-MESSAGE("taosdump status: ${TAOSDUMP_STATUS}")
-MESSAGE("")
-MESSAGE("taosBenchmark last tag: ${TAOSBENCHMARK_TAG}")
-MESSAGE("taosBenchmark commit: ${TAOSBENCHMARK_COMMIT_SHA1}")
-MESSAGE("taosBenchmark status: ${TAOSBENCHMARK_STATUS}")
+# build info
+SET(BUILD_INFO "${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}")
+ADD_DEFINITIONS(-DBUILD_INFO="${BUILD_INFO}")
+MESSAGE(STATUS "build:${BUILD_INFO}")
 MESSAGE("")
 
-ADD_DEFINITIONS(-DTAOSDUMP_TAG="${TAOSDUMP_TAG}")
-ADD_DEFINITIONS(-DTAOSDUMP_COMMIT_SHA1="${TAOSDUMP_COMMIT_SHA1}")
-ADD_DEFINITIONS(-DTAOSDUMP_STATUS="${TAOSDUMP_STATUS}")
-ADD_DEFINITIONS(-DTAOSBENCHMARK_TAG="${TAOSBENCHMARK_TAG}")
-ADD_DEFINITIONS(-DTAOSBENCHMARK_COMMIT_SHA1="${TAOSBENCHMARK_COMMIT_SHA1}")
-ADD_DEFINITIONS(-DTAOSBENCHMARK_STATUS="${TAOSBENCHMARK_STATUS}")
 
+#
+# build proj
+#
 LINK_DIRECTORIES(${CMAKE_BINARY_DIR}/build/lib ${CMAKE_BINARY_DIR}/build/lib64)
 LINK_DIRECTORIES(/usr/lib /usr/lib64)
 INCLUDE_DIRECTORIES(/usr/local/taos/include)
@@ -252,6 +146,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
         ENDIF()
     ENDIF ()
 
+    # websocket
     IF (${WEBSOCKET})
         ADD_DEFINITIONS(-DWEBSOCKET)
         INCLUDE_DIRECTORIES(/usr/local/include/)
@@ -277,6 +172,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
         SET(GCC_COVERAGE_LINK_FLAGS    "-lgcov --coverage")
     ENDIF ()
 
+    # sanitizer
     IF (${BUILD_SANITIZER})
         MESSAGE("${Yellow} Enable memory sanitize by BUILD_SANITIZER ${ColourReset}")
         IF (${OS_ID} MATCHES "Darwin")
@@ -288,6 +184,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
         SET(TOOLS_SANITIZE_FLAG "")
     ENDIF ()
 
+    # TOOLS_BUILD_TYPE
     IF (${TOOLS_BUILD_TYPE} MATCHES "Debug")
         IF ((${TOOLS_SANITIZE} MATCHES "true") OR (${BUILD_SANITIZER}))
             MESSAGE("${Yellow} Enable memory sanitize by TOOLS_SANITIZE ${ColourReset}")
