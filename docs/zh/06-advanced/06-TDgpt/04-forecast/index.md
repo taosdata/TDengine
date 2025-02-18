@@ -106,3 +106,7 @@ taos> select _flow, _fhigh, _frowts, forecast(i32) from foo;
 - PatchTST (Patch Time Series Transformer)
 - Temporal Fusion Transformer
 - TimesNet
+
+## 算法有效性评估工具
+TDgpt 提供预测分析算法有效性评估工具，通过调用该工具并设置合适的参数，能够使用 TDengine 中的数据作为回测依据，评估不同预测算法或相同的预测算法在不同的参数或训练模型的下的预测有效性。
+
