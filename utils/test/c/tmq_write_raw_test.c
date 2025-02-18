@@ -136,6 +136,13 @@ int buildDatabase(TAOS* pConn, TAOS_RES* pRes) {
   }
   taos_free_result(pRes);
 
+  pRes = taos_query(pConn, "alter table ct0 set tag t4=false");
+  if (taos_errno(pRes) != 0) {
+    printf("alter table ct0 set tag t4=false, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
   return 0;
 }
 
