@@ -925,12 +925,9 @@ int32_t tRowGet2AndSetSeq(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal 
 
         offset = tGetU32v(pColVal->value.pData, &pColVal->value.nData);
         pColVal->value.pData += offset;
-        // memcpy(&pColVal->value.val, &pColVal->value.pData, sizeof(uint64_t));
         memcpy(pColVal->value.pData, &seq, sizeof(uint64_t));
         uint64_t cSeq = 0;
         tGetU64(pColVal->value.pData, &cSeq);
-        tGetU64(pColVal->value.pData, &cSeq);
-        // tGetU64(uint8_t *p, uint64_t *v);
       } else {
         pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
         pColVal->value.pData += tGetU32v(pColVal->value.pData, &pColVal->value.nData);
