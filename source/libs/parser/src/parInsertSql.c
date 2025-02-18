@@ -1332,8 +1332,17 @@ static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   int32_t code = TSDB_CODE_SUCCESS;
 
   NEXT_TOKEN_KEEP_SQL(pStmt->pSql, token, index);
+
   code = getTargetTableSchema(pCxt, pStmt);
-  if ((token.type != TK_USING) || (!pCxt->missCache)) {
+  if (token.type != TK_USING) {
+    return code;
+  } else if (!pCxt->missCache) {
+    do {
+      NEXT_TOKEN_WITH_PREV_VALUES(pStmt->pSql, token);
+      if (TK_VALUES == token.type) {
+        break;
+      }
+    } while (1);
     return code;
   }
 
