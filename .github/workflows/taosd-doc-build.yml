@@ -1,0 +1,81 @@
+
+name: Reusable workflow of TDengine document buile pipelines
+
+on:
+  workflow_call:
+      inputs:
+        target_branch:
+          description: "Target branch name of  for building the document"
+          required: true
+          type: string
+
+        target_change_id:
+          description: "Target change id to merge for building the document"
+          required: true
+          type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  ZH_DOC_REPO: "docs.taosdata.com"
+  EN_DOC_REPO: "docs.tdengine.com"
+  DOC_WKC: "/root/doc_ci_work/TDengine"
+  WKC: "/var/lib/jenkins/workspace/TDinternal/community"
+
+jobs:
+  check:
+    runs-on: [self-hosted, CI, doc-build]
+    outputs:
+      file_zh_changed: ${{ steps.set_output.outputs.file_zh_changed }}
+      file_en_changed: ${{ steps.set_output.outputs.file_zh_changed }}
+    steps:
+      - name: Get the latest document contents from the repository
+        run: |
+          cd ${{ env.WKC }}
+          git reset --hard
+          git clean -f
+          git remote prune origin
+          git fetch
+          git checkout ${{ inputs.target_branch }}
+          git pull >/dev/null
+          git fetch origin +refs/pull/${{ inputs.target_change_id }}/merge
+          git checkout -qf FETCH_HEAD 
+
+      - name: Check whether the document is changed and set output variables
+        id: set_output
+        run: |
+          file_zh_changed=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`| grep  "^docs/zh/" || :)
+          file_en_changed=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`| grep  "^docs/en/" || :)
+          echo "file_zh_changed=${file_zh_changed}" >> $GITHUB_OUTPUT
+          echo "file_en_changed=${file_en_changed}" >> $GITHUB_OUTPUT
+
+  build:
+    needs: check
+    runs-on: [self-hosted, CI, doc-build]
+    if: ${{ needs.check.outputs.file_zh_changed != '' || needs.check.outputs.file_en_changed != '' }}
+    steps:
+      - name: Get the latest document contents
+        run: |
+          cd ${{ env.DOC_WKC }}
+          git reset --hard
+          git clean -f
+          git remote prune origin
+          git fetch
+          git checkout ${{ inputs.target_branch }}
+          git pull >/dev/null
+          git fetch origin +refs/pull/${{ inputs.target_change_id }}/merge
+          git checkout -qf FETCH_HEAD 
+
+      - name: Build the chinese document
+        run: |
+          cd ${{ env.DOC_WKC }}/${{ env.ZH_DOC_REPO }}
+          yarn ass local
+          yarn build
+
+      - name: Build the english document
+        run: |
+          cd ${{ env.DOC_WKC }}/${{ env.EN_DOC_REPO }}
+          yarn ass local
+          yarn build

@@ -1,0 +1,39 @@
+
+name: TDengine CI Pipeline
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.1'
+    paths-ignore:
+      - 'packaging/**'
+  repository_dispatch:
+    types: [run-tests]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  tdinternal_trigger: if [ -z ${{ github.event.client_payload.tdinternal_source_branch }} ]; then false; else true; fi
+
+  WIN_INTERNAL_ROOT: ${{ 'C:\\workspace\\$$GITHUB_RUN_ID\\TDinternal' }}
+  WIN_COMMUNITY_ROOT: ${{ 'C:\\workspace\\$$GITHUB_RUN_ID\\TDinternal\\community' }}
+  WIN_SYSTEM_TEST_ROOT: ${{ 'C:\\workspace\\$$GITHUB_RUN_ID\\TDinternal\\community\\tests\\system-test' }}
+  WIN_CONNECTOR_ROOT: ${{ 'C:\\workspace\\$$GITHUB_RUN_ID\\taos-connector-python' }}
+  WKDIR: ${{ '/var/lib/jenkins/workspace' }}
+
+jobs:
+  tests:
+    runs-on: [self-hosted, CI, Linux]
+    steps:
+      - name: Output the runner name
+        run: |
+            echo "runner name: ${{ runner.name }}"
+            echo "Whether is triggered by TDinternal: ${{ env.tdinternal_trigger }}"
+      - name: prepare test environment
+        run: |
+            cd "/var/lib/jenkins/workspace/TDinternal/community/tests/system-test"
+            python3 test.py -f 1-insert/table_comment.py
