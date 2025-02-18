@@ -28,6 +28,7 @@ pub struct IpcMetrics {
     pub total_failed_points: AtomicU64,
     pub total_written_raw_blocks: AtomicU64,
     pub total_failed_raw_blocks: AtomicU64,
+    pub total_archived_rows: AtomicU64,
     pub received_batches: AtomicU64,
     pub processed_batches: AtomicU64,
     pub failed_batches: AtomicU64,
@@ -41,6 +42,7 @@ pub struct IpcMetrics {
     pub failed_points: AtomicU64,
     pub written_raw_blocks: AtomicU64,
     pub failed_raw_blocks: AtomicU64,
+    pub archived_rows: AtomicU64,
 
     #[serde(flatten)]
     pub extras: scc::HashIndex<FastStr, u64>,
@@ -178,6 +180,12 @@ impl IpcMetrics {
         self.total_failed_batches.fetch_add(n, SeqCst);
         self.failed_batches.fetch_add(n, SeqCst);
     }
+
+    #[inline]
+    pub fn add_archived_rows(&self, n: u64) {
+        self.total_archived_rows.fetch_add(n, SeqCst);
+        self.archived_rows.fetch_add(n, SeqCst);
+    }
 }
 
 impl From<IpcMetrics> for CoreMetrics {
@@ -202,6 +210,7 @@ impl TaskMetrics for IpcMetrics {
         self.written_raw_blocks.store(0, SeqCst);
         self.failed_raw_blocks.store(0, SeqCst);
         self.failed_batches.store(0, SeqCst);
+        self.archived_rows.store(0, SeqCst);
 
         self.extras.retain(|k, _| k.contains("total"));
     }

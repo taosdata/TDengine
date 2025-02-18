@@ -2,7 +2,9 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use arrow_array::RecordBatch;
 use chrono::{DateTime, FixedOffset, NaiveDateTime};
+use flume::Sender;
 use linked_hash_map::LinkedHashMap;
 use oracle::sql_type::OracleType;
 use oracle::SqlValue;
@@ -17,7 +19,7 @@ use crate::runners::oracle::config::connect::ConnectConfig;
 use crate::runners::oracle::config::OracleConfig;
 use crate::runners::oracle::query::OracleQuery;
 use crate::utils::port_pool::PortPool;
-use crate::{build_ipc, Action, Parser, Transferred};
+use crate::{build_ipc, Action, ArchiveType, Parser, Transferred};
 
 use self::worker::migrate_history;
 
@@ -155,6 +157,7 @@ pub async fn oracle_to_taos(
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     let mut config = OracleConfig::from_dsn(&from)?;
 
@@ -187,6 +190,7 @@ pub async fn oracle_to_taos(
         transferred,
         task_id,
         notify,
+        archive_tx.clone(),
     )
     .await?;
 
@@ -494,6 +498,7 @@ mod tests {
         let transferred = None;
         let task_id = Some(1);
         let (notify, _) = flume::unbounded();
+        let (tx, _rx) = flume::bounded(0);
 
         oracle_to_taos(
             from,
@@ -507,6 +512,7 @@ mod tests {
             transferred,
             task_id,
             notify,
+            tx.clone(),
         )
         .await
         .ok();

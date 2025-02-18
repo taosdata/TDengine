@@ -13,6 +13,7 @@ use crate::{
     },
     runners::pi::transform::PiModelType,
     utils::{breakpoints::BreakpointDb, sql::values_to_sqls, trace::Qid},
+    ArchiveType,
 };
 use anyhow::{anyhow, Context};
 use arrow::array::{ArrayRef, StringArray, UInt16Builder};
@@ -22,6 +23,7 @@ use arrow_schema::Field;
 use arrow_schema::{DataType, Schema};
 use chrono::{DateTime, Utc};
 use faststr::FastStr;
+use flume::Sender;
 use itertools::Itertools as _;
 use lazy_static::lazy_static;
 use linked_hash_map::LinkedHashMap;
@@ -429,8 +431,8 @@ pub async fn write(
     skip_null: bool,
     table_id_column: &str,
     breakpoints: BreakpointDb,
-    task_id: i64,
     parser: &Parser,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<(usize, Duration, Duration)> {
     let table_break_points = get_break_point(&messages, table_id_column);
     let mut taos = Some(pool.get().await.context("Target connection error")?);
@@ -479,7 +481,7 @@ pub async fn write(
                             Ok((HandlingResult::Archive, err)) => {
                                 records.batches.iter().for_each(|batch| {
                                     if let Err(e) =
-                                        process_archive(task_id, parser, err.clone(), batch)
+                                        process_archive(err.clone(), batch, archive_tx.clone())
                                     {
                                         tracing::error!("archive error: {e:#}");
                                     }
@@ -519,7 +521,7 @@ pub async fn write(
                             Ok((HandlingResult::Archive, err)) => {
                                 records.batches.iter().for_each(|batch| {
                                     if let Err(e) =
-                                        process_archive(task_id, parser, err.clone(), batch)
+                                        process_archive(err.clone(), batch, archive_tx.clone())
                                     {
                                         tracing::error!("archive error: {e:#}");
                                     }
@@ -616,7 +618,6 @@ pub async fn write(
                             pool,
                             taos,
                             metrics,
-                            task_id,
                             parser,
                             target_precision,
                             super_table_name,
@@ -626,6 +627,7 @@ pub async fn write(
                             field,
                             &records.batches,
                             &err,
+                            archive_tx.clone(),
                         )
                         .await?;
                     }
@@ -659,7 +661,6 @@ async fn handle_field_length_overflow_and_rewrite(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
     metrics: &IpcMetrics,
-    task_id: i64,
     parser: &Parser,
     target_precision: taos::Precision,
     super_table_name: &str,
@@ -669,6 +670,7 @@ async fn handle_field_length_overflow_and_rewrite(
     field: &str,
     batches: &Vec<RecordBatch>,
     err: &WriteError,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     // get the length of the field
     let desc = taos.as_ref().unwrap().describe(stable).await;
@@ -707,7 +709,7 @@ async fn handle_field_length_overflow_and_rewrite(
                 // do nothing
             }
             Ok((HandlingResult::Archive, err)) => {
-                let res = process_archive(task_id, parser, err, batch);
+                let res = process_archive(err, batch, archive_tx.clone());
                 if let Err(e) = res {
                     tracing::error!("archive error: {e:#}");
                 }
@@ -750,7 +752,7 @@ async fn handle_field_length_overflow_and_rewrite(
                     tracing::error!("rewrite error: {e:#}");
                 }
                 // archive
-                if let Err(e) = process_archive(task_id, parser, err, batch) {
+                if let Err(e) = process_archive(err, batch, archive_tx.clone()) {
                     tracing::error!("archive error: {e:#}");
                 }
             }
@@ -802,20 +804,18 @@ async fn modify_batch_and_rewrite(
 }
 
 fn process_archive(
-    task_id: i64,
-    parser: &Parser,
     err: String,
     batch: &RecordBatch,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     // possible difference in schema, so archive them separately
     let err_vec = vec![err.clone(); batch.num_rows()];
     let err_timestamp_vec = vec![Utc::now().timestamp_nanos_opt().unwrap(); batch.num_rows()];
     archive_records(
-        task_id,
-        &parser.global().process_on_abnormal.archive.location,
         batch,
         err_vec.clone(),
         err_timestamp_vec.clone(),
+        archive_tx.clone(),
     )
 }
 
@@ -1533,20 +1533,6 @@ mod tests {
 
     #[test]
     fn test_process_archive() {
-        let parser = r#"{
-            "global": {
-                "process_on_abnormal": {"archive": {"location": "archive"}}
-            },
-            "parse": {},
-            "model": {
-                "name": "table_{str2}",
-                "using": "stable1",
-                "tags": ["int1"],
-                "columns": ["ts", "str1"]
-            }
-        }"#;
-        let parser: Parser = serde_json::from_str(parser).unwrap();
-
         let builder = STableMessagesBuilder::new()
             .stable("meters")
             .table_num(2)
@@ -1556,8 +1542,9 @@ mod tests {
             .column_num(2)
             .string_repeats(2);
         let messages = builder.build();
+        let (tx, _rx) = flume::bounded(0);
 
-        if let Err(e) = process_archive(1, &parser, "error".to_string(), &messages[0].records) {
+        if let Err(e) = process_archive("error".to_string(), &messages[0].records, tx) {
             dbg!(e);
         }
     }

@@ -13,6 +13,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use csv_lib::{ByteRecord, Reader, ReaderBuilder, StringRecord};
 use faststr::FastStr;
+use flume::Sender;
 use futures_util::stream::FuturesUnordered;
 use futures_util::{Stream, StreamExt, TryStreamExt};
 use notify::{Config, Event, RecursiveMode, Watcher};
@@ -35,7 +36,7 @@ use crate::sink::ipc_metric::IpcMetrics;
 use crate::utils::breakpoints;
 use crate::utils::dsn::json_to_dsn;
 use crate::utils::port_pool::PortPool;
-use crate::{utils, Parser, Transferred};
+use crate::{utils, ArchiveType, Parser, Transferred};
 
 type MsgSender = flume::Sender<std::result::Result<Box<dyn IpcMessage>, ArrowError>>;
 trait CsvReaderExt: Send + Sync + std::io::Read {}
@@ -159,6 +160,7 @@ async fn csv_to_taos_with_channel(
     cancel: CancellationToken,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> Result<()> {
     // load metrics
     let metrics_arc = get_metrics_arc_from_i64(task_id).await;
@@ -168,9 +170,16 @@ async fn csv_to_taos_with_channel(
     let builder = taos::TaosBuilder::from_dsn(to)?;
     let pool = builder.pool()?;
     let worker_cancel = cancel.child_token();
-    let (msg, ack) =
-        channel_based_transformer(pool, worker_cancel, parser, Some("csv"), task_id, notify)
-            .await?;
+    let (msg, ack) = channel_based_transformer(
+        pool,
+        worker_cancel,
+        parser,
+        Some("csv"),
+        task_id,
+        notify,
+        archive_tx.clone(),
+    )
+    .await?;
 
     let ack_handler = tokio::spawn(async move {
         let mut count = 0;
@@ -436,8 +445,18 @@ pub async fn csv_to_taos(
     _transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> Result<()> {
-    csv_to_taos_with_channel(from, parser, to, cancel, task_id, notify).await
+    csv_to_taos_with_channel(
+        from,
+        parser,
+        to,
+        cancel,
+        task_id,
+        notify,
+        archive_tx.clone(),
+    )
+    .await
 
     // let port = port_pool
     //     .get()

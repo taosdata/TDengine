@@ -14,6 +14,7 @@ use arrow_array::{Array, RecordBatch, StringArray, TimestampNanosecondArray};
 use arrow_schema::{ArrowError, Field};
 use async_backtrace::framed;
 use chrono::Utc;
+use flume::Sender;
 use futures_util::{Sink, SinkExt, Stream, StreamExt};
 use lazy_static::lazy_static;
 use serde_json::json;
@@ -48,7 +49,7 @@ use crate::{
         },
         trace::{BatchCounter, Qid},
     },
-    Parser,
+    ArchiveType, Parser,
 };
 
 use crate::global::SQL_TAG_CACHE_CAPACITY;
@@ -432,8 +433,8 @@ pub async fn flat_write_with_sql(
     metrics: &IpcMetrics,
     _notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
-    task_id: i64,
     global: &TableOptions,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<usize> {
     let mut count = 0;
     // Split messages into different stales.
@@ -445,10 +446,12 @@ pub async fn flat_write_with_sql(
 
     let database_name = match get_database(taos).await {
         Ok(db) => Some(db),
-        Err(err) => match handling_database_not_exist(task_id, global, messages, err) {
-            Ok(_) => return Ok(0),
-            Err(e) => return Err(e),
-        },
+        Err(err) => {
+            match handling_database_not_exist(global, messages, err, archive_tx.clone()).await {
+                Ok(_) => return Ok(0),
+                Err(e) => return Err(e),
+            }
+        }
     };
     // insert into stable
     for (stable, messages) in groups.into_iter() {
@@ -472,6 +475,7 @@ pub async fn flat_write_with_sql(
         // debug_assert!(qid.task_id() > 0);
         // debug_assert!(qid.batch_id() > 0);
         for records in sqls {
+            let archive_tx = archive_tx.clone();
             loop {
                 qid.add_sub_batch_id();
                 match write_stable_with_sql(pool, taos, qid.get(), &records, cancel).await {
@@ -504,13 +508,16 @@ pub async fn flat_write_with_sql(
                                         break;
                                     }
                                     Ok((HandlingResult::Archive, err)) => {
-                                        records.batches.iter().for_each(|batch| {
-                                            if let Err(e) =
-                                                process_archive(task_id, global, err.clone(), batch)
-                                            {
+                                        for batch in records.batches {
+                                            if let Err(e) = process_archive(
+                                                err.clone(),
+                                                &batch,
+                                                archive_tx.clone(),
+                                            ) {
                                                 tracing::error!("archive error: {e:#}");
                                             }
-                                        });
+                                        }
+
                                         break;
                                     }
                                     Ok((HandlingResult::Modify(_), _)) => {
@@ -587,13 +594,15 @@ pub async fn flat_write_with_sql(
                                         break;
                                     }
                                     Ok((HandlingResult::Archive, err)) => {
-                                        records.batches.iter().for_each(|batch| {
-                                            if let Err(e) =
-                                                process_archive(task_id, global, err.clone(), batch)
-                                            {
+                                        for batch in records.batches {
+                                            if let Err(e) = process_archive(
+                                                err.clone(),
+                                                &batch,
+                                                archive_tx.clone(),
+                                            ) {
                                                 tracing::error!("archive error: {e:#}");
                                             }
-                                        });
+                                        }
                                         break;
                                     }
                                     Ok((HandlingResult::Modify(_), _)) => unreachable!(),
@@ -635,7 +644,6 @@ pub async fn flat_write_with_sql(
                                 handle_primary_timestamp_null_and_rewrite(
                                     pool,
                                     taos,
-                                    task_id,
                                     global,
                                     target_precision,
                                     true,
@@ -648,6 +656,7 @@ pub async fn flat_write_with_sql(
                                     stable.as_deref().unwrap_or_default(),
                                     &records.batches,
                                     &err,
+                                    archive_tx.clone(),
                                 )
                                 .await?;
                                 // only rewrite once
@@ -711,7 +720,6 @@ pub async fn flat_write_with_sql(
                                     handle_field_length_overflow_and_rewrite(
                                         pool,
                                         taos,
-                                        task_id,
                                         global,
                                         target_precision,
                                         true,
@@ -725,6 +733,7 @@ pub async fn flat_write_with_sql(
                                         field,
                                         &records.batches,
                                         &err,
+                                        archive_tx.clone(),
                                     )
                                     .await?;
                                     // only rewrite once
@@ -748,7 +757,6 @@ pub async fn flat_write_with_sql(
 async fn handle_primary_timestamp_null_and_rewrite(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
-    task_id: i64,
     global: &TableOptions,
     target_precision: taos::Precision,
     with_meta: bool,
@@ -761,6 +769,7 @@ async fn handle_primary_timestamp_null_and_rewrite(
     stable: &str,
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     // loop the batches
     for batch in batches {
@@ -787,7 +796,7 @@ async fn handle_primary_timestamp_null_and_rewrite(
                 // do nothing
             }
             Ok((HandlingResult::Archive, err)) => {
-                let res = process_archive(task_id, global, err, batch);
+                let res = process_archive(err, batch, archive_tx.clone());
                 if let Err(e) = res {
                     tracing::error!("archive error: {e:#}");
                 }
@@ -828,7 +837,6 @@ async fn handle_primary_timestamp_null_and_rewrite(
 async fn handle_field_length_overflow_and_rewrite(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
-    task_id: i64,
     global: &TableOptions,
     target_precision: taos::Precision,
     with_meta: bool,
@@ -842,6 +850,7 @@ async fn handle_field_length_overflow_and_rewrite(
     field: &str,
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     // get the length of the field
     let desc = taos.as_ref().unwrap().describe(stable).await;
@@ -853,6 +862,7 @@ async fn handle_field_length_overflow_and_rewrite(
 
     // loop the batches
     for batch in batches {
+        let archive_tx = archive_tx.clone();
         let field_values = batch
             .column_by_name(field)
             .unwrap()
@@ -878,7 +888,7 @@ async fn handle_field_length_overflow_and_rewrite(
                 // do nothing
             }
             Ok((HandlingResult::Archive, err)) => {
-                let res = process_archive(task_id, global, err, batch);
+                let res = process_archive(err, batch, archive_tx.clone());
                 if let Err(e) = res {
                     tracing::error!("archive error: {e:#}");
                 }
@@ -931,7 +941,7 @@ async fn handle_field_length_overflow_and_rewrite(
                     tracing::error!("rewrite error: {e:#}");
                 }
                 // archive
-                if let Err(e) = process_archive(task_id, global, err, batch) {
+                if let Err(e) = process_archive(err, batch, archive_tx.clone()) {
                     tracing::error!("archive error: {e:#}");
                 }
             }
@@ -1003,8 +1013,8 @@ pub async fn flat_write_with_raw_block(
     metrics: &IpcMetrics,
     notifier: Option<&crate::TaskNotifySender>,
     cancel: &CancellationToken,
-    task_id: i64,
     global: &TableOptions,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<usize> {
     let mut count = 0;
     let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
@@ -1030,8 +1040,8 @@ pub async fn flat_write_with_raw_block(
                 metrics,
                 notifier,
                 cancel,
-                task_id,
                 global,
+                archive_tx.clone(),
             )
             .await?;
             // only retry once
@@ -1373,7 +1383,7 @@ pub async fn flat_write_with_raw_block(
                         }
                         Ok((HandlingResult::Archive, err)) => {
                             if let Err(e) =
-                                process_archive(task_id, global, err.clone(), &records.records)
+                                process_archive(err.clone(), &records.records, archive_tx.clone())
                             {
                                 tracing::error!("archive error: {e:#}");
                             }
@@ -1550,7 +1560,7 @@ pub async fn flat_write_with_raw_block(
                         }
                         Ok((HandlingResult::Archive, err)) => {
                             if let Err(e) =
-                                process_archive(task_id, global, err.clone(), &records.records)
+                                process_archive(err.clone(), &records.records, archive_tx.clone())
                             {
                                 tracing::error!("archive error: {e:#}");
                             }
@@ -1634,7 +1644,7 @@ pub async fn flat_write_with_raw_block(
                         }
                         Ok((HandlingResult::Archive, err)) => {
                             if let Err(e) =
-                                process_archive(task_id, global, err.clone(), &records.records)
+                                process_archive(err.clone(), &records.records, archive_tx.clone())
                             {
                                 tracing::error!("archive error: {e:#}");
                             }
@@ -1674,8 +1684,8 @@ pub async fn flat_write_with_raw_block(
                         metrics,
                         notifier,
                         cancel,
-                        task_id,
                         global,
+                        archive_tx.clone(),
                     )
                     .await?;
                     break;
@@ -1696,8 +1706,8 @@ pub async fn flat_write_with_raw_block(
                         metrics,
                         notifier,
                         cancel,
-                        task_id,
                         global,
+                        archive_tx.clone(),
                     )
                     .await?;
                     // only retry once
@@ -1718,7 +1728,7 @@ pub async fn flat_write_with_raw_block(
                         }
                         Ok((HandlingResult::Archive, err)) => {
                             if let Err(e) =
-                                process_archive(task_id, global, err.clone(), &records.records)
+                                process_archive(err.clone(), &records.records, archive_tx.clone())
                             {
                                 tracing::error!("archive error: {e:#}");
                             }
@@ -1747,11 +1757,11 @@ pub async fn flat_write_with_raw_block(
     Ok(count)
 }
 
-fn handling_database_not_exist(
-    task_id: i64,
+async fn handling_database_not_exist(
     global: &TableOptions,
     messages: &[MessageArrowRecords],
     err: taos::Error,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     match global
         .process_on_abnormal
@@ -1761,7 +1771,7 @@ fn handling_database_not_exist(
         Ok((HandlingResult::Skip, _)) => Ok(()),
         Ok((HandlingResult::Archive, err)) => {
             for batch in messages.iter().map(|m| m.records.clone()) {
-                if let Err(e) = process_archive(task_id, global, err.clone(), &batch) {
+                if let Err(e) = process_archive(err.clone(), &batch, archive_tx.clone()) {
                     tracing::error!("archive error: {e:#}");
                 }
             }
@@ -1775,20 +1785,18 @@ fn handling_database_not_exist(
 }
 
 fn process_archive(
-    task_id: i64,
-    global: &TableOptions,
     err: String,
     batch: &RecordBatch,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     // possible difference in schema, so archive them separately
     let err_vec = vec![err.clone(); batch.num_rows()];
     let err_timestamp_vec = vec![Utc::now().timestamp_nanos_opt().unwrap(); batch.num_rows()];
     archive_records(
-        task_id,
-        &global.process_on_abnormal.archive.location,
         batch,
         err_vec.clone(),
         err_timestamp_vec.clone(),
+        archive_tx.clone(),
     )
 }
 
@@ -1815,7 +1823,7 @@ impl FlatSink {
         metrics_arc: Arc<CoreMetrics>,
         notifier: crate::TaskNotifySender,
         cancel: CancellationToken,
-        task_id: i64,
+        archive_tx: Sender<(ArchiveType, RecordBatch)>,
     ) -> anyhow::Result<Self> {
         let workers = parser.global().workers_per_vgroup();
         let taos = pool.get().await?;
@@ -1842,6 +1850,7 @@ impl FlatSink {
                 let rx = rx.clone();
                 let notifier = notifier.clone();
                 let cancel = cancel.clone();
+                let archive_tx = archive_tx.clone();
                 set.spawn(
                     async move {
                         let metrics = metrics_arc.ipc();
@@ -1869,8 +1878,8 @@ impl FlatSink {
                                     metrics,
                                     Some(&notifier),
                                     &cancel,
-                                    task_id,
                                     parser.global(),
+                                    archive_tx.clone(),
                                 )
                                 .in_current_span()
                                 .await
@@ -1885,8 +1894,8 @@ impl FlatSink {
                                     metrics,
                                     Some(&notifier),
                                     &cancel,
-                                    task_id,
                                     parser.global(),
+                                    archive_tx.clone(),
                                 )
                                 .in_current_span()
                                 .await
@@ -1956,8 +1965,8 @@ impl FlatSink {
                                                 metrics,
                                                 Some(&notifier),
                                                 &cancel,
-                                                task_id,
                                                 parser.global(),
+                                                archive_tx.clone(),
                                             )
                                             .in_current_span()
                                             .await
@@ -1972,8 +1981,8 @@ impl FlatSink {
                                                 metrics,
                                                 Some(&notifier),
                                                 &cancel,
-                                                task_id,
                                                 parser.global(),
+                                                archive_tx.clone(),
                                             )
                                             .in_current_span()
                                             .await
@@ -2094,11 +2103,11 @@ async fn consume_flat_record_with_sink(
     record: &FlatMessage,
     count: &mut usize,
     parser: &Parser,
-    task_id: i64,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     for message in record.records() {
         let batch = message.record();
-        let batch = parser.parse_message_from_records(task_id, batch, true)?;
+        let batch = parser.parse_message_from_records(batch, true, archive_tx.clone())?;
         match batch {
             crate::plugins::transform::Message::Raw(_) => todo!(),
             crate::plugins::transform::Message::Tables(_) => todo!(),
@@ -2124,7 +2133,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
     cancel: CancellationToken,
-    task_id: i64,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
         pool.clone(),
@@ -2133,7 +2142,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
         metrics_arc.clone(),
         notifier.clone(),
         cancel,
-        task_id,
+        archive_tx.clone(),
     )
     .await?;
     let count = Arc::new(AtomicUsize::new(0));
@@ -2170,6 +2179,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
         let flat_sink = flat_sink.cloned().await?;
         let mut qid = qid.clone();
         let batch_counter = batch_counter.clone();
+        let archive_tx = archive_tx.clone();
         writer_set.spawn(
             async move {
                 let metrics = metrics_arc.ipc();
@@ -2194,7 +2204,7 @@ pub async fn ipc_flat_stream_worker_vgroup(
                         &record,
                         &mut written,
                         &parser,
-                        task_id,
+                        archive_tx.clone(),
                     )
                     .await;
                     worker_written += written;
@@ -2313,7 +2323,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
     cancel: CancellationToken,
-    task_id: i64,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     let flat_sink = FlatSink::new(
         pool.clone(),
@@ -2322,7 +2332,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
         metrics_arc.clone(),
         notifier.clone(),
         cancel,
-        task_id,
+        archive_tx.clone(),
     )
     .await?;
     let count = Arc::new(AtomicUsize::new(0));
@@ -2369,7 +2379,7 @@ pub async fn ipc_flat_stream_worker_vgroup_sequential(
                     &record,
                     &mut written,
                     parser,
-                    task_id,
+                    archive_tx.clone(),
                 )
                 .await;
                 count.fetch_add(written, Ordering::SeqCst);
@@ -2460,7 +2470,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
-    task_id: i64,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     tokio::pin!(stream);
     let count = Arc::new(AtomicUsize::new(0));
@@ -2511,6 +2521,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
             return Ok(());
         }
         let cancel = cancel.clone();
+        let archive_tx = archive_tx.clone();
         writer_set.spawn(
             async move {
                 let _guard = cancel.clone().drop_guard();
@@ -2539,7 +2550,7 @@ pub async fn ipc_flat_stream_worker_concurrent(
                         context.target_precision,
                         metrics,
                         Some(&notifier),
-                        task_id,
+                        archive_tx.clone(),
                     )
                     .await;
                     worker_written += written;
@@ -3025,6 +3036,8 @@ pub mod tests {
 
         let mut taos = Some(pool.get().await?);
 
+        let (tx, _rx) = flume::bounded(0);
+
         taos.as_ref()
             .unwrap()
             .exec("drop stable if exists meters")
@@ -3038,8 +3051,8 @@ pub mod tests {
             &metrics,
             None,
             &CancellationToken::new(),
-            0,
             &TableOptions::default(),
+            tx.clone(),
         )
         .await?;
 

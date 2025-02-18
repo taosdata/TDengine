@@ -772,6 +772,10 @@ impl IntoMetrics for IpcMetrics {
             self.total_failed_batches.load(SeqCst)
         ));
         vec.push(value2metric!(
+            "total_archived_rows",
+            self.total_archived_rows.load(SeqCst)
+        ));
+        vec.push(value2metric!(
             "received_batches",
             self.received_batches.load(SeqCst)
         ));
@@ -812,6 +816,10 @@ impl IntoMetrics for IpcMetrics {
         vec.push(value2metric!(
             "failed_raw_blocks",
             self.failed_raw_blocks.load(SeqCst)
+        ));
+        vec.push(value2metric!(
+            "archived_rows",
+            self.archived_rows.load(SeqCst)
         ));
 
         let guard = scc::ebr::Guard::new();

@@ -1,8 +1,10 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use arrow_array::RecordBatch;
 use chrono::NaiveTime;
 use chrono::{DateTime, FixedOffset, NaiveDate};
+use flume::Sender;
 use linked_hash_map::LinkedHashMap;
 use serde_json::json;
 use taos::Dsn;
@@ -16,7 +18,7 @@ use crate::runners::mssql::config::connect::ConnectConfig;
 use crate::runners::mssql::config::MssqlConfig;
 use crate::runners::mssql::query::MssqlQuery;
 use crate::utils::port_pool::PortPool;
-use crate::{build_ipc, Action, Parser, Transferred};
+use crate::{build_ipc, Action, ArchiveType, Parser, Transferred};
 
 use self::worker::migrate_history;
 
@@ -148,6 +150,7 @@ pub async fn mssql_to_taos(
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     let mut config = MssqlConfig::from_dsn(&from)?;
 
@@ -180,6 +183,7 @@ pub async fn mssql_to_taos(
         transferred,
         task_id,
         notify,
+        archive_tx.clone(),
     )
     .await?;
 
@@ -534,6 +538,7 @@ mod tests {
         let _span = tracing::info_span!("test_mssql_to_taos");
         let task_id = Some(1);
         let (notify, _) = flume::unbounded();
+        let (tx, _rx) = flume::bounded(0);
 
         mssql_to_taos(
             from,
@@ -547,6 +552,7 @@ mod tests {
             transferred,
             task_id,
             notify,
+            tx.clone(),
         )
         .await
         .ok();

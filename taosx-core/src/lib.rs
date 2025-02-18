@@ -3,7 +3,12 @@ use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
+use arrow_array::RecordBatch;
 use chrono::NaiveDate;
+use core_metrics::get_metrics_arc_from_i64;
+use flume::Receiver;
+use plugins::transform::handling_strategy::archive::Archive;
+use plugins::transform::handling_strategy::cache::Cache;
 use serde::Deserialize;
 use serde_with::serde_as;
 use taos::Dsn;
@@ -22,6 +27,7 @@ pub use plugins::*;
 pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::{get_table_progress, tmq_offsets, tmq_to_td};
 pub use transform::Action;
+use utils::files::write_to_parquet_file;
 use utils::port_pool::PortPool;
 use utils::trace::Qid;
 
@@ -229,6 +235,33 @@ impl TaskOpts {
                 .and_then(|id| id.parse::<u16>().ok())
                 .unwrap_or_default(),
         );
+
+        // the queue for transmitting cache and archived data
+        let (tx, rx) = flume::bounded(0);
+        // clone the configurations
+        let task_id_clone = task_id.clone();
+        let parser_clone = parser.clone();
+        // spawn a thread to write data to files
+        let consumer = tokio::spawn(async move {
+            let task_id = match task_id_clone {
+                Some(id) => id.parse().unwrap_or(-1),
+                None => -1,
+            };
+            ArchiveConsumer::new(task_id, parser_clone)
+                .consume(rx)
+                .await
+        });
+        let future_consume = async move {
+            consumer.await??;
+            anyhow::Ok(())
+        };
+        tokio::select! {
+            res = future_consume => {
+                res?
+            }
+            _ = cancel.cancelled() => {}
+        };
+
         // debug_assert!(qid.task_id() > 0);
         // Run task
         {
@@ -303,6 +336,7 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
+                        tx.clone(),
                     )
                     .await?;
                 }
@@ -321,6 +355,7 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
+                        tx.clone(),
                     )
                     .await?;
                 }
@@ -338,6 +373,7 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
+                        tx.clone(),
                     )
                     .await?;
                 }
@@ -356,6 +392,7 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
+                        tx.clone(),
                     )
                     .await?;
                 }
@@ -374,6 +411,7 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
+                        tx.clone(),
                     )
                     .await?;
                 }
@@ -391,6 +429,7 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
+                        tx.clone(),
                     )
                     .await?;
                 }
@@ -425,6 +464,7 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
+                        tx.clone(),
                     )
                     .await?;
                 }
@@ -444,6 +484,7 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
+                        tx.clone(),
                     )
                     .await?;
                 }
@@ -478,6 +519,7 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
+                        tx.clone(),
                     )
                     .await?;
                 }
@@ -497,6 +539,7 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
+                        tx.clone(),
                     )
                     .await?;
                 }
@@ -516,6 +559,7 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
+                        tx.clone(),
                     )
                     .await?;
                 }
@@ -535,6 +579,7 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
+                        tx.clone(),
                     )
                     .await?;
                 }
@@ -554,6 +599,7 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
+                        tx.clone(),
                     )
                     .await?;
                 }
@@ -603,6 +649,73 @@ impl TaskOpts {
                 from
             }
         }
+    }
+}
+
+#[derive(Debug)]
+pub enum ArchiveType {
+    Cache,
+    Archive,
+}
+
+pub struct ArchiveConsumer {
+    task_id: i64,
+    parser: Option<Parser>,
+}
+
+impl ArchiveConsumer {
+    pub fn new(task_id: i64, parser: Option<Parser>) -> Self {
+        Self { task_id, parser }
+    }
+
+    pub async fn consume(
+        &mut self,
+        receiver: Receiver<(ArchiveType, RecordBatch)>,
+    ) -> anyhow::Result<()> {
+        // get configurations
+        let (cache, archive) = match self.parser.clone() {
+            Some(parser) => (
+                parser.global().process_on_abnormal.cache.clone(),
+                parser.global().process_on_abnormal.archive.clone(),
+            ),
+            None => (Cache::default(), Archive::default()),
+        };
+        // get metrics
+        let metrics = get_metrics_arc_from_i64(Some(self.task_id)).await;
+        let metrics = metrics.ipc();
+        // receive data and write to files
+        while let Ok((archive_type, batch)) = receiver.recv_async().await {
+            match archive_type {
+                ArchiveType::Cache => {
+                    match write_to_parquet_file(self.task_id, &cache.location, &batch) {
+                        Ok(_) => {
+                            tracing::debug!("cache records success: {} rows", batch.num_rows());
+                        }
+                        Err(e) => match cache.on_fail.handle(format!("{e:#}")) {
+                            Ok(_) => {}
+                            Err(e) => tracing::error!("{e:#}"),
+                        },
+                    }
+                }
+                ArchiveType::Archive => {
+                    match write_to_parquet_file(self.task_id, &archive.location, &batch) {
+                        Ok(_) => {
+                            metrics.add_archived_rows(batch.num_rows() as u64);
+                            tracing::debug!("archive records success: {} rows", batch.num_rows());
+                        }
+                        Err(e) => match archive.on_fail.handle(format!("{e:#}")) {
+                            Ok(_) => {}
+                            Err(e) => tracing::error!("{e:#}"),
+                        },
+                    }
+                }
+            }
+        }
+        tracing::info!(
+            "the 'cache & archive' thread has completed, task id: {}",
+            self.task_id
+        );
+        Ok(())
     }
 }
 

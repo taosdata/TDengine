@@ -22,6 +22,7 @@ use crate::core_metrics::get_metrics_arc_from_i64;
 use crate::utils::breakpoints::BreakpointDb;
 use crate::utils::sql::get_minimum_timestamp;
 use crate::utils::trace::{BatchCounter, Qid};
+use crate::ArchiveType;
 use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
     runners::opc::config::OPCConfig,
@@ -42,6 +43,7 @@ use async_backtrace::framed;
 use bytes::Bytes;
 use deadpool::managed::{PoolError, TimeoutType};
 use faststr::FastStr;
+use flume::Sender;
 use futures_util::{Sink, Stream, StreamExt};
 use rhai::{Dynamic, Engine, Scope};
 use ring_channel::{ring_channel, RingReceiver};
@@ -531,6 +533,7 @@ async fn ipc_tcp_read(
     task_id: Option<i64>,
     batch_counter: Option<BatchCounter>,
     notifier: crate::TaskNotifySender,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     // let stream = Arc::new(stream);
     // let reader = stream.clone();
@@ -562,6 +565,7 @@ async fn ipc_tcp_read(
         task_id,
         batch_counter,
         notifier,
+        archive_tx.clone(),
     )
     .await?;
     info!("IPC stream processed");
@@ -975,7 +979,7 @@ async fn consume_lush_record_with_transform(
     lush_model_config: Arc<LushModelConfig>,
     table_cache: Arc<TableTagCache>,
     breakpoint_db: BreakpointDb,
-    task_id: i64,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     if unsafe { crate::global::DRY_RUN } {
         tracing::trace!("consume lush record in dry-run mode with transform");
@@ -1105,7 +1109,7 @@ async fn consume_lush_record_with_transform(
             .await;
             // transform tables 消息
             let message: transform::Message = parser
-                .parse_message_from_records(task_id, &full_record, false)
+                .parse_message_from_records(&full_record, false, archive_tx.clone())
                 .with_context(|| {
                     format!(
                         "failed to transform Tables message, super table: {}",
@@ -1219,7 +1223,7 @@ async fn consume_lush_record_with_transform(
                         )
                         })?;
                     let message: transform::Message =
-                        parser.parse_message_from_records(task_id, &record_batch, true).with_context(|| {
+                        parser.parse_message_from_records(&record_batch, true,archive_tx.clone()).with_context(|| {
                             format!("transform failed for super table: {}", super_table)
                         })?;
 
@@ -1235,6 +1239,7 @@ async fn consume_lush_record_with_transform(
                         let breakpoints = breakpoint_db.clone();
                         let table_id_column_name = name_of_table_id_column.to_string();
                         let parser = parser.clone();
+                        let archive_tx = archive_tx.clone();
                         if let Err(err) = tx.send(async move {
                             let metrics = metrics_ref.ipc();
                             lush::write(
@@ -1246,8 +1251,8 @@ async fn consume_lush_record_with_transform(
                                 skip_null,
                                 table_id_column_name.as_str(),
                                 breakpoints,
-                                task_id,
                                 &parser,
+                                archive_tx.clone(),
                             ).in_current_span().await.map(|(written_rows, gen_sql_time, write_time)| {
                                 tracing::info!(
                             "stable,{},tables,{},rows,{},prepare_elapsed,{},transform_elapsed,{},gensql_elapsed,{},write_elapsed,{}",
@@ -2828,7 +2833,7 @@ async fn consume_flat_record(
     target_precision: taos::Precision,
     metrics: &IpcMetrics,
     notifier: Option<&crate::TaskNotifySender>,
-    task_id: i64,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     if cancel.is_cancelled() {
         tracing::warn!("Task is cancelled");
@@ -2870,7 +2875,8 @@ async fn consume_flat_record(
         let batch = tokio::task::spawn_blocking({
             let parser = parser.clone();
             let batch = batch.clone();
-            move || parser.parse_message_from_records(task_id, &batch, true)
+            let archive_tx = archive_tx.clone();
+            move || parser.parse_message_from_records(&batch, true, archive_tx)
         })
         .await?
         .context("Transformer parse error")?;
@@ -2908,8 +2914,8 @@ async fn consume_flat_record(
                         metrics,
                         notifier,
                         cancel,
-                        task_id,
                         parser.global(),
+                        archive_tx.clone(),
                     )
                     .in_current_span()
                     .await
@@ -2924,8 +2930,8 @@ async fn consume_flat_record(
                         metrics,
                         notifier,
                         cancel,
-                        task_id,
                         parser.global(),
+                        archive_tx.clone(),
                     )
                     .in_current_span()
                     .await
@@ -2985,8 +2991,8 @@ async fn consume_flat_record(
                                     metrics,
                                     notifier,
                                     cancel,
-                                    task_id,
                                     parser.global(),
+                                    archive_tx.clone(),
                                 )
                                 .in_current_span()
                                 .await
@@ -3001,8 +3007,8 @@ async fn consume_flat_record(
                                     metrics,
                                     notifier,
                                     cancel,
-                                    task_id,
                                     parser.global(),
+                                    archive_tx.clone(),
                                 )
                                 .in_current_span()
                                 .await
@@ -3032,6 +3038,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
     ipc_error_strategy: IpcErrorStrategy,
     metrics: &IpcMetrics,
     metrics_arc: &Arc<CoreMetrics>,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     // let taos = pool.get().await?;
     let columns = ipc_reader
@@ -3076,7 +3083,7 @@ async fn ipc_lush_stream_reader<R: Read + Send + 'static, W: Write>(
                 lush_model_config,
                 lush_table_cache.clone(),
                 breakpoint_db.as_ref().unwrap().clone(),
-                task_id.unwrap_or(0),
+                archive_tx.clone(),
             )
             .await
         } else {
@@ -3257,7 +3264,7 @@ async fn ipc_flat_stream_worker(
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
-    task_id: i64,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     let parser = parser.ok_or_else(|| anyhow::anyhow!("Parser should be set with flat stream"))?;
     tokio::pin!(stream);
@@ -3275,7 +3282,7 @@ async fn ipc_flat_stream_worker(
                 ipc_error_strategy,
                 metrics_arc,
                 batch_counter,
-                task_id,
+                archive_tx.clone(),
             )
             .await;
         }
@@ -3291,7 +3298,7 @@ async fn ipc_flat_stream_worker(
                 metrics_arc,
                 batch_counter,
                 cancel,
-                task_id,
+                archive_tx.clone(),
             )
             .await
         }
@@ -3307,7 +3314,7 @@ async fn ipc_flat_stream_worker(
                 metrics_arc,
                 batch_counter,
                 cancel,
-                task_id,
+                archive_tx.clone(),
             )
             .await
         }
@@ -3323,7 +3330,7 @@ async fn ipc_flat_stream_worker(
                 metrics_arc,
                 batch_counter,
                 cancel,
-                task_id,
+                archive_tx.clone(),
             )
             .await
         }
@@ -3345,7 +3352,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
     ipc_error_strategy: IpcErrorStrategy,
     metrics_arc: Arc<CoreMetrics>,
     batch_counter: Option<BatchCounter>,
-    task_id: i64,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     let stream = ipc_reader.into_stream();
     let sink = futures_util::sink::unfold(ipc_ack_writer, |mut ack_writer, ack| async move {
@@ -3368,7 +3375,7 @@ async fn ipc_flat_stream_reader<R: Read + Send + 'static, W: Write + Send + 'sta
         ipc_error_strategy,
         metrics_arc,
         batch_counter,
-        task_id,
+        archive_tx.clone(),
     )
     .in_current_span()
     .await
@@ -3508,6 +3515,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     task_id: Option<i64>,
     batch_counter: Option<BatchCounter>,
     notifier: crate::TaskNotifySender,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     info!("IPC stream processing...");
     const MAX_RETRIES: usize = 10;
@@ -3565,7 +3573,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
             ipc_error_strategy,
             metrics_arc.clone(),
             batch_counter,
-            task_id.unwrap_or(0),
+            archive_tx.clone(),
         )
         .await
         .inspect_err(|err| {
@@ -3581,6 +3589,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
             ipc_error_strategy,
             metrics,
             &metrics_arc,
+            archive_tx.clone(),
         )
         .await
         .inspect_err(|err| {
@@ -3904,7 +3913,7 @@ impl IpcStreamWorker {
         metrics_arc: &Arc<CoreMetrics>,
         tables_messages_in_progress: &Arc<AtomicUsize>,
         notifier: Option<&crate::TaskNotifySender>,
-        task_id: i64,
+        archive_tx: Sender<(ArchiveType, RecordBatch)>,
     ) -> anyhow::Result<usize> {
         let taos = unsafe { &mut *self.taos.as_ptr() };
         if taos.is_none() {
@@ -3934,7 +3943,7 @@ impl IpcStreamWorker {
                     self.target_precision,
                     metrics,
                     notifier,
-                    task_id,
+                    archive_tx.clone(),
                 )
                 .await?;
                 Ok(count)
@@ -3980,7 +3989,7 @@ impl IpcStreamWorker {
                         lush_model_config.clone(),
                         table_tag_cache,
                         self.breakpoint_db.as_ref().unwrap().clone(),
-                        task_id,
+                        archive_tx.clone(),
                     )
                     .await;
                     if is_tables {
@@ -4226,6 +4235,7 @@ pub async fn listen_tcp_socket(
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notifier: crate::TaskNotifySender,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<(IpcHandler, SocketAddr)> {
     let (sender, error_receiver) = tokio::sync::mpsc::channel(1);
 
@@ -4279,6 +4289,7 @@ pub async fn listen_tcp_socket(
                     let notifier = notifier.clone();
                     let notify = notified.clone();
                     let batch_counter = batch_counter.clone();
+                    let archive_tx = archive_tx.clone();
                     set.spawn(async move {
                         // let dsn: Dsn = "taos:///db2".parse().unwrap();
                         // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
@@ -4297,6 +4308,7 @@ pub async fn listen_tcp_socket(
                             task_id,
                             batch_counter,
                             notifier,
+                            archive_tx.clone(),
                         )
                             .in_current_span()
                             .await;
@@ -4426,6 +4438,7 @@ pub async fn channel_based_transformer(
     connector: Option<&'static str>,
     task_id: Option<i64>,
     notifier: crate::TaskNotifySender,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<(
     flume::Sender<Result<Box<dyn IpcMessage>, ArrowError>>,
     flume::Receiver<LushAck>,
@@ -4469,7 +4482,7 @@ pub async fn channel_based_transformer(
                         ipc_error_strategy,
                         get_metrics_arc_from_i64(task_id).await,
                         batch_counter,
-                        task_id.unwrap_or(0),
+                        archive_tx.clone()
                     )
                     .in_current_span()
                     .await
