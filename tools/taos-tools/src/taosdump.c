@@ -11,6 +11,7 @@
 
 #define _GNU_SOURCE
 
+#include "cus_name.h"  // include/util/
 #include "dump.h"
 #include "dumpUtil.h"
 #ifdef WEBSOCKET
@@ -262,7 +263,7 @@ static void printVersion(FILE *file) {
     }
 
     // version, macro define in src/CMakeLists.txt
-    fprintf(file, "taosdump version: %s\n", TD_VER_NUMBER);
+    fprintf(file, "%s\n%sdump version: %s\n", TD_PRODUCT_NAME, CUS_PROMPT, TD_VER_NUMBER);
     fprintf(file, "git: %s\n", TAOSDUMP_COMMIT_ID);
     fprintf(file, "build: %s\n", BUILD_INFO);
 }
