@@ -4,6 +4,7 @@ use anyhow::{bail, Context};
 use arrow::{datatypes::Schema, record_batch::RecordBatch};
 use arrow_flight::{decode::DecodedFlightData, FlightData, PutResult};
 use bytes::Bytes;
+use flume::Sender;
 use futures::{Stream, TryFutureExt, TryStreamExt};
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -23,6 +24,7 @@ use taosx_core::{
     utils::{breakpoints::BreakpointDb, get_main_version_from_server_version, get_server_version},
     ConnectorLicense, IpcStreamWorker, Parser,
 };
+use taosx_core::{ArchiveConsumer, ArchiveType};
 use tonic::{Status, Streaming};
 use tracing::{instrument, Instrument, Span};
 use zerocopy::FromBytes;
@@ -100,6 +102,7 @@ async fn ipc_stream_writer(
     abort_message_tx: flume::Sender<Result<PutResult, Status>>,
     ipc_error_strategy: IpcErrorStrategy,
     notify: Arc<tokio::sync::Notify>,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     let cancellation = tokio_util::sync::CancellationToken::new();
     let _drop_guard = cancellation.clone().drop_guard();
@@ -220,6 +223,7 @@ async fn ipc_stream_writer(
                     metrics_arc,
                     tables_messages_in_progress,
                 )| {
+                    let archive_tx = archive_tx.clone();
                     async move {
                         taoslog::utils::Span.set_qid(&qid);
                         tracing::trace!("Writing batch");
@@ -232,7 +236,7 @@ async fn ipc_stream_writer(
                                 metrics_arc,
                                 tables_messages_in_progress,
                                 None,
-                                task_id,
+                                archive_tx.clone(),
                             )
                             .await
                         {
@@ -347,6 +351,7 @@ async fn spawn_stream_writer(
     notify_sender: AgentNotifySender,
     spawn_sender: AgentSpawnSender,
     schema: Arc<Schema>,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<PutStreamChannel> {
     let task = controller
         .get(task_id)
@@ -507,6 +512,7 @@ async fn spawn_stream_writer(
                             abort_message_tx,
                             ipc_error_strategy,
                             notify,
+                            archive_tx.clone(),
                         )
                         .in_current_span(),
                     ),
@@ -764,6 +770,19 @@ impl PutStream {
             anyhow::bail!("Invalid IPC stream");
         };
 
+        // the queue for transmitting cache and archived data
+        let (archive_tx, archive_rx) = flume::bounded(0);
+        // spawn a thread to write data to files
+        let consumer = tokio::spawn(async move {
+            ArchiveConsumer::new(self.task_id, None)
+                .consume(archive_rx)
+                .await
+        });
+        let future_consume = async move {
+            consumer.await??;
+            anyhow::Ok(())
+        };
+
         let (tx, abort_message_rx, notify) = spawn_stream_writer(
             self.cluster_id,
             self.task_id,
@@ -772,8 +791,18 @@ impl PutStream {
             self.notify_sender.clone(),
             self.spawn_sender.clone(),
             schema,
+            archive_tx.clone(),
         )
         .await?;
+
+        tokio::select! {
+            res = future_consume => {
+                res?
+            }
+            _ = abort_message_rx.recv_async() => {
+                tracing::info!("IPC stream abort");
+            }
+        };
 
         // 任务的 metrics 在启动任务的时候已经放入全局 Map 中，所以这里一定存在
         let metrics_arc = {

@@ -1,5 +1,7 @@
 use anyhow::bail;
+use arrow_array::RecordBatch;
 use chrono::{Local, NaiveDateTime};
+use flume::Sender;
 use futures_util::TryStreamExt;
 use linked_hash_map::LinkedHashMap;
 use serde_json::json;
@@ -19,7 +21,7 @@ use crate::runners::historian::config::TaskConfig;
 use crate::runners::historian::query::HistorianQuery;
 use crate::runners::historian::worker::{migrate_history, sync_history, sync_live};
 use crate::utils::port_pool::PortPool;
-use crate::{build_ipc, Action, Parser, Transferred};
+use crate::{build_ipc, Action, ArchiveType, Parser, Transferred};
 use worker::column_meta::ColumnMeta;
 
 mod config;
@@ -242,6 +244,7 @@ pub async fn historian_to_taos(
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     assert_driver(&from)?;
     let mut config = TaskConfig::from_dsn(&from)?;
@@ -274,6 +277,7 @@ pub async fn historian_to_taos(
         transferred,
         task_id,
         notify,
+        archive_tx.clone(),
     )
     .await?;
 
@@ -516,7 +520,7 @@ mod tests {
     #[tokio::test]
     async fn test_historian_to_taos() {
         let (tx, _rx) = flume::bounded(1);
-
+        let (archive_tx, _archive_rx) = flume::bounded(0);
         // when
         let res = historian_to_taos(
             "historian://".into_dsn().unwrap(),
@@ -530,6 +534,7 @@ mod tests {
             None,
             None,
             tx,
+            archive_tx.clone(),
         )
         .await;
         // then

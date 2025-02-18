@@ -39,6 +39,7 @@ use datafusion::{
 };
 use either::Either;
 use faststr::FastStr;
+use flume::Sender;
 use handling_strategy::{HandlingResult, ProcessOnAbnormal};
 use itertools::Itertools;
 use modeler::stable::STableModel;
@@ -58,9 +59,9 @@ pub use select::Select;
 use taosx_ipc::prelude::IpcDataType;
 use tracing::instrument;
 
-use crate::global::SQL_TAG_CACHE_CAPACITY;
 use crate::global::TABLE_TAG_CACHE;
-use crate::{plugins::transform::parse::ArrayForTaos, utils::files::write_to_parquet_file};
+use crate::plugins::transform::parse::ArrayForTaos;
+use crate::{global::SQL_TAG_CACHE_CAPACITY, ArchiveType};
 
 use super::expr;
 
@@ -1123,9 +1124,9 @@ impl Parser {
     #[instrument(skip_all)]
     pub fn parse_message_from_records(
         &self,
-        task_id: i64,
         records: &RecordBatch,
         filter_ts: bool,
+        archive_tx: Sender<(ArchiveType, RecordBatch)>,
     ) -> Result<Message, Error> {
         // (ts, value, point_name, ${point_name}, site_controller_id)
         let transformed_batch = self.transform_records(records)?;
@@ -1250,11 +1251,10 @@ impl Parser {
                                 err_timestamp_vec.push(Utc::now().timestamp_nanos_opt().unwrap());
                             }
                             archive_records(
-                                task_id,
-                                &self.global.process_on_abnormal.archive.location,
                                 transformed_batch,
                                 err_vec,
                                 err_timestamp_vec,
+                                archive_tx.clone(),
                             )?;
                             break 'table;
                         }
@@ -1403,11 +1403,10 @@ impl Parser {
                     .collect_vec();
                 let archive_batch = concat_batches(&transformed_batch.schema(), &archive_batches)?;
                 archive_records(
-                    task_id,
-                    &self.global.process_on_abnormal.archive.location,
                     &archive_batch,
                     err_vec,
                     err_timestamp_vec,
+                    archive_tx.clone(),
                 )?;
             }
 
@@ -1747,11 +1746,10 @@ fn generate_table_name(
 /// - err_vec: the error message vector
 /// - err_timestamp_vec: the error timestamp vector
 pub fn archive_records(
-    task_id: i64,
-    location: &String,
     batch: &RecordBatch,
     err_vec: Vec<String>,
     err_timestamp_vec: Vec<i64>,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     if batch.num_rows() > 0 {
         // get fields and columns
@@ -1777,17 +1775,7 @@ pub fn archive_records(
         let new_schema = Arc::new(Schema::new(fields_vec));
         let new_batch = RecordBatch::try_new(new_schema, columns_vec)?;
 
-        match write_to_parquet_file(task_id, location, &new_batch) {
-            Ok(_) => {
-                tracing::debug!("archive records success: {} rows", batch.num_rows());
-            }
-            Err(e) => {
-                tracing::error!(
-                    "archive records failed: {} rows, err: {e:#}",
-                    batch.num_rows()
-                );
-            }
-        }
+        archive_tx.send((ArchiveType::Archive, new_batch))?;
     }
     Ok(())
 }
@@ -3067,8 +3055,8 @@ mod parser_tests {
         println!("{}", json);
     }
 
-    #[test]
-    fn parse_message_from_records_test() -> anyhow::Result<()> {
+    #[tokio::test]
+    async fn parse_message_from_records_test() -> anyhow::Result<()> {
         let parser = json::json!({
             "parse": {
                 "payload": {
@@ -3149,7 +3137,9 @@ mod parser_tests {
             ("ts", timestamps),
             ("value", values),
         ])?;
-        let message = parser.parse_message_from_records(1, &batch, false)?;
+        let (tx, _rx) = flume::bounded(0);
+
+        let message = parser.parse_message_from_records(&batch, false, tx)?;
         let Message::Records(mut records) = message else {
             anyhow::bail!("not records")
         };
@@ -3213,8 +3203,8 @@ mod parser_tests {
         Ok(())
     }
 
-    #[test]
-    fn parse_multi_columns_message_from_records_test() -> anyhow::Result<()> {
+    #[tokio::test]
+    async fn parse_multi_columns_message_from_records_test() -> anyhow::Result<()> {
         let parser = json::json!({
             "parse": {
                 "payload": {
@@ -3312,7 +3302,9 @@ mod parser_tests {
             ("ts", timestamps),
             ("value", values),
         ])?;
-        let message = parser.parse_message_from_records(1, &batch, false)?;
+        let (tx, _rx) = flume::bounded(0);
+
+        let message = parser.parse_message_from_records(&batch, false, tx)?;
         let Message::Records(mut records) = message else {
             anyhow::bail!("not records")
         };
@@ -3426,8 +3418,8 @@ mod parser_tests {
         Ok(())
     }
 
-    #[test]
-    fn parse_multi_pivot_columns_message_from_records_test() -> anyhow::Result<()> {
+    #[tokio::test]
+    async fn parse_multi_pivot_columns_message_from_records_test() -> anyhow::Result<()> {
         let parser = json::json!({
             "parse": {
                 "payload": {
@@ -3563,7 +3555,9 @@ mod parser_tests {
             ("value1", values_1, true),
             ("value2", values_2, true),
         ])?;
-        let message = parser.parse_message_from_records(1, &batch, false)?;
+        let (tx, _rx) = flume::bounded(0);
+
+        let message = parser.parse_message_from_records(&batch, false, tx)?;
         let Message::Records(mut records) = message else {
             anyhow::bail!("not records")
         };
@@ -3739,8 +3733,8 @@ mod parser_tests {
         dbg!(&process);
     }
 
-    #[test]
-    fn test_parse_message_from_records() {
+    #[tokio::test]
+    async fn test_parse_message_from_records() {
         let parser = r#"{
             "global": {
                 "table_name_length_overflow": "archive",
@@ -3756,6 +3750,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
+        let (tx, _rx) = flume::bounded(0);
 
         // test1: normal
         let record = RecordBatch::try_from_iter([
@@ -3767,7 +3762,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        let result = parser.parse_message_from_records(1, &record, true);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
 
         // test2: the length of table name exceeds the limit, and the processing method is 'archive'
@@ -3783,7 +3778,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -3802,7 +3797,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -3819,7 +3814,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -3829,8 +3824,8 @@ mod parser_tests {
         }
     }
 
-    #[test]
-    fn test_table_name_length_overflow() {
+    #[tokio::test]
+    async fn test_table_name_length_overflow() {
         let record = RecordBatch::try_from_iter([
             (
                 "ts",
@@ -3843,6 +3838,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
+        let (tx, _rx) = flume::bounded(0);
 
         // test1: archive
         let parser = r#"{
@@ -3858,7 +3854,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -3881,7 +3877,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -3904,7 +3900,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -3925,7 +3921,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -3948,7 +3944,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -3958,8 +3954,8 @@ mod parser_tests {
         }
     }
 
-    #[test]
-    fn test_table_name_contains_illegal_char() {
+    #[tokio::test]
+    async fn test_table_name_contains_illegal_char() {
         let record = RecordBatch::try_from_iter([
             (
                 "ts",
@@ -3969,6 +3965,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
+        let (tx, _rx) = flume::bounded(0);
 
         // test1: archive
         let parser = r#"{
@@ -3984,7 +3981,8 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4007,7 +4005,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4030,7 +4028,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
@@ -4051,7 +4049,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4104,8 +4102,8 @@ mod parser_tests {
         assert_eq!(variables, vec!["var1", "var2", "var3"]);
     }
 
-    #[test]
-    fn test_variable_not_exist_in_table_name_template() {
+    #[tokio::test]
+    async fn test_variable_not_exist_in_table_name_template() {
         let record = RecordBatch::try_from_iter([
             (
                 "ts",
@@ -4118,6 +4116,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
+        let (tx, _rx) = flume::bounded(0);
 
         // test1: skip
         let parser = r#"{
@@ -4133,7 +4132,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4156,7 +4155,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4179,7 +4178,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, false);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4189,8 +4188,8 @@ mod parser_tests {
         }
     }
 
-    #[test]
-    fn test_primary_timestamp_null_use_current_time() {
+    #[tokio::test]
+    async fn test_primary_timestamp_null_use_current_time() {
         let record = RecordBatch::try_from_iter([
             (
                 "ts",
@@ -4203,6 +4202,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1, 2])) as ArrayRef),
         ])
         .unwrap();
+        let (tx, _rx) = flume::bounded(0);
 
         // test1: use current time
         let parser = r#"{
@@ -4218,7 +4218,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, true);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4230,8 +4230,8 @@ mod parser_tests {
         }
     }
 
-    #[test]
-    fn test_field_name_length_overflow() {
+    #[tokio::test]
+    async fn test_field_name_length_overflow() {
         let record = RecordBatch::try_from_iter([
             (
                 "ts",
@@ -4244,6 +4244,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1, 2])) as ArrayRef),
         ])
         .unwrap();
+        let (tx, _rx) = flume::bounded(0);
 
         // test1: columns empty, use the others not in tags & skip
         let parser = r#"{
@@ -4259,7 +4260,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, true);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4282,7 +4283,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let result = parser.parse_message_from_records(1, &record, true);
+        let result = parser.parse_message_from_records(&record, true, tx.clone());
         assert!(result.is_ok());
         match result.unwrap() {
             Message::Records(vec) => {
@@ -4312,8 +4313,8 @@ mod parser_tests {
         dbg!(parser);
     }
 
-    #[test]
-    fn test_parse_record_to_sql() {
+    #[tokio::test]
+    async fn test_parse_record_to_sql() {
         let parser = r#"{
             "parse": {
                 "value": {"json": ""}
@@ -4361,9 +4362,10 @@ mod parser_tests {
             )
         )
         .unwrap();
+        let (tx, _rx) = flume::bounded(0);
 
         let records = parser
-            .parse_message_from_records(1, &raw_data, false)
+            .parse_message_from_records(&raw_data, true, tx.clone())
             .unwrap();
         // assert_eq!(records.len(), 2);
         if let super::Message::Records(records) = records {
@@ -4398,8 +4400,8 @@ mod parser_tests {
 mod test {
     use super::Parser;
 
-    #[test]
-    fn test_sql_insert_part() {
+    #[tokio::test]
+    async fn test_sql_insert_part() {
         let parser = r#"{
             "parse": {
                 "value": {"json": ""}
@@ -4447,9 +4449,10 @@ mod test {
             )
         )
         .unwrap();
+        let (tx, _rx) = flume::bounded(0);
 
         let records = parser
-            .parse_message_from_records(1, &raw_data, false)
+            .parse_message_from_records(&raw_data, false, tx.clone())
             .unwrap();
 
         if let super::Message::Records(records) = records {
