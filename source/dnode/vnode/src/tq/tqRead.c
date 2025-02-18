@@ -1102,7 +1102,6 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SMqDataRsp* pRsp, SArray* block
   int64_t uid = pSubmitTbData->uid;
   pReader->lastBlkUid = uid;
 
-  int64_t createTime = 0;
   tDeleteSchemaWrapper(pReader->pSchemaWrapper);
   pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1);
   if (pReader->pSchemaWrapper == NULL) {

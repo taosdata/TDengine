@@ -418,15 +418,17 @@ static void preProcessSubmitMsg(STqHandle* pHandle, const SMqPollReq* pRequest, 
       continue;
     }
 
-    int64_t createTime = 0;
+    int64_t createTime = INT64_MAX;
     int64_t *cTime = (int64_t*)taosHashGet(pHandle->tableCreateTimeHash, &uid, LONG_BYTES);
     if (cTime != NULL){
       createTime = *cTime;
     } else{
       createTime = metaGetTableCreateTime(pReader->pVnodeMeta, uid, 1);
-      int32_t code = taosHashPut(pHandle->tableCreateTimeHash, &uid, LONG_BYTES, &createTime, LONG_BYTES);
-      if (code != 0){
-        tqError("failed to add table create time to hash,code:%d, uid:%"PRId64, code, uid);
+      if (createTime != INT64_MAX){
+        int32_t code = taosHashPut(pHandle->tableCreateTimeHash, &uid, LONG_BYTES, &createTime, LONG_BYTES);
+        if (code != 0){
+          tqError("failed to add table create time to hash,code:%d, uid:%"PRId64, code, uid);
+        }
       }
     }
     if (pHandle->fetchMeta == WITH_DATA || pSubmitTbData->ctimeMs > createTime){

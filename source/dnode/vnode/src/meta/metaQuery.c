@@ -457,7 +457,7 @@ int64_t metaGetTableCreateTime(SMeta *pMeta, tb_uid_t uid, int lock) {
   int             nData = 0;
   int64_t         version = 0;
   SDecoder        dc = {0};
-  int64_t         createTime = 0;
+  int64_t         createTime = INT64_MAX;
   if (lock) {
     metaRLock(pMeta);
   }
