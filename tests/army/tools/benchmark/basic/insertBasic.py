@@ -115,7 +115,8 @@ class TDTestCase(TBase):
             sql = f"select `vgroups` from information_schema.ins_databases where name='{db}';"
             tdSql.query(sql)
             if vgroups != None:
-                tdSql.checkData(0, 0, vgroups)
+                tdLog.info(f" vgroups expect={tdSql.getData(0,0)} real={vgroups}")
+                tdSql.checkData(0, 0, vgroups, True)
 
 
     # bugs ts
