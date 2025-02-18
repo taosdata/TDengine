@@ -60,8 +60,8 @@ static Decimal64 SCALE_MULTIPLIER_64[TSDB_DECIMAL64_MAX_PRECISION + 1] = {1LL,
 
 typedef struct DecimalVar {
   DecimalInternalType type;
-  uint8_t             precision;
-  uint8_t             scale;
+  int8_t             precision;
+  int8_t             scale;
   int32_t             exponent;
   int8_t              sign;
   DecimalType*        pDec;
@@ -167,6 +167,14 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
     default:
       break;
   }
+  int32_t pos2 = pos;
+  while(pos2 < len) {
+    if (isdigit(str[pos2] || str[pos] == '.')) continue;
+    if (str[pos2] == 'e' || str[pos2] == 'E') {
+      result->exponent = atoi(str + pos2 + 1);
+    }
+    pos2++;
+  }
 
   for (; pos < len && !stop; ++pos) {
     switch (str[pos]) {
@@ -191,10 +199,10 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
       case '9': {
         leadingZeroes = false;
         ++places;
-        int32_t curPrec = result->precision + places;
+        int32_t curPrec = result->precision + places - result->exponent;
         if (curPrec > maxPrecision(result->type)) {
           if (afterPoint) {
-            if (!rounded && curPrec - 1 == maxPrecision(result->type) && str[pos] - '0' >= 5) {
+            if (!rounded && curPrec - 1 == maxPrecision(result->type) && str[pos] >= '5') {
               Decimal64 delta = {1};
               if (places > 1) {
                 int32_t scaleUp = places - 1;
@@ -214,17 +222,21 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
             return TSDB_CODE_DECIMAL_OVERFLOW;
           }
         } else {
-          result->precision += places;
-          if (afterPoint) {
-            result->scale += places;
-            result->exponent -= places;
+          if (afterPoint && result->precision == 0) {
+            result->precision = places;
+            result->scale = places;
+          } else {
+            result->precision += places;
+            if (afterPoint) {
+              result->scale += places;
+            }
+            while (places != 0) {
+              int32_t curScale = TMIN(17, places);
+              pOps->multiply(result->pDec, &SCALE_MULTIPLIER_64[curScale], WORD_NUM(Decimal64));
+              places -= curScale;
+            }
           }
           Decimal64 digit = {str[pos] - '0'};
-          while (places != 0) {
-            int32_t curScale = TMIN(17, places);
-            pOps->multiply(result->pDec, &SCALE_MULTIPLIER_64[curScale], WORD_NUM(Decimal64));
-            places -= curScale;
-          }
           pOps->add(result->pDec, &digit, WORD_NUM(Decimal64));
           places = 0;
           break;
@@ -232,13 +244,15 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
       }
       case 'e':
       case 'E': {
-          result->exponent += strnatoi(str + pos + 1, len - pos - 1);
+          //result->exponent += atoi(str + pos + 1);
           stop = true;
         } break;
       default:
         stop = true;
         break;
     }
+  }
+  if (rounded) {
   }
   if (result->sign < 0) {
     pOps->negate(result->pDec);
@@ -312,7 +326,7 @@ static void    decimal64ScaleDown(Decimal64* pDec, uint8_t scaleDown);
 static void    decimal64ScaleUp(Decimal64* pDec, uint8_t scaleUp);
 static void    decimal64ScaleTo(Decimal64* pDec, uint8_t oldScale, uint8_t newScale);
 
-static void decimal64RoundWithPositiveScale(Decimal64* pDec, uint8_t prec, uint8_t scale, uint8_t toPrec,
+static void decimal64RoundWithPositiveScale(Decimal64* pDec, uint8_t prec, int8_t scale, uint8_t toPrec,
                                             uint8_t toScale, DecimalRoundType roundType, bool* overflow);
 
 static void    decimal128Negate(DecimalType* pInt);
@@ -1442,8 +1456,15 @@ int32_t convertToDecimal(const void* pData, const SDataType* pInputType, void* p
 
 void decimal64ScaleDown(Decimal64* pDec, uint8_t scaleDown) {
   if (scaleDown > 0) {
-    Decimal64 divisor = SCALE_MULTIPLIER_64[scaleDown];
-    decimal64divide(pDec, &divisor, WORD_NUM(Decimal64), NULL);
+    Decimal64 divisor = SCALE_MULTIPLIER_64[scaleDown], remainder = {0};
+    decimal64divide(pDec, &divisor, WORD_NUM(Decimal64), &remainder);
+    decimal64Abs(&remainder);
+    Decimal64 half = SCALE_MULTIPLIER_64[scaleDown];
+    decimal64divide(&half, &decimal64Two, WORD_NUM(Decimal64), NULL);
+    if (!decimal64Lt(&remainder, &half, WORD_NUM(Decimal64))) {
+      Decimal64 delta = {DECIMAL64_SIGN(pDec)};
+      //decimal64Add(pDec, &delta, WORD_NUM(Decimal64));
+    }
   }
 }
 
@@ -1461,7 +1482,7 @@ static void decimal64ScaleTo(Decimal64* pDec, uint8_t oldScale, uint8_t newScale
     decimal64ScaleDown(pDec, oldScale - newScale);
 }
 
-static void decimal64ScaleAndCheckOverflow(Decimal64* pDec, uint8_t scale, uint8_t toPrec, uint8_t toScale,
+static void decimal64ScaleAndCheckOverflow(Decimal64* pDec, int8_t scale, uint8_t toPrec, uint8_t toScale,
                                            bool* overflow) {
   int8_t deltaScale = toScale - scale;
   if (deltaScale >= 0) {
@@ -1515,7 +1536,7 @@ static int32_t decimal64CountRoundingDelta(const Decimal64* pDec, int8_t scale, 
   return res;
 }
 
-static void decimal64RoundWithPositiveScale(Decimal64* pDec, uint8_t prec, uint8_t scale, uint8_t toPrec,
+static void decimal64RoundWithPositiveScale(Decimal64* pDec, uint8_t prec, int8_t scale, uint8_t toPrec,
                                             uint8_t toScale, DecimalRoundType roundType, bool* overflow) {
   Decimal64 scaled = *pDec;
   bool      overflowLocal = false;
@@ -1559,6 +1580,18 @@ int32_t decimal64FromStr(const char* str, int32_t len, uint8_t expectPrecision, 
   DECIMAL64_SET_VALUE(pRes, 0);
   code = decimalVarFromStr(str, len, &var);
   if (TSDB_CODE_SUCCESS != code) return code;
+  if (var.precision - var.scale + var.exponent - var.scale > expectPrecision - expectScale) {
+    return TSDB_CODE_DECIMAL_OVERFLOW;
+  }
+  if (var.exponent > var.scale) {
+    // e + positive, 小数点需要右移, 右移 var.exponent位
+    //decimal64Multiply(var.pDec, &SCALE_MULTIPLIER_64[var.exponent - var.scale], WORD_NUM(Decimal64));
+    var.scale -= var.exponent;
+  } else if (var.exponent < var.scale) {
+    // e + negative, 小数点需要左移, 左移 var.exponent + var.scale 位
+    //decimal64divide(var.pDec, &SCALE_MULTIPLIER_64[var.scale - var.exponent], WORD_NUM(Decimal64), NULL);
+    var.scale -= var.exponent;
+  }
   bool overflow = false;
   decimal64RoundWithPositiveScale(pRes, var.precision, var.scale, expectPrecision, expectScale,
                                   ROUND_TYPE_HALF_ROUND_UP, &overflow);
