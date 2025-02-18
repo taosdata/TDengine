@@ -733,7 +733,7 @@ function make_linux_pkg() {
         cp -r inc/ ${install_dir}/${clientPackageName}
         
         # cp jemalloc
-        if [ "${versionType}" != "community" ]; then
+        if [ "${versionType}" != "community" ] && [ "$allocator" == "jemalloc" ] ; then
             cp -r jemalloc/ ${install_dir}/${serverPackageName}
         fi
 
