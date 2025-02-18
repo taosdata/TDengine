@@ -667,18 +667,6 @@ void deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLe
   }
 }
 
-int32_t resetRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen) {
-  int32_t code_buff = pFileState->stateBuffRemoveFn(pFileState->rowStateBuff, pKey, keyLen);
-  int32_t code_file = pFileState->stateFileRemoveFn(pFileState, pKey);
-  if (pFileState->searchBuff != NULL) {
-    deleteHashSortRowBuff(pFileState, pKey);
-  }
-  if (code_buff == TSDB_CODE_SUCCESS || code_file == TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_SUCCESS;
-  }
-  return TSDB_CODE_FAILED;
-}
-
 static int32_t recoverSessionRowBuff(SStreamFileState* pFileState, SRowBuffPos* pPos) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -868,10 +856,6 @@ int32_t forceRemoveCheckpoint(SStreamFileState* pFileState, int64_t checkpointId
   return streamDefaultDel_rocksdb(pFileState->pFileStore, keyBuf);
 }
 
-int32_t getSnapshotIdList(SStreamFileState* pFileState, SArray* list) {
-  return streamDefaultIterGet_rocksdb(pFileState->pFileStore, TASK_KEY, NULL, list);
-}
-
 int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark) {
   int32_t code = TSDB_CODE_SUCCESS;
   int64_t maxCheckPointId = 0;
@@ -947,6 +931,7 @@ int32_t recoverSession(SStreamFileState* pFileState, int64_t ckId) {
     }
 
     SRowBuffPos* pPos = createSessionWinBuff(pFileState, &key, pVal, &vlen);
+    pPos->beUsed = false;
     winRes = putSessionWinResultBuff(pFileState, pPos);
     if (winRes != TSDB_CODE_SUCCESS) {
       break;
@@ -1008,6 +993,7 @@ int32_t recoverSnapshot(SStreamFileState* pFileState, int64_t ckId) {
     memcpy(pNewPos->pRowBuff, pVal, vlen);
     taosMemoryFreeClear(pVal);
     pNewPos->beFlushed = true;
+    pNewPos->beUsed = false;
     qDebug("===stream=== read checkpoint state from disc. %s", __func__);
     code = tSimpleHashPut(pFileState->rowStateBuff, pNewPos->pKey, pFileState->keyLen, &pNewPos, POINTER_BYTES);
     if (code != TSDB_CODE_SUCCESS) {
@@ -1090,6 +1076,7 @@ int32_t recoverFillSnapshot(SStreamFileState* pFileState, int64_t ckId) {
 
     if (vlen != pFileState->rowSize) {
       qError("row size mismatch, expect:%d, actual:%d", pFileState->rowSize, vlen);
+      destroyRowBuffPos(pNewPos);
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       taosMemoryFreeClear(pVal);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -1098,6 +1085,7 @@ int32_t recoverFillSnapshot(SStreamFileState* pFileState, int64_t ckId) {
     memcpy(pNewPos->pRowBuff, pVal, vlen);
     taosMemoryFreeClear(pVal);
     pNewPos->beFlushed = true;
+    pNewPos->beUsed = false;
     qDebug("===stream=== read checkpoint state from disc. %s", __func__);
     winRes = tSimpleHashPut(pFileState->rowStateBuff, pNewPos->pKey, pFileState->keyLen, &pNewPos, POINTER_BYTES);
     if (winRes != TSDB_CODE_SUCCESS) {
@@ -1223,11 +1211,9 @@ SSHashObj* getGroupIdCache(SStreamFileState* pFileState) {
   return pFileState->pGroupIdMap;
 }
 
-void setFillInfo(SStreamFileState* pFileState) {
-  pFileState->hasFillCatch = false;
-}
-
 void clearExpiredState(SStreamFileState* pFileState) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  int32_t    lino = 0;
   SSHashObj* pSearchBuff = pFileState->searchBuff;
   void*      pIte = NULL;
   int32_t    iter = 0;
@@ -1246,8 +1232,16 @@ void clearExpiredState(SStreamFileState* pFileState) {
     }
     taosArrayRemoveBatch(pWinStates, 0, size - 1, NULL);
   }
+  code = clearRowBuff(pFileState);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
 }
 
+#ifdef BUILD_NO_CALL
 int32_t getStateSearchRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, void** pVal, int32_t* pVLen,
                            int32_t* pWinCode) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1315,6 +1309,7 @@ _end:
   }
   return code;
 }
+#endif
 
 int32_t getRowStatePrevRow(SStreamFileState* pFileState, const SWinKey* pKey, SWinKey* pResKey, void** ppVal,
                            int32_t* pVLen, int32_t* pWinCode) {

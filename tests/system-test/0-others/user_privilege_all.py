@@ -21,7 +21,7 @@ class TDTestCase:
         self.setsql = TDSetSql()
         # user info
         self.username = 'test'
-        self.password = 'test'
+        self.password = 'test123@#$'
         # db info
         self.dbname = "user_privilege_all_db"
         self.stbname = 'stb'

@@ -163,15 +163,15 @@ class TDTestCase:
             threads.append(threading.Thread(target=clusterComCreate.insert_data, args=(newTdSql, paraDict["dbName"],stableName,paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])))
         
         for i in range(5):
-            clusterComCreate.createUser(newTdSql,f"user{i}",f"pass{i}")
-            userTdSql=tdCom.newTdSql(user=f"user{i}",password=f"pass{i}")
-            clusterComCreate.alterUser(userTdSql,f"user{i}",f"pass{i+1}")
+            clusterComCreate.createUser(newTdSql,f"user{i}",f"passwd@{i}")
+            userTdSql=tdCom.newTdSql(user=f"user{i}",password=f"passwd@{i}")
+            clusterComCreate.alterUser(userTdSql,f"user{i}",f"passwd@{i+1}")
             clusterComCreate.deleteUser(newTdSql,f"user{i}")
         for j in range(5):
             i=100
-            clusterComCreate.createUser(newTdSql,f"user{i}",f"pass{i}")
-            userTdSql=tdCom.newTdSql(user=f"user{i}",password=f"pass{i}")
-            clusterComCreate.alterUser(userTdSql,f"user{i}",f"pass{i+1}")
+            clusterComCreate.createUser(newTdSql,f"user{i}",f"passwd@{i}")
+            userTdSql=tdCom.newTdSql(user=f"user{i}",password=f"passwd@{i}")
+            clusterComCreate.alterUser(userTdSql,f"user{i}",f"passwd@{i+1}")
             clusterComCreate.deleteUser(newTdSql,f"user{i}")
 
         for tr in threads:

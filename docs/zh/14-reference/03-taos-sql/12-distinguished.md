@@ -124,7 +124,7 @@ INTERVAL 子句允许使用 AUTO 关键字来指定窗口偏移量，此时如�
 
 ```sql
 -- 有起始时间限制，从 '2018-10-03 14:38:05' 切分时间窗口
-SELECT COUNT(*) FROM meters WHERE _rowts >= '2018-10-03 14:38:05' INTERVAL (1m， AUTO);
+SELECT COUNT(*) FROM meters WHERE _rowts >= '2018-10-03 14:38:05' INTERVAL (1m, AUTO);
 
 -- 无起始时间限制，不生效，仍以 0 为偏移量
 SELECT COUNT(*) FROM meters WHERE _rowts < '2018-10-03 15:00:00' INTERVAL (1m, AUTO);
@@ -138,6 +138,7 @@ SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
 - 聚合时间段的窗口宽度由关键词 INTERVAL 指定，最短时间间隔 10 毫秒（10a）；并且支持偏移 offset（偏移必须小于间隔），也即时间窗口划分与“UTC 时刻 0”相比的偏移量。SLIDING 语句用于指定聚合时间段的前向增量，也即每次窗口向前滑动的时长。
 - 使用 INTERVAL 语句时，除非极特殊的情况，都要求把客户端和服务端的 taos.cfg 配置文件中的 timezone 参数配置为相同的取值，以避免时间处理函数频繁进行跨时区转换而导致的严重性能影响。
 - 返回的结果中时间序列严格单调递增。
+- 使用 AUTO 作为窗口偏移量时，如果 WHERE 时间条件比较复杂，比如多个 AND/OR/IN 互相组合，那么 AUTO 可能不生效，这种情况可以通过手动指定窗口偏移量进行解决。
 - 使用 AUTO 作为窗口偏移量时，如果窗口宽度的单位是 d (天), n (月), w (周), y (年)，比如: INTERVAL(1d, AUTO), INTERVAL(3w, AUTO)，此时 TSMA 优化无法生效。如果目标表上手动创建了TSMA，语句会报错退出；这种情况下，可以显式指定 Hint SKIP_TSMA 或者不使用 AUTO 作为窗口偏移量。
 
 ### 状态窗口

@@ -26,9 +26,9 @@
     (pDst)->fldname = (pSrc)->fldname; \
   } while (0)
 
-#define COPY_CHAR_ARRAY_FIELD(fldname)        \
-  do {                                        \
-    strcpy((pDst)->fldname, (pSrc)->fldname); \
+#define COPY_CHAR_ARRAY_FIELD(fldname)                                   \
+  do {                                                                   \
+    tstrncpy((pDst)->fldname, (pSrc)->fldname, sizeof((pDst)->fldname)); \
   } while (0)
 
 #define COPY_OBJECT_FIELD(fldname, size)                  \
@@ -52,7 +52,7 @@
     if (NULL == (pSrc)->fldname) {                                      \
       break;                                                            \
     }                                                                   \
-    int32_t code = nodesCloneNode((pSrc)->fldname, &((pDst)->fldname)); \
+    int32_t code = nodesCloneNode((SNode*)(pSrc)->fldname, (SNode**)&((pDst)->fldname)); \
     if (NULL == (pDst)->fldname) {                                      \
       return code;                                                      \
     }                                                                   \
@@ -102,6 +102,9 @@ static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   COPY_OBJECT_FIELD(resType, sizeof(SDataType));
   COPY_CHAR_ARRAY_FIELD(aliasName);
   COPY_CHAR_ARRAY_FIELD(userAlias);
+  COPY_SCALAR_FIELD(asAlias);
+  COPY_SCALAR_FIELD(asParam);
+  COPY_SCALAR_FIELD(asPosition);
   COPY_SCALAR_FIELD(projIdx);
   return TSDB_CODE_SUCCESS;
 }
@@ -343,8 +346,8 @@ static int32_t orderByExprNodeCopy(const SOrderByExprNode* pSrc, SOrderByExprNod
 }
 
 static int32_t limitNodeCopy(const SLimitNode* pSrc, SLimitNode* pDst) {
-  COPY_SCALAR_FIELD(limit);
-  COPY_SCALAR_FIELD(offset);
+  CLONE_NODE_FIELD(limit);
+  CLONE_NODE_FIELD(offset);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -836,6 +839,44 @@ static int32_t physiProjectCopy(const SProjectPhysiNode* pSrc, SProjectPhysiNode
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t dataSinkNodeCopy(const SDataSinkNode* pSrc, SDataSinkNode* pDst) {
+  CLONE_NODE_FIELD_EX(pInputDataBlockDesc, SDataBlockDescNode*);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t physiDispatchCopy(const SDataDispatcherNode* pSrc, SDataDispatcherNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(sink, dataSinkNodeCopy);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t physiInserterCopy(const SDataInserterNode* pSrc, SDataInserterNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(sink, dataSinkNodeCopy);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t physiQueryInserterCopy(const SQueryInserterNode* pSrc, SQueryInserterNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(sink, dataSinkNodeCopy);
+  CLONE_NODE_LIST_FIELD(pCols);
+  COPY_SCALAR_FIELD(tableId);
+  COPY_SCALAR_FIELD(stableId);
+  COPY_SCALAR_FIELD(tableType);
+  COPY_CHAR_ARRAY_FIELD(tableName);
+  COPY_SCALAR_FIELD(vgId);
+  COPY_OBJECT_FIELD(epSet, sizeof(SEpSet));
+  COPY_SCALAR_FIELD(explain);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t physiDeleterCopy(const SDataDeleterNode* pSrc, SDataDeleterNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(sink, dataSinkNodeCopy);
+  COPY_SCALAR_FIELD(tableId);
+  COPY_SCALAR_FIELD(tableType);
+  COPY_CHAR_ARRAY_FIELD(tableFName);
+  COPY_CHAR_ARRAY_FIELD(tsColName);
+  COPY_OBJECT_FIELD(deleteTimeRange, sizeof(STimeWindow));
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t dataBlockDescCopy(const SDataBlockDescNode* pSrc, SDataBlockDescNode* pDst) {
   COPY_SCALAR_FIELD(dataBlockId);
   CLONE_NODE_LIST_FIELD(pSlots);
@@ -858,7 +899,7 @@ static int32_t downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstre
   COPY_OBJECT_FIELD(addr, sizeof(SQueryNodeAddr));
   COPY_SCALAR_FIELD(clientId);
   COPY_SCALAR_FIELD(taskId);
-  COPY_SCALAR_FIELD(schedId);
+  COPY_SCALAR_FIELD(sId);
   COPY_SCALAR_FIELD(execId);
   COPY_SCALAR_FIELD(fetchMsgType);
   COPY_SCALAR_FIELD(localExec);
@@ -1090,6 +1131,18 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       code = physiProjectCopy((const SProjectPhysiNode*)pNode, (SProjectPhysiNode*)pDst);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:  
+      code = physiDispatchCopy((const SDataDispatcherNode*)pNode, (SDataDispatcherNode*)pDst);
+      break;
+    //case QUERY_NODE_PHYSICAL_PLAN_INSERT:
+    //  code = physiInserterCopy((const SDataInserterNode*)pNode, (SDataInserterNode*)pDst);
+    //  break;
+    case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
+      code = physiQueryInserterCopy((const SQueryInserterNode*)pNode, (SQueryInserterNode*)pDst);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_DELETE:
+      code = physiDeleterCopy((const SDataDeleterNode*)pNode, (SDataDeleterNode*)pDst);
       break;
     default:
       break;

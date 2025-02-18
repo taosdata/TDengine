@@ -40,9 +40,9 @@ class TDTestCase(TBase):
     def test_common_user_privileges(self):
         self.prepare_data()
         # create user
-        self.create_user("test", "test")
+        self.create_user("test", "test12@#*")
         # check user 'test' privileges
-        testconn = taos.connect(user='test', password='test')
+        testconn = taos.connect(user='test', password='test12@#*')
         cursor = testconn.cursor()
         testSql = TDSql()
         testSql.init(cursor)
@@ -87,9 +87,9 @@ class TDTestCase(TBase):
     def test_common_user_with_createdb_privileges(self):
         self.prepare_data()
         # create user
-        self.create_user("test", "test")
+        self.create_user("test", "test12@#*")
         # check user 'test' privileges
-        testconn = taos.connect(user='test', password='test')
+        testconn = taos.connect(user='test', password='test12@#*')
         cursor = testconn.cursor()
         testSql = TDSql()
         testSql.init(cursor)
@@ -133,8 +133,8 @@ class TDTestCase(TBase):
         testSql.checkRows(2)
 
         # create another user 'test1'
-        self.create_user("test1", "test1")
-        test1conn = taos.connect(user='test1', password='test1')
+        self.create_user("test1", "test12@#*^%")
+        test1conn = taos.connect(user='test1', password='test12@#*^%')
         cursor1 = test1conn.cursor()
         test1Sql = TDSql()
         test1Sql.init(cursor1)

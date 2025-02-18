@@ -19,6 +19,7 @@ import inspect
 import importlib
 import traceback
 from util.log import *
+import platform
 
 
 class TDCase:
@@ -146,5 +147,42 @@ class TDCases:
 
         tdLog.notice("total %d Cluster test case(s) executed" % (runNum))
 
+    def getTaosBenchmarkPath(self, tool="taosBenchmark"):
+        if (platform.system().lower() == 'windows'):
+            tool = tool + ".exe"
+        selfPath = os.path.dirname(os.path.realpath(__file__))
 
+        if "community" in selfPath:
+            projPath = selfPath[: selfPath.find("community")]
+        else:
+            projPath = selfPath[: selfPath.find("tests")]
+
+        paths = []
+        for root, dirs, files in os.walk(projPath):
+            if (tool) in files:
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if "packaging" not in rootRealPath:
+                    paths.append(os.path.join(root, tool))
+                    break
+        if len(paths) == 0:
+            tdLog.exit("taosBenchmark not found!")
+            return
+        else:
+            tdLog.info("taosBenchmark found in %s" % paths[0])
+            return paths[0]
+        
+    def taosBenchmarkExec(self, param):
+        buildPath = tdCases.getTaosBenchmarkPath()
+
+        if (platform.system().lower() == 'windows'):
+            cmdStr1 = ' mintty -h never %s %s '%(buildPath, param)
+            tdLog.info(cmdStr1)
+            os.system(cmdStr1)
+        else:
+            cmdStr1 = '%s %s &'%(buildPath, param)
+            tdLog.info(cmdStr1)
+            os.system(cmdStr1)
+            
+        time.sleep(5)
+       
 tdCases = TDCases()

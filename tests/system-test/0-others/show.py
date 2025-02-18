@@ -288,7 +288,7 @@ class TDTestCase:
         vals = ['9223372036854775807', '9223372036854775807.1', '9223372036854775806', '9223372036854775808', '9223372036854775808.1', '9223372036854775807.0', '9223372036854775806.1']
         expected_vals = ['9223372036854775807', 'err', '9223372036854775806', 'err', 'err', 'err', 'err']
         for val_str, expected_val in zip(vals, expected_vals):
-            sql = f'ALTER dnode 1 "{var}" "{val_str}"'
+            sql = f'ALTER all dnodes "{var}" "{val_str}"'
             if expected_val == 'err':
                 tdSql.error(sql)
             else:

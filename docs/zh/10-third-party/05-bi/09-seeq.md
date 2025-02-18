@@ -8,16 +8,11 @@ Seeq 是制造业和工业互联网（IIOT）高级分析软件。Seeq 支持在
 
 通过 TDengine Java connector， Seeq 可以轻松支持查询 TDengine 提供的时序数据，并提供数据展现、分析、预测等功能。
 
-## Seeq 安装方法
+## 前置条件
 
-从 [Seeq 官网](https://www.seeq.com/customer-download)下载相关软件，例如 Seeq Server 和 Seeq Data Lab 等。Seeq Data Lab 需要安装在和 Seeq Server 不同的服务器上，并通过配置和 Seeq Server 互联。详细安装配置指令参见[Seeq 知识库]( https://support.seeq.com/kb/latest/cloud/)。
+- Seeq 已经安装。从 [Seeq 官网](https://www.seeq.com/customer-download)下载相关软件，例如 Seeq Server 和 Seeq Data Lab 等。Seeq Data Lab 需要安装在和 Seeq Server 不同的服务器上，并通过配置和 Seeq Server 互联。详细安装配置指令参见[Seeq 知识库]( https://support.seeq.com/kb/latest/cloud/)。
 
-### TDengine 本地实例安装方法
-
-请参考[官网文档](../../../get-started)。 
-
-### TDengine Cloud 访问方法
-如果使用 Seeq 连接 TDengine Cloud，请在 https://cloud.taosdata.com 申请帐号并登录查看如何访问 TDengine Cloud。
+- TDengine 本地实例已安装。 请参考[官网文档](../../../get-started)。 若使用 TDengine Cloud，请在 https://cloud.taosdata.com 申请帐号并登录查看如何访问 TDengine Cloud。
 
 ## 配置 Seeq 访问 TDengine
 

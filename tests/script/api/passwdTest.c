@@ -267,7 +267,7 @@ void createUsers(TAOS *taos, const char *host, char *qstr) {
     }
 
     // alter pass for users
-    sprintf(qstr, "alter user %s pass 'taos'", users[i]);
+    sprintf(qstr, "alter user %s pass 'taos@123'", users[i]);
     queryDB(taos, qstr);
   }
 }
@@ -302,7 +302,7 @@ void passVerTestMulti(const char *host, char *qstr) {
   queryDB(taos[0], "create table if not exists demo2.stb (ts timestamp, c1 int) tags(t1 int)");
   queryDB(taos[0], "create table if not exists demo3.stb (ts timestamp, c1 int) tags(t1 int)");
 
-  strcpy(qstr, "alter user root pass 'taos'");
+  strcpy(qstr, "alter user root pass 'taos@123'");
   queryDB(taos[0], qstr);
 
   // calculate the nPassVerNotified for root and users
@@ -345,7 +345,7 @@ void sysInfoTest(TAOS *taosRoot, const char *host, char *qstr) {
   char  userName[USER_LEN] = "user0";
 
   for (int i = 0; i < nRoot; ++i) {
-    taos[i] = taos_connect(host, "user0", "taos", NULL, 0);
+    taos[i] = taos_connect(host, "user0", "taos@123", NULL, 0);
     if (taos[i] == NULL) {
       fprintf(stderr, "failed to connect to server, reason:%s\n", "null taos" /*taos_errstr(taos)*/);
       exit(1);
@@ -427,7 +427,7 @@ _loop:
   printf("\n\n%s:%d LOOP %d, nTestUsers:%d\n", __func__, __LINE__, nLoop, nTestUsers);
   for (int i = 0; i < nTestUsers; ++i) {
     // sprintf(users[i], "user%d", i);
-    taosu[i] = taos_connect(host, users[i], "taos", NULL, 0);
+    taosu[i] = taos_connect(host, users[i], "taos@123", NULL, 0);
     if (taosu[i] == NULL) {
       printf("failed to connect to server, user:%s, reason:%s\n", users[i], "null taos" /*taos_errstr(taos)*/);
       exit(1);
@@ -476,7 +476,7 @@ _loop:
     nUserDropped = 0;
     for (int i = 0; i < nTestUsers; ++i) {
       sprintf(users[i], "user%d", i);
-      sprintf(qstr, "CREATE USER %s PASS 'taos'", users[i]);
+      sprintf(qstr, "CREATE USER %s PASS 'taos@123'", users[i]);
       fprintf(stderr, "%s:%d create user:%s\n", __func__, __LINE__, users[i]);
       queryDB(taos, qstr);
     }

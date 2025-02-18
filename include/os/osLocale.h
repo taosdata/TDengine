@@ -28,9 +28,9 @@ extern "C" {
 #define setlocale SETLOCALE_FUNC_TAOS_FORBID
 #endif
 
-char *taosCharsetReplace(char *charsetstr);
-void  taosGetSystemLocale(char *outLocale, char *outCharset);
-int32_t  taosSetSystemLocale(const char *inLocale, const char *inCharSet);
+char   *taosCharsetReplace(char *charsetstr);
+void    taosGetSystemLocale(char *outLocale, char *outCharset);
+int32_t taosSetSystemLocale(const char *inLocale);
 
 #ifdef __cplusplus
 }

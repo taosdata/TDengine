@@ -11,6 +11,12 @@ TARGET_LINK_LIBRARIES(
         os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
 )
 
+ADD_EXECUTABLE(connectOptionsTest connectOptionsTest.cpp)
+TARGET_LINK_LIBRARIES(
+        connectOptionsTest
+        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+)
+
 ADD_EXECUTABLE(tmqTest tmqTest.cpp)
 TARGET_LINK_LIBRARIES(
         tmqTest
@@ -35,8 +41,26 @@ TARGET_LINK_LIBRARIES(
         PUBLIC ${TAOS_LIB}
 )
 
+ADD_EXECUTABLE(stmt2Test stmt2Test.cpp)
+TARGET_LINK_LIBRARIES(
+        stmt2Test
+        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+)
+
+ADD_EXECUTABLE(stmtTest stmtTest.cpp)
+TARGET_LINK_LIBRARIES(
+        stmtTest
+        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+)
+
 TARGET_INCLUDE_DIRECTORIES(
         clientTest
+        PUBLIC "${TD_SOURCE_DIR}/include/client/"
+        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        connectOptionsTest
         PUBLIC "${TD_SOURCE_DIR}/include/client/"
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
@@ -45,6 +69,18 @@ IF(${TD_LINUX})
         add_test(
                 NAME clientTest
                 COMMAND clientTest
+        )
+        add_test(
+                NAME connectOptionsTest
+                COMMAND connectOptionsTest
+        )
+        add_test(
+                NAME stmt2Test
+                COMMAND stmt2Test
+        )
+        add_test(
+                NAME stmtTest
+                COMMAND stmtTest
         )
 ENDIF ()
 
@@ -65,6 +101,20 @@ TARGET_INCLUDE_DIRECTORIES(
 #        PUBLIC "${TD_SOURCE_DIR}/include/client/"
 #        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 #)
+
+TARGET_INCLUDE_DIRECTORIES(
+        stmt2Test
+        PUBLIC "${TD_SOURCE_DIR}/include/client/"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/geometry"
+        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        stmtTest
+        PUBLIC "${TD_SOURCE_DIR}/include/client/"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/geometry"
+        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+)
 
 add_test(
         NAME smlTest

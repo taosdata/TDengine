@@ -57,9 +57,9 @@ const static uint8_t BIT2_MAP[4] = {0b11111100, 0b11110011, 0b11001111, 0b001111
 #define ONE               ((uint8_t)1)
 #define THREE             ((uint8_t)3)
 #define DIV_8(i)          ((i) >> 3)
-#define MOD_8(i)          ((i) & 7)
+#define MOD_8(i)          ((i)&7)
 #define DIV_4(i)          ((i) >> 2)
-#define MOD_4(i)          ((i) & 3)
+#define MOD_4(i)          ((i)&3)
 #define MOD_4_TIME_2(i)   (MOD_4(i) << 1)
 #define BIT1_SIZE(n)      (DIV_8((n)-1) + 1)
 #define BIT2_SIZE(n)      (DIV_4((n)-1) + 1)
@@ -154,7 +154,7 @@ int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
 void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remove
-int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf);
+int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf, void *charsetCxt);
 
 // SColData ================================
 typedef struct {
@@ -182,7 +182,7 @@ void    tColDataClear(SColData *pColData);
 void    tColDataDeepClear(SColData *pColData);
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
 int32_t tColDataUpdateValue(SColData *pColData, SColVal *pColVal, bool forward);
-void    tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
+int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
 uint8_t tColDataGetBitValue(const SColData *pColData, int32_t iVal);
 int32_t tColDataCopy(SColData *pColDataFrom, SColData *pColData, xMallocFn xMalloc, void *arg);
 void    tColDataArrGetRowKey(SColData *aColData, int32_t nColData, int32_t iRow, SRowKey *key);
@@ -201,8 +201,10 @@ int32_t tColDataSortMerge(SArray **arr);
 int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t bytes, int32_t nRows, char *lengthOrbitmap,
                                     char *data);
 // for encode/decode
-int32_t tPutColData(uint8_t version, uint8_t *pBuf, SColData *pColData);
-int32_t tGetColData(uint8_t version, uint8_t *pBuf, SColData *pColData);
+int32_t tEncodeColData(uint8_t version, SEncoder *pEncoder, SColData *pColData);
+int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData);
+int32_t tEncodeRow(SEncoder *pEncoder, SRow *pRow);
+int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow);
 
 // STRUCT ================================
 struct STColumn {
@@ -378,7 +380,7 @@ typedef struct {
   TAOS_MULTI_BIND *bind;
 } SBindInfo;
 int32_t tRowBuildFromBind(SBindInfo *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                          SArray *rowArray);
+                          SArray *rowArray, bool *pOrdered, bool *pDupTs);
 
 // stmt2 binding
 int32_t tColDataAddValueByBind2(SColData *pColData, TAOS_STMT2_BIND *pBind, int32_t buffMaxLen, initGeosFn igeos,
@@ -392,7 +394,7 @@ typedef struct {
 } SBindInfo2;
 
 int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
-                           SArray *rowArray);
+                           SArray *rowArray, bool *pOrdered, bool *pDupTs);
 
 #endif
 

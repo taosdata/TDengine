@@ -14,26 +14,45 @@ ENDIF()
 
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
 
-# osTests
-add_executable(osTests "osTests.cpp")
-target_link_libraries(osTests os util gtest_main)
+if(TD_LINUX)
+add_executable(osAtomicTests "osAtomicTests.cpp")
+target_link_libraries(osAtomicTests os util gtest_main)
 add_test(
-    NAME osTests
-    COMMAND osTests
+    NAME osAtomicTests
+    COMMAND osAtomicTests
 )
+endif()
 
-add_executable(osSystemTests "osSystemTests.cpp")
-target_link_libraries(osSystemTests os util gtest_main)
+if(TD_LINUX)
+add_executable(osDirTests "osDirTests.cpp")
+target_link_libraries(osDirTests os util gtest_main)
 add_test(
-    NAME osSystemTests
-    COMMAND osSystemTests
+    NAME osDirTests
+    COMMAND osDirTests
 )
+endif()
+
+if(TD_LINUX)
+add_executable(osEnvTests "osEnvTests.cpp")
+target_link_libraries(osEnvTests os util gtest_main)
+add_test(
+    NAME osEnvTests
+    COMMAND osEnvTests
+)
+endif()
 
 add_executable(osMathTests "osMathTests.cpp")
 target_link_libraries(osMathTests os util gtest_main)
 add_test(
     NAME osMathTests
     COMMAND osMathTests
+)
+
+add_executable(osSemaphoreTests "osSemaphoreTests.cpp")
+target_link_libraries(osSemaphoreTests os util gtest_main)
+add_test(
+    NAME osSemaphoreTests
+    COMMAND osSemaphoreTests
 )
 
 add_executable(osSignalTests "osSignalTests.cpp")
@@ -57,12 +76,28 @@ add_test(
     COMMAND osStringTests
 )
 
+add_executable(osTests "osTests.cpp")
+target_link_libraries(osTests os util gtest_main)
+add_test(
+    NAME osTests
+    COMMAND osTests
+)
+
+add_executable(osSystemTests "osSystemTests.cpp")
+target_link_libraries(osSystemTests os util gtest_main)
+add_test(
+    NAME osSystemTests
+    COMMAND osSystemTests
+)
+
+if(TD_LINUX)
 add_executable(osThreadTests "osThreadTests.cpp")
 target_link_libraries(osThreadTests os util gtest_main)
 add_test(
     NAME osThreadTests
     COMMAND osThreadTests
 )
+endif()
 
 add_executable(osTimeTests "osTimeTests.cpp")
 target_link_libraries(osTimeTests os util gtest_main)
@@ -71,16 +106,3 @@ add_test(
     COMMAND osTimeTests
 )
 
-add_executable(osAtomicTests "osAtomicTests.cpp")
-target_link_libraries(osAtomicTests os util gtest_main)
-add_test(
-    NAME osAtomicTests
-    COMMAND osAtomicTests
-)
-
-add_executable(osSemaphoreTests "osSemaphoreTests.cpp")
-target_link_libraries(osSemaphoreTests os util gtest_main)
-add_test(
-    NAME osSemaphoreTests
-    COMMAND osSemaphoreTests
-)

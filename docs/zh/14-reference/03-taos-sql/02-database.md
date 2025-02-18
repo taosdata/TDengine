@@ -64,9 +64,10 @@ database_option: {
 - DURATION：数据文件存储数据的时间跨度。可以使用加单位的表示形式，如 DURATION 100h、DURATION 10d 等，支持 m（分钟）、h（小时）和 d（天）三个单位。不加时间单位时默认单位为天，如 DURATION 50 表示 50 天。
 - MAXROWS：文件块中记录的最大条数，默认为 4096 条。
 - MINROWS：文件块中记录的最小条数，默认为 100 条。
-- KEEP：表示数据文件保存的天数，缺省值为 3650，取值范围 [1, 365000]，且必须大于或等于 3 倍的 DURATION 参数值。数据库会自动删除保存时间超过 KEEP 值的数据从而释放存储空间。KEEP 可以使用加单位的表示形式，如 KEEP 100h、KEEP 10d 等，支持 m（分钟）、h（小时）和 d（天）三个单位。也可以不写单位，如 KEEP 50，此时默认单位为天。企业版支持[多级存储](https://docs.taosdata.com/tdinternal/arch/#%E5%A4%9A%E7%BA%A7%E5%AD%98%E5%82%A8)功能, 因此, 可以设置多个保存时间（多个以英文逗号分隔，最多 3 个，满足 keep 0 \<= keep 1 \<= keep 2，如 KEEP 100h,100d,3650d）; 社区版不支持多级存储功能（即使配置了多个保存时间, 也不会生效, KEEP 会取最大的保存时间）。了解更多，请点击 [关于主键时间戳](https://docs.taosdata.com/reference/taos-sql/insert/)
+- KEEP：表示数据文件保存的天数，缺省值为 3650，取值范围 [1, 365000]，且必须大于或等于 3 倍的 DURATION 参数值。数据库会自动删除保存时间超过 KEEP 值的数据从而释放存储空间。KEEP 可以使用加单位的表示形式，如 KEEP 100h、KEEP 10d 等，支持 m（分钟）、h（小时）和 d（天）三个单位。也可以不写单位，如 KEEP 50，此时默认单位为天。企业版支持[多级存储](../../operation/planning/#%E5%A4%9A%E7%BA%A7%E5%AD%98%E5%82%A8)功能, 因此, 可以设置多个保存时间（多个以英文逗号分隔，最多 3 个，满足 keep 0 \<= keep 1 \<= keep 2，如 KEEP 100h,100d,3650d）; 社区版不支持多级存储功能（即使配置了多个保存时间, 也不会生效, KEEP 会取最大的保存时间）。了解更多，请点击 [关于主键时间戳](https://docs.taosdata.com/reference/taos-sql/insert/)
+
 - KEEP_TIME_OFFSET：自 3.2.0.0 版本生效。删除或迁移保存时间超过 KEEP 值的数据的延迟执行时间，默认值为 0 (小时)。在数据文件保存时间超过 KEEP 后，删除或迁移操作不会立即执行，而会额外等待本参数指定的时间间隔，以实现与业务高峰期错开的目的。
-- STT_TRIGGER：表示落盘文件触发文件合并的个数。开源版本固定为 1，企业版本可设置范围为 1 到 16。对于少表高频写入场景，此参数建议使用默认配置；而对于多表低频写入场景，此参数建议配置较大的值。
+- STT_TRIGGER：表示落盘文件触发文件合并的个数。对于少表高频写入场景，此参数建议使用默认配置；而对于多表低频写入场景，此参数建议配置较大的值。
 - SINGLE_STABLE：表示此数据库中是否只可以创建一个超级表，用于超级表列非常多的情况。
   - 0：表示可以创建多张超级表。
   - 1：表示只可以创建一张超级表。
@@ -135,19 +136,15 @@ alter_database_option: {
 
 1. 如何查看 cachesize?
 
-通过 select * from information_schema.ins_databases; 可以查看这些 cachesize 的具体值。
+通过 select * from information_schema.ins_databases; 可以查看这些 cachesize 的具体值（单位为 MB）。。
 
 2. 如何查看 cacheload?
 
-通过 show \<db_name>.vgroups; 可以查看 cacheload
+通过 show \<db_name>.vgroups; 可以查看 cacheload（单位为字节）。
 
 3. 判断 cachesize 是否够用
 
 如果 cacheload 非常接近 cachesize，则 cachesize 可能过小。 如果 cacheload 明显小于 cachesize 则 cachesize 是够用的。可以根据这个原则判断是否需要修改 cachesize 。具体修改值可以根据系统可用内存情况来决定是加倍或者是提高几倍。
-
-4. stt_trigger
-
-在修改 stt_trigger 参数之前请先停止数据库写入。
 
 :::note
 其它参数在 3.0.0.0 中暂不支持修改
@@ -208,7 +205,7 @@ REDISTRIBUTE VGROUP vgroup_no DNODE dnode_id1 [DNODE dnode_id2] [DNODE dnode_id3
 BALANCE VGROUP LEADER
 ```
 
-触发集群所有 vgroup 中的 leader 重新选主，对集群各节点进行负载再均衡操作。
+触发集群所有 vgroup 中的 leader 重新选主，对集群各节点进行负载再均衡操作。（企业版功能）
 
 ## 查看数据库工作状态
 
@@ -218,7 +215,7 @@ SHOW db_name.ALIVE;
 
 查询数据库 db_name 的可用状态，返回值 0：不可用 1：完全可用 2：部分可用（即数据库包含的 VNODE 部分节点可用，部分节点不可用）
 
-## 查看DB 的磁盘空间占用
+## 查看 DB 的磁盘空间占用
 
 ```sql 
 select * from  INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db_name'   
@@ -231,7 +228,4 @@ SHOW db_name.disk_info;
 查看数据库 db_name 的数据压缩压缩率和数据在磁盘上所占用的大小
 
 该命令本质上等同于 `select sum(data1 + data2 + data3)/sum(raw_data), sum(data1 + data2 + data3) from information_schema.ins_disk_usage where db_name="dbname"`
-
-
-
 

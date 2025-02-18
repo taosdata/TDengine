@@ -42,11 +42,12 @@ extern "C" {
 #define SHOW_CREATE_VIEW_RESULT_FIELD1_LEN (TSDB_VIEW_FNAME_LEN + 4 + VARSTR_HEADER_SIZE)
 #define SHOW_CREATE_VIEW_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN + VARSTR_HEADER_SIZE)
 
-#define SHOW_LOCAL_VARIABLES_RESULT_COLS       4
+#define SHOW_LOCAL_VARIABLES_RESULT_COLS       5
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_PATH_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD3_LEN (TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE)
-#define SHOW_LOCAL_VARIABLES_RESULT_FIELD4_LEN (TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_LOCAL_VARIABLES_RESULT_FIELD4_LEN (TSDB_CONFIG_CATEGORY_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_LOCAL_VARIABLES_RESULT_FIELD5_LEN (TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE)
 
 #define COMPACT_DB_RESULT_COLS       3
 #define COMPACT_DB_RESULT_FIELD1_LEN 32
@@ -81,6 +82,7 @@ typedef struct SDatabaseOptions {
   int32_t     minRowsPerBlock;
   SNodeList*  pKeep;
   int64_t     keep[3];
+  SValueNode* pKeepTimeOffsetNode;
   int32_t     keepTimeOffset;
   int32_t     pages;
   int32_t     pagesize;
@@ -110,6 +112,16 @@ typedef struct SDatabaseOptions {
   SValueNode* s3KeepLocalStr;
   int8_t      s3Compact;
   int8_t      withArbitrator;
+  // for auto-compact
+  int32_t     compactTimeOffset;  // hours
+  int32_t     compactInterval;    // minutes
+  int32_t     compactStartTime;   // minutes
+  int32_t     compactEndTime;     // minutes
+  SValueNode* pCompactTimeOffsetNode;
+  SValueNode* pCompactIntervalNode;
+  SNodeList*  pCompactTimeRangeList;
+  // for cache
+  SDbCfgInfo* pDbCfg;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -158,6 +170,14 @@ typedef struct SCompactDatabaseStmt {
   SNode*    pStart;
   SNode*    pEnd;
 } SCompactDatabaseStmt;
+
+typedef struct SCompactVgroupsStmt {
+  ENodeType  type;
+  SNode*     pDbName;
+  SNodeList* vgidList;
+  SNode*     pStart;
+  SNode*     pEnd;
+} SCompactVgroupsStmt;
 
 typedef struct STableOptions {
   ENodeType  type;
@@ -420,6 +440,11 @@ typedef struct SShowCompactDetailsStmt {
   SNode*    pCompactId;
 } SShowCompactDetailsStmt;
 
+typedef struct SShowTransactionDetailsStmt {
+  ENodeType type;
+  SNode*    pTransactionId;
+} SShowTransactionDetailsStmt;
+
 typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT, INDEX_TYPE_NORMAL } EIndexType;
 
 typedef struct SIndexOptions {
@@ -542,19 +567,45 @@ typedef struct SStreamOptions {
   int64_t   setFlag;
 } SStreamOptions;
 
+typedef enum EStreamNotifyOptionSetFlag {
+  SNOTIFY_OPT_ERROR_HANDLE_SET = BIT_FLAG_MASK(0),
+  SNOTIFY_OPT_NOTIFY_HISTORY_SET = BIT_FLAG_MASK(1),
+} EStreamNotifyOptionSetFlag;
+
+typedef enum EStreamNotifyEventType {
+  SNOTIFY_EVENT_WINDOW_INVALIDATION = 0,
+  SNOTIFY_EVENT_WINDOW_OPEN = BIT_FLAG_MASK(0),
+  SNOTIFY_EVENT_WINDOW_CLOSE = BIT_FLAG_MASK(1),
+} EStreamNotifyEventType;
+
+typedef enum EStreamNotifyErrorHandleType {
+  SNOTIFY_ERROR_HANDLE_PAUSE,
+  SNOTIFY_ERROR_HANDLE_DROP,
+} EStreamNotifyErrorHandleType;
+
+typedef struct SStreamNotifyOptions {
+  ENodeType                    type;
+  SNodeList*                   pAddrUrls;
+  EStreamNotifyEventType       eventTypes;
+  EStreamNotifyErrorHandleType errorHandle;
+  bool                         notifyHistory;
+  EStreamNotifyOptionSetFlag   setFlag;
+} SStreamNotifyOptions;
+
 typedef struct SCreateStreamStmt {
-  ENodeType           type;
-  char                streamName[TSDB_TABLE_NAME_LEN];
-  char                targetDbName[TSDB_DB_NAME_LEN];
-  char                targetTabName[TSDB_TABLE_NAME_LEN];
-  bool                ignoreExists;
-  SStreamOptions*     pOptions;
-  SNode*              pQuery;
-  SNode*              pPrevQuery;
-  SNodeList*          pTags;
-  SNode*              pSubtable;
-  SNodeList*          pCols;
-  SCMCreateStreamReq* pReq;
+  ENodeType             type;
+  char                  streamName[TSDB_TABLE_NAME_LEN];
+  char                  targetDbName[TSDB_DB_NAME_LEN];
+  char                  targetTabName[TSDB_TABLE_NAME_LEN];
+  bool                  ignoreExists;
+  SStreamOptions*       pOptions;
+  SNode*                pQuery;
+  SNode*                pPrevQuery;
+  SNodeList*            pTags;
+  SNode*                pSubtable;
+  SNodeList*            pCols;
+  SStreamNotifyOptions* pNotifyOptions;
+  SCMCreateStreamReq*   pReq;
 } SCreateStreamStmt;
 
 typedef struct SDropStreamStmt {
@@ -575,6 +626,12 @@ typedef struct SResumeStreamStmt {
   bool      ignoreNotExists;
   bool      ignoreUntreated;
 } SResumeStreamStmt;
+
+typedef struct SResetStreamStmt {
+  ENodeType type;
+  char      streamName[TSDB_TABLE_NAME_LEN];
+  bool      ignoreNotExists;
+} SResetStreamStmt;
 
 typedef struct SCreateFunctionStmt {
   ENodeType type;

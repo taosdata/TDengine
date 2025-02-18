@@ -33,6 +33,13 @@ ENDIF()
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/common)
 
+add_executable(heapTest "heapTest.cpp")
+target_link_libraries(heapTest os util gtest_main)
+add_test(
+    NAME heapTest
+    COMMAND heapTest
+)
+
 # arrayTest
 add_executable(arrayTest "arrayTest.cpp")
 target_link_libraries(arrayTest os util gtest_main)
@@ -130,6 +137,10 @@ add_test(
     NAME logTest
     COMMAND logTest
 )
+target_include_directories(
+  logTest
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
 add_executable(decompressTest "decompressTest.cpp")
 target_link_libraries(decompressTest os util common gtest_main)
@@ -137,6 +148,16 @@ add_test(
     NAME decompressTest
     COMMAND decompressTest
 )
+
+
+IF($TD_LINUX)
+    add_executable(utilTests "utilTests.cpp")
+    target_link_libraries(utilTests os util common gtest_main)
+    add_test(
+        NAME utilTests
+        COMMAND utilTests
+    )
+ENDIF()
 
 if(${TD_LINUX})
     # terrorTest
@@ -152,4 +173,13 @@ if(${TD_LINUX})
     add_custom_command(TARGET terrorTest POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ERR_TBL_FILE} $<TARGET_FILE_DIR:terrorTest>
     )
+
+    # memPoolTest
+    add_executable(memPoolTest "memPoolTest.cpp")
+    target_link_libraries(memPoolTest os util common gtest_main)
+    add_test(
+        NAME memPoolTest
+        COMMAND memPoolTest
+    )
+
 endif()

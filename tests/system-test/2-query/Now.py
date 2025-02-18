@@ -41,8 +41,9 @@ class TDTestCase:
         ]
         self.time_unit = ['b','u','a','s','m','h','d','w']
         self.symbol = ['+','-','*','/']
-        self.error_values = [1.5,'abc','"abc"','!@','today()']
+        self.error_values = ['abc','"abc"','!@','today()']
         self.db_percision = ['ms','us','ns']
+        self.test_values = [1.5, 10]
     def tbtype_check(self,tb_type):
         if tb_type == 'normal table' or tb_type == 'child table':
             tdSql.checkRows(len(self.values_list))
@@ -71,6 +72,9 @@ class TDTestCase:
             self.tbtype_check(tb_type)
             for i in range(len(self.values_list)):
                 tdSql.checkData(i,0,None)
+            for param in self.test_values:
+                tdSql.query(f'select now() {symbol}{param} from {tbname}')
+                tdSql.query(f'select 1 {symbol}{param} from {tbname}')
 
     def now_check_ntb(self):
         for time_unit in self.db_percision:

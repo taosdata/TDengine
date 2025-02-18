@@ -37,7 +37,7 @@ extern "C" {
 #define META_HB_CHECK_INTERVAL             200
 #define META_HB_SEND_IDLE_COUNTER          25  // send hb every 5 sec
 #define STREAM_TASK_KEY_LEN                ((sizeof(int64_t)) << 1)
-#define STREAM_TASK_QUEUE_CAPACITY         20480
+#define STREAM_TASK_QUEUE_CAPACITY         5120
 #define STREAM_TASK_QUEUE_CAPACITY_IN_SIZE (30)
 
 // clang-format off
@@ -200,6 +200,7 @@ void    streamTaskInitForLaunchHTask(SHistoryTaskInfo* pInfo);
 void    streamTaskSetRetryInfoForLaunch(SHistoryTaskInfo* pInfo);
 int32_t streamTaskResetTimewindowFilter(SStreamTask* pTask);
 void    streamTaskClearActiveInfo(SActiveCheckpointInfo* pInfo);
+int32_t streamTaskAddIntoNodeUpdateList(SStreamTask* pTask, int32_t nodeId);
 
 void              streamClearChkptReadyMsg(SActiveCheckpointInfo* pActiveInfo);
 EExtractDataCode  streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueItem** pInput, int32_t* numOfBlocks,
@@ -243,9 +244,19 @@ int32_t flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpoi
 int32_t streamCreateSinkResTrigger(SStreamTrigger** pTrigger);
 int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigger, SInterval* pInterval,
                                        STimeWindow* pLatestWindow, const char* id);
+// inject stream errors
+void chkptFailedByRetrieveReqToSource(SStreamTask* pTask, int64_t checkpointId);
 
 // inject stream errors
 void chkptFailedByRetrieveReqToSource(SStreamTask* pTask, int64_t checkpointId);
+
+int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t dbRefId, ECHECKPOINT_BACKUP_TYPE type);
+int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SArray** ppNotSendList);
+int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName);
+int32_t uploadCheckpointToS3(const char* id, const char* path);
+int32_t deleteCheckpointFile(const char* id, const char* name);
+int32_t doCheckBeforeHandleChkptTrigger(SStreamTask* pTask, int64_t checkpointId, SStreamDataBlock* pBlock,
+                                        int32_t transId);
 
 #ifdef __cplusplus
 }

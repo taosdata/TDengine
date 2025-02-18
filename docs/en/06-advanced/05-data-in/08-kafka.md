@@ -109,7 +109,7 @@ In addition, the [Kerberos](https://web.mit.edu/kerberos/) authentication servic
 
 After configuration, you can use the [kcat](https://github.com/edenhill/kcat) tool to verify Kafka topic consumption:
 
-```bash
+```shell
 kcat <topic> \
   -b <kafka-server:port> \
   -G kcat \
@@ -171,14 +171,14 @@ Enter sample data from the Kafka message body in **Message Body**.
 
 JSON data supports JSONObject or JSONArray, and the following data can be parsed using a JSON parser:
 
-``` json
+```json
 {"id": 1, "message": "hello-word"}
 {"id": 2, "message": "hello-word"}
 ```
 
 or
 
-``` json
+```json
 [{"id": 1, "message": "hello-word"},{"id": 2, "message": "hello-word"}]
 ```
 

@@ -250,6 +250,29 @@ int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
   return code;
 }
 
+int32_t qSetStreamNotifyInfo(qTaskInfo_t tinfo, int32_t eventTypes, const SSchemaWrapper* pSchemaWrapper,
+                             const char* stbFullName, bool newSubTableRule, STaskNotifyEventStat* pNotifyEventStat) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SStreamTaskInfo *pStreamInfo = NULL;
+
+  if (tinfo == 0 || eventTypes == 0 || pSchemaWrapper == NULL || stbFullName == NULL) {
+    goto _end;
+  }
+
+  pStreamInfo = &((SExecTaskInfo*)tinfo)->streamInfo;
+  pStreamInfo->eventTypes = eventTypes;
+  pStreamInfo->notifyResultSchema = tCloneSSchemaWrapper(pSchemaWrapper);
+  if (pStreamInfo->notifyResultSchema == NULL) {
+    code = terrno;
+  }
+  pStreamInfo->stbFullName = taosStrdup(stbFullName);
+  pStreamInfo->newSubTableRule = newSubTableRule;
+  pStreamInfo->pNotifyEventStat = pNotifyEventStat;
+
+_end:
+  return code;
+}
+
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
   if (tinfo == NULL) {
     return TSDB_CODE_APP_ERROR;
@@ -441,6 +464,7 @@ static int32_t filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
   }
 
 _end:
+
   pAPI->metaReaderFn.clearReader(&mr);
   (*ppArrayRes) = qa;
 
@@ -468,6 +492,13 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
   }
 
   SStreamScanInfo* pScanInfo = pInfo->info;
+  if (pInfo->pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {  // clear meta cache for subscription if tag is changed
+    for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
+      int64_t*        uid = (int64_t*)taosArrayGet(tableIdList, i);
+      STableScanInfo* pTableScanInfo = pScanInfo->pTableScanOp->info;
+      taosLRUCacheErase(pTableScanInfo->base.metaCache.pTableMetaEntryCache, uid, LONG_BYTES);
+    }
+  }
 
   if (isAdd) {  // add new table id
     SArray* qa = NULL;
@@ -599,6 +630,11 @@ void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
   ((SExecTaskInfo*)tinfo)->paramSet = false;
 }
 
+int32_t qExecutorInit(void) {
+  taosThreadOnce(&initPoolOnce, initRefPool);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, int8_t compressResult, char* sql,
                         EOPTR_EXEC_MODEL model) {
@@ -630,8 +666,18 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
       goto _error;
     }
 
+    SDataSinkNode* pSink = NULL;
+    if (readHandle->localExec) {
+      code = nodesCloneNode((SNode *)pSubplan->pDataSink, (SNode **)&pSink);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("failed to nodesCloneNode, srcType:%d, code:%s, %s", nodeType(pSubplan->pDataSink), tstrerror(code), (*pTask)->id.str);
+        taosMemoryFree(pSinkManager);
+        goto _error;
+      }
+    }
+
     // pSinkParam has been freed during create sinker.
-    code = dsCreateDataSinker(pSinkManager, pSubplan->pDataSink, handle, pSinkParam, (*pTask)->id.str);
+    code = dsCreateDataSinker(pSinkManager, readHandle->localExec ? &pSink : &pSubplan->pDataSink, handle, pSinkParam, (*pTask)->id.str);
     if (code) {
       qError("s-task:%s failed to create data sinker, code:%s", (*pTask)->id.str, tstrerror(code));
     }
@@ -726,7 +772,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
       QUERY_CHECK_CODE(code, lino, _end);
 
       void* tmp = taosArrayPush(pTaskInfo->pResultBlockList, &p1);
-      QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
       p = p1;
     } else {
       void* tmp = taosArrayGet(pTaskInfo->pResultBlockList, blockIndex);
@@ -881,7 +927,7 @@ int32_t qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo
   taosWUnLockLatch(&pTaskInfo->stopInfo.lock);
 
   if (!tmp) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
     return terrno;
   }
   return TSDB_CODE_SUCCESS;
@@ -1570,8 +1616,7 @@ void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   if (pMsg->contLen > 0) {
     buf.pData = taosMemoryCalloc(1, pMsg->contLen);
     if (buf.pData == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
+      pMsg->code = terrno;
     } else {
       memcpy(buf.pData, pMsg->pCont, pMsg->contLen);
     }
@@ -1590,7 +1635,6 @@ SArray* qGetQueriedTableListInfo(qTaskInfo_t tinfo) {
 
   code = getTableListInfo(pTaskInfo, &plist);
   if (code || plist == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 

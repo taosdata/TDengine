@@ -68,7 +68,6 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateFillGetGroupKVByCur = streamStateFillGetGroupKVByCur;
   pStore->streamStateGetKVByCur = streamStateGetKVByCur;
 
-  pStore->streamStateSetFillInfo = streamStateSetFillInfo;
   pStore->streamStateClearExpiredState = streamStateClearExpiredState;
 
   pStore->streamStateSessionAddIfNotExist = streamStateSessionAddIfNotExist;
@@ -98,6 +97,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->updateInfoSerialize = updateInfoSerialize;
   pStore->updateInfoDeserialize = updateInfoDeserialize;
 
+  pStore->streamStateSessionSeekKeyPrev = streamStateSessionSeekKeyPrev;
   pStore->streamStateSessionSeekKeyNext = streamStateSessionSeekKeyNext;
   pStore->streamStateCountSeekKeyPrev = streamStateCountSeekKeyPrev;
   pStore->streamStateSessionSeekKeyCurrentPrev = streamStateSessionSeekKeyCurrentPrev;
@@ -117,7 +117,6 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateBegin = streamStateBegin;
   pStore->streamStateCommit = streamStateCommit;
   pStore->streamStateDestroy = streamStateDestroy;
-  pStore->streamStateDeleteCheckPoint = streamStateDeleteCheckPoint;
   pStore->streamStateReloadInfo = streamStateReloadInfo;
   pStore->streamStateCopyBackend = streamStateCopyBackend;
 }

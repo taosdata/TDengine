@@ -23,6 +23,10 @@ static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   if ((code = dmStartStatusThread(pMgmt)) != 0) {
     return code;
   }
+
+  if ((code = dmStartConfigThread(pMgmt)) != 0) {
+    return code;
+  }
   if ((code = dmStartStatusInfoThread(pMgmt)) != 0) {
     return code;
   }
@@ -48,6 +52,7 @@ static void dmStopMgmt(SDnodeMgmt *pMgmt) {
   dmStopMonitorThread(pMgmt);
   dmStopAuditThread(pMgmt);
   dmStopStatusThread(pMgmt);
+  dmStopConfigThread(pMgmt);
   dmStopStatusInfoThread(pMgmt);
 #if defined(TD_ENTERPRISE)
   dmStopNotifyThread(pMgmt);
@@ -64,6 +69,7 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 
   pMgmt->pData = pInput->pData;
   pMgmt->msgCb = pInput->msgCb;
+  pMgmt->pTfs = pInput->pTfs;
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
   pMgmt->processCreateNodeFp = pInput->processCreateNodeFp;

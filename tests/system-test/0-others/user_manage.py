@@ -80,16 +80,16 @@ class TDTestCase:
         for user_name in ['jiacy1_all', 'jiacy1_read', 'jiacy1_write', 'jiacy1_none', 'jiacy0_all', 'jiacy0_read',
                           'jiacy0_write', 'jiacy0_none']:
             if 'jiacy1' in user_name.lower():
-                tdSql.execute(f'create user {user_name} pass "123" sysinfo 1')
+                tdSql.execute(f'create user {user_name} pass "123abc!@#" sysinfo 1')
             elif 'jiacy0' in user_name.lower():
-                tdSql.execute(f'create user {user_name} pass "123" sysinfo 0')
+                tdSql.execute(f'create user {user_name} pass "123abc!@#" sysinfo 0')
         for user_name in ['jiacy1_all', 'jiacy1_read', 'jiacy0_all', 'jiacy0_read']:
             tdSql.execute(f'grant read on db to {user_name}')
         for user_name in ['jiacy1_all', 'jiacy1_write', 'jiacy0_all', 'jiacy0_write']:
             tdSql.execute(f'grant write on db to {user_name}')
 
     def user_privilege_check(self):
-        jiacy1_read_conn = taos.connect(user='jiacy1_read', password='123')
+        jiacy1_read_conn = taos.connect(user='jiacy1_read', password='123abc!@#')
         sql = "create table ntb (ts timestamp,c0 int)"
         expectErrNotOccured = True
         try:
@@ -107,14 +107,14 @@ class TDTestCase:
         pass
 
     def drop_topic(self):
-        jiacy1_all_conn = taos.connect(user='jiacy1_all', password='123')
-        jiacy1_read_conn = taos.connect(user='jiacy1_read', password='123')
-        jiacy1_write_conn = taos.connect(user='jiacy1_write', password='123')
-        jiacy1_none_conn = taos.connect(user='jiacy1_none', password='123')
-        jiacy0_all_conn = taos.connect(user='jiacy0_all', password='123')
-        jiacy0_read_conn = taos.connect(user='jiacy0_read', password='123')
-        jiacy0_write_conn = taos.connect(user='jiacy0_write', password='123')
-        jiacy0_none_conn = taos.connect(user='jiacy0_none', password='123')
+        jiacy1_all_conn = taos.connect(user='jiacy1_all', password='123abc!@#')
+        jiacy1_read_conn = taos.connect(user='jiacy1_read', password='123abc!@#')
+        jiacy1_write_conn = taos.connect(user='jiacy1_write', password='123abc!@#')
+        jiacy1_none_conn = taos.connect(user='jiacy1_none', password='123abc!@#')
+        jiacy0_all_conn = taos.connect(user='jiacy0_all', password='123abc!@#')
+        jiacy0_read_conn = taos.connect(user='jiacy0_read', password='123abc!@#')
+        jiacy0_write_conn = taos.connect(user='jiacy0_write', password='123abc!@#')
+        jiacy0_none_conn = taos.connect(user='jiacy0_none', password='123abc!@#')
         tdSql.execute('create topic root_db as select * from db.stb')
         for user in [jiacy1_all_conn, jiacy1_read_conn, jiacy0_all_conn, jiacy0_read_conn]:
             user.execute(f'create topic db_jiacy as select * from db.stb')
@@ -149,7 +149,7 @@ class TDTestCase:
         tdSql.execute('create topic db_topic as select * from db.stb')
         tdSql.execute('grant subscribe on db_topic to jiacy1_all')
         print("build consumer")
-        tmq = Consumer({"group.id": "tg2", "td.connect.user": "jiacy1_all", "td.connect.pass": "123",
+        tmq = Consumer({"group.id": "tg2", "td.connect.user": "jiacy1_all", "td.connect.pass": "123abc!@#",
                         "enable.auto.commit": "true"})
         print("build topic list")
         tmq.subscribe(["db_topic"])

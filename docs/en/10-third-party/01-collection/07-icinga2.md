@@ -3,7 +3,7 @@ title: Icinga2
 slug: /third-party-tools/data-collection/icinga2
 ---
 
-import Icinga2 from "./_icinga2.mdx"
+import Icinga2 from "../../assets/resources/_icinga2.mdx"
 
 icinga2 is an open-source host and network monitoring software, originally developed from the Nagios network monitoring application. Currently, icinga2 is released under the GNU GPL v2 license.
 

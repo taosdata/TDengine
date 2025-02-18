@@ -12,19 +12,20 @@ TDengine is configured by default with only one root user, who has the highest p
 Only the root user can perform the operation of creating users, with the syntax as follows.
 
 ```sql
-create user user_name pass'password' [sysinfo {1|0}]
+create user user_name pass'password' [sysinfo {1|0}] [createdb {1|0}]
 ```
 
 The parameters are explained as follows.
 
 - user_name: Up to 23 B long.
-- password: Up to 128 B long, valid characters include letters and numbers as well as special characters other than single and double quotes, apostrophes, backslashes, and spaces, and it cannot be empty.
+- password: The password must be between 8 and 16 characters long and include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters. Special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`.
 - sysinfo: Whether the user can view system information. 1 means they can view it, 0 means they cannot. System information includes server configuration information, various node information such as dnode, query node (qnode), etc., as well as storage-related information, etc. The default is to view system information.
+- createdb: Whether the user can create databases. 1 means they can create databases, 0 means they cannot. The default value is 0. // Supported starting from TDengine Enterprise version 3.3.2.0
 
-The following SQL can create a user named test with the password 123456 who can view system information.
+The following SQL can create a user named test with the password abc123!@# who can view system information.
 
 ```sql
-create user test pass '123456' sysinfo 1
+create user test pass 'abc123!@#' sysinfo 1
 ```
 
 ### Viewing Users
@@ -51,6 +52,7 @@ alter_user_clause: {
  pass 'literal' 
  | enable value 
  | sysinfo value
+ | createdb value
 }
 ```
 
@@ -59,6 +61,7 @@ The parameters are explained as follows.
 - pass: Modify the user's password.
 - enable: Whether to enable the user. 1 means to enable this user, 0 means to disable this user.
 - sysinfo: Whether the user can view system information. 1 means they can view system information, 0 means they cannot.
+- createdb: Whether the user can create databases. 1 means they can create databases, 0 means they cannot. // Supported starting from TDengine Enterprise version 3.3.2.0
 
 The following SQL disables the user test.
 

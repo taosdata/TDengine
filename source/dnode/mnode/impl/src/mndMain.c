@@ -15,11 +15,12 @@
 
 #define _DEFAULT_SOURCE
 #include "mndAcct.h"
-#include "mndArbGroup.h"
 #include "mndAnode.h"
+#include "mndArbGroup.h"
 #include "mndCluster.h"
 #include "mndCompact.h"
 #include "mndCompactDetail.h"
+#include "mndConfig.h"
 #include "mndConsumer.h"
 #include "mndDb.h"
 #include "mndDnode.h"
@@ -254,7 +255,7 @@ static void mndIncreaseUpTime(SMnode *pMnode) {
                       .pCont = pReq,
                       .contLen = contLen,
                       .info.notFreeAhandle = 1,
-                      .info.ahandle = (void *)0x9527};
+                      .info.ahandle = 0};
     // TODO check return value
     if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
       mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
@@ -410,7 +411,7 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     mndStreamConsensusChkpt(pMnode);
   }
 
-  if (sec % tsTelemInterval == (TMIN(60, (tsTelemInterval - 1)))) {
+  if (sec % tsTelemInterval == (TMIN(86400, (tsTelemInterval - 1)))) {
     mndPullupTelem(pMnode);
   }
 
@@ -530,7 +531,7 @@ static int32_t mndInitWal(SMnode *pMnode) {
       code = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
       TAOS_RETURN(code);
     } else {
-      (void)strncpy(cfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN);
+      tstrncpy(cfg.encryptKey, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
     }
   }
 #endif
@@ -611,6 +612,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-snode", mndInitSnode, mndCleanupSnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-anode", mndInitAnode, mndCleanupAnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-arbgroup", mndInitArbGroup, mndCleanupArbGroup));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-config", mndInitConfig, NULL));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-grant", mndInitGrant, mndCleanupGrant));
@@ -637,7 +639,6 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-query", mndInitQuery, mndCleanupQuery));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sync", mndInitSync, mndCleanupSync));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-telem", mndInitTelem, mndCleanupTelem));
-
   return 0;
 }
 
@@ -713,7 +714,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   }
 
   char timestr[24] = "1970-01-01 00:00:00.00";
-  code = taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+  code = taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, NULL);
   if (code < 0) {
     mError("failed to parse time since %s", tstrerror(code));
     (void)taosThreadRwlockDestroy(&pMnode->lock);
@@ -797,7 +798,6 @@ int32_t mndStart(SMnode *pMnode) {
     }
     mndSetRestored(pMnode, true);
   }
-
   grantReset(pMnode, TSDB_GRANT_ALL, 0);
 
   return mndInitTimer(pMnode);

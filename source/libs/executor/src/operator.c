@@ -722,7 +722,7 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
     code = getOperatorExplainExecInfo(operatorInfo->pDownstream[i], pExecInfoList);
     if (code != TSDB_CODE_SUCCESS) {
       //      taosMemoryFreeClear(*pRes);
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return code;
     }
   }
 

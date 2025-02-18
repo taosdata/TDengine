@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+
 #include "tcol.h"
 #include "tcompression.h"
 #include "tutil.h"
@@ -267,7 +268,7 @@ bool checkColumnEncode(char encode[TSDB_CL_COMPRESS_OPTION_LEN]) {
 }
 bool checkColumnEncodeOrSetDefault(uint8_t type, char encode[TSDB_CL_COMPRESS_OPTION_LEN]) {
   if (0 == strlen(encode)) {
-    strncpy(encode, getDefaultEncodeStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
+    tstrncpy(encode, getDefaultEncodeStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
     return true;
   }
   return checkColumnEncode(encode) && validColEncode(type, columnEncodeVal(encode));
@@ -284,7 +285,7 @@ bool checkColumnCompress(char compress[TSDB_CL_COMPRESS_OPTION_LEN]) {
 }
 bool checkColumnCompressOrSetDefault(uint8_t type, char compress[TSDB_CL_COMPRESS_OPTION_LEN]) {
   if (0 == strlen(compress)) {
-    strncpy(compress, getDefaultCompressStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
+    tstrncpy(compress, getDefaultCompressStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
     return true;
   }
 
@@ -306,7 +307,7 @@ bool checkColumnLevel(char level[TSDB_CL_COMPRESS_OPTION_LEN]) {
 }
 bool checkColumnLevelOrSetDefault(uint8_t type, char level[TSDB_CL_COMPRESS_OPTION_LEN]) {
   if (0 == strlen(level)) {
-    strncpy(level, getDefaultLevelStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
+    tstrncpy(level, getDefaultLevelStr(type), TSDB_CL_COMPRESS_OPTION_LEN);
     return true;
   }
   return checkColumnLevel(level) && validColCompressLevel(type, columnLevelVal(level));
@@ -330,7 +331,7 @@ void setColLevel(uint32_t* compress, uint8_t level) {
 
 int32_t setColCompressByOption(uint8_t type, uint8_t encode, uint16_t compressType, uint8_t level, bool check,
                                uint32_t* compress) {
-  if(compress == NULL) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
+  if (compress == NULL) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
   if (check && !validColEncode(type, encode)) return TSDB_CODE_TSC_ENCODE_PARAM_ERROR;
   setColEncode(compress, encode);
 

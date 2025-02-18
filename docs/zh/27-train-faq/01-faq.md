@@ -276,8 +276,51 @@ TDinsight插件中展示的数据是通过taosKeeper和taosAdapter服务收集�
 
 ### 30 为什么开源版 TDengine 的主进程会建立一个与公网的连接？
 这个连接只会上报不涉及任何用户数据的最基本信息，用于官方了解产品在世界范围内的分布情况，进而优化产品，提升用户体验，具体采集项目为：集群名、操作系统版本、cpu信息等。
-该特性为可选配置项，在开源版中默认开启，具体参数为 telemetryReporting , 在官方文档中有做说明，链接如下：
-https://docs.taosdata.com/reference/components/taosd/#%E7%9B%91%E6%8E%A7%E7%9B%B8%E5%85%B3
+
+该特性为可选配置项，在开源版中默认开启，具体参数为 telemetryReporting , 在官方文档中有做说明，链接如下：[参数简介](https://docs.taosdata.com/reference/components/taosd/#%E7%9B%91%E6%8E%A7%E7%9B%B8%E5%85%B3)
+
 您可以随时关闭该参数，只需要在taos.cfg 中修改telemetryReporting为 0，然后重启数据库服务即可。
-代码位于:https://github.com/taosdata/TDengine/blob/62e609c558deb764a37d1a01ba84bc35115a85a4/source/dnode/mnode/impl/src/mndTelem.c
+
+代码位于:[点击此处](https://github.com/taosdata/TDengine/blob/62e609c558deb764a37d1a01ba84bc35115a85a4/source/dnode/mnode/impl/src/mndTelem.c)
+
 此外，对于安全性要求极高的企业版 TDengine Enterprise 来说，此参数不会工作。
+
+### 31 第一次连接集群时遇到“Sync leader is unreachable”怎么办？
+报这个错，说明第一次向集群的连接是成功的，但第一次访问的IP不是mnode的leader节点，客户端试图与leader建立连接时发生错误。客户端通过EP，也就是指定的fqdn与端口号寻找leader节点，常见的报错原因有两个：  
+
+- 集群中其他节点的端口没有打开
+- 客户端的hosts未正确配置
+  
+因此用户首先要检查服务端，集群的所有端口（原生连接默认6030，http连接默认6041）有无打开；其次是客户端的hosts文件中是否配置了集群所有节点的fqdn与IP信息。
+如仍无法解决，则需要联系涛思技术人员支持。
+
+### 32 同一台服务器，数据库的数据目录 dataDir 不变，为什么原有数据库丢失且集群 ID 发生了变化？
+背景知识：TDengine 服务端进程（taosd）在启动时，若数据目录（dataDir，该目录在配置文件 taos.cfg 中指定）下不存在有效的数据文件子目录（如 mnode、dnode 和 vnode 等），则会自动创建这些目录。在创建新的 mnode 目录的同时，会分配一个新的集群 ID，从而产生一个新的集群。
+
+原因分析：taosd 的数据目录 dataDir 可以指向多个不同的挂载点。如果这些挂载点未在 fstab 文件中配置自动挂载，服务器重启后，dataDir 将仅作为一个本地磁盘的普通目录存在，而未能按预期指向挂载的磁盘。此时，若 taosd 服务启动，它将在 dataDir 下新建目录，从而产生一个新的集群。
+
+问题影响：服务器重启后，原有数据库丢失（注：并非真正丢失，只是原有的数据磁盘未挂载，暂时看不到）且集群 ID 发生变化，导致无法访问原有数据库。对于企业版用户，如果已针对集群 ID 进行授权，还会发现集群服务器的机器码未变，但原有的授权已失效。如果未针对该问题进行监控或者未及时发现并进行处理，则用户不会注意到原有数据库已经丢失，从而造成损失，增加运维成本。
+
+问题解决：应在 fstab 文件中配置 dataDir 目录的自动挂载，确保 dataDir 始终指向预期的挂载点和目录，此时，再重启服务器，会找回原有的数据库和集群。在后续的版本中，我们将开发一个功能，使 taosd 在检测到启动前后 dataDir 发生变化时，在启动阶段退出，同时提供相应的错误提示。
+
+### 33 Windows 平台运行 TDengine 出现丢失 MVCP1400.DLL 解决方法？
+1. 重新安装 Microsoft Visual C++ Redistributable‌：由于 msvcp140.dll 是 Microsoft Visual C++ Redistributable 的一部分，重新安装这个包通常可以解决大部分问题。可以从 Microsoft 官方网站下载相应的版本进行安装‌
+2. 手动上网下载并替换 msvcp140.dll 文件‌：可以从可靠的源下载 msvcp140.dll 文件，并将其复制到系统的相应目录下。确保下载的文件与您的系统架构（32位或64位）相匹配，并确保来源的安全性‌
+
+### 34 超级表带 TAG 过滤查子查数据与直接查子表哪个块？
+直接查子表更快。超级表带 TAG 过滤查询子查数据是为满足查询方便性，同时可对多个子表中数据进行过滤，如果目的是追求性能并已明确查询子表，直接从子表查性能更高
+
+### 35 如何查看数据库的数据压缩率和磁盘占用指标？
+TDengine 3.3.5.0 之前的版本，只提供以表为统计单位的压缩率，数据库及整体还未提供，查看命令是在客户端 taos-CLI 中执行 `SHOW TABLE DISTRIBUTED table_name;` 命令，table_name 为要查看压缩率的表，可以为超级表、普通表及子表，详细可 [查看此处](https://docs.taosdata.com/reference/taos-sql/show/#show-table-distributed)
+
+TDengine 3.3.5.0 及以上的版本，还提供了数据库整体压缩率和磁盘空间占用统计。查看数据库整体的数据压缩率和磁盘空间占用的命令为 `SHOW db_name.disk_info;`，查看数据库各个模块的磁盘空间占用的命令为 `SELECT * FROM INFORMATION_SCHEMA.INS_DISK_USAGE WHERE db_name='db_name';`，db_name 为要查看的数据库名称。详细可 [查看此处](https://docs.taosdata.com/reference/taos-sql/database/#%E6%9F%A5%E7%9C%8B-db-%E7%9A%84%E7%A3%81%E7%9B%98%E7%A9%BA%E9%97%B4%E5%8D%A0%E7%94%A8)
+
+### 36 短时间内，通过 systemd 重启 taosd 超过一定次数后重启失败，报错：start-limit-hit。
+问题描述：
+TDengine 3.3.5.1 及以上的版本，taosd.service 的 systemd 配置文件中，StartLimitInterval 参数从 60 秒调整为 900 秒。若在 900 秒内 taosd 服务重启达到 3 次，后续通过 systemd 启动 taosd 服务时会失败，执行 `systemctl status taosd.service` 显示错误：Failed with result 'start-limit-hit'。
+
+问题原因：
+TDengine 3.3.5.1 之前的版本，StartLimitInterval 为 60 秒。若在 60 秒内无法完成 3 次重启（例如，因从 WAL（预写式日志）中恢复大量数据导致启动时间较长），则下一个 60 秒周期内的重启会重新计数，导致系统持续不断地重启 taosd 服务。为避免无限重启问题，将 StartLimitInterval 由 60 秒调整为 900 秒。因此，在使用 systemd 短时间内多次启动 taosd 时遇到 start-limit-hit 错误的机率增多。
+
+问题解决：
+1）通过 systemd 重启 taosd 服务：推荐方法是先执行命令 `systemctl reset-failed taosd.service` 重置失败计数器，然后再通过 `systemctl restart taosd.service` 重启；若需长期调整，可手动修改 /etc/systemd/system/taosd.service 文件，将 StartLimitInterval 调小或将 StartLimitBurst 调大(注：重新安装 taosd 会重置该参数，需要重新修改)，执行 `systemctl daemon-reload` 重新加载配置，然后再重启。2）也可以不通过 systemd 而是通过 taosd 命令直接重启 taosd 服务，此时不受 StartLimitInterval 和 StartLimitBurst 参数限制。

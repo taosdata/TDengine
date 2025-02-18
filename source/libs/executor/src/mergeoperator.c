@@ -331,7 +331,7 @@ int32_t openNonSortMergeOperator(SOperatorInfo* pOperator) {
   pNonSortMergeInfo->pSourceStatus =
       taosMemoryCalloc(pOperator->numOfDownstream, sizeof(*pNonSortMergeInfo->pSourceStatus));
   if (NULL == pNonSortMergeInfo->pSourceStatus) {
-    pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+    pTaskInfo->code = terrno;
     return pTaskInfo->code;
   }
 

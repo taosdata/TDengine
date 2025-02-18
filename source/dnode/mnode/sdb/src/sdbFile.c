@@ -48,6 +48,26 @@ static int32_t sdbDeployData(SSdb *pSdb) {
   return 0;
 }
 
+static int32_t sdbAfterRestoredData(SSdb *pSdb) {
+  int32_t code = 0;
+  mInfo("start to prepare sdb");
+
+  for (int32_t i = SDB_MAX - 1; i >= 0; --i) {
+    SdbAfterRestoredFp fp = pSdb->afterRestoredFps[i];
+    if (fp == NULL) continue;
+
+    mInfo("start to prepare sdb:%s", sdbTableName(i));
+    code = (*fp)(pSdb->pMnode);
+    if (code != 0) {
+      mError("failed to prepare sdb:%s since %s", sdbTableName(i), tstrerror(code));
+      return -1;
+    }
+  }
+
+  mInfo("sdb prepare success");
+  return 0;
+}
+
 static void sdbResetData(SSdb *pSdb) {
   mInfo("start to reset sdb");
 
@@ -370,7 +390,7 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       opts.source = pRaw->pData;
       opts.result = plantContent;
       opts.unitLen = 16;
-      strncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN);
+      tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
 
       count = CBC_Decrypt(&opts);
 
@@ -388,9 +408,14 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       goto _OVER;
     }
 
+    if (pRaw->type >= SDB_MAX) {
+      mInfo("skip sdb raw type:%d since it is not supported", pRaw->type);
+      continue;
+    }
+
     code = sdbWriteWithoutFree(pSdb, pRaw);
     if (code != 0) {
-      mError("failed to read sdb file:%s since %s", file, terrstr());
+      mError("failed to exec sdbWrite while read sdb file:%s since %s", file, terrstr());
       goto _OVER;
     }
   }
@@ -510,7 +535,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
           opts.source = pRaw->pData;
           opts.result = newData;
           opts.unitLen = 16;
-          strncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN);
+          tstrncpy(opts.key, tsEncryptKey, ENCRYPT_KEY_LEN + 1);
 
           int32_t count = CBC_Encrypt(&opts);
 
@@ -638,6 +663,15 @@ int32_t sdbDeploy(SSdb *pSdb) {
     TAOS_RETURN(code);
   }
 
+  return 0;
+}
+
+int32_t sdbAfterRestored(SSdb *pSdb) {
+  int32_t code = 0;
+  code = sdbAfterRestoredData(pSdb);
+  if (code != 0) {
+    TAOS_RETURN(code);
+  }
   return 0;
 }
 

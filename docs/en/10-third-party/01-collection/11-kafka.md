@@ -95,7 +95,7 @@ curl http://localhost:8083/connectors
 
 If all components have started successfully, the following output will be displayed:
 
-```txt
+```text
 []
 ```
 
@@ -181,7 +181,7 @@ If the above command is executed successfully, the following output will be disp
 
 Prepare a text file with test data, content as follows:
 
-```txt title="test-data.txt"
+```text title="test-data.txt"
 meters,location=California.LosAngeles,groupid=2 current=11.8,voltage=221,phase=0.28 1648432611249000000
 meters,location=California.LosAngeles,groupid=2 current=13.4,voltage=223,phase=0.29 1648432611250000000
 meters,location=California.LosAngeles,groupid=3 current=10.8,voltage=223,phase=0.29 1648432611249000000
@@ -303,7 +303,7 @@ kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --t
 
 Output:
 
-```txt
+```text
 ......
 meters,location="California.SanFrancisco",groupid=2i32 current=10.3f32,voltage=219i32,phase=0.31f32 1538548685000000000
 meters,location="California.SanFrancisco",groupid=2i32 current=12.6f32,voltage=218i32,phase=0.33f32 1538548695000000000

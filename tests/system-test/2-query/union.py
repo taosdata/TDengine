@@ -406,6 +406,12 @@ class TDTestCase:
         tdSql.checkRows(6)
         ##tdSql.execute("drop database ep_iot")
 
+    def test_case_for_nodes_match_node(self):
+        sql = "create table db.nt (ts timestamp, c1 int primary key, c2 int)"
+        tdSql.execute(sql, queryTimes=1)
+        sql = 'select diff (ts) from (select * from db.tt union select * from db.tt order by c1, case when ts < now - 1h then ts + 1h else ts end) partition by c1, case when ts < now - 1h then ts + 1h else ts end'
+        tdSql.error(sql, -2147473917)
+
     def run(self):
         tdSql.prepare()
         self.test_TS_5630()
@@ -426,6 +432,39 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()
+        self.test_TD_33137()
+        self.test_case_for_nodes_match_node()
+    
+    def test_TD_33137(self):
+        sql = "select 'asd' union all select 'asdasd'"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(2)
+        sql = "select db_name `TABLE_CAT`, '' `TABLE_SCHEM`, stable_name `TABLE_NAME`, 'TABLE' `TABLE_TYPE`, table_comment `REMARKS` from information_schema.ins_stables union all select db_name `TABLE_CAT`, '' `TABLE_SCHEM`, table_name `TABLE_NAME`,  case when `type`='SYSTEM_TABLE' then 'TABLE'       when `type`='NORMAL_TABLE' then 'TABLE'       when `type`='CHILD_TABLE' then 'TABLE'       else 'UNKNOWN'  end `TABLE_TYPE`, table_comment `REMARKS` from information_schema.ins_tables union all select db_name `TABLE_CAT`, '' `TABLE_SCHEM`, view_name `TABLE_NAME`, 'VIEW' `TABLE_TYPE`, NULL `REMARKS` from information_schema.ins_views"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(50)
+
+        sql = "select null union select null"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
+        sql = "select null union all select null"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, None)
+
+        sql = "select null union select 1"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, 1)
+
+        sql = "select null union select 'asd'"
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, 'asd')
 
     def stop(self):
         tdSql.close()

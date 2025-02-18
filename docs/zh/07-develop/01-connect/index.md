@@ -37,7 +37,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 
 关键不同点在于：
 
-1. 使用 原生连接，需要保证客户端的驱动程序 taosc 和服务端的 TDengine 版本配套。
+1. 使用 原生连接，需要保证客户端的驱动程序 taosc 和服务端的 TDengine 版本保持一致。
 2. 使用 REST 连接，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但是无法体验数据订阅和二进制数据类型等功能。另外与 原生连接 和 WebSocket 连接相比，REST连接的性能最低。REST 接口是无状态的。在使用 REST 连接时，需要在 SQL 中指定表、超级表的数据库名称。  
 3. 使用 WebSocket 连接，用户也无需安装客户端驱动程序 taosc。
 4. 连接云服务实例，必须使用 REST 连接 或 WebSocket 连接。
@@ -89,7 +89,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.4.0</version>
+  <version>3.5.3</version>
 </dependency>
 ```
 

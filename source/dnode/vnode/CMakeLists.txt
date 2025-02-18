@@ -32,6 +32,8 @@ set(
     "src/meta/metaSnapshot.c"
     "src/meta/metaCache.c"
     "src/meta/metaTtl.c"
+    "src/meta/metaEntry2.c"
+    "src/meta/metaTable2.c"
 
     # sma
     "src/sma/smaEnv.c"
@@ -73,6 +75,7 @@ set(
     "src/tq/tqSnapshot.c"
     "src/tq/tqStreamStateSnap.c"
     "src/tq/tqStreamTaskSnap.c"
+    "src/tq/tqStreamNotify.c"
 )
 
 aux_source_directory("src/tsdb/" TSDB_SOURCE_FILES)

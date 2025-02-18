@@ -24,6 +24,7 @@
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "tdataformat.h"
+#include "tdef.h"
 #include "ttime.h"
 #include "ttypes.h"
 #include "geosWrapper.h"
@@ -103,7 +104,7 @@ int32_t convertNcharToDouble(const void *inData, void *outData) {
   if (NULL == tmp) {
     SCL_ERR_RET(terrno);
   }
-  int   len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData), varDataLen(inData), tmp);
+  int   len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData), varDataLen(inData), tmp, NULL);
   if (len < 0) {
     sclError("castConvert taosUcs4ToMbs error 1");
     SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
@@ -118,19 +119,6 @@ int32_t convertNcharToDouble(const void *inData, void *outData) {
 _return:
   taosMemoryFreeClear(tmp);
   SCL_RET(code);
-}
-
-int32_t convertBinaryToDouble(const void *inData, void *outData) {
-  char *tmp = taosMemoryCalloc(1, varDataTLen(inData));
-  if (tmp == NULL) {
-    *((double *)outData) = 0.;
-    SCL_ERR_RET(terrno);
-  }
-  (void)memcpy(tmp, varDataVal(inData), varDataLen(inData));
-  double ret = taosStr2Double(tmp, NULL);
-  taosMemoryFree(tmp);
-  *((double *)outData) = ret;
-  SCL_RET(TSDB_CODE_SUCCESS);
 }
 
 typedef int32_t (*_getBigintValue_fn_t)(void *src, int32_t index, int64_t *res);
@@ -242,7 +230,7 @@ int32_t getVectorBigintValueFn(int32_t srcType, _getBigintValue_fn_t *p) {
 static FORCE_INLINE int32_t varToTimestamp(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
   int64_t value = 0;
   int32_t code = TSDB_CODE_SUCCESS;
-  if (taosParseTime(buf, &value, strlen(buf), pOut->columnData->info.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
+  if (taosParseTime(buf, &value, strlen(buf), pOut->columnData->info.precision, pOut->tz) != TSDB_CODE_SUCCESS) {
     value = 0;
     code = TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
@@ -404,7 +392,7 @@ static FORCE_INLINE int32_t varToNchar(char *buf, SScalarParam *pOut, int32_t ro
     SCL_ERR_RET(terrno);
   }
   int32_t ret =
-      taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4 *)varDataVal(t), outputMaxLen - VARSTR_HEADER_SIZE, &len);
+      taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4 *)varDataVal(t), outputMaxLen - VARSTR_HEADER_SIZE, &len, pOut->charsetCxt);
   if (!ret) {
     sclError("failed to convert to NCHAR");
     SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
@@ -426,7 +414,7 @@ static FORCE_INLINE int32_t ncharToVar(char *buf, SScalarParam *pOut, int32_t ro
   if (NULL == t) {
     SCL_ERR_RET(terrno);
   }
-  int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(t));
+  int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(t), pOut->charsetCxt);
   if (len < 0) {
     SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
   }
@@ -557,7 +545,7 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
           SCL_ERR_JRET(TSDB_CODE_APP_ERROR);
         }
 
-        int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(data), varDataLen(data), tmp);
+        int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(data), varDataLen(data), tmp, pCtx->pIn->charsetCxt);
         if (len < 0) {
           sclError("castConvert taosUcs4ToMbs error 1");
           SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
@@ -592,18 +580,19 @@ int32_t getVectorDoubleValue_JSON(void *src, int32_t index, double *out) {
   SCL_RET(TSDB_CODE_SUCCESS);
 }
 
-int32_t ncharTobinary(void *buf, void **out) {  // todo need to remove , if tobinary is nchar
+int32_t ncharTobinary(void *buf, void **out, void* charsetCxt) {  // todo need to remove , if tobinary is nchar
   int32_t inputLen = varDataTLen(buf);
 
   *out = taosMemoryCalloc(1, inputLen);
   if (NULL == *out) {
     sclError("charset:%s to %s. val:%s convert ncharTobinary failed, since memory alloc failed.",
-             DEFAULT_UNICODE_ENCODEC, tsCharset, (char *)varDataVal(buf));
+             DEFAULT_UNICODE_ENCODEC, charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset, (char *)varDataVal(buf));
     SCL_ERR_RET(terrno);
   }
-  int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(*out));
+  int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(*out), charsetCxt);
   if (len < 0) {
-    sclError("charset:%s to %s. val:%s convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+    sclError("charset:%s to %s. val:%s convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC,
+             charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset,
              (char *)varDataVal(buf));
     taosMemoryFree(*out);
     SCL_ERR_RET(TSDB_CODE_SCALAR_CONVERT_ERROR);
@@ -614,7 +603,7 @@ int32_t ncharTobinary(void *buf, void **out) {  // todo need to remove , if tobi
 
 int32_t convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t typeRight, char **pLeftData,
                       char **pRightData, void *pLeftOut, void *pRightOut, bool *isNull, bool *freeLeft,
-                      bool *freeRight, bool *result) {
+                      bool *freeRight, bool *result, void* charsetCxt) {
   *result = false;
   if (optr == OP_TYPE_JSON_CONTAINS) {
     *result = true;
@@ -700,13 +689,13 @@ int32_t convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_
              type == TSDB_DATA_TYPE_GEOMETRY) {
     if (typeLeft == TSDB_DATA_TYPE_NCHAR) {
       char *tmpLeft = NULL;
-      SCL_ERR_RET(ncharTobinary(*pLeftData, (void *)&tmpLeft));
+      SCL_ERR_RET(ncharTobinary(*pLeftData, (void *)&tmpLeft, charsetCxt));
       *pLeftData = tmpLeft;
       *freeLeft = true;
     }
     if (typeRight == TSDB_DATA_TYPE_NCHAR) {
       char *tmpRight = NULL;
-      SCL_ERR_RET(ncharTobinary(*pRightData, (void *)&tmpRight));
+      SCL_ERR_RET(ncharTobinary(*pRightData, (void *)&tmpRight, charsetCxt));
       *pRightData = tmpRight;
       *freeRight = true;
     }
@@ -1007,28 +996,29 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
 }
 
 int8_t gConvertTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
-    /*         NULL BOOL TINY SMAL INT  BIG  FLOA DOUB VARC TIME NCHA UTIN USMA UINT UBIG JSON VARB DECI BLOB MEDB GEOM*/
-    /*NULL*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0, 0, 0,
-    /*BOOL*/ 0, 0, 2, 3, 4, 5, 6, 7, 5, 9, 7, 11, 12, 13, 14, 0, -1, 0, 0, 0, -1,
-    /*TINY*/ 0, 0, 0, 3, 4, 5, 6, 7, 5, 9, 7, 3,  4,  5,  7,  0, -1, 0, 0, 0, -1,
-    /*SMAL*/ 0, 0, 0, 0, 4, 5, 6, 7, 5, 9, 7, 3,  4,  5,  7,  0, -1, 0, 0, 0, -1,
-    /*INT */ 0, 0, 0, 0, 0, 5, 6, 7, 5, 9, 7, 4,  4,  5,  7,  0, -1, 0, 0, 0, -1,
-    /*BIGI*/ 0, 0, 0, 0, 0, 0, 6, 7, 5, 9, 7, 5,  5,  5,  7,  0, -1, 0, 0, 0, -1,
-    /*FLOA*/ 0, 0, 0, 0, 0, 0, 0, 7, 7, 6, 7, 6,  6,  6,  6,  0, -1, 0, 0, 0, -1,
-    /*DOUB*/ 0, 0, 0, 0, 0, 0, 0, 0, 7, 7, 7, 7,  7,  7,  7,  0, -1, 0, 0, 0, -1,
-    /*VARC*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 8, 7,  7,  7,  7,  0, 16, 0, 0, 0, 20,
-    /*TIME*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 9,  9,  9,  7,  0, -1, 0, 0, 0, -1,
-    /*NCHA*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7,  7,  7,  7,  0, 16, 0, 0, 0, -1,
-    /*UTIN*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  12, 13, 14, 0, -1, 0, 0, 0, -1,
-    /*USMA*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  13, 14, 0, -1, 0, 0, 0, -1,
-    /*UINT*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  14, 0, -1, 0, 0, 0, -1,
-    /*UBIG*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, -1,
-    /*JSON*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, -1,
-    /*VARB*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, -1, -1,-1, -1,
-    /*DECI*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, -1,
-    /*BLOB*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, -1,
-    /*MEDB*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, -1,
-    /*GEOM*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, -1, 0, 0, 0, 0};
+    /*NULL BOOL TINY SMAL INT  BIG  FLOA DOUB VARC TIME NCHA UTIN USMA UINT UBIG JSON VARB DECI BLOB MEDB GEOM*/
+    /*NULL*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+    /*BOOL*/    0,   0,   2,   3,   4,   5,   6,   7,   5,   9,   5,   11, 12,  13,  14,   0,  -1,   0,   0,   0,  -1,
+    /*TINY*/    0,   0,   0,   3,   4,   5,   6,   7,   5,   9,   5,   3,   4,   5,   7,   0,  -1,   0,   0,   0,  -1,
+    /*SMAL*/    0,   0,   0,   0,   4,   5,   6,   7,   5,   9,   5,   3,   4,   5,   7,   0,  -1,   0,   0,   0,  -1,
+    /*INT */    0,   0,   0,   0,   0,   5,   6,   7,   5,   9,   5,   4,   4,   5,   7,   0,  -1,   0,   0,   0,  -1,
+    /*BIGI*/    0,   0,   0,   0,   0,   0,   6,   7,   5,   9,   5,   5,   5,   5,   7,   0,  -1,   0,   0,   0,  -1,
+    /*FLOA*/    0,   0,   0,   0,   0,   0,   0,   7,   6,   6,   6,   6,   6,   6,   6,   0,  -1,   0,   0,   0,  -1,
+    /*DOUB*/    0,   0,   0,   0,   0,   0,   0,   0,   7,   7,   7,   7,   7,   7,   7,   0,  -1,   0,   0,   0,  -1,
+    /*VARC*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   9,   8,   7,   7,   7,   7,   0,  16,   0,   0,   0,  20,
+    /*TIME*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   9,   9,   9,   9,   7,   0,  -1,   0,   0,   0,  -1,
+    /*NCHA*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   7,   7,   7,   7,   0,  16,   0,   0,   0,  -1,
+    /*UTIN*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  12,   13, 14,   0,  -1,   0,   0,   0,  -1,
+    /*USMA*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   13, 14,   0,  -1,   0,   0,   0,  -1,
+    /*UINT*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  14,   0,  -1,   0,   0,   0,  -1,
+    /*UBIG*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,   0,   0,   0,  -1,
+    /*JSON*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,   0,   0,   0,  -1,
+    /*VARB*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,  -1,  -1,  -1,
+    /*DECI*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,   0,   0,   0,  -1,
+    /*BLOB*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,   0,   0,   0,  -1,
+    /*MEDB*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,   0,   0,   0,  -1,
+    /*GEOM*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,  -1,   0,   0,   0,   0
+};
 
 int8_t gDisplyTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
               /*NULL BOOL TINY SMAL INT  BIGI FLOA DOUB VARC TIM NCHA UTIN USMA UINT UBIG JSON VARB DECI BLOB MEDB GEOM*/
@@ -1069,6 +1059,9 @@ int32_t vectorGetConvertType(int32_t type1, int32_t type2) {
 
 int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_t type, int32_t startIndex,
                                int32_t numOfRows) {
+  if (input->columnData == NULL && (input->pHashFilter != NULL || input->pHashFilterOthers != NULL)){
+    return TSDB_CODE_SUCCESS;
+  }
   output->numOfRows = input->numOfRows;
 
   SDataType t = {.type = type};
@@ -1077,7 +1070,7 @@ int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_
 
   int32_t code = sclCreateColumnInfoData(&t, input->numOfRows, output);
   if (code != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   code = vectorConvertSingleColImpl(input, output, NULL, startIndex, numOfRows);
@@ -1099,36 +1092,18 @@ int32_t vectorConvertCols(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
   int8_t  type = 0;
   int32_t code = 0;
 
-  SScalarParam *param1 = NULL, *paramOut1 = NULL;
-  SScalarParam *param2 = NULL, *paramOut2 = NULL;
+  SScalarParam *param1 = pLeft, *paramOut1 = pLeftOut;
+  SScalarParam *param2 = pRight, *paramOut2 = pRightOut;
 
   // always convert least data
   if (IS_VAR_DATA_TYPE(leftType) && IS_VAR_DATA_TYPE(rightType) && (pLeft->numOfRows != pRight->numOfRows) &&
       leftType != TSDB_DATA_TYPE_JSON && rightType != TSDB_DATA_TYPE_JSON) {
-    param1 = pLeft;
-    param2 = pRight;
-    paramOut1 = pLeftOut;
-    paramOut2 = pRightOut;
-
     if (pLeft->numOfRows > pRight->numOfRows) {
       type = leftType;
     } else {
       type = rightType;
     }
   } else {
-    // we only define half value in the convert-matrix, so make sure param1 always less equal than param2
-    if (leftType < rightType) {
-      param1 = pLeft;
-      param2 = pRight;
-      paramOut1 = pLeftOut;
-      paramOut2 = pRightOut;
-    } else {
-      param1 = pRight;
-      param2 = pLeft;
-      paramOut1 = pRightOut;
-      paramOut2 = pLeftOut;
-    }
-
     type = vectorGetConvertType(GET_PARAM_TYPE(param1), GET_PARAM_TYPE(param2));
     if (0 == type) {
       return TSDB_CODE_SUCCESS;
@@ -1141,17 +1116,11 @@ int32_t vectorConvertCols(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
   }
 
   if (type != GET_PARAM_TYPE(param1)) {
-    code = vectorConvertSingleCol(param1, paramOut1, type, startIndex, numOfRows);
-    if (code) {
-      return code;
-    }
+    SCL_ERR_RET(vectorConvertSingleCol(param1, paramOut1, type, startIndex, numOfRows));
   }
 
   if (type != GET_PARAM_TYPE(param2)) {
-    code = vectorConvertSingleCol(param2, paramOut2, type, startIndex, numOfRows);
-    if (code) {
-      return code;
-    }
+    SCL_ERR_RET(vectorConvertSingleCol(param2, paramOut2, type, startIndex, numOfRows));
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1191,7 +1160,7 @@ static int32_t vectorMathAddHelper(SColumnInfoData *pLeftCol, SColumnInfoData *p
 }
 
 static int32_t vectorMathTsAddHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,
-                                  int32_t numOfRows, int32_t step, int32_t i) {
+                                  int32_t numOfRows, int32_t step, int32_t i, timezone_t tz) {
   _getBigintValue_fn_t getVectorBigintValueFnLeft;
   _getBigintValue_fn_t getVectorBigintValueFnRight;
   SCL_ERR_RET(getVectorBigintValueFn(pLeftCol->info.type, &getVectorBigintValueFnLeft));
@@ -1211,7 +1180,7 @@ static int32_t vectorMathTsAddHelper(SColumnInfoData *pLeftCol, SColumnInfoData 
       SCL_ERR_RET(getVectorBigintValueFnLeft(pLeftCol->pData, i, &leftRes));
       SCL_ERR_RET(getVectorBigintValueFnRight(pRightCol->pData, 0, &rightRes));
       *output =
-          taosTimeAdd(leftRes, rightRes, pRightCol->info.scale, pRightCol->info.precision);
+          taosTimeAdd(leftRes, rightRes, pRightCol->info.scale, pRightCol->info.precision, tz);
     }
   }
   SCL_RET(TSDB_CODE_SUCCESS);
@@ -1220,22 +1189,16 @@ static int32_t vectorMathTsAddHelper(SColumnInfoData *pLeftCol, SColumnInfoData 
 static int32_t vectorConvertVarToDouble(SScalarParam *pInput, int32_t *converted, SColumnInfoData **pOutputCol) {
   SScalarParam     output = {0};
   SColumnInfoData *pCol = pInput->columnData;
-
+  int32_t          code = TSDB_CODE_SUCCESS;
+  *pOutputCol = NULL;
   if (IS_VAR_DATA_TYPE(pCol->info.type) && pCol->info.type != TSDB_DATA_TYPE_JSON && pCol->info.type != TSDB_DATA_TYPE_VARBINARY) {
-    int32_t code = vectorConvertSingleCol(pInput, &output, TSDB_DATA_TYPE_DOUBLE, -1, -1);
-    if (code != TSDB_CODE_SUCCESS) {
-      *pOutputCol = NULL;
-      SCL_ERR_RET(code);
-    }
-
+    SCL_ERR_RET(vectorConvertSingleCol(pInput, &output, TSDB_DATA_TYPE_DOUBLE, -1, -1));
     *converted = VECTOR_DO_CONVERT;
-
     *pOutputCol = output.columnData;
     SCL_RET(code);
   }
 
   *converted = VECTOR_UN_CONVERT;
-
   *pOutputCol = pInput->columnData;
   SCL_RET(TSDB_CODE_SUCCESS);
 }
@@ -1261,12 +1224,7 @@ int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
   SColumnInfoData *pRightCol = NULL;
   SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
   SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
-
-  if ((GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP && IS_INTEGER_TYPE(GET_PARAM_TYPE(pRight))) ||
-      (GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_TIMESTAMP && IS_INTEGER_TYPE(GET_PARAM_TYPE(pLeft))) ||
-      (GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP && GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_BOOL) ||
-      (GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_TIMESTAMP &&
-       GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_BOOL)) {  // timestamp plus duration
+  if(checkOperatorRestypeIsTimestamp(OP_TYPE_ADD, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight))) {  // timestamp plus duration
     int64_t             *output = (int64_t *)pOutputCol->pData;
     _getBigintValue_fn_t getVectorBigintValueFnLeft;
     _getBigintValue_fn_t getVectorBigintValueFnRight;
@@ -1275,14 +1233,14 @@ int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
 
     if (pLeft->numOfRows == 1 && pRight->numOfRows == 1) {
       if (GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP) {
-        SCL_ERR_JRET(vectorMathTsAddHelper(pLeftCol, pRightCol, pOutputCol, pRight->numOfRows, step, i));
+        SCL_ERR_JRET(vectorMathTsAddHelper(pLeftCol, pRightCol, pOutputCol, pRight->numOfRows, step, i, pLeft->tz));
       } else {
-        SCL_ERR_JRET(vectorMathTsAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i));
+        SCL_ERR_JRET(vectorMathTsAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i, pLeft->tz));
       }
     } else if (pLeft->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathTsAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i));
+      SCL_ERR_JRET(vectorMathTsAddHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i, pLeft->tz));
     } else if (pRight->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathTsAddHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i));
+      SCL_ERR_JRET(vectorMathTsAddHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i, pLeft->tz));
     } else if (pLeft->numOfRows == pRight->numOfRows) {
       for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
         if (IS_NULL) {
@@ -1356,7 +1314,7 @@ static int32_t vectorMathSubHelper(SColumnInfoData *pLeftCol, SColumnInfoData *p
 }
 
 static int32_t vectorMathTsSubHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,
-                                  int32_t numOfRows, int32_t step, int32_t factor, int32_t i) {
+                                  int32_t numOfRows, int32_t step, int32_t factor, int32_t i, timezone_t tz) {
   _getBigintValue_fn_t getVectorBigintValueFnLeft;
   _getBigintValue_fn_t getVectorBigintValueFnRight;
   SCL_ERR_RET(getVectorBigintValueFn(pLeftCol->info.type, &getVectorBigintValueFnLeft));
@@ -1377,7 +1335,7 @@ static int32_t vectorMathTsSubHelper(SColumnInfoData *pLeftCol, SColumnInfoData 
       SCL_ERR_RET(getVectorBigintValueFnLeft(pLeftCol->pData, i, &leftRes));
       SCL_ERR_RET(getVectorBigintValueFnRight(pRightCol->pData, 0, &rightRes));
       *output =
-          taosTimeAdd(leftRes, -rightRes, pRightCol->info.scale, pRightCol->info.precision) * factor;
+          taosTimeAdd(leftRes, -rightRes, pRightCol->info.scale, pRightCol->info.precision, tz) * factor;
     }
   }
   SCL_RET(TSDB_CODE_SUCCESS);
@@ -1398,9 +1356,7 @@ int32_t vectorMathSub(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
   SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
   SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
 
-  if ((GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_TIMESTAMP && GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_BIGINT) ||
-      (GET_PARAM_TYPE(pRight) == TSDB_DATA_TYPE_TIMESTAMP &&
-       GET_PARAM_TYPE(pLeft) == TSDB_DATA_TYPE_BIGINT)) {  // timestamp minus duration
+ if (checkOperatorRestypeIsTimestamp(OP_TYPE_SUB, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight))) { // timestamp minus duration
     int64_t             *output = (int64_t *)pOutputCol->pData;
     _getBigintValue_fn_t getVectorBigintValueFnLeft;
     _getBigintValue_fn_t getVectorBigintValueFnRight;
@@ -1408,11 +1364,11 @@ int32_t vectorMathSub(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
     SCL_ERR_JRET(getVectorBigintValueFn(pRightCol->info.type, &getVectorBigintValueFnRight));
 
     if (pLeft->numOfRows == 1 && pRight->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathTsSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i));
+      SCL_ERR_JRET(vectorMathTsSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i, pLeft->tz));
     } else if (pLeft->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathTsSubHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, -1, i));
+      SCL_ERR_JRET(vectorMathTsSubHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, -1, i, pLeft->tz));
     } else if (pRight->numOfRows == 1) {
-      SCL_ERR_JRET(vectorMathTsSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i));
+      SCL_ERR_JRET(vectorMathTsSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i, pLeft->tz));
     } else if (pLeft->numOfRows == pRight->numOfRows) {
       for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
         if (IS_NULL) {
@@ -1635,68 +1591,25 @@ int32_t vectorMathRemainder(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
 
   double *output = (double *)pOutputCol->pData;
 
-  if (pLeft->numOfRows == pRight->numOfRows) {
-    for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
-      if (IS_NULL) {
-        colDataSetNULL(pOutputCol, i);
-        continue;
-      }
-
-      double lx = 0;
-      double rx = 0;
-      SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, i, &lx));
-      SCL_ERR_JRET(getVectorDoubleValueFnRight(RIGHT_COL, i, &rx));
-      if (isnan(lx) || isinf(lx) || isnan(rx) || isinf(rx) || FLT_EQUAL(rx, 0)) {
-        colDataSetNULL(pOutputCol, i);
-        continue;
-      }
-
-      *output = lx - ((int64_t)(lx / rx)) * rx;
+  int32_t numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+  for (; i < numOfRows && i >= 0; i += step, output += 1) {
+    int32_t leftidx = pLeft->numOfRows == 1 ? 0 : i;
+    int32_t rightidx = pRight->numOfRows == 1 ? 0 : i;
+    if (IS_HELPER_NULL(pLeftCol, leftidx) || IS_HELPER_NULL(pRightCol, rightidx)) {
+      colDataSetNULL(pOutputCol, i);
+      continue;
     }
-  } else if (pLeft->numOfRows == 1) {
+
     double lx = 0;
-    SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, 0, &lx));
-    if (IS_HELPER_NULL(pLeftCol, 0)) {  // Set pLeft->numOfRows NULL value
-      colDataSetNNULL(pOutputCol, 0, pRight->numOfRows);
-    } else {
-      for (; i >= 0 && i < pRight->numOfRows; i += step, output += 1) {
-        if (IS_HELPER_NULL(pRightCol, i)) {
-          colDataSetNULL(pOutputCol, i);
-          continue;
-        }
-
-        double rx = 0;
-        SCL_ERR_JRET(getVectorDoubleValueFnRight(RIGHT_COL, i, &rx));
-        if (isnan(rx) || isinf(rx) || FLT_EQUAL(rx, 0)) {
-          colDataSetNULL(pOutputCol, i);
-          continue;
-        }
-
-        *output = lx - ((int64_t)(lx / rx)) * rx;
-      }
-    }
-  } else if (pRight->numOfRows == 1) {
     double rx = 0;
-    SCL_ERR_JRET(getVectorDoubleValueFnRight(RIGHT_COL, 0, &rx));
-    if (IS_HELPER_NULL(pRightCol, 0) || FLT_EQUAL(rx, 0)) {  // Set pLeft->numOfRows NULL value
-      colDataSetNNULL(pOutputCol, 0, pLeft->numOfRows);
-    } else {
-      for (; i >= 0 && i < pLeft->numOfRows; i += step, output += 1) {
-        if (IS_HELPER_NULL(pLeftCol, i)) {
-          colDataSetNULL(pOutputCol, i);
-          continue;
-        }
-
-        double lx = 0;
-        SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, i, &lx));
-        if (isnan(lx) || isinf(lx)) {
-          colDataSetNULL(pOutputCol, i);
-          continue;
-        }
-
-        *output = lx - ((int64_t)(lx / rx)) * rx;
-      }
+    SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, leftidx, &lx));
+    SCL_ERR_JRET(getVectorDoubleValueFnRight(RIGHT_COL, rightidx, &rx));
+    if (isnan(lx) || isinf(lx) || isnan(rx) || isinf(rx) || FLT_EQUAL(rx, 0)) {
+      colDataSetNULL(pOutputCol, i);
+      continue;
     }
+
+    *output = lx - ((int64_t)(lx / rx)) * rx;
   }
 
 _return:
@@ -1758,33 +1671,6 @@ int32_t vectorAssign(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pO
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t vectorBitAndHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,
-                                  int32_t numOfRows, int32_t step, int32_t i) {
-  _getBigintValue_fn_t getVectorBigintValueFnLeft;
-  _getBigintValue_fn_t getVectorBigintValueFnRight;
-  SCL_ERR_RET(getVectorBigintValueFn(pLeftCol->info.type, &getVectorBigintValueFnLeft));
-  SCL_ERR_RET(getVectorBigintValueFn(pRightCol->info.type, &getVectorBigintValueFnRight));
-
-  int64_t *output = (int64_t *)pOutputCol->pData;
-
-  if (IS_HELPER_NULL(pRightCol, 0)) {  // Set pLeft->numOfRows NULL value
-    colDataSetNNULL(pOutputCol, 0, numOfRows);
-  } else {
-    for (; i >= 0 && i < numOfRows; i += step, output += 1) {
-      if (IS_HELPER_NULL(pLeftCol, i)) {
-        colDataSetNULL(pOutputCol, i);
-        continue;  // TODO set null or ignore
-      }
-      int64_t leftRes = 0;
-      int64_t rightRes = 0;
-      SCL_ERR_RET(getVectorBigintValueFnLeft(LEFT_COL, i, &leftRes));
-      SCL_ERR_RET(getVectorBigintValueFnRight(RIGHT_COL, 0, &rightRes));
-      *output =  leftRes & rightRes;
-    }
-  }
-  SCL_RET(TSDB_CODE_SUCCESS);
-}
-
 int32_t vectorBitAnd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
   SColumnInfoData *pOutputCol = pOut->columnData;
   pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
@@ -1805,55 +1691,25 @@ int32_t vectorBitAnd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pO
   SCL_ERR_JRET(getVectorBigintValueFn(pRightCol->info.type, &getVectorBigintValueFnRight));
 
   int64_t *output = (int64_t *)pOutputCol->pData;
-  if (pLeft->numOfRows == pRight->numOfRows) {
-    for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
-      if (IS_NULL) {
-        colDataSetNULL(pOutputCol, i);
-        continue;  // TODO set null or ignore
-      }
-      int64_t leftRes = 0;
-      int64_t rightRes = 0;
-      SCL_ERR_JRET(getVectorBigintValueFnLeft(LEFT_COL, i, &leftRes));
-      SCL_ERR_JRET(getVectorBigintValueFnRight(RIGHT_COL, i, &rightRes));
-      *output = leftRes & rightRes;
+  int32_t numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+  for (; i < numOfRows && i >= 0; i += step, output += 1) {
+    int32_t leftidx = pLeft->numOfRows == 1 ? 0 : i;
+    int32_t rightidx = pRight->numOfRows == 1 ? 0 : i;
+    if (IS_HELPER_NULL(pRightCol, rightidx) || IS_HELPER_NULL(pLeftCol, leftidx)) {
+      colDataSetNULL(pOutputCol, i);
+      continue;  // TODO set null or ignore
     }
-  } else if (pLeft->numOfRows == 1) {
-    SCL_ERR_JRET(vectorBitAndHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i));
-  } else if (pRight->numOfRows == 1) {
-    SCL_ERR_JRET(vectorBitAndHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i));
+    int64_t leftRes = 0;
+    int64_t rightRes = 0;
+    SCL_ERR_JRET(getVectorBigintValueFnLeft(LEFT_COL, leftidx, &leftRes));
+    SCL_ERR_JRET(getVectorBigintValueFnRight(RIGHT_COL, rightidx, &rightRes));
+    *output = leftRes & rightRes;
   }
 
 _return:
   doReleaseVec(pLeftCol, leftConvert);
   doReleaseVec(pRightCol, rightConvert);
   SCL_RET(code);
-}
-
-static int32_t vectorBitOrHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,
-                                 int32_t numOfRows, int32_t step, int32_t i) {
-  _getBigintValue_fn_t getVectorBigintValueFnLeft;
-  _getBigintValue_fn_t getVectorBigintValueFnRight;
-  SCL_ERR_RET(getVectorBigintValueFn(pLeftCol->info.type, &getVectorBigintValueFnLeft));
-  SCL_ERR_RET(getVectorBigintValueFn(pRightCol->info.type, &getVectorBigintValueFnRight));
-
-  int64_t *output = (int64_t *)pOutputCol->pData;
-
-  if (IS_HELPER_NULL(pRightCol, 0)) {  // Set pLeft->numOfRows NULL value
-    colDataSetNNULL(pOutputCol, 0, numOfRows);
-  } else {
-    int64_t rx = 0;
-    SCL_ERR_RET(getVectorBigintValueFnRight(RIGHT_COL, 0, &rx));
-    for (; i >= 0 && i < numOfRows; i += step, output += 1) {
-      if (IS_HELPER_NULL(pLeftCol, i)) {
-        colDataSetNULL(pOutputCol, i);
-        continue;  // TODO set null or ignore
-      }
-      int64_t lx = 0;
-      SCL_ERR_RET(getVectorBigintValueFnLeft(LEFT_COL, i, &lx));
-      *output = lx | rx;
-    }
-  }
-  SCL_RET(TSDB_CODE_SUCCESS);
 }
 
 int32_t vectorBitOr(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
@@ -1876,22 +1732,20 @@ int32_t vectorBitOr(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOu
   SCL_ERR_JRET(getVectorBigintValueFn(pRightCol->info.type, &getVectorBigintValueFnRight));
 
   int64_t *output = (int64_t *)pOutputCol->pData;
-  if (pLeft->numOfRows == pRight->numOfRows) {
-    for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
-      if (IS_NULL) {
-        colDataSetNULL(pOutputCol, i);
-        continue;  // TODO set null or ignore
-      }
-      int64_t leftRes = 0;
-      int64_t rightRes = 0;
-      SCL_ERR_JRET(getVectorBigintValueFnLeft(LEFT_COL, i, &leftRes));
-      SCL_ERR_JRET(getVectorBigintValueFnRight(RIGHT_COL, i, &rightRes));
-      *output = leftRes | rightRes;
+  int32_t numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+  for (; i < numOfRows && i >= 0; i += step, output += 1) {
+    int32_t leftidx = pLeft->numOfRows == 1 ? 0 : i;
+    int32_t rightidx = pRight->numOfRows == 1 ? 0 : i;
+    if (IS_HELPER_NULL(pRightCol, leftidx) || IS_HELPER_NULL(pLeftCol, rightidx)) {
+      colDataSetNULL(pOutputCol, i);
+      continue;  // TODO set null or ignore
     }
-  } else if (pLeft->numOfRows == 1) {
-    SCL_ERR_JRET(vectorBitOrHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i));
-  } else if (pRight->numOfRows == 1) {
-    SCL_ERR_JRET(vectorBitOrHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i));
+
+    int64_t leftRes = 0;
+    int64_t rightRes = 0;
+    SCL_ERR_JRET(getVectorBigintValueFnLeft(LEFT_COL, leftidx, &leftRes));
+    SCL_ERR_JRET(getVectorBigintValueFnRight(RIGHT_COL, rightidx, &rightRes));
+    *output = leftRes | rightRes;
   }
 
 _return:
@@ -1958,7 +1812,7 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
       bool    result = false;
 
       SCL_ERR_RET(convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData,
-                                   &leftOut, &rightOut, &isJsonnull, &freeLeft, &freeRight, &result));
+                                   &leftOut, &rightOut, &isJsonnull, &freeLeft, &freeRight, &result, pLeft->charsetCxt));
 
       if (isJsonnull) {
         sclError("doVectorCompareImpl: invalid json null value");
@@ -1991,13 +1845,14 @@ int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
   return code;
 }
 
-int32_t doVectorCompare(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
+int32_t doVectorCompare(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex,
                      int32_t numOfRows, int32_t _ord, int32_t optr) {
   int32_t       i = 0;
   int32_t       step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
   int32_t       lType = GET_PARAM_TYPE(pLeft);
   int32_t       rType = GET_PARAM_TYPE(pRight);
   __compar_fn_t fp = NULL;
+  __compar_fn_t fpVar = NULL;
   int32_t       compRows = 0;
   if (lType == rType) {
     SCL_ERR_RET(filterGetCompFunc(&fp, lType, optr));
@@ -2005,6 +1860,9 @@ int32_t doVectorCompare(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam 
     fp = filterGetCompFuncEx(lType, rType, optr);
   }
 
+  if (pLeftVar != NULL) {
+    SCL_ERR_RET(filterGetCompFunc(&fpVar, GET_PARAM_TYPE(pLeftVar), optr));
+  }
   if (startIndex < 0) {
     i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
     pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
@@ -2024,6 +1882,18 @@ int32_t doVectorCompare(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam 
 
       char *pLeftData = colDataGetData(pLeft->columnData, i);
       bool  res = filterDoCompare(fp, optr, pLeftData, pRight->pHashFilter);
+      if (pLeftVar != NULL && taosHashGetSize(pRight->pHashFilterOthers) > 0){
+        do{
+          if (optr == OP_TYPE_IN && res){
+            break;
+          }
+          if (optr == OP_TYPE_NOT_IN && !res){
+            break;
+          }
+          pLeftData = colDataGetData(pLeftVar->columnData, i);
+          res = filterDoCompare(fpVar, optr, pLeftData, pRight->pHashFilterOthers);
+        }while(0);
+      }
       colDataSetInt8(pOut->columnData, i, (int8_t *)&res);
       if (res) {
         pOut->numOfQualified++;
@@ -2041,7 +1911,10 @@ int32_t vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
   SScalarParam  pRightOut = {0};
   SScalarParam *param1 = NULL;
   SScalarParam *param2 = NULL;
+  SScalarParam *param3 = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
+  setTzCharset(&pLeftOut, pLeft->tz, pLeft->charsetCxt);
+  setTzCharset(&pRightOut, pLeft->tz, pLeft->charsetCxt);
   if (noConvertBeforeCompare(GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), optr)) {
     param1 = pLeft;
     param2 = pRight;
@@ -2049,9 +1922,12 @@ int32_t vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
     SCL_ERR_JRET(vectorConvertCols(pLeft, pRight, &pLeftOut, &pRightOut, startIndex, numOfRows));
     param1 = (pLeftOut.columnData != NULL) ? &pLeftOut : pLeft;
     param2 = (pRightOut.columnData != NULL) ? &pRightOut : pRight;
+    if (pRight->pHashFilterOthers != NULL){
+      param3 = pLeft;
+    }
   }
 
-  SCL_ERR_JRET(doVectorCompare(param1, param2, pOut, startIndex, numOfRows, _ord, optr));
+  SCL_ERR_JRET(doVectorCompare(param1, param3, param2, pOut, startIndex, numOfRows, _ord, optr));
 
 _return:
   sclFreeParam(&pLeftOut);
@@ -2302,4 +2178,17 @@ _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
     default:
       return NULL;
   }
+}
+
+bool checkOperatorRestypeIsTimestamp(EOperatorType opType, int32_t lType, int32_t rType) {
+  if (opType != OP_TYPE_ADD && opType != OP_TYPE_SUB && opType != OP_TYPE_MINUS) {
+    return false;
+  }
+  if ((TSDB_DATA_TYPE_TIMESTAMP == lType && IS_INTEGER_TYPE(rType) && rType != TSDB_DATA_TYPE_UBIGINT) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == rType && IS_INTEGER_TYPE(lType) && lType != TSDB_DATA_TYPE_UBIGINT) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == lType && TSDB_DATA_TYPE_BOOL == rType) ||
+      (TSDB_DATA_TYPE_TIMESTAMP == rType && TSDB_DATA_TYPE_BOOL == lType)) {
+    return true;
+  }
+  return false;
 }

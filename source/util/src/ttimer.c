@@ -138,7 +138,9 @@ static uintptr_t getNextTimerId() {
   return id;
 }
 
-static void timerAddRef(tmr_obj_t* timer) { (void)atomic_add_fetch_8(&timer->refCount, 1); }
+static void timerAddRef(tmr_obj_t* timer) {
+  (void)atomic_add_fetch_8(&timer->refCount, 1);
+}
 
 static void timerDecRef(tmr_obj_t* timer) {
   if (atomic_sub_fetch_8(&timer->refCount, 1) == 0) {
@@ -470,6 +472,20 @@ bool taosTmrStopA(tmr_h* timerId) {
   bool ret = taosTmrStop(*timerId);
   *timerId = NULL;
   return ret;
+}
+
+bool taosTmrIsStopped(tmr_h* timerId) {
+  uintptr_t id = (uintptr_t)*timerId;
+
+  tmr_obj_t* timer = findTimer(id);
+  if (timer == NULL) {
+    tmrDebug("timer[id=%" PRIuPTR "] does not exist", id);
+    return true;
+  }
+
+  uint8_t state = atomic_load_8(&timer->state);
+
+  return (state == TIMER_STATE_CANCELED) || (state == TIMER_STATE_STOPPED);
 }
 
 bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, tmr_h* pTmrId) {

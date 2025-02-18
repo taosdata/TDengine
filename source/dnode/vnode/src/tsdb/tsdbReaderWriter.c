@@ -104,7 +104,7 @@ int32_t tsdbOpenFile(const char *path, STsdb *pTsdb, int32_t flag, STsdbFD **ppF
   }
 
   pFD->path = (char *)&pFD[1];
-  strcpy(pFD->path, path);
+  memcpy(pFD->path, path, strlen(path) + 1);
   pFD->szPage = szPage;
   pFD->flag = flag;
   pFD->szPage = szPage;
@@ -174,8 +174,7 @@ static int32_t tsdbWriteFilePage(STsdbFD *pFD, int32_t encryptAlgorithm, char *e
         opts.source = pFD->pBuf + count;
         opts.result = PacketData;
         opts.unitLen = 128;
-        // strncpy(opts.key, tsEncryptKey, 16);
-        strncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN);
+        tstrncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN + 1);
 
         NewLen = CBC_Encrypt(&opts);
 
@@ -248,8 +247,7 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno, int32_t encryptAlgor
       opts.source = pFD->pBuf + count;
       opts.result = PacketData;
       opts.unitLen = 128;
-      // strncpy(opts.key, tsEncryptKey, 16);
-      strncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN);
+      tstrncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN + 1);
 
       NewLen = CBC_Decrypt(&opts);
 

@@ -64,6 +64,11 @@ go run ./stmt/ws/main.go
 taos -s "drop database if exists power"
 check_transactions || exit 1
 reset_cache || exit 1
+go run ./stmt2/native/main.go
+
+taos -s "drop database if exists power"
+check_transactions || exit 1
+reset_cache || exit 1
 sleep 3
 go run ./schemaless/native/main.go
 

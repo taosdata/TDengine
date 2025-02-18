@@ -384,7 +384,7 @@ void freeGcBlkBufInfo(void* ptr) {
 static int32_t addBlkToDirtyBufList(SGroupCacheOperatorInfo* pGCache, SGcDownstreamCtx* pCtx, SGcBlkCacheInfo* pCache, SGcBlkBufInfo* pBufInfo) {
   if (0 != taosHashPut(pCache->pDirtyBlk, &pBufInfo->basic.blkId, sizeof(pBufInfo->basic.blkId), pBufInfo, sizeof(*pBufInfo))) {
     freeGcBlkBufInfo(pBufInfo);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   pBufInfo = taosHashGet(pCache->pDirtyBlk, &pBufInfo->basic.blkId, sizeof(pBufInfo->basic.blkId));
   if (NULL == pBufInfo) {
@@ -906,7 +906,7 @@ static int32_t addNewGroupData(struct SOperatorInfo* pOperator, SOperatorParam* 
 
   *ppGrp = taosHashGet(pGrpHash, &uid, sizeof(uid));
   if (NULL == *ppGrp) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
   QRY_ERR_RET(initNewGroupData(pCtx, *ppGrp, pParam->downstreamIdx, vgId, pGCache->batchFetch, pGcParam->needCache));
 
@@ -1147,12 +1147,12 @@ static int32_t groupCacheSessionWait(struct SOperatorInfo* pOperator, SGcDownstr
   if (NULL == pGroup->waitQueue) {
     pGroup->waitQueue = taosArrayInit(1, POINTER_BYTES);
     if (NULL == pGroup->waitQueue) {
-      QRY_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+      QRY_ERR_JRET(terrno);
     }
   }
   
   if (NULL == taosArrayPush(pGroup->waitQueue, &pSession)) {
-    QRY_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    QRY_ERR_JRET(terrno);
   }
 
   if (!pSession->semInit) {
@@ -1413,7 +1413,7 @@ static int32_t initGroupCacheDownstreamCtx(SOperatorInfo*          pOperator) {
     pCtx->lastBlkUid = 0;
     pCtx->pVgTbHash = tSimpleHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
     if (NULL == pCtx->pVgTbHash) {
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     tSimpleHashSetFreeFp(pCtx->pVgTbHash, freeSGcVgroupCtx);      
 

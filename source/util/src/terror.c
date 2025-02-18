@@ -29,6 +29,7 @@ static threadlocal char tsErrMsgReturn[ERR_MSG_LEN] = {0};
 int32_t* taosGetErrno() { return &tsErrno; }
 int32_t* taosGetErrln() { return &tsErrln; }
 char*    taosGetErrMsg() { return tsErrMsgDetail; }
+void     taosClearErrMsg() { tsErrMsgDetail[0] = '\0'; }
 char*    taosGetErrMsgReturn() { return tsErrMsgReturn; }
 
 #ifdef TAOS_ERROR_C
@@ -58,12 +59,12 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_MAX_SESSIONS,             "rpc open too many ses
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NETWORK_ERROR,            "rpc network error")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NETWORK_BUSY,             "rpc network busy")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_MODULE_QUIT,             "http-report already quit")
-TAOS_DEFINE_ERROR(TSDB_CODE_RPC_MODULE_QUIT,              "rpc module already quit")               
-TAOS_DEFINE_ERROR(TSDB_CODE_RPC_ASYNC_MODULE_QUIT,        "rpc async module already quit")               
-TAOS_DEFINE_ERROR(TSDB_CODE_RPC_ASYNC_IN_PROCESS,         "rpc async in process")               
-TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NO_STATE,                 "rpc no state")               
-TAOS_DEFINE_ERROR(TSDB_CODE_RPC_STATE_DROPED,             "rpc state already dropped")               
-TAOS_DEFINE_ERROR(TSDB_CODE_RPC_MSG_EXCCED_LIMIT,          "rpc msg exceed limit")               
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_MODULE_QUIT,              "rpc module already quit")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_ASYNC_MODULE_QUIT,        "rpc async module already quit")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_ASYNC_IN_PROCESS,         "rpc async in process")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_NO_STATE,                 "rpc no state")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_STATE_DROPED,             "rpc state already dropped")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_MSG_EXCCED_LIMIT,          "rpc msg exceed limit")
 
 //common & util
 TAOS_DEFINE_ERROR(TSDB_CODE_TIME_UNSYNCED,                "Client and server's time is not synchronized")
@@ -118,6 +119,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MSG_PREPROCESSED,             "Message has been proc
 TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_BUFFER,                "Out of buffer")
 TAOS_DEFINE_ERROR(TSDB_CODE_INTERNAL_ERROR,               "Internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_TIME_ERROR,                   "Internal error in time")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_DISK_ID,              "Internal error invalid disk id")
 
 //client
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_OPERATION,        "Invalid operation")
@@ -167,7 +169,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_COMPRESS_PARAM_ERROR,     "Invalid compress para
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_COMPRESS_LEVEL_ERROR,     "Invalid compress level param")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_FAIL_GENERATE_JSON,       "failed to generate JSON")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR,   "bind number out of range or not match")
-
+TAOS_DEFINE_ERROR(TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS,    "Operation not supported in windows")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INTERNAL_ERROR,           "Internal error")
 
@@ -195,7 +197,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SDB_OBJ_DROPPING,             "Object is dropping")
 // mnode-dnode-part1
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_ALREADY_EXIST,      "Dnode already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DNODE_NOT_EXIST,          "Dnode does not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_EXIST,         "Vgroup does not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_EXIST,         "Vgroup does not exist or not in db")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_CANT_DROP_LEADER,         "Cannot drop mnode which is leader")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NO_ENOUGH_DNODES,         "Out of dnodes")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CLUSTER_CFG,      "Cluster cfg inconsistent")
@@ -325,6 +327,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_SYNC_TIMEOUT,       "Sync timeout While ex
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CTX_SWITCH,         "Wrong transaction execution context")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CONFLICT_COMPACT,   "Transaction not completed due to conflict with compact")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_UNKNOW_ERROR,       "Unknown transaction error")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_NOT_ABLE_TO_kILLED, "The transaction is not able to be killed")
 
 // mnode-mq
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_ALREADY_EXIST,      "Topic already exists")
@@ -418,7 +421,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_CHARSET,        "charset not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_LOCALE,         "locale not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_TTL_CHG_ON_WR,  "ttlChangeOnWrite not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_EN_WHITELIST,   "enableWhiteList not match")
-TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_STOPPED,   "Mnode stopped")
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_STOPPED,                "Mnode stopped")
+TAOS_DEFINE_ERROR(TSDB_CODE_DNODE_INVALID_COMPACT_TASKS,  "Invalid max compact tasks")
 
 // vnode
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VGROUP_ID,        "Vnode is closed or removed")
@@ -443,6 +447,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_ARB_NOT_SYNCED,           "Vgroup peer is not sy
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_WRITE_DISABLED,           "Vnode write is disabled for snapshot")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_COLUMN_COMPRESS_ALREADY_EXIST,"Same with old param")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_TTL_FLUSH_INCOMPLETION,   "Failed to flush all ttl modification to tdb")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_ALREADY_EXIST_BUT_NOT_MATCH,   "Vnode already exist but Dbid not match")
 
 
 // tsdb
@@ -513,6 +518,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_FILTER_NOT_SUPPORT_TYPE,  "Not supported range t
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_FILTER_WRONG_OPTR_TYPE,   "Wrong operator type")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_FILTER_RANGE_ERROR,       "Wrong filter range")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_FILTER_INVALID_TYPE,      "Invalid filter type")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_REACH_QMEM_THRESHOLD,     "Query memory upper limit is reached")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED,      "Query memory exhausted")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NO_FETCH_TIMEOUT,         "Timeout for long time no fetch")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TASK_SUCC_TO_PARTSUSS,    "Change task status from success to partial success")
 
 // grant
@@ -642,7 +650,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_SINGLE_GROUP,          "Not a single-group g
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TAGS_NOT_MATCHED,          "Tags number not matched")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TAG_NAME,          "Invalid tag name")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,   "Name or password too long")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PASSWD_EMPTY,              "Password can not be empty")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY, "Password too short or empty")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PORT,              "Port should be an integer that is less than 65535 and greater than 0")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ENDPOINT,          "Endpoint should be in the format of 'fqdn:port'")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_EXPRIE_STATEMENT,          "This statement is no longer supported")
@@ -743,6 +751,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ANOMALY_WIN_COL,    "ANOMALY_WINDOW not 
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ANOMALY_WIN_OPT,    "ANOMALY_WINDOW option should include algo field")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_FORECAST_CLAUSE,    "Invalid forecast clause")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,  "Syntax error in regular expression")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_VGID_LIST,          "Invalid vgid list")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 
 //planner
@@ -849,6 +858,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_REPLAY_NEED_ONE_VGROUP,     "Replay need only on
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT,         "Replay is disabled if subscribe db or stable")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_NO_TABLE_QUALIFIED,         "No table qualified for query")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_NO_NEED_REBALANCE,          "No need rebalance")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_STATUS,             "Invalid status, please subscribe topic first")
 
 // stream
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_NOT_EXIST,          "Stream task not exist")
@@ -873,6 +883,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY,       "Queue out of memory
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_NOT_FORMAT_TO_JSON,       "can't format to json")
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_FAIL_SEND_AUDIT_RECORD,   "Failed to send out audit record")
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_FAIL_GENERATE_JSON,       "Failed to generate json")
+
 #ifdef TAOS_ERROR_C
 };
 #endif
@@ -900,12 +911,6 @@ const char* tstrerror(int32_t err) {
   (void)taosThreadOnce(&tsErrorInit, tsSortError);
 
   // this is a system errno
-  if ((err & 0x00ff0000) == 0x00ff0000) {
-    int32_t code = err & 0x0000ffff;
-    // strerror can handle any invalid code
-    // invalid code return Unknown error
-    return strerror(code);
-  }
   #ifdef WINDOWS
   if ((err & 0x01ff0000) == 0x01ff0000) {
     snprintf(WinAPIErrDesc, 256, "windows api error, code: 0x%08x", err & 0x0000ffff);
@@ -915,6 +920,13 @@ const char* tstrerror(int32_t err) {
     return WinAPIErrDesc;
   }
   #endif
+  if ((err & 0x00ff0000) == 0x00ff0000) {
+    int32_t code = err & 0x0000ffff;
+    // strerror can handle any invalid code
+    // invalid code return Unknown error
+    return strerror(code);
+  }
+
   int32_t s = 0;
   int32_t e = sizeof(errors) / sizeof(errors[0]);
 

@@ -41,38 +41,28 @@ If there is a single replica on the node and the node is offline, to forcibly de
 ALTER DNODE dnode_id dnode_option
 
 ALTER ALL DNODES dnode_option
-
-dnode_option: {
-    'resetLog'
-  | 'balance' 'value'
-  | 'monitor' 'value'
-  | 'debugFlag' 'value'
-  | 'monDebugFlag' 'value'
-  | 'vDebugFlag' 'value'
-  | 'mDebugFlag' 'value'
-  | 'cDebugFlag' 'value'
-  | 'httpDebugFlag' 'value'
-  | 'qDebugflag' 'value'
-  | 'sdbDebugFlag' 'value'
-  | 'uDebugFlag' 'value'
-  | 'tsdbDebugFlag' 'value'
-  | 'sDebugflag' 'value'
-  | 'rpcDebugFlag' 'value'
-  | 'dDebugFlag' 'value'
-  | 'mqttDebugFlag' 'value'
-  | 'wDebugFlag' 'value'
-  | 'tmrDebugFlag' 'value'
-  | 'cqDebugFlag' 'value'
-}
 ```
 
-The modifiable configuration items in the syntax above are configured in the same way as in the dnode configuration file, the difference being that modifications are dynamic, take immediate effect, and do not require restarting the dnode.
+For configuration parameters that support dynamic modification, you can use the ALTER DNODE or ALTER ALL DNODES syntax to modify the values of configuration parameters in a dnode. Starting from version 3.3.4.0, the modified configuration parameters will be automatically persisted and will remain effective even after the database service is restarted.
 
-`value` is the value of the parameter, which needs to be in string format. For example, to change the log output level of dnode 1 to debug:
+To check whether a configuration parameter supports dynamic modification, please refer to the following page: [taosd Reference](/tdengine-reference/components/taosd/)
+
+The value is the parameter's value and needs to be in character format. For example, to change the log output level of dnode 1 to debug:
 
 ```sql
 ALTER DNODE 1 'debugFlag' '143';
 ```
+### Additional Notes:
+Configuration parameters in a dnode are divided into global configuration parameters and local configuration parameters. You can check the category field in SHOW VARIABLES or SHOW DNODE dnode_id VARIABLE to determine whether a configuration parameter is a global configuration parameter or a local configuration parameter:
+
+Local configuration parameters: You can use ALTER DNODE or ALTER ALL DNODES to update the local configuration parameters of a specific dnode or all dnodes.
+Global configuration parameters: Global configuration parameters require consistency across all dnodes, so you can only use ALTER ALL DNODES to update the global configuration parameters of all dnodes.
+There are three cases for whether a configuration parameter can be dynamically modified:
+
+Supports dynamic modification, effective immediately
+Supports dynamic modification, effective after restart
+Does not support dynamic modification
+For configuration parameters that take effect after a restart, you can see the modified values through SHOW VARIABLES or SHOW DNODE dnode_id VARIABLE, but you need to restart the database service to make them effective.
 
 ## Add Management Node
 
@@ -136,18 +126,12 @@ If the client is also considered as part of the cluster in a broader sense, the 
 
 ```sql
 ALTER LOCAL local_option
-
-local_option: {
-    'resetLog'
-  | 'rpcDebugFlag' 'value'
-  | 'tmrDebugFlag' 'value'
-  | 'cDebugFlag' 'value'
-  | 'uDebugFlag' 'value'
-  | 'debugFlag' 'value'
-}
 ```
 
-The parameters in the syntax above are used in the same way as in the configuration file for the client, but do not require a restart of the client, and the changes take effect immediately.
+You can use the above syntax to modify the client's configuration parameters, and there is no need to restart the client. The changes take effect immediately.
+
+To check whether a configuration parameter supports dynamic modification, please refer to the following page:[taosc Reference](/tdengine-reference/components/taosc/)
+
 
 ## View Client Configuration
 

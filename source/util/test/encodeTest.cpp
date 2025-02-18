@@ -230,8 +230,8 @@ static int32_t tSStructA_v1_decode(SCoder *pCoder, SStructA_v1 *pSAV1) {
 
   if (tDecodeI32(pCoder, &pSAV1->A_a) < 0) return -1;
   if (tDecodeI64(pCoder, &pSAV1->A_b) < 0) return -1;
-  const char *tstr;
-  uint64_t    len;
+  const char *tstr = NULL;
+  uint64_t    len = 0;
   if (tDecodeCStrAndLen(pCoder, &tstr, &len) < 0) return -1;
   pSAV1->A_c = (char *)tCoderMalloc(pCoder, len + 1);
   memcpy(pSAV1->A_c, tstr, len + 1);
@@ -269,8 +269,8 @@ static int32_t tSStructA_v2_decode(SCoder *pCoder, SStructA_v2 *pSAV2) {
 
   if (tDecodeI32(pCoder, &pSAV2->A_a) < 0) return -1;
   if (tDecodeI64(pCoder, &pSAV2->A_b) < 0) return -1;
-  const char *tstr;
-  uint64_t    len;
+  const char *tstr = NULL;
+  uint64_t    len = 0;
   if (tDecodeCStrAndLen(pCoder, &tstr, &len) < 0) return -1;
   pSAV2->A_c = (char *)tCoderMalloc(pCoder, len + 1);
   memcpy(pSAV2->A_c, tstr, len + 1);

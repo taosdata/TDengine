@@ -345,6 +345,9 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
 
   pJob->levelNum = levelNum;
   SCH_RESET_JOB_LEVEL_IDX(pJob);
+  
+  atomic_add_fetch_64(&pJob->seriousId, 1);
+  SCH_JOB_DLOG("job seriousId set to 0x%" PRIx64, pJob->seriousId);
 
   SSchLevel      level = {0};
   SNodeListNode *plans = NULL;
@@ -674,7 +677,7 @@ int32_t schLaunchJobLowerLevel(SSchJob *pJob, SSchTask *pTask) {
         continue;
       }
 
-      SCH_ERR_RET(schLaunchTask(pJob, pTask));
+      SCH_ERR_RET(schDelayLaunchTask(pJob, pTask));
     }
   }
 
@@ -994,16 +997,33 @@ int32_t schChkResetJobRetry(SSchJob *pJob, int32_t rspCode) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schResetJobForRetry(SSchJob *pJob, int32_t rspCode, bool *inRetry) {
-  int8_t origInRetry = atomic_val_compare_exchange_8(&pJob->inRetry, 0, 1);
-  if (0 != origInRetry) {
-    SCH_JOB_DLOG("job already in retry, origInRetry: %d", pJob->inRetry);
-    return TSDB_CODE_SCH_IGNORE_ERROR;
+int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode, bool *inRetry) {
+  while (true) {
+    if (pTask->seriousId < atomic_load_64(&pJob->seriousId)) {
+      SCH_TASK_DLOG("task sId %" PRId64 " is smaller than current job sId %" PRId64, pTask->seriousId, pJob->seriousId);
+      return TSDB_CODE_SCH_IGNORE_ERROR;
+    }
+
+    int8_t origInRetry = atomic_val_compare_exchange_8(&pJob->inRetry, 0, 1);
+    if (0 != origInRetry) {
+      SCH_JOB_DLOG("job already in retry, origInRetry: %d", pJob->inRetry);
+      taosUsleep(1);
+      continue;
+    }
+
+    if (pTask->seriousId < atomic_load_64(&pJob->seriousId)) {
+      SCH_TASK_DLOG("task sId %" PRId64 " is smaller than current job sId %" PRId64, pTask->seriousId, pJob->seriousId);
+      return TSDB_CODE_SCH_IGNORE_ERROR;
+    }
+
+    break;
   }
 
   *inRetry = true;
 
   SCH_ERR_RET(schChkResetJobRetry(pJob, rspCode));
+
+  atomic_add_fetch_64(&pJob->seriousId, 1);
 
   int32_t code = 0;
   int32_t numOfLevels = taosArrayGetSize(pJob->levels);
@@ -1031,13 +1051,19 @@ int32_t schResetJobForRetry(SSchJob *pJob, int32_t rspCode, bool *inRetry) {
         SCH_UNLOCK_TASK(pTask);
         SCH_RET(code);
       }
-      qClearSubplanExecutionNode(pTask->plan);
       schResetTaskForRetry(pJob, pTask);
+
+      SCH_LOCK(SCH_WRITE, &pTask->planLock);
+      qClearSubplanExecutionNode(pTask->plan);
+      SCH_UNLOCK(SCH_WRITE, &pTask->planLock);
+
       SCH_UNLOCK_TASK(pTask);
     }
   }
 
   SCH_RESET_JOB_LEVEL_IDX(pJob);
+  
+  SCH_JOB_DLOG("update job sId to %" PRId64, pJob->seriousId);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1053,7 +1079,7 @@ int32_t schHandleJobRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, int32_
 
   SCH_TASK_DLOG("start to redirect all job tasks cause of error: %s", tstrerror(rspCode));
 
-  SCH_ERR_JRET(schResetJobForRetry(pJob, rspCode, &inRetry));
+  SCH_ERR_JRET(schResetJobForRetry(pJob, pTask, rspCode, &inRetry));
 
   SCH_ERR_JRET(schLaunchJob(pJob));
 

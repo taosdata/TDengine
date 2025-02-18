@@ -61,8 +61,7 @@ window_clause: {
   | COUNT_WINDOW(count_val[, sliding_val])
 
 interp_clause:
-      RANGE(ts_val [, ts_val]) EVERY(every_val) FILL(fill_mod_and_val)
-    | RANGE(ts_val, surrounding_time_val) FILL(fill_mod_and_val)
+      RANGE(ts_val [, ts_val] [, surrounding_time_val]) EVERY(every_val) FILL(fill_mod_and_val)
 
 partition_by_clause:
     PARTITION BY partition_by_expr [, partition_by_expr] ...
@@ -210,19 +209,19 @@ However, renaming individual columns is not supported for `first(*)`, `last(*)`,
 
 Retrieve all subtable names and related tag information from a supertable:
 
-```mysql
+```sql
 SELECT TAGS TBNAME, location FROM meters;
 ```
 
 It is recommended that users query the subtable tag information of supertables using the INS_TAGS system table under INFORMATION_SCHEMA, for example, to get all subtable names and tag values of the supertable meters:
 
-```mysql
+```sql
 SELECT table_name, tag_name, tag_type, tag_value FROM information_schema.ins_tags WHERE stable_name='meters';
 ```
 
 Count the number of subtables under a supertable:
 
-```mysql
+```sql
 SELECT COUNT(*) FROM (SELECT DISTINCT TBNAME FROM meters);
 ```
 
@@ -385,7 +384,7 @@ SELECT CURRENT_USER();
 
 ### Syntax
 
-```txt
+```text
 WHERE (column|tbname) match/MATCH/nmatch/NMATCH _regex_
 ```
 
@@ -403,7 +402,7 @@ The length of the regular match string cannot exceed 128 bytes. You can set and 
 
 ### Syntax
 
-```txt
+```text
 CASE value WHEN compare_value THEN result [WHEN compare_value THEN result ...] [ELSE result] END
 CASE WHEN condition THEN result [WHEN condition THEN result ...] [ELSE result] END
 ```
@@ -491,15 +490,15 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 
 :::
 
-## UNION ALL Clause
+## UNION Clause
 
-```txt title=Syntax
+```text title=Syntax
 SELECT ...
-UNION ALL SELECT ...
-[UNION ALL SELECT ...]
+UNION [ALL] SELECT ...
+[UNION [ALL] SELECT ...]
 ```
 
-TDengine supports the UNION ALL operator. This means that if multiple SELECT clauses return result sets with the exact same structure (column names, column types, number of columns, order), these result sets can be combined together using UNION ALL. Currently, only the UNION ALL mode is supported, which means that duplicates are not removed during the merging process. In the same SQL statement, a maximum of 100 UNION ALLs are supported.
+TDengine supports the UNION [ALL] operator. This means that if multiple SELECT clauses return result sets with the exact same structure (column names, column types, number of columns, order), these result sets can be combined together using UNION [ALL].
 
 ## SQL Examples
 

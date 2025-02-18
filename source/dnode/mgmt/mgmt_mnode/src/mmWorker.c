@@ -220,6 +220,8 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     return code;
   }
 
+  tsNumOfQueryThreads += tsNumOfMnodeQueryThreads;
+
   SSingleWorkerCfg fCfg = {
       .min = tsNumOfMnodeFetchThreads,
       .max = tsNumOfMnodeFetchThreads,

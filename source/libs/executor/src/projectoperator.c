@@ -18,6 +18,7 @@
 #include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
+#include "taoserror.h"
 #include "tdatablock.h"
 
 typedef struct SProjectOperatorInfo {
@@ -875,7 +876,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
     }
 
     pResult->info.rows = 1;
-    goto _exit;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (pResult != pSrcBlock) {
@@ -889,7 +890,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
   if (createNewColModel) {
     code = blockDataEnsureCapacity(pResult, pResult->info.rows);
     if (code) {
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
 
@@ -975,21 +976,21 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
       if (pBlockList == NULL) {
         code = terrno;
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
 
       void* px = taosArrayPush(pBlockList, &pSrcBlock);
       if (px == NULL) {
         code = terrno;
         taosArrayDestroy(pBlockList);
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
 
       SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
       if (pResColData == NULL) {
         code = terrno;
         taosArrayDestroy(pBlockList);
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
 
       SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
@@ -998,7 +999,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       code = scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest);
       if (code != TSDB_CODE_SUCCESS) {
         taosArrayDestroy(pBlockList);
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
 
       int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
@@ -1039,7 +1040,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
           int32_t* outputColIndex = taosArrayGet(pPseudoList, 0);
           if (outputColIndex == NULL) {
             code = terrno;
-            goto _exit;
+            TSDB_CHECK_CODE(code, lino, _exit);
           }
 
           pfCtx->pTsOutput = (SColumnInfoData*)pCtx[*outputColIndex].pOutput;
@@ -1055,7 +1056,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
           if (pCtx[k].fpSet.cleanup != NULL) {
             pCtx[k].fpSet.cleanup(&pCtx[k]);
           }
-          goto _exit;
+          TSDB_CHECK_CODE(code, lino, _exit);
         }
 
         numOfRows = pResInfo->numOfRes;
@@ -1064,14 +1065,14 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
             processByRowFunctionCtx = taosArrayInit(1, sizeof(SqlFunctionCtx*));
             if (!processByRowFunctionCtx) {
               code = terrno;
-              goto _exit;
+              TSDB_CHECK_CODE(code, lino, _exit);
             }
           }
 
           void* px = taosArrayPush(processByRowFunctionCtx, &pfCtx);
           if (px == NULL) {
             code = terrno;
-            goto _exit;
+            TSDB_CHECK_CODE(code, lino, _exit);
           }
         }
       } else if (fmIsAggFunc(pfCtx->functionId)) {
@@ -1110,20 +1111,20 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         SArray* pBlockList = taosArrayInit(4, POINTER_BYTES);
         if (pBlockList == NULL) {
           code = terrno;
-          goto _exit;
+          TSDB_CHECK_CODE(code, lino, _exit);
         }
 
         void* px = taosArrayPush(pBlockList, &pSrcBlock);
         if (px == NULL) {
           code = terrno;
-          goto _exit;
+          TSDB_CHECK_CODE(code, lino, _exit);
         }
 
         SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
         if (pResColData == NULL) {
           taosArrayDestroy(pBlockList);
           code = terrno;
-          goto _exit;
+          TSDB_CHECK_CODE(code, lino, _exit);
         }
 
         SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
@@ -1132,7 +1133,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         code = scalarCalculate((SNode*)pExpr[k].pExpr->_function.pFunctNode, pBlockList, &dest);
         if (code != TSDB_CODE_SUCCESS) {
           taosArrayDestroy(pBlockList);
-          goto _exit;
+          TSDB_CHECK_CODE(code, lino, _exit);
         }
 
         int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
@@ -1161,7 +1162,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
     SqlFunctionCtx** pfCtx = taosArrayGet(processByRowFunctionCtx, 0);
     if (pfCtx == NULL) {
       code = terrno;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     code = (*pfCtx)->fpSet.processFuncByRow(processByRowFunctionCtx);

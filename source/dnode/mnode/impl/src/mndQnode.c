@@ -333,7 +333,7 @@ static int32_t mndProcessCreateQnodeReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char obj[33] = {0};
-  (void)sprintf(obj, "%d", createReq.dnodeId);
+  (void)tsnprintf(obj, sizeof(obj), "%d", createReq.dnodeId);
 
   auditRecord(pReq, pMnode->clusterId, "createQnode", "", obj, createReq.sql, createReq.sqlLen);
 _OVER:
@@ -465,7 +465,7 @@ static int32_t mndProcessDropQnodeReq(SRpcMsg *pReq) {
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   char obj[33] = {0};
-  (void)sprintf(obj, "%d", dropReq.dnodeId);
+  (void)tsnprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
 
   auditRecord(pReq, pMnode->clusterId, "dropQnode", "", obj, dropReq.sql, dropReq.sqlLen);
 

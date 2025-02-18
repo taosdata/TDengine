@@ -24,6 +24,8 @@
 #include "tglobal.h"
 #include "ttime.h"
 
+#define FQDNRETRYTIMES 100
+
 static void syncCfg2SimpleStr(const SSyncCfg* pCfg, char* buf, int32_t bufLen) {
   int32_t len = tsnprintf(buf, bufLen, "{num:%d, as:%d, [", pCfg->replicaNum, pCfg->myIndex);
   for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
@@ -45,7 +47,8 @@ void syncUtilNodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet) {
 bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* raftId) {
   uint32_t ipv4 = 0xFFFFFFFF;
   sDebug("vgId:%d, resolve sync addr from fqdn, ep:%s:%u", vgId, pInfo->nodeFqdn, pInfo->nodePort);
-  for (int32_t i = 0; i < tsResolveFQDNRetryTime; i++) {
+
+  for (int32_t i = 0; i < FQDNRETRYTIMES; i++) {
     int32_t code = taosGetIpv4FromFqdn(pInfo->nodeFqdn, &ipv4);
     if (code) {
       sError("vgId:%d, failed to resolve sync addr, dnode:%d fqdn:%s, retry", vgId, pInfo->nodeId, pInfo->nodeFqdn);
@@ -62,7 +65,7 @@ bool syncUtilNodeInfo2RaftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* 
   }
 
   char ipbuf[TD_IP_LEN] = {0};
-  tinet_ntoa(ipbuf, ipv4);
+  taosInetNtoa(ipbuf, ipv4);
   raftId->addr = SYNC_ADDR(pInfo);
   raftId->vgId = vgId;
 

@@ -20,6 +20,7 @@
 #include "systable.h"
 #include "tanalytics.h"
 #include "tchecksum.h"
+#include "tutil.h"
 
 extern SConfig *tsCfg;
 
@@ -114,7 +115,7 @@ static void dmMayShouldUpdateAnalFunc(SDnodeMgmt *pMgmt, int64_t newVer) {
       .pCont = pHead,
       .contLen = contLen,
       .msgType = TDMT_MND_RETRIEVE_ANAL_ALGO,
-      .info.ahandle = (void *)0x9527,
+      .info.ahandle = 0,
       .info.refId = 0,
       .info.noResp = 0,
       .info.handle = 0,
@@ -180,7 +181,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.numOfSupportVnodes = tsNumOfSupportVnodes;
   req.numOfDiskCfg = tsDiskCfgNum;
   req.memTotal = tsTotalMemoryKB * 1024;
-  req.memAvail = req.memTotal - tsQueueMemoryAllowed - 16 * 1024 * 1024;
+  req.memAvail = req.memTotal - tsQueueMemoryAllowed - tsApplyMemoryAllowed - 16 * 1024 * 1024;
   tstrncpy(req.dnodeEp, tsLocalEp, TSDB_EP_LEN);
   tstrncpy(req.machineId, pMgmt->pData->machineId, TSDB_MACHINE_ID_LEN + 1);
 
@@ -197,7 +198,8 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
   tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   char timestr[32] = "1970-01-01 00:00:00.00";
-  if (taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0) != 0) {
+  if (taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, NULL) !=
+      0) {
     dError("failed to parse time since %s", tstrerror(code));
   }
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
@@ -282,6 +284,135 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   dmProcessStatusRsp(pMgmt, &rpcRsp);
 }
 
+static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
+  const STraceId *trace = &pRsp->info.traceId;
+  int32_t         code = 0;
+  SConfigRsp      configRsp = {0};
+  bool            needStop = false;
+
+  if (pRsp->code != 0) {
+    if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->pData->dropped && pMgmt->pData->dnodeId > 0) {
+      dGInfo("dnode:%d, set to dropped since not exist in mnode", pMgmt->pData->dnodeId);
+      pMgmt->pData->dropped = 1;
+      if (dmWriteEps(pMgmt->pData) != 0) {
+        dError("failed to write dnode file");
+      }
+      dInfo("dnode will exit since it is in the dropped state");
+      (void)raise(SIGINT);
+    }
+  } else {
+    bool needUpdate = false;
+    if (pRsp->pCont != NULL && pRsp->contLen > 0 &&
+        tDeserializeSConfigRsp(pRsp->pCont, pRsp->contLen, &configRsp) == 0) {
+      // Try to use cfg file in current dnode.
+      if (configRsp.forceReadConfig) {
+        if (configRsp.isConifgVerified) {
+          uInfo("force read config and check config verified");
+          code = taosPersistGlobalConfig(taosGetGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
+          if (code != TSDB_CODE_SUCCESS) {
+            dError("failed to persist global config since %s", tstrerror(code));
+            goto _exit;
+          }
+          needUpdate = true;
+        } else {
+          // log the difference configurations
+          printConfigNotMatch(configRsp.array);
+          needStop = true;
+          goto _exit;
+        }
+      }
+      // Try to use cfg from mnode sdb.
+      if (!configRsp.isVersionVerified) {
+        uInfo("config version not verified, update config");
+        needUpdate = true;
+        code = taosPersistGlobalConfig(configRsp.array, pMgmt->path, configRsp.cver);
+        if (code != TSDB_CODE_SUCCESS) {
+          dError("failed to persist global config since %s", tstrerror(code));
+          goto _exit;
+        }
+      }
+    }
+    if (needUpdate) {
+      code = cfgUpdateFromArray(tsCfg, configRsp.array);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to update config since %s", tstrerror(code));
+        goto _exit;
+      }
+      code = setAllConfigs(tsCfg);
+      if (code != TSDB_CODE_SUCCESS) {
+        dError("failed to set all configs since %s", tstrerror(code));
+        goto _exit;
+      }
+    }
+    code = taosPersistLocalConfig(pMgmt->path);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to persist local config since %s", tstrerror(code));
+    }
+    tsConfigInited = 1;
+  }
+_exit:
+  tFreeSConfigRsp(&configRsp);
+  rpcFreeCont(pRsp->pCont);
+  if (needStop) {
+    dmStop();
+  }
+}
+
+void dmSendConfigReq(SDnodeMgmt *pMgmt) {
+  int32_t    code = 0;
+  SConfigReq req = {0};
+
+  req.cver = tsdmConfigVersion;
+  req.forceReadConfig = tsForceReadConfig;
+  req.array = taosGetGlobalCfg(tsCfg);
+  dDebug("send config req to mnode, configVersion:%d", req.cver);
+
+  int32_t contLen = tSerializeSConfigReq(NULL, 0, &req);
+  if (contLen < 0) {
+    dError("failed to serialize status req since %s", tstrerror(contLen));
+    return;
+  }
+
+  void *pHead = rpcMallocCont(contLen);
+  if (pHead == NULL) {
+    dError("failed to malloc cont since %s", tstrerror(contLen));
+    return;
+  }
+  contLen = tSerializeSConfigReq(pHead, contLen, &req);
+  if (contLen < 0) {
+    rpcFreeCont(pHead);
+    dError("failed to serialize status req since %s", tstrerror(contLen));
+    return;
+  }
+
+  SRpcMsg rpcMsg = {.pCont = pHead,
+                    .contLen = contLen,
+                    .msgType = TDMT_MND_CONFIG,
+                    .info.ahandle = 0,
+                    .info.notFreeAhandle = 1,
+                    .info.refId = 0,
+                    .info.noResp = 0,
+                    .info.handle = 0};
+  SRpcMsg rpcRsp = {0};
+
+  SEpSet epSet = {0};
+  int8_t epUpdated = 0;
+  (void)dmGetMnodeEpSet(pMgmt->pData, &epSet);
+
+  dDebug("send status req to mnode, statusSeq:%d, begin to send rpc msg", pMgmt->statusSeq);
+  code =
+      rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusInterval * 5 * 1000);
+  if (code != 0) {
+    dError("failed to send status req since %s", tstrerror(code));
+    return;
+  }
+  if (rpcRsp.code != 0) {
+    dError("failed to send config req since %s", tstrerror(rpcRsp.code));
+    return;
+  }
+  dmProcessConfigRsp(pMgmt, &rpcRsp);
+}
+
 void dmUpdateStatusInfo(SDnodeMgmt *pMgmt) {
   SMonVloadInfo vinfo = {0};
   dDebug("begin to get vnode loads");
@@ -347,24 +478,49 @@ int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t       code = 0;
   SDCfgDnodeReq cfgReq = {0};
+  SConfig      *pCfg = taosGetCfg();
+  SConfigItem  *pItem = NULL;
+
   if (tDeserializeSDCfgDnodeReq(pMsg->pCont, pMsg->contLen, &cfgReq) != 0) {
     return TSDB_CODE_INVALID_MSG;
+  }
+  if (strcasecmp(cfgReq.config, "dataDir") == 0) {
+    return taosUpdateTfsItemDisable(pCfg, cfgReq.value, pMgmt->pTfs);
   }
 
   dInfo("start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
 
-  SConfig *pCfg = taosGetCfg();
-
-  code = cfgSetItem(pCfg, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_CMD, true);
+  code = cfgGetAndSetItem(pCfg, &pItem, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_SERVER_CMD, true);
   if (code != 0) {
     if (strncasecmp(cfgReq.config, "resetlog", strlen("resetlog")) == 0) {
-      code = 0;
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, cfgReq.config, true));
+      return TSDB_CODE_SUCCESS;
     } else {
       return code;
     }
   }
+  if (pItem == NULL) {
+    return TSDB_CODE_CFG_NOT_FOUND;
+  }
+  if (!isConifgItemLazyMode(pItem)) {
+    TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, cfgReq.config, true));
+  }
 
-  return taosCfgDynamicOptions(pCfg, cfgReq.config, true);
+  if (pItem->category == CFG_CATEGORY_GLOBAL) {
+    code = taosPersistGlobalConfig(taosGetGlobalCfg(pCfg), pMgmt->path, tsdmConfigVersion);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to persist global config since %s", tstrerror(code));
+    }
+  } else {
+    code = taosPersistLocalConfig(pMgmt->path);
+    if (code != TSDB_CODE_SUCCESS) {
+      dError("failed to persist local config since %s", tstrerror(code));
+    }
+  }
+  if (cfgReq.version > 0) {
+    tsdmConfigVersion = cfgReq.version;
+  }
+  return code;
 }
 
 int32_t dmProcessCreateEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
@@ -525,6 +681,7 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (tDeserializeSRetrieveTableReq(pMsg->pCont, pMsg->contLen, &retrieveReq) != 0) {
     return TSDB_CODE_INVALID_MSG;
   }
+  dInfo("retrieve table:%s, user:%s, compactId:%" PRId64, retrieveReq.tb, retrieveReq.user, retrieveReq.compactId);
 #if 0
   if (strcmp(retrieveReq.user, TSDB_DEFAULT_USER) != 0) {
     code = TSDB_CODE_MND_NO_RIGHTS;

@@ -86,6 +86,14 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
     if (code) {
       return code;
     }
+
+    code = qSetStreamNotifyInfo(pTask->exec.pExecutor, pTask->notifyInfo.notifyEventTypes,
+                                pTask->notifyInfo.pSchemaWrapper, pTask->notifyInfo.stbFullName,
+                                IS_NEW_SUBTB_RULE(pTask), &pTask->notifyEventStat);
+    if (code) {
+      tqError("s-task:%s failed to set stream notify info, code:%s", pTask->id.idStr, tstrerror(code));
+      return code;
+    }
   }
 
   streamSetupScheduleTrigger(pTask);
@@ -718,8 +726,6 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
     }
   }
 
-  streamMetaWUnLock(pMeta);
-
   // drop the related fill-history task firstly
   if (hTaskId.taskId != 0 && hTaskId.streamId != 0) {
     tqDebug("s-task:0x%x vgId:%d drop rel fill-history task:0x%x firstly", pReq->taskId, vgId, (int32_t)hTaskId.taskId);
@@ -737,7 +743,6 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
   }
 
   // commit the update
-  streamMetaWLock(pMeta);
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
   tqDebug("vgId:%d task:0x%x dropped, remain tasks:%d", vgId, pReq->taskId, numOfTasks);
 
@@ -963,9 +968,9 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, char* pMsg) {
   tqDebug("s-task:%s receive task-reset msg from mnode, reset status and ready for data processing", pTask->id.idStr);
 
   streamMutexLock(&pTask->lock);
-  streamTaskClearCheckInfo(pTask, true);
 
   streamTaskSetFailedCheckpointId(pTask, pReq->chkptId);
+  streamTaskClearCheckInfo(pTask, true);
 
   // clear flag set during do checkpoint, and open inputQ for all upstream tasks
   SStreamTaskState pState = streamTaskGetStatus(pTask);
@@ -1220,6 +1225,7 @@ int32_t tqStreamTaskProcessTaskResumeReq(void* handle, int64_t sversion, char* m
     streamMetaReleaseTask(pMeta, pHTask);
   }
 
+  streamMetaReleaseTask(pMeta, pTask);
   return TSDB_CODE_SUCCESS;
 }
 

@@ -28,13 +28,14 @@ In this document, it specifically refers to the internal levels of the second-le
 
 - Default compression algorithms list and applicable range for each data type
 
-| Data Type |   Available Encoding Algorithms      |  Default Encoding Algorithm | Available Compression Algorithms|Default Compression Algorithm| Default Compression Level|
-| :-----------:|:----------:|:-------:|:-------:|:----------:|:----:|
-|  tinyint/untinyint/smallint/usmallint/int/uint | simple8b| simple8b | lz4/zlib/zstd/xz| lz4 | medium|
-|   bigint/ubigint/timestamp   |  simple8b/delta-i    | delta-i |lz4/zlib/zstd/xz | lz4| medium|
-|float/double | delta-d|delta-d |lz4/zlib/zstd/xz/tsz|lz4| medium|
-|binary/nchar| disabled| disabled|lz4/zlib/zstd/xz| lz4| medium|
-|bool| bit-packing| bit-packing| lz4/zlib/zstd/xz| lz4| medium|
+| Data Type |Available Encoding Algorithms | Default Encoding Algorithm | Available Compression Algorithms | Default Compression Algorithm | Default Compression Level |
+|:------------------------------------:|:-------------------------:|:-----------:|:--------------------:|:----:|:------:|
+| int/uint                             | disabled/simple8b         | simple8b    | lz4/zlib/zstd/xz     | lz4  | medium |
+| tinyint/untinyint/smallint/usmallint | disabled/simple8b         | simple8b    | lz4/zlib/zstd/xz     | zlib | medium |
+| bigint/ubigint/timestamp             | disabled/simple8b/delta-i | delta-i     | lz4/zlib/zstd/xz     | lz4  | medium |
+| float/double                         | disabled/delta-d          | delta-d     | lz4/zlib/zstd/xz/tsz | lz4  | medium |
+| binary/nchar                         | disabled                  | disabled    | lz4/zlib/zstd/xz     | zstd | medium |
+| bool                                 | disabled/bit-packing      | bit-packing | lz4/zlib/zstd/xz     | zstd | medium |
 
 ## SQL Syntax
 

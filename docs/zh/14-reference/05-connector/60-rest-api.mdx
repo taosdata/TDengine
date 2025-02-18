@@ -253,7 +253,7 @@ C 接口网络不可用相关错误码：
 - code：（`int`）0 代表成功。
 - column_meta：（`[][3]any`） 列信息，每个列会用三个值来说明，分别为：列名（string）、列类型（string）、类型长度（int）。
 - rows：（`int`）数据返回行数。
-- data：（`[][]any`）具体数据内容（时间格式仅支持 RFC3339，结果集为 0 时区）。
+- data：（`[][]any`）具体数据内容（时间格式仅支持 RFC3339，结果集为 0 时区，指定 tz 时返回对应时区）。
 
 列类型使用如下字符串：
 
@@ -435,7 +435,6 @@ curl http://<fqnd>:<port>/rest/login/<username>/<password>
 
 其中，`fqdn` 是 TDengine 数据库的 FQDN 或 IP 地址，`port` 是 TDengine 服务的端口号，`username` 为数据库用户名，`password` 为数据库密码，返回值为 JSON 格式，各字段含义如下：
 
-- status：请求结果的标志位。
 - code：返回值代码。
 - desc：授权码。
 

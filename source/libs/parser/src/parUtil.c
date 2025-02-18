@@ -57,8 +57,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid tag name: %s";
     case TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG:
       return "Name or password too long";
-    case TSDB_CODE_PAR_PASSWD_EMPTY:
-      return "Password can not be empty";
+    case TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY:
+      return "Password too short or empty";
     case TSDB_CODE_PAR_INVALID_PORT:
       return "Port should be an integer that is less than 65535 and greater than 0";
     case TSDB_CODE_PAR_INVALID_ENDPOINT:
@@ -250,7 +250,7 @@ int32_t generateSyntaxErrMsgExt(SMsgBuf* pBuf, int32_t errCode, const char* pFor
 
 int32_t buildInvalidOperationMsg(SMsgBuf* pBuf, const char* msg) {
   if (pBuf->buf) {
-    strncpy(pBuf->buf, msg, pBuf->len);
+    tstrncpy(pBuf->buf, msg, pBuf->len);
   }
 
   return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -277,7 +277,7 @@ int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char*
   }
 
   char buf[64] = {0};  // only extract part of sql string
-  strncpy(buf, sourceStr, tListLen(buf) - 1);
+  tstrncpy(buf, sourceStr, tListLen(buf));
 
   if (additionalInfo != NULL) {
     snprintf(pBuf->buf, pBuf->len, msgFormat2, buf, additionalInfo);
@@ -402,7 +402,7 @@ static bool isValidateTag(char* input) {
   return true;
 }
 
-int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, void* pMsgBuf) {
+int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, void* pMsgBuf, void *charsetCxt) {
   int32_t   retCode = TSDB_CODE_SUCCESS;
   cJSON*    root = NULL;
   SHashObj* keyHash = NULL;
@@ -454,7 +454,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
       continue;
     }
     STagVal val = {0};
-    //    strcpy(val.colName, colName);
+    //    TSDB_DB_FNAME_LENme, colName);
     val.pKey = jsonKey;
     retCode = taosHashPut(keyHash, jsonKey, keyLen, &keyLen,
                           CHAR_BYTES);  // add key to hash to remove dumplicate, value is useless
@@ -471,8 +471,9 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
         goto end;
       }
       val.type = TSDB_DATA_TYPE_NCHAR;
-      if (valLen > 0 && !taosMbsToUcs4(jsonValue, valLen, (TdUcs4*)tmp, (int32_t)(valLen * TSDB_NCHAR_SIZE), &valLen)) {
-        uError("charset:%s to %s. val:%s, errno:%s, convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, jsonValue,
+      if (valLen > 0 && !taosMbsToUcs4(jsonValue, valLen, (TdUcs4*)tmp, (int32_t)(valLen * TSDB_NCHAR_SIZE), &valLen, charsetCxt)) {
+        uError("charset:%s to %s. val:%s, errno:%s, convert failed.", DEFAULT_UNICODE_ENCODEC,
+               charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset, jsonValue,
                strerror(terrno));
         retCode = buildSyntaxErrMsg(pMsgBuf, "charset convert json error", jsonValue);
         taosMemoryFree(tmp);
@@ -595,15 +596,15 @@ int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName) 
 
 static int32_t userAuthToString(int32_t acctId, const char* pUser, const char* pDb, const char* pTable, AUTH_TYPE type,
                                 char* pStr, bool isView) {
-  return sprintf(pStr, "%s*%d*%s*%s*%d*%d", pUser, acctId, pDb, (NULL == pTable || '\0' == pTable[0]) ? "``" : pTable,
-                 type, isView);
+  return snprintf(pStr, USER_AUTH_KEY_MAX_LEN, "%s*%d*%s*%s*%d*%d", pUser, acctId, pDb,
+                  (NULL == pTable || '\0' == pTable[0]) ? "``" : pTable, type, isView);
 }
 
 static int32_t getIntegerFromAuthStr(const char* pStart, char** pNext) {
   char* p = strchr(pStart, '*');
   char  buf[10] = {0};
   if (NULL == p) {
-    strcpy(buf, pStart);
+    tstrncpy(buf, pStart, 10);
     *pNext = NULL;
   } else {
     strncpy(buf, pStart, p - pStart);
@@ -612,10 +613,10 @@ static int32_t getIntegerFromAuthStr(const char* pStart, char** pNext) {
   return taosStr2Int32(buf, NULL, 10);
 }
 
-static void getStringFromAuthStr(const char* pStart, char* pStr, char** pNext) {
+static void getStringFromAuthStr(const char* pStart, char* pStr, uint32_t dstLen, char** pNext) {
   char* p = strchr(pStart, '*');
   if (NULL == p) {
-    strcpy(pStr, pStart);
+    tstrncpy(pStr, pStart, dstLen);
     *pNext = NULL;
   } else {
     strncpy(pStr, pStart, p - pStart);
@@ -628,10 +629,10 @@ static void getStringFromAuthStr(const char* pStart, char* pStr, char** pNext) {
 
 static void stringToUserAuth(const char* pStr, int32_t len, SUserAuthInfo* pUserAuth) {
   char* p = NULL;
-  getStringFromAuthStr(pStr, pUserAuth->user, &p);
+  getStringFromAuthStr(pStr, pUserAuth->user, TSDB_USER_LEN, &p);
   pUserAuth->tbName.acctId = getIntegerFromAuthStr(p, &p);
-  getStringFromAuthStr(p, pUserAuth->tbName.dbname, &p);
-  getStringFromAuthStr(p, pUserAuth->tbName.tname, &p);
+  getStringFromAuthStr(p, pUserAuth->tbName.dbname, TSDB_DB_NAME_LEN, &p);
+  getStringFromAuthStr(p, pUserAuth->tbName.tname, TSDB_TABLE_NAME_LEN, &p);
   if (pUserAuth->tbName.tname[0]) {
     pUserAuth->tbName.type = TSDB_TABLE_NAME_T;
   } else {
@@ -707,7 +708,7 @@ static int32_t buildTableReqFromDb(SHashObj* pDbsHash, SArray** pDbs) {
     SParseTablesMetaReq* p = taosHashIterate(pDbsHash, NULL);
     while (NULL != p) {
       STablesReq req = {0};
-      strcpy(req.dbFName, p->dbFName);
+      tstrncpy(req.dbFName, p->dbFName, TSDB_DB_FNAME_LEN);
       int32_t code = buildTableReq(p->pTables, &req.pTables);
       if (TSDB_CODE_SUCCESS == code) {
         if (NULL == taosArrayPush(*pDbs, &req)) {
@@ -831,7 +832,7 @@ int32_t createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode*
   select->isDistinct = isDistinct;
   select->pProjectionList = pProjectionList;
   select->pFromTable = pTable;
-  sprintf(select->stmtName, "%p", select);
+  snprintf(select->stmtName, TSDB_TABLE_NAME_LEN, "%p", select);
   select->timeLineResMode = select->isDistinct ? TIME_LINE_NONE : TIME_LINE_GLOBAL;
   select->timeLineCurMode = TIME_LINE_GLOBAL;
   select->onlyHasKeepOrderFunc = true;

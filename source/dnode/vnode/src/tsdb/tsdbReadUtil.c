@@ -150,7 +150,7 @@ _end:
 void clearBlockScanInfoBuf(SBlockInfoBuf* pBuf) {
   if (pBuf == NULL) return;
   if (pBuf->pData != NULL) {
-    taosArrayDestroyP(pBuf->pData, (FDelete)taosMemoryFree);
+    taosArrayDestroyP(pBuf->pData, NULL);
     pBuf->pData = NULL;
   }
 }

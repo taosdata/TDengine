@@ -15,6 +15,19 @@ When inserting data using parameter binding, it can avoid the resource consumpti
 
 **Tips: It is recommended to use parameter binding for data insertion**
 
+   :::note
+   We only recommend using the following two forms of SQL for parameter binding data insertion:
+
+    ```sql
+    a. Subtables already exists:
+       1. INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?) 
+    b. Automatic table creation on insert:
+       1. INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)   
+       2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
+    ```
+
+   :::
+
 Next, we continue to use smart meters as an example to demonstrate the efficient writing functionality of parameter binding with various language connectors:
 
 1. Prepare a parameterized SQL insert statement for inserting data into the supertable `meters`. This statement allows dynamically specifying subtable names, tags, and column values.
@@ -28,8 +41,15 @@ Next, we continue to use smart meters as an example to demonstrate the efficient
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
+
+There are two kinds of interfaces for parameter binding: one is the standard JDBC interface, and the other is an extended interface. The extended interface offers better performance.
+
 ```java
-{{#include docs/examples/java/src/main/java/com/taos/example/WSParameterBindingBasicDemo.java:para_bind}}
+{{#include docs/examples/java/src/main/java/com/taos/example/WSParameterBindingStdInterfaceDemo.java:para_bind}}
+```
+
+```java
+{{#include docs/examples/java/src/main/java/com/taos/example/WSParameterBindingExtendInterfaceDemo.java:para_bind}}
 ```
 
 This is a [more detailed parameter binding example](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/WSParameterBindingFullDemo.java)  
@@ -91,14 +111,24 @@ This is a [more detailed parameter binding example](https://github.com/taosdata/
 <TabItem label="Python" value="python">
 
 ```python
-{{#include docs/examples/python/stmt_native.py}}
+{{#include docs/examples/python/stmt2_native.py}}
 ```
 
 </TabItem>
 <TabItem label="Go" value="go">
+
+The example code for binding parameters with stmt2 (Go connector v3.6.0 and above, TDengine v3.3.5.0 and above) is as follows:
+
+```go
+{{#include docs/examples/go/stmt2/native/main.go}}
+```
+
+The example code for binding parameters with stmt is as follows:
+
 ```go
 {{#include docs/examples/go/stmt/native/main.go}}
 ```
+
 </TabItem>
 <TabItem label="Rust" value="rust">
 

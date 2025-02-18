@@ -34,10 +34,10 @@ async function createConsumer() {
 }
 
 async function prepare() {
-    let conf = new taos.WSConfig('ws://192.168.1.98:6041');
+    let conf = new taos.WSConfig('ws://localhost:6041');
     conf.setUser('root');
     conf.setPwd('taosdata');
-    conf.setDb('power');
+
     const createDB = `CREATE DATABASE IF NOT EXISTS ${db}`;
     const createStable = `CREATE STABLE IF NOT EXISTS ${db}.${stable} (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);`;
 

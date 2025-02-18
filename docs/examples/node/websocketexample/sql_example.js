@@ -26,7 +26,6 @@ async function createDbAndTable() {
         let conf = new taos.WSConfig(dsn);
         conf.setUser('root');
         conf.setPwd('taosdata');
-        conf.setDb('power');
         wsSql = await taos.sqlConnect(conf);
         console.log("Connected to " + dsn + " successfully.");
         // create database

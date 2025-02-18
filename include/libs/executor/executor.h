@@ -58,6 +58,7 @@ typedef struct {
 
   struct SStorageAPI api;
   void*              pWorkerCb;
+  bool               localExec;
 } SReadHandle;
 
 // in queue mode, data streams are seperated by msg
@@ -96,6 +97,9 @@ int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray **tableList
 int32_t qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId);
 
 int32_t qSetStreamOpOpen(qTaskInfo_t tinfo);
+
+int32_t qSetStreamNotifyInfo(qTaskInfo_t tinfo, int32_t eventTypes, const SSchemaWrapper* pSchemaWrapper,
+                             const char* stbFullName, bool newSubTableRule, STaskNotifyEventStat* pNotifyEventStat);
 
 /**
  * Set multiple input data blocks for the stream scan.
@@ -167,6 +171,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
 
 int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pBlock, uint64_t* useconds);
 
+int32_t qExecutorInit(void);
 void qResetTaskCode(qTaskInfo_t tinfo);
 
 void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo);

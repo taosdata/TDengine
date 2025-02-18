@@ -80,7 +80,7 @@ else
 fi
 
 
-mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugSan
+rm -rf  ${REP_REAL_PATH}/debug 
 date
 
 ret=$?

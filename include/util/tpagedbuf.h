@@ -50,7 +50,7 @@ typedef struct SDiskbasedBufStatis {
  * @param handle
  * @return
  */
-int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, const char* id,
+int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int64_t inMemBufSize, const char* id,
                            const char* dir);
 
 /**

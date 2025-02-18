@@ -113,10 +113,11 @@ if __name__ == "__main__":
     previousCluster = False
     level = 1
     disk  = 1
+    taosAdapter = False
 
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RWU:n:i:aPL:D:', [
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RWBU:n:i:aPL:D:', [
         'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums',
-        'queryPolicy','createDnodeNums','restful','websocket','adaptercfgupdate','replicaVar','independentMnode',"asan",'previous','level','disk'])
+        'queryPolicy','createDnodeNums','restful','websocket','adapter','adaptercfgupdate','replicaVar','independentMnode',"asan",'previous','level','disk'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -145,7 +146,7 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-P run case with [P]revious cluster, do not create new cluster to run case.')
             tdLog.printNoPrefix('-L set multiple level number.     range 1 ~ 3')
             tdLog.printNoPrefix('-D set disk number on each level. range 1 ~ 10')
-
+            tdLog.printNoPrefix('-B start taosadapter process')
             sys.exit(0)
 
         if key in ['-r', '--restart']:
@@ -238,11 +239,14 @@ if __name__ == "__main__":
         if key in ['-D', '--disk']:
             disk = value
 
+        if key in ['-B']:
+            taosAdapter = True
+
     #
     # do exeCmd command
     #
     if not execCmd == "":
-        if restful or websocket:
+        if taosAdapter or taosAdapter or restful or websocket:
             tAdapter.init(deployPath)
         else:
             tdDnodes.init(deployPath)
@@ -281,7 +285,7 @@ if __name__ == "__main__":
         if valgrind:
             time.sleep(2)
 
-        if restful or websocket:
+        if taosAdapter or restful or websocket:
             toBeKilled = "taosadapter"
 
             # killCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1" % toBeKilled
@@ -377,7 +381,7 @@ if __name__ == "__main__":
             tdDnodes.deploy(1,updateCfgDict)
             tdDnodes.start(1)
             tdCases.logSql(logSql)
-            if restful or websocket:
+            if taosAdapter or restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
@@ -416,7 +420,7 @@ if __name__ == "__main__":
                 clusterDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
                             
-            if restful or websocket:
+            if taosAdapter or restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
@@ -537,7 +541,7 @@ if __name__ == "__main__":
             except:
                 pass
 
-        if restful or websocket:
+        if taosAdapter or restful or websocket:
             tAdapter.init(deployPath, masterIp)
             tAdapter.stop(force_kill=True)
 
@@ -548,7 +552,7 @@ if __name__ == "__main__":
             tdDnodes.start(1)
             tdCases.logSql(logSql)
 
-            if restful or websocket:
+            if taosAdapter or restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 
@@ -591,7 +595,7 @@ if __name__ == "__main__":
                 clusterDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
 
-            if restful or websocket:
+            if taosAdapter or restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
 

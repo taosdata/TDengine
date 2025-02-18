@@ -19,10 +19,10 @@
 #include "tcs.h"
 
 static int32_t downloadCheckpointDataByName(const char* id, const char* fname, const char* dstName);
-static int32_t deleteCheckpointFile(const char* id, const char* name);
 static int32_t streamTaskUploadCheckpoint(const char* id, const char* path, int64_t checkpointId);
+#ifdef BUILD_NO_CALL
 static int32_t deleteCheckpoint(const char* id);
-static int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char* dstName);
+#endif
 static int32_t continueDispatchCheckpointTriggerBlock(SStreamDataBlock* pBlock, SStreamTask* pTask);
 static int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpointType, int64_t checkpointId,
                                           int32_t transId, int32_t srcTaskId);
@@ -229,8 +229,8 @@ int32_t continueDispatchCheckpointTriggerBlock(SStreamDataBlock* pBlock, SStream
   return code;
 }
 
-static int32_t doCheckBeforeHandleChkptTrigger(SStreamTask* pTask, int64_t checkpointId, SStreamDataBlock* pBlock,
-                                               int32_t transId) {
+int32_t doCheckBeforeHandleChkptTrigger(SStreamTask* pTask, int64_t checkpointId, SStreamDataBlock* pBlock,
+                                        int32_t transId) {
   int32_t     code = 0;
   int32_t     vgId = pTask->pMeta->vgId;
   int32_t     taskLevel = pTask->info.taskLevel;
@@ -604,6 +604,17 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
   streamMutexLock(&pTask->lock);
 
+  // not update the checkpoint info if the checkpointId is less than the failed checkpointId
+  if (pReq->checkpointId < pInfo->pActiveInfo->failedId) {
+    stWarn("s-task:%s vgId:%d not update the checkpoint-info, since update checkpointId:%" PRId64
+           " is less than the failed checkpointId:%" PRId64 ", discard the update info",
+           id, vgId, pReq->checkpointId, pInfo->pActiveInfo->failedId);
+    streamMutexUnlock(&pTask->lock);
+
+    // always return true
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pReq->checkpointId <= pInfo->checkpointId) {
     stDebug("s-task:%s vgId:%d latest checkpointId:%" PRId64 " Ver:%" PRId64
             " no need to update checkpoint info, updated checkpointId:%" PRId64 " Ver:%" PRId64 " transId:%d ignored",
@@ -613,7 +624,6 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
     {  // destroy the related fill-history tasks
       // drop task should not in the meta-lock, and drop the related fill-history task now
-      streamMetaWUnLock(pMeta);
       if (pReq->dropRelHTask) {
         code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
         int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
@@ -621,7 +631,6 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
                 id, vgId, pReq->taskId, numOfTasks);
       }
 
-      streamMetaWLock(pMeta);
       if (pReq->dropRelHTask) {
         code = streamMetaCommit(pMeta);
       }
@@ -640,9 +649,9 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
             pInfo->checkpointTime, pReq->checkpointTs);
   } else {  // not in restore status, must be in checkpoint status
     if ((pStatus.state == TASK_STATUS__CK) || (pMeta->role == NODE_ROLE_FOLLOWER)) {
-      stDebug("s-task:%s vgId:%d status:%s start to update the checkpoint-info, checkpointId:%" PRId64 "->%" PRId64
+      stDebug("s-task:%s vgId:%d status:%s role:%d start to update the checkpoint-info, checkpointId:%" PRId64 "->%" PRId64
               " checkpointVer:%" PRId64 "->%" PRId64 " checkpointTs:%" PRId64 "->%" PRId64,
-              id, vgId, pStatus.name, pInfo->checkpointId, pReq->checkpointId, pInfo->checkpointVer,
+              id, vgId, pStatus.name, pMeta->role, pInfo->checkpointId, pReq->checkpointId, pInfo->checkpointVer,
               pReq->checkpointVer, pInfo->checkpointTime, pReq->checkpointTs);
     } else {
       stDebug("s-task:%s vgId:%d status:%s NOT update the checkpoint-info, checkpointId:%" PRId64 "->%" PRId64
@@ -656,9 +665,11 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
                 pInfo->processedVer <= pReq->checkpointVer);
 
   if (!valid) {
-    stFatal("invalid checkpoint id check, current checkpointId:%" PRId64 " checkpointVer:%" PRId64
-            " processedVer:%" PRId64 " req checkpointId:%" PRId64 " checkpointVer:%" PRId64,
-            pInfo->checkpointId, pInfo->checkpointVer, pInfo->processedVer, pReq->checkpointId, pReq->checkpointVer);
+    stFatal("s-task:%s invalid checkpointId update info recv, current checkpointId:%" PRId64 " checkpointVer:%" PRId64
+            " processedVer:%" PRId64 " req checkpointId:%" PRId64 " checkpointVer:%" PRId64 " discard it",
+            id, pInfo->checkpointId, pInfo->checkpointVer, pInfo->processedVer, pReq->checkpointId,
+            pReq->checkpointVer);
+    streamMutexUnlock(&pTask->lock);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
@@ -695,8 +706,6 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
     return TSDB_CODE_SUCCESS;
   }
 
-  streamMetaWUnLock(pMeta);
-
   // drop task should not in the meta-lock, and drop the related fill-history task now
   if (pReq->dropRelHTask) {
     code = streamMetaUnregisterTask(pMeta, pReq->hStreamId, pReq->hTaskId);
@@ -705,9 +714,7 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
             (int32_t)pReq->hTaskId, numOfTasks);
   }
 
-  streamMetaWLock(pMeta);
   code = streamMetaCommit(pMeta);
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -820,7 +827,7 @@ int32_t uploadCheckpointData(SStreamTask* pTask, int64_t checkpointId, int64_t d
     stDebug("s-task:%s remove redundant files in uploading checkpointId:%" PRId64 " data", idStr, checkpointId);
   }
 
-  taosArrayDestroyP(toDelFiles, taosMemoryFree);
+  taosArrayDestroyP(toDelFiles, NULL);
   double el = (taosGetTimestampMs() - now) / 1000.0;
 
   if (code == TSDB_CODE_SUCCESS) {
@@ -1002,7 +1009,7 @@ static int32_t doFindNotSendUpstream(SStreamTask* pTask, SArray* pList, SArray**
   return 0;
 }
 
-static int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SArray** ppNotSendList) {
+int32_t chkptTriggerRecvMonitorHelper(SStreamTask* pTask, void* param, SArray** ppNotSendList) {
   const char*            id = pTask->id.idStr;
   SArray*                pList = pTask->upstreamInfo.pList;  // send msg to retrieve checkpoint trigger msg
   SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
@@ -1357,7 +1364,7 @@ void streamTaskSetTriggerDispatchConfirmed(SStreamTask* pTask, int32_t vgId) {
   }
 }
 
-static int32_t uploadCheckpointToS3(const char* id, const char* path) {
+int32_t uploadCheckpointToS3(const char* id, const char* path) {
   int32_t code = 0;
   int32_t nBytes = 0;
   /*
@@ -1496,6 +1503,7 @@ int32_t streamTaskDownloadCheckpointData(const char* id, char* path, int64_t che
   return 0;
 }
 
+#ifdef BUILD_NO_CALL
 int32_t deleteCheckpoint(const char* id) {
   if (id == NULL || strlen(id) == 0) {
     stError("deleteCheckpoint parameters invalid");
@@ -1508,6 +1516,7 @@ int32_t deleteCheckpoint(const char* id) {
   }
   return 0;
 }
+#endif
 
 int32_t deleteCheckpointFile(const char* id, const char* name) {
   char object[128] = {0};

@@ -188,6 +188,7 @@ void    tCleanupStreamHbMsg(SStreamHbMsg* pMsg);
 typedef struct {
   SMsgHead head;
   int32_t  msgId;
+  SEpSet   mndEpset;
 } SMStreamHbRspMsg;
 
 int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp);

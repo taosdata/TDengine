@@ -257,10 +257,10 @@ void veriry_stmt(TAOS* taos) {
   }
   printf("param_count: %d\n", param_count);
   */
-  TAOS_FIELD_E* fields = NULL;
+  TAOS_FIELD_ALL* fields = NULL;
   int           field_count = -1;
   start = clock();
-  code = taos_stmt2_get_fields(stmt, TAOS_FIELD_COL, &field_count, NULL);
+  code = taos_stmt2_get_fields(stmt, &field_count, NULL);
   end = clock();
   printf("get fields time:%f\n", (double)(end - start) / CLOCKS_PER_SEC);
   if (code != 0) {

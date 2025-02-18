@@ -119,9 +119,9 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
           }
           SExprNode* pToBeRewrittenExpr = (SExprNode*)(*pNode);
           pCol->node.resType = pToBeRewrittenExpr->resType;
-          strcpy(pCol->node.aliasName, pToBeRewrittenExpr->aliasName);
-          strcpy(pCol->node.userAlias, ((SExprNode*)pExpr)->userAlias);
-          strcpy(pCol->colName, ((SExprNode*)pExpr)->aliasName);
+          tstrncpy(pCol->node.aliasName, pToBeRewrittenExpr->aliasName, TSDB_COL_NAME_LEN);
+          tstrncpy(pCol->node.userAlias, ((SExprNode*)pExpr)->userAlias, TSDB_COL_NAME_LEN);
+          tstrncpy(pCol->colName, ((SExprNode*)pExpr)->aliasName, TSDB_COL_NAME_LEN);
           pCol->node.projIdx = ((SExprNode*)(*pNode))->projIdx;
           if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
             setColumnInfo((SFunctionNode*)pExpr, pCol, pCxt->isPartitionBy);
@@ -150,7 +150,7 @@ static EDealRes doNameExpr(SNode* pNode, void* pContext) {
     case QUERY_NODE_LOGIC_CONDITION:
     case QUERY_NODE_FUNCTION: {
       if ('\0' == ((SExprNode*)pNode)->aliasName[0]) {
-        sprintf(((SExprNode*)pNode)->aliasName, "#expr_%p", pNode);
+        snprintf(((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN, "#expr_%p", pNode);
       }
       return DEAL_RES_IGNORE_CHILD;
     }
@@ -311,12 +311,12 @@ static SNode* createFirstCol(SRealTableNode* pTable, const SSchema* pSchema) {
   pCol->tableId = pTable->pMeta->uid;
   pCol->colId = pSchema->colId;
   pCol->colType = COLUMN_TYPE_COLUMN;
-  strcpy(pCol->tableAlias, pTable->table.tableAlias);
-  strcpy(pCol->tableName, pTable->table.tableName);
+  tstrncpy(pCol->tableAlias, pTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pCol->tableName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);
   pCol->isPk = pSchema->flags & COL_IS_KEY;
   pCol->tableHasPk = hasPkInTable(pTable->pMeta);
   pCol->numOfPKs = pTable->pMeta->tableInfo.numOfPKs;
-  strcpy(pCol->colName, pSchema->name);
+  tstrncpy(pCol->colName, pSchema->name, TSDB_COL_NAME_LEN);
   return (SNode*)pCol;
 }
 
@@ -392,8 +392,8 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
   pScan->scanRange = TSWINDOW_INITIALIZER;
   pScan->tableName.type = TSDB_TABLE_NAME_T;
   pScan->tableName.acctId = pCxt->pPlanCxt->acctId;
-  strcpy(pScan->tableName.dbname, pRealTable->table.dbName);
-  strcpy(pScan->tableName.tname, pRealTable->table.tableName);
+  tstrncpy(pScan->tableName.dbname, pRealTable->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pScan->tableName.tname, pRealTable->table.tableName, TSDB_TABLE_NAME_LEN);
   pScan->showRewrite = pCxt->pPlanCxt->showRewrite;
   pScan->ratio = pRealTable->ratio;
   pScan->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD;
@@ -412,7 +412,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   int32_t         code = makeScanLogicNode(pCxt, pRealTable, pSelect->hasRepeatScanFuncs, (SLogicNode**)&pScan);
 
   pScan->node.groupAction = GROUP_ACTION_NONE;
-  pScan->node.resultDataOrder = DATA_ORDER_LEVEL_IN_BLOCK;
+  pScan->node.resultDataOrder = (pRealTable->pMeta->tableType == TSDB_SUPER_TABLE) ? DATA_ORDER_LEVEL_IN_BLOCK : DATA_ORDER_LEVEL_GLOBAL;
   if (pCxt->pPlanCxt->streamQuery) {
     pScan->triggerType = pCxt->pPlanCxt->triggerType;
     pScan->watermark = pCxt->pPlanCxt->watermark;
@@ -785,12 +785,12 @@ static int32_t addWinJoinPrimKeyToAggFuncs(SSelectStmt* pSelect, SNodeList** pLi
   }
 
   SSchema* pColSchema = &pProbeTable->pMeta->schema[0];
-  strcpy(pCol->dbName, pProbeTable->table.dbName);
-  strcpy(pCol->tableAlias, pProbeTable->table.tableAlias);
-  strcpy(pCol->tableName, pProbeTable->table.tableName);
-  strcpy(pCol->colName, pColSchema->name);
-  strcpy(pCol->node.aliasName, pColSchema->name);
-  strcpy(pCol->node.userAlias, pColSchema->name);
+  tstrncpy(pCol->dbName, pProbeTable->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pCol->tableAlias, pProbeTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pCol->tableName, pProbeTable->table.tableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pCol->colName, pColSchema->name, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->node.aliasName, pColSchema->name, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->node.userAlias, pColSchema->name, TSDB_COL_NAME_LEN);
   pCol->tableId = pProbeTable->pMeta->uid;
   pCol->tableType = pProbeTable->pMeta->tableType;
   pCol->colId = pColSchema->colId;
@@ -1557,7 +1557,7 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     pSort->pSortKeys = NULL;
     code = nodesCloneList(pSelect->pOrderByList, &pSort->pSortKeys);
-    if (NULL != pSort->pSortKeys) {
+    if (TSDB_CODE_SUCCESS == code) {
       SNode*            pNode = NULL;
       SOrderByExprNode* firstSortKey = (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0);
       if (isPrimaryKeySort(pSelect->pOrderByList)) pSort->node.outputTsOrder = firstSortKey->order;
@@ -1624,10 +1624,7 @@ static int32_t createProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
 
   pProject->pProjections = NULL;
   code = nodesCloneList(pSelect->pProjectionList, &pProject->pProjections);
-  if (NULL == pProject->pProjections) {
-    code = code;
-  }
-  strcpy(pProject->stmtName, pSelect->stmtName);
+  tstrncpy(pProject->stmtName, pSelect->stmtName, TSDB_TABLE_NAME_LEN);
 
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByProjections(pCxt, pSelect->stmtName, pSelect->pProjectionList, &pProject->node.pTargets);
@@ -2117,7 +2114,7 @@ static int32_t createVnodeModifLogicNodeByDelete(SLogicPlanContext* pCxt, SDelet
   pModify->tableId = pRealTable->pMeta->uid;
   pModify->tableType = pRealTable->pMeta->tableType;
   snprintf(pModify->tableName, sizeof(pModify->tableName), "%s", pRealTable->table.tableName);
-  strcpy(pModify->tsColName, pRealTable->pMeta->schema->name);
+  tstrncpy(pModify->tsColName, pRealTable->pMeta->schema->name, TSDB_COL_NAME_LEN);
   pModify->deleteTimeRange = pDelete->timeRange;
   pModify->pAffectedRows = NULL;
   code = nodesCloneNode(pDelete->pCountFunc, &pModify->pAffectedRows);

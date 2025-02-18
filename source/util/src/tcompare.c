@@ -1512,7 +1512,7 @@ int32_t comparewcsRegexMatch(const void *pString, const void *pPattern) {
     return 1;  // terrno has been set
   }
 
-  int convertLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(pPattern), len, pattern);
+  int convertLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(pPattern), len, pattern, NULL);
   if (convertLen < 0) {
     taosMemoryFree(pattern);
     return 1; // terrno has been set
@@ -1527,7 +1527,7 @@ int32_t comparewcsRegexMatch(const void *pString, const void *pPattern) {
     return 1; // terrno has been set
   }
 
-  convertLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(pString), len, str);
+  convertLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(pString), len, str, NULL);
   if (convertLen < 0) {
     taosMemoryFree(str);
     taosMemoryFree(pattern);

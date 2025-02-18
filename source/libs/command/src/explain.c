@@ -676,9 +676,9 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
             EXPLAIN_ROW_APPEND(EXPLAIN_WIN_OFFSET_FORMAT, pStart->literal, pEnd->literal);
             EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
           }
-          if (NULL != pJoinNode->pJLimit) {
+          if (NULL != pJoinNode->pJLimit && NULL != ((SLimitNode*)pJoinNode->pJLimit)->limit) {
             SLimitNode* pJLimit = (SLimitNode*)pJoinNode->pJLimit;
-            EXPLAIN_ROW_APPEND(EXPLAIN_JLIMIT_FORMAT, pJLimit->limit);
+            EXPLAIN_ROW_APPEND(EXPLAIN_JLIMIT_FORMAT, pJLimit->limit->datum.i);
             EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
           }
           if (IS_WINDOW_JOIN(pJoinNode->subType)) {
@@ -2056,7 +2056,7 @@ static int32_t qExplainPrepareCtx(SQueryPlan *pDag, SExplainCtx **pCtx) {
 
       if (0 != taosHashPut(groupHash, &plan->id.groupId, sizeof(plan->id.groupId), &group, sizeof(group))) {
         qError("taosHashPut to explainGroupHash failed, taskIdx:%d", n);
-        QRY_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+        QRY_ERR_JRET(terrno);
       }
     }
 

@@ -129,8 +129,10 @@ typedef struct SValueNode {
     double   d;
     char*    p;
   } datum;
-  int64_t typeData;
-  int8_t  unit;
+  int64_t    typeData;
+  int8_t     unit;
+  timezone_t tz;
+  void      *charsetCxt;
 } SValueNode;
 
 typedef struct SLeftValueNode {
@@ -159,6 +161,8 @@ typedef struct SOperatorNode {
   EOperatorType opType;
   SNode*        pLeft;
   SNode*        pRight;
+  timezone_t    tz;
+  void*         charsetCxt;
 } SOperatorNode;
 
 typedef struct SLogicConditionNode {
@@ -190,7 +194,9 @@ typedef struct SFunctionNode {
   bool       hasOriginalFunc;
   int32_t    originalFuncId;
   ETrimType  trimType;
-  bool       dual;  // whether select stmt without from stmt, true for without.
+  bool       dual; // whether select stmt without from stmt, true for without.
+  timezone_t tz;
+  void      *charsetCxt;
 } SFunctionNode;
 
 typedef struct STableNode {
@@ -307,9 +313,9 @@ typedef struct SOrderByExprNode {
 } SOrderByExprNode;
 
 typedef struct SLimitNode {
-  ENodeType type;  // QUERY_NODE_LIMIT
-  int64_t   limit;
-  int64_t   offset;
+  ENodeType   type;  // QUERY_NODE_LIMIT
+  SValueNode* limit;
+  SValueNode* offset;
 } SLimitNode;
 
 typedef struct SStateWindowNode {
@@ -332,6 +338,7 @@ typedef struct SIntervalWindowNode {
   SNode*      pSliding;   // SValueNode
   SNode*      pFill;
   STimeWindow timeRange;
+  void*       timezone;
 } SIntervalWindowNode;
 
 typedef struct SEventWindowNode {
@@ -401,6 +408,8 @@ typedef struct SCaseWhenNode {
   SNode*     pCase;
   SNode*     pElse;
   SNodeList* pWhenThenList;
+  timezone_t tz;
+  void*      charsetCxt;
 } SCaseWhenNode;
 
 typedef struct SWindowOffsetNode {
@@ -411,7 +420,7 @@ typedef struct SWindowOffsetNode {
 
 typedef struct SRangeAroundNode {
   ENodeType type;
-  SNode*    pTimepoint;
+  SNode*    pRange;
   SNode*    pInterval;
 } SRangeAroundNode;
 
@@ -672,6 +681,7 @@ int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode);
 int32_t nodesMakeValueNodeFromBool(bool b, SValueNode** ppValNode);
 int32_t nodesMakeValueNodeFromInt32(int32_t value, SNode** ppNode);
+int32_t nodesMakeValueNodeFromInt64(int64_t value, SNode** ppNode);
 
 char*   nodesGetFillModeString(EFillMode mode);
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);

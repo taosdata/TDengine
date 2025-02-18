@@ -614,7 +614,6 @@ SSDataBlock* createBlockDataNotLoaded(const SOperatorInfo* pOperator, SSDataBloc
   if (pDataBlock->pBlockAgg) {
     pDstBlock->pBlockAgg = taosMemoryCalloc(numOfCols, sizeof(SColumnDataAgg));
     if (pDstBlock->pBlockAgg == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
       blockDataDestroy(pDstBlock);
       return NULL;
     }
@@ -1161,7 +1160,7 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
   }
 
   uint32_t defaultPgsz = 0;
-  uint32_t defaultBufsz = 0;
+  int64_t defaultBufsz = 0;
 
   pInfo->binfo.pRes = createDataBlockFromDescNode(pPartNode->node.pOutputDataBlockDesc);
   QUERY_CHECK_NULL(pInfo->binfo.pRes, code, lino, _error, terrno);

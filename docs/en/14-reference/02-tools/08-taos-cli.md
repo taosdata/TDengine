@@ -10,7 +10,7 @@ The TDengine command line program (hereinafter referred to as TDengine CLI) is t
 
 To enter the TDengine CLI, simply execute `taos` in the terminal.
 
-```bash
+```shell
 taos
 ```
 
@@ -81,7 +81,7 @@ There are many other parameters:
 
 Example:
 
-```bash
+```shell
 taos -h h1.taos.com -s "use db; show tables;"
 ```
 

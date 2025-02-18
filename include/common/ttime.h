@@ -61,22 +61,9 @@ static FORCE_INLINE int64_t taosGetTimestamp(int32_t precision) {
  *    precision == TSDB_TIME_PRECISION_MILLI, it returns timestamp in millisecond.
  *    precision == TSDB_TIME_PRECISION_NANO,  it returns timestamp in nanosecond.
  */
-static FORCE_INLINE int64_t taosGetTimestampToday(int32_t precision) {
-  int64_t   factor = (precision == TSDB_TIME_PRECISION_MILLI)   ? 1000
-                     : (precision == TSDB_TIME_PRECISION_MICRO) ? 1000000
-                                                                : 1000000000;
-  time_t    t;
-  (void) taosTime(&t);
-  struct tm tm;
-  (void) taosLocalTime(&t, &tm, NULL, 0);
-  tm.tm_hour = 0;
-  tm.tm_min = 0;
-  tm.tm_sec = 0;
+int64_t taosGetTimestampToday(int32_t precision, timezone_t tz);
 
-  return (int64_t)taosMktime(&tm) * factor;
-}
-
-int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision);
+int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, timezone_t tz);
 
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval);
 int64_t taosTimeGetIntervalEnd(int64_t ts, const SInterval* pInterval);
@@ -86,13 +73,12 @@ void    calcIntervalAutoOffset(SInterval* interval);
 int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* ts, char* unit, int32_t timePrecision);
 int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision, bool negativeAllow);
 
-int32_t taosParseTime(const char* timestr, int64_t* pTime, int32_t len, int32_t timePrec, int8_t dayligth);
-void    deltaToUtcInitOnce();
+int32_t taosParseTime(const char* timestr, int64_t* pTime, int32_t len, int32_t timePrec, timezone_t tz);
 char    getPrecisionUnit(int32_t precision);
 
 int64_t convertTimePrecision(int64_t ts, int32_t fromPrecision, int32_t toPrecision);
 int32_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char toUnit, int64_t* pRes);
-int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal);
+int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal, timezone_t tz, void* charsetCxt);
 int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecision);
 
 int32_t taosFormatUtcTime(char* buf, int32_t bufLen, int64_t ts, int32_t precision);
@@ -102,8 +88,8 @@ struct STm {
   int64_t   fsec;  // in NANOSECOND
 };
 
-int32_t taosTs2Tm(int64_t ts, int32_t precision, struct STm* tm);
-int32_t taosTm2Ts(struct STm* tm, int64_t* ts, int32_t precision);
+int32_t taosTs2Tm(int64_t ts, int32_t precision, struct STm* tm, timezone_t tz);
+int32_t taosTm2Ts(struct STm* tm, int64_t* ts, int32_t precision, timezone_t tz);
 
 /// @brief convert a timestamp to a formatted string
 /// @param format the timestamp format, must null terminated
@@ -112,7 +98,7 @@ int32_t taosTm2Ts(struct STm* tm, int64_t* ts, int32_t precision);
 /// formats array; If not NULL, [formats] will be used instead of [format] to skip parse formats again.
 /// @param out output buffer, should be initialized by memset
 /// @notes remember to free the generated formats
-int32_t taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen);
+int32_t taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t precision, char* out, int32_t outLen, timezone_t tz);
 /// @brief convert a formatted timestamp string to a timestamp
 /// @param format must null terminated
 /// @param [in, out] formats, see taosTs2Char
@@ -120,7 +106,7 @@ int32_t taosTs2Char(const char* format, SArray** formats, int64_t ts, int32_t pr
 /// @retval 0 for success, otherwise error occured
 /// @notes remember to free the generated formats even when error occured
 int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int64_t* ts, int32_t precision, char* errMsg,
-                    int32_t errMsgLen);
+                    int32_t errMsgLen, timezone_t tz);
 
 int32_t TEST_ts2char(const char* format, int64_t ts, int32_t precision, char* out, int32_t outLen);
 int32_t TEST_char2ts(const char* format, int64_t* ts, int32_t precision, const char* tsStr);

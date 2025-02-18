@@ -467,7 +467,7 @@ static void fillNormalRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFi
     QUERY_CHECK_CODE(code, lino, _end);
     // }
     pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
-                                     pFillSup->interval.precision);
+                                     pFillSup->interval.precision, NULL);
   }
 
 _end:
@@ -527,7 +527,7 @@ static void fillLinearRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFi
       }
     }
     pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
-                                     pFillSup->interval.precision);
+                                     pFillSup->interval.precision, NULL);
     if (ckRes) {
       pBlock->info.rows++;
     }
@@ -547,14 +547,14 @@ static void setFillKeyInfo(TSKEY start, TSKEY end, SInterval* pInterval, SStream
 
 static TSKEY adustPrevTsKey(TSKEY pointTs, TSKEY rowTs, SInterval* pInterval) {
   if (rowTs >= pointTs) {
-    pointTs = taosTimeAdd(pointTs, pInterval->sliding, pInterval->slidingUnit, pInterval->precision);
+    pointTs = taosTimeAdd(pointTs, pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
   }
   return pointTs;
 }
 
 static TSKEY adustEndTsKey(TSKEY pointTs, TSKEY rowTs, SInterval* pInterval) {
   if (rowTs <= pointTs) {
-    pointTs = taosTimeAdd(pointTs, pInterval->sliding * -1, pInterval->slidingUnit, pInterval->precision);
+    pointTs = taosTimeAdd(pointTs, pInterval->sliding * -1, pInterval->slidingUnit, pInterval->precision, NULL);
   }
   return pointTs;
 }
@@ -954,7 +954,7 @@ static int32_t getPointInfoFromState(SStreamAggSupporter* pAggSup, SStreamFillSu
     }
   } else {
     pNextPoint->key.ts = taosTimeAdd(pCurPoint->key.ts, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
-                                     pFillSup->interval.precision);
+                                     pFillSup->interval.precision, NULL);
     code = pAggSup->stateStore.streamStateFillAddIfNotExist(pState, &pNextPoint->key, (void**)&pNextPoint->pResPos,
                                                             &nextVLen, &tmpRes);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -2201,7 +2201,8 @@ int32_t createStreamTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode*
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorStreamStateFn(pOperator, streamTimeSliceReleaseState, streamTimeSliceReloadState);
 
-  initStreamBasicInfo(&pInfo->basic);
+  code = initStreamBasicInfo(&pInfo->basic, pOperator);
+  QUERY_CHECK_CODE(code, lino, _error);
   if (downstream) {
     code = initTimeSliceDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex,
                                    &pInfo->twAggSup, &pInfo->basic, pInfo->pFillSup);

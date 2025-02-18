@@ -1246,9 +1246,9 @@ enum { LIMIT_CODE_LIMIT = 1, LIMIT_CODE_OFFSET };
 static int32_t limitNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SLimitNode* pNode = (const SLimitNode*)pObj;
 
-  int32_t code = tlvEncodeI64(pEncoder, LIMIT_CODE_LIMIT, pNode->limit);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI64(pEncoder, LIMIT_CODE_OFFSET, pNode->offset);
+  int32_t code = tlvEncodeObj(pEncoder, LIMIT_CODE_LIMIT, nodeToMsg, pNode->limit);
+  if (TSDB_CODE_SUCCESS == code && pNode->offset) {
+    code = tlvEncodeObj(pEncoder, LIMIT_CODE_OFFSET, nodeToMsg, pNode->offset);
   }
 
   return code;
@@ -1262,10 +1262,10 @@ static int32_t msgToLimitNode(STlvDecoder* pDecoder, void* pObj) {
   tlvForEach(pDecoder, pTlv, code) {
     switch (pTlv->type) {
       case LIMIT_CODE_LIMIT:
-        code = tlvDecodeI64(pTlv, &pNode->limit);
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->limit);
         break;
       case LIMIT_CODE_OFFSET:
-        code = tlvDecodeI64(pTlv, &pNode->offset);
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->offset);
         break;
       default:
         break;
@@ -1761,7 +1761,7 @@ static int32_t downstreamSourceNodeInlineToMsg(const void* pObj, STlvEncoder* pE
     code = tlvEncodeValueU64(pEncoder, pNode->taskId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeValueU64(pEncoder, pNode->schedId);
+    code = tlvEncodeValueU64(pEncoder, pNode->sId);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueI32(pEncoder, pNode->execId);
@@ -1788,7 +1788,7 @@ static int32_t msgToDownstreamSourceNodeInlineToMsg(STlvDecoder* pDecoder, void*
     code = tlvDecodeValueU64(pDecoder, &pNode->taskId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueU64(pDecoder, &pNode->schedId);
+    code = tlvDecodeValueU64(pDecoder, &pNode->sId);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueI32(pDecoder, &pNode->execId);

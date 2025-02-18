@@ -88,6 +88,7 @@ static int32_t tEncodeU64v(SEncoder* pCoder, uint64_t val);
 static int32_t tEncodeI64v(SEncoder* pCoder, int64_t val);
 static int32_t tEncodeFloat(SEncoder* pCoder, float val);
 static int32_t tEncodeDouble(SEncoder* pCoder, double val);
+static int32_t tEncodeBool(SEncoder* pCoder, bool val);
 static int32_t tEncodeBinary(SEncoder* pCoder, const uint8_t* val, uint32_t len);
 static int32_t tEncodeBinaryEx(SEncoder* pCoder, const uint8_t* val, uint32_t len);
 static int32_t tEncodeCStrWithLen(SEncoder* pCoder, const char* val, uint32_t len);
@@ -116,6 +117,8 @@ static int32_t tDecodeU64v(SDecoder* pCoder, uint64_t* val);
 static int32_t tDecodeI64v(SDecoder* pCoder, int64_t* val);
 static int32_t tDecodeFloat(SDecoder* pCoder, float* val);
 static int32_t tDecodeDouble(SDecoder* pCoder, double* val);
+static int32_t tDecodeBool(SDecoder* pCoder, bool* val);
+static int32_t tDecodeBinaryWithSize(SDecoder* pCoder, uint32_t size, uint8_t** val);
 static int32_t tDecodeBinary(SDecoder* pCoder, uint8_t** val, uint32_t* len);
 static int32_t tDecodeCStrAndLen(SDecoder* pCoder, char** val, uint32_t* len);
 static int32_t tDecodeCStr(SDecoder* pCoder, char** val);
@@ -204,6 +207,8 @@ static FORCE_INLINE int32_t tEncodeDouble(SEncoder* pCoder, double val) {
 
   return tEncodeU64(pCoder, v.ui);
 }
+
+static int32_t tEncodeBool(SEncoder* pCoder, bool val) { return tEncodeU8(pCoder, val ? 1 : 0); }
 
 static FORCE_INLINE int32_t tEncodeBinary(SEncoder* pCoder, const uint8_t* val, uint32_t len) {
   TAOS_CHECK_RETURN(tEncodeU32v(pCoder, len));
@@ -391,6 +396,28 @@ static FORCE_INLINE int32_t tDecodeDouble(SDecoder* pCoder, double* val) {
   return 0;
 }
 
+static int32_t tDecodeBool(SDecoder* pCoder, bool* val) {
+  uint8_t v;
+  TAOS_CHECK_RETURN(tDecodeU8(pCoder, &v));
+  if (val) {
+    *val = v ? true : false;
+  }
+  return 0;
+}
+
+static FORCE_INLINE int32_t tDecodeBinaryWithSize(SDecoder* pCoder, uint32_t size, uint8_t** val) {
+  if (pCoder->pos + size > pCoder->size) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+  }
+
+  if (val) {
+    *val = pCoder->data + pCoder->pos;
+  }
+
+  pCoder->pos += size;
+  return 0;
+}
+
 static FORCE_INLINE int32_t tDecodeBinary(SDecoder* pCoder, uint8_t** val, uint32_t* len) {
   uint32_t length = 0;
 
@@ -399,35 +426,31 @@ static FORCE_INLINE int32_t tDecodeBinary(SDecoder* pCoder, uint8_t** val, uint3
     *len = length;
   }
 
-  if (pCoder->pos + length > pCoder->size) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
-  }
-
-  if (val) {
-    *val = pCoder->data + pCoder->pos;
-  }
-
-  pCoder->pos += length;
-  return 0;
+  TAOS_RETURN(tDecodeBinaryWithSize(pCoder, length, val));
 }
 
 static FORCE_INLINE int32_t tDecodeCStrAndLen(SDecoder* pCoder, char** val, uint32_t* len) {
   TAOS_CHECK_RETURN(tDecodeBinary(pCoder, (uint8_t**)val, len));
-  (*len) -= 1;
+  if (*len > 0) {  // notice!!!  *len maybe 0
+    (*len) -= 1;
+  }
   return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeCStr(SDecoder* pCoder, char** val) {
-  uint32_t len;
+  uint32_t len = 0;
   return tDecodeCStrAndLen(pCoder, val, &len);
 }
 
 static int32_t tDecodeCStrTo(SDecoder* pCoder, char* val) {
-  char*    pStr;
-  uint32_t len;
+  char*    pStr = NULL;
+  uint32_t len = 0;
   TAOS_CHECK_RETURN(tDecodeCStrAndLen(pCoder, &pStr, &len));
 
-  TAOS_MEMCPY(val, pStr, len + 1);
+  if (len < pCoder->size) {
+    TAOS_MEMCPY(val, pStr, len + 1);
+  }
+
   return 0;
 }
 
@@ -479,12 +502,14 @@ static FORCE_INLINE int32_t tDecodeBinaryAlloc32(SDecoder* pCoder, void** val, u
 
 static FORCE_INLINE int32_t tDecodeCStrAndLenAlloc(SDecoder* pCoder, char** val, uint64_t* len) {
   TAOS_CHECK_RETURN(tDecodeBinaryAlloc(pCoder, (void**)val, len));
-  (*len) -= 1;
+  if (*len > 0) {
+    (*len) -= 1;
+  }
   return 0;
 }
 
 static FORCE_INLINE int32_t tDecodeCStrAlloc(SDecoder* pCoder, char** val) {
-  uint64_t len;
+  uint64_t len = 0;
   return tDecodeCStrAndLenAlloc(pCoder, val, &len);
 }
 

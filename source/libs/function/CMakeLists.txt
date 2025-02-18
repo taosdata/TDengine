@@ -142,6 +142,50 @@ target_link_libraries(
     udf2_dup PUBLIC os ${LINK_JEMALLOC}
 )
 
+set(TARGET_NAMES
+    change_udf_normal
+    change_udf_no_init
+    change_udf_no_process
+    change_udf_no_destroy
+    change_udf_init_failed
+    change_udf_process_failed
+    change_udf_destory_failed
+)
+
+set(COMPILE_DEFINITIONS
+    CHANGE_UDF_NORMAL
+    CHANGE_UDF_NO_INIT
+    CHANGE_UDF_NO_PROCESS
+    CHANGE_UDF_NO_DESTROY
+    CHANGE_UDF_INIT_FAILED
+    CHANGE_UDF_PROCESS_FAILED
+    CHANGE_UDF_DESTORY_FAILED
+)
+
+foreach(index RANGE 0 6)
+    list(GET TARGET_NAMES ${index} target_name)
+    list(GET COMPILE_DEFINITIONS ${index} compile_def)
+
+    add_library(${target_name} STATIC MODULE test/change_udf.c)
+    target_include_directories(
+        ${target_name}
+        PUBLIC
+        "${TD_SOURCE_DIR}/include/libs/function"
+        "${TD_SOURCE_DIR}/include/util"
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/client"
+        "${TD_SOURCE_DIR}/include/os"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    )
+    target_compile_definitions(${target_name} PRIVATE ${compile_def})
+    IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
+        ADD_DEPENDENCIES(${target_name} jemalloc)
+    ENDIF()
+    target_link_libraries(
+        ${target_name} PUBLIC os ${LINK_JEMALLOC}
+    )
+endforeach()
+
 # SET(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/build/bin)
 add_executable(udfd src/udfd.c)
 

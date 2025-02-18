@@ -37,6 +37,7 @@ class TBase:
         # save param
         self.replicaVar = int(replicaVar)
         tdSql.init(conn.cursor(), True)
+        self.tmpdir = "tmp"
 
         # record server information
         self.dnodeNum = 0

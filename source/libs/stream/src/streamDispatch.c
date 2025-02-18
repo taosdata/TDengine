@@ -71,7 +71,7 @@ static int32_t tInitStreamDispatchReq(SStreamDispatchReq* pReq, const SStreamTas
   pReq->data = taosArrayInit(numOfBlocks, POINTER_BYTES);
   pReq->dataLen = taosArrayInit(numOfBlocks, sizeof(int32_t));
   if (pReq->data == NULL || pReq->dataLen == NULL) {
-    taosArrayDestroyP(pReq->data, taosMemoryFree);
+    taosArrayDestroyP(pReq->data, NULL);
     taosArrayDestroy(pReq->dataLen);
     return terrno;
   }
@@ -234,7 +234,7 @@ int32_t streamSendCheckMsg(SStreamTask* pTask, const SStreamTaskCheckReq* pReq, 
 
 void destroyDispatchMsg(SStreamDispatchReq* pReq, int32_t numOfVgroups) {
   for (int32_t i = 0; i < numOfVgroups; i++) {
-    taosArrayDestroyP(pReq[i].data, taosMemoryFree);
+    taosArrayDestroyP(pReq[i].data, NULL);
     taosArrayDestroy(pReq[i].dataLen);
   }
 
@@ -735,7 +735,7 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
           !alreadyAddGroupId(pDataBlock->info.parTbName, groupId) && groupId != 0) {
         if (pTask->ver == SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
           code = buildCtbNameAddGroupId(NULL, pDataBlock->info.parTbName, groupId, sizeof(pDataBlock->info.parTbName));
-        } else if (pTask->ver > SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
+        } else if (pTask->ver >= SSTREAM_TASK_APPEND_STABLE_NAME_VER) {
           code = buildCtbNameAddGroupId(pTask->outputInfo.shuffleDispatcher.stbFullName, pDataBlock->info.parTbName,
                                         groupId, sizeof(pDataBlock->info.parTbName));
         }
@@ -954,7 +954,6 @@ static int32_t doTaskChkptStatusCheck(SStreamTask* pTask, void* param, int32_t n
   int32_t                vgId = pTask->pMeta->vgId;
 
   if (pTmrInfo->launchChkptId != pActiveInfo->activeId) {
-    streamCleanBeforeQuitTmr(pTmrInfo, param);
     stWarn("s-task:%s vgId:%d ready-msg send tmr launched by previous checkpoint procedure, checkpointId:%" PRId64
            ", quit",
            id, vgId, pTmrInfo->launchChkptId);
@@ -963,13 +962,11 @@ static int32_t doTaskChkptStatusCheck(SStreamTask* pTask, void* param, int32_t n
 
   // active checkpoint info is cleared for now
   if ((pActiveInfo->activeId == 0) || (pActiveInfo->transId == 0) || (num == 0) || (pTask->chkInfo.startTs == 0)) {
-    streamCleanBeforeQuitTmr(pTmrInfo, param);
     stWarn("s-task:%s vgId:%d active checkpoint may be cleared, quit from readyMsg send tmr", id, vgId);
     return -1;
   }
 
   if (taosArrayGetSize(pTask->upstreamInfo.pList) != num) {
-    streamCleanBeforeQuitTmr(pTmrInfo, param);
     stWarn("s-task:%s vgId:%d upstream number:%d not equals sent readyMsg:%d, quit from readyMsg send tmr", id,
            vgId, (int32_t)taosArrayGetSize(pTask->upstreamInfo.pList), num);
     return -1;
@@ -998,6 +995,7 @@ static int32_t doFindNotConfirmUpstream(SArray** ppNotRspList, SArray* pList, in
     void* p = taosArrayPush(pTmp, &pInfo->upstreamTaskId);
     if (p == NULL) {
       stError("s-task:%s vgId:%d failed to record not rsp task, code: out of memory", id, vgId);
+      taosArrayDestroy(pTmp);
       return terrno;
     } else {
       stDebug("s-task:%s vgId:%d level:%d checkpoint-ready rsp from upstream:0x%x not confirmed yet", id, vgId, level,
@@ -1047,13 +1045,13 @@ static void doSendChkptReadyMsg(SStreamTask* pTask, SArray* pNotRspList, int64_t
   }
 }
 
-static int32_t chkptReadyMsgSendHelper(SStreamTask* pTask, void* param, SArray* pNotRspList) {
+static int32_t chkptReadyMsgSendHelper(SStreamTask* pTask, void* param, SArray** pNotRspList) {
   SActiveCheckpointInfo* pActiveInfo = pTask->chkInfo.pActiveInfo;
   SStreamTmrInfo*        pTmrInfo = &pActiveInfo->chkptReadyMsgTmr;
   SArray*                pList = pActiveInfo->pReadyMsgList;
   int32_t                num = taosArrayGetSize(pList);
   int32_t                vgId = pTask->pMeta->vgId;
-  int32_t                checkpointId = pActiveInfo->activeId;
+  int64_t                checkpointId = pActiveInfo->activeId;
   const char*            id = pTask->id.idStr;
   int32_t                notRsp = 0;
 
@@ -1062,18 +1060,17 @@ static int32_t chkptReadyMsgSendHelper(SStreamTask* pTask, void* param, SArray* 
     return code;
   }
 
-  code = doFindNotConfirmUpstream(&pNotRspList, pList, num, vgId, pTask->info.taskLevel, id);
+  code = doFindNotConfirmUpstream(pNotRspList, pList, num, vgId, pTask->info.taskLevel, id);
   if (code) {
-    streamCleanBeforeQuitTmr(pTmrInfo, param);
     stError("s-task:%s failed to find not rsp checkpoint-ready downstream, code:%s, out of tmr", id, tstrerror(code));
     return code;
   }
 
-  notRsp = taosArrayGetSize(pNotRspList);
+  notRsp = taosArrayGetSize(*pNotRspList);
   if (notRsp == 0) {
     streamClearChkptReadyMsg(pActiveInfo);
   } else {
-    doSendChkptReadyMsg(pTask, pNotRspList, checkpointId, pList);
+    doSendChkptReadyMsg(pTask, *pNotRspList, checkpointId, pList);
   }
 
   return code;
@@ -1137,10 +1134,12 @@ static void chkptReadyMsgSendMonitorFn(void* param, void* tmrId) {
   }
 
   streamMutexLock(&pActiveInfo->lock);
-  code = chkptReadyMsgSendHelper(pTask, param, pNotRspList);
+  code = chkptReadyMsgSendHelper(pTask, param, &pNotRspList);
   streamMutexUnlock(&pActiveInfo->lock);
 
   if (code != TSDB_CODE_SUCCESS) {
+    streamCleanBeforeQuitTmr(pTmrInfo, param);
+
     streamMetaReleaseTask(pTask->pMeta, pTask);
     taosArrayDestroy(pNotRspList);
     return;
@@ -1176,7 +1175,7 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask) {
 
   int32_t num = taosArrayGetSize(pList);
   if (taosArrayGetSize(pTask->upstreamInfo.pList) != num) {
-    stError("s-task:%s invalid number of sent readyMsg:%d to upstream:%d", id, num,
+    stError("s-task:%s invalid number of sent readyMsg:%d to upstream:%d not send chkpt-ready msg", id, num,
             (int32_t)taosArrayGetSize(pTask->upstreamInfo.pList));
     streamMutexUnlock(&pActiveInfo->lock);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
@@ -1200,7 +1199,7 @@ int32_t streamTaskSendCheckpointReadyMsg(SStreamTask* pTask) {
         stError("s-task:%s failed to send checkpoint-ready msg, try nex time in 10s", id);
       }
     } else {
-      stError("s-task:%s failed to prepare the checkpoint-ready msg, try nex time in 10s", id);
+      stError("s-task:%s failed to prepare the checkpoint-ready msg, try next time in 10s", id);
     }
   }
 
@@ -1552,7 +1551,6 @@ static bool setDispatchRspInfo(SDispatchMsgInfo* pMsgInfo, int32_t vgId, int32_t
                                int32_t* pFailed, const char* id) {
   int32_t numOfRsp = 0;
   int32_t numOfFailed = 0;
-
   bool    allRsp = false;
   int32_t numOfDispatchBranch = taosArrayGetSize(pMsgInfo->pSendInfo);
 
@@ -1639,6 +1637,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   int32_t                notRsp = 0;
   int32_t                numOfFailed = 0;
   bool                   triggerDispatchRsp = false;
+  bool                   addFailure = false;
   SActiveCheckpointInfo* pInfo = pTask->chkInfo.pActiveInfo;
   int64_t                tmpCheckpointId = -1;
   int32_t                tmpTranId = -1;
@@ -1698,6 +1697,7 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
     } else {
       if (pRsp->inputStatus == TASK_INPUT_STATUS__REFUSED) {
         // todo handle the role-changed during checkpoint generation, add test case
+        addFailure = true;
         stError(
             "s-task:%s downstream task:0x%x(vgId:%d) refused the dispatch msg, downstream may become follower or "
             "restart already, treat it as success",
@@ -1743,6 +1743,11 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, i
   } else {
     stDebug("s-task:%s recv fix-dispatch rsp, msgId:%d from 0x%x(vgId:%d), downstream task input status:%d code:%s", id,
             msgId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->inputStatus, tstrerror(code));
+  }
+
+  if (addFailure) {  // add failure downstream node id, and start the nodeEp update procedure
+    // ignore the return error and continue
+    int32_t unused = streamTaskAddIntoNodeUpdateList(pTask, pRsp->downstreamNodeId);
   }
 
   // all msg rsp already, continue
@@ -1865,6 +1870,11 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
       }
     }
   }
+
+#if 0
+    // inject errors, and always refuse the upstream dispatch msg and trigger the task nodeEpset update trans.
+    status = TASK_INPUT_STATUS__REFUSED;
+#endif
 
   {
     // do send response with the input status

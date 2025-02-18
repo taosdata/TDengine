@@ -3,7 +3,7 @@ title: Telegraf
 slug: /third-party-tools/data-collection/telegraf
 ---
 
-import Telegraf from "./_telegraf.mdx"
+import Telegraf from "../../assets/resources/_telegraf.mdx"
 
 Telegraf is a very popular open-source metric collection software. In data collection and platform monitoring systems, Telegraf can collect operational information from various components without the need to manually write scripts for periodic collection, reducing the difficulty of data acquisition.
 

@@ -23,18 +23,16 @@ int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)
   int32_t code = pthread_create(tid, attr, start, arg);
   if (code) {
     taosThreadClear(tid);
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
 
-int32_t taosThreadAttrDestroy(TdThreadAttr *attr) { 
+int32_t taosThreadAttrDestroy(TdThreadAttr *attr) {
   OS_PARAM_CHECK(attr);
-  int32_t code = pthread_attr_destroy(attr); 
+  int32_t code = pthread_attr_destroy(attr);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
@@ -44,8 +42,7 @@ int32_t taosThreadAttrGetDetachState(const TdThreadAttr *attr, int32_t *detachst
   OS_PARAM_CHECK(detachstate);
   int32_t code = pthread_attr_getdetachstate(attr, detachstate);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
@@ -55,8 +52,7 @@ int32_t taosThreadAttrGetInheritSched(const TdThreadAttr *attr, int32_t *inherit
   OS_PARAM_CHECK(inheritsched);
   int32_t code = pthread_attr_getinheritsched(attr, inheritsched);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
@@ -66,8 +62,7 @@ int32_t taosThreadAttrGetSchedParam(const TdThreadAttr *attr, struct sched_param
   OS_PARAM_CHECK(param);
   int32_t code = pthread_attr_getschedparam(attr, param);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
@@ -77,8 +72,7 @@ int32_t taosThreadAttrGetSchedPolicy(const TdThreadAttr *attr, int32_t *policy) 
   OS_PARAM_CHECK(policy);
   int32_t code = pthread_attr_getschedpolicy(attr, policy);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
@@ -88,8 +82,7 @@ int32_t taosThreadAttrGetScope(const TdThreadAttr *attr, int32_t *contentionscop
   OS_PARAM_CHECK(contentionscope);
   int32_t code = pthread_attr_getscope(attr, contentionscope);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
@@ -99,18 +92,16 @@ int32_t taosThreadAttrGetStackSize(const TdThreadAttr *attr, size_t *stacksize) 
   OS_PARAM_CHECK(stacksize);
   int32_t code = pthread_attr_getstacksize(attr, stacksize);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
 
 int32_t taosThreadAttrInit(TdThreadAttr *attr) {
   OS_PARAM_CHECK(attr);
-  int32_t code = pthread_attr_init(attr); 
+  int32_t code = pthread_attr_init(attr);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
@@ -119,8 +110,7 @@ int32_t taosThreadAttrSetDetachState(TdThreadAttr *attr, int32_t detachstate) {
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_setdetachstate(attr, detachstate);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
@@ -129,8 +119,7 @@ int32_t taosThreadAttrSetInheritSched(TdThreadAttr *attr, int32_t inheritsched) 
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_setinheritsched(attr, inheritsched);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
@@ -139,8 +128,7 @@ int32_t taosThreadAttrSetSchedParam(TdThreadAttr *attr, const struct sched_param
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_setschedparam(attr, param);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
@@ -149,8 +137,7 @@ int32_t taosThreadAttrSetSchedPolicy(TdThreadAttr *attr, int32_t policy) {
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_setschedpolicy(attr, policy);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
@@ -159,8 +146,7 @@ int32_t taosThreadAttrSetScope(TdThreadAttr *attr, int32_t contentionscope) {
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_setscope(attr, contentionscope);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
@@ -169,17 +155,15 @@ int32_t taosThreadAttrSetStackSize(TdThreadAttr *attr, size_t stacksize) {
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_attr_setstacksize(attr, stacksize);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
 
-int32_t taosThreadCancel(TdThread thread) { 
-  int32_t code = pthread_cancel(thread); 
+int32_t taosThreadCancel(TdThread thread) {
+  int32_t code = pthread_cancel(thread);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
@@ -191,8 +175,7 @@ int32_t taosThreadCondDestroy(TdThreadCond *cond) {
 #else
   int32_t code = pthread_cond_destroy(cond);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -206,8 +189,7 @@ int32_t taosThreadCondInit(TdThreadCond *cond, const TdThreadCondAttr *attr) {
 #else
   int32_t code = pthread_cond_init(cond, attr);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -221,8 +203,7 @@ int32_t taosThreadCondSignal(TdThreadCond *cond) {
 #else
   int32_t code = pthread_cond_signal(cond);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -236,8 +217,7 @@ int32_t taosThreadCondBroadcast(TdThreadCond *cond) {
 #else
   int32_t code = pthread_cond_broadcast(cond);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -254,8 +234,7 @@ int32_t taosThreadCondWait(TdThreadCond *cond, TdThreadMutex *mutex) {
 #else
   int32_t code = pthread_cond_wait(cond, mutex);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -274,7 +253,7 @@ int32_t taosThreadCondTimedWait(TdThreadCond *cond, TdThreadMutex *mutex, const 
   return TAOS_SYSTEM_WINAPI_ERROR(error);
 #else
   int32_t code = pthread_cond_timedwait(cond, mutex, abstime);
-  if(code == ETIMEDOUT) {
+  if (code == ETIMEDOUT) {
     return TSDB_CODE_TIMEOUT_ERROR;
   } else if (code) {
     return TAOS_SYSTEM_ERROR(code);
@@ -291,14 +270,14 @@ int32_t taosThreadCondAttrDestroy(TdThreadCondAttr *attr) {
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_condattr_destroy(attr);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
 }
 
 int32_t taosThreadCondAttrGetPshared(const TdThreadCondAttr *attr, int32_t *pshared) {
+  OS_PARAM_CHECK(attr);
   OS_PARAM_CHECK(pshared);
 #ifdef __USE_WIN_THREAD
   if (pshared) *pshared = PTHREAD_PROCESS_PRIVATE;
@@ -307,8 +286,7 @@ int32_t taosThreadCondAttrGetPshared(const TdThreadCondAttr *attr, int32_t *psha
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_condattr_getpshared(attr, pshared);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -321,8 +299,7 @@ int32_t taosThreadCondAttrInit(TdThreadCondAttr *attr) {
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_condattr_init(attr);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -337,8 +314,7 @@ int32_t taosThreadCondAttrSetclock(TdThreadCondAttr *attr, int clockId) {
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_condattr_setclock(attr, clockId);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -351,28 +327,24 @@ int32_t taosThreadCondAttrSetPshared(TdThreadCondAttr *attr, int32_t pshared) {
 #else
   int32_t code = pthread_condattr_setpshared(attr, pshared);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
 }
 
-int32_t taosThreadDetach(TdThread thread) { 
-  int32_t code = pthread_detach(thread); 
+int32_t taosThreadDetach(TdThread thread) {
+  int32_t code = pthread_detach(thread);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
 
-int32_t taosThreadEqual(TdThread t1, TdThread t2) { 
-  return pthread_equal(t1, t2); 
-}
+int32_t taosThreadEqual(TdThread t1, TdThread t2) { return pthread_equal(t1, t2); }
 
-void taosThreadExit(void *valuePtr) { 
-  if(valuePtr) return pthread_exit(valuePtr); 
+void taosThreadExit(void *valuePtr) {
+  if (valuePtr) return pthread_exit(valuePtr);
 }
 
 int32_t taosThreadGetSchedParam(TdThread thread, int32_t *policy, struct sched_param *param) {
@@ -380,21 +352,17 @@ int32_t taosThreadGetSchedParam(TdThread thread, int32_t *policy, struct sched_p
   OS_PARAM_CHECK(param);
   int32_t code = pthread_getschedparam(thread, policy, param);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
 
-void *taosThreadGetSpecific(TdThreadKey key) { 
-  return pthread_getspecific(key); 
-}
+void *taosThreadGetSpecific(TdThreadKey key) { return pthread_getspecific(key); }
 
-int32_t taosThreadJoin(TdThread thread, void **valuePtr) { 
-  int32_t code = pthread_join(thread, valuePtr); 
+int32_t taosThreadJoin(TdThread thread, void **valuePtr) {
+  int32_t code = pthread_join(thread, valuePtr);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
@@ -403,26 +371,23 @@ int32_t taosThreadKeyCreate(TdThreadKey *key, void (*destructor)(void *)) {
   OS_PARAM_CHECK(key);
   int32_t code = pthread_key_create(key, destructor);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
 
-int32_t taosThreadKeyDelete(TdThreadKey key) { 
-  int32_t code = pthread_key_delete(key); 
+int32_t taosThreadKeyDelete(TdThreadKey key) {
+  int32_t code = pthread_key_delete(key);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
 
-int32_t taosThreadKill(TdThread thread, int32_t sig) { 
-  int32_t code = pthread_kill(thread, sig); 
+int32_t taosThreadKill(TdThread thread, int32_t sig) {
+  int32_t code = pthread_kill(thread, sig);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
@@ -439,8 +404,7 @@ int32_t taosThreadMutexDestroy(TdThreadMutex *mutex) {
 #else
   int32_t code = pthread_mutex_destroy(mutex);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -459,8 +423,7 @@ int32_t taosThreadMutexInit(TdThreadMutex *mutex, const TdThreadMutexAttr *attr)
 #else
   int32_t code = pthread_mutex_init(mutex, attr);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -474,8 +437,7 @@ int32_t taosThreadMutexLock(TdThreadMutex *mutex) {
 #else
   int32_t code = pthread_mutex_lock(mutex);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -507,8 +469,7 @@ int32_t taosThreadMutexUnlock(TdThreadMutex *mutex) {
 #else
   int32_t code = pthread_mutex_unlock(mutex);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -521,8 +482,7 @@ int32_t taosThreadMutexAttrDestroy(TdThreadMutexAttr *attr) {
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_mutexattr_destroy(attr);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -537,8 +497,7 @@ int32_t taosThreadMutexAttrGetPshared(const TdThreadMutexAttr *attr, int32_t *ps
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_mutexattr_getpshared(attr, pshared);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -557,8 +516,7 @@ int32_t taosThreadMutexAttrGetType(const TdThreadMutexAttr *attr, int32_t *kind)
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_mutexattr_gettype(attr, kind);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -571,8 +529,7 @@ int32_t taosThreadMutexAttrInit(TdThreadMutexAttr *attr) {
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_mutexattr_init(attr);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -585,8 +542,7 @@ int32_t taosThreadMutexAttrSetPshared(TdThreadMutexAttr *attr, int32_t pshared) 
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_mutexattr_setpshared(attr, pshared);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -603,8 +559,7 @@ int32_t taosThreadMutexAttrSetType(TdThreadMutexAttr *attr, int32_t kind) {
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_mutexattr_settype(attr, kind);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -613,8 +568,7 @@ int32_t taosThreadMutexAttrSetType(TdThreadMutexAttr *attr, int32_t kind) {
 int32_t taosThreadOnce(TdThreadOnce *onceControl, void (*initRoutine)(void)) {
   int32_t code = pthread_once(onceControl, initRoutine);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
@@ -626,11 +580,10 @@ int32_t taosThreadRwlockDestroy(TdThreadRwlock *rwlock) {
    */
   return 0;
 #else
-    OS_PARAM_CHECK(rwlock);
+  OS_PARAM_CHECK(rwlock);
   int32_t code = pthread_rwlock_destroy(rwlock);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -645,8 +598,7 @@ int32_t taosThreadRwlockInit(TdThreadRwlock *rwlock, const TdThreadRwlockAttr *a
 #else
   int32_t code = pthread_rwlock_init(rwlock, attr);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -660,8 +612,7 @@ int32_t taosThreadRwlockRdlock(TdThreadRwlock *rwlock) {
 #else
   int32_t code = pthread_rwlock_rdlock(rwlock);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -683,8 +634,7 @@ int32_t taosThreadRwlockTryRdlock(TdThreadRwlock *rwlock) {
 #else
   int32_t code = pthread_rwlock_tryrdlock(rwlock);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -699,8 +649,7 @@ int32_t taosThreadRwlockTryWrlock(TdThreadRwlock *rwlock) {
 #else
   int32_t code = pthread_rwlock_trywrlock(rwlock);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -718,8 +667,7 @@ int32_t taosThreadRwlockUnlock(TdThreadRwlock *rwlock) {
 #else
   int32_t code = pthread_rwlock_unlock(rwlock);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -734,8 +682,7 @@ int32_t taosThreadRwlockWrlock(TdThreadRwlock *rwlock) {
 #else
   int32_t code = pthread_rwlock_wrlock(rwlock);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -748,14 +695,14 @@ int32_t taosThreadRwlockAttrDestroy(TdThreadRwlockAttr *attr) {
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_rwlockattr_destroy(attr);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
 }
 
 int32_t taosThreadRwlockAttrGetPshared(const TdThreadRwlockAttr *attr, int32_t *pshared) {
+  OS_PARAM_CHECK(attr);
   OS_PARAM_CHECK(pshared);
 #ifdef __USE_WIN_THREAD
   if (pshared) *pshared = PTHREAD_PROCESS_PRIVATE;
@@ -763,8 +710,7 @@ int32_t taosThreadRwlockAttrGetPshared(const TdThreadRwlockAttr *attr, int32_t *
 #else
   int32_t code = pthread_rwlockattr_getpshared(attr, pshared);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -777,8 +723,7 @@ int32_t taosThreadRwlockAttrInit(TdThreadRwlockAttr *attr) {
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_rwlockattr_init(attr);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -791,8 +736,7 @@ int32_t taosThreadRwlockAttrSetPshared(TdThreadRwlockAttr *attr, int32_t pshared
   OS_PARAM_CHECK(attr);
   int32_t code = pthread_rwlockattr_setpshared(attr, pshared);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -800,20 +744,18 @@ int32_t taosThreadRwlockAttrSetPshared(TdThreadRwlockAttr *attr, int32_t pshared
 
 TdThread taosThreadSelf(void) { return pthread_self(); }
 
-int32_t taosThreadSetCancelState(int32_t state, int32_t *oldstate) { 
-  int32_t code = pthread_setcancelstate(state, oldstate); 
+int32_t taosThreadSetCancelState(int32_t state, int32_t *oldstate) {
+  int32_t code = pthread_setcancelstate(state, oldstate);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
 
-int32_t taosThreadSetCancelType(int32_t type, int32_t *oldtype) { 
-  int32_t code = pthread_setcanceltype(type, oldtype); 
+int32_t taosThreadSetCancelType(int32_t type, int32_t *oldtype) {
+  int32_t code = pthread_setcanceltype(type, oldtype);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
@@ -822,18 +764,16 @@ int32_t taosThreadSetSchedParam(TdThread thread, int32_t policy, const struct sc
   OS_PARAM_CHECK(param);
   int32_t code = pthread_setschedparam(thread, policy, param);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
 
-int32_t taosThreadSetSpecific(TdThreadKey key, const void *value) { 
+int32_t taosThreadSetSpecific(TdThreadKey key, const void *value) {
   OS_PARAM_CHECK(value);
-  int32_t code = pthread_setspecific(key, value); 
+  int32_t code = pthread_setspecific(key, value);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 }
@@ -845,8 +785,7 @@ int32_t taosThreadSpinDestroy(TdThreadSpinlock *lock) {
 #else
   int32_t code = pthread_spin_destroy((pthread_spinlock_t *)lock);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -860,8 +799,7 @@ int32_t taosThreadSpinInit(TdThreadSpinlock *lock, int32_t pshared) {
 #else
   int32_t code = pthread_spin_init((pthread_spinlock_t *)lock, pshared);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -874,8 +812,7 @@ int32_t taosThreadSpinLock(TdThreadSpinlock *lock) {
 #else
   int32_t code = pthread_spin_lock((pthread_spinlock_t *)lock);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
@@ -901,20 +838,17 @@ int32_t taosThreadSpinUnlock(TdThreadSpinlock *lock) {
 #else
   int32_t code = pthread_spin_unlock((pthread_spinlock_t *)lock);
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return terrno;
+    return (terrno = TAOS_SYSTEM_ERROR(code));
   }
   return code;
 #endif
 }
 
-void taosThreadTestCancel(void) { 
-  return pthread_testcancel(); 
-}
+void taosThreadTestCancel(void) { return pthread_testcancel(); }
 
-void taosThreadClear(TdThread *thread) { 
+void taosThreadClear(TdThread *thread) {
   if (!thread) return;
-  (void)memset(thread, 0, sizeof(TdThread)); 
+  (void)memset(thread, 0, sizeof(TdThread));
 }
 
 #ifdef WINDOWS

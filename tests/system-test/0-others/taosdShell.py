@@ -132,7 +132,7 @@ class TDTestCase:
 
     def preData(self):
         # database\stb\tb\chiild-tb\rows\topics
-        tdSql.execute("create user testpy pass 'testpy'")
+        tdSql.execute("create user testpy pass 'testpy243#@'")
         tdSql.execute("drop database if exists db0;")
         tdSql.execute("create database db0 wal_retention_period 3600;")
         tdSql.execute("use db0;")

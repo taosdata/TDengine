@@ -455,3 +455,5 @@ int32_t tsdbTFileObjCmpr(const STFileObj **fobj1, const STFileObj **fobj2) {
     return 0;
   }
 }
+
+const char *tsdbFTypeLabel(tsdb_ftype_t ftype) { return g_tfile_info[ftype].suffix; }

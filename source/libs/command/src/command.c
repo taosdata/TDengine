@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "command.h"
 #include "catalog.h"
+#include "command.h"
 #include "commandInt.h"
 #include "scheduler.h"
 #include "systable.h"
@@ -54,7 +54,7 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   (*pRsp)->numOfCols = htonl(numOfCols);
 
   int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, numOfCols);
-  if(len < 0) {
+  if (len < 0) {
     taosMemoryFree(*pRsp);
     *pRsp = NULL;
     return terrno;
@@ -223,7 +223,7 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
   if (NULL == pDesc || NULL == pDesc->pMeta) {
     return TSDB_CODE_INVALID_PARA;
   }
-  int32_t        numOfRows = TABLE_TOTAL_COL_NUM(pDesc->pMeta);
+  int32_t numOfRows = TABLE_TOTAL_COL_NUM(pDesc->pMeta);
 
   SSDataBlock* pBlock = NULL;
   int32_t      code = buildDescResultDataBlock(&pBlock);
@@ -411,11 +411,17 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
   char keep0Str[128] = {0};
   char keep1Str[128] = {0};
   char keep2Str[128] = {0};
+  char compactIntervalStr[13] = {0};
+  char compactStartTimeStr[13] = {0};
+  char compactEndTimeStr[13] = {0};
 
   int32_t lenDuration = formatDurationOrKeep(durationStr, sizeof(durationStr), pCfg->daysPerFile);
   int32_t lenKeep0 = formatDurationOrKeep(keep0Str, sizeof(keep0Str), pCfg->daysToKeep0);
   int32_t lenKeep1 = formatDurationOrKeep(keep1Str, sizeof(keep1Str), pCfg->daysToKeep1);
   int32_t lenKeep2 = formatDurationOrKeep(keep2Str, sizeof(keep2Str), pCfg->daysToKeep2);
+  UNUSED(formatDurationOrKeep(compactIntervalStr, sizeof(compactIntervalStr), pCfg->compactInterval));
+  UNUSED(formatDurationOrKeep(compactStartTimeStr, sizeof(compactStartTimeStr), pCfg->compactStartTime));
+  UNUSED(formatDurationOrKeep(compactEndTimeStr, sizeof(compactEndTimeStr), pCfg->compactEndTime));
 
   if (IS_SYS_DBNAME(dbName)) {
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
@@ -428,13 +434,15 @@ static int32_t setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbName,
                   "PRECISION '%s' REPLICA %d "
                   "WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d TABLE_PREFIX %d TABLE_SUFFIX %d TSDB_PAGESIZE %d "
                   "WAL_RETENTION_PERIOD %d WAL_RETENTION_SIZE %" PRId64
-                  " KEEP_TIME_OFFSET %d ENCRYPT_ALGORITHM '%s' S3_CHUNKPAGES %d S3_KEEPLOCAL %dm S3_COMPACT %d",
+                  " KEEP_TIME_OFFSET %d ENCRYPT_ALGORITHM '%s' S3_CHUNKPAGES %d S3_KEEPLOCAL %dm S3_COMPACT %d "
+                  "COMPACT_INTERVAL %s COMPACT_TIME_RANGE %s,%s COMPACT_TIME_OFFSET %"PRIi8 "h",
                   dbName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression, durationStr,
                   pCfg->walFsyncPeriod, pCfg->maxRows, pCfg->minRows, pCfg->sstTrigger, keep0Str, keep1Str, keep2Str,
                   pCfg->pages, pCfg->pageSize, prec, pCfg->replications, pCfg->walLevel, pCfg->numOfVgroups,
                   1 == pCfg->numOfStables, hashPrefix, pCfg->hashSuffix, pCfg->tsdbPageSize, pCfg->walRetentionPeriod,
                   pCfg->walRetentionSize, pCfg->keepTimeOffset, encryptAlgorithmStr(pCfg->encryptAlgorithm),
-                  pCfg->s3ChunkSize, pCfg->s3KeepLocal, pCfg->s3Compact);
+                  pCfg->s3ChunkSize, pCfg->s3KeepLocal, pCfg->s3Compact, compactIntervalStr, compactStartTimeStr,
+                  compactEndTimeStr, pCfg->compactTimeOffset);
 
     if (pRetentions) {
       len += tsnprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_DB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
@@ -573,7 +581,7 @@ static void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
   }
 }
 
-static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
+static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* charsetCxt) {
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* pTagVals = NULL;
   STag*   pTag = (STag*)pCfg->pTags;
@@ -585,7 +593,7 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
 
   if (tTagIsJson(pTag)) {
     char* pJson = NULL;
-    parseTagDatatoJson(pTag, &pJson);
+    parseTagDatatoJson(pTag, &pJson, charsetCxt);
     if (NULL == pJson) {
       qError("failed to parse tag to json, pJson is NULL");
       return terrno;
@@ -726,7 +734,8 @@ static void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STab
   }
 }
 
-static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* pDbCfg, char* tbName, STableCfg* pCfg) {
+static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* pDbCfg, char* tbName, STableCfg* pCfg,
+                                              void* charsetCxt) {
   int32_t code = TSDB_CODE_SUCCESS;
   QRY_ERR_RET(blockDataEnsureCapacity(pBlock, 1));
   pBlock->info.rows = 1;
@@ -760,7 +769,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     appendTagNameFields(buf2, &len, pCfg);
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
                      ") TAGS (");
-    code = appendTagValues(buf2, &len, pCfg);
+    code = appendTagValues(buf2, &len, pCfg, charsetCxt);
     TAOS_CHECK_ERRNO(code);
     len +=
         snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
@@ -817,11 +826,11 @@ static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
   return code;
 }
 
-static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp) {
+static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp, void* charsetCxt) {
   SSDataBlock* pBlock = NULL;
   int32_t      code = buildCreateTbResultDataBlock(&pBlock);
   if (TSDB_CODE_SUCCESS == code) {
-    code = setCreateTBResultIntoDataBlock(pBlock, pStmt->pDbCfg, pStmt->tableName, pStmt->pTableCfg);
+    code = setCreateTBResultIntoDataBlock(pBlock, pStmt->pDbCfg, pStmt->tableName, pStmt->pTableCfg, charsetCxt);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_TB_RESULT_COLS, pRsp);
@@ -830,14 +839,14 @@ static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt, SRetrieveTableRs
   return code;
 }
 
-static int32_t execShowCreateSTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp) {
+static int32_t execShowCreateSTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp, void* charsetCxt) {
   STableCfg* pCfg = (STableCfg*)pStmt->pTableCfg;
   if (TSDB_SUPER_TABLE != pCfg->tableType) {
     terrno = TSDB_CODE_TSC_NOT_STABLE_ERROR;
     return terrno;
   }
 
-  return execShowCreateTable(pStmt, pRsp);
+  return execShowCreateTable(pStmt, pRsp, charsetCxt);
 }
 
 static int32_t execAlterCmd(char* cmd, char* value, bool* processed) {
@@ -905,11 +914,11 @@ static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
     goto _return;
   }
 
-  if (cfgCheckRangeForDynUpdate(tsCfg, pStmt->config, pStmt->value, false)) {
+  if (cfgCheckRangeForDynUpdate(tsCfg, pStmt->config, pStmt->value, false, CFG_ALTER_LOCAL)) {
     return terrno;
   }
 
-  if (cfgSetItem(tsCfg, pStmt->config, pStmt->value, CFG_STYPE_ALTER_CMD, true)) {
+  if (cfgSetItem(tsCfg, pStmt->config, pStmt->value, CFG_STYPE_ALTER_CLIENT_CMD, true)) {
     return terrno;
   }
 
@@ -956,6 +965,12 @@ static int32_t buildLocalVariablesResultDataBlock(SSDataBlock** pOutput) {
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD4_LEN;
+  if (taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
+    goto _exit;
+  }
+
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD5_LEN;
   if (taosArrayPush(pBlock->pDataBlock, &infoData) == NULL) {
     goto _exit;
   }
@@ -1058,7 +1073,8 @@ static int32_t execShowCreateView(SShowCreateViewStmt* pStmt, SRetrieveTableRsp*
   return code;
 }
 
-int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp, int8_t biMode) {
+int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp, int8_t biMode,
+                     void* charsetCxt) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_DESCRIBE_STMT:
       return execDescribe(sysInfoUser, pStmt, pRsp, biMode);
@@ -1067,9 +1083,9 @@ int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieve
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return execShowCreateDatabase((SShowCreateDatabaseStmt*)pStmt, pRsp);
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
-      return execShowCreateTable((SShowCreateTableStmt*)pStmt, pRsp);
+      return execShowCreateTable((SShowCreateTableStmt*)pStmt, pRsp, charsetCxt);
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
-      return execShowCreateSTable((SShowCreateTableStmt*)pStmt, pRsp);
+      return execShowCreateSTable((SShowCreateTableStmt*)pStmt, pRsp, charsetCxt);
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
       return execShowCreateView((SShowCreateViewStmt*)pStmt, pRsp);
     case QUERY_NODE_ALTER_LOCAL_STMT:

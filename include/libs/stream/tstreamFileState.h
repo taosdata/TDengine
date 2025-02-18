@@ -67,7 +67,6 @@ SStreamSnapshot* getSnapshot(SStreamFileState* pFileState);
 void             flushSnapshot(SStreamFileState* pFileState, SStreamSnapshot* pSnapshot, bool flushState);
 int32_t          recoverSnapshot(SStreamFileState* pFileState, int64_t ckId);
 
-int32_t getSnapshotIdList(SStreamFileState* pFileState, SArray* list);
 int32_t deleteExpiredCheckPoint(SStreamFileState* pFileState, TSKEY mark);
 int32_t streamFileStateGetSelectRowSize(SStreamFileState* pFileState);
 void    streamFileStateReloadInfo(SStreamFileState* pFileState, TSKEY ts);
@@ -101,10 +100,12 @@ void sessionWinStateCleanup(void* pBuff);
 SStreamStateCur* createStateCursor(SStreamFileState* pFileState);
 SStreamStateCur* sessionWinStateSeekKeyCurrentPrev(SStreamFileState* pFileState, const SSessionKey* pWinKey);
 SStreamStateCur* sessionWinStateSeekKeyCurrentNext(SStreamFileState* pFileState, const SSessionKey* pWinKey);
+SStreamStateCur* sessionWinStateSeekKeyPrev(SStreamFileState* pFileState, const SSessionKey* pWinKey);
 SStreamStateCur* sessionWinStateSeekKeyNext(SStreamFileState* pFileState, const SSessionKey* pWinKey);
 SStreamStateCur* countWinStateSeekKeyPrev(SStreamFileState* pFileState, const SSessionKey* pWinKey, COUNT_TYPE count);
 int32_t          sessionWinStateGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, void** pVal, int32_t* pVLen);
 void             sessionWinStateMoveToNext(SStreamStateCur* pCur);
+void             sessionWinStateMoveToPrev(SStreamStateCur* pCur);
 int32_t          sessionWinStateGetKeyByRange(SStreamFileState* pFileState, const SSessionKey* key, SSessionKey* curKey,
                                               range_cmpr_fn cmpFn);
 

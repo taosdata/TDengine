@@ -422,13 +422,11 @@ int32_t syncSendTimeoutRsp(int64_t rid, int64_t seq) {
 SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode) {
   SyncIndex minMatchIndex = SYNC_INDEX_INVALID;
 
-  if (pSyncNode->peersNum > 0) {
-    minMatchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[0]));
-  }
-
-  for (int32_t i = 1; i < pSyncNode->peersNum; ++i) {
+  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
     SyncIndex matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[i]));
-    if (matchIndex < minMatchIndex) {
+    if (minMatchIndex == SYNC_INDEX_INVALID) {
+      minMatchIndex = matchIndex;
+    } else if (matchIndex > 0 && matchIndex < minMatchIndex) {
       minMatchIndex = matchIndex;
     }
   }
@@ -692,14 +690,14 @@ int32_t syncGetArbToken(int64_t rid, char* outToken) {
 
   memset(outToken, 0, TSDB_ARB_TOKEN_SIZE);
   (void)taosThreadMutexLock(&pSyncNode->arbTokenMutex);
-  strncpy(outToken, pSyncNode->arbToken, TSDB_ARB_TOKEN_SIZE);
+  tstrncpy(outToken, pSyncNode->arbToken, TSDB_ARB_TOKEN_SIZE);
   (void)taosThreadMutexUnlock(&pSyncNode->arbTokenMutex);
 
   syncNodeRelease(pSyncNode);
   TAOS_RETURN(code);
 }
 
-int32_t syncGetAssignedLogSynced(int64_t rid) {
+int32_t syncCheckSynced(int64_t rid) {
   int32_t    code = 0;
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
@@ -1464,7 +1462,7 @@ int32_t syncNodeRestore(SSyncNode* pSyncNode) {
 
   // if (endIndex != lastVer + 1) return TSDB_CODE_SYN_INTERNAL_ERROR;
   pSyncNode->commitIndex = TMAX(pSyncNode->commitIndex, commitIndex);
-  sInfo("vgId:%d, restore sync until commitIndex:%" PRId64, pSyncNode->vgId, pSyncNode->commitIndex);
+  sInfo("vgId:%d, restore began, and keep syncing until commitIndex:%" PRId64, pSyncNode->vgId, pSyncNode->commitIndex);
 
   if (pSyncNode->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
       (code = syncLogBufferCommit(pSyncNode->pLogBuf, pSyncNode, pSyncNode->commitIndex)) < 0) {
@@ -2933,7 +2931,7 @@ void syncNodeLogConfigInfo(SSyncNode* ths, SSyncCfg* cfg, char* str) {
     n += tsnprintf(buf + n, len - n, "%s", "{");
     for (int i = 0; i < ths->peersEpset->numOfEps; i++) {
       n += tsnprintf(buf + n, len - n, "%s:%d%s", ths->peersEpset->eps[i].fqdn, ths->peersEpset->eps[i].port,
-                    (i + 1 < ths->peersEpset->numOfEps ? ", " : ""));
+                     (i + 1 < ths->peersEpset->numOfEps ? ", " : ""));
     }
     n += tsnprintf(buf + n, len - n, "%s", "}");
 
@@ -3430,7 +3428,8 @@ _out:;
            ths->pLogBuf->matchIndex, ths->pLogBuf->endIndex);
 
   if (code == 0 && ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
-    TAOS_CHECK_RETURN(syncNodeUpdateAssignedCommitIndex(ths, matchIndex));
+    int64_t index = syncNodeUpdateAssignedCommitIndex(ths, matchIndex);
+    sTrace("vgId:%d, update assigned commit index %" PRId64 "", ths->vgId, index);
 
     if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
         syncLogBufferCommit(ths->pLogBuf, ths, ths->assignedCommitIndex) < 0) {

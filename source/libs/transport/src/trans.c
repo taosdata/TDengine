@@ -23,7 +23,7 @@ void (*taosCloseHandle[])(void* arg) = {transCloseServer, transCloseClient};
 void (*taosRefHandle[])(void* handle) = {transRefSrvHandle, transRefCliHandle};
 void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, NULL};
 
-int (*transReleaseHandle[])(void* handle) = {transReleaseSrvHandle, transReleaseCliHandle};
+int (*transReleaseHandle[])(void* handle, int32_t status) = {transReleaseSrvHandle, transReleaseCliHandle};
 
 static int32_t transValidLocalFqdn(const char* localFqdn, uint32_t* ip) {
   int32_t code = taosGetIpv4FromFqdn(localFqdn, ip);
@@ -158,7 +158,6 @@ void* rpcMallocCont(int64_t contLen) {
   char*   start = taosMemoryCalloc(1, size);
   if (start == NULL) {
     tError("failed to malloc msg, size:%" PRId64, size);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   } else {
     tTrace("malloc mem:%p size:%" PRId64, start, size);
@@ -217,7 +216,9 @@ void rpcRefHandle(void* handle, int8_t type) { (*taosRefHandle[type])(handle); }
 void rpcUnrefHandle(void* handle, int8_t type) { (*taosUnRefHandle[type])(handle); }
 
 int32_t rpcRegisterBrokenLinkArg(SRpcMsg* msg) { return transRegisterMsg(msg); }
-int32_t rpcReleaseHandle(void* handle, int8_t type) { return (*transReleaseHandle[type])(handle); }
+int32_t rpcReleaseHandle(void* handle, int8_t type, int32_t status) {
+  return (*transReleaseHandle[type])(handle, status);
+}
 
 // client only
 int32_t rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {

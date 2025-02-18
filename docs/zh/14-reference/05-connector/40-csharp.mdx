@@ -10,35 +10,26 @@ import RequestId from "./_request_id.mdx";
 
 `TDengine.Connector` 是 TDengine 提供的 C# 语言连接器。C# 开发人员可以通过它开发存取 TDengine 集群数据的 C# 应用软件。
 
-## 连接方式
+## .NET 版本兼容性
 
-`TDengine.Connector` 提供两种形式的连接器
-* **原生连接**，通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、数据订阅、schemaless 接口和参数绑定接口等功能。
-* **WebSocket 连接**，通过 taosAdapter 提供的 WebSocket 接口连接 TDengine 实例，WebSocket 连接实现的功能集合和原生连接有少量不同。（自 v3.0.1 起）
-
-连接方式的详细介绍请参考：[连接方式](../../../develop/connect/#连接方式)
-
-## 兼容性
-
-* `TDengine.Connector` 3.1.0 版本进行了完整的重构，不再兼容 3.0.2 及以前版本。3.0.2 文档请参考 [nuget](https://www.nuget.org/packages/TDengine.Connector/3.0.2)
-* `TDengine.Connector` 3.x 不兼容 TDengine 2.x，如果在运行 TDengine 2.x 版本的环境下需要使用 C# 连接器请使用 TDengine.Connector 的 1.x 版本。
+- .NET Framework 4.6 及以上版本。
+- .NET 5.0 及以上版本。
 
 ## 支持的平台
 
-支持的平台和 TDengine 客户端驱动支持的平台一致。
+- 原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
+- WebSocket 连接支持所有能运行 .NET 运行时的平台。
 
-:::warning
-TDengine 不再支持 32 位 Windows 平台。
-:::
+## 版本历史
 
-## 版本支持
-
-| **Connector 版本** | **TDengine 版本**  | **主要功能**                   |
-|------------------|------------------|----------------------------|
-| 3.1.3            | 3.2.1.0/3.1.1.18 | 支持 WebSocket 自动重连          |
-| 3.1.2            | 3.2.1.0/3.1.1.18 | 修复 schemaless 资源释放         |
-| 3.1.1            | 3.2.1.0/3.1.1.18 | 支持 varbinary 和 geometry 类型 |
-| 3.1.0            | 3.2.1.0/3.1.1.18 | WebSocket 使用原生实现           |
+| Connector 版本 | 主要变化                       | TDengine 版本   |
+|:-------------|:---------------------------|:--------------|
+| 3.1.5        | 修复 websocket 协议编码中文时长度错误   | -             |
+| 3.1.4        | 提升 websocket 查询和写入性能       | 3.3.2.0 及更高版本 |
+| 3.1.3        | 支持 WebSocket 自动重连          | -             |
+| 3.1.2        | 修复 schemaless 资源释放         | -             |
+| 3.1.1        | 支持 varbinary 和 geometry 类型 | -             |
+| 3.1.0        | WebSocket 使用原生实现           | 3.2.1.0 及更高版本 |
 
 ## 处理异常
 

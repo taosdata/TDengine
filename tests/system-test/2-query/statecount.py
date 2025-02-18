@@ -395,7 +395,7 @@ class TDTestCase:
     def query_precision(self):
         def generate_data(precision="ms"):
             dbname = f"db_{precision}"
-            tdSql.execute(f"create database if not exists db_%s precision '%s';" %(precision, precision))
+            tdSql.execute(f"create database if not exists db_%s keep 36500 precision '%s';" %(precision, precision))
             tdSql.execute("use db_%s;" %precision)
             tdSql.execute(f"create stable db_%s.st (ts timestamp , id int) tags(ind int);"%precision)
             tdSql.execute(f"create table db_%s.tb1 using {dbname}.st tags(1);"%precision)
@@ -449,7 +449,7 @@ class TDTestCase:
     def check_boundary_values(self, dbname="bound_test"):
 
         tdSql.execute(f"drop database if exists {dbname}")
-        tdSql.execute(f"create database if not exists {dbname}")
+        tdSql.execute(f"create database if not exists {dbname} keep 36500")
         tdSql.execute(
             f"create table {dbname}.stb_bound (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(32),c9 nchar(32), c10 timestamp) tags (t1 int);"
         )

@@ -178,14 +178,14 @@ static EDealRes doFindAndReplaceNode(SNode** pNode, void* pContext) {
   SCalcConstContext* pCxt = pContext;
   if (pCxt->replaceCxt.pTarget == *pNode) {
     char aliasName[TSDB_COL_NAME_LEN] = {0};
-    strcpy(aliasName, ((SExprNode*)*pNode)->aliasName);
+    tstrncpy(aliasName, ((SExprNode*)*pNode)->aliasName, TSDB_COL_NAME_LEN);
     nodesDestroyNode(*pNode);
     *pNode = NULL;
     pCxt->code = nodesCloneNode(pCxt->replaceCxt.pNew, pNode);
     if (NULL == *pNode) {
       return DEAL_RES_ERROR;
     }
-    strcpy(((SExprNode*)*pNode)->aliasName, aliasName);
+    tstrncpy(((SExprNode*)*pNode)->aliasName, aliasName, TSDB_COL_NAME_LEN);
 
     pCxt->replaceCxt.replaced = true;
     return DEAL_RES_END;
@@ -228,14 +228,14 @@ static int32_t calcConstProject(SCalcConstContext* pCxt, SNode* pProject, bool d
         SAssociationNode* pAssNode = taosArrayGet(pAssociation, i);
         SNode**           pCol = pAssNode->pPlace;
         if (*pCol == pAssNode->pAssociationNode) {
-          strcpy(aliasName, ((SExprNode*)*pCol)->aliasName);
+          tstrncpy(aliasName, ((SExprNode*)*pCol)->aliasName, TSDB_COL_NAME_LEN);
           SArray* pOrigAss = NULL;
           TSWAP(((SExprNode*)*pCol)->pAssociation, pOrigAss);
           nodesDestroyNode(*pCol);
           *pCol = NULL;
           code = nodesCloneNode(*pNew, pCol);
           if (TSDB_CODE_SUCCESS == code) {
-            strcpy(((SExprNode*)*pCol)->aliasName, aliasName);
+            tstrncpy(((SExprNode*)*pCol)->aliasName, aliasName, TSDB_COL_NAME_LEN);
             TSWAP(pOrigAss, ((SExprNode*)*pCol)->pAssociation);
           }
           taosArrayDestroy(pOrigAss);
@@ -611,7 +611,12 @@ static void resetProjectNullType(SNode* pStmt) {
       resetProjectNullTypeImpl(((SSelectStmt*)pStmt)->pProjectionList);
       break;
     case QUERY_NODE_SET_OPERATOR: {
-      resetProjectNullTypeImpl(((SSetOperator*)pStmt)->pProjectionList);
+      SSetOperator* pSetOp = (SSetOperator*)pStmt;
+      resetProjectNullTypeImpl(pSetOp->pProjectionList);
+      if (pSetOp->pLeft)
+        resetProjectNullType(pSetOp->pLeft);
+      if (pSetOp->pRight)
+        resetProjectNullType(pSetOp->pRight);
       break;
     }
     default:

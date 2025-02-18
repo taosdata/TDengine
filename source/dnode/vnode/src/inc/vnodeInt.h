@@ -81,6 +81,8 @@ typedef struct SCommitInfo        SCommitInfo;
 typedef struct SCompactInfo       SCompactInfo;
 typedef struct SQueryNode         SQueryNode;
 
+typedef struct SStreamNotifyHandleMap SStreamNotifyHandleMap;
+
 #define VNODE_META_TMP_DIR    "meta.tmp"
 #define VNODE_META_BACKUP_DIR "meta.backup"
 
@@ -155,13 +157,13 @@ int             metaCommit(SMeta* pMeta, TXN* txn);
 int             metaFinishCommit(SMeta* pMeta, TXN* txn);
 int             metaPrepareAsyncCommit(SMeta* pMeta);
 int             metaAbort(SMeta* pMeta);
-int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
-int             metaAlterSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
-int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq, SArray* tbUidList);
-int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq, STableMetaRsp** pMetaRsp);
-int             metaDropTable(SMeta* pMeta, int64_t version, SVDropTbReq* pReq, SArray* tbUids, int64_t* tbUid);
-int32_t         metaTrimTables(SMeta* pMeta);
-int32_t         metaDropTables(SMeta* pMeta, SArray* tbUids);
+int             metaCreateSuperTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
+int32_t         metaAlterSuperTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
+int32_t         metaDropSuperTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
+int32_t         metaCreateTable2(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq, STableMetaRsp** ppRsp);
+int32_t         metaDropTable2(SMeta* pMeta, int64_t version, SVDropTbReq* pReq);
+int32_t         metaTrimTables(SMeta* pMeta, int64_t version);
+int32_t         metaDropMultipleTables(SMeta* pMeta, int64_t version, SArray* tbUids);
 int             metaTtlFindExpired(SMeta* pMeta, int64_t timePointMs, SArray* tbUids, int32_t ttlDropMaxCount);
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
 int             metaUpdateChangeTimeWithLock(SMeta* pMeta, tb_uid_t uid, int64_t changeTimeMs);
@@ -176,8 +178,8 @@ int             metaAlterCache(SMeta* pMeta, int32_t nPage);
 int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid);
 int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid);
 
-int metaAddIndexToSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
-int metaDropIndexFromSTable(SMeta* pMeta, int64_t version, SDropIndexReq* pReq);
+int32_t metaAddIndexToSuperTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
+int32_t metaDropIndexFromSuperTable(SMeta* pMeta, int64_t version, SDropIndexReq* pReq);
 
 int64_t       metaGetTimeSeriesNum(SMeta* pMeta, int type);
 void          metaUpdTimeSeriesNum(SMeta* pMeta);
@@ -217,7 +219,7 @@ int32_t tsdbBegin(STsdb* pTsdb);
 // int32_t tsdbPrepareCommit(STsdb* pTsdb);
 // int32_t tsdbCommit(STsdb* pTsdb, SCommitInfo* pInfo);
 int32_t tsdbCacheCommit(STsdb* pTsdb);
-int32_t tsdbCacheNewTable(STsdb* pTsdb, int64_t uid, tb_uid_t suid, SSchemaWrapper* pSchemaRow);
+int32_t tsdbCacheNewTable(STsdb* pTsdb, int64_t uid, tb_uid_t suid, const SSchemaWrapper* pSchemaRow);
 int32_t tsdbCacheDropTable(STsdb* pTsdb, int64_t uid, tb_uid_t suid, SSchemaWrapper* pSchemaRow);
 int32_t tsdbCacheDropSubTables(STsdb* pTsdb, SArray* uids, tb_uid_t suid);
 int32_t tsdbCacheNewSTableColumn(STsdb* pTsdb, SArray* uids, int16_t cid, int8_t col_type);
@@ -254,6 +256,9 @@ int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg);
 
 int32_t tqBuildStreamTask(void* pTq, SStreamTask* pTask, int64_t ver);
 int32_t tqScanWal(STQ* pTq);
+
+// injection error
+void streamMetaFreeTQDuringScanWalError(STQ* pTq);
 
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
 int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId);
@@ -479,8 +484,7 @@ struct SVnode {
   SVBufPool*    onRecycle;
 
   // commit variables
-  SVAChannelID commitChannel;
-  SVATaskID    commitTask;
+  SVATaskID commitTask;
 
   SMeta*        pMeta;
   SSma*         pSma;
@@ -497,6 +501,9 @@ struct SVnode {
   int64_t       blockSeq;
   SQHandle*     pQuery;
   SVMonitorObj  monitor;
+
+  // Notification Handles
+  SStreamNotifyHandleMap* pNotifyHandleMap;
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)

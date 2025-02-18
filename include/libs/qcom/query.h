@@ -194,6 +194,7 @@ typedef struct SBoundColInfo {
   int32_t  numOfCols;
   int32_t  numOfBound;
   bool     hasBoundCols;
+  bool     mixTagsCols;
 } SBoundColInfo;
 
 typedef struct STableColsData {
@@ -337,7 +338,7 @@ SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* nam
 
 void    destroyQueryExecRes(SExecResult* pRes);
 int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len);
-void    parseTagDatatoJson(void* p, char** jsonStr);
+void    parseTagDatatoJson(void* p, char** jsonStr, void *charsetCxt);
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
 void    getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType);
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);
@@ -373,7 +374,7 @@ void* getTaskPoolWorkerCb();
   ((_code) == TSDB_CODE_SYN_NOT_LEADER || (_code) == TSDB_CODE_SYN_INTERNAL_ERROR || \
    (_code) == TSDB_CODE_VND_STOPPED || (_code) == TSDB_CODE_APP_IS_STARTING || (_code) == TSDB_CODE_APP_IS_STOPPING)
 #define SYNC_SELF_LEADER_REDIRECT_ERROR(_code) \
-  ((_code) == TSDB_CODE_SYN_NOT_LEADER || (_code) == TSDB_CODE_SYN_RESTORING || (_code) == TSDB_CODE_SYN_INTERNAL_ERROR)
+  ((_code) == TSDB_CODE_SYN_NOT_LEADER || (_code) == TSDB_CODE_SYN_RESTORING || (_code) == TSDB_CODE_SYN_INTERNAL_ERROR || (_code) == TSDB_CODE_SYN_TIMEOUT)
 #define SYNC_OTHER_LEADER_REDIRECT_ERROR(_code) ((_code) == TSDB_CODE_MNODE_NOT_FOUND)
 
 #define NO_RET_REDIRECT_ERROR(_code)                                                   \

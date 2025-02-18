@@ -56,12 +56,7 @@ int32_t schedulerInit() {
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  if (taosGetSystemUUIDU64(&schMgmt.sId)) {
-    qError("generate schedulerId failed, errno:%d", errno);
-    SCH_ERR_RET(TSDB_CODE_QRY_SYS_ERROR);
-  }
-
-  qInfo("scheduler 0x%" PRIx64 " initialized, maxJob:%u", schMgmt.sId, schMgmt.cfg.maxJobNum);
+  qInfo("scheduler 0x%" PRIx64 " initialized, maxJob:%u", getClientId(), schMgmt.cfg.maxJobNum);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -172,7 +167,7 @@ void schedulerFreeJob(int64_t *jobId, int32_t errCode) {
   SSchJob *pJob = NULL;
   (void)schAcquireJob(*jobId, &pJob);
   if (NULL == pJob) {
-    qWarn("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *jobId);
+    qDebug("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, *jobId);
     return;
   }
 

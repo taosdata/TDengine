@@ -16,6 +16,9 @@
 #include "tq.h"
 
 int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle) {
+  if (pEncoder == NULL || pHandle == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t code = 0;
   int32_t lino;
 
@@ -54,6 +57,9 @@ _exit:
 }
 
 int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
+  if (pDecoder == NULL || pHandle == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t code = 0;
   int32_t lino;
 
@@ -91,7 +97,10 @@ _exit:
   return code;
 }
 
-int32_t tqMetaDecodeCheckInfo(STqCheckInfo* info, void* pVal, int32_t vLen) {
+int32_t tqMetaDecodeCheckInfo(STqCheckInfo* info, void* pVal, uint32_t vLen) {
+  if (info == NULL || pVal == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   SDecoder decoder = {0};
   tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
   int32_t code = tDecodeSTqCheckInfo(&decoder, info);
@@ -104,7 +113,10 @@ int32_t tqMetaDecodeCheckInfo(STqCheckInfo* info, void* pVal, int32_t vLen) {
   return code;
 }
 
-int32_t tqMetaDecodeOffsetInfo(STqOffset* info, void* pVal, int32_t vLen) {
+int32_t tqMetaDecodeOffsetInfo(STqOffset* info, void* pVal, uint32_t vLen) {
+  if (info == NULL || pVal == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   SDecoder decoder = {0};
   tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
   int32_t code = tDecodeSTqOffset(&decoder, info);
@@ -118,9 +130,12 @@ int32_t tqMetaDecodeOffsetInfo(STqOffset* info, void* pVal, int32_t vLen) {
 }
 
 int32_t tqMetaSaveOffset(STQ* pTq, STqOffset* pOffset) {
+  if (pTq == NULL || pOffset == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   void*    buf = NULL;
   int32_t  code = TDB_CODE_SUCCESS;
-  int32_t  vlen;
+  uint32_t  vlen;
   SEncoder encoder = {0};
   tEncodeSize(tEncodeSTqOffset, pOffset, vlen, code);
   if (code < 0) {
@@ -147,7 +162,10 @@ END:
   return code;
 }
 
-int32_t tqMetaSaveInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen, const void* value, int32_t vLen) {
+int32_t tqMetaSaveInfo(STQ* pTq, TTB* ttb, const void* key, uint32_t kLen, const void* value, uint32_t vLen) {
+  if (pTq == NULL || ttb == NULL || key == NULL || value == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t code = TDB_CODE_SUCCESS;
   TXN*    txn = NULL;
 
@@ -164,7 +182,10 @@ END:
   return code;
 }
 
-int32_t tqMetaDeleteInfo(STQ* pTq, TTB* ttb, const void* key, int32_t kLen) {
+int32_t tqMetaDeleteInfo(STQ* pTq, TTB* ttb, const void* key, uint32_t kLen) {
+  if (pTq == NULL || ttb == NULL || key == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t code = TDB_CODE_SUCCESS;
   TXN*    txn = NULL;
 
@@ -182,6 +203,9 @@ END:
 }
 
 int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset** pOffset) {
+  if (pTq == NULL || subkey == NULL || pOffset == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   void* data = taosHashGet(pTq->pOffset, subkey, strlen(subkey));
   if (data == NULL) {
     int vLen = 0;
@@ -191,7 +215,7 @@ int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset** pOffset) {
     }
 
     STqOffset offset = {0};
-    if (tqMetaDecodeOffsetInfo(&offset, data, vLen) != TDB_CODE_SUCCESS) {
+    if (tqMetaDecodeOffsetInfo(&offset, data, vLen >= 0 ? vLen : 0) != TDB_CODE_SUCCESS) {
       tdbFree(data);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -214,8 +238,11 @@ int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset** pOffset) {
 }
 
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
+  if (pTq == NULL || key == NULL || pHandle == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t  code = TDB_CODE_SUCCESS;
-  int32_t  vlen;
+  uint32_t  vlen;
   void*    buf = NULL;
   SEncoder encoder = {0};
   tEncodeSize(tEncodeSTqHandle, pHandle, vlen, code);
@@ -238,7 +265,7 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
     goto END;
   }
 
-  TQ_ERR_GO_TO_END(tqMetaSaveInfo(pTq, pTq->pExecStore, key, (int)strlen(key), buf, vlen));
+  TQ_ERR_GO_TO_END(tqMetaSaveInfo(pTq, pTq->pExecStore, key, strlen(key), buf, vlen));
 
 END:
   tEncoderClear(&encoder);
@@ -247,6 +274,9 @@ END:
 }
 
 static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
+  if (pTq == NULL || handle == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t code = TDB_CODE_SUCCESS;
 
   SVnode* pVnode = pTq->pVnode;
@@ -318,7 +348,10 @@ END:
   return code;
 }
 
-static int32_t tqMetaRestoreHandle(STQ* pTq, void* pVal, int vLen, STqHandle* handle) {
+static int32_t tqMetaRestoreHandle(STQ* pTq, void* pVal, uint32_t vLen, STqHandle* handle) {
+  if (pTq == NULL || pVal == NULL || handle == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t  vgId = TD_VID(pTq->pVnode);
   SDecoder decoder = {0};
   int32_t  code = TDB_CODE_SUCCESS;
@@ -335,6 +368,9 @@ END:
 }
 
 int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle) {
+  if (pTq == NULL || req == NULL || handle == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t vgId = TD_VID(pTq->pVnode);
 
   (void)memcpy(handle->subKey, req->subKey, TSDB_SUBSCRIBE_KEY_LEN);
@@ -375,6 +411,9 @@ int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle) {
 }
 
 static int32_t tqMetaTransformInfo(TDB* pMetaDB, TTB* pOld, TTB* pNew) {
+  if (pMetaDB == NULL || pOld == NULL || pNew == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   TBC*  pCur = NULL;
   void* pKey = NULL;
   int   kLen = 0;
@@ -404,6 +443,9 @@ END:
 }
 
 int32_t tqMetaGetHandle(STQ* pTq, const char* key, STqHandle** pHandle) {
+  if (pTq == NULL || key == NULL || pHandle == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   void* data = taosHashGet(pTq->pHandle, key, strlen(key));
   if (data == NULL) {
     int vLen = 0;
@@ -412,7 +454,7 @@ int32_t tqMetaGetHandle(STQ* pTq, const char* key, STqHandle** pHandle) {
       return TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST;
     }
     STqHandle handle = {0};
-    if (tqMetaRestoreHandle(pTq, data, vLen, &handle) != 0) {
+    if (tqMetaRestoreHandle(pTq, data, vLen >= 0 ? vLen : 0, &handle) != 0) {
       tdbFree(data);
       tqDestroyTqHandle(&handle);
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -429,6 +471,9 @@ int32_t tqMetaGetHandle(STQ* pTq, const char* key, STqHandle** pHandle) {
 }
 
 int32_t tqMetaOpenTdb(STQ* pTq) {
+  if (pTq == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t code = TDB_CODE_SUCCESS;
   TQ_ERR_GO_TO_END(tdbOpen(pTq->path, 16 * 1024, 1, &pTq->pMetaDB, 0, 0, NULL));
   TQ_ERR_GO_TO_END(tdbTbOpen("tq.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pExecStore, 0));
@@ -440,6 +485,9 @@ END:
 }
 
 static int32_t replaceTqPath(char** path) {
+  if (path == NULL || *path == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   char*   tpath = NULL;
   int32_t code = tqBuildFName(&tpath, *path, TQ_SUBSCRIBE_NAME);
   if (code != 0) {
@@ -451,6 +499,9 @@ static int32_t replaceTqPath(char** path) {
 }
 
 static int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
+  if (pTq == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   TBC*         pCur = NULL;
   void*        pKey = NULL;
   int          kLen = 0;
@@ -463,7 +514,7 @@ static int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
   TQ_ERR_GO_TO_END(tdbTbcMoveToFirst(pCur));
 
   while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
-    TQ_ERR_GO_TO_END(tqMetaDecodeCheckInfo(&info, pVal, vLen));
+    TQ_ERR_GO_TO_END(tqMetaDecodeCheckInfo(&info, pVal, vLen >= 0 ? vLen : 0));
     TQ_ERR_GO_TO_END(taosHashPut(pTq->pCheckInfo, info.topic, strlen(info.topic), &info, sizeof(STqCheckInfo)));
   }
   info.colIdList = NULL;
@@ -477,6 +528,9 @@ END:
 }
 
 int32_t tqMetaOpen(STQ* pTq) {
+  if (pTq == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   char*   maindb = NULL;
   char*   offsetNew = NULL;
   int32_t code = TDB_CODE_SUCCESS;
@@ -504,6 +558,9 @@ END:
 }
 
 int32_t tqMetaTransform(STQ* pTq) {
+  if (pTq == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   int32_t code = TDB_CODE_SUCCESS;
   TDB*    pMetaDB = NULL;
   TTB*    pExecStore = NULL;
@@ -543,6 +600,9 @@ END:
 }
 
 void tqMetaClose(STQ* pTq) {
+  if (pTq == NULL) {
+    return;
+  }
   int32_t ret = 0;
   if (pTq->pExecStore) {
     tdbTbClose(pTq->pExecStore);

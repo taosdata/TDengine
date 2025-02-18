@@ -33,7 +33,7 @@ class TDTestCase:
         self.colname_length_boundary = self.boundary.COL_KEY_MAX_LENGTH
         self.tagname_length_boundary = self.boundary.TAG_KEY_MAX_LENGTH
         self.username_length_boundary = 23
-        self.password_length_boundary = 31
+        self.password_length_boundary = 14
     def dbname_length_check(self):
         dbname_length = randint(1,self.dbname_length_boundary-1)
         for dbname in [tdCom.get_long_name(self.dbname_length_boundary),tdCom.get_long_name(dbname_length)]:
@@ -120,27 +120,37 @@ class TDTestCase:
     def username_length_check(self):
         username_length = randint(1,self.username_length_boundary-1)
         for username in [tdCom.get_long_name(username_length),tdCom.get_long_name(self.username_length_boundary)]:
-            tdSql.execute(f'create user {username} pass "123"')
+            tdSql.execute(f'create user {username} pass "test123@#$"')
             tdSql.query('show users')
             for user in tdSql.queryResult:
                 if user[0].lower() != 'root':
                     tdSql.checkEqual(user[0],username)
             tdSql.execute(f'drop user {username}')
         username = tdCom.get_long_name(self.username_length_boundary+1)
-        tdSql.error(f'create user {username} pass "123"')
+        tdSql.error(f'create user {username} pass "test123@#$"')
         if "Name or password too long" in tdSql.error_info:
+            tdLog.info("error info is true!")
+        elif "Password too short or empty" in tdSql.error_info:
             tdLog.info("error info is true!")
         else:
             tdLog.exit("error info is not true")
     
     def password_length_check(self):
-        password_length = randint(1,self.password_length_boundary-1)
+        password_length = randint(8,self.password_length_boundary-1)
+        index = 0
         for password in [tdCom.get_long_name(password_length),tdCom.get_long_name(self.password_length_boundary)]:
-            username = tdCom.get_long_name(3)
-            tdSql.execute(f'create user {username} pass "{password}"')
+            index += 1
+            username = tdCom.get_long_name(12) + str(index)
+            tdSql.execute(f'create user {username} pass "{password}@1"')
+        index += 1
+        username = tdCom.get_long_name(12) + str(index)
         password = tdCom.get_long_name(self.password_length_boundary+1)
-        tdSql.error(f'create user {username} pass "{password}"')
-        if "Name or password too long" in tdSql.error_info:
+        tdSql.error(f'create user {username} pass "{password}@1"')
+        if "Invalid password format" in tdSql.error_info:
+            tdLog.info("error info is true!")
+        elif "Name or password too long" in tdSql.error_info:
+            tdLog.info("error info is true!")
+        elif "Password too short or empty" in tdSql.error_info:
             tdLog.info("error info is true!")
         else:
             tdLog.exit("error info is not true")

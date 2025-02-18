@@ -29,7 +29,7 @@ taosKeeper 需要在操作系统终端执行，该工具支持三种配置方式
 Usage of taoskeeper v3.3.3.0:
   -R, --RotationInterval string                      interval for refresh metrics, such as "300ms", Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h". Env "TAOS_KEEPER_ROTATION_INTERVAL" (default "15s")
   -c, --config string                                config path default /etc/taos/taoskeeper.toml
-      --drop string                                  run taoskeeper in command mode, only support old_taosd_metric_stables. 
+      --drop string                                  run taoskeeper in command mode, only support old_taosd_metric_stables.
       --environment.incgroup                         whether running in cgroup. Env "TAOS_KEEPER_ENVIRONMENT_INCGROUP"
       --fromTime string                              parameter of transfer, example: 2020-01-01T00:00:00+08:00 (default "2020-01-01T00:00:00+08:00")
       --gopoolsize int                               coroutine size. Env "TAOS_KEEPER_POOL_SIZE" (default 50000)
@@ -65,7 +65,7 @@ Usage of taoskeeper v3.3.3.0:
 
 taosKeeper 支持用 `taoskeeper -c <keeper config file>` 命令来指定配置文件。
 若不指定配置文件，taosKeeper 会使用默认配置文件，其路径为： `/etc/taos/taoskeeper.toml` 。
-若既不指定 taosKeeper 配置文件，且 `/etc/taos/taoskeeper.toml` 也不存在，将使用默认配置。  
+若既不指定 taosKeeper 配置文件，且 `/etc/taos/taoskeeper.toml` 也不存在，将使用默认配置。
 
 **下面是配置文件的示例：**
 
@@ -261,7 +261,7 @@ Query OK, 14 row(s) in set (0.006542s)
 
 可以查看一个超级表的最近一条上报记录，如：
 
-``` shell
+```shell
 taos> select last_row(*) from taosd_dnodes_info;
       last_row(_ts)      |   last_row(disk_engine)   |  last_row(system_net_in)  |   last_row(vnodes_num)    | last_row(system_net_out)  |     last_row(uptime)      |    last_row(has_mnode)    |  last_row(io_read_disk)   | last_row(error_log_count) |     last_row(io_read)     |    last_row(cpu_cores)    |    last_row(has_qnode)    |    last_row(has_snode)    |   last_row(disk_total)    |   last_row(mem_engine)    | last_row(info_log_count)  |   last_row(cpu_engine)    |  last_row(io_write_disk)  | last_row(debug_log_count) |    last_row(disk_used)    |    last_row(mem_total)    |    last_row(io_write)     |     last_row(masters)     |   last_row(cpu_system)    | last_row(trace_log_count) |    last_row(mem_free)     |
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
@@ -288,22 +288,22 @@ $ curl http://127.0.0.1:6043/metrics
 部分结果集：
 
 ```shell
-# HELP taos_cluster_info_connections_total 
+# HELP taos_cluster_info_connections_total
 # TYPE taos_cluster_info_connections_total counter
 taos_cluster_info_connections_total{cluster_id="554014120921134497"} 8
-# HELP taos_cluster_info_dbs_total 
+# HELP taos_cluster_info_dbs_total
 # TYPE taos_cluster_info_dbs_total counter
 taos_cluster_info_dbs_total{cluster_id="554014120921134497"} 2
-# HELP taos_cluster_info_dnodes_alive 
+# HELP taos_cluster_info_dnodes_alive
 # TYPE taos_cluster_info_dnodes_alive counter
 taos_cluster_info_dnodes_alive{cluster_id="554014120921134497"} 1
-# HELP taos_cluster_info_dnodes_total 
+# HELP taos_cluster_info_dnodes_total
 # TYPE taos_cluster_info_dnodes_total counter
 taos_cluster_info_dnodes_total{cluster_id="554014120921134497"} 1
-# HELP taos_cluster_info_first_ep 
+# HELP taos_cluster_info_first_ep
 # TYPE taos_cluster_info_first_ep gauge
 taos_cluster_info_first_ep{cluster_id="554014120921134497",value="tdengine:6030"} 1
-# HELP taos_cluster_info_first_ep_dnode_id 
+# HELP taos_cluster_info_first_ep_dnode_id
 # TYPE taos_cluster_info_first_ep_dnode_id counter
 taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 ```
@@ -365,12 +365,12 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
 | taos_dnodes_info_has_qnode     | counter | 是否有 qnode                                                                             |
 | taos_dnodes_info_has_snode     | counter | 是否有 snode                                                                             |
 | taos_dnodes_info_io_read       | gauge   | 该 dnode 所在节点的 io 读取速率（单位 Byte/s)                                            |
-| taos_dnodes_info_io_read_disk  | gauge   | 该 dnode 所在节点的磁盘 io 写入取速率（单位 Byte/s)                                      |
-| taos_dnodes_info_io_write      | gauge   | 该 dnode 所在节点的 io 写入取速率（单位 Byte/s)                                          |
-| taos_dnodes_info_io_write_disk | gauge   | 该 dnode 所在节点的磁盘 io 写入取速率（单位 Byte/s)                                      |
+| taos_dnodes_info_io_read_disk  | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s)                                        |
+| taos_dnodes_info_io_write      | gauge   | 该 dnode 所在节点的 io 写入速率（单位 Byte/s)                                            |
+| taos_dnodes_info_io_write_disk | gauge   | 该 dnode 所在节点的磁盘 io 写入速率（单位 Byte/s)                                        |
 | taos_dnodes_info_masters       | counter | 主节点数量                                                                               |
 | taos_dnodes_info_mem_engine    | counter | 该 dnode 的进程所使用的内存（单位 KB)                                                    |
-| taos_dnodes_info_mem_system    | counter | 该 dnode 所在节的系统所使用的内存（单位 KB)                                              |
+| taos_dnodes_info_mem_system    | counter | 该 dnode 所在节点的系统所使用的内存（单位 KB)                                            |
 | taos_dnodes_info_mem_total     | counter | 该 dnode 所在节点的总内存（单位 KB)                                                      |
 | taos_dnodes_info_net_in        | gauge   | 该 dnode 所在节点的网络传入速率（单位 Byte/s)                                            |
 | taos_dnodes_info_net_out       | gauge   | 该 dnode 所在节点的网络传出速率（单位 Byte/s)                                            |
@@ -511,7 +511,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
   - `database_name`: 数据库名称
   - `vgroup_id`: 虚拟组 id
 - **类型**: gauge
-- **含义**: 虚拟组状态。 0 为 unsynced，表示没有leader选出；1 为 ready。
+- **含义**: 虚拟组状态。 0 为 unsynced，表示没有 leader 选出；1 为 ready。
 
 ##### taos_taosd_vgroups_info_tables_num
 
@@ -532,7 +532,7 @@ taos_cluster_info_first_ep_dnode_id{cluster_id="554014120921134497"} 1
   - `vgroup_id`: 虚拟组 id
 - **类型**: gauge
 - **含义**: 虚拟节点角色
-  
+
 ### 抽取配置
 
 Prometheus 提供了 `scrape_configs` 配置如何从 endpoint 抽取监控数据，通常只需要修改 `static_configs` 中的 targets 配置为 taoskeeper 的 endpoint 地址，更多配置信息请参考 [Prometheus 配置文档](https://prometheus.io/docs/prometheus/latest/configuration/configuration/#scrape_config)。
@@ -558,13 +558,13 @@ scrape_configs:
 
 taosKeeper 也会将自己采集的监控数据写入监控数据库，默认是 `log` 库，可以在 taoskeeper 配置文件中修改。
 
-### keeper\_monitor 表
+### keeper_monitor 表
 
 `keeper_monitor` 记录 taoskeeper 监控数据。
 
-| field    | type      | is\_tag | comment      |
-| :------- | :-------- | :------ | :----------- |
-| ts       | TIMESTAMP |         | timestamp    |
-| cpu      | DOUBLE    |         | cpu 使用率   |
-| mem      | DOUBLE    |         | 内存使用率   |
-| identify | NCHAR     | TAG     | 身份标识信息 |
+| field    | type      | is_tag | comment      |
+| :------- | :-------- | :----- | :----------- |
+| ts       | TIMESTAMP |        | timestamp    |
+| cpu      | DOUBLE    |        | cpu 使用率   |
+| mem      | DOUBLE    |        | 内存使用率   |
+| identify | NCHAR     | TAG    | 身份标识信息 |

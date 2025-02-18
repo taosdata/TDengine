@@ -6,6 +6,7 @@ add_executable(tmq_taosx_ci tmq_taosx_ci.c)
 add_executable(tmq_ts5466 tmq_ts5466.c)
 add_executable(tmq_td32526 tmq_td32526.c)
 add_executable(tmq_td32187 tmq_td32187.c)
+add_executable(tmq_td32471 tmq_td32471.c)
 add_executable(tmq_write_raw_test tmq_write_raw_test.c)
 add_executable(write_raw_block_test write_raw_block_test.c)
 add_executable(sml_test sml_test.c)
@@ -15,6 +16,7 @@ add_executable(tmq_multi_thread_test tmq_multi_thread_test.c)
 add_executable(tmq_offset_test tmq_offset_test.c)
 add_executable(varbinary_test varbinary_test.c)
 add_executable(replay_test replay_test.c)
+add_executable(timezone_test timezone_test.c)
 
 if(${TD_LINUX})
     add_executable(tsz_test tsz_test.c)
@@ -66,6 +68,13 @@ target_link_libraries(
 )
 target_link_libraries(
     tmq_td32187
+    PUBLIC ${TAOS_LIB}
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+)
+target_link_libraries(
+    tmq_td32471
     PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
@@ -137,6 +146,14 @@ target_link_libraries(
 target_link_libraries(
     varbinary_test
     PUBLIC ${TAOS_LIB}
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+)
+
+target_link_libraries(
+    timezone_test
+    PUBLIC taos
     PUBLIC util
     PUBLIC common
     PUBLIC os

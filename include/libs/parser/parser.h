@@ -101,6 +101,8 @@ typedef struct SParseContext {
   int8_t           biMode;
   SArray*          pSubMetaList;
   setQueryFn       setQueryFp;
+  timezone_t       timezone;
+  void            *charsetCxt;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
@@ -139,28 +141,28 @@ void        qDestroyStmtDataBlock(STableDataCxt* pBlock);
 STableMeta* qGetTableMetaInDataBlock(STableDataCxt* pDataBlock);
 int32_t     qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData);
 
-int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx);
+int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx, void *charsetCxt);
 int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery);
 int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                              STSchema** pTSchema, SBindInfo* pBindInfos);
-int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen);
+                              STSchema** pTSchema, SBindInfo* pBindInfos, void* charsetCxt);
+int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt);
 int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                                int32_t colIdx, int32_t rowNum);
+                                int32_t colIdx, int32_t rowNum, void* charsetCxt);
 int32_t qBuildStmtColFields(void* pDataBlock, int32_t* fieldNum, TAOS_FIELD_E** fields);
 int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, bool hasCtbName, int32_t* fieldNum,
-                               TAOS_FIELD_STB** fields);
+                               TAOS_FIELD_ALL** fields);
 int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TAOS_FIELD_E** fields);
 int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName,
-                           TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen);
+                           TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt);
 
-int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colIdx);
+int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colIdx, void* charsetCxt);
 int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                               STSchema** pTSchema, SBindInfo2* pBindInfos);
-int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen);
+                               STSchema** pTSchema, SBindInfo2* pBindInfos, void *charsetCxt);
+int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen, void *charsetCxt);
 int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                                 int32_t colIdx, int32_t rowNum);
+                                 int32_t colIdx, int32_t rowNum, void *charsetCxt);
 int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName,
-                            TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen);
+                            TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen, void *charsetCxt);
 
 void    destroyBoundColumnInfo(void* pBoundInfo);
 int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
@@ -170,13 +172,13 @@ void qDestroyBoundColInfo(void* pInfo);
 
 int32_t smlInitHandle(SQuery** query);
 int32_t smlBuildRow(STableDataCxt* pTableCxt);
-int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* kv, int32_t index);
+int32_t smlBuildCol(STableDataCxt* pTableCxt, SSchema* schema, void* kv, int32_t index, void* charsetCxt);
 int32_t smlInitTableDataCtx(SQuery* query, STableMeta* pTableMeta, STableDataCxt** cxt);
 
 void    clearColValArraySml(SArray* pCols);
 int32_t smlBindData(SQuery* handle, bool dataFormat, SArray* tags, SArray* colsSchema, SArray* cols,
                     STableMeta* pTableMeta, char* tableName, const char* sTableName, int32_t sTableNameLen, int32_t ttl,
-                    char* msgBuf, int32_t msgBufLen);
+                    char* msgBuf, int32_t msgBufLen, void* charsetCxt);
 int32_t smlBuildOutput(SQuery* handle, SHashObj* pVgHash);
 int     rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, void* fields,
                          int numFields, bool needChangeLength, char* errstr, int32_t errstrLen, bool raw);

@@ -52,6 +52,7 @@ else
     installDir="/usr/local/taos"
   fi
 fi
+
 install_main_dir=${installDir}
 bin_dir="${installDir}/bin"
 cfg_dir="${installDir}/cfg"
@@ -552,7 +553,7 @@ function install_service_on_systemd() {
   ${csudo}bash -c "echo 'StandardOutput=null'                >> ${taosd_service_config}"
   ${csudo}bash -c "echo 'Restart=always'                     >> ${taosd_service_config}"
   ${csudo}bash -c "echo 'StartLimitBurst=3'                  >> ${taosd_service_config}"
-  ${csudo}bash -c "echo 'StartLimitInterval=60s'             >> ${taosd_service_config}"
+  ${csudo}bash -c "echo 'StartLimitInterval=900s'            >> ${taosd_service_config}"
   ${csudo}bash -c "echo                                      >> ${taosd_service_config}"
   ${csudo}bash -c "echo '[Install]'                          >> ${taosd_service_config}"
   ${csudo}bash -c "echo 'WantedBy=multi-user.target'         >> ${taosd_service_config}"

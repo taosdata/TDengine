@@ -28,8 +28,7 @@ int32_t syncRespMgrCreate(void *data, int64_t ttl, SSyncRespMgr **ppObj) {
     TAOS_RETURN(terrno);
   }
 
-  pObj->pRespHash =
-      taosHashInit(sizeof(uint64_t), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  pObj->pRespHash = taosHashInit(8192, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_NO_LOCK);
   if (pObj->pRespHash == NULL) {
     taosMemoryFree(pObj);
     TAOS_RETURN(terrno);

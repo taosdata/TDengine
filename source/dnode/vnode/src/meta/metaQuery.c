@@ -164,7 +164,7 @@ int metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName) {
     metaReaderClear(&mr);
     return code;
   }
-  strncpy(tbName, mr.me.name, TSDB_TABLE_NAME_LEN);
+  tstrncpy(tbName, mr.me.name, TSDB_TABLE_NAME_LEN);
   metaReaderClear(&mr);
 
   return 0;
@@ -190,13 +190,20 @@ int metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid) {
   return 0;
 }
 
-int metaGetTableTypeByName(void *pVnode, char *tbName, ETableType *tbType) {
+int metaGetTableTypeSuidByName(void *pVnode, char *tbName, ETableType *tbType, uint64_t* suid) {
   int         code = 0;
   SMetaReader mr = {0};
   metaReaderDoInit(&mr, ((SVnode *)pVnode)->pMeta, META_READER_LOCK);
 
   code = metaGetTableEntryByName(&mr, tbName);
   if (code == 0) *tbType = mr.me.type;
+  if (TSDB_CHILD_TABLE == mr.me.type) {
+    *suid = mr.me.ctbEntry.suid;
+  } else if (TSDB_SUPER_TABLE == mr.me.type) {
+    *suid = mr.me.uid;
+  } else {
+    *suid = 0;
+  }
 
   metaReaderClear(&mr);
   return code;
@@ -1328,7 +1335,7 @@ int32_t metaFilterTableIds(void *pVnode, SMetaFltParam *arg, SArray *pUids) {
           TAOS_CHECK_GOTO(terrno, NULL, END);
         }
 
-        if (false == taosMbsToUcs4(tagData, nTagData, (TdUcs4 *)buf, maxSize, &maxSize)) {
+        if (false == taosMbsToUcs4(tagData, nTagData, (TdUcs4 *)buf, maxSize, &maxSize, NULL)) {
           TAOS_CHECK_GOTO(terrno, NULL, END);
         }
 

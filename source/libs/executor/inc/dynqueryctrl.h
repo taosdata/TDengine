@@ -71,7 +71,7 @@ typedef struct SStbJoinDynCtrlInfo {
   SDynQueryCtrlExecInfo execInfo;
   SStbJoinDynCtrlBasic  basic;
   SStbJoinDynCtrlCtx    ctx;
-  int16_t               outputBlkId;
+  SDataBlockDescNode*   pOutputDataBlockDesc;
 } SStbJoinDynCtrlInfo;
 
 typedef struct SDynQueryCtrlOperatorInfo {

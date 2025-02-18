@@ -12,13 +12,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "executorInt.h"
 #include "filter.h"
-#include "function.h"
 #include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
-#include "storageapi.h"
 #include "tanalytics.h"
 #include "tcommon.h"
 #include "tcompare.h"
@@ -29,24 +28,24 @@
 #ifdef USE_ANALYTICS
 
 typedef struct {
-  char     algoName[TSDB_ANALYTIC_ALGO_NAME_LEN];
-  char     algoUrl[TSDB_ANALYTIC_ALGO_URL_LEN];
-  char     algoOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
-  int64_t  maxTs;
-  int64_t  minTs;
-  int64_t  numOfRows;
-  uint64_t groupId;
-  int64_t  optRows;
-  int64_t  cachedRows;
-  int32_t  numOfBlocks;
-  int16_t  resTsSlot;
-  int16_t  resValSlot;
-  int16_t  resLowSlot;
-  int16_t  resHighSlot;
-  int16_t  inputTsSlot;
-  int16_t  inputValSlot;
-  int8_t   inputValType;
-  int8_t   inputPrecision;
+  char         algoName[TSDB_ANALYTIC_ALGO_NAME_LEN];
+  char         algoUrl[TSDB_ANALYTIC_ALGO_URL_LEN];
+  char         algoOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
+  int64_t      maxTs;
+  int64_t      minTs;
+  int64_t      numOfRows;
+  uint64_t     groupId;
+  int64_t      optRows;
+  int64_t      cachedRows;
+  int32_t      numOfBlocks;
+  int16_t      resTsSlot;
+  int16_t      resValSlot;
+  int16_t      resLowSlot;
+  int16_t      resHighSlot;
+  int16_t      inputTsSlot;
+  int16_t      inputValSlot;
+  int8_t       inputValType;
+  int8_t       inputPrecision;
   SAnalyticBuf analBuf;
 } SForecastSupp;
 
@@ -72,17 +71,20 @@ static FORCE_INLINE int32_t forecastEnsureBlockCapacity(SSDataBlock* pBlock, int
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t forecastCacheBlock(SForecastSupp* pSupp, SSDataBlock* pBlock) {
-  if (pSupp->cachedRows > ANAL_FORECAST_MAX_ROWS) {
-    return TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
-  }
-
-  int32_t   code = TSDB_CODE_SUCCESS;
-  int32_t   lino = 0;
+static int32_t forecastCacheBlock(SForecastSupp* pSupp, SSDataBlock* pBlock, const char* id) {
+  int32_t       code = TSDB_CODE_SUCCESS;
+  int32_t       lino = 0;
   SAnalyticBuf* pBuf = &pSupp->analBuf;
 
-  qDebug("block:%d, %p rows:%" PRId64, pSupp->numOfBlocks, pBlock, pBlock->info.rows);
+  if (pSupp->cachedRows > ANAL_FORECAST_MAX_ROWS) {
+    code = TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
+    qError("%s rows:%" PRId64 " for forecast cache, error happens, code:%s, upper limit:%d", id, pSupp->cachedRows,
+           tstrerror(code), ANAL_FORECAST_MAX_ROWS);
+    return code;
+  }
+
   pSupp->numOfBlocks++;
+  qDebug("%s block:%d, %p rows:%" PRId64, id, pSupp->numOfBlocks, pBlock, pBlock->info.rows);
 
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     SColumnInfoData* pValCol = taosArrayGet(pBlock->pDataBlock, pSupp->inputValSlot);
@@ -98,10 +100,16 @@ static int32_t forecastCacheBlock(SForecastSupp* pSupp, SSDataBlock* pBlock) {
     pSupp->numOfRows++;
 
     code = taosAnalBufWriteColData(pBuf, 0, TSDB_DATA_TYPE_TIMESTAMP, &ts);
-    if (TSDB_CODE_SUCCESS != code) return code;
+    if (TSDB_CODE_SUCCESS != code) {
+      qError("%s failed to write ts in buf, code:%s", id, tstrerror(code));
+      return code;
+    }
 
     code = taosAnalBufWriteColData(pBuf, 1, valType, val);
-    if (TSDB_CODE_SUCCESS != code) return code;
+    if (TSDB_CODE_SUCCESS != code) {
+      qError("%s failed to write val in buf, code:%s", id, tstrerror(code));
+      return code;
+    }
   }
 
   return 0;
@@ -109,7 +117,7 @@ static int32_t forecastCacheBlock(SForecastSupp* pSupp, SSDataBlock* pBlock) {
 
 static int32_t forecastCloseBuf(SForecastSupp* pSupp) {
   SAnalyticBuf* pBuf = &pSupp->analBuf;
-  int32_t   code = 0;
+  int32_t       code = 0;
 
   for (int32_t i = 0; i < 2; ++i) {
     code = taosAnalBufWriteColEnd(pBuf, i);
@@ -169,7 +177,6 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp) {
   code = taosAnalBufWriteOptInt(pBuf, "start", start);
   if (code != 0) return code;
 
-
   bool hasEvery = taosAnalGetOptInt(pSupp->algoOpt, "every", &every);
   if (!hasEvery) {
     qDebug("forecast every not found from %s, use %" PRId64, pSupp->algoOpt, every);
@@ -183,14 +190,14 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp) {
 
 static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const char* pId) {
   SAnalyticBuf* pBuf = &pSupp->analBuf;
-  int32_t   resCurRow = pBlock->info.rows;
-  int8_t    tmpI8;
-  int16_t   tmpI16;
-  int32_t   tmpI32;
-  int64_t   tmpI64;
-  float     tmpFloat;
-  double    tmpDouble;
-  int32_t   code = 0;
+  int32_t       resCurRow = pBlock->info.rows;
+  int8_t        tmpI8;
+  int16_t       tmpI16;
+  int32_t       tmpI32;
+  int64_t       tmpI64;
+  float         tmpFloat;
+  double        tmpDouble;
+  int32_t       code = 0;
 
   SColumnInfoData* pResValCol = taosArrayGet(pBlock->pDataBlock, pSupp->resValSlot);
   if (NULL == pResValCol) {
@@ -347,8 +354,8 @@ _OVER:
 }
 
 static int32_t forecastAggregateBlocks(SForecastSupp* pSupp, SSDataBlock* pResBlock, const char* pId) {
-  int32_t   code = TSDB_CODE_SUCCESS;
-  int32_t   lino = 0;
+  int32_t       code = TSDB_CODE_SUCCESS;
+  int32_t       lino = 0;
   SAnalyticBuf* pBuf = &pSupp->analBuf;
 
   code = forecastCloseBuf(pSupp);
@@ -394,7 +401,7 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       pSupp->cachedRows += pBlock->info.rows;
       qDebug("%s group:%" PRId64 ", blocks:%d, rows:%" PRId64 ", total rows:%" PRId64, pId, pSupp->groupId, numOfBlocks,
              pBlock->info.rows, pSupp->cachedRows);
-      code = forecastCacheBlock(pSupp, pBlock);
+      code = forecastCacheBlock(pSupp, pBlock, pId);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
       qDebug("%s group:%" PRId64 ", read finish for new group coming, blocks:%d", pId, pSupp->groupId, numOfBlocks);
@@ -405,7 +412,7 @@ static int32_t forecastNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       pSupp->cachedRows = pBlock->info.rows;
       qDebug("%s group:%" PRId64 ", new group, rows:%" PRId64 ", total rows:%" PRId64, pId, pSupp->groupId,
              pBlock->info.rows, pSupp->cachedRows);
-      code = forecastCacheBlock(pSupp, pBlock);
+      code = forecastCacheBlock(pSupp, pBlock, pId);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -533,7 +540,7 @@ static int32_t forecastParseAlgo(SForecastSupp* pSupp) {
 
 static int32_t forecastCreateBuf(SForecastSupp* pSupp) {
   SAnalyticBuf* pBuf = &pSupp->analBuf;
-  int64_t   ts = 0;  // taosGetTimestampMs();
+  int64_t       ts = 0;  // taosGetTimestampMs();
 
   pBuf->bufType = ANALYTICS_BUF_TYPE_JSON_COL;
   snprintf(pBuf->fileName, sizeof(pBuf->fileName), "%s/tdengine-forecast-%" PRId64, tsTempDir, ts);

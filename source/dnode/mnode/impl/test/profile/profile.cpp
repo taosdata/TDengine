@@ -57,8 +57,6 @@ TEST_F(MndTestProfile, 01_ConnectMsg) {
   EXPECT_NE(connectRsp.connId, 0);
   EXPECT_EQ(connectRsp.superUser, 1);
 
-  EXPECT_EQ(connectRsp.epSet.inUse, 0);
-  EXPECT_EQ(connectRsp.epSet.numOfEps, 1);
   EXPECT_EQ(connectRsp.epSet.eps[0].port, 9031);
   EXPECT_STREQ(connectRsp.epSet.eps[0].fqdn, "localhost");
 

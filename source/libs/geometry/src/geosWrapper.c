@@ -99,8 +99,8 @@ static int32_t initWktRegex(pcre2_code **ppRegex, pcre2_match_data **ppMatchData
     return terrno;
   }
 
-  (void)sprintf(
-      wktPatternWithSpace,
+  (void)tsnprintf(
+      wktPatternWithSpace, 4 * 1024,
       "^( *)point( *)z?m?( *)((empty)|(\\(( *)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
       "*)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?){1,3}( *)\\)))|linestring( *)z?m?( "
       "*)((empty)|(\\(( *)(([-+]?[0-9]+\\.?[0-9]*)|([-+]?[0-9]*\\.?[0-9]+))(e[-+]?[0-9]+)?(( "
@@ -323,11 +323,6 @@ int32_t checkWKB(const unsigned char *wkb, size_t size) {
   geom = GEOSWKBReader_read_r(geosCtx->handle, geosCtx->WKBReader, wkb, size);
   if (geom == NULL) {
     return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
-  }
-
-  if (!GEOSisValid_r(geosCtx->handle, geom)) {
-    code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
-    goto _exit;
   }
 
 _exit:

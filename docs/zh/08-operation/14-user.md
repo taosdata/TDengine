@@ -12,18 +12,19 @@ TDengine 默认仅配置了一个 root 用户，该用户拥有最高权限。TD
 
 创建用户的操作只能由 root 用户进行，语法如下。
 ```sql
-create user user_name pass'password' [sysinfo {1|0}]
+create user user_name pass'password' [sysinfo {1|0}] [createdb {1|0}]
 ```
 
 相关参数说明如下。
-- user_name：最长为 23 B。
-- password：最长为 128 B，合法字符包括字母和数字以及单双引号、撇号、反斜杠和空格以外的特殊字符，且不可以为空。
+- user_name：用户名最长不超过 23 个字节。
+- password：密码长度必须为 8 到 16 位，并且至少包含大写字母、小写字母、数字、特殊字符中的三类。特殊字符包括 `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`。（始自 3.3.5.0 版本）
 - sysinfo ：用户是否可以查看系统信息。1 表示可以查看，0 表示不可以查看。系统信息包括服务端配置信息、服务端各种节点信息，如 dnode、查询节点（qnode）等，以及与存储相关的信息等。默认为可以查看系统信息。
+- createdb：用户是否可以创建数据库。1 表示可以创建，0 表示不可以创建。缺省值为 0。// 从 TDengine 企业版 3.3.2.0 开始支持
 
-如下 SQL 可以创建密码为 123456 且可以查看系统信息的用户 test。
+如下 SQL 可以创建密码为 abc123!@# 且可以查看系统信息的用户 test。
 
 ```sql
-create user test pass '123456' sysinfo 1
+create user test pass 'abc123!@#' sysinfo 1
 ```
 
 ### 查看用户
@@ -47,6 +48,7 @@ alter_user_clause: {
  pass 'literal' 
  | enable value 
  | sysinfo value
+ | createdb value
 }
 ```
 
@@ -54,6 +56,7 @@ alter_user_clause: {
 - pass：修改用户密码。
 - enable：是否启用用户。1 表示启用此用户，0 表示禁用此用户。
 - sysinfo ：用户是否可查看系统信息。1 表示可以查看系统信息，0 表示不可以查看系统信息
+- createdb：用户是否可创建数据库。1 表示可以创建数据库，0 表示不可以创建数据库。// 从 TDengine 企业版 3.3.2.0 开始支持
 
 如下 SQL 禁用 test 用户。
 ```sql

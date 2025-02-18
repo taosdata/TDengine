@@ -13,12 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <common/tmsg.h>
 #include "tcommon.h"
-#include "tmsg.h"
 #include "tq.h"
-
-#define IS_NEW_SUBTB_RULE(_t) (((_t)->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER) && ((_t)->subtableWithoutMd5 != 1))
 
 typedef struct STableSinkInfo {
   uint64_t uid;
@@ -50,7 +46,7 @@ static int32_t doPutSinkTableInfoIntoCache(SSHashObj* pSinkTableMap, STableSinkI
 static bool    doGetSinkTableInfoFromCache(SSHashObj* pTableInfoMap, uint64_t groupId, STableSinkInfo** pInfo);
 static int32_t doRemoveSinkTableInfoInCache(SSHashObj* pSinkTableMap, uint64_t groupId, const char* id);
 static int32_t checkTagSchema(SStreamTask* pTask, SVnode* pVnode);
-static void reubuildAndSendMultiResBlock(SStreamTask* pTask, const SArray* pBlocks, SVnode* pVnode, int64_t earlyTs);
+static void    rebuildAndSendMultiResBlock(SStreamTask* pTask, const SArray* pBlocks, SVnode* pVnode, int64_t earlyTs);
 static int32_t handleResultBlockMsg(SStreamTask* pTask, SSDataBlock* pDataBlock, int32_t index, SVnode* pVnode,
                                     int64_t earlyTs);
 static int32_t doWaitForDstTableDropped(SVnode* pVnode, SStreamTask* pTask, const char* dstTableName);
@@ -985,7 +981,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
         tqDebug("s-task:%s append groupId:%" PRId64 " for generated dstTable:%s", id, groupId, dstTableName);
         if (pTask->ver == SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
           code = buildCtbNameAddGroupId(NULL, dstTableName, groupId, sizeof(pDataBlock->info.parTbName));
-        } else if (pTask->ver > SSTREAM_TASK_SUBTABLE_CHANGED_VER && stbFullName) {
+        } else if (pTask->ver >= SSTREAM_TASK_APPEND_STABLE_NAME_VER && stbFullName) {
           code = buildCtbNameAddGroupId(stbFullName, dstTableName, groupId, sizeof(pDataBlock->info.parTbName));
         }
         if (code != TSDB_CODE_SUCCESS) {
@@ -1049,8 +1045,6 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
         pTableSinkInfo->uid = 0;
         code = doPutSinkTableInfoIntoCache(pTask->outputInfo.tbSink.pTbInfo, pTableSinkInfo, groupId, id);
       } else {
-        metaReaderClear(&mr);
-
         tqError("s-task:%s vgId:%d dst-table:%s not auto-created, and not create in tsdb, discard data", id, vgId,
                 dstTableName);
         return TSDB_CODE_TDB_TABLE_NOT_EXIST;
@@ -1154,6 +1148,12 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
     return;
   }
 
+  code = tqSendAllNotifyEvents(pBlocks, pTask, pVnode);
+  if (code != TSDB_CODE_SUCCESS) {
+    tqError("vgId: %d, s-task:%s failed to send all event notifications", vgId, id);
+    // continue processing even if notification fails
+  }
+
   bool onlySubmitData = hasOnlySubmitData(pBlocks, numOfBlocks);
   if (!onlySubmitData || pTask->subtableWithoutMd5 == 1) {
     tqDebug("vgId:%d, s-task:%s write %d stream resBlock(s) into table, has delete block, submit one-by-one", vgId, id,
@@ -1177,6 +1177,8 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
         continue;
       } else if (pDataBlock->info.type == STREAM_DROP_CHILD_TABLE && pTask->subtableWithoutMd5) {
         code = doBuildAndSendDropTableMsg(pVnode, stbFullName, pDataBlock, pTask, suid);
+      } else if (pDataBlock->info.type == STREAM_NOTIFY_EVENT) {
+        continue;
       } else {
         code = handleResultBlockMsg(pTask, pDataBlock, i, pVnode, earlyTs);
       }
@@ -1187,7 +1189,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
       return;
     }
 
-    reubuildAndSendMultiResBlock(pTask, pBlocks, pVnode, earlyTs);
+    rebuildAndSendMultiResBlock(pTask, pBlocks, pVnode, earlyTs);
   }
 }
 
@@ -1290,7 +1292,7 @@ int32_t doBuildAndSendDeleteMsg(SVnode* pVnode, char* stbFullName, SSDataBlock* 
   return TSDB_CODE_SUCCESS;
 }
 
-void reubuildAndSendMultiResBlock(SStreamTask* pTask, const SArray* pBlocks, SVnode* pVnode, int64_t earlyTs) {
+void rebuildAndSendMultiResBlock(SStreamTask* pTask, const SArray* pBlocks, SVnode* pVnode, int64_t earlyTs) {
   int32_t     code = 0;
   const char* id = pTask->id.idStr;
   int32_t     vgId = pTask->pMeta->vgId;
@@ -1318,6 +1320,10 @@ void reubuildAndSendMultiResBlock(SStreamTask* pTask, const SArray* pBlocks, SVn
     }
 
     if (pDataBlock->info.type == STREAM_CHECKPOINT) {
+      continue;
+    }
+
+    if (pDataBlock->info.type == STREAM_NOTIFY_EVENT) {
       continue;
     }
 

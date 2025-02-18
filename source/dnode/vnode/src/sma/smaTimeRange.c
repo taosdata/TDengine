@@ -129,7 +129,7 @@ static int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t ver, const char *pMsg
     pReq.schemaRow = pCfg->schemaRow;
     pReq.schemaTag = pCfg->schemaTag;
 
-    TAOS_CHECK_EXIT(metaCreateSTable(SMA_META(pSma), ver, &pReq));
+    TAOS_CHECK_EXIT(metaCreateSuperTable(SMA_META(pSma), ver, &pReq));
   } else {
     TAOS_CHECK_EXIT(TSDB_CODE_TSMA_INVALID_STAT);
   }
@@ -204,7 +204,7 @@ int32_t smaBlockToSubmit(SVnode *pVnode, const SArray *pBlocks, const STSchema *
           continue;
         }
 
-        if( taosArrayPush(pReq->aSubmitTbData, &tbData) == NULL) {
+        if (taosArrayPush(pReq->aSubmitTbData, &tbData) == NULL) {
           code = terrno;
           continue;
         }

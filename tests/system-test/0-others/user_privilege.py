@@ -58,7 +58,7 @@ class TDTestCase:
         self.stbnum_grant = 200
 
     def create_user(self):
-        tdSql.execute(f'create user {self.user_name} pass "test"')
+        tdSql.execute(f'create user {self.user_name} pass "test123@#$"')
         tdSql.execute(f'grant read on {self.dbnames[0]}.{self.stbname} with t2 = "Beijing" to {self.user_name}')
         tdSql.execute(f'grant write on {self.dbnames[1]}.{self.stbname} with t1 = 2 to {self.user_name}')
                 
@@ -75,7 +75,7 @@ class TDTestCase:
                 tdSql.execute(f'create table {self.stbname}_grant_{i} (ts timestamp, c0 int) tags(t0 int)')
     
     def user_read_privilege_check(self, dbname):
-        testconn = taos.connect(user='test', password='test')        
+        testconn = taos.connect(user='test', password='test123@#$')        
         expectErrNotOccured = False
         
         try:
@@ -94,7 +94,7 @@ class TDTestCase:
         pass
     
     def user_write_privilege_check(self, dbname):
-        testconn = taos.connect(user='test', password='test')        
+        testconn = taos.connect(user='test', password='test123@#$')        
         expectErrNotOccured = False
         
         try:            
@@ -110,7 +110,7 @@ class TDTestCase:
             pass
     
     def user_privilege_error_check(self):
-        testconn = taos.connect(user='test', password='test')        
+        testconn = taos.connect(user='test', password='test123@#$')        
         expectErrNotOccured = False
         
         sql_list = [f"alter talbe {self.dbnames[0]}.stb_1 set t2 = 'Wuhan'", 

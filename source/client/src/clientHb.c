@@ -595,6 +595,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   }
 
   SAppInstInfo *pInst = pAppHbMgr->pAppInstInfo;
+
   if (code != 0) {
     pInst->onlineDnodes = pInst->totalDnodes ? 0 : -1;
     tscDebug("hb rsp error %s, update server status %d/%d", tstrerror(code), pInst->onlineDnodes, pInst->totalDnodes);
@@ -1194,6 +1195,9 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
       continue;
     }
 
+    tstrncpy(pOneReq->userApp, pTscObj->optionInfo.userApp, sizeof(pOneReq->userApp));
+    pOneReq->userIp = pTscObj->optionInfo.userIp;
+
     pOneReq = taosArrayPush((*pBatchReq)->reqs, pOneReq);
     if (NULL == pOneReq) {
       releaseTscObj(connKey->tscRid);
@@ -1335,7 +1339,6 @@ static void *hbThreadFunc(void *param) {
       }
       void *buf = taosMemoryMalloc(tlen);
       if (buf == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
         tFreeClientHbBatchReq(pReq);
         // hbClearReqInfo(pAppHbMgr);
         break;
@@ -1349,7 +1352,6 @@ static void *hbThreadFunc(void *param) {
       SMsgSendInfo *pInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
 
       if (pInfo == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
         tFreeClientHbBatchReq(pReq);
         // hbClearReqInfo(pAppHbMgr);
         taosMemoryFree(buf);
@@ -1361,7 +1363,6 @@ static void *hbThreadFunc(void *param) {
       pInfo->msgType = TDMT_MND_HEARTBEAT;
       pInfo->param = taosMemoryMalloc(sizeof(int32_t));
       if (pInfo->param  == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
         tFreeClientHbBatchReq(pReq);
         // hbClearReqInfo(pAppHbMgr);
         taosMemoryFree(buf);
@@ -1369,7 +1370,7 @@ static void *hbThreadFunc(void *param) {
         break;
       }
       *(int32_t *)pInfo->param = i;
-      pInfo->paramFreeFp = taosMemoryFree;
+      pInfo->paramFreeFp = taosAutoMemoryFree;
       pInfo->requestId = generateRequestId();
       pInfo->requestObjRefId = 0;
 
@@ -1455,7 +1456,7 @@ int32_t appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key, SAppHbMgr **pAppHbMg
   (*pAppHbMgr)->reportBytes = 0;
   (*pAppHbMgr)->key = taosStrdup(key);
   if ((*pAppHbMgr)->key == NULL) {
-    TSC_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    TSC_ERR_JRET(terrno);
   }
 
   // init app info

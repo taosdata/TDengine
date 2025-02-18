@@ -58,12 +58,12 @@ def checkRunTimeError():
         if hwnd:
             os.system("TASKKILL /F /IM taosd.exe")
 
-# 
+#
 # run case on previous cluster
 #
 def runOnPreviousCluster(host, config, fileName):
     print("enter run on previeous")
-    
+
     # load case module
     sep = "/"
     if platform.system().lower() == 'windows':
@@ -113,8 +113,9 @@ if __name__ == "__main__":
     asan = False
     independentMnode = False
     previousCluster = False
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RWD:n:i:aP', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','websocket','adaptercfgupdate','replicaVar','independentMnode','previous'])
+    crashGen = False
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RWD:n:i:aP:G', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','websocket','adaptercfgupdate','replicaVar','independentMnode','previous',"crashGen"])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -141,6 +142,7 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-i independentMnode Mnode')
             tdLog.printNoPrefix('-a address sanitizer mode')
             tdLog.printNoPrefix('-P run case with [P]revious cluster, do not create new cluster to run case.')
+            tdLog.printNoPrefix('-G crashGen mode')
 
             sys.exit(0)
 
@@ -208,7 +210,7 @@ if __name__ == "__main__":
 
         if key in ['-R', '--restful']:
             restful = True
-        
+
         if key in ['-W', '--websocket']:
             websocket = True
 
@@ -227,6 +229,10 @@ if __name__ == "__main__":
 
         if key in ['-P', '--previous']:
             previousCluster = True
+
+        if key in ['-G', '--crashGen']:
+            crashGen = True
+
 
     #
     # do exeCmd command
@@ -405,7 +411,7 @@ if __name__ == "__main__":
             for dnode in tdDnodes.dnodes:
                 tdDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
-                            
+
             if restful or websocket:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
@@ -450,7 +456,7 @@ if __name__ == "__main__":
                         else:
                             tdLog.debug(res)
                             tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
-                            
+
         if ucase is not None and hasattr(ucase, 'noConn') and ucase.noConn == True:
             conn = None
         else:
@@ -640,7 +646,7 @@ if __name__ == "__main__":
                         else:
                             tdLog.debug(res)
                             tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
-                            
+
 
         # run case
         if testCluster:
@@ -692,6 +698,7 @@ if __name__ == "__main__":
         # tdDnodes.StopAllSigint()
         tdLog.info("Address sanitizer mode finished")
     else:
-        tdDnodes.stopAll()
+        if not crashGen:
+            tdDnodes.stopAll()
         tdLog.info("stop all td process finished")
     sys.exit(0)

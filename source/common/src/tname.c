@@ -20,73 +20,6 @@
 
 #define VALID_NAME_TYPE(x) ((x) == TSDB_DB_NAME_T || (x) == TSDB_TABLE_NAME_T)
 
-#if 0
-int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, int64_t intervalTime, char timeUnit, int16_t precision) {
-  if (slidingTime == 0) {
-    return startTime;
-  }
-  int64_t start = startTime;
-  if (timeUnit == 'n' || timeUnit == 'y') {
-    start /= 1000;
-    if (precision == TSDB_TIME_PRECISION_MICRO) {
-      start /= 1000;
-    }
-    struct tm tm;
-    time_t t = (time_t)start;
-    taosLocalTime(&t, &tm, NULL, 0);
-    tm.tm_sec = 0;
-    tm.tm_min = 0;
-    tm.tm_hour = 0;
-    tm.tm_mday = 1;
-
-    if (timeUnit == 'y') {
-      tm.tm_mon = 0;
-      tm.tm_year = (int)(tm.tm_year / slidingTime * slidingTime);
-    } else {
-      int mon = tm.tm_year * 12 + tm.tm_mon;
-      mon = (int)(mon / slidingTime * slidingTime);
-      tm.tm_year = mon / 12;
-      tm.tm_mon = mon % 12;
-    }
-
-    start = mktime(&tm) * 1000L;
-    if (precision == TSDB_TIME_PRECISION_MICRO) {
-      start *= 1000L;
-    }
-  } else {
-    int64_t delta = startTime - intervalTime;
-    int32_t factor = delta > 0? 1:-1;
-
-    start = (delta / slidingTime + factor) * slidingTime;
-
-    if (timeUnit == 'd' || timeUnit == 'w') {
-      /*
-      * here we revised the start time of day according to the local time zone,
-      * but in case of DST, the start time of one day need to be dynamically decided.
-      */
-      // todo refactor to extract function that is available for Linux/Windows/Mac platform
-#if defined(WINDOWS) && _MSC_VER >= 1900
-      // see https://docs.microsoft.com/en-us/cpp/c-runtime-library/daylight-dstbias-timezone-and-tzname?view=vs-2019
-      int64_t timezone = _timezone;
-      int32_t daylight = _daylight;
-      char**  tzname = _tzname;
-#endif
-
-      int64_t t = (precision == TSDB_TIME_PRECISION_MILLI) ? MILLISECOND_PER_SECOND : MILLISECOND_PER_SECOND * 1000L;
-      start += timezone * t;
-    }
-
-    int64_t end = start + intervalTime - 1;
-    if (end < startTime) {
-      start += slidingTime;
-    }
-  }
-
-  return start;
-}
-
-#endif
-
 void toName(int32_t acctId, const char* pDbName, const char* pTableName, SName* pName) {
   if (pName == NULL){
     return;
@@ -148,7 +81,7 @@ SName* tNameDup(const SName* name) {
 }
 
 int32_t tNameGetDbName(const SName* name, char* dst) {
-  strncpy(dst, name->dbname, tListLen(name->dbname));
+  tstrncpy(dst, name->dbname, tListLen(name->dbname));
   return 0;
 }
 

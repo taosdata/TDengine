@@ -464,8 +464,8 @@ int32_t streamTransferStateDoPrepare(SStreamTask* pTask) {
   // 2. send msg to mnode to launch a checkpoint to keep the state for current stream
   code = streamTaskSendCheckpointReq(pStreamTask);
 
-  // 3. assign the status to the value that will be kept in disk
-  pStreamTask->status.taskStatus = streamTaskGetStatus(pStreamTask).state;
+  // 3. the default task status should be ready or something, not halt.
+  // status to the value that will be kept in disk
 
   // 4. open the inputQ for all upstream tasks
   streamTaskOpenAllUpstreamInput(pStreamTask);
@@ -522,7 +522,10 @@ static int32_t doSetStreamInputBlock(SStreamTask* pTask, const void* pInput, int
   if (pItem->type == STREAM_INPUT__GET_RES) {
     const SStreamTrigger* pTrigger = (const SStreamTrigger*)pInput;
     code = qSetMultiStreamInput(pExecutor, pTrigger->pBlock, 1, STREAM_INPUT__DATA_BLOCK);
-
+    if (pTask->info.trigger == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
+      stDebug("s-task:%s set force_window_close as source block, skey:%"PRId64, id, pTrigger->pBlock->info.window.skey);
+      (*pVer) = pTrigger->pBlock->info.window.skey;
+    }
   } else if (pItem->type == STREAM_INPUT__DATA_SUBMIT) {
     const SStreamDataSubmit* pSubmit = (const SStreamDataSubmit*)pInput;
     code = qSetMultiStreamInput(pExecutor, &pSubmit->submit, 1, STREAM_INPUT__DATA_SUBMIT);
@@ -671,7 +674,7 @@ static int32_t doStreamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pBlock
 
   doRecordThroughput(&pTask->execInfo, totalBlocks, totalSize, blockSize, st, pTask->id.idStr);
 
-  // update the currentVer if processing the submit blocks.
+  // update the currentVer if processing the submitted blocks.
   if (!(pInfo->checkpointVer <= pInfo->nextProcessVer && ver >= pInfo->checkpointVer)) {
     stError("s-task:%s invalid info, checkpointVer:%" PRId64 ", nextProcessVer:%" PRId64 " currentVer:%" PRId64, id,
             pInfo->checkpointVer, pInfo->nextProcessVer, ver);
@@ -685,6 +688,34 @@ static int32_t doStreamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pBlock
     pInfo->processedVer = ver;
   }
 
+  return code;
+}
+
+// do nothing after sync executor state to storage backend, untill checkpoint is completed.
+static int32_t doHandleChkptBlock(SStreamTask* pTask) {
+  int32_t     code = 0;
+  const char* id = pTask->id.idStr;
+
+  streamMutexLock(&pTask->lock);
+  SStreamTaskState pState = streamTaskGetStatus(pTask);
+  if (pState.state == TASK_STATUS__CK) {  // todo other thread may change the status
+    stDebug("s-task:%s checkpoint block received, set status:%s", id, pState.name);
+    code = streamTaskBuildCheckpoint(pTask);  // ignore this error msg, and continue
+  } else {                                    // todo refactor
+    if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
+      code = streamTaskSendCheckpointSourceRsp(pTask);
+    } else {
+      code = streamTaskSendCheckpointReadyMsg(pTask);
+    }
+
+    if (code != TSDB_CODE_SUCCESS) {
+      // todo: let's retry send rsp to upstream/mnode
+      stError("s-task:%s failed to send checkpoint rsp to upstream, checkpointId:%d, code:%s", id, 0,
+              tstrerror(code));
+    }
+  }
+
+  streamMutexUnlock(&pTask->lock);
   return code;
 }
 
@@ -832,36 +863,16 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
       }
     }
 
-    if (type != STREAM_INPUT__CHECKPOINT) {
+    if (type == STREAM_INPUT__CHECKPOINT) {
+      code = doHandleChkptBlock(pTask);
+      streamFreeQitem(pInput);
+      return code;
+    } else {
       code = doStreamTaskExecImpl(pTask, pInput, numOfBlocks);
       streamFreeQitem(pInput);
       if (code) {
         return code;
       }
-    } else {  // todo other thread may change the status
-      // do nothing after sync executor state to storage backend, untill the vnode-level checkpoint is completed.
-      streamMutexLock(&pTask->lock);
-      SStreamTaskState pState = streamTaskGetStatus(pTask);
-      if (pState.state == TASK_STATUS__CK) {
-        stDebug("s-task:%s checkpoint block received, set status:%s", id, pState.name);
-        code = streamTaskBuildCheckpoint(pTask);  // ignore this error msg, and continue
-      } else {                                    // todo refactor
-        if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
-          code = streamTaskSendCheckpointSourceRsp(pTask);
-        } else {
-          code = streamTaskSendCheckpointReadyMsg(pTask);
-        }
-
-        if (code != TSDB_CODE_SUCCESS) {
-          // todo: let's retry send rsp to upstream/mnode
-          stError("s-task:%s failed to send checkpoint rsp to upstream, checkpointId:%d, code:%s", id, 0,
-                  tstrerror(code));
-        }
-      }
-
-      streamMutexUnlock(&pTask->lock);
-      streamFreeQitem(pInput);
-      return code;
     }
   }
 }
@@ -904,8 +915,7 @@ int32_t streamResumeTask(SStreamTask* pTask) {
   while (1) {
     code = doStreamExecTask(pTask);
     if (code) {
-      stError("s-task:%s failed to exec stream task, code:%s", id, tstrerror(code));
-      return code;
+      stError("s-task:%s failed to exec stream task, code:%s, continue", id, tstrerror(code));
     }
     // check if continue
     streamMutexLock(&pTask->lock);

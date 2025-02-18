@@ -88,6 +88,11 @@ void    tdbTxnCloseImpl(TXN *pTxn);
 
 // other
 void tdbFree(void *);
+#define tdbFreeClear(p) \
+  do {                  \
+    tdbFree(p);         \
+    p = NULL;           \
+  } while (0)
 
 typedef struct hashset_st *hashset_t;
 

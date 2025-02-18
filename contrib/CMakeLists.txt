@@ -17,7 +17,6 @@ elseif(${BUILD_WITH_COS})
         file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.1/)
         cat("${TD_SUPPORT_DIR}/mxml_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
         cat("${TD_SUPPORT_DIR}/apr_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
-        cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
     endif(${BUILD_WITH_COS})
 
     configure_file(${CONTRIB_TMP_FILE3} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
@@ -42,11 +41,6 @@ endif()
 
 set(CONTRIB_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
 configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-
-# taos-tools
-if(${BUILD_TOOLS})
-    cat("${TD_SUPPORT_DIR}/taostools_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif()
 
 # taosws-rs
 if(${WEBSOCKET})
@@ -106,6 +100,10 @@ cat("${TD_SUPPORT_DIR}/zlib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 # cJson
 cat("${TD_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
+if(NOT ${TD_WINDOWS})
+    cat("${TD_SUPPORT_DIR}/tz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(NOT ${TD_WINDOWS})
+
 # xz
 # cat("${TD_SUPPORT_DIR}/xz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
@@ -142,11 +140,16 @@ if(${BUILD_WITH_SQLITE})
     cat("${TD_SUPPORT_DIR}/sqlite_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_WITH_SQLITE})
 
+# libcurl
+if(NOT ${TD_WINDOWS})
+    file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
+    cat("${TD_SUPPORT_DIR}/ssl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+    cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(NOT ${TD_WINDOWS})
+
 # s3
 if(${BUILD_WITH_S3})
-    cat("${TD_SUPPORT_DIR}/ssl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/xml2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-    cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/libs3_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/azure_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     add_definitions(-DUSE_S3)
@@ -156,7 +159,6 @@ elseif(${BUILD_WITH_COS})
     # cat("${TD_SUPPORT_DIR}/mxml_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     # cat("${TD_SUPPORT_DIR}/apr_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     # cat("${TD_SUPPORT_DIR}/apr-util_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-    # cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/cos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     add_definitions(-DUSE_COS)
 endif()
@@ -195,12 +197,26 @@ endif()
 # lemon
 cat("${TD_SUPPORT_DIR}/lemon_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
+# Force specify CC=cc on MacOS. Because the default CC setting in the generated Makefile has issues finding standard library headers
+IF(${TD_DARWIN})
+    SET(CONTRIB_CONFIG_ENV "CC=cc")
+ENDIF()
+
 # download dependencies
 configure_file(${CONTRIB_TMP_FILE} "${TD_CONTRIB_DIR}/deps-download/CMakeLists.txt")
 execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
-    WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
+    WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download"
+    RESULT_VARIABLE result)
+IF(NOT result EQUAL "0")
+    message(FATAL_ERROR "CMake step for dowloading dependencies failed: ${result}")
+ENDIF()
+
 execute_process(COMMAND "${CMAKE_COMMAND}" --build .
-    WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download")
+    WORKING_DIRECTORY "${TD_CONTRIB_DIR}/deps-download"
+    RESULT_VARIABLE result)
+IF(NOT result EQUAL "0")
+    message(FATAL_ERROR "CMake step for building dependencies failed: ${result}")
+ENDIF()
 
 # ================================================================================================
 # Build
@@ -648,9 +664,43 @@ if(${BUILD_PCRE2})
 endif(${BUILD_PCRE2})
 
 if(${TD_LINUX} AND ${BUILD_WITH_S3})
-    add_subdirectory(azure-cmake EXCLUDE_FROM_ALL)
+  set(ORIG_CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
+  string(REPLACE " -Werror " " " CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+  add_subdirectory(xml2-cmake)
+  set(CMAKE_C_FLAGS ${ORIG_CMAKE_C_FLAGS})
+
+  add_subdirectory(azure-cmake)
 endif()
 
+IF(TD_LINUX)
+    SET(TZ_OUTPUT_PATH /usr/share/zoneinfo)
+ELSEIF(TD_DARWIN)
+    SET(TZ_OUTPUT_PATH /var/db/timezone/zoneinfo)
+ENDIF()
+
+
+if(NOT ${TD_WINDOWS})
+    MESSAGE(STATUS "timezone file path: " ${TZ_OUTPUT_PATH})
+
+    execute_process(
+            COMMAND make TZDIR=${TZ_OUTPUT_PATH}/ clean tzdir.h
+            WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
+    )
+
+    set(TZ_SRC_DIR "${TD_SOURCE_DIR}/source/os/src/timezone")
+    file(REMOVE_RECURSE ${TZ_SRC_DIR})
+    file(MAKE_DIRECTORY ${TZ_SRC_DIR})
+    file(COPY ${TD_CONTRIB_DIR}/tz/private.h ${TD_CONTRIB_DIR}/tz/tzdir.h ${TD_CONTRIB_DIR}/tz/tzfile.h
+            ${TD_CONTRIB_DIR}/tz/localtime.c ${TD_CONTRIB_DIR}/tz/strftime.c
+            DESTINATION ${TZ_SRC_DIR})
+endif(NOT ${TD_WINDOWS})
+
+#if(NOT ${TD_WINDOWS})
+#    execute_process(
+#            COMMAND make CFLAGS+=-fPIC CFLAGS+=-g TZDIR=${TZ_OUTPUT_PATH} clean libtz.a
+#            WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
+#    )
+#endif(NOT ${TD_WINDOWS})
 # ================================================================================================
 # Build test
 # ================================================================================================

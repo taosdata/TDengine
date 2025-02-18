@@ -46,7 +46,7 @@ int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placehol
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
-  void* pParser = ParseAlloc((FMalloc)taosMemoryMalloc);
+  void* pParser = ParseAlloc((FMalloc)taosMemMalloc);
   if (!pParser) return terrno;
   int32_t i = 0;
   while (1) {
@@ -88,7 +88,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   }
 
 abort_parse:
-  ParseFree(pParser, (FFree)taosMemoryFree);
+  ParseFree(pParser, (FFree)taosAutoMemoryFree);
   if (TSDB_CODE_SUCCESS == cxt.errCode) {
     int32_t code = buildQueryAfterParse(pQuery, cxt.pRootNode, cxt.placeholderNo, &cxt.pPlaceholderValues);
     if (TSDB_CODE_SUCCESS != code) {
@@ -184,7 +184,8 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
   }
   if (TSDB_CODE_SUCCESS == code &&
       (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS) || 0 == strcmp(pTable, TSDB_INS_TABLE_TABLES) ||
-       0 == strcmp(pTable, TSDB_INS_TABLE_COLS) || 0 == strcmp(pTable, TSDB_INS_DISK_USAGE)) &&
+       0 == strcmp(pTable, TSDB_INS_TABLE_COLS) || 0 == strcmp(pTable, TSDB_INS_DISK_USAGE) ||
+       0 == strcmp(pTable, TSDB_INS_TABLE_FILESETS)) &&
       QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt)) {
     code = collectMetaKeyFromInsTags(pCxt);
   }
@@ -480,8 +481,8 @@ static int32_t collectMetaKeyFromExplain(SCollectMetaKeyCxt* pCxt, SExplainStmt*
 
 static int32_t collectMetaKeyFromDescribe(SCollectMetaKeyCxt* pCxt, SDescribeStmt* pStmt) {
   SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
-  strcpy(name.dbname, pStmt->dbName);
-  strcpy(name.tname, pStmt->tableName);
+  tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(name.tname, pStmt->tableName, TSDB_TABLE_NAME_LEN);
   int32_t code = catalogRemoveTableMeta(pCxt->pParseCxt->pCatalog, &name);
 #ifdef TD_ENTERPRISE
   if (TSDB_CODE_SUCCESS == code) {
@@ -641,6 +642,20 @@ static int32_t collectMetaKeyFromShowTables(SCollectMetaKeyCxt* pCxt, SShowStmt*
   return code;
 }
 
+static int32_t collectMetaKeyFromShowFilesets(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_FILESETS,
+                                         pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code =
+        reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, ((SValueNode*)pStmt->pDbName)->literal,
+                               NULL, AUTH_TYPE_READ_OR_WRITE, pCxt->pMetaCache);
+  }
+  return code;
+}
+
 static int32_t collectMetaKeyFromShowTags(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TAGS,
                                          pCxt->pMetaCache);
@@ -755,6 +770,12 @@ static int32_t collectMetaKeyFromShowCompactDetails(SCollectMetaKeyCxt* pCxt, SS
   return code;
 }
 
+static int32_t collectMetaKeyFromShowTransactionDetails(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB,
+                                         TSDB_INS_TABLE_TRANSACTION_DETAILS, pCxt->pMetaCache);
+  return code;
+}
+
 static int32_t collectMetaKeyFromShowGrantsFull(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_GRANTS_FULL,
                                  pCxt->pMetaCache);
@@ -781,8 +802,8 @@ static int32_t collectMetaKeyFromShowCreateDatabase(SCollectMetaKeyCxt* pCxt, SS
 
 static int32_t collectMetaKeyFromShowCreateTable(SCollectMetaKeyCxt* pCxt, SShowCreateTableStmt* pStmt) {
   SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
-  strcpy(name.dbname, pStmt->dbName);
-  strcpy(name.tname, pStmt->tableName);
+  tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(name.tname, pStmt->tableName, TSDB_TABLE_NAME_LEN);
   int32_t code = catalogRemoveTableMeta(pCxt->pParseCxt->pCatalog, &name);
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveTableCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
@@ -799,8 +820,8 @@ static int32_t collectMetaKeyFromShowCreateTable(SCollectMetaKeyCxt* pCxt, SShow
 
 static int32_t collectMetaKeyFromShowCreateView(SCollectMetaKeyCxt* pCxt, SShowCreateViewStmt* pStmt) {
   SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
-  strcpy(name.dbname, pStmt->dbName);
-  strcpy(name.tname, pStmt->viewName);
+  tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(name.tname, pStmt->viewName, TSDB_TABLE_NAME_LEN);
   char dbFName[TSDB_DB_FNAME_LEN];
   (void)tNameGetFullDbName(&name, dbFName);
   int32_t code = catalogRemoveViewMeta(pCxt->pParseCxt->pCatalog, dbFName, 0, pStmt->viewName, 0);
@@ -841,8 +862,8 @@ static int32_t collectMetaKeyFromInsert(SCollectMetaKeyCxt* pCxt, SInsertStmt* p
 
 static int32_t collectMetaKeyFromShowBlockDist(SCollectMetaKeyCxt* pCxt, SShowTableDistributedStmt* pStmt) {
   SName name = {.type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId};
-  strcpy(name.dbname, pStmt->dbName);
-  strcpy(name.tname, pStmt->tableName);
+  tstrncpy(name.dbname, pStmt->dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(name.tname, pStmt->tableName, TSDB_TABLE_NAME_LEN);
   int32_t code = catalogRemoveTableMeta(pCxt->pParseCxt->pCatalog, &name);
   if (TSDB_CODE_SUCCESS == code) {
     code = collectMetaKeyFromRealTableImpl(pCxt, pStmt->dbName, pStmt->tableName, AUTH_TYPE_READ);
@@ -857,6 +878,10 @@ static int32_t collectMetaKeyFromShowSubscriptions(SCollectMetaKeyCxt* pCxt, SSh
 
 static int32_t collectMetaKeyFromCompactDatabase(SCollectMetaKeyCxt* pCxt, SCompactDatabaseStmt* pStmt) {
   return reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
+}
+
+static int32_t collectMetaKeyFromCompactVgroups(SCollectMetaKeyCxt* pCxt, SCompactVgroupsStmt* pStmt) {
+  return reserveDbCfgInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
 }
 
 static int32_t collectMetaKeyFromGrant(SCollectMetaKeyCxt* pCxt, SGrantStmt* pStmt) {
@@ -999,6 +1024,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromDescribe(pCxt, (SDescribeStmt*)pStmt);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
       return collectMetaKeyFromCompactDatabase(pCxt, (SCompactDatabaseStmt*)pStmt);
+    case QUERY_NODE_COMPACT_VGROUPS_STMT:
+      return collectMetaKeyFromCompactVgroups(pCxt, (SCompactVgroupsStmt*)pStmt);
     case QUERY_NODE_CREATE_STREAM_STMT:
       return collectMetaKeyFromCreateStream(pCxt, (SCreateStreamStmt*)pStmt);
     case QUERY_NODE_GRANT_STMT:
@@ -1037,6 +1064,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowStreams(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_TABLES_STMT:
       return collectMetaKeyFromShowTables(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_FILESETS_STMT:
+      return collectMetaKeyFromShowFilesets(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_TAGS_STMT:
       return collectMetaKeyFromShowTags(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
@@ -1071,6 +1100,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowCompacts(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       return collectMetaKeyFromShowCompactDetails(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
+      return collectMetaKeyFromShowTransactionDetails(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_GRANTS_FULL_STMT:
       return collectMetaKeyFromShowGrantsFull(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_GRANTS_LOGS_STMT:

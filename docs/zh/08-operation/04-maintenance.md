@@ -17,14 +17,17 @@ TDengine 面向多种写入场景，而很多写入场景下，TDengine 的存�
 ### 语法
 
 ```SQL
-COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY']； 
-SHOW COMPACTS [compact_id]；
-KILL COMPACT compact_id；
+COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY'];
+COMPACT [db_name.]VGROUPS IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [end with 'YYYY'];
+SHOW COMPACTS;
+SHOW COMPACT compact_id;
+KILL COMPACT compact_id;
 ```
 
 ### 效果
 
 -   扫描并压缩指定的 DB 中所有 VGROUP 中 VNODE 的所有数据文件
+-   扫描并压缩 DB 中指定的 VGROUP 列表中 VNODE 的所有数据文件, 若 db_name 为空，则默认为当前数据库
 -   COMPCAT 会删除被删除数据以及被删除的表的数据
 -   COMPACT 会合并多个 STT 文件
 -   可通过 start with 关键字指定 COMPACT 数据的起始时间

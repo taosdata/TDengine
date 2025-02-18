@@ -38,7 +38,6 @@ typedef struct {
     SFileSetCommitInfo *info;
 
     int32_t expLevel;
-    SDiskID did;
     TSKEY   minKey;
     TSKEY   maxKey;
     TABLEID tbid[1];
@@ -75,7 +74,7 @@ static int32_t tsdbCommitOpenWriter(SCommitter2 *committer) {
       .cmprAlg = committer->cmprAlg,
       .fid = committer->ctx->info->fid,
       .cid = committer->cid,
-      .did = committer->ctx->did,
+      .expLevel = committer->ctx->expLevel,
       .level = 0,
   };
 
@@ -328,12 +327,6 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
   tsdbFidKeyRange(committer->ctx->info->fid, committer->minutes, committer->precision, &committer->ctx->minKey,
                   &committer->ctx->maxKey);
 
-  TAOS_CHECK_GOTO(tfsAllocDisk(committer->tsdb->pVnode->pTfs, committer->ctx->expLevel, &committer->ctx->did), &lino,
-                  _exit);
-
-  if (tfsMkdirRecurAt(committer->tsdb->pVnode->pTfs, committer->tsdb->path, committer->ctx->did) != 0) {
-    tsdbError("vgId:%d failed to create directory %s", TD_VID(committer->tsdb->pVnode), committer->tsdb->path);
-  }
   committer->ctx->tbid->suid = 0;
   committer->ctx->tbid->uid = 0;
 
@@ -574,7 +567,7 @@ static int32_t tsdbCommitInfoBuild(STsdb *tsdb) {
   // begin tasks on file set
   for (int i = 0; i < taosArrayGetSize(tsdb->commitInfo->arr); i++) {
     SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
-    tsdbBeginTaskOnFileSet(tsdb, info->fid, &fset);
+    tsdbBeginTaskOnFileSet(tsdb, info->fid, EVA_TASK_COMMIT, &fset);
     if (fset) {
       code = tsdbTFileSetInitCopy(tsdb, fset, &info->fset);
       if (code) {
@@ -712,7 +705,7 @@ int32_t tsdbCommitCommit(STsdb *tsdb) {
     for (int32_t i = 0; i < taosArrayGetSize(tsdb->commitInfo->arr); i++) {
       SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
       if (info->fset) {
-        tsdbFinishTaskOnFileSet(tsdb, info->fid);
+        tsdbFinishTaskOnFileSet(tsdb, info->fid, EVA_TASK_COMMIT);
       }
     }
 
@@ -743,7 +736,7 @@ int32_t tsdbCommitAbort(STsdb *pTsdb) {
   for (int32_t i = 0; i < taosArrayGetSize(pTsdb->commitInfo->arr); i++) {
     SFileSetCommitInfo *info = *(SFileSetCommitInfo **)taosArrayGet(pTsdb->commitInfo->arr, i);
     if (info->fset) {
-      tsdbFinishTaskOnFileSet(pTsdb, info->fid);
+      tsdbFinishTaskOnFileSet(pTsdb, info->fid, EVA_TASK_COMMIT);
     }
   }
   (void)taosThreadMutexUnlock(&pTsdb->mutex);

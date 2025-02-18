@@ -123,7 +123,8 @@ static int32_t tColRowGetPriamyKeyDeepCopy(SBlockData* pBlock, int32_t irow, int
 
   pColData = &pBlock->aColData[slotId];
 
-  tColDataGetValue(pColData, irow, &cv);
+  code = tColDataGetValue(pColData, irow, &cv);
+  TSDB_CHECK_CODE(code, lino, _end);
 
   pKey->numOfPKs = 1;
   pKey->pks[0].type = cv.value.type;
@@ -977,6 +978,10 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
     if (pRecord->firstKey.key.ts > w.ekey || pRecord->lastKey.key.ts < w.skey) {
       continue;
     }
+    // The data block's time range must intersect with the query time range
+    if (pRecord->firstKey.key.ts > pReader->info.window.ekey || pRecord->lastKey.key.ts < pReader->info.window.skey) {
+      continue;
+    }
 
     if (asc) {
       if (pkCompEx(&pRecord->lastKey.key, &pScanInfo->lastProcKey) <= 0) {
@@ -1603,7 +1608,8 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, SRowKey* pLastPro
           TSDB_CHECK_CODE(code, lino, _end);
         } else {  // varchar/nchar type
           for (int32_t j = pDumpInfo->rowIndex; rowIndex < dumpedRows; j += step) {
-            tColDataGetValue(pData, j, &cv);
+            code = tColDataGetValue(pData, j, &cv);
+            TSDB_CHECK_CODE(code, lino, _end);
             code = doCopyColVal(pColData, rowIndex++, i, &cv, pSupInfo);
             TSDB_CHECK_CODE(code, lino, _end);
           }
@@ -5282,7 +5288,8 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
 
     SColumnInfoData* pCol = TARRAY_GET_ELEM(pResBlock->pDataBlock, pSupInfo->slotId[i]);
     if (pData->cid == pSupInfo->colId[i]) {
-      tColDataGetValue(pData, rowIndex, &cv);
+      code = tColDataGetValue(pData, rowIndex, &cv);
+      TSDB_CHECK_CODE(code, lino, _end);
       code = doCopyColVal(pCol, outputRowIndex, i, &cv, pSupInfo);
       TSDB_CHECK_CODE(code, lino, _end);
       j += 1;
@@ -5791,7 +5798,6 @@ int32_t tsdbReaderSuspend2(STsdbReader* pReader) {
 
   // make sure only release once
   void* p = pReader->pReadSnap;
-  TSDB_CHECK_NULL(p, code, lino, _end, TSDB_CODE_INVALID_PARA);
   if ((p == atomic_val_compare_exchange_ptr((void**)&pReader->pReadSnap, p, NULL)) && (p != NULL)) {
     tsdbUntakeReadSnap2(pReader, p, false);
     pReader->pReadSnap = NULL;

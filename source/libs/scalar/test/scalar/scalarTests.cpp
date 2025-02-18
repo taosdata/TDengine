@@ -94,7 +94,7 @@ int32_t scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t
     SSDataBlock *res = NULL;
     int32_t      code = createDataBlock(&res);
     if (code != 0 || NULL == res->pDataBlock) {
-      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      SCL_ERR_RET(code);
     }
 
     SColumnInfoData idata = {0};
@@ -121,7 +121,7 @@ int32_t scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t
     }
 
     if (NULL == taosArrayPush(pBlockList, &res)) {
-      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      SCL_ERR_RET(terrno);
     }
     *dataBlockId = taosArrayGetSize(pBlockList) - 1;
     res->info.id.blockId = *dataBlockId;
@@ -161,7 +161,7 @@ int32_t scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   if (IS_VAR_DATA_TYPE(dataType)) {
     vnode->datum.p = (char *)taosMemoryMalloc(varDataTLen(value));
     if (NULL == vnode->datum.p) {
-      SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      SCL_ERR_RET(terrno);
     }
     varDataCopy(vnode->datum.p, value);
     vnode->node.resType.bytes = varDataTLen(value);
@@ -391,6 +391,26 @@ TEST(constantTest, bigint_add_bigint) {
   nodesDestroyNode(res);
 }
 
+TEST(constantTest, ubigint_add_ubigint) {
+  SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_UBIGINT, &scltLeftV);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_UBIGINT, &scltRightV);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeOpNode(&opNode, OP_TYPE_ADD, TSDB_DATA_TYPE_UBIGINT, pLeft, pRight);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  code = scalarCalculateConstants(opNode, &res);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+  SValueNode *v = (SValueNode *)res;
+  ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_UBIGINT);
+  ASSERT_FLOAT_EQ(v->datum.d, (scltLeftV + scltRightV));
+  nodesDestroyNode(res);
+}
+
 TEST(constantTest, double_sub_bigint) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -417,6 +437,66 @@ TEST(constantTest, tinyint_and_smallint) {
   code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_TINYINT, &scltLeftV);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_SMALLINT, &scltRightV);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeOpNode(&opNode, OP_TYPE_BIT_AND, TSDB_DATA_TYPE_BIGINT, pLeft, pRight);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  code = scalarCalculateConstants(opNode, &res);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+  SValueNode *v = (SValueNode *)res;
+  ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BIGINT);
+  ASSERT_EQ(v->datum.i, (int64_t)scltLeftV & (int64_t)scltRightV);
+  nodesDestroyNode(res);
+}
+
+TEST(constantTest, utinyint_and_usmallint) {
+  SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_UTINYINT, &scltLeftV);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_USMALLINT, &scltRightV);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeOpNode(&opNode, OP_TYPE_BIT_AND, TSDB_DATA_TYPE_BIGINT, pLeft, pRight);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  code = scalarCalculateConstants(opNode, &res);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+  SValueNode *v = (SValueNode *)res;
+  ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BIGINT);
+  ASSERT_EQ(v->datum.i, (int64_t)scltLeftV & (int64_t)scltRightV);
+  nodesDestroyNode(res);
+}
+
+TEST(constantTest, uint_and_usmallint) {
+  SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_UINT, &scltLeftV);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_USMALLINT, &scltRightV);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeOpNode(&opNode, OP_TYPE_BIT_AND, TSDB_DATA_TYPE_BIGINT, pLeft, pRight);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  code = scalarCalculateConstants(opNode, &res);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+  SValueNode *v = (SValueNode *)res;
+  ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BIGINT);
+  ASSERT_EQ(v->datum.i, (int64_t)scltLeftV & (int64_t)scltRightV);
+  nodesDestroyNode(res);
+}
+
+TEST(constantTest, ubigint_and_uint) {
+  SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_UBIGINT, &scltLeftV);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_UINT, &scltRightV);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   code = scltMakeOpNode(&opNode, OP_TYPE_BIT_AND, TSDB_DATA_TYPE_BIGINT, pLeft, pRight);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
@@ -491,6 +571,53 @@ TEST(constantTest, int_greater_double) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, scltLeftV > scltRightVd);
+  nodesDestroyNode(res);
+}
+
+TEST(constantTest, binary_greater_equal_varbinary) {
+  SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+  char   binaryStr[64] = {0};
+  int32_t code = TSDB_CODE_SUCCESS;
+  (void)sprintf(&binaryStr[2], "%d", scltRightV);
+  varDataSetLen(binaryStr, strlen(&binaryStr[2]));
+  code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_VARBINARY, binaryStr);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, binaryStr);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeOpNode(&opNode, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  code = scalarCalculateConstants(opNode, &res);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+  SValueNode *v = (SValueNode *)res;
+  ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
+  ASSERT_EQ(v->datum.b, scltLeftV < scltRightVd);
+  nodesDestroyNode(res);
+}
+
+TEST(constantTest, binary_equal_geo) {
+  SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+  char   geoRawStr[64] = "POLYGON((30 10, 40 40, 20 40, 10 20, 30 10))";
+  char   geoStr[64] = {0};
+  int32_t code = TSDB_CODE_SUCCESS;
+  (void)sprintf(&geoStr[2], "%s", geoRawStr);
+  varDataSetLen(geoStr, strlen(&geoStr[2]));
+  code = scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_GEOMETRY, geoStr);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, geoStr);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = scltMakeOpNode(&opNode, OP_TYPE_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  code = scalarCalculateConstants(opNode, &res);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(res);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+  SValueNode *v = (SValueNode *)res;
+  ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
+  ASSERT_EQ(v->datum.b, scltLeftV < scltRightVd);
   nodesDestroyNode(res);
 }
 
@@ -1385,7 +1512,7 @@ int32_t makeCalculate(void *json, void *key, int32_t rightType, void *rightData,
 
   SCL_ERR_RET(makeJsonArrow(&src, &opNode, json, (char *)key));
   if (NULL == taosArrayPush(blockList, &src)) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
 
   SCL_ERR_RET(makeOperator(&opNode, blockList, opType, rightType, rightData, isReverse));
@@ -1450,7 +1577,7 @@ TEST(columnTest, json_column_arith_op) {
   SArray *tags = taosArrayInit(1, sizeof(STagVal));
   ASSERT_NE(tags, nullptr);
   STag   *row = NULL;
-  int32_t code = parseJsontoTagData(rightv, tags, &row, NULL);
+  int32_t code = parseJsontoTagData(rightv, tags, &row, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   const int32_t len = 8;
@@ -1606,7 +1733,7 @@ void *prepareNchar(char *rightData) {
   int32_t inputLen = strlen(rightData);
 
   char *t = (char *)taosMemoryCalloc(1, (inputLen + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
-  taosMbsToUcs4(rightData, inputLen, (TdUcs4 *)varDataVal(t), inputLen * TSDB_NCHAR_SIZE, &len);
+  taosMbsToUcs4(rightData, inputLen, (TdUcs4 *)varDataVal(t), inputLen * TSDB_NCHAR_SIZE, &len, NULL);
   varDataSetLen(t, len);
   return t;
 }
@@ -1623,7 +1750,7 @@ TEST(columnTest, json_column_logic_op) {
   SArray *tags = taosArrayInit(1, sizeof(STagVal));
   ASSERT_NE(tags, nullptr);
   STag   *row = NULL;
-  code = parseJsontoTagData(rightv, tags, &row, NULL);
+  code = parseJsontoTagData(rightv, tags, &row, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   const int32_t len0 = 6;
@@ -2106,7 +2233,7 @@ TEST(columnTest, int_column_in_double_list) {
   SNode       *pLeft = NULL, *pRight = NULL, *listNode = NULL, *opNode = NULL;
   int32_t      leftv[5] = {1, 2, 3, 4, 5};
   double       rightv1 = 1.1, rightv2 = 2.2, rightv3 = 3.3;
-  bool         eRes[5] = {true, true, true, false, false};
+  bool         eRes[5] = {false, false, false, false, false};
   SSDataBlock *src = NULL;
   int32_t      rowNum = sizeof(leftv) / sizeof(leftv[0]);
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -2483,7 +2610,7 @@ TEST(columnTest, greater_and_lower) {
 int32_t scltMakeDataBlock(SScalarParam **pInput, int32_t type, void *pVal, int32_t num, bool setVal) {
   SScalarParam *input = (SScalarParam *)taosMemoryCalloc(1, sizeof(SScalarParam));
   if (NULL == input) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   int32_t       bytes;
   switch (type) {
@@ -2515,7 +2642,7 @@ int32_t scltMakeDataBlock(SScalarParam **pInput, int32_t type, void *pVal, int32
 
   input->columnData = (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
   if (NULL == input->columnData) {
-    SCL_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+    SCL_ERR_RET(terrno);
   }
   input->numOfRows = num;
 

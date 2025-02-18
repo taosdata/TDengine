@@ -44,7 +44,7 @@ static int32_t loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx, SFi
     pIdList = *(SArray **)p;
   } else {
     taosMemoryFree(*buffer);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
   }
 
   int32_t offset = 0;

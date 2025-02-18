@@ -7,19 +7,19 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import Image from '@theme/IdealImage';
 import imgConnect from '../assets/connecting-to-tdengine-01.png';
-import ConnJava from "./_connect_java.mdx";
-import ConnGo from "./_connect_go.mdx";
-import ConnRust from "./_connect_rust.mdx";
-import ConnNode from "./_connect_node.mdx";
-import ConnPythonNative from "./_connect_python.mdx";
-import ConnCSNative from "./_connect_cs.mdx";
-import ConnC from "./_connect_c.mdx";
-import InstallOnLinux from "../14-reference/05-connector/_linux_install.mdx";
-import InstallOnWindows from "../14-reference/05-connector/_windows_install.mdx";
-import InstallOnMacOS from "../14-reference/05-connector/_macos_install.mdx";
-import VerifyLinux from "../14-reference/05-connector/_verify_linux.mdx";
-import VerifyMacOS from "../14-reference/05-connector/_verify_macos.mdx";
-import VerifyWindows from "../14-reference/05-connector/_verify_windows.mdx";
+import ConnJava from "../assets/resources/_connect_java.mdx";
+import ConnGo from "../assets/resources/_connect_go.mdx";
+import ConnRust from "../assets/resources/_connect_rust.mdx";
+import ConnNode from "../assets/resources/_connect_node.mdx";
+import ConnPythonNative from "../assets/resources/_connect_python.mdx";
+import ConnCSNative from "../assets/resources/_connect_cs.mdx";
+import ConnC from "../assets/resources/_connect_c.mdx";
+import InstallOnLinux from "../assets/resources/_linux_install.mdx";
+import InstallOnWindows from "../assets/resources/_windows_install.mdx";
+import InstallOnMacOS from "../assets/resources/_macos_install.mdx";
+import VerifyLinux from "../assets/resources/_verify_linux.mdx";
+import VerifyMacOS from "../assets/resources/_verify_macos.mdx";
+import VerifyWindows from "../assets/resources/_verify_windows.mdx";
 
 TDengine provides a rich set of application development interfaces. To facilitate users in quickly developing their applications, TDengine supports connectors for multiple programming languages. The official connectors include support for C/C++, Java, Python, Go, Node.js, C#, Rust, Lua (community contribution), and PHP (community contribution). These connectors support connecting to the TDengine cluster using the native interface (taosc) and REST interface (not supported in some languages yet). Community developers have also contributed several unofficial connectors, such as ADO.NET connector, Lua connector, and PHP connector. Additionally, TDengine can directly call the REST API provided by taosadapter for data writing and querying operations.
 
@@ -109,7 +109,7 @@ If you are using Maven to manage your project, simply add the following dependen
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>3.4.0</version>
+  <version>3.5.2</version>
 </dependency>
 ```
 
@@ -164,9 +164,6 @@ If you are using Maven to manage your project, simply add the following dependen
   pip3 install taospy[ws]
   ```
 
-</TabItem>
-</Tabs>
-
 - **Installation Verification**
 
 <Tabs defaultValue="rest">
@@ -199,8 +196,8 @@ import taosws
 
 </TabItem>
 </Tabs>
+</TabItem>
 
-<Tabs>
 <TabItem label="Go" value="go">
 
 Edit `go.mod` to add the `driver-go` dependency.

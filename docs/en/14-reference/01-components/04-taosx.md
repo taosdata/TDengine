@@ -31,7 +31,7 @@ The following parameter descriptions and examples use `<content>` as a placehold
 
 In command line mode, taosX uses DSN to represent a data source (source or destination), a typical DSN is as follows:
 
-```bash
+```shell
 # url-like
 <driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<object>][?<p1>=<v1>[&<p2>=<v2>]]
 |------|------------|---|-----------|-----------|------|------|----------|-----------------------|
@@ -390,7 +390,7 @@ You can view the log files or use the `journalctl` command to view the logs of `
 
 The command to view logs under Linux using `journalctl` is as follows:
 
-```bash
+```shell
 journalctl -u taosx [-f]
 ```
 
@@ -572,7 +572,7 @@ uint32_t len: The binary length of this string (excluding `\0`).
 
 **Return Value**:
 
-``` c
+```c
 struct parser_resp_t {
   int e;    // 0 if success.
   void* p;  // Success if contains.
@@ -589,7 +589,7 @@ When creation is successful, e = 0, p is the parser object.
 
 Parse the input payload and return the result in JSON format [u8]. The returned JSON will be fully decoded using the default JSON parser (expanding the root array and all objects).
 
-``` c
+```c
 const char* parser_mutate(
   void* parser,
   const uint8_t* in_ptr, uint32_t in_len,

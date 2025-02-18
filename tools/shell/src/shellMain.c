@@ -52,14 +52,12 @@ int main(int argc, char *argv[]) {
   tsAcoreOS = true;
 #endif
 
-#if 0
 #if !defined(WINDOWS)
   taosSetSignal(SIGBUS, shellCrashHandler);
 #endif
   taosSetSignal(SIGABRT, shellCrashHandler);
   taosSetSignal(SIGFPE, shellCrashHandler);
   taosSetSignal(SIGSEGV, shellCrashHandler);
-#endif
 
   if (shellCheckIntSize() != 0) {
     return -1;

@@ -26,8 +26,10 @@ target_link_libraries(
   PUBLIC common
 )
 
+if(${BUILD_S3})
 if(${BUILD_TEST})
   add_subdirectory(test)
 endif(${BUILD_TEST})
+endif()
 
 # endif(${TD_LINUX})

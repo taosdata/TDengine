@@ -33,7 +33,7 @@ sql create mnode on dnode 3
 sleep 3000
 
 print =============== create user
-sql create user user1 PASS 'user1'
+sql create user user1 PASS 'usersdf1$*'
 sql select * from information_schema.ins_users
 if $rows != 2 then 
   return -1

@@ -28,68 +28,65 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 
 ### Connection Related
 
-|Parameter Name         |Supported Version        |Description|
-|-----------------------|-------------------------|------------|
-|firstEp                |                         |Endpoint of the first dnode in the cluster that taosd actively connects to at startup, default value localhost:6030|
-|secondEp               |                         |Endpoint of the second dnode in the cluster that taosd tries to connect to if the firstEp is unreachable, no default value|
-|fqdn                   |                         |The service address that taosd listens on, default is the first hostname configured on the server|
-|serverPort             |                         |The port that taosd listens on, default value 6030|
-|compressMsgSize        |                         |Whether to compress RPC messages; -1: do not compress any messages; 0: compress all messages; N (N>0): only compress messages larger than N bytes; default value -1|
-|shellActivityTimer     |                         |Duration in seconds for the client to send heartbeat to mnode, range 1-120, default value 3 |
-|numOfRpcSessions       |                         |Maximum number of connections supported by RPC, range 100-100000, default value 30000|
-|numOfRpcThreads        |                         |Number of threads for receiving and sending RPC data, range 1-50, default value is half of the CPU cores|
-|numOfTaskQueueThreads  |                         |Number of threads for client to process RPC messages, range 4-16, default value is half of the CPU cores|
-|rpcQueueMemoryAllowed  |                         |Maximum memory allowed for received RPC messages in dnode, in bytes, range 104857600-INT64_MAX, default value is 1/10 of server memory |
-|resolveFQDNRetryTime   | Cancelled after 3.x      |Number of retries when FQDN resolution fails|
+|Parameter Name         |Supported Version        |Dynamic Modification|Description|
+|-----------------------|-------------------------|--------------------|------------|
+|firstEp                |                         |Not supported                     |Endpoint of the first dnode in the cluster that taosd actively connects to at startup, default value localhost:6030|
+|secondEp               |                         |Not supported                     |Endpoint of the second dnode in the cluster that taosd tries to connect to if the firstEp is unreachable, no default value|
+|fqdn                   |                         |Not supported                     |The service address that taosd listens on, default is the first hostname configured on the server|
+|serverPort             |                         |Not supported                     |The port that taosd listens on, default value 6030|
+|compressMsgSize        |                         |Supported, effective after restart|Whether to compress RPC messages; -1: do not compress any messages; 0: compress all messages; N (N>0): only compress messages larger than N bytes; default value -1|
+|shellActivityTimer     |                         |Supported, effective immediately  |Duration in seconds for the client to send heartbeat to mnode, range 1-120, default value 3 |
+|numOfRpcSessions       |                         |Supported, effective after restart|Maximum number of connections supported by RPC, range 100-100000, default value 30000|
+|numOfRpcThreads        |                         |Supported, effective after restart|Number of threads for receiving and sending RPC data, range 1-50, default value is half of the CPU cores|
+|numOfTaskQueueThreads  |                         |Supported, effective after restart|Number of threads for client to process RPC messages, range 4-16, default value is half of the CPU cores|
+|rpcQueueMemoryAllowed  |                         |Supported, effective immediately  |Maximum memory allowed for received RPC messages in dnode, in bytes, range 104857600-INT64_MAX, default value is 1/10 of server memory |
+|resolveFQDNRetryTime   | Cancelled after 3.x      |Not supported                     |Number of retries when FQDN resolution fails|
 |timeToGetAvailableConn | Cancelled after 3.3.4.x  |Maximum waiting time to get an available connection, range 10-50000000, in milliseconds, default value 500000|
-|maxShellConns          | Cancelled after 3.x      |Maximum number of connections allowed|
-|maxRetryWaitTime       |                         |Maximum timeout for reconnection, default value is 10s|
-|shareConnLimit         |Added in 3.3.4.0          |Number of requests a connection can share, range 1-512, default value 10|
-|readTimeout            |Added in 3.3.4.0          |Minimum timeout for a single request, range 64-604800, in seconds, default value 900|
+|maxShellConns          | Cancelled after 3.x      |Supported, effective after restart|Maximum number of connections allowed|
+|maxRetryWaitTime       |                         |Supported, effective after restart|Maximum timeout for reconnection,calculated from the time of retry,range is 0-86400000,in milliseconds, default value 10000|
+|shareConnLimit         |Added in 3.3.4.0          |Supported, effective after restart|Number of requests a connection can share, range 1-512, default value 10|
+|readTimeout            |Added in 3.3.4.0          |Supported, effective after restart|Minimum timeout for a single request, range 64-604800, in seconds, default value 900|
 
 ### Monitoring Related
 
-|Parameter Name|Supported Version|Description|
-|-----------------------|----------|-|
-|monitor                |          |Whether to collect and report monitoring data, 0: off; 1: on; default value 0|
-|monitorFqdn            |          |The FQDN of the server where the taosKeeper service is located, default value none|
-|monitorPort            |          |The port number listened to by the taosKeeper service, default value 6043|
-|monitorInterval        |          |The time interval for recording system parameters (CPU/memory) in the monitoring database, in seconds, range 1-200000, default value 30|
-|monitorMaxLogs         |          |Number of cached logs pending report|
-|monitorComp            |          |Whether to use compression when reporting monitoring logs|
-|monitorLogProtocol     |          |Whether to print monitoring logs|
-|monitorForceV2         |          |Whether to use V2 protocol for reporting|
-|telemetryReporting     |          |Whether to upload telemetry, 0: do not upload, 1: upload, default value 1|
-|telemetryServer        |          |Telemetry server address|
-|telemetryPort          |          |Telemetry server port number|
-|telemetryInterval      |          |Telemetry upload interval, in seconds, default 43200|
-|crashReporting         |          |Whether to upload crash information; 0: do not upload, 1: upload; default value 1|
+|Parameter Name         |Supported Version        |Dynamic Modification|Description|
+|-----------------------|-------------------------|--------------------|------------|
+|monitor                |          |Supported, effective immediately  |Whether to collect and report monitoring data, 0: off; 1: on; default value 0|
+|monitorFqdn            |          |Supported, effective after restart|The FQDN of the server where the taosKeeper service is located, default value none|
+|monitorPort            |          |Supported, effective after restart|The port number listened to by the taosKeeper service, default value 6043|
+|monitorInterval        |          |Supported, effective immediately  |The time interval for recording system parameters (CPU/memory) in the monitoring database, in seconds, range 1-200000, default value 30|
+|monitorMaxLogs         |          |Supported, effective immediately  |Number of cached logs pending report|
+|monitorComp            |          |Supported, effective after restart|Whether to use compression when reporting monitoring logs|
+|monitorLogProtocol     |          |Supported, effective immediately  |Whether to print monitoring logs|
+|monitorForceV2         |          |Supported, effective immediately  |Whether to use V2 protocol for reporting|
+|telemetryReporting     |          |Supported, effective immediately  |Whether to upload telemetry, 0: do not upload, 1: upload, default value 1|
+|telemetryServer        |          |Not supported                     |Telemetry server address|
+|telemetryPort          |          |Not supported                     |Telemetry server port number|
+|telemetryInterval      |          |Supported, effective immediately  |Telemetry upload interval, in seconds, default 86400|
+|crashReporting         |          |Supported, effective immediately  |Whether to upload crash information; 0: do not upload, 1: upload; default value 1|
 
 ### Query Related
 
-|Parameter Name|Supported Version|Description|
-|------------------------|----------|-|
-|countAlwaysReturnValue  |          |Whether count/hyperloglog functions return a value when input data is empty or NULL; 0: return empty row, 1: return; default value 1; When this parameter is set to 1, if the query contains an INTERVAL clause or the query uses TSMA, and the corresponding group or window has empty or NULL data, the corresponding group or window will not return a query result; Note that this parameter should be consistent between client and server|
-|tagFilterCache          |          |Whether to cache tag filter results|
-|maxNumOfDistinctRes     |          |Maximum number of distinct results allowed to return, default value 100,000, maximum allowed value 100 million|
-|queryBufferSize         |          |Not effective yet|
-|queryRspPolicy          |          |Query response strategy|
-|filterScalarMode        |          |Force scalar filter mode, 0: off; 1: on, default value 0|
-|queryPlannerTrace       |          |Internal parameter, whether the query plan outputs detailed logs|
-|queryNodeChunkSize      |          |Internal parameter, chunk size of the query plan|
-|queryUseNodeAllocator   |          |Internal parameter, allocation method of the query plan|
-|queryMaxConcurrentTables|          |Internal parameter, concurrency number of the query plan|
-|queryRsmaTolerance      |          |Internal parameter, tolerance time for determining which level of rsma data to query, in milliseconds|
-|enableQueryHb           |          |Internal parameter, whether to send query heartbeat messages|
-|pqSortMemThreshold      |          |Internal parameter, memory threshold for sorting|
+|Parameter Name         |Supported Version        |Dynamic Modification|Description|
+|-----------------------|-------------------------|--------------------|------------|
+|countAlwaysReturnValue  |          |Supported, effective immediately  |Whether count/hyperloglog functions return a value when input data is empty or NULL; 0: return empty row, 1: return; default value 1; When this parameter is set to 1, if the query contains an INTERVAL clause or the query uses TSMA, and the corresponding group or window has empty or NULL data, the corresponding group or window will not return a query result; Note that this parameter should be consistent between client and server|
+|tagFilterCache          |          |Not supported                     |Whether to cache tag filter results|
+|queryBufferSize         |          |Supported, effective after restart|Not effective yet|
+|queryRspPolicy          |          |Supported, effective immediately  |Query response strategy|
+|queryUseMemoryPool      |          |Not supported                     |Whether query will use memory pool to manage memory, default value: 1 (on); 0: off, 1: on|
+|minReservedMemorySize   |          |Not supported                     |The minimum reserved system available memory size, all memory except reserved can be used for queries, unit: MB, default reserved size is 20% of system physical memory, value range 1024-1000000000|
+|singleQueryMaxMemorySize|          |Not supported                     |The memory limit that a single query can use on a single node (dnode), exceeding this limit will return an error, unit: MB, default value: 0 (no limit), value range 0-1000000000|
+|filterScalarMode        |          |Not supported                     |Force scalar filter mode, 0: off; 1: on, default value 0|
+|queryRsmaTolerance      |          |Not supported                     |Internal parameter, tolerance time for determining which level of rsma data to query, in milliseconds|
+|pqSortMemThreshold      |          |Not supported                     |Internal parameter, memory threshold for sorting|
 
 ### Region Related
 
-|Parameter Name|Supported Version|Description|
-|-----------------|----------|-|
-|timezone         |          |Time zone; defaults to dynamically obtaining the current time zone setting from the system|
-|locale           |          |System locale information and encoding format, defaults to obtaining from the system|
-|charset          |          |Character set encoding, defaults to obtaining from the system|
+|Parameter Name         |Supported Version        |Dynamic Modification|Description|
+|-----------------------|-------------------------|--------------------|------------|
+|timezone         |          |Not supported                     |Time zone; defaults to dynamically obtaining the current time zone setting from the system|
+|locale           |          |Not supported                     |System locale information and encoding format, defaults to obtaining from the system|
+|charset          |          |Not supported                     |Character set encoding, defaults to obtaining from the system|
 
 :::info
 
@@ -167,152 +164,154 @@ The effective value of charset is UTF-8.
 
 ### Storage Related
 
-|Parameter Name|Supported Version|Description|
-|--------------------|----------|-|
-|dataDir             |          |Directory for data files, all data files are written to this directory, default value /var/lib/taos|
-|tempDir             |          |Specifies the directory for generating temporary files during system operation, default value /tmp|
-|minimalDataDirGB    |          |Minimum space to be reserved in the time-series data storage directory specified by dataDir, in GB, default value 2|
-|minimalTmpDirGB     |          |Minimum space to be reserved in the temporary file directory specified by tempDir, in GB, default value 1|
-|minDiskFreeSize     |After 3.1.1.0|When the available space on a disk is less than or equal to this threshold, the disk will no longer be selected for generating new data files, unit is bytes, range 52428800-1073741824, default value 52428800; Enterprise parameter|
-|s3MigrateIntervalSec|After 3.3.4.3|Trigger cycle for automatic upload of local data files to S3, in seconds. Minimum: 600; Maximum: 100000. Default value 3600; Enterprise parameter|
-|s3MigrateEnabled    |After 3.3.4.3|Whether to automatically perform S3 migration, default value is 0, which means auto S3 migration is off, can be set to 1; Enterprise parameter|
-|s3Accesskey         |After 3.3.4.3|Colon-separated user SecretId:SecretKey, for example AKIDsQmwsfKxTo2A6nGVXZN0UlofKn6JRRSJ:lIdoy99ygEacU7iHfogaN2Xq0yumSm1E; Enterprise parameter|
-|s3Endpoint          |After 3.3.4.3|COS service domain name in the user's region, supports http and https, the region of the bucket must match the endpoint, otherwise it cannot be accessed; Enterprise parameter|
-|s3BucketName        |After 3.3.4.3|Bucket name, followed by a hyphen and the AppId of the user registered COS service, where AppId is unique to COS, not present in AWS and Alibaba Cloud, needs to be part of the bucket name, separated by a hyphen; parameter values are string type, but do not need quotes; for example test0711-1309024725; Enterprise parameter|
-|s3PageCacheSize     |After 3.3.4.3|Number of S3 page cache pages, range 4-1048576, unit is pages, default value 4096; Enterprise parameter|
-|s3UploadDelaySec    |After 3.3.4.3|How long a data file remains unchanged before being uploaded to S3, range 1-2592000 (30 days), in seconds, default value 60; Enterprise parameter|
-|cacheLazyLoadThreshold|        |Internal parameter, cache loading strategy|
+|Parameter Name         |Supported Version        |Dynamic Modification|Description|
+|-----------------------|-------------------------|--------------------|------------|
+|dataDir             |          |Not supported                     |Directory for data files, all data files are written to this directory, default value /var/lib/taos|
+|tempDir             |          |Not supported                     |Specifies the directory for generating temporary files during system operation, default value /tmp|
+|minimalDataDirGB    |          |Not supported                     |Minimum space to be reserved in the time-series data storage directory specified by dataDir, in GB, default value 2|
+|minimalTmpDirGB     |          |Not supported                     |Minimum space to be reserved in the temporary file directory specified by tempDir, in GB, default value 1|
+|minDiskFreeSize     |After 3.1.1.0|Supported, effective immediately  |When the available space on a disk is less than or equal to this threshold, the disk will no longer be selected for generating new data files, unit is bytes, range 52428800-1073741824, default value 52428800; Enterprise parameter|
+|s3MigrateIntervalSec|After 3.3.4.3|Supported, effective immediately  |Trigger cycle for automatic upload of local data files to S3, in seconds. Minimum: 600; Maximum: 100000. Default value 3600; Enterprise parameter|
+|s3MigrateEnabled    |After 3.3.4.3|Supported, effective immediately  |Whether to automatically perform S3 migration, default value is 0, which means auto S3 migration is off, can be set to 1; Enterprise parameter|
+|s3Accesskey         |After 3.3.4.3|Supported, effective after restart|Colon-separated user SecretId:SecretKey, for example AKIDsQmwsfKxTo2A6nGVXZN0UlofKn6JRRSJ:lIdoy99ygEacU7iHfogaN2Xq0yumSm1E; Enterprise parameter|
+|s3Endpoint          |After 3.3.4.3|Supported, effective after restart|COS service domain name in the user's region, supports http and https, the region of the bucket must match the endpoint, otherwise it cannot be accessed; Enterprise parameter|
+|s3BucketName        |After 3.3.4.3|Supported, effective after restart|Bucket name, followed by a hyphen and the AppId of the user registered COS service, where AppId is unique to COS, not present in AWS and Alibaba Cloud, needs to be part of the bucket name, separated by a hyphen; parameter values are string type, but do not need quotes; for example test0711-1309024725; Enterprise parameter|
+|s3PageCacheSize     |After 3.3.4.3|Supported, effective after restart|Number of S3 page cache pages, range 4-1048576, unit is pages, default value 4096; Enterprise parameter|
+|s3UploadDelaySec    |After 3.3.4.3|Supported, effective immediately  |How long a data file remains unchanged before being uploaded to S3, range 1-2592000 (30 days), in seconds, default value 60; Enterprise parameter|
+|cacheLazyLoadThreshold|        |Supported, effective immediately  |Internal parameter, cache loading strategy|
 
 ### Cluster Related
 
-|Parameter Name|Supported Version|Description|
-|--------------------------|----------|-|
-|supportVnodes             |          |Maximum number of vnodes supported by a dnode, range 0-4096, default value is twice the number of CPU cores + 5|
-|numOfCommitThreads        |          |Maximum number of commit threads, range 0-1024, default value 4|
-|numOfMnodeReadThreads     |          |Number of Read threads for mnode, range 0-1024, default value is one quarter of the CPU cores (not exceeding 4)|
-|numOfVnodeQueryThreads    |          |Number of Query threads for vnode, range 0-1024, default value is twice the number of CPU cores (not exceeding 16)|
-|numOfVnodeFetchThreads    |          |Number of Fetch threads for vnode, range 0-1024, default value is one quarter of the CPU cores (not exceeding 4)|
-|numOfVnodeRsmaThreads     |          |Number of Rsma threads for vnode, range 0-1024, default value is one quarter of the CPU cores (not exceeding 4)|
-|numOfQnodeQueryThreads    |          |Number of Query threads for qnode, range 0-1024, default value is twice the number of CPU cores (not exceeding 16)|
-|numOfSnodeSharedThreads   |          |Number of shared threads for snode, range 0-1024, default value is one quarter of the CPU cores (not less than 2, not exceeding 4)|
-|numOfSnodeUniqueThreads   |          |Number of exclusive threads for snode, range 0-1024, default value is one quarter of the CPU cores (not less than 2, not exceeding 4)|
-|ratioOfVnodeStreamThreads |          |Ratio of stream computing using vnode threads, range 0.01-4, default value 4|
-|ttlUnit                   |          |Unit for ttl parameter, range 1-31572500, in seconds, default value 86400|
-|ttlPushInterval           |          |Frequency of ttl timeout checks, range 1-100000, in seconds, default value 10|
-|ttlChangeOnWrite          |          |Whether ttl expiration time changes with table modification; 0: no change, 1: change; default value 0|
-|ttlBatchDropNum           |          |Number of subtables deleted in a batch for ttl, minimum value 0, default value 10000|
-|retentionSpeedLimitMB     |          |Speed limit for data migration across different levels of disks, range 0-1024, in MB, default value 0, which means no limit|
-|maxTsmaNum                |          |Maximum number of TSMAs that can be created in the cluster; range 0-3; default value 3|
-|tmqMaxTopicNum            |          |Maximum number of topics that can be established for subscription; range 1-10000; default value 20|
-|tmqRowSize                |          |Maximum number of records in a subscription data block, range 1-1000000, default value 4096|
-|audit                     |          |Audit feature switch; Enterprise parameter|
-|auditInterval             |          |Time interval for reporting audit data; Enterprise parameter|
-|auditCreateTable          |          |Whether to enable audit feature for creating subtables; Enterprise parameter|
-|encryptAlgorithm          |          |Data encryption algorithm; Enterprise parameter|
-|encryptScope              |          |Encryption scope; Enterprise parameter|
-|enableWhiteList           |          |Switch for whitelist feature; Enterprise parameter|
-|syncLogBufferMemoryAllowed|          |Maximum memory allowed for sync log cache messages for a dnode, in bytes, range 104857600-INT64_MAX, default value is 1/10 of server memory, effective from versions 3.1.3.2/3.3.2.13|
-|syncElectInterval         |          |Internal parameter, for debugging synchronization module|
-|syncHeartbeatInterval     |          |Internal parameter, for debugging synchronization module|
-|syncHeartbeatTimeout      |          |Internal parameter, for debugging synchronization module|
-|syncSnapReplMaxWaitN      |          |Internal parameter, for debugging synchronization module|
-|syncSnapReplMaxWaitN      |          |Internal parameter, for debugging synchronization module|
-|arbHeartBeatIntervalSec   |          |Internal parameter, for debugging synchronization module|
-|arbCheckSyncIntervalSec   |          |Internal parameter, for debugging synchronization module|
-|arbSetAssignedTimeoutSec  |          |Internal parameter, for debugging synchronization module|
-|mndSdbWriteDelta          |          |Internal parameter, for debugging mnode module|
-|mndLogRetention           |          |Internal parameter, for debugging mnode module|
-|skipGrant                 |          |Internal parameter, for authorization checks|
-|trimVDbIntervalSec        |          |Internal parameter, for deleting expired data|
-|ttlFlushThreshold         |          |Internal parameter, frequency of ttl timer|
-|compactPullupInterval     |          |Internal parameter, frequency of data reorganization timer|
-|walFsyncDataSizeLimit     |          |Internal parameter, threshold for WAL to perform FSYNC|
-|transPullupInterval       |          |Internal parameter, retry interval for mnode to execute transactions|
-|mqRebalanceInterval       |          |Internal parameter, interval for consumer rebalancing|
-|uptimeInterval            |          |Internal parameter, for recording system uptime|
-|timeseriesThreshold       |          |Internal parameter, for usage statistics|
-|udf                       |          |Whether to start UDF service; 0: do not start, 1: start; default value 0 |
-|udfdResFuncs              |          |Internal parameter, for setting UDF result sets|
-|udfdLdLibPath             |          |Internal parameter, indicates the library path for loading UDF|
+|Parameter Name         |Supported Version        |Dynamic Modification|Description|
+|-----------------------|-------------------------|--------------------|------------|
+|supportVnodes             |          |Supported, effective immediately  |Maximum number of vnodes supported by a dnode, range 0-4096, default value is twice the number of CPU cores + 5|
+|numOfCommitThreads        |          |Supported, effective after restart|Maximum number of commit threads, range 1-1024, default value 4|
+|numOfCompactThreads       |          |Supported, effective after restart|Maximum number of commit threads, range 1-16, default value 2|
+|numOfMnodeReadThreads     |          |Supported, effective after restart|Number of Read threads for mnode, range 0-1024, default value is one quarter of the CPU cores (not exceeding 4)|
+|numOfVnodeQueryThreads    |          |Supported, effective after restart|Number of Query threads for vnode, range 0-1024, default value is twice the number of CPU cores (not exceeding 16)|
+|numOfVnodeFetchThreads    |          |Supported, effective after restart|Number of Fetch threads for vnode, range 0-1024, default value is one quarter of the CPU cores (not exceeding 4)|
+|numOfVnodeRsmaThreads     |          |Supported, effective after restart|Number of Rsma threads for vnode, range 0-1024, default value is one quarter of the CPU cores (not exceeding 4)|
+|numOfQnodeQueryThreads    |          |Supported, effective after restart|Number of Query threads for qnode, range 0-1024, default value is twice the number of CPU cores (not exceeding 16)|
+|numOfSnodeSharedThreads   |          |Supported, effective after restart|Number of shared threads for snode, range 0-1024, default value is one quarter of the CPU cores (not less than 2, not exceeding 4)|
+|numOfSnodeUniqueThreads   |          |Supported, effective after restart|Number of exclusive threads for snode, range 0-1024, default value is one quarter of the CPU cores (not less than 2, not exceeding 4)|
+|ratioOfVnodeStreamThreads |          |Supported, effective after restart|Ratio of stream computing using vnode threads, range 0.01-4, default value 4|
+|ttlUnit                   |          |Not supported                     |Unit for ttl parameter, range 1-31572500, in seconds, default value 86400|
+|ttlPushInterval           |          |Supported, effective immediately  |Frequency of ttl timeout checks, range 1-100000, in seconds, default value 10|
+|ttlChangeOnWrite          |          |Supported, effective immediately  |Whether ttl expiration time changes with table modification; 0: no change, 1: change; default value 0|
+|ttlBatchDropNum           |          |Supported, effective immediately  |Number of subtables deleted in a batch for ttl, minimum value 0, default value 10000|
+|retentionSpeedLimitMB     |          |Supported, effective immediately  |Speed limit for data migration across different levels of disks, range 0-1024, in MB, default value 0, which means no limit|
+|maxTsmaNum                |          |Supported, effective immediately  |Maximum number of TSMAs that can be created in the cluster; range 0-3; default value 3|
+|tmqMaxTopicNum            |          |Supported, effective immediately  |Maximum number of topics that can be established for subscription; range 1-10000; default value 20|
+|tmqRowSize                |          |Supported, effective immediately  |Maximum number of records in a subscription data block, range 1-1000000, default value 4096|
+|audit                     |          |Supported, effective immediately  |Audit feature switch; Enterprise parameter|
+|auditInterval             |          |Supported, effective immediately  |Time interval for reporting audit data; Enterprise parameter|
+|auditCreateTable          |          |Supported, effective immediately  |Whether to enable audit feature for creating subtables; Enterprise parameter|
+|encryptAlgorithm          |          |Not supported                     |Data encryption algorithm; Enterprise parameter|
+|encryptScope              |          |Not supported                     |Encryption scope; Enterprise parameter|
+|enableWhiteList           |          |Supported, effective immediately  |Switch for whitelist feature; Enterprise parameter|
+|syncLogBufferMemoryAllowed|          |Supported, effective immediately  |Maximum memory allowed for sync log cache messages for a dnode, in bytes, range 104857600-INT64_MAX, default value is 1/10 of server memory, effective from versions 3.1.3.2/3.3.2.13|
+|syncElectInterval         |          |Not supported                     |Internal parameter, for debugging synchronization module|
+|syncHeartbeatInterval     |          |Not supported                     |Internal parameter, for debugging synchronization module|
+|syncHeartbeatTimeout      |          |Not supported                     |Internal parameter, for debugging synchronization module|
+|syncSnapReplMaxWaitN      |          |Supported, effective immediately  |Internal parameter, for debugging synchronization module|
+|arbHeartBeatIntervalSec   |          |Supported, effective immediately  |Internal parameter, for debugging synchronization module|
+|arbCheckSyncIntervalSec   |          |Supported, effective immediately  |Internal parameter, for debugging synchronization module|
+|arbSetAssignedTimeoutSec  |          |Supported, effective immediately  |Internal parameter, for debugging synchronization module|
+|mndSdbWriteDelta          |          |Supported, effective immediately  |Internal parameter, for debugging mnode module|
+|mndLogRetention           |          |Supported, effective immediately  |Internal parameter, for debugging mnode module|
+|skipGrant                 |          |Not supported                     |Internal parameter, for authorization checks|
+|trimVDbIntervalSec        |          |Supported, effective immediately  |Internal parameter, for deleting expired data|
+|ttlFlushThreshold         |          |Supported, effective immediately  |Internal parameter, frequency of ttl timer|
+|compactPullupInterval     |          |Supported, effective immediately  |Internal parameter, frequency of data reorganization timer|
+|walFsyncDataSizeLimit     |          |Supported, effective immediately  |Internal parameter, threshold for WAL to perform FSYNC|
+|transPullupInterval       |          |Supported, effective immediately  |Internal parameter, retry interval for mnode to execute transactions|
+|mqRebalanceInterval       |          |Supported, effective immediately  |Internal parameter, interval for consumer rebalancing|
+|uptimeInterval            |          |Supported, effective immediately  |Internal parameter, for recording system uptime|
+|timeseriesThreshold       |          |Supported, effective immediately  |Internal parameter, for usage statistics|
+|udf                       |          |Supported, effective after restart|Whether to start UDF service; 0: do not start, 1: start; default value 0 |
+|udfdResFuncs              |          |Supported, effective after restart|Internal parameter, for setting UDF result sets|
+|udfdLdLibPath             |          |Supported, effective after restart|Internal parameter, indicates the library path for loading UDF|
 
 ### Stream Computing Parameters
 
-| Parameter Name         | Supported Version | Description |
-|-----------------------|----------|-|
-| disableStream          |          | Switch to enable or disable stream computing |
-| streamBufferSize       |          | Controls the size of the window state cache in memory, default value is 128MB |
-| streamAggCnt           |          | Internal parameter, number of concurrent aggregation computations |
-| checkpointInterval     |          | Internal parameter, checkpoint synchronization interval |
-| concurrentCheckpoint   |          | Internal parameter, whether to check checkpoints concurrently |
-| maxStreamBackendCache  |          | Internal parameter, maximum cache used by stream computing |
-| streamSinkDataRate     |          | Internal parameter, used to control the write speed of stream computing results |
+|Parameter Name         |Supported Version        |Dynamic Modification|Description|
+|-----------------------|-------------------------|--------------------|------------|
+| disableStream          |          |Supported, effective immediately  | Switch to enable or disable stream computing |
+| streamBufferSize       |          |Supported, effective immediately  | Controls the size of the window state cache in memory, default value is 128MB |
+| streamAggCnt           |          |Not supported                     | Internal parameter, number of concurrent aggregation computations |
+| checkpointInterval     |          |Supported, effective after restart| Internal parameter, checkpoint synchronization interval |
+| concurrentCheckpoint   |          |Supported, effective immediately  | Internal parameter, whether to check checkpoints concurrently |
+| maxStreamBackendCache  |          |Supported, effective immediately  | Internal parameter, maximum cache used by stream computing |
+| streamSinkDataRate     |          |Supported, effective after restart| Internal parameter, used to control the write speed of stream computing results |
 
 ### Log Related
 
-| Parameter Name     | Supported Version | Description |
-|----------------|----------|-|
-| logDir          |          | Log file directory, operational logs will be written to this directory, default value /var/log/taos |
-| minimalLogDirGB |          | Stops writing logs when the available space on the disk where the log folder is located is less than this value, unit GB, default value 1 |
-| numOfLogLines   |          | Maximum number of lines allowed in a single log file, default value 10,000,000 |
-| asyncLog        |          | Log writing mode, 0: synchronous, 1: asynchronous, default value 1 |
-| logKeepDays     |          | Maximum retention time for log files, unit: days, default value 0, which means unlimited retention, log files will not be renamed, nor will new log files be rolled out, but the content of the log files may continue to roll depending on the log file size setting; when set to a value greater than 0, when the log file size reaches the set limit, it will be renamed to taosdlog.yyy, where yyy is the timestamp of the last modification of the log file, and a new log file will be rolled out |
-| slowLogThreshold| 3.3.3.0 onwards | Slow query threshold, queries taking longer than or equal to this threshold are considered slow, unit seconds, default value 3 |
-| slowLogMaxLen   | 3.3.3.0 onwards | Maximum length of slow query logs, range 1-16384, default value 4096 |
-| slowLogScope    | 3.3.3.0 onwards | Type of slow query records, range ALL/QUERY/INSERT/OTHERS/NONE, default value QUERY |
-| slowLogExceptDb | 3.3.3.0 onwards | Specifies the database that does not report slow queries, only supports configuring one database |
-| debugFlag       |          | Log switch for running logs, 131 (outputs error and warning logs), 135 (outputs error, warning, and debug logs), 143 (outputs error, warning, debug, and trace logs); default value 131 or 135 (depending on the module) |
-| tmrDebugFlag    |          | Log switch for the timer module, range as above |
-| uDebugFlag      |          | Log switch for the utility module, range as above |
-| rpcDebugFlag    |          | Log switch for the rpc module, range as above |
-| qDebugFlag      |          | Log switch for the query module, range as above |
-| dDebugFlag      |          | Log switch for the dnode module, range as above |
-| vDebugFlag      |          | Log switch for the vnode module, range as above |
-| mDebugFlag      |          | Log switch for the mnode module, range as above |
-| azDebugFlag     | 3.3.4.3 onwards | Log switch for the S3 module, range as above |
-| sDebugFlag      |          | Log switch for the sync module, range as above |
-| tsdbDebugFlag   |          | Log switch for the tsdb module, range as above |
-| tqDebugFlag     |          | Log switch for the tq module, range as above |
-| fsDebugFlag     |          | Log switch for the fs module, range as above |
-| udfDebugFlag    |          | Log switch for the udf module, range as above |
-| smaDebugFlag    |          | Log switch for the sma module, range as above |
-| idxDebugFlag    |          | Log switch for the index module, range as above |
-| tdbDebugFlag    |          | Log switch for the tdb module, range as above |
-| metaDebugFlag   |          | Log switch for the meta module, range as above |
-| stDebugFlag     |          | Log switch for the stream module, range as above |
-| sndDebugFlag    |          | Log switch for the snode module, range as above |
+|Parameter Name         |Supported Version        |Dynamic Modification|Description|
+|-----------------------|-------------------------|--------------------|------------|
+| logDir          |          |Not supported                     | Log file directory, operational logs will be written to this directory, default value /var/log/taos |
+| minimalLogDirGB |          |Not supported                     | Stops writing logs when the available space on the disk where the log folder is located is less than this value, unit GB, default value 1 |
+| numOfLogLines   |          |Supported, effective immediately  | Maximum number of lines allowed in a single log file, default value 10,000,000 |
+| asyncLog        |          |Supported, effective immediately  | Log writing mode, 0: synchronous, 1: asynchronous, default value 1 |
+| logKeepDays     |          |Supported, effective immediately  | Maximum retention time for log files, unit: days, default value 0, which means unlimited retention, log files will not be renamed, nor will new log files be rolled out, but the content of the log files may continue to roll depending on the log file size setting; when set to a value greater than 0, when the log file size reaches the set limit, it will be renamed to taosdlog.yyy, where yyy is the timestamp of the last modification of the log file, and a new log file will be rolled out |
+| slowLogThreshold| 3.3.3.0 onwards |Supported, effective immediately  | Slow query threshold, queries taking longer than or equal to this threshold are considered slow, unit seconds, default value 3 |
+| slowLogMaxLen   | 3.3.3.0 onwards |Supported, effective immediately  | Maximum length of slow query logs, range 1-16384, default value 4096 |
+| slowLogScope    | 3.3.3.0 onwards |Supported, effective immediately  | Type of slow query records, range ALL/QUERY/INSERT/OTHERS/NONE, default value QUERY |
+| slowLogExceptDb | 3.3.3.0 onwards |Supported, effective immediately  | Specifies the database that does not report slow queries, only supports configuring one database |
+| debugFlag       |          |Supported, effective immediately  | Log switch for running logs, 131 (outputs error and warning logs), 135 (outputs error, warning, and debug logs), 143 (outputs error, warning, debug, and trace logs); default value 131 or 135 (depending on the module) |
+| tmrDebugFlag    |          |Supported, effective immediately  | Log switch for the timer module, range as above |
+| uDebugFlag      |          |Supported, effective immediately  | Log switch for the utility module, range as above |
+| rpcDebugFlag    |          |Supported, effective immediately  | Log switch for the rpc module, range as above |
+| qDebugFlag      |          |Supported, effective immediately  | Log switch for the query module, range as above |
+| dDebugFlag      |          |Supported, effective immediately  | Log switch for the dnode module, range as above |
+| vDebugFlag      |          |Supported, effective immediately  | Log switch for the vnode module, range as above |
+| mDebugFlag      |          |Supported, effective immediately  | Log switch for the mnode module, range as above |
+| azDebugFlag     | 3.3.4.3 onwards |Supported, effective immediately  | Log switch for the S3 module, range as above |
+| sDebugFlag      |          |Supported, effective immediately  | Log switch for the sync module, range as above |
+| tsdbDebugFlag   |          |Supported, effective immediately  | Log switch for the tsdb module, range as above |
+| tqDebugFlag     |          |Supported, effective immediately  | Log switch for the tq module, range as above |
+| fsDebugFlag     |          |Supported, effective immediately  | Log switch for the fs module, range as above |
+| udfDebugFlag    |          |Supported, effective immediately  | Log switch for the udf module, range as above |
+| smaDebugFlag    |          |Supported, effective immediately  | Log switch for the sma module, range as above |
+| idxDebugFlag    |          |Supported, effective immediately  | Log switch for the index module, range as above |
+| tdbDebugFlag    |          |Supported, effective immediately  | Log switch for the tdb module, range as above |
+| metaDebugFlag   |          |Supported, effective immediately  | Log switch for the meta module, range as above |
+| stDebugFlag     |          |Supported, effective immediately  | Log switch for the stream module, range as above |
+| sndDebugFlag    |          |Supported, effective immediately  | Log switch for the snode module, range as above |
 
 ### Debugging Related
 
-| Parameter Name       | Supported Version | Description |
-|----------------------|-------------------|-------------|
-| enableCoreFile       |                   | Whether to generate a core file when crashing, 0: do not generate, 1: generate; default value is 1 |
-| configDir            |                   | Directory where the configuration files are located |
-| scriptDir            |                   | Directory for internal test tool scripts |
-| assert               |                   | Assertion control switch, default value is 0 |
-| randErrorChance      |                   | Internal parameter, used for random failure testing |
-| randErrorDivisor     |                   | Internal parameter, used for random failure testing |
-| randErrorScope       |                   | Internal parameter, used for random failure testing |
-| safetyCheckLevel     |                   | Internal parameter, used for random failure testing |
-| experimental         |                   | Internal parameter, used for some experimental features |
-| simdEnable           | After 3.3.4.3     | Internal parameter, used for testing SIMD acceleration |
-| AVX512Enable         | After 3.3.4.3     | Internal parameter, used for testing AVX512 acceleration |
-| rsyncPort            |                   | Internal parameter, used for debugging stream computing |
-| snodeAddress         |                   | Internal parameter, used for debugging stream computing |
-| checkpointBackupDir  |                   | Internal parameter, used for restoring snode data |
-| enableAuditDelete    |                   | Internal parameter, used for testing audit functions |
-| slowLogThresholdTest |                   | Internal parameter, used for testing slow logs |
+|Parameter Name         |Supported Version        |Dynamic Modification|Description|
+|-----------------------|-------------------------|--------------------|------------|
+| enableCoreFile       |                   |Supported, effective immediately  | Whether to generate a core file when crashing, 0: do not generate, 1: generate; default value is 1 |
+| configDir            |                   |Not supported                     | Directory where the configuration files are located |
+|forceReadConfig       |                   |Not supported                     ||Force the use of parameters from the configuration file,default value: 0|
+| scriptDir            |                   |Not supported                     | Directory for internal test tool scripts |
+| assert               |                   |Not supported                     | Assertion control switch, default value is 0 |
+| randErrorChance      |                   |Supported, effective immediately  | Internal parameter, used for random failure testing |
+| randErrorDivisor     |                   |Supported, effective immediately  | Internal parameter, used for random failure testing |
+| randErrorScope       |                   |Supported, effective immediately  | Internal parameter, used for random failure testing |
+| safetyCheckLevel     |                   |Supported, effective immediately  | Internal parameter, used for random failure testing |
+| experimental         |                   |Supported, effective immediately  | Internal parameter, used for some experimental features |
+| simdEnable           | After 3.3.4.3     |Not supported                     | Internal parameter, used for testing SIMD acceleration |
+| AVX512Enable         | After 3.3.4.3     |Not supported                     | Internal parameter, used for testing AVX512 acceleration |
+| rsyncPort            |                   |Not supported                     | Internal parameter, used for debugging stream computing |
+| snodeAddress         |                   |Supported, effective immediately  | Internal parameter, used for debugging stream computing |
+| checkpointBackupDir  |                   |Supported, effective immediately  | Internal parameter, used for restoring snode data |
+| enableAuditDelete    |                   |Not supported                     | Internal parameter, used for testing audit functions |
+| slowLogThresholdTest |                   |Not supported                     | Internal parameter, used for testing slow logs |
+| bypassFlag           |After 3.3.4.5      |Supported, effective immediately  | Internal parameter, used for  short-circuit testing|
 
 ### Compression Parameters
 
-| Parameter Name | Supported Version | Description |
-|----------------|-------------------|-------------|
-| fPrecision     |                   | Sets the compression precision for float type floating numbers, range 0.1 ~ 0.00000001, default value 0.00000001, floating numbers smaller than this value will have their mantissa truncated |
-| dPrecision     |                   | Sets the compression precision for double type floating numbers, range 0.1 ~ 0.0000000000000001, default value 0.0000000000000001, floating numbers smaller than this value will have their mantissa truncated |
-| lossyColumn    | Before 3.3.0.0    | Enables TSZ lossy compression for float and/or double types; range float/double/none; default value none, indicating lossless compression is off |
-| ifAdtFse       |                   | When TSZ lossy compression is enabled, use the FSE algorithm instead of the HUFFMAN algorithm, FSE algorithm is faster in compression but slightly slower in decompression, choose this for faster compression speed; 0: off, 1: on; default value is 0 |
-| maxRange       |                   | Internal parameter, used for setting lossy compression |
-| curRange       |                   | Internal parameter, used for setting lossy compression |
-| compressor     |                   | Internal parameter, used for setting lossy compression |
+|Parameter Name         |Supported Version        |Dynamic Modification|Description|
+|-----------------------|-------------------------|--------------------|------------|
+| fPrecision     |                   |Supported, effective immediately  | Sets the compression precision for float type floating numbers, range 0.1 ~ 0.00000001, default value 0.00000001, floating numbers smaller than this value will have their mantissa truncated |
+| dPrecision     |                   |Supported, effective immediately  | Sets the compression precision for double type floating numbers, range 0.1 ~ 0.0000000000000001, default value 0.0000000000000001, floating numbers smaller than this value will have their mantissa truncated |
+| lossyColumn    | Before 3.3.0.0    |Not supported                     | Enables TSZ lossy compression for float and/or double types; range float/double/none; default value none, indicating lossless compression is off |
+| ifAdtFse       |                   |Supported, effective after restart| When TSZ lossy compression is enabled, use the FSE algorithm instead of the HUFFMAN algorithm, FSE algorithm is faster in compression but slightly slower in decompression, choose this for faster compression speed; 0: off, 1: on; default value is 0 |
+| maxRange       |                   |Supported, effective after restart| Internal parameter, used for setting lossy compression |
+| curRange       |                   |Supported, effective after restart| Internal parameter, used for setting lossy compression |
+| compressor     |                   |Supported, effective after restart| Internal parameter, used for setting lossy compression |
 
 **Additional Notes**
 

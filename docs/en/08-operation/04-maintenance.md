@@ -15,9 +15,11 @@ TDengine is designed for various writing scenarios, and many of these scenarios 
 
 ### Syntax
 
-```SQL
+```sql
 COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY'];
-SHOW COMPACTS [compact_id];
+COMPACT [db_name.]VGROUPS IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [end with 'YYYY'];
+SHOW COMPACTS;
+SHOW COMPACT compact_id;
 KILL COMPACT compact_id;
 ```
 
@@ -41,7 +43,7 @@ KILL COMPACT compact_id;
 
 When one or more nodes in a multi-replica cluster restart due to upgrades or other reasons, it may lead to an imbalance in the load among the various dnodes in the cluster. In extreme cases, all vgroup leaders may be located on the same dnode. To solve this problem, you can use the following commands, which were first released in version 3.0.4.0. It is recommended to use the latest version as much as possible.
 
-```SQL
+```sql
 balance vgroup leader; # Rebalance all vgroup leaders
 balance vgroup leader on <vgroup_id>; # Rebalance a vgroup leader
 balance vgroup leader database <database_name>; # Rebalance all vgroup leaders within a database

@@ -451,7 +451,74 @@ class TDTestCase:
         sql = "select avg(c1), concat(t9,t10) from db.stb group by concat(t9,t10), concat(t9,t10),tbname"
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(5)
+        
+    def test_TS_5727(self):
+        tdSql.execute(f" use {self.dbname} ")
+        stableName = "test5727"
+        sql = f"CREATE STABLE {self.dbname}.{stableName} (`ts` TIMESTAMP, `WaterConsumption` FLOAT,  \
+        `ElecConsumption` INT, `Status` BOOL, `status2` BOOL, `online` BOOL)                         \
+        TAGS (`ActivationTime` TIMESTAMP, `ProductId` INT,                                           \
+        `ProductMac` VARCHAR(24), `location` INT)"
+        tdSql.execute(sql)
+        
+        sql = f'CREATE TABLE {self.dbname}.`d00` USING {self.dbname}.{stableName} \
+            (`ActivationTime`, `ProductId`, `ProductMac`, `location`)   \
+                TAGS (1733124710578, 1001, "00:11:22:33:44:55", 100000)'
+        tdSql.execute(sql)
+        sql = f'CREATE TABLE {self.dbname}.`d01` USING {self.dbname}.{stableName}  \
+            (`ActivationTime`, `ProductId`, `ProductMac`, `location`)  \
+                TAGS (1733124723572, 1002, "00:12:22:33:44:55", 200000)'
+        tdSql.execute(sql)  
+        sql = f'CREATE TABLE {self.dbname}.`d02` USING {self.dbname}.{stableName} \
+            (`ActivationTime`, `ProductId`, `ProductMac`, `location`) \
+                TAGS (1733124730908, 1003, "00:11:23:33:44:55", 100000)'
+        tdSql.execute(sql)
+        
+        sql = f'insert into {self.dbname}.d00 values(now - 2s, 5, 5, true, true, false);'
+        tdSql.execute(sql)
+        sql = f'insert into {self.dbname}.d01 values(now - 1s, 6, 5, true, true, true);'
+        tdSql.execute(sql)
+        sql = f'insert into {self.dbname}.d02 values(now, 6, 7, true, true, true);'
+        tdSql.execute(sql)
+        
+        sql = f'select `location`, tbname from {self.dbname}.{stableName} where ts < now group by tbname order by tbname;'
+        tdSql.query(sql)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 100000)
+        tdSql.checkData(1, 0, 200000)
+        tdSql.checkData(2, 0, 100000)
+        tdSql.checkData(0, 1, "d00")
+        tdSql.checkData(1, 1, "d01")
+        tdSql.checkData(2, 1, "d02")
+        
+        sql = f'select tbname,last(online) as online,location from {self.dbname}.{stableName} where ts < now group by tbname order by tbname;'
+        tdSql.query(sql)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "d00")
+        tdSql.checkData(1, 0, "d01")
+        tdSql.checkData(2, 0, "d02")
+        tdSql.checkData(0, 1, False)
+        tdSql.checkData(1, 1, True)
+        tdSql.checkData(2, 1, True)
+        tdSql.checkData(0, 2, 100000)
+        tdSql.checkData(1, 2, 200000)
+        tdSql.checkData(2, 2, 100000)
 
+              
+        sql = f'select location,tbname,last_row(online) as online from {self.dbname}.{stableName} where ts < now group by tbname order by tbname;'
+        tdSql.query(sql)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 100000)
+        tdSql.checkData(1, 0, 200000)
+        tdSql.checkData(2, 0, 100000)
+        tdSql.checkData(0, 1, "d00")
+        tdSql.checkData(1, 1, "d01")
+        tdSql.checkData(2, 1, "d02")
+        tdSql.checkData(0, 2, False)
+        tdSql.checkData(1, 2, True)
+        tdSql.checkData(2, 2, True)
+        
+        
     def run(self):
         tdSql.prepare()
         self.prepare_db()
@@ -493,6 +560,8 @@ class TDTestCase:
         # self.test_groupby('group', 5, 5)
 
         self.test_error()
+        
+        self.test_TS_5727()
 
 
     def stop(self):

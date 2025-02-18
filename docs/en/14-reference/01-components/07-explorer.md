@@ -14,7 +14,7 @@ taosExplorer does not require separate installation. Starting from TDengine vers
 
 Before starting taosExplorer, please make sure the content in the configuration file is correct.
 
-```TOML
+```toml
 # This is an automatically generated configuration file for Explorer in [TOML](https://toml.io/) format.
 #
 # Here is a full list of available options.
@@ -148,7 +148,7 @@ Description:
 
 Then start taosExplorer, you can directly execute taos-explorer in the command line or use the systemctl command:
 
-```bash
+```shell
 systemctl start taos-explorer  # Linux
 sc.exe start taos-explorer # Windows
 ```

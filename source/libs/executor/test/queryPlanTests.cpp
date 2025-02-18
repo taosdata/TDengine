@@ -592,7 +592,7 @@ void qptGetRandValue(uint8_t* pType, int32_t* pLen, void** ppVal) {
         memset(pTmp, 'A' + taosRand() % 26, *pLen);
         *ppVal = taosMemoryCalloc(1, *pLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
         assert(*ppVal);
-        assert(taosMbsToUcs4(pTmp, *pLen, (TdUcs4 *)varDataVal(*ppVal), *pLen * TSDB_NCHAR_SIZE, NULL));
+        assert(taosMbsToUcs4(pTmp, *pLen, (TdUcs4 *)varDataVal(*ppVal), *pLen * TSDB_NCHAR_SIZE, NULL, NULL));
         *pLen *= TSDB_NCHAR_SIZE;
         varDataSetLen(*ppVal, *pLen);
         taosMemoryFree(pTmp);
@@ -1418,6 +1418,7 @@ SNode* qptMakeExprNode(SNode** ppNode) {
 
 SNode* qptMakeLimitNode(SNode** ppNode) {
   SNode* pNode = NULL;
+  int32_t code = 0;
   if (QPT_NCORRECT_LOW_PROB()) {
     return qptMakeRandNode(&pNode);
   }
@@ -1429,15 +1430,27 @@ SNode* qptMakeLimitNode(SNode** ppNode) {
 
   if (!qptCtx.param.correctExpected) {
     if (taosRand() % 2) {
-      pLimit->limit = taosRand() * ((taosRand() % 2) ? 1 : -1);
+      code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pLimit->limit);
+      assert(pLimit->limit);
+      pLimit->limit->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+      pLimit->limit->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      pLimit->limit->datum.i = taosRand() * ((taosRand() % 2) ? 1 : -1);
     }
     if (taosRand() % 2) {
-      pLimit->offset = taosRand() * ((taosRand() % 2) ? 1 : -1);
+      code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pLimit->offset);
+      assert(pLimit->offset);
+      pLimit->offset->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+      pLimit->offset->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      pLimit->offset->datum.i = taosRand() * ((taosRand() % 2) ? 1 : -1);
     }
   } else {
-    pLimit->limit = taosRand();
+    pLimit->limit->datum.i = taosRand();
     if (taosRand() % 2) {
-      pLimit->offset = taosRand();
+      code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pLimit->offset);
+      assert(pLimit->offset);
+      pLimit->offset->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+      pLimit->offset->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      pLimit->offset->datum.i = taosRand();
     }
   }
 
@@ -1647,7 +1660,7 @@ SNode* qptMakeDownstreamSrcNode(SNode** ppNode) {
   pDs->addr.nodeId = qptCtx.param.vnode.vgId;
   memcpy(&pDs->addr.epSet, &qptCtx.param.vnode.epSet, sizeof(pDs->addr.epSet));
   pDs->taskId = (QPT_CORRECT_HIGH_PROB() && qptCtx.buildCtx.pCurrTask) ? qptCtx.buildCtx.pCurrTask->id.taskId : taosRand();
-  pDs->schedId = QPT_CORRECT_HIGH_PROB() ? qptCtx.param.schedulerId : taosRand();
+  pDs->sId = QPT_CORRECT_HIGH_PROB() ? 0 : taosRand();
   pDs->execId = taosRand();
   pDs->fetchMsgType = QPT_CORRECT_HIGH_PROB() ? (QPT_RAND_BOOL_V ? TDMT_SCH_FETCH : TDMT_SCH_MERGE_FETCH) : taosRand();
   pDs->localExec = QPT_RAND_BOOL_V;
@@ -3133,7 +3146,7 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
     case QUERY_NODE_PHYSICAL_PLAN_DELETE: {
       DataSinkHandle handle = NULL;
-      qptCtx.result.code = dsCreateDataSinker(NULL, (SDataSinkNode*)pNode, &handle, NULL, NULL);
+      qptCtx.result.code = dsCreateDataSinker(NULL, (SDataSinkNode**)&pNode, &handle, NULL, NULL);
       dsDestroyDataSinker(handle);
       break;
     }

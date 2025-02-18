@@ -354,15 +354,15 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
 
   pInfo->pSources = taosArrayInit(numOfSources, sizeof(SDownstreamSourceNode));
   if (pInfo->pSources == NULL) {
-    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
     return terrno;
   }
 
   if (pExNode->node.dynamicOp) {
     pInfo->pHashSources = tSimpleHashInit(numOfSources * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
     if (NULL == pInfo->pHashSources) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
-      return TSDB_CODE_OUT_OF_MEMORY;
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      return terrno;
     }
   }
 
@@ -370,7 +370,7 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
     SDownstreamSourceNode* pNode = (SDownstreamSourceNode*)nodesListGetNode((SNodeList*)pExNode->pSrcEndPoints, i);
     if (!pNode) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-      return TSDB_CODE_OUT_OF_MEMORY;
+      return terrno;
     }
     void* tmp = taosArrayPush(pInfo->pSources, pNode);
     if (!tmp) {
@@ -640,16 +640,16 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
   if (pSource->localExec) {
     SDataBuf pBuf = {0};
-    int32_t  code = (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->schedId, pTaskInfo->id.queryId,
+    int32_t  code = (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->sId, pTaskInfo->id.queryId,
                                                pSource->clientId, pSource->taskId, 0, pSource->execId, &pBuf.pData,
                                                pTaskInfo->localFetch.explainRes);
     code = loadRemoteDataCallback(pWrapper, &pBuf, code);
-    QUERY_CHECK_CODE(code, lino, _end);
     taosMemoryFree(pWrapper);
+    QUERY_CHECK_CODE(code, lino, _end);
   } else {
     SResFetchReq req = {0};
     req.header.vgId = pSource->addr.nodeId;
-    req.sId = pSource->schedId;
+    req.sId = pSource->sId;
     req.clientId = pSource->clientId;
     req.taskId = pSource->taskId;
     req.queryId = pTaskInfo->id.queryId;
@@ -668,7 +668,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
     int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req);
     if (msgSize < 0) {
-      pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+      pTaskInfo->code = msgSize;
       taosMemoryFree(pWrapper);
       freeOperatorParam(req.pOpParam, OP_GET_PARAM);
       return pTaskInfo->code;
@@ -676,14 +676,15 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
     void* msg = taosMemoryCalloc(1, msgSize);
     if (NULL == msg) {
-      pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+      pTaskInfo->code = terrno;
       taosMemoryFree(pWrapper);
       freeOperatorParam(req.pOpParam, OP_GET_PARAM);
       return pTaskInfo->code;
     }
 
-    if (tSerializeSResFetchReq(msg, msgSize, &req) < 0) {
-      pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+    msgSize = tSerializeSResFetchReq(msg, msgSize, &req);
+    if (msgSize < 0) {
+      pTaskInfo->code = msgSize;
       taosMemoryFree(pWrapper);
       taosMemoryFree(msg);
       freeOperatorParam(req.pOpParam, OP_GET_PARAM);
@@ -703,18 +704,19 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       taosMemoryFreeClear(msg);
       taosMemoryFree(pWrapper);
       qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
-      pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+      pTaskInfo->code = terrno;
       return pTaskInfo->code;
     }
 
     pMsgSendInfo->param = pWrapper;
-    pMsgSendInfo->paramFreeFp = taosMemoryFree;
+    pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
     pMsgSendInfo->msgInfo.pData = msg;
     pMsgSendInfo->msgInfo.len = msgSize;
     pMsgSendInfo->msgType = pSource->fetchMsgType;
     pMsgSendInfo->fp = loadRemoteDataCallback;
 
     int64_t transporterId = 0;
+    void* poolHandle = NULL;
     code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &pSource->addr.epSet, &transporterId, pMsgSendInfo);
     QUERY_CHECK_CODE(code, lino, _end);
     int64_t* pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, sourceIndex);
@@ -898,7 +900,7 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
       blockDataCleanup(pb);
     } else {
       code = createOneDataBlock(pExchangeInfo->pDummyBlock, false, &pb);
-      QUERY_CHECK_NULL(pb, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+      QUERY_CHECK_NULL(pb, code, lino, _end, code);
     }
 
     int32_t compLen = *(int32_t*)pStart;
@@ -1055,7 +1057,7 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator, SExchangeOperatorBasic
 
     void* tmp = taosArrayPush(pExchangeInfo->pSourceDataInfo, &dataInfo);
     if (!tmp) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_OUT_OF_MEMORY));
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       return terrno;
     }
     pIdx->inUseIdx = taosArrayGetSize(pExchangeInfo->pSourceDataInfo) - 1;

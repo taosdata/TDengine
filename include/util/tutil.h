@@ -48,11 +48,6 @@ int32_t taosHexStrToByteArray(char hexstr[], char bytes[]);
 int32_t tintToHex(uint64_t val, char hex[]);
 int32_t titoa(uint64_t val, size_t radix, char str[]);
 
-char    *taosIpStr(uint32_t ipInt);
-uint32_t ip2uint(const char *const ip_addr);
-void     taosIp2String(uint32_t ip, char *str);
-void     taosIpPort2String(uint32_t ip, uint16_t port, char *str);
-
 void *tmemmem(const char *haystack, int hlen, const char *needle, int nlen);
 
 int32_t parseCfgReal(const char *str, float *out);
@@ -127,10 +122,10 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
  * only in very hot code paths. Misuse or abuse can lead to performance degradation.
  */
 #if __GNUC__ >= 3
-#define LIKELY(x)	__builtin_expect((x) != 0, 1)
+#define LIKELY(x)   __builtin_expect((x) != 0, 1)
 #define UNLIKELY(x) __builtin_expect((x) != 0, 0)
 #else
-#define LIKELY(x)	((x) != 0)
+#define LIKELY(x)   ((x) != 0)
 #define UNLIKELY(x) ((x) != 0)
 #endif
 
@@ -192,6 +187,15 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     }                               \
   } while (0)
 
+#define TAOS_CHECK_RETURN_SET_CODE(CMD, CODE, ERRNO) \
+  do {                                               \
+    int32_t __c = (CMD);                             \
+    if (__c != TSDB_CODE_SUCCESS) {                  \
+      (CODE) = (ERRNO);                              \
+      TAOS_RETURN(__c);                              \
+    }                                                \
+  } while (0)
+
 #define TAOS_CHECK_RETURN_WITH_RELEASE(CMD, PTR1, PTR2) \
   do {                                                  \
     int32_t __c = (CMD);                                \
@@ -230,7 +234,22 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     }                               \
   } while (0)
 
+#define TAOS_CHECK_EXIT_SET_CODE(CMD, CODE, ERRNO) \
+  do {                                             \
+    code = (CMD);                                  \
+    if (code < TSDB_CODE_SUCCESS) {                \
+      (CODE) = (ERRNO);                            \
+      lino = __LINE__;                             \
+      goto _exit;                                  \
+    }                                              \
+  } while (0)
+
 #define TAOS_UNUSED(expr) (void)(expr)
+
+bool taosIsBigChar(char c);
+bool taosIsSmallChar(char c);
+bool taosIsNumberChar(char c);
+bool taosIsSpecialChar(char c);
 
 #ifdef __cplusplus
 }

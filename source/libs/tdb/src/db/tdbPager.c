@@ -262,7 +262,7 @@ int tdbPagerBegin(SPager *pPager, TXN *pTxn) {
   */
   // Open the journal
   char jTxnFileName[TDB_FILENAME_LEN];
-  sprintf(jTxnFileName, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
+  (void)tsnprintf(jTxnFileName, TDB_FILENAME_LEN, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
   pTxn->jfd = tdbOsOpen(jTxnFileName, TDB_O_CREAT | TDB_O_RDWR, 0755);
   if (TDB_FD_INVALID(pTxn->jfd)) {
     tdbError("failed to open file due to %s. jFileName:%s", strerror(errno), pPager->jFileName);
@@ -365,7 +365,7 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
 
 int tdbPagerPostCommit(SPager *pPager, TXN *pTxn) {
   char jTxnFileName[TDB_FILENAME_LEN];
-  sprintf(jTxnFileName, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
+  (void)tsnprintf(jTxnFileName, TDB_FILENAME_LEN, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
 
   // remove the journal file
   if (tdbOsClose(pTxn->jfd) < 0) {
@@ -459,7 +459,7 @@ static char *tdbEncryptPage(SPager *pPager, char *pPageData, int32_t pageSize, c
       opts.source = pPageData + count;
       opts.result = packetData;
       opts.unitLen = 128;
-      strncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN);
+      tstrncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN + 1);
 
       int32_t newLen = CBC_Encrypt(&opts);
 
@@ -595,7 +595,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
   }
 
   char jTxnFileName[TDB_FILENAME_LEN];
-  sprintf(jTxnFileName, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
+  (void)tsnprintf(jTxnFileName, TDB_FILENAME_LEN, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
 
   if (tdbOsRemove(jTxnFileName) < 0 && errno != ENOENT) {
     tdbError("failed to remove file due to %s. file:%s", strerror(errno), jTxnFileName);
@@ -927,7 +927,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
           opts.source = pPage->pData + count;
           opts.result = packetData;
           opts.unitLen = 128;
-          strncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN);
+          tstrncpy(opts.key, encryptKey, ENCRYPT_KEY_LEN + 1);
 
           int newLen = CBC_Decrypt(&opts);
 
@@ -1179,7 +1179,7 @@ int tdbPagerRestoreJournals(SPager *pPager) {
     int      dirLen = strlen(pPager->pEnv->dbName);
     memcpy(jname, pPager->pEnv->dbName, dirLen);
     jname[dirLen] = '/';
-    sprintf(jname + dirLen + 1, TDB_MAINDB_NAME "-journal.%" PRId64, *pTxnId);
+    (void)tsnprintf(jname + dirLen + 1, TD_PATH_MAX - dirLen - 1, TDB_MAINDB_NAME "-journal.%" PRId64, *pTxnId);
     code = tdbPagerRestore(pPager, jname);
     if (code) {
       taosArrayDestroy(pTxnList);

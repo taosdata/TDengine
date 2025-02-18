@@ -319,7 +319,6 @@ struct STsdbSnapRAWWriter {
     bool       fsetWriteBegin;
     int32_t    fid;
     STFileSet* fset;
-    SDiskID    did;
     int64_t    cid;
     int64_t    level;
 
@@ -371,7 +370,7 @@ static int32_t tsdbSnapRAWWriteFileSetOpenWriter(STsdbSnapRAWWriter* writer) {
       .szPage = writer->szPage,
       .fid = writer->ctx->fid,
       .cid = writer->commitID,
-      .did = writer->ctx->did,
+      .expLevel = writer->ctx->level,
       .level = writer->ctx->level,
   };
 
@@ -400,16 +399,10 @@ static int32_t tsdbSnapRAWWriteFileSetBegin(STsdbSnapRAWWriter* writer, int32_t 
   writer->ctx->fset = (fsetPtr == NULL) ? NULL : *fsetPtr;
 
   int32_t level = tsdbFidLevel(fid, &writer->tsdb->keepCfg, taosGetTimestampSec());
-  code = tfsAllocDisk(writer->tsdb->pVnode->pTfs, level, &writer->ctx->did);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tfsMkdirRecurAt(writer->tsdb->pVnode->pTfs, writer->tsdb->path, writer->ctx->did);
-  TSDB_CHECK_CODE(code, lino, _exit);
 
   code = tsdbSnapRAWWriteFileSetOpenWriter(writer);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  writer->ctx->level = level;
   writer->ctx->fsetWriteBegin = true;
 
 _exit:

@@ -6,7 +6,7 @@ description: 对表的各种管理操作
 
 ## 创建表
 
-`CREATE TABLE` 语句用于创建普通表和以超级表为模板创建子表。
+`CREATE TABLE` 语句用于创建普通表和以超级表为模板创建子表（也可以通过指定 TAGS 字段创建超级表）。
 
 ```sql
 CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definition] ...) [table_options]
@@ -44,7 +44,7 @@ table_option: {
 1. 表（列）名命名规则参见[名称命名规则](./19-limit.md#名称命名规则)。
 2. 表名最大长度为 192。
 3. 表的第一个字段必须是 TIMESTAMP，并且系统自动将其设为主键。
-4. 除时间戳主键列之外，还可以通过 PRIMARY KEY 关键字指定第二列为额外的主键列。被指定为主键列的第二列必须为整型或字符串类型（VARCHAR）。
+4. 除时间戳主键列之外，还可以通过 PRIMARY KEY 关键字指定第二列为额外的主键列，该列与时间戳列共同组成复合主键。当设置了复合主键时，两条记录的时间戳列与 PRIMARY KEY 列都相同，才会被认为是重复记录，数据库只保留最新的一条；否则视为两条记录，全部保留。注意：被指定为主键列的第二列必须为整型或字符串类型（VARCHAR）。
 5. 表的每行长度不能超过 48KB（从 3.0.5.0 版本开始为 64KB）;（注意：每个 VARCHAR/NCHAR/GEOMETRY 类型的列还会额外占用 2 个字节的存储位置）。
 6. 使用数据类型 VARCHAR/NCHAR/GEOMETRY，需指定其最长的字节数，如 VARCHAR(20)，表示 20 字节。
 7. 关于 `ENCODE` 和 `COMPRESS` 的使用，请参考[按列压缩](../compress)
@@ -171,7 +171,7 @@ ALTER TABLE [db_name.]tb_name alter_table_clause
 
 alter_table_clause: {
     alter_table_options
-  | SET TAG tag_name = new_tag_value,tag_name2=new_tag2_value...
+  | SET TAG tag_name = new_tag_value, tag_name2=new_tag2_value ...
 }
 
 alter_table_options:
@@ -195,7 +195,7 @@ alter_table_option: {
 ### 修改子表标签值
 
 ```
-ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
+ALTER TABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 ...;
 ```
 
 ### 修改表生命周期
@@ -218,7 +218,7 @@ ALTER TABLE tb_name COMMENT 'string_value'
 DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...
 ```
 
-**注意**：删除表并不会立即释放该表所占用的磁盘空间，而是把该表的数据标记为已删除，在查询时这些数据将不会再出现，但释放磁盘空间会延迟到系统自动或用户手动进行数据重整时。
+**注意**：删除表并不会立即释放该表所占用的磁盘空间，而是把该表的数据标记为已删除，在查询时这些数据将不会再出现，但释放磁盘空间会延迟到系统自动（建库参数 keep 生效）或用户手动进行数据重整时（企业版功能 compact）。
 
 ## 查看表的信息
 

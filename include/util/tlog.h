@@ -83,6 +83,10 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles, ELogMode mode);
 void    taosCloseLog();
 void    taosResetLog();
 void    taosDumpData(uint8_t *msg, int32_t len);
+void    taosSetNoNewFile();
+
+// Fast uint64_t to string conversion, equivalent to sprintf(buf, "%lu", val) but with 10x better performance.
+char *u64toaFastLut(uint64_t val, char *buf);
 
 void taosPrintLog(const char *flags, int32_t level, int32_t dflag, const char *format, ...)
 #ifdef __GNUC__
@@ -123,6 +127,11 @@ bool taosAssertRelease(bool condition);
 void taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, void *sigInfo);
 void taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr *pFd);
 void taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile);
+
+int32_t initCrashLogWriter();
+void    checkAndPrepareCrashInfo();
+bool    reportThreadSetQuit();
+void    writeCrashLogToFile(int signum, void *sigInfo, char *nodeType, int64_t clusterId, int64_t startTime);
 
 // clang-format off
 #define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", DEBUG_FATAL, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}

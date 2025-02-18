@@ -94,7 +94,7 @@ static void vmUnRegisterCreatingState(SVnodeMgmt *pMgmt, int32_t vgId) {
   dTrace("vgId:%d, remove from creating Hash", vgId);
   r = taosHashRemove(pMgmt->creatingHash, &vgId, sizeof(int32_t));
   if (r != 0) {
-    dError("vgId:%d, failed to remove vnode from hash", vgId);
+    dError("vgId:%d, failed to remove vnode from creatingHash", vgId);
   }
   (void)taosThreadRwlockUnlock(&pMgmt->lock);
 
@@ -395,8 +395,12 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal,
   while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
 
   tqNotifyClose(pVnode->pImpl->pTq);
+
   dInfo("vgId:%d, wait for vnode stream queue:%p is empty", pVnode->vgId, pVnode->pStreamQ);
   while (!taosQueueEmpty(pVnode->pStreamQ)) taosMsleep(10);
+
+  dInfo("vgId:%d, wait for vnode stream ctrl queue:%p is empty", pVnode->vgId, pVnode->pStreamCtrlQ);
+  while (!taosQueueEmpty(pVnode->pStreamCtrlQ)) taosMsleep(10);
 
   dInfo("vgId:%d, all vnode queues is empty", pVnode->vgId);
 
@@ -707,6 +711,21 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
   pMgmt->state.openVnodes = 0;
   dInfo("close %d vnodes with %d threads", numOfVnodes, threadNum);
 
+  int64_t st = taosGetTimestampMs();
+  dInfo("notify all streams closed in all %d vnodes, ts:%" PRId64, numOfVnodes, st);
+  if (ppVnodes != NULL) {
+    for (int32_t i = 0; i < numOfVnodes; ++i) {
+      if (ppVnodes[i] != NULL) {
+        if (ppVnodes[i]->pImpl != NULL) {
+          tqNotifyClose(ppVnodes[i]->pImpl->pTq);
+        }
+      }
+    }
+  }
+
+  int64_t et = taosGetTimestampMs();
+  dInfo("notify close stream completed in %d vnodes, elapsed time: %" PRId64 "ms", numOfVnodes, et - st);
+
   for (int32_t t = 0; t < threadNum; ++t) {
     SVnodeThread *pThread = &threads[t];
     if (pThread->vnodeNum == 0) continue;
@@ -714,6 +733,7 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
     TdThreadAttr thAttr;
     (void)taosThreadAttrInit(&thAttr);
     (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+
     if (taosThreadCreate(&pThread->thread, &thAttr, vmCloseVnodeInThread, pThread) != 0) {
       dError("thread:%d, failed to create thread to close vnode since %s", pThread->threadIndex, strerror(errno));
     }
@@ -896,7 +916,7 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
   tmsgReportStartup("vnode-sync", "initialized");
 
-  if ((code = vnodeInit(tsNumOfCommitThreads, pInput->stopDnodeFp)) != 0) {
+  if ((code = vnodeInit(pInput->stopDnodeFp)) != 0) {
     dError("failed to init vnode since %s", tstrerror(code));
     goto _OVER;
   }

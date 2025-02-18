@@ -84,9 +84,11 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
   
   calcSortOperMaxTupleLength(pInfo, pSortNode->pSortKeys);
   pInfo->maxRows = -1;
-  if (pSortNode->node.pLimit) {
+  if (pSortNode->node.pLimit && ((SLimitNode*)pSortNode->node.pLimit)->limit) {
     SLimitNode* pLimit = (SLimitNode*)pSortNode->node.pLimit;
-    if (pLimit->limit > 0) pInfo->maxRows = pLimit->limit + pLimit->offset;
+    if (pLimit->limit->datum.i > 0) {
+      pInfo->maxRows = pLimit->limit->datum.i + (pLimit->offset ? pLimit->offset->datum.i : 0);
+    }
   }
 
   pOperator->exprSupp.pCtx =
@@ -112,10 +114,10 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
       goto _error;
     }
     SNodeList* pSortColsNodeArr = makeColsNodeArrFromSortKeys(pSortNode->pSortKeys);
-    if (!pSortColsNodeArr) code = TSDB_CODE_OUT_OF_MEMORY;
+    if (!pSortColsNodeArr) code = terrno;
     if (TSDB_CODE_SUCCESS == code) {
       pGroupIdCalc->pSortColsArr = makeColumnArrayFromList(pSortColsNodeArr);
-      if (!pGroupIdCalc->pSortColsArr) code = TSDB_CODE_OUT_OF_MEMORY;
+      if (!pGroupIdCalc->pSortColsArr) code = terrno;
       nodesClearList(pSortColsNodeArr);
     }
     if (TSDB_CODE_SUCCESS == code) {

@@ -630,7 +630,7 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
     int32_t     ret = setTimeWindowOutputBuf(pResultRowInfo, &w, (scanFlag == MAIN_SCAN), &pResult, groupId, pSup->pCtx,
                                              numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
     if (ret != TSDB_CODE_SUCCESS) {
-      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
+      T_LONG_JMP(pTaskInfo->env, ret);
     }
 
     if(isResultRowInterpolated(pResult, RESULT_ROW_END_INTERP)) {
@@ -711,7 +711,7 @@ static bool filterWindowWithLimit(SIntervalAggOperatorInfo* pOperatorInfo, STime
   if (pOperatorInfo->limit == 0) return true;
 
   if (pOperatorInfo->pBQ == NULL) {
-    pOperatorInfo->pBQ = createBoundedQueue(pOperatorInfo->limit - 1, tsKeyCompFn, taosMemoryFree, pOperatorInfo);
+    pOperatorInfo->pBQ = createBoundedQueue(pOperatorInfo->limit - 1, tsKeyCompFn, taosAutoMemoryFree, pOperatorInfo);
     QUERY_CHECK_NULL(pOperatorInfo->pBQ, code, lino, _end, terrno);
   }
 
@@ -780,7 +780,7 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   int32_t ret = setTimeWindowOutputBuf(pResultRowInfo, &win, (scanFlag == MAIN_SCAN), &pResult, tableGroupId,
                                        pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
   if (ret != TSDB_CODE_SUCCESS || pResult == NULL) {
-    T_LONG_JMP(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
+    T_LONG_JMP(pTaskInfo->env, ret);
   }
 
   TSKEY   ekey = ascScan ? win.ekey : win.skey;
@@ -827,7 +827,7 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
     int32_t code = setTimeWindowOutputBuf(pResultRowInfo, &nextWin, (scanFlag == MAIN_SCAN), &pResult, tableGroupId,
                                           pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
     if (code != TSDB_CODE_SUCCESS || pResult == NULL) {
-      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
+      T_LONG_JMP(pTaskInfo->env, code);
     }
 
     ekey = ascScan ? nextWin.ekey : nextWin.skey;
@@ -1417,15 +1417,15 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
   pInfo->interval = interval;
   pInfo->twAggSup = as;
   pInfo->binfo.mergeResultBlock = pPhyNode->window.mergeDataBlock;
-  if (pPhyNode->window.node.pLimit) {
+  if (pPhyNode->window.node.pLimit && ((SLimitNode*)pPhyNode->window.node.pLimit)->limit) {
     SLimitNode* pLimit = (SLimitNode*)pPhyNode->window.node.pLimit;
     pInfo->limited = true;
-    pInfo->limit = pLimit->limit + pLimit->offset;
+    pInfo->limit = pLimit->limit->datum.i + (pLimit->offset ? pLimit->offset->datum.i : 0);
   }
-  if (pPhyNode->window.node.pSlimit) {
+  if (pPhyNode->window.node.pSlimit && ((SLimitNode*)pPhyNode->window.node.pSlimit)->limit) {
     SLimitNode* pLimit = (SLimitNode*)pPhyNode->window.node.pSlimit;
     pInfo->slimited = true;
-    pInfo->slimit = pLimit->limit + pLimit->offset;
+    pInfo->slimit = pLimit->limit->datum.i + (pLimit->offset ? pLimit->offset->datum.i : 0);
     pInfo->curGroupId = UINT64_MAX;
   }
 
@@ -1582,7 +1582,6 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
   SOptrBasicInfo*          pBInfo = &pInfo->binfo;
   SExprSupp*               pSup = &pOperator->exprSupp;
 
-  pInfo->cleanGroupResInfo = false;
   if (pOperator->status == OP_RES_TO_RETURN) {
     while (1) {
       doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
@@ -1609,6 +1608,7 @@ static int32_t doSessionWindowAggNext(SOperatorInfo* pOperator, SSDataBlock** pp
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
+  pInfo->cleanGroupResInfo = false;
   while (1) {
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
@@ -1922,7 +1922,7 @@ static void doMergeAlignedIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultR
 
   STimeWindow win = {0};
   win.skey = miaInfo->curTs;
-  win.ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+  win.ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
 
   int32_t ret = setSingleOutputTupleBuf(pResultRowInfo, &win, &miaInfo->pResultRow, pSup, &iaInfo->aggSup);
   if (ret != TSDB_CODE_SUCCESS || miaInfo->pResultRow == NULL) {
@@ -1949,7 +1949,7 @@ static void doMergeAlignedIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultR
     miaInfo->curTs = tsCols[currPos];
 
     currWin.skey = miaInfo->curTs;
-    currWin.ekey = taosTimeAdd(currWin.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision) - 1;
+    currWin.ekey = taosTimeAdd(currWin.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
 
     startPos = currPos;
     ret = setSingleOutputTupleBuf(pResultRowInfo, &win, &miaInfo->pResultRow, pSup, &iaInfo->aggSup);
@@ -2271,7 +2271,7 @@ static void doMergeIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultRowInfo*
       setTimeWindowOutputBuf(pResultRowInfo, &win, (scanFlag == MAIN_SCAN), &pResult, tableGroupId, pExprSup->pCtx,
                              numOfOutput, pExprSup->rowEntryInfoOffset, &iaInfo->aggSup, pTaskInfo);
   if (ret != TSDB_CODE_SUCCESS || pResult == NULL) {
-    T_LONG_JMP(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
+    T_LONG_JMP(pTaskInfo->env, ret);
   }
 
   TSKEY   ekey = ascScan ? win.ekey : win.skey;
@@ -2312,7 +2312,7 @@ static void doMergeIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultRowInfo*
   int32_t code = outputPrevIntervalResult(pOperatorInfo, tableGroupId, pResultBlock, &win);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-    T_LONG_JMP(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
+    T_LONG_JMP(pTaskInfo->env, code);
   }
 
   STimeWindow nextWin = win;
@@ -2329,7 +2329,7 @@ static void doMergeIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultRowInfo*
         setTimeWindowOutputBuf(pResultRowInfo, &nextWin, (scanFlag == MAIN_SCAN), &pResult, tableGroupId,
                                pExprSup->pCtx, numOfOutput, pExprSup->rowEntryInfoOffset, &iaInfo->aggSup, pTaskInfo);
     if (code != TSDB_CODE_SUCCESS || pResult == NULL) {
-      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
+      T_LONG_JMP(pTaskInfo->env, code);
     }
 
     ekey = ascScan ? nextWin.ekey : nextWin.skey;
@@ -2354,7 +2354,7 @@ static void doMergeIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultRowInfo*
     code = outputPrevIntervalResult(pOperatorInfo, tableGroupId, pResultBlock, &nextWin);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
+      T_LONG_JMP(pTaskInfo->env, code);
     }
   }
 
