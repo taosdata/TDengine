@@ -61,8 +61,6 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
     }
 
     pTask->pState = streamStateOpen(pMeta->path, pTask, streamId, taskId);
-    pTask->pRecalState = NULL;
-
     if (pTask->pState == NULL) {
       tqError("s-task:%s (vgId:%d) failed to open state for task, expand task failed", pTask->id.idStr, vgId);
       return terrno;
@@ -73,10 +71,10 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
 
   SReadHandle handle = {
       .checkpointId = pTask->chkInfo.checkpointId,
-      .pStateBackend = NULL,//pTask->pState,
+      .pStateBackend = NULL,
       .fillHistory = pTask->info.fillHistory,
       .winRange = pTask->dataRange.window,
-      .pOtherBackend = NULL,//pTask->pRecalState,
+      .pOtherBackend = NULL,
   };
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
@@ -90,7 +88,7 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE || pTask->info.taskLevel == TASK_LEVEL__AGG) {
     if (pTask->info.fillHistory == STREAM_RECALCUL_TASK) {
-      handle.pStateBackend = pTask->pRecalBackend;
+      handle.pStateBackend = pTask->pRecalState;
       handle.pOtherBackend = pTask->pState;
     } else {
       handle.pStateBackend = pTask->pState;
