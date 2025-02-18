@@ -42,7 +42,7 @@ column_definition:
     type_name [COMMENT 'string_value']
 ```
 
-subtable 子句定义了流式计算中创建的子表的命名规则，详见 [流式计算的 partition](#流式计算的 partitionG)。
+subtable 子句定义了流式计算中创建的子表的命名规则，详见 [流式计算的 partition](#流式计算的 partition)。
 
 ```sql
 window_clause: {
