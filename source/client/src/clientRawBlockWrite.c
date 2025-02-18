@@ -538,7 +538,7 @@ static cJSON* processAlterTable(SMqMetaRsp* metaRsp) {
           if(vAlterTbReq.tagType == TSDB_DATA_TYPE_VARBINARY){
             buf = taosMemoryCalloc(vAlterTbReq.nTagVal*2 + 2 + 3, 1);
           }else{
-            buf = taosMemoryCalloc(vAlterTbReq.nTagVal + 3, 1);
+            buf = taosMemoryCalloc(vAlterTbReq.nTagVal + 32, 1);
           }
           dataConverToStr(buf, vAlterTbReq.tagType, vAlterTbReq.pTagVal, vAlterTbReq.nTagVal, NULL);
         }
@@ -1964,8 +1964,6 @@ static cJSON* processSimpleMeta(SMqMetaRsp* pMetaRsp) {
     return processCreateTable(pMetaRsp);
   } else if (pMetaRsp->resMsgType == TDMT_VND_ALTER_TABLE) {
     return processAlterTable(pMetaRsp);
-  } else if (pMetaRsp->resMsgType == TDMT_VND_DROP_TABLE) {
-    return processDropTable(pMetaRsp);
   } else if (pMetaRsp->resMsgType == TDMT_VND_DROP_TABLE) {
     return processDropTable(pMetaRsp);
   } else if (pMetaRsp->resMsgType == TDMT_VND_DELETE) {
