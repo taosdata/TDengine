@@ -473,6 +473,9 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       shellFormatTimestamp(buf, sizeof(buf), *(int64_t *)val, precision);
       taosFprintfFile(pFile, "%s%s%s", quotationStr, buf, quotationStr);
       break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+    case TSDB_DATA_TYPE_DECIMAL:
+      taosFprintfFile(pFile, "%s", val);
     default:
       break;
   }
