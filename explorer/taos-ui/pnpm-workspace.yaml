@@ -1,0 +1,8 @@
+packages:
+  - 'assets'
+  - 'utils'
+  - 'locales'
+  - 'constants'
+  - 'components'
+  - 'hooks'
+  - 'config'

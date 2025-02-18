@@ -2,66 +2,61 @@
   <div id="app">
     <router-view :key="key"></router-view>
     <el-dialog
-      :visible.sync="dialogVisible"
+      v-model:visible="dialogVisible"
       :close-on-click-modal="false"
       v-bind="dialogConfig"
     >
       <component
         :is="dialogComponent"
+        v-bind="dialogParams"
         v-on="dialogListenter"
         @close="dialogVisible = false"
-        v-bind="dialogParams"
       ></component>
     </el-dialog>
-    <systemMes v-if="$COMMUNITY && showSystemMes"/>
+    <systemMes v-if="$IS_COMMUNITY && showSystemMes" />
   </div>
 </template>
 
-<script>
-import { mapState } from "vuex";
-import systemMes from './components/communityMes'
-export default {
-  name: "App",
-  components: {systemMes},
-  computed: {
-    key() {
-      return this.$store.state.app.current_cluster?.id || "";
-    },
-    ...mapState({
-      dialogConfig: (state) => state.dialogConfig,
-      dialogParams: (state) => state.dialogParams,
-      dialogListenter: (state) => state.dialogListenters,
-      dialogComponent: (state) => state.dialogComponent,
-      showSystemMes: (state) => state.app.showSystemMes
-    }),
-    dialogVisible: {
-      get() {
-        return this.$store.state.dialogVisible;
-      },
-      set(val) {
-        this.$store.commit("SET_DIALOG_VISIBLE", val);
-      },
-    },
-  },
-  mounted() {
-    this.$nextTick(() => {
-      if (
-        process.env.VUE_APP_CUS_NAME &&
-        process.env.VUE_APP_CUS_NAME !== "TDengine"
-      ) {
-        //是oem需要单独处理
-        let link =
-          document.querySelector("link[rel*='icon']") ||
-          document.createElement("link");
-        let title = document.querySelector("title");
-        title.innerText = process.env.VUE_APP_CUS_NAME;
-        link.remove();
-      }
-    });
-  },
- 
+<script setup lang="ts">
+import { useStore } from "vuex";
+import systemMes from "./components/communityMes.vue";
+const store = useStore();
+const { $IS_COMMUNITY, $IS_OEM } = inject("globalCustomProperties") as GlobalCustomProperties;
 
-};
+const key = computed(() => {
+  return store.state.app.current_cluster?.id || "";
+});
+const showSystemMes = computed(() => store.state.app.showSystemMes)
+const dialogConfig = computed(() => store.state.dialogConfig)
+const dialogParams = computed(() => store.state.dialogParams)
+const dialogListenter = computed(() => store.state.dialogListenters) 
+const dialogComponent = computed(() => store.state.dialogComponent) 
+const dialogVisible = computed({
+  get() {
+    return store.state.dialogVisible;
+  },
+  set(val) {
+    store.commit("SET_DIALOG_VISIBLE", val);
+  },
+});
+
+if ($IS_COMMUNITY) {
+  store.commit('app/SET_SHOW_SYSTEM_MES', true)
+}
+
+onMounted(() => {
+  nextTick(() => {
+    if ($IS_OEM) {
+      //是oem需要单独处理
+      const link =
+        document.querySelector("link[rel*='icon']") ||
+        document.createElement("link");
+      const title = document.querySelector("title") as HTMLElement;
+      title.innerText = import.meta.env.VITE_APP_CUS_NAME;
+      link.remove();
+    }
+  });
+});
 </script>
 
 <style lang="scss" scoped>
@@ -70,7 +65,7 @@ export default {
 }
 </style>
 <style lang="scss">
-.el-table th.el-table__cell > .cell{
+.el-table th.el-table__cell > .cell {
   white-space: nowrap;
 }
 </style>

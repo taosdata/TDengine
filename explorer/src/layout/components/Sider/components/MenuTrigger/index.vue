@@ -8,22 +8,17 @@
   </div>
 </template>
 
-<script>
-import Icon from "@/components/Icon";
-import { mapState } from "vuex";
+<script setup lang="ts">
+import Icon from "@/components/Icon/index.vue";
+import { useStore } from "vuex";
 
-export default {
-  components: { Icon },
-  data() {
-    return {};
-  },
-  computed: mapState("sidebar", ["opened"]),
-  methods: {
-    triggerClick() {
-      this.$store.commit("sidebar/TOGGLE_SIDEBAR");
-    }
-  }
-};
+const store = useStore()
+const opened = computed(() => store.state.sidebar.opened)
+
+function triggerClick() {
+  store.commit("sidebar/TOGGLE_SIDEBAR");
+}
+
 </script>
 
 <style scoped>

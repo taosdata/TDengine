@@ -765,17 +765,25 @@ dependencies = ["fmt", "clippy", "test-without-cov"]
 [tasks.explorer-ui]
 cwd = "explorer"
 script = """
-yarn install && yarn build
+pnpm install && pnpm run build
 """
 [tasks.explorer-ui.linux]
 script_runner = "bash"
 script = """
 # Load nvm
+NVM_DIR=${NVM_DIR:-$HOME/.nvm}
 if [ -d "$NVM_DIR" ]; then
   [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-  nvm --version && [ -e .nvmrc ] && nvm use || true
+  nvm --version && [ -e .nvmrc ] && nvm use v22 || nvm install v22 || true
 fi
-yarn install && yarn build
+
+# Node.js version
+node --version
+
+# Update PNPM to latest
+pnpm --version && pnpm self-update || npm install -g pnpm
+
+pnpm install && pnpm build
 """
 
 [tasks.explorer]
@@ -824,6 +832,21 @@ install_crate = { crate_name = "cargo-llvm-cov", binary = "cargo-llvm-cov", rust
 install_crate = { crate_name = "cargo-nextest", binary = "cargo-nextest", test_arg = "--version" }
 [tasks.install-toml-cli]
 install_crate = { crate_name = "toml-cli", binary = "toml", test_arg = "--version" }
+[tasks.install-nvm]
+windows_alias = "empty"
+install_script = """
+echo "Install NVM"
+set -ex
+nvm_exec=$(command -v nvm || true)
+echo $nvm_exec
+nvm_version=$(nvm --version || true)
+if [ "$NVM_DIR" = "" ] && [ "$NVM_BIN" = "" ] && [ "$nvm_exec" = "" ] && [ "$nvm_version" = "" ]; then
+  echo "NVM not installed"
+  #curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+else
+  echo "NVM already installed"
+fi
+"""
 [tasks.assert-explorer-dist]
 private = true
 script_runner = "@duckscript"

@@ -1,0 +1,68 @@
+# Triggered by pull request or push to develop branch
+# Test Nodejs connector.
+name: native 3.0 on push&pull
+
+on:
+  push:
+    branches: [ '3.0' ]
+  pull_request:
+    branches: [ '3.0' ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-20.04
+
+    strategy:
+      matrix:
+        node-version: [12.x]
+    
+    steps:
+
+    - name: Build Tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake
+        sudo apt-get install -y python3 python3-pip python-is-python3
+
+    - name: Checkout TDengine 3.0
+      uses: actions/checkout@v3
+      with:
+          fetch-depth: 1
+          repository: 'taosdata/TDengine'
+          path: 'TDengine'
+          ref: '3.0'
+
+    - name: Build TDengine 3.0
+      run: |
+          cd TDengine
+          mkdir debug
+          cd debug
+          cmake ..  
+          make -j8  
+          sudo make install
+          
+    - name: shell
+      run: |
+        cat >start.sh<<EOF
+        ulimit -n 65535 && TAOS_SUPPORT_VNODES=256 taosd
+        EOF
+    - name: start taosd
+      run: nohup sudo sh ./start.sh &   
+
+    - name: checkout nodejs 3.0
+      uses: actions/checkout@v3
+      with:
+          path : "node-taos"
+
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+
+    - name: test nodejs
+      working-directory: node-taos/nodejs
+      run: |
+        ls -al
+        npm install
+        npm run test

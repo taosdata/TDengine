@@ -1,93 +1,77 @@
 <template>
-  <div class="layout_wrapper" :class="sider_style">
+  <div class="layout-wrapper" :class="sider_style">
     <Sider class="sider"></Sider>
     <div class="main">
       <LayoutHeader :reload="reload"></LayoutHeader>
-      <main class="main_content">
+      <main class="main-content">
         <router-view v-if="isRouterAlive"></router-view>
       </main>
     </div>
-    <UpgradeDialog />
-    <ContactDialog v-if="contactDialogVisible" v-model="contactDialogVisible" />
   </div>
 </template>
 
-<script>
-  import { Sider, LayoutHeader } from "./components";
-  import ResizeMixin from "./mixin/ResizeHandler";
-  import UpgradeDialog from "./components/upgradeDialog.vue";
-  import ContactDialog from "./components/ContactUs/popup.vue";
-  export default {
-    components: {
-      Sider,
-      LayoutHeader,
-      UpgradeDialog,
-      ContactDialog,
-    },
-    mixins: [ResizeMixin],
-    data() {
-      return {
-        isRouterAlive: true,
-      }
-    },
-    computed: {
-      sider_style() {
-        return this.$store.state.sidebar.opened ? "sider_unfold" : "sider_fold";
-      },
-      contactDialogVisible: {
-        get() {
-          return this.$store.state.contactDialogVisible;
-        },
-        set(val) {
-          this.$store.commit("SET_CONTACT_DIALOG_VISIBLE", val);
-        },
-      },
-      timezone() {
-        return this.$store.state.app.timeZone
-      }
-    },
-    mounted() {},
-    methods: {
-      reload() {
-        this.isRouterAlive = false
-        this.$nextTick(() => {
-          this.isRouterAlive = true
-        })
-      }
-    },
-    watch: {
-      timezone() {
-        this.reload()
-      }
-    }
-  };
+<script setup lang="ts">
+import { useStore } from 'vuex';
+import { Sider, LayoutHeader } from './components/index';
+import { useResizeHandler } from '@/hooks/useResizeHandler';
+
+const store = useStore();
+const { $_initResizeEvent, $_destroyResizeEvent } = useResizeHandler();
+const isRouterAlive = ref<boolean>(true);
+
+const sider_style = computed(() => {
+  return store.state.sidebar.opened ? 'sider_unfold' : 'sider_fold';
+});
+
+const timezone = computed(() => {
+  return store.state.app.timeZone;
+});
+
+watch(timezone, () => {
+  reload();
+});
+
+function reload() {
+  isRouterAlive.value = false;
+  nextTick(() => {
+    isRouterAlive.value = true;
+  });
+}
+
+onMounted(() => {
+  $_initResizeEvent();
+});
+
+onBeforeUnmount(() => {
+  $_destroyResizeEvent();
+});
 </script>
 
-<style scoped>
-  .layout_wrapper {
-    height: 100%;
-    display: flex;
-    flex-direction: row;
-  }
+<style scoped lang="scss">
+.layout-wrapper {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+}
 
-  .sider {
-    height: 100%;
-    flex-shrink: 0;
-  }
+.sider {
+  flex-shrink: 0;
+  height: 100%;
+}
 
-  .main {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    overflow-x: auto;
-  }
+.main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  overflow-x: auto;
+}
 
-  .main_content {
-    min-height: calc(100% - 58px);
-    flex: 1;
-    width: 100%;
-    background-color: var(--color-background-layout-main);
-    padding: 15px;
-    overflow-y: auto;
-  }
+.main-content {
+  flex: 1;
+  width: 100%;
+  min-height: calc(100% - 58px);
+  padding: 15px;
+  overflow-y: auto;
+  background-color: #f2f3f3;
+}
 </style>
