@@ -3860,10 +3860,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   SNode* pGroupNode = NULL;
   FOREACH(pGroupNode, getGroupByList(pCxt)) {
     SNode* pActualNode = getGroupByNode(pGroupNode);
-    if (nodesEqualNode(pActualNode, *pNode)) {
-      return DEAL_RES_IGNORE_CHILD;
-    }
-    if (IsEqualTbNameFuncNode(pSelect, pActualNode, *pNode)) {
+    if (nodesEqualNode(pActualNode, *pNode) || IsEqualTbNameFuncNode(pSelect, pActualNode, *pNode)) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
     if (isTbnameFuction(pActualNode) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
@@ -3893,11 +3890,22 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
     }
   }
 
-  if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
-    if (((pSelect->selectFuncNum > 1 && pCxt->stableQuery) || (isDistinctOrderBy(pCxt) && pCxt->currClause == SQL_CLAUSE_ORDER_BY)) &&
-                                          !isRelatedToOtherExpr((SExprNode*)*pNode)) {
+  if (isScanPseudoColumnFunc(*pNode)) {
+    if (((pSelect->selectFuncNum > 1 && pCxt->stableQuery) ||
+         (isDistinctOrderBy(pCxt) && pCxt->currClause == SQL_CLAUSE_ORDER_BY)) &&
+        !isRelatedToOtherExpr((SExprNode*)*pNode)) {
       return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
     }
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+    if (((pSelect->selectFuncNum > 1) || (isDistinctOrderBy(pCxt) && pCxt->currClause == SQL_CLAUSE_ORDER_BY)) &&
+        !isRelatedToOtherExpr((SExprNode*)*pNode)) {
+      return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt), ((SExprNode*)(*pNode))->userAlias);
+    }
+  }
+
+  if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
     if (isWindowJoinStmt(pSelect) &&
         (isWindowJoinProbeTableCol(pSelect, *pNode) || isWindowJoinGroupCol(pSelect, *pNode) ||
          (isWindowJoinSubTbname(pSelect, *pNode)) || isWindowJoinSubTbTag(pSelect, *pNode))) {
