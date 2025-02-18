@@ -93,6 +93,12 @@ typedef struct SCpdCollectTableColCxt {
   int32_t    errCode;
 } SCpdCollectTableColCxt;
 
+typedef struct SCollectColsCxt {
+  SHashObj*  pColHash;
+  int32_t    errCode;
+} SCollectColsCxt;
+
+
 typedef enum ECondAction {
   COND_ACTION_STAY = 1,
   COND_ACTION_PUSH_JOIN,
@@ -3302,8 +3308,51 @@ static int32_t partTagsRewriteGroupTagsToFuncs(SNodeList* pGroupTags, int32_t st
   return code;
 }
 
+static EDealRes partTagsCollectColsNodes(SNode* pNode, void* pContext) {
+  SCollectColsCxt* pCxt = pContext;
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (NULL == taosHashGet(pCxt->pColHash, pCol->colName, strlen(pCol->colName))) {
+      pCxt->errCode = taosHashPut(pCxt->pColHash, pCol->colName, strlen(pCol->colName), NULL, 0);
+    }
+  }
+
+  return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR);
+}
+
+
+static bool partTagsIsScanPseudoColsInConds(SScanLogicNode* pScan) {
+  SCollectColsCxt cxt = {
+      .errCode = TSDB_CODE_SUCCESS,
+      .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
+  if (NULL == cxt.pColHash) {
+    return true;
+  }
+
+  nodesWalkExpr(pScan->node.pConditions, partTagsCollectColsNodes, &cxt);
+  if (cxt.errCode) {
+    taosHashCleanup(cxt.pColHash);
+    return true;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pScan->pScanPseudoCols) {
+    if (taosHashGet(cxt.pColHash, ((SExprNode*)pNode)->aliasName, strlen(((SExprNode*)pNode)->aliasName))) {
+      taosHashCleanup(cxt.pColHash);
+      return true;
+    }
+  }
+
+  taosHashCleanup(cxt.pColHash);
+  return false;
+}
+
 static int32_t partTagsOptRemovePseudoCols(SScanLogicNode* pScan) {
   if (!pScan->noPseudoRefAfterGrp || NULL == pScan->pScanPseudoCols || pScan->pScanPseudoCols->length <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pScan->node.pConditions && partTagsIsScanPseudoColsInConds(pScan)) {
     return TSDB_CODE_SUCCESS;
   }
 
