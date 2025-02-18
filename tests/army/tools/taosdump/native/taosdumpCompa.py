@@ -59,9 +59,7 @@ class TDTestCase(TBase):
         # sum pk db
         sql = f"select {aggfun} from {db}.{stb}"
         tdSql.query(sql)
-        tdSql.checkData(0, 0, expect)
-
-
+        tdSql.checkData(0, 0, expect, show=True)
 
     def verifyResult(self, db):
         
