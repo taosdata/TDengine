@@ -49,22 +49,6 @@
 // ---------------- define ----------------
 //
 
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
-#include <cus_name.h>
-#else
-#ifndef CUS_NAME
-    #define CUS_NAME      "TDengine"
-#endif
-
-#ifndef CUS_PROMPT
-    #define CUS_PROMPT    "taos"
-#endif
-
-#ifndef CUS_EMAIL
-    #define CUS_EMAIL     "<support@taosdata.com>"
-#endif
-#endif
-
 
 // use 256 as normal buffer length
 #define BUFFER_LEN              256
