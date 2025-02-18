@@ -31,8 +31,9 @@ static int32_t tqAddRawDataToRsp(const void* rawData, SMqDataRsp* pRsp, int8_t p
   memcpy(pRetrieve->data, rawData, *(uint32_t *)rawData + INT_BYTES);
   TSDB_CHECK_NULL(taosArrayPush(pRsp->blockDataLen, &dataStrLen), code, lino, END, terrno);
   TSDB_CHECK_NULL(taosArrayPush(pRsp->blockData, &buf), code, lino, END, terrno);
+  pRsp->blockDataElementFree = true;
 
-  tqTrace("add block data to block array, blockDataLen:%d, blockData:%p", dataStrLen, buf);
+  tqTrace("tqAddRawDataToRsp add block data to block array, blockDataLen:%d, blockData:%p", dataStrLen, buf);
   END:
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(buf);
@@ -63,12 +64,13 @@ static int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, 
   TSDB_CHECK_NULL(taosArrayPush(pRsp->blockDataLen, &actualLen), code, lino, END, terrno);
   TSDB_CHECK_NULL(taosArrayPush(pRsp->blockData, &buf), code, lino, END, terrno);
   pRsp->blockDataElementFree = true;
-  buf = NULL;
+  tqTrace("tqAddBlockDataToRsp add block data to block array, blockDataLen:%d, blockData:%p", dataStrLen, buf);
+
 END:
-  if (code != 0){
+  if (code != TSDB_CODE_SUCCESS){
+    taosMemoryFree(buf);
     tqError("%s failed at line %d with msg:%s", __func__, lino, tstrerror(code));
   }
-  taosMemoryFree(buf);
   return code;
 }
 
@@ -400,10 +402,6 @@ static void preProcessSubmitMsg(STqHandle* pHandle, const SMqPollReq* pRequest, 
       return;
     }
 
-    if (pSubmitTbData->pCreateTbReq == NULL){
-      continue;
-    }
-
     int64_t uid = pSubmitTbData->uid;
     if (taosHashGet(pRequest->uidHash, &uid, LONG_BYTES) != NULL) {
       tqDebug("poll rawdata split,uid:%" PRId64 " is already exists", uid);
@@ -414,6 +412,10 @@ static void preProcessSubmitMsg(STqHandle* pHandle, const SMqPollReq* pRequest, 
       if (code != 0){
         tqError("failed to add table uid to hash, code:%d, uid:%"PRId64, code, uid);
       }
+    }
+
+    if (pSubmitTbData->pCreateTbReq == NULL){
+      continue;
     }
 
     int64_t createTime = 0;

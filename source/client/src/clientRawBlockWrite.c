@@ -2608,7 +2608,7 @@ void tmq_free_raw(tmq_raw_data raw) {
       raw.raw_type == RES_TYPE__TMQ_METADATA) {
     taosMemoryFree(raw.raw);
   } else if(raw.raw_type == RES_TYPE__TMQ_RAWDATA && raw.raw != NULL){
-    taosMemoryFree(raw.raw - sizeof(SMqRspHead));
+    taosMemoryFree(POINTER_SHIFT(raw.raw, - sizeof(SMqRspHead)));
   }
   (void)memset(terrMsg, 0, ERR_MSG_LEN);
 }
