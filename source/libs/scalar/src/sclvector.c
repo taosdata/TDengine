@@ -428,6 +428,7 @@ _return:
 }
 
 static FORCE_INLINE int32_t varToGeometry(char *buf, SScalarParam *pOut, int32_t rowIndex, int32_t *overflow) {
+#ifdef USE_GEOS
   //[ToDo] support to parse WKB as well as WKT
   int32_t        code = TSDB_CODE_SUCCESS;
   size_t         len = 0;
@@ -464,8 +465,10 @@ _return:
   VarDataLenT dummyHeader = 0;
   SCL_ERR_RET(colDataSetVal(pOut->columnData, rowIndex, (const char *)&dummyHeader, false));
   SCL_RET(code);
+#else
+  SCL_ERR_RET(TSDB_CODE_OPS_NOT_SUPPORT);
+#endif
 }
-
 // TODO opt performance, tmp is not needed.
 int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
   int32_t code = TSDB_CODE_SUCCESS;

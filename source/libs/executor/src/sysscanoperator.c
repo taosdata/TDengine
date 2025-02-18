@@ -1012,6 +1012,7 @@ int32_t convertTagDataToStr(char* str, int32_t strBuffLen, int type, void* buf, 
 }
 
 static int32_t sysTableGetGeomText(char* iGeom, int32_t nGeom, char** output, int32_t* nOutput) {
+#ifdef USE_GEOS
   int32_t code = 0;
   char*   outputWKT = NULL;
 
@@ -1033,6 +1034,9 @@ static int32_t sysTableGetGeomText(char* iGeom, int32_t nGeom, char** output, in
   *nOutput = strlen(outputWKT);
 
   return code;
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
 }
 
 static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smrSuperTable,
