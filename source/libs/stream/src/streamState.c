@@ -263,8 +263,8 @@ int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, in
   return addRowBuffIfNotExist(pState->pFileState, (void*)key, sizeof(SWinKey), pVal, pVLen, pWinCode);
 }
 
-bool streamStateCheck(SStreamState* pState, const SWinKey* pKey) {
-  return hasRowBuff(pState->pFileState, pKey);
+bool streamStateCheck(SStreamState* pState, const SWinKey* pKey, bool hasLimit) {
+  return hasRowBuff(pState->pFileState, pKey, hasLimit);
 }
 
 int32_t streamStateGetByPos(SStreamState* pState, void* pos, void** pVal) {

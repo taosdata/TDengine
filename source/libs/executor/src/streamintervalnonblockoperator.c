@@ -480,6 +480,9 @@ static int32_t doProcessRecalculateReq(SOperatorInfo* pOperator, SSDataBlock* pB
   TSKEY*                            calEnTsCols = (TSKEY*)pCalEnTsCol->pData;
   SColumnInfoData*                  pGpCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   uint64_t*                         pGpDatas = (uint64_t*)pGpCol->pData;
+  SColumnInfoData*                  pUidCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
+  uint64_t*                         pUidDatas = (uint64_t*)pUidCol->pData;
+
   for (int32_t i = 0; i < pBlock->info.rows; i++) {
     SResultRowInfo dumyInfo = {0};
     dumyInfo.cur.pageId = -1;
@@ -499,12 +502,12 @@ static int32_t doProcessRecalculateReq(SOperatorInfo* pOperator, SSDataBlock* pB
       }
 
       SWinKey key = {.ts = win.skey, .groupId = pGpDatas[i]};
-      if (pInfo->streamAggSup.stateStore.streamStateCheck(pInfo->streamAggSup.pState, &key)) {
+      if (pInfo->streamAggSup.stateStore.streamStateCheck(pInfo->streamAggSup.pState, &key, isFinalOperator(&pInfo->basic))) {
         pInfo->streamAggSup.stateStore.streamStateSetRecFlag(pInfo->streamAggSup.pState, &key, sizeof(SWinKey),
                                                              pBlock->info.type);
       } else {
         SSessionKey winKey = {.win = win, .groupId = key.groupId};
-        code = saveRecWindowToDisc(&winKey, pBlock->info.id.uid, pBlock->info.type, pInfo->basic.pTsDataState, &pInfo->streamAggSup);
+        code = saveRecWindowToDisc(&winKey, pUidDatas[i], pBlock->info.type, pInfo->basic.pTsDataState, &pInfo->streamAggSup);
         QUERY_CHECK_CODE(code, lino, _end);
       }
       getNextTimeWindow(pInterval, &win, TSDB_ORDER_ASC);
@@ -825,7 +828,7 @@ bool isDataDeletedStreamWindow(SStreamIntervalSliceOperatorInfo* pInfo, STimeWin
   SStreamAggSupporter* pAggSup = &pInfo->streamAggSup;
   if (pWin->skey < pInfo->nbSup.tsOfKeep) {
     SWinKey key = {.ts = pWin->skey, .groupId = groupId};
-    return !(pAggSup->stateStore.streamStateCheck(pAggSup->pState, &key));
+    return !(pAggSup->stateStore.streamStateCheck(pAggSup->pState, &key, isFinalOperator(&pInfo->basic)));
   }
   return false;
 }

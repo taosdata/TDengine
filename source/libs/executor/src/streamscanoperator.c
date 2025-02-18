@@ -859,23 +859,12 @@ static int32_t generateIntervalDataScanRange(SStreamScanInfo* pInfo, char* pTask
     return code;
   }
 
-  bool     hasGroupId = false;
-  uint64_t srcUid = pRecData->tableUid;
-  uint64_t groupId = pSeKey->groupId;
-  if (groupId == 0) {
-    void* pVal = NULL;
-    if (hasPk) {
-      pVal = (void*)pRecData->pPkColData;
-    }
-    groupId = getDataGroupId(pInfo, srcUid, pSeKey->win.skey, ver, pVal, &hasGroupId);
-  }
-
   int32_t        rowId = 0;
   SDataBlockInfo tmpInfo = {0};
   tmpInfo.rows = 1;
   STimeWindow win = getSlidingWindow(&pSeKey->win.skey, &pSeKey->win.ekey, &pSeKey->groupId, &pInfo->interval, &tmpInfo,
                                      &rowId, pInfo->partitionSup.needCalc);
-  pInfo->stateStore.streamStateMergeAndSaveScanRange(pInfo->basic.pTsDataState, &win, groupId, pRecData, len);
+  pInfo->stateStore.streamStateMergeAndSaveScanRange(pInfo->basic.pTsDataState, &win, pSeKey->groupId, pRecData, len);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {

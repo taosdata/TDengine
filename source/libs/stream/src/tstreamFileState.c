@@ -850,13 +850,13 @@ _end:
   return code;
 }
 
-bool hasRowBuff(SStreamFileState* pFileState, const SWinKey* pKey) {
+bool hasRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, bool hasLimit) {
   SRowBuffPos** pos = tSimpleHashGet(pFileState->rowStateBuff, pKey, sizeof(SWinKey));
   if (pos) {
     return true;
   }
   void* pSearchBuff = getSearchBuff(pFileState);
-  if (pSearchBuff != NULL) {
+  if (pSearchBuff != NULL && hasLimit) {
     void** ppBuff = (void**)tSimpleHashGet(pSearchBuff, &pKey->groupId, sizeof(uint64_t));
     if (ppBuff != NULL) {
       SArray* pWinStates = (SArray*)(*ppBuff);
@@ -1781,7 +1781,7 @@ void destroyTsDataState(STableTsDataState* pTsDataState) {
   taosMemoryFreeClear(pTsDataState->pPkValBuff);
   taosMemoryFreeClear(pTsDataState->pState);
   taosMemoryFreeClear(pTsDataState->pRecValueBuff);
-  taosMemoryFreeClear(pTsDataState->pStreamTaskState);
+  pTsDataState->pStreamTaskState = NULL;
 }
 
 int32_t recoverTsData(STableTsDataState* pTsDataState) {

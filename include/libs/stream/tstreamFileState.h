@@ -62,7 +62,7 @@ int32_t getRowBuff(SStreamFileState* pFileState, void* pKey, int32_t keyLen, voi
                    int32_t* pWinCode);
 void    deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLen);
 int32_t getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos, void** pVal);
-bool    hasRowBuff(SStreamFileState* pFileState, const SWinKey* pKey);
+bool    hasRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, bool hasLimit);
 int32_t putFreeBuff(SStreamFileState* pFileState, SRowBuffPos* pPos);
 
 SStreamSnapshot* getSnapshot(SStreamFileState* pFileState);
