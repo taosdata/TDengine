@@ -20,14 +20,13 @@
 #include "curl/curl.h"
 #endif
 
-#define STREAM_EVENT_NOTIFY_RETRY_MS 50  // 50ms
-
+#define STREAM_EVENT_NOTIFY_RETRY_MS         50          // 50 ms
 typedef struct SStreamNotifyHandle {
   TdThreadMutex mutex;
 #ifndef WINDOWS
-  CURL*         curl;
+  CURL* curl;
 #endif
-  char*         url;
+  char* url;
 } SStreamNotifyHandle;
 
 struct SStreamNotifyHandleMap {
@@ -49,6 +48,7 @@ static void stopStreamNotifyConn(SStreamNotifyHandle* pHandle) {
   }
   // TODO: add wait mechanism for peer connection close response
   curl_easy_cleanup(pHandle->curl);
+  pHandle->curl = NULL;
 #endif
 }
 
@@ -258,7 +258,8 @@ _end:
 }
 
 static int32_t packupStreamNotifyEvent(const char* streamName, const SArray* pBlocks, char** pMsg,
-                                       int32_t* nNotifyEvents) {
+                                       int32_t* nNotifyEvents, STaskNotifyEventStat* pNotifyEventStat,
+                                       int32_t* pBlockIdx) {
   int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     lino = 0;
   int32_t     numOfBlocks = 0;
@@ -268,15 +269,20 @@ static int32_t packupStreamNotifyEvent(const char* streamName, const SArray* pBl
   char*       msgHeader = NULL;
   const char* msgTail = "]}]}";
   char*       msg = NULL;
+  int64_t     startTime = 0;
+  int64_t     endTime = 0;
+  int32_t     nBlocks = 0;
 
   TSDB_CHECK_NULL(pMsg, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_NULL(pNotifyEventStat, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   *pMsg = NULL;
   numOfBlocks = taosArrayGetSize(pBlocks);
   *nNotifyEvents = 0;
 
-  for (int32_t i = 0; i < numOfBlocks; ++i) {
+  for (int32_t i = *pBlockIdx; i < numOfBlocks; ++i) {
     SSDataBlock* pDataBlock = taosArrayGet(pBlocks, i);
+    nBlocks++;
     if (pDataBlock == NULL || pDataBlock->info.type != STREAM_NOTIFY_EVENT) {
       continue;
     }
@@ -287,13 +293,19 @@ static int32_t packupStreamNotifyEvent(const char* streamName, const SArray* pBl
       msgLen += varDataLen(val) + 1;
     }
     *nNotifyEvents += pDataBlock->info.rows;
+    if (msgLen >= tsStreamNotifyMessageSize * 1024) {
+      break;
+    }
   }
+
+  *pBlockIdx += nBlocks;
 
   if (msgLen == 0) {
     // skip since no notification events found
     goto _end;
   }
 
+  startTime = taosGetMonoTimestampMs();
   code = getStreamNotifyEventHeader(streamName, &msgHeader);
   TSDB_CHECK_CODE(code, lino, _end);
   msgHeaderLen = strlen(msgHeader);
@@ -306,7 +318,7 @@ static int32_t packupStreamNotifyEvent(const char* streamName, const SArray* pBl
   TAOS_STRNCPY(p, msgHeader, msgHeaderLen);
   p += msgHeaderLen - msgTailLen;
 
-  for (int32_t i = 0; i < numOfBlocks; ++i) {
+  for (int32_t i = *pBlockIdx - nBlocks; i < *pBlockIdx; ++i) {
     SSDataBlock* pDataBlock = taosArrayGet(pBlocks, i);
     if (pDataBlock == NULL || pDataBlock->info.type != STREAM_NOTIFY_EVENT) {
       continue;
@@ -327,6 +339,11 @@ static int32_t packupStreamNotifyEvent(const char* streamName, const SArray* pBl
 
   *pMsg = msg;
   msg = NULL;
+
+  endTime = taosGetMonoTimestampMs();
+  pNotifyEventStat->notifyEventPackTimes++;
+  pNotifyEventStat->notifyEventPackElems += *nNotifyEvents;
+  pNotifyEventStat->notifyEventPackCostSec += (endTime - startTime) / 1000.0;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -354,9 +371,21 @@ static int32_t sendSingleStreamNotify(SStreamNotifyHandle* pHandle, char* msg) {
   TSDB_CHECK_NULL(pHandle->curl, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   totalLen = strlen(msg);
-  while (sentLen < totalLen) {
-    res = curl_ws_send(pHandle->curl, msg + sentLen, totalLen - sentLen, &nbytes, 0, CURLWS_TEXT);
+  if (totalLen > 0) {
+    // send PING frame to check if the connection is still alive
+    res = curl_ws_send(pHandle->curl, "", 0, (size_t*)&sentLen, 0, CURLWS_PING);
     TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
+  }
+  sentLen = 0;
+  while (sentLen < totalLen) {
+    size_t chunkSize = TMIN(totalLen - sentLen, tsStreamNotifyFrameSize * 1024);
+    if (sentLen == 0) {
+      res = curl_ws_send(pHandle->curl, msg, chunkSize, &nbytes, totalLen, CURLWS_TEXT | CURLWS_OFFSET);
+      TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
+    } else {
+      res = curl_ws_send(pHandle->curl, msg + sentLen, chunkSize, &nbytes, 0, CURLWS_TEXT | CURLWS_OFFSET);
+      TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
+    }
     sentLen += nbytes;
   }
 
@@ -379,6 +408,9 @@ int32_t tqSendAllNotifyEvents(const SArray* pBlocks, SStreamTask* pTask, SVnode*
   int32_t              nNotifyAddr = 0;
   int32_t              nNotifyEvents = 0;
   SStreamNotifyHandle* pHandle = NULL;
+  int64_t              startTime = 0;
+  int64_t              endTime = 0;
+  int32_t              blockIdx = 0;
 
   TSDB_CHECK_NULL(pTask, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pVnode, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -388,50 +420,61 @@ int32_t tqSendAllNotifyEvents(const SArray* pBlocks, SStreamTask* pTask, SVnode*
     goto _end;
   }
 
-  code = packupStreamNotifyEvent(pTask->notifyInfo.streamName, pBlocks, &msg, &nNotifyEvents);
-  TSDB_CHECK_CODE(code, lino, _end);
-  if (msg == NULL) {
-    goto _end;
-  }
+  while (blockIdx < taosArrayGetSize(pBlocks)) {
+    code = packupStreamNotifyEvent(pTask->notifyInfo.streamName, pBlocks, &msg, &nNotifyEvents, &pTask->notifyEventStat,
+                                   &blockIdx);
+    TSDB_CHECK_CODE(code, lino, _end);
+    if (msg == NULL) {
+      continue;
+    }
 
-  tqDebug("stream task %s prepare to send %d notify events, total msg length: %" PRIu64, pTask->notifyInfo.streamName,
-          nNotifyEvents, (uint64_t)strlen(msg));
+    tqDebug("stream task %s prepare to send %d notify events, total msg length: %" PRIu64, pTask->notifyInfo.streamName,
+            nNotifyEvents, (uint64_t)strlen(msg));
 
-  for (int32_t i = 0; i < nNotifyAddr; ++i) {
-    if (streamTaskShouldStop(pTask)) {
-      break;
-    }
-    const char* url = taosArrayGetP(pTask->notifyInfo.pNotifyAddrUrls, i);
-    code = acquireStreamNotifyHandle(pVnode->pNotifyHandleMap, url, &pHandle);
-    if (code != TSDB_CODE_SUCCESS) {
-      tqError("failed to get stream notify handle of %s", url);
-      if (pTask->notifyInfo.notifyErrorHandle == SNOTIFY_ERROR_HANDLE_PAUSE) {
-        // retry for event message sending in PAUSE error handling mode
-        taosMsleep(STREAM_EVENT_NOTIFY_RETRY_MS);
-        --i;
-        continue;
-      } else {
-        // simply ignore the failure in DROP error handling mode
-        code = TSDB_CODE_SUCCESS;
-        continue;
+    startTime = taosGetMonoTimestampMs();
+    for (int32_t i = 0; i < nNotifyAddr; ++i) {
+      if (streamTaskShouldStop(pTask)) {
+        break;
       }
-    }
-    code = sendSingleStreamNotify(pHandle, msg);
-    if (code != TSDB_CODE_SUCCESS) {
-      tqError("failed to send stream notify handle to %s since %s", url, tstrerror(code));
-      if (pTask->notifyInfo.notifyErrorHandle == SNOTIFY_ERROR_HANDLE_PAUSE) {
-        // retry for event message sending in PAUSE error handling mode
-        taosMsleep(STREAM_EVENT_NOTIFY_RETRY_MS);
-        --i;
-      } else {
-        // simply ignore the failure in DROP error handling mode
-        code = TSDB_CODE_SUCCESS;
+      const char* url = taosArrayGetP(pTask->notifyInfo.pNotifyAddrUrls, i);
+      code = acquireStreamNotifyHandle(pVnode->pNotifyHandleMap, url, &pHandle);
+      if (code != TSDB_CODE_SUCCESS) {
+        tqError("failed to get stream notify handle of %s", url);
+        if (pTask->notifyInfo.notifyErrorHandle == SNOTIFY_ERROR_HANDLE_PAUSE) {
+          // retry for event message sending in PAUSE error handling mode
+          taosMsleep(STREAM_EVENT_NOTIFY_RETRY_MS);
+          --i;
+          continue;
+        } else {
+          // simply ignore the failure in DROP error handling mode
+          code = TSDB_CODE_SUCCESS;
+          continue;
+        }
       }
-    } else {
-      tqDebug("stream task %s send %d notify events to %s successfully", pTask->notifyInfo.streamName, nNotifyEvents,
-              url);
+      code = sendSingleStreamNotify(pHandle, msg);
+      if (code != TSDB_CODE_SUCCESS) {
+        tqError("failed to send stream notify handle to %s since %s", url, tstrerror(code));
+        if (pTask->notifyInfo.notifyErrorHandle == SNOTIFY_ERROR_HANDLE_PAUSE) {
+          // retry for event message sending in PAUSE error handling mode
+          taosMsleep(STREAM_EVENT_NOTIFY_RETRY_MS);
+          --i;
+        } else {
+          // simply ignore the failure in DROP error handling mode
+          code = TSDB_CODE_SUCCESS;
+        }
+      } else {
+        tqDebug("stream task %s send %d notify events to %s successfully", pTask->notifyInfo.streamName, nNotifyEvents,
+                url);
+      }
+      releaseStreamNotifyHandle(&pHandle);
     }
-    releaseStreamNotifyHandle(&pHandle);
+
+    endTime = taosGetMonoTimestampMs();
+    pTask->notifyEventStat.notifyEventSendTimes++;
+    pTask->notifyEventStat.notifyEventSendElems += nNotifyEvents;
+    pTask->notifyEventStat.notifyEventSendCostSec += (endTime - startTime) / 1000.0;
+
+    taosMemoryFreeClear(msg);
   }
 
 _end:

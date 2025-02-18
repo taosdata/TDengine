@@ -314,25 +314,25 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     uint64_t nColData;
     if (tDecodeU64v(pCoder, &nColData) < 0) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     SColData colData = {0};
     code = tDecodeColData(version, pCoder, &colData);
     if (code) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     if (colData.flag != HAS_VALUE) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     for (int32_t iRow = 0; iRow < colData.nVal; iRow++) {
       if (((TSKEY *)colData.pData)[iRow] < minKey || ((TSKEY *)colData.pData)[iRow] > maxKey) {
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
 
@@ -340,14 +340,14 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
       code = tDecodeColData(version, pCoder, &colData);
       if (code) {
         code = TSDB_CODE_INVALID_MSG;
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
   } else {
     uint64_t nRow;
     if (tDecodeU64v(pCoder, &nRow) < 0) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     for (int32_t iRow = 0; iRow < nRow; ++iRow) {
@@ -356,7 +356,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
 
       if (pRow->ts < minKey || pRow->ts > maxKey) {
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
   }
@@ -369,6 +369,9 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   tEndDecode(pCoder);
 
 _exit:
+  if (code) {
+    vError("vgId:%d, %s:%d failed to vnodePreProcessSubmitTbData submit request since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
   return code;
 }
 static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
@@ -1890,7 +1893,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     len -= sizeof(SSubmitReq2Msg);
     SDecoder dc = {0};
     tDecoderInit(&dc, pReq, len);
-    if (tDecodeSubmitReq(&dc, pSubmitReq) < 0) {
+    if (tDecodeSubmitReq(&dc, pSubmitReq, NULL) < 0) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
     }

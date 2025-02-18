@@ -403,3 +403,18 @@ end:
   }
   return code;
 }
+
+int32_t smlBuildOutputRaw(SQuery* handle, SHashObj* pVgHash) {
+  int32_t lino = 0;
+  int32_t code = 0;
+
+  SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)(handle)->pRoot;
+  code = insBuildVgDataBlocks(pVgHash, pStmt->pVgDataBlocks, &pStmt->pDataBlocks, false);
+  TSDB_CHECK_CODE(code, lino, end);
+
+  end:
+  if (code != 0) {
+    uError("%s failed at %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}

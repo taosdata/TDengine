@@ -331,6 +331,8 @@ void tFreeStreamTask(void* pParam) {
   taosMemoryFreeClear(pTask->notifyInfo.stbFullName);
   tDeleteSchemaWrapper(pTask->notifyInfo.pSchemaWrapper);
 
+  pTask->notifyEventStat = (STaskNotifyEventStat){0};
+
   taosMemoryFree(pTask);
   stDebug("s-task:0x%x free task completed", taskId);
 }
@@ -988,6 +990,7 @@ void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc) 
 
   pDst->startTime = pSrc->startTime;
   pDst->hTaskId = pSrc->hTaskId;
+  pDst->notifyEventStat = pSrc->notifyEventStat;
 }
 
 STaskStatusEntry streamTaskGetStatusEntry(SStreamTask* pTask) {
@@ -1016,6 +1019,7 @@ STaskStatusEntry streamTaskGetStatusEntry(SStreamTask* pTask) {
       .outputThroughput = SIZE_IN_KiB(pExecInfo->outputThroughput),
       .startCheckpointId = pExecInfo->startCheckpointId,
       .startCheckpointVer = pExecInfo->startCheckpointVer,
+      .notifyEventStat = pTask->notifyEventStat,
   };
   return entry;
 }
