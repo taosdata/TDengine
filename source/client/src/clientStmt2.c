@@ -1957,17 +1957,8 @@ TAOS_RES* stmtUseResult2(TAOS_STMT2* stmt) {
 
   return pStmt->exec.pRequest;
 }
-typedef struct {
-  TAOS_STMT2*       stmt;
-  TAOS_STMT2_BINDV* bindv;
-  int32_t           col_idx;
-  __taos_async_fn_t fp;
-  void*             param;
-} ThreadArgs;
 
-static void* stmtAsyncBindThreadFunc(void* args) {
-  setThreadName("stmtAsyncBind");
-
+int32_t stmtAsyncBindThreadFunc(void* args) {
   qInfo("async stmt bind thread started");
 
   ThreadArgs* targs = (ThreadArgs*)args;
@@ -1983,40 +1974,5 @@ static void* stmtAsyncBindThreadFunc(void* args) {
 
   qInfo("async stmt bind thread stopped");
 
-  return NULL;
-}
-
-int stmt2AsyncBind(TAOS_STMT2* stmt, TAOS_STMT2_BINDV* bindv, int32_t col_idx, __taos_async_fn_t fp, void* param) {
-  STscStmt2* pStmt = (STscStmt2*)stmt;
-  if (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 1) {
-    tscError("async bind param is still working, please try again later");
-    return TSDB_CODE_TSC_STMT_API_ERROR;
-  }
-
-  TdThreadAttr thAttr;
-  if (taosThreadAttrInit(&thAttr) != 0) {
-    return TSDB_CODE_TSC_INTERNAL_ERROR;
-  }
-  if (taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_DETACHED) != 0) {
-    return TSDB_CODE_TSC_INTERNAL_ERROR;
-  }
-
-  ThreadArgs* args = (ThreadArgs*)taosMemoryMalloc(sizeof(ThreadArgs));
-  args->stmt = stmt;
-  args->bindv = bindv;
-  args->col_idx = col_idx;
-  args->fp = fp;
-  args->param = param;
-
-  if (taosThreadCreate(&pStmt->bindThread, &thAttr, stmtAsyncBindThreadFunc, args) != 0) {
-    (void)taosThreadAttrDestroy(&thAttr);
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    STMT_ERR_RET(terrno);
-  }
-
-  // pStmt->bindThreadInUse = true;
-
-  (void)taosThreadAttrDestroy(&thAttr);
-
-  return TSDB_CODE_SUCCESS;
+  return code;
 }

@@ -2256,14 +2256,25 @@ int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t c
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
+  if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 0) {
+    tscError("async bind param is still working, please try again later");
+    return TSDB_CODE_TSC_STMT_API_ERROR;
+  }
+
+  ThreadArgs *args = (ThreadArgs *)taosMemoryMalloc(sizeof(ThreadArgs));
+  args->stmt = stmt;
+  args->bindv = bindv;
+  args->col_idx = col_idx;
+  args->fp = fp;
+  args->param = param;
   (void)atomic_add_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
-  int code = stmt2AsyncBind(stmt, bindv, col_idx, fp, param);
-  if (code != TSDB_CODE_SUCCESS) {
+  int code_s = taosStmt2AsyncBind(stmtAsyncBindThreadFunc, (void *)args);
+  if (code_s != TSDB_CODE_SUCCESS) {
     (void)atomic_sub_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
     // terrno = TAOS_SYSTEM_ERROR(errno);
   }
 
-  return code;
+  return code_s;
 }
 
 int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows) {
