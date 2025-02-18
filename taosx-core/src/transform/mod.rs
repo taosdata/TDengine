@@ -1,11 +1,12 @@
 use std::{hash::Hash, str::FromStr};
 
 use faststr::FastStr;
+use itertools::Itertools;
 use linked_hash_map::LinkedHashMap as HashMap;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use taos::{Field, Itertools, JsonMeta, MetaCreate, MetaDrop, MetaUnit, TagWithValue, Ty};
+use taos::{Field, JsonMeta, MetaCreate, MetaDrop, MetaUnit, TagWithValue, Ty};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
 #[serde(untagged)]
@@ -463,7 +464,6 @@ impl FromStr for Select {
                 if fields.is_empty() {
                     return Err(SelectParseError::EmptyOptionForVariant("rename"));
                 }
-                use itertools::Itertools;
                 let v: Vec<_> = fields
                     .split(",")
                     .map(|f| {

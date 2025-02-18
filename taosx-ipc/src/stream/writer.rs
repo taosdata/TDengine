@@ -464,13 +464,12 @@ impl IpcField {
     pub fn to_arrow_field(&self) -> Field {
         Field::new(self.name.as_str(), self.arrow_data_type.clone(), true)
     }
-    pub fn to_arrow_field_with_dict(&self, dict_id: i64, dict_is_ordered: bool) -> Field {
-        Field::new_dict(
+    pub fn to_arrow_field_with_dict(&self) -> Field {
+        Field::new_dictionary(
             self.name.as_str(),
+            DataType::Int64,
             self.arrow_data_type.clone(),
             true,
-            dict_id,
-            dict_is_ordered,
         )
     }
     pub fn is_nullable(&self) -> bool {
@@ -787,20 +786,12 @@ impl LushMessageBuilder {
     fn table_fields(&self) -> Vec<Field> {
         Some(Field::new(__TABLE_NAME__, DataType::Binary, true))
             .into_iter()
-            .chain(
-                self.tags
-                    .iter()
-                    .map(|f| f.to_arrow_field_with_dict(1, false)),
-            )
+            .chain(self.tags.iter().map(|f| f.to_arrow_field_with_dict()))
             .collect_vec()
     }
 
     pub fn build(mut self) -> Self {
         let metadata = self.metadata.to_hashmap();
-
-        // let name =
-
-        let dict_is_ordered = false;
 
         let record = DataType::Struct(self.columns.iter().map(IpcField::to_arrow_field).collect());
         // let tags = DataType::Struct(self.tags.iter().map(IpcField::to_arrow_field).collect());
@@ -813,27 +804,20 @@ impl LushMessageBuilder {
 
         let schema = Schema::new(vec![
             Field::new(__TYPE__, DataType::UInt8, false),
-            Field::new_dict(
+            Field::new_dictionary(
                 __TABLES__,
+                DataType::UInt8,
+                DataType::List(Arc::new(Field::new("item", record.clone(), true))),
+                true,
+            ),
+            Field::new_dictionary(
+                __TABLES__,
+                DataType::UInt8,
                 DataType::List(Arc::new(Field::new("item", attr.clone(), true))),
                 true,
-                LushMessageType::Children as u8 as _,
-                dict_is_ordered,
             ),
-            Field::new_dict(
-                __ATTRS__,
-                attr,
-                true,
-                LushMessageType::Insert as u8 as _,
-                dict_is_ordered,
-            ),
-            Field::new_dict(
-                __RECORDS__,
-                record_list,
-                true,
-                LushMessageType::Insert as u8 as _,
-                dict_is_ordered,
-            ),
+            Field::new_dictionary(__ATTRS__, DataType::UInt8, attr, true),
+            Field::new_dictionary(__RECORDS__, DataType::UInt8, record_list, true),
         ])
         .with_metadata(metadata);
         self.schema.replace(Arc::new(schema));

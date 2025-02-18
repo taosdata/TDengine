@@ -89,7 +89,10 @@ fn shadow_build() {
         Ok(())
     }
 
-    shadow_rs::new_hook(labeling).unwrap();
+    shadow_rs::ShadowBuilder::builder()
+        .hook(labeling)
+        .build()
+        .unwrap();
 }
 
 fn main() {

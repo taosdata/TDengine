@@ -82,5 +82,8 @@ fn main() -> shadow_rs::SdResult<()> {
     println!("cargo:rerun-if-changed=../dist/");
     println!("cargo:rerun-if-changed=examples/explorer.service");
     println!("cargo:rerun-if-changed={}", service_path.display());
-    shadow_rs::new_hook(labeling)
+    shadow_rs::ShadowBuilder::builder()
+        .hook(labeling)
+        .build()
+        .map(|_| ())
 }

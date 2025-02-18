@@ -21,5 +21,5 @@ fn labeling() {
 fn main() {
     dotenv::dotenv().ok();
     labeling();
-    shadow_rs::new().unwrap();
+    shadow_rs::ShadowBuilder::builder().build().unwrap();
 }
