@@ -850,8 +850,8 @@ _end:
   return code;
 }
 
-bool hasRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, int32_t keyLen) {
-  SRowBuffPos** pos = tSimpleHashGet(pFileState->rowStateBuff, pKey, keyLen);
+bool hasRowBuff(SStreamFileState* pFileState, const SWinKey* pKey) {
+  SRowBuffPos** pos = tSimpleHashGet(pFileState->rowStateBuff, pKey, sizeof(SWinKey));
   if (pos) {
     return true;
   }
