@@ -238,6 +238,7 @@ typedef enum ELogicConditionType {
 #define TSDB_OFFSET_LEN               64                                 // it is a null-terminated string
 #define TSDB_USER_CGROUP_LEN          (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
 #define TSDB_STREAM_NAME_LEN          193                                // it is a null-terminated string
+#define TSDB_STREAM_NOTIFY_URL_LEN    128                                // it includes the terminating '\0'
 #define TSDB_DB_NAME_LEN              65
 #define TSDB_DB_FNAME_LEN             (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_PRIVILEDGE_CONDITION_LEN 48 * 1024
@@ -322,7 +323,11 @@ typedef enum ELogicConditionType {
 
 #define TSDB_TRANS_STAGE_LEN 12
 #define TSDB_TRANS_TYPE_LEN  16
-#define TSDB_TRANS_ERROR_LEN 512
+#define TSDB_TRANS_ERROR_LEN   512
+#define TSDB_TRANS_OBJTYPE_LEN 40
+#define TSDB_TRANS_RESULT_LEN  100
+#define TSDB_TRANS_TARGET_LEN  300
+#define TSDB_TRANS_DETAIL_LEN  100
 
 #define TSDB_STEP_NAME_LEN 32
 #define TSDB_STEP_DESC_LEN 128

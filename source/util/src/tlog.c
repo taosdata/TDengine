@@ -1501,3 +1501,32 @@ bool taosAssertRelease(bool condition) {
   return true;
 }
 #endif
+
+char* u64toaFastLut(uint64_t val, char* buf) {
+  static const char* lut =
+      "0001020304050607080910111213141516171819202122232425262728293031323334353637383940414243444546474849505152535455"
+      "5657585960616263646566676869707172737475767778798081828384858687888990919293949596979899";
+
+  char  temp[24];
+  char* p = temp;
+
+  while (val >= 100) {
+    strncpy(p, lut + (val % 100) * 2, 2);
+    val /= 100;
+    p += 2;
+  }
+
+  if (val >= 10) {
+    strncpy(p, lut + val * 2, 2);
+    p += 2;
+  } else if (val > 0 || p == temp) {
+    *(p++) = val + '0';
+  }
+
+  while (p != temp) {
+    *buf++ = *--p;
+  }
+
+  *buf = '\0';
+  return buf;
+}

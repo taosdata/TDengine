@@ -371,12 +371,40 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .pShowCols = {"*"}
   },
   {
+    .showType = QUERY_NODE_CREATE_TSMA_STMT,
+    .pDbName = "",
+    .pTableName = "",
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_CREATE_TSMA_STMT,
+    .pDbName = "",
+    .pTableName = "",
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_DROP_TSMA_STMT,
+    .pDbName = "",
+    .pTableName = "",
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  { 
     .showType = QUERY_NODE_SHOW_FILESETS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_FILESETS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
-  },
+  }, 
+  { 
+    .showType = QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_TRANSACTION_DETAILS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  }, 
 };
 // clang-format on
 
@@ -2544,7 +2572,7 @@ static int32_t translateInterpFunc(STranslateContext* pCxt, SFunctionNode* pFunc
   if (!fmIsInterpFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
-  if (!isSelectStmt(pCxt->pCurrStmt) || SQL_CLAUSE_SELECT != pCxt->currClause) {
+  if (!isSelectStmt(pCxt->pCurrStmt) || (SQL_CLAUSE_SELECT != pCxt->currClause && SQL_CLAUSE_ORDER_BY != pCxt->currClause)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
   }
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
@@ -5456,7 +5484,7 @@ static int32_t doCheckFillValues(STranslateContext* pCxt, SFillNode* pFill, SNod
   SNodeListNode* pFillValues = (SNodeListNode*)pFill->pValues;
   SNode*         pProject = NULL;
   if (!pFillValues)
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Filled values number mismatch");
   FOREACH(pProject, pProjectionList) {
     if (needFill(pProject)) {
       if (fillNo >= LIST_LENGTH(pFillValues->pNodeList)) {
@@ -6387,19 +6415,19 @@ static int32_t translateInterpAround(STranslateContext* pCxt, SSelectStmt* pSele
     SRangeAroundNode* pAround = (SRangeAroundNode*)pSelect->pRangeAround;
     code = translateExpr(pCxt, &pAround->pInterval);
     if (TSDB_CODE_SUCCESS == code) {
-      if (nodeType(pAround->pInterval) == QUERY_NODE_VALUE) {
+      if (nodeType(pAround->pInterval) == QUERY_NODE_VALUE && ((SValueNode*)pAround->pInterval)->flag & VALUE_FLAG_IS_DURATION) {
         SValueNode* pVal = (SValueNode*)pAround->pInterval;
-        if (pVal->datum.i == 0) {
-          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
-                                      "Range interval cannot be 0");
+        if (pVal->datum.i <= 0) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                      "Range interval must be greater than 0");
         }
         int8_t unit = pVal->unit;
         if (unit == TIME_UNIT_YEAR || unit == TIME_UNIT_MONTH) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE,
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                          "Unsupported time unit in RANGE clause");
         }
       } else {
-        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE, "Invalid range interval");
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid range interval");
       }
     }
   }
@@ -6437,36 +6465,26 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                      "Missing EVERY clause or FILL clause");
     }
-  } else {
-    if (!pSelect->pRangeAround) {
-      if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {
-        if (pSelect->pRange != NULL && QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
-          // single point interp every can be omitted
-        } else {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
-                                         "Missing RANGE clause, EVERY clause or FILL clause");
-        }
-      }
+  } else if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {
+    if (pSelect->pRange != NULL && QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
+      // single point interp every can be omitted
     } else {
-      if (pSelect->pEvery) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
-                                       "Range clause with around interval can't be used with EVERY clause");
-      }
-      if (!pSelect->pFill) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE, "Missing FILL clause");
-      }
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_INTERP_CLAUSE,
+                                     "Missing RANGE clause, EVERY clause or FILL clause");
     }
   }
 
-  code = translateExpr(pCxt, &pSelect->pRange);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateInterpAround(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = translateExpr(pCxt, &pSelect->pRange);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterpEvery(pCxt, &pSelect->pEvery);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateInterpFill(pCxt, pSelect);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = translateInterpAround(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkInterpForStream(pCxt, pSelect);
@@ -12206,6 +12224,45 @@ static int32_t translateStreamOptions(STranslateContext* pCxt, SCreateStreamStmt
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t buildStreamNotifyOptions(STranslateContext* pCxt, SStreamNotifyOptions* pNotifyOptions,
+                                        SCMCreateStreamReq* pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
+
+  if (pNotifyOptions == NULL || pNotifyOptions->pAddrUrls->length == 0) {
+    return code;
+  }
+
+  pReq->pNotifyAddrUrls = taosArrayInit(pNotifyOptions->pAddrUrls->length, POINTER_BYTES);
+  if (pReq->pNotifyAddrUrls != NULL) {
+    FOREACH(pNode, pNotifyOptions->pAddrUrls) {
+      char *url = taosStrndup(((SValueNode*)pNode)->literal, TSDB_STREAM_NOTIFY_URL_LEN);
+      if (url == NULL) {
+        code = terrno;
+        break;
+      }
+      if (taosArrayPush(pReq->pNotifyAddrUrls, &url) == NULL) {
+        code = terrno;
+        taosMemoryFreeClear(url);
+        break;
+      }
+    }
+  } else {
+    code = terrno;
+  }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    pReq->notifyEventTypes = pNotifyOptions->eventTypes;
+    pReq->notifyErrorHandle = pNotifyOptions->errorHandle;
+    pReq->notifyHistory = pNotifyOptions->notifyHistory;
+  } else {
+    taosArrayDestroyP(pReq->pNotifyAddrUrls, NULL);
+    pReq->pNotifyAddrUrls = NULL;
+  }
+
+  return code;
+}
+
 static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SCMCreateStreamReq* pReq) {
   pReq->igExists = pStmt->ignoreExists;
 
@@ -12250,6 +12307,10 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
     if (TSDB_CODE_SUCCESS == code) {
       code = columnDefNodeToField(pStmt->pCols, &pReq->pCols, false);
     }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildStreamNotifyOptions(pCxt, pStmt->pNotifyOptions, pReq);
   }
 
   return code;
@@ -12402,6 +12463,16 @@ static int32_t translateResumeStream(STranslateContext* pCxt, SResumeStreamStmt*
   req.igNotExists = pStmt->ignoreNotExists;
   req.igUntreated = pStmt->ignoreUntreated;
   return buildCmdMsg(pCxt, TDMT_MND_RESUME_STREAM, (FSerializeFunc)tSerializeSMResumeStreamReq, &req);
+}
+
+static int32_t translateResetStream(STranslateContext* pCxt, SResetStreamStmt* pStmt) {
+  SMResetStreamReq req = {0};
+  SName            name;
+  int32_t          code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->streamName, strlen(pStmt->streamName));
+  if (TSDB_CODE_SUCCESS != code) return code;
+  (void)tNameGetFullDbName(&name, req.name);
+  req.igNotExists = pStmt->ignoreNotExists;
+  return buildCmdMsg(pCxt, TDMT_MND_RESET_STREAM, (FSerializeFunc)tSerializeSMResetStreamReq, &req);
 }
 
 static int32_t validateCreateView(STranslateContext* pCxt, SCreateViewStmt* pStmt) {
@@ -13437,6 +13508,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_RESUME_STREAM_STMT:
       code = translateResumeStream(pCxt, (SResumeStreamStmt*)pNode);
+      break;
+    case QUERY_NODE_RESET_STREAM_STMT:
+      code = translateResetStream(pCxt, (SResetStreamStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_FUNCTION_STMT:
       code = translateCreateFunction(pCxt, (SCreateFunctionStmt*)pNode);
@@ -16448,6 +16522,24 @@ static int32_t rewriteShowCompactDetailsStmt(STranslateContext* pCxt, SQuery* pQ
   return code;
 }
 
+static int32_t rewriteShowTransactionDetailsStmt(STranslateContext* pCxt, SQuery* pQuery) {
+  SShowTransactionDetailsStmt* pShow = (SShowTransactionDetailsStmt*)(pQuery->pRoot);
+  SSelectStmt*             pStmt = NULL;
+  int32_t                  code = createSelectStmtForShow(QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT, &pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != pShow->pTransactionId) {
+      code = createOperatorNode(OP_TYPE_EQUAL, "transaction_id", pShow->pTransactionId, &pStmt->pWhere);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pCxt->showRewrite = true;
+    pQuery->showRewrite = true;
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pStmt;
+  }
+  return code;
+}
+
 static int32_t createParWhenThenNode(SNode* pWhen, SNode* pThen, SNode** ppResWhenThen) {
   SWhenThenNode* pWThen = NULL;
   int32_t        code = nodesMakeNode(QUERY_NODE_WHEN_THEN, (SNode**)&pWThen);
@@ -17022,6 +17114,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_SHOW_COMPACT_DETAILS_STMT:
       code = rewriteShowCompactDetailsStmt(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
+      code = rewriteShowTransactionDetailsStmt(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_DB_ALIVE_STMT:
     case QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT:

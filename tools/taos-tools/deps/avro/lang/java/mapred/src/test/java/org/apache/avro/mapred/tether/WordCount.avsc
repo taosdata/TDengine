@@ -1,6 +1,0 @@
-{"type":"record",
- "name":"Pair","namespace":"org.apache.avro.mapred","fields":[
-     {"name":"key","type":"string"},
-     {"name":"value","type":"long","order":"ignore"}
- ]
-}

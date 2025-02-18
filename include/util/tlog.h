@@ -79,6 +79,9 @@ void    taosResetLog();
 void    taosDumpData(uint8_t *msg, int32_t len);
 void    taosSetNoNewFile();
 
+// Fast uint64_t to string conversion, equivalent to sprintf(buf, "%lu", val) but with 10x better performance.
+char *u64toaFastLut(uint64_t val, char *buf);
+
 void taosPrintLog(const char *flags, int32_t level, int32_t dflag, const char *format, ...)
 #ifdef __GNUC__
     __attribute__((format(printf, 4, 5)))

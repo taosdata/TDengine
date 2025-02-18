@@ -554,6 +554,6 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80004000 | Invalid message       | 订阅到的数据非法，一般不会出现                                                   | 具体查看client端的错误日志提示 |
 | 0x80004001 | Consumer mismatch     | 订阅请求的vnode和重新分配的vnode不一致，一般存在于有新消费者加入相同消费者组里时 | 内部错误，不暴露给用户         |
 | 0x80004002 | Consumer closed       | 消费者已经不存在了                                                               | 查看是否已经close掉了          |
-| 0x80004017 | Invalid status, please subscribe topic first | 数据订阅状态不对 | 没有调用 subscribe，直接poll数据 |
+| 0x80004017 | Invalid status, please subscribe topic first | 数据订阅状态不对                                                                 | 没有调用 subscribe，直接 poll 数据     |
 | 0x80004100 | Stream task not exist | 流计算任务不存在                                                                 | 具体查看server端的错误日志     |
 

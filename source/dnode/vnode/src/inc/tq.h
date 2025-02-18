@@ -159,6 +159,11 @@ int32_t buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t n
                                 SArray* pTagArray, bool newSubTableRule, SVCreateTbReq** pReq);
 int32_t tqExtractDropCtbDataBlock(const void* data, int32_t len, int64_t ver, void** pRefBlock, int32_t type);
 
+// tq send notifications
+int32_t tqInitNotifyHandleMap(SStreamNotifyHandleMap** ppMap);
+void    tqDestroyNotifyHandleMap(SStreamNotifyHandleMap** ppMap);
+int32_t tqSendAllNotifyEvents(const SArray* pBlocks, SStreamTask* pTask, SVnode* pVnode);
+
 #define TQ_ERR_GO_TO_END(c)          \
   do {                               \
     code = c;                        \

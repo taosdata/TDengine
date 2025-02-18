@@ -534,5 +534,6 @@ This document details the server error codes that may be encountered when using 
 | 0x80004000 | Invalid message       | The subscribed data is illegal, generally does not occur     | Check the client-side error logs for details |
 | 0x80004001 | Consumer mismatch     | The vnode requested for subscription and the reassigned vnode are inconsistent, usually occurs when new consumers join the same consumer group | Internal error, not exposed to users         |
 | 0x80004002 | Consumer closed       | The consumer no longer exists                                | Check if it has already been closed          |
-| 0x80004017 | Invalid status, please subscribe topic first | tmq status invalidate | Without calling subscribe, directly poll data |
+| 0x80004017 | Invalid status, please subscribe topic first | tmq status invalidate                 | Without calling subscribe, directly poll data     |
 | 0x80004100 | Stream task not exist | The stream computing task does not exist                     | Check the server-side error logs             |
+

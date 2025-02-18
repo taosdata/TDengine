@@ -6,6 +6,7 @@ from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
+from util.tserror import *
 
 PRIMARY_COL = "ts"
 
@@ -352,6 +353,70 @@ class TDTestCase:
         tdSql.execute( f"insert into {dbname}.nt1 values ( {NOW - (self.rows + 1) * int(TIME_STEP * 1.2)}, {null_data} )" )
         tdSql.execute( f"insert into {dbname}.nt1 values ( {NOW - self.rows * int(TIME_STEP * 0.59)}, {null_data} )" )
 
+    def join_semantic_test(self, dbname=DBNAME):
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 semi join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 anti join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 outer join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 asof join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 window join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 left join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 left semi join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 left anti join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(0)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 left outer join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 left asof join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 left window join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 right join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 right semi join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 right anti join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(0)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 right outer join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 right asof join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 right window join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 full join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.checkRows(self.rows)
+        
+        
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 full join db1.ct1 as cy1 on ct1.ts=cy1.ts join db1.ct1 as cy2 on ct1.ts=cy2.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 full semi join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 full anti join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 full outer join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.query("select * from db.ct1 join db.ct2 join db.ct3 on ct2.ts=ct3.ts on ct1.ts=ct2.ts")
+        tdSql.checkRows(0)
+        tdSql.execute(f'create table db.ct1_2 using db.stb1 tags ( 102 )')
+        tdSql.execute(f'create table db.ct1_3 using db.stb1 tags ( 103 )')
+        tdSql.execute(f'insert into db.ct1_2 (select * from db.ct1)')
+        tdSql.execute(f'insert into db.ct1_3 (select * from db.ct1)')
+        tdSql.query("select * from db.ct1 join db.ct1_2 join db.ct1_3 on ct1_2.ts=ct1_3.ts on ct1.ts=ct1_2.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 full asof join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.error("select ct1.c_int from db.ct1 as ct1 full window join db1.ct1 as cy1 on ct1.ts=cy1.ts", TSDB_CODE_PAR_SYNTAX_ERROR)
+        
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 left join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        tdSql.query("select ct1.c_int from db.ct1 as ct1 right join db1.ct1 as cy1 on ct1.ts=cy1.ts")
+        tdSql.checkRows(self.rows)
+        
+        tdSql.execute("drop table db.ct1_2")
+        tdSql.execute("drop table db.ct1_3")
+        
     def ts5863(self, dbname=DBNAME):
         tdSql.execute(f"CREATE STABLE {dbname}.`st_quality` (`ts` TIMESTAMP, `quality` INT, `val` NCHAR(64), `rts` TIMESTAMP) \
             TAGS (`cx` VARCHAR(10), `gyd` VARCHAR(10), `gx` VARCHAR(10), `lx` VARCHAR(10)) SMA(`ts`,`quality`,`val`)")
@@ -469,6 +534,8 @@ class TDTestCase:
         tdSql.execute(f"use {dbname1}")
         self.__create_tb(dbname=dbname1)
         self.__insert_data(dbname=dbname1)
+        
+        self.join_semantic_test({dbname1})
 
         tdSql.query("select ct1.c_int from db.ct1 as ct1 join db1.ct1 as cy1 on ct1.ts=cy1.ts")
         tdSql.checkRows(self.rows)

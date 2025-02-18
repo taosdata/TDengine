@@ -697,7 +697,7 @@ int32_t syncGetArbToken(int64_t rid, char* outToken) {
   TAOS_RETURN(code);
 }
 
-int32_t syncGetAssignedLogSynced(int64_t rid) {
+int32_t syncCheckSynced(int64_t rid) {
   int32_t    code = 0;
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {

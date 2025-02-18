@@ -364,6 +364,9 @@ static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClea
       pStmt->sql.siInfo.pTableColsIdx = 0;
       stmtResetQueueTableBuf(&pStmt->sql.siInfo.tbBuf, &pStmt->queue);
     }
+    if (NULL != pStmt->exec.pRequest) {
+      pStmt->exec.pRequest->body.resInfo.numOfRows = 0;
+    }
   } else {
     if (STMT_TYPE_QUERY != pStmt->sql.type || deepClean) {
       // if (!pStmt->options.asyncExecFn) {

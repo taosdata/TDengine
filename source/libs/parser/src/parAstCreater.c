@@ -1471,13 +1471,19 @@ _err:
   return NULL;
 }
 
-SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd) {
+SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd, SNode* pInterval) {
   CHECK_PARSER_STATUS(pCxt);
-  if (pEnd && nodeType(pEnd) == QUERY_NODE_VALUE && ((SValueNode*)pEnd)->flag & VALUE_FLAG_IS_DURATION) {
-    return createInterpTimeAround(pCxt, pStart, pEnd);
+  if (NULL == pInterval) {
+    if (pEnd && nodeType(pEnd) == QUERY_NODE_VALUE && ((SValueNode*)pEnd)->flag & VALUE_FLAG_IS_DURATION) {
+      return createInterpTimeAround(pCxt, pStart, NULL, pEnd);
+    }
+    return createBetweenAnd(pCxt, createPrimaryKeyCol(pCxt, NULL), pStart, pEnd);
   }
-  return createBetweenAnd(pCxt, createPrimaryKeyCol(pCxt, NULL), pStart, pEnd);
+
+  return createInterpTimeAround(pCxt, pStart, pEnd, pInterval);
+  
 _err:
+
   nodesDestroyNode(pStart);
   nodesDestroyNode(pEnd);
   return NULL;
@@ -1491,12 +1497,16 @@ _err:
   return NULL;
 }
 
-SNode* createInterpTimeAround(SAstCreateContext* pCxt, SNode* pTimepoint, SNode* pInterval) {
+SNode* createInterpTimeAround(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd, SNode* pInterval) {
   CHECK_PARSER_STATUS(pCxt);
   SRangeAroundNode* pAround = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_RANGE_AROUND, (SNode**)&pAround);
   CHECK_PARSER_STATUS(pCxt);
-  pAround->pTimepoint = createInterpTimePoint(pCxt, pTimepoint);
+  if (NULL == pEnd) {
+    pAround->pRange = createInterpTimePoint(pCxt, pStart);
+  } else {
+    pAround->pRange = createBetweenAnd(pCxt, createPrimaryKeyCol(pCxt, NULL), pStart, pEnd);
+  }
   pAround->pInterval = pInterval;
   CHECK_PARSER_STATUS(pCxt);
   return (SNode*)pAround;
@@ -1526,8 +1536,8 @@ SNode* createCaseWhenNode(SAstCreateContext* pCxt, SNode* pCase, SNodeList* pWhe
   pCaseWhen->pCase = pCase;
   pCaseWhen->pWhenThenList = pWhenThenList;
   pCaseWhen->pElse = pElse;
-  pCaseWhen->tz    = pCxt->pQueryCxt->timezone;
-  pCaseWhen->charsetCxt    = pCxt->pQueryCxt->charsetCxt;
+  pCaseWhen->tz = pCxt->pQueryCxt->timezone;
+  pCaseWhen->charsetCxt = pCxt->pQueryCxt->charsetCxt;
   return (SNode*)pCaseWhen;
 _err:
   nodesDestroyNode(pCase);
@@ -1668,7 +1678,7 @@ SNode* addRangeClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pRange) {
     if (pRange && nodeType(pRange) == QUERY_NODE_RANGE_AROUND) {
       pSelect->pRangeAround = pRange;
       SRangeAroundNode* pAround = (SRangeAroundNode*)pRange;
-      TSWAP(pSelect->pRange, pAround->pTimepoint);
+      TSWAP(pSelect->pRange, pAround->pRange);
     } else {
       pSelect->pRange = pRange;
     }
@@ -2935,6 +2945,18 @@ _err:
   return NULL;
 }
 
+SNode* createShowTransactionDetailsStmt(SAstCreateContext* pCxt, SNode* pTransactionIdNode) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowTransactionDetailsStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->pTransactionId = pTransactionIdNode;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pTransactionIdNode);
+  return NULL;
+}
+
 static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange) {
   int32_t code = TSDB_CODE_SUCCESS;
   char*   ipCopy = taosStrdup(ipRange);
@@ -3649,8 +3671,115 @@ SNode* setStreamOptions(SAstCreateContext* pCxt, SNode* pOptions, EStreamOptions
   return pOptions;
 }
 
+static bool validateNotifyUrl(const char* url) {
+  const char* prefix[] = {"http://", "https://", "ws://", "wss://"};
+  const char* host = NULL;
+
+  if (!url || *url == '\0') return false;
+
+  for (int32_t i = 0; i < ARRAY_SIZE(prefix); ++i) {
+    if (strncasecmp(url, prefix[i], strlen(prefix[i])) == 0) {
+      host = url + strlen(prefix[i]);
+      break;
+    }
+  }
+
+  return (host != NULL) && (*host != '\0') && (*host != '/');
+}
+
+SNode* createStreamNotifyOptions(SAstCreateContext* pCxt, SNodeList* pAddrUrls, SNodeList* pEventTypes) {
+  SNode*                 pNode = NULL;
+  EStreamNotifyEventType eventTypes = 0;
+  const char*            eWindowOpenStr = "WINDOW_OPEN";
+  const char*            eWindowCloseStr = "WINDOW_CLOSE";
+
+  CHECK_PARSER_STATUS(pCxt);
+
+  if (LIST_LENGTH(pAddrUrls) == 0) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "notification address cannot be empty");
+    goto _err;
+  }
+
+  FOREACH(pNode, pAddrUrls) {
+    char *url = ((SValueNode*)pNode)->literal;
+    if (strlen(url) >= TSDB_STREAM_NOTIFY_URL_LEN) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                  "notification address \"%s\" exceed maximum length %d", url, TSDB_STREAM_NOTIFY_URL_LEN);
+      goto _err;
+    }
+    if (!validateNotifyUrl(url)) {
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                              "invalid notification address \"%s\"", url);
+      goto _err;
+    }
+  }
+
+  if (LIST_LENGTH(pEventTypes) == 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "event types must be specified for notification");
+    goto _err;
+  }
+
+  FOREACH(pNode, pEventTypes) {
+    char *eventStr = ((SValueNode *)pNode)->literal;
+    if (strncasecmp(eventStr, eWindowOpenStr, strlen(eWindowOpenStr) + 1) == 0) {
+      BIT_FLAG_SET_MASK(eventTypes, SNOTIFY_EVENT_WINDOW_OPEN);
+    } else if (strncasecmp(eventStr, eWindowCloseStr, strlen(eWindowCloseStr) + 1) == 0) {
+      BIT_FLAG_SET_MASK(eventTypes, SNOTIFY_EVENT_WINDOW_CLOSE);
+    } else {
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                              "invalid event type '%s' for notification", eventStr);
+      goto _err;
+    }
+  }
+
+  SStreamNotifyOptions* pNotifyOptions = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_NOTIFY_OPTIONS, (SNode**)&pNotifyOptions);
+  CHECK_MAKE_NODE(pNotifyOptions);
+  pNotifyOptions->pAddrUrls = pAddrUrls;
+  pNotifyOptions->eventTypes = eventTypes;
+  pNotifyOptions->errorHandle = SNOTIFY_ERROR_HANDLE_PAUSE;
+  pNotifyOptions->notifyHistory = false;
+  nodesDestroyList(pEventTypes);
+  return (SNode*)pNotifyOptions;
+_err:
+  nodesDestroyList(pAddrUrls);
+  nodesDestroyList(pEventTypes);
+  return NULL;
+}
+
+SNode* setStreamNotifyOptions(SAstCreateContext* pCxt, SNode* pNode, EStreamNotifyOptionSetFlag setFlag,
+                              SToken* pToken) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  SStreamNotifyOptions* pNotifyOption = (SStreamNotifyOptions*)pNode;
+  if (BIT_FLAG_TEST_MASK(pNotifyOption->setFlag, setFlag)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                         "stream notify options each item can only be set once");
+    goto _err;
+  }
+  switch (setFlag) {
+    case SNOTIFY_OPT_ERROR_HANDLE_SET:
+      pNotifyOption->errorHandle = (pToken->type == TK_DROP) ? SNOTIFY_ERROR_HANDLE_DROP : SNOTIFY_ERROR_HANDLE_PAUSE;
+      break;
+    case SNOTIFY_OPT_NOTIFY_HISTORY_SET:
+      pNotifyOption->notifyHistory = taosStr2Int8(pToken->z, NULL, 10);
+      break;
+    default:
+      break;
+  }
+  BIT_FLAG_SET_MASK(pNotifyOption->setFlag, setFlag);
+  return pNode;
+_err:
+  nodesDestroyNode(pNode);
+  return NULL;
+}
+
 SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pStreamName, SNode* pRealTable,
-                              SNode* pOptions, SNodeList* pTags, SNode* pSubtable, SNode* pQuery, SNodeList* pCols) {
+                              SNode* pOptions, SNodeList* pTags, SNode* pSubtable, SNode* pQuery, SNodeList* pCols,
+                              SNode* pNotifyOptions) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkStreamName(pCxt, pStreamName));
   SCreateStreamStmt* pStmt = NULL;
@@ -3666,6 +3795,7 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken
   pStmt->pTags = pTags;
   pStmt->pSubtable = pSubtable;
   pStmt->pCols = pCols;
+  pStmt->pNotifyOptions = (SStreamNotifyOptions*)pNotifyOptions;
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pRealTable);
@@ -3674,6 +3804,7 @@ _err:
   nodesDestroyList(pTags);
   nodesDestroyNode(pSubtable);
   nodesDestroyList(pCols);
+  nodesDestroyNode(pNotifyOptions);
   return NULL;
 }
 
@@ -3717,6 +3848,20 @@ SNode* createResumeStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, boo
 _err:
   return NULL;
 }
+
+SNode* createResetStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pStreamName) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkStreamName(pCxt, pStreamName));
+  SPauseStreamStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_RESET_STREAM_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 
 SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId) {
   CHECK_PARSER_STATUS(pCxt);

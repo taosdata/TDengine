@@ -163,6 +163,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_ANODE_FULL,
   TSDB_MGMT_TABLE_USAGE,
   TSDB_MGMT_TABLE_FILESETS,
+  TSDB_MGMT_TABLE_TRANSACTION_DETAIL,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -268,6 +269,7 @@ typedef enum ENodeType {
   QUERY_NODE_TSMA_OPTIONS,
   QUERY_NODE_ANOMALY_WINDOW,
   QUERY_NODE_RANGE_AROUND,
+  QUERY_NODE_STREAM_NOTIFY_OPTIONS,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -405,6 +407,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_CREATE_TSMA_STMT,
   QUERY_NODE_DROP_TSMA_STMT,
   QUERY_NODE_SHOW_FILESETS_STMT,
+  QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -480,6 +483,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_STREAM_ANOMALY,
   QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC,
+  QUERY_NODE_RESET_STREAM_STMT,
 } ENodeType;
 
 typedef struct {
@@ -2608,6 +2612,8 @@ typedef struct {
   int8_t                   assignedAcked;
   SMArbUpdateGroupAssigned assignedLeader;
   int64_t                  version;
+  int32_t                  code;
+  int64_t                  updateTimeMs;
 } SMArbUpdateGroup;
 
 typedef struct {
@@ -2953,6 +2959,11 @@ typedef struct {
   // 3.3.0.0
   SArray* pCols;  // array of SField
   int64_t smaId;
+  // 3.3.6.0
+  SArray* pNotifyAddrUrls;
+  int32_t notifyEventTypes;
+  int32_t notifyErrorHandle;
+  int8_t  notifyHistory;
 } SCMCreateStreamReq;
 
 typedef struct {
@@ -3912,6 +3923,15 @@ typedef struct {
 
 int32_t tSerializeSMResumeStreamReq(void* buf, int32_t bufLen, const SMResumeStreamReq* pReq);
 int32_t tDeserializeSMResumeStreamReq(void* buf, int32_t bufLen, SMResumeStreamReq* pReq);
+
+typedef struct {
+  char   name[TSDB_STREAM_FNAME_LEN];
+  int8_t igNotExists;
+  int8_t igUntreated;
+} SMResetStreamReq;
+
+int32_t tSerializeSMResetStreamReq(void* buf, int32_t bufLen, const SMResetStreamReq* pReq);
+int32_t tDeserializeSMResetStreamReq(void* buf, int32_t bufLen, SMResetStreamReq* pReq);
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
