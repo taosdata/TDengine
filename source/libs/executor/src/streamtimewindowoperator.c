@@ -2977,7 +2977,6 @@ static int32_t rebuildSessionWindow(SOperatorInfo* pOperator, SArray* pWinArray,
 
         if (winCode == TSDB_CODE_SUCCESS && inWinRange(&pWinKey->win, &childWin.sessionWin.win)) {
           if (num == 0) {
-            int32_t winCode = TSDB_CODE_SUCCESS;
             code = setSessionOutputBuf(pAggSup, pWinKey->win.skey, pWinKey->win.ekey, pWinKey->groupId, &parentWin,
                                        &winCode);
             QUERY_CHECK_CODE(code, lino, _end);
