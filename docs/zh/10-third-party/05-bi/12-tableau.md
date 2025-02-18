@@ -11,24 +11,18 @@ Tableau 是一款知名的商业智能工具，它支持多种数据源，可方
 - TDengine 3.3.5.4以上版本集群已部署并正常运行（企业及社区版均可）
 - taosAdapter 能够正常运行。详细参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)
 - Tableau 桌面版安装并运行（如未安装，请下载并安装 Windows 操作系统 64 位 [Tableau 桌面版](https://www.tableau.com/products/desktop/download) ）。安装 Tableau 桌面版请参考 [官方文档](https://www.tableau.com)。
+- 从TDengine官网下载最新的Windows操作系统X64客户端驱动程序，并进行安装。详细参考 [安装 ODBC 驱动](../../../reference/connector/odbc/#安装)。
 
-## 安装 ODBC 驱动
 
-从TDengine官网下载最新的Windows操作系统X64客户端驱动程序，并进行安装。详细参考 [安装 ODBC 驱动](../../../reference/connector/odbc/#安装)。
+## 配置数据源
 
-## 配置ODBC数据源
-
-在Windows操作系统的开始菜单中搜索并打开“ODBC数据源（64位）”管理工具并进行配置。详细参考[配置ODBC数据源](../../../reference/connector/odbc/#配置数据源)。
-
-## 配置 TDengine 数据源
-
-**第 1 步**，在 Windows 系统环境下启动 Tableau，之后在其连接页面中搜索 “ODBC”，并选择 “其他数据库 (ODBC)”。
-
-**第 2 步**，点击 `DSN` 单选框，接着选择已配置好的数据源(MyTDengine)，然后点击`连接`按钮。待连接成功后，删除字符串附加部分的内容，最后点击`登录`按钮即可。
+**第 1 步**，在Windows操作系统的开始菜单中搜索并打开“ODBC数据源（64位）”管理工具并进行配置。详细参考[配置ODBC数据源](../../../reference/connector/odbc/#配置数据源)。   
+**第 2 步**，在 Windows 系统环境下启动 Tableau，之后在其连接页面中搜索 “ODBC”，并选择 “其他数据库 (ODBC)”。  
+**第 3 步**，点击 `DSN` 单选框，接着选择已配置好的数据源(MyTDengine)，然后点击`连接`按钮。待连接成功后，删除字符串附加部分的内容，最后点击`登录`按钮即可。
 
 ![tableau-odbc](./tableau/tableau-odbc.jpg) 
 
-## 加载和分析 TDengine 数据
+## 数据分析
 
 **第 1 步**，在工作簿页面中，选择已连接的数据源。点击数据库的下拉列表，会显示需要进行数据分析的数据库。在此基础上，点击表选项中的查找按钮，即可将该数据库下的所有表显示出来。然后，拖动需要分析的表到右侧区域，即可显示出表结构。
 
