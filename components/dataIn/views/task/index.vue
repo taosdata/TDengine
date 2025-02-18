@@ -309,7 +309,6 @@
 import { startCase } from 'lodash-es';
 import {
   getTimeParser,
-  getAgentList,
   agentId,
   agentList,
   currentTaskStatus,
@@ -391,59 +390,51 @@ watch(
 );
 
 async function getList() {
-  try {
-    requestIng.value = true;
-    taskList.value = [];
-    const result: any = await dataInProps.task.api.getTask('datain');
-    if (result.desc || result.message) {
-      ElMessage.error(result.desc || result.message);
-      return;
-    }
-    if (result) {
-      const dataSourceFilterSet: Recordable = {};
-      const statusFilterSet: Recordable = {};
-      taskList.value = result.map((item: any) => {
-        if (!dataSourceFilterSet[item.from.type]) {
-          filterMap.type.push({
-            value: item.from.type,
-            text: dataSourceMap[item.from.type] // 等数据源确定后再修改
-          });
-          dataSourceFilterSet[item.from.type] = true;
-        }
-
-        item['statusText'] = getStatusText(item.status);
-        if (!statusFilterSet[item.status]) {
-          filterMap.status.push({
-            value: item.status,
-            text: item.statusText
-          });
-          statusFilterSet[item.status] = true;
-        }
-        (item['taskid'] = item.id), (item['localname'] = item.name);
-        item['localtype'] = dataSourceMap[item.from.type] ? dataSourceMap[item.from.type] : '';
-        item['target'] = item.from ? item.from.targetDB : '';
-        item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
-        item['disableEdit'] = item.from.type === 'csv' && item.from.data.csvData.currentTab === 'upload_csv_file';
-        return item;
-      });
-      requestIng.value = false;
-    }
-    // 刷新页面获取完数据后建立连接为了获取历史数据
-    if (connectData.close) {
-      closeConnect();
-    }
-    nextTick(() => {
-      if (!hasConnect.value) {
-        hasConnect.value = true;
-        const { activity, close } = useActivitySubscription(dataInProps.task.webSoketUrl);
-        connectData.activity = activity;
-        connectData.close = close;
-      }
-    });
-  } catch (err) {
-    requestIng.value = false;
-    return Promise.reject(err);
+  taskList.value = [];
+  const result: any = await dataInProps.task.api.getTask('datain');
+  if (result.desc || result.message) {
+    throw result.desc || result.message;
   }
+
+  if (result) {
+    const dataSourceFilterSet: Recordable = {};
+    const statusFilterSet: Recordable = {};
+    taskList.value = result.map((item: any) => {
+      if (!dataSourceFilterSet[item.from.type]) {
+        filterMap.type.push({
+          value: item.from.type,
+          text: dataSourceMap[item.from.type] // 等数据源确定后再修改
+        });
+        dataSourceFilterSet[item.from.type] = true;
+      }
+
+      item['statusText'] = getStatusText(item.status);
+      if (!statusFilterSet[item.status]) {
+        filterMap.status.push({
+          value: item.status,
+          text: item.statusText
+        });
+        statusFilterSet[item.status] = true;
+      }
+      (item['taskid'] = item.id), (item['localname'] = item.name);
+      item['localtype'] = dataSourceMap[item.from.type] ? dataSourceMap[item.from.type] : '';
+      item['target'] = item.from ? item.from.targetDB : '';
+      item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
+      item['disableEdit'] = item.from.type === 'csv' && item.from.data.csvData.currentTab === 'upload_csv_file';
+      return item;
+    });
+  }
+  // 刷新页面获取完数据后建立连接为了获取历史数据
+  closeConnect();
+
+  nextTick(() => {
+    if (!hasConnect.value) {
+      hasConnect.value = true;
+      const { activity, close } = useActivitySubscription(dataInProps.task.webSoketUrl);
+      connectData.activity = activity;
+      connectData.close = close;
+    }
+  });
 }
 
 function stop(data: Recordable) {
@@ -662,8 +653,17 @@ async function copyTask(data: Recordable, status: string) {
 }
 
 async function refresh() {
-  await getList();
-  getAgentList(dataInProps.agent.api);
+  try {
+    requestIng.value = true;
+    await getList();
+  } catch (err: any) {
+    ElMessage.error(err);
+    requestIng.value = false;
+    return;
+  }
+  requestIng.value = false;
+
+  // getAgentList(dataInProps.agent.api);
 
   dataSourceTableRef.value.clearSelection();
 }
@@ -778,7 +778,9 @@ function getStatusClass(status: string) {
 
 function closeConnect() {
   hasConnect.value = false;
-  connectData.close();
+  if (connectData && connectData.close) {
+    connectData.close();
+  }
 }
 
 onMounted(() => {
