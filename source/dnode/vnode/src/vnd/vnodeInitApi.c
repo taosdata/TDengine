@@ -223,6 +223,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->updateInfoSerialize = updateInfoSerialize;
   pStore->updateInfoDeserialize = updateInfoDeserialize;
 
+  pStore->streamStateSessionSeekKeyPrev = streamStateSessionSeekKeyPrev;
   pStore->streamStateSessionSeekKeyNext = streamStateSessionSeekKeyNext;
   pStore->streamStateCountSeekKeyPrev = streamStateCountSeekKeyPrev;
   pStore->streamStateSessionSeekKeyCurrentPrev = streamStateSessionSeekKeyCurrentPrev;
