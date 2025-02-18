@@ -67,3 +67,35 @@ Query OK, 1 row(s) in set (0.028946s)
 ### 内置异常检测算法
 分析平台内置了6个异常检查模型，分为3个类别，分别是[基于统计学的算法](./02-statistics-approach.md)、[基于数据密度的算法](./03-data-density.md)、以及[基于机器学习的算法](./04-machine-learning.md)。在不指定异常检测使用的方法的情况下，默认调用 IQR 进行异常检测。
 
+### 异常检测算法有效性比较工具
+TDgpt 提供自动化的工具对比不同数据集的不同算法监测有效性，针对异常检测算法提供查全率（recall）和查准率（precision）两个指标衡量不同算法的有效性。
+通过在配置文件中(analysis.ini)设置以下的选项可以调用需要使用的异常检测算法，异常检测算法测试用数据的时间范围、是否生成标注结果的图片、调用的异常检测算法以及相应的参数。
+调用异常检测算法比较之前，需要人工手动标注异常监测数据集的结果，即设置[anno_res]选项的数值，第几个数值是异常点，需要标注在数组中，如下测试集中，第 9 个点是异常点，我们就标注异常结果为 [9].
+
+```bash
+[ad]
+# training data start time
+start_time = 2021-01-01T01:01:01
+
+# training data end time
+end_time = 2021-01-01T01:01:11
+
+# draw the results or not
+gen_figure = true
+
+# annotate the anomaly_detection result
+anno_res = [9]
+
+# algorithms list that is involved in the comparion
+[ad.algos]
+ksigma={"k": 2}
+iqr={}
+grubbs={}
+lof={"algo":"auto", "n_neighbor": 3}
+```
+
+对比程序执行完成以后，会自动生成名称为`ad_result.xlsx` 的文件，第一个卡片是算法运行结果（如下图所示），分别包含了算法名称、执行调用参数、查全率、查准率、执行时间 5 个指标。
+
+
+如果设置了 `gen_figure` 为 `true`，比较程序会自动将每个参与比较的算法分析结果采用图片方式呈现出来（如下图所示）。
+
