@@ -14,7 +14,7 @@ TDengine 是一个高性能、分布式的时序数据库。通过集成的缓�
 
 TDengine OSS 是一个开源的高性能时序数据库，与其他时序数据库相比，它的核心优势在于其集群开源、高性能和云原生架构。而且除了基础的写入、查询和存储功能外，TDengine OSS 还集成了缓存、流式计算和数据订阅等高级功能，这些功能显著简化了系统设计，降低了企业的研发和运营成本。
 
-在 TDengine OSS 的基础上，企业版 TDengine Enterprise 提供了增强的辅助功能，包括数据的备份恢复、异地容灾、多级存储、视图、权限控制、安全加密、IP 白名单、支持 MQTT、OPC-UA、OPC-DA、PI、Wonderware、Kafka 等各种数据源。这些功能为企业提供了更为全面、安全、可靠和高效的时序数据管理解决方案。更多的细节请看 [TDengine Enterprise](https://www.taosdata.com/tdengine-pro)
+在 TDengine OSS 的基础上，TDengine Enterprise 提供了增强的辅助功能，包括数据的备份恢复、异地容灾、多级存储、视图、权限控制、安全加密、IP 白名单、支持 MQTT、OPC-UA、OPC-DA、PI、Wonderware、Kafka 等各种数据源。这些功能为企业提供了更为全面、安全、可靠和高效的时序数据管理解决方案。更多的细节请看 [TDengine Enterprise](https://www.taosdata.com/tdengine-pro)。
 
 此外，TDengine Cloud 作为一种全托管的云服务，存储与计算分离，分开计费，为企业提供了企业级的工具和服务，彻底解决了运维难题，尤其适合中小规模的用户使用。更多的细节请看[TDengine 云服务](https://cloud.taosdata.com/?utm_source=menu&utm_medium=webcn)
 
@@ -30,19 +30,19 @@ TDengine 经过特别优化，以适应时间序列数据的独特需求，引�
 
 4. 流式计算：TDengine 流式计算引擎提供了实时处理写入的数据流的能力，不仅支持连续查询，还支持事件驱动的流式计算。它提供了替代复杂流处理系统的轻量级解决方案，并能够在高吞吐的数据写入的情况下，提供毫秒级的计算结果延迟。
 
-5. 数据订阅：TDengine 提供了类似 Kafka 的数据订阅功能。但用户可以通过 SQL 来灵活控制订阅的数据内容，并使用 Kafka 相同的 API 来订阅一张表、一组表、全部列或部分列、甚至整个数据库的数据。TDengine 可以替代需要集成消息队列产品的场景， 从而简化系统设计的复杂度，降低运营维护成本。
+5. 数据订阅：TDengine 提供了类似 Kafka 的数据订阅功能。但用户可以通过 SQL 来灵活控制订阅的数据内容，并使用和 Kafka 相同的 API 来订阅一张表、一组表、全部列或部分列、甚至整个数据库的数据。TDengine 可以替代需要集成消息队列产品的场景， 从而简化系统设计的复杂度，降低运营维护成本。
 
-6. 可视化/BI：TDengine 本身不提供可视化或 BI 的功能。但通过其 RESTful API， 标准的 JDBC、ODBC 接口，TDengine 能够 Grafana、Google Data Studio、Power BI、Tableau 以及国产 BI 工具无缝集成。
+6. 可视化/BI：TDengine 本身不提供可视化或 BI 的功能。但通过其 RESTful API， 标准的 JDBC、ODBC 接口，TDengine 能够和 Grafana、Google Data Studio、Power BI、Tableau 以及国产 BI 工具无缝集成。
 
-7. 集群功能：TDengine 支持集群部署，能够随着业务数据量的增长，通过增加节点线性提升系统处理能力，实现水平扩展。同时，通过多副本技术提供高可用性，并支持 Kubernetes 部署。同时还提供了多种运维工具，方便系统管理员更好地管理和维护集群的健壮运行。
+7. 集群功能：TDengine 支持集群部署，能够随着业务数据量的增长，通过增加节点线性提升系统处理能力，实现水平扩展。同时，通过多副本技术提供高可用性，支持 Kubernetes 部署，提供了多种运维工具，方便系统管理员更好地管理和维护集群的健壮运行。
 
 8. 数据迁移：TDengine 提供了多种便捷的数据导入导出功能，包括脚本文件导入导出、数据文件导入导出、taosdump 工具导入导出等。
 
-9. 编程连接器：TDengine 提供不同语言的连接器，包括 C/C++、Java、Go、Node.js、Rust、Python、C#、R、PHP 等。这些连接器大多都支持原生连接和 WebSocket 两种连接方式。TDengine 也提供 RESTful 接口，任何语言的应用程序可以直接通过 HTTP 请求访问数据库。
+9. 编程连接器：TDengine 提供多种语言的连接器，包括 C/C++、Java、Go、Node.js、Rust、Python、C#、R、PHP 等。这些连接器大多都支持原生连接和 WebSocket 两种连接方式。TDengine 也提供 RESTful 接口，任何语言的应用程序可以直接通过 HTTP 请求访问数据库。
 
 10. 数据安全：TDengine 提供了丰富的用户管理和权限管理功能以控制不同用户对数据库和表的访问权限，提供了 IP 白名单功能以控制不同帐号只能从特定的服务器接入集群。TDengine 支持系统管理员对不同数据库按需加密，数据加密后对读写完全透明且对性能的影响很小。还提供了审计日志功能以记录系统中的敏感操作。
 
-11. 常用工具：TDengine 还提供了交互式命令行程序（CLI），便于管理集群、检查系统状态、做即时查询。压力测试工具 taosBenchmark，用于测试 TDengine 的性能。TDengine 还提供了图形化管理界面，简化了操作和管理过程。
+11. 常用工具：TDengine 提供了交互式命令行程序（CLI），便于管理集群、检查系统状态、做即时查询。压力测试工具 taosBenchmark，用于测试 TDengine 的性能。TDengine 还提供了图形化管理界面，简化了操作和管理过程。
 
 12. 零代码数据接入：TDengine 企业版提供了丰富的数据接入功能，依托强大的数据接入平台，无需一行代码，只需要做简单的配置即可实现多种数据源的数据接入，目前已经支持的数据源包括：OPC-UA、OPC-DA、PI、MQTT、Kafka、InfluxDB、OpenTSDB、MySQL、SQL Server、Oracle、Wonderware Historian、MongoDB。
 
@@ -63,8 +63,11 @@ TDengine 经过特别优化，以适应时间序列数据的独特需求，引�
 6. 核心开源：TDengine 的核心代码，包括集群功能，均在开源协议下公开发布。它在 GitHub 网站全球趋势排行榜上多次位居榜首，显示出其受欢迎程度。同时，TDengine 拥有一个活跃的开发者社区，为技术的持续发展和创新提供了有力支持。
 
 采用 TDengine，企业可以在物联网、车联网、工业互联网等典型场景中显著降低大数据平台的总拥有成本，主要体现在以下几个方面：
+
 1. 高性能带来的成本节约：TDengine 卓越的写入、查询和存储性能意味着系统所需的计算资源和存储资源可以大幅度减少。这不仅降低了硬件成本，还减少了能源消耗和维护费用。
+
 2. 标准化与兼容性带来的成本效益：由于 TDengine 支持标准 SQL，并与众多第三方软件实现了无缝集成，用户可以轻松地将现有系统迁移到 TDengine 上，无须重写大量代码。这种标准化和兼容性大大降低了学习和迁移成本，缩短了项目周期。
+
 3. 简化系统架构带来的成本降低：作为一个极简的时序数据平台，TDengine 集成了消息队列、缓存、流计算等必要功能，避免了额外集成众多其他组件的需要。这种简化的系统架构显著降低了系统的复杂度，从而减少了研发和运营成本，提高了整体运营效率。
 
 ## 技术生态
@@ -78,7 +81,7 @@ TDengine 经过特别优化，以适应时间序列数据的独特需求，引�
 <center><figcaption>图 1. TDengine 技术生态图</figcaption></center>
 </figure>
 
-上图中，左侧是各种数据采集或消息队列，包括 OPC-UA、MQTT、Telegraf、也包括 Kafka，他们的数据将被源源不断的写入到 TDengine。右侧则是可视化、BI 工具、组态软件、应用程序。下侧则是 TDengine 自身提供的命令行程序（CLI）以及可视化管理工具。
+上图中，左侧是各种数据采集或消息队列，包括 OPC-UA、MQTT、Telegraf、也包括 Kafka，它们的数据将被源源不断的写入到 TDengine。右侧是可视化、BI 工具、组态软件、应用程序。下侧是 TDengine 自身提供的命令行程序（CLI）以及可视化管理工具。
 
 ## 典型适用场景
 
