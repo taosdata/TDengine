@@ -58,7 +58,7 @@ remote_read:
 ./prometheus --config.file prometheus.yml
 ```
 
-之后 Prometheus 应该已经启动好。同时也启动了一个 Web 服务器\<http://localhost:9090>。如果您想从浏览器访问这个 Web 服务器， 可以根据您的网络环境修改 `localhost` 为正确的主机名，FQDN 或者 IP 地址。
+之后 Prometheus 应该已经启动好。同时也启动了一个 Web 服务器`http://localhost:9090`。如果您想从浏览器访问这个 Web 服务器， 可以根据您的网络环境修改 `localhost` 为正确的主机名，FQDN 或者 IP 地址。
 
 ## 验证远程写入
 
