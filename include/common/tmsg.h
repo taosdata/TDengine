@@ -3000,8 +3000,10 @@ enum {
   TOPIC_SUB_TYPE__COLUMN,
 };
 
-#define DEFAULT_MAX_POLL_INTERVAL 300000
-#define DEFAULT_SESSION_TIMEOUT   12000
+#define DEFAULT_MAX_POLL_INTERVAL  300000
+#define DEFAULT_SESSION_TIMEOUT    12000
+#define DEFAULT_MAX_POLL_WAIT_TIME 500
+#define DEFAULT_MIN_POLL_ROWS      500
 
 typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];  // accout.topic
@@ -4205,6 +4207,7 @@ typedef struct {
   int8_t       enableReplay;
   int8_t       sourceExcluded;
   int8_t       rawData;
+  int32_t      minPollRows;
   int8_t       enableBatchMeta;
   SHashObj    *uidHash;  // to find if uid is duplicated
 } SMqPollReq;

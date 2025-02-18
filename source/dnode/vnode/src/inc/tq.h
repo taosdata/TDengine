@@ -113,7 +113,7 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
 void    tqDestroyTqHandle(void* data);
 
 // tqRead
-int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBatchMetaRsp* pBatchMetaRsp, STqOffsetVal* offset, int64_t timeout);
+int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBatchMetaRsp* pBatchMetaRsp, STqOffsetVal* offset, const SMqPollReq* pRequest);
 int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset, const SMqPollReq* pRequest);
 int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t reqId);
 
@@ -183,8 +183,6 @@ int32_t tqSendAllNotifyEvents(const SArray* pBlocks, SStreamTask* pTask, SVnode*
 
 #define TQ_SUBSCRIBE_NAME "subscribe"
 #define TQ_OFFSET_NAME    "offset-ver0"
-#define TQ_POLL_MAX_TIME  1000
-#define TQ_POLL_MAX_BYTES 1048576
 
 #ifdef __cplusplus
 }
