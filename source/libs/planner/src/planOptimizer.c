@@ -3307,6 +3307,16 @@ static int32_t partTagsOptRemovePseudoCols(SScanLogicNode* pScan) {
     return TSDB_CODE_SUCCESS;
   }
 
+  SNode* pNode = NULL, *pTarget = NULL;
+  FOREACH(pNode, pScan->pScanPseudoCols) {
+    FOREACH(pTarget, pScan->node.pTargets) {
+      if (0 == strcmp(((SExprNode*)pNode)->aliasName, ((SColumnNode*)pTarget)->colName)) {
+        ERASE_NODE(pScan->node.pTargets);
+        break;
+      }
+    }
+  }
+  
   nodesDestroyList(pScan->pScanPseudoCols);
   pScan->pScanPseudoCols = NULL;
 
