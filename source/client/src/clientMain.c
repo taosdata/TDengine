@@ -622,6 +622,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
 
     return doAsyncFetchRows(pRequest, true, true);
   } else if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
+#ifdef USE_TQ
     SMqRspObj      *msg = ((SMqRspObj *)res);
     SReqResultInfo *pResultInfo = NULL;
     if (msg->resIter == -1) {
@@ -645,6 +646,10 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
       pResultInfo->current += 1;
       return pResultInfo->row;
     }
+#else
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    return NULL;
+#endif
   } else if (TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return NULL;
   } else {
