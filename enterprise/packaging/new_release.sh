@@ -319,7 +319,9 @@ function build_TDengine() {
     repoDir=""
     echo "start to cmake tdengine"
     echo "versionType $versionType"
-    allocator="jemalloc"
+    # set allocator glibc or jemalloc
+    
+    allocator="glibc"
     if [[ "$allocator" == "jemalloc" ]]; then
         allocator_macro="-DJEMALLOC_ENABLED=true"
     else
@@ -584,7 +586,7 @@ function preparepkg() {
     fi
     
     #copy jemalloc
-    if [ "${versionType}" != "community" ]; then
+    if [ "${versionType}" != "community" ] && [ "$allocator" == "jemalloc" ] ; then
         build_dir="${debugDir}/build"
         mkdir -p ${install_dir}/jemalloc/{bin,lib,lib/pkgconfig,include/jemalloc,share/doc/jemalloc,share/man/man3} 
         if [ -f ${build_dir}/bin/jemalloc-config ]; then
@@ -617,7 +619,7 @@ function preparepkg() {
         fi
         if [ -f ${build_dir}/share/man/man3/jemalloc.3 ]; then
             cp ${build_dir}/share/man/man3/jemalloc.3 ${install_dir}/jemalloc/share/man/man3
-        fi    
+        fi 
     fi
     # copy others    
     cp ${internalDir}/enterprise/packaging/start-all.sh ${install_dir} || :
@@ -693,7 +695,7 @@ function make_linux_pkg() {
         cp -r init.d/ ${install_dir}/${serverPackageName}
         
         # cp jemalloc
-        if [ "${versionType}" != "community" ]; then
+        if [ "${versionType}" != "community" ] && [ "$allocator" == "jemalloc" ] ; then
             cp -r jemalloc/ ${install_dir}/${serverPackageName}
         fi
 
