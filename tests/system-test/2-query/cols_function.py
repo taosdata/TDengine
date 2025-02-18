@@ -530,6 +530,29 @@ class TDTestCase:
         tdSql.checkData(0, 4, 1)
         tdSql.error(f'select  c1 from (select cols(last_row(c0), ts as t1, c1), cols(first(c0), ts as t2, c1), first(c0)  from test.meters where c0 < 4)')
 
+        tdSql.query(f'select  c11, _rowts from (select cols(last_row(c0), ts as t1, c1 as c11), cols(first(c0), ts as t2, c1 c21), first(c0)  from test.meters where c0 < 4)')
+        tdSql.checkRows(1)
+        tdSql.checkCols(2)
+        tdSql.checkData(0, 0, 3)
+        tdSql.query(f'select  c11, c21, _rowts from (select cols(last_row(c0), ts as t1, c1 as c11), cols(first(c0), ts as t2, c1 c21), first(c0)  from test.meters where c0 < 4)')
+        tdSql.checkRows(1)
+        tdSql.checkCols(3)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(0, 1, 1)
+        tdSql.query(f'select  c1, c21, _rowts from (select cols(last_row(c0), ts as t1, c1), cols(first(c0), ts as t2, c1 c21), first(c0)  from test.meters where c0 < 4)')
+        tdSql.checkRows(1)
+        tdSql.checkCols(3)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(0, 1, 1)
+        tdSql.query(f'select  *, _rowts from (select cols(last_row(c0), ts as t1, c1), cols(first(c0), ts as t2, c1 c21), first(c0)  from test.meters where c0 < 4)')
+        tdSql.checkRows(1)
+        tdSql.checkCols(6)
+        tdSql.checkData(0, 1, 3)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 1)
+        tdSql.error(f'select  c1, _rowts from (select cols(last_row(c0), ts as t1, c1), cols(first(c0), ts as t2, c1), first(c0)  from test.meters where c0 < 4)')
+
+
         # cols on system table
         tdSql.query(f'select cols(max(vgroup_id), uid) from information_schema.ins_tables')
         tdSql.checkRows(1)
@@ -680,25 +703,25 @@ class TDTestCase:
         tdSql.checkData(0, 2, 1734574929000)
         tdSql.checkData(0, 3, 6)
 
-    def orderby_test(self, from_table = 'test.meters', isTmpTable = False):
+    def orderby_test(self, from_table = 'test.meters', col_name='c0', isTmpTable = False):
         select_t1 = ["", ", t1", ", t1 as tag1"]
         for t1 in select_t1:
             if t1 != "" and isTmpTable:
                 # Not a GROUP BY expression
-                tdSql.error(f'select count(1), cols(last(c0),c2) {t1} from {from_table} group by tbname order by cols(last(c0), c2)')  
-                tdSql.error(f'select count(1), cols(last(c0),c2) {t1} from {from_table} group by tbname order by cols(last(c0), c2) desc')  
-                tdSql.error(f'select count(1), cols(last(c0),c2) {t1} from {from_table} group by tbname order by cols(last(c0), c0)')  
-                tdSql.error(f'select count(1), cols(last(c0),c2) {t1} from {from_table} group by tbname order by cols(last(c0), c0), cols(last(c0), c1)')  
-                tdSql.error(f'select count(1), last(c2) {t1} from {from_table} group by tbname order by cols(last(c0), c2)')  
-                tdSql.error(f'select count(1), last(c2) {t1} from {from_table} group by tbname order by cols(last(c0), c2) desc')  
-                tdSql.error(f'select count(1), last(c2) {t1} from {from_table} group by tbname order by cols(last(c0), c0)')  
-                tdSql.error(f'select count(1), last(c2) {t1} from {from_table} group by tbname order by cols(last(c0), c0), cols(last(c0), c1)')  
-                tdSql.error(f'select count(1), max(c2) {t1} from {from_table} group by tbname order by cols(last(c0), c2)')  
-                tdSql.error(f'select count(1), max(c2) {t1} from {from_table} group by tbname order by cols(last(c0), c2) desc')  
-                tdSql.error(f'select count(1), max(c2) {t1} from {from_table} group by tbname order by cols(last(c0), c0)')  
-                tdSql.error(f'select count(1), max(c2) {t1} from {from_table} group by tbname order by cols(last(c0), c0), cols(last(c0), c1)')
+                tdSql.error(f'select count(1), cols(last({col_name}),c2) {t1} from {from_table} group by tbname order by cols(last({col_name}), c2)')  
+                tdSql.error(f'select count(1), cols(last({col_name}),c2) {t1} from {from_table} group by tbname order by cols(last({col_name}), c2) desc')  
+                tdSql.error(f'select count(1), cols(last({col_name}),c2) {t1} from {from_table} group by tbname order by cols(last({col_name}), {col_name})')  
+                tdSql.error(f'select count(1), cols(last({col_name}),c2) {t1} from {from_table} group by tbname order by cols(last({col_name}), {col_name}), cols(last({col_name}), c1)')  
+                tdSql.error(f'select count(1), last(c2) {t1} from {from_table} group by tbname order by cols(last({col_name}), c2)')  
+                tdSql.error(f'select count(1), last(c2) {t1} from {from_table} group by tbname order by cols(last({col_name}), c2) desc')  
+                tdSql.error(f'select count(1), last(c2) {t1} from {from_table} group by tbname order by cols(last({col_name}), {col_name})')  
+                tdSql.error(f'select count(1), last(c2) {t1} from {from_table} group by tbname order by cols(last({col_name}), {col_name}), cols(last({col_name}), c1)')  
+                tdSql.error(f'select count(1), max(c2) {t1} from {from_table} group by tbname order by cols(last({col_name}), c2)')  
+                tdSql.error(f'select count(1), max(c2) {t1} from {from_table} group by tbname order by cols(last({col_name}), c2) desc')  
+                tdSql.error(f'select count(1), max(c2) {t1} from {from_table} group by tbname order by cols(last({col_name}), {col_name})')  
+                tdSql.error(f'select count(1), max(c2) {t1} from {from_table} group by tbname order by cols(last({col_name}), {col_name}), cols(last({col_name}), c1)')
                 continue
-            tdSql.query(f'select count(1), cols(last(c0),c2) {t1}  from {from_table} group by tbname order by cols(last(c0), c2)')  
+            tdSql.query(f'select count(1), cols(last({col_name}),c2) {t1}  from {from_table} group by tbname order by cols(last({col_name}), c2)')  
             tdSql.checkRows(2)
             tags_count = 0 if t1 == "" else 1
             tdLog.debug(f'tags_count: {tags_count}')
@@ -710,7 +733,7 @@ class TDTestCase:
             tdSql.checkData(1, 1, 'c2')
             self.condition_check(t1 != "", 1, 2, 'st2')
 
-            tdSql.query(f'select count(1), cols(last(c0),c2)  {t1} from {from_table} group by tbname order by cols(last(c0), c2) desc')  
+            tdSql.query(f'select count(1), cols(last({col_name}),c2)  {t1} from {from_table} group by tbname order by cols(last({col_name}), c2) desc')  
             tdSql.checkRows(2)
             tdSql.checkCols(2 + tags_count)
             tdSql.checkData(0, 0, 1)
@@ -720,17 +743,7 @@ class TDTestCase:
             tdSql.checkData(1, 1, 'bbbbbbbbb2')
             self.condition_check(t1 != "", 1, 2, 'st1')
 
-            tdSql.query(f'select count(1), cols(last(c0),c2)  {t1} from {from_table} group by tbname order by cols(last(c0), c0)')  
-            tdSql.checkRows(2)
-            tdSql.checkCols(2 + tags_count)
-            tdSql.checkData(0, 0, 1)
-            tdSql.checkData(0, 1, 'c2')
-            self.condition_check(t1 != "", 0, 2, 'st2')
-            tdSql.checkData(1, 0, 5)
-            tdSql.checkData(1, 1, 'bbbbbbbbb2')
-            self.condition_check(t1 != "", 1, 2, 'st1')
-            
-            tdSql.query(f'select count(1), cols(last(c0),c2)  {t1} from {from_table} group by tbname order by 1')  
+            tdSql.query(f'select count(1), cols(last({col_name}),c2)  {t1} from {from_table} group by tbname order by cols(last({col_name}), {col_name})')  
             tdSql.checkRows(2)
             tdSql.checkCols(2 + tags_count)
             tdSql.checkData(0, 0, 1)
@@ -740,7 +753,17 @@ class TDTestCase:
             tdSql.checkData(1, 1, 'bbbbbbbbb2')
             self.condition_check(t1 != "", 1, 2, 'st1')
             
-            tdSql.query(f'select count(1), cols(last(c0),c2)  {t1} from {from_table} group by tbname order by 2')  
+            tdSql.query(f'select count(1), cols(last({col_name}),c2)  {t1} from {from_table} group by tbname order by 1')  
+            tdSql.checkRows(2)
+            tdSql.checkCols(2 + tags_count)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 'c2')
+            self.condition_check(t1 != "", 0, 2, 'st2')
+            tdSql.checkData(1, 0, 5)
+            tdSql.checkData(1, 1, 'bbbbbbbbb2')
+            self.condition_check(t1 != "", 1, 2, 'st1')
+            
+            tdSql.query(f'select count(1), cols(last({col_name}),c2)  {t1} from {from_table} group by tbname order by 2')  
             tdSql.checkRows(2)
             tdSql.checkCols(2 + tags_count)
             tdSql.checkData(0, 0, 5)
@@ -750,7 +773,7 @@ class TDTestCase:
             tdSql.checkData(1, 1, 'c2')
             self.condition_check(t1 != "", 1, 2, 'st2')
 
-            tdSql.query(f'select count(1), cols(last(c0),c2)  {t1} from {from_table} group by tbname order by cols(last(c0), c0), cols(last(c0), c1)')  
+            tdSql.query(f'select count(1), cols(last({col_name}),c2)  {t1} from {from_table} group by tbname order by cols(last({col_name}), {col_name}), cols(last({col_name}), c1)')  
             tdSql.checkRows(2)
             tdSql.checkCols(2 + tags_count)
             tdSql.checkData(0, 0, 1)
@@ -760,7 +783,7 @@ class TDTestCase:
             tdSql.checkData(1, 1, 'bbbbbbbbb2')
             self.condition_check(t1 != "", 1, 2, 'st1')
 
-            tdSql.query(f'select count(1), last(c2)  {t1} from {from_table} group by tbname order by cols(last(c0), c2)')  
+            tdSql.query(f'select count(1), last(c2)  {t1} from {from_table} group by tbname order by cols(last({col_name}), c2)')  
             tdSql.checkRows(2)
             tdSql.checkCols(2 + tags_count)
             tdSql.checkData(0, 0, 5)
@@ -770,7 +793,7 @@ class TDTestCase:
             tdSql.checkData(1, 1, 'c2')
             self.condition_check(t1 != "", 1, 2, 'st2')
 
-            tdSql.query(f'select count(1), last(c2)  {t1} from {from_table} group by tbname order by cols(last(c0), c2) desc')  
+            tdSql.query(f'select count(1), last(c2)  {t1} from {from_table} group by tbname order by cols(last({col_name}), c2) desc')  
             tdSql.checkRows(2)
             tdSql.checkCols(2 + tags_count)
             tdSql.checkData(0, 0, 1)
@@ -780,7 +803,7 @@ class TDTestCase:
             tdSql.checkData(1, 1, 'bbbbbbbbb2')
             self.condition_check(t1 != "", 1, 2, 'st1')
 
-            tdSql.query(f'select count(1), last(c2)  {t1} from {from_table} group by tbname order by cols(last(c0), c0)')  
+            tdSql.query(f'select count(1), last(c2)  {t1} from {from_table} group by tbname order by cols(last({col_name}), {col_name})')  
             tdSql.checkRows(2)
             tdSql.checkCols(2 + tags_count)
             tdSql.checkData(0, 0, 1)
@@ -790,7 +813,7 @@ class TDTestCase:
             tdSql.checkData(1, 1, 'bbbbbbbbb2')
             self.condition_check(t1 != "", 1, 2, 'st1')
 
-            tdSql.query(f'select count(1), last(c2)  {t1} from {from_table} group by tbname order by cols(last(c0), c0), cols(last(c0), c1)')  
+            tdSql.query(f'select count(1), last(c2)  {t1} from {from_table} group by tbname order by cols(last({col_name}), {col_name}), cols(last({col_name}), c1)')  
             tdSql.checkRows(2)
             tdSql.checkCols(2 + tags_count)
             tdSql.checkData(0, 0, 1)
@@ -800,7 +823,7 @@ class TDTestCase:
             tdSql.checkData(1, 1, 'bbbbbbbbb2') 
             self.condition_check(t1 != "", 1, 2, 'st1')
 
-            tdSql.query(f'select count(1), max(c2)  {t1} from {from_table} group by tbname order by cols(last(c0), c2)')  
+            tdSql.query(f'select count(1), max(c2)  {t1} from {from_table} group by tbname order by cols(last({col_name}), c2)')  
             tdSql.checkRows(2)
             tdSql.checkCols(2 + tags_count)
             tdSql.checkData(0, 0, 5)
@@ -810,7 +833,7 @@ class TDTestCase:
             tdSql.checkData(1, 1, 'c2')
             self.condition_check(t1 != "", 1, 2, 'st2')
             
-            tdSql.query(f'select count(1), max(c2)  {t1} from {from_table} group by tbname order by cols(last(c0), c2) desc')  
+            tdSql.query(f'select count(1), max(c2)  {t1} from {from_table} group by tbname order by cols(last({col_name}), c2) desc')  
             tdSql.checkRows(2)
             tdSql.checkCols(2 + tags_count)
             tdSql.checkData(0, 0, 1)
@@ -820,7 +843,7 @@ class TDTestCase:
             tdSql.checkData(1, 1, 'c2')
             self.condition_check(t1 != "", 1, 2, 'st1')
 
-            tdSql.query(f'select count(1), max(c2)  {t1} from {from_table} group by tbname order by cols(last(c0), c0)')  
+            tdSql.query(f'select count(1), max(c2)  {t1} from {from_table} group by tbname order by cols(last({col_name}), {col_name})')  
             tdSql.checkRows(2)
             tdSql.checkCols(2 + tags_count)
             tdSql.checkData(0, 0, 1)
@@ -830,7 +853,7 @@ class TDTestCase:
             tdSql.checkData(1, 1, 'c2')
             self.condition_check(t1 != "", 1, 2, 'st1')
 
-            tdSql.query(f'select count(1), max(c2)  {t1} from {from_table} group by tbname order by cols(last(c0), c0), cols(last(c0), c1)')  
+            tdSql.query(f'select count(1), max(c2)  {t1} from {from_table} group by tbname order by cols(last({col_name}), {col_name}), cols(last({col_name}), c1)')  
             tdSql.checkRows(2)
             tdSql.checkCols(2 + tags_count)
             tdSql.checkData(0, 0, 1)
@@ -838,7 +861,15 @@ class TDTestCase:
             self.condition_check(t1 != "", 0, 2, 'st2')
             tdSql.checkData(1, 0, 5)
             tdSql.checkData(1, 1, 'c2')
-            self.condition_check(t1 != "", 1, 2, 'st1') 
+            self.condition_check(t1 != "", 1, 2, 'st1')
+            
+            tdSql.query(f'select _rowts, max(c2)  {t1}  from {from_table} group by tbname order by cols(last({col_name}), {col_name}), cols(last({col_name}), c1)')  
+            tdSql.checkRows(2)
+            tdSql.checkCols(2 + tags_count)
+            tdSql.checkData(0, 1, 'c2')
+            self.condition_check(t1 != "", 0, 2, 'st2')
+            tdSql.checkData(1, 1, 'c2')
+            self.condition_check(t1 != "", 1, 2, 'st1')          
           
     def parse_test(self):
         tdLog.info("parse test")
@@ -883,9 +914,9 @@ class TDTestCase:
         tdSql.query(f'select count(1), cols(last(c0),c0)  from (select *, tbname from test.meters) group by tbname')
         
         tdLog.info("subquery_test: orderby_test from meters")
-        self.orderby_test("test.meters", False)
+        self.orderby_test("test.meters", "c0", False)
         tdLog.info("subquery_test: orderby_test from (select *, tbname from meters)")
-        self.orderby_test("(select *, tbname from test.meters)", True)
+        self.orderby_test("(select *, tbname from test.meters)", "c0", True)
         tdLog.info("subquery_test: one_cols_multi_output_with_group_test from meters")
         self.one_cols_multi_output_with_group_test("test.meters", False)
         tdLog.info("subquery_test: one_cols_multi_output_with_group_test from (select *, tbname from meters)")
@@ -893,8 +924,7 @@ class TDTestCase:
         
         self.one_cols_multi_output_test("test.meters")
         self.one_cols_multi_output_test("(select *, tbname from test.meters)")
-        
-    
+
     def window_test(self):
         tdSql.query(f'select tbname, _wstart,_wend, max(c0), max(c1), cols( max(c0), c1)  from test.meters partition \
                     by tbname  count_window(2) order by tbname')
@@ -962,7 +992,35 @@ class TDTestCase:
         tdSql.checkData(0, 1, 1734574929011)
         tdSql.checkData(0, 2, 1734574929012)
         tdSql.checkData(0, 3, 1734574929013)
+       
+    def long_column_name_test(self):
+        tdSql.execute(f'use {self.dbname}')     
+        tdSql.execute(f'create table {self.dbname}.long_col_test (ts timestamp, longcolumntestlongcolumntestlongcolumntestlongcolumntest88888888 int, c1 float, c2 nchar(30), c3 bool) tags (t1 nchar(30))')
+        tdSql.execute(f'create table {self.dbname}.dl0 using {self.dbname}.long_col_test tags("st1")')
+        tdSql.execute(f'create table {self.dbname}.dl1 using {self.dbname}.long_col_test tags("st2")')
+        tdSql.execute(f'insert into {self.dbname}.dl0 values(1734574929000, 1, 1, "c2", true)')
+        tdSql.execute(f'insert into {self.dbname}.dl0 values(1734574929001, 2, 2, "bbbbbbbbb1", false)')
+        tdSql.execute(f'insert into {self.dbname}.dl0 values(1734574929002, 2, 2, "bbbbbbbbb1", false)')
+        tdSql.execute(f'insert into {self.dbname}.dl0 values(1734574929003, 3, 3, "a2", true)')
+        tdSql.execute(f'insert into {self.dbname}.dl0 values(1734574929004, 4, 4, "bbbbbbbbb2", false)')
         
+        tdSql.execute(f'insert into {self.dbname}.dl1 values(1734574929000, 1, 1, "c2", true)')
+    
+        tdSql.query(f'select cols(last(longcolumntestlongcolumntestlongcolumntestlongcolumntest88888888),ts lts, c1 lc1), cols(first(longcolumntestlongcolumntestlongcolumntestlongcolumntest88888888), ts fts, c1 as fc1), count(1) from test.long_col_test')
+        tdSql.checkResColNameList(['lts', 'lc1', 'fts', 'fc1', 'count(1)'])
+        tdSql.checkRows(1)
+        tdSql.checkCols(5)
+        tdSql.checkData(0, 0, 1734574929004)
+        tdSql.checkData(0, 1, 4)
+        tdSql.checkData(0, 2, 1734574929000)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, 6)
+        
+        tdLog.info("long_column_name_test subquery_test: orderby_test from meters")
+        self.orderby_test("test.long_col_test", "longcolumntestlongcolumntestlongcolumntestlongcolumntest88888888", False)
+        tdLog.info("long_column_name_test subquery_test: orderby_test from (select *, tbname from meters)")
+        self.orderby_test("(select *, tbname from test.long_col_test)", "longcolumntestlongcolumntestlongcolumntestlongcolumntest88888888", True)
+        tdLog.info("long_column_name_test subquery_test: one_cols_multi_output_with_group_test from meters")
                 
     def run(self):
         self.funcNestTest()
@@ -976,6 +1034,7 @@ class TDTestCase:
         self.join_test()
         self.stream_cols_test()
         self.include_null_test()
+        self.long_column_name_test()
 
 
     def stop(self):

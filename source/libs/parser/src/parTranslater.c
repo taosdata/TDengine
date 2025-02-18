@@ -3572,6 +3572,23 @@ static int32_t getGroupByErrorCode(STranslateContext* pCxt) {
   return TSDB_CODE_PAR_INVALID_OPTR_USAGE;
 }
 
+static void rewriteAliasNameWithRelate(SFunctionNode* pFunc, SExprNode* pExpr) {
+  if (isRelatedToOtherExpr(pExpr)) {
+    int len = strlen(pExpr->aliasName);
+    if (len + TSDB_COL_NAME_EXLEN >= TSDB_COL_NAME_LEN) {
+      char buffer[TSDB_COL_NAME_EXLEN + TSDB_COL_NAME_LEN + 1] = {0};
+      tsnprintf(buffer, sizeof(buffer), "%s.%d", pExpr->aliasName, pExpr->relatedTo);
+      uint64_t hashVal = MurmurHash3_64(buffer, TSDB_COL_NAME_EXLEN + TSDB_COL_NAME_LEN + 1);
+      tsnprintf(pFunc->node.aliasName, TSDB_COL_NAME_EXLEN, "%" PRIu64, hashVal);
+    } else {
+      tstrncpy(pFunc->node.aliasName, pExpr->aliasName, TSDB_COL_NAME_LEN);
+      tsnprintf(pFunc->node.aliasName + len, TSDB_COL_NAME_EXLEN, ".%d", pExpr->relatedTo);
+    }
+  } else {
+    tstrncpy(pFunc->node.aliasName, pExpr->aliasName, TSDB_COL_NAME_LEN);
+  }
+}
+
 static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode) {
   SFunctionNode* pFunc = NULL;
   int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
@@ -3580,15 +3597,9 @@ static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode
     return DEAL_RES_ERROR;
   }
   tstrncpy(pFunc->functionName, "_select_value", TSDB_FUNC_NAME_LEN);
-  tstrncpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName, TSDB_COL_NAME_LEN);
   tstrncpy(pFunc->node.userAlias, ((SExprNode*)*pNode)->userAlias, TSDB_COL_NAME_LEN);
-  if (isRelatedToOtherExpr((SExprNode*)*pNode)) {
-    int len = strlen(((SExprNode*)*pNode)->aliasName);
-    if (len + TSDB_COL_NAME_EXLEN >= TSDB_COL_NAME_LEN) {
-      parserWarn("%s The alias name is too long, the extra part will be truncated", __func__);
-    }
-    tsnprintf(pFunc->node.aliasName + len, TSDB_COL_NAME_EXLEN, ".%d", ((SExprNode*)*pNode)->relatedTo);
-  }
+  rewriteAliasNameWithRelate(pFunc, (SExprNode*)*pNode);
+  
   pFunc->node.relatedTo = ((SExprNode*)*pNode)->relatedTo;
   pFunc->node.bindExprID = ((SExprNode*)*pNode)->bindExprID;
   pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
