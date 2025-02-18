@@ -71,8 +71,7 @@ class TDTestCase(TBase):
         self.checkSame(db, stb, "last(ts)", "2023-11-15 07:36:39")
         self.checkSame(db, stb, "last(bc)", False)
         self.checkSame(db, stb, "sum(fc)", 2468.910999777726829)
-        self.checkSame(db, stb, "avg(dc)", 24811.172123999996984)
-
+        self.checkSame(db, stb, "sum(dc)", 24811.172123999996984)
         self.checkSame(db, stb, "sum(ti)", -411)
         self.checkSame(db, stb, "sum(si)", 117073)
         self.checkSame(db, stb, "sum(ic)", -39181)
