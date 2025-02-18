@@ -486,8 +486,8 @@ static int32_t doStreamWALScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
                 ", block start key:%" PRId64 ", end key:%" PRId64,
                 GET_TASKID(pTaskInfo), num, pInfo->pRes->info.id.uid, curTs, pInfo->pRes->info.window.skey,
                 pInfo->pRes->info.window.ekey);
-          code = buildAndSaveRecalculateData(pInfo->pRes, (TSKEY*)pTsCol->pData, pPkColDataInfo, num, &pInfo->partitionSup,
-                                             pInfo->pPartScalarSup, &pInfo->stateStore, pInfo->basic.pTsDataState, pInfo->pUpdateRes);
+          code = buildRecalculateData(pInfo->pRes, (TSKEY*)pTsCol->pData, pPkColDataInfo, pInfo->pUpdateRes, num, &pInfo->partitionSup,
+                                      pInfo->pPartScalarSup);
           QUERY_CHECK_CODE(code, lino, _end);
           code = blockDataTrimFirstRows(pInfo->pRes, num);
           QUERY_CHECK_CODE(code, lino, _end);
@@ -939,8 +939,8 @@ static int32_t doOneRangeScan(SStreamScanInfo* pInfo, SScanRange* pRange, SSData
     code = doTableScanNext(pScanOp, &pResult);
     QUERY_CHECK_CODE(code, lino, _end);
 
+    STableScanInfo* pTableScanInfo = pScanOp->info;
     if (pResult == NULL) {
-      STableScanInfo* pTableScanInfo = pScanOp->info;
       pTableScanInfo->base.readerAPI.tsdReaderClose(pTableScanInfo->base.dataReader);
       pTableScanInfo->base.dataReader = NULL;
       (*ppRes) = NULL;
@@ -951,6 +951,9 @@ static int32_t doOneRangeScan(SStreamScanInfo* pInfo, SScanRange* pRange, SSData
     QUERY_CHECK_CODE(code, lino, _end);
     if (pResult->info.rows == 0) {
       continue;
+    }
+    if (!pInfo->scanAllTables) {
+      pResult->info.id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pResult->info.id.uid);
     }
 
     if (pInfo->partitionSup.needCalc) {

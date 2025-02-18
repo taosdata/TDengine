@@ -1231,6 +1231,8 @@ int32_t mergeScanRange(SArray* pRangeArray, SScanRange* pRangeKey, uint64_t gpId
   *pRes = false;
 
 _end:
+  qDebug("===stream===mergeScanRange start ts:%" PRId64 ",end ts:%" PRId64 ",group id:%" PRIu64 ", uid:%" PRIu64
+         ", res:%d", pRangeKey->win.skey, pRangeKey->win.ekey, gpId, uId, *pRes);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -1376,16 +1378,17 @@ int32_t popScanRange(STableTsDataState* pTsDataState, SScanRange* pRange) {
     goto _end;
   }
 
-  int32_t winRes = TSDB_CODE_SUCCESS;
-  while (winRes == TSDB_CODE_SUCCESS) {
+  {
     pCur = streamStateSessionSeekToLast_rocksdb(pTsDataState->pState, INT64_MAX);
     void*       pVal = NULL;
     int32_t     vlen = 0;
     SSessionKey key = {0};
-    winRes = streamStateSessionGetKVByCur_rocksdb(pTsDataState->pState, pCur, &key, &pVal, &vlen);
+    int32_t     winRes = streamStateSessionGetKVByCur_rocksdb(pTsDataState->pState, pCur, &key, &pVal, &vlen);
     if (winRes != TSDB_CODE_SUCCESS) {
-      break;
+      goto _end;
     }
+    qDebug("===stream===get scan range from disc start ts:%" PRId64 ",end ts:%" PRId64 ",group id:%" PRIu64,
+           key.win.skey, key.win.ekey, key.groupId);
 
     pRange->win = key.win;
     _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
@@ -1395,7 +1398,7 @@ int32_t popScanRange(STableTsDataState* pTsDataState, SScanRange* pRange) {
     if (pRange->pUIds == NULL) {
       pRange->pUIds = tSimpleHashInit(8, hashFn);
     }
-    code = putRangeIdInfo(pRange, key.groupId, *(uint64_t*) pVal);
+    code = putRangeIdInfo(pRange, key.groupId, *(uint64_t*)pVal);
     QUERY_CHECK_CODE(code, lino, _end);
     code = streamStateSessionDel_rocksdb(pTsDataState->pState, &key);
     QUERY_CHECK_CODE(code, lino, _end);

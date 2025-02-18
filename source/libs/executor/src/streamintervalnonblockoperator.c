@@ -464,7 +464,7 @@ _end:
   return code;
 }
 
-static int32_t doSetWindowRecFlag(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+static int32_t doProcessRecalculateReq(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   int32_t                           code = TSDB_CODE_SUCCESS;
   int32_t                           lino = 0;
   SStreamIntervalSliceOperatorInfo* pInfo = pOperator->info;
@@ -500,7 +500,12 @@ static int32_t doSetWindowRecFlag(SOperatorInfo* pOperator, SSDataBlock* pBlock)
 
       SWinKey key = {.ts = win.skey, .groupId = pGpDatas[i]};
       if (pInfo->streamAggSup.stateStore.streamStateCheck(pInfo->streamAggSup.pState, &key)) {
-        pInfo->streamAggSup.stateStore.streamStateSetRecFlag(pInfo->streamAggSup.pState, &key, sizeof(SWinKey), pBlock->info.type);
+        pInfo->streamAggSup.stateStore.streamStateSetRecFlag(pInfo->streamAggSup.pState, &key, sizeof(SWinKey),
+                                                             pBlock->info.type);
+      } else {
+        SSessionKey winKey = {.win = win, .groupId = key.groupId};
+        code = saveRecWindowToDisc(&winKey, pBlock->info.id.uid, pBlock->info.type, pInfo->basic.pTsDataState, &pInfo->streamAggSup);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
       getNextTimeWindow(pInterval, &win, TSDB_ORDER_ASC);
     } while (win.ekey <= endTsCols[i]);
@@ -636,7 +641,7 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
           (*ppRes) = pBlock;
           return code;
         } else {
-          code = doSetWindowRecFlag(pOperator, pBlock);
+          code = doProcessRecalculateReq(pOperator, pBlock);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         continue;
