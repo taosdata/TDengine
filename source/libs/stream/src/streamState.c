@@ -264,7 +264,7 @@ int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, in
 }
 
 bool streamStateCheck(SStreamState* pState, const SWinKey* pKey) {
-  return hasRowBuff(pState->pFileState, pKey, sizeof(SWinKey));
+  return hasRowBuff(pState->pFileState, pKey);
 }
 
 int32_t streamStateGetByPos(SStreamState* pState, void* pos, void** pVal) {
@@ -834,3 +834,8 @@ void streamStateClearExpiredSessionState(SStreamState* pState, int32_t numOfKeep
   }
   clearExpiredSessionState(pState->pFileState, numOfKeep, minTs, pFlushGroup);
 }
+
+bool streamStateCheckSessionState(SStreamState* pState, const SSessionKey* pKey, TSKEY gap) {
+  return hasSessionState(pState->pFileState, pKey, gap);
+}
+

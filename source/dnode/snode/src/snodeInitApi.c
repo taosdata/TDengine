@@ -131,6 +131,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateMergeAllScanRange = streamStateMergeAllScanRange;
   pStore->streamStatePopScanRange = streamStatePopScanRange;
 
+  pStore->streamStateCheckSessionState = streamStateCheckSessionState;
   pStore->streamStateGetLastStateCur = streamStateGetLastStateCur;
   pStore->streamStateLastStateCurNext = streamStateLastStateCurNext;
   pStore->streamStateNLastStateGetKVByCur = streamStateNLastStateGetKVByCur;

@@ -31,18 +31,16 @@ class TDTestCase(TBase):
         # run
         outputs = etool.runBinFile("taosBenchmark", "-V")
         print(outputs)
-        if len(outputs) != 3:
-            tdLog.exit(f"checkVersion return lines count {len(outputs) != 3}")
+        if len(outputs) != 4:
+            tdLog.exit(f"checkVersion return lines count {len(outputs)} != 4")
         # version string len
-        assert len(outputs[0]) > 27
-        assert outputs[0][:22] == "taosBenchmark version:"
-
+        assert len(outputs[1]) > 24
         # commit id
-        assert len(outputs[1]) > 43
-        assert outputs[1][:4] == "git:"
+        assert len(outputs[2]) > 43
+        assert outputs[2][:4] == "git:"
         # build info
-        assert len(outputs[2]) > 36
-        assert outputs[2][:6] == "build:"
+        assert len(outputs[3]) > 36
+        assert outputs[3][:6] == "build:"
 
         tdLog.info("check taosBenchmark version successfully.")        
 

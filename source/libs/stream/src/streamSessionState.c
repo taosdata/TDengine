@@ -1437,3 +1437,28 @@ _end:
   }
   return code;
 }
+
+bool hasSessionState(SStreamFileState* pFileState, const SSessionKey* pKey, TSKEY gap) {
+  SSHashObj*   pRowStateBuff = getRowStateBuff(pFileState);
+  void**       ppBuff = (void**)tSimpleHashGet(pRowStateBuff, &pKey->groupId, sizeof(uint64_t));
+  SArray*      pWinStates = (SArray*)(*ppBuff);
+  int32_t      size = taosArrayGetSize(pWinStates);
+  int32_t      index = binarySearch(pWinStates, size, pKey, sessionStateKeyCompare);
+  SRowBuffPos* pPos = NULL;
+
+  if (index >= 0) {
+    pPos = taosArrayGetP(pWinStates, index);
+    if (inSessionWindow(pPos->pKey, pKey->win.skey, gap)) {
+      return true;
+    }
+  }
+
+  if (index + 1 < size) {
+    pPos = taosArrayGetP(pWinStates, index + 1);
+    if (inSessionWindow(pPos->pKey, pKey->win.skey, gap) ||
+        (pKey->win.ekey != INT64_MIN && inSessionWindow(pPos->pKey, pKey->win.ekey, gap))) {
+      return true;
+    }
+  }
+  return false;
+}
