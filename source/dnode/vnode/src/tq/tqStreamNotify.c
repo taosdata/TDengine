@@ -21,9 +21,6 @@
 #endif
 
 #define STREAM_EVENT_NOTIFY_RETRY_MS         50          // 50 ms
-#define STREAM_EVENT_NOTIFY_MESSAAGE_SIZE_KB 8 * 1024    // 8 MB
-#define STREAM_EVENT_NOTIFY_FRAME_SIZE       256 * 1024  // 256 KB
-
 typedef struct SStreamNotifyHandle {
   TdThreadMutex mutex;
 #ifndef WINDOWS
@@ -296,7 +293,7 @@ static int32_t packupStreamNotifyEvent(const char* streamName, const SArray* pBl
       msgLen += varDataLen(val) + 1;
     }
     *nNotifyEvents += pDataBlock->info.rows;
-    if (msgLen >= STREAM_EVENT_NOTIFY_MESSAAGE_SIZE_KB * 1024) {
+    if (msgLen >= tsStreamNotifyMessageSize * 1024) {
       break;
     }
   }
@@ -381,7 +378,7 @@ static int32_t sendSingleStreamNotify(SStreamNotifyHandle* pHandle, char* msg) {
   }
   sentLen = 0;
   while (sentLen < totalLen) {
-    size_t chunkSize = TMIN(totalLen - sentLen, STREAM_EVENT_NOTIFY_FRAME_SIZE);
+    size_t chunkSize = TMIN(totalLen - sentLen, tsStreamNotifyFrameSize * 1024);
     if (sentLen == 0) {
       res = curl_ws_send(pHandle->curl, msg, chunkSize, &nbytes, totalLen, CURLWS_TEXT | CURLWS_OFFSET);
       TSDB_CHECK_CONDITION(res == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
