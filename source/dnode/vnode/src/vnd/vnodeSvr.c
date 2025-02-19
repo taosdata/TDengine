@@ -672,7 +672,7 @@ static int32_t inline decodeSSubmitData(SVnode *pVnode, SDecoder *pCoder, SSubmi
     int32_t idx = 0;
     for (int32_t j = 0; j < pTSchema->numOfCols; j++) {
       STColumn *pTColumn = pTSchema->columns + j;
-      if (pTColumn->type == TSDB_DATA_TYPE_BLOB || pTColumn->type == TSDB_DATA_TYPE_BINARY) {
+      if (IS_STR_DATA_BLOB(pTColumn->type)) {
         int32_t  len = 0;
         uint64_t offset = 0;
         if (idx == 0) {

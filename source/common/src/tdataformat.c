@@ -322,7 +322,7 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
           ROW_SET_BITMAP(bitmap, sinfo->tupleFlag, i - 1, BIT_FLG_VALUE);
 
           if (IS_VAR_DATA_TYPE(schema->columns[i].type)) {
-            if (schema->columns[i].type == TSDB_DATA_TYPE_BINARY) {
+            if (IS_STR_DATA_BLOB(schema->columns[i].type)) {
               hasBlob = 1;
             }
 
@@ -403,7 +403,7 @@ static int32_t tRowBuildTupleRow2(SArray *aColVal, const SRowBuildScanInfo *sinf
           ROW_SET_BITMAP(bitmap, sinfo->tupleFlag, i - 1, BIT_FLG_VALUE);
 
           if (IS_VAR_DATA_TYPE(schema->columns[i].type)) {
-            if (schema->columns[i].type == TSDB_DATA_TYPE_BINARY) {
+            if (IS_STR_DATA_BLOB(schema->columns[i].type)) {
               hasBlob = 1;
             }
 
@@ -577,7 +577,7 @@ static int32_t tRowBuildKVRow2(SArray *aColVal, const SRowBuildScanInfo *sinfo, 
         if (COL_VAL_IS_VALUE(&colValArray[colValIndex])) {  // value
           tRowBuildKVRowSetIndex(sinfo->kvFlag, indices, payloadSize);
           if (IS_VAR_DATA_TYPE(schema->columns[i].type)) {
-            if (schema->columns[i].type == TSDB_DATA_TYPE_BINARY) {
+            if (IS_STR_DATA_BLOB(schema->columns[i].type)) {
               hasBlob = 1;
             }
             payloadSize += tPutI16v(payload + payloadSize, colValArray[colValIndex].cid);
@@ -916,7 +916,7 @@ int32_t tRowGet2AndSetSeq(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal 
     pColVal->value.type = pTColumn->type;
     pColVal->flag = CV_FLAG_VALUE;
     if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-      if (pTColumn->type == TSDB_DATA_TYPE_BINARY || pTColumn->type == TSDB_DATA_TYPE_BLOB) {
+      if (IS_STR_DATA_BLOB(pTColumn->type)) {
         hasBlob = 1;
       }
       if (hasBlob == 1) {
@@ -1063,7 +1063,7 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
     pColVal->flag = CV_FLAG_VALUE;
     uint8_t hasBlob = 0;
     if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-      if (pTColumn->type == TSDB_DATA_TYPE_BINARY || pTColumn->type == TSDB_DATA_TYPE_BLOB) {
+      if (IS_STR_DATA_BLOB(pTColumn->type)) {
         hasBlob = 1;
       }
       if (hasBlob == 1) {

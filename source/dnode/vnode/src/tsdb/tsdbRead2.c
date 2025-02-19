@@ -5316,7 +5316,7 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
     uint8_t          hasBlob = 0;
     SColumnInfoData* pCol = TARRAY_GET_ELEM(pResBlock->pDataBlock, pSupInfo->slotId[i]);
     if (pData->cid == pSupInfo->colId[i]) {
-      if (pData->type == TSDB_DATA_TYPE_BINARY || pData->type == TSDB_DATA_TYPE_BLOB) {
+      if (IS_STR_DATA_BLOB(pData->type)) {
         hasBlob = 1;
       }
       if (hasBlob == 1) {

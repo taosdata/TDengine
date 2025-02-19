@@ -53,7 +53,6 @@ typedef struct {
 #define varDataNetLen(v)  (htons(((VarDataLenT *)(v))[0]))
 #define varDataNetTLen(v) (sizeof(VarDataLenT) + varDataNetLen(v))
 
-
 #define GET_TYPED_DATA(_v, _finalType, _type, _data) \
   do {                                               \
     switch (_type) {                                 \
@@ -289,7 +288,9 @@ typedef struct {
 #define IS_STR_DATA_TYPE(t) \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
-#define IS_STR_DATA_BLOB(t) ((t) == TSDB_DATA_TYPE_BLOB || (t) == TSDB_DATA_TYPE_MEDIUMBLOB)
+#define IS_STR_DATA_BLOB(t)                                                                             \
+  ((t) == TSDB_DATA_TYPE_BLOB || (t) == TSDB_DATA_TYPE_MEDIUMBLOB || (t) == TSDB_DATA_TYPE_VARBINARY || \
+   (t) == TSDB_DATA_TYPE_BINARY)
 
 #define IS_VALID_TINYINT(_t)   ((_t) >= INT8_MIN && (_t) <= INT8_MAX)
 #define IS_VALID_SMALLINT(_t)  ((_t) >= INT16_MIN && (_t) <= INT16_MAX)

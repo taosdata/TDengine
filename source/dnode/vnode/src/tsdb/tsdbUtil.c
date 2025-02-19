@@ -621,7 +621,7 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
     } else {
       SColData *pColData = tBlockDataGetColData(pRow->pBlockData, pTColumn->colId);
       uint8_t   hasBlob = 0;
-      if (pTColumn->type == TSDB_DATA_TYPE_BINARY || pTColumn->type == TSDB_DATA_TYPE_BLOB) {
+      if (IS_STR_DATA_BLOB(pTColumn->type)) {
         hasBlob = 1;
       }
       if (hasBlob == 1 && pColData) {
@@ -672,7 +672,7 @@ void tsdbRowGetColVal2(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal 
     } else {
       SColData *pColData = tBlockDataGetColData(pRow->pBlockData, pTColumn->colId);
       uint8_t   hasBlob = 0;
-      if (pTColumn->type == TSDB_DATA_TYPE_BINARY || pTColumn->type == TSDB_DATA_TYPE_BLOB) {
+      if (IS_STR_DATA_BLOB(pTColumn->type)) {
         hasBlob = 1;
       }
       if (hasBlob == 1 && pColData) {

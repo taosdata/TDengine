@@ -78,7 +78,7 @@ static int32_t readerTableClose(SReaderTable *pTable);
 // static int32_t tableAppendData(STable *pTable, uint64_t key, uint8_t *value, int32_t len);
 static int32_t readerTableGet(SReaderTable *pTable, uint64_t key, uint8_t **pValue, int32_t *len);
 // static int32_t readerTableLoadBlk(SReaderTable *pTable, uint32_t blockId, SBlkData *blk);
-static int32_t readerTableRebuild(SReaderTable *pTable);
+static int32_t readerTableBuild(SReaderTable *pTable);
 
 // data block func
 static int32_t blockInit(int32_t blockId, int32_t cap, int8_t type, SBlkData *blk);
@@ -1055,7 +1055,7 @@ static int32_t readerTableOpen(const char *name, uint64_t lastSeq, SReaderTable 
   pTable->lastSeq = lastSeq;
   *ppTable = pTable;
 
-  code = readerTableRebuild(pTable);
+  code = readerTableBuild(pTable);
 _err:
   if (code != 0) {
     bseError("failed to open table %s at line %d since %s", pTable->name, line, tstrerror(code));
@@ -1112,7 +1112,7 @@ static int32_t readerTableGet(SReaderTable *pTable, uint64_t key, uint8_t **pVal
 _err:
   return code;
 }
-static int32_t readerTableRebuild(SReaderTable *pTable) {
+static int32_t readerTableBuild(SReaderTable *pTable) {
   int32_t line = 0;
   int32_t code = 0;
   int64_t size = 0;

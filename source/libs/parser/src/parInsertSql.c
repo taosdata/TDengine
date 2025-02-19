@@ -2191,8 +2191,7 @@ static int8_t schemaHasBlob(STSchema* pSchema) {
     return 0;
   }
   for (int i = 0; i < pSchema->numOfCols; ++i) {
-    if (pSchema->columns[i].type == TSDB_DATA_TYPE_BLOB || pSchema->columns[i].type == TSDB_DATA_TYPE_MEDIUMBLOB ||
-        pSchema->columns[i].type == TSDB_DATA_TYPE_BINARY) {
+    if (IS_STR_DATA_BLOB(pSchema->columns[i].type)) {
       return 1;
     }
   }
