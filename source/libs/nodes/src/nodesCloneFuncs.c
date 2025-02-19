@@ -510,6 +510,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(paraTablesSort);
   COPY_SCALAR_FIELD(smallDataTsSort);
   COPY_SCALAR_FIELD(needSplit);
+  COPY_SCALAR_FIELD(noPseudoRefAfterGrp);
   return TSDB_CODE_SUCCESS;
 }
 
