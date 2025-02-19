@@ -82,7 +82,7 @@ jobs:
             
       - name: build TDengine-cmake and install
         run: |        
-          cd TDengine/release/
+          cd TDengine/debug/
           make -j 
           sudo make install
           which taosd
