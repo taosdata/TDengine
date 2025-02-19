@@ -15,7 +15,8 @@ title: 与 Excel 集成
 
 ## 配置数据源
 
-**第 1 步**，在 Windows 操作系统的开始菜单中搜索并打开【ODBC数据源（64位）】管理工具并进行配置。详细参考 [配置ODBC数据源](../../../reference/connector/odbc/#配置数据源)。   
+**第 1 步**，在 Windows 操作系统的开始菜单中搜索并打开【ODBC数据源（64位）】管理工具并进行配置。详细参考 [配置ODBC数据源](../../../reference/connector/odbc/#配置数据源)。
+   
 **第 2 步**，在 Windows 系统环境下启动 Excel，之后选择【数据】->【获取数据】->【自其他源】->【从ODBC】。 
 
 ![excel-odbc](./excel/odbc-menu.jpg) 

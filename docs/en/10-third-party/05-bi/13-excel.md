@@ -17,7 +17,8 @@ Prepare the following environment:
 
 ## Configure Data Source
 
-**Step 1**, Search and open the [ODBC Data Source (64 bit)] management tool in the Start menu of the Windows operating system and configure it, refer to [Install ODBC Driver](../../../tdengine-reference/client-libraries/odbc/#Installation).    
+**Step 1**, Search and open the [ODBC Data Source (64 bit)] management tool in the Start menu of the Windows operating system and configure it, refer to [Install ODBC Driver](../../../tdengine-reference/client-libraries/odbc/#Installation).
+  
 **Step 2**, Start Excel in the Windows system environment, then select [Data] -> [Get Data] -> [From Other Sources] -> [From ODBC].   
 
 ![excel-odbc](./excel/odbc-menu.jpg) 

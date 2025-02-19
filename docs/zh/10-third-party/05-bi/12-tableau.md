@@ -16,8 +16,10 @@ Tableau 是一款知名的商业智能工具，它支持多种数据源，可方
 
 ## 配置数据源
 
-**第 1 步**，在Windows操作系统的开始菜单中搜索并打开“ODBC数据源（64位）”管理工具并进行配置。详细参考[配置ODBC数据源](../../../reference/connector/odbc/#配置数据源)。   
-**第 2 步**，在 Windows 系统环境下启动 Tableau，之后在其连接页面中搜索 “ODBC”，并选择 “其他数据库 (ODBC)”。  
+**第 1 步**，在Windows操作系统的开始菜单中搜索并打开“ODBC数据源（64位）”管理工具并进行配置。详细参考[配置ODBC数据源](../../../reference/connector/odbc/#配置数据源)。
+
+**第 2 步**，在 Windows 系统环境下启动 Tableau，之后在其连接页面中搜索 “ODBC”，并选择 “其他数据库 (ODBC)”。 
+ 
 **第 3 步**，点击 `DSN` 单选框，接着选择已配置好的数据源(MyTDengine)，然后点击`连接`按钮。待连接成功后，删除字符串附加部分的内容，最后点击`登录`按钮即可。
 
 ![tableau-odbc](./tableau/tableau-odbc.jpg) 

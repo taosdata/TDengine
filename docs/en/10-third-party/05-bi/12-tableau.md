@@ -17,8 +17,10 @@ Prepare the following environment:
 
 ## Configure Data Source
 
-**Step 1**, Search and open the "ODBC Data Source (64 bit)" management tool in the Start menu of the Windows operating system and configure it, refer to [Install ODBC Driver](../../../tdengine-reference/client-libraries/odbc/#Installation).  
-**Step 2**, Start Tableau in the Windows system environment, then search for "ODBC" on its connection page and select "Other Databases (ODBC)".  
+**Step 1**, Search and open the "ODBC Data Source (64 bit)" management tool in the Start menu of the Windows operating system and configure it, refer to [Install ODBC Driver](../../../tdengine-reference/client-libraries/odbc/#Installation).
+
+**Step 2**, Start Tableau in the Windows system environment, then search for "ODBC" on its connection page and select "Other Databases (ODBC)".
+
 **Step 3**, Click the `DSN` radio button, then select the configured data source (MyTDengine), and click the `Connect` button. After the connection is successful, delete the content of the string attachment, and finally click the `Sign In` button.  
 
 ![tableau-odbc](./tableau/tableau-odbc.jpg)
