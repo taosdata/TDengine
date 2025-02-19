@@ -33,8 +33,6 @@ jobs:
     steps:
       - name: Checkout the repository
         uses: actions/checkout@v4
-        with:
-          path: "TDengine"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -83,7 +81,7 @@ jobs:
             -DBUILD_TEST=true \
             -DBUILD_DEPENDENCY_TESTS=false
             
-      - name: build TDengine-cmake and install
+      - name: build TDengine-make and install
         run: |     
           pwd
           cd debug/
