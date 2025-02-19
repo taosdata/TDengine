@@ -81,7 +81,8 @@ jobs:
             -DBUILD_DEPENDENCY_TESTS=false
             
       - name: build TDengine-cmake and install
-        run: |            
+        run: |        
+          cd debug
           make -j 
           sudo make install
           which taosd
