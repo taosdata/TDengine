@@ -122,7 +122,7 @@ class TDTestCase(TBase):
     # bugs ts
     def checkVGroups(self, benchmark):
         # vgroups with command line set
-        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/insertBasic.json", "--vgroups=2", True)
+        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/insertBasic.json", "--vgroups=3", True)
         # vgroups with json file
         self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/insertBasic.json", "", True)
 
