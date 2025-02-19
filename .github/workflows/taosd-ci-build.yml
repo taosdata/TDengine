@@ -73,8 +73,7 @@ jobs:
 
       - name: build TDengine-cmake
         run: |
-          pwd
-          mkdir debug && cd debug
+          mkdir debug && cd debug && pwd
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
             -DBUILD_HTTP=false \
@@ -83,8 +82,7 @@ jobs:
             
       - name: build TDengine-make and install
         run: |     
-          pwd
-          cd debug/
+          cd debug/ && pwd
           sudo make -j  install 
           which taosd
           which taosadapter
