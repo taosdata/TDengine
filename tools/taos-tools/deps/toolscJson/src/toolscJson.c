@@ -287,7 +287,10 @@ loop_end:
     }
     else
     {
-        item->valueint = strtoll((const char*)number_c_string, (char**)&after_end, 10);
+        if(isFloat)
+            item->valueint = (int64_t)number;
+        else
+            item->valueint = strtoll((const char*)number_c_string, (char**)&after_end, 10);
     }
 
     item->type = tools_cJSON_Number;
