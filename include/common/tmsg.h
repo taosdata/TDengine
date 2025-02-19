@@ -3002,8 +3002,8 @@ enum {
 
 #define DEFAULT_MAX_POLL_INTERVAL  300000
 #define DEFAULT_SESSION_TIMEOUT    12000
-#define DEFAULT_MAX_POLL_WAIT_TIME 500
-#define DEFAULT_MIN_POLL_ROWS      500
+#define DEFAULT_MAX_POLL_WAIT_TIME 1000
+#define DEFAULT_MIN_POLL_ROWS      4096
 
 typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];  // accout.topic

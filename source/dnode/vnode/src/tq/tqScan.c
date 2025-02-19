@@ -218,7 +218,7 @@ int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal*
 
     pRsp->blockNum++;
     totalRows += pDataBlock->info.rows;
-    if (totalRows >= pRequest->minPollRows || (taosGetTimestampMs() - st >pRequest->timeout)) {
+    if (totalRows >= pRequest->minPollRows || (taosGetTimestampMs() - st > pRequest->timeout)) {
       break;
     }
   }
