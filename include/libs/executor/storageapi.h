@@ -365,7 +365,7 @@ typedef struct STableTsDataState {
   __compar_fn_t    comparePkColFn;
   void*            pPkValBuff;
   int32_t          pkValLen;
-  void*            pState;
+  SStreamState*    pState;
   int32_t          curRecId;
   void*            pStreamTaskState;
   SArray*          pScanRanges;

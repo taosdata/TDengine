@@ -1202,7 +1202,7 @@ void mergeRangeKey(SScanRange* pRangeDest, SScanRange* pRangeSrc) {
   pRangeDest->calWin.ekey = TMAX(pRangeDest->calWin.ekey, pRangeSrc->calWin.ekey);
 }
 
-int32_t mergeScanRange(SArray* pRangeArray, SScanRange* pRangeKey, uint64_t gpId, uint64_t uId, int32_t* pIndex, bool* pRes) {
+int32_t mergeScanRange(SArray* pRangeArray, SScanRange* pRangeKey, uint64_t gpId, uint64_t uId, int32_t* pIndex, bool* pRes, char* idStr) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t size = taosArrayGetSize(pRangeArray);
@@ -1231,8 +1231,8 @@ int32_t mergeScanRange(SArray* pRangeArray, SScanRange* pRangeKey, uint64_t gpId
   *pRes = false;
 
 _end:
-  qDebug("===stream===mergeScanRange start ts:%" PRId64 ",end ts:%" PRId64 ",group id:%" PRIu64 ", uid:%" PRIu64
-         ", res:%d", pRangeKey->win.skey, pRangeKey->win.ekey, gpId, uId, *pRes);
+  qDebug("===stream===%s mergeScanRange start ts:%" PRId64 ",end ts:%" PRId64 ",group id:%" PRIu64 ", uid:%" PRIu64
+         ", res:%d", idStr, pRangeKey->win.skey, pRangeKey->win.ekey, gpId, uId, *pRes);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -1249,7 +1249,7 @@ int32_t mergeAndSaveScanRange(STableTsDataState* pTsDataState, STimeWindow* pWin
   int32_t index = 0;
   bool merge = false;
   SScanRange rangeKey = {.win = *pWin, .calWin = pRecData->calWin, .pUIds = NULL, .pGroupIds = NULL};
-  code = mergeScanRange(pRangeArray, &rangeKey, gpId, uId, &index, &merge);
+  code = mergeScanRange(pRangeArray, &rangeKey, gpId, uId, &index, &merge, pTsDataState->pState->pTaskIdStr);
   QUERY_CHECK_CODE(code, lino, _end);
   if (merge == true) {
     goto _end;
@@ -1351,7 +1351,7 @@ int32_t mergeAllScanRange(STableTsDataState* pTsDataState) {
     int32_t num = vlen / sizeof(uint64_t);
     uint64_t* pUids = (uint64_t*) pVal;
     for (int32_t i = 0; i < num; i++) {
-      code = mergeScanRange(pRangeArray, &tmpRange, key.groupId, pUids[i], &index, &merge);
+      code = mergeScanRange(pRangeArray, &tmpRange, key.groupId, pUids[i], &index, &merge, pTsDataState->pState->pTaskIdStr);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     if (merge == true) {

@@ -375,6 +375,8 @@ static int32_t doSetSessionWindowRecFlag(SOperatorInfo* pOperator, SSDataBlock* 
   for (int32_t i = 0; i < pBlock->info.rows; i++) {
     SSessionKey key = {.win.skey = startTsCols[i], .win.ekey = endTsCols[i], .groupId = pGpDatas[i]};
     if (pAggSup->stateStore.streamStateCheckSessionState(pAggSup->pState, &key, pAggSup->gap)) {
+      qDebug("===stream===%s set recalculate flag start ts:%" PRId64 ",end ts:%" PRId64 ", group id:%" PRIu64,
+             GET_TASKID(pTaskInfo), key.win.skey, key.win.ekey, key.groupId);
       pAggSup->stateStore.streamStateSetRecFlag(pAggSup->pState, &key, sizeof(SSessionKey), pBlock->info.type);
     }
   }

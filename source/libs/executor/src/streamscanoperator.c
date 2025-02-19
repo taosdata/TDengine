@@ -888,6 +888,8 @@ static int32_t generateDataScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr) {
     if (winRes != TSDB_CODE_SUCCESS) {
       break;
     }
+    qDebug("===stream===%s get range from disk. start ts:%" PRId64 ",end ts:%" PRId64 ", group id:%" PRIu64,
+           pTaskIdStr, rangKey.win.skey, rangKey.win.ekey, rangKey.groupId);
     switch (pInfo->windowSup.parentType) {
       case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL:
       case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL:

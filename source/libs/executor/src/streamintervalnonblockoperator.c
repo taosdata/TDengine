@@ -109,26 +109,27 @@ _end:
   }
 }
 
-int32_t saveRecWindowToDisc(SSessionKey* pWinKey, uint64_t uid, EStreamType mode, STableTsDataState* pTsDataState, SStreamAggSupporter* pAggSup) {
+int32_t saveRecWindowToDisc(SSessionKey* pWinKey, uint64_t uid, EStreamType mode, STableTsDataState* pTsDataState,
+                            SStreamAggSupporter* pAggSup) {
   int32_t len = copyRecDataToBuff(pWinKey->win.skey, pWinKey->win.ekey, uid, -1, mode, NULL, 0,
                                   pTsDataState->pRecValueBuff, pTsDataState->recValueLen);
-  return pAggSup->stateStore.streamStateSessionSaveToDisk(pTsDataState->pState, pWinKey,
-                                                          pTsDataState->pRecValueBuff, len);
+  return pAggSup->stateStore.streamStateSessionSaveToDisk(pTsDataState->pState, pWinKey, pTsDataState->pRecValueBuff,
+                                                          len);
 }
 
-int32_t checkAndSaveWinStateToDisc(int32_t startIndex, SArray* pUpdated, uint64_t uid, STableTsDataState* pTsDataState, SStreamAggSupporter* pAggSup) {
+int32_t checkAndSaveWinStateToDisc(int32_t startIndex, SArray* pUpdated, uint64_t uid, STableTsDataState* pTsDataState,
+                                   SStreamAggSupporter* pAggSup) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t mode = 0;
   int32_t size = taosArrayGetSize(pUpdated);
   for (int32_t i = startIndex; i < size; i++) {
     SRowBuffPos* pWinPos = taosArrayGetP(pUpdated, i);
-    SWinKey* pKey = pWinPos->pKey;
-    int32_t winRes = pAggSup->stateStore.streamStateGetRecFlag(pAggSup->pState, pKey, sizeof(SWinKey), &mode);
+    SWinKey*     pKey = pWinPos->pKey;
+    int32_t      winRes = pAggSup->stateStore.streamStateGetRecFlag(pAggSup->pState, pKey, sizeof(SWinKey), &mode);
     if (winRes == TSDB_CODE_SUCCESS) {
       SSessionKey winKey = {.win.skey = pKey->ts, .win.ekey = pKey->ts, .groupId = pKey->groupId};
-      code = saveRecWindowToDisc(&winKey, uid, mode, pTsDataState,
-                                 pAggSup);
+      code = saveRecWindowToDisc(&winKey, uid, mode, pTsDataState, pAggSup);
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -193,19 +194,21 @@ int32_t doStreamIntervalNonblockAggImpl(SOperatorInfo* pOperator, SSDataBlock* p
       if (pInfo->nbSup.numOfKeep == 1) {
         void* pResPtr = taosArrayPush(pInfo->pUpdated, &prevPoint.pResPos);
         QUERY_CHECK_NULL(pResPtr, code, lino, _end, terrno);
-        int32_t mode = 0;
+        int32_t  mode = 0;
         SWinKey* pKey = prevPoint.pResPos->pKey;
-        int32_t winRes = pInfo->streamAggSup.stateStore.streamStateGetRecFlag(pInfo->streamAggSup.pState, pKey, sizeof(SWinKey), &mode);
+        int32_t  winRes = pInfo->streamAggSup.stateStore.streamStateGetRecFlag(pInfo->streamAggSup.pState, pKey,
+                                                                               sizeof(SWinKey), &mode);
         if (winRes == TSDB_CODE_SUCCESS) {
-          code = saveRecWindowToDisc(&prevPoint.winKey, pBlock->info.id.uid, mode,
-                                     pInfo->basic.pTsDataState, &pInfo->streamAggSup);
+          code = saveRecWindowToDisc(&prevPoint.winKey, pBlock->info.id.uid, mode, pInfo->basic.pTsDataState,
+                                     &pInfo->streamAggSup);
           QUERY_CHECK_CODE(code, lino, _end);
         }
       } else {
         SWinKey curKey = {.groupId = groupId};
         curKey.ts = taosTimeAdd(curTs, -pInfo->interval.interval, pInfo->interval.intervalUnit,
-                                pInfo->interval.precision, NULL) + 1;
-        int32_t startIndex =  taosArrayGetSize(pInfo->pUpdated);
+                                pInfo->interval.precision, NULL) +
+                    1;
+        int32_t startIndex = taosArrayGetSize(pInfo->pUpdated);
         code = pInfo->streamAggSup.stateStore.streamStateGetAllPrev(pInfo->streamAggSup.pState, &curKey,
                                                                     pInfo->pUpdated, pInfo->nbSup.numOfKeep);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -256,7 +259,8 @@ _end:
   return code;
 }
 
-int32_t getHistoryRemainResultInfo(SStreamAggSupporter* pAggSup, int32_t numOfState, SArray* pUpdated, int32_t capacity) {
+int32_t getHistoryRemainResultInfo(SStreamAggSupporter* pAggSup, int32_t numOfState, SArray* pUpdated,
+                                   int32_t capacity) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -389,7 +393,7 @@ static int32_t buildOtherResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     return code;
   }
 
-  if (pInfo->twAggSup.minTs!= INT64_MAX) {
+  if (pInfo->twAggSup.minTs != INT64_MAX) {
     pInfo->nbSup.tsOfKeep = pInfo->twAggSup.minTs;
   }
 
@@ -502,12 +506,16 @@ static int32_t doProcessRecalculateReq(SOperatorInfo* pOperator, SSDataBlock* pB
       }
 
       SWinKey key = {.ts = win.skey, .groupId = pGpDatas[i]};
-      if (pInfo->streamAggSup.stateStore.streamStateCheck(pInfo->streamAggSup.pState, &key, isFinalOperator(&pInfo->basic))) {
+      if (pInfo->streamAggSup.stateStore.streamStateCheck(pInfo->streamAggSup.pState, &key,
+                                                          isFinalOperator(&pInfo->basic))) {
+        qDebug("===stream===%s set recalculate flag ts:%" PRId64 ",group id:%" PRIu64, GET_TASKID(pTaskInfo), key.ts,
+               key.groupId);
         pInfo->streamAggSup.stateStore.streamStateSetRecFlag(pInfo->streamAggSup.pState, &key, sizeof(SWinKey),
                                                              pBlock->info.type);
       } else {
         SSessionKey winKey = {.win = win, .groupId = key.groupId};
-        code = saveRecWindowToDisc(&winKey, pUidDatas[i], pBlock->info.type, pInfo->basic.pTsDataState, &pInfo->streamAggSup);
+        code = saveRecWindowToDisc(&winKey, pUidDatas[i], pBlock->info.type, pInfo->basic.pTsDataState,
+                                   &pInfo->streamAggSup);
         QUERY_CHECK_CODE(code, lino, _end);
       }
       getNextTimeWindow(pInterval, &win, TSDB_ORDER_ASC);
@@ -520,7 +528,8 @@ _end:
   return code;
 }
 
-int32_t buildRetriveRequest(SExecTaskInfo* pTaskInfo, SStreamAggSupporter* pAggSup, STableTsDataState* pTsDataState, SArray* pRetrives) {
+int32_t buildRetriveRequest(SExecTaskInfo* pTaskInfo, SStreamAggSupporter* pAggSup, STableTsDataState* pTsDataState,
+                            SArray* pRetrives) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   code = pAggSup->stateStore.streamStateMergeAllScanRange(pTsDataState);
@@ -536,10 +545,9 @@ int32_t buildRetriveRequest(SExecTaskInfo* pTaskInfo, SStreamAggSupporter* pAggS
     void*   pIte = NULL;
     int32_t iter = 0;
     while ((pIte = tSimpleHashIterate(range.pGroupIds, pIte, &iter)) != NULL) {
-      uint64_t groupId = *(uint64_t*) tSimpleHashGetKey(pIte, NULL);
-      SPullWindowInfo pullReq = {
-          .window = range.win, .groupId = groupId, .calWin = range.calWin};
-      void* pTemp = taosArrayPush(pRetrives, &pullReq);
+      uint64_t        groupId = *(uint64_t*)tSimpleHashGetKey(pIte, NULL);
+      SPullWindowInfo pullReq = {.window = range.win, .groupId = groupId, .calWin = range.calWin};
+      void*           pTemp = taosArrayPush(pRetrives, &pullReq);
       QUERY_CHECK_NULL(pTemp, code, lino, _end, terrno);
     }
   }
@@ -639,7 +647,7 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
             saveRecalculateData(&pAggSup->stateStore, pInfo->basic.pTsDataState, pBlock, pBlock->info.type);
           }
         }
-        
+
         if (isSemiOperator(&pInfo->basic)) {
           (*ppRes) = pBlock;
           return code;
@@ -690,11 +698,12 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
       if (pAggSup->pCur == NULL) {
         pAggSup->pCur = pAggSup->stateStore.streamStateGetLastStateCur(pAggSup->pState);
       }
-      code = getHistoryRemainResultInfo(pAggSup, pInfo->nbSup.numOfKeep, pInfo->pUpdated, pOperator->resultInfo.capacity);
+      code =
+          getHistoryRemainResultInfo(pAggSup, pInfo->nbSup.numOfKeep, pInfo->pUpdated, pOperator->resultInfo.capacity);
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
-  
+
   if (pOperator->status == OP_RES_TO_RETURN && pInfo->destHasPrimaryKey && isFinalOperator(&pInfo->basic)) {
     code = closeNonblockIntervalWindow(pAggSup->pResultRows, &pInfo->twAggSup, &pInfo->interval, pInfo->pUpdated,
                                        pTaskInfo);
@@ -793,7 +802,8 @@ int32_t doStreamSemiIntervalNonblockAggImpl(SOperatorInfo* pOperator, SSDataBloc
     curTs = tsCols[startPos];
   }
 
-  if (isHistoryOperator(&pInfo->basic) && tSimpleHashGetSize(pAggSup->pResultRows) > pOperator->resultInfo.capacity * 10) {
+  if (isHistoryOperator(&pInfo->basic) &&
+      tSimpleHashGetSize(pAggSup->pResultRows) > pOperator->resultInfo.capacity * 10) {
     code = copyNewResult(&pAggSup->pResultRows, pInfo->pUpdated, winPosCmprImpl);
     QUERY_CHECK_CODE(code, lino, _end);
   }

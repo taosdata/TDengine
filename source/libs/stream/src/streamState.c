@@ -158,6 +158,9 @@ SStreamState* streamStateOpen(const char* path, void* pTask, int64_t streamId, i
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   stDebug("open stream state %p, %s", pState, path);
 
+  TAOS_UNUSED(tsnprintf(pState->pTaskIdStr, sizeof(pState->pTaskIdStr), "TID:0x%x QID:0x%" PRIx64,
+                        taskId, streamId));
+
   if (pState == NULL) {
     code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
@@ -794,9 +797,9 @@ int32_t streamStateDeleteInfo(SStreamState* pState, void* pKey, int32_t keyLen) 
 }
 
 int32_t streamStateSessionSaveToDisk(SStreamState* pState, SSessionKey* pKey, SRecDataInfo* pVal, int32_t vLen) {
-  qDebug("===stream===save recalculate range.recId:%d. start:%" PRId64 ",end:%" PRId64 ",groupId:%" PRIu64
+  qDebug("===stream===%s save recalculate range.recId:%d. start:%" PRId64 ",end:%" PRId64 ",groupId:%" PRIu64
          ". cal start:%" PRId64 ",cal end:%" PRId64 ",tbl uid:%" PRIu64 ",data version:%" PRId64 ",mode:%d",
-         pState->number, pKey->win.skey, pKey->win.ekey, pKey->groupId, pVal->calWin.skey, pVal->calWin.ekey,
+         pState->pTaskIdStr, pState->number, pKey->win.skey, pKey->win.ekey, pKey->groupId, pVal->calWin.skey, pVal->calWin.ekey,
          pVal->tableUid, pVal->dataVersion, pVal->mode);
   return streamStateSessionPut_rocksdb(pState, pKey, (const void*)pVal, vLen);
 }

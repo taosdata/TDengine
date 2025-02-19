@@ -191,6 +191,7 @@ struct SStreamState {
   int32_t                  tsIndex;
   SResultRowStore          pResultRowStore;
   struct SExprSupp        *pExprSupp;
+  char                     pTaskIdStr[65];
 };
 
 typedef struct SFunctionStateStore {
