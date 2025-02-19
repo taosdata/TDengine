@@ -325,7 +325,7 @@ function build_TDengine() {
     if [[ "$allocator" == "jemalloc" ]]; then
         allocator_macro="-DJEMALLOC_ENABLED=true"
     else
-        allocator_macro=""
+        allocator_macro="-DJEMALLOC_ENABLED=false"
     fi
 
     if [ "$versionType" != "community" ];then
