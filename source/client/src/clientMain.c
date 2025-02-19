@@ -240,7 +240,7 @@ void taos_cleanup(void) {
     tscWarn("failed to cleanup task queue");
   }
 
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
   tzCleanup();
 #endif
   tmqMgmtClose();

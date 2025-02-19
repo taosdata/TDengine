@@ -57,11 +57,9 @@ int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom,
 void    destroyGeometry(GEOSGeometry **geom, const GEOSPreparedGeometry **preparedGeom);
 
 #else
-FORCE_INLINE int32_t initCtxAsText() { TAOS_RETURN(TSDB_CODE_OPS_NOT_SUPPORT); }
-FORCE_INLINE int32_t doAsText(const unsigned char *inputGeom, size_t size, char **outputWKT) {
-  TAOS_RETURN(TSDB_CODE_OPS_NOT_SUPPORT);
-}
-FORCE_INLINE int32_t checkWKB(const unsigned char *wkb, size_t size) { TAOS_RETURN(TSDB_CODE_OPS_NOT_SUPPORT); }
+int32_t initCtxAsText();
+int32_t doAsText(const unsigned char *inputGeom, size_t size, char **outputWKT);
+int32_t checkWKB(const unsigned char *wkb, size_t size);
 
 #endif
 
