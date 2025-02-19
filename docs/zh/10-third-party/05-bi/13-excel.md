@@ -9,7 +9,7 @@ title: 与 Excel 集成
 
 准备以下环境：
 - TDengine 3.3.5.7 以上版本集群已部署并正常运行（企业及社区版均可）
-- taosAdapter 能够正常运行。详细参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)
+- taosAdapter 能够正常运行。详细参考 [taosAdapter 参考手册](../../../reference/components/taosadapter)
 - Excel 安装并运行, 如未安装，请下载并安装, 具体操作请参考 Microsoft 官方文档。
 - 从TDengine官网下载最新的Windows操作系统X64客户端驱动程序，并进行安装。详细参考 [安装 ODBC 驱动](../../../reference/connector/odbc/#安装)。
 
