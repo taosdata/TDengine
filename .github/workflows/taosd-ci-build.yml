@@ -71,14 +71,36 @@ jobs:
             snappy \
             zlib
 
-      - name: Build and install TDengine
+      - name: Download third-party tools build results
+        if: runner.os == 'Linux'
+        uses: actions/download-artifact@v4
+        with:
+          name: third-tools-build-cache
+          path: ${{ github.workspace }}/
+          github-token: ${{ secrets.WORKFLOW_PAT }}
+          repository: taosdata/TDengine
+          run-id: ${{ secrets.TDENGINE_TOOLS_CACHE_ID }}
+      - name: Display structure of download files
         run: |
-          mkdir debug && cd debug
+          ls -R ${{ github.workspace }}/contrib/
+          ls -R ${{ github.workspace }}/tools/taosadapter/
+      - name: Remvoe the cache file of third-party tools
+        if: runner.os == 'Linux'
+        run: |
+          rm -rf ${{ github.workspace }}/contrib/deps-download/CMakeCache.txt
+
+      - name: Cmake build 
+        run: |
+          mkdir debug && cd debug && pwd
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
             -DBUILD_HTTP=false \
             -DBUILD_TEST=true \
             -DBUILD_DEPENDENCY_TESTS=false
+
+      - name: Make and install TDengine    
+        run: |
+          cd debug/ && pwd
           make -j 4
           sudo make install
           which taosd
