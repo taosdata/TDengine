@@ -270,6 +270,7 @@ import { decrypt } from '@/utils/index';
 import { FormInstance, FormRules } from 'element-plus';
 import { isEn } from '@/const';
 import { useBackupStore } from '@/store/modules/8_administrator/backup';
+import { validateTask } from '@/api/datain';
 
 const emit = defineEmits(['viewHistory']);
 const backupStore = useBackupStore();
@@ -632,6 +633,16 @@ const submit = (formEl: FormInstance | undefined) => {
       return;
     }
     const postData = constructPostData();
+    const result = await validateTask({ to: postData.to });
+    if (!result || !result.valid) {
+      if (result.message) {
+        $error(result.message);
+      } else {
+        $error(t('taosuser.validateS3Failed'));
+      }
+      return;
+    }
+
     try {
       if (currentId.value) {
         await editBackup(currentId.value, postData);
@@ -639,7 +650,7 @@ const submit = (formEl: FormInstance | undefined) => {
         await addBackupData(postData);
       }
     } catch (err) {
-      ElMessage.error(err);
+      $error(err);
       return;
     }
 

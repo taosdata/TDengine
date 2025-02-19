@@ -32,6 +32,7 @@ export default {
       backupRetentionPeriod: 'Retention Duration',
       backupRetentionSize: 'Retention Quantity',
     },
+    validateS3Failed: 'Failed to verify S3. Please check if the taosx service is normal and can connect to the S3 service',
     compressionLevel: {
       balanced: 'balanced',
       best: 'best',

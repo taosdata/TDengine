@@ -23,6 +23,7 @@ export default {
       backupRetentionPeriod: '本地保留时间',
       backupRetentionSize: '本地保留数量',
     },
+    validateS3Failed: '校验 S3 失败，请检查 taosx 服务正常且能够连通 S3 服务',
     compressionLevel: {
       balanced: '兼具速度和压缩率',
       best: '最佳压缩率',
