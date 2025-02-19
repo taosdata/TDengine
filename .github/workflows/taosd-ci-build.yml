@@ -83,7 +83,8 @@ jobs:
       - name: build TDengine-make and install
         run: |     
           cd debug/ && pwd
-          sudo make -j  install 
+          make -j 8
+          sudo  make install 
           which taosd
           which taosadapter
           which taoskeeper
