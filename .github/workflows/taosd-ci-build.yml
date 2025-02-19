@@ -33,6 +33,8 @@ jobs:
     steps:
       - name: Checkout the repository
         uses: actions/checkout@v4
+        with:
+          path: "TDengine"
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -73,6 +75,7 @@ jobs:
 
       - name: build TDengine-cmake
         run: |
+          pwd
           mkdir debug && cd debug
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
@@ -81,10 +84,10 @@ jobs:
             -DBUILD_DEPENDENCY_TESTS=false
             
       - name: build TDengine-cmake and install
-        run: |        
-          cd TDengine/debug/
-          make -j 
-          sudo make install
+        run: |     
+          pwd
+          cd debug/
+          sudo make -j  install 
           which taosd
           which taosadapter
           which taoskeeper
