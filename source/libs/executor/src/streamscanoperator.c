@@ -411,7 +411,7 @@ static int32_t doStreamWALScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       QUERY_CHECK_NULL(pSubmit, code, lino, _end, terrno);
 
       qDebug("set %d/%d as the input submit block, %s", current + 1, totalBlocks, GET_TASKID(pTaskInfo));
-      if (pAPI->tqReaderFn.tqReaderSetSubmitMsg(pInfo->tqReader, pSubmit->msgStr, pSubmit->msgLen, pSubmit->ver) < 0) {
+      if (pAPI->tqReaderFn.tqReaderSetSubmitMsg(pInfo->tqReader, pSubmit->msgStr, pSubmit->msgLen, pSubmit->ver, NULL) < 0) {
         qError("submit msg messed up when initializing stream submit block %p, current %d/%d, %s", pSubmit, current,
                totalBlocks, GET_TASKID(pTaskInfo));
         continue;
