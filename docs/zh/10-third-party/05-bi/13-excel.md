@@ -8,7 +8,7 @@ title: 与 Excel 集成
 ## 前置条件
 
 准备以下环境：
-- TDengine 3.3.5.4以上版本集群已部署并正常运行（企业及社区版均可）
+- TDengine 3.3.5.7 以上版本集群已部署并正常运行（企业及社区版均可）
 - taosAdapter 能够正常运行。详细参考 [taosAdapter 使用手册](../../../reference/components/taosadapter)
 - Excel 安装并运行, 如未安装，请下载并安装, 具体操作请参考 Microsoft 官方文档。
 - 从TDengine官网下载最新的Windows操作系统X64客户端驱动程序，并进行安装。详细参考 [安装 ODBC 驱动](../../../reference/connector/odbc/#安装)。
@@ -32,3 +32,12 @@ title: 与 Excel 集成
 
 ![excel-odbc](./excel/odbc-config.jpg) 
 
+在弹出的【导航器】对话框中，选择要加载的库表, 并点击【加载】完成数据加载。
+
+![excel-odbc](./excel/odbc-load.jpg)
+
+## 数据分析
+
+选中导入的数据，在【插入】选项卡中选择柱状图，并且在右侧的【数据透视图】中配置数据字段。
+
+![excel-odbc](./excel/odbc-data.jpg)
