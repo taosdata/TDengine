@@ -33,7 +33,7 @@ def removeQuotation(origin):
 class TDTestCase(TBase):
     def caseDescription(self):
         """
-        [TD-11510] taosBenchmark test cases
+        taosBenchmark Insert->Basic test cases
         """
 
     def benchmarkQuery(self, benchmark, jsonFile,  keys, options=""):
