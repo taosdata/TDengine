@@ -60,11 +60,12 @@ static Decimal64 SCALE_MULTIPLIER_64[TSDB_DECIMAL64_MAX_PRECISION + 1] = {1LL,
 
 typedef struct DecimalVar {
   DecimalInternalType type;
-  int8_t             precision;
-  int8_t             scale;
+  int8_t              precision;
+  int8_t              scale;
   int32_t             exponent;
   int8_t              sign;
   DecimalType*        pDec;
+  int32_t             weight;
 } DecimalVar;
 
 static uint8_t maxPrecision(DecimalInternalType type) {
@@ -146,6 +147,27 @@ int32_t decimalGetRetType(const SDataType* pLeftT, const SDataType* pRightT, EOp
   return 0;
 }
 
+int32_t calcCurPrec(int32_t prec, int32_t places, int32_t exp, int32_t weight, int32_t firstValidScale) {
+  if (exp == 0) return prec + places;
+  if (exp < 0) {
+    if (weight + exp >= 0) return prec + places;
+    return prec + places - exp - weight;
+  }
+  if (weight > 0) return prec + places;
+  return prec + places - TMIN(firstValidScale - 1, exp);
+}
+
+int32_t calcActualWeight(int32_t prec, int32_t scale, int32_t exp, int32_t weight, int32_t firstValidScale) {
+  if (exp == 0) return prec - scale;
+  if (exp < 0) {
+    if (weight + exp >= 0) return weight + exp;
+    return 0;
+  }
+  if (weight > 0) return weight + exp;
+  if (firstValidScale == 0) return 0;
+  return TMAX(0, exp - firstValidScale);
+}
+
 static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* result) {
   int32_t code = 0, pos = 0;
   result->precision = 0;
@@ -154,6 +176,8 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
   bool     leadingZeroes = true, afterPoint = false, rounded = false, stop = false;
   uint32_t places = 0;
   result->sign = 1;
+  int32_t weight = 0;
+  int32_t firstValidScale = 0;
 
   if (len == 0) return TSDB_CODE_INVALID_DATA_FMT;
   SDecimalOps* pOps = getDecimalOpsImp(result->type);
@@ -179,6 +203,7 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
   for (; pos < len && !stop; ++pos) {
     switch (str[pos]) {
       case '.':
+        weight = result->precision;
         afterPoint = true;
         leadingZeroes = false;
         break;
@@ -199,40 +224,33 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
       case '9': {
         leadingZeroes = false;
         ++places;
-        int32_t curPrec = result->precision + places - result->exponent;
+        if (firstValidScale == 0 && afterPoint) firstValidScale = places;
+
+        int32_t   curPrec = calcCurPrec(result->precision, places, result->exponent, weight, firstValidScale);
+        int32_t   scaleUp = 0;
+        Decimal64 delta = {0};
         if (curPrec > maxPrecision(result->type)) {
-          if (afterPoint) {
-            if (!rounded && curPrec - 1 == maxPrecision(result->type) && str[pos] >= '5') {
-              Decimal64 delta = {1};
-              int32_t   scaleUp = places - 1;
-              while (scaleUp != 0) {
-                int32_t curScale = TMIN(17, scaleUp);
-                pOps->multiply(result->pDec, &SCALE_MULTIPLIER_64[curScale], WORD_NUM(Decimal64));
-                scaleUp -= curScale;
-              }
-              result->precision += places - 1;
-              result->scale += places - 1;
-              pOps->add(result->pDec, &delta, WORD_NUM(Decimal64));
-              rounded = true;
-              places = 0;
-            }
-          } else {
-            return TSDB_CODE_DECIMAL_OVERFLOW;
-          }
+          if (!afterPoint) return TSDB_CODE_DECIMAL_OVERFLOW;
+          if (rounded || curPrec - 1 != maxPrecision(result->type) || str[pos] < '5') break;
+
+          // do rounding
+          DECIMAL64_SET_VALUE(&delta, 1);
+          scaleUp = places - 1;
+          rounded = true;
         } else {
-          result->precision += places;
-          if (afterPoint) {
-            result->scale += places;
-          }
-          while (places != 0) {
-            int32_t curScale = TMIN(17, places);
-            pOps->multiply(result->pDec, &SCALE_MULTIPLIER_64[curScale], WORD_NUM(Decimal64));
-            places -= curScale;
-          }
-          Decimal64 digit = {str[pos] - '0'};
-          pOps->add(result->pDec, &digit, WORD_NUM(Decimal64));
-          places = 0;
+          scaleUp = places;
+          DECIMAL64_SET_VALUE(&delta, str[pos] - '0');
         }
+
+        result->precision += scaleUp;
+        if (afterPoint) result->scale += scaleUp;
+        while (scaleUp != 0) {
+          int32_t curScale = TMIN(17, scaleUp);
+          pOps->multiply(result->pDec, &SCALE_MULTIPLIER_64[curScale], WORD_NUM(Decimal64));
+          scaleUp -= curScale;
+        }
+        pOps->add(result->pDec, &delta, WORD_NUM(Decimal64));
+        places = 0;
       } break;
       case 'e':
       case 'E': {
@@ -243,6 +261,8 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
         break;
     }
   }
+  result->weight = calcActualWeight(result->precision, result->scale, result->exponent, weight, firstValidScale);
+  if (result->precision + result->scale > 0) result->scale -= result->exponent;
   if (result->sign < 0) {
     pOps->negate(result->pDec);
   }
@@ -1569,17 +1589,8 @@ int32_t decimal64FromStr(const char* str, int32_t len, uint8_t expectPrecision, 
   DECIMAL64_SET_VALUE(pRes, 0);
   code = decimalVarFromStr(str, len, &var);
   if (TSDB_CODE_SUCCESS != code) return code;
-  if (var.precision - var.scale + var.exponent - var.scale > expectPrecision - expectScale) {
+  if (var.weight > (int32_t)expectPrecision - expectScale) {
     return TSDB_CODE_DECIMAL_OVERFLOW;
-  }
-  if (var.exponent > var.scale) {
-    // e + positive, 小数点需要右移, 右移 var.exponent位
-    //decimal64Multiply(var.pDec, &SCALE_MULTIPLIER_64[var.exponent - var.scale], WORD_NUM(Decimal64));
-    var.scale -= var.exponent;
-  } else if (var.exponent < var.scale) {
-    // e + negative, 小数点需要左移, 左移 var.exponent + var.scale 位
-    //decimal64divide(var.pDec, &SCALE_MULTIPLIER_64[var.scale - var.exponent], WORD_NUM(Decimal64), NULL);
-    var.scale -= var.exponent;
   }
   bool overflow = false;
   decimal64RoundWithPositiveScale(pRes, var.precision, var.scale, expectPrecision, expectScale,
@@ -1620,6 +1631,9 @@ int32_t decimal128FromStr(const char* str, int32_t len, uint8_t expectPrecision,
   DECIMAL128_SET_LOW_WORD(pRes, 0);
   code = decimalVarFromStr(str, len, &var);
   if (TSDB_CODE_SUCCESS != code) return code;
+  if (var.weight > (int32_t)expectPrecision - expectScale) {
+    return TSDB_CODE_DECIMAL_OVERFLOW;
+  }
   bool overflow = false;
   decimal128RoundWithPositiveScale(pRes, var.precision, var.scale, expectPrecision, expectScale,
                                    ROUND_TYPE_HALF_ROUND_UP, &overflow);
