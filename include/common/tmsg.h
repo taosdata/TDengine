@@ -1355,10 +1355,10 @@ typedef struct {
   int8_t  encryptAlgorithm;
   char    dnodeListStr[TSDB_DNODE_LIST_LEN];
   // 1. add auto-compact parameters
-  int32_t compactInterval;  // minutes
-  int32_t compactStartTime; // minutes
-  int32_t compactEndTime;   // minutes
-  int8_t compactTimeOffset; // hour
+  int32_t compactInterval;    // minutes
+  int32_t compactStartTime;   // minutes
+  int32_t compactEndTime;     // minutes
+  int8_t  compactTimeOffset;  // hour
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -1777,6 +1777,8 @@ typedef struct {
   int64_t numOfBatchInsertSuccessReqs;
   int32_t numOfCachedTables;
   int32_t learnerProgress;  // use one reservered
+  int64_t syncAppliedIndex;
+  int64_t syncCommitIndex;
 } SVnodeLoad;
 
 typedef struct {
@@ -3959,8 +3961,8 @@ typedef struct {
   int8_t  igExists;
   int8_t  intervalUnit;
   int8_t  slidingUnit;
-  int8_t  timezone;    // int8_t is not enough, timezone is unit of second
-  int32_t dstVgId;  // for stream
+  int8_t  timezone;  // int8_t is not enough, timezone is unit of second
+  int32_t dstVgId;   // for stream
   int64_t interval;
   int64_t offset;
   int64_t sliding;
