@@ -271,7 +271,7 @@ int32_t tableOpen(const char *name, STable **ppTable) {
   int32_t line = 0;
   int32_t code = 0;
 
-  STable *pTable = taosMemoryMalloc(sizeof(STable));
+  STable *pTable = taosMemoryCalloc(1, sizeof(STable));
   if (pTable == NULL) {
     TAOS_CHECK_GOTO(terrno, &line, _err);
   }
@@ -310,6 +310,9 @@ int32_t tableClose(STable *pTable) {
   int32_t line = 0;
   int32_t code = 0;
 
+  tableCommit(pTable);
+  pTable->commited = 1;
+
   code = blockCleanup(&pTable->data);
   TAOS_CHECK_GOTO(code, &line, _err);
 
@@ -318,8 +321,6 @@ int32_t tableClose(STable *pTable) {
 
   taosHashCleanup(pTable->pCache);
 
-  tableCommit(pTable);
-  pTable->commited = 1;
   code = taosCloseFile(&pTable->pDataFile);
   TAOS_CHECK_GOTO(code, &line, _err);
 
@@ -458,6 +459,7 @@ int32_t tableCommit(STable *pTable) {
   if (pTable->commited) {
     return 0;
   }
+  pTable->commited = 1;
   return tableAppendMeta(pTable);
 }
 
@@ -688,7 +690,7 @@ static int32_t bseRecover(SBse *pBse) {
   TdDirPtr pDir = NULL;
   SArray  *logs = NULL;
 
-  bseInfo("vgId:%d, begin to repair meta, wal path:%s, firstVer:%" PRId64 ", lastVer:%" PRId64 ", snapshotVer:%" PRId64,
+  bseInfo("vgId:%d, begin to repair meta, bse path:%s, firstVer:%" PRId64 ", lastVer:%" PRId64 ", snapshotVer:%" PRId64,
           pBse->cfg.vgId, pBse->path, 0, 0, 0);
 
   TAOS_CHECK_GOTO(regcomp(&logRegPattern, logPattern, REG_EXTENDED), &line, _err);
@@ -810,6 +812,7 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
   if (p == NULL) {
     TAOS_CHECK_GOTO(terrno, &lino, _err);
   }
+  p->cfg = *pCfg;
   // init lock
   tstrncpy(p->path, path, sizeof(p->path));
 
@@ -824,7 +827,7 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
   TAOS_CHECK_GOTO(code, &lino, _err);
 
   SBseFileInfo *pInfo = taosArrayGetLast(p->fileSet);
-  p->seq = pInfo->firstVer;
+  p->seq = pInfo->firstVer + 1;
 
   char buf[TSDB_FILENAME_LEN] = {0};
   bseBuildDataFullName(p, p->seq, buf);
@@ -882,7 +885,12 @@ int32_t bseAppend(SBse *pBse, uint64_t *seq, uint8_t *value, int32_t len) {
   TAOS_CHECK_GOTO(code, &line, _err);
 
   *seq = tseq;
+
+  bseInfo("bse succ to append value by seq %" PRIu64, tseq);
 _err:
+  if (code != 0) {
+    bseInfo("bse failed to append value by seq %" PRIu64 " since %s", tseq, tstrerror(code));
+  }
   taosThreadMutexUnlock(&pBse->mutex);
   return code;
 }
@@ -903,8 +911,26 @@ int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
     code = tableLoadBySeq(pBse->pTable, seq, pValue, len);
     goto _err;
   } else {
-    SBseFileInfo  key = {.firstVer = seq};
-    SBseFileInfo *p = taosArraySearch(pBse->fileSet, &key, bseFileSetCmprFn, TD_GT);
+    SBseFileInfo key = {.firstVer = seq};
+    // SBseFileInfo *p = taosArraySearch(pBse->fileSet, &key, bseFileSetCmprFn, TD_GT);
+    SBseFileInfo *p = NULL;
+    for (int32_t i = 0; i < taosArrayGetSize(pBse->fileSet); i++) {
+      SBseFileInfo *pInfo = taosArrayGet(pBse->fileSet, i);
+      bseDebug("firstVer:%" PRId64, pInfo->firstVer);
+      if (pInfo->firstVer >= seq) {
+        if ((i + 1) >= taosArrayGetSize(pBse->fileSet)) {
+          p = pInfo;
+          break;
+        } else {
+          SBseFileInfo *pNext = taosArrayGet(pBse->fileSet, i + 1);
+          if (pNext->firstVer > seq) {
+            p = pInfo;
+            break;
+          }
+        }
+      }
+    }
+
     if (p == NULL) {
       TAOS_CHECK_GOTO(TSDB_CODE_NOT_FOUND, &line, _err);
     } else {
@@ -947,19 +973,24 @@ int32_t bseCommit(SBse *pBse) {
   char tbuf[TSDB_FILENAME_LEN] = {0};
 
   code = tableCommit(pBse->pTable);
+
   tstrncpy(tbuf, pBse->pTable->name, sizeof(tbuf));
   tableClose(pBse->pTable);
 
   bseBuildDataFullName(pBse, pBse->seq, buf);
 
+  SBseFileInfo info = {.firstVer = pBse->seq};
+  if (taosArrayPush(pBse->fileSet, &info) == NULL) {
+    TAOS_CHECK_GOTO(terrno, &line, _err);
+  }
+
+  taosArraySort(pBse->fileSet, cmprBseFileInfo);
+
   code = taosRenameFile(tbuf, buf);
   TAOS_CHECK_GOTO(code, &line, _err);
 
-  bseBuildDataFullName(pBse, pBse->seq, buf);
   pBse->pTable = NULL;
-
   pBse->seq++;
-
   bseBuildDataFullName(pBse, pBse->seq, buf);
 
   code = tableOpen(buf, &pBse->pTable);
@@ -1003,7 +1034,7 @@ static int32_t readerTableOpen(const char *name, uint64_t lastSeq, SReaderTable 
   int32_t line = 0;
   int32_t code = 0;
 
-  SReaderTable *pTable = taosMemoryMalloc(sizeof(SReaderTable));
+  SReaderTable *pTable = taosMemoryCalloc(1, sizeof(SReaderTable));
   if (pTable == NULL) {
     TAOS_CHECK_GOTO(terrno, &line, _err);
   }

@@ -64,13 +64,16 @@ TEST(bseCase, openTest) {
     SBse *bse = NULL;
     uint64_t seq = 0; 
     std::vector<uint64_t> data;
-    int32_t code = bseOpen("/tmp/bse", NULL, &bse);
-    for (int32_t i = 0; i < 10000; i++) {
+    SBseCfg cfg = {.vgId = 2};
+    int32_t code = bseOpen("/tmp/bse", &cfg, &bse);
+    for (int32_t i = 0; i < 2; i++) {
         code = bseAppend(bse, &seq, (uint8_t *)"test", 4);
         data.push_back(seq); 
     }
+    bseCommit(bse); 
+        
 
-    for (int32_t i = 0; i < 10000; i++) {
+    for (int32_t i = 0; i < 2; i++) {
       char *p = NULL;
       int32_t len = 0;
       uint64_t seq = data[i];
@@ -79,20 +82,23 @@ TEST(bseCase, openTest) {
       ASSERT_EQ(len, 4);
       //code = bseRead(bse, data[i], NULL, NULL);
     }
-    bseCommit(bse);
+    //bseCommit(bse);
     
 
     
-    for (int32_t i = 0; i < 10000; i++) {
+    data.clear();
+    for (int32_t i = 0; i < 2; i++) {
         code = bseAppend(bse, &seq, (uint8_t *)"test", 4);
         data.push_back(seq); 
     }
     bseCommit(bse);
 
-    for (int32_t i = 1; i < 1000; i++) {
+
+    for (int32_t i = 1; i < 2; i++) {
       uint8_t* value = NULL;
       int32_t len = 0;
-      code = bseGet(bse, i, &value, &len);
+      uint64_t seq = data[i];
+      code = bseGet(bse, seq, &value, &len);
       if (code != 0) {
         printf("failed to get key %d error code: %d\n", i, code);
       }

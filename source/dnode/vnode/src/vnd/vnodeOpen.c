@@ -509,7 +509,8 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   vInfo("vgId:%d, start to open blob store engine", TD_VID(pVnode));
   (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_BSE_DIR);
 
-  code = bseOpen(tdir, NULL, &pVnode->pBse);
+  SBseCfg cfg = {.vgId = pVnode->config.vgId};
+  code = bseOpen(tdir, &cfg, &pVnode->pBse);
   if (code != 0) {
     vError("vgId:%d, failed to open blob store engine since %s", TD_VID(pVnode), tstrerror(code));
     terrno = code;
@@ -563,6 +564,7 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
+    vInfo("start to close vnode");
     vnodeAWait(&pVnode->commitTask);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);

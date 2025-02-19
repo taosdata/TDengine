@@ -748,6 +748,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
   void   *pReq;
   int32_t len;
 
+  vInfo("start to write msg");
   vnodeShouldRewriteSubmitMsg(pVnode, &pMsg);
 
   (void)taosThreadMutexLock(&pVnode->mutex);
@@ -955,6 +956,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
   // commit if need
   if (needCommit) {
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), ver);
+    bseCommit(pVnode->pBse);
     code = vnodeAsyncCommit(pVnode);
     if (code) {
       vError("vgId:%d, failed to vnode async commit since %s.", TD_VID(pVnode), tstrerror(terrno));
