@@ -6,11 +6,12 @@ use std::path::Path;
 use anyhow::anyhow;
 use arrow::array::RecordBatch;
 use chardetng::EncodingDetector;
-use chrono::Utc;
+use chrono::{Duration, Utc};
 use encoding_rs::Encoding;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::{Compression, ZstdLevel};
 use parquet::file::properties::WriterProperties;
+use taos::Itertools;
 
 use crate::get_data_dir;
 
@@ -105,6 +106,8 @@ pub fn write_to_file(task_id: i64, filename: &String, record: &String) -> anyhow
 pub fn write_to_parquet_file(
     task_id: i64,
     filename: &String,
+    keep_days: usize,
+    max_size: usize,
     record: &RecordBatch,
 ) -> anyhow::Result<()> {
     let data_dir = get_data_dir();
@@ -114,6 +117,14 @@ pub fn write_to_parquet_file(
             tracing::error!("failed to create dir {:?}: {}", path, err);
         }
     }
+    // delete old files
+    if keep_days > 0 {
+        delete_old_parquet_files_by_date(task_id, filename, keep_days)?;
+    }
+    if max_size > 0 {
+        delete_old_parquet_files_by_size(task_id, filename, max_size)?;
+    }
+
     let path = path.join(format!("{}.{}", filename, Utc::now().format("%Y%m%d")));
     let file = OpenOptions::new().create(true).append(true).open(path)?;
     let schema = record.schema();
@@ -123,6 +134,108 @@ pub fn write_to_parquet_file(
     let mut writer = ArrowWriter::try_new(file, schema, Some(props)).unwrap();
     writer.write(record)?;
     writer.close()?;
+    Ok(())
+}
+
+pub fn delete_old_parquet_files_by_date(
+    task_id: i64,
+    filename: &String,
+    keep_days: usize,
+) -> anyhow::Result<()> {
+    let data_dir = get_data_dir();
+    let path = data_dir.join("tasks").join(format!("{task_id}"));
+    let path = path.join(format!("{}.{}", filename, Utc::now().format("%Y%m%d")));
+    let path = path.parent().unwrap();
+    if !path.exists() {
+        if let Err(err) = std::fs::create_dir_all(path) {
+            tracing::error!("failed to create dir {:?}: {}", path, err);
+        }
+    }
+
+    let cutoff_date = Utc::now() - Duration::days(keep_days as i64);
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let file_path = entry.path();
+        if file_path.is_file() {
+            if let Some(file_name) = file_path.file_name().and_then(|s| s.to_str()) {
+                let file_date = file_name.split('.').last().unwrap();
+                if let Ok(file_date) = chrono::NaiveDate::parse_from_str(file_date, "%Y%m%d") {
+                    if file_date <= cutoff_date.naive_utc().date() {
+                        tracing::info!("delete archived file: {:?}, since out of date", file_path);
+                        fs::remove_file(file_path)?;
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn delete_old_parquet_files_by_size(
+    task_id: i64,
+    filename: &String,
+    max_size: usize,
+) -> anyhow::Result<()> {
+    let data_dir = get_data_dir();
+    let path = data_dir.join("tasks").join(format!("{task_id}"));
+    let path = path.join(format!("{}.{}", filename, Utc::now().format("%Y%m%d")));
+    let path = path.parent().unwrap();
+    if !path.exists() {
+        if let Err(err) = std::fs::create_dir_all(path) {
+            tracing::error!("failed to create dir {:?}: {}", path, err);
+        }
+    }
+
+    let max_size = (max_size * 1024 * 1024 * 1024) as u64;
+    let mut total_file_size = 0;
+
+    let mut entries = fs::read_dir(path)?
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.path().is_file())
+        .map(|entry| {
+            let file_size = entry.metadata().unwrap().len();
+            total_file_size += file_size;
+            (entry, file_size)
+        })
+        .collect_vec();
+
+    entries.sort_by_key(|(entry, _)| entry.file_name());
+
+    for (entry, file_size) in entries {
+        if total_file_size <= max_size {
+            break;
+        }
+        let file_path = entry.path();
+        tracing::info!("delete archived file: {:?}, since out of date", file_path);
+        fs::remove_file(file_path)?;
+        total_file_size -= file_size;
+    }
+    Ok(())
+}
+
+pub fn delete_oldest_parquet_file(task_id: i64, filename: &String) -> anyhow::Result<()> {
+    let data_dir = get_data_dir();
+    let path = data_dir.join("tasks").join(format!("{task_id}"));
+    let path = path.join(format!("{}.{}", filename, Utc::now().format("%Y%m%d")));
+    let path = path.parent().unwrap();
+    if !path.exists() {
+        if let Err(err) = std::fs::create_dir_all(path) {
+            tracing::error!("failed to create dir {:?}: {}", path, err);
+        }
+    }
+
+    let mut entries = fs::read_dir(path)?
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| entry.path().is_file())
+        .collect_vec();
+
+    entries.sort_by_key(|entry| entry.file_name());
+
+    if let Some(entry) = entries.first() {
+        let file_path = entry.path();
+        tracing::info!("delete archived file: {:?}, since out of date", file_path);
+        fs::remove_file(file_path)?;
+    }
     Ok(())
 }
 
@@ -166,6 +279,32 @@ mod tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        write_to_parquet_file(task_id, &filename, &record).unwrap();
+        write_to_parquet_file(task_id, &filename, 5, 2, &record).unwrap();
+    }
+
+    #[test]
+    fn test_delete_old_parquet_files_by_date() {
+        let task_id = 1;
+        let filename = "archive/p1/p2/p3/p4/file".to_string();
+        let keep_days = 5;
+        let res = delete_old_parquet_files_by_date(task_id, &filename, keep_days);
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_delete_old_parquet_files_by_size() {
+        let task_id = 1;
+        let filename = "archive/p1/p2/p3/p4/file".to_string();
+        let max_size = 8;
+        let res = delete_old_parquet_files_by_size(task_id, &filename, max_size);
+        assert!(res.is_ok());
+    }
+
+    #[test]
+    fn test_delete_oldest_parquet_file() {
+        let task_id = 1;
+        let filename = "archive/p1/p2/p3/p4/file".to_string();
+        let res = delete_oldest_parquet_file(task_id, &filename);
+        assert!(res.is_ok());
     }
 }

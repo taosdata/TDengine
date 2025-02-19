@@ -10,17 +10,18 @@ pub enum HandlingArchiveFailed {
 }
 
 impl HandlingArchiveFailed {
-    pub fn handle(&self, err: String) -> anyhow::Result<()> {
+    pub fn handle(&self, err: String) -> anyhow::Result<bool> {
         match self {
             HandlingArchiveFailed::Rotate => {
-                // TODO1: Implement delete old files
-                Ok(())
+                tracing::trace!("{err}: delete the oldest file and retry");
+                Ok(true)
             }
             HandlingArchiveFailed::Skip => {
-                // TODO1: Implement skip
-                Ok(())
+                tracing::warn!("{err}: skip record");
+                Ok(false)
             }
             HandlingArchiveFailed::Break => {
+                tracing::error!("{err}: break task");
                 anyhow::bail!(err)
             }
         }

@@ -12,10 +12,11 @@ impl HandlingCacheFailed {
     pub fn handle(&self, err: String) -> anyhow::Result<()> {
         match self {
             HandlingCacheFailed::Skip => {
-                // TODO1: Implement skip
+                tracing::warn!("{err}: skip record");
                 Ok(())
             }
             HandlingCacheFailed::Break => {
+                tracing::error!("{err}: break task");
                 anyhow::bail!(err)
             }
         }
