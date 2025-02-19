@@ -22,7 +22,7 @@ Prepare the following environment:
 
 ![excel-odbc](./excel/odbc-menu.jpg) 
 
-**Step 3**, In the pop-up window, select 【MyTDengine】 from the drop-down list of 【Data source name (DSN)】, and then click the 【OK】 button.  
+**Step 3**, In the pop-up window, select the data source you need to connect to from the drop-down list of [Data source name (DSN)], and then click the 【OK】 button.ton.  
 
 ![excel-odbc](./excel/odbc-select.jpg) 
 

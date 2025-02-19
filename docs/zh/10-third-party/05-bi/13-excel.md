@@ -20,11 +20,11 @@ title: 与 Excel 集成
 
 ![excel-odbc](./excel/odbc-menu.jpg) 
 
-**第 3 步**，在弹出窗口的【数据源名称(DSN)】下拉列表中选择【MyTDengine】后，点击【确定】按钮。
+**第 3 步**，在弹出窗口的【数据源名称(DSN)】下拉列表中选择需要连接的数据源后，点击【确定】按钮。
 
 ![excel-odbc](./excel/odbc-select.jpg) 
 
-**第 4 步**，输入 TDengine 的用户名密码
+**第 4 步**，输入 TDengine 的用户名密码。
 
 ![excel-odbc](./excel/odbc-config.jpg) 
 
