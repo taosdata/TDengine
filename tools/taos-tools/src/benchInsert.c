@@ -648,9 +648,10 @@ int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
 
             // check vgroups
             if (strcasecmp(cfg->name, "vgroups") == 0) {
-                if (vgroups < 1) {
-                    vgroups = cfg->valueint;
-                    debugPrint("vgroup set with json config. vgroups=%d\n", vgroups);
+                if (vgroups > 0) {
+                    // inputted vgroups by commandline
+                    infoPrint("ignore config set vgroups %d\n", cfg->valueint);
+                    continue;
                 }
             }
 
