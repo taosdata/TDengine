@@ -606,6 +606,56 @@ int32_t taosHexDecode(const char *src, char *dst, int32_t len) {
   return 0;
 }
 
+#ifdef TD_ASTRA
+#include <wchar.h>
+#include <stdbool.h>
+#include <stdint.h>
+
+typedef struct {
+    uint32_t start;
+    uint32_t end;
+} SUnicodeRange;
+
+static const SUnicodeRange __eaw_ranges[] = {
+    {0x1100, 0x115F},   {0x2329, 0x232A}, {0x2E80, 0x303E}, {0x3040, 0xA4CF},
+    {0xAC00, 0xD7AF},   {0xF900, 0xFAFF}, {0xFE10, 0xFE19}, {0x20000, 0x2FFFD},
+    {0x30000, 0x3FFFD}, {0xFF00, 0xFFEF}, {0xA000, 0xA48F}, {0x13A0, 0x13FF}
+};
+
+static const int __n_eaw_ranges = sizeof(__eaw_ranges) / sizeof(__eaw_ranges[0]);
+
+static bool isEawWideChar(wchar_t code_point) {
+    int low = 0;
+    int high = __n_eaw_ranges - 1;
+
+    while (low <= high) {
+        int mid = (low + high) / 2;
+        if (code_point < __eaw_ranges[mid].start) {
+            high = mid - 1;
+        } else if (code_point > __eaw_ranges[mid].end) {
+            low = mid + 1;
+        } else {
+            return true;
+        }
+    }
+    return false;
+}
+
+int wcwidth(wchar_t c) {
+    if (c < 0x20 || (c >= 0x7F && c <= 0x9F)) {
+        return 0;
+    }
+    if (isEawWideChar(c)) {
+        return 2;
+    }
+    if (c >= 0x0300 && c <= 0x036F) {
+        return 0;
+    }
+    return 1;
+}
+
+#endif
+
 int32_t taosWcharWidth(TdWchar wchar) { return wcwidth(wchar); }
 
 int32_t taosWcharsWidth(TdWchar *pWchar, int32_t size) {
@@ -617,7 +667,7 @@ int32_t taosWcharsWidth(TdWchar *pWchar, int32_t size) {
   return wcswidth(pWchar, size);
 #else
   int32_t width = 0;
-  for (int32_t i = 0; i < size; i++) {
+  for (int32_t i = 0; i < size; ++i) {
     width += wcwidth(pWchar[i]);
   }
   return width;
@@ -629,19 +679,44 @@ int32_t taosMbToWchar(TdWchar *pWchar, const char *pStr, int32_t size) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
+#ifndef TD_ASTRA
   return mbtowc(pWchar, pStr, size);
+#else
+  return mbrtowc(pWchar, &pStr, size, NULL);
+#endif
 }
+
+#ifdef TD_ASTRA
+size_t mbstowcs(wchar_t *dest, const char *src, size_t n) {
+  if (src == NULL) {
+    return 0;
+  }
+
+  size_t count = 0;
+  int    result;
+  while (*src && count < n) {
+    result = mbrtowc(dest, src, MB_CUR_MAX, NULL);
+    if (result == -1 || result == 0) {
+      return -1;
+    }
+    src += result;
+    dest++;
+    count++;
+  }
+
+  if (count < n) {
+    *dest = L'\0';
+  }
+  return count;
+}
+#endif
 
 int32_t taosMbsToWchars(TdWchar *pWchars, const char *pStrs, int32_t size) {
   if (pWchars == NULL || pStrs == NULL || size <= 0) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
-#ifndef TD_ASTRA
   return mbstowcs(pWchars, pStrs, size);
-#else
-  return mbsrtowcs(pWchars, &pStrs, size, NULL);
-#endif
 }
 
 int32_t taosWcharToMb(char *pStr, TdWchar wchar) {
