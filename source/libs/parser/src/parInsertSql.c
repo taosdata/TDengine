@@ -1362,23 +1362,6 @@ static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt
 // output pStmt->pSql:
 //   1. [(tag1_name, ...)] TAGS (tag1_value, ...) [table_options]] ...
 //   2. VALUES ... | FILE ...
-// static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-//   SToken  token;
-//   int32_t index = 0;
-//   NEXT_TOKEN_KEEP_SQL(pStmt->pSql, token, index);
-//   if (TK_USING != token.type) {
-//     return getTargetTableSchema(pCxt, pStmt);
-//   }
-
-//   pStmt->usingTableProcessing = true;
-//   // pStmt->pSql -> stb_name [(tag1_name, ...)
-//   pStmt->pSql += index;
-//   int32_t code = parseDuplicateUsingClause(pCxt, pStmt, &pCxt->usingDuplicateTable);
-//   if (TSDB_CODE_SUCCESS == code && !pCxt->usingDuplicateTable) {
-//     return parseUsingTableNameImpl(pCxt, pStmt);
-//   }
-//   return code;
-// }
 
 static int32_t preParseTargetTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SToken* pTbName) {
   int32_t code = insCreateSName(&pStmt->targetTableName, pTbName, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg);
