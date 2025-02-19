@@ -1384,6 +1384,13 @@ TEST_F(DecimalTest, api_taos_fetch_rows) {
     taos_print_row(buf, row, fields, fieldNum);
     cout << buf << endl;
   }
+  auto* fields_e = taos_fetch_fields_e(res);
+  ASSERT_EQ(fields_e[0].type, TSDB_DATA_TYPE_DECIMAL64);
+  ASSERT_EQ(fields_e[1].type, TSDB_DATA_TYPE_DECIMAL);
+  ASSERT_EQ(fields_e[0].precision, 10);
+  ASSERT_EQ(fields_e[0].scale, 2);
+  ASSERT_EQ(fields_e[1].precision, 38);
+  ASSERT_EQ(fields_e[1].scale, 10);
   taos_free_result(res);
 
   res = taos_query(pTaos, sql);
