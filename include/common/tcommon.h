@@ -121,10 +121,11 @@ enum {
   TMQ_MSG_TYPE__POLL_DATA_META_RSP,
   TMQ_MSG_TYPE__WALINFO_RSP,
   TMQ_MSG_TYPE__POLL_BATCH_META_RSP,
+  TMQ_MSG_TYPE__POLL_RAW_DATA_RSP,
 };
 
 static char* tmqMsgTypeStr[] = {
-    "data", "meta", "ask ep", "meta data", "wal info", "batch meta"
+    "data", "meta", "ask ep", "meta data", "wal info", "batch meta", "raw data"
 };
 
 enum {

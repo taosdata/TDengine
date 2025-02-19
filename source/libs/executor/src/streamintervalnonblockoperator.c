@@ -293,6 +293,9 @@ int32_t buildIntervalHistoryResult(SOperatorInfo* pOperator) {
   int32_t                           lino = 0;
   SStreamIntervalSliceOperatorInfo* pInfo = pOperator->info;
   SStreamAggSupporter*              pAggSup = &pInfo->streamAggSup;
+  SStreamNotifyEventSupp*           pNotifySup = &pInfo->basic.notifyEventSup;
+  bool                              addNotifyEvent = false;
+
   code = getHistoryRemainResultInfo(pAggSup, pInfo->nbSup.numOfKeep, pInfo->pUpdated, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
   if (taosArrayGetSize(pInfo->pUpdated) > 0) {
@@ -304,7 +307,7 @@ int32_t buildIntervalHistoryResult(SOperatorInfo* pOperator) {
     pInfo->pUpdated = taosArrayInit(1024, POINTER_BYTES);
     QUERY_CHECK_NULL(pInfo->pUpdated, code, lino, _end, terrno);
 
-    doBuildStreamIntervalResult(pOperator, pInfo->streamAggSup.pState, pInfo->binfo.pRes, &pInfo->groupResInfo);
+    doBuildStreamIntervalResult(pOperator, pInfo->streamAggSup.pState, pInfo->binfo.pRes, &pInfo->groupResInfo, addNotifyEvent ? pNotifySup->pSessionKeys : NULL);
   }
 
 _end:

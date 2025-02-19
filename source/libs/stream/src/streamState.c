@@ -519,7 +519,7 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentNext(SStreamState* pState, cons
   return streamStateSessionSeekKeyCurrentNext_rocksdb(pState, key);
 }
 
-SStreamStateCur* streamStateSessionSeekKeyPrev(SStreamState* pState, const SSessionKey* key) {
+SStreamStateCur *streamStateSessionSeekKeyPrev(SStreamState *pState, const SSessionKey *key) {
   return sessionWinStateSeekKeyPrev(pState->pFileState, key);
 }
 

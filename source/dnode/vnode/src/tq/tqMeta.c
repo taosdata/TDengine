@@ -343,6 +343,7 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
     tqReaderSetTbUidList(handle->execHandle.pTqReader, tbUidList, NULL);
     taosArrayDestroy(tbUidList);
   }
+  handle->tableCreateTimeHash = (SHashObj*)taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
 
 END:
   return code;

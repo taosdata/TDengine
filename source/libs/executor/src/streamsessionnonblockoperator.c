@@ -212,8 +212,11 @@ _end:
 int32_t buildSessionHistoryResult(SOperatorInfo* pOperator, SOptrBasicInfo* pBinfo, SSteamOpBasicInfo* pBasic,
                                   SStreamAggSupporter* pAggSup, SNonBlockAggSupporter* pNbSup,
                                   SGroupResInfo* pGroupResInfo) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  int32_t                 lino = 0;
+  SStreamNotifyEventSupp* pNotifySup = &pBasic->notifyEventSup;
+  bool                    addNotifyEvent = false;
+
   code =
       getSessionHistoryRemainResultInfo(pAggSup, pNbSup->numOfKeep, pBasic->pUpdated, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -226,7 +229,7 @@ int32_t buildSessionHistoryResult(SOperatorInfo* pOperator, SOptrBasicInfo* pBin
     pBasic->pUpdated = taosArrayInit(1024, POINTER_BYTES);
     QUERY_CHECK_NULL(pBasic->pUpdated, code, lino, _end, terrno);
 
-    doBuildSessionResult(pOperator, pAggSup->pState, pGroupResInfo, pBinfo->pRes);
+    doBuildSessionResult(pOperator, pAggSup->pState, pGroupResInfo, pBinfo->pRes, addNotifyEvent ? pNotifySup->pSessionKeys : NULL);
   }
 
 _end:
@@ -331,8 +334,11 @@ _end:
 
 int32_t buildNonBlockSessionResult(SOperatorInfo* pOperator, SStreamAggSupporter* pAggSup, SOptrBasicInfo* pBInfo,
                                    SSteamOpBasicInfo* pBasic, SGroupResInfo* pGroupResInfo, SNonBlockAggSupporter* pNbSup, SSDataBlock** ppRes) {
-  int32_t        code = TSDB_CODE_SUCCESS;
-  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
+  SStreamNotifyEventSupp* pNotifySup = &pBasic->notifyEventSup;
+  bool                    addNotifyEvent = false;
+  addNotifyEvent = BIT_FLAG_TEST_MASK(pTaskInfo->streamInfo.eventTypes, SNOTIFY_EVENT_WINDOW_CLOSE);
   if (isFinalOperator(pBasic)) {
     doBuildPullDataBlock(pNbSup->pPullWins, &pNbSup->pullIndex, pNbSup->pPullDataRes);
     if (pNbSup->pPullDataRes->info.rows != 0) {
@@ -350,7 +356,7 @@ int32_t buildNonBlockSessionResult(SOperatorInfo* pOperator, SStreamAggSupporter
     return code;
   }
 
-  doBuildSessionResult(pOperator, pAggSup->pState, pGroupResInfo, pBInfo->pRes);
+  doBuildSessionResult(pOperator, pAggSup->pState, pGroupResInfo, pBInfo->pRes, addNotifyEvent ? pNotifySup->pSessionKeys : NULL);
   if (pBInfo->pRes->info.rows > 0) {
     printDataBlock(pBInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
     (*ppRes) = pBInfo->pRes;

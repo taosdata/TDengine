@@ -2846,7 +2846,8 @@ static int32_t createDataInserter(SPhysiPlanContext* pCxt, SVgDataBlocks* pBlock
 
   pInserter->numOfTables = pBlocks->numOfTables;
   pInserter->size = pBlocks->size;
-  TSWAP(pInserter->pData, pBlocks->pData);
+  pInserter->pData = pBlocks->pData;
+  pBlocks->pData = NULL;
 
   *pSink = (SDataSinkNode*)pInserter;
   return TSDB_CODE_SUCCESS;

@@ -30,20 +30,31 @@ extern "C" {
 #define FILL_POS_MID     2
 #define FILL_POS_END     3
 
-#define HAS_NON_ROW_DATA(pRowData)           (pRowData->key == INT64_MIN)
-#define HAS_ROW_DATA(pRowData)               (pRowData && pRowData->key != INT64_MIN)
+#define HAS_NON_ROW_DATA(pRowData) (pRowData->key == INT64_MIN)
+#define HAS_ROW_DATA(pRowData)     (pRowData && pRowData->key != INT64_MIN)
 
-#define IS_INVALID_WIN_KEY(ts)               ((ts) == INT64_MIN)
-#define IS_VALID_WIN_KEY(ts)               ((ts) != INT64_MIN)
-#define SET_WIN_KEY_INVALID(ts)              ((ts) = INT64_MIN)
+#define IS_INVALID_WIN_KEY(ts)  ((ts) == INT64_MIN)
+#define IS_VALID_WIN_KEY(ts)    ((ts) != INT64_MIN)
+#define SET_WIN_KEY_INVALID(ts) ((ts) = INT64_MIN)
 
 #define IS_NORMAL_INTERVAL_OP(op)                                    \
   ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL || \
    (op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL)
 
+#define IS_NORMAL_SESSION_OP(op)                                    \
+  ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION || \
+   (op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION)
+
+#define IS_NORMAL_STATE_OP(op) ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE)
+
+#define IS_NORMAL_EVENT_OP(op) ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT)
+
+#define IS_NORMAL_COUNT_OP(op) ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT)
+
 #define IS_CONTINUE_INTERVAL_OP(op) ((op)->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL)
 
-#define IS_FILL_CONST_VALUE(type) ((type == TSDB_FILL_NULL || type == TSDB_FILL_NULL_F || type == TSDB_FILL_SET_VALUE ||  type == TSDB_FILL_SET_VALUE_F))
+#define IS_FILL_CONST_VALUE(type) \
+  ((type == TSDB_FILL_NULL || type == TSDB_FILL_NULL_F || type == TSDB_FILL_SET_VALUE || type == TSDB_FILL_SET_VALUE_F))
 
 #define IS_INVALID_RANGE(range)             (range.pGroupIds == NULL)
 
@@ -78,11 +89,13 @@ typedef enum SIntervalSliceType {
   INTERVAL_SLICE_END = 2,
 } SIntervalSliceType;
 
-void setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type);
-bool needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo);
-void saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo);
-int32_t initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo);
-void destroyStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo);
+void    setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type);
+bool    needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo);
+void    saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo);
+int32_t initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo, const struct SOperatorInfo* pOperator);
+void    destroyStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo);
+int32_t encodeStreamBasicInfo(void** buf, const SSteamOpBasicInfo* pBasicInfo);
+int32_t decodeStreamBasicInfo(void** buf, SSteamOpBasicInfo* pBasicInfo);
 void setFillHistoryOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
 bool isHistoryOperator(SSteamOpBasicInfo* pBasicInfo);
 void setFinalOperatorFlag(SSteamOpBasicInfo* pBasicInfo);
@@ -131,7 +144,7 @@ SResultCellData* getSliceResultCell(SResultCellData* pRowVal, int32_t index, int
 int32_t          getDownstreamRes(struct SOperatorInfo* downstream, SSDataBlock** ppRes, SColumnInfo** ppPkCol);
 void             destroyFlusedppPos(void* ppRes);
 void             doBuildStreamIntervalResult(struct SOperatorInfo* pOperator, void* pState, SSDataBlock* pBlock,
-                                             SGroupResInfo* pGroupResInfo);
+                                             SGroupResInfo* pGroupResInfo, SArray* pSessionKeys);
 void             transBlockToSliceResultRow(const SSDataBlock* pBlock, int32_t rowId, TSKEY ts, SSliceRowData* pRowVal,
                                             int32_t rowSize, void* pPkData, SColumnInfoData* pPkCol, int32_t* pCellOffsetInfo);
 int32_t getQualifiedRowNumDesc(SExprSupp* pExprSup, SSDataBlock* pBlock, TSKEY* tsCols, int32_t rowId, bool ignoreNull);
@@ -142,10 +155,25 @@ TSKEY   compareTs(void* pKey);
 
 int32_t addEventAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionKey* pSessionKey,
                                const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t ri,
-                               SStreamNotifyEventSupp* sup);
-int32_t addAggResultNotifyEvent(const SSDataBlock* pResultBlock, const SSchemaWrapper* pSchemaWrapper,
-                                SStreamNotifyEventSupp* sup);
-int32_t buildNotifyEventBlock(const SExecTaskInfo* pTaskInfo, SStreamNotifyEventSupp* sup);
+                               SStreamNotifyEventSupp* sup, STaskNotifyEventStat* pNotifyEventStat);
+int32_t addStateAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionKey* pSessionKey,
+                               const SStateKeys* pCurState, const SStateKeys* pAnotherState, bool onlyUpdate,
+                               SStreamNotifyEventSupp* sup, STaskNotifyEventStat* pNotifyEventStat);
+int32_t addIntervalAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionKey* pSessionKey,
+                                  SStreamNotifyEventSupp* sup, STaskNotifyEventStat* pNotifyEventStat);
+int32_t addSessionAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionKey* pSessionKey,
+                                 SStreamNotifyEventSupp* sup, STaskNotifyEventStat* pNotifyEventStat);
+int32_t addCountAggNotifyEvent(EStreamNotifyEventType eventType, const SSessionKey* pSessionKey,
+                               SStreamNotifyEventSupp* sup, STaskNotifyEventStat* pNotifyEventStat);
+int32_t addAggResultNotifyEvent(const SSDataBlock* pResultBlock, const SArray* pSessionKeys,
+                                const SSchemaWrapper* pSchemaWrapper, SStreamNotifyEventSupp* sup,
+                                STaskNotifyEventStat* pNotifyEventStat);
+int32_t addAggDeleteNotifyEvent(const SSDataBlock* pDeleteBlock, SStreamNotifyEventSupp* sup,
+                                STaskNotifyEventStat* pNotifyEventStat);
+int32_t buildNotifyEventBlock(const SExecTaskInfo* pTaskInfo, SStreamNotifyEventSupp* sup,
+                              STaskNotifyEventStat* pNotifyEventStat);
+int32_t removeOutdatedNotifyEvents(STimeWindowAggSupp* pTwSup, SStreamNotifyEventSupp* sup,
+                                   STaskNotifyEventStat* pNotifyEventStat);
 void doStreamIntervalSaveCheckpoint(struct SOperatorInfo* pOperator);
 int32_t getIntervalSliceCurStateBuf(SStreamAggSupporter* pAggSup, SInterval* pInterval, bool needPrev, STimeWindow* pTWin, int64_t groupId,
                                     SInervalSlicePoint* pCurPoint, SInervalSlicePoint* pPrevPoint, int32_t* pWinCode);

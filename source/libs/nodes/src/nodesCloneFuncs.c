@@ -850,11 +850,6 @@ static int32_t physiDispatchCopy(const SDataDispatcherNode* pSrc, SDataDispatche
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t physiInserterCopy(const SDataInserterNode* pSrc, SDataInserterNode* pDst) {
-  COPY_BASE_OBJECT_FIELD(sink, dataSinkNodeCopy);
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t physiQueryInserterCopy(const SQueryInserterNode* pSrc, SQueryInserterNode* pDst) {
   COPY_BASE_OBJECT_FIELD(sink, dataSinkNodeCopy);
   CLONE_NODE_LIST_FIELD(pCols);
@@ -1139,9 +1134,6 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:  
       code = physiDispatchCopy((const SDataDispatcherNode*)pNode, (SDataDispatcherNode*)pDst);
       break;
-    //case QUERY_NODE_PHYSICAL_PLAN_INSERT:
-    //  code = physiInserterCopy((const SDataInserterNode*)pNode, (SDataInserterNode*)pDst);
-    //  break;
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
       code = physiQueryInserterCopy((const SQueryInserterNode*)pNode, (SQueryInserterNode*)pDst);
       break;

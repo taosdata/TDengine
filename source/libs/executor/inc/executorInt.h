@@ -451,16 +451,17 @@ typedef struct STimeWindowAggSupp {
 } STimeWindowAggSupp;
 
 typedef struct SStreamNotifyEventSupp {
-  SArray*      pWindowEvents;      // Array of SStreamNotifyEvent, storing window events and trigger values.
-  SHashObj*    pTableNameHashMap;  // Hash map from groupid to the dest child table name.
-  SHashObj*    pResultHashMap;     // Hash map from groupid+skey to the window agg result.
-  SSDataBlock* pEventBlock;        // The datablock contains all window events and results.
+  SHashObj*    pWindowEventHashMap;  // Hash map from gorupid+skey+eventType to the list node of window event.
+  SHashObj*    pTableNameHashMap;    // Hash map from groupid to the dest child table name.
+  SSDataBlock* pEventBlock;          // The datablock contains all window events and results.
+  SArray*      pSessionKeys;
+  const char*  windowType;
 } SStreamNotifyEventSupp;
 
 typedef struct SSteamOpBasicInfo {
   int32_t                primaryPkIndex;
   int16_t                operatorFlag;
-  SStreamNotifyEventSupp windowEventSup;
+  SStreamNotifyEventSupp notifyEventSup;
   bool                   recvCkBlock;
   SSDataBlock*           pCheckpointRes;
   SSHashObj*             pSeDeleted;
@@ -1086,7 +1087,7 @@ int32_t saveDeleteRes(SSHashObj* pStDelete, SSessionKey key);
 void    removeSessionResult(SStreamAggSupporter* pAggSup, SSHashObj* pHashMap, SSHashObj* pResMap, SSessionKey* pKey);
 void    doBuildDeleteDataBlock(struct SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlock* pBlock, void** Ite);
 void    doBuildSessionResult(struct SOperatorInfo* pOperator, void* pState, SGroupResInfo* pGroupResInfo,
-                             SSDataBlock* pBlock);
+                             SSDataBlock* pBlock, SArray* pSessionKeys);
 int32_t getSessionWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SResultWindowInfo* pWinInfo);
 void    getNextSessionWinInfo(SStreamAggSupporter* pAggSup, SSHashObj* pStUpdated, SResultWindowInfo* pCurWin,
                               SResultWindowInfo* pNextWin);
@@ -1123,7 +1124,7 @@ void    freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamT
 int32_t getNextBlockFromDownstreamImpl(struct SOperatorInfo* pOperator, int32_t idx, bool clearParam,
                                        SSDataBlock** pResBlock);
 void getCountWinRange(SStreamAggSupporter* pAggSup, const SSessionKey* pKey, EStreamType mode, SSessionKey* pDelRange);
-void doDeleteSessionWindow(SStreamAggSupporter* pAggSup, SSessionKey* pKey);
+void    doDeleteSessionWindow(SStreamAggSupporter* pAggSup, SSessionKey* pKey);
 
 int32_t saveDeleteInfo(SArray* pWins, SSessionKey key);
 void    removeSessionResults(SStreamAggSupporter* pAggSup, SSHashObj* pHashMap, SArray* pWins);
