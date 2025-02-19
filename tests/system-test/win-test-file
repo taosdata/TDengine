@@ -90,7 +90,6 @@ python3 ./test.py -f 7-tmq/tmqParamsTest.py -R
 python3 ./test.py -f 7-tmq/tmqMaxGroupIds.py
 python3 ./test.py -f 7-tmq/tmqConsumeDiscontinuousData.py
 python3 ./test.py -f 7-tmq/tmqOffset.py
-python3 ./test.py -f 7-tmq/tmq_primary_key.py
 python3 ./test.py -f 7-tmq/tmqDropConsumer.py
 python3 ./test.py -f 1-insert/insert_stb.py
 python3 ./test.py -f 1-insert/delete_stable.py

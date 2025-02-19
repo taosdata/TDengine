@@ -43,6 +43,8 @@ TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接�
 |      `enable.replay`      | boolean | 是否开启数据回放功能                                                                                                                              | 默认关闭                                                                                                                                                            |
 |   `session.timeout.ms`    | integer | consumer 心跳丢失后超时时间，超时后会触发 rebalance 逻辑，成功后该 consumer 会被删除（从3.3.3.0版本开始支持）                                     | 默认值为 12000，取值范围 [6000， 1800000]                                                                                                                           |
 |  `max.poll.interval.ms`   | integer | consumer poll 拉取数据间隔的最长时间，超过该时间，会认为该 consumer 离线，触发rebalance 逻辑，成功后该 consumer 会被删除（从3.3.3.0版本开始支持） | 默认值为 300000，[1000，INT32_MAX]                                                                                                                                  |
+|  `fetch.max.wait.ms`      | integer | 服务端单次返回数据的最大耗时（从3.3.6.0版本开始支持） | 默认值为 1000，[1，INT32_MAX]                                                                                                                                  |
+|  `min.poll.rows`          | integer | 服务端单次返回数据的最小条数（从3.3.6.0版本开始支持） | 默认值为 4096，[1，INT32_MAX]                                                                                                                                  |
 
 
 下面是各语言连接器创建参数：

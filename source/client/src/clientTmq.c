@@ -94,6 +94,8 @@ struct tmq_conf_t {
   int8_t         replayEnable;
   int8_t         sourceExcluded;  // do not consume, bit
   int8_t         rawData;         // fetch raw data
+  int32_t        maxPollWaitTime;
+  int32_t        minPollRows;
   uint16_t       port;
   int32_t        autoCommitInterval;
   int32_t        sessionTimeoutMs;
@@ -124,6 +126,8 @@ struct tmq_t {
   int8_t         replayEnable;
   int8_t         sourceExcluded;  // do not consume, bit
   int8_t         rawData;         // fetch raw data
+  int32_t        maxPollWaitTime;
+  int32_t        minPollRows;
   int64_t        consumerId;
   tmq_commit_cb* commitCb;
   void*          commitCbUserParam;
@@ -307,6 +311,8 @@ tmq_conf_t* tmq_conf_new() {
   conf->heartBeatIntervalMs = DEFAULT_HEARTBEAT_INTERVAL;
   conf->maxPollIntervalMs = DEFAULT_MAX_POLL_INTERVAL;
   conf->sessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;
+  conf->maxPollWaitTime = DEFAULT_MAX_POLL_WAIT_TIME;
+  conf->minPollRows = DEFAULT_MIN_POLL_ROWS;
 
   return conf;
 }
@@ -505,6 +511,28 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int64_t tmp = 0;
     code = taosStr2int64(value, &tmp);
     conf->rawData = (0 == code && tmp != 0) ? 1 : 0;
+    return TMQ_CONF_OK;
+  }
+
+  if (strcasecmp(key, "fetch.max.wait.ms") == 0) {
+    int64_t tmp = 0;
+    code = taosStr2int64(value, &tmp);
+    if (tmp <= 0 || tmp > INT32_MAX || code != 0) {
+      tqErrorC("invalid value for fetch.max.wait.ms: %s", value);
+      return TMQ_CONF_INVALID;
+    }
+    conf->maxPollWaitTime = tmp;
+    return TMQ_CONF_OK;
+  }
+
+  if (strcasecmp(key, "min.poll.rows") == 0) {
+    int64_t tmp = 0;
+    code = taosStr2int64(value, &tmp);
+    if (tmp <= 0 || tmp > INT32_MAX || code != 0) {
+      tqErrorC("invalid value for min.poll.rows: %s", value);
+      return TMQ_CONF_INVALID;
+    }
+    conf->minPollRows = tmp;
     return TMQ_CONF_OK;
   }
 
@@ -1748,6 +1776,8 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->replayEnable = conf->replayEnable;
   pTmq->sourceExcluded = conf->sourceExcluded;
   pTmq->rawData = conf->rawData;
+  pTmq->maxPollWaitTime = conf->maxPollWaitTime;
+  pTmq->minPollRows = conf->minPollRows;
   pTmq->enableBatchMeta = conf->enableBatchMeta;
   tstrncpy(pTmq->user, user, TSDB_USER_LEN);
   if (taosGetFqdn(pTmq->fqdn) != 0) {
@@ -2113,14 +2143,15 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
-void tmqBuildConsumeReqImpl(SMqPollReq* pReq, tmq_t* tmq, int64_t timeout, SMqClientTopic* pTopic, SMqClientVg* pVg) {
+void tmqBuildConsumeReqImpl(SMqPollReq* pReq, tmq_t* tmq, SMqClientTopic* pTopic, SMqClientVg* pVg) {
   if (pReq == NULL || tmq == NULL || pTopic == NULL || pVg == NULL) {
     return;
   }
   (void)snprintf(pReq->subKey, TSDB_SUBSCRIBE_KEY_LEN, "%s%s%s", tmq->groupId, TMQ_SEPARATOR, pTopic->topicName);
   pReq->withTbName = tmq->withTbName;
   pReq->consumerId = tmq->consumerId;
-  pReq->timeout = timeout < 0 ? INT32_MAX : timeout;
+  pReq->timeout = tmq->maxPollWaitTime;
+  pReq->minPollRows = tmq->minPollRows;
   pReq->epoch = tmq->epoch;
   pReq->reqOffset = pVg->offsetInfo.endOffset;
   pReq->head.vgId = pVg->vgId;
@@ -2224,14 +2255,14 @@ static void tmqBuildRspFromWrapperInner(SMqPollRspWrapper* pWrapper, SMqClientVg
   }
 }
 
-static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* pVg, int64_t timeout) {
+static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* pVg) {
   SMqPollReq      req = {0};
   char*           msg = NULL;
   SMqPollCbParam* pParam = NULL;
   SMsgSendInfo*   sendInfo = NULL;
   int             code = 0;
   int             lino = 0;
-  tmqBuildConsumeReqImpl(&req, pTmq, timeout, pTopic, pVg);
+  tmqBuildConsumeReqImpl(&req, pTmq, pTopic, pVg);
 
   int32_t msgSize = tSerializeSMqPollReq(NULL, 0, &req);
   TSDB_CHECK_CONDITION(msgSize >= 0, code, lino, END, TSDB_CODE_INVALID_MSG);
@@ -2283,7 +2314,7 @@ END:
   return code;
 }
 
-static int32_t tmqPollImpl(tmq_t* tmq, int64_t timeout) {
+static int32_t tmqPollImpl(tmq_t* tmq) {
   if (tmq == NULL) {
     return TSDB_CODE_INVALID_MSG;
   }
@@ -2336,7 +2367,7 @@ static int32_t tmqPollImpl(tmq_t* tmq, int64_t timeout) {
       }
 
       atomic_store_32(&pVg->vgSkipCnt, 0);
-      code = doTmqPollImpl(tmq, pTopic, pVg, timeout);
+      code = doTmqPollImpl(tmq, pTopic, pVg);
       if (code != TSDB_CODE_SUCCESS) {
         goto end;
       }
@@ -2598,7 +2629,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     code = tmqHandleAllDelayedTask(tmq);
     TSDB_CHECK_CODE(code, lino, END);
 
-    code = tmqPollImpl(tmq, timeout);
+    code = tmqPollImpl(tmq);
     TSDB_CHECK_CODE(code, lino, END);
 
     rspObj = tmqHandleAllRsp(tmq);
@@ -3475,7 +3506,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       pParam->pCommon = pCommon;
 
       SMqPollReq req = {0};
-      tmqBuildConsumeReqImpl(&req, tmq, 10, pTopic, pClientVg);
+      tmqBuildConsumeReqImpl(&req, tmq, pTopic, pClientVg);
       req.reqOffset = pClientVg->offsetInfo.beginOffset;
 
       int32_t msgSize = tSerializeSMqPollReq(NULL, 0, &req);
