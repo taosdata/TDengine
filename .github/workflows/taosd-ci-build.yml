@@ -71,7 +71,7 @@ jobs:
             snappy \
             zlib
 
-      - name: Build and install TDengine
+      - name: build TDengine-cmake
         run: |
           mkdir debug && cd debug
           cmake .. -DBUILD_TOOLS=true \
@@ -79,7 +79,10 @@ jobs:
             -DBUILD_HTTP=false \
             -DBUILD_TEST=true \
             -DBUILD_DEPENDENCY_TESTS=false
-          make -j 4
+            
+      - name: build TDengine-cmake and install
+        run: |            
+          make -j 
           sudo make install
           which taosd
           which taosadapter
