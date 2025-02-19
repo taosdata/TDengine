@@ -25,7 +25,12 @@ export default {
       s3Enable: 'S3 Enable',
       s3Bucket: 'S3 Bucket',
       s3Endpoint: 'S3 Endpoint',
-      s3AccessKey: 'S3 Access Key'
+      s3AccessKeyId: 'Access Key ID',
+      s3SecretAccessKey: 'Secret Key',
+      s3Region: 'S3 Region',
+      s3ObjectPrefix:  'Object Prefix',
+      backupRetentionPeriod: 'Retention Duration',
+      backupRetentionSize: 'Retention Quantity',
     },
     compressionLevel: {
       balanced: 'balanced',

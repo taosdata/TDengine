@@ -47,6 +47,11 @@
           <a v-else @click="viewHistory(scope.row.id)">{{ $t('view') }}</a>
         </template>
       </el-table-column>
+      <el-table-column width="100" :label="$t('taosuser.backupForm.s3Enable')" prop="s3_enable" align="center">
+        <template #default="scope">
+          <span>{{ scope.row.s3_enable ? $t('yes') : $t('no') }}</span>
+        </template>
+      </el-table-column>
       <el-table-column width="100" :label="$t('taosuser.lastbackup')" prop="status" show-overflow-tooltip>
         <template #default="scope">
           <div class="status-operation">
@@ -197,14 +202,36 @@
         <el-form-item prop="s3_enable" :label="$t('taosuser.backupForm.s3Enable')">
           <el-switch v-model="ruleForm.s3_enable" active-color="#13ce66" inactive-color="#dcdfe6"></el-switch>
         </el-form-item>
-        <el-form-item v-if="ruleForm.s3_enable" prop="s3_endpoint" :label="$t('taosuser.backupForm.s3Endpoint')">
+        <el-form-item v-if="ruleForm.s3_enable" required prop="s3_endpoint" :label="$t('taosuser.backupForm.s3Endpoint')">
           <el-input v-model="ruleForm.s3_endpoint"></el-input>
         </el-form-item>
-        <el-form-item v-if="ruleForm.s3_enable" prop="s3_bucket" :label="$t('taosuser.backupForm.s3Bucket')">
+        <el-form-item v-if="ruleForm.s3_enable" required prop="s3_access_key_id" :label="$t('taosuser.backupForm.s3AccessKeyId')">
+          <el-input v-model="ruleForm.s3_access_key_id"></el-input>
+        </el-form-item>
+        <el-form-item v-if="ruleForm.s3_enable" required prop="s3_secret_access_key" :label="$t('taosuser.backupForm.s3SecretAccessKey')">
+          <el-input v-model="ruleForm.s3_secret_access_key"></el-input>
+        </el-form-item>
+        <el-form-item v-if="ruleForm.s3_enable" required prop="s3_region" :label="$t('taosuser.backupForm.s3Region')">
+          <el-input v-model="ruleForm.s3_region"></el-input>
+        </el-form-item>
+        <el-form-item v-if="ruleForm.s3_enable" required prop="s3_bucket" :label="$t('taosuser.backupForm.s3Bucket')">
           <el-input v-model="ruleForm.s3_bucket"></el-input>
         </el-form-item>
-        <el-form-item v-if="ruleForm.s3_enable" prop="s3_access_key" :label="$t('taosuser.backupForm.s3AccessKey')">
-          <el-input v-model="ruleForm.s3_access_key"></el-input>
+        <el-form-item v-if="ruleForm.s3_enable" prop="s3_object_prefix" :label="$t('taosuser.backupForm.s3ObjectPrefix')">
+          <el-input v-model="ruleForm.s3_object_prefix"></el-input>
+        </el-form-item>
+        <el-form-item v-if="ruleForm.s3_enable" prop="backup_retention_period_value" :label="$t('taosuser.backupForm.backupRetentionPeriod')">
+          <el-input v-model="ruleForm.backup_retention_period_value" class="input-with-select">
+            <template #append>
+              <el-select v-model="ruleForm.backup_retention_period_unit" style="width: 100px">
+                <el-option :label="$t('taosuser.timeUnitH')" value="h"></el-option>
+                <el-option :label="$t('taosuser.timeUnitD')" value="d"></el-option>
+              </el-select>
+            </template>
+          </el-input>
+        </el-form-item>
+        <el-form-item v-if="ruleForm.s3_enable" prop="backup_retention_size" :label="$t('taosuser.backupForm.backupRetentionSize')">
+          <el-input v-model="ruleForm.backup_retention_size"></el-input>
         </el-form-item>
       </el-form>
 
@@ -265,8 +292,14 @@ interface RuleForm {
   created_at: string;
   s3_enable: boolean;
   s3_endpoint: string;
+  s3_access_key_id: string;
+  s3_secret_access_key: string;
+  s3_region: string;
   s3_bucket: string;
-  s3_access_key: string;
+  s3_object_prefix: string;
+  backup_retention_period_value: string;
+  backup_retention_period_unit: string;
+  backup_retention_size: number;
 }
 
 const currentId = ref('');
@@ -294,8 +327,14 @@ const ruleForm = reactive<RuleForm>({
   created_at: '',
   s3_enable: false,
   s3_endpoint: '',
+  s3_access_key_id: '',
+  s3_secret_access_key: '',
+  s3_region: '',
   s3_bucket: '',
-  s3_access_key: ''
+  s3_object_prefix: '',
+  backup_retention_period_value: '1',
+  backup_retention_period_unit: 'd',
+  backup_retention_size: 10
 });
 
 const viewOnly = ref(false);
@@ -323,6 +362,29 @@ const copy = (data: any) => {
   const backup_file_max_size_parts = data.backup_max_size.match(/^(\d+)([A-Z]{2})/);
   ruleForm.backup_max_size_value = backup_file_max_size_parts[1];
   ruleForm.backup_max_size_unit = backup_file_max_size_parts[2];
+  if (data.s3_enable) {
+    ruleForm.s3_enable = data.s3_enable;
+    ruleForm.s3_endpoint = data.s3_endpoint;
+    ruleForm.s3_access_key_id = data.s3_access_key_id;
+    ruleForm.s3_secret_access_key = data.s3_secret_access_key;
+    ruleForm.s3_region = data.s3_region;
+    ruleForm.s3_bucket = data.s3_bucket;
+    ruleForm.s3_object_prefix = data.s3_object_prefix;
+    ruleForm.backup_retention_period_value = data.backup_retention_period_value;
+    ruleForm.backup_retention_period_unit = data.backup_retention_period_unit;
+    ruleForm.backup_retention_size = data.backup_retention_size;
+  } else {
+    ruleForm.s3_enable = false;
+    ruleForm.s3_endpoint = '';
+    ruleForm.s3_access_key_id = '';
+    ruleForm.s3_secret_access_key = '';
+    ruleForm.s3_region = '';
+    ruleForm.s3_bucket = '';
+    ruleForm.s3_object_prefix = '';
+    ruleForm.backup_retention_period_value = '1';
+    ruleForm.backup_retention_period_unit = 'd';
+    ruleForm.backup_retention_size = 10;
+  }
 };
 
 const rules = reactive<FormRules<typeof ruleForm>>({
@@ -542,10 +604,14 @@ const constructPostData = () => {
     throw new Error('base_url is empty');
   }
   const splitArr = base_url.split('//');
-  let dsn = `tmq+${splitArr[0]}//${username}:${encodeURIComponent(decryptPwd)}@${splitArr[1]}/${ruleForm.database}`;
-  dsn += `?max_retry=${ruleForm.max_retry}&retry_interval=${ruleForm.retry_interval}s`;
+  let fromDSN = `tmq+${splitArr[0]}//${username}:${encodeURIComponent(decryptPwd)}@${splitArr[1]}/${ruleForm.database}`;
+  fromDSN += `?max_retry=${ruleForm.max_retry}&retry_interval=${ruleForm.retry_interval}s`;
   if (ruleForm.stable) {
-    dsn += `&stable=${ruleForm.stable}`;
+    fromDSN += `&stable=${ruleForm.stable}`;
+  }
+  let toDSN = `local:${ruleForm.directory}?max_size=${ruleForm.backup_max_size_value}${ruleForm.backup_max_size_unit}&compression_level=${ruleForm.compression_level}&s3_enable=${ruleForm.s3_enable}`;
+  if (ruleForm.s3_enable) {
+    toDSN += `&s3_endpoint=${ruleForm.s3_endpoint}&s3_access_key_id=${ruleForm.s3_access_key_id}&s3_secret_access_key=${ruleForm.s3_secret_access_key}&s3_region=${ruleForm.s3_region}&s3_bucket=${ruleForm.s3_bucket}&s3_object_prefix=${ruleForm.s3_object_prefix}&backup_retention_period=${ruleForm.backup_retention_period_value}${ruleForm.backup_retention_period_unit}&backup_retention_size=${ruleForm.backup_retention_size}`;
   }
 
   return {
@@ -554,8 +620,8 @@ const constructPostData = () => {
       upcoming: ruleForm.upcoming,
       interval: `${ruleForm.interval_value}${ruleForm.interval_unit}`
     },
-    from: dsn,
-    to: `local:${ruleForm.directory}?max_size=${ruleForm.backup_max_size_value}${ruleForm.backup_max_size_unit}&compression_level=${ruleForm.compression_level}`
+    from: fromDSN,
+    to: toDSN
   };
 };
 
