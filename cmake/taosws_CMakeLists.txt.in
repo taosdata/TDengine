@@ -1,8 +1,9 @@
 
 # taosws-rs
+set(TAOSWS_RS_GIT_TAG "origin/main")
 ExternalProject_Add(taosws-rs
         GIT_REPOSITORY https://github.com/taosdata/taos-connector-rust.git
-        GIT_TAG main
+        GIT_TAG ${TAOSWS_RS_GIT_TAG}
         SOURCE_DIR "${TD_SOURCE_DIR}/tools/taosws-rs"
         BINARY_DIR ""
         #BUILD_IN_SOURCE TRUE
@@ -10,4 +11,6 @@ ExternalProject_Add(taosws-rs
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
         TEST_COMMAND ""
+        # Fix: checkout to the specific tag
+        UPDATE_COMMAND " git checkout -f ${TAOSWS_RS_GIT_TAG} "
 )
