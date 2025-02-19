@@ -4111,7 +4111,7 @@ static int32_t checkWinJoinAggColCoexist(STranslateContext* pCxt, SSelectStmt* p
 }
 
 static int32_t checkHavingGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t    code = TSDB_CODE_SUCCESS;
   if (NULL == getGroupByList(pCxt) && NULL == pSelect->pPartitionByList && NULL == pSelect->pWindow &&
       !isWindowJoinStmt(pSelect)) {
     return code;
@@ -5473,22 +5473,26 @@ static int32_t translateClausePosition(STranslateContext* pCxt, SNodeList* pProj
 }
 
 static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList, SNodeList** selectFuncList);
+static int32_t rewriteHavingColsNode(STranslateContext* pCxt, SNode** pNode, SNodeList** selectFuncList);
 
 static int32_t prepareColumnExpansion(STranslateContext* pCxt, ESqlClause clause, SSelectStmt* pSelect) {
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t len = LIST_LENGTH(pSelect->pProjectionBindList);
   if (clause == SQL_CLAUSE_SELECT) {
     code = rewriteColsFunction(pCxt, &pSelect->pProjectionList, &pSelect->pProjectionBindList);
+  } else if (clause == SQL_CLAUSE_HAVING) {
+    code = rewriteHavingColsNode(pCxt, &pSelect->pHaving, &pSelect->pProjectionBindList);
   } else if (clause == SQL_CLAUSE_ORDER_BY) {
     code = rewriteColsFunction(pCxt, &pSelect->pOrderByList, &pSelect->pProjectionBindList);
   } else {
     code =
         generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Invalid clause for column expansion");
   }
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && LIST_LENGTH(pSelect->pProjectionBindList) > len) {
     code = translateExprList(pCxt, pSelect->pProjectionBindList);
   }
   if (pSelect->pProjectionBindList != NULL) {
-     pSelect->hasAggFuncs = true;
+    pSelect->hasAggFuncs = true;
   }
   return code;
 }
@@ -5745,9 +5749,17 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
 }
 
 static int32_t translateHaving(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == pSelect->pGroupByList && NULL == pSelect->pPartitionByList && NULL == pSelect->pWindow &&
       !isWindowJoinStmt(pSelect) && NULL != pSelect->pHaving) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
+  }
+  pCxt->currClause = SQL_CLAUSE_HAVING;
+  if (NULL != pSelect->pHaving) {
+    code = prepareColumnExpansion(pCxt, SQL_CLAUSE_HAVING, pSelect);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
   if (isWindowJoinStmt(pSelect)) {
     if (NULL != pSelect->pHaving) {
@@ -5758,9 +5770,7 @@ static int32_t translateHaving(STranslateContext* pCxt, SSelectStmt* pSelect) {
       }
     }
   }
-  pCxt->currClause = SQL_CLAUSE_HAVING;
-  int32_t code = translateExpr(pCxt, &pSelect->pHaving);
-  return code;
+  return translateExpr(pCxt, &pSelect->pHaving);
 }
 
 static int32_t translateGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -7551,6 +7561,22 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
   }
   return DEAL_RES_CONTINUE;
 _end:
+  return code;
+}
+
+static int32_t rewriteHavingColsNode(STranslateContext* pCxt, SNode** pNode, SNodeList** selectFuncList) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if(!pNode || *pNode == NULL) return code; 
+  if (isMultiColsFuncNode(*pNode)) {
+    parserWarn("%s Invalid using multi cols func in having.", __func__);
+    return TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
+  } else {
+    SCheckColsFuncCxt pSelectFuncCxt = {false, selectFuncList, TSDB_CODE_SUCCESS};
+    nodesRewriteExpr(pNode, rewriteSingleColsFunc, &pSelectFuncCxt);
+    if (pSelectFuncCxt.status != TSDB_CODE_SUCCESS) {
+      return pSelectFuncCxt.status;
+    }
+  }
   return code;
 }
 

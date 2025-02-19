@@ -1113,6 +1113,47 @@ class TDTestCase:
         tdSql.checkData(2, 2, "2022-09-29 15:15:03")
         tdSql.checkData(3, 1, "2022-09-30 15:15:04")
         tdSql.checkData(3, 2, "2022-09-30 15:15:03")
+        
+    def having_test(self, table_name, is_subquery):
+        tdLog.info("having_test")
+        t1 = f"from {table_name} "
+        tdSql.query(f'select tbname, cols(last(ts), ts) {t1} group by tbname having cols(last(ts), ts) > 1734574929000')
+        tdSql.checkRows(1)
+        tdSql.checkCols(2)
+        tdSql.checkData(0, 0, 'd0')
+        tdSql.checkData(0, 1, 1734574929014)
+        tdSql.query(f'select tbname, cols(last(ts), ts) {t1} group by tbname having cols(last(ts), ts) = 1734574929000')
+        tdSql.checkRows(1)
+        tdSql.checkCols(2)
+        tdSql.checkData(0, 0, 'd1')
+        tdSql.checkData(0, 1, 1734574929000)
+        tdSql.query(f'select tbname, cols(last(ts), ts) {t1} group by tbname having cols(last(ts), ts) < 1734574929000')
+        tdSql.checkRows(0)
+        tdSql.query(f'select tbname, cols(last(ts), ts) {t1} group by tbname having cols(last(ts), ts) != 1734574929000')
+        tdSql.checkRows(1)
+        tdSql.checkCols(2)
+        tdSql.checkData(0, 0, 'd0')
+        tdSql.checkData(0, 1, 1734574929014)
+        tdSql.query(f'select tbname, cols(last(ts), ts) {t1} group by tbname having cols(last(ts), ts) >= 1734574929000')
+        tdSql.checkRows(2)
+        tdSql.checkCols(2)
+        tdSql.checkData(0, 0, 'd1')
+        tdSql.checkData(0, 1, 1734574929000)
+        tdSql.checkData(1, 0, 'd0')
+        tdSql.checkData(1, 1, 1734574929014)
+        tdSql.query(f'select tbname, cols(last(ts), ts) {t1} group by tbname having cols(last(ts), ts) <= 1734574929000')
+        tdSql.checkRows(1)
+        tdSql.checkCols(2)
+        tdSql.checkData(0, 0, 'd1')
+        tdSql.checkData(0, 1, 1734574929000)
+        tdSql.query(f'select tbname, cols(last(ts), ts) {t1} group by tbname having cols(last(c0), ts) between 1734574929000 and 1734574929014')
+        tdSql.checkRows(2)
+        tdSql.checkCols(2)
+        tdSql.checkData(0, 0, 'd1')
+        tdSql.checkData(0, 1, 1734574929000)
+        tdSql.checkData(1, 0, 'd0')
+        tdSql.checkData(1, 1, 1734574929014)
+        
     
     def run(self):
         self.funcNestTest()
@@ -1128,6 +1169,8 @@ class TDTestCase:
         self.include_null_test()
         self.long_column_name_test()
         self.test1()
+        self.having_test("test.meters", False)
+        self.having_test("(select tbname, * from test.meters)", True)
 
 
     def stop(self):
