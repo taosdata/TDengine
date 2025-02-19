@@ -2113,8 +2113,6 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
       }
       pSubsidiary->num = 0;
       taosArraySet(pValCtxArray, funcIdx - 1, &pSubsidiary);
-    } else {
-      break;
     }
   }
 

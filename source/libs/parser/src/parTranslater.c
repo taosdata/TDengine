@@ -3860,7 +3860,10 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   SNode* pGroupNode = NULL;
   FOREACH(pGroupNode, getGroupByList(pCxt)) {
     SNode* pActualNode = getGroupByNode(pGroupNode);
-    if (nodesEqualNode(pActualNode, *pNode) || IsEqualTbNameFuncNode(pSelect, pActualNode, *pNode)) {
+    if (nodesEqualNode(pActualNode, *pNode)) {
+      return DEAL_RES_IGNORE_CHILD;
+    }
+    if (IsEqualTbNameFuncNode(pSelect, pActualNode, *pNode)) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
     if (isTbnameFuction(pActualNode) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
