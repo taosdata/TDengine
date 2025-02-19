@@ -12,7 +12,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifdef USE_GEOS
 #include "tgeosctx.h"
 #include "tlog.h"
 #include "tutil.h"
@@ -113,4 +112,3 @@ _exit:
 const char *getGeosErrMsg(int32_t code) {
   return (tlGeosCtx && tlGeosCtx->errMsg[0] != 0) ? tlGeosCtx->errMsg : (code ? tstrerror(code) : "");
 }
-#endif

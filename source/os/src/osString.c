@@ -157,18 +157,17 @@ char *taosStrndupi(const char *s, int64_t size) {
 #endif
 
 char *tstrndup(const char *str, int64_t size) {
-#ifdef WINDOWS
+#if defined(WINDOWS) || defined(TD_ASTRA)
   return taosStrndupi(str, size);
 #else
-  char* p = strndup(str, size);
+  char *p = strndup(str, size);
   if (str != NULL && NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
   return p;
-  
+
 #endif
 }
-
 
 int32_t taosStr2int64(const char *str, int64_t *val) {
   if (str == NULL || val == NULL) {

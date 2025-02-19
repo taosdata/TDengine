@@ -1086,7 +1086,7 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
     return -1;
   }
 
-#ifdef _TD_DARWIN_64
+#if defined(_TD_DARWIN_64) || defined(TD_ASTRA) 
   if (lseek(pFileIn->fd, (int32_t)(*offset), 0) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
