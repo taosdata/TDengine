@@ -18,11 +18,11 @@ Prepare the following environment:
 ## Configure Data Source
 
 **Step 1**, Search and open the "ODBC Data Source (64 bit)" management tool in the Start menu of the Windows operating system and configure it, refer to [Install ODBC Driver](../../../tdengine-reference/client-libraries/odbc/#Installation).    
-**Step 2**, Start Excel in the Windows system environment, then select [Data] - [Get Data] - [From Other Sources] - [From ODBC].   
+**Step 2**, Start Excel in the Windows system environment, then select [Data] -> [Get Data] -> [From Other Sources] -> [From ODBC].   
 
 ![excel-odbc](./excel/odbc-menu.jpg) 
 
-**Step 3**, In the pop-up window, select the data source you need to connect to from the drop-down list of [Data source name (DSN)], and then click the 【OK】 button.ton.  
+**Step 3**, In the pop-up window, select the data source you need to connect to from the drop-down list of [Data source name (DSN)], and then click the [OK] button.ton.  
 
 ![excel-odbc](./excel/odbc-select.jpg) 
 
@@ -30,12 +30,12 @@ Prepare the following environment:
 
 ![excel-odbc](./excel/odbc-config.jpg) 
 
-**Step 5**, In the pop-up 【Navigator】 dialog box, select the database tables you want to load, and then click 【Load】 to complete the data loading. 
+**Step 5**, In the pop-up [Navigator] dialog box, select the database tables you want to load, and then click [Load] to complete the data loading. 
 
 ![excel-odbc](./excel/odbc-load.jpg)
 
 ## Data Analysis
 
-Select the imported data. On the 【Insert】 tab, choose the column chart, and then configure the data fields in the 【PivotChart Fields】 pane on the right.
+Select the imported data. On the [Insert] tab, choose the column chart, and then configure the data fields in the [PivotChart Fields] pane on the right.
 
 ![excel-odbc](./excel/odbc-data.jpg)
