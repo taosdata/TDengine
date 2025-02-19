@@ -10,8 +10,8 @@ toc_max_heading_level: 4
 
 Prepare the following environment:
 
-- TDengine 3.3.5.7 and above version is installed and running normally (both Enterprise and Community versions are available)
-- taosAdapter is running normally, refer to [taosAdapter Reference](../../../tdengine-reference/components/taosadapter/)
+- TDengine 3.3.5.7 and above version is installed and running normally (both Enterprise and Community versions are available).
+- taosAdapter is running normally, refer to [taosAdapter Reference](../../../tdengine-reference/components/taosadapter/).
 - Install and run Excel. If not installed, please download and install it. For specific instructions, please refer to Microsoft's official documentation.
 - Download the latest Windows operating system X64 client driver from the TDengine official website and install it, refer to [Install ODBC Driver](../../../tdengine-reference/client-libraries/odbc/#Installation).
 
@@ -22,7 +22,7 @@ Prepare the following environment:
 
 ![excel-odbc](./excel/odbc-menu.jpg) 
 
-**Step 3**, In the pop-up window, select the data source you need to connect to from the drop-down list of [Data source name (DSN)], and then click the [OK] button.ton.  
+**Step 3**, In the pop-up window, select the data source you need to connect to from the drop-down list of [Data source name (DSN)], and then click the [OK] button.  
 
 ![excel-odbc](./excel/odbc-select.jpg) 
 
