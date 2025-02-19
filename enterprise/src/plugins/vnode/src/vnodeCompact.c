@@ -106,3 +106,52 @@ _exit:
 
   return 0;
 }
+
+static int64_t vnodeGetCompatableVersion(SVnode *pVnode) {
+  // TODO
+  return INT64_MAX;
+}
+
+static int32_t vnodeCompactMetaBegin(SVnode *pVnode) {
+  // TODO
+  return 0;
+}
+
+static int32_t vnodeCompactMetaImpl(SVnode *pVnode) {
+  // TODO
+  return 0;
+}
+
+static int32_t vnodeCompactMetaCommit(SVnode *pVnode) {
+  // TODO
+  return 0;
+}
+
+static int32_t vnodeCompactMetaAbort(SVnode *pVnode) {
+  // TODO
+  return 0;
+}
+
+int32_t vnodeCompactMeta(SVnode *pVnode) {
+  // Begin
+  int32_t code = vnodeCompactMetaBegin(pVnode);
+  if (code) {
+    vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    return code;
+  }
+
+  // Do compact
+  code = vnodeCompactMetaImpl(pVnode);
+  if (code) {
+    vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    vnodeCompactMetaAbort(pVnode);
+    return code;
+  }
+
+  code = vnodeCompactMetaCommit(pVnode);
+  if (code) {
+    vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    return code;
+  }
+  return 0;
+}
