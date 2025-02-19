@@ -204,55 +204,44 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
           if (afterPoint) {
             if (!rounded && curPrec - 1 == maxPrecision(result->type) && str[pos] >= '5') {
               Decimal64 delta = {1};
-              if (places > 1) {
-                int32_t scaleUp = places - 1;
-                while (scaleUp != 0) {
-                  int32_t curScale = TMIN(17, scaleUp);
-                  pOps->multiply(result->pDec, &SCALE_MULTIPLIER_64[curScale], WORD_NUM(Decimal64));
-                  scaleUp -= curScale;
-                }
-                result->precision += places - 1;
-                result->scale += places - 1;
+              int32_t   scaleUp = places - 1;
+              while (scaleUp != 0) {
+                int32_t curScale = TMIN(17, scaleUp);
+                pOps->multiply(result->pDec, &SCALE_MULTIPLIER_64[curScale], WORD_NUM(Decimal64));
+                scaleUp -= curScale;
               }
+              result->precision += places - 1;
+              result->scale += places - 1;
               pOps->add(result->pDec, &delta, WORD_NUM(Decimal64));
               rounded = true;
+              places = 0;
             }
-            break;
           } else {
             return TSDB_CODE_DECIMAL_OVERFLOW;
           }
         } else {
-          if (afterPoint && result->precision == 0) {
-            result->precision = places;
-            result->scale = places;
-          } else {
-            result->precision += places;
-            if (afterPoint) {
-              result->scale += places;
-            }
-            while (places != 0) {
-              int32_t curScale = TMIN(17, places);
-              pOps->multiply(result->pDec, &SCALE_MULTIPLIER_64[curScale], WORD_NUM(Decimal64));
-              places -= curScale;
-            }
+          result->precision += places;
+          if (afterPoint) {
+            result->scale += places;
+          }
+          while (places != 0) {
+            int32_t curScale = TMIN(17, places);
+            pOps->multiply(result->pDec, &SCALE_MULTIPLIER_64[curScale], WORD_NUM(Decimal64));
+            places -= curScale;
           }
           Decimal64 digit = {str[pos] - '0'};
           pOps->add(result->pDec, &digit, WORD_NUM(Decimal64));
           places = 0;
-          break;
         }
-      }
+      } break;
       case 'e':
       case 'E': {
-          //result->exponent += atoi(str + pos + 1);
           stop = true;
         } break;
       default:
         stop = true;
         break;
     }
-  }
-  if (rounded) {
   }
   if (result->sign < 0) {
     pOps->negate(result->pDec);

@@ -174,7 +174,7 @@ class Numeric {
     if (prec > NumericType<BitNum>::maxPrec) throw std::string("prec too big") + std::to_string(prec);
     int32_t code = dec_.fromStr(str, prec, scale) != 0;
     if (code != 0) {
-      cout << "failed to init decimal from str: " << str << "\t";
+      cout << "failed to init decimal(" << (int32_t)prec << "," << (int32_t)scale << ") from str: " << str << "\t";
       throw std::overflow_error(tstrerror(code));
     }
   }
@@ -904,6 +904,12 @@ void testDecimalFromStr(std::vector<DecimalFromStrTestUnit<BitNum>>& units) {
 
 TEST(decimal, decimalFromStr_all) {
   std::vector<DecimalFromStrTestUnit<64>> units = {
+    {18, 18, "-0.0000000000000100000010000000900000009e10", "-0.000100000010000001", false},
+    {18, 18, "-0.1999999999999999999e-1", "-0.020000000000000000", false},
+    {18, 18, "-0.9999999999999999999e-1", "-0.100000000000000000", false},
+    {18, 18, "-9.999999999999999999e-1", "", true},
+    {10, 10, "-9.9999999e-2", "-0.0999999990", false},
+    {10, 6, "9.99999e4", "", true},
     {18, 4, "9.999999e1", "100.0000", false},
     {18, 10, "1.23456e7", "12345600.0000000000", false},
       {18, 18, "0.0000000000000000000000000010000000000000000199999e26", "0.100000000000000002", false},
