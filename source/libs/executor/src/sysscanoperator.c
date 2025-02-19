@@ -1035,7 +1035,7 @@ static int32_t sysTableGetGeomText(char* iGeom, int32_t nGeom, char** output, in
 
   return code;
 #else
-  return TSDB_CODE_OPS_NOT_SUPPORT;
+  TAOS_RETURN(TSDB_CODE_OPS_NOT_SUPPORT);
 #endif
 }
 

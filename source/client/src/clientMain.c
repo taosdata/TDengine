@@ -55,7 +55,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
   return ret;
 }
 
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
 static void freeTz(void *p) {
   timezone_t tz = *(timezone_t *)p;
   tzfree(tz);
@@ -172,7 +172,7 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
   }
 #endif
   if (option == TSDB_OPTION_CONNECTION_TIMEZONE || option == TSDB_OPTION_CONNECTION_CLEAR) {
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
     if (val != NULL) {
       if (val[0] == 0) {
         val = "UTC";
@@ -622,7 +622,6 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
 
     return doAsyncFetchRows(pRequest, true, true);
   } else if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
-#ifdef USE_TQ
     SMqRspObj      *msg = ((SMqRspObj *)res);
     SReqResultInfo *pResultInfo = NULL;
     if (msg->resIter == -1) {
@@ -646,10 +645,6 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
       pResultInfo->current += 1;
       return pResultInfo->row;
     }
-#else
-    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-    return NULL;
-#endif
   } else if (TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return NULL;
   } else {

@@ -466,7 +466,7 @@ _return:
   SCL_ERR_RET(colDataSetVal(pOut->columnData, rowIndex, (const char *)&dummyHeader, false));
   SCL_RET(code);
 #else
-  SCL_ERR_RET(TSDB_CODE_OPS_NOT_SUPPORT);
+  TAOS_RETURN(TSDB_CODE_OPS_NOT_SUPPORT);
 #endif
 }
 // TODO opt performance, tmp is not needed.

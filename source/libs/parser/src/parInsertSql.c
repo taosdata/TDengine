@@ -442,7 +442,7 @@ static int parseGeometry(SToken* pToken, unsigned char** output, size_t* size) {
 
   return code;
 #else
-  return TSDB_CODE_OPS_NOT_SUPPORT;
+  TAOS_RETURN(TSDB_CODE_OPS_NOT_SUPPORT);
 #endif
 }
 

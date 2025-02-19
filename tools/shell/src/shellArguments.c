@@ -483,6 +483,10 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shell.info.osname = "Darwin";
   snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getpwuid(getuid())->pw_dir, SHELL_HISTORY_FILE);
   if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
+#elif defined(TD_ASTRA)
+  shell.info.osname = "Astra";
+  snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getenv("HOME"), SHELL_HISTORY_FILE); //TD_ASTRA_TODO getenv("HOME")
+  if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
 #else
   shell.info.osname = "Linux";
   snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getenv("HOME"), SHELL_HISTORY_FILE);

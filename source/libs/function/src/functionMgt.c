@@ -158,7 +158,7 @@ int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
   pFpSet->finalize = udfAggFinalize;
   return TSDB_CODE_SUCCESS;
 #else
-  return TSDB_CODE_OPS_NOT_SUPPORT;
+  TAOS_RETURN(TSDB_CODE_OPS_NOT_SUPPORT);
 #endif
 }
 

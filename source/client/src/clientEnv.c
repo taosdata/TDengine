@@ -135,7 +135,7 @@ static void concatStrings(SArray *list, char *buf, int size) {
     }
   }
 }
-
+#ifdef USE_REPORT
 static int32_t generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int32_t reqType, int64_t duration) {
   cJSON  *json = cJSON_CreateObject();
   int32_t code = TSDB_CODE_SUCCESS;
@@ -224,7 +224,7 @@ _end:
   cJSON_Delete(json);
   return code;
 }
-
+#endif
 static bool checkSlowLogExceptDb(SRequestObj *pRequest, char *exceptDb) {
   if (pRequest->pDb != NULL) {
     return strcmp(pRequest->pDb, exceptDb) != 0;
@@ -291,6 +291,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
     }
   }
 
+#ifdef USE_REPORT
   if (pTscObj->pAppInfo->serverCfg.monitorParas.tsEnableMonitor) {
     if (QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType || QUERY_NODE_INSERT_STMT == pRequest->stmtType) {
       sqlReqLog(pTscObj->id, pRequest->killed, pRequest->code, MONITORSQLTYPEINSERT);
@@ -316,6 +317,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
       }
     }
   }
+#endif
 
   releaseTscObj(pTscObj->id);
 }
@@ -999,7 +1001,7 @@ static int32_t shellStartDaemon(int argc, char *argv[]) {
   TAOS_CHECK_EXIT(taosThreadCreate(&daemonObj.pid, &thAttr, dmStartDaemonFunc, pArgs));
 
   while (true) {
-    if (atomic_load_64(&tsDndStarted)) {
+    if (atomic_load_64(&tsDndStart)) {
       atomic_store_32(&daemonObj.stat, 1);
       break;
     }

@@ -151,7 +151,6 @@ extern bool    tsEnableWhiteList;
 extern int64_t tsDndStart;
 extern int64_t tsDndStartOsUptime;
 extern int64_t tsDndUpTime;
-extern int64_t tsDndStarted;
 
 // dnode misc
 extern uint32_t tsEncryptionKeyChksum;
