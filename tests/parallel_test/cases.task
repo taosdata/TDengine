@@ -102,7 +102,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertBasic.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertBindVGroup.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertMix.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertPrecisoin.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertPrecision.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/invalid_commandline.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/query_json.py -B
