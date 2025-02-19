@@ -799,7 +799,7 @@ static void processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
           if (vAlterTbReq.tagType == TSDB_DATA_TYPE_VARBINARY) {
             bufSize = vAlterTbReq.nTagVal * 2 + 2 + 3;
           } else {
-            bufSize = vAlterTbReq.nTagVal + 3;
+            bufSize = vAlterTbReq.nTagVal + 32;
           }
           buf = taosMemoryCalloc(bufSize, 1);
           RAW_NULL_CHECK(buf);
@@ -2313,8 +2313,6 @@ static void processSimpleMeta(SMqMetaRsp* pMetaRsp, cJSON** meta) {
     processCreateTable(pMetaRsp, meta);
   } else if (pMetaRsp->resMsgType == TDMT_VND_ALTER_TABLE) {
     processAlterTable(pMetaRsp, meta);
-  } else if (pMetaRsp->resMsgType == TDMT_VND_DROP_TABLE) {
-    processDropTable(pMetaRsp, meta);
   } else if (pMetaRsp->resMsgType == TDMT_VND_DROP_TABLE) {
     processDropTable(pMetaRsp, meta);
   } else if (pMetaRsp->resMsgType == TDMT_VND_DELETE) {
