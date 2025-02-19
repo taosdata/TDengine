@@ -613,7 +613,15 @@ int32_t taosWcharsWidth(TdWchar *pWchar, int32_t size) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
+#ifndef TD_ASTRA
   return wcswidth(pWchar, size);
+#else
+  int32_t width = 0;
+  for (int32_t i = 0; i < size; i++) {
+    width += wcwidth(pWchar[i]);
+  }
+  return width;
+#endif
 }
 
 int32_t taosMbToWchar(TdWchar *pWchar, const char *pStr, int32_t size) {
@@ -629,12 +637,20 @@ int32_t taosMbsToWchars(TdWchar *pWchars, const char *pStrs, int32_t size) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
+#ifndef TD_ASTRA
   return mbstowcs(pWchars, pStrs, size);
+#else
+  return mbsrtowcs(pWchars, &pStrs, size, NULL);
+#endif
 }
 
 int32_t taosWcharToMb(char *pStr, TdWchar wchar) {
   OS_PARAM_CHECK(pStr);
+#ifndef TD_ASTRA
   return wctomb(pStr, wchar);
+#else
+  return wcrtomb(pStr, wchar, NULL);
+#endif
 }
 
 char *taosStrCaseStr(const char *str, const char *pattern) {

@@ -26,7 +26,7 @@
 
 #include "os.h"
 
-#ifdef WINDOWS
+#if defined(WINDOWS) || defined(TD_ASTRA)
 
 #include <stdlib.h>
 #include <string.h>
@@ -440,7 +440,7 @@ time_t taosMktime(struct tm *timep, timezone_t tz) {
   return user_mktime64(timep->tm_year + 1900, timep->tm_mon + 1, timep->tm_mday, timep->tm_hour, timep->tm_min,
                        timep->tm_sec, tzw);
 #elif defined(TD_ASTRA)
-  time_t r =  mktime(timep));
+  time_t r =  mktime(timep);
   if (r == (time_t)-1) {
     terrno = TAOS_SYSTEM_ERROR(errno);
   }
