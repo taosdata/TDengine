@@ -12,5 +12,5 @@ ExternalProject_Add(taosws-rs
         INSTALL_COMMAND ""
         TEST_COMMAND ""
         # Fix: checkout to the specific tag
-        UPDATE_COMMAND "${GIT_EXECUTABLE}t checkout -f ${TAOSWS_RS_GIT_TAG} "
+        UPDATE_COMMAND "${GIT_EXECUTABLE}t checkout  ${TAOSWS_RS_GIT_TAG} "
 )
