@@ -45,6 +45,7 @@ enum {
   RES_TYPE__TMQ_META,
   RES_TYPE__TMQ_METADATA,
   RES_TYPE__TMQ_BATCH_META,
+  RES_TYPE__TMQ_RAWDATA,
 };
 
 #define SHOW_VARIABLES_RESULT_COLS       5
@@ -55,6 +56,7 @@ enum {
 #define SHOW_VARIABLES_RESULT_FIELD5_LEN (TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE)
 
 #define TD_RES_QUERY(res)          (*(int8_t*)(res) == RES_TYPE__QUERY)
+#define TD_RES_TMQ_RAW(res)        (*(int8_t*)(res) == RES_TYPE__TMQ_RAWDATA)
 #define TD_RES_TMQ(res)            (*(int8_t*)(res) == RES_TYPE__TMQ)
 #define TD_RES_TMQ_META(res)       (*(int8_t*)(res) == RES_TYPE__TMQ_META)
 #define TD_RES_TMQ_METADATA(res)   (*(int8_t*)(res) == RES_TYPE__TMQ_METADATA)

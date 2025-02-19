@@ -2731,7 +2731,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
   terrno = 0;
 
   if (NULL == pReq) {
-    if (!(pReq = taosMemoryMalloc(sizeof(SSubmitReq2)))) {
+    if (!(pReq = taosMemoryCalloc(1, sizeof(SSubmitReq2)))) {
       code = terrno;
       goto _end;
     }
