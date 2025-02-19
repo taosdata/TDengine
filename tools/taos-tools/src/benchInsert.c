@@ -4152,6 +4152,8 @@ int32_t runInsertLimitThread(SDataBase* database, SSuperTable* stbInfo, int32_t 
         }
     }
 
+    tmfree(slot);
+
     return 0;
 }
 #endif
