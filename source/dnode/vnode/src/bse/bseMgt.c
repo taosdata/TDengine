@@ -309,6 +309,9 @@ _err:
 int32_t tableClose(STable *pTable) {
   int32_t line = 0;
   int32_t code = 0;
+  if (pTable == NULL) {
+    return code;
+  }
 
   tableCommit(pTable);
   pTable->commited = 1;
