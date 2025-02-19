@@ -243,6 +243,7 @@ _exit:
 }
 
 extern int64_t tsMaxKeyByPrecision[];
+
 static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int64_t btimeMs, int64_t ctimeMs) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -262,30 +263,30 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   submitTbData.flags = submitTbData.flags & 0xff;
 
   int64_t uid;
+  if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+    code = vnodePreprocessCreateTableReq(pVnode, pCoder, btimeMs, &uid);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
   // submit data
   if (tDecodeI64(pCoder, &submitTbData.suid) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  if (tDecodeI64(pCoder, &submitTbData.uid) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    TSDB_CHECK_CODE(code, lino, _exit);
+  if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+    *(int64_t *)(pCoder->data + pCoder->pos) = uid;
+    pCoder->pos += sizeof(int64_t);
+  } else {
+    if (tDecodeI64(pCoder, &submitTbData.uid) < 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
   }
 
   if (tDecodeI32v(pCoder, &submitTbData.sver) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     TSDB_CHECK_CODE(code, lino, _exit);
-  }
-
-  if ((submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) && (submitTbData.uid == 0)) {
-    code = vnodePreprocessCreateTableReq(pVnode, pCoder, btimeMs, &uid);
-    TSDB_CHECK_CODE(code, lino, _exit);
-    pCoder->pos -= sizeof(int64_t);
-    pCoder->pos -= sizeof(int32_t);
-    *(int64_t *)(pCoder->data + pCoder->pos) = uid;
-    pCoder->pos += sizeof(int64_t);
-    pCoder->pos += sizeof(int32_t);
   }
 
   // scan and check
@@ -374,6 +375,7 @@ _exit:
   }
   return code;
 }
+
 static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
   int32_t lino = 0;
