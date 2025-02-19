@@ -54,14 +54,16 @@ static int32_t metaCompactKV(SMeta *pMeta, TTB *pOldTb, TTB *pNewTb, int64_t com
   // Open cursor
   code = tdbTbcOpen(pOldTb, &cursor, NULL);
   if (code) {
-    metaError("%s failed at %s:%d since %s", __func__, __FILE__, __LINE__, tstrerror(code));
+    metaError("vgId:%d,%s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
+              tstrerror(code));
     return code;
   }
 
   // Move to first
   code = tdbTbcMoveToFirst(cursor);
   if (code) {
-    metaError("%s failed at %s:%d since %s", __func__, __FILE__, __LINE__, tstrerror(code));
+    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
+              tstrerror(code));
     tdbTbcClose(cursor);
     return code;
   }
@@ -78,7 +80,8 @@ static int32_t metaCompactKV(SMeta *pMeta, TTB *pOldTb, TTB *pNewTb, int64_t com
     if (shouldKeep == NULL || shouldKeep(pMeta, key, keySize, value, valueSize, compactVersion)) {
       code = tdbTbInsert(pNewTb, key, keySize, value, valueSize, NULL);
       if (code) {
-        metaError("%s failed at %s:%d since %s", __func__, __FILE__, __LINE__, tstrerror(code));
+        metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
+                  tstrerror(code));
         tdbTbcClose(cursor);
         return code;
       }
