@@ -24,15 +24,11 @@ title: 与 Excel 集成
 
 ![excel-odbc](./excel/odbc-select.jpg) 
 
-**第 4 步**，在弹出窗口的【数据源名称(DSN)】下拉列表中选择【MyTDengine】后，点击【确定】按钮。 
-
-![excel-odbc](./excel/odbc-select.jpg) 
-
-**第 5 步**，输入 TDengine 的用户名密码
+**第 4 步**，输入 TDengine 的用户名密码
 
 ![excel-odbc](./excel/odbc-config.jpg) 
 
-在弹出的【导航器】对话框中，选择要加载的库表, 并点击【加载】完成数据加载。
+**第 5 步**，在弹出的【导航器】对话框中，选择要加载的库表, 并点击【加载】完成数据加载。
 
 ![excel-odbc](./excel/odbc-load.jpg)
 
