@@ -295,7 +295,7 @@ int32_t taosStr2Uint8(const char *str, uint8_t *val) {
   }
 }
 
-int32_t tasoUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes) {
+int32_t taosUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes) {
   if ((f1_ucs4 == NULL || f2_ucs4 == NULL)) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -333,10 +333,11 @@ int32_t tasoUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes) {
   //#endif
 }
 
-int32_t tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4) {
+int32_taosUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4) {
   if (target_ucs4 == NULL || source_ucs4 == NULL || len_ucs4 <= 0) {
     return TSDB_CODE_INVALID_PARA;
   }
+#ifndef TD_ASTRA
   if (taosMemorySize(target_ucs4) < len_ucs4 * sizeof(TdUcs4)) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -345,6 +346,9 @@ int32_t tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4)
   (void)memcpy(target_ucs4, source_ucs4, len_ucs4 * sizeof(TdUcs4));
 
   return TSDB_CODE_SUCCESS;
+#else
+  return TSDB_CODE_APP_ERROR;
+#endif
 }
 
 iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt) {

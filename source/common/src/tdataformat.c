@@ -1372,7 +1372,7 @@ int32_t tValueCompare(const SValue *tv1, const SValue *tv2) {
       return ret ? ret : (tv1->nData < tv2->nData ? -1 : (tv1->nData > tv2->nData ? 1 : 0));
     }
     case TSDB_DATA_TYPE_NCHAR: {
-      int32_t ret = tasoUcs4Compare((TdUcs4 *)tv1->pData, (TdUcs4 *)tv2->pData,
+      int32_t ret = taosUcs4Compare((TdUcs4 *)tv1->pData, (TdUcs4 *)tv2->pData,
                                     tv1->nData < tv2->nData ? tv1->nData : tv2->nData);
       return ret ? ret : (tv1->nData < tv2->nData ? -1 : (tv1->nData > tv2->nData ? 1 : 0));
     }
