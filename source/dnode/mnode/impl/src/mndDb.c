@@ -38,7 +38,7 @@
 #include "tjson.h"
 
 #define DB_VER_NUMBER   1
-#define DB_RESERVE_SIZE 14
+#define DB_RESERVE_SIZE 10
 
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
@@ -156,6 +156,7 @@ SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactStartTime, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactEndTime, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.compactInterval, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pDb->cfg.flushPeriod, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -259,6 +260,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactStartTime, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactEndTime, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.compactInterval, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.flushPeriod, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pDb->lock);
@@ -847,6 +849,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .compactStartTime = pCreate->compactStartTime,
       .compactEndTime = pCreate->compactEndTime,
       .compactTimeOffset = pCreate->compactTimeOffset,
+      .flushPeriod = 10,
   };
 
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;

@@ -94,6 +94,23 @@ static void *mndBuildTimerMsg(int32_t *pContLen) {
   return pReq;
 }
 
+static void *mndBuildTimerMsgWithArg(int32_t *pContLen, char *db) {
+  terrno = 0;
+  SMTimerReq timerReq = {0};
+  tstrncpy(timerReq.db, db, TSDB_DB_FNAME_LEN);
+
+  int32_t contLen = tSerializeSMTimerMsg(NULL, 0, &timerReq);
+  if (contLen <= 0) return NULL;
+  void *pReq = rpcMallocCont(contLen);
+  if (pReq == NULL) return NULL;
+
+  if (tSerializeSMTimerMsg(pReq, contLen, &timerReq) < 0) {
+    mError("failed to serialize timer msg since %s", terrstr());
+  }
+  *pContLen = contLen;
+  return pReq;
+}
+
 static void mndPullupTrans(SMnode *pMnode) {
   mTrace("pullup trans msg");
   int32_t contLen = 0;
@@ -140,11 +157,12 @@ static void mndPullupTrimDb(SMnode *pMnode) {
   }
 }
 
-static void mndPullupCommitDb(SMnode *pMnode) {
-  mTrace("pullup s3migrate");
+static void mndPullupCommitDb(SMnode *pMnode, char *db) {
+  mTrace("pullup commit db");
   int32_t contLen = 0;
   int32_t code = 0;
-  void   *pReq = mndBuildTimerMsg(&contLen);
+  void   *pReq = mndBuildTimerMsgWithArg(&contLen, db);
+  mInfo("pull up commit db %s", db);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_COMMIT_DB_TIMER, .pCont = pReq, .contLen = contLen};
   if ((code = tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg)) < 0) {
     mError("failed to put commit-db-timer into write-queue since %s, line:%d", tstrerror(code), __LINE__);
@@ -391,8 +409,17 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     mndPullupTrimDb(pMnode);
   }
 
-  if (sec % 10 == 0) {
-    mndPullupCommitDb(pMnode);
+  SDbObj *pDb = NULL;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  while ((pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb))) {
+    if (pDb->cfg.flushPeriod > 0) {
+      mInfo("db:%s, flush period:%d, sec:%" PRId64, pDb->name, pDb->cfg.flushPeriod, sec);
+      if (sec % pDb->cfg.flushPeriod == 0) {
+        mndPullupCommitDb(pMnode, pDb->name);
+      }
+    }
+    sdbRelease(pSdb, pDb);
   }
 
   if (tsS3MigrateEnabled && sec % tsS3MigrateIntervalSec == 0) {

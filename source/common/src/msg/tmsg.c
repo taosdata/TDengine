@@ -6635,6 +6635,7 @@ int32_t tSerializeSMTimerMsg(void *buf, int32_t bufLen, SMTimerReq *pReq) {
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->reserved));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->db));
   tEndEncode(&encoder);
 
 _exit:
@@ -6645,6 +6646,23 @@ _exit:
   }
   tEncoderClear(&encoder);
   return tlen;
+}
+
+int32_t tDeserializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pRsp){
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->reserved));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->db));
+
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
 }
 
 int32_t tSerializeDropOrphanTaskMsg(void *buf, int32_t bufLen, SMStreamDropOrphanMsg *pMsg) {

@@ -1117,9 +1117,16 @@ static int32_t mndProcessCommitDbTimer(SRpcMsg *pReq) {
   void   *pIter = NULL;
   int32_t contLen = sizeof(SMsgHead);
 
+  SMTimerReq timerReq = {0};
+  if (tDeserializeSMTimerMsg(pReq->pCont, pReq->contLen, &timerReq)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  mInfo("timer request to commit db:%s", timerReq.db);
+
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
+    if (strncmp(pVgroup->dbName, timerReq.db, TSDB_DB_FNAME_LEN) != 0) continue;
 
     int32_t code = 0;
 

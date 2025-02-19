@@ -456,6 +456,7 @@ typedef struct {
   int32_t compactInterval;    // minute
   int32_t compactStartTime;   // minute
   int32_t compactEndTime;     // minute
+  int32_t flushPeriod;
 } SDbCfg;
 
 typedef struct {
