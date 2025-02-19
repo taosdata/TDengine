@@ -429,6 +429,8 @@ int64_t taosMemSize(void *ptr) {
   return _msize(ptr);
 #elif defined(_TD_DARWIN_64)
   return malloc_size(ptr);
+#elif defined(TD_ASTRA)
+  return 0;  // TD_ASTRA_TODO N/A
 #else
   return malloc_usable_size(ptr);
 #endif
