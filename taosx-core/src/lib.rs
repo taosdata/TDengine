@@ -27,7 +27,7 @@ pub use plugins::*;
 pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::{get_table_progress, tmq_offsets, tmq_to_td};
 pub use transform::Action;
-use utils::files::write_to_parquet_file;
+use utils::files::{delete_oldest_parquet_file, write_to_parquet_file};
 use utils::port_pool::PortPool;
 use utils::trace::Qid;
 
@@ -687,25 +687,51 @@ impl ArchiveConsumer {
         while let Ok((archive_type, batch)) = receiver.recv_async().await {
             match archive_type {
                 ArchiveType::Cache => {
-                    match write_to_parquet_file(self.task_id, &cache.location, &batch) {
+                    match write_to_parquet_file(self.task_id, &cache.location, 0, 0, &batch) {
                         Ok(_) => {
-                            tracing::debug!("cache records success: {} rows", batch.num_rows());
+                            tracing::debug!("cache records success, {} rows", batch.num_rows());
                         }
                         Err(e) => match cache.on_fail.handle(format!("{e:#}")) {
                             Ok(_) => {}
-                            Err(e) => tracing::error!("{e:#}"),
+                            Err(e) => return Err(e),
                         },
                     }
                 }
                 ArchiveType::Archive => {
-                    match write_to_parquet_file(self.task_id, &archive.location, &batch) {
+                    match write_to_parquet_file(
+                        self.task_id,
+                        &archive.location,
+                        archive.keep_days,
+                        archive.max_size,
+                        &batch,
+                    ) {
                         Ok(_) => {
                             metrics.add_archived_rows(batch.num_rows() as u64);
-                            tracing::debug!("archive records success: {} rows", batch.num_rows());
+                            tracing::debug!("archive records success, {} rows", batch.num_rows());
                         }
                         Err(e) => match archive.on_fail.handle(format!("{e:#}")) {
-                            Ok(_) => {}
-                            Err(e) => tracing::error!("{e:#}"),
+                            Ok(retry) => {
+                                if retry {
+                                    if let Err(e) =
+                                        delete_oldest_parquet_file(self.task_id, &archive.location)
+                                    {
+                                        tracing::error!("rotate archive file failed, err: {e:#}");
+                                    }
+                                    if let Err(e) = write_to_parquet_file(
+                                        self.task_id,
+                                        &archive.location,
+                                        archive.keep_days,
+                                        archive.max_size,
+                                        &batch,
+                                    ) {
+                                        tracing::error!(
+                                            "retry archive records failed, {} rows, err: {e:#}",
+                                            batch.num_rows()
+                                        );
+                                    }
+                                }
+                            }
+                            Err(e) => return Err(e),
                         },
                     }
                 }
