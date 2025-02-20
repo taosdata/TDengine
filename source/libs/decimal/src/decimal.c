@@ -170,6 +170,8 @@ int32_t calcActualWeight(int32_t prec, int32_t scale, int32_t exp, int32_t weigh
 
 static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* result) {
   int32_t code = 0, pos = 0;
+  int32_t expectPrecision = result->precision;
+  int32_t expectScale = result->scale;
   result->precision = 0;
   result->scale = 0;
   result->exponent = 0;
@@ -231,9 +233,14 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
         Decimal64 delta = {0};
         if (curPrec > maxPrecision(result->type)) {
           if (!afterPoint) return TSDB_CODE_DECIMAL_OVERFLOW;
-          if (rounded || curPrec - 1 != maxPrecision(result->type) || str[pos] < '5') break;
+          int32_t curScale = result->scale - result->exponent + places;
+          if (rounded || curScale > expectScale + 1 /*scale already overflowed, no need do rounding*/ ||
+              curPrec - 1 != maxPrecision(result->type) /* not the maxPrecision + 1 digit, no need do rounding*/ ||
+              str[pos] < '5')
+            break;
 
-          // do rounding
+          // Do rounding for the maxPrecision + 1 digit.
+          // Here we cannot directly add this digit into the results, because it may cause overflow.
           DECIMAL64_SET_VALUE(&delta, 1);
           scaleUp = places - 1;
           rounded = true;
@@ -1585,7 +1592,7 @@ static void decimal64RoundWithPositiveScale(Decimal64* pDec, uint8_t prec, int8_
 
 int32_t decimal64FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale, Decimal64* pRes) {
   int32_t    code = 0;
-  DecimalVar var = {.type = DECIMAL_64, .pDec = pRes->words};
+  DecimalVar var = {.type = DECIMAL_64, .pDec = pRes->words, .precision = expectPrecision, .scale = expectScale};
   DECIMAL64_SET_VALUE(pRes, 0);
   code = decimalVarFromStr(str, len, &var);
   if (TSDB_CODE_SUCCESS != code) return code;
@@ -1626,7 +1633,7 @@ static void decimal128ScaleTo(Decimal128* pDec, uint8_t oldScale, uint8_t newSca
 int32_t decimal128FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale,
                           Decimal128* pRes) {
   int32_t    code = 0;
-  DecimalVar var = {.type = DECIMAL_128, .pDec = pRes->words};
+  DecimalVar var = {.type = DECIMAL_128, .pDec = pRes->words, .precision = expectPrecision, .scale = expectScale};
   DECIMAL128_SET_HIGH_WORD(pRes, 0);
   DECIMAL128_SET_LOW_WORD(pRes, 0);
   code = decimalVarFromStr(str, len, &var);
