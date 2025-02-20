@@ -64,7 +64,7 @@ class TDTestCase(TBase):
 
 
         # hori
-        cmd = f'taos -s "select * {db}.{stb} limit 10"'
+        cmd = f'-s "select * {db}.{stb} limit 10"'
         rlist = etool.runBinFile("taos", cmd)
         # line count
         self.checkSame(len(rlist), 18)
