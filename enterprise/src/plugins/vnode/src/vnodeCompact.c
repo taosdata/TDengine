@@ -203,7 +203,6 @@ static int32_t vnodeCompactMetaCommit(SVnode *pVnode) {
   // Rename the meta file
   vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
   vnodeGetMetaPath(pVnode, META_COMPACT_DIR, metaCompactDir);
-  // TODO: get old and new meta directory
   code = taosRenameFile(metaCompactDir, metaDir);
   if (code) {
     vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
