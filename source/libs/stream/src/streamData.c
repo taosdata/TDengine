@@ -274,6 +274,10 @@ int32_t streamQueueMergeQueueItem(SStreamQueueItem* dst, SStreamQueueItem* pElem
 }
 
 void streamFreeQitem(SStreamQueueItem* data) {
+  if (data == NULL) {
+    return;
+  }
+
   int8_t type = data->type;
   if (type == STREAM_INPUT__GET_RES) {
     blockDataDestroy(((SStreamTrigger*)data)->pBlock);
