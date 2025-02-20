@@ -1,16 +1,7 @@
-name: TDengine Build
+name: test container
 
 on:
-  pull_request:
-    branches:
-      - 'main'
-      - '3.0'
-      - '3.1'
-    paths-ignore:
-      - 'docs/**'
-      - 'packaging/**'
-      - 'tests/**'
-      - '*.md'
+  push:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
