@@ -2844,6 +2844,8 @@ static int32_t tSerializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pSt
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p13));
   // since 3.3.2.9
   TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p14));
+  // since 3.3.6.0
+  TAOS_CHECK_EXIT(tEncodeI64v(&encoder, pStatus->p15));
 
   // for future grantItems
 
@@ -2903,7 +2905,10 @@ int32_t tDeserializeGrantStatus(void *buf, int32_t bufLen, GrantStatus *pStatus,
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p14));
   }
-
+  // since 3.3.6.0
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64v(&decoder, &pStatus->p15));
+  }
   // for future grantItems
   // ...
   // if(!tDecodeIsEnd(&decoder) ...
