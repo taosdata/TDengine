@@ -133,6 +133,19 @@ SStmtQNode* tail;
 uint64_t    qRemainNum;
 } SStmtQueue;
 */
+typedef struct {
+  TAOS_STMT2       *stmt;
+  TAOS_STMT2_BINDV *bindv;
+  int32_t           col_idx;
+  __taos_async_fn_t fp;
+  void             *param;
+} ThreadArgs;
+
+typedef struct AsyncBindParam {
+  TdThreadMutex mutex;
+  TdThreadCond  waitCond;
+  uint8_t       asyncBindNum;
+} AsyncBindParam;
 
 typedef struct {
   STscObj          *taos;
@@ -150,12 +163,13 @@ typedef struct {
   SStmtExecInfo exec;
   SStmtBindInfo bInfo;
 
-  char         *db;
-  int64_t       reqid;
-  int32_t       errCode;
-  tsem_t        asyncQuerySem;
-  bool          semWaited;
-  SStmtStatInfo stat;
+  char          *db;
+  int64_t        reqid;
+  int32_t        errCode;
+  tsem_t         asyncExecSem;
+  bool           execSemWaited;
+  AsyncBindParam asyncBindParam;
+  SStmtStatInfo  stat;
 } STscStmt2;
 /*
 extern char *gStmtStatusStr[];
@@ -226,6 +240,8 @@ int         stmtGetParamNum2(TAOS_STMT2 *stmt, int *nums);
 int         stmtIsInsert2(TAOS_STMT2 *stmt, int *insert);
 TAOS_RES   *stmtUseResult2(TAOS_STMT2 *stmt);
 const char *stmtErrstr2(TAOS_STMT2 *stmt);
+int         stmt2AsyncBind(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp, void *param);
+int         stmtAsyncBindThreadFunc(void *args);
 
 #ifdef __cplusplus
 }

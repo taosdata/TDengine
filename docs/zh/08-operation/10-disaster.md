@@ -23,7 +23,7 @@ TDengine 支持 WAL 机制，实现数据的容错能力，保证数据的高可
 
 - 第 1 步，在集群 A 中创建一个数据库 db1，并向该数据库持续写入数据。
 
-- 第 2 步， 通过 Web 浏览器访问集群 A 的 taosExplorer 服务， 访问地址通常 为TDengine 集群所在 IP 地址的端口 6060，如 http://localhost:6060。
+- 第 2 步， 通过 Web 浏览器访问集群 A 的 taosExplorer 服务， 访问地址通常 为TDengine 集群所在 IP 地址的端口 6060，如 `http://localhost:6060`。
 
 - 第 3 步，访问 TDengine 集群 B，创建一个与集群 A 中数据库 db1 参数配置相同的数据库 db2。
 

@@ -508,7 +508,7 @@ void taos_close(TAOS *taos) {
 }
 
 int taos_errno(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+  if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return terrno;
   }
 
@@ -520,7 +520,7 @@ int taos_errno(TAOS_RES *res) {
 }
 
 const char *taos_errstr(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+  if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return (const char *)tstrerror(terrno);
   }
 
@@ -560,6 +560,8 @@ void taos_free_result(TAOS_RES *res) {
     tDeleteMqMetaRsp(&pRsp->metaRsp);
   } else if (TD_RES_TMQ_BATCH_META(res)) {
     tDeleteMqBatchMetaRsp(&pRsp->batchMetaRsp);
+  } else if (TD_RES_TMQ_RAW(res)) {
+    tDeleteMqRawDataRsp(&pRsp->dataRsp);
   }
   taosMemoryFree(pRsp);
 }
@@ -578,7 +580,7 @@ void taos_kill_query(TAOS *taos) {
 }
 
 int taos_field_count(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+  if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return 0;
   }
 
@@ -589,7 +591,7 @@ int taos_field_count(TAOS_RES *res) {
 int taos_num_fields(TAOS_RES *res) { return taos_field_count(res); }
 
 TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
-  if (taos_num_fields(res) == 0 || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+  if (taos_num_fields(res) == 0 || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return NULL;
   }
 
@@ -649,7 +651,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     return NULL;
   } else {
     tscError("invalid result passed to taos_fetch_row");
-    terrno = TSDB_CODE_TSC_INTERNAL_ERROR;
+    terrno = TSDB_CODE_TMQ_INVALID_DATA;
     return NULL;
   }
 }
@@ -770,7 +772,7 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
 }
 
 int *taos_fetch_lengths(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+  if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return NULL;
   }
 
@@ -779,7 +781,7 @@ int *taos_fetch_lengths(TAOS_RES *res) {
 }
 
 TAOS_ROW *taos_result_block(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+  if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
@@ -847,7 +849,7 @@ const char *taos_get_client_info() { return td_version; }
 
 // return int32_t
 int taos_affected_rows(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res) ||
+  if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res) ||
       TD_RES_TMQ_BATCH_META(res)) {
     return 0;
   }
@@ -859,7 +861,7 @@ int taos_affected_rows(TAOS_RES *res) {
 
 // return int64_t
 int64_t taos_affected_rows64(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res) ||
+  if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res) ||
       TD_RES_TMQ_BATCH_META(res)) {
     return 0;
   }
@@ -870,7 +872,7 @@ int64_t taos_affected_rows64(TAOS_RES *res) {
 }
 
 int taos_result_precision(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+  if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return TSDB_TIME_PRECISION_MILLI;
   }
 
@@ -910,7 +912,7 @@ int taos_select_db(TAOS *taos, const char *db) {
 }
 
 void taos_stop_query(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res) ||
+  if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res) ||
       TD_RES_TMQ_BATCH_META(res)) {
     return;
   }
@@ -919,7 +921,7 @@ void taos_stop_query(TAOS_RES *res) {
 }
 
 bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
-  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+  if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return true;
   }
   SReqResultInfo *pResultInfo = tscGetCurResInfo(res);
@@ -944,7 +946,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
 }
 
 int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
-  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+  if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return 0;
   }
 
@@ -979,7 +981,7 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
     return 0;
   } else {
     tscError("taos_fetch_block_s invalid res type");
-    return -1;
+    return TSDB_CODE_TMQ_INVALID_DATA;
   }
 }
 
@@ -987,7 +989,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
   *numOfRows = 0;
   *pData = NULL;
 
-  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+  if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return 0;
   }
 
@@ -1024,7 +1026,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
 }
 
 int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
-  if (res == NULL || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+  if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return 0;
   }
 
@@ -1044,7 +1046,7 @@ int *taos_get_column_data_offset(TAOS_RES *res, int columnIndex) {
 
 int taos_is_null_by_column(TAOS_RES *res, int columnIndex, bool result[], int *rows) {
   if (res == NULL || result == NULL || rows == NULL || *rows <= 0 || columnIndex < 0 || TD_RES_TMQ_META(res) ||
-      TD_RES_TMQ_BATCH_META(res)) {
+      TD_RES_TMQ_RAW(res) || TD_RES_TMQ_BATCH_META(res)) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -2172,11 +2174,16 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
-  if (pStmt->options.asyncExecFn && !pStmt->semWaited) {
-    if (tsem_wait(&pStmt->asyncQuerySem) != 0) {
-      tscError("wait async query sem failed");
+  if( atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum)>1) {
+    tscError("async bind param is still working, please try again later");
+    return TSDB_CODE_TSC_STMT_API_ERROR;
+  }
+
+  if (pStmt->options.asyncExecFn && !pStmt->execSemWaited) {
+    if (tsem_wait(&pStmt->asyncExecSem) != 0) {
+      tscError("wait asyncExecSem failed");
     }
-    pStmt->semWaited = true;
+    pStmt->execSemWaited = true;
   }
 
   SSHashObj *hashTbnames = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR));
@@ -2247,6 +2254,35 @@ out:
   tSimpleHashCleanup(hashTbnames);
 
   return code;
+}
+
+int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp,
+                            void *param) {
+  if (stmt == NULL || bindv == NULL || fp == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  STscStmt2 *pStmt = (STscStmt2 *)stmt;
+  if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 0) {
+    tscError("async bind param is still working, please try again later");
+    return TSDB_CODE_TSC_STMT_API_ERROR;
+  }
+
+  ThreadArgs *args = (ThreadArgs *)taosMemoryMalloc(sizeof(ThreadArgs));
+  args->stmt = stmt;
+  args->bindv = bindv;
+  args->col_idx = col_idx;
+  args->fp = fp;
+  args->param = param;
+  (void)atomic_add_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
+  int code_s = taosStmt2AsyncBind(stmtAsyncBindThreadFunc, (void *)args);
+  if (code_s != TSDB_CODE_SUCCESS) {
+    (void)atomic_sub_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
+    // terrno = TAOS_SYSTEM_ERROR(errno);
+  }
+
+  return code_s;
 }
 
 int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows) {

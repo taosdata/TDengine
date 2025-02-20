@@ -100,10 +100,12 @@ void sessionWinStateCleanup(void* pBuff);
 SStreamStateCur* createStateCursor(SStreamFileState* pFileState);
 SStreamStateCur* sessionWinStateSeekKeyCurrentPrev(SStreamFileState* pFileState, const SSessionKey* pWinKey);
 SStreamStateCur* sessionWinStateSeekKeyCurrentNext(SStreamFileState* pFileState, const SSessionKey* pWinKey);
+SStreamStateCur* sessionWinStateSeekKeyPrev(SStreamFileState* pFileState, const SSessionKey* pWinKey);
 SStreamStateCur* sessionWinStateSeekKeyNext(SStreamFileState* pFileState, const SSessionKey* pWinKey);
 SStreamStateCur* countWinStateSeekKeyPrev(SStreamFileState* pFileState, const SSessionKey* pWinKey, COUNT_TYPE count);
 int32_t          sessionWinStateGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, void** pVal, int32_t* pVLen);
 void             sessionWinStateMoveToNext(SStreamStateCur* pCur);
+void             sessionWinStateMoveToPrev(SStreamStateCur* pCur);
 int32_t          sessionWinStateGetKeyByRange(SStreamFileState* pFileState, const SSessionKey* key, SSessionKey* curKey,
                                               range_cmpr_fn cmpFn);
 

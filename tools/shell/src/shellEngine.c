@@ -1271,6 +1271,9 @@ void *shellCancelHandler(void *arg) {
   return NULL;
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+
 void *shellThreadLoop(void *arg) {
   setThreadName("shellThreadLoop");
   taosGetOldTerminalMode();
@@ -1302,6 +1305,7 @@ void *shellThreadLoop(void *arg) {
   taosThreadCleanupPop(1);
   return NULL;
 }
+#pragma GCC diagnostic pop
 
 int32_t shellExecute(int argc, char *argv[]) {
   int32_t code = 0;

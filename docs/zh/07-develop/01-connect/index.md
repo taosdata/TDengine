@@ -20,7 +20,7 @@ import VerifyLinux from "../../14-reference/05-connector/_verify_linux.mdx";
 import VerifyMacOS from "../../14-reference/05-connector/_verify_macos.mdx";
 import VerifyWindows from "../../14-reference/05-connector/_verify_windows.mdx";
 
-TDengine 提供了丰富的应用程序开发接口，为了便于用户快速开发自己的应用，TDengine 支持了多种编程语言的连接器，其中官方连接器包括支持 C/C++、Java、Python、Go、Node.js、C#、Rust、Lua（社区贡献）和 PHP （社区贡献）的连接器。这些连接器支持使用原生接口（taosc）和 REST 接口（部分语言暂不支持）连接 TDengine 集群。社区开发者也贡献了多个非官方连接器，例如 ADO.NET 连接器、Lua 连接器和 PHP 连接器。另外 TDengine 还可以直接调用 taosadapter 提供的 REST API 接口，进行数据写入和查询操作。
+TDengine 提供了丰富的应用程序开发接口，为了便于用户快速开发自己的应用，TDengine 支持了多种编程语言的连接器，其中官方连接器包括支持 C/C++、Java、Python、Go、Node.js、C#、Rust、Lua（社区贡献）和 PHP （社区贡献）的连接器。这些连接器支持使用原生接口（taosc）和 REST 接口（部分语言暂不支持）连接 TDengine 集群。社区开发者也贡献了多个非官方连接器，例如 ADO.NET 连接器、Lua 连接器和 PHP 连接器。另外 TDengine 还可以直接调用 taosAdapter 提供的 REST API 接口，进行数据写入和查询操作。
 
 ## 连接方式
 
@@ -33,7 +33,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 ![TDengine connection type](connection-type-zh.webp)
 
 无论使用何种方式建立连接，连接器都提供了相同或相似的 API 操作数据库，都可以执行 SQL 语句，只是初始化连接的方式稍有不同，用户在使用上不会感到什么差别。
-各种连接方式和各语言连接器支持情况请参考：[连接器功能特性](../../reference/connector/#功能特性)
+各种连接方式和各语言连接器支持情况请参考 [连接器功能特性](../../reference/connector/#功能特性)
 
 关键不同点在于：
 

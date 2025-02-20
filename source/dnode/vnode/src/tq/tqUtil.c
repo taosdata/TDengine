@@ -131,7 +131,7 @@ static int32_t extractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHand
       }
       tqDebug("tmq poll: consumer:0x%" PRIx64 ", subkey %s, vgId:%d, (latest) offset reset to %" PRId64, consumerId,
               pHandle->subKey, vgId, dataRsp.rspOffset.version);
-      code = tqSendDataRsp(pHandle, pMsg, pRequest, &dataRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
+      code = tqSendDataRsp(pHandle, pMsg, pRequest, &dataRsp, (pRequest->rawData == 1) ? TMQ_MSG_TYPE__POLL_RAW_DATA_RSP : TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
       tDeleteMqDataRsp(&dataRsp);
 
       *pBlockReturned = true;
@@ -222,6 +222,10 @@ end:
 
 static void tDeleteCommon(void* parm) {}
 
+#define POLL_RSP_TYPE(pRequest,taosxRsp) \
+taosxRsp.createTableNum > 0 ? TMQ_MSG_TYPE__POLL_DATA_META_RSP : \
+(pRequest->rawData == 1 ? TMQ_MSG_TYPE__POLL_RAW_DATA_RSP : TMQ_MSG_TYPE__POLL_DATA_RSP)
+
 static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest,
                                                   SRpcMsg* pMsg, STqOffsetVal* offset) {
   int32_t         vgId = TD_VID(pTq->pVnode);
@@ -231,7 +235,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
 
   TQ_ERR_GO_TO_END(tqInitTaosxRsp(&taosxRsp, *offset));
   if (offset->type != TMQ_OFFSET__LOG) {
-    TQ_ERR_GO_TO_END(tqScanTaosx(pTq, pHandle, &taosxRsp, &btMetaRsp, offset, pRequest->timeout));
+    TQ_ERR_GO_TO_END(tqScanTaosx(pTq, pHandle, &taosxRsp, &btMetaRsp, offset, pRequest));
 
     if (taosArrayGetSize(btMetaRsp.batchMetaReq) > 0) {
       code = tqSendBatchMetaPollRsp(pHandle, pMsg, pRequest, &btMetaRsp, vgId);
@@ -274,7 +278,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
         }
         tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
         code = tqSendDataRsp(pHandle, pMsg, pRequest, &taosxRsp,
-                             taosxRsp.createTableNum > 0 ? TMQ_MSG_TYPE__POLL_DATA_META_RSP : TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
+                             POLL_RSP_TYPE(pRequest, taosxRsp), vgId);
         goto END;
       }
 
@@ -287,7 +291,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
         if (totalRows > 0) {
           tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
           code = tqSendDataRsp(pHandle, pMsg, pRequest, &taosxRsp,
-                               taosxRsp.createTableNum > 0 ? TMQ_MSG_TYPE__POLL_DATA_META_RSP : TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
+                               POLL_RSP_TYPE(pRequest, taosxRsp), vgId);
           goto END;
         }
 
@@ -349,7 +353,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
         TQ_NULL_GO_TO_END (taosArrayPush(btMetaRsp.batchMetaReq, &tBuf));
         TQ_NULL_GO_TO_END (taosArrayPush(btMetaRsp.batchMetaLen, &tLen));
         totalMetaRows++;
-        if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= tmqRowSize) || (taosGetTimestampMs() - st > TMIN(TQ_POLL_MAX_TIME, pRequest->timeout))) {
+        if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= tmqRowSize) || (taosGetTimestampMs() - st > pRequest->timeout)) {
           tqOffsetResetToLog(&btMetaRsp.rspOffset, fetchVer);
           code = tqSendBatchMetaPollRsp(pHandle, pMsg, pRequest, &btMetaRsp, vgId);
           goto END;
@@ -370,12 +374,18 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           .ver = pHead->version,
       };
 
-      TQ_ERR_GO_TO_END(tqTaosxScanLog(pTq, pHandle, submit, &taosxRsp, &totalRows, pRequest->sourceExcluded));
+      TQ_ERR_GO_TO_END(tqTaosxScanLog(pTq, pHandle, submit, &taosxRsp, &totalRows, pRequest));
 
-      if (totalRows >= tmqRowSize || (taosGetTimestampMs() - st > TMIN(TQ_POLL_MAX_TIME, pRequest->timeout))) {
-        tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer + 1);
+      if ((pRequest->rawData == 0 && totalRows >= pRequest->minPollRows) ||
+          (taosGetTimestampMs() - st > pRequest->timeout) ||
+          (pRequest->rawData != 0 && (taosArrayGetSize(taosxRsp.blockData) > pRequest->minPollRows ||
+                                      terrno == TSDB_CODE_TMQ_RAW_DATA_SPLIT))) {
+//        tqDebug("start to send rsp, block num:%d, totalRows:%d, createTableNum:%d, terrno:%d",
+//                (int)taosArrayGetSize(taosxRsp.blockData), totalRows, taosxRsp.createTableNum, terrno);
+        tqOffsetResetToLog(&taosxRsp.rspOffset, terrno == TSDB_CODE_TMQ_RAW_DATA_SPLIT ? fetchVer : fetchVer + 1);
         code = tqSendDataRsp(pHandle, pMsg, pRequest, &taosxRsp,
-                             taosxRsp.createTableNum > 0 ? TMQ_MSG_TYPE__POLL_DATA_META_RSP : TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
+                             POLL_RSP_TYPE(pRequest, taosxRsp), vgId);
+        if (terrno == TSDB_CODE_TMQ_RAW_DATA_SPLIT){terrno = 0;}
         goto END;
       } else {
         fetchVer++;
@@ -526,7 +536,7 @@ int32_t tqSendMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPoll
   return 0;
 }
 
-int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
+int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever) {
   if (pRpcHandleInfo == NULL || pRsp == NULL) {
     return TSDB_CODE_TMQ_INVALID_MSG;
@@ -534,7 +544,12 @@ int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* 
   int32_t len = 0;
   int32_t code = 0;
 
-  if (type == TMQ_MSG_TYPE__POLL_DATA_RSP || type == TMQ_MSG_TYPE__WALINFO_RSP) {
+  if (type == TMQ_MSG_TYPE__POLL_RAW_DATA_RSP){
+    pRsp->withSchema = 0;
+  }
+  if (type == TMQ_MSG_TYPE__POLL_DATA_RSP ||
+      type == TMQ_MSG_TYPE__WALINFO_RSP ||
+      type == TMQ_MSG_TYPE__POLL_RAW_DATA_RSP) {
     tEncodeSize(tEncodeMqDataRsp, pRsp, len, code);
   } else if (type == TMQ_MSG_TYPE__POLL_DATA_META_RSP) {
     tEncodeSize(tEncodeSTaosxRsp, pRsp, len, code);
@@ -558,7 +573,9 @@ int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* 
   SEncoder encoder = {0};
   tEncoderInit(&encoder, abuf, len);
 
-  if (type == TMQ_MSG_TYPE__POLL_DATA_RSP || type == TMQ_MSG_TYPE__WALINFO_RSP) {
+  if (type == TMQ_MSG_TYPE__POLL_DATA_RSP ||
+      type == TMQ_MSG_TYPE__WALINFO_RSP ||
+      type == TMQ_MSG_TYPE__POLL_RAW_DATA_RSP) {
     code = tEncodeMqDataRsp(&encoder, pRsp);
   } else if (type == TMQ_MSG_TYPE__POLL_DATA_META_RSP) {
     code = tEncodeSTaosxRsp(&encoder, pRsp);
