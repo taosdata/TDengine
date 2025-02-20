@@ -10,7 +10,7 @@ TDengine provides data subscription and consumption interfaces similar to those 
 
 ## Creating Topics
 
-Please use taos shell or refer to the [Execute SQL](../running-sql-statements/) section to execute the SQL for creating topics: `CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`
+Please use TDengine CLI or refer to the [Execute SQL](../running-sql-statements/) section to execute the SQL for creating topics: `CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`
 
 The above SQL will create a subscription named topic_meters. Each record in the messages obtained using this subscription is composed of the columns selected by this query statement `SELECT ts, current, voltage, phase, groupid, location FROM meters`.
 
