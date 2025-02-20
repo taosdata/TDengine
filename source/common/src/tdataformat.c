@@ -446,6 +446,89 @@ static int32_t tRowBuildTupleRow2(SArray *aColVal, const SRowBuildScanInfo *sinf
 
   return 0;
 }
+static int32_t tRowBuildTupleRow3(SArray *aColVal, const SRowBuildScanInfo *sinfo, const STSchema *schema,
+                                  SRow **ppRow) {
+  SColVal *colValArray = (SColVal *)TARRAY_DATA(aColVal);
+  int8_t   hasBlob = 0;
+  *ppRow = (SRow *)taosMemoryCalloc(1, sinfo->tupleRowSize + 20);
+  if (*ppRow == NULL) {
+    return terrno;
+  }
+  (*ppRow)->flag = sinfo->tupleFlag;
+  (*ppRow)->numOfPKs = sinfo->numOfPKs;
+  (*ppRow)->sver = schema->version;
+  (*ppRow)->len = sinfo->tupleRowSize;
+  (*ppRow)->ts = colValArray[0].value.val;
+
+  if (sinfo->tupleFlag == HAS_NONE || sinfo->tupleFlag == HAS_NULL) {
+    return 0;
+  }
+
+  uint8_t *primaryKeys = (*ppRow)->data;
+  uint8_t *bitmap = primaryKeys + sinfo->tuplePKSize;
+  uint8_t *fixed = bitmap + sinfo->tupleBitmapSize;
+  uint8_t *varlen = fixed + sinfo->tupleFixedSize;
+
+  // primary keys
+  for (int32_t i = 0; i < sinfo->numOfPKs; i++) {
+    primaryKeys += tPutPrimaryKeyIndex(primaryKeys, sinfo->tupleIndices + i);
+  }
+
+  // bitmap + fixed + varlen
+  int32_t numOfColVals = TARRAY_SIZE(aColVal);
+  int32_t colValIndex = 1;
+  for (int32_t i = 1; i < schema->numOfCols; i++) {
+    for (;;) {
+      if (colValIndex >= numOfColVals) {  // NONE
+        ROW_SET_BITMAP(bitmap, sinfo->tupleFlag, i - 1, BIT_FLG_NONE);
+        break;
+      }
+
+      if (colValArray[colValIndex].cid == schema->columns[i].colId) {
+        if (COL_VAL_IS_VALUE(&colValArray[colValIndex])) {  // value
+          ROW_SET_BITMAP(bitmap, sinfo->tupleFlag, i - 1, BIT_FLG_VALUE);
+
+          if (IS_VAR_DATA_TYPE(schema->columns[i].type)) {
+            if (IS_STR_DATA_BLOB(schema->columns[i].type)) {
+              hasBlob = 1;
+            }
+            *(int32_t *)(fixed + schema->columns[i].offset) = varlen - fixed - sinfo->tupleFixedSize;
+            varlen += tPutU32v(varlen, colValArray[colValIndex].value.nData);
+            if (hasBlob) {
+              (void)memcpy(varlen, colValArray[colValIndex].value.pData, sizeof(uint64_t));
+              varlen += sizeof(uint64_t);
+            } else {
+              if (colValArray[colValIndex].value.nData) {
+                (void)memcpy(varlen, colValArray[colValIndex].value.pData, colValArray[colValIndex].value.nData);
+                varlen += colValArray[colValIndex].value.nData;
+              }
+            }
+          } else {
+            (void)memcpy(fixed + schema->columns[i].offset, &colValArray[colValIndex].value.val,
+                         tDataTypes[schema->columns[i].type].bytes);
+          }
+        } else if (COL_VAL_IS_NULL(&colValArray[colValIndex])) {  // NULL
+          ROW_SET_BITMAP(bitmap, sinfo->tupleFlag, i - 1, BIT_FLG_NULL);
+        } else if (COL_VAL_IS_NONE(&colValArray[colValIndex])) {  // NONE
+          ROW_SET_BITMAP(bitmap, sinfo->tupleFlag, i - 1, BIT_FLG_NONE);
+        }
+
+        colValIndex++;
+        break;
+      } else if (colValArray[colValIndex].cid > schema->columns[i].colId) {  // NONE
+        ROW_SET_BITMAP(bitmap, sinfo->tupleFlag, i - 1, BIT_FLG_NONE);
+        break;
+      } else {
+        colValIndex++;
+      }
+    }
+  }
+  // if (hasBlob == 1) {
+  //   (*ppRow)->flag |= HAS_BLOB;
+  // }
+
+  return 0;
+}
 
 static FORCE_INLINE void tRowBuildKVRowSetIndex(uint8_t flag, SKVIdx *indices, uint32_t offset) {
   if (flag & KV_FLG_LIT) {
@@ -614,7 +697,20 @@ static int32_t tRowBuildKVRow2(SArray *aColVal, const SRowBuildScanInfo *sinfo, 
   }
   return 0;
 }
+int32_t tRowBuild3(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
+  int32_t           code;
+  SRowBuildScanInfo sinfo;
 
+  code = tRowBuildScan(aColVal, pTSchema, &sinfo);
+  if (code) return code;
+
+  if (sinfo.tupleRowSize <= sinfo.kvRowSize) {
+    code = tRowBuildTupleRow3(aColVal, &sinfo, pTSchema, ppRow);
+  } else {
+    code = tRowBuildKVRow(aColVal, &sinfo, pTSchema, ppRow);
+  }
+  return code;
+}
 int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow) {
   int32_t           code;
   SRowBuildScanInfo sinfo;
@@ -1061,26 +1157,26 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
     pColVal->cid = pTColumn->colId;
     pColVal->value.type = pTColumn->type;
     pColVal->flag = CV_FLAG_VALUE;
-    uint8_t hasBlob = 0;
+    // uint8_t hasBlob = 0;
     if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-      if (IS_STR_DATA_BLOB(pTColumn->type)) {
-        hasBlob = 1;
-      }
-      if (hasBlob == 1) {
-        uint64_t seq = 0;
-        uint32_t offset = 0;
+      // if (IS_STR_DATA_BLOB(pTColumn->type)) {
+      //   hasBlob = 1;
+      // }
+      // if (hasBlob == 1) {
+      //   uint64_t seq = 0;
+      //   uint32_t offset = 0;
 
-        pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
-        offset = tGetU32v(pColVal->value.pData, &pColVal->value.nData);
-        pColVal->value.pData += offset;
-        tGetU64(pColVal->value.pData, &seq);
-        pColVal->cid = pTColumn->colId;
-        pColVal->value.type = TSDB_DATA_TYPE_BIGINT;
-        memcpy(&pColVal->value.val, &seq, sizeof(uint64_t));
-      } else {
-        pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
-        pColVal->value.pData += tGetU32v(pColVal->value.pData, &pColVal->value.nData);
-      }
+      //   pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
+      //   offset = tGetU32v(pColVal->value.pData, &pColVal->value.nData);
+      //   pColVal->value.pData += offset;
+      //   tGetU64(pColVal->value.pData, &seq);
+      //   pColVal->cid = pTColumn->colId;
+      //   pColVal->value.type = TSDB_DATA_TYPE_BIGINT;
+      //   memcpy(&pColVal->value.val, &seq, sizeof(uint64_t));
+      // } else {
+      pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
+      pColVal->value.pData += tGetU32v(pColVal->value.pData, &pColVal->value.nData);
+      //}
     } else {
       (void)memcpy(&pColVal->value.val, fixed + pTColumn->offset, TYPE_BYTES[pTColumn->type]);
     }

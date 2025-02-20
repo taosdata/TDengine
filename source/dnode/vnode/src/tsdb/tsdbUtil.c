@@ -605,6 +605,7 @@ int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t nowSec) {
 
 // TSDBROW ======================================================
 void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
+  int32_t   code = 0;
   STColumn *pTColumn = &pTSchema->columns[iCol];
   SValue    value;
 
@@ -620,42 +621,17 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
                         ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP, .val = pRow->pBlockData->aTSKEY[pRow->iRow]}));
     } else {
       SColData *pColData = tBlockDataGetColData(pRow->pBlockData, pTColumn->colId);
-      uint8_t   hasBlob = 0;
-      if (IS_STR_DATA_BLOB(pTColumn->type)) {
-        hasBlob = 1;
-      }
-      if (hasBlob == 1 && pColData) {
-        uint32_t offset = 0;
-        if (iCol + 1 < pColData->nVal) {
-          offset = pColData->aOffset[iCol + 1] - pColData->aOffset[iCol];
-        } else {
-          offset = pColData->nData - pColData->aOffset[iCol];
+      if (pColData) {
+        if (tColDataGetValue(pColData, pRow->iRow, pColVal) != 0) {
+          tsdbError("failed to tColDataGetValue");
         }
-        uint8_t *colData = pColData->pData + pColData->aOffset[iCol];
-        uint64_t seq = 0;
-        memcpy(&seq, colData, sizeof(uint64_t));
-        tsdbError("col seq: %d, offset %d", (int32_t)(seq), offset);
-        uint8_t *value = NULL;
-        int32_t  len = 0;
-        // bseGet(pReader->pTsdb->pVnode->pBse, seq, &value, &len);
-
-        pColVal->value.pData = value;
-        pColVal->value.nData = len;
-        pColVal->value.type = pColData->type;
-        pColVal->cid = pColData->cid;
       } else {
-        if (pColData) {
-          if (tColDataGetValue(pColData, pRow->iRow, pColVal) != 0) {
-            tsdbError("failed to tColDataGetValue");
-          }
-        } else {
-          *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
-        }
+        *pColVal = COL_VAL_NONE(pTColumn->colId, pTColumn->type);
       }
     }
   }
 }
-void tsdbRowGetColVal2(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
+void tsdbRowGetColVal2(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal, void *arg) {
   STColumn *pTColumn = &pTSchema->columns[iCol];
   SValue    value;
 
@@ -819,6 +795,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
   SColVal  *pColVal = &(SColVal){0};
   STColumn *pTColumn;
   int32_t   iCol, jCol = 1;
+  pRow->arg = pMerger->arg;
 
   if (NULL == pTSchema) {
     pTSchema = pMerger->pTSchema;
@@ -973,7 +950,8 @@ void tsdbRowMergerCleanup(SRowMerger *pMerger) {
 }
 
 int32_t tsdbRowMergerGetRow(SRowMerger *pMerger, SRow **ppRow) {
-  return tRowBuild(pMerger->pArray, pMerger->pTSchema, ppRow);
+  // return tRowBuild(pMerger->pArray, pMerger->pTSchema, ppRow);
+  return tRowBuild3(pMerger->pArray, pMerger->pTSchema, ppRow);
 }
 
 // delete skyline ======================================================

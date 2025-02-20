@@ -1105,21 +1105,41 @@ static int32_t doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int
     if (!COL_VAL_IS_VALUE(pColVal)) {
       colDataSetNULL(pColInfoData, rowIndex);
     } else {
-      TSDB_CHECK_NULL(pSup, code, lino, _end, TSDB_CODE_INVALID_PARA);
-      varDataSetLen(pSup->buildBuf[colIndex], pColVal->value.nData);
-      if ((pColVal->value.nData + VARSTR_HEADER_SIZE) > pColInfoData->info.bytes) {
-        tsdbWarn("column cid:%d actual data len %d is bigger than schema len %d", pColVal->cid, pColVal->value.nData,
-                 pColInfoData->info.bytes);
-        code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+      if (IS_STR_DATA_BLOB(pColVal->value.type)) {
+        varDataSetLen(pSup->buildBuf[colIndex], pColVal->value.nData);
+        if ((pColVal->value.nData + VARSTR_HEADER_SIZE) > pColInfoData->info.bytes) {
+          tsdbWarn("column cid:%d actual data len %d is bigger than schema len %d", pColVal->cid, pColVal->value.nData,
+                   pColInfoData->info.bytes);
+          code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+          TSDB_CHECK_CODE(code, lino, _end);
+        }
+        uint64_t seq = 0;
+        tGetU64(pColVal->value.pData, &seq);
+        uint8_t* value = NULL;
+        int32_t  len = 0;
+        bseGet((SBse*)pSup->args, seq, &value, &len);
+        if (len > 0) {
+          (void)memcpy(varDataVal(pSup->buildBuf[colIndex]), value, len);
+        }
+        code = colDataSetVal(pColInfoData, rowIndex, pSup->buildBuf[colIndex], false);
+        TSDB_CHECK_CODE(code, lino, _end);
+      } else {
+        TSDB_CHECK_NULL(pSup, code, lino, _end, TSDB_CODE_INVALID_PARA);
+        varDataSetLen(pSup->buildBuf[colIndex], pColVal->value.nData);
+        if ((pColVal->value.nData + VARSTR_HEADER_SIZE) > pColInfoData->info.bytes) {
+          tsdbWarn("column cid:%d actual data len %d is bigger than schema len %d", pColVal->cid, pColVal->value.nData,
+                   pColInfoData->info.bytes);
+          code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+          TSDB_CHECK_CODE(code, lino, _end);
+        }
+
+        if (pColVal->value.nData > 0) {  // pData may be null, if nData is 0
+          (void)memcpy(varDataVal(pSup->buildBuf[colIndex]), pColVal->value.pData, pColVal->value.nData);
+        }
+
+        code = colDataSetVal(pColInfoData, rowIndex, pSup->buildBuf[colIndex], false);
         TSDB_CHECK_CODE(code, lino, _end);
       }
-
-      if (pColVal->value.nData > 0) {  // pData may be null, if nData is 0
-        (void)memcpy(varDataVal(pSup->buildBuf[colIndex]), pColVal->value.pData, pColVal->value.nData);
-      }
-
-      code = colDataSetVal(pColInfoData, rowIndex, pSup->buildBuf[colIndex], false);
-      TSDB_CHECK_CODE(code, lino, _end);
     }
   } else {
     code = colDataSetVal(pColInfoData, rowIndex, (const char*)&pColVal->value.val, !COL_VAL_IS_VALUE(pColVal));
@@ -2330,6 +2350,8 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
   TSDB_CHECK_NULL(pRow, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   pMerger = &pReader->status.merger;
+  pMerger->arg = pReader->pTsdb->pVnode->pBse;
+
   pBlockData = &pReader->status.fileBlockData;
   pDumpInfo = &pReader->status.fBlockDumpInfo;
   pkSrcSlot = pReader->suppInfo.pkSrcSlot;
@@ -2438,6 +2460,8 @@ static int32_t mergeFileBlockAndSttBlock(STsdbReader* pReader, SSttBlockReader* 
 
   pDumpInfo = &pReader->status.fBlockDumpInfo;
   pMerger = &pReader->status.merger;
+  pMerger->arg = pReader->pTsdb->pVnode->pBse;
+
   pkSrcSlot = pReader->suppInfo.pkSrcSlot;
 
   // merge is not initialized yet, due to the fact that the pReader->info.pSchema is not initialized
@@ -3170,6 +3194,7 @@ static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanI
   }
 
   if (pRow != NULL && piRow != NULL) {
+    // imem + mem + file + stt block
     // two levels of mem-table does contain the valid rows
     code = doMergeMultiLevelRows(pReader, pBlockScanInfo, pBlockData, pSttBlockReader);
     TSDB_CHECK_CODE(code, lino, _end);
@@ -4953,6 +4978,8 @@ int32_t doMergeMemTableMultiRows(TSDBROW* pRow, SRowKey* pKey, uint64_t uid, SIt
   TSDB_CHECK_NULL(freeTSRow, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   pMerger = &pReader->status.merger;
+  pMerger->arg = pReader->pTsdb->pVnode->pBse;
+
   current = *pRow;
 
   {  // if the timestamp of the next valid row has a different ts, return current row directly
@@ -5037,6 +5064,7 @@ int32_t doMergeMemIMemRows(TSDBROW* pRow, SRowKey* pRowKey, TSDBROW* piRow, SRow
   TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   pMerger = &pReader->status.merger;
+  pMerger->arg = pReader->pTsdb->pVnode->pBse;
 
   if (pRow->type == TSDBROW_ROW_FMT) {
     pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(pRow), pReader, pBlockScanInfo->uid);
@@ -5177,7 +5205,7 @@ _end:
   return code;
 }
 
-int32_t doRebuildBlobCol(STsdbReader* pReader, STSchema* pTSchema, int32_t i, SColVal* pSrcVal, SColVal* pDstVal) {
+int32_t doShouldBuildBlobCol(STsdbReader* pReader, STSchema* pTSchema, int32_t i, SColVal* pSrcVal, SColVal* pDstVal) {
   STColumn* pColumn = pTSchema->columns + i;
   if (pColumn->type != TSDB_DATA_TYPE_BINARY || pColumn->type == TSDB_DATA_TYPE_BLOB) {
     return 0;
@@ -5200,7 +5228,7 @@ _err:
   if (code != 0) {
     tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
-  return code;
+  return 1;
 }
 int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, SRow* pTSRow, STableBlockScanInfo* pScanInfo) {
   int32_t             code = TSDB_CODE_SUCCESS;
@@ -5222,6 +5250,8 @@ int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, SRow* pT
   uid = pScanInfo->uid;
 
   pSupInfo = &pReader->suppInfo;
+  pSupInfo->args = pReader->pTsdb->pVnode->pBse;
+
   pSchema = doGetSchemaForTSRow(pTSRow->sver, pReader, uid);
   TSDB_CHECK_NULL(pSchema, code, lino, _end, terrno);
 
@@ -5242,14 +5272,7 @@ int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, SRow* pT
 
       code = tRowGet(pTSRow, pSchema, j, &colVal);
       TSDB_CHECK_CODE(code, lino, _end);
-
-      if (doRebuildBlobCol(pReader, pSchema, j, &colVal, &dstVal) == 0) {
-        code = doCopyColVal(pColInfoData, outputRowIndex, i, &dstVal, pSupInfo);
-      } else {
-        code = doCopyColVal(pColInfoData, outputRowIndex, i, &colVal, pSupInfo);
-      }
-      // TSDB_CHECK_CODE(code, lino, _end);
-      // code = doCopyColVal(pColInfoData, outputRowIndex, i, &dstVal, pSupInfo);
+      code = doCopyColVal(pColInfoData, outputRowIndex, i, &colVal, pSupInfo);
       TSDB_CHECK_CODE(code, lino, _end);
       i += 1;
       j += 1;
@@ -5282,7 +5305,33 @@ _end:
   }
   return code;
 }
+static int32_t doBuildBlobCol(SColData* pColData, int32_t rowIndex, SColVal* pCv, void* arg) {
+  int32_t  code = 0;
+  uint64_t seq = 0;
+  uint32_t offset = 0;
+  uint8_t* value = NULL;
+  int32_t  len = 0;
 
+  if (rowIndex + 1 < pColData->nVal) {
+    offset = pColData->aOffset[rowIndex + 1] - pColData->aOffset[rowIndex];
+  } else {
+    offset = pColData->nData - pColData->aOffset[rowIndex];
+  }
+  uint8_t* colData = pColData->pData + pColData->aOffset[rowIndex];
+  memcpy(&seq, colData, sizeof(uint64_t));
+
+  code = bseGet((SBse*)arg, seq, &value, &len);
+  if (code != 0) {
+    tsdbError("failed to get blob data from bse, code:%d", code);
+    return code;
+  }
+
+  pCv->value.pData = value;
+  pCv->value.nData = len;
+  pCv->value.type = pColData->type;
+  pCv->cid = pColData->cid;
+  return code;
+}
 int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, SBlockData* pBlockData,
                                  int32_t rowIndex) {
   int32_t             code = TSDB_CODE_SUCCESS;
@@ -5301,6 +5350,8 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
   outputRowIndex = pResBlock->info.rows;
 
   pSupInfo = &pReader->suppInfo;
+  pSupInfo->args = pReader->pTsdb->pVnode->pBse;
+
   ((int64_t*)pReader->status.pPrimaryTsCol->pData)[outputRowIndex] = pBlockData->aTSKEY[rowIndex];
   i += 1;
 
@@ -5316,33 +5367,13 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
     uint8_t          hasBlob = 0;
     SColumnInfoData* pCol = TARRAY_GET_ELEM(pResBlock->pDataBlock, pSupInfo->slotId[i]);
     if (pData->cid == pSupInfo->colId[i]) {
-      if (IS_STR_DATA_BLOB(pData->type)) {
-        hasBlob = 1;
-      }
-      if (hasBlob == 1) {
-        uint32_t offset = 0;
-        if (rowIndex + 1 < pData->nVal) {
-          offset = pData->aOffset[rowIndex + 1] - pData->aOffset[rowIndex];
-        } else {
-          offset = pData->nData - pData->aOffset[rowIndex];
-        }
-        uint8_t* colData = pData->pData + pData->aOffset[rowIndex];
-        uint64_t seq = 0;
-        memcpy(&seq, colData, sizeof(uint64_t));
-        uint8_t* value = NULL;
-        int32_t  len = 0;
-        bseGet(pReader->pTsdb->pVnode->pBse, seq, &value, &len);
-
-        cv.value.pData = value;
-        cv.value.nData = len;
-        cv.value.type = pData->type;
-        cv.cid = pData->cid;
-
-      } else {
-        code = tColDataGetValue(pData, rowIndex, &cv);
-        TSDB_CHECK_CODE(code, lino, _end);
-      }
-
+      // if (IS_STR_DATA_BLOB(pData->type)) {
+      //   code = doBuildBlobCol(pData, rowIndex, &cv, pReader->pTsdb->pVnode->pBse);
+      //   TSDB_CHECK_CODE(code, lino, _end);
+      // } else {
+      code = tColDataGetValue(pData, rowIndex, &cv);
+      TSDB_CHECK_CODE(code, lino, _end);
+      //}
       code = doCopyColVal(pCol, outputRowIndex, i, &cv, pSupInfo);
       TSDB_CHECK_CODE(code, lino, _end);
       j += 1;
