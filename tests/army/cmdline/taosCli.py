@@ -42,7 +42,7 @@ class TDTestCase(TBase):
         tdLog.info(f"check describe show full.")
 
         # insert
-        json = "cmdline/json/taosCli.json"
+        json = "cmdline/json/taosCliDesc.json"
         db, stb, childCount, insertRows = self.insertBenchJson(json)
         # describe
         sql = f"describe {db}.{stb};"
@@ -53,12 +53,44 @@ class TDTestCase(TBase):
         tdSql.query(sql)
         tdSql.checkRows(2 + 1000)
 
+    def checkBasic(self):
+        tdLog.info(f"check describe show full.")
+
+        # insert
+        json = "cmdline/json/taosCli.json"
+        db, stb, childCount, insertRows = self.insertBenchJson(json)
+        
+        result = "Query OK, 10 row(s)"
+
+
+        # hori
+        cmd = f'taos -s "select * {db}.{stb} limit 10"'
+        rlist = etool.runBinFile("taos", cmd)
+        # line count
+        self.checkSame(len(rlist), 18)
+        # last line
+        self.checkSame(rlist[-1][:len(result)], result)
+
+        # vec
+        rlist = etool.runBinFile("taos", cmd + "\G")
+        # line count
+        self.checkSame(len(rlist), 346)
+        self.checkSame(rlist[310], "************************** 10.row ***************************")
+        # last line
+        self.checkSame(rlist[-1][:len(result)], result)    
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
 
+        # check basic
+        self.checkBasic()
+
         # check show whole
         self.checkDescribe()
+
+        # full types show
+
 
         tdLog.success(f"{__file__} successfully executed")
 

@@ -231,6 +231,14 @@ class TBase:
 
         tdLog.info("sql1 same result with sql2.")
 
+    # check same value
+    def checkSame(self, real, expect, show = True):
+        if real == expect:
+            if show:
+                tdLog.info(f"check same succ. real={real} expect={expect}.")
+        else:
+            tdLog.exit(f"check same failed. real={real} expect={expect}.")
+
 #
 #   get db information
 #
