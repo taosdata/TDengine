@@ -607,14 +607,10 @@ int32_t toolsGetDefaultVGroups() {
     infoPrint("check local machine CPU: %d Memory:%d MB \n", cores, (int32_t)(MemKB/1024));
     if (MemKB <= 2*1024*1024) { // 2G
         return 1;
-    } else if (MemKB <= 4*1024*1024) { // 4G
+    } else if (MemKB <= 256*1024*1024) { // 4G
         return 2;
-    } else if (MemKB <= 8*1024*1024) { // 8G
-        return 3;
-    } else if (MemKB <= 16*1024*1024) { // 16G
+    } else if (MemKB <= 512*1024*1024) { // 32G
         return 4;
-    } else if (MemKB <= 32*1024*1024) { // 32G
-        return 5;
     } else {
         return cores / 2;
     }
