@@ -44,6 +44,7 @@ int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, in
 bool    streamStateCheck(SStreamState* pState, const SWinKey* key);
 int32_t streamStateGetByPos(SStreamState* pState, void* pos, void** pVal);
 void    streamStateDel(SStreamState* pState, const SWinKey* key);
+void    streamStateDelByGroupId(SStreamState* pState, uint64_t groupId);
 void    streamStateClear(SStreamState* pState);
 void    streamStateSetNumber(SStreamState* pState, int32_t number, int32_t tsIdex);
 void    streamStateSaveInfo(SStreamState* pState, void* pKey, int32_t keyLen, void* pVal, int32_t vLen);
