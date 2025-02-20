@@ -39,7 +39,6 @@ enum {
 static int32_t getSlotKeyHelper(SNode* pNode, const char* pPreName, const char* name, char** ppKey, int32_t callocLen,
                                 int32_t* pLen, uint16_t extraBufLen, int8_t slotKeyType) {
   int32_t code = 0;
-  char    bindInfo[16] = {0};
   *ppKey = taosMemoryCalloc(1, callocLen);
   if (!*ppKey) {
     return terrno;
