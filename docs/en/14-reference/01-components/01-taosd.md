@@ -548,7 +548,7 @@ The `taosd_vnodes_role` table records virtual node role information.
 | sql            | VARCHAR   |         | sql sting                                       |
 | process\_name  | VARCHAR   |         | process name                                              |
 | process\_id    | VARCHAR   |         | process id                                              |
-| db             | VARCHAR   | TAG     | sql db                                    |
-| user           | VARCHAR   | TAG     | sql user                                    |
-| ip             | VARCHAR   | TAG     | sql ip                             |
+| db             | VARCHAR   | TAG     | which db the sql belong to                                   |
+| user           | VARCHAR   | TAG     | the user that exec this sql                                    |
+| ip             | VARCHAR   | TAG     | the client ip that exec this sql                             |
 | cluster\_id    | VARCHAR   | TAG     | cluster id                                           |

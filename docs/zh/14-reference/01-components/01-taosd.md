@@ -1702,6 +1702,6 @@ taosd 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | process\_id    | VARCHAR   |         | 进程 id                                              |
 | db             | VARCHAR   | TAG     | 执行 sql 所属数据库                                    |
 | user           | VARCHAR   | TAG     | 执行 sql 语句的用户                                    |
-| ip             | VARCHAR   | TAG     | 记录执行 sql 语句的 ip 地址                             |
+| ip             | VARCHAR   | TAG     | 记录执行 sql 语句的 client 的 ip 地址                   |
 | cluster\_id    | VARCHAR   | TAG     | cluster id                                           |
 
