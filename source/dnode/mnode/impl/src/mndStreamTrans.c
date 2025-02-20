@@ -388,7 +388,7 @@ void killChkptAndResetStreamTask(SMnode *pMnode, SArray* pLongChkpts) {
     }
 
     double el = (now - pTrans->startTime) / 1000.0;
-    mInfo("stream:%s id:%" PRIx64 " ongoing checkpoint trans, id:%d, elapsed time:%.2fs killed", pTrans->name,
+    mInfo("stream:0x%" PRIx64 " start to kill ongoing long checkpoint transId:%d, elapsed time:%.2fs. killed",
           pTrans->streamId, pTrans->transId, el);
 
     SStreamObj *p = NULL;
@@ -396,9 +396,10 @@ void killChkptAndResetStreamTask(SMnode *pMnode, SArray* pLongChkpts) {
     if (code == 0 && p != NULL) {
       mndKillTransImpl(pMnode, pTrans->transId, p->sourceDb);
 
-      mDebug("create reset task trans for stream:%s 0x%" PRIx64, pTrans->name, pTrans->streamId);
-      mndCreateStreamResetStatusTrans(pMnode, p, p->checkpointId);
+      mDebug("stream:%s 0x%" PRIx64 " transId:%d checkpointId:%" PRId64 " create reset task trans", p->name,
+             pTrans->streamId, pTrans->transId, p->checkpointId);
 
+      mndCreateStreamResetStatusTrans(pMnode, p, p->checkpointId);
       sdbRelease(pMnode->pSdb, p);
     }
   }
