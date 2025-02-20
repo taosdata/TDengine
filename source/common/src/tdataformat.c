@@ -2419,6 +2419,7 @@ static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, uint8_t *pData,
   int32_t code = 0;
 
   if (IS_VAR_DATA_TYPE(pColData->type)) {
+    // TODO
     code = tRealloc((uint8_t **)(&pColData->aOffset), ((int64_t)(pColData->nVal + 1)) << 2);
     if (code) goto _exit;
     pColData->aOffset[pColData->nVal] = pColData->nData;
