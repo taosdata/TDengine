@@ -954,6 +954,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   int32_t                code = TSDB_CODE_SUCCESS;
   SStreamTask*           pTask = NULL;
   SStreamTask*           pStreamTask = NULL;
+  char*                  pStatus = NULL;
 
   code = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId, &pTask);
   if (pTask == NULL) {
@@ -967,9 +968,11 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   streamMutexLock(&pTask->lock);
 
   SStreamTaskState s = streamTaskGetStatus(pTask);
-  if ((s.state != TASK_STATUS__SCAN_HISTORY) || (pTask->status.downstreamReady == 1)) {
-    tqError("s-task:%s vgId:%d status:%s downstreamReady:%d not ready for scan-history data, quit", id, pMeta->vgId,
-            s.name, pTask->status.downstreamReady);
+  pStatus = s.name;
+
+  if ((s.state != TASK_STATUS__SCAN_HISTORY) || (pTask->status.downstreamReady == 0)) {
+    tqError("s-task:%s vgId:%d status:%s downstreamReady:%d not allowed/ready for scan-history data, quit", id,
+            pMeta->vgId, s.name, pTask->status.downstreamReady);
 
     streamMutexUnlock(&pTask->lock);
     streamMetaReleaseTask(pMeta, pTask);
