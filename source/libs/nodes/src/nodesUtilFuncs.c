@@ -1862,8 +1862,8 @@ void nodesDestroyNode(SNode* pNode) {
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyNode(pPhyNode->pWindowOffset);
       nodesDestroyNode(pPhyNode->pJLimit);
-      nodesDestroyList(pPhyNode->pOnLeft);
-      nodesDestroyList(pPhyNode->pOnRight);
+      nodesDestroyList(pPhyNode->pOnLeftCols);
+      nodesDestroyList(pPhyNode->pOnRightCols);
       nodesDestroyNode(pPhyNode->leftPrimExpr);
       nodesDestroyNode(pPhyNode->rightPrimExpr);
       nodesDestroyNode(pPhyNode->pLeftOnCond);

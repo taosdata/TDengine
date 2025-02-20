@@ -572,12 +572,16 @@ typedef struct SHashJoinPhysiNode {
   EJoinSubType subType;
   SNode*       pWindowOffset;
   SNode*       pJLimit;
-  SNodeList*   pOnLeft;
-  SNodeList*   pOnRight;
+  
+  SNodeList*   pOnLeftCols;
+  SNodeList*   pOnRightCols;
   SNode*       leftPrimExpr;
   SNode*       rightPrimExpr;
   int32_t      leftPrimSlotId;
   int32_t      rightPrimSlotId;
+  SNodeList*   pLeftExpr;        // equal condtion expr
+  SNodeList*   pRightExpr;       // equal condtion expr
+  
   int32_t      timeRangeTarget;  // table onCond filter
   STimeWindow  timeRange;        // table onCond filter
   SNode*       pLeftOnCond;      // table onCond filter

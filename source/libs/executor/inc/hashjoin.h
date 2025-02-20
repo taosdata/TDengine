@@ -118,6 +118,7 @@ typedef struct SHJoinTableCtx {
   SHJoinColMap*      primCol;
   SNode*             primExpr;
   SHJoinPrimExprCtx  primCtx;
+  SExprSupp          exprSup;
   
   int32_t        keyNum;
   SHJoinColInfo* keyCols;

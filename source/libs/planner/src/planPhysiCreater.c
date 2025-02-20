@@ -1181,25 +1181,25 @@ static int32_t extractHashJoinOpCols(int16_t lBlkId, int16_t rBlkId, SNode* pEq,
       SNode *pL = NULL, *pR = NULL;
       code = nodesCloneNode(pOp->pLeft, &pL);
       if (TSDB_CODE_SUCCESS == code) {
-        code = nodesListStrictAppend(pJoin->pOnLeft, pL);
+        code = nodesListStrictAppend(pJoin->pOnLeftCols, pL);
       }
       if (TSDB_CODE_SUCCESS == code) {
         code = nodesCloneNode(pOp->pRight, &pR);
       }
       if (TSDB_CODE_SUCCESS == code) {
-        code = nodesListStrictAppend(pJoin->pOnRight, pR);
+        code = nodesListStrictAppend(pJoin->pOnRightCols, pR);
       }
     } else if (rBlkId == pLeft->dataBlockId && lBlkId == pRight->dataBlockId) {
       SNode *pL = NULL, *pR = NULL;
       code = nodesCloneNode(pOp->pRight, &pR);
       if (TSDB_CODE_SUCCESS == code) {
-        code = nodesListStrictAppend(pJoin->pOnLeft, pR);
+        code = nodesListStrictAppend(pJoin->pOnLeftCols, pR);
       }
       if (TSDB_CODE_SUCCESS == code) {
         code = nodesCloneNode(pOp->pLeft, &pL);
       }
       if (TSDB_CODE_SUCCESS == code) {
-        code = nodesListStrictAppend(pJoin->pOnRight, pL);
+        code = nodesListStrictAppend(pJoin->pOnRightCols, pL);
       }
     } else {
       planError("Invalid join equal cond, lbid:%d, rbid:%d, oplid:%d, oprid:%d", lBlkId, rBlkId, pLeft->dataBlockId,
@@ -1242,13 +1242,13 @@ static int32_t extractHashJoinOnCols(int16_t lBlkId, int16_t rBlkId, SNode* pEq,
 static int32_t createHashJoinColList(int16_t lBlkId, int16_t rBlkId, SNode* pEq1, SNode* pEq2, SNode* pEq3,
                                      SHashJoinPhysiNode* pJoin) {
   int32_t code = TSDB_CODE_SUCCESS;
-  pJoin->pOnLeft = NULL;
-  code = nodesMakeList(&pJoin->pOnLeft);
+  pJoin->pOnLeftCols = NULL;
+  code = nodesMakeList(&pJoin->pOnLeftCols);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  pJoin->pOnRight = NULL;
-  code = nodesMakeList(&pJoin->pOnRight);
+  pJoin->pOnRightCols = NULL;
+  code = nodesMakeList(&pJoin->pOnRightCols);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -1260,8 +1260,8 @@ static int32_t createHashJoinColList(int16_t lBlkId, int16_t rBlkId, SNode* pEq1
   if (TSDB_CODE_SUCCESS == code) {
     code = extractHashJoinOnCols(lBlkId, rBlkId, pEq3, pJoin);
   }
-  if (TSDB_CODE_SUCCESS == code && pJoin->pOnLeft->length <= 0) {
-    planError("Invalid join equal column num: %d", pJoin->pOnLeft->length);
+  if (TSDB_CODE_SUCCESS == code && pJoin->pOnLeftCols->length <= 0) {
+    planError("Invalid join equal column num: %d", pJoin->pOnLeftCols->length);
     code = TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
@@ -1296,7 +1296,7 @@ static int32_t sortHashJoinTargets(int16_t lBlkId, int16_t rBlkId, SHashJoinPhys
     nodesClearList(pJoin->pTargets);
     pJoin->pTargets = pNew;
 
-    FOREACH(pNode, pJoin->pOnLeft) {
+    FOREACH(pNode, pJoin->pOnLeftCols) {
       char*        pName = NULL;
       SColumnNode* pCol = (SColumnNode*)pNode;
       int32_t      len = 0;
@@ -1317,7 +1317,7 @@ static int32_t sortHashJoinTargets(int16_t lBlkId, int16_t rBlkId, SHashJoinPhys
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    FOREACH(pNode, pJoin->pOnRight) {
+    FOREACH(pNode, pJoin->pOnRightCols) {
       char*        pName = NULL;
       SColumnNode* pCol = (SColumnNode*)pNode;
       int32_t      len = 0;

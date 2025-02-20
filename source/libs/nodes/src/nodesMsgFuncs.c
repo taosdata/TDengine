@@ -2730,10 +2730,10 @@ static int32_t physiHashJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     code = tlvEncodeEnum(pEncoder, PHY_HASH_JOIN_CODE_JOIN_STYPE, pNode->subType);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_HASH_JOIN_CODE_ON_LEFT_COLUMN, nodeListToMsg, pNode->pOnLeft);
+    code = tlvEncodeObj(pEncoder, PHY_HASH_JOIN_CODE_ON_LEFT_COLUMN, nodeListToMsg, pNode->pOnLeftCols);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeObj(pEncoder, PHY_HASH_JOIN_CODE_ON_RIGHT_COLUMN, nodeListToMsg, pNode->pOnRight);
+    code = tlvEncodeObj(pEncoder, PHY_HASH_JOIN_CODE_ON_RIGHT_COLUMN, nodeListToMsg, pNode->pOnRightCols);
   }  
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_HASH_JOIN_CODE_LEFT_PRIM_EXPR, nodeToMsg, pNode->leftPrimExpr);
@@ -2802,10 +2802,10 @@ static int32_t msgToPhysiHashJoinNode(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeEnum(pTlv, &pNode->subType, sizeof(pNode->subType));
         break;
       case PHY_HASH_JOIN_CODE_ON_LEFT_COLUMN:
-        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pOnLeft);
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pOnLeftCols);
         break;
       case PHY_HASH_JOIN_CODE_ON_RIGHT_COLUMN:
-        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pOnRight);
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pOnRightCols);
         break;
       case PHY_HASH_JOIN_CODE_LEFT_PRIM_EXPR:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->leftPrimExpr);
