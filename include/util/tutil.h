@@ -55,6 +55,7 @@ bool    tIsValidFileName(const char *fileName, const char *pattern);
 bool    tIsValidFilePath(const char *filePath, const char *pattern);
 
 #ifdef TD_ASTRA
+#define CHECK_ALIGNMENT
 static FORCE_INLINE int32_t taosStrcasecmp(const char *s1, const char *s2) {
   if (s1[0] == 0 && s2[0] == 0) return 0;
   return strcasecmp(s1, s2);
@@ -64,9 +65,114 @@ static FORCE_INLINE int32_t taosStrncasecmp(const char *s1, const char *s2, size
   if (s1[0] == 0 && s2[0] == 0) return 0;
   return strncasecmp(s1, s2, n);
 }
+static FORCE_INLINE int64_t taosGetInt64Aligned(int64_t *pVal) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)pVal) & 7) == 0) return *pVal;
+#endif
+  int64_t val;
+  memcpy(&val, pVal, sizeof(int64_t));
+  return val;
+}
+
+static FORCE_INLINE uint64_t taosGetUInt64Aligned(uint64_t *pVal) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)pVal) & 7) == 0) return *pVal;
+#endif
+  uint64_t val;
+  memcpy(&val, pVal, sizeof(uint64_t));
+  return val;
+}
+
+static FORCE_INLINE float taosGetFloatAligned(float *pVal) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)pVal) & 7) == 0) return *pVal;
+#endif
+  float val;
+  memcpy(&val, pVal, sizeof(float));
+  return val;
+}
+
+static FORCE_INLINE double taosGetDoubleAligned(double *pVal) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)pVal) & 7) == 0) return *pVal;
+#endif
+  double val;
+  memcpy(&val, pVal, sizeof(double));
+  return val;
+}
+
+static FORCE_INLINE void taosSetInt64Aligned(int64_t *p, int64_t val) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)p) & 7) == 0) {
+    *p = val;
+    return;
+  }
+#endif
+  memcpy(p, &val, sizeof(int64_t));
+}
+
+static FORCE_INLINE void taosSetUInt64Aligned(uint64_t *p, uint64_t val) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)p) & 7) == 0) {
+    *p = val;
+    return;
+  }
+#endif
+  memcpy(p, &val, sizeof(uint64_t));
+}
+
+static FORCE_INLINE void taosSetPInt64Aligned(int64_t *to, int64_t *from) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)from) & 7) == 0 && ((uintptr_t)to & 7) == 0) {
+    *to = *from;
+    return;
+  }
+#endif
+  memcpy(to, from, sizeof(int64_t));
+}
+
+static FORCE_INLINE void taosSetPFloatAligned(float *to, float *from) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)from) & 7) == 0 && ((uintptr_t)to & 7) == 0) {
+    *to = *from;
+    return;
+  }
+#endif
+  memcpy(to, from, sizeof(float));
+}
+
+static FORCE_INLINE void taosSetPDoubleAligned(double *to, double *from) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)from) & 7) == 0 && ((uintptr_t)to & 7) == 0) {
+    *to = *from;
+    return;
+  }
+#endif
+  memcpy(to, from, sizeof(double));
+}
+
+static FORCE_INLINE void taosSetPUInt64Aligned(uint64_t *to, uint64_t *from) {
+#ifdef CHECK_ALIGNMENT
+  if ((((uintptr_t)from) & 7) == 0 && ((uintptr_t)to & 7) == 0) {
+    *to = *from;
+    return;
+  }
+#endif
+  memcpy(to, from, sizeof(uint64_t));
+}
 #else
-#define taosStrcasecmp strcasecmp
+#define taosStrcasecmp  strcasecmp
 #define taosStrncasecmp strncasecmp
+static FORCE_INLINE int64_t  taosGetInt64Aligned(int64_t *pVal) { return *pVal; }
+static FORCE_INLINE uint64_t taosGetUInt64Aligned(uint64_t *pVal) { return *pVal; }
+static FORCE_INLINE float    taosGetFloatAligned(float *pVal) { return *pVal; }
+static FORCE_INLINE double   taosGetDoubleAligned(double *pVal) { return *pVal; }
+static FORCE_INLINE void     taosSetInt64Aligned(int64_t *p, int64_t val) { *p = val; }
+static FORCE_INLINE void     taosSetUInt64Aligned(uint64_t *p, uint64_t val) { *p = val; }
+static FORCE_INLINE void     taosSetPInt64Aligned(int64_t *to, int64_t *from) { *to = *from; }
+static FORCE_INLINE void     taosSetPFloatAligned(float *to, float *from) { *to = *from; }
+static FORCE_INLINE void     taosSetPDoubleAligned(double *to, double *from) { *to = *from; }
+static FORCE_INLINE void     taosSetPUInt64Aligned(uint64_t *to, uint64_t *from) { *to = *from; }
 #endif
 
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {

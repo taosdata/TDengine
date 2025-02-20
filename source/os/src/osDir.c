@@ -225,7 +225,7 @@ int32_t taosMulModeMkDir(const char *dirname, int32_t mode, bool checkAccess) {
         taosCheckAccessFile(temp, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
       return 0;
     }
-
+ #ifndef TD_ASTRA // TD_ASTRA_TODO  IMPORTANT
     code = chmod(temp, mode);
     if (-1 == code) {
       struct stat statbuf = {0};
@@ -235,6 +235,7 @@ int32_t taosMulModeMkDir(const char *dirname, int32_t mode, bool checkAccess) {
         return terrno;
       }
     }
+  #endif
   }
 
   if (strncmp(temp, TD_DIRSEP, 1) == 0) {
@@ -281,12 +282,13 @@ int32_t taosMulModeMkDir(const char *dirname, int32_t mode, bool checkAccess) {
       return 0;
     }
   }
-
+ #ifndef TD_ASTRA // TD_ASTRA_TODO  IMPORTANT
   code = chmod(temp, mode);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
+#endif
   return code;
 }
 

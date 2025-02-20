@@ -34,7 +34,7 @@ static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson);
 #define BIT_FLG_NULL  ((uint8_t)0x1)
 #define BIT_FLG_VALUE ((uint8_t)0x2)
 
-#pragma pack(push, 1)
+#pragma pack(push, TD_PACK_MIN_SIZE)
 typedef struct {
   int16_t nCol;
   uint8_t idx[];  // uint8_t * | uint16_t * | uint32_t *

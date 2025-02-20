@@ -113,7 +113,7 @@ typedef struct {
   tb_uid_t uid;
 } STbDbKey;
 
-#pragma pack(push, 1)
+#pragma pack(push, TD_PACK_MIN_SIZE)
 typedef struct {
   tb_uid_t suid;
   int64_t  version;
@@ -131,7 +131,7 @@ typedef struct {
   tb_uid_t uid;
 } SCtbIdxKey;
 
-#pragma pack(push, 1)
+#pragma pack(push, TD_PACK_MIN_SIZE)
 typedef struct {
   tb_uid_t suid;
   int32_t  cid;
