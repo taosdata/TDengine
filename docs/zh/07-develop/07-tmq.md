@@ -45,6 +45,7 @@ TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接�
 |  `max.poll.interval.ms`   | integer | consumer poll 拉取数据间隔的最长时间，超过该时间，会认为该 consumer 离线，触发rebalance 逻辑，成功后该 consumer 会被删除（从3.3.3.0版本开始支持） | 默认值为 300000，[1000，INT32_MAX]                                                                                                                                  |
 |  `fetch.max.wait.ms`      | integer | 服务端单次返回数据的最大耗时（从3.3.6.0版本开始支持） | 默认值为 1000，[1，INT32_MAX]                                                                                                                                  |
 |  `min.poll.rows`          | integer | 服务端单次返回数据的最小条数（从3.3.6.0版本开始支持） | 默认值为 4096，[1，INT32_MAX]                                                                                                                                  |
+|  `msg.consume.rawdata`    | integer | 消费数据时拉取数据类型为二进制类型，不可做解析操作，内部参数，只用于 taosx 数据迁移（从3.3.6.0版本开始支持） | 默认值为 0 表示不起效， 非 0 为 起效                                                                                                                                  |
 
 
 下面是各语言连接器创建参数：
