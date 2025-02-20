@@ -2686,7 +2686,7 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
         break;
       }
 
-      if (((now - pe->ts) >= 10 * 1000) && allSame) {
+      if (((now - pe->ts) >= 10 * 1000) || allSame) {
         mDebug("s-task:0x%x sendTs:%" PRId64 " wait %.2fs and all tasks have same checkpointId", pe->req.taskId,
                pe->req.startTs, (now - pe->ts) / 1000.0);
         if (chkId > pe->req.checkpointId) {
