@@ -604,7 +604,7 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
 
   while (1) {
     if (isTaskKilled(pTaskInfo)) {
-      qInfo("===stream=== %s task is killed, code %s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
+      qInfo("===stream===%s task is killed, code %s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
       (*ppRes) = NULL;
       return code;
     }
@@ -613,7 +613,7 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (pBlock == NULL) {
-      qDebug("===stream===return data:%s.", getStreamOpName(pOperator->operatorType));
+      qDebug("===stream===%s return data:%s.", GET_TASKID(pTaskInfo), getStreamOpName(pOperator->operatorType));
       if (isFinalOperator(&pInfo->basic) && isRecalculateOperator(&pInfo->basic)) {
         code = buildRetriveRequest(pTaskInfo, pAggSup, pInfo->basic.pTsDataState, pInfo->nbSup.pPullWins);
       }
@@ -655,6 +655,7 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
             continue;
           } else if (isFinalOperator(&pInfo->basic)) {
             saveRecalculateData(&pAggSup->stateStore, pInfo->basic.pTsDataState, pBlock, pBlock->info.type);
+            continue;
           }
         }
 
@@ -668,6 +669,15 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
         continue;
       } break;
       default:
+        // todo(liuyao) for debug
+        if (isSemiOperator(&pInfo->basic)) {
+          printDataBlock(pBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+          (*ppRes) = pBlock;
+          return code;
+        } else {
+          continue;
+        }
+        // todo(liuyao) for debug
         code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         QUERY_CHECK_CODE(code, lino, _end);
     }
@@ -825,6 +835,19 @@ _end:
   return code;
 }
 
+void adjustDownstreamBasicInfo(SOperatorInfo* downstream, struct SSteamOpBasicInfo* pBasic) {
+  SExecTaskInfo* pTaskInfo = downstream->pTaskInfo;
+  if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION) {
+    SStreamPartitionOperatorInfo* pPartionInfo = downstream->info;
+    pPartionInfo->basic.operatorFlag = pBasic->operatorFlag;
+  }
+  if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    adjustDownstreamBasicInfo(downstream->pDownstream[0], pBasic);
+  }
+  SStreamScanInfo* pScanInfo = downstream->info;
+  pScanInfo->basic.operatorFlag = pBasic->operatorFlag;
+}
+
 int32_t createSemiIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                             SReadHandle* pHandle, SOperatorInfo** ppOptInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -836,6 +859,7 @@ int32_t createSemiIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNod
   pInfo->nbSup.numOfKeep = 0;
   pInfo->nbSup.pWindowAggFn = doStreamSemiIntervalNonblockAggImpl;
   setSemiOperatorFlag(&pInfo->basic);
+  adjustDownstreamBasicInfo(downstream, &pInfo->basic);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -956,6 +980,7 @@ int32_t createFinalIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNo
   pInfo->nbSup.tsOfKeep = INT64_MIN;
   pInfo->twAggSup.waterMark = 0;
   setFinalOperatorFlag(&pInfo->basic);
+  adjustDownstreamBasicInfo(downstream, &pInfo->basic);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {

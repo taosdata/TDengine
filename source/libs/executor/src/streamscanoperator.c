@@ -125,13 +125,14 @@ _end:
   return code;
 }
 
-static void buildRecalculateDataSnapshort(SStreamScanInfo* pInfo, SExecTaskInfo* pTaskInfo) {
+void buildRecalculateDataSnapshort(SStreamScanInfo* pInfo, SExecTaskInfo* pTaskInfo) {
   void*   buff = NULL;
   int32_t len = 0;
   int32_t res = pInfo->stateStore.streamStateGetInfo(pTaskInfo->streamInfo.pState, STREAM_DATA_SCAN_OP_REC_ID_NAME,
                                                      strlen(STREAM_DATA_SCAN_OP_REC_ID_NAME), &buff, &len);
   taosMemFreeClear(buff);
   if (res == TSDB_CODE_SUCCESS) {
+    qDebug("===stream===%s recalculate task is not completed yet, so no need to create a recalculate snapshot", GET_TASKID(pTaskInfo));
     return;
   }
 
@@ -139,6 +140,7 @@ static void buildRecalculateDataSnapshort(SStreamScanInfo* pInfo, SExecTaskInfo*
   pInfo->stateStore.streamStateSaveInfo(pTaskInfo->streamInfo.pState, STREAM_DATA_SCAN_OP_REC_ID_NAME,
                                         strlen(STREAM_DATA_SCAN_OP_REC_ID_NAME), &recID, sizeof(int32_t));
   pInfo->stateStore.streamStateSetNumber(pInfo->basic.pTsDataState->pState, recID + 1, pInfo->primaryTsIndex);
+  qDebug("===stream===%s build recalculate snapshort id:%d", GET_TASKID(pTaskInfo), recID);
 }
 
 static int32_t getRecalculateId(SStateStore* pStateStore, void* pState, int32_t* pRecId) {
@@ -217,6 +219,7 @@ static int32_t doStreamBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
     printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "rec recv", GET_TASKID(pTaskInfo));
     switch (pBlock->info.type) {
       case STREAM_NORMAL:
+      case STREAM_INVALID:
       case STREAM_GET_ALL:
         setStreamOperatorState(&pInfo->basic, pBlock->info.type);
         (*ppRes) = pBlock;
@@ -267,11 +270,19 @@ static int32_t doStreamBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
         continue;
       } break;
       case STREAM_RECALCULATE_START: {
-        if (isRecalculateOperator(&pInfo->basic)) {
-          qError("stream recalculate error since recalculate operator receive STREAM_RECALCULATE_START");
-          continue;
+        if (!isSemiOperator(&pInfo->basic)) {
+          buildRecalculateDataSnapshort(pInfo, pTaskInfo);
         }
-        buildRecalculateDataSnapshort(pInfo, pTaskInfo);
+        // todo(liuyao) for debug
+        pInfo->pDeleteDataRes->info.type = STREAM_RECALCULATE_START;
+        if (pInfo->pDeleteDataRes->info.rows == 0) {
+          blockDataEnsureCapacity(pInfo->pDeleteDataRes, 1);
+          int64_t test = 123;
+          appendOneRowToSpecialBlockImpl(pInfo->pDeleteDataRes, &test, &test, &test, &test, NULL, NULL, NULL, NULL);
+        }
+        (*ppRes) = pInfo->pDeleteDataRes;
+        break;
+        // todo(liuyao) for debug
         continue;
       } break;
       case STREAM_RECALCULATE_END: {
@@ -1125,7 +1136,7 @@ static int32_t buildStreamRecalculateBlock(SOperatorInfo* pOperator, SSDataBlock
     code = getRecalculateId(&pInfo->stateStore, pInfo->basic.pTsDataState->pStreamTaskState, &recId);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    qDebug("===stream===do recalculate.recId:%d", recId);
+    qDebug("===stream===%s do recalculate.recId:%d", GET_TASKID(pTaskInfo), recId);
     pInfo->basic.pTsDataState->curRecId = recId;
     pInfo->stateStore.streamStateSetNumber(pInfo->basic.pTsDataState->pStreamTaskState, recId, pInfo->primaryTsIndex);
 
@@ -1180,7 +1191,7 @@ static int32_t doStreamRecalculateDataScan(SOperatorInfo* pOperator, SSDataBlock
     int32_t recId = 0;
     code = getRecalculateId(&pInfo->stateStore, pInfo->basic.pTsDataState->pStreamTaskState, &recId);
     QUERY_CHECK_CODE(code, lino, _end);
-    qDebug("===stream===do recalculate.recId:%d", recId);
+   qDebug("===stream===%s do recalculate.recId:%d", GET_TASKID(pTaskInfo), recId);
     pInfo->stateStore.streamStateSetNumber(pInfo->basic.pTsDataState->pStreamTaskState, recId, pInfo->primaryTsIndex);
     code = generateDataScanRange(pInfo, GET_TASKID(pTaskInfo));
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1312,12 +1323,15 @@ int32_t doStreamRecalculateScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
       qDebug("process %d/%d input data blocks, %s", current, (int32_t)total, pTaskIdStr);
     } break;
     default: {
-      if(isSemiOperator(&pInfo->basic)) {
+      if(isFinalOperator(&pInfo->basic)) {
         code = buildStreamRecalculateBlock(pOperator, ppRes);
         QUERY_CHECK_CODE(code, lino, _end);
-      } else {
+      } else if (isSingleOperator(&pInfo->basic)) {
         code = doStreamRecalculateDataScan(pOperator, ppRes);
         QUERY_CHECK_CODE(code, lino, _end);
+      } else {
+        qDebug("===stream===%s return empty block", pTaskIdStr);
+        (*ppRes) = NULL;
       }
     }
   }
@@ -1601,6 +1615,8 @@ int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNo
   void* pOtherState = pTaskInfo->streamInfo.pOtherState;
   pAPI->stateStore.streamStateInitTsDataState(&pInfo->basic.pTsDataState, pkType.type, pkType.bytes, pTempState, pOtherState);
   pAPI->stateStore.streamStateRecoverTsData(pInfo->basic.pTsDataState);
+  setSingleOperatorFlag(&pInfo->basic);
+
   pInfo->pStreamScanOp = pOperator;
 
   // for stream

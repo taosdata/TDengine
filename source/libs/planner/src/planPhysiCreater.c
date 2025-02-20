@@ -2154,6 +2154,10 @@ static int32_t createStreamScanPhysiNodeByExchange(SPhysiPlanContext* pCxt, SExc
   if (TSDB_CODE_SUCCESS == code) {
     code = setConditionsSlotId(pCxt, (const SLogicNode*)pExchangeLogicNode, (SPhysiNode*)pScan);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    SStreamScanPhysiNode* pTableScan = (SStreamScanPhysiNode*)pScan;
+    pTableScan->triggerType = pCxt->pPlanCxt->triggerType;
+  }
 
   if (TSDB_CODE_SUCCESS == code) {
     *pPhyNode = (SPhysiNode*)pScan;
