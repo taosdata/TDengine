@@ -232,7 +232,7 @@ int32_t taosGetPid() {
   static int32_t pid;
   if (pid != 0) return pid;
 #ifndef TD_ASTRA
-  pid = getPid();
+  pid = getpid();
 #else
   pid = (int32_t)taosThreadSelf(); // TD_ASTRA_TODO
 #endif
