@@ -777,8 +777,8 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
   int32_t     code = 0;
 
   // merge multiple input data if possible in the input queue.
-  stDebug("s-task:%s start to extract data block from inputQ", id);
   int64_t st = taosGetTimestampMs();
+  stDebug("s-task:%s start to extract data block from inputQ, ts:%" PRId64, id, st);
 
   while (1) {
     int32_t           blockSize = 0;
@@ -808,8 +808,6 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
       return 0;
     }
 
-
-
     EExtractDataCode ret = streamTaskGetDataFromInputQ(pTask, &pInput, &numOfBlocks, &blockSize);
     if (ret == EXEC_AFTER_IDLE) {
       streamTaskSetIdleInfo(pTask, MIN_INVOKE_INTERVAL);
@@ -826,6 +824,10 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
     // dispatch checkpoint msg to all downstream tasks
     int32_t type = pInput->type;
     if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+
+      // Injection error: for automatic kill long trans test
+      taosMsleep(50*1000);
+
       code = streamProcessCheckpointTriggerBlock(pTask, (SStreamDataBlock*)pInput);
       if (code != 0) {
         stError("s-task:%s failed to process checkpoint-trigger block, code:%s", pTask->id.idStr, tstrerror(code));
