@@ -780,7 +780,11 @@ typedef struct SArguments_S {
     bool                mistMode;
     bool                escape_character;
     bool                pre_load_tb_meta;
-    char                csvPath[MAX_FILE_NAME_LEN];
+
+    char*               csv_output_dir;
+    char*               csv_file_prefix;
+    char*               csv_ts_format;
+    char*               csv_ts_interval;
 
     bool                bind_vgroup;
 } SArguments;

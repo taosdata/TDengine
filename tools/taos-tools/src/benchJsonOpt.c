@@ -1586,25 +1586,37 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
         }
     }
 
-    g_arguments->csvPath[0] = 0;
-    tools_cJSON *csv = tools_cJSON_GetObjectItem(json, "csvPath");
-    if (csv && (csv->type == tools_cJSON_String)
-            && (csv->valuestring != NULL)) {
-        tstrncpy(g_arguments->csvPath, csv->valuestring, MAX_FILE_NAME_LEN);
+    // csv output dir
+    tools_cJSON* csv_od = tools_cJSON_GetObjectItem(json, "csv_output_dir");
+    if (csv_od && csv_od->type == tools_cJSON_String && csv_od->valuestring != NULL) {
+        g_arguments->csv_output_dir = csv_od->valuestring;
+    } else {
+        g_arguments->csv_output_dir = "./output/";
+    }
+    (void)mkdir(g_arguments->csv_output_dir, 0775);
+
+    // csv file prefix
+    tools_cJSON* csv_fp = tools_cJSON_GetObjectItem(json, "csv_file_prefix");
+    if (csv_fp && csv_fp->type == tools_cJSON_String && csv_fp->valuestring != NULL) {
+        g_arguments->csv_file_prefix = csv_fp->valuestring;
+    } else {
+        g_arguments->csv_file_prefix = "data";
     }
 
-    size_t len = strlen(g_arguments->csvPath);
-
-    if(len == 0) {
-        // set default with current path
-        strcpy(g_arguments->csvPath, "./output/");
-        mkdir(g_arguments->csvPath, 0775);
+    // csv timestamp format
+    tools_cJSON* csv_tf = tools_cJSON_GetObjectItem(json, "csv_ts_format");
+    if (csv_tf && csv_tf->type == tools_cJSON_String && csv_tf->valuestring != NULL) {
+        g_arguments->csv_ts_format = csv_tf->valuestring;
     } else {
-        // append end
-        if (g_arguments->csvPath[len-1] != '/' ) {
-            strcat(g_arguments->csvPath, "/");
-        }
-        mkdir(g_arguments->csvPath, 0775);
+        g_arguments->csv_ts_format = "YYYYMMDDHHmmSS";
+    }
+
+    // csv timestamp format
+    tools_cJSON* csv_ti = tools_cJSON_GetObjectItem(json, "csv_ts_interval");
+    if (csv_ti && csv_ti->type == tools_cJSON_String && csv_ti->valuestring != NULL) {
+        g_arguments->csv_ts_interval = csv_ti->valuestring;
+    } else {
+        g_arguments->csv_ts_interval = "1d";
     }
 
     code = 0;
