@@ -1,0 +1,83 @@
+name: TDengine Build
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.1'
+    paths-ignore:
+      - 'docs/**'
+      - 'packaging/**'
+      - 'tests/**'
+      - '*.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test on ${{ matrix.os }}
+    runs-on: ubuntu-20.04
+    container:
+      image: ghcr.io/taosdata/tdengine-build:u2004
+
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+
+      - name: Download third-party tools build results
+        uses: actions/download-artifact@v4
+        with:
+          name: third-tools-build-cache
+          path: ${{ github.workspace }}/
+          github-token: ${{ secrets.WORKFLOW_PAT }}
+          repository: taosdata/TDengine
+          run-id: 13431241404
+      - name: Display structure of download files
+        run: |
+          ls ${{ github.workspace }}/contrib/
+          ls ${{ github.workspace }}/tools/taosadapter/
+      - name: Remvoe the cache file of third-party tools
+        run: |
+          rm -rf ${{ github.workspace }}/contrib/deps-download/CMakeCache.txt
+          rm -rf ${{ github.workspace }}/contrib/deps-download/*-prefix
+
+      - name: Cmake build 
+        run: |
+          mkdir debug && cd debug && pwd
+          cmake .. -DBUILD_TOOLS=true \
+            -DBUILD_KEEPER=true \
+            -DBUILD_HTTP=false \
+            -DBUILD_TEST=true \
+            -DBUILD_DEPENDENCY_TESTS=false
+
+      - name: Make and install TDengine    
+        run: |
+          cd debug/ && pwd
+          make -j 4
+          sudo make install
+          which taosd
+          which taosadapter
+          which taoskeeper
+
+      - name: Start taosd
+        run: |
+          cp /etc/taos/taos.cfg ./
+          sudo echo "supportVnodes 256" >> taos.cfg
+          nohup sudo taosd -c taos.cfg &
+
+      - name: Start taosadapter
+        run: nohup sudo taosadapter &
+
+      - name: Run tests with taosBenchmark
+        run: |
+          taosBenchmark -t 10 -n 10 -y 
+          taos -s "select count(*) from test.meters"
+
+      - name: Clean up
+        if: always()
+        run: |
+          if pgrep taosd; then sudo pkill taosd; fi
+          if pgrep taosadapter; then sudo pkill taosadapter; fi
