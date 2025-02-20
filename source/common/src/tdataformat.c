@@ -4783,7 +4783,6 @@ void valueSetDatum(SValue *pVal, int8_t type, void *pDatum, uint32_t len) {
 
 void valueCloneDatum(SValue *pDst, const SValue *pSrc, int8_t type) {
   if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_DECIMAL) {
-    // we assume that pDst->pData not NULL
     memcpy(pDst->pData, pSrc->pData, pSrc->nData);
     pDst->nData = pSrc->nData;
   } else {
