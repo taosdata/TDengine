@@ -25,7 +25,7 @@ import importlib
 print(f"Python version: {sys.version}")
 print(f"Version info: {sys.version_info}")
 
-sys.path.append("../tests/pytest")
+sys.path.append("../pytest")
 from util.log import *
 from util.dnodes import *
 from util.cases import *

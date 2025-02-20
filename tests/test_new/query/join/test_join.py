@@ -61,7 +61,7 @@ class DataSet:
     nchar_data  : List[str]     = field(default_factory=list)
 
 
-class TDTestCase:
+class TestJoin:
 
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -186,6 +186,24 @@ class TDTestCase:
                 )
         return list(filter(None, sqls))
 
+
+    def test_join_check(self):
+        """测试join关键字合法查询
+
+        join语句select查询，与多种where语句、having语句、group语句组合查询，查询结果返回正确
+
+        Since: v3.3.0.0
+
+        Labels: join
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            - 2024-2-6 Feng Chao Created
+
+        """
+        self.__join_check()
+
     def __join_check(self,):
         tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
         for i in range(len(self.__sqls_list)):
@@ -225,6 +243,23 @@ class TDTestCase:
     def __join_current(self, sql, checkrows):
         tdSql.query(sql=sql)
         # tdSql.checkRows(checkrows)
+
+    def test_error(self):
+        """测试join关键字非法查询
+
+        join语句select查询，与不支持的where语句、having语句、group语句组合查询，查询结果返回期望错误
+
+        Since: v3.3.0.0
+
+        Labels: join, negative
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            - 2024-2-6 Feng Chao Created
+
+        """
+        self.__test_error()
 
     def __test_error(self, dbname=DBNAME):
         # sourcery skip: extract-duplicate-method, move-assign-in-block

@@ -5,7 +5,7 @@ from util.sql import *
 import numpy as np
 
 
-class TDTestCase:
+class TestHint:
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
@@ -14,6 +14,23 @@ class TDTestCase:
         self.rowNum = 10
         self.batchNum = 5
         self.ts = 1537146000000
+
+    def test_hint(self):
+        """测试hint查询
+
+        执行支持的hint查询，返回结果正确
+
+        Since: v3.3.0.0
+
+        Labels: stable
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            - 2024-2-6 Feng Chao Created
+
+        """
+        self.run()
 
     def run(self):
         dbname = "db"

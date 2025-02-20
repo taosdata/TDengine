@@ -29,7 +29,7 @@ import time
 # constant define
 WAITS = 5 # wait seconds
 
-class TDTestCase:
+class TestStmtSetTbnameTag:
     #
     # --------------- main frame -------------------
     def caseDescription(self):
@@ -91,6 +91,20 @@ class TDTestCase:
             return rows
 
     def test_stmt_set_tbname_tag(self,conn):
+        """测试参数绑定tbname和tag
+
+        创建参数绑定对象，绑定tbname和多种数据类型tag，插入数据成功
+
+        Since: v3.3.0.0
+
+        Labels: stmt,
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            - 2024-2-6 Feng Chao Created
+
+        """
         dbname = "stmt_tag"
         stablename = 'log'
         try:

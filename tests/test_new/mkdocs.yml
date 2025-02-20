@@ -22,4 +22,4 @@ plugins:
           show_bases: false
           show_source: false
           show_object_full_path: false
-          filters: [ "^test_", "TDTestCase" ]
+          filters: [ "^test_", "^Test" ]

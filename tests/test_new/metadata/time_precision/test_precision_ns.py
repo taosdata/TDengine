@@ -20,7 +20,7 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 
-class TDTestCase:
+class TestPrecisionNs:
 
     # get col value and total max min ...
     def getColsValue(self, i, j):
@@ -171,7 +171,22 @@ class TDTestCase:
         return True
     
 
-        
+    def test_time_macro(self):
+        """测试time函数使用ns时间戳
+
+        创建数据库指定precision为ns，查询语句使用ns时间戳查询、timetruncate函数使用ns时间戳查询、timediff函数使用ns时间戳查询均返回正确结果
+
+        Since: v3.3.0.0
+
+        Labels: precision
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            - 2024-2-6 Feng Chao Created
+
+        """
+        self.checkTimeMacro()
 
     # check time macro
     def checkTimeMacro(self):
@@ -267,6 +282,25 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), True)
 
+
+    def test_where(self):
+        """测试where使用ns时间戳
+
+        创建数据库指定precision为ns，查询语句中where使用ns时间戳查询均返回正确结果
+
+        Since: v3.3.0.0
+
+        Labels: precision
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            - 2024-2-6 Feng Chao Created
+
+        """
+        self.checkWhere()
+
+
     # where
     def checkWhere(self):
         cnt = 300
@@ -281,6 +315,24 @@ class TDTestCase:
             end   = self.ts - base 
             sql = f"select count(ts) from st where ts >= {start} and ts < {end}"
             self.checkExpect(sql, cnt)
+
+
+    def test_stream(self):
+        """测试steam使用ns时间戳
+
+        创建数据库指定precision为ns，创建stream，查询流计算表的字段、时间戳返回正确结果
+
+        Since: v3.3.0.0
+
+        Labels: precision
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            - 2024-2-6 Feng Chao Created
+
+        """
+        self.checkStream()
 
     # stream
     def checkStream(self):

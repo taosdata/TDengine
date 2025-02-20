@@ -13,12 +13,28 @@ from util.sql import *
 from util.dnodes import *
 from util.log import *
 
-class TDTestCase:
+class TestReplica2:
     def init(self, conn, logSql, replicaVar=1):
         tdLog.debug(f"start to init {__file__}")
         self.replicaVar = int(replicaVar)
         tdSql.init(conn.cursor(), logSql)
 
+    def test_replica2(self):
+        """测试双副本
+
+        创建双副本db，查看vgroups，停止dnode2和3，校验assigned
+
+        Since: v3.3.0.0
+
+        Labels: 3nodes, replica
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            - 2024-2-6 Feng Chao Created
+
+        """
+        self.run()
     def run(self):
         tdSql.execute('CREATE DATABASE db vgroups 1 replica 2;')
 

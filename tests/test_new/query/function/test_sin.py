@@ -8,7 +8,7 @@ from util.sql import *
 from util.cases import *
 
 
-class TDTestCase:
+class TestSin:
 
     def init(self, conn,  logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -89,6 +89,20 @@ class TDTestCase:
               
 
     def test_errors(self, dbname="db"):
+        """测试sin()函数error
+
+        执行非法select语句包含sin()函数，返回预期错误
+
+        Since: v3.3.0.0
+
+        Labels: sin, negative
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            - 2024-2-6 Feng Chao Created
+
+        """
         error_sql_lists = [
             f"select sin from {dbname}.t1",
             # f"select sin(-+--+c1 ) from {dbname}.t1",
@@ -122,6 +136,24 @@ class TDTestCase:
         for error_sql in error_sql_lists:
             tdSql.error(error_sql)
 
+
+    def test_types(self):
+        """测试sin()函数数据类型
+
+        select语句包含sin()函数，参数传入不同数据类型，不支持的类型返回预期错误，支持的类型返回执行成功
+
+        Since: v3.3.0.0
+
+        Labels: sin, dataType
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            - 2024-2-6 Feng Chao Created
+            - 2024-2-7 Hong updated for feature TD-23456
+
+        """
+        self.support_types()
     def support_types(self, dbname="db"):
         type_error_sql_lists = [
             f"select sin(ts) from {dbname}.t1" ,
@@ -192,6 +224,23 @@ class TDTestCase:
 
         for type_sql in type_sql_lists:
             tdSql.query(type_sql)
+
+    def test_basic_sin_function(self):
+        """测试sin()函数基础功能
+
+        使用包含sin()函数的select语句，查询空表、子表、普通表、不存在表；嵌套sin函数查询均返回成功，与聚合函数一起查询返回失败
+
+        Since: v3.3.0.0
+
+        Labels: sin
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            - 2024-2-6 Feng Chao Created
+
+        """
+        self.basic_sin_function()
 
     def basic_sin_function(self, dbname="db"):
 
@@ -334,6 +383,20 @@ class TDTestCase:
         tdSql.query(f"select c1, sin(c1), c2, sin(c2), c3, sin(c3) from {dbname}.ct1")
 
     def test_big_number(self, dbname="db"):
+        """测试sin()函数大数参数
+
+        使用包含sin()函数的select语句查询，参数为几十位的double参数，返回结果正确
+
+        Since: v3.3.0.0
+
+        Labels: sin
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            - 2024-2-6 Feng Chao Created
+
+        """
 
         tdSql.query(f"select c1, sin(100000000) from {dbname}.ct1")  # bigint to double data overflow
         tdSql.checkData(4, 1, math.sin(100000000))
@@ -357,6 +420,23 @@ class TDTestCase:
 
         tdSql.query(f"select c1, sin(10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000) from {dbname}.ct1")  # bigint to double data overflow
 
+
+    def test_func_filter(self):
+        """测试sin()函数filter
+
+        使用包含sin()函数的where语句查询，返回结果正确
+
+        Since: v3.3.0.0
+
+        Labels: sin
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            - 2024-2-6 Feng Chao Created
+
+        """
+        self.abs_func_filter()
     def abs_func_filter(self, dbname="db"):
         tdSql.query(f"select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(sin(c1)-0.5) from {dbname}.ct4 where c1>5 ")
         tdSql.checkRows(3)
@@ -383,6 +463,23 @@ class TDTestCase:
         tdSql.checkData(0,4,-0.100000000)
         tdSql.checkData(0,5,0.000000000)
 
+
+    def test_basic_sin_function(self):
+        """测试sin()函数边界值
+
+        使用包含sin()函数的select语句，参数为不同数字类型的边界值，查询均返回成功
+
+        Since: v3.3.0.0
+
+        Labels: sin
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            - 2024-2-6 Feng Chao Created
+
+        """
+        self.check_boundary_values()
     def check_boundary_values(self, dbname="testdb"):
 
         PI=3.1415926
@@ -457,6 +554,22 @@ class TDTestCase:
 
         self.check_result_auto_sin(f"select num1,num2 from {dbname}.tb3;" , f"select sin(num1),sin(num2) from {dbname}.tb3")
 
+    def test_super_table(self):
+        """测试sin()函数查询超表
+
+        Description: 使用包含sin()函数的select语句，查询超级表返回成功
+
+        Since: v3.3.0.0
+
+        Labels: sin
+
+        Jira: TD-12345,TS-1234
+
+        Update history:
+            2024-2-6 Feng Chao Created
+
+        """
+        self.support_super_table_test()
     def support_super_table_test(self, dbname="db"):
         self.check_result_auto_sin( f"select c5 from {dbname}.stb1 order by ts " , f"select sin(c5) from {dbname}.stb1 order by ts" )
         self.check_result_auto_sin( f"select c5 from {dbname}.stb1 order by tbname " , f"select sin(c5) from {dbname}.stb1 order by tbname" )

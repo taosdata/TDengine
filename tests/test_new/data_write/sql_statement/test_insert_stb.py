@@ -9,7 +9,7 @@ from math import inf
 import taos
 
 
-class TDTestCase:
+class TestInsertStb:
     def caseDescription(self):
         '''
         case1<shenglian zhou>: [TS-3932] insert into stb 
@@ -28,7 +28,22 @@ class TDTestCase:
         tdSql.execute(f"use insert_stb")
 
 
-    def run_normal(self):
+    def test_normal(self):
+        """测试超级表基本插入操作
+
+        插入语句使用using、dbname.stable、tbname等关键字插入数据，插入单表数据，单表多条数据，多表多条数据，带标签插入等语句，执行成功
+
+        Since: v3.3.0.0
+
+        Labels: stable
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            - 2024-2-6 Feng Chao Created
+
+        """
+
         print("running {}".format(__file__))
         tdSql.execute("drop database if exists insert_stb")
         tdSql.execute("create database if not exists insert_stb")
@@ -181,7 +196,22 @@ class TDTestCase:
         tdSql.checkData(4, 1, 1)
         tdSql.checkData(4, 2, 1)
     
-    def run_insert_stb(self):
+    def test_insert_stb(self):
+        """测试超级表插入各种数据类型
+
+        使用多种数据类型创建超级表，向超级表插入数据，包括常规数据，空数据，边界值等，插入均执行成功
+
+        Since: v3.3.0.0
+
+        Labels: stable, dataType
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            2024-2-6 Feng Chao Created
+
+        """
+
         print("running {}".format('insert_stb'))
         self.conn.select_db('insert_stb')
         tdSql.execute('create table stb1 (ts timestamp, c1 bool, c2 tinyint, c3 smallint, c4 int, c5 bigint, c6 float, c7 double, c8 binary(10), c9 nchar(10), c10 tinyint unsigned, c11 smallint unsigned, c12 int unsigned, c13 bigint unsigned) TAGS(t1 int, t2 binary(10), t3 double);')
@@ -349,7 +379,21 @@ class TDTestCase:
         tdSql.checkData(7, 16, '6')
         tdSql.checkData(7, 17, 6.0)
 
-    def run_stmt_error(self):
+    def test_stmt_error(self):
+        """测试超级表插入stmt数据失败
+
+        创建参数绑定对象，tag设置为填充对象，绑定参数后插入预期失败
+
+        Since: v3.3.0.0
+
+        Labels: stable, negative
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            - 2024-2-6 Feng Chao Created
+
+        """
         conn = self.conn
         conn.select_db('insert_stb')
         conn.execute('create table stb9(ts timestamp, f int) tags (t int)')
@@ -363,7 +407,21 @@ class TDTestCase:
         except Exception as err:
             print(str(err))    
         
-    def run_consecutive_seq(self):
+    def test_consecutive_seq(self):
+        """测试超级表连续插入
+
+        向超级表连续插入多条数据，插入均执行成功
+
+        Since: v3.3.0.0
+
+        Labels: stable
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            - 2024-2-6 Feng Chao Created
+
+        """
         print("running {}".format("consecutive_seq"))
         tdSql.execute("drop database if exists insert_stb3")
         tdSql.execute("create database if not exists insert_stb3")
@@ -616,10 +674,10 @@ class TDTestCase:
         tdSql.execute('drop database insert_stb3')
         
     def run(self):
-        self.run_normal()
-        self.run_insert_stb()
-        self.run_stmt_error()
-        self.run_consecutive_seq()
+        self.test_normal()
+        self.test_insert_stb()
+        self.test_stmt_error()
+        self.test_consecutive_seq()
         
         
     def stop(self):

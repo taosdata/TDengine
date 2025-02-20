@@ -22,7 +22,7 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 
-class TDTestCase:
+class TestSplitVGroup:
 
     # random string
     def random_string(self, count):
@@ -409,6 +409,22 @@ class TDTestCase:
         # check result
         self.checkResult()
 
+
+    def test_run(self):
+        """测试split vgroup
+
+        创建两个数据库，写入多条同样的数据并落盘内存中的数据，在db2上执行split vgroup，相同数据重写写入，比较两个数据库数据一致
+
+        Since: v3.0.6.0
+
+        Labels: vgroup
+
+        Jira: TD-12345,TS-1234
+
+        History:
+            - 2024-2-6 Feng Chao Created
+
+        """
     # run
     def run(self):
         # prepare env
