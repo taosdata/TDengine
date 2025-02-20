@@ -666,6 +666,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
+        pBuf->nullTupleSaved = true;
       }
       pBuf->assign = true;
       numOfElems = 1;
