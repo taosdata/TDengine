@@ -64,20 +64,20 @@ class TDTestCase(TBase):
 
 
         # hori
-        cmd = f'-s "select * {db}.{stb} limit 10"'
-        rlist = etool.runBinFile("taos", cmd)
+        cmd = f'-s "select * from {db}.{stb} limit 10'
+        rlist = etool.runBinFile("taos", cmd + '"')
         # line count
         self.checkSame(len(rlist), 18)
         # last line
-        self.checkSame(rlist[-1][:len(result)], result)
+        self.checkSame(rlist[-2][:len(result)], result)
 
         # vec
-        rlist = etool.runBinFile("taos", cmd + "\G")
+        rlist = etool.runBinFile("taos", cmd + '\G"')
         # line count
         self.checkSame(len(rlist), 346)
-        self.checkSame(rlist[310], "************************** 10.row ***************************")
+        self.checkSame(rlist[310], "*************************** 10.row ***************************")
         # last line
-        self.checkSame(rlist[-1][:len(result)], result)    
+        self.checkSame(rlist[-2][:len(result)], result)    
 
     # run
     def run(self):
