@@ -333,7 +333,7 @@ int32_t taosUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes) {
   //#endif
 }
 
-int32_taosUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4) {
+int32_t taosUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4) {
   if (target_ucs4 == NULL || source_ucs4 == NULL || len_ucs4 <= 0) {
     return TSDB_CODE_INVALID_PARA;
   }
