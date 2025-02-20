@@ -189,6 +189,7 @@ static int32_t doStreamBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
   SStreamScanInfo* pInfo = pOperator->info;
   SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
 
+  qDebug("===stream===%s doStreamBlockScan", GET_TASKID(pTaskInfo));
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
   while (1) {
     if (pInfo->validBlockIndex >= total) {
@@ -216,14 +217,15 @@ static int32_t doStreamBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
 
     code = blockDataUpdateTsWindow(pBlock, 0);
     QUERY_CHECK_CODE(code, lino, _end);
-    printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "rec recv", GET_TASKID(pTaskInfo));
     switch (pBlock->info.type) {
       case STREAM_NORMAL:
       case STREAM_INVALID:
-      case STREAM_GET_ALL:
+      case STREAM_GET_ALL: 
+      case STREAM_RECALCULATE_DATA: 
+      case STREAM_RECALCULATE_DELETE: {
         setStreamOperatorState(&pInfo->basic, pBlock->info.type);
         (*ppRes) = pBlock;
-        break;
+      } break;
       case STREAM_DELETE_DATA: {
         printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "delete recv", GET_TASKID(pTaskInfo));
         if (pInfo->tqReader) {
@@ -1221,6 +1223,8 @@ static int32_t doStreamRecalculateBlockScan(SOperatorInfo* pOperator, SSDataBloc
   SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
   SStreamScanInfo* pInfo = pOperator->info;
   SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
+
+  qDebug("===stream===%s doStreamRecalculateBlockScan", GET_TASKID(pTaskInfo));
 
   if (pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RETRIEVE) {
     if (pInfo->pRangeScanRes != NULL) {
