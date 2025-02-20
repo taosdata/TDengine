@@ -26,7 +26,7 @@ int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)
     pthread_attr_t threadAttr;
     pthread_attr_init(&threadAttr);
     pthread_attr_setstacksize(&threadAttr, DEFAULT_STACK_SIZE);
-    code = pthread_create(tid, threadAttr, start, arg);
+    code = pthread_create(tid, &threadAttr, start, arg);
     pthread_attr_destroy(&threadAttr);
   } else {
     pthread_attr_setstacksize(attr, DEFAULT_STACK_SIZE);
