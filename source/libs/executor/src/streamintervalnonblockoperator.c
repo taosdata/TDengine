@@ -670,13 +670,13 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
       } break;
       default:
         // todo(liuyao) for debug
-        if (isSemiOperator(&pInfo->basic)) {
-          printDataBlock(pBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-          (*ppRes) = pBlock;
-          return code;
-        } else {
-          continue;
-        }
+        // if (isSemiOperator(&pInfo->basic)) {
+        //   printDataBlock(pBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+        //   (*ppRes) = pBlock;
+        //   return code;
+        // } else {
+        //   continue;
+        // }
         // todo(liuyao) for debug
         code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         QUERY_CHECK_CODE(code, lino, _end);

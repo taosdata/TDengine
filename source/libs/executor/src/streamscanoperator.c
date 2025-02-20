@@ -274,14 +274,14 @@ static int32_t doStreamBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
           buildRecalculateDataSnapshort(pInfo, pTaskInfo);
         }
         // todo(liuyao) for debug
-        pInfo->pDeleteDataRes->info.type = STREAM_RECALCULATE_START;
-        if (pInfo->pDeleteDataRes->info.rows == 0) {
-          blockDataEnsureCapacity(pInfo->pDeleteDataRes, 1);
-          int64_t test = 123;
-          appendOneRowToSpecialBlockImpl(pInfo->pDeleteDataRes, &test, &test, &test, &test, NULL, NULL, NULL, NULL);
-        }
-        (*ppRes) = pInfo->pDeleteDataRes;
-        break;
+        // pInfo->pDeleteDataRes->info.type = STREAM_RECALCULATE_START;
+        // if (pInfo->pDeleteDataRes->info.rows == 0) {
+        //   blockDataEnsureCapacity(pInfo->pDeleteDataRes, 1);
+        //   int64_t test = 123;
+        //   appendOneRowToSpecialBlockImpl(pInfo->pDeleteDataRes, &test, &test, &test, &test, NULL, NULL, NULL, NULL);
+        // }
+        // (*ppRes) = pInfo->pDeleteDataRes;
+        // break;
         // todo(liuyao) for debug
         continue;
       } break;
