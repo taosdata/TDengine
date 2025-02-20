@@ -790,12 +790,7 @@ static FORCE_INLINE void hJoinCopyValColsDataToBuf(SHJoinTableCtx* pTable, int32
 }
 
 
-static FORCE_INLINE int32_t hJoinGetValBufFromPages(SArray* pPages, int32_t bufSize, char** pBuf, SBufRowInfo* pRow) {
-  if (0 == bufSize) {
-    pRow->pageId = -1;
-    return TSDB_CODE_SUCCESS;
-  }
-
+static FORCE_INLINE int32_t hJoinGetValBufFromPages(SArray* pPages, int32_t bufSize, char** pBuf, SBufRowInfo** ppRow) {
   if (bufSize > HASH_JOIN_DEFAULT_PAGE_SIZE) {
     qError("invalid join value buf size:%d", bufSize);
     return TSDB_CODE_INVALID_PARA;
@@ -804,9 +799,11 @@ static FORCE_INLINE int32_t hJoinGetValBufFromPages(SArray* pPages, int32_t bufS
   do {
     SBufPageInfo* page = taosArrayGetLast(pPages);
     if ((page->pageSize - page->offset) >= bufSize) {
-      *pBuf = page->data + page->offset;
-      pRow->pageId = taosArrayGetSize(pPages) - 1;
-      pRow->offset = page->offset;
+      *ppRow = (SBufRowInfo*)(page->data + page->offset);
+      *pBuf = (char*)(*ppRow + 1);
+      
+      (*ppRow)->pageId = taosArrayGetSize(pPages) - 1;
+      (*ppRow)->offset = page->offset + sizeof(SBufRowInfo);
       page->offset += bufSize;
       return TSDB_CODE_SUCCESS;
     }
@@ -842,29 +839,18 @@ static int32_t hJoinAddRowToHashImpl(SHJoinOperatorInfo* pJoin, SGroupData* pGro
   SGroupData group = {0};
   SBufRowInfo* pRow = NULL;
 
-  if (NULL == pGroup) {
-    group.rows = taosMemoryMalloc(sizeof(SBufRowInfo));
-    if (NULL == group.rows) {
-      return terrno;
-    }
-    pRow = group.rows;
-  } else if (pJoin->ctx.grpSingleRow) {
+  if (pGroup && pJoin->ctx.grpSingleRow) {
     return TSDB_CODE_SUCCESS;
-  } else {
-    pRow = taosMemoryMalloc(sizeof(SBufRowInfo));
-    if (NULL == pRow) {
-      return terrno;
-    }
   }
 
-  int32_t code = hJoinGetValBufFromPages(pJoin->pRowBufs, hJoinGetValBufSize(pTable, rowIdx), &pTable->valData, pRow);
+  int32_t code = hJoinGetValBufFromPages(pJoin->pRowBufs, hJoinGetValBufSize(pTable, rowIdx) + sizeof(SBufRowInfo), &pTable->valData, &pRow);
   if (code) {
-    taosMemoryFree(pRow);
     return code;
   }
 
   if (NULL == pGroup) {
     pRow->next = NULL;
+    group.rows = pRow;
     if (tSimpleHashPut(pJoin->pKeyHash, pTable->keyData, keyLen, &group, sizeof(group))) {
       taosMemoryFree(pRow);
       return terrno;
@@ -1070,7 +1056,17 @@ void hJoinSetDone(struct SOperatorInfo* pOperator) {
   setOperatorCompleted(pOperator);
 
   SHJoinOperatorInfo* pInfo = pOperator->info;
-  hJoinDestroyKeyHash(&pInfo->pKeyHash);
+  //hJoinDestroyKeyHash(&pInfo->pKeyHash);
+  tSimpleHashCleanup(pInfo->pKeyHash);
+  pInfo->pKeyHash = NULL;
+
+  //blockDataDestroy(pInfo->finBlk);
+  //pInfo->finBlk = NULL;
+  blockDataDestroy(pInfo->midBlk);
+  pInfo->midBlk = NULL;
+
+  taosArrayDestroyEx(pInfo->pRowBufs, hJoinFreeBufPage);
+  pInfo->pRowBufs = NULL;
 
   qDebug("hash Join done");  
 }
@@ -1183,14 +1179,22 @@ static void destroyHashJoinOperator(void* param) {
          pJoinOperator->execInfo.buildBlkNum, pJoinOperator->execInfo.buildBlkRows, pJoinOperator->execInfo.probeBlkNum, 
          pJoinOperator->execInfo.probeBlkRows, pJoinOperator->execInfo.resRows);
 
-  hJoinDestroyKeyHash(&pJoinOperator->pKeyHash);
+  //hJoinDestroyKeyHash(&pJoinOperator->pKeyHash);
+  tSimpleHashCleanup(pJoinOperator->pKeyHash);
+  pJoinOperator->pKeyHash = NULL;
 
   hJoinFreeTableInfo(&pJoinOperator->tbs[0]);
   hJoinFreeTableInfo(&pJoinOperator->tbs[1]);
+  
   blockDataDestroy(pJoinOperator->finBlk);
   pJoinOperator->finBlk = NULL;
+  blockDataDestroy(pJoinOperator->midBlk);
+  pJoinOperator->midBlk = NULL;
+  
   taosMemoryFreeClear(pJoinOperator->pResColMap);
+
   taosArrayDestroyEx(pJoinOperator->pRowBufs, hJoinFreeBufPage);
+  pJoinOperator->pRowBufs = NULL;
 
   taosMemoryFreeClear(param);
 }

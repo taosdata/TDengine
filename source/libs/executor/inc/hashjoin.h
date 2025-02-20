@@ -90,8 +90,16 @@ typedef struct SBufPageInfo {
 
 
 typedef struct SGroupData {
-  SBufRowInfo* rows;
+  SBufRowInfo*  rows;             // KEEP IT FIRST
 } SGroupData;
+
+typedef struct SFGroupData {
+  SBufRowInfo*  rows;             // KEEP IT FIRST
+
+  char*         bitmap;
+  uint32_t      rowsNum;
+  uint32_t      rowsMatchNum;
+} SFGroupData;
 
 
 typedef struct SHJoinColMap {
