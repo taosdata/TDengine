@@ -339,6 +339,9 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
   bool tmp = (pSubmitTbData->flags & pRequest->sourceExcluded) != 0;
   TSDB_CHECK_CONDITION(!tmp, code, lino, END, TSDB_CODE_SUCCESS);
 
+  if (pHandle->fetchMeta == ONLY_META){
+    goto END;
+  }
 
   int32_t blockNum = taosArrayGetSize(pBlocks) == 0 ? 1 : taosArrayGetSize(pBlocks);
   if (pRsp->withTbName) {
@@ -347,7 +350,6 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
     TSDB_CHECK_CODE(code, lino, END);
   }
 
-  tmp = (pHandle->fetchMeta == ONLY_META && pSubmitTbData->pCreateTbReq == NULL);
   TSDB_CHECK_CONDITION(!tmp, code, lino, END, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < blockNum; i++) {
     if (taosArrayGetSize(pBlocks) == 0){
