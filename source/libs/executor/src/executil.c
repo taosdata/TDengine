@@ -1955,6 +1955,7 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
+    pExp->pExpr->_function.bindExprID = ((SExprNode*)pNode)->bindExprID;
   } else if (type == QUERY_NODE_OPERATOR) {
     pExp->pExpr->nodeType = QUERY_NODE_OPERATOR;
     SOperatorNode* pOpNode = (SOperatorNode*)pNode;
@@ -1991,9 +1992,6 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
   } else {
     code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     QUERY_CHECK_CODE(code, lino, _end);
-  }
-  if (type == QUERY_NODE_FUNCTION) {
-    pExp->pExpr->_function.bindExprID = ((SExprNode*)pNode)->bindExprID;
   }
   pExp->pExpr->relatedTo = ((SExprNode*)pNode)->relatedTo;
 _end:

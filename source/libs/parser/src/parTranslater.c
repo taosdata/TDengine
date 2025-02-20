@@ -7428,8 +7428,11 @@ static EDealRes pushDownBindSelectFunc(SNode** pNode, void* pContext) {
   if (nodesIsExprNode(*pNode)) {
     SExprNode* pExpr = (SExprNode*)*pNode;
     pExpr->relatedTo = pCxt->bindExprID;
+    if (nodeType(*pNode) != QUERY_NODE_COLUMN) {
+      return DEAL_RES_CONTINUE;
+    }
 
-    if (isRelatedToOtherExpr(pExpr) && *pNode != pCxt->root) {
+    if (*pNode != pCxt->root) {
       int len = strlen(pExpr->aliasName);
       if (len + TSDB_COL_NAME_EXLEN >= TSDB_COL_NAME_LEN) {
         char buffer[TSDB_COL_NAME_EXLEN + TSDB_COL_NAME_LEN + 1] = {0};
@@ -7609,6 +7612,7 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
   }
 
   SNodeList* pNewNodeList = NULL;
+  SNode*  pNewNode = NULL;
   if (needRewrite) {
     if (pCxt->createStream) {
       return TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
@@ -7625,7 +7629,6 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
       }
     }
 
-    SNode*  pNewNode = NULL;
     int32_t nums = 0;
     int32_t selectFuncCount = (*selectFuncList)->length;
     SNode*  pTmpNode = NULL;
@@ -7649,14 +7652,17 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
           ++selectFuncCount;
           selectFuncIndex = selectFuncCount;
           code = nodesCloneNode(pSelectFunc, &pNewNode);
+          if(TSDB_CODE_SUCCESS != code) goto _end;
           ((SExprNode*)pNewNode)->bindExprID = selectFuncIndex;
-          nodesListMakeStrictAppend(selectFuncList, pNewNode);
+          code = nodesListMakeStrictAppend(selectFuncList, pNewNode);
+          if(TSDB_CODE_SUCCESS != code) goto _end;
         }
         // start from index 1, because the first parameter is select function which needn't to output.
         for (int i = 1; i < pFunc->pParameterList->length; ++i) {
           SNode* pExpr = nodesListGetNode(pFunc->pParameterList, i);
 
           code = nodesCloneNode(pExpr, &pNewNode);
+          if(TSDB_CODE_SUCCESS != code) goto _end;
           if (nodesIsExprNode(pNewNode)) {
             SBindTupleFuncCxt pCxt = {pNewNode, selectFuncIndex};
             nodesRewriteExpr(&pNewNode, pushDownBindSelectFunc, &pCxt);
@@ -7683,6 +7689,7 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
   }
     _end:
     if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pNewNode);
       nodesDestroyList(pNewNodeList);
     }
     return code;
