@@ -255,8 +255,8 @@ cd scripts/tsdbComp && \
 ```
 
 > [!NOTE]
-> 1. TSBS test is written in Golang. If you are unable to connect to the international Go proxy:"https://proxy.golang.org", the script will automatically set it to the china Go proxy "https://goproxy.cn".
-> 2. If you need to cancel this china Go proxy, you can execute the following command in your environment: go env -u GOPROXY.
+> 1. TSBS test is written in Golang. If you are unable to connect to the [international Go proxy](https://proxy.golang.org), the script will automatically set it to the [china Go proxy](https://goproxy.cn).
+> 2. If you need to cancel this china Go proxy, you can execute the following command in your environment `go env -u GOPROXY`.
 > 3. To check your current Go proxy setting, please run `go env | grep GOPROXY`.
 
 ### 3.7.2 How to start client and server on different hosts?
