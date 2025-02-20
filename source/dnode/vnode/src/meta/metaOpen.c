@@ -133,7 +133,7 @@ static void doScan(SMeta *pMeta) {
   }
 }
 
-static int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t rollback) {
+int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t rollback) {
   SMeta  *pMeta = NULL;
   int32_t code = 0;
   int32_t lino;
