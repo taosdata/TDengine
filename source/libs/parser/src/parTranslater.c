@@ -7433,11 +7433,11 @@ static EDealRes pushDownBindSelectFunc(SNode** pNode, void* pContext) {
       int len = strlen(pExpr->aliasName);
       if (len + TSDB_COL_NAME_EXLEN >= TSDB_COL_NAME_LEN) {
         char buffer[TSDB_COL_NAME_EXLEN + TSDB_COL_NAME_LEN + 1] = {0};
-        tsnprintf(buffer, sizeof(buffer), "%s.%d", pExpr->aliasName, pExpr->relatedTo);
+        (void)tsnprintf(buffer, sizeof(buffer), "%s.%d", pExpr->aliasName, pExpr->relatedTo);
         uint64_t hashVal = MurmurHash3_64(buffer, TSDB_COL_NAME_EXLEN + TSDB_COL_NAME_LEN + 1);
-        tsnprintf(pExpr->aliasName, TSDB_COL_NAME_EXLEN, "%" PRIu64, hashVal);
+        (void)tsnprintf(pExpr->aliasName, TSDB_COL_NAME_EXLEN, "%" PRIu64, hashVal);
       } else {
-        tsnprintf(pExpr->aliasName + len, TSDB_COL_NAME_EXLEN, ".%d", pExpr->relatedTo);
+        (void)tsnprintf(pExpr->aliasName + len, TSDB_COL_NAME_EXLEN, ".%d", pExpr->relatedTo);
       }
     }
   }
@@ -7533,9 +7533,9 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
       }
     }
     if(*pCxt->selectFuncList == NULL) {
-       nodesMakeList(pCxt->selectFuncList);
+       code = nodesMakeList(pCxt->selectFuncList);
        if (NULL == *pCxt->selectFuncList) {
-         pCxt->status = terrno;
+         pCxt->status = code;
          return DEAL_RES_ERROR;
        }
     }
@@ -7546,12 +7546,15 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
       selectFuncIndex = selectFuncCount;
       SNode*  pNewNode = NULL;
       code = nodesCloneNode(pSelectFunc, &pNewNode);
+      if(code) goto _end;
       ((SExprNode*)pNewNode)->bindExprID = selectFuncIndex;
-      nodesListMakeStrictAppend(pCxt->selectFuncList, pNewNode);
+      code = nodesListMakeStrictAppend(pCxt->selectFuncList, pNewNode);
+      if(code) goto _end;
     }
 
     SNode*  pNewNode = NULL;
     code = nodesCloneNode(pExpr, &pNewNode);
+    if(code) goto _end;
     if (nodesIsExprNode(pNewNode)) {
       SBindTupleFuncCxt pCxt = {pNewNode, selectFuncIndex};
       nodesRewriteExpr(&pNewNode, pushDownBindSelectFunc, &pCxt);
@@ -7565,7 +7568,8 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
   }
   return DEAL_RES_CONTINUE;
 _end:
-  return code;
+  pCxt->status = code;
+  return DEAL_RES_ERROR;
 }
 
 static int32_t rewriteHavingColsNode(STranslateContext* pCxt, SNode** pNode, SNodeList** selectFuncList) {
