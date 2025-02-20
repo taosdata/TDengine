@@ -1359,6 +1359,7 @@ typedef struct {
   int32_t compactStartTime; // minutes
   int32_t compactEndTime;   // minutes
   int8_t compactTimeOffset; // hour
+  int32_t flushInterval;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -1395,6 +1396,7 @@ typedef struct {
   int32_t compactStartTime;
   int32_t compactEndTime;
   int8_t  compactTimeOffset;
+  int32_t flushInterval;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -1541,6 +1543,7 @@ typedef struct {
   int8_t  schemaless;
   int16_t sstTrigger;
   int8_t  withArbitrator;
+  int32_t flushInterval;
 } SDbCfgRsp;
 
 typedef SDbCfgRsp SDbCfgInfo;

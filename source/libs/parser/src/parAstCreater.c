@@ -1852,6 +1852,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->compactStartTime = TSDB_DEFAULT_COMPACT_START_TIME;
   pOptions->compactEndTime = TSDB_DEFAULT_COMPACT_END_TIME;
   pOptions->compactTimeOffset = TSDB_DEFAULT_COMPACT_TIME_OFFSET;
+  pOptions->flushInterval = TSDB_DEFAULT_FLUSH_INTERVAL;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -1900,6 +1901,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->compactStartTime = -1;
   pOptions->compactEndTime = -1;
   pOptions->compactTimeOffset = -1;
+  pOptions->flushInterval = -1;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -2068,6 +2070,9 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       } else {
         pDbOptions->pCompactTimeOffsetNode = (SValueNode*)createDurationValueNode(pCxt, (SToken*)pVal);
       }
+      break;
+    case DB_OPTION_FLUSH_INTERVAL:
+      pDbOptions->flushInterval = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     default:
       break;

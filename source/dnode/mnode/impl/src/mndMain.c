@@ -413,9 +413,10 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
   while ((pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb))) {
-    if (pDb->cfg.flushPeriod > 0) {
-      mInfo("db:%s, flush period:%d, sec:%" PRId64, pDb->name, pDb->cfg.flushPeriod, sec);
-      if (sec % pDb->cfg.flushPeriod == 0) {
+    mDebug("db:%s, flush period:%d, sec:%" PRId64, pDb->name, pDb->cfg.flushInterval, sec);
+    if (pDb->cfg.flushInterval > 0) {
+      mDebug("db:%s, flush period:%d, sec:%" PRId64, pDb->name, pDb->cfg.flushInterval, sec);
+      if (sec % pDb->cfg.flushInterval == 0) {
         mndPullupCommitDb(pMnode, pDb->name);
       }
     }

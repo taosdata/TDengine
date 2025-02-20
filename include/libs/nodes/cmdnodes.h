@@ -120,6 +120,7 @@ typedef struct SDatabaseOptions {
   SValueNode* pCompactTimeOffsetNode;
   SValueNode* pCompactIntervalNode;
   SNodeList*  pCompactTimeRangeList;
+  int32_t     flushInterval;
   // for cache
   SDbCfgInfo* pDbCfg;
 } SDatabaseOptions;
