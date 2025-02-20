@@ -1684,6 +1684,28 @@ taosd 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | duration    | VARCHAR   | TAG     | sql执行耗时，取值范围 3-10s,10-100s,100-1000s,1000s- |
 | cluster\_id | VARCHAR   | TAG     | cluster id                                            |
 
+### taos\_slow\_sql\_detail 表
+
+`taos_slow_sql_detail` 记录客户端慢查询详细信息。子表名规则为 `{user}_{db}_{ip}_clusterId_{cluster_id}`
+
+| field          | type      | is\_tag | comment                                               |
+| :------------- | :-------- | :------ | :---------------------------------------------------- |
+| start\_ts      | TIMESTAMP |         | sql 开始执行的客户端时间，单位ms，主键                     |
+| request\_id    | UINT64_T  |         | sql 请求的 request id，为 hash 生产的随机值              |
+| query\_time    | INT32_T   |         | sql 执行耗时, 单位ms                                   |
+| code           | INT32_T   |         | sql 执行返回码，0表示成功                               |
+| error\_info    | VARCHAR   |         | sql 执行失败时，记录的错误信息                           |
+| type           | INT8_T    |         | sql 语句的类型（1-查询，2-写入，4-其他）                  |
+| rows\_num      | INT64_T   |         | sql 执行结果的记录数目                                   |
+| sql            | VARCHAR   |         | sql 语句的字符串                                       |
+| process\_name  | VARCHAR   |         | 进程名称                                              |
+| process\_id    | VARCHAR   |         | 进程 id                                              |
+| db             | VARCHAR   | TAG     | 执行 sql 所属数据库                                    |
+| user           | VARCHAR   | TAG     | 执行 sql 语句的用户                                    |
+| ip             | VARCHAR   | TAG     | 记录执行 sql 语句的 ip 地址                             |
+| cluster\_id    | VARCHAR   | TAG     | cluster id                                           |
+
+
 ## 日志相关
 
 TDengine 通过日志文件记录系统运行状态，帮助用户监控系统运行情况，排查问题，这里主要介绍 taosc 和 taosd 两个系统日志的相关说明。
