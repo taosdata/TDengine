@@ -1259,6 +1259,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   SDbObj        *pDb = NULL;
   SMCreateStbReq createReq = {0};
   bool           isAlter = false;
+  SHashObj      *pHash = NULL;
 
   if (tDeserializeSMCreateStbReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -1317,6 +1318,25 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     mInfo("stb:%s, alter table does not need to be done, because table is deleted", createReq.name);
     code = 0;
     goto _OVER;
+  }
+
+  pHash = taosHashInit(3, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  void *pIter = NULL;
+
+  for (int32_t i = 0; i < createReq.numOfColumns; ++i) {
+    SFieldWithOptions *pField = taosArrayGet(createReq.pColumns, i);
+    if (taosHashPut(pHash, pField->name, sizeof(pField->name), pField->name, sizeof(pField->name)) != 0) {
+      code = TSDB_CODE_TSC_DUP_COL_NAMES;
+      goto _OVER;
+    }
+  }
+
+  for (int32_t i = 0; i < createReq.numOfTags; ++i) {
+    SField *pField = taosArrayGet(createReq.pTags, i);
+    if (taosHashPut(pHash, pField->name, sizeof(pField->name), pField->name, sizeof(pField->name)) != 0) {
+      code = TSDB_CODE_TSC_DUP_COL_NAMES;
+      goto _OVER;
+    }
   }
 
   pDb = mndAcquireDbByStb(pMnode, createReq.name);
@@ -1382,6 +1402,17 @@ _OVER:
   mndReleaseStb(pMnode, pStb);
   mndReleaseDb(pMnode, pDb);
   tFreeSMCreateStbReq(&createReq);
+
+  if (pHash != NULL) {
+    pIter = taosHashIterate(pHash, NULL);
+    while (pIter) {
+      STablesReq *pDb = (STablesReq *)pIter;
+      taosArrayDestroy(pDb->pTables);
+      pIter = taosHashIterate(pHash, pIter);
+    }
+
+    taosHashCleanup(pHash);
+  }
 
   TAOS_RETURN(code);
 }
