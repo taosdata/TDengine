@@ -72,22 +72,21 @@ jobs:
             zlib
 
       - name: Download third-party tools build results
-        if: runner.os == 'Linux'
         uses: actions/download-artifact@v4
         with:
           name: third-tools-build-cache
           path: ${{ github.workspace }}/
           github-token: ${{ secrets.WORKFLOW_PAT }}
           repository: taosdata/TDengine
-          run-id: ${{ secrets.TDENGINE_TOOLS_CACHE_ID }}
+          run-id: 13431241404
       - name: Display structure of download files
         run: |
-          ls -R ${{ github.workspace }}/contrib/
-          ls -R ${{ github.workspace }}/tools/taosadapter/
+          ls ${{ github.workspace }}/contrib/
+          ls ${{ github.workspace }}/tools/taosadapter/
       - name: Remvoe the cache file of third-party tools
-        if: runner.os == 'Linux'
         run: |
           rm -rf ${{ github.workspace }}/contrib/deps-download/CMakeCache.txt
+          rm -rf ${{ github.workspace }}/contrib/deps-download/*-prefix
 
       - name: Cmake build 
         run: |

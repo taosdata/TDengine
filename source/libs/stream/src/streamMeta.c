@@ -632,7 +632,7 @@ void streamMetaCloseImpl(void* arg) {
 }
 
 // todo let's check the status for each task
-int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
+int32_t streamMetaSaveTaskInMeta(SStreamMeta* pMeta, SStreamTask* pTask) {
   int32_t vgId = pTask->pMeta->vgId;
   void*   buf = NULL;
   int32_t len;
@@ -682,7 +682,7 @@ int32_t streamMetaSaveTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   return code;
 }
 
-int32_t streamMetaRemoveTask(SStreamMeta* pMeta, STaskId* pTaskId) {
+int32_t streamMetaRemoveTaskInMeta(SStreamMeta* pMeta, STaskId* pTaskId) {
   int64_t key[2] = {pTaskId->streamId, pTaskId->taskId};
   int32_t code = tdbTbDelete(pMeta->pTaskDb, key, STREAM_TASK_KEY_LEN, pMeta->txn);
   if (code != 0) {
@@ -705,7 +705,7 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
   void*   p = taosHashGet(pMeta->pTasksMap, &id, sizeof(id));
 
   if (p != NULL) {
-    stDebug("s-task:%" PRIx64 " already exist in meta, no need to register", id.taskId);
+    stDebug("s-task:0x%" PRIx64 " already exist in meta, no need to register", id.taskId);
     tFreeStreamTask(pTask);
     return code;
   }
@@ -735,7 +735,7 @@ int32_t streamMetaRegisterTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTa
     return code;
   }
 
-  if ((code = streamMetaSaveTask(pMeta, pTask)) != 0) {
+  if ((code = streamMetaSaveTaskInMeta(pMeta, pTask)) != 0) {
     int32_t unused = taosHashRemove(pMeta->pTasksMap, &id, sizeof(id));
     void*   pUnused = taosArrayPop(pMeta->pTaskList);
 
@@ -885,6 +885,8 @@ static void doRemoveIdFromList(SArray* pTaskList, int32_t num, SStreamTaskId* id
 
 static int32_t streamTaskSendTransSuccessMsg(SStreamTask* pTask, void* param) {
   int32_t code = 0;
+  int32_t waitingDuration = 5000;
+
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     code = streamTaskSendCheckpointSourceRsp(pTask);
     if (code) {
@@ -895,7 +897,7 @@ static int32_t streamTaskSendTransSuccessMsg(SStreamTask* pTask, void* param) {
 
   // let's kill the query procedure within stream, to end it ASAP.
   if (pTask->info.taskLevel != TASK_LEVEL__SINK && pTask->exec.pExecutor != NULL) {
-    code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
+    code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS, -1);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s failed to kill task related query handle, code:%s", pTask->id.idStr, tstrerror(code));
     }
@@ -932,7 +934,7 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
 
     code = taosHashRemove(pMeta->pTasksMap, &id, sizeof(id));
     doRemoveIdFromList(pMeta->pTaskList, (int32_t)taosArrayGetSize(pMeta->pTaskList), &pTask->id);
-    code = streamMetaRemoveTask(pMeta, &id);
+    code = streamMetaRemoveTaskInMeta(pMeta, &id);
     if (code) {
       stError("vgId:%d failed to remove task:0x%" PRIx64 ", code:%s", pMeta->vgId, id.taskId, tstrerror(code));
     }
@@ -961,6 +963,32 @@ int32_t streamMetaUnregisterTask(SStreamMeta* pMeta, int64_t streamId, int32_t t
   }
 
   return 0;
+}
+
+int32_t streamMetaStopOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {
+  SStreamTask* pTask = NULL;
+  int32_t      code = 0;
+  int32_t      vgId = pMeta->vgId;
+  int32_t      numOfTasks = 0;
+
+  streamMetaWLock(pMeta);
+
+//  code = streamMetaUnregisterTask(pMeta, streamId, taskId);
+//  numOfTasks = streamMetaGetNumOfTasks(pMeta);
+//  if (code) {
+//    stError("vgId:%d failed to drop task:0x%x, code:%s", vgId, taskId, tstrerror(code));
+//  }
+//
+//  code = streamMetaCommit(pMeta);
+//  if (code) {
+//    stError("vgId:%d failed to commit after drop task:0x%x, code:%s", vgId, taskId, tstrerror(code));
+//  } else {
+//    stDebug("s-task:0x%"PRIx64"-0x%x vgId:%d dropped, remain tasks:%d", streamId, taskId, pMeta->vgId, numOfTasks);
+//  }
+
+  streamMetaWUnLock(pMeta);
+
+  return code;
 }
 
 int32_t streamMetaBegin(SStreamMeta* pMeta) {
@@ -1185,7 +1213,7 @@ void streamMetaLoadAllTasks(SStreamMeta* pMeta) {
   if (taosArrayGetSize(pRecycleList) > 0) {
     for (int32_t i = 0; i < taosArrayGetSize(pRecycleList); ++i) {
       STaskId* pId = taosArrayGet(pRecycleList, i);
-      code = streamMetaRemoveTask(pMeta, pId);
+      code = streamMetaRemoveTaskInMeta(pMeta, pId);
       if (code) {
         stError("s-task:0x%" PRIx64 " failed to remove task, code:%s", pId->taskId, tstrerror(code));
       }
