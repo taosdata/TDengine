@@ -15,9 +15,13 @@
 
 #include "vnd.h"
 
+extern int32_t metaCompact(SMeta *pOldMeta, SMeta *pNewMeta, int64_t compactVersion);
+extern int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t rollback);
 extern void    tsdbStopAllCompTask(STsdb *tsdb);
 extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw);
 extern int32_t tsdbCompMonitorGetInfo(STsdb *tsdb, SQueryCompactProgressRsp *rsp);
+
+static int32_t vnodeCompactMeta(SVnode *pVnode);
 
 int32_t vnodeAsyncCompact(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SCompactVnodeReq req = {0};
@@ -28,7 +32,11 @@ int32_t vnodeAsyncCompact(SVnode *pVnode, int64_t version, void *pReq, int32_t l
   vInfo("vgId:%d, compact msg will be processed, db:%s dbUid:%" PRId64 " compactStartTime:%" PRId64, TD_VID(pVnode),
         req.db, req.dbUid, req.compactStartTime);
 
+#if 0
   return tsdbAsyncCompact(pVnode->pTsdb, &req.tw);
+#else
+  return vnodeCompactMeta(pVnode);
+#endif
 }
 
 int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
@@ -112,27 +120,129 @@ static int64_t vnodeGetCompatableVersion(SVnode *pVnode) {
   return INT64_MAX;
 }
 
+#define META_COMPACT_DIR "meta.compact"
+
+static void vnodeGetMetaPath(SVnode *pVnode, const char *metaDir, char *fname) {
+  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, fname, TSDB_FILENAME_LEN);
+  int32_t offset = strlen(fname);
+  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
+}
+
 static int32_t vnodeCompactMetaBegin(SVnode *pVnode) {
-  // TODO
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // Sync Commit
+  code = vnodeSyncCommit(pVnode);
+  if (code) {
+    vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    return code;
+  }
+
+  // TODO: make sure not doing snapshot
+
+  // remove new dir if need
+  char metaCompactDir[TSDB_FILENAME_LEN] = {0};
+  vnodeGetMetaPath(pVnode, META_COMPACT_DIR, metaCompactDir);
+  taosRemoveDir(metaCompactDir);
+
+  // Create and open the new meta
+  code = metaOpenImpl(pVnode, &pVnode->pNewMeta, META_COMPACT_DIR, 0);
+  if (code) {
+    vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    return code;
+  }
+
+  vInfo("vgId:%d, compact meta begin", TD_VID(pVnode));
   return 0;
 }
 
 static int32_t vnodeCompactMetaImpl(SVnode *pVnode) {
-  // TODO
-  return 0;
+  // Begin transfer
+  int32_t code = metaBegin(pVnode->pNewMeta, META_BEGIN_HEAP_NIL);
+  if (code) {
+    vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    return code;
+  }
+
+  // Do transfer
+  code = metaCompact(pVnode->pMeta, pVnode->pNewMeta, vnodeGetCompatableVersion(pVnode));
+  if (code) {
+    vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    return code;
+  }
+
+  // Commit transfer
+  code = metaCommit(pVnode->pNewMeta, metaGetTxn(pVnode->pNewMeta));
+  if (code) {
+    vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    return code;
+  }
+
+  code = metaFinishCommit(pVnode->pNewMeta, metaGetTxn(pVnode->pNewMeta));
+  if (code) {
+    vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    return code;
+  }
+
+  code = metaBegin(pVnode->pNewMeta, META_BEGIN_HEAP_NIL);
+  if (code) {
+    vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    return code;
+  }
+  return code;
 }
 
 static int32_t vnodeCompactMetaCommit(SVnode *pVnode) {
-  // TODO
+  int32_t code = TSDB_CODE_SUCCESS;
+  char    metaDir[TSDB_FILENAME_LEN] = {0};
+  char    metaCompactDir[TSDB_FILENAME_LEN] = {0};
+
+  metaClose(&pVnode->pNewMeta);
+  metaClose(&pVnode->pMeta);
+
+  // Rename the meta file
+  vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
+  vnodeGetMetaPath(pVnode, META_COMPACT_DIR, metaCompactDir);
+  // TODO: get old and new meta directory
+  code = taosRenameFile(metaCompactDir, metaDir);
+  if (code) {
+    vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    return code;
+  }
+
+  // Open the meta
+  code = metaOpen(pVnode, &pVnode->pMeta, 0);
+  if (code) {
+    vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    return code;
+  }
+
+  // Enable write
+  code = vnodeBegin(pVnode);
+  if (code) {
+    vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    return code;
+  }
+
+  vInfo("vgId:%d, compact meta commit", TD_VID(pVnode));
   return 0;
 }
 
-static int32_t vnodeCompactMetaAbort(SVnode *pVnode) {
-  // TODO
-  return 0;
+static void vnodeCompactMetaAbort(SVnode *pVnode) {
+  if (pVnode->pNewMeta) {
+    metaClose(&pVnode->pNewMeta);
+  }
+
+  // Enable write
+  int32_t code = vnodeBegin(pVnode);
+  if (code) {
+    vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+  }
+
+  vInfo("vgId:%d, compact meta abort", TD_VID(pVnode));
 }
 
-int32_t vnodeCompactMeta(SVnode *pVnode) {
+static int32_t vnodeCompactMeta(SVnode *pVnode) {
   // Begin
   int32_t code = vnodeCompactMetaBegin(pVnode);
   if (code) {
@@ -148,6 +258,7 @@ int32_t vnodeCompactMeta(SVnode *pVnode) {
     return code;
   }
 
+  // Commit
   code = vnodeCompactMetaCommit(pVnode);
   if (code) {
     vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
