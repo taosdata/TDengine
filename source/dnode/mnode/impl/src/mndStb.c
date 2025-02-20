@@ -44,6 +44,7 @@ static int32_t  mndProcessTtlTimer(SRpcMsg *pReq);
 static int32_t  mndProcessTrimDbTimer(SRpcMsg *pReq);
 static int32_t  mndProcessCommitDbTimer(SRpcMsg *pReq);
 static int32_t  mndProcessS3MigrateDbTimer(SRpcMsg *pReq);
+static int32_t  mndProcessCommitDbRsp(SRpcMsg *pReq);
 static int32_t  mndProcessS3MigrateDbRsp(SRpcMsg *pReq);
 static int32_t  mndProcessCreateStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterStbReq(SRpcMsg *pReq);
@@ -98,6 +99,7 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_TB_WITH_TSMA, mndProcessDropTbWithTsma);
   mndSetMsgHandle(pMnode, TDMT_VND_FETCH_TTL_EXPIRED_TBS_RSP, mndProcessFetchTtlExpiredTbs);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_TABLE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_COMMIT_RSP, mndProcessCommitDbRsp);
   //  mndSetMsgHandle(pMnode, TDMT_MND_SYSTABLE_RETRIEVE, mndProcessRetrieveStbReq);
 
   // mndSetMsgHandle(pMnode, TDMT_MND_CREATE_INDEX, mndProcessCreateIndexReq);
@@ -1140,12 +1142,22 @@ static int32_t mndProcessCommitDbTimer(SRpcMsg *pReq) {
     pHead->vgId = htonl(pVgroup->vgId);
 
     SRpcMsg rpcMsg = {.msgType = TDMT_VND_COMMIT, .pCont = pHead, .contLen = contLen};
+
     SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    char    detail[1024] = {0};
+    int32_t len = tsnprintf(detail, sizeof(detail), "numOfEps:%d inUse:%d", epSet.numOfEps, epSet.inUse);
+    for (int32_t i = 0; i < epSet.numOfEps; ++i) {
+      len += tsnprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
+    }
+
+    TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
+    STraceId *trace = &(rpcMsg.info.traceId);
+
     code = tmsgSendReq(&epSet, &rpcMsg);
     if (code != 0) {
       mError("vgId:%d, timer failed to send vnode-commit request to vnode since 0x%x", pVgroup->vgId, code);
     } else {
-      mInfo("vgId:%d, timer send vnode-commit request to vnode", pVgroup->vgId);
+      mGInfo("vgId:%d, timer send vnode-commit request to vnode %s", pVgroup->vgId, detail);
     }
     sdbRelease(pSdb, pVgroup);
   }
@@ -2940,6 +2952,7 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
 static int32_t mndProcessDropTtltbRsp(SRpcMsg *pRsp) { return 0; }
 static int32_t mndProcessTrimDbRsp(SRpcMsg *pRsp) { return 0; }
 static int32_t mndProcessS3MigrateDbRsp(SRpcMsg *pRsp) { return 0; }
+static int32_t mndProcessCommitDbRsp(SRpcMsg *pRsp) { return 0; }
 
 static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
