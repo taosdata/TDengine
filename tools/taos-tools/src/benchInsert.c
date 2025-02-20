@@ -651,8 +651,10 @@ int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
                 if (vgroups > 0) {
                     // inputted vgroups by commandline
                     infoPrint("ignore config set vgroups %d\n", cfg->valueint);
-                    continue;
+                } else {
+                    vgroups = cfg->valueint;
                 }
+                continue;
             }
 
             if (cfg->valuestring) {
