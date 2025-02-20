@@ -84,12 +84,12 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 
 |Parameter Name         |Supported Version        |Dynamic Modification|Description|
 |-----------------------|-------------------------|--------------------|------------|
-|timezone         |          |Not supported                     |Time zone; defaults to dynamically obtaining the current time zone setting from the system|
-|locale           |          |Not supported                     |System locale information and encoding format, defaults to obtaining from the system|
-|charset          |          |Not supported                     |Character set encoding, defaults to obtaining from the system|
+|timezone         |          | since 3.1.0.0                     |Time zone; defaults to dynamically obtaining the current time zone setting from the system|
+|locale           |          | since 3.1.0.0                     |System locale information and encoding format, defaults to obtaining from the system|
+|charset          |          | since 3.1.0.0                     |Character set encoding, defaults to obtaining from the system|
 
 :::info
-
+#### Explanation of Regional Related Parameters
 1. To address the issue of data writing and querying across multiple time zones, TDengine uses Unix Timestamps to record and store timestamps. The nature of Unix Timestamps ensures that the timestamps generated are consistent at any given moment across any time zone. It is important to note that the conversion to Unix Timestamps is done on the client side. To ensure that other forms of time on the client are correctly converted to Unix Timestamps, it is necessary to set the correct time zone.
 
 On Linux/macOS, the client automatically reads the time zone information set by the system. Users can also set the time zone in the configuration file in various ways. For example:
