@@ -728,7 +728,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
 
 _over:
   if (numOfElems == 0 && pCtx->subsidiaries.num > 0 && !pBuf->nullTupleSaved) {
-    code = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, &pBuf->nullTuplePos);
+    code = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, &pBuf->tuplePos);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
