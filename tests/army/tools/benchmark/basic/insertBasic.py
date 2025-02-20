@@ -88,7 +88,7 @@ class TDTestCase(TBase):
         except:
             vgroups = None
 
-        tdLog.info(f"get json info: db={db} stb={stb} child_count={child_count} insert_rows={insert_rows} \n")
+        tdLog.info(f"get json info: db={db} stb={stb} child_count={child_count} insert_rows={insert_rows} cmdVG={cmdVG}\n")
         
         # all count insert_rows * child_table_count
         sql = f"select * from {db}.{stb}"
@@ -106,7 +106,7 @@ class TDTestCase(TBase):
             sql = f"select `vgroups` from information_schema.ins_databases where name='{db}';"
             tdSql.query(sql)
             if vgroups != None:
-                tdLog.info(f" vgroups expect={tdSql.getData(0,0)} real={vgroups}")
+                tdLog.info(f" vgroups real={tdSql.getData(0,0)} expect={vgroups}")
                 tdSql.checkData(0, 0, vgroups, True)
 
 
