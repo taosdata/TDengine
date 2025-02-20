@@ -498,11 +498,16 @@ void sessionWinStateClear(SStreamFileState* pFileState) {
   }
 }
 
+void freeArrayPtr(void* ptr) {
+  SArray* pArray = *(void**)ptr;
+  taosArrayDestroy(pArray);
+}
+
 void sessionWinStateCleanup(void* pBuff) {
   if (pBuff == NULL) {
     return;
   }
-  tSimpleHashSetFreeFp(pBuff, (_hash_free_fn_t)taosArrayDestroy);
+  tSimpleHashSetFreeFp(pBuff, freeArrayPtr);
   tSimpleHashCleanup(pBuff);
 }
 

@@ -831,7 +831,7 @@ int32_t streamStateGetRecFlag(SStreamState* pState, const void* pKey, int32_t ke
 void streamStateClearExpiredSessionState(SStreamState* pState, int32_t numOfKeep, TSKEY minTs, SSHashObj* pFlushGroup) {
   if (numOfKeep == 0) {
     void* pBuff = getRowStateBuff(pState->pFileState);
-    tSimpleHashSetFreeFp(pBuff, (_hash_free_fn_t)taosArrayDestroy);
+    tSimpleHashSetFreeFp(pBuff, freeArrayPtr);
     streamFileStateClear(pState->pFileState);
     return;
   }

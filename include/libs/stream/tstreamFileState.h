@@ -81,6 +81,7 @@ bool         isFlushedState(SStreamFileState* pFileState, TSKEY ts, TSKEY gap);
 TSKEY        getFlushMark(SStreamFileState* pFileState);
 SRowBuffPos* getNewRowPosForWrite(SStreamFileState* pFileState);
 int32_t      getRowStateRowSize(SStreamFileState* pFileState);
+void         freeArrayPtr(void* ptr);
 
 // session window
 int32_t getSessionWinResultBuff(SStreamFileState* pFileState, SSessionKey* pKey, TSKEY gap, void** pVal, int32_t* pVLen,
