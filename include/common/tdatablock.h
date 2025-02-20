@@ -174,17 +174,17 @@ static FORCE_INLINE void colDataSetInt32(SColumnInfoData* pColumnInfoData, uint3
 static FORCE_INLINE void colDataSetInt64(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, int64_t* v) {
   int32_t type = pColumnInfoData->info.type;
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
-  *(int64_t*)p = *(int64_t*)v;
+  taosSetPInt64Aligned(p, v);
 }
 
 static FORCE_INLINE void colDataSetFloat(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, float* v) {
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
-  *(float*)p = *(float*)v;
+  taosSetPFloatAligned(p, v);
 }
 
 static FORCE_INLINE void colDataSetDouble(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, double* v) {
   char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex;
-  *(double*)p = *(double*)v;
+  taosSetPDoubleAligned(p, v);
 }
 
 int32_t getJsonValueLen(const char* data);

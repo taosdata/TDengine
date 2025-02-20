@@ -70,7 +70,7 @@ typedef pthread_cond_t       TdThreadCond;
 typedef pthread_condattr_t   TdThreadCondAttr;
 typedef pthread_key_t        TdThreadKey;
 #endif
-
+#define DEFAULT_STACK_SIZE    (10485760)
 #define taosThreadCleanupPush pthread_cleanup_push
 #define taosThreadCleanupPop  pthread_cleanup_pop
 #if !defined(WINDOWS)
