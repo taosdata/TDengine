@@ -509,12 +509,19 @@ static int32_t doProcessRecalculateReq(SOperatorInfo* pOperator, SSDataBlock* pB
       }
 
       SWinKey key = {.ts = win.skey, .groupId = pGpDatas[i]};
+      bool isLastWin = false;
       if (pInfo->streamAggSup.stateStore.streamStateCheck(pInfo->streamAggSup.pState, &key,
-                                                          isFinalOperator(&pInfo->basic))) {
+                                                          isFinalOperator(&pInfo->basic), &isLastWin)) {
         qDebug("===stream===%s set recalculate flag ts:%" PRId64 ",group id:%" PRIu64, GET_TASKID(pTaskInfo), key.ts,
                key.groupId);
         pInfo->streamAggSup.stateStore.streamStateSetRecFlag(pInfo->streamAggSup.pState, &key, sizeof(SWinKey),
                                                              pBlock->info.type);
+        if ((isFinalOperator(&pInfo->basic) && isCloseWindow(&win, &pInfo->twAggSup)) || (isSingleOperator(&pInfo->basic) && isLastWin == false) ) {
+          SSessionKey winKey = {.win = win, .groupId = key.groupId};
+          code = saveRecWindowToDisc(&winKey, pUidDatas[i], pBlock->info.type, pInfo->basic.pTsDataState,
+                                     &pInfo->streamAggSup);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
       } else {
         SSessionKey winKey = {.win = win, .groupId = key.groupId};
         code = saveRecWindowToDisc(&winKey, pUidDatas[i], pBlock->info.type, pInfo->basic.pTsDataState,
@@ -841,7 +848,7 @@ bool isDataDeletedStreamWindow(SStreamIntervalSliceOperatorInfo* pInfo, STimeWin
   SStreamAggSupporter* pAggSup = &pInfo->streamAggSup;
   if (pWin->skey < pInfo->nbSup.tsOfKeep) {
     SWinKey key = {.ts = pWin->skey, .groupId = groupId};
-    return !(pAggSup->stateStore.streamStateCheck(pAggSup->pState, &key, isFinalOperator(&pInfo->basic)));
+    return !(pAggSup->stateStore.streamStateCheck(pAggSup->pState, &key, isFinalOperator(&pInfo->basic), NULL));
   }
   return false;
 }

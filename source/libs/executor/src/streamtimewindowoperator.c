@@ -624,7 +624,7 @@ _end:
 }
 
 bool hasIntervalWindow(void* pState, SWinKey* pKey, SStateStore* pStore) {
-  return pStore->streamStateCheck(pState, pKey, false);
+  return pStore->streamStateCheck(pState, pKey, false, NULL);
 }
 
 int32_t setIntervalOutputBuf(void* pState, STimeWindow* win, SRowBuffPos** pResult, int64_t groupId,

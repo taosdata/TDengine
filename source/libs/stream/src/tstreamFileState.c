@@ -850,26 +850,35 @@ _end:
   return code;
 }
 
-bool hasRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, bool hasLimit) {
+bool hasRowBuff(SStreamFileState* pFileState, const SWinKey* pKey, bool hasLimit, bool* pIsLast) {
+  bool res = false;
+  if (pIsLast != NULL) {
+    (*pIsLast) = false;
+  }
+  
   SRowBuffPos** pos = tSimpleHashGet(pFileState->rowStateBuff, pKey, sizeof(SWinKey));
   if (pos) {
-    return true;
+    res = true;
   }
   void* pSearchBuff = getSearchBuff(pFileState);
-  if (pSearchBuff != NULL && hasLimit) {
+  if (pSearchBuff != NULL) {
     void** ppBuff = (void**)tSimpleHashGet(pSearchBuff, &pKey->groupId, sizeof(uint64_t));
     if (ppBuff != NULL) {
       SArray* pWinStates = (SArray*)(*ppBuff);
-      if (taosArrayGetSize(pWinStates) <= MIN_NUM_OF_SORT_CACHE_WIN) {
-        return true;
+      if (pIsLast != NULL) {
+        SWinKey* pLastKey = (SWinKey*) taosArrayGetLast(pWinStates);
+        *pIsLast = (winKeyCmprImpl(pKey, pLastKey) == 0);
+      }
+      if (hasLimit && taosArrayGetSize(pWinStates) <= MIN_NUM_OF_SORT_CACHE_WIN) {
+        res = true;
       }
       SWinKey* fistKey = (SWinKey*) taosArrayGet(pWinStates, 0);
       qInfo("===stream===check window state. buff min ts:%" PRId64 ",groupId:%" PRIu64".key ts:%" PRId64 ",groupId:%" PRIu64, fistKey->ts, fistKey->groupId, pKey->ts, pKey->groupId);
     } else {
-      return true;
+      res = true;
     }
   }
-  return false;
+  return res;
 }
 
 SStreamSnapshot* getSnapshot(SStreamFileState* pFileState) {
