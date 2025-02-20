@@ -1139,7 +1139,7 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
   void *pIter = NULL;
 
   for (int32_t i = 0; i < createReq.numOfColumns; ++i) {
-    SFieldWithOptions *pField = taosArrayGet(createReq.pColumns, i);
+    SField *pField = taosArrayGet(createReq.pColumns, i);
     if (taosHashPut(pHash, pField->name, sizeof(pField->name), pField->name, sizeof(pField->name)) != 0) {
       code = TSDB_CODE_TSC_DUP_COL_NAMES;
       goto _OVER;
