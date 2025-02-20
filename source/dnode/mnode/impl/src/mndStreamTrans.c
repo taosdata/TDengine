@@ -31,11 +31,12 @@ int32_t mndStreamRegisterTrans(STrans *pTrans, const char *pTransName, int64_t s
   return taosHashPut(execInfo.transMgmt.pDBTrans, &streamId, sizeof(streamId), &info, sizeof(SStreamTransInfo));
 }
 
-int32_t mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt) {
+int32_t mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt, SArray* pSlowChkptTrans) {
   size_t  keyLen = 0;
   void   *pIter = NULL;
   SArray *pList = taosArrayInit(4, sizeof(SKeyInfo));
   int32_t numOfChkpt = 0;
+  int64_t now = taosGetTimestampMs();
 
   if (pNumOfActiveChkpt != NULL) {
     *pNumOfActiveChkpt = 0;
@@ -63,6 +64,15 @@ int32_t mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt) 
     } else {
       if (strcmp(pEntry->name, MND_STREAM_CHECKPOINT_NAME) == 0) {
         numOfChkpt++;
+
+        // last for 10min, kill it
+        int64_t dur = now - pTrans->createdTime;
+        if ((dur >= 600 * 1000) && pSlowChkptTrans != NULL) {
+          mInfo("long chkpt transId:%d, start:%" PRId64
+                " exec duration:%.2fs, beyond threshold 10min, kill it and reset task status",
+                pTrans->id, pTrans->createdTime, dur / 1000.0);
+          taosArrayPush(pSlowChkptTrans, &pEntry->transId);
+        }
       }
       mndReleaseTrans(pMnode, pTrans);
     }
@@ -101,7 +111,7 @@ static int32_t doStreamTransConflictCheck(SMnode *pMnode, int64_t streamId, cons
   }
 
   // if any task updates exist, any other stream trans are not allowed to be created
-  int32_t code = mndStreamClearFinishedTrans(pMnode, NULL);
+  int32_t code = mndStreamClearFinishedTrans(pMnode, NULL, NULL);
   if (code) {
     mError("failed to clear finish trans, code:%s, and continue", tstrerror(code));
   }
@@ -160,7 +170,7 @@ int32_t mndStreamGetRelTrans(SMnode *pMnode, int64_t streamId) {
     return 0;
   }
 
-  int32_t code = mndStreamClearFinishedTrans(pMnode, NULL);
+  int32_t code = mndStreamClearFinishedTrans(pMnode, NULL, NULL);
   if (code) {
     mError("failed to clear finish trans, code:%s", tstrerror(code));
   }
