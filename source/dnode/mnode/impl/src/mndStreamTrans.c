@@ -16,6 +16,8 @@
 #include "mndStream.h"
 #include "mndTrans.h"
 
+#define MAX_CHKPT_EXEC_ELAPSED (60*1000)  // 60s
+
 typedef struct SKeyInfo {
   void   *pKey;
   int32_t keyLen;
@@ -31,7 +33,7 @@ int32_t mndStreamRegisterTrans(STrans *pTrans, const char *pTransName, int64_t s
   return taosHashPut(execInfo.transMgmt.pDBTrans, &streamId, sizeof(streamId), &info, sizeof(SStreamTransInfo));
 }
 
-int32_t mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt, SArray* pSlowChkptTrans) {
+int32_t mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt, SArray*pLongChkptTrans) {
   size_t  keyLen = 0;
   void   *pIter = NULL;
   SArray *pList = taosArrayInit(4, sizeof(SKeyInfo));
@@ -67,11 +69,11 @@ int32_t mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt, 
 
         // last for 10min, kill it
         int64_t dur = now - pTrans->createdTime;
-        if ((dur >= 600 * 1000) && pSlowChkptTrans != NULL) {
+        if ((dur >= MAX_CHKPT_EXEC_ELAPSED) && (pLongChkptTrans != NULL)) {
           mInfo("long chkpt transId:%d, start:%" PRId64
-                " exec duration:%.2fs, beyond threshold 10min, kill it and reset task status",
-                pTrans->id, pTrans->createdTime, dur / 1000.0);
-          taosArrayPush(pSlowChkptTrans, &pEntry->transId);
+                " exec duration:%.2fs, beyond threshold %.2f min, kill it and reset task status",
+                pTrans->id, pTrans->createdTime, dur / 1000.0, MAX_CHKPT_EXEC_ELAPSED/(1000*60.0));
+          taosArrayPush(pLongChkptTrans, pEntry);
         }
       }
       mndReleaseTrans(pMnode, pTrans);
@@ -370,4 +372,34 @@ void killAllCheckpointTrans(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo) {
   }
 
   mDebug("complete clear checkpoints in all Dbs");
+}
+
+void killChkptAndResetStreamTask(SMnode *pMnode, SArray* pLongChkpts) {
+  int32_t code = 0;
+  int64_t now = taosGetTimestampMs();
+  int32_t num = taosArrayGetSize(pLongChkpts);
+
+  mInfo("start to kill %d long checkpoint trans", num);
+
+  for(int32_t i = 0; i < num; ++i) {
+    SStreamTransInfo* pTrans = (SStreamTransInfo*) taosArrayGet(pLongChkpts, i);
+    if (pTrans == NULL) {
+      continue;
+    }
+
+    double el = (now - pTrans->startTime) / 1000.0;
+    mInfo("stream:%s id:%" PRIx64 " ongoing checkpoint trans, id:%d, elapsed time:%.2fs killed", pTrans->name,
+          pTrans->streamId, pTrans->transId, el);
+
+    SStreamObj *p = NULL;
+    code = mndGetStreamObj(pMnode, pTrans->streamId, &p);
+    if (code == 0 && p != NULL) {
+      mndKillTransImpl(pMnode, pTrans->transId, p->sourceDb);
+
+      mDebug("create reset task trans for stream:%s 0x%" PRIx64, pTrans->name, pTrans->streamId);
+      mndCreateStreamResetStatusTrans(pMnode, p, p->checkpointId);
+
+      sdbRelease(pMnode->pSdb, p);
+    }
+  }
 }

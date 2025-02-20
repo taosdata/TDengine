@@ -1260,6 +1260,7 @@ static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {
   int32_t     numOfCheckpointTrans = 0;
   SArray     *pLongChkpts = NULL;
   SArray     *pList = NULL;
+  int64_t     now = taosGetTimestampMs();
 
   if ((code = mndCheckTaskAndNodeStatus(pMnode)) != 0) {
     return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
@@ -1271,7 +1272,7 @@ static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {
     return terrno;
   }
 
-  pLongChkpts = taosArrayInit(4, sizeof(int64_t));
+  pLongChkpts = taosArrayInit(4, sizeof(SStreamTransInfo));
   if (pLongChkpts == NULL) {
     mError("failed to init long checkpoint list, not handle stream checkpoint, code:%s", tstrerror(terrno));
     taosArrayDestroy(pList);
@@ -1282,25 +1283,20 @@ static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {
   code = mndStreamClearFinishedTrans(pMnode, &numOfCheckpointTrans, pLongChkpts);
   if (code) {
     mError("failed to clear finish trans, code:%s", tstrerror(code));
+
+    taosArrayDestroy(pList);
+    taosArrayDestroy(pLongChkpts);
     return code;
   }
 
   // kill long exec checkpoint and set task status
   if (taosArrayGetSize(pLongChkpts) > 0) {
-    //todo:
-
-    for(int32_t i = 0; i < taosArrayGetSize(pLongChkpts); ++i) {
-
-      mndKillTransImpl(pMnode, xx, "");
-      mndCreateStreamResetStatusTrans(pMnode, pStream, chkptId);
-    }
+    killChkptAndResetStreamTask(pMnode, pLongChkpts);
 
     taosArrayDestroy(pList);
     taosArrayDestroy(pLongChkpts);
     return TSDB_CODE_SUCCESS;
   }
-
-  int64_t now = taosGetTimestampMs();
 
   while ((pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream)) != NULL) {
     int64_t duration = now - pStream->checkpointFreq;
