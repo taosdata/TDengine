@@ -252,6 +252,10 @@ cd scripts/tsdbComp && \
 ./testTsbs.sh 
 ```
 
+> [!NOTE]
+> 1. TSBS test is written in Golang, in order to run the test smoothly, a Go proxy in China is set in above script by default. If this is not what you want, please unset it with command `sed -i '/GOPROXY/d' /usr/local/src/tsbs/scripts/tsdbComp/installTsbsCommand.sh` before starting the test.
+> 2. To check your current Go proxy setting, please run `go env | grep GOPROXY`.
+
 ### 3.7.2 How to start client and server on different hosts?
 
 By default, both client and server will be started on the local host. To start the client and server on separate hosts, please follow steps below to configure `test.ini` before starting the test:
