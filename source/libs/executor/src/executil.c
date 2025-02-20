@@ -2127,8 +2127,7 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
     const char* pName = pCtx[i].pExpr->pExpr->_function.functionName;
-    if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0) ||
-        (strcmp(pName, "_group_const_value") == 0)) {
+    if ((strcmp(pName, "_select_value") == 0)) {
       if (pValCtxArray == NULL) {
         pValCtx[num++] = &pCtx[i];
       } else {

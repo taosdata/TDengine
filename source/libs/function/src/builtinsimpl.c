@@ -962,12 +962,6 @@ int32_t setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STu
       SqlFunctionCtx* pc = pCtx->subsidiaries.pCtx[j];
       int32_t         dstSlotId = pc->pExpr->base.resSchema.slotId;
 
-      // group_key function has its own process function
-      // do not process there
-      if (fmIsGroupKeyFunc(pc->functionId)) {
-        continue;
-      }
-
       SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
       if (NULL == pDstCol) {
         return TSDB_CODE_OUT_OF_RANGE;
@@ -2432,7 +2426,8 @@ int32_t firstLastFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResIn
   }
 
   SFirstLastRes*        pRes = GET_ROWCELL_INTERBUF(pResInfo);
-
+  pRes->nullTupleSaved = false;
+  pRes->nullTuplePos.pageId = -1;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2948,6 +2943,7 @@ int32_t firstLastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
+
   // handle selectivity
   code = setSelectivityValue(pCtx, pBlock, &pRes->pos, pBlock->info.rows);
 
@@ -3982,7 +3978,7 @@ int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t currentRow = pBlock->info.rows;
   if (pEntryInfo->numOfRes <= 0) {
     colDataSetNULL(pCol, currentRow);
-    code = setNullSelectivityValue(pCtx, pBlock, currentRow);
+    code = setSelectivityValue(pCtx, pBlock, &pRes->nullTuplePos, currentRow);
     return code;
   }
   for (int32_t i = 0; i < pEntryInfo->numOfRes; ++i) {
@@ -5608,7 +5604,7 @@ int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t currentRow = pBlock->info.rows;
   if (pInfo->numSampled == 0) {
     colDataSetNULL(pCol, currentRow);
-    code = setNullSelectivityValue(pCtx, pBlock, currentRow);
+    code = setSelectivityValue(pCtx, pBlock, &pInfo->nullTuplePos, currentRow);
     return code;
   }
   for (int32_t i = 0; i < pInfo->numSampled; ++i) {
@@ -6060,7 +6056,7 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     code = setSelectivityValue(pCtx, pBlock, &resTuplePos, currentRow);
   } else {
     colDataSetNULL(pCol, currentRow);
-    code = setNullSelectivityValue(pCtx, pBlock, currentRow);
+    code = setSelectivityValue(pCtx, pBlock, &pInfo->nullTuplePos, currentRow);
   }
 
   modeFunctionCleanup(pInfo);

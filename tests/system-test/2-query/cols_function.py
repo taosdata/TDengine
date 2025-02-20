@@ -1022,7 +1022,7 @@ class TDTestCase:
         self.orderby_test("(select *, tbname from test.long_col_test)", "longcolumntestlongcolumntestlongcolumntestlongcolumntest88888888", True)
         tdLog.info("long_column_name_test subquery_test: one_cols_multi_output_with_group_test from meters")
                 
-    def test1(self):
+    def test_in_interval(self):
         dbname = "db1"
         tdSql.execute(f"drop database if exists {dbname} ")
         tdSql.execute(f"create database {dbname} vgroups 6")
@@ -1070,17 +1070,23 @@ class TDTestCase:
         tdSql.checkData(2, 1, "2022-09-30 15:15:03")
         tdSql.checkData(2, 2, "2022-09-30 15:15:03")
         tdSql.checkData(3, 1, "2022-09-30 15:15:04")
-        tdSql.checkData(3, 2, "2022-09-30 15:15:04")
+        tdSql.checkData(3, 2, None)
         
-        tdSql.query(f'select tbname, last(ts), last(ts) from tba5 interval(1s)')
-        tdSql.checkData(0, 1, "2022-09-30 15:15:01")
+        tdSql.query(f'select tbname, last(f1), ts from tba5 interval(1s)')
+        tdSql.checkRows(3)
+        tdSql.checkCols(3)
+        tdSql.checkData(0, 1, 0)
         tdSql.checkData(0, 2, "2022-09-30 15:15:01")
-        tdSql.checkData(1, 1, "2022-09-30 15:15:02")
+        tdSql.checkData(1, 1, 1)
         tdSql.checkData(1, 2, "2022-09-30 15:15:02")
-        tdSql.checkData(2, 1, "2022-09-30 15:15:03")
+        tdSql.checkData(2, 1, 5)
         tdSql.checkData(2, 2, "2022-09-30 15:15:03")
+        
+        tdSql.query(f'select tbname, last(ts) from tba5 interval(1s)')
+        tdSql.checkData(0, 1, "2022-09-30 15:15:01")
+        tdSql.checkData(1, 1, "2022-09-30 15:15:02")
+        tdSql.checkData(2, 1, "2022-09-30 15:15:03")
         tdSql.checkData(3, 1, "2022-09-30 15:15:04")
-        tdSql.checkData(3, 2, "2022-09-30 15:15:04")
         
         tdSql.query(f'select tbname, cols(last(ts), ts as ts1), cols(last(f1), ts as ts2) from {dbname}.sta group by tbname;')
         tdSql.checkRows(5)
@@ -1154,7 +1160,63 @@ class TDTestCase:
         tdSql.checkData(1, 0, 'd0')
         tdSql.checkData(1, 1, 1734574929014)
         
-    
+    def test_null2(self):
+        dbname = "test_null2"
+        tdSql.execute(f"drop database if exists {dbname}")
+        tdSql.execute(f"create database test_null2 vgroups 5")
+        tdSql.execute(f"use test_null2")
+        tdSql.execute(f"create stable {dbname}.stb_null1 (ts timestamp, c0 int, c1 int, c2 nchar(30), c3 bool) tags (t1 nchar(30))")
+        tdSql.execute(f"create table {dbname}.sub_null_1 using {dbname}.stb_null1 tags('st1')")
+        tdSql.execute(f"create table {dbname}.sub_null_2 using {dbname}.stb_null1 tags('st2')")
+        
+        tdSql.execute(f"insert into {dbname}.sub_null_1 values(1734574929000, 1, null, null, null)")
+        tdSql.execute(f"insert into {dbname}.sub_null_1 values(1734574929001, 2, null, null, null)")
+        
+        tdSql.execute(f"insert into {dbname}.sub_null_2 values(1734574929000, 21, null, null, null)")
+        tdSql.execute(f"insert into {dbname}.sub_null_2 values(1734574929001, 22, null, null, null)")
+        
+        tdSql.query(f'select cols(last(ts), ts), cols(last(c2), ts) from {dbname}.stb_null1')
+        tdSql.checkRows(1)
+        tdSql.checkCols(2)
+        tdSql.checkData(0, 0, 1734574929001)
+        tdSql.checkData(0, 1, None)
+        
+        tdSql.query(f'select tbname, cols(last(ts), c0), cols(last(c2), c0) from {dbname}.stb_null1 group by tbname order by tbname')
+        tdSql.checkRows(2)
+        tdSql.checkCols(3)
+        tdSql.checkData(0, 0, 'sub_null_1')
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 0, 'sub_null_2')
+        tdSql.checkData(1, 1, 22)
+        tdSql.checkData(1, 2, None)
+        
+        tdSql.query(f'select tbname, t1, cols(last(ts), c0), cols(last(c2), c0) from {dbname}.sub_null_1')
+        tdSql.checkRows(1)
+        tdSql.checkCols(4)
+        tdSql.checkData(0, 0, 'sub_null_1')
+        tdSql.checkData(0, 1, "st1")
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(0, 3, None)
+        
+        tdSql.query(f'select tbname, t1, cols(last(ts), c0), cols(last(c2), ts) from {dbname}.sub_null_2')
+        tdSql.checkRows(1)
+        tdSql.checkCols(4)
+        tdSql.checkData(0, 0, 'sub_null_2')
+        tdSql.checkData(0, 1, "st2")
+        tdSql.checkData(0, 2, 22)
+        tdSql.checkData(0, 3, None)
+  
+        tdSql.query(f'select tbname, cols(last(ts), c0), cols(last(c2), c0) from {dbname}.sub_null_1')
+        tdSql.checkRows(1)
+        tdSql.checkCols(3)
+        tdSql.checkData(0, 0, 'sub_null_1')
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(0, 2, None)
+        
+        tdSql.error(f'select tbname, cols(last(ts), c0), cols(last(c2), c0) from {dbname}.stb_null1')
+        tdSql.error(f'select t1, cols(last(ts), c0), cols(last(c2), c0) from {dbname}.stb_null1')
+        
     def run(self):
         self.funcNestTest()
         self.funcSupperTableTest()
@@ -1166,11 +1228,13 @@ class TDTestCase:
         self.window_test()
         self.join_test()
         self.stream_cols_test()
+        self.test_in_interval()
         self.include_null_test()
         self.long_column_name_test()
-        self.test1()
+
         self.having_test("test.meters", False)
         self.having_test("(select tbname, * from test.meters)", True)
+        self.test_null2()
 
 
     def stop(self):

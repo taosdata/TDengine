@@ -3857,6 +3857,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   if (isVectorFunc(*pNode) && !isDistinctOrderBy(pCxt)) {
     return DEAL_RES_IGNORE_CHILD;
   }
+  bool isSingleTable = fromSingleTable(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable);
   SNode* pGroupNode = NULL;
   FOREACH(pGroupNode, getGroupByList(pCxt)) {
     SNode* pActualNode = getGroupByNode(pGroupNode);
@@ -3866,8 +3867,11 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
     if (IsEqualTbNameFuncNode(pSelect, pActualNode, *pNode)) {
       return rewriteExprToGroupKeyFunc(pCxt, pNode);
     }
-    if (isTbnameFuction(pActualNode) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
+    if ((isTbnameFuction(pActualNode) || isSingleTable) && QUERY_NODE_COLUMN == nodeType(*pNode) &&
         ((SColumnNode*)*pNode)->colType == COLUMN_TYPE_TAG) {
+      return rewriteExprToSelectTagFunc(pCxt, pNode);
+    }
+    if(isSingleTable && isTbnameFuction(*pNode)) {
       return rewriteExprToSelectTagFunc(pCxt, pNode);
     }
   }
