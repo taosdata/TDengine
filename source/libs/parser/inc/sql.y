@@ -346,7 +346,7 @@ alter_db_option(A) ::= COMPACT_INTERVAL NK_VARIABLE(B).                         
 alter_db_option(A) ::= COMPACT_TIME_RANGE signed_duration_list(B).                { A.type = DB_OPTION_COMPACT_TIME_RANGE; A.pList = B; }
 alter_db_option(A) ::= COMPACT_TIME_OFFSET NK_INTEGER(B).                         { A.type = DB_OPTION_COMPACT_TIME_OFFSET; A.val = B; }
 alter_db_option(A) ::= COMPACT_TIME_OFFSET NK_VARIABLE(B).                        { A.type = DB_OPTION_COMPACT_TIME_OFFSET; A.val = B; }
-alter_db_option(A) ::= TK_FLUSH_INTERVAL NK_INTEGER(B).                           { A.type = DB_OPTION_FLUSH_INTERVAL, A.val = B; }
+alter_db_option(A) ::= FLUSH_INTERVAL NK_INTEGER(B).                           { A.type = DB_OPTION_FLUSH_INTERVAL, A.val = B; }
 
 %type integer_list                                                                { SNodeList* }
 %destructor integer_list                                                          { nodesDestroyList($$); }
