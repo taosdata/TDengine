@@ -887,7 +887,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
       }
 
       if (type == STREAM_INPUT__RECALCULATE) { // let's start the recalculation
-        if (pTask->hTaskInfo.id.streamId == 0) {
+        if ((pTask->hTaskInfo.id.streamId == 0) && (pTask->info.fillHistory == STREAM_NORMAL_TASK)) {
           stError("s-task:%s related re-calculate stream task is dropping, failed to start re-calculate", id);
           return TSDB_CODE_STREAM_INTERNAL_ERROR;
         } else if (pTask->info.trigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
