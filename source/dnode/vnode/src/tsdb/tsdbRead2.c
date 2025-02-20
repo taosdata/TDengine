@@ -1093,11 +1093,34 @@ _end:
   return code;
 }
 
+static int32_t doGetValueFromBseBySeq(void* arg, uint8_t* pKey, int32_t keyLen, uint8_t** pValue, int32_t* len) {
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  uint64_t seq = 0;
+
+  if (keyLen >= sizeof(uint64_t)) {
+    tGetU64(pKey, &seq);
+  } else {
+    memcpy(&seq, pKey, keyLen);
+  }
+  *len = 0;
+  code = bseGet((SBse*)arg, seq, pValue, len);
+  if (code != 0) {
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
+_end:
+  if (code != 0) {
+    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
 static int32_t doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int32_t colIndex, SColVal* pColVal,
                             SBlockLoadSuppInfo* pSup) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
+  uint8_t* pValue = 0;
+  int32_t  len = 0;
   TSDB_CHECK_NULL(pColInfoData, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pColVal, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
@@ -1113,13 +1136,11 @@ static int32_t doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int
           code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
           TSDB_CHECK_CODE(code, lino, _end);
         }
-        uint64_t seq = 0;
-        tGetU64(pColVal->value.pData, &seq);
-        uint8_t* value = NULL;
-        int32_t  len = 0;
-        bseGet((SBse*)pSup->args, seq, &value, &len);
+        doGetValueFromBseBySeq(pSup->args, pColVal->value.pData, pColVal->value.nData, &pValue, &len);
+        // TSDB_CHECK_CODE(code, lino, _end);
+
         if (len > 0) {
-          (void)memcpy(varDataVal(pSup->buildBuf[colIndex]), value, len);
+          (void)memcpy(varDataVal(pSup->buildBuf[colIndex]), pValue, len);
         }
         code = colDataSetVal(pColInfoData, rowIndex, pSup->buildBuf[colIndex], false);
         TSDB_CHECK_CODE(code, lino, _end);
@@ -5367,13 +5388,9 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
     uint8_t          hasBlob = 0;
     SColumnInfoData* pCol = TARRAY_GET_ELEM(pResBlock->pDataBlock, pSupInfo->slotId[i]);
     if (pData->cid == pSupInfo->colId[i]) {
-      // if (IS_STR_DATA_BLOB(pData->type)) {
-      //   code = doBuildBlobCol(pData, rowIndex, &cv, pReader->pTsdb->pVnode->pBse);
-      //   TSDB_CHECK_CODE(code, lino, _end);
-      // } else {
       code = tColDataGetValue(pData, rowIndex, &cv);
       TSDB_CHECK_CODE(code, lino, _end);
-      //}
+
       code = doCopyColVal(pCol, outputRowIndex, i, &cv, pSupInfo);
       TSDB_CHECK_CODE(code, lino, _end);
       j += 1;

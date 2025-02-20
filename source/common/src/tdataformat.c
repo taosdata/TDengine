@@ -34,9 +34,9 @@ static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson);
 #define BIT_FLG_NULL  ((uint8_t)0x1)
 #define BIT_FLG_VALUE ((uint8_t)0x2)
 
-static int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow);
-static int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len, uint64_t *seq);
-static int32_t tBlobDestroy(SBlobRow2 *pBlowRow);
+// static int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow);
+// static int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len, uint64_t *seq);
+// static int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow);
 
 #pragma pack(push, 1)
 typedef struct {
@@ -135,7 +135,7 @@ static FORCE_INLINE void tRowBuildScanAddValue(SRowBuildScanInfo *sinfo, SColVal
 
   sinfo->kvMaxOffset = sinfo->kvPayloadSize;
   if (IS_VAR_DATA_TYPE(colVal->value.type)) {
-    if (sinfo->hasBlob && colVal->value.type == TSDB_DATA_TYPE_BINARY) {
+    if (sinfo->hasBlob && IS_STR_DATA_BLOB(colVal->value.type)) {
       sinfo->tupleVarSize += tPutU32v(NULL, colVal->value.nData)     // size
                              + sizeof(uint64_t);                     // value
       sinfo->kvPayloadSize += tPutI16v(NULL, colVal->cid)            // colId
@@ -172,9 +172,7 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
     return TSDB_CODE_INVALID_PARA;
   }
 
-  *sinfo = (SRowBuildScanInfo){
-      .tupleFixedSize = schema->flen,
-  };
+  *sinfo = (SRowBuildScanInfo){.tupleFixedSize = schema->flen, .hasBlob = sinfo->hasBlob};
 
   // loop scan
   for (int32_t i = 1; i < schema->numOfCols; i++) {
@@ -759,7 +757,7 @@ int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len, uint64_
   return 0;
 }
 
-int32_t tBlobDestroy(SBlobRow2 *pBlowRow) {
+int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow) {
   int32_t code = 0;
   taosMemFree(pBlowRow->data);
   taosArrayDestroy(pBlowRow->pOffset);

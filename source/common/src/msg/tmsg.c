@@ -11880,6 +11880,16 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
     }
   }
 
+  if (pTbData->aBlobRow) {
+    int32_t     nBlobRow = TARRAY_SIZE(pTbData->aBlobRow);
+    SBlobRow2 **aBlobRow = (SBlobRow2 **)TARRAY_DATA(pTbData->aBlobRow);
+
+    for (int32_t i = 0; i < nBlobRow; i++) {
+      tBlobRowDestroy(aBlobRow[i]);
+    }
+    taosArrayDestroy(pTbData->aBlobRow);
+    pTbData->aBlobRow = NULL;
+  }
   pTbData->aRowP = NULL;
 }
 
