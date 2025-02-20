@@ -38,7 +38,6 @@
 #include "tversion.h"
 #include "tconv.h"
 
-
 #include "cus_name.h"
 
 #define TSC_VAR_NOT_RELEASE 1

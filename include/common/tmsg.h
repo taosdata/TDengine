@@ -1780,6 +1780,8 @@ typedef struct {
   int64_t numOfBatchInsertSuccessReqs;
   int32_t numOfCachedTables;
   int32_t learnerProgress;  // use one reservered
+  int64_t syncAppliedIndex;
+  int64_t syncCommitIndex;
 } SVnodeLoad;
 
 typedef struct {
@@ -3004,8 +3006,10 @@ enum {
   TOPIC_SUB_TYPE__COLUMN,
 };
 
-#define DEFAULT_MAX_POLL_INTERVAL 300000
-#define DEFAULT_SESSION_TIMEOUT   12000
+#define DEFAULT_MAX_POLL_INTERVAL  300000
+#define DEFAULT_SESSION_TIMEOUT    12000
+#define DEFAULT_MAX_POLL_WAIT_TIME 1000
+#define DEFAULT_MIN_POLL_ROWS      4096
 
 typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];  // accout.topic
@@ -3963,8 +3967,8 @@ typedef struct {
   int8_t  igExists;
   int8_t  intervalUnit;
   int8_t  slidingUnit;
-  int8_t  timezone;    // int8_t is not enough, timezone is unit of second
-  int32_t dstVgId;  // for stream
+  int8_t  timezone;  // int8_t is not enough, timezone is unit of second
+  int32_t dstVgId;   // for stream
   int64_t interval;
   int64_t offset;
   int64_t sliding;
@@ -4209,6 +4213,7 @@ typedef struct {
   int8_t       enableReplay;
   int8_t       sourceExcluded;
   int8_t       rawData;
+  int32_t      minPollRows;
   int8_t       enableBatchMeta;
   SHashObj    *uidHash;  // to find if uid is duplicated
 } SMqPollReq;
