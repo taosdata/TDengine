@@ -734,7 +734,7 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
   pTask->status.taskStatus = TASK_STATUS__READY;
 
-  code = streamMetaSaveTaskInMeta(pMeta, pTask);
+  code = streamMetaSaveTask(pMeta, pTask);
   streamMutexUnlock(&pTask->lock);
 
   if (code != TSDB_CODE_SUCCESS) {
