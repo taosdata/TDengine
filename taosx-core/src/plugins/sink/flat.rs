@@ -509,11 +509,9 @@ pub async fn flat_write_with_sql(
                                     }
                                     Ok((HandlingResult::Archive, err)) => {
                                         for batch in records.batches {
-                                            if let Err(e) = process_archive(
-                                                err.clone(),
-                                                &batch,
-                                                archive_tx.clone(),
-                                            ) {
+                                            if let Err(e) =
+                                                process_archive(&err, &batch, archive_tx.clone())
+                                            {
                                                 tracing::error!("archive error: {e:#}");
                                             }
                                         }
@@ -595,11 +593,9 @@ pub async fn flat_write_with_sql(
                                     }
                                     Ok((HandlingResult::Archive, err)) => {
                                         for batch in records.batches {
-                                            if let Err(e) = process_archive(
-                                                err.clone(),
-                                                &batch,
-                                                archive_tx.clone(),
-                                            ) {
+                                            if let Err(e) =
+                                                process_archive(&err, &batch, archive_tx.clone())
+                                            {
                                                 tracing::error!("archive error: {e:#}");
                                             }
                                         }
@@ -796,7 +792,7 @@ async fn handle_primary_timestamp_null_and_rewrite(
                 // do nothing
             }
             Ok((HandlingResult::Archive, err)) => {
-                let res = process_archive(err, batch, archive_tx.clone());
+                let res = process_archive(&err, batch, archive_tx.clone());
                 if let Err(e) = res {
                     tracing::error!("archive error: {e:#}");
                 }
@@ -858,29 +854,25 @@ async fn handle_field_length_overflow_and_rewrite(
         return Err(e)?;
     }
     let desc = desc.unwrap();
-    let length = desc.iter().find(|f| f.field() == field).unwrap().length();
+    let field_meta = desc
+        .iter()
+        .find(|f| f.field() == field)
+        .with_context(|| format!("field `{}` not found in table `{}`", field, stable))?;
+    let length = field_meta.length();
 
-    // loop the batches
-    for batch in batches {
-        let archive_tx = archive_tx.clone();
-        let field_values = batch
+    if field_meta.is_tag() {
+        let tags = table
+            .tags
+            .as_ref()
+            .with_context(|| format!("tags not found in table `{}`", stable))?;
+        let tag_value = tags
             .column_by_name(field)
-            .unwrap()
-            .as_any()
-            .downcast_ref::<StringArray>();
-        // if the field is not found, skip the batch
-        if field_values.is_none() {
-            return Ok(());
-        }
-        let field_values = field_values.unwrap();
-        let values = field_values
-            .iter()
-            .map(|v| v.unwrap_or_default().to_string())
-            .collect_vec();
-
+            .with_context(|| format!("tag `{}` not found in table `{}`", field, stable))?
+            .taos_value(0)
+            .to_sql_value();
         // handling the abnormal
         match global.process_on_abnormal.field_length_overflow.handle(
-            values,
+            vec![tag_value],
             length,
             format!("{err:?}"),
         ) {
@@ -888,15 +880,16 @@ async fn handle_field_length_overflow_and_rewrite(
                 // do nothing
             }
             Ok((HandlingResult::Archive, err)) => {
-                let res = process_archive(err, batch, archive_tx.clone());
-                if let Err(e) = res {
-                    tracing::error!("archive error: {e:#}");
+                for batch in batches {
+                    let res = process_archive(&err, batch, archive_tx.clone());
+                    if let Err(e) = res {
+                        tracing::error!("archive error: {e:#}");
+                    }
                 }
             }
             Ok((HandlingResult::Modify(values), _)) => {
-                let col_new = Arc::new(StringArray::from(values));
                 // modify and rewrite
-                let res = modify_batch_and_rewrite(
+                if let Err(e) = modify_meta_and_rewrite(
                     pool,
                     taos,
                     target_precision,
@@ -908,19 +901,18 @@ async fn handle_field_length_overflow_and_rewrite(
                     cancel,
                     database_name,
                     stable,
-                    batch,
+                    batches,
                     field,
-                    col_new,
+                    &values[0],
                 )
-                .await;
-                if let Err(e) = res {
+                .await
+                {
                     tracing::error!("rewrite error: {e:#}");
                 }
             }
             Ok((HandlingResult::ModifyAndArchive(values), err)) => {
-                let col_new = Arc::new(StringArray::from(values));
                 // modify and rewrite
-                if let Err(e) = modify_batch_and_rewrite(
+                if let Err(e) = modify_meta_and_rewrite(
                     pool,
                     taos,
                     target_precision,
@@ -932,17 +924,19 @@ async fn handle_field_length_overflow_and_rewrite(
                     cancel,
                     database_name,
                     stable,
-                    batch,
+                    batches,
                     field,
-                    col_new,
+                    &values[0],
                 )
                 .await
                 {
                     tracing::error!("rewrite error: {e:#}");
                 }
                 // archive
-                if let Err(e) = process_archive(err, batch, archive_tx.clone()) {
-                    tracing::error!("archive error: {e:#}");
+                for batch in batches {
+                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
+                        tracing::error!("archive error: {e:#}");
+                    }
                 }
             }
             Ok((HandlingResult::Retry, _)) => unreachable!(),
@@ -950,7 +944,158 @@ async fn handle_field_length_overflow_and_rewrite(
                 return Err(e);
             }
         };
+    } else {
+        // loop and modify the batches
+        for batch in batches {
+            let archive_tx = archive_tx.clone();
+            let field_values = batch
+                .column_by_name(field)
+                .unwrap()
+                .as_any()
+                .downcast_ref::<StringArray>();
+            // if the field is not found, skip the batch
+            if field_values.is_none() {
+                return Ok(());
+            }
+            let field_values = field_values.unwrap();
+            let values = field_values
+                .iter()
+                .map(|v| v.unwrap_or_default().to_string())
+                .collect_vec();
+
+            // handling the abnormal
+            match global.process_on_abnormal.field_length_overflow.handle(
+                values,
+                length,
+                format!("{err:?}"),
+            ) {
+                Ok((HandlingResult::Skip, _)) => {
+                    // do nothing
+                }
+                Ok((HandlingResult::Archive, err)) => {
+                    let res = process_archive(&err, batch, archive_tx.clone());
+                    if let Err(e) = res {
+                        tracing::error!("archive error: {e:#}");
+                    }
+                }
+                Ok((HandlingResult::Modify(values), _)) => {
+                    let col_new = Arc::new(StringArray::from(values));
+                    // modify and rewrite
+                    if let Err(e) = modify_batch_and_rewrite(
+                        pool,
+                        taos,
+                        target_precision,
+                        with_meta,
+                        with_field_names,
+                        table,
+                        opts,
+                        qid,
+                        cancel,
+                        database_name,
+                        stable,
+                        batch,
+                        field,
+                        col_new,
+                    )
+                    .await
+                    {
+                        tracing::error!("rewrite error: {e:#}");
+                    }
+                }
+                Ok((HandlingResult::ModifyAndArchive(values), err)) => {
+                    let col_new = Arc::new(StringArray::from(values));
+                    // modify and rewrite
+                    if let Err(e) = modify_batch_and_rewrite(
+                        pool,
+                        taos,
+                        target_precision,
+                        with_meta,
+                        with_field_names,
+                        table,
+                        opts,
+                        qid,
+                        cancel,
+                        database_name,
+                        stable,
+                        batch,
+                        field,
+                        col_new,
+                    )
+                    .await
+                    {
+                        tracing::error!("rewrite error: {e:#}");
+                    }
+                    // archive
+                    if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
+                        tracing::error!("archive error: {e:#}");
+                    }
+                }
+                Ok((HandlingResult::Retry, _)) => unreachable!(),
+                Err(e) => {
+                    return Err(e);
+                }
+            };
+        }
     }
+
+    Ok(())
+}
+
+async fn modify_meta_and_rewrite(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    target_precision: taos::Precision,
+    with_meta: bool,
+    with_field_names: bool,
+    table: &MessageTableMeta,
+    opts: &Arc<TableOptions>,
+    qid: &Qid,
+    cancel: &CancellationToken,
+    database_name: Option<&str>,
+    stable: &str,
+    batches: &Vec<RecordBatch>,
+    field: &str,
+    tag_new: &str,
+) -> anyhow::Result<()> {
+    let tags = table
+        .tags
+        .as_ref()
+        .with_context(|| format!("tags not found in table `{}`", stable))?;
+    let new_tags = RecordBatch::try_new(
+        tags.schema(),
+        tags.columns()
+            .iter()
+            .enumerate()
+            .map(|(i, tag)| {
+                if tags.schema().field(i).name() == field {
+                    let array = vec![tag_new.to_string(); tags.num_rows()];
+                    Arc::new(StringArray::from(array))
+                } else {
+                    tag.clone()
+                }
+            })
+            .collect::<Vec<_>>(),
+    )?;
+    let mut table = table.clone();
+    table.tags = Some(Arc::new(new_tags));
+
+    for batch in batches {
+        let records = recordbatch_to_sql(
+            database_name,
+            stable,
+            batch,
+            target_precision,
+            with_meta,
+            with_field_names,
+            &table,
+            opts,
+        );
+        // only rewrite once
+        for record in records {
+            let _ = write_stable_with_sql(pool, taos, qid.get(), &record, cancel).await;
+        }
+    }
+
     Ok(())
 }
 
@@ -1384,7 +1529,7 @@ pub async fn flat_write_with_raw_block(
                         }
                         Ok((HandlingResult::Archive, err)) => {
                             if let Err(e) =
-                                process_archive(err.clone(), &records.records, archive_tx.clone())
+                                process_archive(&err, &records.records, archive_tx.clone())
                             {
                                 tracing::error!("archive error: {e:#}");
                             }
@@ -1561,7 +1706,7 @@ pub async fn flat_write_with_raw_block(
                         }
                         Ok((HandlingResult::Archive, err)) => {
                             if let Err(e) =
-                                process_archive(err.clone(), &records.records, archive_tx.clone())
+                                process_archive(&err, &records.records, archive_tx.clone())
                             {
                                 tracing::error!("archive error: {e:#}");
                             }
@@ -1645,7 +1790,7 @@ pub async fn flat_write_with_raw_block(
                         }
                         Ok((HandlingResult::Archive, err)) => {
                             if let Err(e) =
-                                process_archive(err.clone(), &records.records, archive_tx.clone())
+                                process_archive(&err, &records.records, archive_tx.clone())
                             {
                                 tracing::error!("archive error: {e:#}");
                             }
@@ -1729,7 +1874,7 @@ pub async fn flat_write_with_raw_block(
                         }
                         Ok((HandlingResult::Archive, err)) => {
                             if let Err(e) =
-                                process_archive(err.clone(), &records.records, archive_tx.clone())
+                                process_archive(&err, &records.records, archive_tx.clone())
                             {
                                 tracing::error!("archive error: {e:#}");
                             }
@@ -1771,8 +1916,11 @@ async fn handling_database_not_exist(
     {
         Ok((HandlingResult::Skip, _)) => Ok(()),
         Ok((HandlingResult::Archive, err)) => {
-            for batch in messages.iter().map(|m| m.records.clone()) {
-                if let Err(e) = process_archive(err.clone(), &batch, archive_tx.clone()) {
+            for batch in messages
+                .iter()
+                .map(|m: &MessageArrowRecords| m.records.clone())
+            {
+                if let Err(e) = process_archive(&err, &batch, archive_tx.clone()) {
                     tracing::error!("archive error: {e:#}");
                 }
             }
@@ -1786,12 +1934,12 @@ async fn handling_database_not_exist(
 }
 
 fn process_archive(
-    err: String,
+    err: &str,
     batch: &RecordBatch,
     archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     // possible difference in schema, so archive them separately
-    let err_vec = vec![err.clone(); batch.num_rows()];
+    let err_vec = vec![err.to_string(); batch.num_rows()];
     let err_timestamp_vec = vec![Utc::now().timestamp_nanos_opt().unwrap(); batch.num_rows()];
     archive_records(
         batch,
@@ -2015,7 +2163,7 @@ impl FlatSink {
                                             Ok((HandlingResult::Archive, err)) => {
                                                 messages.iter().for_each(|m| {
                                                     if let Err(e) = process_archive(
-                                                        err.clone(),
+                                                        &err,
                                                         &m.records,
                                                         archive_tx.clone(),
                                                     ) {
