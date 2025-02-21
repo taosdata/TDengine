@@ -78,10 +78,8 @@ class TDTestCase:
         count = 0
         while count < 100:
             newTdSql.query('show dnodes')
-            res = newTdSql.queryResult
-            if newTdSql.checkEqual(res[1][4], "ready") == True:
+            if newTdSql.queryResult[1][4] == "ready":
                break
-
             count+=1
 
         sql = f"restore dnode 2"
