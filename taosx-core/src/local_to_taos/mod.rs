@@ -17,11 +17,12 @@ use tracing::{instrument, Instrument};
 use crate::core_metrics::{get_metrics_arc, CoreMetrics};
 use crate::local_to_taos::conf::{LocalRestoreConfig, LocalRestoreConfigBuilder};
 use crate::local_to_taos::file_watcher::FileWatcher;
+use crate::s3::S3Config;
 use crate::taoz::{ZCodec, ZFile, ZMessage};
 use crate::tmq::BackupObject;
 use crate::tmq_to_local::LocalConfig;
-use crate::utils;
 use crate::utils::constants::{VERSION_3_0_0, VERSION_3_3_0};
+use crate::{s3, utils};
 
 mod conf;
 mod file_watcher;
@@ -604,6 +605,7 @@ async fn restore(
     Ok(())
 }
 
+/// 检查 local 数据源是否有效
 pub async fn is_local_valid(dsn: &Dsn) -> DataSourceValidation {
     match is_local_valid_impl(dsn).await {
         Ok(_) => DataSourceValidation {
@@ -626,6 +628,11 @@ pub async fn is_local_valid_impl(dsn: &Dsn) -> Result<()> {
         bail!("no backup directory specified");
     }
     utils::parse_dir_in_dsn(dsn, None)?;
+
+    if let Some(true) = utils::parse_key_in_dsn(dsn, s3::S3_ENABLE)? {
+        let config = S3Config::from_dsn(dsn)?;
+        config.connect().await?;
+    }
 
     Ok(())
 }

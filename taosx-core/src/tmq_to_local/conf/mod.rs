@@ -1,5 +1,5 @@
+use crate::s3::{S3Config, S3_ENABLE};
 use crate::tmq::generate_hash;
-use crate::tmq_to_local::s3::S3Config;
 use crate::utils::sql::connect_taos_root;
 use crate::{get_data_dir, utils};
 use anyhow::{anyhow, bail, Context};
@@ -416,7 +416,7 @@ impl BackupConfigBuilder {
         let backup_comp_level =
             Self::parse_compression_level(&self.to)?.unwrap_or(async_compression::Level::Fastest);
         // s3_enable
-        let s3_enable = utils::parse_key_in_dsn::<bool>(&self.to, "s3_enable")?.unwrap_or(false);
+        let s3_enable = utils::parse_key_in_dsn::<bool>(&self.to, S3_ENABLE)?.unwrap_or(false);
 
         let (s3_config, backup_retention_period, backup_retention_size) =
             if s3_enable {

@@ -397,9 +397,9 @@ async fn is_datasource_valid_impl(
 #[derive(Deserialize, Debug, ToSchema, IntoParams)]
 pub struct DsnAgentQueryV2 {
     #[param(allow_reserved)]
-    from: serde_json::Value,
+    from: Option<serde_json::Value>,
     #[param(allow_reserved)]
-    to: String,
+    to: Option<String>,
     via: Option<i64>,
     timeout: Option<u64>,
 }
@@ -422,15 +422,30 @@ pub(super) async fn data_source_sink_is_valid(
     let _ = std::env::set_current_dir(get_data_dir());
 
     let query = query.into_inner();
-    let query_timeout = query.timeout.unwrap_or_else(|| {
-        // let dsn = query.from.clone().into_dsn();
-        let dsn = json_to_dsn(&query.from);
-        if let Ok(dsn) = dsn {
-            Timeout::get(TimeoutType::ValidateDataSource(dsn))
-        } else {
-            Timeout::get(TimeoutType::Default)
-        }
-    });
+    let query_timeout = query
+        .timeout
+        .unwrap_or_else(|| match (&query.from, &query.to) {
+            (Some(from), Some(to)) => {
+                let a = from
+                    .into_dsn()
+                    .map(|dsn| Timeout::get(TimeoutType::ValidateDataSource(dsn)))
+                    .unwrap_or(Timeout::get(TimeoutType::Default));
+                let b = to
+                    .into_dsn()
+                    .map(|dsn| Timeout::get(TimeoutType::ValidateDataSource(dsn)))
+                    .unwrap_or(Timeout::get(TimeoutType::Default));
+                a.max(b)
+            }
+            (Some(from), None) => from
+                .into_dsn()
+                .map(|dsn| Timeout::get(TimeoutType::ValidateDataSource(dsn)))
+                .unwrap_or(Timeout::get(TimeoutType::Default)),
+            (None, Some(to)) => to
+                .into_dsn()
+                .map(|dsn| Timeout::get(TimeoutType::ValidateDataSource(dsn)))
+                .unwrap_or(Timeout::get(TimeoutType::Default)),
+            (None, None) => Timeout::get(TimeoutType::Default),
+        });
     let span = Span::current();
     let result = timeout(
         Duration::from_secs(query_timeout),
@@ -451,8 +466,31 @@ async fn dsn_and_license_validate(
     controller: Data<TaskControllerRef>,
     query: DsnAgentQueryV2,
 ) -> DataSourceValidation {
-    // let from = match query.from.into_dsn() {
-    let from = match json_to_dsn(&query.from) {
+    match (query.from, query.to) {
+        // 保留之前检查 DataSource 的逻辑
+        (Some(from), Some(to)) => {
+            validate_2dsn_and_license(from.to_string(), to, query.via, controller).await
+        }
+        // 如果 from 和 to 中只有一个 DSN，那么只检查一个 DSN。
+        // 例如：备份任务检查 S3 的连通性，from 为 None，to 为 Some("local:$BACKUP_DIR?$S3_PARAMS...")
+        // TODO：只检查了 dsn 的连通性，没有检查 license
+        (Some(from), None) => validate_dsn(from.to_string()).await,
+        (None, Some(to)) => validate_dsn(to).await,
+        // 两个 DSN 都为空，返回错误
+        (None, None) => DataSourceValidation::invalid(
+            "unknown".to_string(),
+            "invalid DSN not found".to_string(),
+        ),
+    }
+}
+
+async fn validate_2dsn_and_license(
+    from: String,
+    to: String,
+    via: Option<i64>,
+    controller: Data<TaskControllerRef>,
+) -> DataSourceValidation {
+    let from = match from.into_dsn() {
         Ok(dsn) => dsn,
         Err(err) => {
             return DataSourceValidation::invalid(
@@ -462,13 +500,12 @@ async fn dsn_and_license_validate(
         }
     };
 
-    let via = query.via;
     let res = match via {
         None => validate_dsn(from.clone()).await,
         Some(agent) => controller.validate_dsn_via_agent(agent, &from).await,
     };
 
-    let to = match query.to.into_dsn() {
+    let to = match to.into_dsn() {
         Ok(dsn) => dsn,
         Err(err) => {
             return DataSourceValidation::invalid(
@@ -512,7 +549,6 @@ pub(super) async fn get_sample(
     let query = query.into_inner();
 
     let query_timeout = query.timeout.unwrap_or_else(|| {
-        // let dsn = query.dsn.clone().into_dsn();
         let dsn = json_to_dsn(&query.dsn);
         if let Ok(dsn) = dsn {
             Timeout::get(TimeoutType::GetSample(dsn))
@@ -764,7 +800,6 @@ pub async fn is_opc_csv_valid(req: Json<DsnAgentQuery>) -> impl Responder {
 }
 
 async fn is_opc_csv_valid_impl(req: DsnAgentQuery) -> anyhow::Result<()> {
-    // let from = req.dsn.into_dsn()?;
     let from = json_to_dsn(&req.dsn)?;
 
     let parser = CsvParser::from_dsn(&from)
@@ -831,7 +866,6 @@ pub async fn get_pi_default_config(
     };
     let exists = std::path::Path::new(file_name.as_str()).exists();
     if params.task_id.is_none() || !exists || update {
-        // let dsn = params.from.clone().into_dsn()?;
         let dsn = json_to_dsn(&params.from)?;
         let (mode, pattern, pattern_type) = parse_query_datasource_params(&dsn);
         tracing::debug!(?mode, ?pattern, ?pattern_type);

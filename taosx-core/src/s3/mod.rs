@@ -3,6 +3,8 @@ use opendal::{EntryMode, Operator};
 use taos::Dsn;
 use tokio_util::sync::CancellationToken;
 
+pub const S3_ENABLE: &str = "s3_enable";
+
 #[derive(Debug, Clone)]
 pub struct S3Config {
     endpoint: String,
@@ -60,6 +62,8 @@ impl S3Config {
 
         // Init an operator
         let op = Operator::new(builder)?.finish();
+        // check
+        op.check().await?;
         // read the meta of the prefix
         let meta = op.stat(&self.prefix).await?;
         match meta.mode() {
@@ -126,6 +130,7 @@ impl S3Dumper {
     async fn process(&self) -> anyhow::Result<()> {
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         println!("s3 dumper processing");
+
         Ok(())
     }
 }

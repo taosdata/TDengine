@@ -1,3 +1,4 @@
+use crate::s3::S3Dumper;
 use crate::tmq_to_local::conf::{BackupConfig, BackupConfigBuilder, BackupPointGenMode};
 use crate::{
     core_metrics::{get_metrics_arc, CoreMetrics, TaskMetrics},
@@ -31,7 +32,6 @@ use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 
 pub mod conf;
-pub mod s3;
 
 /// 增量备份任务，通过 TDengine 的订阅，将数据备份到本地
 #[instrument(skip_all, fields(task_id))]
@@ -127,7 +127,7 @@ async fn tmq_to_local_impl(mut config: BackupConfig, cancel: CancellationToken) 
     // 如果启用 S3，创建 S3 dumper
     let dumper_handler = match (&config.s3_enable, &config.s3_config) {
         (true, Some(s3_config)) => {
-            let dumper = s3::S3Dumper::new(s3_config.clone(), cancel.clone()).await?;
+            let dumper = S3Dumper::new(s3_config.clone(), cancel.clone()).await?;
             let handler = tokio::spawn(async move { dumper.run().await });
             Some(handler)
         }
