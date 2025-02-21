@@ -318,7 +318,7 @@ def process_cmake():
         cmd = base_cmd + (f' -DBUILD_EXPLORER=false -DBUILD_TAOSX=false -DBUILD_KEEPER=internal '
                           f'-DASSERT_NOT_CORE=true -DBUILD_HTTP=internal -DCUS_NAME={tdCustomer.Name} '
                           f'-DCUS_PROMPT={tdCustomer.Prompt} -DCUS_EMAIL={tdCustomer.Email} -DTD_PRODUCT_NAME=\"{TD_INDUSTRY_NAME}\" '
-                          f'-DGRANT_VALUE={tdCustomer.grantValue} ')
+                          f'-DGRANT_VALUE={tdCustomer.grantValue} -DJEMALLOC_ENABLED=false ')
     logging.info(cmd)
     try:
         subprocess.check_call(cmd, shell=True)
