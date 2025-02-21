@@ -266,7 +266,7 @@ END:
   return code;
 }
 
-static int32_t buildBatchCreateContent(SMqDataRsp *taosxRsp, void** pBuf, int32_t *len){
+static int32_t buildCreateTbBatchReqBinary(SMqDataRsp *taosxRsp, void** pBuf, int32_t *len){
   int32_t code = 0;
   SVCreateTbBatchReq pReq = {0};
   pReq.nReqs = taosArrayGetSize(taosxRsp->createTableReq);
@@ -280,7 +280,7 @@ static int32_t buildBatchCreateContent(SMqDataRsp *taosxRsp, void** pBuf, int32_
   if (code < 0) {
     goto END;
   }
-  len += sizeof(SMsgHead);
+  *len += sizeof(SMsgHead);
   *pBuf = taosMemoryMalloc(*len);
   TQ_NULL_GO_TO_END(pBuf);
   SEncoder coder = {0};
@@ -337,7 +337,6 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
     uint64_t st = taosGetTimestampMs();
     int      totalRows = 0;
     int32_t  totalMetaRows = 0;
-    int32_t  totalAutoMetaRows = 0;
     while (1) {
       int32_t savedEpoch = atomic_load_32(&pHandle->epoch);
       if (savedEpoch > pRequest->epoch) {
@@ -348,7 +347,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
       }
 
       if (tqFetchLog(pTq, pHandle, &fetchVer, pRequest->reqId) < 0) {
-        if (totalMetaRows > 0 || totalAutoMetaRows > 0) {
+        if (totalMetaRows > 0) {
           SEND_BATCH_META_RSP
         }
         SEND_DATA_RSP
@@ -360,9 +359,6 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
 
       // process meta
       if (pHead->msgType != TDMT_VND_SUBMIT) {
-        if (totalAutoMetaRows > 0){
-          SEND_BATCH_META_RSP
-        }
         if (totalRows > 0) {
           SEND_DATA_RSP
         }
@@ -402,7 +398,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
         continue;
       }
 
-      if (totalMetaRows > 0) {
+      if (totalMetaRows > 0 && pHandle->fetchMeta != ONLY_META) {
         SEND_BATCH_META_RSP
       }
 
@@ -415,10 +411,10 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
 
       TQ_ERR_GO_TO_END(tqTaosxScanLog(pTq, pHandle, submit, &taosxRsp, &totalRows, pRequest));
 
-      if (pHandle->fetchMeta == ONLY_META){
+      if (pHandle->fetchMeta == ONLY_META && taosArrayGetSize(taosxRsp.createTableReq) > 0){
         int32_t len = 0;
         void *pBuf = NULL;
-        code = buildBatchCreateContent(&taosxRsp, &pBuf, &len);
+        code = buildCreateTbBatchReqBinary(&taosxRsp, &pBuf, &len);
         if (code == 0){
           code = buildBatchMeta(&btMetaRsp, TDMT_VND_CREATE_TABLE, len, pBuf);
         }
@@ -429,8 +425,10 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
         if (code != 0){
           continue;
         }
-        totalAutoMetaRows ++;
-        if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= tmqRowSize) || (taosGetTimestampMs() - st > pRequest->timeout)) {
+        totalMetaRows++;
+        if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= tmqRowSize) ||
+            (taosGetTimestampMs() - st > pRequest->timeout) ||
+            (!pRequest->enableBatchMeta && !pRequest->useSnapshot)) {
           SEND_BATCH_META_RSP
         }
         continue;

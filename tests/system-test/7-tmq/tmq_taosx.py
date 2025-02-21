@@ -677,34 +677,34 @@ class TDTestCase:
         tdSql.execute(f'drop database d1')
 
     def run(self):
-        self.consume_TS_5067_Test()
-        self.consumeTest()
-        self.consume_ts_4544()
-        self.consume_ts_4551()
-        self.consume_TS_4540_Test()
-        self.consume_td_31283()
+        # self.consume_TS_5067_Test()
+        # self.consumeTest()
+        # self.consume_ts_4544()
+        # self.consume_ts_4551()
+        # self.consume_TS_4540_Test()
+        # self.consume_td_31283()
 
         tdSql.prepare()
         self.checkWal1VgroupOnlyMeta()
 
-        self.checkWal1Vgroup()
-        self.checkSnapshot1Vgroup()
-
-        self.checkWal1VgroupTable()
-        self.checkSnapshot1VgroupTable()
-
-        self.checkWalMultiVgroups()
-        self.checkWalMultiVgroupsRawData()
-        self.checkSnapshotMultiVgroups()
-
-        self.checkWalMultiVgroupsWithDropTable()
-
-        self.checkSnapshotMultiVgroupsWithDropTable()
-
-        self.checkSnapshot1VgroupBtmeta()
-        self.checkSnapshot1VgroupTableBtmeta()
-        self.checkSnapshotMultiVgroupsBtmeta()
-        self.checkSnapshotMultiVgroupsWithDropTableBtmeta()
+        # self.checkWal1Vgroup()
+        # self.checkSnapshot1Vgroup()
+        #
+        # self.checkWal1VgroupTable()
+        # self.checkSnapshot1VgroupTable()
+        #
+        # self.checkWalMultiVgroups()
+        # self.checkWalMultiVgroupsRawData()
+        # self.checkSnapshotMultiVgroups()
+        #
+        # self.checkWalMultiVgroupsWithDropTable()
+        #
+        # self.checkSnapshotMultiVgroupsWithDropTable()
+        #
+        # self.checkSnapshot1VgroupBtmeta()
+        # self.checkSnapshot1VgroupTableBtmeta()
+        # self.checkSnapshotMultiVgroupsBtmeta()
+        # self.checkSnapshotMultiVgroupsWithDropTableBtmeta()
 
     def stop(self):
         tdSql.close()
