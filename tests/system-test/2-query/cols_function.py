@@ -1140,7 +1140,7 @@ class TDTestCase:
         tdSql.checkCols(2)
         tdSql.checkData(0, 0, 'd0')
         tdSql.checkData(0, 1, 1734574929014)
-        tdSql.query(f'select tbname, cols(last(ts), ts) {t1} group by tbname having cols(last(ts), ts) >= 1734574929000')
+        tdSql.query(f'select tbname, cols(last(ts), ts) {t1} group by tbname having cols(last(ts), ts) >= 1734574929000 order by tbname desc')
         tdSql.checkRows(2)
         tdSql.checkCols(2)
         tdSql.checkData(0, 0, 'd1')
