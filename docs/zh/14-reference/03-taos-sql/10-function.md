@@ -2051,6 +2051,26 @@ UNIQUE(expr)
 
 **适用于**: 表和超级表。
 
+### COLS
+
+```sql
+COLS(select_function(expr), output_expr1, [, output_expr2] ... )
+```
+
+**功能说明**：在选择函数 func(expr) 执行结果所在数据行上，执行表达式 output_expr1, [,output_expr2]，返回其结果，func(expr)结果不输出.
+
+**返回数据类型**：返回多列数据，每列数据类型为对应表达式返回结果的类型。
+
+**适用数据类型**：全部类型字段。
+
+**适用于**：表和超级表。
+
+**使用说明:**
+- func 函数类型：必须是单行选择函数（输出结果为一行的选择函数，例如 last 是单行选择函数， 但 top 是多行选择函数）。
+- 注意, 参数 func 的结果并没有返回，如需输出 func 结果，需要在 cols 中加上相应的 output_expr 参数。
+- 输出只有一列时，可以对 cols 函数设置别名。例如: "select cols(first(ts), c1) as c11 from ..."
+- 输出一列或者多列，可以对 cols 函数的每个输出列设置命名。例如: "select cols(first(ts), c1 as c11, c2 as c22)"
+
 
 ## 时序数据特有函数
 
