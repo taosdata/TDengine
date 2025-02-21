@@ -89,3 +89,5 @@ received_messages: Total number of messages received in this task run
 processed_messages: Total number of messages processed in this task run
 out_of_range_rows: Number of rows out of time range in this task run
 total_out_of_range_rows: Total number of rows out of time range
+archived_rows: Number of rows archived
+total_archived_rows: Total number of rows archived

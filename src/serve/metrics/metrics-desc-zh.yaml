@@ -86,3 +86,5 @@ received_messages: 本次运行此任务接收到的消息总数
 processed_messages: 本次运行此任务已经处理的消息总数
 out_of_range_rows: 本次运行此任务超出时间范围的行数
 total_out_of_range_rows: 累计超出时间范围的行数
+archived_rows: 本次运行此任务归档的行数
+total_archived_rows: 累计归档的行数
