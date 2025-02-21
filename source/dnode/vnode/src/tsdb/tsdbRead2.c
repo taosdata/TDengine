@@ -1135,20 +1135,22 @@ static int32_t doCopyColVal(SColumnInfoData* pColInfoData, int32_t rowIndex, int
       colDataSetNULL(pColInfoData, rowIndex);
     } else {
       if (IS_STR_DATA_BLOB(pColVal->value.type)) {
-        varDataSetLen(pSup->buildBuf[colIndex], pColVal->value.nData);
-        if ((pColVal->value.nData + VARSTR_HEADER_SIZE) > pColInfoData->info.bytes) {
-          tsdbWarn("column cid:%d actual data len %d is bigger than schema len %d", pColVal->cid, pColVal->value.nData,
+        code = doGetValueFromBseBySeq(pSup->args, pColVal->value.pData, sizeof(uint64_t), &pValue, &len);
+        varDataSetLen(pSup->buildBuf[colIndex], len);
+        if ((len + VARSTR_HEADER_SIZE) > pColInfoData->info.bytes) {
+          tsdbWarn("column cid:%d actual data len %d is bigger than schema len %d", pColVal->cid, len,
                    pColInfoData->info.bytes);
           code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
           TSDB_CHECK_CODE(code, lino, _end);
         }
-        doGetValueFromBseBySeq(pSup->args, pColVal->value.pData, pColVal->value.nData, &pValue, &len);
-        // TSDB_CHECK_CODE(code, lino, _end);
+
+        TSDB_CHECK_CODE(code, lino, _end);
 
         if (len > 0) {
           (void)memcpy(varDataVal(pSup->buildBuf[colIndex]), pValue, len);
         }
         code = colDataSetVal(pColInfoData, rowIndex, pSup->buildBuf[colIndex], false);
+        taosMemFree(pValue);
         TSDB_CHECK_CODE(code, lino, _end);
       } else {
         TSDB_CHECK_NULL(pSup, code, lino, _end, TSDB_CODE_INVALID_PARA);

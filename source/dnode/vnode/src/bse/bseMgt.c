@@ -1116,17 +1116,25 @@ _err:
   return code;
 }
 static int32_t readerTableBuild(SReaderTable *pTable) {
-  int32_t line = 0;
-  int32_t code = 0;
-  int64_t size = 0;
+  int32_t  line = 0;
+  int32_t  code = 0;
+  int64_t  size = 0;
+  uint8_t *buf = NULL;
 
   code = taosStatFile(pTable->name, &size, NULL, NULL);
   if (size == 0) {
     return TSDB_CODE_INVALID_PARA;
   }
   pTable->pDataFile = taosOpenFile(pTable->name, TD_FILE_READ);
+  if (pTable->pDataFile == NULL) {
+    TAOS_CHECK_GOTO(terrno, &line, _err);
+  }
 
-  uint8_t *buf = taosMemoryCalloc(1, kBlockCap);
+  buf = taosMemoryCalloc(1, kBlockCap);
+  if (buf == NULL) {
+    TAOS_CHECK_GOTO(terrno, &line, _err);
+  }
+
   do {
     memset(buf, 0, kBlockCap);
     int64_t offset = size > kBlockCap ? ((size / kBlockCap) - 1) * kBlockCap : 0;
@@ -1161,5 +1169,12 @@ static int32_t readerTableBuild(SReaderTable *pTable) {
     }
   } while (1);
 _err:
+  if (code != 0) {
+    bseError("table file %s failed to build reader table since %s", pTable->name, tstrerror(code));
+    if (pTable->pDataFile != NULL) {
+      taosCloseFile(&pTable->pDataFile);
+    }
+  }
+  taosMemFree(buf);
   return code;
 }

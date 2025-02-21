@@ -595,70 +595,9 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   return code;
 }
 
-static int32_t inline decodeSSubmitData(SVnode *pVnode, SDecoder *pCoder, SSubmitTbData *pSubmitTbData) {
+static int32_t inline updateSubmitData(SSubmitTbData *pSubmitTbData, STSchema *pTSchema, SVnode *pVnode) {
   int32_t code = 0;
-  int32_t lino;
-  int32_t flags;
-  uint8_t version;
-  int8_t  hasBlob = 0;
-
-  TAOS_CHECK_EXIT(tStartDecode(pCoder));
-  TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &flags));
-  pSubmitTbData->flags = flags & 0xff;
-
-  if (!(pSubmitTbData->flags & SUBMIT_REQ_WITH_BLOB)) {
-    return code;
-  }
-  hasBlob = 1;
-
-  version = (flags >> 8) & 0xff;
-
-  // submit data
-  TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->suid));
-  TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->uid));
-  TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pSubmitTbData->sver));
-
-  STSchema *pTSchema = NULL;
-  code = metaGetTbTSchemaEx(pVnode->pMeta, pSubmitTbData->suid, pSubmitTbData->uid, pSubmitTbData->sver, &pTSchema);
-  TAOS_CHECK_GOTO(code, &lino, _exit);
-
-  uint64_t nRow;
-  TAOS_CHECK_EXIT(tDecodeU64v(pCoder, &nRow));
-
-  pSubmitTbData->aRowP = taosArrayInit(nRow, sizeof(SRow *));
-  if (pSubmitTbData->aRowP == NULL) {
-    TAOS_CHECK_EXIT(terrno);
-  }
-
-  for (int32_t iRow = 0; iRow < nRow; ++iRow) {
-    SRow **ppRow = taosArrayReserve(pSubmitTbData->aRowP, 1);
-    if (ppRow == NULL) {
-      TAOS_CHECK_EXIT(terrno);
-    }
-    TAOS_CHECK_EXIT(tDecodeRow(pCoder, ppRow));
-  }
-
-  pSubmitTbData->ctimeMs = 0;
-  if (!tDecodeIsEnd(pCoder)) {
-    TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->ctimeMs));
-  }
-
-  if (!tDecodeIsEnd(pCoder) && hasBlob) {
-    uint64_t nBlob;
-    TAOS_CHECK_EXIT(tDecodeU64v(pCoder, &nBlob));
-    pSubmitTbData->aBlobRow = taosArrayInit(nBlob, sizeof(SBlobRow2 *));
-    if (pSubmitTbData->aBlobRow == NULL) {
-      TAOS_CHECK_EXIT(terrno);
-    }
-    for (int32_t i = 0; i < nBlob; i++) {
-      SBlobRow2 **ppBlobRow = taosArrayReserve(pSubmitTbData->aBlobRow, 1);
-      if (ppBlobRow == NULL) {
-        TAOS_CHECK_EXIT(terrno);
-      }
-      TAOS_CHECK_EXIT(tDecodeBlobRow2(pCoder, ppBlobRow));
-    }
-  }
-
+  int32_t lino = 0;
   if (taosArrayGetSize(pSubmitTbData->aRowP) != taosArrayGetSize(pSubmitTbData->aBlobRow)) {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
@@ -689,8 +628,86 @@ static int32_t inline decodeSSubmitData(SVnode *pVnode, SDecoder *pCoder, SSubmi
       }
     }
   }
+_exit:
+  return code;
+}
+static int32_t inline rewriteSubmitData(SVnode *pVnode, SDecoder *pCoder, SSubmitTbData *pSubmitTbData) {
+  int32_t   code = 0;
+  int32_t   lino;
+  int32_t   flags;
+  uint8_t   version;
+  int8_t    hasBlob = 0;
+  STSchema *pTSchema = NULL;
+
+  TAOS_CHECK_EXIT(tStartDecode(pCoder));
+  TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &flags));
+  pSubmitTbData->flags = flags & 0xff;
+
+  if (!(pSubmitTbData->flags & SUBMIT_REQ_WITH_BLOB)) {
+    return code;
+  } else {
+    hasBlob = 1;
+  }
+
+  version = (flags >> 8) & 0xff;
+
+  // submit data
+  TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->suid));
+  TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->uid));
+  TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pSubmitTbData->sver));
+
+  code = metaGetTbTSchemaEx(pVnode->pMeta, pSubmitTbData->suid, pSubmitTbData->uid, pSubmitTbData->sver, &pTSchema);
+  TAOS_CHECK_EXIT(code);
+
+  uint64_t nRow;
+  TAOS_CHECK_EXIT(tDecodeU64v(pCoder, &nRow));
+
+  pSubmitTbData->aRowP = taosArrayInit(nRow, sizeof(SRow *));
+  if (pSubmitTbData->aRowP == NULL) {
+    TAOS_CHECK_EXIT(terrno);
+  }
+
+  for (int32_t iRow = 0; iRow < nRow; ++iRow) {
+    SRow **ppRow = taosArrayReserve(pSubmitTbData->aRowP, 1);
+    if (ppRow == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tDecodeRow(pCoder, ppRow));
+  }
+
+  pSubmitTbData->ctimeMs = 0;
+  if (!tDecodeIsEnd(pCoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pSubmitTbData->ctimeMs));
+  }
+
+  if (!tDecodeIsEnd(pCoder) && hasBlob) {
+    uint64_t nBlob;
+    TAOS_CHECK_EXIT(tDecodeU64v(pCoder, &nBlob));
+
+    pSubmitTbData->aBlobRow = taosArrayInit(nBlob, sizeof(SBlobRow2 *));
+    if (pSubmitTbData->aBlobRow == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+
+    for (int32_t i = 0; i < nBlob; i++) {
+      SBlobRow2 **ppBlobRow = taosArrayReserve(pSubmitTbData->aBlobRow, 1);
+      if (ppBlobRow == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      TAOS_CHECK_EXIT(tDecodeBlobRow2(pCoder, ppBlobRow));
+    }
+  }
+  code = updateSubmitData(pSubmitTbData, pTSchema, pVnode);
+  TAOS_CHECK_EXIT(code);
+
+  taosMemFree(pTSchema);
 
 _exit:
+  if (code) {
+    taosArrayDestroy(pSubmitTbData->aRowP);
+    taosArrayDestroy(pSubmitTbData->aBlobRow);
+    vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -732,12 +749,13 @@ static int32_t inline vnodeShouldRewriteSubmitMsg(SVnode *pVnode, SRpcMsg **pMsg
   }
   for (uint64_t i = 0; i < nSubmitTbData; i++) {
     void *ele = taosArrayReserve(pSubmitReq->aSubmitTbData, 1);
-    code = decodeSSubmitData(pVnode, &dc, ele);
+    code = rewriteSubmitData(pVnode, &dc, ele);
     TSDB_CHECK_CODE(code, line, _err);
   }
 
 _err:
   if (code != 0) {
+    vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, line, tstrerror(code));
   }
   return code;
 }
