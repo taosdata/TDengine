@@ -102,14 +102,40 @@ static int32_t skipTableOptions(SInsertParseContext* pCxt, const char** pSql) {
 }
 
 // pSql -> stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)
-static void removeUtilValues(SInsertParseContext* pCxt, const char** pSql) {
-  SToken token;
-  do {
-    NEXT_TOKEN_WITH_PREV_VALUES(*pSql, token);
-    if ((TK_VALUES == token.type) || strlen(*pSql) == 0) {
-      break;
+static int32_t ignoreUsingClause(SInsertParseContext* pCxt, const char** pSql) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SToken  token;
+  NEXT_TOKEN(*pSql, token);
+
+  NEXT_TOKEN(*pSql, token);
+  if (TK_NK_LP == token.type) {
+    code = skipParentheses(pCxt, pSql);
+    if (TSDB_CODE_SUCCESS == code) {
+      NEXT_TOKEN(*pSql, token);
     }
-  } while (1);
+  }
+
+  // pSql -> TAGS (tag1_value, ...)
+  if (TSDB_CODE_SUCCESS == code) {
+    if (TK_TAGS != token.type) {
+      code = buildSyntaxErrMsg(&pCxt->msg, "TAGS is expected", token.z);
+    } else {
+      NEXT_TOKEN(*pSql, token);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (TK_NK_LP != token.type) {
+      code = buildSyntaxErrMsg(&pCxt->msg, "( is expected", token.z);
+    } else {
+      code = skipParentheses(pCxt, pSql);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = skipTableOptions(pCxt, pSql);
+  }
+
+  return code;
 }
 
 static int32_t parseDuplicateUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool* pDuplicate) {
@@ -1298,8 +1324,8 @@ static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   if (token.type != TK_USING) {
     return code;
   } else if ((!pCxt->missCache) && (TSDB_CODE_SUCCESS == code)) {
-    removeUtilValues(pCxt, &pStmt->pSql);
-    return code;
+    pStmt->pSql += index;
+    return ignoreUsingClause(pCxt, &pStmt->pSql);
   }
 
   pStmt->usingTableProcessing = true;
@@ -1307,7 +1333,7 @@ static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   pStmt->pSql += index;
   code = parseDuplicateUsingClause(pCxt, pStmt, &pCxt->usingDuplicateTable);
   if (TSDB_CODE_SUCCESS == code && !pCxt->usingDuplicateTable) {
-    code = parseUsingTableNameImpl(pCxt, pStmt);
+    return parseUsingTableNameImpl(pCxt, pStmt);
   }
   return code;
 }
