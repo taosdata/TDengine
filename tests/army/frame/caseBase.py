@@ -19,6 +19,7 @@ import random
 import copy
 import json
 
+import frame.etool
 import frame.eutil
 from frame.log import *
 from frame.sql import *
@@ -278,6 +279,11 @@ class TBase:
         print(dics)
         return dics
 
+#
+#  run bin file
+#
+    def taos(self, command, show = True):
+        return frame.etool.runBinFile("taos", command, show)
 
 #
 #   util 
