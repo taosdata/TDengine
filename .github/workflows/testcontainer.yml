@@ -13,6 +13,9 @@ jobs:
     runs-on: ubuntu-20.04
     container:
       image: ghcr.io/taosdata/tdengine-build:u2004
+    credentials:
+      username: ${{ github.actor }}
+      password: ${{ secrets.WORKFLOW_PAT }}
 
     steps:
       - name: Checkout the repository

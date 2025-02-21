@@ -24,11 +24,6 @@ jobs:
       matrix:
         os:
           - ubuntu-20.04
-          - ubuntu-22.04
-          - ubuntu-24.04
-          - macos-13
-          - macos-14
-          - macos-15
 
     steps:
       - name: Checkout the repository
@@ -81,12 +76,17 @@ jobs:
           run-id: 13431241404
       - name: Display structure of download files
         run: |
+          echo "contrib"
           ls ${{ github.workspace }}/contrib/
-          ls ${{ github.workspace }}/tools/taosadapter/
+          echo "taosadapter"
+          ls -a ${{ github.workspace }}/tools/taosadapter/
+          echo "taosadapter branch"
+          cd ${{ github.workspace }}/tools/taosadapter/ && git branch --show-current
+          echo "taosadapter log"
+          cd ${{ github.workspace }}/tools/taosadapter/ && git log -5
       - name: Remvoe the cache file of third-party tools
         run: |
           rm -rf ${{ github.workspace }}/contrib/deps-download/CMakeCache.txt
-          rm -rf ${{ github.workspace }}/contrib/deps-download/*-prefix
 
       - name: Cmake build 
         run: |

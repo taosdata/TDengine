@@ -30,6 +30,8 @@ jobs:
     outputs:
       file_zh_changed: ${{ steps.set_output.outputs.file_zh_changed }}
       file_en_changed: ${{ steps.set_output.outputs.file_zh_changed }}
+      file_no_doc_changed: ${{ steps.set_output.outputs.file_no_doc_changed }}
+      file_only_tdgpt_change_except: ${{ steps.set_output.outputs.file_only_tdgpt_change_except }}
     steps:
       - name: Get the latest document contents from the repository
         run: |
@@ -48,8 +50,12 @@ jobs:
         run: |
           file_zh_changed=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`| grep  "^docs/zh/" || :)
           file_en_changed=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`| grep  "^docs/en/" || :)
+          file_no_doc_changed=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" || :)
+          file_only_tdgpt_change_except=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | grep -Ev "forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics" ||:)
           echo "file_zh_changed=${file_zh_changed}" >> $GITHUB_OUTPUT
           echo "file_en_changed=${file_en_changed}" >> $GITHUB_OUTPUT
+          echo "file_no_doc_changed=${file_no_doc_changed}" >> $GITHUB_OUTPUT
+          echo "file_only_tdgpt_change_except=${file_only_tdgpt_change_except}" >> $GITHUB_OUTPUT
 
   build:
     needs: check
@@ -79,3 +85,8 @@ jobs:
           cd ${{ env.DOC_WKC }}/${{ env.EN_DOC_REPO }}
           yarn ass local
           yarn build
+    outputs:
+      file_zh_changed: ${{ needs.check.outputs.file_zh_changed }}
+      file_en_changed: ${{ needs.check.outputs.file_en_changed }}
+      file_no_doc_changed: ${{ needs.check.outputs.file_no_doc_changed }}
+      file_only_tdgpt_change_except: ${{ needs.check.outputs.file_only_tdgpt_change_except }}
