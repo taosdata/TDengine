@@ -1210,7 +1210,7 @@ bool mJoinRetrieveBlk(SMJoinOperatorInfo* pJoin, int32_t* pIdx, SSDataBlock** pp
     (*ppBlk) = (*pJoin->retrieveFp)(pJoin, pTb);
     pTb->dsInitDone = true;
 
-    qDebug("%s merge join %s table got %" PRId64 " rows block", GET_TASKID(pJoin->pOperator->pTaskInfo), MJOIN_TBTYPE(pTb->type), (*ppBlk) ? (*ppBlk)->info.rows : 0);
+    qDebug("%s merge join %s table got %" PRId64 " rows block", GET_TASKID(pJoin->pOperator->pTaskInfo), JOIN_TBTYPE(pTb->type), (*ppBlk) ? (*ppBlk)->info.rows : 0);
 
     *pIdx = 0;
     if (NULL != (*ppBlk)) {
@@ -1399,7 +1399,7 @@ int32_t mJoinRetrieveEqGrpRows(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable
   
   while (wholeBlk && !pTable->dsFetchDone) {
     pTable->blk = (*pJoin->retrieveFp)(pJoin, pTable);
-    qDebug("%s merge join %s table got block for same ts, rows:%" PRId64, GET_TASKID(pJoin->pOperator->pTaskInfo), MJOIN_TBTYPE(pTable->type), pTable->blk ? pTable->blk->info.rows : 0);
+    qDebug("%s merge join %s table got block for same ts, rows:%" PRId64, GET_TASKID(pJoin->pOperator->pTaskInfo), JOIN_TBTYPE(pTable->type), pTable->blk ? pTable->blk->info.rows : 0);
 
     pTable->blkRowIdx = 0;
 

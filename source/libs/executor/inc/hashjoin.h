@@ -21,6 +21,7 @@ extern "C" {
 
 #include "executorInt.h"
 #include "operator.h"
+#include "join.h"
 
 #define HASH_JOIN_DEFAULT_PAGE_SIZE 10485760
 #define HJOIN_ROW_BITMAP_SIZE (2 * 1048576)
@@ -37,6 +38,7 @@ extern "C" {
 #define IS_NEED_NMATCH_JOIN(_jtype, _stype) ((!IS_INNER_NONE_JOIN((_jtype), (_stype))) && (!IS_SEMI_JOIN((_stype))))
 
 typedef int32_t (*hJoinImplFp)(SOperatorInfo*);
+typedef int32_t (*hJoinBuildFp)(SOperatorInfo*, bool*);
 
 
 #pragma pack(push, 1) 
@@ -68,6 +70,13 @@ typedef struct SHJoinCtx {
   int32_t      probeEndIdx;
   int32_t      probePostIdx;
   bool         readMatch;
+
+  // FOR FULL JOIN
+  SSDataBlock* pBuildData;
+  int32_t      buildNMStartIdx;
+  int32_t      buildNMEndIdx;
+  int32_t      buildStartIdx;
+  int32_t      buildEndIdx;
 } SHJoinCtx;
 
 typedef struct SHJoinColInfo {
@@ -117,6 +126,7 @@ typedef struct SHJoinPrimExprCtx {
 } SHJoinPrimExprCtx;
 
 typedef struct SHJoinTableCtx {
+  EJoinTableType type;
   int32_t        downStreamIdx;
   SOperatorInfo* downStream;
   int32_t        blkId;
@@ -129,6 +139,7 @@ typedef struct SHJoinTableCtx {
   SExprSupp          exprSup;
   
   int32_t        keyNum;
+  int32_t        keyNullSize;
   SHJoinColInfo* keyCols;
   char*          keyBuf;
   char*          keyData;
@@ -172,6 +183,7 @@ typedef struct SHJoinOperatorInfo {
   SHJoinExecInfo   execInfo;
   int32_t          blkThreshold;
   hJoinImplFp      joinFp;  
+  hJoinBuildFp     buildFp;
 } SHJoinOperatorInfo;
 
 
@@ -199,6 +211,7 @@ int32_t hInnerJoinDo(struct SOperatorInfo* pOperator);
 int32_t hLeftJoinDo(struct SOperatorInfo* pOperator);
 int32_t hSemiJoinDo(struct SOperatorInfo* pOperator);
 int32_t hAntiJoinDo(struct SOperatorInfo* pOperator);
+int32_t hFullJoinDo(struct SOperatorInfo* pOperator);
 void hJoinSetDone(struct SOperatorInfo* pOperator);
 void hJoinAppendResToBlock(struct SOperatorInfo* pOperator, SSDataBlock* pRes, bool* allFetched);
 bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t *pBufLen);

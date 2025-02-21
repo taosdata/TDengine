@@ -93,6 +93,7 @@ int32_t hJoinCopyMergeMidBlk(SHJoinCtx* pCtx, SSDataBlock** ppMid, SSDataBlock**
 
 int32_t hJoinSetImplFp(SHJoinOperatorInfo* pJoin) {
   int32_t code = TSDB_CODE_SUCCESS;
+  pJoin->buildFp = hJoinBuildHash;
   switch (pJoin->joinType) {
     case JOIN_TYPE_INNER:
       pJoin->joinFp = hInnerJoinDo;
@@ -116,6 +117,10 @@ int32_t hJoinSetImplFp(SHJoinOperatorInfo* pJoin) {
       }
       break;
     }      
+    case JOIN_TYPE_FULL:
+      pJoin->joinFp = hFullJoinDo;
+      pJoin->buildFp = hFullJoinBuildHash;
+      break;
     default:
       qError("Not supported join type, type:%d, subType:%d", pJoin->joinType, pJoin->subType);
       code = TSDB_CODE_QRY_INVALID_PLAN;
@@ -164,6 +169,7 @@ static int64_t hJoinGetSingleKeyRowsNum(SBufRowInfo* pRow) {
   return rows;
 }
 
+#if 0
 static int64_t hJoinGetRowsNumOfKeyHash(SSHashObj* pHash) {
   SGroupData* pGroup = NULL;
   int32_t iter = 0;
@@ -178,8 +184,9 @@ static int64_t hJoinGetRowsNumOfKeyHash(SSHashObj* pHash) {
 
   return rowsNum;
 }
+#endif
 
-static int32_t hJoinInitKeyColsInfo(SHJoinTableCtx* pTable, SNodeList* pList) {
+static int32_t hJoinInitKeyColsInfo(SHJoinTableCtx* pTable, SNodeList* pList, bool allocKeyBuf) {
   pTable->keyNum = LIST_LENGTH(pList);
   if (pTable->keyNum <= 0) {
     qError("Invalid keyNum %d for hash join", pTable->keyNum);
@@ -204,8 +211,14 @@ static int32_t hJoinInitKeyColsInfo(SHJoinTableCtx* pTable, SNodeList* pList) {
     ++i;
   }  
 
-  if (pTable->keyNum > 1) {
-    pTable->keyBuf = taosMemoryMalloc(bufSize);
+  if (pTable->keyNum > 1 || allocKeyBuf) {
+    if (bufSize > 1) {
+      pTable->keyNullSize = 1;
+    } else {
+      pTable->keyNullSize = 2;
+    }
+
+    pTable->keyBuf = taosMemoryMalloc(TMAX(bufSize, pTable->keyNullSize));
     if (NULL == pTable->keyBuf) {
       return terrno;
     }
@@ -373,7 +386,7 @@ static int32_t hJoinInitTableInfo(SHJoinOperatorInfo* pJoin, SHashJoinPhysiNode*
 
   HJ_ERR_RET(hJoinInitPrimKeyInfo(pTable, (0 == idx) ? pJoinNode->leftPrimSlotId : pJoinNode->rightPrimSlotId));
   
-  int32_t code = hJoinInitKeyColsInfo(pTable, pKeyList);
+  int32_t code = hJoinInitKeyColsInfo(pTable, pKeyList, JOIN_TYPE_FULL == pJoin->joinType);
   if (code) {
     return code;
   }
@@ -399,13 +412,8 @@ static void hJoinSetBuildAndProbeTable(SHJoinOperatorInfo* pInfo, SHashJoinPhysi
   switch (pInfo->joinType) {
     case JOIN_TYPE_INNER:
     case JOIN_TYPE_FULL:
-      if (pInfo->tbs[0].inputStat.inputRowNum <= pInfo->tbs[1].inputStat.inputRowNum) {
-        buildIdx = 0;
-        probeIdx = 1;
-      } else {
-        buildIdx = 1;
-        probeIdx = 0;
-      }
+      buildIdx = 1;
+      probeIdx = 0;
       break;
     case JOIN_TYPE_LEFT:
       buildIdx = 1;
@@ -432,6 +440,9 @@ static void hJoinSetBuildAndProbeTable(SHJoinOperatorInfo* pInfo, SHashJoinPhysi
     pInfo->pBuild->primExpr = pJoinNode->rightPrimExpr;
     pInfo->pProbe->primExpr = pJoinNode->leftPrimExpr;
   }
+
+  pInfo->pBuild->type = E_JOIN_TB_BUILD;
+  pInfo->pProbe->type = E_JOIN_TB_PROBE;  
 }
 
 static int32_t hJoinBuildResColsMap(SHJoinOperatorInfo* pInfo, SHashJoinPhysiNode* pJoinNode) {
@@ -974,7 +985,7 @@ static int32_t hJoinAddBlockRowsToHash(SSDataBlock* pBlock, SHJoinOperatorInfo* 
   return code;
 }
 
-static int32_t hJoinBuildHash(struct SOperatorInfo* pOperator, bool* queryDone) {
+static int32_t hJoinBuildHash(struct SOperatorInfo* pOperator, bool* returnDirect) {
   SHJoinOperatorInfo* pJoin = pOperator->info;
   SSDataBlock*        pBlock = NULL;
   int32_t             code = TSDB_CODE_SUCCESS;
@@ -994,12 +1005,21 @@ static int32_t hJoinBuildHash(struct SOperatorInfo* pOperator, bool* queryDone) 
     }
   }
 
-  if (IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType) && tSimpleHashGetSize(pJoin->pKeyHash) <= 0) {
-    hJoinSetDone(pOperator);
-    *queryDone = true;
+  if (tSimpleHashGetSize(pJoin->pKeyHash) <= 0) {
+    if (IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType) || IS_SEMI_JOIN(pJoin->subType)) {
+      hJoinSetDone(pOperator);
+      *returnDirect = true;
+    }
+    
+    tSimpleHashCleanup(pJoin->pKeyHash);
+    pJoin->pKeyHash = NULL;
   }
   
-  //qTrace("build table rows:%" PRId64, hJoinGetRowsNumOfKeyHash(pJoin->pKeyHash));
+#if 0  
+  qTrace("build table rows:%" PRId64, hJoinGetRowsNumOfKeyHash(pJoin->pKeyHash));
+#endif
+
+  pJoin->keyHashBuilt = true;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1008,6 +1028,17 @@ static int32_t hJoinPrepareStart(struct SOperatorInfo* pOperator, SSDataBlock* p
   SHJoinOperatorInfo* pJoin = pOperator->info;
   SHJoinTableCtx* pProbe = pJoin->pProbe;
   int32_t startIdx = 0, endIdx = pBlock->info.rows - 1;
+
+  if (NULL == pJoin->pKeyHash) {
+    pJoin->ctx.probeEndIdx = -1;
+    pJoin->ctx.probePostIdx = 0;
+    pJoin->ctx.pProbeData = pBlock;
+    pJoin->ctx.rowRemains = true;
+    pJoin->ctx.probePhase = E_JOIN_PHASE_POST;
+    
+    return (*pJoin->joinFp)(pOperator);
+  }
+  
   if (pProbe->hasTimeRange && !hJoinFilterTimeRange(&pJoin->ctx, pBlock, &pJoin->tblTimeRange, pProbe->primCol->srcSlot, &startIdx, &endIdx)) {
     if (IS_NEED_NMATCH_JOIN(pJoin->joinType, pJoin->subType)) {
       pJoin->ctx.probeEndIdx = -1;
@@ -1089,19 +1120,17 @@ static int32_t hJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** p
     goto _end;
   }
 
-  if (!pJoin->keyHashBuilt) {
-    pJoin->keyHashBuilt = true;
+  blockDataCleanup(pRes);
 
-    bool queryDone = false;
-    code = hJoinBuildHash(pOperator, &queryDone);
+  if (!pJoin->keyHashBuilt) {
+    bool returnDirect = false;
+    code = (*pJoin->buildFp)(pOperator, &returnDirect);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    if (queryDone) {
+    if (returnDirect) {
       goto _end;
     }
   }
-
-  blockDataCleanup(pRes);
   
   while (true) {
     if (pJoin->ctx.midRemains) {
@@ -1301,10 +1330,10 @@ int32_t createHashJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDow
   
   setOperatorInfo(pOperator, "HashJoinOperator", QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN, false, OP_NOT_OPENED, pInfo, pTaskInfo);
 
+  hJoinSetBuildAndProbeTable(pInfo, pJoinNode);
+
   HJ_ERR_JRET(hJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 0, &pJoinNode->inputStat[0]));
   HJ_ERR_JRET(hJoinInitTableInfo(pInfo, pJoinNode, pDownstream, 1, &pJoinNode->inputStat[1]));
-
-  hJoinSetBuildAndProbeTable(pInfo, pJoinNode);
   
   HJ_ERR_JRET(hJoinBuildResColsMap(pInfo, pJoinNode));
 

@@ -239,6 +239,60 @@ SJoinTestCtrl jtCtrl = {1, 1, 1, 0, 0};
 SJoinTestStat jtStat = {0};
 SJoinTestResInfo jtRes = {0};
 
+void jtBuildDataCol(SColumnInfoData* pCol, int32_t rows, int32_t type, int32_t colBytes, bool varData, bool hasNull, bool reassign) {
+  pCol->hasNull = hasNull;
+  pCol->reassigned = reassign;
+  pCol->info.type = type;
+  pCol->info.bytes = colBytes;
+  pCol->pData = taosMemCalloc(rows, colBytes);
+  if (varData) {
+    pCol->varmeta.allocLen = rows * colBytes;
+    pCol->varmeta.length = 0;
+    pCol->varmeta.offset = taosMemCalloc(rows, sizeof(*pCol->varmeta.offset));
+    char* pVal = taosMemoryMalloc(colBytes);
+    *(int16_t*)pVal = colBytes;
+    int32_t pLastOff = -1;
+    for(int32_t i = 0; i < rows; ++i) {
+      if (hasNull && taosRand() % 2) {
+        pCol->varmeta.offset[i] = -1;
+      } else if (reassign && 0 == (taosRand() % 5) && pLastOff >= 0) { 
+        pCol->varmeta.offset[i] = pLastOff;
+      } else {
+        memcpy(pCol->pData + pCol->varmeta.length, pVal, colBytes);
+        pCol->varmeta.offset[i] = pCol->varmeta.length;
+        pLastOff = pCol->varmeta.offset[i];
+        pCol->varmeta.length += colBytes;
+      }
+    }
+    taosMemoryFree(pVal);
+  } else {
+    pCol->nullbitmap = taosMemoryCalloc(1, BitmapLen(rows));
+    int64_t p;
+    for(int32_t i = 0; i < rows; ++i) {
+      if (hasNull && taosRand() % 2) {
+        pCol->varmeta.offset[i] = -1;
+        colDataSetNull_f(pCol->nullbitmap, i);
+      } else {
+        memcpy(pCol->pData + i * colBytes, &p, colBytes);
+      }
+    }
+  }
+  
+}
+
+void jtResetDataCol(SColumnInfoData* pCol, int32_t rows, int32_t type, int32_t colBytes, bool varData, bool hasNull, bool reassign) {
+  pCol->info.type = type;
+  pCol->info.bytes = colBytes;
+  if (varData) {
+    taosMemoryFreeClear(pCol->pData);
+    pCol->varmeta.offset = taosMemoryRealloc(pCol->varmeta.offset, rows * sizeof(*pCol->varmeta.offset));
+    pCol->varmeta.length = 0;
+    pCol->varmeta.allocLen = 0;
+  } else {
+    pCol->pData = taosMemoryRealloc(pCol->pData, rows * colBytes);
+    pCol->nullbitmap = taosMemoryRealloc(pCol->nullbitmap, BitmapLen(rows));
+  }
+}
 
 
 void printResRow(char* value, int32_t type) {
@@ -3462,8 +3516,8 @@ void createBothBlkRowsData(void) {
   SSDataBlock* pLeft = NULL;
   SSDataBlock* pRight = NULL;
 
-  jtCtx.leftTotalRows = taosRand() % jtCtx.leftMaxRows;
-  jtCtx.rightTotalRows = taosRand() % jtCtx.rightMaxRows;
+  jtCtx.leftTotalRows = jtCtx.leftMaxRows * 0.5 + taosRand() % ((int32_t)(jtCtx.leftMaxRows * 0.5));
+  jtCtx.rightTotalRows = jtCtx.rightMaxRows * 0.5 + taosRand() % ((int32_t)(jtCtx.rightMaxRows * 0.5));
 
   int32_t minTotalRows = TMIN(jtCtx.leftTotalRows, jtCtx.rightTotalRows);
   int32_t maxTotalRows = TMAX(jtCtx.leftTotalRows, jtCtx.rightTotalRows);
@@ -4163,8 +4217,8 @@ void runSingleHJoinTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
   SHashJoinPhysiNode* pNode = createDummyHashJoinPhysiNode(param);    
-  createDummyBlkList(10, 10, 10, 10, 3);
-//  createDummyBlkList(1000, 1000, 1000, 1000, 100);
+//  createDummyBlkList(10, 10, 10, 10, 3);
+  createDummyBlkList(1000, 1000, 1000, 1000, 100);
   
   while (contLoop) {
     rerunBlockedHere();
@@ -5325,6 +5379,33 @@ TEST(functionsTest, branch) {
   hInnerJoinDo(&op);
 }
 #endif
+
+
+#if 1
+TEST(jtPerfTest, copyRows) {
+  SSDataBlock blk = {0};
+  SColumnInfoData src = {0}, dst = {0};
+  int32_t rows = 10000, times = 10000;
+  int32_t totalRows = rows * times;
+  bool varData = true, hasNull = true, reassign = false;
+
+  jtBuildDataCol(&src, rows, TSDB_DATA_TYPE_BINARY, 50, varData, hasNull, reassign);
+  jtResetDataCol(&dst, rows, TSDB_DATA_TYPE_BINARY, 50, varData, hasNull, reassign);
+
+  for (int32_t rrows = 1; rrows <= rows; rrows *= 10) {
+    int32_t rtimes = totalRows / rrows;
+    int64_t startUs1 = taosGetTimestampUs();
+    for (int32_t i = 0; i < rtimes; ++i) {
+      colDataAssignNRows(&dst, rrows * i, &src, rrows * i, rrows);
+      jtResetDataCol(&dst, rows, TSDB_DATA_TYPE_BINARY, 50, varData, hasNull, reassign);
+    }
+    int64_t endUs1 = taosGetTimestampUs();
+
+  }
+
+}
+#endif
+
 
 
 int main(int argc, char** argv) {
