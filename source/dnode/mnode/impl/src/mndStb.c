@@ -1404,13 +1404,6 @@ _OVER:
   tFreeSMCreateStbReq(&createReq);
 
   if (pHash != NULL) {
-    pIter = taosHashIterate(pHash, NULL);
-    while (pIter) {
-      STablesReq *pDb = (STablesReq *)pIter;
-      taosArrayDestroy(pDb->pTables);
-      pIter = taosHashIterate(pHash, pIter);
-    }
-
     taosHashCleanup(pHash);
   }
 
