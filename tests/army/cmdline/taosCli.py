@@ -110,7 +110,7 @@ class TDTestCase(TBase):
         rlist2 = self.taos("--version")
 
         self.checkSame(rlist1, rlist2)
-        self.checkSame(len(rlist1), 4)
+        self.checkSame(len(rlist1), 5)
 
         if len(rlist1[2]) < 42:
             tdLog.exit("git commit id length is invalid: " + rlist1[2])
