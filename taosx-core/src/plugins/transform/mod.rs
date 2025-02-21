@@ -3137,7 +3137,7 @@ mod parser_tests {
             ("ts", timestamps),
             ("value", values),
         ])?;
-        let (tx, _rx) = flume::bounded(0);
+        let (tx, _rx) = flume::bounded(10);
 
         let message = parser.parse_message_from_records(&batch, false, tx)?;
         let Message::Records(mut records) = message else {
@@ -3302,7 +3302,7 @@ mod parser_tests {
             ("ts", timestamps),
             ("value", values),
         ])?;
-        let (tx, _rx) = flume::bounded(0);
+        let (tx, _rx) = flume::bounded(10);
 
         let message = parser.parse_message_from_records(&batch, false, tx)?;
         let Message::Records(mut records) = message else {
@@ -3555,7 +3555,7 @@ mod parser_tests {
             ("value1", values_1, true),
             ("value2", values_2, true),
         ])?;
-        let (tx, _rx) = flume::bounded(0);
+        let (tx, _rx) = flume::bounded(10);
 
         let message = parser.parse_message_from_records(&batch, false, tx)?;
         let Message::Records(mut records) = message else {
@@ -3750,7 +3750,7 @@ mod parser_tests {
             }
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
-        let (tx, _rx) = flume::bounded(0);
+        let (tx, _rx) = flume::bounded(10);
 
         // test1: normal
         let record = RecordBatch::try_from_iter([
@@ -3829,7 +3829,7 @@ mod parser_tests {
         let record = RecordBatch::try_from_iter([
             (
                 "ts",
-                Arc::new(TimestampNanosecondArray::from(vec![None])) as ArrayRef,
+                Arc::new(TimestampNanosecondArray::from(vec![1])) as ArrayRef,
             ),
             (
                 "str1",
@@ -3838,7 +3838,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        let (tx, _rx) = flume::bounded(0);
+        let (tx, _rx) = flume::bounded(10);
 
         // test1: archive
         let parser = r#"{
@@ -3965,7 +3965,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        let (tx, _rx) = flume::bounded(0);
+        let (tx, _rx) = flume::bounded(10);
 
         // test1: archive
         let parser = r#"{
@@ -4116,7 +4116,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        let (tx, _rx) = flume::bounded(0);
+        let (tx, _rx) = flume::bounded(10);
 
         // test1: skip
         let parser = r#"{
@@ -4202,7 +4202,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1, 2])) as ArrayRef),
         ])
         .unwrap();
-        let (tx, _rx) = flume::bounded(0);
+        let (tx, _rx) = flume::bounded(10);
 
         // test1: use current time
         let parser = r#"{
@@ -4244,7 +4244,7 @@ mod parser_tests {
             ("int1", Arc::new(Int32Array::from(vec![1, 2])) as ArrayRef),
         ])
         .unwrap();
-        let (tx, _rx) = flume::bounded(0);
+        let (tx, _rx) = flume::bounded(10);
 
         // test1: columns empty, use the others not in tags & skip
         let parser = r#"{
@@ -4362,7 +4362,7 @@ mod parser_tests {
             )
         )
         .unwrap();
-        let (tx, _rx) = flume::bounded(0);
+        let (tx, _rx) = flume::bounded(10);
 
         let records = parser
             .parse_message_from_records(&raw_data, true, tx.clone())
@@ -4449,7 +4449,7 @@ mod test {
             )
         )
         .unwrap();
-        let (tx, _rx) = flume::bounded(0);
+        let (tx, _rx) = flume::bounded(10);
 
         let records = parser
             .parse_message_from_records(&raw_data, false, tx.clone())

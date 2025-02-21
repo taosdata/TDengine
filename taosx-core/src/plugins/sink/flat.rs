@@ -1362,6 +1362,7 @@ pub async fn flat_write_with_raw_block(
                 let errno: i32 = code.into();
                 write_retries += 1;
                 if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
+                    // TODO1
                     tracing::warn!(
                         "flat message write raw block encounter unrecoverable err: {err:#}"
                     );
@@ -1635,7 +1636,7 @@ pub async fn flat_write_with_raw_block(
                     // 0x000B: unable to establish connection
                     match global
                         .process_on_abnormal
-                        .primary_timestamp_overflow
+                        .database_connection_error
                         .handle(format!("{err:#}"))
                     {
                         Ok((HandlingResult::Skip, _)) => {
@@ -1997,6 +1998,84 @@ impl FlatSink {
                                         );
                                         if sender.send(written).is_err() {
                                             // tracing::warn!("send written failed");
+                                        }
+                                    } else if errstr.contains("connection has been lost")
+                                        || errstr.contains("reconnect failed")
+                                        || errstr.contains("reconnection cancelled")
+                                    {
+                                        match parser
+                                            .global()
+                                            .process_on_abnormal
+                                            .database_connection_error
+                                            .handle(errstr)
+                                        {
+                                            Ok((HandlingResult::Skip, _)) => {
+                                                continue;
+                                            }
+                                            Ok((HandlingResult::Archive, err)) => {
+                                                messages.iter().for_each(|m| {
+                                                    if let Err(e) = process_archive(
+                                                        err.clone(),
+                                                        &m.records,
+                                                        archive_tx.clone(),
+                                                    ) {
+                                                        tracing::error!("archive error: {e:#}");
+                                                    }
+                                                });
+                                                continue;
+                                            }
+                                            Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+                                            Ok((HandlingResult::ModifyAndArchive(_), _)) => {
+                                                unreachable!()
+                                            }
+                                            Ok((HandlingResult::Retry, _)) => {
+                                                tokio::time::sleep(Duration::from_secs(1)).await;
+                                                let written = if factor < 200 {
+                                                    flat_write_with_sql(
+                                                        &pool,
+                                                        &mut taos,
+                                                        target_precision,
+                                                        &messages,
+                                                        metrics,
+                                                        Some(&notifier),
+                                                        &cancel,
+                                                        parser.global(),
+                                                        archive_tx.clone(),
+                                                    )
+                                                    .in_current_span()
+                                                    .await
+                                                } else {
+                                                    flat_write_with_raw_block(
+                                                        &pool,
+                                                        &mut taos,
+                                                        &mut max_lengths,
+                                                        &parser,
+                                                        target_precision,
+                                                        &messages,
+                                                        metrics,
+                                                        Some(&notifier),
+                                                        &cancel,
+                                                        parser.global(),
+                                                        archive_tx.clone(),
+                                                    )
+                                                    .in_current_span()
+                                                    .await
+                                                }?;
+                                                total += written;
+                                                metrics.add_processed_rows(num_of_rows as u64);
+
+                                                tracing::debug!(
+                                                    count = total,
+                                                    written,
+                                                    "flat write in sink worker"
+                                                );
+                                                if sender.send(written).is_err() {
+                                                    // tracing::warn!("send written failed");
+                                                }
+                                            }
+                                            Err(e) => {
+                                                return Err(e)?;
+                                            }
                                         }
                                     } else {
                                         return Err(err);
