@@ -1328,6 +1328,8 @@ static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {
   int32_t size = taosArrayGetSize(pList);
   if (size == 0) {
     taosArrayDestroy(pList);
+    taosArrayDestroy(pLongChkpts);
+
     return code;
   }
 
@@ -1340,6 +1342,8 @@ static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {
         "checkpoint trans are not allowed, wait for 30s",
         numOfQual, tsStreamCheckpointInterval, numOfCheckpointTrans, tsMaxConcurrentCheckpoint);
     taosArrayDestroy(pList);
+    taosArrayDestroy(pLongChkpts);
+
     return code;
   }
 
@@ -1379,6 +1383,8 @@ static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {
   }
 
   taosArrayDestroy(pList);
+  taosArrayDestroy(pLongChkpts);
+
   return code;
 }
 
