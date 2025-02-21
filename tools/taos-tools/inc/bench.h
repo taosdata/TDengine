@@ -781,10 +781,12 @@ typedef struct SArguments_S {
     bool                escape_character;
     bool                pre_load_tb_meta;
 
-    char*               csv_output_dir;
+    char*               csv_output_path;
+    char                csv_output_path_buf[MAX_PATH_LEN];
     char*               csv_file_prefix;
     char*               csv_ts_format;
     char*               csv_ts_interval;
+    long                csv_ts_intv_secs;
 
     bool                bind_vgroup;
 } SArguments;
