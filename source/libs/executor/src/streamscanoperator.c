@@ -356,20 +356,67 @@ _end:
   return code;
 }
 
-static int32_t buildRecalculateData(SSDataBlock* pSrcBlock, TSKEY* pTsCol, SColumnInfoData* pPkColDataInfo,
-                                    SSDataBlock* pDestBlock, int32_t num, SPartitionBySupporter* pParSup,
-                                    SExprSupp* pPartScalarSup) {
+static uint64_t getCurDataGroupId(SPartitionBySupporter* pParSup, SExprSupp* pPartScalarSup, SSDataBlock* pSrcBlock, int32_t rowId) {
+  if (pParSup->needCalc) {
+    return calGroupIdByData(pParSup, pPartScalarSup, pSrcBlock, rowId);
+  }
+
+  return pSrcBlock->info.id.groupId;
+}
+
+static uint64_t getDataGroupIdByCol(SSteamOpBasicInfo* pBasic, SOperatorInfo* pTableScanOp,
+                                    SPartitionBySupporter* pParSup, SExprSupp* pPartScalarSup, uint64_t uid, TSKEY ts,
+                                    int64_t maxVersion, void* pVal, bool* pRes) {
+  SSDataBlock* pPreRes = readPreVersionData(pTableScanOp, uid, ts, ts, maxVersion);
+  if (!pPreRes || pPreRes->info.rows == 0) {
+    if (terrno != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+    }
+    (*pRes) = false;
+    return 0;
+  }
+
+  int32_t rowId = 0;
+  if (hasSrcPrimaryKeyCol(pBasic)) {
+    SColumnInfoData* pPkCol = taosArrayGet(pPreRes->pDataBlock, pBasic->primaryPkIndex);
+    for (; rowId < pPreRes->info.rows; rowId++) {
+      if (comparePrimaryKey(pPkCol, rowId, pVal)) {
+        break;
+      }
+    }
+  }
+  if (rowId >= pPreRes->info.rows) {
+    qInfo("===stream===read preversion data of primary key failed. ts:%" PRId64 ",version:%" PRId64, ts, maxVersion);
+    (*pRes) = false;
+    return 0;
+  }
+  (*pRes) = true;
+  return calGroupIdByData(pParSup, pPartScalarSup, pPreRes, rowId);
+}
+
+static int32_t buildRecalculateData(SSteamOpBasicInfo* pBasic, SOperatorInfo* pTableScanOp,
+                                    SPartitionBySupporter* pParSup, SExprSupp* pPartScalarSup, SSDataBlock* pSrcBlock,
+                                    TSKEY* pTsCol, SColumnInfoData* pPkColDataInfo, SSDataBlock* pDestBlock,
+                                    int32_t num) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   blockDataEnsureCapacity(pDestBlock, num * 2);
   for (int32_t rowId = 0; rowId < num; rowId++) {
-    uint64_t gpId = 0;
+    uint64_t gpId = getCurDataGroupId(pParSup, pPartScalarSup, pSrcBlock, rowId);
     code = appendPkToSpecialBlock(pDestBlock, pTsCol, pPkColDataInfo, rowId, &pSrcBlock->info.id.uid, &gpId, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
     if (pParSup->needCalc) {
-      gpId = calGroupIdByData(pParSup, pPartScalarSup, pSrcBlock, rowId);
-      code = appendPkToSpecialBlock(pDestBlock, pTsCol, pPkColDataInfo, rowId, &pSrcBlock->info.id.uid, &gpId, NULL);
-      QUERY_CHECK_CODE(code, lino, _end);
+      bool  res = false;
+      void* pVal = NULL;
+      if (hasSrcPrimaryKeyCol(pBasic)) {
+        pVal = colDataGetData(pPkColDataInfo, rowId);
+      }
+      gpId = getDataGroupIdByCol(pBasic, pTableScanOp, pParSup, pPartScalarSup, pSrcBlock->info.id.uid, pTsCol[rowId],
+                                 pSrcBlock->info.version - 1, pVal, &res);
+      if (res == true) {
+        code = appendPkToSpecialBlock(pDestBlock, pTsCol, pPkColDataInfo, rowId, &pSrcBlock->info.id.uid, &gpId, NULL);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
     }
   }
 
@@ -499,8 +546,8 @@ static int32_t doStreamWALScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
                 ", block start key:%" PRId64 ", end key:%" PRId64,
                 GET_TASKID(pTaskInfo), num, pInfo->pRes->info.id.uid, curTs, pInfo->pRes->info.window.skey,
                 pInfo->pRes->info.window.ekey);
-          code = buildRecalculateData(pInfo->pRes, (TSKEY*)pTsCol->pData, pPkColDataInfo, pInfo->pUpdateRes, num, &pInfo->partitionSup,
-                                      pInfo->pPartScalarSup);
+          code = buildRecalculateData(&pInfo->basic, pInfo->pTableScanOp, &pInfo->partitionSup, pInfo->pPartScalarSup,
+                                      pInfo->pRes, (TSKEY*)pTsCol->pData, pPkColDataInfo, pInfo->pUpdateRes, num);
           QUERY_CHECK_CODE(code, lino, _end);
           code = blockDataTrimFirstRows(pInfo->pRes, num);
           QUERY_CHECK_CODE(code, lino, _end);
@@ -765,38 +812,11 @@ _end:
   return code;
 }
 
-static uint64_t getDataGroupIdByCol(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, int64_t maxVersion, void* pVal,
-                                    bool* pRes) {
-  SSDataBlock* pPreRes = readPreVersionData(pInfo->pTableScanOp, uid, ts, ts, maxVersion);
-  if (!pPreRes || pPreRes->info.rows == 0) {
-    if (terrno != TSDB_CODE_SUCCESS) {
-      qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
-    }
-    (*pRes) = false;
-    return 0;
-  }
-
-  int32_t rowId = 0;
-  if (hasSrcPrimaryKeyCol(&pInfo->basic)) {
-    SColumnInfoData* pPkCol = taosArrayGet(pPreRes->pDataBlock, pInfo->basic.primaryPkIndex);
-    for (; rowId < pPreRes->info.rows; rowId++) {
-      if (comparePrimaryKey(pPkCol, rowId, pVal)) {
-        break;
-      }
-    }
-  }
-  if (rowId >= pPreRes->info.rows) {
-    qInfo("===stream===read preversion data of primary key failed. ts:%" PRId64 ",version:%" PRId64, ts, maxVersion);
-    (*pRes) = false;
-    return 0;
-  }
-  return calGroupIdByData(&pInfo->partitionSup, pInfo->pPartScalarSup, pPreRes, rowId);
-}
-
 static uint64_t getDataGroupId(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, int64_t maxVersion, void* pVal,
                                bool* pRes) {
   if (pInfo->partitionSup.needCalc) {
-    return getDataGroupIdByCol(pInfo, uid, ts, maxVersion, pVal, pRes);
+    return getDataGroupIdByCol(&pInfo->basic, pInfo->pTableScanOp, &pInfo->partitionSup, pInfo->pPartScalarSup, uid, ts,
+                               maxVersion, pVal, pRes);
   }
 
   *pRes = true;
@@ -862,8 +882,7 @@ static int32_t generateIntervalDataScanRange(SStreamScanInfo* pInfo, char* pTask
 
   int64_t ver = pRecData->dataVersion - 1;
 
-  if (pInfo->partitionSup.needCalc && (pSeKey->win.skey != pSeKey->win.ekey ||
-                                       (hasSrcPrimaryKeyCol(&pInfo->basic) && pRecData->mode == STREAM_DELETE_DATA))) {
+  if (pInfo->partitionSup.needCalc && pRecData->mode == STREAM_RECALCULATE_DELETE) {
     code = readPreVersionDataBlock(pRecData->tableUid, pSeKey->win.skey, pSeKey->win.ekey, ver, pTaskIdStr, pInfo,
                                    pInfo->pUpdateRes);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -956,8 +975,10 @@ static int32_t doOneRangeScan(SStreamScanInfo* pInfo, SScanRange* pRange, SSData
     if (pResult->info.rows == 0) {
       continue;
     }
-    if (!pInfo->scanAllTables) {
-      pResult->info.id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pResult->info.id.uid);
+
+    printDataBlock(pResult, "tsdb", GET_TASKID(pScanOp->pTaskInfo));
+    if (!pInfo->assignBlockUid) {
+      pResult->info.id.groupId = 0;
     }
 
     if (pInfo->partitionSup.needCalc) {
@@ -1606,6 +1627,7 @@ int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNo
   pInfo->curRange = (SScanRange){0};
   pInfo->scanAllTables = false;
   pInfo->hasPart = false;
+  pInfo->assignBlockUid = groupbyTbname(pInfo->pGroupTags);
 
   code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
   QUERY_CHECK_CODE(code, lino, _error);

@@ -354,6 +354,7 @@ void streamFileStateDestroy(SStreamFileState* pFileState) {
   pFileState->stateBuffCleanupFn(pFileState->rowStateBuff);
   sessionWinStateCleanup(pFileState->searchBuff);
   tSimpleHashCleanup(pFileState->pGroupIdMap);
+  tSimpleHashCleanup(pFileState->pRecFlagMap);
   taosMemoryFree(pFileState);
 }
 

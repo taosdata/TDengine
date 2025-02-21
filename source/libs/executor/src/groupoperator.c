@@ -1507,6 +1507,10 @@ static int32_t doStreamHashPartitionNext(SOperatorInfo* pOperator, SSDataBlock**
         (*ppRes) = pInfo->pDelRes;
         return code;
       } break;
+      case STREAM_RECALCULATE_DATA:
+      case STREAM_RECALCULATE_DELETE:
+      case STREAM_RECALCULATE_START:
+      case STREAM_RECALCULATE_END:
       case STREAM_CREATE_CHILD_TABLE:
       case STREAM_RETRIEVE:
       case STREAM_CHECKPOINT:
