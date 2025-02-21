@@ -887,7 +887,7 @@ _exit:
   taosArrayDestroy(colValArray);
   return code;
 }
-int32_t tRowGet2AndSetSeq(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal, uint64_t seq) {
+int32_t tRowSetBlobSeq(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal, uint64_t seq) {
   if (!(iCol < pTSchema->numOfCols)) return TSDB_CODE_INVALID_PARA;
   if (!(pRow->sver == pTSchema->version)) return TSDB_CODE_INVALID_PARA;
 

@@ -596,8 +596,9 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 }
 
 static int32_t inline updateSubmitData(SSubmitTbData *pSubmitTbData, STSchema *pTSchema, SVnode *pVnode) {
-  int32_t code = 0;
-  int32_t lino = 0;
+  int32_t  code = 0;
+  int32_t  lino = 0;
+  uint64_t seq = 0;
   if (taosArrayGetSize(pSubmitTbData->aRowP) != taosArrayGetSize(pSubmitTbData->aBlobRow)) {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
@@ -614,21 +615,30 @@ static int32_t inline updateSubmitData(SSubmitTbData *pSubmitTbData, STSchema *p
       if (IS_STR_DATA_BLOB(pTColumn->type)) {
         int32_t  len = 0;
         uint64_t offset = 0;
+        SColVal  colVal = {0};
+
         if (idx == 0) {
           len = *(uint64_t *)taosArrayGet(pOffset, idx);
         } else {
           len = *(uint64_t *)taosArrayGet(pOffset, idx) - (*(uint64_t *)taosArrayGet(pOffset, idx - 1));
           offset = *(uint64_t *)taosArrayGet(pOffset, idx - 1);
         }
-        uint64_t seq = 0;
+
         code = bseAppend(pVnode->pBse, &seq, data + offset, len);
-        SColVal colVal = {0};
-        tRowGet2AndSetSeq(*pRow, pTSchema, j, &colVal, seq);
+        if (code) {
+          TAOS_CHECK_EXIT(code);
+        }
+
+        tRowSetBlobSeq(*pRow, pTSchema, j, &colVal, seq);
+
         idx++;
       }
     }
   }
 _exit:
+  if (code != 0) {
+    vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
   return code;
 }
 // static int32_t inline rewriteSubmitData(SVnode *pVnode, SDecoder *pCoder, SSubmitTbData *pSubmitTbData) {
