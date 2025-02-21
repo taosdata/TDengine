@@ -56,6 +56,7 @@ typedef struct STaskStatusEntry {
   int64_t       startCheckpointVer;
   int64_t       hTaskId;
   STaskCkptInfo checkpointInfo;
+  STaskNotifyEventStat notifyEventStat;
 } STaskStatusEntry;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamUpstreamEpInfo* pInfo) {
@@ -523,6 +524,19 @@ int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq) {
     TAOS_CHECK_EXIT(tEncodeI64(pEncoder, ps->startCheckpointId));
     TAOS_CHECK_EXIT(tEncodeI64(pEncoder, ps->startCheckpointVer));
     TAOS_CHECK_EXIT(tEncodeI64(pEncoder, ps->hTaskId));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, ps->notifyEventStat.notifyEventAddTimes));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, ps->notifyEventStat.notifyEventAddElems));
+    TAOS_CHECK_EXIT(tEncodeDouble(pEncoder, ps->notifyEventStat.notifyEventAddCostSec));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, ps->notifyEventStat.notifyEventPushTimes));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, ps->notifyEventStat.notifyEventPushElems));
+    TAOS_CHECK_EXIT(tEncodeDouble(pEncoder, ps->notifyEventStat.notifyEventPushCostSec));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, ps->notifyEventStat.notifyEventPackTimes));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, ps->notifyEventStat.notifyEventPackElems));
+    TAOS_CHECK_EXIT(tEncodeDouble(pEncoder, ps->notifyEventStat.notifyEventPackCostSec));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, ps->notifyEventStat.notifyEventSendTimes));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, ps->notifyEventStat.notifyEventSendElems));
+    TAOS_CHECK_EXIT(tEncodeDouble(pEncoder, ps->notifyEventStat.notifyEventSendCostSec));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, ps->notifyEventStat.notifyEventHoldElems));
   }
 
   int32_t numOfVgs = taosArrayGetSize(pReq->pUpdateNodes);
@@ -595,6 +609,20 @@ int32_t tDecodeStreamHbMsg(SDecoder* pDecoder, SStreamHbMsg* pReq) {
     TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &entry.startCheckpointId));
     TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &entry.startCheckpointVer));
     TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &entry.hTaskId));
+
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &entry.notifyEventStat.notifyEventAddTimes));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &entry.notifyEventStat.notifyEventAddElems));
+    TAOS_CHECK_EXIT(tDecodeDouble(pDecoder, &entry.notifyEventStat.notifyEventAddCostSec));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &entry.notifyEventStat.notifyEventPushTimes));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &entry.notifyEventStat.notifyEventPushElems));
+    TAOS_CHECK_EXIT(tDecodeDouble(pDecoder, &entry.notifyEventStat.notifyEventPushCostSec));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &entry.notifyEventStat.notifyEventPackTimes));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &entry.notifyEventStat.notifyEventPackElems));
+    TAOS_CHECK_EXIT(tDecodeDouble(pDecoder, &entry.notifyEventStat.notifyEventPackCostSec));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &entry.notifyEventStat.notifyEventSendTimes));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &entry.notifyEventStat.notifyEventSendElems));
+    TAOS_CHECK_EXIT(tDecodeDouble(pDecoder, &entry.notifyEventStat.notifyEventSendCostSec));
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &entry.notifyEventStat.notifyEventHoldElems));
 
     entry.id.taskId = taskId;
     if (taosArrayPush(pReq->pTaskStatus, &entry) == NULL) {
