@@ -930,7 +930,7 @@ int32_t setNullSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32
 
     SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
     if (NULL == pDstCol) {
-      return TSDB_CODE_OUT_OF_RANGE;
+      return terrno;
     }
     colDataSetNULL(pDstCol, rowIndex);
   }
@@ -964,7 +964,7 @@ int32_t setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STu
 
       SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
       if (NULL == pDstCol) {
-        return TSDB_CODE_OUT_OF_RANGE;
+        return terrno;
       }
       if (nullList[j]) {
         colDataSetNULL(pDstCol, rowIndex);
