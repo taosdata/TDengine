@@ -78,6 +78,13 @@ class TDTestCase(TBase):
         # last line
         self.checkSame(rlist[idx][:len(result)], result)
 
+    def checkDumpInOut(self, db, stb, insertRows):
+        self.taos(f'-s "select * from {db}.d0 >>d0.csv" ')
+        #self.taos(f'-s "delete from {db}.d0" ')
+        #self.taos(f'-s "insert into {db}.d0 file d0.out " ')
+        #sql = f"select count(*) from {db}.d0"
+        #tdSql.checkAgg(sql, insertRows)
+    
     def checkBasic(self):
         tdLog.info(f"check describe show full.")
 
@@ -85,25 +92,67 @@ class TDTestCase(TBase):
         json = "cmdline/json/taosCli.json"
         db, stb, childCount, insertRows = self.insertBenchJson(json)
 
+        # native restful websock test
         args = [
             ["",   18, 346, -2, 310], 
-            ["-R", 22, 350, -3, 313],
-            ["-E http://localhost:6041", 21, 349, -3, 312]
+            ["-R -r", 22, 350, -3, 313],
+            ["-T 40 -E http://localhost:6041", 21, 349, -3, 312]
         ]
         for arg in args:
             self.checkResultWithMode(db, stb, arg)
+
+        # dump in/out
+        self.checkDumpInOut(db, stb, insertRows)
+
+
+    def checkVersion(self):
+        rlist1 = self.taos("-V")
+        rlist2 = self.taos("--version")
+
+        self.checkSame(rlist1, rlist2)
+        self.checkSame(len(rlist1), 4)
+
+        if len(rlist1[2]) < 42:
+            tdLog.exit("git commit id length is invalid: " + rlist1[2])
+
+
+    def checkHelp(self):
+        # help
+        rlist1 = self.taos("--help")
+        rlist2 = self.taos("-?")
+        self.checkSame(rlist1, rlist2)
+
+        # check return 
+        strings = [
+            "--auth=AUTH",
+            "--database=DATABASE",
+            "--version",
+            " --help"
+        ]
+        for string in strings:
+            self.checkListString(rlist1, string)
+    
+    def checkCommand(self):
+        self.taos(' -uroot -w 40 -ptaosdata -c /root/taos/ -s"show databases"')
 
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
 
-        # check basic
-        self.checkBasic()
-
         # check show whole
         self.checkDescribe()
 
-        # full types show
+        # check basic
+        self.checkBasic()
+
+        # version
+        self.checkVersion()
+
+        # help
+        self.checkHelp()
+
+        # check command
+        self.checkCommand()
 
 
         tdLog.success(f"{__file__} successfully executed")
