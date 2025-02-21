@@ -170,7 +170,7 @@ export default {
           return;
         }
       } else {
-        if (!(this.checkPhone(value) || this.checkEmail(value))) {
+        if (!this.checkEmail(value)) {
           callback(new Error(this.$t("register.emailTips")));
           return;
         }
@@ -482,7 +482,7 @@ export default {
       return /^1[3456789]\d{9}$/.test(val)
     },
     checkEmail(val) {
-      return /^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/.test(val)
+      return /^[a-zA-Z0-9_.-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$/.test(val)
     },
 
     async handlerCaptcha() {
