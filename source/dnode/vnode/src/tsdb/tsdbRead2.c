@@ -1100,6 +1100,7 @@ static int32_t doGetValueFromBseBySeq(void* arg, uint8_t* pKey, int32_t keyLen, 
   int32_t  lino = 0;
   uint64_t seq = 0;
   if (arg == NULL) {
+    tsdbError("failed to get value from bse by seq since %s", tstrerror(TSDB_CODE_INVALID_PARA));
     return TSDB_CODE_INVALID_PARA;
   }
 
