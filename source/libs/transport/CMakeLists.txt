@@ -1,5 +1,18 @@
-aux_source_directory(src TRANSPORT_SRC)
-add_library(transport STATIC ${TRANSPORT_SRC})
+add_library(transport STATIC "")
+set(
+    TRANSPORT_SOURCE_FILES
+    "src/thttp.c"
+    "src/tmsgcb.c"
+    "src/trans.c"
+    "src/transCli.c"
+    "src/transComm.c"
+    "src/transSvr.c"
+)
+target_sources(
+    transport
+    PRIVATE
+    ${TRANSPORT_SOURCE_FILES}
+)
 target_include_directories(
   transport
   PUBLIC "${TD_SOURCE_DIR}/include/libs/transport"
