@@ -435,7 +435,45 @@ pub async fn write(
     archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<(usize, Duration, Duration)> {
     let table_break_points = get_break_point(&messages, table_id_column);
-    let mut taos = Some(pool.get().await.context("Target connection error")?);
+    // connect to the target database
+    let taos = loop {
+        match pool.get().await {
+            Ok(taos) => break taos,
+            Err(err) => {
+                match parser
+                    .global()
+                    .process_on_abnormal
+                    .database_connection_error
+                    .handle(format!("{err:#}"))
+                {
+                    Ok((HandlingResult::Skip, _)) => {
+                        return Ok((0, Duration::from_secs(0), Duration::from_secs(0)));
+                    }
+                    Ok((HandlingResult::Archive, err)) => {
+                        messages.iter().for_each(|m| {
+                            if let Err(e) =
+                                process_archive(err.clone(), &m.records, archive_tx.clone())
+                            {
+                                tracing::error!("archive error: {e:#}");
+                            }
+                        });
+                        return Ok((0, Duration::from_secs(0), Duration::from_secs(0)));
+                    }
+                    Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+                    Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                    Ok((HandlingResult::Retry, _)) => {
+                        // TODO1
+                        tokio::time::sleep(Duration::from_secs(1)).await;
+                        continue;
+                    }
+                    Err(e) => {
+                        return Err(e)?;
+                    }
+                }
+            }
+        }
+    };
+    let mut taos = Some(taos);
     let cols = messages[0].records.num_columns();
     let stable = messages[0]
         .stable_name()
@@ -491,6 +529,7 @@ pub async fn write(
                             Ok((HandlingResult::Modify(_), _)) => unreachable!(),
                             Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
                             Ok((HandlingResult::Retry, _)) => {
+                                // TODO1
                                 let period = match retry {
                                     errors if errors < 8 => 8,
                                     errors if errors < 16 => 16,
@@ -1542,7 +1581,7 @@ mod tests {
             .column_num(2)
             .string_repeats(2);
         let messages = builder.build();
-        let (tx, _rx) = flume::bounded(0);
+        let (tx, _rx) = flume::bounded(10);
 
         if let Err(e) = process_archive("error".to_string(), &messages[0].records, tx) {
             dbg!(e);

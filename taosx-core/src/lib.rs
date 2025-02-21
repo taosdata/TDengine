@@ -251,16 +251,6 @@ impl TaskOpts {
                 .consume(rx)
                 .await
         });
-        let future_consume = async move {
-            consumer.await??;
-            anyhow::Ok(())
-        };
-        tokio::select! {
-            res = future_consume => {
-                res?
-            }
-            _ = cancel.cancelled() => {}
-        };
 
         // debug_assert!(qid.task_id() > 0);
         // Run task
@@ -605,7 +595,18 @@ impl TaskOpts {
                 }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }
+            drop(tx);
         }
+        let future_consume = async move {
+            consumer.await??;
+            anyhow::Ok(())
+        };
+        tokio::select! {
+            res = future_consume => {
+                res?
+            }
+            _ = cancel.cancelled() => {}
+        };
         Ok(())
     }
 
