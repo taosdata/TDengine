@@ -774,6 +774,8 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
   code = tsdbInitReaderLock(pReader);
   TSDB_CHECK_CODE(code, lino, _end);
 
+  pSup->args = pReader->pTsdb->pVnode->pBse;
+
   code = tsem_init(&pReader->resumeAfterSuspend, 0, 0);
   TSDB_CHECK_CODE(code, lino, _end);
 
@@ -1097,6 +1099,9 @@ static int32_t doGetValueFromBseBySeq(void* arg, uint8_t* pKey, int32_t keyLen, 
   int32_t  code = 0;
   int32_t  lino = 0;
   uint64_t seq = 0;
+  if (arg == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   if (keyLen >= sizeof(uint64_t)) {
     tGetU64(pKey, &seq);
