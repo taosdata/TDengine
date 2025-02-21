@@ -9,6 +9,8 @@
 #  expressly provided by the written permission from Jianhui Tao
 #
 ###################################################################
+# install pip
+# pip install src/connector/python/
 
 # -*- coding: utf-8 -*-
 import os
@@ -25,6 +27,7 @@ import importlib
 print(f"Python version: {sys.version}")
 print(f"Version info: {sys.version_info}")
 
+import toml
 sys.path.append("../pytest")
 from util.log import *
 from util.dnodes import *
