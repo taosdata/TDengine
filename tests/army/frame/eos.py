@@ -64,12 +64,23 @@ def exeNoWait(file):
     return exe(cmd)
 
 # run return output and error
-def run(command, timeout = 10):
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    process.wait(timeout)
+def run(command, show=True):
+    # out to file
+    id = time.clock_gettime_ns(time.CLOCK_REALTIME) % 100000
+    out = f"out_{id}.txt"
+    err = f"err_{id}.txt"
+    
+    ret = exe(command + f" 1>{out} 2>{err}")
 
-    output = process.stdout.read().decode(encoding="gbk")
-    error = process.stderr.read().decode(encoding="gbk")
+    # read from file
+    output = readFileContext(out)
+    error  = readFileContext(err)
+
+    # del
+    if os.path.exists(out):
+        os.remove(out)
+    if os.path.exists(err):
+        os.remove(err)    
 
     return output, error
 
@@ -85,3 +96,24 @@ def runRetList(command, timeout=10):
 
 def delFile(file):
     return exe(f"rm -rf {file}")
+
+def readFileContext(filename):
+    file = open(filename)
+    context = file.read()
+    file.close()
+    return context
+
+def writeFileContext(filename, context):
+    file = open(filename, "w")
+    file.write(context)
+    file.close()
+
+def appendFileContext(filename, context):
+    global resultContext
+    resultContext += context
+    try:
+        file = open(filename, "a")
+        wsize = file.write(context)
+        file.close()
+    except:
+        print(f"appand file error  context={context} .")
