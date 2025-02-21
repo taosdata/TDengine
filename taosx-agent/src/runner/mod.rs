@@ -13,7 +13,8 @@ use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use taosx_core::{
-    task_set::prelude::EventLevel, Activity, LevelFilter, RespAction, TaskNotify, TaskOpts,
+    task_set::prelude::EventLevel, utils::dsn::json_to_dsn, Activity, LevelFilter, RespAction,
+    TaskNotify, TaskOpts,
 };
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -120,7 +121,8 @@ pub fn spawn_runner(
 
                             let opts = TaskOpts {
                                 transform: vec![],
-                                from: task.from.parse().unwrap(),
+                                // from: task.from.parse().unwrap(),
+                                from: json_to_dsn(&task.from).unwrap(),
                                 to: task.to.parse()?,
                                 health: task.health,
                                 cancel,

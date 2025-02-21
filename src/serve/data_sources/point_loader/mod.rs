@@ -1,4 +1,5 @@
 use actix_files::NamedFile;
+use actix_web::web::Json;
 use actix_web::web::{Data, Query};
 use anyhow::anyhow;
 use csv::Reader;
@@ -9,7 +10,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
-use taos::IntoDsn;
+use taosx_core::utils::dsn::json_to_dsn;
 use tempfile::TempPath;
 use tokio::sync::RwLock;
 use utoipa::*;
@@ -22,7 +23,7 @@ use crate::serve::TaskController;
 
 #[derive(Debug, Deserialize, ToSchema, IntoParams)]
 pub struct DownloadAllPointsParams {
-    from: String,
+    from: serde_json::Value,
     via: Option<i64>,
     categories: String,
     lang: Option<String>,
@@ -163,7 +164,7 @@ lazy_static! {
 pub async fn arrange_point_file_download_task(
     controller: Data<TaskControllerRef>,
     // data: Query<DataSetsReq>,
-    params: Query<DownloadAllPointsParams>,
+    params: Json<DownloadAllPointsParams>,
 ) -> anyhow::Result<String> {
     let params = params.into_inner();
     let task_id = uuid::Uuid::new_v4().to_string();
@@ -318,13 +319,14 @@ fn get_safe_string_for_csv(s: &str) -> String {
 }
 
 async fn get_all_points(
-    from: String,
+    from: serde_json::Value,
     via: Option<i64>,
     categories: String,
     controller: &TaskController,
     lang: Option<String>,
 ) -> anyhow::Result<(String, usize)> {
-    let mut from = from.into_dsn()?;
+    // let mut from = from.into_dsn()?;
+    let mut from = json_to_dsn(&from)?;
 
     let pattern = match from.driver.as_str() {
         "pi" | "pibackfill" => None,
@@ -339,7 +341,7 @@ async fn get_all_points(
             .await
     } else {
         let data = DataSetsReq {
-            from: from.to_string(),
+            from: serde_json::Value::String(from.to_string()),
             categories: vec![categories],
             via,
             offset: 0,

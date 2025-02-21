@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use async_backtrace::framed;
 use taos::Dsn;
 
-use taosx_core::utils::{license::LicenseKind, mask_dsn};
+use taosx_core::utils::{dsn::json_to_dsn, license::LicenseKind, mask_dsn};
 use tracing::{instrument, Instrument};
 
 /// LicenseValidator is used to validate the license of the source and target data sources.
@@ -68,12 +68,13 @@ impl<'a> LicenseValidator<'a> {
                     let used = used
                         .into_iter()
                         .map(|s| {
-                            s.parse::<Dsn>()
+                            // s.parse::<Dsn>()
+                            json_to_dsn(&serde_json::Value::String(s))
                                 .unwrap()
                                 .addresses
                                 .first()
                                 .map(|addr| addr.to_string())
-                                .unwrap_or_else(|| "".to_string())
+                                .unwrap_or_default()
                         })
                         .collect::<std::collections::HashSet<_>>()
                         .len();

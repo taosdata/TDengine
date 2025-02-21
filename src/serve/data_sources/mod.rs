@@ -18,7 +18,6 @@ use utoipa::*;
 use crate::serve::{controller::TaskControllerRef, task::Failed};
 pub use definition::*;
 pub use point_loader::*;
-use taosx_core::runners::opc::config::csv::CsvParser;
 use taosx_core::runners::opc::config::model::ModelType;
 use taosx_core::utils::timeout::{Timeout, TimeoutType};
 use taosx_core::{dsv::DataSourceValidation, utils::license, QueryDataSourceReq};
@@ -31,6 +30,7 @@ use taosx_core::{
         transform::{PIElementModelConfig, PIPointModelConfig},
     },
 };
+use taosx_core::{runners::opc::config::csv::CsvParser, utils::dsn::json_to_dsn};
 
 mod definition;
 pub(crate) mod opc;
@@ -316,7 +316,7 @@ pub(super) async fn data_source_collection(
 pub struct DsnAgentQuery {
     /// source dsn
     #[param(allow_reserved)]
-    dsn: String,
+    dsn: serde_json::Value,
     /// sink dsn
     to: Option<String>,
     /// agent id
@@ -350,7 +350,8 @@ pub(super) async fn data_source_is_valid(
     let query = query.into_inner();
 
     let timeout_sec = query.timeout.unwrap_or_else(|| {
-        let dsn = query.dsn.clone().into_dsn();
+        // let dsn = query.dsn.clone().into_dsn();
+        let dsn = json_to_dsn(&query.dsn);
         if let Ok(dsn) = dsn {
             Timeout::get(TimeoutType::ValidateDataSource(dsn))
         } else {
@@ -377,7 +378,8 @@ async fn is_datasource_valid_impl(
     controller: Data<TaskControllerRef>,
     query: DsnAgentQuery,
 ) -> DataSourceValidation {
-    let dsn = query.dsn.into_dsn();
+    // let dsn = query.dsn.into_dsn();
+    let dsn = json_to_dsn(&query.dsn);
     match dsn {
         Err(err) => {
             DataSourceValidation::invalid("unknown".to_string(), format!("DSN error: {err:#}"))
@@ -385,7 +387,7 @@ async fn is_datasource_valid_impl(
         Ok(d) => {
             let via = query.via;
             match via {
-                None => validate_dsn(d).await,
+                None => validate_dsn(&query.dsn).await,
                 Some(agent) => controller.validate_dsn_via_agent(agent, &d).await,
             }
         }
@@ -395,7 +397,7 @@ async fn is_datasource_valid_impl(
 #[derive(Deserialize, Debug, ToSchema, IntoParams)]
 pub struct DsnAgentQueryV2 {
     #[param(allow_reserved)]
-    from: String,
+    from: serde_json::Value,
     #[param(allow_reserved)]
     to: String,
     via: Option<i64>,
@@ -421,7 +423,8 @@ pub(super) async fn data_source_sink_is_valid(
 
     let query = query.into_inner();
     let query_timeout = query.timeout.unwrap_or_else(|| {
-        let dsn = query.from.clone().into_dsn();
+        // let dsn = query.from.clone().into_dsn();
+        let dsn = json_to_dsn(&query.from);
         if let Ok(dsn) = dsn {
             Timeout::get(TimeoutType::ValidateDataSource(dsn))
         } else {
@@ -448,7 +451,8 @@ async fn dsn_and_license_validate(
     controller: Data<TaskControllerRef>,
     query: DsnAgentQueryV2,
 ) -> DataSourceValidation {
-    let from = match query.from.into_dsn() {
+    // let from = match query.from.into_dsn() {
+    let from = match json_to_dsn(&query.from) {
         Ok(dsn) => dsn,
         Err(err) => {
             return DataSourceValidation::invalid(
@@ -460,7 +464,7 @@ async fn dsn_and_license_validate(
 
     let via = query.via;
     let res = match via {
-        None => validate_dsn(&from).await,
+        None => validate_dsn(&query.from).await,
         Some(agent) => controller.validate_dsn_via_agent(agent, &from).await,
     };
 
@@ -500,15 +504,16 @@ async fn dsn_and_license_validate(
         ("timeout" = Option<String>, description = "timeout seconds")
     ),
 )]
-#[get("/ds/in/sample")]
+#[post("/ds/in/sample")]
 pub(super) async fn get_sample(
     controller: Data<TaskControllerRef>,
-    query: Query<DsnAgentQuery>,
+    query: Json<DsnAgentQuery>,
 ) -> impl Responder {
     let query = query.into_inner();
 
     let query_timeout = query.timeout.unwrap_or_else(|| {
-        let dsn = query.dsn.clone().into_dsn();
+        // let dsn = query.dsn.clone().into_dsn();
+        let dsn = json_to_dsn(&query.dsn);
         if let Ok(dsn) = dsn {
             Timeout::get(TimeoutType::GetSample(dsn))
         } else {
@@ -517,8 +522,8 @@ pub(super) async fn get_sample(
     });
     let query_timeout = Duration::from_secs(query_timeout);
     tracing::debug!(
-        "get sample from: {}, timeout: {:?}",
-        query.dsn.as_str(),
+        "get sample from: {:?}, timeout: {:?}",
+        query.dsn,
         query_timeout
     );
 
@@ -548,11 +553,11 @@ async fn get_sample_impl(
     query: DsnAgentQuery,
 ) -> anyhow::Result<DsSampleIn> {
     let via = query.via;
-    let dsn = query.dsn.clone();
+    let dsn = json_to_dsn(&query.dsn)?;
 
     match via {
-        None => plugins::get_sample(dsn).await,
-        Some(agent) => controller.get_sample_via_agent(agent, dsn).await,
+        None => plugins::get_sample(&dsn).await,
+        Some(agent) => controller.get_sample_via_agent(agent, &dsn).await,
     }
 }
 
@@ -590,9 +595,33 @@ pub(super) async fn download_all_data_set_file(
     ),
 )]
 #[get("/ds/in/point/file/download/task")]
-pub(super) async fn init_download_file_task(
+pub(super) async fn init_download_file_task_get(
     controller: Data<TaskControllerRef>,
     params: Query<DownloadAllPointsParams>,
+) -> impl Responder {
+    // set current dir to DATA_DIR
+    let _ = std::env::set_current_dir(get_data_dir());
+
+    // transform Query to Json
+    let params = Json(params.into_inner());
+
+    match arrange_point_file_download_task(controller, params).await {
+        Ok(task_id) => Ok(HttpResponse::Ok().json(TaskTicket::new_task(task_id))),
+        Err(err) => Err(Failed::from_error(err)),
+    }
+}
+
+#[utoipa::path(
+    tag = "data sources",
+    responses(
+        (status = 200, description = "init download opc file task successfully", body = String),
+        (status = 500, description = "task start error", body = Failed),
+    ),
+)]
+#[post("/ds/in/point/file/download/task")]
+pub(super) async fn init_download_file_task_post(
+    controller: Data<TaskControllerRef>,
+    params: Json<DownloadAllPointsParams>,
 ) -> impl Responder {
     // set current dir to DATA_DIR
     let _ = std::env::set_current_dir(get_data_dir());
@@ -696,8 +725,8 @@ pub(super) async fn download_point_template_file(
         (status = 500, description = "check opc csv file error", body = Failed),
     ),
 )]
-#[get("/ds/in/point/file/is_valid")]
-pub async fn is_opc_csv_valid(req: Query<DsnAgentQuery>) -> impl Responder {
+#[post("/ds/in/point/file/is_valid")]
+pub async fn is_opc_csv_valid(req: Json<DsnAgentQuery>) -> impl Responder {
     // set current dir to DATA_DIR
     let _ = std::env::set_current_dir(get_data_dir());
 
@@ -735,7 +764,8 @@ pub async fn is_opc_csv_valid(req: Query<DsnAgentQuery>) -> impl Responder {
 }
 
 async fn is_opc_csv_valid_impl(req: DsnAgentQuery) -> anyhow::Result<()> {
-    let from = req.dsn.into_dsn()?;
+    // let from = req.dsn.into_dsn()?;
+    let from = json_to_dsn(&req.dsn)?;
 
     let parser = CsvParser::from_dsn(&from)
         .map_err(|err| anyhow::anyhow!("failed to parse dsn: {}, cause: {:?}", from, err))?;
@@ -762,10 +792,10 @@ async fn is_opc_csv_valid_impl(req: DsnAgentQuery) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[get("/ds/in/download/pi_default_config")]
+#[post("/ds/in/download/pi_default_config")]
 pub(super) async fn download_pi_default_config(
     controller: Data<TaskControllerRef>,
-    params: Query<GetPIDefaultConfigParams>,
+    params: Json<GetPIDefaultConfigParams>,
 ) -> impl Responder {
     // set current dir to DATA_DIR
     let _ = std::env::set_current_dir(get_data_dir());
@@ -778,7 +808,7 @@ pub(super) async fn download_pi_default_config(
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetPIDefaultConfigParams {
-    from: String,
+    from: serde_json::Value,
     via: Option<i64>,
     task_id: Option<i64>,
     update: Option<bool>,
@@ -787,7 +817,7 @@ pub struct GetPIDefaultConfigParams {
 #[instrument(skip_all)]
 pub async fn get_pi_default_config(
     controller: Data<TaskControllerRef>,
-    params: Query<GetPIDefaultConfigParams>,
+    params: Json<GetPIDefaultConfigParams>,
 ) -> anyhow::Result<String> {
     let params = params.into_inner();
     tracing::debug!("params: {:?}", params);
@@ -801,7 +831,8 @@ pub async fn get_pi_default_config(
     };
     let exists = std::path::Path::new(file_name.as_str()).exists();
     if params.task_id.is_none() || !exists || update {
-        let dsn = params.from.clone().into_dsn()?;
+        // let dsn = params.from.clone().into_dsn()?;
+        let dsn = json_to_dsn(&params.from)?;
         let (mode, pattern, pattern_type) = parse_query_datasource_params(&dsn);
         tracing::debug!(?mode, ?pattern, ?pattern_type);
         let mut args = vec![mode.to_string(), pattern.to_string()];

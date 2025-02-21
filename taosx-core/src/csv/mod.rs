@@ -33,6 +33,7 @@ use crate::core_metrics::{get_metrics_arc_from_i64, CoreMetrics};
 use crate::sink::channel_based_transformer;
 use crate::sink::ipc_metric::IpcMetrics;
 use crate::utils::breakpoints;
+use crate::utils::dsn::json_to_dsn;
 use crate::utils::port_pool::PortPool;
 use crate::{utils, Parser, Transferred};
 
@@ -1615,14 +1616,15 @@ static TASK_FILES: LazyLock<scc::HashMap<String, Vec<TaskFile>>> = LazyLock::new
 
 pub async fn get_csv_files_from_task(
     task_id: Option<i64>,
-    from: &str,
+    from: &serde_json::Value,
 ) -> anyhow::Result<Vec<TaskFile>> {
     let task_id_str = format!("{}", task_id.unwrap_or(0));
     if let Some(files) = TASK_FILES.get_async(&task_id_str).await {
         Ok(files.get().clone())
     } else {
         // 重新生成文件列表
-        let dsn: Dsn = from.parse()?;
+        // let dsn: Dsn = from.parse()?;
+        let dsn = json_to_dsn(from)?;
         let _ = get_paths_from_dsn_and_breakpoints(task_id, &mut dsn.clone()).await?;
         if let Some(files) = TASK_FILES.get_async(&task_id_str).await {
             Ok(files.get().clone())

@@ -11,7 +11,7 @@ use crate::{
     core_metrics::{get_metrics_arc_or, CoreMetrics, TaskMetrics},
     sync_super_table_schema,
     tmq::{tmq_metric::TmqMetrics, *},
-    utils::{constants::VERSION_3_3_0, interval::IntervalLimit},
+    utils::{constants::VERSION_3_3_0, dsn::json_to_dsn, interval::IntervalLimit},
     Action,
 };
 use anyhow::{anyhow, bail, Context, Result};
@@ -1834,14 +1834,15 @@ pub struct TableProgress {
 }
 #[instrument(skip_all)]
 pub async fn get_table_progress(
-    from: &str,
+    from: &serde_json::Value,
     to: &str,
     // format db.table
     table: &str,
     start: Option<&String>,
     end: Option<&String>,
 ) -> anyhow::Result<TableProgress> {
-    let mut from: Dsn = from.parse()?;
+    // let mut from: Dsn = from.parse()?;
+    let mut from = json_to_dsn(from)?;
     let _ = from.remove("use.topic.name");
     let _ = from.remove("use.table.name");
     let _ = from.remove("with.meta.delete");

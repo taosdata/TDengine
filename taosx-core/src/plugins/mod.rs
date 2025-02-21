@@ -5,7 +5,7 @@ use anyhow::Context;
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
-use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, TaosBuilder};
+use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, TaosBuilder};
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 use tracing::Instrument;
@@ -15,6 +15,7 @@ use crate::dsv::DataSourceValidation;
 use crate::plugins::transform::sample::DsSampleIn;
 use crate::runners::influxdb::influxdb_datasets;
 use crate::runners::opc::config::model::OpcModelConfig;
+use crate::utils::dsn::json_to_dsn;
 use crate::utils::mask_dsn;
 use crate::Transferred;
 pub use runners::mqtt::mqtt_to_taos;
@@ -152,7 +153,8 @@ pub async fn build_ipc(
 }
 
 pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
-    let from = data.from.clone().into_dsn()?;
+    // let from = data.from.clone().into_dsn()?;
+    let from = json_to_dsn(&data.from)?;
     match from.driver.as_str() {
         "tmq" | "sync" => {
             let mut from = from.clone();
@@ -207,8 +209,8 @@ pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSe
     }
 }
 
-pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
-    let dsn = dsn.into_dsn();
+pub async fn validate_dsn(dsn: &serde_json::Value) -> DataSourceValidation {
+    let dsn = json_to_dsn(dsn);
     match dsn {
         Err(err) => {
             DataSourceValidation::invalid("unknown".to_string(), format!("invalid dsn: {}", err))
@@ -239,28 +241,24 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
     }
 }
 
-pub async fn get_sample(dsn: impl IntoDsn) -> anyhow::Result<DsSampleIn> {
-    let dsn = dsn
-        .into_dsn()
-        .map_err(|err| anyhow::format_err!("invalid dsn, cause: {err}"))?;
-
+pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
     match dsn.driver.as_str() {
-        runners::historian::AVEVA_HISTORIAN_ID => runners::historian::get_sample(&dsn).await,
+        runners::historian::AVEVA_HISTORIAN_ID => runners::historian::get_sample(dsn).await,
         runners::kafka::KAFKA_ID => {
-            let limit = parse_sample_limit(&dsn);
-            let timeout = parse_sample_timeout(&dsn);
-            runners::kafka::get_sample(&dsn, limit, timeout).await
+            let limit = parse_sample_limit(dsn);
+            let timeout = parse_sample_timeout(dsn);
+            runners::kafka::get_sample(dsn, limit, timeout).await
         }
         runners::mqtt::MQTT_ID => {
-            let limit = parse_sample_limit(&dsn);
-            let timeout = parse_sample_timeout(&dsn);
-            runners::mqtt::get_sample(&dsn, limit, timeout).await
+            let limit = parse_sample_limit(dsn);
+            let timeout = parse_sample_timeout(dsn);
+            runners::mqtt::get_sample(dsn, limit, timeout).await
         }
-        runners::mysql::MYSQL_ID => runners::mysql::get_sample(&dsn).await,
-        runners::postgres::POSTGRES_ID => runners::postgres::get_sample(&dsn).await,
-        runners::oracle::ORACLE_ID => runners::oracle::get_sample(&dsn).await,
-        runners::mssql::MSSQL_ID => runners::mssql::get_sample(&dsn).await,
-        runners::mongodb::MONGODB_ID => runners::mongodb::get_sample(&dsn).await,
+        runners::mysql::MYSQL_ID => runners::mysql::get_sample(dsn).await,
+        runners::postgres::POSTGRES_ID => runners::postgres::get_sample(dsn).await,
+        runners::oracle::ORACLE_ID => runners::oracle::get_sample(dsn).await,
+        runners::mssql::MSSQL_ID => runners::mssql::get_sample(dsn).await,
+        runners::mongodb::MONGODB_ID => runners::mongodb::get_sample(dsn).await,
         _ => Err(anyhow::anyhow!(
             "get sample from data source is unsupported"
         )),
@@ -285,7 +283,7 @@ fn parse_sample_timeout(dsn: &Dsn) -> Duration {
 
 pub async fn query_data_source(request: QueryDataSourceReq) -> anyhow::Result<String> {
     async fn query_data_source_inner(request: QueryDataSourceReq) -> anyhow::Result<String> {
-        let dsn = request.from.clone().into_dsn()?;
+        let dsn = json_to_dsn(&request.from)?;
         match dsn.driver.as_str() {
             "pi" | "pibackfill" => runners::pi::query_data_source(dsn, request.args).await,
             _ => unimplemented!(),

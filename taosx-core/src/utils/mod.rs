@@ -1,5 +1,6 @@
 use anyhow::bail;
 use chrono::{DateTime, FixedOffset, Utc};
+use dsn::json_to_dsn;
 use serde::ser::StdError;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -60,8 +61,9 @@ pub fn mask_dsn(dsn: &Dsn) -> Dsn {
     dsn
 }
 
-pub fn try_mask_dsn(dsn: &str) -> Option<String> {
-    dsn.parse()
+pub fn try_mask_dsn(dsn: &serde_json::Value) -> Option<String> {
+    // dsn.parse()
+    json_to_dsn(dsn)
         .ok()
         .map(|dsn| mask_dsn(&dsn))
         .map(|dsn| dsn.to_string())

@@ -1,8 +1,12 @@
+use std::collections::HashSet;
+
 use actix_web::{
-    delete, get, patch, post,
-    web::{Data, Json, Path, Query},
-    HttpResponse, Responder,
+    delete, get, patch, post, rt,
+    web::{Data, Json, Path, Payload, Query},
+    Error, HttpRequest, HttpResponse, Responder,
 };
+use actix_ws::{CloseCode, CloseReason, Session};
+use tracing::instrument;
 
 use crate::serve::{
     controller::{
@@ -11,6 +15,8 @@ use crate::serve::{
     },
     task::Failed,
 };
+
+use super::metrics::ws::echo_heartbeat_ws;
 
 /// Create new agent with cluster id/ user id and privileges
 #[utoipa::path(
@@ -140,6 +146,93 @@ pub(super) async fn get_agent_activities(
             .append_header(("Count", agents.len()))
             .json(&agents)),
         Err(err) => Err(Failed::from_error(err)),
+    }
+}
+
+#[instrument(skip_all)]
+pub(crate) async fn send_all_agents_activities(
+    req: HttpRequest,
+    stream: Payload,
+) -> Result<HttpResponse, Error> {
+    let (res, session, msg_stream) = actix_ws::handle(&req, stream)?;
+    // spawn websocket handler (and don't await it) so that the response is returned immediately
+    rt::spawn(send_all_agents_activities_ws(req, session.clone()));
+    rt::spawn(echo_heartbeat_ws(session.clone(), msg_stream));
+    Ok(res)
+}
+
+async fn send_all_agents_activities_ws(req: HttpRequest, mut session: Session) {
+    let task_store = match req.app_data::<Data<TaskControllerRef>>() {
+        Some(store) => store,
+        None => {
+            let reason = Some(CloseReason {
+                code: CloseCode::Abnormal,
+                description: Some("Failed to get task store".to_string()),
+            });
+            let _ = session.close(reason).await;
+            return;
+        }
+    };
+
+    let match_info = req.match_info();
+    let cluster_id = match_info.get("cluster_id").unwrap();
+    let mut filter = AgentFilter::default();
+    filter.cluster_id = Some(cluster_id.to_string());
+    let agents = match task_store.get_agents(filter).await {
+        Ok(agents) => agents,
+        Err(err) => {
+            tracing::error!("agent-ws failed to get agents: {:#}", err);
+            return;
+        }
+    };
+    let agent_ids: HashSet<_> = agents.into_iter().map(|t| t.id).collect();
+
+    // send the latest 5 activities for each agent
+    match task_store.all_agents_activities().await {
+        Ok(activities) => {
+            for activity in activities.into_iter() {
+                // only send activities for tasks in the current cluster
+                if agent_ids.contains(&activity.id) {
+                    if let Err(err) = session
+                        .text(serde_json::to_string(&activity).unwrap())
+                        .await
+                    {
+                        tracing::info!("agent-ws session closed: {:#}", err);
+                        break;
+                    }
+                }
+            }
+        }
+        Err(err) => {
+            tracing::error!("agent-ws failed to send latest agent activities: {:#}", err);
+        }
+    }
+
+    let scheduler = task_store.scheduler.clone();
+    // get notify channel
+    let notify_channel = scheduler.notify_channel();
+    let mut rx = notify_channel;
+    'loop_send: loop {
+        match rx.recv().await {
+            Ok(notify) => match notify {
+                crate::serve::scheduler::SchedulerNotify::TaskActivity(_) => {}
+                crate::serve::scheduler::SchedulerNotify::AgentActivity(activity) => {
+                    if let Err(err) = session
+                        .text(serde_json::to_string(&activity).unwrap())
+                        .await
+                    {
+                        tracing::info!("agent-ws session closed: {:#}", err);
+                        break 'loop_send;
+                    }
+                }
+            },
+            Err(err) => match err {
+                tokio::sync::broadcast::error::RecvError::Closed => break,
+                tokio::sync::broadcast::error::RecvError::Lagged(_) => {
+                    continue;
+                }
+            },
+        }
     }
 }
 

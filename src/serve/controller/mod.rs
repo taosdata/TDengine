@@ -4,8 +4,10 @@ use std::net::SocketAddr;
 use std::str::FromStr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::vec;
 use std::{collections::HashMap, time::Duration};
 
+use agent::ActivityOrder;
 use anyhow::{anyhow, bail, Context};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
@@ -24,6 +26,7 @@ use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::runners::kafka::KAFKA_ID;
 use taosx_core::runners::mqtt::MQTT_ID;
 use taosx_core::task_set::prelude::{HealthNotify, HealthState};
+use taosx_core::utils::dsn::json_to_dsn;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
@@ -818,10 +821,11 @@ impl TaskController {
 
     #[instrument(skip_all, fields(task.id = task.id,task.agent = task.via))]
     async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
-        let from: Dsn = task
-            .from
-            .parse()
-            .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
+        // let from: Dsn = task
+        //     .from
+        //     .parse()
+        //     .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
+        let from = json_to_dsn(&task.from)?;
 
         if let Some(via) = task.via {
             if !self.agent_alive(via).await {
@@ -916,10 +920,11 @@ impl TaskController {
         tracing::info!(task.name, task.via, "create new task");
 
         let not_start = task.not_start;
-        let mut from: Dsn = task
-            .from
-            .parse()
-            .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
+        // let mut from: Dsn = task
+        //     .from
+        //     .parse()
+        //     .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
+        let mut from = json_to_dsn(&task.from)?;
         if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
                 anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
@@ -960,7 +965,7 @@ impl TaskController {
         }
 
         if task.via.is_none() {
-            validate_dsn(&from).await.ok()?;
+            validate_dsn(&task.from).await.ok()?;
         }
 
         if task.clear && to.driver == "taos" {
@@ -1068,17 +1073,24 @@ impl TaskController {
 
         match backup_topic {
             None => {
-                sqlx::query("update tasks set `from` = ? where id = ?")
-                    .bind(from.to_string())
-                    .bind(id)
-                    .execute(txn.as_mut())
-                    .in_current_span()
-                    .await
-                    .context("update task error")?;
+                // sqlx::query("update tasks set `from` = ? where id = ?")
+                //     .bind(from.to_string())
+                //     .bind(id)
+                //     .execute(txn.as_mut())
+                //     .in_current_span()
+                //     .await
+                //     .context("update task error")?;
             }
             Some(oneshot_topic) => {
-                sqlx::query("update tasks set `from` = ?,`oneshot_topic` = ? where id = ?")
-                    .bind(from.to_string())
+                // sqlx::query("update tasks set `from` = ?,`oneshot_topic` = ? where id = ?")
+                //     .bind(from.to_string())
+                //     .bind(oneshot_topic)
+                //     .bind(id)
+                //     .execute(txn.as_mut())
+                //     .in_current_span()
+                //     .await
+                //     .context("update task error")?;
+                sqlx::query("update tasks set `oneshot_topic` = ? where id = ?")
                     .bind(oneshot_topic)
                     .bind(id)
                     .execute(txn.as_mut())
@@ -1226,7 +1238,7 @@ impl TaskController {
         query = query.bind(task.via);
 
         if task.via.is_none() {
-            validate_dsn(task.from.as_deref().unwrap_or(old.from.as_str()))
+            validate_dsn(&task.from.clone().unwrap_or(old.from.clone()))
                 .await
                 .ok()?;
         }
@@ -1254,10 +1266,11 @@ impl TaskController {
                 .ok_or_else(|| anyhow!("Task not found: {}", id))?;
             let scheduler = self.scheduler.clone();
             let task_in_spawn = task.task.clone();
-            let from: Dsn = task
-                .from
-                .parse()
-                .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
+            // let from: Dsn = task
+            //     .from
+            //     .parse()
+            //     .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
+            let from = json_to_dsn(&task.from)?;
 
             if let Some(via) = task.via {
                 if !self.agent_alive(via).await {
@@ -1365,7 +1378,8 @@ impl TaskController {
                 tracing::info!("task {id} successfully stopped");
                 if let Some(topic) = task.oneshot_topic.as_deref() {
                     tracing::info!("drop oneshot topic: {}", topic);
-                    let mut dsn: Dsn = task.from.parse()?;
+                    // let mut dsn: Dsn = task.from.parse()?;
+                    let mut dsn = json_to_dsn(&task.from)?;
                     let _ = dsn.subject.take();
                     let builder =
                         TaosBuilder::from_dsn(dsn).context("cannot drop oneshot topic")?;
@@ -1391,7 +1405,8 @@ impl TaskController {
 
                 if let Some(action) = task.after_delete.as_deref() {
                     if action == "clear" {
-                        let from = task.from.parse::<Dsn>()?;
+                        // let from = task.from.parse::<Dsn>()?;
+                        let from = json_to_dsn(&task.from)?;
                         let to = task.to.parse::<Dsn>()?;
                         match (from.driver.as_str(), to.driver.as_str()) {
                             ("tmq", "local") => {
@@ -1429,7 +1444,8 @@ impl TaskController {
                     .in_current_span()
                     .await?;
 
-                let from: Dsn = task.from.parse()?;
+                // let from: Dsn = task.from.parse()?;
+                let from = json_to_dsn(&task.from)?;
                 let to: Dsn = task.to.parse()?;
                 let (tx, _rx) = flume::unbounded();
                 let opts = TaskOpts {
@@ -1514,6 +1530,22 @@ impl TaskController {
         Ok(items)
     }
 
+    pub async fn all_tasks_activities(&self) -> anyhow::Result<Vec<Activity>> {
+        let cond = AgentActivityFilter {
+            since: None,
+            level: None,
+            limit: Some(10000),
+            order: Some(ActivityOrder::Asc),
+        }
+        .condition();
+        let sql = format!("select * from (select *, row_number() over (partition by id order by at desc) as rn from task_activities) r where r.rn<=5 {cond}");
+        let items = sqlx::query_as(&sql)
+            .fetch_all(&self.pool)
+            .in_current_span()
+            .await?;
+        Ok(items)
+    }
+
     pub async fn _suspend_all(&self) -> anyhow::Result<()> {
         self.scheduler.suspend_all().await;
         Ok(())
@@ -1538,7 +1570,8 @@ impl TaskController {
         match task {
             Some(task) => {
                 // dbg!(&task);
-                let from = task.from.parse::<Dsn>()?;
+                // let from = task.from.parse::<Dsn>()?;
+                let from = json_to_dsn(&task.from)?;
                 let to = task.to.parse::<Dsn>()?;
                 match (from.driver.as_str(), to.driver.as_str()) {
                     ("tmq" | "sync", _) => {
@@ -1588,7 +1621,8 @@ impl TaskController {
     pub async fn tmq_offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
         let from = self.get(id).await?;
         if let Some(task) = from {
-            let mut from = task.from.parse::<Dsn>()?;
+            // let mut from = task.from.parse::<Dsn>()?;
+            let mut from = json_to_dsn(&task.from)?;
             if from.driver == *"sync" {
                 from.driver = "tmq".to_string();
             }
@@ -1853,7 +1887,7 @@ impl TaskController {
         set_file_contents(dsn).await?;
 
         let data = DataSetsReq {
-            from: dsn.to_string(),
+            from: serde_json::Value::String(dsn.to_string()),
             categories: vec![categories],
             via,
             offset: 0,
@@ -1978,26 +2012,19 @@ impl TaskController {
         }
     }
 
-    pub async fn get_sample_via_agent(
-        &self,
-        agent: i64,
-        dsn: String,
-    ) -> anyhow::Result<DsSampleIn> {
+    pub async fn get_sample_via_agent(&self, agent: i64, dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
         let scheduler = self.scheduler.clone();
         if !self.agent_alive(agent).await {
             bail!("Agent {} is not alive", agent);
         }
-        let dsn_agent = Dsn::from_str(&dsn);
-        if let Ok(dsn_agent) = dsn_agent {
-            // 检查是否有需要发送到 agent 的文件
-            let file_to_send = dsn_agent.params.get("sasl_kerberos_keytab");
-            if let Some(path) = file_to_send {
-                tracing::info!("Put file to agent {}: {}", agent, path);
-                let _ = self.put_file_to_agent(agent, path.clone()).await;
-            }
+        // 检查是否有需要发送到 agent 的文件
+        let file_to_send = dsn.params.get("sasl_kerberos_keytab");
+        if let Some(path) = file_to_send {
+            tracing::info!("Put file to agent {}: {}", agent, path);
+            let _ = self.put_file_to_agent(agent, path.clone()).await;
         }
 
-        scheduler.get_sample_via_agent(agent, dsn).await
+        scheduler.get_sample_via_agent(agent, dsn.to_string()).await
     }
 
     pub async fn cluster_transferred(
@@ -2084,7 +2111,7 @@ pub struct ConnectorTransferred {
 
 #[derive(Debug, Deserialize, ToSchema, IntoParams)]
 pub struct AgentFilter {
-    cluster_id: Option<String>,
+    pub cluster_id: Option<String>,
     user_id: Option<String>,
 }
 
@@ -2272,7 +2299,7 @@ pub struct Task {
 
     /// The stream data source.
     #[schema(example = "tmq:///test")]
-    pub from: String,
+    pub from: serde_json::Value,
 
     /// Cluster identifier for stream from. **Deprecated**, use labels instead.
     #[serde(default)]
@@ -2839,7 +2866,8 @@ impl TaskDetail {
 
     pub fn expand_detail(self, lang: Option<String>) -> Self {
         let value = self.task;
-        let from_dsn: Dsn = value.from.as_str().parse().unwrap();
+        // let from_dsn: Dsn = value.from.as_str().parse().unwrap();
+        let from_dsn = json_to_dsn(&value.from).unwrap();
         let to_dsn: Dsn = value.to.as_str().parse().unwrap();
         if let Some(lang) = lang {
             match lang.as_str() {
@@ -2868,7 +2896,8 @@ impl TaskDetail {
 
     pub fn expand(mut self) -> Self {
         let value = &self.task;
-        let from_dsn: Dsn = value.from.as_str().parse().unwrap();
+        // let from_dsn: Dsn = value.from.as_str().parse().unwrap();
+        let from_dsn = json_to_dsn(&value.from).unwrap();
         let to_dsn: Dsn = value.to.as_str().parse().unwrap();
         self.from_expand = Some(from_dsn.into());
         self.to_expand = Some(to_dsn.into());
@@ -3059,7 +3088,7 @@ pub(crate) struct NewTask {
     pub trigger: Option<Strategy>,
     /// The stream data source.
     #[schema(example = "tmq:///test")]
-    from: String,
+    from: serde_json::Value,
     /// The stream data source cluster id.
     from_cluster: Option<String>,
 
@@ -3141,7 +3170,7 @@ impl NewTask {
 struct NewTaskV1 {
     /// The stream data source.
     #[schema(example = "tmq:///test")]
-    from: String,
+    from: serde_json::Value,
 
     /// Use oneshot topic for a task, delete the topic after task deleted.
     // #[serde(default)]
@@ -3209,7 +3238,7 @@ pub struct UpdateTask {
     /// *Deprecated*.
     stream_type: Option<String>,
     /// The stream data source.
-    from: Option<String>,
+    from: Option<serde_json::Value>,
     /// *Deprecated*. The stream data source cluster id.
     from_cluster: Option<String>,
     /// Use oneshot topic for a task, delete the topic after task deleted.
@@ -3246,7 +3275,7 @@ pub struct TaskFilter {
     start_create_time: Option<String>,
     end_create_time: Option<String>,
     with_deleted: Option<bool>,
-    labels: Option<String>,
+    pub labels: Option<String>,
     any_labels: Option<String>,
     without_labels: Option<String>,
     via: Option<i64>,

@@ -164,7 +164,8 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(download_pi_default_config)
             .service(download_point_template_file)
             .service(data_sources::is_opc_csv_valid)
-            .service(init_download_file_task)
+            .service(init_download_file_task_get)
+            .service(init_download_file_task_post)
             .service(check_point_file_ready)
             .service(download_point_file)
             .service(page_point_data)
@@ -423,7 +424,8 @@ impl Cli {
                 data_source_sample,
                 list_all_parser_plugins,
                 download_all_data_set_file,
-                init_download_file_task,
+                init_download_file_task_get,
+                init_download_file_task_post,
                 check_point_file_ready,
                 download_point_file,
                 download_point_template_file,
@@ -484,6 +486,14 @@ impl Cli {
                 .service(
                     resource("/metrics/task/{task_id}")
                         .route(web::get().to(metrics::ws::send_task_metrics)),
+                )
+                .service(
+                    resource("/activities/tasks/{cluster_id}")
+                        .route(web::get().to(task::send_all_tasks_activities)),
+                )
+                .service(
+                    resource("/activities/agents/{cluster_id}")
+                        .route(web::get().to(agent::send_all_agents_activities)),
                 )
         })
         .bind(addr)

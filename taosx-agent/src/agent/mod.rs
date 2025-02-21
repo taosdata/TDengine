@@ -22,6 +22,7 @@ use hyper::Uri;
 use hyper_util::rt::TokioIo;
 use serde::{Deserialize, Serialize};
 use taosx_core::task_set::prelude::HealthOpts;
+use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::files::decompress_and_write_file;
 use tokio::net::{TcpSocket, TcpStream};
 use tonic::transport::Channel;
@@ -70,7 +71,7 @@ pub struct Task {
     pub rid: i64,
 
     /// The stream data source.
-    pub from: String,
+    pub from: serde_json::Value,
 
     /// Use oneshot topic for a task, delete the topic after task deleted.
     #[serde(default)]
@@ -637,7 +638,7 @@ impl Client {
                         let dsn: String = serde_json::from_str(context).unwrap();
                         let resp_tx = resp_tx.clone();
                         tokio::spawn(async move {
-                            let dsv = validate_dsn(dsn.clone()).await;
+                            let dsv = validate_dsn(&serde_json::Value::String(dsn.clone())).await;
                             let send_ok = resp_tx
                                 .send_async(RespAction::CheckOk(CheckResponse {
                                     req_id,
@@ -653,10 +654,11 @@ impl Client {
                         });
                     }
                     "sample" => {
-                        let dsn: String = serde_json::from_str(context).unwrap();
+                        let dsn_str: String = serde_json::from_str(context).unwrap();
+                        let dsn = json_to_dsn(&serde_json::Value::String(dsn_str.clone()))?;
                         let resp_tx = resp_tx.clone();
                         tokio::spawn(async move {
-                            let sample = plugins::get_sample(dsn.clone()).await;
+                            let sample = plugins::get_sample(&dsn).await;
                             let res = match sample {
                                 Ok(sample) => match serde_json::to_string(&sample) {
                                     Ok(s) => Response::Ok(s),
@@ -671,7 +673,7 @@ impl Client {
                             let send_ok = resp_tx
                                 .send_async(RespAction::SampleOk(SampleResponse {
                                     req_id,
-                                    req: dsn,
+                                    req: dsn_str,
                                     res,
                                 }))
                                 .await;

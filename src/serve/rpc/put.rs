@@ -12,6 +12,7 @@ use taoslog::utils::{QidMetadataGetter, QidMetadataSetter};
 use taoslog::QidManager;
 use taosx_core::core_metrics::{init_task_metrics, TaskMetrics};
 use taosx_core::sink::handle_point_message_init;
+use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::trace::Qid;
 use taosx_core::{
     core_metrics::get_metrics,
@@ -115,7 +116,8 @@ async fn ipc_stream_writer(
         Activity::ipc_started(task.id),
     ))?;
     let task_id = task.id;
-    let from: Dsn = task.from.parse().unwrap();
+    // let from: Dsn = task.from.parse().unwrap();
+    let from = json_to_dsn(&task.from)?;
     let to: Dsn = task.to.parse().unwrap();
     let taos = pool.get().await?;
     let worker = IpcStreamWorker::new(
@@ -355,8 +357,8 @@ async fn spawn_stream_writer(
     let builder = TaosBuilder::from_dsn(&task.to)?;
     let pool = builder.pool()?;
     let lock = Arc::new(tokio::sync::Mutex::new(()));
-
-    let from_dsn: Dsn = task.from.parse()?;
+    // let from_dsn: Dsn = task.from.parse()?;
+    let from_dsn = json_to_dsn(&task.from)?;
     let to_dsn: Dsn = task.to.parse()?;
 
     let connector = match from_dsn.driver.as_str() {
@@ -785,7 +787,8 @@ impl PutStream {
                     .map_err(|err| Status::internal(err.to_string()))
                     .unwrap()
                     .unwrap();
-                let from: Dsn = task.from.parse()?;
+                // let from: Dsn = task.from.parse()?;
+                let from = json_to_dsn(&task.from)?;
                 let to: Dsn = task.to.parse()?;
                 let _ = init_task_metrics(&from, &to, self.task_id, None).await;
                 get_metrics(self.task_id)

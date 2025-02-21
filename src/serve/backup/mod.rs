@@ -10,6 +10,7 @@ use taos::IntoDsn;
 use taosx_core::taoz::ZFile;
 use taosx_core::tmq::BackupObject;
 use taosx_core::tmq_to_local::conf::BackupConfig;
+use taosx_core::utils::dsn::json_to_dsn;
 use utoipa::ToSchema;
 
 #[derive(Debug, Serialize, ToSchema)]
@@ -69,9 +70,11 @@ async fn get_backup_points_impl(
         .await?
         .ok_or(anyhow::anyhow!("task not found, id: {}", id))?;
 
-    let from = task.from.as_str().into_dsn().map_err(|err| {
-        anyhow::Error::from(err).context(format!("failed to convert dsn: {}", &task.from))
-    })?;
+    // let from = task.from.as_str().into_dsn().map_err(|err| {
+    //     anyhow::Error::from(err).context(format!("failed to convert dsn: {}", &task.from))
+    // })?;
+    let from = json_to_dsn(&task.from)
+        .map_err(|err| err.context(format!("failed to convert dsn: {}", &task.from)))?;
     let to = task.to.as_str().into_dsn().map_err(|err| {
         anyhow::Error::from(err).context(format!("failed to convert dsn: {}", &task.to))
     })?;

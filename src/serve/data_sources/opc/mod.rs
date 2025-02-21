@@ -4,6 +4,7 @@ use csv_async::AsyncWriter;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::{Code, IntoDsn};
+use taosx_core::utils::dsn::json_to_dsn;
 use utoipa::*;
 
 use taosx_core::runners::opc::config::csv::column::CsvColumn;
@@ -219,7 +220,8 @@ async fn get_point_header_impl(
         .ok_or(anyhow::anyhow!("task: {} not found", task_id))?;
 
     // get dsn
-    let dsn = task.from.clone().into_dsn()?;
+    // let dsn = task.from.clone().into_dsn()?;
+    let dsn = json_to_dsn(&task.from)?;
     tracing::debug!("get point headers for task: {}, from: {:?}", task_id, dsn);
 
     // set current dir to DATA_DIR
@@ -291,7 +293,8 @@ async fn append_point_impl(
     // set current dir to DATA_DIR
     let _ = std::env::set_current_dir(get_data_dir());
 
-    let from = task.from.clone().into_dsn()?;
+    // let from = task.from.clone().into_dsn()?;
+    let from = json_to_dsn(&task.from)?;
     let to = task.to.clone().into_dsn()?;
 
     // Vec<PointDetail> to csv

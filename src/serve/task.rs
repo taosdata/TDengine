@@ -1,16 +1,18 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Display, Formatter};
 use std::fs;
 
 use actix_files::NamedFile;
 use actix_multipart::form::{tempfile::TempFile, text::Text, MultipartForm};
 use actix_web::body::BoxBody;
-use actix_web::web::Json;
+use actix_web::rt;
+use actix_web::web::{Json, Payload};
 use actix_web::{
     delete, get, patch, post,
     web::{Data, Path, Query},
-    HttpRequest, HttpResponse, Responder, ResponseError,
+    Error, HttpRequest, HttpResponse, Responder, ResponseError,
 };
+use actix_ws::{CloseCode, CloseReason, Session};
 use anyhow::anyhow;
 use anyhow::Context;
 use itertools::Itertools;
@@ -23,6 +25,7 @@ use taosx_core::core_metrics::CoreMetrics;
 use taosx_core::{get_csv_files_from_task, get_data_dir, get_file_upload_home_dir};
 
 use super::controller::agent::AgentActivityFilter;
+use super::metrics::ws::echo_heartbeat_ws;
 use crate::serve::metrics::{get_task_metrics_string, try_get_metrics_from_task_detail};
 use crate::serve::{
     controller::{Status, TaskControllerRef},
@@ -669,6 +672,92 @@ pub(super) async fn get_task_activities_by_id(
     match task_store.task_activities(id, &filter.into_inner()).await {
         Ok(acts) => Ok(HttpResponse::Ok().json(acts)),
         Err(err) => Err(Failed::from_error(err)),
+    }
+}
+
+#[instrument(skip_all)]
+pub(crate) async fn send_all_tasks_activities(
+    req: HttpRequest,
+    stream: Payload,
+) -> Result<HttpResponse, Error> {
+    let (res, session, msg_stream) = actix_ws::handle(&req, stream)?;
+    // spawn websocket handler (and don't await it) so that the response is returned immediately
+    rt::spawn(send_all_tasks_activities_ws(req, session.clone()));
+    rt::spawn(echo_heartbeat_ws(session.clone(), msg_stream));
+    Ok(res)
+}
+
+async fn send_all_tasks_activities_ws(req: HttpRequest, mut session: Session) {
+    let task_store = match req.app_data::<Data<TaskControllerRef>>() {
+        Some(store) => store,
+        None => {
+            let reason = Some(CloseReason {
+                code: CloseCode::Abnormal,
+                description: Some("Failed to get task store".to_string()),
+            });
+            let _ = session.close(reason).await;
+            return;
+        }
+    };
+
+    let match_info = req.match_info();
+    let cluster_id = match_info.get("cluster_id").unwrap();
+    let mut filter = TaskFilter::default();
+    filter.labels = Some(format!("type::datain,cluster-id::{cluster_id}"));
+    let tasks = match task_store.tasks(filter).await {
+        Ok(tasks) => tasks,
+        Err(err) => {
+            tracing::error!("task-ws failed to get tasks: {:#}", err);
+            return;
+        }
+    };
+    let task_ids: HashSet<_> = tasks.into_iter().map(|t| t.id).collect();
+    // send the latest 5 activities for each task
+    match task_store.all_tasks_activities().await {
+        Ok(activities) => {
+            for activity in activities.into_iter() {
+                // only send activities for tasks in the current cluster
+                if task_ids.contains(&activity.id) {
+                    if let Err(err) = session
+                        .text(serde_json::to_string(&activity).unwrap())
+                        .await
+                    {
+                        tracing::info!("task-ws session closed: {:#}", err);
+                        break;
+                    }
+                }
+            }
+        }
+        Err(err) => {
+            tracing::error!("task-ws failed to send latest task activities: {:#}", err);
+        }
+    }
+
+    let scheduler = task_store.scheduler.clone();
+    // get notify channel
+    let notify_channel = scheduler.notify_channel();
+    let mut rx = notify_channel;
+    'loop_send: loop {
+        match rx.recv().await {
+            Ok(notify) => match notify {
+                crate::serve::scheduler::SchedulerNotify::TaskActivity(activity) => {
+                    if let Err(err) = session
+                        .text(serde_json::to_string(&activity).unwrap())
+                        .await
+                    {
+                        tracing::info!("task-ws session closed: {:#}", err);
+                        break 'loop_send;
+                    }
+                }
+                crate::serve::scheduler::SchedulerNotify::AgentActivity(_) => {}
+            },
+            Err(err) => match err {
+                tokio::sync::broadcast::error::RecvError::Closed => break,
+                tokio::sync::broadcast::error::RecvError::Lagged(_) => {
+                    continue;
+                }
+            },
+        }
     }
 }
 
