@@ -27,7 +27,9 @@ env:
 
 jobs:
   tests:
-    runs-on: [self-hosted, CI, Linux]
+    runs-on: 
+      group: CI
+      labels: [self-hosted, Linux]
     steps:
       - name: Output the runner name
         run: |
