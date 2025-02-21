@@ -335,45 +335,39 @@ static long validate_csv_ts_interval(const char* csv_ts_interval) {
 
 static int csvParseParameter() {
     // csv_output_path
-    {
-        size_t len = strlen(g_arguments->csv_output_path);
-        if (len == 0) {
-            errorPrint("Failed to generate CSV, the specified output path is empty. Please provide a valid path. database: %s, super table: %s.\n",
-                    db->dbName, stb->stbName);
+    size_t len = strlen(g_arguments->csv_output_path);
+    if (len == 0) {
+        errorPrint("Failed to generate CSV, the specified output path is empty. Please provide a valid path. database: %s, super table: %s.\n",
+                db->dbName, stb->stbName);
+        return -1;
+    }
+    if (g_arguments->csv_output_path[len - 1] != '/') {
+        int n = snprintf(g_arguments->csv_output_path_buf, sizeof(g_arguments->csv_output_path_buf), "%s/", g_arguments->csv_output_path);
+        if (n < 0 || n >= sizeof(g_arguments->csv_output_path_buf)) {
+            errorPrint("Failed to generate CSV, path buffer overflow risk when appending '/'. path: %s, database: %s, super table: %s.\n",
+                    g_arguments->csv_output_path， db->dbName, stb->stbName);
             return -1;
         }
-        if (g_arguments->csv_output_path[len - 1] != '/') {
-            int n = snprintf(g_arguments->csv_output_path_buf, sizeof(g_arguments->csv_output_path_buf), "%s/", g_arguments->csv_output_path);
-            if (n < 0 || n >= sizeof(g_arguments->csv_output_path_buf)) {
-                errorPrint("Failed to generate CSV, path buffer overflow risk when appending '/'. path: %s, database: %s, super table: %s.\n",
-                        g_arguments->csv_output_path， db->dbName, stb->stbName);
-                return -1;
-            }
-            g_arguments->csv_output_path = g_arguments->csv_output_path_buf;
-        }
+        g_arguments->csv_output_path = g_arguments->csv_output_path_buf;
     }
 
     // csv_ts_format
-    {
-        if (g_arguments->csv_ts_format) {
-            if (is_valid_csv_ts_format(g_arguments->csv_ts_format) != 0) {
-                errorPrint("Failed to generate CSV, the parameter `csv_ts_format` is invalid. csv_ts_format: %s, database: %s, super table: %s.\n",
-                        g_arguments->csv_ts_format, db->dbName, stb->stbName);
-                return -1;
-            }
+    if (g_arguments->csv_ts_format) {
+        if (is_valid_csv_ts_format(g_arguments->csv_ts_format) != 0) {
+            errorPrint("Failed to generate CSV, the parameter `csv_ts_format` is invalid. csv_ts_format: %s, database: %s, super table: %s.\n",
+                    g_arguments->csv_ts_format, db->dbName, stb->stbName);
+            return -1;
         }
     }
 
     // csv_ts_interval
-    {
-        long csv_ts_intv_secs = validate_csv_ts_interval(g_arguments->csv_ts_interval);
-        if (csv_ts_intv_secs <= 0) {
-            errorPrint("Failed to generate CSV, the parameter `csv_ts_interval` is invalid. csv_ts_interval: %s, database: %s, super table: %s.\n",
-                    g_arguments->csv_ts_interval, db->dbName, stb->stbName);
-            return -1;
-        }
-        g_arguments->csv_ts_intv_secs = csv_ts_intv_secs;
+    long csv_ts_intv_secs = validate_csv_ts_interval(g_arguments->csv_ts_interval);
+    if (csv_ts_intv_secs <= 0) {
+        errorPrint("Failed to generate CSV, the parameter `csv_ts_interval` is invalid. csv_ts_interval: %s, database: %s, super table: %s.\n",
+                g_arguments->csv_ts_interval, db->dbName, stb->stbName);
+        return -1;
     }
+    g_arguments->csv_ts_intv_secs = csv_ts_intv_secs;
 
     return 0;
 }
