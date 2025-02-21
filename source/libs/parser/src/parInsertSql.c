@@ -102,40 +102,14 @@ static int32_t skipTableOptions(SInsertParseContext* pCxt, const char** pSql) {
 }
 
 // pSql -> stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)
-static int32_t ignoreUsingClause(SInsertParseContext* pCxt, const char** pSql) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  SToken  token;
-  NEXT_TOKEN(*pSql, token);
-
-  NEXT_TOKEN(*pSql, token);
-  if (TK_NK_LP == token.type) {
-    code = skipParentheses(pCxt, pSql);
-    if (TSDB_CODE_SUCCESS == code) {
-      NEXT_TOKEN(*pSql, token);
+static void removeUtilValues(SInsertParseContext* pCxt, const char** pSql) {
+  SToken token;
+  do {
+    NEXT_TOKEN_WITH_PREV_VALUES(*pSql, token);
+    if ((TK_VALUES == token.type) || strlen(*pSql) == 0) {
+      break;
     }
-  }
-
-  // pSql -> TAGS (tag1_value, ...)
-  if (TSDB_CODE_SUCCESS == code) {
-    if (TK_TAGS != token.type) {
-      code = buildSyntaxErrMsg(&pCxt->msg, "TAGS is expected", token.z);
-    } else {
-      NEXT_TOKEN(*pSql, token);
-    }
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    if (TK_NK_LP != token.type) {
-      code = buildSyntaxErrMsg(&pCxt->msg, "( is expected", token.z);
-    } else {
-      code = skipParentheses(pCxt, pSql);
-    }
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    code = skipTableOptions(pCxt, pSql);
-  }
-
-  return code;
+  } while (1);
 }
 
 static int32_t parseDuplicateUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool* pDuplicate) {
@@ -143,20 +117,7 @@ static int32_t parseDuplicateUsingClause(SInsertParseContext* pCxt, SVnodeModify
   *pDuplicate = false;
 
   char tbFName[TSDB_TABLE_FNAME_LEN];
-  code = tNameExtractFullName(&pStmt->targetTableName, tbFName);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
-  }
-  STableMeta** pMeta = taosHashGet(pStmt->pSubTableHashObj, tbFName, strlen(tbFName));
-  if (NULL != pMeta) {
-    *pDuplicate = true;
-    code = ignoreUsingClause(pCxt, &pStmt->pSql);
-    if (TSDB_CODE_SUCCESS == code) {
-      return cloneTableMeta(*pMeta, &pStmt->pTableMeta);
-    }
-  }
-
-  return code;
+  return tNameExtractFullName(&pStmt->targetTableName, tbFName);
 }
 
 typedef enum { BOUND_TAGS, BOUND_COLUMNS, BOUND_ALL_AND_TBNAME } EBoundColumnsType;
@@ -1337,12 +1298,7 @@ static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   if (token.type != TK_USING) {
     return code;
   } else if ((!pCxt->missCache) && (TSDB_CODE_SUCCESS == code)) {
-    do {
-      NEXT_TOKEN_WITH_PREV_VALUES(pStmt->pSql, token);
-      if (TK_VALUES == token.type) {
-        break;
-      }
-    } while (1);
+    removeUtilValues(pCxt, &pStmt->pSql);
     return code;
   }
 
@@ -2461,7 +2417,6 @@ static int32_t parseDataClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
   NEXT_TOKEN(pStmt->pSql, token);
   switch (token.type) {
     case TK_VALUES:
-    case TK_USING:
       if (TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_FILE_INSERT)) {
         return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is exclusive", token.z);
       }

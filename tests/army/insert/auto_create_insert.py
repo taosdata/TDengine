@@ -92,6 +92,11 @@ class TDTestCase(TBase):
         tdSql.query("select * from t_3")
         tdSql.checkRows(4)
 
+        tdLog.info("start to insert multi rows with auto create and direct insert...")
+        tdSql.execute("INSERT INTO t_10 USING stb TAGS (10) VALUES ('2024-01-01 00:00:04', 1, 2.0, 'test'),t_10 USING stb TAGS (10) VALUES ('2024-01-01 00:00:05', 1, 2.0, 'test'),")
+        tdSql.query("select * from t_10")
+        tdSql.checkRows(2)
+
     def check_some_err_case(self):
         tdLog.info(f"check some err case")
         tdSql.execute("USE test")
@@ -138,6 +143,8 @@ class TDTestCase(TBase):
 
         # check some err case
         self.check_some_err_case()
+        
+        tdLog.success(f"{__file__} successfully executed")
 
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())
