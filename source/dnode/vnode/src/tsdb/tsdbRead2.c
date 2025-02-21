@@ -1518,6 +1518,8 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, SRowKey* pLastPro
   pStatus = &pReader->status;
   pBlockIter = &pStatus->blockIter;
   pSupInfo = &pReader->suppInfo;
+
+  pSupInfo->args = pReader->pTsdb->pVnode->pBse;
   pDumpInfo = &pReader->status.fBlockDumpInfo;
 
   pBlockData = &pStatus->fileBlockData;
@@ -5226,31 +5228,32 @@ _end:
   return code;
 }
 
-int32_t doShouldBuildBlobCol(STsdbReader* pReader, STSchema* pTSchema, int32_t i, SColVal* pSrcVal, SColVal* pDstVal) {
-  STColumn* pColumn = pTSchema->columns + i;
-  if (pColumn->type != TSDB_DATA_TYPE_BINARY || pColumn->type == TSDB_DATA_TYPE_BLOB) {
-    return 0;
-  }
-  int32_t lino = 0;
-  int32_t code = TSDB_CODE_SUCCESS;
-  SVnode* pVnode = pReader->pTsdb->pVnode;
+// int32_t doShouldBuildBlobCol(STsdbReader* pReader, STSchema* pTSchema, int32_t i, SColVal* pSrcVal, SColVal* pDstVal)
+// {
+//   STColumn* pColumn = pTSchema->columns + i;
+//   if (pColumn->type != TSDB_DATA_TYPE_BINARY || pColumn->type == TSDB_DATA_TYPE_BLOB) {
+//     return 0;
+//   }
+//   int32_t lino = 0;
+//   int32_t code = TSDB_CODE_SUCCESS;
+//   SVnode* pVnode = pReader->pTsdb->pVnode;
 
-  uint8_t* pValue = NULL;
-  int32_t  len = 0;
+//   uint8_t* pValue = NULL;
+//   int32_t  len = 0;
 
-  code = bseGet(pVnode->pBse, pSrcVal->value.val, &pValue, &len);
-  TSDB_CHECK_CODE(code, lino, _err);
+//   code = bseGet(pVnode->pBse, pSrcVal->value.val, &pValue, &len);
+//   TSDB_CHECK_CODE(code, lino, _err);
 
-  pDstVal->value.pData = pValue;
-  pDstVal->value.nData = len;
-  pDstVal->value.type = pColumn->type;
+//   pDstVal->value.pData = pValue;
+//   pDstVal->value.nData = len;
+//   pDstVal->value.type = pColumn->type;
 
-_err:
-  if (code != 0) {
-    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return 1;
-}
+// _err:
+//   if (code != 0) {
+//     tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+//   }
+//   return 1;
+// }
 int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, SRow* pTSRow, STableBlockScanInfo* pScanInfo) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
@@ -5326,33 +5329,33 @@ _end:
   }
   return code;
 }
-static int32_t doBuildBlobCol(SColData* pColData, int32_t rowIndex, SColVal* pCv, void* arg) {
-  int32_t  code = 0;
-  uint64_t seq = 0;
-  uint32_t offset = 0;
-  uint8_t* value = NULL;
-  int32_t  len = 0;
+// static int32_t doBuildBlobCol(SColData* pColData, int32_t rowIndex, SColVal* pCv, void* arg) {
+//   int32_t  code = 0;
+//   uint64_t seq = 0;
+//   uint32_t offset = 0;
+//   uint8_t* value = NULL;
+//   int32_t  len = 0;
 
-  if (rowIndex + 1 < pColData->nVal) {
-    offset = pColData->aOffset[rowIndex + 1] - pColData->aOffset[rowIndex];
-  } else {
-    offset = pColData->nData - pColData->aOffset[rowIndex];
-  }
-  uint8_t* colData = pColData->pData + pColData->aOffset[rowIndex];
-  memcpy(&seq, colData, sizeof(uint64_t));
+//   if (rowIndex + 1 < pColData->nVal) {
+//     offset = pColData->aOffset[rowIndex + 1] - pColData->aOffset[rowIndex];
+//   } else {
+//     offset = pColData->nData - pColData->aOffset[rowIndex];
+//   }
+//   uint8_t* colData = pColData->pData + pColData->aOffset[rowIndex];
+//   memcpy(&seq, colData, sizeof(uint64_t));
 
-  code = bseGet((SBse*)arg, seq, &value, &len);
-  if (code != 0) {
-    tsdbError("failed to get blob data from bse, code:%d", code);
-    return code;
-  }
+//   code = bseGet((SBse*)arg, seq, &value, &len);
+//   if (code != 0) {
+//     tsdbError("failed to get blob data from bse, code:%d", code);
+//     return code;
+//   }
 
-  pCv->value.pData = value;
-  pCv->value.nData = len;
-  pCv->value.type = pColData->type;
-  pCv->cid = pColData->cid;
-  return code;
-}
+//   pCv->value.pData = value;
+//   pCv->value.nData = len;
+//   pCv->value.type = pColData->type;
+//   pCv->cid = pColData->cid;
+//   return code;
+// }
 int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, SBlockData* pBlockData,
                                  int32_t rowIndex) {
   int32_t             code = TSDB_CODE_SUCCESS;

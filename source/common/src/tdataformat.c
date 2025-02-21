@@ -2416,19 +2416,32 @@ void tColDataDeepClear(SColData *pColData) {
 }
 
 static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, uint8_t *pData, uint32_t nData) {
-  int32_t code = 0;
-
+  int32_t  code = 0;
+  uint32_t cvtNData = sizeof(uint64_t);
   if (IS_VAR_DATA_TYPE(pColData->type)) {
     // TODO
-    code = tRealloc((uint8_t **)(&pColData->aOffset), ((int64_t)(pColData->nVal + 1)) << 2);
-    if (code) goto _exit;
-    pColData->aOffset[pColData->nVal] = pColData->nData;
-
-    if (nData) {
-      code = tRealloc(&pColData->pData, pColData->nData + nData);
+    if (IS_STR_DATA_BLOB(pColData->type)) {
+      code = tRealloc((uint8_t **)(&pColData->aOffset), ((int64_t)(pColData->nVal + 1)) << 2);
       if (code) goto _exit;
-      (void)memcpy(pColData->pData + pColData->nData, pData, nData);
-      pColData->nData += nData;
+      pColData->aOffset[pColData->nVal] = pColData->nData;
+      if (nData) {
+        code = tRealloc(&pColData->pData, pColData->nData + cvtNData);
+        if (code) goto _exit;
+        (void)memcpy(pColData->pData + pColData->nData, pData, cvtNData);
+        pColData->nData += cvtNData;
+      }
+
+    } else {
+      code = tRealloc((uint8_t **)(&pColData->aOffset), ((int64_t)(pColData->nVal + 1)) << 2);
+      if (code) goto _exit;
+      pColData->aOffset[pColData->nVal] = pColData->nData;
+
+      if (nData) {
+        code = tRealloc(&pColData->pData, pColData->nData + nData);
+        if (code) goto _exit;
+        (void)memcpy(pColData->pData + pColData->nData, pData, nData);
+        pColData->nData += nData;
+      }
     }
   } else {
     if (!(pColData->nData == tDataTypes[pColData->type].bytes * pColData->nVal)) {
