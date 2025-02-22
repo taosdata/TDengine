@@ -327,7 +327,7 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
     pMeta->pHbInfo->hbStart = 0;
     code = taosReleaseRef(streamMetaRefPool, rid);
     if (code == TSDB_CODE_SUCCESS) {
-      stDebug("vgId:%d jump out of meta timer", vgId);
+      stInfo("vgId:%d jump out of meta timer since closed", vgId);
     } else {
       stError("vgId:%d jump out of meta timer, failed to release the meta rid:%" PRId64, vgId, rid);
     }
@@ -413,7 +413,7 @@ void destroyMetaHbInfo(SMetaHbInfo* pInfo) {
 void streamMetaWaitForHbTmrQuit(SStreamMeta* pMeta) {
   // wait for the stream meta hb function stopping
   if (pMeta->role == NODE_ROLE_LEADER) {
-    taosMsleep(2 * META_HB_CHECK_INTERVAL);
+    taosMsleep(3 * META_HB_CHECK_INTERVAL);
     stDebug("vgId:%d wait for meta to stop timer", pMeta->vgId);
   }
 }
