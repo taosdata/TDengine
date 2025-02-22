@@ -73,11 +73,11 @@ jobs:
           path: ${{ github.workspace }}/
           github-token: ${{ secrets.WORKFLOW_PAT }}
           repository: taosdata/TDengine
-          run-id: 13431241404
+          run-id: 13473357450
       - name: Display structure of download files
         run: |
           echo "contrib"
-          ls ${{ github.workspace }}/contrib/
+          ls -a ${{ github.workspace }}/contrib/
           echo "taosadapter"
           ls -a ${{ github.workspace }}/tools/taosadapter/
           echo "taosadapter branch"
@@ -87,10 +87,12 @@ jobs:
       - name: Remvoe the cache file of third-party tools
         run: |
           rm -rf ${{ github.workspace }}/contrib/deps-download/CMakeCache.txt
+          rm -rf ${{ github.workspace }}/contrib/deps-download/openssl-prefix
+          rm -rf ${{ github.workspace }}/contrib/deps-download/curl2-prefix
 
       - name: Cmake build 
         run: |
-          mkdir debug && cd debug && pwd
+          cd debug && pwd
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
             -DBUILD_HTTP=false \

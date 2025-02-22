@@ -2,31 +2,37 @@
 name: Reusable workflow of TDengine document buile pipelines
 
 on:
+  push:
   workflow_call:
       inputs:
         target_branch:
-          description: "Target branch name of  for building the document"
+          description: "Target branch name of for building the document"
           required: true
           type: string
+          default: "main"
 
         target_change_id:
           description: "Target change id to merge for building the document"
           required: true
           type: string
+          default: "29849"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
+  DOC_WKC: "/root/doc_ci_work/TDengine"
   ZH_DOC_REPO: "docs.taosdata.com"
   EN_DOC_REPO: "docs.tdengine.com"
-  DOC_WKC: "/root/doc_ci_work/TDengine"
-  WKC: "/var/lib/jenkins/workspace/TDinternal/community"
+  TD_REPO: "TDengine"
+  TOOLS_REPO: "taos-tools"
 
 jobs:
   check:
-    runs-on: [self-hosted, CI, doc-build]
+    runs-on: 
+      group: CI
+      labels: [self-hosted, doc-build]
     outputs:
       file_zh_changed: ${{ steps.set_output.outputs.file_zh_changed }}
       file_en_changed: ${{ steps.set_output.outputs.file_zh_changed }}
@@ -35,7 +41,7 @@ jobs:
     steps:
       - name: Get the latest document contents from the repository
         run: |
-          cd ${{ env.WKC }}
+          cd ${{ env.DOC_WKC }}
           git reset --hard
           git clean -f
           git remote prune origin
@@ -59,12 +65,14 @@ jobs:
 
   build:
     needs: check
-    runs-on: [self-hosted, CI, doc-build]
+    runs-on:
+      group: CI
+      labels: [self-hosted, doc-build]
     if: ${{ needs.check.outputs.file_zh_changed != '' || needs.check.outputs.file_en_changed != '' }}
     steps:
       - name: Get the latest document contents
         run: |
-          cd ${{ env.DOC_WKC }}
+          cd ${{ env.DOC_WKC }}/${{ env.TD_REPO }}
           git reset --hard
           git clean -f
           git remote prune origin
@@ -73,6 +81,14 @@ jobs:
           git pull >/dev/null
           git fetch origin +refs/pull/${{ inputs.target_change_id }}/merge
           git checkout -qf FETCH_HEAD 
+
+          cd ${{ env.DOC_WKC }}/${{ env.TOOLS_REPO }}
+          git reset --hard
+          git clean -f
+          git fetch
+          git remote prune origin
+          git checkout ${{ inputs.target_change_id }}
+          git pull >/dev/null
 
       - name: Build the chinese document
         run: |

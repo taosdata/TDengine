@@ -667,6 +667,32 @@ void deleteRowBuff(SStreamFileState* pFileState, const void* pKey, int32_t keyLe
   }
 }
 
+void deleteRowBuffByGroupId(SStreamFileState* pFileState, uint64_t groupId) {
+  SSHashObj* pRowMap = pFileState->rowStateBuff;
+  void*   pIte = NULL;
+  int32_t iter = 0;
+  while ((pIte = tSimpleHashIterate(pRowMap, pIte, &iter)) != NULL) {
+    size_t keyLen = 0;
+    SWinKey* pKey = tSimpleHashGetKey(pIte, &keyLen);
+    if (pKey->groupId == groupId) {
+      int32_t tmpRes = tSimpleHashIterateRemove(pRowMap, pKey, keyLen, &pIte, &iter);
+      qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
+    }
+  }
+
+  while (1) {
+    SWinKey tmp = {.ts = INT64_MIN, .groupId = groupId};
+    SStreamStateCur* pCur = streamStateSeekKeyNext_rocksdb(pFileState->pFileStore, &tmp);
+    SWinKey delKey = {.groupId = groupId};
+    int32_t code = streamStateGetGroupKVByCur_rocksdb(pFileState->pFileStore, pCur, &delKey, NULL, 0);
+    if (code != TSDB_CODE_SUCCESS) {
+      break;
+    }
+    code = streamStateDel_rocksdb(pFileState->pFileStore, &delKey);
+    qTrace("%s at line %d res:%d", __func__, __LINE__, code);
+  }
+}
+
 static int32_t recoverSessionRowBuff(SStreamFileState* pFileState, SRowBuffPos* pPos) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;

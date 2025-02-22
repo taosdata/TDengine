@@ -43,7 +43,7 @@ jobs:
     needs: build-doc
     runs-on: 
       group: CI
-      labals: [self-hosted, Linux]
+      labels: [self-hosted, Linux]
     timeout-minutes: 200
     steps:
       - name: Output the testing information

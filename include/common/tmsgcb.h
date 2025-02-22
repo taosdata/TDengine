@@ -38,7 +38,6 @@ typedef enum {
   STREAM_QUEUE,
   ARB_QUEUE,
   STREAM_CTRL_QUEUE,
-  STREAM_LONG_EXEC_QUEUE,
   QUEUE_MAX,
 } EQueueType;
 

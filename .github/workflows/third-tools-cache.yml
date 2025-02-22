@@ -1,9 +1,6 @@
 name: Build TDengine and cache third-party tools
 
 on:
-  pull_request:
-    branches:
-      - main
   schedule:
     - cron: '0 1 * * *'
   workflow_dispatch:
@@ -60,21 +57,25 @@ jobs:
           which taosd
           which taosadapter
           which taoskeeper
-      - name: Create cache directory
-        run: mkdir -p build/cache/tools
       - name: Save Cache files
         run: |
-          cp -r ${{ github.workspace }}/contrib build/cache/
-          cp -r ${{ github.workspace }}/tools/taosadapter build/cache/tools/
+          mkdir -p cache/tools && mkdir -p cache/debug/build/lib
+          cp -r ${{ github.workspace }}/contrib cache/
+          cp -r ${{ github.workspace }}/tools/taosadapter cache/tools/
+          cp -r ${{ github.workspace }}/debug/contrib cache/debug/
+          cd ${{ github.workspace }}/debug/build/lib/ && cp -r cmake pkgconfig libavro* libaz.a libcjson.a libgeometry.a libjansson.a \
+            liblz4.a libpcre2-8.a libscalar.a libsnappy.a libtoolscJson.a libtsim_static.a \
+            libTSZ.a libuv.a libz.a ${{ github.workspace }}/cache/debug/build/lib/
+
       - name: Upload cache as artifact
         id: upload-artifact-cache
         uses: actions/upload-artifact@v4
         with:
           name: third-tools-build-cache
-          path: build/cache/
-          registry-type: generic
+          path: ${{ github.workspace }}/cache/
           overwrite: true
           retention-days: 7
+          include-hidden-files: true
       - name: Update orgerization variable 'TDENGINE_TOOLS_CACHE_ID'
         run: |
           response=$(curl -L \
