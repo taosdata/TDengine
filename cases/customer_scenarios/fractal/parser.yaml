@@ -1,0 +1,73 @@
+"parser": {
+        "parse": {
+            "payload": {
+                "json": ""
+            }
+        },
+        "s_model": {
+            "name": "site",
+            "tags": [
+                {
+                    "name": "site_controller_id",
+                    "type": "VARCHAR(128)"
+                } 
+            ],
+            "columns": [
+                {
+                    "name": "ts",
+                    "type": "TIMESTAMP",
+                    "encode": null,
+                    "compress": null,
+                    "level": null
+                },
+                {
+                    "name": "${point_name}",
+                    "type": "${data_type}",
+                    "encode": null,
+                    "compress": null,
+                    "level": null
+                }
+            ]
+        },
+        "model": {
+            "name": "site_${site_controller_id}",
+            "using": "site",
+            "tags": [
+                "site_controller_id"
+            ],
+            "columns": [
+                "ts",
+                "value"
+            ]
+        },
+        "mutate": [
+            {
+                "extract": {
+                    "data_type": {
+                        "convert": {
+                            "boolean_integer": "bool",
+                            "float": "double",
+                            "string": "varchar(128)",
+                            "integer": "int"
+                        }
+                    }
+                }
+            },
+            {
+                "map": {
+                    "ts": {
+                        "cast": "ts",
+                        "as": "TIMESTAMP(ns)"
+                    },
+                    "${point_name}": {
+                        "cast": "value",
+                        "as": "VARCHAR"
+                    },
+                    "site_controller_id": {
+                        "cast": "site_controller_id",
+                        "as": "VARCHAR"
+                    }
+                }
+            }
+        ]
+    }
