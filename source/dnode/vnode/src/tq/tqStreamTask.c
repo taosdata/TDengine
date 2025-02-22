@@ -156,13 +156,13 @@ void tqScanWalAsync(STQ* pTq) {
   // 2. the stream isn't disabled
   if ((pMeta->role == NODE_ROLE_FOLLOWER) || tsDisableStream) {
     tqInfo("vgId:%d follower node or stream disabled, not scan wal", vgId);
-    return TSDB_CODE_SUCCESS;
+    return;
   }
 
   pParam = taosMemoryMalloc(sizeof(SBuildScanWalMsgParam));
   if (pParam == NULL) {
     tqError("vgId:%d failed to start scan wal, stream not executes, code:%s", vgId, tstrerror(code));
-    return terrno;
+    return;
   }
 
   pParam->metaId = pMeta->rid;
