@@ -78,12 +78,33 @@ class TDTestCase(TBase):
         # last line
         self.checkSame(rlist[idx][:len(result)], result)
 
-    def checkDumpInOut(self, db, stb, insertRows):
+    def checkDumpInOutMode(self, source, arg):
+        mode = arg[0]
+        self.taos(f'{mode} -s "source {source}" ')
+
+    def checkDumpInOut(self):
+        args = [
+            ["",   18, 346, -2, 310], 
+            ["-R -r", 22, 350, -3, 313],
+            ["-T 40 -E http://localhost:6041", 21, 349, -3, 312]
+        ]
+
+        source = "cmdline/data/source.sql"
+
+        for arg in args:
+            self.checkDumpInOutMode(source, arg)
+
+        db = "db"
+        insertRows = 5
         self.taos(f'-s "select * from {db}.d0 >>d0.csv" ')
-        #self.taos(f'-s "delete from {db}.d0" ')
-        #self.taos(f'-s "insert into {db}.d0 file d0.out " ')
-        #sql = f"select count(*) from {db}.d0"
-        #tdSql.checkAgg(sql, insertRows)
+        self.taos(f'-s "delete from {db}.d0" ')
+        self.taos(f'-s "insert into {db}.d0 file d0.out " ')
+        sql = f"select count(*) from {db}.d0"
+        tdSql.checkAgg(sql, insertRows)
+        sql = f"select first(voltage) from {db}.d0"
+        tdSql.checkFirstValue(sql, 5)
+        sql = f"select last(voltage) from {db}.d0"
+        tdSql.checkFirstValue(sql, 5)
     
     def checkBasic(self):
         tdLog.info(f"check describe show full.")
@@ -100,9 +121,6 @@ class TDTestCase(TBase):
         ]
         for arg in args:
             self.checkResultWithMode(db, stb, arg)
-
-        # dump in/out
-        self.checkDumpInOut(db, stb, insertRows)
 
 
     def checkVersion(self):
@@ -133,7 +151,46 @@ class TDTestCase(TBase):
             self.checkListString(rlist1, string)
     
     def checkCommand(self):
-        self.taos(' -uroot -w 40 -ptaosdata -c /root/taos/ -s"show databases"')
+        # check coredump
+
+        # o logpath
+        char = 'a'
+        lname =f'-o "/root/log/{char * 1000}/" -s "quit;"' 
+        queryOK = "Query OK"
+
+        # invalid input check
+        args = [
+            [lname, "failed to create log at"],
+            ['-uroot -w 40 -ptaosdata -c /root/taos/ -s"show databases"', queryOK],
+            ['-o "./current/log/files/" -s"show databases;"', queryOK],
+            ['-a ""', "Invalid auth"],
+            ['-s "quit;"', "Welcome to the TDengine Command Line Interface"],
+            ['-a "abc"', "[0x80000357]"],
+            ['-h "" -s "show dnodes;"', "Invalid host"],
+            ['-u "" -s "show dnodes;"', "Invalid user"],
+            ['-P "" -s "show dnodes;"', "Invalid port"],
+            ['-u "AA" -s "show dnodes;"', "failed to connect to server"],
+            ['-p"abc" -s "show dnodes;"', "[0x80000357]"],
+            ['-d "abc" -s "show dnodes;"', "[0x80000388]"],
+            ['-N 0 -s "show dnodes;"', "Invalid pktNum"],
+            ['-N 10 -s "show dnodes;"', queryOK],
+            ['-w 0 -s "show dnodes;"', "Invalid displayWidth"],
+            ['-w 10 -s "show dnodes;"', queryOK],
+            ['-W 10 -s "show dnodes;"', "taos: invalid option"],
+            ['-l 0 -s "show dnodes;"', "Invalid pktLen"],
+            ['-l 10 -s "show dnodes;"', queryOK],
+            ['-C', "buildinfo"],
+            ['-B -s "show dnodes;"', queryOK],
+            ['-s "help;"', "Timestamp expression Format"],
+            ['-s ""', "Invalid commands"],
+            ['-t', "2: service ok"]
+        ]
+
+        for arg in args:
+            print(arg[0])
+            print(arg[1])
+            rlist = self.taos(arg[0])
+            self.checkListString(rlist, arg[1])    
 
     # run
     def run(self):
@@ -154,6 +211,8 @@ class TDTestCase(TBase):
         # check command
         self.checkCommand()
 
+        # check data in/out
+        self.checkDumpInOut()
 
         tdLog.success(f"{__file__} successfully executed")
 
