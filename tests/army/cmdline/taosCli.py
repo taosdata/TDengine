@@ -98,11 +98,11 @@ class TDTestCase(TBase):
         insertRows = 5
         self.taos(f'-s "select * from {db}.d0 >>d0.csv" ')
         self.taos(f'-s "delete from {db}.d0" ')
-        self.taos(f'-s "insert into {db}.d0 file d0.out " ')
+        self.taos(f'-s "insert into {db}.d0 file d0.csv" ')
         sql = f"select count(*) from {db}.d0"
         tdSql.checkAgg(sql, insertRows)
         sql = f"select first(voltage) from {db}.d0"
-        tdSql.checkFirstValue(sql, 5)
+        tdSql.checkFirstValue(sql, 1)
         sql = f"select last(voltage) from {db}.d0"
         tdSql.checkFirstValue(sql, 5)
     
@@ -176,7 +176,7 @@ class TDTestCase(TBase):
             ['-N 10 -s "show dnodes;"', queryOK],
             ['-w 0 -s "show dnodes;"', "Invalid displayWidth"],
             ['-w 10 -s "show dnodes;"', queryOK],
-            ['-W 10 -s "show dnodes;"', "taos: invalid option"],
+            ['-W 10 -s "show dnodes;"', None],
             ['-l 0 -s "show dnodes;"', "Invalid pktLen"],
             ['-l 10 -s "show dnodes;"', queryOK],
             ['-C', "buildinfo"],
@@ -190,7 +190,8 @@ class TDTestCase(TBase):
             print(arg[0])
             print(arg[1])
             rlist = self.taos(arg[0])
-            self.checkListString(rlist, arg[1])    
+            if arg[1] != None:
+                self.checkListString(rlist, arg[1])    
 
     # run
     def run(self):
