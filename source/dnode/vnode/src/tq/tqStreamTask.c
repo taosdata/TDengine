@@ -124,10 +124,10 @@ static void doStartScanWal(void* param, void* tmrId) {
 
   tqTrace("vgId:%d create msg to start wal scan, numOfTasks:%d", vgId, numOfTasks);
 
-  // #if 0
+#if 0
   //  wait for the vnode is freed, and invalid read may occur.
   taosMsleep(10000);
-  // #endif
+#endif
 
   code = streamTaskSchedTask(&pParam->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA, false);
   if (code) {
