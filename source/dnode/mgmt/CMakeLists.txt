@@ -15,7 +15,9 @@ if(NOT ${TD_WINDOWS})             # {
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/node_mgmt/inc"
   )
   if(NOT ${FALLBACK})     # {
-    add_dependencies(${PREPARE_ENV_TARGET} taosd)
+    if(${TD_WINDOWS})     # {
+      add_dependencies(${PREPARE_ENV_TARGET} taosd)
+    endif()               # }
   endif()                 # }
 endif()                           # }
 

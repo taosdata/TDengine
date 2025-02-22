@@ -276,7 +276,7 @@ else()                      # }{
 
     if(NOT WIN32)        # {
         set(_lemon           "${_lemon_bin_dir}/lemon")
-        set(_output_option   "-o ${_lemon}")
+        set(_output_option   -o ${_lemon})
     else()               # }{
         set(_lemon           "${_lemon_bin_dir}/lemon.exe")
     endif()              # }
