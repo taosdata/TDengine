@@ -847,10 +847,12 @@ function make_linux_pkg() {
 }
 
 function make_mac_pkg() {
+
     # remove old package files ,include bin  cfg  driver  examples  include   share
+    mac_install_dir="/opt/tdengine"
     sudo rm -rf /opt/tdengine/*
 
-    # /usr/local/taos is the dst dir when make install  
+    # /usr/local/Cellar/tdengine/${version} is the dst dir when make install  
     # copy bin  cfg  driver  examples  include   share to /opt/tdengine
     if [ -d "/usr/local/Cellar/tdengine/$version" ];then
         sudo cp -rf /usr/local/Cellar/tdengine/$version/ /opt/tdengine/
@@ -869,16 +871,15 @@ function make_mac_pkg() {
     sudo cp $communityDir/tools/taos-tools/example/* /opt/tdengine/examples/taosbenchmark-json
 
     # copy connectors
-    echo "copy connectors"
-    sudo mkdir -p /opt/tdengine/connector
-    sudo cd /opt/tdengine/connector
-    
-    sudo cp -r ${connectorDir}/driver-go . && sudo mv driver-go go && sudo rm -rf go/.git  && echo "cp driver-go done" || exit 1
-    sudo cp -r ${connectorDir}/taos-connector-python . && sudo mv taos-connector-python python && sudo rm -rf python/.git 
-    sudo cp -r ${connectorDir}/taos-connector-node . && sudo mv taos-connector-node nodejs && sudo rm -rf nodejs/.git 
-    sudo cp -r ${connectorDir}/taos-connector-dotnet . && sudo mv taos-connector-dotnet dotnet && sudo rm -rf dotnet/.git 
-    sudo cp -r ${connectorDir}/taos-connector-rust . && sudo mv taos-connector-rust rust && sudo rm -rf rust/.git 
-    sudo cp ${connectorDir}/taos-connector-jdbc/target/*.jar . || :
+    sudo mkdir -p ${mac_install_dir}/connector
+    cd ${mac_install_dir}/connector
+
+    sudo cp -r ${connectorDir}/driver-go . && sudo mv driver-go go && sudo rm -rf go/.git || exit 1
+    sudo cp -r ${connectorDir}/taos-connector-python . && sudo mv taos-connector-python python && sudo rm -rf python/.git  || exit 1
+    sudo cp -r ${connectorDir}/taos-connector-node . && sudo mv taos-connector-node nodejs && sudo rm -rf nodejs/.git  || exit 1
+    sudo cp -r ${connectorDir}/taos-connector-dotnet . && sudo mv taos-connector-dotnet dotnet && sudo rm -rf dotnet/.git || exit 1
+    sudo cp -r ${connectorDir}/taos-connector-rust . && sudo mv taos-connector-rust rust && sudo rm -rf rust/.git || exit 1
+    sudo cp ${connectorDir}/taos-connector-jdbc/target/*.jar . || exit 1
 
     # others
     if [ "${versionType}" == "community" ]; then        
