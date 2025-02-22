@@ -20,17 +20,49 @@ if [ ! -d $archiveDir ]; then
 fi
 
 echo "generate community package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-if [ ! -d $communityDir ]; then
-  cd $topDir
-  mkdir -p debug
-  cd debug
-  cmake ..
-fi
+# if [ ! -d $communityDir ]; then
+#   cd $topDir
+#   mkdir -p debug
+#   cd debug
+#   cmake ..
+# fi
 
 cd $communityDir
-###git checkout $branchName
-#git checkout -- .
-#git pull
+
+function git_checkout_operations {
+  local dir=$1
+  cd $dir
+
+  if ! git fetch ; then
+    echo "Failed to fetch latest changes in $dir"
+    exit 1
+  fi
+  
+  if ! git checkout $branchName; then
+    echo "Failed to checkout branch $branchName in $dir"
+    exit 1
+  fi
+
+  # do not discard changes in the directory
+  # if ! git checkout -- .; then
+  #   echo "Failed to discard changes in $dir"
+  #   exit 1
+  # fi
+
+  # 检查 branchName 是否为 tag
+  if git show-ref --tags | grep -q "refs/tags/$branchName$"; then
+    echo "$branchName is a tag, skipping git pull"
+  else
+    if ! git pull; then
+      echo "Failed to pull latest changes in $dir"
+      exit 1
+    fi
+  fi
+}
+
+# 对 community 目录执行切换分支操作
+git_checkout_operations ${communityDir}
+
 rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
