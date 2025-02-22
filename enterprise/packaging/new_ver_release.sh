@@ -13,7 +13,7 @@ set -e
 #                     -h help
 
 # set parameters by default value
-branchName=3.0   # -b [main | 3.0 ]
+branchName=main   # -b [main | 3.0 ]
 cpuType=x64         # -c [aarch32 | aarch64 | x64 ...]
 version="3.0.0.0"   # -n [2.1.*.* | 2.0.*.* ]
 pagMode=full        # -l [full | lite] 
@@ -80,7 +80,7 @@ do
       skip=$(echo $OPTARG)
       ;;
     h)
-      echo "Usage: `basename $0` -b [develop | master] "
+      echo "Usage: `basename $0` -b [main | 3.0] "
       echo "                     -c [aarch32 | aarch64 | x64 ...] "
       echo "                     -n [version number: 2.1.*.* | 2.0.*.* ]      "
       echo "                     -l [full | lite]  "
