@@ -207,8 +207,7 @@ void tqScanWalAsync(STQ* pTq) {
     tqFatal("vgId:%d failed to get tmr ctrl during sched scan wal", vgId);
     taosMemoryFree(pParam);
   } else {
-    // todo: start in 1sec for the first time
-    streamTmrStart(doStartScanWal, 1000, pParam, pTimer, &pMeta->scanInfo.scanTimer, vgId,
+    streamTmrStart(doStartScanWal, SCAN_WAL_IDLE_DURATION, pParam, pTimer, &pMeta->scanInfo.scanTimer, vgId,
                    "scan-wal");
   }
 }
