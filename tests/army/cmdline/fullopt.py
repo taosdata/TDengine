@@ -30,7 +30,7 @@ class TDTestCase(TBase):
     updatecfgDict = {
         'queryMaxConcurrentTables': '2K',
         'streamMax': '1M',
-        'totalMemoryKB': '32G',
+        'totalMemoryKB': '32000000',
         'streamMax': '1P',
         'streamBufferSize':'1T',
         'slowLogScope':"query"
@@ -46,10 +46,6 @@ class TDTestCase(TBase):
 
         # taosBenchmark run
         etool.benchMark(command = f"-d {self.db} -t {self.childtable_count} -n {self.insert_rows} -v 2 -y")
-
-    def checkQueryOK(self, rets):
-        if rets[-2][:9] != "Query OK,":
-            tdLog.exit(f"check taos -s return unexpect: {rets}")
 
     def doTaos(self):
         tdLog.info(f"check taos command options...")
@@ -71,10 +67,10 @@ class TDTestCase(TBase):
                   ]
         # exec
         for option in options:
-            rets = etool.runBinFile("taos", f"-s \"alter local '{option}'\";")
-            self.checkQueryOK(rets)
+            rlist = self.taos(f"-s \"alter local '{option}'\"")
+            self.checkListString(rlist, "Query OK,")
         # error
-        etool.runBinFile("taos", f"-s \"alter local 'nocmd check'\";")
+        etool.runBinFile("taos", f"-s \"alter local 'nocmd check'\"")
 
         # help
         rets = etool.runBinFile("taos", "--help")
