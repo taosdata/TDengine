@@ -32,6 +32,12 @@ cd $communityDir
 function git_checkout_operations {
   local dir=$1
   cd $dir
+
+  if ! git fetch ; then
+    echo "Failed to fetch latest changes in $dir"
+    exit 1
+  fi
+  
   if ! git checkout $branchName; then
     echo "Failed to checkout branch $branchName in $dir"
     exit 1
