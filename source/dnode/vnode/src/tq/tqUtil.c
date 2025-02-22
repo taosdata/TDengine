@@ -49,7 +49,7 @@ void tqUpdateNodeStage(STQ* pTq, bool isLeader) {
   streamMetaUpdateStageRole(pTq->pStreamMeta, state.term, isLeader);
 
   if (isLeader) {
-    tqScanWalAsync(pTq);
+    int32_t code = tqScanWalAsync(pTq);
   }
 }
 

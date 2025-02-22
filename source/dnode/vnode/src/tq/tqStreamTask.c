@@ -145,7 +145,7 @@ _end:
   }
 }
 
-int32_t tqScanWalAsync(STQ* pTq) {
+void tqScanWalAsync(STQ* pTq) {
   SStreamMeta*           pMeta = pTq->pStreamMeta;
   int32_t                code = 0;
   int32_t                vgId = TD_VID(pTq->pVnode);
@@ -177,8 +177,6 @@ int32_t tqScanWalAsync(STQ* pTq) {
     streamTmrStart(doStartScanWal, 1000, pParam, pTimer, &pMeta->scanInfo.scanTimer, vgId,
                    "scan-wal");
   }
-
-  return code;
 }
 
 int32_t tqStopStreamTasksAsync(STQ* pTq) {
