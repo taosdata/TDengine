@@ -847,16 +847,15 @@ function make_linux_pkg() {
 }
 
 function make_mac_pkg() {
-
     # remove old package files ,include bin  cfg  driver  examples  include   share
     mac_install_dir="/opt/tdengine"
     sudo rm -rf /opt/tdengine/*
 
     # /usr/local/Cellar/tdengine/${version} is the dst dir when make install  
     # copy bin  cfg  driver  examples  include   share to /opt/tdengine
-    if [ -d "/usr/local/Cellar/tdengine/$version" ];then
+    if [ -d "/usr/local/Cellar/tdengine/$version" ]; then
         sudo cp -rf /usr/local/Cellar/tdengine/$version/ /opt/tdengine/
-    elif [ -d "/opt/homebrew/Cellar/tdengine/$version" ];then
+    elif [ -d "/opt/homebrew/Cellar/tdengine/$version" ]; then
         sudo cp -rf /opt/homebrew/Cellar/tdengine/$version/ /opt/tdengine/
     else
         sudo cp -rf /usr/local/taos/ /opt/tdengine/
@@ -875,15 +874,14 @@ function make_mac_pkg() {
     cd ${mac_install_dir}/connector
 
     sudo cp -r ${connectorDir}/driver-go . && sudo mv driver-go go && sudo rm -rf go/.git || exit 1
-    sudo cp -r ${connectorDir}/taos-connector-python . && sudo mv taos-connector-python python && sudo rm -rf python/.git  || exit 1
-    sudo cp -r ${connectorDir}/taos-connector-node . && sudo mv taos-connector-node nodejs && sudo rm -rf nodejs/.git  || exit 1
+    sudo cp -r ${connectorDir}/taos-connector-python . && sudo mv taos-connector-python python && sudo rm -rf python/.git || exit 1
+    sudo cp -r ${connectorDir}/taos-connector-node . && sudo mv taos-connector-node nodejs && sudo rm -rf nodejs/.git || exit 1
     sudo cp -r ${connectorDir}/taos-connector-dotnet . && sudo mv taos-connector-dotnet dotnet && sudo rm -rf dotnet/.git || exit 1
     sudo cp -r ${connectorDir}/taos-connector-rust . && sudo mv taos-connector-rust rust && sudo rm -rf rust/.git || exit 1
     sudo cp ${connectorDir}/taos-connector-jdbc/target/*.jar . || exit 1
 
     # others
     if [ "${versionType}" == "community" ]; then        
-                
         # sudo cp -f ${keeperDir}/taoskeeper /opt/tdengine/bin/
         # sudo cp -f ${keeperDir}/taoskeeper.service /opt/tdengine/cfg/
         # sudo cp -f ${keeperDir}/config/taoskeeper.toml /opt/tdengine/cfg/
