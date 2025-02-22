@@ -26,7 +26,6 @@ if(${FALLBACK})        # {
   ADD_CUSTOM_TARGET(${PREPARE_ENV_TARGET} ALL WORKING_DIRECTORY ${TD_EXECUTABLE_OUTPUT_PATH} DEPENDS ${PREPARE_ENV_CMD})
 else()                 # }{
   ADD_CUSTOM_COMMAND(OUTPUT ${PREPARE_ENV_CMD}
-      POST_BUILD
       COMMAND echo "make test directory"
       DEPENDS ""
       COMMAND ${CMAKE_COMMAND} -E make_directory ${TD_TESTS_OUTPUT_DIR}/cfg/
