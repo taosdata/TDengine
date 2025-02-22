@@ -4,7 +4,7 @@ option(DEPEND_DIRECTLY "depend externals directly, otherwise externals will not 
 
 macro(INIT_EXT name)
     set(_base            "${CMAKE_SOURCE_DIR}/.externals/${name}")
-    set(_ins             "${CMAKE_SOURCE_DIR}/.externals/${name}/$<CONFIG>/install")
+    set(_ins             "${CMAKE_SOURCE_DIR}/.externals/${name}/install/${TD_CONFIG_NAME}")
     set(${name}_base     "${_base}")
     set(${name}_install  "${_ins}")
     set(${name}_inc_dir  "")
