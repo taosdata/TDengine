@@ -943,10 +943,10 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
 
   streamMetaWUnLock(pMeta);
 
-  if (scanWal && (vgId != SNODE_HANDLE)) {
-    tqDebug("vgId:%d start scan wal for executing tasks", vgId);
-    code = tqScanWalAsync(pMeta->ahandle, true);
-  }
+//  if (scanWal && (vgId != SNODE_HANDLE)) {
+//    tqDebug("vgId:%d start scan wal for executing tasks", vgId);
+//    code = tqScanWalAsync(pMeta->ahandle, true);
+//  }
 
   return code;
 }
@@ -1175,7 +1175,7 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
       pTask->hTaskInfo.operatorOpen = false;
       code = streamStartScanHistoryAsync(pTask, igUntreated);
     } else if (level == TASK_LEVEL__SOURCE && (streamQueueGetNumOfItems(pTask->inputq.queue) == 0)) {
-      code = tqScanWalAsync((STQ*)handle, false);
+//      code = tqScanWalAsync((STQ*)handle, false);
     } else {
       code = streamTrySchedExec(pTask, false);
     }

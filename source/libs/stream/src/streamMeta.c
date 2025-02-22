@@ -1348,7 +1348,7 @@ void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader)
 
   // mark the sign to send msg before close all tasks
   // 1. for leader vnode, always send msg before closing
-  // 2. for follower vnode, if it's is changed from leader, also sending msg before closing.
+  // 2. for follower vnode, if it's changed from leader, also sending msg before closing.
   if (pMeta->role == NODE_ROLE_LEADER) {
     pMeta->sendMsgBeforeClosing = true;
   }

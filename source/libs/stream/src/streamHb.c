@@ -341,7 +341,7 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
     if (code == TSDB_CODE_SUCCESS) {
       stInfo("vgId:%d role:%d not leader not send hb to mnode", vgId, role);
     } else {
-      stError("vgId:%d role:%d not leader not send hb to mnodefailed to release the meta rid:%" PRId64, vgId, role, rid);
+      stError("vgId:%d role:%d not leader not send hb to mnode, failed to release meta rid:%" PRId64, vgId, role, rid);
     }
 //    taosMemoryFree(param);
     return;
