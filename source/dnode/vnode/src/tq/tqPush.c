@@ -49,20 +49,6 @@ int32_t tqPushMsg(STQ* pTq, tmsg_t msgType) {
     }
   }
 
-  streamMetaRLock(pTq->pStreamMeta);
-  int32_t numOfTasks = streamMetaGetNumOfTasks(pTq->pStreamMeta);
-  streamMetaRUnLock(pTq->pStreamMeta);
-
-//  tqTrace("vgId:%d handle submit, restore:%d, numOfTasks:%d", TD_VID(pTq->pVnode), pTq->pVnode->restored, numOfTasks);
-
-  // push data for stream processing:
-  // 1. the vnode has already been restored.
-  // 2. the vnode should be the leader.
-  // 3. the stream is not suspended yet.
-  if ((!tsDisableStream) && (numOfTasks > 0)) {
-    code = tqScanWalAsync(pTq, true);
-  }
-
   return code;
 }
 
