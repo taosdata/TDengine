@@ -7,6 +7,9 @@
  *      See COPYRIGHT in top-level directory.
  */
 
+#ifdef WINDOWS
+#include <windows.h>
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>

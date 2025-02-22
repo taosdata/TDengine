@@ -56,3 +56,22 @@ include(${TD_SUPPORT_DIR}/cmake.install)
 
 # docs
 add_subdirectory(docs/doxgen)
+
+message(STATUS "==========last report==============")
+message(STATUS "BUILD_CONTRIB:${BUILD_CONTRIB}")
+message(STATUS "BUILD_TEST:${BUILD_TEST}")
+message(STATUS "DEPEND_DIRECTLY:${DEPEND_DIRECTLY}")
+message(STATUS "FALLBACK:${FALLBACK}")
+
+# freemine: potential credential leakage if output is stored publicly else where
+#      eg.: LOCAL_REPO or LOCAL_URL=https://user:pass@host/path/to/whatever
+message(STATUS "LOCAL_REPO:${LOCAL_REPO}")
+message(STATUS "LOCAL_URL:${LOCAL_URL}")
+
+message(STATUS "WEBSOCKET:${WEBSOCKET}")
+message(STATUS "CMAKE_CONFIGURATION_TYPES:${CMAKE_CONFIGURATION_TYPES}")
+message(STATUS "CMAKE_INSTALL_PREFIX:${CMAKE_INSTALL_PREFIX}")
+message(STATUS "CMAKE_GENERATOR:${CMAKE_GENERATOR}")
+message(STATUS "CMAKE_GENERATOR_PLATFORM:${CMAKE_GENERATOR_PLATFORM}")
+message(STATUS "===================================")
+message(STATUS "")

@@ -154,7 +154,6 @@ IF(TD_WINDOWS)
         IF(${CMAKE_BUILD_TYPE} MATCHES "Release")
             MESSAGE("${Green} will build Release version! ${ColourReset}")
             SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi- /O2 /GL /MD")
-
         ELSE()
             MESSAGE("${Green} will build Debug version! ${ColourReset}")
             SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MTd")
@@ -185,6 +184,47 @@ IF(TD_WINDOWS)
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS}")
     else()                # }{
         # freemine: not very much clear about why CMAKE_xxx_FLAGS are defined that way
+        string(JOIN " " COMMON_FLAGS
+            /D_WIN32 /MTd
+            # freemine: warnings below to be disabled for the moment
+            #           but better remove, and refact source code accordingly
+            /wd4267               # 'var' : conversion from 'size_t' to 'type', possible loss of data
+            /wd4305               # 'conversion': truncation from 'type1' to 'type2'
+            /wd4244               # 'argument' : conversion from 'type1' to 'type2', possible loss of data
+            /wd4018               # 'token' : signed/unsigned mismatch
+            /wd4477               # 'function' : format string 'string' requires an argument of type 'type', but variadic argument number has type 'type'
+            /wd4311               # 'variable' : pointer truncation from 'type' to 'type'
+            /wd4312               # 'operation' : conversion from 'type1' to 'type2' of greater size
+            /wd4022               # 'function' : pointer mismatch for actual parameter 'number'
+            /wd4013               # 'function' undefined; assuming extern returning int
+            /wd4819               # The file contains a character that cannot be represented in the current code page (number). Save the file in Unicode format to prevent data loss
+            /wd4090               # 'operation' : different 'modifier' qualifiers
+            /wd4101               # 'identifier': unreferenced local variable
+            /wd4996               # Your code uses a function, class member, variable, or typedef that's marked deprecated
+            /wd4047               # 'operator' : 'identifier1' differs in levels of indirection from 'identifier2'
+            /wd4133               # 'expression': incompatible types - from 'type1' to 'type2'
+            /wd4098               # 'function' : void function returning a value
+            /wd4716               # 'function' must return a value
+            /wd4715               # 'function' : not all control paths return a value
+            /wd4005               # 'identifier' : macro redefinition
+            /wd4273               # 'function' : inconsistent DLL linkage
+            /wd4068               # unknown pragma
+            /wd4334               # 'operator': result of 32-bit shift implicitly converted to 64 bits (was 64-bit shift intended?)
+            /wd4307               # 'operator' : signed integral constant overflow
+            /wd4113               # 'identifier1' differs in parameter lists from 'identifier2'
+            /wd4102               # 'label' : unreferenced label
+            /wd4003               # not enough arguments for function-like macro invocation 'identifier'
+            /wd4146               # unary minus operator applied to unsigned type, result still unsigned
+            /wd4200               # nonstandard extension used: zero-sized array in struct/union
+            /wd4081               # expected 'token1'; found 'token2'
+            /wd4293               # 'operator' : shift count negative or too big, undefined behavior
+            /wd4309               # 'conversion' : truncation of constant value
+            /wd4805               # 'operation' : unsafe mix of type 'type' and type 'type' in operation
+                                  # LNK4099
+            /D_CRT_SECURE_NO_WARNINGS
+        )
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMMON_FLAGS}")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COMMON_FLAGS}")
     endif()               # }
 ELSE()
     IF(${TD_DARWIN})

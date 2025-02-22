@@ -272,12 +272,17 @@ else()                      # }{
     set(_lemon_bin_dir "${CMAKE_CURRENT_BINARY_DIR}")
     set(_lemon_src_dir "${CMAKE_CURRENT_SOURCE_DIR}/lemon")
 
-    set(_lemon           "${_lemon_bin_dir}/lemon")
     set(_lemon_c         "${_lemon_src_dir}/lemon.c")
 
+    if(NOT WIN32)        # {
+        set(_lemon           "${_lemon_bin_dir}/lemon")
+        set(_output_option   "-o ${_lemon}")
+    else()               # }{
+        set(_lemon           "${_lemon_bin_dir}/lemon.exe")
+    endif()              # }
     add_custom_command(
         OUTPUT ${_lemon}
-        COMMAND ${C_COMPILER_LEMON} -o ${_lemon} ${_lemon_c}
+        COMMAND ${C_COMPILER_LEMON} ${_output_option} ${_lemon_c}
         MAIN_DEPENDENCY ${_lemon_c}
         COMMENT "building lemon on the fly"
         VERBATIM

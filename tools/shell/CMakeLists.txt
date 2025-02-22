@@ -46,6 +46,7 @@ if(NOT ${FALLBACK})           # {
     endif()
     if(${TD_WINDOWS})   # {
         target_link_libraries(shell PUBLIC Ntdll Bcrypt Secur32 Crypt32 Ncrypt)
+        target_link_options(shell PUBLIC /NODEFAULTLIB:MSVCRT)
     endif()             # }
 endif()                       # }
 target_link_libraries(

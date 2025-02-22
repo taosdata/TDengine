@@ -27,5 +27,7 @@ endif()                      # }
 
 # windows ignore warning
 IF(TD_WINDOWS)
-    SET_TARGET_PROPERTIES(TSZ PROPERTIES COMPILE_FLAGS -w)
+    if(${FALLBACK})          # {
+        SET_TARGET_PROPERTIES(TSZ PROPERTIES COMPILE_FLAGS -w)
+    endif()                  # }
 ENDIF()
