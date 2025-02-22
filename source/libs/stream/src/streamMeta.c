@@ -427,7 +427,7 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
   pMeta->pTaskList = taosArrayInit(4, sizeof(SStreamTaskId));
   TSDB_CHECK_NULL(pMeta->pTaskList, code, lino, _err, terrno);
 
-  pMeta->scanInfo.scanCounter = 0;
+  pMeta->scanInfo.scanSentinel = 0;
   pMeta->vgId = vgId;
   pMeta->ahandle = ahandle;
   pMeta->buildTaskFn = buildTaskFn;
@@ -1241,8 +1241,8 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
          vgId, (pMeta->role == NODE_ROLE_LEADER), startTs, sendCount);
 
   // wait for the stream meta hb function stopping
-  streamMetaWaitForHbTmrQuit(pMeta);
   pMeta->closeFlag = true;
+  streamMetaWaitForHbTmrQuit(pMeta);
 
   stDebug("vgId:%d start to check all tasks for closing", vgId);
   int64_t st = taosGetTimestampMs();
@@ -1281,6 +1281,12 @@ void streamMetaNotifyClose(SStreamMeta* pMeta) {
 
   double el = (taosGetTimestampMs() - st) / 1000.0;
   stDebug("vgId:%d stop all %d task(s) completed, elapsed time:%.2f Sec.", pMeta->vgId, numOfTasks, el);
+
+  if (pMeta->scanInfo.scanTimer != NULL) {
+    streamTmrStop(pMeta->scanInfo.scanTimer);
+    pMeta->scanInfo.scanTimer = NULL;
+  }
+
   streamMetaRUnLock(pMeta);
 }
 
