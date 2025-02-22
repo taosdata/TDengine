@@ -55,7 +55,7 @@ fi
 function git_checkout_operations {
   local dir=$1
   cd $dir
-  
+
   if ! git fetch ; then
     echo "Failed to fetch latest changes in $dir"
     exit 1
@@ -73,7 +73,7 @@ function git_checkout_operations {
   # fi
 
   # 检查 branchName 是否为 tag
-  if git show-ref --tags | grep -q "refs/tags/$branchName$"; then
+  if git show-ref --tags | grep "refs/tags/$branchName$"; then
     echo "$branchName is a tag, skipping git pull"
   else
     if ! git pull; then
@@ -90,7 +90,7 @@ git_checkout_operations ${enterpriseDir}
 echo "====clone taosx repo if taosx dir is empty and update taox repo===="
 taosx_release_dir="${enterpriseDir}/src/plugins/taosx/packaging"
 if [ ! -d ${taosx_release_dir} ]; then
-  cd ${top_dir}/enterprise/src/plugins
+  cd ${topDir}/enterprise/src/plugins
   git clone https://github.com/taosdata/taosx.git
 else
   echo "it has taosx repo, so don't need to clone again"
@@ -98,21 +98,21 @@ fi
 
 git_checkout_operations ${taosx_release_dir}
 
-# cd $topDir
-# rm -rf release/*
-# rm -rf debs/*
-# rm -rf rpms/*
+cd $topDir
+rm -rf release/*
+rm -rf debs/*
+rm -rf rpms/*
 
-# echo "./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail} -G ${grantValue} -S ${skip}"
-# if [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ] && [ ! -z "$cusEmail" ]; then
-#     ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail} -G ${grantValue} -S ${skip}
-# elif [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ]; then
-#     ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -G ${grantValue} -S ${skip}
-# elif [ ! -z "${cusName}" ]; then
-#     ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -G ${grantValue} -S ${skip}
-# else
-#     ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -G ${grantValue} -S ${skip}
-# fi
+echo "./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail} -G ${grantValue} -S ${skip}"
+if [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ] && [ ! -z "$cusEmail" ]; then
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail} -G ${grantValue} -S ${skip}
+elif [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ]; then
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -G ${grantValue} -S ${skip}
+elif [ ! -z "${cusName}" ]; then
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -G ${grantValue} -S ${skip}
+else
+    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -G ${grantValue} -S ${skip}
+fi
 
 # if [ ! -d  "$archiveDir/v$version" ]; then
 #   mkdir -p "$archiveDir/v$version"
