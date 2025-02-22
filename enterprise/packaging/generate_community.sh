@@ -20,12 +20,12 @@ if [ ! -d $archiveDir ]; then
 fi
 
 echo "generate community package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-if [ ! -d $communityDir ]; then
-  cd $topDir
-  mkdir -p debug
-  cd debug
-  cmake ..
-fi
+# if [ ! -d $communityDir ]; then
+#   cd $topDir
+#   mkdir -p debug
+#   cd debug
+#   cmake ..
+# fi
 
 cd $communityDir
 

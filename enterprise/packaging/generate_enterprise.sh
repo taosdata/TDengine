@@ -32,10 +32,10 @@ if [ ! -d $archiveDir ]; then
 fi
 
 echo "generate enterprise package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-if [ ! -d $communityDir ]; then
-  cd $topDir
-  mkdir -p debug
-  cd debug
+# if [ ! -d $communityDir ]; then
+#   cd $topDir
+#   mkdir -p debug
+#   cd debug
 
   # if [ -z "$cusName" ] && [ -z "$cusPrompt" ] && [ -z "$cusEmail" ]; then
   #   cmake .. -DBUILD_TAOSX=false
@@ -50,7 +50,7 @@ if [ ! -d $communityDir ]; then
   #     cmake .. -DBUILD_TAOSX=false -DCUS_PROMPT=${cusPrompt} -DGRANT_VALUE=${grantValue} 
   #   fi
   # fi
-fi
+# fi
 
 function git_checkout_operations {
   local dir=$1
