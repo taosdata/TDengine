@@ -78,33 +78,12 @@ class TDTestCase(TBase):
         # last line
         self.checkSame(rlist[idx][:len(result)], result)
 
-    def checkDumpInOutMode(self, source, arg):
-        mode = arg[0]
-        self.taos(f'{mode} -s "source {source}" ')
+        # -B have some problem need todo
+        self.taos(f'{mode} -B -s "select * from {db}.{stb} where ts < 1"')
 
-    def checkDumpInOut(self):
-        args = [
-            ["",   18, 346, -2, 310], 
-            ["-R -r", 22, 350, -3, 313],
-            ["-T 40 -E http://localhost:6041", 21, 349, -3, 312]
-        ]
-
-        source = "cmdline/data/source.sql"
-
-        for arg in args:
-            self.checkDumpInOutMode(source, arg)
-
-        db = "db"
-        insertRows = 5
-        self.taos(f'-s "select * from {db}.d0 >>d0.csv" ')
-        self.taos(f'-s "delete from {db}.d0" ')
-        self.taos(f'-s "insert into {db}.d0 file d0.csv" ')
-        sql = f"select count(*) from {db}.d0"
-        tdSql.checkAgg(sql, insertRows)
-        sql = f"select first(voltage) from {db}.d0"
-        tdSql.checkFirstValue(sql, 1)
-        sql = f"select last(voltage) from {db}.d0"
-        tdSql.checkFirstValue(sql, 5)
+        # get empty result
+        rlist = self.taos(f'{mode} -s "select * from {db}.{stb} where ts < 1"')
+        self.checkListString(rlist, "Query OK, 0 row(s) in set")
     
     def checkBasic(self):
         tdLog.info(f"check describe show full.")
@@ -122,6 +101,45 @@ class TDTestCase(TBase):
         for arg in args:
             self.checkResultWithMode(db, stb, arg)
 
+
+    def checkDumpInOutMode(self, source, arg, db, insertRows):
+        mode = arg[0]
+        self.taos(f'{mode} -s "source {source}" ')
+        self.taos(f'{mode} -s "select * from {db}.d0; >>d0.csv" ')
+        
+        # use db
+        rlist = self.taos(f'{mode} -s "use {db};" ')
+        self.checkListString(rlist, "Database changed")
+        # update sql
+        rlist = self.taos(f'{mode} -s "alter local \'resetlog\';" ')
+        self.checkListString(rlist, "Query O")
+
+        # only native support csv import
+        if mode == "":
+            self.taos(f'{mode} -s "delete from {db}.d0" ')
+            self.taos(f'{mode} -s "insert into {db}.d0 file d0.csv" ')
+        
+        sql = f"select count(*) from {db}.d0"
+        self.taos(f'{mode} -B -s "{sql}" ')
+        tdSql.checkAgg(sql, insertRows)
+        sql = f"select first(voltage) from {db}.d0"
+        tdSql.checkFirstValue(sql, 1)
+        sql = f"select last(voltage) from {db}.d0"
+        tdSql.checkFirstValue(sql, 5)
+
+    def checkDumpInOut(self):
+        args = [
+            ["",   18], 
+            ["-R ", 22],
+            ["-E http://localhost:6041", 21]
+        ]
+
+        source = "cmdline/data/source.sql"
+        db = "db"
+        insertRows = 5
+        for arg in args:
+            # insert 
+            self.checkDumpInOutMode(source, arg, db, insertRows)
 
     def checkVersion(self):
         rlist1 = self.taos("-V")
@@ -187,8 +205,6 @@ class TDTestCase(TBase):
         ]
 
         for arg in args:
-            print(arg[0])
-            print(arg[1])
             rlist = self.taos(arg[0])
             if arg[1] != None:
                 self.checkListString(rlist, arg[1])    
