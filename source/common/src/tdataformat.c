@@ -152,10 +152,10 @@ static int32_t tRowBuildScan(SArray *colVals, const STSchema *schema, SRowBuildS
     return TSDB_CODE_INVALID_PARA;
   }
   if (!(colValArray[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID)) {
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_PAR_INVALID_FIRST_COLUMN;
   }
   if (!(colValArray[0].value.type == TSDB_DATA_TYPE_TIMESTAMP)) {
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_PAR_INVALID_FIRST_COLUMN;;
   }
 
   *sinfo = (SRowBuildScanInfo){
@@ -3627,13 +3627,13 @@ int32_t tColDataSortMerge(SArray **arr) {
   SColData *aColData = (SColData *)TARRAY_DATA(colDataArr);
 
   if (!(aColData[0].type == TSDB_DATA_TYPE_TIMESTAMP)) {
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_PAR_INVALID_FIRST_COLUMN;
   }
   if (!(aColData[0].cid == PRIMARYKEY_TIMESTAMP_COL_ID)) {
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_PAR_INVALID_FIRST_COLUMN;
   }
   if (!(aColData[0].flag == HAS_VALUE)) {
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL;
   }
 
   if (aColData[0].nVal <= 1) goto _exit;
