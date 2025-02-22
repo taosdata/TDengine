@@ -6,7 +6,6 @@ from taostest.util import file
 class FractakEdge(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        
         self.api_type = 'restful'
         self.hostname = self.get_hostname()
         self.target_dbname = "mqtt_datain"
@@ -17,7 +16,6 @@ class FractakEdge(TDCase):
         pass
 
     def set_mqtt_datain_payload(self):
-
         case_data = []
         case_data_org = file.read_yaml("config.yaml")
         for mqtt_topic in case_data_org["topics"]:
