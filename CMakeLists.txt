@@ -8,9 +8,9 @@ project(
 
 option(FALLBACK "fall back to original"     OFF)
 if(${FALLBACK})
-    set(TD_CONFIG_NAME "$<IF:$<STREQUAL:z$<CONFIG>,z>,$<IF:$<STREQUAL:z${CMAKE_BUILD_TYPE},z>,Debug,${CMAKE_BUILD_TYPE}>,$<CONFIG>>")
     add_definitions(-D_FALLBACK)
 else()
+    set(TD_CONFIG_NAME "$<IF:$<STREQUAL:z$<CONFIG>,z>,$<IF:$<STREQUAL:z${CMAKE_BUILD_TYPE},z>,Debug,${CMAKE_BUILD_TYPE}>,$<CONFIG>>")
     if(NOT DEFINED CMAKE_POSITION_INDEPENDENT_CODE)
       set(CMAKE_POSITION_INDEPENDENT_CODE ON)
     endif()
