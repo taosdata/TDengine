@@ -440,56 +440,6 @@ int32_t doScanWalForAllTasks(SStreamMeta* pStreamMeta, int32_t* pNumOfTasks) {
   return TSDB_CODE_SUCCESS;
 }
 
-// int32_t doScanWalAsync(STQ* pTq) {
-//   SStreamMeta* pMeta = pTq->pStreamMeta;
-//   bool         alreadyRestored = pTq->pVnode->restored;
-//   int32_t      vgId = pMeta->vgId;
-//   int32_t      code = 0;
-//   int32_t      numOfTasks = taosArrayGetSize(pMeta->pTaskList);
-//
-//   //  if (numOfTasks == 0) {
-////    tqDebug("vgId:%d no stream tasks existed to run", vgId);
-////    return 0;
-////  }
-//
-////  if (pMeta->startInfo.startAllTasks) {
-////    tqTrace("vgId:%d in restart procedure, not scan wal", vgId);
-////    return 0;
-////  }
-//
-////  pMeta->scanInfo.scanCounter += 1;
-////  if (pMeta->scanInfo.scanCounter > MAX_REPEAT_SCAN_THRESHOLD) {
-////    pMeta->scanInfo.scanCounter = MAX_REPEAT_SCAN_THRESHOLD;
-////  }
-//
-////  if (pMeta->scanInfo.scanCounter > 1) {
-////    tqDebug("vgId:%d wal read task has been launched, remain scan times:%d", vgId, pMeta->scanInfo.scanCounter);
-////    return 0;
-////  }
-//
-////  int32_t numOfPauseTasks = pMeta->numOfPausedTasks;
-////  if (ckPause && numOfTasks == numOfPauseTasks) {
-////    tqDebug("vgId:%d ignore all submit, all streams had been paused, reset the walScanCounter", vgId);
-////
-////     reset the counter value, since we do not launch the scan wal operation.
-////    pMeta->scanInfo.scanCounter = 0;
-////    return 0;
-////  }
-//
-////  tqDebug("vgId:%d create msg to start wal scan to launch stream tasks, numOfTasks:%d, vnd restored:%d", vgId,
-////          numOfTasks, alreadyRestored);
-////
-////  code = streamTaskSchedTask(&pTq->pVnode->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA);
-////  if (code) {
-////    tqError("vgId:%d failed create msg to scan data in wal, retry in %dms", vgId, SCAN_WAL_IDLE_DURATION);
-////  }
-//
-//  code = tqScanWalInFuture(pTq, numOfTasks, SCAN_WAL_IDLE_DURATION);
-//  if (code) {
-//    tqError("vgId:%d sched scan wal in %dms failed, ignore this failure", vgId, SCAN_WAL_IDLE_DURATION);
-//  }
-//}
-
 void streamMetaFreeTQDuringScanWalError(STQ* pTq) {
   SBuildScanWalMsgParam* p = taosMemoryCalloc(1, sizeof(SBuildScanWalMsgParam));
   p->metaId = pTq->pStreamMeta->rid;
