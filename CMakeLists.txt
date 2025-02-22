@@ -1,3 +1,21 @@
+#
+# freemine:
+# adding new options and variables as follows:
+# 1. FALLBACK         when ON, fallback to original, OFF by default
+# 2. DEPEND_DIRECTLY  when ON, build externals when necessary,
+#                     otherwise, just compile and link with
+#                     ON by default
+#                     this is believed to benefit routine development process
+# 3. LOCAL_REPO  url string specifying where to download externals locally
+#                eg.: if 'https://github.com/taosdata-contrib/cJSON.git'
+#                     you, according to your own local setup,
+#                     might specify ssh://host/path-to-where-cJSON.git-locates
+#                not set by default
+# 4. LOCAL_URL   url string specifying where to download externals archive-file
+#                eg.: if 'https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz'
+#                     then, file:///path-to-where-v8.1.1.tar.gz-locates
+#                not set by default
+
 cmake_minimum_required(VERSION 3.0)
 
 project(
@@ -10,6 +28,9 @@ option(FALLBACK "fall back to original"     OFF)
 if(${FALLBACK})
     add_definitions(-D_FALLBACK)
 else()
+    if("${CMAKE_GENERATOR}" STREQUAL "NMake Makefiles")
+      message(FATAL_ERROR "-G \"NMake Makefiles\" # not supported now")
+    endif()
     set(TD_CONFIG_NAME "$<IF:$<STREQUAL:z$<CONFIG>,z>,$<IF:$<STREQUAL:z${CMAKE_BUILD_TYPE},z>,Debug,${CMAKE_BUILD_TYPE}>,$<CONFIG>>")
     if(NOT DEFINED CMAKE_POSITION_INDEPENDENT_CODE)
       set(CMAKE_POSITION_INDEPENDENT_CODE ON)
