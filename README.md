@@ -388,7 +388,8 @@ Using the following script to package the enterprise edition.
 ```bash
 cd /root/TDinternal/enterprise/packaging
 # version_number should be in the format x.x.x.x[.x], e.g., 3.3.5.0 or 3.3.5.0.1234
-./new_ver_release.sh -n <version_number>   
+# When the branch_name is not main or 3.0, ensure that both TDinternal and TDengine have this branch.
+./new_ver_release.sh -n <version_number>   -b <branch_name>
 ```
 
 Once the packaging process is complete, you can find the installation package files listed below by executing the command:
