@@ -37,48 +37,76 @@ if [ ! -d $communityDir ]; then
   mkdir -p debug
   cd debug
 
-  if [ -z "$cusName" ] && [ -z "$cusPrompt" ] && [ -z "$cusEmail" ]; then
-    cmake .. -DBUILD_TAOSX=false
+  # if [ -z "$cusName" ] && [ -z "$cusPrompt" ] && [ -z "$cusEmail" ]; then
+  #   cmake .. -DBUILD_TAOSX=false
+  # else
+  #   if [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ] && [ ! -z "$cusEmail" ]; then
+  #     cmake .. -DBUILD_TAOSX=false -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail} -DGRANT_VALUE=${grantValue}
+  #   elif [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ]; then
+  #     cmake .. -DBUILD_TAOSX=false -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DGRANT_VALUE=${grantValue}
+  #   elif [ ! -z "${cusName}" ]; then
+  #     cmake .. -DBUILD_TAOSX=false -DCUS_NAME=${cusName} -DGRANT_VALUE=${grantValue} 
+  #   else
+  #     cmake .. -DBUILD_TAOSX=false -DCUS_PROMPT=${cusPrompt} -DGRANT_VALUE=${grantValue} 
+  #   fi
+  # fi
+fi
+
+function git_checkout_operations {
+  local dir=$1
+  cd $dir
+  if ! git checkout $branchName; then
+    echo "Failed to checkout branch $branchName in $dir"
+    exit 1
+  fi
+
+  # do not discard changes in the directory
+  # if ! git checkout -- .; then
+  #   echo "Failed to discard changes in $dir"
+  #   exit 1
+  # fi
+
+  # 检查 branchName 是否为 tag
+  if git show-ref --tags | grep -q "refs/tags/$branchName$"; then
+    echo "$branchName is a tag, skipping git pull"
   else
-    if [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ] && [ ! -z "$cusEmail" ]; then
-      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail} -DGRANT_VALUE=${grantValue}
-    elif [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ]; then
-      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DGRANT_VALUE=${grantValue}
-    elif [ ! -z "${cusName}" ]; then
-      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DGRANT_VALUE=${grantValue} 
-    else
-      cmake .. -DBUILD_TAOSX=true -DCUS_PROMPT=${cusPrompt} -DGRANT_VALUE=${grantValue} 
+    if ! git pull; then
+      echo "Failed to pull latest changes in $dir"
+      exit 1
     fi
   fi
-fi
+}
 
-# cd $communityDir
-# # git checkout $branchName
-# # git checkout -- .
-# # git pull
-# # git checkout -- .
-# rm -rf release/*
+# 对 community 和 enterprise 目录执行切换分支操作
+git_checkout_operations ${communityDir}
+git_checkout_operations ${enterpriseDir}
 
-# cd $enterpriseDir
-# # git checkout $branchName
-# # git checkout -- .
-# # git pull
-
-cd $topDir
-rm -rf release/*
-rm -rf debs/*
-rm -rf rpms/*
-
-echo "./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail} -G ${grantValue} -S ${skip}"
-if [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ] && [ ! -z "$cusEmail" ]; then
-    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail} -G ${grantValue} -S ${skip}
-elif [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ]; then
-    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -G ${grantValue} -S ${skip}
-elif [ ! -z "${cusName}" ]; then
-    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -G ${grantValue} -S ${skip}
+echo "====clone taosx repo if taosx dir is empty and update taox repo===="
+taosx_release_dir="${enterpriseDir}/src/plugins/taosx/packaging"
+if [ ! -d ${taosx_release_dir} ]; then
+  cd ${top_dir}/enterprise/src/plugins
+  git clone https://github.com/taosdata/taosx.git
 else
-    ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -G ${grantValue} -S ${skip}
+  echo "it has taosx repo, so don't need to clone again"
 fi
+
+git_checkout_operations ${taosx_release_dir}
+
+# cd $topDir
+# rm -rf release/*
+# rm -rf debs/*
+# rm -rf rpms/*
+
+# echo "./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail} -G ${grantValue} -S ${skip}"
+# if [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ] && [ ! -z "$cusEmail" ]; then
+#     ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -M ${cusEmail} -G ${grantValue} -S ${skip}
+# elif [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ]; then
+#     ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -P ${cusPrompt} -G ${grantValue} -S ${skip}
+# elif [ ! -z "${cusName}" ]; then
+#     ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -N ${cusName} -G ${grantValue} -S ${skip}
+# else
+#     ./enterprise/packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType -G ${grantValue} -S ${skip}
+# fi
 
 # if [ ! -d  "$archiveDir/v$version" ]; then
 #   mkdir -p "$archiveDir/v$version"
