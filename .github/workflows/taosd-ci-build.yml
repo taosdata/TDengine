@@ -75,6 +75,7 @@ jobs:
         run: |
           mkdir debug && cd debug
           cmake .. -DBUILD_TOOLS=true \
+            -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_KEEPER=true \
             -DBUILD_HTTP=false \
             -DBUILD_TEST=true \
