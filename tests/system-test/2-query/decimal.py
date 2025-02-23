@@ -1,13 +1,14 @@
+from ast import Tuple
 from pydoc import doc
 from random import randrange
 from re import A
 import time
 import threading
 import secrets
-from tkinter.tix import COLUMN
 
-from regex import D
-from sympy import true
+from regex import D, F
+from sympy import Dict, true
+from torch import is_conj
 import query
 from tag_lite import column
 from util.log import *
@@ -23,7 +24,8 @@ syntax_error = -2147473920
 invalid_column = -2147473918
 invalid_compress_level = -2147483084
 invalid_encode_param = -2147483087
-
+invalid_operation = -2147483136
+scalar_convert_err = -2147470768
 
 class DecimalTypeGeneratorConfig:
     def __init__(self):
@@ -71,7 +73,7 @@ class DecimalStringRandomGenerator:
 
     ## 写入大整数的例子, 如10000000000, scale解析时可能为负数
     ## Generate decimal with E/e
-    def generate_(self, config: DecimalTypeGeneratorConfig) -> str:
+    def generate(self, config: DecimalTypeGeneratorConfig) -> str:
         ret: str = ""
         sign = self.generate_sign(config.positive_ratio)
         if config.with_corner_case and self.current_should_generate_corner_case(
@@ -161,20 +163,75 @@ class TaosShell:
                 if len(self.queryResult) == 0:
                     self.queryResult = [[] for i in range(len(vals))]
                 for val in vals:
-                    self.queryResult[col].append(val)
+                    self.queryResult[col].append(val.strip())
                     col += 1
 
     def query(self, sql: str):
+        with open(self.tmp_file_path, "r+") as f:
+            f.truncate(0)
         try:
             command = f'taos -s "{sql} >> {self.tmp_file_path}"'
             result = subprocess.run(
                 command, shell=True, check=True, stderr=subprocess.PIPE
             )
             self.read_result()
-        except subprocess.CalledProcessError as e:
+        except Exception as e:
             tdLog.exit(f"Command '{sql}' failed with error: {e.stderr.decode('utf-8')}")
             self.queryResult = []
         return self.queryResult
+
+class DecimalColumnExpr:
+    def __init__(self, format: str, executor):
+        self.format_: str = format
+        self.executor_ = executor
+        self.params_: Tuple = List
+
+    def __str__(self):
+        return self.format_ % (self.params_)
+
+    def execute(self, params):
+        return self.executor_(params)
+    
+    def get_val(self, tbname: str, idx: int):
+        params: Tuple = ()
+        for p in self.params_:
+            params = params + (p.get_val(tbname, idx),)
+        return self.execute(params)
+    
+    def check(self, query_col_res: List, tbname: str):
+        for i in range(len(query_col_res)):
+            v_from_query = query_col_res[i]
+            params: Tuple = ()
+            for p in self.params_:
+                if isinstance(p, Column) or isinstance(p, DecimalColumnExpr):
+                    p = p.get_val(tbname, i)
+                params = params + (p,)
+            v_from_calc_in_py = self.execute(params)
+
+            if v_from_calc_in_py == 'NULL' or v_from_query == 'NULL':
+                if v_from_calc_in_py != v_from_query:
+                    tdLog.exit(f"query with expr: {self} calc in py got: {v_from_calc_in_py}, query got: {v_from_query}")
+                tdLog.debug(f"query with expr: {self} calc got same result: NULL")
+                continue
+
+            if isinstance(v_from_calc_in_py, float):
+                dec_from_query = float(v_from_query)
+                dec_from_insert = float(v_from_calc_in_py)
+            else:
+                dec_from_query = Decimal(v_from_query)
+                dec_from_insert = Decimal(v_from_calc_in_py)
+            if dec_from_query != dec_from_insert:
+                tdLog.exit(
+                    f"check decimal column failed for expr: {self} params: {params}, query: {v_from_query}, expect {dec_from_insert}, but get {dec_from_query}")
+            else:
+                tdLog.debug(
+                    f"check decimal succ for expr: {self}, params: {params}, insert:{v_from_calc_in_py} query:{v_from_query}, py dec: {dec_from_insert}"
+                )
+
+
+    def generate(self, format_params) -> str:
+        self.params_ = format_params
+        return f"({self.format_})".format(*format_params)
 
 
 class TypeEnum:
@@ -222,13 +279,13 @@ class TypeEnum:
         elif type == TypeEnum.NCHAR:
             return "NCHAR"
         elif type == TypeEnum.UTINYINT:
-            return "UTINYINT"
+            return "TINYINT UNSIGNED"
         elif type == TypeEnum.USMALLINT:
-            return "USMALLINT"
+            return "SMALLINT UNSIGNED"
         elif type == TypeEnum.UINT:
-            return "UINT"
+            return "INT UNSIGNED"
         elif type == TypeEnum.UBIGINT:
-            return "UBIGINT"
+            return "BIGINT UNSIGNED"
         elif type == TypeEnum.JSON:
             return "JSON"
         elif type == TypeEnum.VARBINARY:
@@ -239,6 +296,8 @@ class TypeEnum:
             return "BINARY"
         elif type == TypeEnum.GEOMETRY:
             return "GEOMETRY"
+        elif type == TypeEnum.DECIMAL64:
+            return "DECIMAL"
         else:
             raise Exception("unknow type")
 
@@ -309,11 +368,17 @@ class DataType:
             return str(secrets.randbelow(9223372036854775808))
         if self.type == TypeEnum.JSON:
             return f'{{"key": "{secrets.token_urlsafe(10)}"}}'
+        if self.type == TypeEnum.GEOMETRY:
+            return "'POINT(1.0 1.0)'"
         raise Exception(f"unsupport type {self.type}")
 
     def check(self, values, offset: int):
         return True
-
+    
+    def get_typed_val(self, val):
+        if self.type == TypeEnum.FLOAT or self.type == TypeEnum.DOUBLE:
+            return float(val)
+        return val
 
 class DecimalType(DataType):
     def __init__(self, type, precision: int, scale: int):
@@ -324,7 +389,7 @@ class DecimalType(DataType):
         else:
             bytes = 16
         super().__init__(type, bytes, self.get_decimal_type_mod())
-        self.generator: DecimalStringRandomGenerator = DecimalStringRandomGenerator()
+        self.decimal_generator: DecimalStringRandomGenerator = DecimalStringRandomGenerator()
         self.generator_config: DecimalTypeGeneratorConfig = DecimalTypeGeneratorConfig()
         self.generator_config.prec = precision
         self.generator_config.scale = scale
@@ -356,10 +421,15 @@ class DecimalType(DataType):
         return f"DecimalType({self.precision_}, {self.scale()})"
 
     def generate_value(self) -> str:
-        val = self.generator.generate_(self.generator_config)
-        self.aggregator.add_value(val)
-        self.values.append(val)  ## save it into files maybe
+        val = self.decimal_generator.generate(self.generator_config)
+        self.aggregator.add_value(val) ## convert to Decimal first
+        # self.values.append(val)  ## save it into files maybe
         return val
+
+    def get_typed_val(self, val):
+        if val == "NULL":
+            return None
+        return Decimal(val).quantize(Decimal("1." + "0" * self.scale()), ROUND_HALF_UP)
 
     @staticmethod
     def default_compression() -> str:
@@ -372,30 +442,30 @@ class DecimalType(DataType):
     def check(self, values, offset: int):
         val_from_query = values
         val_insert = self.values[offset:]
-        for v1, v2 in zip(val_from_query, val_insert):
-            if v2 == "NULL":
-                if v1.strip() != "NULL":
+        for v_from_query, v_from_insert in zip(val_from_query, val_insert):
+            if v_from_insert == "NULL":
+                if v_from_query.strip() != "NULL":
                     tdLog.debug(
                         f"val_insert: {val_insert} val_from_query: {val_from_query}"
                     )
-                    tdLog.exit(f"insert NULL, query not NULL: {v1}")
+                    tdLog.exit(f"insert NULL, query not NULL: {v_from_query}")
                 else:
                     continue
             try:
-                dec1: Decimal = Decimal(v1)
-                dec2: Decimal = Decimal(v2)
-                dec2 = dec2.quantize(Decimal("1." + "0" * self.scale()), ROUND_HALF_UP)
+                dec_query: Decimal = Decimal(v_from_query)
+                dec_insert: Decimal = Decimal(v_from_insert)
+                dec_insert = dec_insert.quantize(Decimal("1." + "0" * self.scale()), ROUND_HALF_UP)
             except Exception as e:
-                tdLog.exit(f"failed to convert {v1} or {v2} to decimal, {e}")
+                tdLog.exit(f"failed to convert {v_from_query} or {v_from_insert} to decimal, {e}")
                 return False
-            if dec1 != dec2:
+            if dec_query != dec_insert:
                 tdLog.exit(
-                    f"check decimal column failed for insert: {v2}, query: {v1}, expect {dec2}, but get {dec1}"
+                    f"check decimal column failed for insert: {v_from_insert}, query: {v_from_query}, expect {dec_insert}, but get {dec_query}"
                 )
                 return False
             else:
                 tdLog.debug(
-                    f"check decimal succ, insert:{v2} query:{v1}, py dec: {dec2}"
+                    f"check decimal succ, insert:{v_from_insert} query:{v_from_query}, py dec: {dec_insert}"
                 )
 
 
@@ -403,9 +473,35 @@ class Column:
     def __init__(self, type: DataType):
         self.type_: DataType = type
         self.name_: str = ""
+        self.saved_vals:dict[str:[]] = {}
 
-    def generate_value(self):
-        return self.type_.generate_value()
+    def is_constant_col(self):
+        return '' in self.saved_vals.keys()
+    
+    def get_typed_val(self, val):
+        return self.type_.get_typed_val(val)
+    
+    def get_constant_val(self):
+        return self.get_typed_val(self.saved_vals[''][0])
+    
+    def __str__(self):
+        if self.is_constant_col():
+            return self.get_constant_val()
+        return self.name_
+    
+    def get_val(self, tbname: str, idx: int):
+        if self.is_constant_col():
+            return self.get_constant_val()
+        return self.get_typed_val(self.saved_vals[tbname][idx])
+
+    ## tbName: for normal table, pass the tbname, for child table, pass the child table name
+    def generate_value(self, tbName: str = '', save: bool = True):
+        val = self.type_.generate_value()
+        if save:
+            if tbName not in self.saved_vals:
+                self.saved_vals[tbName] = []
+            self.saved_vals[tbName].append(val)
+        return val
 
     def get_type_str(self) -> str:
         return str(self.type_)
@@ -415,21 +511,22 @@ class Column:
 
     def check(self, values, offset: int):
         return self.type_.check(values, offset)
-
+    
     def construct_type_value(self, val: str):
         if (
             self.type_.type == TypeEnum.BINARY
             or self.type_.type == TypeEnum.VARCHAR
             or self.type_.type == TypeEnum.NCHAR
             or self.type_.type == TypeEnum.VARBINARY
+            or self.type_.type == TypeEnum.JSON
         ):
             return f"'{val}'"
         else:
             return val
 
     @staticmethod
-    def get_all_type_columns() -> List:
-        other_types = [
+    def get_all_type_columns(types_to_exclude: List[TypeEnum] = []) -> List:
+        all_types = [
             Column(DataType(TypeEnum.BOOL)),
             Column(DataType(TypeEnum.TINYINT)),
             Column(DataType(TypeEnum.SMALLINT)),
@@ -439,19 +536,23 @@ class Column:
             Column(DataType(TypeEnum.DOUBLE)),
             Column(DataType(TypeEnum.VARCHAR, 255)),
             Column(DataType(TypeEnum.TIMESTAMP)),
-            Column(DataType(TypeEnum.NCHAR)),
+            Column(DataType(TypeEnum.NCHAR, 255)),
             Column(DataType(TypeEnum.UTINYINT)),
             Column(DataType(TypeEnum.USMALLINT)),
             Column(DataType(TypeEnum.UINT)),
             Column(DataType(TypeEnum.UBIGINT)),
             Column(DataType(TypeEnum.JSON)),
-            Column(DataType(TypeEnum.VARBINARY)),
-            Column(DataType(TypeEnum.DECIMAL)),
-            Column(DataType(TypeEnum.BINARY)),
-            Column(DataType(TypeEnum.GEOMETRY)),
-            Column(DataType(TypeEnum.DECIMAL64)),
+            Column(DataType(TypeEnum.VARBINARY, 255)),
+            Column(DecimalType(TypeEnum.DECIMAL, 38, 10)),
+            Column(DataType(TypeEnum.BINARY, 255)),
+            Column(DataType(TypeEnum.GEOMETRY, 10240)),
+            Column(DecimalType(TypeEnum.DECIMAL64, 18, 4)),
         ]
-        return other_types
+        for c in all_types:
+            for type in types_to_exclude:
+                if c.type_.type == type:
+                    all_types.remove(c)
+        return all_types
 
 
 class DecimalColumnTableCreater:
@@ -521,7 +622,7 @@ class TableInserter:
         columns: List[Column],
         tags_cols: List[Column] = [],
     ):
-        self.conn = conn
+        self.conn: TDSql = conn
         self.dbName = dbName
         self.tbName = tbName
         self.tag_cols = tags_cols
@@ -533,7 +634,7 @@ class TableInserter:
         for i in range(rows):
             sql += f"({start_ts + i * step}"
             for column in self.columns:
-                sql += f", {column.generate_value()}"
+                sql += f", {column.generate_value(self.tbName)}"
             sql += ")"
             if i != rows - 1:
                 sql += ", "
@@ -572,18 +673,6 @@ class TableDataValidator:
             colIdx += 1
 
 
-class DecimalColumnExpr:
-    def __init__(self, format: str, executor):
-        self.format_: str = ""
-        self.executor_ = None
-
-    def execute(self, params: List):
-        return self.executor_(params)
-
-    def generate(self, format_params) -> str:
-        return f"({self.format_ % format_params})"
-
-
 class DecimalBinaryOperator(DecimalColumnExpr):
     def __init__(self, op: str):
         super().__init__()
@@ -597,7 +686,67 @@ class DecimalBinaryOperator(DecimalColumnExpr):
 
     @staticmethod
     def execute_plus(params):
-        return params[0] + params[1]
+        if params[0] is None or params[1] is None:
+            return 'NULL'
+        if isinstance(params[0], float) or isinstance(params[1], float):
+            return float(params[0]) + float(params[1])
+        return Decimal(params[0]) + Decimal(params[1])
+
+    @staticmethod
+    def execute_minus(params):
+        return params[0] - params[1]
+
+    @staticmethod
+    def execute_mul(params):
+        return params[0] * params[1]
+
+    @staticmethod
+    def execute_div(params):
+        return params[0] / params[1]
+
+    @staticmethod
+    def execute_mod(params):
+        return params[0] % params[1]
+
+    @staticmethod
+    def execute_eq(params):
+        return params[0] == params[1]
+
+    @staticmethod
+    def execute_ne(params):
+        return params[0] != params[1]
+
+    @staticmethod
+    def execute_gt(params):
+        return params[0] > params[1]
+
+    @staticmethod
+    def execute_lt(params):
+        return params[0] < params[1]
+
+    @staticmethod
+    def execute_ge(params):
+        return params[0] >= params[1]
+
+    @staticmethod
+    def execute_le(params):
+        return params[0] <= params[1]
+
+    @staticmethod
+    def get_all_binary_ops() -> List[DecimalColumnExpr]:
+        return [
+            DecimalColumnExpr(" {0} + {1} ", DecimalBinaryOperator.execute_plus),
+            DecimalColumnExpr(" {0} - {1} ", DecimalBinaryOperator.execute_minus),
+            DecimalColumnExpr(" {0} * {1} ", DecimalBinaryOperator.execute_mul),
+            DecimalColumnExpr(" {0} / {1} ", DecimalBinaryOperator.execute_div),
+            DecimalColumnExpr(" {0} % {1} ", DecimalBinaryOperator.execute_mod),
+            DecimalColumnExpr(" {0} == {1} ", DecimalBinaryOperator.execute_eq),
+            DecimalColumnExpr(" {0} != {1} ", DecimalBinaryOperator.execute_ne),
+            DecimalColumnExpr(" {0} > {1} ", DecimalBinaryOperator.execute_gt),
+            DecimalColumnExpr(" {0} < {1} ", DecimalBinaryOperator.execute_lt),
+            DecimalColumnExpr(" {0} >= {1} ", DecimalBinaryOperator.execute_ge),
+            DecimalColumnExpr(" {0} <= {1} ", DecimalBinaryOperator.execute_le),
+        ]
 
     def execute(self, left, right):
         if self.op_ == "+":
@@ -812,12 +961,12 @@ class TDTestCase:
         ## TODO add more values for all rows
         tag_values = ["1", "t1"]
         DecimalColumnTableCreater(
-            tdSql, self.db_name, self.stable_name, self.norm_tb_columns
+            tdSql, self.db_name, self.stable_name, self.stb_columns
         ).create_child_table(
             self.c_table_prefix, self.c_table_num, self.tags, tag_values
         )
         self.check_desc("meters", self.stb_columns, self.tags)
-        self.check_desc("t1", self.norm_tb_columns, self.tags)
+        self.check_desc("t1", self.stb_columns, self.tags)
 
         ## invalid precision/scale
         invalid_precision_scale = [
@@ -872,7 +1021,7 @@ class TDTestCase:
                 f"{self.c_table_prefix}{i}",
                 self.stb_columns,
                 self.tags,
-            ).insert(10000, 1537146000000, 500)
+            ).insert(1000, 1537146000000, 500)
 
         for i in range(self.c_table_num):
             TableDataValidator(
@@ -881,7 +1030,7 @@ class TDTestCase:
 
         TableInserter(
             tdSql, self.db_name, self.norm_table_name, self.norm_tb_columns
-        ).insert(100000, 1537146000000, 500, flush_database=True)
+        ).insert(1000, 1537146000000, 500, flush_database=True)
         TableDataValidator(
             self.norm_tb_columns, self.norm_table_name, self.db_name
         ).validate()
@@ -995,13 +1144,15 @@ class TDTestCase:
         for expr in exprs:
             for col in tb_cols:
                 left_is_decimal = col.type_.is_decimal_type()
-                for const_val in constant_cols:
-                    right_is_decimal = const_val.type_.is_decimal_type()
+                for const_col in constant_cols:
+                    right_is_decimal = const_col.type_.is_decimal_type()
                     if not left_is_decimal and not right_is_decimal:
                         continue
-                    select_expr = expr.generate((col.name_, const_val.generate_value()))
-        sql = f"select {select_expr} from {dbname}.{tbname}"
-        res = TaosShell().query(sql)
+                    const_col.generate_value()
+                    select_expr = expr.generate((col, const_col))
+                    sql = f"select {select_expr} from {dbname}.{tbname}"
+                    res = TaosShell().query(sql)
+                    expr.check(res[0], tbname)
         ## query
         ## build expr, expr.generate(column) to generate sql expr
         ## pass this expr into DataValidator.
@@ -1011,38 +1162,69 @@ class TDTestCase:
 
     ## test others unsupported types operator with decimal
     def test_decimal_unsupported_types(self):
-        unsupported_type_cols = [
-            Column(DataType(TypeEnum.JSON)),
-            Column(DataType(TypeEnum.GEOMETRY)),
-            Column(DataType(TypeEnum.VARBINARY)),
+        unsupported_type = [
+            TypeEnum.JSON,
+            TypeEnum.GEOMETRY,
+            TypeEnum.VARBINARY,
         ]
-        all_type_columns = Column.get_all_type_columns()
+        all_type_columns: List[Column] = Column.get_all_type_columns([TypeEnum.JSON])
         tbname = "test_decimal_unsupported_types"
-        DecimalColumnTableCreater(
-            tdSql, self.db_name, tbname, all_type_columns
-        ).create()
-        tdSql.error(
-            f"select c17 + c15 from {self.db_name}{tbname}", queryTimes=1, show=True
-        )
+        tag_cols = [Column(DataType(TypeEnum.JSON))]
+        tb_creater = DecimalColumnTableCreater( tdSql, self.db_name, tbname, all_type_columns, tag_cols)
+        tb_creater.create()
+        tb_creater.create_child_table(tbname, 10, tag_cols, ['{"k1": "v1"}'])
+        for i in range(10):
+            TableInserter(tdSql, self.db_name, f'{tbname}{i}', all_type_columns, tag_cols).insert(100, 1537146000000, 500, flush_database=True)
+        for col in all_type_columns:
+            ## only test decimal cols
+            if not col.type_.is_decimal_type():
+                continue
+            for unsupported_col in all_type_columns:
+                ## only test unsupported cols
+                if not unsupported_col.type_.type in unsupported_type:
+                    continue
+                for binary_op in DecimalBinaryOperator.get_all_binary_ops():
+                    select_expr = binary_op.generate((col.name_, unsupported_col.name_))
+                    sql = f"select {select_expr} from {self.db_name}.{tbname}"
+                    select_expr_reverse = binary_op.generate(
+                        (unsupported_col.name_, col.name_)
+                    )
+                    sql_reverse = (
+                        f"select {select_expr_reverse} from {self.db_name}.{tbname}"
+                    )
+                    tdLog.info(
+                        f"select expr: {select_expr} with type: {col.type_} and {unsupported_col.type_} should err"
+                    )
+                    err = tdSql.error(sql)
+                    if tdSql.errno != invalid_operation and tdSql.errno != scalar_convert_err:
+                        tdLog.exit(f"expected err not occured for sql: {sql}, expect: {invalid_operation} or {scalar_convert_err}, but got {tdSql.errno}")
+
+                    tdLog.info(
+                        f"select expr: {select_expr} with type: {unsupported_col.type_} and {col.type_} should err"
+                    )
+                    err = tdSql.error(sql_reverse)
+                    if tdSql.errno != invalid_operation and tdSql.errno != scalar_convert_err:
+                        tdLog.exit(f"expected err not occured for sql: {sql}, expect: {invalid_operation} or {scalar_convert_err}, but got {tdSql.errno}")
 
     def test_decimal_operators(self):
         tdLog.debug("start to test decimal operators")
+        self.test_decimal_unsupported_types()
         ## tables: meters, nt
         ## columns: c1, c2, c3, c4, c5, c7, c8, c9, c10, c99, c100
         binary_operators = [
             DecimalColumnExpr("%s + %s", DecimalBinaryOperator.execute_plus),
-            DecimalColumnExpr("-"),
-            DecimalColumnExpr("*"),
-            DecimalColumnExpr("/"),
-            DecimalColumnExpr("%"),
-            DecimalColumnExpr(">"),
-            DecimalColumnExpr("<"),
-            DecimalColumnExpr(">="),
-            DecimalColumnExpr("<="),
-            DecimalColumnExpr("=="),
-            DecimalColumnExpr("!="),
-            DecimalBinaryOperatorIn("in"),
-            DecimalBinaryOperatorIn("not in"),
+            # DecimalColumnExpr("-"),
+            # DecimalColumnExpr("*"),
+            # DecimalColumnExpr("/"),
+            # DecimalColumnExpr("%"),
+            # DecimalColumnExpr(">"),
+            # DecimalColumnExpr("<"),
+            # DecimalColumnExpr(">="),
+            # DecimalColumnExpr("<="),
+            # DecimalColumnExpr("=="),
+            # DecimalColumnExpr("!="),
+            # DecimalBinaryOperatorIn("in"),
+            # DecimalBinaryOperatorIn("not in"),
         ]
         all_type_columns = Column.get_all_type_columns()
 
