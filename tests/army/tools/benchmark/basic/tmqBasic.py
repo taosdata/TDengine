@@ -33,7 +33,7 @@ class TDTestCase(TBase):
     def run(self):
         tdSql.execute("drop topic if exists topic_0")
         binPath = etool.benchMarkFile()
-        cmd = "%s -f ./tools/benchmark/basic/json/default.json" % binPath
+        cmd = "%s -f ./tools/benchmark/basic/json/tmqBasic.json" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")

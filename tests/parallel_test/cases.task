@@ -88,7 +88,6 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/custom_col_tag.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/default_json.py
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/default_tmq_json.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/demo.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/exportCsv.py
@@ -140,6 +139,8 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestInsertWithJsonStmt-otherPara.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/telnet_tcp.py -R
+
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmqBasic.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/tmq_case.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/cloud/cloud-test.py
