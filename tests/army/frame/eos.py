@@ -52,8 +52,11 @@ def isArm64Cpu():
 #
 
 # wait util execute file finished 
-def exe(file):
-    return os.system(file)
+def exe(command, show = False):
+    code = os.system(command)
+    if show:
+        print(f"eos.exe retcode={code} command:{command}")
+    return code    
 
 # execute file and return immediately
 def exeNoWait(file):
@@ -64,13 +67,13 @@ def exeNoWait(file):
     return exe(cmd)
 
 # run return output and error
-def run(command, show=True):
+def run(command, show = True):
     # out to file
     id = time.clock_gettime_ns(time.CLOCK_REALTIME) % 100000
     out = f"out_{id}.txt"
     err = f"err_{id}.txt"
     
-    ret = exe(command + f" 1>{out} 2>{err}")
+    code = exe(command + f" 1>{out} 2>{err}", show)
 
     # read from file
     output = readFileContext(out)
@@ -80,14 +83,17 @@ def run(command, show=True):
     if os.path.exists(out):
         os.remove(out)
     if os.path.exists(err):
-        os.remove(err)    
+        os.remove(err)
 
-    return output, error
+    return output, error, code
 
 
 # return list after run
-def runRetList(command, timeout=10):
-    output,error = run(command, timeout)
+def runRetList(command, show = True, checkRun = False):
+    output, error, code = run(command, show)
+    if checkRun and code != 0:
+        print(f"eos.runRetList checkRun return code failed. code={code} error={error}")
+        assert code == 0
     return output.splitlines()
 
 #

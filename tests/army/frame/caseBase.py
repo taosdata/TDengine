@@ -331,11 +331,11 @@ class TBase:
         for i in range(len(vlist)):
             if vlist[i].find(s) != -1:
                 # found
-                tdLog.info(f"found {s} on index {i} , line={vlist[i]}")
+                tdLog.info(f'found "{s}" on index {i} , line={vlist[i]}')
                 return 
 
         # not found
-        tdLog.exit(f"faild, not found {s} on list:{vlist}")
+        tdLog.exit(f'faild, not found "{s}" on list:{vlist}')
 
 #
 #  str util
@@ -353,7 +353,7 @@ class TBase:
 #  taosBenchmark 
 #
     
-    # run taosBenchmark and check insert Result
+    # insert
     def insertBenchJson(self, jsonFile, options="", checkStep=False):
         # exe insert 
         cmd = f"{options} -f {jsonFile}"        
@@ -421,3 +421,17 @@ class TBase:
                 tdSql.checkData(0, 0, vgroups)
 
         return db, stb,child_count, insert_rows
+    
+
+    # tmq
+    def tmqBenchJson(self, jsonFile, options="", checkStep=False):
+        # exe insert 
+        command = f"{options} -f {jsonFile}"
+        rlist = frame.etool.runBinFile("taosBenchmark", command, checkRun = True)
+
+        #
+        # check insert result
+        #
+        print(rlist)
+
+        return rlist
