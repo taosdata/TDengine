@@ -157,7 +157,7 @@ static void doStartScanWal(void* param, void* tmrId) {
     goto _end;
   }
 
-  tqTrace("vgId:%d create msg to start wal scan, numOfTasks:%d", vgId, numOfTasks);
+  tqDebug("vgId:%d create msg to start wal scan, numOfTasks:%d", vgId, numOfTasks);
 
 #if 0
   //  wait for the vnode is freed, and invalid read may occur.
