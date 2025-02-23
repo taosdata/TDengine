@@ -125,7 +125,7 @@ static void doStartScanWal(void* param, void* tmrId) {
   }
 
   if (pMeta->startInfo.startAllTasks) {
-    tqTrace("vgId:%d in restart procedure, not ready to scan wal", vgId);
+    tqDebug("vgId:%d in restart procedure, not ready to scan wal", vgId);
     goto _end;
   }
 
