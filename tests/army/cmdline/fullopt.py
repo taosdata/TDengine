@@ -59,7 +59,7 @@ class TDTestCase(TBase):
         year = datetime.now().year
         CopyRight = f"Copyright (c) {year} by TDengine, all rights reserved."
         taos = epath.binFile("taos")
-        output, error = eos.run(taos + " -s")
+        output, error = eos.run(taos + ' -s "show databases"')
         if output.find(CopyRight) == -1:
             tdLog.exit(f'not found "{CopyRight}" in return output:{output}')
         else:
