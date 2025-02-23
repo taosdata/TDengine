@@ -108,7 +108,7 @@ class TDTestCase(TBase):
         self.taos(f'{mode} -s "select * from {db}.d0; >>d0.csv" ')
         
         # use db
-        rlist = self.taos(f'{mode} -s "show databases;use {db};use {db};use {db};quit;" ')
+        rlist = self.taos(f'{mode} -s "use {db};" ')
         self.checkListString(rlist, "Database changed")
         # update sql
         rlist = self.taos(f'{mode} -s "alter local \'resetlog\';" ')
@@ -201,7 +201,8 @@ class TDTestCase(TBase):
             ['-B -s "show dnodes;"', queryOK],
             ['-s "help;"', "Timestamp expression Format"],
             ['-s ""', "Invalid commands"],
-            ['-t', "2: service ok"]
+            ['-t', "2: service ok"],
+            ['-uroot -p < cmdline/data/pwd.txt -s "show dnodes;"', queryOK],
         ]
 
         for arg in args:

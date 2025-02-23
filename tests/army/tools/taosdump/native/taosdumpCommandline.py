@@ -178,6 +178,9 @@ class TDTestCase(TBase):
         self.checkExcept(taosdump + " -A -o  ")
         self.checkExcept(taosdump + " -A -o ./noexistpath/")
         self.checkExcept(taosdump + f" -d invalidAVRO -o {tmpdir}")
+        self.checkExcept(taosdump + f" -P invalidport")
+        self.checkExcept(taosdump + f" -D")
+        self.checkExcept(taosdump + f" -P 65536")
 
     # run
     def run(self):
