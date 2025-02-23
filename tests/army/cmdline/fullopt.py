@@ -154,7 +154,7 @@ class TDTestCase(TBase):
         sc.dnodeStop(idx)
         etool.exeBinFile("taos", f'-n server', wait=False)
         time.sleep(3)
-        rlist = etool.exeBinFile("taos", f'-n client', wait=True)
+        rlist = self.taos("-n client")
         self.checkListString(rlist, "total succ:  100/100")
         eos.exe("pkill -9 taos")
 
