@@ -18,17 +18,15 @@
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
 
-#include <time.h>
 #include "shellInt.h"
 
 
 int32_t copyRightYear() {
-  time_t now = time(NULL);
-  struct tm *local = localtime(&now);
-  int32_t year = 0;
-
-  if (local) {
-    year = local->tm_year;
+  int32_t   year = 0;
+  time_t    now  = taosGetTimestampSec();
+  struct tm local;
+  if (taosLocalTime(&now, &local, NULL, 0, NULL)) {
+    year = local.tm_year;
   }
 
   return year > 2025 ? year : 2025;
