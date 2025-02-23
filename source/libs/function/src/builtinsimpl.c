@@ -566,20 +566,22 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
 
   int32_t type = pInput->pData[0]->info.type;
 
-  char* buf = GET_ROWCELL_INTERBUF(pResInfo);
+  char*   buf = GET_ROWCELL_INTERBUF(pResInfo);
+  int64_t val = *((int64_t*)buf);
   if (IS_NULL_TYPE(type)) {
     // select count(NULL) returns 0
     numOfElem = 1;
-    *((int64_t*)buf) += 0;
+    val += 0;
   } else {
     numOfElem = getNumOfElems(pCtx);
-    *((int64_t*)buf) += numOfElem;
+    val += numOfElem;
   }
+  taosSetInt64Aligned(buf, val);
 
   if (tsCountAlwaysReturnValue) {
     pResInfo->numOfRes = 1;
   } else {
-    SET_VAL(pResInfo, *((int64_t*)buf), 1);
+    SET_VAL(pResInfo, val, 1);
   }
 
   return TSDB_CODE_SUCCESS;

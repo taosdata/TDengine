@@ -86,8 +86,12 @@ static int32_t setTimeWindowOutputBuf(SResultRowInfo* pResultRowInfo, STimeWindo
   }
 
   // set time window for current result
+#ifndef TD_ASTRA
   pResultRow->win = (*win);
-
+#else
+  pResultRow->win.skey = taosGetInt64Aligned(&win->skey);
+  pResultRow->win.ekey = taosGetInt64Aligned(&win->ekey);
+#endif
   *pResult = pResultRow;
   return setResultRowInitCtx(pResultRow, pCtx, numOfOutput, rowEntryInfoOffset);
 }

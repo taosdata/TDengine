@@ -466,12 +466,12 @@ typedef struct {
 } SVATaskID;
 
 struct SVnode {
-  char*     path;
-  SVnodeCfg config;
   SVState   state;
   SVStatis  statis;
+  char*     path;
   STfs*     pTfs;
   int32_t   diskPrimary;
+  SVnodeCfg config;
   SMsgCb    msgCb;
   bool      disableWrite;
 

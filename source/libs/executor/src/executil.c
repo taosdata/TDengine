@@ -1934,9 +1934,8 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
 #endif
 
     int32_t numOfParam = LIST_LENGTH(pFuncNode->pParameterList);
-
     pExp->base.pParam = taosMemoryCalloc(numOfParam, sizeof(SFunctParam));
-    QUERY_CHECK_NULL(pExp->base.pParam, code, lino, _end, terrno);
+    if (numOfParam) QUERY_CHECK_NULL(pExp->base.pParam, code, lino, _end, terrno);
     pExp->base.numOfParams = numOfParam;
 
     for (int32_t j = 0; j < numOfParam && TSDB_CODE_SUCCESS == code; ++j) {
@@ -2199,9 +2198,9 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
 
     pCtx->input.numOfInputCols = pFunct->numOfParams;
     pCtx->input.pData = taosMemoryCalloc(pFunct->numOfParams, POINTER_BYTES);
-    QUERY_CHECK_NULL(pCtx->input.pData, code, lino, _end, terrno);
+    if (pFunct->numOfParams) QUERY_CHECK_NULL(pCtx->input.pData, code, lino, _end, terrno);
     pCtx->input.pColumnDataAgg = taosMemoryCalloc(pFunct->numOfParams, POINTER_BYTES);
-    QUERY_CHECK_NULL(pCtx->input.pColumnDataAgg, code, lino, _end, terrno);
+    if (pFunct->numOfParams) QUERY_CHECK_NULL(pCtx->input.pColumnDataAgg, code, lino, _end, terrno);
 
     pCtx->pTsOutput = NULL;
     pCtx->resDataInfo.bytes = pFunct->resSchema.bytes;
@@ -2454,7 +2453,12 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
 
   SResultRow* pRow = getResultRowByPos(pBuf, &pResultRowInfo->cur, false);
   if (pRow) {
+#ifndef TD_ASTRA
     w = pRow->win;
+#else
+    w.skey = taosGetInt64Aligned(&pRow->win.skey);
+    w.ekey = taosGetInt64Aligned(&pRow->win.ekey);
+#endif
   }
 
   // in case of typical time window, we can calculate time window directly.

@@ -202,9 +202,13 @@ static int32_t rewriteExprsForSelect(SNodeList* pExprs, SSelectStmt* pSelect, ES
   SRewriteExprCxt cxt = {
       .errCode = TSDB_CODE_SUCCESS, .pExprs = pExprs, .pOutputs = NULL, .isPartitionBy = isPartitionBy};
   if (NULL != pRewriteExprs) {
-    cxt.pOutputs = taosMemoryCalloc(LIST_LENGTH(pExprs), sizeof(bool));
-    if (NULL == cxt.pOutputs) {
-      return terrno;
+    if (LIST_LENGTH(pExprs) == 0) {
+      cxt.pOutputs = NULL;
+    } else {
+      cxt.pOutputs = taosMemoryCalloc(LIST_LENGTH(pExprs), sizeof(bool));
+      if (NULL == cxt.pOutputs) {
+        return terrno;
+      }
     }
   }
   nodesRewriteSelectStmt(pSelect, clause, doRewriteExpr, &cxt);
