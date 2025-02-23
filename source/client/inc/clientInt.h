@@ -116,19 +116,20 @@ typedef struct {
   SMonitorParas monitorParas;
   int8_t        enableAuditDelete;
 } SAppInstServerCFG;
+
 struct SAppInstInfo {
   int64_t            numOfConns;
-  SCorEpSet          mgmtEp;
   int32_t            totalDnodes;
   int32_t            onlineDnodes;
-  TdThreadMutex      qnodeMutex;
-  SArray*            pQnodeList;
-  SAppClusterSummary summary;
-  SList*             pConnList;  // STscObj linked list
   int64_t            clusterId;
+  SAppClusterSummary summary;
+  SArray*            pQnodeList;
+  SList*             pConnList;  // STscObj linked list
   void*              pTransporter;
   SAppHbMgr*         pAppHbMgr;
   char*              instKey;
+  TdThreadMutex      qnodeMutex;
+  SCorEpSet          mgmtEp;
   SAppInstServerCFG  serverCfg;
 };
 

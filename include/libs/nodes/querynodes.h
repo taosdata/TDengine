@@ -427,6 +427,7 @@ typedef struct SRangeAroundNode {
 typedef struct SSelectStmt {
   ENodeType     type;  // QUERY_NODE_SELECT_STMT
   bool          isDistinct;
+  STimeWindow   timeRange;
   SNodeList*    pProjectionList;
   SNode*        pFromTable;
   SNode*        pWhere;
@@ -443,7 +444,6 @@ typedef struct SSelectStmt {
   SNodeList*    pOrderByList;  // SOrderByExprNode
   SLimitNode*   pLimit;
   SLimitNode*   pSlimit;
-  STimeWindow   timeRange;
   SNodeList*    pHint;
   char          stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t       precision;
@@ -623,23 +623,23 @@ typedef struct SQuery {
   ENodeType       type;
   EQueryExecStage execStage;
   EQueryExecMode  execMode;
+  int32_t         msgType;
+  int32_t         numOfResCols;
+  int32_t         placeholderNum;
+  int8_t          precision;
   bool            haveResultSet;
+  bool            showRewrite;
+  bool            stableQuery;
   SNode*          pPrevRoot;
   SNode*          pRoot;
   SNode*          pPostRoot;
-  int32_t         numOfResCols;
   SSchema*        pResSchema;
-  int8_t          precision;
   SCmdMsgInfo*    pCmdMsg;
-  int32_t         msgType;
   SArray*         pTargetTableList;
   SArray*         pTableList;
   SArray*         pDbList;
-  bool            showRewrite;
-  int32_t         placeholderNum;
   SArray*         pPlaceholderValues;
   SNode*          pPrepareRoot;
-  bool            stableQuery;
 } SQuery;
 
 void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
