@@ -87,6 +87,8 @@ static void doStartScanWal(void* param, void* tmrId) {
   tmr_h                  pTimer = NULL;
   SBuildScanWalMsgParam* pParam = (SBuildScanWalMsgParam*)param;
 
+  tqDebug("start to do scan wal in tmr, metaRid:%" PRId64, pParam->metaId);
+
   SStreamMeta* pMeta = taosAcquireRef(streamMetaRefPool, pParam->metaId);
   if (pMeta == NULL) {
     tqError("metaRid:%" PRId64 " not valid now, stream meta has been freed", pParam->metaId);
