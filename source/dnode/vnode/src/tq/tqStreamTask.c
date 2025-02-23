@@ -95,6 +95,12 @@ static void doStartScanWal(void* param, void* tmrId) {
   }
 
   vgId = pMeta->vgId;
+  code = streamTimerGetInstance(&pTimer);
+  if (code) {
+    tqFatal("vgId:%d failed to get tmr ctrl during sched scan wal, not scan wal, code:%s", vgId, tstrerror(code));
+    taosMemoryFree(pParam);
+    return;
+  }
 
   if (pMeta->closeFlag) {
     code = taosReleaseRef(streamMetaRefPool, pParam->metaId);
@@ -127,13 +133,6 @@ static void doStartScanWal(void* param, void* tmrId) {
   if (pMeta->startInfo.startAllTasks) {
     tqTrace("vgId:%d in restart procedure, not ready to scan wal", vgId);
     goto _end;
-  }
-
-  code = streamTimerGetInstance(&pTimer);
-  if (code) {
-    tqFatal("vgId:%d failed to get tmr ctrl during sched scan wal, not scan wal, code:%s", vgId, tstrerror(code));
-    taosMemoryFree(pParam);
-    return;
   }
 
   if (!waitEnoughDuration(pMeta)) {
