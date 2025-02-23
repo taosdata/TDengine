@@ -1755,7 +1755,7 @@ static int32_t sclGetMathOperatorResType(SOperatorNode *pOp) {
     pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
   } else {
     if (hasDecimalType) {
-      decimalGetRetType(&ldt, &rdt, pOp->opType, &pOp->node.resType);
+      return decimalGetRetType(&ldt, &rdt, pOp->opType, &pOp->node.resType);
     } else {
       pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
       pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
