@@ -108,7 +108,7 @@ class TDTestCase(TBase):
         self.taos(f'{mode} -s "select * from {db}.d0; >>d0.csv" ')
         
         # use db
-        rlist = self.taos(f'{mode} -s "use {db};" ')
+        rlist = self.taos(f'{mode} -s "use {db};use {db};use {db};" ')
         self.checkListString(rlist, "Database changed")
         # update sql
         rlist = self.taos(f'{mode} -s "alter local \'resetlog\';" ')
