@@ -375,6 +375,7 @@ static int32_t minCronTime() {
 }
 void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   int32_t code = 0;
+#ifndef TD_ASTRA  
   if (sec % tsTtlPushIntervalSec == 0) {
     mndPullupTtl(pMnode);
   }
@@ -382,11 +383,12 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % tsTrimVDbIntervalSec == 0) {
     mndPullupTrimDb(pMnode);
   }
-
+#endif
+#ifdef USE_S3
   if (tsS3MigrateEnabled && sec % tsS3MigrateIntervalSec == 0) {
     mndPullupS3MigrateDb(pMnode);
   }
-
+#endif
   if (sec % tsTransPullupInterval == 0) {
     mndPullupTrans(pMnode);
   }
@@ -394,11 +396,12 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % tsCompactPullupInterval == 0) {
     mndPullupCompacts(pMnode);
   }
-
+#ifdef USE_TQ
   if (sec % tsMqRebalanceInterval == 0) {
     mndCalMqRebalance(pMnode);
   }
-
+#endif
+#ifdef USE_STREAM
   if (sec % 30 == 0) {  // send the checkpoint info every 30 sec
     mndStreamCheckpointTimer(pMnode);
   }
@@ -410,19 +413,21 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % 5 == 0) {
     mndStreamConsensusChkpt(pMnode);
   }
-
+#endif
+#ifdef USE_REPORT
   if (sec % tsTelemInterval == (TMIN(86400, (tsTelemInterval - 1)))) {
     mndPullupTelem(pMnode);
   }
-
+#endif
+#ifndef TD_ASTRA
   if (sec % tsGrantHBInterval == 0) {
     mndPullupGrant(pMnode);
   }
-
+#endif
   if (sec % tsUptimeInterval == 0) {
     mndIncreaseUpTime(pMnode);
   }
-
+#ifndef TD_ASTRA
   if (sec % (tsArbHeartBeatIntervalSec) == 0) {
     if ((code = mndPullupArbHeartbeat(pMnode)) != 0) {
       mError("failed to pullup arb heartbeat, since:%s", tstrerror(code));
@@ -434,6 +439,7 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
       mError("failed to pullup arb check sync, since:%s", tstrerror(code));
     }
   }
+#endif
 }
 void mndDoTimerCheckTask(SMnode *pMnode, int64_t sec) {
   if (sec % (tsStatusInterval * 5) == 0) {
@@ -524,7 +530,7 @@ static int32_t mndInitWal(SMnode *pMnode) {
                  .encryptAlgorithm = 0,
                  .encryptKey = {0}};
 
-#if defined(TD_ENTERPRISE)
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   if (tsiEncryptAlgorithm == DND_CA_SM4 && (tsiEncryptScope & DND_CS_MNODE_WAL) == DND_CS_MNODE_WAL) {
     cfg.encryptAlgorithm = (tsiEncryptScope & DND_CS_MNODE_WAL) ? tsiEncryptAlgorithm : 0;
     if (tsEncryptKey[0] == '\0') {

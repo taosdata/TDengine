@@ -256,6 +256,9 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
     .info.persistHandle = persistHandle,
     .code = 0
   };
+#ifdef TD_ASTRA_32
+  rpcMsg.info.ahandleEx = pInfo->msgInfo.handleEx;
+#endif
   TRACE_SET_ROOTID(&rpcMsg.info.traceId, pInfo->requestId);
 
   int code = rpcSendRequestWithCtx(pTransporter, epSet, &rpcMsg, pTransporterId, rpcCtx);

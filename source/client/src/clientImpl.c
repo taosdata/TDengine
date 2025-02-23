@@ -2412,7 +2412,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
   int32_t hasColumnSeg = *(int32_t*)p;
   p += sizeof(int32_t);
 
-  uint64_t groupId = *(uint64_t*)p;
+  uint64_t groupId = taosGetUInt64Aligned((uint64_t*)p);
   p += sizeof(uint64_t);
 
   // check fields

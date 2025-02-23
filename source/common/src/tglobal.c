@@ -143,9 +143,13 @@ int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 bool     tsMonitorLogProtocol = false;
 bool     tsMonitorForceV2 = true;
+#ifndef USE_MONITOR
+tsEnableMonitor = false;
+tsMonitorForceV2 = false;
+#endif
 
 // audit
-#ifndef TD_ASTRA
+#ifdef USE_AUDIT
 bool    tsEnableAudit = true;
 bool    tsEnableAuditCreateTable = true;
 bool    tsEnableAuditDelete = true;
@@ -158,7 +162,7 @@ int32_t tsAuditInterval = INT64_MAX;
 #endif
 
 // telem
-#if defined(TD_ENTERPRISE) || defined(TD_ASTRA)
+#if defined(TD_ENTERPRISE) || !defined(USE_REPORT)
 bool tsEnableTelem = false;
 #else
 bool    tsEnableTelem = true;
@@ -168,7 +172,7 @@ char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
 uint16_t tsTelemPort = 80;
 char    *tsTelemUri = "/report";
 
-#if defined(TD_ENTERPRISE) || defined(TD_ASTRA)
+#if defined(TD_ENTERPRISE) || !defined(USE_REPORT)
 bool tsEnableCrashReport = false;
 #else
 bool    tsEnableCrashReport = true;
@@ -297,7 +301,7 @@ bool     tsIfAdtFse = false;                    // ADT-FSE algorithom or origina
 char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
 // udf
-#ifdef WINDOWS
+#if defined(WINDOWS) || !defined(USE_UDF)
 bool tsStartUdfd = false;
 #else
 bool    tsStartUdfd = true;
@@ -336,6 +340,9 @@ int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 bool    tsFilterScalarMode = false;
 int     tsStreamAggCnt = 100000;
 bool    tsStreamCoverage = false;
+#ifndef USE_STREAM
+tsDisableStream = true;
+#endif
 
 bool tsUpdateCacheBatch = true;
 
@@ -1617,6 +1624,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(taosSetSlowLogScope(pItem->str, &scope));
   tsSlowLogScope = scope;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "queryRspPolicy");
+  tsQueryRspPolicy = pItem->i32;
+#ifdef USE_MONITOR
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "monitor");
   tsEnableMonitor = pItem->bval;
 
@@ -1636,15 +1646,13 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "monitorComp");
   tsMonitorComp = pItem->bval;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "queryRspPolicy");
-  tsQueryRspPolicy = pItem->i32;
-
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "monitorLogProtocol");
   tsMonitorLogProtocol = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "monitorForceV2");
   tsMonitorForceV2 = pItem->i32;
-
+#endif
+#ifdef USE_AUDIT
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "audit");
   tsEnableAudit = pItem->bval;
 
@@ -1656,12 +1664,21 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditInterval");
   tsAuditInterval = pItem->i32;
-
+#endif
+#ifdef USE_REPORT
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "telemetryReporting");
   tsEnableTelem = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "crashReporting");
   tsEnableCrashReport = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "telemetryInterval");
+  tsTelemInterval = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "telemetryServer");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
+  tstrncpy(tsTelemServer, pItem->str, TSDB_FQDN_LEN);
+#endif
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ttlChangeOnWrite");
   tsTtlChangeOnWrite = pItem->bval;
@@ -1669,15 +1686,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ttlFlushThreshold");
   tsTtlFlushThreshold = pItem->i32;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "telemetryInterval");
-  tsTelemInterval = pItem->i32;
-
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "rsyncPort");
   tsRsyncPort = pItem->i32;
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "telemetryServer");
-  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
-  tstrncpy(tsTelemServer, pItem->str, TSDB_FQDN_LEN);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "snodeAddress");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
@@ -1770,7 +1780,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableWhiteList");
   tsEnableWhiteList = pItem->bval;
-
+#ifdef USE_UDF
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "udf");
   tsStartUdfd = pItem->bval;
 
@@ -1784,7 +1794,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
-
+#endif
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "cacheLazyLoadThreshold");
   tsCacheLazyLoadThreshold = pItem->i32;
 
@@ -1836,7 +1846,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minDiskFreeSize");
   tsMinDiskFreeSize = pItem->i64;
-
+#ifdef USE_S3
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3MigrateIntervalSec");
   tsS3MigrateIntervalSec = pItem->i32;
 
@@ -1848,7 +1858,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3UploadDelaySec");
   tsS3UploadDelaySec = pItem->i32;
-
+#endif
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "experimental");
   tsExperimental = pItem->bval;
 
@@ -1986,6 +1996,9 @@ int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *
   dDebugFlag = pItem->i32;
 
 _exit:
+if(code != 0) {
+  (void)printf("failed to set data folder since %s\n", tstrerror(code));
+}
   cfgCleanup(pCfg);
   TAOS_RETURN(code);
 }

@@ -3260,7 +3260,11 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
   data += sizeof(bool);
 
   *actualLen = dataLen;
+#ifndef TD_ASTRA
   *groupId = pBlock->info.id.groupId;
+#else
+  *groupdId = taosGetUInt64Aligned(&pBlock->info.id.groupId); // TD_ASTRA_TODO: check if this is needed
+#endif
   if (dataLen > dataBuflen) goto _exit;
 
   return dataLen;
@@ -3300,7 +3304,7 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
   pStart += sizeof(int32_t);
 
   // group id sizeof(uint64_t)
-  pBlock->info.id.groupId = *(uint64_t*)pStart;
+  pBlock->info.id.groupId = taosGetUInt64Aligned(pStart);
   pStart += sizeof(uint64_t);
 
   if (pBlock->pDataBlock == NULL) {

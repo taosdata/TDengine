@@ -1245,7 +1245,9 @@ void freeSSmlKv(void *data) {
   SSmlKv *kv = (SSmlKv *)data;
   if (kv->keyEscaped) taosMemoryFreeClear(kv->key);
   if (kv->valueEscaped) taosMemoryFreeClear(kv->value);
+#ifdef USE_GEOS
   if (kv->type == TSDB_DATA_TYPE_GEOMETRY) geosFreeBuffer((void *)(kv->value));
+#endif
   if (kv->type == TSDB_DATA_TYPE_VARBINARY) taosMemoryFreeClear(kv->value);
 }
 

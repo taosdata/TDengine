@@ -294,7 +294,7 @@ static int32_t mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode) {
 static int32_t mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOld, SDnodeObj *pNew) {
   mTrace("dnode:%d, perform update action, old row:%p new row:%p", pOld->id, pOld, pNew);
   pOld->updateTime = pNew->updateTime;
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE || defined(TD_ASTRA_TODO)
   tstrncpy(pOld->machineId, pNew->machineId, TSDB_MACHINE_ID_LEN + 1);
 #endif
   return 0;
@@ -1420,7 +1420,7 @@ _exit:
 static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pReq) {
   int32_t code = 0;
 
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   SMnode       *pMnode = pReq->info.node;
   SMCfgDnodeReq cfgReq = {0};
   TAOS_CHECK_RETURN(tDeserializeSMCfgDnodeReq(pReq->pCont, pReq->contLen, &cfgReq));

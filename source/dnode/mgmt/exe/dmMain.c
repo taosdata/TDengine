@@ -75,6 +75,7 @@ static void dmSetAssert(int32_t signum, void *sigInfo, void *context) { tsAssert
 static void dmStopDnode(int signum, void *sigInfo, void *context) {
   // taosIgnSignal(SIGUSR1);
   // taosIgnSignal(SIGUSR2);
+#ifndef TD_ASTRA
   if (taosIgnSignal(SIGTERM) != 0) {
     dWarn("failed to ignore signal SIGTERM");
   }
@@ -90,7 +91,7 @@ static void dmStopDnode(int signum, void *sigInfo, void *context) {
   if (taosIgnSignal(SIGBREAK) != 0) {
     dWarn("failed to ignore signal SIGBREAK");
   }
-
+#endif
   dInfo("shut down signal is %d", signum);
 #if !defined(WINDOWS) && !defined(TD_ASTRA)
   if (sigInfo != NULL) {
