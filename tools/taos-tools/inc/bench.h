@@ -773,9 +773,7 @@ typedef struct SArguments_S {
     int                 rest_server_ver_major;
     bool                check_sql;
     int                 suit;  // see define SUIT_
-#ifdef TD_VER_COMPATIBLE_3_0_0_0
     int16_t             inputted_vgroups;
-#endif
     enum CONTINUE_IF_FAIL_MODE continueIfFail;
     bool                mistMode;
     bool                escape_character;
