@@ -2,9 +2,11 @@ include(ExternalProject)
 
 option(DEPEND_DIRECTLY "depend externals directly, otherwise externals will not be built each time to save building time"    ON)
 
+add_custom_target(build_externals)
+
 macro(INIT_EXT name)
-    set(_base            "${CMAKE_SOURCE_DIR}/.externals/${name}")
-    set(_ins             "${CMAKE_SOURCE_DIR}/.externals/${name}/install/${TD_CONFIG_NAME}")
+    set(_base            "${CMAKE_SOURCE_DIR}/.externals/build/${name}")
+    set(_ins             "${CMAKE_SOURCE_DIR}/.externals/install/${name}/${TD_CONFIG_NAME}")
     set(${name}_base     "${_base}")
     set(${name}_install  "${_ins}")
     set(${name}_inc_dir  "")
@@ -126,6 +128,7 @@ ExternalProject_Add(ext_cjson
     GIT_REPOSITORY ${_git_url}
     GIT_TAG v1.7.15
     PREFIX "${_base}"
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
     CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
     CMAKE_ARGS -DCJSON_BUILD_SHARED_LIBS:BOOL=OFF
@@ -139,6 +142,7 @@ ExternalProject_Add(ext_cjson
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
+add_dependencies(build_externals ext_cjson)
 
 # lz4
 if(${TD_LINUX})
@@ -158,6 +162,7 @@ ExternalProject_Add(ext_lz4
     GIT_TAG v1.9.3
     SOURCE_SUBDIR build/cmake
     PREFIX "${_base}"
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
     CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
     CMAKE_ARGS -DBUILD_STATIC_LIBS:BOOL=ON
@@ -167,6 +172,7 @@ ExternalProject_Add(ext_lz4
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
+add_dependencies(build_externals ext_lz4)
 
 # zlib
 if(${TD_LINUX})
@@ -185,6 +191,7 @@ ExternalProject_Add(ext_zlib
     GIT_REPOSITORY ${_git_url}
     GIT_TAG v1.2.11
     PREFIX "${_base}"
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
     CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
     PATCH_COMMAND
@@ -194,6 +201,7 @@ ExternalProject_Add(ext_zlib
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
+add_dependencies(build_externals ext_zlib)
 
 # rocksdb
 if(${BUILD_WITH_ROCKSDB})              # {
@@ -216,33 +224,30 @@ if(${BUILD_WITH_ROCKSDB})              # {
             BUILD_ALWAYS TRUE
             DOWNLOAD_EXTRACT_TIMESTAMP TRUE
             PREFIX "${_base}"
-            CONFIGURE_COMMAND
+            CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+            CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+            CMAKE_ARGS -DWITH_FALLOCATE:BOOL=OFF
+            CMAKE_ARGS -DWITH_JEMALLOC:BOOL=OFF
+            CMAKE_ARGS -DWITH_GFLAGS:BOOL=OFF
+            CMAKE_ARGS -DWITH_LIBURING:BOOL=OFF
+            CMAKE_ARGS -DWITH_TESTS:BOOL=OFF
+            CMAKE_ARGS -DWITH_BENCHMARK_TOOLS:BOOL=OFF
+            CMAKE_ARGS -DWITH_TOOLS:BOOL=OFF
+            CMAKE_ARGS -DWITH_LIBURING:BOOL=OFF
+            CMAKE_ARGS -DROCKSDB_BUILD_SHARED:BOOL=OFF
+            CMAKE_ARGS -DWITH_BENCHMARK_TOOLS:BOOL=OFF
+            CMAKE_ARGS -DWITH_CORE_TOOLS:BOOL=OFF
+            CMAKE_ARGS -DWITH_TOOLS:BOOL=OFF
+            CMAKE_ARGS -DWITH_TRACE_TOOLS:BOOL=OFF
+            CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
+            CMAKE_ARGS -DROCKSDB_INSTALL_ON_WINDOWS:BOOL=ON
+            PATCH_COMMAND
                 COMMAND "${CMAKE_COMMAND}" -E copy ${TD_CONTRIB_DIR}/rocksdb.cmake CMakeLists.txt
-                COMMAND "${CMAKE_COMMAND}" -B . -S ../ext_rocksdb -DCMAKE_BUILD_TYPE:STRING=$<CONFIG>
-                        -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-                        -DWITH_FALLOCATE:BOOL=OFF
-                        -DWITH_JEMALLOC:BOOL=OFF
-                        -DWITH_GFLAGS:BOOL=OFF
-                        -DWITH_LIBURING:BOOL=OFF
-                        -DWITH_TESTS:BOOL=OFF
-                        -DWITH_BENCHMARK_TOOLS:BOOL=OFF
-                        -DWITH_TOOLS:BOOL=OFF
-                        -DWITH_LIBURING:BOOL=OFF
-                        -DROCKSDB_BUILD_SHARED:BOOL=OFF
-                        -DWITH_BENCHMARK_TOOLS:BOOL=OFF
-                        -DWITH_CORE_TOOLS:BOOL=OFF
-                        -DWITH_TOOLS:BOOL=OFF
-                        -DWITH_TRACE_TOOLS:BOOL=OFF
-                        -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
-                        -DROCKSDB_INSTALL_ON_WINDOWS:BOOL=ON
-            BUILD_COMMAND
-                COMMAND "${CMAKE_COMMAND}" --build . --config $<CONFIG>
-            INSTALL_COMMAND
-                COMMAND "${CMAKE_COMMAND}" --install . --config $<CONFIG> --prefix ${_ins}
             GIT_SHALLOW TRUE
             EXCLUDE_FROM_ALL TRUE
             VERBATIM
         )
+        add_dependencies(build_externals ext_rocksdb)
     endif()                            # }
 endif()                                # }
 
@@ -264,6 +269,7 @@ if(${BUILD_WITH_UV})           # {
         GIT_REPOSITORY ${_git_url}
         GIT_TAG v1.49.2
         PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
         CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
         CMAKE_ARGS -DLIBUV_BUILD_BENCH:BOOL=OFF
@@ -274,6 +280,7 @@ if(${BUILD_WITH_UV})           # {
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
+    add_dependencies(build_externals ext_libuv)
 endif()                        # }
 
 # geos
@@ -302,22 +309,18 @@ if(${BUILD_GEOS})              # {
         GIT_REPOSITORY ${_git_url}
         GIT_TAG 3.12.0
         PREFIX "${_base}"
-        CONFIGURE_COMMAND
-            COMMAND "${CMAKE_COMMAND}" -B . -S ../ext_geos -DCMAKE_BUILD_TYPE:STRING=$<CONFIG>
-                    -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-                    -DBUILD_GEOSOP:BOOL=OFF
-                    -DBUILD_SHARED_LIBS:BOOL=OFF
-                    -DBUILD_TESTING:BOOL=OFF
-                    -DGEOS_BUILD_DEVELOPER:BOOL=OFF
-                    -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
-        BUILD_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --build . --config $<CONFIG>
-        INSTALL_COMMAND
-            COMMAND "${CMAKE_COMMAND}" --install . --config $<CONFIG>
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DBUILD_GEOSOP:BOOL=OFF
+        CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
+        CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
+        CMAKE_ARGS -DGEOS_BUILD_DEVELOPER:BOOL=OFF
+        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
+    add_dependencies(build_externals ext_geos)
 endif()                        # }
 
 # pcre2
@@ -342,6 +345,7 @@ if(${BUILD_PCRE2})           # {
         GIT_REPOSITORY ${_git_url}
         GIT_TAG pcre2-10.43
         PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
         CMAKE_ARGS -DPCRE2_BUILD_TESTS:BOOL=OFF
         CMAKE_ARGS -DPCRE2_STATIC_PIC:BOOL=ON
@@ -349,6 +353,7 @@ if(${BUILD_PCRE2})           # {
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
+    add_dependencies(build_externals ext_pcre2)
 endif()                      # }
 
 # lzma2
@@ -360,6 +365,7 @@ if(NOT ${TD_WINDOWS})         # {
             LIB                usr/local/lib/${ext_lzma2_static}
         )
         get_from_local_repo_if_exists("https://github.com/conor42/fast-lzma2.git")
+        # freemine: TODO: CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
         ExternalProject_Add(ext_lzma2
             GIT_REPOSITORY ${_git_url}
             GIT_TAG ded964d203cabe1a572d2c813c55e8a94b4eda48
@@ -380,6 +386,7 @@ if(NOT ${TD_WINDOWS})         # {
             EXCLUDE_FROM_ALL TRUE
             VERBATIM
         )
+        add_dependencies(build_externals ext_lzma2)
     else()                  # }{
         set(ext_lzma2_static libfast-lzma2.a)
         INIT_EXT(ext_lzma2
@@ -391,6 +398,7 @@ if(NOT ${TD_WINDOWS})         # {
             GIT_REPOSITORY ${_git_url}
             GIT_TAG ded964d203cabe1a572d2c813c55e8a94b4eda48
             PREFIX "${_base}"
+            CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
             CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
             PATCH_COMMAND
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${CMAKE_SOURCE_DIR}/contrib/lzma2_darwin.CMakeLists.txt.cmake" ${_base}/src/ext_lzma2/CMakeLists.txt
@@ -398,6 +406,7 @@ if(NOT ${TD_WINDOWS})         # {
             EXCLUDE_FROM_ALL TRUE
             VERBATIM
         )
+        add_dependencies(build_externals ext_lzma2)
     endif()                 # }
 else()                        # }{
     if(${TD_WINDOWS})
@@ -411,12 +420,14 @@ else()                        # }{
     ExternalProject_Add(ext_lzma2
         GIT_REPOSITORY ${_git_url}
         PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
         PATCH_COMMAND COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/lzma2.cmake ${_base}/src/ext_lzma2/CMakeLists.txt
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
+    add_dependencies(build_externals ext_lzma2)
 endif()                       # }
 
 # tz
@@ -433,6 +444,7 @@ if(NOT ${TD_WINDOWS})              # {
         LIB               usr/lib/${ext_tz_static}
     )
     get_from_local_repo_if_exists("https://github.com/eggert/tz.git")
+    # freemine: TODO: CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
     ExternalProject_Add(ext_tz
         GIT_REPOSITORY ${_git_url}
         GIT_TAG main       # freemine: or fixed?
@@ -460,6 +472,7 @@ if(NOT ${TD_WINDOWS})              # {
         DEPENDS ext_tz
                ${_ins}/usr/lib/${ext_tz_static}
     )
+    add_dependencies(build_externals ext_tz_builder)
 endif()                            # }
 
 # googletest or gtest in short
@@ -488,6 +501,7 @@ if(${BUILD_TEST})              # {
         GIT_REPOSITORY ${_git_url}
         GIT_TAG release-1.11.0
         PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=OFF
         CMAKE_ARGS -Dgtest_force_shared_crt:BOOL=ON
@@ -495,9 +509,19 @@ if(${BUILD_TEST})              # {
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
+    add_dependencies(build_externals ext_gtest)
 
     INIT_EXT(ext_stub)
+    set(ext_stub_stub ${_base}/src/ext_stub/src)
+    if(${TD_LINUX})          # {
+        set(ext_stub_addr_any ${_base}/src/ext_stub/src_linux)
+    elseif(${TD_DARWIN})     # }{
+        set(ext_stub_addr_any ${_base}/src/ext_stub/src_darwin)
+    elseif(${TD_WINDOWS})    # }{
+        set(ext_stub_addr_any ${_base}/src/ext_stub/src_win)
+    endif()                  # }
     get_from_local_repo_if_exists("https://github.com/coolxv/cpp-stub.git")
+    # freemine: TODO CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
     ExternalProject_Add(ext_stub
         GIT_REPOSITORY ${_git_url}
         GIT_TAG 3137465194014d66a8402941e80d2bccc6346f51
@@ -511,14 +535,7 @@ if(${BUILD_TEST})              # {
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
-    if(${TD_LINUX})          # {
-        set(ext_stub_addr_any ${_base}/src/ext_stub/src_linux)
-    elseif(${TD_DARWIN})     # }{
-        set(ext_stub_addr_any ${_base}/src/ext_stub/src_darwin)
-    elseif(${TD_WINDOWS})    # }{
-        set(ext_stub_addr_any ${_base}/src/ext_stub/src_win)
-    endif()                  # }
-    set(ext_stub_stub ${_base}/src/ext_stub/src)
+    add_dependencies(build_externals ext_stub)
 endif()                        # }
 
 # pthread
@@ -533,6 +550,7 @@ if(${BUILD_PTHREAD})     # {
             LIB                   x86_64/$<CONFIG>/lib/${ext_pthread_static}
         )
         get_from_local_repo_if_exists("https://github.com/GerHobbelt/pthread-win32")
+        # freemine: TODO: CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
         ExternalProject_Add(ext_pthread
                 GIT_REPOSITORY ${_git_url}
                 GIT_TAG v3.0.3.1
@@ -552,6 +570,7 @@ if(${BUILD_PTHREAD})     # {
                 EXCLUDE_FROM_ALL TRUE
                 VERBATIM
         )
+        add_dependencies(build_externals ext_pthread)
     endif()                  # }
 endif()                  # }
 
@@ -570,6 +589,7 @@ if(${BUILD_WITH_ICONV})  # {
                 GIT_REPOSITORY ${_git_url}
                 GIT_TAG v0.0.8
                 PREFIX "${_base}"
+                CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
                 CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
                 CMAKE_ARGS -DBUILD_SHARED:BOOL=OFF
                 CMAKE_ARGS -DBUILD_STATIC:BOOL=ON
@@ -577,6 +597,7 @@ if(${BUILD_WITH_ICONV})  # {
                 EXCLUDE_FROM_ALL TRUE
                 VERBATIM
         )
+        add_dependencies(build_externals ext_iconv)
     endif()                  # }
 endif()                  # }
 
@@ -595,12 +616,14 @@ if(${BUILD_MSVCREGEX})       # {
                 GIT_REPOSITORY ${_git_url}
                 GIT_TAG master
                 PREFIX "${_base}"
+                CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
                 CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
                 PATCH_COMMAND COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/msvcregex.cmake ${_base}/src/ext_msvcregex/CMakeLists.txt
                 GIT_SHALLOW TRUE
                 EXCLUDE_FROM_ALL TRUE
                 VERBATIM
         )
+        add_dependencies(build_externals ext_msvcregex)
     endif()                  # }
 endif()                      # }
 
@@ -619,12 +642,14 @@ if(${BUILD_WCWIDTH})         # {
                 GIT_REPOSITORY ${_git_url}
                 GIT_TAG master
                 PREFIX "${_base}"
+                CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
                 CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
                 PATCH_COMMAND COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/wcwidth.cmake ${_base}/src/ext_wcwidth/CMakeLists.txt
                 GIT_SHALLOW TRUE
                 EXCLUDE_FROM_ALL TRUE
                 VERBATIM
         )
+        add_dependencies(build_externals ext_wcwidth)
     endif()                  # }
 endif()                      # }
 
@@ -642,6 +667,7 @@ if(${BUILD_CRASHDUMP})       # {
         GIT_REPOSITORY ${_git_url}
         GIT_TAG 149b43c10debdf28a2c50d79dee5ff344d83bd06
         PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/crashdump.cmake CMakeLists.txt
@@ -650,6 +676,7 @@ if(${BUILD_CRASHDUMP})       # {
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
+    add_dependencies(build_externals ext_crashdump)
 endif()                      # }
 
 # wingetopt
@@ -666,11 +693,13 @@ if(${BUILD_WINGETOPT})
         GIT_REPOSITORY ${_git_url}
         GIT_TAG master
         PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${_ins}
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
+    add_dependencies(build_externals ext_wingetopt)
 endif(${BUILD_WINGETOPT})
 
 add_executable(main main.c)
@@ -729,6 +758,3 @@ if(${BUILD_WCWIDTH})         # {
     endif()                  # }
 endif()                      # }
 
-message(STATUS        "     BUILD_TEST:${BUILD_TEST}")
-message(STATUS        "  BUILD_CONTRIB:${BUILD_CONTRIB}")
-message(STATUS        "DEPEND_DIRECTLY:${DEPEND_DIRECTLY}")
