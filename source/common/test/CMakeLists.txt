@@ -4,17 +4,19 @@ MESSAGE(STATUS "build parser unit test")
 # GoogleTest requires at least C++11
 SET(CMAKE_CXX_STANDARD 11)
 
-add_executable(commonTest "commonTests.cpp")
-target_link_libraries(commonTest os util common gtest_main)
-target_include_directories(
-    commonTest
-    PUBLIC "${TD_SOURCE_DIR}/include/libs/common/"
-    PRIVATE "${TD_SOURCE_DIR}/source/libs/common/inc"
-)
-add_test(
-    NAME commonTest
-    COMMAND commonTest
-)
+if(TD_LINUX)
+    add_executable(commonTest "commonTests.cpp")
+    target_link_libraries(commonTest os util common gtest_main)
+    target_include_directories(
+        commonTest
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/common/"
+        PRIVATE "${TD_SOURCE_DIR}/source/libs/common/inc"
+    )
+    add_test(
+        NAME commonTest
+        COMMAND commonTest
+    )
+endif()
 
 # dataformatTest.cpp
 add_executable(dataformatTest "dataformatTest.cpp")
