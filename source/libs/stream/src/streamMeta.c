@@ -428,6 +428,9 @@ int32_t streamMetaOpen(const char* path, void* ahandle, FTaskBuild buildTaskFn, 
   TSDB_CHECK_NULL(pMeta->pTaskList, code, lino, _err, terrno);
 
   pMeta->scanInfo.scanSentinel = 0;
+  pMeta->scanInfo.lastScanTs = 0;
+  pMeta->scanInfo.tickCounter = 0;
+
   pMeta->vgId = vgId;
   pMeta->ahandle = ahandle;
   pMeta->buildTaskFn = buildTaskFn;
