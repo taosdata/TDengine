@@ -48,7 +48,7 @@ int32_t tqScanWal(STQ* pTq) {
   }
 
   // the scan wal interval less than 200, not scan, actually.
-  if ((pMeta->scanInfo.lastScanTs > st) && (pMeta->scanInfo.lastScanTs - st < 200)) {
+  if ((pMeta->scanInfo.lastScanTs > 0) && (st - pMeta->scanInfo.lastScanTs < 200)) {
     tqDebug("vgId:%d scan wal less than 200ms, do nothing", vgId);
     atomic_store_32(&pMeta->scanInfo.scanSentinel, 0);
     return code;
