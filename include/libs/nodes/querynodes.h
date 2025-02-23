@@ -322,6 +322,7 @@ typedef struct SStateWindowNode {
   ENodeType type;  // QUERY_NODE_STATE_WINDOW
   SNode*    pCol;  // timestamp primary key
   SNode*    pExpr;
+  SNode*    pTrueForLimit;
 } SStateWindowNode;
 
 typedef struct SSessionWindowNode {
@@ -346,6 +347,7 @@ typedef struct SEventWindowNode {
   SNode*    pCol;  // timestamp primary key
   SNode*    pStartCond;
   SNode*    pEndCond;
+  SNode*    pTrueForLimit;
 } SEventWindowNode;
 
 typedef struct SCountWindowNode {

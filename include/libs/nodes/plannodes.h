@@ -327,6 +327,7 @@ typedef struct SWindowLogicNode {
   SNode*           pStateExpr;
   SNode*           pStartCond;
   SNode*           pEndCond;
+  int64_t          trueForLimit;
   int8_t           triggerType;
   int64_t          watermark;
   int64_t          deleteMark;
@@ -724,6 +725,7 @@ typedef SSessionWinodwPhysiNode SStreamFinalSessionWinodwPhysiNode;
 typedef struct SStateWinodwPhysiNode {
   SWindowPhysiNode window;
   SNode*           pStateKey;
+  int64_t          trueForLimit;
 } SStateWinodwPhysiNode;
 
 typedef SStateWinodwPhysiNode SStreamStateWinodwPhysiNode;
@@ -732,6 +734,7 @@ typedef struct SEventWinodwPhysiNode {
   SWindowPhysiNode window;
   SNode*           pStartCond;
   SNode*           pEndCond;
+  int64_t          trueForLimit;
 } SEventWinodwPhysiNode;
 
 typedef SEventWinodwPhysiNode SStreamEventWinodwPhysiNode;

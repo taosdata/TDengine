@@ -6043,6 +6043,20 @@ static int32_t checkStateWindowForStream(STranslateContext* pCxt, SSelectStmt* p
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkTrueForLimit(STranslateContext *pCxt, SNode *pNode) {
+  SValueNode *pTrueForLimit = (SValueNode *)pNode;
+  if (pTrueForLimit == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pTrueForLimit->datum.i < 0) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TRUE_FOR_NEGATIVE);
+  }
+  if (IS_CALENDAR_TIME_DURATION(pTrueForLimit->unit)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TRUE_FOR_UNIT);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateStateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
       !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
@@ -6054,6 +6068,9 @@ static int32_t translateStateWindow(STranslateContext* pCxt, SSelectStmt* pSelec
   int32_t           code = checkStateExpr(pCxt, pState->pExpr);
   if (TSDB_CODE_SUCCESS == code) {
     code = checkStateWindowForStream(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkTrueForLimit(pCxt, pState->pTrueForLimit);
   }
   return code;
 }
@@ -6081,7 +6098,7 @@ static int32_t translateEventWindow(STranslateContext* pCxt, SSelectStmt* pSelec
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
                                    "EVENT_WINDOW requires valid time series input");
   }
-  return TSDB_CODE_SUCCESS;
+  return checkTrueForLimit(pCxt, ((SEventWindowNode*)pSelect->pWindow)->pTrueForLimit);
 }
 
 static int32_t translateCountWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
