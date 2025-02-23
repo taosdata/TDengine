@@ -1109,7 +1109,8 @@ static bool isColsFunctionResult(const SNode* pNode) {
 }
 
 static bool isInvalidColsBindFunction(const SFunctionNode* pFunc) {
-  return (!fmIsSelectFunc(pFunc->funcId) && pFunc->node.bindExprID != 0);
+  return (pFunc->node.bindExprID != 0 && (!fmIsSelectFunc(pFunc->funcId) || fmIsMultiRowsFunc(pFunc->funcId) ||
+                                          fmIsIndefiniteRowsFunc(pFunc->funcId)));
 }
 
 #ifdef BUILD_NO_CALL

@@ -2128,10 +2128,10 @@ UNIQUE(expr)
 ### COLS​
 
 ```sql​
-COLS​(select_function(expr), output_expr1, [, output_expr2] ... )​
+COLS​(func(expr), output_expr1, [, output_expr2] ... )​
 ```
 
-**Function Description**: On the data row where the execution result of function func (expr) is located, execute the expression output_expr1, [, output_expr2], return its result, and the result of func (expr) is not output.​
+**Function Description**: On the data row where the execution result of function func(expr) is located, execute the expression output_expr1, [, output_expr2], return its result, and the result of func (expr) is not output.​
 
 **Return Data Type**: Returns multiple columns of data, and the data type of each column is the type of the result returned by the corresponding expression.​
 
@@ -2141,7 +2141,8 @@ COLS​(select_function(expr), output_expr1, [, output_expr2] ... )​
 
 **Usage Instructions**:
 - Func function type: must be a single-line selection function (output result is a single-line selection function, for example, last is a single-line selection function, but top is a multi-line selection function).​
-- The result of the parameter func is not returned. If you want to output the result of func, you need to add the corresponding output_expr parameter to the letter.
+- Mainly used to obtain the associated columns of multiple selection function results in a single SQL query. For example: select cols(max(c0), ts), cols(max(c1), ts) from ... can be used to get the different ts values of the maximum values of columns c0 and c1.
+- The result of the parameter func is not returned. If you need to output the result of func, you can add additional output columns, such as: select first(ts), cols(first(ts), c1) from ..
 - When there is only one column in the output, you can set an alias for the function. For example, you can do it like this: "select cols(first (ts), c1) as c11 from ...".
 - Output one or more columns, and you can set an alias for each output column of the function. For example, you can do it like this: "select (first (ts), c1 as c11, c2 as c22) from ...".
 

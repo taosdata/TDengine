@@ -288,7 +288,6 @@ class TDTestCase:
         tdSql.checkData(0, 2, 4)
         tdSql.checkData(0, 3, 1)
 
-        # there's some error on last_row func when using sub query. 
         tdSql.query(f'select count(1), cols(last_row(ts), ts, c0), min(c0) from test.meters')
         tdSql.checkRows(1)
         tdSql.checkCols(4)
@@ -297,7 +296,6 @@ class TDTestCase:
         tdSql.checkData(0, 2, 4)
         tdSql.checkData(0, 3, 1)
 
-        # there's some error on last_row func when using sub query. 
         tdSql.query(f'select count(1), cols(last_row(ts), ts, c0), last_row(c1), last_row(c3) from test.meters')
         tdSql.checkRows(1)
         tdSql.checkCols(5)
@@ -896,6 +894,12 @@ class TDTestCase:
         tdSql.error(f'select cols(first(ts+1), c0+2 cc0, c1 cc1) cc from {self.dbname}.meters')
         tdSql.error(f'select cols(last(ts)+1, c0+2 as cc0) as cc from {self.dbname}.meters')
         tdSql.error(f'select cols(ABS(c0), c1) from {self.dbname}.meters group by tbname')
+        tdSql.error(f'select cols(top(c0, 5), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(tail(c0, 5),c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(BOTTOM(c0, 5),c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(tail(ts, 5),c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(UNIQUE(ts),c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(sample(ts, 5),c1) from {self.dbname}.meters')
         
         tdSql.error(f'select cols(last(ts)+1, ts) from {self.dbname}.meters')
         tdSql.error(f'select cols(last(ts)+10, c1+10) from {self.dbname}.meters group by tbname')
