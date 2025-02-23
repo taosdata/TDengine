@@ -122,6 +122,9 @@ typedef struct {
   uint32_t endOffset;
 } SShellCmd;
 
+// CopyRight show Year
+int32_t copyRightYear();
+
 // shellArguments.c
 int32_t shellParseArgs(int32_t argc, char* argv[]);
 

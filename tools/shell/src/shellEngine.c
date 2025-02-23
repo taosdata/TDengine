@@ -1304,7 +1304,7 @@ void *shellThreadLoop(void *arg) {
 #pragma GCC diagnostic pop
 
 int32_t shellExecute() {
-  printf(shell.info.clientVersion, shell.info.cusName, taos_get_client_info(), shell.info.cusName);
+  printf(shell.info.clientVersion, shell.info.cusName, taos_get_client_info(), copyRightYear(), shell.info.cusName);
   fflush(stdout);
 
   SShellArgs *pArgs = &shell.args;

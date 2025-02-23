@@ -14,9 +14,12 @@
 import sys
 import time
 import random
+import datetime
 
 import taos
 import frame.etool
+import frame.epath
+import frame.eos
 
 from frame.log import *
 from frame.sql import *
@@ -30,7 +33,7 @@ class TDTestCase(TBase):
     updatecfgDict = {
         'queryMaxConcurrentTables': '2K',
         'streamMax': '1M',
-        'totalMemoryKB': '1G',
+        'totalMemoryKB': '32000000',
         'streamMax': '1P',
         'streamBufferSize':'1T',
         'slowLogScope':"query"
@@ -51,8 +54,22 @@ class TDTestCase(TBase):
         if rets[-2][:9] != "Query OK,":
             tdLog.exit(f"check taos -s return unexpect: {rets}")
 
+    def checkCopyRight(self):
+        # copyright year
+        year = datetime.now().year
+        CopyRight = f"Copyright (c) {year} by TDengine, all rights reserved."
+        taos = epath.binFile("taos")
+        output, error = eos.run(taos + " -s")
+        if output.find(CopyRight) == -1:
+            tdLog.exit(f'not found "{CopyRight}" in return output:{output}')
+        else:
+            tdLog.info(f"check CopyRight passed. CopyRight:{CopyRight}")
+
     def doTaos(self):
         tdLog.info(f"check taos command options...")
+
+        # CopyRight
+        self.checkCopyRight()
 
         # local command
         options = [
@@ -114,6 +131,7 @@ class TDTestCase(TBase):
 
         # others
         etool.exeBinFile("taos", f'-N 200 -l 2048 -s "{sql}" ', wait=False)
+
 
 
     def doTaosd(self):
