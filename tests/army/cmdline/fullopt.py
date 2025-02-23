@@ -154,7 +154,8 @@ class TDTestCase(TBase):
         sc.dnodeStop(idx)
         etool.exeBinFile("taos", f'-n server', wait=False)
         time.sleep(3)
-        etool.exeBinFile("taos", f'-n client', wait=True)
+        rlist = etool.exeBinFile("taos", f'-n client', wait=True)
+        self.checkListString(rlist, "total succ:  100/100")
         eos.exe("pkill -9 taos")
 
         # call enter password
