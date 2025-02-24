@@ -86,6 +86,14 @@ static int32_t metaCompactKV(SMeta *pMeta, TTB *pOldTb, TTB *pNewTb, int64_t com
         return code;
       }
     }
+
+    // Move to next
+    code = tdbTbcMoveToNext(cursor);
+    if (code) {
+      metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
+                tstrerror(code));
+      tdbTbcClose(cursor);
+    }
   }
 
   // Close cursor
