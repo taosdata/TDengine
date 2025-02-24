@@ -22,6 +22,9 @@ import json
 import platform
 import socket
 import threading
+import inspect
+import importlib
+import os
 
 import toml
 
@@ -56,6 +59,17 @@ def checkRunTimeError():
         if hwnd:
             os.system("TASKKILL /F /IM taosd.exe")
 
+
+def get_local_classes(module):
+    classes = []
+    for name, obj in inspect.getmembers(module, inspect.isclass):
+        if inspect.getmodule(obj) == module:
+            classes.append(name)
+    return classes
+    
+def dynamicLoadModule(fileName):
+    moduleName = fileName.replace(".py", "").replace(os.sep, ".")
+    return importlib.import_module(moduleName, package='..')
 
 if __name__ == "__main__":
 
@@ -295,10 +309,10 @@ if __name__ == "__main__":
         updateCfgDictStr = ""
         # adapter_cfg_dict_str = ''
         if is_test_framework:
-            moduleName = fileName.replace(".py", "").replace(os.sep, ".")
-            uModule = importlib.import_module(moduleName)
+            uModule = dynamicLoadModule(fileName)
             try:
-                ucase = uModule.TDTestCase()
+                case_class = getattr(uModule, get_local_classes(uModule)[0])
+                ucase = case_class()
                 if (json.dumps(updateCfgDict) == "{}") and hasattr(
                     ucase, "updatecfgDict"
                 ):
@@ -434,10 +448,10 @@ if __name__ == "__main__":
         except:
             pass
         if is_test_framework:
-            moduleName = fileName.replace(".py", "").replace("/", ".")
-            uModule = importlib.import_module(moduleName)
+            uModule = dynamicLoadModule(fileName)
             try:
-                ucase = uModule.TDTestCase()
+                case_class = getattr(uModule, get_local_classes(uModule)[0])
+                ucase = case_class()
                 if json.dumps(updateCfgDict) == "{}":
                     updateCfgDict = ucase.updatecfgDict
                 if json.dumps(adapter_cfg_dict) == "{}":
