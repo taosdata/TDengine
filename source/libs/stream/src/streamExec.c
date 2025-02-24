@@ -129,6 +129,25 @@ static int32_t doAppendPullOverBlock(SStreamTask* pTask, int32_t* pNumOfBlocks, 
   return code;
 }
 
+static int32_t doAppendRecalBlock(SStreamTask* pTask, int32_t* pNumOfBlocks, SStreamTrigger* pRecalculateBlock,
+                                  SArray* pRes) {
+  int32_t code = 0;
+  SSDataBlock block = {0};
+
+  void* p = taosArrayPush(pRes, pRecalculateBlock->pBlock);
+  if (p != NULL) {
+    (*pNumOfBlocks) += 1;
+    stDebug("s-task:%s(child %d) recalculate from upstream completed, QID:0x%" PRIx64, pTask->id.idStr,
+            pTask->info.selfChildId, /*pRecalculateBlock->reqId*/ 0);
+  } else {
+    code = terrno;
+    stError("s-task:%s failed to append recalculate block for downstream, QID:0x%" PRIx64" code:%s", pTask->id.idStr,
+            /*pRecalculateBlock->reqId*/0, tstrerror(code));
+  }
+
+  return code;
+}
+
 int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t* totalSize, int32_t* totalBlocks) {
   int32_t size = 0;
   int32_t numOfBlocks = 0;
@@ -168,12 +187,23 @@ int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t*
     }
 
     if (output == NULL) {
-      if (pItem != NULL && pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
-         code = doAppendPullOverBlock(pTask, &numOfBlocks, (SStreamDataBlock*) pItem, pRes);
-         if (code) {
-           taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
-           return code;
-         }
+      if (pItem != NULL) {
+        if (pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
+          code = doAppendPullOverBlock(pTask, &numOfBlocks, (SStreamDataBlock*)pItem, pRes);
+          if (code) {
+            taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
+            return code;
+          }
+        } else if (pItem->type == STREAM_INPUT__RECALCULATE) {
+          int32_t outputType = pTask->outputInfo.type;
+          if (outputType == TASK_OUTPUT__FIXED_DISPATCH || outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+            code = doAppendRecalBlock(pTask, &numOfBlocks, (SStreamTrigger*)pItem, pRes);
+            if (code) {
+              taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
+              return code;
+            }
+          }
+        }
       }
 
       break;
@@ -886,24 +916,30 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
         return code;
       }
 
-      if (type == STREAM_INPUT__RECALCULATE) { // let's start the recalculation
-        if ((pTask->hTaskInfo.id.streamId == 0) && (pTask->info.fillHistory == STREAM_NORMAL_TASK)) {
+      if ((type == STREAM_INPUT__RECALCULATE) && (pTask->info.fillHistory == STREAM_NORMAL_TASK)) {
+        // let's start the recalculation
+        // NOTE: no input block here if type is STREAM_INPUT__RECALCULATE
+        if (pTask->hTaskInfo.id.streamId == 0) {
           stError("s-task:%s related re-calculate stream task is dropping, failed to start re-calculate", id);
           return TSDB_CODE_STREAM_INTERNAL_ERROR;
-        } else if (pTask->info.trigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
-          stError("s-task:%s trigger:%d unexpected recalculation block to handle, error", id, pTask->info.trigger);
-          return TSDB_CODE_STREAM_INTERNAL_ERROR;
-        } else {
-          SStreamTask* pHTask = NULL;
-          code = streamMetaAcquireTask(pTask->pMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId, &pHTask);
-          if (code == 0) {
-            return streamTrySchedExec(pHTask);
-          } else {
-            stError("s-task:%s failed to acquire related recalculate task:0x%x, not start the recalculation, code:%s",
-                    id, (int32_t)pTask->hTaskInfo.id.taskId, tstrerror(code));
-            return code;
-          }
         }
+
+        if (pTask->info.trigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+          stError("s-task:%s invalid trigger model, expect:%d, actually:%d, not exec tasks", id,
+                  STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE, pTask->info.trigger);
+          return TSDB_CODE_STREAM_INTERNAL_ERROR;
+        }
+
+        SStreamTask* pHTask = NULL;
+        code = streamMetaAcquireTask(pTask->pMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId, &pHTask);
+        if (code != 0) {
+          stError("s-task:%s failed to acquire related recalculate task:0x%x, not start the recalculation, code:%s", id,
+                  (int32_t)pTask->hTaskInfo.id.taskId, tstrerror(code));
+          return code;
+        }
+
+        code = streamStartScanHistoryAsync(pHTask, 0);
+        streamMetaReleaseTask(pTask->pMeta, pHTask);
       }
 
       double el = (taosGetTimestampMs() - st) / 1000.0;
