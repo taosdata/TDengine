@@ -1285,9 +1285,9 @@ function_expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).  
 function_expression(A) ::= star_func(B) NK_LP star_func_para_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= cols_func(B) NK_LP cols_func_para_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::=
-  CAST(B) NK_LP expr_or_subquery(C) AS type_name(D) NK_RP(E).                                         { A = createRawExprNodeExt(pCxt, &B, &E, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
+  CAST(B) NK_LP common_expression(C) AS type_name(D) NK_RP(E).                                         { A = createRawExprNodeExt(pCxt, &B, &E, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
 function_expression(A) ::=
-  CAST(B) NK_LP expr_or_subquery(C) AS type_name_default_len(D) NK_RP(E).                             { A = createRawExprNodeExt(pCxt, &B, &E, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
+  CAST(B) NK_LP common_expression(C) AS type_name_default_len(D) NK_RP(E).                             { A = createRawExprNodeExt(pCxt, &B, &E, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
 function_expression(A) ::=
   POSITION(B) NK_LP expr_or_subquery(C) IN expr_or_subquery(D) NK_RP(E).                              { A = createRawExprNodeExt(pCxt, &B, &E, createPositionFunctionNode(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D))); }
 function_expression(A) ::=
