@@ -727,7 +727,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   int32_t             order;           // current SSDataBlock scan order
   STimeWindowAggSupp  twAggSup;
   SSDataBlock*        pWinBlock;   // window result
-  SSDataBlock*        pDelRes;     // delete result
+  SSDataBlock*        pDelRes;     // delete result, refactor
   SSDataBlock*        pUpdateRes;  // update window
   bool                returnUpdate;
   SSHashObj*          pStDeleted;

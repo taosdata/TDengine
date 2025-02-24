@@ -1181,7 +1181,17 @@ static int32_t createWindowLogicNodeBySession(SLogicPlanContext* pCxt, SSessionW
 
   pWindow->winType = WINDOW_TYPE_SESSION;
   pWindow->sessionGap = ((SValueNode*)pSession->pGap)->datum.i;
-  pWindow->windowAlgo = pCxt->pPlanCxt->streamQuery ? SESSION_ALGO_STREAM_SINGLE : SESSION_ALGO_MERGE;
+
+  if (pCxt->pPlanCxt->streamQuery) {
+    if (pCxt->pPlanCxt->triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+      pWindow->windowAlgo = SESSION_ALGO_STREAM_CONTINUE_SINGLE;
+    } else {
+      pWindow->windowAlgo = SESSION_ALGO_STREAM_SINGLE;
+    }
+  } else {
+    pWindow->windowAlgo = SESSION_ALGO_MERGE;
+  }
+
   pWindow->node.groupAction = getGroupAction(pCxt, pSelect);
   pWindow->node.requireDataOrder =
       pCxt->pPlanCxt->streamQuery ? DATA_ORDER_LEVEL_IN_BLOCK : getRequireDataOrder(true, pSelect);

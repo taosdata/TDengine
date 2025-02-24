@@ -639,6 +639,18 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     code = createStreamTimeSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY == type) {
     code = createAnomalywindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION == type) {
+    code = createSessionNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION == type) {
+    code = createSemiSessionNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION == type) {
+    code = createFinalSessionNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE == type) {
+    //todo (liuyao) add
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT == type) {
+    //todo (liuyao) add
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT == type) {
+    //todo (liuyao) add
   } else {
     code = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = code;

@@ -31,10 +31,6 @@ int32_t     doStreamIntervalNonblockAggImpl(struct SOperatorInfo* pOperator, SSD
 STimeWindow getFinalTimeWindow(int64_t ts, SInterval* pInterval);
 int32_t     getNextQualifiedFinalWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
                                         TSKEY* primaryKeys, int32_t prevPosition);
-int32_t createFinalIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
-                                             SReadHandle* pHandle, SOperatorInfo** ppOptInfo);
-int32_t createSemiIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
-                                            SReadHandle* pHandle, SOperatorInfo** ppOptInfo);
 int32_t copyNewResult(SSHashObj** ppWinUpdated, SArray* pUpdated, __compar_fn_t compar);
 int32_t copyRecDataToBuff(TSKEY calStart, TSKEY calEnd, uint64_t uid, uint64_t version, EStreamType mode,
                           const SColumnInfoData* pPkColDataInfo, int32_t rowId, SRecDataInfo* pValueBuff,
@@ -44,6 +40,8 @@ int32_t saveRecWindowToDisc(SSessionKey* pWinKey, uint64_t uid, EStreamType mode
 int32_t initNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup, SInterval* pInterval);
 void    destroyNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup);
 int32_t buildRetriveRequest(SExecTaskInfo* pTaskInfo, SStreamAggSupporter* pAggSup, STableTsDataState* pTsDataState, SArray* pRetrives);
+int32_t checkAndSaveWinStateToDisc(int32_t startIndex, SArray* pUpdated, uint64_t uid, STableTsDataState* pTsDataState,
+                                   SStreamAggSupporter* pAggSup);
 
 #ifdef __cplusplus
 }

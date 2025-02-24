@@ -2934,6 +2934,18 @@ char* getStreamOpName(uint16_t opType) {
       return "interval continue semi";
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL:
       return "interval continue final";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION:
+      return "session continue";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION:
+      return "session continue semi";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION:
+      return "session continue final";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE:
+      return "state continue";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT:
+      return "event continue";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT:
+      return "count continue";
   }
   return "error name";
 }

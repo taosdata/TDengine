@@ -21,6 +21,9 @@ extern "C" {
 
 #include "executorInt.h"
 
+int32_t doStreamSessionNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** ppBlock);
+void streamSessionNonblockReleaseState(SOperatorInfo* pOperator);
+void streamSessionNonblockReloadState(SOperatorInfo* pOperator);
 int32_t doStreamSessionNonblockAggNextImpl(SOperatorInfo* pOperator, SOptrBasicInfo* pBInfo, SSteamOpBasicInfo* pBasic,
                                            SStreamAggSupporter* pAggSup, STimeWindowAggSupp* pTwAggSup,
                                            SGroupResInfo* pGroupResInfo, SNonBlockAggSupporter* pNbSup,

@@ -467,6 +467,18 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiSubplan";
     case QUERY_NODE_PHYSICAL_PLAN:
       return "PhysiPlan";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION:
+      return "PhysiStreamContinueSession";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION:
+      return "PhysiStreamContinueFinalSession";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION:
+      return "PhysiStreamContinueSemiSession";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE:
+      return "PhysiStreamContinueState";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT:
+      return "PhysiStreamContinueEvent";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT:
+      return "PhysiStreamContinueCount";
     default:
       break;
   }
@@ -8366,15 +8378,21 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION:
       return physiSessionWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE:
       return physiStateWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT:
       return physiEventWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT:
       return physiCountWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
       return physiAnomalyWindowNodeToJson(pObj, pJson);
@@ -8746,15 +8764,21 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION:
       return jsonToPhysiSessionWindowNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE:
       return jsonToPhysiStateWindowNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT:
       return jsonToPhysiEventWindowNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT:
       return jsonToPhysiCountWindowNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
       return jsonToPhysiAnomalyWindowNode(pJson, pObj);

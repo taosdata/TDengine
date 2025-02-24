@@ -117,8 +117,17 @@ _end:
 }
 
 int32_t initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo, const struct SOperatorInfo* pOperator) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
   pBasicInfo->primaryPkIndex = -1;
   pBasicInfo->operatorFlag = 0;
+  code = createSpecialDataBlock(STREAM_DELETE_RESULT, &pBasicInfo->pDelRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  pBasicInfo->pUpdated = taosArrayInit(1024, POINTER_BYTES);
+  QUERY_CHECK_NULL(pBasicInfo->pUpdated, code, lino, _end, terrno);
+  
   const char* windowType = NULL;
   if (IS_NORMAL_INTERVAL_OP(pOperator)) {
     windowType = "Time";
@@ -133,7 +142,14 @@ int32_t initStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo, const struct SOperato
   } else {
     return TSDB_CODE_SUCCESS;
   }
-  return initStreamNotifyEventSupp(&pBasicInfo->notifyEventSup, windowType, pOperator->resultInfo.capacity);
+  code = initStreamNotifyEventSupp(&pBasicInfo->notifyEventSup, windowType, pOperator->resultInfo.capacity);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 void setFillHistoryOperatorFlag(SSteamOpBasicInfo* pBasicInfo) {
@@ -157,6 +173,12 @@ bool isSemiOperator(SSteamOpBasicInfo* pBasicInfo) {
 }
 
 void destroyStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo) {
+  blockDataDestroy(pBasicInfo->pDelRes);
+  pBasicInfo->pDelRes = NULL;
+
+  taosArrayDestroyP(pBasicInfo->pUpdated, destroyFlusedPos);
+  pBasicInfo->pUpdated = NULL;
+
   destroyStreamNotifyEventSupp(&pBasicInfo->notifyEventSup);
 }
 

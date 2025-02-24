@@ -842,7 +842,7 @@ void streamStateClearExpiredSessionState(SStreamState* pState, int32_t numOfKeep
   clearExpiredSessionState(pState->pFileState, numOfKeep, minTs, pFlushGroup);
 }
 
-bool streamStateCheckSessionState(SStreamState* pState, const SSessionKey* pKey, TSKEY gap) {
-  return hasSessionState(pState->pFileState, pKey, gap);
+bool streamStateCheckSessionState(SStreamState* pState, SSessionKey* pKey, TSKEY gap, bool* pIsLast) {
+  return hasSessionState(pState->pFileState, pKey, gap, pIsLast);
 }
 

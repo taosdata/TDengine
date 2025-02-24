@@ -393,7 +393,7 @@ typedef struct SStateStore {
   int32_t (*streamStatePut)(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
   int32_t (*streamStateGet)(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen, int32_t* pWinCode);
   bool (*streamStateCheck)(SStreamState* pState, const SWinKey* key, bool hasLimit, bool* pIsLast);
-  bool (*streamStateCheckSessionState)(SStreamState* pState, const SSessionKey* pKey, TSKEY gap);
+  bool (*streamStateCheckSessionState)(SStreamState* pState, SSessionKey* pKey, TSKEY gap, bool* pIsLast);
   int32_t (*streamStateGetByPos)(SStreamState* pState, void* pos, void** pVal);
   void (*streamStateDel)(SStreamState* pState, const SWinKey* key);
   void (*streamStateDelByGroupId)(SStreamState* pState, uint64_t groupId);

@@ -20,6 +20,7 @@
 #include "querytask.h"
 #include "streamexecutorInt.h"
 #include "streaminterval.h"
+#include "streamsession.h"
 #include "tchecksum.h"
 #include "tcommon.h"
 #include "tcompare.h"
@@ -4078,10 +4079,18 @@ int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode
       QUERY_CHECK_CODE(code, lino, _error);
     }
   }
+
+  if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
   pOperator->fpSet =
-      createOperatorFpSet(optrDummyOpenFn, doStreamSessionAggNext, NULL, destroyStreamSessionAggOperatorInfo,
-                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
-  setOperatorStreamStateFn(pOperator, streamSessionReleaseState, streamSessionReloadState);
+        createOperatorFpSet(optrDummyOpenFn, doStreamSessionNonblockAggNext, NULL, destroyStreamSessionAggOperatorInfo,
+                            optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+    setOperatorStreamStateFn(pOperator, streamSessionNonblockReleaseState, streamSessionNonblockReloadState);
+  } else {
+    pOperator->fpSet =
+        createOperatorFpSet(optrDummyOpenFn, doStreamSessionAggNext, NULL, destroyStreamSessionAggOperatorInfo,
+                            optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+    setOperatorStreamStateFn(pOperator, streamSessionReleaseState, streamSessionReloadState);
+  }
 
   code = initStreamBasicInfo(&pInfo->basic, pOperator);
   QUERY_CHECK_CODE(code, lino, _error);

@@ -184,7 +184,7 @@ int32_t          setStateRecFlag(SStreamFileState* pState, const void* pKey, int
 int32_t          getStateRecFlag(SStreamFileState* pFileState, const void* pKey, int32_t keyLen, int32_t* pMode);
 void             clearExpiredSessionState(struct SStreamFileState* pFileState, int32_t numOfKeep, TSKEY minTs,
                                           SSHashObj* pFlushGroup);
-bool             hasSessionState(SStreamFileState* pFileState, const SSessionKey* pKey, TSKEY gap);
+bool             hasSessionState(SStreamFileState* pFileState, SSessionKey* pKey, TSKEY gap, bool* pIsLast);
 
 #ifdef __cplusplus
 }
