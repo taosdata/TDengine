@@ -120,13 +120,7 @@ static int64_t vnodeGetCompatableVersion(SVnode *pVnode) {
   return INT64_MAX;
 }
 
-#define META_COMPACT_DIR "meta.compact"
-
-static void vnodeGetMetaPath(SVnode *pVnode, const char *metaDir, char *fname) {
-  vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, fname, TSDB_FILENAME_LEN);
-  int32_t offset = strlen(fname);
-  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
-}
+extern void vnodeGetMetaPath(SVnode *pVnode, const char *metaDir, char *fname);
 
 static int32_t vnodeCompactMetaBegin(SVnode *pVnode) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -142,11 +136,11 @@ static int32_t vnodeCompactMetaBegin(SVnode *pVnode) {
 
   // remove new dir if need
   char metaCompactDir[TSDB_FILENAME_LEN] = {0};
-  vnodeGetMetaPath(pVnode, META_COMPACT_DIR, metaCompactDir);
+  vnodeGetMetaPath(pVnode, VNODE_META_TMP_DIR, metaCompactDir);
   taosRemoveDir(metaCompactDir);
 
   // Create and open the new meta
-  code = metaOpenImpl(pVnode, &pVnode->pNewMeta, META_COMPACT_DIR, 0);
+  code = metaOpenImpl(pVnode, &pVnode->pNewMeta, VNODE_META_TMP_DIR, 0);
   if (code) {
     vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
     return code;
