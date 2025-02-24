@@ -367,8 +367,10 @@ static int32_t doBuildDispatchMsg(SStreamTask* pTask, const SStreamDataBlock* pD
       }
 
       // TODO: do not use broadcast
-      if (pDataBlock->info.type == STREAM_DELETE_RESULT || pDataBlock->info.type == STREAM_CHECKPOINT ||
-          pDataBlock->info.type == STREAM_TRANS_STATE) {
+
+      EStreamType type = pDataBlock->info.type;
+      if (type == STREAM_DELETE_RESULT || type == STREAM_CHECKPOINT ||
+          type == STREAM_TRANS_STATE || type == STREAM_RECALCULATE_START) {
         for (int32_t j = 0; j < numOfVgroups; j++) {
           code = streamAddBlockIntoDispatchMsg(pDataBlock, &pReqs[j]);
           if (code != 0) {
@@ -845,7 +847,8 @@ int32_t streamDispatchStreamBlock(SStreamTask* pTask) {
 
     int32_t type = pBlock->type;
     if (!(type == STREAM_INPUT__DATA_BLOCK || type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
-          type == STREAM_INPUT__TRANS_STATE)) {
+          type == STREAM_INPUT__TRANS_STATE || type == STREAM_INPUT__RECALCULATE)) {
+      atomic_store_8(&pTask->outputq.status, TASK_OUTPUT_STATUS__NORMAL);
       stError("s-task:%s invalid dispatch block type:%d", id, type);
       return TSDB_CODE_INTERNAL_ERROR;
     }
@@ -1878,6 +1881,8 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
           stDebug("s-task:%s close inputQ for upstream:0x%x, msgId:%d", id, pReq->upstreamTaskId, pReq->msgId);
         } else if (pReq->type == STREAM_INPUT__TRANS_STATE) {
           stDebug("s-task:%s recv trans-state msgId:%d from upstream:0x%x", id, pReq->msgId, pReq->upstreamTaskId);
+        } else if (pReq->type == STREAM_INPUT__RECALCULATE) {
+          stDebug("s-task:%s recv recalculate msgId:%d from upstream:0x%x", id, pReq->msgId, pReq->upstreamTaskId);
         }
 
         if (pReq->msgId > pInfo->lastMsgId) {

@@ -955,7 +955,7 @@ int32_t handleStep2Async(SStreamTask* pStreamTask, void* param) {
   return TSDB_CODE_SUCCESS;
 }
 
-// this function should be executed by only one thread, so we set an sentinel to protect this function
+// this function should be executed by only one thread, so we set a sentinel to protect this function
 int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   SStreamScanHistoryReq* pReq = (SStreamScanHistoryReq*)pMsg->pCont;
   SStreamMeta*           pMeta = pTq->pStreamMeta;
@@ -973,6 +973,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   // do recovery step1
   const char* id = pTask->id.idStr;
   char*       pStatus = streamTaskGetStatus(pTask).name;
+  int32_t     taskType = pTask->info.fillHistory;
 
   // avoid multi-thread exec
   while (1) {
@@ -1045,9 +1046,11 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   // the following procedure should be executed, no matter status is stop/pause or not
-  tqDebug("s-task:%s scan-history(step 1) ended, elapsed time:%.2fs", id, pTask->execInfo.step1El);
-
-  if (pTask->info.fillHistory != STREAM_HISTORY_TASK) {
+  if (taskType == STREAM_HISTORY_TASK) {
+    tqDebug("s-task:%s scan-history(step 1) ended, elapsed time:%.2fs", id, pTask->execInfo.step1El);
+  } else if (taskType == STREAM_RECALCUL_TASK) {
+    tqDebug("s-task:%s recalculate ended, elapsed time:%.2fs", id, pTask->execInfo.step1El);
+  } else {
     tqError("s-task:%s fill-history is disabled, unexpected", id);
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
@@ -1071,7 +1074,17 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
-  code = streamTaskHandleEventAsync(pStreamTask->status.pSM, TASK_EVENT_HALT, handleStep2Async, pTq);
+  if (taskType == STREAM_HISTORY_TASK) {
+    code = streamTaskHandleEventAsync(pStreamTask->status.pSM, TASK_EVENT_HALT, handleStep2Async, pTq);
+  } else if (taskType == STREAM_RECALCUL_TASK) {
+    // send recalculate end block
+    code = streamCreateAddRecalculateEndBlock(pStreamTask);
+    if (code) {
+      tqError("s-task:%s failed to create-add recalculate end block, code:%s", id, tstrerror(code));
+    }
+    streamTaskSetSchedStatusInactive(pTask);
+  }
+
   streamMetaReleaseTask(pMeta, pStreamTask);
 
   atomic_store_32(&pTask->status.inScanHistorySentinel, 0);

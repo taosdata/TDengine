@@ -364,3 +364,52 @@ int32_t streamCreateTriggerBlock(SStreamTrigger** pTrigger, int32_t type, int32_
   *pTrigger = p;
   return code;
 }
+
+int32_t streamCreateRecalculateBlock(SStreamTask* pTask, SStreamDataBlock** pBlock) {
+  int32_t           code = 0;
+  SSDataBlock*      p = NULL;
+  SStreamDataBlock* pRecalc = NULL;
+
+  if (pBlock != NULL) {
+    *pBlock = NULL;
+  }
+
+  code = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM, sizeof(SSDataBlock), (void**)&pRecalc);
+  if (code) {
+    return code;
+  }
+
+  p = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (p == NULL) {
+    code = terrno;
+    goto _err;
+  }
+
+  pRecalc->type = STREAM_INPUT__RECALCULATE;
+
+  p->info.type = STREAM_RECALCULATE_START;
+  p->info.rows = 1;
+  p->info.childId = pTask->info.selfChildId;
+
+  pRecalc->blocks = taosArrayInit(4, sizeof(SSDataBlock));  // pBlock;
+  if (pRecalc->blocks == NULL) {
+    code = terrno;
+    goto _err;
+  }
+
+  void* px = taosArrayPush(pRecalc->blocks, p);
+  if (px == NULL) {
+    code = terrno;
+    goto _err;
+  }
+
+  taosMemoryFree(p);
+  *pBlock = pRecalc;
+
+  return code;
+
+_err:
+  taosMemoryFree(p);
+  taosFreeQitem(pRecalc);
+  return code;
+}
