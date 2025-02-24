@@ -487,6 +487,7 @@ void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalke
       nodesWalkExprs(pSelect->pOrderByList, walker, pContext);
     case SQL_CLAUSE_ORDER_BY:
       nodesWalkExprs(pSelect->pProjectionList, walker, pContext);
+      nodesWalkExprs(pSelect->pProjectionBindList, walker, pContext);
     default:
       break;
   }
@@ -527,6 +528,7 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
       nodesRewriteExprs(pSelect->pOrderByList, rewriter, pContext);
     case SQL_CLAUSE_ORDER_BY:
       nodesRewriteExprs(pSelect->pProjectionList, rewriter, pContext);
+      nodesRewriteExprs(pSelect->pProjectionBindList, rewriter, pContext);
     default:
       break;
   }

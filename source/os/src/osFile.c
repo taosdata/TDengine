@@ -1347,9 +1347,6 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
   int64_t ret = -1;
   int32_t code = 0;
 
-#if FILE_WITH_LOCK
-  (void)taosThreadRwlockRdlock(&(pFile->rwlock));
-#endif
   if (pFile == NULL || ptrBuf == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     goto END;
@@ -1362,6 +1359,10 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
     terrno = TSDB_CODE_INVALID_PARA;
     goto END;
   }
+
+#if FILE_WITH_LOCK
+  (void)taosThreadRwlockRdlock(&(pFile->rwlock));
+#endif
 
 #ifdef WINDOWS
   size_t bufferSize = 512;
@@ -1619,10 +1620,12 @@ size_t taosReadFromCFile(void *buffer, size_t size, size_t count, FILE *stream) 
   return fread(buffer, size, count, stream);
 }
 
+#if 0
 size_t taosWriteToCFile(const void *ptr, size_t size, size_t nitems, FILE *stream) {
   STUB_RAND_IO_ERR(terrno)
   return fwrite(ptr, size, nitems, stream);
 }
+#endif
 
 int taosCloseCFile(FILE *f) { return fclose(f); }
 

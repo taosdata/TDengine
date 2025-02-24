@@ -129,7 +129,8 @@ size_t taosWriteToCFile(const void *ptr, size_t size, size_t nitems, FILE *strea
 int    taosCloseCFile(FILE *);
 int    taosSetAutoDelFile(char *path);
 
-bool lastErrorIsFileNotExist();
+FILE   *taosOpenFileForStream(const char *path, int32_t tdFileOptions);
+bool    lastErrorIsFileNotExist();
 
 #ifdef BUILD_WITH_RAND_ERR
 #define STUB_RAND_NETWORK_ERR(ret)                                        \

@@ -21,12 +21,15 @@
 #include "tglobal.h"
 #include "version.h"
 #include "tconv.h"
-#ifdef TD_JEMALLOC_ENABLED
-#include "jemalloc/jemalloc.h"
-#endif
 #include "dmUtil.h"
 #include "tcs.h"
 #include "qworker.h"
+
+#ifdef TD_JEMALLOC_ENABLED
+#define ALLOW_FORBID_FUNC
+#include "jemalloc/jemalloc.h"
+#endif
+
 #include "cus_name.h"
 
 // clang-format off
