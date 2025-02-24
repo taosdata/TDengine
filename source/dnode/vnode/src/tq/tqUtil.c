@@ -389,7 +389,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
         code = buildBatchMeta(&btMetaRsp, pHead->msgType, pHead->bodyLen, pHead->body);
         fetchVer++;
         if (code != 0){
-          continue;
+          goto END;
         }
         totalMetaRows++;
         if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= tmqRowSize) || (taosGetTimestampMs() - st > pRequest->timeout)) {
@@ -423,7 +423,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
         taosxRsp.createTableReq = NULL;
         fetchVer++;
         if (code != 0){
-          continue;
+          goto END;
         }
         totalMetaRows++;
         if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= tmqRowSize) ||
