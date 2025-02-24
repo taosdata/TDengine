@@ -3468,7 +3468,7 @@ static int32_t msgToPhysiSessionWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_STATE_CODE_WINDOW = 1, PHY_STATE_CODE_KEY };
+enum { PHY_STATE_CODE_WINDOW = 1, PHY_STATE_CODE_KEY, PHY_STATE_CODE_TRUE_FOR_LIMIT };
 
 static int32_t physiStateWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SStateWinodwPhysiNode* pNode = (const SStateWinodwPhysiNode*)pObj;
@@ -3476,6 +3476,9 @@ static int32_t physiStateWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder
   int32_t code = tlvEncodeObj(pEncoder, PHY_STATE_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_STATE_CODE_KEY, nodeToMsg, pNode->pStateKey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PHY_STATE_CODE_TRUE_FOR_LIMIT, pNode->trueForLimit);
   }
 
   return code;
@@ -3494,6 +3497,9 @@ static int32_t msgToPhysiStateWindowNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_STATE_CODE_KEY:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pStateKey);
         break;
+      case PHY_STATE_CODE_TRUE_FOR_LIMIT:
+        code = tlvDecodeI64(pTlv, &pNode->trueForLimit);
+        break;
       default:
         break;
     }
@@ -3502,7 +3508,7 @@ static int32_t msgToPhysiStateWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_EVENT_CODE_WINDOW = 1, PHY_EVENT_CODE_START_COND, PHY_EVENT_CODE_END_COND };
+enum { PHY_EVENT_CODE_WINDOW = 1, PHY_EVENT_CODE_START_COND, PHY_EVENT_CODE_END_COND, PHY_EVENT_CODE_TRUE_FOR_LIMIT };
 
 static int32_t physiEventWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SEventWinodwPhysiNode* pNode = (const SEventWinodwPhysiNode*)pObj;
@@ -3513,6 +3519,9 @@ static int32_t physiEventWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_EVENT_CODE_END_COND, nodeToMsg, pNode->pEndCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PHY_EVENT_CODE_TRUE_FOR_LIMIT, pNode->trueForLimit);
   }
 
   return code;
@@ -3533,6 +3542,9 @@ static int32_t msgToPhysiEventWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_EVENT_CODE_END_COND:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pEndCond);
+        break;
+      case PHY_EVENT_CODE_TRUE_FOR_LIMIT:
+        code = tlvDecodeI64(pTlv, &pNode->trueForLimit);
         break;
       default:
         break;

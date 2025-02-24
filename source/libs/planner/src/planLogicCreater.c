@@ -1161,6 +1161,9 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
     nodesDestroyNode((SNode*)pWindow);
     return code;
   }
+  if (pState->pTrueForLimit) {
+    pWindow->trueForLimit = ((SValueNode*)pState->pTrueForLimit)->datum.i;
+  }
   // rewrite the expression in subsequent clauses
   code = rewriteExprForSelect(pWindow->pStateExpr, pSelect, SQL_CLAUSE_WINDOW);
   if (TSDB_CODE_SUCCESS == code) {
@@ -1273,6 +1276,9 @@ static int32_t createWindowLogicNodeByEvent(SLogicPlanContext* pCxt, SEventWindo
   if (NULL == pWindow->pStartCond || NULL == pWindow->pEndCond || NULL == pWindow->pTspk) {
     nodesDestroyNode((SNode*)pWindow);
     return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (pEvent->pTrueForLimit) {
+    pWindow->trueForLimit = ((SValueNode*)pEvent->pTrueForLimit)->datum.i;
   }
   return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }

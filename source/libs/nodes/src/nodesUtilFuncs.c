@@ -1126,6 +1126,7 @@ void nodesDestroyNode(SNode* pNode) {
       SStateWindowNode* pState = (SStateWindowNode*)pNode;
       nodesDestroyNode(pState->pCol);
       nodesDestroyNode(pState->pExpr);
+      nodesDestroyNode(pState->pTrueForLimit);
       break;
     }
     case QUERY_NODE_SESSION_WINDOW: {
@@ -1240,6 +1241,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pEvent->pCol);
       nodesDestroyNode(pEvent->pStartCond);
       nodesDestroyNode(pEvent->pEndCond);
+      nodesDestroyNode(pEvent->pTrueForLimit);
       break;
     }
     case QUERY_NODE_COUNT_WINDOW: {

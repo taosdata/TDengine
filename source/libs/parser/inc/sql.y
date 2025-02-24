@@ -1646,7 +1646,8 @@ partition_item(A) ::= expr_or_subquery(B) AS column_alias(C).                   
 twindow_clause_opt(A) ::= .                                                       { A = NULL; }
 twindow_clause_opt(A) ::= SESSION NK_LP column_reference(B) NK_COMMA
   interval_sliding_duration_literal(C) NK_RP.                                     { A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)); }
-twindow_clause_opt(A) ::= STATE_WINDOW NK_LP expr_or_subquery(B) NK_RP.           { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B)); }
+twindow_clause_opt(A) ::=
+  STATE_WINDOW NK_LP expr_or_subquery(B) NK_RP true_for_opt(C).                   { A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B), C); }
 twindow_clause_opt(A) ::= INTERVAL NK_LP interval_sliding_duration_literal(B)
   NK_RP sliding_opt(C) fill_opt(D).                                               { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, B), NULL, C, D); }
 twindow_clause_opt(A) ::=
@@ -1655,9 +1656,9 @@ twindow_clause_opt(A) ::=
   sliding_opt(D) fill_opt(E).                                                     { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C), D, E); }
 twindow_clause_opt(A) ::=
   INTERVAL NK_LP interval_sliding_duration_literal(B) NK_COMMA
-  AUTO(C) NK_RP sliding_opt(D) fill_opt(E).                                          { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, B), createDurationValueNode(pCxt, &C), D, E); }
-twindow_clause_opt(A) ::=
-  EVENT_WINDOW START WITH search_condition(B) END WITH search_condition(C).       { A = createEventWindowNode(pCxt, B, C); }
+  AUTO(C) NK_RP sliding_opt(D) fill_opt(E).                                       { A = createIntervalWindowNode(pCxt, releaseRawExprNode(pCxt, B), createDurationValueNode(pCxt, &C), D, E); }
+twindow_clause_opt(A) ::= EVENT_WINDOW START WITH search_condition(B)
+  END WITH search_condition(C) true_for_opt(D).                                   { A = createEventWindowNode(pCxt, B, C, D); }
 twindow_clause_opt(A) ::=
   COUNT_WINDOW NK_LP NK_INTEGER(B) NK_RP.                                         { A = createCountWindowNode(pCxt, &B, &B); }
 twindow_clause_opt(A) ::=
@@ -1734,6 +1735,9 @@ range_opt(A) ::=
 
 every_opt(A) ::= .                                                                { A = NULL; }
 every_opt(A) ::= EVERY NK_LP duration_literal(B) NK_RP.                           { A = releaseRawExprNode(pCxt, B); }
+
+true_for_opt(A) ::= .                                                             { A = NULL; }
+true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) NK_RP.    { A = releaseRawExprNode(pCxt, B); }
 
 /************************************************ query_expression ****************************************************/
 query_expression(A) ::= query_simple(B)

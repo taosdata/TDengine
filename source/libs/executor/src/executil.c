@@ -214,6 +214,7 @@ void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
     pGroupResInfo->pRows = NULL;
   }
   pGroupResInfo->index = 0;
+  pGroupResInfo->delIndex = 0;
 }
 
 int32_t resultrowComparAsc(const void* p1, const void* p2) {
@@ -305,6 +306,7 @@ void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayL
   pGroupResInfo->freeItem = true;
   pGroupResInfo->pRows = pArrayList;
   pGroupResInfo->index = 0;
+  pGroupResInfo->delIndex = 0;
 }
 
 bool hasRemainResults(SGroupResInfo* pGroupResInfo) {

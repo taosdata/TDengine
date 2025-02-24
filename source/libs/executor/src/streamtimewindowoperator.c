@@ -485,6 +485,7 @@ void clearGroupResInfo(SGroupResInfo* pGroupResInfo) {
   taosArrayDestroy(pGroupResInfo->pRows);
   pGroupResInfo->pRows = NULL;
   pGroupResInfo->index = 0;
+  pGroupResInfo->delIndex = 0;
 }
 
 void destroyStreamFinalIntervalOperatorInfo(void* param) {
@@ -2887,14 +2888,86 @@ inline int32_t sessionKeyCompareAsc(const void* pKey1, const void* pKey2) {
   return 0;
 }
 
-void doBuildDeleteDataBlock(SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlock* pBlock, void** Ite) {
+static int32_t appendToDeleteDataBlock(SOperatorInfo* pOp, SSDataBlock *pBlock, SSessionKey *pKey) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
-  SStorageAPI*   pAPI = &pOp->pTaskInfo->storageAPI;
   SExecTaskInfo* pTaskInfo = pOp->pTaskInfo;
+
+  QUERY_CHECK_NULL(pBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pKey, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  SColumnInfoData* pStartTsCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
+  code = colDataSetVal(pStartTsCol, pBlock->info.rows, (const char*)&pKey->win.skey, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SColumnInfoData* pEndTsCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
+  code = colDataSetVal(pEndTsCol, pBlock->info.rows, (const char*)&pKey->win.skey, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SColumnInfoData* pUidCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
+  colDataSetNULL(pUidCol, pBlock->info.rows);
+
+  SColumnInfoData* pGpCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
+  code = colDataSetVal(pGpCol, pBlock->info.rows, (const char*)&pKey->groupId, false);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SColumnInfoData* pCalStCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
+  colDataSetNULL(pCalStCol, pBlock->info.rows);
+
+  SColumnInfoData* pCalEdCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
+  colDataSetNULL(pCalEdCol, pBlock->info.rows);
+
+  SColumnInfoData* pTableCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
+  if (!pTableCol) {
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  void*        tbname = NULL;
+  int32_t      winCode = TSDB_CODE_SUCCESS;
+  SStorageAPI* pAPI = &pOp->pTaskInfo->storageAPI;
+  code =
+      pAPI->stateStore.streamStateGetParName(pOp->pTaskInfo->streamInfo.pState, pKey->groupId, &tbname, false, &winCode);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  if (winCode != TSDB_CODE_SUCCESS) {
+    colDataSetNULL(pTableCol, pBlock->info.rows);
+  } else {
+    char parTbName[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN];
+    STR_WITH_MAXSIZE_TO_VARSTR(parTbName, tbname, sizeof(parTbName));
+    code = colDataSetVal(pTableCol, pBlock->info.rows, (const char*)parTbName, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pAPI->stateStore.streamStateFreeVal(tbname);
+  }
+  pBlock->info.rows += 1;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+  return code;
+}
+
+void doBuildDeleteDataBlock(SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlock* pBlock, void** Ite,
+                            SGroupResInfo* pGroupResInfo) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  SExecTaskInfo* pTaskInfo = pOp->pTaskInfo;
+  int64_t        minWindowSize = getMinWindowSize(pOp);
+  int32_t        numOfRows = getNumOfTotalRes(pGroupResInfo);
 
   blockDataCleanup(pBlock);
   int32_t size = tSimpleHashGetSize(pStDeleted);
+  if (minWindowSize > 0) {
+    // Add the number of windows that are below the minimum width limit.
+    for (int32_t i = pGroupResInfo->delIndex; i < numOfRows; ++i) {
+      SResultWindowInfo* pWinInfo = taosArrayGet(pGroupResInfo->pRows, i);
+      SRowBuffPos*       pPos = pWinInfo->pStatePos;
+      SSessionKey*       pKey = (SSessionKey*)pPos->pKey;
+      if (pKey->win.ekey - pKey->win.skey < minWindowSize) {
+        size++;
+      }
+    }
+  }
   if (size == 0) {
     return;
   }
@@ -2907,48 +2980,21 @@ void doBuildDeleteDataBlock(SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlo
       break;
     }
     SSessionKey*     res = tSimpleHashGetKey(*Ite, NULL);
-    SColumnInfoData* pStartTsCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
-    code = colDataSetVal(pStartTsCol, pBlock->info.rows, (const char*)&res->win.skey, false);
+    code = appendToDeleteDataBlock(pOp, pBlock, res);
     QUERY_CHECK_CODE(code, lino, _end);
+  }
 
-    SColumnInfoData* pEndTsCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
-    code = colDataSetVal(pEndTsCol, pBlock->info.rows, (const char*)&res->win.skey, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    SColumnInfoData* pUidCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
-    colDataSetNULL(pUidCol, pBlock->info.rows);
-
-    SColumnInfoData* pGpCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
-    code = colDataSetVal(pGpCol, pBlock->info.rows, (const char*)&res->groupId, false);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    SColumnInfoData* pCalStCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
-    colDataSetNULL(pCalStCol, pBlock->info.rows);
-
-    SColumnInfoData* pCalEdCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
-    colDataSetNULL(pCalEdCol, pBlock->info.rows);
-
-    SColumnInfoData* pTableCol = taosArrayGet(pBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
-    if (!pTableCol) {
-      QUERY_CHECK_CODE(code, lino, _end);
+  if (minWindowSize > 0) {
+    for (int32_t i = pGroupResInfo->delIndex; i < numOfRows; ++i) {
+      SResultWindowInfo* pWinInfo = taosArrayGet(pGroupResInfo->pRows, i);
+      SRowBuffPos*       pPos = pWinInfo->pStatePos;
+      SSessionKey*       pKey = (SSessionKey*)pPos->pKey;
+      if (pKey->win.ekey - pKey->win.skey < minWindowSize) {
+        code = appendToDeleteDataBlock(pOp, pBlock, pKey);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
     }
-
-    void*   tbname = NULL;
-    int32_t winCode = TSDB_CODE_SUCCESS;
-    code = pAPI->stateStore.streamStateGetParName(pOp->pTaskInfo->streamInfo.pState, res->groupId, &tbname, false,
-                                                  &winCode);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    if (winCode != TSDB_CODE_SUCCESS) {
-      colDataSetNULL(pTableCol, pBlock->info.rows);
-    } else {
-      char parTbName[VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN];
-      STR_WITH_MAXSIZE_TO_VARSTR(parTbName, tbname, sizeof(parTbName));
-      code = colDataSetVal(pTableCol, pBlock->info.rows, (const char*)parTbName, false);
-      QUERY_CHECK_CODE(code, lino, _end);
-      pAPI->stateStore.streamStateFreeVal(tbname);
-    }
-    pBlock->info.rows += 1;
+    pGroupResInfo->delIndex = numOfRows;
   }
 
 _end:
@@ -3141,6 +3187,7 @@ void initGroupResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayL
   pGroupResInfo->index = 0;
   pGroupResInfo->pBuf = NULL;
   pGroupResInfo->freeItem = false;
+  pGroupResInfo->delIndex = 0;
 }
 
 int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDataBlock* pBlock, SExprSupp* pSup,
@@ -3153,6 +3200,7 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
   int32_t         numOfExprs = pSup->numOfExprs;
   int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
   SqlFunctionCtx* pCtx = pSup->pCtx;
+  int64_t         minWindowSize = getMinWindowSize(pOperator);
 
   int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
 
@@ -3190,6 +3238,13 @@ int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, void* pState, SSDa
     doUpdateNumOfRows(pCtx, pRow, numOfExprs, rowEntryOffset);
     // no results, continue to check the next one
     if (pRow->numOfRows == 0) {
+      pGroupResInfo->index += 1;
+      continue;
+    }
+    // skip the window which is less than the windowMinSize
+    if (pKey->win.ekey - pKey->win.skey < minWindowSize) {
+      qDebug("skip small window, groupId: %" PRId64 ", windowSize: %" PRId64 ", minWindowSize: %" PRId64, pKey->groupId,
+             pKey->win.ekey - pKey->win.skey, minWindowSize);
       pGroupResInfo->index += 1;
       continue;
     }
@@ -3286,7 +3341,7 @@ static int32_t buildSessionResult(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   bool                           addNotifyEvent = false;
   addNotifyEvent = IS_NORMAL_SESSION_OP(pOperator) &&
                    BIT_FLAG_TEST_MASK(pTaskInfo->streamInfo.eventTypes, SNOTIFY_EVENT_WINDOW_CLOSE);
-  doBuildDeleteDataBlock(pOperator, pInfo->pStDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
+  doBuildDeleteDataBlock(pOperator, pInfo->pStDeleted, pInfo->pDelRes, &pInfo->pDelIterator, &pInfo->groupResInfo);
   if (pInfo->pDelRes->info.rows > 0) {
     printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
     if (addNotifyEvent) {
@@ -4928,7 +4983,7 @@ static int32_t buildStateResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   STaskNotifyEventStat*        pNotifyEventStat = pTaskInfo->streamInfo.pNotifyEventStat;
   bool                         addNotifyEvent = false;
   addNotifyEvent = BIT_FLAG_TEST_MASK(pTaskInfo->streamInfo.eventTypes, SNOTIFY_EVENT_WINDOW_CLOSE);
-  doBuildDeleteDataBlock(pOperator, pInfo->pSeDeleted, pInfo->pDelRes, &pInfo->pDelIterator);
+  doBuildDeleteDataBlock(pOperator, pInfo->pSeDeleted, pInfo->pDelRes, &pInfo->pDelIterator, &pInfo->groupResInfo);
   if (pInfo->pDelRes->info.rows > 0) {
     printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
     if (addNotifyEvent) {
@@ -5362,6 +5417,8 @@ int32_t createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
 
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);
+
+  pInfo->trueForLimit = pStateNode->trueForLimit;
 
   *pOptrInfo = pOperator;
   return TSDB_CODE_SUCCESS;
