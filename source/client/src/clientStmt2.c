@@ -39,13 +39,20 @@ static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void**
 }
 
 static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
-  (void)taosThreadMutexLock(&pStmt->queue.mutex);
+  int i = 0;
   while (0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
-    (void)taosThreadCondWait(&pStmt->queue.waitCond, &pStmt->queue.mutex);
-    if (atomic_load_8((int8_t*)&pStmt->queue.stopQueue)) {
+    if (i < 5000) {
+      taosUsleep(1);
+      i++;
+    } else {
+      (void)taosThreadMutexLock(&pStmt->queue.mutex);
+      (void)taosThreadCondWait(&pStmt->queue.waitCond, &pStmt->queue.mutex);
       (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
-      return false;
     }
+  }
+  if (pStmt->queue.stopQueue) {
+    (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
+    return false;
   }
   SStmtQNode* orig = pStmt->queue.head;
   SStmtQNode* node = pStmt->queue.head->next;
@@ -53,20 +60,19 @@ static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
   *param = node;
 
   (void)atomic_sub_fetch_64((int64_t*)&pStmt->queue.qRemainNum, 1);
-  (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 
   return true;
 }
 
 static void stmtEnqueue(STscStmt2* pStmt, SStmtQNode* param) {
-  (void)taosThreadMutexLock(&pStmt->queue.mutex);
-
   pStmt->queue.tail->next = param;
   pStmt->queue.tail = param;
-  pStmt->stat.bindDataNum++;
-  (void)atomic_add_fetch_64((int64_t*)&pStmt->queue.qRemainNum, 1);
-  (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
 
+  pStmt->stat.bindDataNum++;
+  (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
+
+  (void)taosThreadMutexLock(&pStmt->queue.mutex);
+  (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
   (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 }
 
@@ -343,11 +349,9 @@ static void stmtResetQueueTableBuf(STableBufInfo* pTblBuf, SStmtQueue* pQueue) {
   pTblBuf->buffIdx = 1;
   pTblBuf->buffOffset = sizeof(*pQueue->head);
 
-  (void)taosThreadMutexLock(&pQueue->mutex);
   pQueue->head = pQueue->tail = pTblBuf->pCurBuff;
   pQueue->qRemainNum = 0;
   pQueue->head->next = NULL;
-  (void)taosThreadMutexUnlock(&pQueue->mutex);
 }
 
 static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClean) {
@@ -704,7 +708,7 @@ static void* stmtBindThreadFunc(void* param) {
   STscStmt2* pStmt = (STscStmt2*)param;
 
   while (true) {
-    if (atomic_load_8((int8_t*)&pStmt->queue.stopQueue)) {
+    if (pStmt->queue.stopQueue) {
       break;
     }
 
@@ -1786,6 +1790,7 @@ int stmtClose2(TAOS_STMT2* stmt) {
   STMT_DLOG_E("start to free stmt");
 
   pStmt->queue.stopQueue = true;
+  (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
 
   (void)taosThreadMutexLock(&pStmt->queue.mutex);
   (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
