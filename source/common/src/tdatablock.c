@@ -3263,7 +3263,7 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
 #ifndef TD_ASTRA
   *groupId = pBlock->info.id.groupId;
 #else
-  *groupdId = taosGetUInt64Aligned(&pBlock->info.id.groupId); // TD_ASTRA_TODO: check if this is needed
+  *groupId = taosGetUInt64Aligned(&pBlock->info.id.groupId); // TD_ASTRA_TODO: check if this is needed
 #endif
   if (dataLen > dataBuflen) goto _exit;
 

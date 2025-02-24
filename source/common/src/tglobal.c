@@ -135,17 +135,21 @@ int8_t   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_UNSET;
 int8_t   tsGrant = 1;
 
 // monitor
-bool     tsEnableMonitor = true;
+#ifdef USE_MONITOR
+bool tsEnableMonitor = true;
+#else
+bool tsEnableMonitor = false;
+#endif
 int32_t  tsMonitorInterval = 30;
 char     tsMonitorFqdn[TSDB_FQDN_LEN] = {0};
 uint16_t tsMonitorPort = 6043;
 int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 bool     tsMonitorLogProtocol = false;
-bool     tsMonitorForceV2 = true;
-#ifndef USE_MONITOR
-tsEnableMonitor = false;
-tsMonitorForceV2 = false;
+#ifdef USE_MONITOR
+bool tsMonitorForceV2 = true;
+#else
+bool tsMonitorForceV2 = false;
 #endif
 
 // audit
@@ -335,14 +339,15 @@ int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
 char    tsUdfdLdLibPath[512] = "";
-bool    tsDisableStream = false;
+#ifdef USE_STREAM
+bool tsDisableStream = false;
+#else
+bool tsDisableStream = true;
+#endif
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 bool    tsFilterScalarMode = false;
 int     tsStreamAggCnt = 100000;
 bool    tsStreamCoverage = false;
-#ifndef USE_STREAM
-tsDisableStream = true;
-#endif
 
 bool tsUpdateCacheBatch = true;
 
