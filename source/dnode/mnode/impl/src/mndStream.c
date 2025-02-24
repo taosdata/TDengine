@@ -1298,6 +1298,8 @@ static int32_t mndProcessStreamCheckpoint(SRpcMsg *pReq) {
     return TSDB_CODE_SUCCESS;
   }
 
+  taosArrayDestroy(pLongChkpts);
+
   while ((pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream)) != NULL) {
     int64_t duration = now - pStream->checkpointFreq;
     if (duration < tsStreamCheckpointInterval * 1000) {
