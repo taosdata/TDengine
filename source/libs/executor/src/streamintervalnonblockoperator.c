@@ -792,10 +792,11 @@ int32_t doStreamSemiIntervalNonblockAggImpl(SOperatorInfo* pOperator, SSDataBloc
                                        &curPoint, &prevPoint, &winCode);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    curPoint.pResPos->beUpdated = true;
-    SWinKey key = {.ts = curPoint.winKey.win.skey, .groupId = groupId};
-    code = tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SWinKey), &curPoint.pResPos, POINTER_BYTES);
-    QUERY_CHECK_CODE(code, lino, _end);
+    if (winCode != TSDB_CODE_SUCCESS) {
+      SWinKey key = {.ts = curPoint.winKey.win.skey, .groupId = groupId};
+      code = tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SWinKey), &curPoint.pResPos, POINTER_BYTES);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
 
     code =
         setIntervalSliceOutputBuf(&pInfo->streamAggSup, &curPoint, pSup->pCtx, numOfOutput, pSup->rowEntryInfoOffset);

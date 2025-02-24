@@ -2065,10 +2065,13 @@ void clearExpiredSessionState(SStreamFileState* pFileState, int32_t numOfKeep, T
     }
     taosArrayRemoveBatch(pWinStates, 0, size, NULL);
   }
-  flushSnapshot(pFileState, pFlushList, false);
-  code = clearRowBuffNonFlush(pFileState);
-  QUERY_CHECK_CODE(code, lino, _end);
-  tdListFreeP(pFlushList, destroyRowBuffPosPtr);
+
+  if (pFlushList != NULL) {
+    flushSnapshot(pFileState, pFlushList, false);
+    code = clearRowBuffNonFlush(pFileState);
+    QUERY_CHECK_CODE(code, lino, _end);
+    tdListFreeP(pFlushList, destroyRowBuffPosPtr);
+  }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {

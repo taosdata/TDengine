@@ -931,6 +931,18 @@ static int32_t generateDataScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr) {
                                              (SRecDataInfo*)pVal, len);
         QUERY_CHECK_CODE(code, lino, _end);
       } break;
+      case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION:
+      case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION:
+      case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION:
+      case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE:
+      case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT: {
+        //todo(liuyao) get range from table of result
+        QUERY_CHECK_CODE(code, lino, _end);
+      } break;
+      case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT: {
+        //todo(liuyao) get range from table of result
+        QUERY_CHECK_CODE(code, lino, _end);
+      } break;
       default:
         break;
     }

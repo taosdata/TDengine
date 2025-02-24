@@ -149,7 +149,7 @@ int32_t streamStateMergeAllScanRange(STableTsDataState* pTsDataState);
 int32_t streamStatePopScanRange(STableTsDataState* pTsDataState, SScanRange* pRange);
 
 // continuous
-bool             streamStateCheckSessionState(SStreamState* pState, const SSessionKey* pKey, TSKEY gap);
+bool             streamStateCheckSessionState(SStreamState* pState, SSessionKey* pKey, TSKEY gap, bool* pIsLast);
 SStreamStateCur* streamStateGetLastStateCur(SStreamState* pState);
 void             streamStateLastStateCurNext(SStreamStateCur* pCur);
 int32_t          streamStateNLastStateGetKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes);

@@ -80,7 +80,7 @@ void streamSessionNonblockReloadState(SOperatorInfo* pOperator) {
         qDebug("===stream=== reload state. save delete result %" PRId64 ", %" PRIu64, winInfo.sessionWin.win.skey,
                winInfo.sessionWin.groupId);
       } else {
-        void* pResPtr = taosArrayPush(pInfo->pUpdated, &winInfo.pStatePos);
+        void* pResPtr = taosArrayPush(pInfo->basic.pUpdated, &winInfo.pStatePos);
         QUERY_CHECK_NULL(pResPtr, code, lino, _end, terrno);
         reuseOutputBuf(pAggSup->pState, winInfo.pStatePos, &pAggSup->stateStore);
         qDebug("===stream=== reload state. save result %" PRId64 ", %" PRIu64, winInfo.sessionWin.win.skey,
@@ -143,7 +143,7 @@ int32_t doStreamSessionNonblockAggImpl(SOperatorInfo* pOperator, SSDataBlock* pB
       int32_t           tmpWinCode = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, &prevWinInfo.sessionWin,
                                                                                       (void**)&prevWinInfo.pStatePos, &size);
       if (tmpWinCode == TSDB_CODE_SUCCESS) {
-        void* pResPtr = taosArrayPush(pInfo->pUpdated, &prevWinInfo.pStatePos);
+        void* pResPtr = taosArrayPush(pInfo->basic.pUpdated, &prevWinInfo.pStatePos);
         QUERY_CHECK_NULL(pResPtr, code, lino, _end, terrno);
         reuseOutputBuf(pAggSup->pState, prevWinInfo.pStatePos, &pAggSup->stateStore);
         int32_t mode = 0;
@@ -225,7 +225,7 @@ int32_t buildSessionHistoryResult(SOperatorInfo* pOperator, SOptrBasicInfo* pBin
     if (pNbSup->numOfKeep > 1) {
       taosArrayRemoveDuplicate(pBasic->pUpdated, sessionKeyCompareAsc, releaseFlusedPos);
     }
-    initMultiResInfoFromArrayList(pGroupResInfo, pBasic->pUpdated);
+    initGroupResInfoFromArrayList(pGroupResInfo, pBasic->pUpdated);
     pBasic->pUpdated = taosArrayInit(1024, POINTER_BYTES);
     QUERY_CHECK_NULL(pBasic->pUpdated, code, lino, _end, terrno);
 
@@ -378,12 +378,25 @@ static int32_t doSetSessionWindowRecFlag(SOperatorInfo* pOperator, SSDataBlock* 
   TSKEY*                         endTsCols = (TSKEY*)pEndTsCol->pData;
   SColumnInfoData*               pGpCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   uint64_t*                      pGpDatas = (uint64_t*)pGpCol->pData;
+  SColumnInfoData*               pUidCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
+  uint64_t*                      pUidDatas = (uint64_t*)pUidCol->pData;
   for (int32_t i = 0; i < pBlock->info.rows; i++) {
     SSessionKey key = {.win.skey = startTsCols[i], .win.ekey = endTsCols[i], .groupId = pGpDatas[i]};
-    if (pAggSup->stateStore.streamStateCheckSessionState(pAggSup->pState, &key, pAggSup->gap)) {
+    bool isLastWin = false;
+    if (pAggSup->stateStore.streamStateCheckSessionState(pAggSup->pState, &key, pAggSup->gap, &isLastWin)) {
       qDebug("===stream===%s set recalculate flag start ts:%" PRId64 ",end ts:%" PRId64 ", group id:%" PRIu64,
              GET_TASKID(pTaskInfo), key.win.skey, key.win.ekey, key.groupId);
       pAggSup->stateStore.streamStateSetRecFlag(pAggSup->pState, &key, sizeof(SSessionKey), pBlock->info.type);
+      if ((isFinalOperator(&pInfo->basic) && isCloseWindow(&key.win, &pInfo->twAggSup)) ||
+          (isSingleOperator(&pInfo->basic) && isLastWin == false)) {
+        code = saveRecWindowToDisc(&key, pUidDatas[i], pBlock->info.type, pInfo->basic.pTsDataState,
+                                   &pInfo->streamAggSup);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+    } else {
+      code = saveRecWindowToDisc(&key, pUidDatas[i], pBlock->info.type, pInfo->basic.pTsDataState,
+                                 &pInfo->streamAggSup);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
   }
 _end:
@@ -474,12 +487,13 @@ int32_t doStreamSessionNonblockAggNextImpl(SOperatorInfo* pOperator, SOptrBasicI
       case STREAM_RECALCULATE_DATA:
       case STREAM_RECALCULATE_DELETE: {
         if (isRecalculateOperator(pBasic)) {
-          if (isSingleOperator(pBasic)) {
+          if (!isSemiOperator(pBasic)) {
             code = doDeleteSessionRecalculateWindows(pTaskInfo, pBlock, pBasic->pSeDeleted);
             QUERY_CHECK_CODE(code, lino, _end);
+            if (isFinalOperator(pBasic)) {
+              saveRecalculateData(&pAggSup->stateStore, pBasic->pTsDataState, pBlock, pBlock->info.type);
+            }
             continue;
-          } else if (isFinalOperator(pBasic)) {
-            saveRecalculateData(&pAggSup->stateStore, pBasic->pTsDataState, pBlock, pBlock->info.type);
           }
         }
         
@@ -542,13 +556,16 @@ int32_t doStreamSessionNonblockAggNextImpl(SOperatorInfo* pOperator, SOptrBasicI
   if (pOperator->status == OP_RES_TO_RETURN && pBasic->destHasPrimaryKey && isFinalOperator(pBasic)) {
     code = closeNonBlockSessionWindow(pAggSup->pResultRows, pTwAggSup, pBasic->pUpdated, pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _end);
+    if (!isHistoryOperator(pBasic)) {
+      checkAndSaveWinStateToDisc(0, pBasic->pUpdated, 0, pBasic->pTsDataState, pAggSup);
+    }
   }
 
   taosArraySort(pBasic->pUpdated, sessionKeyCompareAsc);
   if (pNbSup->numOfKeep > 1) {
     taosArrayRemoveDuplicate(pBasic->pUpdated, sessionKeyCompareAsc, releaseFlusedPos);
   }
-  if (pNbSup->numOfKeep > 0 && !pBasic->destHasPrimaryKey) {
+  if (!isSemiOperator(pBasic) && !pBasic->destHasPrimaryKey) {
     removeSessionDeleteResults(pBasic->pSeDeleted, pBasic->pUpdated);
   }
 
@@ -557,7 +574,7 @@ int32_t doStreamSessionNonblockAggNextImpl(SOperatorInfo* pOperator, SOptrBasicI
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  initMultiResInfoFromArrayList(pGroupResInfo, pBasic->pUpdated);
+  initGroupResInfoFromArrayList(pGroupResInfo, pBasic->pUpdated);
   pBasic->pUpdated = taosArrayInit(1024, POINTER_BYTES);
   QUERY_CHECK_NULL(pBasic->pUpdated, code, lino, _end, terrno);
 
@@ -580,11 +597,11 @@ _end:
   return code;
 }
 
-int32_t doStreamSessionNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+int32_t doStreamSessionNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** ppBlock) {
   SStreamSessionAggOperatorInfo* pInfo = (SStreamSessionAggOperatorInfo*)pOperator->info;
   return doStreamSessionNonblockAggNextImpl(pOperator, &pInfo->binfo, &pInfo->basic, &pInfo->streamAggSup,
                                             &pInfo->twAggSup, &pInfo->groupResInfo, &pInfo->nbSup, &pInfo->scalarSupp,
-                                            pInfo->historyWins, &pBlock);
+                                            pInfo->historyWins, ppBlock);
 }
 
 int32_t doStreamSemiSessionNonblockAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
@@ -635,7 +652,7 @@ int32_t doStreamSemiSessionNonblockAggImpl(SOperatorInfo* pOperator, SSDataBlock
 
   if (isHistoryOperator(&pInfo->basic) &&
       tSimpleHashGetSize(pAggSup->pResultRows) > pOperator->resultInfo.capacity * 10) {
-    code = copyNewResult(&pAggSup->pResultRows, pInfo->pUpdated, sessionKeyCompareAsc);
+    code = copyNewResult(&pAggSup->pResultRows, pInfo->basic.pUpdated, sessionKeyCompareAsc);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -688,7 +705,7 @@ bool isDataDeletedSessionWindow(SStreamAggSupporter* pAggSup, SNonBlockAggSuppor
                                 uint64_t groupId, TSKEY gap) {
   if (startTs < pNbSup->tsOfKeep) {
     SSessionKey key = {.win.skey = startTs, .win.ekey = endTs, .groupId = groupId};
-    return !(pAggSup->stateStore.streamStateCheckSessionState(pAggSup->pState, &key, gap));
+    return !(pAggSup->stateStore.streamStateCheckSessionState(pAggSup->pState, &key, gap, NULL));
   }
   return false;
 }
@@ -762,11 +779,11 @@ static int32_t doStreamFinalSessionNonblockAggImpl(SOperatorInfo* pOperator, SSD
   }
 
   if (!pInfo->destHasPrimaryKey && !isHistoryOperator(&pInfo->basic)) {
-    code = closeNonBlockSessionWindow(pAggSup->pResultRows, &pInfo->twAggSup, pInfo->pUpdated, pTaskInfo);
+    code = closeNonBlockSessionWindow(pAggSup->pResultRows, &pInfo->twAggSup, pInfo->basic.pUpdated, pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _end);
   } else if ((isHistoryOperator(&pInfo->basic) || isRecalculateOperator(&pInfo->basic)) &&
              tSimpleHashGetSize(pAggSup->pResultRows) > pOperator->resultInfo.capacity * 10) {
-    code = copyNewResult(&pAggSup->pResultRows, pInfo->pUpdated, sessionKeyCompareAsc);
+    code = copyNewResult(&pAggSup->pResultRows, pInfo->basic.pUpdated, sessionKeyCompareAsc);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 

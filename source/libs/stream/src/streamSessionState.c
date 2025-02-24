@@ -1446,7 +1446,7 @@ _end:
   return code;
 }
 
-bool hasSessionState(SStreamFileState* pFileState, const SSessionKey* pKey, TSKEY gap) {
+bool hasSessionState(SStreamFileState* pFileState, SSessionKey* pKey, TSKEY gap, bool* pIsLast) {
   SSHashObj*   pRowStateBuff = getRowStateBuff(pFileState);
   void**       ppBuff = (void**)tSimpleHashGet(pRowStateBuff, &pKey->groupId, sizeof(uint64_t));
   SArray*      pWinStates = (SArray*)(*ppBuff);
@@ -1457,6 +1457,8 @@ bool hasSessionState(SStreamFileState* pFileState, const SSessionKey* pKey, TSKE
   if (index >= 0) {
     pPos = taosArrayGetP(pWinStates, index);
     if (inSessionWindow(pPos->pKey, pKey->win.skey, gap)) {
+      *pKey = *((SSessionKey*)pPos->pKey);
+      *pIsLast = (index == size - 1);
       return true;
     }
   }
@@ -1465,6 +1467,8 @@ bool hasSessionState(SStreamFileState* pFileState, const SSessionKey* pKey, TSKE
     pPos = taosArrayGetP(pWinStates, index + 1);
     if (inSessionWindow(pPos->pKey, pKey->win.skey, gap) ||
         (pKey->win.ekey != INT64_MIN && inSessionWindow(pPos->pKey, pKey->win.ekey, gap))) {
+      *pKey = *((SSessionKey*)pPos->pKey);
+      *pIsLast = (index + 1 == size - 1);
       return true;
     }
   }
