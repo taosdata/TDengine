@@ -32,7 +32,7 @@ int32_t vnodeAsyncCompact(SVnode *pVnode, int64_t version, void *pReq, int32_t l
   vInfo("vgId:%d, compact msg will be processed, db:%s dbUid:%" PRId64 " compactStartTime:%" PRId64, TD_VID(pVnode),
         req.db, req.dbUid, req.compactStartTime);
 
-#if 0
+#if 1
   return tsdbAsyncCompact(pVnode->pTsdb, &req.tw);
 #else
   return vnodeCompactMeta(pVnode);
