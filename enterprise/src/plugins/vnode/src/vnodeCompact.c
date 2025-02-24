@@ -197,12 +197,16 @@ static int32_t vnodeCompactMetaCommit(SVnode *pVnode) {
   char    metaDir[TSDB_FILENAME_LEN] = {0};
   char    metaCompactDir[TSDB_FILENAME_LEN] = {0};
 
+  vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
+  vnodeGetMetaPath(pVnode, META_COMPACT_DIR, metaCompactDir);
+
   metaClose(&pVnode->pNewMeta);
   metaClose(&pVnode->pMeta);
 
+  // Remove the old meta dir
+  taosRemoveDir(metaDir);
+
   // Rename the meta file
-  vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
-  vnodeGetMetaPath(pVnode, META_COMPACT_DIR, metaCompactDir);
   code = taosRenameFile(metaCompactDir, metaDir);
   if (code) {
     vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
