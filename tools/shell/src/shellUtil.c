@@ -26,7 +26,7 @@ int32_t copyRightYear() {
   time_t    now  = taosGetTimestampSec();
   struct tm local;
   if (taosLocalTime(&now, &local, NULL, 0, NULL)) {
-    year = local.tm_year;
+    year = 1900 + local.tm_year;
   }
 
   return year > 2025 ? year : 2025;
