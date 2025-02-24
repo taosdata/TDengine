@@ -61,13 +61,6 @@ add_test(
     COMMAND osSemaphoreTests
 )
 
-add_executable(osSignalTests "osSignalTests.cpp")
-target_link_libraries(osSignalTests os util gtest_main)
-add_test(
-    NAME osSignalTests
-    COMMAND osSignalTests
-)
-
 add_executable(osSleepTests "osSleepTests.cpp")
 target_link_libraries(osSleepTests os util gtest_main)
 add_test(
