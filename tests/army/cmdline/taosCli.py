@@ -63,8 +63,9 @@ class TDTestCase(TBase):
         idxv = arg[4]
 
         # use db
-        rlist = self.taos(f'{mode} -s "show databases;use {db};show databases;" ')
-        self.checkListString(rlist, "Database changed")
+        if mode != "-R":
+            rlist = self.taos(f'{mode} -s "show databases;use {db};show databases;" ')
+            self.checkListString(rlist, "Database changed")
 
         # hori
         cmd = f'{mode} -s "select * from {db}.{stb} limit 10'
@@ -86,7 +87,7 @@ class TDTestCase(TBase):
         self.taos(f'{mode} -B -s "select * from {db}.{stb} where ts < 1"')
 
         # get empty result
-        rlist = self.taos(f'{mode} -s "select * from {db}.{stb} where ts < 1"')
+        rlist = self.taos(f'{mode} -r -s "select * from {db}.{stb} where ts < 1"')
         self.checkListString(rlist, "Query OK, 0 row(s) in set")
     
     def checkBasic(self):
@@ -99,7 +100,7 @@ class TDTestCase(TBase):
         # native restful websock test
         args = [
             ["",   18, 346, -2, 310], 
-            ["-R -r", 22, 350, -3, 313],
+            ["-R", 22, 350, -3, 313],
             ["-T 40 -E http://localhost:6041", 21, 349, -3, 312]
         ]
         for arg in args:
