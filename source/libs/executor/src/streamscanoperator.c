@@ -217,6 +217,7 @@ static int32_t doStreamBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
 
     code = blockDataUpdateTsWindow(pBlock, 0);
     QUERY_CHECK_CODE(code, lino, _end);
+    printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
     switch (pBlock->info.type) {
       case STREAM_NORMAL:
       case STREAM_INVALID:
@@ -1280,6 +1281,7 @@ static int32_t doStreamRecalculateDataScan(SOperatorInfo* pOperator, SSDataBlock
   if ((*ppRes) == NULL) {
     pInfo->stateStore.streamStateSessionDeleteAll(pInfo->basic.pTsDataState->pState);
     pInfo->basic.pTsDataState->curRecId = -1;
+    pTaskInfo->streamInfo.recoverScanFinished = true;
   }
 
 _end:
