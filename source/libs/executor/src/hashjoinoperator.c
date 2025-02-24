@@ -712,7 +712,7 @@ bool hJoinCopyKeyColsDataToBuf(SHJoinTableCtx* pTable, int32_t rowIdx, size_t *p
   return false;
 }
 
-static int32_t hJoinSetKeyColsData(SSDataBlock* pBlock, SHJoinTableCtx* pTable) {
+int32_t hJoinSetKeyColsData(SSDataBlock* pBlock, SHJoinTableCtx* pTable) {
   for (int32_t i = 0; i < pTable->keyNum; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, pTable->keyCols[i].srcSlot);
     if (NULL == pCol) {
@@ -874,7 +874,7 @@ static int32_t hJoinAddRowToHashImpl(SHJoinOperatorInfo* pJoin, SGroupData* pGro
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t hJoinAddRowToHash(SHJoinOperatorInfo* pJoin, SSDataBlock* pBlock, size_t keyLen, int32_t rowIdx) {
+int32_t hJoinAddRowToHash(SHJoinOperatorInfo* pJoin, SSDataBlock* pBlock, size_t keyLen, int32_t rowIdx) {
   SHJoinTableCtx* pBuild = pJoin->pBuild;
   int32_t code = hJoinSetValColsData(pBlock, pBuild);
   if (code) {
@@ -892,7 +892,7 @@ static int32_t hJoinAddRowToHash(SHJoinOperatorInfo* pJoin, SSDataBlock* pBlock,
   return TSDB_CODE_SUCCESS;
 }
 
-static bool hJoinFilterTimeRange(SHJoinCtx* pCtx, SSDataBlock* pBlock, STimeWindow* pRange, int32_t primSlot, int32_t* startIdx, int32_t* endIdx) {
+bool hJoinFilterTimeRange(SHJoinCtx* pCtx, SSDataBlock* pBlock, STimeWindow* pRange, int32_t primSlot, int32_t* startIdx, int32_t* endIdx) {
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, primSlot);
   if (NULL == pCol) {
     qError("hash join can't get prim col, slot:%d, slotNum:%d", primSlot, (int32_t)taosArrayGetSize(pBlock->pDataBlock));
@@ -985,7 +985,7 @@ static int32_t hJoinAddBlockRowsToHash(SSDataBlock* pBlock, SHJoinOperatorInfo* 
   return code;
 }
 
-static int32_t hJoinBuildHash(struct SOperatorInfo* pOperator, bool* returnDirect) {
+int32_t hJoinBuildHash(struct SOperatorInfo* pOperator, bool* returnDirect) {
   SHJoinOperatorInfo* pJoin = pOperator->info;
   SSDataBlock*        pBlock = NULL;
   int32_t             code = TSDB_CODE_SUCCESS;

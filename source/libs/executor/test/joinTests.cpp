@@ -244,12 +244,12 @@ void jtBuildDataCol(SColumnInfoData* pCol, int32_t rows, int32_t type, int32_t c
   pCol->reassigned = reassign;
   pCol->info.type = type;
   pCol->info.bytes = colBytes;
-  pCol->pData = taosMemCalloc(rows, colBytes);
+  pCol->pData = (char*)taosMemCalloc(rows, colBytes);
   if (varData) {
     pCol->varmeta.allocLen = rows * colBytes;
     pCol->varmeta.length = 0;
-    pCol->varmeta.offset = taosMemCalloc(rows, sizeof(*pCol->varmeta.offset));
-    char* pVal = taosMemoryMalloc(colBytes);
+    pCol->varmeta.offset = (int32_t*)taosMemCalloc(rows, sizeof(*pCol->varmeta.offset));
+    char* pVal = (char*)taosMemoryMalloc(colBytes);
     *(int16_t*)pVal = colBytes;
     int32_t pLastOff = -1;
     for(int32_t i = 0; i < rows; ++i) {
@@ -266,7 +266,7 @@ void jtBuildDataCol(SColumnInfoData* pCol, int32_t rows, int32_t type, int32_t c
     }
     taosMemoryFree(pVal);
   } else {
-    pCol->nullbitmap = taosMemoryCalloc(1, BitmapLen(rows));
+    pCol->nullbitmap = (char*)taosMemoryCalloc(1, BitmapLen(rows));
     int64_t p;
     for(int32_t i = 0; i < rows; ++i) {
       if (hasNull && taosRand() % 2) {
@@ -285,12 +285,12 @@ void jtResetDataCol(SColumnInfoData* pCol, int32_t rows, int32_t type, int32_t c
   pCol->info.bytes = colBytes;
   if (varData) {
     taosMemoryFreeClear(pCol->pData);
-    pCol->varmeta.offset = taosMemoryRealloc(pCol->varmeta.offset, rows * sizeof(*pCol->varmeta.offset));
+    pCol->varmeta.offset = (int32_t*)taosMemoryRealloc(pCol->varmeta.offset, rows * sizeof(*pCol->varmeta.offset));
     pCol->varmeta.length = 0;
     pCol->varmeta.allocLen = 0;
   } else {
-    pCol->pData = taosMemoryRealloc(pCol->pData, rows * colBytes);
-    pCol->nullbitmap = taosMemoryRealloc(pCol->nullbitmap, BitmapLen(rows));
+    pCol->pData = (char*)taosMemoryRealloc(pCol->pData, rows * colBytes);
+    pCol->nullbitmap = (char*)taosMemoryRealloc(pCol->nullbitmap, BitmapLen(rows));
   }
 }
 
