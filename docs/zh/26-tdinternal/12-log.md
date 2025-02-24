@@ -54,17 +54,17 @@ TDengine 通过日志文件记录系统运行状态，帮助用户监控系统�
     }MonitorSlowLogData
    ```
 - 说明：
-   - 因为客户端进程里可能存在很多个链接 connection，所以需要将慢查询日志根据 clusterId 来分组。分组方式通过临时文件名来实现，命名方式为 {tmp dir}/tdengine_slow_log/tdengeine-{clusterId1}-{processId}-{rand}，processId 为进程ID，主要为了区分多个客户端的上报。
-   - 如上图 connection 1 连接的是 cluster 1。connection 2，connection 3 连接的是 cluster 2，所以connection 1 的慢 sql 数据写入文件 {tmp dir}/tdengine_slow_log/tdengeine-{clusterId1}-{processId}-{rand}，connection 2 和 connection 3的慢 sql 数据写入文件 {tmp dir}/tdengine_slow_log/tdengeine-{clusterId1}-{processId}-{rand}
+   - 因为客户端进程里可能存在很多个链接 connection，所以需要将慢查询日志根据 clusterId 来分组。分组方式通过临时文件名来实现，命名方式为 ```{tmp dir}/tdengine_slow_log/tdengeine-{clusterId1}-{processId}-{rand}```，processId 为进程ID，主要为了区分多个客户端的上报。
+   - 如上图 connection 1 连接的是 cluster 1。connection 2，connection 3 连接的是 cluster 2，所以connection 1 的慢 sql 数据写入文件 ```{tmp dir}/tdengine_slow_log/tdengeine-{clusterId1}-{processId}-{rand}```，connection 2 和 connection 3的慢 sql 数据写入文件 ```{tmp dir}/tdengine_slow_log/tdengeine-{clusterId1}-{processId}-{rand}```
 #### 上报逻辑
-- 读取 {tmp dir}/tdengine_slow_log/tdengeine-{clusterId1}-{processId}-{rand} 临时文件内容，每行数据作为 json 数组的一个元素，组装成 json 数组上报（文件里数据每接近 1M大小上报一次，上报成功后记录读取文件进度，上报采用异步上报方式。在 callback 里继续根据上次的进度，继续读取文件的内容上报，直至整个文件读取上报完毕，上报完毕后，会清空临时文件，callback 里成功或失败都会继续读取文件，失败时会记录上报失败的数据日志）。每接近 1M 上报一次主要为了防止文件太大，放在一次上报失败）。
+- 读取 ```{tmp dir}/tdengine_slow_log/tdengeine-{clusterId1}-{processId}-{rand}``` 临时文件内容，每行数据作为 json 数组的一个元素，组装成 json 数组上报（文件里数据每接近 1M大小上报一次，上报成功后记录读取文件进度，上报采用异步上报方式。在 callback 里继续根据上次的进度，继续读取文件的内容上报，直至整个文件读取上报完毕，上报完毕后，会清空临时文件，callback 里成功或失败都会继续读取文件，失败时会记录上报失败的数据日志）。每接近 1M 上报一次主要为了防止文件太大，放在一次上报失败）。
 #### 上报时机
 - 客户端运行过程中定时上报
    - 每个 monitorInterval 时间间隔上报数据。
 - 客户端正常退出
    - 上报所有慢 sql 日志文件， 上报成功后，删除文件。
 - 客户端异常退出
-   - 异常退出后再次与某个集群(clusterId)建立新的链接后遍历  {tmp dir}/tdengine_slow_log/ 目录下tdengine-{clusterId}开头的所有文件进行重新上报（这些文件可能是另一个客户端进程或本进程正在操作的。所以每个文件打开时都需要添加文件锁），然后删除这个临时文件。
+   - 异常退出后再次与某个集群(clusterId)建立新的链接后遍历  ```{tmp dir}/tdengine_slow_log/``` 目录下 ```tdengine-{clusterId}``` 开头的所有文件进行重新上报（这些文件可能是另一个客户端进程或本进程正在操作的。所以每个文件打开时都需要添加文件锁），然后删除这个临时文件。
 #### 一些异常行为说明
 - 因为上报数据和删除文件里的上报内容没法作为一个原子操作，所以如果上报后还没删除数据就 crash，可能导致下次重复上报，重复上报的数据会覆盖，并没丢失，影响很小。
 - 另外为了保证性能， slow log thread 线程把慢 sql 日志写入临时文件缓存，只保证刷新到操作系统的磁盘缓冲区，并不真正每次都 fsync 到磁盘，所以如果机器断电，仍可能丢失数据。该异常出现概率很小，可以容忍此种情况下的数据丢失。
