@@ -635,14 +635,15 @@ impl Client {
                         });
                     }
                     "check" => {
-                        let dsn: String = serde_json::from_str(context).unwrap();
+                        let dsn_str: String = serde_json::from_str(context).unwrap();
+                        let dsn = json_to_dsn(&serde_json::Value::String(dsn_str.clone()))?;
                         let resp_tx = resp_tx.clone();
                         tokio::spawn(async move {
-                            let dsv = validate_dsn(&serde_json::Value::String(dsn.clone())).await;
+                            let dsv = validate_dsn(dsn).await;
                             let send_ok = resp_tx
                                 .send_async(RespAction::CheckOk(CheckResponse {
                                     req_id,
-                                    req: dsn,
+                                    req: dsn_str,
                                     res: dsv,
                                 }))
                                 .await;

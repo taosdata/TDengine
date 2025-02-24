@@ -4,8 +4,8 @@ use std::time::Duration;
 use anyhow::Context;
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
-use taos::Dsn;
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, TaosBuilder};
+use taos::{Dsn, IntoDsn};
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 use tracing::Instrument;
@@ -209,8 +209,8 @@ pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSe
     }
 }
 
-pub async fn validate_dsn(dsn: &serde_json::Value) -> DataSourceValidation {
-    let dsn = json_to_dsn(dsn);
+pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
+    let dsn = dsn.into_dsn();
     match dsn {
         Err(err) => {
             DataSourceValidation::invalid("unknown".to_string(), format!("invalid dsn: {}", err))

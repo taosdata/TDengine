@@ -387,7 +387,7 @@ async fn is_datasource_valid_impl(
         Ok(d) => {
             let via = query.via;
             match via {
-                None => validate_dsn(&query.dsn).await,
+                None => validate_dsn(d).await,
                 Some(agent) => controller.validate_dsn_via_agent(agent, &d).await,
             }
         }
@@ -464,7 +464,7 @@ async fn dsn_and_license_validate(
 
     let via = query.via;
     let res = match via {
-        None => validate_dsn(&query.from).await,
+        None => validate_dsn(from.clone()).await,
         Some(agent) => controller.validate_dsn_via_agent(agent, &from).await,
     };
 

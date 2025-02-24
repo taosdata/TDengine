@@ -965,7 +965,8 @@ impl TaskController {
         }
 
         if task.via.is_none() {
-            validate_dsn(&task.from).await.ok()?;
+            let dsn = json_to_dsn(&task.from)?;
+            validate_dsn(dsn).await.ok()?;
         }
 
         if task.clear && to.driver == "taos" {
@@ -1238,9 +1239,8 @@ impl TaskController {
         query = query.bind(task.via);
 
         if task.via.is_none() {
-            validate_dsn(&task.from.clone().unwrap_or(old.from.clone()))
-                .await
-                .ok()?;
+            let dsn = json_to_dsn(&task.from.clone().unwrap_or(old.from.clone()))?;
+            validate_dsn(dsn).await.ok()?;
         }
 
         let res = query.execute(&self.pool).await?;
