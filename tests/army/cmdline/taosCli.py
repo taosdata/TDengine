@@ -62,6 +62,10 @@ class TDTestCase(TBase):
         idx  = arg[3]
         idxv = arg[4]
 
+        # use db
+        rlist = self.taos(f'{mode} -s "show databases;use {db};show databases;" ')
+        self.checkListString(rlist, "Database changed")
+
         # hori
         cmd = f'{mode} -s "select * from {db}.{stb} limit 10'
         rlist = self.taos(cmd + '"')
@@ -108,8 +112,7 @@ class TDTestCase(TBase):
         self.taos(f'{mode} -s "select * from {db}.d0; >>d0.csv" ')
         
         # use db
-        rlist = self.taos(f'{mode} -s "use {db};" ')
-        self.checkListString(rlist, "Database changed")
+        rlist = self.taos(f'{mode} -s "show databases;use {db};show databases;" ')
         # update sql
         rlist = self.taos(f'{mode} -s "alter local \'resetlog\';" ')
         self.checkListString(rlist, "Query O")
