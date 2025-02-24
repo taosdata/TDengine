@@ -1332,6 +1332,7 @@ static int32_t doStreamRecalculateBlockScan(SOperatorInfo* pOperator, SSDataBloc
     }
     blockDataCleanup(pInfo->pUpdateDataRes);
     pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+    pStreamInfo->recoverScanFinished = true;
   }
 
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
