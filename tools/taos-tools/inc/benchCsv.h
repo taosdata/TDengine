@@ -18,19 +18,26 @@
 
 #include <bench.h>
 
+
+typedef enum {
+    CSV_NAMING_SINGLE,
+    CSV_NAMING_TIME_SLICE,
+    CSV_NAMING_THREAD,
+    CSV_NAMING_THREAD_TIME_SLICE
+} CsvNamingType;
+
+typedef struct {
+    CsvNamingType   naming_type;
+    time_t          start_secs;
+    time_t          end_secs;
+    time_t          end_ts;
+    size_t          thread_id;
+    size_t          total_threads;
+    char            thread_formatter[TINY_BUFF_LEN];
+} CsvWriteMeta;
+
+
+
 int csvTestProcess();
-
-int genWithSTable(SDataBase* db, SSuperTable* stb, char* outDir);
-
-char * genTagData(char* buf, SSuperTable* stb, int64_t i, int64_t *k);
-
-char * genColumnData(char* colData, SSuperTable* stb, int64_t ts, int32_t precision, int64_t *k);
-
-int32_t genRowByField(char* buf, BArray* fields, int16_t fieldCnt, char* binanryPrefix, char* ncharPrefix, int64_t *k);
-
-void obtainCsvFile(char * outFile, SDataBase* db, SSuperTable* stb, char* outDir);
-
-int interlaceWriteCsv(SDataBase* db, SSuperTable* stb, FILE* fs, char* buf, int bufLen, int minRemain);
-int batchWriteCsv(SDataBase* db, SSuperTable* stb, FILE* fs, char* buf, int bufLen, int minRemain);
 
 #endif  // INC_BENCHCSV_H_

@@ -1586,14 +1586,14 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
         }
     }
 
-    // csv output dir
-    tools_cJSON* csv_op = tools_cJSON_GetObjectItem(json, "csv_output_path");
-    if (csv_op && csv_op->type == tools_cJSON_String && csv_op->valuestring != NULL) {
-        g_arguments->csv_output_path = csv_op->valuestring;
+    // output dir
+    tools_cJSON* opp = tools_cJSON_GetObjectItem(json, "output_path");
+    if (opp && opp->type == tools_cJSON_String && opp->valuestring != NULL) {
+        g_arguments->output_path = opp->valuestring;
     } else {
-        g_arguments->csv_output_path = "./output/";
+        g_arguments->output_path = "./output/";
     }
-    (void)mkdir(g_arguments->csv_output_path, 0775);
+    (void)mkdir(g_arguments->output_path, 0775);
 
     // csv file prefix
     tools_cJSON* csv_fp = tools_cJSON_GetObjectItem(json, "csv_file_prefix");
