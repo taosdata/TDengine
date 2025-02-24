@@ -188,7 +188,7 @@ char    tsCheckpointBackupDir[PATH_MAX] = "/var/lib/taos/backup/checkpoint/";
 
 // tmq
 int32_t tmqMaxTopicNum = 20;
-int32_t tmqRowSize = 4096;
+int32_t tmqRowSize = 1000;
 // query
 int32_t tsQueryPolicy = 1;
 bool    tsQueryTbNotExistAsEmpty = false;
