@@ -30,6 +30,12 @@ add_test(
     NAME osDirTests
     COMMAND osDirTests
 )
+add_executable(osFileTests "osFileTests.cpp")
+target_link_libraries(osFileTests os util gtest_main)
+add_test(
+    NAME osFileTests
+    COMMAND osFileTests
+)
 endif()
 
 if(TD_LINUX)

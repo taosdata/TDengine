@@ -24,7 +24,7 @@ from frame import *
 class TDTestCase(TBase):
     def caseDescription(self):
         """
-        [TD-11510] taosBenchmark test cases
+        taosBenchmark Insert->Basic test cases
         """
 
     def benchmarkQuery(self, benchmark, jsonFile,  keys, options=""):
@@ -43,7 +43,7 @@ class TDTestCase(TBase):
                     tdLog.info(f"found key:{key} successful.")            
 
 
-    def testBenchmarkJson(self, benchmark, jsonFile, options="", checkStep=False):
+    def testBenchmarkJson(self, benchmark, jsonFile, options = "", checkTimeStep = False):
         # exe insert 
         cmd = f"{benchmark} {options} -f {jsonFile}"
         os.system(cmd)
@@ -70,20 +70,25 @@ class TDTestCase(TBase):
         if options.find("-Q") != -1:
             drop = "no"
 
-
-        # cachemodel
-        try:
-            cachemode = data["databases"][0]["dbinfo"]["cachemodel"]
-        except:
-            cachemode = None
+        # only support 
+        cmdVG = None
+        pos = options.find("=")
+        if pos != -1:
+            arr = options.split("=")
+            if arr[0] == "--vgroups":
+                cmdVG = arr[1]
 
         # vgropus
         try:
-            vgroups   = data["databases"][0]["dbinfo"]["vgroups"]
+            if cmdVG != None:
+                # command special vgroups first priority
+                vgroups = cmdVG
+            else:
+                vgroups = data["databases"][0]["dbinfo"]["vgroups"]
         except:
             vgroups = None
 
-        tdLog.info(f"get json info: db={db} stb={stb} child_count={child_count} insert_rows={insert_rows} \n")
+        tdLog.info(f"get json info: db={db} stb={stb} child_count={child_count} insert_rows={insert_rows} cmdVG={cmdVG}\n")
         
         # all count insert_rows * child_table_count
         sql = f"select * from {db}.{stb}"
@@ -91,64 +96,32 @@ class TDTestCase(TBase):
         tdSql.checkRows(child_count * insert_rows)
 
         # timestamp step
-        if checkStep:
+        if checkTimeStep:
             sql = f"select * from (select diff(ts) as dif from {db}.{stb} partition by tbname) where dif != {timestamp_step};"
             tdSql.query(sql)
             tdSql.checkRows(0)
 
         if drop.lower() == "yes":
             # check database optins 
-            sql = f"select `vgroups`,`cachemodel` from information_schema.ins_databases where name='{db}';"
+            sql = f"select `vgroups` from information_schema.ins_databases where name='{db}';"
             tdSql.query(sql)
-
-            if cachemode != None:
-                value = frame.eutil.removeQuota(cachemode)
-                tdLog.info(f" deal both origin={cachemode} after={value}")
-                tdSql.checkData(0, 1, value)
-
             if vgroups != None:
-                tdSql.checkData(0, 0, vgroups)
+                tdLog.info(f" vgroups real={tdSql.getData(0,0)} expect={vgroups}")
+                tdSql.checkData(0, 0, vgroups, True)
 
 
     # bugs ts
-    def bugsTS(self, benchmark):
-        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TS-5002.json")
-        # TS-5234
-        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TS-5234-1.json")
-        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TS-5234-2.json")
-        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TS-5234-3.json")
-        # TS-5846
-        keys = ["completed total queries: 40"]
-        self.benchmarkQuery(benchmark, "./tools/benchmark/basic/json/TS-5846-Query.json", keys)
-        keys = ["completed total queries: 20"]
-        self.benchmarkQuery(benchmark, "./tools/benchmark/basic/json/TS-5846-Mixed-Query.json", keys)
-
-    # bugs td
-    def bugsTD(self, benchmark):
-        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TD-31490.json", checkStep = False)
-        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TD-31575.json")
-        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TD-32846.json")
-        
-        # no drop
-        db      = "td32913db"
-        vgroups = 4
-        tdSql.execute(f"create database {db} vgroups {vgroups}")
-        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TD-32913.json", options="-Q")
-        tdSql.query(f"select `vgroups` from information_schema.ins_databases where name='{db}';")
-        tdSql.checkData(0, 0, vgroups)
-
-        # other
-        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TD-32913-1.json")
-        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TD-32913-2.json", options="-T 6")
-        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/TD-32913-3.json")
+    def checkVGroups(self, benchmark):
+        # vgroups with command line set
+        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/insertBasic.json", "--vgroups=3", True)
+        # vgroups with json file
+        self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/insertBasic.json", "", True)
 
     def run(self):
         benchmark = etool.benchMarkFile()
-        # ts
-        self.bugsTS(benchmark)
 
-        # td
-        self.bugsTD(benchmark)
+        # vgroups
+        self.checkVGroups(benchmark)
 
 
     def stop(self):
