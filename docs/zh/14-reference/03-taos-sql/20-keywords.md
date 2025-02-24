@@ -77,6 +77,7 @@ description: TDengine 保留关键字的详细列表
 | CLIENT_VERSION       | |
 | CLUSTER              | |
 | COLON                | |
+| COLS                 | |
 | COLUMN               | |
 | COMMA                | |
 | COMMENT              | |
