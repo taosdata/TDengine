@@ -996,28 +996,6 @@ _err:
   return NULL;
 }
 
-SNode* createNotBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight) {
-  SNode *pNew = NULL, *pLT = NULL, *pGT = NULL;
-  CHECK_PARSER_STATUS(pCxt);
-  pCxt->errCode = nodesCloneNode(pExpr, &pNew);
-  CHECK_PARSER_STATUS(pCxt);
-  pLT = createOperatorNode(pCxt, OP_TYPE_LOWER_THAN, pExpr, pLeft);
-  CHECK_PARSER_STATUS(pCxt);
-  pGT = createOperatorNode(pCxt, OP_TYPE_GREATER_THAN, pNew, pRight);
-  CHECK_PARSER_STATUS(pCxt);
-  SNode* pRet = createLogicConditionNode(pCxt, LOGIC_COND_TYPE_OR, pLT, pGT);
-  CHECK_PARSER_STATUS(pCxt);
-  return pRet;
-_err:
-  nodesDestroyNode(pNew);
-  nodesDestroyNode(pGT);
-  nodesDestroyNode(pLT);
-  nodesDestroyNode(pExpr);
-  nodesDestroyNode(pLeft);
-  nodesDestroyNode(pRight);
-  return NULL;
-}
-
 static SNode* createPrimaryKeyCol(SAstCreateContext* pCxt, const SToken* pFuncName) {
   CHECK_PARSER_STATUS(pCxt);
   SColumnNode* pCol = NULL;
