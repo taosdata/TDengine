@@ -1454,13 +1454,13 @@ boolean_value_expression(A) ::= NOT(C) boolean_primary(B).                      
                                                                                     A = createRawExprNodeExt(pCxt, &C, &e, createLogicConditionNode(pCxt, LOGIC_COND_TYPE_NOT, releaseRawExprNode(pCxt, B), NULL));
                                                                                   }
 boolean_value_expression(A) ::=
-  boolean_value_expression(B) OR boolean_value_expression(C).                     {
+  expr_or_subquery(B) OR expr_or_subquery(C).                     {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, C);
                                                                                     A = createRawExprNodeExt(pCxt, &s, &e, createLogicConditionNode(pCxt, LOGIC_COND_TYPE_OR, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)));
                                                                                   }
 boolean_value_expression(A) ::=
-  boolean_value_expression(B) AND boolean_value_expression(C).                    {
+  expr_or_subquery(B) AND expr_or_subquery(C).                    {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, C);
                                                                                     A = createRawExprNodeExt(pCxt, &s, &e, createLogicConditionNode(pCxt, LOGIC_COND_TYPE_AND, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)));

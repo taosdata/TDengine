@@ -60,6 +60,18 @@ class TDTestCase:
         tdSql.query(sql)
         tdSql.checkData(0,0,1)
 
+        sql = "select cast(2 not in(3) as int) from t"
+        tdSql.query(sql)
+        tdSql.checkData(0,0,1)
+
+        sql = "select cast(2 is NULL as int) from t"
+        tdSql.query(sql)
+        tdSql.checkData(0,0,0)
+
+        sql = "select cast(2 and 1 as int) from t"
+        tdSql.query(sql)
+        tdSql.checkData(0,0,1)
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
