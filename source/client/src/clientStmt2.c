@@ -46,7 +46,9 @@ static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
       i++;
     } else {
       (void)taosThreadMutexLock(&pStmt->queue.mutex);
-      (void)taosThreadCondWait(&pStmt->queue.waitCond, &pStmt->queue.mutex);
+      if (0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
+        (void)taosThreadCondWait(&pStmt->queue.waitCond, &pStmt->queue.mutex);
+      }
       (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
     }
   }
@@ -69,9 +71,9 @@ static void stmtEnqueue(STscStmt2* pStmt, SStmtQNode* param) {
   pStmt->queue.tail = param;
 
   pStmt->stat.bindDataNum++;
-  (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
 
   (void)taosThreadMutexLock(&pStmt->queue.mutex);
+  (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
   (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
   (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 }
@@ -1766,9 +1768,9 @@ int stmtClose2(TAOS_STMT2* stmt) {
   STMT_DLOG_E("start to free stmt");
 
   pStmt->queue.stopQueue = true;
-  (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
 
   (void)taosThreadMutexLock(&pStmt->queue.mutex);
+  (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
   (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
   (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 
