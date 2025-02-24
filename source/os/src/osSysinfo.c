@@ -904,18 +904,18 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
     return 0;
   }
 #elif defined(TD_ASTRA) // TD_ASTRA_TODO
-//  if (-1 == ioctl(dataDir, FIOFSTATVFSGETBYNAME, &info)) { // TODO:try to check whether the API is available
-//     terrno = TAOS_SYSTEM_ERROR(errno);
-//     return terrno;
-    diskSize->total = 100LL*1024*1024*1024;
-    diskSize->avail = 50LL*1024*1024*1024;
-    diskSize->used = 50LL*1024*1024*1024;
-//  } else {
-//    diskSize->total = info.f_blocks * info.f_frsize;
-//    diskSize->avail = info.f_bavail * info.f_frsize;
-//    diskSize->used = diskSize->total - diskSize->avail;
-//  }
-//   return 0;
+  //  if (-1 == ioctl(dataDir, FIOFSTATVFSGETBYNAME, &info)) { // TODO:try to check whether the API is available
+  //     terrno = TAOS_SYSTEM_ERROR(errno);
+  //     return terrno;
+  diskSize->total = 100LL * 1024 * 1024 * 1024;
+  diskSize->avail = 50LL * 1024 * 1024 * 1024;
+  diskSize->used = 50LL * 1024 * 1024 * 1024;
+  //  } else {
+  //    diskSize->total = info.f_blocks * info.f_frsize;
+  //    diskSize->avail = info.f_bavail * info.f_frsize;
+  //    diskSize->used = diskSize->total - diskSize->avail;
+  //  }
+  return 0;
 #else
   struct statvfs info;
   if (-1 == statvfs(dataDir, &info)) {

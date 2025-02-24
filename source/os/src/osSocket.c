@@ -426,12 +426,13 @@ uint32_t taosInetAddr(const char *ipstr){
 }
 
 int32_t taosIgnSIGPIPE() {
+#ifndef TD_ASTRA
   sighandler_t h = signal(SIGPIPE, SIG_IGN);
   if (SIG_ERR == h) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
-
+#endif
   return 0;
 }
 

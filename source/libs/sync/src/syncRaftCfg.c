@@ -175,7 +175,8 @@ _exit:
   if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
-    sError("vgId:%d, failed to write sync cfg file:%s since %s", pNode->vgId, realfile, tstrerror(code));
+    sError("vgId:%d, failed at line %d to write sync cfg file:%s since %s", pNode->vgId, lino, realfile,
+           tstrerror(code));
   }
 
   TAOS_RETURN(code);

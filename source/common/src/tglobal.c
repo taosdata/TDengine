@@ -162,7 +162,7 @@ int32_t tsAuditInterval = 5000;
 bool    tsEnableAudit = false;
 bool    tsEnableAuditCreateTable = false;
 bool    tsEnableAuditDelete = false;
-int32_t tsAuditInterval = INT64_MAX;
+int32_t tsAuditInterval = 200000;
 #endif
 
 // telem

@@ -266,6 +266,9 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
 
   return finished ? 0 : terrno;
 #else
+#ifdef TD_ASTRA // TD_ASTRA_TODO
+  if (taosCheckExistFile(newName)) taosRemoveFile(newName);
+#endif
   int32_t code = rename(oldName, newName);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1021,7 +1024,7 @@ int32_t taosLockFile(TdFilePtr pFile) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
-#else
+#else // TD_ASTRA_TODO
   struct flock lock;
   lock.l_type = F_WRLCK;
   lock.l_whence = SEEK_SET;
@@ -1029,8 +1032,8 @@ int32_t taosLockFile(TdFilePtr pFile) {
   lock.l_len = 0;
   int32_t code = fcntl(pFile->fd, F_SETLK, &lock);
   if (-1 == code) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return terrno;
+    // terrno = TAOS_SYSTEM_ERROR(errno); // TD_ASTRA_TODO
+    // return terrno; // TD_ASTRA_TODO
   }
 #endif
   return 0;
@@ -1047,7 +1050,7 @@ int32_t taosUnLockFile(TdFilePtr pFile) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
-#else
+#else // TD_ASTRA_TODO
   struct flock lock;
   lock.l_type = F_UNLCK;
   lock.l_whence = SEEK_SET;
@@ -1055,8 +1058,8 @@ int32_t taosUnLockFile(TdFilePtr pFile) {
   lock.l_len = 0;
   int32_t code = fcntl(pFile->fd, F_SETLK, &lock);
   if (-1 == code) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return terrno;
+    terrno = TAOS_SYSTEM_ERROR(errno);  // TD_ASTRA_TODO
+    return terrno;                      // TD_ASTRA_TODO
   }
 #endif
   return 0;
@@ -1377,7 +1380,11 @@ int32_t taosFsyncFile(TdFilePtr pFile) {
   if (pFile->fd >= 0) {
     code = fsync(pFile->fd);
     if (-1 == code) {
+#ifndef TD_ASTRA
       terrno = TAOS_SYSTEM_ERROR(errno);
+#else
+      terrno = 0;  // TD_ASTRA_TODO
+#endif
       return terrno;
     }
   }
