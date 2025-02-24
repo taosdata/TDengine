@@ -283,6 +283,7 @@ class TDTestCase:
             'active_active':'Active-Active',
             'dual_replica':'Dual-Replica HA',
             'db_encryption':'Database Encryption',
+            'tdgpt':'TDgpt',
             'opc_da':'OPC_DA',
             'opc_ua':'OPC_UA',
             'pi':'Pi',
