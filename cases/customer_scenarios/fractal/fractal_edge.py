@@ -39,16 +39,16 @@ class FractakEdge(TDCase):
         self.tdCom.createDb(self.target_dbname)
         # 创建4个mqtt datain任务
         for case_data in cases_data:
-            response = TDRest.request(data=case_data, method='POST', url=f'http://{self.hostname}:6060/api/x/tasks',header=headers)
+            response = TDRest.request(data=case_data, method='POST', url=f'http://{self.hostname}:6050/api/x/tasks',header=headers)
             task_info = response.json()
             task_list.append(task_info["id"])
         time.sleep(self.execute_time)
         for task_id in task_list:
-           TDRest.request(data=None, method='POST', url=f'http://{self.hostname}:6060/api/x/tasks/{task_id}/stop',header=headers)
+           TDRest.request(data=None, method='POST', url=f'http://{self.hostname}:6050/api/x/tasks/{task_id}/stop',header=headers)
         
         # TODO 获取每个任务的metrics并保存下来
         for task_id in task_list:
-            response = TDRest.request(data=None, method='GET', url=f'http://{self.hostname}:6060/api/x/tasks/{task_id}/metrics',header=headers)
+            response = TDRest.request(data=None, method='GET', url=f'http://{self.hostname}:6050/api/x/tasks/{task_id}/metrics',header=headers)
             metrics = response.json()
             
             print(metrics)

@@ -28,15 +28,15 @@ class FractakCenter(TDCase):
                 "from": f"taos+ws://{edge_host}:6041/{self.edge_db}",
                 "to": f"taos+ws://{self.hostname}:6041/{self.target_dbname}"
             }
-            response = TDRest.request(data=case_data, method='POST', url=f'http://{self.hostname}:6060/api/x/tasks',header=headers)
+            response = TDRest.request(data=case_data, method='POST', url=f'http://{self.hostname}:6050/api/x/tasks',header=headers)
             task_info = response.json()
             task_list.append(task_info["id"])
         time.sleep(self.execute_time)
         for task_id in task_list:
-           TDRest.request(data=None, method='POST', url=f'http://{self.hostname}:6060/api/x/tasks/{task_id}/stop',header=headers)
+           TDRest.request(data=None, method='POST', url=f'http://{self.hostname}:6050/api/x/tasks/{task_id}/stop',header=headers)
         # TODO 获取每个任务的metrics并保存下来，生成报告
         for task_id in task_list:
-            response = TDRest.request(data=None, method='GET', url=f'http://{self.hostname}:6060/api/x/tasks/{task_id}/metrics',header=headers)
+            response = TDRest.request(data=None, method='GET', url=f'http://{self.hostname}:6050/api/x/tasks/{task_id}/metrics',header=headers)
             metrics = response.json()
             # TODO 获取metrics并保存
             print(metrics)
