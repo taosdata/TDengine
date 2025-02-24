@@ -1155,6 +1155,7 @@ static int32_t doDataRangeScan(SStreamScanInfo* pInfo, SExecTaskInfo* pTaskInfo,
       code = calBlockTbName(pInfo, pTsdbBlock, 0);
       QUERY_CHECK_CODE(code, lino, _end);
 
+      blockDataCleanup(pInfo->pUpdateRes);
       code = buildRecBlockByRange(&pInfo->curRange, pInfo->pUpdateRes);
       QUERY_CHECK_CODE(code, lino, _end);
       if (pInfo->pUpdateRes->info.rows > 0) {
