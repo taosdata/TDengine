@@ -1,1 +1,0 @@
-::: metadata.time_precision.test_precision_ns
