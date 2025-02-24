@@ -54,10 +54,6 @@ typedef struct SRpcHandleInfo {
   void *wrapper;  // wrapper handle
   void *node;     // node mgmt handle
 
-#ifdef TD_ASTRA_32
-  void *ahandleEx;  // app handle set by client
-#endif
-
   // resp info
   void   *rsp;
   int32_t rspLen;
@@ -237,6 +233,9 @@ typedef struct SRpcHandleInfo {
   void *ahandle;  // app handle set by client
   void *wrapper;  // wrapper handle
   void *node;     // node mgmt handle
+#ifdef TD_ASTRA_32
+  void *ahandleEx;  // app handle set by client
+#endif
 
   // resp info
   void   *rsp;

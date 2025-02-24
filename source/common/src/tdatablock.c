@@ -3304,7 +3304,7 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
   pStart += sizeof(int32_t);
 
   // group id sizeof(uint64_t)
-  pBlock->info.id.groupId = taosGetUInt64Aligned(pStart);
+  pBlock->info.id.groupId = taosGetUInt64Aligned((uint64_t*)pStart);
   pStart += sizeof(uint64_t);
 
   if (pBlock->pDataBlock == NULL) {

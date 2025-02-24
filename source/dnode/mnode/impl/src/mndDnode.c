@@ -294,7 +294,7 @@ static int32_t mndDnodeActionDelete(SSdb *pSdb, SDnodeObj *pDnode) {
 static int32_t mndDnodeActionUpdate(SSdb *pSdb, SDnodeObj *pOld, SDnodeObj *pNew) {
   mTrace("dnode:%d, perform update action, old row:%p new row:%p", pOld->id, pOld, pNew);
   pOld->updateTime = pNew->updateTime;
-#if defined(TD_ENTERPRISE || defined(TD_ASTRA_TODO)
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   tstrncpy(pOld->machineId, pNew->machineId, TSDB_MACHINE_ID_LEN + 1);
 #endif
   return 0;
