@@ -428,6 +428,7 @@ description: TDengine 保留关键字的详细列表
 | TRANSACTIONS         | |
 | TRIGGER              | |
 | TRIM                 | |
+| TRUE_FOR             | |
 | TSDB_PAGESIZE        | |
 | TSERIES              | |
 | TSMA                 | |
