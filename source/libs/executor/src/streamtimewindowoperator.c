@@ -225,6 +225,29 @@ static void doDeleteWindow(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId)
 
 static int32_t getChildIndex(SSDataBlock* pBlock) { return pBlock->info.childId; }
 
+static void doDeleteWindowByGroupId(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+  SStorageAPI*                 pAPI = &pOperator->pTaskInfo->storageAPI;
+  SStreamIntervalOperatorInfo* pInfo = pOperator->info;
+
+  SColumnInfoData* pGpIdCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
+  uint64_t* pGroupIdData = (uint64_t*)pGpIdCol->pData;
+  for (int32_t i = 0; i < pBlock->info.rows; i++) {
+    uint64_t groupId = pGroupIdData[i];
+    void*   pIte = NULL;
+    int32_t iter = 0;
+    while ((pIte = tSimpleHashIterate(pInfo->aggSup.pResultRowHashTable, pIte, &iter)) != NULL) {
+      size_t keyLen = 0;
+      SWinKey* pKey = tSimpleHashGetKey(pIte, &keyLen);
+      if (pKey->groupId == groupId) {
+        int32_t tmpRes = tSimpleHashIterateRemove(pInfo->aggSup.pResultRowHashTable, pKey, keyLen, &pIte, &iter);
+        qTrace("%s at line %d res:%d", __func__, __LINE__, tmpRes);
+      }
+    }
+
+    pAPI->stateStore.streamStateDelByGroupId(pInfo->pState, groupId);
+  }
+}
+
 static int32_t doDeleteWindows(SOperatorInfo* pOperator, SInterval* pInterval, SSDataBlock* pBlock, SArray* pUpWins,
                                SSHashObj* pUpdatedMap, SHashObj* pInvalidWins) {
   int32_t                      code = TSDB_CODE_SUCCESS;
@@ -5450,7 +5473,12 @@ static int32_t doStreamIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** p
       code = getAllIntervalWindow(pInfo->aggSup.pResultRowHashTable, pInfo->pUpdatedMap);
       QUERY_CHECK_CODE(code, lino, _end);
       continue;
-    } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE || pBlock->info.type == STREAM_DROP_CHILD_TABLE) {
+    } else if (pBlock->info.type == STREAM_CREATE_CHILD_TABLE) {
+      printDataBlock(pBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+      (*ppRes) = pBlock;
+      return code;
+    } else if (pBlock->info.type == STREAM_DROP_CHILD_TABLE) {
+      doDeleteWindowByGroupId(pOperator, pBlock);
       printDataBlock(pBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
       (*ppRes) = pBlock;
       return code;

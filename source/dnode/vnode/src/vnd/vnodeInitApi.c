@@ -170,6 +170,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateCheck = streamStateCheck;
   pStore->streamStateGetByPos = streamStateGetByPos;
   pStore->streamStateDel = streamStateDel;
+  pStore->streamStateDelByGroupId = streamStateDelByGroupId;
   pStore->streamStateClear = streamStateClear;
   pStore->streamStateSaveInfo = streamStateSaveInfo;
   pStore->streamStateGetInfo = streamStateGetInfo;

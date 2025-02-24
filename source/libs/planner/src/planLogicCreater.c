@@ -406,6 +406,47 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
 
 static bool needScanDefaultCol(EScanType scanType) { return SCAN_TYPE_TABLE_COUNT != scanType; }
 
+static int32_t updateScanNoPseudoRefAfterGrp(SSelectStmt* pSelect, SScanLogicNode* pScan, SRealTableNode* pRealTable) {
+  if (NULL == pScan->pScanPseudoCols || pScan->pScanPseudoCols->length <= 0 || NULL != pSelect->pTags || NULL != pSelect->pSubtable) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNodeList* pList = NULL;
+  int32_t code = 0;
+  if (NULL == pSelect->pPartitionByList || pSelect->pPartitionByList->length <= 0) {
+    if (NULL == pSelect->pGroupByList || pSelect->pGroupByList->length <= 0) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    code = nodesCollectColumns(pSelect, SQL_CLAUSE_GROUP_BY, pRealTable->table.tableAlias, COLLECT_COL_TYPE_TAG,
+                               &pList);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, pRealTable->table.tableAlias, fmIsScanPseudoColumnFunc,
+                               &pList);
+    }
+    if (TSDB_CODE_SUCCESS == code && (NULL == pList || pList->length <= 0)) {
+      pScan->noPseudoRefAfterGrp = true;
+    }    
+    goto _return;    
+  }
+
+  code = nodesCollectColumns(pSelect, SQL_CLAUSE_PARTITION_BY, pRealTable->table.tableAlias, COLLECT_COL_TYPE_TAG,
+                             &pList);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_PARTITION_BY, pRealTable->table.tableAlias, fmIsScanPseudoColumnFunc,
+                             &pList);
+  }
+  
+  if (TSDB_CODE_SUCCESS == code && (NULL == pList || pList->length <= 0)) {
+    pScan->noPseudoRefAfterGrp = true;
+  }    
+
+_return:
+
+  nodesDestroyList(pList);
+  return code;
+}
+
 static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SRealTableNode* pRealTable,
                                    SLogicNode** pLogicNode) {
   SScanLogicNode* pScan = NULL;
@@ -437,7 +478,13 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
                              &pScan->pScanPseudoCols);
   }
 
-  pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType, pSelect->tagScan);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = updateScanNoPseudoRefAfterGrp(pSelect, pScan, pRealTable);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType, pSelect->tagScan);
+  }
 
   // rewrite the expression in subsequent clauses
   if (TSDB_CODE_SUCCESS == code) {
