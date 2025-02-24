@@ -253,8 +253,8 @@ export function getWriteConfigData(data: Recordable) {
   const valueMap = ['variable_not_exist_in_table_name_template_unit', 'table_name_contains_illegal_char_unit'];
 
   for (const [key, value] of Object.entries(writeConfigData)) {
-    const cacheKey = key.replace(/^cache~/, '');
-    const archiveKey = key.replace(/^archive~/, '');
+    const cacheKey = key.replace(/^cache\./, '');
+    const archiveKey = key.replace(/^archive\./, '');
 
     if (key.startsWith('cache')) {
       global.cache[cacheKey] = value;

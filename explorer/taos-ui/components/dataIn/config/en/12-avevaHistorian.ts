@@ -908,6 +908,7 @@ export default {
           name: 'field_length_extend',
           label: 'Field Length Extend',
           type: 'switch',
+          defaultValue: true,
           description:
             'When enabled, VARCHAR/VARBINARY/NCHAR columns are automatically resized to the allowable length for storage. Default: true.',
           value: true
@@ -988,6 +989,10 @@ export default {
           type: 'composeAppend',
           options: [
             {
+              value: 'MB',
+              label: 'MB'
+            },
+            {
               value: 'GB',
               label: 'GB'
             }
@@ -1051,6 +1056,10 @@ export default {
           label: 'Archive Max Size',
           type: 'composeAppend',
           options: [
+            {
+              value: 'MB',
+              label: 'MB'
+            },
             {
               value: 'GB',
               label: 'GB'

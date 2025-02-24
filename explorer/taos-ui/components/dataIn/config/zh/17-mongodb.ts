@@ -656,6 +656,7 @@ export default {
           field: 'field_length_extend',
           label: '列自动扩容',
           type: 'switch',
+          defaultValue: true,
           description: '启用时，VARCHAR/VARBINARY/NCHAR 列自动扩容到可入库的长度。默认为 true 。\n',
           value: true
         },
@@ -733,6 +734,10 @@ export default {
           type: 'composeAppend',
           options: [
             {
+              value: 'MB',
+              label: 'MB'
+            },
+            {
               value: 'GB',
               label: 'GB'
             }
@@ -794,6 +799,10 @@ export default {
           label: '归档数据可用空间',
           type: 'composeAppend',
           options: [
+            {
+              value: 'MB',
+              label: 'MB'
+            },
             {
               value: 'GB',
               label: 'GB'
