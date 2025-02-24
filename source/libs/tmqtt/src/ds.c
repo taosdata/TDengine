@@ -217,7 +217,7 @@ int32_t create_topic(TAOS* pConn) {
   return 0;
 }
 
-int32_t drop_topic(TAOS* pConn) {
+int32_t drop_topic_without_connect(TAOS* pConn) {
   TAOS_RES* pRes;
   int       code = 0;
 
@@ -520,9 +520,14 @@ int main(int argc, char* argv[]) {
   // ANCHOR_END: unsubscribe_and_close
 
   thread_stop = 1;
-  pthread_join(thread_id, NULL);
+  code = pthread_join(thread_id, NULL);
+  if (code != 0) {
+    fprintf(stderr, "pthread_join failed\n");
 
-  if (drop_topic(pConn) < 0) {
+    return (1);
+  }
+
+  if (drop_topic_without_connect(pConn) < 0) {
     fprintf(stderr, "Failed to drop topic.\n");
     return -1;
   }
