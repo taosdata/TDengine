@@ -2,13 +2,16 @@
 name: TDengine CI Pipeline
 
 on:
-  pull_request:
-    branches:
-      - 'main'
-      - '3.0'
-      - '3.1'
-    paths-ignore:
-      - 'packaging/**'
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+  # pull_request:
+  #   types: [opened, synchronize, reopened]
+  #   branches:
+  #     - 'main'
+  #     - '3.0'
+  #     - '3.1'
+  #   paths-ignore:
+  #     - 'packaging/**'
   repository_dispatch:
     types: [run-tests]
 
@@ -17,128 +20,130 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  TDINTERNAL_TRIGGER: if [ -z ${{ github.event.client_payload.tdinternal_source_branch }} ]; then false; else true; fi
+  TDINTERNAL_TRIGGER: ${{ github.event.client_payload.tdinternal_source_branch != null }}
   TDENGINE_SOURCE_BRANCH: ${{ github.event.pull_request.head.ref }}
   TDENGINE_TARGET_BRANCH: ${{ github.event.pull_request.base.ref }}
   TDENGINE_PR_NUMBER: ${{ github.event.pull_request.number }}
+  CONTAINER_NAME: 'taosd-test'
   WKDIR: '/var/lib/jenkins/workspace'
   WK: '/var/lib/jenkins/workspace/TDinternal'
   WKC: '/var/lib/jenkins/workspace/TDinternal/community'
-  WIN_INTERNAL_ROOT: 'C:\\workspace\\${{ env.TDENGINE_PR_NUMBER }}\\TDinternal'
-  WIN_COMMUNITY_ROOT: 'C:\\workspace\\${{ env.TDENGINE_PR_NUMBER }}\TDinternal\\community'
-  WIN_SYSTEM_TEST_ROOT: 'C:\\workspace\\${{ env.TDENGINE_PR_NUMBER }}\\TDinternal\\community\\tests\\system-test'
+  WIN_INTERNAL_ROOT: 'C:\\workspace\\${{ github.event.pull_request.number }}\\TDinternal'
+  WIN_COMMUNITY_ROOT: 'C:\\workspace\\${{ github.event.pull_request.number }}\TDinternal\\community'
+  WIN_SYSTEM_TEST_ROOT: 'C:\\workspace\\${{ github.event.pull_request.number }}\\TDinternal\\community\\tests\\system-test'
 
 jobs:
-  tests:
-    runs-on: 
-      group: CI
-      labels: [self-hosted, Linux, X64]
   build-doc:
     uses: ./.github/workflows/taosd-doc-build.yml
+    if: ${{ !github.env.TDINTERNAL_TRIGGER }}
     with:
-      target_branch: ${env.TDENGINE_TARGET_BRANCH}
-      target_change_id: ${env.TDENGINE_PR_NUMBER}
+      target_branch: ${{ github.event.pull_request.base.ref }}
+      target_pr_number: ${{ github.event.pull_request.number }}
 
   run-testing-on-linux:
     needs: build-doc
     runs-on: 
       group: CI
-      labels: [self-hosted, Linux]
+      labels: [self-hosted, Linux, X64]
     timeout-minutes: 200
     steps:
       - name: Output the testing information
         run: |
           echo "runner name: ${{ runner.name }}"
-          echo "Whether is triggered by TDinternal: ${{ env.TDINTERNAL_TRIGGER }}"
-          echo "${WKDIR}/restore.sh -p ${env.TDENGINE_TARGET_BRANCH} -n ${env.TDINTERNAL_TRIGGER} -c {container name}"
+          echo "Whether is triggered by TDinternal: ${{ github.env.TDINTERNAL_TRIGGER }}"
+          if ${{ github.env.TDINTERNAL_TRIGGER }} == false; then
+            echo "${{ env.WKDIR }}/restore.sh -p ${{ github.env.TDENGINE_PR_NUMBER }} -n ${{ github.run_number }} -c ${{ env.CONTAINER_NAME }}"
+          else
+            echo "${{ env.WKDIR }}/restore.sh -p ${{ github.event.client_payload.tdinternal_pr_number }} -n ${{ github.run_number }} -c ${{ env.CONTAINER_NAME }}"
+          fi
           hostname
           date
           env
-      - name: Checkout target branch for TDinternal and TDengine
+      - name: Prepare the testing environment
         run: |
-          cd ${WK}
+          cd ${{ env.WK }}
           git reset --hard
           git remote prune origin
           git fetch
 
-          cd ${WKC}
+          cd ${{ env.WKC }}
           git reset --hard
           git clean -f
           rm -rf examples/rust/
           git remote prune origin
           git fetch
 
-          echo "Checking out the target branch: ${env.TDENGINE_TARGET_BRANCH}"
-          cd ${WK}
-          git checkout ${env.TDENGINE_TARGET_BRANCH}
-          cd ${WKC}
-          git checkout ${env.TDENGINE_TARGET_BRANCH}
-      - name: Get latest log for TDinternal PR
-        if: ${{ env.TDINTERNAL_TRIGGER }} == true
+          cd ${{ env.WK }}
+          git checkout ${{ env.TDENGINE_TARGET_BRANCH }}
+          cd ${{ env.WKC }}
+          git checkout ${{ env.TDENGINE_TARGET_BRANCH }}
+      - name: Get latest codes and logs for TDinternal PR
+        if: ${{ env.TDINTERNAL_TRIGGER == true }}
         run: |
-          cd ${WK}
+          cd ${{ env.WK }}
           git pull >/dev/null
           git log -5
-          echo "`date "+%Y%m%d-%H%M%S"` NewTest/${{ github.event.client_payload.tdinternal_pr_number }}:${{ github.event.client_payload.tdinternal_source_branch }}:${{ github.event.client_payload.tdinternal_pr_number }}:${{ github.event.client_payload.tdinternal_target_branch }}" >>${WKDIR}/jenkins.log
-          echo "CHANGE_BRANCH:${{ github.event.client_payload.tdinternal_source_branch }}" >>${WKDIR}/jenkins.log
-          echo "TDinternal log: `git log -5`" >>${WKDIR}/jenkins.log
+          echo "`date "+%Y%m%d-%H%M%S"` TDinternalTest/${{ github.event.client_payload.tdinternal_pr_number }}:${{ github.run_number }}:${{ github.event.client_payload.tdinternal_target_branch }}" >>${{ env.WKDIR }}/jenkins.log
+          echo "CHANGE_BRANCH:${{ github.event.client_payload.tdinternal_source_branch }}" >>${{ env.WKDIR }}/jenkins.log
+          echo "TDinternal log: `git log -5`" >>${{ env.WKDIR }}/jenkins.log
           git fetch origin +refs/pull/${{ github.event.client_payload.tdinternal_pr_number }}/merge
           git checkout -qf FETCH_HEAD
           git log -5
-          echo "TDinternal log merged: `git log -5`" >>${WKDIR}/jenkins.log
-          cd ${WKC}
+          echo "TDinternal log merged: `git log -5`" >>${{ env.WKDIR }}/jenkins.log
+          cd ${{ env.WKC }}
           git remote prune origin
           git pull >/dev/null
           git log -5
-          echo "community log: `git log -5`" >>${WKDIR}/jenkins.log
-      - name: Get latest log for TDengine PR
+          echo "community log: `git log -5`" >>${{ env.WKDIR }}/jenkins.log
+      - name: Get latest codes and logs for TDengine PR
         if: ${{ env.TDINTERNAL_TRIGGER }} == false
         run: |
-          cd ${WKC}
+          cd ${{ env.WKC }}
           git remote prune origin
           git pull >/dev/null
           git log -5
-          echo "`date "+%Y%m%d-%H%M%S"` NewTest/${{ env.TDENGINE_PR_NUMBER }}:${{ env.TDENGINE_SOURCE_BRANCH }}:${{ env.TDENGINE_PR_NUMBER }}:${{ env.TDENGINE_TARGET_BRANCH }}" >>${WKDIR}/jenkins.log
-          echo "CHANGE_BRANCH:${{ env.TDENGINE_SOURCE_BRANCH }}" >>${WKDIR}/jenkins.log
-          echo "community log: `git log -5`" >>${WKDIR}/jenkins.log
+          echo "`date "+%Y%m%d-%H%M%S"` TDengineTest/${{ env.TDENGINE_PR_NUMBER }}:${{ github.run_number }}:${{ env.TDENGINE_TARGET_BRANCH }}" >>${{ env.WKDIR }}/jenkins.log
+          echo "CHANGE_BRANCH:${{ env.TDENGINE_SOURCE_BRANCH }}" >>${{ env.WKDIR }}/jenkins.log
+          echo "community log: `git log -5`" >>${{ env.WKDIR }}/jenkins.log
           git fetch origin +refs/pull/${{ env.TDENGINE_PR_NUMBER }}/merge
           git checkout -qf FETCH_HEAD
           git log -5
-          echo "community log merged: `git log -5`" >>${WKDIR}/jenkins.log
-          cd ${WK}
+          echo "community log merged: `git log -5`" >>${{ env.WKDIR }}/jenkins.log
+          cd ${{ env.WK }}
           git pull >/dev/null
           git log -5
-          echo "TDinternal log: `git log -5`" >>${WKDIR}/jenkins.log
+          echo "TDinternal log: `git log -5`" >>${{ env.WKDIR }}/jenkins.log
       - name: Remove the old cache of tools and examples
         run: |
-          cd ${WKC}
+          cd ${{ env.WKC }}
           git rm --cached tools/taos-tools 2>/dev/null || :
           git rm --cached tools/taosadapter 2>/dev/null || :
           git rm --cached tools/taosws-rs 2>/dev/null || :
           git rm --cached examples/rust 2>/dev/null || :
       - name: Update submodule
         run: |
-          cd ${WKC}
+          cd ${{ env.WKC }}
           git submodule update --init --recursive
       - name: Output the 'file_no_doc_changed' information to the file
+        if: ${{ env.TDINTERNAL_TRIGGER }} == false
         run: |
-          mkdir -p ${WKDIR}/tmp/${env.TDENGINE_SOURCE_BRANCH}_${env.TDENGINE_PR_NUMBER}
-          echo ${{ needs.build-doc.outputs.file_no_doc_changed }} > ${WKDIR}/tmp/${env.TDENGINE_SOURCE_BRANCH}_${env.TDENGINE_PR_NUMBER}/docs_changed.txt
+          mkdir -p ${{ env.WKDIR }}/tmp/${{ env.TDENGINE_PR_NUMBER }}_${{ github.run_number }}
+          echo ${{ needs.build-doc.outputs.file_no_doc_changed }} > ${{ env.WKDIR }}/tmp/${{ env.TDENGINE_PR_NUMBER }}_${{ github.run_number }}/docs_changed.txt
       - name: Check assert testing
         run: |
-          cd ${WKC}/tests/parallel_test
-          ./run_check_assert_container.sh -d ${WKDIR}
+          cd ${{ env.WKC }}/tests/parallel_test
+          ./run_check_assert_container.sh -d ${{ env.WKDIR }}
       - name: Check void function testing
         run: |
-          cd ${WKC}/tests/parallel_test
-          ./run_check_void_container.sh -d ${WKDIR}
+          cd ${{ env.WKC }}/tests/parallel_test
+          ./run_check_void_container.sh -d ${{ env.WKDIR }}
       - name: Build docker container
         run: |
           date
-          rm -rf ${WKC}/debug
-          cd ${WKC}/tests/parallel_test
-          time ./container_build.sh -w ${WKDIR} -e
-      - name: Get parameter for testing
+          rm -rf ${{ env.WKC }}/debug
+          cd ${{ env.WKC }}/tests/parallel_test
+          time ./container_build.sh -w ${{ env.WKDIR }} -e
+      - name: Get parameters for testing
         id: get_param
         run: |
           log_server_file="/home/log_server.json"
@@ -162,140 +167,27 @@ jobs:
           echo "::set-output name=extra_param::$extra_param"
       - name: Run function returns with a null pointer scan testing
         run: |
-          cd ${WKC}/tests/parallel_test
-          ./run_scan_container.sh -d ${WKDIR} -b ${env.TDENGINE_SOURCE_BRANCH}_${env.TDENGINE_PR_NUMBER}  -f ${WKDIR}/tmp/${env.TDENGINE_SOURCE_BRANCH}_${env.TDENGINE_PR_NUMBER}/docs_changed.txt ${{ steps.get_param.outputs.extra_param }}
+          cd ${{ env.WKC }}/tests/parallel_test
+          if ${{ env.TDINTERNAL_TRIGGER }} == false; then
+            ./run_scan_container.sh -d ${{ env.WKDIR }} -b ${{ env.TDENGINE_PR_NUMBER }}_${{ github.run_number }}  -f ${{ env.WKDIR }}/tmp/${{ env.TDENGINE_PR_NUMBER }}_${{ github.run_number }}/docs_changed.txt ${{ steps.get_param.outputs.extra_param }}
+          else
+            ./run_scan_container.sh -d ${{ env.WKDIR }} -b ${{ github.event.client_payload.tdinternal_pr_number }}_${{ github.run_number  }}  -f ${{ env.WKDIR }}/tmp/${{ github.event.client_payload.tdinternal_pr_number}}_${{ github.run_number  }}/docs_changed.txt ${{ steps.get_param.outputs.extra_param }}
+          fi
       - name: Run tdgpt test cases
-        if: ${{ needs.build-doc.outputs.file_no_doc_changed }} =~ /forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics/ 
+        if: ${{ env.TDINTERNAL_TRIGGER }} == false && ${{ needs.build-doc.outputs.file_changed_exclude_doc_file }} =~ /forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics/ 
         run: |
-          cd ${WKC}/tests/parallel_test
+          cd ${{ env.WKC }}/tests/parallel_test
           export DEFAULT_RETRY_TIME=2
           date
-          timeout 600 time ./run.sh -e -m /home/m.json -t tdgpt_cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 300 ${{ steps.get_param.outputs.extra_param }}
+          timeout 600 time ./run.sh -e -m /home/m.json -t tdgpt_cases.task -b ${{ env.TDENGINE_PR_NUMBER }}_${{ github.run_number }} -l ${{ env.WKDIR }}/log -o 300 ${{ steps.get_param.outputs.extra_param }}
       - name: Run function test cases
-        if: ${{ needs.build-doc.outputs.file_only_tdgpt_change_except }} != ''
+        if: ${{ needs.build-doc.outputs.file_changed_exclude_tdgpt_file }} != ''
         run:
-          cd ${WKC}/tests/parallel_test
+          cd ${{ env.WKC }}/tests/parallel_test
           export DEFAULT_RETRY_TIME=2
           date
-          ''' + timeout_cmd + ''' time ./run.sh -e -m /home/m.json -t cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 1200 ${{ steps.get_param.outputs.extra_param }}
-
-  run-testing-on-macos:
-    needs: build-doc
-    if: ${{ needs.build-doc.outputs.file_only_tdgpt_change_except }} != ''
-    runs-on: [self-hosted, CI, Mac]
-    timeout-minutes: 60
-    steps:
-      - name: Output the testing information
-        run: |
-          echo "runner name: ${{ runner.name }}"
-          echo "Whether is triggered by TDinternal: ${{ env.TDINTERNAL_TRIGGER }}"
-          hostname
-          date
-          env
-      - name: Checkout target branch for TDinternal and TDengine
-        run: |
-          cd ${WK}
-          git reset --hard
-          git remote prune origin
-          git fetch
-
-          cd ${WKC}
-          git reset --hard
-          git clean -f
-          rm -rf examples/rust/
-          git remote prune origin
-          git fetch
-
-          echo "Checking out the target branch: ${env.TDENGINE_TARGET_BRANCH}"
-          cd ${WK}
-          git checkout ${env.TDENGINE_TARGET_BRANCH}
-          cd ${WKC}
-          git checkout ${env.TDENGINE_TARGET_BRANCH}
-      - name: Get latest log for TDinternal PR
-        if: ${{ env.TDINTERNAL_TRIGGER }} == true
-        run: |
-          cd ${WK}
-          git pull >/dev/null
-          git log -5
-          echo "`date "+%Y%m%d-%H%M%S"` NewTest/${{ github.event.client_payload.tdinternal_pr_number }}:${{ github.event.client_payload.tdinternal_source_branch }}:${{ github.event.client_payload.tdinternal_pr_number }}:${{ github.event.client_payload.tdinternal_target_branch }}" >>${WKDIR}/jenkins.log
-          echo "CHANGE_BRANCH:${{ github.event.client_payload.tdinternal_source_branch }}" >>${WKDIR}/jenkins.log
-          echo "TDinternal log: `git log -5`" >>${WKDIR}/jenkins.log
-          git fetch origin +refs/pull/${{ github.event.client_payload.tdinternal_pr_number }}/merge
-          git checkout -qf FETCH_HEAD
-          git log -5
-          echo "TDinternal log merged: `git log -5`" >>${WKDIR}/jenkins.log
-          cd ${WKC}
-          git remote prune origin
-          git pull >/dev/null
-          git log -5
-          echo "community log: `git log -5`" >>${WKDIR}/jenkins.log
-      - name: Get latest log for TDengine PR
-        if: ${{ env.TDINTERNAL_TRIGGER }} == false
-        run: |
-          cd ${WKC}
-          git remote prune origin
-          git pull >/dev/null
-          git log -5
-          echo "`date "+%Y%m%d-%H%M%S"` NewTest/${{ env.TDENGINE_PR_NUMBER }}:${{ env.TDENGINE_SOURCE_BRANCH }}:${{ env.TDENGINE_PR_NUMBER }}:${{ env.TDENGINE_TARGET_BRANCH }}" >>${WKDIR}/jenkins.log
-          echo "CHANGE_BRANCH:${{ env.TDENGINE_SOURCE_BRANCH }}" >>${WKDIR}/jenkins.log
-          echo "community log: `git log -5`" >>${WKDIR}/jenkins.log
-          git fetch origin +refs/pull/${{ env.TDENGINE_PR_NUMBER }}/merge
-          git checkout -qf FETCH_HEAD
-          git log -5
-          echo "community log merged: `git log -5`" >>${WKDIR}/jenkins.log
-          cd ${WK}
-          git pull >/dev/null
-          git log -5
-          echo "TDinternal log: `git log -5`" >>${WKDIR}/jenkins.log
-      - name: Remove the old cache of tools and examples
-        run: |
-          cd ${WKC}
-          git rm --cached tools/taos-tools 2>/dev/null || :
-          git rm --cached tools/taosadapter 2>/dev/null || :
-          git rm --cached tools/taosws-rs 2>/dev/null || :
-          git rm --cached examples/rust 2>/dev/null || :
-      - name: Update submodule
-        run: |
-          cd ${WKC}
-          git submodule update --init --recursive
-      - name: Run function test cases
-        run: |
-          hostname
-          date
-          cd ${WK}
-          rm -rf debug
-          mkdir debug
-          cd ${WK}/debug
-          cmake .. -DBUILD_TEST=true -DBUILD_HTTPS=false  -DCMAKE_BUILD_TYPE=Release
-          make -j10
-          ctest -j10 || exit 7
-          date
-
-  run-testing-on-windows:
-    needs: build-doc
-    if: ${{ needs.build-doc.outputs.file_only_tdgpt_change_except }} != ''
-    runs-on: [self-hosted, CI, Windows]
-    timeout-minutes: 126
-    steps:
-      - name: Cleanup the environment
-        shell: cmd
-        run: |
-          taskkill /f /t /im python.exe
-          taskkill /f /t /im bash.exe
-          taskkill /f /t /im taosd.exe
-          ipconfig
-          set
-          date /t
-          time /t
-          rd /s /Q ${{ env.WIN_INTERNAL_ROOT}}\\debug || exit 0
-      - name: 
-          cd ${{ env.WIN_INTERNAL_ROOT }}
-          git reset --hard
-          git remote prune origin
-          git fetch
-
-          cd ${{ env.WIN_COMMUNITY_ROOT }}
-          git clean -f
-          git reset --hard
-          git remote prune origin
-          git fetch
+          if ${{ env.TDINTERNAL_TRIGGER }} == false; then
+            timeout 600 time ./run.sh -e -m /home/m.json -t cases.task -b ${{ env.TDENGINE_PR_NUMBER }}_${{ github.run_number }} -l ${{ env.WKDIR }}/log -o 1200 ${{ steps.get_param.outputs.extra_param }}
+          else
+            timeout 600 time ./run.sh -e -m /home/m.json -t cases.task -b ${{ github.event.client_payload.tdinternal_pr_number }}_${{ github.run_number }} -l ${{ env.WKDIR }}/log -o 1200 ${{ steps.get_param.outputs.extra_param }}
+          fi

@@ -2,27 +2,20 @@
 name: Reusable workflow of TDengine document buile pipelines
 
 on:
-  push:
   workflow_call:
-      inputs:
-        target_branch:
-          description: "Target branch name of for building the document"
-          required: true
-          type: string
-          default: "main"
+    inputs:
+      target_branch:
+        description: "Target branch name of for building the document"
+        required: true
+        type: string
 
-        target_change_id:
-          description: "Target change id to merge for building the document"
-          required: true
-          type: string
-          default: "29849"
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+      target_pr_number:
+        description: "PR number of target branch to merge for building the document"
+        required: true
+        type: string
 
 env:
-  DOC_WKC: "/root/doc_ci_work/TDengine"
+  DOC_WKC: "/root/doc_ci_work"
   ZH_DOC_REPO: "docs.taosdata.com"
   EN_DOC_REPO: "docs.tdengine.com"
   TD_REPO: "TDengine"
@@ -34,44 +27,47 @@ jobs:
       group: CI
       labels: [self-hosted, doc-build]
     outputs:
-      file_zh_changed: ${{ steps.set_output.outputs.file_zh_changed }}
-      file_en_changed: ${{ steps.set_output.outputs.file_zh_changed }}
-      file_no_doc_changed: ${{ steps.set_output.outputs.file_no_doc_changed }}
-      file_only_tdgpt_change_except: ${{ steps.set_output.outputs.file_only_tdgpt_change_except }}
+      zh_doc_file_changed: ${{ steps.set_output.outputs.zh_doc_file_changed }}
+      en_doc_file_changed: ${{ steps.set_output.outputs.en_doc_file_changed }}
+      file_changed_exclude_doc_file: ${{ steps.set_output.outputs.file_changed_exclude_doc_file }}
+      file_changed_exclude_tdgpt_file: ${{ steps.set_output.outputs.file_changed_exclude_tdgpt_file }}
     steps:
       - name: Get the latest document contents from the repository
         run: |
-          cd ${{ env.DOC_WKC }}
+          set -e
+          cd ${{ env.DOC_WKC }}/${{ env.TD_REPO }}
           git reset --hard
           git clean -f
           git remote prune origin
           git fetch
-          git checkout ${{ inputs.target_branch }}
+          git checkout ${{ inputs.tartget_branch }}
           git pull >/dev/null
-          git fetch origin +refs/pull/${{ inputs.target_change_id }}/merge
+          git fetch origin +refs/pull/${{ inputs.target_pr_number }}/merge
           git checkout -qf FETCH_HEAD 
 
       - name: Check whether the document is changed and set output variables
         id: set_output
         run: |
-          file_zh_changed=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`| grep  "^docs/zh/" || :)
-          file_en_changed=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`| grep  "^docs/en/" || :)
-          file_no_doc_changed=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" || :)
-          file_only_tdgpt_change_except=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | grep -Ev "forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics" ||:)
-          echo "file_zh_changed=${file_zh_changed}" >> $GITHUB_OUTPUT
-          echo "file_en_changed=${file_en_changed}" >> $GITHUB_OUTPUT
-          echo "file_no_doc_changed=${file_no_doc_changed}" >> $GITHUB_OUTPUT
-          echo "file_only_tdgpt_change_except=${file_only_tdgpt_change_except}" >> $GITHUB_OUTPUT
-
+          set -e
+          cd ${{ env.DOC_WKC }}/${{ env.TD_REPO }}
+          zh_doc_file_changed=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${{ inputs.tartget_branch }}`| grep  "^docs/zh/" | tr '\n' ' ' || :)
+          en_doc_file_changed=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${{ inputs.tartget_branch }}`| grep  "^docs/en/" | tr '\n' ' ' || :)
+          file_changed_exclude_doc_file=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${{ inputs.tartget_branch }}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | tr '\n' ' ' || :)
+          file_changed_exclude_tdgpt_file=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${{ inputs.tartget_branch }}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | grep -Ev "forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics" | tr '\n' ' ' ||:)
+          echo "zh_doc_file_changed=${zh_doc_file_changed}" >> $GITHUB_OUTPUT
+          echo "en_doc_file_changed=${en_doc_file_changed}" >> $GITHUB_OUTPUT
+          echo "file_changed_exclude_doc_file=${file_changed_exclude_doc_file}" >> $GITHUB_OUTPUT
+          echo "file_changed_exclude_tdgpt_file=${file_changed_exclude_tdgpt_file}" >> $GITHUB_OUTPUT
   build:
     needs: check
     runs-on:
       group: CI
       labels: [self-hosted, doc-build]
-    if: ${{ needs.check.outputs.file_zh_changed != '' || needs.check.outputs.file_en_changed != '' }}
+    if: ${{ needs.check.outputs.zh_doc_file_changed != '' || needs.check.outputs.en_doc_file_changed != '' }}
     steps:
       - name: Get the latest document contents
         run: |
+          set -e
           cd ${{ env.DOC_WKC }}/${{ env.TD_REPO }}
           git reset --hard
           git clean -f
@@ -79,7 +75,7 @@ jobs:
           git fetch
           git checkout ${{ inputs.target_branch }}
           git pull >/dev/null
-          git fetch origin +refs/pull/${{ inputs.target_change_id }}/merge
+          git fetch origin +refs/pull/${{ inputs.target_pr_number }}/merge
           git checkout -qf FETCH_HEAD 
 
           cd ${{ env.DOC_WKC }}/${{ env.TOOLS_REPO }}
@@ -87,7 +83,7 @@ jobs:
           git clean -f
           git fetch
           git remote prune origin
-          git checkout ${{ inputs.target_change_id }}
+          git checkout ${{ inputs.target_branch }}
           git pull >/dev/null
 
       - name: Build the chinese document
@@ -95,14 +91,16 @@ jobs:
           cd ${{ env.DOC_WKC }}/${{ env.ZH_DOC_REPO }}
           yarn ass local
           yarn build
+        continue-on-error: false
 
       - name: Build the english document
         run: |
           cd ${{ env.DOC_WKC }}/${{ env.EN_DOC_REPO }}
           yarn ass local
           yarn build
+        continue-on-error: false
     outputs:
-      file_zh_changed: ${{ needs.check.outputs.file_zh_changed }}
-      file_en_changed: ${{ needs.check.outputs.file_en_changed }}
-      file_no_doc_changed: ${{ needs.check.outputs.file_no_doc_changed }}
-      file_only_tdgpt_change_except: ${{ needs.check.outputs.file_only_tdgpt_change_except }}
+      zh_doc_file_changed: ${{ needs.check.outputs.zh_doc_file_changed }}
+      en_doc_file_changed: ${{ needs.check.outputs.en_doc_file_changed }}
+      file_changed_exclude_doc_file: ${{ needs.check.outputs.file_changed_exclude_doc_file }}
+      file_changed_exclude_tdgpt_file: ${{ needs.check.outputs.file_changed_exclude_tdgpt_file }}
