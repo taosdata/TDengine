@@ -115,9 +115,9 @@ taosBenchmark -f <json file>
  
 - **continue_if_fail** : 允许用户定义失败后行为。
 
-  “continue_if_fail”:  “no”, 失败 taosBenchmark 自动退出，默认行为。
-  “continue_if_fail”: “yes”, 失败 taosBenchmark 警告用户，并继续写入。
-  “continue_if_fail”: “smart”, 如果子表不存在失败，taosBenchmark 会建立子表并继续写入。
+  "continue_if_fail":  "no", 失败 taosBenchmark 自动退出，默认行为。
+  "continue_if_fail": "yes", 失败 taosBenchmark 警告用户，并继续写入。
+  "continue_if_fail": "smart", 如果子表不存在失败，taosBenchmark 会建立子表并继续写入。
 
 #### 数据库相关
 
@@ -125,7 +125,7 @@ taosBenchmark -f <json file>
 
 - **name** : 数据库名。
 
-- **drop** : 数据库已存在时是否删除，可选项为 "yes" 或 "no", 默认为 “yes” 。
+- **drop** : 数据库已存在时是否删除，可选项为 "yes" 或 "no", 默认为 "yes" 。
 
 #### 超级表相关
 
@@ -208,7 +208,7 @@ taosBenchmark -f <json file>
 
 - **scalingFactor** : 浮点数精度增强因子，仅当数据类型是 float/double 时生效，有效值范围为 1 至 1000000 的正整数。用于增强生成浮点数的精度，特别是在 min 或 max 值较小的情况下。此属性按 10 的幂次增强小数点后的精度：scalingFactor 为 10 表示增强 1 位小数精度，100 表示增强 2 位，依此类推。
 
-- **fun** : 此列数据以函数填充，目前只支持 sin 和 cos 两函数，输入参数为时间戳换算成角度值，换算公式： 角度 x = 输入的时间列ts值 % 360。同时支持系数调节，随机波动因子调节，以固定格式的表达式展现，如 fun=“10\*sin(x)+100\*random(5)” , x 表示角度，取值 0 ~ 360度，增长步长与时间列步长一致。10 表示乘的系数，100 表示加或减的系数，5 表示波动幅度在 5% 的随机范围内。目前支持的数据类型为 int, bigint, float, double 四种数据类型。注意：表达式为固定模式，不可前后颠倒。
+- **fun** : 此列数据以函数填充，目前只支持 sin 和 cos 两函数，输入参数为时间戳换算成角度值，换算公式： 角度 x = 输入的时间列ts值 % 360。同时支持系数调节，随机波动因子调节，以固定格式的表达式展现，如 fun="10\*sin(x)+100\*random(5)" , x 表示角度，取值 0 ~ 360度，增长步长与时间列步长一致。10 表示乘的系数，100 表示加或减的系数，5 表示波动幅度在 5% 的随机范围内。目前支持的数据类型为 int, bigint, float, double 四种数据类型。注意：表达式为固定模式，不可前后颠倒。
 
 - **values** : nchar/binary 列/标签的值域，将从值中随机选择。
 
@@ -220,15 +220,15 @@ taosBenchmark -f <json file>
 
 - **level**: 字符串类型，指定此列两级压缩中的第二级加密算法的压缩率高低，详细参见创建超级表。
 
-- **gen**: 字符串类型，指定此列生成数据的方式，不指定为随机，若指定为 “order”, 会按自然数顺序增长。
+- **gen**: 字符串类型，指定此列生成数据的方式，不指定为随机，若指定为 "order", 会按自然数顺序增长。
 
-- **fillNull**: 字符串类型，指定此列是否随机插入 NULL 值，可指定为 “true” 或 "false", 只有当 generate_row_rule 为 2 时有效。
+- **fillNull**: 字符串类型，指定此列是否随机插入 NULL 值，可指定为 "true" 或 "false", 只有当 generate_row_rule 为 2 时有效。
 
 #### 写入行为相关
 
 - **thread_count** : 插入数据的线程数量，默认为 8。
 
-- **thread_bind_vgroup** : 写入时 vgroup 是否和写入线程绑定，绑定后可提升写入速度, 取值为 "yes" 或 "no"，默认值为 “no”, 设置为 “no” 后与原来行为一致。 当设为 “yes” 时，如果 thread_count 大于写入数据库 vgroups 数量， thread_count 自动调整为 vgroups 数量；如果 thread_count 小于 vgroups 数量，写入线程数量不做调整，一个线程写完一个 vgroup 数据后再写下一个，同时保持一个 vgroup 同时只能由一个线程写入的规则。
+- **thread_bind_vgroup** : 写入时 vgroup 是否和写入线程绑定，绑定后可提升写入速度, 取值为 "yes" 或 "no"，默认值为 "no", 设置为 "no" 后与原来行为一致。 当设为 "yes" 时，如果 thread_count 大于写入数据库 vgroups 数量， thread_count 自动调整为 vgroups 数量；如果 thread_count 小于 vgroups 数量，写入线程数量不做调整，一个线程写完一个 vgroup 数据后再写下一个，同时保持一个 vgroup 同时只能由一个线程写入的规则。
 
 - **create_table_thread_count** : 建表的线程数量，默认为 8。
 
@@ -248,7 +248,7 @@ taosBenchmark -f <json file>
 
 - **prepare_rand** : 生成的随机数据中唯一值的数量。若为 1 则表示所有数据都相同。默认值为 10000 。
 
-- **pre_load_tb_meta** ：是否提前加载子表的 meta 数据，取值为 “yes” or "no"。当子表数量非常多时，打开此选项可提高写入速度。
+- **pre_load_tb_meta** ：是否提前加载子表的 meta 数据，取值为 "yes" or "no"。当子表数量非常多时，打开此选项可提高写入速度。
 
 ### 查询配置参数
 
@@ -265,7 +265,7 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU ，单位为
 查询指定表（可以指定超级表、子表或普通表）的配置参数在 `specified_table_query` 中设置。
 
 - **mixed_query** : 查询模式  
-  “yes” :`混合查询`  
+  "yes" :`混合查询`  
   "no"(默认值) :`普通查询`  
   `普通查询`：`sqls` 中每个 sql 启动 `threads` 个线程查询此 sql, 执行完 `query_times` 次查询后退出，执行此 sql 的所有线程都完成后进入下一个 sql   
   `查询总次数` = `sqls` 个数 * `query_times` * `threads`   
