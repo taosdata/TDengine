@@ -266,22 +266,17 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   vnodeGetMetaPath(pVnode, VNODE_META_TMP_DIR, metaTempDir);
 
   // Check file states
-  if (!taosCheckExistFile(metaDir)) {
-    if (!taosCheckExistFile(metaTempDir)) {
-      metaError("vgId:%d, cannot find meta dir:%s and meta temp dir:%s", TD_VID(pVnode), metaDir, metaTempDir);
-      return TSDB_CODE_FAILED;
-    } else {
-      code = taosRenameFile(metaTempDir, metaDir);
-      if (code) {
-        metaError("vgId:%d, %s failed at %s:%d since %s: rename %s to %s failed", TD_VID(pVnode), __func__, __FILE__,
-                  __LINE__, tstrerror(code), metaTempDir, metaDir);
-        return code;
-      }
+  if (!taosCheckExistFile(metaDir) && taosCheckExistFile(metaTempDir)) {
+    code = taosRenameFile(metaTempDir, metaDir);
+    if (code) {
+      metaError("vgId:%d, %s failed at %s:%d since %s: rename %s to %s failed", TD_VID(pVnode), __func__, __FILE__,
+                __LINE__, tstrerror(code), metaTempDir, metaDir);
+      return code;
     }
   }
 
   // Do open meta
-  code = metaOpenImpl(pVnode, ppMeta, metaDir, rollback);
+  code = metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, rollback);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
     return code;
