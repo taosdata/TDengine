@@ -192,7 +192,7 @@ static int32_t vnodeCompactMetaCommit(SVnode *pVnode) {
   char    metaCompactDir[TSDB_FILENAME_LEN] = {0};
 
   vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
-  vnodeGetMetaPath(pVnode, META_COMPACT_DIR, metaCompactDir);
+  vnodeGetMetaPath(pVnode, VNODE_META_TMP_DIR, metaCompactDir);
 
   metaClose(&pVnode->pNewMeta);
   metaClose(&pVnode->pMeta);
