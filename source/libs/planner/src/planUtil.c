@@ -79,6 +79,7 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
           }
         }
       }
+      pCol->node.relatedTo = pExpr->relatedTo;
       return (TSDB_CODE_SUCCESS == nodesListStrictAppend(pCxt->pList, (SNode*)pCol) ? DEAL_RES_IGNORE_CHILD
                                                                                     : DEAL_RES_ERROR);
     }

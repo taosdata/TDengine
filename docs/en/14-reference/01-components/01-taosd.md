@@ -243,6 +243,8 @@ The effective value of charset is UTF-8.
 | concurrentCheckpoint   |          |Supported, effective immediately  | Internal parameter, whether to check checkpoints concurrently |
 | maxStreamBackendCache  |          |Supported, effective immediately  | Internal parameter, maximum cache used by stream computing |
 | streamSinkDataRate     |          |Supported, effective after restart| Internal parameter, used to control the write speed of stream computing results |
+| streamNotifyMessageSize | After 3.3.6.0 | Not supported | Internal parameter, controls the message size for event notifications, default value is 8192 |
+| streamNotifyFrameSize   | After 3.3.6.0 | Not supported | Internal parameter, controls the underlying frame size when sending event notification messages, default value is 256 |
 
 ### Log Related
 

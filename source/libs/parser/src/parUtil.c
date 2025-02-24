@@ -227,6 +227,10 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Some functions cannot appear in the select list at the same time";
     case TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR:
       return "Syntax error in regular expression";
+    case TSDB_CODE_PAR_TRUE_FOR_NEGATIVE:
+      return "True_for duration cannot be negative";
+    case TSDB_CODE_PAR_TRUE_FOR_UNIT:
+      return "Cannot use 'year' or 'month' as true_for duration";
     default:
       return "Unknown error";
   }

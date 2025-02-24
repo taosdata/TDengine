@@ -471,8 +471,6 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_taosx.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts5466.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_td33504.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts-5473.py
-,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts-5776.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/tmq_ts5906.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-32187.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 7-tmq/td-33225.py
@@ -1261,6 +1259,10 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/odbc.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/fill_with_group.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/state_window.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/cols_function.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-21561.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f 99-TDcase/TD-20582.py
 ,,n,system-test,python3 ./test.py -f eco-system/meta/database/keep_time_offset.py
@@ -1269,6 +1271,7 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/operator.py -Q 4
 ,,y,system-test,./pytest.sh python3 ./test.py -f eco-system/manager/schema_change.py -N 3 -M 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/test_window_true_for.py
 
 #tsim test
 ,,y,script,./test.sh -f tsim/query/timeline.sim
