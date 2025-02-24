@@ -439,7 +439,7 @@ static int32_t doStreamWALScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   switch (pInfo->scanMode) {
     case STREAM_SCAN_FROM_RES: {
       if (pInfo->pUpdateRes->info.rows > 0) {
-        pInfo->scanMode = STREAM_SCAN_FROM_RES;
+        pInfo->scanMode = STREAM_SCAN_FROM_UPDATERES;
       } else {
         pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
       }
@@ -1103,6 +1103,30 @@ static void destroyScanRange(SScanRange* pRange) {
   pRange->pGroupIds = NULL;
 }
 
+static int32_t buildRecBlockByRange(SScanRange* pRange, SSDataBlock* pRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t size = tSimpleHashGetSize(pRange->pGroupIds);
+  code = blockDataEnsureCapacity(pRes, size);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  void*   pIte = NULL;
+  int32_t iter = 0;
+  while ((pIte = tSimpleHashIterate(pRange->pGroupIds, pIte, &iter)) != NULL) {
+    uint64_t* pGroupId = (uint64_t*)tSimpleHashGetKey(pIte, NULL);
+    code = appendOneRowToSpecialBlockImpl(pRes, &pRange->win.skey, &pRange->win.ekey, &pRange->calWin.skey,
+                                          &pRange->calWin.ekey, NULL, pGroupId, NULL, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  pRes->info.type = STREAM_RECALCULATE_DATA;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t doDataRangeScan(SStreamScanInfo* pInfo, SExecTaskInfo* pTaskInfo, SSDataBlock** ppRes) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
@@ -1126,8 +1150,21 @@ static int32_t doDataRangeScan(SStreamScanInfo* pInfo, SExecTaskInfo* pTaskInfo,
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (pTsdbBlock != NULL) {
+      pInfo->pRangeScanRes = pTsdbBlock;
       code = calBlockTbName(pInfo, pTsdbBlock, 0);
       QUERY_CHECK_CODE(code, lino, _end);
+
+      code = buildRecBlockByRange(&pInfo->curRange, pInfo->pUpdateRes);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (pInfo->pUpdateRes->info.rows > 0) {
+        (*ppRes) = pInfo->pUpdateRes;
+        if (pInfo->pCreateTbRes->info.rows > 0) {
+          pInfo->scanMode = STREAM_SCAN_FROM_CREATE_TABLERES;
+        } else {
+          pInfo->scanMode = STREAM_SCAN_FROM_RES;
+        }
+        break;
+      }
 
       if (pInfo->pCreateTbRes->info.rows > 0) {
         (*ppRes) = pInfo->pCreateTbRes;
@@ -1210,18 +1247,33 @@ static int32_t doStreamRecalculateDataScan(SOperatorInfo* pOperator, SSDataBlock
   SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
   SStreamScanInfo* pInfo = pOperator->info;
 
+  switch (pInfo->scanMode) {
+    case STREAM_SCAN_FROM_RES: {
+      (*ppRes) = pInfo->pRangeScanRes;
+      pInfo->pRangeScanRes = NULL;
+      pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+      goto _end;
+    } break;
+    case STREAM_SCAN_FROM_CREATE_TABLERES: {
+      (*ppRes) = pInfo->pCreateTbRes;
+      pInfo->scanMode = STREAM_SCAN_FROM_RES;
+    }
+    default:
+      (*ppRes) = NULL;
+      break;
+  }
+
   if (pInfo->basic.pTsDataState->curRecId == -1) {
     int32_t recId = 0;
     code = getRecalculateId(&pInfo->stateStore, pInfo->basic.pTsDataState->pStreamTaskState, &recId);
     QUERY_CHECK_CODE(code, lino, _end);
-   qDebug("===stream===%s do recalculate.recId:%d", GET_TASKID(pTaskInfo), recId);
+    qDebug("===stream===%s do recalculate.recId:%d", GET_TASKID(pTaskInfo), recId);
     pInfo->stateStore.streamStateSetNumber(pInfo->basic.pTsDataState->pStreamTaskState, recId, pInfo->primaryTsIndex);
     code = generateDataScanRange(pInfo, GET_TASKID(pTaskInfo));
     QUERY_CHECK_CODE(code, lino, _end);
     pInfo->basic.pTsDataState->curRecId = recId;
   }
 
-  (*ppRes) = NULL;
   code = doDataRangeScan(pInfo, pTaskInfo, ppRes);
   QUERY_CHECK_CODE(code, lino, _end);
 

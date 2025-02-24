@@ -42,6 +42,7 @@ int32_t copyRecDataToBuff(TSKEY calStart, TSKEY calEnd, uint64_t uid, uint64_t v
 int32_t saveRecWindowToDisc(SSessionKey* pWinKey, uint64_t uid, EStreamType mode, STableTsDataState* pTsDataState,
                             SStreamAggSupporter* pAggSup);
 int32_t initNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup, SInterval* pInterval);
+void    destroyNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup);
 int32_t buildRetriveRequest(SExecTaskInfo* pTaskInfo, SStreamAggSupporter* pAggSup, STableTsDataState* pTsDataState, SArray* pRetrives);
 
 #ifdef __cplusplus

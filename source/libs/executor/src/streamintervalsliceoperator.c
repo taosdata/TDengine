@@ -65,6 +65,7 @@ void destroyStreamIntervalSliceOperatorInfo(void* param) {
 
   blockDataDestroy(pInfo->pCheckpointRes);
   taosMemoryFreeClear(pInfo->pOffsetInfo);
+  destroyNonBlockAggSupptor(&pInfo->nbSup);
 
   taosMemoryFreeClear(param);
 }
@@ -623,6 +624,15 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+void destroyNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup) {
+  blockDataCleanup(pNbSup->pPullDataRes);
+  pNbSup->pPullDataRes = NULL;
+  tSimpleHashCleanup(pNbSup->pHistoryGroup);
+  pNbSup->pHistoryGroup = NULL;
+  taosArrayDestroy(pNbSup->pPullWins);
+  pNbSup->pPullWins = NULL;
 }
 
 int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,

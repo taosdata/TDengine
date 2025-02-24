@@ -649,12 +649,12 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
       case STREAM_RECALCULATE_DATA:
       case STREAM_RECALCULATE_DELETE: {
         if (isRecalculateOperator(&pInfo->basic)) {
-          if (isSingleOperator(&pInfo->basic)) {
+          if (!isSemiOperator(&pInfo->basic)) {
             code = doTransformRecalculateWindows(pTaskInfo, &pInfo->interval, pBlock, pInfo->pDelWins);
             QUERY_CHECK_CODE(code, lino, _end);
-            continue;
-          } else if (isFinalOperator(&pInfo->basic)) {
-            saveRecalculateData(&pAggSup->stateStore, pInfo->basic.pTsDataState, pBlock, pBlock->info.type);
+            if (isFinalOperator(&pInfo->basic)) {
+              saveRecalculateData(&pAggSup->stateStore, pInfo->basic.pTsDataState, pBlock, pBlock->info.type);
+            }
             continue;
           }
         }
@@ -737,7 +737,7 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
   if (pInfo->nbSup.numOfKeep > 1) {
     taosArrayRemoveDuplicate(pInfo->pUpdated, winPosCmprImpl, releaseFlusedPos);
   }
-  if (pInfo->nbSup.numOfKeep > 0 && !pInfo->destHasPrimaryKey) {
+  if (!isSemiOperator(&pInfo->basic) && !pInfo->destHasPrimaryKey) {
     removeDataDeleteResults(pInfo->pUpdated, pInfo->pDelWins);
   }
 
