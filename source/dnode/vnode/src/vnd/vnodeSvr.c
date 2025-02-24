@@ -606,32 +606,23 @@ static int32_t inline updateSubmitData(SSubmitTbData *pSubmitTbData, STSchema *p
   for (int32_t i = 0; i < taosArrayGetSize(pSubmitTbData->aRowP); i++) {
     SRow      **pRow = taosArrayGet(pSubmitTbData->aRowP, i);
     SBlobRow2 **pBlob = taosArrayGet(pSubmitTbData->aBlobRow, i);
-    SArray     *pOffset = (*pBlob)->pOffset;
     uint8_t    *data = (*pBlob)->data;
 
     int32_t idx = 0;
     for (int32_t j = 0; j < pTSchema->numOfCols; j++) {
       STColumn *pTColumn = pTSchema->columns + j;
       if (IS_STR_DATA_BLOB(pTColumn->type)) {
-        int32_t  len = 0;
-        uint64_t offset = 0;
         SColVal  colVal = {0};
+        uint64_t seq = 0;
 
-        if (idx == 0) {
-          len = *(uint64_t *)taosArrayGet(pOffset, idx);
-        } else {
-          len = *(uint64_t *)taosArrayGet(pOffset, idx) - (*(uint64_t *)taosArrayGet(pOffset, idx - 1));
-          offset = *(uint64_t *)taosArrayGet(pOffset, idx - 1);
+        tRowSetBlobSeq(*pRow, pTSchema, j, &colVal, &seq);
+        SBlobValue *pBlobValue = taosHashGet((*pBlob)->pSeqTable, &seq, sizeof(seq));
+        if (pBlobValue != NULL) {
+          code = bseAppend(pVnode->pBse, &seq, data + pBlobValue->offset, pBlobValue->len);
+          if (code == 0) {
+            memcpy(colVal.value.pData, &seq, sizeof(uint64_t));
+          }
         }
-
-        code = bseAppend(pVnode->pBse, &seq, data + offset, len);
-        if (code) {
-          TAOS_CHECK_EXIT(code);
-        }
-
-        tRowSetBlobSeq(*pRow, pTSchema, j, &colVal, seq);
-
-        idx++;
       }
     }
   }

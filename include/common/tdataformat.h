@@ -136,11 +136,15 @@ int32_t tRowBuild2(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlo
 int32_t tRowBuild3(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 
+typedef struct {
+  uint64_t offset;
+  uint32_t len;
+} SBlobValue;
 int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow);
 int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len, uint64_t *seq);
 int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow);
 
-int32_t tRowSetBlobSeq(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal, uint64_t seq);
+int32_t tRowSetBlobSeq(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal, uint64_t *seq);
 void    tRowDestroy(SRow *pRow);
 int32_t tRowSort(SArray *aRowP);
 int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
@@ -262,11 +266,11 @@ struct SBlobRow {
 };
 
 struct SBlobRow2 {
-  int64_t  seq;
-  int64_t  len;
-  int32_t  cap;
-  SArray  *pOffset;
-  uint8_t *data;
+  int64_t   seq;
+  int64_t   len;
+  int32_t   cap;
+  SHashObj *pSeqTable;
+  uint8_t  *data;
 };
 
 typedef struct {
