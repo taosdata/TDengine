@@ -1,3 +1,5 @@
+import json
+import os
 import time
 from taostest import TDCase, T
 from taostest.util.common import TDCom
@@ -5,9 +7,13 @@ from taostest.util.rest import TDRest
 from taostest.util import file
 class FractakEdge(TDCase):
     def init(self):
+        self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
+        self.db_config = json.load(open(os.path.join(self.env_root, "workflow.json")))
+        self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
+        self.host = self.taosd_setting["fqdn"][0]
         self.tdCom = TDCom(self.tdSql)
-        self.api_type = 'restful'
-        self.hostname = self.get_hostname()
+        self.tdCom.api_type = 'restful'
+ 
         self.target_dbname = "mqtt_datain"
         self.execute_time = 120
         pass
@@ -15,19 +21,21 @@ class FractakEdge(TDCase):
     def cleanup(self) -> None:
         pass
 
-    def set_mqtt_datain_payload(self):
+    def set_mqtt_datain_payload(self,hostname='localhost'):
         case_data = []
         case_data_org = file.read_yaml("config.yaml")
         for mqtt_topic in case_data_org["topics"]:
             task_data = {}
             mqtt_payload = file.read_yaml("parser.yaml")
-            task_data["from"] = f"mqtt://{self.hostname}:1883? \
+            mqtt_payload["parser"]["s_model"]["name"] = f"site_{mqtt_topic}_{hostname}"
+            
+            task_data["from"] = f"mqtt://{hostname}:1883? \
                                 client_id=taosxmqtt_client_1362& \
                                 keep_alive=60& \
                                 clean_session=true& \
                                 topic={mqtt_topic}"
             task_data["parser"] = mqtt_payload["parser"]
-            task_data["to"] = f"taos+ws://{self.hostname}:6041/{self.target_dbname}" 
+            task_data["to"] = f"taos+ws://{hostname}:6041/{self.target_dbname}" 
             case_data.append(task_data)
             
         return case_data
@@ -36,25 +44,29 @@ class FractakEdge(TDCase):
         task_list = []
         cases_data = self.set_mqtt_datain_payload()
         # 在edge侧创建数据库 mqtt_datain
-        self.tdCom.createDb(self.target_dbname)
+        self.tdCom.createDb(self.target_dbname,self.db_config["db_config"])
         # 创建4个mqtt datain任务
-        for case_data in cases_data:
-            response = TDRest.request(data=case_data, method='POST', url=f'http://{self.hostname}:6050/api/x/tasks',header=headers)
-            task_info = response.json()
-            task_list.append(task_info["id"])
+        for hostname in self.hosts:
+            cases_data = self.set_mqtt_datain_payload(hostname=hostname)
+            # 在edge侧创建数据库 mqtt_datain
+            self.tdCom.createDb(self.target_dbname)
+            for case_data in cases_data:
+                response = TDRest.request(data=case_data, method='POST', url=f'http://{hostname}:6050/api/x/tasks',header=headers)
+                task_info = response.json()
+                task_list.append(task_info["id"])
         time.sleep(self.execute_time)
-        for task_id in task_list:
-           TDRest.request(data=None, method='POST', url=f'http://{self.hostname}:6050/api/x/tasks/{task_id}/stop',header=headers)
+        for hostname in self.hosts:
+            for task_id in task_list:
+                TDRest.request(data=None, method='POST', url=f'http://{hostname}:6050/api/x/tasks/{task_id}/stop',header=headers)
         
+        # TODO 等待任务结束，后面换成获取任务状态的方式
+        time.sleep(15)
         # TODO 获取每个任务的metrics并保存下来
-        for task_id in task_list:
-            response = TDRest.request(data=None, method='GET', url=f'http://{self.hostname}:6050/api/x/tasks/{task_id}/metrics',header=headers)
-            metrics = response.json()
-            
-            print(metrics)
-        
-        
-        pass
+        for hostname in self.hosts:
+            for task_id in task_list:
+                response = TDRest.request(data=None, method='GET', url=f'http://{hostname}:6050/api/x/tasks/{task_id}/metrics',header=headers)
+                metrics = response.json()
+                print(metrics)
 
     def desc(self) -> str:
         case_description = """
