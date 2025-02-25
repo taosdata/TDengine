@@ -764,7 +764,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
   void   *pReq;
   int32_t len;
 
-  vInfo("start to write msg");
+  vDebug("start to write msg");
   // vnodeShouldRewriteSubmitMsg(pVnode, &pMsg);
 
   (void)taosThreadMutexLock(&pVnode->mutex);

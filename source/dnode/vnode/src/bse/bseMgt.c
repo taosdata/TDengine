@@ -889,7 +889,7 @@ int32_t bseAppend(SBse *pBse, uint64_t *seq, uint8_t *value, int32_t len) {
 
   *seq = tseq;
 
-  bseInfo("bse succ to append value by seq %" PRIu64, tseq);
+  bseDebug("bse succ to append value by seq %" PRIu64, tseq);
 _err:
   if (code != 0) {
     bseInfo("bse failed to append value by seq %" PRIu64 " since %s", tseq, tstrerror(code));
