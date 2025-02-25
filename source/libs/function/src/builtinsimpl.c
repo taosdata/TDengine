@@ -576,7 +576,7 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
     numOfElem = getNumOfElems(pCtx);
     val += numOfElem;
   }
-  taosSetInt64Aligned(buf, val);
+  taosSetInt64Aligned((int64_t*)buf, val);
 
   if (tsCountAlwaysReturnValue) {
     pResInfo->numOfRes = 1;

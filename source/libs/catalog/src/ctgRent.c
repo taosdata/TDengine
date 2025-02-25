@@ -235,7 +235,7 @@ void ctgRemoveStbRent(SCatalog *pCtg, SCtgDBCache *dbCache) {
   void   *pIter = taosHashIterate(dbCache->stbCache, NULL);
   while (pIter) {
     uint64_t *pSuid = taosHashGetKey(pIter, NULL);
-    uint64_t  suid = taosGetInt64Aligned(pSuid);
+    uint64_t  suid = taosGetUInt64Aligned(pSuid);
 
     code = ctgMetaRentRemove(&pCtg->stbRent, suid, ctgStbVersionSortCompare, ctgStbVersionSearchCompare);
     if (TSDB_CODE_SUCCESS == code) {
