@@ -79,8 +79,8 @@ class TDCases:
         for tmp in self.linuxCases:
             if tmp.name.find(fileName) != -1:
                 # get the last class name as the test case class name
-                case_class = getattr(testModule, self.get_local_classes(testModule)[0])
-
+                case_class = getattr(testModule, self.get_local_classes(testModule)[-1])
+                print(case_class)
                 case = case_class()
                 case.init(conn, self._logSql, replicaVar)
                 try:
@@ -114,7 +114,7 @@ class TDCases:
         for tmp in self.windowsCases:
             if tmp.name.find(fileName) != -1:
                 # get the last class name as the test case class name
-                case_class = getattr(testModule, self.get_local_classes(testModule)[0])
+                case_class = getattr(testModule, self.get_local_classes(testModule)[-1])
                 case = case_class()
                 case.init(conn, self._logSql,replicaVar)
                 try:
@@ -136,7 +136,7 @@ class TDCases:
             if tmp.name.find(fileName) != -1:
                 tdLog.notice("run cases like %s" % (fileName))
                 # get the last class name as the test case class name
-                case_class = getattr(testModule, self.get_local_classes(testModule)[0])
+                case_class = getattr(testModule, self.get_local_classes(testModule)[-1])
                 case = case_class()
                 case.init()
                 case.run()
@@ -154,7 +154,7 @@ class TDCases:
             if tmp.name.find(fileName) != -1:
                 tdLog.notice("run cases like %s" % (fileName))
                 # get the last class name as the test case class name
-                case_class = getattr(testModule, self.get_local_classes(testModule)[0])
+                case_class = getattr(testModule, self.get_local_classes(testModule)[-1])
                 case = case_class()
                 case.init()
                 case.run()

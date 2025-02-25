@@ -79,7 +79,7 @@ def runOnPreviousCluster(host, config, fileName):
     if platform.system().lower() == 'windows':
         sep = os.sep
     uModule = dynamicLoadModule(fileName)
-    case_class = getattr(uModule, get_local_classes(uModule)[0])
+    case_class = getattr(uModule, get_local_classes(uModule)[-1])
     case = case_class()    
 
     # create conn
@@ -372,7 +372,7 @@ if __name__ == "__main__":
         if is_test_framework:
             uModule = dynamicLoadModule(fileName)
             try:
-                case_class = getattr(uModule, get_local_classes(uModule)[0])
+                case_class = getattr(uModule, get_local_classes(uModule)[-1])
                 ucase = case_class()
                 if ((json.dumps(updateCfgDict) == '{}') and hasattr(ucase, 'updatecfgDict')):
                     updateCfgDict = ucase.updatecfgDict
@@ -544,7 +544,7 @@ if __name__ == "__main__":
         if is_test_framework:
             uModule = dynamicLoadModule(fileName)
             try:
-                case_class = getattr(uModule, get_local_classes(uModule)[0])
+                case_class = getattr(uModule, get_local_classes(uModule)[-1])
                 ucase = case_class()
                 if (json.dumps(updateCfgDict) == '{}'):
                     updateCfgDict = ucase.updatecfgDict

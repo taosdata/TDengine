@@ -311,7 +311,7 @@ if __name__ == "__main__":
         if is_test_framework:
             uModule = dynamicLoadModule(fileName)
             try:
-                case_class = getattr(uModule, get_local_classes(uModule)[0])
+                case_class = getattr(uModule, get_local_classes(uModule)[-1])
                 ucase = case_class()
                 if (json.dumps(updateCfgDict) == "{}") and hasattr(
                     ucase, "updatecfgDict"
@@ -450,7 +450,7 @@ if __name__ == "__main__":
         if is_test_framework:
             uModule = dynamicLoadModule(fileName)
             try:
-                case_class = getattr(uModule, get_local_classes(uModule)[0])
+                case_class = getattr(uModule, get_local_classes(uModule)[-1])
                 ucase = case_class()
                 if json.dumps(updateCfgDict) == "{}":
                     updateCfgDict = ucase.updatecfgDict
