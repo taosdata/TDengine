@@ -668,16 +668,10 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
         }
         continue;
       } break;
+      case STREAM_RECALCULATE_START: {
+        continue;
+      } break;
       default:
-        // todo(liuyao) for debug
-        // if (isSemiOperator(&pInfo->basic)) {
-        //   printDataBlock(pBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
-        //   (*ppRes) = pBlock;
-        //   return code;
-        // } else {
-        //   continue;
-        // }
-        // todo(liuyao) for debug
         code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         QUERY_CHECK_CODE(code, lino, _end);
     }
@@ -927,8 +921,10 @@ static int32_t doStreamFinalntervalNonblockAggImpl(SOperatorInfo* pOperator, SSD
 
     SWinKey key = {.ts = curPoint.winKey.win.skey, .groupId = groupId};
     if (pInfo->destHasPrimaryKey && winCode == TSDB_CODE_SUCCESS) {
-      void* pTmp = taosArrayPush(pInfo->pDelWins, &key);
-      QUERY_CHECK_NULL(pTmp, code, lino, _end, terrno);
+      if (tSimpleHashGet(pAggSup->pResultRows, &key, sizeof(SWinKey)) == NULL) {
+        void* pTmp = taosArrayPush(pInfo->pDelWins, &key);
+        QUERY_CHECK_NULL(pTmp, code, lino, _end, terrno);
+      }
     }
 
     curPoint.pResPos->beUpdated = true;

@@ -276,16 +276,6 @@ static int32_t doStreamBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
         if (!isSemiOperator(&pInfo->basic)) {
           buildRecalculateDataSnapshort(pInfo, pTaskInfo);
         }
-        // todo(liuyao) for debug
-        // pInfo->pDeleteDataRes->info.type = STREAM_RECALCULATE_START;
-        // if (pInfo->pDeleteDataRes->info.rows == 0) {
-        //   blockDataEnsureCapacity(pInfo->pDeleteDataRes, 1);
-        //   int64_t test = 123;
-        //   appendOneRowToSpecialBlockImpl(pInfo->pDeleteDataRes, &test, &test, &test, &test, NULL, NULL, NULL, NULL);
-        // }
-        // (*ppRes) = pInfo->pDeleteDataRes;
-        // break;
-        // todo(liuyao) for debug
         continue;
       } break;
       case STREAM_RECALCULATE_END: {
@@ -728,7 +718,8 @@ int32_t doStreamDataScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     case STREAM_INPUT__DATA_SUBMIT: {
       doStreamWALScan(pOperator, ppRes);
     } break;
-    case STREAM_INPUT__CHECKPOINT: {
+    case STREAM_INPUT__CHECKPOINT:
+    case STREAM_INPUT__RECALCULATE: {
       if (pInfo->validBlockIndex >= total) {
         doClearBufferedBlocks(pInfo);
         (*ppRes) = NULL;
@@ -742,12 +733,17 @@ int32_t doStreamDataScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       QUERY_CHECK_NULL(pData, code, lino, _end, terrno);
       SSDataBlock* pBlock = taosArrayGet(pData->pDataBlock, 0);
       QUERY_CHECK_NULL(pBlock, code, lino, _end, terrno);
+      printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
 
       if (pBlock->info.type == STREAM_CHECKPOINT) {
         streamDataScanOperatorSaveCheckpoint(pInfo);
+        (*ppRes) = pInfo->pCheckpointRes;
+      } else {
+        if (!isSemiOperator(&pInfo->basic)) {
+          buildRecalculateDataSnapshort(pInfo, pTaskInfo);
+        }
+        (*ppRes) = pBlock;
       }
-      printDataBlock(pInfo->pCheckpointRes, "stream scan ck", GET_TASKID(pTaskInfo));
-      (*ppRes) = pInfo->pCheckpointRes;
       return code;
     } break;
     default: {

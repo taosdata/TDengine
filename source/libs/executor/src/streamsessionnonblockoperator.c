@@ -758,11 +758,17 @@ static int32_t doStreamFinalSessionNonblockAggImpl(SOperatorInfo* pOperator, SSD
     code = setSessionOutputBuf(pAggSup, startTsCols[i], endTsCols[i], groupId, &curWinInfo, &winCode);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    if (winCode != TSDB_CODE_SUCCESS) {
-      code = tSimpleHashPut(pAggSup->pResultRows, &curWinInfo.sessionWin, sizeof(SSessionKey), &curWinInfo.pStatePos,
-                            POINTER_BYTES);
-      QUERY_CHECK_CODE(code, lino, _end);
+    if (pInfo->destHasPrimaryKey && winCode == TSDB_CODE_SUCCESS) {
+      if (tSimpleHashGet(pAggSup->pResultRows, &curWinInfo.sessionWin, sizeof(SSessionKey)) == NULL) {
+        code = saveDeleteRes(pInfo->basic.pSeDeleted, curWinInfo.sessionWin);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
     }
+
+    curWinInfo.pStatePos->beUpdated = true;
+    code = tSimpleHashPut(pAggSup->pResultRows, &curWinInfo.sessionWin, sizeof(SSessionKey), &curWinInfo.pStatePos,
+                          POINTER_BYTES);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     code = updateSessionWindowInfo(pAggSup, &curWinInfo, startTsCols, endTsCols, groupId, rows, i, pAggSup->gap,
                                    pAggSup->pResultRows, NULL, NULL, &winRows);
