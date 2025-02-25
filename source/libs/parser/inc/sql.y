@@ -244,7 +244,7 @@ cmd ::= COMPACT db_name_cond_opt(A) VGROUPS IN NK_LP integer_list(B) NK_RP start
 %type meta_only                                                                  { bool }
 %destructor meta_only                                                            { }
 meta_only(A) ::= .                                                                { A = false; }
-exists_opt(A) ::= META_ONLY.                                                      { A = true; }
+meta_only(A) ::= META_ONLY.                                                      { A = true; }
 
 %type not_exists_opt                                                              { bool }
 %destructor not_exists_opt                                                        { }
