@@ -110,7 +110,7 @@ endif(NOT ${TD_WINDOWS})
 # lzma2
 cat("${TD_SUPPORT_DIR}/lzma_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
-# RocksDB is now included via cmake/RocksDB.cmake
+# RocksDB is now included via cmake/RocksDB.cmake.inc
 
 # cat("${TD_SUPPORT_DIR}/zstd_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
@@ -324,7 +324,7 @@ endif(${BUILD_WITH_UV})
 
 # Include RocksDB configuration
 if(${BUILD_WITH_ROCKSDB})
-    include(${CMAKE_SOURCE_DIR}/cmake/RocksDB.cmake)
+    include(${CMAKE_SOURCE_DIR}/cmake/RocksDB.cmake.inc)
 endif()
 
 if(${BUILD_WITH_S3})
