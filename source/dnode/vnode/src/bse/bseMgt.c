@@ -54,7 +54,7 @@ static char *bseFilexSuffix[] = {
     "data",
     "log",
 };
-static int32_t kBlockCap = 8 * 1024;
+static int32_t kBlockCap = 10 * 1024 * 1024;
 
 static void bseBuildDataFullName(SBse *pBse, int64_t ver, char *name);
 static void bseBuildIndexFullName(SBse *pBse, int64_t ver, char *name);
