@@ -36,14 +36,21 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
         )
     endif()
     
+    if(${TD_DARWIN_ARM64})
+        list(APPEND ROCKSDB_CMAKE_ARGS -DHAS_ARMV8_CRC=ON)
+    endif()
+
     if(${TD_DARWIN})
         # Set Darwin-specific compiler flags
 
-        MESSAGE(STATUS "Darwin build with CXX_FLAGS BEFORE adjustment: ${CMAKE_CXX_FLAGS}")
+        message(STATUS "Current file: ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE}")
+        SET(DUMMY_VAR "Hello, ")
+        MESSAGE(STATUS "Darwin build with CXX_FLAGS BEFORE adjustment: ${CMAKE_CXX_FLAGS} --- ${DUMMY_VAR}" ${DUMMY_VAR})
 
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized -Wno-unused-but-set-variable")
+        SET(DUMMY_VAR, "${DUMMY_VAR} World!")
 
-        MESSAGE(STATUS "Darwin build with CXX_FLAGS AFTER adjustment: ${CMAKE_CXX_FLAGS}")
+        MESSAGE(STATUS "Darwin build with CXX_FLAGS AFTER adjustment: ${CMAKE_CXX_FLAGS} --- ${DUMMY_VAR}" ${DUMMY_VAR})
         
         # Pass these flags to RocksDB build
         list(APPEND ROCKSDB_CMAKE_ARGS
@@ -52,11 +59,17 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
             -DWITH_IOSTATS_CONTEXT=OFF
             -DWITH_PERF_CONTEXT=OFF
         )
+
+
+        # Pass final compiler flags to RocksDB build
+        list(APPEND ROCKSDB_CMAKE_ARGS
+            -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS} -Wno-error=maybe-uninitialized -Wno-unused-but-set-variable"
+            -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}"
+        )
+
+        message(status "ROCKSDB_CMAKE_ARGS: ${ROCKSDB_CMAKE_ARGS}")
     endif()
 
-    if(${TD_DARWIN_ARM64})
-        list(APPEND ROCKSDB_CMAKE_ARGS -DHAS_ARMV8_CRC=ON)
-    endif()
 
     if(${TD_WINDOWS})
         # Set Windows-specific compiler flags
@@ -86,11 +99,6 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
     endif()
 
 
-    # Pass final compiler flags to RocksDB build
-    list(APPEND ROCKSDB_CMAKE_ARGS
-        -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}"
-        -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}"
-    )
     
     MESSAGE(STATUS "ROCKSDB CXX STATUS CONFIG: " ${CMAKE_CXX_FLAGS})
     MESSAGE(STATUS "ROCKSDB C STATUS CONFIG: " ${CMAKE_C_FLAGS})
