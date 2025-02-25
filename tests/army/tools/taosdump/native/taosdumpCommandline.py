@@ -97,9 +97,9 @@ class TDTestCase(TBase):
         self.exec(cmd)
         self.checkCorrectWithJson(jsonFile)
 
-    def insertData(self, benchmark, json, db):
+    def insertData(self, json):
         # insert super table
-        self.testBenchmarkJson(benchmark, json)
+        db, stb, child_count, insert_rows = self.insertBenchJson(json)
         
         # normal table
         sqls = [
@@ -112,6 +112,8 @@ class TDTestCase(TBase):
         ]
         for sql in sqls:
             tdSql.execute(sql)
+        
+        return db, stb, child_count, insert_rows
 
     def dumpOut(self, taosdump, db , outdir):
         # dump out
@@ -152,10 +154,35 @@ class TDTestCase(TBase):
 
     
     # basic commandline
-    def basicCommandLine(self, taosdump, tmpdir):
-        # -h -P -u -p -o
-        self.exec(taosdump + f" -h 127.0.0.1 -P 6030 -uroot -ptaosdata -A -N -o {tmpdir}")
-        self.clearPath(tmpdir)
+    def basicCommandLine(self, tmpdir):
+        #command and check result 
+        checkItems = [
+            f"-h 127.0.0.1 -P 6030 -uroot -ptaosdata -A -N -o {tmpdir}", ["OK: Database test dumped", "OK: 200 row(s) dumped out!"],
+            f"-r result -gg -a -e test d0 -o {tmpdir}", ["OK: table: d0 dumped", "OK: 100 row(s) dumped out!"],
+            f"-n -D test -o {tmpdir}", ["OK: Database test dumped", "OK: 200 row(s) dumped out!"],
+            f"-L -D test -o {tmpdir}", ["OK: Database test dumped", "OK: 200 row(s) dumped out!"],
+            f"-s -D test -o {tmpdir}", ["dumping out schema: 1 from meters.d0", "OK: Database test dumped", "OK: 0 row(s) dumped out!"],
+            f"-N -d deflate -S '2022-10-01 00:00:50.000' test meters  -o {tmpdir}",["OK: table: meters dumped", "OK: 100 row(s) dumped out!"],
+            f"-N -d lzma    -S '2022-10-01 00:00:50.000' test meters  -o {tmpdir}",["OK: table: meters dumped", "OK: 100 row(s) dumped out!"],
+            f"-N -d snappy  -S '2022-10-01 00:00:50.000' test meters  -o {tmpdir}",["OK: table: meters dumped", "OK: 100 row(s) dumped out!"],
+            f" -S '2022-10-01 00:00:50.000' -E '2022-10-01 00:00:60.000' test meters  -o {tmpdir}",["OK: table: meters dumped", "OK: 100 row(s) dumped out!"],
+            f"-T 2 -B 1000 -S '2022-10-01 00:00:50.000' -E '2022-10-01 00:00:60.000' test meters -o {tmpdir}", ["OK: table: meters dumped", "OK: 22 row(s) dumped out!"],
+            f"-g -E '2022-10-01 00:00:60.000' test -o {tmpdir}", ["OK: Database test dumped", "OK: 122 row(s) dumped out!"],
+            f"--help", ["Report bugs to"],
+            f"-?", ["Report bugs to"],
+            f"-V", ["version:"],
+            f"--usage", ["taosdump [OPTION...] -o outpath"]
+        ]
+
+        # executes 
+        for item in checkItems:
+            command = item[0]
+            results = item[1]
+            rlist = self.taosdump(command)
+            for result in results:
+                self.checkListString(result)
+            # clear tmp    
+            self.clearPath(tmpdir)
     
     # check except
     def checkExcept(self, command):
@@ -178,28 +205,29 @@ class TDTestCase(TBase):
         self.checkExcept(taosdump + " -A -o  ")
         self.checkExcept(taosdump + " -A -o ./noexistpath/")
         self.checkExcept(taosdump + f" -d invalidAVRO -o {tmpdir}")
+        self.checkExcept(taosdump + f" -d unknown -o {tmpdir}")
         self.checkExcept(taosdump + f" -P invalidport")
         self.checkExcept(taosdump + f" -D")
+        self.checkExcept(taosdump + f" -P 65536")
+        self.checkExcept(taosdump + f" -t 2 -k 2 -z 1 -C https://not-exist.com:80/cloud -D test -o {tmpdir}")
         self.checkExcept(taosdump + f" -P 65536")
 
     # run
     def run(self):
-        # database
-        db = "pridb"
-        newdb = "npridb"
         
         # find
         taosdump, benchmark, tmpdir = self.findPrograme()
-        json = "./tools/taosdump/ws/json/primaryKey.json"
+        json = "./tools/taosdump/native/json/insertFullType.json"
 
         # insert data with taosBenchmark
-        self.insertData(benchmark, json, db)
+        db, stb, child_count, insert_rows = self.insertData(benchmark, json)
+        newdb = "new" + db
 
         # basic commandline
-        self.basicCommandLine(taosdump, tmpdir)
+        self.basicCommandLine(db, stb, tmpdir)
 
         # except commandline
-        self.exceptCommandLine(taosdump, tmpdir)
+        self.exceptCommandLine(db, stb, tmpdir)
 
         # dump out 
         #self.dumpOut(taosdump, db, tmpdir)

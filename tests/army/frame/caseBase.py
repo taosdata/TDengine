@@ -282,8 +282,13 @@ class TBase:
 #
 #  run bin file
 #
-    def taos(self, command, show = True):
-        return frame.etool.runBinFile("taos", command, show)
+    # taos
+    def taos(self, command, show = True, checkRun = False):
+        return frame.etool.runBinFile("taos", command, show, checkRun)
+
+    def taosdump(self, command, show = True, checkRun = True):
+        return frame.etool.runBinFile("taosdump", command, show, checkRun)
+
 
 #
 #   util 
@@ -420,7 +425,7 @@ class TBase:
             if vgroups != None:
                 tdSql.checkData(0, 0, vgroups)
 
-        return db, stb,child_count, insert_rows
+        return db, stb, child_count, insert_rows
     
 
     # tmq
