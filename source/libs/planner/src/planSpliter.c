@@ -841,8 +841,14 @@ static int32_t stbSplSplitSessionForStream(SSplitContext* pCxt, SStableSplitInfo
   if (TSDB_CODE_SUCCESS == code) {
     SWindowLogicNode* pPartWin = (SWindowLogicNode*)pPartWindow;
     SWindowLogicNode* pMergeWin = (SWindowLogicNode*)pInfo->pSplitNode;
-    pPartWin->windowAlgo = SESSION_ALGO_STREAM_SEMI;
-    pMergeWin->windowAlgo = SESSION_ALGO_STREAM_FINAL;
+    if (pCxt->pPlanCxt->triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+      pPartWin->windowAlgo = SESSION_ALGO_STREAM_CONTINUE_SEMI;
+      pMergeWin->windowAlgo = SESSION_ALGO_STREAM_CONTINUE_FINAL;
+    } else {
+      pPartWin->windowAlgo = SESSION_ALGO_STREAM_SEMI;
+      pMergeWin->windowAlgo = SESSION_ALGO_STREAM_FINAL;
+    }
+
     int32_t index = 0;
     int32_t code = stbSplAppendWEnd(pPartWin, &index);
     if (TSDB_CODE_SUCCESS == code) {
