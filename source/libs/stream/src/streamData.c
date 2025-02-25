@@ -365,7 +365,7 @@ int32_t streamCreateTriggerBlock(SStreamTrigger** pTrigger, int32_t type, int32_
   return code;
 }
 
-int32_t streamCreateRecalculateBlock(SStreamTask* pTask, SStreamDataBlock** pBlock) {
+int32_t streamCreateRecalculateBlock(SStreamTask* pTask, SStreamDataBlock** pBlock, int32_t type) {
   int32_t           code = 0;
   SSDataBlock*      p = NULL;
   SStreamDataBlock* pRecalc = NULL;

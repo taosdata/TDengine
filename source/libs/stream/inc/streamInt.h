@@ -244,7 +244,7 @@ int32_t flushStateDataInExecutor(SStreamTask* pTask, SStreamQueueItem* pCheckpoi
 int32_t streamCreateTriggerBlock(SStreamTrigger** pTrigger, int32_t type, int32_t blockType);
 int32_t streamCreateForcewindowTrigger(SStreamTrigger** pTrigger, int32_t trigger, SInterval* pInterval,
                                        STimeWindow* pLatestWindow, const char* id);
-int32_t streamCreateRecalculateBlock(SStreamTask* pTask, SStreamDataBlock** pBlock);
+int32_t streamCreateRecalculateBlock(SStreamTask* pTask, SStreamDataBlock** pBlock, int32_t type);
 
 // inject stream errors
 void chkptFailedByRetrieveReqToSource(SStreamTask* pTask, int64_t checkpointId);

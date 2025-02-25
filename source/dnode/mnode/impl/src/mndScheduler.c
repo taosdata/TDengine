@@ -254,7 +254,7 @@ static int32_t doAddSinkTask(SStreamObj* pStream, SMnode* pMnode, SVgObj* pVgrou
 
   SStreamTask* pTask = NULL;
   int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, pEpset, type, 0, 0, *pTaskList, pStream->conf.fillHistory,
-                                pStream->subTableWithoutMd5, &pTask);
+                                pStream->subTableWithoutMd5, 1, &pTask);
   if (code != 0) {
     return code;
   }
@@ -370,7 +370,8 @@ static void haltInitialTaskStatus(SStreamTask* pTask, SSubplan* pPlan, bool isFi
   }
 }
 
-static int32_t buildSourceTask(SStreamObj* pStream, SEpSet* pEpset, EStreamTaskType type, bool useTriggerParam, SStreamTask** pTask) {
+static int32_t buildSourceTask(SStreamObj* pStream, SEpSet* pEpset, EStreamTaskType type, bool useTriggerParam,
+                               int8_t hasAggTasks, SStreamTask** pTask) {
   uint64_t uid = 0;
   SArray** pTaskList = NULL;
   streamGetUidTaskList(pStream, type, &uid, &pTaskList);
@@ -382,9 +383,12 @@ static int32_t buildSourceTask(SStreamObj* pStream, SEpSet* pEpset, EStreamTaskT
     trigger = pStream->conf.trigger;
   }
 
+  int32_t triggerParam = useTriggerParam ? pStream->conf.triggerParam : 0;
   int32_t code =
-      tNewStreamTask(uid, TASK_LEVEL__SOURCE, pEpset, type, trigger, useTriggerParam ? pStream->conf.triggerParam : 0,
-                     *pTaskList, pStream->conf.fillHistory, pStream->subTableWithoutMd5, pTask);
+      tNewStreamTask(uid, TASK_LEVEL__SOURCE, pEpset, type, trigger, triggerParam,
+                     *pTaskList, pStream->conf.fillHistory, pStream->subTableWithoutMd5,
+                     hasAggTasks, pTask);
+
   return code;
 }
 
@@ -437,9 +441,9 @@ static void setHTasksId(SStreamObj* pStream) {
 }
 
 static int32_t doAddSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream, SEpSet* pEpset, int64_t skey,
-                               SArray* pVerList, SVgObj* pVgroup, EStreamTaskType type, bool useTriggerParam) {
+                               SArray* pVerList, SVgObj* pVgroup, EStreamTaskType type, bool useTriggerParam, int8_t hasAggTasks) {
   SStreamTask* pTask = NULL;
-  int32_t code = buildSourceTask(pStream, pEpset, type, useTriggerParam, &pTask);
+  int32_t code = buildSourceTask(pStream, pEpset, type, useTriggerParam, hasAggTasks, &pTask);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -492,7 +496,7 @@ static SSubplan* getAggSubPlan(const SQueryPlan* pPlan, int index) {
 }
 
 static int32_t addSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream, SEpSet* pEpset,
-                             int64_t nextWindowSkey, SArray* pVerList, bool useTriggerParam) {
+                             int64_t nextWindowSkey, SArray* pVerList, bool useTriggerParam, bool hasAggTasks) {
   void*   pIter = NULL;
   SSdb*   pSdb = pMnode->pSdb;
   int32_t code = addNewTaskList(pStream);
@@ -512,7 +516,8 @@ static int32_t addSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream
       continue;
     }
 
-    code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVerList, pVgroup, STREAM_NORMAL_TASK, useTriggerParam);
+    code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVerList, pVgroup, STREAM_NORMAL_TASK,
+                           useTriggerParam, hasAggTasks);
     if (code != 0) {
       mError("failed to create stream task, code:%s", tstrerror(code));
 
@@ -525,7 +530,7 @@ static int32_t addSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream
       EStreamTaskType type = (pStream->conf.trigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) ? STREAM_RECALCUL_TASK
                                                                                                : STREAM_HISTORY_TASK;
       code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVerList, pVgroup, type,
-                             useTriggerParam);
+                             useTriggerParam, hasAggTasks);
       if (code != 0) {
         sdbRelease(pSdb, pVgroup);
         return code;
@@ -550,9 +555,10 @@ static int32_t buildAggTask(SStreamObj* pStream, SEpSet* pEpset, EStreamTaskType
   SArray** pTaskList = NULL;
   streamGetUidTaskList(pStream, type, &uid, &pTaskList);
 
+  int64_t triggerParam = useTriggerParam? pStream->conf.triggerParam:0;
   int32_t code = tNewStreamTask(uid, TASK_LEVEL__AGG, pEpset, type, pStream->conf.trigger,
-                                useTriggerParam ? pStream->conf.triggerParam : 0, *pTaskList, pStream->conf.fillHistory,
-                                pStream->subTableWithoutMd5, pAggTask);
+                                triggerParam, *pTaskList, pStream->conf.fillHistory,
+                                pStream->subTableWithoutMd5, 1, pAggTask);
   return code;
 }
 
@@ -716,6 +722,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
   bool    hasExtraSink = false;
   bool    externalTargetDB = strcmp(pStream->sourceDb, pStream->targetDb) != 0;
   SDbObj* pDbObj = mndAcquireDb(pMnode, pStream->targetDb);
+
   if (pDbObj == NULL) {
     code = TSDB_CODE_QRY_INVALID_INPUT;
     TAOS_RETURN(code);
@@ -752,7 +759,8 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
     TAOS_RETURN(code);
   }
 
-  code = addSourceTask(pMnode, plan, pStream, pEpset, skey, pVerList, (numOfPlanLevel == 1));
+  int8_t hasAggTasks = (numOfPlanLevel > 1) ? 1 : 0;  // task level is greater than 1, which means agg existing
+  code = addSourceTask(pMnode, plan, pStream, pEpset, skey, pVerList, (numOfPlanLevel == 1), hasAggTasks);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }

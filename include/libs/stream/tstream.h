@@ -319,6 +319,7 @@ typedef struct SSTaskBasicInfo {
   int8_t    fillHistory;      // enum , 1. is fill history task or not 2. recal
   int64_t   delaySchedParam;  // in msec
   int64_t   watermark;        // extracted from operators
+  int8_t    hasAggTasks;      // has agg tasks in current stream
   SInterval interval;
 } SSTaskBasicInfo;
 
@@ -471,14 +472,14 @@ struct SStreamTask {
   struct SStreamMeta*   pMeta;
   SSHashObj*            pNameMap;
 
-  SStreamState* pState;  // state backend
-  void*         pBackend;
   int8_t        subtableWithoutMd5;  // only for tsma stream tasks
   char          reserve[256];
   char*         backendPath;
-  char*         recalPath;
+
+  void*         pBackend;
   void*         pRecalBackend;
   SStreamState* pRecalState;
+  SStreamState* pState;  // state backend
 };
 
 typedef int32_t (*startComplete_fn_t)(struct SStreamMeta*);
@@ -569,12 +570,13 @@ typedef int32_t (*__state_trans_user_fn)(SStreamTask*, void* param);
 
 int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, EStreamTaskType type, int32_t trigger,
                        int64_t triggerParam, SArray* pTaskList, bool hasFillhistory, int8_t subtableWithoutMd5,
-                       SStreamTask** pTask);
+                       int8_t hasAggTasks, SStreamTask** pTask);
 void    tFreeStreamTask(void* pTask);
 int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
 int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, int64_t ver);
 void    streamFreeTaskState(SStreamTask* pTask, int8_t remove);
+int32_t streamCreateAddRecalculateEndBlock(SStreamTask* pTask);
 
 int32_t tDecodeStreamTaskChkInfo(SDecoder* pDecoder, SCheckpointInfo* pChkpInfo);
 int32_t tDecodeStreamTaskId(SDecoder* pDecoder, STaskId* pTaskId);
@@ -647,12 +649,6 @@ typedef struct STaskStatusEntry {
   STaskNotifyEventStat notifyEventStat;
 } STaskStatusEntry;
 
-// typedef struct SNodeUpdateInfo {
-//   int32_t nodeId;
-//   SEpSet  prevEp;
-//   SEpSet  newEp;
-// } SNodeUpdateInfo;
-
 typedef struct SStreamTaskState {
   ETaskStatus state;
   char*       name;
@@ -670,7 +666,6 @@ typedef struct SCheckpointConsensusEntry {
 } SCheckpointConsensusEntry;
 
 void streamSetupScheduleTrigger(SStreamTask* pTask);
-int32_t streamCreateAddRecalculateEndBlock(SStreamTask* pTask);
 
 // dispatch related
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg);

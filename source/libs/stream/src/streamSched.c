@@ -281,15 +281,15 @@ static int32_t doCreateForceWindowTrigger(SStreamTask* pTask, int32_t* pNextTrig
 }
 
 int32_t streamCreateAddRecalculateEndBlock(SStreamTask* pTask) {
-  const char*     id = pTask->id.idStr;
-  SStreamTrigger* pTrigger = NULL;
-  int32_t         code = streamCreateTriggerBlock(&pTrigger, STREAM_INPUT__RECALCULATE, STREAM_RECALCULATE_START);
+  const char*       id = pTask->id.idStr;
+  SStreamDataBlock* pBlock = NULL;
+  int32_t           code = streamCreateRecalculateBlock(pTask, &pBlock, STREAM_RECALCULATE_END);
   if (code) {
     stError("s-task:%s failed to create recalculate end trigger, code:%s, try again in %dms", id, tstrerror(code));
     return code;
   }
 
-  code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTrigger);
+  code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pBlock);
   if (code != TSDB_CODE_SUCCESS) {
     stError("s-task:%s failed to put recalculate end block into q, code:%s", pTask->id.idStr, tstrerror(code));
   }
@@ -362,7 +362,7 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
       }
     } else if (trigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE && level == TASK_LEVEL__SOURCE) {
       SStreamDataBlock* pTrigger = NULL;
-      code = streamCreateRecalculateBlock(pTask, &pTrigger);
+      code = streamCreateRecalculateBlock(pTask, &pTrigger, STREAM_RECALCULATE_START);
       if (code) {
         stError("s-task:%s failed to prepare recalculate data trigger, code:%s, try again in %dms", id, tstrerror(code),
                 nextTrigger);

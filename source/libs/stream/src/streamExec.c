@@ -921,9 +921,11 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
         }
       }
 
-      if (type == STREAM_INPUT__RECALCULATE && pTask->info.fillHistory == STREAM_NORMAL_TASK &&
-          pTask->outputInfo.type != TASK_OUTPUT__TABLE && taskLevel != TASK_LEVEL__AGG) {
-        int32_t x = 0;
+      if (type == STREAM_INPUT__RECALCULATE) {
+        if (taskLevel == TASK_LEVEL__SOURCE && (!pTask->info.hasAggTasks) &&
+            pTask->info.fillHistory == STREAM_NORMAL_TASK) {
+          code = doStreamTaskExecImpl(pTask, pInput, numOfBlocks);
+        }
       } else {
         code = doStreamTaskExecImpl(pTask, pInput, numOfBlocks);
       }
@@ -936,8 +938,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
       // for stream with only 1 task, start related re-calculate stream task directly.
       // We only start the re-calculate agg task here, and do NOT start the source task, for streams with agg-tasks.
       if ((type == STREAM_INPUT__RECALCULATE) && (pTask->info.fillHistory == STREAM_NORMAL_TASK)) {
-        if ((taskLevel == TASK_LEVEL__AGG) ||
-            ((taskLevel == TASK_LEVEL__SOURCE) && (pTask->outputInfo.type == TASK_OUTPUT__TABLE))) {
+        if ((taskLevel == TASK_LEVEL__AGG) || ((taskLevel == TASK_LEVEL__SOURCE) && (!pTask->info.hasAggTasks))) {
           // NOTE: no input block here if type is STREAM_INPUT__RECALCULATE
           if (pTask->hTaskInfo.id.streamId == 0) {
             stError("s-task:%s related re-calculate stream task is dropping, failed to start re-calculate", id);
@@ -964,7 +965,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
             code = streamTrySchedExec(pHTask);
           }
           streamMetaReleaseTask(pTask->pMeta, pHTask);
-        } else if ((taskLevel == TASK_LEVEL__SOURCE) && (pTask->outputInfo.type != TASK_OUTPUT__TABLE)) {
+        } else if ((taskLevel == TASK_LEVEL__SOURCE) && pTask->info.hasAggTasks) {
           code = continueDispatchRecalculateStart((SStreamDataBlock*)pInput, pTask);
         }
       }
