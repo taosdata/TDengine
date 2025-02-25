@@ -81,7 +81,7 @@ There is no difference in the use of TDengine data source compared to other data
 **Step 6**, Create tables in TDengine.
  In the `SQL` editor area, any `SQL` statement that conforms to `TDengine` syntax can be entered for execution.  
 
-### Example
+### Smart Meter Example
 
 We chose two popular templates from the [Superset Chart] template to showcase their effects, using smart meter data as an example:  
 
