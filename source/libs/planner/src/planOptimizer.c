@@ -20,6 +20,7 @@
 #include "systable.h"
 #include "tglobal.h"
 #include "ttime.h"
+#include "scalar.h"
 
 #define OPTIMIZE_FLAG_MASK(n) (1 << n)
 
@@ -826,8 +827,18 @@ static int32_t pdcPushDownCondToChild(SOptimizeContext* pCxt, SLogicNode* pChild
   return pdcMergeConds(&pChild->pConditions, pCond);
 }
 
-static bool pdcJoinIsPrim(SNode* pNode, SSHashObj* pTables) {
-  if (QUERY_NODE_COLUMN != nodeType(pNode) && QUERY_NODE_FUNCTION != nodeType(pNode)) {
+static bool pdcJoinIsPrim(SNode* pNode, SSHashObj* pTables, bool constAsPrim, bool* constPrimGot) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode) && QUERY_NODE_FUNCTION != nodeType(pNode) && (!constAsPrim || QUERY_NODE_VALUE != nodeType(pNode))) {
+    return false;
+  }
+
+  if (QUERY_NODE_VALUE == nodeType(pNode)) {
+    SValueNode* pVal = (SValueNode*)pNode;
+    if (TSDB_DATA_TYPE_NULL != pVal->node.resType.type && !pVal->isNull) {
+      *constPrimGot = true;
+      return true;
+    }
+
     return false;
   }
 
@@ -850,7 +861,7 @@ static bool pdcJoinIsPrim(SNode* pNode, SSHashObj* pTables) {
   return pdcJoinColInTableList(pNode, pTables);
 }
 
-static bool pdcJoinIsPrimEqualCond(SJoinLogicNode* pJoin, SNode* pCond) {
+static bool pdcJoinIsPrimEqualCond(SJoinLogicNode* pJoin, SNode* pCond, bool constAsPrim) {
   if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
     return false;
   }
@@ -878,11 +889,18 @@ static bool pdcJoinIsPrimEqualCond(SJoinLogicNode* pJoin, SNode* pCond) {
     return code;
   }
 
-  bool res = false;
-  if (pdcJoinIsPrim(pOper->pLeft, pLeftTables)) {
-    res = pdcJoinIsPrim(pOper->pRight, pRightTables);
-  } else if (pdcJoinIsPrim(pOper->pLeft, pRightTables)) {
-    res = pdcJoinIsPrim(pOper->pRight, pLeftTables);
+  bool res = false, constGot = false;
+  if (pdcJoinIsPrim(pOper->pLeft, pLeftTables, constAsPrim, &constGot)) {
+    res = pdcJoinIsPrim(pOper->pRight, pRightTables, constAsPrim, &constGot);
+    if (constGot) {
+      pJoin->constPrimGot = true;
+    }
+  } else if (pdcJoinIsPrim(pOper->pLeft, pRightTables, constAsPrim, &constGot)) {
+    res = pdcJoinIsPrim(pOper->pRight, pLeftTables, constAsPrim, &constGot);
+    if (constGot) {
+      pJoin->constPrimGot = true;
+      TSWAP(pOper->pLeft, pOper->pRight);
+    }
   }
 
   tSimpleHashCleanup(pLeftTables);
@@ -910,12 +928,12 @@ static bool pdcJoinHasPrimEqualCond(SJoinLogicNode* pJoin, SNode* pCond, bool* e
     }
     return hasPrimaryKeyEqualCond;
   } else {
-    return pdcJoinIsPrimEqualCond(pJoin, pCond);
+    return pdcJoinIsPrimEqualCond(pJoin, pCond, false);
   }
 }
 
-static int32_t pdcJoinSplitPrimInLogicCond(SJoinLogicNode* pJoin, SNode** ppPrimEqCond, SNode** ppOnCond) {
-  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)(pJoin->pFullOnCond);
+static int32_t pdcJoinSplitPrimInLogicCond(SJoinLogicNode* pJoin, SNode** ppInput, SNode** ppPrimEqCond, SNode** ppOnCond, bool constAsPrim) {
+  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)(*ppInput);
 
   int32_t    code = TSDB_CODE_SUCCESS;
   SNodeList* pOnConds = NULL;
@@ -924,7 +942,7 @@ static int32_t pdcJoinSplitPrimInLogicCond(SJoinLogicNode* pJoin, SNode** ppPrim
     SNode* pNew = NULL;
     code = nodesCloneNode(pCond, &pNew);
     if (TSDB_CODE_SUCCESS != code) break;
-    if (pdcJoinIsPrimEqualCond(pJoin, pCond) && (NULL == *ppPrimEqCond)) {
+    if (pdcJoinIsPrimEqualCond(pJoin, pCond, constAsPrim) && (NULL == *ppPrimEqCond)) {
       *ppPrimEqCond = pNew;
       ERASE_NODE(pLogicCond->pParameterList);
     } else {
@@ -942,8 +960,8 @@ static int32_t pdcJoinSplitPrimInLogicCond(SJoinLogicNode* pJoin, SNode** ppPrim
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL != *ppPrimEqCond) {
       *ppOnCond = pTempOnCond;
-      nodesDestroyNode(pJoin->pFullOnCond);
-      pJoin->pFullOnCond = NULL;
+      nodesDestroyNode(*ppInput);
+      *ppInput = NULL;
       return TSDB_CODE_SUCCESS;
     }
     planError("no primary key equal cond found, condListNum:%d", pLogicCond->pParameterList->length);
@@ -962,8 +980,8 @@ static int32_t pdcJoinSplitPrimEqCond(SOptimizeContext* pCxt, SJoinLogicNode* pJ
 
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pJoin->pFullOnCond) &&
       LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)(pJoin->pFullOnCond))->condType) {
-    code = pdcJoinSplitPrimInLogicCond(pJoin, &pPrimKeyEqCond, &pJoinOnCond);
-  } else if (pdcJoinIsPrimEqualCond(pJoin, pJoin->pFullOnCond)) {
+    code = pdcJoinSplitPrimInLogicCond(pJoin, &pJoin->pFullOnCond, &pPrimKeyEqCond, &pJoinOnCond, false);
+  } else if (pdcJoinIsPrimEqualCond(pJoin, pJoin->pFullOnCond, false)) {
     pPrimKeyEqCond = pJoin->pFullOnCond;
     pJoinOnCond = NULL;
   } else {
@@ -1412,6 +1430,37 @@ static int32_t pdcJoinAddFilterColsToTarget(SOptimizeContext* pCxt, SJoinLogicNo
   return code;
 }
 
+static int32_t pdcJoinSplitConstPrimEqCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, SNode** ppCond) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pPrimKeyEqCond = NULL;
+  SNode*  pJoinOnCond = NULL;
+
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppCond) &&
+      LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)*ppCond)->condType) {
+    code = pdcJoinSplitPrimInLogicCond(pJoin, ppCond, &pPrimKeyEqCond, &pJoinOnCond, true);
+  } else if (pdcJoinIsPrimEqualCond(pJoin, *ppCond, true)) {
+    pPrimKeyEqCond = *ppCond;
+    pJoinOnCond = NULL;
+  } else {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pJoin->pPrimKeyEqCond = pPrimKeyEqCond;
+    *ppCond = pJoinOnCond;
+    if (pJoin->constPrimGot) {
+      code = scalarConvertOpValueNodeTs((SOperatorNode*)pJoin->pPrimKeyEqCond);
+    }    
+  } else {
+    nodesDestroyNode(pPrimKeyEqCond);
+    nodesDestroyNode(pJoinOnCond);
+  }
+  
+  return code;
+}
+
+
+
 static int32_t pdcJoinCheckAllCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (NULL == pJoin->pFullOnCond) {
     if (IS_WINDOW_JOIN(pJoin->subType) || IS_ASOF_JOIN(pJoin->subType)) {
@@ -1427,9 +1476,9 @@ static int32_t pdcJoinCheckAllCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin
     }
   }
 
-  SNode* pCond = pJoin->pFullOnCond ? pJoin->pFullOnCond : pJoin->node.pConditions;
+  SNode** ppCond = pJoin->pFullOnCond ? &pJoin->pFullOnCond : &pJoin->node.pConditions;
   bool   errCond = false;
-  if (!pdcJoinHasPrimEqualCond(pJoin, pCond, &errCond)) {
+  if (!pdcJoinHasPrimEqualCond(pJoin, *ppCond, &errCond)) {
     if (errCond && !(IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType) && NULL != pJoin->pFullOnCond &&
                      NULL != pJoin->node.pConditions)) {
       return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND);
@@ -1447,6 +1496,20 @@ static int32_t pdcJoinCheckAllCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin
 
     if (IS_WINDOW_JOIN(pJoin->subType) || IS_ASOF_JOIN(pJoin->subType)) {
       return TSDB_CODE_SUCCESS;
+    }
+
+    pJoin->noPrimKeyEqCond = true;
+    int32_t code = pdcJoinSplitConstPrimEqCond(pCxt, pJoin, ppCond);
+    if (code || pJoin->pPrimKeyEqCond) {
+      return code;
+    }
+    
+    if (IS_INNER_NONE_JOIN(pJoin->joinType, pJoin->subType) && NULL != pJoin->pFullOnCond &&
+        NULL != pJoin->node.pConditions) {
+      code = pdcJoinSplitConstPrimEqCond(pCxt, pJoin, &pJoin->node.pConditions);
+      if (code || pJoin->pPrimKeyEqCond) {
+        return code;
+      }
     }
 
     return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
@@ -1813,6 +1876,7 @@ static int32_t pdcRewriteTypeBasedOnJoinRes(SOptimizeContext* pCxt, SJoinLogicNo
   return TSDB_CODE_SUCCESS;
 }
 
+
 static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (OPTIMIZE_FLAG_TEST_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
     return TSDB_CODE_SUCCESS;
@@ -1870,7 +1934,7 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pFullOnCond && !IS_WINDOW_JOIN(pJoin->subType) &&
-      NULL == pJoin->addPrimEqCond) {
+      NULL == pJoin->addPrimEqCond && NULL == pJoin->pPrimKeyEqCond) {
     code = pdcJoinSplitPrimEqCond(pCxt, pJoin);
   }
 
@@ -2616,6 +2680,10 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
 
   bool           res = false;
   SOperatorNode* pOp = (SOperatorNode*)pJoin->pPrimKeyEqCond;
+  if (QUERY_NODE_VALUE != nodeType(pOp->pLeft) || QUERY_NODE_VALUE != nodeType(pOp->pRight)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (QUERY_NODE_COLUMN != nodeType(pOp->pLeft) || QUERY_NODE_COLUMN != nodeType(pOp->pRight)) {
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }

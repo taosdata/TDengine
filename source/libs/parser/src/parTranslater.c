@@ -4753,13 +4753,22 @@ static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTabl
     }
   }
 
-  if ((QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pLeft) &&
-       !isGlobalTimeLineQuery(((STempTableNode*)pJoinTable->pLeft)->pSubquery)) ||
-      (QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pRight) &&
-       !isGlobalTimeLineQuery(((STempTableNode*)pJoinTable->pRight)->pSubquery))) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
-                                   "Join requires valid time series input");
+  if (QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pLeft) &&
+       !isGlobalTimeLineQuery(((STempTableNode*)pJoinTable->pLeft)->pSubquery)) {
+    if (IS_ASOF_JOIN(pJoinTable->subType) || IS_WINDOW_JOIN(pJoinTable->subType)) {   
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+                                     "Join requires valid time series input");
+    }
   }
+
+  if (QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pRight) &&
+       !isGlobalTimeLineQuery(((STempTableNode*)pJoinTable->pRight)->pSubquery)) {
+    if (IS_ASOF_JOIN(pJoinTable->subType) || IS_WINDOW_JOIN(pJoinTable->subType)) {   
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+                                     "Join requires valid time series input");
+    }
+  }
+
 
   return TSDB_CODE_SUCCESS;
 }
@@ -7555,7 +7564,7 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
     }
     if (pFunc->node.asAlias) {
       if (((SExprNode*)pExpr)->asAlias) {
-        pCxt->status = TSDB_CODE_INVALID_COLS_ALIAS;
+        pCxt->status = TSDB_CODE_PAR_INVALID_COLS_ALIAS;
         parserError("%s Invalid using alias for cols function", __func__);
         return DEAL_RES_ERROR;
       } else {
@@ -7664,7 +7673,7 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, SNodeList** nodeList
       if (isMultiColsFuncNode(pTmpNode)) {
         SFunctionNode* pFunc = (SFunctionNode*)pTmpNode;
         if(pFunc->node.asAlias) {
-          code = TSDB_CODE_INVALID_COLS_ALIAS;
+          code = TSDB_CODE_PAR_INVALID_COLS_ALIAS;
           parserError("%s Invalid using alias for cols function", __func__);
           goto _end;
         }

@@ -924,7 +924,7 @@ static int32_t setColEqList(SNode* pEqCond, int16_t leftBlkId, int16_t rightBlkI
 }
 
 static int32_t setMergeJoinPrimColEqCond(SNode* pEqCond, int32_t subType, int16_t leftBlkId, int16_t rightBlkId,
-                                         SSortMergeJoinPhysiNode* pJoin) {
+                                         SSortMergeJoinPhysiNode* pJoin, SJoinLogicNode* pJoinLogicNode) {
   int32_t code = 0;
   if (QUERY_NODE_OPERATOR == nodeType(pEqCond)) {
     SOperatorNode* pOp = (SOperatorNode*)pEqCond;
@@ -946,6 +946,16 @@ static int32_t setMergeJoinPrimColEqCond(SNode* pEqCond, int32_t subType, int16_
           return TSDB_CODE_PLAN_INTERNAL_ERROR;
         }
         break;
+      }
+      case QUERY_NODE_VALUE: {
+        if (pJoinLogicNode && pJoinLogicNode->constPrimGot) {
+          pJoin->leftPrimExpr = NULL;
+          code = nodesCloneNode(pOp->pLeft, &pJoin->leftPrimExpr);
+          break;
+        }
+        
+        planError("value node got in prim eq left cond");
+        return TSDB_CODE_PLAN_INTERNAL_ERROR;
       }
       case QUERY_NODE_FUNCTION: {
         SFunctionNode* pFunc = (SFunctionNode*)pOp->pLeft;
@@ -995,6 +1005,16 @@ static int32_t setMergeJoinPrimColEqCond(SNode* pEqCond, int32_t subType, int16_
         }
         break;
       }
+      case QUERY_NODE_VALUE: {
+        if (pJoinLogicNode && pJoinLogicNode->constPrimGot) {
+          pJoin->rightPrimExpr = NULL;
+          code = nodesCloneNode(pOp->pRight, &pJoin->rightPrimExpr);
+          break;
+        }
+        
+        planError("value node got in prim eq right cond");
+        return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      }      
       case QUERY_NODE_FUNCTION: {
         SFunctionNode* pFunc = (SFunctionNode*)pOp->pRight;
         if (FUNCTION_TYPE_TIMETRUNCATE != pFunc->funcType) {
@@ -1068,7 +1088,7 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
                          &pJoin->pPrimKeyCond);
     if (TSDB_CODE_SUCCESS == code) {
       code = setMergeJoinPrimColEqCond(pJoin->pPrimKeyCond, pJoin->subType, pLeftDesc->dataBlockId,
-                                       pRightDesc->dataBlockId, pJoin);
+                                       pRightDesc->dataBlockId, pJoin, pJoinLogicNode);
     }
     if (TSDB_CODE_SUCCESS == code && NULL != pJoin->leftPrimExpr) {
       code = addDataBlockSlot(pCxt, &pJoin->leftPrimExpr, pLeftDesc);
@@ -1084,7 +1104,7 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
                          &pPrimKeyCond);
     if (TSDB_CODE_SUCCESS == code) {
       code = setMergeJoinPrimColEqCond(pPrimKeyCond, pJoin->subType, pLeftDesc->dataBlockId, pRightDesc->dataBlockId,
-                                       pJoin);
+                                       pJoin, NULL);
     }
     if (TSDB_CODE_SUCCESS == code && NULL != pJoin->leftPrimExpr) {
       code = addDataBlockSlot(pCxt, &pJoin->leftPrimExpr, pLeftDesc);

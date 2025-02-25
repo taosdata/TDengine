@@ -600,6 +600,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pJoin->node.requireDataOrder = pJoin->hashJoinHint ? DATA_ORDER_LEVEL_NONE : DATA_ORDER_LEVEL_GLOBAL;
   pJoin->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
   pJoin->isLowLevelJoin = pJoinTable->isLowLevelJoin;
+  
   code = nodesCloneNode(pJoinTable->pWindowOffset, &pJoin->pWindowOffset);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCloneNode(pJoinTable->pJLimit, &pJoin->pJLimit);
