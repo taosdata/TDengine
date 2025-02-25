@@ -243,7 +243,6 @@ import {
 import { getExplorerProps, getSqlProvider } from '../model/useExplorer';
 import { hasOwnProperty } from 'utils/validate';
 import { cloneDeep } from 'lodash-es';
-import { ElMessageBox } from 'element-plus';
 import { deleteStableReq, deleteTableReq, getStableStructReq } from '../../api';
 import { instance } from 'config';
 
@@ -261,7 +260,7 @@ const iconMap: Recordable = {
   tag: 'tag',
   dimension: 'dimension'
 };
-const { isCloud, database, customCompCallback } = getExplorerProps();
+const { isCloud, isCommunity, database, customCompCallback } = getExplorerProps();
 const { addSql, sqlStr } = getSqlProvider();
 const currentData = getCurrentInfoDataProvider();
 const showMoreBtnType = ['database', 'stable'];
@@ -278,7 +277,7 @@ const tagFilter = ref('');
 const requestIng = ref(false);
 const type = computed(() => props.data.typeName);
 const key = computed(() => props.data[treeNodeKey]);
-let dataSourceUsedDbList: Recordable[] = [];
+// let dataSourceUsedDbList: Recordable[] = [];
 const emits = defineEmits([
   'nameFilter',
   'stableTagFilter',
@@ -287,7 +286,7 @@ const emits = defineEmits([
   'advancedFilter'
 ]);
 
-getDataSourceDbList();
+// getDataSourceDbList();
 function dbFilter() {
   emits('nameFilter', namefilterText.value, props.node);
 }
@@ -531,9 +530,13 @@ async function edit() {
   currentDetailComponentConfig.name = t('common.edit');
   partActiveTab.value = 'detail';
 }
+
 async function del() {
   if (requestIng.value) return;
-  if (isDatasourceUsedDB()) return;
+  if (!isCommunity) {
+    const inUsing = await isDatasourceUsedDB();
+    if (inUsing) return;
+  }
   await handleVar();
   let msg = '';
   if (type.value == 'database') {
@@ -592,14 +595,15 @@ async function del() {
       console.log(err);
     });
 }
-function getDataSourceDbList() {
-  database.getDataSourceUsedList().then(data => {
-    dataSourceUsedDbList = data;
-  });
-}
-function isDatasourceUsedDB() {
+// function getDataSourceDbList() {
+//   database.getDataSourceUsedList().then(data => {
+//     dataSourceUsedDbList = data;
+//   });
+// }
+async function isDatasourceUsedDB() {
   if (type.value !== 'database') return false;
-  const datasource = dataSourceUsedDbList.find(item => item.targetDB === props.data.name);
+  const databaseInUsing: Recordable[] = await database.getDataSourceUsedList();
+  const datasource = databaseInUsing.find(item => item.targetDB === props.data.name);
   if (!datasource) return false;
   ElMessageBox.alert(
     t('explorer.delDBUseingByDatasource', [props.data.name, datasource.name]),

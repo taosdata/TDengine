@@ -98,16 +98,27 @@
           :level="1"
         />
       </el-form>
+
       <section class="bottom">
-        <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
-          <template #content>
-            <span v-dompurify-html="t('common.communityTip')"></span>
-          </template>
-          <el-button type="primary" size="default" :loading="loading" :disabled="dataInProps.isCommunity" @click="save">
-            {{ currentPageType === 'edit' ? t('dataIn.saveAndApply') : t('dataIn.submit') }}
-          </el-button>
-        </el-tooltip>
-        <el-button class="cancel-btn" size="default" @click="goTaskPage">{{ t('common.cancel') }}</el-button>
+        <el-affix position="bottom" offset="0">
+          <div class="btn-group-task">
+            <el-tooltip placement="top" effect="light" :open-delay="0" :disabled="!dataInProps.isCommunity">
+              <template #content>
+                <span v-dompurify-html="t('common.communityTip')"></span>
+              </template>
+              <el-button
+                type="primary"
+                size="default"
+                :loading="loading"
+                :disabled="dataInProps.isCommunity"
+                @click="save"
+              >
+                {{ currentPageType === 'edit' ? t('dataIn.saveAndApply') : t('dataIn.submit') }}
+              </el-button>
+            </el-tooltip>
+            <el-button class="cancel-btn" size="default" @click="goTaskPage">{{ t('common.cancel') }}</el-button>
+          </div>
+        </el-affix>
       </section>
     </div>
 
@@ -121,7 +132,7 @@
       </div>
       <ResultTable
         v-if="transformerState.showResultTb"
-        :is-editable="currentPageType === 'edit'"
+        :is-editable="currentPageType === 'edit' || currentPageType === 'copy'"
         :current-data-source="sourceForm.type"
       ></ResultTable>
       <DatasetTable v-if="isShowDatasetTable" />
@@ -546,16 +557,22 @@ $color-description: rgb(137 130 130);
     }
 
     .bottom {
-      display: flex;
       padding: 0 !important;
+      margin-bottom: 0;
       border: none !important;
 
-      .el-button {
-        flex: 1;
-      }
+      .btn-group-task {
+        display: flex;
+        padding: 20px 15px;
+        background: #fafafa;
 
-      .el-select {
-        margin-left: 0 !important;
+        .el-button {
+          flex: 1;
+        }
+
+        .el-select {
+          margin-left: 0 !important;
+        }
       }
     }
 
