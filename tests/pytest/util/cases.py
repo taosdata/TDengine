@@ -63,7 +63,9 @@ class TDCases:
         runNum = 0
         for tmp in self.linuxCases:
             if tmp.name.find(fileName) != -1:
-                case = testModule.TDTestCase()
+                # get the last class name as the test case class name
+                case_class = getattr(testModule, self.get_local_classes(testModule)[0])
+                case = case_class()
                 case.init(conn)
                 case.run()
                 case.stop()
@@ -98,7 +100,9 @@ class TDCases:
         runNum = 0
         for tmp in self.windowsCases:
             if tmp.name.find(fileName) != -1:
-                case = testModule.TDTestCase()
+                # get the last class name as the test case class name
+                case_class = getattr(testModule, self.get_local_classes(testModule)[-1])
+                case = case_class()
                 case.init(conn)
                 case.run()
                 case.stop()

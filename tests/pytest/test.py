@@ -147,8 +147,7 @@ if __name__ == "__main__":
             except:
                 pass
             if is_test_framework:
-                moduleName = fileName.replace(".py", "").replace(os.sep, ".")
-                uModule = importlib.import_module(moduleName)
+                uModule = dynamicLoadModule(fileName)
                 try:
                     ucase = uModule.TDTestCase()
                     tdDnodes.deploy(1,ucase.updatecfgDict)
@@ -181,8 +180,7 @@ if __name__ == "__main__":
         except:
             pass
         if is_test_framework:
-            moduleName = fileName.replace(".py", "").replace("/", ".")
-            uModule = importlib.import_module(moduleName)
+            uModule = dynamicLoadModule(fileName)
             try:
                 ucase = uModule.TDTestCase()
                 tdDnodes.deploy(1,ucase.updatecfgDict)
