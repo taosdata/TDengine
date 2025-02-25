@@ -1026,7 +1026,6 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
 
 static int32_t storeChildTableMeta(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   pStmt->pTableMeta->suid = pStmt->pTableMeta->uid;
-  pStmt->pTableMeta->uid = pStmt->totalTbNum;
   pStmt->pTableMeta->tableType = TSDB_CHILD_TABLE;
 
   STableMeta* pBackup = NULL;
@@ -1325,8 +1324,7 @@ static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   if (token.type != TK_USING) {
     return code;
   } else if ((!pCxt->missCache) && (TSDB_CODE_SUCCESS == code)) {
-    pStmt->pSql += index;
-    return ignoreUsingClause(pCxt, &pStmt->pSql);
+    code = parseUsingClauseBottom(pCxt, pStmt);
   }
 
   pStmt->usingTableProcessing = true;
