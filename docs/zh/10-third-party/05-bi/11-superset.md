@@ -55,6 +55,8 @@ taosws://root:taosdata@localhost:6041
        
 ## 数据分析
 
+### 数据准备
+
 TDengine 数据源与其它数据源使用上无差别，这里简单介绍下数据查询：
 
 1. `Superset` 界面点击右上角【+】号按钮，选择 `SQL query`, 进入查询界面。 
