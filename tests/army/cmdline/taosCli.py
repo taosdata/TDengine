@@ -110,7 +110,7 @@ class TDTestCase(TBase):
     def checkDumpInOutMode(self, source, arg, db, insertRows):
         mode = arg[0]
         self.taos(f'{mode} -s "source {source}" ')
-        self.taos(f'{mode} -s "select * from {db}.d0; >>d0.csv" ')
+        self.taos(f'{mode} -s "select * from {db}.d0>>d0.csv" ')
         
         # use db
         rlist = self.taos(f'{mode} -s "show databases;use {db};show databases;" ')
