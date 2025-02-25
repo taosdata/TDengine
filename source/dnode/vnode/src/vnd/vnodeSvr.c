@@ -599,9 +599,6 @@ static int32_t inline updateSubmitData(SSubmitTbData *pSubmitTbData, STSchema *p
   int32_t  code = 0;
   int32_t  lino = 0;
   uint64_t seq = 0;
-  if (taosArrayGetSize(pSubmitTbData->aRowP) != taosArrayGetSize(pSubmitTbData->aBlobRow)) {
-    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
-  }
 
   for (int32_t i = 0; i < taosArrayGetSize(pSubmitTbData->aRowP); i++) {
     SRow      **pRow = taosArrayGet(pSubmitTbData->aRowP, i);
@@ -615,7 +612,7 @@ static int32_t inline updateSubmitData(SSubmitTbData *pSubmitTbData, STSchema *p
         SColVal  colVal = {0};
         uint64_t seq = 0;
 
-        tRowSetBlobSeq(*pRow, pTSchema, j, &colVal, &seq);
+        tRowGetBlobSeq(*pRow, pTSchema, j, &colVal, &seq);
         SBlobValue *pBlobValue = taosHashGet((*pBlob)->pSeqTable, &seq, sizeof(seq));
         if (pBlobValue != NULL) {
           code = bseAppend(pVnode->pBse, &seq, data + pBlobValue->offset, pBlobValue->len);
@@ -1989,8 +1986,9 @@ static int32_t vnodeSubmitReqConvertToSubmitReq2(SVnode *pVnode, SSubmitReq *pRe
     while (TSDB_CODE_SUCCESS == code && (cxt.pRow = tGetSubmitBlkNext(&cxt.blkIter)) != NULL) {
       code = vnodeTSRowConvertToColValArray(&cxt);
       if (TSDB_CODE_SUCCESS == code) {
-        SRow **pNewRow = taosArrayReserve(cxt.pTbData->aRowP, 1);
-        code = tRowBuild(cxt.pColValues, cxt.pTbSchema, pNewRow);
+        SRow            **pNewRow = taosArrayReserve(cxt.pTbData->aRowP, 1);
+        SRowBuildScanInfo sinfo;
+        code = tRowBuild(cxt.pColValues, cxt.pTbSchema, pNewRow, &sinfo);
       }
     }
     if (TSDB_CODE_SUCCESS == code) {

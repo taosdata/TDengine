@@ -58,7 +58,7 @@ typedef struct SSubmitRspParam {
 int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SSubmitRspParam*     pParam = (SSubmitRspParam*)param;
   SDataInserterHandle* pInserter = pParam->pInserter;
-  int32_t code2 = 0;
+  int32_t              code2 = 0;
 
   if (code) {
     pInserter->submitRes.code = code;
@@ -115,7 +115,7 @@ _return:
       pInserter->submitRes.code = code2;
     }
   }
-  
+
   taosMemoryFree(pMsg->pData);
 
   return TSDB_CODE_SUCCESS;
@@ -310,8 +310,9 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
       }
     }
 
-    SRow* pRow = NULL;
-    if ((terrno = tRowBuild(pVals, pTSchema, &pRow)) < 0) {
+    SRow*             pRow = NULL;
+    SRowBuildScanInfo sinfo;
+    if ((terrno = tRowBuild(pVals, pTSchema, &pRow, &sinfo)) < 0) {
       tDestroySubmitTbData(&tbData, TSDB_MSG_FLG_ENCODE);
       goto _end;
     }
@@ -435,9 +436,9 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   taosMemoryFree(pInserter->pSchema);
   taosMemoryFree(pInserter->pParam);
   taosHashCleanup(pInserter->pCols);
-  nodesDestroyNode((SNode *)pInserter->pNode);
+  nodesDestroyNode((SNode*)pInserter->pNode);
   pInserter->pNode = NULL;
-  
+
   (void)taosThreadMutexDestroy(&pInserter->mutex);
 
   taosMemoryFree(pInserter->pManager);
@@ -460,7 +461,7 @@ static int32_t getSinkFlags(struct SDataSinkHandle* pHandle, uint64_t* pFlags) {
 
 int32_t createDataInserter(SDataSinkManager* pManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle,
                            void* pParam) {
-  SDataSinkNode* pDataSink = *ppDataSink;
+  SDataSinkNode*       pDataSink = *ppDataSink;
   SDataInserterHandle* inserter = taosMemoryCalloc(1, sizeof(SDataInserterHandle));
   if (NULL == inserter) {
     taosMemoryFree(pParam);
@@ -535,7 +536,7 @@ _return:
     taosMemoryFree(pManager);
   }
 
-  nodesDestroyNode((SNode *)*ppDataSink);
+  nodesDestroyNode((SNode*)*ppDataSink);
   *ppDataSink = NULL;
 
   return terrno;

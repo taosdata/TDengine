@@ -43,8 +43,9 @@ typedef struct SColData   SColData;
 typedef struct SBlobRow   SBlobRow;
 typedef struct SBlobRow2  SBlobRow2;
 
-typedef struct SRowKey      SRowKey;
-typedef struct SValueColumn SValueColumn;
+typedef struct SRowKey           SRowKey;
+typedef struct SValueColumn      SValueColumn;
+typedef struct SRowBuildScanInfo SRowBuildScanInfo;
 
 #define HAS_NONE  ((uint8_t)0x1)
 #define HAS_NULL  ((uint8_t)0x2)
@@ -131,8 +132,9 @@ int32_t tValueColumnCompressInfoDecode(SBufferReader *reader, SValueColumnCompre
 int32_t tValueCompare(const SValue *tv1, const SValue *tv2);
 
 // SRow ================================
-int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);
-int32_t tRowBuild2(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobRow2 **ppBlobRow);
+int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SRowBuildScanInfo *pScanInfo);
+int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobRow2 **ppBlobRow,
+                          SRowBuildScanInfo *sinfo);
 int32_t tRowBuild3(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 
@@ -144,7 +146,7 @@ int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow);
 int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len, uint64_t *seq);
 int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow);
 
-int32_t tRowSetBlobSeq(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal, uint64_t *seq);
+int32_t tRowGetBlobSeq(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal, uint64_t *seq);
 void    tRowDestroy(SRow *pRow);
 int32_t tRowSort(SArray *aRowP);
 int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, int8_t flag);
@@ -430,6 +432,33 @@ typedef struct {
 int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, bool infoSorted, const STSchema *pTSchema,
                            SArray *rowArray, bool *pOrdered, bool *pDupTs);
 
+struct SRowBuildScanInfo {
+  int32_t numOfNone;
+  int32_t numOfNull;
+  int32_t numOfValue;
+  int32_t numOfPKs;
+  int8_t  flag;
+
+  // tuple
+  int8_t           tupleFlag;
+  SPrimaryKeyIndex tupleIndices[TD_MAX_PK_COLS];
+  int32_t          tuplePKSize;      // primary key size
+  int32_t          tupleBitmapSize;  // bitmap size
+  int32_t          tupleFixedSize;   // fixed part size
+  int32_t          tupleVarSize;     // var part size
+  int32_t          tupleRowSize;
+
+  // key-value
+  int8_t           kvFlag;
+  SPrimaryKeyIndex kvIndices[TD_MAX_PK_COLS];
+  int32_t          kvMaxOffset;
+  int32_t          kvPKSize;       // primary key size
+  int32_t          kvIndexSize;    // offset array size
+  int32_t          kvPayloadSize;  // payload size
+  int32_t          kvRowSize;
+
+  int8_t hasBlob;
+};
 #endif
 
 #ifdef __cplusplus

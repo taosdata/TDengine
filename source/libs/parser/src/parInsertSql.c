@@ -2167,8 +2167,9 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
     }
   }
   if (code == TSDB_CODE_SUCCESS && !pCxt->isStmtBind) {
-    SRow** pRow = taosArrayReserve((*ppTableDataCxt)->pData->aRowP, 1);
-    code = tRowBuild(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow);
+    SRow**            pRow = taosArrayReserve((*ppTableDataCxt)->pData->aRowP, 1);
+    SRowBuildScanInfo sinfo;
+    code = tRowBuild(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow, &sinfo);
     if (TSDB_CODE_SUCCESS == code) {
       SRowKey key;
       tRowGetKey(*pRow, &key);
@@ -2249,10 +2250,12 @@ static int parseOneRow(SInsertParseContext* pCxt, const char** pSql, STableDataC
   if (TSDB_CODE_SUCCESS == code && !pCxt->isStmtBind) {
     SRow** pRow = taosArrayReserve(pTableCxt->pData->aRowP, 1);
     if (schemaHasBlob(pTableCxt->pSchema)) {
-      SBlobRow2** pBlowRow = taosArrayReserve(pTableCxt->pData->aBlobRow, 1);
-      code = tRowBuild2(pTableCxt->pValues, pTableCxt->pSchema, pRow, pBlowRow);
+      SBlobRow2**       pBlowRow = taosArrayReserve(pTableCxt->pData->aBlobRow, 1);
+      SRowBuildScanInfo sinfo = {.hasBlob = 1};
+      code = tRowBuildWithBlob(pTableCxt->pValues, pTableCxt->pSchema, pRow, pBlowRow, &sinfo);
     } else {
-      code = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow);
+      SRowBuildScanInfo sinfo;
+      code = tRowBuild(pTableCxt->pValues, pTableCxt->pSchema, pRow, &sinfo);
     }
     if (TSDB_CODE_SUCCESS == code) {
       SRowKey key;
