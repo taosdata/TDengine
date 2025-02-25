@@ -1324,7 +1324,8 @@ static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   if (token.type != TK_USING) {
     return code;
   } else if ((!pCxt->missCache) && (TSDB_CODE_SUCCESS == code)) {
-    code = parseUsingClauseBottom(pCxt, pStmt);
+    pStmt->pSql += index;
+    return ignoreUsingClause(pCxt, &pStmt->pSql);
   }
 
   pStmt->usingTableProcessing = true;
