@@ -360,7 +360,7 @@ static SKeyword keywordTable[] = {
     {"ON_FAILURE",           TK_ON_FAILURE},
     {"NOTIFY_HISTORY",       TK_NOTIFY_HISTORY},
     {"REGEXP",               TK_REGEXP},
-    {"TRUE_FOR",             TK_TRUE_FOR}
+    {"TRUE_FOR",             TK_TRUE_FOR},
     {"CONTINUOUS_WINDOW_CLOSE", TK_CONTINUOUS_WINDOW_CLOSE},
     {"RECALCULATE",          TK_RECALCULATE},
 };

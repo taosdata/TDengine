@@ -349,7 +349,7 @@ int32_t buildNonBlockSessionResult(SOperatorInfo* pOperator, SStreamAggSupporter
   }
 
   SSDataBlock*   pDelRes = pBasic->pDelRes;
-  doBuildDeleteDataBlock(pOperator, pBasic->pSeDeleted, pDelRes, &pBasic->pDelIterator);
+  doBuildDeleteDataBlock(pOperator, pBasic->pSeDeleted, pDelRes, &pBasic->pDelIterator, pGroupResInfo);
   if (pDelRes->info.rows > 0) {
     printDataBlock(pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
     (*ppRes) = pDelRes;
@@ -785,6 +785,10 @@ static int32_t doStreamFinalSessionNonblockAggImpl(SOperatorInfo* pOperator, SSD
              tSimpleHashGetSize(pAggSup->pResultRows) > pOperator->resultInfo.capacity * 10) {
     code = copyNewResult(&pAggSup->pResultRows, pInfo->basic.pUpdated, sessionKeyCompareAsc);
     QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  if (!isHistoryOperator(&pInfo->basic)) {
+    checkAndSaveWinStateToDisc(0, pInfo->basic.pUpdated, 0, pInfo->basic.pTsDataState, &pInfo->streamAggSup);
   }
 
 _end:

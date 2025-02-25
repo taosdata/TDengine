@@ -763,18 +763,6 @@ typedef struct SEventWindowOperatorInfo {
   int64_t            trueForLimit;
 } SEventWindowOperatorInfo;
 
-typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
-
-typedef struct SNonBlockAggSupporter {
-  int32_t       numOfKeep;
-  TSKEY         tsOfKeep;
-  AggImplFn     pWindowAggFn;
-  SArray*       pPullWins;
-  int32_t       pullIndex;
-  SSDataBlock*  pPullDataRes;
-  SSHashObj*    pHistoryGroup;
-} SNonBlockAggSupporter;
-
 typedef struct SStreamSessionAggOperatorInfo {
   SOptrBasicInfo      binfo;
   SSteamOpBasicInfo   basic;
