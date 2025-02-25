@@ -39,11 +39,11 @@ int64_t FORCE_INLINE walGetCommittedVer(SWal* pWal) { return pWal->vers.commitVe
 int64_t FORCE_INLINE walGetAppliedVer(SWal* pWal) { return pWal->vers.appliedVer; }
 
 static FORCE_INLINE int walBuildMetaName(SWal* pWal, int metaVer, char* buf) {
-  return snprintf(buf, WAL_FILE_LEN, "%s/meta-ver%d", pWal->path, metaVer);
+  return snprintf(buf, WAL_FILE_LEN, "%s%smeta-ver%d", pWal->path, TD_DIRSEP, metaVer);
 }
 
 static FORCE_INLINE int walBuildTmpMetaName(SWal* pWal, char* buf) {
-  return snprintf(buf, WAL_FILE_LEN, "%s/meta-ver.tmp", pWal->path);
+  return snprintf(buf, WAL_FILE_LEN, "%s%smeta-ver.tmp", pWal->path, TD_DIRSEP);
 }
 
 FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* lastVer) {
@@ -52,7 +52,6 @@ FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* 
   int64_t       retVer = -1;
   void*         ptr = NULL;
   SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
-
   char fnameStr[WAL_FILE_LEN];
   walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
 
@@ -226,7 +225,7 @@ FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* 
 
 _err:
   if (code != 0) {
-    wError("vgId:%d, failed to scan log file due to %s, file:%s", pWal->cfg.vgId, tstrerror(terrno), fnameStr);
+    wError("vgId:%d, failed at line %d to scan log file due to %s, file:%s", pWal->cfg.vgId, lino, tstrerror(code), fnameStr);
   }
   taosCloseFile(&pFile);
   taosMemoryFree(buf);

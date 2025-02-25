@@ -1661,9 +1661,6 @@ static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArr
       code = mndTransSync(pMnode, pTrans);
       (void)taosThreadMutexLock(&pTrans->mutex);
       if (code != 0) {
-#ifdef TD_ASTRA
-        __asm("bkpt #0");
-#endif
         pTrans->actionPos--;
         pTrans->code = terrno;
         mError("trans:%d, %s:%d is executed and failed to sync to other mnodes since %s", pTrans->id,

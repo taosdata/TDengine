@@ -87,19 +87,19 @@ TEST(osStringTests, osUcs4Tests1) {
   TdUcs4 f1_ucs4[] = {0x0048, 0x0065, 0x006C, 0x006C, 0x006F, 0x0000};
   TdUcs4 f2_ucs4[] = {0x0048, 0x0065, 0x006C, 0x006C, 0x006F, 0x0000};
 
-  EXPECT_EQ(tasoUcs4Compare(f1_ucs4, f2_ucs4, sizeof(f1_ucs4)), 0);
+  EXPECT_EQ(taosUcs4Compare(f1_ucs4, f2_ucs4, sizeof(f1_ucs4)), 0);
 
   TdUcs4 f3_ucs4[] = {0x0048, 0x0065, 0x006C, 0x006C, 0x006F, 0x0020, 0x0077,
                       0x006F, 0x0072, 0x006C, 0x0064, 0x0021, 0x0000};
   TdUcs4 f4_ucs4[] = {0x0048, 0x0065, 0x006C, 0x006C, 0x006F, 0x0000};
 
-  EXPECT_GT(tasoUcs4Compare(f3_ucs4, f4_ucs4, sizeof(f3_ucs4)), 0);
+  EXPECT_GT(taosUcs4Compare(f3_ucs4, f4_ucs4, sizeof(f3_ucs4)), 0);
 
   TdUcs4 f5_ucs4[] = {0x0048, 0x0065, 0x006C, 0x006C, 0x006F, 0x0000};
   TdUcs4 f6_ucs4[] = {0x0048, 0x0065, 0x006C, 0x006C, 0x006F, 0x0020, 0x0077,
                       0x006F, 0x0072, 0x006C, 0x0064, 0x0021, 0x0000};
 
-  EXPECT_LT(tasoUcs4Compare(f5_ucs4, f6_ucs4, sizeof(f5_ucs4)), 0);
+  EXPECT_LT(taosUcs4Compare(f5_ucs4, f6_ucs4, sizeof(f5_ucs4)), 0);
 }
 
 TEST(osStringTests, osUcs4lenTests2) {
