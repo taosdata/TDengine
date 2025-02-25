@@ -165,7 +165,7 @@ def pre_test(){
     script {
         sh '''
             cd ${WK}
-            git checkout ''' + env.CHANGE_TARGET + '''
+            git checkout 3.0
             cd ${WKC}
             git checkout ''' + env.CHANGE_TARGET + '''
         '''
@@ -274,7 +274,7 @@ def pre_test_win(){
     script {
         bat '''
             cd %WIN_INTERNAL_ROOT%
-            git checkout ''' + env.CHANGE_TARGET + '''
+            git checkout 3.0
         '''
         bat '''
             cd %WIN_COMMUNITY_ROOT%
@@ -285,7 +285,7 @@ def pre_test_win(){
         if (env.CHANGE_URL =~ /\/TDengine\//) {
             bat '''
                 cd %WIN_INTERNAL_ROOT%
-                git pull origin ''' + env.CHANGE_TARGET + '''
+                git pull origin 3.0
             '''
             bat '''
                 cd %WIN_COMMUNITY_ROOT%
