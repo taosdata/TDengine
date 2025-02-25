@@ -99,7 +99,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
 
   char rand[8] = {0};
   taosRandStr(rand, tListLen(rand) - 1);
-  snprintf(dstPath, PATH_MAX, tmpPath, taosGetPid(), rand);
+  snprintf(dstPath, PATH_MAX, tmpPath, taosGetPId(), rand);
 
 #else
 
@@ -118,7 +118,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
 
   (void)snprintf(rand, sizeof(rand), "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
 
-  (void)snprintf(dstPath, PATH_MAX, tmpPath, taosGetPid(), rand);
+  (void)snprintf(dstPath, PATH_MAX, tmpPath, taosGetPId(), rand);
 
 #endif
 }

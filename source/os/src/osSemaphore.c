@@ -47,7 +47,7 @@ int64_t taosGetSelfPthreadId() { return GetCurrentThreadId(); }
 
 bool taosComparePthread(TdThread first, TdThread second) { return first.p == second.p; }
 
-int32_t taosGetPid() { return GetCurrentProcessId(); }
+int32_t taosGetPId() { return GetCurrentProcessId(); }
 
 int32_t taosGetAppName(char* name, int32_t* len) {
   OS_PARAM_CHECK(name);
@@ -77,7 +77,7 @@ int32_t taosGetAppName(char* name, int32_t* len) {
   return 0;
 }
 
-int32_t taosGetPidByName(const char* name, int32_t* pPId) { return -1;}
+int32_t taosGetPIdByName(const char* name, int32_t* pPId) { return -1;}
 
 int32_t tsem_wait(tsem_t* sem) {
   OS_PARAM_CHECK(sem);
@@ -181,7 +181,7 @@ void taosResetPthread(TdThread *thread) {
 
 bool taosComparePthread(TdThread first, TdThread second) { return taosThreadEqual(first, second) ? true : false; }
 
-int32_t taosGetPid() { return (int32_t)getpid(); }
+int32_t taosGetPId() { return (int32_t)getpid(); }
 
 int32_t taosGetAppName(char *name, int32_t *len) {
   OS_PARAM_CHECK(name);
@@ -195,7 +195,7 @@ int32_t taosGetAppName(char *name, int32_t *len) {
   return 0;
 }
 
-int32_t taosGetPidByName(const char* name, int32_t* pPId) {return -1;}
+int32_t taosGetPIdByName(const char* name, int32_t* pPId) {return -1;}
 
 #else
 
@@ -228,7 +228,7 @@ void    taosResetPthread(TdThread* thread) {
 }
 bool    taosComparePthread(TdThread first, TdThread second) { return first == second; }
 
-int32_t taosGetPid() {
+int32_t taosGetPId() {
   static int32_t pid;
   if (pid != 0) return pid;
 #ifndef TD_ASTRA
@@ -269,7 +269,7 @@ int32_t taosGetAppName(char* name, int32_t* len) {
   return 0;
 }
 
-int32_t taosGetPidByName(const char* name, int32_t* pPId) {
+int32_t taosGetPIdByName(const char* name, int32_t* pPId) {
 #ifndef TD_ASTRA
   OS_PARAM_CHECK(name);
   OS_PARAM_CHECK(pPId);

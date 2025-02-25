@@ -126,7 +126,7 @@ void stopRsync() {
 #ifdef WINDOWS
   code = system("taskkill /f /im rsync.exe");
 #else
-  code = taosGetPidByName("rsync", &pid);
+  code = taosGetPIdByName("rsync", &pid);
   if (code == 0) {
     int32_t ret = tsnprintf(buf, tListLen(buf), "kill -9 %d", pid);
     if (ret > 0) {

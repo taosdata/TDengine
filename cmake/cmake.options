@@ -31,7 +31,6 @@ IF(${TD_WINDOWS})
                 ON
             )
 
-    ENDIF ()
         MESSAGE("build msvcregex Win32")
         option(
                 BUILD_MSVCREGEX
@@ -39,7 +38,6 @@ IF(${TD_WINDOWS})
                 ON
             )
 
-    IF(NOT TD_ASTRA)
         MESSAGE("build wcwidth Win32")
         option(
                 BUILD_WCWIDTH

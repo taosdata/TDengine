@@ -998,7 +998,7 @@ int32_t vnodeProcessStreamCtrlMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pIn
       return TSDB_CODE_APP_ERROR;
   }
 }
-
+#endif
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   int32_t code = tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);
   if (code) {

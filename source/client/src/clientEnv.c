@@ -301,7 +301,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
     (void)atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
     if (pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogScope & reqType) {
       taosPrintSlowLog("PID:%d, Conn:%u,QID:0x%" PRIx64 ", Start:%" PRId64 " us, Duration:%" PRId64 "us, SQL:%s",
-                       taosGetPid(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration,
+                       taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration,
                        pRequest->sqlstr);
       if (pTscObj->pAppInfo->serverCfg.monitorParas.tsEnableMonitor) {
         slowQueryLog(pTscObj->id, pRequest->killed, pRequest->code, duration);
@@ -1059,7 +1059,7 @@ void taos_init_imp(void) {
   errno = TSDB_CODE_SUCCESS;
   taosSeedRand(taosGetTimestampSec());
 
-  appInfo.pid = taosGetPid();
+  appInfo.pid = taosGetPId();
   appInfo.startTime = taosGetTimestampMs();
   appInfo.pInstMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   appInfo.pInstMapByClusterId =
@@ -1241,7 +1241,7 @@ uint64_t generateRequestId() {
 
   while (true) {
     int64_t  ts = taosGetTimestampMs();
-    uint64_t pid = taosGetPid();
+    uint64_t pid = taosGetPId();
     uint32_t val = atomic_add_fetch_32(&requestSerialId, 1);
     if (val >= 0xFFFF) atomic_store_32(&requestSerialId, 0);
 
