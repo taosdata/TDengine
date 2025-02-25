@@ -937,7 +937,9 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 #ifdef USE_STREAM
 int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("vgId:%d, msg:%p in stream queue is processing", pVnode->config.vgId, pMsg);
-  if (!syncIsReadyForRead(pVnode->sync)) {
+  if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
+       pMsg->msgType == TDMT_VND_BATCH_META) &&
+      !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
   }
@@ -949,6 +951,8 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskRetrieveReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_RETRIEVE_RSP:
       return tqProcessTaskRetrieveRsp(pVnode->pTq, pMsg);
+    case TDMT_VND_STREAM_SCAN_HISTORY:
+      return tqProcessTaskScanHistory(pVnode->pTq, pMsg);
     case TDMT_VND_GET_STREAM_PROGRESS:
       return tqStreamProgressRetrieveReq(pVnode->pTq, pMsg);
     default:
@@ -994,23 +998,6 @@ int32_t vnodeProcessStreamCtrlMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pIn
       return TSDB_CODE_APP_ERROR;
   }
 }
-
-int32_t vnodeProcessStreamLongExecMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
-  vTrace("vgId:%d, msg:%p in stream long exec queue is processing", pVnode->config.vgId, pMsg);
-  if (!syncIsReadyForRead(pVnode->sync)) {
-    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
-    return 0;
-  }
-
-  switch (pMsg->msgType) {
-    case TDMT_VND_STREAM_SCAN_HISTORY:
-      return tqProcessTaskScanHistory(pVnode->pTq, pMsg);
-    default:
-      vError("unknown msg type:%d in stream long exec queue", pMsg->msgType);
-      return TSDB_CODE_APP_ERROR;
-  }
-}
-#endif
 
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   int32_t code = tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);

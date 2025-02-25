@@ -1702,6 +1702,10 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t invalidColsFunction(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
+}
+
 static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
@@ -2737,7 +2741,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateOutFirstIn,
     .dynDataRequiredFunc = firstDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
-    .initFunc     = functionSetup,
+    .initFunc     = firstLastFunctionSetup,
     .processFunc  = firstFunction,
     .sprocessFunc = firstLastScalarFunction,
     .finalizeFunc = firstLastFinalize,
@@ -4232,7 +4236,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_group_key",
     .type = FUNCTION_TYPE_GROUP_KEY,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
     .translateFunc = translateGroupKey,
     .getEnvFunc   = getGroupKeyFuncEnv,
     .initFunc     = functionSetup,
@@ -4954,7 +4958,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_group_const_value",
     .type = FUNCTION_TYPE_GROUP_CONST_VALUE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .parameters = {.minParamNum = 0,
                    .maxParamNum = 0,
                    .paramInfoPattern = 0,
@@ -5649,7 +5653,11 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .paramInfoPattern = 0,
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
-  }
+  },
+  {
+    .name = "cols",
+    .translateFunc = invalidColsFunction,
+  },
 };
 // clang-format on
 

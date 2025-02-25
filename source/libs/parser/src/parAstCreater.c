@@ -17,6 +17,8 @@
 #ifndef TD_ASTRA
 #include <uv.h>
 #endif
+
+#include "nodes.h"
 #include "parAst.h"
 #include "parUtil.h"
 #include "tglobal.h"
@@ -355,6 +357,33 @@ SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
   SRawExprNode* target = (SRawExprNode*)pNode;
   SToken        t = {.type = 0, .z = target->p, .n = target->n};
   return t;
+}
+
+SNodeList* createColsFuncParamNodeList(SAstCreateContext* pCxt, SNode* pNode, SNodeList* pNodeList, SToken* pAlias) {
+  CHECK_PARSER_STATUS(pCxt);
+    if (NULL == pNode || QUERY_NODE_RAW_EXPR != nodeType(pNode)) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+  }
+  CHECK_PARSER_STATUS(pCxt);
+  SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
+  SNode*        pFuncNode = pRawExpr->pNode;
+  if(pFuncNode->type != QUERY_NODE_FUNCTION) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+  }
+  CHECK_PARSER_STATUS(pCxt);
+  SNodeList* list = NULL;
+  pCxt->errCode = nodesMakeList(&list);
+  CHECK_MAKE_NODE(list);
+  pCxt->errCode = nodesListAppend(list, pFuncNode);
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesListAppendList(list, pNodeList);
+  CHECK_PARSER_STATUS(pCxt);
+  return list;
+
+  _err:
+  nodesDestroyNode(pFuncNode);
+  nodesDestroyList(pNodeList);
+  return NULL;
 }
 
 SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode) {
@@ -1333,7 +1362,7 @@ _err:
   return NULL;
 }
 
-SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr) {
+SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pTrueForLimit) {
   SStateWindowNode* state = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STATE_WINDOW, (SNode**)&state);
@@ -1341,14 +1370,16 @@ SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr) {
   state->pCol = createPrimaryKeyCol(pCxt, NULL);
   CHECK_MAKE_NODE(state->pCol);
   state->pExpr = pExpr;
+  state->pTrueForLimit = pTrueForLimit;
   return (SNode*)state;
 _err:
   nodesDestroyNode((SNode*)state);
   nodesDestroyNode(pExpr);
+  nodesDestroyNode(pTrueForLimit);
   return NULL;
 }
 
-SNode* createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* pEndCond) {
+SNode* createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* pEndCond, SNode* pTrueForLimit) {
   SEventWindowNode* pEvent = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_EVENT_WINDOW, (SNode**)&pEvent);
@@ -1357,11 +1388,13 @@ SNode* createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* 
   CHECK_MAKE_NODE(pEvent->pCol);
   pEvent->pStartCond = pStartCond;
   pEvent->pEndCond = pEndCond;
+  pEvent->pTrueForLimit = pTrueForLimit;
   return (SNode*)pEvent;
 _err:
   nodesDestroyNode((SNode*)pEvent);
   nodesDestroyNode(pStartCond);
   nodesDestroyNode(pEndCond);
+  nodesDestroyNode(pTrueForLimit);
   return NULL;
 }
 
