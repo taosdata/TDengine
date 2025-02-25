@@ -149,7 +149,8 @@ if __name__ == "__main__":
             if is_test_framework:
                 uModule = dynamicLoadModule(fileName)
                 try:
-                    ucase = uModule.TDTestCase()
+                    case_class = getattr(uModule, get_local_classes(uModule)[-1])
+                    ucase = case_class()
                     tdDnodes.deploy(1,ucase.updatecfgDict)
                 except :
                     tdDnodes.deploy(1,{})
@@ -182,7 +183,8 @@ if __name__ == "__main__":
         if is_test_framework:
             uModule = dynamicLoadModule(fileName)
             try:
-                ucase = uModule.TDTestCase()
+                case_class = getattr(uModule, get_local_classes(uModule)[-1])
+                ucase = case_class()
                 tdDnodes.deploy(1,ucase.updatecfgDict)
             except :
                 tdDnodes.deploy(1,{})
