@@ -1165,6 +1165,8 @@ static int32_t getTableMeta(SInsertParseContext* pCxt, SName* pTbName, STableMet
       *pMissCache = true;
     } else if (bUsingTable && TSDB_SUPER_TABLE != (*pTableMeta)->tableType) {
       code = buildInvalidOperationMsg(&pCxt->msg, "create table only from super table is allowed");
+    } else {
+      *pMissCache = false;
     }
   }
   return code;
