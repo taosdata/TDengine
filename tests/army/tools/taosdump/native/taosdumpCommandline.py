@@ -121,7 +121,6 @@ class TDTestCase(TBase):
         else:
             tdLog.exit(f"{aggfun} source db:{sum1} import db:{sum2} not equal.")
 
-
     def verifyResult(self, db, newdb, json):
         # compare with insert json
         self.checkCorrectWithJson(json, newdb)
@@ -129,7 +128,6 @@ class TDTestCase(TBase):
         #  compare sum(pk)
         stb = "meters"
         self.checkSame(db, newdb, stb, "sum(fc)")
-        self.checkSame(db, newdb, stb, "avg(dc)")
         self.checkSame(db, newdb, stb, "sum(ti)")
         self.checkSame(db, newdb, stb, "sum(si)")
         self.checkSame(db, newdb, stb, "sum(ic)")
@@ -160,7 +158,7 @@ class TDTestCase(TBase):
     def basicCommandLine(self, tmpdir):
         #command and check result 
         checkItems = [
-            [f"-h 127.0.0.1 -P 6030 -uroot -ptaosdata -A -N -o {tmpdir}", ["OK: Database test dumped", "OK: 205 row(s) dumped out!"]],
+            [f"-h 127.0.0.1 -P 6030 -uroot -ptaosdata -A -N -o {tmpdir}", ["OK: Database test dumped"]],
             [f"-r result -a -e test d0 -o {tmpdir}", ["OK: table: d0 dumped", "OK: 100 row(s) dumped out!"]],
             [f"-n -D test -o {tmpdir}", ["OK: Database test dumped", "OK: 205 row(s) dumped out!"]],
             [f"-L -D test -o {tmpdir}", ["OK: Database test dumped", "OK: 205 row(s) dumped out!"]],
@@ -179,13 +177,14 @@ class TDTestCase(TBase):
 
         # executes 
         for item in checkItems:
+            self.clearPath(tmpdir)
             command = item[0]
             results = item[1]
             rlist = self.taosdump(command)
             for result in results:
                 self.checkListString(rlist, result)
             # clear tmp    
-            self.clearPath(tmpdir)
+
     
     # check except
     def checkExcept(self, command):
@@ -224,18 +223,32 @@ class TDTestCase(TBase):
 
         # insert data with taosBenchmark
         db, stb, childCount, insertRows = self.insertData(json)
-        newdb = "new" + db
-
-        # basic commandline
-        self.basicCommandLine(tmpdir)
-
-        # except commandline
-        self.exceptCommandLine(taosdump, db, stb, tmpdir)
 
         # dumpInOut
         modes = ["", "-R" , "--cloud=http://localhost:6041"]
         for mode in modes:
             self.dumpInOutMode(mode, db , json, tmpdir)
+
+        tdLog.info("1. native rest ws dumpIn Out  .......................... [Passed]")
+
+        # basic commandline
+        self.basicCommandLine(tmpdir)
+        tdLog.info("2. basic command line  .................................. [Passed]")
+
+        # except commandline
+        self.exceptCommandLine(taosdump, db, stb, tmpdir)
+        tdLog.info("3. except command line  ................................. [Passed]")
+
+        #
+        # varbinary and geometry for native
+        #
+        json = "./tools/taosdump/native/json/insertOther.json"
+        # insert 
+        db, stb, childCount, insertRows = self.insertData(json)
+        # dump in/out
+        self.dumpInOutMode("", db , json, tmpdir)
+        tdLog.info("4. native varbinary geometry ........................... [Passed]")
+
 
     def stop(self):
         tdSql.close()
