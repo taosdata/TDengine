@@ -26,6 +26,17 @@ from util.cases import *
 
 import taos
 
+def get_local_classes(module):
+    classes = []
+    for name, obj in inspect.getmembers(module, inspect.isclass):
+        if inspect.getmodule(obj) == module:
+            classes.append(name)
+    return classes
+
+def dynamicLoadModule(fileName):
+    moduleName = fileName.replace(".py", "").replace(os.sep, ".")
+    return importlib.import_module(moduleName, package='..')
+
 
 if __name__ == "__main__":
     fileName = "all"

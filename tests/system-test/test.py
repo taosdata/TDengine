@@ -68,9 +68,10 @@ def runOnPreviousCluster(host, config, fileName):
     sep = "/"
     if platform.system().lower() == 'windows':
         sep = os.sep
-    moduleName = fileName.replace(".py", "").replace(sep, ".")
-    uModule = importlib.import_module(moduleName)
-    case = uModule.TDTestCase()
+    uModule = dynamicLoadModule(fileName)
+    
+    case_class = getattr(uModule, get_local_classes(uModule)[-1])
+    case = case_class()    
 
     # create conn
     conn = taos.connect(host, config)
@@ -353,7 +354,8 @@ if __name__ == "__main__":
             moduleName = fileName.replace(".py", "").replace(os.sep, ".")
             uModule = importlib.import_module(moduleName)
             try:
-                ucase = uModule.TDTestCase()
+                case_class = getattr(uModule, get_local_classes(uModule)[-1])
+                ucase = case_class()
                 if ((json.dumps(updateCfgDict) == '{}') and hasattr(ucase, 'updatecfgDict')):
                     updateCfgDict = ucase.updatecfgDict
                     updateCfgDictStr = "-d %s"%base64.b64encode(json.dumps(updateCfgDict).encode()).decode()
@@ -525,7 +527,8 @@ if __name__ == "__main__":
             moduleName = fileName.replace(".py", "").replace("/", ".")
             uModule = importlib.import_module(moduleName)
             try:
-                ucase = uModule.TDTestCase()
+                case_class = getattr(uModule, get_local_classes(uModule)[-1])
+                ucase = case_class()                
                 if (json.dumps(updateCfgDict) == '{}'):
                     updateCfgDict = ucase.updatecfgDict
                 if (json.dumps(adapter_cfg_dict) == '{}'):

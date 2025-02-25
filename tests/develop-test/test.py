@@ -298,7 +298,8 @@ if __name__ == "__main__":
             moduleName = fileName.replace(".py", "").replace(os.sep, ".")
             uModule = importlib.import_module(moduleName)
             try:
-                ucase = uModule.TDTestCase()
+                case_class = getattr(uModule, get_local_classes(uModule)[-1])
+                ucase = case_class()
                 if (json.dumps(updateCfgDict) == "{}") and hasattr(
                     ucase, "updatecfgDict"
                 ):
@@ -437,7 +438,8 @@ if __name__ == "__main__":
             moduleName = fileName.replace(".py", "").replace("/", ".")
             uModule = importlib.import_module(moduleName)
             try:
-                ucase = uModule.TDTestCase()
+                case_class = getattr(uModule, get_local_classes(uModule)[-1])
+                ucase = case_class()
                 if json.dumps(updateCfgDict) == "{}":
                     updateCfgDict = ucase.updatecfgDict
                 if json.dumps(adapter_cfg_dict) == "{}":
