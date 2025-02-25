@@ -123,6 +123,7 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
           tstrncpy(pCol->node.userAlias, ((SExprNode*)pExpr)->userAlias, TSDB_COL_NAME_LEN);
           tstrncpy(pCol->colName, ((SExprNode*)pExpr)->aliasName, TSDB_COL_NAME_LEN);
           pCol->node.projIdx = ((SExprNode*)(*pNode))->projIdx;
+          pCol->node.relatedTo = ((SExprNode*)(*pNode))->relatedTo;
           if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
             setColumnInfo((SFunctionNode*)pExpr, pCol, pCxt->isPartitionBy);
           }
@@ -150,7 +151,7 @@ static EDealRes doNameExpr(SNode* pNode, void* pContext) {
     case QUERY_NODE_LOGIC_CONDITION:
     case QUERY_NODE_FUNCTION: {
       if ('\0' == ((SExprNode*)pNode)->aliasName[0]) {
-        snprintf(((SExprNode*)pNode)->aliasName, TSDB_COL_NAME_LEN, "#expr_%p", pNode);
+        rewriteExprAliasName((SExprNode*)pNode, (int64_t)pNode);
       }
       return DEAL_RES_IGNORE_CHILD;
     }
@@ -757,6 +758,7 @@ static SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) 
   if (NULL != pStmtName) {
     snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", pStmtName);
   }
+  pCol->node.relatedTo = pExpr->relatedTo;
   return pCol;
 }
 
@@ -1160,6 +1162,9 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
     nodesDestroyNode((SNode*)pWindow);
     return code;
   }
+  if (pState->pTrueForLimit) {
+    pWindow->trueForLimit = ((SValueNode*)pState->pTrueForLimit)->datum.i;
+  }
   // rewrite the expression in subsequent clauses
   code = rewriteExprForSelect(pWindow->pStateExpr, pSelect, SQL_CLAUSE_WINDOW);
   if (TSDB_CODE_SUCCESS == code) {
@@ -1290,6 +1295,9 @@ static int32_t createWindowLogicNodeByEvent(SLogicPlanContext* pCxt, SEventWindo
   if (NULL == pWindow->pStartCond || NULL == pWindow->pEndCond || NULL == pWindow->pTspk) {
     nodesDestroyNode((SNode*)pWindow);
     return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (pEvent->pTrueForLimit) {
+    pWindow->trueForLimit = ((SValueNode*)pEvent->pTrueForLimit)->datum.i;
   }
   return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
 }

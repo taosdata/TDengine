@@ -3159,6 +3159,7 @@ static int32_t jsonToPhysiSessionWindowNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkStateWindowPhysiPlanStateKey = "StateKey";
+static const char* jkStateWindowPhysiPlanTrueForLimit = "TrueForLimit";
 
 static int32_t physiStateWindowNodeToJson(const void* pObj, SJson* pJson) {
   const SStateWinodwPhysiNode* pNode = (const SStateWinodwPhysiNode*)pObj;
@@ -3166,6 +3167,9 @@ static int32_t physiStateWindowNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = physiWindowNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkStateWindowPhysiPlanStateKey, nodeToJson, pNode->pStateKey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkStateWindowPhysiPlanTrueForLimit, pNode->trueForLimit);
   }
 
   return code;
@@ -3178,12 +3182,16 @@ static int32_t jsonToPhysiStateWindowNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkStateWindowPhysiPlanStateKey, &pNode->pStateKey);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkStateWindowPhysiPlanTrueForLimit, &pNode->trueForLimit);
+  }
 
   return code;
 }
 
 static const char* jkEventWindowPhysiPlanStartCond = "StartCond";
 static const char* jkEventWindowPhysiPlanEndCond = "EndCond";
+static const char* jkEventWindowPhysiPlanTrueForLimit = "TrueForLimit";
 
 static int32_t physiEventWindowNodeToJson(const void* pObj, SJson* pJson) {
   const SEventWinodwPhysiNode* pNode = (const SEventWinodwPhysiNode*)pObj;
@@ -3194,6 +3202,9 @@ static int32_t physiEventWindowNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkEventWindowPhysiPlanEndCond, nodeToJson, pNode->pEndCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkEventWindowPhysiPlanTrueForLimit, pNode->trueForLimit);
   }
 
   return code;
@@ -3208,6 +3219,9 @@ static int32_t jsonToPhysiEventWindowNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkEventWindowPhysiPlanEndCond, &pNode->pEndCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkEventWindowPhysiPlanTrueForLimit, &pNode->trueForLimit);
   }
 
   return code;
@@ -4992,12 +5006,16 @@ static int32_t jsonToLimitNode(const SJson* pJson, void* pObj) {
 
 static const char* jkStateWindowCol = "StateWindowCol";
 static const char* jkStateWindowExpr = "StateWindowExpr";
+static const char* jkStateWindowTrueForLimit = "TrueForLimit";
 
 static int32_t stateWindowNodeToJson(const void* pObj, SJson* pJson) {
   const SStateWindowNode* pNode = (const SStateWindowNode*)pObj;
   int32_t                 code = tjsonAddObject(pJson, jkStateWindowCol, nodeToJson, pNode->pCol);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkStateWindowExpr, nodeToJson, pNode->pExpr);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkStateWindowTrueForLimit, nodeToJson, pNode->pTrueForLimit);
   }
   return code;
 }
@@ -5008,6 +5026,9 @@ static int32_t jsonToStateWindowNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToNodeObject(pJson, jkStateWindowCol, (SNode**)&pNode->pCol);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkStateWindowExpr, (SNode**)&pNode->pExpr);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkStateWindowTrueForLimit, (SNode**)&pNode->pTrueForLimit);
   }
   return code;
 }
@@ -5038,6 +5059,7 @@ static int32_t jsonToSessionWindowNode(const SJson* pJson, void* pObj) {
 static const char* jkEventWindowTsPrimaryKey = "TsPrimaryKey";
 static const char* jkEventWindowStartCond = "StartCond";
 static const char* jkEventWindowEndCond = "EndCond";
+static const char* jkEventWindowTrueForLimit = "TrueForLimit";
 
 static int32_t eventWindowNodeToJson(const void* pObj, SJson* pJson) {
   const SEventWindowNode* pNode = (const SEventWindowNode*)pObj;
@@ -5048,6 +5070,9 @@ static int32_t eventWindowNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkEventWindowEndCond, nodeToJson, pNode->pEndCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkEventWindowTrueForLimit, nodeToJson, pNode->pTrueForLimit);
   }
   return code;
 }
@@ -5061,6 +5086,9 @@ static int32_t jsonToEventWindowNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkEventWindowEndCond, &pNode->pEndCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkEventWindowTrueForLimit, &pNode->pTrueForLimit);
   }
   return code;
 }

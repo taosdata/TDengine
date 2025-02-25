@@ -30,13 +30,13 @@
 #define NOTIFY_EVENT_NAME_CACHE_LIMIT_MB 16
 
 typedef struct SStreamNotifyEvent {
-  uint64_t gid;
-  int64_t  eventType;
+  uint64_t    gid;
+  int64_t     eventType;
   STimeWindow win;
-  cJSON*   pJson;
+  cJSON*      pJson;
 } SStreamNotifyEvent;
 
-#define NOTIFY_EVENT_KEY_SIZE                                                                       \
+#define NOTIFY_EVENT_KEY_SIZE                                                                            \
   ((sizeof(((struct SStreamNotifyEvent*)0)->gid) + sizeof(((struct SStreamNotifyEvent*)0)->eventType)) + \
    sizeof(((struct SStreamNotifyEvent*)0)->win.skey))
 

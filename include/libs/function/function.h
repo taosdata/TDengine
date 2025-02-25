@@ -281,12 +281,14 @@ typedef struct tExprNode {
       int32_t               num;
       struct SFunctionNode *pFunctNode;
       int32_t               functionType;
+      int32_t               bindExprID;
     } _function;
 
     struct {
       struct SNode *pRootNode;
     } _optrRoot;
   };
+  int32_t relatedTo;
 } tExprNode;
 
 struct SScalarParam {
