@@ -286,8 +286,8 @@ class TBase:
     def taos(self, command, show = True, checkRun = False):
         return frame.etool.runBinFile("taos", command, show, checkRun)
 
-    def taosdump(self, command, show = True, checkRun = True):
-        return frame.etool.runBinFile("taosdump", command, show, checkRun)
+    def taosdump(self, command, show = True, checkRun = True, retFail = True):
+        return frame.etool.runBinFile("taosdump", command, show, checkRun, retFail)
 
 
 #
