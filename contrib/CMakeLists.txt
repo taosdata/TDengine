@@ -391,11 +391,7 @@ if(${BUILD_WITH_ROCKSDB})
         option(WITH_LIBURING "" OFF)
 
         option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
-        add_subdirectory(rocksdb EXCLUDE_FROM_ALL)
-        target_include_directories(
-            rocksdb
-            PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/include>
-        )
+        # RocksDB is now built using ExternalProject_Add in cmake/rocksdb_CMakeLists.txt.in
     else()
         if(NOT ${TD_LINUX})
             MESSAGE(STATUS "ROCKSDB CXX STATUS CONFIG: " ${CMAKE_CXX_FLAGS})
@@ -442,11 +438,7 @@ if(${BUILD_WITH_ROCKSDB})
             option(WITH_LIBURING "" OFF)
 
             option(ROCKSDB_BUILD_SHARED "Build shared versions of the RocksDB libraries" OFF)
-            add_subdirectory(rocksdb EXCLUDE_FROM_ALL)
-            target_include_directories(
-                rocksdb
-                PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/include>
-            )
+            # RocksDB is now built using ExternalProject_Add in cmake/rocksdb_CMakeLists.txt.in
         endif()
     endif()
 endif()

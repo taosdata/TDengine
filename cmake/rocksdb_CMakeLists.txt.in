@@ -1,31 +1,117 @@
 
 # rocksdb
 if (${BUILD_CONTRIB})
-        ExternalProject_Add(rocksdb
-	        URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
-  	        URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
-  	        DOWNLOAD_NO_PROGRESS 1
-	        DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
-	        SOURCE_DIR "${TD_CONTRIB_DIR}/rocksdb"
-            CONFIGURE_COMMAND ""
-            BUILD_COMMAND ""
-            INSTALL_COMMAND ""
-            TEST_COMMAND ""
+        # Set RocksDB build options
+        set(ROCKSDB_CMAKE_ARGS
+            -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/build
+            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+            -DPORTABLE=ON
+            -DWITH_FALLOCATE=OFF
+            -DWITH_JEMALLOC=OFF
+            -DWITH_GFLAGS=OFF
+            -DWITH_LIBURING=OFF
+            -DFAIL_ON_WARNINGS=OFF
+            -DWITH_TESTS=OFF
+            -DWITH_BENCHMARK_TOOLS=OFF
+            -DWITH_TOOLS=OFF
+            -DROCKSDB_BUILD_SHARED=OFF
+        )
+
+        # Add platform-specific options
+        if(${TD_DARWIN})
+            list(APPEND ROCKSDB_CMAKE_ARGS
+                -DHAVE_THREAD_LOCAL=OFF
+                -DWITH_IOSTATS_CONTEXT=OFF
+                -DWITH_PERF_CONTEXT=OFF
+            )
+        endif()
+
+        if(${TD_DARWIN_ARM64})
+            list(APPEND ROCKSDB_CMAKE_ARGS -DHAS_ARMV8_CRC=ON)
+        endif()
+
+        if(${TD_WINDOWS})
+            list(APPEND ROCKSDB_CMAKE_ARGS -DWITH_JNI=OFF)
+            if(CMAKE_C_FLAGS MATCHES "/MT" OR CMAKE_C_FLAGS MATCHES "/MTd")
+                list(APPEND ROCKSDB_CMAKE_ARGS -DWITH_MD_LIBRARY=OFF)
+            endif()
+        endif()
+
+        ExternalProject_Add(rocksdb-project
+            URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
+            URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
+            DOWNLOAD_NO_PROGRESS 1
+            DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
+            SOURCE_DIR "${TD_CONTRIB_DIR}/rocksdb"
+            CMAKE_ARGS ${ROCKSDB_CMAKE_ARGS}
+            BUILD_BYPRODUCTS ${CMAKE_BINARY_DIR}/build/lib/librocksdb.a
             GIT_SHALLOW true
         )
+
+        # Create imported target for RocksDB
+        add_library(rocksdb STATIC IMPORTED GLOBAL)
+        set_target_properties(rocksdb PROPERTIES
+            IMPORTED_LOCATION "${CMAKE_BINARY_DIR}/build/lib/librocksdb.a"
+            INTERFACE_INCLUDE_DIRECTORIES "${TD_CONTRIB_DIR}/rocksdb/include"
+        )
+        add_dependencies(rocksdb rocksdb-project)
 else()
     if (NOT ${TD_LINUX})
-        ExternalProject_Add(rocksdb
-	        URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
-  	        URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
-  	        DOWNLOAD_NO_PROGRESS 1
-	        DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
-	        SOURCE_DIR "${TD_CONTRIB_DIR}/rocksdb"
-            CONFIGURE_COMMAND ""
-            BUILD_COMMAND ""
-            INSTALL_COMMAND ""
-            TEST_COMMAND ""
+        # Set RocksDB build options
+        set(ROCKSDB_CMAKE_ARGS
+            -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/build
+            -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+            -DPORTABLE=ON
+            -DWITH_FALLOCATE=OFF
+            -DWITH_JEMALLOC=OFF
+            -DWITH_GFLAGS=OFF
+            -DWITH_LIBURING=OFF
+            -DFAIL_ON_WARNINGS=OFF
+            -DWITH_TESTS=OFF
+            -DWITH_BENCHMARK_TOOLS=OFF
+            -DWITH_TOOLS=OFF
+            -DROCKSDB_BUILD_SHARED=OFF
+        )
+
+        # Add platform-specific options
+        if(${TD_DARWIN})
+            list(APPEND ROCKSDB_CMAKE_ARGS
+                -DHAVE_THREAD_LOCAL=OFF
+                -DWITH_IOSTATS_CONTEXT=OFF
+                -DWITH_PERF_CONTEXT=OFF
+            )
+        endif()
+
+        if(${TD_DARWIN_ARM64})
+            list(APPEND ROCKSDB_CMAKE_ARGS -DHAS_ARMV8_CRC=ON)
+        endif()
+
+        if(${TD_WINDOWS})
+            list(APPEND ROCKSDB_CMAKE_ARGS -DWITH_JNI=OFF)
+            if(CMAKE_C_FLAGS MATCHES "/MT" OR CMAKE_C_FLAGS MATCHES "/MTd")
+                list(APPEND ROCKSDB_CMAKE_ARGS -DWITH_MD_LIBRARY=OFF)
+            endif()
+        endif()
+
+        ExternalProject_Add(rocksdb-project
+            URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
+            URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
+            DOWNLOAD_NO_PROGRESS 1
+            DOWNLOAD_DIR "${TD_CONTRIB_DIR}/deps-download"
+            SOURCE_DIR "${TD_CONTRIB_DIR}/rocksdb"
+            CMAKE_ARGS ${ROCKSDB_CMAKE_ARGS}
+            BUILD_BYPRODUCTS ${CMAKE_BINARY_DIR}/build/lib/librocksdb.a
             GIT_SHALLOW true
         )
+
+        # Create imported target for RocksDB
+        add_library(rocksdb STATIC IMPORTED GLOBAL)
+        set_target_properties(rocksdb PROPERTIES
+            IMPORTED_LOCATION "${CMAKE_BINARY_DIR}/build/lib/librocksdb.a"
+            INTERFACE_INCLUDE_DIRECTORIES "${TD_CONTRIB_DIR}/rocksdb/include"
+        )
+        add_dependencies(rocksdb rocksdb-project)
     endif()
 endif()
