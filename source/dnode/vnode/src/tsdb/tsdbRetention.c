@@ -780,11 +780,14 @@ static int32_t tsdbGetS3SizeImpl(STsdb *tsdb, int64_t *size) {
 
   return code;
 }
+#endif
+
 int32_t tsdbGetS3Size(STsdb *tsdb, int64_t *size) {
   int32_t code = 0;
+#ifdef USE_S3
   (void)taosThreadMutexLock(&tsdb->mutex);
   code = tsdbGetS3SizeImpl(tsdb, size);
   (void)taosThreadMutexUnlock(&tsdb->mutex);
+#endif
   return code;
 }
-#endif
