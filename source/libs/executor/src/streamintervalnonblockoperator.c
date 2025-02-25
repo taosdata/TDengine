@@ -668,7 +668,8 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
         }
         continue;
       } break;
-      case STREAM_RECALCULATE_START: {
+      case STREAM_RECALCULATE_START:
+      case STREAM_RECALCULATE_END: {
         continue;
       } break;
       default:
