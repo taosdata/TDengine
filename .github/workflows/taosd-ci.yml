@@ -2,16 +2,13 @@
 name: TDengine CI Pipeline
 
 on:
-  pull_request_target:
-    types: [opened, synchronize, reopened]
-  # pull_request:
-  #   types: [opened, synchronize, reopened]
-  #   branches:
-  #     - 'main'
-  #     - '3.0'
-  #     - '3.1'
-  #   paths-ignore:
-  #     - 'packaging/**'
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.1'
+    paths-ignore:
+      - 'packaging/**'
   repository_dispatch:
     types: [run-tests]
 
@@ -63,8 +60,11 @@ jobs:
         run: |
           cd ${{ env.WK }}
           git reset --hard
+          echo "11111111111"
           git remote prune origin
+          echo "222222222"
           git fetch
+          echo "333333333"
 
           cd ${{ env.WKC }}
           git reset --hard
@@ -74,11 +74,11 @@ jobs:
           git fetch
 
           cd ${{ env.WK }}
-          git checkout ${{ env.TDENGINE_TARGET_BRANCH }}
+          git checkout ${{ github.event.pull_request.base.ref }}
           cd ${{ env.WKC }}
-          git checkout ${{ env.TDENGINE_TARGET_BRANCH }}
+          git checkout ${{ github.event.pull_request.base.ref }}
       - name: Get latest codes and logs for TDinternal PR
-        if: ${{ env.TDINTERNAL_TRIGGER == true }}
+        if: ${{ github.env.TDINTERNAL_TRIGGER }}
         run: |
           cd ${{ env.WK }}
           git pull >/dev/null
@@ -96,13 +96,13 @@ jobs:
           git log -5
           echo "community log: `git log -5`" >>${{ env.WKDIR }}/jenkins.log
       - name: Get latest codes and logs for TDengine PR
-        if: ${{ env.TDINTERNAL_TRIGGER }} == false
+        if: ${{ !github.env.TDINTERNAL_TRIGGER }}
         run: |
           cd ${{ env.WKC }}
           git remote prune origin
           git pull >/dev/null
           git log -5
-          echo "`date "+%Y%m%d-%H%M%S"` TDengineTest/${{ env.TDENGINE_PR_NUMBER }}:${{ github.run_number }}:${{ env.TDENGINE_TARGET_BRANCH }}" >>${{ env.WKDIR }}/jenkins.log
+          echo "`date "+%Y%m%d-%H%M%S"` TDengineTest/${{ env.TDENGINE_PR_NUMBER }}:${{ github.run_number }}:${{ github.event.pull_request.base.ref }}" >>${{ env.WKDIR }}/jenkins.log
           echo "CHANGE_BRANCH:${{ env.TDENGINE_SOURCE_BRANCH }}" >>${{ env.WKDIR }}/jenkins.log
           echo "community log: `git log -5`" >>${{ env.WKDIR }}/jenkins.log
           git fetch origin +refs/pull/${{ env.TDENGINE_PR_NUMBER }}/merge
@@ -125,7 +125,7 @@ jobs:
           cd ${{ env.WKC }}
           git submodule update --init --recursive
       - name: Output the 'file_no_doc_changed' information to the file
-        if: ${{ env.TDINTERNAL_TRIGGER }} == false
+        if: ${{ !github.env.TDINTERNAL_TRIGGER }}
         run: |
           mkdir -p ${{ env.WKDIR }}/tmp/${{ env.TDENGINE_PR_NUMBER }}_${{ github.run_number }}
           echo ${{ needs.build-doc.outputs.file_no_doc_changed }} > ${{ env.WKDIR }}/tmp/${{ env.TDENGINE_PR_NUMBER }}_${{ github.run_number }}/docs_changed.txt
@@ -168,13 +168,13 @@ jobs:
       - name: Run function returns with a null pointer scan testing
         run: |
           cd ${{ env.WKC }}/tests/parallel_test
-          if ${{ env.TDINTERNAL_TRIGGER }} == false; then
+          if ${{ github.env.TDINTERNAL_TRIGGER }} == false; then
             ./run_scan_container.sh -d ${{ env.WKDIR }} -b ${{ env.TDENGINE_PR_NUMBER }}_${{ github.run_number }}  -f ${{ env.WKDIR }}/tmp/${{ env.TDENGINE_PR_NUMBER }}_${{ github.run_number }}/docs_changed.txt ${{ steps.get_param.outputs.extra_param }}
           else
             ./run_scan_container.sh -d ${{ env.WKDIR }} -b ${{ github.event.client_payload.tdinternal_pr_number }}_${{ github.run_number  }}  -f ${{ env.WKDIR }}/tmp/${{ github.event.client_payload.tdinternal_pr_number}}_${{ github.run_number  }}/docs_changed.txt ${{ steps.get_param.outputs.extra_param }}
           fi
       - name: Run tdgpt test cases
-        if: ${{ env.TDINTERNAL_TRIGGER }} == false && ${{ needs.build-doc.outputs.file_changed_exclude_doc_file }} =~ /forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics/ 
+        if: ${{ !github.env.TDINTERNAL_TRIGGER }} && ${{ needs.build-doc.outputs.file_changed_exclude_doc_file }} =~ /forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics/ 
         run: |
           cd ${{ env.WKC }}/tests/parallel_test
           export DEFAULT_RETRY_TIME=2

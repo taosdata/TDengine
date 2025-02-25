@@ -27,47 +27,50 @@ jobs:
       group: CI
       labels: [self-hosted, doc-build]
     outputs:
-      zh_doc_file_changed: ${{ steps.set_output.outputs.zh_doc_file_changed }}
-      en_doc_file_changed: ${{ steps.set_output.outputs.en_doc_file_changed }}
-      file_changed_exclude_doc_file: ${{ steps.set_output.outputs.file_changed_exclude_doc_file }}
-      file_changed_exclude_tdgpt_file: ${{ steps.set_output.outputs.file_changed_exclude_tdgpt_file }}
+      changed_files_zh: ${{ steps.set_output.outputs.changed_files_zh }}
+      changed_files_en: ${{ steps.set_output.outputs.changed_files_en }}
+      changed_files_non_doc: ${{ steps.set_output.outputs.changed_files_non_doc }}
+      changed_files_non_tdgpt: ${{ steps.set_output.outputs.changed_files_non_tdgpt }}
     steps:
       - name: Get the latest document contents from the repository
         run: |
           set -e
+          # ./.github/scripts/update_repo.sh ${{ env.DOC_WKC }}/${{ env.TD_REPO }} ${{ inputs.target_branch }} ${{ inputs.target_pr_number }}
           cd ${{ env.DOC_WKC }}/${{ env.TD_REPO }}
           git reset --hard
           git clean -f
           git remote prune origin
           git fetch
-          git checkout ${{ inputs.tartget_branch }}
+          git checkout ${{ inputs.target_branch }}
           git pull >/dev/null
           git fetch origin +refs/pull/${{ inputs.target_pr_number }}/merge
-          git checkout -qf FETCH_HEAD 
-
+          git checkout -qf FETCH_HEAD
       - name: Check whether the document is changed and set output variables
         id: set_output
         run: |
           set -e
           cd ${{ env.DOC_WKC }}/${{ env.TD_REPO }}
-          zh_doc_file_changed=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${{ inputs.tartget_branch }}`| grep  "^docs/zh/" | tr '\n' ' ' || :)
-          en_doc_file_changed=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${{ inputs.tartget_branch }}`| grep  "^docs/en/" | tr '\n' ' ' || :)
-          file_changed_exclude_doc_file=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${{ inputs.tartget_branch }}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | tr '\n' ' ' || :)
-          file_changed_exclude_tdgpt_file=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${{ inputs.tartget_branch }}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | grep -Ev "forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics" | tr '\n' ' ' ||:)
-          echo "zh_doc_file_changed=${zh_doc_file_changed}" >> $GITHUB_OUTPUT
-          echo "en_doc_file_changed=${en_doc_file_changed}" >> $GITHUB_OUTPUT
-          echo "file_changed_exclude_doc_file=${file_changed_exclude_doc_file}" >> $GITHUB_OUTPUT
-          echo "file_changed_exclude_tdgpt_file=${file_changed_exclude_tdgpt_file}" >> $GITHUB_OUTPUT
+          changed_files_zh=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${{ inputs.tartget_branch }}`| grep  "^docs/zh/" | tr '\n' ' ' || :)
+          changed_files_en=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${{ inputs.tartget_branch }}`| grep  "^docs/en/" | tr '\n' ' ' || :)
+          changed_files_non_doc=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${{ inputs.tartget_branch }}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | tr '\n' ' ' || :)
+          changed_files_non_tdgpt=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${{ inputs.tartget_branch }}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | grep -Ev "forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics" | tr '\n' ' ' ||:)
+          echo "changed_files_zh=${changed_files_zh}" >> $GITHUB_OUTPUT
+          echo "changed_files_en=${changed_files_en}" >> $GITHUB_OUTPUT
+          echo "changed_files_non_doc=${changed_files_non_doc}" >> $GITHUB_OUTPUT
+          echo "changed_files_non_tdgpt=${changed_files_non_tdgpt}" >> $GITHUB_OUTPUT
+
   build:
     needs: check
     runs-on:
       group: CI
       labels: [self-hosted, doc-build]
-    if: ${{ needs.check.outputs.zh_doc_file_changed != '' || needs.check.outputs.en_doc_file_changed != '' }}
+    if: ${{ needs.check.outputs.changed_files_zh == '' || needs.check.outputs.changed_files_en == '' }}
+
     steps:
       - name: Get the latest document contents
         run: |
           set -e
+          #./.github/scripts/update_repo.sh ${{ env.DOC_WKC }}/${{ env.TD_REPO }} ${{ inputs.target_branch }} ${{ inputs.target_pr_number }}
           cd ${{ env.DOC_WKC }}/${{ env.TD_REPO }}
           git reset --hard
           git clean -f
@@ -76,31 +79,24 @@ jobs:
           git checkout ${{ inputs.target_branch }}
           git pull >/dev/null
           git fetch origin +refs/pull/${{ inputs.target_pr_number }}/merge
-          git checkout -qf FETCH_HEAD 
-
-          cd ${{ env.DOC_WKC }}/${{ env.TOOLS_REPO }}
-          git reset --hard
-          git clean -f
-          git fetch
-          git remote prune origin
-          git checkout ${{ inputs.target_branch }}
-          git pull >/dev/null
+          git checkout -qf FETCH_HEAD
 
       - name: Build the chinese document
+        if: ${{ needs.check.outputs.changed_files_zh == '' }}
         run: |
           cd ${{ env.DOC_WKC }}/${{ env.ZH_DOC_REPO }}
           yarn ass local
           yarn build
-        continue-on-error: false
 
       - name: Build the english document
+        if: ${{ needs.check.outputs.changed_files_en == '' }}
         run: |
           cd ${{ env.DOC_WKC }}/${{ env.EN_DOC_REPO }}
           yarn ass local
           yarn build
-        continue-on-error: false
+
     outputs:
-      zh_doc_file_changed: ${{ needs.check.outputs.zh_doc_file_changed }}
-      en_doc_file_changed: ${{ needs.check.outputs.en_doc_file_changed }}
-      file_changed_exclude_doc_file: ${{ needs.check.outputs.file_changed_exclude_doc_file }}
-      file_changed_exclude_tdgpt_file: ${{ needs.check.outputs.file_changed_exclude_tdgpt_file }}
+      changed_files_zh: ${{ needs.check.outputs.changed_files_zh }}
+      changed_files_en: ${{ needs.check.outputs.changed_files_en }}
+      changed_files_non_doc: ${{ needs.check.outputs.changed_files_non_doc }}
+      changed_files_non_tdgpt: ${{ needs.check.outputs.changed_files_non_tdgpt }}
