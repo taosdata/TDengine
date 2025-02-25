@@ -48,9 +48,7 @@ Use a browser to visit ip:34216 and follow the instructions to enter the license
 
 The example scenario is a power system where users collect electricity usage data from power station instruments daily and store it in the TDengine cluster. Now, users want to predict how power consumption will develop and purchase more equipment to support it. User power consumption varies with monthly orders, and considering seasonal changes, power consumption will differ. This city is located in the northern hemisphere, so more electricity is used in summer. We simulate data to reflect these assumptions.
 
-## Load TDengine Time-Series Data
-
-This chapter demonstrates how to use the Seeq software to load TDengine time-series data.
+## Data preparation
 
 **Step 1**, Create tables in TDengine.
 
