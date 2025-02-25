@@ -872,7 +872,7 @@ _end:
   return code;
 }
 
-static int32_t generateIntervalDataScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr, bool hasPk, SSessionKey* pSeKey,
+static int32_t generateIntervalDataScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr, SSessionKey* pSeKey,
                                              SRecDataInfo* pRecData, int32_t len) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -923,8 +923,7 @@ static int32_t generateDataScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr) {
       case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL:
       case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL:
       case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL: {
-        code = generateIntervalDataScanRange(pInfo, pTaskIdStr, hasSrcPrimaryKeyCol(&pInfo->basic), &rangKey,
-                                             (SRecDataInfo*)pVal, len);
+        code = generateIntervalDataScanRange(pInfo, pTaskIdStr, &rangKey, (SRecDataInfo*)pVal, len);
         QUERY_CHECK_CODE(code, lino, _end);
       } break;
       case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION:
