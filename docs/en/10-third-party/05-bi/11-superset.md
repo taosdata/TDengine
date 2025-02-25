@@ -65,9 +65,9 @@ There is no difference in the use of TDengine data source compared to other data
 
 1. Click the [+] button in the upper right corner of the Superset interface, select [SQL query], and enter the query interface.  
 2. Select the `TDengine` data source that has been created earlier from the dropdown list of [DATABASES] in the upper left corner.
-3. Select the name of the database to be operated on from the drop-down list of [SCHEMA] (system libraries are not displayed).  
+3. Select the name of the database to be operated on from the drop-down list of [SCHEMA] (system libraries are not displayed).
 4. [SEE TABLE SCHEMA] select the name of the super table or regular table to be operated on (sub tables are not displayed).  
-5. Subsequently, the schema information of the selected table will be displayed in the following area.  
+5. Subsequently, the schema information of the selected table will be displayed in the following area.
 6. In the `SQL` editor area, any `SQL` statement that conforms to `TDengine` syntax can be entered for execution.  
 
 ### Smart Meter Example
