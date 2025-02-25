@@ -98,7 +98,8 @@ static int32_t mndSetCompactDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj 
 }
 
 static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, int64_t compactTs,
-                                          STimeWindow tw, SArray *vgroupIds, SCompactDbRsp *pCompactRsp) {
+                                          STimeWindow tw, SArray *vgroupIds, bool metaOnly,
+                                          SCompactDbRsp *pCompactRsp) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
@@ -129,7 +130,7 @@ static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
       int64_t vgId = *(int64_t *)taosArrayGet(vgroupIds, i);
       SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
 
-      if ((code = mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw)) != 0) {
+      if ((code = mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw, metaOnly)) != 0) {
         sdbRelease(pSdb, pVgroup);
         TAOS_RETURN(code);
       }
@@ -151,7 +152,7 @@ static int32_t mndSetCompactDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
       if (pIter == NULL) break;
 
       if (pVgroup->dbUid == pDb->uid) {
-        if ((code = mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw)) != 0) {
+        if ((code = mndBuildCompactVgroupAction(pMnode, pTrans, pDb, pVgroup, compactTs, tw, metaOnly)) != 0) {
           sdbCancelFetch(pSdb, pIter);
           sdbRelease(pSdb, pVgroup);
           TAOS_RETURN(code);
@@ -238,7 +239,8 @@ int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw,
   TAOS_CHECK_GOTO(mndTrancCheckConflict(pMnode, pTrans), NULL, _OVER);
 
   TAOS_CHECK_GOTO(mndSetCompactDbCommitLogs(pMnode, pTrans, pDb, compactTs), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCompactDbRedoActions(pMnode, pTrans, pDb, compactTs, tw, vgroupIds, &compactRsp), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCompactDbRedoActions(pMnode, pTrans, pDb, compactTs, tw, vgroupIds, metaOnly, &compactRsp),
+                  NULL, _OVER);
 
   if (pReq) {
     int32_t rspLen = 0;
