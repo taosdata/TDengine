@@ -183,12 +183,13 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
       }
 
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
-    } else if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+    } else if (type == STREAM_INPUT__CHECKPOINT_TRIGGER || type == STREAM_INPUT__RECALCULATE) {
       SPackedData tmp = {.pDataBlock = input};
       void*       tmpItem = taosArrayPush(pInfo->pBlockLists, &tmp);
       QUERY_CHECK_NULL(tmpItem, code, lino, _end, terrno);
 
-      pInfo->blockType = STREAM_INPUT__CHECKPOINT;
+      pInfo->blockType =
+          (type == STREAM_INPUT__CHECKPOINT_TRIGGER) ? STREAM_INPUT__CHECKPOINT : STREAM_INPUT__RECALCULATE;
     } else {
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       QUERY_CHECK_CODE(code, lino, _end);

@@ -467,6 +467,7 @@ struct SStreamTask {
   // the followings attributes don't be serialized
   SScanhistorySchedInfo schedHistoryInfo;
   int32_t               transferStateAlignCnt;
+  int32_t               recalculateAlignCnt;
   struct SStreamMeta*   pMeta;
   SSHashObj*            pNameMap;
 
@@ -669,6 +670,7 @@ typedef struct SCheckpointConsensusEntry {
 } SCheckpointConsensusEntry;
 
 void streamSetupScheduleTrigger(SStreamTask* pTask);
+int32_t streamCreateAddRecalculateEndBlock(SStreamTask* pTask);
 
 // dispatch related
 int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
