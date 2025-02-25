@@ -33,10 +33,11 @@ function getUrl(name: string) {
 <style lang="scss" scoped>
 .client-list {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, calc(33.3% - 13px));
   grid-auto-rows: 1fr;
-  grid-gap: 20px;
-  margin-bottom: 30px;
+  gap: 20px;
+  width: 100%;
+  margin: 6px 0;
 
   li {
     color: rgb(96 103 112);

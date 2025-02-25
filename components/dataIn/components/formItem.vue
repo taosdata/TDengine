@@ -306,7 +306,8 @@ const isFieldDisplay = computed(() => {
 
     if (!display) {
       // 隐藏时需要把当前的值清空或者设置为默认值
-      localData[field.value] = defaultValue ?? '';
+      // localData[field.value] = defaultValue ?? '';
+      delete localData[field.value];
     }
 
     return display;

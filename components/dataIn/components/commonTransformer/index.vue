@@ -677,7 +677,7 @@ const docsStyle = computed(() => {
   };
 });
 
-const isEditable = computed(() => currentPageType.value === 'edit');
+const isEditable = computed(() => currentPageType.value === 'edit' || currentPageType.value === 'copy');
 const isViewable = computed(() => currentPageType.value === 'view');
 
 watch(

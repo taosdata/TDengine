@@ -106,7 +106,7 @@
             </el-tooltip>
           </template>
         </el-table-column>
-        <el-table-column :label="t('dataIn.target')" prop="target" min-width="100">
+        <el-table-column :label="t('dataIn.target')" prop="target" width="120">
           <template #default="scope">
             <el-tooltip :content="scope.row.target" placement="top-start">
               <span class="nowrap">{{ scope.row.target }}</span>
@@ -118,7 +118,7 @@
             <span>{{ getTimeParser(scope.row.created_at) }}</span>
           </template>
         </el-table-column>
-        <el-table-column :label="t('dataIn.via')" prop="via" min-width="100">
+        <el-table-column :label="t('dataIn.via')" prop="via" width="80">
           <template #default="{ row }">
             <el-tooltip :content="agentMap[row.via]" placement="top-start">
               <span class="nowrap" style="cursor: pointer">{{ agentMap[row.via] }}</span>
@@ -144,7 +144,7 @@
           sortable
           :filters="filterMap.status"
           :filter-method="filterHandler"
-          min-width="170"
+          width="150"
         >
           <template #default="scope">
             <div class="status-operation" style="display: flex; white-space: nowrap">
@@ -205,7 +205,7 @@
         <el-table-column
           :label="t('dataIn.healthStatusTitle')"
           prop="healthStatus"
-          min-width="170"
+          width="120"
           sortable
           :filters="filterMap.healthStatus"
           :filter-method="filterHandler"
@@ -232,24 +232,8 @@
             </div>
           </template>
         </el-table-column>
-        <el-table-column :label="t('dataIn.operation')" width="200" class="action" fixed="right">
+        <el-table-column :label="t('dataIn.operation')" width="150" class="action" fixed="right">
           <template #default="scope">
-            <el-tooltip
-              placement="bottom"
-              effect="light"
-              :content="t('dataIn.viewconfig').replace('{name}', scope.row.name)"
-            >
-              <el-button
-                size="small"
-                :disabled="
-                  dataInProps.isCommunity
-                    ? dataInProps.isCommunity
-                    : scope.row.from === undefined || !getEditStatus(scope.row.labels)
-                "
-                icon="View"
-                @click="view(scope.row, scope.row.status.toLowerCase())"
-              ></el-button>
-            </el-tooltip>
             <el-tooltip placement="bottom" effect="light" :content="t('dataIn.editconfig')">
               <el-button
                 size="small"
@@ -266,7 +250,7 @@
               <el-button
                 plain
                 size="small"
-                icon="Document"
+                icon="DocumentCopy"
                 :disabled="dataInProps.isCommunity"
                 @click="copyTask(scope.row, scope.row.status.toLowerCase())"
               ></el-button>
@@ -635,9 +619,6 @@ function addDbSource() {
   });
 }
 
-function view(data: Recordable, status: string) {
-  console.log('output:', data, status);
-}
 async function edit(data: Recordable, status: string) {
   currentTaskStatus.value = status;
   router.push({
