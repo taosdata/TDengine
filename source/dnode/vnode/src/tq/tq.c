@@ -963,6 +963,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   SStreamTask*           pTask = NULL;
   SStreamTask*           pStreamTask = NULL;
   char*                  pStatus = NULL;
+  int32_t                taskType = 0;
 
   code = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId, &pTask);
   if (pTask == NULL) {
@@ -977,8 +978,11 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
   SStreamTaskState s = streamTaskGetStatus(pTask);
   pStatus = s.name;
+  taskType = pTask->info.fillHistory;
 
-  if ((s.state != TASK_STATUS__SCAN_HISTORY) || (pTask->status.downstreamReady == 0)) {
+  if ((s.state != TASK_STATUS__SCAN_HISTORY && taskType == STREAM_HISTORY_TASK) ||
+      (s.state != TASK_STATUS__READY && taskType == STREAM_RECALCUL_TASK) ||
+      (pTask->status.downstreamReady == 0)) {
     tqError("s-task:%s vgId:%d status:%s downstreamReady:%d not allowed/ready for scan-history data, quit", id,
             pMeta->vgId, s.name, pTask->status.downstreamReady);
 
@@ -996,7 +1000,6 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   streamMutexUnlock(&pTask->lock);
-  int32_t     taskType = pTask->info.fillHistory;
 
   // avoid multi-thread exec
   while (1) {
