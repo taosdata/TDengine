@@ -29,14 +29,14 @@ int32_t vnodeAsyncCompact(SVnode *pVnode, int64_t version, void *pReq, int32_t l
   int32_t code = tDeserializeSCompactVnodeReq(pReq, len, &req);
   if (code) return code;
 
-  vInfo("vgId:%d, compact msg will be processed, db:%s dbUid:%" PRId64 " compactStartTime:%" PRId64, TD_VID(pVnode),
-        req.db, req.dbUid, req.compactStartTime);
+  vInfo("vgId:%d, compact msg will be processed, db:%s dbUid:%" PRId64 " compactStartTime:%" PRId64 " metaOnly:%d",
+        TD_VID(pVnode), req.db, req.dbUid, req.compactStartTime, req.metaOnly);
 
-#if 1
-  return tsdbAsyncCompact(pVnode->pTsdb, &req.tw);
-#else
-  return vnodeCompactMeta(pVnode);
-#endif
+  if (req.metaOnly) {
+    return vnodeCompactMeta(pVnode);
+  } else {
+    return tsdbAsyncCompact(pVnode->pTsdb, &req.tw);
+  }
 }
 
 int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {

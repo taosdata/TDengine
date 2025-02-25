@@ -196,7 +196,7 @@ static int32_t mndBuildCompactDbRsp(SCompactDbRsp *pCompactRsp, int32_t *pRspLen
   TAOS_RETURN(code);
 }
 
-int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds) {
+int32_t mndCompactDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, STimeWindow tw, SArray *vgroupIds, bool metaOnly) {
   int32_t       code = 0;
   SCompactDbRsp compactRsp = {0};
 
@@ -278,7 +278,7 @@ int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_COMPACT_DB, pDb), NULL, _OVER);
 
-  code = mndCompactDb(pMnode, pReq, pDb, compactReq.timeRange, compactReq.vgroupIds);
+  code = mndCompactDb(pMnode, pReq, pDb, compactReq.timeRange, compactReq.vgroupIds, compactReq.metaOnly);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
   SName name = {0};
