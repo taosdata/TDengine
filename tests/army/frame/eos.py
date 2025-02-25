@@ -89,12 +89,16 @@ def run(command, show = True):
 
 
 # return list after run
-def runRetList(command, show = True, checkRun = False):
+def runRetList(command, show = True, checkRun = False, retFail = False):
     output, error, code = run(command, show)
     if checkRun and code != 0:
         print(f"eos.runRetList checkRun return code failed. code={code} error={error}")
-        assert code == 0
-    return output.splitlines()
+    
+    assert code == 0
+    rList = output.splitlines()
+    if retFail and error != "":
+        rList += error.splitlines()
+    return rList
 
 #
 #   file 
