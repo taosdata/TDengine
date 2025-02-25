@@ -60,15 +60,10 @@ taosws://root:taosdata@localhost:6041
 TDengine 数据源与其它数据源使用上无差别，这里简单介绍下数据查询：
 
 1. `Superset` 界面点击右上角【+】号按钮，选择 `SQL query`, 进入查询界面。 
-
 2. 左上角【DATABASE】下拉列表中选择前面已创建好的 `TDengine` 数据源。
-
 3. 【SCHEMA】下拉列表，选择要操作的数据库名（系统库不显示）。
-
 4. 【SEE TABLE SCHEMA】选择要操作的超级表名或普通表名（子表不显示）。  
-
 5. 随后会在下方显示选定表的 `SCHEMA` 信息。  
-
 6. 在 `SQL` 编辑器区域可输入符合 `TDengine` 语法的任意 `SQL` 语句执行。
 
 ### 智能电表样例
@@ -76,9 +71,6 @@ TDengine 数据源与其它数据源使用上无差别，这里简单介绍下�
 我们选择【Superset Chart】模板中较流行的两个模板做了效果展示，以智能电表数据为例：  
 
 1. `Aggregate` 类型，展示在第 4 组中指定时间段内每分钟采集电压值(voltage)最大值。  
-
-  ![superset-demo1](./superset-demo1.jpeg)
-
+![superset-demo1](./superset-demo1.jpeg)
 2. `RAW RECORDS` 类型，展示在第 4 组中指定时间段内 current, voltage 的采集值。  
-
-  ![superset-demo2](./superset-demo2.jpeg)  
+![superset-demo2](./superset-demo2.jpeg)  
