@@ -89,6 +89,6 @@ We chose two popular templates from the [Superset Chart] template to showcase th
 
   ![superset-demo1](./superset-demo1.jpeg)  
 
-2. RAW `RECORDS` Type, which displays the collected values of current and voltage during the specified time period in Group 4.  
+2. `RAW RECORDS` Type, which displays the collected values of current and voltage during the specified time period in Group 4.  
 
   ![superset-demo2](./superset-demo2.jpeg)  
