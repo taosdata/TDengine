@@ -387,7 +387,7 @@ int32_t streamCreateRecalculateBlock(SStreamTask* pTask, SStreamDataBlock** pBlo
 
   pRecalc->type = STREAM_INPUT__RECALCULATE;
 
-  p->info.type = STREAM_RECALCULATE_START;
+  p->info.type = type;
   p->info.rows = 1;
   p->info.childId = pTask->info.selfChildId;
 
