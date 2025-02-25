@@ -57,7 +57,10 @@ void* prepare_data(void* arg) {
   const char* password = "taosdata";
   uint16_t    port = 6030;
   int         code = 0;
-  TAOS*       pConn = taos_connect(host, user, password, NULL, port);
+
+  fprintf(stdout, "start to connect taosd\n");
+
+  TAOS* pConn = taos_connect(host, user, password, NULL, port);
   if (pConn == NULL) {
     fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
             taos_errstr(NULL));
@@ -76,6 +79,8 @@ void* prepare_data(void* arg) {
         "INSERT INTO power.d1001 USING power.meters TAGS(2,'California.SanFrancisco') VALUES (NOW + %da, 10.30000, "
         "219, 0.31000)",
         i);
+
+    fprintf(stdout, "start to insert: %s\n", buf);
 
     pRes = taos_query(pConn, buf);
     code = taos_errno(pRes);
@@ -127,7 +132,10 @@ TAOS* init_env() {
   const char* password = "taosdata";
   uint16_t    port = 6030;
   int         code = 0;
-  TAOS*       pConn = taos_connect(host, user, password, NULL, port);
+
+  fprintf(stdout, "start to connect taosd.\n");
+
+  TAOS* pConn = taos_connect(host, user, password, NULL, port);
   if (pConn == NULL) {
     fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
             taos_errstr(NULL));
@@ -137,6 +145,8 @@ TAOS* init_env() {
 
   TAOS_RES* pRes;
   // drop database if exists
+  fprintf(stdout, "start to drop topic: topic_meters.\n");
+
   pRes = taos_query(pConn, "DROP TOPIC IF EXISTS topic_meters");
   code = taos_errno(pRes);
   if (code != 0) {
@@ -144,6 +154,8 @@ TAOS* init_env() {
     goto END;
   }
   taos_free_result(pRes);
+
+  fprintf(stdout, "start to drop db power.\n");
 
   pRes = taos_query(pConn, "DROP DATABASE IF EXISTS power");
   code = taos_errno(pRes);
@@ -154,6 +166,8 @@ TAOS* init_env() {
   taos_free_result(pRes);
 
   // create database
+  fprintf(stdout, "start to create db power.\n");
+
   pRes = taos_query(pConn, "CREATE DATABASE power PRECISION 'ms' WAL_RETENTION_PERIOD 3600");
   code = taos_errno(pRes);
   if (code != 0) {
@@ -163,6 +177,8 @@ TAOS* init_env() {
   taos_free_result(pRes);
 
   // create super table
+  fprintf(stdout, "start to create super table power.meters\n");
+
   pRes = taos_query(
       pConn,
       "CREATE STABLE IF NOT EXISTS power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
@@ -469,19 +485,27 @@ int topic_create(void) {
     return -1;
   }
 
+  fprintf(stdout, "start to create topic.\n");
+
   if (create_topic(pConn) < 0) {
     fprintf(stderr, "Failed to create topic.\n");
     return -1;
   }
 
+  fprintf(stdout, "created topic.\n");
+
   return 0;
 }
 
 int topic_drop(void) {
+  fprintf(stdout, "start to drop topic.\n");
+
   if (drop_topic_with_connect() < 0) {
     fprintf(stderr, "Failed to drop topic.\n");
     return -1;
   }
+
+  fprintf(stdout, "dropped topic.\n");
 
   return 0;
 }
