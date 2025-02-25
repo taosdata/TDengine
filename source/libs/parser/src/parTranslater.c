@@ -4494,7 +4494,7 @@ static int32_t setTableTsmas(STranslateContext* pCxt, SName* pName, SRealTableNo
 
 static int32_t setTableCacheLastMode(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if ((!pSelect->hasLastRowFunc && !pSelect->hasLastFunc) || QUERY_NODE_REAL_TABLE != nodeType(pSelect->pFromTable) ||
-      TSDB_SYSTEM_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType) {
+      (((SRealTableNode*)pSelect->pFromTable)->pMeta != NULL && TSDB_SYSTEM_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -12479,6 +12479,7 @@ static int32_t createLastTsSelectStmt(char* pDb, const char* pTable, const char*
     return code;
   }
 
+  (*pSelect1)->hasLastRowFunc = true;
   SGroupingSetNode* pNode1 = NULL;
   code = nodesMakeNode(QUERY_NODE_GROUPING_SET, (SNode**)&pNode1);
   if (NULL == pNode1) {
@@ -12612,6 +12613,7 @@ static int32_t buildCreateStreamQuery(STranslateContext* pCxt, SCreateStreamStmt
     SRealTableNode* pTable = (SRealTableNode*)(((SSelectStmt*)pStmt->pQuery)->pFromTable);
     code = createLastTsSelectStmt(pTable->table.dbName, pTable->table.tableName, pTable->pMeta->schema[0].name,
                                   &pStmt->pPrevQuery);
+    setTableCacheLastMode(pCxt, (SSelectStmt*)(pStmt->pPrevQuery));
     /*
         if (TSDB_CODE_SUCCESS == code) {
           STranslateContext cxt = {0};
