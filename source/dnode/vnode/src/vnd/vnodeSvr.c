@@ -617,6 +617,8 @@ static int32_t inline updateSubmitData(SSubmitTbData *pSubmitTbData, STSchema *p
           if (code == 0) {
             memcpy(colVal.value.pData, &seq, sizeof(uint64_t));
           }
+        } else {
+          ASSERT(0);
         }
       }
     }

@@ -391,6 +391,7 @@ static int32_t tRowBuildTupleRow2(SArray *aColVal, const SRowBuildScanInfo *sinf
                 uint64_t seq = 0;
                 tBlobRowPush(pBlobRow, colValArray[colValIndex].value.pData, colValArray[colValIndex].value.nData,
                              &seq);
+
                 varlen += tPutU64(varlen, seq);
               }
             }
@@ -715,9 +716,10 @@ int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow) {
 int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len, uint64_t *seq) {
   int32_t  code = 0;
   uint64_t offset;
-  if (pBlobRow->len + len > pBlobRow->cap) {
+  uint64_t tlen = pBlobRow->len + len;
+  if (tlen > pBlobRow->cap) {
     int64_t cap = pBlobRow->cap;
-    while ((pBlobRow->len + len) > cap) {
+    while (tlen > cap) {
       cap = cap * 2;
     }
     pBlobRow->cap = cap;
@@ -726,10 +728,10 @@ int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len, uint64_
 
   (void)memcpy(pBlobRow->data + pBlobRow->len, data, len);
 
-  pBlobRow->seq++;
   offset = pBlobRow->len;
-
   pBlobRow->len += len;
+
+  pBlobRow->seq++;
   *seq = pBlobRow->seq;
   SBlobValue value = {.offset = offset, .len = len};
   code = taosHashPut(pBlobRow->pSeqTable, &pBlobRow->seq, sizeof(uint64_t), &value, sizeof(value));
@@ -991,15 +993,9 @@ int32_t tRowGetBlobSeq(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pC
         hasBlob = 1;
       }
       if (hasBlob == 1) {
-        uint32_t offset = 0;
         pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
-
-        offset = tGetU32v(pColVal->value.pData, &pColVal->value.nData);
-        pColVal->value.pData += offset;
-        // memcpy(pColVal->value.pData, &seq, sizeof(uint64_t));
+        pColVal->value.pData += tGetU32v(pColVal->value.pData, &pColVal->value.nData);
         memcpy(seq, pColVal->value.pData, sizeof(uint64_t));
-        // uint64_t cSeq = 0;
-        // tGetU64(pColVal->value.pData, &cSeq);
       } else {
         pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
         pColVal->value.pData += tGetU32v(pColVal->value.pData, &pColVal->value.nData);
@@ -4373,12 +4369,12 @@ int32_t tDecodeBlobRow2(SDecoder *pDecoder, SBlobRow2 **pBlobRow) {
 
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pBlob->len));
 
-  pBlob->pSeqTable = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &nSeq));
+  pBlob->pSeqTable = taosHashInit(nSeq, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (pBlob->pSeqTable == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
 
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &nSeq));
   for (int32_t i = 0; i < nSeq; i++) {
     uint64_t   k;
     SBlobValue value;
