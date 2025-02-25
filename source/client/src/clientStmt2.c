@@ -41,7 +41,7 @@ static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void**
 static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
   int i = 0;
   while (0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
-    if (i < 5000) {
+    if (i < 10) {
       taosUsleep(1);
       i++;
     } else {
