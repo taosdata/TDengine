@@ -51,6 +51,13 @@ class TDCases:
     def addCluster(self, name, case):
         self.clusterCases.append(TDCase(name, case))
 
+    def get_local_classes(self, module):
+        classes = []
+        for name, obj in inspect.getmembers(module, inspect.isclass):
+            if inspect.getmodule(obj) == module:
+                classes.append(name)
+        return classes
+
     def runAllLinux(self, conn):
         # TODO: load all Linux cases here
         runNum = 0
@@ -71,7 +78,10 @@ class TDCases:
         runNum = 0
         for tmp in self.linuxCases:
             if tmp.name.find(fileName) != -1:
-                case = testModule.TDTestCase()
+                # get the last class name as the test case class name
+                case_class = getattr(testModule, self.get_local_classes(testModule)[0])
+
+                case = case_class()
                 case.init(conn, self._logSql, replicaVar)
                 try:
                     case.run()
@@ -103,7 +113,9 @@ class TDCases:
         runNum = 0
         for tmp in self.windowsCases:
             if tmp.name.find(fileName) != -1:
-                case = testModule.TDTestCase()
+                # get the last class name as the test case class name
+                case_class = getattr(testModule, self.get_local_classes(testModule)[0])
+                case = case_class()
                 case.init(conn, self._logSql,replicaVar)
                 try:
                     case.run()
@@ -117,12 +129,15 @@ class TDCases:
 
     def runAllCluster(self):
         # TODO: load all cluster case module here
+        testModule = self.__dynamicLoadModule(fileName)
 
         runNum = 0
         for tmp in self.clusterCases:
             if tmp.name.find(fileName) != -1:
                 tdLog.notice("run cases like %s" % (fileName))
-                case = testModule.TDTestCase()
+                # get the last class name as the test case class name
+                case_class = getattr(testModule, self.get_local_classes(testModule)[0])
+                case = case_class()
                 case.init()
                 case.run()
                 case.stop()
@@ -138,7 +153,9 @@ class TDCases:
         for tmp in self.clusterCases:
             if tmp.name.find(fileName) != -1:
                 tdLog.notice("run cases like %s" % (fileName))
-                case = testModule.TDTestCase()
+                # get the last class name as the test case class name
+                case_class = getattr(testModule, self.get_local_classes(testModule)[0])
+                case = case_class()
                 case.init()
                 case.run()
                 case.stop()
