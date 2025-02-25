@@ -139,7 +139,7 @@ int32_t doStreamSessionNonblockAggImpl(SOperatorInfo* pOperator, SSDataBlock* pB
       SStreamStateCur* pCur =
           pAggSup->stateStore.streamStateSessionSeekKeyPrev(pAggSup->pState, &curWinInfo.sessionWin);
       int32_t           size = 0;
-      SResultWindowInfo prevWinInfo = {0};
+      SResultWindowInfo prevWinInfo = {.sessionWin.groupId = groupId};
       int32_t           tmpWinCode = pAggSup->stateStore.streamStateSessionGetKVByCur(pCur, &prevWinInfo.sessionWin,
                                                                                       (void**)&prevWinInfo.pStatePos, &size);
       if (tmpWinCode == TSDB_CODE_SUCCESS) {
@@ -814,7 +814,7 @@ int32_t createFinalSessionNonblockOperatorInfo(SOperatorInfo* downstream, SPhysi
 
   SStreamSessionAggOperatorInfo* pInfo = (SStreamSessionAggOperatorInfo*)(*ppOptInfo)->info;
   pInfo->nbSup.pWindowAggFn = doStreamFinalSessionNonblockAggImpl;
-  pInfo->streamAggSup.pScanBlock->info.type = STREAM_MID_RETRIEVE;
+  pInfo->streamAggSup.pScanBlock->info.type = STREAM_RETRIEVE;
   pInfo->nbSup.tsOfKeep = INT64_MIN;
   pInfo->twAggSup.waterMark = 0;
   setFinalOperatorFlag(&pInfo->basic);
