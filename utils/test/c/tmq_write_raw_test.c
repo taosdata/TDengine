@@ -136,6 +136,13 @@ int buildDatabase(TAOS* pConn, TAOS_RES* pRes) {
   }
   taos_free_result(pRes);
 
+  pRes = taos_query(pConn, "alter table ct0 set tag t4=false");
+  if (taos_errno(pRes) != 0) {
+    printf("alter table ct0 set tag t4=false, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
   return 0;
 }
 
@@ -226,6 +233,15 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
   tmq_conf_set(conf, "msg.consume.excluded", "1");
+  tmq_conf_set(conf, "fetch.max.wait.ms", "1");
+  assert(tmq_conf_set(conf, "fetch.max.wait.ms", "100000000000") == TMQ_CONF_INVALID);
+  assert(tmq_conf_set(conf, "fetch.max.wait.ms", "-100000000000") == TMQ_CONF_INVALID);
+  assert(tmq_conf_set(conf, "fetch.max.wait.ms", "0") == TMQ_CONF_INVALID);
+  assert(tmq_conf_set(conf, "fetch.max.wait.ms", "1000") == TMQ_CONF_OK);
+  assert(tmq_conf_set(conf, "min.poll.rows", "100000000000") == TMQ_CONF_INVALID);
+  assert(tmq_conf_set(conf, "min.poll.rows", "-1") == TMQ_CONF_INVALID);
+  assert(tmq_conf_set(conf, "min.poll.rows", "0") == TMQ_CONF_INVALID);
+  assert(tmq_conf_set(conf, "min.poll.rows", "1") == TMQ_CONF_OK);
 //  tmq_conf_set(conf, "max.poll.interval.ms", "20000");
 
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);

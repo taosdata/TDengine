@@ -671,6 +671,15 @@ class TDSql:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, col_name_list, expect_col_name_list)
             tdLog.exit("%s(%d) failed: sql:%s, col_name_list:%s != expect_col_name_list:%s" % args)
+            
+    def checkResColNameList(self, expect_col_name_list):
+        col_name_list = []
+        col_type_list = []
+        for query_col in self.cursor.description:
+            col_name_list.append(query_col[0])
+            col_type_list.append(query_col[1])
+
+        self.checkColNameList(col_name_list, expect_col_name_list)
 
     def __check_equal(self, elm, expect_elm):
         if elm == expect_elm:

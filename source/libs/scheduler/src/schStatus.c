@@ -22,9 +22,11 @@
 #include "trpc.h"
 
 int32_t schSwitchJobStatus(SSchJob* pJob, int32_t status, void* param) {
-  int32_t code = 0;
-  SCH_ERR_JRET(schUpdateJobStatus(pJob, status));
-
+  int32_t code = schUpdateJobStatus(pJob, status);
+  if (TSDB_CODE_SUCCESS != code) {
+    SCH_ERR_JRET((param && *(int32_t*)param) ? *(int32_t*)param : code);
+  }
+  
   switch (status) {
     case JOB_TASK_STATUS_INIT:
       break;

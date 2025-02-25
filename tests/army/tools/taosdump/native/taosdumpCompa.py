@@ -59,21 +59,40 @@ class TDTestCase(TBase):
         # sum pk db
         sql = f"select {aggfun} from {db}.{stb}"
         tdSql.query(sql)
-        value = tdSql.getData(0,0)
-
-        if value == expect:
-            tdLog.info(f"{aggfun} not equal. real={value} expect={expect}")
-        else:
-            tdLog.info(f"{aggfun} equal. real={value} expect={expect}")
-
+        tdSql.checkData(0, 0, expect, show=True)
 
     def verifyResult(self, db):
         
         #  compare sum(pk)
         stb = "meters"
-        self.checkSame(db, stb, "count(ts)", 100000)
-        self.checkSame(db, stb, "sum(current)", 1005767.2491703)
-        self.checkSame(db, stb, "avg(voltage)", 208.58818)
+        self.checkSame(db, stb, "count(ts)", 5000)
+        self.checkSame(db, stb, "last(ts)", "2023-11-15 07:36:39")
+        self.checkSame(db, stb, "last(bc)", False)
+        self.checkSame(db, stb, "sum(fc)", 2468.910999777726829)
+        self.checkSame(db, stb, "sum(dc)", 24811.172123999996984)
+        self.checkSame(db, stb, "sum(ti)", -411)
+        self.checkSame(db, stb, "sum(si)", 117073)
+        self.checkSame(db, stb, "sum(ic)", -39181)
+        self.checkSame(db, stb, "sum(bi)", -2231976)
+        self.checkSame(db, stb, "sum(uti)", 248825)
+        self.checkSame(db, stb, "sum(usi)", 248333)
+        self.checkSame(db, stb, "sum(ui)", 2484501)
+        self.checkSame(db, stb, "sum(ubi)", 25051956)
+        self.checkSame(db, stb, "last(bin)", "kwax")
+        self.checkSame(db, stb, "last(nch)", "0cYzPVcV")
+
+        self.checkSame(db, stb, "sum(tfc)", 3420.000076293945312)
+        self.checkSame(db, stb, "sum(tdc)", 3020.234999999780030)
+        self.checkSame(db, stb, "sum(tti)", -100000)
+        self.checkSame(db, stb, "sum(tsi)", -85000)
+        self.checkSame(db, stb, "sum(tic)", -4795000)
+        self.checkSame(db, stb, "sum(tbi)", -1125000)
+        self.checkSame(db, stb, "sum(tuti)", 475000)
+        self.checkSame(db, stb, "sum(tusi)", 460000)
+        self.checkSame(db, stb, "sum(tui)", 520000)
+        self.checkSame(db, stb, "sum(tubi)", 43155000)
+        self.checkSame(db, stb, "last(tbin)", "ywkc")
+        self.checkSame(db, stb, "last(tnch)", "kEoWzCBj")
 
     def run(self):
         # database
@@ -88,7 +107,6 @@ class TDTestCase(TBase):
 
         # verify db
         self.verifyResult(db)
-
 
     def stop(self):
         tdSql.close()
