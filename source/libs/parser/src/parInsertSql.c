@@ -1279,35 +1279,10 @@ static int32_t preParseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpS
   return insCreateSName(&pStmt->usingTableName, pTbName, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg);
 }
 
-static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (pCxt->forceUpdate) {
-    pCxt->missCache = true;
-    return TSDB_CODE_SUCCESS;
-  }
-  if (!pCxt->missCache) {
-    bool bUsingTable = true;
-    code = getTableMeta(pCxt, &pStmt->usingTableName, &pStmt->pTableMeta, &pCxt->missCache, bUsingTable);
-  }
-  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
-    code = getTargetTableVgroup(pCxt->pComCxt, pStmt, true, &pCxt->missCache);
-  }
-  if (TSDB_CODE_SUCCESS == code && !pCxt->pComCxt->async) {
-    code = collectUseDatabase(&pStmt->usingTableName, pStmt->pDbFNameHashObj);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = collectUseTable(&pStmt->usingTableName, pStmt->pTableNameHashObj);
-    }
-  }
-  return code;
-}
-
 static int32_t parseUsingTableNameImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   SToken token;
   NEXT_TOKEN(pStmt->pSql, token);
   int32_t code = preParseUsingTableName(pCxt, pStmt, &token);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = getUsingTableSchema(pCxt, pStmt);
-  }
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = storeChildTableMeta(pCxt, pStmt);
   }
@@ -1333,7 +1308,7 @@ static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   // pStmt->pSql -> stb_name [(tag1_name, ...)
   pStmt->pSql += index;
   code = parseDuplicateUsingClause(pCxt, pStmt, &pCxt->usingDuplicateTable);
-  if (TSDB_CODE_SUCCESS == code && !pCxt->usingDuplicateTable) {
+  if (TSDB_CODE_SUCCESS == code) {
     return parseUsingTableNameImpl(pCxt, pStmt);
   }
   return code;
