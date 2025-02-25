@@ -14,6 +14,7 @@
 import os
 import json
 import frame
+import frame.eos
 import frame.etool
 from frame.log import *
 from frame.cases import *
@@ -28,23 +29,19 @@ class TDTestCase(TBase):
         test taosdump support commandline arguments
         """
 
-    def exec(self, command):
-        tdLog.info(command)
-        return os.system(command)
-    
     def clearPath(self, path):
         os.system("rm -rf %s/*" % path)
 
     def findPrograme(self):
         # taosdump 
-        taosdump = etool.taosDumpFile()
+        taosdump = frame.etool.taosDumpFile()
         if taosdump == "":
             tdLog.exit("taosdump not found!")
         else:
             tdLog.info("taosdump found in %s" % taosdump)
 
         # taosBenchmark
-        benchmark = etool.benchMarkFile()
+        benchmark = frame.etool.benchMarkFile()
         if benchmark == "":
             tdLog.exit("benchmark not found!")
         else:
@@ -60,7 +57,7 @@ class TDTestCase(TBase):
 
         return taosdump, benchmark,tmpdir
 
-    def checkCorrectWithJson(self, jsonFile, newdb = None, checkInterval=False):
+    def checkCorrectWithJson(self, jsonFile, newdb = None, checkInterval = True):
         #
         # check insert result
         #
@@ -73,9 +70,9 @@ class TDTestCase(TBase):
         else:
             db = newdb
 
-        stb = data["databases"][0]["super_tables"][0]["name"]
-        child_count = data["databases"][0]["super_tables"][0]["childtable_count"]
-        insert_rows = data["databases"][0]["super_tables"][0]["insert_rows"]
+        stb            = data["databases"][0]["super_tables"][0]["name"]
+        child_count    = data["databases"][0]["super_tables"][0]["childtable_count"]
+        insert_rows    = data["databases"][0]["super_tables"][0]["insert_rows"]
         timestamp_step = data["databases"][0]["super_tables"][0]["timestamp_step"]
 
         tdLog.info(f"get json: db={db} stb={stb} child_count={child_count} insert_rows={insert_rows} \n")
@@ -90,12 +87,6 @@ class TDTestCase(TBase):
             sql = f"select * from (select diff(ts) as dif from {db}.{stb} partition by tbname) where dif != {timestamp_step};"
             tdSql.query(sql)
             tdSql.checkRows(0)
-
-    def testBenchmarkJson(self, benchmark, jsonFile, options="", checkInterval=False):
-        # exe insert 
-        cmd = f"{benchmark} {options} -f {jsonFile}"
-        self.exec(cmd)
-        self.checkCorrectWithJson(jsonFile)
 
     def insertData(self, json):
         # insert super table
@@ -114,14 +105,6 @@ class TDTestCase(TBase):
             tdSql.execute(sql)
         
         return db, stb, child_count, insert_rows
-
-    def dumpOut(self, taosdump, db , outdir):
-        # dump out
-        self.exec(f"{taosdump} -D {db} -o {outdir}")
-
-    def dumpIn(self, taosdump, db, newdb, indir):
-        # dump in
-        self.exec(f'{taosdump} -W "{db}={newdb}" -i {indir}')
 
     def checkSame(self, db, newdb, stb, aggfun):
         # sum pk db
@@ -145,14 +128,34 @@ class TDTestCase(TBase):
         
         #  compare sum(pk)
         stb = "meters"
-        self.checkSame(db, newdb, stb, "sum(pk)")
-        self.checkSame(db, newdb, stb, "sum(usi)")
+        self.checkSame(db, newdb, stb, "sum(fc)")
+        self.checkSame(db, newdb, stb, "avg(dc)")
+        self.checkSame(db, newdb, stb, "sum(ti)")
+        self.checkSame(db, newdb, stb, "sum(si)")
         self.checkSame(db, newdb, stb, "sum(ic)")
+        self.checkSame(db, newdb, stb, "avg(bi)")
+        self.checkSame(db, newdb, stb, "sum(uti)")
+        self.checkSame(db, newdb, stb, "sum(usi)")
+        self.checkSame(db, newdb, stb, "sum(ui)")
+        self.checkSame(db, newdb, stb, "avg(ubi)")
 
         # check normal table
         self.checkSame(db, newdb, "ntb", "sum(c1)")
 
-    
+    #  with Native Rest and WebSocket
+    def dumpInOutMode(self, mode, db, json, tmpdir):
+        # dump out
+        self.clearPath(tmpdir)
+        self.taosdump(f"{mode} -D {db} -o {tmpdir}")
+
+        # dump in
+        newdb = "new" + db
+        self.taosdump(f"{mode} -W '{db}={newdb}' -i {tmpdir}")
+
+        # check same
+        self.verifyResult(db, newdb, json)
+
+
     # basic commandline
     def basicCommandLine(self, tmpdir):
         #command and check result 
@@ -187,7 +190,7 @@ class TDTestCase(TBase):
     # check except
     def checkExcept(self, command):
         try:
-            code = self.exec(command)
+            code = frame.eos.exe(command, show = True)
             if code == 0:
                 tdLog.exit(f"Failed, not report error cmd:{command}")
             else:
@@ -220,7 +223,7 @@ class TDTestCase(TBase):
         json = "./tools/taosdump/native/json/insertFullType.json"
 
         # insert data with taosBenchmark
-        db, stb, child_count, insert_rows = self.insertData(json)
+        db, stb, childCount, insertRows = self.insertData(json)
         newdb = "new" + db
 
         # basic commandline
@@ -229,15 +232,10 @@ class TDTestCase(TBase):
         # except commandline
         self.exceptCommandLine(taosdump, db, stb, tmpdir)
 
-        # dump out 
-        #self.dumpOut(taosdump, db, tmpdir)
-
-        # dump in
-        #self.dumpIn(taosdump, db, newdb, tmpdir)
-
-        # verify db
-        #self.verifyResult(db, newdb, json)
-
+        # dumpInOut
+        modes = ["", "-R" , "--cloud=http://localhost:6041"]
+        for mode in modes:
+            self.dumpInOutMode(mode, db , json, tmpdir)
 
     def stop(self):
         tdSql.close()
