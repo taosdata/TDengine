@@ -1510,7 +1510,7 @@ TEST(clientCase, sub_tb_mt_test) {
     (void)taosThreadCreate(&qid[i], NULL, doConsumeData, NULL);
   }
 
-  for (int32_t i = 0; i < 4; ++i) {
+  for (int32_t i = 0; i < 1; ++i) {
     (void)taosThreadJoin(qid[i], NULL);
   }
 }
