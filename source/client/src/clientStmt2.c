@@ -53,7 +53,6 @@ static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
     }
   }
   if (pStmt->queue.stopQueue) {
-    (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
     return false;
   }
   SStmtQNode* orig = pStmt->queue.head;
