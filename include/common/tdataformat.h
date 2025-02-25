@@ -133,7 +133,7 @@ int32_t tValueCompare(const SValue *tv1, const SValue *tv2);
 
 // SRow ================================
 int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SRowBuildScanInfo *pScanInfo);
-int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobRow2 **ppBlobRow,
+int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobRow2 *pBlobRow,
                           SRowBuildScanInfo *sinfo);
 int32_t tRowBuild3(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow);
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
@@ -145,6 +145,7 @@ typedef struct {
 int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow);
 int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len, uint64_t *seq);
 int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow);
+int32_t tBlobRowSize(SBlobRow2 *pBlobRow);
 
 int32_t tRowGetBlobSeq(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal, uint64_t *seq);
 void    tRowDestroy(SRow *pRow);

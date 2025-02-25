@@ -5237,32 +5237,6 @@ _end:
   return code;
 }
 
-// int32_t doShouldBuildBlobCol(STsdbReader* pReader, STSchema* pTSchema, int32_t i, SColVal* pSrcVal, SColVal* pDstVal)
-// {
-//   STColumn* pColumn = pTSchema->columns + i;
-//   if (pColumn->type != TSDB_DATA_TYPE_BINARY || pColumn->type == TSDB_DATA_TYPE_BLOB) {
-//     return 0;
-//   }
-//   int32_t lino = 0;
-//   int32_t code = TSDB_CODE_SUCCESS;
-//   SVnode* pVnode = pReader->pTsdb->pVnode;
-
-//   uint8_t* pValue = NULL;
-//   int32_t  len = 0;
-
-//   code = bseGet(pVnode->pBse, pSrcVal->value.val, &pValue, &len);
-//   TSDB_CHECK_CODE(code, lino, _err);
-
-//   pDstVal->value.pData = pValue;
-//   pDstVal->value.nData = len;
-//   pDstVal->value.type = pColumn->type;
-
-// _err:
-//   if (code != 0) {
-//     tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-//   }
-//   return 1;
-// }
 int32_t doAppendRowFromTSRow(SSDataBlock* pBlock, STsdbReader* pReader, SRow* pTSRow, STableBlockScanInfo* pScanInfo) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;

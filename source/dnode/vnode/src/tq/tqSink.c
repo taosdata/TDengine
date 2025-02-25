@@ -746,15 +746,11 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
 
   SArray* pVals = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
   pTableData->aRowP = taosArrayInit(numOfRows, sizeof(SRow*));
-  pTableData->aBlobRow = taosArrayInit(numOfRows, sizeof(SBlobRow2*));
 
-  if (pTableData->aRowP == NULL || pVals == NULL || pTableData->aBlobRow == NULL) {
-    taosArrayDestroy(pTableData->aRowP);
-    pTableData->aRowP = NULL;
+  code = tBlobRowCreate(4096 * 4, &pTableData->pBlobRow);
 
-    taosArrayDestroy(pTableData->aBlobRow);
-    pTableData->aBlobRow = NULL;
-
+  if (pTableData->aRowP == NULL || pVals == NULL || code != 0) {
+    tBlobRowDestroy(pTableData->pBlobRow);
     taosArrayDestroy(pVals);
     code = terrno;
     tqError("s-task:%s failed to prepare write stream res blocks, code:%s", id, tstrerror(code));

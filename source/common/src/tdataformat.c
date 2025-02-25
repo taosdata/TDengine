@@ -335,7 +335,7 @@ static int32_t tRowBuildTupleRow(SArray *aColVal, const SRowBuildScanInfo *sinfo
 }
 
 static int32_t tRowBuildTupleRow2(SArray *aColVal, const SRowBuildScanInfo *sinfo, const STSchema *schema, SRow **ppRow,
-                                  SBlobRow2 **ppBlobRow) {
+                                  SBlobRow2 *pBlobRow) {
   SColVal *colValArray = (SColVal *)TARRAY_DATA(aColVal);
   int8_t   hasBlob = 0;
   *ppRow = (SRow *)taosMemoryCalloc(1, sinfo->tupleRowSize);
@@ -389,7 +389,7 @@ static int32_t tRowBuildTupleRow2(SArray *aColVal, const SRowBuildScanInfo *sinf
                 varlen += colValArray[colValIndex].value.nData;
               } else {
                 uint64_t seq = 0;
-                tBlobRowPush(*ppBlobRow, colValArray[colValIndex].value.pData, colValArray[colValIndex].value.nData,
+                tBlobRowPush(pBlobRow, colValArray[colValIndex].value.pData, colValArray[colValIndex].value.nData,
                              &seq);
                 varlen += tPutU64(varlen, seq);
               }
@@ -593,7 +593,7 @@ static int32_t tRowBuildKVRow(SArray *aColVal, const SRowBuildScanInfo *sinfo, c
 }
 
 static int32_t tRowBuildKVRow2(SArray *aColVal, const SRowBuildScanInfo *sinfo, const STSchema *schema, SRow **ppRow,
-                               SBlobRow2 **ppBlobRow) {
+                               SBlobRow2 *ppBlobRow) {
   SColVal *colValArray = (SColVal *)TARRAY_DATA(aColVal);
 
   *ppRow = (SRow *)taosMemoryCalloc(1, sinfo->kvRowSize);
@@ -716,12 +716,14 @@ int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len, uint64_
   int32_t  code = 0;
   uint64_t offset;
   if (pBlobRow->len + len > pBlobRow->cap) {
-    int64_t cap = pBlobRow->cap * 2;
+    int64_t cap = pBlobRow->cap;
     while ((pBlobRow->len + len) > cap) {
       cap = cap * 2;
     }
-    pBlobRow->data = taosMemRealloc(pBlobRow->data, pBlobRow->cap * 2);
+    pBlobRow->cap = cap;
+    pBlobRow->data = taosMemRealloc(pBlobRow->data, pBlobRow->cap);
   }
+
   (void)memcpy(pBlobRow->data + pBlobRow->len, data, len);
 
   pBlobRow->seq++;
@@ -734,6 +736,10 @@ int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len, uint64_
 
   return code;
 }
+int32_t tBlobRowSize(SBlobRow2 *pBlobRow) {
+  if (pBlobRow == NULL) return 0;
+  return taosHashGetSize(pBlobRow->pSeqTable);
+}
 
 int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow) {
   int32_t code = 0;
@@ -743,26 +749,19 @@ int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow) {
   return code;
 }
 
-int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobRow2 **ppBlobRow,
+int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobRow2 *pBlobRow,
                           SRowBuildScanInfo *sinfo) {
   int32_t code;
-
-  SBlobRow2 *pBlobRow = NULL;
-  code = tBlobRowCreate(4096, &pBlobRow);
-  if (code != 0) {
-    return code;
-  }
 
   code = tRowBuildScan(aColVal, pTSchema, sinfo);
   if (code) return code;
 
   if (sinfo->tupleRowSize <= sinfo->kvRowSize) {
-    code = tRowBuildTupleRow2(aColVal, sinfo, pTSchema, ppRow, &pBlobRow);
+    code = tRowBuildTupleRow2(aColVal, sinfo, pTSchema, ppRow, pBlobRow);
   } else {
-    code = tRowBuildKVRow2(aColVal, sinfo, pTSchema, ppRow, &pBlobRow);
+    code = tRowBuildKVRow2(aColVal, sinfo, pTSchema, ppRow, pBlobRow);
   }
 
-  *ppBlobRow = pBlobRow;
   return code;
 }
 
@@ -1136,21 +1135,6 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
     pColVal->flag = CV_FLAG_VALUE;
     // uint8_t hasBlob = 0;
     if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-      // if (IS_STR_DATA_BLOB(pTColumn->type)) {
-      //   hasBlob = 1;
-      // }
-      // if (hasBlob == 1) {
-      //   uint64_t seq = 0;
-      //   uint32_t offset = 0;
-
-      //   pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
-      //   offset = tGetU32v(pColVal->value.pData, &pColVal->value.nData);
-      //   pColVal->value.pData += offset;
-      //   tGetU64(pColVal->value.pData, &seq);
-      //   pColVal->cid = pTColumn->colId;
-      //   pColVal->value.type = TSDB_DATA_TYPE_BIGINT;
-      //   memcpy(&pColVal->value.val, &seq, sizeof(uint64_t));
-      // } else {
       pColVal->value.pData = varlen + *(int32_t *)(fixed + pTColumn->offset);
       pColVal->value.pData += tGetU32v(pColVal->value.pData, &pColVal->value.nData);
       //}
