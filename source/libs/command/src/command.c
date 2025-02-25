@@ -55,7 +55,7 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   (*pRsp)->numOfCols = htonl(numOfCols);
 
   int32_t len = 0;
-  if ((*pRsp)->numOfRows > 0) {
+  if (pBlock->info.rows > 0) {
     len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, numOfCols);
     if (len < 0) {
       taosMemoryFree(*pRsp);
