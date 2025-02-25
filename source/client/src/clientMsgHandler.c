@@ -628,26 +628,30 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
   (*pRsp)->numOfCols = htonl(SHOW_VARIABLES_RESULT_COLS);
 
-  int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, SHOW_VARIABLES_RESULT_COLS);
-  if (len < 0) {
-    uError("buildShowVariablesRsp error, len:%d", len);
-    code = terrno;
-    goto _exit;
+  int32_t len = 0;
+  if ((*pRsp)->numOfRows > 0) {
+    len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, SHOW_VARIABLES_RESULT_COLS);
+    if (len < 0) {
+      uError("buildShowVariablesRsp error, len:%d", len);
+      code = terrno;
+      goto _exit;
+    }
+    SET_PAYLOAD_LEN((*pRsp)->data, len, len);
+
+    int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
+    (*pRsp)->payloadLen = htonl(payloadLen);
+    (*pRsp)->compLen = htonl(payloadLen);
+
+    if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
+      uError("buildShowVariablesRsp error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
+             (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
+      code = TSDB_CODE_TSC_INVALID_INPUT;
+      goto _exit;
+    }
   }
+
   blockDataDestroy(pBlock);
-
-  SET_PAYLOAD_LEN((*pRsp)->data, len, len);
-
-  int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
-  (*pRsp)->payloadLen = htonl(payloadLen);
-  (*pRsp)->compLen = htonl(payloadLen);
-
-  if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
-    uError("buildShowVariablesRsp error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
-           (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
-    code = TSDB_CODE_TSC_INVALID_INPUT;
-    goto _exit;
-  }
+  pBlock = NULL;
 
   return TSDB_CODE_SUCCESS;
 _exit:

@@ -2747,6 +2747,22 @@ static bool needDbShowStmt(ENodeType type) {
          QUERY_NODE_SHOW_VIEWS_STMT == type || QUERY_NODE_SHOW_TSMAS_STMT == type || QUERY_NODE_SHOW_USAGE_STMT == type;
 }
 
+SNode* createShowStmtWithLike(SAstCreateContext* pCxt, ENodeType type,   SNode*  pLikePattern) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->withFull = false;
+  pStmt->pTbName = pLikePattern;
+  if (pLikePattern) {
+    pStmt->tableCondType = OP_TYPE_LIKE;
+  }
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pLikePattern);
+  return NULL;
+}
+
 SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
   CHECK_PARSER_STATUS(pCxt);
   SShowStmt* pStmt = NULL;

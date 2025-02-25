@@ -593,9 +593,9 @@ cmd ::= SHOW ENCRYPTIONS.                                                       
 cmd ::= SHOW QUERIES.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_QUERIES_STMT); }
 cmd ::= SHOW SCORES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SCORES_STMT); }
 cmd ::= SHOW TOPICS.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_TOPICS_STMT); }
-cmd ::= SHOW VARIABLES.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_VARIABLES_STMT); }
-cmd ::= SHOW CLUSTER VARIABLES.                                                   { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_VARIABLES_STMT); }
-cmd ::= SHOW LOCAL VARIABLES.                                                     { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT); }
+cmd ::= SHOW VARIABLES like_pattern_opt(B).                                       { pCxt->pRootNode = createShowStmtWithLike(pCxt, QUERY_NODE_SHOW_VARIABLES_STMT, B); }
+cmd ::= SHOW CLUSTER VARIABLES like_pattern_opt(B).                               { pCxt->pRootNode = createShowStmtWithLike(pCxt, QUERY_NODE_SHOW_VARIABLES_STMT, B); }
+cmd ::= SHOW LOCAL VARIABLES like_pattern_opt(B).                                 { pCxt->pRootNode = createShowStmtWithLike(pCxt, QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT, B); }
 cmd ::= SHOW DNODE NK_INTEGER(A) VARIABLES like_pattern_opt(B).                   { pCxt->pRootNode = createShowDnodeVariablesStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A), B); }
 cmd ::= SHOW BNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_BNODES_STMT); }
 cmd ::= SHOW SNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SNODES_STMT); }

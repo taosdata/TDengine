@@ -13244,6 +13244,13 @@ static int32_t translateSplitVgroup(STranslateContext* pCxt, SSplitVgroupStmt* p
 
 static int32_t translateShowVariables(STranslateContext* pCxt, SShowStmt* pStmt) {
   SShowVariablesReq req = {0};
+  req.opType = pStmt->tableCondType;
+  if (req.opType == OP_TYPE_LIKE && pStmt->pTbName) {
+    req.valLen = strlen(((SValueNode*)pStmt->pTbName)->literal);
+    if (req.valLen > 0) {
+      req.val = taosStrdupi(((SValueNode*)pStmt->pTbName)->literal);
+    }
+  }
   return buildCmdMsg(pCxt, TDMT_MND_SHOW_VARIABLES, (FSerializeFunc)tSerializeSShowVariablesReq, &req);
 }
 

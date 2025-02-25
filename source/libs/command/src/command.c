@@ -20,6 +20,7 @@
 #include "systable.h"
 #include "taosdef.h"
 #include "tdatablock.h"
+#include "tdataformat.h"
 #include "tglobal.h"
 #include "tgrant.h"
 
@@ -53,13 +54,16 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
   (*pRsp)->numOfCols = htonl(numOfCols);
 
-  int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, numOfCols);
-  if (len < 0) {
-    taosMemoryFree(*pRsp);
-    *pRsp = NULL;
-    return terrno;
+  int32_t len = 0;
+  if ((*pRsp)->numOfRows > 0) {
+    len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, numOfCols);
+    if (len < 0) {
+      taosMemoryFree(*pRsp);
+      *pRsp = NULL;
+      return terrno;
+    }
+    SET_PAYLOAD_LEN((*pRsp)->data, len, len);
   }
-  SET_PAYLOAD_LEN((*pRsp)->data, len, len);
 
   int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
   (*pRsp)->payloadLen = htonl(payloadLen);
@@ -985,11 +989,17 @@ _exit:
   return terrno;
 }
 
-static int32_t execShowLocalVariables(SRetrieveTableRsp** pRsp) {
+static int32_t execShowLocalVariables(SShowStmt* pStmt, SRetrieveTableRsp** pRsp) {
   SSDataBlock* pBlock = NULL;
+  char*        likePattern = NULL;
   int32_t      code = buildLocalVariablesResultDataBlock(&pBlock);
   if (TSDB_CODE_SUCCESS == code) {
-    code = dumpConfToDataBlock(pBlock, 0);
+    if (pStmt->tableCondType == OP_TYPE_LIKE) {
+      likePattern = ((SValueNode*)pStmt->pTbName)->literal;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = dumpConfToDataBlock(pBlock, 0, likePattern);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, SHOW_LOCAL_VARIABLES_RESULT_COLS, pRsp);
@@ -1091,7 +1101,7 @@ int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode* pStmt, SRetrieve
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return execAlterLocal((SAlterLocalStmt*)pStmt);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
-      return execShowLocalVariables(pRsp);
+      return execShowLocalVariables((SShowStmt*)pStmt, pRsp);
     case QUERY_NODE_SELECT_STMT:
       return execSelectWithoutFrom((SSelectStmt*)pStmt, pRsp);
     default:
