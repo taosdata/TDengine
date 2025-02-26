@@ -187,7 +187,7 @@ void qwDbgDumpJobsInfo(void) {
   int32_t jobIdx = 0;
   SQWJobInfo* pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, NULL);
   while (NULL != pJob) {
-    qDebug("QID:0x%" PRIx64 " CID:0x%" PRIx64 " the %dth remain job", pJob->memInfo->jobId, pJob->memInfo->clientId, jobIdx++);
+    qDebug("QID:0x%" PRIx64 ", CID:0x%" PRIx64 " the %dth remain job", pJob->memInfo->jobId, pJob->memInfo->clientId, jobIdx++);
 
     int32_t sessionIdx = 0;
     SQWSessionInfo* pSession = (SQWSessionInfo*)taosHashIterate(pJob->pSessions, NULL);

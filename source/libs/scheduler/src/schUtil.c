@@ -23,7 +23,7 @@
 #include "trpc.h"
 
 FORCE_INLINE int32_t schAcquireJob(int64_t refId, SSchJob **ppJob) {
-  qDebug("sch acquire jobId:0x%" PRIx64, refId);
+  qTrace("sch acquire jobId:0x%" PRIx64, refId);
   *ppJob = (SSchJob *)taosAcquireRef(schMgmt.jobRef, refId);
   if (NULL == *ppJob) {
     return terrno;
@@ -37,7 +37,7 @@ FORCE_INLINE int32_t schReleaseJob(int64_t refId) {
     return TSDB_CODE_SUCCESS;
   }
 
-  qDebug("sch release jobId:0x%" PRIx64, refId);
+  qTrace("sch release jobId:0x%" PRIx64, refId);
   return taosReleaseRef(schMgmt.jobRef, refId);
 }
 
@@ -46,7 +46,7 @@ FORCE_INLINE int32_t schReleaseJobEx(int64_t refId, int32_t *released) {
     return TSDB_CODE_SUCCESS;
   }
 
-  qDebug("sch release ex jobId:0x%" PRIx64, refId);
+  qTrace("sch release ex jobId:0x%" PRIx64, refId);
   return taosReleaseRefEx(schMgmt.jobRef, refId, released);
 }
 

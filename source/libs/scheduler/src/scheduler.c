@@ -224,7 +224,7 @@ int32_t schedulerValidatePlan(SQueryPlan* pPlan) {
   int32_t code = TSDB_CODE_SUCCESS;
   SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
   if (NULL == pJob) {
-    qError("QID:0x%" PRIx64 " calloc %d failed", pPlan->queryId, (int32_t)sizeof(SSchJob));
+    qError("QID:0x%" PRIx64 ", calloc %d failed", pPlan->queryId, (int32_t)sizeof(SSchJob));
     SCH_ERR_RET(terrno);
   }
 
