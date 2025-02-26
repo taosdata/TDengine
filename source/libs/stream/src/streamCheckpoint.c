@@ -910,8 +910,11 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   int64_t      startTs = pTask->chkInfo.startTs;
   int64_t      ckId = pTask->chkInfo.pActiveInfo->activeId;
   const char*  id = pTask->id.idStr;
-  bool         dropRelHTask = (streamTaskGetPrevStatus(pTask) == TASK_STATUS__HALT);
   SStreamMeta* pMeta = pTask->pMeta;
+
+  streamMutexLock(&pTask->lock);
+  bool dropRelHTask = (streamTaskGetPrevStatus(pTask) == TASK_STATUS__HALT);
+  streamMutexUnlock(&pTask->lock);
 
   // sink task does not need to save the status, and generated the checkpoint
   if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
