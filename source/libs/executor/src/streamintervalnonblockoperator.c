@@ -643,6 +643,7 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
       } break;
       case STREAM_CREATE_CHILD_TABLE:
       case STREAM_DROP_CHILD_TABLE: {
+        printDataBlock(pBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
         (*ppRes) = pBlock;
         return code;
       } break;

@@ -20,6 +20,7 @@ extern "C" {
 #endif
 
 #include "executorInt.h"
+#include "operator.h"
 
 int32_t doStreamSessionNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** ppBlock);
 void streamSessionNonblockReleaseState(SOperatorInfo* pOperator);
@@ -37,6 +38,9 @@ int32_t setSessionOutputBuf(SStreamAggSupporter* pAggSup, TSKEY startTs, TSKEY e
 void streamSessionReleaseState(SOperatorInfo* pOperator);
 int32_t compactSessionWindow(SOperatorInfo* pOperator, SResultWindowInfo* pCurWin, SSHashObj* pStUpdated,
                              SSHashObj* pStDeleted, bool addGap, int32_t* pWinNum, bool* pIsEnd);
+
+// stream client
+int32_t streamClientGetResultRange(SSHashObj* pRangeMap, SSDataBlock* pRangeRes);
 
 #ifdef __cplusplus
 }
