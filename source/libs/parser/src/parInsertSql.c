@@ -143,7 +143,21 @@ static int32_t parseDuplicateUsingClause(SInsertParseContext* pCxt, SVnodeModify
   *pDuplicate = false;
 
   char tbFName[TSDB_TABLE_FNAME_LEN];
-  return tNameExtractFullName(&pStmt->targetTableName, tbFName);
+  code = tNameExtractFullName(&pStmt->targetTableName, tbFName);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  STableMeta** pMeta = taosHashGet(pStmt->pSubTableHashObj, tbFName, strlen(tbFName));
+  if (NULL != pMeta) {
+    *pDuplicate = true;
+    pCxt->missCache = false;
+    code = ignoreUsingClause(pCxt, &pStmt->pSql);
+    if (TSDB_CODE_SUCCESS == code) {
+      return cloneTableMeta(*pMeta, &pStmt->pTableMeta);
+    }
+  }
+
+  return code;
 }
 
 typedef enum { BOUND_TAGS, BOUND_COLUMNS, BOUND_ALL_AND_TBNAME } EBoundColumnsType;
@@ -1026,6 +1040,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
 
 static int32_t storeChildTableMeta(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   pStmt->pTableMeta->suid = pStmt->pTableMeta->uid;
+  pStmt->pTableMeta->uid = pStmt->totalTbNum;
   pStmt->pTableMeta->tableType = TSDB_CHILD_TABLE;
 
   STableMeta* pBackup = NULL;
