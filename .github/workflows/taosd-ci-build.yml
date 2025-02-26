@@ -73,7 +73,15 @@ jobs:
             snappy \
             zlib
 
-      - name: Build and install TDengine
+      - name: Install dependencies on Windows
+        if: runner.os == 'Windows'
+        run: |
+          choco install cmake --installargs 'ADD_CMAKE_TO_PATH=System' --yes
+          choco install visualstudio2017community --yes
+          choco install visualstudio2017-workload-vctools --yes
+
+      - name: Build and install TDengine on Linux and macOS
+        if: runner.os != 'Windows'
         run: |
           mkdir debug && cd debug
           cmake .. -DBUILD_TOOLS=true \
@@ -85,6 +93,19 @@ jobs:
           which taosd
           which taosadapter
           which taoskeeper
+
+      - name: Build and install TDengine on Windows
+        if: runner.os == 'Windows'
+        run: |
+          call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" x64
+          set CL=/MP8
+          mkdir debug && cd debug
+          cmake .. -G "NMake Makefiles JOM" -DBUILD_TOOLS=true -DBUILD_HTTP=false -DBUILD_TEST=true -DBUILD_DEPENDENCY_TESTS=false
+          jom -j 6
+          jom install
+          where taosd
+          where taosadapter
+          where taoskeeper
 
       - name: Start taosd
         run: |
