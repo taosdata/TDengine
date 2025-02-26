@@ -9,10 +9,9 @@ use tinytemplate::TinyTemplate;
 pub mod archive;
 pub mod cache;
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HandlingStrategy {
-    #[default]
     Archive,
     Skip,
     Break,
@@ -37,14 +36,13 @@ impl HandlingStrategy {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HandlingConnectionError {
-    #[default]
     Archive,
     Skip,
-    Retry,
     Break,
+    Cache,
 }
 
 impl HandlingConnectionError {
@@ -58,8 +56,8 @@ impl HandlingConnectionError {
                 tracing::warn!("{err}: skip record");
                 Ok((HandlingResult::Skip, err))
             }
-            HandlingConnectionError::Retry => {
-                tracing::debug!("{err}: retry record");
+            HandlingConnectionError::Cache => {
+                tracing::debug!("{err}: write to cache and retry record");
                 Ok((HandlingResult::Retry, err))
             }
             HandlingConnectionError::Break => {
@@ -70,14 +68,13 @@ impl HandlingConnectionError {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HandlingTableNotExist {
-    #[default]
     Archive,
     Skip,
-    Retry,
     Break,
+    Retry,
 }
 
 impl HandlingTableNotExist {
@@ -103,10 +100,9 @@ impl HandlingTableNotExist {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HandlingPrimaryTimestampNull {
-    #[default]
     Archive,
     Skip,
     Break,
@@ -136,10 +132,9 @@ impl HandlingPrimaryTimestampNull {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HandlingDataOverflow {
-    #[default]
     Archive,
     Skip,
     Break,
@@ -195,10 +190,9 @@ impl HandlingDataOverflow {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HandlingTableNameContainsIllegalChar {
-    #[default]
     Archive,
     Skip,
     Break,
@@ -238,10 +232,9 @@ impl HandlingTableNameContainsIllegalChar {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HandlingTableNameVariableMistake {
-    #[default]
     Skip,
     LeaveBlank,
     ReplaceTo(String),
@@ -315,10 +308,9 @@ impl HandlingTableNameVariableMistake {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum HandlingFieldNameNotFound {
-    #[default]
     Archive,
     Skip,
     Break,
@@ -341,49 +333,118 @@ impl HandlingFieldNameNotFound {
                 anyhow::bail!(err)
             }
             HandlingFieldNameNotFound::AddField => {
-                tracing::warn!("{err}: add field");
-                Ok((HandlingResult::Modify(vec![]), err))
+                tracing::warn!("{err}: add field and retry record");
+                Ok((HandlingResult::Retry, err))
             }
         }
     }
 }
 
+fn default_database_connection_error() -> HandlingConnectionError {
+    HandlingConnectionError::Cache
+}
+
+fn default_database_not_exist() -> HandlingStrategy {
+    HandlingStrategy::Break
+}
+
+fn default_table_not_exist() -> HandlingTableNotExist {
+    HandlingTableNotExist::Retry
+}
+
+fn default_primary_timestamp_overflow() -> HandlingStrategy {
+    HandlingStrategy::Archive
+}
+
+fn default_primary_timestamp_null() -> HandlingPrimaryTimestampNull {
+    HandlingPrimaryTimestampNull::Archive
+}
+
+fn default_primary_key_null() -> HandlingStrategy {
+    HandlingStrategy::Archive
+}
+
+fn default_table_name_length_overflow() -> HandlingDataOverflow {
+    HandlingDataOverflow::Archive
+}
+
+fn default_table_name_contains_illegal_char() -> HandlingTableNameContainsIllegalChar {
+    HandlingTableNameContainsIllegalChar::ReplaceTo("_".to_string())
+}
+
+fn default_variable_not_exist_in_table_name_template() -> HandlingTableNameVariableMistake {
+    HandlingTableNameVariableMistake::ReplaceTo("NULL".to_string())
+}
+
+fn default_field_name_not_found() -> HandlingFieldNameNotFound {
+    HandlingFieldNameNotFound::AddField
+}
+
+fn default_field_name_length_overflow() -> HandlingDataOverflow {
+    HandlingDataOverflow::Archive
+}
+
+fn default_field_length_extend() -> bool {
+    true
+}
+
+fn default_field_length_overflow() -> HandlingDataOverflow {
+    HandlingDataOverflow::Archive
+}
+
+fn default_ingesting_error() -> HandlingStrategy {
+    HandlingStrategy::Archive
+}
+
+fn default_connection_timeout_in_second() -> String {
+    "30s".to_string()
+}
+
+fn default_connection_timeout_in_second_value() -> usize {
+    30
+}
+
+fn default_connection_timeout_in_second_unit() -> String {
+    "s".to_string()
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct ProcessOnAbnormal {
-    #[serde(default)]
+    #[serde(default = "default_database_connection_error")]
+    pub database_connection_error: HandlingConnectionError,
+    #[serde(default = "default_database_not_exist")]
+    pub database_not_exist: HandlingStrategy,
+    #[serde(default = "default_table_not_exist")]
+    pub table_not_exist: HandlingTableNotExist,
+    #[serde(default = "default_primary_timestamp_overflow")]
     pub primary_timestamp_overflow: HandlingStrategy,
-    #[serde(default)]
+    #[serde(default = "default_primary_timestamp_null")]
     pub primary_timestamp_null: HandlingPrimaryTimestampNull,
-    #[serde(default)]
+    #[serde(default = "default_primary_key_null")]
     pub primary_key_null: HandlingStrategy,
-    #[serde(default)]
+    #[serde(default = "default_table_name_length_overflow")]
     pub table_name_length_overflow: HandlingDataOverflow,
-    #[serde(default)]
+    #[serde(default = "default_table_name_contains_illegal_char")]
     pub table_name_contains_illegal_char: HandlingTableNameContainsIllegalChar,
-    #[serde(default)]
+    #[serde(default = "default_variable_not_exist_in_table_name_template")]
     pub variable_not_exist_in_table_name_template: HandlingTableNameVariableMistake,
-    #[serde(default)]
+    #[serde(default = "default_field_name_not_found")]
     pub field_name_not_found: HandlingFieldNameNotFound,
-    #[serde(default)]
+    #[serde(default = "default_field_name_length_overflow")]
     pub field_name_length_overflow: HandlingDataOverflow,
-    #[serde(default)]
+    #[serde(default = "default_field_length_extend")]
     pub field_length_extend: bool,
-    #[serde(default)]
+    #[serde(default = "default_field_length_overflow")]
     pub field_length_overflow: HandlingDataOverflow,
-    #[serde(default)]
+    #[serde(default = "default_ingesting_error")]
     pub ingesting_error: HandlingStrategy,
 
-    #[serde(default)]
-    pub connection_timeout_in_second: u64,
-
-    #[serde(default)]
-    pub database_not_exist: HandlingStrategy,
-    #[serde(default)]
-    pub stable_not_exist: HandlingTableNotExist,
-    #[serde(default)]
-    pub table_not_exist: HandlingTableNotExist,
-    #[serde(default)]
-    pub database_connection_error: HandlingConnectionError,
+    #[serde(default = "default_connection_timeout_in_second")]
+    pub connection_timeout_in_second: String,
+    #[serde(default = "default_connection_timeout_in_second_value")]
+    pub connection_timeout_in_second_value: usize,
+    #[serde(default = "default_connection_timeout_in_second_unit")]
+    pub connection_timeout_in_second_unit: String,
 
     /// Cache configuration, when the database reports a resource shortage error
     #[serde(default)]
@@ -396,26 +457,24 @@ pub struct ProcessOnAbnormal {
 impl Default for ProcessOnAbnormal {
     fn default() -> Self {
         Self {
-            primary_timestamp_overflow: HandlingStrategy::default(),
-            primary_timestamp_null: HandlingPrimaryTimestampNull::default(),
-            primary_key_null: HandlingStrategy::default(),
-            table_name_length_overflow: HandlingDataOverflow::default(),
-            table_name_contains_illegal_char: HandlingTableNameContainsIllegalChar::ReplaceTo(
-                "_".to_string(),
-            ),
-            variable_not_exist_in_table_name_template: HandlingTableNameVariableMistake::ReplaceTo(
-                "NULL".to_string(),
-            ),
-            field_name_not_found: HandlingFieldNameNotFound::AddField,
-            field_name_length_overflow: HandlingDataOverflow::default(),
-            field_length_extend: true,
-            field_length_overflow: HandlingDataOverflow::default(),
-            ingesting_error: HandlingStrategy::default(),
-            connection_timeout_in_second: 0,
-            database_not_exist: HandlingStrategy::default(),
-            stable_not_exist: HandlingTableNotExist::default(),
-            table_not_exist: HandlingTableNotExist::default(),
-            database_connection_error: HandlingConnectionError::default(),
+            database_connection_error: default_database_connection_error(),
+            database_not_exist: default_database_not_exist(),
+            table_not_exist: default_table_not_exist(),
+            primary_timestamp_overflow: default_primary_timestamp_overflow(),
+            primary_timestamp_null: default_primary_timestamp_null(),
+            primary_key_null: default_primary_key_null(),
+            table_name_length_overflow: default_table_name_length_overflow(),
+            table_name_contains_illegal_char: default_table_name_contains_illegal_char(),
+            variable_not_exist_in_table_name_template:
+                default_variable_not_exist_in_table_name_template(),
+            field_name_not_found: default_field_name_not_found(),
+            field_name_length_overflow: default_field_name_length_overflow(),
+            field_length_extend: default_field_length_extend(),
+            field_length_overflow: default_field_length_overflow(),
+            ingesting_error: default_ingesting_error(),
+            connection_timeout_in_second: default_connection_timeout_in_second(),
+            connection_timeout_in_second_value: default_connection_timeout_in_second_value(),
+            connection_timeout_in_second_unit: default_connection_timeout_in_second_unit(),
             cache: Cache::default(),
             archive: Archive::default(),
         }

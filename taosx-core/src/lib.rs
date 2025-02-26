@@ -702,8 +702,8 @@ impl ArchiveConsumer {
                     match write_to_parquet_file(
                         self.task_id,
                         &archive.location,
-                        archive.keep_days,
-                        archive.max_size,
+                        archive.keep_days_value,
+                        archive.max_size_value,
                         &batch,
                     ) {
                         Ok(_) => {
@@ -721,8 +721,8 @@ impl ArchiveConsumer {
                                     if let Err(e) = write_to_parquet_file(
                                         self.task_id,
                                         &archive.location,
-                                        archive.keep_days,
-                                        archive.max_size,
+                                        archive.keep_days_value,
+                                        archive.max_size_value,
                                         &batch,
                                     ) {
                                         tracing::error!(
