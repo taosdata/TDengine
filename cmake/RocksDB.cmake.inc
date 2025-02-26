@@ -89,7 +89,9 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
         # -DCMAKE_CXX_FLAGS="${CMAKE_CXX_FLAGS}"
         # -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}"
     # )
+
     
+
     include(ExternalProject)
     ExternalProject_Add(rocksdb-project
         URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
@@ -104,6 +106,11 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
         BUILD_BYPRODUCTS ${CMAKE_BINARY_DIR}/build/lib/librocksdb.a
         GIT_SHALLOW true
     )
+
+    # Before setting up the imported target, make sure the directory exists
+    file(MAKE_DIRECTORY "${TD_CONTRIB_DIR}/rocksdb/include")
+    # TODO: might we need the following?
+    # file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/build/include")
 
     # Create imported target for RocksDB
     add_library(rocksdb STATIC IMPORTED GLOBAL)
