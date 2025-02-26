@@ -627,7 +627,7 @@ _end:
 }
 
 void destroyNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup) {
-  blockDataCleanup(pNbSup->pPullDataRes);
+  blockDataDestroy(pNbSup->pPullDataRes);
   pNbSup->pPullDataRes = NULL;
   tSimpleHashCleanup(pNbSup->pHistoryGroup);
   pNbSup->pHistoryGroup = NULL;
