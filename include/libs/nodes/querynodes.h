@@ -61,6 +61,7 @@ typedef struct SExprNode {
   bool      asAlias;
   bool      asParam;
   bool      asPosition;
+  bool      joinSrc;
   int32_t   projIdx;
   int32_t   relatedTo;
   int32_t   bindExprID;
@@ -209,6 +210,7 @@ typedef struct STableNode {
   char      tableAlias[TSDB_TABLE_NAME_LEN];
   uint8_t   precision;
   bool      singleTable;
+  bool      inJoin;
 } STableNode;
 
 struct STableMeta;

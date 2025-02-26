@@ -40,6 +40,11 @@ typedef enum EJoinTableType {
   E_JOIN_TB_PROBE
 } EJoinTableType;
 
+typedef enum EPrimExprType {
+  E_PRIM_TIMETRUNCATE = 1,
+  E_PRIM_VALUE
+} EPrimExprType;
+
 
 #define MJOIN_TBTYPE(_type) (E_JOIN_TB_BUILD == (_type) ? "BUILD" : "PROBE")
 #define IS_FULL_OUTER_JOIN(_jtype, _stype) ((_jtype) == JOIN_TYPE_FULL && (_stype) == JOIN_STYPE_OUTER)
@@ -87,9 +92,15 @@ typedef struct SMJoinNMatchCtx {
 
 // for now timetruncate only
 typedef struct SMJoinPrimExprCtx {
-  int64_t truncateUnit;
-  int64_t timezoneUnit;
-  int32_t targetSlotId;
+  EPrimExprType type;
+
+  // FOR TIMETRUNCATE
+  int64_t       truncateUnit;
+  int64_t       timezoneUnit;
+  int32_t       targetSlotId;
+
+  // FOR VALUE
+  int64_t       constTs;
 } SMJoinPrimExprCtx;
 
 typedef struct SMJoinTableCtx {

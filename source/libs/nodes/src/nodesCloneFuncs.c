@@ -105,6 +105,7 @@ static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   COPY_SCALAR_FIELD(asAlias);
   COPY_SCALAR_FIELD(asParam);
   COPY_SCALAR_FIELD(asPosition);
+  COPY_SCALAR_FIELD(joinSrc);
   COPY_SCALAR_FIELD(projIdx);
   COPY_SCALAR_FIELD(relatedTo);
   COPY_SCALAR_FIELD(bindExprID);
@@ -242,6 +243,7 @@ static int32_t tableNodeCopy(const STableNode* pSrc, STableNode* pDst) {
   COPY_CHAR_ARRAY_FIELD(tableAlias);
   COPY_SCALAR_FIELD(precision);
   COPY_SCALAR_FIELD(singleTable);
+  COPY_SCALAR_FIELD(inJoin);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -321,8 +323,6 @@ static int32_t joinTableNodeCopy(const SJoinTableNode* pSrc, SJoinTableNode* pDs
   CLONE_NODE_FIELD(addPrimCond);
   COPY_SCALAR_FIELD(hasSubQuery);
   COPY_SCALAR_FIELD(isLowLevelJoin);
-  COPY_SCALAR_FIELD(leftNoOrderQuery);
-  COPY_SCALAR_FIELD(rightNoOrderQuery);
   CLONE_NODE_FIELD(pLeft);
   CLONE_NODE_FIELD(pRight);
   CLONE_NODE_FIELD(pOnCond);
@@ -544,11 +544,8 @@ static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   COPY_SCALAR_FIELD(grpJoin);
   COPY_SCALAR_FIELD(hashJoinHint);
   COPY_SCALAR_FIELD(batchScanHint);
-  COPY_SCALAR_FIELD(leftNoOrderQuery);
-  COPY_SCALAR_FIELD(rightNoOrderQuery);
   COPY_SCALAR_FIELD(noPrimKeyEqCond);
-  CLONE_NODE_FIELD(pLeftConstPrim);
-  CLONE_NODE_FIELD(pRightConstPrim);
+  COPY_SCALAR_FIELD(constPrimGot);
   CLONE_NODE_FIELD(pLeftOnCond);
   CLONE_NODE_FIELD(pRightOnCond);
   COPY_SCALAR_FIELD(timeRangeTarget);

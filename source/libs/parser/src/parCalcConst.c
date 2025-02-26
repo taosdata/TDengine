@@ -207,6 +207,7 @@ static int32_t findAndReplaceNode(SCalcConstContext* pCxt, SNode** pRoot, SNode*
 
 static int32_t calcConstProject(SCalcConstContext* pCxt, SNode* pProject, bool dual, SNode** pNew) {
   SArray* pAssociation = NULL;
+  
   if (NULL != ((SExprNode*)pProject)->pAssociation) {
     pAssociation = taosArrayDup(((SExprNode*)pProject)->pAssociation, NULL);
     if (NULL == pAssociation) {
@@ -227,6 +228,10 @@ static int32_t calcConstProject(SCalcConstContext* pCxt, SNode* pProject, bool d
       for (int32_t i = 0; i < size; ++i) {
         SAssociationNode* pAssNode = taosArrayGet(pAssociation, i);
         SNode**           pCol = pAssNode->pPlace;
+        if (((SExprNode*)pAssNode->pAssociationNode)->joinSrc) {
+          continue;
+        }
+        
         if (*pCol == pAssNode->pAssociationNode) {
           tstrncpy(aliasName, ((SExprNode*)*pCol)->aliasName, TSDB_COL_NAME_LEN);
           SArray* pOrigAss = NULL;
