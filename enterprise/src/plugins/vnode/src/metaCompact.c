@@ -16,181 +16,87 @@
 #include "meta.h"
 #include "vnd.h"
 
-typedef bool (*shouldKeepFn)(SMeta      *pMeta,      //
-                             const void *key,        //
-                             int32_t     keySize,    //
-                             const void *value,      //
-                             int32_t     valueSize,  //
-                             int64_t     compactVersion);
-
-static bool shouldEntryKeep(SMeta *pMeta, const void *key, int32_t keySize, const void *value, int32_t valueSize,
-                            int64_t compactVersion) {
-  bool       keep = false;
-  SDecoder   decoder = {0};
-  SMetaEntry entry = {0};
-  SMetaInfo  info = {0};
-
-  tDecoderInit(&decoder, (uint8_t *)value, valueSize);
-  int32_t code = metaDecodeEntry(&decoder, &entry);
-  if (code) {
-    tDecoderClear(&decoder);
-  }
-
-  if (entry.version > compactVersion                          // TODO: version is compactble
-      || (entry.type > 0                                      // entry is not a delete entry
-          && metaGetInfo(pMeta, entry.uid, &info, NULL) == 0  // entry still exists
-          && entry.version == info.version                    // entry is the newest version
-          )) {
-    keep = true;
-  }
-
-  return keep;
-}
-
-static int32_t metaCompactKV(SMeta *pMeta, TTB *pOldTb, TTB *pNewTb, int64_t compactVersion, shouldKeepFn shouldKeep) {
-  TBC    *cursor = NULL;
+int32_t metaCompact(SMeta *pMeta, SMeta *pNewMeta, int64_t compactVersion) {
   int32_t code = 0;
+  SVnode *pVnode = pMeta->pVnode;
 
-  // Open cursor
-  code = tdbTbcOpen(pOldTb, &cursor, NULL);
-  if (code) {
-    metaError("vgId:%d,%s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
-              tstrerror(code));
-    return code;
-  }
+  // i == 0, scan super table
+  // i == 1, scan normal table and child table
+  for (int i = 0; i < 2; i++) {
+    TBC    *uidCursor = NULL;
+    int32_t counter = 0;
 
-  // Move to first
-  code = tdbTbcMoveToFirst(cursor);
-  if (code) {
-    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
-              tstrerror(code));
-    tdbTbcClose(cursor);
-    return code;
-  }
-
-  const void *key = NULL;
-  int32_t     keySize = 0;
-  const void *value = NULL;
-  int32_t     valueSize = 0;
-  while (1) {
-    if (tdbTbcGet(cursor, &key, &keySize, &value, &valueSize) < 0) {
-      break;
+    code = tdbTbcOpen(pMeta->pUidIdx, &uidCursor, NULL);
+    if (code) {
+      metaError("vgId:%d failed to open uid index cursor, reason:%s", TD_VID(pVnode), tstrerror(code));
+      return code;
     }
 
-    if (shouldKeep == NULL || shouldKeep(pMeta, key, keySize, value, valueSize, compactVersion)) {
-      code = tdbTbInsert(pNewTb, key, keySize, value, valueSize, NULL);
+    code = tdbTbcMoveToFirst(uidCursor);
+    if (code) {
+      metaError("vgId:%d failed to move to first, reason:%s", TD_VID(pVnode), tstrerror(code));
+      tdbTbcClose(uidCursor);
+      return code;
+    }
+
+    for (;;) {
+      const void *pKey;
+      int         kLen;
+      const void *pVal;
+      int         vLen;
+
+      if (tdbTbcGet(uidCursor, &pKey, &kLen, &pVal, &vLen) < 0) {
+        break;
+      }
+
+      tb_uid_t    uid = *(tb_uid_t *)pKey;
+      SUidIdxVal *pUidIdxVal = (SUidIdxVal *)pVal;
+      if ((i == 0 && (pUidIdxVal->suid && pUidIdxVal->suid == uid))          // super table
+          || (i == 1 && (pUidIdxVal->suid == 0 || pUidIdxVal->suid != uid))  // normal table and child table
+      ) {
+        counter++;
+        if (i == 0) {
+          metaInfo("vgId:%d counter:%d new meta handle %s table uid:%" PRId64, TD_VID(pVnode), counter, "super", uid);
+        } else {
+          metaInfo("vgId:%d counter:%d new meta handle %s table uid:%" PRId64, TD_VID(pVnode), counter,
+                   pUidIdxVal->suid == 0 ? "normal" : "child", uid);
+        }
+
+        // fetch table entry
+        void *value = NULL;
+        int   valueSize = 0;
+        if (tdbTbGet(pMeta->pTbDb,
+                     &(STbDbKey){
+                         .version = pUidIdxVal->version,
+                         .uid = uid,
+                     },
+                     sizeof(uid), &value, &valueSize) == 0) {
+          SDecoder   dc = {0};
+          SMetaEntry me = {0};
+          tDecoderInit(&dc, value, valueSize);
+          if (metaDecodeEntry(&dc, &me) == 0) {
+            if (me.type == TSDB_CHILD_TABLE &&
+                tdbTbGet(pMeta->pUidIdx, &me.ctbEntry.suid, sizeof(me.ctbEntry.suid), NULL, NULL) != 0) {
+              metaError("vgId:%d failed to get super table uid:%" PRId64 " for child table uid:%" PRId64,
+                        TD_VID(pVnode), me.ctbEntry.suid, uid);
+            } else if (metaHandleEntry2(pNewMeta, &me) != 0) {
+              metaError("vgId:%d failed to handle entry, uid:%" PRId64, TD_VID(pVnode), uid);
+            }
+          }
+          tDecoderClear(&dc);
+        }
+        tdbFree(value);
+      }
+
+      code = tdbTbcMoveToNext(uidCursor);
       if (code) {
-        metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
-                  tstrerror(code));
-        tdbTbcClose(cursor);
+        metaError("vgId:%d failed to move to next, reason:%s", TD_VID(pVnode), tstrerror(code));
         return code;
       }
     }
 
-    // Move to next
-    code = tdbTbcMoveToNext(cursor);
-    if (code) {
-      metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
-                tstrerror(code));
-      tdbTbcClose(cursor);
-    }
+    tdbTbcClose(uidCursor);
   }
-
-  // Close cursor
-  tdbTbcClose(cursor);
-  return 0;
-}
-
-int32_t metaCompact(SMeta *pOldMeta, SMeta *pNewMeta, int64_t compactVersion) {
-  // Entry table
-  int32_t code = metaCompactKV(pOldMeta, pOldMeta->pTbDb, pNewMeta->pTbDb, compactVersion, shouldEntryKeep);
-  if (code) {
-    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pOldMeta->pVnode), __func__, __FILE__, __LINE__,
-              tstrerror(code));
-    return code;
-  }
-
-  // Schema table
-  code = metaCompactKV(pOldMeta, pOldMeta->pSkmDb, pNewMeta->pSkmDb, compactVersion, NULL);
-  if (code) {
-    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pOldMeta->pVnode), __func__, __FILE__, __LINE__,
-              tstrerror(code));
-    return code;
-  }
-
-  // Uid index
-  code = metaCompactKV(pOldMeta, pOldMeta->pUidIdx, pNewMeta->pUidIdx, compactVersion, NULL);
-  if (code) {
-    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pOldMeta->pVnode), __func__, __FILE__, __LINE__,
-              tstrerror(code));
-    return code;
-  }
-
-  // Name index
-  code = metaCompactKV(pOldMeta, pOldMeta->pNameIdx, pNewMeta->pNameIdx, compactVersion, NULL);
-  if (code) {
-    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pOldMeta->pVnode), __func__, __FILE__, __LINE__,
-              tstrerror(code));
-    return code;
-  }
-
-  // Child table index
-  code = metaCompactKV(pOldMeta, pOldMeta->pCtbIdx, pNewMeta->pCtbIdx, compactVersion, NULL);
-  if (code) {
-    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pOldMeta->pVnode), __func__, __FILE__, __LINE__,
-              tstrerror(code));
-    return code;
-  }
-
-  // Super table index
-  code = metaCompactKV(pOldMeta, pOldMeta->pSuidIdx, pNewMeta->pSuidIdx, compactVersion, NULL);
-  if (code) {
-    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pOldMeta->pVnode), __func__, __FILE__, __LINE__,
-              tstrerror(code));
-    return code;
-  }
-
-  // Tag index
-  code = metaCompactKV(pOldMeta, pOldMeta->pTagIdx, pNewMeta->pTagIdx, compactVersion, NULL);
-  if (code) {
-    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pOldMeta->pVnode), __func__, __FILE__, __LINE__,
-              tstrerror(code));
-    return code;
-  }
-
-  // Btime index
-  code = metaCompactKV(pOldMeta, pOldMeta->pBtimeIdx, pNewMeta->pBtimeIdx, compactVersion, NULL);
-  if (code) {
-    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pOldMeta->pVnode), __func__, __FILE__, __LINE__,
-              tstrerror(code));
-    return code;
-  }
-
-  // Ncol index
-  code = metaCompactKV(pOldMeta, pOldMeta->pNcolIdx, pNewMeta->pNcolIdx, compactVersion, NULL);
-  if (code) {
-    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pOldMeta->pVnode), __func__, __FILE__, __LINE__,
-              tstrerror(code));
-    return code;
-  }
-
-  // SMA index
-  code = metaCompactKV(pOldMeta, pOldMeta->pSmaIdx, pNewMeta->pSmaIdx, compactVersion, NULL);
-  if (code) {
-    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pOldMeta->pVnode), __func__, __FILE__, __LINE__,
-              tstrerror(code));
-    return code;
-  }
-
-  // Stream index
-  code = metaCompactKV(pOldMeta, pOldMeta->pStreamDb, pNewMeta->pStreamDb, compactVersion, NULL);
-  if (code) {
-    metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pOldMeta->pVnode), __func__, __FILE__, __LINE__,
-              tstrerror(code));
-    return code;
-  }
-
-  // TODO: move inverted index here
 
   return 0;
 }
