@@ -2983,8 +2983,7 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
   }
   taosMemoryFree(param);
 
-  tscDebug("connObj:0x%" PRIx64 ", res:%p created, taos_query end, affectRows:%" PRId64, *(int64_t*)taos, pRequest,
-           pRequest->body.resInfo.numOfRows);
+  tscDebug("connObj:0x%" PRIx64 ", res:%p created, taos_query end", *(int64_t*)taos, pRequest);
 
   return pRequest;
 }

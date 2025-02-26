@@ -458,7 +458,7 @@ void destroyTscObj(void *pObj) {
 
   STscObj *pTscObj = pObj;
   int64_t  tscId = pTscObj->id;
-  tscTrace("connObj:%" PRIx64 ", begin to destroy, p:%p", tscId, pTscObj);
+  tscTrace("connObj:%" PRIx64 ", begin destroy, p:%p", tscId, pTscObj);
 
   SClientHbKey connKey = {.tscRid = pTscObj->id, .connType = pTscObj->connType};
   hbDeregisterConn(pTscObj, connKey);
@@ -476,7 +476,7 @@ void destroyTscObj(void *pObj) {
   (void)taosThreadMutexDestroy(&pTscObj->mutex);
   taosMemoryFree(pTscObj);
 
-  tscTrace("connObj:0x%" PRIx64 ", end to destroy, p:%p", tscId, pTscObj);
+  tscTrace("connObj:0x%" PRIx64 ", end destroy, p:%p", tscId, pTscObj);
 }
 
 int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t connType, SAppInstInfo *pAppInfo,
@@ -682,7 +682,7 @@ void doDestroyRequest(void *p) {
   SRequestObj *pRequest = (SRequestObj *)p;
 
   uint64_t reqId = pRequest->requestId;
-  tscDebug("QID:0x%" PRIx64 ", begin to destroy request p:%p", reqId, pRequest);
+  tscDebug("QID:0x%" PRIx64 ", begin destroy request p:%p", reqId, pRequest);
 
   int64_t nextReqRefId = pRequest->relation.nextRefId;
 
@@ -724,7 +724,7 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->effectiveUser);
   taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFree(pRequest);
-  tscDebug("QID:0x%" PRIx64 ", end to destroy request p:%p", reqId, pRequest);
+  tscDebug("QID:0x%" PRIx64 ", end destroy request p:%p", reqId, pRequest);
   destroyNextReq(nextReqRefId);
 }
 
