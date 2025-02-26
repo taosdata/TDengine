@@ -2272,7 +2272,10 @@ int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t c
   (void)atomic_add_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
   int code_s = taosStmt2AsyncBind(stmtAsyncBindThreadFunc, (void *)args);
   if (code_s != TSDB_CODE_SUCCESS) {
+    (void)taosThreadMutexLock(&(pStmt->asyncBindParam.mutex));
+    (void)taosThreadCondSignal(&(pStmt->asyncBindParam.waitCond));
     (void)atomic_sub_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
+    (void)taosThreadMutexUnlock(&(pStmt->asyncBindParam.mutex));
     // terrno = TAOS_SYSTEM_ERROR(errno);
   }
 
