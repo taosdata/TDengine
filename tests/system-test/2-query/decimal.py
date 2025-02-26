@@ -1,6 +1,8 @@
 from ast import Tuple
+import math
 from pydoc import doc
 from random import randrange
+import random
 from re import A
 import time
 import threading
@@ -159,7 +161,7 @@ class TaosShell:
             lines = lines[1:]
             for line in lines:
                 col = 0
-                vals: List[str] = line.split(",")
+                vals: list[str] = line.split(",")
                 if len(self.queryResult) == 0:
                     self.queryResult = [[] for i in range(len(vals))]
                 for val in vals:
@@ -184,10 +186,10 @@ class DecimalColumnExpr:
     def __init__(self, format: str, executor):
         self.format_: str = format
         self.executor_ = executor
-        self.params_: Tuple = List
+        self.params_: Tuple = ()
 
     def __str__(self):
-        return self.format_ % (self.params_)
+        return f"({self.format_})".format(*self.params_)
 
     def execute(self, params):
         return self.executor_(params)
@@ -213,14 +215,16 @@ class DecimalColumnExpr:
                     tdLog.exit(f"query with expr: {self} calc in py got: {v_from_calc_in_py}, query got: {v_from_query}")
                 tdLog.debug(f"query with expr: {self} calc got same result: NULL")
                 continue
-
+            failed = False
             if isinstance(v_from_calc_in_py, float):
                 dec_from_query = float(v_from_query)
                 dec_from_insert = float(v_from_calc_in_py)
+                failed = not math.isclose(dec_from_query, dec_from_insert, rel_tol=1e-9, abs_tol=1e-9)
             else:
                 dec_from_query = Decimal(v_from_query)
                 dec_from_insert = Decimal(v_from_calc_in_py)
-            if dec_from_query != dec_from_insert:
+                failed = dec_from_query != dec_from_insert
+            if failed:
                 tdLog.exit(
                     f"check decimal column failed for expr: {self} params: {params}, query: {v_from_query}, expect {dec_from_insert}, but get {dec_from_query}")
             else:
@@ -231,7 +235,7 @@ class DecimalColumnExpr:
 
     def generate(self, format_params) -> str:
         self.params_ = format_params
-        return f"({self.format_})".format(*format_params)
+        return self.__str__()
 
 
 class TypeEnum:
@@ -486,7 +490,7 @@ class Column:
     
     def __str__(self):
         if self.is_constant_col():
-            return self.get_constant_val()
+            return str(self.get_constant_val())
         return self.name_
     
     def get_val(self, tbname: str, idx: int):
@@ -1184,11 +1188,9 @@ class TDTestCase:
                 if not unsupported_col.type_.type in unsupported_type:
                     continue
                 for binary_op in DecimalBinaryOperator.get_all_binary_ops():
-                    select_expr = binary_op.generate((col.name_, unsupported_col.name_))
+                    select_expr = binary_op.generate((col, unsupported_col))
                     sql = f"select {select_expr} from {self.db_name}.{tbname}"
-                    select_expr_reverse = binary_op.generate(
-                        (unsupported_col.name_, col.name_)
-                    )
+                    select_expr_reverse = binary_op.generate((unsupported_col, col))
                     sql_reverse = (
                         f"select {select_expr_reverse} from {self.db_name}.{tbname}"
                     )
@@ -1212,7 +1214,7 @@ class TDTestCase:
         ## tables: meters, nt
         ## columns: c1, c2, c3, c4, c5, c7, c8, c9, c10, c99, c100
         binary_operators = [
-            DecimalColumnExpr("%s + %s", DecimalBinaryOperator.execute_plus),
+            DecimalColumnExpr("{0} + {1}", DecimalBinaryOperator.execute_plus),
             # DecimalColumnExpr("-"),
             # DecimalColumnExpr("*"),
             # DecimalColumnExpr("/"),
