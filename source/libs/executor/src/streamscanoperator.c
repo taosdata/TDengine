@@ -174,6 +174,7 @@ static int32_t deleteRecalculateDataSnapshort(SStreamScanInfo* pInfo, SExecTaskI
   pInfo->stateStore.streamStateSessionDeleteAll(pInfo->basic.pTsDataState->pState);
 
   pInfo->stateStore.streamStateSetNumber(pInfo->basic.pTsDataState->pState, curID, pInfo->primaryTsIndex);
+  qDebug("===stream===%s delete recalculate snapshort id:%d", GET_TASKID(pTaskInfo), prevRecId);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -738,12 +739,19 @@ int32_t doStreamDataScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       if (pBlock->info.type == STREAM_CHECKPOINT) {
         streamDataScanOperatorSaveCheckpoint(pInfo);
         (*ppRes) = pInfo->pCheckpointRes;
-      } else {
+      } else if (pBlock->info.type == STREAM_RECALCULATE_START) {
         if (!isSemiOperator(&pInfo->basic)) {
           buildRecalculateDataSnapshort(pInfo, pTaskInfo);
         }
-        (*ppRes) = pBlock;
+      } else if (pBlock->info.type == STREAM_RECALCULATE_END) {
+        if (isRecalculateOperator(&pInfo->basic)) {
+          qError("stream recalculate error since recalculate operator receive STREAM_RECALCULATE_END");
+        } else {
+          code = deleteRecalculateDataSnapshort(pInfo, pTaskInfo);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
       }
+      (*ppRes) = pBlock;
       return code;
     } break;
     default: {
@@ -821,6 +829,76 @@ static uint64_t getDataGroupId(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, i
   return tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, uid);
 }
 
+static int32_t generateSessionPrevVersionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, EStreamType mode) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (pSrcBlock->info.rows == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SColumnInfoData* pSrcStartTsCol = (SColumnInfoData*)taosArrayGet(pSrcBlock->pDataBlock, START_TS_COLUMN_INDEX);
+  SColumnInfoData* pSrcEndTsCol = (SColumnInfoData*)taosArrayGet(pSrcBlock->pDataBlock, END_TS_COLUMN_INDEX);
+  SColumnInfoData* pSrcUidCol = taosArrayGet(pSrcBlock->pDataBlock, UID_COLUMN_INDEX);
+  SColumnInfoData* pSrcGpCol = taosArrayGet(pSrcBlock->pDataBlock, GROUPID_COLUMN_INDEX);
+  SColumnInfoData* pSrcPkCol = NULL;
+  if (taosArrayGetSize(pSrcBlock->pDataBlock) > PRIMARY_KEY_COLUMN_INDEX) {
+    pSrcPkCol = taosArrayGet(pSrcBlock->pDataBlock, PRIMARY_KEY_COLUMN_INDEX);
+  }
+
+  uint64_t* srcUidData = (uint64_t*)pSrcUidCol->pData;
+  TSKEY*    srcStartTsCol = (TSKEY*)pSrcStartTsCol->pData;
+  TSKEY*    srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
+  int64_t   ver = pSrcBlock->info.version - 1;
+  uint64_t* srcGp = (uint64_t*)pSrcGpCol->pData;
+  bool      hasGroupId = false;
+  for (int32_t i = 0; i < pSrcBlock->info.rows; i++) {
+    uint64_t    srcUid = srcUidData[i];
+    uint64_t    groupId = srcGp[i];
+    TSKEY       calStartTs = srcStartTsCol[i];
+    TSKEY       calEndTs = srcStartTsCol[i];
+    STimeWindow win = {0};
+    // todo(liuyao) init win from stream client
+    int32_t len = copyRecDataToBuff(calStartTs, calEndTs, srcUid, ver, mode, pSrcPkCol, i,
+                                    pInfo->basic.pTsDataState->pRecValueBuff, pInfo->basic.pTsDataState->recValueLen);
+    pInfo->stateStore.streamStateMergeAndSaveScanRange(pInfo->basic.pTsDataState, &win, groupId,
+                                                       pInfo->basic.pTsDataState->pRecValueBuff, len);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t generateSessionDataScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr, SSessionKey* pSeKey,
+                                            SRecDataInfo* pRecData, int32_t len) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  int64_t ver = pRecData->dataVersion - 1;
+
+  if (pInfo->partitionSup.needCalc && pRecData->mode == STREAM_RECALCULATE_DELETE) {
+    code = readPreVersionDataBlock(pRecData->tableUid, pSeKey->win.skey, pSeKey->win.ekey, ver, pTaskIdStr, pInfo,
+                                   pInfo->pUpdateRes);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = generateSessionPrevVersionScanRange(pInfo, pInfo->pUpdateRes, pRecData->mode);
+    QUERY_CHECK_CODE(code, lino, _end);
+    return code;
+  }
+
+  int32_t     rowId = 0;
+  STimeWindow win = {0};
+  // todo(liuyao) init win from stream client
+  pInfo->stateStore.streamStateMergeAndSaveScanRange(pInfo->basic.pTsDataState, &win, pSeKey->groupId, pRecData, len);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t generateIntervalPrevVersionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, EStreamType mode) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -846,13 +924,13 @@ static int32_t generateIntervalPrevVersionScanRange(SStreamScanInfo* pInfo, SSDa
   for (int32_t i = 0; i < pSrcBlock->info.rows;) {
     uint64_t srcUid = srcUidData[i];
     uint64_t groupId = srcGp[i];
-    if (groupId == 0) {
-      void* pVal = NULL;
-      if (hasSrcPrimaryKeyCol(&pInfo->basic) && pSrcPkCol) {
-        pVal = colDataGetData(pSrcPkCol, i);
-      }
-      groupId = getDataGroupId(pInfo, srcUid, srcStartTsCol[i], ver, pVal, &hasGroupId);
-    }
+    // if (groupId == 0) {
+    //   void* pVal = NULL;
+    //   if (hasSrcPrimaryKeyCol(&pInfo->basic) && pSrcPkCol) {
+    //     pVal = colDataGetData(pSrcPkCol, i);
+    //   }
+    //   groupId = getDataGroupId(pInfo, srcUid, srcStartTsCol[i], ver, pVal, &hasGroupId);
+    // }
 
     int32_t     prevRowId = i;
     TSKEY       calStartTs = srcStartTsCol[i];
@@ -870,6 +948,11 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr) {
+  // todo(liuyao) add
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t generateIntervalDataScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr, SSessionKey* pSeKey,
@@ -902,7 +985,7 @@ _end:
   return code;
 }
 
-static int32_t generateDataScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr) {
+static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -919,31 +1002,44 @@ static int32_t generateDataScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr) {
     }
     qDebug("===stream===%s get range from disk. start ts:%" PRId64 ",end ts:%" PRId64 ", group id:%" PRIu64,
            pTaskIdStr, rangKey.win.skey, rangKey.win.ekey, rangKey.groupId);
-    switch (pInfo->windowSup.parentType) {
-      case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL:
-      case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL:
-      case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL: {
-        code = generateIntervalDataScanRange(pInfo, pTaskIdStr, &rangKey, (SRecDataInfo*)pVal, len);
-        QUERY_CHECK_CODE(code, lino, _end);
-      } break;
-      case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION:
-      case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION:
-      case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION:
-      case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE:
-      case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT: {
-        //todo(liuyao) get range from table of result
-        QUERY_CHECK_CODE(code, lino, _end);
-      } break;
-      case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT: {
-        //todo(liuyao) get range from table of result
-        QUERY_CHECK_CODE(code, lino, _end);
-      } break;
-      default:
-        break;
-    }
+    code = generateIntervalDataScanRange(pInfo, pTaskIdStr, &rangKey, (SRecDataInfo*)pVal, len);
+    QUERY_CHECK_CODE(code, lino, _end);
     pInfo->stateStore.streamStateCurNext(pInfo->basic.pTsDataState->pStreamTaskState, pCur);
   }
   pInfo->stateStore.streamStateFreeCur(pCur);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t generateDataScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  switch (pInfo->windowSup.parentType) {
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_INTERVAL: {
+      code = generateIntervalScanRange(pInfo, pTaskIdStr);
+      QUERY_CHECK_CODE(code, lino, _end);
+    } break;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT: {
+      code = generateSessionScanRange(pInfo, pTaskIdStr);
+      QUERY_CHECK_CODE(code, lino, _end);
+    } break;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT: {
+      // todo(liuyao) get range from table of result
+      QUERY_CHECK_CODE(code, lino, _end);
+    } break;
+    default:
+      break;
+  }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
