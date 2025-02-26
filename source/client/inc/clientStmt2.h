@@ -101,6 +101,7 @@ typedef struct {
   bool              autoCreateTbl;
   SHashObj         *pVgHash;
   SBindInfo2       *pBindInfo;
+  bool              bindRowFormat;
 
   SStbInterlaceInfo siInfo;
 } SStmtSQLInfo2;
