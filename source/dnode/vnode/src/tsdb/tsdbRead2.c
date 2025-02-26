@@ -230,7 +230,7 @@ static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pC
     if (IS_VAR_DATA_TYPE(pCols[i].type)) {
       pSupInfo->buildBuf[i] = taosMemoryMalloc(pCols[i].bytes);
       if (pSupInfo->buildBuf[i] == NULL) {
-        tsdbError("failed to prepare memory for set columnId slot list, size:%d, code: %s", pCols[i].bytes,
+        tsdbError("failed to prepare memory for set columnId slot list, size:%d, code:%s", pCols[i].bytes,
                   tstrerror(terrno));
       }
       TSDB_CHECK_NULL(pSupInfo->buildBuf[i], code, lino, _end, terrno);

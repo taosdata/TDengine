@@ -343,7 +343,7 @@ void destroyQueryExecRes(SExecResult* pRes) {
       break;
     }
     default:
-      qError("invalid exec result for request type %d", pRes->msgType);
+      qError("invalid exec result for request type:%d", pRes->msgType);
   }
 }
 // clang-format on

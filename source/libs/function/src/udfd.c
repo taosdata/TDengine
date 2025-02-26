@@ -1106,7 +1106,7 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   }
 
   if (pMsg->code != TSDB_CODE_SUCCESS) {
-    fnError("udfd rpc error. code: %s", tstrerror(pMsg->code));
+    fnError("udfd rpc error. code:%s", tstrerror(pMsg->code));
     msgInfo->code = pMsg->code;
     goto _return;
   }
@@ -1312,7 +1312,7 @@ void udfdOnWrite(uv_write_t *req, int status) {
   TAOS_UDF_CHECK_PTR_RVOID(req);
   SUvUdfWork *work = (SUvUdfWork *)req->data;
   if (status < 0) {
-    fnError("udfd send response error, length: %zu code: %s", work->output.len, uv_err_name(status));
+    fnError("udfd send response error, length: %zu code:%s", work->output.len, uv_err_name(status));
   }
   // remove work from the connection work list
   if (work->conn != NULL) {
@@ -1477,7 +1477,7 @@ void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
 void udfdOnNewConnection(uv_stream_t *server, int status) {
   TAOS_UDF_CHECK_PTR_RVOID(server);
   if (status < 0) {
-    fnError("udfd new connection error. code: %s", uv_strerror(status));
+    fnError("udfd new connection error. code:%s", uv_strerror(status));
     return;
   }
   int32_t code = 0;

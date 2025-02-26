@@ -971,8 +971,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     default:
       break;
   }
-  if (TSDB_CODE_SUCCESS != code)
+  if (TSDB_CODE_SUCCESS != code) {
     nodesError("nodesMakeNode unknown node = %s", nodesNodeName(type));
+  }
   else
     *ppNodeOut = pNode;
   return code;

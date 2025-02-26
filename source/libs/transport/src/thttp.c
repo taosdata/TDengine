@@ -235,7 +235,7 @@ static FORCE_INLINE int32_t taosBuildDstAddr(const char* server, uint16_t port, 
   uint32_t ip = 0;
   int32_t  code = taosGetIpv4FromFqdn(server, &ip);
   if (code) {
-    tError("http-report failed to resolving domain names %s, reason: %s", server, tstrerror(code));
+    tError("http-report failed to resolving domain names %s, reason:%s", server, tstrerror(code));
     return TSDB_CODE_RPC_FQDN_ERROR;
   }
   char buf[TD_IP_LEN] = {0};
@@ -332,7 +332,7 @@ static void httpMayDiscardMsg(SHttpModule* http, SAsyncItem* item) {
     QUEUE_REMOVE(h);
     msg = QUEUE_DATA(h, SHttpMsg, q);
     if (!msg->quit) {
-      tError("http-report failed to report chanId:%" PRId64 ",seq:%" PRId64 ", reason: %s", msg->chanId, msg->seq,
+      tError("http-report failed to report chanId:%" PRId64 ",seq:%" PRId64 ", reason:%s", msg->chanId, msg->seq,
              tstrerror(TSDB_CODE_HTTP_MODULE_QUIT));
       httpDestroyMsg(msg);
     } else {
@@ -471,7 +471,7 @@ static void clientSentCb(uv_write_t* req, int32_t status) {
   STUB_RAND_NETWORK_ERR(status);
   SHttpClient* cli = req->data;
   if (status != 0) {
-    tError("http-report failed to send data, reason: %s, dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64 "",
+    tError("http-report failed to send data, reason:%s, dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64 "",
            uv_strerror(status), cli->addr, cli->port, cli->chanId, cli->seq);
     if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
       uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
@@ -725,7 +725,7 @@ static void httpHandleReq(SHttpMsg* msg) {
 
 END:
   if (ignore == false) {
-    tError("http-report failed to report to addr: %s:%d, chanId:%" PRId64 ",seq:%" PRId64 " reason:%s", msg->server,
+    tError("http-report failed to report to addr:%s:%d, chanId:%" PRId64 ",seq:%" PRId64 " reason:%s", msg->server,
            msg->port, chanId, msg->seq, tstrerror(code));
   }
   httpDestroyMsg(msg);
@@ -937,12 +937,12 @@ int64_t taosInitHttpChan() {
 }
 
 void taosDestroyHttpChan(int64_t chanId) {
-  tDebug("http-report send quit, chanId: %" PRId64 "", chanId);
+  tDebug("http-report send quit, chanId:%" PRId64, chanId);
 
   int          ret = 0;
   SHttpModule* load = taosAcquireRef(httpRefMgt, chanId);
   if (load == NULL) {
-    tError("http-report failed to destroy chanId %" PRId64 ", reason:%s", chanId, tstrerror(terrno));
+    tError("http-report failed to destroy chanId:%" PRId64 ", reason:%s", chanId, tstrerror(terrno));
     ret = terrno;
     return;
   }
