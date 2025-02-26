@@ -22,11 +22,11 @@ class FractalEdge(TDCase):
 
     def set_mqtt_datain_payload(self,hostname='localhost'):
         task_list = []
-        case_data_org = file.read_yaml("config.yaml")
+        case_data_org = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/config.yaml')
         for mqtt_num in len(case_data_org["topics"]):
             task_data = {}
 
-            mqtt_payload = file.read_yaml("parser.yaml")
+            mqtt_payload = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/parser.yaml')
             mqtt_payload["parser"]["s_model"]["name"] = f'site_{case_data_org["topics"][mqtt_num]}_{hostname}'
             child_table_model = mqtt_payload["parser"]["model"]["name"]
             mqtt_payload["parser"]["model"]["name"] = f"{child_table_model}_{hostname}"
