@@ -1973,7 +1973,7 @@ int32_t catalogClearCache(void) {
 
   int32_t code = ctgClearCacheEnqueue(NULL, false, false, false, true);
 
-  qInfo("clear catalog cache end, code: %s", tstrerror(code));
+  qInfo("clear catalog cache end, code:%s", tstrerror(code));
 
   CTG_API_LEAVE_NOLOCK(code);
 }

@@ -264,7 +264,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
     }
   }
 
-  tscDebugL("req:0x%" PRIx64 ", SQL:%s, QID:0x%" PRIx64, (*pRequest)->self, (*pRequest)->sqlstr, (*pRequest)->requestId);
+  tscDebugL("req:0x%" PRIx64 ", QID:0x%" PRIx64 ", build request", (*pRequest)->self, (*pRequest)->sqlstr, (*pRequest)->requestId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1030,7 +1030,7 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
       break;
     }
     default:
-      tscError("req:0x%" PRIx64 ", invalid exec result for request type %d, QID:0x%" PRIx64, pRequest->self, pRequest->type,
+      tscError("req:0x%" PRIx64 ", invalid exec result for request type:%d, QID:0x%" PRIx64, pRequest->self, pRequest->type,
                pRequest->requestId);
       code = TSDB_CODE_APP_ERROR;
   }
@@ -1212,7 +1212,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
            pRequest->requestId);
 
   if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code) && pRequest->sqlstr != NULL) {
-    tscDebug("re:0x%" PRIx64 ", client retry to handle the error, code:%s, tryCount:%d, QID:0x%" PRIx64, pRequest->self,
+    tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%s, tryCount:%d, QID:0x%" PRIx64, pRequest->self,
              tstrerror(code), pRequest->retry, pRequest->requestId);
     if (TSDB_CODE_SUCCESS != removeMeta(pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type))) {
       tscError("req:0x%" PRIx64 ", remove meta failed, QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
@@ -1221,7 +1221,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     return;
   }
 
-  tscDebug("req:0x%" PRIx64 ", schedulerExecCb request type %s", pRequest->self, TMSG_INFO(pRequest->type));
+  tscTrace("req:0x%" PRIx64 ", scheduler exec cb, request type:%s", pRequest->self, TMSG_INFO(pRequest->type));
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
     if (TSDB_CODE_SUCCESS != removeMeta(pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type))) {
       tscError("req:0x%" PRIx64 ", remove meta failed, QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
@@ -2983,7 +2983,8 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
   }
   taosMemoryFree(param);
 
-  tscDebug("connObj:0x%" PRIx64 ", res:%p created, taos_query end with sql:%s", *(int64_t*)taos, pRequest, sql);
+  tscDebug("connObj:0x%" PRIx64 ", res:%p created, taos_query end, affectRows:%" PRId64, *(int64_t*)taos, pRequest,
+           pRequest->body.resInfo.numOfRows);
 
   return pRequest;
 }

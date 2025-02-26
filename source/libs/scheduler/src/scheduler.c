@@ -171,7 +171,7 @@ void schedulerFreeJob(int64_t *jobId, int32_t errCode) {
     return;
   }
 
-  SCH_JOB_DLOG("start to free job 0x%" PRIx64 ", code:%s", *jobId, tstrerror(errCode));
+  SCH_JOB_DLOG("jobId:0x%" PRIx64 ", start to free, code:%s", *jobId, tstrerror(errCode));
   (void)schHandleJobDrop(pJob, errCode); // ignore any error
 
   int32_t released = false;

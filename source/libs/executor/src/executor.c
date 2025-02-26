@@ -645,7 +645,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
 
   int32_t code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model);
   if (code != TSDB_CODE_SUCCESS || NULL == *pTask) {
-    qError("failed to createExecTaskInfo, code: %s", tstrerror(code));
+    qError("failed to createExecTaskInfo, code:%s", tstrerror(code));
     goto _error;
   }
 

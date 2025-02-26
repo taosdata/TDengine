@@ -237,7 +237,7 @@ int32_t qwDbgBuildAndSendRedirectRsp(int32_t rspType, SRpcHandleInfo *pConn, int
 
   tmsgSendRsp(&rpcRsp);
 
-  qDebug("response %s msg, code: %s", TMSG_INFO(rspType), tstrerror(code));
+  qDebug("response %s msg, code:%s", TMSG_INFO(rspType), tstrerror(code));
 
   return TSDB_CODE_SUCCESS;
 }

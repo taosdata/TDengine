@@ -7015,7 +7015,7 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
   bool                    stableQuery = false;
   SEqCondTbNameTableInfo* pInfo = NULL;
 
-  qDebug("start to update stable vg for tbname optimize, aTableNum:%d", aTableNum);
+  parserDebug("start to update stable vg for tbname optimize, aTableNum:%d", aTableNum);
   for (int i = 0; i < aTableNum; ++i) {
     pInfo = taosArrayGet(aTables, i);
     int32_t numOfVgs = pInfo->pRealTable->pVgroupList->numOfVgroups;
@@ -7084,7 +7084,7 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
     }
   }
 
-  qDebug("before ctbname optimize, code:%d, aTableNum:%d, nTbls:%d, stableQuery:%d", code, aTableNum, nTbls,
+  parserDebug("before ctbname optimize, code:%d, aTableNum:%d, nTbls:%d, stableQuery:%d", code, aTableNum, nTbls,
          stableQuery);
 
   if (TSDB_CODE_SUCCESS == code && 1 == aTableNum && 1 == nTbls && stableQuery && NULL == pInfo->pRealTable->pTsmas) {
@@ -13001,7 +13001,7 @@ static int32_t readFromFile(char* pName, int32_t* len, char** buf) {
   int64_t s = taosReadFile(tfile, *buf, *len);
   if (s != *len) {
     int32_t code = taosCloseFile(&tfile);
-    qError("failed to close file: %s in %s:%d, err: %s", pName, __func__, __LINE__, tstrerror(code));
+    parserError("failed to close file: %s in %s:%d, err: %s", pName, __func__, __LINE__, tstrerror(code));
     taosMemoryFreeClear(*buf);
     return TSDB_CODE_APP_ERROR;
   }
@@ -15835,7 +15835,7 @@ int32_t serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap, SArray** pOut
 
     code = serializeVgroupCreateTableBatch(pTbBatch, pBufArray);
     if (TSDB_CODE_SUCCESS != code) {
-      qError("failed to serialize create table batch msg, since:%s", tstrerror(code));
+      parserError("failed to serialize create table batch msg, since:%s", tstrerror(code));
       taosHashCancelIterate(pVgroupHashmap, pTbBatch);
       break;
     }
@@ -15914,7 +15914,7 @@ static int32_t rewriteCreateTableFromFile(STranslateContext* pCxt, SQuery* pQuer
   taosHashClear(pModifyStmt->pVgroupsHashObj);
   if (TSDB_CODE_SUCCESS != code) {
     if (TSDB_CODE_INVALID_MSG_LEN == code) {
-      qError("maxInsertBatchRows may need to be reduced, current:%d", tsMaxInsertBatchRows);
+      parserError("maxInsertBatchRows may need to be reduced, current:%d", tsMaxInsertBatchRows);
     }
     taosHashCleanup(pModifyStmt->pVgroupsHashObj);
     return code;

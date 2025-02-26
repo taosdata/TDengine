@@ -262,14 +262,14 @@ static void deregisterRequest(SRequestObj *pRequest) {
     if ((pRequest->pQuery && pRequest->pQuery->pRoot && QUERY_NODE_VNODE_MODIFY_STMT == pRequest->pQuery->pRoot->type &&
          (0 == ((SVnodeModifyOpStmt *)pRequest->pQuery->pRoot)->sqlNodeType)) ||
         QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType) {
-      tscDebug("req:0x%" PRIx64 ", insert duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64
+      tscDebug("req:0x%" PRIx64 ", insert duration:%" PRId64 "us, parseCost:%" PRId64 "us, ctgCost:%" PRId64
                "us, analyseCost:%" PRId64 "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
                pRequest->self, duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs,
                pRequest->metric.analyseCostUs, pRequest->metric.planCostUs, pRequest->metric.execCostUs);
       (void)atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
       reqType = SLOW_LOG_TYPE_INSERT;
     } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
-      tscDebug("req:0x%" PRIx64 ", query duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64
+      tscDebug("req:0x%" PRIx64 ", query duration:%" PRId64 "us, parseCost:%" PRId64 "us, ctgCost:%" PRId64
                "us, analyseCost:%" PRId64 "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
                pRequest->self, duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs,
                pRequest->metric.analyseCostUs, pRequest->metric.planCostUs, pRequest->metric.execCostUs);

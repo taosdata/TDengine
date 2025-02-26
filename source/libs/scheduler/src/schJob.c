@@ -465,7 +465,7 @@ void schDumpJobExecRes(SSchJob *pJob, SExecResult *pRes) {
   pJob->execRes.res = NULL;
   SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
 
-  SCH_JOB_DLOG("execRes dumped, code: %s", tstrerror(pRes->code));
+  SCH_JOB_DLOG("execRes dumped, code:%s", tstrerror(pRes->code));
 }
 
 int32_t schDumpJobFetchRes(SSchJob *pJob, void **pData) {
@@ -519,9 +519,9 @@ int32_t schNotifyUserExecRes(SSchJob *pJob) {
 
   schDumpJobExecRes(pJob, pRes);
 
-  SCH_JOB_DLOG("sch start to invoke exec cb, code: %s", tstrerror(pJob->errCode));
+  SCH_JOB_DLOG("sch start to invoke exec cb, code:%s", tstrerror(pJob->errCode));
   (*pJob->userRes.execFp)(pRes, pJob->userRes.cbParam, atomic_load_32(&pJob->errCode));
-  SCH_JOB_DLOG("sch end from exec cb, code: %s", tstrerror(pJob->errCode));
+  SCH_JOB_DLOG("sch end from exec cb, code:%s", tstrerror(pJob->errCode));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -534,9 +534,9 @@ int32_t schNotifyUserFetchRes(SSchJob *pJob) {
     atomic_store_32(&pJob->errCode, code);
   }
 
-  SCH_JOB_DLOG("sch start to invoke fetch cb, code: %s", tstrerror(pJob->errCode));
+  SCH_JOB_DLOG("sch start to invoke fetch cb, code:%s", tstrerror(pJob->errCode));
   (*pJob->userRes.fetchFp)(pRes, pJob->userRes.cbParam, atomic_load_32(&pJob->errCode));
-  SCH_JOB_DLOG("sch end from fetch cb, code: %s", tstrerror(pJob->errCode));
+  SCH_JOB_DLOG("sch end from fetch cb, code:%s", tstrerror(pJob->errCode));
 
   return TSDB_CODE_SUCCESS;
 }

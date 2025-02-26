@@ -298,7 +298,7 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
   }
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = pTableCxt;
-    qDebug("uid:%" PRId64 ", create table data context, code:%d, vgId:%d", pTableMeta->uid, code, pTableMeta->vgId);
+    parserDebug("uid:%" PRId64 ", create table data context, code:%d, vgId:%d", pTableMeta->uid, code, pTableMeta->vgId);
   } else {
     insDestroyTableDataCxt(pTableCxt);
   }
@@ -478,7 +478,7 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
     taosMemoryFreeClear(pTableCxt->pData);
   }
 
-  qDebug("uid:%" PRId64 ", add table data context to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
+  parserDebug("uid:%" PRId64 ", add table data context to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
 
   return code;
 }
@@ -760,7 +760,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
       // skip the table has no data to insert
       // eg: import a csv without valid data
       // if (0 == taosArrayGetSize(pTableCxt->pData->aRowP)) {
-      //   qWarn("no row in tableDataCxt uid:%" PRId64 " ", pTableCxt->pMeta->uid);
+      //   parserWarn("no row in tableDataCxt uid:%" PRId64 " ", pTableCxt->pMeta->uid);
       //   p = taosHashIterate(pTableHash, p);
       //   continue;
       // }

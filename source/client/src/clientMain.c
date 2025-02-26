@@ -539,7 +539,7 @@ void taos_free_result(TAOS_RES *res) {
 
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
-    tscDebug("QID:0x%" PRIx64 ", taos_free_result start to free query", pRequest->requestId);
+    tscDebug("QID:0x%" PRIx64 ", call taos_free_result to free query", pRequest->requestId);
     destroyRequest(pRequest);
     return;
   }
@@ -1470,7 +1470,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     code = pRequest->prevCode;
     terrno = code;
     pRequest->code = code;
-    tscDebug("req:0x%" PRIx64 ", call sync query cb with code: %s", pRequest->self, tstrerror(code));
+    tscDebug("req:0x%" PRIx64 ", call sync query cb with code:%s", pRequest->self, tstrerror(code));
     doRequestCallback(pRequest, code);
     return;
   }
