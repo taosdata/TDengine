@@ -21,7 +21,7 @@ use arrow::{array::Array, record_batch::RecordBatch};
 use arrow_compute_ext::*;
 use arrow_schema::Field;
 use arrow_schema::{DataType, Schema};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeDelta, Utc};
 use faststr::FastStr;
 use flume::Sender;
 use itertools::Itertools as _;
@@ -435,40 +435,54 @@ pub async fn write(
     archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<(usize, Duration, Duration)> {
     let table_break_points = get_break_point(&messages, table_id_column);
+    let timeout = parser
+        .global()
+        .process_on_abnormal
+        .connection_timeout_in_second_value as u32;
+    let retry_start = Utc::now();
     // connect to the target database
     let taos = loop {
         match pool.get().await {
             Ok(taos) => break taos,
             Err(err) => {
-                match parser
-                    .global()
-                    .process_on_abnormal
-                    .database_connection_error
-                    .handle(format!("{err:#}"))
-                {
-                    Ok((HandlingResult::Skip, _)) => {
-                        return Ok((0, Duration::from_secs(0), Duration::from_secs(0)));
+                if Utc::now() - retry_start > TimeDelta::seconds(timeout as i64) {
+                    match parser
+                        .global()
+                        .process_on_abnormal
+                        .database_connection_error
+                        .handle(format!("{err:#}"))
+                    {
+                        Ok((HandlingResult::Skip, _)) => {
+                            return Ok((0, Duration::from_secs(0), Duration::from_secs(0)));
+                        }
+                        Ok((HandlingResult::Archive, err)) => {
+                            messages.iter().for_each(|m| {
+                                if let Err(e) =
+                                    process_archive(err.clone(), &m.records, archive_tx.clone())
+                                {
+                                    tracing::error!("archive error: {e:#}");
+                                }
+                            });
+                            return Ok((0, Duration::from_secs(0), Duration::from_secs(0)));
+                        }
+                        Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+                        Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                        Ok((HandlingResult::Retry, _)) => {
+                            messages.iter().for_each(|m| {
+                                if let Err(e) = process_cache(&m.records, archive_tx.clone()) {
+                                    tracing::error!("cache error: {e:#}");
+                                }
+                            });
+                            return Ok((0, Duration::from_secs(0), Duration::from_secs(0)));
+                        }
+                        Err(e) => {
+                            return Err(e)?;
+                        }
                     }
-                    Ok((HandlingResult::Archive, err)) => {
-                        messages.iter().for_each(|m| {
-                            if let Err(e) =
-                                process_archive(err.clone(), &m.records, archive_tx.clone())
-                            {
-                                tracing::error!("archive error: {e:#}");
-                            }
-                        });
-                        return Ok((0, Duration::from_secs(0), Duration::from_secs(0)));
-                    }
-                    Ok((HandlingResult::Modify(_), _)) => unreachable!(),
-                    Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
-                    Ok((HandlingResult::Retry, _)) => {
-                        // TODO1
-                        tokio::time::sleep(Duration::from_secs(1)).await;
-                        continue;
-                    }
-                    Err(e) => {
-                        return Err(e)?;
-                    }
+                } else {
+                    let sleep = ((timeout * 1000) / DEFAULT_MAX_RETRIES_FOR_CONNECTION) as u64;
+                    tokio::time::sleep(Duration::from_millis(sleep)).await;
+                    continue;
                 }
             }
         }
@@ -506,52 +520,22 @@ pub async fn write(
                     break;
                 }
                 Err(err) => match err {
-                    WriteError::ConnectionPoolError(err) => {
-                        match parser
+                    WriteError::ConnectionPoolError(_) => {
+                        let timeout = parser
                             .global()
                             .process_on_abnormal
-                            .database_connection_error
-                            .handle(format!("{err:#}"))
-                        {
-                            Ok((HandlingResult::Skip, _)) => {
-                                break;
-                            }
-                            Ok((HandlingResult::Archive, err)) => {
-                                records.batches.iter().for_each(|batch| {
-                                    if let Err(e) =
-                                        process_archive(err.clone(), batch, archive_tx.clone())
-                                    {
-                                        tracing::error!("archive error: {e:#}");
-                                    }
-                                });
-                                break;
-                            }
-                            Ok((HandlingResult::Modify(_), _)) => unreachable!(),
-                            Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
-                            Ok((HandlingResult::Retry, _)) => {
-                                // TODO1
-                                let period = match retry {
-                                    errors if errors < 8 => 8,
-                                    errors if errors < 16 => 16,
-                                    errors if errors < 32 => 32,
-                                    errors if errors < 64 => 64,
-                                    _ => 128,
-                                };
-                                tokio::time::sleep(std::time::Duration::from_millis(period * 80))
-                                    .await;
-                                taos.replace(pool.get().await?);
-                                continue;
-                            }
-                            Err(e) => {
-                                return Err(e)?;
-                            }
-                        }
+                            .connection_timeout_in_second_value
+                            as u32;
+                        let sleep = ((timeout * 1000) / DEFAULT_MAX_RETRIES_FOR_CONNECTION) as u64;
+                        tokio::time::sleep(Duration::from_millis(sleep)).await;
+                        taos.replace(pool.get().await?);
+                        continue;
                     }
                     WriteError::TableNotExits(_) => {
                         match parser
                             .global()
                             .process_on_abnormal
-                            .stable_not_exist
+                            .table_not_exist
                             .handle(format!("{err:#}"))
                         {
                             Ok((HandlingResult::Skip, _)) => {
@@ -650,6 +634,7 @@ pub async fn write(
                                     error = Err(WriteError::ContainerLengthTooShort(field.clone()))
                                         .context(context);
                                 }
+                                continue;
                             }
                         }
                         // handling abnormal
@@ -675,19 +660,39 @@ pub async fn write(
                     }
                 },
             }
-            if retry > 5 {
-                if let Err(err) = error {
-                    tracing::error!(
-                        stable,
-                        error = format!("{err:#}"),
-                        backtrace = ?err,
-                        "Retry insert exceeded {retry}"
-                    );
-                    return Err(err)
-                        .with_context(|| format!("Insert retries exceeded with {retry} times"))?;
+            if retry > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
+                match parser
+                    .global()
+                    .process_on_abnormal
+                    .database_connection_error
+                    .handle(format!("retry insert exceeded {retry}"))
+                {
+                    Ok((HandlingResult::Skip, _)) => {
+                        break;
+                    }
+                    Ok((HandlingResult::Archive, err)) => {
+                        records.batches.iter().for_each(|batch| {
+                            if let Err(e) = process_archive(err.clone(), batch, archive_tx.clone())
+                            {
+                                tracing::error!("archive error: {e:#}");
+                            }
+                        });
+                        break;
+                    }
+                    Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+                    Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                    Ok((HandlingResult::Retry, _)) => {
+                        records.batches.iter().for_each(|batch| {
+                            if let Err(e) = process_cache(batch, archive_tx.clone()) {
+                                tracing::error!("cache error: {e:#}");
+                            }
+                        });
+                        break;
+                    }
+                    Err(e) => {
+                        return Err(e)?;
+                    }
                 }
-                tracing::error!(stable, "Retry insert exceeded {retry}");
-                return Err(anyhow!("Retry insert exceeded {retry}"));
             }
         }
     }
@@ -838,6 +843,16 @@ async fn modify_batch_and_rewrite(
         let _ = write_lush_stable_with_sql(pool, taos, &record, metrics)
             .in_current_span()
             .await?;
+    }
+    Ok(())
+}
+
+fn process_cache(
+    batch: &RecordBatch,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+) -> anyhow::Result<()> {
+    if batch.num_rows() > 0 {
+        archive_tx.send((ArchiveType::Cache, batch.clone()))?;
     }
     Ok(())
 }

@@ -41,6 +41,7 @@ use arrow_schema::{ArrowError, Field};
 use arrow_schema::{DataType, TimeUnit};
 use async_backtrace::framed;
 use bytes::Bytes;
+use chrono::{TimeDelta, Utc};
 use deadpool::managed::{PoolError, TimeoutType};
 use faststr::FastStr;
 use flume::Sender;
@@ -75,6 +76,8 @@ use crate::{
 };
 
 use super::super::AGENT_COMPRESSION;
+use super::transform::archive_records;
+use super::transform::handling_strategy::HandlingResult;
 use super::*;
 
 use self::{
@@ -2814,7 +2817,7 @@ fn get_real_column_name(column_config: &ColumnConfig) -> &String {
     column_config.alias.as_ref().unwrap_or(&column_config.name)
 }
 
-const DEFAULT_MAX_RETRIES_FOR_CONNECTION: u32 = 10;
+const DEFAULT_MAX_RETRIES_FOR_CONNECTION: u32 = 5;
 
 /// Write flat message to TDengine.
 ///
@@ -2839,26 +2842,66 @@ async fn consume_flat_record(
         tracing::warn!("Task is cancelled");
         return Ok(());
     }
-    if taos.is_none() {
-        match pool.get().await {
-            Ok(new_taos) => {
-                taos.replace(new_taos);
-            }
-            Err(e) => {
-                let pool_status = pool.status();
-                if pool_status.available == 0 && matches!(e, PoolError::Timeout(TimeoutType::Wait))
-                {
-                    let new_size = pool_status.max_size + parser.global().concurrent_limit();
-                    pool.resize(new_size);
-                    tracing::warn!(new_size, "connection pool resized");
-                    taos.replace(pool.get().await?);
-                } else {
-                    Err(e).context("get taos connection from pool error")?
+    let timeout = parser
+        .global()
+        .process_on_abnormal
+        .connection_timeout_in_second_value as u32;
+    let retry_start = Utc::now();
+    loop {
+        if taos.is_none() {
+            match pool.get().await {
+                Ok(new_taos) => {
+                    taos.replace(new_taos);
+                }
+                Err(e) => {
+                    let pool_status = pool.status();
+                    if pool_status.available == 0
+                        && matches!(e, PoolError::Timeout(TimeoutType::Wait))
+                    {
+                        let new_size = pool_status.max_size + parser.global().concurrent_limit();
+                        pool.resize(new_size);
+                        tracing::warn!(new_size, "connection pool resized");
+                        taos.replace(pool.get().await?);
+                    }
+                    if Utc::now() - retry_start > TimeDelta::seconds(timeout as i64) {
+                        match parser
+                            .global()
+                            .process_on_abnormal
+                            .database_connection_error
+                            .handle("get taos connection from pool error".to_string())
+                        {
+                            Ok((HandlingResult::Skip, _)) => {
+                                return Ok(());
+                            }
+                            Ok((HandlingResult::Archive, err)) => {
+                                if let Err(e) = process_archive(&err, record, archive_tx.clone()) {
+                                    tracing::error!("archive error: {e:#}");
+                                }
+                                return Ok(());
+                            }
+                            Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+                            Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                            Ok((HandlingResult::Retry, _)) => {
+                                if let Err(e) = process_cache(record, archive_tx.clone()) {
+                                    tracing::error!("cache error: {e:#}");
+                                }
+                                return Ok(());
+                            }
+                            Err(e) => {
+                                return Err(e).context("get taos connection from pool error")?;
+                            }
+                        }
+                    } else {
+                        let sleep = ((timeout * 1000) / DEFAULT_MAX_RETRIES_FOR_CONNECTION) as u64;
+                        tokio::time::sleep(Duration::from_millis(sleep)).await;
+                        taos.replace(pool.get().await?);
+                    }
                 }
             }
+        } else {
+            break;
         }
     }
-
     let mut qid = taoslog::utils::Span.get_qid().unwrap_or_else(Qid::init);
     // debug_assert!(qid.task_id() > 0);
     // debug_assert!(qid.batch_id() > 0);
@@ -3024,6 +3067,46 @@ async fn consume_flat_record(
             }
         }
     }
+    Ok(())
+}
+
+fn process_cache(
+    record: &FlatMessage,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+) -> anyhow::Result<()> {
+    record.records().iter().for_each(|message| {
+        let batch = message.record();
+        if batch.num_rows() > 0 {
+            archive_tx
+                .send((ArchiveType::Cache, batch.clone()))
+                .unwrap();
+        }
+    });
+    Ok(())
+}
+
+fn process_archive(
+    err: &str,
+    record: &FlatMessage,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+) -> anyhow::Result<()> {
+    // possible difference in schema, so archive them separately
+    record.records().iter().for_each(|message| {
+        let batch = message.record();
+        if batch.num_rows() > 0 {
+            let err_vec = vec![err.to_string(); batch.num_rows()];
+            let err_timestamp_vec =
+                vec![Utc::now().timestamp_nanos_opt().unwrap(); batch.num_rows()];
+            if let Err(e) = archive_records(
+                batch,
+                err_vec.clone(),
+                err_timestamp_vec.clone(),
+                archive_tx.clone(),
+            ) {
+                tracing::error!("archive error: {e:#}");
+            }
+        }
+    });
     Ok(())
 }
 

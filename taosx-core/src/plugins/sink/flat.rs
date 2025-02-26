@@ -242,6 +242,7 @@ impl Records {
         self.sql.as_str()
     }
 
+    #[allow(unused)]
     #[inline]
     pub fn records(&self) -> usize {
         self.records
@@ -436,6 +437,23 @@ pub async fn flat_write_with_sql(
     global: &TableOptions,
     archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<usize> {
+    // define a macro to handle the success
+    macro_rules! metrics_success {
+        ($rows:expr, $cols:expr) => {
+            metrics.add_inserted_sqls(1_u64);
+            metrics.add_written_rows($rows as u64);
+            metrics.add_written_points(($rows * $cols) as u64);
+        };
+    }
+    // define a macro to handle the error
+    macro_rules! metrics_failed {
+        ($rows:expr, $cols:expr) => {
+            metrics.add_failed_sqls(1_u64);
+            metrics.add_failed_rows($rows as u64);
+            metrics.add_failed_points(($rows * $cols) as u64);
+        };
+    }
+
     let mut count = 0;
     // Split messages into different stales.
     let cols = messages[0].records.num_columns();
@@ -483,9 +501,7 @@ pub async fn flat_write_with_sql(
                         tracing::trace!(stable, rows = n, "write stable success");
 
                         count += n;
-                        metrics.add_inserted_sqls(1_u64);
-                        metrics.add_written_rows(n as u64);
-                        metrics.add_written_points((n * cols) as u64);
+                        metrics_success!(n, cols);
 
                         if unsafe { SQL_TAG_CACHE_CAPACITY } > 0 {
                             cache_table_name(&full_table_names);
@@ -493,9 +509,6 @@ pub async fn flat_write_with_sql(
                         break;
                     }
                     Err(err) => {
-                        metrics.add_failed_sqls(1_u64);
-                        metrics.add_failed_rows(records.records() as u64);
-                        metrics.add_failed_points((records.records() * cols) as u64);
                         error!(stable, "write stable with sql error: {err:#}");
                         match err {
                             FlatWriteError::InvalidColumn => {
@@ -505,6 +518,7 @@ pub async fn flat_write_with_sql(
                                     .handle(format!("{err:#}"))
                                 {
                                     Ok((HandlingResult::Skip, _)) => {
+                                        metrics_failed!(records.records, cols);
                                         break;
                                     }
                                     Ok((HandlingResult::Archive, err)) => {
@@ -515,7 +529,7 @@ pub async fn flat_write_with_sql(
                                                 tracing::error!("archive error: {e:#}");
                                             }
                                         }
-
+                                        metrics_failed!(records.records, cols);
                                         break;
                                     }
                                     Ok((HandlingResult::Modify(_), _)) => {
@@ -524,6 +538,7 @@ pub async fn flat_write_with_sql(
                                     Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
                                     Ok((HandlingResult::Retry, _)) => unreachable!(),
                                     Err(e) => {
+                                        metrics_failed!(records.records, cols);
                                         return Err(e)?;
                                     }
                                 }
@@ -533,6 +548,7 @@ pub async fn flat_write_with_sql(
                                     .and_then(|m| m.table.using.as_ref())
                                     .and_then(|s| s.model())
                                 else {
+                                    metrics_failed!(records.records, cols);
                                     return Err(anyhow::Error::new(err));
                                 };
                                 let taos = taos.as_ref().unwrap();
@@ -575,6 +591,7 @@ pub async fn flat_write_with_sql(
                                                         code,
                                                         "add columns error: {e:#}"
                                                     );
+                                                    metrics_failed!(records.records, cols);
                                                     Err(e).context("add columns error")?
                                                 }
                                             }
@@ -585,10 +602,11 @@ pub async fn flat_write_with_sql(
                             FlatWriteError::TableNotExits(_) => {
                                 match global
                                     .process_on_abnormal
-                                    .stable_not_exist
+                                    .table_not_exist
                                     .handle(format!("{err:#}"))
                                 {
                                     Ok((HandlingResult::Skip, _)) => {
+                                        metrics_failed!(records.records, cols);
                                         break;
                                     }
                                     Ok((HandlingResult::Archive, err)) => {
@@ -599,6 +617,7 @@ pub async fn flat_write_with_sql(
                                                 tracing::error!("archive error: {e:#}");
                                             }
                                         }
+                                        metrics_failed!(records.records, cols);
                                         break;
                                     }
                                     Ok((HandlingResult::Modify(_), _)) => unreachable!(),
@@ -607,6 +626,7 @@ pub async fn flat_write_with_sql(
                                         // do nothing, continue the below codes
                                     }
                                     Err(e) => {
+                                        metrics_failed!(records.records, cols);
                                         return Err(e)?;
                                     }
                                 }
@@ -637,7 +657,7 @@ pub async fn flat_write_with_sql(
                             }
                             FlatWriteError::PrimaryTimestampNull => {
                                 // handling abnormal
-                                handle_primary_timestamp_null_and_rewrite(
+                                if handle_primary_timestamp_null_and_rewrite(
                                     pool,
                                     taos,
                                     global,
@@ -654,7 +674,12 @@ pub async fn flat_write_with_sql(
                                     &err,
                                     archive_tx.clone(),
                                 )
-                                .await?;
+                                .await?
+                                {
+                                    metrics_success!(records.records, cols);
+                                } else {
+                                    metrics_failed!(records.records, cols);
+                                }
                                 // only rewrite once
                                 break;
                             }
@@ -692,7 +717,13 @@ pub async fn flat_write_with_sql(
                                                     (f.length() * 2).min(max)
                                                 })
                                             );
-                                            let _ = taos.as_ref().unwrap().exec(&sql).await;
+                                            // if the tag is modified successfully, continue to write, otherwise, handle the error below
+                                            if let Err(e) = taos.as_ref().unwrap().exec(&sql).await
+                                            {
+                                                tracing::error!(sql, "modify tag error: {e:#}");
+                                            } else {
+                                                continue;
+                                            }
                                         } else {
                                             let sql = format!(
                                                 "alter table `{}` modify column `{}` {}({})",
@@ -708,12 +739,18 @@ pub async fn flat_write_with_sql(
                                                     (f.length() * 2).min(max)
                                                 })
                                             );
-                                            let _ = taos.as_ref().unwrap().exec(&sql).await;
+                                            // if the field is modified successfully, continue to write, otherwise, handle the error below
+                                            if let Err(e) = taos.as_ref().unwrap().exec(&sql).await
+                                            {
+                                                tracing::error!(sql, "modify column error: {e:#}");
+                                            } else {
+                                                continue;
+                                            }
                                         }
                                     }
 
                                     // handling abnormal
-                                    handle_field_length_overflow_and_rewrite(
+                                    if handle_field_length_overflow_and_rewrite(
                                         pool,
                                         taos,
                                         global,
@@ -731,15 +768,38 @@ pub async fn flat_write_with_sql(
                                         &err,
                                         archive_tx.clone(),
                                     )
-                                    .await?;
+                                    .await?
+                                    {
+                                        metrics_success!(records.records, cols);
+                                    } else {
+                                        metrics_failed!(records.records, cols);
+                                    }
                                     // only rewrite once
                                     break;
                                 } else {
-                                    return Err(err)?;
+                                    metrics_failed!(records.records, cols);
+                                    // handle the unrecoverable error
+                                    handle_ingesting_error(
+                                        global,
+                                        &records.batches,
+                                        &err,
+                                        archive_tx.clone(),
+                                    )
+                                    .await?;
+                                    break;
                                 }
                             }
                             _ => {
-                                return Err(err)?;
+                                metrics_failed!(records.records, cols);
+                                // handle the error
+                                handle_ingesting_error(
+                                    global,
+                                    &records.batches,
+                                    &err,
+                                    archive_tx.clone(),
+                                )
+                                .await?;
+                                break;
                             }
                         }
                     }
@@ -766,7 +826,8 @@ async fn handle_primary_timestamp_null_and_rewrite(
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
     archive_tx: Sender<(ArchiveType, RecordBatch)>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<bool> {
+    let mut success = true;
     // loop the batches
     for batch in batches {
         let all_fields: Vec<&Arc<Field>> = batch.schema_ref().fields().iter().collect();
@@ -789,17 +850,18 @@ async fn handle_primary_timestamp_null_and_rewrite(
             .handle(format!("{err:?}"))
         {
             Ok((HandlingResult::Skip, _)) => {
-                // do nothing
+                success = false;
             }
             Ok((HandlingResult::Archive, err)) => {
                 let res = process_archive(&err, batch, archive_tx.clone());
                 if let Err(e) = res {
                     tracing::error!("archive error: {e:#}");
                 }
+                success = false;
             }
             Ok((HandlingResult::Modify(_), _)) => {
                 // modify and rewrite
-                let res = modify_batch_and_rewrite(
+                if let Err(e) = modify_batch_and_rewrite(
                     pool,
                     taos,
                     target_precision,
@@ -815,9 +877,10 @@ async fn handle_primary_timestamp_null_and_rewrite(
                     field_name,
                     col_new,
                 )
-                .await;
-                if let Err(e) = res {
+                .await
+                {
                     tracing::error!("rewrite error: {e:#}");
+                    success = false;
                 }
             }
             Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
@@ -827,7 +890,12 @@ async fn handle_primary_timestamp_null_and_rewrite(
             }
         };
     }
-    Ok(())
+
+    if success {
+        Ok(true)
+    } else {
+        Ok(false)
+    }
 }
 
 async fn handle_field_length_overflow_and_rewrite(
@@ -847,7 +915,8 @@ async fn handle_field_length_overflow_and_rewrite(
     batches: &Vec<RecordBatch>,
     err: &FlatWriteError,
     archive_tx: Sender<(ArchiveType, RecordBatch)>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<bool> {
+    let mut success = true;
     // get the length of the field
     let desc = taos.as_ref().unwrap().describe(stable).await;
     if let Err(e) = desc {
@@ -877,7 +946,7 @@ async fn handle_field_length_overflow_and_rewrite(
             format!("{err:?}"),
         ) {
             Ok((HandlingResult::Skip, _)) => {
-                // do nothing
+                success = false;
             }
             Ok((HandlingResult::Archive, err)) => {
                 for batch in batches {
@@ -886,6 +955,7 @@ async fn handle_field_length_overflow_and_rewrite(
                         tracing::error!("archive error: {e:#}");
                     }
                 }
+                success = false;
             }
             Ok((HandlingResult::Modify(values), _)) => {
                 // modify and rewrite
@@ -908,6 +978,7 @@ async fn handle_field_length_overflow_and_rewrite(
                 .await
                 {
                     tracing::error!("rewrite error: {e:#}");
+                    success = false;
                 }
             }
             Ok((HandlingResult::ModifyAndArchive(values), err)) => {
@@ -931,6 +1002,7 @@ async fn handle_field_length_overflow_and_rewrite(
                 .await
                 {
                     tracing::error!("rewrite error: {e:#}");
+                    success = false;
                 }
                 // archive
                 for batch in batches {
@@ -955,7 +1027,7 @@ async fn handle_field_length_overflow_and_rewrite(
                 .downcast_ref::<StringArray>();
             // if the field is not found, skip the batch
             if field_values.is_none() {
-                return Ok(());
+                continue;
             }
             let field_values = field_values.unwrap();
             let values = field_values
@@ -971,12 +1043,14 @@ async fn handle_field_length_overflow_and_rewrite(
             ) {
                 Ok((HandlingResult::Skip, _)) => {
                     // do nothing
+                    success = false;
                 }
                 Ok((HandlingResult::Archive, err)) => {
                     let res = process_archive(&err, batch, archive_tx.clone());
                     if let Err(e) = res {
                         tracing::error!("archive error: {e:#}");
                     }
+                    success = false;
                 }
                 Ok((HandlingResult::Modify(values), _)) => {
                     let col_new = Arc::new(StringArray::from(values));
@@ -1000,6 +1074,7 @@ async fn handle_field_length_overflow_and_rewrite(
                     .await
                     {
                         tracing::error!("rewrite error: {e:#}");
+                        success = false;
                     }
                 }
                 Ok((HandlingResult::ModifyAndArchive(values), err)) => {
@@ -1024,6 +1099,7 @@ async fn handle_field_length_overflow_and_rewrite(
                     .await
                     {
                         tracing::error!("rewrite error: {e:#}");
+                        success = false;
                     }
                     // archive
                     if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
@@ -1037,8 +1113,11 @@ async fn handle_field_length_overflow_and_rewrite(
             };
         }
     }
-
-    Ok(())
+    if success {
+        Ok(true)
+    } else {
+        Ok(false)
+    }
 }
 
 async fn modify_meta_and_rewrite(
@@ -1148,6 +1227,38 @@ async fn modify_batch_and_rewrite(
     Ok(())
 }
 
+async fn handle_ingesting_error(
+    global: &TableOptions,
+    batches: &Vec<RecordBatch>,
+    err: &FlatWriteError,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+) -> anyhow::Result<()> {
+    match global
+        .process_on_abnormal
+        .ingesting_error
+        .handle(format!("{err:#}"))
+    {
+        Ok((HandlingResult::Skip, _)) => {
+            // do nothing
+        }
+        Ok((HandlingResult::Archive, err)) => {
+            for batch in batches {
+                if let Err(e) = process_archive(&err, batch, archive_tx.clone()) {
+                    tracing::error!("archive error: {e:#}");
+                }
+            }
+        }
+        Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+        Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+        Ok((HandlingResult::Retry, _)) => unreachable!(),
+        Err(e) => {
+            return Err(e)?;
+        }
+    }
+
+    Ok(())
+}
+
 pub async fn flat_write_with_raw_block(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
@@ -1161,6 +1272,15 @@ pub async fn flat_write_with_raw_block(
     global: &TableOptions,
     archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<usize> {
+    // define a macro to handle the error
+    macro_rules! metrics_failed {
+        ($raw:expr) => {
+            metrics.add_failed_raw_blocks(1);
+            metrics.add_failed_rows($raw.nrows() as u64);
+            metrics.add_failed_points(($raw.nrows() * $raw.column_views().len()) as u64);
+        };
+    }
+
     let mut count = 0;
     let mut qid = Span.get_qid().unwrap_or_else(Qid::init);
     // debug_assert!(qid.task_id() > 0);
@@ -1488,15 +1608,6 @@ pub async fn flat_write_with_raw_block(
             qid.add_sub_batch_id();
             trace!("write raw block");
 
-            // define a macro to handle the error
-            macro_rules! metrics_failed {
-                ($metrics:expr, $raw:expr) => {
-                    $metrics.add_failed_raw_blocks(1);
-                    $metrics.add_failed_rows($raw.nrows() as u64);
-                    $metrics.add_failed_points(($raw.nrows() * $raw.column_views().len()) as u64);
-                };
-            }
-
             if let Err(err) = taos
                 .as_ref()
                 .unwrap()
@@ -1511,20 +1622,13 @@ pub async fn flat_write_with_raw_block(
                     tracing::warn!(
                         "flat message write raw block encounter unrecoverable err: {err:#}"
                     );
-                    metrics_failed!(metrics, raw);
-                    Err(err)?;
-                    break;
-                }
-                if errno == 0x2603 || errno == 0x0618 {
-                    // 0x2603: the table does not exist
-                    // 0x0618: the table does not exist
                     match global
                         .process_on_abnormal
-                        .stable_not_exist
+                        .database_connection_error
                         .handle(format!("{err:#}"))
                     {
                         Ok((HandlingResult::Skip, _)) => {
-                            metrics_failed!(metrics, raw);
+                            metrics_failed!(raw);
                             break;
                         }
                         Ok((HandlingResult::Archive, err)) => {
@@ -1533,7 +1637,43 @@ pub async fn flat_write_with_raw_block(
                             {
                                 tracing::error!("archive error: {e:#}");
                             }
-                            metrics_failed!(metrics, raw);
+                            metrics_failed!(raw);
+                            break;
+                        }
+                        Ok((HandlingResult::Modify(_), _)) => unreachable!(),
+                        Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
+                        Ok((HandlingResult::Retry, _)) => {
+                            if let Err(e) = process_cache(&records.records, archive_tx.clone()) {
+                                tracing::error!("cache error: {e:#}");
+                            }
+                            metrics_failed!(raw);
+                            break;
+                        }
+                        Err(e) => {
+                            metrics_failed!(raw);
+                            return Err(e)?;
+                        }
+                    }
+                }
+                if errno == 0x2603 || errno == 0x0618 {
+                    // 0x2603: the table does not exist
+                    // 0x0618: the table does not exist
+                    match global
+                        .process_on_abnormal
+                        .table_not_exist
+                        .handle(format!("{err:#}"))
+                    {
+                        Ok((HandlingResult::Skip, _)) => {
+                            metrics_failed!(raw);
+                            break;
+                        }
+                        Ok((HandlingResult::Archive, err)) => {
+                            if let Err(e) =
+                                process_archive(&err, &records.records, archive_tx.clone())
+                            {
+                                tracing::error!("archive error: {e:#}");
+                            }
+                            metrics_failed!(raw);
                             break;
                         }
                         Ok((HandlingResult::Modify(_), _)) => unreachable!(),
@@ -1542,7 +1682,7 @@ pub async fn flat_write_with_raw_block(
                             // do nothing, continue the below codes
                         }
                         Err(e) => {
-                            metrics_failed!(metrics, raw);
+                            metrics_failed!(raw);
                             return Err(e)?;
                         }
                     }
@@ -1701,7 +1841,7 @@ pub async fn flat_write_with_raw_block(
                         .handle(format!("{err:#}"))
                     {
                         Ok((HandlingResult::Skip, _)) => {
-                            metrics_failed!(metrics, raw);
+                            metrics_failed!(raw);
                             break;
                         }
                         Ok((HandlingResult::Archive, err)) => {
@@ -1710,7 +1850,7 @@ pub async fn flat_write_with_raw_block(
                             {
                                 tracing::error!("archive error: {e:#}");
                             }
-                            metrics_failed!(metrics, raw);
+                            metrics_failed!(raw);
                             break;
                         }
                         Ok((HandlingResult::Modify(_), _)) => {
@@ -1719,7 +1859,7 @@ pub async fn flat_write_with_raw_block(
                         Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
                         Ok((HandlingResult::Retry, _)) => unreachable!(),
                         Err(e) => {
-                            metrics_failed!(metrics, raw);
+                            metrics_failed!(raw);
                             return Err(e)?;
                         }
                     }
@@ -1779,39 +1919,17 @@ pub async fn flat_write_with_raw_block(
                     // 0xE003: send timeout
                     // 0xE004: receive timeout
                     // 0x000B: unable to establish connection
-                    match global
+                    let timeout = global
                         .process_on_abnormal
-                        .database_connection_error
-                        .handle(format!("{err:#}"))
-                    {
-                        Ok((HandlingResult::Skip, _)) => {
-                            metrics_failed!(metrics, raw);
-                            break;
-                        }
-                        Ok((HandlingResult::Archive, err)) => {
-                            if let Err(e) =
-                                process_archive(&err, &records.records, archive_tx.clone())
-                            {
-                                tracing::error!("archive error: {e:#}");
-                            }
-                            metrics_failed!(metrics, raw);
-                            break;
-                        }
-                        Ok((HandlingResult::Modify(_), _)) => unreachable!(),
-                        Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
-                        Ok((HandlingResult::Retry, _)) => {
-                            tokio::time::sleep(Duration::from_secs(2)).await;
-                            if cancel.is_cancelled() {
-                                return Err(err)?;
-                            }
-                            taos.replace(pool.get().await?);
-                            continue;
-                        }
-                        Err(e) => {
-                            metrics_failed!(metrics, raw);
-                            return Err(e)?;
-                        }
+                        .connection_timeout_in_second_value
+                        as u32;
+                    let sleep = ((timeout * 1000) / DEFAULT_MAX_RETRIES_FOR_CONNECTION) as u64;
+                    tokio::time::sleep(Duration::from_millis(sleep)).await;
+                    if cancel.is_cancelled() {
+                        return Err(err)?;
                     }
+                    taos.replace(pool.get().await?);
+                    continue;
                 } else if errno == 0x2605 || errno == 0x2653 {
                     // 0x2605: wrong value type
                     // 0x2653: value too long for column/tag
@@ -1860,16 +1978,13 @@ pub async fn flat_write_with_raw_block(
                     break;
                 } else {
                     error!(table = table_name.as_ref(), code = %code, "write {} records failed: {err:?}", records.records.num_rows());
-                    metrics.add_failed_raw_blocks(1);
-                    metrics.add_failed_rows(raw.nrows() as u64);
-                    metrics.add_failed_points((raw.nrows() * raw.column_views().len()) as u64);
+                    metrics_failed!(raw);
                     match global
                         .process_on_abnormal
                         .ingesting_error
                         .handle(format!("{err:#}"))
                     {
                         Ok((HandlingResult::Skip, _)) => {
-                            metrics_failed!(metrics, raw);
                             break;
                         }
                         Ok((HandlingResult::Archive, err)) => {
@@ -1878,14 +1993,12 @@ pub async fn flat_write_with_raw_block(
                             {
                                 tracing::error!("archive error: {e:#}");
                             }
-                            metrics_failed!(metrics, raw);
                             break;
                         }
                         Ok((HandlingResult::Modify(_), _)) => unreachable!(),
                         Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
                         Ok((HandlingResult::Retry, _)) => unreachable!(),
                         Err(e) => {
-                            metrics_failed!(metrics, raw);
                             return Err(e)?;
                         }
                     }
@@ -1914,7 +2027,9 @@ async fn handling_database_not_exist(
         .database_not_exist
         .handle(format!("get database error: {err:#}"))
     {
-        Ok((HandlingResult::Skip, _)) => Ok(()),
+        Ok((HandlingResult::Skip, _)) => {
+            // do nothing
+        }
         Ok((HandlingResult::Archive, err)) => {
             for batch in messages
                 .iter()
@@ -1924,13 +2039,24 @@ async fn handling_database_not_exist(
                     tracing::error!("archive error: {e:#}");
                 }
             }
-            Ok(())
         }
         Ok((HandlingResult::Modify(_), _)) => unreachable!(),
         Ok((HandlingResult::ModifyAndArchive(_), _)) => unreachable!(),
         Ok((HandlingResult::Retry, _)) => unreachable!(),
-        Err(e) => Err(e),
+        Err(e) => return Err(e)?,
     }
+
+    Ok(())
+}
+
+fn process_cache(
+    batch: &RecordBatch,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+) -> anyhow::Result<()> {
+    if batch.num_rows() > 0 {
+        archive_tx.send((ArchiveType::Cache, batch.clone()))?;
+    }
+    Ok(())
 }
 
 fn process_archive(
@@ -2177,49 +2303,15 @@ impl FlatSink {
                                                 unreachable!()
                                             }
                                             Ok((HandlingResult::Retry, _)) => {
-                                                tokio::time::sleep(Duration::from_secs(1)).await;
-                                                let written = if factor < 200 {
-                                                    flat_write_with_sql(
-                                                        &pool,
-                                                        &mut taos,
-                                                        target_precision,
-                                                        &messages,
-                                                        metrics,
-                                                        Some(&notifier),
-                                                        &cancel,
-                                                        parser.global(),
+                                                messages.iter().for_each(|m| {
+                                                    if let Err(e) = process_cache(
+                                                        &m.records,
                                                         archive_tx.clone(),
-                                                    )
-                                                    .in_current_span()
-                                                    .await
-                                                } else {
-                                                    flat_write_with_raw_block(
-                                                        &pool,
-                                                        &mut taos,
-                                                        &mut max_lengths,
-                                                        &parser,
-                                                        target_precision,
-                                                        &messages,
-                                                        metrics,
-                                                        Some(&notifier),
-                                                        &cancel,
-                                                        parser.global(),
-                                                        archive_tx.clone(),
-                                                    )
-                                                    .in_current_span()
-                                                    .await
-                                                }?;
-                                                total += written;
-                                                metrics.add_processed_rows(num_of_rows as u64);
-
-                                                tracing::debug!(
-                                                    count = total,
-                                                    written,
-                                                    "flat write in sink worker"
-                                                );
-                                                if sender.send(written).is_err() {
-                                                    // tracing::warn!("send written failed");
-                                                }
+                                                    ) {
+                                                        tracing::error!("cache error: {e:#}");
+                                                    }
+                                                });
+                                                continue;
                                             }
                                             Err(e) => {
                                                 return Err(e)?;
