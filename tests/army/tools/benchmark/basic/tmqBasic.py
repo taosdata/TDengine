@@ -25,37 +25,22 @@ from frame import *
 class TDTestCase(TBase):
     def caseDescription(self):
         """
-        [TD-11510] taosBenchmark test cases
+        taosBenchmark tmp->Basic test cases
         """
 
-
-
     def run(self):
-        tdSql.execute("drop topic if exists topic_0")
-        binPath = etool.benchMarkFile()
-        cmd = "%s -f ./tools/benchmark/basic/json/default.json" % binPath
-        tdLog.info("%s" % cmd)
-        os.system("%s" % cmd)
-        tdSql.execute("reset query cache")
+        
+        # insert data
+        json = "tools/benchmark/basic/json/tmqBasicInsert.json"
+        db, stb, child_count, insert_rows = self.insertBenchJson(json, checkStep = True)
 
-        tdSql.execute("alter database db WAL_RETENTION_PERIOD 3600000")
+        # tmq Sequ
+        json = "tools/benchmark/basic/json/tmqBasicSequ.json"
+        self.tmqBenchJson(json)
 
-        cmd = "%s -f ./tools/benchmark/basic/json/tmq.json " % binPath
-        tdLog.info("%s" % cmd)
-        os.system("%s" % cmd)
-        sleep(15)
-
-    #        try:
-    #            for line in os.popen("ps ax | grep taosBenchmark | grep -v grep"):
-    #                fields = line.split()
-
-    #                pid = fields[0]
-
-    #                os.kill(int(pid), signal.SIGINT)
-    #                time.sleep(3)
-    #            print("taosBenchmark be killed on purpose")
-    #        except:
-    #            tdLog.exit("failed to kill taosBenchmark")
+        # tmq Parallel
+        json = "tools/benchmark/basic/json/tmqBasicPara.json"
+        self.tmqBenchJson(json)
 
     def stop(self):
         tdSql.close()
