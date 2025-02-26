@@ -1,33 +1,23 @@
 "parser": {
+    "parser": {
+        "global": {
+            "cache": {},
+            "archive": {},
+            "primary_timestamp_overflow": "archive",
+            "primary_timestamp_null": "archive",
+            "table_name_length_overflow": "archive",
+            "table_name_contains_illegal_char": {
+                "replace_to": ""
+            },
+            "variable_not_exist_in_table_name_template": {
+                "replace_to": ""
+            },
+            "field_name_length_overflow": "archive"
+        },
         "parse": {
             "payload": {
                 "json": ""
             }
-        },
-        "s_model": {
-            "name": "site",
-            "tags": [
-                {
-                    "name": "site_controller_id",
-                    "type": "VARCHAR(128)"
-                } 
-            ],
-            "columns": [
-                {
-                    "name": "ts",
-                    "type": "TIMESTAMP",
-                    "encode": null,
-                    "compress": null,
-                    "level": null
-                },
-                {
-                    "name": "${point_name}",
-                    "type": "${data_type}",
-                    "encode": null,
-                    "compress": null,
-                    "level": null
-                }
-            ]
         },
         "model": {
             "name": "site_${site_controller_id}",
@@ -37,7 +27,7 @@
             ],
             "columns": [
                 "ts",
-                "value"
+                "${point_name}"
             ]
         },
         "mutate": [
@@ -57,17 +47,40 @@
                 "map": {
                     "ts": {
                         "cast": "ts",
-                        "as": "TIMESTAMP(ns)"
+                        "as": "TIMESTAMP(ms)"
                     },
                     "${point_name}": {
                         "cast": "value",
-                        "as": "VARCHAR"
+                        "as": "${data_type}"
                     },
                     "site_controller_id": {
                         "cast": "site_controller_id",
-                        "as": "VARCHAR"
+                        "as": "VARCHAR(20)"
                     }
                 }
             }
-        ]
+        ],
+        "s_model": {
+            "name": "site",
+            "columns": [
+                {
+                    "name": "ts",
+                    "length": 8,
+                    "type": "TIMESTAMP"
+                },
+                {
+                    "name": "${point_name}",
+                    "length": 8,
+                    "type": "${data_type}"
+                }
+            ],
+            "tags": [
+                {
+                    "name": "site_controller_id",
+                    "length": 20,
+                    "type": "VARCHAR(20)"
+                }
+            ]
+        }
     }
+}
