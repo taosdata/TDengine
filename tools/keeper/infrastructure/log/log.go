@@ -112,8 +112,7 @@ var once sync.Once
 
 func ConfigLog() {
 	once.Do(func() {
-		err := SetLevel(config.Conf.LogLevel)
-		if err != nil {
+		if err := SetLevel(config.Conf.LogLevel); err != nil {
 			panic(err)
 		}
 		writer, err := rotatelogs.New(

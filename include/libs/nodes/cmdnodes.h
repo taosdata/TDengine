@@ -82,6 +82,7 @@ typedef struct SDatabaseOptions {
   int32_t     minRowsPerBlock;
   SNodeList*  pKeep;
   int64_t     keep[3];
+  SValueNode* pKeepTimeOffsetNode;
   int32_t     keepTimeOffset;
   int32_t     pages;
   int32_t     pagesize;
@@ -572,6 +573,7 @@ typedef enum EStreamNotifyOptionSetFlag {
 } EStreamNotifyOptionSetFlag;
 
 typedef enum EStreamNotifyEventType {
+  SNOTIFY_EVENT_WINDOW_INVALIDATION = 0,
   SNOTIFY_EVENT_WINDOW_OPEN = BIT_FLAG_MASK(0),
   SNOTIFY_EVENT_WINDOW_CLOSE = BIT_FLAG_MASK(1),
 } EStreamNotifyEventType;

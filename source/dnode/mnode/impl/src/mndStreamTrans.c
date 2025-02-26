@@ -292,6 +292,25 @@ int32_t setTransAction(STrans *pTrans, void *pCont, int32_t contLen, int32_t msg
   return mndTransAppendRedoAction(pTrans, &action);
 }
 
+bool isNodeUpdateTransActive() {
+  bool  exist = false;
+  void *pIter = NULL;
+
+  streamMutexLock(&execInfo.lock);
+
+  while ((pIter = taosHashIterate(execInfo.transMgmt.pDBTrans, pIter)) != NULL) {
+    SStreamTransInfo *pTransInfo = (SStreamTransInfo *)pIter;
+    if (strcmp(pTransInfo->name, MND_STREAM_TASK_UPDATE_NAME) == 0) {
+      mDebug("stream:0x%" PRIx64 " %s st:%" PRId64 " is in task nodeEp update, create new stream not allowed",
+             pTransInfo->streamId, pTransInfo->name, pTransInfo->startTime);
+      exist = true;
+    }
+  }
+
+  streamMutexUnlock(&execInfo.lock);
+  return exist;
+}
+
 int32_t doKillCheckpointTrans(SMnode *pMnode, const char *pDBName, size_t len) {
   void *pIter = NULL;
 

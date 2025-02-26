@@ -16,6 +16,7 @@
 #ifndef _TD_QUERY_NODES_H_
 #define _TD_QUERY_NODES_H_
 
+#include <stdint.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -61,6 +62,8 @@ typedef struct SExprNode {
   bool      asParam;
   bool      asPosition;
   int32_t   projIdx;
+  int32_t   relatedTo;
+  int32_t   bindExprID;
 } SExprNode;
 
 typedef enum EColumnType {
@@ -313,15 +316,16 @@ typedef struct SOrderByExprNode {
 } SOrderByExprNode;
 
 typedef struct SLimitNode {
-  ENodeType type;  // QUERY_NODE_LIMIT
-  int64_t   limit;
-  int64_t   offset;
+  ENodeType   type;  // QUERY_NODE_LIMIT
+  SValueNode* limit;
+  SValueNode* offset;
 } SLimitNode;
 
 typedef struct SStateWindowNode {
   ENodeType type;  // QUERY_NODE_STATE_WINDOW
   SNode*    pCol;  // timestamp primary key
   SNode*    pExpr;
+  SNode*    pTrueForLimit;
 } SStateWindowNode;
 
 typedef struct SSessionWindowNode {
@@ -346,6 +350,7 @@ typedef struct SEventWindowNode {
   SNode*    pCol;  // timestamp primary key
   SNode*    pStartCond;
   SNode*    pEndCond;
+  SNode*    pTrueForLimit;
 } SEventWindowNode;
 
 typedef struct SCountWindowNode {
@@ -420,7 +425,7 @@ typedef struct SWindowOffsetNode {
 
 typedef struct SRangeAroundNode {
   ENodeType type;
-  SNode*    pTimepoint;
+  SNode*    pRange;
   SNode*    pInterval;
 } SRangeAroundNode;
 
@@ -428,6 +433,7 @@ typedef struct SSelectStmt {
   ENodeType     type;  // QUERY_NODE_SELECT_STMT
   bool          isDistinct;
   SNodeList*    pProjectionList;
+  SNodeList*    pProjectionBindList;
   SNode*        pFromTable;
   SNode*        pWhere;
   SNodeList*    pPartitionByList;
@@ -681,6 +687,7 @@ int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode);
 int32_t nodesMakeValueNodeFromBool(bool b, SValueNode** ppValNode);
 int32_t nodesMakeValueNodeFromInt32(int32_t value, SNode** ppNode);
+int32_t nodesMakeValueNodeFromInt64(int64_t value, SNode** ppNode);
 
 char*   nodesGetFillModeString(EFillMode mode);
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);
@@ -695,6 +702,9 @@ char*   getJoinTypeString(EJoinType type);
 char*   getJoinSTypeString(EJoinSubType type);
 char*   getFullJoinTypeString(EJoinType type, EJoinSubType stype);
 int32_t mergeJoinConds(SNode** ppDst, SNode** ppSrc);
+
+void rewriteExprAliasName(SExprNode* pNode, int64_t num);
+bool isRelatedToOtherExpr(SExprNode* pExpr);
 
 #ifdef __cplusplus
 }

@@ -1418,6 +1418,7 @@ SNode* qptMakeExprNode(SNode** ppNode) {
 
 SNode* qptMakeLimitNode(SNode** ppNode) {
   SNode* pNode = NULL;
+  int32_t code = 0;
   if (QPT_NCORRECT_LOW_PROB()) {
     return qptMakeRandNode(&pNode);
   }
@@ -1429,15 +1430,27 @@ SNode* qptMakeLimitNode(SNode** ppNode) {
 
   if (!qptCtx.param.correctExpected) {
     if (taosRand() % 2) {
-      pLimit->limit = taosRand() * ((taosRand() % 2) ? 1 : -1);
+      code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pLimit->limit);
+      assert(pLimit->limit);
+      pLimit->limit->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+      pLimit->limit->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      pLimit->limit->datum.i = taosRand() * ((taosRand() % 2) ? 1 : -1);
     }
     if (taosRand() % 2) {
-      pLimit->offset = taosRand() * ((taosRand() % 2) ? 1 : -1);
+      code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pLimit->offset);
+      assert(pLimit->offset);
+      pLimit->offset->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+      pLimit->offset->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      pLimit->offset->datum.i = taosRand() * ((taosRand() % 2) ? 1 : -1);
     }
   } else {
-    pLimit->limit = taosRand();
+    pLimit->limit->datum.i = taosRand();
     if (taosRand() % 2) {
-      pLimit->offset = taosRand();
+      code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pLimit->offset);
+      assert(pLimit->offset);
+      pLimit->offset->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+      pLimit->offset->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      pLimit->offset->datum.i = taosRand();
     }
   }
 

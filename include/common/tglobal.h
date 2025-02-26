@@ -296,6 +296,8 @@ extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
 extern bool    tsStreamCoverage;
 extern int8_t  tsS3EpNum;
+extern int32_t tsStreamNotifyMessageSize;
+extern int32_t tsStreamNotifyFrameSize;
 
 extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
@@ -326,7 +328,6 @@ int32_t tDeserializeSConfigArray(SDecoder *pDecoder, SArray *array);
 int32_t setAllConfigs(SConfig *pCfg);
 void    printConfigNotMatch(SArray *array);
 
-int32_t compareSConfigItemArrays(SArray *mArray, const SArray *dArray, SArray *diffArray);
 bool    isConifgItemLazyMode(SConfigItem *item);
 int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs);
 

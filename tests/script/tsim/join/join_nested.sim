@@ -32,6 +32,13 @@ sql select a.t1 from (select * from sta partition by tbname order by ts desc) a 
 if $rows != 12 then
   return -1
 endi
+sql select a.ts from (select last(tba1.ts) as ts from tba1, tba2 where tba1.ts = tba2.ts) as a join (select ts from tba2) as tba2 on a.ts = tba2.ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @23-11-17 16:29:03.000@ then
+  return -1
+endi
 
 #left join + non join
 sql_error select a.*,b.* from (select * from sta partition by tbname) a left join (select * from sta partition by tbname order by ts) b on a.ts = b.ts;

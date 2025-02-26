@@ -872,6 +872,13 @@ END:
 }
 #endif
 
+void truncateTimezoneString(char *tz) {
+  char *spacePos = strchr(tz, ' ');
+  if (spacePos != NULL) {
+      *spacePos = '\0';
+  }
+}
+
 int32_t taosGetSystemTimezone(char *outTimezoneStr) {
 #ifdef WINDOWS
   char  value[100] = {0};

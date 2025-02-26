@@ -133,7 +133,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
 | BIGINT             | SQL_BIGINT        | SQL_C_SBIGINT     |
 | BIGINT UNSIGNED    | SQL_BIGINT        | SQL_C_UBIGINT     |
 | FLOAT              | SQL_REAL          | SQL_C_FLOAT       |
-| DOUBLE             | SQL_REAL          | SQL_C_DOUBLE      |
+| DOUBLE             | SQL_DOUBLE        | SQL_C_DOUBLE      |
 | BINARY             | SQL_BINARY        | SQL_C_BINARY      |
 | SMALLINT           | SQL_SMALLINT      | SQL_C_SSHORT      |
 | SMALLINT UNSIGNED  | SQL_SMALLINT      | SQL_C_USHORT      |
@@ -141,35 +141,149 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
 | TINYINT UNSIGNED   | SQL_TINYINT       | SQL_C_UTINYINT    |
 | BOOL               | SQL_BIT           | SQL_C_BIT         |
 | NCHAR              | SQL_VARCHAR       | SQL_C_CHAR        |
-| JSON               | SQL_VARCHAR       | SQL_C_CHAR        |
 | VARCHAR            | SQL_VARCHAR       | SQL_C_CHAR        |
+| JSON               | SQL_WVARCHAR      | SQL_C_WCHAR       |
 | GEOMETRY           | SQL_VARBINARY     | SQL_C_BINARY      |
 | VARBINARY          | SQL_VARBINARY     | SQL_C_BINARY      |
 
 
 ## API 参考
 
-本节按功能分类汇总了 ODBC API，关于完整的 ODBC API 参考，请访问 http://msdn.microsoft.com/en-us/library/ms714177.aspx 的 ODBC 程序员参考页面。
+### API 列表
 
-### 数据源和驱动程序管理
+- **目前导出的ODBC函数有**:
+
+| ODBC/Setup API | Linux | macOS | Windows | Note |
+| :----- | :---- | :---- | :---- | :---- |
+| ConfigDSN | ❌ | ❌ | ✅ | |
+| ConfigDriver | ❌ | ❌ | ✅ | |
+| ConfigTranslator | ❌ | ❌ | ❌ | |
+| SQLAllocHandle | ✅ | ✅ | ✅ | |
+| SQLBindCol  | ✅ | ✅ | ✅ | 只能按列绑定 |
+| SQLBindParameter | ✅ | ✅ | ✅ | 只能按列绑定 |
+| SQLBrowseConnect | ❌ | ❌ | ❌ | |
+| SQLBulkOperations | ❌ | ❌ | ❌ | TDengine 没有对应的 |
+| SQLCloseCursor | ✅ | ✅ | ✅ | |
+| SQLColAttribute | ✅ | ✅ | ✅ | |
+| SQLColumnPrivileges | ❌ | ❌ | ❌ | TDengine 没有严格对应的 |
+| SQLColumns | ✅ | ✅ | ✅ | |
+| SQLCompleteAsync | ❌ | ❌ | ❌ | |
+| SQLConnect | ✅ | ✅ | ✅ | |
+| SQLCopyDesc | ❌ | ❌ | ❌ | |
+| SQLDescribeCol | ✅ | ✅ | ✅ | |
+| SQLDescribeParam | ✅ | ✅ | ✅ | |
+| SQLDisconnect | ✅ | ✅ | ✅ | |
+| SQLDriverConnect | ✅ | ✅ | ✅ | |
+| SQLEndTran | ✅ | ✅ | ✅ | TDengine是非事务性的，因此这最多是模拟 |
+| SQLExecDirect | ✅ | ✅ | ✅ | |
+| SQLExecute | ✅ | ✅ | ✅ | |
+| SQLExtendedFetch | ❌ | ❌ | ❌ | |
+| SQLFetch | ✅ | ✅ | ✅ | |
+| SQLFetchScroll | ✅ | ✅ | ✅ | TDengine 没有对应的, 仅仅实现 SQL_FETCH_NEXT |
+| SQLForeignKeys | ❌ | ❌ | ❌ | TDengine 没有对应的 |
+| SQLFreeHandle | ✅ | ✅ | ✅ | |
+| SQLFreeStmt | ✅ | ✅ | ✅ | |
+| SQLGetConnectAttr | ✅ | ✅ | ✅ | 支持部分属性，下面列出了不支持的属性 |
+| SQLGetCursorName | ❌ | ❌ | ❌ | TDengine 没有对应的 |
+| SQLGetData | ✅ | ✅ | ✅ | |
+| SQLGetDescField | ❌ | ❌ | ❌ | |
+| SQLGetDescRec | ❌ | ❌ | ❌ | |
+| SQLGetDiagField | ✅ | ✅ | ✅ | |
+| SQLGetDiagRec | ✅ | ✅ | ✅ | |
+| SQLGetEnvAttr | ✅ | ✅ | ✅ | |
+| SQLGetInfo | ✅ | ✅ | ✅ | |
+| SQLGetStmtAttr | ✅ | ✅ | ✅ | 支持部分属性，下面列出了不支持的属性 |
+| SQLGetTypeInfo | ✅ | ✅ | ✅ | |
+| SQLMoreResults | ✅ | ✅ | ✅ | |
+| SQLNativeSql | ❌ | ❌ | ❌ | TDengine 没有对应的 |
+| SQLNumParams | ✅ | ✅ | ✅ | |
+| SQLNumResultCols | ✅ | ✅ | ✅ | |
+| SQLParamData | ❌ | ❌ | ❌ | TDengine 没有对应的 |
+| SQLPrepare | ✅ | ✅ | ✅ | |
+| SQLPrimaryKeys | ✅ | ✅ | ✅ | |
+| SQLProcedureColumns | ❌ | ❌ | ❌ | TDengine 没有对应的 |
+| SQLProcedures | ❌ | ❌ | ❌ | TDengine 没有对应的 |
+| SQLPutData | ❌ | ❌ | ❌ | TDengine 没有对应的 |
+| SQLRowCount | ✅ | ✅ | ✅ | |
+| SQLSetConnectAttr | ✅ | ✅ | ✅ | 支持部分属性，下面列出了不支持的属性 |
+| SQLSetCursorName | ❌ | ❌ | ❌ | TDengine 没有对应的 |
+| SQLSetDescField | ❌ | ❌ | ❌ | |
+| SQLSetDescRec | ❌ | ❌ | ❌ | |
+| SQLSetEnvAttr | ✅ | ✅ | ✅ | |
+| SQLSetPos | ❌ | ❌ | ❌ | TDengine 没有对应的 |
+| SQLSetStmtAttr | ✅ | ✅ | ✅ | 支持部分属性，下面列出了不支持的属性 |
+| SQLSpecialColumns | ❌ | ❌ | ❌ | TDengine 没有对应的 |
+| SQLStatistics | ❌ | ❌ | ❌ | TDengine 没有对应的 |
+| SQLTablePrivileges | ❌ | ❌ | ❌ | TDengine 没有严格对应的 |
+| SQLTables | ✅ | ✅ | ✅ | |
+
+- **不支持的语句属性 (SQLSetStmtAttr)**
+
+| Attribute | Note |
+| :----- | :---- |
+| SQL_ATTR_CONCURRENCY | TDengine 没有 updatable-CURSOR 机制 |
+| SQL_ATTR_FETCH_BOOKMARK_PTR | TDengine 没有  BOOKMARK 机制 |
+| SQL_ATTR_IMP_PARAM_DESC | |
+| SQL_ATTR_IMP_ROW_DESC | |
+| SQL_ATTR_KEYSET_SIZE | |
+| SQL_ATTR_PARAM_BIND_OFFSET_PTR | |
+| SQL_ATTR_PARAM_OPERATION_PTR | |
+| SQL_ATTR_ROW_NUMBER | 只读属性 |
+| SQL_ATTR_ROW_OPERATION_PTR | |
+| SQL_ATTR_SIMULATE_CURSOR | |
+
+- **不支持的连接属性 (SQLSetConnectAttr)**
+
+| Attribute | Note |
+| :----- | :---- |
+| SQL_ATTR_AUTO_IPD | 只读属性 |
+| SQL_ATTR_CONNECTION_DEAD | 只读属性 |
+| SQL_ATTR_ENLIST_IN_DTC | |
+| SQL_ATTR_PACKET_SIZE | |
+| SQL_ATTR_TRACE | |
+| SQL_ATTR_TRACEFILE | |
+| SQL_ATTR_TRANSLATE_LIB | |
+| SQL_ATTR_TRANSLATE_OPTION | |
+
+- **允许任何带有 ODBC 库的编程语言与 TDengine 通信:**
+
+| programming language | ODBC-API or bindings/plugins |
+| :----- | :---- |
+| C/C++ | ODBC-API |
+| CSharp | System.Data.Odbc |
+| Erlang | odbc module |
+| Go | [odbc](https://github.com/alexbrainman/odbc), database/sql |
+| Haskell | HDBC, HDBC-odbc |
+| Common Lisp | plain-odbc |
+| Nodejs | odbc |
+| Python3 | pyodbc |
+| Rust | odbc |
+
+
+
+### API 功能分类
+
+本节按功能分类汇总了 ODBC API，关于完整的 ODBC API 参考，请访问 [Microsoft Open Database Connectivity (ODBC)](https://learn.microsoft.com/en-us/sql/odbc/microsoft-open-database-connectivity-odbc)。
+
+#### 数据源和驱动程序管理
 
 - API: ConfigDSN
-  - **是否支持**: 支持
+  - **是否支持**: 支持（仅 Windows）
   - **标准**: ODBC
   - **作用**: 配置数据源
   
 - API: ConfigDriver
-  - **是否支持**: 支持
+  - **是否支持**: 支持（仅 Windows）
   - **标准**: ODBC
   - **作用**: 用于执行与特定驱动程序相关的安装和配置任务
   
 - API: ConfigTranslator
-  - **是否支持**: 支持
+  - **是否支持**: 不支持
   - **标准**: ODBC
   - **作用**: 用于解析DSN的配置，在DSN配置和实际数据库驱动程序配置之间进行翻译或转换
 
 
-### 连接到数据源
+#### 连接到数据源
 
 - API: SQLAllocHandle
   - **是否支持**: 支持
@@ -202,7 +316,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
   - **作用**: 在 ODBC 3.x 中，ODBC 2.x 函数 SQLAllocConnect 已替换为 SQLAllocHandle
 
 
-### 获取有关驱动程序和数据源的信息
+#### 获取有关驱动程序和数据源的信息
 
 - API: SQLDataSources
   - **是否支持**: 不支持
@@ -230,7 +344,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
   - **作用**: 返回有关支持的数据类型的信息
 
 
-### 设置和检索驱动程序属性
+#### 设置和检索驱动程序属性
 
 - API: SQLSetConnectAttr
   - **是否支持**: 支持
@@ -283,7 +397,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
   - **作用**: 在 ODBC 3.x 中，ODBC 2.0 函数 SQLSetStmtOption 已替换为 SQLGetStmtAttr
 
 
-### 准备SQL请求
+#### 准备SQL请求
 
 - API: SQLAllocStmt
   - **是否支持**: 不支持
@@ -321,7 +435,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
   - **作用**: 设置控制光标行为的选项
 
 
-### 提交请求
+#### 提交请求
 
 - API: SQLExecute
   - **是否支持**: 支持
@@ -359,7 +473,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
   - **作用**: 当使用流输入方式时，可以用于向输出参数发送数据块
 
 
-### 检索结果和关于结果的信息
+#### 检索结果和关于结果的信息
 
 - API: SQLRowCount
   - **是否支持**: 支持
@@ -422,7 +536,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
   - **作用**: 执行批量插入和批量书签操作，包括更新、删除和按书签提取
 
 
-### 检索错误或诊断信息
+#### 检索错误或诊断信息
 
 - API: SQLError
   - **是否支持**: 不支持
@@ -440,7 +554,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
   - **作用**: 返回附加诊断信息（多条诊断结果）
 
 
-### 获取有关数据源的系统表项的信息
+#### 获取有关数据源的系统表项的信息
 
 - API: SQLColumnPrivileges
   - **是否支持**: 不支持
@@ -493,7 +607,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
   - **作用**: 返回存储过程的列信息，包括输入输出参数的详细信息
 
 
-### 执行事务
+#### 执行事务
 
 - API: SQLTransact
   - **是否支持**: 不支持
@@ -503,10 +617,10 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
 - API: SQLEndTran
   - **是否支持**: 支持
   - **标准**: ISO 92
-  - **作用**: 用于提交或回滚事务，TDengine 不支持事务，因此不支持回滚操作
+  - **作用**: 用于提交或回滚事务。TDengine 是非事务性的，因此 SQLEndTran 函数最多只能模拟提交或回滚操作。如果有任何未完成的连接或语句，无论是提交（commit）还是回滚（rollback）都不会成功
 
 
-### 终止连接
+#### 终止连接
 
 - API: SQLDisconnect
   - **是否支持**: 支持
@@ -538,7 +652,3 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
   - **标准**: ODBC
   - **作用**: 关闭与当前语句句柄关联的游标，并释放游标所使用的所有资源
 
-
-## 与第三方集成
-
-作为使用 TDengine ODBC driver 的一个示例，你可以使用 Power BI 与 TDengine 分析时序数据。更多细节请参考 [Power BI](../../../third-party/bi/powerbi)

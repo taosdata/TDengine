@@ -14,10 +14,12 @@ ENDIF()
 
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
 
-ADD_EXECUTABLE(simTests "simTests.cpp")
-TARGET_LINK_LIBRARIES(simTests os util tsim_static gtest_main)
+IF(TD_LINUX)
+    ADD_EXECUTABLE(simTests "simTests.cpp")
+    TARGET_LINK_LIBRARIES(simTests os util tsim_static gtest_main)
 
-ADD_TEST(
-    NAME simTests
-    COMMAND simTests
-)
+    ADD_TEST(
+        NAME simTests
+        COMMAND simTests
+    )
+ENDIF()

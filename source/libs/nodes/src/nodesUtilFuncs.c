@@ -15,6 +15,7 @@
 
 #include "cmdnodes.h"
 #include "functionMgt.h"
+#include "nodes.h"
 #include "nodesUtil.h"
 #include "plannodes.h"
 #include "querynodes.h"
@@ -1115,12 +1116,17 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_ORDER_BY_EXPR:
       nodesDestroyNode(((SOrderByExprNode*)pNode)->pExpr);
       break;
-    case QUERY_NODE_LIMIT:  // no pointer field
+    case QUERY_NODE_LIMIT: {
+      SLimitNode* pLimit = (SLimitNode*)pNode;
+      nodesDestroyNode((SNode*)pLimit->limit);
+      nodesDestroyNode((SNode*)pLimit->offset);
       break;
+    }
     case QUERY_NODE_STATE_WINDOW: {
       SStateWindowNode* pState = (SStateWindowNode*)pNode;
       nodesDestroyNode(pState->pCol);
       nodesDestroyNode(pState->pExpr);
+      nodesDestroyNode(pState->pTrueForLimit);
       break;
     }
     case QUERY_NODE_SESSION_WINDOW: {
@@ -1172,6 +1178,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pOptions->pCompactIntervalNode);
       nodesDestroyList(pOptions->pCompactTimeRangeList);
       nodesDestroyNode((SNode*)pOptions->pCompactTimeOffsetNode);
+      nodesDestroyNode((SNode*)pOptions->pKeepTimeOffsetNode);
       break;
     }
     case QUERY_NODE_TABLE_OPTIONS: {
@@ -1234,6 +1241,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pEvent->pCol);
       nodesDestroyNode(pEvent->pStartCond);
       nodesDestroyNode(pEvent->pEndCond);
+      nodesDestroyNode(pEvent->pTrueForLimit);
       break;
     }
     case QUERY_NODE_COUNT_WINDOW: {
@@ -1267,7 +1275,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_RANGE_AROUND: {
       SRangeAroundNode* pAround = (SRangeAroundNode*)pNode;
       nodesDestroyNode(pAround->pInterval);
-      nodesDestroyNode(pAround->pTimepoint);
+      nodesDestroyNode(pAround->pRange);
       break;
     }
     case QUERY_NODE_STREAM_NOTIFY_OPTIONS: {
@@ -1287,6 +1295,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pStmt = (SSelectStmt*)pNode;
       nodesDestroyList(pStmt->pProjectionList);
+      nodesDestroyList(pStmt->pProjectionBindList);
       nodesDestroyNode(pStmt->pFromTable);
       nodesDestroyNode(pStmt->pWhere);
       nodesDestroyList(pStmt->pPartitionByList);
@@ -1995,7 +2004,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_INSERT: {
       SDataInserterNode* pSink = (SDataInserterNode*)pNode;
       destroyDataSinkNode((SDataSinkNode*)pSink);
-      taosMemoryFreeClear(pSink->pData);
+      taosMemFreeClear(pSink->pData);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
@@ -3118,6 +3127,25 @@ int32_t nodesMakeValueNodeFromInt32(int32_t value, SNode** ppNode) {
   return code;
 }
 
+int32_t nodesMakeValueNodeFromInt64(int64_t value, SNode** ppNode) {
+  SValueNode* pValNode = NULL;
+  int32_t     code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pValNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    pValNode->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+    pValNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    code = nodesSetValueNodeValue(pValNode, &value);
+    if (TSDB_CODE_SUCCESS == code) {
+      pValNode->translate = true;
+      pValNode->isNull = false;
+      *ppNode = (SNode*)pValNode;
+    } else {
+      nodesDestroyNode((SNode*)pValNode);
+    }
+  }
+  return code;
+}
+
+
 bool nodesIsStar(SNode* pNode) {
   return (QUERY_NODE_COLUMN == nodeType(pNode)) && ('\0' == ((SColumnNode*)pNode)->tableAlias[0]) &&
          (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
@@ -3236,4 +3264,13 @@ int32_t nodesListDeduplicate(SNodeList** ppList) {
     nodesDestroyList(pTmp);
   }
   return code;
+}
+
+void rewriteExprAliasName(SExprNode* pNode, int64_t num) {
+  (void)tsnprintf(pNode->aliasName, TSDB_COL_NAME_LEN, "expr_%x", num);
+  return;
+}
+
+bool isRelatedToOtherExpr(SExprNode* pExpr) {
+  return pExpr->relatedTo != 0;
 }

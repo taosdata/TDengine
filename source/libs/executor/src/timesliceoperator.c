@@ -63,7 +63,7 @@ static void doKeepPrevRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock
       pkey->isNull = false;
       char* val = colDataGetData(pColInfoData, rowIndex);
       if (IS_VAR_DATA_TYPE(pkey->type)) {
-        memcpy(pkey->pData, val, varDataLen(val));
+        memcpy(pkey->pData, val, varDataTLen(val));
       } else {
         memcpy(pkey->pData, val, pkey->bytes);
       }
@@ -87,7 +87,7 @@ static void doKeepNextRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock
       if (!IS_VAR_DATA_TYPE(pkey->type)) {
         memcpy(pkey->pData, val, pkey->bytes);
       } else {
-        memcpy(pkey->pData, val, varDataLen(val));
+        memcpy(pkey->pData, val, varDataTLen(val));
       }
     } else {
       pkey->isNull = true;
@@ -1389,4 +1389,23 @@ void destroyTimeSliceOperatorInfo(void* param) {
     taosMemoryFree(pInfo->pFillColInfo);
   }
   taosMemoryFreeClear(param);
+}
+
+int64_t getMinWindowSize(struct SOperatorInfo* pOperator) {
+  if (pOperator == NULL) {
+    return 0;
+  }
+
+  switch (pOperator->operatorType) {
+    case QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE:
+      return ((SStateWindowOperatorInfo*)pOperator->info)->trueForLimit;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE:
+      return ((SStreamStateAggOperatorInfo*)pOperator->info)->trueForLimit;
+      case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
+      return ((SEventWindowOperatorInfo*)pOperator->info)->trueForLimit;
+      case QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT:
+        return ((SStreamEventAggOperatorInfo*)pOperator->info)->trueForLimit;
+    default:
+      return 0;
+  }
 }

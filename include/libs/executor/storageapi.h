@@ -268,7 +268,7 @@ typedef struct SStoreMeta {
   const void* (*extractTagVal)(const void* tag, int16_t type, STagVal* tagVal);  // todo remove it
 
   int32_t (*getTableUidByName)(void* pVnode, char* tbName, uint64_t* uid);
-  int32_t (*getTableTypeByName)(void* pVnode, char* tbName, ETableType* tbType);
+  int32_t (*getTableTypeSuidByName)(void* pVnode, char* tbName, ETableType* tbType, uint64_t* suid);
   int32_t (*getTableNameByUid)(void* pVnode, uint64_t uid, char* tbName);
   bool (*isTableExisted)(void* pVnode, tb_uid_t uid);
 
@@ -361,6 +361,7 @@ typedef struct SStateStore {
   bool (*streamStateCheck)(SStreamState* pState, const SWinKey* key);
   int32_t (*streamStateGetByPos)(SStreamState* pState, void* pos, void** pVal);
   void (*streamStateDel)(SStreamState* pState, const SWinKey* key);
+  void (*streamStateDelByGroupId)(SStreamState* pState, uint64_t groupId);
   void (*streamStateClear)(SStreamState* pState);
   void (*streamStateSetNumber)(SStreamState* pState, int32_t number, int32_t tsIdex);
   void (*streamStateSaveInfo)(SStreamState* pState, void* pKey, int32_t keyLen, void* pVal, int32_t vLen);
@@ -431,6 +432,7 @@ typedef struct SStateStore {
   int32_t (*updateInfoSerialize)(SEncoder* pEncoder, const SUpdateInfo* pInfo);
   int32_t (*updateInfoDeserialize)(SDecoder* pDeCoder, SUpdateInfo* pInfo);
 
+  SStreamStateCur* (*streamStateSessionSeekKeyPrev)(SStreamState* pState, const SSessionKey* key);
   SStreamStateCur* (*streamStateSessionSeekKeyNext)(SStreamState* pState, const SSessionKey* key);
   SStreamStateCur* (*streamStateCountSeekKeyPrev)(SStreamState* pState, const SSessionKey* pKey, COUNT_TYPE count);
   SStreamStateCur* (*streamStateSessionSeekKeyCurrentPrev)(SStreamState* pState, const SSessionKey* key);

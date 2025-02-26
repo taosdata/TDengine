@@ -861,6 +861,10 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
       lastColId = pColSchema->colId;
     }
 
+    if(boundInfo->pColIndex[c]==0){
+      pCol->cflag |= COL_IS_KEY;
+    }
+
     if (bind[c].num != rowNum) {
       code = buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
       goto _return;
@@ -914,7 +918,7 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
 
   code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, &pDataBlock->ordered,
                             &pDataBlock->duplicateTs);
-  qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
+  qDebug("stmt2 all %d columns bind %d rows data as col format", boundInfo->numOfBound, rowNum);
 
 _return:
 

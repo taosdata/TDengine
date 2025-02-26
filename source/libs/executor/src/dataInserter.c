@@ -187,7 +187,7 @@ int32_t buildSubmitReqFromBlock(SDataInserterHandle* pInserter, SSubmitReq2** pp
   terrno = TSDB_CODE_SUCCESS;
 
   if (NULL == pReq) {
-    if (!(pReq = taosMemoryMalloc(sizeof(SSubmitReq2)))) {
+    if (!(pReq = taosMemoryCalloc(1, sizeof(SSubmitReq2)))) {
       goto _end;
     }
 
