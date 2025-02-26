@@ -55,12 +55,13 @@ if (TRUE)
             list(APPEND ROCKSDB_CMAKE_ARGS -DWITH_MD_LIBRARY=OFF)
         endif()
         
-        # Set system libraries
-        set(SYSTEM_LIBS ${SYSTEM_LIBS} shlwapi.lib rpcrt4.lib)
+        # Set system libraries, as a CMake string
+        # TODO: check ${SYSTEM_LIBS} here really cannot be a multi-item list yet
+        set(SYSTEM_LIBS "${SYSTEM_LIBS} shlwapi.lib rpcrt4.lib")
         
-        # Pass system libraries to RocksDB build
+        # Pass system libraries to RocksDB build, as an element to a CMake list
         list(APPEND ROCKSDB_CMAKE_ARGS
-            -DSYSTEM_LIBS="${SYSTEM_LIBS}"
+            [[-DSYSTEM_LIBS="${SYSTEM_LIBS}"]]
         )
     endif()
 
