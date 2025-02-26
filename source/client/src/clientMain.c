@@ -1469,7 +1469,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     code = pRequest->prevCode;
     terrno = code;
     pRequest->code = code;
-    tscDebug("call sync query cb with code: %s", tstrerror(code));
+    tscDebug("req:0x%" PRIx64 ", call sync query cb with code: %s", pRequest->self, tstrerror(code));
     doRequestCallback(pRequest, code);
     return;
   }

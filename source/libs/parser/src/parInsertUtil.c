@@ -298,7 +298,7 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
   }
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = pTableCxt;
-    qDebug("tableDataCxt created, code:%d, uid:%" PRId64 ", vgId:%d", code, pTableMeta->uid, pTableMeta->vgId);
+    qDebug("uid:%" PRId64 ", create table data context, code:%d, vgId:%d", pTableMeta->uid, code, pTableMeta->vgId);
   } else {
     insDestroyTableDataCxt(pTableCxt);
   }
@@ -478,7 +478,7 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
     taosMemoryFreeClear(pTableCxt->pData);
   }
 
-  qDebug("add tableDataCxt uid:%" PRId64 " to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
+  qDebug("uid:%" PRId64 ", add table data context to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
 
   return code;
 }
@@ -572,7 +572,7 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
     code = catalogGetTableMeta((SCatalog*)pBuildInfo->pCatalog, &conn, &sname, &pTableMeta);
 
     if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
-      parserDebug("tb %s.%s not exist", sname.dbname, sname.tname);
+      parserDebug("tb:%s.%s not exist", sname.dbname, sname.tname);
       return code;
     }
 
