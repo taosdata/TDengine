@@ -38,8 +38,8 @@ int64_t FORCE_INLINE walGetCommittedVer(SWal* pWal) { return pWal->vers.commitVe
 
 int64_t FORCE_INLINE walGetAppliedVer(SWal* pWal) { return pWal->vers.appliedVer; }
 
-static FORCE_INLINE int walBuildMetaName(SWal* pWal, int metaVer, char* buf) {
-  return snprintf(buf, WAL_FILE_LEN, "%s%smeta-ver%d", pWal->path, TD_DIRSEP, metaVer);
+static FORCE_INLINE int walBuildMetaName(SWal* pWal, int64_t metaVer, char* buf) {
+  return snprintf(buf, WAL_FILE_LEN, "%s%smeta-ver%" PRIi64, pWal->path, TD_DIRSEP, metaVer);
 }
 
 static FORCE_INLINE int walBuildTmpMetaName(SWal* pWal, char* buf) {
@@ -953,7 +953,7 @@ static void walUpdateSyncedOffset(SWal* pWal) {
 
 int32_t walSaveMeta(SWal* pWal) {
   int  code = 0, lino = 0;
-  int  metaVer = -1;
+  int64_t  metaVer = -1;
   char fnameStr[WAL_FILE_LEN];
   char tmpFnameStr[WAL_FILE_LEN];
   int  n;
@@ -1074,7 +1074,7 @@ int32_t walLoadMeta(SWal* pWal) {
     } else {
       wInfo("vgId:%d, remove old meta file: %s", pWal->cfg.vgId, fnameStr);
     }
-    wDebug("vgId:%d, wal find empty meta ver %d", pWal->cfg.vgId, metaVer);
+    wDebug("vgId:%d, wal find empty meta ver %" PRIi64, pWal->cfg.vgId, metaVer);
 
     TAOS_RETURN(TSDB_CODE_FAILED);
   }
