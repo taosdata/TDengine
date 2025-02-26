@@ -23,9 +23,9 @@ class Start(TDCase):
         start_time = datetime.utcnow()
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
-        workflow_config = self.tdCom.load_workflow_json(self._remote, f'{os.environ["TEST_ROOT"]}/env/workflow_config.json')
-        print(workflow_config)
-        end_time = start_time + timedelta(seconds=int(workflow_config["exec_time"]))
+        self.workflow_config = self.tdCom.load_workflow_json(self._remote, f'{os.environ["TEST_ROOT"]}/env/self.workflow_config.json')
+        print(self.workflow_config)
+        end_time = start_time + timedelta(seconds=int(self.workflow_config["exec_time"]))
         url = (
             f"http://192.168.2.190:3000/d/dedq3n2zhlypsd/named-processes"
             f"?var-interval=10m&orgId=1&from={start_time.isoformat(timespec='milliseconds')}Z&to={end_time.isoformat(timespec='milliseconds')}Z"
@@ -40,8 +40,10 @@ class Start(TDCase):
             edge_config = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
             edge_host = edge_config["fqdn"][0]
             mqtt_host = mqtt_client_config["fqdn"][0]
-            mqtt_pub_path = mqtt_client_config["spec"]["config"]
+            # mqtt_pub_path = mqtt_client_config["spec"]["config"]
+            mqtt_pub_path = mqtt_client_config["spec"]["config_file"]
             mqtt_pub_interval= mqtt_client_config["spec"]["interval"]
+            mqtt_pub_interval = self.workflow_config["source_interval"]
             self._remote.cmd(mqtt_host,f"nohup mqtt_pub --schema {mqtt_pub_path} --host {edge_host} --interval {mqtt_pub_interval}s > mqtt_pub.log 2>&1 &")
 
     def run(self) -> bool:
