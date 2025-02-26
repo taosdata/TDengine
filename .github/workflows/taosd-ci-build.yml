@@ -33,10 +33,21 @@ jobs:
           - macos-15
           - windows-2019
 
+          
     steps:
       - name: Checkout the repository
         uses: actions/checkout@v4
 
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+    
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -59,6 +70,15 @@ jobs:
             pkg-config \
             zlib1g
 
+      - name: Cache Homebrew on macOS
+        if: runner.os == 'macOS'
+        uses: actions/cache@v3
+        with:
+          path: /usr/local/Homebrew
+          key: ${{ runner.os }}-brew-${{ hashFiles('**/Brewfile') }}
+          restore-keys: |
+            ${{ runner.os }}-brew-
+              
       - name: Install dependencies on macOS
         if: runner.os == 'macOS'
         run: |
