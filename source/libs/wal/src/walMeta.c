@@ -585,7 +585,7 @@ static int32_t walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
 
   pIdxFile = taosOpenFile(fnameStr, TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE);
   if (pIdxFile == NULL) {
-    wError("vgId:%d, failed to open file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
+    wError("vgId:%d, failed to open file due to %s. file:%s", pWal->cfg.vgId, terrstr(), fnameStr);
 
     TAOS_CHECK_GOTO(terrno, &lino, _err);
   }
@@ -901,12 +901,17 @@ _err:
   return TSDB_CODE_FAILED;
 }
 
-static int walFindCurMetaVer(SWal* pWal) {
+static int walFindCurMetaVer(SWal* pWal, int64_t* pMetaVer) {
   const char* pattern = "^meta-ver[0-9]+$";
   regex_t     walMetaRegexPattern;
-  if (regcomp(&walMetaRegexPattern, pattern, REG_EXTENDED) != 0) {
-    wError("failed to compile wal meta pattern, error %s", tstrerror(terrno));
-    return terrno;
+  int         ret = 0;
+
+  if (pMetaVer) *pMetaVer = -1;
+  if ((ret = regcomp(&walMetaRegexPattern, pattern, REG_EXTENDED)) != 0) {
+    char msgbuf[256] = {0};
+    (void)regerror(ret, &walMetaRegexPattern, msgbuf, tListLen(msgbuf));
+    wError("failed to compile wal meta pattern %s, error %s", pattern, msgbuf);
+    return TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
   }
 
   TdDirPtr pDir = taosOpenDir(pWal->path);
@@ -919,13 +924,13 @@ static int walFindCurMetaVer(SWal* pWal) {
   TdDirEntryPtr pDirEntry;
 
   // find existing meta-ver[x].json
-  int metaVer = -1;
+  int64_t metaVer = -1;
   while ((pDirEntry = taosReadDir(pDir)) != NULL) {
     char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
     int   code = regexec(&walMetaRegexPattern, name, 0, NULL, 0);
     if (code == 0) {
-      (void)sscanf(name, "meta-ver%d", &metaVer);
-      wDebug("vgId:%d, wal find current meta: %s is the meta file, ver %d", pWal->cfg.vgId, name, metaVer);
+      (void)sscanf(name, "meta-ver%" PRIi64, &metaVer);
+      wDebug("vgId:%d, wal find current meta: %s is the meta file, ver %" PRIi64, pWal->cfg.vgId, name, metaVer);
       break;
     }
     wDebug("vgId:%d, wal find current meta: %s is not meta file", pWal->cfg.vgId, name);
@@ -936,7 +941,8 @@ static int walFindCurMetaVer(SWal* pWal) {
     return terrno;
   }
   regfree(&walMetaRegexPattern);
-  return metaVer;
+  if (pMetaVer) *pMetaVer = metaVer;
+  return 0;
 }
 
 static void walUpdateSyncedOffset(SWal* pWal) {
@@ -947,11 +953,12 @@ static void walUpdateSyncedOffset(SWal* pWal) {
 
 int32_t walSaveMeta(SWal* pWal) {
   int  code = 0, lino = 0;
-  int  metaVer = walFindCurMetaVer(pWal);
+  int  metaVer = -1;
   char fnameStr[WAL_FILE_LEN];
   char tmpFnameStr[WAL_FILE_LEN];
   int  n;
 
+  TAOS_CHECK_GOTO(walFindCurMetaVer(pWal, &metaVer), &lino, _err);
   // fsync the idx and log file at first to ensure validity of meta
   if (pWal->cfg.level != TAOS_WAL_SKIP && taosFsyncFile(pWal->pIdxFile) < 0) {
     wError("vgId:%d, failed to sync idx file due to %s", pWal->cfg.vgId, strerror(errno));
@@ -1047,14 +1054,11 @@ int32_t walLoadMeta(SWal* pWal) {
   int32_t   lino = 0;
   char*     buf = NULL;
   TdFilePtr pFile = NULL;
+  int64_t   metaVer = -1;
 
   // find existing meta file
-  int metaVer = walFindCurMetaVer(pWal);
-  if (metaVer == -1) {
-    wDebug("vgId:%d, wal find meta ver %d", pWal->cfg.vgId, metaVer);
+  TAOS_CHECK_EXIT(walFindCurMetaVer(pWal, &metaVer));
 
-    TAOS_RETURN(TSDB_CODE_FAILED);
-  }
   char fnameStr[WAL_FILE_LEN];
   n = walBuildMetaName(pWal, metaVer, fnameStr);
   if (n >= sizeof(fnameStr)) {
@@ -1109,7 +1113,13 @@ _exit:
 }
 
 int32_t walRemoveMeta(SWal* pWal) {
-  int metaVer = walFindCurMetaVer(pWal);
+  int     code = 0;
+  int64_t metaVer = -1;
+
+  if ((code = walFindCurMetaVer(pWal, &metaVer))) {
+    wError("failed at line %d to find current meta file since %s", __LINE__, tstrerror(code));
+    TAOS_RETURN(code);
+  }
   if (metaVer == -1) return 0;
   char fnameStr[WAL_FILE_LEN];
   int  n = walBuildMetaName(pWal, metaVer, fnameStr);
