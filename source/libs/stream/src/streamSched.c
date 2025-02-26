@@ -292,6 +292,8 @@ int32_t streamCreateAddRecalculateEndBlock(SStreamTask* pTask) {
   code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pBlock);
   if (code != TSDB_CODE_SUCCESS) {
     stError("s-task:%s failed to put recalculate end block into q, code:%s", pTask->id.idStr, tstrerror(code));
+  } else {
+    stDebug("s-task:%s add the recalculate end block in inputQ", pTask->id.idStr);
   }
 
   return code;
@@ -374,6 +376,8 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
       if (code != TSDB_CODE_SUCCESS) {
         stError("s-task:%s failed to put recalculate block into q, code:%s", pTask->id.idStr, tstrerror(code));
         goto _end;
+      } else {
+        stDebug("s-task:%s put recalculate block into inputQ", pTask->id.idStr);
       }
     } else if (status == TASK_TRIGGER_STATUS__MAY_ACTIVE) {
       SStreamTrigger* pTrigger = NULL;

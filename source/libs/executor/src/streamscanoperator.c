@@ -140,7 +140,7 @@ void buildRecalculateDataSnapshort(SStreamScanInfo* pInfo, SExecTaskInfo* pTaskI
   pInfo->stateStore.streamStateSaveInfo(pTaskInfo->streamInfo.pState, STREAM_DATA_SCAN_OP_REC_ID_NAME,
                                         strlen(STREAM_DATA_SCAN_OP_REC_ID_NAME), &recID, sizeof(int32_t));
   pInfo->stateStore.streamStateSetNumber(pInfo->basic.pTsDataState->pState, recID + 1, pInfo->primaryTsIndex);
-  qDebug("===stream===%s build recalculate snapshort id:%d", GET_TASKID(pTaskInfo), recID);
+  qDebug("===stream===%s build recalculate snapshot id:%d", GET_TASKID(pTaskInfo), recID);
 }
 
 static int32_t getRecalculateId(SStateStore* pStateStore, void* pState, int32_t* pRecId) {
@@ -174,7 +174,7 @@ static int32_t deleteRecalculateDataSnapshort(SStreamScanInfo* pInfo, SExecTaskI
   pInfo->stateStore.streamStateSessionDeleteAll(pInfo->basic.pTsDataState->pState);
 
   pInfo->stateStore.streamStateSetNumber(pInfo->basic.pTsDataState->pState, curID, pInfo->primaryTsIndex);
-  qDebug("===stream===%s delete recalculate snapshort id:%d", GET_TASKID(pTaskInfo), prevRecId);
+  qDebug("===stream===%s delete recalculate snapshot id:%d", GET_TASKID(pTaskInfo), prevRecId);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {

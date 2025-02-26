@@ -168,6 +168,8 @@ const char* streamQueueItemGetTypeStr(int32_t type) {
       return "trans-state";
     case STREAM_INPUT__REF_DATA_BLOCK:
       return "ref-block";
+    case STREAM_INPUT__RECALCULATE:
+      return "recalculate";
     default:
       return "datablock";
   }
@@ -213,7 +215,7 @@ EExtractDataCode streamTaskGetDataFromInputQ(SStreamTask* pTask, SStreamQueueIte
     // do not merge blocks for sink node and check point data block
     int8_t type = qItem->type;
     if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
-        type == STREAM_INPUT__TRANS_STATE || type == STREAM_INPUT__REF_DATA_BLOCK) {
+        type == STREAM_INPUT__TRANS_STATE || type == STREAM_INPUT__REF_DATA_BLOCK || type == STREAM_INPUT__RECALCULATE) {
       const char* p = streamQueueItemGetTypeStr(type);
 
       if (*pInput == NULL) {
