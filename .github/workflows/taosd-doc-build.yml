@@ -24,7 +24,7 @@ jobs:
   check:
     runs-on: 
       group: CI
-      labels: [self-hosted, doc-build]
+      labels: [self-hosted, Linux, X64, doc-build]
     outputs:
       changed_files_zh: ${{ steps.set_output.outputs.changed_files_zh }}
       changed_files_en: ${{ steps.set_output.outputs.changed_files_en }}

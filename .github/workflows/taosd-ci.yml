@@ -1,0 +1,191 @@
+
+name: TDengine CI Pipeline
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.1'
+    paths-ignore:
+      - 'packaging/**'
+  repository_dispatch:
+    types: [run-tests]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TDINTERNAL_TRIGGER: 'false'
+  TDENGINE_SOURCE_BRANCH: ${{ github.event.pull_request.head.ref }}
+  TDENGINE_TARGET_BRANCH: ${{ github.event.pull_request.base.ref }}
+  TDENGINE_PR_NUMBER: ${{ github.event.pull_request.number }}
+  CONTAINER_NAME: 'taosd-test'
+  WKDIR: '/var/lib/jenkins/workspace'
+  WK: '/var/lib/jenkins/workspace/TDinternal'
+  WKC: '/var/lib/jenkins/workspace/TDinternal/community'
+  WIN_INTERNAL_ROOT: 'C:\\workspace\\${{ github.event.pull_request.number }}\\TDinternal'
+  WIN_COMMUNITY_ROOT: 'C:\\workspace\\${{ github.event.pull_request.number }}\TDinternal\\community'
+  WIN_SYSTEM_TEST_ROOT: 'C:\\workspace\\${{ github.event.pull_request.number }}\\TDinternal\\community\\tests\\system-test'
+
+jobs:
+  check-trigger-from:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the trigger from
+        id: check_trigger_from
+        run: |
+          TDINTERNAL_TRIGGER='false'
+          if [ -n "${{ github.event.client_payload.tdinternal_source_branch }}" ]; then
+            TDINTERNAL_TRIGGER='true'
+          fi
+          echo "TDINTERNAL_TRIGGER=$TDINTERNAL_TRIGGER" >> $GITHUB_ENV
+
+  build-doc:
+    uses: ./.github/workflows/taosd-doc-build.yml
+    if: ${{ github.env.TDINTERNAL_TRIGGER == false }}
+    with:
+      target_branch: ${{ github.event.pull_request.base.ref }}
+      target_pr_number: ${{ github.event.pull_request.number }}
+
+  run-testing-on-linux:
+    needs: build-doc
+    runs-on: 
+      group: CI
+      labels: [self-hosted, Linux, X64, testing]
+    timeout-minutes: 200
+    steps:
+      - name: Output the testing information
+        run: |
+          echo "runner name: ${{ runner.name }}"
+          echo "Whether is triggered by TDinternal: ${{ github.env.TDINTERNAL_TRIGGER }}"
+          if [ "${{ env.TDINTERNAL_TRIGGER }}" == "false" ]; then
+            echo "${{ env.WKDIR }}/restore.sh -p ${{ github.env.TDENGINE_PR_NUMBER }} -n ${{ github.run_number }} -c ${{ env.CONTAINER_NAME }}"
+          else
+            echo "${{ env.WKDIR }}/restore.sh -p ${{ github.event.client_payload.tdinternal_pr_number }} -n ${{ github.run_number }} -c ${{ env.CONTAINER_NAME }}"
+          fi
+          hostname
+          date
+          env
+      - name: Prepare the testing environment
+        run: |
+          cd ${{ env.WK }}
+          git config --list
+          prepare_environment() {
+            cd "$1"
+            git reset --hard
+            git remote prune origin
+            git fetch
+            git checkout "$2"
+          }
+          prepare_environment "${{ env.WK }}" "${{ github.event.pull_request.base.ref}}"
+          prepare_environment "${{ env.WKC }}" "${{ github.event.pull_request.base.ref  }}"
+
+      - name: Get latest codes and logs for TDinternal PR
+        if: ${{ env.TDINTERNAL_TRIGGER == 'true' }}
+        run: |
+          cd ${{ env.WK }}
+          git pull >/dev/null
+          git log -5
+          echo "`date "+%Y%m%d-%H%M%S"` TDinternalTest/${{ github.event.client_payload.tdinternal_pr_number }}:${{ github.run_number }}:${{ github.event.client_payload.tdinternal_target_branch }}" >>${{ env.WKDIR }}/jenkins.log
+          echo "CHANGE_BRANCH:${{ github.event.client_payload.tdinternal_source_branch }}" >>${{ env.WKDIR }}/jenkins.log
+          echo "TDinternal log: `git log -5`" >>${{ env.WKDIR }}/jenkins.log
+          git fetch origin +refs/pull/${{ github.event.client_payload.tdinternal_pr_number }}/merge
+          git checkout -qf FETCH_HEAD
+          git log -5
+          echo "TDinternal log merged: `git log -5`" >>${{ env.WKDIR }}/jenkins.log
+          cd ${{ env.WKC }}
+          git remote prune origin
+          git pull >/dev/null
+          git log -5
+          echo "community log: `git log -5`" >>${{ env.WKDIR }}/jenkins.log
+      - name: Get latest codes and logs for TDengine PR
+        if: ${{ env.TDINTERNAL_TRIGGER == 'false' }}
+        run: |
+          cd ${{ env.WKC }}
+          git remote prune origin
+          git pull >/dev/null
+          git log -5
+          echo "`date "+%Y%m%d-%H%M%S"` TDengineTest/${{ env.TDENGINE_PR_NUMBER }}:${{ github.run_number }}:${{ github.event.pull_request.base.ref }}" >>${{ env.WKDIR }}/jenkins.log
+          echo "CHANGE_BRANCH:${{ env.TDENGINE_SOURCE_BRANCH }}" >>${{ env.WKDIR }}/jenkins.log
+          echo "community log: `git log -5`" >>${{ env.WKDIR }}/jenkins.log
+          git fetch origin +refs/pull/${{ env.TDENGINE_PR_NUMBER }}/merge
+          git checkout -qf FETCH_HEAD
+          git log -5
+          echo "community log merged: `git log -5`" >>${{ env.WKDIR }}/jenkins.log
+          cd ${{ env.WK }}
+          git pull >/dev/null
+          git log -5
+          echo "TDinternal log: `git log -5`" >>${{ env.WKDIR }}/jenkins.log
+      - name: Update submodule
+        run: |
+          cd ${{ env.WKC }}
+          git submodule update --init --recursive
+      - name: Output the 'file_no_doc_changed' information to the file
+        if: ${{ !github.env.TDINTERNAL_TRIGGER }}
+        run: |
+          mkdir -p ${{ env.WKDIR }}/tmp/${{ env.TDENGINE_PR_NUMBER }}_${{ github.run_number }}
+          echo ${{ needs.build-doc.outputs.file_no_doc_changed }} > ${{ env.WKDIR }}/tmp/${{ env.TDENGINE_PR_NUMBER }}_${{ github.run_number }}/docs_changed.txt
+      - name: Check assert testing
+        run: |
+          cd ${{ env.WKC }}/tests/parallel_test
+          ./run_check_assert_container.sh -d ${{ env.WKDIR }}
+      - name: Check void function testing
+        run: |
+          cd ${{ env.WKC }}/tests/parallel_test
+          ./run_check_void_container.sh -d ${{ env.WKDIR }}
+      - name: Build docker container
+        run: |
+          date
+          rm -rf ${{ env.WKC }}/debug
+          cd ${{ env.WKC }}/tests/parallel_test
+          time ./container_build.sh -w ${{ env.WKDIR }} -e
+      - name: Get parameters for testing
+        id: get_param
+        run: |
+          log_server_file="/home/log_server.json"
+          timeout_cmd=""
+          extra_param=""
+
+          if [ -f "$log_server_file" ]; then
+            log_server_enabled=$(jq '.enabled' "$log_server_file")
+            timeout_param=$(jq '.timeout' "$log_server_file")
+            if [ "$timeout_param" != "null" ] && [ "$timeout_param" != "0" ]; then
+              timeout_cmd="timeout $timeout_param"
+            fi
+
+            if [ "$log_server_enabled" == "1" ]; then
+              log_server=$(jq '.server' "$log_server_file" | sed 's/\\\"//g')
+              if [ "$log_server" != "null" ] && [ "$log_server" != "" ]; then
+                extra_param="-w $log_server"
+              fi
+            fi
+          fi
+          echo "::set-output name=extra_param::$extra_param"
+      - name: Run function returns with a null pointer scan testing
+        run: |
+          cd ${{ env.WKC }}/tests/parallel_test
+          if ${{ github.env.TDINTERNAL_TRIGGER }} == false; then
+            ./run_scan_container.sh -d ${{ env.WKDIR }} -b ${{ env.TDENGINE_PR_NUMBER }}_${{ github.run_number }}  -f ${{ env.WKDIR }}/tmp/${{ env.TDENGINE_PR_NUMBER }}_${{ github.run_number }}/docs_changed.txt ${{ steps.get_param.outputs.extra_param }}
+          else
+            ./run_scan_container.sh -d ${{ env.WKDIR }} -b ${{ github.event.client_payload.tdinternal_pr_number }}_${{ github.run_number  }}  -f ${{ env.WKDIR }}/tmp/${{ github.event.client_payload.tdinternal_pr_number}}_${{ github.run_number  }}/docs_changed.txt ${{ steps.get_param.outputs.extra_param }}
+          fi
+      - name: Run tdgpt test cases
+        if: ${{ !github.env.TDINTERNAL_TRIGGER }} && ${{ needs.build-doc.outputs.file_changed_exclude_doc_file }} =~ /forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics/ 
+        run: |
+          cd ${{ env.WKC }}/tests/parallel_test
+          export DEFAULT_RETRY_TIME=2
+          date
+          timeout 600 time ./run.sh -e -m /home/m.json -t tdgpt_cases.task -b ${{ env.TDENGINE_PR_NUMBER }}_${{ github.run_number }} -l ${{ env.WKDIR }}/log -o 300 ${{ steps.get_param.outputs.extra_param }}
+      - name: Run function test cases
+        if: ${{ needs.build-doc.outputs.file_changed_exclude_tdgpt_file }} != ''
+        run:
+          cd ${{ env.WKC }}/tests/parallel_test
+          export DEFAULT_RETRY_TIME=2
+          date
+          if ${{ env.TDINTERNAL_TRIGGER }} == false; then
+            timeout 600 time ./run.sh -e -m /home/m.json -t cases.task -b ${{ env.TDENGINE_PR_NUMBER }}_${{ github.run_number }} -l ${{ env.WKDIR }}/log -o 1200 ${{ steps.get_param.outputs.extra_param }}
+          else
+            timeout 600 time ./run.sh -e -m /home/m.json -t cases.task -b ${{ github.event.client_payload.tdinternal_pr_number }}_${{ github.run_number }} -l ${{ env.WKDIR }}/log -o 1200 ${{ steps.get_param.outputs.extra_param }}
+          fi
