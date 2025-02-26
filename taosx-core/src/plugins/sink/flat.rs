@@ -109,7 +109,7 @@ pub(crate) fn message_to_sql<'a>(
     (sql_records, full_tablenames_need_to_cache)
 }
 
-fn recordbatch_to_sql(
+pub fn recordbatch_to_sql(
     database_name: Option<&str>,
     super_table_name: &str,
     batch: &RecordBatch,
@@ -229,7 +229,7 @@ fn recordbatch_to_sql(
 /// and `records` number of records.
 #[derive(Debug)]
 #[allow(dead_code)]
-pub(crate) struct Records {
+pub struct Records {
     pub stable: Option<String>,
     pub sql: String,
     pub tables: usize,
@@ -333,7 +333,7 @@ lazy_static! {
 }
 
 #[instrument(skip_all)]
-async fn write_stable_with_sql(
+pub async fn write_stable_with_sql(
     pool: &TaosPool,
     taos: &mut Option<TaosConnection>,
     req_id: u64,
@@ -2016,7 +2016,7 @@ pub async fn flat_write_with_raw_block(
     Ok(count)
 }
 
-async fn handling_database_not_exist(
+pub async fn handling_database_not_exist(
     global: &TableOptions,
     messages: &[MessageArrowRecords],
     err: taos::Error,

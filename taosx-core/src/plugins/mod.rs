@@ -124,7 +124,16 @@ pub async fn build_ipc(
         let pool = {
             let builder = taos::TaosBuilder::from_dsn(to)?;
             let mut pool_config = builder.default_pool_config();
-            pool_config.timeouts.wait = Some(Duration::from_secs(30));
+            let timeout = match parser.clone() {
+                Some(parser) => {
+                    parser
+                        .global()
+                        .process_on_abnormal
+                        .connection_timeout_in_second_value
+                }
+                None => 30,
+            };
+            pool_config.timeouts.wait = Some(Duration::from_secs(timeout as u64));
             builder.with_pool_config(pool_config)?
         };
         let _ = pool.get().await.context("Target connection error")?;

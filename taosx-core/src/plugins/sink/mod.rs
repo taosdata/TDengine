@@ -3530,7 +3530,7 @@ pub fn generate_alter_sql_diff_desc(
     }
 }
 
-async fn get_current_precision(conn: &Taos) -> anyhow::Result<taos::Precision> {
+pub async fn get_current_precision(conn: &Taos) -> anyhow::Result<taos::Precision> {
     let database: String = conn
         .query_one("select database()")
         .await?
