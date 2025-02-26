@@ -200,7 +200,7 @@
           <el-input v-model="ruleForm.created_at"></el-input>
         </el-form-item>
         <el-form-item prop="s3_enable" :label="$t('taosuser.backupForm.s3Enable')">
-          <el-switch v-model="ruleForm.s3_enable" active-color="#13ce66" inactive-color="#dcdfe6"></el-switch>
+          <el-switch v-model="ruleForm.s3_enable" :disabled="!s3EnableEditable" active-color="#13ce66" inactive-color="#dcdfe6"></el-switch>
         </el-form-item>
         <el-form-item v-if="ruleForm.s3_enable" required prop="s3_endpoint" :label="$t('taosuser.backupForm.s3Endpoint')">
           <el-input v-model="ruleForm.s3_endpoint"></el-input>
@@ -275,6 +275,8 @@ import { validateTask } from '@/api/datain';
 const emit = defineEmits(['viewHistory']);
 const backupStore = useBackupStore();
 
+const s3EnableEditable = ref(true);
+
 const { t } = useI18n();
 const globalCustomProperties: any = inject('globalCustomProperties');
 const { $IS_COMMUNITY, $error } = globalCustomProperties;
@@ -341,6 +343,7 @@ const ruleForm = reactive<RuleForm>({
 const viewOnly = ref(false);
 
 const copy = (data: any) => {
+  s3EnableEditable.value = true;
   currentId.value = '';
   viewOnly.value = false;
   dialog.value = true;
@@ -496,6 +499,7 @@ const add = () => {
     compression_level: 'fastest'
   });
 
+  s3EnableEditable.value = true;
   dialogTitle.value = t('taosuser.createbackup');
   dialog.value = true;
   currentId.value = '';
@@ -504,6 +508,7 @@ const add = () => {
 
 const edit = (data: any) => {
   copy(data);
+  s3EnableEditable.value = !ruleForm.s3_enable;
   ruleForm.database = data.database;
   ruleForm.stable = data.stable;
   dialogTitle.value = `${t('change')} ${t('taosuser.backupPlan')}`;
@@ -564,7 +569,7 @@ const stop = async (_val: any, data: any) => {
 
 const switchOperation = (val: any, data: any, tip: string) => {
   if (val) {
-    ElMessageBox.confirm(t(tip).replace('{operate}', t('replication.start')).replace('{id}', data.id), t('warning'), {
+    ElMessageBox.confirm(t(tip, [t('replication.start'), data.id]), t('warning'), {
       confirmButtonText: t('confirm'),
       cancelButtonText: t('cancel'),
       type: 'warning'
@@ -576,7 +581,7 @@ const switchOperation = (val: any, data: any, tip: string) => {
         data.running = false;
       });
   } else {
-    ElMessageBox.confirm(t(tip).replace('{operate}', t('replication.stop')).replace('{id}', data.id), t('warning'), {
+    ElMessageBox.confirm(t(tip, [t('replication.stop'), data.id]), t('warning'), {
       confirmButtonText: t('confirm'),
       cancelButtonText: t('cancel'),
       type: 'warning'
@@ -633,14 +638,16 @@ const submit = (formEl: FormInstance | undefined) => {
       return;
     }
     const postData = constructPostData();
-    const result = await validateTask({ to: postData.to });
-    if (!result || !result.valid) {
-      if (result.message) {
-        $error(result.message);
-      } else {
-        $error(t('taosuser.validateS3Failed'));
+    if (ruleForm.s3_enable) {
+      const result = await validateTask({ from: postData.from, to: postData.to });
+      if (!result || !result.valid) {
+        if (result.message) {
+          $error(result.message);
+        } else {
+          $error(t('taosuser.validateS3Failed'));
+        }
+        return;
       }
-      return;
     }
 
     try {
