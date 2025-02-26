@@ -127,6 +127,7 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "compact_interval", .bytes = 12 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "compact_time_range", .bytes = 24 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "compact_time_offset", .bytes = 4 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "flush_interval", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
 };
 
 static const SSysDbTableSchema userFuncSchema[] = {

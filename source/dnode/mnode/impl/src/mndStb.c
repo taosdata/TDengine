@@ -42,7 +42,9 @@ static int32_t  mndStbActionDelete(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew);
 static int32_t  mndProcessTtlTimer(SRpcMsg *pReq);
 static int32_t  mndProcessTrimDbTimer(SRpcMsg *pReq);
+static int32_t  mndProcessCommitDbTimer(SRpcMsg *pReq);
 static int32_t  mndProcessS3MigrateDbTimer(SRpcMsg *pReq);
+static int32_t  mndProcessCommitDbRsp(SRpcMsg *pReq);
 static int32_t  mndProcessS3MigrateDbRsp(SRpcMsg *pReq);
 static int32_t  mndProcessCreateStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterStbReq(SRpcMsg *pReq);
@@ -88,6 +90,7 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_TABLE_META, mndProcessTableMetaReq);
   mndSetMsgHandle(pMnode, TDMT_MND_TTL_TIMER, mndProcessTtlTimer);
   mndSetMsgHandle(pMnode, TDMT_MND_TRIM_DB_TIMER, mndProcessTrimDbTimer);
+  mndSetMsgHandle(pMnode, TDMT_MND_COMMIT_DB_TIMER, mndProcessCommitDbTimer);
   mndSetMsgHandle(pMnode, TDMT_VND_S3MIGRATE_RSP, mndProcessS3MigrateDbRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_S3MIGRATE_DB_TIMER, mndProcessS3MigrateDbTimer);
   mndSetMsgHandle(pMnode, TDMT_MND_TABLE_CFG, mndProcessTableCfgReq);
@@ -96,6 +99,7 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_TB_WITH_TSMA, mndProcessDropTbWithTsma);
   mndSetMsgHandle(pMnode, TDMT_VND_FETCH_TTL_EXPIRED_TBS_RSP, mndProcessFetchTtlExpiredTbs);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_TABLE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_COMMIT_RSP, mndProcessCommitDbRsp);
   //  mndSetMsgHandle(pMnode, TDMT_MND_SYSTABLE_RETRIEVE, mndProcessRetrieveStbReq);
 
   // mndSetMsgHandle(pMnode, TDMT_MND_CREATE_INDEX, mndProcessCreateIndexReq);
@@ -1101,6 +1105,59 @@ static int32_t mndProcessTrimDbTimer(SRpcMsg *pReq) {
       mError("vgId:%d, timer failed to send vnode-trim request to vnode since 0x%x", pVgroup->vgId, code);
     } else {
       mInfo("vgId:%d, timer send vnode-trim request to vnode, time:%d", pVgroup->vgId, trimReq.timestamp);
+    }
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  return 0;
+}
+
+static int32_t mndProcessCommitDbTimer(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  SVgObj *pVgroup = NULL;
+  void   *pIter = NULL;
+  int32_t contLen = sizeof(SMsgHead);
+
+  SMTimerReq timerReq = {0};
+  if (tDeserializeSMTimerMsg(pReq->pCont, pReq->contLen, &timerReq)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  mInfo("timer request to commit db:%s", timerReq.db);
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+    if (strncmp(pVgroup->dbName, timerReq.db, TSDB_DB_FNAME_LEN) != 0) continue;
+
+    int32_t code = 0;
+
+    SMsgHead *pHead = rpcMallocCont(contLen);
+    if (pHead == NULL) {
+      sdbCancelFetch(pSdb, pVgroup);
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
+    pHead->contLen = htonl(contLen);
+    pHead->vgId = htonl(pVgroup->vgId);
+
+    SRpcMsg rpcMsg = {.msgType = TDMT_VND_COMMIT, .pCont = pHead, .contLen = contLen};
+
+    SEpSet  epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    char    detail[1024] = {0};
+    int32_t len = tsnprintf(detail, sizeof(detail), "numOfEps:%d inUse:%d", epSet.numOfEps, epSet.inUse);
+    for (int32_t i = 0; i < epSet.numOfEps; ++i) {
+      len += tsnprintf(detail + len, sizeof(detail) - len, " ep:%d-%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
+    }
+
+    TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
+    STraceId *trace = &(rpcMsg.info.traceId);
+
+    code = tmsgSendReq(&epSet, &rpcMsg);
+    if (code != 0) {
+      mError("vgId:%d, timer failed to send vnode-commit request to vnode since 0x%x", pVgroup->vgId, code);
+    } else {
+      mGInfo("vgId:%d, timer send vnode-commit request to vnode %s", pVgroup->vgId, detail);
     }
     sdbRelease(pSdb, pVgroup);
   }
@@ -2927,6 +2984,7 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
 static int32_t mndProcessDropTtltbRsp(SRpcMsg *pRsp) { return 0; }
 static int32_t mndProcessTrimDbRsp(SRpcMsg *pRsp) { return 0; }
 static int32_t mndProcessS3MigrateDbRsp(SRpcMsg *pRsp) { return 0; }
+static int32_t mndProcessCommitDbRsp(SRpcMsg *pRsp) { return 0; }
 
 static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
