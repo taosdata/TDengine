@@ -287,6 +287,8 @@ IF(TD_BUILD_KEEPER)
             COMMAND cmake -E copy ./config/taoskeeper.toml ${CMAKE_BINARY_DIR}/test/cfg/
             COMMAND cmake -E echo "Copy taoskeeper.service"
             COMMAND cmake -E copy ./taoskeeper.service ${CMAKE_BINARY_DIR}/test/cfg/
+            # Explicit dependency: taoskeeper depends on rocksdb
+            DEPENDS rocksdb
         )
     ENDIF()
 ENDIF()
