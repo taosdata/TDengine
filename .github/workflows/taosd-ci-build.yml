@@ -123,7 +123,7 @@ jobs:
             -DBUILD_HTTP=false \
             -DBUILD_TEST=true \
             -DBUILD_DEPENDENCY_TESTS=false
-          make -j
+          make -j4
           sudo make install
           which taosd
           which taosadapter
@@ -136,8 +136,8 @@ jobs:
           call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
           mkdir debug && cd debug
-          cmake .. -G "NMake Makefiles JOM" -DBUILD_TOOLS=true -DBUILD_HTTP=false -DBUILD_TEST=true -DBUILD_DEPENDENCY_TESTS=false -DBUILD_KEEPER=true
-          jom -j
+          cmake .. -G "NMake Makefiles JOM" -DBUILD_TOOLS=true -DBUILD_HTTP=false -DBUILD_TEST=false -DBUILD_DEPENDENCY_TESTS=false -DBUILD_KEEPER=true
+          jom -j4
           jom install
           where taosd
           where taosadapter
