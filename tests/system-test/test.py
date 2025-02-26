@@ -84,6 +84,7 @@ def runOnPreviousCluster(host, config, fileName):
         tdLog.exit("%s failed" % (fileName))
     # stop
     case.stop()
+    print("temp")
 
 
 if __name__ == "__main__":

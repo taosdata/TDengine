@@ -21,6 +21,7 @@ import traceback
 from util.log import *
 import platform
 
+print("test")
 
 class TDCase:
     def __init__(self, name, case):
