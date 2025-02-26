@@ -26,6 +26,11 @@ jobs:
       matrix:
         os:
           - ubuntu-20.04
+          - ubuntu-22.04
+          - ubuntu-24.04
+          - macos-13
+          - macos-14
+          - macos-15
 
     steps:
       - name: Checkout the repository
@@ -68,42 +73,14 @@ jobs:
             snappy \
             zlib
 
-      - name: Download third-party tools build results
-        uses: actions/download-artifact@v4
-        with:
-          name: third-tools-build-cache
-          path: ${{ github.workspace }}/
-          github-token: ${{ secrets.WORKFLOW_PAT }}
-          repository: taosdata/TDengine
-          run-id: 13473357450
-      - name: Display structure of download files
+      - name: Build and install TDengine
         run: |
-          echo "contrib"
-          ls -a ${{ github.workspace }}/contrib/
-          echo "taosadapter"
-          ls -a ${{ github.workspace }}/tools/taosadapter/
-          echo "taosadapter branch"
-          cd ${{ github.workspace }}/tools/taosadapter/ && git branch --show-current
-          echo "taosadapter log"
-          cd ${{ github.workspace }}/tools/taosadapter/ && git log -5
-      - name: Remvoe the cache file of third-party tools
-        run: |
-          rm -rf ${{ github.workspace }}/contrib/deps-download/CMakeCache.txt
-          rm -rf ${{ github.workspace }}/contrib/deps-download/openssl-prefix
-          rm -rf ${{ github.workspace }}/contrib/deps-download/curl2-prefix
-
-      - name: Cmake build 
-        run: |
-          cd debug && pwd
+          mkdir debug && cd debug
           cmake .. -DBUILD_TOOLS=true \
             -DBUILD_KEEPER=true \
             -DBUILD_HTTP=false \
             -DBUILD_TEST=true \
             -DBUILD_DEPENDENCY_TESTS=false
-
-      - name: Make and install TDengine    
-        run: |
-          cd debug/ && pwd
           make -j 4
           sudo make install
           which taosd
