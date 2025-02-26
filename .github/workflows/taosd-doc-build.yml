@@ -1,5 +1,4 @@
-
-name: Reusable workflow of TDengine document buile pipelines
+name: TDengine Doc Build
 
 on:
   workflow_call:
