@@ -2977,29 +2977,41 @@ mod parser_tests {
             "written_concurrent": 4,
             "workers_per_vgroup": 4,
             "null_values": "null",
-            "primary_timestamp_overflow": "break",
-            "primary_timestamp_null": "use_current_time",
-            "primary_key_null": "break",
-            "table_name_length_overflow": "truncate",
-            "table_name_contains_illegal_char": {"replace_to": "_"},
-            "variable_not_exist_in_table_name_template": "leave_blank",
-            "field_name_not_found": "break",
-            "field_name_length_overflow": "truncate",
-            "field_length_extend": true,
-            "field_length_overflow": "truncate_and_archive",
-            "ingesting_error": "archive",
-            "connection_timeout": 10,
             "cache": {
-                "max_size": 1024,
+                "max_size": "0GB",
+                "max_size_unit": "GB",
+                "max_size_value": 0,
                 "location": "cache",
                 "on_fail": "skip"
             },
             "archive": {
-                "keep_days": 10,
-                "max_size": 1024,
-                "location": "archive",
+                "keep_days": "0d",
+                "keep_days_unit": "d",
+                "keep_days_value": 0,
+                "max_size": "0GB",
+                "max_size_unit": "GB",
+                "max_size_value": 0,
+                "location": "",
                 "on_fail": "rotate"
-            }
+            },
+            "primary_timestamp_overflow": "archive",
+            "primary_timestamp_null": "archive",
+            "primary_key_null": "archive",
+            "table_name_length_overflow": "archive",
+            "table_name_contains_illegal_char": {
+                "replace_to": ""
+            },
+            "variable_not_exist_in_table_name_template": {
+                "replace_to": ""
+            },
+            "field_name_not_found": "add_field",
+            "field_name_length_overflow": "archive",
+            "field_length_extend": true,
+            "field_length_overflow": "archive",
+            "ingesting_error": "archive",
+            "connection_timeout_in_second": "1s",
+            "connection_timeout_in_second_unit": "s",
+            "connection_timeout_in_second_value": 1
         }"#;
         let global: TableOptions = serde_json::from_str(global).unwrap();
         dbg!(global);
