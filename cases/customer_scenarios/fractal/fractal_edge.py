@@ -27,21 +27,21 @@ class FractakEdge(TDCase):
             task_data = {}
 
             mqtt_payload = file.read_yaml("parser.yaml")
-            mqtt_payload["parser"]["s_model"]["name"] = f"site_{case_data_org["topics"][mqtt_num]}_{hostname}"
+            mqtt_payload["parser"]["s_model"]["name"] = f'site_{case_data_org["topics"][mqtt_num]}_{hostname}'
             child_table_model = mqtt_payload["parser"]["model"]["name"]
             mqtt_payload["parser"]["model"]["name"] = f"{child_table_model}_{hostname}"
             cliend_id = self.tdCom.get_long_name(4)
-            task_data["from"] = f"mqtt://{hostname}:1883? \
+            task_data["from"] = f'mqtt://{hostname}:1883? \
                                 client_id={cliend_id}& \
                                 keep_alive=60& \
                                 clean_session=true& \
                                 topics={case_data_org["topics"][mqtt_num]}::0\
-                                topic_patterns={case_data_org["topic_patterns"][mqtt_num]}"
+                                topic_patterns={case_data_org["topic_patterns"][mqtt_num]}'
             mqtt_payload
             task_data["parser"] = mqtt_payload["parser"]
-            task_data["to"] = f"taos+ws://{hostname}:6041/{self.target_dbname}" 
+            task_data["to"] = f"taos+ws://{hostname}:6041/{self.target_dbname}"
             task_list.append(task_data)
-            
+
         return task_list
     def run(self):
         headers = {"Content-Type": "application/json"}
@@ -62,7 +62,7 @@ class FractakEdge(TDCase):
         for hostname in self.hosts:
             for task_id in task_list:
                 TDRest.request(data=None, method='POST', url=f'http://{hostname}:6050/api/x/tasks/{task_id}/stop',header=headers)
-        
+
         # TODO 等待任务结束，后面换成获取任务状态的方式
         time.sleep(15)
         # TODO 获取每个任务的metrics并保存下来
@@ -78,7 +78,7 @@ class FractakEdge(TDCase):
             1. 每个edge侧taosd中创建数据库
             2. 每个edge侧创建4个mqtt datain任务，每个edge侧的stable和table名需要保持唯一，通过外部参数传入
             3. 统计每个mqtt datain任务的写入速率，通过metrics接口获取
-            
+
         """
         return case_description
 
