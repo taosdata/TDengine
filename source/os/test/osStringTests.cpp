@@ -650,9 +650,9 @@ TEST(osStringTests, strint2) {
 
   TdUcs4  p1, p2;
   int32_t val32 = 0;
-  ret32 = tasoUcs4Compare(&p1, NULL, val32);
+  ret32 = taosUcs4Compare(&p1, NULL, val32);
   EXPECT_NE(ret32, 0);
-  ret32 = tasoUcs4Compare(NULL, &p2, val32);
+  ret32 = taosUcs4Compare(NULL, &p2, val32);
   EXPECT_NE(ret32, 0);
 
   void* retptr = taosAcquireConv(NULL, M2C, NULL);
