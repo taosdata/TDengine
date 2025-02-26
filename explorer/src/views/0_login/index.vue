@@ -107,7 +107,7 @@
           :title="$t('register.requirement')"
           type="warning">
         </el-alert>
-        <div class="language" @click="switchLanguage">{{ locallanguage }}</div>
+        <!-- <div class="language" @click="switchLanguage">{{ locallanguage }}</div> -->
       </div>
       
     </section>
