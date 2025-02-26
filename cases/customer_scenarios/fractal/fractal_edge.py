@@ -37,7 +37,7 @@ class FractakEdge(TDCase):
                                 clean_session=true& \
                                 topics={case_data_org["topics"][mqtt_num]}::0\
                                 topic_patterns={case_data_org["topic_patterns"][mqtt_num]}'
-            mqtt_payload
+            # mqtt_payload
             task_data["parser"] = mqtt_payload["parser"]
             task_data["to"] = f"taos+ws://{hostname}:6041/{self.target_dbname}"
             task_list.append(task_data)
