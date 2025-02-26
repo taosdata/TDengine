@@ -1001,7 +1001,7 @@ int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* vers
 
   ctgReleaseVgInfoToCache(pCtg, dbCache);
 
-  ctgDebug("Got db vgVersion from cache, dbFName:%s, vgVersion:%d", dbFName, *version);
+  ctgDebug("get db vgVersion from cache, dbFName:%s, vgVersion:%d", dbFName, *version);
 
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 
