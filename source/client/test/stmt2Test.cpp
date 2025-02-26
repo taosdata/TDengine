@@ -1913,4 +1913,158 @@ TEST(stmt2Case, async_order) {
   }
   taosMemoryFree(tbs);
 }
+
+TEST(stmt2Case, rowformat_bind) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+
+  do_query(taos, "drop database if exists stmt2_testdb_16");
+  do_query(taos, "create database IF NOT EXISTS stmt2_testdb_16");
+  do_query(
+      taos,
+      "create stable stmt2_testdb_16.stb(ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 binary(8), c6 "
+      "smallint, c7 "
+      "tinyint, c8 bool, c9 nchar(8), c10 geometry(256))TAGS(tts timestamp, t1 int, t2 bigint, t3 float, t4 double, t5 "
+      "binary(8), t6 smallint, t7 tinyint, t8 bool, t9 nchar(8), t10 geometry(256))");
+
+  TAOS_STMT2_OPTION option = {0};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+  int       code = 0;
+  uintptr_t c10len = 0;
+  struct {
+    int64_t       c1;
+    int32_t       c2;
+    int64_t       c3;
+    float         c4;
+    double        c5;
+    unsigned char c6[8];
+    int16_t       c7;
+    int8_t        c8;
+    int8_t        c9;
+    char          c10[32];
+  } v = {1591060628000, 1, 2, 3.0, 4.0, "abcdef", 5, 6, 7, "ijnop"};
+
+  struct {
+    int32_t c1;
+    int32_t c2;
+    int32_t c3;
+    int32_t c4;
+    int32_t c5;
+    int32_t c6;
+    int32_t c7;
+    int32_t c8;
+    int32_t c9;
+    int32_t c10;
+  } v_len = {sizeof(int64_t), sizeof(int32_t),
+             sizeof(int64_t), sizeof(float),
+             sizeof(double),  8,
+             sizeof(int16_t), sizeof(int8_t),
+             sizeof(int8_t),  8};
+  TAOS_STMT2_BIND params[11];
+  params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+  params[0].length = (int32_t*)&v_len.c1;
+  params[0].buffer = &v.c1;
+  params[0].is_null = NULL;
+  params[0].num = 1;
+
+  params[1].buffer_type = TSDB_DATA_TYPE_INT;
+  params[1].buffer = &v.c2;
+  params[1].length = (int32_t*)&v_len.c2;
+  params[1].is_null = NULL;
+  params[1].num = 1;
+
+  params[2].buffer_type = TSDB_DATA_TYPE_BIGINT;
+  params[2].buffer = &v.c3;
+  params[2].length = (int32_t*)&v_len.c3;
+  params[2].is_null = NULL;
+  params[2].num = 1;
+
+  params[3].buffer_type = TSDB_DATA_TYPE_FLOAT;
+  params[3].buffer = &v.c4;
+  params[3].length = (int32_t*)&v_len.c4;
+  params[3].is_null = NULL;
+  params[3].num = 1;
+
+  params[4].buffer_type = TSDB_DATA_TYPE_DOUBLE;
+  params[4].buffer = &v.c5;
+  params[4].length = (int32_t*)&v_len.c5;
+  params[4].is_null = NULL;
+  params[4].num = 1;
+
+  params[5].buffer_type = TSDB_DATA_TYPE_BINARY;
+  params[5].buffer = &v.c6;
+  params[5].length = (int32_t*)&v_len.c6;
+  params[5].is_null = NULL;
+  params[5].num = 1;
+
+  params[6].buffer_type = TSDB_DATA_TYPE_SMALLINT;
+  params[6].buffer = &v.c7;
+  params[6].length = (int32_t*)&v_len.c7;
+  params[6].is_null = NULL;
+  params[6].num = 1;
+
+  params[7].buffer_type = TSDB_DATA_TYPE_TINYINT;
+  params[7].buffer = &v.c8;
+  params[7].length = (int32_t*)&v_len.c8;
+  params[7].is_null = NULL;
+  params[7].num = 1;
+
+  params[8].buffer_type = TSDB_DATA_TYPE_BOOL;
+  params[8].buffer = &v.c9;
+  params[8].length = (int32_t*)&v_len.c9;
+  params[8].is_null = NULL;
+  params[8].num = 1;
+
+  params[9].buffer_type = TSDB_DATA_TYPE_NCHAR;
+  params[9].buffer = &v.c10;
+  params[9].length = (int32_t*)&v_len.c10;
+  params[9].is_null = NULL;
+  params[9].num = 1;
+
+  unsigned char* outputGeom1;
+  size_t         size1;
+  initCtxMakePoint();
+  code = doMakePoint(1.000, 2.000, &outputGeom1, &size1);
+  checkError(stmt, code);
+  params[10].buffer_type = TSDB_DATA_TYPE_GEOMETRY;
+  params[10].buffer = outputGeom1;
+  params[10].length = (int32_t*)&size1;
+  params[10].is_null = NULL;
+  params[10].num = 1;
+
+  char* stmt_sql = "insert into stmt2_testdb_16.? using stb tags(?,?,?,?,?,?,?,?,?,?,?)values (?,?,?,?,?,?,?,?,?,?,?)";
+  code = taos_stmt2_prepare(stmt, stmt_sql, 0);
+  checkError(stmt, code);
+
+  char*            tbname[1] = {"tb1"};
+  TAOS_STMT2_BIND* tags = &params[0];
+  TAOS_STMT2_BIND* cols = &params[0];
+  TAOS_STMT2_BINDV bindv = {1, &tbname[0], &tags, &cols};
+  code = taos_stmt2_bind_param(stmt, &bindv, -2);
+  checkError(stmt, code);
+
+  int affected_rows;
+  code = taos_stmt2_exec(stmt, &affected_rows);
+  checkError(stmt, code);
+  ASSERT_EQ(affected_rows, 1);
+
+  int64_t ts2 = 1591060628000;
+  params[0].buffer = &ts2;
+  code = taos_stmt2_bind_param(stmt, &bindv, -2);
+  checkError(stmt, code);
+
+  code = taos_stmt2_exec(stmt, &affected_rows);
+  checkError(stmt, code);
+  ASSERT_EQ(affected_rows, 1);
+
+  params[0].buffer = &ts2;
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  ASSERT_EQ(code, TSDB_CODE_TSC_STMT_API_ERROR);
+
+  geosFreeBuffer(outputGeom1);
+  taos_stmt2_close(stmt);
+  do_query(taos, "drop database if exists stmt2_testdb_16");
+  taos_close(taos);
+}
 #pragma GCC diagnostic pop

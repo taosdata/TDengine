@@ -1416,7 +1416,12 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
     pStmt->exec.pCurrBlock = *pDataBlock;
     if (pStmt->sql.stbInterlaceMode) {
       taosArrayDestroy(pStmt->exec.pCurrBlock->pData->aCol);
-      pStmt->exec.pCurrBlock->pData->aCol = NULL;
+      (*pDataBlock)->pData->aCol = NULL;
+    }
+    if (colIdx < -1) {
+      pStmt->sql.bindRowFormat = true;
+      taosArrayDestroy((*pDataBlock)->pData->aCol);
+      (*pDataBlock)->pData->aCol = taosArrayInit(20, POINTER_BYTES);
     }
   }
 
@@ -1447,11 +1452,18 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
                                     pStmt->exec.pRequest->msgBufLen, &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo,
                                     pStmt->taos->optionInfo.charsetCxt);
     } else {
-      taosArrayDestroy(pCols);
-      (*pDataBlock)->pData->aCol = taosArrayInit(20, POINTER_BYTES);
-      code =
-          qBindStmtColsValue2(*pDataBlock, (*pDataBlock)->pData->aRowP, bind, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen,
-                              &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo, pStmt->taos->optionInfo.charsetCxt);
+      if (colIdx == -1) {
+        if (pStmt->sql.bindRowFormat) {
+          tscError("can't mix bind row format and bind column format");
+          STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
+        }
+        code = qBindStmtColsValue2(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf,
+                                   pStmt->exec.pRequest->msgBufLen, pStmt->taos->optionInfo.charsetCxt);
+      } else {
+        code = qBindStmt2RowValue(*pDataBlock, (*pDataBlock)->pData->aRowP, bind, pStmt->exec.pRequest->msgBuf,
+                                  pStmt->exec.pRequest->msgBufLen, &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo,
+                                  pStmt->taos->optionInfo.charsetCxt);
+      }
     }
 
     if (code) {
@@ -1461,6 +1473,11 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
   } else {
     if (pStmt->sql.stbInterlaceMode) {
       tscError("bind single column not allowed in stb insert mode");
+      STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
+    }
+
+    if (pStmt->sql.bindRowFormat) {
+      tscError("can't mix bind row format and bind column format");
       STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
     }
 

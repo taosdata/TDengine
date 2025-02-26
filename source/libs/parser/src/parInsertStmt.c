@@ -837,6 +837,117 @@ static int32_t convertStmtNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STM
 }
 
 int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
+                            void* charsetCxt) {
+  STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
+  SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
+  SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
+  SMsgBuf          pBuf = {.buf = msgBuf, .len = msgBufLen};
+  int32_t          rowNum = bind->num;
+  TAOS_STMT2_BIND  ncharBind = {0};
+  TAOS_STMT2_BIND* pBind = NULL;
+  int32_t          code = 0;
+
+  for (int c = 0; c < boundInfo->numOfBound; ++c) {
+    SSchema*  pColSchema = &pSchema[boundInfo->pColIndex[c]];
+    SColData* pCol = taosArrayGet(pCols, c);
+    if (pCol == NULL || pColSchema == NULL) {
+      code = buildInvalidOperationMsg(&pBuf, "get column schema or column data failed");
+      goto _return;
+    }
+
+    if (boundInfo->pColIndex[c] == 0) {
+      pCol->cflag |= COL_IS_KEY;
+    }
+
+    if (bind[c].num != rowNum) {
+      code = buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
+      goto _return;
+    }
+
+    if ((!(rowNum == 1 && bind[c].is_null && *bind[c].is_null)) &&
+        bind[c].buffer_type != pColSchema->type) {  // for rowNum ==1 , connector may not set buffer_type
+      code = buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
+      goto _return;
+    }
+
+    if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
+      code = convertStmtNcharCol2(&pBuf, pColSchema, bind + c, &ncharBind, charsetCxt);
+      if (code) {
+        goto _return;
+      }
+      pBind = &ncharBind;
+    } else {
+      pBind = bind + c;
+    }
+
+    code = tColDataAddValueByBind2(pCol, pBind,
+                                   IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
+                                   initCtxAsText, checkWKB);
+    if (code) {
+      goto _return;
+    }
+  }
+
+  qDebug("stmt2 all %d columns bind %d rows data as col format", boundInfo->numOfBound, rowNum);
+
+_return:
+
+  taosMemoryFree(ncharBind.buffer);
+  taosMemoryFree(ncharBind.length);
+
+  return code;
+}
+
+int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
+                                 int32_t colIdx, int32_t rowNum, void *charsetCxt) {
+  STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
+  SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
+  SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
+  SMsgBuf          pBuf = {.buf = msgBuf, .len = msgBufLen};
+  SSchema*         pColSchema = &pSchema[boundInfo->pColIndex[colIdx]];
+  SColData*        pCol = taosArrayGet(pCols, colIdx);
+  TAOS_STMT2_BIND  ncharBind = {0};
+  TAOS_STMT2_BIND* pBind = NULL;
+  int32_t          code = 0;
+
+  if (bind->num != rowNum) {
+    return buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
+  }
+
+  // Column index exceeds the number of columns
+  if (colIdx >= pCols->size && pCol == NULL) {
+    return buildInvalidOperationMsg(&pBuf, "column index exceeds the number of columns");
+  }
+
+  if (bind->buffer_type != pColSchema->type) {
+    return buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
+  }
+
+  if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
+    code = convertStmtNcharCol2(&pBuf, pColSchema, bind, &ncharBind, charsetCxt);
+    if (code) {
+      goto _return;
+    }
+    pBind = &ncharBind;
+  } else {
+    pBind = bind;
+  }
+
+  code = tColDataAddValueByBind2(pCol, pBind,
+                                 IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
+                                 initCtxAsText, checkWKB);
+
+  qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
+
+_return:
+
+  taosMemoryFree(ncharBind.buffer);
+  taosMemoryFree(ncharBind.length);
+
+  return code;
+}
+
+int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
                             STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
   SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
@@ -859,10 +970,6 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
       colInOrder = false;
     } else {
       lastColId = pColSchema->colId;
-    }
-
-    if(boundInfo->pColIndex[c]==0){
-      pCol->cflag |= COL_IS_KEY;
     }
 
     if (bind[c].num != rowNum) {
@@ -918,56 +1025,7 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
 
   code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, &pDataBlock->ordered,
                             &pDataBlock->duplicateTs);
-  qDebug("stmt2 all %d columns bind %d rows data as col format", boundInfo->numOfBound, rowNum);
-
-_return:
-
-  taosMemoryFree(ncharBind.buffer);
-  taosMemoryFree(ncharBind.length);
-
-  return code;
-}
-
-int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                                 int32_t colIdx, int32_t rowNum, void *charsetCxt) {
-  STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
-  SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
-  SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
-  SMsgBuf          pBuf = {.buf = msgBuf, .len = msgBufLen};
-  SSchema*         pColSchema = &pSchema[boundInfo->pColIndex[colIdx]];
-  SColData*        pCol = taosArrayGet(pCols, colIdx);
-  TAOS_STMT2_BIND  ncharBind = {0};
-  TAOS_STMT2_BIND* pBind = NULL;
-  int32_t          code = 0;
-
-  if (bind->num != rowNum) {
-    return buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
-  }
-
-  // Column index exceeds the number of columns
-  if (colIdx >= pCols->size && pCol == NULL) {
-    return buildInvalidOperationMsg(&pBuf, "column index exceeds the number of columns");
-  }
-
-  if (bind->buffer_type != pColSchema->type) {
-    return buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
-  }
-
-  if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
-    code = convertStmtNcharCol2(&pBuf, pColSchema, bind, &ncharBind, charsetCxt);
-    if (code) {
-      goto _return;
-    }
-    pBind = &ncharBind;
-  } else {
-    pBind = bind;
-  }
-
-  code = tColDataAddValueByBind2(pCol, pBind,
-                                 IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
-                                 initCtxAsText, checkWKB);
-
-  qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
+  qDebug("stmt2 all %d columns bind %d rows data as row format", boundInfo->numOfBound, rowNum);
 
 _return:
 
