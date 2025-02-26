@@ -38,7 +38,8 @@ jobs:
       - name: Checkout the repository
         uses: actions/checkout@v4
 
-      - name: Cache Go modules
+      - name: Cache Go modules on Linux and macOS
+        if: runner.os != 'Windows'
         uses: actions/cache@v3
         with:
           path: |
@@ -47,7 +48,27 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-    
+
+      - name: Cache Homebrew on macOS
+        if: runner.os == 'macOS'
+        uses: actions/cache@v3
+        with:
+          path: /usr/local/Homebrew
+          key: ${{ runner.os }}-brew-${{ hashFiles('**/Brewfile') }}
+          restore-keys: |
+            ${{ runner.os }}-brew-
+
+      - name: Cache Go modules on Windows
+        if: runner.os == 'Windows'
+        uses: actions/cache@v3
+        with:
+          path: |
+            C:\Users\runneradmin\go\pkg\mod
+            C:\Users\runneradmin\AppData\Local\go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -70,14 +91,7 @@ jobs:
             pkg-config \
             zlib1g
 
-      - name: Cache Homebrew on macOS
-        if: runner.os == 'macOS'
-        uses: actions/cache@v3
-        with:
-          path: /usr/local/Homebrew
-          key: ${{ runner.os }}-brew-${{ hashFiles('**/Brewfile') }}
-          restore-keys: |
-            ${{ runner.os }}-brew-
+
 
       - name: Install dependencies on macOS
         if: runner.os == 'macOS'
@@ -108,7 +122,7 @@ jobs:
             -DBUILD_HTTP=false \
             -DBUILD_TEST=true \
             -DBUILD_DEPENDENCY_TESTS=false
-          make -j 4
+          make -j
           sudo make install
           which taosd
           which taosadapter
@@ -122,7 +136,7 @@ jobs:
           set CL=/MP8
           mkdir debug && cd debug
           cmake .. -G "NMake Makefiles JOM" -DBUILD_TOOLS=true -DBUILD_HTTP=false -DBUILD_TEST=true -DBUILD_DEPENDENCY_TESTS=false -DBUILD_KEEPER=true
-          jom -j 6
+          jom -j
           jom install
           where taosd
           where taosadapter
