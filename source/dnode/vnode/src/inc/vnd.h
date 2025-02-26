@@ -25,12 +25,12 @@ extern "C" {
 #endif
 
 // clang-format off
-#define vFatal(...) do { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define vError(...) do { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define vWarn(...)  do { if (vDebugFlag & DEBUG_WARN)  { taosPrintLog("VND WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define vInfo(...)  do { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define vDebug(...) do { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND ", DEBUG_DEBUG, vDebugFlag, __VA_ARGS__); }}    while(0)
-#define vTrace(...) do { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", DEBUG_TRACE, vDebugFlag, __VA_ARGS__); }}    while(0)
+#define vFatal(...) do { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }} while(0)
+#define vError(...) do { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }} while(0)
+#define vWarn(...)  do { if (vDebugFlag & DEBUG_WARN)  { taosPrintLog("VND WARN  ", DEBUG_WARN,  255,        __VA_ARGS__); }} while(0)
+#define vInfo(...)  do { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND INFO  ", DEBUG_INFO,  255,        __VA_ARGS__); }} while(0)
+#define vDebug(...) do { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND DEBUG ", DEBUG_DEBUG, vDebugFlag, __VA_ARGS__); }} while(0)
+#define vTrace(...) do { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND TRACE ", DEBUG_TRACE, vDebugFlag, __VA_ARGS__); }} while(0)
 
 #define vGTrace(param, ...) do { if (vDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vTrace(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
 #define vGFatal(param, ...) do { if (vDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); vFatal(param ",QID:%s", __VA_ARGS__, buf);}} while(0)
