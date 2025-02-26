@@ -1581,6 +1581,11 @@ int32_t streamTaskSendNegotiateChkptIdMsg(SStreamTask* pTask) {
     streamFreeTaskState(pTask, p);
     pTask->pBackend = NULL;
   }
+
+  if (pTask->exec.pExecutor != NULL) {
+    qDestroyTask(pTask->exec.pExecutor);
+    pTask->exec.pExecutor = NULL;
+  }
   return 0;
 }
 
