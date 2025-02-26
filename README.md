@@ -59,8 +59,8 @@ English | [简体中文](README-CN.md)
 
 ## 4. Build
 
-1. `dotnet restore` Restore the project's dependencies.
-2. `dotnet build --no-restore` Build the project.
+In the project directory, run `dotnet restore` to restore the project's dependencies, and then run
+`dotnet build --no-restore` to build the project.
 
 ## 5. Testing
 

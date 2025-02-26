@@ -52,8 +52,7 @@
 
 ## 4. 构建
 
-1. `dotnet restore` 还原项目依赖。
-2. `dotnet build --no-restore` 构建项目。
+项目目录下执行 `dotnet restore` 还原项目依赖，然后执行 `dotnet build --no-restore` 构建项目。
 
 ## 5. 测试
 
