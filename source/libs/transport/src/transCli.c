@@ -941,7 +941,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   QUEUE_INIT(&conn->q);
   QUEUE_PUSH(&conn->list->conns, &conn->q);
   conn->list->size += 1;
-  tDebug("conn:%p, added to pool, pool size: %d, dst: %s", conn, conn->list->size, conn->dstAddr);
+  tDebug("conn:%p, added to pool, pool size:%d, dst:%s", conn, conn->list->size, conn->dstAddr);
 
   conn->heapMissHit = 0;
 
@@ -1894,7 +1894,7 @@ static FORCE_INLINE int32_t cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
         char old[TSDB_FQDN_LEN] = {0}, new[TSDB_FQDN_LEN] = {0};
         taosInetNtoa(old, *v);
         taosInetNtoa(new, addr);
-        tWarn("update ip of fqdn:%s, old: %s, new: %s", fqdn, old, new);
+        tWarn("update ip of fqdn:%s, old:%s, new:%s", fqdn, old, new);
         code = taosHashPut(cache, fqdn, len, &addr, sizeof(addr));
       }
     } else {
@@ -2541,7 +2541,7 @@ static FORCE_INLINE void cliPerfLog_schedMsg(SCliReq* pReq, char* label) {
     return;
   }
 
-  tGDebug("%s retry on next node,use:%s, step: %d,timeout:%" PRId64 "", label, tbuf, pCtx->retryStep,
+  tGDebug("%s retry on next node,use:%s, step:%d,timeout:%" PRId64, label, tbuf, pCtx->retryStep,
           pCtx->retryNextInterval);
   return;
 }

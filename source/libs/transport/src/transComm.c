@@ -836,7 +836,7 @@ int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange) {
   return 0;
 }
 int32_t subnetDebugInfoToBuf(SubnetUtils* pUtils, char* buf) {
-  sprintf(buf, "raw: %s, address: %d,  netmask:%d, network:%d, broadcast:%d", pUtils->info, pUtils->address,
+  sprintf(buf, "raw:%s, address:%d,  netmask:%d, network:%d, broadcast:%d", pUtils->info, pUtils->address,
           pUtils->netmask, pUtils->network, pUtils->broadcast);
   return 0;
 }

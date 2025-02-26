@@ -62,7 +62,7 @@ int32_t schedulerInit() {
 }
 
 int32_t schedulerExecJob(SSchedulerReq *pReq, int64_t *pJobId) {
-  qDebug("scheduler %s exec job start", pReq->syncReq ? "SYNC" : "ASYNC");
+  qDebug("scheduler %s exec job will start", pReq->syncReq ? "SYNC" : "ASYNC");
 
   int32_t  code = 0;
   SSchJob *pJob = NULL;
@@ -111,7 +111,7 @@ int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
     for (int32_t m = 0; m < pLevel->taskNum; ++m) {
       SSchTask     *pTask = taosArrayGet(pLevel->subTasks, m);
       if (NULL == pTask) {
-        qError("failed to get task %d, total: %d", m, pLevel->taskNum);
+        qError("failed to get task %d, total:%d", m, pLevel->taskNum);
         SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
       }
 
@@ -120,7 +120,7 @@ int32_t schedulerGetTasksStatus(int64_t jobId, SArray *pSub) {
       TAOS_STRCPY(subDesc.status, jobTaskStatusStr(pTask->status));
 
       if (NULL == taosArrayPush(pSub, &subDesc)) {
-        qError("taosArrayPush task %d failed, error: %x, ", m, terrno);
+        qError("taosArrayPush task %d failed, error:0x%x", m, terrno);
         SCH_ERR_JRET(terrno);
       }
     }

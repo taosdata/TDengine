@@ -274,7 +274,7 @@ int32_t uvWhiteListToStr(SWhiteUserList* plist, char* user, char** ppBuf) {
     return terrno;
   }
 
-  int32_t len = sprintf(pBuf, "user: %s, ver: %" PRId64 ", ip: {%s}", user, plist->ver, tmp);
+  int32_t len = sprintf(pBuf, "user:%s, ver:%" PRId64 ", ip:{%s}", user, plist->ver, tmp);
   taosMemoryFree(tmp);
 
   *ppBuf = pBuf;
@@ -1027,7 +1027,7 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
 
   int err = uv_tcp_init(pObj->loop, cli);
   if (err != 0) {
-    tError("failed to create tcp: %s", uv_err_name(err));
+    tError("failed to create tcp:%s", uv_err_name(err));
     taosMemoryFree(cli);
     return;
   }
@@ -1059,10 +1059,10 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
         uv_write2(wr, (uv_stream_t*)&(pObj->pipe[pObj->workerIdx][0]), &buf, 1, (uv_stream_t*)cli, uvOnPipeWriteCb));
   } else {
     if (!uv_is_closing((uv_handle_t*)cli)) {
-      tError("failed to accept tcp: %s", uv_err_name(err));
+      tError("failed to accept tcp:%s", uv_err_name(err));
       uv_close((uv_handle_t*)cli, uvFreeCb);
     } else {
-      tError("failed to accept tcp: %s", uv_err_name(err));
+      tError("failed to accept tcp:%s", uv_err_name(err));
       taosMemoryFree(cli);
     }
   }
@@ -1464,7 +1464,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
 }
 static void uvPipeListenCb(uv_stream_t* handle, int status) {
   if (status != 0) {
-    tError("server failed to init pipe, errmsg: %s", uv_err_name(status));
+    tError("server failed to init pipe, errmsg:%s", uv_err_name(status));
     return;
   }
 
@@ -1473,12 +1473,12 @@ static void uvPipeListenCb(uv_stream_t* handle, int status) {
 
   int ret = uv_pipe_init(srv->loop, pipe, 1);
   if (ret != 0) {
-    tError("trans-svr failed to init pipe, errmsg: %s", uv_err_name(ret));
+    tError("trans-svr failed to init pipe, errmsg:%s", uv_err_name(ret));
   }
 
   ret = uv_accept((uv_stream_t*)&srv->pipeListen, (uv_stream_t*)pipe);
   if (ret != 0) {
-    tError("trans-svr failed to accept pipe, errmsg: %s", uv_err_name(ret));
+    tError("trans-svr failed to accept pipe, errmsg:%s", uv_err_name(ret));
     return;
   }
 
@@ -1507,7 +1507,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   SServerObj* srv = taosMemoryCalloc(1, sizeof(SServerObj));
   if (srv == NULL) {
     code = terrno;
-    tError("failed to init server since: %s", tstrerror(code));
+    tError("failed to init server since:%s", tstrerror(code));
     return NULL;
   }
 
@@ -1526,7 +1526,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
   code = uv_loop_init(srv->loop);
   if (code != 0) {
-    tError("failed to init server since: %s", uv_err_name(code));
+    tError("failed to init server since:%s", uv_err_name(code));
     code = TSDB_CODE_THIRDPARTY_ERROR;
     goto End;
   }
@@ -1541,7 +1541,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 #if defined(WINDOWS) || defined(DARWIN)
   int ret = uv_pipe_init(srv->loop, &srv->pipeListen, 0);
   if (ret != 0) {
-    tError("failed to init pipe, errmsg: %s", uv_err_name(ret));
+    tError("failed to init pipe, errmsg:%s", uv_err_name(ret));
     goto End;
   }
 #if defined(WINDOWS)
@@ -1553,13 +1553,13 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
   ret = uv_pipe_bind(&srv->pipeListen, pipeName);
   if (ret != 0) {
-    tError("failed to bind pipe, errmsg: %s", uv_err_name(ret));
+    tError("failed to bind pipe, errmsg:%s", uv_err_name(ret));
     goto End;
   }
 
   ret = uv_listen((uv_stream_t*)&srv->pipeListen, SOMAXCONN, uvPipeListenCb);
   if (ret != 0) {
-    tError("failed to listen pipe, errmsg: %s", uv_err_name(ret));
+    tError("failed to listen pipe, errmsg:%s", uv_err_name(ret));
     goto End;
   }
 
@@ -1637,21 +1637,21 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
     uv_os_sock_t fds[2];
     if ((code = uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE)) != 0) {
-      tError("failed to create pipe, errmsg: %s", uv_err_name(code));
+      tError("failed to create pipe, errmsg:%s", uv_err_name(code));
       code = TSDB_CODE_THIRDPARTY_ERROR;
       goto End;
     }
 
     code = uv_pipe_init(srv->loop, &(srv->pipe[i][0]), 1);
     if (code != 0) {
-      tError("failed to init pipe, errmsg: %s", uv_err_name(code));
+      tError("failed to init pipe, errmsg:%s", uv_err_name(code));
       code = TSDB_CODE_THIRDPARTY_ERROR;
       goto End;
     }
 
     code = uv_pipe_open(&(srv->pipe[i][0]), fds[1]);
     if (code != 0) {
-      tError("failed to init pipe, errmsg: %s", uv_err_name(code));
+      tError("failed to init pipe, errmsg:%s", uv_err_name(code));
       code = TSDB_CODE_THIRDPARTY_ERROR;
       goto End;
     }

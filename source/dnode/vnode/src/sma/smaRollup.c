@@ -1249,7 +1249,7 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
             if (streamFlushed) {
               pRSmaInfo->items[i].streamFlushed = 1;
               if (++nStreamFlushed >= nTaskInfo) {
-                smaInfo("vgId:%d, rsma commit, checkpoint ready, %d us consumed, received/total: %d/%d", TD_VID(pVnode),
+                smaInfo("vgId:%d, rsma commit, checkpoint ready, %d us consumed, received/total:%d/%d", TD_VID(pVnode),
                         nSleep * 10, nStreamFlushed, nTaskInfo);
                 taosHashCancelIterate(pInfoHash, infoHash);
                 goto _checkpoint;
@@ -1260,7 +1260,7 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
       }
       taosUsleep(10);
       ++nSleep;
-      smaDebug("vgId:%d, rsma commit, wait for checkpoint ready, %d us elapsed, received/total: %d/%d", TD_VID(pVnode),
+      smaDebug("vgId:%d, rsma commit, wait for checkpoint ready, %d us elapsed, received/total:%d/%d", TD_VID(pVnode),
                nSleep * 10, nStreamFlushed, nTaskInfo);
     }
   } while (0);

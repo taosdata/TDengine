@@ -1789,8 +1789,8 @@ int32_t doProcessMsgFromServerImpl(SRpcMsg* pMsg, SEpSet* pEpSet) {
   char      tbuf[40] = {0};
   TRACE_TO_STR(trace, tbuf);
 
-  tscDebug("processMsgFromServer handle %p, message: %s, size:%d, code: %s, QID:%s", pMsg->info.handle,
-           TMSG_INFO(pMsg->msgType), pMsg->contLen, tstrerror(pMsg->code), tbuf);
+  tscDebug("QID:%s, process message from server, handle:%p, message:%s, size:%d, code:%s", tbuf, pMsg->info.handle,
+           TMSG_INFO(pMsg->msgType), pMsg->contLen, tstrerror(pMsg->code));
 
   if (pSendInfo->requestObjRefId != 0) {
     SRequestObj* pRequest = (SRequestObj*)taosAcquireRef(clientReqRefPool, pSendInfo->requestObjRefId);

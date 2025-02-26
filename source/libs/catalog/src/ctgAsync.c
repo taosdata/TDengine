@@ -1519,7 +1519,7 @@ int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
 
   int32_t taskDone = atomic_add_fetch_32(&pJob->taskDone, 1);
   if (taskDone < taosArrayGetSize(pJob->pTasks)) {
-    qDebug("QID:0x%" PRIx64 ", task done: %d, total: %d", pJob->queryId, taskDone,
+    qDebug("QID:0x%" PRIx64 ", task done:%d, total:%d", pJob->queryId, taskDone,
            (int32_t)taosArrayGetSize(pJob->pTasks));
 
     ctgUpdateJobErrCode(pJob, rspCode);

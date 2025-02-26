@@ -489,7 +489,8 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
   SSchTask              *pTask = NULL;
   SSchJob               *pJob = NULL;
 
-  qDebug("begin to handle rsp msg, type:%s, handle:%p, code:%s", TMSG_INFO(pMsg->msgType), pMsg->handle,
+  int64_t qid = pParam->queryId;
+  qDebug("QID:0x%" PRIx64 ", begin to handle rsp msg, type:%s, handle:%p, code:%s", qid,TMSG_INFO(pMsg->msgType), pMsg->handle,
          tstrerror(rspCode));
 
   SCH_ERR_JRET(schProcessOnCbBegin(&pJob, &pTask, pParam->queryId, pParam->refId, pParam->taskId));
@@ -503,7 +504,7 @@ _return:
   taosMemoryFreeClear(pMsg->pData);
   taosMemoryFreeClear(pMsg->pEpSet);
 
-  qDebug("end to handle rsp msg, type:%s, handle:%p, code:%s", TMSG_INFO(pMsg->msgType), pMsg->handle,
+  qDebug("QID:0x%" PRIx64 ", end to handle rsp msg, type:%s, handle:%p, code:%s", qid, TMSG_INFO(pMsg->msgType), pMsg->handle,
          tstrerror(rspCode));
 
   SCH_RET(code);
