@@ -16,6 +16,7 @@ from taostest.util.common import TDCom
 from taostest.util.remote import Remote
 import os
 import time
+import sys
 from datetime import datetime, timedelta
 class Start(TDCase):
     def init(self):
@@ -34,14 +35,15 @@ class Start(TDCase):
         pass
 
     def start_mqtt_simulator(self):
-        mqtt_client_config = self.tdCom.get_components_setting(self.env_setting["settings"], "mqtt_client")
-        edge_config = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
-        edge_host = edge_config["fqdn"][0]
-        mqtt_host = mqtt_client_config["fqdn"][0]
-        mqtt_pub_path = mqtt_client_config["spec"]["config"]
-        mqtt_pub_interval= mqtt_client_config["spec"]["interval"]
-        self._remote.cmd(mqtt_host,f"nohup mqtt_pub --schema {mqtt_pub_path} --host {edge_host} --interval {mqtt_pub_interval}s > mqtt_pub.log 2>&1 &")
-        
+        if "edge" in " ".join(sys.argv):
+            mqtt_client_config = self.tdCom.get_components_setting(self.env_setting["settings"], "mqtt_client")
+            edge_config = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
+            edge_host = edge_config["fqdn"][0]
+            mqtt_host = mqtt_client_config["fqdn"][0]
+            mqtt_pub_path = mqtt_client_config["spec"]["config"]
+            mqtt_pub_interval= mqtt_client_config["spec"]["interval"]
+            self._remote.cmd(mqtt_host,f"nohup mqtt_pub --schema {mqtt_pub_path} --host {edge_host} --interval {mqtt_pub_interval}s > mqtt_pub.log 2>&1 &")
+
     def run(self) -> bool:
         # start mqtt simulator
         self.start_mqtt_simulator()
