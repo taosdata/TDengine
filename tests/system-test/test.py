@@ -24,7 +24,7 @@ import platform
 import socket
 import threading
 import importlib
-import inspect
+import ast
 print(f"Python version: {sys.version}")
 print(f"Version info: {sys.version_info}")
 
@@ -59,12 +59,13 @@ def checkRunTimeError():
         if hwnd:
             os.system("TASKKILL /F /IM taosd.exe")
 
-def get_local_classes(module):
-    classes = []
-    for name, obj in inspect.getmembers(module, inspect.isclass):
-        if inspect.getmodule(obj) == module:
-            classes.append(name)
+def get_local_classes_in_order(file_path):
+    with open(file_path, "r", encoding="utf-8") as file:
+        tree = ast.parse(file.read(), filename=file_path)
+    
+    classes = [node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
     return classes
+
 
 def dynamicLoadModule(fileName):
     moduleName = fileName.replace(".py", "").replace(os.sep, ".")
@@ -80,8 +81,10 @@ def runOnPreviousCluster(host, config, fileName):
     sep = "/"
     if platform.system().lower() == 'windows':
         sep = os.sep
+
     uModule = dynamicLoadModule(fileName)
-    case_class = getattr(uModule, get_local_classes(uModule)[-1])
+    class_names = get_local_classes_in_order(fileName)
+    case_class = getattr(uModule, class_names[-1])
     case = case_class()    
 
     # create conn
@@ -364,7 +367,8 @@ if __name__ == "__main__":
         if is_test_framework:
             uModule = dynamicLoadModule(fileName)
             try:
-                case_class = getattr(uModule, get_local_classes(uModule)[-1])
+                class_names = get_local_classes_in_order(fileName)
+                case_class = getattr(uModule, class_names[-1])
                 ucase = case_class()
                 if ((json.dumps(updateCfgDict) == '{}') and hasattr(ucase, 'updatecfgDict')):
                     updateCfgDict = ucase.updatecfgDict
@@ -536,7 +540,8 @@ if __name__ == "__main__":
         if is_test_framework:
             uModule = dynamicLoadModule(fileName)
             try:
-                case_class = getattr(uModule, get_local_classes(uModule)[-1])
+                class_names = get_local_classes_in_order(fileName)
+                case_class = getattr(uModule, class_names[-1])
                 ucase = case_class()                
                 if (json.dumps(updateCfgDict) == '{}'):
                     updateCfgDict = ucase.updatecfgDict

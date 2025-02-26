@@ -19,6 +19,7 @@ import subprocess
 import time
 from distutils.log import warn as printf
 import platform
+import ast
 
 from util.log import *
 from util.dnodes import *
@@ -26,11 +27,11 @@ from util.cases import *
 
 import taos
 
-def get_local_classes(module):
-    classes = []
-    for name, obj in inspect.getmembers(module, inspect.isclass):
-        if inspect.getmodule(obj) == module:
-            classes.append(name)
+def get_local_classes_in_order(file_path):
+    with open(file_path, "r", encoding="utf-8") as file:
+        tree = ast.parse(file.read(), filename=file_path)
+    
+    classes = [node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
     return classes
 
 def dynamicLoadModule(fileName):
@@ -149,7 +150,8 @@ if __name__ == "__main__":
             if is_test_framework:
                 uModule = dynamicLoadModule(fileName)
                 try:
-                    case_class = getattr(uModule, get_local_classes(uModule)[-1])
+                    class_names = get_local_classes_in_order(fileName)
+                    case_class = getattr(uModule, class_names[-1])
                     ucase = case_class()
                     tdDnodes.deploy(1,ucase.updatecfgDict)
                 except :
@@ -183,7 +185,8 @@ if __name__ == "__main__":
         if is_test_framework:
             uModule = dynamicLoadModule(fileName)
             try:
-                case_class = getattr(uModule, get_local_classes(uModule)[-1])
+                class_names = get_local_classes_in_order(fileName)
+                case_class = getattr(uModule, class_names[-1])
                 ucase = case_class()
                 tdDnodes.deploy(1,ucase.updatecfgDict)
             except :
