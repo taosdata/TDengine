@@ -8,7 +8,7 @@ from taostest.util import file
 class FractakEdge(TDCase):
     def init(self):
         self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
-        case_config = json.load(open(os.path.join(self.env_root, "workflow.json")))
+        case_config = json.load(open(os.path.join(self.env_root, "workflow_config.json")))
         self.db_config = case_config["db_config"]
         self.execute_time = int(case_config["exec_time"])
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")

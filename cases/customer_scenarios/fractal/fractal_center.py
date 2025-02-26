@@ -12,7 +12,7 @@ class FractakCenter(TDCase):
         self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
         self.fqdn = self.taosd_setting["fqdn"]
-        self.case_config = json.load(open(os.path.join(self.env_root, "workflow.json")))
+        self.case_config = json.load(open(os.path.join(self.env_root, "workflow_config.json")))
         self.db_config = self.case_config["db_config"]
         self.edge_hosts = self.case_config["edge_dnode_hosts"]
         self.tdCom.api_type = 'restful'
@@ -50,14 +50,14 @@ class FractakCenter(TDCase):
             metrics = response.json()
             # TODO 获取metrics并保存
             print(metrics)
-        
+
     def desc(self) -> str:
         case_description = """
             本用例用于fractal的客户场景测试center侧的测试执行，用例执行逻辑：
             1. center侧taosd中创建数据库
             2. 创建legacy datain任务，每个edge侧的mqtt_datain数据库都会有一个legacy datain任务
             3. 统计每个legacy datain任务的写入速率，通过metrics接口获取
-            
+
         """
         return case_description
 
