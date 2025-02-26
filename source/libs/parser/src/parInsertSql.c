@@ -150,6 +150,7 @@ static int32_t parseDuplicateUsingClause(SInsertParseContext* pCxt, SVnodeModify
   STableMeta** pMeta = taosHashGet(pStmt->pSubTableHashObj, tbFName, strlen(tbFName));
   if (NULL != pMeta) {
     *pDuplicate = true;
+    pCxt->missCache = false;
     code = ignoreUsingClause(pCxt, &pStmt->pSql);
     if (TSDB_CODE_SUCCESS == code) {
       return cloneTableMeta(*pMeta, &pStmt->pTableMeta);
@@ -247,8 +248,8 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
   return code;
 }
 
-static int32_t parseTimestampOrInterval(const char** end, SToken* pToken, int16_t timePrec, int64_t* ts, int64_t* interval,
-                                    SMsgBuf* pMsgBuf, bool* isTs, timezone_t tz) {
+static int32_t parseTimestampOrInterval(const char** end, SToken* pToken, int16_t timePrec, int64_t* ts,
+                                        int64_t* interval, SMsgBuf* pMsgBuf, bool* isTs, timezone_t tz) {
   if (pToken->type == TK_NOW) {
     *isTs = true;
     *ts = taosGetTimestamp(timePrec);
@@ -290,7 +291,8 @@ static int32_t parseTimestampOrInterval(const char** end, SToken* pToken, int16_
   return TSDB_CODE_SUCCESS;
 }
 
-static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t* time, SMsgBuf* pMsgBuf, timezone_t tz) {
+static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t* time, SMsgBuf* pMsgBuf,
+                     timezone_t tz) {
   int32_t     index = 0, i = 0;
   int64_t     interval = 0, tempInterval = 0;
   int64_t     ts = 0, tempTs = 0;
@@ -478,7 +480,7 @@ static int32_t parseVarbinary(SToken* pToken, uint8_t** pData, uint32_t* nData, 
 }
 
 static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema, int16_t timePrec, STagVal* val,
-                             SMsgBuf* pMsgBuf, timezone_t tz, void *charsetCxt) {
+                             SMsgBuf* pMsgBuf, timezone_t tz, void* charsetCxt) {
   int64_t  iv;
   uint64_t uv;
   char*    endptr = NULL;
@@ -733,7 +735,7 @@ static int32_t parseBoundTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStm
 }
 
 int32_t parseTagValue(SMsgBuf* pMsgBuf, const char** pSql, uint8_t precision, SSchema* pTagSchema, SToken* pToken,
-                      SArray* pTagName, SArray* pTagVals, STag** pTag, timezone_t tz, void *charsetCxt) {
+                      SArray* pTagName, SArray* pTagVals, STag** pTag, timezone_t tz, void* charsetCxt) {
   bool isNull = isNullValue(pTagSchema->type, pToken);
   if (!isNull && pTagName) {
     if (NULL == taosArrayPush(pTagName, pTagSchema->name)) {
@@ -937,7 +939,7 @@ static int32_t checkSubtablePrivilege(SArray* pTagVals, SArray* pTagName, SNode*
 }
 
 // pSql -> tag1_value, ...)
-static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool autoCreate) {
   int32_t  code = TSDB_CODE_SUCCESS;
   SSchema* pSchema = getTableTagSchema(pStmt->pTableMeta);
   SArray*  pTagVals = NULL;
@@ -979,7 +981,8 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
       code = buildSyntaxErrMsg(&pCxt->msg, "not expected tags values ", token.z);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = parseTagValue(&pCxt->msg, &pStmt->pSql, precision, pTagSchema, &token, pTagName, pTagVals, &pTag, pCxt->pComCxt->timezone, pCxt->pComCxt->charsetCxt);
+      code = parseTagValue(&pCxt->msg, &pStmt->pSql, precision, pTagSchema, &token, pTagName, pTagVals, &pTag,
+                           pCxt->pComCxt->timezone, pCxt->pComCxt->charsetCxt);
     }
   }
 
@@ -991,7 +994,7 @@ static int32_t parseTagsClauseImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     code = tTagNew(pTagVals, 1, false, &pTag);
   }
 
-  if (TSDB_CODE_SUCCESS == code && !isParseBindParam) {
+  if (TSDB_CODE_SUCCESS == code && !isParseBindParam && !autoCreate) {
     code = buildCreateTbReq(pStmt, pTag, pTagName);
     pTag = NULL;
   }
@@ -1011,7 +1014,7 @@ _exit:
 
 // input pStmt->pSql:  TAGS (tag1_value, ...) [table_options] ...
 // output pStmt->pSql: [table_options] ...
-static int32_t parseTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+static int32_t parseTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool autoCreate) {
   SToken token;
   NEXT_TOKEN(pStmt->pSql, token);
   if (TK_TAGS != token.type) {
@@ -1023,7 +1026,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
     return buildSyntaxErrMsg(&pCxt->msg, "( is expected", token.z);
   }
 
-  int32_t code = parseTagsClauseImpl(pCxt, pStmt);
+  int32_t code = parseTagsClauseImpl(pCxt, pStmt, autoCreate);
   if (TSDB_CODE_SUCCESS == code) {
     NEXT_VALID_TOKEN(pStmt->pSql, token);
     if (TK_NK_COMMA == token.type) {
@@ -1101,14 +1104,14 @@ static int32_t parseTableOptions(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
 // output pStmt->pSql:
 //   1. [(field1_name, ...)]
 //   2. VALUES ... | FILE ...
-static int32_t parseUsingClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+static int32_t parseUsingClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool autoCreate) {
   if (!pStmt->usingTableProcessing || pCxt->usingDuplicateTable) {
     return TSDB_CODE_SUCCESS;
   }
 
   int32_t code = parseBoundTagsClause(pCxt, pStmt);
   if (TSDB_CODE_SUCCESS == code) {
-    code = parseTagsClause(pCxt, pStmt);
+    code = parseTagsClause(pCxt, pStmt, autoCreate);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = parseTableOptions(pCxt, pStmt);
@@ -1176,6 +1179,8 @@ static int32_t getTableMeta(SInsertParseContext* pCxt, SName* pTbName, STableMet
       *pMissCache = true;
     } else if (bUsingTable && TSDB_SUPER_TABLE != (*pTableMeta)->tableType) {
       code = buildInvalidOperationMsg(&pCxt->msg, "create table only from super table is allowed");
+    } else {
+      *pMissCache = false;
     }
   }
   return code;
@@ -1289,13 +1294,12 @@ static int32_t preParseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpS
 }
 
 static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if (pCxt->forceUpdate) {
     pCxt->missCache = true;
     return TSDB_CODE_SUCCESS;
   }
-
-  int32_t code = checkAuth(pCxt->pComCxt, &pStmt->usingTableName, &pCxt->missCache, &pStmt->pTagCond);
-  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
+  if (!pCxt->missCache) {
     bool bUsingTable = true;
     code = getTableMeta(pCxt, &pStmt->usingTableName, &pStmt->pTableMeta, &pCxt->missCache, bUsingTable);
   }
@@ -1324,29 +1328,43 @@ static int32_t parseUsingTableNameImpl(SInsertParseContext* pCxt, SVnodeModifyOp
   return code;
 }
 
+static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+  SToken  token;
+  int32_t index = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  NEXT_TOKEN_KEEP_SQL(pStmt->pSql, token, index);
+
+  code = getTargetTableSchema(pCxt, pStmt);
+  if (token.type != TK_USING) {
+    return code;
+  } else if ((!pCxt->missCache) && (TSDB_CODE_SUCCESS == code)) {
+    code = parseBoundTagsClause(pCxt, pStmt);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = parseTagsClause(pCxt, pStmt, true);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = parseTableOptions(pCxt, pStmt);
+    }
+    return ignoreUsingClause(pCxt, &pStmt->pSql);
+  }
+
+  pStmt->usingTableProcessing = true;
+  // pStmt->pSql -> stb_name [(tag1_name, ...)
+  pStmt->pSql += index;
+  code = parseDuplicateUsingClause(pCxt, pStmt, &pCxt->usingDuplicateTable);
+  if (TSDB_CODE_SUCCESS == code && !pCxt->usingDuplicateTable) {
+    return parseUsingTableNameImpl(pCxt, pStmt);
+  }
+  return code;
+}
+
 // input pStmt->pSql:
 //   1(care). [USING stb_name [(tag1_name, ...)] TAGS (tag1_value, ...) [table_options]] ...
 //   2. VALUES ... | FILE ...
 // output pStmt->pSql:
 //   1. [(tag1_name, ...)] TAGS (tag1_value, ...) [table_options]] ...
 //   2. VALUES ... | FILE ...
-static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  SToken  token;
-  int32_t index = 0;
-  NEXT_TOKEN_KEEP_SQL(pStmt->pSql, token, index);
-  if (TK_USING != token.type) {
-    return getTargetTableSchema(pCxt, pStmt);
-  }
-
-  pStmt->usingTableProcessing = true;
-  // pStmt->pSql -> stb_name [(tag1_name, ...)
-  pStmt->pSql += index;
-  int32_t code = parseDuplicateUsingClause(pCxt, pStmt, &pCxt->usingDuplicateTable);
-  if (TSDB_CODE_SUCCESS == code && !pCxt->usingDuplicateTable) {
-    return parseUsingTableNameImpl(pCxt, pStmt);
-  }
-  return code;
-}
 
 static int32_t preParseTargetTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, SToken* pTbName) {
   int32_t code = insCreateSName(&pStmt->targetTableName, pTbName, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg);
@@ -1473,7 +1491,7 @@ int32_t initTableColSubmitDataWithBoundInfo(STableDataCxt* pTableCxt, SBoundColI
 // output pStmt->pSql: VALUES ... | FILE ...
 static int32_t parseSchemaClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,
                                        STableDataCxt** pTableCxt) {
-  int32_t code = parseUsingClauseBottom(pCxt, pStmt);
+  int32_t code = parseUsingClauseBottom(pCxt, pStmt, false);
   if (TSDB_CODE_SUCCESS == code) {
     code = getTableDataCxt(pCxt, pStmt, pTableCxt);
   }
@@ -1706,7 +1724,8 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP: {
-      if (parseTime(pSql, pToken, timePrec, &pVal->value.val, &pCxt->msg, pCxt->pComCxt->timezone) != TSDB_CODE_SUCCESS) {
+      if (parseTime(pSql, pToken, timePrec, &pVal->value.val, &pCxt->msg, pCxt->pComCxt->timezone) !=
+          TSDB_CODE_SUCCESS) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid timestamp", pToken->z);
       }
       break;
@@ -1819,7 +1838,8 @@ static int32_t processCtbTagsAfterCtbName(SInsertParseContext* pCxt, SVnodeModif
 
       if (code == TSDB_CODE_SUCCESS) {
         code = parseTagValue(&pCxt->msg, NULL, precision, pTagSchema, pTagToken, pStbRowsCxt->aTagNames,
-                             pStbRowsCxt->aTagVals, &pStbRowsCxt->pTag, pCxt->pComCxt->timezone, pCxt->pComCxt->charsetCxt);
+                             pStbRowsCxt->aTagVals, &pStbRowsCxt->pTag, pCxt->pComCxt->timezone,
+                             pCxt->pComCxt->charsetCxt);
       }
     }
     if (code == TSDB_CODE_SUCCESS && !pStbRowsCxt->isJsonTag) {
@@ -2107,8 +2127,8 @@ static int32_t parseStbBoundInfo(SVnodeModifyOpStmt* pStmt, SStbRowsDataContext*
 static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, const char** ppSql,
                               SStbRowsDataContext* pStbRowsCxt, bool* pGotRow, SToken* pToken,
                               STableDataCxt** ppTableDataCxt) {
-  bool    bFirstTable = false;
-  bool    setCtbName = false;
+  bool          bFirstTable = false;
+  bool          setCtbName = false;
   SBoundColInfo ctbCols = {0};
   int32_t code = getStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pGotRow, pToken, &bFirstTable, &setCtbName, &ctbCols);
 
