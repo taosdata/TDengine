@@ -75,6 +75,12 @@ class TDTestCase:
 
     def restoreDnodeThread(self, p, newTdSql):
         sleep(1)
+        count = 0
+        while count < 100:
+            newTdSql.query('show dnodes')
+            if newTdSql.queryResult[1][4] == "ready":
+               break
+            count+=1
 
         sql = f"restore dnode 2"
         tdLog.info(sql)
