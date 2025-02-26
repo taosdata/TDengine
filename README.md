@@ -388,7 +388,9 @@ Using the following script to package the enterprise edition.
 ```bash
 cd /root/TDinternal/enterprise/packaging
 # version_number should be in the format x.x.x.x[.x], e.g., 3.3.5.0 or 3.3.5.0.1234
-./new_ver_release.sh -n <version_number>   
+# if you use option "-b <branch_name>" and branch_name is not main or 3.0,
+# please ensure that both TDinternal and TDengine repo have this branch.
+./new_ver_release.sh -n <version_number>  
 ```
 
 Once the packaging process is complete, you can find the installation package files listed below by executing the command:
@@ -773,35 +775,7 @@ Please refer to the [Unit Test](#831-unit-test)、[System Test](#832-system-test
 
 ### 8.3.7 TSBS Test
 
-[Time Series Benchmark Suite (TSBS)](https://github.com/timescale/tsbs) is an open-source performance benchmarking platform specifically designed for time-series data processing systems, such as databases. It provides a standardized approach to evaluating the performance of various databases by simulating typical use cases such as IoT and DevOps.
-
-#### 8.3.7.1 How to run tests?
-
-1. Clone the code and  run the tests locally on your machine. Ensure that your virtual machine supports the AVX instruction set:
-```bash
-  cd /usr/local/src && git clone https://github.com/taosdata/tsbs-internal.git tsbs && \
-  cd tsbs &&  git checkout enh/chr-td-33357 && \
-  cd scripts/tsdbComp && ./testTsbs.sh 
-```
-2. When testing the client and server on separate machines, you should set up your environment as outlined in the steps below:
-
-2.1 Modify IP and host of client and server in `test.ini`
-```ini
-  clientIP="192.168.0.203"   # client ip
-  clientHost="trd03"         # client hostname
-  serverIP="192.168.0.204"   # server ip
-  serverHost="trd04"         # server hostname
-```
-2.2 Set up passwordless login between the client and server; otherwise, you'll need to configure the server password:
-```ini
-  serverPass="taosdata123"   # server root password
-```
-2.3 Run the following command to start the test:
-```bash
-  ./testTsbs.sh  
-```
-3. When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
-
+Please refer to [TSBS Test](https://github.com/taosdata/TDengine/blob/main/tests/README.md#37-tsbs-test) in TDengine repo for details.
 
 ### 8.3.8 TestNG Test
 
