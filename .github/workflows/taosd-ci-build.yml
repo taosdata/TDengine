@@ -77,7 +77,6 @@ jobs:
         run: |
           mkdir debug && cd debug
           cmake .. -DBUILD_TOOLS=true \
-            -DBUILD_KEEPER=true \
             -DBUILD_HTTP=false \
             -DBUILD_TEST=true \
             -DBUILD_DEPENDENCY_TESTS=false
