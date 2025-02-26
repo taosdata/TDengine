@@ -1340,7 +1340,7 @@ void syncLogReplDestroy(SSyncLogReplMgr* pMgr) {
   if (pMgr == NULL) {
     return;
   }
-  taosThreadMutexDestroy(&pMgr->mutex);
+  (void)taosThreadMutexDestroy(&pMgr->mutex);
   taosMemoryFree(pMgr);
   return;
 }
