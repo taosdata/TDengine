@@ -79,7 +79,7 @@ jobs:
           key: ${{ runner.os }}-brew-${{ hashFiles('**/Brewfile') }}
           restore-keys: |
             ${{ runner.os }}-brew-
-              
+
       - name: Install dependencies on macOS
         if: runner.os == 'macOS'
         run: |
@@ -94,6 +94,11 @@ jobs:
             pkg-config \
             snappy \
             zlib
+
+      - name: Install dependencies on Windows
+        if: runner.os == 'Windows'
+        run: |
+          choco install jom --yes
 
       - name: Build and install TDengine on Linux and macOS
         if: runner.os != 'Windows'
