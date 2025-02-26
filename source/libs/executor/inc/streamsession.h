@@ -40,7 +40,7 @@ int32_t compactSessionWindow(SOperatorInfo* pOperator, SResultWindowInfo* pCurWi
                              SSHashObj* pStDeleted, bool addGap, int32_t* pWinNum, bool* pIsEnd);
 
 // stream client
-int32_t streamClientGetResultRange(SSHashObj* pRangeMap, SSDataBlock* pRangeRes);
+int32_t streamClientGetResultRange(SSHashObj* pRangeMap, SSDataBlock** ppRangeRes);
 
 #ifdef __cplusplus
 }

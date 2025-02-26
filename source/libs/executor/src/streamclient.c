@@ -16,9 +16,58 @@
 #include <curl/curl.h>
 
 #include "executorInt.h"
+#include "tjson.h"
 
-
-int32_t streamClientGetResultRange(SSHashObj* pRangeMap, SSDataBlock* pRangeRes) {
+static int32_t buildSessionResultSql(SSHashObj* pRangeMap, char** ppSql) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   // todo(liuyao) add
-  return TSDB_CODE_SUCCESS;
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t doProcessSql(const char* pSql, SJson** ppJsonResult) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  // todo(liuyao) add
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t doTransformResult(const SJson** ppJsonResult, SSDataBlock** ppRangeRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  // todo(liuyao) add
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t streamClientGetResultRange(SSHashObj* pRangeMap, SSDataBlock** ppRangeRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  char* pSql = NULL;
+  code = buildSessionResultSql(pRangeMap, &pSql);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SJson* pJsRes = NULL;
+  code = doProcessSql(pSql, &pJsRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+  code = doTransformResult(pJsRes, ppRangeRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
