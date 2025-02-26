@@ -1326,12 +1326,13 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _OVER;
   }
-  void *pIter = NULL;
 
   for (int32_t i = 0; i < createReq.numOfColumns; ++i) {
     SFieldWithOptions *pField = taosArrayGet(createReq.pColumns, i);
-    if (taosHashPut(pHash, pField->name, strlen(pField->name), NULL, 0) != 0) {
-      code = TSDB_CODE_TSC_DUP_COL_NAMES;
+    if ((code = taosHashPut(pHash, pField->name, strlen(pField->name), NULL, 0)) != 0) {
+      if (code == TSDB_CODE_DUP_KEY) {
+        code = TSDB_CODE_TSC_DUP_COL_NAMES;
+      }
       goto _OVER;
     }
   }
