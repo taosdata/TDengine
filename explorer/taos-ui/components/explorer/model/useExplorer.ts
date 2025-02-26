@@ -5,6 +5,7 @@ export interface ExplorerProps {
   table: TableProps;
   favorite: FavoriteProps;
   isCloud: boolean;
+  isCommunity: boolean;
   customCompCallback: (event: string) => void;
   pageTitle: string | ComputedRef<string>;
 }
