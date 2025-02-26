@@ -135,11 +135,16 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   return 0;
 }
 
-int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
+int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
   TAOS_CHECK_RETURN(tStartDecode(pCoder));
   TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->version));
   TAOS_CHECK_RETURN(tDecodeI8(pCoder, &pME->type));
   TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->uid));
+
+  if (headerOnly) {
+    tEndDecode(pCoder);
+    return 0;
+  }
 
   if (pME->type > 0) {
     TAOS_CHECK_RETURN(tDecodeCStr(pCoder, &pME->name));
@@ -208,6 +213,8 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
   tEndDecode(pCoder);
   return 0;
 }
+
+int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) { return metaDecodeEntryImpl(pCoder, pME, false); }
 
 static int32_t metaCloneSchema(const SSchemaWrapper *pSrc, SSchemaWrapper *pDst) {
   if (pSrc == NULL || pDst == NULL) {

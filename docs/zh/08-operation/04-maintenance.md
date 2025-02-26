@@ -17,8 +17,8 @@ TDengine 面向多种写入场景，而很多写入场景下，TDengine 的存�
 ### 语法
 
 ```SQL
-COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY'];
-COMPACT [db_name.]VGROUPS IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [end with 'YYYY'];
+COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY'] [META_ONLY];
+COMPACT [db_name.]VGROUPS IN (vgroup_id1, vgroup_id2, ...) [start with 'XXXX'] [end with 'YYYY'] [META_ONLY];
 SHOW COMPACTS;
 SHOW COMPACT compact_id;
 KILL COMPACT compact_id;
@@ -32,6 +32,7 @@ KILL COMPACT compact_id;
 -   COMPACT 会合并多个 STT 文件
 -   可通过 start with 关键字指定 COMPACT 数据的起始时间
 -   可通过 end with 关键字指定 COMPACT 数据的终止时间
+-   可通过 `META_ONLY` 关键字指定只 compact 元数据。元数据默认情况下不会 compact。
 -   COMPACT 命令会返回 COMPACT 任务的 ID
 -   COMPACT 任务会在后台异步执行，可以通过 SHOW COMPACTS 命令查看 COMPACT 任务的进度
 -   SHOW 命令会返回 COMPACT 任务的 ID，可以通过 KILL COMPACT 命令终止 COMPACT 任务
