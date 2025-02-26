@@ -289,7 +289,7 @@ const meta = computed(() => props.config.meta || {});
 const isFieldDisplay = computed(() => {
   if (nolabel.value) return false;
 
-  const { displayDependsOn, displayDependsOnValues, displayConditions, hasParentSwitch, defaultValue } = props.config;
+  const { displayDependsOn, displayDependsOnValues, displayConditions, hasParentSwitch } = props.config;
 
   if (!displayDependsOn || !displayDependsOnValues) {
     return true; // 默认都展示
