@@ -1302,7 +1302,8 @@ void *shellThreadLoop(void *arg) {
 }
 #pragma GCC diagnostic pop
 
-int32_t shellExecute() {
+int32_t shellExecute(int argc, char *argv[]) {
+  int32_t code = 0, lino = 0;
   printf(shell.info.clientVersion, shell.info.cusName, taos_get_client_info(), shell.info.cusName);
   fflush(stdout);
 
@@ -1312,7 +1313,7 @@ int32_t shellExecute() {
     if (shell_conn_ws_server(1)) {
       printf("failed to connect to server, reason: %s[0x%08X]\n%s", ws_errstr(NULL), ws_errno(NULL), ERROR_CODE_DETAIL);
       fflush(stdout);
-      return -1;
+      TAOS_CHECK_GOTO(TSDB_CODE_INTERNAL_ERROR, &lino, _exit_half);
     }
   } else {
 #endif
@@ -1325,7 +1326,8 @@ int32_t shellExecute() {
     if (shell.conn == NULL) {
       printf("failed to connect to server, reason: %s[0x%08X]\n%s", taos_errstr(NULL), taos_errno(NULL), ERROR_CODE_DETAIL);
       fflush(stdout);
-      return -1;
+      code = terrno == 0 ? TSDB_CODE_INTERNAL_ERROR : terrno;
+      TAOS_CHECK_GOTO(code, &lino, _exit_half);
     }
 #ifdef WEBSOCKET
   }
@@ -1366,12 +1368,12 @@ int32_t shellExecute() {
 
     shellWriteHistory();
     shellCleanupHistory();
-    return 0;
+    goto _exit_half;
   }
 
-  if (tsem_init(&shell.cancelSem, 0, 0) != 0) {
+  if ((code = tsem_init(&shell.cancelSem, 0, 0)) != 0) {
     printf("failed to create cancel semaphore\r\n");
-    return -1;
+    TAOS_CHECK_GOTO(code, &lino, _exit_half);
   }
 
   TdThread spid = {0};
@@ -1418,12 +1420,15 @@ int32_t shellExecute() {
     showAD(true);
   }
 #endif
-
   taosThreadJoin(spid, NULL);
+  goto _exit;  // normal exit
 
+_exit_half:
+  TAOS_RETURN(code);
+_exit:
   shellCleanupHistory();
   taos_kill_query(shell.conn);
   taos_close(shell.conn);
 
-  return 0;
+  TAOS_RETURN(code);
 }
