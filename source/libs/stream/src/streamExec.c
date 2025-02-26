@@ -598,7 +598,7 @@ static int32_t doSetStreamInputBlock(SStreamTask* pTask, const void* pInput, int
       if (t == STREAM_RECALCULATE_START) {
         stDebug("s-task:%s set recalculate block to start related recalculate task:0x%x", id, tId);
       } else {
-        stDebug("s-task:%s set recalculate end block to drop the recalculate snapshot, task:0x%x", id, tId);
+        stDebug("s-task:%s set recalculate block:%d, task:0x%x", id, t, tId);
       }
     }
   } else {
@@ -809,6 +809,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
   int32_t     code = 0;
   int32_t     vgId = pTask->pMeta->vgId;
   int32_t     taskLevel = pTask->info.taskLevel;
+  int32_t     taskType = pTask->info.fillHistory;
 
   // merge multiple input data if possible in the input queue.
   stDebug("s-task:%s start to extract data block from inputQ", id);
@@ -902,7 +903,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
       streamFreeQitem(pInput);
       return code;
     } else {
-      if (type == STREAM_INPUT__RECALCULATE && (pTask->info.fillHistory == STREAM_NORMAL_TASK)) {
+      if ((type == STREAM_INPUT__RECALCULATE) && (taskType == STREAM_NORMAL_TASK)) {
         if (taskLevel == TASK_LEVEL__AGG) {
           int32_t remain = streamAlignRecalculateStart(pTask);
           if (remain > 0) {
@@ -919,8 +920,12 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
       }
 
       if (type == STREAM_INPUT__RECALCULATE) {
-        if (taskLevel == TASK_LEVEL__SOURCE && (!pTask->info.hasAggTasks) &&
-            pTask->info.fillHistory == STREAM_NORMAL_TASK) {
+        // 1. generate the recalculate snapshot for related recalculate tasks.
+        if ((taskType == STREAM_NORMAL_TASK) &&
+            ((taskLevel == TASK_LEVEL__AGG) || (taskLevel == TASK_LEVEL__SOURCE && (!pTask->info.hasAggTasks)))) {
+          code = doStreamTaskExecImpl(pTask, pInput, numOfBlocks);
+        } else if (taskType == STREAM_RECALCUL_TASK && taskLevel == TASK_LEVEL__AGG) {
+          // send retrieve to upstream tasks(source tasks, to start to recalculate procedure.
           code = doStreamTaskExecImpl(pTask, pInput, numOfBlocks);
         }
       } else {
@@ -934,49 +939,65 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
 
       // for stream with only 1 task, start related re-calculate stream task directly.
       // We only start the re-calculate agg task here, and do NOT start the source task, for streams with agg-tasks.
-      if ((type == STREAM_INPUT__RECALCULATE) && (pTask->info.fillHistory == STREAM_NORMAL_TASK)) {
+      if ((type == STREAM_INPUT__RECALCULATE) && (taskType == STREAM_NORMAL_TASK)) {
         SSDataBlock* pb = taosArrayGet(((SStreamDataBlock*)pInput)->blocks, 0);
 
-        if (pb->info.type == STREAM_RECALCULATE_START) {
-          if ((taskLevel == TASK_LEVEL__AGG) || ((taskLevel == TASK_LEVEL__SOURCE) && (!pTask->info.hasAggTasks))) {
-            // NOTE: no input block here if type is STREAM_INPUT__RECALCULATE
-            if (pTask->hTaskInfo.id.streamId == 0) {
-              stError("s-task:%s related re-calculate stream task is dropping, failed to start re-calculate", id);
-              streamFreeQitem(pInput);
-              return TSDB_CODE_STREAM_INTERNAL_ERROR;
-            }
+        if ((taskLevel == TASK_LEVEL__AGG) || ((taskLevel == TASK_LEVEL__SOURCE) && (!pTask->info.hasAggTasks))) {
+          // NOTE: no input block here if type is STREAM_INPUT__RECALCULATE
+           if (pTask->hTaskInfo.id.streamId == 0) {
+            stError("s-task:%s related re-calculate stream task is dropping, failed to start re-calculate", id);
+            streamFreeQitem(pInput);
+            return TSDB_CODE_STREAM_INTERNAL_ERROR;
+          }
 
-            if (pTask->info.trigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
-              stError("s-task:%s invalid trigger model, expect:%d, actually:%d, not exec tasks", id,
-                      STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE, pTask->info.trigger);
-              streamFreeQitem(pInput);
-              return TSDB_CODE_STREAM_INTERNAL_ERROR;
-            }
+          if (pTask->info.trigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+            stError("s-task:%s invalid trigger model, expect:%d, actually:%d, not exec tasks", id,
+                    STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE, pTask->info.trigger);
+            streamFreeQitem(pInput);
+            return TSDB_CODE_STREAM_INTERNAL_ERROR;
+          }
 
-            SStreamTask* pHTask = NULL;
-            code =
-                streamMetaAcquireTask(pTask->pMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId, &pHTask);
-            if (code != 0) {
-              stError("s-task:%s failed to acquire related recalculate task:0x%x, not start the recalculation, code:%s",
-                      id, (int32_t)pTask->hTaskInfo.id.taskId, tstrerror(code));
-              streamFreeQitem(pInput);
-              return code;
-            }
+          SStreamTask* pHTask = NULL;
+          code = streamMetaAcquireTask(pTask->pMeta, pTask->hTaskInfo.id.streamId, pTask->hTaskInfo.id.taskId, &pHTask);
+          if (code != 0) {
+            stError("s-task:%s failed to acquire related recalculate task:0x%x, not start the recalculation, code:%s",
+                    id, (int32_t)pTask->hTaskInfo.id.taskId, tstrerror(code));
+            streamFreeQitem(pInput);
+            return code;
+          }
+
+          if (pb->info.type == STREAM_RECALCULATE_START) {
+            // start the related recalculate task to do recalculate
+            stDebug("s-task:%s start recalculate task to do recalculate:0x%x", id, pHTask->id.taskId);
 
             if (taskLevel == TASK_LEVEL__SOURCE) {
               code = streamStartScanHistoryAsync(pHTask, 0);
             } else {  // for agg task, in normal stream queue to execute
-              code = streamTrySchedExec(pHTask);
+              SStreamDataBlock* pRecalBlock = NULL;
+              code = streamCreateRecalculateBlock(pTask, &pRecalBlock, STREAM_RECALCULATE_START);
+              if (code) {
+                stError("s-task:%s failed to generate recalculate block, code:%s", id, tstrerror(code));
+              } else {
+                code = streamTaskPutDataIntoInputQ(pHTask, (SStreamQueueItem*)pRecalBlock);
+                if (code != TSDB_CODE_SUCCESS) {
+                  stError("s-task:%s failed to put recalculate block into q, code:%s", pTask->id.idStr,
+                          tstrerror(code));
+                } else {
+                  stDebug("s-task:%s put recalculate block into inputQ", pHTask->id.idStr);
+                }
+                code = streamTrySchedExec(pHTask);
+              }
             }
-            streamMetaReleaseTask(pTask->pMeta, pHTask);
           }
-
+          streamMetaReleaseTask(pTask->pMeta, pHTask);
+          streamFreeQitem(pInput);
         } else if ((taskLevel == TASK_LEVEL__SOURCE) && pTask->info.hasAggTasks) {
           code = continueDispatchRecalculateStart((SStreamDataBlock*)pInput, pTask);
+        } else {
+          streamFreeQitem(pInput);
         }
       }
 
-      streamFreeQitem(pInput);
       if (code) {
         return code;
       }
