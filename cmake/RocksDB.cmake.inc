@@ -2,7 +2,9 @@
 # This file is included from contrib/CMakeLists.txt
 
 # Only build RocksDB if BUILD_CONTRIB is true or if NOT TD_LINUX
-if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
+# TODO: figure out the following and correct
+# if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
+if (TRUE)
     # Set RocksDB build options, common for all platforms
     set(ROCKSDB_CMAKE_ARGS
         -DCMAKE_INSTALL_PREFIX=${CMAKE_BINARY_DIR}/build
@@ -90,7 +92,7 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
         # -DCMAKE_C_FLAGS="${CMAKE_C_FLAGS}"
     # )
 
-    
+    MESSAGE(STATUS "Adding RocksDB an an external project")
 
     include(ExternalProject)
     ExternalProject_Add(rocksdb-project
