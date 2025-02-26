@@ -3765,7 +3765,7 @@ static int32_t addConnToHeapCache(SHashObj* pConnHeapCacahe, SCliConn* pConn) {
 
   if (pConn->heap != NULL) {
     p = pConn->heap;
-    tTrace("conn %p add to heap cache for key:%s,status:%d, refCnt:%d, add direct", pConn, pConn->dstAddr,
+    tTrace("conn %p add to heap cache for key:%s, status:%d, refCnt:%d, add direct", pConn, pConn->dstAddr,
            pConn->inHeap, pConn->reqRefCnt);
   } else {
     code = getOrCreateHeap(pConnHeapCacahe, pConn->dstAddr, &p);
@@ -3781,7 +3781,7 @@ static int32_t addConnToHeapCache(SHashObj* pConnHeapCacahe, SCliConn* pConn) {
   }
 
   code = transHeapInsert(p, pConn);
-  tTrace("conn %p add to heap cache for key:%s,status:%d, refCnt:%d", pConn, pConn->dstAddr, pConn->inHeap,
+  tTrace("conn %p add to heap cache for key:%s, status:%d, refCnt:%d", pConn, pConn->dstAddr, pConn->inHeap,
          pConn->reqRefCnt);
   return code;
 }

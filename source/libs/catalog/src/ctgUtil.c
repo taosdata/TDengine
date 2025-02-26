@@ -1293,7 +1293,7 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* d
 
   *pVgroup = *vgInfo;
 
-  ctgDebug("get tb %s hash vgroup, vgId:%d, epNum %d, current %s port %d", tbFullName, vgInfo->vgId,
+  ctgDebug("get tb:%s hash vgroup, vgId:%d, epNum %d, current %s port %d", tbFullName, vgInfo->vgId,
            vgInfo->epSet.numOfEps, vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn,
            vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
@@ -1437,7 +1437,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
 
     *pNewVg = *vgInfo;
 
-    ctgDebug("get tb %s hash vgroup, vgId:%d, epNum %d, current %s port %d", tbFullName, vgInfo->vgId,
+    ctgDebug("get tb:%s hash vgroup, vgId:%d, epNum %d, current %s port %d", tbFullName, vgInfo->vgId,
              vgInfo->epSet.numOfEps, vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn,
              vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
@@ -1496,7 +1496,7 @@ int32_t ctgGetVgIdsFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, char* dbFNam
 
     vgId[i] = vgInfo->vgId;
 
-    ctgDebug("get tb %s vgId:%d", tbFullName, vgInfo->vgId);
+    ctgDebug("get tb:%s vgId:%d", tbFullName, vgInfo->vgId);
   }
 
   CTG_RET(code);

@@ -873,7 +873,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
 
   *job = taosMemoryCalloc(1, sizeof(SCtgJob));
   if (NULL == *job) {
-    ctgError("failed to calloc, size:%d,QID:0x%" PRIx64, (int32_t)sizeof(SCtgJob), pConn->requestId);
+    ctgError("failed to calloc, size:%d, QID:0x%" PRIx64, (int32_t)sizeof(SCtgJob), pConn->requestId);
     CTG_ERR_RET(terrno);
   }
 

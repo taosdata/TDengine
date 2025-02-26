@@ -511,7 +511,7 @@ _return:
 
 int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
-  qDebug("QID:0x%" PRIx64 ",SID:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 " drop task rsp received, code:0x%x", 
+  qDebug("QID:0x%" PRIx64 ", SID:0x%" PRIx64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 " drop task rsp received, code:0x%x", 
          pParam->queryId, pParam->seriousId, pParam->clientId, pParam->taskId, code);
   // called if drop task rsp received code
   (void)rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT, 0); // ignore error
@@ -528,7 +528,7 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
 
 int32_t schHandleNotifyCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
-  qDebug("QID:0x%" PRIx64 ",SID:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 " task notify rsp received, code:0x%x", 
+  qDebug("QID:0x%" PRIx64 ", SID:0x%" PRIx64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 " task notify rsp received, code:0x%x", 
          pParam->queryId, pParam->seriousId, pParam->clientId, pParam->taskId, code);
   if (pMsg) {
     taosMemoryFreeClear(pMsg->pData);

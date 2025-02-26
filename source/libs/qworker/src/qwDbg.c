@@ -192,7 +192,7 @@ void qwDbgDumpJobsInfo(void) {
     int32_t sessionIdx = 0;
     SQWSessionInfo* pSession = (SQWSessionInfo*)taosHashIterate(pJob->pSessions, NULL);
     while (NULL != pSession) {
-      qDebug("QID:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d the %dth remain session", 
+      qDebug("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d the %dth remain session", 
           pSession->qId, pSession->sId, pSession->cId, pSession->tId, pSession->eId, sessionIdx++);
 
       pSession = (SQWSessionInfo*)taosHashIterate(pJob->pSessions, pSession);    

@@ -280,14 +280,14 @@ int32_t ctgAcquireTbMetaFromCache(SCatalog *pCtg, const char *dbFName, const cha
 
   CTG_LOCK(CTG_READ, &pCache->metaLock);
   if (NULL == pCache->pMeta) {
-    ctgDebug("tb %s meta not in cache, dbFName:%s", tbName, dbFName);
+    ctgDebug("tb:%s meta not in cache, dbFName:%s", tbName, dbFName);
     goto _return;
   }
 
   *pDb = dbCache;
   *pTb = pCache;
 
-  ctgDebug("tb %s meta got in cache, dbFName:%s", tbName, dbFName);
+  ctgDebug("tb:%s meta get in cache, dbFName:%s", tbName, dbFName);
 
   CTG_META_HIT_INC(pCache->pMeta->tableType);
 
@@ -338,14 +338,14 @@ int32_t ctgAcquireVgMetaFromCache(SCatalog *pCtg, const char *dbFName, const cha
 
   CTG_LOCK(CTG_READ, &tbCache->metaLock);
   if (NULL == tbCache->pMeta) {
-    ctgDebug("tb %s meta not in cache, dbFName:%s", tbName, dbFName);
+    ctgDebug("tb:%s meta not in cache, dbFName:%s", tbName, dbFName);
     CTG_META_NHIT_INC();
     goto _return;
   }
 
   *pTb = tbCache;
 
-  ctgDebug("tb %s meta got in cache, dbFName:%s", tbName, dbFName);
+  ctgDebug("tb:%s meta get in cache, dbFName:%s", tbName, dbFName);
 
   CTG_META_HIT_INC(tbCache->pMeta->tableType);
 
@@ -557,7 +557,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
       (*pTableMeta)->schemaExt = NULL;
     }
 
-    ctgDebug("get tb %s meta from cache, type:%d, dbFName:%s", ctx->pName->tname, tbMeta->tableType, dbFName);
+    ctgDebug("get tb:%s meta from cache, type:%d, dbFName:%s", ctx->pName->tname, tbMeta->tableType, dbFName);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -632,7 +632,7 @@ int32_t ctgReadTbMetaFromCache(SCatalog *pCtg, SCtgTbMetaCtx *ctx, STableMeta **
 
   ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
 
-  ctgDebug("get tb %s meta from cache, dbFName:%s", ctx->pName->tname, dbFName);
+  ctgDebug("get tb:%s meta from cache, dbFName:%s", ctx->pName->tname, dbFName);
 
   return TSDB_CODE_SUCCESS;
 
@@ -669,7 +669,7 @@ int32_t ctgReadTbVerFromCache(SCatalog *pCtg, SName *pTableName, int32_t *sver, 
     *sver = tbMeta->sversion;
     *tver = tbMeta->tversion;
 
-    ctgDebug("get tb %s ver from cache, dbFName:%s, tbType:%d, sver:%d, tver:%d, suid:0x%" PRIx64, pTableName->tname,
+    ctgDebug("get tb:%s ver from cache, dbFName:%s, tbType:%d, sver:%d, tver:%d, suid:0x%" PRIx64, pTableName->tname,
              dbFName, *tbType, *sver, *tver, *suid);
 
     ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
@@ -711,7 +711,7 @@ int32_t ctgReadTbVerFromCache(SCatalog *pCtg, SName *pTableName, int32_t *sver, 
 
   ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
 
-  ctgDebug("get tb %s sver %d tver %d from cache, type:%d, dbFName:%s", pTableName->tname, *sver, *tver, *tbType,
+  ctgDebug("get tb:%s sver %d tver %d from cache, type:%d, dbFName:%s", pTableName->tname, *sver, *tver, *tbType,
            dbFName);
 
   return TSDB_CODE_SUCCESS;
@@ -729,7 +729,7 @@ int32_t ctgReadTbTypeFromCache(SCatalog *pCtg, char *dbFName, char *tbName, int3
   *tbType = tbCache->pMeta->tableType;
   ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
 
-  ctgDebug("get tb %s tbType %d from cache, dbFName:%s", tbName, *tbType, dbFName);
+  ctgDebug("get tb:%s tbType %d from cache, dbFName:%s", tbName, *tbType, dbFName);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -3517,7 +3517,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       CTG_UNLOCK(CTG_READ, &pCache->metaLock);
       taosHashRelease(dbCache->tbCache, pCache);
 
-      ctgDebug("get tb %s meta from cache, type:%d, dbFName:%s", pName->tname, pTableMeta->tableType, dbFName);
+      ctgDebug("get tb:%s meta from cache, type:%d, dbFName:%s", pName->tname, pTableMeta->tableType, dbFName);
 
       res.pRes = pTableMeta;
       if (NULL == taosArrayPush(ctx->pResList, &res)) {
@@ -3542,7 +3542,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       CTG_UNLOCK(CTG_READ, &pCache->metaLock);
       taosHashRelease(dbCache->tbCache, pCache);
 
-      ctgDebug("get tb %s meta from cache, type:%d, dbFName:%s", pName->tname, pTableMeta->tableType, dbFName);
+      ctgDebug("get tb:%s meta from cache, type:%d, dbFName:%s", pName->tname, pTableMeta->tableType, dbFName);
 
       res.pRes = pTableMeta;
       if (NULL == taosArrayPush(ctx->pResList, &res)) {
