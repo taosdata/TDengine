@@ -194,7 +194,7 @@ int32_t ctgMetaRentGetImpl(SCtgRentMgmt *mgmt, void **res, uint32_t *num, int32_
 
   *num = (uint32_t)metaNum;
 
-  qDebug("Got %d meta from rent, type:%d", (int32_t)metaNum, mgmt->type);
+  qDebug("get %d meta from rent, type:%d", (int32_t)metaNum, mgmt->type);
 
 _return:
 

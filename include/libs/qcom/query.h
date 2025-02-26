@@ -410,14 +410,14 @@ void* getTaskPoolWorkerCb();
   ((*(_ctbname) == 't') && (0 == strncmp(_ctbname, TSDB_AUDIT_CTB_OPERATION, TSDB_AUDIT_CTB_OPERATION_LEN)))
 
 // clang-format off
-#define qFatal(...) { if (qDebugFlag & DEBUG_FATAL) { taosPrintLog("QRY FATAL ", DEBUG_FATAL, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); }}
-#define qError(...) { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("QRY ERROR ", DEBUG_ERROR, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); }}
-#define qWarn(...)  { if (qDebugFlag & DEBUG_WARN)  { taosPrintLog("QRY WARN  ", DEBUG_WARN,  tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); }}
-#define qInfo(...)  { if (qDebugFlag & DEBUG_INFO)  { taosPrintLog("QRY INFO  ", DEBUG_INFO,  tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); }}
-#define qDebug(...) { if (qDebugFlag & DEBUG_DEBUG) { taosPrintLog("QRY DEBUG ", DEBUG_DEBUG, qDebugFlag,                       __VA_ARGS__); }}
-#define qTrace(...) { if (qDebugFlag & DEBUG_TRACE) { taosPrintLog("QRY TRACE ", DEBUG_TRACE, qDebugFlag,                       __VA_ARGS__); }}
-#define qDebugL(...){ if (qDebugFlag & DEBUG_DEBUG) { taosPrintLongString("QRY DEBUG ", DEBUG_DEBUG, qDebugFlag,                      __VA_ARGS__); }}
-#define qInfoL(...) { if (qDebugFlag & DEBUG_INFO)  { taosPrintLongString("QRY INFO  ", DEBUG_INFO,  tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); }}
+#define qFatal(...) do { if (qDebugFlag & DEBUG_FATAL) { taosPrintLog("QRY FATAL ", DEBUG_FATAL, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); }} while(0)
+#define qError(...) do { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("QRY ERROR ", DEBUG_ERROR, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); }} while(0)
+#define qWarn(...)  do { if (qDebugFlag & DEBUG_WARN)  { taosPrintLog("QRY WARN  ", DEBUG_WARN,  tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); }} while(0)
+#define qInfo(...)  do { if (qDebugFlag & DEBUG_INFO)  { taosPrintLog("QRY INFO  ", DEBUG_INFO,  tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); }} while(0)
+#define qDebug(...) do { if (qDebugFlag & DEBUG_DEBUG) { taosPrintLog("QRY DEBUG ", DEBUG_DEBUG, qDebugFlag,                       __VA_ARGS__); }} while(0)
+#define qTrace(...) do { if (qDebugFlag & DEBUG_TRACE) { taosPrintLog("QRY TRACE ", DEBUG_TRACE, qDebugFlag,                       __VA_ARGS__); }} while(0)
+#define qDebugL(...)do { if (qDebugFlag & DEBUG_DEBUG) { taosPrintLongString("QRY DEBUG ", DEBUG_DEBUG, qDebugFlag,                       __VA_ARGS__); }} while(0)
+#define qInfoL(...) do { if (qDebugFlag & DEBUG_INFO)  { taosPrintLongString("QRY INFO  ", DEBUG_INFO,  tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
 #define QRY_ERR_RET(c)                \

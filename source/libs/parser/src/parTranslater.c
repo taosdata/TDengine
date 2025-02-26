@@ -533,7 +533,7 @@ static int32_t getViewMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCac
   }
 
   if (TSDB_CODE_SUCCESS != code && TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
-    parserError("0x%" PRIx64 " catalogGetViewMeta error, code:%s, dbName:%s, viewName:%s", pParCxt->requestId,
+    parserError("QID:0x%" PRIx64 ", catalogGetViewMeta error, code:%s, dbName:%s, viewName:%s", pParCxt->requestId,
                 tstrerror(code), pName->dbname, pName->tname);
   }
   return code;
@@ -549,7 +549,7 @@ static int32_t getTargetNameImpl(SParseContext* pParCxt, SParseMetaCache* pMetaC
     code = TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   if (TSDB_CODE_SUCCESS != code && TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
-    parserError("0x%" PRIx64 " catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", pParCxt->requestId,
+    parserError("QID:0x%" PRIx64 ", catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", pParCxt->requestId,
                 tstrerror(code), pName->dbname, pName->tname);
   }
   return code;
@@ -565,7 +565,7 @@ static int32_t getTargetName(STranslateContext* pCxt, const SName* pName, char* 
     code = getTargetNameImpl(pParCxt, pCxt->pMetaCache, pName, pTbName);
   }
   if (TSDB_CODE_SUCCESS != code && TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
-    parserError("0x%" PRIx64 " catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", pCxt->pParseCxt->requestId,
+    parserError("QID:0x%" PRIx64 ", catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", pCxt->pParseCxt->requestId,
                 tstrerror(code), pName->dbname, pName->tname);
   }
   return code;
@@ -657,7 +657,7 @@ int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, c
   }
 
   if (TSDB_CODE_SUCCESS != code && TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
-    parserError("0x%" PRIx64 " catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", pParCxt->requestId,
+    parserError("QID:0x%" PRIx64 ", catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", pParCxt->requestId,
                 tstrerror(code), pName->dbname, pName->tname);
   }
   return code;
@@ -673,7 +673,7 @@ static int32_t getTargetMeta(STranslateContext* pCxt, const SName* pName, STable
     code = getTargetMetaImpl(pParCxt, pCxt->pMetaCache, pName, pMeta, couldBeView);
   }
   if (TSDB_CODE_SUCCESS != code && TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
-    parserError("0x%" PRIx64 " catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", pCxt->pParseCxt->requestId,
+    parserError("QID:0x%" PRIx64 ", catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", pCxt->pParseCxt->requestId,
                 tstrerror(code), pName->dbname, pName->tname);
   }
   return code;
@@ -703,7 +703,7 @@ static int32_t getTableCfg(STranslateContext* pCxt, const SName* pName, STableCf
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("0x%" PRIx64 " catalogRefreshGetTableCfg error, code:%s, dbName:%s, tbName:%s",
+    parserError("QID:0x%" PRIx64 ", catalogRefreshGetTableCfg error, code:%s, dbName:%s, tbName:%s",
                 pCxt->pParseCxt->requestId, tstrerror(code), pName->dbname, pName->tname);
   }
   return code;
@@ -726,7 +726,7 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
     code = catalogRefreshGetTableMeta(pParCxt->pCatalog, &conn, &name, pMeta, false);
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("0x%" PRIx64 " catalogRefreshGetTableMeta error, code:%s, dbName:%s, tbName:%s",
+    parserError("QID:0x%" PRIx64 ", catalogRefreshGetTableMeta error, code:%s, dbName:%s, tbName:%s",
                 pCxt->pParseCxt->requestId, tstrerror(code), pDbName, pTableName);
   }
   return code;
@@ -749,7 +749,7 @@ static int32_t getDBVgInfoImpl(STranslateContext* pCxt, const SName* pName, SArr
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("0x%" PRIx64 " catalogGetDBVgList error, code:%s, dbFName:%s", pCxt->pParseCxt->requestId,
+    parserError("QID:0x%" PRIx64 ", catalogGetDBVgList error, code:%s, dbFName:%s", pCxt->pParseCxt->requestId,
                 tstrerror(code), fullDbName);
   }
   return code;
@@ -786,7 +786,7 @@ static int32_t getTableHashVgroupImpl(STranslateContext* pCxt, const SName* pNam
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("0x%" PRIx64 " catalogGetTableHashVgroup error, code:%s, dbName:%s, tbName:%s",
+    parserError("QID:0x%" PRIx64 ", catalogGetTableHashVgroup error, code:%s, dbName:%s, tbName:%s",
                 pCxt->pParseCxt->requestId, tstrerror(code), pName->dbname, pName->tname);
   }
   return code;
@@ -811,7 +811,7 @@ static int32_t getDBVgVersion(STranslateContext* pCxt, const char* pDbFName, int
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("0x%" PRIx64 " catalogGetDBVgVersion error, code:%s, dbFName:%s", pCxt->pParseCxt->requestId,
+    parserError("QID:0x%" PRIx64 ", catalogGetDBVgVersion error, code:%s, dbFName:%s", pCxt->pParseCxt->requestId,
                 tstrerror(code), pDbFName);
   }
   return code;
@@ -842,7 +842,7 @@ static int32_t getDBCfg(STranslateContext* pCxt, const char* pDbName, SDbCfgInfo
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("0x%" PRIx64 " catalogGetDBCfg error, code:%s, dbFName:%s", pCxt->pParseCxt->requestId, tstrerror(code),
+    parserError("QID:0x%" PRIx64 ", catalogGetDBCfg error, code:%s, dbFName:%s", pCxt->pParseCxt->requestId, tstrerror(code),
                 dbFname);
   }
   return code;
@@ -871,7 +871,7 @@ static int32_t getUdfInfo(STranslateContext* pCxt, SFunctionNode* pFunc) {
     tFreeSFuncInfo(&funcInfo);
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("0x%" PRIx64 " catalogGetUdfInfo error, code:%s, funcName:%s", pCxt->pParseCxt->requestId,
+    parserError("QID:0x%" PRIx64 ", catalogGetUdfInfo error, code:%s, funcName:%s", pCxt->pParseCxt->requestId,
                 tstrerror(code), pFunc->functionName);
   }
   return code;
@@ -896,7 +896,7 @@ static int32_t getTableIndex(STranslateContext* pCxt, const SName* pName, SArray
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("0x%" PRIx64 " getTableIndex error, code:%s, dbName:%s, tbName:%s", pCxt->pParseCxt->requestId,
+    parserError("QID:0x%" PRIx64 ", getTableIndex error, code:%s, dbName:%s, tbName:%s", pCxt->pParseCxt->requestId,
                 tstrerror(code), pName->dbname, pName->tname);
   }
   return code;
@@ -915,7 +915,7 @@ static int32_t getDnodeList(STranslateContext* pCxt, SArray** pDnodes) {
     code = catalogGetDnodeList(pParCxt->pCatalog, &conn, pDnodes);
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("0x%" PRIx64 " getDnodeList error, code:%s", pCxt->pParseCxt->requestId, tstrerror(code));
+    parserError("QID:0x%" PRIx64 ", getDnodeList error, code:%s", pCxt->pParseCxt->requestId, tstrerror(code));
   }
   return code;
 }
@@ -933,7 +933,7 @@ static int32_t getTableTsmas(STranslateContext* pCxt, const SName* pName, SArray
     code = catalogGetTableTsmas(pParCxt->pCatalog, &conn, pName, ppTsmas);
   }
   if (code)
-    parserError("0x%" PRIx64 " get table tsma for : %s.%s error, code:%s", pCxt->pParseCxt->requestId, pName->dbname,
+    parserError("QID:0x%" PRIx64 ", get table tsma for : %s.%s error, code:%s", pCxt->pParseCxt->requestId, pName->dbname,
                 pName->tname, tstrerror(code));
   return code;
 }
@@ -951,7 +951,7 @@ static int32_t getTsma(STranslateContext* pCxt, const SName* pName, STableTSMAIn
     code = catalogGetTsma(pParCxt->pCatalog, &conn, pName, pTsma);
   }
   if (code)
-    parserError("0x%" PRIx64 " get tsma for: %s.%s error, code:%s", pCxt->pParseCxt->requestId, pName->dbname,
+    parserError("QID:0x%" PRIx64 ", get tsma for: %s.%s error, code:%s", pCxt->pParseCxt->requestId, pName->dbname,
                 pName->tname, tstrerror(code));
   return code;
 }
@@ -7015,7 +7015,7 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
   bool                    stableQuery = false;
   SEqCondTbNameTableInfo* pInfo = NULL;
 
-  qDebug("start to update stable vg for tbname optimize, aTableNum:%d", aTableNum);
+  parserDebug("start to update stable vg for tbname optimize, aTableNum:%d", aTableNum);
   for (int i = 0; i < aTableNum; ++i) {
     pInfo = taosArrayGet(aTables, i);
     int32_t numOfVgs = pInfo->pRealTable->pVgroupList->numOfVgroups;
@@ -7084,7 +7084,7 @@ static int32_t setEqualTbnameTableVgroups(STranslateContext* pCxt, SSelectStmt* 
     }
   }
 
-  qDebug("before ctbname optimize, code:%d, aTableNum:%d, nTbls:%d, stableQuery:%d", code, aTableNum, nTbls,
+  parserDebug("before ctbname optimize, code:%d, aTableNum:%d, nTbls:%d, stableQuery:%d", code, aTableNum, nTbls,
          stableQuery);
 
   if (TSDB_CODE_SUCCESS == code && 1 == aTableNum && 1 == nTbls && stableQuery && NULL == pInfo->pRealTable->pTsmas) {
@@ -13001,7 +13001,7 @@ static int32_t readFromFile(char* pName, int32_t* len, char** buf) {
   int64_t s = taosReadFile(tfile, *buf, *len);
   if (s != *len) {
     int32_t code = taosCloseFile(&tfile);
-    qError("failed to close file: %s in %s:%d, err: %s", pName, __func__, __LINE__, tstrerror(code));
+    parserError("failed to close file: %s in %s:%d, err: %s", pName, __func__, __LINE__, tstrerror(code));
     taosMemoryFreeClear(*buf);
     return TSDB_CODE_APP_ERROR;
   }
@@ -15504,7 +15504,7 @@ static int32_t fillVgroupInfo(SParseContext* pParseCxt, const SName* pName, SVgr
   if (code == TSDB_CODE_SUCCESS) {
     *pVgInfo = vg;
   } else {
-    parserError("0x%" PRIx64 " catalogGetTableHashVgroup error, code:%s, dbName:%s, tbName:%s", pParseCxt->requestId,
+    parserError("QID:0x%" PRIx64 ", catalogGetTableHashVgroup error, code:%s, dbName:%s, tbName:%s", pParseCxt->requestId,
                 tstrerror(code), pName->dbname, pName->tname);
   }
 
@@ -15835,7 +15835,7 @@ int32_t serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap, SArray** pOut
 
     code = serializeVgroupCreateTableBatch(pTbBatch, pBufArray);
     if (TSDB_CODE_SUCCESS != code) {
-      qError("failed to serialize create table batch msg, since:%s", tstrerror(code));
+      parserError("failed to serialize create table batch msg, since:%s", tstrerror(code));
       taosHashCancelIterate(pVgroupHashmap, pTbBatch);
       break;
     }
@@ -15914,7 +15914,7 @@ static int32_t rewriteCreateTableFromFile(STranslateContext* pCxt, SQuery* pQuer
   taosHashClear(pModifyStmt->pVgroupsHashObj);
   if (TSDB_CODE_SUCCESS != code) {
     if (TSDB_CODE_INVALID_MSG_LEN == code) {
-      qError("maxInsertBatchRows may need to be reduced, current:%d", tsMaxInsertBatchRows);
+      parserError("maxInsertBatchRows may need to be reduced, current:%d", tsMaxInsertBatchRows);
     }
     taosHashCleanup(pModifyStmt->pVgroupsHashObj);
     return code;

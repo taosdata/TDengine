@@ -370,7 +370,7 @@ int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind
 
   code = tRowBuildFromBind(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, &pDataBlock->ordered, &pDataBlock->duplicateTs);
 
-  qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
+  parserDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
 
 _return:
 
@@ -423,7 +423,7 @@ int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, c
     }
   }
 
-  qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
+  parserDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
 
 _return:
 
@@ -472,7 +472,7 @@ int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bi
                                 IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
                                 initCtxAsText, checkWKB);
 
-  qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
+  parserDebug("stmt col %d bind %d rows data", colIdx, rowNum);
 
 _return:
 
@@ -750,7 +750,7 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
 
   code = tRowBuildFromBind2(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols, &pDataBlock->ordered, &pDataBlock->duplicateTs);
 
-  qDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
+  parserDebug("stmt all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
 
 _return:
   if (ncharBinds) {
@@ -867,7 +867,7 @@ int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, 
     }
   }
 
-  qDebug("stmt2 all %d columns bind %d rows data as col format", boundInfo->numOfBound, rowNum);
+  parserDebug("stmt2 all %d columns bind %d rows data as col format", boundInfo->numOfBound, rowNum);
 
 _return:
 
@@ -916,7 +916,7 @@ int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* b
                                  IS_VAR_DATA_TYPE(pColSchema->type) ? pColSchema->bytes - VARSTR_HEADER_SIZE : -1,
                                  initCtxAsText, checkWKB);
 
-  qDebug("stmt col %d bind %d rows data", colIdx, rowNum);
+  parserDebug("stmt col %d bind %d rows data", colIdx, rowNum);
 
 _return:
 
@@ -1096,7 +1096,7 @@ int32_t qResetStmtColumns(SArray* pCols, bool deepClear) {
   for (int32_t i = 0; i < colNum; ++i) {
     SColData* pCol = (SColData*)taosArrayGet(pCols, i);
     if (pCol == NULL) {
-      qError("qResetStmtColumns column is NULL");
+      parserError("qResetStmtColumns column is NULL");
       return terrno;
     }
     if (deepClear) {
@@ -1116,7 +1116,7 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
   for (int32_t i = 0; i < colNum; ++i) {
     SColData* pCol = (SColData*)taosArrayGet(pBlock->pData->aCol, i);
     if (pCol == NULL) {
-      qError("qResetStmtDataBlock column is NULL");
+      parserError("qResetStmtDataBlock column is NULL");
       return terrno;
     }
     if (deepClear) {

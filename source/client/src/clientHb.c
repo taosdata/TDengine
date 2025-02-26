@@ -121,7 +121,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
       pTscObj->authVer = pRsp->version;
 
       if (pTscObj->sysInfo != pRsp->sysInfo) {
-        tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", tscRid:%" PRIi64, pRsp->user,
+        tscDebug("update sysInfo of user %s from %" PRIi8 " to %" PRIi8 ", connObj:%" PRIi64, pRsp->user,
                  pTscObj->sysInfo, pRsp->sysInfo, pTscObj->id);
         pTscObj->sysInfo = pRsp->sysInfo;
       }
@@ -134,7 +134,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
           if (passInfo->fp) {
             (*passInfo->fp)(passInfo->param, &pRsp->passVer, TAOS_NOTIFY_PASSVER);
           }
-          tscDebug("update passVer of user %s from %d to %d, tscRid:%" PRIi64, pRsp->user, oldVer,
+          tscDebug("update passVer of user %s from %d to %d, connObj:%" PRIi64, pRsp->user, oldVer,
                    atomic_load_32(&passInfo->ver), pTscObj->id);
         }
       }
@@ -147,7 +147,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
           if (whiteListInfo->fp) {
             (*whiteListInfo->fp)(whiteListInfo->param, &pRsp->whiteListVer, TAOS_NOTIFY_WHITELIST_VER);
           }
-          tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", tscRid:%" PRIi64, pRsp->user,
+          tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", connObj:%" PRIi64, pRsp->user,
                    oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
         }
       } else {
@@ -156,7 +156,7 @@ static int32_t hbUpdateUserAuthInfo(SAppHbMgr *pAppHbMgr, SUserAuthBatchRsp *bat
         SWhiteListInfo *whiteListInfo = &pTscObj->whiteListInfo;
         int64_t         oldVer = atomic_load_64(&whiteListInfo->ver);
         atomic_store_64(&whiteListInfo->ver, pRsp->whiteListVer);
-        tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", tscRid:%" PRIi64, pRsp->user,
+        tscDebug("update whitelist version of user %s from %" PRId64 " to %" PRId64 ", connObj:%" PRIi64, pRsp->user,
                  oldVer, atomic_load_64(&whiteListInfo->ver), pTscObj->id);
       }
       releaseTscObj(pReq->connKey.tscRid);
@@ -548,7 +548,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
     struct SCatalog *pCatalog = NULL;
     int32_t          code = catalogGetHandle(pReq->clusterId, &pCatalog);
     if (code != TSDB_CODE_SUCCESS) {
-      tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pReq->clusterId, tstrerror(code));
+      tscWarn("catalogGetHandle failed, clusterId:0x%" PRIx64 ", error:%s", pReq->clusterId, tstrerror(code));
     } else {
       hbProcessQueryRspKvs(kvNum, pRsp->info, pCatalog, pAppHbMgr);
     }
@@ -608,7 +608,7 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
 
   pInst->serverCfg.monitorParas = pRsp.monitorParas;
   pInst->serverCfg.enableAuditDelete = pRsp.enableAuditDelete;
-  tscDebug("[monitor] paras from hb, clusterId:%" PRIx64 " monitorParas threshold:%d scope:%d", pInst->clusterId,
+  tscDebug("monitor paras from hb, clusterId:0x%" PRIx64 ", threshold:%d scope:%d", pInst->clusterId,
            pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
 
   if (rspNum) {
@@ -1081,33 +1081,33 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
 
   code = hbGetQueryBasicInfo(connKey, req);
   if (code != TSDB_CODE_SUCCESS) {
-    tscWarn("hbGetQueryBasicInfo failed, clusterId:%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
+    tscWarn("hbGetQueryBasicInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
     return code;
   }
 
   if (hbParam->reqCnt == 0) {
     code = catalogGetHandle(hbParam->clusterId, &pCatalog);
     if (code != TSDB_CODE_SUCCESS) {
-      tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
+      tscWarn("catalogGetHandle failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
       return code;
     }
 
     code = hbGetAppInfo(hbParam->clusterId, req);
     if (TSDB_CODE_SUCCESS != code) {
-      tscWarn("getAppInfo failed, clusterId:%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
+      tscWarn("getAppInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
       return code;
     }
 
     if (!taosHashGet(clientHbMgr.appHbHash, &hbParam->clusterId, sizeof(hbParam->clusterId))) {
       code = hbGetExpiredUserInfo(connKey, pCatalog, req);
       if (TSDB_CODE_SUCCESS != code) {
-        tscWarn("hbGetExpiredUserInfo failed, clusterId:%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
+        tscWarn("hbGetExpiredUserInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
         return code;
       }
       if (clientHbMgr.appHbHash) {
         code = taosHashPut(clientHbMgr.appHbHash, &hbParam->clusterId, sizeof(uint64_t), NULL, 0);
         if (TSDB_CODE_SUCCESS != code) {
-          tscWarn("hbQueryHbReqHandle put clusterId failed, clusterId:%" PRIx64 ", error:%s", hbParam->clusterId,
+          tscWarn("hbQueryHbReqHandle put clusterId failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId,
                   tstrerror(code));
           return code;
         }
@@ -1118,7 +1118,7 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
     if (2 != atomic_load_8(&hbParam->pAppHbMgr->connHbFlag)) {
       code = hbGetUserAuthInfo(connKey, hbParam, req);
       if (TSDB_CODE_SUCCESS != code) {
-        tscWarn("hbGetUserAuthInfo failed, clusterId:%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
+        tscWarn("hbGetUserAuthInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
         return code;
       }
       atomic_store_8(&hbParam->pAppHbMgr->connHbFlag, 1);
@@ -1126,32 +1126,32 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
 
     code = hbGetExpiredDBInfo(connKey, pCatalog, req);
     if (TSDB_CODE_SUCCESS != code) {
-      tscWarn("hbGetExpiredDBInfo failed, clusterId:%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
+      tscWarn("hbGetExpiredDBInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
       return code;
     }
 
     code = hbGetExpiredStbInfo(connKey, pCatalog, req);
     if (TSDB_CODE_SUCCESS != code) {
-      tscWarn("hbGetExpiredStbInfo failed, clusterId:%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
+      tscWarn("hbGetExpiredStbInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
       return code;
     }
 
 #ifdef TD_ENTERPRISE
     code = hbGetExpiredViewInfo(connKey, pCatalog, req);
     if (TSDB_CODE_SUCCESS != code) {
-      tscWarn("hbGetExpiredViewInfo failed, clusterId:%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
+      tscWarn("hbGetExpiredViewInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
       return code;
     }
 #endif
     code = hbGetExpiredTSMAInfo(connKey, pCatalog, req);
     if (TSDB_CODE_SUCCESS != code) {
-      tscWarn("hbGetExpiredTSMAInfo failed, clusterId:%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
+      tscWarn("hbGetExpiredTSMAInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
       return code;
     }
   } else {
     code = hbGetAppInfo(hbParam->clusterId, req);
     if (TSDB_CODE_SUCCESS != code) {
-      tscWarn("hbGetAppInfo failed, clusterId:%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
+      tscWarn("hbGetAppInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
       return code;
     }
   }
