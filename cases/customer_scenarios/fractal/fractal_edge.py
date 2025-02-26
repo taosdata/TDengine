@@ -5,15 +5,15 @@ from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.rest import TDRest
 from taostest.util import file
-class FractakEdge(TDCase):
+class FractalEdge(TDCase):
     def init(self):
         self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
         case_config = json.load(open(os.path.join(self.env_root, "workflow_config.json")))
         self.db_config = case_config["db_config"]
         self.execute_time = int(case_config["exec_time"])
+        self.tdCom = TDCom(self.tdSql)
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
         self.host = self.taosd_setting["fqdn"][0]
-        self.tdCom = TDCom(self.tdSql)
         self.tdCom.api_type = 'restful'
         self.target_dbname = "mqtt_datain"
 

@@ -5,7 +5,7 @@ from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.rest import TDRest
 from taostest.util import file
-class FractakCenter(TDCase):
+class FractalCenter(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         # TODO 外部传入edge侧的hostname，可能有多个
