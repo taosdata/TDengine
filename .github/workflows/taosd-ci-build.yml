@@ -7,7 +7,7 @@ on:
       - '3.0'
       - '3.1'
       - 'enh/cmake-TD-33848'
-      
+
     paths-ignore:
       - 'docs/**'
       - 'packaging/**'
@@ -30,6 +30,7 @@ jobs:
           - ubuntu-24.04
           - macos-14
           - macos-15
+          - windows-2019
 
     steps:
       - name: Checkout the repository
