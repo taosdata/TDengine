@@ -7,13 +7,13 @@ pub const S3_ENABLE: &str = "s3_enable";
 
 #[derive(Debug, Clone)]
 pub struct S3Config {
-    endpoint: String,
-    access_key_id: String,
-    secret_access_key: String,
-    region: Option<String>,
-    bucket: String,
+    pub endpoint: String,
+    pub access_key_id: String,
+    pub secret_access_key: String,
+    pub region: Option<String>,
+    pub bucket: String,
     /// S3 对象存储的前缀，类似于 directory，默认为：'/'，即根目录
-    prefix: String,
+    pub prefix: Option<String>,
 }
 
 impl S3Config {
@@ -28,15 +28,13 @@ impl S3Config {
         let region = utils::parse_key_in_dsn::<String>(dsn, "s3_region")?;
         let bucket = utils::parse_key_in_dsn(dsn, "s3_bucket")?
             .ok_or(anyhow::anyhow!("s3_bucket not found"))?;
-        let prefix = utils::parse_key_in_dsn::<String>(dsn, "s3_prefix")?
-            .map(|s| {
-                if s.trim().ends_with('/') {
-                    s
-                } else {
-                    format!("{}/", s)
-                }
-            })
-            .unwrap_or("/".to_string());
+        let prefix = utils::parse_key_in_dsn::<String>(dsn, "s3_prefix")?.map(|s| {
+            if s.trim().ends_with('/') {
+                s
+            } else {
+                format!("{}/", s)
+            }
+        });
 
         Ok(Self {
             endpoint,
@@ -65,13 +63,14 @@ impl S3Config {
         // check
         op.check().await?;
         // read the meta of the prefix
-        let meta = op.stat(&self.prefix).await?;
+        let prefix = self.prefix.as_deref().unwrap_or("/");
+        let meta = op.stat(prefix).await?;
         match meta.mode() {
             EntryMode::DIR => {
-                tracing::info!("connected with s3 directory: {}", self.prefix);
+                tracing::info!("connected with s3 directory: {:?}", self.prefix);
             }
             EntryMode::FILE | EntryMode::Unknown => {
-                anyhow::bail!("prefix: {} is not a directory", self.prefix);
+                anyhow::bail!("prefix: {:?} is not a directory", self.prefix);
             }
         }
 
@@ -174,7 +173,7 @@ mod tests {
             assert_eq!(config.secret_access_key, secret);
             assert_eq!(config.region, region);
             assert_eq!(config.bucket, bucket);
-            assert_eq!(config.prefix, "/");
+            assert_eq!(config.prefix, None);
 
             let op = config.connect().await;
             assert!(op.is_ok());

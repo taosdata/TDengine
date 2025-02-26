@@ -20,7 +20,7 @@ chrono-tz = { version = "0.10.0" }
 shadow-rs = { version = "0.35.0" }
 itertools = { version = "0.13.0" }
 flume = { version = "0.11" }
-
+urlencoding = { version = "2" }
 clap = { version = "4.5.19", features = ["default", "derive"] }
 
 regex = { version = "1.11.0" }
@@ -48,6 +48,7 @@ serde_json = { version = "1.0", features = ["raw_value", "preserve_order"] }
 taoslog = { path = "crates/taoslog", features = ["ansi"] }
 
 fundu = "2.0.1"
+opendal = { version = "0", features = ["services-s3"] }
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
@@ -216,6 +217,8 @@ shadow-rs = { workspace = true }
 [dev-dependencies]
 assert_cmd = "2"
 shlex = "1"
+opendal = { workspace = true }
+urlencoding = { workspace = true }
 
 [features]
 default = ["native-tls", "mimalloc"]
