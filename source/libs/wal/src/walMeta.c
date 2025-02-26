@@ -189,7 +189,7 @@ FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* 
       }
 
       // found one
-      retVer = logContent->head.version;
+      retVer = taosGetInt64Aligned(&logContent->head.version);
       lastEntryBeginOffset = offset + pos;
       lastEntryEndOffset = offset + pos + recordLen;
 
