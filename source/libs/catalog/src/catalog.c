@@ -917,7 +917,7 @@ int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle) {
     if (ctg && (*ctg)) {
       *catalogHandle = *ctg;
       CTG_STAT_HIT_INC(CTG_CI_CLUSTER, 1);
-      qDebug("CTG:%p, get catalog handle from cache, clusterId:0x%" PRIx64, *ctg, clusterId);
+      qDebug("CTG:%p get catalog handle from cache, clusterId:0x%" PRIx64, *ctg, clusterId);
       CTG_API_LEAVE(TSDB_CODE_SUCCESS);
     }
 

@@ -93,8 +93,7 @@ static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
 
     int32_t total = atomic_add_fetch_64((int64_t *)&pSummary->totalRequests, 1);
     int32_t currentInst = atomic_add_fetch_64((int64_t *)&pSummary->currentRequests, 1);
-    tscDebug("0x%" PRIx64 " new Request from connObj:0x%" PRIx64
-             ", current:%d, app current:%d, total:%d, QID:0x%" PRIx64,
+    tscDebug("req:0x%" PRIx64 ", new from connObj:0x%" PRIx64 ", current:%d, app current:%d, total:%d, QID:0x%" PRIx64,
              pRequest->self, pRequest->pTscObj->id, num, currentInst, total, pRequest->requestId);
   }
 
@@ -255,9 +254,8 @@ static void deregisterRequest(SRequestObj *pRequest) {
   int32_t reqType = SLOW_LOG_TYPE_OTHERS;
 
   int64_t duration = taosGetTimestampUs() - pRequest->metric.start;
-  tscDebug("0x%" PRIx64 " free Request from connObj:0x%" PRIx64 ", QID:0x%" PRIx64
-           " elapsed:%.2f ms, "
-           "current:%d, app current:%d",
+  tscDebug("req:0x%" PRIx64 ", free from connObj:0x%" PRIx64 ", QID:0x%" PRIx64
+           " elapsed:%.2f ms, current:%d, app current:%d",
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
 
   if (TSDB_CODE_SUCCESS == nodesSimAcquireAllocator(pRequest->allocatorRefId)) {
