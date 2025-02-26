@@ -47,6 +47,10 @@ END:
 void tqUpdateNodeStage(STQ* pTq, bool isLeader) {
   SSyncState state = syncGetState(pTq->pVnode->sync);
   streamMetaUpdateStageRole(pTq->pStreamMeta, state.term, isLeader);
+
+  if (isLeader) {
+    tqScanWalAsync(pTq);
+  }
 }
 
 static int32_t tqInitTaosxRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {

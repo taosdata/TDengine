@@ -483,8 +483,10 @@ typedef struct STaskUpdateInfo {
 } STaskUpdateInfo;
 
 typedef struct SScanWalInfo {
-  int32_t scanCounter;
+  int32_t scanSentinel;
   tmr_h   scanTimer;
+  int64_t lastScanTs;
+  int32_t tickCounter;
 } SScanWalInfo;
 
 typedef struct SFatalErrInfo {

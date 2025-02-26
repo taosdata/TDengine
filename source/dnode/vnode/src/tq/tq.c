@@ -920,12 +920,12 @@ static void doStartFillhistoryStep2(SStreamTask* pTask, SStreamTask* pStreamTask
 
     // now the fill-history task starts to scan data from wal files.
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
-    if (code == TSDB_CODE_SUCCESS) {
-      code = tqScanWalAsync(pTq, false);
-      if (code) {
-        tqError("vgId:%d failed to start scan wal file, code:%s", vgId, tstrerror(code));
-      }
-    }
+//    if (code == TSDB_CODE_SUCCESS) {
+//      code = tqScanWalAsync(pTq, false);
+//      if (code) {
+//        tqError("vgId:%d failed to start scan wal file, code:%s", vgId, tstrerror(code));
+//      }
+//    }
   }
 }
 
@@ -1113,23 +1113,14 @@ int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {
   // extracted submit data from wal files for all tasks
   if (req.reqType == STREAM_EXEC_T_EXTRACT_WAL_DATA) {
     return tqScanWal(pTq);
-  }
+  } else {
+    code = tqStreamTaskProcessRunReq(pTq->pStreamMeta, pMsg, vnodeIsRoleLeader(pTq->pVnode));
+    if (code) {
+      tqError("vgId:%d failed to create task run req, code:%s", TD_VID(pTq->pVnode), tstrerror(code));
+    }
 
-  code = tqStreamTaskProcessRunReq(pTq->pStreamMeta, pMsg, vnodeIsRoleLeader(pTq->pVnode));
-  if (code) {
-    tqError("vgId:%d failed to create task run req, code:%s", TD_VID(pTq->pVnode), tstrerror(code));
     return code;
   }
-
-  // let's continue scan data in the wal files
-  if (req.reqType >= 0 || req.reqType == STREAM_EXEC_T_RESUME_TASK) {
-    code = tqScanWalAsync(pTq, false);  // it's ok to failed
-    if (code) {
-      tqError("vgId:%d failed to start scan wal file, code:%s", pTq->pStreamMeta->vgId, tstrerror(code));
-    }
-  }
-
-  return code;
 }
 
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg) {
