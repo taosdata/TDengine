@@ -98,7 +98,7 @@ jobs:
       - name: Build and install TDengine on Windows
         if: runner.os == 'Windows'
         run: |
-          call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" x64
+          call "C:\Program Files\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" x64
           set CL=/MP8
           mkdir debug && cd debug
           cmake .. -G "NMake Makefiles JOM" -DBUILD_TOOLS=true -DBUILD_HTTP=false -DBUILD_TEST=true -DBUILD_DEPENDENCY_TESTS=false
