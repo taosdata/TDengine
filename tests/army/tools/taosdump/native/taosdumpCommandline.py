@@ -14,6 +14,7 @@
 import os
 import json
 import frame
+import frame.eos
 import frame.etool
 from frame.log import *
 from frame.cases import *
@@ -28,23 +29,19 @@ class TDTestCase(TBase):
         test taosdump support commandline arguments
         """
 
-    def exec(self, command):
-        tdLog.info(command)
-        return os.system(command)
-    
     def clearPath(self, path):
         os.system("rm -rf %s/*" % path)
 
     def findPrograme(self):
         # taosdump 
-        taosdump = etool.taosDumpFile()
+        taosdump = frame.etool.taosDumpFile()
         if taosdump == "":
             tdLog.exit("taosdump not found!")
         else:
             tdLog.info("taosdump found in %s" % taosdump)
 
         # taosBenchmark
-        benchmark = etool.benchMarkFile()
+        benchmark = frame.etool.benchMarkFile()
         if benchmark == "":
             tdLog.exit("benchmark not found!")
         else:
@@ -60,7 +57,7 @@ class TDTestCase(TBase):
 
         return taosdump, benchmark,tmpdir
 
-    def checkCorrectWithJson(self, jsonFile, newdb = None, checkInterval=False):
+    def checkCorrectWithJson(self, jsonFile, newdb = None, checkInterval = True):
         #
         # check insert result
         #
@@ -73,9 +70,9 @@ class TDTestCase(TBase):
         else:
             db = newdb
 
-        stb = data["databases"][0]["super_tables"][0]["name"]
-        child_count = data["databases"][0]["super_tables"][0]["childtable_count"]
-        insert_rows = data["databases"][0]["super_tables"][0]["insert_rows"]
+        stb            = data["databases"][0]["super_tables"][0]["name"]
+        child_count    = data["databases"][0]["super_tables"][0]["childtable_count"]
+        insert_rows    = data["databases"][0]["super_tables"][0]["insert_rows"]
         timestamp_step = data["databases"][0]["super_tables"][0]["timestamp_step"]
 
         tdLog.info(f"get json: db={db} stb={stb} child_count={child_count} insert_rows={insert_rows} \n")
@@ -91,15 +88,9 @@ class TDTestCase(TBase):
             tdSql.query(sql)
             tdSql.checkRows(0)
 
-    def testBenchmarkJson(self, benchmark, jsonFile, options="", checkInterval=False):
-        # exe insert 
-        cmd = f"{benchmark} {options} -f {jsonFile}"
-        self.exec(cmd)
-        self.checkCorrectWithJson(jsonFile)
-
-    def insertData(self, benchmark, json, db):
+    def insertData(self, json):
         # insert super table
-        self.testBenchmarkJson(benchmark, json)
+        db, stb, child_count, insert_rows = self.insertBenchJson(json)
         
         # normal table
         sqls = [
@@ -112,14 +103,8 @@ class TDTestCase(TBase):
         ]
         for sql in sqls:
             tdSql.execute(sql)
-
-    def dumpOut(self, taosdump, db , outdir):
-        # dump out
-        self.exec(f"{taosdump} -D {db} -o {outdir}")
-
-    def dumpIn(self, taosdump, db, newdb, indir):
-        # dump in
-        self.exec(f'{taosdump} -W "{db}={newdb}" -i {indir}')
+        
+        return db, stb, child_count, insert_rows
 
     def checkSame(self, db, newdb, stb, aggfun):
         # sum pk db
@@ -136,31 +121,75 @@ class TDTestCase(TBase):
         else:
             tdLog.exit(f"{aggfun} source db:{sum1} import db:{sum2} not equal.")
 
-
     def verifyResult(self, db, newdb, json):
         # compare with insert json
         self.checkCorrectWithJson(json, newdb)
         
         #  compare sum(pk)
         stb = "meters"
-        self.checkSame(db, newdb, stb, "sum(pk)")
-        self.checkSame(db, newdb, stb, "sum(usi)")
+        self.checkSame(db, newdb, stb, "sum(fc)")
+        self.checkSame(db, newdb, stb, "sum(ti)")
+        self.checkSame(db, newdb, stb, "sum(si)")
         self.checkSame(db, newdb, stb, "sum(ic)")
+        self.checkSame(db, newdb, stb, "avg(bi)")
+        self.checkSame(db, newdb, stb, "sum(uti)")
+        self.checkSame(db, newdb, stb, "sum(usi)")
+        self.checkSame(db, newdb, stb, "sum(ui)")
+        self.checkSame(db, newdb, stb, "avg(ubi)")
 
         # check normal table
         self.checkSame(db, newdb, "ntb", "sum(c1)")
 
-    
-    # basic commandline
-    def basicCommandLine(self, taosdump, tmpdir):
-        # -h -P -u -p -o
-        self.exec(taosdump + f" -h 127.0.0.1 -P 6030 -uroot -ptaosdata -A -N -o {tmpdir}")
+    #  with Native Rest and WebSocket
+    def dumpInOutMode(self, mode, db, json, tmpdir):
+        # dump out
         self.clearPath(tmpdir)
+        self.taosdump(f"{mode} -D {db} -o {tmpdir}")
+
+        # dump in
+        newdb = "new" + db
+        self.taosdump(f"{mode} -W '{db}={newdb}' -i {tmpdir}")
+
+        # check same
+        self.verifyResult(db, newdb, json)
+
+
+    # basic commandline
+    def basicCommandLine(self, tmpdir):
+        #command and check result 
+        checkItems = [
+            [f"-h 127.0.0.1 -P 6030 -uroot -ptaosdata -A -N -o {tmpdir}", ["OK: Database test dumped"]],
+            [f"-r result -a -e test d0 -o {tmpdir}", ["OK: table: d0 dumped", "OK: 100 row(s) dumped out!"]],
+            [f"-n -D test -o {tmpdir}", ["OK: Database test dumped", "OK: 205 row(s) dumped out!"]],
+            [f"-L -D test -o {tmpdir}", ["OK: Database test dumped", "OK: 205 row(s) dumped out!"]],
+            [f"-s -D test -o {tmpdir}", ["dumping out schema: 1 from meters.d0", "OK: Database test dumped", "OK: 0 row(s) dumped out!"]],
+            [f"-N -d deflate -S '2022-10-01 00:00:50.000' test meters  -o {tmpdir}",["OK: table: meters dumped", "OK: 100 row(s) dumped out!"]],
+            [f"-N -d lzma    -S '2022-10-01 00:00:50.000' test meters  -o {tmpdir}",["OK: table: meters dumped", "OK: 100 row(s) dumped out!"]],
+            [f"-N -d snappy  -S '2022-10-01 00:00:50.000' test meters  -o {tmpdir}",["OK: table: meters dumped", "OK: 100 row(s) dumped out!"]],
+            [f" -S '2022-10-01 00:00:50.000' -E '2022-10-01 00:00:60.000' test meters  -o {tmpdir}",["OK: table: meters dumped", "OK: 22 row(s) dumped out!"]],
+            [f"-T 2 -B 1000 -S '2022-10-01 00:00:50.000' -E '2022-10-01 00:00:60.000' test meters -o {tmpdir}", ["OK: table: meters dumped", "OK: 22 row(s) dumped out!"]],
+            [f"-g -E '2022-10-01 00:00:60.000' test -o {tmpdir}", ["OK: Database test dumped", "OK: 122 row(s) dumped out!"]],
+            [f"--help", ["Report bugs to"]],
+            [f"-?", ["Report bugs to"]],
+            [f"-V", ["version:"]],
+            [f"--usage", ["taosdump [OPTION...] -o outpath"]]
+        ]
+
+        # executes 
+        for item in checkItems:
+            self.clearPath(tmpdir)
+            command = item[0]
+            results = item[1]
+            rlist = self.taosdump(command)
+            for result in results:
+                self.checkListString(rlist, result)
+            # clear tmp    
+
     
     # check except
     def checkExcept(self, command):
         try:
-            code = self.exec(command)
+            code = frame.eos.exe(command, show = True)
             if code == 0:
                 tdLog.exit(f"Failed, not report error cmd:{command}")
             else:
@@ -170,7 +199,7 @@ class TDTestCase(TBase):
 
 
     # except commandline
-    def exceptCommandLine(self, taosdump, tmpdir):
+    def exceptCommandLine(self, taosdump, db, stb, tmpdir):
         # -o 
         self.checkExcept(taosdump + " -o= ")
         self.checkExcept(taosdump + " -o")
@@ -178,34 +207,47 @@ class TDTestCase(TBase):
         self.checkExcept(taosdump + " -A -o  ")
         self.checkExcept(taosdump + " -A -o ./noexistpath/")
         self.checkExcept(taosdump + f" -d invalidAVRO -o {tmpdir}")
+        self.checkExcept(taosdump + f" -d unknown -o {tmpdir}")
+        self.checkExcept(taosdump + f" -P invalidport")
+        self.checkExcept(taosdump + f" -D")
+        self.checkExcept(taosdump + f" -P 65536")
+        self.checkExcept(taosdump + f" -t 2 -k 2 -z 1 -C https://not-exist.com:80/cloud -D test -o {tmpdir}")
+        self.checkExcept(taosdump + f" -P 65536")
 
     # run
     def run(self):
-        # database
-        db = "pridb"
-        newdb = "npridb"
         
         # find
         taosdump, benchmark, tmpdir = self.findPrograme()
-        json = "./tools/taosdump/ws/json/primaryKey.json"
+        json = "./tools/taosdump/native/json/insertFullType.json"
 
         # insert data with taosBenchmark
-        self.insertData(benchmark, json, db)
+        db, stb, childCount, insertRows = self.insertData(json)
+
+        # dumpInOut
+        modes = ["", "-R" , "--cloud=http://localhost:6041"]
+        for mode in modes:
+            self.dumpInOutMode(mode, db , json, tmpdir)
+
+        tdLog.info("1. native rest ws dumpIn Out  .......................... [Passed]")
 
         # basic commandline
-        self.basicCommandLine(taosdump, tmpdir)
+        self.basicCommandLine(tmpdir)
+        tdLog.info("2. basic command line  .................................. [Passed]")
 
         # except commandline
-        self.exceptCommandLine(taosdump, tmpdir)
+        self.exceptCommandLine(taosdump, db, stb, tmpdir)
+        tdLog.info("3. except command line  ................................. [Passed]")
 
-        # dump out 
-        #self.dumpOut(taosdump, db, tmpdir)
-
-        # dump in
-        #self.dumpIn(taosdump, db, newdb, tmpdir)
-
-        # verify db
-        #self.verifyResult(db, newdb, json)
+        #
+        # varbinary and geometry for native
+        #
+        json = "./tools/taosdump/native/json/insertOther.json"
+        # insert 
+        db, stb, childCount, insertRows = self.insertData(json)
+        # dump in/out
+        self.dumpInOutMode("", db , json, tmpdir)
+        tdLog.info("4. native varbinary geometry ........................... [Passed]")
 
 
     def stop(self):

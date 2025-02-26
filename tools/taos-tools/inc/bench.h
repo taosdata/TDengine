@@ -617,10 +617,8 @@ typedef struct SDataBase_S {
     int         durMinute;  // duration minutes
     BArray     *cfgs;
     BArray     *superTbls;
-#ifdef TD_VER_COMPATIBLE_3_0_0_0
     int32_t     vgroups;
     BArray      *vgArray;
-#endif  // TD_VER_COMPATIBLE_3_0_0_0
     bool        flush;
 } SDataBase;
 
@@ -838,9 +836,7 @@ typedef struct SThreadInfo_S {
     BArray*     delayList;
     uint64_t    *query_delay_list;
     double      avg_delay;
-#ifdef TD_VER_COMPATIBLE_3_0_0_0
     SVGroup     *vg;
-#endif
 
     int         posOfTblCreatingBatch;
     int         posOfTblCreatingInterval;
