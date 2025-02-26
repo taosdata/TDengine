@@ -535,7 +535,7 @@ void taos_free_result(TAOS_RES *res) {
     return;
   }
 
-  tscTrace("taos free res %p", res);
+  tscTrace("res:%p, will be freed", res);
 
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;

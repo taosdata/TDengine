@@ -133,7 +133,7 @@ static int32_t generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int
   cJSON  *json = cJSON_CreateObject();
   int32_t code = TSDB_CODE_SUCCESS;
   if (json == NULL) {
-    tscError("[monitor] cJSON_CreateObject failed");
+    tscError("failed to create monitor json");
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   char clusterId[32] = {0};
@@ -262,17 +262,17 @@ static void deregisterRequest(SRequestObj *pRequest) {
     if ((pRequest->pQuery && pRequest->pQuery->pRoot && QUERY_NODE_VNODE_MODIFY_STMT == pRequest->pQuery->pRoot->type &&
          (0 == ((SVnodeModifyOpStmt *)pRequest->pQuery->pRoot)->sqlNodeType)) ||
         QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType) {
-      tscDebug("insert duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
-               "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
-               duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
-               pRequest->metric.planCostUs, pRequest->metric.execCostUs);
+      tscDebug("req:0x%" PRIx64 ", insert duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64
+               "us, analyseCost:%" PRId64 "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
+               pRequest->self, duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs,
+               pRequest->metric.analyseCostUs, pRequest->metric.planCostUs, pRequest->metric.execCostUs);
       (void)atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
       reqType = SLOW_LOG_TYPE_INSERT;
     } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
-      tscDebug("query duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
-               "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
-               duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
-               pRequest->metric.planCostUs, pRequest->metric.execCostUs);
+      tscDebug("req:0x%" PRIx64 ", query duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64
+               "us, analyseCost:%" PRId64 "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
+               pRequest->self, duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs,
+               pRequest->metric.analyseCostUs, pRequest->metric.planCostUs, pRequest->metric.execCostUs);
 
       (void)atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
       reqType = SLOW_LOG_TYPE_QUERY;

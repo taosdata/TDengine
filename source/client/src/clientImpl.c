@@ -1754,14 +1754,14 @@ void updateTargetEpSet(SMsgSendInfo* pSendInfo, STscObj* pTscObj, SRpcMsg* pMsg,
       SCatalog* pCatalog = NULL;
       int32_t   code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
       if (code != TSDB_CODE_SUCCESS) {
-        tscError("fail to get catalog handle, clusterId:%" PRIx64 ", error %s", pTscObj->pAppInfo->clusterId,
+        tscError("fail to get catalog handle, clusterId:0x%" PRIx64 ", error:%s", pTscObj->pAppInfo->clusterId,
                  tstrerror(code));
         return;
       }
 
       code = catalogUpdateVgEpSet(pCatalog, pSendInfo->target.dbFName, pSendInfo->target.vgId, pEpSet);
       if (code != TSDB_CODE_SUCCESS) {
-        tscError("fail to update catalog vg epset, clusterId:%" PRIx64 ", error %s", pTscObj->pAppInfo->clusterId,
+        tscError("fail to update catalog vg epset, clusterId:0x%" PRIx64 ", error:%s", pTscObj->pAppInfo->clusterId,
                  tstrerror(code));
         return;
       }
@@ -2983,7 +2983,7 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
   }
   taosMemoryFree(param);
 
-  tscDebug("connObj:0x%" PRIx64 ", taos_query end with sql:%s", *(int64_t*)taos, sql);
+  tscDebug("connObj:0x%" PRIx64 ", res:%p created, taos_query end with sql:%s", *(int64_t*)taos, pRequest, sql);
 
   return pRequest;
 }

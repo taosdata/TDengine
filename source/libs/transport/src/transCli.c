@@ -2160,7 +2160,7 @@ static FORCE_INLINE void destroyReq(void* arg) {
 
   removeReqFromSendQ(pReq);
   STraceId* trace = &pReq->msg.info.traceId;
-  tGTrace("free memory:%p, free ctx:%p", pReq, pReq->ctx);
+  tGTrace("free mem:%p, free ctx:%p", pReq, pReq->ctx);
 
   if (pReq->ctx) {
     destroyReqCtx(pReq->ctx);
@@ -2938,7 +2938,7 @@ void transRefCliHandle(void* handle) {
   SCliConn* conn = (SCliConn*)handle;
   conn->ref++;
 
-  tTrace("%s conn:%p, ref %d", CONN_GET_INST_LABEL(conn), conn, conn->ref);
+  tTrace("%s conn:%p, ref:%d", CONN_GET_INST_LABEL(conn), conn, conn->ref);
 }
 int32_t transUnrefCliHandle(void* handle) {
   if (handle == NULL) {
@@ -3023,7 +3023,7 @@ int32_t transReleaseCliHandle(void* handle, int32_t status) {
   cmsg->ctx = pCtx;
 
   STraceId* trace = &tmsg.info.traceId;
-  tGDebug("send release request at thread:%08" PRId64 ", malloc memory:%p", pThrd->pid, cmsg);
+  tGDebug("send release request at thread:%08" PRId64 ", malloc mem:%p", pThrd->pid, cmsg);
 
   if ((code = transAsyncSend(pThrd->asyncPool, &cmsg->q)) != 0) {
     destroyReq(cmsg);
