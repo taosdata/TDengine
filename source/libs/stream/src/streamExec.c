@@ -848,7 +848,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
       streamTaskSetIdleInfo(pTask, MIN_INVOKE_INTERVAL);
       return 0;
     } else {
-      if ((pInput == NULL) && (pTask->info.fillHistory != STREAM_RECALCUL_TASK)) {
+      if (pInput == NULL) {
         return 0;
       }
     }
