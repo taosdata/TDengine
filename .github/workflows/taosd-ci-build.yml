@@ -138,26 +138,32 @@ jobs:
           cmake .. -G "NMake Makefiles JOM" -DBUILD_TOOLS=true -DBUILD_HTTP=false -DBUILD_TEST=false -DBUILD_DEPENDENCY_TESTS=false -DBUILD_KEEPER=true
           jom -j4
           jom install
-          where taosd
-          where taosadapter
-          where taoskeeper
 
-      - name: Start taosd
+      - name: Start taosd on Linux and macOS
+        if: runner.os != 'Windows'
         run: |
-          cp /etc/taos/taos.cfg ./
-          sudo echo "supportVnodes 256" >> taos.cfg
           nohup sudo taosd -c taos.cfg &
+          nohup sudo taosadapter &
 
-      - name: Start taosadapter
-        run: nohup sudo taosadapter &
+      - name: Start taosd on Windows
+        if: runner.os == 'Windows'
+        run: |
+          start /b C:/TDengine/taosd.exe
+          start /b C:/TDengine/taosadapter.exe
 
-      - name: Run tests with taosBenchmark
+      - name: Run tests with taosBenchmark 
         run: |
           taosBenchmark -t 10 -n 10 -y 
           taos -s "select count(*) from test.meters"
 
-      - name: Clean up
-        if: always()
+      - name: Clean up  on Linux and macOS
+        if: runner.os != 'Windows'
         run: |
           if pgrep taosd; then sudo pkill taosd; fi
           if pgrep taosadapter; then sudo pkill taosadapter; fi
+
+      - name: Clean up on Windows
+        if: runner.os == 'Windows'
+        run: |
+          taskkill /IM taosd.exe /F
+          taskkill /IM taosadapter.exe /F
