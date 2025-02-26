@@ -1339,10 +1339,12 @@ static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   if (token.type != TK_USING) {
     return code;
   } else if ((!pCxt->missCache) && (TSDB_CODE_SUCCESS == code)) {
-    pStmt->pSql += index;
-    code = parseUsingClauseBottom(pCxt, pStmt, true);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
+    code = parseBoundTagsClause(pCxt, pStmt);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = parseTagsClause(pCxt, pStmt, true);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = parseTableOptions(pCxt, pStmt);
     }
     return ignoreUsingClause(pCxt, &pStmt->pSql);
   }
