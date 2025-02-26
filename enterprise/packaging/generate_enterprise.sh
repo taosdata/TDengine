@@ -32,37 +32,71 @@ if [ ! -d $archiveDir ]; then
 fi
 
 echo "generate enterprise package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-if [ ! -d $communityDir ]; then
-  cd $topDir
-  mkdir -p debug
-  cd debug
+# if [ ! -d $communityDir ]; then
+#   cd $topDir
+#   mkdir -p debug
+#   cd debug
 
-  if [ -z "$cusName" ] && [ -z "$cusPrompt" ] && [ -z "$cusEmail" ]; then
-    cmake .. -DBUILD_TAOSX=false
+  # if [ -z "$cusName" ] && [ -z "$cusPrompt" ] && [ -z "$cusEmail" ]; then
+  #   cmake .. -DBUILD_TAOSX=false
+  # else
+  #   if [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ] && [ ! -z "$cusEmail" ]; then
+  #     cmake .. -DBUILD_TAOSX=false -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail} -DGRANT_VALUE=${grantValue}
+  #   elif [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ]; then
+  #     cmake .. -DBUILD_TAOSX=false -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DGRANT_VALUE=${grantValue}
+  #   elif [ ! -z "${cusName}" ]; then
+  #     cmake .. -DBUILD_TAOSX=false -DCUS_NAME=${cusName} -DGRANT_VALUE=${grantValue} 
+  #   else
+  #     cmake .. -DBUILD_TAOSX=false -DCUS_PROMPT=${cusPrompt} -DGRANT_VALUE=${grantValue} 
+  #   fi
+  # fi
+# fi
+
+function git_checkout_operations {
+  local dir=$1
+  cd $dir
+
+  if ! git fetch ; then
+    echo "Failed to fetch latest changes in $dir"
+    exit 1
+  fi
+
+  if ! git checkout $branchName; then
+    echo "Failed to checkout branch $branchName in $dir"
+    exit 1
+  fi
+
+  # do not discard changes in the directory
+  # if ! git checkout -- .; then
+  #   echo "Failed to discard changes in $dir"
+  #   exit 1
+  # fi
+
+  # 检查 branchName 是否为 tag
+  if git show-ref --tags | grep "refs/tags/$branchName$"; then
+    echo "$branchName is a tag, skipping git pull"
   else
-    if [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ] && [ ! -z "$cusEmail" ]; then
-      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DCUS_EMAIL=${cusEmail} -DGRANT_VALUE=${grantValue}
-    elif [ ! -z "${cusName}" ] && [ ! -z "$cusPrompt" ]; then
-      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DCUS_PROMPT=${cusPrompt} -DGRANT_VALUE=${grantValue}
-    elif [ ! -z "${cusName}" ]; then
-      cmake .. -DBUILD_TAOSX=true -DCUS_NAME=${cusName} -DGRANT_VALUE=${grantValue} 
-    else
-      cmake .. -DBUILD_TAOSX=true -DCUS_PROMPT=${cusPrompt} -DGRANT_VALUE=${grantValue} 
+    if ! git pull; then
+      echo "Failed to pull latest changes in $dir"
+      exit 1
     fi
   fi
+}
+
+# 对 community 和 enterprise 目录执行切换分支操作
+git_checkout_operations ${communityDir}
+git_checkout_operations ${enterpriseDir}
+
+echo "====clone taosx repo if taosx dir is empty and update taox repo===="
+taosx_release_dir="${enterpriseDir}/src/plugins/taosx/packaging"
+if [ ! -d ${taosx_release_dir} ]; then
+  cd ${topDir}/enterprise/src/plugins
+  git clone https://github.com/taosdata/taosx.git
+else
+  echo "it has taosx repo, so don't need to clone again"
 fi
 
-# cd $communityDir
-# # git checkout $branchName
-# # git checkout -- .
-# # git pull
-# # git checkout -- .
-# rm -rf release/*
-
-# cd $enterpriseDir
-# # git checkout $branchName
-# # git checkout -- .
-# # git pull
+git_checkout_operations ${taosx_release_dir}
 
 cd $topDir
 rm -rf release/*
