@@ -1,17 +1,19 @@
 use std::sync::atomic::{AtomicU32, AtomicU64};
 use std::sync::OnceLock;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
 use arrow_array::RecordBatch;
 use chrono::NaiveDate;
 use core_metrics::get_metrics_arc_from_i64;
-use flume::Receiver;
+use flume::{Receiver, Sender};
+use plugins::sink::flat::flat_write_with_sql;
+use plugins::sink::get_current_precision;
 use plugins::transform::handling_strategy::archive::Archive;
 use plugins::transform::handling_strategy::cache::Cache;
 use serde::Deserialize;
 use serde_with::serde_as;
-use taos::Dsn;
+use taos::{AsyncTBuilder, Dsn};
 use taoslog::utils::{QidMetadataGetter, Span};
 use taoslog::QidManager;
 use tokio_util::sync::CancellationToken;
@@ -27,7 +29,7 @@ pub use plugins::*;
 pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::{get_table_progress, tmq_offsets, tmq_to_td};
 pub use transform::Action;
-use utils::files::{delete_oldest_parquet_file, write_to_parquet_file};
+use utils::files::{delete_oldest_parquet_file, read_parquet_file, write_to_parquet_file};
 use utils::port_pool::PortPool;
 use utils::trace::Qid;
 
@@ -250,6 +252,61 @@ impl TaskOpts {
             ArchiveConsumer::new(task_id, parser_clone)
                 .consume(rx)
                 .await
+        });
+        // spawn a thread to rewrite cache data to files
+        let to_clone = to.clone();
+        let task_id_clone = task_id.clone();
+        let parser_clone = parser.clone();
+        let notify_clone = notify.clone();
+        let cancel_clone = cancel.clone();
+        let tx_clone = tx.clone();
+        let process_cache = tokio::spawn(async move {
+            let task_id = match task_id_clone {
+                Some(id) => id.parse().unwrap_or(-1),
+                None => -1,
+            };
+            if let Some(parser) = parser_clone {
+                let cache_path = parser.global().process_on_abnormal.cache.location.clone();
+                while !cancel_clone.is_cancelled() {
+                    let read_dir = match std::fs::read_dir(&cache_path) {
+                        Ok(read_dir) => read_dir,
+                        Err(e) => anyhow::bail!(format!("{e:#}")),
+                    };
+                    for entry in read_dir {
+                        let entry = match entry {
+                            Ok(entry) => entry,
+                            Err(e) => anyhow::bail!(format!("{e:#}")),
+                        };
+                        let file_path = entry.path();
+                        if file_path.is_file() {
+                            let mut success = true;
+                            let batches = read_parquet_file(file_path.clone())?;
+                            for batch in batches {
+                                if let Err(e) = Self::rewrite(
+                                    Some(task_id),
+                                    to_clone.clone(),
+                                    &parser,
+                                    &batch,
+                                    tx_clone.clone(),
+                                    Some(&notify_clone),
+                                    &cancel_clone,
+                                )
+                                .await
+                                {
+                                    tracing::error!(
+                                        "rewrite file error, path: {file_path:?}, e: {e:#}"
+                                    );
+                                    success = false;
+                                }
+                            }
+                            if success {
+                                let _ = std::fs::remove_file(file_path);
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(())
         });
 
         // debug_assert!(qid.task_id() > 0);
@@ -601,12 +658,70 @@ impl TaskOpts {
             consumer.await??;
             anyhow::Ok(())
         };
+        let future_process_cache = async move {
+            process_cache.await??;
+            anyhow::Ok(())
+        };
+
         tokio::select! {
             res = future_consume => {
                 res?
             }
+            res = future_process_cache => {
+                res?
+            }
             _ = cancel.cancelled() => {}
         };
+        Ok(())
+    }
+
+    async fn rewrite(
+        task_id: Option<i64>,
+        to: Dsn,
+        parser: &Parser,
+        batch: &RecordBatch,
+        archive_tx: Sender<(ArchiveType, RecordBatch)>,
+        notifier: Option<&crate::TaskNotifySender>,
+        cancel: &CancellationToken,
+    ) -> anyhow::Result<()> {
+        let metrics_arc = get_metrics_arc_from_i64(task_id).await;
+        let metrics = metrics_arc.ipc();
+
+        let pool = {
+            let builder = taos::TaosBuilder::from_dsn(to)?;
+            let mut pool_config = builder.default_pool_config();
+            let timeout = parser
+                .global()
+                .process_on_abnormal
+                .connection_timeout_in_second_value;
+            pool_config.timeouts.wait = Some(Duration::from_secs(timeout as u64));
+            builder.with_pool_config(pool_config)?
+        };
+        match pool.get().await {
+            Ok(taos) => {
+                let target_precision = get_current_precision(&taos).in_current_span().await?;
+                let message = parser.parse_message_from_records(batch, true, archive_tx.clone())?;
+                let messages = match message {
+                    crate::plugins::transform::Message::Raw(_) => todo!(),
+                    crate::plugins::transform::Message::Tables(_) => todo!(),
+                    crate::plugins::transform::Message::ChildTables(_) => todo!(),
+                    crate::plugins::transform::Message::Records(messages) => messages,
+                };
+                let _ = flat_write_with_sql(
+                    &pool,
+                    &mut Some(taos),
+                    target_precision,
+                    &messages,
+                    metrics,
+                    notifier,
+                    cancel,
+                    parser.global(),
+                    archive_tx,
+                )
+                .await?;
+            }
+            Err(e) => Err(e)?,
+        }
         Ok(())
     }
 

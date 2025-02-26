@@ -1,13 +1,15 @@
 use std::fs::File;
 use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use arrow::array::RecordBatch;
+use arrow_schema::ArrowError;
 use chardetng::EncodingDetector;
 use chrono::{Duration, Utc};
 use encoding_rs::Encoding;
+use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::{Compression, ZstdLevel};
 use parquet::file::properties::WriterProperties;
@@ -239,6 +241,69 @@ pub fn delete_oldest_parquet_file(task_id: i64, filename: &String) -> anyhow::Re
     Ok(())
 }
 
+pub fn read_parquet_file(path: PathBuf) -> anyhow::Result<Vec<RecordBatch>> {
+    let mut batches = Vec::new();
+    // open the file
+    let file =
+        File::open(path.clone()).with_context(|| format!("Unable to open file '{:?}'", path))?;
+    let buffer = std::io::BufReader::new(file);
+    // the flag to identify the split point
+    let flag = b"PAR1PAR1";
+    // look for the flag and read the file in chunks
+    let mut content = Vec::new();
+    let mut windows = Vec::new();
+    for byte in buffer.bytes() {
+        match byte {
+            Ok(byte) => {
+                content.push(byte);
+                windows.push(byte);
+                if windows.len() > flag.len() {
+                    windows.remove(0);
+                }
+                if windows == flag {
+                    // remove the extra bytes
+                    content.truncate(content.len() - 4);
+                    // transform to batches
+                    match transform_bytes_to_record(content.clone()) {
+                        Ok(mut vec) => batches.append(&mut vec),
+                        Err(err) => {
+                            anyhow::bail!("Error reading file: {err:#}");
+                        }
+                    }
+                    // begin new record
+                    content.clear();
+                    b"PAR1".iter().for_each(|x| content.push(*x));
+                }
+            }
+            Err(err) => {
+                anyhow::bail!("Error reading file: {err:#}");
+            }
+        }
+    }
+    // last record
+    match transform_bytes_to_record(content.clone()) {
+        Ok(mut vec) => batches.append(&mut vec),
+        Err(err) => {
+            anyhow::bail!("Error reading file: {err:#}");
+        }
+    }
+
+    Ok(batches)
+}
+
+fn transform_bytes_to_record(bytes: Vec<u8>) -> Result<Vec<RecordBatch>, ArrowError> {
+    // build the parquet reader
+    let mut reader = ParquetRecordBatchReaderBuilder::try_new(bytes::Bytes::from(bytes))
+        .expect("Unable to create Parquet reader builder")
+        .build()
+        .expect("Unable to build Parquet reader");
+    // read all batches
+    reader
+        .next()
+        .into_iter()
+        .collect::<Result<Vec<RecordBatch>, ArrowError>>()
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -306,5 +371,21 @@ mod tests {
         let filename = "archive/p1/p2/p3/p4/file".to_string();
         let res = delete_oldest_parquet_file(task_id, &filename);
         assert!(res.is_ok());
+    }
+
+    #[ignore]
+    #[test]
+    fn test_read_parquet_file() {
+        let task_id = 7;
+        let filename = "archived.20250226".to_string();
+
+        let data_dir = get_data_dir();
+        let path = data_dir
+            .join("tasks")
+            .join(format!("{task_id}"))
+            .join(filename);
+
+        let res = read_parquet_file(path);
+        dbg!(&res);
     }
 }
