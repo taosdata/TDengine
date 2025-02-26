@@ -42,7 +42,7 @@ class Start(TDCase):
             mqtt_host = mqtt_client_config["fqdn"][0]
             # mqtt_pub_path = mqtt_client_config["spec"]["config"]
             mqtt_pub_path = mqtt_client_config["spec"]["config_file"]
-            mqtt_pub_interval= mqtt_client_config["spec"]["interval"]
+            #mqtt_pub_interval= mqtt_client_config["spec"]["interval"]
             mqtt_pub_interval = self.workflow_config["source_interval"]
             self._remote.cmd(mqtt_host,f"nohup mqtt_pub --schema {mqtt_pub_path} --host {edge_host} --interval {mqtt_pub_interval}s > mqtt_pub.log 2>&1 &")
 
