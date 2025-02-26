@@ -37,25 +37,25 @@
 #define jniWarn(...)                                                    \
   {                                                                     \
     if (jniDebugFlag & DEBUG_WARN) {                                    \
-      taosPrintLog("JNI WARN ", DEBUG_WARN, jniDebugFlag, __VA_ARGS__); \
+      taosPrintLog("JNI WARN  ", DEBUG_WARN, jniDebugFlag, __VA_ARGS__); \
     }                                                                   \
   }
 #define jniInfo(...)                                               \
   {                                                                \
     if (jniDebugFlag & DEBUG_INFO) {                               \
-      taosPrintLog("JNI ", DEBUG_INFO, jniDebugFlag, __VA_ARGS__); \
+      taosPrintLog("JNI INFO  ", DEBUG_INFO, jniDebugFlag, __VA_ARGS__); \
     }                                                              \
   }
 #define jniDebug(...)                                               \
   {                                                                 \
     if (jniDebugFlag & DEBUG_DEBUG) {                               \
-      taosPrintLog("JNI ", DEBUG_DEBUG, jniDebugFlag, __VA_ARGS__); \
+      taosPrintLog("JNI DEBUG ", DEBUG_DEBUG, jniDebugFlag, __VA_ARGS__); \
     }                                                               \
   }
 #define jniTrace(...)                                               \
   {                                                                 \
     if (jniDebugFlag & DEBUG_TRACE) {                               \
-      taosPrintLog("JNI ", DEBUG_TRACE, jniDebugFlag, __VA_ARGS__); \
+      taosPrintLog("JNI TRACE ", DEBUG_TRACE, jniDebugFlag, __VA_ARGS__); \
     }                                                               \
   }
 

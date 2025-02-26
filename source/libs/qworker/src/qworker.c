@@ -339,8 +339,8 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
       break;
     }
 
-    // Got data from sink
-    QW_TASK_DLOG("there are data in sink, dataLength:%" PRId64 "", len);
+    // get data from sink
+    QW_TASK_DLOG("there are data in sink, dataLength:%" PRId64, len);
 
     *dataLen += len + PAYLOAD_PREFIX_LEN;
     *pRawDataLen += rawLen + PAYLOAD_PREFIX_LEN;
