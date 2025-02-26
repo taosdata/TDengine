@@ -45,6 +45,10 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
 
   if (numOfTasks == 0) {
     stInfo("vgId:%d no tasks exist, quit from consensus checkpointId", pMeta->vgId);
+
+    streamMetaWLock(pMeta);
+    streamMetaResetStartInfo(&pMeta->startInfo, vgId);
+    streamMetaWUnLock(pMeta);
     return TSDB_CODE_SUCCESS;
   }
 

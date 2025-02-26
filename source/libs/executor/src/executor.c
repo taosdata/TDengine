@@ -608,7 +608,7 @@ void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
 }
 
 int32_t qExecutorInit(void) {
-  taosThreadOnce(&initPoolOnce, initRefPool);
+  (void) taosThreadOnce(&initPoolOnce, initRefPool);
   return TSDB_CODE_SUCCESS;
 }
 
