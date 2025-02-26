@@ -23,7 +23,7 @@ class Start(TDCase):
         start_time = datetime.utcnow()
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
-        self.workflow_config = self.tdCom.load_workflow_json(self._remote, f'{os.environ["TEST_ROOT"]}/env/self.workflow_config.json')
+        self.workflow_config = self.tdCom.load_workflow_json(self._remote, f'{os.environ["TEST_ROOT"]}/env/workflow_config.json')
         print(self.workflow_config)
         end_time = start_time + timedelta(seconds=int(self.workflow_config["exec_time"]))
         url = (
