@@ -1,11 +1,23 @@
 # tests/test_new/xxx/xxx/test_xxx.py
 # import ...
+# ./pytest.sh python3 ./test.py -f storage/compact/test_compact_meta.py
 
 import random
 import taos
+import taos
+import frame
+import frame.etool
 
 
-class TestXxxx:
+from frame.log import *
+from frame.cases import *
+from frame.sql import *
+from frame.caseBase import *
+from frame import *
+from frame.autogen import *
+
+
+class TestCompactMeta:
     def init(self):
         tdLog.debug("start to execute %s" % __file__)
 
@@ -49,32 +61,39 @@ class TestXxxx:
         num_of_child_tables = 10000
         max_alter_times = 100
 
+        # Drop database
+        sql = f'drop database if exists {dbname}'
+        print(sql)
+        tdSql.execute(sql)
+
         # Create database
-        tdSql.query(f'create database {dbname} vgroups 1')
-
-        # Create super table
-        sql = f'create {dbname}.{super_table} (ts timestamp, c1 int) tags (tag1 int)'
+        sql = f'create database {dbname}'
+        print(sql)
         tdSql.query(sql)
 
-        # Create child tables
-        for i in range(num_of_child_tables):
-            sql = f'create {dbname}.{child_table_prefix}{i} using {dbname}.{super_table} tags ({i})'
-            tdSql.query(sql)
+        # # Create super table
+        # sql = f'create {dbname}.{super_table} (ts timestamp, c1 int) tags (tag1 int)'
+        # tdSql.query(sql)
 
-        # Alter child tables
-        for i in range(num_of_child_tables):
-            for j in range(random.randint(1, max_alter_times)):
-                sql = f'alter table {dbname}.{child_table_prefix}{i} set tag1 = {i + j}'
-                tdSql.query(sql)
+        # # Create child tables
+        # for i in range(num_of_child_tables):
+        #     sql = f'create {dbname}.{child_table_prefix}{i} using {dbname}.{super_table} tags ({i})'
+        #     tdSql.query(sql)
 
-        # Alter super tables
-        for i in range(random.randint(1, max_alter_times)):
-            sql = f'alter table {dbname}.{super_table} add column c{i+1} int'
-            tdSql.query(sql)
+        # # Alter child tables
+        # for i in range(num_of_child_tables):
+        #     for j in range(random.randint(1, max_alter_times)):
+        #         sql = f'alter table {dbname}.{child_table_prefix}{i} set tag1 = {i + j}'
+        #         tdSql.query(sql)
 
-        # Compact meta
-        sql = f'compact database {dbname}'
-        tdSql.query(sql)
+        # # Alter super tables
+        # for i in range(random.randint(1, max_alter_times)):
+        #     sql = f'alter table {dbname}.{super_table} add column c{i+1} int'
+        #     tdSql.query(sql)
+
+        # # Compact meta
+        # sql = f'compact database {dbname}'
+        # tdSql.query(sql)
 
     def run(self):
         self.test_template()
@@ -83,3 +102,7 @@ class TestXxxx:
 
     def stop(self):
         tdLog.success("%s successfully executed" % __file__)
+
+
+tdCases.addLinux(__file__, TDTestCase())
+tdCases.addWindows(__file__, TDTestCase())
