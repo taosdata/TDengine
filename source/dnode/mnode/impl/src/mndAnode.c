@@ -651,11 +651,11 @@ void mndRetrieveAlgoList(SMnode* pMnode, SArray* pFc, SArray* pAd) {
 
     if (pObj->numOfAlgos >= ANAL_ALGO_TYPE_END) {
       if (pObj->algos[ANAL_ALGO_TYPE_ANOMALY_DETECT] != NULL) {
-        taosArrayAddAll(pAd, pObj->algos[ANAL_ALGO_TYPE_ANOMALY_DETECT]);
+        TAOS_UNUSED(taosArrayAddAll(pAd, pObj->algos[ANAL_ALGO_TYPE_ANOMALY_DETECT])); // TODO: check the return value
       }
 
       if (pObj->algos[ANAL_ALGO_TYPE_FORECAST] != NULL) {
-        taosArrayAddAll(pFc, pObj->algos[ANAL_ALGO_TYPE_FORECAST]);
+        TAOS_UNUSED(taosArrayAddAll(pFc, pObj->algos[ANAL_ALGO_TYPE_FORECAST])); // TODO: check the return value
       }
     }
 
