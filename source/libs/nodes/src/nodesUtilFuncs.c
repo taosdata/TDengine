@@ -625,6 +625,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       code = makeNode(type, sizeof(SBalanceVgroupStmt), &pNode);
       break;
+    case QUERY_NODE_ASSIGN_LEADER_STMT:
+      code = makeNode(type, sizeof(SAssignLeaderStmt), &pNode);
+      break;
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
       code = makeNode(type, sizeof(SBalanceVgroupLeaderStmt), &pNode);
       break;
@@ -1506,6 +1509,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_RESUME_STREAM_STMT:                   // no pointer field
     case QUERY_NODE_RESET_STREAM_STMT:                    // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_STMT:                  // no pointer field
+    case QUERY_NODE_ASSIGN_LEADER_STMT: 
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:           // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:  // no pointer field
     case QUERY_NODE_MERGE_VGROUP_STMT:                    // no pointer field

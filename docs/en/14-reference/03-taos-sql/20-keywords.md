@@ -37,6 +37,7 @@ The list of keywords is as follows:
 | ASOF                 | |
 | AT_ONCE              | |
 | ATTACH               | |
+| ASSIGN               | Version 3.3.6.0 and later |
 
 ### B
 
