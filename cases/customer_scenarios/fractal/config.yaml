@@ -1,0 +1,10 @@
+from:
+  fromhost: mqtt://{0}
+  topics: ["ems/site/+/root/+/+",
+            "ems/site/+/+/+/+/+",
+            "ems/site/+/unit/+/root/+/+",
+            "ems/site/+/unit/+/+/+/+/+"]
+  topic_patterns: ["_/_/site_controller_id/_/point_name/data_type",
+                  "_/_/site_controller_id/source_device_type/source_device_id/point_name/data_type",
+                  "_/_/site_controller_id/_/unit_controller_id/_/point_name/data_type",
+                  "_/_/site_controller_id/_/unit_controller_id/source_device_type/source_device_id/point_name/data_type"]
