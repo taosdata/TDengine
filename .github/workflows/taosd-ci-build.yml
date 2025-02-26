@@ -6,6 +6,8 @@ on:
       - 'main'
       - '3.0'
       - '3.1'
+      - 'enh/cmake-TD-33848'
+      
     paths-ignore:
       - 'docs/**'
       - 'packaging/**'

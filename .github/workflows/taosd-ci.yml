@@ -60,11 +60,8 @@ jobs:
         run: |
           cd ${{ env.WK }}
           git reset --hard
-          echo "11111111111"
           git remote prune origin
-          echo "222222222"
           git fetch
-          echo "333333333"
 
           cd ${{ env.WKC }}
           git reset --hard

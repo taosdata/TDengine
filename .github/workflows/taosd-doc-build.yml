@@ -64,7 +64,7 @@ jobs:
     runs-on:
       group: CI
       labels: [self-hosted, doc-build]
-    if: ${{ needs.check.outputs.changed_files_zh == '' || needs.check.outputs.changed_files_en == '' }}
+    if: ${{ needs.check.outputs.changed_files_zh != '' || needs.check.outputs.changed_files_en != '' }}
 
     steps:
       - name: Get the latest document contents
@@ -82,14 +82,14 @@ jobs:
           git checkout -qf FETCH_HEAD
 
       - name: Build the chinese document
-        if: ${{ needs.check.outputs.changed_files_zh == '' }}
+        if: ${{ needs.check.outputs.changed_files_zh != '' }}
         run: |
           cd ${{ env.DOC_WKC }}/${{ env.ZH_DOC_REPO }}
           yarn ass local
           yarn build
 
       - name: Build the english document
-        if: ${{ needs.check.outputs.changed_files_en == '' }}
+        if: ${{ needs.check.outputs.changed_files_en != '' }}
         run: |
           cd ${{ env.DOC_WKC }}/${{ env.EN_DOC_REPO }}
           yarn ass local
