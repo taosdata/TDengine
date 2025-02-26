@@ -18,3 +18,7 @@
 #include "executorInt.h"
 
 
+int32_t streamClientGetResultRange(SSHashObj* pRangeMap, SSDataBlock* pRangeRes) {
+  // todo(liuyao) add
+  return TSDB_CODE_SUCCESS;
+}
