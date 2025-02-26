@@ -478,10 +478,10 @@ void taos_close_internal(void *taos) {
   }
 
   STscObj *pTscObj = (STscObj *)taos;
-  tscDebug("0x%" PRIx64 " try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
+  tscDebug("connObj:0x%" PRIx64 ", try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
 
   if (TSDB_CODE_SUCCESS != taosRemoveRef(clientConnRefPool, pTscObj->id)) {
-    tscError("0x%" PRIx64 " failed to remove ref from conn pool", pTscObj->id);
+    tscError("connObj:0x%" PRIx64 ", failed to remove ref from conn pool", pTscObj->id);
   }
 }
 
@@ -535,14 +535,15 @@ void taos_free_result(TAOS_RES *res) {
     return;
   }
 
-  tscDebug("taos free res %p", res);
+  tscTrace("taos free res %p", res);
 
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
-    tscDebug("0x%" PRIx64 " taos_free_result start to free query", pRequest->requestId);
+    tscDebug("QID:0x%" PRIx64 ", taos_free_result start to free query", pRequest->requestId);
     destroyRequest(pRequest);
     return;
   }
+
   SMqRspObj *pRsp = (SMqRspObj *)res;
   if (TD_RES_TMQ(res)) {
     tDeleteMqDataRsp(&pRsp->dataRsp);
