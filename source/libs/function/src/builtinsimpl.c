@@ -3978,7 +3978,7 @@ int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t currentRow = pBlock->info.rows;
   if (pEntryInfo->numOfRes <= 0) {
     colDataSetNULL(pCol, currentRow);
-    code = setSelectivityValue(pCtx, pBlock, &pRes->nullTuplePos, currentRow);
+    code = setNullSelectivityValue(pCtx, pBlock, currentRow);
     return code;
   }
   for (int32_t i = 0; i < pEntryInfo->numOfRes; ++i) {
@@ -5577,7 +5577,7 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
   }
 
   if (pInfo->numSampled == 0 && pCtx->subsidiaries.num > 0 && !pInfo->nullTupleSaved) {
-    int32_t code = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, &pInfo->nullTuplePos);
+    int32_t code = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, pInfo->tuplePos);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -5604,7 +5604,7 @@ int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t currentRow = pBlock->info.rows;
   if (pInfo->numSampled == 0) {
     colDataSetNULL(pCol, currentRow);
-    code = setSelectivityValue(pCtx, pBlock, &pInfo->nullTuplePos, currentRow);
+    code = setNullSelectivityValue(pCtx, pBlock, currentRow);
     return code;
   }
   for (int32_t i = 0; i < pInfo->numSampled; ++i) {
@@ -6056,7 +6056,7 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     code = setSelectivityValue(pCtx, pBlock, &resTuplePos, currentRow);
   } else {
     colDataSetNULL(pCol, currentRow);
-    code = setSelectivityValue(pCtx, pBlock, &pInfo->nullTuplePos, currentRow);
+    code = setNullSelectivityValue(pCtx, pBlock, currentRow);
   }
 
   modeFunctionCleanup(pInfo);

@@ -75,7 +75,7 @@ $loop_cnt = 0
 check_vg_ready:
 $loop_cnt = $loop_cnt + 1
 sleep 200
-if $loop_cnt == 300 then
+if $loop_cnt == 600 then
   print ====> vgroups not ready!
 	return -1
 endi
