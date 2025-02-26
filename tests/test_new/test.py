@@ -24,6 +24,7 @@ import platform
 import socket
 import threading
 import importlib
+import inspect
 print(f"Python version: {sys.version}")
 print(f"Version info: {sys.version_info}")
 
@@ -58,6 +59,17 @@ def checkRunTimeError():
         if hwnd:
             os.system("TASKKILL /F /IM taosd.exe")
 
+def get_local_classes(module):
+    classes = []
+    for name, obj in inspect.getmembers(module, inspect.isclass):
+        if inspect.getmodule(obj) == module:
+            classes.append(name)
+    return classes
+
+def dynamicLoadModule(fileName):
+    moduleName = fileName.replace(".py", "").replace(os.sep, ".")
+    return importlib.import_module(moduleName, package='..')
+
 #
 # run case on previous cluster
 #
@@ -68,9 +80,9 @@ def runOnPreviousCluster(host, config, fileName):
     sep = "/"
     if platform.system().lower() == 'windows':
         sep = os.sep
-    moduleName = fileName.replace(".py", "").replace(sep, ".")
-    uModule = importlib.import_module(moduleName)
-    case = uModule.TDTestCase()
+    uModule = dynamicLoadModule(fileName)
+    case_class = getattr(uModule, get_local_classes(uModule)[-1])
+    case = case_class()    
 
     # create conn
     conn = taos.connect(host, config)
@@ -350,10 +362,10 @@ if __name__ == "__main__":
         updateCfgDictStr = ''
         # adapter_cfg_dict_str = ''
         if is_test_framework:
-            moduleName = fileName.replace(".py", "").replace(os.sep, ".")
-            uModule = importlib.import_module(moduleName)
+            uModule = dynamicLoadModule(fileName)
             try:
-                ucase = uModule.TDTestCase()
+                case_class = getattr(uModule, get_local_classes(uModule)[-1])
+                ucase = case_class()
                 if ((json.dumps(updateCfgDict) == '{}') and hasattr(ucase, 'updatecfgDict')):
                     updateCfgDict = ucase.updatecfgDict
                     updateCfgDictStr = "-d %s"%base64.b64encode(json.dumps(updateCfgDict).encode()).decode()
@@ -522,10 +534,10 @@ if __name__ == "__main__":
         except:
             pass
         if is_test_framework:
-            moduleName = fileName.replace(".py", "").replace("/", ".")
-            uModule = importlib.import_module(moduleName)
+            uModule = dynamicLoadModule(fileName)
             try:
-                ucase = uModule.TDTestCase()
+                case_class = getattr(uModule, get_local_classes(uModule)[-1])
+                ucase = case_class()    
                 if (json.dumps(updateCfgDict) == '{}'):
                     updateCfgDict = ucase.updatecfgDict
                 if (json.dumps(adapter_cfg_dict) == '{}'):
