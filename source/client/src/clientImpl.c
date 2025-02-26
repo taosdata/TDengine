@@ -1659,7 +1659,7 @@ int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __ta
     *pTscObj = NULL;
     return terrno;
   } else {
-    tscDebug("0x%" PRIx64 " connection is opening, connId:%u, dnodeConn:%p, QID:0x%" PRIx64, (*pTscObj)->id,
+    tscDebug("connObj:0x%" PRIx64 " connection is opening, connId:%u, dnodeConn:%p, QID:0x%" PRIx64, (*pTscObj)->id,
              (*pTscObj)->connId, (*pTscObj)->pAppInfo->pTransporter, pRequest->requestId);
     destroyRequest(pRequest);
   }
