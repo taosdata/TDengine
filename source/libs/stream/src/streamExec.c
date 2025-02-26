@@ -907,11 +907,11 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
           int32_t remain = streamAlignRecalculateStart(pTask);
           if (remain > 0) {
             streamFreeQitem((SStreamQueueItem*)pInput);
-            stDebug("s-task:%s receive upstream re-calculate msg, not sent remain:%d", id, remain);
+            stDebug("s-task:%s receive upstream recalculate msg, not sent remain:%d", id, remain);
             return code;
           }
 
-          stDebug("s-task:%s all upstream send re-calculate msg, continue", id);
+          stDebug("s-task:%s all upstream send recalculate msg, continue", id);
         } else if (taskLevel == TASK_LEVEL__SINK) {
           streamFreeQitem((SStreamQueueItem*)pInput);
           return code;
@@ -927,8 +927,8 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
         code = doStreamTaskExecImpl(pTask, pInput, numOfBlocks);
       }
 
-      streamFreeQitem(pInput);
       if (code) {
+        streamFreeQitem(pInput);
         return code;
       }
 
@@ -942,12 +942,14 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
             // NOTE: no input block here if type is STREAM_INPUT__RECALCULATE
             if (pTask->hTaskInfo.id.streamId == 0) {
               stError("s-task:%s related re-calculate stream task is dropping, failed to start re-calculate", id);
+              streamFreeQitem(pInput);
               return TSDB_CODE_STREAM_INTERNAL_ERROR;
             }
 
             if (pTask->info.trigger != STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
               stError("s-task:%s invalid trigger model, expect:%d, actually:%d, not exec tasks", id,
                       STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE, pTask->info.trigger);
+              streamFreeQitem(pInput);
               return TSDB_CODE_STREAM_INTERNAL_ERROR;
             }
 
@@ -957,6 +959,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
             if (code != 0) {
               stError("s-task:%s failed to acquire related recalculate task:0x%x, not start the recalculation, code:%s",
                       id, (int32_t)pTask->hTaskInfo.id.taskId, tstrerror(code));
+              streamFreeQitem(pInput);
               return code;
             }
 
@@ -971,6 +974,11 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
         } else if ((taskLevel == TASK_LEVEL__SOURCE) && pTask->info.hasAggTasks) {
           code = continueDispatchRecalculateStart((SStreamDataBlock*)pInput, pTask);
         }
+      }
+
+      streamFreeQitem(pInput);
+      if (code) {
+        return code;
       }
 
       double el = (taosGetTimestampMs() - st) / 1000.0;

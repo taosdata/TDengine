@@ -305,7 +305,7 @@ void streamFreeQitem(SStreamQueueItem* data) {
     blockDataDestroy(pRefBlock->pBlock);
     taosFreeQitem(pRefBlock);
   } else if (type == STREAM_INPUT__CHECKPOINT || type == STREAM_INPUT__CHECKPOINT_TRIGGER ||
-             type == STREAM_INPUT__TRANS_STATE) {
+             type == STREAM_INPUT__TRANS_STATE || type == STREAM_INPUT__RECALCULATE) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)data;
     taosArrayDestroyEx(pBlock->blocks, freeItems);
     taosFreeQitem(pBlock);
