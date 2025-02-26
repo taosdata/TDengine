@@ -206,7 +206,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
     token.z = tmpTokenBuf;
     token.n = strdequote(token.z);
 
-    if (boundColsType == BOUND_ALL_AND_TBNAME && token.n == strlen("tbname") && (strcasecmp(token.z, "tbname") == 0)) {
+    if (boundColsType == BOUND_ALL_AND_TBNAME && token.n == strlen("tbname") && (taosStrcasecmp(token.z, "tbname") == 0)) {
       pBoundInfo->pColIndex[pBoundInfo->numOfBound] = tbnameSchemaIndex;
       pUseCols[tbnameSchemaIndex] = true;
       ++pBoundInfo->numOfBound;
@@ -424,6 +424,7 @@ static int parseTime(const char** end, SToken* pToken, int16_t timePrec, int64_t
 
 // need to call geosFreeBuffer(*output) later
 static int parseGeometry(SToken* pToken, unsigned char** output, size_t* size) {
+#ifdef USE_GEOS
   int32_t code = TSDB_CODE_FAILED;
 
   //[ToDo] support to parse WKB as well as WKT
@@ -440,6 +441,9 @@ static int parseGeometry(SToken* pToken, unsigned char** output, size_t* size) {
   }
 
   return code;
+#else
+  TAOS_RETURN(TSDB_CODE_OPS_NOT_SUPPORT);
+#endif
 }
 
 static int32_t parseVarbinary(SToken* pToken, uint8_t** pData, uint32_t* nData, int32_t bytes) {

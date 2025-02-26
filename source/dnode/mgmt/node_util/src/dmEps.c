@@ -64,7 +64,7 @@ static int32_t dmDecodeEps(SJson *pJson, SDnodeData *pData) {
   if (code < 0) return -1;
   tjsonGetInt32ValueFromDouble(pJson, "dropped", pData->dropped, code);
   if (code < 0) return -1;
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   tjsonGetInt32ValueFromDouble(pJson, "encryptAlgor", pData->encryptAlgorigthm, code);
   if (code < 0) return -1;
   tjsonGetInt32ValueFromDouble(pJson, "encryptScope", pData->encryptScope, code);
@@ -131,7 +131,7 @@ int32_t dmReadEps(SDnodeData *pData) {
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
     dInfo("dnode file:%s not exist", file);
 
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
     if (strlen(tsEncryptAlgorithm) > 0) {
       if (strcmp(tsEncryptAlgorithm, "sm4") == 0) {
         pData->encryptAlgorigthm = DND_CA_SM4;
@@ -168,19 +168,19 @@ int32_t dmReadEps(SDnodeData *pData) {
 
         bool success = false;
 
-        if (strcasecmp(str, "tsdb") == 0 || strcasecmp(str, "all") == 0) {
+        if (taosStrcasecmp(str, "tsdb") == 0 || taosStrcasecmp(str, "all") == 0) {
           pData->encryptScope |= DND_CS_TSDB;
           success = true;
         }
-        if (strcasecmp(str, "vnode_wal") == 0 || strcasecmp(str, "all") == 0) {
+        if (taosStrcasecmp(str, "vnode_wal") == 0 || taosStrcasecmp(str, "all") == 0) {
           pData->encryptScope |= DND_CS_VNODE_WAL;
           success = true;
         }
-        if (strcasecmp(str, "sdb") == 0 || strcasecmp(str, "all") == 0) {
+        if (taosStrcasecmp(str, "sdb") == 0 || taosStrcasecmp(str, "all") == 0) {
           pData->encryptScope |= DND_CS_SDB;
           success = true;
         }
-        if (strcasecmp(str, "mnode_wal") == 0 || strcasecmp(str, "all") == 0) {
+        if (taosStrcasecmp(str, "mnode_wal") == 0 || taosStrcasecmp(str, "all") == 0) {
           pData->encryptScope |= DND_CS_MNODE_WAL;
           success = true;
         }
@@ -289,7 +289,7 @@ static int32_t dmEncodeEps(SJson *pJson, SDnodeData *pData) {
   if (tjsonAddIntegerToObject(pJson, "engineVer", pData->engineVer) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "clusterId", pData->clusterId) < 0) return -1;
   if (tjsonAddDoubleToObject(pJson, "dropped", pData->dropped) < 0) return -1;
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   if (tjsonAddDoubleToObject(pJson, "encryptAlgor", pData->encryptAlgorigthm) < 0) return -1;
   if (tjsonAddDoubleToObject(pJson, "encryptScope", pData->encryptScope) < 0) return -1;
 #endif

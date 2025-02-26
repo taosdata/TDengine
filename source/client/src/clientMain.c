@@ -55,7 +55,7 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
   return ret;
 }
 
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
 static void freeTz(void *p) {
   timezone_t tz = *(timezone_t *)p;
   tzfree(tz);
@@ -153,6 +153,7 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
     val = NULL;
   }
 
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if (option == TSDB_OPTION_CONNECTION_CHARSET || option == TSDB_OPTION_CONNECTION_CLEAR) {
     if (val != NULL) {
       if (!taosValidateEncodec(val)) {
@@ -169,9 +170,9 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
       pObj->optionInfo.charsetCxt = NULL;
     }
   }
-
+#endif
   if (option == TSDB_OPTION_CONNECTION_TIMEZONE || option == TSDB_OPTION_CONNECTION_CLEAR) {
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
     if (val != NULL) {
       if (val[0] == 0) {
         val = "UTC";
@@ -239,7 +240,7 @@ void taos_cleanup(void) {
     tscWarn("failed to cleanup task queue");
   }
 
-#ifndef WINDOWS
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
   tzCleanup();
 #endif
   tmqMgmtClose();
@@ -259,10 +260,15 @@ void taos_cleanup(void) {
 
   taosConvDestroy();
   DestroyRegexCache();
-
+#ifdef TAOSD_INTEGRATED
+  shellStopDaemon();
+#endif
   tscInfo("all local resources released");
   taosCleanupCfg();
   taosCloseLog();
+#ifndef TAOSD_INTEGRATED
+  taosCloseLog();
+#endif
 }
 
 static setConfRet taos_set_config_imp(const char *config) {

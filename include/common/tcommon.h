@@ -164,7 +164,7 @@ typedef enum EStreamType {
   STREAM_NOTIFY_EVENT,
 } EStreamType;
 
-#pragma pack(push, 1)
+#pragma pack(push, TD_PACK_MIN_SIZE)
 typedef struct SColumnDataAgg {
   int16_t colId;
   int16_t numOfNull;
@@ -203,9 +203,9 @@ typedef struct SPkInfo {
 
 typedef struct SDataBlockInfo {
   STimeWindow window;
+  uint32_t    capacity;
   int32_t     rowSize;
   int64_t     rows;  // todo hide this attribute
-  uint32_t    capacity;
   SBlockID    id;
   int16_t     hasVarCol;
   int16_t     dataLoad;  // denote if the data is loaded or not

@@ -234,7 +234,7 @@ int32_t parseTimeWithTz(const char* timestr, int64_t* time, int32_t timePrec, ch
   }
 
 /* mktime will be affected by TZ, set by using taos_options */
-#ifdef WINDOWS
+#if defined(WINDOWS) || defined(TD_ASTRA) 
   int64_t seconds = user_mktime64(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 0);
   // int64_t seconds = gmtime(&tm);
 #else
@@ -1480,6 +1480,8 @@ static int32_t tm2char(const SArray* formats, const struct STm* tm, char* s, int
       case TSFKW_TZH:{
 #ifdef WINDOWS
         int32_t gmtoff = -_timezone;
+#elif defined(TD_ASTRA)
+        int32_t gmtoff = -timezone;
 #else
         int32_t gmtoff = tm->tm.tm_gmtoff;
 #endif
@@ -1909,6 +1911,8 @@ static int32_t char2ts(const char* s, SArray* formats, int64_t* ts, int32_t prec
   if (tzHour != 0) {
 #ifdef WINDOWS
     int32_t gmtoff = -_timezone;
+#elif defined(TD_ASTRA)
+    int32_t gmtoff = -timezone;
 #else
     int32_t gmtoff = tm.tm.tm_gmtoff;
 #endif

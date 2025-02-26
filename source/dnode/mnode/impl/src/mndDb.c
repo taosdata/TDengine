@@ -925,7 +925,7 @@ static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
   SDnodeObj *pDnode = NULL;
   void      *pIter = NULL;
 
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   if (pReq->encryptAlgorithm == TSDB_ENCRYPT_ALGO_NONE) goto _exit;
   TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DB_ENCRYPTION), NULL, _exit);
   if (tsEncryptionKeyStat != ENCRYPT_KEY_STAT_LOADED) {
@@ -1457,7 +1457,7 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSDbCfgReq(pReq->pCont, pReq->contLen, &cfgReq), NULL, _OVER);
 
-  if (strcasecmp(cfgReq.db, TSDB_INFORMATION_SCHEMA_DB) && strcasecmp(cfgReq.db, TSDB_PERFORMANCE_SCHEMA_DB)) {
+  if (taosStrcasecmp(cfgReq.db, TSDB_INFORMATION_SCHEMA_DB) && taosStrcasecmp(cfgReq.db, TSDB_PERFORMANCE_SCHEMA_DB)) {
     pDb = mndAcquireDb(pMnode, cfgReq.db);
     if (pDb == NULL) {
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -1963,8 +1963,8 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, 
     (void)memcpy(rsp.db, pDbCacheInfo->dbFName, TSDB_DB_FNAME_LEN);
     rsp.dbId = pDbCacheInfo->dbId;
 
-    if ((0 == strcasecmp(pDbCacheInfo->dbFName, TSDB_INFORMATION_SCHEMA_DB) ||
-         (0 == strcasecmp(pDbCacheInfo->dbFName, TSDB_PERFORMANCE_SCHEMA_DB)))) {
+    if ((0 == taosStrcasecmp(pDbCacheInfo->dbFName, TSDB_INFORMATION_SCHEMA_DB) ||
+         (0 == taosStrcasecmp(pDbCacheInfo->dbFName, TSDB_PERFORMANCE_SCHEMA_DB)))) {
       int32_t vgVersion = mndGetGlobalVgroupVersion(pMnode);
       if (pDbCacheInfo->vgVersion >= vgVersion) {
         continue;

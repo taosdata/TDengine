@@ -81,7 +81,9 @@ typedef struct TdDir {
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#ifndef TD_ASTRA
 #include <wordexp.h>
+#endif
 
 typedef struct dirent dirent;
 typedef struct DIR    TdDir;
@@ -223,7 +225,7 @@ int32_t taosMulModeMkDir(const char *dirname, int32_t mode, bool checkAccess) {
         taosCheckAccessFile(temp, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
       return 0;
     }
-
+#ifndef TD_ASTRA  // TD_ASTRA_TODO  IMPORTANT
     code = chmod(temp, mode);
     if (-1 == code) {
       struct stat statbuf = {0};
@@ -233,6 +235,9 @@ int32_t taosMulModeMkDir(const char *dirname, int32_t mode, bool checkAccess) {
         return terrno;
       }
     }
+#else
+    return 0;
+#endif
   }
 
   if (strncmp(temp, TD_DIRSEP, 1) == 0) {
@@ -279,12 +284,15 @@ int32_t taosMulModeMkDir(const char *dirname, int32_t mode, bool checkAccess) {
       return 0;
     }
   }
-
+#ifndef TD_ASTRA  // TD_ASTRA_TODO  IMPORTANT
   code = chmod(temp, mode);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
+#else
+  code = 0;
+#endif
   return code;
 }
 
@@ -338,6 +346,7 @@ int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
   OS_PARAM_CHECK(outname);
   if (dirname[0] == 0) return 0;
 
+#ifndef TD_ASTRA
   wordexp_t full_path = {0};
   int32_t   code = wordexp(dirname, &full_path, 0);
   switch (code) {
@@ -355,12 +364,15 @@ int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
   }
 
   wordfree(&full_path);
+#else
+  tstrncpy(outname, dirname, maxlen);
+#endif
   return 0;
 }
 
 int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
   OS_PARAM_CHECK(dirname);
-
+#ifndef TD_ASTRA
   char tmp[PATH_MAX] = {0};
 #ifdef WINDOWS
   if (_fullpath(tmp, dirname, maxlen) != NULL) {
@@ -382,6 +394,10 @@ int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
+#else
+  tstrncpy(realPath, dirname, maxlen);
+  return 0;
+#endif
 }
 
 bool taosIsDir(const char *dirname) {
@@ -525,6 +541,8 @@ bool taosDirEntryIsDir(TdDirEntryPtr pDirEntry) {
   }
 #ifdef WINDOWS
   return (pDirEntry->findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+#elif defined(TD_ASTRA)
+  return ((dirent *)pDirEntry)->d_mode == 1;  // DIRECTORY_ENTRY;
 #else
   return (((dirent *)pDirEntry)->d_type & DT_DIR) != 0;
 #endif

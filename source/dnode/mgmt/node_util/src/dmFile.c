@@ -373,7 +373,7 @@ _OVER:
 }
 
 int32_t dmUpdateEncryptKey(char *key, bool toLogFile) {
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   int32_t code = -1;
   int32_t lino = 0;
   char   *machineId = NULL;
@@ -499,7 +499,7 @@ _OVER:
 }
 
 int32_t dmGetEncryptKey() {
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   int32_t code = -1;
   char    encryptFile[PATH_MAX] = {0};
   char    checkFile[PATH_MAX] = {0};

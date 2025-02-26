@@ -35,7 +35,7 @@
 #define tlvForEach(pDecoder, pTlv, code) \
   while (TSDB_CODE_SUCCESS == code && TSDB_CODE_SUCCESS == (code = tlvGetNextTlv(pDecoder, &pTlv)) && NULL != pTlv)
 
-#pragma pack(push, 1)
+#pragma pack(push, TD_PACK_MIN_SIZE)
 
 typedef struct STlv {
   int16_t type;

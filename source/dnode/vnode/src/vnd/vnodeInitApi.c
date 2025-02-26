@@ -115,6 +115,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 }
 
 void initTqAPI(SStoreTqReader* pTq) {
+#ifdef USE_TQ
   pTq->tqReaderOpen = tqReaderOpen;
   pTq->tqReaderSetColIdList = tqReaderSetColIdList;
 
@@ -146,9 +147,11 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqGetResultBlockTime = tqGetResultBlockTime;
 
   pTq->tqGetStreamExecProgress = tqGetStreamExecInfo;
+#endif
 }
 
 void initStateStoreAPI(SStateStore* pStore) {
+#ifdef USE_STREAM
   pStore->streamFileStateInit = streamFileStateInit;
   pStore->updateInfoDestoryColseWinSBF = updateInfoDestoryColseWinSBF;
 
@@ -246,6 +249,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateDestroy = streamStateDestroy;
   pStore->streamStateReloadInfo = streamStateReloadInfo;
   pStore->streamStateCopyBackend = streamStateCopyBackend;
+#endif
 }
 
 void initMetaReaderAPI(SStoreMetaReader* pMetaReader) {
@@ -268,8 +272,10 @@ void initMetaFilterAPI(SMetaDataFilterAPI* pFilter) {
 }
 
 void initFunctionStateStore(SFunctionStateStore* pStore) {
+#ifdef USE_STREAM
   pStore->streamStateFuncPut = streamStateFuncPut;
   pStore->streamStateFuncGet = streamStateFuncGet;
+#endif
 }
 
 void initCacheFn(SStoreCacheReader* pCache) {

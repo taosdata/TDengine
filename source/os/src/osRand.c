@@ -19,7 +19,9 @@
 #include "wincrypt.h"
 #include "windows.h"
 #else
+#ifndef TD_ASTRA
 #include <sys/file.h>
+#endif // !TD_ASTRA
 #include <unistd.h>
 #endif
 

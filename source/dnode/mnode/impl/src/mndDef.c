@@ -18,6 +18,7 @@
 #include "taoserror.h"
 #include "tunit.h"
 
+#ifdef USE_STREAM
 static void *freeStreamTasks(SArray *pTaskLevel);
 
 int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
@@ -233,6 +234,7 @@ void tFreeStreamObj(SStreamObj *pStream) {
     taosMemoryFree(pStream->tagSchema.pSchema);
   }
 }
+#endif
 
 SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {
   SMqVgEp *pVgEpNew = taosMemoryMalloc(sizeof(SMqVgEp));
@@ -769,7 +771,7 @@ int32_t mndUpdateObj(SConfigObj *pObjNew, const char *name, char *value) {
   switch (pObjNew->dtype) {
     case CFG_DTYPE_BOOL: {
       bool tmp = false;
-      if (strcasecmp(value, "true") == 0) {
+      if (taosStrcasecmp(value, "true") == 0) {
         tmp = true;
       }
       if (taosStr2Int32(value, NULL, 10) > 0) {

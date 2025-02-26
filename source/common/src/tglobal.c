@@ -62,7 +62,11 @@ int32_t tsShellActivityTimer = 3;  // second
 
 // memory pool
 int8_t  tsMemPoolFullFunc = 0;
+#ifndef TD_ASTRA
 int8_t  tsQueryUseMemoryPool = 1;
+#else
+int8_t  tsQueryUseMemoryPool = 0;
+#endif
 int32_t tsQueryBufferPoolSize = 0;       // MB
 int32_t tsSingleQueryMaxMemorySize = 0;  // MB
 int32_t tsMinReservedMemorySize = 0;     // MB
@@ -131,23 +135,38 @@ int8_t   tsEncryptionKeyStat = ENCRYPT_KEY_STAT_UNSET;
 int8_t   tsGrant = 1;
 
 // monitor
-bool     tsEnableMonitor = true;
+#ifdef USE_MONITOR
+bool tsEnableMonitor = true;
+#else
+bool tsEnableMonitor = false;
+#endif
 int32_t  tsMonitorInterval = 30;
 char     tsMonitorFqdn[TSDB_FQDN_LEN] = {0};
 uint16_t tsMonitorPort = 6043;
 int32_t  tsMonitorMaxLogs = 100;
 bool     tsMonitorComp = false;
 bool     tsMonitorLogProtocol = false;
-bool     tsMonitorForceV2 = true;
+#ifdef USE_MONITOR
+bool tsMonitorForceV2 = true;
+#else
+bool tsMonitorForceV2 = false;
+#endif
 
 // audit
+#ifdef USE_AUDIT
 bool    tsEnableAudit = true;
 bool    tsEnableAuditCreateTable = true;
 bool    tsEnableAuditDelete = true;
 int32_t tsAuditInterval = 5000;
+#else
+bool    tsEnableAudit = false;
+bool    tsEnableAuditCreateTable = false;
+bool    tsEnableAuditDelete = false;
+int32_t tsAuditInterval = 200000;
+#endif
 
 // telem
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) || !defined(USE_REPORT)
 bool tsEnableTelem = false;
 #else
 bool    tsEnableTelem = true;
@@ -157,7 +176,7 @@ char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.tdengine.com";
 uint16_t tsTelemPort = 80;
 char    *tsTelemUri = "/report";
 
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) || !defined(USE_REPORT)
 bool tsEnableCrashReport = false;
 #else
 bool    tsEnableCrashReport = true;
@@ -286,7 +305,7 @@ bool     tsIfAdtFse = false;                    // ADT-FSE algorithom or origina
 char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
 // udf
-#ifdef WINDOWS
+#if defined(WINDOWS) || !defined(USE_UDF)
 bool tsStartUdfd = false;
 #else
 bool    tsStartUdfd = true;
@@ -320,7 +339,11 @@ int32_t tsGrantHBInterval = 60;
 int32_t tsUptimeInterval = 300;    // seconds
 char    tsUdfdResFuncs[512] = "";  // udfd resident funcs that teardown when udfd exits
 char    tsUdfdLdLibPath[512] = "";
-bool    tsDisableStream = false;
+#ifdef USE_STREAM
+bool tsDisableStream = false;
+#else
+bool tsDisableStream = true;
+#endif
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 bool    tsFilterScalarMode = false;
 int     tsStreamAggCnt = 100000;
@@ -1141,7 +1164,7 @@ static int32_t taosSetLogOutput(SConfig *pCfg) {
   if (tsLogOutput) {
     char *pLog = tsLogOutput;
     char *pEnd = NULL;
-    if (strcasecmp(pLog, "stdout") && strcasecmp(pLog, "stderr") && strcasecmp(pLog, "/dev/null")) {
+    if (taosStrcasecmp(pLog, "stdout") && taosStrcasecmp(pLog, "stderr") && taosStrcasecmp(pLog, "/dev/null")) {
       if ((pEnd = strrchr(pLog, '/')) || (pEnd = strrchr(pLog, '\\'))) {
         int32_t pathLen = POINTER_DISTANCE(pEnd, pLog) + 1;
         if (*pLog == '/' || *pLog == '\\') {
@@ -1282,27 +1305,27 @@ int32_t taosSetSlowLogScope(char *pScopeStr, int32_t *pScope) {
       TAOS_RETURN(terrno);
     }
     (void)strtrim(tmp);
-    if (0 == strcasecmp(tmp, "all")) {
+    if (0 == taosStrcasecmp(tmp, "all")) {
       slowScope |= SLOW_LOG_TYPE_ALL;
       continue;
     }
 
-    if (0 == strcasecmp(tmp, "query")) {
+    if (0 == taosStrcasecmp(tmp, "query")) {
       slowScope |= SLOW_LOG_TYPE_QUERY;
       continue;
     }
 
-    if (0 == strcasecmp(tmp, "insert")) {
+    if (0 == taosStrcasecmp(tmp, "insert")) {
       slowScope |= SLOW_LOG_TYPE_INSERT;
       continue;
     }
 
-    if (0 == strcasecmp(tmp, "others")) {
+    if (0 == taosStrcasecmp(tmp, "others")) {
       slowScope |= SLOW_LOG_TYPE_OTHERS;
       continue;
     }
 
-    if (0 == strcasecmp(tmp, "none")) {
+    if (0 == taosStrcasecmp(tmp, "none")) {
       slowScope |= SLOW_LOG_TYPE_NULL;
       continue;
     }
@@ -1606,6 +1629,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(taosSetSlowLogScope(pItem->str, &scope));
   tsSlowLogScope = scope;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "queryRspPolicy");
+  tsQueryRspPolicy = pItem->i32;
+#ifdef USE_MONITOR
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "monitor");
   tsEnableMonitor = pItem->bval;
 
@@ -1625,15 +1651,13 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "monitorComp");
   tsMonitorComp = pItem->bval;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "queryRspPolicy");
-  tsQueryRspPolicy = pItem->i32;
-
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "monitorLogProtocol");
   tsMonitorLogProtocol = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "monitorForceV2");
   tsMonitorForceV2 = pItem->i32;
-
+#endif
+#ifdef USE_AUDIT
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "audit");
   tsEnableAudit = pItem->bval;
 
@@ -1645,12 +1669,21 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "auditInterval");
   tsAuditInterval = pItem->i32;
-
+#endif
+#ifdef USE_REPORT
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "telemetryReporting");
   tsEnableTelem = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "crashReporting");
   tsEnableCrashReport = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "telemetryInterval");
+  tsTelemInterval = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "telemetryServer");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
+  tstrncpy(tsTelemServer, pItem->str, TSDB_FQDN_LEN);
+#endif
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ttlChangeOnWrite");
   tsTtlChangeOnWrite = pItem->bval;
@@ -1658,15 +1691,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "ttlFlushThreshold");
   tsTtlFlushThreshold = pItem->i32;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "telemetryInterval");
-  tsTelemInterval = pItem->i32;
-
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "rsyncPort");
   tsRsyncPort = pItem->i32;
-
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "telemetryServer");
-  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
-  tstrncpy(tsTelemServer, pItem->str, TSDB_FQDN_LEN);
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "snodeAddress");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
@@ -1759,7 +1785,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableWhiteList");
   tsEnableWhiteList = pItem->bval;
-
+#ifdef USE_UDF
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "udf");
   tsStartUdfd = pItem->bval;
 
@@ -1773,7 +1799,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
-
+#endif
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "cacheLazyLoadThreshold");
   tsCacheLazyLoadThreshold = pItem->i32;
 
@@ -1825,7 +1851,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minDiskFreeSize");
   tsMinDiskFreeSize = pItem->i64;
-
+#ifdef USE_S3
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3MigrateIntervalSec");
   tsS3MigrateIntervalSec = pItem->i32;
 
@@ -1837,7 +1863,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "s3UploadDelaySec");
   tsS3UploadDelaySec = pItem->i32;
-
+#endif
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "experimental");
   tsExperimental = pItem->bval;
 
@@ -1874,11 +1900,15 @@ int32_t taosSetReleaseCfg(SConfig *pCfg);
 
 static int32_t taosSetAllDebugFlag(SConfig *pCfg, int32_t flag);
 
+static int8_t tsLogCreated = 0;
+
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
-                      const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {
+                      const char *envFile, char *apolloUrl, SArray *pArgs, ELogMode mode) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
   SConfig *pCfg = NULL;
+
+  if (atomic_val_compare_exchange_8(&tsLogCreated, 0, 1) != 0) return 0;
 
   if (tsCfg == NULL) {
     TAOS_CHECK_GOTO(osDefaultInit(), &lino, _exit);
@@ -1886,12 +1916,9 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   TAOS_CHECK_GOTO(cfgInit(&pCfg), &lino, _exit);
 
-  if (tsc) {
-    tsLogEmbedded = 0;
-    TAOS_CHECK_GOTO(taosAddClientLogCfg(pCfg), &lino, _exit);
-  } else {
-    tsLogEmbedded = 1;
-    TAOS_CHECK_GOTO(taosAddClientLogCfg(pCfg), &lino, _exit);
+  tsLogEmbedded = (mode & LOG_MODE_TAOSC) ? 0 : 1;
+  TAOS_CHECK_GOTO(taosAddClientLogCfg(pCfg), &lino, _exit);
+  if (mode & LOG_MODE_TAOSD) {
     TAOS_CHECK_GOTO(taosAddServerLogCfg(pCfg), &lino, _exit);
   }
 
@@ -1905,10 +1932,8 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
     goto _exit;
   }
 
-  if (tsc) {
-    TAOS_CHECK_GOTO(taosSetClientLogCfg(pCfg), &lino, _exit);
-  } else {
-    TAOS_CHECK_GOTO(taosSetClientLogCfg(pCfg), &lino, _exit);
+  TAOS_CHECK_GOTO(taosSetClientLogCfg(pCfg), &lino, _exit);
+  if (mode & LOG_MODE_TAOSD) {
     TAOS_CHECK_GOTO(taosSetServerLogCfg(pCfg), &lino, _exit);
   }
 
@@ -1921,7 +1946,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
     goto _exit;
   }
 
-  if ((code = taosInitLog(logname, logFileNum, tsc)) != 0) {
+  if ((code = taosInitLog(logname, logFileNum, mode)) != 0) {
     (void)printf("failed to init log file since %s\n", tstrerror(code));
     goto _exit;
   }
@@ -1976,6 +2001,9 @@ int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *
   dDebugFlag = pItem->i32;
 
 _exit:
+if(code != 0) {
+  (void)printf("failed to set data folder since %s\n", tstrerror(code));
+}
   cfgCleanup(pCfg);
   TAOS_RETURN(code);
 }
@@ -2047,7 +2075,7 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
     if (pJson == NULL) {
       continue;
     }
-    if (strcasecmp(pItem->name, "dataDir") == 0) {
+    if (taosStrcasecmp(pItem->name, "dataDir") == 0) {
       if (!tsDiskIDCheckEnabled) {
         continue;
       }
@@ -2300,7 +2328,7 @@ static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, 
   char   *name = pItem->name;
   for (int32_t d = 0; d < optionSize; ++d) {
     const char *optName = pOptions[d].optionName;
-    if (strcasecmp(name, optName) != 0) continue;
+    if (taosStrcasecmp(name, optName) != 0) continue;
     code = TSDB_CODE_SUCCESS;
     switch (pItem->dtype) {
       case CFG_DTYPE_BOOL: {
@@ -2337,7 +2365,7 @@ static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, 
       case CFG_DTYPE_LOCALE:
       case CFG_DTYPE_CHARSET:
       case CFG_DTYPE_TIMEZONE: {
-        if (strcasecmp(pItem->name, "slowLogExceptDb") == 0) {
+        if (taosStrcasecmp(pItem->name, "slowLogExceptDb") == 0) {
           TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_DB_NAME_LEN));
           tstrncpy(tsSlowLogExceptDb, pItem->str, TSDB_DB_NAME_LEN);
         } else {
@@ -2364,7 +2392,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = -1;
 
-  if (strcasecmp(name, "resetlog") == 0) {
+  if (taosStrcasecmp(name, "resetlog") == 0) {
     // trigger, no item in cfg
     taosResetLog();
     cfgDumpCfg(tsCfg, 0, false);
@@ -2380,19 +2408,19 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     goto _exit;
   }
 
-  if (strncasecmp(name, "debugFlag", 9) == 0) {
+  if (taosStrncasecmp(name, "debugFlag", 9) == 0) {
     code = taosSetAllDebugFlag(pCfg, pItem->i32);
     goto _exit;
   }
 
-  if (strncasecmp(name, "enableCoreFile", 9) == 0) {
+  if (taosStrncasecmp(name, "enableCoreFile", 9) == 0) {
     tsEnableCoreFile = pItem->bval;
     taosSetCoreDump(tsEnableCoreFile);
     uInfo("%s set to %d", name, tsEnableCoreFile);
     goto _exit;
   }
 
-  if (strcasecmp("slowLogScope", name) == 0) {
+  if (taosStrcasecmp("slowLogScope", name) == 0) {
     int32_t scope = 0;
     TAOS_CHECK_GOTO(taosSetSlowLogScope(pItem->str, &scope), &lino, _exit);
     tsSlowLogScope = scope;
@@ -2400,23 +2428,23 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
     goto _exit;
   }
 
-  if (strcasecmp("slowLogExceptDb", name) == 0) {
+  if (taosStrcasecmp("slowLogExceptDb", name) == 0) {
     tstrncpy(tsSlowLogExceptDb, pItem->str, TSDB_DB_NAME_LEN);
     code = TSDB_CODE_SUCCESS;
     goto _exit;
   }
-  if (strcasecmp(name, "dataDir") == 0) {
+  if (taosStrcasecmp(name, "dataDir") == 0) {
     code = TSDB_CODE_SUCCESS;
     goto _exit;
   }
-  if (strcasecmp("rpcQueueMemoryAllowed", name) == 0) {
+  if (taosStrcasecmp("rpcQueueMemoryAllowed", name) == 0) {
     tsQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64 * QUEUE_MEMORY_USAGE_RATIO;
     tsApplyMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64 * (1 - QUEUE_MEMORY_USAGE_RATIO);
     code = TSDB_CODE_SUCCESS;
     goto _exit;
   }
 
-  if (strcasecmp(name, "numOfCompactThreads") == 0) {
+  if (taosStrcasecmp(name, "numOfCompactThreads") == 0) {
 #ifdef TD_ENTERPRISE
     tsNumOfCompactThreads = pItem->i32;
     code = TSDB_CODE_SUCCESS;
@@ -2543,7 +2571,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  if (strcasecmp("charset", name) == 0 || strcasecmp("timezone", name) == 0) {
+  if (taosStrcasecmp("charset", name) == 0 || taosStrcasecmp("timezone", name) == 0) {
     goto _out;
   }
 
@@ -2564,14 +2592,14 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
 
   switch (lowcaseName[0]) {
     case 'd': {
-      if (strcasecmp("debugFlag", name) == 0) {
+      if (taosStrcasecmp("debugFlag", name) == 0) {
         code = taosSetAllDebugFlag(pCfg, pItem->i32);
         matched = true;
       }
       break;
     }
     case 'e': {
-      if (strcasecmp("enableCoreFile", name) == 0) {
+      if (taosStrcasecmp("enableCoreFile", name) == 0) {
         tsEnableCoreFile = pItem->bval;
         taosSetCoreDump(tsEnableCoreFile);
         uInfo("%s set to %d", name, tsEnableCoreFile);
@@ -2580,7 +2608,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
       break;
     }
     case 'f': {
-      if (strcasecmp("fqdn", name) == 0) {
+      if (taosStrcasecmp("fqdn", name) == 0) {
         SConfigItem *pFqdnItem = cfgGetItem(pCfg, "fqdn");
         SConfigItem *pServerPortItem = cfgGetItem(pCfg, "serverPort");
         SConfigItem *pFirstEpItem = cfgGetItem(pCfg, "firstEp");
@@ -2606,7 +2634,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         TAOS_CHECK_GOTO(cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype, false), &lino, _out);
         uInfo("localEp set to '%s', tsFirst set to '%s'", tsLocalEp, tsFirst);
         matched = true;
-      } else if (strcasecmp("firstEp", name) == 0) {
+      } else if (taosStrcasecmp("firstEp", name) == 0) {
         SConfigItem *pFqdnItem = cfgGetItem(pCfg, "fqdn");
         SConfigItem *pServerPortItem = cfgGetItem(pCfg, "serverPort");
         SConfigItem *pFirstEpItem = cfgGetItem(pCfg, "firstEp");
@@ -2636,7 +2664,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
       break;
     }
     case 'l': {
-      if (strcasecmp("locale", name) == 0) {
+      if (taosStrcasecmp("locale", name) == 0) {
         SConfigItem *pLocaleItem = cfgGetItem(pCfg, "locale");
         if (pLocaleItem == NULL) {
           uError("failed to get locale from cfg");
@@ -2652,15 +2680,15 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
       break;
     }
     case 'm': {
-      if (strcasecmp("metaCacheMaxSize", name) == 0) {
+      if (taosStrcasecmp("metaCacheMaxSize", name) == 0) {
         atomic_store_32(&tsMetaCacheMaxSize, pItem->i32);
         uInfo("%s set to %d", name, atomic_load_32(&tsMetaCacheMaxSize));
         matched = true;
-      } else if (strcasecmp("minimalTmpDirGB", name) == 0) {
+      } else if (taosStrcasecmp("minimalTmpDirGB", name) == 0) {
         tsTempSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
         uInfo("%s set to %" PRId64, name, tsTempSpace.reserved);
         matched = true;
-      } else if (strcasecmp("minimalLogDirGB", name) == 0) {
+      } else if (taosStrcasecmp("minimalLogDirGB", name) == 0) {
         tsLogSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
         uInfo("%s set to %" PRId64, name, tsLogSpace.reserved);
         matched = true;
@@ -2668,34 +2696,34 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
       break;
     }
     case 's': {
-      if (strcasecmp("secondEp", name) == 0) {
+      if (taosStrcasecmp("secondEp", name) == 0) {
         SEp secondEp = {0};
         TAOS_CHECK_GOTO(taosGetFqdnPortFromEp(strlen(pItem->str) == 0 ? tsFirst : pItem->str, &secondEp), &lino, _out);
         (void)snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port);
         TAOS_CHECK_GOTO(cfgSetItem(pCfg, "secondEp", tsSecond, pItem->stype, false), &lino, _out);
         uInfo("%s set to %s", name, tsSecond);
         matched = true;
-      } else if (strcasecmp("smlChildTableName", name) == 0) {
+      } else if (taosStrcasecmp("smlChildTableName", name) == 0) {
         TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_TABLE_NAME_LEN), &lino, _out);
         uInfo("%s set from %s to %s", name, tsSmlChildTableName, pItem->str);
         tstrncpy(tsSmlChildTableName, pItem->str, TSDB_TABLE_NAME_LEN);
         matched = true;
-      } else if (strcasecmp("smlAutoChildTableNameDelimiter", name) == 0) {
+      } else if (taosStrcasecmp("smlAutoChildTableNameDelimiter", name) == 0) {
         TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_TABLE_NAME_LEN), &lino, _out);
         uInfo("%s set from %s to %s", name, tsSmlAutoChildTableNameDelimiter, pItem->str);
         tstrncpy(tsSmlAutoChildTableNameDelimiter, pItem->str, TSDB_TABLE_NAME_LEN);
         matched = true;
-      } else if (strcasecmp("smlTagName", name) == 0) {
+      } else if (taosStrcasecmp("smlTagName", name) == 0) {
         TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_COL_NAME_LEN), &lino, _out);
         uInfo("%s set from %s to %s", name, tsSmlTagName, pItem->str);
         tstrncpy(tsSmlTagName, pItem->str, TSDB_COL_NAME_LEN);
         matched = true;
-      } else if (strcasecmp("smlTsDefaultName", name) == 0) {
+      } else if (taosStrcasecmp("smlTsDefaultName", name) == 0) {
         TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_COL_NAME_LEN), &lino, _out);
         uInfo("%s set from %s to %s", name, tsSmlTsDefaultName, pItem->str);
         tstrncpy(tsSmlTsDefaultName, pItem->str, TSDB_COL_NAME_LEN);
         matched = true;
-      } else if (strcasecmp("serverPort", name) == 0) {
+      } else if (taosStrcasecmp("serverPort", name) == 0) {
         SConfigItem *pFqdnItem = cfgGetItem(pCfg, "fqdn");
         SConfigItem *pServerPortItem = cfgGetItem(pCfg, "serverPort");
         SConfigItem *pFirstEpItem = cfgGetItem(pCfg, "firstEp");
@@ -2726,7 +2754,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
       break;
     }
     case 't': {
-      if (strcasecmp("tempDir", name) == 0) {
+      if (taosStrcasecmp("tempDir", name) == 0) {
         TAOS_CHECK_GOTO(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX), &lino, _out);
         uInfo("%s set from %s to %s", name, tsTempDir, pItem->str);
         tstrncpy(tsTempDir, pItem->str, PATH_MAX);
@@ -2817,7 +2845,7 @@ int32_t taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVa
 static int taosLogVarComp(void const *lp, void const *rp) {
   SLogVar *lpVar = (SLogVar *)lp;
   SLogVar *rpVar = (SLogVar *)rp;
-  return strcasecmp(lpVar->name, rpVar->name);
+  return taosStrcasecmp(lpVar->name, rpVar->name);
 }
 
 static void taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag, SArray *noNeedToSetVars) {
@@ -2967,7 +2995,7 @@ int32_t localConfigSerialize(SArray *array, char **serialized) {
   // string are used to prohibit the loss of precision
   for (int i = 0; i < sz; i++) {
     SConfigItem *item = (SConfigItem *)taosArrayGet(array, i);
-    if (strcasecmp(item->name, "dataDir") == 0) {
+    if (taosStrcasecmp(item->name, "dataDir") == 0) {
       int32_t sz = taosArrayGetSize(item->array);
       cJSON  *dataDirs = cJSON_CreateArray();
       if (!cJSON_AddItemToObject(cField, item->name, dataDirs)) {

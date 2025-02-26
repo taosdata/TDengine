@@ -570,6 +570,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   walApplyVer(pVnode->pWal, commitIdx);
   pVnode->restored = true;
 
+#ifdef USE_STREAM
   SStreamMeta *pMeta = pVnode->pTq->pStreamMeta;
   streamMetaWLock(pMeta);
 
@@ -606,6 +607,7 @@ static void vnodeRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) 
   }
 
   streamMetaWUnLock(pMeta);
+#endif
 }
 
 static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
@@ -622,12 +624,14 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
   }
   (void)taosThreadMutexUnlock(&pVnode->lock);
 
+#ifdef USE_TQ
   if (pVnode->pTq) {
     tqUpdateNodeStage(pVnode->pTq, false);
     if (tqStopStreamTasksAsync(pVnode->pTq) != 0) {
       vError("vgId:%d, failed to stop stream tasks", pVnode->config.vgId);
     }
   }
+#endif
 }
 
 static void vnodeBecomeLearner(const SSyncFSM *pFsm) {
@@ -648,17 +652,21 @@ static void vnodeBecomeLearner(const SSyncFSM *pFsm) {
 static void vnodeBecomeLeader(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
   vDebug("vgId:%d, become leader", pVnode->config.vgId);
+#ifdef USE_TQ
   if (pVnode->pTq) {
     tqUpdateNodeStage(pVnode->pTq, true);
   }
+#endif
 }
 
 static void vnodeBecomeAssignedLeader(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
   vDebug("vgId:%d, become assigned leader", pVnode->config.vgId);
+#ifdef USE_TQ
   if (pVnode->pTq) {
     tqUpdateNodeStage(pVnode->pTq, true);
   }
+#endif
 }
 
 static bool vnodeApplyQueueEmpty(const SSyncFSM *pFsm) {

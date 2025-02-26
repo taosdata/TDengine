@@ -566,20 +566,22 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
 
   int32_t type = pInput->pData[0]->info.type;
 
-  char* buf = GET_ROWCELL_INTERBUF(pResInfo);
+  char*   buf = GET_ROWCELL_INTERBUF(pResInfo);
+  int64_t val = *((int64_t*)buf);
   if (IS_NULL_TYPE(type)) {
     // select count(NULL) returns 0
     numOfElem = 1;
-    *((int64_t*)buf) += 0;
+    val += 0;
   } else {
     numOfElem = getNumOfElems(pCtx);
-    *((int64_t*)buf) += numOfElem;
+    val += numOfElem;
   }
+  taosSetInt64Aligned((int64_t*)buf, val);
 
   if (tsCountAlwaysReturnValue) {
     pResInfo->numOfRes = 1;
   } else {
-    SET_VAL(pResInfo, *((int64_t*)buf), 1);
+    SET_VAL(pResInfo, val, 1);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1993,9 +1995,9 @@ int32_t getApercentileMaxSize() {
 
 static int8_t getApercentileAlgo(char* algoStr) {
   int8_t algoType;
-  if (strcasecmp(algoStr, "default") == 0) {
+  if (taosStrcasecmp(algoStr, "default") == 0) {
     algoType = APERCT_ALGO_DEFAULT;
-  } else if (strcasecmp(algoStr, "t-digest") == 0) {
+  } else if (taosStrcasecmp(algoStr, "t-digest") == 0) {
     algoType = APERCT_ALGO_TDIGEST;
   } else {
     algoType = APERCT_ALGO_UNKNOWN;
@@ -4467,11 +4469,11 @@ bool getHistogramFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv)
 
 static int8_t getHistogramBinType(char* binTypeStr) {
   int8_t binType;
-  if (strcasecmp(binTypeStr, "user_input") == 0) {
+  if (taosStrcasecmp(binTypeStr, "user_input") == 0) {
     binType = USER_INPUT_BIN;
-  } else if (strcasecmp(binTypeStr, "linear_bin") == 0) {
+  } else if (taosStrcasecmp(binTypeStr, "linear_bin") == 0) {
     binType = LINEAR_BIN;
-  } else if (strcasecmp(binTypeStr, "log_bin") == 0) {
+  } else if (taosStrcasecmp(binTypeStr, "log_bin") == 0) {
     binType = LOG_BIN;
   } else {
     binType = UNKNOWN_BIN;
@@ -5079,17 +5081,17 @@ bool getStateFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
 
 static int8_t getStateOpType(char* opStr) {
   int8_t opType;
-  if (strncasecmp(opStr, "LT", 2) == 0) {
+  if (taosStrncasecmp(opStr, "LT", 2) == 0) {
     opType = STATE_OPER_LT;
-  } else if (strncasecmp(opStr, "GT", 2) == 0) {
+  } else if (taosStrncasecmp(opStr, "GT", 2) == 0) {
     opType = STATE_OPER_GT;
-  } else if (strncasecmp(opStr, "LE", 2) == 0) {
+  } else if (taosStrncasecmp(opStr, "LE", 2) == 0) {
     opType = STATE_OPER_LE;
-  } else if (strncasecmp(opStr, "GE", 2) == 0) {
+  } else if (taosStrncasecmp(opStr, "GE", 2) == 0) {
     opType = STATE_OPER_GE;
-  } else if (strncasecmp(opStr, "NE", 2) == 0) {
+  } else if (taosStrncasecmp(opStr, "NE", 2) == 0) {
     opType = STATE_OPER_NE;
-  } else if (strncasecmp(opStr, "EQ", 2) == 0) {
+  } else if (taosStrncasecmp(opStr, "EQ", 2) == 0) {
     opType = STATE_OPER_EQ;
   } else {
     opType = STATE_OPER_INVALID;

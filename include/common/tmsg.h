@@ -524,7 +524,7 @@ typedef struct SRetention {
 
 #define RETENTION_VALID(l, r) ((((l) == 0 && (r)->freq >= 0) || ((r)->freq > 0)) && ((r)->keep > 0))
 
-#pragma pack(push, 1)
+#pragma pack(push, TD_PACK_MIN_SIZE)
 
 // null-terminated string instead of char array to avoid too many memory consumption in case of more than 1M tableMeta
 typedef struct SEp {

@@ -36,9 +36,13 @@ int32_t tdProcessTSmaInsert(SSma *pSma, int64_t indexUid, const char *msg) {
 }
 
 int32_t tdProcessTSmaCreate(SSma *pSma, int64_t ver, const char *msg) {
+#ifdef USE_TSMA
   int32_t code = tdProcessTSmaCreateImpl(pSma, ver, msg);
 
   TAOS_RETURN(code);
+#else
+  return TSDB_CODE_SUCCESS;
+#endif
 }
 
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days) {
@@ -366,7 +370,7 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
   TAOS_CHECK_EXIT(tsmaProcessDelReq(pSma, indexUid, &deleteReq));
 
 #if 0
-  if (!strncasecmp("td.tsma.rst.tb", pTsmaStat->pTSma->dstTbName, 14)) {
+  if (!taosStrncasecmp("td.tsma.rst.tb", pTsmaStat->pTSma->dstTbName, 14)) {
     code = TSDB_CODE_APP_ERROR;
     smaError("vgId:%d, tsma insert for smaIndex %" PRIi64 " failed since %s, %s", SMA_VID(pSma), indexUid,
              pTsmaStat->pTSma->indexUid, tstrerror(code), pTsmaStat->pTSma->dstTbName);

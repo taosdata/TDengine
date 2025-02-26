@@ -334,6 +334,7 @@ struct STsdbFS {
 };
 
 typedef struct {
+#ifdef USE_ROCKSDB
   rocksdb_t                           *db;
   rocksdb_comparator_t                *my_comparator;
   rocksdb_block_based_table_options_t *tableoptions;
@@ -343,6 +344,7 @@ typedef struct {
   rocksdb_readoptions_t               *readoptions;
   rocksdb_writebatch_t                *writebatch;
   TdThreadMutex                        writeBatchMutex;
+#endif
   int32_t                              sver;
   tb_uid_t                             suid;
   tb_uid_t                             uid;

@@ -31,9 +31,9 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
   taosIgnSignal(SIGABRT);
   taosIgnSignal(SIGFPE);
   taosIgnSignal(SIGSEGV);
-
+#ifdef USE_REPORT
   tscWriteCrashInfo(signum, sigInfo, context);
-
+#endif
 #ifdef _TD_DARWIN_64
   exit(signum);
 #elif defined(WINDOWS)
@@ -41,7 +41,11 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
 #endif
 }
 
+#if defined(TAOSD_INTEGRATED) && !defined(TD_AS_LIB)
+int taosShellStart(int argc, char *argv[]) {
+#else
 int main(int argc, char *argv[]) {
+#endif
   shell.exit = false;
 #ifdef WEBSOCKET
   shell.args.timeout = SHELL_WS_TIMEOUT;
@@ -88,6 +92,7 @@ int main(int argc, char *argv[]) {
   // kill heart-beat thread when quit
   taos_set_hb_quit(1);
 
+#ifndef TD_ASTRA
   if (shell.args.is_dump_config) {
     shellDumpConfig();
     taos_cleanup();
@@ -105,10 +110,10 @@ int main(int argc, char *argv[]) {
     taos_cleanup();
     return 0;
   }
-
+#endif
   // support port feature
   shellAutoInit();
-  int32_t ret = shellExecute();
+  int32_t ret = shellExecute(argc, argv);
   shellAutoExit();
   return ret;
 }

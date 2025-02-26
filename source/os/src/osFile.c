@@ -24,6 +24,7 @@
 #include <ktmw32.h>
 #include <windows.h>
 #define F_OK 0
+#define X_OK 1
 #define W_OK 2
 #define R_OK 4
 
@@ -31,10 +32,12 @@
 
 #else
 #include <fcntl.h>
+#ifndef TD_ASTRA
 #include <sys/file.h>
 
 #if !defined(_TD_DARWIN_64)
 #include <sys/sendfile.h>
+#endif
 #endif
 #include <sys/stat.h>
 #include <unistd.h>
@@ -96,7 +99,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
 
   char rand[8] = {0};
   taosRandStr(rand, tListLen(rand) - 1);
-  snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
+  snprintf(dstPath, PATH_MAX, tmpPath, taosGetPId(), rand);
 
 #else
 
@@ -115,7 +118,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
 
   (void)snprintf(rand, sizeof(rand), "%" PRIu64, atomic_add_fetch_64(&seqId, 1));
 
-  (void)snprintf(dstPath, PATH_MAX, tmpPath, getpid(), rand);
+  (void)snprintf(dstPath, PATH_MAX, tmpPath, taosGetPId(), rand);
 
 #endif
 }
@@ -263,6 +266,9 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
 
   return finished ? 0 : terrno;
 #else
+#ifdef TD_ASTRA // TD_ASTRA_TODO
+  if (taosCheckExistFile(newName)) taosRemoveFile(newName);
+#endif
   int32_t code = rename(oldName, newName);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -914,12 +920,31 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
     return 0;
   }
 #endif
-
+#ifndef TD_ASTRA
   int64_t ret = pwrite(pFile->fd, buf, count, offset);
   if (-1 == ret) {
     code = TAOS_SYSTEM_ERROR(errno);
   }
-
+#else
+  int64_t ret = -1;
+  int64_t cur = lseek(pFile->fd, 0, SEEK_CUR);
+  if (cur < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _exit;
+  }
+  if (lseek(pFile->fd, offset, SEEK_SET) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _exit;
+  }
+  if ((ret = write(pFile->fd, buf, count)) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _exit;
+  }
+_exit:
+  if (cur >= 0 && lseek(pFile->fd, cur, SEEK_SET) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+  }
+#endif
 #if FILE_WITH_LOCK
   (void)taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
@@ -993,11 +1018,24 @@ int32_t taosLockFile(TdFilePtr pFile) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
+#ifndef TD_ASTRA
   int32_t code = (int32_t)flock(pFile->fd, LOCK_EX | LOCK_NB);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
+#else // TD_ASTRA_TODO
+  struct flock lock;
+  lock.l_type = F_WRLCK;
+  lock.l_whence = SEEK_SET;
+  lock.l_start = 0;
+  lock.l_len = 0;
+  int32_t code = fcntl(pFile->fd, F_SETLK, &lock);
+  if (-1 == code) {
+    // terrno = TAOS_SYSTEM_ERROR(errno); // TD_ASTRA_TODO
+    // return terrno; // TD_ASTRA_TODO
+  }
+#endif
   return 0;
 }
 
@@ -1006,11 +1044,24 @@ int32_t taosUnLockFile(TdFilePtr pFile) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
+#ifndef TD_ASTRA
   int32_t code = (int32_t)flock(pFile->fd, LOCK_UN | LOCK_NB);
   if (-1 == code) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
+#else // TD_ASTRA_TODO
+  struct flock lock;
+  lock.l_type = F_UNLCK;
+  lock.l_whence = SEEK_SET;
+  lock.l_start = 0;
+  lock.l_len = 0;
+  int32_t code = fcntl(pFile->fd, F_SETLK, &lock);
+  if (-1 == code) {
+    terrno = TAOS_SYSTEM_ERROR(errno);  // TD_ASTRA_TODO
+    return terrno;                      // TD_ASTRA_TODO
+  }
+#endif
   return 0;
 }
 
@@ -1038,7 +1089,7 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
     return -1;
   }
 
-#ifdef _TD_DARWIN_64
+#if defined(_TD_DARWIN_64) || defined(TD_ASTRA) 
   if (lseek(pFileIn->fd, (int32_t)(*offset), 0) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -1257,10 +1308,31 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
     terrno = TSDB_CODE_INVALID_PARA;
     return -1;
   }
+#ifndef TD_ASTRA
   int64_t ret = pread(pFile->fd, buf, count, offset);
   if (-1 == ret) {
     code = TAOS_SYSTEM_ERROR(errno);
   }
+#else
+  int64_t ret = -1;
+  int64_t cur = lseek(pFile->fd, 0, SEEK_CUR);
+  if (cur < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _exit;
+  }
+  if (lseek(pFile->fd, offset, SEEK_SET) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _exit;
+  }
+  if ((ret = read(pFile->fd, buf, count)) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _exit;
+  }
+_exit:
+  if (cur >= 0 && lseek(pFile->fd, cur, SEEK_SET) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+  }
+#endif
 #endif
 #if FILE_WITH_LOCK
   (void)taosThreadRwlockUnlock(&(pFile->rwlock));
@@ -1308,7 +1380,11 @@ int32_t taosFsyncFile(TdFilePtr pFile) {
   if (pFile->fd >= 0) {
     code = fsync(pFile->fd);
     if (-1 == code) {
+#ifndef TD_ASTRA
       terrno = TAOS_SYSTEM_ERROR(errno);
+#else
+      terrno = 0;  // TD_ASTRA_TODO
+#endif
       return terrno;
     }
   }
@@ -1405,6 +1481,36 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
 
   (*ptrBuf)[totalBytesRead] = '\0';
   ret = (totalBytesRead > 0 ? totalBytesRead : -1); // -1 means EOF
+#elif defined(TD_ASTRA)
+  size_t bufsize = 128;
+  if (*ptrBuf == NULL) {
+    *ptrBuf = (char *)taosMemoryMalloc(bufsize);
+    if (*ptrBuf == NULL) {
+      goto END;
+    }
+  }
+  size_t pos = 0;
+  int    c;
+  while ((c = fgetc(pFile->fp)) != EOF) {
+    if (pos + 1 >= bufsize) {
+      size_t new_size = bufsize << 1;
+      char  *new_line = (char *)taosMemoryRealloc(*ptrBuf, new_size);
+      if (new_line == NULL) {
+        goto END;
+      }
+      *ptrBuf = new_line;
+      bufsize = new_size;
+    }
+    (*ptrBuf)[pos++] = (char)c;
+    if (c == '\n') {
+      break;
+    }
+  }
+  if (pos == 0 && c == EOF) {
+    goto END;
+  }
+  (*ptrBuf)[pos] = '\0';
+  ret = pos;
 #else
   size_t len = 0;
   ret = getline(ptrBuf, &len, pFile->fp);

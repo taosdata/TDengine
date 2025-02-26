@@ -118,8 +118,16 @@ int32_t vmGetAllVnodeListFromHashWithCreating(SVnodeMgmt *pMgmt, int32_t *numOfV
 int32_t vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes, SVnodeObj ***ppVnodes) {
   (void)taosThreadRwlockRdlock(&pMgmt->lock);
 
-  int32_t     num = 0;
-  int32_t     size = taosHashGetSize(pMgmt->runngingHash);
+  int32_t num = 0;
+  int32_t size = taosHashGetSize(pMgmt->runngingHash);
+
+#ifdef TD_ASTRA
+  if (size == 0) {
+    (void)taosThreadRwlockUnlock(&pMgmt->lock);
+    return 0;
+  }
+#endif
+
   SVnodeObj **pVnodes = taosMemoryCalloc(size, sizeof(SVnodeObj *));
   if (pVnodes == NULL) {
     (void)taosThreadRwlockUnlock(&pMgmt->lock);
