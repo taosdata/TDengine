@@ -324,7 +324,7 @@ endif(${BUILD_WITH_UV})
 
 # Include RocksDB configuration
 if(${BUILD_WITH_ROCKSDB})
-    include(${CMAKE_SOURCE_DIR}/cmake/RocksDB.cmake.inc)
+    include(${TD_CONTRIB_DIR}/inc/RocksDB.cmake.inc)
 endif()
 
 if(${BUILD_WITH_S3})
