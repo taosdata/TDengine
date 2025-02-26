@@ -122,6 +122,13 @@ class TDTestCase(TBase):
         tdLog.info("start to test err values...")
         tdSql.error("INSERT INTO t_5 USING stb TAGS (5) VALUES ('2024-01-01 00:00:00', 'dasdsa', 1 ,2.0, 'test')", expectErrInfo="syntax error")
 
+    def check_same_table_same_ts(self):
+        tdLog.info(f"check same table same ts")
+        tdSql.execute("USE test")
+        tdSql.execute("INSERT INTO t_6 USING stb TAGS (6) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test') t_6 USING stb TAGS (6) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test')")
+        tdSql.query("select * from t_6")
+        tdSql.checkRows(1)
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -143,6 +150,9 @@ class TDTestCase(TBase):
 
         # check some err case
         self.check_some_err_case()
+
+        # check same table same ts
+        self.check_same_table_same_ts()
         
         tdLog.success(f"{__file__} successfully executed")
 
