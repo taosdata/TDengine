@@ -17,16 +17,10 @@
 #include <pwd.h>
 #endif
 
+#include "cus_name.h"
 #include "shellInt.h"
 #include "version.h"
 
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
-#include "cus_name.h"
-#else
-#ifndef CUS_PROMPT
-#define CUS_PROMPT "taos"
-#endif
-#endif
 
 #define TAOS_CONSOLE_PROMPT_CONTINUE "   -> "
 
@@ -449,7 +443,7 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shellInitArgs(argc, argv);
   shell.info.clientVersion =
       "Welcome to the %s Command Line Interface, Client Version:%s\r\n"
-      "Copyright (c) 2023 by %s, all rights reserved.\r\n\r\n";
+      "Copyright (c) 2025 by %s, all rights reserved.\r\n\r\n";
 #ifdef CUS_NAME
   strcpy(shell.info.cusName, CUS_NAME);
 #else

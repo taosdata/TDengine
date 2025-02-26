@@ -681,6 +681,14 @@ SSyncState syncGetState(int64_t rid) {
   return state;
 }
 
+void syncGetCommitIndex(int64_t rid, int64_t* syncCommitIndex) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode != NULL) {
+    *syncCommitIndex = pSyncNode->commitIndex;
+    syncNodeRelease(pSyncNode);
+  }
+}
+
 int32_t syncGetArbToken(int64_t rid, char* outToken) {
   int32_t    code = 0;
   SSyncNode* pSyncNode = syncNodeAcquire(rid);

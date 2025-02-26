@@ -25,6 +25,7 @@ import RequestId from "../../assets/resources/_request_id.mdx";
 
 | Connector Version | Major Changes                                              | TDengine Version   |
 |-------------------|------------------------------------------------------------|--------------------|
+| 3.1.6             | Optimize WebSocket connection message handling.            | -                  |
 | 3.1.5             | Fix WebSocket encoding error for Chinese character length. | -                  |
 | 3.1.4             | Improved WebSocket query and insert performance.           | 3.3.2.0 and higher |
 | 3.1.3             | Supported WebSocket auto-reconnect.                        | -                  |
@@ -39,25 +40,25 @@ For error reporting in other TDengine modules, please refer to [Error Codes](../
 
 ## Data Type Mapping
 
-| TDengine DataType | C# Type          |
-|-------------------|------------------|
-| TIMESTAMP         | DateTime         |
-| TINYINT           | sbyte            |
-| SMALLINT          | short            |
-| INT               | int              |
-| BIGINT            | long             |
-| TINYINT UNSIGNED  | byte             |
-| SMALLINT UNSIGNED | ushort           |
-| INT UNSIGNED      | uint             |
-| BIGINT UNSIGNED   | ulong            |
-| FLOAT             | float            |
-| DOUBLE            | double           |
-| BOOL              | bool             |
-| BINARY            | byte[]           |
-| NCHAR             | string (utf-8 encoded) |
-| JSON              | byte[]           |
-| VARBINARY         | byte[]           |
-| GEOMETRY          | byte[]           |
+| TDengine DataType | C# Type  |
+|-------------------|----------|
+| TIMESTAMP         | DateTime |
+| TINYINT           | sbyte    |
+| SMALLINT          | short    |
+| INT               | int      |
+| BIGINT            | long     |
+| TINYINT UNSIGNED  | byte     |
+| SMALLINT UNSIGNED | ushort   |
+| INT UNSIGNED      | uint     |
+| BIGINT UNSIGNED   | ulong    |
+| FLOAT             | float    |
+| DOUBLE            | double   |
+| BOOL              | bool     |
+| BINARY            | byte[]   |
+| NCHAR             | string   |
+| JSON              | byte[]   |
+| VARBINARY         | byte[]   |
+| GEOMETRY          | byte[]   |
 
 **Note**: JSON type is only supported in tags.
 The GEOMETRY type is binary data in little endian byte order, conforming to the WKB standard. For more details, please refer to [Data Types](../../sql-manual/data-types/)

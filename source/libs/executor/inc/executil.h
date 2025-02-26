@@ -42,6 +42,7 @@ typedef struct SGroupResInfo {
   int32_t index;    // rows consumed in func:doCopyToSDataBlockXX
   int32_t iter;     // relate to index-1, last consumed data's slot id in hash table
   void*   dataPos;  // relate to index-1, last consumed data's position, in the nodelist of cur slot
+  int32_t delIndex; // rows consumed in func:doBuildDeleteDataBlock
   SArray* pRows;    // SArray<SResKeyPos>
   char*   pBuf;
   bool    freeItem;

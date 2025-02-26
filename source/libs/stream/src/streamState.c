@@ -224,6 +224,10 @@ void streamStateDel(SStreamState* pState, const SWinKey* key) {
   deleteRowBuff(pState->pFileState, key, sizeof(SWinKey));
 }
 
+void streamStateDelByGroupId(SStreamState* pState, uint64_t groupId) {
+  deleteRowBuffByGroupId(pState->pFileState, groupId);
+}
+
 int32_t streamStateFillPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
   return streamStateFillPut_rocksdb(pState, key, value, vLen);
 }
@@ -438,6 +442,10 @@ SStreamStateCur* streamStateSessionSeekKeyCurrentPrev(SStreamState* pState, cons
 
 SStreamStateCur* streamStateSessionSeekKeyCurrentNext(SStreamState* pState, const SSessionKey* key) {
   return sessionWinStateSeekKeyCurrentNext(pState->pFileState, key);
+}
+
+SStreamStateCur *streamStateSessionSeekKeyPrev(SStreamState *pState, const SSessionKey *key) {
+  return sessionWinStateSeekKeyPrev(pState->pFileState, key);
 }
 
 SStreamStateCur* streamStateSessionSeekKeyNext(SStreamState* pState, const SSessionKey* key) {

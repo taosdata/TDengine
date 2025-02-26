@@ -117,7 +117,7 @@ ELSE()
 ENDIF()
 
 # force set all platform to JEMALLOC_ENABLED = false
-SET(JEMALLOC_ENABLED OFF)
+# SET(JEMALLOC_ENABLED OFF)
 
 IF(TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
@@ -256,5 +256,16 @@ ELSE()
     ELSE()
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Werror=return-type -fPIC -g3 -gdwarf-2 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-reserved-user-defined-literal -g3 -Wno-literal-suffix -Werror=return-type -fPIC -gdwarf-2 -Wformat=2 -Wno-format-nonliteral -Wno-format-truncation -Wno-format-y2k")
+    ENDIF()
+ENDIF()
+
+
+IF(TD_LINUX)
+    IF(${JEMALLOC_ENABLED})
+        MESSAGE(STATUS "JEMALLOC_ENABLED Enabled")
+        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=attributes")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=attributes")
+    ELSE()
+        MESSAGE(STATUS "JEMALLOC_ENABLED Disabled")
     ENDIF()
 ENDIF()

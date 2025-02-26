@@ -15,6 +15,7 @@
 
 #include "cmdnodes.h"
 #include "functionMgt.h"
+#include "nodes.h"
 #include "nodesUtil.h"
 #include "plannodes.h"
 #include "querynodes.h"
@@ -1128,6 +1129,7 @@ void nodesDestroyNode(SNode* pNode) {
       SStateWindowNode* pState = (SStateWindowNode*)pNode;
       nodesDestroyNode(pState->pCol);
       nodesDestroyNode(pState->pExpr);
+      nodesDestroyNode(pState->pTrueForLimit);
       break;
     }
     case QUERY_NODE_SESSION_WINDOW: {
@@ -1242,6 +1244,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pEvent->pCol);
       nodesDestroyNode(pEvent->pStartCond);
       nodesDestroyNode(pEvent->pEndCond);
+      nodesDestroyNode(pEvent->pTrueForLimit);
       break;
     }
     case QUERY_NODE_COUNT_WINDOW: {
@@ -1275,7 +1278,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_RANGE_AROUND: {
       SRangeAroundNode* pAround = (SRangeAroundNode*)pNode;
       nodesDestroyNode(pAround->pInterval);
-      nodesDestroyNode(pAround->pTimepoint);
+      nodesDestroyNode(pAround->pRange);
       break;
     }
     case QUERY_NODE_STREAM_NOTIFY_OPTIONS: {
@@ -1295,6 +1298,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pStmt = (SSelectStmt*)pNode;
       nodesDestroyList(pStmt->pProjectionList);
+      nodesDestroyList(pStmt->pProjectionBindList);
       nodesDestroyNode(pStmt->pFromTable);
       nodesDestroyNode(pStmt->pWhere);
       nodesDestroyList(pStmt->pPartitionByList);
@@ -2004,7 +2008,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_INSERT: {
       SDataInserterNode* pSink = (SDataInserterNode*)pNode;
       destroyDataSinkNode((SDataSinkNode*)pSink);
-      taosMemoryFreeClear(pSink->pData);
+      taosMemFreeClear(pSink->pData);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT: {
@@ -3264,4 +3268,13 @@ int32_t nodesListDeduplicate(SNodeList** ppList) {
     nodesDestroyList(pTmp);
   }
   return code;
+}
+
+void rewriteExprAliasName(SExprNode* pNode, int64_t num) {
+  (void)tsnprintf(pNode->aliasName, TSDB_COL_NAME_LEN, "expr_%x", num);
+  return;
+}
+
+bool isRelatedToOtherExpr(SExprNode* pExpr) {
+  return pExpr->relatedTo != 0;
 }

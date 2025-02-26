@@ -4,6 +4,8 @@ description: 异常检测算法
 ---
 
 import ad from '../pic/anomaly-detection.png';
+import ad_result from '../pic/ad-result.png';
+import ad_result_figure from '../pic/ad-result-figure.png';
 
 TDengine 中定义了异常（状态）窗口来提供异常检测服务。异常窗口可以视为一种特殊的**事件窗口（Event Window）**，即异常检测算法确定的连续异常时间序列数据所在的时间窗口。与普通事件窗口区别在于——时间窗口的起始时间和结束时间均是分析算法识别确定，不是用户给定的表达式进行判定。因此，在 `WHERE` 子句中使用 `ANOMALY_WINDOW` 关键词即可调用时序数据异常检测服务，同时窗口伪列（`_WSTART`, `_WEND`, `_WDURATION`）也能够像其他时间窗口一样用于描述异常窗口的起始时间(`_WSTART`)、结束时间(`_WEND`)、持续时间(`_WDURATION`)。例如：
 
@@ -66,4 +68,39 @@ Query OK, 1 row(s) in set (0.028946s)
 
 ### 内置异常检测算法
 分析平台内置了6个异常检查模型，分为3个类别，分别是[基于统计学的算法](./02-statistics-approach.md)、[基于数据密度的算法](./03-data-density.md)、以及[基于机器学习的算法](./04-machine-learning.md)。在不指定异常检测使用的方法的情况下，默认调用 IQR 进行异常检测。
+
+### 异常检测算法有效性比较工具
+TDgpt 提供自动化的工具对比不同数据集的不同算法监测有效性，针对异常检测算法提供查全率（recall）和查准率（precision）两个指标衡量不同算法的有效性。
+通过在配置文件中(analysis.ini)设置以下的选项可以调用需要使用的异常检测算法，异常检测算法测试用数据的时间范围、是否生成标注结果的图片、调用的异常检测算法以及相应的参数。
+调用异常检测算法比较之前，需要人工手动标注异常监测数据集的结果，即设置[anno_res]选项的数值，第几个数值是异常点，需要标注在数组中，如下测试集中，第 9 个点是异常点，我们就标注异常结果为 [9].
+
+```bash
+[ad]
+# training data start time
+start_time = 2021-01-01T01:01:01
+
+# training data end time
+end_time = 2021-01-01T01:01:11
+
+# draw the results or not
+gen_figure = true
+
+# annotate the anomaly_detection result
+anno_res = [9]
+
+# algorithms list that is involved in the comparion
+[ad.algos]
+ksigma={"k": 2}
+iqr={}
+grubbs={}
+lof={"algo":"auto", "n_neighbor": 3}
+```
+
+对比程序执行完成以后，会自动生成名称为`ad_result.xlsx` 的文件，第一个卡片是算法运行结果（如下图所示），分别包含了算法名称、执行调用参数、查全率、查准率、执行时间 5 个指标。
+
+<img src={ad_result} width="760" alt="异常检测对比结果" />
+
+如果设置了 `gen_figure` 为 `true`，比较程序会自动将每个参与比较的算法分析结果采用图片方式呈现出来（如下图所示为 ksigma 的异常检测结果标注）。
+
+<img src={ad_result_figure} width="540" alt="异常检测标注图" />
 

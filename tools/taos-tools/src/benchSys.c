@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <bench.h>
 #include "benchLog.h"
+#include "cus_name.h"
 
 #ifdef LINUX
 #include <argp.h>
@@ -21,23 +22,7 @@
 #endif
 #endif
 
-extern char version[];
 
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
-#include "cus_name.h"
-#else
-#ifndef CUS_NAME
-#define CUS_NAME        "TDengine"
-#endif
-
-#ifndef CUS_PROMPT
-#define CUS_PROMPT      "taos"
-#endif
-
-#ifndef CUS_EMAIL
-#define CUS_EMAIL       "<support@taosdata.com>"
-#endif
-#endif
 
 #ifdef WINDOWS
 char      g_configDir[MAX_PATH_LEN] = {0};  // "C:\\TDengine\\cfg"};

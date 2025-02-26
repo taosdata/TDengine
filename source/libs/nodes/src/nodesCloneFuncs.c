@@ -106,6 +106,8 @@ static int32_t exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   COPY_SCALAR_FIELD(asParam);
   COPY_SCALAR_FIELD(asPosition);
   COPY_SCALAR_FIELD(projIdx);
+  COPY_SCALAR_FIELD(relatedTo);
+  COPY_SCALAR_FIELD(bindExprID);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -354,6 +356,7 @@ static int32_t limitNodeCopy(const SLimitNode* pSrc, SLimitNode* pDst) {
 static int32_t stateWindowNodeCopy(const SStateWindowNode* pSrc, SStateWindowNode* pDst) {
   CLONE_NODE_FIELD(pCol);
   CLONE_NODE_FIELD(pExpr);
+  CLONE_NODE_FIELD(pTrueForLimit);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -361,6 +364,7 @@ static int32_t eventWindowNodeCopy(const SEventWindowNode* pSrc, SEventWindowNod
   CLONE_NODE_FIELD(pCol);
   CLONE_NODE_FIELD(pStartCond);
   CLONE_NODE_FIELD(pEndCond);
+  CLONE_NODE_FIELD(pTrueForLimit);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -510,6 +514,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(paraTablesSort);
   COPY_SCALAR_FIELD(smallDataTsSort);
   COPY_SCALAR_FIELD(needSplit);
+  COPY_SCALAR_FIELD(noPseudoRefAfterGrp);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -626,6 +631,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   CLONE_NODE_FIELD(pStateExpr);
   CLONE_NODE_FIELD(pStartCond);
   CLONE_NODE_FIELD(pEndCond);
+  COPY_SCALAR_FIELD(trueForLimit);
   COPY_SCALAR_FIELD(triggerType);
   COPY_SCALAR_FIELD(watermark);
   COPY_SCALAR_FIELD(deleteMark);
@@ -845,11 +851,6 @@ static int32_t dataSinkNodeCopy(const SDataSinkNode* pSrc, SDataSinkNode* pDst) 
 }
 
 static int32_t physiDispatchCopy(const SDataDispatcherNode* pSrc, SDataDispatcherNode* pDst) {
-  COPY_BASE_OBJECT_FIELD(sink, dataSinkNodeCopy);
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t physiInserterCopy(const SDataInserterNode* pSrc, SDataInserterNode* pDst) {
   COPY_BASE_OBJECT_FIELD(sink, dataSinkNodeCopy);
   return TSDB_CODE_SUCCESS;
 }
@@ -1135,9 +1136,6 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:  
       code = physiDispatchCopy((const SDataDispatcherNode*)pNode, (SDataDispatcherNode*)pDst);
       break;
-    //case QUERY_NODE_PHYSICAL_PLAN_INSERT:
-    //  code = physiInserterCopy((const SDataInserterNode*)pNode, (SDataInserterNode*)pDst);
-    //  break;
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
       code = physiQueryInserterCopy((const SQueryInserterNode*)pNode, (SQueryInserterNode*)pDst);
       break;
