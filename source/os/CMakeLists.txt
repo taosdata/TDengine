@@ -38,7 +38,7 @@ if(BUILD_ADDR2LINE)
             PUBLIC "${TD_SOURCE_DIR}/contrib/libdwarf/src/lib/libdwarf"
         )
         target_link_libraries(
-            os PUBLIC addr2line dl z
+            os PUBLIC addr2line dl
         )
     endif()
     add_definitions(-DUSE_ADDR2LINE)
@@ -49,8 +49,8 @@ endif()
 target_link_libraries(
     os
     PUBLIC pthread
-    PUBLIC zlibstatic
 )
+DEP_ext_zlib(os)
 if(TD_WINDOWS)
     target_link_libraries(
         os PUBLIC ws2_32 iconv msvcregex wcwidth winmm crashdump dbghelp version KtmW32
