@@ -227,7 +227,7 @@ _err:
   if (code != 0) {
     wError("vgId:%d, failed at line %d to scan log file due to %s, file:%s", pWal->cfg.vgId, lino, tstrerror(code), fnameStr);
   }
-  taosCloseFile(&pFile);
+  TAOS_UNUSED(taosCloseFile(&pFile));
   taosMemoryFree(buf);
   *lastVer = retVer;
 
