@@ -19,7 +19,7 @@
   },
   "author": "",
   "license": "taosdata",
-  "description": "",
+  "description": "taos ui",
   "dependencies": {
     "@tdengine/websocket": "link:../taos-connector-node/WebSocket",
     "@codemirror/autocomplete": "^6.18.1",
