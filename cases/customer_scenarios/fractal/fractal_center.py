@@ -42,7 +42,6 @@ class FractalCenter(TDCase):
                 "labels": self.case_data_org["from"]["labels"]
             }
             response = self.tdRest.request(data=case_data, method='POST', url=f'http://{self.fqdn}:6060/api/x/tasks',header=headers)
-            print("response=====",response)
             task_info = response.json()
             task_list.append(task_info["id"])
         time.sleep(self.execute_time)
@@ -51,7 +50,7 @@ class FractalCenter(TDCase):
         # TODO 获取每个任务的metrics并保存下来，生成报告
         for task_id in task_list:
             response = self.tdRest.request(data=None, method='GET', url=f'http://{self.fqdn}:6060/api/x/tasks/{task_id}/metrics',header=headers)
-            metrics = response.json()
+            metrics = response.text
             # TODO 获取metrics并保存
             print(metrics)
         

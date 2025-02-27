@@ -68,7 +68,7 @@ class FractalEdge(TDCase):
         # TODO 获取每个任务的metrics并保存下来
         for task_id in task_list:
             response = self.tdRest.request(data=None, method='GET', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/metrics',header=headers)
-            print("response========",response.json)
+            print("response========",response.text)
             # metrics = response.text
             # print(metrics)
 
