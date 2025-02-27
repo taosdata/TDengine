@@ -812,17 +812,6 @@ static int generateRandDataSQL(SSuperTable *stbInfo, char *sampleDataBuf,
                     continue;
                 }
             }
-            if (field->type == TSDB_DATA_TYPE_TIMESTAMP && !tag) {
-                n = snprintf(sampleDataBuf + pos, bufLen - pos, "now,");
-                if (n < 0 || n >= bufLen - pos) {
-                    errorPrint("%s() LN%d snprintf overflow\n",
-                               __func__, __LINE__);
-                    return -1;
-                } else {
-                    pos += n;
-                    continue;
-                }
-            }
             switch (field->type) {
                 case TSDB_DATA_TYPE_BOOL: {
                     bool boolTmp = tmpBool(field);
