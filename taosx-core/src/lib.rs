@@ -29,7 +29,9 @@ pub use plugins::*;
 pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::{get_table_progress, tmq_offsets, tmq_to_td};
 pub use transform::Action;
-use utils::files::{delete_oldest_parquet_file, read_parquet_file, write_to_parquet_file};
+use utils::files::{
+    delete_oldest_parquet_file, read_parquet_dir_files, read_parquet_file, write_to_parquet_file,
+};
 use utils::port_pool::PortPool;
 use utils::trace::Qid;
 
@@ -274,46 +276,45 @@ impl TaskOpts {
             if let Some(parser) = parser_clone {
                 let cache_path = parser.global().process_on_abnormal.cache.location.clone();
                 while !cancel_clone.is_cancelled() {
-                    let read_dir = match std::fs::read_dir(&cache_path) {
-                        Ok(read_dir) => read_dir,
+                    let files = match read_parquet_dir_files(task_id, &cache_path) {
+                        Ok(files) => files,
                         Err(e) => anyhow::bail!(format!("{e:#}")),
                     };
-                    for entry in read_dir {
-                        let entry = match entry {
-                            Ok(entry) => entry,
-                            Err(e) => anyhow::bail!(format!("{e:#}")),
-                        };
-                        let file_path = entry.path();
-                        if file_path.is_file() {
-                            let mut success = true;
-                            let batches = read_parquet_file(file_path.clone())?;
-                            for batch in batches {
-                                if let Err(e) = Self::rewrite(
-                                    Some(task_id),
-                                    to_clone.clone(),
-                                    &parser,
-                                    &batch,
-                                    tx_clone.clone(),
-                                    Some(&notify_clone),
-                                    &cancel_clone,
-                                )
-                                .await
-                                {
-                                    tracing::error!(
-                                        "rewrite file error, path: {file_path:?}, e: {e:#}"
-                                    );
-                                    success = false;
-                                }
-                            }
-                            if success {
-                                let _ = std::fs::remove_file(file_path);
+                    for file in files {
+                        let mut success = true;
+                        let batches = read_parquet_file(file.clone())?;
+                        for batch in batches {
+                            if let Err(e) = Self::rewrite(
+                                Some(task_id),
+                                to_clone.clone(),
+                                &parser,
+                                &batch,
+                                tx_clone.clone(),
+                                Some(&notify_clone),
+                                &cancel_clone,
+                            )
+                            .await
+                            {
+                                tracing::error!("rewrite file error, path: {file:?}, e: {e:#}");
+                                success = false;
                             }
                         }
+                        if success {
+                            let _ = std::fs::remove_file(file);
+                        }
                     }
+                    tokio::time::sleep(Duration::from_secs(5)).await;
                 }
             }
+            drop(tx_clone);
             Ok(())
         });
+
+        let future_consume = async move {
+            consumer.await??;
+            anyhow::Ok(())
+        };
+        let abort_handle_process_cache = process_cache.abort_handle();
 
         // debug_assert!(qid.task_id() > 0);
         // Run task
@@ -659,23 +660,19 @@ impl TaskOpts {
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }
             drop(tx);
+            abort_handle_process_cache.abort();
         }
-        let future_consume = async move {
-            consumer.await??;
-            anyhow::Ok(())
-        };
-        let future_process_cache = async move {
-            process_cache.await??;
-            anyhow::Ok(())
-        };
 
         tokio::select! {
             res = future_consume => {
                 res?
             }
-            res = future_process_cache => {
-                res?
-            }
+            status = process_cache => {
+                if let Err(e) = status {
+                    // anyhow::bail!(format!("{e:#}"))
+                    tracing::error!("process cache error: {e:#}");
+                }
+            },
             _ = cancel.cancelled() => {}
         };
         Ok(())

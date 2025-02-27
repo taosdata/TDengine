@@ -1618,7 +1618,6 @@ pub async fn flat_write_with_raw_block(
                 let errno: i32 = code.into();
                 write_retries += 1;
                 if write_retries > DEFAULT_MAX_RETRIES_FOR_CONNECTION {
-                    // TODO1
                     tracing::warn!(
                         "flat message write raw block encounter unrecoverable err: {err:#}"
                     );
