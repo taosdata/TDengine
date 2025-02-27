@@ -1711,11 +1711,11 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     return pStmt->errCode;
   }
 
-  (void)taosThreadMutexLock(&pStmt->asyncBindParam.mutex);
+  TSC_ERR_RET(taosThreadMutexLock(&pStmt->asyncBindParam.mutex));
   while (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 0) {
     (void)taosThreadCondWait(&pStmt->asyncBindParam.waitCond, &pStmt->asyncBindParam.mutex);
   }
-  (void)taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex);
+  TSC_ERR_RET(taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex));
 
   if (pStmt->sql.stbInterlaceMode) {
     STMT_ERR_RET(stmtAddBatch2(pStmt));
@@ -1817,11 +1817,11 @@ int stmtClose2(TAOS_STMT2* stmt) {
     pStmt->bindThreadInUse = false;
   }
 
-  (void)taosThreadMutexLock(&pStmt->asyncBindParam.mutex);
+  TSC_ERR_RET(taosThreadMutexLock(&pStmt->asyncBindParam.mutex));
   while (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 0) {
     (void)taosThreadCondWait(&pStmt->asyncBindParam.waitCond, &pStmt->asyncBindParam.mutex);
   }
-  (void)taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex);
+  TSC_ERR_RET(taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex));
 
   (void)taosThreadCondDestroy(&pStmt->queue.waitCond);
   (void)taosThreadMutexDestroy(&pStmt->queue.mutex);
