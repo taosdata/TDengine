@@ -22,6 +22,13 @@ extern "C" {
 #include "executorInt.h"
 #include "operator.h"
 
+typedef struct SStreamClientParam {
+  char*   pSql;
+  int32_t sqlLen;
+  char*   pUrl;
+  char*   pAuth;
+} SStreamClientParam;
+
 int32_t doStreamSessionNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** ppBlock);
 void streamSessionNonblockReleaseState(SOperatorInfo* pOperator);
 void streamSessionNonblockReloadState(SOperatorInfo* pOperator);
@@ -40,7 +47,7 @@ int32_t compactSessionWindow(SOperatorInfo* pOperator, SResultWindowInfo* pCurWi
                              SSHashObj* pStDeleted, bool addGap, int32_t* pWinNum, bool* pIsEnd);
 
 // stream client
-int32_t streamClientGetResultRange(SSHashObj* pRangeMap, SSDataBlock** ppRangeRes);
+int32_t streamClientGetResultRange(SStreamClientParam* pParam, SSHashObj* pRangeMap, SArray** ppRangeRes);
 
 #ifdef __cplusplus
 }

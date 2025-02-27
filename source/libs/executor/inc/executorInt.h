@@ -568,7 +568,8 @@ typedef struct SStreamScanInfo {
   struct SOperatorInfo*  pRecTableScanOp;
   bool                   scanAllTables;
   SSHashObj*             pRecRangeMap;
-  SSDataBlock*           pRecRangeRes;
+  SArray*                pRecRangeRes;
+  void*                  pRecParam;
 } SStreamScanInfo;
 
 typedef struct {

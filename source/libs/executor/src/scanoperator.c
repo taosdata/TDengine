@@ -1848,12 +1848,17 @@ void prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t* pRow
   }
 
   STableScanInfo* pTScanInfo = pInfo->pTableScanOp->info;
-  // coverity scan
-  QUERY_CHECK_NULL(pInfo->pUpdateInfo, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
-  qDebug("prepare range scan start:%" PRId64 ",end:%" PRId64 ",maxVer:%" PRId64, win.skey, win.ekey,
-         pInfo->pUpdateInfo->maxDataVersion);
-  resetTableScanInfo(pInfo->pTableScanOp->info, &win, pInfo->pUpdateInfo->maxDataVersion);
+  int64_t maxVer = -1;
+  if (!isRecalculateOperator(&pInfo->basic)) {
+    // coverity scan
+    QUERY_CHECK_NULL(pInfo->pUpdateInfo, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+
+    qDebug("prepare range scan start:%" PRId64 ",end:%" PRId64 ",maxVer:%" PRId64, win.skey, win.ekey,
+          pInfo->pUpdateInfo->maxDataVersion);
+    maxVer = pInfo->pUpdateInfo->maxDataVersion;
+  }
+  resetTableScanInfo(pInfo->pTableScanOp->info, &win, maxVer);
   pInfo->pTableScanOp->status = OP_OPENED;
   if (pRes) {
     (*pRes) = true;

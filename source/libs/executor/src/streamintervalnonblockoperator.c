@@ -669,13 +669,10 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
         }
         continue;
       } break;
-      case STREAM_RECALCULATE_START:
-      case STREAM_RECALCULATE_END: {
+      default: {
+        qDebug("===stream===%s ignore recv block. type:%d", GET_TASKID(pTaskInfo), pBlock->info.type);
         continue;
       } break;
-      default:
-        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-        QUERY_CHECK_CODE(code, lino, _end);
     }
 
     if (pBlock->info.type == STREAM_NORMAL && pBlock->info.version != 0) {

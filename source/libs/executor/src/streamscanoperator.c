@@ -863,26 +863,24 @@ static uint64_t getDataGroupId(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, i
   return tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, uid);
 }
 
-static int32_t generateSessionDataScanRange(SStreamScanInfo* pInfo, SSHashObj* pRecRangeMap, SSDataBlock* pSrcBlock) {
+static int32_t generateSessionDataScanRange(SStreamScanInfo* pInfo, SSHashObj* pRecRangeMap, SArray* pSrcBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  if (pSrcBlock->info.rows == 0) {
-    return TSDB_CODE_SUCCESS;
-  }
+  int32_t size =  taosArrayGetSize(pSrcBlock);
+  for (int32_t i = 0; i < size; i++) {
+    SArray* pRange = taosArrayGetP(pSrcBlock, i);
+    uint64_t      groupId = *(uint64_t*) taosArrayGet(pRange, 2);
+    STimeWindow   win = {0};
+    win.skey = *(TSKEY*) taosArrayGet(pRange, 3);
+    win.skey = *(TSKEY*) taosArrayGet(pRange, 4);
 
-  SColumnInfoData* pSrcStartTsCol = (SColumnInfoData*)taosArrayGet(pSrcBlock->pDataBlock, START_TS_COLUMN_INDEX);
-  SColumnInfoData* pSrcEndTsCol = (SColumnInfoData*)taosArrayGet(pSrcBlock->pDataBlock, END_TS_COLUMN_INDEX);
-  SColumnInfoData* pSrcGpCol = taosArrayGet(pSrcBlock->pDataBlock, GROUPID_COLUMN_INDEX);
-  TSKEY*           srcStartTsCol = (TSKEY*)pSrcStartTsCol->pData;
-  TSKEY*           srcEndTsCol = (TSKEY*)pSrcEndTsCol->pData;
-  uint64_t*        srcGp = (uint64_t*)pSrcGpCol->pData;
-  for (int32_t i = 0; i < pSrcBlock->info.rows; i++) {
-    uint64_t      groupId = srcGp[i];
-    STimeWindow   win = {.skey = srcStartTsCol[i], .ekey = srcEndTsCol[i]};
-    SRecDataInfo* pRecData = NULL;
-
-    // todo(liuyao) init pRecData from pRecRangeMap and pSrcBlock
+    SSessionKey key = {.groupId = groupId};
+    key.win.skey = *(TSKEY*) taosArrayGet(pRange, 0);
+    key.win.ekey = *(TSKEY*) taosArrayGet(pRange, 1);
+    void* pVal = tSimpleHashGet(pRecRangeMap, &key, sizeof(SSessionKey));
+    QUERY_CHECK_NULL(pVal, code, lino, _end, TSDB_CODE_FAILED);
+    SRecDataInfo* pRecData = *(void**)pVal;
 
     code = pInfo->stateStore.streamStateMergeAndSaveScanRange(pInfo->basic.pTsDataState, &win, groupId, pRecData,
                                                               pInfo->basic.pTsDataState->recValueLen);
@@ -916,7 +914,7 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (tSimpleHashGetSize(pInfo->pRecRangeMap) > 1024) {
-      code = streamClientGetResultRange(pInfo->pRecRangeMap, &pInfo->pRecRangeRes);
+      code = streamClientGetResultRange(pInfo->pRecParam, pInfo->pRecRangeMap, &pInfo->pRecRangeRes);
       QUERY_CHECK_CODE(code, lino, _end);
       code = generateSessionDataScanRange(pInfo, pInfo->pRecRangeMap, pInfo->pRecRangeRes);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -927,7 +925,7 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr
   pInfo->stateStore.streamStateFreeCur(pCur);
 
   if (tSimpleHashGetSize(pInfo->pRecRangeMap) > 0) {
-    code = streamClientGetResultRange(pInfo->pRecRangeMap, &pInfo->pRecRangeRes);
+    code = streamClientGetResultRange(pInfo->pRecParam, pInfo->pRecRangeMap, &pInfo->pRecRangeRes);
     QUERY_CHECK_CODE(code, lino, _end);
     code = generateSessionDataScanRange(pInfo, pInfo->pRecRangeMap, pInfo->pRecRangeRes);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1284,25 +1282,28 @@ static int32_t buildStreamRecalculateBlock(SOperatorInfo* pOperator, SSDataBlock
         pInfo->stateStore.streamStateSessionSeekKeyCurrentNext(pInfo->basic.pTsDataState->pStreamTaskState, &firstKey);
   }
 
+  blockDataCleanup(pInfo->pUpdateRes);
+  code = blockDataEnsureCapacity(pInfo->pUpdateRes, 1024);
+  QUERY_CHECK_CODE(code, lino, _end);
+
   while (1) {
     SSessionKey rangKey = {0};
     void*       pVal = NULL;
     int32_t     len = 0;
     int32_t     winRes = pInfo->stateStore.streamStateSessionGetKVByCur(pInfo->basic.pTsDataState->pRecCur, &rangKey, &pVal, &len);
     if (winRes != TSDB_CODE_SUCCESS) {
-      pInfo->stateStore.streamStateFreeCur(pInfo->basic.pTsDataState->pRecCur);
-      pInfo->basic.pTsDataState->pRecCur = NULL;
-      pInfo->basic.pTsDataState->curRecId = -1;
       break;
     }
     SRecDataInfo* pRecData = (SRecDataInfo*)pVal;
     if (pInfo->pUpdateRes->info.rows == 0) {
       pInfo->pUpdateRes->info.type = pRecData->mode;
-    } else if (pInfo->pUpdateRes->info.type != pRecData->mode) {
+    } else if (pInfo->pUpdateRes->info.type != pRecData->mode || pInfo->pUpdateRes->info.rows ==  pInfo->pUpdateRes->info.capacity) {
       break;
     }
-    appendOneRowToSpecialBlockImpl(pInfo->pUpdateRes, &rangKey.win.skey, &rangKey.win.ekey, &pRecData->calWin.skey,
-                                    &pRecData->calWin.ekey, &pRecData->tableUid ,&rangKey.groupId, NULL, (void*)pRecData->pPkColData);
+
+    code = appendOneRowToSpecialBlockImpl(pInfo->pUpdateRes, &rangKey.win.skey, &rangKey.win.ekey, &pRecData->calWin.skey,
+                                          &pRecData->calWin.ekey, &pRecData->tableUid ,&rangKey.groupId, NULL, (void*)pRecData->pPkColData);
+    QUERY_CHECK_CODE(code, lino, _end);
     pInfo->stateStore.streamStateCurNext(pInfo->basic.pTsDataState->pStreamTaskState, pInfo->basic.pTsDataState->pRecCur);
   }
 
@@ -1310,6 +1311,9 @@ static int32_t buildStreamRecalculateBlock(SOperatorInfo* pOperator, SSDataBlock
     (*ppRes) = pInfo->pUpdateRes;
   } else {
     (*ppRes) = NULL;
+    pInfo->stateStore.streamStateFreeCur(pInfo->basic.pTsDataState->pRecCur);
+    pInfo->basic.pTsDataState->pRecCur = NULL;
+    pInfo->basic.pTsDataState->curRecId = -1;
   }
 
 _end:
@@ -1407,7 +1411,7 @@ static int32_t doStreamRecalculateBlockScan(SOperatorInfo* pOperator, SSDataBloc
       (*ppRes) = pSDB;
       goto _end;
     }
-    blockDataCleanup(pInfo->pUpdateDataRes);
+    blockDataCleanup(pInfo->pUpdateRes);
     pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
     pStreamInfo->recoverScanFinished = true;
   }
@@ -1440,10 +1444,13 @@ static int32_t doStreamRecalculateBlockScan(SOperatorInfo* pOperator, SSDataBloc
         QUERY_CHECK_CODE(code, lino, _end);
         pInfo->updateResIndex = 0;
         prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex, NULL);
-        continue;
+        (*ppRes) = pInfo->pUpdateRes;
+        goto _end;
       } break;
-      default:
-      break;
+      default: {
+        (*ppRes) = pBlock;
+        goto _end;
+      } break;
     }
   }
 
@@ -1470,13 +1477,14 @@ int32_t doStreamRecalculateScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
       code = doStreamRecalculateBlockScan(pOperator, ppRes);
       QUERY_CHECK_CODE(code, lino, _end);
     } break;
-    case STREAM_INPUT__RECALCULATE:
     case STREAM_INPUT__CHECKPOINT: {
       doClearBufferedBlocks(pInfo);
       (*ppRes) = NULL;
-      qDebug("process input data blocks,size:%d %s", (int32_t)total, pTaskIdStr);
+      qDebug("===stream===%s process input data blocks,size:%d", pTaskIdStr, (int32_t)total);
     } break;
+    case STREAM_INPUT__RECALCULATE:
     default: {
+      doClearBufferedBlocks(pInfo);
       if(isFinalOperator(&pInfo->basic)) {
         code = buildStreamRecalculateBlock(pOperator, ppRes);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -1487,7 +1495,7 @@ int32_t doStreamRecalculateScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
         qDebug("===stream===%s return empty block", pTaskIdStr);
         (*ppRes) = NULL;
       }
-    }
+    } break;
   }
 
 _end:
