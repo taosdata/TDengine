@@ -54,7 +54,10 @@ class FractalEdge(TDCase):
         # 创建4个mqtt datain任务
 
         for case_data in cases_data:
+            print("case_data========",case_data)
             response = self.tdRest.request(data=case_data, method='POST', url=f'http://{self.host}:6050/api/x/tasks',header=headers)
+            
+            print("response:",response)
             task_info = response.json()
             task_list.append(task_info["id"])
 
