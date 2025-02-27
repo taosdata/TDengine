@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tsdb.h"
 #include "vnd.h"
 
 extern int32_t metaCompact(SMeta *pOldMeta, SMeta *pNewMeta, int64_t compactVersion);
@@ -21,7 +22,7 @@ extern void    tsdbStopAllCompTask(STsdb *tsdb);
 extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw);
 extern int32_t tsdbCompMonitorGetInfo(STsdb *tsdb, SQueryCompactProgressRsp *rsp);
 
-static int32_t vnodeCompactMeta(SVnode *pVnode);
+static int32_t vnodeAsyncCompactMeta(SVnode *pVnode);
 
 int32_t vnodeAsyncCompact(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SCompactVnodeReq req = {0};
@@ -33,7 +34,7 @@ int32_t vnodeAsyncCompact(SVnode *pVnode, int64_t version, void *pReq, int32_t l
         TD_VID(pVnode), req.db, req.dbUid, req.compactStartTime, req.metaOnly);
 
   if (req.metaOnly) {
-    return vnodeCompactMeta(pVnode);
+    return vnodeAsyncCompactMeta(pVnode);
   } else {
     return tsdbAsyncCompact(pVnode->pTsdb, &req.tw);
   }
@@ -239,7 +240,8 @@ static void vnodeCompactMetaAbort(SVnode *pVnode) {
   vInfo("vgId:%d, compact meta abort", TD_VID(pVnode));
 }
 
-static int32_t vnodeCompactMeta(SVnode *pVnode) {
+static int32_t vnodeCompactMeta(void *arg) {
+  SVnode *pVnode = (SVnode *)arg;
   // Begin
   int32_t code = vnodeCompactMetaBegin(pVnode);
   if (code) {
@@ -261,5 +263,47 @@ static int32_t vnodeCompactMeta(SVnode *pVnode) {
     vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
     return code;
   }
+  return 0;
+}
+
+extern int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId, int64_t compactSize);
+
+static int32_t vnodeAsyncCompactMetaImpl(SVnode *pVnode, SVATaskID *atask) {
+  int32_t code = 0;
+  STsdb  *pTsdb = pVnode->pTsdb;
+
+  // Check background task
+  if (pTsdb->bgTaskDisabled) {
+    vInfo("vgId:%d, background task is disabled, skip compact", TD_VID(pVnode));
+    return 0;
+  }
+
+  // Async schedule the task
+  code = vnodeAsync(COMPACT_TASK_ASYNC, EVA_PRIORITY_HIGH, vnodeCompactMeta, NULL, pVnode, atask);
+  if (code) {
+    vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    return code;
+  } else {
+    TAOS_UNUSED(tsdbAddCompMonitorTask(pTsdb, INT32_MIN, atask, 0));
+  }
+
+  return 0;
+}
+
+static int32_t vnodeAsyncCompactMeta(SVnode *pVnode) {
+  STsdb    *pTsdb = pVnode->pTsdb;
+  SVATaskID atask = {0};
+  int32_t   code = 0;
+
+  TAOS_UNUSED(taosThreadMutexLock(&pTsdb->mutex));
+  code = vnodeAsyncCompactMetaImpl(pVnode, &atask);
+  TAOS_UNUSED(taosThreadMutexUnlock(&pTsdb->mutex));
+  if (code) {
+    vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    return code;
+  }
+
+  // Wait for the task
+  vnodeAWait(&atask);
   return 0;
 }
