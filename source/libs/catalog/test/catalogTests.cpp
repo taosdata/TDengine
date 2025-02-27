@@ -36,8 +36,8 @@
 #include "tdef.h"
 #include "tglobal.h"
 #include "trpc.h"
-#include "tvariant.h"
 #include "ttimer.h"
+#include "tvariant.h"
 
 namespace {
 
@@ -128,11 +128,11 @@ void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
 
   int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
   ASSERT(contLen > 0);
-  void   *pReq = rpcMallocCont(contLen);
+  void *pReq = rpcMallocCont(contLen);
   ASSERT(pReq != NULL);
   contLen = tSerializeSCreateDbReq(pReq, contLen, &createReq);
   ASSERT(contLen > 0);
-  
+
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pReq;
   rpcMsg.contLen = contLen;
@@ -236,7 +236,7 @@ void ctgTestBuildDBVgroup(SDBVgInfo **pdbVgroup) {
   SVgroupInfo    vgInfo = {0};
   SDBVgInfo     *dbVgroup = (SDBVgInfo *)taosMemoryCalloc(1, sizeof(SDBVgInfo));
   ASSERT(NULL != dbVgroup);
-  
+
   dbVgroup->vgVersion = vgVersion++;
 
   ctgTestCurrentVgVersion = dbVgroup->vgVersion;
@@ -284,7 +284,7 @@ void ctgTestBuildSTableMetaRsp(STableMetaRsp *rspMsg) {
 
   rspMsg->pSchemas = (SSchema *)taosMemoryCalloc(rspMsg->numOfTags + rspMsg->numOfColumns, sizeof(SSchema));
   ASSERT(NULL != rspMsg->pSchemas);
-  
+
   SSchema *s = NULL;
   s = &rspMsg->pSchemas[0];
   s->type = TSDB_DATA_TYPE_TIMESTAMP;
@@ -319,7 +319,7 @@ int32_t ctgTestRspDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMs
   usedbRsp.uid = ctgTestDbId;
   usedbRsp.pVgroupInfos = taosArrayInit(usedbRsp.vgNum, sizeof(SVgroupInfo));
   ASSERT(NULL != usedbRsp.pVgroupInfos);
-  
+
   uint32_t hashUnit = UINT32_MAX / ctgTestVgNum;
   for (int32_t i = 0; i < ctgTestVgNum; ++i) {
     SVgroupInfo vg = {0};
@@ -344,7 +344,7 @@ int32_t ctgTestRspDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMs
 
   int32_t contLen = tSerializeSUseDbRsp(NULL, 0, &usedbRsp);
   ASSERT(contLen > 0);
-  void   *pReq = rpcMallocCont(contLen);
+  void *pReq = rpcMallocCont(contLen);
   ASSERT(pReq != NULL);
   contLen = tSerializeSUseDbRsp(pReq, contLen, &usedbRsp);
   ASSERT(contLen > 0);
@@ -378,7 +378,7 @@ int32_t ctgTestRspTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMs
 
   metaRsp.pSchemaExt = (SSchemaExt *)taosMemoryMalloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchemaExt));
   ASSERT(NULL != metaRsp.pSchemaExt);
-  
+
   SSchema *s = NULL;
   s = &metaRsp.pSchemas[0];
   s->type = TSDB_DATA_TYPE_TIMESTAMP;
@@ -394,11 +394,11 @@ int32_t ctgTestRspTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMs
 
   int32_t contLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
   ASSERT(contLen > 0);
-  void   *pReq = rpcMallocCont(contLen);
+  void *pReq = rpcMallocCont(contLen);
   ASSERT(pReq != NULL);
   contLen = tSerializeSTableMetaRsp(pReq, contLen, &metaRsp);
   ASSERT(contLen > 0);
-  
+
   pRsp->code = 0;
   pRsp->contLen = contLen;
   pRsp->pCont = pReq;
@@ -435,7 +435,7 @@ int32_t ctgTestRspCTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcM
 
   metaRsp.pSchemaExt = (SSchemaExt *)taosMemoryMalloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchemaExt));
   ASSERT(NULL != metaRsp.pSchemaExt);
-  
+
   SSchema *s = NULL;
   s = &metaRsp.pSchemas[0];
   s->type = TSDB_DATA_TYPE_TIMESTAMP;
@@ -457,11 +457,10 @@ int32_t ctgTestRspCTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcM
 
   int32_t contLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
   ASSERT(contLen > 0);
-  void   *pReq = rpcMallocCont(contLen);
+  void *pReq = rpcMallocCont(contLen);
   ASSERT(pReq != NULL);
   contLen = tSerializeSTableMetaRsp(pReq, contLen, &metaRsp);
   ASSERT(contLen > 0);
-
 
   pRsp->code = 0;
   pRsp->contLen = contLen;
@@ -515,7 +514,7 @@ int32_t ctgTestRspSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcM
 
   int32_t contLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
   ASSERT(contLen > 0);
-  void   *pReq = rpcMallocCont(contLen);
+  void *pReq = rpcMallocCont(contLen);
   ASSERT(pReq != NULL);
   contLen = tSerializeSTableMetaRsp(pReq, contLen, &metaRsp);
   ASSERT(contLen > 0);
@@ -576,7 +575,7 @@ int32_t ctgTestRspMultiSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, 
 
   int32_t contLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
   ASSERT(contLen > 0);
-  void   *pReq = rpcMallocCont(contLen);
+  void *pReq = rpcMallocCont(contLen);
   ASSERT(pReq != NULL);
   contLen = tSerializeSTableMetaRsp(pReq, contLen, &metaRsp);
   ASSERT(contLen > 0);
@@ -609,7 +608,7 @@ void ctgTestRspUserAuth(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *p
 
   int32_t contLen = tSerializeSGetUserAuthRsp(NULL, 0, &userRsp);
   ASSERT(contLen > 0);
-  void   *pReq = rpcMallocCont(contLen);
+  void *pReq = rpcMallocCont(contLen);
   ASSERT(pReq != NULL);
   contLen = tSerializeSGetUserAuthRsp(pReq, contLen, &userRsp);
   ASSERT(contLen > 0);
@@ -649,7 +648,7 @@ void ctgTestRspTableCfg(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *p
 
   int32_t contLen = tSerializeSTableCfgRsp(NULL, 0, &tblRsp);
   ASSERT(contLen > 0);
-  void   *pReq = rpcMallocCont(contLen);
+  void *pReq = rpcMallocCont(contLen);
   ASSERT(pReq != NULL);
   contLen = tSerializeSTableCfgRsp(pReq, contLen, &tblRsp);
   ASSERT(contLen > 0);
@@ -671,7 +670,7 @@ void ctgTestRspTableIndex(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg 
 
   tblRsp.pIndex = taosArrayInit(ctgTestIndexNum, sizeof(STableIndexInfo));
   ASSERT(NULL != tblRsp.pIndex);
-  
+
   STableIndexInfo info = {0};
   for (int32_t i = 0; i < ctgTestIndexNum; ++i) {
     info.interval = 1 + i;
@@ -681,7 +680,7 @@ void ctgTestRspTableIndex(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg 
 
   int32_t contLen = tSerializeSTableIndexRsp(NULL, 0, &tblRsp);
   ASSERT(contLen > 0);
-  void   *pReq = rpcMallocCont(contLen);
+  void *pReq = rpcMallocCont(contLen);
   ASSERT(pReq != NULL);
   contLen = tSerializeSTableIndexRsp(pReq, contLen, &tblRsp);
   ASSERT(contLen > 0);
@@ -703,7 +702,7 @@ void ctgTestRspDBCfg(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp
 
   int32_t contLen = tSerializeSDbCfgRsp(NULL, 0, &dbRsp);
   ASSERT(contLen > 0);
-  void   *pReq = rpcMallocCont(contLen);
+  void *pReq = rpcMallocCont(contLen);
   ASSERT(pReq != NULL);
   contLen = tSerializeSDbCfgRsp(pReq, contLen, &dbRsp);
   ASSERT(contLen > 0);
@@ -727,7 +726,7 @@ void ctgTestRspQnodeList(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *
 
   int32_t contLen = tSerializeSQnodeListRsp(NULL, 0, &qlistRsp);
   ASSERT(contLen > 0);
-  void   *pReq = rpcMallocCont(contLen);
+  void *pReq = rpcMallocCont(contLen);
   ASSERT(pReq != NULL);
   contLen = tSerializeSQnodeListRsp(pReq, contLen, &qlistRsp);
   ASSERT(contLen > 0);
@@ -755,10 +754,10 @@ void ctgTestRspUdfInfo(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pR
   extraInfo.funcVersion = 0;
   extraInfo.funcCreatedTime = taosGetTimestampMs();
   ASSERT(NULL != taosArrayPush(funcRsp.pFuncExtraInfos, &extraInfo));
-  
+
   int32_t contLen = tSerializeSRetrieveFuncRsp(NULL, 0, &funcRsp);
   ASSERT(contLen > 0);
-  void   *pReq = rpcMallocCont(contLen);
+  void *pReq = rpcMallocCont(contLen);
   ASSERT(pReq != NULL);
   contLen = tSerializeSRetrieveFuncRsp(pReq, contLen, &funcRsp);
   ASSERT(contLen > 0);
@@ -778,7 +777,7 @@ void ctgTestRspSvrVer(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRs
 
   int32_t contLen = tSerializeSServerVerRsp(NULL, 0, &verRsp);
   ASSERT(contLen > 0);
-  void   *pReq = rpcMallocCont(contLen);
+  void *pReq = rpcMallocCont(contLen);
   ASSERT(pReq != NULL);
   contLen = tSerializeSServerVerRsp(pReq, contLen, &verRsp);
   ASSERT(contLen > 0);
@@ -803,7 +802,7 @@ void ctgTestRspDndeList(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *p
 
   int32_t contLen = tSerializeSDnodeListRsp(NULL, 0, &dRsp);
   ASSERT(contLen > 0);
-  void   *pReq = rpcMallocCont(contLen);
+  void *pReq = rpcMallocCont(contLen);
   ASSERT(pReq != NULL);
   contLen = tSerializeSDnodeListRsp(pReq, contLen, &dRsp);
   ASSERT(contLen > 0);
@@ -1309,7 +1308,7 @@ void ctgTestFetchRows(TAOS_RES *result, int32_t *rows) {
 void ctgTestExecQuery(TAOS *taos, char *sql, bool fetch, int32_t *rows) {
   TAOS_RES *result = taos_query(taos, sql);
   ASSERT(NULL != result);
-  int       code = taos_errno(result);
+  int code = taos_errno(result);
   ASSERT_EQ(code, 0);
 
   if (fetch) {
@@ -1339,7 +1338,7 @@ TEST(tableMeta, normalTable) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestTablename);
 
@@ -1475,7 +1474,7 @@ TEST(tableMeta, childTableCase) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestCTablename);
 
@@ -1585,7 +1584,7 @@ TEST(tableMeta, superTableCase) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestSTablename);
 
@@ -1729,7 +1728,7 @@ TEST(tableMeta, rmStbMeta) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestSTablename);
 
@@ -1799,7 +1798,7 @@ TEST(tableMeta, updateStbMeta) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestSTablename);
 
@@ -1928,7 +1927,7 @@ TEST(refreshGetMeta, normal2normal) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestTablename);
 
@@ -2007,7 +2006,7 @@ TEST(refreshGetMeta, normal2notexist) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestTablename);
 
@@ -2078,7 +2077,7 @@ TEST(refreshGetMeta, normal2child) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestTablename);
   ctgTestCurrentCTableName = ctgTestTablename;
@@ -2162,7 +2161,7 @@ TEST(refreshGetMeta, stable2child) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestTablename);
   ctgTestCurrentSTableName = ctgTestTablename;
@@ -2248,7 +2247,7 @@ TEST(refreshGetMeta, stable2stable) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestTablename);
   ctgTestCurrentSTableName = ctgTestTablename;
@@ -2334,7 +2333,7 @@ TEST(refreshGetMeta, child2stable) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestTablename);
   ctgTestCurrentCTableName = ctgTestTablename;
@@ -2418,7 +2417,7 @@ TEST(tableDistVgroup, normalTable) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestTablename);
 
@@ -2456,7 +2455,7 @@ TEST(tableDistVgroup, childTableCase) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestCTablename);
 
@@ -2493,7 +2492,7 @@ TEST(tableDistVgroup, superTableCase) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestSTablename);
 
@@ -2543,7 +2542,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestTablename);
 
@@ -2629,7 +2628,7 @@ TEST(multiThread, getSetRmSameDbVgroup) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestTablename);
 
@@ -2681,7 +2680,7 @@ TEST(multiThread, getSetRmDiffDbVgroup) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestTablename);
 
@@ -2733,7 +2732,7 @@ TEST(multiThread, ctableMeta) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestTablename);
 
@@ -2785,7 +2784,7 @@ TEST(rentTest, allRent) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
 
   for (int32_t i = 1; i <= 10; ++i) {
@@ -2826,7 +2825,7 @@ TEST(rentTest, allRent) {
     if (stable) {
       for (int32_t n = 0; n < num; ++n) {
         (void)printf("suid:%" PRId64 ", dbFName:%s, stbName:%s, sversion:%d, tversion:%d\n", stable[n].suid,
-               stable[n].dbFName, stable[n].stbName, stable[n].sversion, stable[n].tversion);
+                     stable[n].dbFName, stable[n].stbName, stable[n].sversion, stable[n].tversion);
       }
       taosMemoryFree(stable);
       stable = NULL;
@@ -2941,7 +2940,7 @@ TEST(apiTest, catalogRefreshGetTableCfg_test) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestTablename);
   STableCfg *pCfg = NULL;
@@ -2978,7 +2977,7 @@ TEST(apiTest, catalogGetTableIndex_test) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestTablename);
   SArray *pRes = NULL;
@@ -2992,7 +2991,6 @@ TEST(apiTest, catalogGetTableIndex_test) {
 
   catalogDestroy();
 }
-
 
 TEST(apiTest, catalogGetDBCfg_test) {
   struct SCatalog  *pCtg = NULL;
@@ -3015,7 +3013,7 @@ TEST(apiTest, catalogGetDBCfg_test) {
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
-  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  SName n = {TSDB_TABLE_NAME_T, 0, 1, {0}, {0}};
   TAOS_STRCPY(n.dbname, "db1");
   TAOS_STRCPY(n.tname, ctgTestTablename);
 
