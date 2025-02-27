@@ -260,7 +260,7 @@ int32_t taosGetAppName(char* name, int32_t* len) {
 
   tstrncpy(name, end, TSDB_APP_NAME_LEN);
 #else
-  tstrncpy(name, "tdastra", TSDB_APP_NAME_LEN);
+  tstrncpy(name, "tdastra", TSDB_APP_NAME_LEN); // TD_ASTRA_TODO
 #endif
   if (len != NULL) {
     *len = strlen(name);

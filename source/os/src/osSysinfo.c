@@ -627,7 +627,7 @@ int32_t taosGetCpuCores(float *numOfCores, bool physical) {
     return TAOS_SYSTEM_ERROR(errno);
   }
   return 0;
-#elif defined(TD_ASTRA)
+#elif defined(TD_ASTRA) // TD_ASTRA_TODO
   *numOfCores = 4;
   return 0;
 #else
@@ -731,7 +731,7 @@ int32_t taosGetTotalMemory(int64_t *totalKB) {
 
   *totalKB = memsStat.ullTotalPhys / 1024;
   return 0;
-#elif defined(_TD_DARWIN_64) || defined(TD_ASTRA)
+#elif defined(_TD_DARWIN_64) || defined(TD_ASTRA) // TD_ASTRA_TODO
   return 0;
 #else
   *totalKB = (int64_t)(sysconf(_SC_PHYS_PAGES) * tsPageSizeKB);
@@ -856,7 +856,7 @@ int32_t taosGetSysMemory(int64_t *usedKB) {
 
   *usedKB = nMemTotal - nMemFree;
   return 0;
-#elif defined(_TD_DARWIN_64) || defined(TD_ASTRA)
+#elif defined(_TD_DARWIN_64) || defined(TD_ASTRA) // TD_ASTRA_TODO
   *usedKB = 0;
   return 0;
 #else

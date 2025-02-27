@@ -282,6 +282,9 @@ void *taosMemMalloc(int64_t size) {
     }
   }
 #endif
+#ifdef TD_ASTRA
+  if (size == 0) size = 1;
+#endif
   void *p = malloc(size);
   if (NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -316,7 +319,9 @@ void *taosMemCalloc(int64_t num, int64_t size) {
     }
   }
 #endif
-
+#ifdef TD_ASTRA
+  if (size == 0) size = 1;
+#endif
   void *p = calloc(num, size);
   if (NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -358,7 +363,9 @@ void *taosMemRealloc(void *ptr, int64_t size) {
     }
   }
 #endif
-
+#ifdef TD_ASTRA
+  if (size == 0) size = 1;
+#endif
   void *p = realloc(ptr, size);
   if (size > 0 && NULL == p) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

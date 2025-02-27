@@ -364,7 +364,7 @@ int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
   }
 
   wordfree(&full_path);
-#else
+#else // TD_ASTRA_TODO
   tstrncpy(outname, dirname, maxlen);
 #endif
   return 0;
@@ -394,7 +394,7 @@ int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return terrno;
   }
-#else
+#else // TD_ASTRA_TODO
   tstrncpy(realPath, dirname, maxlen);
   return 0;
 #endif
@@ -541,7 +541,7 @@ bool taosDirEntryIsDir(TdDirEntryPtr pDirEntry) {
   }
 #ifdef WINDOWS
   return (pDirEntry->findFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
-#elif defined(TD_ASTRA)
+#elif defined(TD_ASTRA) // TD_ASTRA_TODO
   return ((dirent *)pDirEntry)->d_mode == 1;  // DIRECTORY_ENTRY;
 #else
   return (((dirent *)pDirEntry)->d_type & DT_DIR) != 0;

@@ -1582,6 +1582,10 @@ bool taosCheckAccessFile(const char *pathname, int32_t tdFileAccessOptions) {
   if (tdFileAccessOptions & TD_FILE_ACCESS_WRITE_OK) {
     flags |= W_OK;
   }
+
+  if (tdFileAccessOptions & TD_FILE_ACCESS_EXEC_OK) {
+    flags |= X_OK;
+  }
 #ifdef WINDOWS
   return _access(pathname, flags) == 0;
 #else
