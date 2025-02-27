@@ -21,6 +21,7 @@ extern int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir,
 extern void    tsdbStopAllCompTask(STsdb *tsdb);
 extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw);
 extern int32_t tsdbCompMonitorGetInfo(STsdb *tsdb, SQueryCompactProgressRsp *rsp);
+extern void    tsdbRemoveCompMonitorTask(STsdb *tsdb, SVATaskID *taskId);
 
 static int32_t vnodeAsyncCompactMeta(SVnode *pVnode);
 
@@ -243,10 +244,12 @@ static void vnodeCompactMetaAbort(SVnode *pVnode) {
 static int32_t vnodeCompactMeta(void *arg) {
   SVnode *pVnode = (SVnode *)arg;
   // Begin
-  int32_t code = vnodeCompactMetaBegin(pVnode);
+  int32_t code = 0;
+
+  code = vnodeCompactMetaBegin(pVnode);
   if (code) {
     vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
-    return code;
+    goto _exit;
   }
 
   // Do compact
@@ -254,21 +257,24 @@ static int32_t vnodeCompactMeta(void *arg) {
   if (code) {
     vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
     vnodeCompactMetaAbort(pVnode);
-    return code;
+    goto _exit;
   }
 
   // Commit
   code = vnodeCompactMetaCommit(pVnode);
   if (code) {
     vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
-    return code;
+    goto _exit;
   }
-  return 0;
+
+_exit:
+  tsdbRemoveCompMonitorTask(pVnode->pTsdb, &pVnode->metaCompactTask);
+  return code;
 }
 
 extern int32_t tsdbAddCompMonitorTask(STsdb *tsdb, int32_t fid, SVATaskID *taskId, int64_t compactSize);
 
-static int32_t vnodeAsyncCompactMetaImpl(SVnode *pVnode, SVATaskID *atask) {
+static int32_t vnodeAsyncCompactMetaImpl(SVnode *pVnode) {
   int32_t code = 0;
   STsdb  *pTsdb = pVnode->pTsdb;
 
@@ -279,24 +285,23 @@ static int32_t vnodeAsyncCompactMetaImpl(SVnode *pVnode, SVATaskID *atask) {
   }
 
   // Async schedule the task
-  code = vnodeAsync(COMPACT_TASK_ASYNC, EVA_PRIORITY_HIGH, vnodeCompactMeta, NULL, pVnode, atask);
+  code = vnodeAsync(COMPACT_TASK_ASYNC, EVA_PRIORITY_HIGH, vnodeCompactMeta, NULL, pVnode, &pVnode->metaCompactTask);
   if (code) {
     vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
     return code;
   } else {
-    TAOS_UNUSED(tsdbAddCompMonitorTask(pTsdb, INT32_MIN, atask, 0));
+    TAOS_UNUSED(tsdbAddCompMonitorTask(pTsdb, INT32_MIN, &pVnode->metaCompactTask, 0));
   }
 
   return 0;
 }
 
 static int32_t vnodeAsyncCompactMeta(SVnode *pVnode) {
-  STsdb    *pTsdb = pVnode->pTsdb;
-  SVATaskID atask = {0};
-  int32_t   code = 0;
+  STsdb  *pTsdb = pVnode->pTsdb;
+  int32_t code = 0;
 
   TAOS_UNUSED(taosThreadMutexLock(&pTsdb->mutex));
-  code = vnodeAsyncCompactMetaImpl(pVnode, &atask);
+  code = vnodeAsyncCompactMetaImpl(pVnode);
   TAOS_UNUSED(taosThreadMutexUnlock(&pTsdb->mutex));
   if (code) {
     vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
@@ -304,6 +309,6 @@ static int32_t vnodeAsyncCompactMeta(SVnode *pVnode) {
   }
 
   // Wait for the task
-  vnodeAWait(&atask);
+  vnodeAWait(&pVnode->metaCompactTask);
   return 0;
 }
