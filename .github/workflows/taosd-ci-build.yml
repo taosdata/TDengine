@@ -148,8 +148,8 @@ jobs:
       - name: Start taosd on Windows
         if: runner.os == 'Windows'
         run: |
-          start /b taosd
-          start /b taosadapter
+          start taosd
+          start taosadapter
 
       - name: Run tests with taosBenchmark 
         run: |
