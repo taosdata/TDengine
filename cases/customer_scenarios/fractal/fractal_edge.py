@@ -46,18 +46,14 @@ class FractakEdge(TDCase):
     def run(self):
         headers = {"Content-Type": "application/json"}
         task_list = []
-        cases_data = self.set_mqtt_datain_payload()
+        cases_data = self.set_mqtt_datain_payload(hostname=self.host)
         # 在edge侧创建数据库 mqtt_datain
         self.tdCom.createDb(self.target_dbname,self.db_config)
         # 创建4个mqtt datain任务
-        for hostname in self.hosts:
-            cases_data = self.set_mqtt_datain_payload(hostname=hostname)
-            # 在edge侧创建数据库 mqtt_datain
-            self.tdCom.createDb(self.target_dbname)
-            for case_data in cases_data:
-                response = TDRest.request(data=case_data, method='POST', url=f'http://{hostname}:6050/api/x/tasks',header=headers)
-                task_info = response.json()
-                task_list.append(task_info["id"])
+        for case_data in cases_data:
+            response = TDRest.request(data=case_data, method='POST', url=f'http://{hostname}:6050/api/x/tasks',header=headers)
+            task_info = response.json()
+            task_list.append(task_info["id"])
         time.sleep(self.execute_time)
         for hostname in self.hosts:
             for task_id in task_list:
