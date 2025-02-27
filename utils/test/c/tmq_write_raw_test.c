@@ -42,6 +42,23 @@ static void msg_process(TAOS_RES* msg) {
   printf("-----------topic-------------: %s\n", tmq_get_topic_name(msg));
   printf("db: %s\n", tmq_get_db_name(msg));
   printf("vg: %d\n", tmq_get_vgroup_id(msg));
+  if (strcmp(tmq_get_db_name(msg), "db_query") == 0){
+    TAOS_ROW row = NULL;
+    int32_t cnt = 0;
+    while ((row = taos_fetch_row(msg))) {
+
+      int         numFields = taos_num_fields(msg);
+      TAOS_FIELD *fields = taos_fetch_fields(msg);
+
+      for (int i = 0; i < numFields; ++i) {
+        if (IS_DECIMAL_TYPE(fields[i].type)) {
+          ASSERT(strcmp(row[i], "3.122") == 0);
+        }
+      }
+    }
+    return;
+  }
+
   TAOS* pConn = use_db();
   if (tmq_get_res_type(msg) == TMQ_RES_TABLE_META || tmq_get_res_type(msg) == TMQ_RES_METADATA) {
     char* result = tmq_get_json_meta(msg);
@@ -62,7 +79,7 @@ static void msg_process(TAOS_RES* msg) {
 
 int buildDatabase(TAOS* pConn, TAOS_RES* pRes) {
   pRes = taos_query(pConn,
-                    "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(16)) tags(t1 int, t3 "
+                    "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(16), c4 decimal(10,3)) tags(t1 int, t3 "
                     "nchar(8), t4 bool)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table st1, reason:%s\n", taos_errstr(pRes));
@@ -77,7 +94,7 @@ int buildDatabase(TAOS* pConn, TAOS_RES* pRes) {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "insert into ct0 using st1 tags(1000, \"ttt\", true) values(1626006833400, 1, 2, 'a')");
+  pRes = taos_query(pConn, "insert into ct0 using st1 tags(1000, \"ttt\", true) values(1626006833400, 1, 2, 'a', 3.2)");
   if (taos_errno(pRes) != 0) {
     printf("failed to insert into ct0, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -98,7 +115,7 @@ int buildDatabase(TAOS* pConn, TAOS_RES* pRes) {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "insert into ct1 using st1(t1) tags(2000) values(1626006833600, 3, 4, 'b')");
+  pRes = taos_query(pConn, "insert into ct1 using st1(t1) tags(2000) values(1626006833600, 3, 4, 'b', 4.32)");
   if (taos_errno(pRes) != 0) {
     printf("failed to insert into ct1, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -112,14 +129,14 @@ int buildDatabase(TAOS* pConn, TAOS_RES* pRes) {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "insert into ct0 using st1 tags(1000, \"ttt\", true) values(1626006833400, 1, 2, 'a')");
+  pRes = taos_query(pConn, "insert into ct0 using st1 tags(1000, \"ttt\", true) values(1626006833400, 1, 2, 'a', 23.23)");
   if (taos_errno(pRes) != 0) {
     printf("failed to insert into ct0, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "insert into ct1 using st1(t1) tags(2000) values(1626006833600, 3, 4, 'b')");
+  pRes = taos_query(pConn, "insert into ct1 using st1(t1) tags(2000) values(1626006833600, 3, 4, 'b', 43.53)");
   if (taos_errno(pRes) != 0) {
     printf("failed to insert into ct1, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -128,8 +145,8 @@ int buildDatabase(TAOS* pConn, TAOS_RES* pRes) {
 
   pRes = taos_query(
       pConn,
-      "insert into ct3 using st1(t1) tags(3000) values(1626006833600, 5, 6, 'c') ct1 using st1(t1) tags(2000) values(1626006833601, 2, 3, 'sds') (1626006833602, 4, 5, "
-      "'ddd') ct0 using st1 tags(1000, \"ttt\", true) values(1626006833603, 4, 3, 'hwj') ct1 using st1(t1) tags(2000) values(now+5s, 23, 32, 's21ds')");
+      "insert into ct3 using st1(t1) tags(3000) values(1626006833600, 5, 6, 'c', 43.53) ct1 using st1(t1) tags(2000) values(1626006833601, 2, 3, 'sds', 43.53) (1626006833602, 4, 5, "
+      "'ddd', 43.53) ct0 using st1 tags(1000, \"ttt\", true) values(1626006833603, 4, 3, 'hwj', 43.53) ct1 using st1(t1) tags(2000) values(now+5s, 23, 32, 's21ds', 43.53)");
   if (taos_errno(pRes) != 0) {
     printf("failed to insert into ct3, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -196,6 +213,36 @@ int32_t init_env() {
 
   buildDatabase(pConn, pRes);
 
+  pRes = taos_query(pConn, "drop database if exists db_query");
+  if (taos_errno(pRes) != 0) {
+    printf("error in drop db_taosx, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create database if not exists db_query vgroups 1 wal_retention_period 3600");
+  if (taos_errno(pRes) != 0) {
+    printf("error in create db, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  // create and insert another stable
+  pRes = taos_query(pConn,
+                    "create stable if not exists db_query.st11 (ts timestamp, c1 int, c2 float, c3 binary(16), c4 decimal(9,3)) tags(t1 int, t3 "
+                    "nchar(8), t4 bool)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create super table st1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "insert into db_query.ct10 using db_query.st11 tags(1000, \"ttt\", true) values(1626006833400, 1, 2, 'a', 3.122)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to insert into ct0, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
   taos_close(pConn);
   return 0;
 }
@@ -211,6 +258,13 @@ int32_t create_topic() {
   pRes = taos_query(pConn, "create topic topic_db with meta as database abc1");
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic topic_db, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create topic topic_query as select * from db_query.st11");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create topic topic_query, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
   taos_free_result(pRes);
@@ -254,6 +308,7 @@ tmq_t* build_consumer() {
 tmq_list_t* build_topic_list() {
   tmq_list_t* topic_list = tmq_list_new();
   tmq_list_append(topic_list, "topic_db");
+  tmq_list_append(topic_list, "topic_query");
   return topic_list;
 }
 

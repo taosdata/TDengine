@@ -70,6 +70,32 @@ static int32_t metaDecodeExtSchemas(SDecoder* pDecoder, SMetaEntry* pME) {
   return 0;
 }
 
+SExtSchema* metaCloneSExtSchema(const SMetaEntry *pME) {
+  const SSchemaWrapper *pSchWrapper = NULL;
+  bool                  hasTypeMods = false;
+  if (pME->type == TSDB_SUPER_TABLE) {
+    pSchWrapper = &pME->stbEntry.schemaRow;
+  } else if (pME->type == TSDB_NORMAL_TABLE) {
+    pSchWrapper = &pME->ntbEntry.schemaRow;
+  } else {
+    return NULL;
+  }
+  hasTypeMods = schemasHasTypeMod(pSchWrapper->pSchema, pSchWrapper->nCols);
+
+  if (hasTypeMods) {
+    SExtSchema* ret = taosMemoryMalloc(sizeof(SExtSchema) * pSchWrapper->nCols);
+    memcpy(ret, pME->pExtSchemas, pSchWrapper->nCols * sizeof(SExtSchema));
+    return ret;
+  }
+  return NULL;
+}
+
+void metaFreeSExtSchema(SExtSchema *p) {
+  if (p) {
+    taosMemoryFreeClear(p);
+  }
+}
+
 int meteEncodeColCmprEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   const SColCmprWrapper *pw = &pME->colCmpr;
   TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->nCols));
