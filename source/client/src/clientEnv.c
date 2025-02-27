@@ -255,7 +255,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
 
   int64_t duration = taosGetTimestampUs() - pRequest->metric.start;
   tscDebug("req:0x%" PRIx64 ", free from connObj:0x%" PRIx64 ", QID:0x%" PRIx64
-           " elapsed:%.2f ms, current:%d, app current:%d",
+           ", elapsed:%.2f ms, current:%d, app current:%d",
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
 
   if (TSDB_CODE_SUCCESS == nodesSimAcquireAllocator(pRequest->allocatorRefId)) {
@@ -297,7 +297,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
       checkSlowLogExceptDb(pRequest, pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogExceptDb)) {
     (void)atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
     if (pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogScope & reqType) {
-      taosPrintSlowLog("PID:%d, Conn:%u, QID:0x%" PRIx64 ", Start:%" PRId64 "us, Duration:%" PRId64 "us, SQL:%s",
+      taosPrintSlowLog("PID:%d, connId:%u, QID:0x%" PRIx64 ", Start:%" PRId64 "us, Duration:%" PRId64 "us, SQL:%s",
                        taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration,
                        pRequest->sqlstr);
       if (pTscObj->pAppInfo->serverCfg.monitorParas.tsEnableMonitor) {
@@ -516,7 +516,7 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
 
   (void)atomic_add_fetch_64(&(*pObj)->pAppInfo->numOfConns, 1);
 
-  tscDebug("connObj created, 0x%" PRIx64 ",p:%p", (*pObj)->id, *pObj);
+  tscInfo("connObj:0x%" PRIx64 ", created, p:%p", (*pObj)->id, *pObj);
   return code;
 }
 
@@ -682,13 +682,13 @@ void doDestroyRequest(void *p) {
   SRequestObj *pRequest = (SRequestObj *)p;
 
   uint64_t reqId = pRequest->requestId;
-  tscDebug("QID:0x%" PRIx64 ", begin destroy request p:%p", reqId, pRequest);
+  tscDebug("QID:0x%" PRIx64 ", begin destroy request, res:%p", reqId, pRequest);
 
   int64_t nextReqRefId = pRequest->relation.nextRefId;
 
   int32_t code = taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
   if (TSDB_CODE_SUCCESS != code) {
-    tscWarn("failed to remove request from hash, code:%s", tstrerror(code));
+    tscDebug("failed to remove request from hash since %s", tstrerror(code));
   }
   schedulerFreeJob(&pRequest->body.queryJob, 0);
 
@@ -724,14 +724,12 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->effectiveUser);
   taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFree(pRequest);
-  tscDebug("QID:0x%" PRIx64 ", end destroy request p:%p", reqId, pRequest);
+  tscDebug("QID:0x%" PRIx64 ", end destroy request, res:%p", reqId, pRequest);
   destroyNextReq(nextReqRefId);
 }
 
 void destroyRequest(SRequestObj *pRequest) {
-  if (pRequest == NULL) {
-    return;
-  }
+  if (pRequest == NULL) return;
 
   taos_stop_query(pRequest);
   (void)removeFromMostPrevReq(pRequest);
@@ -742,7 +740,7 @@ void taosStopQueryImpl(SRequestObj *pRequest) {
 
   // It is not a query, no need to stop.
   if (NULL == pRequest->pQuery || QUERY_EXEC_MODE_SCHEDULE != pRequest->pQuery->execMode) {
-    tscDebug("request 0x%" PRIx64 " no need to be killed since not query", pRequest->requestId);
+    tscDebug("QID:0x%" PRIx64 ", no need to be killed since not query", pRequest->requestId);
     return;
   }
 
@@ -855,7 +853,7 @@ static void *tscCrashReportThreadFp(void *param) {
         truncateFile = true;
       }
     } else {
-      tscDebug("no crash info");
+      tscInfo("no crash info was found");
     }
 
     taosMemoryFree(pMsg);
@@ -983,12 +981,12 @@ void taos_init_imp(void) {
     return;
   }
 
+  tscInfo("starting to initialize TAOS driver");
+
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   ENV_ERR_RET(catalogInit(&cfg), "failed to init catalog");
   ENV_ERR_RET(schedulerInit(), "failed to init scheduler");
   ENV_ERR_RET(initClientId(), "failed to init clientId");
-
-  tscDebug("starting to initialize TAOS driver");
 
   ENV_ERR_RET(initTaskQueue(), "failed to init task queue");
   ENV_ERR_RET(fmFuncMgtInit(), "failed to init funcMgt");
@@ -1002,7 +1000,7 @@ void taos_init_imp(void) {
   ENV_ERR_RET(tscCrashReportInit(), "failed to init crash report");
   ENV_ERR_RET(qInitKeywordsTable(), "failed to init parser keywords table");
 
-  tscDebug("client is initialized successfully");
+  tscInfo("TAOS driver is initialized successfully");
 }
 
 int taos_init() {

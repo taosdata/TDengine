@@ -279,7 +279,7 @@ setConfRet taos_set_config(const char *config) {
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
-  tscDebug("try to connect to %s:%u, user:%s db:%s", ip, port, user, db);
+  tscInfo("try to connect to %s:%u, user:%s db:%s", ip, port, user, db);
   if (user == NULL) {
     user = TSDB_DEFAULT_USER;
   }
@@ -2183,7 +2183,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
   SSHashObj *hashTbnames = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR));
   if (NULL == hashTbnames) {
-    tscError("stmt2 bind failed: %s", tstrerror(terrno));
+    tscError("stmt2 bind failed, %s", tstrerror(terrno));
     return terrno;
   }
 
@@ -2193,7 +2193,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       if (pStmt->sql.stbInterlaceMode) {
         if (tSimpleHashGet(hashTbnames, bindv->tbnames[i], strlen(bindv->tbnames[i])) != NULL) {
           code = terrno = TSDB_CODE_PAR_TBNAME_DUPLICATED;
-          tscError("stmt2 bind failed: %s %s", tstrerror(terrno), bindv->tbnames[i]);
+          tscError("stmt2 bind failed, %s %s", tstrerror(terrno), bindv->tbnames[i]);
           goto out;
         }
 

@@ -293,7 +293,7 @@ void monitorCreateClient(int64_t clusterId) {
       tscError("failed to start timer");
       goto fail;
     }
-    tscInfo("clusterId:0x%" PRIx64 ", create monitor finished, montitor:%p", clusterId, pMonitor);
+    tscInfo("clusterId:0x%" PRIx64 ", create monitor finished, monitor:%p", clusterId, pMonitor);
   }
   taosWUnLockLatch(&monitorLock);
 
@@ -319,7 +319,7 @@ void monitorCreateClientCounter(int64_t clusterId, const char* name, const char*
     tscError("failed to add metric to collector");
     int r = taos_counter_destroy(newCounter);
     if (r) {
-      tscError("failed to destroy counter, code: %d", r);
+      tscError("failed to destroy counter, code:%d", r);
     }
     goto end;
   }
@@ -327,11 +327,11 @@ void monitorCreateClientCounter(int64_t clusterId, const char* name, const char*
     tscError("failed to put counter to monitor");
     int r = taos_counter_destroy(newCounter);
     if (r) {
-      tscError("failed to destroy counter, code: %d", r);
+      tscError("failed to destroy counter, code:%d", r);
     }
     goto end;
   }
-  tscInfo("clusterId:0x%" PRIx64 ", monitor:%p, create counter:%s:%p", pMonitor->clusterId, pMonitor, name,
+  tscInfo("clusterId:0x%" PRIx64 ", monitor:%p, create counter:%s %p", pMonitor->clusterId, pMonitor, name,
           newCounter);
 
 end:
@@ -422,7 +422,7 @@ static void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char* tmpP
   }
 
   if (taosLSeekFile(pFile, 0, SEEK_END) < 0) {
-    tscError("failed to seek file:%p code: %d", pFile, terrno);
+    tscError("failed to seek file:%p code:%d", pFile, terrno);
     return;
   }
   if (taosWriteFile(pFile, slowLogData->data, strlen(slowLogData->data) + 1) < 0) {
@@ -434,7 +434,7 @@ static void monitorWriteSlowLog2File(MonitorSlowLogData* slowLogData, char* tmpP
 static char* readFile(TdFilePtr pFile, int64_t* offset, int64_t size) {
   tscDebug("monitor readFile slow begin pFile:%p, offset:%" PRId64 ", size:%" PRId64, pFile, *offset, size);
   if (taosLSeekFile(pFile, *offset, SEEK_SET) < 0) {
-    tscError("failed to seek file:%p code: %d", pFile, terrno);
+    tscError("failed to seek file:%p code:%d", pFile, terrno);
     return NULL;
   }
 
@@ -573,7 +573,7 @@ static void monitorSendSlowLogAtRunning(int64_t clusterId) {
   int64_t size = getFileSize(pClient->path);
   if (size <= pClient->offset) {
     if (taosFtruncateFile(pClient->pFile, 0) < 0) {
-      tscError("failed to truncate file:%p code: %d", pClient->pFile, terrno);
+      tscError("failed to truncate file:%p code:%d", pClient->pFile, terrno);
     }
     tscDebug("monitor truncate file to 0 file:%p", pClient->pFile);
     pClient->offset = 0;
@@ -755,7 +755,7 @@ static void monitorSendAllSlowLogFromTempDir(int64_t clusterId) {
 
 static void* monitorThreadFunc(void* param) {
   setThreadName("client-monitor-slowlog");
-  tscDebug("monitorThreadFunc start");
+  tscInfo("monitor update thread started");
   int64_t quitTime = 0;
   while (1) {
     if (atomic_load_32(&monitorFlag) == 1) {
@@ -943,7 +943,7 @@ int32_t reportCB(void* param, SDataBuf* pMsg, int32_t code) {
 int32_t senAuditInfo(STscObj* pTscObj, void* pReq, int32_t len, uint64_t requestId) {
   SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (sendInfo == NULL) {
-    tscError("[del report]failed to allocate memory for sendInfo");
+    tscError("[del report] failed to allocate memory for sendInfo");
     return terrno;
   }
 
@@ -959,7 +959,7 @@ int32_t senAuditInfo(STscObj* pTscObj, void* pReq, int32_t len, uint64_t request
 
   int32_t code = asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, NULL, sendInfo);
   if (code != 0) {
-    tscError("[del report]failed to send msg to server, code:%d", code);
+    tscError("[del report] failed to send msg to server, code:%d", code);
     taosMemoryFree(sendInfo);
     return code;
   }
@@ -971,22 +971,22 @@ static void reportDeleteSql(SRequestObj* pRequest) {
   STscObj*     pTscObj = pRequest->pTscObj;
 
   if (pTscObj == NULL || pTscObj->pAppInfo == NULL) {
-    tscError("[del report]invalid tsc obj");
+    tscError("[del report] invalid tsc obj");
     return;
   }
 
   if(pTscObj->pAppInfo->serverCfg.enableAuditDelete == 0) {
-    tscDebug("[del report]audit delete is disabled");
+    tscDebug("[del report] audit delete is disabled");
     return;
   }
 
   if (pRequest->code != TSDB_CODE_SUCCESS) {
-    tscDebug("[del report]delete request result code:%d", pRequest->code);
+    tscDebug("[del report] delete request result code:%d", pRequest->code);
     return;
   }
 
   if (nodeType(pStmt->pFromTable) != QUERY_NODE_REAL_TABLE) {
-    tscError("[del report]invalid from table node type:%d", nodeType(pStmt->pFromTable));
+    tscError("[del report] invalid from table node type:%d", nodeType(pStmt->pFromTable));
     return;
   }
 
@@ -1000,28 +1000,28 @@ static void reportDeleteSql(SRequestObj* pRequest) {
   int32_t tlen = tSerializeSAuditReq(NULL, 0, &req);
   void*   pReq = taosMemoryCalloc(1, tlen);
   if (pReq == NULL) {
-    tscError("[del report]failed to allocate memory for req");
+    tscError("[del report] failed to allocate memory for req");
     return;
   }
 
   if (tSerializeSAuditReq(pReq, tlen, &req) < 0) {
-    tscError("[del report]failed to serialize req");
+    tscError("[del report] failed to serialize req");
     taosMemoryFree(pReq);
     return;
   }
 
   int32_t code = senAuditInfo(pRequest->pTscObj, pReq, tlen, pRequest->requestId);
   if (code != 0) {
-    tscError("[del report]failed to send audit info, code:%d", code);
+    tscError("[del report] failed to send audit info, code:%d", code);
     taosMemoryFree(pReq);
     return;
   }
-  tscDebug("[del report]delete data, sql:%s", req.pSql);
+  tscDebug("[del report] delete data, sql:%s", req.pSql);
 }
 
 void clientOperateReport(SRequestObj* pRequest) {
   if (pRequest == NULL || pRequest->pQuery == NULL || pRequest->pQuery->pRoot == NULL) {
-    tscError("[del report]invalid request");
+    tscError("[del report] invalid request");
     return;
   }
 

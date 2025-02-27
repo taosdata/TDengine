@@ -292,7 +292,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   SqlFunctionCtx* pCtx = pOperator->exprSupp.pCtx;
   int32_t         numOfGroupCols = taosArrayGetSize(pInfo->pGroupCols);
   //  if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE) {
-  //  qError("QInfo:0x%"PRIx64 " group by not supported on double/float columns, abort", GET_TASKID(pRuntimeEnv));
+  //  qError("QInfo:0x%" PRIx64 ", group by not supported on double/float columns, abort", GET_TASKID(pRuntimeEnv));
   //    return;
   //  }
 

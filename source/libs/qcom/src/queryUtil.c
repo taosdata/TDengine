@@ -165,7 +165,7 @@ int32_t initTaskQueue() {
     return -1;
   }
 
-  qDebug("task queue is initialized, numOfThreads: %d", tsNumOfTaskQueueThreads);
+  qInfo("task queue is initialized, numOfThreads: %d", tsNumOfTaskQueueThreads);
   return 0;
 }
 

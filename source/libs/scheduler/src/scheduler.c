@@ -35,7 +35,7 @@ int32_t schedulerInit() {
   schMgmt.cfg.schPolicy = SCHEDULE_DEFAULT_POLICY;
   schMgmt.cfg.enableReSchedule = false;
 
-  qDebug("schedule init, policy: %d, maxNodeTableNum: %" PRId64", reSchedule:%d",
+  qInfo("scheduler init, policy: %d, maxNodeTableNum: %" PRId64", reSchedule:%d",
     schMgmt.cfg.schPolicy, schMgmt.cfg.maxNodeTableNum, schMgmt.cfg.enableReSchedule);
 
   schMgmt.jobRef = taosOpenRef(schMgmt.cfg.maxJobNum, schFreeJobImpl);
@@ -56,7 +56,7 @@ int32_t schedulerInit() {
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
   }
 
-  qInfo("scheduler 0x%" PRIx64 " initialized, maxJob:%u", getClientId(), schMgmt.cfg.maxJobNum);
+  qInfo("scheduler initialized, maxJob:%u, clientId:0x%" PRIx64, schMgmt.cfg.maxJobNum, getClientId());
 
   return TSDB_CODE_SUCCESS;
 }

@@ -361,7 +361,7 @@ int32_t taosOpenQset(STaosQset **qset) {
     return terrno;
   }
 
-  uDebug("qset:%p is opened", qset);
+  uDebug("qset:%p, is opened", qset);
   return 0;
 }
 
@@ -384,7 +384,7 @@ void taosCloseQset(STaosQset *qset) {
     uError("failed to destroy semaphore for qset:%p", qset);
   }
   taosMemoryFree(qset);
-  uDebug("qset:%p is closed", qset);
+  uDebug("qset:%p, is closed", qset);
 }
 
 // tsem_post 'qset->sem', so that reader threads waiting for it
@@ -414,7 +414,7 @@ int32_t taosAddIntoQset(STaosQset *qset, STaosQueue *queue, void *ahandle) {
 
   (void)taosThreadMutexUnlock(&qset->mutex);
 
-  uTrace("queue:%p is added into qset:%p", queue, qset);
+  uTrace("queue:%p, is added into qset:%p", queue, qset);
   return 0;
 }
 
@@ -455,7 +455,7 @@ void taosRemoveFromQset(STaosQset *qset, STaosQueue *queue) {
 
   (void)taosThreadMutexUnlock(&qset->mutex);
 
-  uDebug("queue:%p is removed from qset:%p", queue, qset);
+  uDebug("queue:%p, is removed from qset:%p", queue, qset);
 }
 
 int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, SQueueInfo *qinfo) {

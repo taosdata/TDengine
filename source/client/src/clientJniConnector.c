@@ -154,7 +154,7 @@ JNIEXPORT void JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_initImp(JNIEnv *e
   }
 
   jniGetGlobalMethod(env);
-  jniDebug("jni initialized successfully, config directory: %s", configDir);
+  jniDebug("jni initialized successfully, config directory:%s", configDir);
 }
 
 JNIEXPORT jobject createTSDBException(JNIEnv *env, int code, char *msg) {
@@ -453,7 +453,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getAffectedRowsIm
   }
 
   jint ret = taos_affected_rows((TAOS_RES *)res);
-  jniDebug("jobj:%p, conn:%p, sql:%p, res: %p, affect rows:%d", jobj, tscon, (TAOS *)con, (TAOS_RES *)res,
+  jniDebug("jobj:%p, conn:%p, sql:%p, res:%p, affect rows:%d", jobj, tscon, (TAOS *)con, (TAOS_RES *)res,
            (int32_t)ret);
 
   return ret;

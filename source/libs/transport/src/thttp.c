@@ -332,7 +332,7 @@ static void httpMayDiscardMsg(SHttpModule* http, SAsyncItem* item) {
     QUEUE_REMOVE(h);
     msg = QUEUE_DATA(h, SHttpMsg, q);
     if (!msg->quit) {
-      tError("http-report failed to report chanId:%" PRId64 ",seq:%" PRId64 ", reason:%s", msg->chanId, msg->seq,
+      tError("http-report failed to report chanId:%" PRId64 ", seq:%" PRId64 ", reason:%s", msg->chanId, msg->seq,
              tstrerror(TSDB_CODE_HTTP_MODULE_QUIT));
       httpDestroyMsg(msg);
     } else {
@@ -725,7 +725,7 @@ static void httpHandleReq(SHttpMsg* msg) {
 
 END:
   if (ignore == false) {
-    tError("http-report failed to report to addr:%s:%d, chanId:%" PRId64 ",seq:%" PRId64 " reason:%s", msg->server,
+    tError("http-report failed to report to addr:%s:%d, chanId:%" PRId64 ", seq:%" PRId64 " reason:%s", msg->server,
            msg->port, chanId, msg->seq, tstrerror(code));
   }
   httpDestroyMsg(msg);

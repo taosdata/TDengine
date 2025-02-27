@@ -81,7 +81,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if ((code = taosCheckVersionCompatibleFromStr(td_version, connectRsp.sVer, 3)) != 0) {
-    tscError("version not compatible. client version: %s, server version: %s", td_version, connectRsp.sVer);
+    tscError("version not compatible. client version:%s, server version:%s", td_version, connectRsp.sVer);
     goto End;
   }
 
@@ -262,11 +262,11 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       int64_t clusterId = pRequest->pTscObj->pAppInfo->clusterId;
       int32_t code1 = catalogGetHandle(clusterId, &pCatalog);
       if (code1 != TSDB_CODE_SUCCESS) {
-        tscWarn("QID:0x%" PRIx64 "catalogGetHandle failed, clusterId:0x%" PRIx64 ", error:%s", pRequest->requestId, clusterId,
+        tscWarn("QID:0x%" PRIx64 ", catalogGetHandle failed, clusterId:0x%" PRIx64 ", error:%s", pRequest->requestId, clusterId,
                 tstrerror(code1));
       } else {
         if (catalogRemoveDB(pCatalog, usedbRsp.db, usedbRsp.uid) != 0) {
-          tscError("QID:0x%" PRIx64 "catalogRemoveDB failed, db:%s, uid:%" PRId64, pRequest->requestId, usedbRsp.db,
+          tscError("QID:0x%" PRIx64 ", catalogRemoveDB failed, db:%s, uid:%" PRId64, pRequest->requestId, usedbRsp.db,
                    usedbRsp.uid);
         }
       }

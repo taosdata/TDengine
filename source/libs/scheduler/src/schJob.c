@@ -758,7 +758,7 @@ void schFreeJobImpl(void *job) {
   uint64_t queryId = pJob->queryId;
   int64_t  refId = pJob->refId;
 
-  qDebug("QID:0x%" PRIx64 ", begin to free sch job, refId:0x%" PRIx64 ", pointer:%p", queryId, refId, pJob);
+  qDebug("QID:0x%" PRIx64 ", begin to free sch job, jobId:0x%" PRIx64 ", pointer:%p", queryId, refId, pJob);
 
   schDropJobAllTasks(pJob);
 
@@ -928,7 +928,7 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
 
   *pJobId = pJob->refId;
 
-  SCH_JOB_DLOG("job refId:0x%" PRIx64 " created", pJob->refId);
+  SCH_JOB_DLOG("jobId:0x%" PRIx64 ", job created", pJob->refId);
 
   return TSDB_CODE_SUCCESS;
 
@@ -941,7 +941,7 @@ _return:
   } else {
     code = taosRemoveRef(schMgmt.jobRef, pJob->refId);
     if (code) {
-      SCH_JOB_DLOG("taosRemoveRef job refId:0x%" PRIx64 " from jobRef, error:%s", pJob->refId, tstrerror(code));
+      SCH_JOB_DLOG("jobId:0x%" PRIx64 ", taosRemoveRef job from jobRef, error:%s", pJob->refId, tstrerror(code));
     }
   }
 
@@ -950,7 +950,7 @@ _return:
 
 int32_t schExecJob(SSchJob *pJob, SSchedulerReq *pReq) {
   int32_t code = 0;
-  qDebug("QID:0x%" PRIx64 ", sch job refId 0x%" PRIx64 " started", pReq->pDag->queryId, pJob->refId);
+  qDebug("QID:0x%" PRIx64 ", jobId:0x%" PRIx64 ", sch job started", pReq->pDag->queryId, pJob->refId);
 
   SCH_ERR_RET(schLaunchJob(pJob));
 
@@ -1206,7 +1206,7 @@ int32_t schProcessOnOpBegin(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq *pReq
       break;
     case SCH_OP_GET_STATUS:
       if (pJob->status < JOB_TASK_STATUS_INIT || pJob->levelNum <= 0 || NULL == pJob->levels) {
-        qDebug("job not initialized or not executable job, refId:0x%" PRIx64, pJob->refId);
+        qDebug("jobId:0x%" PRIx64 ", job not initialized or not executable job", pJob->refId);
         SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
       }
       return TSDB_CODE_SUCCESS;
@@ -1246,7 +1246,7 @@ int32_t schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_
 
   (void)schAcquireJob(rId, &pJob);
   if (NULL == pJob) {
-    qWarn("QID:0x%" PRIx64 ", TID:0x%" PRIx64 "job no exist, may be dropped, refId:0x%" PRIx64, qId, tId, rId);
+    qWarn("QID:0x%" PRIx64 ", TID:0x%" PRIx64 "job no exist, may be dropped, jobId:0x%" PRIx64, qId, tId, rId);
     SCH_ERR_RET(TSDB_CODE_QRY_JOB_NOT_EXIST);
   }
 

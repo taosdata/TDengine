@@ -171,7 +171,7 @@ int32_t taos_connect_internal(const char* ip, const char* user, const char* pass
     }
     p->instKey = key;
     key = NULL;
-    tscDebug("new app inst mgr %p, user:%s, ip:%s, port:%d", p, user, epSet.epSet.eps[0].fqdn, epSet.epSet.eps[0].port);
+    tscInfo("new app inst mgr:%p, user:%s, ip:%s, port:%d", p, user, epSet.epSet.eps[0].fqdn, epSet.epSet.eps[0].port);
 
     pInst = &p;
   } else {
@@ -1659,7 +1659,7 @@ int32_t taosConnectImpl(const char* user, const char* auth, const char* db, __ta
     *pTscObj = NULL;
     return terrno;
   } else {
-    tscDebug("connObj:0x%" PRIx64 " connection is opening, connId:%u, dnodeConn:%p, QID:0x%" PRIx64, (*pTscObj)->id,
+    tscInfo("connObj:0x%" PRIx64 ", connection is opening, connId:%u, dnodeConn:%p, QID:0x%" PRIx64, (*pTscObj)->id,
              (*pTscObj)->connId, (*pTscObj)->pAppInfo->pTransporter, pRequest->requestId);
     destroyRequest(pRequest);
   }
@@ -1904,7 +1904,7 @@ _exit:
 }
 
 TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, const char* db, uint16_t port) {
-  tscDebug("try to connect to %s:%u by auth, user:%s db:%s", ip, port, user, db);
+  tscInfo("try to connect to %s:%u by auth, user:%s db:%s", ip, port, user, db);
   if (user == NULL) {
     user = TSDB_DEFAULT_USER;
   }

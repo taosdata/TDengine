@@ -301,7 +301,7 @@ int32_t initClientId(void) {
     qError("failed to generate clientId since %s", tstrerror(code));
     SCH_ERR_RET(code);
   }
-  qInfo("initialize");
+  qInfo("generate clientId:%" PRIu64, schMgmt.clientId);
   return TSDB_CODE_SUCCESS;
 }
 

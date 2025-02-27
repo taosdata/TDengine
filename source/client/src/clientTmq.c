@@ -356,7 +356,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       conf->autoCommit = false;
       return TMQ_CONF_OK;
     } else {
-      tqErrorC("invalid value for enable.auto.commit: %s", value);
+      tqErrorC("invalid value for enable.auto.commit:%s", value);
       return TMQ_CONF_INVALID;
     }
   }
@@ -365,7 +365,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int64_t tmp;
     code = taosStr2int64(value, &tmp);
     if (tmp < 0 || code != 0) {
-      tqErrorC("invalid value for auto.commit.interval.ms: %s", value);
+      tqErrorC("invalid value for auto.commit.interval.ms:%s", value);
       return TMQ_CONF_INVALID;
     }
     conf->autoCommitInterval = (tmp > INT32_MAX ? INT32_MAX : tmp);
@@ -376,7 +376,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int64_t tmp;
     code = taosStr2int64(value, &tmp);
     if (tmp < 6000 || tmp > 1800000 || code != 0) {
-      tqErrorC("invalid value for session.timeout.ms: %s", value);
+      tqErrorC("invalid value for session.timeout.ms:%s", value);
       return TMQ_CONF_INVALID;
     }
     conf->sessionTimeoutMs = tmp;
@@ -387,7 +387,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int64_t tmp;
     code = taosStr2int64(value, &tmp);
     if (tmp < 1000 || tmp >= conf->sessionTimeoutMs || code != 0) {
-      tqErrorC("invalid value for heartbeat.interval.ms: %s", value);
+      tqErrorC("invalid value for heartbeat.interval.ms:%s", value);
       return TMQ_CONF_INVALID;
     }
     conf->heartBeatIntervalMs = tmp;
@@ -398,7 +398,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int32_t tmp;
     code = taosStr2int32(value, &tmp);
     if (tmp < 1000 || code != 0) {
-      tqErrorC("invalid value for max.poll.interval.ms: %s", value);
+      tqErrorC("invalid value for max.poll.interval.ms:%s", value);
       return TMQ_CONF_INVALID;
     }
     conf->maxPollIntervalMs = tmp;
@@ -416,7 +416,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       conf->resetOffset = TMQ_OFFSET__RESET_LATEST;
       return TMQ_CONF_OK;
     } else {
-      tqErrorC("invalid value for auto.offset.reset: %s", value);
+      tqErrorC("invalid value for auto.offset.reset:%s", value);
       return TMQ_CONF_INVALID;
     }
   }
@@ -429,7 +429,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       conf->withTbName = false;
       return TMQ_CONF_OK;
     } else {
-      tqErrorC("invalid value for msg.with.table.name: %s", value);
+      tqErrorC("invalid value for msg.with.table.name:%s", value);
       return TMQ_CONF_INVALID;
     }
   }
@@ -442,7 +442,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       conf->snapEnable = false;
       return TMQ_CONF_OK;
     } else {
-      tqErrorC("invalid value for experimental.snapshot.enable: %s", value);
+      tqErrorC("invalid value for experimental.snapshot.enable:%s", value);
       return TMQ_CONF_INVALID;
     }
   }
@@ -481,7 +481,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int64_t tmp;
     code = taosStr2int64(value, &tmp);
     if (tmp <= 0 || tmp > 65535 || code != 0) {
-      tqErrorC("invalid value for td.connect.port: %s", value);
+      tqErrorC("invalid value for td.connect.port:%s", value);
       return TMQ_CONF_INVALID;
     }
 
@@ -497,7 +497,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       conf->replayEnable = false;
       return TMQ_CONF_OK;
     } else {
-      tqErrorC("invalid value for enable.replay: %s", value);
+      tqErrorC("invalid value for enable.replay:%s", value);
       return TMQ_CONF_INVALID;
     }
   }
@@ -518,7 +518,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int64_t tmp = 0;
     code = taosStr2int64(value, &tmp);
     if (tmp <= 0 || tmp > INT32_MAX || code != 0) {
-      tqErrorC("invalid value for fetch.max.wait.ms: %s", value);
+      tqErrorC("invalid value for fetch.max.wait.ms:%s", value);
       return TMQ_CONF_INVALID;
     }
     conf->maxPollWaitTime = tmp;
@@ -529,7 +529,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int64_t tmp = 0;
     code = taosStr2int64(value, &tmp);
     if (tmp <= 0 || tmp > INT32_MAX || code != 0) {
-      tqErrorC("invalid value for min.poll.rows: %s", value);
+      tqErrorC("invalid value for min.poll.rows:%s", value);
       return TMQ_CONF_INVALID;
     }
     conf->minPollRows = tmp;
@@ -547,7 +547,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     return TMQ_CONF_OK;
   }
 
-  tqErrorC("unknown key: %s", key);
+  tqErrorC("unknown key:%s", key);
   return TMQ_CONF_UNKNOWN;
 }
 
@@ -1268,7 +1268,7 @@ static void buildNewTopicList(tmq_t* tmq, SArray* newTopics, const SMqAskEpRsp* 
     SMqClientTopic* pTopicCur = taosArrayGet(tmq->clientTopics, i);
     if (pTopicCur && pTopicCur->vgs) {
       int32_t vgNumCur = taosArrayGetSize(pTopicCur->vgs);
-      tqInfoC("consumer:0x%" PRIx64 ", current vg num: %d", tmq->consumerId, vgNumCur);
+      tqInfoC("consumer:0x%" PRIx64 ", current vg num:%d", tmq->consumerId, vgNumCur);
       for (int32_t j = 0; j < vgNumCur; j++) {
         SMqClientVg* pVgCur = taosArrayGet(pTopicCur->vgs, j);
         if (pVgCur == NULL) {

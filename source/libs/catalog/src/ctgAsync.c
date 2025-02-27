@@ -1053,18 +1053,18 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
 
   pJob->refId = taosAddRef(gCtgMgmt.jobPool, pJob);
   if (pJob->refId < 0) {
-    ctgError("add job to ref failed, error: %s", tstrerror(terrno));
+    ctgError("add job to ref failed, error:%s", tstrerror(terrno));
     CTG_ERR_JRET(terrno);
   }
 
   void* p = taosAcquireRef(gCtgMgmt.jobPool, pJob->refId);
   if (NULL == p) {
-    ctgError("acquire job from ref failed, refId:%" PRId64 ", error: %s", pJob->refId, tstrerror(terrno));
+    ctgError("acquire job from ref failed, refId:%" PRId64 ", error:%s", pJob->refId, tstrerror(terrno));
     CTG_ERR_JRET(terrno);
   }
 
   double el = (taosGetTimestampUs() - st) / 1000.0;
-  qDebug("QID:0x%" PRIx64 ", jobId: 0x%" PRIx64 " initialized, task num %d, forceUpdate %d, elapsed time:%.2f ms",
+  qDebug("QID:0x%" PRIx64 ", jobId:0x%" PRIx64 " initialized, task num:%d, forceUpdate:%d, elapsed time:%.2f ms",
          pJob->queryId, pJob->refId, taskNum, pReq->forceUpdate, el);
   return TSDB_CODE_SUCCESS;
 
@@ -2769,7 +2769,7 @@ _return:
     if (TSDB_CODE_MND_SMA_NOT_EXIST == code) {
       code = TSDB_CODE_SUCCESS;
     } else {
-      ctgTaskError("Get tsma for %d.%s.%s failed with err: %s", pName->acctId, pName->dbname, pName->tname,
+      ctgTaskError("get tsma for %d.%s.%s failed with err:%s", pName->acctId, pName->dbname, pName->tname,
                    tstrerror(code));
     }
   }
@@ -2884,7 +2884,7 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       pTsmaInfo->delayDuration = TMAX(pRsp->progressDelay, pTsmaInfo->delayDuration);
       pTsmaInfo->fillHistoryFinished = pTsmaInfo->fillHistoryFinished && pRsp->fillHisFinished;
 
-      qDebug("received stream progress for tsma %s rsp history: %d vnode: %d, delay: %" PRId64, pTsmaInfo->name,
+      qDebug("received stream progress for tsma %s rsp history:%d vnode:%d, delay:%" PRId64, pTsmaInfo->name,
              pRsp->fillHisFinished, pRsp->subFetchIdx, pRsp->progressDelay);
 
       if (atomic_add_fetch_32(&pFetch->finishedSubFetchNum, 1) == pFetch->subFetchNum) {
@@ -2937,7 +2937,7 @@ int32_t ctgHandleGetTbTSMARsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
       pFetch->tsmaSourceTbName = *pTbName;
 
       if (CTG_IS_META_NULL(pOut->metaType)) {
-        ctgTaskError("no tbmeta found when fetching tsma source tb meta: %s.%s", pTbName->dbname, pTbName->tname);
+        ctgTaskError("no tbmeta found when fetching tsma source tb meta:%s.%s", pTbName->dbname, pTbName->tname);
         (void)ctgRemoveTbMetaFromCache(pCtg, pTbName, false);  // ignore cache error
         CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
       }
@@ -2979,7 +2979,7 @@ _return:
       if (TSDB_CODE_MND_SMA_NOT_EXIST == code) {
         code = TSDB_CODE_SUCCESS;
       } else {
-        ctgTaskError("Get tsma for %d.%s.%s faield with err: %s", pTbName->acctId, pTbName->dbname, pTbName->tname,
+        ctgTaskError("get tsma for %d.%s.%s faield with err:%s", pTbName->acctId, pTbName->dbname, pTbName->tname,
                      tstrerror(code));
       }
     }
@@ -3690,7 +3690,7 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
   if (inCache) {
     pTask->res = rsp.pRawRes;
 
-    ctgTaskDebug("Final res got, pass:[%d,%d], pCond:[%p,%p]", rsp.pRawRes->pass[0], rsp.pRawRes->pass[1],
+    ctgTaskDebug("final res got, pass:[%d,%d], pCond:[%p,%p]", rsp.pRawRes->pass[0], rsp.pRawRes->pass[1],
                  rsp.pRawRes->pCond[0], rsp.pRawRes->pCond[1]);
 
     CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
