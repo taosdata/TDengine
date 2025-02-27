@@ -12,16 +12,16 @@ class FractalCenter(TDCase):
         # TODO 外部传入edge侧的hostname，可能有多个
         self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
-        self.fqdn = self.taosd_setting["fqdn"]
+        self.fqdn = self.taosd_setting["fqdn"][0]
         self.case_config = json.load(open(os.path.join(self.env_root, "workflow_config.json")))
         self.db_config = self.case_config["db_config"]
         self.case_data_org = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/config.yaml')
         self.edge_hosts = self.case_config["edge_dnode_hosts"]
         self.tdCom.api_type = 'restful'
         self.target_dbname = "center_db"
-        self.execute_time = self.case_config["exec_time"]
+        self.execute_time = int(self.case_config["exec_time"])
         self.edge_db = 'mqtt_datain'
-
+        self.tdRest = TDRest(env_setting=self.env_setting)
         if self.case_config["enable_compression"].lower() == "true":
             self.compression_param = self.case_config["enable_compression"]
         else:
@@ -41,16 +41,16 @@ class FractalCenter(TDCase):
                 "to": f"taos+ws://{self.fqdn}:6041/{self.target_dbname}?{self.compression_param}",
                 "labels": self.case_data_org["from"]["labels"]
             }
-            response = TDRest.request(data=case_data, method='POST', url=f'http://{self.fqdn}:6060/api/x/tasks',header=headers)
+            response = self.tdRest.request(data=case_data, method='POST', url=f'http://{self.fqdn}:6060/api/x/tasks',header=headers)
             task_info = response.json()
             task_list.append(task_info["id"])
         time.sleep(self.execute_time)
         for task_id in task_list:
-           TDRest.request(data=None, method='POST', url=f'http://{self.fqdn}:6060/api/x/tasks/{task_id}/stop',header=headers)
+           self.tdRest.request(data=None, method='POST', url=f'http://{self.fqdn}:6060/api/x/tasks/{task_id}/stop',header=headers)
         # TODO 获取每个任务的metrics并保存下来，生成报告
         for task_id in task_list:
-            response = TDRest.request(data=None, method='GET', url=f'http://{self.fqdn}:6050/api/x/tasks/{task_id}/metrics',header=headers)
-            metrics = response.json()
+            response = self.tdRest.request(data=None, method='GET', url=f'http://{self.fqdn}:6060/api/x/tasks/{task_id}/metrics',header=headers)
+            metrics = response.text
             # TODO 获取metrics并保存
             print(metrics)
         
