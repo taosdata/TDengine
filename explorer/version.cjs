@@ -1,1 +1,0 @@
-require("fs").writeFileSync("./public/version.txt", new Date().getTime().toString())

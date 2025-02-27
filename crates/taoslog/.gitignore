@@ -1,5 +1,0 @@
-/target
-*.log*
-.DS_Store
-Cargo.lock
-.vscode/

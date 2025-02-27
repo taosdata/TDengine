@@ -1,7 +1,0 @@
-site_name: TaosX Cases Docs
-theme:
-  name: "material"
-
-plugins:
-  - search
-  - mkdocstrings

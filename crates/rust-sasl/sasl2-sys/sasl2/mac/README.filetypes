@@ -1,3 +1,0 @@
-CodeWarrior will not recognize files with type other than 'TEXT'
-as valid source code or headers, and there appears to be no workaround.
-Please read the file doc/macosx.html for more information.

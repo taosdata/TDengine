@@ -1,5 +1,0 @@
-# VC++ Files are BINARY
-
-*.dsp -k 'b'
-*.dsw -k 'b'
-*.reg -k 'b'
