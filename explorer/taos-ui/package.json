@@ -21,7 +21,7 @@
   "license": "taosdata",
   "description": "",
   "dependencies": {
-    "@tdengine/websocket": "link:../taos-connector-node/tdengine-websocket",
+    "@tdengine/websocket": "link:../taos-connector-node/WebSocket",
     "@codemirror/autocomplete": "^6.18.1",
     "@codemirror/commands": "^6.7.0",
     "@codemirror/lang-sql": "^6.7.1",
