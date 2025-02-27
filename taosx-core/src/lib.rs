@@ -249,9 +249,15 @@ impl TaskOpts {
                 Some(id) => id.parse().unwrap_or(-1),
                 None => -1,
             };
-            ArchiveConsumer::new(task_id, parser_clone)
-                .consume(rx)
-                .await
+            if parser_clone.is_some() {
+                if let Err(e) = ArchiveConsumer::new(task_id, parser_clone)
+                    .consume(rx)
+                    .await
+                {
+                    anyhow::bail!(format!("{e:#}"))
+                }
+            }
+            Ok(())
         });
         // spawn a thread to rewrite cache data to files
         let to_clone = to.clone();
