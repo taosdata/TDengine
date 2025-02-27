@@ -146,14 +146,8 @@ jobs:
           nohup sudo taosd -c taos.cfg &
           nohup sudo taosadapter &
 
-      - name: Start taosd on Windows
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: |
-          start /b C:/TDengine/taosd.exe 
-          start /b C:/TDengine/taosaadapter.exe 
-
       - name: Run tests with taosBenchmark 
+        if: runner.os != 'Windows'
         run: |
           taosBenchmark -t 10 -n 10 -y 
           taos -s "select count(*) from test.meters"
@@ -163,9 +157,3 @@ jobs:
         run: |
           if pgrep taosd; then sudo pkill taosd; fi
           if pgrep taosadapter; then sudo pkill taosadapter; fi
-
-      - name: Clean up on Windows
-        if: runner.os == 'Windows'
-        run: |
-          taskkill /IM taosd.exe /F
-          taskkill /IM taosadapter.exe /F
