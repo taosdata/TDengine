@@ -53,6 +53,8 @@ It is not necessary to configure your cluster specifically for active-active mod
    - The sink endpoint is the FQDN of TDengine on the secondary node.
    - You can use the native connection (port 6030) or WebSocket connection (port 6041).
    - You can specify one or more databases to replicate only the data contained in those databases. If you do not specify a database, all databases on the node are replicated except for `information_schema`, `performance_schema`, `log`, and `audit`.
+   - New databases in both sides will be detected periodically to start replication, with optional `--new-database-checking-interval <SECONDS>` argument.
+   - New databases checking will be disabled with `--no-new-databases`.
 
    When the command is successful, the replica ID is displayed. You can use this ID to add other databases to the replication task if necessary.
 
@@ -97,7 +99,6 @@ You can manage your active-active deployment with the following commands:
    :::note
    - This command cannot create duplicate tasks. It only adds the specified databases to the specified task.
    - The replica ID is globally unique within a taosX instance and is independent of the source/sink combination.
-
    :::
 
 2. Check the status of a task:
@@ -124,6 +125,8 @@ You can manage your active-active deployment with the following commands:
 
    If you specify a database, replication for that database is stopped. If you do not specify a database, all replication tasks on the ID are stopped. If you do not specify an ID, all replication tasks on the instance are stopped.
 
+   Use `--no-new-databases` to not stop new-databases checking.
+
 4. Restart a replication task:
 
    ```shell
@@ -131,6 +134,14 @@ You can manage your active-active deployment with the following commands:
    ```
 
    If you specify a database, replication for that database is restarted. If you do not specify a database, all replication tasks in the instance are restarted. If you do not specify an ID, all replication tasks on the instance are restarted.
+
+5. Update new databases checking interval:
+
+   ```shell
+   taosx replica update id --new-database-checking-interval <SECONDS>
+   ```
+
+   This command will only update the checking interval for new databases.
 
 5. Check the progress of a replication task:
 
