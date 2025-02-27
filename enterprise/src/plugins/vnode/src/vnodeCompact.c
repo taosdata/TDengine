@@ -196,6 +196,8 @@ static int32_t vnodeCompactMetaCommit(SVnode *pVnode) {
   vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
   vnodeGetMetaPath(pVnode, VNODE_META_TMP_DIR, metaCompactDir);
 
+  (void)taosThreadRwlockWrlock(&pVnode->metaRWLock);
+
   metaClose(&pVnode->pNewMeta);
   metaClose(&pVnode->pMeta);
 
@@ -205,6 +207,7 @@ static int32_t vnodeCompactMetaCommit(SVnode *pVnode) {
   // Rename the meta file
   code = taosRenameFile(metaCompactDir, metaDir);
   if (code) {
+    (void)taosThreadRwlockUnlock(&pVnode->metaRWLock);
     vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
     return code;
   }
@@ -212,9 +215,12 @@ static int32_t vnodeCompactMetaCommit(SVnode *pVnode) {
   // Open the meta
   code = metaOpen(pVnode, &pVnode->pMeta, 0);
   if (code) {
+    (void)taosThreadRwlockUnlock(&pVnode->metaRWLock);
     vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
     return code;
   }
+
+  (void)taosThreadRwlockUnlock(&pVnode->metaRWLock);
 
   // Enable write
   code = vnodeBegin(pVnode);
