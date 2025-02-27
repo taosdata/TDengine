@@ -20,6 +20,9 @@
 #define CURL_STATICLIB
 #define ALLOW_FORBID_FUNC
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 #ifdef LINUX
 
 #ifndef _ALPINE
@@ -787,6 +790,8 @@ typedef struct SArguments_S {
     char*               csv_ts_format;
     char*               csv_ts_interval;
     long                csv_ts_intv_secs;
+    bool                csv_output_header;
+    bool                csv_tbname_alias;
 
     bool                bind_vgroup;
 } SArguments;

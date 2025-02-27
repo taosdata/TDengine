@@ -1619,6 +1619,23 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
         g_arguments->csv_ts_interval = "1d";
     }
 
+    // csv output header
+    g_arguments->csv_output_header = false;
+    tools_cJSON* oph = tools_cJSON_GetObjectItem(json, "csv_output_header");
+    if (oph && oph->type == tools_cJSON_String && oph->valuestring != NULL) {
+        if (0 == strcasecmp(oph->valuestring, "yes")) {
+            g_arguments->csv_output_header = true;
+        }
+    }
+
+    // csv tbname alias
+    tools_cJSON* tba = tools_cJSON_GetObjectItem(json, "csv_tbname_alias");
+    if (tba && tba->type == tools_cJSON_String && tba->valuestring != NULL) {
+        g_arguments->csv_tbname_alias = tba->valuestring;
+    } else {
+        g_arguments->csv_tbname_alias = "device_id";
+    }
+
     code = 0;
     return code;
 }

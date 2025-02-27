@@ -20,21 +20,48 @@
 
 
 typedef enum {
-    CSV_NAMING_SINGLE,
-    CSV_NAMING_TIME_SLICE,
-    CSV_NAMING_THREAD,
-    CSV_NAMING_THREAD_TIME_SLICE
+    CSV_NAMING_I_SINGLE,
+    CSV_NAMING_I_TIME_SLICE,
+    CSV_NAMING_B_THREAD,
+    CSV_NAMING_B_THREAD_TIME_SLICE
 } CsvNamingType;
 
 typedef struct {
+    char*           buf;
+    int             buf_size;
+    int             length;
+} CsvRowFieldsBuf;
+
+typedef struct {
     CsvNamingType   naming_type;
-    time_t          start_secs;
-    time_t          end_secs;
-    time_t          end_ts;
-    size_t          thread_id;
     size_t          total_threads;
     char            thread_formatter[TINY_BUFF_LEN];
+    SDataBase*      db;
+    SSuperTable*    stb;
+    int64_t         start_ts;
+    int64_t         end_ts;
+    int64_t         ts_step;
+    int64_t         interlace_step;
 } CsvWriteMeta;
+
+typedef struct {
+    uint64_t        ctb_start_idx;
+    uint64_t        ctb_end_idx;
+    uint64_t        ctb_count;
+    time_t          start_secs;
+    time_t          end_secs;
+    size_t          thread_id;
+    bool            output_header;
+    CsvRowFieldsBuf* tags_buf_bucket;
+    CsvRowFieldsBuf* cols_buf;
+} CsvThreadMeta;
+
+typedef struct {
+    CsvWriteMeta*   write_meta;
+    CsvThreadMeta   thread_meta;
+} CsvThreadArgs;
+
+
 
 
 
