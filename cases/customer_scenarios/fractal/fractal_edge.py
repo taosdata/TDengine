@@ -55,6 +55,7 @@ class FractalEdge(TDCase):
 
         for case_data in cases_data:
             print("case_data========",case_data)
+            case_data["name"] = self.tdCom.get_long_name(4)
             task_url = f'http://{self.host}:6050/api/x/tasks'
             print("task_url:",task_url)
             response = self.tdRest.request(data=case_data, method='POST', url=task_url,header=headers)
