@@ -25,6 +25,7 @@ class TDTestCase:
         tdSql.query("select * from d1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 120)
+        tdSql.checkData(0, 4, 2.32)
 
         tdSql.query("select * from d2")
         tdSql.checkRows(1)
