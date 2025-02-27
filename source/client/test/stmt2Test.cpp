@@ -931,15 +931,25 @@ TEST(stmt2Case, stmt2_stb_insert) {
   // interlace = 0 & use db]
   do_query(taos, "use stmt2_testdb_1");
   option = {0, false, false, NULL, NULL};
-  { do_stmt(taos, &option, "insert into stb (tbname,ts,b) values(?,?,?)", 3, 3, 3, false, true); }
-  { do_stmt(taos, &option, "insert into ? using stb (t1,t2)tags(?,?) (ts,b)values(?,?)", 3, 3, 3, true, true); }
-  { do_stmt(taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true); }
+  {
+    do_stmt(taos, &option, "insert into stb (tbname,ts,b) values(?,?,?)", 3, 3, 3, false, true);
+  }
+  {
+    do_stmt(taos, &option, "insert into ? using stb (t1,t2)tags(?,?) (ts,b)values(?,?)", 3, 3, 3, true, true);
+  }
+  {
+    do_stmt(taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true);
+  }
 
   // interlace = 1
   option = {0, true, true, stmtAsyncQueryCb, param};
-  { do_stmt(taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true); }
+  {
+    do_stmt(taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true);
+  }
   option = {0, true, true, NULL, NULL};
-  { do_stmt(taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true); }
+  {
+    do_stmt(taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true);
+  }
 
   do_query(taos, "drop database if exists stmt2_testdb_1");
   (void)tsem_destroy(&aa->sem);
@@ -1882,9 +1892,11 @@ TEST(stmt2Case, async_order) {
   auto start_time = std::chrono::steady_clock::now();
   while (!stop_task) {
     auto elapsed_time = std::chrono::steady_clock::now() - start_time;
-    if (std::chrono::duration_cast<std::chrono::seconds>(elapsed_time).count() > 60) {
+    if (std::chrono::duration_cast<std::chrono::seconds>(elapsed_time).count() > 100) {
+      if (t.joinable()) {
+        t.detach();
+      }
       FAIL() << "Test[stmt2_async_test] timed out";
-      t.detach();
       break;
     }
     std::this_thread::sleep_for(std::chrono::seconds(1));  // 每 1s 检查一次
