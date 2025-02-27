@@ -775,11 +775,9 @@ condition = { platforms = [ "linux" ] }
 cwd = "explorer"
 script_runner = "bash"
 script = """
-docker build --no-cache -t explorer-builder-image .
-docker create --name explorer-builder explorer-builder-image
-docker cp explorer-builder:/app/dist ./dist
-docker rm explorer-builder
-docker rmi explorer-builder-image
+docker pull node:22.3.0
+chmod +x ./build.sh
+docker run -it --rm -v $(pwd):/app node:22.3.0 bash /app/build.sh
 """
 
 [tasks.explorer]
