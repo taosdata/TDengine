@@ -894,13 +894,32 @@ static bool findFileds(SSchema* pSchema, TAOS_FIELD* fields, int numFields) {
   return false;
 }
 
-int32_t checkSchema(SSchema* pColSchema, int8_t* fields, char* errstr, int32_t errstrLen) {
+int32_t checkSchema(SSchema* pColSchema, SSchemaExt* pColExtSchema, int8_t* fields, char* errstr, int32_t errstrLen) {
   if (*fields != pColSchema->type) {
     if (errstr != NULL)
       snprintf(errstr, errstrLen, "column type not equal, name:%s, schema type:%s, data type:%s", pColSchema->name,
                tDataTypes[pColSchema->type].name, tDataTypes[*fields].name);
     return TSDB_CODE_INVALID_PARA;
   }
+
+  if (IS_DECIMAL_TYPE(pColSchema->type)) {
+    uint8_t precision = 0, scale = 0;
+    decimalFromTypeMod(pColExtSchema->typeMod, &precision, &scale);
+    uint8_t precisionData = 0, scaleData  = 0;
+    int32_t bytes = *(int32_t*)(fields + sizeof(int8_t));
+    extractDecimalTypeInfoFromBytes(&bytes, &precisionData, &scaleData);
+    if (precision != precisionData || scale != scaleData) {
+      if (errstr != NULL)
+        snprintf(errstr, errstrLen,
+                 "column decimal type not equal, name:%s, schema type:%s, precision:%d, scale:%d, data type:%s, "
+                 "precision:%d, scale:%d",
+                 pColSchema->name, tDataTypes[pColSchema->type].name, precision, scale, tDataTypes[*fields].name,
+                 precisionData, scaleData);
+      return TSDB_CODE_INVALID_PARA;
+    }
+    return 0;
+  }
+
   if (IS_VAR_DATA_TYPE(pColSchema->type) && *(int32_t*)(fields + sizeof(int8_t)) > pColSchema->bytes) {
     if (errstr != NULL)
       snprintf(errstr, errstrLen,
@@ -922,7 +941,7 @@ int32_t checkSchema(SSchema* pColSchema, int8_t* fields, char* errstr, int32_t e
 }
 
 #define PRCESS_DATA(i, j)                                                                                 \
-  ret = checkSchema(pColSchema, fields, errstr, errstrLen);                                               \
+  ret = checkSchema(pColSchema, pColExtSchema, fields, errstr, errstrLen);                                               \
   if (ret != 0) {                                                                                         \
     goto end;                                                                                             \
   }                                                                                                       \
@@ -1021,7 +1040,8 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
 
   char* pStart = p;
 
-  SSchema*       pSchema = getTableColumnSchema(pTableCxt->pMeta);
+  SSchema*          pSchema     = getTableColumnSchema(pTableCxt->pMeta);
+  SSchemaExt*       pExtSchemas = getTableColumnExtSchema(pTableCxt->pMeta);
   SBoundColInfo* boundInfo = &pTableCxt->boundColsInfo;
 
   if (tFields != NULL && numFields != numOfCols) {
@@ -1035,12 +1055,14 @@ int rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreate
     int32_t len = TMIN(numOfCols, boundInfo->numOfBound);
     for (int j = 0; j < len; j++) {
       SSchema* pColSchema = &pSchema[j];
+      SSchemaExt* pColExtSchema = &pExtSchemas[j];
       PRCESS_DATA(j, j)
     }
   } else {
     for (int i = 0; i < numFields; i++) {
       for (int j = 0; j < boundInfo->numOfBound; j++) {
         SSchema* pColSchema = &pSchema[j];
+        SSchemaExt* pColExtSchema = &pExtSchemas[j];
         char*    fieldName = NULL;
         if (raw) {
           fieldName = ((SSchemaWrapper*)tFields)->pSchema[i].name;
