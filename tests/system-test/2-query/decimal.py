@@ -9,8 +9,6 @@ import threading
 import secrets
 
 from regex import D, F
-from sympy import Dict, true
-from torch import is_conj
 import query
 from tag_lite import column
 from util.log import *
@@ -169,7 +167,7 @@ class TaosShell:
                     col += 1
 
     def query(self, sql: str):
-        with open(self.tmp_file_path, "r+") as f:
+        with open(self.tmp_file_path, "a+") as f:
             f.truncate(0)
         try:
             command = f'taos -s "{sql} >> {self.tmp_file_path}"'
@@ -359,7 +357,7 @@ class DataType:
             or self.type == TypeEnum.NCHAR
             or self.type == TypeEnum.VARBINARY
         ):
-            return f"'{secrets.token_urlsafe(random.randint(0, self.length))[0:random.randint(0, self.length)]}'"
+            return f"'{str(random.random())[0:self.length]}'"
         if self.type == TypeEnum.TIMESTAMP:
             return str(secrets.randbelow(9223372036854775808))
         if self.type == TypeEnum.UTINYINT:
@@ -527,6 +525,22 @@ class Column:
             return f"'{val}'"
         else:
             return val
+    
+    @staticmethod
+    def get_decimal_unsupported_types() -> list:
+        return [
+            TypeEnum.JSON,
+            TypeEnum.GEOMETRY,
+            TypeEnum.VARBINARY,
+        ]
+    
+    @staticmethod
+    def get_decimal_oper_const_cols() -> list:
+        return Column.get_all_type_columns(Column.get_decimal_unsupported_types() + Column.get_decimal_types())
+    
+    @staticmethod
+    def get_decimal_types() -> List:
+        return [TypeEnum.DECIMAL, TypeEnum.DECIMAL64]
 
     @staticmethod
     def get_all_type_columns(types_to_exclude: List[TypeEnum] = []) -> List:
@@ -552,11 +566,16 @@ class Column:
             Column(DataType(TypeEnum.GEOMETRY, 10240)),
             Column(DecimalType(TypeEnum.DECIMAL64, 18, 4)),
         ]
+        ret = []
         for c in all_types:
+            found = False
             for type in types_to_exclude:
                 if c.type_.type == type:
-                    all_types.remove(c)
-        return all_types
+                    found = True
+                    break
+            if not found:
+                ret.append(c)
+        return ret
 
 
 class DecimalColumnTableCreater:
@@ -690,11 +709,23 @@ class DecimalBinaryOperator(DecimalColumnExpr):
 
     @staticmethod
     def execute_plus(params):
+        ret_float = False
         if params[0] is None or params[1] is None:
             return 'NULL'
         if isinstance(params[0], float) or isinstance(params[1], float):
-            return float(params[0]) + float(params[1])
-        return Decimal(params[0]) + Decimal(params[1])
+            ret_float = True
+        left = params[0]
+        right = params[1]
+        if isinstance(params[0], str):
+            left = left.strip("'")
+            ret_float = True
+        if isinstance(params[1], str):
+            right = right.strip("'")
+            ret_float = True
+        if ret_float:
+            return float(left) + float(right)
+        else:
+            return Decimal(left) + Decimal(right)
 
     @staticmethod
     def execute_minus(params):
@@ -1228,7 +1259,7 @@ class TDTestCase:
             # DecimalBinaryOperatorIn("in"),
             # DecimalBinaryOperatorIn("not in"),
         ]
-        all_type_columns = Column.get_all_type_columns()
+        all_type_columns = Column.get_decimal_oper_const_cols()
 
         ## decimal operator with constants of all other types
         self.check_decimal_binary_expr_results(
