@@ -1892,7 +1892,7 @@ TEST(stmt2Case, async_order) {
   auto start_time = std::chrono::steady_clock::now();
   while (!stop_task) {
     auto elapsed_time = std::chrono::steady_clock::now() - start_time;
-    if (std::chrono::duration_cast<std::chrono::seconds>(elapsed_time).count() > 100) {
+    if (std::chrono::duration_cast<std::chrono::seconds>(elapsed_time).count() > 60) {
       if (t.joinable()) {
         t.detach();
       }

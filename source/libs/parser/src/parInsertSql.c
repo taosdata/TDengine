@@ -1324,12 +1324,18 @@ static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt
 
   NEXT_TOKEN_KEEP_SQL(pStmt->pSql, token, index);
 
-  code = getTargetTableSchema(pCxt, pStmt);
-  if (token.type != TK_USING) {
-    return code;
-  } else if ((!pCxt->missCache) && (TSDB_CODE_SUCCESS == code) && (!pCxt->isStmtBind)) {
-    pStmt->pSql += index;
-    return ignoreUsingClause(pCxt, pStmt);
+  if (pCxt->isStmtBind) {
+    if (token.type != TK_USING) {
+      return getTargetTableSchema(pCxt, pStmt);
+    }
+  } else {
+    code = getTargetTableSchema(pCxt, pStmt);
+    if (token.type != TK_USING) {
+      return code;
+    } else if ((!pCxt->missCache) && (TSDB_CODE_SUCCESS == code) && (!pCxt->isStmtBind)) {
+      pStmt->pSql += index;
+      return ignoreUsingClause(pCxt, pStmt);
+    }
   }
 
   pStmt->usingTableProcessing = true;
