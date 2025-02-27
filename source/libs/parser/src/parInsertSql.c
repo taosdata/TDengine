@@ -35,6 +35,8 @@ typedef struct SInsertParseContext {
 } SInsertParseContext;
 
 typedef int32_t (*_row_append_fn_t)(SMsgBuf* pMsgBuf, const void* value, int32_t len, void* param);
+static int32_t parseBoundTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt);
+static int32_t parseTagsClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool autoCreate);
 
 static uint8_t TRUE_VALUE = (uint8_t)TSDB_TRUE;
 static uint8_t FALSE_VALUE = (uint8_t)TSDB_FALSE;
@@ -102,33 +104,19 @@ static int32_t skipTableOptions(SInsertParseContext* pCxt, const char** pSql) {
 }
 
 // pSql -> stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)
-static int32_t ignoreUsingClause(SInsertParseContext* pCxt, const char** pSql) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  SToken  token;
+static int32_t ignoreUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+  const char** pSql = &pStmt->pSql;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SToken       token;
   NEXT_TOKEN(*pSql, token);
-
-  NEXT_TOKEN(*pSql, token);
-  if (TK_NK_LP == token.type) {
-    code = skipParentheses(pCxt, pSql);
-    if (TSDB_CODE_SUCCESS == code) {
-      NEXT_TOKEN(*pSql, token);
-    }
+  code = parseBoundTagsClause(pCxt, pStmt);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
   }
-
   // pSql -> TAGS (tag1_value, ...)
-  if (TSDB_CODE_SUCCESS == code) {
-    if (TK_TAGS != token.type) {
-      code = buildSyntaxErrMsg(&pCxt->msg, "TAGS is expected", token.z);
-    } else {
-      NEXT_TOKEN(*pSql, token);
-    }
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    if (TK_NK_LP != token.type) {
-      code = buildSyntaxErrMsg(&pCxt->msg, "( is expected", token.z);
-    } else {
-      code = skipParentheses(pCxt, pSql);
-    }
+  code = parseTagsClause(pCxt, pStmt, true);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -151,10 +139,11 @@ static int32_t parseDuplicateUsingClause(SInsertParseContext* pCxt, SVnodeModify
   if (NULL != pMeta) {
     *pDuplicate = true;
     pCxt->missCache = false;
-    code = ignoreUsingClause(pCxt, &pStmt->pSql);
-    if (TSDB_CODE_SUCCESS == code) {
-      return cloneTableMeta(*pMeta, &pStmt->pTableMeta);
+    code = cloneTableMeta(*pMeta, &pStmt->pTableMeta);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
     }
+    return ignoreUsingClause(pCxt, pStmt);
   }
 
   return code;
@@ -1104,14 +1093,14 @@ static int32_t parseTableOptions(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
 // output pStmt->pSql:
 //   1. [(field1_name, ...)]
 //   2. VALUES ... | FILE ...
-static int32_t parseUsingClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool autoCreate) {
+static int32_t parseUsingClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   if (!pStmt->usingTableProcessing || pCxt->usingDuplicateTable) {
     return TSDB_CODE_SUCCESS;
   }
 
   int32_t code = parseBoundTagsClause(pCxt, pStmt);
   if (TSDB_CODE_SUCCESS == code) {
-    code = parseTagsClause(pCxt, pStmt, autoCreate);
+    code = parseTagsClause(pCxt, pStmt, false);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = parseTableOptions(pCxt, pStmt);
@@ -1339,14 +1328,8 @@ static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   if (token.type != TK_USING) {
     return code;
   } else if ((!pCxt->missCache) && (TSDB_CODE_SUCCESS == code)) {
-    code = parseBoundTagsClause(pCxt, pStmt);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = parseTagsClause(pCxt, pStmt, true);
-    }
-    if (TSDB_CODE_SUCCESS == code) {
-      code = parseTableOptions(pCxt, pStmt);
-    }
-    return ignoreUsingClause(pCxt, &pStmt->pSql);
+    pStmt->pSql += index;
+    return ignoreUsingClause(pCxt, pStmt);
   }
 
   pStmt->usingTableProcessing = true;
@@ -1491,7 +1474,7 @@ int32_t initTableColSubmitDataWithBoundInfo(STableDataCxt* pTableCxt, SBoundColI
 // output pStmt->pSql: VALUES ... | FILE ...
 static int32_t parseSchemaClauseBottom(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt,
                                        STableDataCxt** pTableCxt) {
-  int32_t code = parseUsingClauseBottom(pCxt, pStmt, false);
+  int32_t code = parseUsingClauseBottom(pCxt, pStmt);
   if (TSDB_CODE_SUCCESS == code) {
     code = getTableDataCxt(pCxt, pStmt, pTableCxt);
   }

@@ -92,7 +92,7 @@ class TDTestCase(TBase):
         tdSql.query("select * from t_3")
         tdSql.checkRows(4)
 
-        tdLog.info("start to insert multi rows with auto create and direct insert...")
+        tdLog.info("start to insert multi rows with auto create into same table...")
         tdSql.execute("INSERT INTO t_10 USING stb TAGS (10) VALUES ('2024-01-01 00:00:04', 1, 2.0, 'test'),t_10 USING stb TAGS (10) VALUES ('2024-01-01 00:00:05', 1, 2.0, 'test'),")
         tdSql.query("select * from t_10")
         tdSql.checkRows(2)
@@ -129,6 +129,19 @@ class TDTestCase(TBase):
         tdSql.query("select * from t_6")
         tdSql.checkRows(1)
 
+    def check_tag_parse_error_with_cache(self):
+        tdLog.info(f"check tag parse error with cache")
+        tdSql.execute("USE test")
+        tdSql.execute("INSERT INTO t_7 USING stb TAGS (7) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test')")
+        tdSql.error("INSERT INTO t_7 USING stb TAGS ('ddd') VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test')", expectErrInfo="syntax error")
+        tdSql.query("select * from t_7")
+        tdSql.checkRows(1)
+
+    def check_duplicate_table_with_err_tag(self):
+        tdLog.info(f"check tag parse error with cache")
+        tdSql.execute("USE test")
+        tdSql.error("INSERT INTO t_8 USING stb TAGS (8) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test') t_8 USING stb TAGS (ddd) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test')", expectErrInfo="syntax error")
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -153,6 +166,12 @@ class TDTestCase(TBase):
 
         # check same table same ts
         self.check_same_table_same_ts()
+
+        # check tag parse error with cache
+        self.check_tag_parse_error_with_cache()
+
+        # check duplicate table with err tag
+        self.check_duplicate_table_with_err_tag()
         
         tdLog.success(f"{__file__} successfully executed")
 
