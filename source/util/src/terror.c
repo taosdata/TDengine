@@ -759,7 +759,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLS_FUNCTION,      "Invalid cols functi
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLS_SELECTFUNC,    "cols function's first param must be a select function that output a single row")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MULITI_COLS_FUNC,       "Improper use of cols function with multiple output columns")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_COLS_ALIAS,             "Invalid using alias for cols function")
-
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REF_COLUMN,         "Invalid virtual table's ref column")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLUMN,             "Invalid table type")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,    "Invalid ref column type")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_MISMATCH_STABLE_TYPE,       "Create child table using virtual super table")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 
 //planner
@@ -767,6 +770,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,            "Planner internal er
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_EXPECTED_TS_EQUAL,         "Expect ts equal")
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN,    "Cross join not support")
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND,     "Not supported join conditions")
+TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_SLOT_NOT_FOUND,            "Planner slot key not found")
 
 //function
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_ERROR,            "Function internal error")
@@ -894,6 +898,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_NOT_FORMAT_TO_JSON,       "can't format to jso
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_FAIL_SEND_AUDIT_RECORD,   "Failed to send out audit record")
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_FAIL_GENERATE_JSON,       "Failed to generate json")
 
+// VTABLE
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR,     "Virtual table scan internal error")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_SCAN_INVALID_DOWNSTREAM, "Virtual table scan invalid downstream operator type")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_PRIMTS_HAS_REF,          "Virtual table prim timestamp column should not has ref column")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_NOT_VIRTUAL_SUPER_TABLE, "Create virtual child table must use virtual super table")
 #ifdef TAOS_ERROR_C
 };
 #endif

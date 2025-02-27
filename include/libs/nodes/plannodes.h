@@ -163,6 +163,19 @@ typedef struct SJoinLogicNode {
   SNode*      pRightOnCond;     // table onCond filter
 } SJoinLogicNode;
 
+typedef struct SVirtualScanLogicNode {
+  SLogicNode    node;
+  bool          scanAllCols;
+  SNodeList*    pScanCols;
+  SNodeList*    pScanPseudoCols;
+  int8_t        tableType;
+  uint64_t      tableId;
+  uint64_t      stableId;
+  SVgroupsInfo* pVgroupList;
+  EScanType     scanType;
+  SName         tableName;
+} SVirtualScanLogicNode;
+
 typedef struct SAggLogicNode {
   SLogicNode node;
   SNodeList* pGroupKeys;
@@ -240,10 +253,15 @@ typedef struct SDynQueryCtrlStbJoin {
   bool       srcScan[2];
 } SDynQueryCtrlStbJoin;
 
+typedef struct SDynQueryCtrlVtbScan {
+  SVgroupsInfo* pVgroupList;
+} SDynQueryCtrlVtbScan;
+
 typedef struct SDynQueryCtrlLogicNode {
   SLogicNode           node;
   EDynQueryType        qType;
   SDynQueryCtrlStbJoin stbJoin;
+  SDynQueryCtrlVtbScan vtbScan;
 } SDynQueryCtrlLogicNode;
 
 typedef enum EModifyTableType { MODIFY_TABLE_TYPE_INSERT = 1, MODIFY_TABLE_TYPE_DELETE } EModifyTableType;
@@ -457,6 +475,14 @@ typedef struct STagScanPhysiNode {
 
 typedef SScanPhysiNode SBlockDistScanPhysiNode;
 
+typedef struct SVirtualScanPhysiNode {
+  SScanPhysiNode scan;
+  SNodeList*     pGroupTags;
+  bool           groupSort;
+  bool           scanAllCols;
+  SNodeList*     pTargets;
+}SVirtualScanPhysiNode;
+
 typedef struct SLastRowScanPhysiNode {
   SScanPhysiNode scan;
   SNodeList*     pGroupTags;
@@ -610,11 +636,18 @@ typedef struct SStbJoinDynCtrlBasic {
   bool    srcScan[2];
 } SStbJoinDynCtrlBasic;
 
+typedef struct SVtbScanDynCtrlBasic {
+  uint64_t   suid;
+  int32_t    dbNums;
+  SDBVgInfo *pVgInfo;
+} SVtbScanDynCtrlBasic;
+
 typedef struct SDynQueryCtrlPhysiNode {
   SPhysiNode    node;
   EDynQueryType qType;
   union {
     SStbJoinDynCtrlBasic stbJoin;
+    SVtbScanDynCtrlBasic vtbScan;
   };
 } SDynQueryCtrlPhysiNode;
 
