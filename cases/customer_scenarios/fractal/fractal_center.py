@@ -12,7 +12,7 @@ class FractalCenter(TDCase):
         # TODO 外部传入edge侧的hostname，可能有多个
         self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
-        self.fqdn = self.taosd_setting["fqdn"]
+        self.fqdn = self.taosd_setting["fqdn"][0]
         self.case_config = json.load(open(os.path.join(self.env_root, "workflow_config.json")))
         self.db_config = self.case_config["db_config"]
         self.case_data_org = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/config.yaml')
