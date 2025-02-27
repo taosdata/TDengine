@@ -1,0 +1,63 @@
+import json
+import os
+from taostest import TDCase, T
+from taostest.util.common import TDCom
+from taostest.util.rest import TDRest
+from taostest.util.remote import Remote
+from taostest.performance.perfor_basic import QueryFile
+from taostest.performance.result_reduction import Perf_Base_func
+
+class FractalQuery(TDCase):
+    def init(self):
+        self.tdCom = TDCom(self.tdSql, self.env_setting)
+        self.tdRest = TDRest(env_setting=self.env_setting)
+        self.query_file_name = "query.json"
+        self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
+        self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
+        self.fqdn = self.taosd_setting["fqdn"]
+        self.case_config = json.load(open(os.path.join(self.env_root, "workflow_config.json")))
+        self.taosBenchmark_config = self.case_config["query_config"]
+        json_file_path = f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/{self.query_file_name}'
+        self._remote: Remote = Remote(self.logger)
+        self.query_host = self.case_config["center_dnode_hosts"][0]
+        self.taosBenchmark_config["host"] = self.query_host
+        self.taosBenchmark_config["databases"] = "center_db"
+
+        self.tdCom.config_query_json(self._remote, json_file_path, self.taosBenchmark_config)
+        self.tdCom.api_type = 'restful'
+        self.taosBenchmark_iplist = self.get_fqdn("taosBenchmark")
+        self.jfile = QueryFile()
+        self.query_file = Perf_Base_func(self.logger, self.run_log_dir)
+
+
+    def cleanup(self) -> None:
+        pass
+
+    def run(self):
+        json_info = json.load(open(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/{self.query_file_name}'))
+        self.jfile.genBenchmarkJson(self.run_log_dir, self.query_file_name, json_info)
+        self.query_file.put_file(self.taosBenchmark_iplist, json_info, self.query_file_name)
+        result_file_name = self.run_log_dir + '/perf_report.txt'
+        f = open(result_file_name, 'a')
+        f.write("********** query result ***********\n")
+        f.close()
+        # run taosBenchmark and get result file
+        taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
+        result_filename = self.query_file.threads_run_taosBenchmark(self.taosBenchmark_iplist, json_info, self.query_file_name, taosBenchmark_env_setting)
+
+        # get query result
+        self.query_file.get_summary_query_result(result_filename)
+        self.query_file.get_taosBenchmark_query_process_info(result_filename)
+
+
+    def desc(self) -> str:
+        case_description = """
+            fractal-query
+        """
+        return case_description
+
+    def author(self) -> str:
+        return "Jayden Jia"
+
+    def tags(self):
+        return T.Query
