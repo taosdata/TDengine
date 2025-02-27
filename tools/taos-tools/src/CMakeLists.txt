@@ -78,7 +78,6 @@ ADD_DEFINITIONS(-DBUILD_INFO="${BUILD_INFO}")
 MESSAGE(STATUS "build:${BUILD_INFO}")
 MESSAGE("")
 
-
 #
 # build proj
 #
@@ -88,15 +87,8 @@ INCLUDE_DIRECTORIES(/usr/local/taos/include)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_LIST_DIR}/../deps/avro/lang/c/src)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_LIST_DIR}/../deps/toolscJson/src)
 
-if(NOT DEFINED TD_VER_COMPATIBLE)
-    SET(TD_VER_COMPATIBLE "3.0.0.0")
-ENDIF()
-
-IF (${TD_VER_COMPATIBLE} STRGREATER_EQUAL "3.0.0.0")
-    INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/contrib/pthread)
-    INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/contrib/msvcregex)
-    ADD_DEFINITIONS(-DTD_VER_COMPATIBLE_3_0_0_0)
-ENDIF ()
+INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/contrib/pthread)
+INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/contrib/msvcregex)
 
 MESSAGE("Current system is: ${CMAKE_SYSTEM_NAME}")
 
@@ -128,22 +120,14 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
         ADD_DEPENDENCIES(deps-snappy apache-avro)
         ADD_DEPENDENCIES(taosdump deps-jansson)
         ADD_DEPENDENCIES(taosdump deps-snappy)
-        IF (${TD_VER_COMPATIBLE} STRGREATER_EQUAL "3.0.0.0")
-            ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
-        ELSE()
-            ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchSubscribe.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
-        ENDIF()
+        ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
     ELSE ()
         INCLUDE_DIRECTORIES(/usr/local/include)
         ADD_DEFINITIONS(-DDARWIN)
         LINK_DIRECTORIES(/usr/local/lib)
         SET(OS_ID "Darwin")
 
-        IF (${TD_VER_COMPATIBLE} STRGREATER_EQUAL "3.0.0.0")
-            ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
-        ELSE()
-            ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchSubscribe.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
-        ENDIF()
+        ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
     ENDIF ()
 
     # websocket
@@ -337,11 +321,7 @@ ELSE ()
     SET(CMAKE_C_STANDARD 11)
     SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /utf-8")
     SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /utf-8")
-    IF (${TD_VER_COMPATIBLE} STRGREATER_EQUAL "3.0.0.0")
-        ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsString.c toolsSys.c toolsString.c)
-    ELSE ()
-        ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchSubscribe.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
-    ENDIF ()
+    ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsString.c toolsSys.c toolsString.c)
 
     ADD_EXECUTABLE(taosdump taosdump.c dumpUtil.c wsdump.c toolsSys.c toolstime.c toolsDir.c toolsString.c)
     ADD_DEPENDENCIES(apache-avro tools-zlib)
