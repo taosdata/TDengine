@@ -267,7 +267,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   code =
       rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusInterval * 5 * 1000);
   if (code != 0) {
-    dError("failed to send status req since %s", tstrerror(code));
+    dError("failed to SendRecv with timeout %d status req since %s", tsStatusInterval * 5 * 1000, tstrerror(code));
     return;
   }
 
@@ -275,7 +275,8 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
     dmRotateMnodeEpSet(pMgmt->pData);
     char tbuf[512];
     dmEpSetToStr(tbuf, sizeof(tbuf), &epSet);
-    dError("failed to send status req since %s, epSet:%s, inUse:%d", tstrerror(rpcRsp.code), tbuf, epSet.inUse);
+    dInfo("Rotate mnode ep set since failed to SendRecv status req %s, epSet:%s, inUse:%d", tstrerror(rpcRsp.code),
+          tbuf, epSet.inUse);
   } else {
     if (epUpdated == 1) {
       dmSetMnodeEpSet(pMgmt->pData, &epSet);
@@ -403,7 +404,7 @@ void dmSendConfigReq(SDnodeMgmt *pMgmt) {
   code =
       rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusInterval * 5 * 1000);
   if (code != 0) {
-    dError("failed to send status req since %s", tstrerror(code));
+    dError("failed to SendRecv config req with timeout %d since %s", tsStatusInterval * 5 * 1000, tstrerror(code));
     return;
   }
   if (rpcRsp.code != 0) {
