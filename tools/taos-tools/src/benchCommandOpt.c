@@ -245,9 +245,8 @@ void initArgument() {
     g_arguments->trying_interval = 0;
     g_arguments->iface = TAOSC_IFACE;
     g_arguments->rest_server_ver_major = -1;
-#ifdef TD_VER_COMPATIBLE_3_0_0_0
     g_arguments->inputted_vgroups = -1;
-#endif
+
     g_arguments->mistMode = false;
 
     initDatabase();
