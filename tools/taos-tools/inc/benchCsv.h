@@ -41,6 +41,8 @@ typedef struct {
     CsvNamingType   naming_type;
     size_t          total_threads;
     char            thread_formatter[TINY_BUFF_LEN];
+    char            csv_header[LARGE_BUFF_LEN];
+    int             csv_header_length;
     SDataBase*      db;
     SSuperTable*    stb;
     int64_t         start_ts;
