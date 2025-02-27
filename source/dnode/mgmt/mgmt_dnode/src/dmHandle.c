@@ -167,6 +167,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   int32_t    code = 0;
   SStatusReq req = {0};
+  req.timestamp = taosGetTimestampMs();
 
   dDebug("send status req to mnode, statusSeq:%d, begin to mgnt lock", pMgmt->statusSeq);
   (void)taosThreadRwlockRdlock(&pMgmt->pData->lock);

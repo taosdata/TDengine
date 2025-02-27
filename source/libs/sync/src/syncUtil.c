@@ -116,7 +116,7 @@ static void syncPrintTime(bool formatTime, int32_t* len, int64_t tsMs, int32_t i
   if (formatTime) {
     char pBuf[TD_TIME_STR_LEN] = {0};
     if (tsMs > 0) {
-      if (taosFormatUtcTime(pBuf, TD_TIME_STR_LEN, tsMs, TSDB_TIME_PRECISION_MILLI) != 0) {
+      if (formatTimestampLocal(pBuf, tsMs, TSDB_TIME_PRECISION_MILLI) == NULL) {
         pBuf[0] = '\0';
       }
     }
