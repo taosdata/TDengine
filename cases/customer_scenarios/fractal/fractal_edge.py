@@ -14,14 +14,14 @@ class FractalEdge(TDCase):
         self.tdCom = TDCom(self.tdSql, self.env_setting)
         self.tdRest = TDRest(env_setting=self.env_setting)
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
-        self.hosts = self.taosd_setting["fqdn"][0]
+        self.host = self.taosd_setting["fqdn"][0]
         self.tdCom.api_type = 'restful'
         self.target_dbname = "mqtt_datain"
 
     def cleanup(self) -> None:
         pass
 
-    def set_mqtt_datain_payload(self,hostname='localhost'):
+    def set_mqtt_datain_payload(self,hostname='localhost',target_dbname='mqtt_datain'):
         task_list = []
         case_data_org = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/config.yaml')
         case_data_org = case_data_org["from"]
@@ -41,36 +41,35 @@ class FractalEdge(TDCase):
                                 topic_patterns={case_data_org["topic_patterns"][mqtt_num]}'
             # mqtt_payload
             task_data["parser"] = mqtt_payload["parser"]
-            task_data["to"] = f"taos+ws://{hostname}:6041/{self.target_dbname}"
+            task_data["to"] = f"taos+ws://{hostname}:6041/{target_dbname}"
             task_list.append(task_data)
 
         return task_list
     def run(self):
         headers = {"Content-Type": "application/json"}
         task_list = []
-        cases_data = self.set_mqtt_datain_payload(hostname=self.host)
+        cases_data = self.set_mqtt_datain_payload(hostname=self.host,target_dbname=self.target_dbname)
         # 在edge侧创建数据库 mqtt_datain
         self.tdCom.createDb(self.target_dbname,self.db_config)
         # 创建4个mqtt datain任务
 
         for case_data in cases_data:
-            response = self.tdRest.request(data=case_data, method='POST', url=f'http://{hostname}:6050/api/x/tasks',header=headers)
+            response = self.tdRest.request(data=case_data, method='POST', url=f'http://{self.host}:6050/api/x/tasks',header=headers)
             task_info = response.json()
             task_list.append(task_info["id"])
 
         time.sleep(self.execute_time)
-        for hostname in self.hosts:
-            for task_id in task_list:
-                self.tdRest.request(data=None, method='POST', url=f'http://{hostname}:6050/api/x/tasks/{task_id}/stop',header=headers)
+        
+        for task_id in task_list:
+            self.tdRest.request(data=None, method='POST', url=f'http://{self.host}:6050/api/x/tasks/{task_id}/stop',header=headers)
 
         # TODO 等待任务结束，后面换成获取任务状态的方式
         time.sleep(15)
         # TODO 获取每个任务的metrics并保存下来
-        for hostname in self.hosts:
-            for task_id in task_list:
-                response = self.tdRest.request(data=None, method='GET', url=f'http://{hostname}:6050/api/x/tasks/{task_id}/metrics',header=headers)
-                metrics = response.json()
-                print(metrics)
+        for task_id in task_list:
+            response = self.tdRest.request(data=None, method='GET', url=f'http://{self.host}:6050/api/x/tasks/{task_id}/metrics',header=headers)
+            metrics = response.json()
+            print(metrics)
 
     def desc(self) -> str:
         case_description = """
