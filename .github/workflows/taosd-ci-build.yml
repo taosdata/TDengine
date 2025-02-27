@@ -150,8 +150,8 @@ jobs:
         if: runner.os == 'Windows'
         shell: cmd
         run: |
-          start /b C:/TDengine/taosd.exe > log_taosd.txt
-          start /b C:/TDengine/taosaadapter.exe > log_taosadapter.txt
+          start /b C:/TDengine/taosd.exe 
+          start /b C:/TDengine/taosaadapter.exe 
 
       - name: Run tests with taosBenchmark 
         run: |
