@@ -24,12 +24,12 @@ class FractalEdge(TDCase):
     def set_mqtt_datain_payload(self,hostname='localhost',target_dbname='mqtt_datain'):
         task_list = []
         case_data_org = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/config.yaml')
-        case_data_org = case_data_org["from"]
+        case_data_from = case_data_org["from"]
         for mqtt_num in range(len(case_data_org["topics"])):
             task_data = {}
             mqtt_payload = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/parser.yaml')
             mqtt_payload = mqtt_payload["parser"]
-            mqtt_payload["parser"]["s_model"]["name"] = f'site_{case_data_org["topics"][mqtt_num]}_{hostname}'
+            mqtt_payload["parser"]["s_model"]["name"] = f'site_{case_data_from["topics"][mqtt_num]}_{hostname}'
             child_table_model = mqtt_payload["parser"]["model"]["name"]
             mqtt_payload["parser"]["model"]["name"] = f"{child_table_model}_{hostname}"
             cliend_id = self.tdCom.get_long_name(4)
@@ -37,11 +37,13 @@ class FractalEdge(TDCase):
                                 client_id={cliend_id}& \
                                 keep_alive=60& \
                                 clean_session=true& \
-                                topics={case_data_org["topics"][mqtt_num]}::0\
-                                topic_patterns={case_data_org["topic_patterns"][mqtt_num]}'
+                                topics={case_data_from["topics"][mqtt_num]}::0\
+                                topic_patterns={case_data_from["topic_patterns"][mqtt_num]}'
             # mqtt_payload
             task_data["parser"] = mqtt_payload["parser"]
             task_data["to"] = f"taos+ws://{hostname}:6041/{target_dbname}"
+            task_data["labels"] = case_data_org["labels"]
+            print("task_data:",task_data)
             task_list.append(task_data)
 
         return task_list

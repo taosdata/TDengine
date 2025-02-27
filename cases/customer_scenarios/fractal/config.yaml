@@ -8,3 +8,4 @@ from:
                   "_/_/site_controller_id/source_device_type/source_device_id/point_name/data_type",
                   "_/_/site_controller_id/_/unit_controller_id/_/point_name/data_type",
                   "_/_/site_controller_id/_/unit_controller_id/source_device_type/source_device_id/point_name/data_type"]
+labels: ["cluster-id::5489279802579322686","type::datain","user::root"]
