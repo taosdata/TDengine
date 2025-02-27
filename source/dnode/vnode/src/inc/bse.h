@@ -99,6 +99,7 @@ typedef struct {
   int32_t      blockId;
   uint64_t     initSeq;
   uint8_t      commited;
+  uint8_t      fileOpened;
 } STable;
 
 typedef struct {
@@ -134,7 +135,8 @@ typedef struct {
 typedef struct {
   char    path[TSDB_FILENAME_LEN];
   int64_t ver;
-  STable *pTable;
+  STable *pTable[2];
+  uint8_t inUse;
 
   TdThreadMutex  mutex;
   TdThreadRwlock rwlock;

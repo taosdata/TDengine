@@ -618,7 +618,7 @@ static int32_t inline updateSubmitData(SSubmitTbData *pSubmitTbData, STSchema *p
             memcpy(colVal.value.pData, &seq, sizeof(uint64_t));
           }
         } else {
-          ASSERT(0);
+          // ASSERT(0);
         }
       }
     }
@@ -844,7 +844,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
   // commit if need
   if (needCommit) {
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), ver);
-    bseCommit(pVnode->pBse);
+    // bseCommit(pVnode->pBse);
     code = vnodeAsyncCommit(pVnode);
     if (code) {
       vError("vgId:%d, failed to vnode async commit since %s.", TD_VID(pVnode), tstrerror(terrno));

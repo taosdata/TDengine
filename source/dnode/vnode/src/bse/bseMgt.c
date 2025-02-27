@@ -54,7 +54,7 @@ static char *bseFilexSuffix[] = {
     "data",
     "log",
 };
-static int32_t kBlockCap = 10 * 1024 * 1024;
+static int32_t kBlockCap = 128 * 1024 * 1024;
 
 static void bseBuildDataFullName(SBse *pBse, int64_t ver, char *name);
 static void bseBuildIndexFullName(SBse *pBse, int64_t ver, char *name);
@@ -64,8 +64,8 @@ static int32_t bseFindCurrMetaVer(SBse *pBse);
 
 static int32_t bseRecover(SBse *pBse);
 
-static int32_t tableOpen(const char *name, STable **pTable);
-static int32_t tableClose(STable *pTable);
+static int32_t tableOpen(const char *name, STable **pTable, uint8_t openFile);
+static int32_t tableClose(STable *pTable, uint8_t clear);
 static int32_t tableAppendData(STable *pTable, uint64_t key, uint8_t *value, int32_t len);
 static int32_t tableGet(STable *pTable, uint64_t offset, uint64_t key, uint8_t **pValue, int32_t *len);
 static int32_t tableFlushBlock(STable *pTable);
@@ -174,7 +174,6 @@ int32_t blockAdd(SBlkData *blk, uint64_t key, uint8_t *value, int32_t len, uint3
   pBlk->len += taosEncodeVariantU64((void **)&p, key);
   pBlk->len += taosEncodeVariantI32((void **)&p, len);
   pBlk->len += taosEncodeBinary((void **)&p, value, len);
-
   blk->dataNum++;
   return code;
 }
@@ -267,7 +266,7 @@ static void bseBuildLogFullName(SBse *pBse, int64_t ver, char *buf) {
 
 // 0 not flush,1 flush
 
-int32_t tableOpen(const char *name, STable **ppTable) {
+int32_t tableOpen(const char *name, STable **ppTable, uint8_t openFile) {
   int32_t line = 0;
   int32_t code = 0;
 
@@ -288,7 +287,10 @@ int32_t tableOpen(const char *name, STable **ppTable) {
   code = blockInit(pTable->blockId, kBlockCap, BSE_DATA_TYPE, &pTable->bufBlk);
   TAOS_CHECK_GOTO(code, &line, _err);
 
-  pTable->pDataFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
+  pTable->fileOpened = openFile;
+  if (openFile) {
+    pTable->pDataFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
+  }
 
   tstrncpy(pTable->name, name, TSDB_FILENAME_LEN);
   *ppTable = pTable;
@@ -297,7 +299,7 @@ _err:
   if (code != 0) {
     bseError("failed to open table %s at line %d since %s", pTable->name, line, tstrerror(code));
     if (pTable != NULL) {
-      tableClose(pTable);
+      tableClose(pTable, 1);
     }
   } else {
     bseInfo("bse table file %s succ to be opened", pTable->name);
@@ -306,25 +308,50 @@ _err:
   return code;
 }
 
-int32_t tableClose(STable *pTable) {
+int32_t tableClear(STable *pTable) {
+  int32_t code = 0;
+  pTable->commited = 0;
+
+  taosHashClear(pTable->pCache);
+  memset((uint8_t *)pTable->bufBlk.pData, 0, kBlockCap);
+  memset((uint8_t *)pTable->data.pData, 0, kBlockCap);
+  pTable->blockId = 0;
+  pTable->initSeq = 0;
+  taosHashClear(pTable->pCache);
+
+  pTable->pDataFile = NULL;
+  pTable->pIdxFile = NULL;
+  pTable->fileOpened = 0;
+  return code;
+}
+int32_t tableOpenFile(STable *pTable, char *name) {
+  int32_t code = 0;
+  pTable->pDataFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_APPEND);
+  if (pTable->pDataFile == NULL) {
+    return terrno;
+  }
+
+  memcpy(pTable->name, name, strlen(name));
+  pTable->fileOpened = 1;
+  return code;
+}
+int32_t tableClose(STable *pTable, uint8_t clear) {
   int32_t line = 0;
   int32_t code = 0;
   if (pTable == NULL) {
     return code;
   }
 
-  tableCommit(pTable);
+  // tableCommit(pTable);
   pTable->commited = 1;
-
   code = blockCleanup(&pTable->data);
   TAOS_CHECK_GOTO(code, &line, _err);
-
   code = blockCleanup(&pTable->bufBlk);
   TAOS_CHECK_GOTO(code, &line, _err);
-
   taosHashCleanup(pTable->pCache);
 
   code = taosCloseFile(&pTable->pDataFile);
+  pTable->fileOpened = 0;
   TAOS_CHECK_GOTO(code, &line, _err);
 
   taosMemFree(pTable);
@@ -334,6 +361,7 @@ _err:
   }
   return code;
 }
+
 int32_t tableAppendData(STable *pTable, uint64_t key, uint8_t *value, int32_t len) {
   int32_t    line = 0;
   int32_t    code = 0;
@@ -392,6 +420,7 @@ int32_t tableAppendMeta(STable *pTable) {
 
   TAOS_CHECK_GOTO(blockReset(&pTable->data, BSE_DATA_TYPE, pTable->blockId), &line, _err);
 
+  taosHashClear(pTable->pCache);
   taosCloseFile(&pTable->pDataFile);
 _err:
   if (code != 0) {
@@ -829,16 +858,23 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
   code = bseRecover(p);
   TAOS_CHECK_GOTO(code, &lino, _err);
 
+  p->inUse = 0;
+
   SBseFileInfo *pInfo = taosArrayGetLast(p->fileSet);
   p->seq = pInfo->firstVer + 1;
 
   char buf[TSDB_FILENAME_LEN] = {0};
   bseBuildDataFullName(p, p->seq, buf);
 
-  code = tableOpen(buf, &p->pTable);
+  code = tableOpen(buf, &p->pTable[p->inUse], 1);
   TAOS_CHECK_GOTO(code, &lino, _err);
 
-  p->pTable->initSeq = p->seq;
+  bseBuildDataFullName(p, p->seq + 1, buf);
+  code = tableOpen(buf, &p->pTable[1 - p->inUse], 0);
+  TAOS_CHECK_GOTO(code, &lino, _err);
+
+  p->pTable[p->inUse]->initSeq = p->seq;
+  p->pTable[1 - p->inUse]->initSeq = p->seq + 1;
 
   // init other mutex
   taosThreadMutexInit(&p->mutex, NULL);
@@ -859,7 +895,10 @@ void bseClose(SBse *pBse) {
     return;
   }
   bseInfo("start to close bse");
-  tableClose(pBse->pTable);
+  // bseCommit(pBse);
+
+  tableClose(pBse->pTable[1 - pBse->inUse], 1);
+  tableClose(pBse->pTable[pBse->inUse], 1);
   taosArrayDestroy(pBse->fileSet);
   taosThreadMutexDestroy(&pBse->mutex);
   taosThreadRwlockDestroy(&pBse->rwlock);
@@ -884,7 +923,7 @@ int32_t bseAppend(SBse *pBse, uint64_t *seq, uint8_t *value, int32_t len) {
   taosThreadMutexLock(&pBse->mutex);
   tseq = ++pBse->seq;
 
-  code = tableAppendData(pBse->pTable, tseq, value, len);
+  code = tableAppendData(pBse->pTable[pBse->inUse], tseq, value, len);
   TAOS_CHECK_GOTO(code, &line, _err);
 
   *seq = tseq;
@@ -910,8 +949,8 @@ int32_t bseGet(SBse *pBse, uint64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t code = 0;
 
   taosThreadMutexLock(&pBse->mutex);
-  if (seq >= pBse->pTable->initSeq) {
-    code = tableLoadBySeq(pBse->pTable, seq, pValue, len);
+  if (seq >= pBse->pTable[pBse->inUse]->initSeq) {
+    code = tableLoadBySeq(pBse->pTable[pBse->inUse], seq, pValue, len);
     goto _err;
   } else {
     SBseFileInfo key = {.firstVer = seq};
@@ -971,40 +1010,44 @@ int32_t bseCommit(SBse *pBse) {
   // Generate static info and footer info;
   int32_t code = 0;
   int32_t line = 0;
+  int64_t start = taosGetTimestampMs();
+  char    buf[TSDB_FILENAME_LEN] = {0};
+  char    tbuf[TSDB_FILENAME_LEN] = {0};
+
+  uint64_t oldSeq = 0, newSeq = 0;
   taosThreadMutexLock(&pBse->mutex);
-  char buf[TSDB_FILENAME_LEN] = {0};
-  char tbuf[TSDB_FILENAME_LEN] = {0};
+  oldSeq = pBse->seq;
+  newSeq = ++pBse->seq;
+  pBse->inUse = 1 - pBse->inUse;
+  pBse->pTable[pBse->inUse]->initSeq = pBse->seq;
 
-  code = tableCommit(pBse->pTable);
+  bseBuildDataFullName(pBse, newSeq, buf);
+  if (pBse->pTable[pBse->inUse]->fileOpened == 0) {
+    tableOpenFile(pBse->pTable[pBse->inUse], buf);
+  }
 
-  tstrncpy(tbuf, pBse->pTable->name, sizeof(tbuf));
-  tableClose(pBse->pTable);
+  taosThreadMutexUnlock(&pBse->mutex);
 
-  bseBuildDataFullName(pBse, pBse->seq, buf);
+  code = tableCommit(pBse->pTable[1 - pBse->inUse]);
 
-  SBseFileInfo info = {.firstVer = pBse->seq};
+  tableClear(pBse->pTable[1 - pBse->inUse]);
+
+  SBseFileInfo info = {.firstVer = oldSeq};
   if (taosArrayPush(pBse->fileSet, &info) == NULL) {
     TAOS_CHECK_GOTO(terrno, &line, _err);
   }
 
   taosArraySort(pBse->fileSet, cmprBseFileInfo);
 
-  code = taosRenameFile(tbuf, buf);
-  TAOS_CHECK_GOTO(code, &line, _err);
-
-  pBse->pTable = NULL;
-  pBse->seq++;
-  bseBuildDataFullName(pBse, pBse->seq, buf);
-
-  code = tableOpen(buf, &pBse->pTable);
-  TAOS_CHECK_GOTO(code, &line, _err);
-
-  pBse->pTable->initSeq = pBse->seq;
+  memset(buf, 0, sizeof(buf));
+  bseBuildDataFullName(pBse, oldSeq, buf);
+  taosRenameFile(pBse->pTable[1 - pBse->inUse]->name, buf);
 
 _err:
-  taosThreadMutexUnlock(&pBse->mutex);
   if (code != 0) {
     bseError("bse failed to commit at line %d since %s", line, tstrerror(code));
+  } else {
+    bseInfo("bse succ to commit, cost %lld ms", taosGetTimestampMs() - start);
   }
   return code;
 }

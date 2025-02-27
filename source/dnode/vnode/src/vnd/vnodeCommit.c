@@ -452,7 +452,8 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     code = smaCommit(pVnode->pSma, pInfo);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-
+  // blob storage engine commit
+  code = bseCommit(pVnode->pBse);
   // commit info
   code = vnodeCommitInfo(dir);
   TSDB_CHECK_CODE(code, lino, _exit);
