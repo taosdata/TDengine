@@ -7,7 +7,7 @@ on:
       - '3.0'
       - '3.1'
       - 'enh/cmake-TD-33848'
-      
+
     paths-ignore:
       - 'docs/**'
       - 'packaging/**'
@@ -23,6 +23,7 @@ jobs:
     name: Build and test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os:
           - ubuntu-20.04
@@ -30,10 +31,43 @@ jobs:
           - ubuntu-24.04
           - macos-14
           - macos-15
+          - windows-2022
 
+          
     steps:
       - name: Checkout the repository
         uses: actions/checkout@v4
+
+      - name: Cache Go modules on Linux and macOS
+        if: runner.os != 'Windows'
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Cache Homebrew on macOS
+        if: runner.os == 'macOS'
+        uses: actions/cache@v3
+        with:
+          path: /usr/local/Homebrew
+          key: ${{ runner.os }}-brew-${{ hashFiles('**/Brewfile') }}
+          restore-keys: |
+            ${{ runner.os }}-brew-
+
+      - name: Cache Go modules on Windows
+        if: runner.os == 'Windows'
+        uses: actions/cache@v3
+        with:
+          path: |
+            C:\Users\runneradmin\go\pkg\mod
+            C:\Users\runneradmin\AppData\Local\go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -57,6 +91,8 @@ jobs:
             pkg-config \
             zlib1g
 
+
+
       - name: Install dependencies on macOS
         if: runner.os == 'macOS'
         run: |
@@ -72,7 +108,13 @@ jobs:
             snappy \
             zlib
 
-      - name: Build and install TDengine
+      - name: Install dependencies on Windows
+        if: runner.os == 'Windows'
+        run: |
+          choco install jom --yes
+
+      - name: Build and install TDengine on Linux and macOS
+        if: runner.os != 'Windows'
         run: |
           mkdir debug && cd debug
           cmake .. -DBUILD_TOOLS=true \
@@ -80,28 +122,37 @@ jobs:
             -DBUILD_HTTP=false \
             -DBUILD_TEST=true \
             -DBUILD_DEPENDENCY_TESTS=false
-          make -j 4
+          make -j4
           sudo make install
           which taosd
           which taosadapter
           which taoskeeper
 
-      - name: Start taosd
+      - name: Build and install TDengine on Windows
+        if: runner.os == 'Windows'
+        shell: cmd
         run: |
-          cp /etc/taos/taos.cfg ./
-          sudo echo "supportVnodes 256" >> taos.cfg
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          set CL=/MP8
+          mkdir debug && cd debug
+          cmake .. -G "NMake Makefiles JOM" -DBUILD_TOOLS=true -DBUILD_HTTP=false -DBUILD_TEST=false -DBUILD_DEPENDENCY_TESTS=false -DBUILD_KEEPER=true
+          jom -j4
+          jom install
+
+      - name: Start taosd on Linux and macOS
+        if: runner.os != 'Windows'
+        run: |
           nohup sudo taosd -c taos.cfg &
+          nohup sudo taosadapter &
 
-      - name: Start taosadapter
-        run: nohup sudo taosadapter &
-
-      - name: Run tests with taosBenchmark
+      - name: Run tests with taosBenchmark 
+        if: runner.os != 'Windows'
         run: |
           taosBenchmark -t 10 -n 10 -y 
           taos -s "select count(*) from test.meters"
 
-      - name: Clean up
-        if: always()
+      - name: Clean up  on Linux and macOS
+        if: runner.os != 'Windows'
         run: |
           if pgrep taosd; then sudo pkill taosd; fi
           if pgrep taosadapter; then sudo pkill taosadapter; fi
