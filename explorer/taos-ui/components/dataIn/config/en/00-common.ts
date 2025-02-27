@@ -8,6 +8,80 @@ export default {
     "collapsible": "one",
     "children": [
       {
+        "label": "Database Connection Error",
+        "field": "database_connection_error",
+        "description": "Represents the operation when database connection error. options: Archive, Skip, Cache. Default: Cache.",
+        "defaultValue": "cache",
+        "required": false,
+        "type": "select",
+        "options": [
+          {
+            "value": "cache",
+            "label": "Cache"
+          },
+          {
+            "value": "archive",
+            "label": "Archive"
+          },
+          {
+            "value": "skip",
+            "label": "Skip"
+          },
+          {
+            "value": "break",
+            "label": "Break"
+          }
+        ]
+      },
+      {
+        "label": "Datebase Not Exist",
+        "field": "database_not_exist",
+        "description": "Represents the operation when datebase not exists. options: Archive, Skip, Break. Default: Break.",
+        "defaultValue": "break",
+        "required": false,
+        "type": "select",
+        "options": [
+          {
+            "value": "archive",
+            "label": "Archive"
+          },
+          {
+            "value": "skip",
+            "label": "Skip"
+          },
+          {
+            "value": "break",
+            "label": "Break"
+          }
+        ]
+      },
+      {
+        "label": "Table Not Exist",
+        "field": "table_not_exist",
+        "description": "Represents the operation when table not exists. options: Archive, Skip, Break, Automatically create table & retry. Default: Automatically create table and retry.",
+        "defaultValue": "retry",
+        "required": false,
+        "type": "select",
+        "options": [
+          {
+            "value": "archive",
+            "label": "Archive"
+          },
+          {
+            "value": "skip",
+            "label": "Skip"
+          },
+          {
+            "value": "break",
+            "label": "Break"
+          },
+          {
+            "value": "retry",
+            "label": "Automatically create table and retry"
+          }
+        ]
+      },
+      {
         "label": "Primary Timestamp Overflow",
         "field": "primary_timestamp_overflow",
         "description":
