@@ -12,6 +12,7 @@ from util.dnodes import tdDnodes
 from util.sql import *
 from util.cases import *
 from util.log import *
+import inspect
 
 sys.path.append("../tests/pytest")
 
@@ -41,6 +42,8 @@ class TestCompactMeta:
             1. Alter child table tags
             2. Make sure compact meta works
         """
+        tdLog.info(f'case {inspect.currentframe().f_code.co_name} start')
+
         db_name = 'db1'
         stb_name = 'stb1'
         ctb_name_prefix = 'ctb'
@@ -59,16 +62,28 @@ class TestCompactMeta:
         tdSql.execute(sql)
 
         # Create child tables
+        tdLog.info(
+            f'case {inspect.currentframe().f_code.co_name}: create {num_child_tables} child tables')
         for i in range(1, num_child_tables+1):
+            if i % 100 == 0:
+                tdLog.info(
+                    f'case {inspect.currentframe().f_code.co_name}: create {i} child tables')
             sql = f'create table {db_name}.{ctb_name_prefix}{i} using {db_name}.{stb_name} tags({i})'
             tdSql.execute(sql)
 
         # Alter child table tags
+        tdLog.info(
+            f'case {inspect.currentframe().f_code.co_name}: alter child table tags')
         for i in range(1, num_child_tables+1):
+            if i % 100 == 0:
+                tdLog.info(
+                    f'case {inspect.currentframe().f_code.co_name}: altered {i} child tables')
             sql = f'alter table {db_name}.{ctb_name_prefix}{i} set tag t1 = {i+1}'
             tdSql.execute(sql)
 
         # Compact meta
+        tdLog.info(
+            f'case {inspect.currentframe().f_code.co_name}: start to compact meta')
         sql = f'compact database {db_name} meta_only'
         tdSql.execute(sql)
 
