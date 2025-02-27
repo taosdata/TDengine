@@ -7,7 +7,8 @@ from taostest.util.rest import TDRest
 from taostest.util import file
 class FractalCenter(TDCase):
     def init(self):
-        self.tdCom = TDCom(self.tdSql)
+        self.tdCom = TDCom(self.tdSql, self.env_setting)
+        self.tdRest = TDRest(env_setting=self.env_setting)
         # TODO 外部传入edge侧的hostname，可能有多个
         self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
