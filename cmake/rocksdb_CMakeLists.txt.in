@@ -103,7 +103,8 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
     MESSAGE(STATUS "ROCKSDB CXX STATUS CONFIG: " ${CMAKE_CXX_FLAGS})
     MESSAGE(STATUS "ROCKSDB C STATUS CONFIG: " ${CMAKE_C_FLAGS})
     
-
+    # Notes for options when adding our external project:
+    # INSTALL_COMMAND: set to empty to prevent actually installation when building
     ExternalProject_Add(rocksdb-project
         URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
         URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
@@ -114,6 +115,7 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
         BUILD_COMMAND ${CMAKE_COMMAND} --build . --parallel 4
         BUILD_BYPRODUCTS ${CMAKE_BINARY_DIR}/build/lib/librocksdb.a
         GIT_SHALLOW true
+        INSTALL_COMMAND ""
     )
 
     # Create imported target for RocksDB
