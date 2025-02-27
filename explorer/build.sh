@@ -1,0 +1,12 @@
+#!/bin/bash
+echo "install library ..."
+cd /app
+ls -l
+npm install -g pnpm
+pnpm self-update
+pnpm install
+
+echo "start build ..."
+pnpm run build
+
+echo "build finished ..."
