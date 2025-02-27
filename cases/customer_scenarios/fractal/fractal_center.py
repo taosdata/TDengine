@@ -19,7 +19,7 @@ class FractalCenter(TDCase):
         self.edge_hosts = self.case_config["edge_dnode_hosts"]
         self.tdCom.api_type = 'restful'
         self.target_dbname = "center_db"
-        self.execute_time = self.case_config["exec_time"]
+        self.execute_time = int(self.case_config["exec_time"])
         self.edge_db = 'mqtt_datain'
         self.tdRest = TDRest(env_setting=self.env_setting)
         if self.case_config["enable_compression"].lower() == "true":
