@@ -30,8 +30,13 @@ extern "C" {
 #define T_NAME_DB    0x2u
 #define T_NAME_TABLE 0x4u
 
+#define T_NAME_DIRECT_INSERT   0
+#define T_NAME_AUTO_CREATE_STB 1
+#define T_NAME_AUTO_CREATE_CTB 2
+
 typedef struct SName {
   uint8_t type;  // db_name_t, table_name_t
+  uint8_t usingFlag;
   int32_t acctId;
   char    dbname[TSDB_DB_NAME_LEN];
   char    tname[TSDB_TABLE_NAME_LEN];
@@ -77,8 +82,8 @@ typedef struct {
   uint8_t     stbFullNameLen;  // the length of super table name
 
   // output
-  char*    ctbShortName;  // must have size of TSDB_TABLE_NAME_LEN;
-//  uint64_t uid;           // child table uid, may be useful
+  char* ctbShortName;  // must have size of TSDB_TABLE_NAME_LEN;
+  //  uint64_t uid;           // child table uid, may be useful
 } RandTableName;
 
 int32_t buildChildTableName(RandTableName* rName);

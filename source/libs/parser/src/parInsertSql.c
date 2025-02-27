@@ -2862,7 +2862,7 @@ static int32_t checkAuthFromMetaData(const SArray* pUsers, SNode** pTagCond) {
 }
 
 static int32_t getTableMetaFromMetaData(const SArray* pTables, STableMeta** pMeta) {
-  if (1 != taosArrayGetSize(pTables)) {
+  if (1 != taosArrayGetSize(pTables) && 2 != taosArrayGetSize(pTables)) {
     return TSDB_CODE_FAILED;
   }
 
@@ -3139,6 +3139,31 @@ static int32_t parseInsertSqlImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt*
   return parseInsertSqlFromTable(pCxt, pStmt);
 }
 
+static int32_t buildUsingInsertTableReq(SName* pSName, SName* pCName, SArray** pTables) {
+  if (NULL == *pTables) {
+    *pTables = taosArrayInit(2, sizeof(SName));
+    if (NULL == *pTables) {
+      goto _err;
+    }
+  }
+  pSName->usingFlag = T_NAME_AUTO_CREATE_STB;
+  if (NULL == taosArrayPush(*pTables, pSName)) {
+    goto _err;
+  }
+  pCName->usingFlag = T_NAME_AUTO_CREATE_CTB;
+  if (NULL == taosArrayPush(*pTables, pCName)) {
+    goto _err;
+  }
+  return TSDB_CODE_SUCCESS;
+
+_err:
+  if (NULL != *pTables) {
+    taosArrayDestroy(*pTables);
+    *pTables = NULL;
+  }
+  return terrno;
+}
+
 static int32_t buildInsertTableReq(SName* pName, SArray** pTables) {
   *pTables = taosArrayInit(1, sizeof(SName));
   if (NULL == *pTables) {
@@ -3168,6 +3193,25 @@ static int32_t buildInsertDbReq(SName* pName, SArray** pDbs) {
     code = TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  return code;
+}
+
+static int32_t buildInsertUsingDbReq(SName* pSName, SName* pCName, SArray** pDbs) {
+  if (NULL == *pDbs) {
+    *pDbs = taosArrayInit(1, sizeof(STablesReq));
+    if (NULL == *pDbs) {
+      return terrno;
+    }
+  }
+
+  STablesReq req = {0};
+  (void)tNameGetFullDbName(pSName, req.dbFName);
+  (void)tNameGetFullDbName(pCName, req.dbFName);
+
+  int32_t code = buildUsingInsertTableReq(pSName, pCName, &req.pTables);
+  if (TSDB_CODE_SUCCESS == code && NULL == taosArrayPush(*pDbs, &req)) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+  }
   return code;
 }
 
@@ -3202,7 +3246,7 @@ static int32_t buildInsertCatalogReq(SInsertParseContext* pCxt, SVnodeModifyOpSt
     if (0 == pStmt->usingTableName.type) {
       code = buildInsertDbReq(&pStmt->targetTableName, &pCatalogReq->pTableMeta);
     } else {
-      code = buildInsertDbReq(&pStmt->usingTableName, &pCatalogReq->pTableMeta);
+      code = buildInsertUsingDbReq(&pStmt->usingTableName, &pStmt->targetTableName, &pCatalogReq->pTableMeta);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {

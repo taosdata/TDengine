@@ -504,7 +504,7 @@ int32_t ctgInitGetTbTagTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 }
 
 int32_t ctgInitGetViewsTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
-  SCtgTask task = {0};
+  SCtgTask           task = {0};
   SCtgViewTaskParam* p = param;
   task.type = CTG_TASK_GET_VIEW;
   task.taskId = taskIdx;
@@ -861,15 +861,24 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
 
   int32_t taskNum = tbMetaNum + dbVgNum + udfNum + tbHashNum + qnodeNum + dnodeNum + svrVerNum + dbCfgNum + indexNum +
                     userNum + dbInfoNum + tbIndexNum + tbCfgNum + tbTagNum + viewNum + tbTsmaNum + tbNameNum;
-  int32_t taskNumWithSubTasks = tbMetaNum * gCtgAsyncFps[CTG_TASK_GET_TB_META].subTaskFactor + dbVgNum * gCtgAsyncFps[CTG_TASK_GET_DB_VGROUP].subTaskFactor +
-                                udfNum * gCtgAsyncFps[CTG_TASK_GET_UDF].subTaskFactor + tbHashNum * gCtgAsyncFps[CTG_TASK_GET_TB_HASH].subTaskFactor +
-                                qnodeNum * gCtgAsyncFps[CTG_TASK_GET_QNODE].subTaskFactor + dnodeNum * gCtgAsyncFps[CTG_TASK_GET_DNODE].subTaskFactor +
-                                svrVerNum * gCtgAsyncFps[CTG_TASK_GET_SVR_VER].subTaskFactor + dbCfgNum * gCtgAsyncFps[CTG_TASK_GET_DB_CFG].subTaskFactor +
-                                indexNum * gCtgAsyncFps[CTG_TASK_GET_INDEX_INFO].subTaskFactor + userNum * gCtgAsyncFps[CTG_TASK_GET_USER].subTaskFactor +
-                                dbInfoNum * gCtgAsyncFps[CTG_TASK_GET_DB_INFO].subTaskFactor + tbIndexNum * gCtgAsyncFps[CTG_TASK_GET_TB_SMA_INDEX].subTaskFactor +
-                                tbCfgNum * gCtgAsyncFps[CTG_TASK_GET_TB_CFG].subTaskFactor + tbTagNum * gCtgAsyncFps[CTG_TASK_GET_TB_TAG].subTaskFactor +
-                                viewNum * gCtgAsyncFps[CTG_TASK_GET_VIEW].subTaskFactor + tbTsmaNum * gCtgAsyncFps[CTG_TASK_GET_TB_TSMA].subTaskFactor +
-                                tsmaNum * gCtgAsyncFps[CTG_TASK_GET_TSMA].subTaskFactor + tbNameNum * gCtgAsyncFps[CTG_TASK_GET_TB_NAME].subTaskFactor;
+  int32_t taskNumWithSubTasks = tbMetaNum * gCtgAsyncFps[CTG_TASK_GET_TB_META].subTaskFactor +
+                                dbVgNum * gCtgAsyncFps[CTG_TASK_GET_DB_VGROUP].subTaskFactor +
+                                udfNum * gCtgAsyncFps[CTG_TASK_GET_UDF].subTaskFactor +
+                                tbHashNum * gCtgAsyncFps[CTG_TASK_GET_TB_HASH].subTaskFactor +
+                                qnodeNum * gCtgAsyncFps[CTG_TASK_GET_QNODE].subTaskFactor +
+                                dnodeNum * gCtgAsyncFps[CTG_TASK_GET_DNODE].subTaskFactor +
+                                svrVerNum * gCtgAsyncFps[CTG_TASK_GET_SVR_VER].subTaskFactor +
+                                dbCfgNum * gCtgAsyncFps[CTG_TASK_GET_DB_CFG].subTaskFactor +
+                                indexNum * gCtgAsyncFps[CTG_TASK_GET_INDEX_INFO].subTaskFactor +
+                                userNum * gCtgAsyncFps[CTG_TASK_GET_USER].subTaskFactor +
+                                dbInfoNum * gCtgAsyncFps[CTG_TASK_GET_DB_INFO].subTaskFactor +
+                                tbIndexNum * gCtgAsyncFps[CTG_TASK_GET_TB_SMA_INDEX].subTaskFactor +
+                                tbCfgNum * gCtgAsyncFps[CTG_TASK_GET_TB_CFG].subTaskFactor +
+                                tbTagNum * gCtgAsyncFps[CTG_TASK_GET_TB_TAG].subTaskFactor +
+                                viewNum * gCtgAsyncFps[CTG_TASK_GET_VIEW].subTaskFactor +
+                                tbTsmaNum * gCtgAsyncFps[CTG_TASK_GET_TB_TSMA].subTaskFactor +
+                                tsmaNum * gCtgAsyncFps[CTG_TASK_GET_TSMA].subTaskFactor +
+                                tbNameNum * gCtgAsyncFps[CTG_TASK_GET_TB_NAME].subTaskFactor;
 
   *job = taosMemoryCalloc(1, sizeof(SCtgJob));
   if (NULL == *job) {
@@ -1186,7 +1195,7 @@ int32_t ctgDumpTbIndexRes(SCtgTask* pTask) {
     if (NULL == pRes) {
       CTG_ERR_RET(terrno);
     }
-    
+
     if (atomic_val_compare_exchange_ptr(&pJob->jobRes.pTableIndex, NULL, pRes)) {
       taosArrayDestroy(pRes);
     }
