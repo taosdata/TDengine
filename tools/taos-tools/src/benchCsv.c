@@ -366,7 +366,7 @@ static int csvGenRowColData(char* buf, int size, SSuperTable* stb, int64_t ts, i
 }
 
 
-static CsvRowFieldsBuf* csvGenCtbTagData(CsvWriteMeta* write_meta, CsvThreadMeta* thread_meta) {
+static CsvRowTagsBuf* csvGenCtbTagData(CsvWriteMeta* write_meta, CsvThreadMeta* thread_meta) {
     SSuperTable* stb = write_meta->stb;
     int ret    = 0;
     int64_t tk = 0;
@@ -375,7 +375,7 @@ static CsvRowFieldsBuf* csvGenCtbTagData(CsvWriteMeta* write_meta, CsvThreadMeta
         return NULL;
     }
 
-    CsvRowFieldsBuf* tags_buf_bucket = (CsvRowFieldsBuf*)benchCalloc(thread_meta->ctb_count, sizeof(CsvRowFieldsBuf), true);
+    CsvRowTagsBuf* tags_buf_bucket = (CsvRowTagsBuf*)benchCalloc(thread_meta->ctb_count, sizeof(CsvRowTagsBuf), true);
     if (!tags_buf_bucket) {
         return NULL;
     }
@@ -388,8 +388,8 @@ static CsvRowFieldsBuf* csvGenCtbTagData(CsvWriteMeta* write_meta, CsvThreadMeta
             goto error;
         }
 
-        tags_buf_bucket[i].buf         = tags_buf;
-        tags_buf_bucket[i].buf_size    = tags_buf_size;
+        tags_buf_bucket[i].buf      = tags_buf;
+        write_meta->tags_buf_size   = tags_buf_size;
 
         ret = csvGenRowTagData(tags_buf, tags_buf_size, stb, thread_meta->ctb_start_idx + i, &tk);
         if (ret <= 0) {
@@ -407,7 +407,7 @@ error:
 }
 
 
-static void csvFreeCtbTagData(CsvThreadMeta* thread_meta, CsvRowFieldsBuf* tags_buf_bucket) {
+static void csvFreeCtbTagData(CsvThreadMeta* thread_meta, CsvRowTagsBuf* tags_buf_bucket) {
     if (!thread_meta || !tags_buf_bucket) {
         return;
     }
@@ -428,9 +428,9 @@ static void csvFreeCtbTagData(CsvThreadMeta* thread_meta, CsvRowFieldsBuf* tags_
 static int csvWriteFile(FILE* fp, uint64_t ctb_idx, int64_t cur_ts, int64_t* ck, CsvWriteMeta* write_meta, CsvThreadMeta* thread_meta) {
     SDataBase*   db  = write_meta->db;
     SSuperTable* stb = write_meta->stb;
-    CsvRowFieldsBuf* tags_buf_bucket = thread_meta->tags_buf_bucket;
-    CsvRowFieldsBuf* tags_buf        = &tags_buf_bucket[ctb_idx];
-    CsvRowFieldsBuf* cols_buf        = thread_meta->cols_buf;
+    CsvRowTagsBuf* tags_buf_bucket = thread_meta->tags_buf_bucket;
+    CsvRowColsBuf* tags_buf        = &tags_buf_bucket[ctb_idx];
+    CsvRowColsBuf* cols_buf        = thread_meta->cols_buf;
     int ret    = 0;
 
 
@@ -493,7 +493,7 @@ static void* csvGenStbThread(void* arg) {
 
 
     // tags buffer
-    CsvRowFieldsBuf* tags_buf_bucket = csvGenCtbTagData(write_meta, thread_meta);
+    CsvRowTagsBuf* tags_buf_bucket = csvGenCtbTagData(write_meta, thread_meta);
     if (!tags_buf_bucket) {
         errorPrint("Failed to generate csv tag data. database: %s, super table: %s, naming type: %d, thread index: %d.\n",
                 db->dbName, stb->stbName, write_meta.naming_type, thread_meta->thread_id);
@@ -509,7 +509,7 @@ static void* csvGenStbThread(void* arg) {
         goto end;
     }
 
-    CsvRowFieldsBuf cols_buf = {
+    CsvRowColsBuf cols_buf = {
         .buf        = buf,
         .buf_size   = buf_size,
         .length     = 0

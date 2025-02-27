@@ -28,9 +28,14 @@ typedef enum {
 
 typedef struct {
     char*           buf;
+    int             length;
+} CsvRowTagsBuf;
+
+typedef struct {
+    char*           buf;
     int             buf_size;
     int             length;
-} CsvRowFieldsBuf;
+} CsvRowColsBuf;
 
 typedef struct {
     CsvNamingType   naming_type;
@@ -52,8 +57,9 @@ typedef struct {
     time_t          end_secs;
     size_t          thread_id;
     bool            output_header;
-    CsvRowFieldsBuf* tags_buf_bucket;
-    CsvRowFieldsBuf* cols_buf;
+    int             tags_buf_size;
+    CsvRowTagsBuf*  tags_buf_bucket;
+    CsvRowColsBuf*  cols_buf;
 } CsvThreadMeta;
 
 typedef struct {
