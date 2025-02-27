@@ -488,9 +488,10 @@ struct SVnode {
   SVATaskID commitTask;
 
   struct {
-    SMeta*    pMeta;
-    SMeta*    pNewMeta;
-    SVATaskID metaCompactTask;
+    TdThreadRwlock metaRWLock;
+    SMeta*         pMeta;
+    SMeta*         pNewMeta;
+    SVATaskID      metaCompactTask;
   };
 
   SSma*         pSma;
