@@ -15,6 +15,9 @@
 
 #include <gtest/gtest.h>
 #include <string.h>
+#include <atomic>
+#include <chrono>
+#include <thread>
 #include "clientInt.h"
 #include "geosWrapper.h"
 #include "osSemaphore.h"
@@ -1706,7 +1709,7 @@ void stmtAsyncBindCb2(void* param, TAOS_RES* pRes, int code) {
   return;
 }
 
-TEST(stmt2Case, async_order) {
+void stmt2_async_test(std::atomic<bool>& stop_task) {
   int CTB_NUMS = 2;
   int ROW_NUMS = 2;
   int CYC_NUMS = 2;
@@ -1912,6 +1915,27 @@ TEST(stmt2Case, async_order) {
     taosMemoryFree(tbs[i]);
   }
   taosMemoryFree(tbs);
+  stop_task = true;
+}
+
+TEST(stmt2Case, async_order) {
+  std::atomic<bool> stop_task(false);
+  std::thread       t(stmt2_async_test, std::ref(stop_task));
+
+  // 等待 60 秒钟
+  auto start_time = std::chrono::steady_clock::now();
+  while (!stop_task) {
+    auto elapsed_time = std::chrono::steady_clock::now() - start_time;
+    if (std::chrono::duration_cast<std::chrono::seconds>(elapsed_time).count() > 60) {
+      FAIL() << "Test[stmt2_async_test] timed out";
+      t.detach();
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::seconds(1));  // 每 1s 检查一次
+  }
+  if (t.joinable()) {
+    t.join();
+  }
 }
 
 TEST(stmt2Case, rowformat_bind) {
@@ -2067,4 +2091,5 @@ TEST(stmt2Case, rowformat_bind) {
   do_query(taos, "drop database if exists stmt2_testdb_16");
   taos_close(taos);
 }
+
 #pragma GCC diagnostic pop
