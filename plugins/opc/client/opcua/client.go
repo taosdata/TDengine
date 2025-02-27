@@ -11,6 +11,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
 	"runtime"
 	"sort"
 	"strings"
@@ -49,6 +50,8 @@ type UAClient struct {
 	observeChange chan []*nodeValue
 	subList       []*subscription
 	subIndex      int
+
+	reconnectMutex sync.Mutex
 }
 
 type subscription struct {
@@ -215,10 +218,14 @@ func getServerEndpoint(endpoints []*ua.EndpointDescription, securityPolicy strin
 }
 
 func (c *UAClient) Connect() error {
+	return c.doConnect(c.conn)
+}
+
+func (c *UAClient) doConnect(conn *opcua.Client) error {
 	c.logger.Debug("connect to opc ua server")
 	timeoutCtx, cancel := context.WithTimeout(c.ctx, time.Duration(c.connectConfig.ConnectTimeout)*time.Second)
 	defer cancel()
-	if err := c.conn.Connect(timeoutCtx); err != nil {
+	if err := conn.Connect(timeoutCtx); err != nil {
 		return fmt.Errorf("error in Client Connection: %w", err)
 	}
 	return nil
@@ -432,9 +439,11 @@ func (c *UAClient) readValueBatch(nodes []*nodeValue) {
 		valueReqs = append(valueReqs, &ua.ReadValueID{NodeID: node.nodeID, AttributeID: ua.AttributeIDValue})
 	}
 	start := time.Now()
-	resp, err := c.conn.Read(c.ctx, &ua.ReadRequest{MaxAge: c.maxAge, TimestampsToReturn: ua.TimestampsToReturnBoth, NodesToRead: valueReqs})
+	conn := c.conn
+	resp, err := conn.Read(c.ctx, &ua.ReadRequest{MaxAge: c.maxAge, TimestampsToReturn: ua.TimestampsToReturnBoth, NodesToRead: valueReqs})
 	if err != nil {
 		c.logger.WithError(err).Error("read value batch error")
+		c.reconnect(conn, err)
 		return
 	}
 	end := time.Now()
@@ -473,6 +482,42 @@ func (c *UAClient) readValueBatch(nodes []*nodeValue) {
 		nodes[i].nodeValue.StartTime = start
 		nodes[i].nodeValue.Status = int64(r.Status)
 	}
+}
+
+func (c *UAClient) reconnect(oldConn *opcua.Client, err error) {
+	// reconnect
+	if err == nil {
+		return
+	}
+	if _, ok := err.(*net.OpError); !ok {
+		return
+	}
+	c.reconnectMutex.Lock()
+	defer c.reconnectMutex.Unlock()
+	if c.conn != oldConn {
+		return
+	}
+	for i := 1; i < 61; i++ {
+		c.logger.Infof("reconnect to opcua server after 5s, retry %d times", i)
+		time.Sleep(time.Second * 5)
+		c.logger.Infof("reconnect to opcua server, retry %d times", i)
+		conn, err := createUAConn(c.connectConfig)
+		if err != nil {
+			c.logger.Errorf("reconnect create ua connection error, retry %d times, error: %v", i, err)
+			continue
+		}
+		err = c.doConnect(conn)
+		if err != nil {
+			c.logger.Errorf("reconnect connect ua server error, retry %d times, error: %v", i, err)
+			continue
+		}
+		c.logger.Debug("close old connection")
+		c.doCloseConn(c.conn)
+		c.conn = conn
+		c.logger.Infof("reconnect to opcua server success, retry %d times", i)
+		return
+	}
+	c.logger.Panic("reconnect to opcua server failed, retry 60 times")
 }
 
 func (c *UAClient) observe() error {
@@ -1026,15 +1071,19 @@ func (c *UAClient) Close() error {
 			close(c.closeChan)
 		}
 		if c.conn != nil {
-			ctx, cancel := context.WithTimeout(c.ctx, time.Second*5)
-			defer cancel()
-			c.conn.Close(ctx)
+			c.doCloseConn(c.conn)
 		}
 		if c.dumper != nil {
 			c.dumper.Close()
 		}
 	})
 	return nil
+}
+
+func (c *UAClient) doCloseConn(conn *opcua.Client) {
+	ctx, cancel := context.WithTimeout(c.ctx, time.Second*5)
+	defer cancel()
+	conn.Close(ctx)
 }
 
 func (c *UAClient) ChangeCollectConfig(conf config.CollectConfig) {
