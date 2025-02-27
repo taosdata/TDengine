@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::str::FromStr;
@@ -9,17 +9,20 @@ use std::{collections::HashMap, time::Duration};
 
 use agent::ActivityOrder;
 use anyhow::{anyhow, bail, Context};
+use async_backtrace::framed;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use flume::Sender;
 use itertools::Itertools;
+use lazy_static::lazy_static;
 use linked_hash_map::LinkedHashMap;
+use replica::{Replica, ReplicaOpts, ReplicaTask};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::pool::PoolOptions;
-use sqlx::ConnectOptions;
 use sqlx::{migrate::Migrator, sqlite::SqliteJournalMode, FromRow, SqlitePool};
+use sqlx::{ConnectOptions, Sqlite};
 use strum::{AsRefStr, Display, EnumString, IntoStaticStr};
 use taos::taos_query::tmq::Assignment;
 use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
@@ -28,6 +31,7 @@ use taosx_core::runners::mqtt::MQTT_ID;
 use taosx_core::task_set::prelude::{HealthNotify, HealthState};
 use taosx_core::utils::dsn::json_to_dsn;
 use tokio::sync::RwLock;
+use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::{instrument, Instrument};
 use utoipa::*;
@@ -61,6 +65,7 @@ use taosx_core::{
 
 pub(crate) mod agent;
 pub mod license;
+pub(crate) mod replica;
 pub(crate) mod transferred;
 
 mod datetime_format {
@@ -2099,8 +2104,282 @@ impl TaskController {
 
         Ok(())
     }
+
+    async fn search_replicas_by_source_sink(
+        &self,
+        replica: &Replica,
+    ) -> anyhow::Result<Option<Vec<ReplicaTask>>> {
+        let labels = replica.labels_with_source_sink();
+        let tasks = self
+            .tasks(TaskFilter::default().with_joined_labels(labels))
+            .await?;
+
+        if tasks.is_empty() {
+            return Ok(None);
+        }
+
+        let replicas = tasks
+            .into_iter()
+            .map(ReplicaTask::from_task)
+            .try_collect::<_, Vec<_>, _>()?;
+
+        Ok(Some(replicas))
+    }
+
+    async fn list_replicas(&self) -> anyhow::Result<Vec<(Replica, Vec<ReplicaTask>)>> {
+        let labels = "type::replica".to_string();
+        let tasks = self
+            .tasks(TaskFilter::default().with_joined_labels(labels))
+            .await?;
+
+        if tasks.is_empty() {
+            return Ok(Vec::new());
+        }
+        let replicas: Vec<_> = tasks
+            .into_iter()
+            .map(ReplicaTask::from_task)
+            .try_collect::<_, Vec<_>, _>()?
+            .into_iter()
+            .flat_map(|task| task.replica().ok().map(|r| (r, task)))
+            .into_group_map()
+            .into_iter()
+            .collect();
+
+        Ok(replicas)
+    }
+
+    /// Start replica monitor.
+    pub async fn start_replica_monitor(
+        self: &Arc<Self>,
+        mut opts: ReplicaOpts,
+    ) -> anyhow::Result<ReplicaOpts> {
+        let mut trans = self.pool.begin().await?;
+        let lock = trans.lock_handle().await?;
+        // Step 1: check if the replica exists
+        let replica = sqlx::query_as::<_, ReplicaOpts>(
+            "select * from replicas where source = ? and sink = ?",
+        )
+        .bind(&opts.source)
+        .bind(&opts.sink)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let mut should_update = true;
+        if let Some(mut exist) = replica {
+            let request_rid = opts.id.take();
+            let id = exist.id.take().expect("id should not be None");
+            if let Some(request_rid) = request_rid.as_deref() {
+                if request_rid != id {
+                    bail!(
+                        "Replica with source: {}, sink: {} already exists as id: {}",
+                        exist.source,
+                        exist.sink,
+                        id,
+                    );
+                }
+            }
+            if exist == opts {
+                if MONITOR_TASK
+                    .read()
+                    .await
+                    .get(&id)
+                    .map_or(false, |h| !h.is_finished())
+                {
+                    tracing::info!("No changes, an exist monitor task has been running");
+                    return Ok(exist);
+                }
+                should_update = false;
+            }
+            opts = exist;
+            opts.id = Some(id);
+        }
+
+        // Step 2: make sure the replica is not running
+        let mut replica = opts.build_replica()?;
+        let tasks = self.search_replicas_by_source_sink(&replica).await?;
+
+        if let Some(id) = tasks
+            .as_deref()
+            .and_then(|tasks| tasks.first().map(|task| task.replica_id()))
+        {
+            // If source/sink replica exists, check if the id is the same.
+            if id != replica.id() {
+                bail!(
+                    "Replica with source: {}, sink: {} already exists as id: {}",
+                    replica.canonical_source(),
+                    replica.canonical_sink(),
+                    id,
+                );
+            }
+            if opts.id.is_none() {
+                opts.id = Some(id.to_string());
+            }
+        } else if opts.id.is_none() {
+            // If id is not set, update the id with the existing replicas to avoid id conflict.
+            let replicas = self
+                .list_replicas()
+                .await?
+                .into_iter()
+                .map(|(r, _)| r)
+                .collect::<Vec<_>>();
+            replica.update_id_with(&replicas);
+            opts.id.replace(replica.id().to_string());
+        }
+        // Step 3: abort if the monitor task is running.
+        {
+            if let Some(task) = MONITOR_TASK.write().await.remove(replica.id()) {
+                task.abort()
+            }
+        }
+
+        let id = replica.id();
+        let now = chrono::Local::now();
+        if should_update {
+            // Step 3: insert or update the replica
+            sqlx::query::<Sqlite>(
+            "INSERT INTO replicas (`id`, `source`, `sink`, `topic_prefix`, `group`, \
+                `keep_topic_after_remove`, `new_databases_checking_interval`, `created_at`, `updated_at`) \
+                VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET \
+                `topic_prefix` = ?, `group` = ?, `keep_topic_after_remove` = ?, \
+                `new_databases_checking_interval` = ?, `updated_at` = ?",
+            )
+            .bind(id)
+            .bind(&opts.source)
+            .bind(&opts.sink)
+            .bind(now)
+            .bind(now)
+            .bind(&opts.topic_prefix)
+            .bind(&opts.group)
+            .bind(opts.keep_topic_after_remove)
+            .bind(opts.new_databases_checking_interval)
+            .bind(&opts.topic_prefix)
+            .bind(&opts.group)
+            .bind(opts.keep_topic_after_remove)
+            .bind(opts.new_databases_checking_interval)
+            .bind(now)
+            .execute(&self.pool).await.context("Update replicas failed")?;
+        }
+        drop(lock);
+        drop(trans);
+
+        let inner_opts = opts.clone();
+        let controller = TaskControllerRef(self.clone());
+        tokio::spawn(start_replica_monitor_with(
+            controller, replica, inner_opts, tasks,
+        ));
+        Ok(opts)
+    }
+
+    /// Stop replica monitor by id.
+    pub async fn stop_replica_monitor(&self, id: &str) -> anyhow::Result<()> {
+        if let Some(task) = MONITOR_TASK.write().await.remove(id) {
+            task.abort()
+        };
+        Ok(())
+    }
+
+    /// Remove replica monitor by id.
+    pub async fn remove_replica_monitor(&self, id: &str) -> anyhow::Result<Option<ReplicaOpts>> {
+        self.stop_replica_monitor(id).await?;
+        let opts = sqlx::query_as::<_, ReplicaOpts>("select * from replicas where id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+        if opts.is_none() {
+            return Ok(None);
+        }
+        sqlx::query("delete from replicas where id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(opts)
+    }
+
+    /// Start replica monitor by id.
+    pub async fn start_replica_monitor_by_id(
+        self: &Arc<Self>,
+        id: &str,
+        new_databases_checking_interval: Option<u32>,
+    ) -> anyhow::Result<Option<ReplicaOpts>> {
+        let opts = sqlx::query_as::<_, ReplicaOpts>("select * from replicas where id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
+        if opts.is_none() {
+            return Ok(None);
+        }
+        let mut opts = opts.unwrap();
+        if let Some(v) = new_databases_checking_interval {
+            opts.new_databases_checking_interval.replace(v);
+        }
+        self.start_replica_monitor(opts).await.map(Some)
+    }
+
+    pub async fn start_all_replicas_monitor(self: &Arc<Self>) -> anyhow::Result<()> {
+        let ids: Vec<String> = sqlx::query_scalar("select id from replicas where id = ?")
+            .fetch_all(&self.pool)
+            .await?;
+        let mut errors = anyhow::anyhow!("Start replicas monitor error");
+        let mut has_errors = false;
+        for id in ids {
+            if let Err(err) = self.start_replica_monitor_by_id(&id, None).await {
+                errors = errors.context(format!("Start replica {id} error: {err:#}"));
+                has_errors = true;
+            }
+        }
+        if has_errors {
+            Err(errors)
+        } else {
+            Ok(())
+        }
+    }
 }
 
+lazy_static! {
+    static ref MONITOR_TASK: RwLock<HashMap<String, JoinHandle<()>>> = RwLock::new(HashMap::new());
+}
+#[framed]
+async fn start_replica_monitor_with(
+    ctl: TaskControllerRef,
+    replica: Replica,
+    opts: ReplicaOpts,
+    tasks: Option<Vec<ReplicaTask>>,
+) {
+    let id = replica.id().to_string();
+    let handle = tokio::spawn(async_backtrace::frame!(async move {
+        let replica = replica;
+        let mut interval = tokio::time::interval(Duration::from_secs(
+            opts.new_databases_checking_interval() as _,
+        ));
+        let mut set = HashSet::new();
+        if let Some(tasks) = tasks {
+            for task in tasks {
+                if set.contains(&task.database) {
+                    continue;
+                }
+                set.insert(task.database.clone());
+            }
+        }
+
+        loop {
+            let databases = replica.databases(Duration::from_secs(30)).await;
+            if let Ok(databases) = databases {
+                for database in databases {
+                    if set.contains(&database) {
+                        continue;
+                    }
+                    let task = replica.build_task(&opts, &database, &database);
+                    tracing::info!("Create replica task: {:?}", task);
+                    if ctl.create(task).await.is_ok() {
+                        set.insert(database);
+                    }
+                }
+            }
+            interval.tick().await;
+        }
+    }));
+    MONITOR_TASK.write().await.insert(id, handle);
+}
 #[derive(Debug, Default, Serialize, ToSchema, FromRow)]
 pub struct ConnectorTransferred {
     pub connector: String,
@@ -2231,6 +2510,19 @@ impl PartialEq<Status> for &Status {
 impl Status {
     fn as_str(&self) -> &'static str {
         self.into()
+    }
+
+    #[allow(dead_code)]
+    fn in_final_state(&self) -> bool {
+        matches!(
+            self,
+            Self::Stopped
+                | Self::Interrupted
+                | Self::Cancelled
+                | Self::Failed
+                | Self::Created
+                | Self::Suspended
+        )
     }
 }
 
@@ -2973,6 +3265,13 @@ impl Labels {
         self.0.as_ref().map(|v| v.is_empty()).unwrap_or(true)
     }
 
+    pub fn to_hash_map(&self) -> HashMap<&str, &str> {
+        self.0
+            .as_deref()
+            .map(|v| v.iter().flat_map(|v| v.split_once("::")).collect())
+            .unwrap_or_default()
+    }
+
     /// Find the label value by key
     pub fn find(&self, key: &str) -> Option<&str> {
         self.0
@@ -3369,6 +3668,11 @@ impl TaskFilter {
         self.via.replace(agent_id);
         self
     }
+
+    fn with_joined_labels(mut self, labels: String) -> Self {
+        self.labels.replace(labels);
+        self
+    }
 }
 
 #[cfg(test)]
@@ -3676,5 +3980,86 @@ mod tests {
         let dsn = Dsn::from_str("csv:./ab.csv,./cd.csv?param=1").unwrap();
         dbg!(&dsn);
         assert_eq!(dsn.path.unwrap(), "./ab.csv,./cd.csv");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore]
+    async fn test_replica_docker() -> anyhow::Result<()> {
+        std::thread::spawn(move || {
+            std::env::set_current_dir("tests/active-active").unwrap();
+            let _ = std::process::Command::new("docker")
+                .args(["compose", "up", "-d", "--remove-orphans"])
+                .output();
+        })
+        .join()
+        .unwrap();
+        let source = TaosBuilder::from_dsn("http://localhost:7041")?
+            .build()
+            .await?;
+        let sink = TaosBuilder::from_dsn("http://localhost:8041")?
+            .build()
+            .await?;
+        {
+            // prepare data
+            source
+                .exec_many([
+                    "drop topic if exists __replica__rep1",
+                    "drop database if exists rep1",
+                    "create database if not exists rep1",
+                    "create table if not exists rep1.t1 (ts timestamp, c1 int)",
+                    "insert into rep1.t1 values(now, 1)",
+                    "drop topic if exists __replica__rep2",
+                    "drop database if exists rep2",
+                    "create database if not exists rep2",
+                    "create table if not exists rep2.st1 (ts timestamp, c1 int) tags(t1 int)",
+                    "insert into rep2.t1 using rep2.st1 tags(1) values(now, 2)",
+                ])
+                .await?;
+            sink.exec_many([
+                "drop database if exists rep1",
+                "drop database if exists rep2",
+            ])
+            .await?;
+        }
+        let _ = tracing_subscriber::fmt::fmt()
+            .with_max_level(tracing::Level::DEBUG)
+            .with_file(true)
+            .pretty()
+            .try_init();
+        let (controller, _scheduler, _agent_notify_sender) = generate_scheduler_for_test().await?;
+        let opts = ReplicaOpts {
+            source: "http://localhost:7041".to_string(),
+            sink: "http://localhost:8041".to_string(),
+            new_databases_checking_interval: Some(1),
+            ..Default::default()
+        };
+        let arc = Arc::new(controller);
+        let replica = arc.start_replica_monitor(opts).await?;
+        assert!(replica.id.is_some(), "replica id is none: {replica:?}");
+        let reps = arc.list_replicas().await?;
+        assert!(
+            reps.is_empty() || reps[0].1.is_empty(),
+            "replicas is not empty: {reps:?}"
+        );
+
+        {
+            sink.exec("create database if not exists rep1").await?;
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        let reps = arc.list_replicas().await?;
+        assert_eq!(reps[0].1.len(), 1, "replicas should have 1 task: {reps:?}");
+
+        {
+            sink.exec("create database if not exists rep2").await?;
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        let reps = arc.list_replicas().await?;
+        assert_eq!(reps[0].1.len(), 2, "replicas should have 2 task: {reps:?}");
+
+        let del = arc
+            .remove_replica_monitor(replica.id.as_deref().unwrap())
+            .await?;
+        assert!(del.is_some());
+        Ok(())
     }
 }
