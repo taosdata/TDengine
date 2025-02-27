@@ -554,6 +554,27 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   return code;
 }
 
+static int32_t createRefScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SRealTableNode* pRealTable,
+                                      SLogicNode** pLogicNode) {
+  SScanLogicNode* pScan = NULL;
+  int32_t         code = makeScanLogicNode(pCxt, pRealTable, pSelect->hasRepeatScanFuncs, (SLogicNode**)&pScan);
+
+  pScan->node.groupAction = GROUP_ACTION_NONE;
+  pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pScan->scanType = getScanType(pCxt, pScan->pScanPseudoCols, pScan->pScanCols, pScan->tableType, pSelect->tagScan);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addDefaultScanCol(pRealTable, &pScan->pScanCols);
+  }
+  *pLogicNode = (SLogicNode*)pScan;
+  pCxt->hasScan = true;
+
+  return code;
+}
+
 static int32_t createSubqueryLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, STempTableNode* pTable,
                                        SLogicNode** pLogicNode) {
   return createQueryLogicNode(pCxt, pTable->pSubquery, pLogicNode);
@@ -756,7 +777,7 @@ static int32_t scanAddCol(SLogicNode* pLogicNode, SColRef* colRef, STableNode* p
   pRefTableScanCol->hasRef = false;
   pRefTableScanCol->hasDep = true;
 
-  PLAN_ERR_JRET(nodesListAppend(pLogicScan->pScanCols, (SNode*)pRefTableScanCol));
+  PLAN_ERR_JRET(nodesListMakeAppend(&pLogicScan->pScanCols, (SNode*)pRefTableScanCol));
   return code;
 _return:
   nodesDestroyNode((SNode*)pRefTableScanCol);
@@ -792,7 +813,7 @@ static int32_t addSubScanNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SVi
 
   SLogicNode **ppRefScan = (SLogicNode **)taosHashGet(refTablesMap, &tableNameKey, strlen(tableNameKey));
   if (NULL == ppRefScan) {
-    PLAN_ERR_JRET(createScanLogicNode(pCxt, pSelect, (SRealTableNode*)pRefTable, &pRefScan));
+    PLAN_ERR_JRET(createRefScanLogicNode(pCxt, pSelect, (SRealTableNode*)pRefTable, &pRefScan));
     PLAN_ERR_JRET(checkColRefType(&pVirtualTable->pMeta->schema[schemaIndex], &((SRealTableNode*)pRefTable)->pMeta->schema[colId - 1]));
     PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->table, &pVirtualTable->pMeta->schema[schemaIndex], colId));
     PLAN_ERR_JRET(taosHashPut(refTablesMap, &tableNameKey, strlen(tableNameKey), &pRefScan, POINTER_BYTES));
@@ -981,7 +1002,6 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
 
   while ((pIter = taosHashIterate(pRefTablesMap, pIter))) {
     SScanLogicNode **pRefScanNode = (SScanLogicNode**)pIter;
-    nodesDestroyList((*pRefScanNode)->node.pTargets);
     PLAN_ERR_JRET(createColumnByRewriteExprs((*pRefScanNode)->pScanCols, &(*pRefScanNode)->node.pTargets));
     PLAN_ERR_JRET(nodesListStrictAppend(pVtableScan->node.pChildren, (SNode*)(*pRefScanNode)));
   }
