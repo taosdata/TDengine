@@ -1,4 +1,6 @@
 #!/bin/bash
+set -e
+
 echo "install library ..."
 cd /app
 ls -l
@@ -8,5 +10,4 @@ pnpm install
 
 echo "start build ..."
 pnpm run build
-
 echo "build finished ..."
