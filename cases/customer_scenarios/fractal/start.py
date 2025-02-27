@@ -43,7 +43,7 @@ class Start(TDCase):
         self._remote.cmd(mqtt_host,f"nohup mqtt_pub --schema {mqtt_pub_path} --host {edge_host} --interval {mqtt_pub_interval}s > mqtt_pub.log 2>&1 &")
         
     def start_taosx_service(self,host):
-        self._remote_cmd(host,"systemctl start taosx")
+        self._remote.cmd(host,"systemctl start taosx")
     def run(self) -> bool:
         
         # start mqtt simulator
