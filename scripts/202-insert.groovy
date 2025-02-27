@@ -50,7 +50,7 @@ def sync_source(tdinternal_branch_name, community_branch_name, internal_root) {
     '''
     return 1
 }
-def build_package(internal_root, new_version) {
+def build_package(internal_root, new_version, branch_name) {
     sh '''
         date
         cd ${WORK_DIR}/testnglog
@@ -77,7 +77,7 @@ def build_package(internal_root, new_version) {
         eval `ssh-agent -s`
         ssh-add
         . $HOME/.cargo/env
-        ./new_ver_release.sh -v cluster -n ''' + new_version + ''' -V stable -d no -l full -b 3.1 -c x64 -s 1 | tee ../ver-3.0.0.100.txt
+        ./new_ver_release.sh -v cluster -n ''' + new_version + ''' -V stable -d no -l full -b ''' + branch_name + ''' -c x64 -s 1 | tee ../ver-3.0.0.100.txt
     '''
     sh '''
         date
@@ -223,7 +223,7 @@ pipeline {
                             '''
                             if (check_cases_to_run() == 0) {
                                 sync_source("${TDINTERNAL_BRANCH_NAME}", "${COMMUNITY_BRANCH_NAME}", "${INTERNAL_ROOT}")
-                                build_package("${INTERNAL_ROOT}", "${NEW_VERSION}")
+                                build_package("${INTERNAL_ROOT}", "${NEW_VERSION}","${TDINTERNAL_BRANCH_NAME}")
                             } else {
                                 echo "no case to run"
                             }
