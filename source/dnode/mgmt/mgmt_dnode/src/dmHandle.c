@@ -26,6 +26,7 @@ extern SConfig *tsCfg;
 
 SMonVloadInfo tsVinfo = {0};
 SMnodeLoad    tsMLoad = {0};
+SDnodeData    tsDnodeData = {0};
 
 static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
   int32_t code = 0;
@@ -170,22 +171,27 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   SStatusReq req = {0};
   req.timestamp = taosGetTimestampMs();
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to mgnt lock", pMgmt->statusSeq);
-  (void)taosThreadRwlockRdlock(&pMgmt->pData->lock);
+  dDebug("send status req to mnode, statusSeq:%d, begin to mgnt statusInfolock", pMgmt->statusSeq);
+  if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
+    dError("failed to lock status info lock");
+    return;
+  }
+
+  dDebug("send status req to mnode, statusSeq:%d, begin to get dnode info", pMgmt->statusSeq);
   req.sver = tsVersion;
-  req.dnodeVer = pMgmt->pData->dnodeVer;
-  req.dnodeId = pMgmt->pData->dnodeId;
-  req.clusterId = pMgmt->pData->clusterId;
+  req.dnodeVer = tsDnodeData.dnodeVer;
+  req.dnodeId = tsDnodeData.dnodeId;
+  req.clusterId = tsDnodeData.clusterId;
   if (req.clusterId == 0) req.dnodeId = 0;
-  req.rebootTime = pMgmt->pData->rebootTime;
-  req.updateTime = pMgmt->pData->updateTime;
+  req.rebootTime = tsDnodeData.rebootTime;
+  req.updateTime = tsDnodeData.updateTime;
   req.numOfCores = tsNumOfCores;
   req.numOfSupportVnodes = tsNumOfSupportVnodes;
   req.numOfDiskCfg = tsDiskCfgNum;
   req.memTotal = tsTotalMemoryKB * 1024;
   req.memAvail = req.memTotal - tsQueueMemoryAllowed - tsApplyMemoryAllowed - 16 * 1024 * 1024;
   tstrncpy(req.dnodeEp, tsLocalEp, TSDB_EP_LEN);
-  tstrncpy(req.machineId, pMgmt->pData->machineId, TSDB_MACHINE_ID_LEN + 1);
+  tstrncpy(req.machineId, tsDnodeData.machineId, TSDB_MACHINE_ID_LEN + 1);
 
   req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.checkTime = 0;
@@ -207,17 +213,13 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
-  (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to get vnode and loads", pMgmt->statusSeq);
-  if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
-    dError("failed to lock status info lock");
-    return;
-  }
+  dDebug("send status req to mnode, statusSeq:%d, begin to get vnode loads", pMgmt->statusSeq);
 
   req.pVloads = tsVinfo.pVloads;
   tsVinfo.pVloads = NULL;
 
+  dDebug("send status req to mnode, statusSeq:%d, begin to get mnode loads", pMgmt->statusSeq);
   req.mload = tsMLoad;
 
   if (taosThreadMutexUnlock(&pMgmt->pData->statusInfolock) != 0) {
@@ -416,8 +418,19 @@ void dmSendConfigReq(SDnodeMgmt *pMgmt) {
 }
 
 void dmUpdateStatusInfo(SDnodeMgmt *pMgmt) {
-  SMonVloadInfo vinfo = {0};
+  dDebug("begin to get dnode info");
+  SDnodeData dnodeData = {0};
+  (void)taosThreadRwlockRdlock(&pMgmt->pData->lock);
+  dnodeData.dnodeVer = pMgmt->pData->dnodeVer;
+  dnodeData.dnodeId = pMgmt->pData->dnodeId;
+  dnodeData.clusterId = pMgmt->pData->clusterId;
+  dnodeData.rebootTime = pMgmt->pData->rebootTime;
+  dnodeData.updateTime = pMgmt->pData->updateTime;
+  tstrncpy(dnodeData.machineId, pMgmt->pData->machineId, TSDB_MACHINE_ID_LEN + 1);
+  (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
+
   dDebug("begin to get vnode loads");
+  SMonVloadInfo vinfo = {0};
   (*pMgmt->getVnodeLoadsFp)(&vinfo);  // dmGetVnodeLoads
 
   dDebug("begin to get mnode loads");
@@ -429,6 +442,12 @@ void dmUpdateStatusInfo(SDnodeMgmt *pMgmt) {
     dError("failed to lock status info lock");
     return;
   }
+  tsDnodeData.dnodeVer = dnodeData.dnodeVer;
+  tsDnodeData.dnodeId = dnodeData.dnodeId;
+  tsDnodeData.clusterId = dnodeData.clusterId;
+  tsDnodeData.rebootTime = dnodeData.rebootTime;
+  tsDnodeData.updateTime = dnodeData.updateTime;
+  tstrncpy(tsDnodeData.machineId, dnodeData.machineId, TSDB_MACHINE_ID_LEN + 1);
 
   if (tsVinfo.pVloads == NULL) {
     tsVinfo.pVloads = vinfo.pVloads;
