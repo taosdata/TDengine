@@ -653,7 +653,7 @@ static void decimal128Divide(DecimalType* pLeft, const DecimalType* pRight, uint
   Decimal128  right = {0};
   DECIMAL128_CHECK_RIGHT_WORD_NUM(rightWordNum, pRightDec, right, pRight);
 
-  bool       negate = DECIMAL128_SIGN(pLeftDec) != DECIMAL128_SIGN(pRightDec);
+  bool leftNegate = DECIMAL128_SIGN(pLeftDec) == -1, rightNegate = DECIMAL128_SIGN(pRightDec) == -1;
   UInt128    a = {0}, b = {0}, c = {0}, d = {0};
   Decimal128 x = *pLeftDec, y = *pRightDec;
   decimal128Abs(&x);
@@ -666,8 +666,8 @@ static void decimal128Divide(DecimalType* pLeft, const DecimalType* pRight, uint
   uInt128Mod(&d, &b);
   makeDecimal128(pLeftDec, uInt128Hi(&a), uInt128Lo(&a));
   if (pRemainder) makeDecimal128(pRemainderDec, uInt128Hi(&d), uInt128Lo(&d));
-  if (negate) decimal128Negate(pLeftDec);
-  if (DECIMAL128_SIGN(pLeftDec) == -1 && pRemainder) decimal128Negate(pRemainderDec);
+  if (leftNegate != rightNegate) decimal128Negate(pLeftDec);
+  if (leftNegate && pRemainder) decimal128Negate(pRemainderDec);
 }
 
 static void decimal128Mod(DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum) {

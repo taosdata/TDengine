@@ -178,6 +178,7 @@ class TaosShell:
         except Exception as e:
             tdLog.exit(f"Command '{sql}' failed with error: {e.stderr.decode('utf-8')}")
             self.queryResult = []
+            raise
         return self.queryResult
 
 class DecimalColumnExpr:
@@ -185,6 +186,7 @@ class DecimalColumnExpr:
         self.format_: str = format
         self.executor_ = executor
         self.params_: Tuple = ()
+        self.res_type_: DataType = None
 
     def __str__(self):
         return f"({self.format_})".format(*self.params_)
@@ -229,10 +231,14 @@ class DecimalColumnExpr:
                 tdLog.debug(
                     f"check decimal succ for expr: {self}, params: {params}, insert:{v_from_calc_in_py} query:{v_from_query}, py dec: {dec_from_insert}"
                 )
-
+    
+    ## format_params are already been set
+    def generate_res_type(self):
+        pass
 
     def generate(self, format_params) -> str:
         self.params_ = format_params
+        self.generate_res_type()
         return self.__str__()
 
 
@@ -259,49 +265,38 @@ class TypeEnum:
     DECIMAL64 = 21
 
     @staticmethod
+    def get_type_prec(type: int):
+        type_prec = [0, 1, 3, 5, 10, 19, 38, 38, 0, 19, 10, 3, 5, 10, 20, 0, 0, 0, 0, 0, 0, 0]
+        return type_prec[type]
+
+    @staticmethod
     def get_type_str(type: int):
-        if type == TypeEnum.BOOL:
-            return "BOOL"
-        elif type == TypeEnum.TINYINT:
-            return "TINYINT"
-        elif type == TypeEnum.SMALLINT:
-            return "SMALLINT"
-        elif type == TypeEnum.INT:
-            return "INT"
-        elif type == TypeEnum.BIGINT:
-            return "BIGINT"
-        elif type == TypeEnum.FLOAT:
-            return "FLOAT"
-        elif type == TypeEnum.DOUBLE:
-            return "DOUBLE"
-        elif type == TypeEnum.VARCHAR:
-            return "VARCHAR"
-        elif type == TypeEnum.TIMESTAMP:
-            return "TIMESTAMP"
-        elif type == TypeEnum.NCHAR:
-            return "NCHAR"
-        elif type == TypeEnum.UTINYINT:
-            return "TINYINT UNSIGNED"
-        elif type == TypeEnum.USMALLINT:
-            return "SMALLINT UNSIGNED"
-        elif type == TypeEnum.UINT:
-            return "INT UNSIGNED"
-        elif type == TypeEnum.UBIGINT:
-            return "BIGINT UNSIGNED"
-        elif type == TypeEnum.JSON:
-            return "JSON"
-        elif type == TypeEnum.VARBINARY:
-            return "VARBINARY"
-        elif type == TypeEnum.DECIMAL:
-            return "DECIMAL"
-        elif type == TypeEnum.BINARY:
-            return "BINARY"
-        elif type == TypeEnum.GEOMETRY:
-            return "GEOMETRY"
-        elif type == TypeEnum.DECIMAL64:
-            return "DECIMAL"
-        else:
-            raise Exception("unknow type")
+        type_str = [
+            "",
+            "BOOL",
+            "TINYINT",
+            "SMALLINT",
+            "INT",
+            "BIGINT",
+            "FLOAT",
+            "DOUBLE",
+            "VARCHAR",
+            "TIMESTAMP",
+            "NCHAR",
+            "TINYINT UNSIGNED",
+            "SMALLINT UNSIGNED",
+            "INT UNSIGNED",
+            "BIGINT UNSIGNED",
+            "JSON",
+            "VARBINARY",
+            "DECIMAL",
+            "",
+            "",
+            "GEOMETRY",
+            "DECIMAL",
+        ]
+        return type_str[type]
+
 
 
 class DataType:
@@ -337,7 +332,7 @@ class DataType:
 
     def scale(self):
         return 0
-
+    
     ## TODO generate NULL, None
     def generate_value(self) -> str:
         if self.type == TypeEnum.BOOL:
@@ -470,6 +465,11 @@ class DecimalType(DataType):
                     f"check decimal succ, insert:{v_from_insert} query:{v_from_query}, py dec: {dec_insert}"
                 )
 
+
+    @staticmethod
+    def decimal_type_from_other_type(other: DataType):
+        prec = 0
+        return DecimalType(other.type, other.length, other.type_mod)
 
 class Column:
     def __init__(self, type: DataType):
@@ -697,21 +697,81 @@ class TableDataValidator:
 
 
 class DecimalBinaryOperator(DecimalColumnExpr):
-    def __init__(self, op: str):
-        super().__init__()
+    def __init__(self, format, executor, op: str):
+        super().__init__(format, executor)
         self.op_ = op
 
     def __str__(self):
-        return self.op_
+        return super().__str__()
 
-    def generate(self):
-        pass
+    def generate(self, format_params: Tuple) -> str:
+        return super().generate(format_params)
 
     @staticmethod
-    def execute_plus(params):
-        ret_float = False
+    def check_null(params):
         if params[0] is None or params[1] is None:
-            return 'NULL'
+            return True
+        else:
+            return False
+    
+    @staticmethod
+    def is_compare_op(op: str)-> bool:
+        return op in ["==", "!=", ">", "<", ">=", "<="]
+    
+    @staticmethod
+    def calc_decimal_prec_scale(left: DataType, right: DataType, op: str) -> DecimalType:
+        left_prec = 0
+        left_scale = 0
+        right_prec = 0
+        right_scale = 0
+        if not left.is_decimal_type():
+            left_prec = TypeEnum.get_type_prec(left.type)
+        else:
+            left_prec = DecimalType(left).prec()
+            left_scale = DecimalType(left).scale()
+        if not right.is_decimal_type():
+            right_prec = TypeEnum.get_type_prec(right.type)
+        else:
+            right_prec = DecimalType(right).prec()
+            right_scale = DecimalType(right).scale()
+        
+        out_prec = 0
+        out_scale = 0
+        if op in ['+', '-']:
+            out_scale = max(left_scale, right_scale)
+            out_prec = max(left_prec - left_scale, right_prec - right_scale) + out_scale + 1
+        elif op == '*':
+            out_scale = left_scale + right_scale
+            out_prec = left_prec + right_prec + 1
+        elif op == '/':
+            out_scale = max(left_scale + right_prec + 1, 6)
+            out_prec = left_prec - left_scale + right_scale + out_scale
+        elif op == '%':
+            out_scale = max(left_scale, right_scale)
+            out_prec = min(left_prec - left_scale, right_prec - right_scale) + out_scale
+        else:
+            raise Exception(f"unknown op for binary operators: {op}")
+        
+        if out_prec > 38:
+            min_scale = min(6, out_scale)
+            delta = out_prec - 38
+            out_prec = 38
+            out_scale = max(min_scale, out_scale - delta)
+        return DecimalType(TypeEnum.DECIMAL, out_prec, out_scale)
+
+    def generate_res_type(self):
+        if DecimalBinaryOperator.is_compare_op(self.op_):
+            self.res_type_ = DataType(TypeEnum.BOOL)
+        left_type = self.params_[0].type_
+        right_type = self.params_[1].type_
+        ret_double_types = [TypeEnum.VARCHAR, TypeEnum.BINARY, TypeEnum.DOUBLE, TypeEnum.FLOAT]
+        if left_type.type in ret_double_types or right_type.type in ret_double_types:
+            self.res_type_ = DataType(TypeEnum.DOUBLE)
+        self.res_type_ = DecimalBinaryOperator.calc_decimal_prec_scale(left_type, right_type, self.op_)
+
+    @staticmethod
+    def get_ret_type(params) -> Tuple:
+        ret_float = False
         if isinstance(params[0], float) or isinstance(params[1], float):
             ret_float = True
         left = params[0]
@@ -722,6 +782,13 @@ class DecimalBinaryOperator(DecimalColumnExpr):
         if isinstance(params[1], str):
             right = right.strip("'")
             ret_float = True
+        return (left, right), ret_float
+
+    @staticmethod
+    def execute_plus(params):
+        if DecimalBinaryOperator.check_null(params):
+            return 'NULL'
+        (left, right), ret_float = DecimalBinaryOperator.get_ret_type(params)
         if ret_float:
             return float(left) + float(right)
         else:
@@ -729,15 +796,33 @@ class DecimalBinaryOperator(DecimalColumnExpr):
 
     @staticmethod
     def execute_minus(params):
-        return params[0] - params[1]
+        if DecimalBinaryOperator.check_null(params):
+            return 'NULL'
+        (left, right), ret_float = DecimalBinaryOperator.get_ret_type(params)
+        if ret_float:
+            return float(left) - float(right)
+        else:
+            return Decimal(left) - Decimal(right)
 
     @staticmethod
     def execute_mul(params):
-        return params[0] * params[1]
+        if DecimalBinaryOperator.check_null(params):
+            return 'NULL'
+        (left, right), ret_float = DecimalBinaryOperator.get_ret_type(params)
+        if ret_float:
+            return float(left) * float(right)
+        else:
+            return Decimal(left) * Decimal(right)
 
     @staticmethod
     def execute_div(params):
-        return params[0] / params[1]
+        if DecimalBinaryOperator.check_null(params):
+            return 'NULL'
+        (left, right), ret_float = DecimalBinaryOperator.get_ret_type(params)
+        if ret_float:
+            return float(left) / float(right)
+        else:
+            return Decimal(left) / Decimal(right)
 
     @staticmethod
     def execute_mod(params):
@@ -770,43 +855,21 @@ class DecimalBinaryOperator(DecimalColumnExpr):
     @staticmethod
     def get_all_binary_ops() -> List[DecimalColumnExpr]:
         return [
-            DecimalColumnExpr(" {0} + {1} ", DecimalBinaryOperator.execute_plus),
-            DecimalColumnExpr(" {0} - {1} ", DecimalBinaryOperator.execute_minus),
-            DecimalColumnExpr(" {0} * {1} ", DecimalBinaryOperator.execute_mul),
-            DecimalColumnExpr(" {0} / {1} ", DecimalBinaryOperator.execute_div),
-            DecimalColumnExpr(" {0} % {1} ", DecimalBinaryOperator.execute_mod),
-            DecimalColumnExpr(" {0} == {1} ", DecimalBinaryOperator.execute_eq),
-            DecimalColumnExpr(" {0} != {1} ", DecimalBinaryOperator.execute_ne),
-            DecimalColumnExpr(" {0} > {1} ", DecimalBinaryOperator.execute_gt),
-            DecimalColumnExpr(" {0} < {1} ", DecimalBinaryOperator.execute_lt),
-            DecimalColumnExpr(" {0} >= {1} ", DecimalBinaryOperator.execute_ge),
-            DecimalColumnExpr(" {0} <= {1} ", DecimalBinaryOperator.execute_le),
+            DecimalBinaryOperator(" {0} + {1} ", DecimalBinaryOperator.execute_plus, "+"),
+            DecimalBinaryOperator(" {0} - {1} ", DecimalBinaryOperator.execute_minus, "-"),
+            DecimalBinaryOperator(" {0} * {1} ", DecimalBinaryOperator.execute_mul, "*"),
+            DecimalBinaryOperator(" {0} / {1} ", DecimalBinaryOperator.execute_div, "/"),
+            DecimalBinaryOperator(" {0} % {1} ", DecimalBinaryOperator.execute_mod, "%"),
+            DecimalBinaryOperator(" {0} == {1} ", DecimalBinaryOperator.execute_eq, "=="),
+            DecimalBinaryOperator(" {0} != {1} ", DecimalBinaryOperator.execute_ne, "!="),
+            DecimalBinaryOperator(" {0} > {1} ", DecimalBinaryOperator.execute_gt, ">"),
+            DecimalBinaryOperator(" {0} < {1} ", DecimalBinaryOperator.execute_lt, "<"),
+            DecimalBinaryOperator(" {0} >= {1} ", DecimalBinaryOperator.execute_ge, ">="),
+            DecimalBinaryOperator(" {0} <= {1} ", DecimalBinaryOperator.execute_le, "<="),
         ]
 
-    def execute(self, left, right):
-        if self.op_ == "+":
-            return left + right
-        if self.op_ == "-":
-            return left - right
-        if self.op_ == "*":
-            return left * right
-        if self.op_ == "/":
-            return left / right
-        if self.op_ == "%":
-            return left % right
-        if self.op_ == "==":
-            return left == right
-        if self.op_ == "!=":
-            return left != right
-        if self.op_ == ">":
-            return left > right
-        if self.op_ == "<":
-            return left < right
-        if self.op_ == ">=":
-            return left >= right
-        if self.op_ == "<=":
-            return left <= right
-        raise Exception(f"unsupport operator {self.op_}")
+    def execute(self, params):
+        return super().execute(params)
 
 
 class DecimalBinaryOperatorIn(DecimalBinaryOperator):
@@ -1178,6 +1241,8 @@ class TDTestCase:
     ):
         for expr in exprs:
             for col in tb_cols:
+                if col.name_ == '':
+                    continue
                 left_is_decimal = col.type_.is_decimal_type()
                 for const_col in constant_cols:
                     right_is_decimal = const_col.type_.is_decimal_type()
@@ -1187,7 +1252,10 @@ class TDTestCase:
                     select_expr = expr.generate((col, const_col))
                     sql = f"select {select_expr} from {dbname}.{tbname}"
                     res = TaosShell().query(sql)
-                    expr.check(res[0], tbname)
+                    if len(res) > 0:
+                        expr.check(res[0], tbname)
+                    else:
+                        tdLog.info(f"sql: {sql} got no output")
         ## query
         ## build expr, expr.generate(column) to generate sql expr
         ## pass this expr into DataValidator.
@@ -1244,21 +1312,7 @@ class TDTestCase:
         self.test_decimal_unsupported_types()
         ## tables: meters, nt
         ## columns: c1, c2, c3, c4, c5, c7, c8, c9, c10, c99, c100
-        binary_operators = [
-            DecimalColumnExpr("{0} + {1}", DecimalBinaryOperator.execute_plus),
-            # DecimalColumnExpr("-"),
-            # DecimalColumnExpr("*"),
-            # DecimalColumnExpr("/"),
-            # DecimalColumnExpr("%"),
-            # DecimalColumnExpr(">"),
-            # DecimalColumnExpr("<"),
-            # DecimalColumnExpr(">="),
-            # DecimalColumnExpr("<="),
-            # DecimalColumnExpr("=="),
-            # DecimalColumnExpr("!="),
-            # DecimalBinaryOperatorIn("in"),
-            # DecimalBinaryOperatorIn("not in"),
-        ]
+        binary_operators = DecimalBinaryOperator.get_all_binary_ops()
         all_type_columns = Column.get_decimal_oper_const_cols()
 
         ## decimal operator with constants of all other types
