@@ -52,21 +52,20 @@
 
 #define TMQ_META_VERSION "1.0"
 
-static bool  tmqAddJsonObjectItem(cJSON *object, const char *string, cJSON *item){
+static bool tmqAddJsonObjectItem(cJSON* object, const char* string, cJSON* item) {
   bool ret = cJSON_AddItemToObject(object, string, item);
-  if (!ret){
+  if (!ret) {
     cJSON_Delete(item);
   }
   return ret;
 }
-static bool  tmqAddJsonArrayItem(cJSON *array, cJSON *item){
+static bool tmqAddJsonArrayItem(cJSON* array, cJSON* item) {
   bool ret = cJSON_AddItemToArray(array, item);
-  if (!ret){
+  if (!ret) {
     cJSON_Delete(item);
   }
   return ret;
 }
-
 
 static int32_t  tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, uint32_t metaLen);
 static tb_uid_t processSuid(tb_uid_t suid, char* db) {
@@ -440,7 +439,7 @@ static void buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
   SArray* pTagVals = NULL;
   char*   pJson = NULL;
 
-  cJSON*  tableName = cJSON_CreateString(name);
+  cJSON* tableName = cJSON_CreateString(name);
   RAW_NULL_CHECK(tableName);
   RAW_FALSE_CHECK(tmqAddJsonObjectItem(json, "tableName", tableName));
   cJSON* using = cJSON_CreateString(sname);
@@ -1741,7 +1740,7 @@ int taos_write_raw_block_with_fields_with_reqid(TAOS* taos, int rows, char* pDat
     goto end;
   }
 
-  SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
+  SName pName = {TSDB_TABLE_NAME_T, T_NAME_DIRECT_INSERT, pRequest->pTscObj->acctId, {0}, {0}};
   tstrncpy(pName.dbname, pRequest->pDb, sizeof(pName.dbname));
   tstrncpy(pName.tname, tbname, sizeof(pName.tname));
 
@@ -1801,7 +1800,7 @@ int taos_write_raw_block_with_reqid(TAOS* taos, int rows, char* pData, const cha
     goto end;
   }
 
-  SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
+  SName pName = {TSDB_TABLE_NAME_T, T_NAME_DIRECT_INSERT, pRequest->pTscObj->acctId, {0}, {0}};
   tstrncpy(pName.dbname, pRequest->pDb, sizeof(pName.dbname));
   tstrncpy(pName.tname, tbname, sizeof(pName.tname));
 
@@ -1948,7 +1947,7 @@ static int32_t initRawCacheHash() {
 }
 
 static bool needRefreshMeta(void* rawData, STableMeta* pTableMeta, SSchemaWrapper* pSW) {
-  if (rawData == NULL || pSW == NULL){
+  if (rawData == NULL || pSW == NULL) {
     return false;
   }
   if (pTableMeta == NULL) {
@@ -1977,7 +1976,7 @@ static bool needRefreshMeta(void* rawData, STableMeta* pTableMeta, SSchemaWrappe
       char*    fieldName = pSW->pSchema[i].name;
 
       if (strcmp(pColSchema->name, fieldName) == 0) {
-        if (checkSchema(pColSchema, fields, NULL, 0) != 0){
+        if (checkSchema(pColSchema, fields, NULL, 0) != 0) {
           return true;
         }
         break;
@@ -2048,26 +2047,26 @@ end:
 typedef int32_t _raw_decode_func_(SDecoder* pDecoder, SMqDataRsp* pRsp);
 static int32_t  decodeRawData(SDecoder* decoder, void* data, uint32_t dataLen, _raw_decode_func_ func,
                               SMqRspObj* rspObj) {
-  if (decoder == NULL || data == NULL || func == NULL || rspObj == NULL) {
-    uError("invalid parameter in %s", __func__);
-    return TSDB_CODE_INVALID_PARA;
+   if (decoder == NULL || data == NULL || func == NULL || rspObj == NULL) {
+     uError("invalid parameter in %s", __func__);
+     return TSDB_CODE_INVALID_PARA;
   }
-  int8_t dataVersion = *(int8_t*)data;
-  if (dataVersion >= MQ_DATA_RSP_VERSION) {
-    data = POINTER_SHIFT(data, sizeof(int8_t) + sizeof(int32_t));
-    if (dataLen < sizeof(int8_t) + sizeof(int32_t)) {
-      return TSDB_CODE_INVALID_PARA;
+   int8_t dataVersion = *(int8_t*)data;
+   if (dataVersion >= MQ_DATA_RSP_VERSION) {
+     data = POINTER_SHIFT(data, sizeof(int8_t) + sizeof(int32_t));
+     if (dataLen < sizeof(int8_t) + sizeof(int32_t)) {
+       return TSDB_CODE_INVALID_PARA;
     }
-    dataLen -= sizeof(int8_t) + sizeof(int32_t);
+     dataLen -= sizeof(int8_t) + sizeof(int32_t);
   }
 
-  rspObj->resIter = -1;
-  tDecoderInit(decoder, data, dataLen);
-  int32_t code = func(decoder, &rspObj->dataRsp);
-  if (code != 0) {
-    SET_ERROR_MSG("decode mq taosx data rsp failed");
+   rspObj->resIter = -1;
+   tDecoderInit(decoder, data, dataLen);
+   int32_t code = func(decoder, &rspObj->dataRsp);
+   if (code != 0) {
+     SET_ERROR_MSG("decode mq taosx data rsp failed");
   }
-  return code;
+   return code;
 }
 
 static int32_t processCacheMeta(SHashObj* pVgHash, SHashObj* pNameHash, SHashObj* pMetaHash,
@@ -2174,7 +2173,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) {
       RAW_NULL_CHECK(rawData);
 
       uTrace(LOG_ID_TAG " write raw data block tbname:%s", LOG_ID_VALUE, tbName);
-      SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
+      SName pName = {TSDB_TABLE_NAME_T, T_NAME_DIRECT_INSERT, pRequest->pTscObj->acctId, {0}, {0}};
       tstrncpy(pName.dbname, pRequest->pDb, TSDB_DB_NAME_LEN);
       tstrncpy(pName.tname, tbName, TSDB_TABLE_NAME_LEN);
 
@@ -2257,7 +2256,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, uint32_t dataLen)
       RAW_NULL_CHECK(rawData);
 
       uTrace(LOG_ID_TAG " write raw data block tbname:%s", LOG_ID_VALUE, tbName);
-      SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
+      SName pName = {TSDB_TABLE_NAME_T, T_NAME_DIRECT_INSERT, pRequest->pTscObj->acctId, {0}, {0}};
       tstrncpy(pName.dbname, pRequest->pDb, TSDB_DB_NAME_LEN);
       tstrncpy(pName.tname, tbName, TSDB_TABLE_NAME_LEN);
 
@@ -2345,14 +2344,14 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
       RAW_NULL_CHECK(rawData);
 
       uTrace(LOG_ID_TAG " write raw data block tbname:%s", LOG_ID_VALUE, tbName);
-      SName pName = {TSDB_TABLE_NAME_T, pRequest->pTscObj->acctId, {0}, {0}};
+      SName pName = {TSDB_TABLE_NAME_T, T_NAME_DIRECT_INSERT, pRequest->pTscObj->acctId, {0}, {0}};
       tstrncpy(pName.dbname, pRequest->pDb, TSDB_DB_NAME_LEN);
       tstrncpy(pName.tname, tbName, TSDB_TABLE_NAME_LEN);
 
       // find schema data info
-      STableMeta*    pTableMeta = NULL;
-      RAW_RETURN_CHECK(processCacheMeta(pVgHash, pNameHash, pMetaHash, NULL, pCatalog, &conn, &pName,
-                                        &pTableMeta, NULL, NULL, retry));
+      STableMeta* pTableMeta = NULL;
+      RAW_RETURN_CHECK(processCacheMeta(pVgHash, pNameHash, pMetaHash, NULL, pCatalog, &conn, &pName, &pTableMeta, NULL,
+                                        NULL, retry));
       char err[ERR_MSG_LEN] = {0};
       code = rawBlockBindRawData(pVgroupHash, pStmt->pVgDataBlocks, pTableMeta, rawData);
       if (code != TSDB_CODE_SUCCESS) {
@@ -2377,7 +2376,7 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
     break;
   }
 
-  end:
+end:
   uDebug(LOG_ID_TAG " write raw rawdata return, msg:%s", LOG_ID_VALUE, tstrerror(code));
   tDeleteMqDataRsp(&rspObj.dataRsp);
   tDecoderClear(&decoder);
@@ -2506,48 +2505,48 @@ static int32_t getOffSetLen(const SMqDataRsp* pRsp) {
 
 typedef int32_t __encode_func__(SEncoder* pEncoder, const SMqDataRsp* pRsp);
 static int32_t  encodeMqDataRsp(__encode_func__* encodeFunc, SMqDataRsp* rspObj, tmq_raw_data* raw) {
-  if (raw == NULL || encodeFunc == NULL || rspObj == NULL) {
-    uError("invalid parameter in %s", __func__);
-    return TSDB_CODE_INVALID_PARA;
+   if (raw == NULL || encodeFunc == NULL || rspObj == NULL) {
+     uError("invalid parameter in %s", __func__);
+     return TSDB_CODE_INVALID_PARA;
   }
-  uint32_t len = 0;
-  int32_t  code = 0;
-  SEncoder encoder = {0};
-  void*    buf = NULL;
-  tEncodeSize(encodeFunc, rspObj, len, code);
-  if (code < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   uint32_t len = 0;
+   int32_t  code = 0;
+   SEncoder encoder = {0};
+   void*    buf = NULL;
+   tEncodeSize(encodeFunc, rspObj, len, code);
+   if (code < 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  len += sizeof(int8_t) + sizeof(int32_t);
-  buf = taosMemoryCalloc(1, len);
-  if (buf == NULL) {
-    code = terrno;
-    goto FAILED;
+   len += sizeof(int8_t) + sizeof(int32_t);
+   buf = taosMemoryCalloc(1, len);
+   if (buf == NULL) {
+     code = terrno;
+     goto FAILED;
   }
-  tEncoderInit(&encoder, buf, len);
-  if (tEncodeI8(&encoder, MQ_DATA_RSP_VERSION) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   tEncoderInit(&encoder, buf, len);
+   if (tEncodeI8(&encoder, MQ_DATA_RSP_VERSION) < 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  int32_t offsetLen = getOffSetLen(rspObj);
-  if (offsetLen <= 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   int32_t offsetLen = getOffSetLen(rspObj);
+   if (offsetLen <= 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  if (tEncodeI32(&encoder, offsetLen) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   if (tEncodeI32(&encoder, offsetLen) < 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  if (encodeFunc(&encoder, rspObj) < 0) {
-    code = TSDB_CODE_INVALID_MSG;
-    goto FAILED;
+   if (encodeFunc(&encoder, rspObj) < 0) {
+     code = TSDB_CODE_INVALID_MSG;
+     goto FAILED;
   }
-  tEncoderClear(&encoder);
+   tEncoderClear(&encoder);
 
-  raw->raw = buf;
-  raw->raw_len = len;
-  return code;
+   raw->raw = buf;
+   raw->raw_len = len;
+   return code;
 FAILED:
   tEncoderClear(&encoder);
   taosMemoryFree(buf);
@@ -2602,11 +2601,10 @@ int32_t tmq_get_raw(TAOS_RES* res, tmq_raw_data* raw) {
 
 void tmq_free_raw(tmq_raw_data raw) {
   uDebug("tmq free raw data type:%d", raw.raw_type);
-  if (raw.raw_type == RES_TYPE__TMQ ||
-      raw.raw_type == RES_TYPE__TMQ_METADATA) {
+  if (raw.raw_type == RES_TYPE__TMQ || raw.raw_type == RES_TYPE__TMQ_METADATA) {
     taosMemoryFree(raw.raw);
-  } else if(raw.raw_type == RES_TYPE__TMQ_RAWDATA && raw.raw != NULL){
-    taosMemoryFree(POINTER_SHIFT(raw.raw, - sizeof(SMqRspHead)));
+  } else if (raw.raw_type == RES_TYPE__TMQ_RAWDATA && raw.raw != NULL) {
+    taosMemoryFree(POINTER_SHIFT(raw.raw, -sizeof(SMqRspHead)));
   }
   (void)memset(terrMsg, 0, ERR_MSG_LEN);
 }
@@ -2671,7 +2669,7 @@ int32_t tmq_write_raw(TAOS* taos, tmq_raw_data raw) {
     SET_ERROR_MSG("taos:%p or data:%p is NULL or raw_len <= 0", taos, raw.raw);
     return TSDB_CODE_INVALID_PARA;
   }
-  taosClearErrMsg(); // clear global error message
+  taosClearErrMsg();  // clear global error message
 
   return writeRawImpl(taos, raw.raw, raw.raw_len, raw.raw_type);
 }
