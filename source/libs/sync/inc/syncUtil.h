@@ -53,6 +53,13 @@ extern "C" {
 #define sNDebug(pNode, ...)  if (sDebugFlag & DEBUG_DEBUG) { syncPrintNodeLog("SYN ",       DEBUG_DEBUG, sDebugFlag, true, pNode,  __VA_ARGS__); }
 #define sNTrace(pNode, ...)  if (sDebugFlag & DEBUG_TRACE) { syncPrintNodeLog("SYN ",       DEBUG_TRACE, sDebugFlag, true, pNode,  __VA_ARGS__); }
 
+#define sHFatal(pNode, ...)  if (sDebugFlag & DEBUG_FATAL) { syncPrintHbLog("SYN FATAL ", DEBUG_FATAL, 255, true,        pNode,  __VA_ARGS__); }
+#define sHError(pNode, ...)  if (sDebugFlag & DEBUG_ERROR) { syncPrintHbLog("SYN ERROR ", DEBUG_ERROR, 255, true,       pNode,  __VA_ARGS__); }
+#define sHWarn(pNode, ...)   if (sDebugFlag & DEBUG_WARN)  { syncPrintHbLog("SYN WARN ",  DEBUG_WARN,  255, true,        pNode,  __VA_ARGS__); }
+#define sHInfo(pNode, ...)   if (sDebugFlag & DEBUG_INFO)  { syncPrintHbLog("SYN ",       DEBUG_INFO,  255, true,        pNode, __VA_ARGS__); }
+#define sHDebug(pNode, ...)  if (sDebugFlag & DEBUG_DEBUG) { syncPrintHbLog("SYN ",       DEBUG_DEBUG, sDebugFlag, true, pNode,  __VA_ARGS__); }
+#define sHTrace(pNode, ...)  if (sDebugFlag & DEBUG_TRACE) { syncPrintHbLog("SYN ",       DEBUG_TRACE, sDebugFlag, true, pNode,  __VA_ARGS__); }
+
 #define sSFatal(pSender, ...)  if (sDebugFlag & DEBUG_FATAL) { syncPrintSnapshotSenderLog("SYN FATAL ", DEBUG_FATAL, 255,        pSender, __VA_ARGS__); }
 #define sSError(pSender, ...)  if (sDebugFlag & DEBUG_ERROR) { syncPrintSnapshotSenderLog("SYN ERROR ", DEBUG_ERROR, 255,        pSender, __VA_ARGS__); }
 #define sSWarn(pSender, ...)   if (sDebugFlag & DEBUG_WARN)  { syncPrintSnapshotSenderLog("SYN WARN ",  DEBUG_WARN,  255,        pSender, __VA_ARGS__); }
@@ -87,6 +94,8 @@ void syncUtilGenerateArbToken(int32_t nodeId, int32_t groupId, char* buf);
 
 void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, bool formatTime, SSyncNode* pNode,
                       const char* format, ...);
+void syncPrintHbLog(const char* flags, ELogLevel level, int32_t dflag, bool formatTime, SSyncNode* pNode,
+                    const char* format, ...);
 void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dflag, SSyncSnapshotSender* pSender,
                                 const char* format, ...);
 void syncPrintSnapshotReceiverLog(const char* flags, ELogLevel level, int32_t dflag, SSyncSnapshotReceiver* pReceiver,
