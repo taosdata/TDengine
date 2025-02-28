@@ -698,6 +698,8 @@ static int32_t doHandleChkptBlock(SStreamTask* pTask) {
 
   streamMutexLock(&pTask->lock);
   SStreamTaskState pState = streamTaskGetStatus(pTask);
+  streamMutexUnlock(&pTask->lock);
+
   if (pState.state == TASK_STATUS__CK) {  // todo other thread may change the status
     stDebug("s-task:%s checkpoint block received, set status:%s", id, pState.name);
     code = streamTaskBuildCheckpoint(pTask);  // ignore this error msg, and continue
@@ -715,7 +717,7 @@ static int32_t doHandleChkptBlock(SStreamTask* pTask) {
     }
   }
 
-  streamMutexUnlock(&pTask->lock);
+//  streamMutexUnlock(&pTask->lock);
   return code;
 }
 
