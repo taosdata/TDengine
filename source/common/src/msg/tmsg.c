@@ -11675,13 +11675,10 @@ _exit:
 }
 
 int32_t tEncodeMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  TAOS_CHECK_EXIT(tEncodeMqDataRspCommon(pEncoder, pRsp));
-  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pRsp->sleepTime));
+  TAOS_CHECK_RETURN(tEncodeMqDataRspCommon(pEncoder, pRsp));
+  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pRsp->sleepTime));
 
-  _exit:
-  return code;
+  return 0;
 }
 
 int32_t tDecodeMqDataRspCommon(SDecoder *pDecoder, SMqDataRsp *pRsp) {
