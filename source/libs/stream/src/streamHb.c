@@ -364,15 +364,22 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
   }
 
   // NOTE: stream task in restart procedure. not generate the hb now, try to acquire the lock may cause stuck this timer.
-  if (pMeta->startInfo.startAllTasks == 1) {
-    stWarn("vgId:%d in restart all task procedure, not try to genbrate the hb now, try again in 5s", pMeta->vgId);
-  } else {
-    streamMetaRLock(pMeta);
-    code = streamMetaSendHbHelper(pMeta);
-    if (code) {
-      stError("vgId:%d failed to send hmMsg to mnode, try again in 5s, code:%s", pMeta->vgId, tstrerror(code));
+  int32_t count = 30;
+  bool    send = false;
+  while ((--count) >= 0) {
+    int32_t ret = streamMetaTryRlock(pMeta);
+    if (ret != 0) {
+      taosMsleep(10);
+    } else {
+      send = true;
+      code = streamMetaSendHbHelper(pMeta);
+      streamMetaRUnLock(pMeta);
+      break;
     }
-    streamMetaRUnLock(pMeta);
+  }
+
+  if (!send) {
+    stError("vgId:%d failed to send hmMsg to mnode, retry again in 5s, code:%s", pMeta->vgId, tstrerror(code));
   }
 
   streamTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, pMeta->vgId,
