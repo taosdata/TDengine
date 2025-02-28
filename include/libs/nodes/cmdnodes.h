@@ -684,6 +684,10 @@ typedef struct SBalanceVgroupStmt {
   ENodeType type;
 } SBalanceVgroupStmt;
 
+typedef struct SAssignLeaderStmt {
+  ENodeType type;
+} SAssignLeaderStmt;
+
 typedef struct SBalanceVgroupLeaderStmt {
   ENodeType type;
   int32_t   vgId;

@@ -38,6 +38,7 @@ description: TDengine 保留关键字的详细列表
 | AT_ONCE              | |
 | ATTACH               | |
 | AUTO                 | 3.3.5.0 及后续版本 |
+| ASSIGN               | 3.3.6.0 及后续版本 |
 
 ### B
 |关键字|说明|

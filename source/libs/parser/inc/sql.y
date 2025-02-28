@@ -50,9 +50,13 @@
 %left AND.
 %left UNION ALL MINUS EXCEPT INTERSECT.
 %left NK_BITAND NK_BITOR NK_LSHIFT NK_RSHIFT.
+%left NK_LT NK_GT NK_LE NK_GE NK_EQ NK_NE LIKE MATCH NMATCH REGEXP CONTAINS BETWEEN IS IN.
 %left NK_PLUS NK_MINUS.
 %left NK_STAR NK_SLASH NK_REM.
 %left NK_CONCAT.
+
+%right NOT.
+%left NK_ARROW.
 
 %right INNER LEFT RIGHT FULL OUTER SEMI ANTI ASOF WINDOW JOIN ON WINDOW_OFFSET JLIMIT.
 
@@ -864,6 +868,9 @@ cmd ::= KILL COMPACT NK_INTEGER(A).                                             
 
 /************************************************ merge/redistribute/ vgroup ******************************************/
 cmd ::= BALANCE VGROUP.                                                           { pCxt->pRootNode = createBalanceVgroupStmt(pCxt); }
+
+cmd ::= ASSIGN LEADER FORCE.                                                      { pCxt->pRootNode = createAssignLeaderStmt(pCxt); }
+
 cmd ::= BALANCE VGROUP LEADER on_vgroup_id(A).                                    { pCxt->pRootNode = createBalanceVgroupLeaderStmt(pCxt, &A); }
 cmd ::= BALANCE VGROUP LEADER DATABASE db_name(A).                                { pCxt->pRootNode = createBalanceVgroupLeaderDBNameStmt(pCxt, &A); }
 cmd ::= MERGE VGROUP NK_INTEGER(A) NK_INTEGER(B).                                 { pCxt->pRootNode = createMergeVgroupStmt(pCxt, &A, &B); }
@@ -1287,9 +1294,9 @@ function_expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).  
 function_expression(A) ::= star_func(B) NK_LP star_func_para_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= cols_func(B) NK_LP cols_func_para_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::=
-  CAST(B) NK_LP expr_or_subquery(C) AS type_name(D) NK_RP(E).                                         { A = createRawExprNodeExt(pCxt, &B, &E, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
+  CAST(B) NK_LP common_expression(C) AS type_name(D) NK_RP(E).                                         { A = createRawExprNodeExt(pCxt, &B, &E, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
 function_expression(A) ::=
-  CAST(B) NK_LP expr_or_subquery(C) AS type_name_default_len(D) NK_RP(E).                             { A = createRawExprNodeExt(pCxt, &B, &E, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
+  CAST(B) NK_LP common_expression(C) AS type_name_default_len(D) NK_RP(E).                             { A = createRawExprNodeExt(pCxt, &B, &E, createCastFunctionNode(pCxt, releaseRawExprNode(pCxt, C), D)); }
 function_expression(A) ::=
   POSITION(B) NK_LP expr_or_subquery(C) IN expr_or_subquery(D) NK_RP(E).                              { A = createRawExprNodeExt(pCxt, &B, &E, createPositionFunctionNode(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D))); }
 function_expression(A) ::=

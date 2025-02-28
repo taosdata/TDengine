@@ -254,8 +254,7 @@ void shellRunSingleCommandImp(char *command) {
   }
 
   if (shellRegexMatch(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
-    fprintf(stdout, "Database changed.\r\n\r\n");
-    fflush(stdout);
+    printf("Database changed.\r\n\r\n");
 
     // call back auto tab module
     callbackAutoTab(command, pSql, true);
