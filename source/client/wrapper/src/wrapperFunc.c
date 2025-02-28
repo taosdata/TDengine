@@ -166,26 +166,6 @@ void taos_close(TAOS *taos) {
   (*fp_taos_close)(taos);
 }
 
-TAOS *taos_connect_dsn(const char *dsn, const char *user, const char *pass, const char *db) {
-  if (taos_init() != 0) {
-    terrno = TSDB_CODE_DLL_NOT_LOAD;
-    return NULL;
-  }
-
-  CHECK_PTR(fp_taos_connect_dsn);
-  return (*fp_taos_connect_dsn)(dsn, user, pass, db);
-}
-
-TAOS *taos_connect_dsn_auth(const char *dsn, const char *user, const char *auth, const char *db) {
-  if (taos_init() != 0) {
-    terrno = TSDB_CODE_DLL_NOT_LOAD;
-    return NULL;
-  }
-
-  CHECK_PTR(fp_taos_connect_dsn_auth);
-  return (*fp_taos_connect_dsn_auth)(dsn, user, auth, db);
-}
-
 const char *taos_data_type(int type) {
   CHECK_PTR(fp_taos_data_type);
   return (*fp_taos_data_type)(type);
@@ -324,6 +304,12 @@ int taos_stmt2_prepare(TAOS_STMT2 *stmt, const char *sql, unsigned long length) 
 int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx) {
   CHECK_INT(fp_taos_stmt2_bind_param);
   return (*fp_taos_stmt2_bind_param)(stmt, bindv, col_idx);
+}
+
+int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp,
+                            void *param) {
+  CHECK_INT(fp_taos_stmt2_bind_param_a);
+  return (*fp_taos_stmt2_bind_param_a)(stmt, bindv, col_idx, fp, param);
 }
 
 int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows) {

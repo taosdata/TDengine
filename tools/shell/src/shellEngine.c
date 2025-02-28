@@ -1294,11 +1294,12 @@ int32_t shellExecute() {
   SShellArgs *pArgs = &shell.args;
 
   if (shell.args.dsn != NULL) {
-    if (shell.args.auth == NULL) {
-      shell.conn = taos_connect_dsn(pArgs->dsn, pArgs->user, pArgs->password, pArgs->database);
-    } else {
-      shell.conn = taos_connect_dsn_auth(pArgs->dsn, pArgs->user, pArgs->auth, pArgs->database);
-    }
+    // parser dsn to host/port 
+    // if (shell.args.auth == NULL) {
+    //   shell.conn = taos_connect(pArgs->dsn, pArgs->user, pArgs->password, pArgs->database);
+    // } else {
+    //   shell.conn = taos_connect(pArgs->dsn, pArgs->user, pArgs->auth, pArgs->database);
+    // }
   } else {
     if (shell.args.auth == NULL) {
       shell.conn = taos_connect(pArgs->host, pArgs->user, pArgs->password, pArgs->database, pArgs->port);

@@ -45,9 +45,6 @@ extern TAOS *(*fp_taos_connect)(const char *ip, const char *user, const char *pa
 extern TAOS *(*fp_taos_connect_auth)(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
 extern void (*fp_taos_close)(TAOS *taos);
 
-extern TAOS *(*fp_taos_connect_dsn)(const char *dsn, const char *user, const char *pass, const char *db);
-extern TAOS *(*fp_taos_connect_dsn_auth)(const char *dsn, const char *user, const char *auth, const char *db);
-
 extern const char *(*fp_taos_data_type)(int type);
 
 extern TAOS_STMT *(*fp_taos_stmt_init)(TAOS *taos);
@@ -79,6 +76,8 @@ extern int (*fp_taos_stmt_affected_rows_once)(TAOS_STMT *stmt);
 extern TAOS_STMT2 *(*fp_taos_stmt2_init)(TAOS *taos, TAOS_STMT2_OPTION *option);
 extern int (*fp_taos_stmt2_prepare)(TAOS_STMT2 *stmt, const char *sql, unsigned long length);
 extern int (*fp_taos_stmt2_bind_param)(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx);
+extern int (*fp_taos_stmt2_bind_param_a)(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx,
+                                         __taos_async_fn_t fp, void *param);
 extern int (*fp_taos_stmt2_exec)(TAOS_STMT2 *stmt, int *affected_rows);
 extern int (*fp_taos_stmt2_close)(TAOS_STMT2 *stmt);
 extern int (*fp_taos_stmt2_is_insert)(TAOS_STMT2 *stmt, int *insert);

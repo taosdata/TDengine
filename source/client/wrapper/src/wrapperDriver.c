@@ -91,9 +91,6 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC(fp_taos_connect_auth, "taos_connect_auth");
   LOAD_FUNC(fp_taos_close, "taos_close");
 
-  LOAD_FUNC(fp_taos_connect_dsn, "taos_connect_dsn");
-  LOAD_FUNC(fp_taos_connect_dsn_auth, "taos_connect_dsn_auth");
-
   LOAD_FUNC(fp_taos_data_type, "taos_data_type");
 
   LOAD_FUNC(fp_taos_stmt_init, "taos_stmt_init");
@@ -125,6 +122,7 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC(fp_taos_stmt2_init, "taos_stmt2_init");
   LOAD_FUNC(fp_taos_stmt2_prepare, "taos_stmt2_prepare");
   LOAD_FUNC(fp_taos_stmt2_bind_param, "taos_stmt2_bind_param");
+  LOAD_FUNC(fp_taos_stmt2_bind_param_a, "taos_stmt2_bind_param_a");
   LOAD_FUNC(fp_taos_stmt2_exec, "taos_stmt2_exec");
   LOAD_FUNC(fp_taos_stmt2_close, "taos_stmt2_close");
   LOAD_FUNC(fp_taos_stmt2_is_insert, "taos_stmt2_is_insert");

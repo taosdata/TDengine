@@ -1928,16 +1928,6 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
   return NULL;
 }
 
-TAOS* taos_connect_dsn(const char* dsn, const char* user, const char* pass, const char* db) {
-  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-  return NULL;
-}
-
-TAOS* taos_connect_dsn_auth(const char* dsn, const char* user, const char* auth, const char* db) {
-  terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-  return NULL;
-}
-
 // TAOS* taos_connect_l(const char* ip, int ipLen, const char* user, int userLen, const char* pass, int passLen,
 //                      const char* db, int dbLen, uint16_t port) {
 //   char ipStr[TSDB_EP_LEN] = {0};

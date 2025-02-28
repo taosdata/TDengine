@@ -25,9 +25,6 @@ TAOS *(*fp_taos_connect)(const char *ip, const char *user, const char *pass, con
 TAOS *(*fp_taos_connect_auth)(const char *ip, const char *user, const char *auth, const char *db, uint16_t port) = NULL;
 void (*fp_taos_close)(TAOS *taos) = NULL;
 
-TAOS *(*fp_taos_connect_dsn)(const char *dsn, const char *user, const char *pass, const char *db) = NULL;
-TAOS *(*fp_taos_connect_dsn_auth)(const char *dsn, const char *user, const char *auth, const char *db) = NULL;
-
 const char *(*fp_taos_data_type)(int type) = NULL;
 
 TAOS_STMT *(*fp_taos_stmt_init)(TAOS *taos) = NULL;
@@ -59,6 +56,8 @@ int (*fp_taos_stmt_affected_rows_once)(TAOS_STMT *stmt) = NULL;
 TAOS_STMT2 *(*fp_taos_stmt2_init)(TAOS *taos, TAOS_STMT2_OPTION *option) = NULL;
 int (*fp_taos_stmt2_prepare)(TAOS_STMT2 *stmt, const char *sql, unsigned long length) = NULL;
 int (*fp_taos_stmt2_bind_param)(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx) = NULL;
+int (*fp_taos_stmt2_bind_param_a)(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp,
+                                  void *param) = NULL;
 int (*fp_taos_stmt2_exec)(TAOS_STMT2 *stmt, int *affected_rows) = NULL;
 int (*fp_taos_stmt2_close)(TAOS_STMT2 *stmt) = NULL;
 int (*fp_taos_stmt2_is_insert)(TAOS_STMT2 *stmt, int *insert) = NULL;
