@@ -215,6 +215,7 @@ int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 SMqBatchMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
 
 const SSchemaWrapper* qExtractSchemaFromTask(qTaskInfo_t tinfo);
+const SExtSchema* qExtractSchemaExtFromTask(qTaskInfo_t tinfo);
 
 const char*   qExtractTbnameFromTask(qTaskInfo_t tinfo);
 

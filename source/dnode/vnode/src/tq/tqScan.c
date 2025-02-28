@@ -238,6 +238,7 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBat
   int32_t lino = 0;
   char* tbName = NULL;
   SSchemaWrapper* pSW = NULL;
+  SExtSchema*     pSWExt = NULL;
   const STqExecHandle* pExec = &pHandle->execHandle;
   qTaskInfo_t          task = pExec->task;
   code = qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType);
@@ -266,6 +267,10 @@ int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBat
         TSDB_CHECK_NULL(pSW, code, lino, END, terrno);
         TSDB_CHECK_NULL(taosArrayPush(pRsp->blockSchema, &pSW), code, lino, END, terrno);
         pSW = NULL;
+        pSWExt = metaCloneSExtSchema(qExtractSchemaExtFromTask(task), pSW->nCols);
+        TSDB_CHECK_NULL(pSWExt, code, lino, END, terrno);
+        TSDB_CHECK_NULL(taosArrayPush(pRsp->blockSchemaExt, &pSWExt), code, lino, END, terrno);
+        pSWExt = NULL;
       }
 
       code = tqAddBlockDataToRsp(pDataBlock, pRsp, taosArrayGetSize(pDataBlock->pDataBlock),
@@ -313,7 +318,8 @@ END:
   if (code != 0){
     tqError("%s failed at %d, vgId:%d, task exec error since %s", __FUNCTION__ , lino, pTq->pVnode->config.vgId, tstrerror(code));
   }
-  taosMemoryFree(pSW);
+  tDeleteSchemaWrapper(pSW);
+  taosMemoryFree(pSWExt);
   taosMemoryFree(tbName);
   return code;
 }
@@ -330,7 +336,7 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
 
   pBlocks = taosArrayInit(0, sizeof(SSDataBlock));
   TSDB_CHECK_NULL(pBlocks, code, lino, END, terrno);
-  pSchemas = taosArrayInit(0, sizeof(void*));
+  pSchemas = taosArrayInit(0, sizeof(TQSchema));
   TSDB_CHECK_NULL(pSchemas, code, lino, END, terrno);
 
   SSubmitTbData* pSubmitTbData = NULL;
@@ -375,12 +381,17 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
       *totalRows += pBlock->info.rows;
     }
 
-    void** pSW = taosArrayGet(pSchemas, i);
-    if (taosArrayPush(pRsp->blockSchema, pSW) == NULL){
+    TQSchema* schema = (TQSchema*)taosArrayGet(pSchemas, i);
+    if (taosArrayPush(pRsp->blockSchema, &schema->pSchemaWrapper) == NULL){
       tqError("vgId:%d, failed to add schema to rsp msg", pTq->pVnode->config.vgId);
       continue;
     }
-    *pSW = NULL;
+    if (taosArrayPush(pRsp->blockSchemaExt, &schema->extSchema) == NULL){
+      tqError("vgId:%d, failed to add schema to rsp msg", pTq->pVnode->config.vgId);
+      continue;
+    }
+    schema->pSchemaWrapper = NULL;
+    schema->extSchema = NULL;
     pRsp->blockNum++;
   }
   tqTrace("vgId:%d, process sub data success, response blocknum:%d, rows:%d", pTq->pVnode->config.vgId, pRsp->blockNum, *totalRows);
@@ -389,7 +400,7 @@ END:
     tqError("%s failed at %d, failed to process sub data:%s", __FUNCTION__, lino, tstrerror(code));
   }
   taosArrayDestroyEx(pBlocks, (FDelete)blockDataFreeRes);
-  taosArrayDestroyP(pSchemas, (FDelete)tDeleteSchemaWrapper);
+  taosArrayDestroyP(pSchemas, (FDelete)freeTqSchema);
 }
 
 static void preProcessSubmitMsg(STqHandle* pHandle, const SMqPollReq* pRequest, SArray** rawList){
