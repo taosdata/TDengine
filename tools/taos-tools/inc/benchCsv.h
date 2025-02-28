@@ -79,6 +79,7 @@ typedef struct {
     uint64_t        ctb_start_idx;
     uint64_t        ctb_end_idx;
     uint64_t        ctb_count;
+    uint64_t        total_rows;
     time_t          start_secs;
     time_t          end_secs;
     size_t          thread_id;
