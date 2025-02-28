@@ -783,6 +783,7 @@ typedef struct SArguments_S {
     bool                mistMode;
     bool                escape_character;
     bool                pre_load_tb_meta;
+    bool                bind_vgroup;
 
     char*               output_path;
     char                output_path_buf[MAX_PATH_LEN];
@@ -792,8 +793,8 @@ typedef struct SArguments_S {
     long                csv_ts_intv_secs;
     bool                csv_output_header;
     bool                csv_tbname_alias;
+    CsvCompressionLevel csv_compress_level;
 
-    bool                bind_vgroup;
 } SArguments;
 
 typedef struct SBenchConn {

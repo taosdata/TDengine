@@ -16,7 +16,8 @@
 #ifndef INC_BENCHCSV_H_
 #define INC_BENCHCSV_H_
 
-#include <bench.h>
+#include <zlib.h>
+#include "bench.h"
 
 
 typedef enum {
@@ -25,6 +26,29 @@ typedef enum {
     CSV_NAMING_B_THREAD,
     CSV_NAMING_B_THREAD_TIME_SLICE
 } CsvNamingType;
+
+typedef enum {
+    CSV_COMPRESS_NONE       = 0,
+    CSV_COMPRESS_FAST       = 1,
+    CSV_COMPRESS_BALANCE    = 6,
+    CSV_COMPRESS_BEST       = 9
+} CsvCompressionLevel;
+
+typedef enum {
+    CSV_ERR_OK = 0,
+    CSV_ERR_OPEN_FAILED,
+    CSV_ERR_WRITE_FAILED
+} CsvIoError;
+
+typedef struct {
+    const char* filename;
+    CsvCompressionLevel compress_level;
+    CsvIoError result;
+    union {
+        gzFile  gf;
+        FILE*   fp;
+    } handle;
+} CsvFileHandle;
 
 typedef struct {
     char*           buf;

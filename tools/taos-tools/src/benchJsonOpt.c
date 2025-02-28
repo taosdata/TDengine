@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 #include <bench.h>
 #include "benchLog.h"
+#include "benchCsv.h"
 
 extern char      g_configDir[MAX_PATH_LEN];
 
@@ -1634,6 +1635,22 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
         g_arguments->csv_tbname_alias = tba->valuestring;
     } else {
         g_arguments->csv_tbname_alias = "device_id";
+    }
+
+    // csv compression level
+    tools_cJSON* cl = tools_cJSON_GetObjectItem(json, "csv_compress_level");
+    if (cl && cl->type == tools_cJSON_String && cl->valuestring != NULL) {
+        if (0 == strcasecmp(cl->valuestring, "none")) {
+            g_arguments->csv_compress_level = CSV_COMPRESS_NONE;
+        } else if (0 == strcasecmp(cl->valuestring, "fast")) {
+            g_arguments->csv_compress_level = CSV_COMPRESS_FAST;
+        } else if (0 == strcasecmp(cl->valuestring, "balance")) {
+            g_arguments->csv_compress_level = CSV_COMPRESS_BALANCE;
+        } else if (0 == strcasecmp(cl->valuestring, "best")) {
+            g_arguments->csv_compress_level = CSV_COMPRESS_BEST;
+        }
+    } else {
+        g_arguments->csv_compress_level = CSV_COMPRESS_NONE;
     }
 
     code = 0;
