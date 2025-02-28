@@ -283,7 +283,7 @@ void tqSetTablePrimaryKey(STqReader* pReader, int64_t uid) {
     return;
   }
   bool            ret = false;
-  SSchemaWrapper* schema = metaGetTableSchema(pReader->pVnodeMeta, uid, -1, 1, NULL, NULL);
+  SSchemaWrapper* schema = metaGetTableSchema(pReader->pVnodeMeta, uid, -1, 1, NULL);
   if (schema && schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY) {
     ret = true;
   }
@@ -336,7 +336,7 @@ void tqReaderClose(STqReader* pReader) {
     tDeleteSchemaWrapper(pReader->pSchemaWrapper);
   }
 
-  metaFreeSExtSchema(pReader->extSchema);
+  taosMemoryFree(pReader->extSchema);
   if (pReader->pColIdList) {
     taosArrayDestroy(pReader->pColIdList);
   }
@@ -598,7 +598,7 @@ END:
   return code;
 }
 
-int32_t tqMaskBlock(SSchemaWrapper* pDst, SSDataBlock* pBlock, const SSchemaWrapper* pSrc, char* mask, SExtSchema* extSchema) {
+int32_t tqMaskBlock(SSchemaWrapper* pDst, SExtSchema* extDst, SSDataBlock* pBlock, const SSchemaWrapper* pSrc, char* mask, SExtSchema* extSrc) {
   if (pDst == NULL || pBlock == NULL || pSrc == NULL || mask == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -621,8 +621,9 @@ int32_t tqMaskBlock(SSchemaWrapper* pDst, SSDataBlock* pBlock, const SSchemaWrap
       pDst->pSchema[j++] = pSrc->pSchema[i];
       SColumnInfoData colInfo =
           createColumnInfoData(pSrc->pSchema[i].type, pSrc->pSchema[i].bytes, pSrc->pSchema[i].colId);
-      if (extSchema != NULL) {
-        decimalFromTypeMod(extSchema[i].typeMod, &colInfo.info.precision, &colInfo.info.scale);
+      if (extSrc != NULL) {
+        extDst[j++] = extSrc[i];
+        decimalFromTypeMod(extSrc[i].typeMod, &colInfo.info.precision, &colInfo.info.scale);
       }
       code = blockDataAppendColInfo(pBlock, &colInfo);
       if (code != 0) {
@@ -748,8 +749,8 @@ int32_t tqRetrieveDataBlock(STqReader* pReader, SSDataBlock** pRes, const char* 
   if ((suid != 0 && pReader->cachedSchemaSuid != suid) || (suid == 0 && pReader->cachedSchemaUid != uid) ||
       (pReader->cachedSchemaVer != sversion)) {
     tDeleteSchemaWrapper(pReader->pSchemaWrapper);
-    metaFreeSExtSchema(pReader->extSchema);
-    pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1, NULL, &pReader->extSchema);
+    taosMemoryFree(pReader->extSchema);
+    pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1, &pReader->extSchema);
     if (pReader->pSchemaWrapper == NULL) {
       tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", uid:%" PRId64
              "version %d, possibly dropped table",
@@ -890,10 +891,11 @@ END:
   }
 
 static int32_t processBuildNew(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArray* blocks, SArray* schemas,
-                               SSchemaWrapper* pSchemaWrapper, char* assigned, int32_t numOfRows, int32_t curRow,
+                               char* assigned, int32_t numOfRows, int32_t curRow,
                                int32_t* lastRow) {
   int32_t         code = 0;
   SSchemaWrapper* pSW = NULL;
+  SExtSchema*     pSWExt = NULL;
   SSDataBlock*    block = NULL;
   if (taosArrayGetSize(blocks) > 0) {
     SSDataBlock* pLastBlock = taosArrayGetLast(blocks);
@@ -907,8 +909,10 @@ static int32_t processBuildNew(STqReader* pReader, SSubmitTbData* pSubmitTbData,
 
   pSW = taosMemoryCalloc(1, sizeof(SSchemaWrapper));
   TQ_NULL_GO_TO_END(pSW);
+  pSWExt = taosMemoryCalloc(1, sizeof(SExtSchema));
+  TQ_NULL_GO_TO_END(pSWExt);
 
-  TQ_ERR_GO_TO_END(tqMaskBlock(pSW, block, pSchemaWrapper, assigned, pReader->extSchema));
+  TQ_ERR_GO_TO_END(tqMaskBlock(pSW, pSWExt, block, pReader->pSchemaWrapper, assigned, pReader->extSchema));
   tqTrace("vgId:%d, build new block, col %d", pReader->pWalReader->pWal->cfg.vgId,
           (int32_t)taosArrayGetSize(block->pDataBlock));
 
@@ -916,8 +920,11 @@ static int32_t processBuildNew(STqReader* pReader, SSubmitTbData* pSubmitTbData,
   block->info.version = pReader->msg.ver;
   TQ_ERR_GO_TO_END(blockDataEnsureCapacity(block, numOfRows - curRow));
   TQ_NULL_GO_TO_END(taosArrayPush(blocks, block));
-  TQ_NULL_GO_TO_END(taosArrayPush(schemas, &pSW));
+  TQSchema schema = {pSW, pSWExt};
+  TQ_NULL_GO_TO_END(taosArrayPush(schemas, &schema));
   pSW = NULL;
+  pSWExt = NULL;
+
   taosMemoryFreeClear(block);
 
 END:
@@ -927,6 +934,7 @@ END:
   tDeleteSchemaWrapper(pSW);
   blockDataFreeRes(block);
   taosMemoryFree(block);
+  taosMemoryFree(pSWExt);
   return code;
 }
 static int32_t tqProcessColData(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArray* blocks, SArray* schemas) {
@@ -956,7 +964,7 @@ static int32_t tqProcessColData(STqReader* pReader, SSubmitTbData* pSubmitTbData
     }
 
     if (buildNew) {
-      TQ_ERR_GO_TO_END(processBuildNew(pReader, pSubmitTbData, blocks, schemas, pSchemaWrapper, assigned, numOfRows,
+      TQ_ERR_GO_TO_END(processBuildNew(pReader, pSubmitTbData, blocks, schemas, assigned, numOfRows,
                                        curRow, &lastRow));
     }
 
@@ -1020,7 +1028,7 @@ int32_t tqProcessRowData(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArra
     }
 
     if (buildNew) {
-      TQ_ERR_GO_TO_END(processBuildNew(pReader, pSubmitTbData, blocks, schemas, pSchemaWrapper, assigned, numOfRows,
+      TQ_ERR_GO_TO_END(processBuildNew(pReader, pSubmitTbData, blocks, schemas, assigned, numOfRows,
                                        curRow, &lastRow));
     }
 
@@ -1126,8 +1134,8 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SMqDataRsp* pRsp, SArray* block
   pReader->lastBlkUid = uid;
 
   tDeleteSchemaWrapper(pReader->pSchemaWrapper);
-  metaFreeSExtSchema(pReader->extSchema);
-  pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1, createTime, &pReader->extSchema);
+  taosMemoryFree(pReader->extSchema);
+  pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, uid, sversion, 1, &pReader->extSchema);
   if (pReader->pSchemaWrapper == NULL) {
     tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", version %d, possibly dropped table",
            pReader->pWalReader->pWal->cfg.vgId, uid, pReader->cachedSchemaVer);
@@ -1141,10 +1149,12 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SMqDataRsp* pRsp, SArray* block
       return code;
     }
   } else if (rawList != NULL) {
-    if (taosArrayPush(schemas, &pReader->pSchemaWrapper) == NULL){
+    TQSchema schema = {pReader->pSchemaWrapper, pReader->extSchema};
+    if (taosArrayPush(schemas, &schema) == NULL){
       return terrno;
     }
     pReader->pSchemaWrapper = NULL;
+    pReader->extSchema = NULL;
     return 0;
   }
 
