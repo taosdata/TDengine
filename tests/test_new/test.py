@@ -13,15 +13,6 @@
 # pip install src/connector/python/
 
 # -*- coding: utf-8 -*-
-import taosws
-import taosrest
-import taos
-from util.taosadapter import *
-from util.cluster import *
-from util.cases import *
-from util.dnodes import *
-from util.log import *
-import toml
 import os
 import sys
 import getopt
@@ -33,11 +24,20 @@ import platform
 import socket
 import threading
 import importlib
-import ast
 print(f"Python version: {sys.version}")
 print(f"Version info: {sys.version_info}")
 
+import toml
 sys.path.append("../pytest")
+from util.log import *
+from util.dnodes import *
+from util.cases import *
+from util.cluster import *
+from util.taosadapter import *
+
+import taos
+import taosrest
+import taosws
 
 
 def checkRunTimeError():
