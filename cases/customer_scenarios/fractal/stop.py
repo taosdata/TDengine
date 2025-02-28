@@ -66,14 +66,14 @@ class Start(TDCase):
         task_url = f'http://{self.host}:6060/api/x/tasks'
         metrics_dict = self.stop_tasks_get_metrics(task_url=task_url,headers=headers)
         summary_metrics = {
-            "total_inserted_sqls":0,
+            # "total_inserted_sqls":0,
             "total_points_per_second":0,
             "total_written_points":0,
             "total_written_rows":0,
             "total_rows_per_second":0
         }
         for task_id,metrics in metrics_dict.items():
-            summary_metrics["total_inserted_sqls"] += metrics_dict[task_id]["total"]["total_inserted_sqls"]
+            # summary_metrics["total_inserted_sqls"] += metrics_dict[task_id]["total"]["total_inserted_sqls"]
             summary_metrics["total_points_per_second"] += metrics_dict[task_id]["total"]["total_points_per_second"]
             summary_metrics["total_written_points"] += metrics_dict[task_id]["total"]["total_written_points"]
             summary_metrics["total_written_rows"] += metrics_dict[task_id]["total"]["total_written_rows"]
