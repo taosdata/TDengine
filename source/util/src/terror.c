@@ -565,6 +565,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_MULTI_STORAGE_EXPIRED,  "License expired for m
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_OBJECT_STROAGE_EXPIRED, "License expired for object storage function")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DUAL_REPLICA_HA_EXPIRED,"License expired for dual-replica HA function")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_DB_ENCRYPTION_EXPIRED,  "License expired for database encryption function")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_TD_GPT_EXPIRED,         "License expired for TDgpt function")
 
 // sync
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TIMEOUT,                  "Sync timeout")
@@ -751,8 +752,15 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ANOMALY_WIN_TYPE,   "ANOMALY_WINDOW only
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ANOMALY_WIN_COL,    "ANOMALY_WINDOW not support on tag column")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_ANOMALY_WIN_OPT,    "ANOMALY_WINDOW option should include algo field")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_FORECAST_CLAUSE,    "Invalid forecast clause")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,  "Syntax error in regular expression")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,   "Syntax error in regular expression")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_VGID_LIST,          "Invalid vgid list")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TRUE_FOR_NEGATIVE,          "True_for duration cannot be negative")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TRUE_FOR_UNIT,              "Cannot use 'year' or 'month' as true_for duration")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLS_FUNCTION,      "Invalid cols function")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_COLS_SELECTFUNC,    "cols function's first param must be a select function that output a single row")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MULITI_COLS_FUNC,       "Improper use of cols function with multiple output columns")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_COLS_ALIAS,             "Invalid using alias for cols function")
+
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,             "Parser internal error")
 
 //planner
@@ -860,6 +868,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT,         "Replay is disabled 
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_NO_TABLE_QUALIFIED,         "No table qualified for query")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_NO_NEED_REBALANCE,          "No need rebalance")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_STATUS,             "Invalid status, please subscribe topic first")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_DATA,               "Invalid data use here")
+TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_RAW_DATA_SPLIT,             "Split submit data for rawdata")
 
 // stream
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TASK_NOT_EXIST,          "Stream task not exist")

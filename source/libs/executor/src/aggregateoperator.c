@@ -15,6 +15,7 @@
 
 #include "filter.h"
 #include "function.h"
+#include "nodes.h"
 #include "os.h"
 #include "querynodes.h"
 #include "tfill.h"

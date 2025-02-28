@@ -40,7 +40,7 @@ if command -v sudo > /dev/null; then
 fi
 
 function kill_client() {
-    pid=$(ps -C ${clientName2}  | grep -v $uninstallScript2 | awk '{print $2}')
+    pid=$(ps -C ${clientName2} | grep -w ${clientName2} | grep -v $uninstallScript2 | awk '{print $1}')
     if [ -n "$pid" ]; then
         ${csudo}kill -9 $pid || :
     fi

@@ -37,6 +37,8 @@ description: TDengine 保留关键字的详细列表
 | ASOF                 | |
 | AT_ONCE              | |
 | ATTACH               | |
+| AUTO                 | 3.3.5.0 及后续版本 |
+| ASSIGN               | 3.3.6.0 及后续版本 |
 
 ### B
 |关键字|说明|
@@ -76,12 +78,16 @@ description: TDengine 保留关键字的详细列表
 | CLIENT_VERSION       | |
 | CLUSTER              | |
 | COLON                | |
+| COLS                 | 3.3.6.0 及后续版本 |
 | COLUMN               | |
 | COMMA                | |
 | COMMENT              | |
 | COMP                 | |
 | COMPACT              | |
 | COMPACTS             | |
+| COMPACT_INTERVAL     | 3.3.5.0 及后续版本 |
+| COMPACT_TIME_OFFSET  | 3.3.5.0 及后续版本 |
+| COMPACT_TIME_RANGE   | 3.3.5.0 及后续版本 |
 | CONCAT               | |
 | CONFLICT             | |
 | CONNECTION           | |
@@ -111,6 +117,7 @@ description: TDengine 保留关键字的详细列表
 | DESC                 | |
 | DESCRIBE             | |
 | DETACH               | |
+| DISK_INFO            | 3.3.5.0 及后续版本 |
 | DISTINCT             | |
 | DISTRIBUTED          | |
 | DIVIDE               | |
@@ -201,6 +208,7 @@ description: TDengine 保留关键字的详细列表
 | INTO                 | |
 | IPTOKEN              | |
 | IROWTS               | |
+| IROWTS_ORIGIN        | 3.3.5.0 及后续版本 |
 | IS                   | |
 | IS_IMPORT            | |
 | ISFILLED             | |
@@ -269,6 +277,8 @@ description: TDengine 保留关键字的详细列表
 | NONE                 | |
 | NORMAL               | |
 | NOT                  | |
+| NOTIFY               | 3.3.6.0 及后续版本 |
+| NOTIFY_HISTORY       | 3.3.6.0 及后续版本 |
 | NOTNULL              | |
 | NOW                  | |
 | NULL                 | |
@@ -282,6 +292,7 @@ description: TDengine 保留关键字的详细列表
 | OFFSET               | |
 | ON                   | |
 | ONLY                 | |
+| ON_FAILURE           | 3.3.6.0 及后续版本 |
 | OR                   | |
 | ORDER                | |
 | OUTER                | |
@@ -329,6 +340,7 @@ description: TDengine 保留关键字的详细列表
 | RATIO                | |
 | READ                 | |
 | RECURSIVE            | |
+| REGEXP               | 3.3.6.0 及后续版本 |
 | REDISTRIBUTE         | |
 | REM                  | |
 | REPLACE              | |
@@ -417,6 +429,7 @@ description: TDengine 保留关键字的详细列表
 | TRANSACTIONS         | |
 | TRIGGER              | |
 | TRIM                 | |
+| TRUE_FOR             | |
 | TSDB_PAGESIZE        | |
 | TSERIES              | |
 | TSMA                 | |
@@ -475,7 +488,7 @@ description: TDengine 保留关键字的详细列表
 | WINDOW_OFFSET        | |
 | WITH                 | |
 | WRITE                | |
-| WSTART              | |
+| WSTART               | |
 
 ### \_
 

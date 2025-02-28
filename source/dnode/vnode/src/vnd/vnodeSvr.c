@@ -53,8 +53,8 @@ static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t l
 static int32_t vnodeProcessDropTSmaCtbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                           SRpcMsg *pOriginRpc);
 
-static int32_t vnodePreCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
-static int32_t vnodeCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
+static int32_t vnodeCheckToken(SVnode *pVnode, char *member0Token, char *member1Token);
+static int32_t vnodeCheckSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
 static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 extern int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -314,25 +314,25 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     uint64_t nColData;
     if (tDecodeU64v(pCoder, &nColData) < 0) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     SColData colData = {0};
     code = tDecodeColData(version, pCoder, &colData);
     if (code) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     if (colData.flag != HAS_VALUE) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     for (int32_t iRow = 0; iRow < colData.nVal; iRow++) {
       if (((TSKEY *)colData.pData)[iRow] < minKey || ((TSKEY *)colData.pData)[iRow] > maxKey) {
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
 
@@ -340,14 +340,14 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
       code = tDecodeColData(version, pCoder, &colData);
       if (code) {
         code = TSDB_CODE_INVALID_MSG;
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
   } else {
     uint64_t nRow;
     if (tDecodeU64v(pCoder, &nRow) < 0) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     for (int32_t iRow = 0; iRow < nRow; ++iRow) {
@@ -356,7 +356,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
 
       if (pRow->ts < minKey || pRow->ts > maxKey) {
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
   }
@@ -369,6 +369,9 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   tEndDecode(pCoder);
 
 _exit:
+  if (code) {
+    vError("vgId:%d, %s:%d failed to vnodePreProcessSubmitTbData submit request since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
   return code;
 }
 static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
@@ -489,7 +492,7 @@ static int32_t vnodePreProcessArbCheckSyncMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     return TSDB_CODE_INVALID_MSG;
   }
 
-  int32_t ret = vnodePreCheckAssignedLogSyncd(pVnode, syncReq.member0Token, syncReq.member1Token);
+  int32_t ret = vnodeCheckToken(pVnode, syncReq.member0Token, syncReq.member1Token);
   if (ret != 0) {
     vError("vgId:%d, failed to preprocess arb check sync request since %s", TD_VID(pVnode), tstrerror(ret));
   }
@@ -930,7 +933,7 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 }
 
 int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
-  vTrace("vgId:%d, msg:%p in fetch queue is processing", pVnode->config.vgId, pMsg);
+  vTrace("vgId:%d, msg:%p in stream queue is processing", pVnode->config.vgId, pMsg);
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
        pMsg->msgType == TDMT_VND_BATCH_META) &&
       !syncIsReadyForRead(pVnode->sync)) {
@@ -941,6 +944,32 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
   switch (pMsg->msgType) {
     case TDMT_STREAM_TASK_RUN:
       return tqProcessTaskRunReq(pVnode->pTq, pMsg);
+    case TDMT_STREAM_RETRIEVE:
+      return tqProcessTaskRetrieveReq(pVnode->pTq, pMsg);
+    case TDMT_STREAM_RETRIEVE_RSP:
+      return tqProcessTaskRetrieveRsp(pVnode->pTq, pMsg);
+    case TDMT_VND_STREAM_SCAN_HISTORY:
+      return tqProcessTaskScanHistory(pVnode->pTq, pMsg);
+    case TDMT_VND_GET_STREAM_PROGRESS:
+      return tqStreamProgressRetrieveReq(pVnode->pTq, pMsg);
+    default:
+      vError("unknown msg type:%d in stream queue", pMsg->msgType);
+      return TSDB_CODE_APP_ERROR;
+  }
+}
+
+int32_t vnodeProcessStreamCtrlMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
+  vTrace("vgId:%d, msg:%p in stream ctrl queue is processing", pVnode->config.vgId, pMsg);
+  if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
+       pMsg->msgType == TDMT_VND_BATCH_META) &&
+      !syncIsReadyForRead(pVnode->sync)) {
+    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
+    return 0;
+  }
+
+  switch (pMsg->msgType) {
+    case TDMT_MND_STREAM_HEARTBEAT_RSP:
+      return tqProcessStreamHbRsp(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_DISPATCH:
       return tqProcessTaskDispatchReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_DISPATCH_RSP:
@@ -949,12 +978,6 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskCheckReq(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_TASK_CHECK_RSP:
       return tqProcessTaskCheckRsp(pVnode->pTq, pMsg);
-    case TDMT_STREAM_RETRIEVE:
-      return tqProcessTaskRetrieveReq(pVnode->pTq, pMsg);
-    case TDMT_STREAM_RETRIEVE_RSP:
-      return tqProcessTaskRetrieveRsp(pVnode->pTq, pMsg);
-    case TDMT_VND_STREAM_SCAN_HISTORY:
-      return tqProcessTaskScanHistory(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_CHECKPOINT_READY:
       return tqProcessTaskCheckpointReadyMsg(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_CHECKPOINT_READY_RSP:
@@ -963,16 +986,12 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskRetrieveTriggerReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_RETRIEVE_TRIGGER_RSP:
       return tqProcessTaskRetrieveTriggerRsp(pVnode->pTq, pMsg);
-    case TDMT_MND_STREAM_HEARTBEAT_RSP:
-      return tqProcessStreamHbRsp(pVnode->pTq, pMsg);
     case TDMT_MND_STREAM_REQ_CHKPT_RSP:
       return tqProcessStreamReqCheckpointRsp(pVnode->pTq, pMsg);
-    case TDMT_VND_GET_STREAM_PROGRESS:
-      return tqStreamProgressRetrieveReq(pVnode->pTq, pMsg);
     case TDMT_MND_STREAM_CHKPT_REPORT_RSP:
       return tqProcessTaskChkptReportRsp(pVnode->pTq, pMsg);
     default:
-      vError("unknown msg type:%d in stream queue", pMsg->msgType);
+      vError("unknown msg type:%d in stream ctrl queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
   }
 }
@@ -1873,7 +1892,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     len -= sizeof(SSubmitReq2Msg);
     SDecoder dc = {0};
     tDecoderInit(&dc, pReq, len);
-    if (tDecodeSubmitReq(&dc, pSubmitReq) < 0) {
+    if (tDecodeSubmitReq(&dc, pSubmitReq, NULL) < 0) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
     }
@@ -2535,7 +2554,7 @@ static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pR
   return 0;
 }
 
-static int32_t vnodePreCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token) {
+static int32_t vnodeCheckToken(SVnode *pVnode, char *member0Token, char *member1Token) {
   SSyncState syncState = syncGetState(pVnode->sync);
   if (syncState.state != TAOS_SYNC_STATE_LEADER) {
     return terrno = TSDB_CODE_SYN_NOT_LEADER;
@@ -2555,13 +2574,13 @@ static int32_t vnodePreCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token,
   return 0;
 }
 
-static int32_t vnodeCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token) {
-  int32_t code = vnodePreCheckAssignedLogSyncd(pVnode, member0Token, member1Token);
+static int32_t vnodeCheckSyncd(SVnode *pVnode, char *member0Token, char *member1Token) {
+  int32_t code = vnodeCheckToken(pVnode, member0Token, member1Token);
   if (code != 0) {
     return code;
   }
 
-  return syncGetAssignedLogSynced(pVnode->sync);
+  return syncCheckSynced(pVnode->sync);
 }
 
 static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
@@ -2585,7 +2604,7 @@ static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t l
   syncRsp.member1Token = syncReq.member1Token;
   syncRsp.vgId = TD_VID(pVnode);
 
-  if (vnodeCheckAssignedLogSyncd(pVnode, syncReq.member0Token, syncReq.member1Token) != 0) {
+  if (vnodeCheckSyncd(pVnode, syncReq.member0Token, syncReq.member1Token) != 0) {
     vError("vgId:%d, failed to check assigned log syncd", TD_VID(pVnode));
   }
   syncRsp.errCode = terrno;

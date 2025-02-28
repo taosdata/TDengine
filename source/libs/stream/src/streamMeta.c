@@ -198,6 +198,7 @@ int32_t streamMetaCheckBackendCompatible(SStreamMeta* pMeta) {
     SCheckpointInfo info;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     if (tDecodeStreamTaskChkInfo(&decoder, &info) < 0) {
+      tDecoderClear(&decoder);
       continue;
     }
 
@@ -572,10 +573,11 @@ void streamMetaClear(SStreamMeta* pMeta) {
 }
 
 void streamMetaClose(SStreamMeta* pMeta) {
-  stDebug("vgId:%d start to close stream meta", pMeta->vgId);
   if (pMeta == NULL) {
     return;
   }
+
+  stDebug("vgId:%d start to close stream meta", pMeta->vgId);
   int32_t code = taosRemoveRef(streamMetaRefPool, pMeta->rid);
   if (code) {
     stError("vgId:%d failed to remove meta ref:%" PRId64 ", code:%s", pMeta->vgId, pMeta->rid, tstrerror(code));
@@ -1031,6 +1033,7 @@ int64_t streamMetaGetLatestCheckpointId(SStreamMeta* pMeta) {
     SCheckpointInfo info;
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     if (tDecodeStreamTaskChkInfo(&decoder, &info) < 0) {
+      tDecoderClear(&decoder);
       continue;
     }
     tDecoderClear(&decoder);

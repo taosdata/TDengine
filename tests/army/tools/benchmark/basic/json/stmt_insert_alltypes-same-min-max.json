@@ -1,0 +1,43 @@
+{
+  "filetype": "insert",
+  "cfgdir": "/etc/taos",
+  "host": "127.0.0.1",
+  "port": 6030,
+  "user": "root",
+  "password": "taosdata",
+  "thread_count": 1,
+  "connection_pool_size": 20,
+  "result_file": "./insert_res.txt",
+  "confirm_parameter_prompt": "no",
+  "prepared_rand": 10,
+  "chinese": "no",
+  "insert_interval": 0,
+  "num_of_records_per_req": 10,
+  "databases": [{
+    "dbinfo": {
+      "name": "db",
+      "drop": "yes"
+    },
+    "super_tables": [{
+      "name": "stb",
+      "child_table_exists":"no",
+      "childtable_count": 5,
+      "childtable_prefix": "t",
+      "escape_character": "yes",
+      "auto_create_table": "no",
+      "batch_create_tbl_num": 10,
+      "data_source": "rand",
+      "insert_mode": "stmt",
+      "insert_rows": 5,
+      "insert_interval": 0,
+      "interlace_rows": 0,
+      "disorder_ratio": 0,
+      "disorder_range": 1000,
+      "timestamp_step": 1,
+      "start_timestamp": "2022-02-01 00:00:00.000",
+      "tags_file": "",
+      "columns": [{"type": "INT","max": 1, "min": 1}, {"type": "BIGINT","max": 3000000000, "min": 3000000000}, {"type": "FLOAT","max": 1.0, "min": 1.0}, {"type": "DOUBLE","max": 1.0, "min": 1.0}, {"type": "SMALLINT","max": 1, "min": 1}, {"type": "TINYINT","max": 1, "min": 1}, {"type": "BOOL","max": 1, "min": 1}, {"type": "UINT","max": 4000000000, "min": 4000000000}, {"type": "UBIGINT","max": 5000000000, "min": 5000000000}, {"type": "UTINYINT","max": 30, "min": 30}, {"type": "USMALLINT","max": 60000, "min": 60000}],
+      "tags": [{"type": "TIMESTAMP"},{"type": "INT","max": 1, "min": 1}, {"type": "BIGINT","max": 3000000000, "min": 3000000000}, {"type": "FLOAT","max": 1.0, "min": 1.0}, {"type": "DOUBLE","max": 1.0, "min": 1.0}, {"type": "SMALLINT","max": 1, "min": 1}, {"type": "TINYINT","max": 1, "min": 1}, {"type": "BOOL","max": 0, "min": 0}, {"type": "UINT","max": 4000000000, "min": 4000000000}, {"type": "UBIGINT","max": 5000000000, "min": 5000000000}, {"type": "UTINYINT","max": 30, "min": 30}, {"type": "USMALLINT","max": 60000, "min": 60000}]
+    }]
+  }]
+}

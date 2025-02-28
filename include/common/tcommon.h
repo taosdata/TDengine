@@ -121,10 +121,11 @@ enum {
   TMQ_MSG_TYPE__POLL_DATA_META_RSP,
   TMQ_MSG_TYPE__WALINFO_RSP,
   TMQ_MSG_TYPE__POLL_BATCH_META_RSP,
+  TMQ_MSG_TYPE__POLL_RAW_DATA_RSP,
 };
 
-static const char* tmqMsgTypeStr[] = {
-    "data", "meta", "ask ep", "meta data", "wal info", "batch meta"
+static char* tmqMsgTypeStr[] = {
+    "data", "meta", "ask ep", "meta data", "wal info", "batch meta", "raw data"
 };
 
 enum {
@@ -160,6 +161,7 @@ typedef enum EStreamType {
   STREAM_PARTITION_DELETE_DATA,
   STREAM_GET_RESULT,
   STREAM_DROP_CHILD_TABLE,
+  STREAM_NOTIFY_EVENT,
 } EStreamType;
 
 #pragma pack(push, 1)
@@ -407,6 +409,9 @@ typedef struct STUidTagInfo {
 #define UD_TABLE_NAME_COLUMN_INDEX 0
 #define UD_GROUPID_COLUMN_INDEX    1
 #define UD_TAG_COLUMN_INDEX        2
+
+// stream notify event block column
+#define NOTIFY_EVENT_STR_COLUMN_INDEX 0
 
 int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime);
 int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol);

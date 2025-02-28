@@ -138,7 +138,9 @@ static uintptr_t getNextTimerId() {
   return id;
 }
 
-static void timerAddRef(tmr_obj_t* timer) { (void)atomic_add_fetch_8(&timer->refCount, 1); }
+static void timerAddRef(tmr_obj_t* timer) {
+  (void)atomic_add_fetch_8(&timer->refCount, 1);
+}
 
 static void timerDecRef(tmr_obj_t* timer) {
   if (atomic_sub_fetch_8(&timer->refCount, 1) == 0) {

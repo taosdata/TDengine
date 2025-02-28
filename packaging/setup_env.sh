@@ -174,6 +174,7 @@ help() {
     echo "  config_qemu_guest_agent     - Configure QEMU guest agent"
     echo "  deploy_docker               - Deploy Docker"
     echo "  deploy_docker_compose       - Deploy Docker Compose"
+    echo "  install_trivy               - Install Trivy"
     echo "  clone_enterprise            - Clone the enterprise repository"
     echo "  clone_community             - Clone the community repository"
     echo "  clone_taosx                 - Clone TaosX repository"
@@ -316,6 +317,17 @@ add_config_if_not_exist() {
     grep -qF -- "$config" "$file" || echo "$config" >> "$file"
 }
 
+# Function to check if a tool is installed
+check_installed() {
+    local command_name="$1"
+    if command -v "$command_name" >/dev/null 2>&1; then
+        echo "$command_name is already installed. Skipping installation."
+        return 0
+    else
+        echo "$command_name is not installed."
+        return 1
+    fi
+}
 # General error handling function
 check_status() {
     local message_on_failure="$1"
@@ -584,9 +596,12 @@ centos_skip_check() {
 # Deploy cmake
 deploy_cmake() {
     # Check if cmake is installed
-    if command -v cmake >/dev/null 2>&1; then
-        echo "Cmake is already installed. Skipping installation."
-        cmake --version
+    # if command -v cmake >/dev/null 2>&1; then
+    #     echo "Cmake is already installed. Skipping installation."
+    #     cmake --version
+    #     return
+    # fi
+    if check_installed "cmake"; then
         return
     fi
     install_package "cmake3"
@@ -1058,11 +1073,13 @@ deploy_go() {
     GOPATH_DIR="/root/go"
 
     # Check if Go is installed
-    if command -v go >/dev/null 2>&1; then
-        echo "Go is already installed. Skipping installation."
+    # if command -v go >/dev/null 2>&1; then
+    #     echo "Go is already installed. Skipping installation."
+    #     return
+    # fi
+    if check_installed "go"; then
         return
     fi
-
     # Fetch the latest version number of Go
     GO_LATEST_DATA=$(curl --retry 10 --retry-delay 5 --retry-max-time 120 -s https://golang.google.cn/VERSION?m=text)
     GO_LATEST_VERSION=$(echo "$GO_LATEST_DATA" | grep -oP 'go[0-9]+\.[0-9]+\.[0-9]+')
@@ -1731,6 +1748,42 @@ deploy_docker_compose() {
     fi
 }
 
+# Instal trivy
+install_trivy() {
+    echo -e "${YELLOW}Installing Trivy...${NO_COLOR}"
+    # Check if Trivy is already installed
+    # if command -v trivy >/dev/null 2>&1; then
+    #     echo "Trivy is already installed. Skipping installation."
+    #     trivy --version
+    #     return
+    # fi
+    if check_installed "trivy"; then
+        return
+    fi
+    # Install jq
+    install_package jq
+    # Get latest version
+    LATEST_VERSION=$(curl -s https://api.github.com/repos/aquasecurity/trivy/releases/latest | jq -r .tag_name)
+    # Download
+    if [ -f /etc/debian_version ]; then
+        wget https://github.com/aquasecurity/trivy/releases/download/"${LATEST_VERSION}"/trivy_"${LATEST_VERSION#v}"_Linux-64bit.deb
+        # Install
+        dpkg -i trivy_"${LATEST_VERSION#v}"_Linux-64bit.deb
+
+    elif [ -f /etc/redhat-release ]; then
+        wget https://github.com/aquasecurity/trivy/releases/download/"${LATEST_VERSION}"/trivy_"${LATEST_VERSION#v}"_Linux-64bit.rpm
+        # Install
+        rpm -ivh trivy_"${LATEST_VERSION#v}"_Linux-64bit.rpm
+    else
+        echo "Unsupported Linux distribution."
+        exit 1
+    fi
+    # Check
+    trivy --version
+    check_status "Failed to install Trivy" "Trivy installed successfully." $?
+    rm -rf trivy_"${LATEST_VERSION#v}"_Linux-64bit.deb trivy_"${LATEST_VERSION#v}"_Linux-64bit.rpm
+}
+
 # Reconfigure cloud-init
 reconfig_cloud_init() {
     echo "Reconfiguring cloud-init..."
@@ -2004,6 +2057,7 @@ deploy_dev() {
     install_nginx
     deploy_docker
     deploy_docker_compose
+    install_trivy
     check_status "Failed to deploy some tools" "Deploy all tools successfully" $?
 }
 
@@ -2158,6 +2212,9 @@ main() {
                 ;;
             deploy_docker_compose)
                 deploy_docker_compose
+                ;;
+            install_trivy)
+                install_trivy
                 ;;
             clone_enterprise)
                 clone_enterprise

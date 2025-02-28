@@ -464,8 +464,8 @@ int32_t streamTransferStateDoPrepare(SStreamTask* pTask) {
   // 2. send msg to mnode to launch a checkpoint to keep the state for current stream
   code = streamTaskSendCheckpointReq(pStreamTask);
 
-  // 3. assign the status to the value that will be kept in disk
-  pStreamTask->status.taskStatus = streamTaskGetStatus(pStreamTask).state;
+  // 3. the default task status should be ready or something, not halt.
+  // status to the value that will be kept in disk
 
   // 4. open the inputQ for all upstream tasks
   streamTaskOpenAllUpstreamInput(pStreamTask);
@@ -777,7 +777,8 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
   int32_t     code = 0;
 
   // merge multiple input data if possible in the input queue.
-  stDebug("s-task:%s start to extract data block from inputQ", id);
+  int64_t st = taosGetTimestampMs();
+  stDebug("s-task:%s start to extract data block from inputQ, ts:%" PRId64, id, st);
 
   while (1) {
     int32_t           blockSize = 0;
@@ -823,6 +824,10 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
     // dispatch checkpoint msg to all downstream tasks
     int32_t type = pInput->type;
     if (type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
+#if 0
+      // Injection error: for automatic kill long trans test
+      taosMsleep(50*1000);
+#endif
       code = streamProcessCheckpointTriggerBlock(pTask, (SStreamDataBlock*)pInput);
       if (code != 0) {
         stError("s-task:%s failed to process checkpoint-trigger block, code:%s", pTask->id.idStr, tstrerror(code));
@@ -840,8 +845,6 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
         stError("s-task:%s invalid block type:%d for sink task, discard", id, type);
         continue;
       }
-
-      int64_t st = taosGetTimestampMs();
 
       // here only handle the data block sink operation
       if (type == STREAM_INPUT__DATA_BLOCK) {
@@ -871,6 +874,13 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
       code = doStreamTaskExecImpl(pTask, pInput, numOfBlocks);
       streamFreeQitem(pInput);
       if (code) {
+        return code;
+      }
+
+      double el = (taosGetTimestampMs() - st) / 1000.0;
+      if (el > 5.0) {  // elapsed more than 5 sec, not occupy the CPU anymore
+        stDebug("s-task:%s occupy more than 5.0s, release the exec threads and idle for 500ms", id);
+        streamTaskSetIdleInfo(pTask, 500);
         return code;
       }
     }

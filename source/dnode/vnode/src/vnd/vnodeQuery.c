@@ -49,6 +49,35 @@ int32_t fillTableColCmpr(SMetaReader *reader, SSchemaExt *pExt, int32_t numOfCol
   return 0;
 }
 
+void vnodePrintTableMeta(STableMetaRsp* pMeta) {
+  if (!(qDebugFlag & DEBUG_DEBUG)) {
+    return;
+  }
+
+  qDebug("tbName:%s", pMeta->tbName);
+  qDebug("stbName:%s", pMeta->stbName);
+  qDebug("dbFName:%s", pMeta->dbFName);
+  qDebug("dbId:%" PRId64, pMeta->dbId);
+  qDebug("numOfTags:%d", pMeta->numOfTags);
+  qDebug("numOfColumns:%d", pMeta->numOfColumns);
+  qDebug("precision:%d", pMeta->precision);
+  qDebug("tableType:%d", pMeta->tableType);
+  qDebug("sversion:%d", pMeta->sversion);
+  qDebug("tversion:%d", pMeta->tversion);
+  qDebug("suid:%" PRIu64, pMeta->suid);
+  qDebug("tuid:%" PRIu64, pMeta->tuid);
+  qDebug("vgId:%d", pMeta->vgId);
+  qDebug("sysInfo:%d", pMeta->sysInfo);
+  if (pMeta->pSchemas) {
+    for (int32_t i = 0; i < (pMeta->numOfColumns + pMeta->numOfTags); ++i) {
+      SSchema* pSchema = pMeta->pSchemas + i;
+      qDebug("%d col/tag: type:%d, flags:%d, colId:%d, bytes:%d, name:%s", i, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes, pSchema->name);
+    }
+  }
+
+}
+
+
 int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   STableInfoReq  infoReq = {0};
   STableMetaRsp  metaRsp = {0};
@@ -154,6 +183,8 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
+
+  vnodePrintTableMeta(&metaRsp);
 
   // encode and send response
   rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
@@ -499,6 +530,8 @@ _exit:
 
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   SSyncState state = syncGetState(pVnode->sync);
+  pLoad->syncAppliedIndex = pVnode->state.applied;
+  syncGetCommitIndex(pVnode->sync, &pLoad->syncCommitIndex);
 
   pLoad->vgId = TD_VID(pVnode);
   pLoad->syncState = state.state;
@@ -708,7 +741,7 @@ int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
 }
 
 int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
-  SSchemaWrapper *pSW = metaGetTableSchema(pVnode->pMeta, suid, -1, 0, NULL);
+  SSchemaWrapper *pSW = metaGetTableSchema(pVnode->pMeta, suid, -1, 0);
   if (pSW) {
     *num = pSW->nCols;
     tDeleteSchemaWrapper(pSW);

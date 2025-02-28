@@ -331,7 +331,6 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
     } else {
       stError("vgId:%d jump out of meta timer, failed to release the meta rid:%" PRId64, vgId, rid);
     }
-//    taosMemoryFree(param);
     return;
   }
 

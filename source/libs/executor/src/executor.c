@@ -250,6 +250,29 @@ int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
   return code;
 }
 
+int32_t qSetStreamNotifyInfo(qTaskInfo_t tinfo, int32_t eventTypes, const SSchemaWrapper* pSchemaWrapper,
+                             const char* stbFullName, bool newSubTableRule, STaskNotifyEventStat* pNotifyEventStat) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SStreamTaskInfo *pStreamInfo = NULL;
+
+  if (tinfo == 0 || eventTypes == 0 || pSchemaWrapper == NULL || stbFullName == NULL) {
+    goto _end;
+  }
+
+  pStreamInfo = &((SExecTaskInfo*)tinfo)->streamInfo;
+  pStreamInfo->eventTypes = eventTypes;
+  pStreamInfo->notifyResultSchema = tCloneSSchemaWrapper(pSchemaWrapper);
+  if (pStreamInfo->notifyResultSchema == NULL) {
+    code = terrno;
+  }
+  pStreamInfo->stbFullName = taosStrdup(stbFullName);
+  pStreamInfo->newSubTableRule = newSubTableRule;
+  pStreamInfo->pNotifyEventStat = pNotifyEventStat;
+
+_end:
+  return code;
+}
+
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
   if (tinfo == NULL) {
     return TSDB_CODE_APP_ERROR;
@@ -469,6 +492,13 @@ int32_t qUpdateTableListForStreamScanner(qTaskInfo_t tinfo, const SArray* tableI
   }
 
   SStreamScanInfo* pScanInfo = pInfo->info;
+  if (pInfo->pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {  // clear meta cache for subscription if tag is changed
+    for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
+      int64_t*        uid = (int64_t*)taosArrayGet(tableIdList, i);
+      STableScanInfo* pTableScanInfo = pScanInfo->pTableScanOp->info;
+      taosLRUCacheErase(pTableScanInfo->base.metaCache.pTableMetaEntryCache, uid, LONG_BYTES);
+    }
+  }
 
   if (isAdd) {  // add new table id
     SArray* qa = NULL;
@@ -601,7 +631,7 @@ void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
 }
 
 int32_t qExecutorInit(void) {
-  taosThreadOnce(&initPoolOnce, initRefPool);
+  (void)taosThreadOnce(&initPoolOnce, initRefPool);
   return TSDB_CODE_SUCCESS;
 }
 

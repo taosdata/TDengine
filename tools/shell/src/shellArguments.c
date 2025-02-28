@@ -15,13 +15,6 @@
 
 #include "shellInt.h"
 
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
-#include "cus_name.h"
-#else
-#ifndef CUS_PROMPT
-#define CUS_PROMPT "taos"
-#endif
-#endif
 
 #define TAOS_CONSOLE_PROMPT_CONTINUE "   -> "
 

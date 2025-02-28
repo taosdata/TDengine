@@ -334,10 +334,12 @@ int32_t syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg) {
 
   ths->arbTerm = TMAX(req.arbTerm, ths->arbTerm);
 
-  if (strncmp(req.memberToken, ths->arbToken, TSDB_ARB_TOKEN_SIZE) != 0) {
-    sInfo("vgId:%d, skip to set assigned leader, token mismatch, local:%s, msg:%s", ths->vgId, ths->arbToken,
-          req.memberToken);
-    goto _OVER;
+  if (!req.force) {
+    if (strncmp(req.memberToken, ths->arbToken, TSDB_ARB_TOKEN_SIZE) != 0) {
+      sInfo("vgId:%d, skip to set assigned leader, token mismatch, local:%s, msg:%s", ths->vgId, ths->arbToken,
+            req.memberToken);
+      goto _OVER;
+    }
   }
 
   if (ths->state != TAOS_SYNC_STATE_ASSIGNED_LEADER) {
@@ -679,6 +681,14 @@ SSyncState syncGetState(int64_t rid) {
   return state;
 }
 
+void syncGetCommitIndex(int64_t rid, int64_t* syncCommitIndex) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode != NULL) {
+    *syncCommitIndex = pSyncNode->commitIndex;
+    syncNodeRelease(pSyncNode);
+  }
+}
+
 int32_t syncGetArbToken(int64_t rid, char* outToken) {
   int32_t    code = 0;
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
@@ -697,7 +707,7 @@ int32_t syncGetArbToken(int64_t rid, char* outToken) {
   TAOS_RETURN(code);
 }
 
-int32_t syncGetAssignedLogSynced(int64_t rid) {
+int32_t syncCheckSynced(int64_t rid) {
   int32_t    code = 0;
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
@@ -3428,7 +3438,8 @@ _out:;
            ths->pLogBuf->matchIndex, ths->pLogBuf->endIndex);
 
   if (code == 0 && ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
-    TAOS_CHECK_RETURN(syncNodeUpdateAssignedCommitIndex(ths, matchIndex));
+    int64_t index = syncNodeUpdateAssignedCommitIndex(ths, matchIndex);
+    sTrace("vgId:%d, update assigned commit index %" PRId64 "", ths->vgId, index);
 
     if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
         syncLogBufferCommit(ths->pLogBuf, ths, ths->assignedCommitIndex) < 0) {
