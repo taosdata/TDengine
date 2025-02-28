@@ -3011,10 +3011,8 @@ int32_t tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4, SReqResultInfo** pRes
     if (data->withSchema) {
       doFreeReqResultInfo(&pRspObj->resInfo);
       SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(data->blockSchema, pRspObj->resIter);
-      SExtSchema*  pSWExt = (data->blockSchemaExt == NULL) ? NULL :
-                                                              (SExtSchema*)taosArrayGetP(data->blockSchemaExt, pRspObj->resIter);
       if (pSW) {
-        TAOS_CHECK_RETURN(setResSchemaInfo(&pRspObj->resInfo, pSW->pSchema, pSW->nCols, pSWExt));
+        TAOS_CHECK_RETURN(setResSchemaInfo(&pRspObj->resInfo, pSW->pSchema, pSW->nCols, NULL));
       }
     }
 

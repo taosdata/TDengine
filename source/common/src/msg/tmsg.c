@@ -11674,51 +11674,11 @@ _exit:
   return code;
 }
 
-static int32_t tEncodeMqDataRspSchemaExt(SEncoder *pEncoder, const SMqDataRsp *pRsp){
-  int32_t code = 0;
-  int32_t lino = 0;
-  if (!pRsp->withSchema){
-    return 0;
-  }
-  for (int32_t i = 0; i < pRsp->blockNum; i++) {
-    SSchemaWrapper *pSW = (SSchemaWrapper *)taosArrayGetP(pRsp->blockSchema, i);
-    TSDB_CHECK_NULL(pSW, code, lino, _exit, terrno);
-    SExtSchema *pSWExt = (SExtSchema *)taosArrayGetP(pRsp->blockSchemaExt, i);
-    if (pSWExt != NULL){
-      TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, (const uint8_t *)pSWExt, sizeof(SExtSchema) * pSW->nCols));
-    }
-  }
-  _exit:
-  return code;
-}
-
-static int32_t tDecodeMqDataRspSchemaExt(SDecoder *pDecoder, SMqDataRsp *pRsp) {
-  int32_t code = 0;
-  int32_t lino = 0;
-  if (!pRsp->withSchema) {
-    return 0;
-  }
-  if ((pRsp->blockSchemaExt = taosArrayInit(pRsp->blockNum, sizeof(void *))) == NULL) {
-    TAOS_CHECK_EXIT(terrno);
-  }
-  for (int32_t i = 0; i < pRsp->blockNum; i++) {
-    void *   data = NULL;
-    uint32_t bLen = 0;
-    TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, (uint8_t **)&data, &bLen));
-    if (taosArrayPush(pRsp->blockSchemaExt, &data) == NULL) {
-      TAOS_CHECK_EXIT(terrno);
-    }
-  }
-  _exit:
-  return code;
-}
-
 int32_t tEncodeMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
   int32_t code = 0;
   int32_t lino = 0;
   TAOS_CHECK_EXIT(tEncodeMqDataRspCommon(pEncoder, pRsp));
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pRsp->sleepTime));
-  TAOS_CHECK_EXIT(tEncodeMqDataRspSchemaExt(pEncoder, pRsp));
 
   _exit:
   return code;
@@ -11802,9 +11762,6 @@ int32_t tDecodeMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pRsp->sleepTime));
   }
-  if (!tDecodeIsEnd(pDecoder)) {
-    TAOS_CHECK_RETURN(tDecodeMqDataRspSchemaExt(pDecoder, pRsp));
-  }
 
   return 0;
 }
@@ -11831,12 +11788,6 @@ static void tDeleteMqDataRspCommon(SMqDataRsp *pRsp) {
   pRsp->blockData = NULL;
   taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSchemaWrapper);
   pRsp->blockSchema = NULL;
-  if (pRsp->blockDataElementFree){
-    taosArrayDestroyP(pRsp->blockSchemaExt, NULL);
-  } else {
-    taosArrayDestroy(pRsp->blockSchemaExt);
-  }
-  pRsp->blockSchemaExt = NULL;
   taosArrayDestroyP(pRsp->blockTbName, NULL);
   pRsp->blockTbName = NULL;
   tOffsetDestroy(&pRsp->reqOffset);
@@ -11859,7 +11810,6 @@ int32_t tEncodeSTaosxRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, createTableReq, createTableLen));
     }
   }
-  TAOS_CHECK_EXIT(tEncodeMqDataRspSchemaExt(pEncoder, pRsp));
 
 _exit:
   return code;
@@ -11890,9 +11840,6 @@ int32_t tDecodeSTaosxRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
         TAOS_CHECK_EXIT(terrno);
       }
     }
-  }
-  if (!tDecodeIsEnd(pDecoder)) {
-    TAOS_CHECK_EXIT(tDecodeMqDataRspSchemaExt(pDecoder, pRsp));
   }
 _exit:
   return code;

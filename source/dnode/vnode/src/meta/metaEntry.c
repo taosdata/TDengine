@@ -92,17 +92,6 @@ SExtSchema* metaGetSExtSchema(const SMetaEntry *pME) {
   return NULL;
 }
 
-SExtSchema* metaCloneSExtSchema(const SExtSchema *src, int32_t nCols) {
-  if (src == NULL || nCols <= 0) {
-    return NULL;
-  }
-  SExtSchema* ret = taosMemoryMalloc(sizeof(SExtSchema) * nCols);
-  if (ret != NULL){
-    memcpy(ret, src, nCols * sizeof(SExtSchema));
-  }
-  return ret;
-}
-
 int meteEncodeColCmprEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   const SColCmprWrapper *pw = &pME->colCmpr;
   TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->nCols));

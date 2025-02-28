@@ -1306,11 +1306,6 @@ const SSchemaWrapper* qExtractSchemaFromTask(qTaskInfo_t tinfo) {
   return pTaskInfo->streamInfo.schema;
 }
 
-const SExtSchema* qExtractSchemaExtFromTask(qTaskInfo_t tinfo) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  return pTaskInfo->streamInfo.pExtSchemas;
-}
-
 const char* qExtractTbnameFromTask(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   return pTaskInfo->streamInfo.tbName;
@@ -1601,9 +1596,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       tstrncpy(pTaskInfo->streamInfo.tbName, mtInfo.tbName, TSDB_TABLE_NAME_LEN);
 //      pTaskInfo->streamInfo.suid = mtInfo.suid == 0 ? mtInfo.uid : mtInfo.suid;
       tDeleteSchemaWrapper(pTaskInfo->streamInfo.schema);
-      taosMemoryFreeClear(pTaskInfo->streamInfo.pExtSchemas);
       pTaskInfo->streamInfo.schema = mtInfo.schema;
-      pTaskInfo->streamInfo.pExtSchemas = mtInfo.pExtSchemas;
 
       qDebug("tmqsnap qStreamPrepareScan snapshot data uid:%" PRId64 " ts %" PRId64 " %s", mtInfo.uid, pOffset->ts, id);
     } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_META) {
