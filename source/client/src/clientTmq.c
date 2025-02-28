@@ -24,9 +24,9 @@
 #include "tref.h"
 #include "ttimer.h"
 
-#define tqErrorC(...) do { if (cDebugFlag & DEBUG_ERROR || tqClientDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }}     while(0)
-#define tqInfoC(...)  do { if (cDebugFlag & DEBUG_INFO || tqClientDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  ", DEBUG_INFO, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }}            while(0)
-#define tqDebugC(...) do { if (cDebugFlag & DEBUG_DEBUG || tqClientDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  ", DEBUG_DEBUG, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
+#define tqErrorC(...) do { if (cDebugFlag & DEBUG_ERROR || tqClientDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
+#define tqInfoC(...)  do { if (cDebugFlag & DEBUG_INFO  || tqClientDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  INFO  ", DEBUG_INFO,  tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
+#define tqDebugC(...) do { if (cDebugFlag & DEBUG_DEBUG || tqClientDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  DEBUG ", DEBUG_DEBUG, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
 
 #define EMPTY_BLOCK_POLL_IDLE_DURATION 10
 #define DEFAULT_AUTO_COMMIT_INTERVAL   5000
@@ -356,7 +356,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       conf->autoCommit = false;
       return TMQ_CONF_OK;
     } else {
-      tqErrorC("invalid value for enable.auto.commit: %s", value);
+      tqErrorC("invalid value for enable.auto.commit:%s", value);
       return TMQ_CONF_INVALID;
     }
   }
@@ -365,7 +365,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int64_t tmp;
     code = taosStr2int64(value, &tmp);
     if (tmp < 0 || code != 0) {
-      tqErrorC("invalid value for auto.commit.interval.ms: %s", value);
+      tqErrorC("invalid value for auto.commit.interval.ms:%s", value);
       return TMQ_CONF_INVALID;
     }
     conf->autoCommitInterval = (tmp > INT32_MAX ? INT32_MAX : tmp);
@@ -376,7 +376,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int64_t tmp;
     code = taosStr2int64(value, &tmp);
     if (tmp < 6000 || tmp > 1800000 || code != 0) {
-      tqErrorC("invalid value for session.timeout.ms: %s", value);
+      tqErrorC("invalid value for session.timeout.ms:%s", value);
       return TMQ_CONF_INVALID;
     }
     conf->sessionTimeoutMs = tmp;
@@ -387,7 +387,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int64_t tmp;
     code = taosStr2int64(value, &tmp);
     if (tmp < 1000 || tmp >= conf->sessionTimeoutMs || code != 0) {
-      tqErrorC("invalid value for heartbeat.interval.ms: %s", value);
+      tqErrorC("invalid value for heartbeat.interval.ms:%s", value);
       return TMQ_CONF_INVALID;
     }
     conf->heartBeatIntervalMs = tmp;
@@ -398,7 +398,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int32_t tmp;
     code = taosStr2int32(value, &tmp);
     if (tmp < 1000 || code != 0) {
-      tqErrorC("invalid value for max.poll.interval.ms: %s", value);
+      tqErrorC("invalid value for max.poll.interval.ms:%s", value);
       return TMQ_CONF_INVALID;
     }
     conf->maxPollIntervalMs = tmp;
@@ -416,7 +416,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       conf->resetOffset = TMQ_OFFSET__RESET_LATEST;
       return TMQ_CONF_OK;
     } else {
-      tqErrorC("invalid value for auto.offset.reset: %s", value);
+      tqErrorC("invalid value for auto.offset.reset:%s", value);
       return TMQ_CONF_INVALID;
     }
   }
@@ -429,7 +429,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       conf->withTbName = false;
       return TMQ_CONF_OK;
     } else {
-      tqErrorC("invalid value for msg.with.table.name: %s", value);
+      tqErrorC("invalid value for msg.with.table.name:%s", value);
       return TMQ_CONF_INVALID;
     }
   }
@@ -442,7 +442,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       conf->snapEnable = false;
       return TMQ_CONF_OK;
     } else {
-      tqErrorC("invalid value for experimental.snapshot.enable: %s", value);
+      tqErrorC("invalid value for experimental.snapshot.enable:%s", value);
       return TMQ_CONF_INVALID;
     }
   }
@@ -481,7 +481,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int64_t tmp;
     code = taosStr2int64(value, &tmp);
     if (tmp <= 0 || tmp > 65535 || code != 0) {
-      tqErrorC("invalid value for td.connect.port: %s", value);
+      tqErrorC("invalid value for td.connect.port:%s", value);
       return TMQ_CONF_INVALID;
     }
 
@@ -497,7 +497,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       conf->replayEnable = false;
       return TMQ_CONF_OK;
     } else {
-      tqErrorC("invalid value for enable.replay: %s", value);
+      tqErrorC("invalid value for enable.replay:%s", value);
       return TMQ_CONF_INVALID;
     }
   }
@@ -518,7 +518,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int64_t tmp = 0;
     code = taosStr2int64(value, &tmp);
     if (tmp <= 0 || tmp > INT32_MAX || code != 0) {
-      tqErrorC("invalid value for fetch.max.wait.ms: %s", value);
+      tqErrorC("invalid value for fetch.max.wait.ms:%s", value);
       return TMQ_CONF_INVALID;
     }
     conf->maxPollWaitTime = tmp;
@@ -529,7 +529,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int64_t tmp = 0;
     code = taosStr2int64(value, &tmp);
     if (tmp <= 0 || tmp > INT32_MAX || code != 0) {
-      tqErrorC("invalid value for min.poll.rows: %s", value);
+      tqErrorC("invalid value for min.poll.rows:%s", value);
       return TMQ_CONF_INVALID;
     }
     conf->minPollRows = tmp;
@@ -547,7 +547,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     return TMQ_CONF_OK;
   }
 
-  tqErrorC("unknown key: %s", key);
+  tqErrorC("unknown key:%s", key);
   return TMQ_CONF_UNKNOWN;
 }
 
@@ -1268,7 +1268,7 @@ static void buildNewTopicList(tmq_t* tmq, SArray* newTopics, const SMqAskEpRsp* 
     SMqClientTopic* pTopicCur = taosArrayGet(tmq->clientTopics, i);
     if (pTopicCur && pTopicCur->vgs) {
       int32_t vgNumCur = taosArrayGetSize(pTopicCur->vgs);
-      tqInfoC("consumer:0x%" PRIx64 ", current vg num: %d", tmq->consumerId, vgNumCur);
+      tqInfoC("consumer:0x%" PRIx64 ", current vg num:%d", tmq->consumerId, vgNumCur);
       for (int32_t j = 0; j < vgNumCur; j++) {
         SMqClientVg* pVgCur = taosArrayGet(pTopicCur->vgs, j);
         if (pVgCur == NULL) {
@@ -1474,7 +1474,7 @@ static int32_t askEp(tmq_t* pTmq, void* param, bool sync, bool updateEpSet) {
   pParam = NULL;
 
   SEpSet epSet = getEpSet_s(&pTmq->pTscObj->pAppInfo->mgmtEp);
-  tqDebugC("consumer:0x%" PRIx64 " ask ep from mnode,QID:0x%" PRIx64, pTmq->consumerId, sendInfo->requestId);
+  tqDebugC("consumer:0x%" PRIx64 " ask ep from mnode, QID:0x%" PRIx64, pTmq->consumerId, sendInfo->requestId);
   code = asyncSendMsgToServer(pTmq->pTscObj->pAppInfo->pTransporter, &epSet, NULL, sendInfo);
 
 END:
@@ -2102,7 +2102,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     goto END;
   }
   rspType = ((SMqRspHead*)pMsg->pData)->mqMsgType;
-  tqDebugC("consumer:0x%" PRIx64 " recv poll rsp, vgId:%d, type %d(%s),QID:0x%" PRIx64, tmq->consumerId, vgId, rspType, tmqMsgTypeStr[rspType], requestId);
+  tqDebugC("consumer:0x%" PRIx64 " recv poll rsp, vgId:%d, type %d(%s), QID:0x%" PRIx64, tmq->consumerId, vgId, rspType, tmqMsgTypeStr[rspType], requestId);
 
   pRspWrapper->tmqRspType = rspType;
   pRspWrapper->pollRsp.reqId = requestId;
@@ -2123,7 +2123,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
       taosFreeQitem(pRspWrapper);
       tqErrorC("consumer:0x%" PRIx64 " put poll res into mqueue failed, code:%d", tmq->consumerId, code);
     } else {
-      tqDebugC("consumer:0x%" PRIx64 " put poll res into mqueue, type:%d(%s), vgId:%d, total in queue:%d,QID:0x%" PRIx64,
+      tqDebugC("consumer:0x%" PRIx64 " put poll res into mqueue, type:%d(%s), vgId:%d, total in queue:%d, QID:0x%" PRIx64,
                tmq ? tmq->consumerId : 0, rspType, tmqMsgTypeStr[rspType], vgId, taosQueueItemSize(tmq->mqueue), requestId);
     }
   }
@@ -2297,7 +2297,7 @@ static int32_t doTmqPollImpl(tmq_t* pTmq, SMqClientTopic* pTopic, SMqClientVg* p
   char offsetFormatBuf[TSDB_OFFSET_LEN] = {0};
   tFormatOffset(offsetFormatBuf, tListLen(offsetFormatBuf), &pVg->offsetInfo.endOffset);
   code = asyncSendMsgToServer(pTmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, NULL, sendInfo);
-  tqDebugC("consumer:0x%" PRIx64 " send poll to %s vgId:%d, code:%d, epoch %d, req:%s,QID:0x%" PRIx64, pTmq->consumerId,
+  tqDebugC("consumer:0x%" PRIx64 " send poll to %s vgId:%d, code:%d, epoch %d, req:%s, QID:0x%" PRIx64, pTmq->consumerId,
            pTopic->topicName, pVg->vgId, code, pTmq->epoch, offsetFormatBuf, req.reqId);
   TSDB_CHECK_CODE(code, lino, END);
 
@@ -2523,7 +2523,7 @@ static SMqRspObj* processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
     tFormatOffset(buf, TSDB_OFFSET_LEN, &pollRspWrapper->rspOffset);
     if (pollRspWrapper->dataRsp.blockNum == 0) {
       tqDebugC("consumer:0x%" PRIx64 " empty block received, vgId:%d, offset:%s, vg total:%" PRId64
-                   ", total:%" PRId64 ",QID:0x%" PRIx64,
+                   ", total:%" PRId64 ", QID:0x%" PRIx64,
                tmq->consumerId, pVg->vgId, buf, pVg->numOfRows, tmq->totalRows, pollRspWrapper->reqId);
       pVg->emptyBlockReceiveTs = taosGetTimestampMs();
     } else {
@@ -2551,7 +2551,7 @@ static SMqRspObj* processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
         }
       }
       tqDebugC("consumer:0x%" PRIx64 " process poll rsp, vgId:%d, offset:%s, blocks:%d, rows:%" PRId64
-                   ", vg total:%" PRId64 ", total:%" PRId64 ",QID:0x%" PRIx64,
+                   ", vg total:%" PRId64 ", total:%" PRId64 ", QID:0x%" PRIx64,
                tmq->consumerId, pVg->vgId, buf, pRspObj->dataRsp.blockNum, numOfRows, pVg->numOfRows, tmq->totalRows,
                pollRspWrapper->reqId);
     }
@@ -3551,7 +3551,7 @@ int32_t tmq_get_topic_assignment(tmq_t* tmq, const char* pTopicName, tmq_topic_a
       char offsetFormatBuf[TSDB_OFFSET_LEN] = {0};
       tFormatOffset(offsetFormatBuf, tListLen(offsetFormatBuf), &pClientVg->offsetInfo.beginOffset);
 
-      tqInfoC("consumer:0x%" PRIx64 " %s retrieve wal info vgId:%d, epoch %d, req:%s,QID:0x%" PRIx64, tmq->consumerId,
+      tqInfoC("consumer:0x%" PRIx64 " %s retrieve wal info vgId:%d, epoch %d, req:%s, QID:0x%" PRIx64, tmq->consumerId,
               pTopic->topicName, pClientVg->vgId, tmq->epoch, offsetFormatBuf, req.reqId);
       code = asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pClientVg->epSet, NULL, sendInfo);
       if (code != 0) {

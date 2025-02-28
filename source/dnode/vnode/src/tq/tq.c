@@ -202,7 +202,7 @@ void tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId) {
   dataRsp.blockNum = 0;
   char buf[TSDB_OFFSET_LEN] = {0};
   (void)tFormatOffset(buf, TSDB_OFFSET_LEN, &dataRsp.reqOffset);
-  tqInfo("tqPushEmptyDataRsp to consumer:0x%" PRIx64 " vgId:%d, offset:%s,QID:0x%" PRIx64, req.consumerId, vgId, buf,
+  tqInfo("tqPushEmptyDataRsp to consumer:0x%" PRIx64 " vgId:%d, offset:%s, QID:0x%" PRIx64, req.consumerId, vgId, buf,
          req.reqId);
 
   code = tqSendDataRsp(pHandle, pHandle->msg, &req, &dataRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
@@ -225,7 +225,7 @@ int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq*
   (void)tFormatOffset(buf1, TSDB_OFFSET_LEN, &(pRsp->reqOffset));
   (void)tFormatOffset(buf2, TSDB_OFFSET_LEN, &(pRsp->rspOffset));
 
-  tqDebug("tmq poll vgId:%d consumer:0x%" PRIx64 " (epoch %d) start to send rsp, block num:%d, req:%s, rsp:%s,QID:0x%" PRIx64,
+  tqDebug("tmq poll vgId:%d consumer:0x%" PRIx64 " (epoch %d) start to send rsp, block num:%d, req:%s, rsp:%s, QID:0x%" PRIx64,
           vgId, pReq->consumerId, pReq->epoch, pRsp->blockNum, buf1, buf2, pReq->reqId);
 
   return tqDoSendDataRsp(&pMsg->info, pRsp, pReq->epoch, pReq->consumerId, type, sver, ever);
@@ -477,7 +477,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
 
   char buf[TSDB_OFFSET_LEN] = {0};
   (void)tFormatOffset(buf, TSDB_OFFSET_LEN, &reqOffset);
-  tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey %s, recv poll req vgId:%d, req:%s,QID:0x%" PRIx64,
+  tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d), subkey %s, recv poll req vgId:%d, req:%s, QID:0x%" PRIx64,
           consumerId, req.epoch, pHandle->subKey, vgId, buf, req.reqId);
 
   code = tqExtractDataForMq(pTq, pHandle, &req, pMsg);

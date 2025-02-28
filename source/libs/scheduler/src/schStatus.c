@@ -70,7 +70,7 @@ int32_t schHandleOpBeginEvent(int64_t jobId, SSchJob** job, SCH_OP_TYPE type, SS
   SSchJob* pJob = NULL;
   (void)schAcquireJob(jobId, &pJob);
   if (NULL == pJob) {
-    qDebug("Acquire sch job failed, may be dropped, jobId:0x%" PRIx64, jobId);
+    qDebug("jobId:0x%" PRIx64 ", acquire sch job failed, may be dropped", jobId);
     SCH_ERR_RET(TSDB_CODE_SCH_JOB_NOT_EXISTS);
   }
 

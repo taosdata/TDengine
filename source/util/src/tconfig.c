@@ -1465,7 +1465,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
   int32_t olen, vlen, vlen2, vlen3, vlen4;
   int32_t code = 0, lino = 0;
   if (url == NULL || strlen(url) == 0) {
-    uInfo("apoll url not load");
+    uTrace("apoll url not load");
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 
