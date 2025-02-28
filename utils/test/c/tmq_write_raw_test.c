@@ -213,6 +213,13 @@ int32_t init_env() {
 
   buildDatabase(pConn, pRes);
 
+  pRes = taos_query(pConn, "drop topic if exists topic_query");
+  if (taos_errno(pRes) != 0) {
+    printf("error in drop topic, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
   pRes = taos_query(pConn, "drop database if exists db_query");
   if (taos_errno(pRes) != 0) {
     printf("error in drop db_taosx, reason:%s\n", taos_errstr(pRes));
