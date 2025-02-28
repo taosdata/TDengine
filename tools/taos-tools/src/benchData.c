@@ -469,11 +469,11 @@ uint32_t accumulateRowLen(BArray *fields, int iface) {
                 return len;
         }
         len += 1;
-        if (iface == SML_REST_IFACE || iface == SML_IFACE) {
+        if (iface == SML_IFACE) {
             len += SML_LINE_SQL_SYNTAX_OFFSET + strlen(field->name);
         }
     }
-    if (iface == SML_IFACE || iface == SML_REST_IFACE) {
+    if (iface == SML_IFACE) {
         len += 2 * TSDB_TABLE_NAME_LEN * 2 + SML_LINE_SQL_SYNTAX_OFFSET;
     }
     len += TIMESTAMP_BUFF_LEN;
@@ -1802,7 +1802,6 @@ int generateRandData(SSuperTable *stbInfo, char *sampleDataBuf,
     int     iface = stbInfo->iface;
     switch (iface) {
         case TAOSC_IFACE:
-        case REST_IFACE:
             return generateRandDataSQL(stbInfo, sampleDataBuf,
                                     bufLen, lenOfOneRow, fields, loop, tag);
         case STMT_IFACE:
@@ -1817,7 +1816,6 @@ int generateRandData(SSuperTable *stbInfo, char *sampleDataBuf,
                                     bufLen, lenOfOneRow, fields, loop, tag);
             }
         case SML_IFACE:
-        case SML_REST_IFACE:
             return generateRandDataSml(stbInfo, sampleDataBuf,
                                     bufLen, lenOfOneRow, fields, loop, tag);
         default:
@@ -1843,8 +1841,7 @@ int prepareSampleData(SDataBase* database, SSuperTable* stbInfo) {
     stbInfo->lenOfCols = accumulateRowLen(stbInfo->cols, stbInfo->iface);
     stbInfo->lenOfTags = accumulateRowLen(stbInfo->tags, stbInfo->iface);
     if (stbInfo->partialColNum != 0
-            && ((stbInfo->iface == TAOSC_IFACE
-                || stbInfo->iface == REST_IFACE))) {
+            && stbInfo->iface == TAOSC_IFACE) {
         // check valid
         if(stbInfo->partialColFrom >= stbInfo->cols->size) {
             stbInfo->partialColFrom = 0;
