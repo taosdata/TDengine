@@ -363,13 +363,17 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
     pMeta->pHbInfo->hbStart = taosGetTimestampMs();
   }
 
-  streamMetaRLock(pMeta);
-  code = streamMetaSendHbHelper(pMeta);
-  if (code) {
-    stError("vgId:%d failed to send hmMsg to mnode, try again in 5s, code:%s", pMeta->vgId, tstrerror(code));
+  // NOTE: stream task in restart procedure. not generate the hb now, try to acquire the lock may cause stuck this timer.
+  if (pMeta->startInfo.startAllTasks == 1) {
+    stWarn("vgId:%d in restart all task procedure, not try to genbrate the hb now, try again in 5s", pMeta->vgId);
+  } else {
+    streamMetaRLock(pMeta);
+    code = streamMetaSendHbHelper(pMeta);
+    if (code) {
+      stError("vgId:%d failed to send hmMsg to mnode, try again in 5s, code:%s", pMeta->vgId, tstrerror(code));
+    }
+    streamMetaRUnLock(pMeta);
   }
-
-  streamMetaRUnLock(pMeta);
 
   streamTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, pMeta->vgId,
                  "meta-hb-tmr");
