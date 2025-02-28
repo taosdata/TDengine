@@ -328,9 +328,7 @@ SBenchConn* initBenchConnImpl() {
     }
 
     // connect main
-    conn->taos = taos_connect(g_arguments->host,
-            g_arguments->user, g_arguments->password,
-            NULL, g_arguments->port);
+    conn->taos = taos_connect(host, user, pwd, NULL, port);
     if (conn->taos == NULL) {
         errorPrint("failed to connect native %s:%d, "
                     "code: 0x%08x, reason: %s\n",
@@ -342,10 +340,7 @@ SBenchConn* initBenchConnImpl() {
     succPrint("%s conneced\n", show);
 
     // check write correct connect
-    conn->ctaos = taos_connect(g_arguments->host,
-                                g_arguments->user,
-                                g_arguments->password,
-                                NULL, g_arguments->port);
+    conn->ctaos = taos_connect(host, user, pwd, NULL, port);
 
     return conn;
 }
@@ -849,14 +844,6 @@ int convertServAddr(int iface, bool tcp, int protocol) {
                 g_arguments->host, port, &g_arguments->serv_addr, iface);
     }
     return 0;
-}
-
-static void errorPrintSocketMsg(char *msg, int result) {
-#ifdef WINDOWS
-    errorPrint("%s: %d\n", msg, WSAGetLastError());
-#else
-    errorPrint("%s: %d\n", msg, result);
-#endif
 }
 
 FORCE_INLINE void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res) {    

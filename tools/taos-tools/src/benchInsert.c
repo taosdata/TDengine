@@ -4198,9 +4198,6 @@ int insertTestProcess() {
         SDataBase * database = benchArrayGet(g_arguments->databases, i);
 
         if (database->drop && !(g_arguments->supplementInsert)) {
-            if (database->superTbls && database->superTbls->size > 0) {
-                SSuperTable * stbInfo = benchArrayGet(database->superTbls, 0);
-            }
             if (createDatabase(database)) {
                 errorPrint("failed to create database (%s)\n",
                         database->dbName);

@@ -23,7 +23,6 @@ int selectAndGetResult(qThreadInfo *pThreadInfo, char *command, bool record) {
     }
 
     // execute sql
-    uint32_t threadID = pThreadInfo->threadID;
     char dbName[TSDB_DB_NAME_LEN] = {0};
     tstrncpy(dbName, g_queryInfo.dbName, TSDB_DB_NAME_LEN);
 

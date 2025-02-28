@@ -250,6 +250,7 @@ typedef unsigned __int32 uint32_t;
     "when keep trying be enabled."
 #define BENCH_NODROP "Do not drop database."
 
+#define BENCH_DSN "The dsn to connect the cloud service."
 
 #define IS_VAR_DATA_TYPE(t)                                                                                 \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || \
