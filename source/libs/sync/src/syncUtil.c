@@ -215,7 +215,7 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, bool fo
 
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
   if (pNode->pFsm != NULL && pNode->pFsm->FpGetSnapshotInfo != NULL) {
-    (void)pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot);
+    (void)pNode->pFsm->FpGetSnapshotInfo(pNode->pFsm, &snapshot);  // vnodeSyncGetSnapshotInfo
   }
 
   SyncIndex logLastIndex = SYNC_INDEX_INVALID;
@@ -253,13 +253,15 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, bool fo
   va_end(argpointer);
 
   int32_t aqItems = 0;
+  /*
   if (pNode != NULL && pNode->pFsm != NULL && pNode->pFsm->FpApplyQueueItems != NULL) {
-    aqItems = pNode->pFsm->FpApplyQueueItems(pNode->pFsm);
+    aqItems = pNode->pFsm->FpApplyQueueItems(pNode->pFsm);  // vnodeApplyQueueItems
   }
+  */
 
   // restore error code
   terrno = errCode;
-  SyncIndex appliedIndex = pNode->pFsm->FpAppliedIndexCb(pNode->pFsm);
+  SyncIndex appliedIndex = pNode->pFsm->FpAppliedIndexCb(pNode->pFsm);  // vnodeSyncAppliedIndex
 
   if (pNode != NULL) {
     taosPrintLog(
@@ -426,19 +428,25 @@ void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool 
 }
 
 void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, int64_t timeDiff, const char* s) {
+  char pBuf[TD_TIME_STR_LEN] = {0};
+  if (pMsg->timeStamp > 0) {
+    if (formatTimestampLocal(pBuf, pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
+      pBuf[0] = '\0';
+    }
+  }
   if (timeDiff > SYNC_HEARTBEAT_SLOW_MS) {
     pSyncNode->hbSlowNum++;
 
     sNTrace(pSyncNode,
-            "recv sync-heartbeat from dnode:%d slow {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
-            ", ts:%" PRId64 "}, QID:%s, net elapsed:%" PRId64,
-            DID(&pMsg->srcId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pMsg->timeStamp, s, timeDiff);
+            "recv sync-heartbeat from dnode:%d slow(%d ms) {term:%" PRId64 ", commit-index:%" PRId64
+            ", min-match:%" PRId64 ", ts:%s}, QID:%s, net elapsed:%" PRId64 "ms",
+            DID(&pMsg->srcId), SYNC_HEARTBEAT_SLOW_MS, pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, s, timeDiff);
+  } else {
+    sNTrace(pSyncNode,
+            "recv sync-heartbeat from dnode:%d {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
+            ", ts:%s}, QID:%s, net elapsed:%" PRId64 "ms",
+            DID(&pMsg->srcId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, s, timeDiff);
   }
-
-  sNTrace(pSyncNode,
-          "recv sync-heartbeat from dnode:%d {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
-          ", ts:%" PRId64 "}, QID:%s, net elapsed:%" PRId64,
-          DID(&pMsg->srcId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pMsg->timeStamp, s, timeDiff);
 }
 
 void syncLogSendHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, const char* s) {
