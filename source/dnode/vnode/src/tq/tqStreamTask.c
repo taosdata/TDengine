@@ -322,7 +322,10 @@ bool taskReadyForDataFromWal(SStreamTask* pTask) {
   // check whether input queue is full or not
   if (streamQueueIsFull(pTask->inputq.queue)) {
     tqTrace("s-task:%s input queue is full, launch task without scanning wal", pTask->id.idStr);
-    streamTrySchedExec(pTask);
+    int32_t code = streamTrySchedExec(pTask);
+    if (code) {
+      tqError("s-task:%s failed to start task while inputQ is full", pTask->id.idStr);
+    }
     return false;
   }
 
