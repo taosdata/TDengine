@@ -1,5 +1,4 @@
-
-name: TDengine CI Pipeline
+name: TDengine CI Test
 
 on:
   pull_request:
