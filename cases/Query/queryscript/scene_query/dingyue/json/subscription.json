@@ -1,0 +1,30 @@
+{
+    "filetype": "subscribe",
+    "cfgdir": "/etc/taos",
+    "host": "192.168.1.43",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "result_file": "tmq_res.txt",
+    "tmq_info": {
+        "concurrent": 1,
+        "group_mode": "share",
+        "group.id": "test",
+        "rows_file": "/dev/null",
+
+
+        "poll_delay": 600000,
+        "create_mode": "parallel",
+        "client.id": "client001",
+        "auto.offset.reset": "earliest",
+        "enable.manual.commit": "false",
+        "enable.auto.commit": "false",
+        "auto.commit.interval.ms": 1000,
+        "experimental.snapshot.enable": "false",
+        "msg.with.table.name": "yes",
+
+        "topic_list": [
+            {"name": "to_flink", "sql": "select * from testdb_1g.vehicle;"}
+        ]
+    }
+}
