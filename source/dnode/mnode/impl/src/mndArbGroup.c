@@ -45,6 +45,7 @@ static int32_t mndProcessArbCheckSyncRsp(SRpcMsg *pRsp);
 static int32_t mndProcessArbSetAssignedLeaderRsp(SRpcMsg *pRsp);
 static int32_t mndRetrieveArbGroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextArbGroup(SMnode *pMnode, void *pIter);
+static int32_t mndProcessAssignLeaderMsg(SRpcMsg *pReq);
 
 static int32_t mndArbCheckToken(const char *token1, const char *token2) {
   if (token1 == NULL || token2 == NULL) return -1;
@@ -70,6 +71,7 @@ int32_t mndInitArbGroup(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_ARB_HEARTBEAT_RSP, mndProcessArbHbRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_ARB_CHECK_SYNC_RSP, mndProcessArbCheckSyncRsp);
   mndSetMsgHandle(pMnode, TDMT_SYNC_SET_ASSIGNED_LEADER_RSP, mndProcessArbSetAssignedLeaderRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_ARB_ASSIGN_LEADER, mndProcessAssignLeaderMsg);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ARBGROUP, mndRetrieveArbGroups);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ARBGROUP, mndCancelGetNextArbGroup);
@@ -535,11 +537,12 @@ static bool mndCheckArbMemberHbTimeout(SArbGroup *pArbGroup, int32_t index, int6
 }
 
 static void *mndBuildArbSetAssignedLeaderReq(int32_t *pContLen, int32_t vgId, char *arbToken, int64_t arbTerm,
-                                             char *memberToken) {
+                                             char *memberToken, bool force) {
   SVArbSetAssignedLeaderReq req = {0};
   req.arbToken = arbToken;
   req.arbTerm = arbTerm;
   req.memberToken = memberToken;
+  if (force) req.force = 1;
 
   int32_t reqLen = tSerializeSVArbSetAssignedLeaderReq(NULL, 0, &req);
   int32_t contLen = reqLen + sizeof(SMsgHead);
@@ -559,10 +562,10 @@ static void *mndBuildArbSetAssignedLeaderReq(int32_t *pContLen, int32_t vgId, ch
 }
 
 static int32_t mndSendArbSetAssignedLeaderReq(SMnode *pMnode, int32_t dnodeId, int32_t vgId, char *arbToken,
-                                              int64_t term, char *memberToken) {
+                                              int64_t term, char *memberToken, bool force) {
   int32_t code = 0;
   int32_t contLen = 0;
-  void   *pHead = mndBuildArbSetAssignedLeaderReq(&contLen, vgId, arbToken, term, memberToken);
+  void   *pHead = mndBuildArbSetAssignedLeaderReq(&contLen, vgId, arbToken, term, memberToken, force);
   if (!pHead) {
     mError("vgId:%d, failed to build set-assigned request", vgId);
     code = -1;
@@ -649,6 +652,73 @@ void mndArbCheckSync(SArbGroup *pArbGroup, int64_t nowMs, ECheckSyncOp *pOp, SAr
   *pOp = CHECK_SYNC_UPDATE;
 }
 
+static int32_t mndProcessAssignLeaderMsg(SRpcMsg *pReq) {
+  SMnode    *pMnode = pReq->info.node;
+  int32_t    code = -1, lino = 0;
+  SArray    *pArray = NULL;
+  void      *pIter = NULL;
+  SSdb      *pSdb = pMnode->pSdb;
+  SArbGroup *pArbGroup = NULL;
+
+  SAssignLeaderReq req = {0};
+  if (tDeserializeSAssignLeaderReq(pReq->pCont, pReq->contLen, &req) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  mInfo("begin to process assign leader");
+
+  char arbToken[TSDB_ARB_TOKEN_SIZE];
+  TAOS_CHECK_EXIT(mndGetArbToken(pMnode, arbToken));
+
+  int64_t term = mndGetTerm(pMnode);
+  if (term < 0) {
+    mError("arb failed to get term since %s", terrstr());
+    code = -1;
+    if (terrno != 0) code = terrno;
+    TAOS_RETURN(code);
+  }
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_ARBGROUP, pIter, (void **)&pArbGroup);
+    if (pIter == NULL) break;
+
+    SArbGroup arbGroupDup = {0};
+
+    (void)taosThreadMutexLock(&pArbGroup->mutex);
+    mndArbGroupDupObj(pArbGroup, &arbGroupDup);
+    (void)taosThreadMutexUnlock(&pArbGroup->mutex);
+
+    sdbRelease(pSdb, pArbGroup);
+
+    int32_t dnodeId = 0;
+    for (int32_t i = 0; i < 2; i++) {
+      SDnodeObj *pDnode = mndAcquireDnode(pMnode, arbGroupDup.members[i].info.dnodeId);
+      bool       isonline = mndIsDnodeOnline(pDnode, taosGetTimestampMs());
+      mndReleaseDnode(pMnode, pDnode);
+      if (isonline) {
+        dnodeId = arbGroupDup.members[i].info.dnodeId;
+        break;
+      }
+    }
+
+    (void)mndSendArbSetAssignedLeaderReq(pMnode, dnodeId, arbGroupDup.vgId, arbToken, term, "", true);
+    mInfo("vgId:%d, arb send set assigned leader to dnodeId:%d", arbGroupDup.vgId, dnodeId);
+  }
+
+  code = 0;
+
+  // auditRecord(pReq, pMnode->clusterId, "assignLeader", "", "", req.sql, req.sqlLen);
+
+_exit:
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("failed to assign leader since %s", tstrerror(code));
+  }
+
+  tFreeSAssignLeaderReq(&req);
+  TAOS_RETURN(code);
+}
+
 static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
   int32_t    code = 0, lino = 0;
   SMnode    *pMnode = pReq->info.node;
@@ -701,7 +771,7 @@ static int32_t mndProcessArbCheckSyncTimer(SRpcMsg *pReq) {
         mTrace("vgId:%d, arb skip to send msg by check sync", vgId);
         break;
       case CHECK_SYNC_SET_ASSIGNED_LEADER:
-        (void)mndSendArbSetAssignedLeaderReq(pMnode, assgndDnodeId, vgId, arbToken, term, pAssgndLeader->token);
+        (void)mndSendArbSetAssignedLeaderReq(pMnode, assgndDnodeId, vgId, arbToken, term, pAssgndLeader->token, false);
         mInfo("vgId:%d, arb send set assigned leader to dnodeId:%d", vgId, assgndDnodeId);
         break;
       case CHECK_SYNC_CHECK_SYNC:
@@ -1361,7 +1431,7 @@ static int32_t mndRetrieveArbGroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     char strCheckSyncCode[100] = {0};
     char bufUpdateTime[40] = {0};
     (void)formatTimestamp(bufUpdateTime, pGroup->updateTimeMs, TSDB_TIME_PRECISION_MILLI);
-    tsnprintf(strCheckSyncCode, 100, "%s(%s)", tstrerror(pGroup->code), bufUpdateTime);
+    (void)tsnprintf(strCheckSyncCode, 100, "%s(%s)", tstrerror(pGroup->code), bufUpdateTime);
 
     char checkSyncCode[100 + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(checkSyncCode, strCheckSyncCode, 100 + VARSTR_HEADER_SIZE);
