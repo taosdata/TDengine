@@ -170,7 +170,6 @@ int             metaUpdateChangeTimeWithLock(SMeta* pMeta, tb_uid_t uid, int64_t
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema** extSchema);
 int64_t         metaGetTableCreateTime(SMeta *pMeta, tb_uid_t uid, int lock);
 SExtSchema*     metaGetSExtSchema(const SMetaEntry *pME);
-SExtSchema*     metaCloneSExtSchema(const SExtSchema *src, int32_t nCols);
 int32_t         metaGetTbTSchemaNotNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 int32_t         metaGetTbTSchemaMaybeNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);

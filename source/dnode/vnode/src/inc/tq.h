@@ -108,16 +108,6 @@ struct STQ {
   SStreamMeta*    pStreamMeta;
 };
 
-typedef struct {
-  SSchemaWrapper *pSchemaWrapper;
-  SExtSchema     *extSchema;
-}TQSchema;
-
-static FORCE_INLINE void freeTqSchema(TQSchema* pSchema) {
-  tDeleteSchemaWrapper(pSchema->pSchemaWrapper);
-  taosMemoryFreeClear(pSchema->extSchema);
-}
-
 int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);
 int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
 void    tqDestroyTqHandle(void* data);
