@@ -8,11 +8,11 @@ from taostest.util import file
 class FractalEdge(TDCase):
     def init(self):
         self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
-        case_config = json.load(open(os.path.join(self.env_root, "workflow_config.json")))
-        self.db_config = case_config["db_config"]
+        self.case_config = json.load(open(os.path.join(self.env_root, "workflow_config.json")))
+        self.db_config = self.case_config["db_config"]
 
         # self.execute_time = int(case_config["exec_time"])
-        self.execute_time = 30
+        self.execute_time = int(self.case_config["exec_time"])
         self.tdCom = TDCom(self.tdSql, self.env_setting)
         self.tdRest = TDRest(env_setting=self.env_setting)
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
@@ -27,26 +27,25 @@ class FractalEdge(TDCase):
         task_list = []
         case_data_org = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/config.yaml')
         case_data_from = case_data_org["from"]
-        for mqtt_num in range(len(case_data_from["topics"])):
+        mqtt_parser = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/parser.yaml')
+        for topic_id,topic_name in case_data_from["topics"].items():
             task_data = {}
-            mqtt_parser = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/parser.yaml')
-            mqtt_parser["parser"]["parser"]["s_model"]["name"] = f'site_{case_data_from["topics"][mqtt_num]}_{hostname}'
-            child_table_model = mqtt_parser["parser"]["parser"]["model"]["name"]
-            mqtt_parser["parser"]["parser"]["model"]["name"] = f"{child_table_model}_{hostname}"
+            mqtt_parser[topic_id]["parser"]["s_model"]["name"] = f'site_{topic_id}_{hostname.replace("-", "_")}'
+            child_table_model = mqtt_parser[topic_id]["parser"]["model"]["name"]
+            mqtt_parser[topic_id]["parser"]["model"]["using"] = f'site_{topic_id}_{hostname.replace("-", "_")}'
+            mqtt_parser[topic_id]["parser"]["model"]["name"] = f"{child_table_model}_{hostname.replace('-', '_')}"
             cliend_id = self.tdCom.get_long_name(4,mode="numbers")
-            task_data["from"] = f'''mqtt://{hostname}:1883?version=5.0&client_id={cliend_id}&char_encoding=UTF_8&keep_alive=60&clean_session=true&topics={case_data_from["topics"][mqtt_num]}::0&topic_patterns={case_data_from["topic_patterns"][mqtt_num]}'''
+            task_data["from"] = f'''mqtt://{hostname}:1883?version=5.0&client_id={cliend_id}&char_encoding=UTF_8&keep_alive=60&clean_session=true&topics={case_data_from["topics"][topic_id]}::0&topic_pattern={case_data_from["topic_patterns"][topic_id]}'''
             # mqtt_payload
-            task_data["parser"] = mqtt_parser["parser"]
+            task_data["parser"] = mqtt_parser[topic_id]
             task_data["to"] = f"taos+ws://{hostname}:6041/{target_dbname}"
             task_data["labels"] = case_data_from["labels"]
             task_list.append(task_data)
-
         return task_list
     def run(self):
         headers = {"Content-Type": "application/json"}
         task_list = []
         cases_data = self.set_mqtt_datain_payload(hostname=self.host,target_dbname=self.target_dbname)
-
         # 在edge侧创建数据库 mqtt_datain
         self.tdCom.createDb(self.target_dbname,self.db_config)
         # 创建4个mqtt datain任务
