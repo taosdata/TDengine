@@ -41,7 +41,7 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
 #endif
 }
 
-#if defined(TAOSD_INTEGRATED) && !defined(TD_AS_LIB)
+#if defined(TAOSD_INTEGRATED) && defined(TD_AS_LIB)
 int taosShellStart(int argc, char *argv[]) {
 #else
 int main(int argc, char *argv[]) {
