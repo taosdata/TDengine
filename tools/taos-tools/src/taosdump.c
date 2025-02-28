@@ -7022,7 +7022,7 @@ static int createMTableAvroHeadImp(
         return -1;
     }
 
-    int32_t colCount = getTableDesFromStbNative(*taos_v, dbName,
+    getTableDesFromStbNative(*taos_v, dbName,
                 stbTableDes,
                 tbName,
                 &subTableDes);
@@ -9223,7 +9223,7 @@ static int64_t dumpStable(
                 stbName, stbDes->columns, stbDes->tags);
 
     // get stable child count
-    int64_t = tbCount = getTbCountOfStbNative(dbInfo->name, stbName);
+    int64_t tbCount = getTbCountOfStbNative(dbInfo->name, stbName);
     if(tbCount < 0 ) {        
         errorPrint("get stable %s failed.", stbName);
         freeTbDes(stbDes, true);
@@ -10206,14 +10206,7 @@ static int dumpEntry() {
     int ret = 0;
 
 #ifdef WEBSOCKET
-    if ( g_args.debug_print) {
-        ws_enable_log("trace");
-        printf("ws_enable_log(\"trace\");\n");
-    } else {
-        ws_enable_log("error");
-        printf("ws_enable_log(\"error\");\n");
-    }
-
+    // todo
     if (NULL == g_args.dsn) {
         g_args.dsn = getenv("TDENGINE_CLOUD_DSN");
         if (NULL == g_args.dsn) {
@@ -10223,12 +10216,6 @@ static int dumpEntry() {
         }
     } else {
         g_args.cloud = true;
-    }
-
-    if (g_args.cloud) {
-        splitCloudDsn();
-    } else if (g_args.restful) {
-        jointCloudDsn();
     }
 #endif  // WEBSOCKET
 
