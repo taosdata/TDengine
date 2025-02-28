@@ -460,7 +460,7 @@ This document details the server error codes that may be encountered when using 
 | 0x80002667 | Invalid usage of expr: %s                                    | Illegal expression                                           | Check and correct the SQL statement                          |
 | 0x80002687 | True_for duration cannot be negative                         | Use negative value as true_for duration                      | Check and correct the SQL statement                          |
 | 0x80002688 | Cannot use 'year' or 'month' as true_for duration            | Use year or month as true_for_duration                       | Check and correct the SQL statement                          |
-| 0x80002680 | Invalid using cols function                                  | Illegal using cols function                                        | Check and correct the SQL statement                          |
+| 0x80002689 | Invalid using cols function                                  | Illegal using cols function                                        | Check and correct the SQL statement                          |
 | 0x8000268A | Cols function's first param must be a select function that output a single row | The first parameter of the cols function should be a selection function | Check and correct the SQL statement                          |
 | 0x8000268B | Invalid using cols function with multiple output columns     | Illegal using the cols function for multiple column output             | Check and correct the SQL statement                          |
 | 0x8000268C | Invalid using alias for cols function                        | Illegal cols function alias                                  | Check and correct the SQL statement                          |

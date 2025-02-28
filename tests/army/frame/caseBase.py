@@ -19,6 +19,7 @@ import random
 import copy
 import json
 
+import frame.etool
 import frame.eutil
 from frame.log import *
 from frame.sql import *
@@ -231,6 +232,14 @@ class TBase:
 
         tdLog.info("sql1 same result with sql2.")
 
+    # check same value
+    def checkSame(self, real, expect, show = True):
+        if real == expect:
+            if show:
+                tdLog.info(f"check same succ. real={real} expect={expect}.")
+        else:
+            tdLog.exit(f"check same failed. real={real} expect={expect}.")
+
 #
 #   get db information
 #
@@ -269,6 +278,16 @@ class TBase:
                 break
         print(dics)
         return dics
+
+#
+#  run bin file
+#
+    # taos
+    def taos(self, command, show = True, checkRun = False):
+        return frame.etool.runBinFile("taos", command, show, checkRun)
+
+    def taosdump(self, command, show = True, checkRun = True, retFail = True):
+        return frame.etool.runBinFile("taosdump", command, show, checkRun, retFail)
 
 
 #
@@ -312,6 +331,17 @@ class TBase:
             tdLog.exit(f"list is empty {tips}")
 
 
+    # check list have str
+    def checkListString(self, vlist, s):
+        for i in range(len(vlist)):
+            if vlist[i].find(s) != -1:
+                # found
+                tdLog.info(f'found "{s}" on index {i} , line={vlist[i]}')
+                return 
+
+        # not found
+        tdLog.exit(f'faild, not found "{s}" on list:{vlist}')
+
 #
 #  str util
 #
@@ -328,7 +358,7 @@ class TBase:
 #  taosBenchmark 
 #
     
-    # run taosBenchmark and check insert Result
+    # insert
     def insertBenchJson(self, jsonFile, options="", checkStep=False):
         # exe insert 
         cmd = f"{options} -f {jsonFile}"        
@@ -395,4 +425,18 @@ class TBase:
             if vgroups != None:
                 tdSql.checkData(0, 0, vgroups)
 
-        return db, stb,child_count, insert_rows
+        return db, stb, child_count, insert_rows
+    
+
+    # tmq
+    def tmqBenchJson(self, jsonFile, options="", checkStep=False):
+        # exe insert 
+        command = f"{options} -f {jsonFile}"
+        rlist = frame.etool.runBinFile("taosBenchmark", command, checkRun = True)
+
+        #
+        # check insert result
+        #
+        print(rlist)
+
+        return rlist
