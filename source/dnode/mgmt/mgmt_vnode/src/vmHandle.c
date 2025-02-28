@@ -25,7 +25,7 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
 
   tfsUpdateSize(pMgmt->pTfs);
 
-  (void)taosThreadRwlockRdlock(&pMgmt->lock);
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
 
   void *pIter = taosHashIterate(pMgmt->runngingHash, NULL);
   while (pIter) {
@@ -46,14 +46,14 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
     pIter = taosHashIterate(pMgmt->runngingHash, pIter);
   }
 
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
 }
 
 void vmGetVnodeLoadsLite(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoadLite));
   if (!pInfo->pVloads) return;
 
-  (void)taosThreadRwlockRdlock(&pMgmt->lock);
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
 
   void *pIter = taosHashIterate(pMgmt->runngingHash, NULL);
   while (pIter) {
@@ -74,7 +74,7 @@ void vmGetVnodeLoadsLite(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
     pIter = taosHashIterate(pMgmt->runngingHash, pIter);
   }
 
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
 }
 
 void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
@@ -137,7 +137,7 @@ void vmCleanExpriedSamples(SVnodeMgmt *pMgmt) {
     dError("failed to get vgroup ids");
     return;
   }
-  (void)taosThreadRwlockRdlock(&pMgmt->lock);
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
   for (int i = 0; i < list_size; i++) {
     int32_t vgroup_id = vgroup_ids[i];
     void   *vnode = taosHashGet(pMgmt->runngingHash, &vgroup_id, sizeof(int32_t));
@@ -148,7 +148,7 @@ void vmCleanExpriedSamples(SVnodeMgmt *pMgmt) {
       }
     }
   }
-  (void)taosThreadRwlockUnlock(&pMgmt->lock);
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
   if (vgroup_ids) taosMemoryFree(vgroup_ids);
   if (keys) taosMemoryFree(keys);
   return;
