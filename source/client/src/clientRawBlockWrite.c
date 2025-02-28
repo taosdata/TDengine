@@ -1975,10 +1975,11 @@ static bool needRefreshMeta(void* rawData, STableMeta* pTableMeta, SSchemaWrappe
     int j = 0;
     for (; j < pTableMeta->tableInfo.numOfColumns; j++) {
       SSchema* pColSchema = &pTableMeta->schema[j];
+      SSchemaExt* pColExtSchema = &pTableMeta->schemaExt[j];
       char*    fieldName = pSW->pSchema[i].name;
 
       if (strcmp(pColSchema->name, fieldName) == 0) {
-        if (checkSchema(pColSchema, fields, NULL, 0) != 0){
+        if (checkSchema(pColSchema, pColExtSchema, fields, NULL, 0) != 0){
           return true;
         }
         break;

@@ -4150,7 +4150,7 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     code = pAPI->snapshotFn.getMetaTableInfoFromSnapshot(pInfo->sContext, &mtInfo);
     QUERY_CHECK_CODE(code, lino, _end);
     if (code != 0) {
-      tDeleteSchemaWrapper(mtInfo.schema);
+      destroyMetaTableInfo(&mtInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     STqOffsetVal offset = {0};
@@ -4162,7 +4162,7 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       tqOffsetResetToData(&offset, mtInfo.uid, INT64_MIN, val);
       qDebug("tmqsnap change get data uid:%" PRId64 "", mtInfo.uid);
     }
-    tDeleteSchemaWrapper(mtInfo.schema);
+    destroyMetaTableInfo(&mtInfo);
     code = qStreamPrepareScan(pTaskInfo, &offset, pInfo->sContext->subType);
     QUERY_CHECK_CODE(code, lino, _end);
     (*ppRes) = NULL;
