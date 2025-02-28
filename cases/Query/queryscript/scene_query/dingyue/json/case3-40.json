@@ -1,0 +1,71 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "192.168.1.43",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 8,
+    "thread_count": 8,
+    "create_table_thread_count": 8,
+    "result_file": "./insert_res.txt",
+    "confirm_parameter_prompt": "no",
+    "num_of_records_per_req": 1000,
+    "prepared_rand": 10000,
+    "chinese": "no",
+    "escape_character": "yes",
+    "continue_if_fail": "yes",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "testdb_3column",
+                "drop": "yes",
+                "replica": 1,
+                "PRECISION": "ms",
+                "WAL_RETENTION_PERIOD": 36000,
+                "vgroups": 40,
+                "STT_TRIGGER": 12
+            },
+            "super_tables": [
+                {
+                    "name": "vehicle",
+                    "childtable_count": 30000,
+                    "childtable_prefix": "v",
+                    "data_source": "rand",
+                    "timestamp_step": 5000,
+                    "start_timestamp": "2025-1-1 00:00:00",
+                    "insert_mode": "stmt",
+                    "line_protocol": "line",
+                    "non_stop_mode": "no",
+                    "insert_rows": 1000,
+                    "interlace_rows": 1,
+                    "insert_interval": 0,
+                    "child_table_exists": "yes",
+                    "childtable_limit": 0,
+                    "childtable_offset": 0,
+                    "auto_create_table": "no",
+                    "keep_trying": 10000000,
+                    "trying_interval": 1000,
+                    "columns": [
+              {"name": "f0","type": "FLOAT"},
+              {"name": "f1","type": "SMALLINT"}
+],
+"tags": [
+{"name": "t0","type": "BINARY", "len": 30},
+{"name": "t1","type": "BINARY", "len": 30},
+{"name": "t2","type": "BINARY", "len": 30},
+{"name": "t3","type": "BINARY", "len": 30},
+{"name": "t4","type": "BINARY", "len": 30},
+{"name": "t5","type": "BINARY", "len": 30},
+{"name": "t6","type": "BINARY", "len": 30},
+{"name": "t7","type": "BINARY", "len": 30},
+{"name": "t8","type": "BINARY", "len": 30},
+ {"name": "t9","type": "BINARY", "len": 30}
+]
+
+
+                }
+            ]
+        }
+    ]
+}
