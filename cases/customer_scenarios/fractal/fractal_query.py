@@ -31,7 +31,9 @@ class FractalQuery(TDCase):
         self.taosBenchmark_iplist = self.get_fqdn("taosBenchmark")
         self.jfile = QueryFile()
         self.query_file = Perf_Base_func(self.logger, self.run_log_dir)
-
+        self.log_path = f'{os.environ["TEST_ROOT"]}/run/workflow_logs/{self.case_config["test_start_time"]}'
+        self.detail_log_path = f'{self.log_path}/details'
+        self._remote.cmd("localhost", f'mkdir -p {self.detail_log_path}')
 
     def cleanup(self) -> None:
         pass
@@ -47,6 +49,7 @@ class FractalQuery(TDCase):
         # run taosBenchmark and get result file
         taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
         result_filename = self.query_file.threads_run_taosBenchmark(self.taosBenchmark_iplist, [json_info], [self.query_file_name], taosBenchmark_env_setting)
+        self._remote.cmd("localhost", f'cp {result_filename[0]} {self.detail_log_path}')
 
         # get query result
         self.query_file.get_summary_query_result(result_filename)
