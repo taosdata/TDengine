@@ -2,7 +2,7 @@
 mod test_tmq_to_local {
     use anyhow::bail;
     use assert_cmd::Command;
-    use opendal::{EntryMode, Operator};
+    use opendal::EntryMode;
     use std::env;
     use taos::{
         AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, Taos, TaosBuilder, TryStreamExt,
@@ -173,8 +173,8 @@ mod test_tmq_to_local {
     /// 测试备份数据使用 S3 转储。用例使用以下环境变量：
     /// * TAOSX_CMD: taosx 的可执行文件路径。默认为 taosx
     /// * TAOS_ADDR: TDengine 的连接地址。默认为 tmq://
-    /// * BACKUP_RETENTION_PERIOD: 本地备份文件的保留时长，所有早于 now - backup_retention_period 的备份文件都会上传 S3。默认值为 0
-    /// * BACKUP_RETENTION_SIZE: 本地备份文件的保留大小，只保留最新的 backup_retention_size 个备份文件。默认为 0
+    /// * BACKUP_RETENTION_PERIOD: 本地备份文件的保留时长，所有早于 now - backup_retention_period 的备份文件都会上传 S3。
+    /// * BACKUP_RETENTION_SIZE: 本地备份文件的保留大小，只保留最新的 backup_retention_size 个备份文件。
     /// * S3_ENDPOINT: S3 的 endpoint。如果不填，用例空跑
     /// * S3_ACCESS_KEY_ID: S3 的密钥key。默认为 minioadmin
     /// * S3_SECRET_ACCESS_KEY: S3 的密钥。默认为 minioadmin
@@ -182,7 +182,7 @@ mod test_tmq_to_local {
     /// * S3_BUCKET: 存储桶。默认为 taosx
     /// * S3_OBJECT_PREFIX: 对象前缀，类似于文件夹。默认为 backup/
     /// # Example
-    /// 全部备份文件上传到 S3
+    /// 全部备份文件在本地, 不上传到 S3
     /// ```shell
     /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' S3_ENDPOINT='http://192.168.2.139:9000' cargo nextest run test_backup_and_restore_with_s3 --nocapture --retries 0
     /// ```
@@ -197,6 +197,12 @@ mod test_tmq_to_local {
     /// 本地备份文件最多存 10 分钟，且不超过 5 个文件
     /// ```shell
     /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' BACKUP_RETENTION_PERIOD=10m BACKUP_RETENTION_SIZE=5 S3_ENDPOINT='http://192.168.2.139:9000' cargo nextest run test_backup_and_restore_with_s3 --nocapture --retries 0
+    /// ```
+    /// 本地备份文件全部上传到 S3
+    /// ```shell
+    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' BACKUP_RETENTION_PERIOD=0 S3_ENDPOINT='http://192.168.2.139:9000' cargo nextest run test_backup_and_restore_with_s3 --nocapture --retries 0
+    /// 或者
+    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' BACKUP_RETENTION_SIZE=0 S3_ENDPOINT='http://192.168.2.139:9000' cargo nextest run test_backup_and_restore_with_s3 --nocapture --retries 0
     /// ```
     #[tokio::test]
     async fn test_backup_and_restore_with_s3() -> anyhow::Result<()> {
@@ -241,9 +247,10 @@ mod test_tmq_to_local {
             write_few_rows(&taos, SRC_DB, 5).await?;
 
             // 在 S3 上初始化 bucket 和 object_prefix
-            let op = build_operator(&s3_config).await?;
+            let op = s3_config.connect().await?;
             if let Some(prefix) = &s3_config.prefix {
                 op.remove_all(prefix).await?;
+                op.create_dir(prefix).await?;
             }
 
             // 创建备份任务
@@ -302,18 +309,21 @@ mod test_tmq_to_local {
 
             // 检查 S3 的数据
             let prefix = &s3_config.prefix.as_deref().unwrap_or("/");
+            dbg!(prefix);
             let objects = op.list(prefix).await?;
-            assert_eq!(objects.len(), 3);
+            let mut uploaded = vec![];
             for obj in objects {
                 let meta = obj.metadata();
                 match meta.mode() {
                     EntryMode::FILE => {
                         dbg!(&obj);
                         assert!(obj.name().ends_with(".z"));
+                        uploaded.push(obj);
                     }
                     EntryMode::DIR | EntryMode::Unknown => continue,
                 }
             }
+            assert_eq!(uploaded.len(), 3);
 
             // 清理 TDengine
             drop_topic_and_database(&taos, SRC_DB).await?;
@@ -353,20 +363,5 @@ mod test_tmq_to_local {
         }
 
         url
-    }
-
-    async fn build_operator(config: &S3Config) -> anyhow::Result<Operator> {
-        let mut builder = opendal::services::S3::default()
-            .endpoint(&config.endpoint)
-            .access_key_id(&config.access_key_id)
-            .secret_access_key(&config.secret_access_key)
-            .bucket(&config.bucket);
-        if let Some(region) = &config.region {
-            builder = builder.region(region);
-        }
-        let op = Operator::new(builder)?.finish();
-        op.check().await?;
-
-        Ok(op)
     }
 }

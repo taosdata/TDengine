@@ -21,9 +21,9 @@ use tokio::io::BufReader;
 
 mod header;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ZFileName {
-    raw_path: Option<PathBuf>,
+    pub raw_path: Option<PathBuf>,
     pub topic: String,
     pub timestamp: Option<DateTime<Utc>>,
     pub vg_id: i32,
@@ -43,6 +43,16 @@ impl FromStr for ZFileName {
                 index: seq,
             })
             .map_err(|_| ())
+    }
+}
+
+impl std::fmt::Display for ZFileName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            ZFile::file_name((self.topic.as_str(), self.timestamp, self.vg_id, self.index))
+        )
     }
 }
 
@@ -613,10 +623,12 @@ mod tests {
     async fn test_list_zfile_in_dir() {
         // given
         let tmp_dir = tempfile::tempdir().unwrap();
+        let mut raw_files = vec![];
         for i in 1..=10 {
             let ts = Utc::now().timestamp() + i;
             let file = tmp_dir.as_ref().join(format!("abc-{}-{}-{}.z", ts, i, i));
             std::fs::write(file.as_path(), b"hello world").unwrap();
+            raw_files.push(file);
         }
 
         // when
@@ -624,9 +636,9 @@ mod tests {
 
         // then
         assert_eq!(files.len(), 10);
-        assert_eq!(files[0].index, 1);
-        assert_eq!(files[4].index, 5);
-        assert_eq!(files[9].index, 10);
+        assert_eq!(files[0].raw_path.as_ref().unwrap(), &raw_files[0]);
+        assert_eq!(files[4].raw_path.as_ref().unwrap(), &raw_files[4]);
+        assert_eq!(files[9].raw_path.as_ref().unwrap(), &raw_files[9]);
     }
 
     #[tokio::test]

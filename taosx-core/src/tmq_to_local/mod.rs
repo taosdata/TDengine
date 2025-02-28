@@ -127,7 +127,14 @@ async fn tmq_to_local_impl(mut config: BackupConfig, cancel: CancellationToken) 
     // 如果启用 S3，创建 S3 dumper
     let dumper_handler = match (&config.s3_enable, &config.s3_config) {
         (true, Some(s3_config)) => {
-            let dumper = S3Dumper::new(s3_config.clone(), cancel.clone()).await?;
+            let dumper = S3Dumper::new(
+                config.backup_dir.clone(),
+                s3_config.clone(),
+                config.backup_retention_period,
+                config.backup_retention_size,
+                cancel.clone(),
+            )
+            .await?;
             let handler = tokio::spawn(async move { dumper.run().await });
             Some(handler)
         }
