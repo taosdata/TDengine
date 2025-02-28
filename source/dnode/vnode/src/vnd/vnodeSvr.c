@@ -636,9 +636,6 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
   void   *pReq;
   int32_t len;
 
-  vDebug("start to write msg");
-  // vnodeShouldRewriteSubmitMsg(pVnode, &pMsg);
-
   (void)taosThreadMutexLock(&pVnode->mutex);
   if (pVnode->disableWrite) {
     (void)taosThreadMutexUnlock(&pVnode->mutex);
@@ -2101,20 +2098,20 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
       }
     }
 
-    if (hasBlob) {
-      for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
-        SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
-        if (pSubmitTbData->flags & SUBMIT_REQ_WITH_BLOB) {
-          STSchema *pTSchema = NULL;
-          code = metaGetTbTSchemaEx(pVnode->pMeta, pSubmitTbData->suid, pSubmitTbData->uid, pSubmitTbData->sver,
-                                    &pTSchema);
-          TAOS_CHECK_EXIT(code);
+    // if (hasBlob) {
+    //   for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
+    //     SSubmitTbData *pSubmitTbData = taosArrayGet(pSubmitReq->aSubmitTbData, i);
+    //     if (pSubmitTbData->flags & SUBMIT_REQ_WITH_BLOB) {
+    //       STSchema *pTSchema = NULL;
+    //       code = metaGetTbTSchemaEx(pVnode->pMeta, pSubmitTbData->suid, pSubmitTbData->uid, pSubmitTbData->sver,
+    //                                 &pTSchema);
+    //       TAOS_CHECK_EXIT(code);
 
-          updateSubmitData(pSubmitTbData, pTSchema, pVnode);
-          taosMemFreeClear(pTSchema);
-        }
-      }
-    }
+    //       updateSubmitData(pSubmitTbData, pTSchema, pVnode);
+    //       taosMemFreeClear(pTSchema);
+    //     }
+    //   }
+    // }
     // insert data
     int32_t affectedRows;
     code = tsdbInsertTableData(pVnode->pTsdb, ver, pSubmitTbData, &affectedRows);

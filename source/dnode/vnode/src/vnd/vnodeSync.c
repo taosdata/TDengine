@@ -87,11 +87,6 @@ static void inline vnodeHandleWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
   SRpcMsg rsp = {.code = pMsg->code, .info = pMsg->info};
 
-  // code = vnodeShouldRewriteSubmitMsg(pVnode, &pMsg);
-  // if (code != 0) {
-  //   vError("vgId:%d, failed to propose vnode commit since %s", pVnode->config.vgId, terrstr());
-  // }
-
   if (vnodeProcessWriteMsg(pVnode, pMsg, pMsg->info.conn.applyIndex, &rsp) < 0) {
     rsp.code = terrno;
     const STraceId *trace = &pMsg->info.traceId;
