@@ -47,6 +47,8 @@ typedef struct SRowKey           SRowKey;
 typedef struct SValueColumn      SValueColumn;
 typedef struct SRowBuildScanInfo SRowBuildScanInfo;
 
+typedef struct SBlobValOffset SBlobValOffset;
+
 #define HAS_NONE  ((uint8_t)0x1)
 #define HAS_NULL  ((uint8_t)0x2)
 #define HAS_VALUE ((uint8_t)0x4)
@@ -142,8 +144,16 @@ typedef struct {
   uint64_t offset;
   uint32_t len;
 } SBlobValue;
+
+typedef struct {
+  uint64_t seq;
+  uint32_t seqOffsetInRow;
+  int32_t rowIndex;
+  void    *data;
+  int32_t  dataLen;
+} SBlobItem;
 int32_t tBlobRowCreate(int64_t cap, SBlobRow2 **ppBlobRow);
-int32_t tBlobRowPush(SBlobRow2 *pBlobRow, const void *data, int32_t len, uint64_t *seq);
+int32_t tBlobRowPush(SBlobRow2 *pBlobRow, SBlobItem *pBlobItem, uint64_t *seq);
 int32_t tBlobRowDestroy(SBlobRow2 *pBlowRow);
 int32_t tBlobRowSize(SBlobRow2 *pBlobRow);
 
@@ -274,6 +284,7 @@ struct SBlobRow2 {
   int32_t   cap;
   SHashObj *pSeqTable;
   uint8_t  *data;
+  SHashObj *pOffsetTable;
 };
 
 typedef struct {
@@ -290,6 +301,12 @@ struct SValue {
       uint32_t nData;
     };
   };
+};
+
+struct SBlobValOffset {
+  uint64_t seq;
+  uint32_t offset;
+  uint32_t rowNum;
 };
 
 #define TD_MAX_PK_COLS 2
