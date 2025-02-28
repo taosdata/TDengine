@@ -73,11 +73,11 @@ class Start(TDCase):
             "total_rows_per_second":0
         }
         for task_id,metrics in metrics_dict.items():
-            summary_metrics["total_inserted_sqls"] += metrics_dict[task_id]["total_inserted_sqls"]
-            summary_metrics["total_points_per_second"] += metrics_dict[task_id]["total_points_per_second"]
-            summary_metrics["total_written_points"] += metrics_dict[task_id]["total_written_points"]
-            summary_metrics["total_written_rows"] += metrics_dict[task_id]["total_written_rows"]
-            summary_metrics["total_rows_per_second"] += metrics_dict[task_id]["total_rows_per_second"]
+            summary_metrics["total_inserted_sqls"] += metrics_dict[task_id]["total"]["total_inserted_sqls"]
+            summary_metrics["total_points_per_second"] += metrics_dict[task_id]["total"]["total_points_per_second"]
+            summary_metrics["total_written_points"] += metrics_dict[task_id]["total"]["total_written_points"]
+            summary_metrics["total_written_rows"] += metrics_dict[task_id]["total"]["total_written_rows"]
+            summary_metrics["total_rows_per_second"] += metrics_dict[task_id]["total"]["total_rows_per_second"]
         with open(f'{self.log_path}/details/{self.host}.json', "w") as result_file:
             json.dump(metrics_dict, result_file, indent=4)
         with open(f'{self.log_path}/summary/{self.host}-mqtt-perf-result.json', "w") as result_file:
