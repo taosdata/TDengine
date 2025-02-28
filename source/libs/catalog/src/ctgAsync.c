@@ -1510,7 +1510,7 @@ int32_t ctgHandleTaskEnd(SCtgTask* pTask, int32_t rspCode) {
     return TSDB_CODE_SUCCESS;
   }
 
-  qDebug("QID:0x%" PRIx64 ", task %d end with res %s", pJob->queryId, pTask->taskId, tstrerror(rspCode));
+  qDebug("QID:0x%" PRIx64 ", task:%d end with result:%s", pJob->queryId, pTask->taskId, tstrerror(rspCode));
 
   pTask->code = rspCode;
   pTask->status = CTG_TASK_DONE;
@@ -3104,7 +3104,7 @@ int32_t ctgLaunchGetTbMetasTask(SCtgTask* pTask) {
       CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
     }
 
-    ctgDebug("start to check tb metas in db %s, tbNum %ld", pReq->dbFName, taosArrayGetSize(pReq->pTables));
+    ctgDebug("start to check tb metas in db:%s, tbNum:%d", pReq->dbFName, (int32_t)taosArrayGetSize(pReq->pTables));
     CTG_ERR_RET(ctgGetTbMetasFromCache(pCtg, pConn, pCtx, i, &fetchIdx, baseResIdx, pReq->pTables));
     baseResIdx += taosArrayGetSize(pReq->pTables);
   }
@@ -4015,7 +4015,7 @@ static int32_t ctgLaunchGetTbNamesTask(SCtgTask* pTask) {
       CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
     }
 
-    ctgDebug("start to check tbname metas in db %s, tbNum %ld", pReq->dbFName, taosArrayGetSize(pReq->pTables));
+    ctgDebug("start to check tbname metas in db:%s, tbNum:%d", pReq->dbFName, (int32_t)taosArrayGetSize(pReq->pTables));
     CTG_ERR_RET(ctgGetTbNamesFromCache(pCtg, pConn, pCtx, i, &fetchIdx, baseResIdx, pReq->pTables));
     baseResIdx += taosArrayGetSize(pReq->pTables);
   }

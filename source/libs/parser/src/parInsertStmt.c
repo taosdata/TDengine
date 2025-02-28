@@ -1096,7 +1096,7 @@ int32_t qResetStmtColumns(SArray* pCols, bool deepClear) {
   for (int32_t i = 0; i < colNum; ++i) {
     SColData* pCol = (SColData*)taosArrayGet(pCols, i);
     if (pCol == NULL) {
-      parserError("qResetStmtColumns column is NULL");
+      parserError("qResetStmtColumns column:%d is NULL", i);
       return terrno;
     }
     if (deepClear) {
@@ -1116,7 +1116,7 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
   for (int32_t i = 0; i < colNum; ++i) {
     SColData* pCol = (SColData*)taosArrayGet(pBlock->pData->aCol, i);
     if (pCol == NULL) {
-      parserError("qResetStmtDataBlock column is NULL");
+      parserError("qResetStmtDataBlock column:%d is NULL", i);
       return terrno;
     }
     if (deepClear) {

@@ -86,7 +86,7 @@ int32_t ctgMetaRentUpdate(SCtgRentMgmt *mgmt, void *meta, int64_t id, int32_t si
   }
 
   if (slot->needSort) {
-    qDebug("id:0x%" PRIx64 ", meta slot before sorte, slot idx:%d, type:%d, size:%d", id, widx, mgmt->type,
+    qDebug("id:0x%" PRIx64 ", meta slot before sort, slot idx:%d, type:%d, size:%d", id, widx, mgmt->type,
            (int32_t)taosArrayGetSize(slot->meta));
     taosArraySort(slot->meta, sortCompare);
     slot->needSort = false;

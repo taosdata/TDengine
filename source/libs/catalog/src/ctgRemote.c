@@ -795,7 +795,7 @@ int32_t ctgBuildBatchReqMsg(SCtgBatch* pBatch, int32_t vgId, void** msg, int32_t
 
   *pSize = msgSize;
 
-  qDebug("batch:%d, batch req to vg:%d msg built with %d meta reqs", pBatch->batchId, vgId, num);
+  qDebug("batch:%d, batch req to vgId:%d msg built with %d meta reqs", pBatch->batchId, vgId, num);
 
   return TSDB_CODE_SUCCESS;
 }

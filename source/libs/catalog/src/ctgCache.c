@@ -1732,7 +1732,7 @@ int32_t ctgAddNewDBCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId) {
   if (!IS_SYS_DBNAME(dbFName)) {
     CTG_ERR_RET(ctgMetaRentAdd(&pCtg->dbRent, &dbCacheInfo, dbId, sizeof(SDbCacheInfo)));
 
-    ctgDebug("db:%s, db added to rent,vgVersion:%d, dbId:0x%" PRIx64, dbFName, dbCacheInfo.vgVersion, dbId);
+    ctgDebug("db:%s, db added to rent, vgVersion:%d, dbId:0x%" PRIx64, dbFName, dbCacheInfo.vgVersion, dbId);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2269,7 +2269,7 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
 
   uint64_t groupCacheSize = ctgGetDbVgroupCacheSize(vgCache->vgInfo);
   (void)atomic_add_fetch_64(&dbCache->dbCacheSize, groupCacheSize);
-  ctgDebug("db:%s, add dbGroupCacheSize %" PRIu64 " from db", dbFName, groupCacheSize);
+  ctgDebug("db:%s, add dbGroupCacheSize:%" PRIu64 " from db", dbFName, groupCacheSize);
 
   dbCache = NULL;
 
