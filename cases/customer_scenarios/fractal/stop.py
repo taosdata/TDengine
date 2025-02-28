@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
+import json
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
@@ -29,14 +30,12 @@ class Start(TDCase):
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
         start_time = self.workflow_config["start_time"]
         self.tdRest = TDRest(env_setting=self.env_setting)
-        print(self.workflow_config)
-        end_time = start_time + timedelta(seconds=int(self.workflow_config["exec_time"]))
-        url = (
-            f"http://192.168.2.190:3000/d/dedq3n2zhlypsd/named-processes"
-            f"?var-interval=10m&orgId=1&from={start_time}&to={end_time.isoformat(timespec='milliseconds')}Z"
-            f"&timezone=browser&var-processes=$__all&refresh=5s"
-        )
-        print(url)
+        # end_time = start_time + timedelta(seconds=int(self.workflow_config["exec_time"]))
+        # url = (
+        #     f"http://192.168.2.190:3000/d/dedq3n2zhlypsd/named-processes"
+        #     f"?var-interval=10m&orgId=1&from={start_time}&to={end_time.isoformat(timespec='milliseconds')}Z"
+        #     f"&timezone=browser&var-processes=$__all&refresh=5s"
+        # )
         self.host = self.taosd_setting["fqdn"][0]
         pass
     
@@ -51,6 +50,7 @@ class Start(TDCase):
         # get task list
         response = self.tdRest.request(data=None, method='GET', url=task_url,header=headers)
         task_list = response.json()
+        task_id_list = []
         metrics_list = []
         for task_info in task_list:
             task_id = task_info["id"]
@@ -59,15 +59,19 @@ class Start(TDCase):
             # get task metrics
             task_metrics = self.tdRest.request(data=None, method='GET', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/metrics',header=headers)
             metrics_list.append(task_metrics)
+            task_id_list.append(task_id)
             print(task_metrics)
-        return metrics_list
+        return metrics_list,task_id_list
     def run(self) -> bool:
         
         # stop mqtt simulator
         self.stop_mqtt_simulator()
         headers = {"Content-Type": "application/json"}
         task_url = f'http://{self.host}:6060/api/x/tasks'
-        mqtt_task_result = self.stop_mqtt_tasks_get_metrics(task_url=task_url,headers=headers)
+        mqtt_task_result,task_id_list = self.stop_mqtt_tasks_get_metrics(task_url=task_url,headers=headers)
+        # TODO
+        # with open(f'{os.environ["TEST_ROOT"]}/run/customer/{self.env_date}-{self.host}.json', "w") as result_file:
+        #     json.dump(mqtt_task_result, result_file, indent=4)
         # start taosx service
         # taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
         # taosx_host = taosd_setting["fqdn"][0]
