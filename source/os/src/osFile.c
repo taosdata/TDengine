@@ -1032,8 +1032,8 @@ int32_t taosLockFile(TdFilePtr pFile) {
   lock.l_len = 0;
   int32_t code = fcntl(pFile->fd, F_SETLK, &lock);
   if (-1 == code) {
-    // terrno = TAOS_SYSTEM_ERROR(errno); // TD_ASTRA_TODO
-    // return terrno; // TD_ASTRA_TODO
+    //    terrno = TAOS_SYSTEM_ERROR(errno); // TD_ASTRA_TODO
+    //    return terrno;                     // TD_ASTRA_TODO
   }
 #endif
   return 0;
@@ -1058,8 +1058,8 @@ int32_t taosUnLockFile(TdFilePtr pFile) {
   lock.l_len = 0;
   int32_t code = fcntl(pFile->fd, F_SETLK, &lock);
   if (-1 == code) {
-    terrno = TAOS_SYSTEM_ERROR(errno);  // TD_ASTRA_TODO
-    return terrno;                      // TD_ASTRA_TODO
+    //    terrno = TAOS_SYSTEM_ERROR(errno);// TD_ASTRA_TODO
+    //    return terrno;// TD_ASTRA_TODO
   }
 #endif
   return 0;

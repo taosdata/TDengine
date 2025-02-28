@@ -900,7 +900,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
     diskSize->used = (info.f_blocks - info.f_bfree) * info.f_frsize;
     return 0;
   }
-#elif defined(TD_ASTRA) // TD_ASTRA_TODO
+#elif defined(TD_ASTRA)  // TD_ASTRA_TODO
   //  if (-1 == ioctl(dataDir, FIOFSTATVFSGETBYNAME, &info)) { // TODO:try to check whether the API is available
   //     terrno = TAOS_SYSTEM_ERROR(errno);
   //     return terrno;
