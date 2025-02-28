@@ -42,6 +42,7 @@ class TDTestCase:
         return buildPath
 
     def check_setup_cluster_status(self):
+        time.sleep(1)
         tdSql.query("select * from information_schema.ins_mnodes")
         for mnode in tdSql.queryResult:
             name = mnode[1]
