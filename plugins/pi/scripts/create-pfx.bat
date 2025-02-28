@@ -1,1 +1,0 @@
-openssl pkcs12 -export -out "C:\Git\td-pi-connector\scripts\certificate.pfx" -inkey "C:\Git\td-pi-connector\scripts\TDengine.key" -in "C:\Git\td-pi-connector\scripts\user.crt" -certfile "C:\Git\td-pi-connector\scripts\SectigoRSACodeSigningCA.crt"

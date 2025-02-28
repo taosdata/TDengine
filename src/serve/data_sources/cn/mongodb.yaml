@@ -1,8 +1,0 @@
----
-id: mongodb
-name: MongoDB
-type: uri
-description: |
-  MongoDB 是一个介于关系型数据库与非关系型数据库之间的产品，被广泛应用于内容管理系统、移动应用与物联网等众多领域。
-
-  TDengine 可以高效地从 MongoDB 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步。
