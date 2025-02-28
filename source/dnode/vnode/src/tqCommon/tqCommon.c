@@ -139,7 +139,7 @@ int32_t tqStreamStartOneTaskAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t stream
 }
 
 // this is to process request from transaction, always return true.
-int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pMsg, bool restored) {
+int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pMsg, bool restored, bool isLeader) {
   int32_t      vgId = pMeta->vgId;
   char*        msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t      len = pMsg->contLen - sizeof(SMsgHead);
@@ -298,14 +298,19 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
   int32_t updateTasks = taosHashGetSize(pMeta->updateInfo.pTasks);
 
-  if (restored) {
+  if (restored && isLeader) {
     tqDebug("vgId:%d s-task:0x%x update epset transId:%d, set the restart flag", vgId, req.taskId, req.transId);
     pMeta->startInfo.tasksWillRestart = 1;
   }
 
   if (updateTasks < numOfTasks) {
-    tqDebug("vgId:%d closed tasks:%d, unclosed:%d, all tasks will be started when nodeEp update completed", vgId,
-            updateTasks, (numOfTasks - updateTasks));
+    if (isLeader) {
+      tqDebug("vgId:%d closed tasks:%d, unclosed:%d, all tasks will be started when nodeEp update completed", vgId,
+              updateTasks, (numOfTasks - updateTasks));
+    } else {
+      tqDebug("vgId:%d closed tasks:%d, unclosed:%d, follower not restart tasks", vgId, updateTasks,
+              (numOfTasks - updateTasks));
+    }
   } else {
     if ((code = streamMetaCommit(pMeta)) < 0) {
       // always return true
@@ -316,17 +321,21 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
 
     streamMetaClearSetUpdateTaskListComplete(pMeta);
 
-    if (!restored) {
-      tqDebug("vgId:%d vnode restore not completed, not start all tasks", vgId);
-    } else {
-      tqDebug("vgId:%d all %d task(s) nodeEp updated and closed, transId:%d", vgId, numOfTasks, req.transId);
+    if (isLeader) {
+      if (!restored) {
+        tqDebug("vgId:%d vnode restore not completed, not start all tasks", vgId);
+      } else {
+        tqDebug("vgId:%d all %d task(s) nodeEp updated and closed, transId:%d", vgId, numOfTasks, req.transId);
 #if 0
       taosMSleep(5000);// for test purpose, to trigger the leader election
 #endif
-      code = tqStreamTaskStartAsync(pMeta, cb, true);
-      if (code) {
-        tqError("vgId:%d async start all tasks, failed, code:%s", vgId, tstrerror(code));
+        code = tqStreamTaskStartAsync(pMeta, cb, true);
+        if (code) {
+          tqError("vgId:%d async start all tasks, failed, code:%s", vgId, tstrerror(code));
+        }
       }
+    } else {
+      tqDebug("vgId:%d follower nodes not restart tasks", vgId);
     }
   }
 

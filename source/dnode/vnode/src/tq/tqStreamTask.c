@@ -87,6 +87,8 @@ static void doStartScanWal(void* param, void* tmrId) {
   tmr_h                  pTimer = NULL;
   SBuildScanWalMsgParam* pParam = (SBuildScanWalMsgParam*)param;
 
+  tqDebug("start to do scan wal in tmr, metaRid:%" PRId64, pParam->metaId);
+
   SStreamMeta* pMeta = taosAcquireRef(streamMetaRefPool, pParam->metaId);
   if (pMeta == NULL) {
     tqError("metaRid:%" PRId64 " not valid now, stream meta has been freed", pParam->metaId);
@@ -131,7 +133,7 @@ static void doStartScanWal(void* param, void* tmrId) {
   }
 
   if (pMeta->startInfo.startAllTasks) {
-    tqTrace("vgId:%d in restart procedure, not ready to scan wal", vgId);
+    tqDebug("vgId:%d in restart procedure, not ready to scan wal", vgId);
     goto _end;
   }
 
@@ -154,7 +156,7 @@ static void doStartScanWal(void* param, void* tmrId) {
     goto _end;
   }
 
-  tqTrace("vgId:%d create msg to start wal scan, numOfTasks:%d", vgId, numOfTasks);
+  tqDebug("vgId:%d create msg to start wal scan, numOfTasks:%d", vgId, numOfTasks);
 
    #if 0
   //  wait for the vnode is freed, and invalid read may occur.
@@ -317,9 +319,13 @@ bool taskReadyForDataFromWal(SStreamTask* pTask) {
     return false;
   }
 
-  // check if input queue is full or not
+  // check whether input queue is full or not
   if (streamQueueIsFull(pTask->inputq.queue)) {
-    tqTrace("s-task:%s input queue is full, do nothing", pTask->id.idStr);
+    tqTrace("s-task:%s input queue is full, launch task without scanning wal", pTask->id.idStr);
+    int32_t code = streamTrySchedExec(pTask);
+    if (code) {
+      tqError("s-task:%s failed to start task while inputQ is full", pTask->id.idStr);
+    }
     return false;
   }
 
