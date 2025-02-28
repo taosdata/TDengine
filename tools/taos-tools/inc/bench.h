@@ -72,10 +72,6 @@
 #include <toolsdef.h>
 #include <taoserror.h>
 
-#ifdef WEBSOCKET
-#include <taosws.h>
-#endif
-
 #ifdef WINDOWS
 #define _CRT_RAND_S
 #include <windows.h>
@@ -254,17 +250,16 @@ typedef unsigned __int32 uint32_t;
     "when keep trying be enabled."
 #define BENCH_NODROP "Do not drop database."
 
-#ifdef WEBSOCKET
-#define BENCH_DSN "The dsn to connect the cloud service."
-#define BENCH_TIMEOUT     \
-    "The timeout wait on websocket query in seconds, default is 10."
-#endif
-
 
 #define IS_VAR_DATA_TYPE(t)                                                                                 \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || \
    ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
 
+// define error show module
+#define INIT_MOD "init"
+
+
+#define TIP_ENGINE_ERR "Call engine failed."
 
 
 enum TEST_MODE {
@@ -757,11 +752,11 @@ typedef struct SArguments_S {
 #endif
     bool                terminate;
     bool                in_prompt;
-#ifdef WEBSOCKET
-    int32_t             timeout;
+    
+    // websocket
     char*               dsn;
     bool                websocket;
-#endif
+
     bool                supplementInsert;
     int64_t             startTimestamp;
     int32_t             partialColNum;
@@ -786,10 +781,6 @@ typedef struct SBenchConn {
     TAOS* ctaos;  // check taos
     TAOS_STMT* stmt;
     TAOS_STMT2* stmt2;
-#ifdef WEBSOCKET
-    WS_TAOS* taos_ws;
-    WS_STMT* stmt_ws;
-#endif
 } SBenchConn;
 
 #define MAX_BATCOLS 256

@@ -54,6 +54,10 @@ void ERROR_EXIT(const char *msg) {
     exit(EXIT_FAILURE);
 }
 
+void engineError(char * module, char * fun, int32_t code) {
+    errorPrint("%s %s fun=%s error code:0x%08X \n", TIP_ENGINE_ERR, module, fun, code);
+}
+
 #ifdef WINDOWS
 HANDLE g_stdoutHandle;
 DWORD  g_consoleMode;
@@ -295,48 +299,58 @@ int regexMatch(const char *s, const char *reg, int cflags) {
     return 0;
 }
 
-
-
-
 SBenchConn* initBenchConnImpl() {
     SBenchConn* conn = benchCalloc(1, sizeof(SBenchConn), true);
-#ifdef WEBSOCKET
-    if (g_arguments->websocket) {
-        conn->taos_ws = ws_connect(g_arguments->dsn);
-        char maskedDsn[256] = "\0";
-        memcpy(maskedDsn, g_arguments->dsn, 20);
-        memcpy(maskedDsn+20, "...", 3);
-        memcpy(maskedDsn+23,
-               g_arguments->dsn + strlen(g_arguments->dsn)-10, 10);
-        if (conn->taos_ws == NULL) {
-            errorPrint("failed to connect %s, reason: %s\n",
-                    maskedDsn, ws_errstr(NULL));
+    char     show[256] = "\0";
+    char *   host = NULL;
+    uint16_t port = 0;
+    char *   user = NULL;
+    char *   pwd  = NULL;
+    int32_t  code = 0;
+
+    // set mode
+    if (g_arguments->dsn && g_arguments->dsn[0]) {
+        // websocket
+        memcpy(show, g_arguments->dsn, 20);
+        memcpy(show + 20, "...", 3);
+        memcpy(show + 23, g_arguments->dsn + strlen(g_arguments->dsn) - 10, 10);
+
+        // set dsn
+        code = taos_options(TSDB_OPTION_DRIVER, g_arguments->dsn);
+        if (code != TSDB_CODE_SUCCESS) {
+            engineError(INIT_MOD, "taos_options(TSDB_OPTION_DRIVER, dsn)", code);
             tmfree(conn);
             return NULL;
         }
-
-        succPrint("%s conneced\n", maskedDsn);
     } else {
-#endif
-        conn->taos = taos_connect(g_arguments->host,
-                g_arguments->user, g_arguments->password,
-                NULL, g_arguments->port);
-        if (conn->taos == NULL) {
-            errorPrint("failed to connect native %s:%d, "
-                       "code: 0x%08x, reason: %s\n",
-                    g_arguments->host, g_arguments->port,
-                    taos_errno(NULL), taos_errstr(NULL));
-            tmfree(conn);
-            return NULL;
-        }
-
-        conn->ctaos = taos_connect(g_arguments->host,
-                                   g_arguments->user,
-                                   g_arguments->password,
-                                   NULL, g_arguments->port);
-#ifdef WEBSOCKET
+        // native
+        sprintf(show, "%s:%d ", g_arguments->host, g_arguments->port);
+        host = g_arguments->host;
+        port = g_arguments->port;
+        user = g_arguments->user;
+        pwd  = g_arguments->password;
     }
-#endif
+
+    // connect main
+    conn->taos = taos_connect(g_arguments->host,
+            g_arguments->user, g_arguments->password,
+            NULL, g_arguments->port);
+    if (conn->taos == NULL) {
+        errorPrint("failed to connect native %s:%d, "
+                    "code: 0x%08x, reason: %s\n",
+                g_arguments->host, g_arguments->port,
+                taos_errno(NULL), taos_errstr(NULL));
+        tmfree(conn);
+        return NULL;
+    }
+    succPrint("%s conneced\n", show);
+
+    // check write correct connect
+    conn->ctaos = taos_connect(g_arguments->host,
+                                g_arguments->user,
+                                g_arguments->password,
+                                NULL, g_arguments->port);
+
     return conn;
 }
 
@@ -362,22 +376,16 @@ SBenchConn* initBenchConn() {
 void closeBenchConn(SBenchConn* conn) {
     if(conn == NULL)
        return ;
-#ifdef WEBSOCKET
-    if (g_arguments->websocket) {
-        ws_close(conn->taos_ws);
-    } else {
-#endif
-        if(conn->taos) {
-            taos_close(conn->taos);
-            conn->taos = NULL;
-        }
-        if (conn->ctaos) {
-            taos_close(conn->ctaos);
-            conn->ctaos = NULL;
-        }
-#ifdef WEBSOCKET
+
+    if(conn->taos) {
+        taos_close(conn->taos);
+        conn->taos = NULL;
     }
-#endif
+
+    if (conn->ctaos) {
+        taos_close(conn->ctaos);
+        conn->ctaos = NULL;
+    }
     tmfree(conn);
 }
 
@@ -397,28 +405,13 @@ int32_t queryDbExecRest(char *command, char* dbName, int precision,
 
 int32_t queryDbExecCall(SBenchConn *conn, char *command) {
     int32_t code = 0;
-#ifdef WEBSOCKET
-    if (g_arguments->websocket) {
-        WS_RES* res = ws_query_timeout(conn->taos_ws,
-                                       command, g_arguments->timeout);
-        code = ws_errno(res);
-        if (code != 0) {
-            errorPrint("Failed to execute <%s>, code: 0x%08x, reason: %s\n",
-                       command, code, ws_errstr(res));
-        }
-        ws_free_result(res);
+    TAOS_RES *res = taos_query(conn->taos, command);
+    code = taos_errno(res);
+    if (code) {
+        printErrCmdCodeStr(command, code, res);
     } else {
-#endif
-        TAOS_RES *res = taos_query(conn->taos, command);
-        code = taos_errno(res);
-        if (code) {
-            printErrCmdCodeStr(command, code, res);
-        } else {
-            taos_free_result(res);
-        }
-#ifdef WEBSOCKET
+        taos_free_result(res);
     }
-#endif
     return code;
 }
 
@@ -1334,7 +1327,7 @@ FORCE_INLINE void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res) {
         strcat(buff, "...");
         msg = buff;
     }
-    errorPrint("failed to run error code: 0x%08x, reason: %s command %s\n",
+    errorPrint("%s error code: 0x%08x, reason: %s command %s\n", TIP_ENGINE_ERR,
                code, taos_errstr(res), msg);
     taos_free_result(res);
 }

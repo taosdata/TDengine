@@ -985,14 +985,6 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
                 g_arguments->rest_server_ver_major =
                     getServerVersionRest(g_arguments->port + TSDB_PORT_HTTP);
             }
-#ifdef WEBSOCKET
-        if (g_arguments->websocket) {
-            infoPrint("Since WebSocket interface is enabled, "
-                    "the interface %s is changed to use WebSocket.\n",
-                    stbIface->valuestring);
-            superTable->iface = TAOSC_IFACE;
-        }
-#endif
         }
 
 
@@ -1614,14 +1606,12 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
 static int getMetaFromInsertJsonFile(tools_cJSON *json) {
     int32_t code = -1;
 
-#ifdef WEBSOCKET
     tools_cJSON *dsn = tools_cJSON_GetObjectItem(json, "dsn");
     if (tools_cJSON_IsString(dsn)) {
         g_arguments->dsn = dsn->valuestring;
         g_arguments->websocket = true;
         infoPrint("set websocket true from json->dsn=%s\n", g_arguments->dsn);
     }
-#endif
 
     // check after inserted
     tools_cJSON *checkSql = tools_cJSON_GetObjectItem(json, "check_sql");
@@ -1677,23 +1667,19 @@ static int getMetaFromInsertJsonFile(tools_cJSON *json) {
         g_arguments->table_threads = (uint32_t)table_theads->valueint;
     }
 
-#ifdef WEBSOCKET
     if (!g_arguments->websocket) {
-#endif
 #ifdef LINUX
-    if (strlen(g_configDir)) {
-        wordexp_t full_path;
-        if (wordexp(g_configDir, &full_path, 0) != 0) {
-            errorPrint("Invalid path %s\n", g_configDir);
-            exit(EXIT_FAILURE);
+        if (strlen(g_configDir)) {
+            wordexp_t full_path;
+            if (wordexp(g_configDir, &full_path, 0) != 0) {
+                errorPrint("Invalid path %s\n", g_configDir);
+                exit(EXIT_FAILURE);
+            }
+            taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
+            wordfree(&full_path);
         }
-        taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
-        wordfree(&full_path);
-    }
 #endif
-#ifdef WEBSOCKET
     }
-#endif
 
     tools_cJSON *numRecPerReq =
         tools_cJSON_GetObjectItem(json, "num_of_records_per_req");

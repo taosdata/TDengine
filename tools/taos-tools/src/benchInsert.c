@@ -161,11 +161,6 @@ static int getSuperTableFromServerTaosc(
 
 
 static int getSuperTableFromServer(SDataBase* database, SSuperTable* stbInfo) {
-#ifdef WEBSOCKET
-    if (g_arguments->websocket) {
-        return 0;
-    }
-#endif
     int ret = 0;
     char command[SHORT_1K_SQL_BUFF_LEN] = "\0";
     snprintf(command, SHORT_1K_SQL_BUFF_LEN,
@@ -227,23 +222,6 @@ static int queryDbExec(SDataBase *database,
 
     return ret;
 }
-
-#ifdef WEBSOCKET
-static void dropSuperTable(SDataBase* database, SSuperTable* stbInfo) {
-    char command[SHORT_1K_SQL_BUFF_LEN] = "\0";
-    snprintf(command, sizeof(command),
-        g_arguments->escape_character
-            ? "DROP TABLE IF EXISTS `%s`.`%s`"
-            : "DROP TABLE IF EXISTS %s.%s",
-             database->dbName,
-             stbInfo->stbName);
-
-    infoPrint("drop stable: <%s>\n", command);
-    queryDbExec(database, stbInfo, command);
-
-    return;
-}
-#endif  // WEBSOCKET
 
 int getCompressStr(Field* col, char* buf) {
     int pos = 0;
@@ -521,80 +499,6 @@ int32_t getVgroupsNative(SBenchConn *conn, SDataBase *database) {
     return vgroups;
 }
 
-#ifdef WEBSOCKET
-int32_t getVgroupsWS(SBenchConn *conn, SDataBase *database) {
-    int vgroups = 0;
-    char sql[128] = "\0";
-    snprintf(sql, sizeof(sql),
-             g_arguments->escape_character
-                 ? "SHOW `%s`.VGROUPS"
-                 : "SHOW %s.VGROUPS",
-             database->dbName);
-
-    // query
-    WS_RES *res = ws_query_timeout(conn->taos_ws, sql, g_arguments->timeout);
-    int32_t code = ws_errno(res);
-    if (code != 0) {
-        // failed
-        errorPrint("Failed ws_query_timeout <%s>, code: 0x%08x, reason: %s\n",
-                   sql, code, ws_errstr(res));
-        ws_free_result(res);           
-        return 0;
-    }
-
-    // fetch
-    WS_ROW row;
-    database->vgArray = benchArrayInit(8, sizeof(SVGroup));
-    while ( (row = ws_fetch_row(res)) && !g_arguments->terminate) {
-        SVGroup *vg = benchCalloc(1, sizeof(SVGroup), true);
-        vg->vgId = *(int32_t *)row[0];
-        benchArrayPush(database->vgArray, vg);
-        vgroups++;
-        debugPrint(" ws fetch vgroups vgid=%d cnt=%d \n", vg->vgId, vgroups);
-    }
-    ws_free_result(res);
-    database->vgroups = vgroups;
-
-    // return count
-    return vgroups;
-}
-
-/*
-int32_t getTableVgidWS(SBenchConn *conn, char *db, char *tb, int32_t *vgId) {
-    char sql[128] = "\0";
-    snprintf(sql, sizeof(sql),
-                 "select vgroup_id from information_schema.ins_tables where db_name='%s' and table_name='%s';",
-                 db, tb);
-    // query
-    WS_RES *res = ws_query_timeout(conn->taos_ws, sql, g_arguments->timeout);
-    int32_t code = ws_errno(res);
-    if (code != 0) {
-        // failed
-        errorPrint("Failed ws_query_timeout <%s>, code: 0x%08x, reason: %s\n",
-                   sql, code, ws_errstr(res));
-        ws_free_result(res);           
-        return code;
-    }
-
-    // fetch
-    WS_ROW row;
-    while ( (row = ws_fetch_row(res)) && !g_arguments->terminate) {
-        *vgId = *(int32_t *)row[0];
-        debugPrint(" getTableVgidWS table:%s vgid=%d\n", tb, *vgId);
-        break;
-    }
-    ws_free_result(res);
-
-    if(*vgId == 0) {
-        return -1;
-    } else {
-        return 0;
-    }   
-}
-*/
-
-#endif
-
 int32_t toolsGetDefaultVGroups() {
     int32_t cores = toolsGetNumberOfCores();
     if (cores < 3 ) {
@@ -817,22 +721,17 @@ int createDatabaseTaosc(SDataBase* database) {
             "DROP DATABASE IF EXISTS %s;",
              database->dbName);
     if (0 != queryDbExecCall(conn, command)) {
-#ifdef WEBSOCKET
-        if (g_arguments->websocket) {
+        if (g_arguments->dsn) {
+            // websocket
             warnPrint("%s", "TDengine cloud normal users have no privilege "
                       "to drop database! DROP DATABASE failure is ignored!\n");
-        } else {
-#endif
-            closeBenchConn(conn);
-            return -1;
-#ifdef WEBSOCKET
         }
-#endif
+        closeBenchConn(conn);
+        return -1;
     }
 
     // get remain vgroups
     int remainVnodes = INT_MAX;
-#ifndef WEBSOCKET    
     if (g_arguments->bind_vgroup) {
         remainVnodes = getRemainVnodes(conn);
         if (0 >= remainVnodes) {
@@ -841,7 +740,6 @@ int createDatabaseTaosc(SDataBase* database) {
             return -1;
         }
     }
-#endif
 
     // generate and execute create database sql
     geneDbCreateCmd(database, command, remainVnodes);
@@ -859,21 +757,15 @@ int createDatabaseTaosc(SDataBase* database) {
     }
 
     if (code) {
-#ifdef WEBSOCKET
-        if (g_arguments->websocket) {
+        if (g_arguments->dsn) {
             warnPrint("%s", "TDengine cloud normal users have no privilege "
                       "to create database! CREATE DATABASE "
                       "failure is ignored!\n");
-        } else {
-#endif
+        } 
 
-            closeBenchConn(conn);
-            errorPrint("\ncreate database %s failed!\n\n",
-               database->dbName);
-            return -1;
-#ifdef WEBSOCKET
-        }
-#endif
+        closeBenchConn(conn);
+        errorPrint("\ncreate database %s failed!\n\n", database->dbName);
+        return -1;
     }
     infoPrint("command to create database: <%s>\n", command);
 
@@ -881,15 +773,7 @@ int createDatabaseTaosc(SDataBase* database) {
     // malloc and get vgroup
     if (g_arguments->bind_vgroup) {
         int32_t vgroups;
-#ifdef WEBSOCKET
-        if (g_arguments->websocket) {
-            vgroups = getVgroupsWS(conn, database);
-        } else {
-#endif
-            vgroups = getVgroupsNative(conn, database);
-#ifdef WEBSOCKET
-        }
-#endif
+        vgroups = getVgroupsNative(conn, database);
         if (vgroups <= 0) {
             closeBenchConn(conn);
             errorPrint("Database %s's vgroups is %d\n",
@@ -909,17 +793,6 @@ int createDatabase(SDataBase* database) {
     } else {
         ret = createDatabaseTaosc(database);
     }
-#if 0
-#ifdef LINUX
-    infoPrint("%s() LN%d, ret: %d\n", __func__, __LINE__, ret);
-    sleep(10);
-    infoPrint("%s() LN%d, ret: %d\n", __func__, __LINE__, ret);
-#elif defined(DARWIN)
-    sleep(2);
-#else
-    Sleep(2);
-#endif
-#endif
 
     return ret;
 }
@@ -4652,16 +4525,7 @@ int insertTestProcess() {
             // database already exist, get vgroups from server
             SBenchConn* conn = initBenchConn();
             if (conn) {
-                int32_t vgroups;
-#ifdef WEBSOCKET
-                if (g_arguments->websocket) {
-                    vgroups = getVgroupsWS(conn, database);
-                } else {
-#endif
-                    vgroups = getVgroupsNative(conn, database);
-#ifdef WEBSOCKET
-                }
-#endif
+                int32_t vgroups = getVgroupsNative(conn, database);
                 if (vgroups <=0) {
                     closeBenchConn(conn);
                     errorPrint("Database %s's vgroups is zero , db exist case.\n", database->dbName);
@@ -4682,11 +4546,6 @@ int insertTestProcess() {
                 if (stbInfo->iface != SML_IFACE
                         && stbInfo->iface != SML_REST_IFACE
                         && !stbInfo->childTblExists) {
-#ifdef WEBSOCKET
-                    if (g_arguments->websocket && !g_arguments->supplementInsert) {
-                        dropSuperTable(database, stbInfo);
-                    }
-#endif
                     int code = getSuperTableFromServer(database, stbInfo);
                     if (code == TSDB_CODE_FAILED) {
                         return -1;

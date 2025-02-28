@@ -210,10 +210,8 @@ void initArgument() {
     g_arguments->test_mode = INSERT_TEST;
     g_arguments->demo_mode = true;
     g_arguments->host = NULL;
-    g_arguments->host_auto = true;
     g_arguments->port = DEFAULT_PORT;
     g_arguments->port_inputted = false;
-    g_arguments->port_auto = true;
     g_arguments->telnet_tcp_port = TELNET_TCP_PORT;
     g_arguments->user = TSDB_DEFAULT_USER;
     g_arguments->password = TSDB_DEFAULT_PASS;
@@ -233,9 +231,6 @@ void initArgument() {
     g_arguments->chinese = false;
     g_arguments->aggr_func = 0;
     g_arguments->terminate = false;
-#ifdef WEBSOCKET
-    g_arguments->timeout = 10;
-#endif
 
     g_arguments->supplementInsert = false;
     g_arguments->startTimestamp = DEFAULT_START_TIME;
@@ -257,29 +252,24 @@ void initArgument() {
 void modifyArgument() {
     SDataBase * database = benchArrayGet(g_arguments->databases, 0);
     SSuperTable *superTable = benchArrayGet(database->superTbls, 0);
-#ifdef WEBSOCKET
-    if (!g_arguments->websocket) {
-#endif
-        if (strlen(g_configDir)
-                && g_arguments->host_auto
-                && g_arguments->port_auto) {
+
+    if (strlen(g_configDir)
+            && g_arguments->host_auto
+            && g_arguments->port_auto) {
 #ifdef LINUX
-            wordexp_t full_path;
-            if (wordexp(g_configDir, &full_path, 0) != 0) {
-                errorPrint("Invalid path %s\n", g_configDir);
-                exit(EXIT_FAILURE);
-            }
-            taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
-            wordfree(&full_path);
-#else
-            taos_options(TSDB_OPTION_CONFIGDIR, g_configDir);
-#endif
-            g_arguments->host = DEFAULT_HOST;
-            g_arguments->port = 0;
+        wordexp_t full_path;
+        if (wordexp(g_configDir, &full_path, 0) != 0) {
+            errorPrint("Invalid path %s\n", g_configDir);
+            exit(EXIT_FAILURE);
         }
-#ifdef WEBSOCKET
-    }
+        taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
+        wordfree(&full_path);
+#else
+        taos_options(TSDB_OPTION_CONFIGDIR, g_configDir);
 #endif
+        g_arguments->host = DEFAULT_HOST;
+        g_arguments->port = 0;
+    }
 
     superTable->startTimestamp = g_arguments->startTimestamp;
 
