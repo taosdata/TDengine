@@ -64,7 +64,6 @@ typedef struct {
   int8_t                sourceExcluded;
   int64_t               snapshotVer;
   SSchemaWrapper*       schema;
-  SExtSchema*           pExtSchemas;
   char                  tbName[TSDB_TABLE_NAME_LEN];  // this is the current scan table: todo refactor
   int8_t                recoverStep;
   int8_t                recoverScanFinished;

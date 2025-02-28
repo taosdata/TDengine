@@ -2452,8 +2452,18 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
   uint64_t groupId = taosGetUInt64Aligned((uint64_t*)p);
   p += sizeof(uint64_t);
 
-  // type+bytes
-  p += (sizeof(int32_t) + sizeof(int8_t)) * pResultInfo->numOfCols;
+  // check fields
+  for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
+    int8_t type = *(int8_t*)p;
+    p += sizeof(int8_t);
+
+    int32_t bytes = *(int32_t*)p;
+    p += sizeof(int32_t);
+
+    if (IS_DECIMAL_TYPE(type) && pResultInfo->fields[i].precision == 0) {
+      extractDecimalTypeInfoFromBytes(&bytes, &pResultInfo->fields[i].precision, &pResultInfo->fields[i].scale);
+    }
+  }
 
   int32_t* colLength = (int32_t*)p;
   p += sizeof(int32_t) * pResultInfo->numOfCols;

@@ -4343,7 +4343,6 @@ typedef struct {
   };
   void*   data;  //for free in client, only effected if type is data or metadata. raw data not effected
   bool    blockDataElementFree;   // if true, free blockDataElement in blockData,(true in server, false in client)
-  SArray* blockSchemaExt;   // save decimal info
 } SMqDataRsp;
 
 int32_t tEncodeMqDataRsp(SEncoder* pEncoder, const SMqDataRsp* pObj);

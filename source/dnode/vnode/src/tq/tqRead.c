@@ -598,7 +598,7 @@ END:
   return code;
 }
 
-int32_t tqMaskBlock(SSchemaWrapper* pDst, SExtSchema* extDst, SSDataBlock* pBlock, const SSchemaWrapper* pSrc, char* mask, SExtSchema* extSrc) {
+int32_t tqMaskBlock(SSchemaWrapper* pDst, SSDataBlock* pBlock, const SSchemaWrapper* pSrc, char* mask, SExtSchema* extSrc) {
   if (pDst == NULL || pBlock == NULL || pSrc == NULL || mask == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -622,7 +622,6 @@ int32_t tqMaskBlock(SSchemaWrapper* pDst, SExtSchema* extDst, SSDataBlock* pBloc
       SColumnInfoData colInfo =
           createColumnInfoData(pSrc->pSchema[i].type, pSrc->pSchema[i].bytes, pSrc->pSchema[i].colId);
       if (extSrc != NULL) {
-        extDst[j++] = extSrc[i];
         decimalFromTypeMod(extSrc[i].typeMod, &colInfo.info.precision, &colInfo.info.scale);
       }
       code = blockDataAppendColInfo(pBlock, &colInfo);
@@ -658,7 +657,7 @@ static int32_t buildResSDataBlock(STqReader* pReader, SSchemaWrapper* pSchema, c
       SSchema*        pColSchema = &pSchema->pSchema[i];
       SColumnInfoData colInfo = createColumnInfoData(pColSchema->type, pColSchema->bytes, pColSchema->colId);
 
-      if (pReader->extSchema != NULL) {
+      if (IS_DECIMAL_TYPE(pColSchema->type) && pReader->extSchema != NULL) {
         decimalFromTypeMod(pReader->extSchema[i].typeMod, &colInfo.info.precision, &colInfo.info.scale);
       }
       int32_t code = blockDataAppendColInfo(pBlock, &colInfo);
@@ -688,6 +687,9 @@ static int32_t buildResSDataBlock(STqReader* pReader, SSchemaWrapper* pSchema, c
         j++;
       } else {
         SColumnInfoData colInfo = createColumnInfoData(pColSchema->type, pColSchema->bytes, pColSchema->colId);
+        if (IS_DECIMAL_TYPE(pColSchema->type) && pReader->extSchema != NULL) {
+          decimalFromTypeMod(pReader->extSchema[i].typeMod, &colInfo.info.precision, &colInfo.info.scale);
+        }
         int32_t         code = blockDataAppendColInfo(pBlock, &colInfo);
         if (code != TSDB_CODE_SUCCESS) {
           return -1;
@@ -895,7 +897,6 @@ static int32_t processBuildNew(STqReader* pReader, SSubmitTbData* pSubmitTbData,
                                int32_t* lastRow) {
   int32_t         code = 0;
   SSchemaWrapper* pSW = NULL;
-  SExtSchema*     pSWExt = NULL;
   SSDataBlock*    block = NULL;
   if (taosArrayGetSize(blocks) > 0) {
     SSDataBlock* pLastBlock = taosArrayGetLast(blocks);
@@ -909,10 +910,8 @@ static int32_t processBuildNew(STqReader* pReader, SSubmitTbData* pSubmitTbData,
 
   pSW = taosMemoryCalloc(1, sizeof(SSchemaWrapper));
   TQ_NULL_GO_TO_END(pSW);
-  pSWExt = taosMemoryCalloc(1, sizeof(SExtSchema));
-  TQ_NULL_GO_TO_END(pSWExt);
 
-  TQ_ERR_GO_TO_END(tqMaskBlock(pSW, pSWExt, block, pReader->pSchemaWrapper, assigned, pReader->extSchema));
+  TQ_ERR_GO_TO_END(tqMaskBlock(pSW, block, pReader->pSchemaWrapper, assigned, pReader->extSchema));
   tqTrace("vgId:%d, build new block, col %d", pReader->pWalReader->pWal->cfg.vgId,
           (int32_t)taosArrayGetSize(block->pDataBlock));
 
@@ -920,10 +919,8 @@ static int32_t processBuildNew(STqReader* pReader, SSubmitTbData* pSubmitTbData,
   block->info.version = pReader->msg.ver;
   TQ_ERR_GO_TO_END(blockDataEnsureCapacity(block, numOfRows - curRow));
   TQ_NULL_GO_TO_END(taosArrayPush(blocks, block));
-  TQSchema schema = {pSW, pSWExt};
-  TQ_NULL_GO_TO_END(taosArrayPush(schemas, &schema));
+  TQ_NULL_GO_TO_END(taosArrayPush(schemas, &pSW));
   pSW = NULL;
-  pSWExt = NULL;
 
   taosMemoryFreeClear(block);
 
@@ -934,7 +931,6 @@ END:
   tDeleteSchemaWrapper(pSW);
   blockDataFreeRes(block);
   taosMemoryFree(block);
-  taosMemoryFree(pSWExt);
   return code;
 }
 static int32_t tqProcessColData(STqReader* pReader, SSubmitTbData* pSubmitTbData, SArray* blocks, SArray* schemas) {
@@ -1149,12 +1145,10 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SMqDataRsp* pRsp, SArray* block
       return code;
     }
   } else if (rawList != NULL) {
-    TQSchema schema = {pReader->pSchemaWrapper, pReader->extSchema};
-    if (taosArrayPush(schemas, &schema) == NULL){
+    if (taosArrayPush(schemas, &pReader->pSchemaWrapper) == NULL){
       return terrno;
     }
     pReader->pSchemaWrapper = NULL;
-    pReader->extSchema = NULL;
     return 0;
   }
 
