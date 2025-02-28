@@ -789,6 +789,7 @@ void    streamMetaClearSetUpdateTaskListComplete(SStreamMeta* pMeta);
 bool    streamMetaInitUpdateTaskList(SStreamMeta* pMeta, int32_t transId);
 
 void    streamMetaRLock(SStreamMeta* pMeta);
+int32_t streamMetaTryRlock(SStreamMeta* pMeta);
 void    streamMetaRUnLock(SStreamMeta* pMeta);
 void    streamMetaWLock(SStreamMeta* pMeta);
 void    streamMetaWUnLock(SStreamMeta* pMeta);

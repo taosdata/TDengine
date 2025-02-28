@@ -148,9 +148,13 @@ static void doStartScanWal(void* param, void* tmrId) {
     return;
   }
 
-  streamMetaRLock(pMeta);
-  numOfTasks = taosArrayGetSize(pMeta->pTaskList);
-  streamMetaRUnLock(pMeta);
+  code = streamMetaTryRlock(pMeta);
+  if (code == 0) {
+    numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+    streamMetaRUnLock(pMeta);
+  } else {
+    numOfTasks = 0;
+  }
 
   if (numOfTasks == 0) {
     goto _end;
@@ -169,7 +173,6 @@ static void doStartScanWal(void* param, void* tmrId) {
   }
 
 _end:
-
   streamTmrStart(doStartScanWal, SCAN_WAL_IDLE_DURATION, pParam, pTimer, &pMeta->scanInfo.scanTimer, vgId, "scan-wal");
   tqDebug("vgId:%d scan-wal will start in %dms", vgId, SCAN_WAL_IDLE_DURATION*SCAN_WAL_WAIT_COUNT);
 
