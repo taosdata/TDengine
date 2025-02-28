@@ -260,13 +260,13 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   // stream do update the nodeEp info, write it into stream meta.
   if (updated) {
     tqDebug("s-task:%s vgId:%d save task after update epset, and stop task", idstr, vgId);
-    code = streamMetaSaveTask(pMeta, pTask);
+    code = streamMetaSaveTaskInMeta(pMeta, pTask);
     if (code) {
       tqError("s-task:%s vgId:%d failed to save task, code:%s", idstr, vgId, tstrerror(code));
     }
 
     if (pHTask != NULL) {
-      code = streamMetaSaveTask(pMeta, pHTask);
+      code = streamMetaSaveTaskInMeta(pMeta, pHTask);
       if (code) {
         tqError("s-task:%s vgId:%d failed to save related history task, code:%s", idstr, vgId, tstrerror(code));
       }
@@ -743,6 +743,8 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
   }
 
   streamMetaWUnLock(pMeta);
+  tqDebug("vgId:%d process drop task:0x%x completed", vgId, pReq->taskId);
+
   return 0;  // always return success
 }
 
@@ -857,6 +859,9 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
   } else if (type == STREAM_EXEC_T_ADD_FAILED_TASK) {
     code = streamMetaAddFailedTask(pMeta, req.streamId, req.taskId);
     return code;
+  } else if (type == STREAM_EXEC_T_STOP_ONE_TASK) {
+    code = streamMetaStopOneTask(pMeta, req.streamId, req.taskId);
+    return code;
   } else if (type == STREAM_EXEC_T_RESUME_TASK) {  // task resume to run after idle for a while
     SStreamTask* pTask = NULL;
     code = streamMetaAcquireTask(pMeta, req.streamId, req.taskId, &pTask);
@@ -938,10 +943,10 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
 
   streamMetaWUnLock(pMeta);
 
-  if (scanWal && (vgId != SNODE_HANDLE)) {
-    tqDebug("vgId:%d start scan wal for executing tasks", vgId);
-    code = tqScanWalAsync(pMeta->ahandle, true);
-  }
+//  if (scanWal && (vgId != SNODE_HANDLE)) {
+//    tqDebug("vgId:%d start scan wal for executing tasks", vgId);
+//    code = tqScanWalAsync(pMeta->ahandle, true);
+//  }
 
   return code;
 }
@@ -1170,7 +1175,7 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
       pTask->hTaskInfo.operatorOpen = false;
       code = streamStartScanHistoryAsync(pTask, igUntreated);
     } else if (level == TASK_LEVEL__SOURCE && (streamQueueGetNumOfItems(pTask->inputq.queue) == 0)) {
-      code = tqScanWalAsync((STQ*)handle, false);
+//      code = tqScanWalAsync((STQ*)handle, false);
     } else {
       code = streamTrySchedExec(pTask);
     }
