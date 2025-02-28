@@ -275,38 +275,45 @@ impl TaskOpts {
             };
             if let Some(parser) = parser_clone {
                 let cache_path = parser.global().process_on_abnormal.cache.location.clone();
-                while !cancel_clone.is_cancelled() {
-                    let files = match read_parquet_dir_files(task_id, &cache_path) {
-                        Ok(files) => files,
-                        Err(e) => anyhow::bail!(format!("{e:#}")),
-                    };
-                    for file in files {
-                        let mut success = true;
-                        let batches = read_parquet_file(file.clone())?;
-                        for batch in batches {
-                            if let Err(e) = Self::rewrite(
-                                Some(task_id),
-                                to_clone.clone(),
-                                &parser,
-                                &batch,
-                                tx_clone.clone(),
-                                Some(&notify_clone),
-                                &cancel_clone,
-                            )
-                            .await
-                            {
-                                tracing::error!("rewrite file error, path: {file:?}, e: {e:#}");
-                                success = false;
+                loop {
+                    tokio::select! {
+                        _ = cancel_clone.cancelled() => {
+                            tracing::info!("rewrite file cancelled");
+                            break;
+                        }
+                        _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                            let files = match read_parquet_dir_files(task_id, &cache_path) {
+                                Ok(files) => files,
+                                Err(e) => anyhow::bail!(format!("{e:#}")),
+                            };
+                            for file in files {
+                                let mut success = true;
+                                let batches = read_parquet_file(file.clone())?;
+                                for batch in batches {
+                                    if let Err(e) = Self::rewrite(
+                                        Some(task_id),
+                                        to_clone.clone(),
+                                        &parser,
+                                        &batch,
+                                        tx_clone.clone(),
+                                        Some(&notify_clone),
+                                        &cancel_clone,
+                                    )
+                                    .await
+                                    {
+                                        tracing::error!("rewrite file error, path: {file:?}, e: {e:#}");
+                                        success = false;
+                                    }
+                                }
+                                if success {
+                                    let _ = std::fs::remove_file(file);
+                                }
                             }
                         }
-                        if success {
-                            let _ = std::fs::remove_file(file);
-                        }
                     }
-                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    tracing::debug!("rewrite file loop, task: {task_id}, cache: {cache_path}");
                 }
-            }
-            drop(tx_clone);
+            };
             Ok(())
         });
 
@@ -799,6 +806,12 @@ impl ArchiveConsumer {
             ),
             None => (Cache::default(), Archive::default()),
         };
+        tracing::debug!(
+            "start the 'cache & archive' thread, task id: {}, cache: {:?}, archive: {:?}",
+            self.task_id,
+            cache,
+            archive
+        );
         // get metrics
         let metrics = get_metrics_arc_from_i64(Some(self.task_id)).await;
         let metrics = metrics.ipc();
