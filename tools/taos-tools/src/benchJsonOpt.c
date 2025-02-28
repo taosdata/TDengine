@@ -820,16 +820,12 @@ void parseStringToIntArray(char *str, BArray *arr) {
 // get interface name
 uint16_t getInterface(char *name) {
     uint16_t iface = TAOSC_IFACE;
-    if (0 == strcasecmp(name, "rest")) {
-        iface = REST_IFACE;
-    } else if (0 == strcasecmp(name, "stmt")) {
+    if (0 == strcasecmp(name, "stmt")) {
         iface = STMT_IFACE;
     } else if (0 == strcasecmp(name, "stmt2")) {
         iface = STMT2_IFACE;
     } else if (0 == strcasecmp(name, "sml")) {
         iface = SML_IFACE;
-    } else if (0 == strcasecmp(name, "sml-rest")) {
-        iface = SML_REST_IFACE;
     }
 
     return iface;
@@ -969,30 +965,7 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
                                g_arguments->reqPerReq, SML_MAX_BATCH);
                     return -1;
                 }
-            } else if (isRest(superTable->iface)) {
-                if (g_arguments->reqPerReq > SML_MAX_BATCH) {
-                    errorPrint("reqPerReq (%u) larger than maximum (%d)\n",
-                               g_arguments->reqPerReq, SML_MAX_BATCH);
-                    return -1;
-                }
-                if (0 != convertServAddr(REST_IFACE,
-                                         false,
-                                         1)) {
-                    errorPrint("%s", "Failed to convert server address\n");
-                    return -1;
-                }
-                encodeAuthBase64();
-                g_arguments->rest_server_ver_major =
-                    getServerVersionRest(g_arguments->port + TSDB_PORT_HTTP);
             }
-#ifdef WEBSOCKET
-        if (g_arguments->websocket) {
-            infoPrint("Since WebSocket interface is enabled, "
-                    "the interface %s is changed to use WebSocket.\n",
-                    stbIface->valuestring);
-            superTable->iface = TAOSC_IFACE;
-        }
-#endif
         }
 
 
@@ -1614,14 +1587,12 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
 static int getMetaFromInsertJsonFile(tools_cJSON *json) {
     int32_t code = -1;
 
-#ifdef WEBSOCKET
     tools_cJSON *dsn = tools_cJSON_GetObjectItem(json, "dsn");
     if (tools_cJSON_IsString(dsn)) {
         g_arguments->dsn = dsn->valuestring;
         g_arguments->websocket = true;
         infoPrint("set websocket true from json->dsn=%s\n", g_arguments->dsn);
     }
-#endif
 
     // check after inserted
     tools_cJSON *checkSql = tools_cJSON_GetObjectItem(json, "check_sql");
@@ -1677,23 +1648,19 @@ static int getMetaFromInsertJsonFile(tools_cJSON *json) {
         g_arguments->table_threads = (uint32_t)table_theads->valueint;
     }
 
-#ifdef WEBSOCKET
     if (!g_arguments->websocket) {
-#endif
 #ifdef LINUX
-    if (strlen(g_configDir)) {
-        wordexp_t full_path;
-        if (wordexp(g_configDir, &full_path, 0) != 0) {
-            errorPrint("Invalid path %s\n", g_configDir);
-            exit(EXIT_FAILURE);
+        if (strlen(g_configDir)) {
+            wordexp_t full_path;
+            if (wordexp(g_configDir, &full_path, 0) != 0) {
+                errorPrint("Invalid path %s\n", g_configDir);
+                exit(EXIT_FAILURE);
+            }
+            taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
+            wordfree(&full_path);
         }
-        taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
-        wordfree(&full_path);
-    }
 #endif
-#ifdef WEBSOCKET
     }
-#endif
 
     tools_cJSON *numRecPerReq =
         tools_cJSON_GetObjectItem(json, "num_of_records_per_req");
@@ -2204,9 +2171,7 @@ static int getMetaFromQueryJsonFile(tools_cJSON *json) {
 
     tools_cJSON *queryMode = tools_cJSON_GetObjectItem(json, "query_mode");
     if (tools_cJSON_IsString(queryMode)) {
-        if (0 == strcasecmp(queryMode->valuestring, "rest")) {
-            g_queryInfo.iface = REST_IFACE;
-        } else if (0 == strcasecmp(queryMode->valuestring, "taosc")) {
+        if (0 == strcasecmp(queryMode->valuestring, "taosc")) {
             g_queryInfo.iface = TAOSC_IFACE;
         } else {
             errorPrint("Invalid query_mode value: %s\n",

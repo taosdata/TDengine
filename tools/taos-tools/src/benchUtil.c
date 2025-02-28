@@ -45,13 +45,13 @@ FORCE_INLINE void tmfree(void *buf) {
     }
 }
 
-FORCE_INLINE bool isRest(int32_t iface) { 
-    return REST_IFACE == iface || SML_REST_IFACE == iface;
-}
-
 void ERROR_EXIT(const char *msg) {
     errorPrint("%s", msg);
     exit(EXIT_FAILURE);
+}
+
+void engineError(char * module, char * fun, int32_t code) {
+    errorPrint("%s %s fun=%s error code:0x%08X \n", TIP_ENGINE_ERR, module, fun, code);
 }
 
 #ifdef WINDOWS
@@ -295,48 +295,58 @@ int regexMatch(const char *s, const char *reg, int cflags) {
     return 0;
 }
 
-
-
-
 SBenchConn* initBenchConnImpl() {
     SBenchConn* conn = benchCalloc(1, sizeof(SBenchConn), true);
-#ifdef WEBSOCKET
-    if (g_arguments->websocket) {
-        conn->taos_ws = ws_connect(g_arguments->dsn);
-        char maskedDsn[256] = "\0";
-        memcpy(maskedDsn, g_arguments->dsn, 20);
-        memcpy(maskedDsn+20, "...", 3);
-        memcpy(maskedDsn+23,
-               g_arguments->dsn + strlen(g_arguments->dsn)-10, 10);
-        if (conn->taos_ws == NULL) {
-            errorPrint("failed to connect %s, reason: %s\n",
-                    maskedDsn, ws_errstr(NULL));
+    char     show[256] = "\0";
+    char *   host = NULL;
+    uint16_t port = 0;
+    char *   user = NULL;
+    char *   pwd  = NULL;
+    int32_t  code = 0;
+
+    // set mode
+    if (g_arguments->dsn && g_arguments->dsn[0]) {
+        // websocket
+        memcpy(show, g_arguments->dsn, 20);
+        memcpy(show + 20, "...", 3);
+        memcpy(show + 23, g_arguments->dsn + strlen(g_arguments->dsn) - 10, 10);
+
+        // set dsn
+        code = taos_options(TSDB_OPTION_DRIVER, g_arguments->dsn);
+        if (code != TSDB_CODE_SUCCESS) {
+            engineError(INIT_MOD, "taos_options(TSDB_OPTION_DRIVER, dsn)", code);
             tmfree(conn);
             return NULL;
         }
-
-        succPrint("%s conneced\n", maskedDsn);
     } else {
-#endif
-        conn->taos = taos_connect(g_arguments->host,
-                g_arguments->user, g_arguments->password,
-                NULL, g_arguments->port);
-        if (conn->taos == NULL) {
-            errorPrint("failed to connect native %s:%d, "
-                       "code: 0x%08x, reason: %s\n",
-                    g_arguments->host, g_arguments->port,
-                    taos_errno(NULL), taos_errstr(NULL));
-            tmfree(conn);
-            return NULL;
-        }
-
-        conn->ctaos = taos_connect(g_arguments->host,
-                                   g_arguments->user,
-                                   g_arguments->password,
-                                   NULL, g_arguments->port);
-#ifdef WEBSOCKET
+        // native
+        sprintf(show, "%s:%d ", g_arguments->host, g_arguments->port);
+        host = g_arguments->host;
+        port = g_arguments->port;
+        user = g_arguments->user;
+        pwd  = g_arguments->password;
     }
-#endif
+
+    // connect main
+    conn->taos = taos_connect(g_arguments->host,
+            g_arguments->user, g_arguments->password,
+            NULL, g_arguments->port);
+    if (conn->taos == NULL) {
+        errorPrint("failed to connect native %s:%d, "
+                    "code: 0x%08x, reason: %s\n",
+                g_arguments->host, g_arguments->port,
+                taos_errno(NULL), taos_errstr(NULL));
+        tmfree(conn);
+        return NULL;
+    }
+    succPrint("%s conneced\n", show);
+
+    // check write correct connect
+    conn->ctaos = taos_connect(g_arguments->host,
+                                g_arguments->user,
+                                g_arguments->password,
+                                NULL, g_arguments->port);
+
     return conn;
 }
 
@@ -362,63 +372,28 @@ SBenchConn* initBenchConn() {
 void closeBenchConn(SBenchConn* conn) {
     if(conn == NULL)
        return ;
-#ifdef WEBSOCKET
-    if (g_arguments->websocket) {
-        ws_close(conn->taos_ws);
-    } else {
-#endif
-        if(conn->taos) {
-            taos_close(conn->taos);
-            conn->taos = NULL;
-        }
-        if (conn->ctaos) {
-            taos_close(conn->ctaos);
-            conn->ctaos = NULL;
-        }
-#ifdef WEBSOCKET
-    }
-#endif
-    tmfree(conn);
-}
 
-int32_t queryDbExecRest(char *command, char* dbName, int precision,
-                    int iface, int protocol, bool tcp, int sockfd) {
-    int32_t code = postProceSql(command,
-                         dbName,
-                         precision,
-                         iface,
-                         protocol,
-                         g_arguments->port,
-                         tcp,
-                         sockfd,
-                         NULL);
-    return code;
+    if(conn->taos) {
+        taos_close(conn->taos);
+        conn->taos = NULL;
+    }
+
+    if (conn->ctaos) {
+        taos_close(conn->ctaos);
+        conn->ctaos = NULL;
+    }
+    tmfree(conn);
 }
 
 int32_t queryDbExecCall(SBenchConn *conn, char *command) {
     int32_t code = 0;
-#ifdef WEBSOCKET
-    if (g_arguments->websocket) {
-        WS_RES* res = ws_query_timeout(conn->taos_ws,
-                                       command, g_arguments->timeout);
-        code = ws_errno(res);
-        if (code != 0) {
-            errorPrint("Failed to execute <%s>, code: 0x%08x, reason: %s\n",
-                       command, code, ws_errstr(res));
-        }
-        ws_free_result(res);
+    TAOS_RES *res = taos_query(conn->taos, command);
+    code = taos_errno(res);
+    if (code) {
+        printErrCmdCodeStr(command, code, res);
     } else {
-#endif
-        TAOS_RES *res = taos_query(conn->taos, command);
-        code = taos_errno(res);
-        if (code) {
-            printErrCmdCodeStr(command, code, res);
-        } else {
-            taos_free_result(res);
-        }
-#ifdef WEBSOCKET
+        taos_free_result(res);
     }
-#endif
     return code;
 }
 
@@ -456,374 +431,6 @@ void encodeAuthBase64() {
 
     for (int l = 0; l < mod_table[userpass_buf_len % 3]; l++)
         g_arguments->base64_buf[encoded_len - 1 - l] = '=';
-}
-
-int postProceSqlImpl(char *sqlstr, char* dbName, int precision, int iface,
-                     int protocol, uint16_t rest_port, bool tcp, int sockfd,
-                     char* filePath,
-                     char *responseBuf, int64_t response_length) {
-    int32_t      code = -1;
-    char *       req_fmt =
-        "POST %s HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\nAuthorization: "
-        "Basic %s\r\nContent-Length: %d\r\nContent-Type: "
-        "application/x-www-form-urlencoded\r\n\r\n%s";
-    char url[URL_BUFF_LEN] = {0};
-    if (iface == REST_IFACE) {
-        snprintf(url, URL_BUFF_LEN, "/rest/sql/%s", dbName);
-    } else if (iface == SML_REST_IFACE
-            && protocol == TSDB_SML_LINE_PROTOCOL) {
-        snprintf(url, URL_BUFF_LEN,
-                 "/influxdb/v1/write?db=%s&precision=%s", dbName,
-                precision == TSDB_TIME_PRECISION_MILLI
-                ? "ms"
-                : precision == TSDB_TIME_PRECISION_NANO
-                ? "ns"
-                : "u");
-    } else if (iface == SML_REST_IFACE
-            && protocol == TSDB_SML_TELNET_PROTOCOL) {
-        snprintf(url, URL_BUFF_LEN, "/opentsdb/v1/put/telnet/%s", dbName);
-    } else if (iface == SML_REST_IFACE
-            && (protocol == TSDB_SML_JSON_PROTOCOL
-                || protocol == SML_JSON_TAOS_FORMAT)) {
-        snprintf(url, URL_BUFF_LEN, "/opentsdb/v1/put/json/%s", dbName);
-    }
-
-    int      bytes, sent, received, req_str_len, resp_len;
-    char *   request_buf = NULL;
-    int req_buf_len = (int)strlen(sqlstr) + REQ_EXTRA_BUF_LEN;
-
-    if (g_arguments->terminate) {
-        goto free_of_postImpl;
-    }
-    request_buf = benchCalloc(1, req_buf_len, false);
-
-    int r;
-    if (protocol == TSDB_SML_TELNET_PROTOCOL && tcp) {
-        r = snprintf(request_buf, req_buf_len, "%s", sqlstr);
-    } else {
-        r = snprintf(request_buf, req_buf_len, req_fmt, url, g_arguments->host,
-                rest_port, g_arguments->base64_buf, strlen(sqlstr),
-                sqlstr);
-    }
-    if (r >= req_buf_len) {
-        free(request_buf);
-        ERROR_EXIT("too long request");
-    }
-
-    req_str_len = (int)strlen(request_buf);
-    debugPrint("request buffer: %s\n", request_buf);
-    sent = 0;
-    do {
-        bytes = send(sockfd, request_buf + sent,
-                req_str_len - sent, 0);
-        if (bytes < 0) {
-            errorPrint("%s", "writing no message to socket\n");
-            goto free_of_postImpl;
-        }
-        if (bytes == 0) break;
-        sent += bytes;
-    } while ((sent < req_str_len) && !g_arguments->terminate);
-
-    if (protocol == TSDB_SML_TELNET_PROTOCOL
-            && iface == SML_REST_IFACE && tcp) {
-        code = 0;
-        goto free_of_postImpl;
-    }
-
-    resp_len = response_length - 1;
-    received = 0;
-
-    bool chunked = false;
-
-    if (g_arguments->terminate) {
-        goto free_of_postImpl;
-    }
-    do {
-        bytes = recv(sockfd, responseBuf + received,
-                resp_len - received, 0);
-        if (bytes <= 0) {
-            errorPrint("%s", "reading no response from socket\n");
-            goto free_of_postImpl;
-        }
-        responseBuf[resp_len] = 0;
-        debugPrint("response buffer: %s bytes=%d\n", responseBuf, bytes);
-        if (NULL != strstr(responseBuf, resEncodingChunk)) {
-            chunked = true;
-        }
-        int64_t index = strlen(responseBuf) - 1;
-        while (responseBuf[index] == '\n' || responseBuf[index] == '\r') {
-            if (index == 0) {
-                break;
-            }
-            index--;
-        }
-        debugPrint("index: %" PRId64 "\n", index);
-        if (chunked && responseBuf[index] == '0') {
-            code = 0;
-            break;
-        }
-        if (!chunked && responseBuf[index] == '}') {
-            code = 0;
-            break;
-        }
-
-        received += bytes;
-
-        if (g_arguments->test_mode == INSERT_TEST) {
-            if (strlen(responseBuf)) {
-                if (((NULL != strstr(responseBuf, resEncodingChunk)) &&
-                            (NULL != strstr(responseBuf, resHttp))) ||
-                        ((NULL != strstr(responseBuf, resHttpOk)) ||
-                         (NULL != strstr(responseBuf, influxHttpOk)) ||
-                         (NULL != strstr(responseBuf, opentsdbHttpOk)))) {
-                    break;
-                }
-            }
-        }
-    } while ((received < resp_len) && !g_arguments->terminate);
-
-    if (received == resp_len) {
-        errorPrint("%s", "storing complete response from socket\n");
-        goto free_of_postImpl;
-    }
-
-    if (NULL == strstr(responseBuf, resHttpOk) &&
-            NULL == strstr(responseBuf, influxHttpOk) &&
-            NULL == strstr(responseBuf, succMessage) &&
-            NULL == strstr(responseBuf, opentsdbHttpOk)) {
-        errorPrint("Response:\n%s\n", responseBuf);
-        goto free_of_postImpl;
-    }
-
-    code = 0;
-free_of_postImpl:
-    if (filePath && strlen(filePath) > 0 && !g_arguments->terminate) {
-        appendResultBufToFile(responseBuf, filePath);
-    }
-    tmfree(request_buf);
-    return code;
-}
-
-static int getServerVersionRestImpl(int16_t rest_port, int sockfd) {
-    int server_ver = -1;
-    char       command[SHORT_1K_SQL_BUFF_LEN] = "\0";
-    snprintf(command, SHORT_1K_SQL_BUFF_LEN, "SELECT SERVER_VERSION()");
-    char *responseBuf = benchCalloc(1, RESP_BUF_LEN, false);
-    int code = postProceSqlImpl(command,
-                                NULL,
-                                0,
-                                REST_IFACE,
-                                0,
-                                rest_port,
-                                false,
-                                sockfd,
-                                NULL, responseBuf, RESP_BUF_LEN);
-    if (code != 0) {
-        errorPrint("Failed to execute command: %s\n", command);
-        goto free_of_getversion;
-    }
-    debugPrint("response buffer: %s\n", responseBuf);
-    if (NULL != strstr(responseBuf, resHttpOk)) {
-        char* start = strstr(responseBuf, "{");
-        if (start == NULL) {
-            errorPrint("Invalid response format: %s\n", responseBuf);
-            goto free_of_getversion;
-        }
-        tools_cJSON* resObj = tools_cJSON_Parse(start);
-        if (resObj == NULL) {
-            errorPrint("Cannot parse response into json: %s\n", start);
-        }
-        tools_cJSON* dataObj = tools_cJSON_GetObjectItem(resObj, "data");
-        if (!tools_cJSON_IsArray(dataObj)) {
-            char* pstr = tools_cJSON_Print(resObj);
-            errorPrint("Invalid or miss 'data' key in json: %s\n", pstr ? pstr : "null");
-            tmfree(pstr);
-            tools_cJSON_Delete(resObj);
-            goto free_of_getversion;
-        }
-        tools_cJSON *versionObj = tools_cJSON_GetArrayItem(dataObj, 0);
-        tools_cJSON *versionStrObj = tools_cJSON_GetArrayItem(versionObj, 0);
-        server_ver = atoi(versionStrObj->valuestring);
-        char* pstr = tools_cJSON_Print(versionStrObj);        
-        debugPrint("versionStrObj: %s, version: %s, server_ver: %d\n",
-                   pstr ? pstr : "null",
-                   versionStrObj->valuestring, server_ver);
-        tmfree(pstr);
-        tools_cJSON_Delete(resObj);
-    }
-free_of_getversion:
-    free(responseBuf);
-    return server_ver;
-}
-
-int getServerVersionRest(int16_t rest_port) {
-    int sockfd = createSockFd();
-    if (sockfd < 0) {
-        return -1;
-    }
-
-    int server_version = getServerVersionRestImpl(rest_port, sockfd);
-
-    destroySockFd(sockfd);
-    return server_version;
-}
-
-static int getCodeFromResp(char *responseBuf) {
-    int code = -1;
-    char* start = strstr(responseBuf, "{");
-    if (start == NULL) {
-        errorPrint("Invalid response format: %s\n", responseBuf);
-        return -1;
-    }
-    tools_cJSON* resObj = tools_cJSON_Parse(start);
-    if (resObj == NULL) {
-        errorPrint("Cannot parse response into json: %s\n", start);
-        return -1;
-    }
-    tools_cJSON* codeObj = tools_cJSON_GetObjectItem(resObj, "code");
-    if (!tools_cJSON_IsNumber(codeObj)) {
-        char* pstr = tools_cJSON_Print(resObj);
-        errorPrint("Invalid or miss 'code' key in json: %s\n", pstr ? pstr : "null");
-        tmfree(pstr);
-        tools_cJSON_Delete(resObj);
-        return -1;
-    }
-
-    code = codeObj->valueint;
-
-    if (codeObj->valueint != 0) {
-        tools_cJSON* desc = tools_cJSON_GetObjectItem(resObj, "desc");
-        if (!tools_cJSON_IsString(desc)) {
-            char* pstr = tools_cJSON_Print(resObj);
-            errorPrint("Invalid or miss 'desc' key in json: %s\n", pstr ? pstr : "null");
-            tmfree(pstr);
-            return -1;
-        }
-        errorPrint("response, code: %d, reason: %s\n",
-                   (int)codeObj->valueint, desc->valuestring);
-    }
-
-    tools_cJSON_Delete(resObj);
-    return code;
-}
-
-int postProceSql(char *sqlstr, char* dbName, int precision, int iface,
-                 int protocol, uint16_t rest_port,
-                 bool tcp, int sockfd, char* filePath) {
-    uint64_t response_length;
-    if (g_arguments->test_mode == INSERT_TEST) {
-        response_length = RESP_BUF_LEN;
-    } else {
-        response_length = g_queryInfo.response_buffer;
-    }
-
-    char *responseBuf = benchCalloc(1, response_length, false);
-    int code = postProceSqlImpl(sqlstr, dbName, precision, iface, protocol,
-                                rest_port,
-                                tcp, sockfd, filePath, responseBuf,
-                                response_length);
-    // compatibility 2.6
-    if (-1 == g_arguments->rest_server_ver_major) {
-        // confirm version is 2.x according to "succ"
-        if (NULL != strstr(responseBuf, succMessage) && iface == REST_IFACE) {
-            g_arguments->rest_server_ver_major = 2;
-        }
-    }
-
-    if (NULL != strstr(responseBuf, resHttpOk) && iface == REST_IFACE) {
-        // if taosd is not starting , rest_server_ver_major can't be got by 'select server_version()' , so is -1
-        if (-1 == g_arguments->rest_server_ver_major || 3 <= g_arguments->rest_server_ver_major) {
-            code = getCodeFromResp(responseBuf);
-        } else {
-            code = 0;
-        }
-        goto free_of_post;
-    }
-
-    if (2 == g_arguments->rest_server_ver_major) {
-        if (NULL != strstr(responseBuf, succMessage) && iface == REST_IFACE) {
-            code = getCodeFromResp(responseBuf);
-        } else {
-            code = 0;
-        }
-        goto free_of_post;
-    }
-
-    if (NULL != strstr(responseBuf, influxHttpOk) &&
-            protocol == TSDB_SML_LINE_PROTOCOL && iface == SML_REST_IFACE) {
-        code = 0;
-        goto free_of_post;
-    }
-
-    if (NULL != strstr(responseBuf, opentsdbHttpOk)
-            && (protocol == TSDB_SML_TELNET_PROTOCOL
-            || protocol == TSDB_SML_JSON_PROTOCOL
-            || protocol == SML_JSON_TAOS_FORMAT)
-            && iface == SML_REST_IFACE) {
-        code = 0;
-        goto free_of_post;
-    }
-
-    if (g_arguments->test_mode == INSERT_TEST) {
-        debugPrint("Response: \n%s\n", responseBuf);
-        char* start = strstr(responseBuf, "{");
-        if ((start == NULL)
-                && (TSDB_SML_TELNET_PROTOCOL != protocol)
-                && (TSDB_SML_JSON_PROTOCOL != protocol)
-                && (SML_JSON_TAOS_FORMAT != protocol)
-                ) {
-            errorPrint("Invalid response format: %s\n", responseBuf);
-            goto free_of_post;
-        }
-        tools_cJSON* resObj = tools_cJSON_Parse(start);
-        if ((resObj == NULL)
-                && (TSDB_SML_TELNET_PROTOCOL != protocol)
-                && (TSDB_SML_JSON_PROTOCOL != protocol)
-                && (SML_JSON_TAOS_FORMAT != protocol)
-                ) {
-            errorPrint("Cannot parse response into json: %s\n", start);
-        }
-        tools_cJSON* codeObj = tools_cJSON_GetObjectItem(resObj, "code");
-        if ((!tools_cJSON_IsNumber(codeObj))
-                && (TSDB_SML_TELNET_PROTOCOL != protocol)
-                && (TSDB_SML_JSON_PROTOCOL != protocol)
-                && (SML_JSON_TAOS_FORMAT != protocol)
-                ) {
-            char* pstr = tools_cJSON_Print(resObj);
-            errorPrint("Invalid or miss 'code' key in json: %s\n", pstr ? pstr : "null");
-            tmfree(pstr);
-            tools_cJSON_Delete(resObj);
-            goto free_of_post;
-        }
-
-        if ((SML_REST_IFACE == iface) && codeObj
-                && (200 == codeObj->valueint)) {
-            code = 0;
-            tools_cJSON_Delete(resObj);
-            goto free_of_post;
-        }
-
-        if ((iface == SML_REST_IFACE)
-                && (protocol == TSDB_SML_LINE_PROTOCOL)
-                && codeObj
-                && (codeObj->valueint != 0) && (codeObj->valueint != 200)) {
-            tools_cJSON* desc = tools_cJSON_GetObjectItem(resObj, "desc");
-            if (!tools_cJSON_IsString(desc)) {
-                char* pstr = tools_cJSON_Print(resObj);
-                errorPrint("Invalid or miss 'desc' key in json: %s\n", pstr ? pstr : "null");
-                tmfree(pstr);
-            } else {
-                errorPrint("insert mode response, code: %d, reason: %s\n",
-                       (int)codeObj->valueint, desc->valuestring);
-            }
-        } else {
-            code = 0;
-        }
-        tools_cJSON_Delete(resObj);
-    }
-free_of_post:
-    free(responseBuf);
-    return code;
 }
 
 // fetch result fo file or nothing
@@ -1220,9 +827,7 @@ void benchSetSignal(int32_t signum, ToolsSignalHandler sigfp) {
 #endif
 
 int convertServAddr(int iface, bool tcp, int protocol) {
-    if (tcp
-            && iface == SML_REST_IFACE
-            && protocol == TSDB_SML_TELNET_PROTOCOL) {
+    if (tcp && protocol == TSDB_SML_TELNET_PROTOCOL) {
         // telnet_tcp_port        
         if (convertHostToServAddr(g_arguments->host,
                     g_arguments->telnet_tcp_port,
@@ -1254,77 +859,6 @@ static void errorPrintSocketMsg(char *msg, int result) {
 #endif
 }
 
-int createSockFd() {
-#ifdef WINDOWS
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-    SOCKET sockfd;
-#else
-    int sockfd;
-#endif
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-        errorPrintSocketMsg("Could not create socket : ", sockfd);
-        return -1;
-    }
-
-    int retConn = connect(
-            sockfd, (struct sockaddr *)&(g_arguments->serv_addr),
-            sizeof(struct sockaddr));
-    infoPrint("createSockFd call connect serv_addr=%p retConn=%d\n", &g_arguments->serv_addr, retConn);
-    if (retConn < 0) {
-        errorPrint("%s\n", "failed to connect");
-#ifdef WINDOWS
-        closesocket(sockfd);
-        WSACleanup();
-#else
-        close(sockfd);
-#endif
-        return -1;
-    }
-    return sockfd;
-}
-
-static void closeSockFd(int sockfd) {
-#ifdef WINDOWS
-    closesocket(sockfd);
-    WSACleanup();
-#else
-    close(sockfd);
-#endif
-}
-
-void destroySockFd(int sockfd) {
-    // check valid
-    if (sockfd < 0) {
-        return;
-    }
-
-    // shutdown the connection since no more data will be sent
-    int result;
-    result = shutdown(sockfd, SHUT_WR);
-    if (SOCKET_ERROR == result) {
-        errorPrintSocketMsg("Socket shutdown failed with error: ", result);
-        closeSockFd(sockfd);
-        return;
-    }
-    // Receive until the peer closes the connection
-    do {
-        int recvbuflen = LARGE_BUFF_LEN;
-        char recvbuf[LARGE_BUFF_LEN];
-        result = recv(sockfd, recvbuf, recvbuflen, 0);
-        if ( result > 0 ) {
-            debugPrint("Socket bytes received: %d\n", result);
-        } else if (result == 0) {
-            infoPrint("Connection closed with result %d\n", result);
-        } else {
-            errorPrintSocketMsg("Socket recv failed with error: ", result);
-        }
-    } while (result > 0);
-
-    closeSockFd(sockfd);
-}
-
 FORCE_INLINE void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res) {    
     char buff[512];
     char *msg = cmd;
@@ -1334,7 +868,7 @@ FORCE_INLINE void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res) {
         strcat(buff, "...");
         msg = buff;
     }
-    errorPrint("failed to run error code: 0x%08x, reason: %s command %s\n",
+    errorPrint("%s error code: 0x%08x, reason: %s command %s\n", TIP_ENGINE_ERR,
                code, taos_errstr(res), msg);
     taos_free_result(res);
 }
@@ -1583,17 +1117,9 @@ uint32_t MurmurHash3_32(const char *key, uint32_t len) {
 // init conn
 int32_t initQueryConn(qThreadInfo * pThreadInfo, int iface) {
     // create conn
-    if (iface == REST_IFACE) {
-        int sockfd = createSockFd();
-        if (sockfd < 0) {
-            return -1;
-        }
-        pThreadInfo->sockfd = sockfd;
-    } else {
-        pThreadInfo->conn = initBenchConn();
-        if (pThreadInfo->conn == NULL) {
-            return -1;
-        }
+    pThreadInfo->conn = initBenchConn();
+    if (pThreadInfo->conn == NULL) {
+        return -1;
     }
 
     return 0;
@@ -1601,17 +1127,8 @@ int32_t initQueryConn(qThreadInfo * pThreadInfo, int iface) {
 
 // close conn
 void closeQueryConn(qThreadInfo * pThreadInfo, int iface) {
-    if (iface == REST_IFACE) {
-#ifdef WINDOWS
-        closesocket(pThreadInfo->sockfd);
-        WSACleanup();
-#else
-        close(pThreadInfo->sockfd);
-#endif
-    } else {
-        closeBenchConn(pThreadInfo->conn);
-        pThreadInfo->conn = NULL;
-    }
+    closeBenchConn(pThreadInfo->conn);
+    pThreadInfo->conn = NULL;
 }
 
 

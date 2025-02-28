@@ -58,19 +58,6 @@ void checkArgumentValid() {
     if(g_arguments->host == NULL) {
         g_arguments->host = DEFAULT_HOST;
     }
-
-    if (isRest(g_arguments->iface)) {
-        if (0 != convertServAddr(g_arguments->iface,
-                                 false,
-                                 1)) {
-            errorPrint("%s", "Failed to convert server address\n");
-            return;
-        }
-        encodeAuthBase64();
-        g_arguments->rest_server_ver_major =
-            getServerVersionRest(g_arguments->port);
-    }
-
 }
 
 int main(int argc, char* argv[]) {
@@ -102,11 +89,8 @@ int main(int argc, char* argv[]) {
         exitLog();
         return -1;
     }
-#ifdef WEBSOCKET
-    if (g_arguments->debug_print) {
-        ws_enable_log("info");
-    }
 
+    // read evn dsv
     if (g_arguments->dsn != NULL) {
         g_arguments->websocket = true;
         infoPrint("set websocket true from dsn not empty. dsn=%s\n", g_arguments->dsn);
@@ -116,11 +100,9 @@ int main(int argc, char* argv[]) {
             g_arguments->dsn = dsn;
             g_arguments->websocket = true;
             infoPrint("set websocket true from getenv TDENGINE_CLOUD_DSN=%s\n", g_arguments->dsn);
-        } else {
-            g_arguments->dsn = false;
-        }
+        } 
     }
-#endif
+
     if (g_arguments->metaFile) {
         g_arguments->totalChildTables = 0;
         if (readJsonConfig(g_arguments->metaFile)) {

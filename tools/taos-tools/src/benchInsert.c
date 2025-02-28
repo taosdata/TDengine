@@ -39,32 +39,6 @@ TAOS_STMT2* initStmt2(TAOS* taos, bool single);
         tmfree(infos);                              \
     } while (0)                                     \
 
-static int getSuperTableFromServerRest(
-    SDataBase* database, SSuperTable* stbInfo, char *command) {
-
-    // TODO(zero): it will create super table based on this error code.
-    return TSDB_CODE_NOT_FOUND;
-    // TODO(me): finish full implementation
-#if 0
-    int sockfd = createSockFd();
-    if (sockfd < 0) {
-        return -1;
-    }
-
-    int code = postProceSql(command,
-                         database->dbName,
-                         database->precision,
-                         REST_IFACE,
-                         0,
-                         g_arguments->port,
-                         false,
-                         sockfd,
-                         NULL);
-
-    destroySockFd(sockfd);
-#endif   // 0
-}
-
 static int getSuperTableFromServerTaosc(
         SDataBase *database, SSuperTable *stbInfo, char *command) {
     TAOS_RES *res;
@@ -161,89 +135,40 @@ static int getSuperTableFromServerTaosc(
 
 
 static int getSuperTableFromServer(SDataBase* database, SSuperTable* stbInfo) {
-#ifdef WEBSOCKET
-    if (g_arguments->websocket) {
-        return 0;
-    }
-#endif
-    int ret = 0;
     char command[SHORT_1K_SQL_BUFF_LEN] = "\0";
     snprintf(command, SHORT_1K_SQL_BUFF_LEN,
              "DESCRIBE `%s`.`%s`", database->dbName,
              stbInfo->stbName);
 
-    if (REST_IFACE == stbInfo->iface) {
-        ret = getSuperTableFromServerRest(database, stbInfo, command);
-    } else {
-        ret = getSuperTableFromServerTaosc(database, stbInfo, command);
-    }
-
-    return ret;
+    return getSuperTableFromServerTaosc(database, stbInfo, command);
 }
 
 static int queryDbExec(SDataBase *database,
                        SSuperTable *stbInfo, char *command) {
     int ret = 0;
-    if (isRest(stbInfo->iface)) {
-        if (0 != convertServAddr(stbInfo->iface, false, 1)) {
-            errorPrint("%s", "Failed to convert server address\n");
-            return -1;
-        }
-        int sockfd = createSockFd();
-        if (sockfd < 0) {
-            ret = -1;
-        } else {
-            ret = queryDbExecRest(command,
-                              database->dbName,
-                              database->precision,
-                              stbInfo->iface,
-                              stbInfo->lineProtocol,
-                              stbInfo->tcpTransfer,
-                              sockfd);
-            destroySockFd(sockfd);
-        }
+    SBenchConn* conn = initBenchConn();
+    if (NULL == conn) {
+        ret = -1;
     } else {
-        SBenchConn* conn = initBenchConn();
-        if (NULL == conn) {
-            ret = -1;
-        } else {
+        ret = queryDbExecCall(conn, command);
+        int32_t trying = g_arguments->keep_trying;
+        while (ret && trying) {
+            infoPrint("will sleep %"PRIu32" milliseconds then re-execute command: %s\n",
+                        g_arguments->trying_interval, command);
+            toolsMsleep(g_arguments->trying_interval);
             ret = queryDbExecCall(conn, command);
-            int32_t trying = g_arguments->keep_trying;
-            while (ret && trying) {
-                infoPrint("will sleep %"PRIu32" milliseconds then re-execute command: %s\n",
-                          g_arguments->trying_interval, command);
-                toolsMsleep(g_arguments->trying_interval);
-                ret = queryDbExecCall(conn, command);
-                if (trying != -1) {
-                    trying--;
-                }
+            if (trying != -1) {
+                trying--;
             }
-            if (0 != ret) {
-                ret = -1;
-            }
-            closeBenchConn(conn);
         }
+        if (0 != ret) {
+            ret = -1;
+        }
+        closeBenchConn(conn);
     }
 
     return ret;
 }
-
-#ifdef WEBSOCKET
-static void dropSuperTable(SDataBase* database, SSuperTable* stbInfo) {
-    char command[SHORT_1K_SQL_BUFF_LEN] = "\0";
-    snprintf(command, sizeof(command),
-        g_arguments->escape_character
-            ? "DROP TABLE IF EXISTS `%s`.`%s`"
-            : "DROP TABLE IF EXISTS %s.%s",
-             database->dbName,
-             stbInfo->stbName);
-
-    infoPrint("drop stable: <%s>\n", command);
-    queryDbExec(database, stbInfo, command);
-
-    return;
-}
-#endif  // WEBSOCKET
 
 int getCompressStr(Field* col, char* buf) {
     int pos = 0;
@@ -521,80 +446,6 @@ int32_t getVgroupsNative(SBenchConn *conn, SDataBase *database) {
     return vgroups;
 }
 
-#ifdef WEBSOCKET
-int32_t getVgroupsWS(SBenchConn *conn, SDataBase *database) {
-    int vgroups = 0;
-    char sql[128] = "\0";
-    snprintf(sql, sizeof(sql),
-             g_arguments->escape_character
-                 ? "SHOW `%s`.VGROUPS"
-                 : "SHOW %s.VGROUPS",
-             database->dbName);
-
-    // query
-    WS_RES *res = ws_query_timeout(conn->taos_ws, sql, g_arguments->timeout);
-    int32_t code = ws_errno(res);
-    if (code != 0) {
-        // failed
-        errorPrint("Failed ws_query_timeout <%s>, code: 0x%08x, reason: %s\n",
-                   sql, code, ws_errstr(res));
-        ws_free_result(res);           
-        return 0;
-    }
-
-    // fetch
-    WS_ROW row;
-    database->vgArray = benchArrayInit(8, sizeof(SVGroup));
-    while ( (row = ws_fetch_row(res)) && !g_arguments->terminate) {
-        SVGroup *vg = benchCalloc(1, sizeof(SVGroup), true);
-        vg->vgId = *(int32_t *)row[0];
-        benchArrayPush(database->vgArray, vg);
-        vgroups++;
-        debugPrint(" ws fetch vgroups vgid=%d cnt=%d \n", vg->vgId, vgroups);
-    }
-    ws_free_result(res);
-    database->vgroups = vgroups;
-
-    // return count
-    return vgroups;
-}
-
-/*
-int32_t getTableVgidWS(SBenchConn *conn, char *db, char *tb, int32_t *vgId) {
-    char sql[128] = "\0";
-    snprintf(sql, sizeof(sql),
-                 "select vgroup_id from information_schema.ins_tables where db_name='%s' and table_name='%s';",
-                 db, tb);
-    // query
-    WS_RES *res = ws_query_timeout(conn->taos_ws, sql, g_arguments->timeout);
-    int32_t code = ws_errno(res);
-    if (code != 0) {
-        // failed
-        errorPrint("Failed ws_query_timeout <%s>, code: 0x%08x, reason: %s\n",
-                   sql, code, ws_errstr(res));
-        ws_free_result(res);           
-        return code;
-    }
-
-    // fetch
-    WS_ROW row;
-    while ( (row = ws_fetch_row(res)) && !g_arguments->terminate) {
-        *vgId = *(int32_t *)row[0];
-        debugPrint(" getTableVgidWS table:%s vgid=%d\n", tb, *vgId);
-        break;
-    }
-    ws_free_result(res);
-
-    if(*vgId == 0) {
-        return -1;
-    } else {
-        return 0;
-    }   
-}
-*/
-
-#endif
-
 int32_t toolsGetDefaultVGroups() {
     int32_t cores = toolsGetNumberOfCores();
     if (cores < 3 ) {
@@ -701,70 +552,6 @@ int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
     return dataLen;
 }
 
-int createDatabaseRest(SDataBase* database) {
-    int32_t code = 0;
-    char       command[SHORT_1K_SQL_BUFF_LEN] = "\0";
-
-    int sockfd = createSockFd();
-    if (sockfd < 0) {
-        return -1;
-    }
-
-    // drop exist database
-    snprintf(command, SHORT_1K_SQL_BUFF_LEN,
-            g_arguments->escape_character
-                ? "DROP DATABASE IF EXISTS `%s`;"
-                : "DROP DATABASE IF EXISTS %s;",
-             database->dbName);
-    code = postProceSql(command,
-                        database->dbName,
-                        database->precision,
-                        REST_IFACE,
-                        0,
-                        g_arguments->port,
-                        false,
-                        sockfd,
-                        NULL);
-    if (code != 0) {
-        errorPrint("Failed to drop database %s\n", database->dbName);
-    }
-
-    // create database
-    int remainVnodes = INT_MAX;
-    geneDbCreateCmd(database, command, remainVnodes);
-    code = postProceSql(command,
-                        database->dbName,
-                        database->precision,
-                        REST_IFACE,
-                        0,
-                        g_arguments->port,
-                        false,
-                        sockfd,
-                        NULL);
-    int32_t trying = g_arguments->keep_trying;
-    while (code && trying) {
-        infoPrint("will sleep %"PRIu32" milliseconds then "
-                "re-create database %s\n",
-                g_arguments->trying_interval, database->dbName);
-        toolsMsleep(g_arguments->trying_interval);
-        code = postProceSql(command,
-                        database->dbName,
-                        database->precision,
-                        REST_IFACE,
-                        0,
-                        g_arguments->port,
-                        false,
-                        sockfd,
-                        NULL);
-        if (trying != -1) {
-            trying--;
-        }
-    }
-
-    destroySockFd(sockfd);
-    return code;
-}
-
 int32_t getRemainVnodes(SBenchConn *conn) {
     int remainVnodes = 0;
     char command[SHORT_1K_SQL_BUFF_LEN] = "SHOW DNODES";
@@ -786,7 +573,7 @@ int32_t getRemainVnodes(SBenchConn *conn) {
     return remainVnodes;
 }
 
-int createDatabaseTaosc(SDataBase* database) {
+int createDatabase(SDataBase* database) {
     char command[SHORT_1K_SQL_BUFF_LEN] = "\0";
     // conn
     SBenchConn* conn = initBenchConn();
@@ -817,22 +604,17 @@ int createDatabaseTaosc(SDataBase* database) {
             "DROP DATABASE IF EXISTS %s;",
              database->dbName);
     if (0 != queryDbExecCall(conn, command)) {
-#ifdef WEBSOCKET
-        if (g_arguments->websocket) {
+        if (g_arguments->dsn) {
+            // websocket
             warnPrint("%s", "TDengine cloud normal users have no privilege "
                       "to drop database! DROP DATABASE failure is ignored!\n");
-        } else {
-#endif
-            closeBenchConn(conn);
-            return -1;
-#ifdef WEBSOCKET
         }
-#endif
+        closeBenchConn(conn);
+        return -1;
     }
 
     // get remain vgroups
     int remainVnodes = INT_MAX;
-#ifndef WEBSOCKET    
     if (g_arguments->bind_vgroup) {
         remainVnodes = getRemainVnodes(conn);
         if (0 >= remainVnodes) {
@@ -841,7 +623,6 @@ int createDatabaseTaosc(SDataBase* database) {
             return -1;
         }
     }
-#endif
 
     // generate and execute create database sql
     geneDbCreateCmd(database, command, remainVnodes);
@@ -859,21 +640,15 @@ int createDatabaseTaosc(SDataBase* database) {
     }
 
     if (code) {
-#ifdef WEBSOCKET
-        if (g_arguments->websocket) {
+        if (g_arguments->dsn) {
             warnPrint("%s", "TDengine cloud normal users have no privilege "
                       "to create database! CREATE DATABASE "
                       "failure is ignored!\n");
-        } else {
-#endif
+        } 
 
-            closeBenchConn(conn);
-            errorPrint("\ncreate database %s failed!\n\n",
-               database->dbName);
-            return -1;
-#ifdef WEBSOCKET
-        }
-#endif
+        closeBenchConn(conn);
+        errorPrint("\ncreate database %s failed!\n\n", database->dbName);
+        return -1;
     }
     infoPrint("command to create database: <%s>\n", command);
 
@@ -881,15 +656,7 @@ int createDatabaseTaosc(SDataBase* database) {
     // malloc and get vgroup
     if (g_arguments->bind_vgroup) {
         int32_t vgroups;
-#ifdef WEBSOCKET
-        if (g_arguments->websocket) {
-            vgroups = getVgroupsWS(conn, database);
-        } else {
-#endif
-            vgroups = getVgroupsNative(conn, database);
-#ifdef WEBSOCKET
-        }
-#endif
+        vgroups = getVgroupsNative(conn, database);
         if (vgroups <= 0) {
             closeBenchConn(conn);
             errorPrint("Database %s's vgroups is %d\n",
@@ -900,28 +667,6 @@ int createDatabaseTaosc(SDataBase* database) {
 
     closeBenchConn(conn);
     return 0;
-}
-
-int createDatabase(SDataBase* database) {
-    int ret = 0;
-    if (REST_IFACE == g_arguments->iface || SML_REST_IFACE == g_arguments->iface) {
-        ret = createDatabaseRest(database);
-    } else {
-        ret = createDatabaseTaosc(database);
-    }
-#if 0
-#ifdef LINUX
-    infoPrint("%s() LN%d, ret: %d\n", __func__, __LINE__, ret);
-    sleep(10);
-    infoPrint("%s() LN%d, ret: %d\n", __func__, __LINE__, ret);
-#elif defined(DARWIN)
-    sleep(2);
-#else
-    Sleep(2);
-#endif
-#endif
-
-    return ret;
 }
 
 static int generateChildTblName(int len, char *buffer, SDataBase *database,
@@ -1072,26 +817,16 @@ static void *createTable(void *sarg) {
         int ret = 0;
         debugPrint("thread[%d] creating table: %s\n", pThreadInfo->threadID,
                    pThreadInfo->buffer);
-        if (REST_IFACE == stbInfo->iface) {
-            ret = queryDbExecRest(pThreadInfo->buffer,
-                                  database->dbName,
-                                  database->precision,
-                                  stbInfo->iface,
-                                  stbInfo->lineProtocol,
-                                  stbInfo->tcpTransfer,
-                                  pThreadInfo->sockfd);
-        } else {
+        ret = queryDbExecCall(pThreadInfo->conn, pThreadInfo->buffer);
+        int32_t trying = g_arguments->keep_trying;
+        while (ret && trying) {
+            infoPrint("will sleep %"PRIu32" milliseconds then re-create "
+                        "table %s\n",
+                        g_arguments->trying_interval, pThreadInfo->buffer);
+            toolsMsleep(g_arguments->trying_interval);
             ret = queryDbExecCall(pThreadInfo->conn, pThreadInfo->buffer);
-            int32_t trying = g_arguments->keep_trying;
-            while (ret && trying) {
-                infoPrint("will sleep %"PRIu32" milliseconds then re-create "
-                          "table %s\n",
-                          g_arguments->trying_interval, pThreadInfo->buffer);
-                toolsMsleep(g_arguments->trying_interval);
-                ret = queryDbExecCall(pThreadInfo->conn, pThreadInfo->buffer);
-                if (trying != -1) {
-                    trying--;
-                }
+            if (trying != -1) {
+                trying--;
             }
         }
 
@@ -1123,17 +858,7 @@ static void *createTable(void *sarg) {
         int ret = 0;
         debugPrint("thread[%d] creating table: %s\n", pThreadInfo->threadID,
                    pThreadInfo->buffer);
-        if (REST_IFACE == stbInfo->iface) {
-            ret = queryDbExecRest(pThreadInfo->buffer,
-                                  database->dbName,
-                                  database->precision,
-                                  stbInfo->iface,
-                                  stbInfo->lineProtocol,
-                                  stbInfo->tcpTransfer,
-                                  pThreadInfo->sockfd);
-        } else {
-            ret = queryDbExecCall(pThreadInfo->conn, pThreadInfo->buffer);
-        }
+        ret = queryDbExecCall(pThreadInfo->conn, pThreadInfo->buffer);
         if (0 != ret) {
             g_fail = true;
             goto create_table_end;
@@ -1188,17 +913,9 @@ static int startMultiThreadCreateChildTable(SDataBase* database, SSuperTable* st
         pThreadInfo->threadID = i;
         pThreadInfo->stbInfo = stbInfo;
         pThreadInfo->dbInfo = database;
-        if (REST_IFACE == stbInfo->iface) {
-            int sockfd = createSockFd();
-            if (sockfd < 0) {
-                FREE_PIDS_INFOS_RETURN_MINUS_1();
-            }
-            pThreadInfo->sockfd = sockfd;
-        } else {
-            pThreadInfo->conn = initBenchConn();
-            if (NULL == pThreadInfo->conn) {
-                goto over;
-            }
+        pThreadInfo->conn = initBenchConn();
+        if (NULL == pThreadInfo->conn) {
+            goto over;
         }
         pThreadInfo->start_table_from = tableFrom;
         pThreadInfo->ntables          = i < mod ? div + 1 : div;
@@ -1221,7 +938,7 @@ static int startMultiThreadCreateChildTable(SDataBase* database, SSuperTable* st
         threadInfo *pThreadInfo = infos + i;
         g_arguments->actualChildTables += pThreadInfo->tables_created;
 
-        if ((REST_IFACE != stbInfo->iface) && pThreadInfo->conn) {
+        if (pThreadInfo->conn) {
             closeBenchConn(pThreadInfo->conn);
         }
     }
@@ -1254,8 +971,7 @@ static int createChildTables() {
             for (int j = 0; (j < database->superTbls->size
                     && !g_arguments->terminate); j++) {
                 SSuperTable * stbInfo = benchArrayGet(database->superTbls, j);
-                if (stbInfo->autoTblCreating || stbInfo->iface == SML_IFACE
-                        || stbInfo->iface == SML_REST_IFACE) {
+                if (stbInfo->autoTblCreating || stbInfo->iface == SML_IFACE) {
                     g_arguments->autoCreatedChildTables +=
                             stbInfo->childTblCount;
                     continue;
@@ -1441,37 +1157,6 @@ int32_t execInsert(threadInfo *pThreadInfo, uint32_t k, int64_t *delay3) {
                 }
             }
             break;
-
-        case REST_IFACE:
-            debugPrint("buffer: %s\n", pThreadInfo->buffer);
-            code = postProceSql(pThreadInfo->buffer,
-                                database->dbName,
-                                database->precision,
-                                stbInfo->iface,
-                                stbInfo->lineProtocol,
-                                g_arguments->port,
-                                stbInfo->tcpTransfer,
-                                pThreadInfo->sockfd,
-                                pThreadInfo->filePath);
-            while (code && trying && !g_arguments->terminate) {
-                infoPrint("will sleep %"PRIu32" milliseconds then re-insert\n",
-                          trying_interval);
-                toolsMsleep(trying_interval);
-                code = postProceSql(pThreadInfo->buffer,
-                                    database->dbName,
-                                    database->precision,
-                                    stbInfo->iface,
-                                    stbInfo->lineProtocol,
-                                    g_arguments->port,
-                                    stbInfo->tcpTransfer,
-                                    pThreadInfo->sockfd,
-                                    pThreadInfo->filePath);
-                if (trying != -1) {
-                    trying--;
-                }
-            }
-            break;
-
         case STMT_IFACE:
             // add batch
             if(!stbInfo->autoTblCreating) {
@@ -1552,54 +1237,6 @@ int32_t execInsert(threadInfo *pThreadInfo, uint32_t k, int64_t *delay3) {
             }
             taos_free_result(res);
             break;
-
-        case SML_REST_IFACE: {
-            if (TSDB_SML_JSON_PROTOCOL == protocol
-                    || SML_JSON_TAOS_FORMAT == protocol) {
-                code = postProceSql(pThreadInfo->lines[0], database->dbName,
-                                    database->precision, stbInfo->iface,
-                                    protocol, g_arguments->port,
-                                    stbInfo->tcpTransfer,
-                                    pThreadInfo->sockfd, pThreadInfo->filePath);
-            } else {
-                int len = 0;
-                for (int i = 0; i < k; i++) {
-                    if (strlen(pThreadInfo->lines[i]) != 0) {
-                        int n;
-                        if (TSDB_SML_TELNET_PROTOCOL == protocol
-                                && stbInfo->tcpTransfer) {
-                            n = snprintf(pThreadInfo->buffer + len,
-                                            TSDB_MAX_ALLOWED_SQL_LEN - len,
-                                           "put %s\n", pThreadInfo->lines[i]);
-                        } else {
-                            n = snprintf(pThreadInfo->buffer + len,
-                                            TSDB_MAX_ALLOWED_SQL_LEN - len,
-                                            "%s\n",
-                                           pThreadInfo->lines[i]);
-                        }
-                        if (n < 0 || n >= TSDB_MAX_ALLOWED_SQL_LEN - len) {
-                            errorPrint("%s() LN%d snprintf overflow on %d\n",
-                                __func__, __LINE__, i);
-                            break;
-                        } else {
-                            len += n;
-                        }
-                    } else {
-                        break;
-                    }
-                }
-                if (g_arguments->terminate) {
-                    break;
-                }
-                code = postProceSql(pThreadInfo->buffer, database->dbName,
-                        database->precision,
-                        stbInfo->iface, protocol,
-                        g_arguments->port,
-                        stbInfo->tcpTransfer,
-                        pThreadInfo->sockfd, pThreadInfo->filePath);
-            }
-            break;
-        }
     }
     return code;
 }
@@ -1622,29 +1259,20 @@ static int smartContinueIfFail(threadInfo *pThreadInfo,
             stbInfo->stbName,
             tagData + i * stbInfo->lenOfTags, ttl);
     debugPrint("creating table: %s\n", buffer);
-    int ret;
-    if (REST_IFACE == stbInfo->iface) {
-        ret = queryDbExecRest(buffer,
-                              database->dbName,
-                              database->precision,
-                              stbInfo->iface,
-                              stbInfo->lineProtocol,
-                              stbInfo->tcpTransfer,
-                              pThreadInfo->sockfd);
-    } else {
+
+    int32_t ret = queryDbExecCall(pThreadInfo->conn, buffer);
+    int32_t trying = g_arguments->keep_trying;
+    while (ret && trying) {
+        infoPrint("will sleep %"PRIu32" milliseconds then "
+                    "re-create table %s\n",
+                    g_arguments->trying_interval, buffer);
+        toolsMsleep(g_arguments->trying_interval);
         ret = queryDbExecCall(pThreadInfo->conn, buffer);
-        int32_t trying = g_arguments->keep_trying;
-        while (ret && trying) {
-            infoPrint("will sleep %"PRIu32" milliseconds then "
-                      "re-create table %s\n",
-                      g_arguments->trying_interval, buffer);
-            toolsMsleep(g_arguments->trying_interval);
-            ret = queryDbExecCall(pThreadInfo->conn, buffer);
-            if (trying != -1) {
-                trying--;
-            }
+        if (trying != -1) {
+            trying--;
         }
     }
+
     tmfree(buffer);
 
     return ret;
@@ -1980,7 +1608,6 @@ static void *syncWriteInterlace(void *sarg) {
                 snprintf(ttl, SMALL_BUFF_LEN, "TTL %d", stbInfo->ttl);
             }
             switch (stbInfo->iface) {
-                case REST_IFACE:
                 case TAOSC_IFACE: {
                     char escapedTbName[TSDB_TABLE_NAME_LEN+2] = "\0";
                     if (g_arguments->escape_character) {
@@ -2208,7 +1835,6 @@ static void *syncWriteInterlace(void *sarg) {
 
                     break;
                 }
-                case SML_REST_IFACE:
                 case SML_IFACE: {
                     int protocol = stbInfo->lineProtocol;
                     for (int64_t j = 0; j < interlaceRows; j++) {
@@ -2341,15 +1967,11 @@ static void *syncWriteInterlace(void *sarg) {
         int protocol = stbInfo->lineProtocol;
         switch (stbInfo->iface) {
             case TAOSC_IFACE:
-            case REST_IFACE:
                 debugPrint("pThreadInfo->buffer: %s\n",
                            pThreadInfo->buffer);
                 free_ds(&pThreadInfo->buffer);
                 pThreadInfo->buffer = new_ds(0);
                 break;
-            case SML_REST_IFACE:
-                memset(pThreadInfo->buffer, 0,
-                       g_arguments->reqPerReq * (pThreadInfo->max_sql_len + 1));
             case SML_IFACE:
                 if (TSDB_SML_JSON_PROTOCOL == protocol
                         || SML_JSON_TAOS_FORMAT == protocol) {
@@ -2893,7 +2515,7 @@ void *syncWriteProgressive(void *sarg) {
     char* tagData = NULL;
     bool  stmt    = (stbInfo->iface == STMT_IFACE || stbInfo->iface == STMT2_IFACE) && stbInfo->autoTblCreating;
     bool  smart   = SMART_IF_FAILED == stbInfo->continueIfFail;
-    bool  acreate = (stbInfo->iface == TAOSC_IFACE || stbInfo->iface == REST_IFACE) && stbInfo->autoTblCreating;
+    bool  acreate = stbInfo->iface == TAOSC_IFACE && stbInfo->autoTblCreating;
     int   w       = 0;
     if (stmt || smart || acreate) {
         csvFile = openTagCsv(stbInfo);
@@ -2988,7 +2610,6 @@ void *syncWriteProgressive(void *sarg) {
             int32_t generated = 0;
             switch (stbInfo->iface) {
                 case TAOSC_IFACE:
-                case REST_IFACE:
                     generated = prepareProgressDataSql(
                             pThreadInfo,
                             childTbl,
@@ -3010,7 +2631,6 @@ void *syncWriteProgressive(void *sarg) {
                             &delay3, &startTs, &endTs, w);
                     break;
                 }
-                case SML_REST_IFACE:
                 case SML_IFACE:
                     generated = prepareProgressDataSml(
                             pThreadInfo,
@@ -3116,14 +2736,9 @@ void *syncWriteProgressive(void *sarg) {
             }
             int protocol = stbInfo->lineProtocol;
             switch (stbInfo->iface) {
-                case REST_IFACE:
                 case TAOSC_IFACE:
                     memset(pThreadInfo->buffer, 0, pThreadInfo->max_sql_len);
                     break;
-                case SML_REST_IFACE:
-                    memset(pThreadInfo->buffer, 0,
-                           g_arguments->reqPerReq *
-                               (pThreadInfo->max_sql_len + 1));
                 case SML_IFACE:
                     if (TSDB_SML_JSON_PROTOCOL == protocol) {
                         memset(pThreadInfo->lines[0], 0,
@@ -3660,8 +3275,7 @@ static int64_t fillChildTblName(SDataBase *database, SSuperTable *stbInfo) {
         snprintf(childName, TSDB_TABLE_NAME_LEN,
                     "%s", stbInfo->stbName);
         stbInfo->childTblArray[0]->name = strdup(childName);
-    } else if ((stbInfo->iface != SML_IFACE
-                && stbInfo->iface != SML_REST_IFACE)
+    } else if ((stbInfo->iface != SML_IFACE)
             && stbInfo->childTblExists) {
         ntables = fillChildTblNameImp(database, stbInfo);
     } else {
@@ -3888,20 +3502,6 @@ int32_t initInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
         // init conn
         pThreadInfo->delayList = benchArrayInit(1, sizeof(int64_t));
         switch (stbInfo->iface) {
-            // rest
-            case REST_IFACE: {
-                if (stbInfo->interlaceRows > 0) {
-                    pThreadInfo->buffer = new_ds(0);
-                } else {
-                    pThreadInfo->buffer = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, true);
-                }
-                int sockfd = createSockFd();
-                if (sockfd < 0) {
-                    goto END;
-                }
-                pThreadInfo->sockfd = sockfd;
-                break;
-            }
             // stmt & stmt2 init
             case STMT_IFACE: 
             case STMT2_IFACE: {
@@ -3968,14 +3568,6 @@ int32_t initInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
 
                 break;
             }
-            // sml rest
-            case SML_REST_IFACE: {
-                int sockfd = createSockFd();
-                if (sockfd < 0) {
-                    goto END;
-                }
-                pThreadInfo->sockfd = sockfd;
-            }
             // sml
             case SML_IFACE: {
                 if (stbInfo->iface == SML_IFACE) {
@@ -3990,9 +3582,6 @@ int32_t initInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
                     }
                 }
                 pThreadInfo->max_sql_len = stbInfo->lenOfCols + stbInfo->lenOfTags;
-                if (stbInfo->iface == SML_REST_IFACE) {
-                    pThreadInfo->buffer = benchCalloc(1, g_arguments->reqPerReq * (1 + pThreadInfo->max_sql_len), true);
-                }
                 int protocol = stbInfo->lineProtocol;
                 if (TSDB_SML_JSON_PROTOCOL != protocol && SML_JSON_TAOS_FORMAT != protocol) {
                     pThreadInfo->sml_tags = (char **)benchCalloc(pThreadInfo->ntables, sizeof(char *), true);
@@ -4205,22 +3794,6 @@ int32_t exitInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
         // close conn
         int protocol = stbInfo->lineProtocol;
         switch (stbInfo->iface) {
-            case REST_IFACE:
-                if (g_arguments->terminate)
-                    toolsMsleep(100);
-                destroySockFd(pThreadInfo->sockfd);
-                if (stbInfo->interlaceRows > 0) {
-                    free_ds(&pThreadInfo->buffer);
-                } else {
-                    tmfree(pThreadInfo->buffer);
-                    pThreadInfo->buffer = NULL;
-                }
-                break;
-            case SML_REST_IFACE:
-                if (g_arguments->terminate)
-                    toolsMsleep(100);
-                tmfree(pThreadInfo->buffer);
-                // on-purpose no break here
             case SML_IFACE:
                 if (TSDB_SML_JSON_PROTOCOL != protocol
                         && SML_JSON_TAOS_FORMAT != protocol) {
@@ -4355,7 +3928,7 @@ int32_t exitInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
 }
 
 static int startMultiThreadInsertData(SDataBase* database, SSuperTable* stbInfo) {
-    if ((stbInfo->iface == SML_IFACE || stbInfo->iface == SML_REST_IFACE)
+    if ((stbInfo->iface == SML_IFACE)
             && !stbInfo->use_metric) {
         errorPrint("%s", "schemaless cannot work without stable\n");
         return -1;
@@ -4622,25 +4195,11 @@ int insertTestProcess() {
 
     //loop create database 
     for (int i = 0; i < g_arguments->databases->size; i++) {
-        if (isRest(g_arguments->iface)) {
-            if (0 != convertServAddr(g_arguments->iface,
-                                     false,
-                                     1)) {
-                return -1;
-            }
-        }
         SDataBase * database = benchArrayGet(g_arguments->databases, i);
 
         if (database->drop && !(g_arguments->supplementInsert)) {
             if (database->superTbls && database->superTbls->size > 0) {
                 SSuperTable * stbInfo = benchArrayGet(database->superTbls, 0);
-                if (stbInfo && isRest(stbInfo->iface)) {
-                    if (0 != convertServAddr(stbInfo->iface,
-                                             stbInfo->tcpTransfer,
-                                             stbInfo->lineProtocol)) {
-                        return -1;
-                    }
-                }
             }
             if (createDatabase(database)) {
                 errorPrint("failed to create database (%s)\n",
@@ -4652,16 +4211,7 @@ int insertTestProcess() {
             // database already exist, get vgroups from server
             SBenchConn* conn = initBenchConn();
             if (conn) {
-                int32_t vgroups;
-#ifdef WEBSOCKET
-                if (g_arguments->websocket) {
-                    vgroups = getVgroupsWS(conn, database);
-                } else {
-#endif
-                    vgroups = getVgroupsNative(conn, database);
-#ifdef WEBSOCKET
-                }
-#endif
+                int32_t vgroups = getVgroupsNative(conn, database);
                 if (vgroups <=0) {
                     closeBenchConn(conn);
                     errorPrint("Database %s's vgroups is zero , db exist case.\n", database->dbName);
@@ -4680,13 +4230,7 @@ int insertTestProcess() {
             for (int j = 0; j < database->superTbls->size; j++) {
                 SSuperTable * stbInfo = benchArrayGet(database->superTbls, j);
                 if (stbInfo->iface != SML_IFACE
-                        && stbInfo->iface != SML_REST_IFACE
                         && !stbInfo->childTblExists) {
-#ifdef WEBSOCKET
-                    if (g_arguments->websocket && !g_arguments->supplementInsert) {
-                        dropSuperTable(database, stbInfo);
-                    }
-#endif
                     int code = getSuperTableFromServer(database, stbInfo);
                     if (code == TSDB_CODE_FAILED) {
                         return -1;

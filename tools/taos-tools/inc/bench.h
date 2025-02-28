@@ -72,10 +72,6 @@
 #include <toolsdef.h>
 #include <taoserror.h>
 
-#ifdef WEBSOCKET
-#include <taosws.h>
-#endif
-
 #ifdef WINDOWS
 #define _CRT_RAND_S
 #include <windows.h>
@@ -254,17 +250,16 @@ typedef unsigned __int32 uint32_t;
     "when keep trying be enabled."
 #define BENCH_NODROP "Do not drop database."
 
-#ifdef WEBSOCKET
-#define BENCH_DSN "The dsn to connect the cloud service."
-#define BENCH_TIMEOUT     \
-    "The timeout wait on websocket query in seconds, default is 10."
-#endif
-
 
 #define IS_VAR_DATA_TYPE(t)                                                                                 \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || \
    ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
 
+// define error show module
+#define INIT_MOD "init"
+
+
+#define TIP_ENGINE_ERR "Call engine failed."
 
 
 enum TEST_MODE {
@@ -278,11 +273,9 @@ enum enumSYNC_MODE { SYNC_MODE, ASYNC_MODE, MODE_BUT };
 
 enum enum_TAOS_INTERFACE {
     TAOSC_IFACE,
-    REST_IFACE,
     STMT_IFACE,
     STMT2_IFACE,
     SML_IFACE,
-    SML_REST_IFACE,
     INTERFACE_BUT
 };
 
@@ -757,18 +750,17 @@ typedef struct SArguments_S {
 #endif
     bool                terminate;
     bool                in_prompt;
-#ifdef WEBSOCKET
-    int32_t             timeout;
+    
+    // websocket
     char*               dsn;
     bool                websocket;
-#endif
+
     bool                supplementInsert;
     int64_t             startTimestamp;
     int32_t             partialColNum;
     int32_t             keep_trying;
     uint32_t            trying_interval;
     int                 iface;
-    int                 rest_server_ver_major;
     bool                check_sql;
     int                 suit;  // see define SUIT_
     int16_t             inputted_vgroups;
@@ -786,10 +778,6 @@ typedef struct SBenchConn {
     TAOS* ctaos;  // check taos
     TAOS_STMT* stmt;
     TAOS_STMT2* stmt2;
-#ifdef WEBSOCKET
-    WS_TAOS* taos_ws;
-    WS_STMT* stmt_ws;
-#endif
 } SBenchConn;
 
 #define MAX_BATCOLS 256
@@ -919,13 +907,7 @@ void    tmfclose(FILE *fp);
 int64_t fetchResult(TAOS_RES *res, char *filePath);
 void    prompt(bool NonStopMode);
 void    ERROR_EXIT(const char *msg);
-int     getServerVersionRest(int16_t rest_port);
-int     postProceSql(char *sqlstr, char* dbName, int precision, int iface,
-                    int protocol, uint16_t rest_port, bool tcp,
-                    int sockfd, char* filePath);
 int     queryDbExecCall(SBenchConn *conn, char *command);
-int     queryDbExecRest(char *command, char* dbName, int precision,
-                    int iface, int protocol, bool tcp, int sockfd);
 SBenchConn* initBenchConn();
 void    closeBenchConn(SBenchConn* conn);
 int     regexMatch(const char *s, const char *reg, int cflags);
@@ -977,8 +959,6 @@ void postFreeResource();
 int queryTestProcess();
 int subscribeTestProcess();
 int convertServAddr(int iface, bool tcp, int protocol);
-int createSockFd();
-void destroySockFd(int sockfd);
 
 void printVersion();
 int32_t benchParseSingleOpt(int32_t key, char* arg);
@@ -1019,9 +999,6 @@ void resetBindV(TAOS_STMT2_BINDV *bindv, int32_t capacity, int32_t tagCnt, int32
 void clearBindV(TAOS_STMT2_BINDV *bindv);
 void freeBindV(TAOS_STMT2_BINDV *bindv);
 void showBindV(TAOS_STMT2_BINDV *bindv, BArray *tags, BArray *cols);
-
-// IFace is rest return True
-bool isRest(int32_t iface);
 
 // get group index about dbname.tbname
 int32_t calcGroupIndex(char* dbName, char* tbName, int32_t groupCnt);
