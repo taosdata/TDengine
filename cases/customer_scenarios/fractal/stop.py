@@ -28,14 +28,10 @@ class Start(TDCase):
         self._remote: Remote = Remote(self.logger)
         self.workflow_config = self.tdCom.load_workflow_json(self._remote, f'{os.environ["TEST_ROOT"]}/env/workflow_config.json')
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
-        start_time = self.workflow_config["start_time"]
+        self.taospy_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taospy")
+        self.start_time = self.workflow_config["start_time"]
         self.tdRest = TDRest(env_setting=self.env_setting)
-        # end_time = start_time + timedelta(seconds=int(self.workflow_config["exec_time"]))
-        # url = (
-        #     f"http://192.168.2.190:3000/d/dedq3n2zhlypsd/named-processes"
-        #     f"?var-interval=10m&orgId=1&from={start_time}&to={end_time.isoformat(timespec='milliseconds')}Z"
-        #     f"&timezone=browser&var-processes=$__all&refresh=5s"
-        # )
+        self.test_start_time = self.workflow_config["test_start_time"]
         self.host = self.taosd_setting["fqdn"][0]
         pass
     
@@ -70,11 +66,21 @@ class Start(TDCase):
         task_url = f'http://{self.host}:6060/api/x/tasks'
         mqtt_task_result,task_id_list = self.stop_mqtt_tasks_get_metrics(task_url=task_url,headers=headers)
         # TODO
-        # with open(f'{os.environ["TEST_ROOT"]}/run/customer/{self.env_date}-{self.host}.json', "w") as result_file:
-        #     json.dump(mqtt_task_result, result_file, indent=4)
-        # start taosx service
-        # taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
-        # taosx_host = taosd_setting["fqdn"][0]
+        with open(f'{os.environ["TEST_ROOT"]}/run/workflow_logs/{self.test_start_time}-{self.host}.json', "w") as result_file:
+            json.dump(mqtt_task_result, result_file, indent=4)
+        
+        
+        end_time = datetime.utcnow()
+        url = (
+            f"http://{self.taospy_setting["fqdn"][0]}:3000/d/dedq3n2zhlypsd/named-processes"
+            f"?var-interval=10m&orgId=1&from={self.start_time}&to={end_time.isoformat(timespec='milliseconds')}Z"
+            f"&timezone=browser&var-processes=$__all&refresh=5s"
+        )
+        self.workflow_config["end_time"] = end_time.isoformat(timespec='milliseconds')
+        self.workflow_config["grafana_url"] = url
+        with open(f'{os.environ["TEST_ROOT"]}/env/workflow_config.json', "w") as config_file:
+            json.dump(self.workflow_config, config_file, indent=4)
+        
 
     def cleanup(self):
         pass
