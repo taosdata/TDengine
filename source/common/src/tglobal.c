@@ -326,6 +326,10 @@ bool    tsFilterScalarMode = false;
 int     tsStreamAggCnt = 100000;
 bool    tsStreamCoverage = false;
 
+char     tsAdapterQdn[TSDB_FQDN_LEN] = {0};
+uint16_t tsAdapterPort = 6041;
+char     tsAdapterToken[512];
+
 bool tsUpdateCacheBatch = true;
 
 int8_t tsS3EpNum = 0;

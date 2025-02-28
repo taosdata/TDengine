@@ -497,6 +497,19 @@ typedef struct SStreamFillSupporter {
   int32_t*       pOffsetInfo;
 } SStreamFillSupporter;
 
+typedef struct SStreamRecParam {
+  char    pSql[1024];
+  int32_t sqlCapcity;
+  char    pUrl[TSDB_EP_LEN + 17];  // "http://localhost:6041/rest/sql"
+  char    pAuth[512 + 22];         // Authorization: Basic token
+  char    pStbFullName[TSDB_TABLE_NAME_LEN];
+  char    pWstartName[TSDB_COL_NAME_LEN];
+  char    pWendName[TSDB_COL_NAME_LEN];
+  char    pGroupIdName[TSDB_COL_NAME_LEN];
+  void*   pIteData;
+  int32_t iter;
+} SStreamRecParam;
+
 typedef struct SStreamScanInfo {
   SSteamOpBasicInfo basic;
   SExprInfo*        pPseudoExpr;
@@ -569,7 +582,7 @@ typedef struct SStreamScanInfo {
   bool                   scanAllTables;
   SSHashObj*             pRecRangeMap;
   SArray*                pRecRangeRes;
-  void*                  pRecParam;
+  SStreamRecParam        recParam;
 } SStreamScanInfo;
 
 typedef struct {
@@ -716,6 +729,8 @@ typedef struct SNonBlockAggSupporter {
   int32_t       pullIndex;
   SSDataBlock*  pPullDataRes;
   SSHashObj*    pHistoryGroup;
+  SSHashObj*    pPullDataMap;
+  int32_t       numOfChild;
 } SNonBlockAggSupporter;
 
 typedef struct SSessionAggOperatorInfo {

@@ -2980,6 +2980,9 @@ typedef struct {
   int32_t notifyErrorHandle;
   int8_t  notifyHistory;
   int64_t recalculateInterval;
+  char    pWstartName[TSDB_COL_NAME_LEN];
+  char    pWendName[TSDB_COL_NAME_LEN];
+  char    pGroupIdName[TSDB_COL_NAME_LEN];
 } SCMCreateStreamReq;
 
 typedef struct STaskNotifyEventStat {

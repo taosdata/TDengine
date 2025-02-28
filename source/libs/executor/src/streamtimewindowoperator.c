@@ -224,7 +224,7 @@ static void doDeleteWindow(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId)
   pAPI->stateStore.streamStateDel(pInfo->pState, &key);
 }
 
-static int32_t getChildIndex(SSDataBlock* pBlock) { return pBlock->info.childId; }
+int32_t getChildIndex(SSDataBlock* pBlock) { return pBlock->info.childId; }
 
 static void doDeleteWindowByGroupId(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   SStorageAPI*                 pAPI = &pOperator->pTaskInfo->storageAPI;

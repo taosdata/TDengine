@@ -2125,6 +2125,10 @@ static const char* jkTableScanPhysiPlanFilesetDelimited = "FilesetDelimited";
 static const char* jkTableScanPhysiPlanNeedCountEmptyTable = "NeedCountEmptyTable";
 static const char* jkTableScanPhysiPlanParaTablesSort = "ParaTablesSort";
 static const char* jkTableScanPhysiPlanSmallDataTsSort = "SmallDataTsSort";
+static const char* jkTableScanPhysiPlanStreamResInfoStbFullName = "StreamResInfoStbFullName";
+static const char* jkTableScanPhysiPlanStreamResInfoWstartName = "StreamResInfoWstartName";
+static const char* jkTableScanPhysiPlanStreamResInfoWendName = "StreamResInfoWendName";
+static const char* jkTableScanPhysiPlanStreamResInfoGroupIdName = "StreamResInfoGroupIdName";
 
 static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   const STableScanPhysiNode* pNode = (const STableScanPhysiNode*)pObj;
@@ -2204,6 +2208,18 @@ static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkTableScanPhysiPlanSmallDataTsSort, pNode->smallDataTsSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkTableScanPhysiPlanStreamResInfoStbFullName, pNode->pStbFullName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkTableScanPhysiPlanStreamResInfoWstartName, pNode->pWstartName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkTableScanPhysiPlanStreamResInfoWendName, pNode->pWendName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkTableScanPhysiPlanStreamResInfoGroupIdName, pNode->pGroupIdName);
   }
   return code;
 }
@@ -2286,6 +2302,18 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkTableScanPhysiPlanSmallDataTsSort, &pNode->smallDataTsSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkTableScanPhysiPlanStreamResInfoStbFullName, pNode->pStbFullName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkTableScanPhysiPlanStreamResInfoWstartName, pNode->pWstartName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkTableScanPhysiPlanStreamResInfoWendName, pNode->pWendName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkTableScanPhysiPlanStreamResInfoGroupIdName, pNode->pGroupIdName);
   }
   return code;
 }

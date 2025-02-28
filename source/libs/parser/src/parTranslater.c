@@ -11550,25 +11550,22 @@ static int32_t addIrowTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelect
   return code;
 }
 
-static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelectStmt* pSelect,
-                                                  SHashObj* pUserAliasSet, SNodeList* pCols, SCMCreateStreamReq* pReq) {
-  SNode* pProj = nodesListGetNode(pSelect->pProjectionList, 0);
-  if (NULL == pSelect->pWindow ||
-      (QUERY_NODE_FUNCTION == nodeType(pProj) && 0 == strcmp("_wstart", ((SFunctionNode*)pProj)->functionName))) {
-    return TSDB_CODE_SUCCESS;
-  }
+typedef int32_t (*insertFn)(SNodeList* pList, SNode* pNode);
+static int32_t addFunctionToCreateStreamQueryImpl(STranslateContext* pCxt, SSelectStmt* pSelect,
+                                                  SHashObj* pUserAliasSet, SNodeList* pCols, SCMCreateStreamReq* pReq,
+                                                  char pFunName[], insertFn pFn) {
   SFunctionNode* pFunc = NULL;
   int32_t        code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (NULL == pFunc) {
     return code;
   }
-  tstrncpy(pFunc->functionName, "_wstart", TSDB_FUNC_NAME_LEN);
-  tstrncpy(pFunc->node.userAlias, "_irowts", TSDB_COL_NAME_LEN);
-  char* defaultName[] = {"_wstart", "ts", NULL};
+  tstrncpy(pFunc->functionName, pFunName, TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, pFunName, TSDB_COL_NAME_LEN);
+  char* defaultName[] = {"_wstart", "_wend", "group_id", "ts", NULL};
   getStreamQueryFirstProjectAliasName(pUserAliasSet, pFunc->node.aliasName, sizeof(pFunc->node.aliasName), defaultName);
   code = getFuncInfo(pCxt, pFunc);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListPushFront(pSelect->pProjectionList, (SNode*)pFunc);
+    code = pFn(pSelect->pProjectionList, (SNode*)pFunc);
   }
 
   if (TSDB_CODE_SUCCESS == code && STREAM_CREATE_STABLE_TRUE == pReq->createStb) {
@@ -11580,11 +11577,47 @@ static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSele
       pColDef->sma = true;
       code = setColumnDefNodePrimaryKey(pColDef, false);
     }
-    if (TSDB_CODE_SUCCESS == code) code = nodesListPushFront(pCols, (SNode*)pColDef);
+    if (TSDB_CODE_SUCCESS == code) code = pFn(pCols, (SNode*)pColDef);
     if (TSDB_CODE_SUCCESS != code) nodesDestroyNode((SNode*)pColDef);
   }
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pFunc);
+  }
+  return code;
+}
+
+static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelectStmt* pSelect,
+                                                  SHashObj* pUserAliasSet, SNodeList* pCols, SCMCreateStreamReq* pReq) {
+  SNode* pProj = nodesListGetNode(pSelect->pProjectionList, 0);
+  char   defaultName[] = {"_wstart"};
+  if (NULL == pSelect->pWindow ||
+      (QUERY_NODE_FUNCTION == nodeType(pProj) && 0 == strcmp(defaultName, ((SFunctionNode*)pProj)->functionName))) {
+    tstrncpy(pReq->pWstartName, ((SFunctionNode*)pProj)->node.aliasName, TSDB_FUNC_NAME_LEN);
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code =
+      addFunctionToCreateStreamQueryImpl(pCxt, pSelect, pUserAliasSet, pCols, pReq, defaultName, nodesListPushFront);
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pFunc = nodesListGetNode(pSelect->pProjectionList, 0);
+    tstrncpy(pReq->pWstartName, ((SFunctionNode*)pFunc)->node.aliasName, TSDB_FUNC_NAME_LEN);
+  }
+  return code;
+}
+
+static int32_t addWendTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSelectStmt* pSelect, SHashObj* pUserAliasSet,
+                                                SNodeList* pCols, SCMCreateStreamReq* pReq) {
+  SNode* pProj = pSelect->pProjectionList->pTail->pNode;
+  char   defaultName[] = {"_wend"};
+  if (NULL == pSelect->pWindow ||
+      (QUERY_NODE_FUNCTION == nodeType(pProj) && 0 == strcmp(defaultName, ((SFunctionNode*)pProj)->functionName))) {
+    tstrncpy(pReq->pWendName, ((SFunctionNode*)pProj)->node.aliasName, TSDB_FUNC_NAME_LEN);
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code =
+      addFunctionToCreateStreamQueryImpl(pCxt, pSelect, pUserAliasSet, pCols, pReq, defaultName, nodesListAppend);
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pFunc = pSelect->pProjectionList->pTail->pNode;
+    tstrncpy(pReq->pWendName, ((SFunctionNode*)pFunc)->node.aliasName, TSDB_FUNC_NAME_LEN);
   }
   return code;
 }
@@ -11599,6 +11632,9 @@ static int32_t addTsKeyToCreateStreamQuery(STranslateContext* pCxt, SNode* pStmt
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = addIrowTsToCreateStreamQueryImpl(pCxt, pSelect, pUserAliasSet, pCols, pReq);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addWendTsToCreateStreamQueryImpl(pCxt, pSelect, pUserAliasSet, pCols, pReq);
   }
   taosHashCleanup(pUserAliasSet);
   return code;
@@ -12364,6 +12400,7 @@ static int32_t adjustTagsForCreateTable(STranslateContext* pCxt, SCreateStreamSt
 
 static int32_t adjustTags(STranslateContext* pCxt, SCreateStreamStmt* pStmt, const STableMeta* pMeta,
                           SCMCreateStreamReq* pReq) {
+  //todo(liuyao) 自定义tag和写入已存在超级表，需要加group id
   if (NULL == pMeta) {
     return adjustTagsForCreateTable(pCxt, pStmt, pReq);
   }

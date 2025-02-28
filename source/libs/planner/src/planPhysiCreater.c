@@ -2142,6 +2142,10 @@ static int32_t createStreamScanPhysiNodeByExchange(SPhysiPlanContext* pCxt, SExc
   if (TSDB_CODE_SUCCESS == code) {
     SStreamScanPhysiNode* pTableScan = (SStreamScanPhysiNode*)pScan;
     pTableScan->triggerType = pCxt->pPlanCxt->triggerType;
+    tstrncpy(pTableScan->pStbFullName, pCxt->pPlanCxt->pStbFullName, TSDB_TABLE_FNAME_LEN);
+    tstrncpy(pTableScan->pWstartName, pCxt->pPlanCxt->pWstartName, TSDB_COL_NAME_LEN);
+    tstrncpy(pTableScan->pWendName, pCxt->pPlanCxt->pWendName, TSDB_COL_NAME_LEN);
+    tstrncpy(pTableScan->pGroupIdName, pCxt->pPlanCxt->pGroupIdName, TSDB_COL_NAME_LEN);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

@@ -453,7 +453,7 @@ int32_t doStreamSessionNonblockAggNextImpl(SOperatorInfo* pOperator, SOptrBasicI
     if (pBlock == NULL) {
       qDebug("===stream===return data:%s.", getStreamOpName(pOperator->operatorType));
       if (isFinalOperator(pBasic) && isRecalculateOperator(pBasic)) {
-        code = buildRetriveRequest(pTaskInfo, pAggSup, pBasic->pTsDataState, pNbSup->pPullWins);
+        code = buildRetriveRequest(pTaskInfo, pAggSup, pBasic->pTsDataState, pNbSup);
       }
       pOperator->status = OP_RES_TO_RETURN;
       break;

@@ -48,6 +48,10 @@ typedef struct SPlanContext {
   bool        sourceHasPrimaryKey;
   void*       timezone;
   int64_t     recalculateInterval;
+  char        pStbFullName[TSDB_TABLE_FNAME_LEN];
+  char        pWstartName[TSDB_COL_NAME_LEN];
+  char        pWendName[TSDB_COL_NAME_LEN];
+  char        pGroupIdName[TSDB_COL_NAME_LEN];
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

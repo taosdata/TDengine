@@ -405,6 +405,10 @@ static int32_t buildOtherResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   }
   pInfo->twAggSup.minTs = INT64_MAX;
   setStreamOperatorCompleted(pOperator);
+  if (isFinalOperator(&pInfo->basic) && tSimpleHashGetSize(pInfo->nbSup.pPullDataMap) == 0) {
+    qDebug("===stream===%s recalculate is finished.", GET_TASKID(pTaskInfo));
+    pTaskInfo->streamInfo.recoverScanFinished = true;
+  }
   (*ppRes) = NULL;
 
 _end:
@@ -538,8 +542,26 @@ _end:
   return code;
 }
 
+static int32_t addDataPullWindowInfo(SSHashObj* pPullMap, SPullWindowInfo* pPullKey, int32_t numOfChild, SExecTaskInfo* pTaskInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SArray* childIds = taosArrayInit(numOfChild, sizeof(int32_t));
+  QUERY_CHECK_NULL(childIds, code, lino, _end, terrno);
+  for (int32_t i = 0; i < numOfChild; i++) {
+    void* pTemp = taosArrayPush(childIds, &i);
+    QUERY_CHECK_NULL(pTemp, code, lino, _end, terrno);
+  }
+  code = tSimpleHashPut(pPullMap, pPullKey, sizeof(SPullWindowInfo), &childIds, POINTER_BYTES);
+  QUERY_CHECK_CODE(code, lino, _end);
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s %s failed at line %d since %s", GET_TASKID(pTaskInfo), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 int32_t buildRetriveRequest(SExecTaskInfo* pTaskInfo, SStreamAggSupporter* pAggSup, STableTsDataState* pTsDataState,
-                            SArray* pRetrives) {
+                            SNonBlockAggSupporter* pNbSup) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   code = pAggSup->stateStore.streamStateMergeAllScanRange(pTsDataState);
@@ -557,7 +579,9 @@ int32_t buildRetriveRequest(SExecTaskInfo* pTaskInfo, SStreamAggSupporter* pAggS
     while ((pIte = tSimpleHashIterate(range.pGroupIds, pIte, &iter)) != NULL) {
       uint64_t        groupId = *(uint64_t*)tSimpleHashGetKey(pIte, NULL);
       SPullWindowInfo pullReq = {.window = range.win, .groupId = groupId, .calWin = range.calWin};
-      void*           pTemp = taosArrayPush(pRetrives, &pullReq);
+      code = addDataPullWindowInfo(pNbSup->pPullDataMap, &pullReq, pNbSup->numOfChild, pTaskInfo);
+      QUERY_CHECK_CODE(code, lino, _end);
+      void*           pTemp = taosArrayPush(pNbSup->pPullWins, &pullReq);
       QUERY_CHECK_NULL(pTemp, code, lino, _end, terrno);
     }
   }
@@ -566,6 +590,58 @@ _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
     pTaskInfo->code = code;
+  }
+  return code;
+}
+
+static int32_t processDataPullOver(SSDataBlock* pBlock, SSHashObj* pPullMap, SExecTaskInfo* pTaskInfo) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SColumnInfoData* pStartCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
+  TSKEY*           pTsStartData = (TSKEY*)pStartCol->pData;
+  SColumnInfoData* pEndCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
+  TSKEY*           pTsEndData = (TSKEY*)pEndCol->pData;
+  SColumnInfoData* pCalStartCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
+  TSKEY*           pCalTsStartData = (TSKEY*)pCalStartCol->pData;
+  SColumnInfoData* pCalEndCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
+  TSKEY*           pCalTsEndData = (TSKEY*)pCalEndCol->pData;
+  SColumnInfoData* pGroupCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
+  uint64_t*        pGroupIdData = (uint64_t*)pGroupCol->pData;
+  int32_t          chId = getChildIndex(pBlock);
+  for (int32_t i = 0; i < pBlock->info.rows; i++) {
+    SPullWindowInfo pull = {.window.skey = pTsStartData[i],
+                            .window.ekey = pTsEndData[i],
+                            .groupId = pGroupIdData[i],
+                            .calWin.skey = pCalTsStartData[i],
+                            .calWin.ekey = pCalTsEndData[i]};
+    void*           pChIds = tSimpleHashGet(pPullMap, &pull, sizeof(SPullWindowInfo));
+    if (pChIds == NULL) {
+      qInfo("===stream===%s did not find retrive window. ts:%" PRId64 ",groupId:%" PRIu64 ",child id %d",
+            GET_TASKID(pTaskInfo), pull.window.skey, pull.groupId, chId);
+      continue;
+    }
+    SArray* chArray = *(SArray**)pChIds;
+    int32_t index = taosArraySearchIdx(chArray, &chId, compareInt32Val, TD_EQ);
+    if (index == -1) {
+      qInfo("===stream===%s did not find child id. retrive window ts:%" PRId64 ",groupId:%" PRIu64 ",child id %d",
+            GET_TASKID(pTaskInfo), pull.window.skey, pull.groupId, chId);
+      continue;
+    }
+    qDebug("===stream===%s retrive window %" PRId64 " delete child id %d", GET_TASKID(pTaskInfo), pull.window.skey,
+           chId);
+    taosArrayRemove(chArray, index);
+    if (taosArrayGetSize(chArray) == 0) {
+      // pull data is over
+      taosArrayDestroy(chArray);
+      int32_t tmpRes = tSimpleHashRemove(pPullMap, &pull, sizeof(SPullWindowInfo));
+       qDebug("===stream===%s retrive pull data over. ts:%" PRId64 ",groupId:%" PRIu64 , GET_TASKID(pTaskInfo), pull.window.skey,
+              pull.groupId);
+    }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -615,7 +691,7 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
     if (pBlock == NULL) {
       qDebug("===stream===%s return data:%s.", GET_TASKID(pTaskInfo), getStreamOpName(pOperator->operatorType));
       if (isFinalOperator(&pInfo->basic) && isRecalculateOperator(&pInfo->basic)) {
-        code = buildRetriveRequest(pTaskInfo, pAggSup, pInfo->basic.pTsDataState, pInfo->nbSup.pPullWins);
+        code = buildRetriveRequest(pTaskInfo, pAggSup, pInfo->basic.pTsDataState, &pInfo->nbSup);
       }
       pOperator->status = OP_RES_TO_RETURN;
       break;
@@ -669,6 +745,11 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
         }
         continue;
       } break;
+      case STREAM_PULL_OVER: {
+        code = processDataPullOver(pBlock, pInfo->nbSup.pPullDataMap, pTaskInfo);
+        QUERY_CHECK_CODE(code, lino, _end);
+        continue;
+      }      
       default: {
         qDebug("===stream===%s ignore recv block. type:%d", GET_TASKID(pTaskInfo), pBlock->info.type);
         continue;
@@ -972,6 +1053,7 @@ int32_t createFinalIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNo
 
   SStreamIntervalSliceOperatorInfo* pInfo = (SStreamIntervalSliceOperatorInfo*)(*ppOptInfo)->info;
   pInfo->nbSup.pWindowAggFn = doStreamFinalntervalNonblockAggImpl;
+  pInfo->nbSup.numOfChild = pHandle->numOfVgroups;
   pInfo->streamAggSup.pScanBlock->info.type = STREAM_RETRIEVE;
   pInfo->nbSup.tsOfKeep = INT64_MIN;
   pInfo->twAggSup.waterMark = 0;

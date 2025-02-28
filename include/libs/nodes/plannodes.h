@@ -508,6 +508,10 @@ typedef struct STableScanPhysiNode {
   bool           needCountEmptyTable;
   bool           paraTablesSort;
   bool           smallDataTsSort;
+  char           pStbFullName[TSDB_TABLE_FNAME_LEN];
+  char           pWstartName[TSDB_COL_NAME_LEN];
+  char           pWendName[TSDB_COL_NAME_LEN];
+  char           pGroupIdName[TSDB_COL_NAME_LEN];
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;

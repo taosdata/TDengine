@@ -468,6 +468,10 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
       .destHasPrimaryKey = hasDestPrimaryKey(&pObj->outputSchema),
       .recalculateInterval = pCreate->recalculateInterval,
   };
+  tstrncpy(cxt.pStbFullName, pCreate->targetStbFullName, TSDB_TABLE_FNAME_LEN);
+  tstrncpy(cxt.pWstartName, pCreate->pWstartName, TSDB_COL_NAME_LEN);
+  tstrncpy(cxt.pWendName, pCreate->pWendName, TSDB_COL_NAME_LEN);
+  tstrncpy(cxt.pGroupIdName, pCreate->pGroupIdName, TSDB_COL_NAME_LEN);
 
   // using ast and param to build physical plan
   if ((code = qCreateQueryPlan(&cxt, &pPlan, NULL)) < 0) {

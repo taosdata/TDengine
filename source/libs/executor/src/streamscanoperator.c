@@ -914,7 +914,7 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (tSimpleHashGetSize(pInfo->pRecRangeMap) > 1024) {
-      code = streamClientGetResultRange(pInfo->pRecParam, pInfo->pRecRangeMap, &pInfo->pRecRangeRes);
+      code = streamClientGetResultRange(&pInfo->recParam, pInfo->pRecRangeMap, &pInfo->pRecRangeRes);
       QUERY_CHECK_CODE(code, lino, _end);
       code = generateSessionDataScanRange(pInfo, pInfo->pRecRangeMap, pInfo->pRecRangeRes);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -925,7 +925,7 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr
   pInfo->stateStore.streamStateFreeCur(pCur);
 
   if (tSimpleHashGetSize(pInfo->pRecRangeMap) > 0) {
-    code = streamClientGetResultRange(pInfo->pRecParam, pInfo->pRecRangeMap, &pInfo->pRecRangeRes);
+    code = streamClientGetResultRange(&pInfo->recParam, pInfo->pRecRangeMap, &pInfo->pRecRangeRes);
     QUERY_CHECK_CODE(code, lino, _end);
     code = generateSessionDataScanRange(pInfo, pInfo->pRecRangeMap, pInfo->pRecRangeRes);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1608,6 +1608,17 @@ _end:
   return code;
 }
 #endif
+
+static void initStreamRecalculateParam(STableScanPhysiNode* pTableScanNode, SStreamRecParam* pParam) {
+  tstrncpy(pParam->pStbFullName, pTableScanNode->pStbFullName, TSDB_TABLE_FNAME_LEN);
+  tstrncpy(pParam->pWstartName, pTableScanNode->pWstartName, TSDB_COL_NAME_LEN);
+  tstrncpy(pParam->pWendName, pTableScanNode->pWendName, TSDB_COL_NAME_LEN);
+  tstrncpy(pParam->pGroupIdName, pTableScanNode->pGroupIdName, TSDB_COL_NAME_LEN);
+
+  pParam->sqlCapcity = tListLen(pParam->pSql);
+  (void)tsnprintf(pParam->pUrl, tListLen(pParam->pUrl), "http://%s:%d/rest/sql", tsAdapterQdn, tsAdapterPort);
+  (void)tsnprintf(pParam->pAuth, tListLen(pParam->pAuth), "Authorization: Basic %s", tsAdapterToken);
+}
 
 int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
                                          STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,

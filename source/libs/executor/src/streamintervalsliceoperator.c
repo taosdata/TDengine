@@ -619,6 +619,10 @@ int32_t initNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup, SInterval* pInterv
   code = createSpecialDataBlock(STREAM_RETRIEVE, &pNbSup->pPullDataRes);
   QUERY_CHECK_CODE(code, lino, _end);
 
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  pNbSup->pPullDataMap = tSimpleHashInit(64, hashFn);
+  pNbSup->numOfChild = 0;
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -633,6 +637,8 @@ void destroyNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup) {
   pNbSup->pHistoryGroup = NULL;
   taosArrayDestroy(pNbSup->pPullWins);
   pNbSup->pPullWins = NULL;
+  tSimpleHashCleanup(pNbSup->pPullDataMap);
+  pNbSup->pPullDataMap = NULL;
 }
 
 int32_t createStreamIntervalSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
