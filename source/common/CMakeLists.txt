@@ -46,6 +46,22 @@ target_include_directories(
 )
 
 if(${TD_WINDOWS})
+  # This is the Windows Shell32 library, needed by RocksDB
+  find_library(SHLWAPI_LIBRARY NAMES shlwapi)
+  if(SHLWAPI_LIBRARY)
+      message(STATUS "Found Shlwapi library: ${SHLWAPI_LIBRARY}")
+  else()
+      message(WARNING "Shlwapi library not found.")
+  endif()
+
+  # This is the Windows RPC library, also needed by RocksDB
+  find_library(RPC_LIB rpcrt4 HINTS ${SYSTEM_SYSTEM_PATH})
+  if(RPC_LIB)
+      message(STATUS "Found rpcrt4 library: ${RPC_LIB}")
+  else()
+      message(FATAL_ERROR "rpcrt4 library not found.")
+  endif()
+
   target_include_directories(
     common
     PRIVATE "${TD_SOURCE_DIR}/contrib/pthread"
@@ -54,6 +70,9 @@ if(${TD_WINDOWS})
 
   target_link_libraries(
     common
+
+    PUBLIC ${SHLWAPI_LIBRARY}
+    PUBLIC ${RPC_LIB}
 
     PUBLIC os
     PUBLIC util
