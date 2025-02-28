@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 import os
 import time
@@ -26,10 +27,21 @@ class FractalCenter(TDCase):
             self.compression_param = self.case_config["enable_compression"]
         else:
             self.compression_param = ""
+        self.start_time = datetime.utcnow()
+        self.start_time_str = f"{self.start_time.isoformat(timespec='milliseconds')}Z"
+        self.case_config["start_time"] = self.start_time_str
+        with open(os.path.join(self.env_root, "workflow_config.json"), "w") as config_file:
+            json.dump(self.case_config, config_file, indent=4)
+
     def cleanup(self) -> None:
         pass
 
     def run(self):
+        taosd_url = f'http://{self.fqdn}:6041/rest/sql/information_schema'
+        cluster_resp = self.tdRest.request(data="show cluster",method="POST",url=taosd_url)
+        resp = cluster_resp.json()
+        cluster_id = resp["data"][0][0]
+        self.case_data_org["from"]["labels"][0] = f"cluster-id::{cluster_id}"
         headers = {"Content-Type": "application/json"}
         task_list = []
         # 在center侧创建数据库 mqtt_datain
@@ -37,24 +49,14 @@ class FractalCenter(TDCase):
         # 创建legacy datain任务,每个edge侧的mqtt_datain数据库都会有一个legacy datain任务
         for edge_host in self.edge_hosts:
             case_data = {
-                "from": f"taos+ws://{edge_host}:6041/{self.edge_db}",
+                "from": f"taos+ws://{edge_host}:6041/{self.edge_db}?mode=all&schema=always&schema-polling-interval=5s",
                 "to": f"taos+ws://{self.fqdn}:6041/{self.target_dbname}?{self.compression_param}",
                 "labels": self.case_data_org["from"]["labels"]
             }
             response = self.tdRest.request(data=case_data, method='POST', url=f'http://{self.fqdn}:6060/api/x/tasks',header=headers)
             task_info = response.json()
             task_list.append(task_info["id"])
-        time.sleep(self.execute_time)
-        for task_id in task_list:
-           self.tdRest.request(data=None, method='POST', url=f'http://{self.fqdn}:6060/api/x/tasks/{task_id}/stop',header=headers)
-        # TODO 获取每个任务的metrics并保存下来，生成报告
-        for task_id in task_list:
-            response = self.tdRest.request(data=None, method='GET', url=f'http://{self.fqdn}:6060/api/x/tasks/{task_id}/metrics',header=headers)
-            metrics = response.text
-            # TODO 获取metrics并保存
-            print(metrics)
-        
-        # kill taosBenchmark
+  
 
     def desc(self) -> str:
         case_description = """
