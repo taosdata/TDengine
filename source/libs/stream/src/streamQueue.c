@@ -144,11 +144,21 @@ void streamQueueNextItemInSourceQ(SStreamQueue* pQueue, SStreamQueueItem** pItem
 
   // let's try the ordinary input q
   pQueue->qItem = NULL;
-  (void)taosGetQitem(pQueue->qall, &pQueue->qItem);
+  int32_t code = taosGetQitem(pQueue->qall, &pQueue->qItem);
+  if (code) {
+    stError("s-task:%s failed to get item in inputq, code:%s", id, tstrerror(code));
+  }
 
   if (pQueue->qItem == NULL) {
-    (void)taosReadAllQitems(pQueue->pQueue, pQueue->qall);
-    (void)taosGetQitem(pQueue->qall, &pQueue->qItem);
+    code = taosReadAllQitems(pQueue->pQueue, pQueue->qall);
+    if (code) {
+      stError("s-task:%s failed to get all items in inputq, code:%s", id, tstrerror(code));
+    }
+
+    code = taosGetQitem(pQueue->qall, &pQueue->qItem);
+    if (code) {
+      stError("s-task:%s failed to get item in inputq, code:%s", id, tstrerror(code));
+    }
   }
 
   *pItem = streamQueueCurItem(pQueue);
