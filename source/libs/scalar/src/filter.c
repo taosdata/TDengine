@@ -4013,9 +4013,17 @@ int32_t fltSclCompareDatum(SFltSclDatum *val1, SFltSclDatum *val2) {
       return fltSclCompareWithFloat64(val1, val2);
     }
     case FLT_SCL_DATUM_KIND_DECIMAL64: {
+      if (val1->kind == FLT_SCL_DATUM_KIND_NULL || val1->kind == FLT_SCL_DATUM_KIND_MIN ||
+          val1->kind == FLT_SCL_DATUM_KIND_MAX) {
+        return (val1->kind < val2->kind) ? -1 : ((val1->kind > val2->kind) ? 1 : 0);
+      }
       return compareDecimal64SameScale(&val1->i, &val2->i);
     }
     case FLT_SCL_DATUM_KIND_DECIMAL: {
+      if (val1->kind == FLT_SCL_DATUM_KIND_NULL || val1->kind == FLT_SCL_DATUM_KIND_MIN ||
+          val1->kind == FLT_SCL_DATUM_KIND_MAX) {
+        return (val1->kind < val2->kind) ? -1 : ((val1->kind > val2->kind) ? 1 : 0);
+      }
       return compareDecimal128SameScale(val1->pData, val2->pData);
     }
     // TODO: varchar/nchar
