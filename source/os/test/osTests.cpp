@@ -56,6 +56,9 @@ TEST(osTest, memory) {
 
   int64_t ret64 = taosMemSize(NULL);
   EXPECT_EQ(ret64, 0);
+
+  taosPrintBackTrace();
+  taosMemoryDbgInit();
 }
 
 TEST(osTest, rand2) {
