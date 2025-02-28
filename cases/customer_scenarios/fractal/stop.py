@@ -35,7 +35,7 @@ class Start(TDCase):
         self.host = self.taosd_setting["fqdn"][0]
         self.log_path = f'{os.environ["TEST_ROOT"]}/run/workflow_logs/{self.workflow_config["test_start_time"]}'
         pass
-    
+
     def stop_mqtt_simulator(self):
         if "edge" in " ".join(sys.argv):
             mqtt_client_config = self.tdCom.get_components_setting(self.env_setting["settings"], "mqtt_client")
@@ -59,7 +59,7 @@ class Start(TDCase):
 
         return task_metrics_dict
     def run(self) -> bool:
-        
+
         # stop mqtt simulator
         self.stop_mqtt_simulator()
         headers = {"Content-Type": "application/json"}
@@ -84,7 +84,7 @@ class Start(TDCase):
             json.dump(summary_metrics, result_file, indent=4)
         end_time = datetime.utcnow()
         url = (
-            f"http://{self.taospy_setting['fqdn'][0]}:3000/d/dedq3n2zhlypsd/named-processes"
+            f"http://192.168.2.190:3000/d/dedq3n2zhlypsd/named-processes"
             f"?var-interval=10m&orgId=1&from={self.start_time}&to={end_time.isoformat(timespec='milliseconds')}Z"
             f"&timezone=browser&var-processes=$__all&refresh=5s"
         )
@@ -92,7 +92,7 @@ class Start(TDCase):
         self.workflow_config["grafana_url"] = url
         with open(f'{os.environ["TEST_ROOT"]}/env/workflow_config.json', "w") as config_file:
             json.dump(self.workflow_config, config_file, indent=4)
-        
+
 
     def cleanup(self):
         pass

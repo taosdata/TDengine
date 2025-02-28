@@ -33,7 +33,8 @@ class FractalQuery(TDCase):
         self.query_file = Perf_Base_func(self.logger, self.run_log_dir)
         self.log_path = f'{os.environ["TEST_ROOT"]}/run/workflow_logs/{self.case_config["test_start_time"]}'
         self.detail_log_path = f'{self.log_path}/details'
-        self._remote.cmd("localhost", f'mkdir -p {self.detail_log_path}')
+        self.summary_log_path = f'{self.log_path}/summary'
+        self._remote.cmd("localhost", [f'mkdir -p {self.detail_log_path}', f'mkdir -p {self.summary_log_path}'])
 
     def cleanup(self) -> None:
         pass
