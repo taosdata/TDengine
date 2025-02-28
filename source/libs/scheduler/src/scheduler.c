@@ -148,6 +148,7 @@ int32_t schedulerUpdatePolicy(int32_t policy) {
       qDebug("schedule policy updated to %d", schMgmt.cfg.schPolicy);
       break;
     default:
+      qError("invalid schedule policy %d", policy);
       SCH_RET(TSDB_CODE_TSC_INVALID_INPUT);
   }
 

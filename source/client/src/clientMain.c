@@ -888,6 +888,7 @@ int taos_select_db(TAOS *taos, const char *db) {
 
   if (db == NULL || strlen(db) == 0) {
     releaseTscObj(*(int64_t *)taos);
+    tscError("invalid parameter for %s", db == NULL ? "db is NULL" : "db is empty");
     terrno = TSDB_CODE_TSC_INVALID_INPUT;
     return terrno;
   }
