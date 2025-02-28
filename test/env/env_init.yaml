@@ -4,14 +4,14 @@ settings:
   name: taosd
   spec:
     config:
-      firstEP: 127.0.0.1:6030
+      firstEP: localhost:6030
     dnodes:
     - config:
         dataDir: /var/dnode1/data
         debugFlag: 135
         logDir: /var/dnode1/log
       config_dir: /var/dnode1/config
-      endpoint: 127.0.0.1:6030
+      endpoint: localhost:6030
     version: 2.4.0.0
 - fqdn:
   - localhost
@@ -19,16 +19,18 @@ settings:
   spec:
     client_version: 2.4.0.0
     config:
-      firstEP: 127.0.0.1:6030
+      firstEP: localhost:6030
       logDir: /var/dnode1/log
-    version: 2.2.0
+    version: 2.4.0.0
+    environment:
+      LD_LIBRARY_PATH: /usr/local/taos/driver
 - fqdn:
   - localhost
   name: taosBenchmark
   spec:
     config_dir: /var/taosbenchmark1/config/
     taos_config:
-      firstEP: 127.0.0.1:6030
+      firstEP: localhost:6030
       logDir: /var/taosbenchmark1/log
     taos_version: 2.4.0.0
     version: 1.0.0
