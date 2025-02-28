@@ -17,17 +17,13 @@ class FractalQuery(TDCase):
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
         self.case_config = json.load(open(os.path.join(self.env_root, "workflow_config.json")))
         self.taosBenchmark_config = self.case_config["query_config"]
-        print(self.taosBenchmark_config)
         json_file_path = f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/{self.query_file_name}'
 
         self.query_host = self.taosd_setting["fqdn"][0]
-        # tmp
-        self.query_host = "node232"
         self.taosBenchmark_config["host"] = self.query_host
+        self.taosBenchmark_config["query_mode"] = "rest"
         self.taosBenchmark_config["databases"] = "center_db"
 
-        # tmp
-        self.taosBenchmark_config["databases"] = "test"
         self.taosBenchmark_config["test_log"] = "/root/testlog/"
 
         self.tdCom.config_query_json(self._remote, json_file_path, self.taosBenchmark_config)
@@ -43,10 +39,6 @@ class FractalQuery(TDCase):
     def run(self):
         json_info = json.load(open(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/{self.query_file_name}'))
         self.jfile.genBenchmarkJson(self.run_log_dir, self.query_file_name, json_info)
-        print("self.taosBenchmark_iplist: ", self.taosBenchmark_iplist)
-        print("json_info: ", json_info)
-        print("self.query_file_name: ", self.query_file_name)
-
         self.query_file.put_file(self.taosBenchmark_iplist, [json_info], [self.query_file_name])
         result_file_name = self.run_log_dir + '/perf_report.txt'
         f = open(result_file_name, 'a')
@@ -55,7 +47,6 @@ class FractalQuery(TDCase):
         # run taosBenchmark and get result file
         taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
         result_filename = self.query_file.threads_run_taosBenchmark(self.taosBenchmark_iplist, [json_info], [self.query_file_name], taosBenchmark_env_setting)
-        print("---result_filename: ", result_filename)
 
         # get query result
         self.query_file.get_summary_query_result(result_filename)
