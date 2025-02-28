@@ -58,19 +58,6 @@ void checkArgumentValid() {
     if(g_arguments->host == NULL) {
         g_arguments->host = DEFAULT_HOST;
     }
-
-    if (isRest(g_arguments->iface)) {
-        if (0 != convertServAddr(g_arguments->iface,
-                                 false,
-                                 1)) {
-            errorPrint("%s", "Failed to convert server address\n");
-            return;
-        }
-        encodeAuthBase64();
-        g_arguments->rest_server_ver_major =
-            getServerVersionRest(g_arguments->port);
-    }
-
 }
 
 int main(int argc, char* argv[]) {
