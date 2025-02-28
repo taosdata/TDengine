@@ -8,6 +8,80 @@ export default {
       "collapsible": "one",
       "children": [
         {
+          "label": "目标库连接超时",
+          "field": "database_connection_error",
+          "description": "目标库连接超时的操作，可选：归档、丢弃、报错、缓存。默认：缓存。",
+          "defaultValue": "cache",
+          "required": false,
+          "type": "select",
+          "options": [
+            {
+              "value": "cache",
+              "label": "缓存"
+            },
+            {
+              "value": "archive",
+              "label": "归档"
+            },
+            {
+              "value": "skip",
+              "label": "丢弃"
+            },
+            {
+              "value": "break",
+              "label": "报错"
+            }
+          ]
+        },
+        {
+          "label": "目标库不存在",
+          "field": "database_not_exist",
+          "description": "目标库不存在的操作，可选：归档、丢弃、报错。默认：报错。",
+          "defaultValue": "break",
+          "required": false,
+          "type": "select",
+          "options": [
+            {
+              "value": "archive",
+              "label": "归档"
+            },
+            {
+              "value": "skip",
+              "label": "丢弃"
+            },
+            {
+              "value": "break",
+              "label": "报错"
+            }
+          ]
+        },
+        {
+          "label": "表不存在",
+          "field": "table_not_exist",
+          "description": "表不存在的操作，可选：归档、丢弃、报错、重试。默认：重试。",
+          "defaultValue": "retry",
+          "required": false,
+          "type": "select",
+          "options": [
+            {
+              "value": "archive",
+              "label": "归档"
+            },
+            {
+              "value": "skip",
+              "label": "丢弃"
+            },
+            {
+              "value": "break",
+              "label": "报错"
+            },
+            {
+              "value": "retry",
+              "label": "重试"
+            }
+          ]
+        },
+        {
           "label": "主键时间戳溢出",
           "field": "primary_timestamp_overflow",
           "description": "表示时间戳溢出时的操作，可选：归档、丢弃、报错。默认：归档。",

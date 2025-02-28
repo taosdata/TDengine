@@ -176,7 +176,7 @@ export default {
             },
             {
               label: 'Token',
-              description: 'This token must have permission to read anything in this organization.',
+              description: 'This token must have permission to read all buckets that you want to migrate.',
               placeholder: 'Please input your access token in the InfluxDB',
               required: true,
               field: 'token',
