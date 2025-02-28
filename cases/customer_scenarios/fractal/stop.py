@@ -28,15 +28,12 @@ class Start(TDCase):
         self._remote: Remote = Remote(self.logger)
         self.workflow_config = self.tdCom.load_workflow_json(self._remote, f'{os.environ["TEST_ROOT"]}/env/workflow_config.json')
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
-        start_time = self.workflow_config["start_time"]
+        self.taospy_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taospy")
+        self.start_time = self.workflow_config["start_time"]
         self.tdRest = TDRest(env_setting=self.env_setting)
-        # end_time = start_time + timedelta(seconds=int(self.workflow_config["exec_time"]))
-        # url = (
-        #     f"http://192.168.2.190:3000/d/dedq3n2zhlypsd/named-processes"
-        #     f"?var-interval=10m&orgId=1&from={start_time}&to={end_time.isoformat(timespec='milliseconds')}Z"
-        #     f"&timezone=browser&var-processes=$__all&refresh=5s"
-        # )
+        self.test_start_time = self.workflow_config["test_start_time"]
         self.host = self.taosd_setting["fqdn"][0]
+        self.log_path = f'{os.environ["TEST_ROOT"]}/run/workflow_logs/{self.workflow_config["test_start_time"]}'
         pass
     
     def stop_mqtt_simulator(self):
@@ -46,35 +43,56 @@ class Start(TDCase):
             self._remote.cmd(mqtt_host,f"killall mqtt_pub")
         else:
             return
-    def stop_mqtt_tasks_get_metrics(self,task_url=None,headers=None):
+    def stop_tasks_get_metrics(self,task_url=None,headers=None):
         # get task list
         response = self.tdRest.request(data=None, method='GET', url=task_url,header=headers)
         task_list = response.json()
-        task_id_list = []
-        metrics_list = []
+        task_metrics_dict = {}
+
         for task_info in task_list:
             task_id = task_info["id"]
             # stop task
             self.tdRest.request(data=None, method='POST', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/stop',header=headers)
             # get task metrics
             task_metrics = self.tdRest.request(data=None, method='GET', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/metrics',header=headers)
-            metrics_list.append(task_metrics)
-            task_id_list.append(task_id)
-            print(task_metrics)
-        return metrics_list,task_id_list
+            task_metrics_dict[task_id] = task_metrics.json()
+
+        return task_metrics_dict
     def run(self) -> bool:
         
         # stop mqtt simulator
         self.stop_mqtt_simulator()
         headers = {"Content-Type": "application/json"}
         task_url = f'http://{self.host}:6060/api/x/tasks'
-        mqtt_task_result,task_id_list = self.stop_mqtt_tasks_get_metrics(task_url=task_url,headers=headers)
-        # TODO
-        # with open(f'{os.environ["TEST_ROOT"]}/run/customer/{self.env_date}-{self.host}.json', "w") as result_file:
-        #     json.dump(mqtt_task_result, result_file, indent=4)
-        # start taosx service
-        # taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
-        # taosx_host = taosd_setting["fqdn"][0]
+        metrics_dict = self.stop_tasks_get_metrics(task_url=task_url,headers=headers)
+        summary_metrics = {
+            "total_inserted_sqls":0,
+            "total_points_per_second":0,
+            "total_written_points":0,
+            "total_written_rows":0,
+            "total_rows_per_second":0
+        }
+        for task_id,metrics in metrics_dict.items():
+            summary_metrics["total_inserted_sqls"] += metrics_dict[task_id]["total_inserted_sqls"]
+            summary_metrics["total_points_per_second"] += metrics_dict[task_id]["total_points_per_second"]
+            summary_metrics["total_written_points"] += metrics_dict[task_id]["total_written_points"]
+            summary_metrics["total_written_rows"] += metrics_dict[task_id]["total_written_rows"]
+            summary_metrics["total_rows_per_second"] += metrics_dict[task_id]["total_rows_per_second"]
+        with open(f'{self.log_path}/details/{self.host}.json', "w") as result_file:
+            json.dump(metrics_dict, result_file, indent=4)
+        with open(f'{self.log_path}/summary/{self.host}-mqtt-perf-result.json', "w") as result_file:
+            json.dump(summary_metrics, result_file, indent=4)
+        end_time = datetime.utcnow()
+        url = (
+            f"http://{self.taospy_setting['fqdn'][0]}:3000/d/dedq3n2zhlypsd/named-processes"
+            f"?var-interval=10m&orgId=1&from={self.start_time}&to={end_time.isoformat(timespec='milliseconds')}Z"
+            f"&timezone=browser&var-processes=$__all&refresh=5s"
+        )
+        self.workflow_config["end_time"] = end_time.isoformat(timespec='milliseconds')
+        self.workflow_config["grafana_url"] = url
+        with open(f'{os.environ["TEST_ROOT"]}/env/workflow_config.json', "w") as config_file:
+            json.dump(self.workflow_config, config_file, indent=4)
+        
 
     def cleanup(self):
         pass
