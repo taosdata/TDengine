@@ -103,6 +103,44 @@ static int32_t skipTableOptions(SInsertParseContext* pCxt, const char** pSql) {
   return TSDB_CODE_SUCCESS;
 }
 
+#ifndef 0
+// pSql -> stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)
+static int32_t ignoreUsingClause(SInsertParseContext* pCxt, const char** pSql) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SToken  token;
+  NEXT_TOKEN(*pSql, token);
+
+  NEXT_TOKEN(*pSql, token);
+  if (TK_NK_LP == token.type) {
+    code = skipParentheses(pCxt, pSql);
+    if (TSDB_CODE_SUCCESS == code) {
+      NEXT_TOKEN(*pSql, token);
+    }
+  }
+
+  // pSql -> TAGS (tag1_value, ...)
+  if (TSDB_CODE_SUCCESS == code) {
+    if (TK_TAGS != token.type) {
+      code = buildSyntaxErrMsg(&pCxt->msg, "TAGS is expected", token.z);
+    } else {
+      NEXT_TOKEN(*pSql, token);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (TK_NK_LP != token.type) {
+      code = buildSyntaxErrMsg(&pCxt->msg, "( is expected", token.z);
+    } else {
+      code = skipParentheses(pCxt, pSql);
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = skipTableOptions(pCxt, pSql);
+  }
+
+  return code;
+}
+#else
 // pSql -> stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)
 static int32_t ignoreUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   const char** pSql = &pStmt->pSql;
@@ -125,6 +163,7 @@ static int32_t ignoreUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
 
   return code;
 }
+#endif
 
 static int32_t parseDuplicateUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool* pDuplicate) {
   int32_t code = TSDB_CODE_SUCCESS;
