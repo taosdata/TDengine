@@ -38,13 +38,32 @@ static TAOS* use_db() {
   return pConn;
 }
 
+static void checkData() {
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT(pConn != NULL);
+  TAOS_RES* pRes = taos_query(pConn, "select * from db_taosx.ct0");
+  ASSERT (taos_errno(pRes) == 0);
+  TAOS_ROW row = NULL;
+  while ((row = taos_fetch_row(pRes))) {
+    int         numFields = taos_num_fields(pRes);
+    TAOS_FIELD* fields = taos_fetch_fields(pRes);
+
+    for (int i = 0; i < numFields; ++i) {
+      if (IS_DECIMAL_TYPE(fields[i].type)) {
+        ASSERT(strcmp(row[i], "23.230") == 0 || strcmp(row[i], "43.530") == 0);
+      }
+    }
+  }
+  taos_free_result(pRes);
+  taos_close(pConn);
+}
+
 static void msg_process(TAOS_RES* msg) {
   printf("-----------topic-------------: %s\n", tmq_get_topic_name(msg));
   printf("db: %s\n", tmq_get_db_name(msg));
   printf("vg: %d\n", tmq_get_vgroup_id(msg));
   if (strcmp(tmq_get_db_name(msg), "db_query") == 0){
     TAOS_ROW row = NULL;
-    int32_t cnt = 0;
     while ((row = taos_fetch_row(msg))) {
 
       int         numFields = taos_num_fields(msg);
@@ -356,4 +375,5 @@ int main(int argc, char* argv[]) {
   tmq_list_t* topic_list = build_topic_list();
   basic_consume_loop(tmq, topic_list);
   tmq_list_destroy(topic_list);
+  checkData();
 }
