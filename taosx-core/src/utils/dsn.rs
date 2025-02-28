@@ -63,7 +63,7 @@ pub fn json_to_dsn(json: &serde_json::Value) -> anyhow::Result<Dsn> {
     let host = params_map.remove("host").map(|s| s.to_string());
     let port = params_map.remove("port").map(|s| s.to_string());
     if host.is_some() && port.is_some() {
-        // unnessary to check unwrap result, because they are not None
+        // unnecessary to check unwrap result, because they are not None
         let host = host.unwrap();
         let port = port.unwrap();
         let port: u16 = port

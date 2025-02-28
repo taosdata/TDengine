@@ -426,8 +426,7 @@ pub(super) async fn data_source_sink_is_valid(
         .timeout
         .unwrap_or_else(|| match (&query.from, &query.to) {
             (Some(from), Some(to)) => {
-                let a = from
-                    .into_dsn()
+                let a = json_to_dsn(from)
                     .map(|dsn| Timeout::get(TimeoutType::ValidateDataSource(dsn)))
                     .unwrap_or(Timeout::get(TimeoutType::Default));
                 let b = to
@@ -436,8 +435,7 @@ pub(super) async fn data_source_sink_is_valid(
                     .unwrap_or(Timeout::get(TimeoutType::Default));
                 a.max(b)
             }
-            (Some(from), None) => from
-                .into_dsn()
+            (Some(from), None) => json_to_dsn(from)
                 .map(|dsn| Timeout::get(TimeoutType::ValidateDataSource(dsn)))
                 .unwrap_or(Timeout::get(TimeoutType::Default)),
             (None, Some(to)) => to
@@ -468,13 +466,21 @@ async fn dsn_and_license_validate(
 ) -> DataSourceValidation {
     match (query.from, query.to) {
         // 保留之前检查 DataSource 的逻辑
-        (Some(from), Some(to)) => {
-            validate_2dsn_and_license(from.to_string(), to, query.via, controller).await
-        }
+        (Some(from), Some(to)) => match json_to_dsn(&from) {
+            Err(err) => {
+                DataSourceValidation::invalid("unknown", format!("invalid DSN, cause: {}", err))
+            }
+            Ok(dsn) => validate_2dsn_and_license(dsn.to_string(), to, query.via, controller).await,
+        },
         // 如果 from 和 to 中只有一个 DSN，那么只检查一个 DSN。
         // 例如：备份任务检查 S3 的连通性，from 为 None，to 为 Some("local:$BACKUP_DIR?$S3_PARAMS...")
         // TODO：只检查了 dsn 的连通性，没有检查 license
-        (Some(from), None) => validate_dsn(from.to_string()).await,
+        (Some(from), None) => match json_to_dsn(&from) {
+            Err(err) => {
+                DataSourceValidation::invalid("unknown", format!("invalid DSN, cause: {}", err))
+            }
+            Ok(dsn) => validate_dsn(dsn.to_string()).await,
+        },
         (None, Some(to)) => validate_dsn(to).await,
         // 两个 DSN 都为空，返回错误
         (None, None) => DataSourceValidation::invalid(
