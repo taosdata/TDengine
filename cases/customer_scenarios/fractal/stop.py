@@ -55,7 +55,7 @@ class Start(TDCase):
             self.tdRest.request(data=None, method='POST', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/stop',header=headers)
             # get task metrics
             task_metrics = self.tdRest.request(data=None, method='GET', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/metrics',header=headers)
-            metrics_list.append(task_metrics)
+            metrics_list.append(task_metrics.json())
             task_id_list.append(task_id)
         return metrics_list,task_id_list
     def run(self) -> bool:
@@ -65,14 +65,16 @@ class Start(TDCase):
         headers = {"Content-Type": "application/json"}
         task_url = f'http://{self.host}:6060/api/x/tasks'
         mqtt_task_result,task_id_list = self.stop_mqtt_tasks_get_metrics(task_url=task_url,headers=headers)
-        # TODO
-        with open(f'{self.log_path}/{self.host}.json', "w") as result_file:
+        
+        print(mqtt_task_result)# TODO
+        print(f'{self.log_path}/{self.host}.json')
+        with open(f'{self.log_path}/details/{self.host}.json', "w") as result_file:
             json.dump(mqtt_task_result, result_file, indent=4)
         
         
         end_time = datetime.utcnow()
         url = (
-            f"http://{self.taospy_setting["fqdn"][0]}:3000/d/dedq3n2zhlypsd/named-processes"
+            f"http://{self.taospy_setting['fqdn'][0]}:3000/d/dedq3n2zhlypsd/named-processes"
             f"?var-interval=10m&orgId=1&from={self.start_time}&to={end_time.isoformat(timespec='milliseconds')}Z"
             f"&timezone=browser&var-processes=$__all&refresh=5s"
         )
