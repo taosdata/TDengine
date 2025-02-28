@@ -328,7 +328,7 @@ int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind
   int16_t          lastColId = -1;
   bool             colInOrder = true;
 
-  if (NULL == *pTSchema) {
+  if (NULL == pTSchema || NULL == *pTSchema) {
     *pTSchema = tBuildTSchema(pSchema, pDataBlock->pMeta->tableInfo.numOfColumns, pDataBlock->pMeta->sversion);
   }
 
@@ -697,7 +697,7 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
   bool            colInOrder = true;
   int             ncharColNums = 0;
 
-  if (NULL == *pTSchema) {
+  if (NULL == pTSchema || NULL == *pTSchema) {
     *pTSchema = tBuildTSchema(pSchema, pDataBlock->pMeta->tableInfo.numOfColumns, pDataBlock->pMeta->sversion);
   }
 
@@ -746,7 +746,7 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bin
     } else if (TSDB_DATA_TYPE_GEOMETRY == pColSchema->type) {
       code = initCtxAsText();
       if (code) {
-        qError("geometry init failed");
+        qError("geometry init failed:%s", tstrerror(code));
         goto _return;
       }
       uint8_t* buf = bind[c].buffer;
@@ -960,7 +960,7 @@ int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, c
   int16_t          lastColId = -1;
   bool             colInOrder = true;
 
-  if (NULL == *pTSchema) {
+  if (NULL == pTSchema || NULL == *pTSchema) {
     *pTSchema = tBuildTSchema(pSchema, pDataBlock->pMeta->tableInfo.numOfColumns, pDataBlock->pMeta->sversion);
   }
 
@@ -992,7 +992,7 @@ int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, c
     } else if (TSDB_DATA_TYPE_GEOMETRY == pColSchema->type) {
       code = initCtxAsText();
       if (code) {
-        qError("geometry init failed");
+        qError("geometry init failed:%s", tstrerror(code));
         goto _return;
       }
       uint8_t *buf = bind[c].buffer;
