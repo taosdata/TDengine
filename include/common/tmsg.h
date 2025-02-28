@@ -1356,10 +1356,11 @@ typedef struct {
   int8_t  encryptAlgorithm;
   char    dnodeListStr[TSDB_DNODE_LIST_LEN];
   // 1. add auto-compact parameters
-  int32_t compactInterval;    // minutes
-  int32_t compactStartTime;   // minutes
-  int32_t compactEndTime;     // minutes
-  int8_t  compactTimeOffset;  // hour
+  int32_t compactInterval;  // minutes
+  int32_t compactStartTime; // minutes
+  int32_t compactEndTime;   // minutes
+  int8_t compactTimeOffset; // hour
+  int32_t flushInterval;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -1396,6 +1397,7 @@ typedef struct {
   int32_t compactStartTime;
   int32_t compactEndTime;
   int8_t  compactTimeOffset;
+  int32_t flushInterval;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -1542,6 +1544,7 @@ typedef struct {
   int8_t  schemaless;
   int16_t sstTrigger;
   int8_t  withArbitrator;
+  int32_t flushInterval;
 } SDbCfgRsp;
 
 typedef SDbCfgRsp SDbCfgInfo;
@@ -1954,10 +1957,11 @@ void    tFreeSConfigRsp(SConfigRsp* pRsp);
 
 typedef struct {
   int32_t reserved;
+  char    db[TSDB_DB_FNAME_LEN];
 } SMTimerReq;
 
 int32_t tSerializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
-// int32_t tDeserializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
+int32_t tDeserializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
 
 typedef struct SOrphanTask {
   int64_t streamId;

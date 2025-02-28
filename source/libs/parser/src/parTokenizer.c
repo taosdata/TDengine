@@ -360,6 +360,7 @@ static SKeyword keywordTable[] = {
     {"ON_FAILURE",           TK_ON_FAILURE},
     {"NOTIFY_HISTORY",       TK_NOTIFY_HISTORY},
     {"REGEXP",               TK_REGEXP},
+    {"FLUSH_INTERVAL",       TK_FLUSH_INTERVAL},
     {"ASSIGN",               TK_ASSIGN},
     {"TRUE_FOR",             TK_TRUE_FOR},
     {"META_ONLY",            TK_META_ONLY}
