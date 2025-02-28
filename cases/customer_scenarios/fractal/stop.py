@@ -33,6 +33,7 @@ class Start(TDCase):
         self.tdRest = TDRest(env_setting=self.env_setting)
         self.test_start_time = self.workflow_config["test_start_time"]
         self.host = self.taosd_setting["fqdn"][0]
+        self.log_path = f'{os.environ["TEST_ROOT"]}/run/workflow_logs/{self.workflow_config["test_start_time"]}'
         pass
     
     def stop_mqtt_simulator(self):
@@ -56,7 +57,6 @@ class Start(TDCase):
             task_metrics = self.tdRest.request(data=None, method='GET', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/metrics',header=headers)
             metrics_list.append(task_metrics)
             task_id_list.append(task_id)
-            print(task_metrics)
         return metrics_list,task_id_list
     def run(self) -> bool:
         
@@ -66,7 +66,7 @@ class Start(TDCase):
         task_url = f'http://{self.host}:6060/api/x/tasks'
         mqtt_task_result,task_id_list = self.stop_mqtt_tasks_get_metrics(task_url=task_url,headers=headers)
         # TODO
-        with open(f'{os.environ["TEST_ROOT"]}/run/workflow_logs/{self.test_start_time}-{self.host}.json', "w") as result_file:
+        with open(f'{self.log_path}/{self.host}.json', "w") as result_file:
             json.dump(mqtt_task_result, result_file, indent=4)
         
         
