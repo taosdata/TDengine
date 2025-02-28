@@ -693,6 +693,11 @@ static void* csvGenStbThread(void* arg) {
                     }
 
                     ck += 1;
+
+                    if (!g_arguments->terminate) {
+                        csvClose(fhdl);
+                        goto end;
+                    }
                 }
             }
             
@@ -705,13 +710,14 @@ static void* csvGenStbThread(void* arg) {
 
 end:
     csvFreeCtbTagData(tags_buf_bucket);
-    tmfree(cols_buf);
+    tmfree(buf);
     return NULL;
 }
 
 
 static int csvGenStbProcess(SDataBase* db, SSuperTable* stb) {
     int ret = 0;
+    bool prompt = true;
 
     CsvWriteMeta* write_meta = benchCalloc(1, sizeof(CsvWriteMeta), false);
     if (!write_meta) {
@@ -751,6 +757,11 @@ static int csvGenStbProcess(SDataBase* db, SSuperTable* stb) {
 
     // wait threads
     for (uint32_t i = 0; i < write_meta->total_threads; ++i) {
+        if (g_arguments->terminate && prompt) {
+            infoPrint("Operation cancelled by user, exiting gracefully...\n");
+            prompt = false;
+        }
+
         infoPrint("pthread_join %d ...\n", i);
         pthread_join(pids[i], NULL);
     }
