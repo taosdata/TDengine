@@ -20,6 +20,8 @@
 #include "tglobal.h"
 #include "ttime.h"
 
+#define PARSE_TAG_WHILE_AUTO_CREATE 1
+
 typedef struct SInsertParseContext {
   SParseContext* pComCxt;
   SMsgBuf        msg;
@@ -103,11 +105,35 @@ static int32_t skipTableOptions(SInsertParseContext* pCxt, const char** pSql) {
   return TSDB_CODE_SUCCESS;
 }
 
-#ifndef 0
+#if PARSE_TAG_WHILE_AUTO_CREATE
 // pSql -> stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)
-static int32_t ignoreUsingClause(SInsertParseContext* pCxt, const char** pSql) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  SToken  token;
+static int32_t ignoreUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+  const char** pSql = &pStmt->pSql;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SToken       token;
+  NEXT_TOKEN(*pSql, token);
+  code = parseBoundTagsClause(pCxt, pStmt);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  // pSql -> TAGS (tag1_value, ...)
+  code = parseTagsClause(pCxt, pStmt, true);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = skipTableOptions(pCxt, pSql);
+  }
+
+  return code;
+}
+#else
+// pSql -> stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)
+static int32_t ignoreUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+  const char** pSql = &pStmt->pSql;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SToken       token;
   NEXT_TOKEN(*pSql, token);
 
   NEXT_TOKEN(*pSql, token);
@@ -132,29 +158,6 @@ static int32_t ignoreUsingClause(SInsertParseContext* pCxt, const char** pSql) {
     } else {
       code = skipParentheses(pCxt, pSql);
     }
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    code = skipTableOptions(pCxt, pSql);
-  }
-
-  return code;
-}
-#else
-// pSql -> stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)
-static int32_t ignoreUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  const char** pSql = &pStmt->pSql;
-  int32_t      code = TSDB_CODE_SUCCESS;
-  SToken       token;
-  NEXT_TOKEN(*pSql, token);
-  code = parseBoundTagsClause(pCxt, pStmt);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
-  }
-  // pSql -> TAGS (tag1_value, ...)
-  code = parseTagsClause(pCxt, pStmt, true);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
   }
 
   if (TSDB_CODE_SUCCESS == code) {
