@@ -876,7 +876,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
     }
 
     pResult->info.rows = 1;
-    TSDB_CHECK_CODE(code, lino, _exit);
+    goto _exit;
   }
 
   if (pResult != pSrcBlock) {
