@@ -57,19 +57,19 @@ class FractalEdge(TDCase):
             task_info = response.json()
             task_list.append(task_info["id"])
 
-        time.sleep(self.execute_time)
+        # time.sleep(self.execute_time)
         
-        for task_id in task_list:
-            self.tdRest.request(data=None, method='POST', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/stop',header=headers)
+        # for task_id in task_list:
+        #     self.tdRest.request(data=None, method='POST', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/stop',header=headers)
 
-        # TODO 等待任务结束，后面换成获取任务状态的方式
-        time.sleep(15)
-        # TODO 获取每个任务的metrics并保存下来
-        for task_id in task_list:
-            response = self.tdRest.request(data=None, method='GET', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/metrics',header=headers)
-            print("response========",response.text)
-            # metrics = response.text
-            # print(metrics)
+        # # TODO 等待任务结束，后面换成获取任务状态的方式
+        # time.sleep(15)
+        # # TODO 获取每个任务的metrics并保存下来
+        # for task_id in task_list:
+        #     response = self.tdRest.request(data=None, method='GET', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/metrics',header=headers)
+        #     print("response========",response.text)
+        #     # metrics = response.text
+        #     # print(metrics)
 
     def desc(self) -> str:
         case_description = """
