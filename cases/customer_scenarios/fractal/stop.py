@@ -18,47 +18,59 @@ import os
 import time
 import sys
 from datetime import datetime, timedelta
+
+from taostest.util.rest import TDRest
+
 class Start(TDCase):
     def init(self):
-        start_time = datetime.utcnow()
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
         self.workflow_config = self.tdCom.load_workflow_json(self._remote, f'{os.environ["TEST_ROOT"]}/env/workflow_config.json')
+        self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
+        start_time = self.workflow_config["start_time"]
+        self.tdRest = TDRest(env_setting=self.env_setting)
         print(self.workflow_config)
         end_time = start_time + timedelta(seconds=int(self.workflow_config["exec_time"]))
         url = (
             f"http://192.168.2.190:3000/d/dedq3n2zhlypsd/named-processes"
-            f"?var-interval=10m&orgId=1&from={start_time.isoformat(timespec='milliseconds')}Z&to={end_time.isoformat(timespec='milliseconds')}Z"
+            f"?var-interval=10m&orgId=1&from={start_time}&to={end_time.isoformat(timespec='milliseconds')}Z"
             f"&timezone=browser&var-processes=$__all&refresh=5s"
         )
         print(url)
+        self.host = self.taosd_setting["fqdn"][0]
         pass
-
-    def start_mqtt_simulator(self):
+    
+    def stop_mqtt_simulator(self):
         if "edge" in " ".join(sys.argv):
             mqtt_client_config = self.tdCom.get_components_setting(self.env_setting["settings"], "mqtt_client")
-            edge_config = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
-            edge_host = edge_config["fqdn"][0]
             mqtt_host = mqtt_client_config["fqdn"][0]
-            # mqtt_pub_path = mqtt_client_config["spec"]["config"]
-            mqtt_pub_path = mqtt_client_config["spec"]["config_file"]
-            #mqtt_pub_interval= mqtt_client_config["spec"]["interval"]
-            mqtt_pub_interval = self.workflow_config["source_interval"]
-            self._remote.cmd(mqtt_host,f"nohup mqtt_pub --schema {mqtt_pub_path} --host {edge_host} --interval {mqtt_pub_interval}ms > mqtt_pub.log 2>&1 &")
-
-    def start_taosx_service(self,host):
-        self._remote.cmd(host,"systemctl stop taos-explorer")
-        self._remote.cmd(host,"systemctl start taos-explorer")
-        self._remote.cmd(host,"systemctl stop taosx")
-        self._remote.cmd(host,"systemctl start taosx")
+            self._remote.cmd(mqtt_host,f"killall mqtt_pub")
+        else:
+            return
+    def stop_mqtt_tasks_get_metrics(self,task_url=None,headers=None):
+        # get task list
+        response = self.tdRest.request(data=None, method='GET', url=task_url,header=headers)
+        task_list = response.json()
+        metrics_list = []
+        for task_info in task_list:
+            task_id = task_info["id"]
+            # stop task
+            self.tdRest.request(data=None, method='POST', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/stop',header=headers)
+            # get task metrics
+            task_metrics = self.tdRest.request(data=None, method='GET', url=f'http://{self.host}:6060/api/x/tasks/{task_id}/metrics',header=headers)
+            metrics_list.append(task_metrics)
+            print(task_metrics)
+        return metrics_list
     def run(self) -> bool:
         
-        # start mqtt simulator
-        self.start_mqtt_simulator()
+        # stop mqtt simulator
+        self.stop_mqtt_simulator()
+        headers = {"Content-Type": "application/json"}
+        task_url = f'http://{self.host}:6060/api/x/tasks'
+        mqtt_task_result = self.stop_mqtt_tasks_get_metrics(task_url=task_url,headers=headers)
         # start taosx service
-        taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
-        taosx_host = taosd_setting["fqdn"][0]
-        self.start_taosx_service(taosx_host)
+        # taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
+        # taosx_host = taosd_setting["fqdn"][0]
 
     def cleanup(self):
         pass
