@@ -78,13 +78,13 @@ const showHistoryList = async () => {
   backupStore.getHistoryList(backupStore.historyPlanId);
 };
 
-let pointToRestore;
+let pointToRestore: any;
 
 const restoreRangeList = ref<any[]>([]);
 const restoreConfirmDialog = ref(false);
 const restoreRange = reactive({ from: '', to: '' });
-const toRestoreBackup = toFile => {
-  restoreRangeList.value = backupStore.historyList.map(item => item.point).filter(item => item <= toFile.point);
+const toRestoreBackup = (toFile: any) => {
+  restoreRangeList.value = backupStore.historyList.map((item: any) => item.point).filter((item: any) => item <= toFile.point);
   restoreRange.from = toFile.point;
   restoreRange.to = toFile.point;
   pointToRestore = toFile;
@@ -100,9 +100,15 @@ const restoreBackup = async () => {
     return;
   }
   let backupDirectory = null;
+  let s3Config: string = "s3_enable=false";
   for (let i = 0; i < backupStore.backupPlanList.length; i++) {
     if (backupStore.backupPlanList[i].id === backupStore.historyPlanId) {
       backupDirectory = backupStore.backupPlanList[i].directory;
+      if (backupStore.backupPlanList[i].s3_enable) {
+        const backupPlan = backupStore.backupPlanList[i];
+        s3Config = `s3_enable=true&s3_endpoint=${backupPlan.s3_endpoint}&s3_access_key_id=${backupPlan.s3_access_key_id}&s3_secret_access_key=${backupPlan.s3_secret_access_key}&s3_region=${backupPlan.s3_region}&s3_bucket=${backupPlan.s3_bucket}&s3_object_prefix=${backupPlan.s3_object_prefix}&backup_retention_period=${backupPlan.backup_retention_period_value}${backupPlan.backup_retention_period_unit}&backup_retention_size=${backupPlan.backup_retention_size}`;
+      }
+
       break;
     }
   }
@@ -114,7 +120,8 @@ const restoreBackup = async () => {
       to: restoreRange.to,
       database: database.value,
       point: pointToRestore,
-      backupDirectory
+      backupDirectory,
+      s3Config
     });
 
     if (res && res.code) {

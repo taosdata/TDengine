@@ -51,14 +51,14 @@ export function deleteBackup(id: string | number) {
   });
 }
 
-export function restoreBackups(restoreData) {
+export function restoreBackups(restoreData: any) {
   const username = localStorage.getItem('username') || '';
   const decryptPwd = decrypt(localStorage.getItem('pwd') || 'taosdata') || '';
 
   const base_url = localStorage.getItem('base_url') || '';
   const splitArr = base_url.split('//');
   const to = `tmq+${splitArr[0]}//${username}:${encodeURIComponent(decryptPwd)}@${splitArr[1]}/${restoreData.database}`;
-  let from = `local:${restoreData.backupDirectory}?task_id=${restoreData.point.task_id}&topic=${restoreData.point.topic}&from=${restoreData.from}&to=${restoreData.to}&db_name=${restoreData.point.db_name}&db_sql=${restoreData.point.db_sql}`;
+  let from = `local:${restoreData.backupDirectory}?${restoreData.s3Config}&task_id=${restoreData.point.task_id}&topic=${restoreData.point.topic}&from=${restoreData.from}&to=${restoreData.to}&db_name=${restoreData.point.db_name}&db_sql=${restoreData.point.db_sql}`;
   if (restoreData.point.stable_name) {
     from += `&stable_name=${restoreData.point.stable_name}&stable_sql=${restoreData.point.stable_sql}`;
   }
