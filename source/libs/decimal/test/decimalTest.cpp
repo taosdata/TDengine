@@ -731,6 +731,11 @@ TEST(decimal, decimalOpRetType) {
   tExpect.scale = 13;
   tExpect.bytes = sizeof(Decimal);
   code = decimalGetRetType(&ta, &tb, op, &tc);
+
+  Numeric<64> aNum = {10, 2, "123.99"};
+  int64_t bInt64 = 317759474393305778;
+  auto res = aNum / bInt64;
+  ASSERT_EQ(res.scale(), 22);
 }
 
 TEST(decimal, op) {
