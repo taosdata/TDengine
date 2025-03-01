@@ -155,6 +155,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_FORECAST_LOW,
   FUNCTION_TYPE_FORECAST_HIGH,
   FUNCTION_TYPE_FORECAST_ROWTS,
+  FUNCTION_TYPE_COLS,
   FUNCTION_TYPE_IROWTS_ORIGIN,
 
   // internal function
@@ -207,6 +208,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STD_STATE_MERGE,
   FUNCTION_TYPE_HYPERLOGLOG_STATE,
   FUNCTION_TYPE_HYPERLOGLOG_STATE_MERGE,
+
 
   // geometry functions
   FUNCTION_TYPE_GEOM_FROM_TEXT = 4250,
@@ -295,6 +297,7 @@ bool fmisSelectGroupConstValueFunc(int32_t funcId);
 bool fmIsElapsedFunc(int32_t funcId);
 bool fmIsDBUsageFunc(int32_t funcId);
 bool fmIsRowTsOriginFunc(int32_t funcId);
+bool fmIsSelectColsFunc(int32_t funcId);
 
 void    getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);

@@ -16,14 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
-
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
 #include "cus_name.h"
-#else
-#ifndef CUS_PROMPT
-#define CUS_PROMPT "taos"
-#endif
-#endif
 
 #define PROCESS_ITEM 12
 #define UUIDLEN37 37
@@ -154,7 +147,6 @@ static void taosGetProcIOnfos() {
 #endif
 
 static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
-  OS_PARAM_CHECK(cpuInfo);
   int32_t code = 0;
 #ifdef WINDOWS
   FILETIME pre_idleTime = {0};
@@ -207,7 +199,6 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
 }
 
 static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
-  OS_PARAM_CHECK(cpuInfo);
   int32_t code = 0;
 
 #ifdef WINDOWS
@@ -548,7 +539,6 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
 
 // Returns the container's CPU quota if successful, otherwise returns the physical CPU cores
 static int32_t taosCntrGetCpuCores(float *numOfCores) {
-  OS_PARAM_CHECK(numOfCores);
 #ifdef WINDOWS
   return TSDB_CODE_UNSUPPORT_OS;
 #elif defined(_TD_DARWIN_64)
@@ -1099,6 +1089,7 @@ void taosSetDefaultCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes
   if (transmit_bytes) *transmit_bytes = 0;
 }
 
+#if 0
 void taosKillSystem() {
 #ifdef WINDOWS
   printf("function taosKillSystem, exit!");
@@ -1112,6 +1103,7 @@ void taosKillSystem() {
   (void)kill(tsProcId, 2);
 #endif
 }
+#endif
 
 #define UUIDLEN (36)
 int32_t taosGetSystemUUIDLimit36(char *uid, int32_t uidlen) {

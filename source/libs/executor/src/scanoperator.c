@@ -3818,7 +3818,11 @@ FETCH_NEXT_BLOCK:
         int32_t deleteNum = 0;
         code = deletePartName(pInfo, pBlock, &deleteNum);
         QUERY_CHECK_CODE(code, lino, _end);
-        if (deleteNum == 0) goto FETCH_NEXT_BLOCK;
+        if (deleteNum == 0) {
+          printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "block recv", GET_TASKID(pTaskInfo));
+          qDebug("===stream=== ignore block type 18, delete num is 0");
+          goto FETCH_NEXT_BLOCK;
+        }
       } break;
       case STREAM_CHECKPOINT: {
         qError("stream check point error. msg type: STREAM_INPUT__DATA_BLOCK");
@@ -3953,7 +3957,7 @@ FETCH_NEXT_BLOCK:
         QUERY_CHECK_NULL(pSubmit, code, lino, _end, terrno);
 
         qDebug("set %d/%d as the input submit block, %s", current + 1, totalBlocks, id);
-        if (pAPI->tqReaderFn.tqReaderSetSubmitMsg(pInfo->tqReader, pSubmit->msgStr, pSubmit->msgLen, pSubmit->ver) <
+        if (pAPI->tqReaderFn.tqReaderSetSubmitMsg(pInfo->tqReader, pSubmit->msgStr, pSubmit->msgLen, pSubmit->ver, NULL) <
             0) {
           qError("submit msg messed up when initializing stream submit block %p, current %d/%d, %s", pSubmit, current,
                  totalBlocks, id);

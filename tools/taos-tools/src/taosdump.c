@@ -11,6 +11,7 @@
 
 #define _GNU_SOURCE
 
+#include "cus_name.h"  // include/util/
 #include "dump.h"
 #include "dumpUtil.h"
 #ifdef WEBSOCKET
@@ -262,7 +263,7 @@ static void printVersion(FILE *file) {
     }
 
     // version, macro define in src/CMakeLists.txt
-    fprintf(file, "taosdump version: %s\n", TD_VER_NUMBER);
+    fprintf(file, "%s\n%sdump version: %s\n", TD_PRODUCT_NAME, CUS_PROMPT, TD_VER_NUMBER);
     fprintf(file, "git: %s\n", TAOSDUMP_COMMIT_ID);
     fprintf(file, "build: %s\n", BUILD_INFO);
 }
@@ -5830,26 +5831,6 @@ static int64_t dumpInAvroDataImpl(
     #endif
             }   
         } // tbName
-#ifndef TD_VER_COMPATIBLE_3_0_0_0
-        else {
-            // 2.6 need call taos_stmt_set_tbname every loop
-            const int escapedTbNameLen = TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 3;
-            char *escapedTbName = calloc(1, escapedTbNameLen);
-            snprintf(escapedTbName, escapedTbNameLen, "%s%s%s",
-                    g_escapeChar, tbName, g_escapeChar);
-
-            if (0 != taos_stmt_set_tbname(stmt, escapedTbName)) {
-                errorPrint("Failed to execute taos_stmt_set_tbname(%s)."
-                        "reason: %s\n",
-                        escapedTbName, taos_stmt_errstr(stmt));
-                free(escapedTbName);
-                freeTbNameIfLooseMode(tbName);
-                tbName = NULL;
-                continue;
-            }
-            free(escapedTbName);
-        }
-#endif
 
         debugPrint("%s() LN%d, count: %"PRId64"\n",
                     __func__, __LINE__, count);

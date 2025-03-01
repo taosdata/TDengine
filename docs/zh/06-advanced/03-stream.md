@@ -60,20 +60,20 @@ subquery 支持会话窗口、状态窗口、时间窗口、事件窗口与计�
 
 3. INTERVAL 是时间窗口，又可分为滑动时间窗口和翻转时间窗口。INTERVAL 子句用于指定窗口相等时间周期，SLIDING 字句用于指定窗口向前滑动的时间。当 interval_val 与 sliding_val 相等的时候，时间窗口即为翻转时间窗口，否则为滑动时间窗口，注意：sliding_val 必须小于等于 interval_val。
 
-4. EVENT_WINDOW 是事件窗口，根据开始条件和结束条件来划定窗口。当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。 start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine 支持的条件表达式，且可以包含不同的列。
+4. EVENT_WINDOW 是事件窗口，根据开始条件和结束条件来划定窗口。当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine 支持的条件表达式，且可以包含不同的列。
 
-5. COUNT_WINDOW 是计数窗口，按固定的数据行数来划分窗口。 count_val 是常量，是正整数，必须大于等于 2，小于 2147483648。 count_val 表示每个 COUNT_WINDOW 包含的最大数据行数，总数据行数不能整除 count_val 时，最后一个窗口的行数会小于 count_val 。 sliding_val 是常量，表示窗口滑动的数量，类似于 INTERVAL 的 SLIDING 。
+5. COUNT_WINDOW 是计数窗口，按固定的数据行数来划分窗口。count_val 是常量，是正整数，必须大于等于 2，小于 2147483648。count_val 表示每个 COUNT_WINDOW 包含的最大数据行数，总数据行数不能整除 count_val 时，最后一个窗口的行数会小于 count_val。sliding_val 是常量，表示窗口滑动的数量，类似于 INTERVAL 的 SLIDING 。
 
 窗口的定义与时序数据窗口查询中的定义完全相同，具体可参考 TDengine 窗口函数部分。
 
-如下 SQL 将创建一个流计算，执行后 TDengine 会自动创建名为avg_vol 的超级表，此流计算以 1min 为时间窗口、30s 为前向增量统计这些智能电表的平均电压，并将来自 meters 的数据的计算结果写入 avg_vol，不同分区的数据会分别创建子表并写入不同子表。
+如下 SQL 将创建一个流计算，执行后 TDengine 会自动创建名为 avg_vol 的超级表，此流计算以 1min 为时间窗口、30s 为前向增量统计这些智能电表的平均电压，并将来自 meters 的数据的计算结果写入 avg_vol，不同分区的数据会分别创建子表并写入不同子表。
 ```sql
 CREATE STREAM avg_vol_s INTO avg_vol AS
 SELECT _wstart, count(*), avg(voltage) FROM power.meters PARTITION BY tbname INTERVAL(1m) SLIDING(30s);
 ```
 
 本节涉及的相关参数的说明如下。
-- stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，则会自动创建；如果已存在，则检查列的 schema 信息。详见 6.3.8 节。
+- stb_name 是保存计算结果的超级表的表名，如果该超级表不存在，则会自动创建；如果已存在，则检查列的 schema 信息。
 - tags 子句定义了流计算中创建标签的规则。通过 tags 字段可以为每个分区对应的子表生成自定义的标签值。
 
 ## 流式计算的规则和策略

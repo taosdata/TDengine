@@ -167,7 +167,8 @@ int32_t         metaDropMultipleTables(SMeta* pMeta, int64_t version, SArray* tb
 int             metaTtlFindExpired(SMeta* pMeta, int64_t timePointMs, SArray* tbUids, int32_t ttlDropMaxCount);
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
 int             metaUpdateChangeTimeWithLock(SMeta* pMeta, tb_uid_t uid, int64_t changeTimeMs);
-SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, int64_t* createTime);
+SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
+int64_t         metaGetTableCreateTime(SMeta* pMeta, tb_uid_t uid, int lock);
 int32_t         metaGetTbTSchemaNotNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 int32_t         metaGetTbTSchemaMaybeNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
@@ -486,7 +487,13 @@ struct SVnode {
   // commit variables
   SVATaskID commitTask;
 
-  SMeta*        pMeta;
+  struct {
+    TdThreadRwlock metaRWLock;
+    SMeta*         pMeta;
+    SMeta*         pNewMeta;
+    SVATaskID      metaCompactTask;
+  };
+
   SSma*         pSma;
   STsdb*        pTsdb;
   SWal*         pWal;

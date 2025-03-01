@@ -163,7 +163,7 @@ void* rpcMallocCont(int64_t contLen) {
     tTrace("malloc mem:%p size:%" PRId64, start, size);
   }
 
-  return start + sizeof(STransMsgHead);
+  return start + TRANS_MSG_OVERHEAD;
 }
 
 void rpcFreeCont(void* cont) { transFreeMsg(cont); }

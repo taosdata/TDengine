@@ -136,7 +136,7 @@ typedef enum {
 typedef enum {
   TRN_KILL_MODE_SKIP = 0,
   TRN_KILL_MODE_INTERUPT = 1,
-  //TRN_KILL_MODE_ROLLBACK = 2,
+  // TRN_KILL_MODE_ROLLBACK = 2,
 } ETrnKillMode;
 
 typedef enum {
@@ -478,6 +478,10 @@ typedef struct {
   int32_t    dnodeId;
   ESyncState syncState;
   int64_t    syncTerm;
+  int64_t    syncAppliedIndex;
+  int64_t    lastSyncAppliedIndexUpdateTime;
+  double     appliedRate;
+  int64_t    syncCommitIndex;
   bool       syncRestore;
   bool       syncCanRead;
   int64_t    roleTimeMs;

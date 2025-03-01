@@ -57,6 +57,7 @@ void tqDestroyTqHandle(void* data) {
   if (pData->pRef) {
     walCloseRef(pData->pRef->pWal, pData->pRef->refId);
   }
+  taosHashCleanup(pData->tableCreateTimeHash);
 }
 
 static bool tqOffsetEqual(const STqOffset* pLeft, const STqOffset* pRight) {
@@ -211,7 +212,7 @@ void tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId) {
   tDeleteMqDataRsp(&dataRsp);
 }
 
-int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp, int32_t type,
+int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, SMqDataRsp* pRsp, int32_t type,
                       int32_t vgId) {
   if (pHandle == NULL || pMsg == NULL || pReq == NULL || pRsp == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -414,7 +415,14 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto END;
   }
-
+  if (req.rawData == 1){
+    req.uidHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    if (req.uidHash == NULL) {
+      tqError("tq poll rawData taosHashInit failed");
+      code = terrno;
+      goto END;
+    }
+  }
   int64_t      consumerId = req.consumerId;
   int32_t      reqEpoch = req.epoch;
   STqOffsetVal reqOffset = req.reqOffset;
@@ -954,6 +962,7 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
   int32_t                code = TSDB_CODE_SUCCESS;
   SStreamTask*           pTask = NULL;
   SStreamTask*           pStreamTask = NULL;
+  char*                  pStatus = NULL;
 
   code = streamMetaAcquireTask(pMeta, pReq->streamId, pReq->taskId, &pTask);
   if (pTask == NULL) {
@@ -964,7 +973,29 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
 
   // do recovery step1
   const char* id = pTask->id.idStr;
-  char*       pStatus = streamTaskGetStatus(pTask).name;
+  streamMutexLock(&pTask->lock);
+
+  SStreamTaskState s = streamTaskGetStatus(pTask);
+  pStatus = s.name;
+
+  if ((s.state != TASK_STATUS__SCAN_HISTORY) || (pTask->status.downstreamReady == 0)) {
+    tqError("s-task:%s vgId:%d status:%s downstreamReady:%d not allowed/ready for scan-history data, quit", id,
+            pMeta->vgId, s.name, pTask->status.downstreamReady);
+
+    streamMutexUnlock(&pTask->lock);
+    streamMetaReleaseTask(pMeta, pTask);
+    return 0;
+  }
+
+  if (pTask->exec.pExecutor == NULL) {
+    tqError("s-task:%s vgId:%d executor is null, not executor scan history", id, pMeta->vgId);
+
+    streamMutexUnlock(&pTask->lock);
+    streamMetaReleaseTask(pMeta, pTask);
+    return 0;
+  }
+
+  streamMutexUnlock(&pTask->lock);
 
   // avoid multi-thread exec
   while (1) {

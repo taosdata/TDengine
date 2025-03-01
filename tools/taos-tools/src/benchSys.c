@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <bench.h>
 #include "benchLog.h"
+#include "cus_name.h"
 
 #ifdef LINUX
 #include <argp.h>
@@ -21,23 +22,7 @@
 #endif
 #endif
 
-extern char version[];
 
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
-#include "cus_name.h"
-#else
-#ifndef CUS_NAME
-#define CUS_NAME        "TDengine"
-#endif
-
-#ifndef CUS_PROMPT
-#define CUS_PROMPT      "taos"
-#endif
-
-#ifndef CUS_EMAIL
-#define CUS_EMAIL       "<support@taosdata.com>"
-#endif
-#endif
 
 #ifdef WINDOWS
 char      g_configDir[MAX_PATH_LEN] = {0};  // "C:\\TDengine\\cfg"};
@@ -92,9 +77,7 @@ void benchPrintHelp() {
     printf("%s%s%s%s\r\n", indent, "-W,", indent, BENCH_DSN);
     printf("%s%s%s%s\r\n", indent, "-D,", indent, BENCH_TIMEOUT);
 #endif
-#ifdef TD_VER_COMPATIBLE_3_0_0_0
     printf("%s%s%s%s\r\n", indent, "-v,", indent, BENCH_VGROUPS);
-#endif
     printf("%s%s%s%s\r\n", indent, "-V,", indent, BENCH_VERSION);
     printf("\r\n\r\nReport bugs to %s.\r\n", CUS_EMAIL);
 }
@@ -214,9 +197,7 @@ static struct argp_option bench_options[] = {
 #endif
     {"keep-trying", 'k', "NUMBER", 0, BENCH_KEEPTRYING},
     {"trying-interval", 'z', "NUMBER", 0, BENCH_TRYING_INTERVAL},
-#ifdef TD_VER_COMPATIBLE_3_0_0_0
     {"vgroups", 'v', "NUMBER", 0, BENCH_VGROUPS},
-#endif
     {"version", 'V', 0, 0, BENCH_VERSION},
     {"nodrop", 'Q', 0, 0, BENCH_NODROP},
     {0}
@@ -657,14 +638,12 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
             g_arguments->timeout = atoi(arg);
             break;
 #endif
-#ifdef TD_VER_COMPATIBLE_3_0_0_0
         case 'v':
             if (!toolsIsStringNumber(arg)) {
                 errorPrintReqArg2(CUS_PROMPT"Benchmark", "v");
             }
             g_arguments->inputted_vgroups = atoi(arg);
             break;
-#endif
         case 'Q':
             database->drop = false;
             g_argFlag |= ARG_OPT_NODROP;

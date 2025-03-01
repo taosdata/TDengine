@@ -251,7 +251,7 @@ int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
 }
 
 int32_t qSetStreamNotifyInfo(qTaskInfo_t tinfo, int32_t eventTypes, const SSchemaWrapper* pSchemaWrapper,
-                             const char* stbFullName, bool newSubTableRule) {
+                             const char* stbFullName, bool newSubTableRule, STaskNotifyEventStat* pNotifyEventStat) {
   int32_t code = TSDB_CODE_SUCCESS;
   SStreamTaskInfo *pStreamInfo = NULL;
 
@@ -267,6 +267,7 @@ int32_t qSetStreamNotifyInfo(qTaskInfo_t tinfo, int32_t eventTypes, const SSchem
   }
   pStreamInfo->stbFullName = taosStrdup(stbFullName);
   pStreamInfo->newSubTableRule = newSubTableRule;
+  pStreamInfo->pNotifyEventStat = pNotifyEventStat;
 
 _end:
   return code;
@@ -630,7 +631,7 @@ void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
 }
 
 int32_t qExecutorInit(void) {
-  taosThreadOnce(&initPoolOnce, initRefPool);
+  (void)taosThreadOnce(&initPoolOnce, initRefPool);
   return TSDB_CODE_SUCCESS;
 }
 

@@ -254,8 +254,7 @@ void shellRunSingleCommandImp(char *command) {
   }
 
   if (shellRegexMatch(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
-    fprintf(stdout, "Database changed.\r\n\r\n");
-    fflush(stdout);
+    printf("Database changed.\r\n\r\n");
 
     // call back auto tab module
     callbackAutoTab(command, pSql, true);
@@ -1267,6 +1266,9 @@ void *shellCancelHandler(void *arg) {
   return NULL;
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+
 void *shellThreadLoop(void *arg) {
   setThreadName("shellThreadLoop");
   taosGetOldTerminalMode();
@@ -1298,6 +1300,7 @@ void *shellThreadLoop(void *arg) {
   taosThreadCleanupPop(1);
   return NULL;
 }
+#pragma GCC diagnostic pop
 
 int32_t shellExecute() {
   printf(shell.info.clientVersion, shell.info.cusName, taos_get_client_info(), shell.info.cusName);

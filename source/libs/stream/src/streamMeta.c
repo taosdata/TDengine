@@ -577,7 +577,6 @@ void streamMetaClose(SStreamMeta* pMeta) {
     return;
   }
 
-
   stDebug("vgId:%d start to close stream meta", pMeta->vgId);
   int32_t code = taosRemoveRef(streamMetaRefPool, pMeta->rid);
   if (code) {

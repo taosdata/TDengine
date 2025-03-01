@@ -6,12 +6,14 @@ on:
       - 'main'
       - '3.0'
       - '3.1'
+      - 'enh/cmake-TD-33848'
+      
     paths-ignore:
       - 'docs/**'
       - 'packaging/**'
       - 'tests/**'
       - '*.md'
-      
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -43,15 +45,33 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt update -y
-          sudo apt install -y build-essential cmake \
-            libgeos-dev libjansson-dev libsnappy-dev liblzma-dev libz-dev \
-            zlib1g-dev pkg-config libssl-dev gawk
+          sudo apt install -y \
+            build-essential \
+            cmake \
+            gawk \
+            libgeos-dev \
+            libjansson-dev \
+            liblzma-dev \
+            libsnappy-dev \
+            libssl-dev \
+            libz-dev \
+            pkg-config \
+            zlib1g
 
       - name: Install dependencies on macOS
         if: runner.os == 'macOS'
         run: |
           brew update
-          brew install argp-standalone gflags pkg-config  snappy zlib geos jansson gawk openssl
+          brew install \
+            argp-standalone \
+            gawk \
+            gflags \
+            geos \
+            jansson \
+            openssl \
+            pkg-config \
+            snappy \
+            zlib
 
       - name: Build and install TDengine
         run: |
@@ -80,7 +100,7 @@ jobs:
         run: |
           taosBenchmark -t 10 -n 10 -y 
           taos -s "select count(*) from test.meters"
-         
+
       - name: Clean up
         if: always()
         run: |
