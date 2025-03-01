@@ -221,7 +221,7 @@
           <el-input v-model="ruleForm.s3_object_prefix"></el-input>
         </el-form-item>
         <el-form-item v-if="ruleForm.s3_enable" prop="backup_retention_period_value" :label="$t('taosuser.backupForm.backupRetentionPeriod')">
-          <el-input v-model="ruleForm.backup_retention_period_value" class="input-with-select">
+          <el-input v-model.number="ruleForm.backup_retention_period_value" class="input-with-select">
             <template #append>
               <el-select v-model="ruleForm.backup_retention_period_unit" style="width: 100px">
                 <el-option :label="$t('taosuser.timeUnitH')" value="h"></el-option>
@@ -231,7 +231,7 @@
           </el-input>
         </el-form-item>
         <el-form-item v-if="ruleForm.s3_enable" prop="backup_retention_size" :label="$t('taosuser.backupForm.backupRetentionSize')">
-          <el-input v-model="ruleForm.backup_retention_size"></el-input>
+          <el-input v-model.number="ruleForm.backup_retention_size"></el-input>
         </el-form-item>
       </el-form>
 
@@ -267,6 +267,7 @@ import { addBackupData, editBackup } from '@/api/backup';
 import { excuteStart, excuteStop, excuteDel } from '@/api/common';
 import { getStables } from '@/api/database';
 import { decrypt } from '@/utils/index';
+import { concatS3Config } from '@/utils/util';
 import { FormInstance, FormRules } from 'element-plus';
 import { isEn } from '@/const';
 import { useBackupStore } from '@/store/modules/8_administrator/backup';
@@ -615,10 +616,7 @@ const constructPostData = () => {
   if (ruleForm.stable) {
     fromDSN += `&stable=${ruleForm.stable}`;
   }
-  let toDSN = `local:${ruleForm.directory}?max_size=${ruleForm.backup_max_size_value}${ruleForm.backup_max_size_unit}&compression_level=${ruleForm.compression_level}&s3_enable=${ruleForm.s3_enable}`;
-  if (ruleForm.s3_enable) {
-    toDSN += `&s3_endpoint=${ruleForm.s3_endpoint}&s3_access_key_id=${ruleForm.s3_access_key_id}&s3_secret_access_key=${ruleForm.s3_secret_access_key}&s3_region=${ruleForm.s3_region}&s3_bucket=${ruleForm.s3_bucket}&s3_object_prefix=${ruleForm.s3_object_prefix}&backup_retention_period=${ruleForm.backup_retention_period_value}${ruleForm.backup_retention_period_unit}&backup_retention_size=${ruleForm.backup_retention_size}`;
-  }
+  const toDSN = `local:${ruleForm.directory}?max_size=${ruleForm.backup_max_size_value}${ruleForm.backup_max_size_unit}&compression_level=${ruleForm.compression_level}&${concatS3Config(ruleForm)}`;
 
   return {
     labels: ['type::backup', `cluster-id::${clusterID}`],

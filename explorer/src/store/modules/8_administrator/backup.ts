@@ -40,7 +40,7 @@ const parseBackup = (data: any) => {
     targetData.s3_region = data.to_expand.params?.s3_region;
     targetData.s3_object_prefix = data.to_expand.params?.s3_object_prefix;
     targetData.backup_retention_size = parseInt(data.to_expand.params?.backup_retention_size || '10');
-    const backup_retention_period_part = data.to_expand.params?.backup_retention_period.match(/^(\d+)([hd])$/) || ['1', 'd'];
+    const backup_retention_period_part = data.to_expand.params?.backup_retention_period?.match(/^(\d+)([hd])$/) || ['', 'd'];
     if (backup_retention_period_part && backup_retention_period_part.length === 3) {
       targetData.backup_retention_period_value = backup_retention_period_part[1];
       targetData.backup_retention_period_unit = backup_retention_period_part[2];

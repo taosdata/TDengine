@@ -69,6 +69,7 @@
 <script setup lang="ts">
 const { t } = useI18n();
 import { parsinginZone } from '@/utils/index';
+import { concatS3Config } from '@/utils/util';
 import { restoreBackups } from '@/api/backup';
 import { defineEmits } from 'vue';
 import { useBackupStore } from '@/store/modules/8_administrator/backup';
@@ -104,11 +105,7 @@ const restoreBackup = async () => {
   for (let i = 0; i < backupStore.backupPlanList.length; i++) {
     if (backupStore.backupPlanList[i].id === backupStore.historyPlanId) {
       backupDirectory = backupStore.backupPlanList[i].directory;
-      if (backupStore.backupPlanList[i].s3_enable) {
-        const backupPlan = backupStore.backupPlanList[i];
-        s3Config = `s3_enable=true&s3_endpoint=${backupPlan.s3_endpoint}&s3_access_key_id=${backupPlan.s3_access_key_id}&s3_secret_access_key=${backupPlan.s3_secret_access_key}&s3_region=${backupPlan.s3_region}&s3_bucket=${backupPlan.s3_bucket}&s3_object_prefix=${backupPlan.s3_object_prefix}&backup_retention_period=${backupPlan.backup_retention_period_value}${backupPlan.backup_retention_period_unit}&backup_retention_size=${backupPlan.backup_retention_size}`;
-      }
-
+      s3Config = concatS3Config(backupStore.backupPlanList[i]);
       break;
     }
   }

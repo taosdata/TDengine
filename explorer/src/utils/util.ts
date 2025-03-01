@@ -103,3 +103,19 @@ export function uuid() {
     return v.toString(16);
   });
 }
+
+export function concatS3Config(backupPlan: any) {
+  if (backupPlan.s3_enable === false) {
+    return 's3_enable=false';
+  }
+
+  let s3Config = `s3_enable=true&s3_endpoint=${backupPlan.s3_endpoint}&s3_access_key_id=${backupPlan.s3_access_key_id}&s3_secret_access_key=${backupPlan.s3_secret_access_key}&s3_region=${backupPlan.s3_region}&s3_bucket=${backupPlan.s3_bucket}&s3_object_prefix=${backupPlan.s3_object_prefix || ''}`;
+  if (backupPlan.backup_retention_period_value) {
+    s3Config += `&backup_retention_period=${backupPlan.backup_retention_period_value}${backupPlan.backup_retention_period_unit}`;
+  }
+  if (backupPlan.backup_retention_size) {
+    s3Config += `&backup_retention_size=${backupPlan.backup_retention_size}`;
+  }
+
+  return s3Config;
+}
