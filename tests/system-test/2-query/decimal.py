@@ -192,14 +192,17 @@ class DecimalColumnExpr:
         return f"({self.format_})".format(*self.params_)
 
     def execute(self, params):
-        return self.executor_(params)
-    
+        return self.executor_(self, params)
+
     def get_val(self, tbname: str, idx: int):
         params: Tuple = ()
         for p in self.params_:
             params = params + (p.get_val(tbname, idx),)
         return self.execute(params)
-    
+
+    def get_input_types(self) -> List:
+        pass
+
     def check(self, query_col_res: List, tbname: str):
         for i in range(len(query_col_res)):
             v_from_query = query_col_res[i]
@@ -226,12 +229,13 @@ class DecimalColumnExpr:
                 failed = dec_from_query != dec_from_insert
             if failed:
                 tdLog.exit(
-                    f"check decimal column failed for expr: {self} params: {params}, query: {v_from_query}, expect {dec_from_insert}, but get {dec_from_query}")
+                    f"check decimal column failed for expr: {self}, input: {[t.__str__() for t in self.get_input_types()]}, res_type: {self.res_type_}, params: {params}, query: {v_from_query}, expect {dec_from_insert}, but get {dec_from_query}"
+                )
             else:
                 tdLog.debug(
-                    f"check decimal succ for expr: {self}, params: {params}, insert:{v_from_calc_in_py} query:{v_from_query}, py dec: {dec_from_insert}"
+                    f"check decimal succ for expr: {self}, input: {[t.__str__() for t in self.get_input_types()]}, res_type: {self.res_type_}, params: {params}, insert:{v_from_calc_in_py} query:{v_from_query}, py dec: {dec_from_insert}"
                 )
-    
+
     ## format_params are already been set
     def generate_res_type(self):
         pass
@@ -298,7 +302,6 @@ class TypeEnum:
         return type_str[type]
 
 
-
 class DataType:
     def __init__(self, type: int, length: int = 0, type_mod: int = 0):
         self.type: int = type
@@ -336,7 +339,7 @@ class DataType:
     ## TODO generate NULL, None
     def generate_value(self) -> str:
         if self.type == TypeEnum.BOOL:
-            return str(secrets.randbelow(2))
+            return ['true', 'false'][secrets.randbelow(2)]
         if self.type == TypeEnum.TINYINT:
             return str(secrets.randbelow(256) - 128)
         if self.type == TypeEnum.SMALLINT:
@@ -375,6 +378,11 @@ class DataType:
     def get_typed_val(self, val):
         if self.type == TypeEnum.FLOAT or self.type == TypeEnum.DOUBLE:
             return float(val)
+        if self.type == TypeEnum.BOOL:
+            if val == "true":
+                return 1
+            else:
+                return 0
         return val
 
 class DecimalType(DataType):
@@ -479,18 +487,18 @@ class Column:
 
     def is_constant_col(self):
         return '' in self.saved_vals.keys()
-    
+
     def get_typed_val(self, val):
         return self.type_.get_typed_val(val)
-    
+
     def get_constant_val(self):
         return self.get_typed_val(self.saved_vals[''][0])
-    
+
     def __str__(self):
         if self.is_constant_col():
             return str(self.get_constant_val())
         return self.name_
-    
+
     def get_val(self, tbname: str, idx: int):
         if self.is_constant_col():
             return self.get_constant_val()
@@ -513,7 +521,7 @@ class Column:
 
     def check(self, values, offset: int):
         return self.type_.check(values, offset)
-    
+
     def construct_type_value(self, val: str):
         if (
             self.type_.type == TypeEnum.BINARY
@@ -525,7 +533,7 @@ class Column:
             return f"'{val}'"
         else:
             return val
-    
+
     @staticmethod
     def get_decimal_unsupported_types() -> list:
         return [
@@ -533,11 +541,23 @@ class Column:
             TypeEnum.GEOMETRY,
             TypeEnum.VARBINARY,
         ]
-    
+
     @staticmethod
     def get_decimal_oper_const_cols() -> list:
-        return Column.get_all_type_columns(Column.get_decimal_unsupported_types() + Column.get_decimal_types())
-    
+        types_unable_to_be_const = [
+            TypeEnum.TINYINT,
+            TypeEnum.SMALLINT,
+            TypeEnum.INT,
+            TypeEnum.UINT,
+            TypeEnum.USMALLINT,
+            TypeEnum.UTINYINT,
+        ]
+        return Column.get_all_type_columns(
+            Column.get_decimal_unsupported_types()
+            + Column.get_decimal_types()
+            + types_unable_to_be_const
+        )
+
     @staticmethod
     def get_decimal_types() -> List:
         return [TypeEnum.DECIMAL, TypeEnum.DECIMAL64]
@@ -700,6 +720,8 @@ class DecimalBinaryOperator(DecimalColumnExpr):
     def __init__(self, format, executor, op: str):
         super().__init__(format, executor)
         self.op_ = op
+        self.left_type_: DataType = None
+        self.right_type_: DataType = None
 
     def __str__(self):
         return super().__str__()
@@ -727,13 +749,13 @@ class DecimalBinaryOperator(DecimalColumnExpr):
         if not left.is_decimal_type():
             left_prec = TypeEnum.get_type_prec(left.type)
         else:
-            left_prec = DecimalType(left).prec()
-            left_scale = DecimalType(left).scale()
+            left_prec = left.prec()
+            left_scale = left.scale()
         if not right.is_decimal_type():
             right_prec = TypeEnum.get_type_prec(right.type)
         else:
-            right_prec = DecimalType(right).prec()
-            right_scale = DecimalType(right).scale()
+            right_prec = right.prec()
+            right_scale = right.scale()
         
         out_prec = 0
         out_scale = 0
@@ -762,12 +784,22 @@ class DecimalBinaryOperator(DecimalColumnExpr):
     def generate_res_type(self):
         if DecimalBinaryOperator.is_compare_op(self.op_):
             self.res_type_ = DataType(TypeEnum.BOOL)
+            return
         left_type = self.params_[0].type_
         right_type = self.params_[1].type_
+        self.left_type_ = left_type
+        self.right_type_ = right_type
         ret_double_types = [TypeEnum.VARCHAR, TypeEnum.BINARY, TypeEnum.DOUBLE, TypeEnum.FLOAT]
         if left_type.type in ret_double_types or right_type.type in ret_double_types:
             self.res_type_ = DataType(TypeEnum.DOUBLE)
-        self.res_type_ = DecimalBinaryOperator.calc_decimal_prec_scale(left_type, right_type, self.op_)
+        else:
+            self.res_type_ = DecimalBinaryOperator.calc_decimal_prec_scale(left_type, right_type, self.op_)
+    
+    def get_input_types(self)-> list:
+        return [self.left_type_, self.right_type_]
+    
+    def convert_to_res_type(self, val: Decimal) -> Decimal:
+        return val.quantize(Decimal("1." + "0" * self.res_type_.scale()), ROUND_HALF_UP)
 
     @staticmethod
     def get_ret_type(params) -> Tuple:
@@ -784,49 +816,50 @@ class DecimalBinaryOperator(DecimalColumnExpr):
             ret_float = True
         return (left, right), ret_float
 
-    @staticmethod
-    def execute_plus(params):
+    def execute_plus(self, params):
         if DecimalBinaryOperator.check_null(params):
             return 'NULL'
         (left, right), ret_float = DecimalBinaryOperator.get_ret_type(params)
         if ret_float:
             return float(left) + float(right)
         else:
-            return Decimal(left) + Decimal(right)
+            return self.convert_to_res_type(Decimal(left) + Decimal(right))
 
-    @staticmethod
-    def execute_minus(params):
+    def execute_minus(self, params):
         if DecimalBinaryOperator.check_null(params):
             return 'NULL'
         (left, right), ret_float = DecimalBinaryOperator.get_ret_type(params)
         if ret_float:
             return float(left) - float(right)
         else:
-            return Decimal(left) - Decimal(right)
+            return self.convert_to_res_type(Decimal(left) - Decimal(right))
 
-    @staticmethod
-    def execute_mul(params):
+    def execute_mul(self, params):
         if DecimalBinaryOperator.check_null(params):
             return 'NULL'
         (left, right), ret_float = DecimalBinaryOperator.get_ret_type(params)
         if ret_float:
             return float(left) * float(right)
         else:
-            return Decimal(left) * Decimal(right)
+            return self.convert_to_res_type(Decimal(left) * Decimal(right))
 
-    @staticmethod
-    def execute_div(params):
+    def execute_div(self, params):
         if DecimalBinaryOperator.check_null(params):
             return 'NULL'
         (left, right), ret_float = DecimalBinaryOperator.get_ret_type(params)
         if ret_float:
             return float(left) / float(right)
         else:
-            return Decimal(left) / Decimal(right)
+            return self.convert_to_res_type(Decimal(left) / Decimal(right))
 
-    @staticmethod
-    def execute_mod(params):
-        return params[0] % params[1]
+    def execute_mod(self, params):
+        if DecimalBinaryOperator.check_null(params):
+            return 'NULL'
+        (left, right), ret_float = DecimalBinaryOperator.get_ret_type(params)
+        if ret_float:
+            return float(left) % float(right)
+        else:
+            return self.convert_to_res_type(Decimal(left) % Decimal(right))
 
     @staticmethod
     def execute_eq(params):
