@@ -4204,6 +4204,9 @@ static int32_t fltSclBuildDecimalDatumFromValueNode(SFltSclDatum* datum, SColumn
       case TSDB_DATA_TYPE_DOUBLE:
         pInput = &valNode->datum.d;
         break;
+      case TSDB_DATA_TYPE_VARCHAR:
+        pInput = &valNode->datum.p;
+        break;
       default:
         qError("not supported type %d when build decimal datum from value node", valNode->node.resType.type);
         return TSDB_CODE_INVALID_PARA;
@@ -4219,9 +4222,11 @@ static int32_t fltSclBuildDecimalDatumFromValueNode(SFltSclDatum* datum, SColumn
       datum->pData = pData;
       datum->kind = FLT_SCL_DATUM_KIND_DECIMAL;
     }
-    int32_t code = convertToDecimal(pInput, &valNode->node.resType, pData, &datum->type);
-    if (TSDB_CODE_SUCCESS != code) return code; // TODO wjm handle overflow error
-    valNode->node.resType = datum->type;
+    if (datum->kind == FLT_SCL_DATUM_KIND_DECIMAL64 || datum->kind == FLT_SCL_DATUM_KIND_DECIMAL) {
+      int32_t code = convertToDecimal(pInput, &valNode->node.resType, pData, &datum->type);
+      if (TSDB_CODE_SUCCESS != code) return code;  // TODO wjm handle overflow error
+      valNode->node.resType = datum->type;
+    }
   }
   FLT_RET(0);
 }
