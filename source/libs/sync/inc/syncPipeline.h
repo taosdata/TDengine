@@ -40,6 +40,7 @@ typedef struct SSyncLogReplMgr {
   int32_t       retryBackoff;
   int32_t       peerId;
   int32_t       sendCount;
+  TdThreadMutex mutex;
 } SSyncLogReplMgr;
 
 typedef struct SSyncLogBufEntry {

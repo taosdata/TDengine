@@ -35,6 +35,7 @@ void raftStoreClearVote(SSyncNode *pNode);
 void raftStoreNextTerm(SSyncNode *pNode);
 void raftStoreSetTerm(SSyncNode *pNode, SyncTerm term);
 SyncTerm raftStoreGetTerm(SSyncNode *pNode);
+SyncTerm raftStoreTryGetTerm(SSyncNode *pNode);
 
 #ifdef __cplusplus
 }

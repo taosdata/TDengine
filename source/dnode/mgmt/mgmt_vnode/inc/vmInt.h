@@ -39,7 +39,7 @@ typedef struct SVnodeMgmt {
   SHashObj             *runngingHash;
   SHashObj             *closedHash;
   SHashObj             *creatingHash;
-  TdThreadRwlock        lock;
+  TdThreadRwlock        hashLock;
   TdThreadMutex         mutex;
   SVnodesStat           state;
   STfs                 *pTfs;
