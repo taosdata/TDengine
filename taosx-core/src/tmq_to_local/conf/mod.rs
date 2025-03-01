@@ -423,7 +423,10 @@ impl BackupConfigBuilder {
                 // s3 config
                 let s3_config = S3Config::from_dsn(&self.to)?;
                 // 检查 s3 连通性
-                s3_config.connect().await?;
+                s3_config
+                    .connect()
+                    .await
+                    .context(format!("failed to connect s3: {:?}", &s3_config))?;
                 // backup_retention_period
                 let backup_retention_period =
                     utils::parse_duration_in_dsn(&self.to, "backup_retention_period")?;
