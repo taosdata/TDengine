@@ -198,6 +198,7 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
     if (isdigit(str[pos2] || str[pos] == '.')) continue;
     if (str[pos2] == 'e' || str[pos2] == 'E') {
       result->exponent = atoi(str + pos2 + 1);
+      break;
     }
     pos2++;
   }
@@ -859,7 +860,7 @@ static void makeInt256FromDecimal128(Int256* pTarget, const Decimal128* pDec) {
   UInt128 tmp = {DECIMAL128_LOW_WORD(&abs), DECIMAL128_HIGH_WORD(&abs)};
   *pTarget = makeInt256(int128Zero, tmp);
   if (negative) {
-    int256Negate(pTarget);
+    *pTarget = int256Negate(pTarget);
   }
 }
 
@@ -876,8 +877,8 @@ static Int256 int256ScaleBy(const Int256* pX, int32_t scale) {
     Int256 remainder = int256Mod(pX, &divisor);
     Int256 afterShift = int256RightShift(&divisor, 1);
     remainder = int256Abs(&remainder);
-    if (int256Gt(&remainder, &afterShift)) {
-      if (int256Gt(&result, &int256Zero)) {
+    if (!int256Gt(&afterShift, &remainder)) {
+      if (int256Gt(pX, &int256Zero)) {
         result = int256Add(&result, &int256One);
       } else {
         result = int256Subtract(&result, &int256One);
@@ -1079,6 +1080,11 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
   } else {
     right = *(Decimal*)pRightData;
   }
+#ifdef DEBUG
+  char left_var[64] = {0}, right_var[64] = {0};
+  decimal128ToStr(&left, lt.scale, left_var, 64);
+  decimal128ToStr(&right, rt.scale, right_var, 64);
+#endif
 
   switch (op) {
     case OP_TYPE_ADD:
@@ -1444,7 +1450,9 @@ static int32_t decimal128FromDecimal128(DecimalType* pDec, uint8_t prec, uint8_t
       } break;                                                                                                   \
       case TSDB_DATA_TYPE_VARCHAR:                                                                               \
       case TSDB_DATA_TYPE_VARBINARY:                                                                             \
-      case TSDB_DATA_TYPE_NCHAR:                                                                                 \
+      case TSDB_DATA_TYPE_NCHAR: {                                                                               \
+        code = decimal##FromStr(pData, pInputType->bytes, pOutType->precision, pOutType->scale, pOut);           \
+      } break;                                                                                                   \
       default:                                                                                                   \
         code = TSDB_CODE_OPS_NOT_SUPPORT;                                                                        \
         break;                                                                                                   \

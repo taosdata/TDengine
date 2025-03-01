@@ -214,12 +214,31 @@ Int256 int256Multiply(const Int256* pLeft, const Int256* pRight) {
   return *(Int256*)&result;
 }
 Int256 int256Divide(const Int256* pLeft, const Int256* pRight) {
-  intx::uint256 result = *(intx::uint256*)pLeft / *(intx::uint256*)pRight;
-  return *(Int256*)&result;
+  Int256 l = *pLeft, r = *pRight;
+  bool   leftNegative = int256Lt(pLeft, &int256Zero), rightNegative = int256Lt(pRight, &int256Zero);
+  if (leftNegative) {
+    l = int256Abs(pLeft);
+  }
+  if (rightNegative) {
+    r = int256Abs(pRight);
+  }
+  intx::uint256 result = *(intx::uint256*)&l / *(intx::uint256*)&r;
+  Int256 res =  *(Int256*)&result;
+  if (leftNegative != rightNegative)
+    res = int256Negate(&res);
+  return res;
 }
+
 Int256 int256Mod(const Int256* pLeft, const Int256* pRight) {
-  intx::uint256 result = *(intx::uint256*)pLeft % *(intx::uint256*)pRight;
-  return *(Int256*)&result;
+  Int256 left = *pLeft;
+  bool leftNegative = int256Lt(pLeft, &int256Zero);
+  if (leftNegative) {
+    left = int256Abs(&left);
+  }
+  intx::uint256 result = *(intx::uint256*)&left % *(intx::uint256*)pRight;
+  Int256 res =  *(Int256*)&result;
+  if (leftNegative) res = int256Negate(&res);
+  return res;
 }
 bool int256Lt(const Int256* pLeft, const Int256* pRight) {
   Int128  hiLeft = int256Hi(pLeft), hiRight = int256Hi(pRight);
