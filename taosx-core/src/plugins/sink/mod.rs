@@ -1,6 +1,7 @@
 use std::cmp;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::ops::Mul;
+use std::path::PathBuf;
 use std::{
     any::Any,
     cell::Cell,
@@ -20,14 +21,15 @@ use crate::runners::opc::config::model::TagConfig;
 
 use crate::core_metrics::get_metrics_arc_from_i64;
 use crate::utils::breakpoints::BreakpointDb;
+use crate::utils::files::{read_parquet_dir_files, read_parquet_file};
 use crate::utils::sql::get_minimum_timestamp;
 use crate::utils::trace::{BatchCounter, Qid};
-use crate::ArchiveType;
 use crate::{
     core_metrics::{CoreMetrics, TaskMetrics},
     runners::opc::config::OPCConfig,
 };
 use crate::{utils::breakpoints::breakpoints_set, ConnectorLicense, Parser, Transferred};
+use crate::{ArchiveConsumer, ArchiveType};
 use anyhow::{anyhow, bail, Context};
 use arrow::array::{
     Array, ArrayRef, BinaryArray, BooleanArray, Float16Array, Float32Array, Float64Array,
@@ -536,7 +538,6 @@ async fn ipc_tcp_read(
     task_id: Option<i64>,
     batch_counter: Option<BatchCounter>,
     notifier: crate::TaskNotifySender,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     // let stream = Arc::new(stream);
     // let reader = stream.clone();
@@ -568,7 +569,6 @@ async fn ipc_tcp_read(
         task_id,
         batch_counter,
         notifier,
-        archive_tx.clone(),
     )
     .await?;
     info!("IPC stream processed");
@@ -3598,8 +3598,53 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     task_id: Option<i64>,
     batch_counter: Option<BatchCounter>,
     notifier: crate::TaskNotifySender,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
+    // the queue for transmitting cache and archived data
+    let (archive_tx, archive_rx) = flume::bounded(0);
+    // clone the configurations
+    let parser_clone = parser.clone();
+    // spawn a thread to write data to files
+    let consumer = tokio::spawn(async move {
+        let _a = crate::utils::defer::defer(|| {
+            tracing::info!("the 'cache & archive' thread has completed, task id: {task_id:?}",);
+        });
+        if parser_clone.is_some() && task_id.is_some() {
+            ArchiveConsumer::new(task_id.unwrap(), parser_clone)
+                .consume(archive_rx)
+                .await
+        } else {
+            Ok(())
+        }
+    });
+    // spawn a thread to rewrite cache data to files
+    let pool_clone = pool.clone();
+    let parser_clone = parser.clone();
+    let cancel_clone = cancel.clone();
+    let archive_tx_clone = archive_tx.clone();
+    let process_cache = tokio::spawn(async move {
+        let _a = crate::utils::defer::defer(|| {
+            tracing::info!("the 'rewrite file' thread has completed, task id: {task_id:?}",);
+        });
+        if let Some(parser) = parser_clone {
+            read_cache_and_rewrite(
+                task_id.unwrap(),
+                &pool_clone,
+                &parser,
+                archive_tx_clone,
+                &cancel_clone,
+            )
+            .await
+        } else {
+            Ok(())
+        }
+    });
+
+    let future_consume = async move {
+        consumer.await??;
+        anyhow::Ok(())
+    };
+    let abort_handle_process_cache = process_cache.abort_handle();
+
     info!("IPC stream processing...");
     const MAX_RETRIES: usize = 10;
     let mut retries = 0;
@@ -3641,61 +3686,81 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
 
     drop(taos);
     info!(?stream_type, "Processing stream");
-    match stream_type {
-        StreamType::Line => todo!(),
-        StreamType::Flat => ipc_flat_stream_reader(
-            &pool,
-            ipc_reader,
-            ipc_ack_writer,
-            cancel,
-            parser.as_ref(),
-            license.as_ref(),
-            transferred.as_deref(),
-            target_precision,
-            notifier,
-            ipc_error_strategy,
-            metrics_arc.clone(),
-            batch_counter,
-            archive_tx.clone(),
-        )
-        .await
-        .inspect_err(|err| {
-            tracing::error!("IPC stream error: {err:#}");
-        }),
-        StreamType::Lush => ipc_lush_stream_reader(
-            &pool,
-            ipc_reader,
-            ipc_ack_writer,
-            lush_model_config,
-            task_id,
-            notifier,
-            ipc_error_strategy,
-            metrics,
-            &metrics_arc,
-            archive_tx.clone(),
-        )
-        .await
-        .inspect_err(|err| {
-            tracing::error!("IPC stream error: {err:#}");
-        }),
-        StreamType::Point => ipc_point_reader(
-            &pool,
-            ipc_reader,
-            ipc_ack_writer,
-            opc_model_config,
-            license.as_ref(),
-            transferred.as_deref(),
-            target_precision,
-            notifier,
-            ipc_error_strategy,
-            metrics_arc.clone(),
-            batch_counter,
-        )
-        .await
-        .inspect_err(|err| {
-            tracing::error!("IPC stream error: {err:#}");
-        }),
-    }
+
+    let cancel_clone = cancel.clone();
+    let metrics_arc_clone = metrics_arc.clone();
+    let future_ipc = async move {
+        match stream_type {
+            StreamType::Line => todo!(),
+            StreamType::Flat => ipc_flat_stream_reader(
+                &pool,
+                ipc_reader,
+                ipc_ack_writer,
+                cancel_clone,
+                parser.as_ref(),
+                license.as_ref(),
+                transferred.as_deref(),
+                target_precision,
+                notifier,
+                ipc_error_strategy,
+                metrics_arc_clone.clone(),
+                batch_counter,
+                archive_tx.clone(),
+            )
+            .await
+            .inspect_err(|err| {
+                tracing::error!("IPC stream error: {err:#}");
+            }),
+            StreamType::Lush => ipc_lush_stream_reader(
+                &pool,
+                ipc_reader,
+                ipc_ack_writer,
+                lush_model_config,
+                task_id,
+                notifier,
+                ipc_error_strategy,
+                metrics,
+                &metrics_arc_clone,
+                archive_tx.clone(),
+            )
+            .await
+            .inspect_err(|err| {
+                tracing::error!("IPC stream error: {err:#}");
+            }),
+            StreamType::Point => ipc_point_reader(
+                &pool,
+                ipc_reader,
+                ipc_ack_writer,
+                opc_model_config,
+                license.as_ref(),
+                transferred.as_deref(),
+                target_precision,
+                notifier,
+                ipc_error_strategy,
+                metrics_arc_clone.clone(),
+                batch_counter,
+            )
+            .await
+            .inspect_err(|err| {
+                tracing::error!("IPC stream error: {err:#}");
+            }),
+        }
+    };
+
+    tokio::select! {
+        res = future_ipc => {
+            res?
+        }
+        res = future_consume => {
+            res?
+        }
+        res = process_cache => {
+            res??
+        },
+        _ = cancel.cancelled() => {}
+    };
+    abort_handle_process_cache.abort();
+    Ok(())
 }
 
 #[instrument(skip_all)]
@@ -4318,7 +4383,6 @@ pub async fn listen_tcp_socket(
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notifier: crate::TaskNotifySender,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<(IpcHandler, SocketAddr)> {
     let (sender, error_receiver) = tokio::sync::mpsc::channel(1);
 
@@ -4372,7 +4436,6 @@ pub async fn listen_tcp_socket(
                     let notifier = notifier.clone();
                     let notify = notified.clone();
                     let batch_counter = batch_counter.clone();
-                    let archive_tx = archive_tx.clone();
                     set.spawn(async move {
                         // let dsn: Dsn = "taos:///db2".parse().unwrap();
                         // let pool = TaosBuilder::from_dsn(dsn).unwrap().pool().unwrap();
@@ -4391,7 +4454,6 @@ pub async fn listen_tcp_socket(
                             task_id,
                             batch_counter,
                             notifier,
-                            archive_tx.clone(),
                         )
                             .in_current_span()
                             .await;
@@ -4521,11 +4583,56 @@ pub async fn channel_based_transformer(
     connector: Option<&'static str>,
     task_id: Option<i64>,
     notifier: crate::TaskNotifySender,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<(
     flume::Sender<Result<Box<dyn IpcMessage>, ArrowError>>,
     flume::Receiver<LushAck>,
 )> {
+    // the queue for transmitting cache and archived data
+    let (archive_tx, archive_rx) = flume::bounded(0);
+    // clone the configurations
+    let parser_clone = parser.clone();
+    // spawn a thread to write data to files
+    let consumer = tokio::spawn(async move {
+        let _a = crate::utils::defer::defer(|| {
+            tracing::info!("the 'cache & archive' thread has completed, task id: {task_id:?}",);
+        });
+        if parser_clone.is_some() && task_id.is_some() {
+            ArchiveConsumer::new(task_id.unwrap(), parser_clone)
+                .consume(archive_rx)
+                .await
+        } else {
+            Ok(())
+        }
+    });
+    // spawn a thread to rewrite cache data to files
+    let pool_clone = target.clone();
+    let parser_clone = parser.clone();
+    let cancel_clone = cancel.clone();
+    let archive_tx_clone = archive_tx.clone();
+    let process_cache = tokio::spawn(async move {
+        let _a = crate::utils::defer::defer(|| {
+            tracing::info!("the 'rewrite file' thread has completed, task id: {task_id:?}",);
+        });
+        if let Some(parser) = parser_clone {
+            read_cache_and_rewrite(
+                task_id.unwrap(),
+                &pool_clone,
+                &parser,
+                archive_tx_clone,
+                &cancel_clone,
+            )
+            .await
+        } else {
+            Ok(())
+        }
+    });
+
+    let future_consume = async move {
+        consumer.await??;
+        anyhow::Ok(())
+    };
+    let abort_handle_process_cache = process_cache.abort_handle();
+
     let taos = target.get().await?;
     let target_precision = get_current_precision(&taos).in_current_span().await?;
     let (msg_tx, msg_rx) = flume::bounded(32);
@@ -4570,11 +4677,108 @@ pub async fn channel_based_transformer(
                     .in_current_span()
                     .await
                 } => {}
+                status = future_consume => {
+                    if let Err(e) = status {
+                        tracing::error!("archive consumer error: {e:#}");
+                    }
+                }
+                status = process_cache => {
+                    if let Err(e) = status {
+                        tracing::error!("process cache error: {e:#}");
+                    }
+                },
             }
+            abort_handle_process_cache.abort();
         }
         .in_current_span(),
     );
     Ok((msg_tx, ack_rx))
+}
+
+pub async fn read_cache_and_rewrite(
+    task_id: i64,
+    pool: &TaosPool,
+    parser: &Parser,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    cancel: &CancellationToken,
+) -> anyhow::Result<()> {
+    let cache_path = parser.global().process_on_abnormal.cache.location.clone();
+    let metrics_arc = get_metrics_arc_from_i64(Some(task_id)).await;
+    let metrics = metrics_arc.ipc();
+    loop {
+        tokio::select! {
+            _ = cancel.cancelled() => {
+                tracing::info!("rewrite file cancelled");
+                break;
+            }
+            _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                if let Ok(taos) = pool.get().await {
+                    let target_precision = get_current_precision(&taos).in_current_span().await?;
+                    let files = match read_parquet_dir_files(task_id, &cache_path) {
+                        Ok(files) => files,
+                        Err(e) => anyhow::bail!(format!("{e:#}")),
+                    };
+                    let mut taos_mut = Some(taos);
+                    for file in files {
+                        match read_file_and_rewrite(
+                            file.clone(),
+                            pool,
+                            &mut taos_mut ,
+                            target_precision,
+                            metrics,
+                            parser,
+                            archive_tx.clone(),
+                            cancel,
+                        ).await {
+                            Ok(_) => {
+                                let _ = std::fs::remove_file(file);
+                            }
+                            Err(e) => {
+                                tracing::error!("rewrite file error, path: {file:?}, e: {e:#}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        tracing::debug!("rewrite file loop, task: {task_id}, cache: {cache_path}");
+    }
+    Ok(())
+}
+
+async fn read_file_and_rewrite(
+    file: PathBuf,
+    pool: &TaosPool,
+    taos: &mut Option<deadpool::managed::Object<Manager<TaosBuilder>>>,
+    target_precision: taos::Precision,
+    metrics: &IpcMetrics,
+    parser: &Parser,
+    archive_tx: Sender<(ArchiveType, RecordBatch)>,
+    cancel: &CancellationToken,
+) -> anyhow::Result<()> {
+    let batches = read_parquet_file(file.clone())?;
+    for batch in batches {
+        let message = parser.parse_message_from_records(&batch, true, archive_tx.clone())?;
+        let messages = match message {
+            crate::plugins::transform::Message::Raw(_) => todo!(),
+            crate::plugins::transform::Message::Tables(_) => todo!(),
+            crate::plugins::transform::Message::ChildTables(_) => todo!(),
+            crate::plugins::transform::Message::Records(messages) => messages,
+        };
+        let _ = flat_write_with_sql(
+            pool,
+            taos,
+            target_precision,
+            &messages,
+            metrics,
+            None,
+            cancel,
+            parser.global(),
+            archive_tx.clone(),
+        )
+        .await?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

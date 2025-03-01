@@ -2,9 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use arrow_array::RecordBatch;
 use chrono::DateTime;
-use flume::Sender;
 use linked_hash_map::LinkedHashMap;
 use mongodb::bson::{Bson, Document};
 use serde_json::json;
@@ -17,7 +15,7 @@ use crate::runners::mongodb::config::connect::ConnectConfig;
 use crate::runners::mongodb::config::MongoDBConfig;
 use crate::runners::mongodb::query::MongoDBQuery;
 use crate::utils::port_pool::PortPool;
-use crate::{build_ipc, Action, ArchiveType, Parser, Transferred};
+use crate::{build_ipc, Action, Parser, Transferred};
 
 use self::worker::migrate_history;
 
@@ -174,7 +172,6 @@ pub async fn mongodb_to_taos(
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     let mut config = MongoDBConfig::from_dsn(&from)?;
 
@@ -207,7 +204,6 @@ pub async fn mongodb_to_taos(
         transferred,
         task_id,
         notify,
-        archive_tx,
     )
     .await?;
 
@@ -569,7 +565,6 @@ mod tests {
         let _span = tracing::info_span!("test_mongodb_to_taos");
         let task_id = Some(1);
         let (notify, _) = flume::unbounded();
-        let (tx, _rx) = flume::bounded(0);
 
         mongodb_to_taos(
             from,
@@ -583,7 +578,6 @@ mod tests {
             transferred,
             task_id,
             notify,
-            tx.clone(),
         )
         .await
         .ok();

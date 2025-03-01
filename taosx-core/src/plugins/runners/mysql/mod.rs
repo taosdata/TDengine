@@ -2,9 +2,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use arrow_array::RecordBatch;
 use chrono::{FixedOffset, NaiveDateTime};
-use flume::Sender;
 use linked_hash_map::LinkedHashMap;
 use serde_json::json;
 use sqlx::mysql::MySqlRow;
@@ -19,7 +17,7 @@ use crate::runners::mysql::config::connect::ConnectConfig;
 use crate::runners::mysql::config::MySqlConfig;
 use crate::runners::mysql::query::MySqlQuery;
 use crate::utils::port_pool::PortPool;
-use crate::{build_ipc, Action, ArchiveType, Parser, Transferred};
+use crate::{build_ipc, Action, Parser, Transferred};
 
 use self::worker::migrate_history;
 
@@ -168,7 +166,6 @@ pub async fn mysql_to_taos(
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     let mut config = MySqlConfig::from_dsn(&from)?;
 
@@ -201,7 +198,6 @@ pub async fn mysql_to_taos(
         transferred,
         task_id,
         notify,
-        archive_tx.clone(),
     )
     .await?;
 
@@ -587,7 +583,6 @@ mod tests {
         let transferred = None;
         let task_id = Some(1);
         let (notify, _) = flume::unbounded();
-        let (tx, _rx) = flume::bounded(0);
 
         mysql_to_taos(
             from,
@@ -601,7 +596,6 @@ mod tests {
             transferred,
             task_id,
             notify,
-            tx.clone(),
         )
         .await
         .ok();

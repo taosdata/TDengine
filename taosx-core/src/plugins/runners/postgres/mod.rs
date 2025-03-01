@@ -1,8 +1,6 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use arrow_array::RecordBatch;
-use flume::Sender;
 use linked_hash_map::LinkedHashMap;
 use serde_json::json;
 use sqlx::{Column, Row, TypeInfo};
@@ -18,7 +16,7 @@ use crate::runners::postgres::config::connect::ConnectConfig;
 use crate::runners::postgres::config::PostgresConfig;
 use crate::runners::postgres::query::PostgresQuery;
 use crate::utils::port_pool::PortPool;
-use crate::{build_ipc, Action, ArchiveType, Parser, Transferred};
+use crate::{build_ipc, Action, Parser, Transferred};
 
 use self::worker::migrate_history;
 
@@ -165,7 +163,6 @@ pub async fn postgres_to_taos(
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     let mut config = PostgresConfig::from_dsn(&from)?;
 
@@ -198,7 +195,6 @@ pub async fn postgres_to_taos(
         transferred,
         task_id,
         notify,
-        archive_tx,
     )
     .await?;
 
@@ -632,7 +628,6 @@ mod tests {
         let _span = tracing::info_span!("test_postgres_to_taos");
         let task_id = Some(1);
         let (notify, _) = flume::unbounded();
-        let (tx, _rx) = flume::bounded(0);
 
         postgres_to_taos(
             from,
@@ -646,7 +641,6 @@ mod tests {
             transferred,
             task_id,
             notify,
-            tx.clone(),
         )
         .await
         .ok();

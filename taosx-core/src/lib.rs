@@ -1,19 +1,17 @@
 use std::sync::atomic::{AtomicU32, AtomicU64};
 use std::sync::OnceLock;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
 use arrow_array::RecordBatch;
 use chrono::NaiveDate;
 use core_metrics::get_metrics_arc_from_i64;
-use flume::{Receiver, Sender};
-use plugins::sink::flat::flat_write_with_sql;
-use plugins::sink::get_current_precision;
+use flume::Receiver;
 use plugins::transform::handling_strategy::archive::Archive;
 use plugins::transform::handling_strategy::cache::Cache;
 use serde::Deserialize;
 use serde_with::serde_as;
-use taos::{AsyncTBuilder, Dsn};
+use taos::Dsn;
 use taoslog::utils::{QidMetadataGetter, Span};
 use taoslog::QidManager;
 use tokio_util::sync::CancellationToken;
@@ -29,9 +27,7 @@ pub use plugins::*;
 pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::{get_table_progress, tmq_offsets, tmq_to_td};
 pub use transform::Action;
-use utils::files::{
-    delete_oldest_parquet_file, read_parquet_dir_files, read_parquet_file, write_to_parquet_file,
-};
+use utils::files::{delete_oldest_parquet_file, write_to_parquet_file};
 use utils::port_pool::PortPool;
 use utils::trace::Qid;
 
@@ -240,89 +236,6 @@ impl TaskOpts {
                 .unwrap_or_default(),
         );
 
-        // the queue for transmitting cache and archived data
-        let (tx, rx) = flume::bounded(0);
-        // clone the configurations
-        let task_id_clone = task_id.clone();
-        let parser_clone = parser.clone();
-        // spawn a thread to write data to files
-        let consumer = tokio::spawn(async move {
-            let task_id = match task_id_clone {
-                Some(id) => id.parse().unwrap_or(-1),
-                None => -1,
-            };
-            if parser_clone.is_some() {
-                if let Err(e) = ArchiveConsumer::new(task_id, parser_clone)
-                    .consume(rx)
-                    .await
-                {
-                    anyhow::bail!(format!("{e:#}"))
-                }
-            }
-            Ok(())
-        });
-        // spawn a thread to rewrite cache data to files
-        let to_clone = to.clone();
-        let task_id_clone = task_id.clone();
-        let parser_clone = parser.clone();
-        let notify_clone = notify.clone();
-        let cancel_clone = cancel.clone();
-        let tx_clone = tx.clone();
-        let process_cache = tokio::spawn(async move {
-            let task_id = match task_id_clone {
-                Some(id) => id.parse().unwrap_or(-1),
-                None => -1,
-            };
-            if let Some(parser) = parser_clone {
-                let cache_path = parser.global().process_on_abnormal.cache.location.clone();
-                loop {
-                    tokio::select! {
-                        _ = cancel_clone.cancelled() => {
-                            tracing::info!("rewrite file cancelled");
-                            break;
-                        }
-                        _ = tokio::time::sleep(Duration::from_secs(5)) => {
-                            let files = match read_parquet_dir_files(task_id, &cache_path) {
-                                Ok(files) => files,
-                                Err(e) => anyhow::bail!(format!("{e:#}")),
-                            };
-                            for file in files {
-                                let mut success = true;
-                                let batches = read_parquet_file(file.clone())?;
-                                for batch in batches {
-                                    if let Err(e) = Self::rewrite(
-                                        Some(task_id),
-                                        to_clone.clone(),
-                                        &parser,
-                                        &batch,
-                                        tx_clone.clone(),
-                                        Some(&notify_clone),
-                                        &cancel_clone,
-                                    )
-                                    .await
-                                    {
-                                        tracing::error!("rewrite file error, path: {file:?}, e: {e:#}");
-                                        success = false;
-                                    }
-                                }
-                                if success {
-                                    let _ = std::fs::remove_file(file);
-                                }
-                            }
-                        }
-                    }
-                    tracing::debug!("rewrite file loop, task: {task_id}, cache: {cache_path}");
-                }
-            };
-            Ok(())
-        });
-
-        let future_consume = async move {
-            consumer.await??;
-            anyhow::Ok(())
-        };
-        let abort_handle_process_cache = process_cache.abort_handle();
-
         // debug_assert!(qid.task_id() > 0);
         // Run task
         {
@@ -397,7 +310,6 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
-                        tx.clone(),
                     )
                     .await?;
                 }
@@ -416,7 +328,6 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
-                        tx.clone(),
                     )
                     .await?;
                 }
@@ -434,7 +345,6 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
-                        tx.clone(),
                     )
                     .await?;
                 }
@@ -453,7 +363,6 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
-                        tx.clone(),
                     )
                     .await?;
                 }
@@ -472,7 +381,6 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
-                        tx.clone(),
                     )
                     .await?;
                 }
@@ -490,7 +398,6 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
-                        tx.clone(),
                     )
                     .await?;
                 }
@@ -525,7 +432,6 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
-                        tx.clone(),
                     )
                     .await?;
                 }
@@ -545,7 +451,6 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
-                        tx.clone(),
                     )
                     .await?;
                 }
@@ -580,7 +485,6 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
-                        tx.clone(),
                     )
                     .await?;
                 }
@@ -600,7 +504,6 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
-                        tx.clone(),
                     )
                     .await?;
                 }
@@ -620,7 +523,6 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
-                        tx.clone(),
                     )
                     .await?;
                 }
@@ -640,7 +542,6 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
-                        tx.clone(),
                     )
                     .await?;
                 }
@@ -660,78 +561,13 @@ impl TaskOpts {
                             .map(|t| t.parse().context("parse task id"))
                             .transpose()?,
                         notify.clone(),
-                        tx.clone(),
                     )
                     .await?;
                 }
                 (_, _) => anyhow::bail!("unsupported source or target: from {} to {}", from, to),
             }
-            drop(tx);
-            abort_handle_process_cache.abort();
         }
 
-        tokio::select! {
-            res = future_consume => {
-                res?
-            }
-            status = process_cache => {
-                if let Err(e) = status {
-                    // anyhow::bail!(format!("{e:#}"))
-                    tracing::error!("process cache error: {e:#}");
-                }
-            },
-            _ = cancel.cancelled() => {}
-        };
-        Ok(())
-    }
-
-    async fn rewrite(
-        task_id: Option<i64>,
-        to: Dsn,
-        parser: &Parser,
-        batch: &RecordBatch,
-        archive_tx: Sender<(ArchiveType, RecordBatch)>,
-        notifier: Option<&crate::TaskNotifySender>,
-        cancel: &CancellationToken,
-    ) -> anyhow::Result<()> {
-        let metrics_arc = get_metrics_arc_from_i64(task_id).await;
-        let metrics = metrics_arc.ipc();
-
-        let pool = {
-            let builder = taos::TaosBuilder::from_dsn(to)?;
-            let mut pool_config = builder.default_pool_config();
-            let timeout = parser
-                .global()
-                .process_on_abnormal
-                .connection_timeout_in_second_value;
-            pool_config.timeouts.wait = Some(Duration::from_secs(timeout as u64));
-            builder.with_pool_config(pool_config)?
-        };
-        match pool.get().await {
-            Ok(taos) => {
-                let target_precision = get_current_precision(&taos).in_current_span().await?;
-                let message = parser.parse_message_from_records(batch, true, archive_tx.clone())?;
-                let messages = match message {
-                    crate::plugins::transform::Message::Raw(_) => todo!(),
-                    crate::plugins::transform::Message::Tables(_) => todo!(),
-                    crate::plugins::transform::Message::ChildTables(_) => todo!(),
-                    crate::plugins::transform::Message::Records(messages) => messages,
-                };
-                let _ = flat_write_with_sql(
-                    &pool,
-                    &mut Some(taos),
-                    target_precision,
-                    &messages,
-                    metrics,
-                    notifier,
-                    cancel,
-                    parser.global(),
-                    archive_tx,
-                )
-                .await?;
-            }
-            Err(e) => Err(e)?,
-        }
         Ok(())
     }
 
@@ -869,10 +705,6 @@ impl ArchiveConsumer {
                 }
             }
         }
-        tracing::info!(
-            "the 'cache & archive' thread has completed, task id: {}",
-            self.task_id
-        );
         Ok(())
     }
 }

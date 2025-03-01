@@ -1,9 +1,7 @@
 use std::{fs, io::prelude::*, path::PathBuf, sync::Arc, time::Duration};
 
 use anyhow::Context;
-use arrow_array::RecordBatch;
 use chrono::Local;
-use flume::Sender;
 use itertools::Itertools;
 use taos::Dsn;
 use tokio::{io::AsyncBufReadExt, sync::Mutex};
@@ -16,7 +14,6 @@ use crate::plugins::mask_dsn;
 use crate::runners::influxdb::config::{ConnectionConfig, InfluxdbConfig, INFLUXDB_V1};
 use crate::runners::log_rotation;
 use crate::utils::monitor::send_sub_process_info;
-use crate::ArchiveType;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, Transferred,
 };
@@ -63,7 +60,6 @@ pub async fn influxdb_to_taos(
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     let ipc_port = port_pool
         .get()
@@ -107,7 +103,6 @@ pub async fn influxdb_to_taos(
         transferred,
         task_id,
         notify,
-        archive_tx.clone(),
     )
     .await?;
 

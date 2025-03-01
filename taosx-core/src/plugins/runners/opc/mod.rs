@@ -1,7 +1,5 @@
 use anyhow::Context;
-use arrow_array::RecordBatch;
 use csv_async::AsyncReader;
-use flume::Sender;
 use futures_util::StreamExt;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -28,7 +26,6 @@ use crate::runners::opc::config::{OPCConfig, PointsMode};
 use crate::runners::opc::point_updater::PointsUpdater;
 use crate::utils::dsn::json_to_dsn;
 use crate::utils::monitor::send_sub_process_info;
-use crate::ArchiveType;
 use crate::{
     build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
     Transferred,
@@ -145,7 +142,6 @@ pub async fn opc_to_taos(
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     if to.subject.is_none() {
         anyhow::bail!(
@@ -190,7 +186,6 @@ pub async fn opc_to_taos(
         transferred,
         task_id,
         notify,
-        archive_tx.clone(),
     )
     .await?;
 

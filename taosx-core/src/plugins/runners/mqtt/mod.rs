@@ -4,11 +4,10 @@ use std::time::Duration;
 
 use anyhow::{bail, Context};
 use arrow::ipc::writer::StreamWriter;
-use arrow_array::RecordBatch;
 use batch::{build_schema, RecordBatchBuilder};
 use client::{GenericMessagePoller, MessagePoller};
 use config::MqttConnectConfig;
-use flume::{Sender, TrySendError};
+use flume::TrySendError;
 use futures::pin_mut;
 use metrics::MqttMetrics;
 use serde_json::json;
@@ -25,7 +24,7 @@ use crate::plugins::transform::sample::DsSampleIn;
 use crate::runners::mqtt::config::MqttConfig;
 use crate::utils::codec::Processor;
 use crate::utils::defer::defer;
-use crate::{build_ipc, ArchiveType, Parser, Transferred};
+use crate::{build_ipc, Parser, Transferred};
 
 use super::{get_data_dir, set_tcp_keepalive};
 
@@ -50,7 +49,6 @@ pub async fn mqtt_to_taos(
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     let cancel_token = upstream_cancel_token.child_token();
     let _drop_token_guard = cancel_token.clone().drop_guard();
@@ -79,7 +77,6 @@ pub async fn mqtt_to_taos(
         transferred,
         task_id,
         notify.clone(),
-        archive_tx.clone(),
     )
     .await
     .context("build ipc error")?;

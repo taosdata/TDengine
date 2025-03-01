@@ -14,7 +14,6 @@ use arrow::record_batch::RecordBatch;
 use arrow_schema::SchemaRef;
 use chrono::Utc;
 use faststr::FastStr;
-use flume::Sender;
 use futures_ext::TryReadyChunksError;
 use futures_util::StreamExt;
 use itertools::Itertools;
@@ -48,7 +47,7 @@ use crate::runners::set_tcp_keepalive;
 use crate::sink::ipc_metric::IpcMetrics;
 use crate::utils::codec::{Processor, StringDecoder};
 use crate::utils::port_pool::PortPool;
-use crate::{build_ipc, Action, ArchiveType, Parser, Transferred};
+use crate::{build_ipc, Action, Parser, Transferred};
 
 mod config;
 
@@ -249,7 +248,6 @@ pub async fn kafka_to_taos(
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     let cancel = upstream_cancel.child_token();
     let _drop_guard = cancel.clone().drop_guard();
@@ -288,7 +286,6 @@ pub async fn kafka_to_taos(
         transferred,
         task_id,
         notify.clone(),
-        archive_tx.clone(),
     )
     .await?;
 

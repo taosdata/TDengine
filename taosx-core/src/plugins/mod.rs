@@ -2,8 +2,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Context;
-use arrow_array::RecordBatch;
-use flume::Sender;
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, TaosBuilder};
@@ -19,7 +17,7 @@ use crate::runners::influxdb::influxdb_datasets;
 use crate::runners::opc::config::model::OpcModelConfig;
 use crate::utils::dsn::json_to_dsn;
 use crate::utils::mask_dsn;
-use crate::{ArchiveType, Transferred};
+use crate::Transferred;
 pub use runners::mqtt::mqtt_to_taos;
 use runners::opc::opc_datasets;
 pub use runners::opc::opc_to_taos;
@@ -117,7 +115,6 @@ pub async fn build_ipc(
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<(IpcHandler, std::net::SocketAddr)> {
     tracing::info!(ipc.target = % mask_dsn(to), "build ipc listener");
     if with_agent.is_none() {
@@ -149,7 +146,6 @@ pub async fn build_ipc(
             transferred,
             task_id,
             notify,
-            archive_tx.clone(),
         )
         .in_current_span()
         .await

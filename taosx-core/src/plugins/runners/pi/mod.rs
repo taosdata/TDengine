@@ -6,11 +6,9 @@ use crate::runners::log_rotation;
 use crate::runners::pi::config::PiConfig;
 use crate::sink::lush::LushModelConfig;
 use crate::utils::monitor::send_sub_process_info;
+use crate::TaskNotify;
 use crate::{build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, Transferred};
-use crate::{ArchiveType, TaskNotify};
 use anyhow::Context;
-use arrow_array::RecordBatch;
-use flume::Sender;
 use serde::Deserialize;
 use serde_json::Value;
 use taos::{AsyncTBuilder, Dsn, TaosBuilder};
@@ -60,7 +58,6 @@ pub async fn pi_to_taos(
     transferred: Option<Arc<Transferred>>,
     task_id: Option<i64>,
     notify: crate::TaskNotifySender,
-    archive_tx: Sender<(ArchiveType, RecordBatch)>,
 ) -> anyhow::Result<()> {
     tracing::info!("Start {} task", from.driver);
     // #[cfg(not(target_os = "windows"))]
@@ -179,7 +176,6 @@ pub async fn pi_to_taos(
         transferred,
         task_id,
         notify.clone(),
-        archive_tx.clone(),
     )
     .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
