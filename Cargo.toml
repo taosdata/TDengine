@@ -80,7 +80,7 @@ anyhow = "1"
 arrow = { workspace = true }
 arrow-flight = { workspace = true }
 zerocopy = { workspace = true }
-
+opendal = { workspace = true }
 #multi_index_map = "0.11.0"
 multi_index_map = { git = "https://github.com/lun3x/multi_index_map.git", branch = "master" }
 scc = { version = "2.2.0", features = ["serde"] }

@@ -363,7 +363,7 @@ mod test_tmq_to_local {
     async fn list_s3_files(s3_config: &S3Config) -> anyhow::Result<Vec<Entry>> {
         let loader = S3Loader::try_from(s3_config).await?;
         let prefix = s3_config.prefix.as_deref().unwrap_or("/");
-        let uploaded = loader.list(prefix).await?;
+        let uploaded = loader.list_dir(prefix).await?;
 
         Ok(uploaded)
     }

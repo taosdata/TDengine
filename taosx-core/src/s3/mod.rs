@@ -237,9 +237,7 @@ impl S3Loader {
 
     /// 从 S3 上下载文件到本地
     pub async fn load_to(&self, local_path: impl AsRef<Path>) -> anyhow::Result<()> {
-        let prefix = self.s3_config.prefix.as_deref().unwrap_or("/");
-
-        let objects = self.list(prefix).await?;
+        let objects = self.list().await?;
 
         for obj in objects {
             let meta = obj.metadata();
@@ -265,7 +263,14 @@ impl S3Loader {
     }
 
     /// 列出 S3 上的文件
-    pub async fn list(&self, prefix: &str) -> anyhow::Result<Vec<Entry>> {
+    pub async fn list(&self) -> anyhow::Result<Vec<Entry>> {
+        let prefix = self.s3_config.prefix.as_deref().unwrap_or("/");
+
+        self.list_dir(prefix).await
+    }
+
+    /// 列出 S3 上指定 dir 的文件
+    pub async fn list_dir(&self, prefix: &str) -> anyhow::Result<Vec<Entry>> {
         let mut uploaded = vec![];
 
         let objects = self.op.list(prefix).await?;
