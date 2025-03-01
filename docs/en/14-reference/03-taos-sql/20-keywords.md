@@ -23,11 +23,11 @@ The list of keywords is as follows:
 | ALIVE                | |
 | ALL                  | |
 | ALTER                | |
-| ANALYZE              | Version 3.3.4.3 and later |
+| ANALYZE              | 3.3.4.3+ |
 | AND                  | |
-| ANODE                | Version 3.3.4.3 and later |
-| ANODES               | Version 3.3.4.3 and later |
-| ANOMALY_WINDOW       | Version 3.3.4.3 and later |
+| ANODE                | 3.3.4.3+ |
+| ANODES               | 3.3.4.3+ |
+| ANOMALY_WINDOW       | 3.3.4.3+ |
 | ANTI                 | |
 | APPS                 | |
 | ARBGROUPS            | |
@@ -37,7 +37,8 @@ The list of keywords is as follows:
 | ASOF                 | |
 | AT_ONCE              | |
 | ATTACH               | |
-| ASSIGN               | Version 3.3.6.0 and later |
+| AUTO                 | 3.3.5.0+ |
+| ASSIGN               | 3.3.6.0+ |
 
 ### B
 
@@ -79,12 +80,16 @@ The list of keywords is as follows:
 | CLIENT_VERSION       | |
 | CLUSTER              | |
 | COLON                | |
+| COLS                 | 3.3.6.0+ |
 | COLUMN               | |
 | COMMA                | |
 | COMMENT              | |
 | COMP                 | |
 | COMPACT              | |
 | COMPACTS             | |
+| COMPACT_INTERVAL     | 3.3.5.0+ |
+| COMPACT_TIME_OFFSET  | 3.3.5.0+ |
+| COMPACT_TIME_RANGE   | 3.3.5.0+ |
 | CONCAT               | |
 | CONFLICT             | |
 | CONNECTION           | |
@@ -115,6 +120,7 @@ The list of keywords is as follows:
 | DESC                 | |
 | DESCRIBE             | |
 | DETACH               | |
+| DISK_INFO            | 3.3.5.0+ |
 | DISTINCT             | |
 | DISTRIBUTED          | |
 | DIVIDE               | |
@@ -149,19 +155,19 @@ The list of keywords is as follows:
 |Keyword|Description|
 |----------------------|-|
 | FAIL                 | |
-| FHIGH                | Version 3.3.4.3 and later |
+| FHIGH                | 3.3.4.3+ |
 | FILE                 | |
 | FILL                 | |
 | FILL_HISTORY         | |
 | FIRST                | |
 | FLOAT                | |
-| FLOW                 | Version 3.3.4.3 and later |
+| FLOW                 | 3.3.4.3+ |
 | FLUSH                | |
 | FOR                  | |
 | FORCE                | |
-| FORCE_WINDOW_CLOSE   | Version 3.3.4.3 and later |
+| FORCE_WINDOW_CLOSE   | 3.3.4.3+ |
 | FROM                 | |
-| FROWTS               | Version 3.3.4.3 and later |
+| FROWTS               | 3.3.4.3+ |
 | FULL                 | |
 | FUNCTION             | |
 | FUNCTIONS            | |
@@ -210,6 +216,7 @@ The list of keywords is as follows:
 | INTO                 | |
 | IPTOKEN              | |
 | IROWTS               | |
+| IROWTS_ORIGIN        | 3.3.5.0+ |
 | IS                   | |
 | IS_IMPORT            | |
 | ISFILLED             | |
@@ -243,6 +250,7 @@ The list of keywords is as follows:
 | LEADER               | |
 | LEADING              | |
 | LEFT                 | |
+| LEVEL                | 3.3.0.0 - 3.3.2.11 |
 | LICENCES             | |
 | LIKE                 | |
 | LIMIT                | |
@@ -264,6 +272,7 @@ The list of keywords is as follows:
 | MEDIUMBLOB           | |
 | MERGE                | |
 | META                 | |
+| META_ONLY            | 3.3.6.0+ |
 | MINROWS              | |
 | MINUS                | |
 | MNODE                | |
@@ -282,6 +291,8 @@ The list of keywords is as follows:
 | NONE                 | |
 | NORMAL               | |
 | NOT                  | |
+| NOTIFY               | 3.3.6.0+ |
+| NOTIFY_HISTORY       | 3.3.6.0+ |
 | NOTNULL              | |
 | NOW                  | |
 | NULL                 | |
@@ -296,6 +307,7 @@ The list of keywords is as follows:
 | OFFSET               | |
 | ON                   | |
 | ONLY                 | |
+| ON_FAILURE           | 3.3.6.0+ |
 | OR                   | |
 | ORDER                | |
 | OUTER                | |
@@ -346,6 +358,7 @@ The list of keywords is as follows:
 | RATIO                | |
 | READ                 | |
 | RECURSIVE            | |
+| REGEXP               | 3.3.6.0+ |
 | REDISTRIBUTE         | |
 | REM                  | |
 | REPLACE              | |
@@ -419,7 +432,7 @@ The list of keywords is as follows:
 | TABLE_PREFIX         | |
 | TABLE_SUFFIX         | |
 | TABLES               | |
-| tag                  | |
+| TAG                  | |
 | TAGS                 | |
 | TBNAME               | |
 | THEN                 | |
@@ -436,6 +449,7 @@ The list of keywords is as follows:
 | TRANSACTIONS         | |
 | TRIGGER              | |
 | TRIM                 | |
+| TRUE_FOR             | 3.3.6.0+ |
 | TSDB_PAGESIZE        | |
 | TSERIES              | |
 | TSMA                 | |

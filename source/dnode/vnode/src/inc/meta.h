@@ -24,7 +24,6 @@
 extern "C" {
 #endif
 
-typedef struct SMetaIdx   SMetaIdx;
 typedef struct SMetaDB    SMetaDB;
 typedef struct SMetaCache SMetaCache;
 
@@ -102,8 +101,6 @@ struct SMeta {
 
   // stream
   TTB* pStreamDb;
-
-  SMetaIdx* pIdx;
 
   SMetaCache* pCache;
 };
