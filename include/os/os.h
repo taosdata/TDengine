@@ -51,7 +51,6 @@ extern "C" {
 #include <sys/utsname.h>
 #include <sys/wait.h>
 
-
 #if defined(DARWIN)
 #else
 #if !defined(TD_ASTRA)

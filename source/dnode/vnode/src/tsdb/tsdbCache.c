@@ -958,7 +958,7 @@ static int32_t tsdbCacheGetValuesFromRocks(STsdb *pTsdb, size_t numKeys, const c
   }
   char **errs = taosMemoryCalloc(numKeys, sizeof(char *));
   if (!errs) {
-     taosMemoryFreeClear(valuesList);
+    taosMemoryFreeClear(valuesList);
     taosMemoryFreeClear(valuesListSizes);
     return terrno;
   }

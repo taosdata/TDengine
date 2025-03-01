@@ -345,7 +345,7 @@ void shellGetScreenSize(int32_t *ws_col, int32_t *ws_row) {
   GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
   if (ws_col != NULL) *ws_col = csbi.srWindow.Right - csbi.srWindow.Left + 1;
   if (ws_row != NULL) *ws_row = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
-#elif TD_ASTRA
+#elif defined(TD_ASTRA)
   if (ws_col != NULL) *ws_col = 120;
   if (ws_row != NULL) *ws_row = 30;
 #else

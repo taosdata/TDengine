@@ -1120,5 +1120,4 @@ _end:
   }
   return code;
 }
-
 #endif // TD_ASTRA

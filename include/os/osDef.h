@@ -257,9 +257,9 @@ char *strsep(char **stringp, const char *delim);
 #define TD_DIRSEP_CHAR '\\'
 #elif defined(TD_ASTRA)
 #ifdef TD_ASTRA_TARGET
-#define TD_DIRSEP_CHAR "/"
+#define TD_DIRSEP_CHAR '/'
 #else
-#define TD_DIRSEP_CHAR "\\"
+#define TD_DIRSEP_CHAR '\\'
 #endif
 #else
 #define TD_DIRSEP_CHAR '/'

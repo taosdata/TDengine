@@ -100,5 +100,4 @@ SMgmtFunc smGetMgmtFunc() {
 
   return mgmtFunc;
 }
-
 #endif

@@ -269,7 +269,6 @@ void taos_cleanup(void) {
 #endif
   tscInfo("all local resources released");
   taosCleanupCfg();
-  taosCloseLog();
 #ifndef TAOSD_INTEGRATED
   taosCloseLog();
 #endif

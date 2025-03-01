@@ -501,7 +501,6 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       return TMQ_CONF_INVALID;
     }
   }
-
   if (taosStrcasecmp(key, "msg.consume.excluded") == 0) {
     int64_t tmp = 0;
     code = taosStr2int64(value, &tmp);

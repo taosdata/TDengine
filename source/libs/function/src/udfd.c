@@ -1866,5 +1866,4 @@ _exit:
 
   return code;
 }
-
 #endif

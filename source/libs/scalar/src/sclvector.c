@@ -469,6 +469,7 @@ _return:
   TAOS_RETURN(TSDB_CODE_OPS_NOT_SUPPORT);
 #endif
 }
+
 // TODO opt performance, tmp is not needed.
 int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int32_t *overflow) {
   int32_t code = TSDB_CODE_SUCCESS;

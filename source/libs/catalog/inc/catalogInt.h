@@ -351,7 +351,6 @@ typedef struct SCtgDBCache {
   SHashObj*    stbCache;   // key:suid, value:char*
   SHashObj*    tsmaCache;  // key:tbname, value: SCtgTSMACache
   int32_t      tsmaVersion;
-
 } SCtgDBCache;
 
 typedef struct SCtgRentSlot {
