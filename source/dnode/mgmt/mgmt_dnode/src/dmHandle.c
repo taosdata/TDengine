@@ -170,6 +170,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   int32_t    code = 0;
   SStatusReq req = {0};
   req.timestamp = taosGetTimestampMs();
+  pMgmt->statusSeq++;
 
   dDebug("send status req to mnode, statusSeq:%d, begin to mgnt statusInfolock", pMgmt->statusSeq);
   if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
@@ -230,7 +231,6 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   dDebug("send status req to mnode, statusSeq:%d, begin to get qnode loads", pMgmt->statusSeq);
   (*pMgmt->getQnodeLoadsFp)(&req.qload);
 
-  pMgmt->statusSeq++;
   req.statusSeq = pMgmt->statusSeq;
   req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
   req.analVer = taosAnalGetVersion();
