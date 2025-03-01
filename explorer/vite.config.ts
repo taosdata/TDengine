@@ -185,7 +185,7 @@ export default ({ mode }: { mode: any }) => {
             }
             const imgExts = ['.png', '.jpg', '.jpeg', '.webp', '.svg', '.gif', '.icon'];
             if (imgExts.some(ext => assetInfo.name?.endsWith(ext))) {
-              return 'imgs/[name]-[hash][ext]';
+              return 'imgs/[name]-[hash].[ext]';
             }
             return 'assets/[name]-[hash].[ext]';
           }
