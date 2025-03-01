@@ -54,6 +54,15 @@ void streamMetaRUnLock(SStreamMeta* pMeta) {
   }
 }
 
+int32_t streamMetaTryRlock(SStreamMeta* pMeta) {
+  int32_t code = taosThreadRwlockTryRdlock(&pMeta->lock);
+  if (code) {
+    stError("vgId:%d try meta-rlock failed, code:%s", pMeta->vgId, tstrerror(code));
+  }
+
+  return code;
+}
+
 void streamMetaWLock(SStreamMeta* pMeta) {
   //  stTrace("vgId:%d meta-wlock", pMeta->vgId);
   int32_t code = taosThreadRwlockWrlock(&pMeta->lock);
