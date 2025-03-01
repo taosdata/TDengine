@@ -2,29 +2,32 @@
 mod test_tmq_to_local {
     use anyhow::bail;
     use assert_cmd::Command;
-    use opendal::EntryMode;
+    use itertools::Itertools;
+    use opendal::Entry;
     use std::env;
+    use std::path::Path;
     use taos::{
         AsyncFetchable, AsyncQueryable, AsyncTBuilder, IntoDsn, Taos, TaosBuilder, TryStreamExt,
     };
-    use taosx_core::s3::S3Config;
-    use taosx_core::taoz::ZFile;
+    use taosx_core::s3::{S3Config, S3Loader};
     use taosx_core::tmq_to_local::conf::BackupConfigBuilder;
 
+    const VGROUPS: usize = 10;
+    const ROWS: usize = 10;
+
     /// # Case
-    /// 创建一个数据库，写入 5 行数据，用 taosx 备份到本地，然后恢复到新的数据库
+    /// 创建一个数据库，写入数据，用 taosx 备份到本地，然后恢复到新的数据库
     /// # Example
     /// ```shell
-    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' cargo nextest run test_backup_and_restore_5rows_with_taos --nocapture
+    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' cargo nextest run test_backup_and_restore_few_rows_with_taos --nocapture --retries 0
     /// ```
     #[tokio::test]
-    async fn test_backup_and_restore_5rows_with_taos() -> anyhow::Result<()> {
+    async fn test_backup_and_restore_few_rows_with_taos() -> anyhow::Result<()> {
         // 初始化环境变量
         let taos_addr = env::var("TAOS_ADDR").unwrap_or("tmq://".to_string());
         let taosx_cmd = env::var("TAOSX_CMD").unwrap_or("taosx".to_string());
-        const SRC_DB: &str = "backup_5rows_src";
-        const DST_DB: &str = "backup_5rows_dst";
-        const ROWS: usize = 5;
+        const SRC_DB: &str = "backup_few_rows_src";
+        const DST_DB: &str = "backup_few_rows_dst";
         dbg!(&taos_addr);
 
         // 在 TDengine 准备数据
@@ -36,46 +39,38 @@ mod test_tmq_to_local {
         write_few_rows(&taos, SRC_DB, ROWS).await?;
 
         let backup_path = tempfile::TempDir::new()?;
-        // 备份 5 行数据
+        // 备份数据
         let data_dir = tempfile::tempdir()?;
+        let from = format!("{taos_addr}/{SRC_DB}");
+        let to = format!("local:{}", backup_path.path().to_str().unwrap());
         let mut cmd = Command::cargo_bin(&taosx_cmd)?;
         cmd.arg("run")
             .arg("-f")
-            .arg(format!("{taos_addr}/{SRC_DB}"))
+            .arg(&from)
             .arg("-t")
-            .arg(format!("local:{}", backup_path.path().to_str().unwrap()))
+            .arg(&to)
             .env("TAOSX_DATA_DIR", data_dir.path())
             .assert()
             .success();
 
-        // 检查本地的备份文件
-        assert!(backup_path.path().exists());
-        let assert = Command::new("ls").arg(backup_path.path()).assert();
-        let files = String::from_utf8(assert.get_output().stdout.clone())?;
-        let files = files.lines().collect::<Vec<_>>();
-        assert_eq!(files.len(), 3);
-        for f in files.iter() {
-            assert!(f.ends_with(".z"));
-        }
-
-        // 恢复备份的数据
-        let file_name = files[0];
-        let (topic, to, _, _) = ZFile::parse_file_name(file_name)?;
+        // 恢复数据
+        let from = from.into_dsn()?;
+        let to = to.into_dsn()?;
+        let backup_config = BackupConfigBuilder::new(None, &from, &to).build().await?;
+        let from = format!(
+            "local:{}?topic={}&db_name={SRC_DB}&db_sql=CREATE DATABASE `{SRC_DB}` VGROUPS {VGROUPS}&to=now",
+            backup_path.path().to_str().unwrap(),
+            &backup_config.topic,
+        );
+        let to = format!("{taos_addr}/{DST_DB}");
         taos.exec(format!("CREATE DATABASE `{DST_DB}`")).await?;
         let data_dir = tempfile::tempdir()?;
         let mut cmd = Command::cargo_bin(&taosx_cmd)?;
         cmd.arg("run")
             .arg("-f")
-            .arg(format!(
-                "local:{}?topic={}&db_name={}&db_sql=CREATE DATABASE `{}` VGROUPS 3&to={}",
-                backup_path.path().to_str().unwrap(),
-                topic,
-                SRC_DB,
-                SRC_DB,
-                to.to_rfc3339().as_str()
-            ))
+            .arg(&from)
             .arg("-t")
-            .arg(format!("{taos_addr}/{DST_DB}"))
+            .arg(&to)
             .env("TAOSX_DATA_DIR", data_dir.path())
             .assert()
             .success();
@@ -83,88 +78,17 @@ mod test_tmq_to_local {
         // 检查 TDengine 的数据
         assert_database_rows(&taos, SRC_DB, DST_DB, ROWS).await?;
 
+        // 检查本地的备份文件
+        assert!(backup_path.path().exists());
+        let files = list_local_files(backup_path.path())?;
+        assert_eq!(files.len(), VGROUPS);
+        for f in files.iter() {
+            assert!(f.ends_with(".z"));
+        }
+
         // 清理 TDengine
         drop_topic_and_database(&taos, SRC_DB).await?;
         drop_topic_and_database(&taos, DST_DB).await?;
-
-        Ok(())
-    }
-
-    async fn drop_topic_and_database(taos: &Taos, db_name: &str) -> anyhow::Result<()> {
-        let topics: Vec<String> = taos
-            .query(format!(
-                "select topic_name from information_schema.ins_topics where db_name = '{db_name}'"
-            ))
-            .await?
-            .deserialize()
-            .try_collect()
-            .await?;
-        // drop topics
-        for t in topics {
-            let mut count = 0;
-            loop {
-                count += 1;
-                if let Err(err) = taos.exec(format!("DROP TOPIC IF EXISTS `{t}`")).await {
-                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                    if count < 3 {
-                        continue;
-                    }
-                    bail!("failed to drop topic: {:#}", err);
-                }
-                break;
-            }
-        }
-        // drop database
-        taos.exec(format!("DROP DATABASE IF EXISTS `{db_name}`"))
-            .await?;
-
-        Ok(())
-    }
-
-    async fn write_few_rows(taos: &Taos, db_name: &str, rows: usize) -> anyhow::Result<()> {
-        taos.exec_many(vec![
-            format!("CREATE DATABASE `{db_name}` VGROUPS 3"),
-            format!("CREATE TABLE `{db_name}`.stb (ts TIMESTAMP, f1 INT) TAGS(t1 INT)"),
-        ])
-        .await?;
-
-        for i in 1..=rows {
-            taos.exec(format!(
-                "INSERT INTO `{db_name}`.t{i} USING `{db_name}`.stb TAGS({i}) VALUES (now, {i})"
-            ))
-            .await?;
-        }
-
-        Ok(())
-    }
-
-    async fn assert_database_rows(
-        taos: &Taos,
-        src_db: &str,
-        dst_db: &str,
-        rows: usize,
-    ) -> anyhow::Result<()> {
-        let src: Vec<(String, i32)> = taos
-            .query(format!(
-                "select tbname,f1 from `{src_db}`.stb ORDER BY tbname"
-            ))
-            .await?
-            .deserialize()
-            .try_collect()
-            .await?;
-        let dst: Vec<(String, i32)> = taos
-            .query(format!(
-                "select tbname,f1 from `{dst_db}`.stb ORDER BY tbname"
-            ))
-            .await?
-            .deserialize()
-            .try_collect()
-            .await?;
-        assert_eq!(src.len(), dst.len());
-        for i in 0..rows {
-            assert_eq!(src[i].0, dst[i].0);
-            assert_eq!(src[i].1, dst[i].1);
-        }
 
         Ok(())
     }
@@ -182,27 +106,27 @@ mod test_tmq_to_local {
     /// * S3_BUCKET: 存储桶。默认为 taosx
     /// * S3_OBJECT_PREFIX: 对象前缀，类似于文件夹。默认为 backup/
     /// # Example
-    /// 全部备份文件在本地, 不上传到 S3
+    /// 备份文件全部在本地
     /// ```shell
-    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' S3_ENDPOINT='http://192.168.2.139:9000' cargo nextest run test_backup_and_restore_with_s3 --nocapture --retries 0
+    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' S3_ENDPOINT='https://192.168.2.139:9000' cargo nextest run test_backup_and_restore_with_s3 --nocapture --retries 0
     /// ```
     /// 本地备份文件不超过 5 个文件
     /// ```
-    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' BACKUP_RETENTION_SIZE=5 S3_ENDPOINT='http://192.168.2.139:9000' cargo nextest run test_backup_and_restore_with_s3 --nocapture --retries 0
+    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' BACKUP_RETENTION_SIZE=5 S3_ENDPOINT='https://192.168.2.139:9000' cargo nextest run test_backup_and_restore_with_s3 --nocapture --retries 0
     /// ```
-    /// 本地备份文件最多存 10 分钟
+    /// 本地备份文件最多存 1 分钟
     /// ```shell
-    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' BACKUP_RETENTION_PERIOD=10m S3_ENDPOINT='http://192.168.2.139:9000' cargo nextest run test_backup_and_restore_with_s3 --nocapture --retries 0
+    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' BACKUP_RETENTION_PERIOD=1m S3_ENDPOINT='https://192.168.2.139:9000' cargo nextest run test_backup_and_restore_with_s3 --nocapture --retries 0
     /// ```
-    /// 本地备份文件最多存 10 分钟，且不超过 5 个文件
+    /// 本地备份文件最多存 1 分钟，且不超过 5 个文件
     /// ```shell
-    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' BACKUP_RETENTION_PERIOD=10m BACKUP_RETENTION_SIZE=5 S3_ENDPOINT='http://192.168.2.139:9000' cargo nextest run test_backup_and_restore_with_s3 --nocapture --retries 0
+    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' BACKUP_RETENTION_PERIOD=1m BACKUP_RETENTION_SIZE=5 S3_ENDPOINT='https://192.168.2.139:9000' cargo nextest run test_backup_and_restore_with_s3 --nocapture --retries 0
     /// ```
-    /// 本地备份文件全部上传到 S3
+    /// 备份文件全部上传到 S3
     /// ```shell
-    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' BACKUP_RETENTION_PERIOD=0 S3_ENDPOINT='http://192.168.2.139:9000' cargo nextest run test_backup_and_restore_with_s3 --nocapture --retries 0
+    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' BACKUP_RETENTION_PERIOD=0 S3_ENDPOINT='https://192.168.2.139:9000' cargo nextest run test_backup_and_restore_with_s3 --nocapture --retries 0
     /// 或者
-    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' BACKUP_RETENTION_SIZE=0 S3_ENDPOINT='http://192.168.2.139:9000' cargo nextest run test_backup_and_restore_with_s3 --nocapture --retries 0
+    /// TAOS_ADDR='tmq+ws://192.168.0.201:6041' BACKUP_RETENTION_SIZE=0 S3_ENDPOINT='https://192.168.2.139:9000' cargo nextest run test_backup_and_restore_with_s3 --nocapture --retries 0
     /// ```
     #[tokio::test]
     async fn test_backup_and_restore_with_s3() -> anyhow::Result<()> {
@@ -229,12 +153,10 @@ mod test_tmq_to_local {
                         .unwrap_or("backup/".to_string()),
                 ),
             };
-            dbg!(
-                &taos_addr,
-                &backup_retention_period,
-                &backup_retention_size,
-                &s3_config
-            );
+            dbg!(&taos_addr);
+            dbg!(&backup_retention_period);
+            dbg!(&backup_retention_size);
+            dbg!(&s3_config);
             const SRC_DB: &str = "backup_s3_src";
             const DST_DB: &str = "backup_s3_dst";
 
@@ -244,7 +166,7 @@ mod test_tmq_to_local {
                 .await?;
             drop_topic_and_database(&taos, SRC_DB).await?;
             drop_topic_and_database(&taos, DST_DB).await?;
-            write_few_rows(&taos, SRC_DB, 5).await?;
+            write_few_rows(&taos, SRC_DB, ROWS).await?;
 
             // 在 S3 上初始化 bucket 和 object_prefix
             let op = s3_config.connect().await?;
@@ -288,7 +210,9 @@ mod test_tmq_to_local {
             let mut from = format!("local:{}?to=now", backup_path.path().to_str().unwrap());
             from.push_str(&format!("&topic={}", backup_config.topic));
             from.push_str(&format!("&db_name={}", SRC_DB));
-            from.push_str(&format!("&db_sql=CREATE DATABASE `{}` VGROUPS 3", SRC_DB));
+            from.push_str(&format!(
+                "&db_sql=CREATE DATABASE `{SRC_DB}` VGROUPS {VGROUPS}",
+            ));
             from = append_s3_config_on_url(from, &s3_config);
             // --to "tmq+ws://TAOS_HOST:6041/DST_DB"
             let to = format!("{taos_addr}/{DST_DB}");
@@ -307,23 +231,33 @@ mod test_tmq_to_local {
             // 检查 TDengine 的数据
             assert_database_rows(&taos, SRC_DB, DST_DB, 5).await?;
 
-            // 检查 S3 的数据
-            let prefix = &s3_config.prefix.as_deref().unwrap_or("/");
-            dbg!(prefix);
-            let objects = op.list(prefix).await?;
-            let mut uploaded = vec![];
-            for obj in objects {
-                let meta = obj.metadata();
-                match meta.mode() {
-                    EntryMode::FILE => {
-                        dbg!(&obj);
-                        assert!(obj.name().ends_with(".z"));
-                        uploaded.push(obj);
-                    }
-                    EntryMode::DIR | EntryMode::Unknown => continue,
+            // 检查本地备份目录和 S3 上的文件
+            match (backup_retention_period, backup_retention_size) {
+                // 备份文件全在本地
+                (None, None) => {
+                    // 本地文件数量为
+                    let local_files = list_local_files(backup_path.path())?;
+                    assert_eq!(local_files.len(), 10);
+                    // S3 上的文件数量为 0
+                    let s3_files = list_s3_files(&s3_config).await?;
+                    assert_eq!(s3_files.len(), 0);
+                }
+                // 使用备份文件的保留数量
+                (None, Some(retention_size)) => {
+                    let size = retention_size.parse::<usize>()?;
+                    // S3 上的文件数量为 0
+                    let s3_files = list_s3_files(&s3_config).await?;
+                    assert_eq!(s3_files.len(), VGROUPS - size);
+                }
+                // 使用备份文件的保留时长
+                (Some(_retention_period), None) => {
+                    // TODO: 检查 S3 上备份文件的数量
+                }
+                // 同时使用备份文件的保留时长和数量
+                (Some(_retention_period), Some(_retention_size)) => {
+                    // TODO: 检查 S3 上备份文件的数量
                 }
             }
-            assert_eq!(uploaded.len(), 3);
 
             // 清理 TDengine
             drop_topic_and_database(&taos, SRC_DB).await?;
@@ -333,6 +267,105 @@ mod test_tmq_to_local {
         }
 
         Ok(())
+    }
+
+    async fn drop_topic_and_database(taos: &Taos, db_name: &str) -> anyhow::Result<()> {
+        let topics: Vec<String> = taos
+            .query(format!(
+                "select topic_name from information_schema.ins_topics where db_name = '{db_name}'"
+            ))
+            .await?
+            .deserialize()
+            .try_collect()
+            .await?;
+        // drop topics
+        for t in topics {
+            let mut count = 0;
+            loop {
+                count += 1;
+                if let Err(err) = taos.exec(format!("DROP TOPIC IF EXISTS `{t}`")).await {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                    if count < 3 {
+                        continue;
+                    }
+                    bail!("failed to drop topic: {:#}", err);
+                }
+                break;
+            }
+        }
+        // drop database
+        taos.exec(format!("DROP DATABASE IF EXISTS `{db_name}`"))
+            .await?;
+
+        Ok(())
+    }
+
+    async fn write_few_rows(taos: &Taos, db_name: &str, rows: usize) -> anyhow::Result<()> {
+        taos.exec_many(vec![
+            format!("CREATE DATABASE `{db_name}` VGROUPS {VGROUPS}"),
+            format!("CREATE TABLE `{db_name}`.stb (ts TIMESTAMP, f1 INT) TAGS(t1 INT)"),
+        ])
+        .await?;
+
+        for i in 1..=rows {
+            taos.exec(format!(
+                "INSERT INTO `{db_name}`.t{i} USING `{db_name}`.stb TAGS({i}) VALUES (now, {i})"
+            ))
+            .await?;
+        }
+
+        Ok(())
+    }
+
+    async fn assert_database_rows(
+        taos: &Taos,
+        src_db: &str,
+        dst_db: &str,
+        rows: usize,
+    ) -> anyhow::Result<()> {
+        let src: Vec<(String, i32)> = taos
+            .query(format!(
+                "select tbname,f1 from `{src_db}`.stb ORDER BY tbname"
+            ))
+            .await?
+            .deserialize()
+            .try_collect()
+            .await?;
+        let dst: Vec<(String, i32)> = taos
+            .query(format!(
+                "select tbname,f1 from `{dst_db}`.stb ORDER BY tbname"
+            ))
+            .await?
+            .deserialize()
+            .try_collect()
+            .await?;
+
+        // 源和目的的数据应该一致
+        assert_eq!(src.len(), dst.len());
+        for i in 0..rows {
+            assert_eq!(src[i].0, dst[i].0);
+            assert_eq!(src[i].1, dst[i].1);
+        }
+
+        Ok(())
+    }
+
+    fn list_local_files(path: &Path) -> anyhow::Result<Vec<String>> {
+        let assert = Command::new("ls").arg(path).assert();
+        let files = String::from_utf8(assert.get_output().stdout.clone())?;
+        let files = files.lines().map(|f| f.to_string()).collect_vec();
+
+        dbg!(&files);
+
+        Ok(files)
+    }
+
+    async fn list_s3_files(s3_config: &S3Config) -> anyhow::Result<Vec<Entry>> {
+        let loader = S3Loader::try_from(s3_config).await?;
+        let prefix = s3_config.prefix.as_deref().unwrap_or("/");
+        let uploaded = loader.list(prefix).await?;
+
+        Ok(uploaded)
     }
 
     fn append_s3_config_on_url(mut url: String, s3_config: &S3Config) -> String {

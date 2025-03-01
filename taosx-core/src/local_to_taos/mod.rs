@@ -17,7 +17,7 @@ use tracing::{instrument, Instrument};
 use crate::core_metrics::{get_metrics_arc, CoreMetrics};
 use crate::local_to_taos::conf::{LocalRestoreConfig, LocalRestoreConfigBuilder};
 use crate::local_to_taos::file_watcher::FileWatcher;
-use crate::s3::S3Config;
+use crate::s3::{S3Config, S3Loader};
 use crate::taoz::{ZCodec, ZFile, ZMessage};
 use crate::tmq::BackupObject;
 use crate::tmq_to_local::LocalConfig;
@@ -66,6 +66,11 @@ pub async fn local_to_taos(
         .await
         .context("parse local_to_taos config error")?;
     tracing::debug!("local_to_taos config: {:#?}", config);
+
+    if let Some(s3_config) = &config.s3_config {
+        let s3_loader = S3Loader::try_from(s3_config).await?;
+        s3_loader.load_to(config.backup_dir.as_path()).await?;
+    }
 
     // 处理 backup object
     if config.is_obj_existed().await? {
@@ -152,9 +157,8 @@ pub async fn local_to_taos(
             }
         } else {
             tracing::debug!("local_to_taos send files: {:?} to worker", files_to_send);
-            tx.send(files_to_send).map_err(|err| {
+            tx.send(files_to_send).inspect_err(|err| {
                 tracing::error!("failed to send files to worker: {:#}", err);
-                err
             })?;
         }
 

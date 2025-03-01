@@ -1,8 +1,9 @@
 use crate::taoz::{ZFile, ZFileName};
 use crate::utils;
+use anyhow::Context;
 use opendal::raw::HttpClient;
-use opendal::{EntryMode, Operator};
-use std::path::PathBuf;
+use opendal::{Entry, EntryMode, Operator};
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use taos::Dsn;
 use tokio_util::sync::CancellationToken;
@@ -58,6 +59,7 @@ impl S3Config {
         let http_client = HttpClient::with(client);
 
         let mut builder = opendal::services::S3::default()
+            .disable_config_load()
             .bucket(&self.bucket)
             .endpoint(&self.endpoint)
             .access_key_id(&self.access_key_id)
@@ -89,31 +91,43 @@ impl S3Config {
 }
 
 #[derive(Debug)]
-pub struct S3Dumper {
-    path: PathBuf,
-    config: S3Config,
-    retention_period: Option<Duration>,
-    retention_size: Option<u64>,
+pub struct S3DumpConfig {
+    /// 本地备份路径
+    pub local_path: PathBuf,
+    /// S3 的连接配置
+    pub s3_connect: S3Config,
+    /// 备份文件保留时长
+    pub retention_period: Option<Duration>,
+    /// 备份文件保留数量
+    pub retention_size: Option<u64>,
+    /// 刷新间隔
+    fresh_interval: Duration,
+}
 
+pub struct S3Dumper {
+    config: S3DumpConfig,
     cancel_token: CancellationToken,
     op: Operator,
 }
 
 impl S3Dumper {
     pub async fn new(
-        path: PathBuf,
-        config: S3Config,
+        local_path: PathBuf,
+        s3_config: S3Config,
         retention_period: Option<Duration>,
         retention_size: Option<u64>,
         cancel_token: CancellationToken,
     ) -> anyhow::Result<Self> {
         // connect to s3
-        let op = config.connect().await?;
+        let op = s3_config.connect().await?;
         Ok(Self {
-            path,
-            config,
-            retention_period,
-            retention_size,
+            config: S3DumpConfig {
+                local_path,
+                s3_connect: s3_config,
+                retention_period,
+                retention_size,
+                fresh_interval: Duration::from_secs(10),
+            },
             cancel_token,
             op,
         })
@@ -121,20 +135,13 @@ impl S3Dumper {
 
     pub async fn run(&self) -> anyhow::Result<()> {
         tracing::info!("s3 dumper started");
-        tracing::info!(
-            "s3 dumper config: {:?}, path: {:?}, retention_period: {:?}, retention_size: {:?}",
-            self.config,
-            self.path,
-            self.retention_period,
-            self.retention_size
-        );
+        tracing::debug!("config: {:?}", self.config);
 
         loop {
             if let Err(e) = self.process().await {
                 tracing::error!("s3 dumper error: {:?}", e);
                 break;
             }
-
             if self.cancel_token.is_cancelled() {
                 tracing::info!("s3 dumper cancelled");
                 break;
@@ -148,31 +155,35 @@ impl S3Dumper {
 
     async fn process(&self) -> anyhow::Result<()> {
         // 列出备份路径下的所有备份文件, 根据 topic 过滤，按照 ts, vgId, index 排序
-        let files = ZFile::list_in_dir(&self.path).await?;
+        let files = ZFile::list_in_dir(&self.config.local_path).await?;
 
         // 根据备份保留策略，过滤备份文件
         let to_upload = Self::filter_retention(
             files.iter().collect(),
-            self.retention_period,
-            self.retention_size,
+            self.config.retention_period,
+            self.config.retention_size,
         )?;
 
         // 上传 files_to_upload 到 S3
         for f in to_upload.iter() {
             if let Some(raw_path) = f.raw_path.as_ref() {
-                let key = match &self.config.prefix {
+                let key = match &self.config.s3_connect.prefix {
                     Some(prefix) => format!("{}{}", prefix, f),
                     None => f.to_string(),
                 };
                 let content = tokio::fs::read(raw_path).await?;
                 self.op.write(&key, content).await?;
-                tracing::info!("s3 dumper upload file: {:?}", key);
+                tokio::fs::remove_file(raw_path).await?;
+                tracing::info!("s3 dumper uploaded file: {:?}", key);
             }
         }
+
+        tokio::time::sleep(self.config.fresh_interval).await;
 
         Ok(())
     }
 
+    /// 根据备份保留策略，过滤备份文件
     fn filter_retention(
         files: Vec<&ZFileName>,
         retention_period: Option<Duration>,
@@ -207,10 +218,76 @@ impl S3Dumper {
     }
 }
 
+/// 从 S3 下载文件
+pub struct S3Loader {
+    pub s3_config: S3Config,
+
+    op: Operator,
+}
+
+impl S3Loader {
+    pub async fn try_from(s3_config: &S3Config) -> anyhow::Result<Self> {
+        let op = s3_config.connect().await?;
+
+        Ok(Self {
+            s3_config: s3_config.clone(),
+            op,
+        })
+    }
+
+    /// 从 S3 上下载文件到本地
+    pub async fn load_to(&self, local_path: impl AsRef<Path>) -> anyhow::Result<()> {
+        let prefix = self.s3_config.prefix.as_deref().unwrap_or("/");
+
+        let objects = self.list(prefix).await?;
+
+        for obj in objects {
+            let meta = obj.metadata();
+            match meta.mode() {
+                EntryMode::FILE => {
+                    let obj_key = obj.path();
+                    let content = self.op.read(obj_key).await?;
+                    let local_file = local_path.as_ref().join(obj.name());
+                    tokio::fs::write(local_file.as_path(), content.to_vec())
+                        .await
+                        .context(format!(
+                            "s3 loader failed to download {} to {}",
+                            obj_key,
+                            local_file.display()
+                        ))?;
+                    tracing::info!("s3 loader download {} to {}", obj_key, local_file.display());
+                }
+                EntryMode::DIR | EntryMode::Unknown => continue,
+            }
+        }
+
+        Ok(())
+    }
+
+    /// 列出 S3 上的文件
+    pub async fn list(&self, prefix: &str) -> anyhow::Result<Vec<Entry>> {
+        let mut uploaded = vec![];
+
+        let objects = self.op.list(prefix).await?;
+        for obj in objects {
+            let meta = obj.metadata();
+            match meta.mode() {
+                EntryMode::FILE => {
+                    uploaded.push(obj);
+                }
+                EntryMode::DIR | EntryMode::Unknown => continue,
+            }
+        }
+
+        Ok(uploaded)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::s3::S3Dumper;
+    use crate::s3::{S3Config, S3Dumper, S3Loader};
     use crate::taoz::ZFileName;
+    use anyhow::Context;
     use chrono::Utc;
     use std::env;
     use std::path::PathBuf;
@@ -228,10 +305,6 @@ mod tests {
             );
             files.push(ZFileName::from_path(f).unwrap());
         }
-        // dbg!(files
-        //     .iter()
-        //     .map(|f| f.raw_path.clone().unwrap())
-        //     .collect_vec());
 
         // retention_period = None, retention_size = None
         let upload = S3Dumper::filter_retention(files.iter().collect(), None, None).unwrap();
@@ -286,11 +359,14 @@ mod tests {
     }
 
     /// # Case
-    /// 测试 S3 配置
+    /// 测试 S3 配置解析和连通性检查
     /// # Example
+    /// 用环境变量指定 S3_ENDPOINT 等连接信息
     /// ```shell
     /// S3_ENDPOINT=http://192.168.2.139:9000 S3_ACCESS_KEY_ID=minioadmin S3_SECRET_ACCESS_KEY=minioadmin S3_BUCKET=test S3_REGION=us-west-1 cargo nextest run -p taosx-core test_s3_config --no-capture
-    ///
+    /// ```
+    /// S3_ENDPOINT 是 url encoded 的地址
+    /// ```shell
     /// S3_ENDPOINT=http%3A%2F%2F192.168.2.139%3A9000 S3_ACCESS_KEY_ID=minioadmin S3_SECRET_ACCESS_KEY=minioadmin S3_BUCKET=test S3_REGION=us-west-1 cargo nextest run -p taosx-core test_s3_config --no-capture
     /// ```
     #[tokio::test]
@@ -327,7 +403,7 @@ mod tests {
     }
 
     /// # Case
-    /// 测试 S3 Dumper，将本地目录中的文件上传到 S3
+    /// 测试 S3 Dumper，将本地目录中的备份文件上传到 S3
     /// * LOCAL_DIR: 本地目录, 默认为 /tmp
     /// * S3_ENDPOINT: S3 服务的地址
     /// * S3_ACCESS_KEY_ID: 访问密钥ID
@@ -368,7 +444,7 @@ mod tests {
             // given
             let config = super::S3Config::from_dsn(&dsn).unwrap();
             let cancel_token = tokio_util::sync::CancellationToken::new();
-            let dumper = super::S3Dumper::new(local_dir, config, None, None, cancel_token.clone())
+            let dumper = S3Dumper::new(local_dir, config, None, None, cancel_token.clone())
                 .await
                 .unwrap();
             // when
@@ -376,9 +452,65 @@ mod tests {
                 dumper.run().await.unwrap();
             });
             // then
-            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            tokio::time::sleep(Duration::from_secs(5)).await;
             cancel_token.cancel();
             h.await.unwrap();
         }
+    }
+
+    /// # example
+    /// ```shell
+    /// LOCAL_DIR=/tmp S3_ENDPOINT='https://192.168.2.139:9000' S3_ACCESS_KEY_ID=minioadmin S3_SECRET_ACCESS_KEY=minioadmin S3_REGION=us-west-1 S3_BUCKET=taosx S3_OBJECT_PREFIX=backup/ cargo nextest run -p taosx-core test_s3_loader --no-capture --retries 0
+    /// ```
+    #[tokio::test]
+    async fn test_s3_loader() {
+        let s3_args = load_s3_env_args().unwrap();
+        if let Some(s3_config) = s3_args {
+            // given
+            let local_dir = env::var("LOCAL_DIR")
+                .map(PathBuf::from)
+                .ok()
+                .unwrap_or(tempfile::tempdir().unwrap().into_path());
+
+            // when
+            let loader = S3Loader::try_from(&s3_config).await.unwrap();
+            loader.load_to(local_dir.as_path()).await.unwrap();
+
+            // 列出本地目录
+            let mut files = tokio::fs::read_dir(local_dir).await.unwrap();
+            while let Ok(Some(f)) = files.next_entry().await {
+                let path = f.path();
+                let file_name = path.file_name().unwrap().to_str().unwrap();
+                if file_name.ends_with(".z") {
+                    dbg!(&file_name);
+                }
+            }
+        }
+    }
+
+    pub fn load_s3_env_args() -> anyhow::Result<Option<S3Config>> {
+        if let Ok(endpoint) = env::var("S3_ENDPOINT") {
+            let access_key_id =
+                env::var("S3_ACCESS_KEY_ID").context("S3_ACCESS_KEY_ID not found")?;
+            let secret_access_key =
+                env::var("S3_SECRET_ACCESS_KEY").context("S3_SECRET_ACCESS_KEY not found")?;
+            let bucket = env::var("S3_BUCKET").context("S3_BUCKET not found")?;
+            let region = env::var("S3_REGION").ok();
+            let prefix = env::var("S3_OBJECT_PREFIX").ok();
+
+            let s3_config = S3Config {
+                endpoint,
+                access_key_id,
+                secret_access_key,
+                region,
+                bucket,
+                prefix,
+            };
+
+            dbg!(&s3_config);
+
+            return Ok(Some(s3_config));
+        };
+        Ok(None)
     }
 }
