@@ -284,11 +284,11 @@ int32_t walRollImpl(SWal *pWal) {
   int64_t newFileFirstVer = pWal->vers.lastVer + 1;
   char    fnameStr[WAL_FILE_LEN];
   walBuildIdxName(pWal, newFileFirstVer, fnameStr);
-  pIdxFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  pIdxFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE | TD_FILE_APPEND);
   TSDB_CHECK_NULL(pIdxFile, code, lino, _exit, terrno);
 
   walBuildLogName(pWal, newFileFirstVer, fnameStr);
-  pLogFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  pLogFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE | TD_FILE_APPEND);
   wDebug("vgId:%d, wal create new file for write:%s", pWal->cfg.vgId, fnameStr);
   TSDB_CHECK_NULL(pLogFile, code, lino, _exit, terrno);
 
@@ -516,8 +516,8 @@ static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
   // check alignment of idx entries
   int64_t endOffset = taosLSeekFile(pWal->pIdxFile, 0, SEEK_END);
   if (endOffset < 0) {
-    wFatal("vgId:%d, failed to seek end of WAL idxfile due to %s. ver:%" PRId64 "", pWal->cfg.vgId, strerror(terrno),
-           ver);
+    wFatal("vgId:%d, failed to seek end of WAL idxfile due to %s. ver:%" PRId64 ", endOffset:%" PRId64, pWal->cfg.vgId,
+           tstrerror(terrno), ver, endOffset);
     taosMsleep(100);
     exit(EXIT_FAILURE);
   }
@@ -665,12 +665,12 @@ static int32_t walInitWriteFile(SWal *pWal) {
 
   char fnameStr[WAL_FILE_LEN];
   walBuildIdxName(pWal, fileFirstVer, fnameStr);
-  pIdxTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  pIdxTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pIdxTFile == NULL) {
     TAOS_RETURN(terrno);
   }
   walBuildLogName(pWal, fileFirstVer, fnameStr);
-  pLogTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  pLogTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_READ |TD_FILE_WRITE | TD_FILE_APPEND);
   if (pLogTFile == NULL) {
     TAOS_UNUSED(taosCloseFile(&pIdxTFile));
     TAOS_RETURN(terrno);

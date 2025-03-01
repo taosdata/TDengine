@@ -565,10 +565,17 @@ int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
     TAOS_RETURN(TSDB_CODE_FS_INVLD_CFG);
   }
 
+#ifndef TD_ASTRA
   if (!taosCheckAccessFile(dirName, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
     fError("failed to mount %s to FS since no R/W access rights", pCfg->dir);
     TAOS_RETURN(TSDB_CODE_FS_INVLD_CFG);
   }
+#else  // TD_ASTRA_TODO
+  if (!taosCheckAccessFile(dirName, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_EXEC_OK)) {
+    fError("failed to mount %s to FS since no access rights", pCfg->dir);
+    TAOS_RETURN(TSDB_CODE_FS_INVLD_CFG);
+  }
+#endif
 
   if (!taosIsDir(dirName)) {
     fError("failed to mount %s to FS since not a directory", pCfg->dir);
@@ -581,6 +588,7 @@ int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
 }
 
 static int32_t tfsFormatDir(char *idir, char *odir) {
+#ifndef TD_ASTRA
   int32_t   code = 0, lino = 0;
   wordexp_t wep = {0};
   int32_t   dirLen = 0;
@@ -607,6 +615,10 @@ _exit:
            dirLen);
   }
   TAOS_RETURN(code);
+#else
+  tstrncpy(odir, idir, TSDB_FILENAME_LEN);
+  TAOS_RETURN(0);
+#endif
 }
 
 static int32_t tfsCheck(STfs *pTfs) {

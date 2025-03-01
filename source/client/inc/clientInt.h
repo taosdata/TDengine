@@ -116,19 +116,20 @@ typedef struct {
   SMonitorParas monitorParas;
   int8_t        enableAuditDelete;
 } SAppInstServerCFG;
+
 struct SAppInstInfo {
   int64_t            numOfConns;
-  SCorEpSet          mgmtEp;
   int32_t            totalDnodes;
   int32_t            onlineDnodes;
-  TdThreadMutex      qnodeMutex;
-  SArray*            pQnodeList;
-  SAppClusterSummary summary;
-  SList*             pConnList;  // STscObj linked list
   int64_t            clusterId;
+  SAppClusterSummary summary;
+  SArray*            pQnodeList;
+  SList*             pConnList;  // STscObj linked list
   void*              pTransporter;
   SAppHbMgr*         pAppHbMgr;
   char*              instKey;
+  TdThreadMutex      qnodeMutex;
+  SCorEpSet          mgmtEp;
   SAppInstServerCFG  serverCfg;
 };
 
@@ -264,8 +265,9 @@ typedef struct SReqRelInfo {
 
 typedef struct SRequestObj {
   int8_t               resType;  // query or tmq
-  uint64_t             requestId;
   int32_t              type;  // request type
+  uint64_t             requestId;
+  SQuery*              pQuery;
   STscObj*             pTscObj;
   char*                pDb;     // current database string
   char*                sqlstr;  // sql string
@@ -293,7 +295,6 @@ typedef struct SRequestObj {
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
   int64_t              allocatorRefId;
-  SQuery*              pQuery;
   void*                pPostPlan;
   SReqRelInfo          relation;
   void*                pWrapper;

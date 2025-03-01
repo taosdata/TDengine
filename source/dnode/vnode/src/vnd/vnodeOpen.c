@@ -341,11 +341,13 @@ void vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId) {
   }
 
   // int32_t nlevel = tfsGetLevel(pTfs);
+#ifdef USE_S3
   if (nodeId > 0 && vgId > 0 /*&& nlevel > 1*/ && tsS3Enabled) {
     char vnode_prefix[TSDB_FILENAME_LEN];
     snprintf(vnode_prefix, TSDB_FILENAME_LEN, "%d/v%df", nodeId, vgId);
     tcsDeleteObjectsByPrefix(vnode_prefix);
   }
+#endif
 }
 
 static int32_t vnodeCheckDisk(int32_t diskPrimary, STfs *pTfs) {

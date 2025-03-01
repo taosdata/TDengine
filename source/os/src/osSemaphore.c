@@ -202,16 +202,21 @@ int32_t taosGetPIdByName(const char* name, int32_t* pPId) {return -1;}
 /*
  * linux implementation
  */
-
+#ifndef TD_ASTRA
 #include <sys/syscall.h>
+#endif
 #include <unistd.h>
 
 bool taosCheckPthreadValid(TdThread thread) { return thread != 0; }
 
 int64_t taosGetSelfPthreadId() {
-  static __thread int id = 0;
+  static __thread int64_t id = 0;
   if (id != 0) return id;
+#ifndef TD_ASTRA
   id = syscall(SYS_gettid);
+#else
+  id = (int64_t) taosThreadSelf();
+#endif
   return id;
 }
 
@@ -226,11 +231,16 @@ bool    taosComparePthread(TdThread first, TdThread second) { return first == se
 int32_t taosGetPId() {
   static int32_t pid;
   if (pid != 0) return pid;
+#ifndef TD_ASTRA
   pid = getpid();
+#else
+  pid = (int32_t)taosThreadSelf(); // TD_ASTRA_TODO
+#endif
   return pid;
 }
 
 int32_t taosGetAppName(char* name, int32_t* len) {
+#ifndef TD_ASTRA
   OS_PARAM_CHECK(name);
   const char* self = "/proc/self/exe";
   char        path[PATH_MAX] = {0};
@@ -249,7 +259,9 @@ int32_t taosGetAppName(char* name, int32_t* len) {
   }
 
   tstrncpy(name, end, TSDB_APP_NAME_LEN);
-
+#else
+  tstrncpy(name, "tdastra", TSDB_APP_NAME_LEN); // TD_ASTRA_TODO
+#endif
   if (len != NULL) {
     *len = strlen(name);
   }
@@ -258,6 +270,7 @@ int32_t taosGetAppName(char* name, int32_t* len) {
 }
 
 int32_t taosGetPIdByName(const char* name, int32_t* pPId) {
+#ifndef TD_ASTRA
   OS_PARAM_CHECK(name);
   OS_PARAM_CHECK(pPId);
   DIR*           dir = NULL;
@@ -310,6 +323,9 @@ int32_t taosGetPIdByName(const char* name, int32_t* pPId) {
   } else {
     return TSDB_CODE_SUCCESS;
   }
+#else
+  return TSDB_CODE_APP_ERROR;
+#endif
 }
 
 int32_t tsem_init(tsem_t* psem, int flags, unsigned int count) {

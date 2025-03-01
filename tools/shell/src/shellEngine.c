@@ -89,7 +89,11 @@ int32_t shellRunSingleCommand(char *command) {
   if (shellRegexMatch(command, "^[\t ]*clear[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-result"
+#ifndef TD_ASTRA
     system("clear");
+#else
+    printf("\033[2J\033[H");
+#endif
 #pragma GCC diagnostic pop
     return 0;
   }
@@ -99,7 +103,7 @@ int32_t shellRunSingleCommand(char *command) {
     strtok(command, " \t");
     strtok(NULL, " \t");
     char *p = strtok(NULL, " \t");
-    if (strncasecmp(p, "default", 7) == 0) {
+    if (taosStrncasecmp(p, "default", 7) == 0) {
       shell.args.displayWidth = SHELL_DEFAULT_MAX_BINARY_DISPLAY_WIDTH;
     } else {
       int32_t displayWidth = atoi(p);
@@ -137,7 +141,7 @@ int32_t shellRunSingleCommand(char *command) {
 }
 
 void shellRecordCommandToHistory(char *command) {
-  if (strncasecmp(command, "create user ", 12) == 0 || strncasecmp(command, "alter user ", 11) == 0) {
+  if (taosStrncasecmp(command, "create user ", 12) == 0 || taosStrncasecmp(command, "alter user ", 11) == 0) {
     if (taosStrCaseStr(command, " pass ")) {
       // have password command forbid record to history because security
       return;
@@ -166,7 +170,7 @@ int32_t shellRunCommand(char *command, bool recordHistory) {
   }
 
   // add help or help;
-  if (strncasecmp(command, "help", 4) == 0) {
+  if (taosStrncasecmp(command, "help", 4) == 0) {
     if (command[4] == ';' || command[4] == ' ' || command[4] == 0) {
       showHelp();
       return 0;
@@ -1302,7 +1306,8 @@ void *shellThreadLoop(void *arg) {
 }
 #pragma GCC diagnostic pop
 
-int32_t shellExecute() {
+int32_t shellExecute(int argc, char *argv[]) {
+  int32_t code = 0;
   printf(shell.info.clientVersion, shell.info.cusName, taos_get_client_info(), shell.info.cusName);
   fflush(stdout);
 
@@ -1369,9 +1374,9 @@ int32_t shellExecute() {
     return 0;
   }
 
-  if (tsem_init(&shell.cancelSem, 0, 0) != 0) {
-    printf("failed to create cancel semaphore\r\n");
-    return -1;
+  if ((code = tsem_init(&shell.cancelSem, 0, 0)) != 0) {
+    printf("failed to create cancel semaphore since %s\r\n", tstrerror(code));
+    return code;
   }
 
   TdThread spid = {0};
@@ -1425,5 +1430,5 @@ int32_t shellExecute() {
   taos_kill_query(shell.conn);
   taos_close(shell.conn);
 
-  return 0;
+  TAOS_RETURN(code);
 }

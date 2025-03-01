@@ -687,6 +687,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       if (vnodeProcessBatchDeleteReq(pVnode, ver, pReq, len, pRsp) < 0) goto _err;
       break;
     /* TQ */
+#if defined(USE_TQ) || defined(USE_STREAM)
     case TDMT_VND_TMQ_SUBSCRIBE:
       if (tqProcessSubscribeReq(pVnode->pTq, ver, pReq, len) < 0) {
         goto _err;
@@ -751,6 +752,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       }
 
     } break;
+#endif
     case TDMT_VND_ALTER_CONFIRM:
       needCommit = pVnode->config.hashChange;
       if (vnodeProcessAlterConfirmReq(pVnode, ver, pReq, len, pRsp) < 0) {
@@ -919,19 +921,20 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 #endif
       //    case TDMT_VND_TMQ_CONSUME:
       //      return tqProcessPollReq(pVnode->pTq, pMsg);
+#ifdef USE_TQ
     case TDMT_VND_TMQ_VG_WALINFO:
       return tqProcessVgWalInfoReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_VG_COMMITTEDINFO:
       return tqProcessVgCommittedInfoReq(pVnode->pTq, pMsg);
     case TDMT_VND_TMQ_SEEK:
       return tqProcessSeekReq(pVnode->pTq, pMsg);
-
+#endif
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
   }
 }
-
+#ifdef USE_STREAM
 int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("vgId:%d, msg:%p in stream queue is processing", pVnode->config.vgId, pMsg);
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
@@ -995,7 +998,7 @@ int32_t vnodeProcessStreamCtrlMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pIn
       return TSDB_CODE_APP_ERROR;
   }
 }
-
+#endif
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   int32_t code = tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);
   if (code) {
@@ -2143,6 +2146,7 @@ _exit:
 }
 
 static int32_t vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp) {
+#ifdef USE_TSMA
   SVCreateTSmaReq req = {0};
   SDecoder        coder = {0};
 
@@ -2177,6 +2181,9 @@ _err:
   vError("vgId:%d, failed to create tsma %s:%" PRIi64 " version %" PRIi64 "for table %" PRIi64 " since %s",
          TD_VID(pVnode), req.indexName, req.indexUid, ver, req.tableUid, terrstr());
   return terrno;
+#else
+  return TSDB_CODE_INTERNAL_ERROR;
+#endif
 }
 
 /**

@@ -110,7 +110,7 @@ typedef struct {
   tb_uid_t uid;
 } STbDbKey;
 
-#pragma pack(push, 1)
+#pragma pack(push, TD_PACK_MIN_SIZE)
 typedef struct {
   tb_uid_t suid;
   int64_t  version;
@@ -128,7 +128,7 @@ typedef struct {
   tb_uid_t uid;
 } SCtbIdxKey;
 
-#pragma pack(push, 1)
+#pragma pack(push, TD_PACK_MIN_SIZE)
 typedef struct {
   tb_uid_t suid;
   int32_t  cid;
@@ -164,7 +164,7 @@ int32_t metaFilterTableName(void* pVnode, SMetaFltParam* param, SArray* pUids);
 int32_t metaFilterTtl(void* pVnode, SMetaFltParam* param, SArray* pUids);
 
 int32_t metaGetColCmpr(SMeta* pMeta, tb_uid_t uid, SHashObj** colCmprObj);
-#ifndef META_REFACT
+#if !defined(META_REFACT) && !defined(TD_ASTRA)
 // SMetaDB
 int  metaOpenDB(SMeta* pMeta);
 void metaCloseDB(SMeta* pMeta);

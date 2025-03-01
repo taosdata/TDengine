@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef USE_UDF
 // clang-format off
 #include "uv.h"
 #include "os.h"
@@ -1566,7 +1567,7 @@ static void udfdPrintVersion() {
 static int32_t udfdInitLog() {
   const char *logName = "udfdlog";
   TAOS_CHECK_RETURN(taosInitLogOutput(&logName));
-  return taosCreateLog(logName, 1, configDir, NULL, NULL, NULL, NULL, 0);
+  return taosCreateLog(logName, 1, configDir, NULL, NULL, NULL, NULL, LOG_MODE_TAOSD);
 }
 
 void udfdCtrlAllocBufCb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
@@ -1865,3 +1866,4 @@ _exit:
 
   return code;
 }
+#endif

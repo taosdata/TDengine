@@ -25,6 +25,12 @@ extern "C" {
 
 #define TSDB__packed
 
+#ifndef TD_ASTRA
+#define TD_PACK_MIN_SIZE 1
+#else
+#define TD_PACK_MIN_SIZE 4
+#endif
+
 #define TSKEY             int64_t
 #define TSKEY_MIN         INT64_MIN
 #define TSKEY_MAX         INT64_MAX

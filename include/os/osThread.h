@@ -35,7 +35,7 @@ extern "C" {
 // #endif
 #endif
 
-#if !defined(WINDOWS) && !defined(_ALPINE)
+#if !defined(WINDOWS) && !defined(_ALPINE) && !defined(TD_ASTRA)
 #ifndef __USE_XOPEN2K
 #define TD_USE_SPINLOCK_AS_MUTEX
 typedef pthread_mutex_t pthread_spinlock_t;
@@ -70,11 +70,13 @@ typedef pthread_cond_t       TdThreadCond;
 typedef pthread_condattr_t   TdThreadCondAttr;
 typedef pthread_key_t        TdThreadKey;
 #endif
-
+#define DEFAULT_STACK_SIZE    (10485760)
 #define taosThreadCleanupPush pthread_cleanup_push
 #define taosThreadCleanupPop  pthread_cleanup_pop
 #if !defined(WINDOWS)
 #if defined(_TD_DARWIN_64)  // MACOS
+#define taosThreadRwlockAttrSetKindNP(A, B) ((void)0)
+#elif defined(TD_ASTRA)
 #define taosThreadRwlockAttrSetKindNP(A, B) ((void)0)
 #else  // LINUX
 #if _XOPEN_SOURCE >= 500 || _POSIX_C_SOURCE >= 200809L

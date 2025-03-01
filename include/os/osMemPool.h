@@ -149,8 +149,9 @@ int32_t taosMemoryPoolInit(mpReserveFailFp, mpReserveReachFp);
   } while (0)
 
 
-#ifndef BUILD_TEST
 extern void* gMemPoolHandle;
+
+#if !defined(BUILD_TEST) && !defined(TD_ASTRA)
 extern threadlocal void* threadPoolSession;
 extern threadlocal bool  threadPoolEnabled;
 extern int8_t tsMemPoolFullFunc;
@@ -173,10 +174,10 @@ extern int8_t tsMemPoolFullFunc;
 #define taosMemoryTrim(_size, _trimed) ((threadPoolEnabled && threadPoolSession) ? (taosMemPoolTrim(gMemPoolHandle, threadPoolSession, _size, (char*)__FILE__, __LINE__, _trimed)) : (taosMemTrim(_size, _trimed)))
 #define taosMemoryMallocAlign(_alignment, _size) ((threadPoolEnabled && threadPoolSession) ? (taosMemPoolMallocAlign(gMemPoolHandle, threadPoolSession, _alignment, _size, (char*)__FILE__, __LINE__)) : (taosMemMallocAlign(_alignment, _size)))
 #else
-#define taosEnableMemoryPoolUsage(_pool, _session) 
-#define taosDisableMemoryPoolUsage() 
-#define taosSaveDisableMemoryPoolUsage() 
-#define taosRestoreEnableMemoryPoolUsage() 
+#define taosEnableMemPoolUsage(_session) 
+#define taosDisableMemPoolUsage() 
+#define taosSaveDisableMemPoolUsage(_enable, _randErr) 
+#define taosRestoreEnableMemPoolUsage(_enable, _randErr) 
 
 #define taosMemoryMalloc(_size) taosMemMalloc(_size)
 #define taosMemoryCalloc(_num, _size) taosMemCalloc(_num, _size)

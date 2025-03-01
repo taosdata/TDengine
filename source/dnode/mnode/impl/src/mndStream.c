@@ -361,7 +361,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     code = terrno;
     mInfo("stream:%s failed to create, source db %s not exist since %s", pCreate->name, pObj->sourceDb,
           tstrerror(code));
-    goto FAIL;
+    goto _ERR;
   }
 
   pObj->sourceDbUid = pSourceDb->uid;
@@ -374,7 +374,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     code = terrno;
     mError("stream:%s failed to create, target db %s not exist since %s", pCreate->name, pObj->targetDb,
            tstrerror(code));
-    goto FAIL;
+    goto _ERR;
   }
 
   tstrncpy(pObj->targetDb, pTargetDb->name, TSDB_DB_FNAME_LEN);
@@ -395,12 +395,12 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
 
   // deserialize ast
   if ((code = nodesStringToNode(pObj->ast, &pAst)) < 0) {
-    goto FAIL;
+    goto _ERR;
   }
 
   // create output schema
   if ((code = createSchemaByFields(pCreate->pCols, &pObj->outputSchema)) != TSDB_CODE_SUCCESS) {
-    goto FAIL;
+    goto _ERR;
   }
 
   int32_t numOfNULL = taosArrayGetSize(pCreate->fillNullCols);
@@ -409,7 +409,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     SSchema *pFullSchema = taosMemoryCalloc(pObj->outputSchema.nCols, sizeof(SSchema));
     if (!pFullSchema) {
       code = terrno;
-      goto FAIL;
+      goto _ERR;
     }
 
     int32_t nullIndex = 0;
@@ -470,12 +470,12 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
 
   // using ast and param to build physical plan
   if ((code = qCreateQueryPlan(&cxt, &pPlan, NULL)) < 0) {
-    goto FAIL;
+    goto _ERR;
   }
 
   // save physcial plan
   if ((code = nodesNodeToString((SNode *)pPlan, false, &pObj->physicalPlan, NULL)) != 0) {
-    goto FAIL;
+    goto _ERR;
   }
 
   pObj->tagSchema.nCols = pCreate->numOfTags;
@@ -483,7 +483,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     pObj->tagSchema.pSchema = taosMemoryCalloc(pCreate->numOfTags, sizeof(SSchema));
     if (pObj->tagSchema.pSchema == NULL) {
       code = terrno;
-      goto FAIL;
+      goto _ERR;
     }
   }
 
@@ -501,7 +501,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     memcpy(pObj->tagSchema.pSchema[i].name, pField->name, TSDB_COL_NAME_LEN);
   }
 
-FAIL:
+_ERR:
   if (pAst != NULL) nodesDestroyNode(pAst);
   if (pPlan != NULL) qDestroyQueryPlan(pPlan);
   return code;

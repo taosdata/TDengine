@@ -20,7 +20,11 @@
 extern "C" {
 #endif
 
+#ifdef TD_ASTRA
+#include <posix/semaphore.h>
+#else
 #include <semaphore.h>
+#endif
 
 #if defined(_TD_DARWIN_64)
 #include <dispatch/dispatch.h>
