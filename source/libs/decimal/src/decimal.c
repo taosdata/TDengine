@@ -338,7 +338,7 @@ static bool    decimal64Lt(const DecimalType* pLeft, const DecimalType* pRight, 
 static bool    decimal64Gt(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
 static bool    decimal64Eq(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
 static int32_t decimal64ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen);
-static void    decimal64ScaleDown(Decimal64* pDec, uint8_t scaleDown);
+static void    decimal64ScaleDown(Decimal64* pDec, uint8_t scaleDown, bool round);
 static void    decimal64ScaleUp(Decimal64* pDec, uint8_t scaleUp);
 static void    decimal64ScaleTo(Decimal64* pDec, uint8_t oldScale, uint8_t newScale);
 
@@ -358,7 +358,7 @@ static bool    decimal128Gt(const DecimalType* pLeft, const DecimalType* pRight,
 static bool    decimal128Eq(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
 static int32_t decimal128ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen);
 static void    decimal128ScaleTo(Decimal128* pDec, uint8_t oldScale, uint8_t newScale);
-static void    decimal128ScaleDown(Decimal128* pDec, uint8_t scaleDown);
+static void    decimal128ScaleDown(Decimal128* pDec, uint8_t scaleDown, bool round);
 static void    decimal128ScaleUp(Decimal128* pDec, uint8_t scaleUp);
 static int32_t decimal128CountLeadingBinaryZeros(const Decimal128* pDec);
 static int32_t decimal128FromInt64(DecimalType* pDec, uint8_t prec, uint8_t scale, int64_t val);
@@ -793,7 +793,7 @@ static void decimalAddLargePositive(Decimal* pX, const SDataType* pXT, const Dec
     decimal128Add(&right, &fracY, WORD_NUM(Decimal));
   }
 
-  decimal128ScaleDown(&right, maxScale - pOT->scale);
+  decimal128ScaleDown(&right, maxScale - pOT->scale, true);
   decimal128Add(&wholeX, &wholeY, WORD_NUM(Decimal));
   decimal128Add(&wholeX, &carry, WORD_NUM(Decimal));
   decimal128Multiply(&wholeX, &SCALE_MULTIPLIER_128[pOT->scale], WORD_NUM(Decimal));
@@ -822,7 +822,7 @@ static void decimalAddLargeNegative(Decimal* pX, const SDataType* pXT, const Dec
     decimal128Add(&fracX, &SCALE_MULTIPLIER_128[maxScale], WORD_NUM(Decimal));
   }
 
-  decimal128ScaleDown(&fracX, maxScale - pOT->scale);
+  decimal128ScaleDown(&fracX, maxScale - pOT->scale, true);
   decimal128Multiply(&wholeX, &SCALE_MULTIPLIER_128[pOT->scale], WORD_NUM(Decimal));
   decimal128Add(&wholeX, &fracX, WORD_NUM(Decimal));
   *pX = wholeX;
@@ -951,7 +951,7 @@ static int32_t decimalMultiply(Decimal* pX, const SDataType* pXT, const Decimal*
         // no need to trim scale
         if (deltaScale <= 38) {
           decimal128Multiply(pX, pY, WORD_NUM(Decimal));
-          decimal128ScaleDown(pX, deltaScale);
+          decimal128ScaleDown(pX, deltaScale, true);
         } else {
           makeDecimal128(pX, 0, 0);
         }
@@ -1470,16 +1470,18 @@ int32_t convertToDecimal(const void* pData, const SDataType* pInputType, void* p
   return code;
 }
 
-void decimal64ScaleDown(Decimal64* pDec, uint8_t scaleDown) {
+void decimal64ScaleDown(Decimal64* pDec, uint8_t scaleDown, bool round) {
   if (scaleDown > 0) {
     Decimal64 divisor = SCALE_MULTIPLIER_64[scaleDown], remainder = {0};
     decimal64divide(pDec, &divisor, WORD_NUM(Decimal64), &remainder);
-    decimal64Abs(&remainder);
-    Decimal64 half = SCALE_MULTIPLIER_64[scaleDown];
-    decimal64divide(&half, &decimal64Two, WORD_NUM(Decimal64), NULL);
-    if (!decimal64Lt(&remainder, &half, WORD_NUM(Decimal64))) {
-      Decimal64 delta = {DECIMAL64_SIGN(pDec)};
-      //decimal64Add(pDec, &delta, WORD_NUM(Decimal64));
+    if (round) {
+      decimal64Abs(&remainder);
+      Decimal64 half = SCALE_MULTIPLIER_64[scaleDown];
+      decimal64divide(&half, &decimal64Two, WORD_NUM(Decimal64), NULL);
+      if (!decimal64Lt(&remainder, &half, WORD_NUM(Decimal64))) {
+        Decimal64 delta = {DECIMAL64_SIGN(pDec)};
+        decimal64Add(pDec, &delta, WORD_NUM(Decimal64));
+      }
     }
   }
 }
@@ -1495,7 +1497,7 @@ static void decimal64ScaleTo(Decimal64* pDec, uint8_t oldScale, uint8_t newScale
   if (newScale > oldScale)
     decimal64ScaleUp(pDec, newScale - oldScale);
   else if (newScale < oldScale)
-    decimal64ScaleDown(pDec, oldScale - newScale);
+    decimal64ScaleDown(pDec, oldScale - newScale, true);
 }
 
 static void decimal64ScaleAndCheckOverflow(Decimal64* pDec, int8_t scale, uint8_t toPrec, uint8_t toScale,
@@ -1513,7 +1515,7 @@ static void decimal64ScaleAndCheckOverflow(Decimal64* pDec, int8_t scale, uint8_
     }
   } else if (deltaScale < 0) {
     Decimal64 res = *pDec, max = {0};
-    decimal64ScaleDown(&res, -deltaScale);
+    decimal64ScaleDown(&res, -deltaScale, false);
     DECIMAL64_GET_MAX(toPrec, &max);
     if (decimal64Gt(&res, &max, WORD_NUM(Decimal64))) {
       if (overflow) *overflow = true;
@@ -1609,10 +1611,19 @@ int32_t decimal64FromStr(const char* str, int32_t len, uint8_t expectPrecision, 
 }
 
 // TODO wjm add round param
-static void decimal128ScaleDown(Decimal128* pDec, uint8_t scaleDown) {
+static void decimal128ScaleDown(Decimal128* pDec, uint8_t scaleDown, bool round) {
   if (scaleDown > 0) {
-    Decimal128 divisor = SCALE_MULTIPLIER_128[scaleDown];
-    decimal128Divide(pDec, &divisor, 2, NULL);
+    Decimal128 divisor = SCALE_MULTIPLIER_128[scaleDown], remainder = {0};
+    decimal128Divide(pDec, &divisor, 2, &remainder);
+    if (round) {
+      decimal128Abs(&remainder);
+      Decimal128 half = SCALE_MULTIPLIER_128[scaleDown];
+      decimal128Divide(&half, &decimal128Two, 2, NULL);
+      if (!decimal128Lt(&remainder, &half, WORD_NUM(Decimal128))) {
+        Decimal64 delta = {DECIMAL128_SIGN(pDec)};
+        decimal128Add(pDec, &delta, WORD_NUM(Decimal64));
+      }
+    }
   }
 }
 
@@ -1627,7 +1638,7 @@ static void decimal128ScaleTo(Decimal128* pDec, uint8_t oldScale, uint8_t newSca
   if (newScale > oldScale)
     decimal128ScaleUp(pDec, newScale - oldScale);
   else if (newScale < oldScale)
-    decimal128ScaleDown(pDec, oldScale - newScale);
+    decimal128ScaleDown(pDec, oldScale - newScale, true);
 }
 
 int32_t decimal128FromStr(const char* str, int32_t len, uint8_t expectPrecision, uint8_t expectScale,
@@ -1781,7 +1792,7 @@ static void decimal128ModifyScaleAndPrecision(Decimal128* pDec, uint8_t scale, u
     }
   } else {
     Decimal128 res = *pDec, max = {0};
-    decimal128ScaleDown(&res, -deltaScale);
+    decimal128ScaleDown(&res, -deltaScale, false);
     DECIMAL128_GET_MAX(toPrec, &max);
     if (decimal128Gt(&res, &max, WORD_NUM(Decimal128))) {
       if (overflow) *overflow = true;
