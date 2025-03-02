@@ -39,6 +39,7 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
 int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta);
 int32_t tqStreamTasksGetTotalNum(SStreamMeta* pMeta);
 int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, char* msg);
+int32_t tqStreamTaskProcessAllTaskStopReq(SStreamMeta* pMeta, SMsgCb* pMsgCb, SRpcMsg* pMsg);
 int32_t tqStreamTaskProcessRetrieveTriggerReq(SStreamMeta* pMeta, SRpcMsg* pMsg);
 int32_t tqStreamTaskProcessRetrieveTriggerRsp(SStreamMeta* pMeta, SRpcMsg* pMsg);
 int32_t tqStreamTaskProcessTaskPauseReq(SStreamMeta* pMeta, char* pMsg);
