@@ -230,12 +230,14 @@ Int256 int256Divide(const Int256* pLeft, const Int256* pRight) {
 }
 
 Int256 int256Mod(const Int256* pLeft, const Int256* pRight) {
-  Int256 left = *pLeft;
+  Int256 left = *pLeft, right = *pRight;
   bool leftNegative = int256Lt(pLeft, &int256Zero);
   if (leftNegative) {
     left = int256Abs(&left);
   }
-  intx::uint256 result = *(intx::uint256*)&left % *(intx::uint256*)pRight;
+  bool rightNegate = int256Lt(pRight, &int256Zero);
+  if (rightNegate) right = int256Abs(pRight);
+  intx::uint256 result = *(intx::uint256*)&left % *(intx::uint256*)&right;
   Int256 res =  *(Int256*)&result;
   if (leftNegative) res = int256Negate(&res);
   return res;

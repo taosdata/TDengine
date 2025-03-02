@@ -436,8 +436,8 @@ TEST(decimal, numeric) {
   ASSERT_EQ(os.toString(), "15241399.13627308800000");
 
   os = dec * dec128;
-  ASSERT_EQ(os.toStringTrimTailingZeros(), "15241481344302520.993184");
-  ASSERT_EQ(os.toString(), "15241481344302520.993184");
+  ASSERT_EQ(os.toStringTrimTailingZeros(), "15241481344302520.993185");
+  ASSERT_EQ(os.toString(), "15241481344302520.993185");
 
   os2 = os / dec128;
   ASSERT_EQ(os2.toStringTrimTailingZeros(), "123.456");
@@ -1027,7 +1027,7 @@ TEST(decimal, decimalFromStr_all) {
 TEST(decimal, op_overflow) {
   // divide 0 error
   Numeric<128> dec{38, 2, string(36, '9') + ".99"};
-  ASSERT_OVERFLOW(dec / 0);  // TODO wjm add divide by 0 error code
+  ASSERT_OVERFLOW(dec / 0);
 
   // test decimal128Max
   Numeric<128> max{38, 10, "0"};

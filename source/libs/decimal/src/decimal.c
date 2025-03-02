@@ -641,8 +641,11 @@ static bool decimal128Lt(const DecimalType* pLeft, const DecimalType* pRight, ui
   // TODO wjm pRightDec use const
   Decimal128 *pLeftDec = (Decimal128*)pLeft, *pRightDec = (Decimal128*)pRight;
   Decimal128  right = {0};
+  char left_buf[64] = {0}, right_buf[64] = {0}; // TODO wjm remove it
   DECIMAL128_CHECK_RIGHT_WORD_NUM(rightWordNum, pRightDec, right, pRight);
 
+  decimal128ToStr(pLeftDec, 0, left_buf, 64);
+  decimal128ToStr(pRightDec, 0, right_buf, 64);
   return DECIMAL128_HIGH_WORD(pLeftDec) < DECIMAL128_HIGH_WORD(pRightDec) ||
          (DECIMAL128_HIGH_WORD(pLeftDec) == DECIMAL128_HIGH_WORD(pRightDec) &&
           DECIMAL128_LOW_WORD(pLeftDec) < DECIMAL128_LOW_WORD(pRightDec));
@@ -1377,7 +1380,7 @@ static int32_t decimal128FromDecimal128(DecimalType* pDec, uint8_t prec, uint8_t
 
   Decimal128 max = {0};
   DECIMAL128_GET_MAX(prec - scale, &max);
-  decimal128ScaleTo(&tmpDec, valScale, 0);
+  decimal128ScaleDown(&tmpDec, valScale, false);
   if (decimal128Lt(&max, &tmpDec, WORD_NUM(Decimal128))) {
     return TSDB_CODE_DECIMAL_OVERFLOW;
   }
@@ -1386,78 +1389,79 @@ static int32_t decimal128FromDecimal128(DecimalType* pDec, uint8_t prec, uint8_t
   return 0;
 }
 
-#define CONVERT_TO_DECIMAL(pData, pInputType, pOut, pOutType, decimal)                                           \
-  ({                                                                                                             \
-    int32_t  code = 0;                                                                                           \
-    int64_t  val = 0;                                                                                            \
-    uint64_t uval = 0;                                                                                           \
-    double   dval = 0;                                                                                           \
-    switch (pInputType->type) {                                                                                  \
-      case TSDB_DATA_TYPE_NULL:                                                                                  \
-        break;                                                                                                   \
-      case TSDB_DATA_TYPE_BOOL:                                                                                  \
-        uval = *(const bool*)pData;                                                                              \
-        code = decimal##FromUint64(pOut, pOutType->precision, pOutType->scale, uval);                            \
-        break;                                                                                                   \
-      case TSDB_DATA_TYPE_TINYINT:                                                                               \
-        val = *(const int8_t*)pData;                                                                             \
-        code = decimal##FromInt64(pOut, pOutType->precision, pOutType->scale, val);                              \
-        break;                                                                                                   \
-      case TSDB_DATA_TYPE_SMALLINT:                                                                              \
-        val = *(const int16_t*)pData;                                                                            \
-        code = decimal##FromInt64(pOut, pOutType->precision, pOutType->scale, val);                              \
-        break;                                                                                                   \
-      case TSDB_DATA_TYPE_INT:                                                                                   \
-        val = *(const int32_t*)pData;                                                                            \
-        code = decimal##FromInt64(pOut, pOutType->precision, pOutType->scale, val);                              \
-        break;                                                                                                   \
-      case TSDB_DATA_TYPE_TIMESTAMP:                                                                             \
-      case TSDB_DATA_TYPE_BIGINT:                                                                                \
-        val = *(const int64_t*)pData;                                                                            \
-        code = decimal##FromInt64(pOut, pOutType->precision, pOutType->scale, val);                              \
-        break;                                                                                                   \
-      case TSDB_DATA_TYPE_UTINYINT:                                                                              \
-        uval = *(const uint8_t*)pData;                                                                           \
-        code = decimal##FromUint64(pOut, pOutType->precision, pOutType->scale, uval);                            \
-        break;                                                                                                   \
-      case TSDB_DATA_TYPE_USMALLINT:                                                                             \
-        uval = *(const uint16_t*)pData;                                                                          \
-        code = decimal##FromUint64(pOut, pOutType->precision, pOutType->scale, uval);                            \
-        break;                                                                                                   \
-      case TSDB_DATA_TYPE_UINT:                                                                                  \
-        uval = *(const uint32_t*)pData;                                                                          \
-        code = decimal##FromUint64(pOut, pOutType->precision, pOutType->scale, uval);                            \
-        break;                                                                                                   \
-      case TSDB_DATA_TYPE_UBIGINT:                                                                               \
-        uval = *(const uint64_t*)pData;                                                                          \
-        code = decimal##FromUint64(pOut, pOutType->precision, pOutType->scale, uval);                            \
-        break;                                                                                                   \
-      case TSDB_DATA_TYPE_FLOAT: {                                                                               \
-        dval = *(const float*)pData;                                                                             \
-        code = decimal##FromDouble(pOut, pOutType->precision, pOutType->scale, dval);                            \
-      } break;                                                                                                   \
-      case TSDB_DATA_TYPE_DOUBLE: {                                                                              \
-        dval = *(const double*)pData;                                                                            \
-        code = decimal##FromDouble(pOut, pOutType->precision, pOutType->scale, dval);                            \
-      } break;                                                                                                   \
-      case TSDB_DATA_TYPE_DECIMAL64: {                                                                           \
-        code = decimal##FromDecimal64(pOut, pOutType->precision, pOutType->scale, pData, pInputType->precision,  \
-                                      pInputType->scale);                                                        \
-      } break;                                                                                                   \
-      case TSDB_DATA_TYPE_DECIMAL: {                                                                             \
-        code = decimal##FromDecimal128(pOut, pOutType->precision, pOutType->scale, pData, pInputType->precision, \
-                                       pInputType->scale);                                                       \
-      } break;                                                                                                   \
-      case TSDB_DATA_TYPE_VARCHAR:                                                                               \
-      case TSDB_DATA_TYPE_VARBINARY:                                                                             \
-      case TSDB_DATA_TYPE_NCHAR: {                                                                               \
-        code = decimal##FromStr(pData, pInputType->bytes, pOutType->precision, pOutType->scale, pOut);           \
-      } break;                                                                                                   \
-      default:                                                                                                   \
-        code = TSDB_CODE_OPS_NOT_SUPPORT;                                                                        \
-        break;                                                                                                   \
-    }                                                                                                            \
-    code;                                                                                                        \
+#define CONVERT_TO_DECIMAL(pData, pInputType, pOut, pOutType, decimal)                                               \
+  ({                                                                                                                 \
+    int32_t  code = 0;                                                                                               \
+    int64_t  val = 0;                                                                                                \
+    uint64_t uval = 0;                                                                                               \
+    double   dval = 0;                                                                                               \
+    switch (pInputType->type) {                                                                                      \
+      case TSDB_DATA_TYPE_NULL:                                                                                      \
+        break;                                                                                                       \
+      case TSDB_DATA_TYPE_BOOL:                                                                                      \
+        uval = *(const bool*)pData;                                                                                  \
+        code = decimal##FromUint64(pOut, pOutType->precision, pOutType->scale, uval);                                \
+        break;                                                                                                       \
+      case TSDB_DATA_TYPE_TINYINT:                                                                                   \
+        val = *(const int8_t*)pData;                                                                                 \
+        code = decimal##FromInt64(pOut, pOutType->precision, pOutType->scale, val);                                  \
+        break;                                                                                                       \
+      case TSDB_DATA_TYPE_SMALLINT:                                                                                  \
+        val = *(const int16_t*)pData;                                                                                \
+        code = decimal##FromInt64(pOut, pOutType->precision, pOutType->scale, val);                                  \
+        break;                                                                                                       \
+      case TSDB_DATA_TYPE_INT:                                                                                       \
+        val = *(const int32_t*)pData;                                                                                \
+        code = decimal##FromInt64(pOut, pOutType->precision, pOutType->scale, val);                                  \
+        break;                                                                                                       \
+      case TSDB_DATA_TYPE_TIMESTAMP:                                                                                 \
+      case TSDB_DATA_TYPE_BIGINT:                                                                                    \
+        val = *(const int64_t*)pData;                                                                                \
+        code = decimal##FromInt64(pOut, pOutType->precision, pOutType->scale, val);                                  \
+        break;                                                                                                       \
+      case TSDB_DATA_TYPE_UTINYINT:                                                                                  \
+        uval = *(const uint8_t*)pData;                                                                               \
+        code = decimal##FromUint64(pOut, pOutType->precision, pOutType->scale, uval);                                \
+        break;                                                                                                       \
+      case TSDB_DATA_TYPE_USMALLINT:                                                                                 \
+        uval = *(const uint16_t*)pData;                                                                              \
+        code = decimal##FromUint64(pOut, pOutType->precision, pOutType->scale, uval);                                \
+        break;                                                                                                       \
+      case TSDB_DATA_TYPE_UINT:                                                                                      \
+        uval = *(const uint32_t*)pData;                                                                              \
+        code = decimal##FromUint64(pOut, pOutType->precision, pOutType->scale, uval);                                \
+        break;                                                                                                       \
+      case TSDB_DATA_TYPE_UBIGINT:                                                                                   \
+        uval = *(const uint64_t*)pData;                                                                              \
+        code = decimal##FromUint64(pOut, pOutType->precision, pOutType->scale, uval);                                \
+        break;                                                                                                       \
+      case TSDB_DATA_TYPE_FLOAT: {                                                                                   \
+        dval = *(const float*)pData;                                                                                 \
+        code = decimal##FromDouble(pOut, pOutType->precision, pOutType->scale, dval);                                \
+      } break;                                                                                                       \
+      case TSDB_DATA_TYPE_DOUBLE: {                                                                                  \
+        dval = *(const double*)pData;                                                                                \
+        code = decimal##FromDouble(pOut, pOutType->precision, pOutType->scale, dval);                                \
+      } break;                                                                                                       \
+      case TSDB_DATA_TYPE_DECIMAL64: {                                                                               \
+        code = decimal##FromDecimal64(pOut, pOutType->precision, pOutType->scale, pData, pInputType->precision,      \
+                                      pInputType->scale);                                                            \
+      } break;                                                                                                       \
+      case TSDB_DATA_TYPE_DECIMAL: {                                                                                 \
+        code = decimal##FromDecimal128(pOut, pOutType->precision, pOutType->scale, pData, pInputType->precision,     \
+                                       pInputType->scale);                                                           \
+      } break;                                                                                                       \
+      case TSDB_DATA_TYPE_VARCHAR:                                                                                   \
+      case TSDB_DATA_TYPE_VARBINARY:                                                                                 \
+      case TSDB_DATA_TYPE_NCHAR: {                                                                                   \
+        code = decimal##FromStr(pData, pInputType->bytes - VARSTR_HEADER_SIZE, pOutType->precision, pOutType->scale, \
+                                pOut);                                                                               \
+      } break;                                                                                                       \
+      default:                                                                                                       \
+        code = TSDB_CODE_OPS_NOT_SUPPORT;                                                                            \
+        break;                                                                                                       \
+    }                                                                                                                \
+    code;                                                                                                            \
   })
 
 int32_t convertToDecimal(const void* pData, const SDataType* pInputType, void* pOut, const SDataType* pOutType) {
