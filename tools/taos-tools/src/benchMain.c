@@ -77,11 +77,12 @@ int32_t setConnMode(int8_t  connMode, char *dsn) {
     char * strMode = connMode == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET;
     int32_t code = taos_options(TSDB_OPTION_DRIVER, strMode);
     if (code != TSDB_CODE_SUCCESS) {
-        engineError(INIT_PHASE, "taos_options", code)
+        engineError(INIT_PHASE, "taos_options", code);
         return -1;
     }
 
     infoPrint("Connect Mode :%s.\n", strMode);
+    return 0;
 }
 
 int main(int argc, char* argv[]) {

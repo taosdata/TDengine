@@ -1590,7 +1590,6 @@ static int getMetaFromInsertJsonFile(tools_cJSON *json) {
     tools_cJSON *dsn = tools_cJSON_GetObjectItem(json, "dsn");
     if (tools_cJSON_IsString(dsn)) {
         g_arguments->dsn = dsn->valuestring;
-        g_arguments->websocket = true;
         infoPrint("set websocket true from json->dsn=%s\n", g_arguments->dsn);
     }
 
@@ -1648,19 +1647,18 @@ static int getMetaFromInsertJsonFile(tools_cJSON *json) {
         g_arguments->table_threads = (uint32_t)table_theads->valueint;
     }
 
-    if (!g_arguments->websocket) {
+    // set engine config dir
 #ifdef LINUX
-        if (strlen(g_configDir)) {
-            wordexp_t full_path;
-            if (wordexp(g_configDir, &full_path, 0) != 0) {
-                errorPrint("Invalid path %s\n", g_configDir);
-                exit(EXIT_FAILURE);
-            }
-            taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
-            wordfree(&full_path);
+    if (strlen(g_configDir)) {
+        wordexp_t full_path;
+        if (wordexp(g_configDir, &full_path, 0) != 0) {
+            errorPrint("Invalid path %s\n", g_configDir);
+            exit(EXIT_FAILURE);
         }
-#endif
+        taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
+        wordfree(&full_path);
     }
+#endif
 
     tools_cJSON *numRecPerReq =
         tools_cJSON_GetObjectItem(json, "num_of_records_per_req");
