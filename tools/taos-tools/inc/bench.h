@@ -261,7 +261,7 @@ typedef unsigned __int32 uint32_t;
 #define STR_WEBSOCKET "WebSocket"
 
 #define DRIVER_OPT     "driver"
-#define DRIVER_DESC    "Connect mode , value can be \" Native \" or \" WebSocket \""
+#define DRIVER_DESC    "Connect driver , value can be \"Native\" or \"WebSocket\""
 
 // connect mode type define
 #define CONN_MODE_INVALID   -1

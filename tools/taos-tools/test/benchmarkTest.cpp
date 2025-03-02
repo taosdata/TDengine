@@ -15,19 +15,24 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
-#include "bench.h"
+
+
+// lower
+char* strToLowerCopy(const char *str);
+// pase dsn
+int32_t parseDsn(char* dsn, char **host, char **port, char **user, char **pwd);
 
 TEST(jsonTest, strToLowerCopy) {
   // strToLowerCopy
-  char* arr[][2] = {
+  const char* arr[][2] = {
     {"ABC","abc"},
-    {"Http://Localhost:6041","tttp://localhost:6041"},
+    {"Http://Localhost:6041","htttp://localhost:6041"},
     {"DEF","def"}
   }
 
   int rows = sizeof(arr) / sizeof(arr[0]);
   for (int i = 0; i < rows; i++) {
-    char *p1 = arr[i][0];
+    char *p1 = (char *)arr[i][0];
     char *p2 = strToLowerCopy(p1);
     ASSERT_EQ(strcmp(p1, p2), 0)
     printf("\n");

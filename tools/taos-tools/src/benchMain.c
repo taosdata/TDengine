@@ -81,7 +81,7 @@ int32_t setConnMode(int8_t  connMode, char *dsn) {
         return -1;
     }
 
-    infoPrint("Connect Mode :%s.\n", strMode);
+    infoPrint("\nConnect mode is : %s\n\n", strMode);
     return 0;
 }
 
