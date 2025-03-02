@@ -37,7 +37,7 @@ static void streamQueueNextItemInSourceQ(SStreamQueue* pQueue, SStreamQueueItem*
 static void streamQueueCleanup(SStreamQueue* pQueue) {
   SStreamQueueItem* qItem = NULL;
   while (1) {
-    streamQueueNextItemInSourceQ(pQueue, &qItem, TASK_STATUS__READY, NULL);
+    streamQueueNextItemInSourceQ(pQueue, &qItem, TASK_STATUS__READY, "");
     if (qItem == NULL) {
       break;
     }
