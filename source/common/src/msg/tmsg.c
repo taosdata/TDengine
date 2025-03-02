@@ -5833,8 +5833,13 @@ int32_t tDeserializeSShowVariablesReq(void *buf, int32_t bufLen, SShowVariablesR
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->opType));
   TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pReq->valLen));
+
   if (pReq->valLen > 0) {
-    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t **)&pReq->val, &pReq->valLen));
+    pReq->val = taosMemoryCalloc(1, pReq->valLen + 1);
+    if (pReq->val == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->val));
   }
 
   tEndDecode(&decoder);

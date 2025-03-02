@@ -13251,7 +13251,9 @@ static int32_t translateShowVariables(STranslateContext* pCxt, SShowStmt* pStmt)
       req.val = taosStrdupi(((SValueNode*)pStmt->pTbName)->literal);
     }
   }
-  return buildCmdMsg(pCxt, TDMT_MND_SHOW_VARIABLES, (FSerializeFunc)tSerializeSShowVariablesReq, &req);
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_SHOW_VARIABLES, (FSerializeFunc)tSerializeSShowVariablesReq, &req);
+  tFreeSShowVariablesReq(&req);
+  return code;
 }
 
 static int32_t translateShowCreateDatabase(STranslateContext* pCxt, SShowCreateDatabaseStmt* pStmt) {
