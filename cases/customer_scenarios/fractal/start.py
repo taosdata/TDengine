@@ -16,15 +16,16 @@ from taostest.util.common import TDCom
 from taostest.util.remote import Remote
 import os
 import time
+import sys
 from datetime import datetime, timedelta
 class Start(TDCase):
     def init(self):
         start_time = datetime.utcnow()
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
-        workflow_config = self.tdCom.load_workflow_json(self._remote, f'{os.environ["TEST_ROOT"]}/env/workflow_config.json')
-        print(workflow_config)
-        end_time = start_time + timedelta(seconds=int(workflow_config["exec_time"]))
+        self.workflow_config = self.tdCom.load_workflow_json(self._remote, f'{os.environ["TEST_ROOT"]}/env/workflow_config.json')
+        print(self.workflow_config)
+        end_time = start_time + timedelta(seconds=int(self.workflow_config["exec_time"]))
         url = (
             f"http://192.168.2.190:3000/d/dedq3n2zhlypsd/named-processes"
             f"?var-interval=10m&orgId=1&from={start_time.isoformat(timespec='milliseconds')}Z&to={end_time.isoformat(timespec='milliseconds')}Z"
@@ -33,8 +34,31 @@ class Start(TDCase):
         print(url)
         pass
 
+    def start_mqtt_simulator(self):
+        if "edge" in " ".join(sys.argv):
+            mqtt_client_config = self.tdCom.get_components_setting(self.env_setting["settings"], "mqtt_client")
+            edge_config = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
+            edge_host = edge_config["fqdn"][0]
+            mqtt_host = mqtt_client_config["fqdn"][0]
+            # mqtt_pub_path = mqtt_client_config["spec"]["config"]
+            mqtt_pub_path = mqtt_client_config["spec"]["config_file"]
+            #mqtt_pub_interval= mqtt_client_config["spec"]["interval"]
+            mqtt_pub_interval = self.workflow_config["source_interval"]
+            self._remote.cmd(mqtt_host,f"nohup mqtt_pub --schema {mqtt_pub_path} --host {edge_host} --interval {mqtt_pub_interval}ms > mqtt_pub.log 2>&1 &")
+
+    def start_taosx_service(self,host):
+        self._remote.cmd(host,"systemctl stop taos-explorer")
+        self._remote.cmd(host,"systemctl start taos-explorer")
+        self._remote.cmd(host,"systemctl stop taosx")
+        self._remote.cmd(host,"systemctl start taosx")
     def run(self) -> bool:
-        pass
+        
+        # start mqtt simulator
+        self.start_mqtt_simulator()
+        # start taosx service
+        taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
+        taosx_host = taosd_setting["fqdn"][0]
+        self.start_taosx_service(taosx_host)
 
     def cleanup(self):
         pass

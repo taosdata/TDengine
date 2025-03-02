@@ -1,0 +1,69 @@
+settings:
+- fqdn:
+  - fractal-center-1
+  name: taosd
+  spec:
+    config:
+      firstEP: fractal-center-1:6030
+    dnodes:
+    - config:
+        checkpointInterval: 60
+        dataDir: /var/lib/taos
+        debugFlag: 131
+        logDir: /var/log/taos
+        logKeepDays: -1
+        numOfLogLines: 300000000
+        snodeAddress: fractal-center-1:873
+        supportVnodes: 1024
+      config_dir: /etc/taos
+      endpoint: fractal-center-1:6030
+    version: 3.3.*.*
+- fqdn:
+  - fractal-taostest
+  name: taospy
+  spec:
+    client_version: 3.3.*.*
+    config:
+      asyncLog: 0
+      debugFlag: 131
+      firstEP: fractal-center-1:6030
+      logDir: /var/log/taos
+    version: 3.3.*.*
+- fqdn:
+  - fractal-center-1
+  name: taosAdapter
+  spec:
+    adapter_config:
+      log:
+        path: /var/log/taos
+      logLevel: info
+      opentsdb_telnet:
+        dbs:
+        - telnet_tcp
+        enable: true
+        maxTCPConnections: 250
+        password: taosdata
+        ports:
+        - 6046
+        tcpKeepAlive: false
+        user: root
+        worker: 1000
+      port: 6041
+      taosConfigDir: /etc/taos
+    config_file: /etc/taos/taosadapter.toml
+    taos_config:
+      debugFlag: 131
+      firstEP: fractal-center-1:6030
+      logDir: /var/log/taos
+    version: 3.3.*.*
+- fqdn:
+  - fractal-taostest
+  name: taosBenchmark
+  spec:
+    config_dir: /etc/taos
+    taos_config:
+      debugFlag: 131
+      firstEP: fractal-center-1:6030
+      logDir: /var/log/taos
+    taos_version: 3.3.*.*
+    version: 3.3.*.*
