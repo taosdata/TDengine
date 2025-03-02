@@ -293,6 +293,7 @@ $height: 32px;
 .column-width {
   flex-shrink: 0;
   width: 110px;
+  min-width: 110px;
 
   &:deep(.el-select__wrapper) {
     border-radius: unset;
