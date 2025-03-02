@@ -780,8 +780,15 @@ chmod +x ./build.sh
 docker run --rm -v $(pwd):/app node:22.3.0 bash /app/build.sh
 """
 
+[tasks.explorer-ui-static]
+cwd = "explorer"
+script_runner = "@duckscript"
+script = """
+cp ./static ./dist
+"""
+
 [tasks.explorer]
-dependencies = ["explorer-ui-linux", "explorer-ui-nonlinux"]
+dependencies = ["explorer-ui-linux", "explorer-ui-nonlinux", "explorer-ui-static"]
 command = "cargo"
 args = ["build", "-p", "taos-explorer", "--profile", "${BUILD_PROFILE}"]
 
