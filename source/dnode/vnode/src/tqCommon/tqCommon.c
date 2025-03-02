@@ -1011,10 +1011,16 @@ int32_t tqStreamTaskProcessAllTaskStopReq(SStreamMeta* pMeta, SMsgCb* pMsgCb, SR
   // stop all stream tasks, only invoked when trying to drop db
   if (req.streamId <= 0) {
     tqDebug("vgId:%d recv msg to stop all tasks in sync before dropping vnode", vgId);
-    streamMetaStopAllTasks(pMeta);
+    code = streamMetaStopAllTasks(pMeta);
+    if (code) {
+      tqError("vgId:%d failed to stop all tasks, code:%s", vgId, tstrerror(code));
+    }
+
   } else {  // stop only one stream tasks
 
   }
+
+  // always return success
   return TSDB_CODE_SUCCESS;
 }
 
