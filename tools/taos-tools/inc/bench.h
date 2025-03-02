@@ -16,6 +16,8 @@
 #ifndef INC_BENCH_H_
 #define INC_BENCH_H_
 
+#include "pub.h"
+
 #define _GNU_SOURCE
 #define CURL_STATICLIB
 #define ALLOW_FORBID_FUNC
@@ -255,28 +257,6 @@ typedef unsigned __int32 uint32_t;
 #define IS_VAR_DATA_TYPE(t)                                                                                 \
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || \
    ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
-
-// connect mode string
-#define STR_NATIVE    "Native"
-#define STR_WEBSOCKET "WebSocket"
-
-#define DRIVER_OPT     "driver"
-#define DRIVER_DESC    "Connect driver , value can be \"Native\" or \"WebSocket\""
-
-// connect mode type define
-#define CONN_MODE_INVALID   -1
-#define CONN_MODE_NATIVE    0
-#define CONN_MODE_WEBSOCKET 1
-
-// define error show module
-#define INIT_PHASE "init"
-#define TIP_ENGINE_ERR "Call engine failed."
-
-// default port
-#define DEFAULT_PORT_WS_LOCAL 6041   
-#define DEFAULT_PORT_WS_CLOUD 443
-#define DEFAULT_PORT_NATIVE   6030
-
 
 enum TEST_MODE {
     INSERT_TEST,     // 0

@@ -1,0 +1,42 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the MIT license as published by the Free Software
+ * Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+ #ifndef PUB_H_
+ #define PUB_H_
+ 
+// connect mode string
+#define STR_NATIVE    "Native"
+#define STR_WEBSOCKET "WebSocket"
+
+#define DRIVER_OPT     "driver"
+#define DRIVER_DESC    "Connect driver , value can be \"Native\" or \"WebSocket\""
+
+// connect mode type define
+#define CONN_MODE_INVALID   -1
+#define CONN_MODE_NATIVE    0
+#define CONN_MODE_WEBSOCKET 1
+
+// define error show module
+#define INIT_PHASE "init"
+#define TIP_ENGINE_ERR "Call engine failed."
+
+// default port
+#define DEFAULT_PORT_WS_LOCAL 6041   
+#define DEFAULT_PORT_WS_CLOUD 443
+#define DEFAULT_PORT_NATIVE   6030
+
+
+
+#endif PUB_H_

@@ -400,18 +400,24 @@ SBenchConn* initBenchConnImpl() {
         memcpy(show + 23, g_arguments->dsn + strlen(g_arguments->dsn) - 10, 10);
 
     } else {
-        // native
-        sprintf(show, "%s:%d ", g_arguments->host, g_arguments->port);
+
         host = g_arguments->host;
-        port = g_arguments->port;
         user = g_arguments->user;
         pwd  = g_arguments->password;
+
+        if (g_arguments->port_inputted) {
+            port = g_arguments->port;
+        } else {
+            port = g_arguments->connMode == CONN_MODE_NATIVE ? DEFAULT_PORT_NATIVE : DEFAULT_PORT_WS_LOCAL;
+        }
+
+        sprintf(show, "host:%s port:%d ", host, port);
     }
 
     // connect main
     conn->taos = taos_connect(host, user, pwd, NULL, port);
     if (conn->taos == NULL) {
-        errorPrint("failed to connect native %s:%d, "
+        errorPrint("failed to connect %s:%d, "
                     "code: 0x%08x, reason: %s\n",
                 g_arguments->host, g_arguments->port,
                 taos_errno(NULL), taos_errstr(NULL));
