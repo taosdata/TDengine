@@ -34,8 +34,7 @@ TEST(jsonTest, strToLowerCopy) {
   for (int i = 0; i < rows; i++) {
     char *p1 = (char *)arr[i][0];
     char *p2 = strToLowerCopy(p1);
-    ASSERT_EQ(strcmp(p1, p2), 0)
-    printf("\n");
+    ASSERT_EQ(strcmp(p1, p2), 0);
   }
 
   // null
