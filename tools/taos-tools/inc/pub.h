@@ -37,6 +37,4 @@
 #define DEFAULT_PORT_WS_CLOUD 443
 #define DEFAULT_PORT_NATIVE   6030
 
-
-
-#endif PUB_H_
+#endif // PUB_H_
