@@ -193,7 +193,7 @@ static struct argp_option bench_options[] = {
     {"vgroups", 'v', "NUMBER", 0, BENCH_VGROUPS},
     {"version", 'V', 0, 0, BENCH_VERSION},
     {"nodrop", 'Q', 0, 0, BENCH_NODROP},
-    {DRIVER_OPT, 'Z', 0, 0, DRIVER_DESC},
+    {DRIVER_OPT, 'Z', "DRIVER", 0, DRIVER_DESC},
     {0}
 };
 
