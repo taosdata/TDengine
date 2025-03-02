@@ -10,6 +10,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
+#include <ctype.h>
 #include <bench.h>
 #include "benchLog.h"
 
@@ -295,6 +296,21 @@ int regexMatch(const char *s, const char *reg, int cflags) {
     return 0;
 }
 
+char* strToLowerCopy(const char *str) {
+    if (str == NULL) {
+        return NULL;
+    }
+    size_t len = strlen(str);
+    char *result = (char*)malloc(len + 1);
+    if (result == NULL) {
+        return NULL;
+    }
+    for (size_t i = 0; i < len; i++) {
+        result[i] = tolower((unsigned char)str[i]);
+    }
+    result[len] = '\0';
+    return result;
+}
 
 int32_t parseDsn(char* dsn, char **host, char **port, char **user, char **pwd) {
     // dsn format:
@@ -309,7 +325,7 @@ int32_t parseDsn(char* dsn, char **host, char **port, char **user, char **pwd) {
         return -1;
     }
     *host = p1 + 3; // host
-    char *p = host;
+    char *p = *host;
 
     // find ":" - option
     char *p2 = strstr(p, ":");
@@ -357,7 +373,7 @@ SBenchConn* initBenchConnImpl() {
         dsnc = strToLowerCopy(g_arguments->dsn);
         if (dsnc == NULL) {
             tmfree(conn);
-            return code;
+            return NULL;
         }
 
         char *cport = NULL;
@@ -365,7 +381,7 @@ SBenchConn* initBenchConnImpl() {
         if (code) {
             tmfree(conn);
             tmfree(dsnc);
-            return code;
+            return NULL;
         }
 
         // default ws port
@@ -402,7 +418,6 @@ SBenchConn* initBenchConnImpl() {
         tmfree(conn);
         if (dsnc) {
             tmfree(dsnc);
-            dsnc = NULL;
         }
         return NULL;
     }
@@ -413,7 +428,6 @@ SBenchConn* initBenchConnImpl() {
 
     if (dsnc) {
         tmfree(dsnc);
-        dsnc = NULL;
     }
     return conn;
 }

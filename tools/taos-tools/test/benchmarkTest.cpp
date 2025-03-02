@@ -16,24 +16,6 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include "bench.h"
-#include <ctype.h>
-
-/*
-char* strToLowerCopy(const char *str) {
-    if (str == NULL) {
-        return NULL;
-    }
-    size_t len = strlen(str);
-    char *result = (char*)malloc(len + 1);
-    if (result == NULL) {
-        return NULL;
-    }
-    for (size_t i = 0; i < len; i++) {
-        result[i] = tolower((unsigned char)str[i]);
-    }
-    result[len] = '\0';
-    return result;
-}
 
 TEST(jsonTest, strToLowerCopy) {
   // strToLowerCopy
@@ -55,7 +37,6 @@ TEST(jsonTest, strToLowerCopy) {
   char * p = strToLowerCopy(NULL);
   ASSERT_EQ(p, NULL);
 }
-*/
 
 int main(int argc, char **argv) {
   printf("Hello world taosBenchmark unit test for C \n");

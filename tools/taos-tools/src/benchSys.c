@@ -614,9 +614,9 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
             printVersion();
             exit(0);
         case 'Z':
-            if (strcasecmp(arg, CONN_NATIVE) == 0 || strcasecmp(arg, "0") == 0) {
+            if (strcasecmp(arg, STR_NATIVE) == 0 || strcasecmp(arg, "0") == 0) {
                 g_arguments->connMode = CONN_MODE_NATIVE;
-            } else if (strcasecmp(arg, CONN_WEBSOCKET) == 0 || strcasecmp(arg, "1") == 0) {
+            } else if (strcasecmp(arg, STR_WEBSOCKET) == 0 || strcasecmp(arg, "1") == 0) {
                 g_arguments->connMode = CONN_MODE_WEBSOCKET;
             } else {
                 fprintf(stderr, "invalid input %s for option %c\r\n", arg, key);
