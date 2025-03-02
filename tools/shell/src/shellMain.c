@@ -14,8 +14,8 @@
  */
 
 #define __USE_XOPEN
-#include "shellInt.h"
 #include "shellAuto.h"
+#include "shellInt.h"
 
 extern SShellObj shell;
 
@@ -24,15 +24,14 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
   taosIgnSignal(SIGHUP);
   taosIgnSignal(SIGINT);
   taosIgnSignal(SIGBREAK);
-
-#if !defined(WINDOWS)
-  taosIgnSignal(SIGBUS);
-#endif
   taosIgnSignal(SIGABRT);
   taosIgnSignal(SIGFPE);
   taosIgnSignal(SIGSEGV);
+#if !defined(WINDOWS)
+  taosIgnSignal(SIGBUS);
+#endif
 
-  tscWriteCrashInfo(signum, sigInfo, context);
+  taos_write_crashinfo(signum, sigInfo, context);
 
 #ifdef _TD_DARWIN_64
   exit(signum);
@@ -42,13 +41,6 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
 }
 
 int main(int argc, char *argv[]) {
-  shell.exit = false;
-#ifdef WEBSOCKET
-  shell.args.timeout = SHELL_WS_TIMEOUT;
-  shell.args.cloud = true;
-  shell.args.local = false;
-#endif
-
 #if !defined(WINDOWS)
   taosSetSignal(SIGBUS, shellCrashHandler);
 #endif
@@ -78,21 +70,34 @@ int main(int argc, char *argv[]) {
     shellPrintHelp();
     return 0;
   }
-#ifdef WEBSOCKET
-  shellCheckConnectMode();
-#endif
+
+  if (shell.args.netrole != NULL) {
+    shellTestNetWork();
+    return 0;
+  }
+
+  if (shell.args.is_dump_config) {
+    shellDumpConfig();
+    return 0;
+  }
+
+  if (shellCheckDsn() != 0) {
+    return -1;
+  }
+
+  const char *driverType = shell.args.is_native ? "native" : "websocket";
+  if (taos_options(TSDB_OPTION_DRIVER, driverType) != 0) {
+    fprintf(stderr, "failed to load driver since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
+    return -1;
+  }
+
   if (taos_init() != 0) {
+    fprintf(stderr, "failed to init shell since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
     return -1;
   }
 
   // kill heart-beat thread when quit
   taos_set_hb_quit(1);
-
-  if (shell.args.is_dump_config) {
-    shellDumpConfig();
-    taos_cleanup();
-    return 0;
-  }
 
   if (shell.args.is_startup || shell.args.is_check) {
     shellCheckServerStatus();
@@ -100,15 +105,9 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  if (shell.args.netrole != NULL) {
-    shellTestNetWork();
-    taos_cleanup();
-    return 0;
-  }
-
-  // support port feature
   shellAutoInit();
   int32_t ret = shellExecute();
   shellAutoExit();
+
   return ret;
 }

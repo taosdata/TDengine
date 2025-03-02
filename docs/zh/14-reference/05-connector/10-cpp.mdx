@@ -680,7 +680,7 @@ TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一�
   - **接口说明**：清理运行环境，应用退出前应调用。
 
 - `int taos_options(TSDB_OPTION option, const void * arg, ...)`
-  - **接口说明**：设置客户端选项，支持区域设置（`TSDB_OPTION_LOCALE`）、字符集设置（`TSDB_OPTION_CHARSET`）、时区设置（`TSDB_OPTION_TIMEZONE`）、配置文件路径设置（`TSDB_OPTION_CONFIGDIR`）。区域设置、字符集、时区默认为操作系统当前设置。
+  - **接口说明**：设置客户端选项，支持区域设置（`TSDB_OPTION_LOCALE`）、字符集设置（`TSDB_OPTION_CHARSET`）、时区设置（`TSDB_OPTION_TIMEZONE`）、配置文件路径设置（`TSDB_OPTION_CONFIGDIR`）、驱动类型设置（`TSDB_OPTION_DRIVER`）。区域设置、字符集、时区默认为操作系统当前设置。驱动类型可选内部原生接口（`native`）和 WebSocket 接口（`websocket`），默认为 `websocket`。
   - **参数说明**：
     - `option`：[入参] 设置项类型。
     - `arg`：[入参] 设置项值。

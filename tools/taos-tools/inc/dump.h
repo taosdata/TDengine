@@ -40,10 +40,6 @@
 #include <taoserror.h>
 #include <toolsdef.h>
 
-#ifdef WEBSOCKET
-#include <taosws.h>
-#endif
-
 
 //
 // ---------------- define ----------------
@@ -377,15 +373,12 @@ typedef struct arguments {
     bool     performance_print;
     bool     dotReplace;
     int      dumpDbCount;
-#ifdef WEBSOCKET
-    bool     restful;
+
     bool     cloud;
-    int      ws_timeout;
     char    *dsn;
     char    *cloudToken;
     int      cloudPort;
     char     cloudHost[MAX_HOSTNAME_LEN];
-#endif
 
     // put rename db string
     char      * renameBuf;

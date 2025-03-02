@@ -97,14 +97,10 @@ ELSE()
     SET(TD_TAOS_TOOLS TRUE)
 ENDIF()
 
-SET(TAOS_LIB taos)
+SET(TAOS_LIB taos) 
 SET(TAOS_LIB_STATIC taos_static)
-
-IF(${TD_WINDOWS})
-    SET(TAOS_LIB_PLATFORM_SPEC taos_static)
-ELSE()
-    SET(TAOS_LIB_PLATFORM_SPEC taos)
-ENDIF()
+SET(TAOS_NATIVE_LIB taosnative)
+SET(TAOS_NATIVE_LIB_STATIC taosnative_static)
 
 # build TSZ by default
 IF("${TSZ_ENABLED}" MATCHES "false")

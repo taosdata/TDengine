@@ -124,15 +124,7 @@ int32_t shellRunSingleCommand(char *command) {
     shellSourceFile(c_ptr);
     return 0;
   }
-#ifdef WEBSOCKET
-  if (shell.args.restful || shell.args.cloud) {
-    shellRunSingleCommandWebsocketImp(command);
-  } else {
-#endif
-    shellRunSingleCommandImp(command);
-#ifdef WEBSOCKET
-  }
-#endif
+  shellRunSingleCommandImp(command);
   return 0;
 }
 
@@ -287,7 +279,6 @@ void shellRunSingleCommandImp(char *command) {
     if (error_no == 0) {
       printf("Query OK, %" PRId64 " row(s) in set (%.6fs)\r\n", numOfRows, (et - st) / 1E6);
     } else {
-      terrno = error_no;
       printf("Query interrupted (%s), %" PRId64 " row(s) in set (%.6fs)\r\n", taos_errstr(NULL), numOfRows,
              (et - st) / 1E6);
     }
@@ -1094,7 +1085,7 @@ void shellCleanupHistory() {
 
 void shellPrintError(TAOS_RES *tres, int64_t st) {
   int64_t et = taosGetTimestampUs();
-  fprintf(stderr, "\r\nDB error: %s[0x%08X] (%.6fs)\r\n", taos_errstr(tres), taos_errno(tres), (et - st) / 1E6);
+  fprintf(stderr, "\r\nDB error: %s [0x%08X] (%.6fs)\r\n", taos_errstr(tres), taos_errno(tres), (et - st) / 1E6);
   taos_free_result(tres);
 }
 
@@ -1246,18 +1237,11 @@ void *shellCancelHandler(void *arg) {
       continue;
     }
 
-#ifdef WEBSOCKET
-    if (shell.args.restful || shell.args.cloud) {
-      shell.stop_query = true;
-    } else {
-#endif
-      if (shell.conn) {
-        shellCmdkilled = true;
-        taos_kill_query(shell.conn);
-      }
-#ifdef WEBSOCKET
+    if (shell.conn) {
+      shellCmdkilled = true;
+      taos_kill_query(shell.conn);
     }
-#endif
+
 #ifdef WINDOWS
     printf("\n%s", shell.info.promptHeader);
 #endif
@@ -1303,33 +1287,33 @@ void *shellThreadLoop(void *arg) {
 #pragma GCC diagnostic pop
 
 int32_t shellExecute() {
-  printf(shell.info.clientVersion, shell.info.cusName, taos_get_client_info(), shell.info.cusName);
+  printf(shell.info.clientVersion, shell.info.cusName, shell.args.is_native ? "Native" : "WebSocket",
+         taos_get_client_info(), shell.info.cusName);
   fflush(stdout);
 
   SShellArgs *pArgs = &shell.args;
-#ifdef WEBSOCKET
-  if (shell.args.restful || shell.args.cloud) {
-    if (shell_conn_ws_server(1)) {
-      printf("failed to connect to server, reason: %s[0x%08X]\n%s", ws_errstr(NULL), ws_errno(NULL), ERROR_CODE_DETAIL);
-      fflush(stdout);
-      return -1;
-    }
+
+  if (shell.args.dsn != NULL) {
+    // parser dsn to host/port 
+    // if (shell.args.auth == NULL) {
+    //   shell.conn = taos_connect(pArgs->dsn, pArgs->user, pArgs->password, pArgs->database);
+    // } else {
+    //   shell.conn = taos_connect(pArgs->dsn, pArgs->user, pArgs->auth, pArgs->database);
+    // }
   } else {
-#endif
     if (shell.args.auth == NULL) {
       shell.conn = taos_connect(pArgs->host, pArgs->user, pArgs->password, pArgs->database, pArgs->port);
     } else {
       shell.conn = taos_connect_auth(pArgs->host, pArgs->user, pArgs->auth, pArgs->database, pArgs->port);
     }
-
-    if (shell.conn == NULL) {
-      printf("failed to connect to server, reason: %s[0x%08X]\n%s", taos_errstr(NULL), taos_errno(NULL), ERROR_CODE_DETAIL);
-      fflush(stdout);
-      return -1;
-    }
-#ifdef WEBSOCKET
   }
-#endif
+
+  if (shell.conn == NULL) {
+    printf("failed to connect to server, reason: %s [0x%08X]\n%s", taos_errstr(NULL), taos_errno(NULL),
+           ERROR_CODE_DETAIL);
+    fflush(stdout);
+    return -1;
+  }
 
   bool runOnce = pArgs->commands != NULL || pArgs->file[0] != 0;
   shellSetConn(shell.conn, runOnce);
@@ -1338,9 +1322,7 @@ int32_t shellExecute() {
   if (shell.args.is_bi_mode) {
     // need set bi mode
     printf("Set BI mode is true.\n");
-#ifndef WEBSOCKET
     taos_set_conn_mode(shell.conn, TAOS_CONN_MODE_BI, 1);
-#endif
   }
 
   if (runOnce) {
@@ -1354,15 +1336,8 @@ int32_t shellExecute() {
     if (pArgs->file[0] != 0) {
       shellSourceFile(pArgs->file);
     }
-#ifdef WEBSOCKET
-    if (shell.args.restful || shell.args.cloud) {
-      ws_close(shell.ws_conn);
-    } else {
-#endif
-      taos_close(shell.conn);
-#ifdef WEBSOCKET
-    }
-#endif
+
+    taos_close(shell.conn);
 
     shellWriteHistory();
     shellCleanupHistory();
@@ -1381,28 +1356,20 @@ int32_t shellExecute() {
   taosSetSignal(SIGHUP, shellQueryInterruptHandler);
   taosSetSignal(SIGINT, shellQueryInterruptHandler);
 
-#ifdef WEBSOCKET
-  if (!shell.args.restful && !shell.args.cloud) {
-#endif
-    char    buf[512] = {0};
-    int32_t verType = shellGetGrantInfo(buf);
+  char    buf[512] = {0};
+  int32_t verType = shellGetGrantInfo(buf);
 #ifndef WINDOWS
-    printfIntroduction(verType);
+  printfIntroduction(verType);
 #else
-#ifndef WEBSOCKET
   if (verType == TSDB_VERSION_OSS) {
     showAD(false);
   }
 #endif
-#endif
-    // printf version
-    if (verType == TSDB_VERSION_ENTERPRISE || verType == TSDB_VERSION_CLOUD) {
-      printf("%s\n", buf);
-    }
-
-#ifdef WEBSOCKET
+  // printf version
+  if (verType == TSDB_VERSION_ENTERPRISE || verType == TSDB_VERSION_CLOUD) {
+    printf("%s\n", buf);
   }
-#endif
+
   while (1) {
     taosThreadCreate(&shell.pid, NULL, shellThreadLoop, NULL);
     taosThreadJoin(shell.pid, NULL);
@@ -1412,12 +1379,10 @@ int32_t shellExecute() {
       break;
     }
   }
-#ifndef WEBSOCKET
-  // commnuity
+
   if (verType == TSDB_VERSION_OSS) {
     showAD(true);
   }
-#endif
 
   taosThreadJoin(spid, NULL);
 

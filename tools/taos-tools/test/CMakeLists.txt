@@ -8,7 +8,7 @@ IF(TD_LINUX)
     AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
     # benchmark
-    ADD_EXECUTABLE(benchmarkTest benchmarkTest.cpp)
+    ADD_EXECUTABLE(benchmarkTest benchmarkTest.cpp ../src/benchUtil.c)
     TARGET_LINK_LIBRARIES(
             benchmarkTest
             PRIVATE gtest 

@@ -16,11 +16,35 @@
 #include <gtest/gtest.h>
 #include <iostream>
 
-TEST(jsonTest, taosBenchmarkTest) {
-  printf("hello world taosBenchmark unit test for C \n");
+
+// lower
+char* strToLowerCopy(const char *str);
+// pase dsn
+int32_t parseDsn(char* dsn, char **host, char **port, char **user, char **pwd);
+
+TEST(jsonTest, strToLowerCopy) {
+  // strToLowerCopy
+  const char* arr[][2] = {
+    {"ABC","abc"},
+    {"Http://Localhost:6041","htttp://localhost:6041"},
+    {"DEF","def"}
+  };
+
+  int rows = sizeof(arr) / sizeof(arr[0]);
+  for (int i = 0; i < rows; i++) {
+    char *p1 = (char *)arr[i][0];
+    char *p2 = strToLowerCopy(p1);
+    int32_t cmp = strcmp(p1, p2);
+    ASSERT_EQ(cmp, 0);
+  }
+
+  // null
+  char * p = strToLowerCopy(NULL);
+  ASSERT_EQ(p, nullptr);
 }
 
 int main(int argc, char **argv) {
+  printf("Hello world taosBenchmark unit test for C \n");
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
