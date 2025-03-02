@@ -4205,8 +4205,9 @@ static int32_t fltSclBuildDecimalDatumFromValueNode(SFltSclDatum* datum, SColumn
         pInput = &valNode->datum.d;
         break;
       case TSDB_DATA_TYPE_VARCHAR:
-        pInput = &valNode->datum.p;
+        pInput = valNode->literal;
         break;
+      // TODO wjm test cast to decimal
       default:
         qError("not supported type %d when build decimal datum from value node", valNode->node.resType.type);
         return TSDB_CODE_INVALID_PARA;

@@ -1143,6 +1143,7 @@ int32_t vectorConvertCols(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
   if (leftType == rightType) {
     if (IS_DECIMAL_TYPE(leftType)) {
       //TODO wjm force do conversion for decimal type, do not convert any more, do conversion inside decimal.c
+      //TODO wjm where c1 = "999999999999999.99999"; this str will be converted to double and do comapre, add doc in TS
     }
     return TSDB_CODE_SUCCESS;
   }
