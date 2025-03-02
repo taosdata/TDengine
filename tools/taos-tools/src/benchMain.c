@@ -58,6 +58,30 @@ void checkArgumentValid() {
     if(g_arguments->host == NULL) {
         g_arguments->host = DEFAULT_HOST;
     }
+
+    // check dsn valid
+    if(g_arguments->dsn && g_arguments->dsn[0] == 0) {
+        warnPrint("dsn is not null, but empty string, so set null. dsn=%s\n", g_arguments->dsn);
+        g_arguments->dsn = NULL;
+    }
+}
+
+int32_t setConnMode(int8_t  connMode, char *dsn) {
+    // check valid
+    if (connMode == CONN_MODE_NATIVE && dsn != NULL ) {
+        errorPrint("set connMode Native but found dns, conflict. dsn=%s\n", dsn);
+        return -1;
+    }
+
+    // set conn mode
+    char * strMode = connMode == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET;
+    int32_t code = taos_options(TSDB_OPTION_DRIVER, strMode);
+    if (code != TSDB_CODE_SUCCESS) {
+        engineError(INIT_PHASE, "taos_options", code)
+        return -1;
+    }
+
+    infoPrint("Connect Mode :%s.\n", strMode);
 }
 
 int main(int argc, char* argv[]) {
@@ -68,52 +92,43 @@ int main(int argc, char* argv[]) {
     initArgument();
     srand(time(NULL)%1000000);
 
+    // majorVersion
     snprintf(g_client_info, CLIENT_INFO_LEN, "%s", taos_get_client_info());
     g_majorVersionOfClient = atoi(g_client_info);
     debugPrint("Client info: %s, major version: %d\n",
             g_client_info,
             g_majorVersionOfClient);
 
-#ifdef LINUX
-    if (sem_init(&g_arguments->cancelSem, 0, 0) != 0) {
-        errorPrint("%s", "failed to create cancel semaphore\n");
-        exit(EXIT_FAILURE);
-    }
-    pthread_t spid = {0};
-    pthread_create(&spid, NULL, benchCancelHandler, NULL);
-
-    benchSetSignal(SIGINT, benchQueryInterruptHandler);
-
-#endif
+    // read command line
     if (benchParseArgs(argc, argv)) {
         exitLog();
         return -1;
     }
 
-    // read evn dsv
+    // read evn
     if (g_arguments->dsn != NULL) {
-        g_arguments->websocket = true;
         infoPrint("set websocket true from dsn not empty. dsn=%s\n", g_arguments->dsn);
     } else {
         char * dsn = getenv("TDENGINE_CLOUD_DSN");
         if (dsn != NULL && strlen(dsn) > 3) {
             g_arguments->dsn = dsn;
-            g_arguments->websocket = true;
             infoPrint("set websocket true from getenv TDENGINE_CLOUD_DSN=%s\n", g_arguments->dsn);
         } 
     }
 
+    // read json config
     if (g_arguments->metaFile) {
         g_arguments->totalChildTables = 0;
         if (readJsonConfig(g_arguments->metaFile)) {
             errorPrint("failed to readJsonConfig %s\n", g_arguments->metaFile);
             exitLog();
-            return -1;
+            return -1;    
         }
     } else {
         modifyArgument();
     }
 
+    // open result file
     if(g_arguments->output_file[0] == 0) {
         infoPrint("%s","result_file is empty, ignore output.");
         g_arguments->fpOfInsertResult = NULL;
@@ -125,9 +140,28 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    // check argument
     infoPrint("client version: %s\n", taos_get_client_info());
     checkArgumentValid();
 
+    // conn mode
+    if (setConnMode(g_arguments->connMode, g_arguments->dsn) != 0) {
+        exitLog();
+        return -1;
+    }
+
+    // cancel thread
+#ifdef LINUX
+    if (sem_init(&g_arguments->cancelSem, 0, 0) != 0) {
+        errorPrint("%s", "failed to create cancel semaphore\n");
+        exit(EXIT_FAILURE);
+    }
+    pthread_t spid = {0};
+    pthread_create(&spid, NULL, benchCancelHandler, NULL);
+    benchSetSignal(SIGINT, benchQueryInterruptHandler);
+#endif
+
+    // running
     if (g_arguments->test_mode == INSERT_TEST) {
         if (insertTestProcess()) {
             errorPrint("%s", "insert test process failed\n");
@@ -153,6 +187,8 @@ int main(int argc, char* argv[]) {
     if ((ret == 0) && g_arguments->aggr_func) {
         queryAggrFunc();
     }
+
+    // free and exit
     postFreeResource();
 
 #ifdef LINUX

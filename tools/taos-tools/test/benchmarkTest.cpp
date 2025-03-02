@@ -15,12 +15,50 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include "bench.h"
+#include <ctype.h>
 
-TEST(jsonTest, taosBenchmarkTest) {
-  printf("hello world taosBenchmark unit test for C \n");
+/*
+char* strToLowerCopy(const char *str) {
+    if (str == NULL) {
+        return NULL;
+    }
+    size_t len = strlen(str);
+    char *result = (char*)malloc(len + 1);
+    if (result == NULL) {
+        return NULL;
+    }
+    for (size_t i = 0; i < len; i++) {
+        result[i] = tolower((unsigned char)str[i]);
+    }
+    result[len] = '\0';
+    return result;
 }
 
+TEST(jsonTest, strToLowerCopy) {
+  // strToLowerCopy
+  char* arr[][2] = {
+    {"ABC","abc"},
+    {"Http://Localhost:6041","tttp://localhost:6041"},
+    {"DEF","def"}
+  }
+
+  int rows = sizeof(arr) / sizeof(arr[0]);
+  for (int i = 0; i < rows; i++) {
+    char *p1 = arr[i][0];
+    char *p2 = strToLowerCopy(p1);
+    ASSERT_EQ(strcmp(p1, p2), 0)
+    printf("\n");
+  }
+
+  // null
+  char * p = strToLowerCopy(NULL);
+  ASSERT_EQ(p, NULL);
+}
+*/
+
 int main(int argc, char **argv) {
+  printf("Hello world taosBenchmark unit test for C \n");
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

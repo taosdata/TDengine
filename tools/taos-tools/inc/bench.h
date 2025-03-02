@@ -256,11 +256,26 @@ typedef unsigned __int32 uint32_t;
   (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_VARBINARY) || ((t) == TSDB_DATA_TYPE_NCHAR) || \
    ((t) == TSDB_DATA_TYPE_JSON) || ((t) == TSDB_DATA_TYPE_GEOMETRY))
 
+// connect mode string
+#define STR_NATIVE    "Native"
+#define STR_WEBSOCKET "WebSocket"
+
+#define DRIVER_OPT     "Driver"
+#define DRIVER_DESC    "Connect mode , value can be \"" CONN_NATIVE "\" or \"" CONN_WEBSOCKET "\""
+
+// connect mode type define
+#define CONN_MODE_INVALID   -1
+#define CONN_MODE_NATIVE    0
+#define CONN_MODE_WEBSOCKET 1
+
 // define error show module
-#define INIT_MOD "init"
-
-
+#define INIT_PHASE "init"
 #define TIP_ENGINE_ERR "Call engine failed."
+
+// default port
+#define DEFAULT_PORT_WS_LOCAL 6041   
+#define DEFAULT_PORT_WS_CLOUD 443
+#define DEFAULT_PORT_NATIVE   6030
 
 
 enum TEST_MODE {
@@ -754,7 +769,6 @@ typedef struct SArguments_S {
     
     // websocket
     char*               dsn;
-    bool                websocket;
 
     bool                supplementInsert;
     int64_t             startTimestamp;
@@ -772,6 +786,7 @@ typedef struct SArguments_S {
     char                csvPath[MAX_FILE_NAME_LEN];
 
     bool                bind_vgroup;
+    int8_t              connMode; // see define CONN_MODE_
 } SArguments;
 
 typedef struct SBenchConn {
@@ -1016,5 +1031,13 @@ void *queryKiller(void *arg);
 int killSlowQuery();
 // fetch super table child name from server
 int fetchChildTableName(char *dbName, char *stbName);
+
+// engine Error
+void engineError(char * module, char * fun, int32_t code);
+
+// lower
+char* strToLowerCopy(const char *str);
+// pase dsn
+int32_t parseDsn(char* dsn, char **host, char **port, char **user, char **pwd);
 
 #endif   // INC_BENCH_H_

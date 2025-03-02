@@ -242,6 +242,7 @@ void initArgument() {
     g_arguments->inputted_vgroups = -1;
 
     g_arguments->mistMode = false;
+    g_arguments->connMode = CONN_MODE_INVALID;
 
     initDatabase();
     initStable();

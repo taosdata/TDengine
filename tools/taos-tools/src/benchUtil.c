@@ -295,6 +295,53 @@ int regexMatch(const char *s, const char *reg, int cflags) {
     return 0;
 }
 
+
+int32_t parseDsn(char* dsn, char **host, char **port, char **user, char **pwd) {
+    // dsn format:
+    // local  http://127.0.0.1:6041 
+    // cloud  https://gw.cloud.taosdata.com?token=617ffdf...
+    //        https://gw.cloud.taosdata.com:433?token=617ffdf...
+
+    // find "://"
+    char *p1 = strstr(dsn, "://");
+    if (p1 == NULL) {
+        errorPrint("dsn invalid, not found \"://\" in ds:%s\n", dsn);
+        return -1;
+    }
+    *host = p1 + 3; // host
+    char *p = host;
+
+    // find ":" - option
+    char *p2 = strstr(p, ":");
+    if (p2) {
+        p     = p2 + 1;
+        *port = p2 + 1; // port
+        *p2   = 0;
+    }
+
+    // find "?"
+    char *p3 = strstr(p, "?");
+    if (p3) {
+        p     = p3 + 1;
+        *user = p3 + 1;
+        *p3   = 0;
+    } else {
+        return 0;
+    }
+
+    // find "="
+    char *p4 = strstr(p, "=");
+    if (p4) {
+        *p4  = 0; 
+        *pwd = p4 + 1;
+    } else {
+        errorPrint("dsn invalid, found \"?\" but not found \"=\" in ds:%s\n", dsn);
+        return -1;
+    }
+
+    return 0;
+}
+
 SBenchConn* initBenchConnImpl() {
     SBenchConn* conn = benchCalloc(1, sizeof(SBenchConn), true);
     char     show[256] = "\0";
@@ -303,21 +350,39 @@ SBenchConn* initBenchConnImpl() {
     char *   user = NULL;
     char *   pwd  = NULL;
     int32_t  code = 0;
+    char *   dsnc = NULL;
 
     // set mode
-    if (g_arguments->dsn && g_arguments->dsn[0]) {
+    if (g_arguments->dsn) {
+        dsnc = strToLowerCopy(g_arguments->dsn);
+        if (dsnc == NULL) {
+            tmfree(conn);
+            return code;
+        }
+
+        char *cport = NULL;
+        code = parseDsn(dsnc, &host, &cport, &user, &pwd);
+        if (code) {
+            tmfree(conn);
+            tmfree(dsnc);
+            return code;
+        }
+
+        // default ws port
+        if (cport == NULL) {
+            if (user)
+                port = DEFAULT_PORT_WS_CLOUD;
+            else
+                port = DEFAULT_PORT_WS_LOCAL;
+        } else {
+            port = atoi(cport);
+        }
+
         // websocket
         memcpy(show, g_arguments->dsn, 20);
         memcpy(show + 20, "...", 3);
         memcpy(show + 23, g_arguments->dsn + strlen(g_arguments->dsn) - 10, 10);
 
-        // set dsn
-        code = taos_options(TSDB_OPTION_DRIVER, g_arguments->dsn);
-        if (code != TSDB_CODE_SUCCESS) {
-            engineError(INIT_MOD, "taos_options(TSDB_OPTION_DRIVER, dsn)", code);
-            tmfree(conn);
-            return NULL;
-        }
     } else {
         // native
         sprintf(show, "%s:%d ", g_arguments->host, g_arguments->port);
@@ -335,6 +400,10 @@ SBenchConn* initBenchConnImpl() {
                 g_arguments->host, g_arguments->port,
                 taos_errno(NULL), taos_errstr(NULL));
         tmfree(conn);
+        if (dsnc) {
+            tmfree(dsnc);
+            dsnc = NULL;
+        }
         return NULL;
     }
     succPrint("%s conneced\n", show);
@@ -342,6 +411,10 @@ SBenchConn* initBenchConnImpl() {
     // check write correct connect
     conn->ctaos = taos_connect(host, user, pwd, NULL, port);
 
+    if (dsnc) {
+        tmfree(dsnc);
+        dsnc = NULL;
+    }
     return conn;
 }
 

@@ -76,6 +76,7 @@ void benchPrintHelp() {
     printf("%s%s%s%s\r\n", indent, "-W,", indent, BENCH_DSN);
     printf("%s%s%s%s\r\n", indent, "-v,", indent, BENCH_VGROUPS);
     printf("%s%s%s%s\r\n", indent, "-V,", indent, BENCH_VERSION);
+    printf("%s%s%s%s\r\n", indent, "-Z,", indent, DRIVER_DESC);
     printf("\r\n\r\nReport bugs to %s.\r\n", CUS_EMAIL);
 }
 
@@ -118,6 +119,7 @@ int32_t benchParseArgsNoArgp(int argc, char* argv[]) {
             || key[1] == 'a' || key[1] == 'F'
             || key[1] == 'k' || key[1] == 'z'
             || key[1] == 'W' || key[1] == 'v'
+            || key[1] == 'Z'
         ) {
             if (i + 1 >= argc) {
                 errorPrint("option %s requires an argument\r\n", key);
@@ -611,6 +613,16 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
         case 'V':
             printVersion();
             exit(0);
+        case 'Z':
+            if (strcasecmp(arg, CONN_NATIVE) == 0 || strcasecmp(arg, "0") == 0) {
+                g_arguments->connMode = CONN_MODE_NATIVE;
+            } else if (strcasecmp(arg, CONN_WEBSOCKET) == 0 || strcasecmp(arg, "1") == 0) {
+                g_arguments->connMode = CONN_MODE_WEBSOCKET;
+            } else {
+                fprintf(stderr, "invalid input %s for option %c\r\n", arg, key);
+                return -1;
+            }
+            break;    
         default:
             return ARGP_ERR_UNKNOWN;
     }
