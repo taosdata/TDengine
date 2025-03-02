@@ -40,7 +40,7 @@ TEST(jsonTest, strToLowerCopy) {
 
   // null
   char * p = strToLowerCopy(NULL);
-  ASSERT_EQ(p, NULL);
+  ASSERT_EQ(p, nullptr);
 }
 
 int main(int argc, char **argv) {
