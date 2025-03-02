@@ -28,7 +28,7 @@ TEST(jsonTest, strToLowerCopy) {
     {"ABC","abc"},
     {"Http://Localhost:6041","htttp://localhost:6041"},
     {"DEF","def"}
-  }
+  };
 
   int rows = sizeof(arr) / sizeof(arr[0]);
   for (int i = 0; i < rows; i++) {
