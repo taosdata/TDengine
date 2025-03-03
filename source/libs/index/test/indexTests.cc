@@ -283,9 +283,9 @@ static void        initLog() {
          taosRemoveDir(tsLogDir);
          taosMkDir(tsLogDir);
 
-         if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, LOG_MODE_TAOSD) < 0) {
+         if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, 0) < 0) {
            printf("failed to open log file in directory:%s\n", tsLogDir);
-  }
+         }
 }
 class IndexEnv : public ::testing::Test {
  protected:

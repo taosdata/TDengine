@@ -1205,12 +1205,12 @@ int32_t compareCommand(SWords* cmdPattern, SWords* cmdInput) {
     if (wordPattern->type == WT_TEXT) {
       // WT_TEXT match
       if (wordPattern->len == wordInput->len) {
-        if (taosStrncasecmp(wordPattern->word, wordInput->word, wordPattern->len) != 0) return -1;
+        if (strncasecmp(wordPattern->word, wordInput->word, wordPattern->len) != 0) return -1;
       } else if (wordPattern->len < wordInput->len) {
         return -1;
       } else {
         // wordPattern->len > wordInput->len
-        if (taosStrncasecmp(wordPattern->word, wordInput->word, wordInput->len) == 0) {
+        if (strncasecmp(wordPattern->word, wordInput->word, wordInput->len) == 0) {
           if (i + 1 == cmdInput->count) {
             // last word return match
             cmdPattern->matchIndex = i;
@@ -1651,7 +1651,7 @@ bool appendAfterSelect(TAOS* con, SShellCmd* cmd, char* sql, int32_t len) {
 
 int32_t searchAfterSelect(char* p, int32_t len) {
   // select * from st;
-  if (taosStrncasecmp(p, "select ", 7) == 0) {
+  if (strncasecmp(p, "select ", 7) == 0) {
     // check nest query
     char* p1 = p + 7;
     while (1) {
@@ -1664,7 +1664,7 @@ int32_t searchAfterSelect(char* p, int32_t len) {
   }
 
   // explain as select * from st;
-  if (taosStrncasecmp(p, "explain select ", 15) == 0) {
+  if (strncasecmp(p, "explain select ", 15) == 0) {
     return 15;
   }
 
@@ -1673,13 +1673,13 @@ int32_t searchAfterSelect(char* p, int32_t len) {
   as_pos_end += 11;
 
   // create stream <stream_name> as select
-  if (taosStrncasecmp(p, "create stream ", 14) == 0) {
+  if (strncasecmp(p, "create stream ", 14) == 0) {
     return as_pos_end - p;
     ;
   }
 
   // create topic <topic_name> as select
-  if (taosStrncasecmp(p, "create topic ", 13) == 0) {
+  if (strncasecmp(p, "create topic ", 13) == 0) {
     return as_pos_end - p;
   }
 
@@ -1808,7 +1808,7 @@ bool matchCreateTable(TAOS* con, SShellCmd* cmd) {
   }
 
   // select and from
-  if (taosStrncasecmp(p, "create table ", 13) != 0) {
+  if (strncasecmp(p, "create table ", 13) != 0) {
     // not select query clause
     return false;
   }
@@ -2073,7 +2073,7 @@ int getWordName(char* p, char* name, int nameLen) {
 // deal use db, if have  'use' return true
 bool dealUseDB(char* sql) {
   // check use keyword
-  if (taosStrncasecmp(sql, "use ", 4) != 0) {
+  if (strncasecmp(sql, "use ", 4) != 0) {
     return false;
   }
 
@@ -2085,7 +2085,7 @@ bool dealUseDB(char* sql) {
   }
 
   //  dbName is previous use open db name
-  if (taosStrcasecmp(db, dbName) == 0) {
+  if (strcasecmp(db, dbName) == 0) {
     // same , no need switch
     return true;
   }
@@ -2114,7 +2114,7 @@ bool dealUseDB(char* sql) {
 // deal create, if have 'create' return true
 bool dealCreateCommand(char* sql) {
   // check keyword
-  if (taosStrncasecmp(sql, "create ", 7) != 0) {
+  if (strncasecmp(sql, "create ", 7) != 0) {
     return false;
   }
 
@@ -2127,18 +2127,18 @@ bool dealCreateCommand(char* sql) {
 
   int type = -1;
   //  dbName is previous use open db name
-  if (taosStrcasecmp(name, "database") == 0) {
+  if (strcasecmp(name, "database") == 0) {
     type = WT_VAR_DBNAME;
-  } else if (taosStrcasecmp(name, "table") == 0) {
+  } else if (strcasecmp(name, "table") == 0) {
     if (strstr(sql, " tags") != NULL && strstr(sql, " using ") == NULL)
       type = WT_VAR_STABLE;
     else
       type = WT_VAR_TABLE;
-  } else if (taosStrcasecmp(name, "user") == 0) {
+  } else if (strcasecmp(name, "user") == 0) {
     type = WT_VAR_USERNAME;
-  } else if (taosStrcasecmp(name, "topic") == 0) {
+  } else if (strcasecmp(name, "topic") == 0) {
     type = WT_VAR_TOPIC;
-  } else if (taosStrcasecmp(name, "stream") == 0) {
+  } else if (strcasecmp(name, "stream") == 0) {
     type = WT_VAR_STREAM;
   } else {
     // no match , return
@@ -2169,7 +2169,7 @@ bool dealCreateCommand(char* sql) {
 // deal create, if have 'drop' return true
 bool dealDropCommand(char* sql) {
   // check keyword
-  if (taosStrncasecmp(sql, "drop ", 5) != 0) {
+  if (strncasecmp(sql, "drop ", 5) != 0) {
     return false;
   }
 
@@ -2182,17 +2182,17 @@ bool dealDropCommand(char* sql) {
 
   int type = -1;
   //  dbName is previous use open db name
-  if (taosStrcasecmp(name, "database") == 0) {
+  if (strcasecmp(name, "database") == 0) {
     type = WT_VAR_DBNAME;
-  } else if (taosStrcasecmp(name, "table") == 0) {
+  } else if (strcasecmp(name, "table") == 0) {
     type = WT_VAR_ALLTABLE;
-  } else if (taosStrcasecmp(name, "dnode") == 0) {
+  } else if (strcasecmp(name, "dnode") == 0) {
     type = WT_VAR_DNODEID;
-  } else if (taosStrcasecmp(name, "user") == 0) {
+  } else if (strcasecmp(name, "user") == 0) {
     type = WT_VAR_USERNAME;
-  } else if (taosStrcasecmp(name, "topic") == 0) {
+  } else if (strcasecmp(name, "topic") == 0) {
     type = WT_VAR_TOPIC;
-  } else if (taosStrcasecmp(name, "stream") == 0) {
+  } else if (strcasecmp(name, "stream") == 0) {
     type = WT_VAR_STREAM;
   } else {
     // no match , return

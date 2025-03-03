@@ -362,8 +362,7 @@ static int32_t dmInitLog() {
 
   TAOS_CHECK_RETURN(taosInitLogOutput(&logName));
 
-  return taosCreateLog(logName, 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs,
-                       LOG_MODE_TAOSD);
+  return taosCreateLog(logName, 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0);
 }
 
 static void taosCleanupArgs() {

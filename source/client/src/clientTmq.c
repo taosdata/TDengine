@@ -338,21 +338,21 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     tqErrorC("tmq_conf_set null, conf:%p key:%p value:%p", conf, key, value);
     return TMQ_CONF_INVALID;
   }
-  if (taosStrcasecmp(key, "group.id") == 0) {
+  if (strcasecmp(key, "group.id") == 0) {
     tstrncpy(conf->groupId, value, TSDB_CGROUP_LEN);
     return TMQ_CONF_OK;
   }
 
-  if (taosStrcasecmp(key, "client.id") == 0) {
+  if (strcasecmp(key, "client.id") == 0) {
     tstrncpy(conf->clientId, value, TSDB_CLIENT_ID_LEN);
     return TMQ_CONF_OK;
   }
 
-  if (taosStrcasecmp(key, "enable.auto.commit") == 0) {
-    if (taosStrcasecmp(value, "true") == 0) {
+  if (strcasecmp(key, "enable.auto.commit") == 0) {
+    if (strcasecmp(value, "true") == 0) {
       conf->autoCommit = true;
       return TMQ_CONF_OK;
-    } else if (taosStrcasecmp(value, "false") == 0) {
+    } else if (strcasecmp(value, "false") == 0) {
       conf->autoCommit = false;
       return TMQ_CONF_OK;
     } else {
@@ -361,7 +361,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     }
   }
 
-  if (taosStrcasecmp(key, "auto.commit.interval.ms") == 0) {
+  if (strcasecmp(key, "auto.commit.interval.ms") == 0) {
     int64_t tmp;
     code = taosStr2int64(value, &tmp);
     if (tmp < 0 || code != 0) {
@@ -372,7 +372,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     return TMQ_CONF_OK;
   }
 
-  if (taosStrcasecmp(key, "session.timeout.ms") == 0) {
+  if (strcasecmp(key, "session.timeout.ms") == 0) {
     int64_t tmp;
     code = taosStr2int64(value, &tmp);
     if (tmp < 6000 || tmp > 1800000 || code != 0) {
@@ -383,7 +383,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     return TMQ_CONF_OK;
   }
 
-  if (taosStrcasecmp(key, "heartbeat.interval.ms") == 0) {
+  if (strcasecmp(key, "heartbeat.interval.ms") == 0) {
     int64_t tmp;
     code = taosStr2int64(value, &tmp);
     if (tmp < 1000 || tmp >= conf->sessionTimeoutMs || code != 0) {
@@ -394,7 +394,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     return TMQ_CONF_OK;
   }
 
-  if (taosStrcasecmp(key, "max.poll.interval.ms") == 0) {
+  if (strcasecmp(key, "max.poll.interval.ms") == 0) {
     int32_t tmp;
     code = taosStr2int32(value, &tmp);
     if (tmp < 1000 || code != 0) {
@@ -405,14 +405,14 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     return TMQ_CONF_OK;
   }
 
-  if (taosStrcasecmp(key, "auto.offset.reset") == 0) {
-    if (taosStrcasecmp(value, "none") == 0) {
+  if (strcasecmp(key, "auto.offset.reset") == 0) {
+    if (strcasecmp(value, "none") == 0) {
       conf->resetOffset = TMQ_OFFSET__RESET_NONE;
       return TMQ_CONF_OK;
-    } else if (taosStrcasecmp(value, "earliest") == 0) {
+    } else if (strcasecmp(value, "earliest") == 0) {
       conf->resetOffset = TMQ_OFFSET__RESET_EARLIEST;
       return TMQ_CONF_OK;
-    } else if (taosStrcasecmp(value, "latest") == 0) {
+    } else if (strcasecmp(value, "latest") == 0) {
       conf->resetOffset = TMQ_OFFSET__RESET_LATEST;
       return TMQ_CONF_OK;
     } else {
@@ -421,11 +421,11 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     }
   }
 
-  if (taosStrcasecmp(key, "msg.with.table.name") == 0) {
-    if (taosStrcasecmp(value, "true") == 0) {
+  if (strcasecmp(key, "msg.with.table.name") == 0) {
+    if (strcasecmp(value, "true") == 0) {
       conf->withTbName = true;
       return TMQ_CONF_OK;
-    } else if (taosStrcasecmp(value, "false") == 0) {
+    } else if (strcasecmp(value, "false") == 0) {
       conf->withTbName = false;
       return TMQ_CONF_OK;
     } else {
@@ -434,11 +434,11 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     }
   }
 
-  if (taosStrcasecmp(key, "experimental.snapshot.enable") == 0) {
-    if (taosStrcasecmp(value, "true") == 0) {
+  if (strcasecmp(key, "experimental.snapshot.enable") == 0) {
+    if (strcasecmp(value, "true") == 0) {
       conf->snapEnable = true;
       return TMQ_CONF_OK;
-    } else if (taosStrcasecmp(value, "false") == 0) {
+    } else if (strcasecmp(value, "false") == 0) {
       conf->snapEnable = false;
       return TMQ_CONF_OK;
     } else {
@@ -447,7 +447,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     }
   }
 
-  if (taosStrcasecmp(key, "td.connect.ip") == 0) {
+  if (strcasecmp(key, "td.connect.ip") == 0) {
     void *tmp = taosStrdup(value);
     if (tmp == NULL) {
       tqErrorC("tmq_conf_set out of memory:%d", terrno);
@@ -457,7 +457,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     return TMQ_CONF_OK;
   }
 
-  if (taosStrcasecmp(key, "td.connect.user") == 0) {
+  if (strcasecmp(key, "td.connect.user") == 0) {
     void *tmp = taosStrdup(value);
     if (tmp == NULL) {
       tqErrorC("tmq_conf_set out of memory:%d", terrno);
@@ -467,7 +467,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     return TMQ_CONF_OK;
   }
 
-  if (taosStrcasecmp(key, "td.connect.pass") == 0) {
+  if (strcasecmp(key, "td.connect.pass") == 0) {
     void *tmp = taosStrdup(value);
     if (tmp == NULL) {
       tqErrorC("tmq_conf_set out of memory:%d", terrno);
@@ -477,7 +477,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     return TMQ_CONF_OK;
   }
 
-  if (taosStrcasecmp(key, "td.connect.port") == 0) {
+  if (strcasecmp(key, "td.connect.port") == 0) {
     int64_t tmp;
     code = taosStr2int64(value, &tmp);
     if (tmp <= 0 || tmp > 65535 || code != 0) {
@@ -489,11 +489,11 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     return TMQ_CONF_OK;
   }
 
-  if (taosStrcasecmp(key, "enable.replay") == 0) {
-    if (taosStrcasecmp(value, "true") == 0) {
+  if (strcasecmp(key, "enable.replay") == 0) {
+    if (strcasecmp(value, "true") == 0) {
       conf->replayEnable = true;
       return TMQ_CONF_OK;
-    } else if (taosStrcasecmp(value, "false") == 0) {
+    } else if (strcasecmp(value, "false") == 0) {
       conf->replayEnable = false;
       return TMQ_CONF_OK;
     } else {
@@ -501,7 +501,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
       return TMQ_CONF_INVALID;
     }
   }
-  if (taosStrcasecmp(key, "msg.consume.excluded") == 0) {
+  if (strcasecmp(key, "msg.consume.excluded") == 0) {
     int64_t tmp = 0;
     code = taosStr2int64(value, &tmp);
     conf->sourceExcluded = (0 == code && tmp != 0) ? TD_REQ_FROM_TAOX : 0;
@@ -536,11 +536,11 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     return TMQ_CONF_OK;
   }
 
-  if (taosStrcasecmp(key, "td.connect.db") == 0) {
+  if (strcasecmp(key, "td.connect.db") == 0) {
     return TMQ_CONF_OK;
   }
 
-  if (taosStrcasecmp(key, "msg.enable.batchmeta") == 0) {
+  if (strcasecmp(key, "msg.enable.batchmeta") == 0) {
     int64_t tmp;
     code = taosStr2int64(value, &tmp);
     conf->enableBatchMeta = (0 == code && tmp != 0) ? true : false;

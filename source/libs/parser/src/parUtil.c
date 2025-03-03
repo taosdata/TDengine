@@ -412,7 +412,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
   SHashObj* keyHash = NULL;
   int32_t   size = 0;
   // set json NULL data
-  if (!json || taosStrcasecmp(json, TSDB_DATA_NULL_STR_L) == 0 || strtrim((char*)json) == 0) {
+  if (!json || strcasecmp(json, TSDB_DATA_NULL_STR_L) == 0 || strtrim((char*)json) == 0) {
     retCode = TSDB_CODE_SUCCESS;
     goto end;
   }

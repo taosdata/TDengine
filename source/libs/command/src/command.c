@@ -852,10 +852,10 @@ static int32_t execShowCreateSTable(SShowCreateTableStmt* pStmt, SRetrieveTableR
 static int32_t execAlterCmd(char* cmd, char* value, bool* processed) {
   int32_t code = 0;
 
-  if (0 == taosStrcasecmp(cmd, COMMAND_RESET_LOG)) {
+  if (0 == strcasecmp(cmd, COMMAND_RESET_LOG)) {
     taosResetLog();
     cfgDumpCfg(tsCfg, 0, false);
-  } else if (0 == taosStrcasecmp(cmd, COMMAND_SCHEDULE_POLICY)) {
+  } else if (0 == strcasecmp(cmd, COMMAND_SCHEDULE_POLICY)) {
     int32_t tmp = 0;
     code = taosStr2int32(value, &tmp);
     if (code) {
@@ -863,7 +863,7 @@ static int32_t execAlterCmd(char* cmd, char* value, bool* processed) {
       return code;
     }
     code = schedulerUpdatePolicy(tmp);
-  } else if (0 == taosStrcasecmp(cmd, COMMAND_ENABLE_RESCHEDULE)) {
+  } else if (0 == strcasecmp(cmd, COMMAND_ENABLE_RESCHEDULE)) {
     int32_t tmp = 0;
     code = taosStr2int32(value, &tmp);
     if (code) {
@@ -871,9 +871,9 @@ static int32_t execAlterCmd(char* cmd, char* value, bool* processed) {
       return code;
     }
     code = schedulerEnableReSchedule(tmp != 0);
-  } else if (0 == taosStrcasecmp(cmd, COMMAND_CATALOG_DEBUG)) {
+  } else if (0 == strcasecmp(cmd, COMMAND_CATALOG_DEBUG)) {
     code = ctgdHandleDbgCommand(value);
-  } else if (0 == taosStrcasecmp(cmd, COMMAND_ENABLE_MEM_DEBUG)) {
+  } else if (0 == strcasecmp(cmd, COMMAND_ENABLE_MEM_DEBUG)) {
     code = taosMemoryDbgInit();
     if (code) {
       qError("failed to init memory dbg, error:%s", tstrerror(code));
@@ -881,7 +881,7 @@ static int32_t execAlterCmd(char* cmd, char* value, bool* processed) {
     }
     tsAsyncLog = false;
     qInfo("memory dbg enabled");
-  } else if (0 == taosStrcasecmp(cmd, COMMAND_DISABLE_MEM_DEBUG)) {
+  } else if (0 == strcasecmp(cmd, COMMAND_DISABLE_MEM_DEBUG)) {
     code = taosMemoryDbgInitRestore();
     if (code) {
       qError("failed to restore from memory dbg, error:%s", tstrerror(code));

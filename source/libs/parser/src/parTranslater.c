@@ -1782,8 +1782,8 @@ static int32_t biRewriteSelectFuncParamStar(STranslateContext* pCxt, SSelectStmt
   if (!pTbnameNodeList) return code;
 
   SFunctionNode* pFunc = (SFunctionNode*)pNode;
-  if (taosStrcasecmp(pFunc->functionName, "last") == 0 || taosStrcasecmp(pFunc->functionName, "last_row") == 0 ||
-      taosStrcasecmp(pFunc->functionName, "first") == 0) {
+  if (strcasecmp(pFunc->functionName, "last") == 0 || strcasecmp(pFunc->functionName, "last_row") == 0 ||
+      strcasecmp(pFunc->functionName, "first") == 0) {
     SNodeList* pParams = pFunc->pParameterList;
     SNode*     pPara = NULL;
     FOREACH(pPara, pParams) {
@@ -1878,7 +1878,7 @@ int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
 
 int32_t biRewriteToTbnameFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRet) {
   SColumnNode* pCol = (SColumnNode*)(*ppNode);
-  if ((taosStrcasecmp(pCol->colName, "tbname") == 0) && ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable &&
+  if ((strcasecmp(pCol->colName, "tbname") == 0) && ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable &&
       QUERY_NODE_REAL_TABLE == nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
     SFunctionNode* tbnameFuncNode = NULL;
     int32_t        code = biMakeTbnameProjectAstNode(NULL, (pCol->tableAlias[0] != '\0') ? pCol->tableAlias : NULL,
@@ -1903,7 +1903,7 @@ int32_t biCheckCreateTableTbnameCol(STranslateContext* pCxt, SCreateTableStmt* p
     SNode* pNode = NULL;
     FOREACH(pNode, pStmt->pTags) {
       SColumnDefNode* pTag = (SColumnDefNode*)pNode;
-      if (taosStrcasecmp(pTag->colName, "tbname") == 0) {
+      if (strcasecmp(pTag->colName, "tbname") == 0) {
         int32_t code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME,
                                                "tbname can not used for tags in BI mode");
         return code;
@@ -1914,7 +1914,7 @@ int32_t biCheckCreateTableTbnameCol(STranslateContext* pCxt, SCreateTableStmt* p
     SNode* pNode = NULL;
     FOREACH(pNode, pStmt->pCols) {
       SColumnDefNode* pCol = (SColumnDefNode*)pNode;
-      if (taosStrcasecmp(pCol->colName, "tbname") == 0) {
+      if (strcasecmp(pCol->colName, "tbname") == 0) {
         int32_t code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
                                                "tbname can not used for columns in BI mode");
         return code;
@@ -2036,7 +2036,7 @@ static int32_t parseTimeFromValueNode(STranslateContext* pCxt, SValueNode* pVal)
 
 static int32_t parseBoolFromValueNode(STranslateContext* pCxt, SValueNode* pVal) {
   if (IS_VAR_DATA_TYPE(pVal->node.resType.type) || TSDB_DATA_TYPE_BOOL == pVal->node.resType.type) {
-    pVal->datum.b = (0 == taosStrcasecmp(pVal->literal, "true"));
+    pVal->datum.b = (0 == strcasecmp(pVal->literal, "true"));
     return TSDB_CODE_SUCCESS;
   } else if (IS_INTEGER_TYPE(pVal->node.resType.type)) {
     pVal->datum.b = (0 != taosStr2Int64(pVal->literal, NULL, 10));
@@ -2638,7 +2638,7 @@ static int32_t translateInterpPseudoColumnFunc(STranslateContext* pCxt, SNode** 
   SNode*       pNode = NULL;
   bool         bFound = false;
   FOREACH(pNode, pSelect->pProjectionList) {
-    if (nodeType(pNode) == QUERY_NODE_FUNCTION && taosStrcasecmp(((SFunctionNode*)pNode)->functionName, "interp") == 0) {
+    if (nodeType(pNode) == QUERY_NODE_FUNCTION && strcasecmp(((SFunctionNode*)pNode)->functionName, "interp") == 0) {
       bFound = true;
       break;
     }
@@ -2704,7 +2704,7 @@ static int32_t translateForecastPseudoColumnFunc(STranslateContext* pCxt, SNode*
   SNode*       pNode = NULL;
   bool         bFound = false;
   FOREACH(pNode, pSelect->pProjectionList) {
-    if (nodeType(pNode) == QUERY_NODE_FUNCTION && taosStrcasecmp(((SFunctionNode*)pNode)->functionName, "forecast") == 0) {
+    if (nodeType(pNode) == QUERY_NODE_FUNCTION && strcasecmp(((SFunctionNode*)pNode)->functionName, "forecast") == 0) {
       bFound = true;
       break;
     }
@@ -8382,13 +8382,13 @@ static int32_t checkDbKeepTimeOffsetOption(STranslateContext* pCxt, SDatabaseOpt
 
 static int32_t checkDbCacheModelOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
   if ('\0' != pOptions->cacheModelStr[0]) {
-    if (0 == taosStrcasecmp(pOptions->cacheModelStr, TSDB_CACHE_MODEL_NONE_STR)) {
+    if (0 == strcasecmp(pOptions->cacheModelStr, TSDB_CACHE_MODEL_NONE_STR)) {
       pOptions->cacheModel = TSDB_CACHE_MODEL_NONE;
-    } else if (0 == taosStrcasecmp(pOptions->cacheModelStr, TSDB_CACHE_MODEL_LAST_ROW_STR)) {
+    } else if (0 == strcasecmp(pOptions->cacheModelStr, TSDB_CACHE_MODEL_LAST_ROW_STR)) {
       pOptions->cacheModel = TSDB_CACHE_MODEL_LAST_ROW;
-    } else if (0 == taosStrcasecmp(pOptions->cacheModelStr, TSDB_CACHE_MODEL_LAST_VALUE_STR)) {
+    } else if (0 == strcasecmp(pOptions->cacheModelStr, TSDB_CACHE_MODEL_LAST_VALUE_STR)) {
       pOptions->cacheModel = TSDB_CACHE_MODEL_LAST_VALUE;
-    } else if (0 == taosStrcasecmp(pOptions->cacheModelStr, TSDB_CACHE_MODEL_BOTH_STR)) {
+    } else if (0 == strcasecmp(pOptions->cacheModelStr, TSDB_CACHE_MODEL_BOTH_STR)) {
       pOptions->cacheModel = TSDB_CACHE_MODEL_BOTH;
     } else {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION, "Invalid option cacheModel: %s",
@@ -8400,9 +8400,9 @@ static int32_t checkDbCacheModelOption(STranslateContext* pCxt, SDatabaseOptions
 
 static int32_t checkDbEncryptAlgorithmOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
   if ('\0' != pOptions->encryptAlgorithmStr[0]) {
-    if (0 == taosStrcasecmp(pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGO_NONE_STR)) {
+    if (0 == strcasecmp(pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGO_NONE_STR)) {
       pOptions->encryptAlgorithm = TSDB_ENCRYPT_ALGO_NONE;
-    } else if (0 == taosStrcasecmp(pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGO_SM4_STR)) {
+    } else if (0 == strcasecmp(pOptions->encryptAlgorithmStr, TSDB_ENCRYPT_ALGO_SM4_STR)) {
       pOptions->encryptAlgorithm = TSDB_ENCRYPT_ALGO_SM4;
     } else {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
@@ -8415,11 +8415,11 @@ static int32_t checkDbEncryptAlgorithmOption(STranslateContext* pCxt, SDatabaseO
 
 static int32_t checkDbPrecisionOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
   if ('\0' != pOptions->precisionStr[0]) {
-    if (0 == taosStrcasecmp(pOptions->precisionStr, TSDB_TIME_PRECISION_MILLI_STR)) {
+    if (0 == strcasecmp(pOptions->precisionStr, TSDB_TIME_PRECISION_MILLI_STR)) {
       pOptions->precision = TSDB_TIME_PRECISION_MILLI;
-    } else if (0 == taosStrcasecmp(pOptions->precisionStr, TSDB_TIME_PRECISION_MICRO_STR)) {
+    } else if (0 == strcasecmp(pOptions->precisionStr, TSDB_TIME_PRECISION_MICRO_STR)) {
       pOptions->precision = TSDB_TIME_PRECISION_MICRO;
-    } else if (0 == taosStrcasecmp(pOptions->precisionStr, TSDB_TIME_PRECISION_NANO_STR)) {
+    } else if (0 == strcasecmp(pOptions->precisionStr, TSDB_TIME_PRECISION_NANO_STR)) {
       pOptions->precision = TSDB_TIME_PRECISION_NANO;
     } else {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION, "Invalid option precision: %s",
@@ -8431,9 +8431,9 @@ static int32_t checkDbPrecisionOption(STranslateContext* pCxt, SDatabaseOptions*
 
 static int32_t checkDbStrictOption(STranslateContext* pCxt, SDatabaseOptions* pOptions) {
   if ('\0' != pOptions->strictStr[0]) {
-    if (0 == taosStrcasecmp(pOptions->strictStr, TSDB_DB_STRICT_OFF_STR)) {
+    if (0 == strcasecmp(pOptions->strictStr, TSDB_DB_STRICT_OFF_STR)) {
       pOptions->strict = TSDB_DB_STRICT_OFF;
-    } else if (0 == taosStrcasecmp(pOptions->strictStr, TSDB_DB_STRICT_ON_STR)) {
+    } else if (0 == strcasecmp(pOptions->strictStr, TSDB_DB_STRICT_ON_STR)) {
       pOptions->strict = TSDB_DB_STRICT_ON;
     } else {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION, "Invalid option strict: %s",
@@ -11085,7 +11085,7 @@ static EDealRes checkColumnTagsInCond(SNode* pNode, void* pContext) {
     }
   } else if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
-    if (0 == taosStrcasecmp(pFunc->functionName, "tbname")) {
+    if (0 == strcasecmp(pFunc->functionName, "tbname")) {
       SNode* pNew = NULL;
       pCxt->code = nodesCloneNode(pNode, &pNew);
       if (TSDB_CODE_SUCCESS != pCxt->code) return DEAL_RES_ERROR;

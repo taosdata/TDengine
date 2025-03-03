@@ -56,97 +56,97 @@ void mndCleanupShow(SMnode *pMnode) {
 static int32_t convertToRetrieveType(char *name, int32_t len) {
   int32_t type = -1;
 
-  if (taosStrncasecmp(name, TSDB_INS_TABLE_DNODES, len) == 0) {
+  if (strncasecmp(name, TSDB_INS_TABLE_DNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_DNODE;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_MNODES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_MNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_MNODE;
     /*
-      } else if (taosStrncasecmp(name, TSDB_INS_TABLE_MODULES, len) == 0) {
+      } else if (strncasecmp(name, TSDB_INS_TABLE_MODULES, len) == 0) {
         type = TSDB_MGMT_TABLE_MODULE;
     */
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_QNODES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_QNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_QNODE;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_SNODES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_SNODE;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_ANODES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ANODES, len) == 0) {
     type = TSDB_MGMT_TABLE_ANODE;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_ANODES_FULL, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ANODES_FULL, len) == 0) {
     type = TSDB_MGMT_TABLE_ANODE_FULL;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_ARBGROUPS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ARBGROUPS, len) == 0) {
     type = TSDB_MGMT_TABLE_ARBGROUP;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_CLUSTER, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, len) == 0) {
     type = TSDB_MGMT_TABLE_CLUSTER;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_DATABASES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_DATABASES, len) == 0) {
     type = TSDB_MGMT_TABLE_DB;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_FUNCTIONS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_FUNCTIONS, len) == 0) {
     type = TSDB_MGMT_TABLE_FUNC;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_INDEXES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_INDEXES, len) == 0) {
     type = TSDB_MGMT_TABLE_INDEX;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_STABLES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_STABLES, len) == 0) {
     type = TSDB_MGMT_TABLE_STB;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_TABLES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TABLES, len) == 0) {
     type = TSDB_MGMT_TABLE_TABLE;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_TAGS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TAGS, len) == 0) {
     type = TSDB_MGMT_TABLE_TAG;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_COLS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_COLS, len) == 0) {
     type = TSDB_MGMT_TABLE_COL;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_TABLE_DISTRIBUTED, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TABLE_DISTRIBUTED, len) == 0) {
     //    type = TSDB_MGMT_TABLE_DIST;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_USERS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USERS, len) == 0) {
     type = TSDB_MGMT_TABLE_USER;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_USERS_FULL, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USERS_FULL, len) == 0) {
     type = TSDB_MGMT_TABLE_USER_FULL;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_LICENCES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_LICENCES, len) == 0) {
     type = TSDB_MGMT_TABLE_GRANTS;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_VGROUPS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_VGROUPS, len) == 0) {
     type = TSDB_MGMT_TABLE_VGROUP;
-  } else if (taosStrncasecmp(name, TSDB_PERFS_TABLE_CONSUMERS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_CONSUMERS, len) == 0) {
     type = TSDB_MGMT_TABLE_CONSUMERS;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_SUBSCRIPTIONS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SUBSCRIPTIONS, len) == 0) {
     type = TSDB_MGMT_TABLE_SUBSCRIPTIONS;
-  } else if (taosStrncasecmp(name, TSDB_PERFS_TABLE_TRANS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_TRANS, len) == 0) {
     type = TSDB_MGMT_TABLE_TRANS;
-  } else if (taosStrncasecmp(name, TSDB_PERFS_TABLE_SMAS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_SMAS, len) == 0) {
     type = TSDB_MGMT_TABLE_SMAS;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_CONFIGS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_CONFIGS, len) == 0) {
     type = TSDB_MGMT_TABLE_CONFIGS;
-  } else if (taosStrncasecmp(name, TSDB_PERFS_TABLE_CONNECTIONS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_CONNECTIONS, len) == 0) {
     type = TSDB_MGMT_TABLE_CONNS;
-  } else if (taosStrncasecmp(name, TSDB_PERFS_TABLE_QUERIES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_QUERIES, len) == 0) {
     type = TSDB_MGMT_TABLE_QUERIES;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_VNODES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_VNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_VNODES;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_TOPICS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TOPICS, len) == 0) {
     type = TSDB_MGMT_TABLE_TOPICS;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_STREAMS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_STREAMS, len) == 0) {
     type = TSDB_MGMT_TABLE_STREAMS;
-  } else if (taosStrncasecmp(name, TSDB_PERFS_TABLE_APPS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_APPS, len) == 0) {
     type = TSDB_MGMT_TABLE_APPS;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_STREAM_TASKS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_STREAM_TASKS, len) == 0) {
     type = TSDB_MGMT_TABLE_STREAM_TASKS;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_USER_PRIVILEGES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_PRIVILEGES, len) == 0) {
     type = TSDB_MGMT_TABLE_PRIVILEGES;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_VIEWS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_VIEWS, len) == 0) {
     type = TSDB_MGMT_TABLE_VIEWS;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_COMPACTS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACTS, len) == 0) {
     type = TSDB_MGMT_TABLE_COMPACT;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, len) == 0) {
     type = TSDB_MGMT_TABLE_COMPACT_DETAIL;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_TRANSACTION_DETAILS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TRANSACTION_DETAILS, len) == 0) {
     type = TSDB_MGMT_TABLE_TRANSACTION_DETAIL;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_GRANTS_FULL, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_FULL, len) == 0) {
     type = TSDB_MGMT_TABLE_GRANTS_FULL;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_GRANTS_LOGS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_LOGS, len) == 0) {
     type = TSDB_MGMT_TABLE_GRANTS_LOGS;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_MACHINES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_MACHINES, len) == 0) {
     type = TSDB_MGMT_TABLE_MACHINES;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_ENCRYPTIONS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ENCRYPTIONS, len) == 0) {
     type = TSDB_MGMT_TABLE_ENCRYPTIONS;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_TSMAS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TSMAS, len) == 0) {
     type = TSDB_MGMT_TABLE_TSMAS;
-  } else if (taosStrncasecmp(name, TSDB_INS_DISK_USAGE, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_DISK_USAGE, len) == 0) {
     type = TSDB_MGMT_TABLE_USAGE;
-  } else if (taosStrncasecmp(name, TSDB_INS_TABLE_FILESETS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_FILESETS, len) == 0) {
     type = TSDB_MGMT_TABLE_FILESETS;
   } else {
     mError("invalid show name:%s len:%d", name, len);

@@ -206,7 +206,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, const char** pSql, E
     token.z = tmpTokenBuf;
     token.n = strdequote(token.z);
 
-    if (boundColsType == BOUND_ALL_AND_TBNAME && token.n == strlen("tbname") && (taosStrcasecmp(token.z, "tbname") == 0)) {
+    if (boundColsType == BOUND_ALL_AND_TBNAME && token.n == strlen("tbname") && (strcasecmp(token.z, "tbname") == 0)) {
       pBoundInfo->pColIndex[pBoundInfo->numOfBound] = tbnameSchemaIndex;
       pUseCols[tbnameSchemaIndex] = true;
       ++pBoundInfo->numOfBound;

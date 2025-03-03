@@ -388,7 +388,7 @@ void mptInitLogFile() {
   tsLogKeepDays = 10;
   TAOS_STRCPY(tsLogDir, TD_LOG_DIR_PATH);
 
-  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, LOG_MODE_TAOSD) < 0) {
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, 0) < 0) {
     MPT_PRINTF("failed to open log file in directory:%s\n", tsLogDir);
   }
   taosSetNoNewFile();

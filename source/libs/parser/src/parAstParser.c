@@ -214,11 +214,11 @@ static int32_t isTbnameEqCondOperator(SOperatorNode* pOperator, char** ppTableNa
 
   SValueNode* pValueNode = NULL;
   if (nodeType(pOperator->pLeft) == QUERY_NODE_FUNCTION &&
-      0 == taosStrcasecmp(((SFunctionNode*)(pOperator->pLeft))->functionName, "tbname") &&
+      0 == strcasecmp(((SFunctionNode*)(pOperator->pLeft))->functionName, "tbname") &&
       nodeType(pOperator->pRight) == QUERY_NODE_VALUE) {
     pValueNode = (SValueNode*)pOperator->pRight;
   } else if (nodeType(pOperator->pRight) == QUERY_NODE_FUNCTION &&
-             0 == taosStrcasecmp(((SFunctionNode*)(pOperator->pRight))->functionName, "tbname") &&
+             0 == strcasecmp(((SFunctionNode*)(pOperator->pRight))->functionName, "tbname") &&
              nodeType(pOperator->pLeft) == QUERY_NODE_VALUE) {
     pValueNode = (SValueNode*)pOperator->pLeft;
   } else {

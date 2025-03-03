@@ -332,43 +332,43 @@ void qwDbgSimulateDead(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *rsped) {
 }
 
 int32_t qWorkerDbgEnableDebug(char *option) {
-  if (0 == taosStrcasecmp(option, "lock")) {
+  if (0 == strcasecmp(option, "lock")) {
     gQWDebug.lockEnable = true;
     qError("qw lock debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 
-  if (0 == taosStrcasecmp(option, "status")) {
+  if (0 == strcasecmp(option, "status")) {
     gQWDebug.statusEnable = true;
     qError("qw status debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 
-  if (0 == taosStrcasecmp(option, "dump")) {
+  if (0 == strcasecmp(option, "dump")) {
     gQWDebug.dumpEnable = true;
     qError("qw dump debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 
-  if (0 == taosStrcasecmp(option, "sleep")) {
+  if (0 == strcasecmp(option, "sleep")) {
     gQWDebug.sleepSimulate = true;
     qError("qw sleep debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 
-  if (0 == taosStrcasecmp(option, "dead")) {
+  if (0 == strcasecmp(option, "dead")) {
     gQWDebug.deadSimulate = true;
     qError("qw dead debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 
-  if (0 == taosStrcasecmp(option, "redirect")) {
+  if (0 == strcasecmp(option, "redirect")) {
     gQWDebug.redirectSimulate = true;
     qError("qw redirect debug enabled");
     return TSDB_CODE_SUCCESS;
   }
 
-  if (0 == taosStrcasecmp(option, "forceStop")) {
+  if (0 == strcasecmp(option, "forceStop")) {
     gQWDebug.forceStop = true;
     qError("qw forceStop debug enabled");
     return TSDB_CODE_SUCCESS;

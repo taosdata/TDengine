@@ -1435,7 +1435,7 @@ static int32_t mndProcessCreateEncryptKeyReq(SRpcMsg *pReq) {
   }
   const STraceId *trace = &pReq->info.traceId;
   SDCfgDnodeReq   dcfgReq = {0};
-  if (taosStrncasecmp(cfgReq.config, "encrypt_key", 12) == 0) {
+  if (strncasecmp(cfgReq.config, "encrypt_key", 12) == 0) {
     tstrncpy(dcfgReq.config, cfgReq.config, sizeof(dcfgReq.config));
     tstrncpy(dcfgReq.value, cfgReq.value, sizeof(dcfgReq.value));
     tFreeSMCfgDnodeReq(&cfgReq);

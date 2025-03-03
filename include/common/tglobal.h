@@ -303,7 +303,7 @@ extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
-                      const char *envFile, char *apolloUrl, SArray *pArgs, ELogMode mode);
+                      const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
 int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl,
                            SArray *pArgs);
 int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,

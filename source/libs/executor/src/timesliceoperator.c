@@ -172,17 +172,17 @@ static FORCE_INLINE int32_t timeSliceEnsureBlockCapacity(STimeSliceOperatorInfo*
 
 bool isIrowtsPseudoColumn(SExprInfo* pExprInfo) {
   char* name = pExprInfo->pExpr->_function.functionName;
-  return (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type) && taosStrcasecmp(name, "_irowts") == 0);
+  return (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type) && strcasecmp(name, "_irowts") == 0);
 }
 
 bool isIsfilledPseudoColumn(SExprInfo* pExprInfo) {
   char* name = pExprInfo->pExpr->_function.functionName;
-  return (IS_BOOLEAN_TYPE(pExprInfo->base.resSchema.type) && taosStrcasecmp(name, "_isfilled") == 0);
+  return (IS_BOOLEAN_TYPE(pExprInfo->base.resSchema.type) && strcasecmp(name, "_isfilled") == 0);
 }
 
 bool isIrowtsOriginPseudoColumn(SExprInfo* pExprInfo) {
   const char* name = pExprInfo->pExpr->_function.functionName;
-  return (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type) && taosStrcasecmp(name, "_irowts_origin") == 0);
+  return (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type) && strcasecmp(name, "_irowts_origin") == 0);
 }
 
 static void tRowGetKeyFromColData(int64_t ts, SColumnInfoData* pPkCol, int32_t rowIndex, SRowKey* pKey) {

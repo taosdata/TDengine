@@ -207,8 +207,8 @@ typedef struct SPkInfo {
 
 typedef struct SDataBlockInfo {
   STimeWindow window;
-  uint32_t    capacity;
   int32_t     rowSize;
+  uint32_t    capacity;
   int64_t     rows;  // todo hide this attribute
   SBlockID    id;
   int16_t     hasVarCol;

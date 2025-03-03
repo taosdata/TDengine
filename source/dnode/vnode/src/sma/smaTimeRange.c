@@ -370,7 +370,7 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
   TAOS_CHECK_EXIT(tsmaProcessDelReq(pSma, indexUid, &deleteReq));
 
 #if 0
-  if (!taosStrncasecmp("td.tsma.rst.tb", pTsmaStat->pTSma->dstTbName, 14)) {
+  if (!strncasecmp("td.tsma.rst.tb", pTsmaStat->pTSma->dstTbName, 14)) {
     code = TSDB_CODE_APP_ERROR;
     smaError("vgId:%d, tsma insert for smaIndex %" PRIi64 " failed since %s, %s", SMA_VID(pSma), indexUid,
              pTsmaStat->pTSma->indexUid, tstrerror(code), pTsmaStat->pTSma->dstTbName);
