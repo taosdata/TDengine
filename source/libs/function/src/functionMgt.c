@@ -718,3 +718,10 @@ bool fmIsRowTsOriginFunc(int32_t funcId) {
   }
   return FUNCTION_TYPE_IROWTS_ORIGIN == funcMgtBuiltins[funcId].type;
 }
+
+bool fmIsGroupIdFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_GROUP_ID == funcMgtBuiltins[funcId].type;
+}

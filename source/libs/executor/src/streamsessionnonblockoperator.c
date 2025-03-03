@@ -507,8 +507,8 @@ int32_t doStreamSessionNonblockAggNextImpl(SOperatorInfo* pOperator, SOptrBasicI
         continue;
       } break;
       default:
-        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-        QUERY_CHECK_CODE(code, lino, _end);
+        qDebug("===stream===%s ignore recv block. type:%d", GET_TASKID(pTaskInfo), pBlock->info.type);
+        continue;
     }
 
     if (pBlock->info.type == STREAM_NORMAL && pBlock->info.version != 0) {
