@@ -67,19 +67,19 @@ void checkArgumentValid() {
 }
 
 // apply cfg
-int32_t applyConfigDir(char * configDir){
+int32_t applyConfigDir(char * cfgDir){
     // set engine config dir 
     int32_t code;
 #ifdef LINUX
     wordexp_t full_path;
-    if (wordexp(configDir, &full_path, 0) != 0) {
-        errorPrint("Invalid path %s\n", configDir);
+    if (wordexp(cfgDir, &full_path, 0) != 0) {
+        errorPrint("Invalid path %s\n", cfgDir);
         exit(EXIT_FAILURE);
     }
     code = taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
     wordfree(&full_path);
 #else
-    code = taos_options(TSDB_OPTION_CONFIGDIR, configDir);
+    code = taos_options(TSDB_OPTION_CONFIGDIR, cfgDir);
 #endif
     // show error
     if (code) {
@@ -175,15 +175,15 @@ int main(int argc, char* argv[]) {
     }
 
     // check condition for set config dir
-    if (strlen(g_arguments.g_configDir)
+    if (strlen(g_configDir)
             && g_arguments->host_auto
             && g_arguments->port_auto) {
         // apply
-        if(applyConfigDir(g_arguments->g_configDir) != TSDB_CODE_SUCCESS) {
+        if(applyConfigDir(g_configDir) != TSDB_CODE_SUCCESS) {
             exitLog();
             return -1;    
         }
-        infoPrint("Set engine cfgdir successfully, dir:%s\n", g_arguments->g_configDir);
+        infoPrint("Set engine cfgdir successfully, dir:%s\n", g_configDir);
     }
 
     // cancel thread
