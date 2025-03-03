@@ -1850,6 +1850,7 @@ typedef struct {
   int32_t     statusSeq;
   int64_t     ipWhiteVer;
   int64_t     analVer;
+  int64_t     timestamp;
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
