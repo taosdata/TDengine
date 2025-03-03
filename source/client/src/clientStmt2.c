@@ -1421,7 +1421,12 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
     pStmt->exec.pCurrBlock = *pDataBlock;
     if (pStmt->sql.stbInterlaceMode) {
       taosArrayDestroy(pStmt->exec.pCurrBlock->pData->aCol);
-      pStmt->exec.pCurrBlock->pData->aCol = NULL;
+      (*pDataBlock)->pData->aCol = NULL;
+    }
+    if (colIdx < -1) {
+      pStmt->sql.bindRowFormat = true;
+      taosArrayDestroy((*pDataBlock)->pData->aCol);
+      (*pDataBlock)->pData->aCol = taosArrayInit(20, POINTER_BYTES);
     }
   }
 
@@ -1449,10 +1454,21 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
     if (pStmt->sql.stbInterlaceMode) {
       (*pDataBlock)->pData->flags = 0;
       code = qBindStmtStbColsValue2(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf,
-                                    pStmt->exec.pRequest->msgBufLen, &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo, pStmt->taos->optionInfo.charsetCxt);
+                                    pStmt->exec.pRequest->msgBufLen, &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo,
+                                    pStmt->taos->optionInfo.charsetCxt);
     } else {
-      code =
-          qBindStmtColsValue2(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen, pStmt->taos->optionInfo.charsetCxt);
+      if (colIdx == -1) {
+        if (pStmt->sql.bindRowFormat) {
+          tscError("can't mix bind row format and bind column format");
+          STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
+        }
+        code = qBindStmtColsValue2(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf,
+                                   pStmt->exec.pRequest->msgBufLen, pStmt->taos->optionInfo.charsetCxt);
+      } else {
+        code = qBindStmt2RowValue(*pDataBlock, (*pDataBlock)->pData->aRowP, bind, pStmt->exec.pRequest->msgBuf,
+                                  pStmt->exec.pRequest->msgBufLen, &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo,
+                                  pStmt->taos->optionInfo.charsetCxt);
+      }
     }
 
     if (code) {
@@ -1462,6 +1478,11 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
   } else {
     if (pStmt->sql.stbInterlaceMode) {
       tscError("bind single column not allowed in stb insert mode");
+      STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
+    }
+
+    if (pStmt->sql.bindRowFormat) {
+      tscError("can't mix bind row format and bind column format");
       STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
     }
 
@@ -1695,11 +1716,11 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     return pStmt->errCode;
   }
 
-  (void)taosThreadMutexLock(&pStmt->asyncBindParam.mutex);
+  TSC_ERR_RET(taosThreadMutexLock(&pStmt->asyncBindParam.mutex));
   while (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 0) {
     (void)taosThreadCondWait(&pStmt->asyncBindParam.waitCond, &pStmt->asyncBindParam.mutex);
   }
-  (void)taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex);
+  TSC_ERR_RET(taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex));
 
   if (pStmt->sql.stbInterlaceMode) {
     STMT_ERR_RET(stmtAddBatch2(pStmt));
@@ -1802,11 +1823,11 @@ int stmtClose2(TAOS_STMT2* stmt) {
     pStmt->bindThreadInUse = false;
   }
 
-  (void)taosThreadMutexLock(&pStmt->asyncBindParam.mutex);
+  TSC_ERR_RET(taosThreadMutexLock(&pStmt->asyncBindParam.mutex));
   while (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 0) {
     (void)taosThreadCondWait(&pStmt->asyncBindParam.waitCond, &pStmt->asyncBindParam.mutex);
   }
-  (void)taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex);
+  TSC_ERR_RET(taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex));
 
   (void)taosThreadCondDestroy(&pStmt->queue.waitCond);
   (void)taosThreadMutexDestroy(&pStmt->queue.mutex);
