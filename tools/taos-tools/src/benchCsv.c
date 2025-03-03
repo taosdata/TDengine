@@ -483,12 +483,12 @@ static int csvInitWriteMeta(SDataBase* db, SSuperTable* stb, CsvWriteMeta* write
             break;
         }
         case CSV_NAMING_B_THREAD: {
-            write_meta->total_threads = g_arguments->nthreads;
+            write_meta->total_threads = MIN(g_arguments->nthreads, stb->childTblCount);
             csvGenThreadFormatter(write_meta);
             break;
         }
         case CSV_NAMING_B_THREAD_TIME_SLICE: {
-            write_meta->total_threads = g_arguments->nthreads;
+            write_meta->total_threads = MIN(g_arguments->nthreads, stb->childTblCount);
             csvGenThreadFormatter(write_meta);
             csvCalcTimestampStep(write_meta);
             break;
