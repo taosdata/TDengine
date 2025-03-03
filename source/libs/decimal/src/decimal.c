@@ -1128,17 +1128,40 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
 // There is no need to do type conversions, we assume that pLeftT and pRightT are all decimal128 types.
 bool decimalCompare(EOperatorType op, const SDecimalCompareCtx* pLeft, const SDecimalCompareCtx* pRight) {
   bool    ret = false;
-  uint8_t pLeftPrec = 0, pLeftScale = 0, pRightPrec = 0, pRightScale = 0;
-  decimalFromTypeMod(pLeft->typeMod, &pLeftPrec, &pLeftScale);
-  decimalFromTypeMod(pRight->typeMod, &pRightPrec, &pRightScale);
-  int32_t deltaScale = pLeftScale - pRightScale;
+  uint8_t leftPrec = 0, leftScale = 0, rightPrec = 0, rightScale = 0;
+  decimalFromTypeMod(pLeft->typeMod, &leftPrec, &leftScale);
+  decimalFromTypeMod(pRight->typeMod, &rightPrec, &rightScale);
+  int32_t deltaScale = leftScale - rightScale;
   Decimal pLeftDec = *(Decimal*)pLeft->pData, pRightDec = *(Decimal*)pRight->pData;
 
   if (deltaScale != 0) {
-    bool needInt256 = (deltaScale < 0 && pLeftPrec - deltaScale > TSDB_DECIMAL_MAX_PRECISION) ||
-                      (pRightPrec + deltaScale > TSDB_DECIMAL_MAX_PRECISION);
+    bool needInt256 = (deltaScale < 0 && leftPrec - deltaScale > TSDB_DECIMAL_MAX_PRECISION) ||
+                      (rightPrec + deltaScale > TSDB_DECIMAL_MAX_PRECISION);
     if (needInt256) {
-      // TODO wjm impl it
+      Int256 x = {0}, y = {0};
+      makeInt256FromDecimal128(&x, &pLeftDec);
+      makeInt256FromDecimal128(&y, &pRightDec);
+      if (leftScale < rightScale) {
+        x = int256ScaleBy(&x, rightScale - leftScale);
+      } else {
+        y = int256ScaleBy(&y, leftScale - rightScale);
+      }
+      switch (op) {
+      case OP_TYPE_GREATER_THAN:
+        return int256Gt(&x, &y);
+      case OP_TYPE_GREATER_EQUAL:
+        return !int256Lt(&x, &y);
+      case OP_TYPE_LOWER_THAN:
+        return int256Lt(&x, &y);
+      case OP_TYPE_LOWER_EQUAL:
+        return !int256Gt(&x, &y);
+      case OP_TYPE_EQUAL:
+        return int256Eq(&x, &y);
+      case OP_TYPE_NOT_EQUAL:
+        return !int256Eq(&x, &y);
+      default:
+        break;
+      }
       return false;
     } else {
       if (deltaScale < 0) {
