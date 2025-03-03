@@ -198,6 +198,7 @@ class Numeric {
   uint8_t     prec() const { return prec_; }
   uint8_t     scale() const { return scale_; }
   const Type& dec() const { return dec_; }
+  STypeMod    get_type_mod() const { return decimalCalcTypeMod(prec(), scale()); }
 
   template <int BitNum2>
   Numeric& binaryOp(const Numeric<BitNum2>& r, EOperatorType op) {
@@ -289,10 +290,6 @@ class Numeric {
     return binaryOp(r, OP_TYPE_ADD);
   }
 
-  template <int BitNum2>
-  bool operator==(const Numeric<BitNum2>& r) {
-    return binaryOp(r, OP_TYPE_EQUAL);
-  }
   std::string toString() const {
     char    buf[64] = {0};
     int32_t code = decimalToStr(&dec_, NumericType<BitNum>::dataType, prec(), scale(), buf, 64);
@@ -406,6 +403,45 @@ class Numeric {
     if (code != 0) throw std::runtime_error(tstrerror(code));
     return *this;
   }
+
+  template <int BitNum2>
+  Numeric(const Numeric<BitNum2>& num2) {
+    Numeric();
+    *this = num2;
+  }
+
+  template <int BitNum2>
+  Numeric& operator=(const Numeric<BitNum2>& num2) {
+    static_assert(BitNum2 == 64 || BitNum2 == 128, "Only support decimal128/decimal64");
+    SDataType inputDt = {
+        .type = num2.type().type, .precision = num2.prec(), .scale = num2.scale(), .bytes = num2.type().bytes};
+    SDataType outputDt = {.type = NumericType<BitNum>::dataType,
+                          .precision = NumericType<BitNum>::maxPrec,
+                          .scale = num2.scale(),
+                          .bytes = NumericType<BitNum>::bytes};
+    int32_t code = convertToDecimal(&num2.dec(), &inputDt, &dec_, &outputDt);
+    if (code == TSDB_CODE_DECIMAL_OVERFLOW) throw std::overflow_error(tstrerror(code));
+    if (code != 0) throw std::runtime_error(tstrerror(code));
+    prec_ = outputDt.precision;
+    scale_ = outputDt.scale;
+    return *this;
+  }
+#define DEFINE_COMPARE_OP(op, op_type)                                                        \
+  template <typename T>                                                                       \
+  bool operator op(const T& t) {                                                              \
+    Numeric<128> lDec = *this, rDec = *this;                                                  \
+    rDec = t;                                                                                 \
+    SDecimalCompareCtx l = {(void*)&lDec.dec(), TSDB_DATA_TYPE_DECIMAL, lDec.get_type_mod()}, \
+                       r = {(void*)&rDec.dec(), TSDB_DATA_TYPE_DECIMAL, rDec.get_type_mod()}; \
+    return decimalCompare(op_type, &l, &r);                                                   \
+  }
+
+  DEFINE_COMPARE_OP(>, OP_TYPE_GREATER_THAN);
+  DEFINE_COMPARE_OP(>=, OP_TYPE_GREATER_EQUAL);
+  DEFINE_COMPARE_OP(<, OP_TYPE_LOWER_THAN);
+  DEFINE_COMPARE_OP(<=, OP_TYPE_LOWER_EQUAL);
+  DEFINE_COMPARE_OP(==, OP_TYPE_EQUAL);
+  DEFINE_COMPARE_OP(!=, OP_TYPE_NOT_EQUAL);
 };
 
 template <int BitNum>
@@ -1235,6 +1271,18 @@ TEST(decimal_all, ret_type_load_from_file) {
     ++total_lines;
   }
   ASSERT_EQ(total_lines, 3034205);
+}
+
+TEST(decimal_all, test_decimal_compare) {
+  Numeric<64> dec64 = {10, 2, "123.23"};
+  Numeric<64> dec64_2 = {11, 10, "1.23"};
+  ASSERT_FALSE(dec64_2 > dec64);
+  dec64 = "10123456.23";
+  ASSERT_FALSE(dec64_2 > dec64);
+  ASSERT_TRUE(dec64 > dec64_2);
+  ASSERT_TRUE(dec64_2 < 100);
+  Numeric<128> dec128 = {38, 10, "1.23"};
+  ASSERT_TRUE(dec128 == dec64_2);
 }
 
 TEST(decimal_all, ret_type_for_non_decimal_types) {
