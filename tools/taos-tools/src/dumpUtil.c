@@ -108,7 +108,7 @@ TAOS *taosConnect(const char *dbName) {
         code = parseDsn(dsnc, &host, &cport, &user, &pwd, error);
         if (code) {
             errorPrint("%s dsn=%s\n", error, dsnc);
-            tmfree(dsnc);
+            free(dsnc);
             return NULL;
         }
 
@@ -170,7 +170,7 @@ TAOS *taosConnect(const char *dbName) {
     }
 
     if (dsnc) {
-        tmfree(dsnc);
+        free(dsnc);
     }
     return taos;
 }
@@ -210,4 +210,8 @@ TAOS_RES *taosQuery(TAOS *taos, const char *sql, int32_t *code) {
     }
 
     return NULL;
+}
+
+void engineError(char * module, char * fun, int32_t code) {
+    errorPrint("%s %s fun=%s error code:0x%08X \n", TIP_ENGINE_ERR, module, fun, code);
 }

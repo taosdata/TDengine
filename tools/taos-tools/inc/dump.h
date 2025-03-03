@@ -476,6 +476,7 @@ int64_t dumpANormalTableNotBelong(
 void* openQuery(void** taos_v , const char * sql);
 void closeQuery(void* res);
 int32_t readRow(void *res, int32_t idx, int32_t col, uint32_t *len, char **data);
+void engineError(char * module, char * fun, int32_t code);
 
 
 extern struct arguments g_args;
