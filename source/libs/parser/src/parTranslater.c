@@ -11592,7 +11592,7 @@ static int32_t addWstartTsToCreateStreamQueryImpl(STranslateContext* pCxt, SSele
   char   defaultName[] = {"_wstart"};
   if (NULL == pSelect->pWindow ||
       (QUERY_NODE_FUNCTION == nodeType(pProj) && 0 == strcmp(defaultName, ((SFunctionNode*)pProj)->functionName))) {
-    tstrncpy(pReq->pWstartName, ((SFunctionNode*)pProj)->node.aliasName, TSDB_FUNC_NAME_LEN);
+    tstrncpy(pReq->pWstartName, ((SFunctionNode*)pProj)->node.userAlias, TSDB_FUNC_NAME_LEN);
     return TSDB_CODE_SUCCESS;
   }
   int32_t code =
@@ -12484,6 +12484,7 @@ static int32_t addGroupIdTagForCreateDestTable(STranslateContext* pCxt, SCreateS
   char alias [] = {"group_id"};
   if (NULL == pSelect->pPartitionByList || NULL == pSelect->pTags || NULL == pStmt->pTags) {
     tstrncpy(pReq->pGroupIdName, alias, tListLen(pReq->pGroupIdName));
+    return code;
   }
   
   SFunctionNode* pFunc = NULL;
@@ -12512,9 +12513,10 @@ static int32_t adjustTags(STranslateContext* pCxt, SCreateStreamStmt* pStmt, con
                           SCMCreateStreamReq* pReq) {
   if (NULL == pMeta) {
     int32_t code = addGroupIdTagForCreateDestTable(pCxt, pStmt, pReq);
-    if (TSDB_CODE_SUCCESS == code) {
-      return adjustTagsForCreateTable(pCxt, pStmt, pReq);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
     }
+    return adjustTagsForCreateTable(pCxt, pStmt, pReq);
   }
   return adjustTagsForExistTable(pCxt, pStmt, pMeta, pReq);
 }

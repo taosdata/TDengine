@@ -299,7 +299,7 @@ extern int8_t  tsS3EpNum;
 extern int32_t tsStreamNotifyMessageSize;
 extern int32_t tsStreamNotifyFrameSize;
 
-extern char     tsAdapterQdn[];
+extern char     tsAdapterFqdn[];
 extern uint16_t tsAdapterPort;
 extern char     tsAdapterToken[];
 

@@ -1616,7 +1616,7 @@ static void initStreamRecalculateParam(STableScanPhysiNode* pTableScanNode, SStr
   tstrncpy(pParam->pGroupIdName, pTableScanNode->pGroupIdName, TSDB_COL_NAME_LEN);
 
   pParam->sqlCapcity = tListLen(pParam->pSql);
-  (void)tsnprintf(pParam->pUrl, tListLen(pParam->pUrl), "http://%s:%d/rest/sql", tsAdapterQdn, tsAdapterPort);
+  (void)tsnprintf(pParam->pUrl, tListLen(pParam->pUrl), "http://%s:%d/rest/sql", tsAdapterFqdn, tsAdapterPort);
   (void)tsnprintf(pParam->pAuth, tListLen(pParam->pAuth), "Authorization: Basic %s", tsAdapterToken);
 }
 

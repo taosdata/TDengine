@@ -326,9 +326,9 @@ bool    tsFilterScalarMode = false;
 int     tsStreamAggCnt = 100000;
 bool    tsStreamCoverage = false;
 
-char     tsAdapterQdn[TSDB_FQDN_LEN] = {0};
+char     tsAdapterFqdn[TSDB_FQDN_LEN] = "localhost";
 uint16_t tsAdapterPort = 6041;
-char     tsAdapterToken[512];
+char     tsAdapterToken[512] = "cm9vdDp0YW9zZGF0YQ==";
 
 bool tsUpdateCacheBatch = true;
 
@@ -974,6 +974,10 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamNotifyMessageSize", tsStreamNotifyMessageSize, 8, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamNotifyFrameSize", tsStreamNotifyFrameSize, 8, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
+
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "adapterFqdn", tsAdapterFqdn, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "adapterPort", tsAdapterPort, 1, 65056, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "adapterToken", tsAdapterToken, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
 
   // clang-format on
 
@@ -1865,6 +1869,17 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamNotifyFrameSize");
   tsStreamNotifyFrameSize = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "adapterFqdn");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_FQDN_LEN));
+  tstrncpy(tsAdapterFqdn, pItem->str, TSDB_FQDN_LEN);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "adapterPort");
+  tsAdapterPort = (uint16_t)pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "adapterToken");
+  TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, tListLen(tsAdapterToken)));
+  tstrncpy(tsAdapterToken, pItem->str, tListLen(tsAdapterToken));
 
   // GRANT_CFG_GET;
   TAOS_RETURN(TSDB_CODE_SUCCESS);

@@ -1818,6 +1818,7 @@ void destroyTsDataState(STableTsDataState* pTsDataState) {
   taosMemoryFreeClear(pTsDataState->pState);
   taosMemoryFreeClear(pTsDataState->pRecValueBuff);
   pTsDataState->pStreamTaskState = NULL;
+  taosMemoryFreeClear(pTsDataState);
 }
 
 int32_t recoverTsData(STableTsDataState* pTsDataState) {
