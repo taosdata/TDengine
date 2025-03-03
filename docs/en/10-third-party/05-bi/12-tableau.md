@@ -10,8 +10,8 @@ Tableau is a well-known business intelligence tool that supports multiple data s
 
 Prepare the following environment:
 
-- TDengine 3.3.5.8 and above version is installed and running normally (both Enterprise and Community versions are available)
-- taosAdapter is running normally, refer to [taosAdapter Reference](../../../tdengine-reference/components/taosadapter/)
+- TDengine 3.3.5.8 and above version is installed and running normally (both Enterprise and Community versions are available).
+- taosAdapter is running normally, refer to [taosAdapter Reference](../../../tdengine-reference/components/taosadapter/).
 - Install and run Tableau Desktop (if not installed, please download and install Windows operating system 64-bit [Download Tableau Desktop](https://www.tableau.com/products/desktop/download)). Install Tableau please refer to [Tableau Desktop](https://www.tableau.com).
 - Download the latest Windows operating system X64 client driver from the TDengine official website and install it, refer to [Install ODBC Driver](../../../tdengine-reference/client-libraries/odbc/#Installation).
 
@@ -20,7 +20,7 @@ Prepare the following environment:
 **Step 1**, Search and open the "ODBC Data Source (64 bit)" management tool in the Start menu of the Windows operating system and configure it, refer to [Install ODBC Driver](../../../tdengine-reference/client-libraries/odbc/#Installation).
 
 :::tip
-It should be noted that when configuring the ODBC data source for Tableau, the 【Database】 configuration item on the TDengine ODBC data source configuration page is required. You need to select a database that can be successfully connected.
+It should be noted that when configuring the ODBC data source for Tableau, the [Database] configuration item on the TDengine ODBC data source configuration page is required. You need to select a database that can be successfully connected.
 :::
 
 **Step 2**, Start Tableau in the Windows system environment, then search for "ODBC" on its connection page and select "Other Databases (ODBC)".
