@@ -4760,6 +4760,7 @@ static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTabl
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
                                      "Join requires valid time series input");
     }
+    pJoinTable->leftNoOrderedSubQuery = true;
   }
 
   if (QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pRight) &&
@@ -4768,6 +4769,7 @@ static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTabl
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
                                      "Join requires valid time series input");
     }
+    pJoinTable->rightNoOrderedSubQuery = true;
   }
 
 
@@ -5098,6 +5100,49 @@ static int32_t setJoinTimeLineResMode(STranslateContext* pCxt) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t mergeInnerJoinConds(SNode** ppDst, SNode** ppSrc) {
+  SNode* pNew = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  while (true) {
+    if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppDst) && ((SLogicConditionNode*)*ppDst)->condType == LOGIC_COND_TYPE_AND) {
+      SLogicConditionNode* pLogic = (SLogicConditionNode*)*ppDst;
+      code = nodesListMakeStrictAppend(&pLogic->pParameterList, *ppSrc);
+      if (TSDB_CODE_SUCCESS == code) {
+        *ppSrc = NULL;
+      }
+      return code;
+    }
+
+    if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppSrc) && ((SLogicConditionNode*)*ppSrc)->condType == LOGIC_COND_TYPE_AND) {
+      SNode* pTmp = *ppDst;
+      *ppDst = *ppSrc;
+      *ppSrc = pTmp;
+      continue;
+    }
+
+    code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &pNew);
+    if (TSDB_CODE_SUCCESS == code) {
+      SLogicConditionNode* pLogic = (SLogicConditionNode*)pNew;
+      pLogic->condType = LOGIC_COND_TYPE_AND;
+      pLogic->node.resType.type = TSDB_DATA_TYPE_BOOL;
+      pLogic->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+      code = nodesListMakeStrictAppend(&pLogic->pParameterList, *ppSrc);
+      if (TSDB_CODE_SUCCESS == code) {
+        *ppSrc = *ppDst;
+        *ppDst = pNew;
+        continue;
+      }
+    }
+
+    if (code) {
+      break;
+    }
+  }
+
+  return code;
+}
+
 int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
   SSelectStmt* pCurrSmt = (SSelectStmt*)(pCxt->pCurrStmt);
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -5184,6 +5229,14 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
       if (TSDB_CODE_SUCCESS == code) {
         code = checkJoinTable(pCxt, pJoinTable);
       }
+      if (TSDB_CODE_SUCCESS == code && pCurrSmt->pWhere && JOIN_TYPE_INNER == pJoinTable->joinType) {
+        if (pJoinTable->pOnCond) {
+          code = mergeInnerJoinConds(&pJoinTable->pOnCond, &pCurrSmt->pWhere);
+        } else {
+          pJoinTable->pOnCond = pCurrSmt->pWhere;
+          pCurrSmt->pWhere = NULL;
+        }
+      }      
       if (TSDB_CODE_SUCCESS == code) {
         pJoinTable->table.precision = calcJoinTablePrecision(pJoinTable);
         pJoinTable->table.singleTable = joinTableIsSingleTable(pJoinTable);

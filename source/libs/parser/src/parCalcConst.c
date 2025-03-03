@@ -127,13 +127,33 @@ static int32_t rewriteConditionForFromTable(SCalcConstContext* pCxt, SNode* pTab
     }
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
+      SNode* pCond = NULL;
       code = rewriteConditionForFromTable(pCxt, pJoin->pLeft);
       if (TSDB_CODE_SUCCESS == code) {
         code = rewriteConditionForFromTable(pCxt, pJoin->pRight);
       }
       if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pOnCond) {
+        code = nodesCloneNode(pJoin->pOnCond, &pCond);
+      }
+      if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pOnCond) {
         code = calcConstCondition(pCxt, &pJoin->pOnCond);
       }
+      if (TSDB_CODE_SUCCESS == code && pJoin->pOnCond && QUERY_NODE_VALUE == nodeType(pJoin->pOnCond)) {
+        nodesDestroyNode(pJoin->pOnCond);
+        pJoin->pOnCond = pCond;
+        pCond = NULL;
+        /* TODO
+        SValueNode* pVal = (SValueNode*)pJoin->pOnCond;
+        if (TSDB_DATA_TYPE_BOOL == pVal->node.resType.type) {
+          if (pVal->datum.b) {
+            pJoin->condAlwaysTrue = true;
+          } else {
+            pJoin->condAlwaysFalse = true;
+          }
+        }
+        */
+      }
+      nodesDestroyNode(pCond);
       // todo empty table
       break;
     }
@@ -215,7 +235,7 @@ static int32_t calcConstProject(SCalcConstContext* pCxt, SNode* pProject, bool d
     }
   }
 
-  char    aliasName[TSDB_COL_NAME_LEN] = {0};
+  char    aliasName[TSDB_COL_NAME_LEN] = {0}, srcTable[TSDB_TABLE_NAME_LEN] = {0};
   int32_t code = TSDB_CODE_SUCCESS;
   if (dual) {
     code = scalarCalculateConstantsFromDual(pProject, pNew);
@@ -229,11 +249,15 @@ static int32_t calcConstProject(SCalcConstContext* pCxt, SNode* pProject, bool d
         SAssociationNode* pAssNode = taosArrayGet(pAssociation, i);
         SNode**           pCol = pAssNode->pPlace;
         if (((SExprNode*)pAssNode->pAssociationNode)->joinSrc) {
+//          ((SExprNode*)pAssNode->pAssociationNode)->joinConst = true;
           continue;
         }
         
         if (*pCol == pAssNode->pAssociationNode) {
           tstrncpy(aliasName, ((SExprNode*)*pCol)->aliasName, TSDB_COL_NAME_LEN);
+          if (QUERY_NODE_COLUMN == nodeType(*pCol)) {
+            tstrncpy(srcTable, ((SColumnNode*)*pCol)->tableAlias, TSDB_TABLE_NAME_LEN);
+          }
           SArray* pOrigAss = NULL;
           TSWAP(((SExprNode*)*pCol)->pAssociation, pOrigAss);
           nodesDestroyNode(*pCol);
@@ -241,6 +265,9 @@ static int32_t calcConstProject(SCalcConstContext* pCxt, SNode* pProject, bool d
           code = nodesCloneNode(*pNew, pCol);
           if (TSDB_CODE_SUCCESS == code) {
             tstrncpy(((SExprNode*)*pCol)->aliasName, aliasName, TSDB_COL_NAME_LEN);
+            if (srcTable[0]) {
+              tstrncpy(((SExprNode*)*pCol)->srcTable, srcTable, TSDB_TABLE_NAME_LEN);
+            }
             TSWAP(pOrigAss, ((SExprNode*)*pCol)->pAssociation);
           }
           taosArrayDestroy(pOrigAss);

@@ -57,11 +57,13 @@ typedef struct SExprNode {
   SDataType resType;
   char      aliasName[TSDB_COL_NAME_LEN];
   char      userAlias[TSDB_COL_NAME_LEN];
+  char      srcTable[TSDB_TABLE_NAME_LEN];
   SArray*   pAssociation;
   bool      asAlias;
   bool      asParam;
   bool      asPosition;
   bool      joinSrc;
+//  bool      joinConst;
   int32_t   projIdx;
   int32_t   relatedTo;
   int32_t   bindExprID;
@@ -293,6 +295,10 @@ typedef struct SJoinTableNode {
   SNode*       addPrimCond;
   bool         hasSubQuery;
   bool         isLowLevelJoin;
+  bool         leftNoOrderedSubQuery;
+  bool         rightNoOrderedSubQuery;
+  //bool         condAlwaysTrue;
+  //bool         condAlwaysFalse;
   SNode*       pLeft;
   SNode*       pRight;
   SNode*       pOnCond;

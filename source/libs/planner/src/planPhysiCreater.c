@@ -375,7 +375,7 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     SSetSlotIdCxt* pCxt = (SSetSlotIdCxt*)pContext;
     char*          name = NULL;
     int32_t        len = 0;
-    pCxt->errCode = getSlotKey(pNode, NULL, &name, &len, 16);
+    pCxt->errCode = getSlotKey(pNode, NULL, &name, &len, 64);
     if (TSDB_CODE_SUCCESS != pCxt->errCode) {
       return DEAL_RES_ERROR;
     }
@@ -386,7 +386,10 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
       if (!pIndex) {
         pIndex = taosHashGet(pCxt->pRightProdIdxHash, name, strlen(name));
       }
-    } else {
+    }
+
+    if (NULL == pIndex) {
+      name[len] = 0;
       pIndex = taosHashGet(pCxt->pLeftHash, name, len);
       if (NULL == pIndex) {
         pIndex = taosHashGet(pCxt->pRightHash, name, len);
@@ -948,7 +951,7 @@ static int32_t setMergeJoinPrimColEqCond(SNode* pEqCond, int32_t subType, int16_
         break;
       }
       case QUERY_NODE_VALUE: {
-        if (pJoinLogicNode && pJoinLogicNode->constPrimGot) {
+        if (pJoinLogicNode && pJoinLogicNode->leftConstPrimGot) {
           pJoin->leftPrimExpr = NULL;
           code = nodesCloneNode(pOp->pLeft, &pJoin->leftPrimExpr);
           break;
@@ -1006,7 +1009,7 @@ static int32_t setMergeJoinPrimColEqCond(SNode* pEqCond, int32_t subType, int16_
         break;
       }
       case QUERY_NODE_VALUE: {
-        if (pJoinLogicNode && pJoinLogicNode->constPrimGot) {
+        if (pJoinLogicNode && pJoinLogicNode->rightConstPrimGot) {
           pJoin->rightPrimExpr = NULL;
           code = nodesCloneNode(pOp->pRight, &pJoin->rightPrimExpr);
           break;
@@ -1049,6 +1052,33 @@ static int32_t setMergeJoinPrimColEqCond(SNode* pEqCond, int32_t subType, int16_
   } else {
     planError("invalid primary key col equal cond, type:%d", nodeType(pEqCond));
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  return code;
+}
+
+static int32_t removePrimColFromJoinTargets(SNodeList* pTargets, SValueNode* pLeftPrimExpr, SColumnNode** ppRemoved) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pTargets) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (0 == strcmp(pCol->tableAlias, pLeftPrimExpr->node.srcTable) && 0 == strcmp(pCol->colName, pLeftPrimExpr->node.aliasName)) {
+      code = nodesCloneNode(pNode, (SNode**)ppRemoved);
+      ERASE_NODE(pTargets);
+      break;
+    }
+  }
+
+  return code;
+}
+
+static int32_t appendPrimColToJoinTargets(SSortMergeJoinPhysiNode* pJoin, SColumnNode** ppTarget, STargetNode* primExpr, int16_t blkId) {
+  SColumnNode* pCol = *ppTarget;
+  pCol->dataBlockId = blkId;
+  pCol->slotId = primExpr->slotId;
+  int32_t code = nodesListMakeStrictAppend(&pJoin->pTargets, (SNode *)pCol);
+  if (TSDB_CODE_SUCCESS == code) {
+    *ppTarget = NULL;
   }
 
   return code;
@@ -1115,9 +1145,30 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
     nodesDestroyNode(pPrimKeyCond);
   }
 
+  SValueNode* pLeftPrimExpr = NULL, *pRightPrimExpr = NULL;
+  SColumnNode* pLeftTarget = NULL, *pRightTarget = NULL;
+  if (TSDB_CODE_SUCCESS == code && pJoinLogicNode->leftConstPrimGot && pJoin->leftPrimExpr 
+      && QUERY_NODE_VALUE == nodeType(((STargetNode*)pJoin->leftPrimExpr)->pExpr)) {
+    pLeftPrimExpr = (SValueNode*)((STargetNode*)pJoin->leftPrimExpr)->pExpr;
+    code = removePrimColFromJoinTargets(pJoinLogicNode->node.pTargets, pLeftPrimExpr, &pLeftTarget);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && pJoinLogicNode->rightConstPrimGot && pJoin->rightPrimExpr 
+      && QUERY_NODE_VALUE == nodeType(((STargetNode*)pJoin->rightPrimExpr)->pExpr)) {
+    pRightPrimExpr = (SValueNode*)((STargetNode*)pJoin->rightPrimExpr)->pExpr;
+    code = removePrimColFromJoinTargets(pJoinLogicNode->node.pTargets, pRightPrimExpr, &pRightTarget);
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = setListSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->node.pTargets,
                          &pJoin->pTargets);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && pLeftPrimExpr && pLeftTarget) {
+    code = appendPrimColToJoinTargets(pJoin, &pLeftTarget, (STargetNode*)pJoin->leftPrimExpr, pLeftDesc->dataBlockId);
+  }
+  if (TSDB_CODE_SUCCESS == code && pRightPrimExpr && pRightTarget) {
+    code = appendPrimColToJoinTargets(pJoin, &pRightTarget, (STargetNode*)pJoin->rightPrimExpr, pRightDesc->dataBlockId);
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pFullOnCond) {
@@ -1171,6 +1222,8 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
     *pPhyNode = (SPhysiNode*)pJoin;
   } else {
     nodesDestroyNode((SNode*)pJoin);
+    nodesDestroyNode((SNode*)pLeftTarget);
+    nodesDestroyNode((SNode*)pRightTarget);
   }
 
   return code;

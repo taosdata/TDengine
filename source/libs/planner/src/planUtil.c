@@ -26,6 +26,8 @@ static char* getUsageErrFormat(int32_t errCode) {
       return "not support cross join";
     case TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND:
       return "Not supported join conditions";
+    case TSDB_CODE_PAR_VALID_TS_SERIOUS_REQUIRED:
+      return "Valid time series required as input";
     default:
       break;
   }

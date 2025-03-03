@@ -158,7 +158,10 @@ typedef struct SJoinLogicNode {
   
   // FOR CONST JOIN
   bool           noPrimKeyEqCond;
-  bool           constPrimGot;
+  bool           leftConstPrimGot;
+  bool           rightConstPrimGot;
+  bool           leftNoOrderedSubQuery;
+  bool           rightNoOrderedSubQuery;
 
   // FOR HASH JOIN
   int32_t     timeRangeTarget;  // table onCond filter
