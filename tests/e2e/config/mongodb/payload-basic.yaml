@@ -5,7 +5,7 @@
                 "max_size": "0GB",
                 "max_size_unit": "GB",
                 "max_size_value": 0,
-                "location": "",
+                "location": "cache",
                 "on_fail": "skip"
             },
             "archive": {
@@ -15,7 +15,7 @@
                 "max_size": "0GB",
                 "max_size_unit": "GB",
                 "max_size_value": 0,
-                "location": "",
+                "location": "archive",
                 "on_fail": "rotate"
             },
             "database_connection_error": "cache",
@@ -26,19 +26,19 @@
             "primary_key_null": "archive",
             "table_name_length_overflow": "archive",
             "table_name_contains_illegal_char": {
-                "replace_to": ""
+                "replace_to": "_"
             },
             "variable_not_exist_in_table_name_template": {
-                "replace_to": ""
+                "replace_to": "NULL"
             },
             "field_name_not_found": "add_field",
             "field_name_length_overflow": "archive",
             "field_length_extend": true,
             "field_length_overflow": "archive",
             "ingesting_error": "archive",
-            "connection_timeout_in_second": "1s",
+            "connection_timeout_in_second": "30s",
             "connection_timeout_in_second_unit": "s",
-            "connection_timeout_in_second_value": 1
+            "connection_timeout_in_second_value": 30
         },
         "parse": {
             "value": {
