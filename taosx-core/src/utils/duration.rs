@@ -55,5 +55,8 @@ mod tests {
         assert!(parse_duration("1ss").is_err());
         assert!(parse_duration("-1s").is_err());
         assert!(parse_duration("s").is_err());
+
+        assert_eq!(parse_duration("0"), Ok(Duration::from_secs(0)));
+        assert_eq!(parse_duration("0s"), Ok(Duration::from_secs(0)));
     }
 }

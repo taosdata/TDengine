@@ -25,8 +25,14 @@ export default {
       s3Enable: 'S3 Enable',
       s3Bucket: 'S3 Bucket',
       s3Endpoint: 'S3 Endpoint',
-      s3AccessKey: 'S3 Access Key'
+      s3AccessKeyId: 'Access Key ID',
+      s3SecretAccessKey: 'Secret Key',
+      s3Region: 'S3 Region',
+      s3ObjectPrefix:  'Object Prefix',
+      backupRetentionPeriod: 'Retention Duration',
+      backupRetentionSize: 'Retention Quantity',
     },
+    validateS3Failed: 'Failed to verify S3. Please check if the taosx service is normal and can connect to the S3 service',
     compressionLevel: {
       balanced: 'balanced',
       best: 'best',

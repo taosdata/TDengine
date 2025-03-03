@@ -1,3 +1,4 @@
+use crate::s3::{S3Config, S3_ENABLE};
 use crate::tmq::BackupObject;
 use crate::utils;
 use crate::utils::sql::connect_taos_root;
@@ -36,6 +37,8 @@ pub struct LocalRestoreConfig {
     pub database: Option<String>,
     /// 强制恢复，如果为 true，则删除已存在的数据库或表。默认为 true
     pub force: bool,
+    /// S3 存储配置
+    pub s3_config: Option<S3Config>,
 }
 
 impl LocalRestoreConfig {
@@ -190,6 +193,19 @@ impl LocalRestoreConfigBuilder {
             backup_dir = backup_dir.join(backup_task_id);
         }
 
+        // s3_enable
+        let s3_enable = utils::parse_key_in_dsn::<bool>(&self.from, S3_ENABLE)?.unwrap_or(false);
+        let s3_config = if s3_enable {
+            // 解析 s3 配置参数
+            let s3_config = S3Config::from_dsn(&self.from)
+                .context(format!("failed to parse s3 config in dsn: {}", &self.from))?;
+            // 检查 s3 连通性
+            s3_config.connect().await?;
+            Some(s3_config)
+        } else {
+            None
+        };
+
         // from 备份点
         let start_from = utils::parse_datetime_in_dsn(&self.from, "from")?;
         // to 备份点
@@ -225,6 +241,7 @@ impl LocalRestoreConfigBuilder {
             error_retry_interval,
             database: self.to.subject.clone(),
             force,
+            s3_config,
         })
     }
 }

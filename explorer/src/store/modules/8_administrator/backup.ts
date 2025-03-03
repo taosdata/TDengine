@@ -31,6 +31,21 @@ const parseBackup = (data: any) => {
   targetData.backup_max_size = targetData.max_size;
   targetData.compression_level = data.to_expand.params?.compression_level || 'none';
   targetData.created_at = parsinginZone(data.created_at);
+  targetData.s3_enable = data.to_expand.params?.s3_enable === "true";
+  if (targetData.s3_enable) {
+    targetData.s3_endpoint = data.to_expand.params?.s3_endpoint;
+    targetData.s3_bucket = data.to_expand.params?.s3_bucket;
+    targetData.s3_access_key_id = data.to_expand.params?.s3_access_key_id;
+    targetData.s3_secret_access_key = data.to_expand.params?.s3_secret_access_key;
+    targetData.s3_region = data.to_expand.params?.s3_region;
+    targetData.s3_object_prefix = data.to_expand.params?.s3_object_prefix;
+    targetData.backup_retention_size = parseInt(data.to_expand.params?.backup_retention_size || '10');
+    const backup_retention_period_part = data.to_expand.params?.backup_retention_period?.match(/^(\d+)([hd])$/) || ['', 'd'];
+    if (backup_retention_period_part && backup_retention_period_part.length === 3) {
+      targetData.backup_retention_period_value = backup_retention_period_part[1];
+      targetData.backup_retention_period_unit = backup_retention_period_part[2];
+    }
+  }
   return targetData;
 };
 

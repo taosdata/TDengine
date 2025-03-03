@@ -196,7 +196,10 @@ pub(super) async fn create_task(
     let controller = task_store.into_inner();
     match controller.create(task).await {
         Ok(task) => Ok(HttpResponse::Created().json(task.decorate(&decorator))),
-        Err(err) => Err(Failed::from_error(err)),
+        Err(err) => {
+            tracing::error!("create task error: {:?}", err);
+            Err(Failed::from_error(err))
+        }
     }
 }
 

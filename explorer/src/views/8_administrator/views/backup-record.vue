@@ -69,6 +69,7 @@
 <script setup lang="ts">
 const { t } = useI18n();
 import { parsinginZone } from '@/utils/index';
+import { concatS3Config } from '@/utils/util';
 import { restoreBackups } from '@/api/backup';
 import { defineEmits } from 'vue';
 import { useBackupStore } from '@/store/modules/8_administrator/backup';
@@ -78,13 +79,13 @@ const showHistoryList = async () => {
   backupStore.getHistoryList(backupStore.historyPlanId);
 };
 
-let pointToRestore;
+let pointToRestore: any;
 
 const restoreRangeList = ref<any[]>([]);
 const restoreConfirmDialog = ref(false);
 const restoreRange = reactive({ from: '', to: '' });
-const toRestoreBackup = toFile => {
-  restoreRangeList.value = backupStore.historyList.map(item => item.point).filter(item => item <= toFile.point);
+const toRestoreBackup = (toFile: any) => {
+  restoreRangeList.value = backupStore.historyList.map((item: any) => item.point).filter((item: any) => item <= toFile.point);
   restoreRange.from = toFile.point;
   restoreRange.to = toFile.point;
   pointToRestore = toFile;
@@ -100,9 +101,11 @@ const restoreBackup = async () => {
     return;
   }
   let backupDirectory = null;
+  let s3Config: string = "s3_enable=false";
   for (let i = 0; i < backupStore.backupPlanList.length; i++) {
     if (backupStore.backupPlanList[i].id === backupStore.historyPlanId) {
       backupDirectory = backupStore.backupPlanList[i].directory;
+      s3Config = concatS3Config(backupStore.backupPlanList[i]);
       break;
     }
   }
@@ -114,7 +117,8 @@ const restoreBackup = async () => {
       to: restoreRange.to,
       database: database.value,
       point: pointToRestore,
-      backupDirectory
+      backupDirectory,
+      s3Config
     });
 
     if (res && res.code) {

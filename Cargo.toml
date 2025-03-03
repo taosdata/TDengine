@@ -20,9 +20,9 @@ chrono-tz = { version = "0.10.0" }
 shadow-rs = { version = "0.35.0" }
 itertools = { version = "0.13.0" }
 flume = { version = "0.11" }
-
+urlencoding = { version = "2" }
 clap = { version = "4.5.19", features = ["default", "derive"] }
-
+reqwest = { version = "0.12" }
 regex = { version = "1.11.0" }
 arrow = { version = "53.1.0", features = ["chrono-tz", "ipc_compression"] }
 arrow-flight = { version = "53.1.0" }
@@ -48,6 +48,7 @@ serde_json = { version = "1.0", features = ["raw_value", "preserve_order"] }
 taoslog = { path = "crates/taoslog", features = ["ansi"] }
 
 fundu = "2.0.1"
+opendal = { version = "0", features = ["services-s3"] }
 
 [workspace.dependencies.taos]
 # path = "../taos-connector-rust/taos"
@@ -79,7 +80,7 @@ anyhow = "1"
 arrow = { workspace = true }
 arrow-flight = { workspace = true }
 zerocopy = { workspace = true }
-
+opendal = { workspace = true }
 #multi_index_map = "0.11.0"
 multi_index_map = { git = "https://github.com/lun3x/multi_index_map.git", branch = "master" }
 scc = { version = "2.2.0", features = ["serde"] }
@@ -176,7 +177,7 @@ console-subscriber = { version = "0.4.0", optional = true }
 opentelemetry = { version = "0.26.0" }
 opentelemetry-otlp = { version = "0.26.0" }
 opentelemetry_sdk = { version = "0.26.0" }
-reqwest = { version = "0.12.8", features = ["json"] }
+reqwest = { workspace = true, features = ["json"] }
 taosx-ipc = { path = "./taosx-ipc" }
 tracing = { version = "0.1", features = ["log"] }
 tracing-actix-web = "0.7.13"
@@ -216,6 +217,8 @@ shadow-rs = { workspace = true }
 [dev-dependencies]
 assert_cmd = "2"
 shlex = "1"
+opendal = { workspace = true }
+urlencoding = { workspace = true }
 
 [features]
 default = ["native-tls", "mimalloc"]

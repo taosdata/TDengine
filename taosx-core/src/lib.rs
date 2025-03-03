@@ -37,28 +37,25 @@ use crate::runners::postgres::postgres_to_taos;
 use crate::tmq_to_kafka::clean_task;
 pub use crate::tmq_to_kafka::tmq_to_kafka;
 
+pub mod core_metrics;
 pub mod csv;
+mod extensions;
 mod fake;
 mod legacy;
 pub mod local_to_taos;
 mod parquets;
+pub mod plugins;
+pub mod s3;
 pub mod taoz;
 pub mod tmq;
+mod tmq_to_kafka;
 pub mod tmq_to_local;
 mod tmq_to_td;
-pub mod types;
-
 pub mod transform;
+pub mod types;
 pub mod utils;
 
-pub mod plugins;
-mod tmq_to_kafka;
-
-pub mod core_metrics;
-mod extensions;
-
 pub mod global;
-
 #[allow(dead_code)] // TODO: remove this
 pub mod task_set;
 
