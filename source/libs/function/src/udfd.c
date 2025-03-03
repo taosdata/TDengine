@@ -1567,7 +1567,7 @@ static void udfdPrintVersion() {
 static int32_t udfdInitLog() {
   const char *logName = "udfdlog";
   TAOS_CHECK_RETURN(taosInitLogOutput(&logName));
-  return taosCreateLog(logName, 1, configDir, NULL, NULL, NULL, NULL, LOG_MODE_TAOSD);
+  return taosCreateLog(logName, 1, configDir, NULL, NULL, NULL, NULL, 0);
 }
 
 void udfdCtrlAllocBufCb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {

@@ -1073,22 +1073,21 @@ void taos_init_imp(void) {
 
   const char *logName = CUS_PROMPT "log";
   ENV_ERR_RET(taosInitLogOutput(&logName), "failed to init log output");
-  bool taosdIntegrated = false;
-#ifdef TAOSD_INTEGRATED
-  taosdIntegrated = true;
-#endif
-  if (taosCreateLog(logName, 10, configDir, NULL, NULL, NULL, NULL, taosdIntegrated ? LOG_MODE_BOTH : LOG_MODE_TAOSC) !=
-      0) {
+  if (taosCreateLog(logName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
     (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logName, strerror(errno), configDir);
     tscInitRes = terrno;
     return;
   }
 
-  ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, taosdIntegrated ? 0 : 1), "failed to init cfg");
+#ifdef TAOSD_INTEGRATED
+  ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1), "failed to init cfg");
+#else
+  ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0), "failed to init cfg");
+#endif
 
   initQueryModuleMsgHandle();
 #ifndef DISALLOW_NCHAR_WITHOUT_ICONV
-  if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL){
+  if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL) {
     tscInitRes = terrno;
     tscError("failed to init conv");
     return;

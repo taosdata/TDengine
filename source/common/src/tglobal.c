@@ -1903,9 +1903,10 @@ static int32_t taosSetAllDebugFlag(SConfig *pCfg, int32_t flag);
 static int8_t tsLogCreated = 0;
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
-                      const char *envFile, char *apolloUrl, SArray *pArgs, ELogMode mode) {
+                      const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
+  int32_t  mode = tsc ? LOG_MODE_TAOSC : LOG_MODE_TAOSD;
   SConfig *pCfg = NULL;
 
   if (atomic_val_compare_exchange_8(&tsLogCreated, 0, 1) != 0) return 0;
@@ -1915,6 +1916,10 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   }
 
   TAOS_CHECK_GOTO(cfgInit(&pCfg), &lino, _exit);
+
+#ifdef TAOSD_INTEGRATED
+  mode |= LOG_MODE_TAOSD;
+#endif
 
   tsLogEmbedded = (mode & LOG_MODE_TAOSC) ? 0 : 1;
   TAOS_CHECK_GOTO(taosAddClientLogCfg(pCfg), &lino, _exit);
