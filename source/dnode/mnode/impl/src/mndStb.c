@@ -846,7 +846,7 @@ static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj
 static SSchema *mndFindStbColumns(const SStbObj *pStb, const char *colName) {
   for (int32_t col = 0; col < pStb->numOfColumns; ++col) {
     SSchema *pSchema = &pStb->pColumns[col];
-    if (taosStrncasecmp(pSchema->name, colName, TSDB_COL_NAME_LEN) == 0) {
+    if (strncasecmp(pSchema->name, colName, TSDB_COL_NAME_LEN) == 0) {
       return pSchema;
     }
   }

@@ -37,7 +37,7 @@ static int32_t smlGetJsonElements(cJSON *root, cJSON ***marks) {
   for (int i = 0; i < OTD_JSON_FIELDS_NUM; ++i) {
     cJSON *child = root->child;
     while (child != NULL) {
-      if (taosStrcasecmp(child->string, jsonName[i]) == 0) {
+      if (strcasecmp(child->string, jsonName[i]) == 0) {
         *marks[i] = child;
         break;
       }
@@ -52,7 +52,7 @@ static int32_t smlGetJsonElements(cJSON *root, cJSON ***marks) {
 }
 
 static int32_t smlConvertJSONBool(SSmlKv *pVal, char *typeStr, cJSON *value) {
-  if (taosStrcasecmp(typeStr, "bool") != 0) {
+  if (strcasecmp(typeStr, "bool") != 0) {
     uError("SML:invalid type(%s) for JSON Bool", typeStr);
     return TSDB_CODE_TSC_INVALID_JSON_TYPE;
   }
@@ -65,7 +65,7 @@ static int32_t smlConvertJSONBool(SSmlKv *pVal, char *typeStr, cJSON *value) {
 
 static int32_t smlConvertJSONNumber(SSmlKv *pVal, char *typeStr, cJSON *value) {
   // tinyint
-  if (taosStrcasecmp(typeStr, "i8") == 0 || taosStrcasecmp(typeStr, "tinyint") == 0) {
+  if (strcasecmp(typeStr, "i8") == 0 || strcasecmp(typeStr, "tinyint") == 0) {
     if (!IS_VALID_TINYINT(value->valuedouble)) {
       uError("SML:JSON value(%f) cannot fit in type(tinyint)", value->valuedouble);
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
@@ -76,7 +76,7 @@ static int32_t smlConvertJSONNumber(SSmlKv *pVal, char *typeStr, cJSON *value) {
     return TSDB_CODE_SUCCESS;
   }
   // smallint
-  if (taosStrcasecmp(typeStr, "i16") == 0 || taosStrcasecmp(typeStr, "smallint") == 0) {
+  if (strcasecmp(typeStr, "i16") == 0 || strcasecmp(typeStr, "smallint") == 0) {
     if (!IS_VALID_SMALLINT(value->valuedouble)) {
       uError("SML:JSON value(%f) cannot fit in type(smallint)", value->valuedouble);
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
@@ -87,7 +87,7 @@ static int32_t smlConvertJSONNumber(SSmlKv *pVal, char *typeStr, cJSON *value) {
     return TSDB_CODE_SUCCESS;
   }
   // int
-  if (taosStrcasecmp(typeStr, "i32") == 0 || taosStrcasecmp(typeStr, "int") == 0) {
+  if (strcasecmp(typeStr, "i32") == 0 || strcasecmp(typeStr, "int") == 0) {
     if (!IS_VALID_INT(value->valuedouble)) {
       uError("SML:JSON value(%f) cannot fit in type(int)", value->valuedouble);
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
@@ -98,7 +98,7 @@ static int32_t smlConvertJSONNumber(SSmlKv *pVal, char *typeStr, cJSON *value) {
     return TSDB_CODE_SUCCESS;
   }
   // bigint
-  if (taosStrcasecmp(typeStr, "i64") == 0 || taosStrcasecmp(typeStr, "bigint") == 0) {
+  if (strcasecmp(typeStr, "i64") == 0 || strcasecmp(typeStr, "bigint") == 0) {
     pVal->type = TSDB_DATA_TYPE_BIGINT;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     if (value->valuedouble >= (double)INT64_MAX) {
@@ -111,7 +111,7 @@ static int32_t smlConvertJSONNumber(SSmlKv *pVal, char *typeStr, cJSON *value) {
     return TSDB_CODE_SUCCESS;
   }
   // float
-  if (taosStrcasecmp(typeStr, "f32") == 0 || taosStrcasecmp(typeStr, "float") == 0) {
+  if (strcasecmp(typeStr, "f32") == 0 || strcasecmp(typeStr, "float") == 0) {
     if (!IS_VALID_FLOAT(value->valuedouble)) {
       uError("SML:JSON value(%f) cannot fit in type(float)", value->valuedouble);
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
@@ -122,7 +122,7 @@ static int32_t smlConvertJSONNumber(SSmlKv *pVal, char *typeStr, cJSON *value) {
     return TSDB_CODE_SUCCESS;
   }
   // double
-  if (taosStrcasecmp(typeStr, "f64") == 0 || taosStrcasecmp(typeStr, "double") == 0) {
+  if (strcasecmp(typeStr, "f64") == 0 || strcasecmp(typeStr, "double") == 0) {
     pVal->type = TSDB_DATA_TYPE_DOUBLE;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     pVal->d = value->valuedouble;
@@ -135,11 +135,11 @@ static int32_t smlConvertJSONNumber(SSmlKv *pVal, char *typeStr, cJSON *value) {
 }
 
 static int32_t smlConvertJSONString(SSmlKv *pVal, char *typeStr, cJSON *value) {
-  if (taosStrcasecmp(typeStr, "binary") == 0) {
+  if (strcasecmp(typeStr, "binary") == 0) {
     pVal->type = TSDB_DATA_TYPE_BINARY;
-  } else if (taosStrcasecmp(typeStr, "varbinary") == 0) {
+  } else if (strcasecmp(typeStr, "varbinary") == 0) {
     pVal->type = TSDB_DATA_TYPE_VARBINARY;
-  } else if (taosStrcasecmp(typeStr, "nchar") == 0) {
+  } else if (strcasecmp(typeStr, "nchar") == 0) {
     pVal->type = TSDB_DATA_TYPE_NCHAR;
   } else {
     uError("SML:invalid type(%s) for JSON String", typeStr);

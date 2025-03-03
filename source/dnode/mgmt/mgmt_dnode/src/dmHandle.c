@@ -484,7 +484,7 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (tDeserializeSDCfgDnodeReq(pMsg->pCont, pMsg->contLen, &cfgReq) != 0) {
     return TSDB_CODE_INVALID_MSG;
   }
-  if (taosStrcasecmp(cfgReq.config, "dataDir") == 0) {
+  if (strcasecmp(cfgReq.config, "dataDir") == 0) {
     return taosUpdateTfsItemDisable(pCfg, cfgReq.value, pMgmt->pTfs);
   }
 
@@ -492,7 +492,7 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   code = cfgGetAndSetItem(pCfg, &pItem, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_SERVER_CMD, true);
   if (code != 0) {
-    if (taosStrncasecmp(cfgReq.config, "resetlog", strlen("resetlog")) == 0) {
+    if (strncasecmp(cfgReq.config, "resetlog", strlen("resetlog")) == 0) {
       TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, cfgReq.config, true));
       return TSDB_CODE_SUCCESS;
     } else {
@@ -688,7 +688,7 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return code;
   }
 #endif
-  if (taosStrcasecmp(retrieveReq.tb, TSDB_INS_TABLE_DNODE_VARIABLES)) {
+  if (strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_DNODE_VARIABLES)) {
     return TSDB_CODE_INVALID_MSG;
   }
 

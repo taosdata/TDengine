@@ -6116,8 +6116,8 @@ int32_t stbJoinOptRewriteToTagScan(SLogicNode* pJoin, SNode* pNode) {
       SColumnNode* pTargetCol = (SColumnNode*)pTarget;
       FOREACH(pTag, pTags) {
         SColumnNode* pTagCol = (SColumnNode*)pTag;
-        if (0 == taosStrcasecmp(pTargetCol->node.aliasName, pTagCol->colName) &&
-            0 == taosStrcasecmp(pTargetCol->tableAlias, pTagCol->tableAlias)) {
+        if (0 == strcasecmp(pTargetCol->node.aliasName, pTagCol->colName) &&
+            0 == strcasecmp(pTargetCol->tableAlias, pTagCol->tableAlias)) {
           found = true;
           break;
         }

@@ -464,7 +464,7 @@ static int32_t tlength(char *input, int32_t type, VarDataLenT *len) {
 }
 
 uint8_t getCharLen(const unsigned char *str) {
-  if (taosStrcasecmp(tsCharset, "UTF-8") != 0) {
+  if (strcasecmp(tsCharset, "UTF-8") != 0) {
     return 1;
   }
   if ((str[0] & 0x80) == 0) {
@@ -577,9 +577,7 @@ static void tlrtrimspace(char *input, char *output, int32_t type, int32_t charLe
   varDataSetLen(output, resLen);
 }
 
-static bool isCharStart(char c) {
-  return taosStrcasecmp(tsCharset, "UTF-8") == 0 ? ((c & 0xC0) != 0x80) : true;
-}
+static bool isCharStart(char c) { return strcasecmp(tsCharset, "UTF-8") == 0 ? ((c & 0xC0) != 0x80) : true; }
 
 static int32_t trimHelper(char *orgStr, char* remStr, int32_t orgLen, int32_t remLen, bool trimLeft, bool isNchar) {
   if (trimLeft) {
@@ -3966,17 +3964,17 @@ typedef enum {
 
 static int8_t getStateOpType(char *opStr) {
   int8_t opType;
-  if (taosStrncasecmp(opStr, "LT", 2) == 0) {
+  if (strncasecmp(opStr, "LT", 2) == 0) {
     opType = STATE_OPER_LT;
-  } else if (taosStrncasecmp(opStr, "GT", 2) == 0) {
+  } else if (strncasecmp(opStr, "GT", 2) == 0) {
     opType = STATE_OPER_GT;
-  } else if (taosStrncasecmp(opStr, "LE", 2) == 0) {
+  } else if (strncasecmp(opStr, "LE", 2) == 0) {
     opType = STATE_OPER_LE;
-  } else if (taosStrncasecmp(opStr, "GE", 2) == 0) {
+  } else if (strncasecmp(opStr, "GE", 2) == 0) {
     opType = STATE_OPER_GE;
-  } else if (taosStrncasecmp(opStr, "NE", 2) == 0) {
+  } else if (strncasecmp(opStr, "NE", 2) == 0) {
     opType = STATE_OPER_NE;
-  } else if (taosStrncasecmp(opStr, "EQ", 2) == 0) {
+  } else if (strncasecmp(opStr, "EQ", 2) == 0) {
     opType = STATE_OPER_EQ;
   } else {
     opType = STATE_OPER_INVALID;
@@ -4102,11 +4100,11 @@ typedef enum { UNKNOWN_BIN = 0, USER_INPUT_BIN, LINEAR_BIN, LOG_BIN } EHistoBinT
 
 static int8_t getHistogramBinType(char *binTypeStr) {
   int8_t binType;
-  if (taosStrcasecmp(binTypeStr, "user_input") == 0) {
+  if (strcasecmp(binTypeStr, "user_input") == 0) {
     binType = USER_INPUT_BIN;
-  } else if (taosStrcasecmp(binTypeStr, "linear_bin") == 0) {
+  } else if (strcasecmp(binTypeStr, "linear_bin") == 0) {
     binType = LINEAR_BIN;
-  } else if (taosStrcasecmp(binTypeStr, "log_bin") == 0) {
+  } else if (strcasecmp(binTypeStr, "log_bin") == 0) {
     binType = LOG_BIN;
   } else {
     binType = UNKNOWN_BIN;

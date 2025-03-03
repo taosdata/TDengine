@@ -771,7 +771,7 @@ int32_t mndUpdateObj(SConfigObj *pObjNew, const char *name, char *value) {
   switch (pObjNew->dtype) {
     case CFG_DTYPE_BOOL: {
       bool tmp = false;
-      if (taosStrcasecmp(value, "true") == 0) {
+      if (strcasecmp(value, "true") == 0) {
         tmp = true;
       }
       if (taosStr2Int32(value, NULL, 10) > 0) {

@@ -49,11 +49,11 @@ static int32_t validateTimeUnitParam(uint8_t dbPrec, const SValueNode* pVal) {
   }
 
   if (TSDB_TIME_PRECISION_MILLI == dbPrec &&
-      (0 == taosStrcasecmp(pVal->literal, "1u") || 0 == taosStrcasecmp(pVal->literal, "1b"))) {
+      (0 == strcasecmp(pVal->literal, "1u") || 0 == strcasecmp(pVal->literal, "1b"))) {
     return TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL;
   }
 
-  if (TSDB_TIME_PRECISION_MICRO == dbPrec && 0 == taosStrcasecmp(pVal->literal, "1b")) {
+  if (TSDB_TIME_PRECISION_MICRO == dbPrec && 0 == strcasecmp(pVal->literal, "1b")) {
     return TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL;
   }
 
@@ -508,11 +508,11 @@ typedef enum { UNKNOWN_BIN = 0, USER_INPUT_BIN, LINEAR_BIN, LOG_BIN } EHistoBinT
 
 static int8_t validateHistogramBinType(char* binTypeStr) {
   int8_t binType;
-  if (taosStrcasecmp(binTypeStr, "user_input") == 0) {
+  if (strcasecmp(binTypeStr, "user_input") == 0) {
     binType = USER_INPUT_BIN;
-  } else if (taosStrcasecmp(binTypeStr, "linear_bin") == 0) {
+  } else if (strcasecmp(binTypeStr, "linear_bin") == 0) {
     binType = LINEAR_BIN;
-  } else if (taosStrcasecmp(binTypeStr, "log_bin") == 0) {
+  } else if (strcasecmp(binTypeStr, "log_bin") == 0) {
     binType = LOG_BIN;
   } else {
     binType = UNKNOWN_BIN;
@@ -733,7 +733,7 @@ static int32_t checkFixedValue(SNode* pNode, const SParamInfo* paramPattern, int
       }
     } else {
       for (int32_t k = 0; k < paramPattern->fixedValueSize; k++) {
-        if (taosStrcasecmp(pVal->literal, paramPattern->fixedStrValue[k]) == 0) {
+        if (strcasecmp(pVal->literal, paramPattern->fixedStrValue[k]) == 0) {
           code = TSDB_CODE_SUCCESS;
           *isMatch = true;
           break;

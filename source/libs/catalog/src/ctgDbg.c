@@ -229,37 +229,37 @@ _return:
 #endif
 
 int32_t ctgdEnableDebug(char *option, bool enable) {
-  if (0 == taosStrcasecmp(option, "lock")) {
+  if (0 == strcasecmp(option, "lock")) {
     gCTGDebug.lockEnable = enable;
     qDebug("catalog lock debug set to %d", enable);
     return TSDB_CODE_SUCCESS;
   }
 
-  if (0 == taosStrcasecmp(option, "cache")) {
+  if (0 == strcasecmp(option, "cache")) {
     gCTGDebug.cacheEnable = enable;
     qDebug("catalog cache debug set to %d", enable);
     return TSDB_CODE_SUCCESS;
   }
 
-  if (0 == taosStrcasecmp(option, "api")) {
+  if (0 == strcasecmp(option, "api")) {
     gCTGDebug.apiEnable = enable;
     qDebug("catalog api debug set to %d", enable);
     return TSDB_CODE_SUCCESS;
   }
 
-  if (0 == taosStrcasecmp(option, "meta")) {
+  if (0 == strcasecmp(option, "meta")) {
     gCTGDebug.metaEnable = enable;
     qDebug("catalog meta debug set to %d", enable);
     return TSDB_CODE_SUCCESS;
   }
 
-  if (0 == taosStrcasecmp(option, "stat")) {
+  if (0 == strcasecmp(option, "stat")) {
     gCTGDebug.statEnable = enable;
     qDebug("catalog stat debug set to %d", enable);
     return TSDB_CODE_SUCCESS;
   }
 
-  if (0 == taosStrcasecmp(option, "stopUpdate")) {
+  if (0 == strcasecmp(option, "stopUpdate")) {
     SCatalog *pCtg = NULL;
     
     void *pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);
@@ -362,7 +362,7 @@ int32_t ctgdGetOneHandle(SCatalog **pHandle) {
 
 
 int32_t ctgdGetStatNum(char *option, void *res) {
-  if (0 == taosStrcasecmp(option, "runtime.numOfOpDequeue")) {
+  if (0 == strcasecmp(option, "runtime.numOfOpDequeue")) {
     *(uint64_t *)res = atomic_load_64(&gCtgMgmt.statInfo.runtime.numOfOpDequeue);
     return TSDB_CODE_SUCCESS;
   }

@@ -304,7 +304,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
     char      value[TSDB_CONFIG_PATH_LEN + VARSTR_HEADER_SIZE] = {0};
     int32_t   valueLen = 0;
     SDiskCfg* pDiskCfg = NULL;
-    if (taosStrcasecmp(pItem->name, "dataDir") == 0 && exSize > 0) {
+    if (strcasecmp(pItem->name, "dataDir") == 0 && exSize > 0) {
       char* buf = &value[VARSTR_HEADER_SIZE];
       pDiskCfg = taosArrayGet(pItem->array, index);
       valueLen = tsnprintf(buf, TSDB_CONFIG_PATH_LEN, "%s", pDiskCfg->dir);
@@ -347,7 +347,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, category, false), NULL, _exit);
 
     char info[TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE] = {0};
-    if (taosStrcasecmp(pItem->name, "dataDir") == 0 && pDiskCfg) {
+    if (strcasecmp(pItem->name, "dataDir") == 0 && pDiskCfg) {
       char* buf = &info[VARSTR_HEADER_SIZE];
       valueLen = tsnprintf(buf, TSDB_CONFIG_INFO_LEN, "level %d primary %d disabled %" PRIi8, pDiskCfg->level,
                            pDiskCfg->primary, pDiskCfg->disable);

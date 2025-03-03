@@ -64,7 +64,7 @@ char *taosCharsetReplace(char *charsetstr) {
   };
 
   for (int32_t i = 0; i < tListLen(charsetRep); ++i) {
-    if (taosStrcasecmp(charsetRep[i].oldCharset, charsetstr) == 0) {
+    if (strcasecmp(charsetRep[i].oldCharset, charsetstr) == 0) {
       return taosStrdup(charsetRep[i].newCharset);
     }
   }

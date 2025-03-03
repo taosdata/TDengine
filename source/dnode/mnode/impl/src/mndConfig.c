@@ -557,11 +557,11 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   }
 
   SDCfgDnodeReq dcfgReq = {0};
-  if (taosStrcasecmp(cfgReq.config, "resetlog") == 0) {
+  if (strcasecmp(cfgReq.config, "resetlog") == 0) {
     tstrncpy(dcfgReq.config, "resetlog", 9);
     goto _send_req;
 #ifdef TD_ENTERPRISE
-  } else if (taosStrncasecmp(cfgReq.config, "s3blocksize", 12) == 0) {
+  } else if (strncasecmp(cfgReq.config, "s3blocksize", 12) == 0) {
     int32_t optLen = strlen("s3blocksize");
     int32_t flag = -1;
     int32_t code = mndMCfgGetValInt32(&cfgReq, optLen, &flag);
@@ -586,7 +586,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       code = TSDB_CODE_INVALID_CFG;
       goto _err_out;
     }
-    if (taosStrncasecmp(dcfgReq.config, "enableWhiteList", strlen("enableWhiteList")) == 0) {
+    if (strncasecmp(dcfgReq.config, "enableWhiteList", strlen("enableWhiteList")) == 0) {
       updateIpWhiteList = 1;
     }
 
@@ -718,7 +718,7 @@ static int32_t initConfigArrayFromSdb(SMnode *pMnode, SArray *array) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _exit;
     }
-    if (taosStrcasecmp(obj->name, "tsmmConfigVersion") == 0) {
+    if (strcasecmp(obj->name, "tsmmConfigVersion") == 0) {
       sdbRelease(pSdb, obj);
       continue;
     }

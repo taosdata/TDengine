@@ -353,7 +353,7 @@ static SAnodeObj *mndAcquireAnodeByURL(SMnode *pMnode, char *url) {
     pIter = sdbFetch(pSdb, SDB_ANODE, pIter, (void **)&pAnode);
     if (pIter == NULL) break;
 
-    if (taosStrcasecmp(url, pAnode->url) == 0) {
+    if (strcasecmp(url, pAnode->url) == 0) {
       sdbCancelFetch(pSdb, pIter);
       return pAnode;
     }

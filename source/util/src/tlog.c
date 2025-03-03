@@ -236,17 +236,17 @@ int32_t taosInitLogOutput(const char **ppLogName) {
       fprintf(stderr, "invalid log output destination:%s, contains illegal char\n", pLog);
       return TSDB_CODE_INVALID_CFG;
     }
-    if (0 == taosStrcasecmp(pLog, "stdout")) {
+    if (0 == strcasecmp(pLog, "stdout")) {
       tsLogObj.outputType = LOG_OUTPUT_STDOUT;
       if (ppLogName) *ppLogName = pLog;
       return 0;
     }
-    if (0 == taosStrcasecmp(pLog, "stderr")) {
+    if (0 == strcasecmp(pLog, "stderr")) {
       tsLogObj.outputType = LOG_OUTPUT_STDERR;
       if (ppLogName) *ppLogName = pLog;
       return 0;
     }
-    if (0 == taosStrcasecmp(pLog, "/dev/null")) {
+    if (0 == strcasecmp(pLog, "/dev/null")) {
       tsLogObj.outputType = LOG_OUTPUT_NULL;
       if (ppLogName) *ppLogName = pLog;
       return 0;

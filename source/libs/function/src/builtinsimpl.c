@@ -1995,9 +1995,9 @@ int32_t getApercentileMaxSize() {
 
 static int8_t getApercentileAlgo(char* algoStr) {
   int8_t algoType;
-  if (taosStrcasecmp(algoStr, "default") == 0) {
+  if (strcasecmp(algoStr, "default") == 0) {
     algoType = APERCT_ALGO_DEFAULT;
-  } else if (taosStrcasecmp(algoStr, "t-digest") == 0) {
+  } else if (strcasecmp(algoStr, "t-digest") == 0) {
     algoType = APERCT_ALGO_TDIGEST;
   } else {
     algoType = APERCT_ALGO_UNKNOWN;
@@ -4469,11 +4469,11 @@ bool getHistogramFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv)
 
 static int8_t getHistogramBinType(char* binTypeStr) {
   int8_t binType;
-  if (taosStrcasecmp(binTypeStr, "user_input") == 0) {
+  if (strcasecmp(binTypeStr, "user_input") == 0) {
     binType = USER_INPUT_BIN;
-  } else if (taosStrcasecmp(binTypeStr, "linear_bin") == 0) {
+  } else if (strcasecmp(binTypeStr, "linear_bin") == 0) {
     binType = LINEAR_BIN;
-  } else if (taosStrcasecmp(binTypeStr, "log_bin") == 0) {
+  } else if (strcasecmp(binTypeStr, "log_bin") == 0) {
     binType = LOG_BIN;
   } else {
     binType = UNKNOWN_BIN;
@@ -5081,17 +5081,17 @@ bool getStateFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
 
 static int8_t getStateOpType(char* opStr) {
   int8_t opType;
-  if (taosStrncasecmp(opStr, "LT", 2) == 0) {
+  if (strncasecmp(opStr, "LT", 2) == 0) {
     opType = STATE_OPER_LT;
-  } else if (taosStrncasecmp(opStr, "GT", 2) == 0) {
+  } else if (strncasecmp(opStr, "GT", 2) == 0) {
     opType = STATE_OPER_GT;
-  } else if (taosStrncasecmp(opStr, "LE", 2) == 0) {
+  } else if (strncasecmp(opStr, "LE", 2) == 0) {
     opType = STATE_OPER_LE;
-  } else if (taosStrncasecmp(opStr, "GE", 2) == 0) {
+  } else if (strncasecmp(opStr, "GE", 2) == 0) {
     opType = STATE_OPER_GE;
-  } else if (taosStrncasecmp(opStr, "NE", 2) == 0) {
+  } else if (strncasecmp(opStr, "NE", 2) == 0) {
     opType = STATE_OPER_NE;
-  } else if (taosStrncasecmp(opStr, "EQ", 2) == 0) {
+  } else if (strncasecmp(opStr, "EQ", 2) == 0) {
     opType = STATE_OPER_EQ;
   } else {
     opType = STATE_OPER_INVALID;

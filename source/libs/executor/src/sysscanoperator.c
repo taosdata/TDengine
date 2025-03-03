@@ -433,7 +433,7 @@ static bool sysTableIsOperatorCondOnOneTable(SNode* pCond, char* condTable) {
   SOperatorNode* node = (SOperatorNode*)pCond;
   if (node->opType == OP_TYPE_EQUAL) {
     if (nodeType(node->pLeft) == QUERY_NODE_COLUMN &&
-        taosStrcasecmp(nodesGetNameFromColumnNode(node->pLeft), "table_name") == 0 &&
+        strcasecmp(nodesGetNameFromColumnNode(node->pLeft), "table_name") == 0 &&
         nodeType(node->pRight) == QUERY_NODE_VALUE) {
       SValueNode* pValue = (SValueNode*)node->pRight;
       if (pValue->node.resType.type == TSDB_DATA_TYPE_NCHAR || pValue->node.resType.type == TSDB_DATA_TYPE_VARCHAR) {
@@ -2548,30 +2548,30 @@ static int32_t doSysTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes)
     const char* name = tNameGetTableName(&pInfo->name);
     if (pInfo->showRewrite) {
       getDBNameFromCondition(pInfo->pCondition, dbName);
-      if (taosStrncasecmp(name, TSDB_INS_TABLE_COMPACTS, TSDB_TABLE_FNAME_LEN) != 0 &&
-          taosStrncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, TSDB_TABLE_FNAME_LEN) != 0 &&
-          taosStrncasecmp(name, TSDB_INS_TABLE_TRANSACTION_DETAILS, TSDB_TABLE_FNAME_LEN) != 0) {
+      if (strncasecmp(name, TSDB_INS_TABLE_COMPACTS, TSDB_TABLE_FNAME_LEN) != 0 &&
+          strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, TSDB_TABLE_FNAME_LEN) != 0 &&
+          strncasecmp(name, TSDB_INS_TABLE_TRANSACTION_DETAILS, TSDB_TABLE_FNAME_LEN) != 0) {
         TAOS_UNUSED(tsnprintf(pInfo->req.db, sizeof(pInfo->req.db), "%d.%s", pInfo->accountId, dbName));
       }
-    } else if (taosStrncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0) {
+    } else if (strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0) {
       getDBNameFromCondition(pInfo->pCondition, dbName);
       if (dbName[0]) TAOS_UNUSED(tsnprintf(pInfo->req.db, sizeof(pInfo->req.db), "%d.%s", pInfo->accountId, dbName));
       (void)sysTableIsCondOnOneTable(pInfo->pCondition, pInfo->req.filterTb);
     }
     bool         filter = true;
     SSDataBlock* pBlock = NULL;
-    if (taosStrncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0) {
+    if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0) {
       pBlock = sysTableScanUserTables(pOperator);
-    } else if (taosStrncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0) {
+    } else if (strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0) {
       pBlock = sysTableScanUserTags(pOperator);
-    } else if (taosStrncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 && pInfo->readHandle.mnd == NULL) {
+    } else if (strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 && pInfo->readHandle.mnd == NULL) {
       pBlock = sysTableScanUserCols(pOperator);
-    } else if (taosStrncasecmp(name, TSDB_INS_TABLE_STABLES, TSDB_TABLE_FNAME_LEN) == 0 && pInfo->showRewrite &&
+    } else if (strncasecmp(name, TSDB_INS_TABLE_STABLES, TSDB_TABLE_FNAME_LEN) == 0 && pInfo->showRewrite &&
                IS_SYS_DBNAME(dbName)) {
       pBlock = sysTableScanUserSTables(pOperator);
-    } else if (taosStrncasecmp(name, TSDB_INS_DISK_USAGE, TSDB_TABLE_FNAME_LEN) == 0) {
+    } else if (strncasecmp(name, TSDB_INS_DISK_USAGE, TSDB_TABLE_FNAME_LEN) == 0) {
       pBlock = sysTableScanUsage(pOperator);
-    } else if (taosStrncasecmp(name, TSDB_INS_TABLE_FILESETS, TSDB_TABLE_FNAME_LEN) == 0) {
+    } else if (strncasecmp(name, TSDB_INS_TABLE_FILESETS, TSDB_TABLE_FNAME_LEN) == 0) {
       pBlock = sysTableScanUserFileSets(pOperator);
     } else {  // load the meta from mnode of the given epset
       pBlock = sysTableScanFromMNode(pOperator, pInfo, name, pTaskInfo);
@@ -2666,7 +2666,7 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
       return NULL;
     }
 
-    int32_t msgType = (taosStrcasecmp(name, TSDB_INS_TABLE_DNODE_VARIABLES) == 0) ? TDMT_DND_SYSTABLE_RETRIEVE
+    int32_t msgType = (strcasecmp(name, TSDB_INS_TABLE_DNODE_VARIABLES) == 0) ? TDMT_DND_SYSTABLE_RETRIEVE
                                                                               : TDMT_MND_SYSTABLE_RETRIEVE;
 
     pMsgSendInfo->param = pOperator;
@@ -2778,7 +2778,7 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   if (pInfo->showRewrite == false) {
     code = filterInitFromNode(pScanNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   } else {
-    if (taosStrncasecmp(name, TSDB_INS_DISK_USAGE, TSDB_TABLE_FNAME_LEN) == 0) {
+    if (strncasecmp(name, TSDB_INS_DISK_USAGE, TSDB_TABLE_FNAME_LEN) == 0) {
       pInfo->skipFilterTable = true;
       code = filterInitFromNode(NULL, &pOperator->exprSupp.pFilterInfo, 0);
     } else {
@@ -2792,9 +2792,9 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   code = blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  if (taosStrncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
-      taosStrncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
-      taosStrncasecmp(name, TSDB_INS_TABLE_FILESETS, TSDB_TABLE_FNAME_LEN) == 0) {
+  if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
+      strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
+      strncasecmp(name, TSDB_INS_TABLE_FILESETS, TSDB_TABLE_FNAME_LEN) == 0) {
     pInfo->readHandle = *(SReadHandle*)readHandle;
   } else {
     if (tsem_init(&pInfo->ready, 0, 0) != TSDB_CODE_SUCCESS) {
@@ -2858,9 +2858,9 @@ void destroySysScanOperator(void* param) {
 
   if (pInfo->name.type == TSDB_TABLE_NAME_T) {
     const char* name = tNameGetTableName(&pInfo->name);
-    if (taosStrncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
-        taosStrncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
-        taosStrncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
+    if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
+        strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0 ||
+        strncasecmp(name, TSDB_INS_TABLE_COLS, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
       if (pInfo->pAPI != NULL && pInfo->pAPI->metaFn.closeTableMetaCursor != NULL) {
         pInfo->pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
       }
