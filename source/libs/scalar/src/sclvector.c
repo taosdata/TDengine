@@ -1104,6 +1104,8 @@ STypeMod getConvertTypeMod(int32_t type, const SColumnInfo* pCol1, const SColumn
       return decimalCalcTypeMod(GET_DEICMAL_MAX_PRECISION(type), pCol1->scale);
     } else if (pCol2 && IS_DECIMAL_TYPE(pCol2->type) && !IS_DECIMAL_TYPE(pCol1->type)) {
       return decimalCalcTypeMod(GET_DEICMAL_MAX_PRECISION(type), pCol2->scale);
+    } else if (IS_DECIMAL_TYPE(pCol1->type) && pCol2 && IS_DECIMAL_TYPE(pCol2->type)) {
+      return decimalCalcTypeMod(GET_DEICMAL_MAX_PRECISION(type), MAX(pCol1->scale, pCol2->scale));
     } else {
       return 0;
     }
