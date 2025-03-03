@@ -255,7 +255,31 @@ class TDTestCase:
         tdSql.error(f"select distinct  t1, t0 from (select t1,t0 from {dbname}.stb1 where t0 > 2  group by ts) where  t1 < 3")
         tdSql.query(f"select distinct  stb1.t1, stb1.t2 from {dbname}.stb1, {dbname}.stb2 where stb1.ts=stb2.ts and stb1.t2=stb2.t4")
         tdSql.query(f"select distinct  t1.t1, t1.t2 from {dbname}.t1, {dbname}.t2 where t1.ts=t2.ts ")
+        
+        self.ts5971()
 
+    def ts5971(self):
+        dbname = "db"
+                
+        tdSql.execute(f"DROP TABLE IF EXISTS {dbname}.t5971")
+        tdSql.execute(f"create table {dbname}.t5971 (time TIMESTAMP, c1 INT)")
+        tdSql.execute(f"INSERT INTO {dbname}.t5971(time, c1) VALUES (1641024000000, 1), (1641024005000, 2)")
+        tdSql.query(f"SELECT DISTINCT CSUM(c1), time FROM {dbname}.t5971 ORDER BY time")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 1641024000000)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(1, 1, 1641024005000)
+        
+        tdSql.query(f"SELECT DISTINCT CSUM(c1), time AS ref FROM {dbname}.t5971 ORDER BY ref")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 1641024000000)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(1, 1, 1641024005000)
+        
+        tdSql.query(f"SELECT DISTINCT CSUM(c1), time FROM {dbname}.t5971")
+        tdSql.checkRows(2)
 
 
     def stop(self):

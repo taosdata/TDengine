@@ -16,10 +16,6 @@ IF(TD_WEBSOCKET)
             DEPENDS ${TAOS_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
-            UPDATE_COMMAND
-                COMMAND echo "Starting to switch branch"
-                COMMAND git fetch origin main && git checkout -f origin/main 
-                COMMAND echo "Switched to the main branch successfully"
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
@@ -39,10 +35,6 @@ IF(TD_WEBSOCKET)
             DEPENDS ${TAOS_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
-            UPDATE_COMMAND
-                COMMAND echo "Starting to switch branch"
-                COMMAND git fetch origin main && git checkout -f origin/main 
-                COMMAND echo "Switched to the main branch successfully"
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
@@ -63,10 +55,6 @@ IF(TD_WEBSOCKET)
             DEPENDS ${TAOS_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
-            UPDATE_COMMAND
-                COMMAND echo "Starting to switch branch"
-                COMMAND git fetch origin main && git checkout -f origin/main 
-                COMMAND echo "Switched to the main branch successfully"
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND

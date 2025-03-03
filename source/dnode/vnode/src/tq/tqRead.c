@@ -1098,6 +1098,22 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SMqDataRsp* pRsp, SArray* block
     *pSubmitTbDataRet = pSubmitTbData;
   }
 
+  if (fetchMeta == ONLY_META) {
+    if (pSubmitTbData->pCreateTbReq != NULL) {
+      if (pRsp->createTableReq == NULL){
+        pRsp->createTableReq = taosArrayInit(0, POINTER_BYTES);
+        if (pRsp->createTableReq == NULL){
+          return terrno;
+        }
+      }
+      if (taosArrayPush(pRsp->createTableReq, &pSubmitTbData->pCreateTbReq) == NULL){
+        return terrno;
+      }
+      pSubmitTbData->pCreateTbReq = NULL;
+    }
+    return 0;
+  }
+
   int32_t sversion = pSubmitTbData->sver;
   int64_t uid = pSubmitTbData->uid;
   pReader->lastBlkUid = uid;

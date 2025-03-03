@@ -202,6 +202,18 @@ int32_t taosAsyncRecover() {
   return taskQueue.wrokrerPool.pCb->afterRecoverFromBlocking(&taskQueue.wrokrerPool);
 }
 
+int32_t taosStmt2AsyncBind(__async_exec_fn_t bindFn, void* bindParam) {
+  SSchedMsg* pSchedMsg;
+  int32_t rc = taosAllocateQitem(sizeof(SSchedMsg), DEF_QITEM, 0, (void **)&pSchedMsg);
+  if (rc) return rc;
+  pSchedMsg->fp = NULL;
+  pSchedMsg->ahandle = bindFn;
+  pSchedMsg->thandle = bindParam;
+  // pSchedMsg->msg = code;
+
+  return taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
+}
+
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   if (NULL == pMsgBody) {
     return;

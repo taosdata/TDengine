@@ -190,7 +190,7 @@ system sh/exec.sh -n dnode1 -s start
 sql insert into t1 values(1648791223004,5,2,3,1.1);
 
 loop4:
-sleep 1000
+run tsim/stream/checkTaskStatus.sim
 
 sql select * from streamt;
 

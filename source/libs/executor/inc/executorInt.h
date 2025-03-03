@@ -686,6 +686,54 @@ typedef struct SResultWindowInfo {
   bool         isOutput;
 } SResultWindowInfo;
 
+typedef struct SSessionAggOperatorInfo {
+  SOptrBasicInfo        binfo;
+  SAggSupporter         aggSup;
+  SExprSupp             scalarSupp;  // supporter for perform scalar function
+  SGroupResInfo         groupResInfo;
+  SWindowRowsSup        winSup;
+  bool                  reptScan;  // next round scan
+  int64_t               gap;       // session window gap
+  int32_t               tsSlotId;  // primary timestamp slot id
+  STimeWindowAggSupp    twAggSup;
+  struct SOperatorInfo* pOperator;
+  bool                  cleanGroupResInfo;
+} SSessionAggOperatorInfo;
+
+typedef struct SStateWindowOperatorInfo {
+  SOptrBasicInfo        binfo;
+  SAggSupporter         aggSup;
+  SExprSupp             scalarSup;
+  SGroupResInfo         groupResInfo;
+  SWindowRowsSup        winSup;
+  SColumn               stateCol;  // start row index
+  bool                  hasKey;
+  SStateKeys            stateKey;
+  int32_t               tsSlotId;  // primary timestamp column slot id
+  STimeWindowAggSupp    twAggSup;
+  struct SOperatorInfo* pOperator;
+  bool                  cleanGroupResInfo;
+  int64_t               trueForLimit;
+} SStateWindowOperatorInfo;
+
+
+typedef struct SEventWindowOperatorInfo {
+  SOptrBasicInfo     binfo;
+  SAggSupporter      aggSup;
+  SExprSupp          scalarSup;
+  SWindowRowsSup     winSup;
+  int32_t            tsSlotId;  // primary timestamp column slot id
+  STimeWindowAggSupp twAggSup;
+  uint64_t           groupId;  // current group id, used to identify the data block from different groups
+  SFilterInfo*       pStartCondInfo;
+  SFilterInfo*       pEndCondInfo;
+  bool               inWindow;
+  SResultRow*        pRow;
+  SSDataBlock*       pPreDataBlock;
+  struct SOperatorInfo*     pOperator;
+  int64_t            trueForLimit;
+} SEventWindowOperatorInfo;
+
 typedef struct SStreamSessionAggOperatorInfo {
   SOptrBasicInfo      binfo;
   SSteamOpBasicInfo   basic;
@@ -746,6 +794,7 @@ typedef struct SStreamStateAggOperatorInfo {
   SSHashObj*          pPkDeleted;
   bool                destHasPrimaryKey;
   struct SOperatorInfo* pOperator;
+  int64_t              trueForLimit;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SStreamEventAggOperatorInfo {
@@ -778,6 +827,7 @@ typedef struct SStreamEventAggOperatorInfo {
   struct SOperatorInfo* pOperator;
   SNodeList*            pStartCondCols;
   SNodeList*            pEndCondCols;
+  int64_t               trueForLimit;
 } SStreamEventAggOperatorInfo;
 
 typedef struct SStreamCountAggOperatorInfo {
@@ -1052,7 +1102,8 @@ int32_t saveSessionOutputBuf(SStreamAggSupporter* pAggSup, SResultWindowInfo* pW
 int32_t saveResult(SResultWindowInfo winInfo, SSHashObj* pStUpdated);
 int32_t saveDeleteRes(SSHashObj* pStDelete, SSessionKey key);
 void    removeSessionResult(SStreamAggSupporter* pAggSup, SSHashObj* pHashMap, SSHashObj* pResMap, SSessionKey* pKey);
-void    doBuildDeleteDataBlock(struct SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlock* pBlock, void** Ite);
+void    doBuildDeleteDataBlock(struct SOperatorInfo* pOp, SSHashObj* pStDeleted, SSDataBlock* pBlock, void** Ite,
+                               SGroupResInfo* pGroupResInfo);
 void    doBuildSessionResult(struct SOperatorInfo* pOperator, void* pState, SGroupResInfo* pGroupResInfo,
                              SSDataBlock* pBlock, SArray* pSessionKeys);
 int32_t getSessionWindowInfoByKey(SStreamAggSupporter* pAggSup, SSessionKey* pKey, SResultWindowInfo* pWinInfo);
@@ -1109,6 +1160,7 @@ int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBl
 int32_t extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status);
 bool    getIgoreNullRes(SExprSupp* pExprSup);
 bool    checkNullRow(SExprSupp* pExprSup, SSDataBlock* pSrcBlock, int32_t index, bool ignoreNull);
+int64_t getMinWindowSize(struct SOperatorInfo* pOperator);
 
 #ifdef __cplusplus
 }

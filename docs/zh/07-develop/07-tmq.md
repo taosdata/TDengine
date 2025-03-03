@@ -10,7 +10,7 @@ import TabItem from "@theme/TabItem";
 TDengine 提供了类似于消息队列产品的数据订阅和消费接口。在许多场景中，采用 TDengine 的时序大数据平台，无须再集成消息队列产品，从而简化应用程序设计并降低运维成本。本章介绍各语言连接器数据订阅的相关 API 以及使用方法。 数据订阅的基础知识请参考 [数据订阅](../../advanced/subscription/)  
 
 ## 创建主题
-请用 taos shell 或者 参考 [执行 SQL](../sql/) 章节用程序执行创建主题的 SQL：`CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`  
+请用 TDengine CLI 或者 参考 [执行 SQL](../sql/) 章节用程序执行创建主题的 SQL：`CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`  
 
 上述 SQL 将创建一个名为 topic_meters 的订阅。使用该订阅所获取的消息中的每条记录都由此查询语句 `SELECT ts, current, voltage, phase, groupid, location FROM meters` 所选择的列组成。
 
@@ -39,10 +39,13 @@ TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接�
 |    `auto.offset.reset`    |  enum   | 消费组订阅的初始位置                                                                                                                              | <br />`earliest`: default(version < 3.2.0.0);从头开始订阅; <br/>`latest`: default(version >= 3.2.0.0);仅从最新数据开始订阅; <br/>`none`: 没有提交的 offset 无法订阅 |
 |   `enable.auto.commit`    | boolean | 是否启用消费位点自动提交，true: 自动提交，客户端应用无需commit；false：客户端应用需要自行commit                                                   | 默认值为 true                                                                                                                                                       |
 | `auto.commit.interval.ms` | integer | 消费记录自动提交消费位点时间间隔，单位为毫秒                                                                                                      | 默认值为 5000                                                                                                                                                       |
-|   `msg.with.table.name`   | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）（从3.2.0.0版本该参数废弃，恒为true）                     | 默认关闭                                                                                                                                                            |
+|   `msg.with.table.name`   | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）（从 3.2.0.0 版本该参数废弃，恒为 true）                     | 默认关闭                                                                                                                                                            |
 |      `enable.replay`      | boolean | 是否开启数据回放功能                                                                                                                              | 默认关闭                                                                                                                                                            |
-|   `session.timeout.ms`    | integer | consumer 心跳丢失后超时时间，超时后会触发 rebalance 逻辑，成功后该 consumer 会被删除（从3.3.3.0版本开始支持）                                     | 默认值为 12000，取值范围 [6000， 1800000]                                                                                                                           |
-|  `max.poll.interval.ms`   | integer | consumer poll 拉取数据间隔的最长时间，超过该时间，会认为该 consumer 离线，触发rebalance 逻辑，成功后该 consumer 会被删除（从3.3.3.0版本开始支持） | 默认值为 300000，[1000，INT32_MAX]                                                                                                                                  |
+|   `session.timeout.ms`    | integer | consumer 心跳丢失后超时时间，超时后会触发 rebalance 逻辑，成功后该 consumer 会被删除（从 3.3.3.0 版本开始支持）                                     | 默认值为 12000，取值范围 [6000， 1800000]                                                                                                                           |
+|  `max.poll.interval.ms`   | integer | consumer poll 拉取数据间隔的最长时间，超过该时间，会认为该 consumer 离线，触发 rebalance 逻辑，成功后该 consumer 会被删除（从 3.3.3.0 版本开始支持） | 默认值为 300000，[1000，INT32_MAX]                                                                                                                                  |
+|  `fetch.max.wait.ms`      | integer | 服务端单次返回数据的最大耗时（从 3.3.6.0 版本开始支持） | 默认值为 1000，[1，INT32_MAX]                                                                                                                                  |
+|  `min.poll.rows`          | integer | 服务端单次返回数据的最小条数（从 3.3.6.0 版本开始支持） | 默认值为 4096，[1，INT32_MAX]                                                                                                                                  |
+|  `msg.consume.rawdata`    | integer | 消费数据时拉取数据类型为二进制类型，不可做解析操作，内部参数，只用于 taosX 数据迁移（从 3.3.6.0 版本开始支持） | 默认值为 0 表示不起效， 非 0 为 起效                                                                                                                                  |
 
 
 下面是各语言连接器创建参数：
