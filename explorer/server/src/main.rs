@@ -93,6 +93,7 @@ async fn get_connection(dsn: &Dsn) -> Result<Object<Manager<TaosBuilder>>, Strin
     if user_pool.is_some() {
         return user_pool.unwrap().get().await.map_err(|err| match err {
             PoolError::Backend(inner_err) => format!("{inner_err:#}"),
+            PoolError::Timeout(timeout_type) => format!("Timeout {timeout_type:?} when connect to taosadapter, please check configuration item 'cluster' in explorer.toml"),
             err => format!("Failed to get connection: {err:#}"),
         });
     }
@@ -111,6 +112,7 @@ async fn get_connection(dsn: &Dsn) -> Result<Object<Manager<TaosBuilder>>, Strin
     let pool = pool.unwrap();
     let conn = pool.get().await.map_err(|err| match err {
         PoolError::Backend(inner_err) => format!("{inner_err:#}"),
+        PoolError::Timeout(timeout_type) => format!("Timeout {timeout_type:?} when connect to taosadapter, please check configuration item 'cluster' in explorer.toml"),
         err => format!("Failed to get connection: {err:#}"),
     });
 
@@ -2025,6 +2027,35 @@ certificate_key = "tests/assets/cert-key.pem"
             .timeout(std::time::Duration::from_secs(3))
             .assert();
         assert.interrupted();
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_connect_timeout() -> anyhow::Result<(), anyhow::Error> {
+        let profile = Profile {
+            cluster: Some("http://no.exist:6041".to_string()),
+            ..Default::default()
+        };
+
+        let args = Args {
+            profile,
+            ..Default::default()
+        };
+
+        // 默认用户名密码：root:taosdata
+        let dsn = args.build_dsn("Basic cm9vdDp0YW9zZGF0YQ==").unwrap();
+
+        // 清除旧数据
+        let sql = "select * from `test_explorer`";
+        let result = args.query_inner(&dsn, sql, None, 0).await;
+        assert!(result.is_err());
+
+        let err = result.unwrap_err();
+        let error_message = err.desc;
+        assert!(
+            error_message.contains("please check configuration item 'cluster' in explorer.toml")
+        );
+
         Ok(())
     }
 
