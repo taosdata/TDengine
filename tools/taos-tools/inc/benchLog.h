@@ -36,9 +36,6 @@ void unlockLog(int8_t idx);
 // exit log
 void exitLog();
 
-struct tm* toolsLocalTime(const time_t *timep, struct tm *result);
-int32_t toolsGetTimeOfDay(struct timeval *tv);
-
 #define debugPrint(fmt, ...)                                                \
     do {                                                                    \
         if (g_arguments->debug_print) {                                     \

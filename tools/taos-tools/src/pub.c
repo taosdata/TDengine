@@ -12,39 +12,7 @@
 
  #include <stdio.h>
  #include "pub.h"
- #include "benchLog.h"
 
-struct tm* toolsLocalTime(const time_t *timep, struct tm *result) {
-    #if defined(LINUX) || defined(DARWIN)
-        localtime_r(timep, result);
-    #else
-        localtime_s(result, timep);
-    #endif
-        return result;
-}
-    
-int32_t toolsGetTimeOfDay(struct timeval *tv) {
-    #if defined(WIN32) || defined(WIN64)
-        LARGE_INTEGER t;
-        FILETIME      f;
-    
-        GetSystemTimeAsFileTime(&f);
-        t.QuadPart = f.dwHighDateTime;
-        t.QuadPart <<= 32;
-        t.QuadPart |= f.dwLowDateTime;
-    
-        t.QuadPart -= TIMEEPOCH;
-        tv->tv_sec = t.QuadPart / 10000000;
-        tv->tv_usec = (t.QuadPart % 10000000) / 10;
-        return (0);
-    #else
-        return gettimeofday(tv, NULL);
-    #endif
-}
-
-void engineError(char * module, char * fun, int32_t code) {
-    errorPrint("%s %s fun=%s error code:0x%08X \n", TIP_ENGINE_ERR, module, fun, code);
-}
 
  char* strToLowerCopy(const char *str) {
      if (str == NULL) {
@@ -62,7 +30,7 @@ void engineError(char * module, char * fun, int32_t code) {
      return result;
  }
  
- int32_t parseDsn(char* dsn, char **host, char **port, char **user, char **pwd) {
+ int32_t parseDsn(char* dsn, char **host, char **port, char **user, char **pwd, char *error) {
      // dsn format:
      // local  http://127.0.0.1:6041 
      // cloud  https://gw.cloud.taosdata.com?token=617ffdf...
@@ -71,7 +39,7 @@ void engineError(char * module, char * fun, int32_t code) {
      // find "://"
      char *p1 = strstr(dsn, "://");
      if (p1 == NULL) {
-         errorPrint("dsn invalid, not found \"://\" in ds:%s\n", dsn);
+         sprintf(error, "%s", "dsn invalid, not found \"://\" ");
          return -1;
      }
      *host = p1 + 3; // host
@@ -101,7 +69,7 @@ void engineError(char * module, char * fun, int32_t code) {
          *p4  = 0; 
          *pwd = p4 + 1;
      } else {
-         errorPrint("dsn invalid, found \"?\" but not found \"=\" in ds:%s\n", dsn);
+         sprintf(error, "%s", "dsn invalid, found \"?\" but not found \"=\" ");
          return -1;
      }
  

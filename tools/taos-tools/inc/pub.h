@@ -13,20 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
- #ifndef PUB_H_
- #define PUB_H_
+#ifndef PUB_H_
+#define PUB_H_
 
 #include <stdio.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdlib.h>
 #include <ctype.h>
 #include <inttypes.h>
-#include <errno.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <errno.h>
 
 //
 //  --------------  define ------------------
@@ -58,8 +55,7 @@
 //  --------------  api ------------------
 //
 
-void engineError(char * module, char * fun, int32_t code);
 char* strToLowerCopy(const char *str);
-int32_t parseDsn(char* dsn, char **host, char **port, char **user, char **pwd);
+int32_t parseDsn(char* dsn, char **host, char **port, char **user, char **pwd, char* error);
 
 #endif // PUB_H_

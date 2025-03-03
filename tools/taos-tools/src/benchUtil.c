@@ -46,6 +46,10 @@ FORCE_INLINE void tmfree(void *buf) {
     }
 }
 
+void engineError(char * module, char * fun, int32_t code) {
+    errorPrint("%s %s fun=%s error code:0x%08X \n", TIP_ENGINE_ERR, module, fun, code);
+}
+
 void ERROR_EXIT(const char *msg) {
     errorPrint("%s", msg);
     exit(EXIT_FAILURE);
@@ -311,8 +315,10 @@ SBenchConn* initBenchConnImpl() {
         }
 
         char *cport = NULL;
-        code = parseDsn(dsnc, &host, &cport, &user, &pwd);
+        char error[512] = "\0";
+        code = parseDsn(dsnc, &host, &cport, &user, &pwd, error);
         if (code) {
+            errorPrint("%s dsn=%s\n", error, dsnc);
             tmfree(conn);
             tmfree(dsnc);
             return NULL;

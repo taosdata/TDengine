@@ -1012,9 +1012,4 @@ int killSlowQuery();
 // fetch super table child name from server
 int fetchChildTableName(char *dbName, char *stbName);
 
-// lower
-char* strToLowerCopy(const char *str);
-// pase dsn
-int32_t parseDsn(char* dsn, char **host, char **port, char **user, char **pwd);
-
 #endif   // INC_BENCH_H_
