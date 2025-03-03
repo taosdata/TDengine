@@ -49,7 +49,7 @@ int32_t fillTableColCmpr(SMetaReader *reader, SSchemaExt *pExt, int32_t numOfCol
   return 0;
 }
 
-void vnodePrintTableMeta(STableMetaRsp* pMeta) {
+void vnodePrintTableMeta(STableMetaRsp *pMeta) {
   if (!(qDebugFlag & DEBUG_DEBUG)) {
     return;
   }
@@ -70,13 +70,12 @@ void vnodePrintTableMeta(STableMetaRsp* pMeta) {
   qDebug("sysInfo:%d", pMeta->sysInfo);
   if (pMeta->pSchemas) {
     for (int32_t i = 0; i < (pMeta->numOfColumns + pMeta->numOfTags); ++i) {
-      SSchema* pSchema = pMeta->pSchemas + i;
-      qDebug("%d col/tag: type:%d, flags:%d, colId:%d, bytes:%d, name:%s", i, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes, pSchema->name);
+      SSchema *pSchema = pMeta->pSchemas + i;
+      qDebug("%d col/tag: type:%d, flags:%d, colId:%d, bytes:%d, name:%s", i, pSchema->type, pSchema->flags,
+             pSchema->colId, pSchema->bytes, pSchema->name);
     }
   }
-
 }
-
 
 int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   STableInfoReq  infoReq = {0};
@@ -528,6 +527,13 @@ _exit:
   return code;
 }
 
+#define VNODE_DO_META_QUERY(pVnode, cmd)                 \
+  do {                                                   \
+    (void)taosThreadRwlockRdlock(&(pVnode)->metaRWLock); \
+    cmd;                                                 \
+    (void)taosThreadRwlockUnlock(&(pVnode)->metaRWLock); \
+  } while (0)
+
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   SSyncState state = syncGetState(pVnode->sync);
   pLoad->syncAppliedIndex = pVnode->state.applied;
@@ -543,8 +549,8 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->learnerProgress = state.progress;
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
   pLoad->numOfCachedTables = tsdbCacheGetElems(pVnode);
-  pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
-  pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1);
+  VNODE_DO_META_QUERY(pVnode, pLoad->numOfTables = metaGetTbNum(pVnode->pMeta));
+  VNODE_DO_META_QUERY(pVnode, pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1));
   pLoad->totalStorage = (int64_t)3 * 1073741824;
   pLoad->compStorage = (int64_t)2 * 1073741824;
   pLoad->pointsWritten = 100;
