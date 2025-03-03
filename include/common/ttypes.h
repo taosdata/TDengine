@@ -33,7 +33,11 @@ typedef int32_t  col_bytes_t;
 typedef int32_t  schema_ver_t;
 typedef int32_t  func_id_t;
 
-#pragma pack(push, TD_PACK_MIN_SIZE)
+#if TD_PACK_MIN_SIZE == 4
+#pragma pack(push, 4)
+#else
+#pragma pack(push, 1)
+#endif
 typedef struct {
   VarDataLenT len;
   uint8_t     data;

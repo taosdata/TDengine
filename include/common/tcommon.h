@@ -164,7 +164,11 @@ typedef enum EStreamType {
   STREAM_NOTIFY_EVENT,
 } EStreamType;
 
-#pragma pack(push, TD_PACK_MIN_SIZE)
+#if TD_PACK_MIN_SIZE == 4
+#pragma pack(push, 4)
+#else
+#pragma pack(push, 1)
+#endif
 typedef struct SColumnDataAgg {
   int16_t colId;
   int16_t numOfNull;

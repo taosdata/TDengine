@@ -96,7 +96,11 @@ typedef struct SExecResult {
   void*    res;
 } SExecResult;
 
-#pragma pack(push, TD_PACK_MIN_SIZE)
+#if TD_PACK_MIN_SIZE == 4
+#pragma pack(push, 4)
+#else
+#pragma pack(push, 1)
+#endif
 typedef struct SCTableMeta {
   uint64_t uid;
   uint64_t suid;
@@ -105,7 +109,11 @@ typedef struct SCTableMeta {
 } SCTableMeta;
 #pragma pack(pop)
 
-#pragma pack(push, TD_PACK_MIN_SIZE)
+#if TD_PACK_MIN_SIZE == 4
+#pragma pack(push, 4)
+#else
+#pragma pack(push, 1)
+#endif
 typedef struct STableMeta {
   // BEGIN: KEEP THIS PART SAME WITH SCTableMeta
   uint64_t uid;
