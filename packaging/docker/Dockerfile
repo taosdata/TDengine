@@ -15,6 +15,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini-${cpuType} /tini
 RUN chmod +x /tini
 
+WORKDIR /root
 RUN tar -zxf /root/${pkgFile} && \
     /bin/bash /root/${dirName}/install.sh -e no && \
     rm /root/${pkgFile} && \
