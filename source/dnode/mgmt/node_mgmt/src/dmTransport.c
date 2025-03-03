@@ -174,7 +174,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     case TDMT_MND_RETRIEVE_IP_WHITE_RSP:
       dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
-    case TDMT_MND_RETRIEVE_ANAL_ALGO_RSP:
+    case TDMT_MND_RETRIEVE_ANALY_ALGO_RSP:
       dmUpdateAnalFunc(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
     default:

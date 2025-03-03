@@ -76,10 +76,10 @@ static int32_t forecastCacheBlock(SForecastSupp* pSupp, SSDataBlock* pBlock, con
   int32_t       lino = 0;
   SAnalyticBuf* pBuf = &pSupp->analBuf;
 
-  if (pSupp->cachedRows > ANAL_FORECAST_MAX_ROWS) {
+  if (pSupp->cachedRows > ANALY_FORECAST_MAX_ROWS) {
     code = TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
     qError("%s rows:%" PRId64 " for forecast cache, error happens, code:%s, upper limit:%d", id, pSupp->cachedRows,
-           tstrerror(code), ANAL_FORECAST_MAX_ROWS);
+           tstrerror(code), ANALY_FORECAST_MAX_ROWS);
     return code;
   }
 
@@ -139,7 +139,7 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp) {
   code = taosAnalBufWriteOptStr(pBuf, "prec", prec);
   if (code != 0) return code;
 
-  int64_t wncheck = ANAL_FORECAST_DEFAULT_WNCHECK;
+  int64_t wncheck = ANALY_FORECAST_DEFAULT_WNCHECK;
   bool    hasWncheck = taosAnalGetOptInt(pSupp->algoOpt, "wncheck", &wncheck);
   if (!hasWncheck) {
     qDebug("forecast wncheck not found from %s, use default:%" PRId64, pSupp->algoOpt, wncheck);
@@ -151,7 +151,7 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp) {
   code = taosAnalBufWriteOptInt(pBuf, "return_conf", !noConf);
   if (code != 0) return code;
 
-  pSupp->optRows = ANAL_FORECAST_DEFAULT_ROWS;
+  pSupp->optRows = ANALY_FORECAST_DEFAULT_ROWS;
   bool hasRows = taosAnalGetOptInt(pSupp->algoOpt, "rows", &pSupp->optRows);
   if (!hasRows) {
     qDebug("forecast rows not found from %s, use default:%" PRId64, pSupp->algoOpt, pSupp->optRows);
@@ -159,7 +159,7 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp) {
   code = taosAnalBufWriteOptInt(pBuf, "forecast_rows", pSupp->optRows);
   if (code != 0) return code;
 
-  int64_t conf = ANAL_FORECAST_DEFAULT_CONF;
+  int64_t conf = ANALY_FORECAST_DEFAULT_CONF;
   bool    hasConf = taosAnalGetOptInt(pSupp->algoOpt, "conf", &conf);
   if (!hasConf) {
     qDebug("forecast conf not found from %s, use default:%" PRId64, pSupp->algoOpt, conf);
@@ -530,7 +530,7 @@ static int32_t forecastParseAlgo(SForecastSupp* pSupp) {
     return TSDB_CODE_ANA_ALGO_NOT_FOUND;
   }
 
-  if (taosAnalGetAlgoUrl(pSupp->algoName, ANAL_ALGO_TYPE_FORECAST, pSupp->algoUrl, sizeof(pSupp->algoUrl)) != 0) {
+  if (taosAnalGetAlgoUrl(pSupp->algoName, ANALY_ALGO_TYPE_FORECAST, pSupp->algoUrl, sizeof(pSupp->algoUrl)) != 0) {
     qError("failed to get forecast algorithm url from %s", pSupp->algoName);
     return TSDB_CODE_ANA_ALGO_NOT_LOAD;
   }

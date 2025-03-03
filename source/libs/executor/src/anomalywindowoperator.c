@@ -83,7 +83,7 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
     goto _error;
   }
 
-  if (taosAnalGetAlgoUrl(pInfo->algoName, ANAL_ALGO_TYPE_ANOMALY_DETECT, pInfo->algoUrl, sizeof(pInfo->algoUrl)) != 0) {
+  if (taosAnalGetAlgoUrl(pInfo->algoName, ANALY_ALGO_TYPE_ANOMALY_DETECT, pInfo->algoUrl, sizeof(pInfo->algoUrl)) != 0) {
     qError("%s failed to get anomaly_window algorithm url from %s", id, pInfo->algoName);
     code = TSDB_CODE_ANA_ALGO_NOT_LOAD;
     goto _error;
@@ -265,7 +265,7 @@ static void anomalyDestroyOperatorInfo(void* param) {
 }
 
 static int32_t anomalyCacheBlock(SAnomalyWindowOperatorInfo* pInfo, SSDataBlock* pSrc) {
-  if (pInfo->anomalySup.cachedRows > ANAL_ANOMALY_WINDOW_MAX_ROWS) {
+  if (pInfo->anomalySup.cachedRows > ANALY_ANOMALY_WINDOW_MAX_ROWS) {
     return TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
   }
 
@@ -439,7 +439,7 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   code = taosAnalBufWriteOptStr(&analBuf, "prec", prec);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
-  int64_t wncheck = ANAL_FORECAST_DEFAULT_WNCHECK;
+  int64_t wncheck = ANALY_FORECAST_DEFAULT_WNCHECK;
   bool    hasWncheck = taosAnalGetOptInt(pInfo->anomalyOpt, "wncheck", &wncheck);
   if (!hasWncheck) {
     qDebug("anomaly_window wncheck not found from %s, use default:%" PRId64, pInfo->anomalyOpt, wncheck);

@@ -38,9 +38,9 @@ static int32_t   taosAnalBufGetCont(SAnalyticBuf *pBuf, char **ppCont, int64_t *
 
 const char *taosAnalysisAlgoType(EAnalAlgoType type) {
   switch (type) {
-    case ANAL_ALGO_TYPE_ANOMALY_DETECT:
+    case ANALY_ALGO_TYPE_ANOMALY_DETECT:
       return "anomaly-detection";
-    case ANAL_ALGO_TYPE_FORECAST:
+    case ANALY_ALGO_TYPE_FORECAST:
       return "forecast";
     default:
       return "unknown";
@@ -49,9 +49,9 @@ const char *taosAnalysisAlgoType(EAnalAlgoType type) {
 
 const char *taosAnalAlgoUrlStr(EAnalAlgoType type) {
   switch (type) {
-    case ANAL_ALGO_TYPE_ANOMALY_DETECT:
+    case ANALY_ALGO_TYPE_ANOMALY_DETECT:
       return "anomaly-detect";
-    case ANAL_ALGO_TYPE_FORECAST:
+    case ANALY_ALGO_TYPE_FORECAST:
       return "forecast";
     default:
       return "unknown";
@@ -59,13 +59,13 @@ const char *taosAnalAlgoUrlStr(EAnalAlgoType type) {
 }
 
 EAnalAlgoType taosAnalAlgoInt(const char *name) {
-  for (EAnalAlgoType i = 0; i < ANAL_ALGO_TYPE_END; ++i) {
+  for (EAnalAlgoType i = 0; i < ANALY_ALGO_TYPE_END; ++i) {
     if (strcasecmp(name, taosAnalysisAlgoType(i)) == 0) {
       return i;
     }
   }
 
-  return ANAL_ALGO_TYPE_END;
+  return ANALY_ALGO_TYPE_END;
 }
 
 int32_t taosAnalyticsInit() {
