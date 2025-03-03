@@ -280,7 +280,7 @@ int32_t taosInitLogOutput(const char **ppLogName) {
   return 0;
 }
 
-int32_t taosInitLog(const char *logName, int32_t maxFiles, ELogMode mode) {
+int32_t taosInitLog(const char *logName, int32_t maxFiles, bool tsc) {
   if (atomic_val_compare_exchange_8(&tsLogInited, 0, 1) != 0) return 0;
   int32_t code = osUpdate();
   if (code != 0) {
@@ -293,7 +293,7 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles, ELogMode mode) {
   }
 
   TAOS_CHECK_RETURN(taosInitNormalLog(logName, maxFiles));
-  if (mode & LOG_MODE_TAOSC) {
+  if (tsc) {
     TAOS_CHECK_RETURN(taosInitSlowLog());
   }
   TAOS_CHECK_RETURN(taosStartLog());

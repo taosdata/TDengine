@@ -36,8 +36,7 @@ typedef enum {
 
 typedef enum {
   LOG_MODE_TAOSC = 1,
-  LOG_MODE_TAOSD = 2,
-  LOG_MODE_BOTH = 3,  // LOG_MODE_TAOSC | LOG_MODE_TAOSD
+  LOG_MODE_TAOSD = 2
 } ELogMode;
 
 typedef void (*LogFp)(int64_t ts, ELogLevel level, const char *content);
@@ -79,7 +78,7 @@ extern int32_t simDebugFlag;
 
 extern int32_t tqClientDebugFlag;
 int32_t taosInitLogOutput(const char **ppLogName);
-int32_t taosInitLog(const char *logName, int32_t maxFiles, ELogMode mode);
+int32_t taosInitLog(const char *logName, int32_t maxFiles, bool tsc);
 void    taosCloseLog();
 void    taosResetLog();
 void    taosDumpData(uint8_t *msg, int32_t len);
