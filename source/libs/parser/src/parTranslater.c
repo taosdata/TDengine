@@ -11321,9 +11321,11 @@ static int32_t translateCompactRange(STranslateContext* pCxt, const char* dbName
 }
 
 static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt) {
-  SCompactDbReq compactReq = {0};
-  SName         name;
-  int32_t       code = TSDB_CODE_SUCCESS;
+  SCompactDbReq compactReq = {
+      .metaOnly = pStmt->metaOnly,
+  };
+  SName   name;
+  int32_t code = TSDB_CODE_SUCCESS;
   code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   if (TSDB_CODE_SUCCESS != code) return code;
 
@@ -11390,7 +11392,9 @@ static int32_t translateVgroupList(STranslateContext* pCxt, SNodeList* vgroupLis
 static int32_t translateCompactVgroups(STranslateContext* pCxt, SCompactVgroupsStmt* pStmt) {
   int32_t       code = TSDB_CODE_SUCCESS;
   SName         name;
-  SCompactDbReq req = {0};
+  SCompactDbReq req = {
+      .metaOnly = pStmt->metaOnly,
+  };
 
   code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal,
                         strlen(((SValueNode*)pStmt->pDbName)->literal));

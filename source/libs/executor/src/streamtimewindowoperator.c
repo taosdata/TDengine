@@ -474,14 +474,12 @@ void destroyFlusedppPos(void* ppRes) {
 }
 
 void clearGroupResInfo(SGroupResInfo* pGroupResInfo) {
-  if (pGroupResInfo->freeItem) {
-    int32_t size = taosArrayGetSize(pGroupResInfo->pRows);
-    for (int32_t i = pGroupResInfo->index; i < size; i++) {
-      void* pPos = taosArrayGetP(pGroupResInfo->pRows, i);
-      destroyFlusedPos(pPos);
-    }
-    pGroupResInfo->freeItem = false;
+  int32_t size = taosArrayGetSize(pGroupResInfo->pRows);
+  for (int32_t i = pGroupResInfo->index; i < size; i++) {
+    void* pPos = taosArrayGetP(pGroupResInfo->pRows, i);
+    destroyFlusedPos(pPos);
   }
+  pGroupResInfo->freeItem = false;
   taosArrayDestroy(pGroupResInfo->pRows);
   pGroupResInfo->pRows = NULL;
   pGroupResInfo->index = 0;

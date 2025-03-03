@@ -1643,6 +1643,7 @@ typedef struct {
   int32_t     sqlLen;
   char*       sql;
   SArray*     vgroupIds;
+  int8_t      metaOnly;
 } SCompactDbReq;
 
 int32_t tSerializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq);
@@ -1849,6 +1850,7 @@ typedef struct {
   int32_t     statusSeq;
   int64_t     ipWhiteVer;
   int64_t     analVer;
+  int64_t     timestamp;
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
@@ -2088,6 +2090,7 @@ typedef struct {
   int64_t     compactStartTime;
   STimeWindow tw;
   int32_t     compactId;
+  int8_t      metaOnly;
 } SCompactVnodeReq;
 
 int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);

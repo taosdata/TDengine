@@ -170,6 +170,7 @@ typedef struct SCompactDatabaseStmt {
   char      dbName[TSDB_DB_NAME_LEN];
   SNode*    pStart;
   SNode*    pEnd;
+  bool      metaOnly;
 } SCompactDatabaseStmt;
 
 typedef struct SCompactVgroupsStmt {
@@ -178,6 +179,7 @@ typedef struct SCompactVgroupsStmt {
   SNodeList* vgidList;
   SNode*     pStart;
   SNode*     pEnd;
+  bool       metaOnly;
 } SCompactVgroupsStmt;
 
 typedef struct STableOptions {
