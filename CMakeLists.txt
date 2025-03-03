@@ -44,12 +44,7 @@ set(TD_SOURCE_DIR ${TD_COMMUNITY_DIR})
 set(TD_SUPPORT_DIR "${TD_SOURCE_DIR}/cmake")
 set(TD_CONTRIB_DIR "${TD_SOURCE_DIR}/contrib")
 
-include(${TD_ENTERPRISE_DIR}/cmake/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.platform)
-include(${TD_SUPPORT_DIR}/cmake.define)
-include(${TD_SUPPORT_DIR}/cmake.options)
-include(${TD_SUPPORT_DIR}/cmake.version)
-include(${TD_SUPPORT_DIR}/cmake.install)
 
 set(TD_ENTERPRISE TRUE)
 set(TD_ACCOUNT TRUE)
@@ -81,16 +76,23 @@ if(TD_WINDOWS OR TD_DARWIN)
   set(TD_SOMODE_STATIC TRUE)
 endif()
 
+include(${TD_ENTERPRISE_DIR}/cmake/cmake.options)
+include(${TD_SUPPORT_DIR}/cmake.define)
+include(${TD_SUPPORT_DIR}/cmake.options)
+include(${TD_SUPPORT_DIR}/cmake.version)
+include(${TD_SUPPORT_DIR}/cmake.install)
+
 add_library(api INTERFACE)
 target_include_directories(api INTERFACE "${TD_SOURCE_DIR}/include/client")
 
-add_subdirectory(enterprise/contrib)
 add_subdirectory(community/contrib)
 add_subdirectory(community/source)
 add_subdirectory(community/tools)
 add_subdirectory(community/utils)
 add_subdirectory(community/tests)
 add_subdirectory(community/docs/doxgen)
+
+add_subdirectory(enterprise/contrib)
 add_subdirectory(enterprise)
 
 if(${BUILD_TEST})
