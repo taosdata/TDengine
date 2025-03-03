@@ -133,6 +133,10 @@ int32_t mmPutMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->readWorker, pMsg);
 }
 
+int32_t mmPutMsgToStatusQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return mmPutMsgToWorker(pMgmt, &pMgmt->statusWorker, pMsg);
+}
+
 int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t code = 0;
   if (NULL == pMgmt->pMnode) {
@@ -171,6 +175,9 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
       break;
     case READ_QUEUE:
       pWorker = &pMgmt->readWorker;
+      break;
+    case STATUS_QUEUE:
+      pWorker = &pMgmt->statusWorker;
       break;
     case ARB_QUEUE:
       pWorker = &pMgmt->arbWorker;
@@ -246,6 +253,18 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     return code;
   }
 
+  SSingleWorkerCfg stautsCfg = {
+      .min = 1,
+      .max = 1,
+      .name = "mnode-status",
+      .fp = (FItem)mmProcessRpcMsg,
+      .param = pMgmt,
+  };
+  if ((code = tSingleWorkerInit(&pMgmt->statusWorker, &stautsCfg)) != 0) {
+    dError("failed to start mnode-status worker since %s", tstrerror(code));
+    return code;
+  }
+
   SSingleWorkerCfg wCfg = {
       .min = 1,
       .max = 1,
@@ -304,6 +323,7 @@ void mmStopWorker(SMnodeMgmt *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->queryWorker);
   tSingleWorkerCleanup(&pMgmt->fetchWorker);
   tSingleWorkerCleanup(&pMgmt->readWorker);
+  tSingleWorkerCleanup(&pMgmt->statusWorker);
   tSingleWorkerCleanup(&pMgmt->writeWorker);
   tSingleWorkerCleanup(&pMgmt->arbWorker);
   tSingleWorkerCleanup(&pMgmt->syncWorker);
