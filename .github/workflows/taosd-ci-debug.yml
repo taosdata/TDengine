@@ -321,14 +321,15 @@ jobs:
       group: CI
       labels: [self-hosted, Windows, X64, testing]
     env:
-      IS_TDINTERNAL: ${{ needs.check-trigger-from.outputs.is_tdinternal }}
+      IS_TDINTERNAL: ${{ needs.fetch-parameters.outputs.tdinternal }}
       SOURCE_BRANCH: ${{ needs.fetch-parameters.outputs.source_branch }}
       TARGET_BRANCH: ${{ needs.fetch-parameters.outputs.target_branch }}
       PR_NUMBER: ${{ needs.fetch-parameters.outputs.pr_number }}
-      WIN_INTERNAL_ROOT: 'C:\\workspace\\TDinternal'
-      WIN_COMMUNITY_ROOT: 'C:\\workspace\\TDinternal\\community'
-      WIN_SYSTEM_TEST_ROOT: 'C:\\workspace\\TDinternal\\community\\tests\\system-test'
-      WIN_VS_PATH: 'C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat x64'
+      WIN_INTERNAL_ROOT: "C:\\workspace\\TDinternal"
+      WIN_COMMUNITY_ROOT: "C:\\workspace\\TDinternal\\community"
+      WIN_SYSTEM_TEST_ROOT: "C:\\workspace\\TDinternal\\community\\tests\\system-test"
+      WIN_VS_PATH: "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat"
+      WIN_CPU_TYPE: "x64"
     steps:
       - name: Output the environment information
         run: |
@@ -340,69 +341,80 @@ jobs:
           set
           date /t
           time /t
-          rd /s /Q ${{ env.WIN_INTERNAL_ROOT }}\\debug || exit 0
+          rd /s /Q "%WIN_INTERNAL_ROOT%\debug" || exit 0
         shell: cmd
       - name: Prepare repositories
         run: |
-          :: Define a function to prepare the environment
-          :prepare_environment
-          cd /d "%~1"
-          git reset --hard
-          git clean -f
-          git remote prune origin
-          git fetch
-          git checkout "%~2"
-          goto :eof
+          :: Prepare internal repository
+          if exist "%WIN_INTERNAL_ROOT%" (
+            cd /d "%WIN_INTERNAL_ROOT%"
+            git reset --hard
+            git clean -f
+            git remote prune origin
+            git fetch
+            git checkout "%TARGET_BRANCH%"
+          ) else (
+            echo Directory does not exist: "%WIN_INTERNAL_ROOT%"
+          )
 
-          call :prepare_environment "${{ env.WIN_INTERNAL_ROOT }}" "${{ env.TARGET_BRANCH }}"
-          call :prepare_environment "${{ env.WIN_COMMUNITY_ROOT }}" "${{ env.TARGET_BRANCH }}"
+          :: Prepare community repository
+          if exist "%WIN_COMMUNITY_ROOT%" (
+            cd /d "%WIN_COMMUNITY_ROOT%"
+            git reset --hard
+            git clean -f
+            git remote prune origin
+            git fetch
+            git checkout "%TARGET_BRANCH%"
+          ) else (
+            echo Directory does not exist: "%WIN_COMMUNITY_ROOT%"
+          )
         shell: cmd
       - name: Get latest codes and logs for TDinternal PR
         if: ${{ env.IS_TDINTERNAL == 'true' }}
         run: |
-          cd ${{ env.WIN_INTERNAL_ROOT }}
-          git pull origin ${{ env.TARGET_BRANCH }}
-          git fetch origin +refs/pull/${{ env.PR_NUMBER }}/merge
+          cd %WIN_INTERNAL_ROOT%
+          git pull origin %TARGET_BRANCH%
+          git fetch origin +refs/pull/%PR_NUMBER%/merge
           git checkout -qf FETCH_HEAD
-          cd ${{ env.WIN_COMMUNITY_ROOT }}
+          cd %WIN_COMMUNITY_ROOT%
           git remote prune origin
           git pull
         shell: cmd
       - name: Get latest codes and logs for TDengine PR
         if: ${{ env.IS_TDINTERNAL == 'false' }}
         run: |
-          cd ${{ env.WIN_INTERNAL_ROOT }}
-          git pull origin ${{ env.TARGET_BRANCH }}
-          cd ${{ env.WIN_COMMUNITY_ROOT }}
+          cd %WIN_INTERNAL_ROOT%
+          git pull origin %TARGET_BRANCH%
+          cd %WIN_COMMUNITY_ROOT%
           git remote prune origin
-          git pull  origin ${{ env.TARGET_BRANCH }}
-          git fetch origin +refs/pull/${{ env.PR_NUMBER }}/merge
+          git pull  origin %TARGET_BRANCH%
+          git fetch origin +refs/pull/%PR_NUMBER%/merge
           git checkout -qf FETCH_HEAD
         shell: cmd
       - name: Output branch and log information
         run: |
-          cd ${{ env.WIN_INTERNAL_ROOT }}
+          cd %WIN_INTERNAL_ROOT%
           git branch
           git log -5
 
-          cd ${{ env.WIN_COMMUNITY_ROOT }}
+          cd %WIN_COMMUNITY_ROOT%
           git branch
           git log -5
         shell: cmd
       - name: Update submodule
         run: |
-          cd ${{ env.WIN_COMMUNITY_ROOT }}
+          cd %WIN_COMMUNITY_ROOT%
           git submodule update --init --recursive
         shell: cmd
       - name: Build on windows
         run: |
           echo "building ..."
           time /t
-          cd ${{ env.WIN_INTERNAL_ROOT }}
+          cd %WIN_INTERNAL_ROOT%
           mkdir debug
           cd debug
           time /t
-          call ${{ env.WIN_VS_PATH }}
+          call "%WIN_VS_PATH%" %WIN_CPU_TYPE%
           set CL=/MP8
           echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> cmake"
           time /t
@@ -412,26 +424,26 @@ jobs:
           jom -j 6 || exit 8
           time /t
 
-          cd ${{ env.WIN_COMMUNITY_ROOT }}/tests/ci
+          cd %WIN_COMMUNITY_ROOT%/tests/ci
           pip3 install taospy==2.7.21 
           pip3 install taos-ws-py==0.3.8
-          xcopy /e/y/i/f ${{ env.WIN_INTERNAL_ROOT }}\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
+          xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
         shell: cmd
       - name: Run ctest
         run: |
           echo "windows ctest ..."
           time /t
-          cd ${{ env.WIN_INTERNAL_ROOT }}\\debug
+          cd %WIN_INTERNAL_ROOT%\\debug
           ctest -j 1 || exit 7
           time /t
         shell: cmd
       - name: Run function test
         run: |
           echo "windows test ..."
-          xcopy /e/y/i/f ${{ env.WIN_INTERNAL_ROOT }}\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
-          ls -l C:\\Windows\\System32\\taos.dll
+          xcopy /e/y/i/f "%WIN_INTERNAL_ROOT%\debug\build\lib\taos.dll" C:\Windows\System32
+          ls -l "C:\Windows\System32\taos.dll"
           time /t
-          cd ${{ env.WIN_SYSTEM_TEST_ROOT }}
+          cd %WIN_SYSTEM_TEST_ROOT%
           echo "testing ..."
           test-all.bat ci
           time /t
