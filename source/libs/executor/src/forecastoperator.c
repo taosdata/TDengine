@@ -158,7 +158,7 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp, const char* id) {
   }
 
   if (pSupp->optRows > ANALY_MAX_FC_ROWS) {
-    qError("required too many forecast rows, max allowed:%d, required:%d", id, ANALY_MAX_FC_ROWS, pSupp->optRows);
+    qError("%s required too many forecast rows, max allowed:%d, required:%d", id, ANALY_MAX_FC_ROWS, pSupp->optRows);
     return TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
   }
 
