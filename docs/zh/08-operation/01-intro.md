@@ -77,7 +77,7 @@ taosX Agent 是 TDengine Enterprise 数据管道功能的重要组成部分，�
 这些应用程序负责向业务集群写入、查询业务数据以及订阅数据。应用程序可以通过以下 3 种方式与业务集群进行交互。
 - 基于 taosc 的应用程序：采用原生连接的应用程序，直接连接到业务集群，默认端口为 6030。
 - 基于 RESTful 连接的应用程序：使用 RESTful 接口访问业务集群的应用程序，需要通过 taosAdapter 进行连接，默认端口为 6041。
-- 基于 WebSkcket 连接的应用程序：采用 WebSocket 连接的应用程序，同样需要通过 taosAdapter 进行连接，默认端口为 6041。
+- 基于 WebSocket 连接的应用程序：采用 WebSocket 连接的应用程序，同样需要通过 taosAdapter 进行连接，默认端口为 6041。
 
 2. 可视化/BI 工具
 
