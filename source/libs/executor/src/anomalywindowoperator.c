@@ -47,6 +47,7 @@ typedef struct {
   char               algoName[TSDB_ANALYTIC_ALGO_NAME_LEN];
   char               algoUrl[TSDB_ANALYTIC_ALGO_URL_LEN];
   char               anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
+  int64_t            timeout;
   SAnomalyWindowSupp anomalySup;
   SWindowRowsSup     anomalyWinRowSup;
   SColumn            anomalyCol;
@@ -87,6 +88,20 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
     qError("%s failed to get anomaly_window algorithm url from %s", id, pInfo->algoName);
     code = TSDB_CODE_ANA_ALGO_NOT_LOAD;
     goto _error;
+  }
+
+  bool hasTimeout = taosAnalGetOptInt(pAnomalyNode->anomalyOpt, "timeout", &pInfo->timeout);
+  if (!hasTimeout) {
+    qDebug("not set the timeout val, set default:%d", ANALY_FC_DEFAULT_TIMEOUT);
+    pInfo->timeout = ANALY_FC_DEFAULT_TIMEOUT;
+  } else {
+    if (pInfo->timeout <= 500 || pInfo->timeout > 600*1000) {
+      qDebug("timeout val:%" PRId64 "ms is invalid (greater than 10min or less than 0.5s), use default:%" PRId64 "ms",
+             pInfo->timeout, ANALY_FC_DEFAULT_TIMEOUT);
+      pInfo->timeout = ANALY_FC_DEFAULT_TIMEOUT;
+    } else {
+      qDebug("timeout val is set to: %d" PRId64 "ms", pInfo->timeout);
+    }
   }
 
   pOperator->exprSupp.hasWindowOrGroup = true;
@@ -451,7 +466,7 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   code = taosAnalBufClose(&analBuf);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
-  pJson = taosAnalSendReqRetJson(pInfo->algoUrl, ANALYTICS_HTTP_TYPE_POST, &analBuf);
+  pJson = taosAnalySendReqRetJson(pInfo->algoUrl, ANALYTICS_HTTP_TYPE_POST, &analBuf, pInfo->timeout);
   if (pJson == NULL) {
     code = terrno;
     goto _OVER;

@@ -30,6 +30,7 @@ extern "C" {
 #define ANAL_FORECAST_DEFAULT_WNCHECK 1
 #define ANAL_FORECAST_MAX_ROWS        40000
 #define ANAL_ANOMALY_WINDOW_MAX_ROWS  40000
+#define ANALY_FC_DEFAULT_TIMEOUT      60000
 
 typedef struct {
   EAnalAlgoType type;
@@ -47,7 +48,7 @@ typedef enum {
 typedef enum {
   ANALYTICS_HTTP_TYPE_GET = 0,
   ANALYTICS_HTTP_TYPE_POST,
-} EAnalHttpType;
+} EAnalyHttpType;
 
 typedef struct {
   TdFilePtr filePtr;
@@ -65,7 +66,7 @@ typedef struct {
 
 int32_t taosAnalyticsInit();
 void    taosAnalyticsCleanup();
-SJson  *taosAnalSendReqRetJson(const char *url, EAnalHttpType type, SAnalyticBuf *pBuf);
+SJson  *taosAnalySendReqRetJson(const char *url, EAnalyHttpType type, SAnalyticBuf *pBuf, int64_t timeout);
 
 int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen);
 bool    taosAnalGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen);
