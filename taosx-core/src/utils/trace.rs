@@ -180,7 +180,11 @@ impl Clone for Qid {
 impl QidManager for Qid {
     fn init() -> Self {
         let mut this = Self(0);
-        this.inner_set_instance_id(*INSTANCE_ID.get().unwrap());
+        if let Some(instance_id) = INSTANCE_ID.get() {
+            this.inner_set_instance_id(*instance_id);
+        } else {
+            this.inner_set_instance_id(DEFAULT_INSTANCE_ID);
+        }
         this
     }
 

@@ -653,7 +653,7 @@ async function isDatasourceUsedDB() {
     overflow-y: hidden;
     font-size: 12px;
     color: inherit;
-    background-color: inherit;
+    background-color: #fff;
     opacity: 0;
 
     &.show {
@@ -685,8 +685,15 @@ async function isDatasourceUsedDB() {
 
   &:hover {
     .operate-btn-wrapper {
+      background-color: #409eff;
       opacity: 1;
     }
+  }
+}
+
+.is-current > div > .custom-node-wrapper {
+  .operate-btn-wrapper {
+    background-color: #409eff;
   }
 }
 

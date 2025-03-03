@@ -13,6 +13,8 @@ use actix_web::{
 use anyhow::Result;
 use clap::Parser;
 use clap_verbosity_flag::{InfoLevel, Verbosity};
+use controller::replica::ReplicaOpts;
+use routes::replica::{delete_replica_monitor, start_replica_monitor, stop_replica_monitor};
 use serde::{Deserialize, Serialize};
 use socket2::{Domain, Socket, Type};
 use tracing::{info, instrument, Instrument};
@@ -58,6 +60,7 @@ mod rpc;
 #[allow(unused)]
 mod scheduler;
 pub(crate) mod task;
+
 #[cfg(test)]
 pub mod tests;
 
@@ -192,6 +195,9 @@ fn configure(store: Data<TaskControllerRef>) -> impl FnOnce(&mut ServiceConfig) 
             .service(metrics::profile)
             .service(filemeta)
             .service(health)
+            .service(start_replica_monitor)
+            .service(stop_replica_monitor)
+            .service(delete_replica_monitor)
             .service(backup::get_backup_points);
     }
 }
@@ -267,11 +273,16 @@ impl Cli {
 
         if !self.do_not_resume.unwrap_or(false) {
             info!("resume all tasks");
-            let controller = controller.clone();
+            let ctl = controller.clone();
             tokio::spawn(
                 async move {
-                    if let Err(err) = controller.start_all_with_schedule().await {
-                        tracing::error!("resume all tasks error: {}", err);
+                    if let Err(err) = ctl.start_all_with_schedule().await {
+                        tracing::error!("resume all tasks error: {err:#}");
+                    }
+
+                    info!("resume all replica monitors if have any");
+                    if let Err(err) = ctl.start_all_replicas_monitor().await {
+                        tracing::error!("resume replica monitor error: {err:#}");
                     }
                 }
                 .in_current_span(),
@@ -390,6 +401,7 @@ impl Cli {
                     PointDetail,
                     GetPointsHeaderReq,
                     AddPointReq,
+                    ReplicaOpts,
                     crate::serve::trigger::Strategy,
                     crate::serve::backup::BackupPoint,
                 ),
@@ -442,6 +454,9 @@ impl Cli {
                 privileges::privileges_export,
                 privileges::privileges_import,
                 routes::cluster::get_cluster_connector_transferred,
+                routes::replica::start_replica_monitor,
+                routes::replica::stop_replica_monitor,
+                routes::replica::delete_replica_monitor,
                 crate::serve::backup::get_backup_points,
             ),
             tags(
@@ -452,6 +467,7 @@ impl Cli {
                 (name = "cluster", description = "Cluster Information"),
                 (name = "privileges", description = "Migrate Passwords and Privileges"),
                 (name = "backup", description = "Backup"),
+                (name = "replica", description = "Replica Monitor"),
             ),
         )]
         struct ApiDoc;

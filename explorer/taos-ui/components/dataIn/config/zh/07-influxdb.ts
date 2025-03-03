@@ -173,7 +173,7 @@ export default {
             },
             {
               label: '令牌 Token',
-              description: 'InfluxDB 数据库的访问令牌，该令牌必须在该组织中拥有读取权限。',
+              description: 'InfluxDB 数据库的访问令牌，该令牌必须在该组织中对要迁移的 bucket 拥有读取权限。',
               placeholder: '请输入 InfluxDB 令牌',
               required: true,
               field: 'token',

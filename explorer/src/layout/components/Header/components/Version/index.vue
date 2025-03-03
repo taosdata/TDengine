@@ -13,7 +13,7 @@ import { sendSQLReq } from '@/api/explorer';
 import { localStorageData } from '@/utils';
 import { setInstanceData } from 'taos-ui/config';
 
-const { OEM_NAME } = inject('globalCustomProperties') as GlobalCustomProperties;
+const { OEM_NAME, $INDUSTRY } = inject('globalCustomProperties') as GlobalCustomProperties;
 const route = useRoute();
 const showHeaderLeft = ref<boolean>(true);
 const clickCount = ref(0);
@@ -108,11 +108,11 @@ async function getLicense() {
         case `${OEM_NAME} Enterprise Edition official`:
           versionName = license.value[0].valid ? 'Enterprise License Expired' : 'Enterprise';
           break;
-        case 'TDengine Power Edition trial':
+        case `TDengine ${$INDUSTRY} Edition trial`:
           versionName = 'Trial';
           industry.value = 'power';
           break;
-        case 'TDengine Power Edition official':
+        case `TDengine ${$INDUSTRY} Edition official`:
           versionName = 'Official';
           industry.value = 'power';
           break;
