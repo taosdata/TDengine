@@ -155,7 +155,7 @@ static struct argp_option options[] = {
                  "websocket to interact."},
     {"debug",   'g', 0, 0,  "Print debug info.", 15},
     {"dot-replace", 'Q', 0, 0,  "Repalce dot character with underline character in the table name.", 10},
-    {"rename", 'W', "RENAME-LIST", 0, "Rename database name with new name during importing data. 
+    {"rename", 'W', "RENAME-LIST", 0, "Rename database name with new name during importing data. \
         RENAME-LIST: \"db1=newDB1|db2=newDB2\" means rename db1 to newDB1 and rename db2 to newDB2", 10},
     {"retry-count", 'k', "VALUE", 0, "Set the number of retry attempts for connection or query failures", 11},
     {"retry-sleep-ms", 'z', "VALUE", 0, "retry interval sleep time, unit ms", 11},
@@ -729,9 +729,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         case 'Z':
             if (strcasecmp(arg, STR_NATIVE) == 0 || strcasecmp(arg, "0") == 0) {
-                g_args->connMode = CONN_MODE_NATIVE;
+                g_args.connMode = CONN_MODE_NATIVE;
             } else if (strcasecmp(arg, STR_WEBSOCKET) == 0 || strcasecmp(arg, "1") == 0) {
-                g_args->connMode = CONN_MODE_WEBSOCKET;
+                g_args.connMode = CONN_MODE_WEBSOCKET;
             } else {
                 fprintf(stderr, "invalid input %s for option %c\r\n", arg, key);
                 return -1;
@@ -8194,6 +8194,8 @@ static void printArgs(FILE *file) {
     fprintf(file, "loose_mode: %s\n", g_args.loose_mode?"true":"false");
     fprintf(file, "isDumpIn: %s\n", g_args.isDumpIn?"true":"false");
     fprintf(file, "arg_list_len: %d\n", g_args.arg_list_len);
+
+/* TODO
 #ifdef WEBSOCKET
     if (g_args.cloud) {
         fprintf(file, "cloud: %s\n", g_args.cloud?"true":"false");
@@ -8210,6 +8212,7 @@ static void printArgs(FILE *file) {
         }
     }
 #endif  // WEBSOCKET
+*/
 
     fflush(file);
 }
@@ -10917,7 +10920,7 @@ int main(int argc, char *argv[]) {
     }
 
     // conn mode
-    if (setConnMode(g_args->connMode, g_args->dsn) != 0) {
+    if (setConnMode(g_args.connMode, g_args.dsn) != 0) {
         return -1;
     }
 

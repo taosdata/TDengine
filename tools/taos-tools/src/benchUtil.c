@@ -51,10 +51,6 @@ void ERROR_EXIT(const char *msg) {
     exit(EXIT_FAILURE);
 }
 
-void engineError(char * module, char * fun, int32_t code) {
-    errorPrint("%s %s fun=%s error code:0x%08X \n", TIP_ENGINE_ERR, module, fun, code);
-}
-
 #ifdef WINDOWS
 HANDLE g_stdoutHandle;
 DWORD  g_consoleMode;

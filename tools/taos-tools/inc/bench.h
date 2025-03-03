@@ -1012,9 +1012,6 @@ int killSlowQuery();
 // fetch super table child name from server
 int fetchChildTableName(char *dbName, char *stbName);
 
-// engine Error
-void engineError(char * module, char * fun, int32_t code);
-
 // lower
 char* strToLowerCopy(const char *str);
 // pase dsn

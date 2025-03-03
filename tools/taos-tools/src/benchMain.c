@@ -66,24 +66,6 @@ void checkArgumentValid() {
     }
 }
 
-int32_t setConnMode(int8_t  connMode, char *dsn) {
-    // check valid
-    if (connMode == CONN_MODE_NATIVE && dsn != NULL ) {
-        errorPrint("set connMode Native but found dns, conflict. dsn=%s\n", dsn);
-        return -1;
-    }
-
-    // set conn mode
-    char * strMode = connMode == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET;
-    int32_t code = taos_options(TSDB_OPTION_DRIVER, strMode);
-    if (code != TSDB_CODE_SUCCESS) {
-        engineError(INIT_PHASE, "taos_options", code);
-        return -1;
-    }
-
-    infoPrint("\nConnect mode is : %s\n\n", strMode);
-    return 0;
-}
 
 int main(int argc, char* argv[]) {
     int ret = 0;

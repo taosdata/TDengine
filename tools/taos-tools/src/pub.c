@@ -12,6 +12,12 @@
 
  #include <stdio.h>
  #include "pub.h"
+ #include "benchLog.h"
+
+
+ void engineError(char * module, char * fun, int32_t code) {
+    errorPrint("%s %s fun=%s error code:0x%08X \n", TIP_ENGINE_ERR, module, fun, code);
+}
 
  char* strToLowerCopy(const char *str) {
      if (str == NULL) {

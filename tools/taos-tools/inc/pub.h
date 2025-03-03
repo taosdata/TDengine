@@ -16,6 +16,9 @@
  #ifndef PUB_H_
  #define PUB_H_
 
+ #include <stdio.h>
+ #include <stdint.h>
+
 //
 //  --------------  define ------------------
 //
@@ -46,6 +49,7 @@
 //  --------------  api ------------------
 //
 
+void engineError(char * module, char * fun, int32_t code);
 char* strToLowerCopy(const char *str);
 int32_t parseDsn(char* dsn, char **host, char **port, char **user, char **pwd);
 
