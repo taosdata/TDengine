@@ -183,7 +183,7 @@ int main(int argc, char* argv[]) {
             exitLog();
             return -1;    
         }
-        infoPrint("Set engine config successfully, dir:%s\n", g_configDir);
+        infoPrint("Set engine cfgdir successfully, dir:%s\n", g_arguments.g_configDir);
     }
 
     // cancel thread
