@@ -943,7 +943,6 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
         SSDataBlock* pb = taosArrayGet(((SStreamDataBlock*)pInput)->blocks, 0);
 
         if ((taskLevel == TASK_LEVEL__AGG) || ((taskLevel == TASK_LEVEL__SOURCE) && (!pTask->info.hasAggTasks))) {
-          // NOTE: no input block here if type is STREAM_INPUT__RECALCULATE
            if (pTask->hTaskInfo.id.streamId == 0) {
             stError("s-task:%s related re-calculate stream task is dropping, failed to start re-calculate", id);
             streamFreeQitem(pInput);
@@ -1002,8 +1001,16 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
         return code;
       }
 
+      if (taskType == STREAM_RECALCUL_TASK && taskLevel == TASK_LEVEL__AGG && type != STREAM_INPUT__RECALCULATE) {
+        bool complete = qStreamScanhistoryFinished(pTask->exec.pExecutor);
+        if (complete) {
+          stDebug("s-task:%s recalculate agg task complete recalculate procedure", id);
+          return 0;
+        }
+      }
+
       double el = (taosGetTimestampMs() - st) / 1000.0;
-      if (el > 5.0) {  // elapsed more than 5 sec, not occupy the CPU anymore
+      if (el > 2.0) {  // elapsed more than 5 sec, not occupy the CPU anymore
         stDebug("s-task:%s occupy more than 5.0s, release the exec threads and idle for 500ms", id);
         streamTaskSetIdleInfo(pTask, 500);
         return code;

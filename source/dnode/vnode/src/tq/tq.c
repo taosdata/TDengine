@@ -1056,12 +1056,12 @@ int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg) {
       streamExecScanHistoryInFuture(pTask, retInfo.idleTime);
     } else {
       SStreamTaskState p = streamTaskGetStatus(pTask);
-      ETaskStatus      s = p.state;
+      ETaskStatus      localStatus = p.state;
 
-      if (s == TASK_STATUS__PAUSE) {
+      if (localStatus == TASK_STATUS__PAUSE) {
         tqDebug("s-task:%s is paused in the step1, elapsed time:%.2fs total:%.2fs, sched-status:%d", id, el,
                 pTask->execInfo.step1El, status);
-      } else if (s == TASK_STATUS__STOP || s == TASK_STATUS__DROPPING) {
+      } else if (localStatus == TASK_STATUS__STOP || localStatus == TASK_STATUS__DROPPING) {
         tqDebug("s-task:%s status:%p not continue scan-history data, total elapsed time:%.2fs quit", id, p.name,
                 pTask->execInfo.step1El);
       }
