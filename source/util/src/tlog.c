@@ -764,7 +764,7 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
       TAOS_UNUSED(printf("failed to write log to screen, reason:%s\n", strerror(errno)));
     }
 #else
-    TAOS_UNUSED(fprintf(fd == 1 ? stdout : stderr, buffer));
+    TAOS_UNUSED(fprintf(fd == 1 ? stdout : stderr, "%s", buffer));
 #endif
 #pragma GCC diagnostic pop
   }
