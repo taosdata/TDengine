@@ -542,7 +542,7 @@ static int32_t forecastParseAlgo(SForecastSupp* pSupp, const char* id) {
              id, pSupp->timeout, ANALY_FC_DEFAULT_TIMEOUT);
       pSupp->timeout = ANALY_FC_DEFAULT_TIMEOUT;
     } else {
-      qDebug("%s timeout val is set to: %d" PRId64 "ms", id, pSupp->timeout);
+      qDebug("%s timeout val is set to: %" PRId64 "ms", id, pSupp->timeout);
     }
   }
 
