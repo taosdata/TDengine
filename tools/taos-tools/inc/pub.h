@@ -16,8 +16,17 @@
  #ifndef PUB_H_
  #define PUB_H_
 
- #include <stdio.h>
- #include <stdint.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <ctype.h>
+#include <inttypes.h>
+#include <errno.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
 //
 //  --------------  define ------------------

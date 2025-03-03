@@ -14,8 +14,35 @@
  #include "pub.h"
  #include "benchLog.h"
 
+struct tm* toolsLocalTime(const time_t *timep, struct tm *result) {
+    #if defined(LINUX) || defined(DARWIN)
+        localtime_r(timep, result);
+    #else
+        localtime_s(result, timep);
+    #endif
+        return result;
+}
+    
+int32_t toolsGetTimeOfDay(struct timeval *tv) {
+    #if defined(WIN32) || defined(WIN64)
+        LARGE_INTEGER t;
+        FILETIME      f;
+    
+        GetSystemTimeAsFileTime(&f);
+        t.QuadPart = f.dwHighDateTime;
+        t.QuadPart <<= 32;
+        t.QuadPart |= f.dwLowDateTime;
+    
+        t.QuadPart -= TIMEEPOCH;
+        tv->tv_sec = t.QuadPart / 10000000;
+        tv->tv_usec = (t.QuadPart % 10000000) / 10;
+        return (0);
+    #else
+        return gettimeofday(tv, NULL);
+    #endif
+}
 
- void engineError(char * module, char * fun, int32_t code) {
+void engineError(char * module, char * fun, int32_t code) {
     errorPrint("%s %s fun=%s error code:0x%08X \n", TIP_ENGINE_ERR, module, fun, code);
 }
 
