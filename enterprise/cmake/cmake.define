@@ -1,0 +1,15 @@
+# =========================================================
+# Deps options
+# =========================================================
+
+option(
+    BUILD_CLOUD
+    "If build cloud"
+    OFF
+    )
+
+option(
+    BUILD_WITH_CFG_GRANTS
+    "If build cfg grants"
+    OFF
+    )

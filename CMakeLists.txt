@@ -11,40 +11,15 @@ set(PROJECT_VERSION_MINOR "3")
 
 set(TD_COMMUNITY_DIR ${PROJECT_SOURCE_DIR}/community)
 set(TD_ENTERPRISE_DIR ${PROJECT_SOURCE_DIR}/enterprise)
-message(STATUS "Community source directory: " ${TD_COMMUNITY_DIR})
-message(STATUS "Enterprise source directory: " ${TD_ENTERPRISE_DIR})
-
-if(CUS_NAME)
-  message(STATUS "Customized brand name: " ${CUS_NAME})
-  add_definitions(-DCUS_NAME="${CUS_NAME}")
-endif()
-
-if(CUS_PROMPT)
-  message(STATUS "Customized prompt: " ${CUS_PROMPT})
-  add_definitions(-DCUS_PROMPT="${CUS_PROMPT}")
-endif()
-
-if(CUS_EMAIL)
-  message(STATUS "Customized email: " ${CUS_EMAIL})
-  add_definitions(-DCUS_EMAIL="${CUS_EMAIL}")
-endif()
-
-if(GRANT_VALUE)
-  message(STATUS "Input grant value: " ${GRANT_VALUE})
-  add_definitions(-DGRANT_VALUE="${GRANT_VALUE}")
-endif()
-
-if(CUS_NAME OR CUS_PROMPT OR CUS_EMAIL)
-  add_definitions(-I${TD_ENTERPRISE_DIR}/packaging)
-endif(CUS_NAME OR CUS_PROMPT OR CUS_EMAIL)
-
-add_definitions(-DTD_ENTERPRISE)
-
 set(TD_SOURCE_DIR ${TD_COMMUNITY_DIR})
 set(TD_SUPPORT_DIR "${TD_SOURCE_DIR}/cmake")
 set(TD_CONTRIB_DIR "${TD_SOURCE_DIR}/contrib")
 
+message(STATUS "Community source directory: " ${TD_COMMUNITY_DIR})
+message(STATUS "Enterprise source directory: " ${TD_ENTERPRISE_DIR})
+
 include(${TD_ENTERPRISE_DIR}/cmake/cmake.options)
+include(${TD_ENTERPRISE_DIR}/cmake/cmake.define)
 include(${TD_SUPPORT_DIR}/cmake.platform)
 
 set(TD_ENTERPRISE TRUE)
