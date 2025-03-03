@@ -14,7 +14,6 @@
 #include <sys/stat.h>
 #include <bench.h>
 #include "benchLog.h"
-#include "benchCsv.h"
 
 extern char      g_configDir[MAX_PATH_LEN];
 

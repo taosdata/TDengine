@@ -28,13 +28,6 @@ typedef enum {
 } CsvNamingType;
 
 typedef enum {
-    CSV_COMPRESS_NONE       = 0,
-    CSV_COMPRESS_FAST       = 1,
-    CSV_COMPRESS_BALANCE    = 6,
-    CSV_COMPRESS_BEST       = 9
-} CsvCompressionLevel;
-
-typedef enum {
     CSV_ERR_OK = 0,
     CSV_ERR_OPEN_FAILED,
     CSV_ERR_WRITE_FAILED
@@ -85,7 +78,7 @@ typedef struct {
     size_t          thread_id;
     bool            output_header;
     int             tags_buf_size;
-    CsvRowTagsBuf*  tags_buf_bucket;
+    CsvRowTagsBuf*  tags_buf_array;
     CsvRowColsBuf*  cols_buf;
 } CsvThreadMeta;
 
