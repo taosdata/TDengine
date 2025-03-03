@@ -388,7 +388,7 @@ SBenchConn* initBenchConn() {
             break;
         }
 
-        infoPrint("sleep %dms and try to connect... %d  \n", g_arguments->trying_interval, keep_trying);
+        infoPrint("sleep %dms and try to connect... %d/%d  \n", g_arguments->trying_interval, keep_trying, g_arguments->keep_trying);
         if(g_arguments->trying_interval > 0) {
             toolsMsleep(g_arguments->trying_interval);
         }        

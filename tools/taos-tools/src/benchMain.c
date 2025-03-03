@@ -132,12 +132,12 @@ int main(int argc, char* argv[]) {
 
     // read evn
     if (g_arguments->dsn != NULL) {
-        infoPrint("set websocket true from dsn not empty. dsn=%s\n", g_arguments->dsn);
+        infoPrint("Get dsn from command. dsn=%s\n", g_arguments->dsn);
     } else {
         char * dsn = getenv("TDENGINE_CLOUD_DSN");
         if (dsn != NULL && strlen(dsn) > 3) {
             g_arguments->dsn = dsn;
-            infoPrint("set websocket true from getenv TDENGINE_CLOUD_DSN=%s\n", g_arguments->dsn);
+            infoPrint("Get dsn from getenv TDENGINE_CLOUD_DSN=%s\n", g_arguments->dsn);
         } 
     }
 

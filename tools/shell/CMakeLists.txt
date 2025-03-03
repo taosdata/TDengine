@@ -60,3 +60,16 @@ IF(TD_LINUX)
         ADD_SUBDIRECTORY(test)
     ENDIF(${BUILD_TEST})
 ENDIF()
+
+#
+# collect --version information
+#
+MESSAGE("collect --version show info:")
+# version
+IF (DEFINED TD_VER_NUMBER)
+    ADD_DEFINITIONS(-DTD_VER_NUMBER="${TD_VER_NUMBER}")
+    MESSAGE(STATUS "taos version:${TD_VER_NUMBER}")
+ELSE ()    
+    # abort build
+    MESSAGE(FATAL_ERROR "build taos not found TD_VER_NUMBER define.")
+ENDIF ()

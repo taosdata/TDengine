@@ -1287,8 +1287,9 @@ void *shellThreadLoop(void *arg) {
 #pragma GCC diagnostic pop
 
 int32_t shellExecute() {
-  printf(shell.info.clientVersion, shell.info.cusName, shell.args.is_native ? "Native" : "WebSocket",
-         taos_get_client_info(), shell.info.cusName);
+  printf(shell.info.clientVersion, shell.info.cusName, 
+             shell.args.is_native ? "Native" : "WebSocket",
+             TD_VER_NUMBER, shell.info.cusName);
   fflush(stdout);
 
   SShellArgs *pArgs = &shell.args;
