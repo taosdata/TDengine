@@ -58,7 +58,7 @@ export default {
         {
           "label": "表不存在",
           "field": "table_not_exist",
-          "description": "表不存在的操作，可选：归档、丢弃、报错、重试。默认：重试。",
+          "description": "表不存在的操作，可选：归档、丢弃、报错、重试。默认：自动建表并重试。",
           "defaultValue": "retry",
           "required": false,
           "type": "select",
@@ -77,7 +77,7 @@ export default {
             },
             {
               "value": "retry",
-              "label": "重试"
+              "label": "自动建表并重试"
             }
           ]
         },
