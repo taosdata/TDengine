@@ -1726,11 +1726,17 @@ _return:
 }
 
 static int32_t sclGetMinusOperatorResType(SOperatorNode *pOp) {
-  if (!IS_MATHABLE_TYPE(((SExprNode *)(pOp->pLeft))->resType.type)) {
+  const SDataType* pDt = &((SExprNode*)(pOp->pLeft))->resType;
+  if (!IS_MATHABLE_TYPE(pDt->type)) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
-  pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
-  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+
+  if (IS_DECIMAL_TYPE(pDt->type)) {
+    pOp->node.resType = *pDt;
+  } else {
+    pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
+    pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
