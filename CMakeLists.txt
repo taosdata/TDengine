@@ -6,6 +6,9 @@ project(
   DESCRIPTION "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
 )
 
+set(PROJECT_VERSION_MAJOR "3")
+set(PROJECT_VERSION_MINOR "3")
+
 set(TD_COMMUNITY_DIR ${PROJECT_SOURCE_DIR}/community)
 set(TD_ENTERPRISE_DIR ${PROJECT_SOURCE_DIR}/enterprise)
 message(STATUS "Community source directory: " ${TD_COMMUNITY_DIR})
@@ -81,22 +84,19 @@ endif()
 add_library(api INTERFACE)
 target_include_directories(api INTERFACE "${PROJECT_SOURCE_DIR}/community/include/client")
 
+add_subdirectory(enterprise/contrib)
 add_subdirectory(community/contrib)
 add_subdirectory(community/source)
 add_subdirectory(community/tools)
 add_subdirectory(community/utils)
 add_subdirectory(community/tests)
 add_subdirectory(community/docs/doxgen)
-
-set(TD_SOURCE_DIR ${PROJECT_SOURCE_DIR})
-add_subdirectory(enterprise/contrib)
 add_subdirectory(enterprise)
 
 if(${BUILD_TEST})
   include(CTest)
   enable_testing()
   add_subdirectory(community/examples/c)
-  add_subdirectory(community/utils/test/c)
 endif(${BUILD_TEST})
 
 include(CPack)

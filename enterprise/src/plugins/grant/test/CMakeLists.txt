@@ -5,7 +5,7 @@ ADD_EXECUTABLE(grantTest "grantTest.cpp")
 
 IF(TD_ENTERPRISE)
     SET(TAOS_GRANT_STUB  "")
-    SET(TD_GRANT_DIR "${TD_SOURCE_DIR}/enterprise/src/plugins/grant")
+    SET(TD_GRANT_DIR "${TD_ENTERPRISE_DIR}/src/plugins/grant")
     IF (TD_LINUX_64)
         IF ("${CPUTYPE}" STREQUAL "x64")
             SET(TAOS_GRANT_STUB "${TD_GRANT_DIR}/lib/libgrant_x64.a")
@@ -33,7 +33,7 @@ TARGET_INCLUDE_DIRECTORIES(
 IF(TD_ENTERPRISE)
     TARGET_INCLUDE_DIRECTORIES(
         grantTest
-        PRIVATE "${TD_SOURCE_DIR}/enterprise/src/plugins/grant/inc"
+        PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/grant/inc"
     )
 ENDIF ()
 # ADD_TEST(
