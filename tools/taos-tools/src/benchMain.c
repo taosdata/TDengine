@@ -175,11 +175,11 @@ int main(int argc, char* argv[]) {
     }
 
     // check condition for set config dir
-    if (strlen(g_configDir)
+    if (strlen(g_arguments.g_configDir)
             && g_arguments->host_auto
             && g_arguments->port_auto) {
         // apply
-        if(applyConfigDir(g_configDir) != TSDB_CODE_SUCCESS) {
+        if(applyConfigDir(g_arguments.g_configDir) != TSDB_CODE_SUCCESS) {
             exitLog();
             return -1;    
         }
