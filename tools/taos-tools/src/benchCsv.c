@@ -479,18 +479,22 @@ static int csvInitWriteMeta(SDataBase* db, SSuperTable* stb, CsvWriteMeta* write
 
     switch (write_meta->naming_type) {
         case CSV_NAMING_I_SINGLE: {
+            (void)snprintf(write_meta->mode, sizeof(write_meta->mode), "interlace|no-time-slice");
             break;
         }
         case CSV_NAMING_I_TIME_SLICE: {
+            (void)snprintf(write_meta->mode, sizeof(write_meta->mode), "interlace|time-slice");
             csvCalcTimestampStep(write_meta);
             break;
         }
         case CSV_NAMING_B_THREAD: {
+            (void)snprintf(write_meta->mode, sizeof(write_meta->mode), "batch|no-time-slice");
             write_meta->total_threads = MIN(g_arguments->nthreads, stb->childTblCount);
             csvGenThreadFormatter(write_meta);
             break;
         }
         case CSV_NAMING_B_THREAD_TIME_SLICE: {
+            (void)snprintf(write_meta->mode, sizeof(write_meta->mode), "batch|time-slice");
             write_meta->total_threads = MIN(g_arguments->nthreads, stb->childTblCount);
             csvGenThreadFormatter(write_meta);
             csvCalcTimestampStep(write_meta);
@@ -1055,6 +1059,8 @@ static int csvGenStbProcess(SDataBase* db, SSuperTable* stb) {
         ret = -1;
         goto end;
     }
+
+    infoPrint("export csv mode: %s.\n", write_meta->mode);
 
     args = benchCalloc(write_meta->total_threads, sizeof(CsvThreadArgs), false);
     if (!args) {

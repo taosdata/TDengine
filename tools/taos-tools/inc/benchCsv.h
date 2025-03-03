@@ -57,7 +57,8 @@ typedef struct {
 typedef struct {
     CsvNamingType   naming_type;
     size_t          total_threads;
-    char            thread_formatter[TINY_BUFF_LEN];
+    char            mode[MIDDLE_BUFF_LEN];
+    char            thread_formatter[SMALL_BUFF_LEN];
     char            csv_header[LARGE_BUFF_LEN];
     int             csv_header_length;
     SDataBase*      db;
