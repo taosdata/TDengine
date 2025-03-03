@@ -193,6 +193,7 @@ static struct argp_option bench_options[] = {
     {"vgroups", 'v', "NUMBER", 0, BENCH_VGROUPS},
     {"version", 'V', 0, 0, BENCH_VERSION},
     {"nodrop", 'Q', 0, 0, BENCH_NODROP},
+    {"dsn", 'X', "DSN", 0, BENCH_DSN},
     {DRIVER_OPT, 'Z', "DRIVER", 0, DRIVER_DESC},
     {0}
 };
@@ -598,6 +599,7 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
             break;
 
         case 'W':
+        case 'X':
             g_arguments->dsn = arg;
             break;
 

@@ -150,15 +150,16 @@ static struct argp_option options[] = {
     {"inspect",  'I', 0,  0,
         "inspect avro file content and print on screen", 10},
     {"no-escape",  'n', 0,  0,  "No escape char '`'. Default is using it.", 10},
-    {"cloud",  'C', "CLOUD_DSN",  0,
-        "specify a DSN to access the cloud service", 11},
+    {"cloud",  'C', "CLOUD_DSN",  0, "specify a DSN to access the cloud service", 11},
     {"timeout", 't', "SECONDS", 0, "The timeout seconds for "
                  "websocket to interact."},
     {"debug",   'g', 0, 0,  "Print debug info.", 15},
     {"dot-replace", 'Q', 0, 0,  "Repalce dot character with underline character in the table name.", 10},
-    {"rename", 'W', "RENAME-LIST", 0, "Rename database name with new name during importing data. RENAME-LIST: \"db1=newDB1|db2=newDB2\" means rename db1 to newDB1 and rename db2 to newDB2", 10},
+    {"rename", 'W', "RENAME-LIST", 0, "Rename database name with new name during importing data. 
+        RENAME-LIST: \"db1=newDB1|db2=newDB2\" means rename db1 to newDB1 and rename db2 to newDB2", 10},
     {"retry-count", 'k', "VALUE", 0, "Set the number of retry attempts for connection or query failures", 11},
     {"retry-sleep-ms", 'z', "VALUE", 0, "retry interval sleep time, unit ms", 11},
+    {"dsn",  'X', "CLOUD_DSN",  0, "specify a DSN to access the cloud service", 11},    
     {DRIVER_OPT, 'Z', "DRIVER", 0, DRIVER_DESC},
     {0}
 };
@@ -217,12 +218,9 @@ struct arguments g_args = {
     false,      // dotRepalce
         0,      // dumpDbCount
         
-    false,      // cloud
+    CONN_MODE_INVALID, // connMode
     NULL,       // dsn
-    NULL,       // cloudToken
-    0,          // cloudPort
-    {0},        // cloudHost
-
+    false,      // port_inputted
 
     NULL,       // renameBuf
     NULL,       // renameHead
@@ -694,8 +692,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
 
         case 'C':
+        case 'X':
             if (arg) {
-                g_args.dsn = arg;
+                if (arg[0]!= 0) {
+                    g_args.port_inputted = true;
+                    g_args.dsn = arg;
+                }
+                
             } else {
                 errorPrint("%s", "\n\t-C need a valid cloud DSN following!\n");
                 exit(EXIT_FAILURE);
@@ -724,6 +727,17 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             g_args.retrySleepMs = atoi((const char *)arg);
             printf(" set argument retry interval sleep = %d ms\n", g_args.retrySleepMs);
             break;
+        case 'Z':
+            if (strcasecmp(arg, STR_NATIVE) == 0 || strcasecmp(arg, "0") == 0) {
+                g_args->connMode = CONN_MODE_NATIVE;
+            } else if (strcasecmp(arg, STR_WEBSOCKET) == 0 || strcasecmp(arg, "1") == 0) {
+                g_args->connMode = CONN_MODE_WEBSOCKET;
+            } else {
+                fprintf(stderr, "invalid input %s for option %c\r\n", arg, key);
+                return -1;
+            }
+            break;    
+
         default:
             return ARGP_ERR_UNKNOWN;
     }
@@ -10207,20 +10221,6 @@ _exit_failure_2:
 static int dumpEntry() {
     int ret = 0;
 
-#ifdef WEBSOCKET
-    // todo
-    if (NULL == g_args.dsn) {
-        g_args.dsn = getenv("TDENGINE_CLOUD_DSN");
-        if (NULL == g_args.dsn) {
-            g_args.cloud = false;
-        } else {
-            g_args.cloud = true;
-        }
-    } else {
-        g_args.cloud = true;
-    }
-#endif  // WEBSOCKET
-
     if (checkParam() < 0) {
         exit(EXIT_FAILURE);
     }
@@ -10854,6 +10854,26 @@ static int inspectAvroFiles(int argc, char *argv[]) {
     return ret;
 }
 
+int32_t setConnMode(int8_t  connMode, char *dsn) {
+    // check valid
+    if (connMode == CONN_MODE_NATIVE && dsn != NULL ) {
+        errorPrint("set connMode Native but found dns, conflict. dsn=%s\n", dsn);
+        return -1;
+    }
+
+    // set conn mode
+    char * strMode = connMode == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET;
+    int32_t code = taos_options(TSDB_OPTION_DRIVER, strMode);
+    if (code != TSDB_CODE_SUCCESS) {
+        engineError(INIT_PHASE, "taos_options", code);
+        return -1;
+    }
+
+    infoPrint("\nConnect mode is : %s\n\n", strMode);
+    return 0;
+}
+
+
 int main(int argc, char *argv[]) {
     g_uniqueID = getUniqueIDFromEpoch();
 
@@ -10865,12 +10885,13 @@ int main(int argc, char *argv[]) {
         parse_args(argc, argv, &g_args);
     }
 
+    // command line
     argp_parse(&argp, argc, argv, 0, 0, &g_args);
-
     if (g_args.abort) {
         abort();
     }
 
+    // client info
     snprintf(g_client_info, MIDDLE_BUFF_LEN, "%s", taos_get_client_info());
     g_majorVersionOfClient = atoi(g_client_info);
     debugPrint("Client info: %s, major version: %d\n",
@@ -10886,6 +10907,21 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // env dsn
+    if (NULL == g_args.dsn) {
+        char *dsn = getenv("TDENGINE_CLOUD_DSN");
+        if(dsn && dsn[0] != 0) {
+            g_args.dsn = dsn;
+            g_args.port_inputted = true;
+        }
+    }
+
+    // conn mode
+    if (setConnMode(g_args->connMode, g_args->dsn) != 0) {
+        return -1;
+    }
+
+    // running
     if (g_args.inspect) {
         ret = inspectAvroFiles(argc, argv);
     } else {

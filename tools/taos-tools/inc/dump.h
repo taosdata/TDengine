@@ -374,18 +374,22 @@ typedef struct arguments {
     bool     dotReplace;
     int      dumpDbCount;
 
-    bool     cloud;
+    int8_t   connMode;
+    bool     port_inputted;
     char    *dsn;
+    /*
     char    *cloudToken;
     int      cloudPort;
     char     cloudHost[MAX_HOSTNAME_LEN];
+    */
 
     // put rename db string
     char      * renameBuf;
     SRenameDB * renameHead;
     // retry for call engine api
     int32_t     retryCount;
-    int32_t     retrySleepMs;      
+    int32_t     retrySleepMs;  
+        
 } SArguments;
 
 bool isSystemDatabase(char *dbName);

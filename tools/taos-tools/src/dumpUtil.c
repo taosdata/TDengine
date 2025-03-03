@@ -15,6 +15,7 @@
 
 
 #include <taos.h>
+#include "pub.h"
 #include "dump.h"
 #include "dumpUtil.h"
 
@@ -84,21 +85,79 @@ bool canRetry(int32_t code, int8_t type) {
 
 // connect
 TAOS *taosConnect(const char *dbName) {
+    //
+    // collect params
+    //
+    char     show[256] = "\0";
+    char *   host = NULL;
+    uint16_t port = 0;
+    char *   user = NULL;
+    char *   pwd  = NULL;
+    int32_t  code = 0;
+    char *   dsnc = NULL;
+
+    // set mode
+    if (g_args->dsn) {
+        dsnc = strToLowerCopy(g_args->dsn);
+        if (dsnc == NULL) {
+            return NULL;
+        }
+
+        char *cport = NULL;
+        code = parseDsn(dsnc, &host, &cport, &user, &pwd);
+        if (code) {
+            tmfree(dsnc);
+            return NULL;
+        }
+
+        // default ws port
+        if (cport == NULL) {
+            if (user)
+                port = DEFAULT_PORT_WS_CLOUD;
+            else
+                port = DEFAULT_PORT_WS_LOCAL;
+        } else {
+            port = atoi(cport);
+        }
+
+        // websocket
+        memcpy(show, g_args->dsn, 20);
+        memcpy(show + 20, "...", 3);
+        memcpy(show + 23, g_args->dsn + strlen(g_args->dsn) - 10, 10);
+
+    } else {
+
+        host = g_args->host;
+        user = g_args->user;
+        pwd  = g_args->password;
+
+        if (g_args->port_inputted) {
+            port = g_args->port;
+        } else {
+            port = g_args->connMode == CONN_MODE_NATIVE ? DEFAULT_PORT_NATIVE : DEFAULT_PORT_WS_LOCAL;
+        }
+
+        sprintf(show, "host:%s port:%d ", host, port);
+    }    
+    
+    //
+    // connect
+    //
     int32_t i = 0;
+    TAOS *taos = NULL;
     while (1) {
-        TAOS *taos = taos_connect(g_args.host, g_args.user, g_args.password, dbName, g_args.port);
+        TAOS *taos = taos_connect(host, user, pwd, dbName, port);
         if (taos) {
             // successful
             if (i > 0) {
-                okPrint("Retry %d to connect %s:%d successfully!\n", i, g_args.host, g_args.port);
+                okPrint("Retry %d to connect %s:%d successfully!\n", i, host, port);
             }
-            return taos;
+            break;
         }
 
         // fail
-        errorPrint("Failed to connect to server %s, code: 0x%08x, reason: %s! \n", g_args.host, taos_errno(NULL),
+        errorPrint("Failed to connect to server %s, code: 0x%08x, reason: %s! \n", host, taos_errno(NULL),
                    taos_errstr(NULL));
-
         if (++i > g_args.retryCount) {
             break;
         }
@@ -107,7 +166,11 @@ TAOS *taosConnect(const char *dbName) {
         infoPrint("Retry to connect for %d after sleep %dms ...\n", i, g_args.retrySleepMs);
         toolsMsleep(g_args.retrySleepMs);
     }
-    return NULL;
+
+    if (dsnc) {
+        tmfree(dsnc);
+    }
+    return taos;
 }
 
 // query

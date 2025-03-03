@@ -18,7 +18,22 @@
 
 
 // lower
-char* strToLowerCopy(const char *str);
+char* strToLowerCopy(const char *str) {
+  if (str == NULL) {
+      return NULL;
+  }
+  size_t len = strlen(str);
+  char *result = (char*)malloc(len + 1);
+  if (result == NULL) {
+      return NULL;
+  }
+  for (size_t i = 0; i < len; i++) {
+      result[i] = tolower((unsigned char)str[i]);
+  }
+  result[len] = '\0';
+  return result;
+}
+
 // pase dsn
 int32_t parseDsn(char* dsn, char **host, char **port, char **user, char **pwd);
 

@@ -15,6 +15,10 @@
 
  #ifndef PUB_H_
  #define PUB_H_
+
+//
+//  --------------  define ------------------
+//
  
 // connect mode string
 #define STR_NATIVE    "Native"
@@ -36,5 +40,13 @@
 #define DEFAULT_PORT_WS_LOCAL 6041   
 #define DEFAULT_PORT_WS_CLOUD 443
 #define DEFAULT_PORT_NATIVE   6030
+
+
+//
+//  --------------  api ------------------
+//
+
+char* strToLowerCopy(const char *str);
+int32_t parseDsn(char* dsn, char **host, char **port, char **user, char **pwd);
 
 #endif // PUB_H_

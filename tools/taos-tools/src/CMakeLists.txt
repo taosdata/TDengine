@@ -116,18 +116,18 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
         SET_PROPERTY(TARGET snappy PROPERTY IMPORTED_LOCATION
             "${CMAKE_BINARY_DIR}/build/lib/libsnappy.a")
 
-        ADD_EXECUTABLE(taosdump taosdump.c dumpUtil.c toolstime.c toolsSys.c toolsDir.c toolsString.c)
+        ADD_EXECUTABLE(taosdump taosdump.c pub.c dumpUtil.c toolstime.c toolsSys.c toolsDir.c toolsString.c)
         ADD_DEPENDENCIES(deps-snappy apache-avro)
         ADD_DEPENDENCIES(taosdump deps-jansson)
         ADD_DEPENDENCIES(taosdump deps-snappy)
-        ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
+        ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c pub.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
     ELSE ()
         INCLUDE_DIRECTORIES(/usr/local/include)
         ADD_DEFINITIONS(-DDARWIN)
         LINK_DIRECTORIES(/usr/local/lib)
         SET(OS_ID "Darwin")
 
-        ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
+        ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c pub.c benchUtilDs.c benchSys.c toolstime.c toolsSys.c toolsString.c)
     ENDIF ()
 
     IF (${TOOLS_COVER} MATCHES "true")
@@ -292,9 +292,9 @@ ELSE ()
     SET(CMAKE_C_STANDARD 11)
     SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /utf-8")
     SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /utf-8")
-    ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c benchUtilDs.c benchSys.c toolstime.c toolsString.c toolsSys.c toolsString.c)
+    ADD_EXECUTABLE(taosBenchmark benchMain.c benchLog.c benchTmq.c benchQuery.c benchCsv.c benchJsonOpt.c benchInsert.c benchInsertMix.c benchDataMix.c wrapDb.c benchData.c benchCommandOpt.c benchUtil.c pub.c benchUtilDs.c benchSys.c toolstime.c toolsString.c toolsSys.c toolsString.c)
 
-    ADD_EXECUTABLE(taosdump taosdump.c dumpUtil.c toolsSys.c toolstime.c toolsDir.c toolsString.c)
+    ADD_EXECUTABLE(taosdump taosdump.c pub.c dumpUtil.c toolsSys.c toolstime.c toolsDir.c toolsString.c)
     ADD_DEPENDENCIES(apache-avro tools-zlib)
     ADD_DEPENDENCIES(apache-avro deps-jansson)
     ADD_DEPENDENCIES(apache-avro deps-snappy)
