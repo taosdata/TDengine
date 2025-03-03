@@ -666,18 +666,18 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       printf("%*u", width, *((uint32_t *)val));
       break;
     case TSDB_DATA_TYPE_BIGINT:
-      printf("%*" PRId64, width, taosGetInt64Aligned(val));
+      printf("%*" PRId64, width, taosGetInt64Aligned((int64_t *)val));
       break;
     case TSDB_DATA_TYPE_UBIGINT:
-      printf("%*" PRIu64, width, taosGetUInt64Aligned(val));
+      printf("%*" PRIu64, width, taosGetUInt64Aligned((uint64_t*))val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
       if (tsEnableScience) {
-        printf("%*.7e", width, taosGetFloatAligned(val));
+        printf("%*.7e", width, taosGetFloatAligned((float *)val));
       } else {
-        n = snprintf(buf, LENGTH, "%*.*g", width, FLT_DIG, taosGetFloatAligned(val));
+        n = snprintf(buf, LENGTH, "%*.*g", width, FLT_DIG, taosGetFloatAligned((float *)val));
         if (n > SHELL_FLOAT_WIDTH) {
-          printf("%*.7e", width, taosGetFloatAligned(val));
+          printf("%*.7e", width, taosGetFloatAligned((float *)val));
         } else {
           printf("%s", buf);
         }
@@ -685,12 +685,12 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       if (tsEnableScience) {
-        snprintf(buf, LENGTH, "%*.15e", width, taosGetDoubleAligned(val));
+        snprintf(buf, LENGTH, "%*.15e", width, taosGetDoubleAligned((double *)val));
         printf("%s", buf);
       } else {
-        n = snprintf(buf, LENGTH, "%*.*g", width, DBL_DIG, taosGetDoubleAligned(val));
+        n = snprintf(buf, LENGTH, "%*.*g", width, DBL_DIG, taosGetDoubleAligned((double *)val));
         if (n > SHELL_DOUBLE_WIDTH) {
-          printf("%*.15e", width, taosGetDoubleAligned(val));
+          printf("%*.15e", width, taosGetDoubleAligned((double *)val));
         } else {
           printf("%*s", width, buf);
         }
@@ -715,7 +715,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       shellPrintGeometry(val, length, width);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
-      shellFormatTimestamp(buf, sizeof(buf), taosGetInt64Aligned(val), precision);
+      shellFormatTimestamp(buf, sizeof(buf), taosGetInt64Aligned((int64_t *)val), precision);
       printf("%s", buf);
       break;
     default:
