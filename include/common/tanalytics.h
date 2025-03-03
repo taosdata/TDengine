@@ -25,11 +25,12 @@
 extern "C" {
 #endif
 
-#define ANALY_FORECAST_DEFAULT_ROWS    10
-#define ANALY_FORECAST_DEFAULT_CONF    95
-#define ANALY_FORECAST_DEFAULT_WNCHECK 1
-#define ANALY_FORECAST_MAX_ROWS        40000
-#define ANALY_ANOMALY_WINDOW_MAX_ROWS  40000
+#define ANALY_FORECAST_DEFAULT_ROWS     10
+#define ANALY_FORECAST_DEFAULT_CONF     95
+#define ANALY_FORECAST_DEFAULT_WNCHECK  1
+#define ANALY_FORECAST_MAX_HISTORY_ROWS 40000
+#define ANALY_MAX_FC_ROWS               1024
+#define ANALY_ANOMALY_WINDOW_MAX_ROWS   40000
 
 typedef struct {
   EAnalAlgoType type;
@@ -65,30 +66,30 @@ typedef struct {
 
 int32_t taosAnalyticsInit();
 void    taosAnalyticsCleanup();
-SJson  *taosAnalSendReqRetJson(const char *url, EAnalHttpType type, SAnalyticBuf *pBuf);
+SJson  *taosAnalySendReqRetJson(const char *url, EAnalHttpType type, SAnalyticBuf *pBuf);
 
-int32_t taosAnalGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen);
-bool    taosAnalGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen);
-bool    taosAnalGetOptInt(const char *option, const char *optName, int64_t *optValue);
-int64_t taosAnalGetVersion();
-void    taosAnalUpdate(int64_t newVer, SHashObj *pHash);
+int32_t taosAnalyGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen);
+bool    taosAnalyGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen);
+bool    taosAnalyGetOptInt(const char *option, const char *optName, int64_t *optValue);
+int64_t taosAnalyGetVersion();
+void    taosAnalyUpdate(int64_t newVer, SHashObj *pHash);
 
-int32_t tsosAnalBufOpen(SAnalyticBuf *pBuf, int32_t numOfCols);
-int32_t taosAnalBufWriteOptStr(SAnalyticBuf *pBuf, const char *optName, const char *optVal);
-int32_t taosAnalBufWriteOptInt(SAnalyticBuf *pBuf, const char *optName, int64_t optVal);
-int32_t taosAnalBufWriteOptFloat(SAnalyticBuf *pBuf, const char *optName, float optVal);
-int32_t taosAnalBufWriteColMeta(SAnalyticBuf *pBuf, int32_t colIndex, int32_t colType, const char *colName);
-int32_t taosAnalBufWriteDataBegin(SAnalyticBuf *pBuf);
-int32_t taosAnalBufWriteColBegin(SAnalyticBuf *pBuf, int32_t colIndex);
-int32_t taosAnalBufWriteColData(SAnalyticBuf *pBuf, int32_t colIndex, int32_t colType, void *colValue);
-int32_t taosAnalBufWriteColEnd(SAnalyticBuf *pBuf, int32_t colIndex);
-int32_t taosAnalBufWriteDataEnd(SAnalyticBuf *pBuf);
-int32_t taosAnalBufClose(SAnalyticBuf *pBuf);
-void    taosAnalBufDestroy(SAnalyticBuf *pBuf);
+int32_t tsosAnalyBufOpen(SAnalyticBuf *pBuf, int32_t numOfCols);
+int32_t taosAnalyBufWriteOptStr(SAnalyticBuf *pBuf, const char *optName, const char *optVal);
+int32_t taosAnalyBufWriteOptInt(SAnalyticBuf *pBuf, const char *optName, int64_t optVal);
+int32_t taosAnalyBufWriteOptFloat(SAnalyticBuf *pBuf, const char *optName, float optVal);
+int32_t taosAnalyBufWriteColMeta(SAnalyticBuf *pBuf, int32_t colIndex, int32_t colType, const char *colName);
+int32_t taosAnalyBufWriteDataBegin(SAnalyticBuf *pBuf);
+int32_t taosAnalyBufWriteColBegin(SAnalyticBuf *pBuf, int32_t colIndex);
+int32_t taosAnalyBufWriteColData(SAnalyticBuf *pBuf, int32_t colIndex, int32_t colType, void *colValue);
+int32_t taosAnalyBufWriteColEnd(SAnalyticBuf *pBuf, int32_t colIndex);
+int32_t taosAnalyBufWriteDataEnd(SAnalyticBuf *pBuf);
+int32_t taosAnalyBufClose(SAnalyticBuf *pBuf);
+void    taosAnalyBufDestroy(SAnalyticBuf *pBuf);
 
 const char   *taosAnalysisAlgoType(EAnalAlgoType algoType);
-EAnalAlgoType taosAnalAlgoInt(const char *algoName);
-const char   *taosAnalAlgoUrlStr(EAnalAlgoType algoType);
+EAnalAlgoType taosAnalyAlgoInt(const char *algoName);
+const char   *taosAnalyAlgoUrlStr(EAnalAlgoType algoType);
 
 #ifdef __cplusplus
 }
