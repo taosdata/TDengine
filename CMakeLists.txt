@@ -44,6 +44,7 @@ set(TD_SOURCE_DIR ${TD_COMMUNITY_DIR})
 set(TD_SUPPORT_DIR "${TD_SOURCE_DIR}/cmake")
 set(TD_CONTRIB_DIR "${TD_SOURCE_DIR}/contrib")
 
+include(${TD_ENTERPRISE_DIR}/cmake/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.platform)
 
 set(TD_ENTERPRISE TRUE)
@@ -76,7 +77,6 @@ if(TD_WINDOWS OR TD_DARWIN)
   set(TD_SOMODE_STATIC TRUE)
 endif()
 
-include(${TD_ENTERPRISE_DIR}/cmake/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.define)
 include(${TD_SUPPORT_DIR}/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.version)
