@@ -97,15 +97,17 @@ TAOS *taosConnect(const char *dbName) {
     char *   dsnc = NULL;
 
     // set mode
-    if (g_args->dsn) {
-        dsnc = strToLowerCopy(g_args->dsn);
+    if (g_args.dsn) {
+        dsnc = strToLowerCopy(g_args.dsn);
         if (dsnc == NULL) {
             return NULL;
         }
 
         char *cport = NULL;
-        code = parseDsn(dsnc, &host, &cport, &user, &pwd);
+        char error[512] = "";
+        code = parseDsn(dsnc, &host, &cport, &user, &pwd, error);
         if (code) {
+            errorPrint("%s dsn=%s\n", error, dsnc);
             tmfree(dsnc);
             return NULL;
         }
@@ -121,20 +123,20 @@ TAOS *taosConnect(const char *dbName) {
         }
 
         // websocket
-        memcpy(show, g_args->dsn, 20);
+        memcpy(show, g_args.dsn, 20);
         memcpy(show + 20, "...", 3);
-        memcpy(show + 23, g_args->dsn + strlen(g_args->dsn) - 10, 10);
+        memcpy(show + 23, g_args.dsn + strlen(g_args.dsn) - 10, 10);
 
     } else {
 
-        host = g_args->host;
-        user = g_args->user;
-        pwd  = g_args->password;
+        host = g_args.host;
+        user = g_args.user;
+        pwd  = g_args.password;
 
-        if (g_args->port_inputted) {
-            port = g_args->port;
+        if (g_args.port_inputted) {
+            port = g_args.port;
         } else {
-            port = g_args->connMode == CONN_MODE_NATIVE ? DEFAULT_PORT_NATIVE : DEFAULT_PORT_WS_LOCAL;
+            port = g_args.connMode == CONN_MODE_NATIVE ? DEFAULT_PORT_NATIVE : DEFAULT_PORT_WS_LOCAL;
         }
 
         sprintf(show, "host:%s port:%d ", host, port);

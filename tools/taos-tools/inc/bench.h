@@ -1011,5 +1011,7 @@ void *queryKiller(void *arg);
 int killSlowQuery();
 // fetch super table child name from server
 int fetchChildTableName(char *dbName, char *stbName);
+// call engine error
+void engineError(char * module, char * fun, int32_t code);
 
 #endif   // INC_BENCH_H_
