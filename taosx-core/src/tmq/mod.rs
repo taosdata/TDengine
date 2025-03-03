@@ -1106,6 +1106,14 @@ mod tests {
         let _ = taos
             .exec(format!("drop database if exists {}", database))
             .await;
+
+        // wait for the drop operation to take effect
+        loop {
+            if !taos.database_exists(database).await.unwrap() {
+                break;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        }
     }
 
     #[tokio::test]
@@ -1113,26 +1121,24 @@ mod tests {
         let taos_builder = taos::TaosBuilder::from_dsn("taos://").unwrap();
         let taos = taos_builder.build().await.unwrap();
 
-        // create a database without wal, drop it first if exists
-        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
-        let _ = taos
-            .exec("create database if not exists test_no_wal WAL_RETENTION_PERIOD 0")
-            .await;
-
-        // create a topic, there should be an error
-        let create_topic_res = taos
-            .exec("create topic if not exists test_no_wal with meta as database test_no_wal")
-            .await;
-
-        // clear the test data
         drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
 
-        // assert the result
-        assert!(create_topic_res.is_err());
-        assert_eq!(
-            create_topic_res.unwrap_err().to_string(),
-            "[0x038C] Error while querying with sql \"create topic if not exists test_no_wal with meta as database test_no_wal\": Internal error: `WAL retention period is zero`"
-        );
+        // create database without wal, then create a topic
+        let res = taos
+            .exec_many(vec![
+                "create database if not exists test_no_wal WAL_RETENTION_PERIOD 0",
+                "create topic if not exists test_no_wal with meta as database test_no_wal",
+            ])
+            .await;
+
+        assert!(res.is_err());
+        assert!(res
+            .unwrap_err()
+            .to_string()
+            .contains("WAL retention period is zero"));
+
+        // clean
+        drop_topic_and_database(&taos, "test_no_wal", "test_no_wal").await;
     }
 
     #[tokio::test]
