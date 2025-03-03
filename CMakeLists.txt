@@ -82,7 +82,7 @@ if(TD_WINDOWS OR TD_DARWIN)
 endif()
 
 add_library(api INTERFACE)
-target_include_directories(api INTERFACE "${PROJECT_SOURCE_DIR}/community/include/client")
+target_include_directories(api INTERFACE "${TD_SOURCE_DIR}/include/client")
 
 add_subdirectory(enterprise/contrib)
 add_subdirectory(community/contrib)
