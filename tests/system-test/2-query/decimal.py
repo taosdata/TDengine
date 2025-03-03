@@ -28,9 +28,9 @@ scalar_convert_err = -2147470768
 decimal_insert_validator_test = False
 operator_test_round = 10
 tb_insert_rows = 1000
-binary_op_with_const_test = False
-binary_op_with_col_test = False
-unary_op_test = False
+binary_op_with_const_test = True
+binary_op_with_col_test = True
+unary_op_test = True
 binary_op_in_where_test = True
 
 class DecimalTypeGeneratorConfig:
@@ -430,17 +430,23 @@ class DataType:
         return True
     
     def get_typed_val_for_execute(self, val):
-        if self.type == TypeEnum.FLOAT or self.type == TypeEnum.DOUBLE:
+        if self.type == TypeEnum.DOUBLE:
             return float(val)
-        if self.type == TypeEnum.BOOL:
+        elif self.type == TypeEnum.BOOL:
             if val == "true":
                 return 1
             else:
                 return 0
+        elif self.type == TypeEnum.FLOAT:
+            val = float(str(numpy.float32(val)))
+        elif isinstance(val, str):
+            val = val.strip("'")
         return val
     
     def get_typed_val(self, val):
-        if self.type == TypeEnum.FLOAT or self.type == TypeEnum.DOUBLE:
+        if self.type == TypeEnum.FLOAT:
+            return float(str(numpy.float32(val)))
+        elif self.type == TypeEnum.DOUBLE:
             return float(val)
         return val
 
@@ -894,15 +900,9 @@ class DecimalBinaryOperator(DecimalColumnExpr):
         left = params[0]
         right = params[1]
         if isinstance(params[0], str):
-            left = left.strip("'")
             ret_float = True
         if isinstance(params[1], str):
-            right = right.strip("'")
             ret_float = True
-        if self.left_type_.type == TypeEnum.FLOAT:
-            left = numpy.float32(left)
-        if self.right_type_.type == TypeEnum.FLOAT:
-            right = numpy.float32(right)
         return (left, right), ret_float
 
     def execute_plus(self, params):
@@ -955,8 +955,8 @@ class DecimalBinaryOperator(DecimalColumnExpr):
     def execute_eq(self, params):
         if DecimalBinaryOperator.check_null(params):
             return False
-        (left, right), ret_float = self.get_convert_type(params)
-        if ret_float:
+        (left, right), convert_float = self.get_convert_type(params)
+        if convert_float:
             return float(left) == float(right)
         else:
             return Decimal(left) == Decimal(right)
