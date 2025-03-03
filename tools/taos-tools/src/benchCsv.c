@@ -385,7 +385,7 @@ int csvGenCreateStbSql(SDataBase* db, SSuperTable* stb, char* buf, int size) {
         if (pos <= 0 || pos >= size) return -1;
     }
 
-    pos += snprintf(buf + pos, size - pos, "\n");
+    pos += snprintf(buf + pos, size - pos, ";\n");
     if (pos <= 0 || pos >= size) return -1;
 
     // infoPrint("create stable: <%s>.\n", buf);
@@ -488,14 +488,14 @@ static int csvInitWriteMeta(SDataBase* db, SSuperTable* stb, CsvWriteMeta* write
             break;
         }
         case CSV_NAMING_B_THREAD: {
-            (void)snprintf(write_meta->mode, sizeof(write_meta->mode), "batch|no-time-slice");
             write_meta->total_threads = MIN(g_arguments->nthreads, stb->childTblCount);
+            (void)snprintf(write_meta->mode, sizeof(write_meta->mode), "batch[%zu]|no-time-slice", write_meta->total_threads);
             csvGenThreadFormatter(write_meta);
             break;
         }
         case CSV_NAMING_B_THREAD_TIME_SLICE: {
-            (void)snprintf(write_meta->mode, sizeof(write_meta->mode), "batch|time-slice");
             write_meta->total_threads = MIN(g_arguments->nthreads, stb->childTblCount);
+            (void)snprintf(write_meta->mode, sizeof(write_meta->mode), "batch[%zu]|time-slice", write_meta->total_threads);
             csvGenThreadFormatter(write_meta);
             csvCalcTimestampStep(write_meta);
             break;
