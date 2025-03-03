@@ -705,7 +705,7 @@ static void csvFreeCtbTagData(CsvThreadMeta* thread_meta, CsvRowTagsBuf* tags_bu
     for (uint64_t i = 0 ; i < thread_meta->ctb_count; ++i) {
         char* tags_buf = tags_buf_array[i].buf;
         if (tags_buf) {
-            tmfree(tags_buf_array);
+            tmfree(tags_buf);
         } else {
             break;
         }
@@ -738,7 +738,6 @@ static CsvRowTagsBuf* csvGenCtbTagData(CsvWriteMeta* write_meta, CsvThreadMeta* 
         }
 
         tags_buf_array[i].buf      = tags_buf;
-        thread_meta->tags_buf_size  = tags_buf_size;
 
         ret = csvGenRowTagData(tags_buf, tags_buf_size, stb, thread_meta->ctb_start_idx + i, &tk);
         if (ret <= 0) {
@@ -747,6 +746,7 @@ static CsvRowTagsBuf* csvGenCtbTagData(CsvWriteMeta* write_meta, CsvThreadMeta* 
 
         tags_buf_array[i].length  = ret;
     }
+    thread_meta->tags_buf_size  = tags_buf_size;
 
     return tags_buf_array;
 
@@ -978,7 +978,7 @@ static void* csvGenStbThread(void* arg) {
             for (ctb_idx = 0; ctb_idx < thread_meta->ctb_count; ++ctb_idx) {
                 for (slice_ctb_cur_ts = slice_cur_ts; slice_ctb_cur_ts < slice_batch_ts; slice_ctb_cur_ts += write_meta->stb->timestamp_step) {
                     ret = csvWriteFile(fhdl, ctb_idx, slice_ctb_cur_ts, &ck, write_meta, thread_meta);
-                    if (!ret) {
+                    if (ret) {
                         errorPrint("Failed to write csv file. thread index: %zu, file: %s, errno: %d, strerror: %s.\n",
                                 thread_meta->thread_id, fullname, errno, strerror(errno));
                         csvClose(fhdl);
@@ -1071,7 +1071,7 @@ static int csvGenStbProcess(SDataBase* db, SSuperTable* stb) {
         csvInitThreadMeta(write_meta, i + 1, &arg->thread_meta);
 
         ret = pthread_create(&pids[i], NULL, csvGenStbThread, arg);
-        if (!ret) {
+        if (ret) {
             perror("Failed to create thread"); 
             goto end;
         }
