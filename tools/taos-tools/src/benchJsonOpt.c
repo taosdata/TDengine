@@ -1620,11 +1620,13 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
     }
 
     // csv output header
-    g_arguments->csv_output_header = false;
+    g_arguments->csv_output_header = true;
     tools_cJSON* oph = tools_cJSON_GetObjectItem(json, "csv_output_header");
     if (oph && oph->type == tools_cJSON_String && oph->valuestring != NULL) {
-        if (0 == strcasecmp(oph->valuestring, "yes")) {
+        if (0 == strcasecmp(oph->valuestring, "yes") || 0 == strcasecmp(oph->valuestring, "true")) {
             g_arguments->csv_output_header = true;
+        } else if (0 == strcasecmp(oph->valuestring, "no") || 0 == strcasecmp(oph->valuestring, "false")) {
+            g_arguments->csv_output_header = false;
         }
     }
 
