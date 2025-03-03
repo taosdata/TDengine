@@ -41,28 +41,26 @@ target_link_libraries(
     PUBLIC uv_a
 )
 
-add_executable(runUdf test/runUdf.c)
-target_include_directories(
-    runUdf
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
-    "${TD_SOURCE_DIR}/include/util"
-    "${TD_SOURCE_DIR}/include/common"
-    "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/include/os"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
+if(${BUILD_TEST})
+    add_executable(runUdf test/runUdf.c)
+    target_include_directories(
+        runUdf
+        PUBLIC
+        "${TD_SOURCE_DIR}/include/libs/function"
+        "${TD_SOURCE_DIR}/contrib/libuv/include"
+        "${TD_SOURCE_DIR}/include/util"
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/client"
+        "${TD_SOURCE_DIR}/include/os"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    )
 
-IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
-    ADD_DEPENDENCIES(runUdf jemalloc)
-ENDIF()
-
-target_link_libraries(
-    runUdf
-    PUBLIC uv_a
-    PRIVATE os util common nodes function ${LINK_JEMALLOC}
-)
+    target_link_libraries(
+        runUdf
+        PUBLIC uv_a
+        PRIVATE os util common nodes function ${LINK_JEMALLOC}
+    )
+endif()
 
 add_library(udf1 STATIC MODULE test/udf1.c)
 target_include_directories(
