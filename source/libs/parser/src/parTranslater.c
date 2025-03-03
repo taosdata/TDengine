@@ -3750,7 +3750,7 @@ static bool isWindowJoinSubTbTag(SSelectStmt* pSelect, SNode* pNode) {
   }
 
   SRealTableNode* pTargetTable = pProbeTable;
-  if (0 != strcasecmp(pCol->tableAlias, pProbeTable->table.tableAlias)) {
+  if (0 != taosStrcasecmp(pCol->tableAlias, pProbeTable->table.tableAlias)) {
     pTargetTable = pBuildTable;
   }
 
@@ -3790,7 +3790,7 @@ static bool isWindowJoinSubTbname(SSelectStmt* pSelect, SNode* pNode) {
   SRealTableNode* pTargetTable = pProbeTable;
   bool            isProbeTable = true;
   SValueNode*     pVal = (SValueNode*)nodesListGetNode(pFuncNode->pParameterList, 0);
-  if (NULL != pVal && 0 != strcasecmp(pVal->literal, pProbeTable->table.tableAlias)) {
+  if (NULL != pVal && 0 != taosStrcasecmp(pVal->literal, pProbeTable->table.tableAlias)) {
     pTargetTable = pBuildTable;
     isProbeTable = false;
   }
@@ -10597,7 +10597,7 @@ static int32_t translateAlterDnode(STranslateContext* pCxt, SAlterDnodeStmt* pSt
   const char* validConfigs[] = {
       "encrypt_key",
   };
-  if (0 == strncasecmp(cfgReq.config, validConfigs[0], strlen(validConfigs[0]) + 1)) {
+  if (0 == taosStrncasecmp(cfgReq.config, validConfigs[0], strlen(validConfigs[0]) + 1)) {
     int32_t klen = strlen(cfgReq.value);
     if (klen > ENCRYPT_KEY_LEN || klen < ENCRYPT_KEY_LEN_MIN) {
       tFreeSMCfgDnodeReq(&cfgReq);

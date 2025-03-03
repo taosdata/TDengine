@@ -582,14 +582,14 @@ SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName) {
   int32_t size = taosArrayGetSize(pCfg->localArray);
   for (int32_t i = 0; i < size; ++i) {
     SConfigItem *pItem = taosArrayGet(pCfg->localArray, i);
-    if (strcasecmp(pItem->name, pName) == 0) {
+    if (taosStrcasecmp(pItem->name, pName) == 0) {
       return pItem;
     }
   }
   size = taosArrayGetSize(pCfg->globalArray);
   for (int32_t i = 0; i < size; ++i) {
     SConfigItem *pItem = taosArrayGet(pCfg->globalArray, i);
-    if (strcasecmp(pItem->name, pName) == 0) {
+    if (taosStrcasecmp(pItem->name, pName) == 0) {
       return pItem;
     }
   }
@@ -1440,7 +1440,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
     size_t       len = strlen(name);
     const char  *debugFlagStr = "debugFlag";
     const size_t debugFlagLen = strlen(debugFlagStr);
-    if (len >= debugFlagLen && strcasecmp(name + len - debugFlagLen, debugFlagStr) == 0) {
+    if (len >= debugFlagLen && taosStrcasecmp(name + len - debugFlagLen, debugFlagStr) == 0) {
       code = cfgUpdateDebugFlagItem(pConfig, name, len == debugFlagLen);
       if (TSDB_CODE_SUCCESS != code && TSDB_CODE_CFG_NOT_FOUND != code) break;
     }

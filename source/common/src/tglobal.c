@@ -2333,7 +2333,7 @@ static int32_t taosCfgSetOption(OptionNameAndVar *pOptions, int32_t optionSize, 
   char   *name = pItem->name;
   for (int32_t d = 0; d < optionSize; ++d) {
     const char *optName = pOptions[d].optionName;
-    if (strcasecmp(name, optName) != 0) continue;
+    if (taosStrcasecmp(name, optName) != 0) continue;
     code = TSDB_CODE_SUCCESS;
     switch (pItem->dtype) {
       case CFG_DTYPE_BOOL: {
@@ -2850,7 +2850,7 @@ int32_t taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVa
 static int taosLogVarComp(void const *lp, void const *rp) {
   SLogVar *lpVar = (SLogVar *)lp;
   SLogVar *rpVar = (SLogVar *)rp;
-  return strcasecmp(lpVar->name, rpVar->name);
+  return taosStrcasecmp(lpVar->name, rpVar->name);
 }
 
 static void taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag, SArray *noNeedToSetVars) {

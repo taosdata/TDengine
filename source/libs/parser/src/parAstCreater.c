@@ -3716,7 +3716,7 @@ static bool validateNotifyUrl(const char* url) {
   if (!url || *url == '\0') return false;
 
   for (int32_t i = 0; i < ARRAY_SIZE(prefix); ++i) {
-    if (strncasecmp(url, prefix[i], strlen(prefix[i])) == 0) {
+    if (taosStrncasecmp(url, prefix[i], strlen(prefix[i])) == 0) {
       host = url + strlen(prefix[i]);
       break;
     }
@@ -3762,9 +3762,9 @@ SNode* createStreamNotifyOptions(SAstCreateContext* pCxt, SNodeList* pAddrUrls, 
 
   FOREACH(pNode, pEventTypes) {
     char *eventStr = ((SValueNode *)pNode)->literal;
-    if (strncasecmp(eventStr, eWindowOpenStr, strlen(eWindowOpenStr) + 1) == 0) {
+    if (taosStrncasecmp(eventStr, eWindowOpenStr, strlen(eWindowOpenStr) + 1) == 0) {
       BIT_FLAG_SET_MASK(eventTypes, SNOTIFY_EVENT_WINDOW_OPEN);
-    } else if (strncasecmp(eventStr, eWindowCloseStr, strlen(eWindowCloseStr) + 1) == 0) {
+    } else if (taosStrncasecmp(eventStr, eWindowCloseStr, strlen(eWindowCloseStr) + 1) == 0) {
       BIT_FLAG_SET_MASK(eventTypes, SNOTIFY_EVENT_WINDOW_CLOSE);
     } else {
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,

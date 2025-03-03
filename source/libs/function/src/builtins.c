@@ -733,7 +733,7 @@ static int32_t checkFixedValue(SNode* pNode, const SParamInfo* paramPattern, int
       }
     } else {
       for (int32_t k = 0; k < paramPattern->fixedValueSize; k++) {
-        if (strcasecmp(pVal->literal, paramPattern->fixedStrValue[k]) == 0) {
+        if (taosStrcasecmp(pVal->literal, paramPattern->fixedStrValue[k]) == 0) {
           code = TSDB_CODE_SUCCESS;
           *isMatch = true;
           break;
