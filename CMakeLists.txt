@@ -1,113 +1,102 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
 
 project(
-    TDengine
-    VERSION 3.0
-    DESCRIPTION "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
+  TDengine
+  VERSION 3.0
+  DESCRIPTION "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
 )
 
-SET(TD_COMMUNITY_DIR ${PROJECT_SOURCE_DIR}/community)
-SET(TD_ENTERPRISE_DIR ${PROJECT_SOURCE_DIR}/enterprise)
-MESSAGE(STATUS "Community source directory: " ${TD_COMMUNITY_DIR})
-MESSAGE(STATUS "Enterprise source directory: " ${TD_ENTERPRISE_DIR})
+set(TD_COMMUNITY_DIR ${PROJECT_SOURCE_DIR}/community)
+set(TD_ENTERPRISE_DIR ${PROJECT_SOURCE_DIR}/enterprise)
+message(STATUS "Community source directory: " ${TD_COMMUNITY_DIR})
+message(STATUS "Enterprise source directory: " ${TD_ENTERPRISE_DIR})
 
-IF (CUS_NAME)
-    MESSAGE(STATUS "Customized brand name: " ${CUS_NAME})
-    ADD_DEFINITIONS(-DCUS_NAME="${CUS_NAME}")
-ENDIF ()
+if(CUS_NAME)
+  message(STATUS "Customized brand name: " ${CUS_NAME})
+  add_definitions(-DCUS_NAME="${CUS_NAME}")
+endif()
 
-IF (CUS_PROMPT)
-    MESSAGE(STATUS "Customized prompt: " ${CUS_PROMPT})
-    ADD_DEFINITIONS(-DCUS_PROMPT="${CUS_PROMPT}")
-ENDIF ()
+if(CUS_PROMPT)
+  message(STATUS "Customized prompt: " ${CUS_PROMPT})
+  add_definitions(-DCUS_PROMPT="${CUS_PROMPT}")
+endif()
 
-IF (CUS_EMAIL)
-    MESSAGE(STATUS "Customized email: " ${CUS_EMAIL})
-    ADD_DEFINITIONS(-DCUS_EMAIL="${CUS_EMAIL}")
-ENDIF ()
+if(CUS_EMAIL)
+  message(STATUS "Customized email: " ${CUS_EMAIL})
+  add_definitions(-DCUS_EMAIL="${CUS_EMAIL}")
+endif()
 
-IF (GRANT_VALUE)
-    MESSAGE(STATUS "Input grant value: " ${GRANT_VALUE})
-    ADD_DEFINITIONS(-DGRANT_VALUE="${GRANT_VALUE}")
-ENDIF ()
+if(GRANT_VALUE)
+  message(STATUS "Input grant value: " ${GRANT_VALUE})
+  add_definitions(-DGRANT_VALUE="${GRANT_VALUE}")
+endif()
 
-IF (CUS_NAME OR CUS_PROMPT OR CUS_EMAIL)
-    ADD_DEFINITIONS(-I${PROJECT_SOURCE_DIR}/enterprise/packaging)
-ENDIF (CUS_NAME OR CUS_PROMPT OR CUS_EMAIL)
+if(CUS_NAME OR CUS_PROMPT OR CUS_EMAIL)
+  add_definitions(-I${TD_ENTERPRISE_DIR}/packaging)
+endif(CUS_NAME OR CUS_PROMPT OR CUS_EMAIL)
 
-set( TD_SOURCE_DIR ${PROJECT_SOURCE_DIR} )
-include(${TD_SOURCE_DIR}/enterprise/cmake/cmake.options)
-add_subdirectory(enterprise/contrib)
+add_definitions(-DTD_ENTERPRISE)
 
-set( TD_SOURCE_DIR ${TD_COMMUNITY_DIR} )
-
-set(TD_ENTERPRISE TRUE)
-SET(TD_ACCOUNT TRUE)
-SET(TD_ADMIN TRUE)
-SET(TD_VNODE_PLUGINS TRUE)
-SET(TD_MQTT FALSE)
-SET(TD_STORAGE TRUE)
-SET(TD_TOPIC TRUE)
-SET(TD_MODULE TRUE)
-
-SET(TD_COVER FALSE)
-SET(TD_MEM_CHECK FALSE)
-
-SET(TD_PAGMODE_LITE FALSE)
-SET(TD_SOMODE_STATIC FALSE)
-SET(TD_POWER FALSE)
-SET(TD_GODLL FALSE)
-SET(TD_PRIVILEGE TRUE)
-# SET(JEMALLOC_ENABLED TRUE)
-SET(BUILD_DM_MODULE TRUE)
-
+set(TD_SOURCE_DIR ${TD_COMMUNITY_DIR})
 set(TD_SUPPORT_DIR "${TD_SOURCE_DIR}/cmake")
 set(TD_CONTRIB_DIR "${TD_SOURCE_DIR}/contrib")
 
+include(${TD_ENTERPRISE_DIR}/cmake/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.platform)
-
-SET(TD_GRANT TRUE)
-
-IF (TD_LINUX_64 AND NOT TD_NINGSI) 
-  SET(TD_USB_DONGLE TRUE)
-ELSE ()
-  SET(TD_USB_DONGLE FALSE)
-ENDIF ()
-
 include(${TD_SUPPORT_DIR}/cmake.define)
 include(${TD_SUPPORT_DIR}/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.version)
 include(${TD_SUPPORT_DIR}/cmake.install)
 
-IF (TD_WINDOWS OR TD_DARWIN) 
-  SET(TD_SOMODE_STATIC TRUE)
-ENDIF ()
+set(TD_ENTERPRISE TRUE)
+set(TD_ACCOUNT TRUE)
+set(TD_ADMIN TRUE)
+set(TD_VNODE_PLUGINS TRUE)
+set(TD_MQTT FALSE)
+set(TD_STORAGE TRUE)
+set(TD_TOPIC TRUE)
+set(TD_MODULE TRUE)
+set(TD_COVER FALSE)
+set(TD_MEM_CHECK FALSE)
+set(TD_PAGMODE_LITE FALSE)
+set(TD_SOMODE_STATIC FALSE)
+set(TD_POWER FALSE)
+set(TD_GODLL FALSE)
+set(TD_PRIVILEGE TRUE)
 
-# contrib
-add_subdirectory(community/contrib)
+# set(JEMALLOC_ENABLED TRUE)
+set(BUILD_DM_MODULE TRUE)
+set(TD_GRANT TRUE)
 
-# api
+if(TD_LINUX_64 AND NOT TD_NINGSI)
+  set(TD_USB_DONGLE TRUE)
+else()
+  set(TD_USB_DONGLE FALSE)
+endif()
+
+if(TD_WINDOWS OR TD_DARWIN)
+  set(TD_SOMODE_STATIC TRUE)
+endif()
+
 add_library(api INTERFACE)
-target_include_directories(api INTERFACE "community/include/client")
+target_include_directories(api INTERFACE "${PROJECT_SOURCE_DIR}/community/include/client")
 
-# src
-if(${BUILD_TEST})
-    include(CTest)
-    enable_testing()
-endif(${BUILD_TEST})
-
-ADD_DEFINITIONS(-DTD_ENTERPRISE)
-
+add_subdirectory(community/contrib)
 add_subdirectory(community/source)
 add_subdirectory(community/tools)
 add_subdirectory(community/utils)
-add_subdirectory(community/examples/c)
-
-# docs 
+add_subdirectory(community/tests)
 add_subdirectory(community/docs/doxgen)
 
-set( TD_SOURCE_DIR ${PROJECT_SOURCE_DIR} )
+set(TD_SOURCE_DIR ${PROJECT_SOURCE_DIR})
+add_subdirectory(enterprise/contrib)
+add_subdirectory(enterprise)
 
-ADD_SUBDIRECTORY(enterprise)
+if(${BUILD_TEST})
+  include(CTest)
+  enable_testing()
+  add_subdirectory(community/examples/c)
+  add_subdirectory(community/utils/test/c)
+endif(${BUILD_TEST})
 
-INCLUDE(CPack)
+include(CPack)
