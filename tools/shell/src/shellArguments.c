@@ -129,7 +129,7 @@ static struct argp_option shellOptions[] = {
     {"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
     {"bimode", 'B', 0, 0, SHELL_BI_MODE},
-    {"driver", 'v', "DRIVER", 0, SHELL_DRIVER},
+    {"driver", 'Z', "DRIVER", 0, SHELL_DRIVER},
     {0},
 };
 
@@ -233,7 +233,7 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
     case 'T':
       pArgs->timeout = atoi(arg);
       break;
-    case 'v':
+    case 'Z':
       if (strcasecmp(arg, "native") == 0 || strcasecmp(arg, "0") == 0) {
         pArgs->is_native = true;
       } else if (strcasecmp(arg, "websocket") == 0 || strcasecmp(arg, "1") == 0) {
