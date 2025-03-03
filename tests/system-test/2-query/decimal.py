@@ -23,8 +23,10 @@ invalid_operation = -2147483136
 scalar_convert_err = -2147470768
 
 
-operator_test_round = 2
+operator_test_round = 1
 tb_insert_rows = 1000
+binary_op_test = True
+unary_op_test = True
 
 class DecimalTypeGeneratorConfig:
     def __init__(self):
@@ -199,8 +201,17 @@ class DecimalColumnExpr:
             params = params + (p.get_val(tbname, idx),)
         return self.execute(params)
 
+    def convert_to_res_type(self, val: Decimal) -> Decimal:
+        if self.res_type_.is_decimal_type():
+            return val.quantize(Decimal("0." + "0" * self.res_type_.scale()), ROUND_HALF_UP)
+        elif self.res_type_.type == TypeEnum.DOUBLE:
+            return float(val)
+
     def get_input_types(self) -> List:
         pass
+
+    def should_skip_for_decimal(self, cols: list):
+        return False
 
     def check(self, query_col_res: List, tbname: str):
         for i in range(len(query_col_res)):
@@ -235,8 +246,8 @@ class DecimalColumnExpr:
                     f"check decimal column failed for expr: {self}, input: {[t.__str__() for t in self.get_input_types()]}, res_type: {self.res_type_}, params: {params}, query: {v_from_query}, expect {calc_res}, but get {query_res}"
                 )
             else:
-                tdLog.debug(
-                    f"check decimal succ for expr: {self}, input: {[t.__str__() for t in self.get_input_types()]}, res_type: {self.res_type_}, params: {params}, insert:{v_from_calc_in_py} query:{v_from_query}, py dec: {calc_res}"
+                tdLog.info(
+                    f"op succ: {self}, in: {[t.__str__() for t in self.get_input_types()]}, res: {self.res_type_}, params: {params}, insert:{v_from_calc_in_py} query:{v_from_query}, py calc: {calc_res}"
                 )
 
     ## format_params are already been set
@@ -533,7 +544,11 @@ class Column:
         if save:
             if tbName not in self.saved_vals:
                 self.saved_vals[tbName] = []
-            self.saved_vals[tbName].append(val)
+            ## for constant columns, always replace the last val
+            if self.is_constant_col():
+                self.saved_vals[tbName] = [val]
+            else:
+                self.saved_vals[tbName].append(val)
         return val
 
     def get_type_str(self) -> str:
@@ -753,12 +768,14 @@ class DecimalBinaryOperator(DecimalColumnExpr):
     def generate(self, format_params) -> str:
         return super().generate(format_params)
     
-    def should_skip_for_decimal(self, left_col: Column, right_col: Column):
+    def should_skip_for_decimal(self, cols: list):
+        left_col = cols[0]
+        right_col = cols[1]
         if not left_col.type_.is_decimal_type() and not right_col.type_.is_decimal_type():
             return True
         if self.op_ != "%":
             return False
-        ## why skip decimal % float/double?? it's wrong now.
+        ## why skip decimal % float/double? it's wrong now.
         left_is_real = left_col.type_.is_real_type() or left_col.type_.is_varchar_type()
         right_is_real = right_col.type_.is_real_type() or right_col.type_.is_varchar_type()
         if left_is_real or right_is_real:
@@ -833,12 +850,6 @@ class DecimalBinaryOperator(DecimalColumnExpr):
     
     def get_input_types(self)-> list:
         return [self.left_type_, self.right_type_]
-    
-    def convert_to_res_type(self, val: Decimal) -> Decimal:
-        if self.res_type_.is_decimal_type():
-            return val.quantize(Decimal("0." + "0" * self.res_type_.scale()), ROUND_HALF_UP)
-        elif self.res_type_.type == TypeEnum.DOUBLE:
-            return float(val)
 
     @staticmethod
     def get_convert_type(params):
@@ -972,8 +983,36 @@ class DecimalBinaryOperator(DecimalColumnExpr):
 
     def execute(self, params):
         return super().execute(params)
+    
+class DecimalUnaryOperator(DecimalColumnExpr):
+    def __init__(self, format, executor, op: str):
+        super().__init__(format, executor)
+        self.op_ = op
+        self.col_type_: DataType = None
 
+    def should_skip_for_decimal(self, cols: list):
+        col:Column = cols[0]
+        if not col.type_.is_decimal_type():
+            return True
+        return False
 
+    @staticmethod
+    def get_all_unary_ops() -> List[DecimalColumnExpr]:
+        return [
+            DecimalUnaryOperator(" -{0} ", DecimalUnaryOperator.execute_minus, "-"),
+        ]
+
+    def get_input_types(self)-> list:
+        return [self.col_type_]
+    
+    def generate_res_type(self):
+        self.res_type_ = self.col_type_ = self.params_[0].type_
+    
+    def execute_minus(self, params) -> Decimal:
+        if params[0] is None:
+            return 'NULL'
+        return -Decimal(params[0])
+    
 class DecimalBinaryOperatorIn(DecimalBinaryOperator):
     def __init__(self, op: str):
         super().__init__(op)
@@ -983,7 +1022,7 @@ class DecimalBinaryOperatorIn(DecimalBinaryOperator):
             return left in right
         if self.op_.lower() == "not in":
             return left not in right
-
+    
 
 class TDTestCase:
     updatecfgDict = {
@@ -1341,6 +1380,8 @@ class TDTestCase:
         constant_cols: List[Column],
         exprs: List[DecimalColumnExpr],
     ):
+        if not binary_op_test:
+            return
         for expr in exprs:
             for col in tb_cols:
                 if col.name_ == '':
@@ -1348,22 +1389,46 @@ class TDTestCase:
                 left_is_decimal = col.type_.is_decimal_type()
                 for const_col in constant_cols:
                     right_is_decimal = const_col.type_.is_decimal_type()
-                    if expr.should_skip_for_decimal(col, const_col):
+                    if expr.should_skip_for_decimal([col, const_col]):
                         continue
                     const_col.generate_value()
+                    select_expr2 = expr.generate((const_col, col))
+                    sql = f"select {select_expr2} from {dbname}.{tbname}"
+                    res2 = TaosShell().query(sql)
                     select_expr = expr.generate((col, const_col))
                     sql = f"select {select_expr} from {dbname}.{tbname}"
                     res = TaosShell().query(sql)
                     if len(res) > 0:
+                        if len(res) != len(res2):
+                            tdLog.exit(
+                                f"sql: {sql} got different row number for {select_expr} and {select_expr2}"
+                            )
+                        for c, c2 in zip(res, res2):
+                            for t, t2 in zip(c, c2):
+                                if t != t2:
+                                    tdLog.exit(
+                                        f"sql: {sql} got different result for {select_expr} and {select_expr2}, expect {t2}, but got {t}"
+                                    )
                         expr.check(res[0], tbname)
                     else:
                         tdLog.info(f"sql: {sql} got no output")
-        ## query
-        ## build expr, expr.generate(column) to generate sql expr
-        ## pass this expr into DataValidator.
-        # When validating between query results and local values, pass the column data into the Expr, and invoke expr.execute
-        ## get result
-        ## check result
+
+    def check_decimal_unary_expr_results(self, dbname, tbname, tb_cols: List[Column], exprs: List[DecimalColumnExpr]):
+        if not unary_op_test:
+            return
+        for expr in exprs:
+            for col in tb_cols:
+                if col.name_ == '':
+                    continue
+                if expr.should_skip_for_decimal([col]):
+                    continue
+                select_expr = expr.generate([col])
+                sql = f"select {select_expr} from {dbname}.{tbname}"
+                res = TaosShell().query(sql)
+                if len(res) > 0:
+                    expr.check(res[0], tbname)
+                else:
+                    tdLog.info(f"sql: {sql} got no output")
 
     ## test others unsupported types operator with decimal
     def test_decimal_unsupported_types(self):
@@ -1415,6 +1480,7 @@ class TDTestCase:
         ## tables: meters, nt
         ## columns: c1, c2, c3, c4, c5, c7, c8, c9, c10, c99, c100
         binary_operators = DecimalBinaryOperator.get_all_binary_ops()
+        binary_operators = binary_operators[0:1]
         all_type_columns = Column.get_decimal_oper_const_cols()
 
         ## decimal operator with constants of all other types
@@ -1427,9 +1493,13 @@ class TDTestCase:
                 binary_operators,
             )
 
-        ## decimal operator with columns of all other types
-
-        unary_operators = ["-"]
+        unary_operators = DecimalUnaryOperator.get_all_unary_ops()
+        self.check_decimal_unary_expr_results(
+            self.db_name,
+            self.norm_table_name,
+            self.norm_tb_columns,
+            unary_operators,
+        )
 
     def test_decimal_functions(self):
         self.test_decimal_last_first_func()

@@ -1069,18 +1069,19 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
   SDataType rt = {.type = TSDB_DATA_TYPE_DECIMAL,
                   .precision = TSDB_DECIMAL_MAX_PRECISION,
                   .bytes = tDataTypes[TSDB_DATA_TYPE_DECIMAL].bytes,
-                  .scale = pRightT->scale};
+                  .scale = 0};
+  if (pRightT) rt.scale = pRightT->scale;
   if (TSDB_DATA_TYPE_DECIMAL != pLeftT->type) {
     code = convertToDecimal(pLeftData, pLeftT, &left, &lt);
     if (TSDB_CODE_SUCCESS != code) return code; // TODO add some logs here
   } else {
     left = *(Decimal*)pLeftData;
   }
-  if (TSDB_DATA_TYPE_DECIMAL != pRightT->type) {
+  if (pRightT && TSDB_DATA_TYPE_DECIMAL != pRightT->type) {
     code = convertToDecimal(pRightData, pRightT, &right, &rt);
     if (TSDB_CODE_SUCCESS != code) return code;
     pRightData = &right;
-  } else {
+  } else if (pRightData){
     right = *(Decimal*)pRightData;
   }
 #ifdef DEBUG
@@ -1106,6 +1107,9 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
       break;
     case OP_TYPE_REM:
       code = decimalMod(&left, &lt, &right, &rt, pOutT);
+      break;
+    case OP_TYPE_MINUS:
+      decimal128Negate(&left);
       break;
     default:
       code = TSDB_CODE_TSC_INVALID_OPERATION;
@@ -1239,7 +1243,7 @@ static int32_t decimal64FromDecimal128(DecimalType* pDec, uint8_t prec, uint8_t 
 
   Decimal64 max = {0};
   DECIMAL64_GET_MAX(prec - scale, &max);
-  decimal128ScaleTo(&dec128, valScale, 0);
+  decimal128ScaleDown(&dec128, valScale, false);
   if (decimal128Gt(&dec128, &max, WORD_NUM(Decimal64))) {
     return TSDB_CODE_DECIMAL_OVERFLOW;
   }
@@ -1257,7 +1261,7 @@ static int32_t decimal64FromDecimal64(DecimalType* pDec, uint8_t prec, uint8_t s
   *(Decimal64*)pDec = dec64;
 
   DECIMAL64_GET_MAX(prec - scale, &max);
-  decimal64ScaleTo(&dec64, valScale, 0);
+  decimal64ScaleDown(&dec64, valScale, false);
   if (decimal64Lt(&max, &dec64, WORD_NUM(Decimal64))) {
     return TSDB_CODE_DECIMAL_OVERFLOW;
   }
@@ -1529,7 +1533,9 @@ static void decimal64ScaleAndCheckOverflow(Decimal64* pDec, int8_t scale, uint8_
     Decimal64 res = *pDec, max = {0};
     decimal64ScaleDown(&res, -deltaScale, false);
     DECIMAL64_GET_MAX(toPrec, &max);
-    if (decimal64Gt(&res, &max, WORD_NUM(Decimal64))) {
+    Decimal64 abs = res;
+    decimal64Abs(&abs);
+    if (decimal64Gt(&abs, &max, WORD_NUM(Decimal64))) {
       if (overflow) *overflow = true;
     } else {
       *pDec = res;
