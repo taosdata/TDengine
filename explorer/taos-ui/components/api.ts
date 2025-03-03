@@ -231,9 +231,9 @@ function generateTagHierachy(tmpTags: Recordable) {
     });
   return { obj: result, total: total };
 }
-export function deleteStableReq(payload: { dbName: string; stableName: string }) {
-  const { dbName, stableName } = payload;
-  return executeSqlFn!(`DROP STABLE \`${dbName}\`.\`${stableName}\`;`).catch(err => {
+export function deleteStableReq(payload: { dbName: string; stbName: string }) {
+  const { dbName, stbName } = payload;
+  return executeSqlFn!(`DROP STABLE \`${dbName}\`.\`${stbName}\`;`).catch(err => {
     err.desc && ElMessage.error(err.desc);
     return Promise.reject(err);
   });
