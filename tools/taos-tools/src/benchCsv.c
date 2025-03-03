@@ -114,7 +114,7 @@ static void csvCalcCtbRange(CsvThreadMeta* thread_meta, size_t total_threads, in
 
     thread_meta->ctb_start_idx = ctb_start_idx;
     thread_meta->ctb_end_idx   = ctb_end_idx;
-    thread_meta->ctb_count     = ctb_count;
+    thread_meta->ctb_count     = ctb_end_idx - ctb_start_idx;
     return;
 }
 
@@ -385,7 +385,10 @@ int csvGenCreateStbSql(SDataBase* db, SSuperTable* stb, char* buf, int size) {
         if (pos <= 0 || pos >= size) return -1;
     }
 
-    infoPrint("create stable: <%s>\n", buf);
+    pos += snprintf(buf + pos, size - pos, "\n");
+    if (pos <= 0 || pos >= size) return -1;
+
+    // infoPrint("create stable: <%s>.\n", buf);
     return (pos > 0 && pos < size) ? pos : -1;
 }
 
@@ -677,7 +680,7 @@ static int csvGenRowTagData(char* buf, int size, SSuperTable* stb, int64_t index
     }
 
     // tbname
-    int pos = snprintf(buf, size, "\'%s%"PRId64"\'", stb->childTblPrefix, index);
+    int pos = snprintf(buf, size, ",'%s%"PRId64"'", stb->childTblPrefix, index);
 
     // tags
     pos += csvGenRowFields(buf + pos, size - pos, stb, GEN_ROW_FIELDS_TAG, k);
@@ -968,6 +971,7 @@ static void* csvGenStbThread(void* arg) {
         slice_cur_ts = cur_ts;
         slice_end_ts = MIN(cur_ts + write_meta->ts_step, write_meta->end_ts);
         file_rows    = 0;
+        pre_print_ts = toolsGetTimestampMs();
 
         infoPrint("thread[%zu] begin to write csv file: %s.\n", thread_meta->thread_id, fullname);
 
@@ -1000,7 +1004,7 @@ static void* csvGenStbThread(void* arg) {
                     }
 
 
-                    if (!g_arguments->terminate) {
+                    if (g_arguments->terminate) {
                         csvClose(fhdl);
                         goto end;
                     }
