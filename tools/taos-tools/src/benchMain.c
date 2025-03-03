@@ -66,6 +66,29 @@ void checkArgumentValid() {
     }
 }
 
+// apply cfg
+int32_t applyConfigDir(char * configDir){
+    // set engine config dir 
+    int32_t code;
+#ifdef LINUX
+    wordexp_t full_path;
+    if (wordexp(g_configDir, &full_path, 0) != 0) {
+        errorPrint("Invalid path %s\n", g_configDir);
+        exit(EXIT_FAILURE);
+    }
+    code = taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
+    wordfree(&full_path);
+#else
+    code = taos_options(TSDB_OPTION_CONFIGDIR, configDir);
+#endif
+    // show error
+    if (code) {
+        engineError("applyConfigDir", "taos_options(TSDB_OPTION_CONFIGDIR, ...)", code);
+    }
+
+    return code;
+ }
+
 int32_t setConnMode(int8_t  connMode, char *dsn) {
     // check valid
     if (connMode == CONN_MODE_NATIVE && dsn != NULL ) {
@@ -149,6 +172,18 @@ int main(int argc, char* argv[]) {
     if (setConnMode(g_arguments->connMode, g_arguments->dsn) != 0) {
         exitLog();
         return -1;
+    }
+
+    // check condition for set config dir
+    if (strlen(g_configDir)
+            && g_arguments->host_auto
+            && g_arguments->port_auto) {
+        // apply
+        if(applyConfigDir(g_configDir) != TSDB_CODE_SUCCESS) {
+            exitLog();
+            return -1;    
+        }
+        infoPrint("Set engine config successfully, dir:%s\n", g_configDir);
     }
 
     // cancel thread

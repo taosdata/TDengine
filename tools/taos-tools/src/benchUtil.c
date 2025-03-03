@@ -47,7 +47,7 @@ FORCE_INLINE void tmfree(void *buf) {
 }
 
 void engineError(char * module, char * fun, int32_t code) {
-    errorPrint("%s %s fun=%s error code:0x%08X \n", TIP_ENGINE_ERR, module, fun, code);
+    errorPrint("%s API:%s error code:0x%08X %s\n", TIP_ENGINE_ERR, fun, code, module);
 }
 
 void ERROR_EXIT(const char *msg) {

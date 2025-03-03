@@ -1496,7 +1496,12 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
     tools_cJSON *cfgdir = tools_cJSON_GetObjectItem(json, "cfgdir");
     if (cfgdir && (cfgdir->type == tools_cJSON_String)
             && (cfgdir->valuestring != NULL)) {
-        tstrncpy(g_configDir, cfgdir->valuestring, MAX_FILE_NAME_LEN);
+        if (!g_arguments->cfg_inputted) {
+            tstrncpy(g_configDir, cfgdir->valuestring, MAX_FILE_NAME_LEN);
+            debugPrint("configDir from cfg: %s\n", g_configDir);
+        } else {
+            warnPrint("configDir set by command line, so ignore cfg. cmd: %s\n", g_configDir);
+        }        
     }
 
     tools_cJSON *host = tools_cJSON_GetObjectItem(json, "host");
@@ -1646,19 +1651,6 @@ static int getMetaFromInsertJsonFile(tools_cJSON *json) {
     if (tools_cJSON_IsNumber(table_theads)) {
         g_arguments->table_threads = (uint32_t)table_theads->valueint;
     }
-
-    // set engine config dir
-#ifdef LINUX
-    if (strlen(g_configDir)) {
-        wordexp_t full_path;
-        if (wordexp(g_configDir, &full_path, 0) != 0) {
-            errorPrint("Invalid path %s\n", g_configDir);
-            exit(EXIT_FAILURE);
-        }
-        taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
-        wordfree(&full_path);
-    }
-#endif
 
     tools_cJSON *numRecPerReq =
         tools_cJSON_GetObjectItem(json, "num_of_records_per_req");
@@ -2219,24 +2211,6 @@ static int getMetaFromQueryJsonFile(tools_cJSON *json) {
 
 static int getMetaFromTmqJsonFile(tools_cJSON *json) {
     int32_t code = -1;
-
-    tools_cJSON *cfgdir = tools_cJSON_GetObjectItem(json, "cfgdir");
-    if (tools_cJSON_IsString(cfgdir)) {
-        tstrncpy(g_configDir, cfgdir->valuestring, MAX_FILE_NAME_LEN);
-    }
-
-#ifdef LINUX
-    if (strlen(g_configDir)) {
-        wordexp_t full_path;
-    if (wordexp(g_configDir, &full_path, 0) != 0) {
-            errorPrint("Invalid path %s\n", g_configDir);
-            exit(EXIT_FAILURE);
-    }
-        taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
-        wordfree(&full_path);
-    }
-#endif
-
     tools_cJSON *resultfile = tools_cJSON_GetObjectItem(json, "result_file");
     if (resultfile && resultfile->type == tools_cJSON_String
             && resultfile->valuestring != NULL) {

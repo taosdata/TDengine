@@ -253,24 +253,6 @@ void modifyArgument() {
     SDataBase * database = benchArrayGet(g_arguments->databases, 0);
     SSuperTable *superTable = benchArrayGet(database->superTbls, 0);
 
-    if (strlen(g_configDir)
-            && g_arguments->host_auto
-            && g_arguments->port_auto) {
-#ifdef LINUX
-        wordexp_t full_path;
-        if (wordexp(g_configDir, &full_path, 0) != 0) {
-            errorPrint("Invalid path %s\n", g_configDir);
-            exit(EXIT_FAILURE);
-        }
-        taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
-        wordfree(&full_path);
-#else
-        taos_options(TSDB_OPTION_CONFIGDIR, g_configDir);
-#endif
-        g_arguments->host = DEFAULT_HOST;
-        g_arguments->port = 0;
-    }
-
     superTable->startTimestamp = g_arguments->startTimestamp;
 
     if (0 != g_arguments->partialColNum) {
