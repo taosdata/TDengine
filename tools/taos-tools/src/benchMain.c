@@ -21,6 +21,7 @@ STmqMetaInfo   g_tmqInfo;
 bool           g_fail = false;
 uint64_t       g_memoryUsage = 0;
 tools_cJSON*   root;
+extern char    g_configDir[MAX_PATH_LEN];
 
 #define CLIENT_INFO_LEN   20
 static char     g_client_info[CLIENT_INFO_LEN] = {0};
