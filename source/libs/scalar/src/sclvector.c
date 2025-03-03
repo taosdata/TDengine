@@ -49,7 +49,11 @@ bool compareForType(__compar_fn_t fp, int32_t optr, SColumnInfoData* pColL, int3
 bool compareForTypeWithColAndHash(__compar_fn_t fp, int32_t optr, SColumnInfoData *pColL, int32_t idxL,
                               const void *hashData, int32_t hashType, STypeMod hashTypeMod);
 
-static int32_t vectorMathOpForDecimal(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t step, int32_t i, EOperatorType op);
+static int32_t vectorMathBinaryOpForDecimal(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t step,
+                                            int32_t i, EOperatorType op);
+
+static int32_t vectorMathUnaryOpForDecimal(SScalarParam *pCol, SScalarParam *pOut, int32_t step, int32_t i,
+                                           EOperatorType op);
 
 int32_t convertNumberToNumber(const void *inData, void *outData, int8_t inType, int8_t outType) {
   switch (outType) {
@@ -1340,7 +1344,7 @@ int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
       SCL_ERR_JRET(vectorMathAddHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i));
     }
   } else if (IS_DECIMAL_TYPE(pOutputCol->info.type)) {
-    SCL_ERR_JRET(vectorMathOpForDecimal(pLeft, pRight, pOut, step, i, OP_TYPE_ADD));
+    SCL_ERR_JRET(vectorMathBinaryOpForDecimal(pLeft, pRight, pOut, step, i, OP_TYPE_ADD));
   }
 
 _return:
@@ -1473,7 +1477,7 @@ int32_t vectorMathSub(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
       SCL_ERR_JRET(vectorMathSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i));
     }
   } else if (pOutputCol->info.type == TSDB_DATA_TYPE_DECIMAL) {
-    SCL_ERR_JRET(vectorMathOpForDecimal(pLeft, pRight, pOut, step, i, OP_TYPE_SUB));
+    SCL_ERR_JRET(vectorMathBinaryOpForDecimal(pLeft, pRight, pOut, step, i, OP_TYPE_SUB));
   }
 
 _return:
@@ -1522,7 +1526,7 @@ int32_t vectorMathMultiply(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
   SColumnInfoData *pLeftCol = NULL;
   SColumnInfoData *pRightCol = NULL;
   if (pOutputCol->info.type == TSDB_DATA_TYPE_DECIMAL) {
-    SCL_ERR_JRET(vectorMathOpForDecimal(pLeft, pRight, pOut, step, i, OP_TYPE_MULTI));
+    SCL_ERR_JRET(vectorMathBinaryOpForDecimal(pLeft, pRight, pOut, step, i, OP_TYPE_MULTI));
   } else {
     SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
     SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
@@ -1570,7 +1574,7 @@ int32_t vectorMathDivide(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam
   SColumnInfoData *pLeftCol = NULL;
   SColumnInfoData *pRightCol = NULL;
   if (pOutputCol->info.type == TSDB_DATA_TYPE_DECIMAL) {
-    SCL_ERR_JRET(vectorMathOpForDecimal(pLeft, pRight, pOut, step, i, OP_TYPE_DIV));
+    SCL_ERR_JRET(vectorMathBinaryOpForDecimal(pLeft, pRight, pOut, step, i, OP_TYPE_DIV));
   } else {
     SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
     SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
@@ -1658,7 +1662,7 @@ int32_t vectorMathRemainder(SScalarParam *pLeft, SScalarParam *pRight, SScalarPa
   SColumnInfoData *pLeftCol = NULL;
   SColumnInfoData *pRightCol = NULL;
   if (pOutputCol->info.type == TSDB_DATA_TYPE_DECIMAL) {
-    SCL_ERR_JRET(vectorMathOpForDecimal(pLeft, pRight, pOut, step, i, OP_TYPE_REM));
+    SCL_ERR_JRET(vectorMathBinaryOpForDecimal(pLeft, pRight, pOut, step, i, OP_TYPE_REM));
   } else {
     SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
     SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
@@ -1708,20 +1712,24 @@ int32_t vectorMathMinus(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam 
 
   int32_t          leftConvert = 0;
   SColumnInfoData *pLeftCol = NULL;
-  SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
+  if (IS_DECIMAL_TYPE(pOutputCol->info.type)) {
+    SCL_ERR_JRET(vectorMathUnaryOpForDecimal(pLeft, pOut, step, i, OP_TYPE_MINUS));
+  } else {
+    SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
 
-  _getDoubleValue_fn_t getVectorDoubleValueFnLeft;
-  SCL_ERR_JRET(getVectorDoubleValueFn(pLeftCol->info.type, &getVectorDoubleValueFnLeft));
+    _getDoubleValue_fn_t getVectorDoubleValueFnLeft;
+    SCL_ERR_JRET(getVectorDoubleValueFn(pLeftCol->info.type, &getVectorDoubleValueFnLeft));
 
-  double *output = (double *)pOutputCol->pData;
-  for (; i < pLeft->numOfRows && i >= 0; i += step, output += 1) {
-    if (IS_HELPER_NULL(pLeftCol, i)) {
-      colDataSetNULL(pOutputCol, i);
-      continue;
+    double *output = (double *)pOutputCol->pData;
+    for (; i < pLeft->numOfRows && i >= 0; i += step, output += 1) {
+      if (IS_HELPER_NULL(pLeftCol, i)) {
+        colDataSetNULL(pOutputCol, i);
+        continue;
+      }
+      double result = 0;
+      SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, i, &result));
+      *output = (result == 0) ? 0 : -result;
     }
-    double result = 0;
-    SCL_ERR_JRET(getVectorDoubleValueFnLeft(LEFT_COL, i, &result));
-    *output = (result == 0) ? 0 : -result;
   }
 
 _return:
@@ -2308,7 +2316,25 @@ static int32_t vectorMathOpOneRowForDecimal(SScalarParam *pLeft, SScalarParam *p
   return code;
 }
 
-static int32_t vectorMathOpForDecimal(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t step, int32_t i, EOperatorType op) {
+static int32_t vectorMathUnaryOpForDecimal(SScalarParam *pCol, SScalarParam *pOut, int32_t step, int32_t i,
+                                           EOperatorType op) {
+  int32_t          code = 0;
+  SColumnInfoData *pOutputCol = pOut->columnData;
+  void            *pDec = pOutputCol->pData;
+  for (; i < pCol->numOfRows && i >= 0; i += step, pDec += tDataTypes[pOutputCol->info.type].bytes) {
+    if (IS_HELPER_NULL(pCol->columnData, i)) {
+      colDataSetNULL(pOutputCol, i);
+      continue;
+    }
+    SDataType colDt = GET_COL_DATA_TYPE(pCol->columnData->info), outDt = GET_COL_DATA_TYPE(pOutputCol->info);
+
+    code = decimalOp(op, &colDt, NULL, &outDt, colDataGetData(pCol->columnData, i), NULL, pDec);
+  }
+  return code;
+}
+
+static int32_t vectorMathBinaryOpForDecimal(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t step,
+                                            int32_t i, EOperatorType op) {
   Decimal  *output = (Decimal *)pOut->columnData->pData;
   int32_t   code = 0;
   SDataType leftType = GET_COL_DATA_TYPE(pLeft->columnData->info),
