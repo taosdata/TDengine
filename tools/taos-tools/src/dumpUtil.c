@@ -148,7 +148,7 @@ TAOS *taosConnect(const char *dbName) {
     int32_t i = 0;
     TAOS *taos = NULL;
     while (1) {
-        TAOS *taos = taos_connect(host, user, pwd, dbName, port);
+        taos = taos_connect(host, user, pwd, dbName, port);
         if (taos) {
             // successful
             if (i > 0) {
