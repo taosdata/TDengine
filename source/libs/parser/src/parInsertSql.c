@@ -1325,8 +1325,22 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     return TSDB_CODE_SUCCESS;
   }
   if (!pCxt->missCache) {
-    bool bUsingTable = true;
-    code = getTableMeta(pCxt, &pStmt->usingTableName, &pStableMeta, &pCxt->missCache, bUsingTable);
+    char tbFName[TSDB_TABLE_FNAME_LEN];
+    code = tNameExtractFullName(&pStmt->usingTableName, tbFName);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    STableMeta** ppStableMeta = taosHashGet(pStmt->pSuperTableHashObj, tbFName, strlen(tbFName));
+    if (NULL != ppStableMeta) {
+      pStableMeta = *ppStableMeta;
+    }
+    if (NULL == pStableMeta) {
+      bool bUsingTable = true;
+      code = getTableMeta(pCxt, &pStmt->usingTableName, &pStableMeta, &pCxt->missCache, bUsingTable);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = taosHashPut(pStmt->pSuperTableHashObj, tbFName, strlen(tbFName), &pStableMeta, POINTER_BYTES);
+      }
+    }
   }
   if (pCxt->isStmtBind) {
     goto _no_ctb_cache;
@@ -1349,7 +1363,6 @@ _no_ctb_cache:
       code = cloneTableMeta(pStableMeta, &pStmt->pTableMeta);
     }
   }
-  taosMemoryFree(pStableMeta);
   taosMemoryFree(pCtableMeta);
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTargetTableVgroup(pCxt->pComCxt, pStmt, true, &pCxt->missCache);
@@ -2847,6 +2860,7 @@ static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, S
     }
   }
   pStmt->pSubTableHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
+  pStmt->pSuperTableHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
   pStmt->pTableNameHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
   pStmt->pDbFNameHashObj = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK);
   if ((!reentry && (NULL == pStmt->pVgroupsHashObj || NULL == pStmt->pTableBlockHashObj)) ||
@@ -2856,6 +2870,7 @@ static int32_t createVnodeModifOpStmt(SInsertParseContext* pCxt, bool reentry, S
   }
 
   taosHashSetFreeFp(pStmt->pSubTableHashObj, destroySubTableHashElem);
+  taosHashSetFreeFp(pStmt->pSuperTableHashObj, destroySubTableHashElem);
 
   *pOutput = (SNode*)pStmt;
   return TSDB_CODE_SUCCESS;

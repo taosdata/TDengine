@@ -100,15 +100,15 @@ if __name__ == "__main__":
     precreate_tables()
     # 测试场景1：自动建表插入
     auto_create_time = test_auto_create_tables()
-    # 清理环境并重新初始化
-    prepare_database()
-    # 预创建所有子表
-    precreate_tables()
-    # 测试场景2：直接插入
-    direct_insert_time = test_direct_insert()
+    # # 清理环境并重新初始化
+    # prepare_database()
+    # # 预创建所有子表
+    # precreate_tables()
+    # # 测试场景2：直接插入
+    # direct_insert_time = test_direct_insert()
 
     # 打印最终结果
     print("\n测试结果对比:")
     print(f"自动建表插入耗时: {auto_create_time:.2f} 秒")
-    print(f"直接插入耗时:     {direct_insert_time:.2f} 秒")
-    print(f"性能差异:       {auto_create_time/direct_insert_time:.1f} 倍")
+    # print(f"直接插入耗时:     {direct_insert_time:.2f} 秒")
+    # print(f"性能差异:       {auto_create_time/direct_insert_time:.1f} 倍")
