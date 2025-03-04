@@ -2232,6 +2232,7 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
   int32_t blockVersion = *(int32_t*)p;
   int32_t dataLen = estimateJsonLen(pResultInfo);
   if (dataLen <= 0) {
+    tscError("doConvertJson error: estimateJsonLen failed");
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
