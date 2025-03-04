@@ -772,13 +772,13 @@ SJson  *taosAnalySendReqRetJson(const char *url, EAnalHttpType type, SAnalyticBu
 int32_t taosAnalyGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen) { return 0; }
 bool    taosAnalyGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen) { return true; }
 bool    taosAnalyGetOptInt(const char *option, const char *optName, int64_t *optValue) { return true; }
-int64_t taosAnalGetVersion() { return 0; }
-void    taosAnalUpdate(int64_t newVer, SHashObj *pHash) {}
+int64_t taosAnalyGetVersion() { return 0; }
+void    taosAnalyUpdate(int64_t newVer, SHashObj *pHash) {}
 
 int32_t tsosAnalyBufOpen(SAnalyticBuf *pBuf, int32_t numOfCols) { return 0; }
 int32_t taosAnalyBufWriteOptStr(SAnalyticBuf *pBuf, const char *optName, const char *optVal) { return 0; }
 int32_t taosAnalyBufWriteOptInt(SAnalyticBuf *pBuf, const char *optName, int64_t optVal) { return 0; }
-int32_t taosAnalBufWriteOptFloat(SAnalyticBuf *pBuf, const char *optName, float optVal) { return 0; }
+int32_t taosAnalyBufWriteOptFloat(SAnalyticBuf *pBuf, const char *optName, float optVal) { return 0; }
 int32_t taosAnalyBufWriteColMeta(SAnalyticBuf *pBuf, int32_t colIndex, int32_t colType, const char *colName) {
   return 0;
 }
