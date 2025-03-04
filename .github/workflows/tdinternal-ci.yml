@@ -4,12 +4,13 @@ description: Only trigger the ci workflow of TDnegine and pass the source branch
 
 on:
   pull_request:
-    types:
-      - opened
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.1'
+    paths-ignore:
+      - 'enterprise/documentation/**'
+      - 'enterprise/packaging/**'
 
 jobs:
   trigger-tdengine-ci:
