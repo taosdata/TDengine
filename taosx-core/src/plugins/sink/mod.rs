@@ -3603,8 +3603,9 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     let (archive_tx, archive_rx) = flume::bounded(0);
     // clone the configurations
     let parser_clone = parser.clone();
+    let cancel_clone = cancel.clone();
     // spawn a thread to write data to files
-    let consumer = tokio::spawn(async move {
+    let process_archive = tokio::spawn(async move {
         let _a = crate::utils::defer::defer(|| {
             tracing::info!("the 'cache & archive' thread has completed, task id: {task_id:?}",);
         });
@@ -3613,6 +3614,16 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
                 .consume(archive_rx)
                 .await
         } else {
+            loop {
+                tokio::select! {
+                    _ = cancel_clone.cancelled() => {
+                        tracing::info!("stop the 'cache & archive' thread, task cancelled");
+                        break;
+                    }
+                    _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                    }
+                }
+            }
             Ok(())
         }
     });
@@ -3639,8 +3650,9 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
         }
     });
 
-    let future_consume = async move {
-        consumer.await??;
+    let abort_handle_process_archive = process_archive.abort_handle();
+    let future_process_archive = async move {
+        process_archive.await??;
         anyhow::Ok(())
     };
     let abort_handle_process_cache = process_cache.abort_handle();
@@ -3690,6 +3702,7 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
     let cancel_clone = cancel.clone();
     let metrics_arc_clone = metrics_arc.clone();
     let future_ipc = async move {
+        tracing::info!("IPC stream processing, stream type: {stream_type:?}",);
         match stream_type {
             StreamType::Line => todo!(),
             StreamType::Flat => ipc_flat_stream_reader(
@@ -3749,13 +3762,16 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
 
     tokio::select! {
         res = future_ipc => {
+            tracing::info!("IPC stream processing done, future_ipc: {res:?}",);
             res?
         }
-        res = future_consume => {
+        res = future_process_archive => {
+            tracing::info!("IPC stream processing done, future_consume: {res:?}",);
             res?
         }
         _ = cancel.cancelled() => {}
     };
+    abort_handle_process_archive.abort();
     abort_handle_process_cache.abort();
     Ok(())
 }
@@ -4588,8 +4604,9 @@ pub async fn channel_based_transformer(
     let (archive_tx, archive_rx) = flume::bounded(0);
     // clone the configurations
     let parser_clone = parser.clone();
+    let cancel_clone = cancel.clone();
     // spawn a thread to write data to files
-    let consumer = tokio::spawn(async move {
+    let process_archive = tokio::spawn(async move {
         let _a = crate::utils::defer::defer(|| {
             tracing::info!("the 'cache & archive' thread has completed, task id: {task_id:?}",);
         });
@@ -4598,6 +4615,16 @@ pub async fn channel_based_transformer(
                 .consume(archive_rx)
                 .await
         } else {
+            loop {
+                tokio::select! {
+                    _ = cancel_clone.cancelled() => {
+                        tracing::info!("stop the 'cache & archive' thread, task cancelled");
+                        break;
+                    }
+                    _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                    }
+                }
+            }
             Ok(())
         }
     });
@@ -4624,8 +4651,9 @@ pub async fn channel_based_transformer(
         }
     });
 
-    let future_consume = async move {
-        consumer.await??;
+    let abort_handle_process_archive = process_archive.abort_handle();
+    let future_process_archive = async move {
+        process_archive.await??;
         anyhow::Ok(())
     };
     let abort_handle_process_cache = process_cache.abort_handle();
@@ -4674,12 +4702,13 @@ pub async fn channel_based_transformer(
                     .in_current_span()
                     .await
                 } => {}
-                status = future_consume => {
+                status = future_process_archive => {
                     if let Err(e) = status {
                         tracing::error!("archive consumer error: {e:#}");
                     }
                 }
             }
+            abort_handle_process_archive.abort();
             abort_handle_process_cache.abort();
         }
         .in_current_span(),

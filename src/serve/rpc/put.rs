@@ -788,8 +788,9 @@ impl PutStream {
         // clone the configurations
         let parser_clone = parser.clone();
         let to: Dsn = task.to.parse()?;
+        let cancellation = tokio_util::sync::CancellationToken::new();
         // spawn a thread to write data to files
-        let consumer = tokio::spawn(async move {
+        let process_archive = tokio::spawn(async move {
             let _a = taosx_core::utils::defer::defer(|| {
                 tracing::info!("the 'cache & archive' thread has completed, task id: {task_id:?}",);
             });
@@ -798,6 +799,16 @@ impl PutStream {
                     .consume(archive_rx)
                     .await
             } else {
+                loop {
+                    tokio::select! {
+                        _ = cancellation.cancelled() => {
+                            tracing::info!("stop the 'cache & archive' thread, task cancelled");
+                            break;
+                        }
+                        _ = tokio::time::sleep(Duration::from_secs(5)) => {
+                        }
+                    }
+                }
                 Ok(())
             }
         });
@@ -833,8 +844,9 @@ impl PutStream {
             }
         });
 
-        let future_consume = async move {
-            consumer.await??;
+        let abort_handle_process_archive = process_archive.abort_handle();
+        let future_process_archive = async move {
+            process_archive.await??;
             anyhow::Ok(())
         };
         let abort_handle_process_cache = process_cache.abort_handle();
@@ -1044,10 +1056,11 @@ impl PutStream {
                 res = future_flight => {
                     res?
                 }
-                res = future_consume => {
+                res = future_process_archive => {
                     res?
                 }
             }
+            abort_handle_process_archive.abort();
             abort_handle_process_cache.abort();
             notify.notify_waiters();
             tracing::info!("IPC stream writer finished");
