@@ -8,7 +8,12 @@ add_subdirectory(mgmt_dnode)
 add_subdirectory(test)
 
 aux_source_directory(exe EXEC_SRC)
-add_executable(taosd ${EXEC_SRC})
+if(${TAOSD_INTEGRATED})
+  add_library(taosd ${EXEC_SRC})
+else()
+  add_executable(taosd ${EXEC_SRC})
+endif()
+
 target_include_directories(
   taosd
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/node_mgmt/inc"
@@ -22,7 +27,7 @@ IF(TD_ENTERPRISE)
   ENDIF()
 ENDIF()
 
-IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
+IF (TD_LINUX_64 AND JEMALLOC_ENABLED)
   ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
   SET(LINK_JEMALLOC "-L${CMAKE_BINARY_DIR}/build/lib -ljemalloc")
 ELSE()

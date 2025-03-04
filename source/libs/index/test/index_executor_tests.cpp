@@ -57,7 +57,7 @@ void sifInitLogFile() {
   taosRemoveDir(tsLogDir);
   taosMkDir(tsLogDir);
 
-  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, false) < 0) {
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum, LOG_MODE_TAOSD) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
   }
 }
