@@ -1419,7 +1419,7 @@ int32_t reConnectStmt2(threadInfo * pThreadInfo, int32_t w) {
     }
 
     // prepare
-    code = prepareStmt2(pThreadInfo->conn->stmt2, pThreadInfo->stbInfo, NULL, w);
+    code = prepareStmt2(pThreadInfo->conn->stmt2, pThreadInfo->stbInfo, NULL, w, pThreadInfo->dbInfo->dbName);
     if (code != 0) {
         return code;
     }
@@ -1560,14 +1560,14 @@ static void *syncWriteInterlace(void *sarg) {
     // not auto create table call once
     if(stbInfo->iface == STMT_IFACE && !oldInitStmt) {
         debugPrint("call prepareStmt for stable:%s\n", stbInfo->stbName);
-        if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w)) {
+        if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w, database->dbName)) {
             g_fail = true;
             goto free_of_interlace;
         }
     }
     else if (stbInfo->iface == STMT2_IFACE) {
         // only prepare once
-        if (prepareStmt2(pThreadInfo->conn->stmt2, stbInfo, NULL, w)) {
+        if (prepareStmt2(pThreadInfo->conn->stmt2, stbInfo, NULL, w, database->dbName)) {
             g_fail = true;
             goto free_of_interlace;
         }
@@ -1750,7 +1750,7 @@ static void *syncWriteInterlace(void *sarg) {
                     // old must call prepareStmt for each table
                     if (oldInitStmt) {
                         debugPrint("call prepareStmt for stable:%s\n", stbInfo->stbName);
-                        if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w)) {
+                        if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w, database->dbName)) {
                             g_fail = true;
                             goto free_of_interlace;
                         }
@@ -2525,13 +2525,13 @@ void *syncWriteProgressive(void *sarg) {
     bool oldInitStmt = stbInfo->autoTblCreating || database->superTbls->size > 1;
     // stmt.  not auto table create call on stmt
     if (stbInfo->iface == STMT_IFACE && !oldInitStmt) {
-        if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w)) {
+        if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w, database->dbName)) {
             g_fail = true;
             goto free_of_progressive;
         }
     }
     else if (stbInfo->iface == STMT2_IFACE && !stbInfo->autoTblCreating) {
-        if (prepareStmt2(pThreadInfo->conn->stmt2, stbInfo, tagData, w)) {
+        if (prepareStmt2(pThreadInfo->conn->stmt2, stbInfo, tagData, w, database->dbName)) {
             g_fail = true;
             goto free_of_progressive;
         }
@@ -2579,13 +2579,13 @@ void *syncWriteProgressive(void *sarg) {
 
         // old init stmt must call for each table
         if (stbInfo->iface == STMT_IFACE && oldInitStmt) {
-            if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w)) {
+            if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w, database->dbName)) {
                 g_fail = true;
                 goto free_of_progressive;
             }
         }
         else if (stbInfo->iface == STMT2_IFACE && stbInfo->autoTblCreating) {
-            if (prepareStmt2(pThreadInfo->conn->stmt2, stbInfo, tagData, w)) {
+            if (prepareStmt2(pThreadInfo->conn->stmt2, stbInfo, tagData, w, database->dbName)) {
                 g_fail = true;
                 goto free_of_progressive;
             }

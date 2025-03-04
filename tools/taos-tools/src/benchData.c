@@ -229,7 +229,7 @@ void rand_string(char *str, int size, bool chinese) {
 }
 
 // generate prepare sql
-char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq) {
+char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db) {
     int   len = 0;
     char *prepare = benchCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN, true);
     int n;
@@ -253,8 +253,8 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq) {
         }
         n = snprintf(prepare + len,
                        TSDB_MAX_ALLOWED_SQL_LEN - len,
-                       "INSERT INTO ? USING `%s` TAGS (%s) %s VALUES(?,%s)",
-                       stbInfo->stbName, tagQ, ttl, colQ);
+                       "INSERT INTO ? USING `%s`.`%s` TAGS (%s) %s VALUES(?,%s)",
+                       db, stbInfo->stbName, tagQ, ttl, colQ);
     } else {
         if (g_arguments->connMode == CONN_MODE_NATIVE) {
             // native
@@ -264,7 +264,7 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq) {
             // websocket
             colNames = genColNames(stbInfo->cols);
             n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
-                "INSERT INTO `%s`(%s) VALUES(?,?,%s)", stbInfo->stbName, colNames, colQ);
+                "INSERT INTO `%s`.`%s`(%s) VALUES(?,?,%s)", db, stbInfo->stbName, colNames, colQ);
         }
     }
     len += n;
@@ -289,8 +289,8 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq) {
     return prepare;
 }
 
-int prepareStmt(TAOS_STMT *stmt, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq) {
-    char *prepare = genPrepareSql(stbInfo, tagData, tableSeq);
+int prepareStmt(TAOS_STMT *stmt, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db) {
+    char *prepare = genPrepareSql(stbInfo, tagData, tableSeq, db);
     if (taos_stmt_prepare(stmt, prepare, strlen(prepare))) {
         errorPrint("taos_stmt_prepare(%s) failed. errstr=%s\n", prepare, taos_stmt_errstr(stmt));
         tmfree(prepare);
@@ -300,8 +300,8 @@ int prepareStmt(TAOS_STMT *stmt, SSuperTable *stbInfo, char* tagData, uint64_t t
     return 0;
 }
 
-int prepareStmt2(TAOS_STMT2 *stmt2, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq) {
-    char *prepare = genPrepareSql(stbInfo, tagData, tableSeq);
+int prepareStmt2(TAOS_STMT2 *stmt2, SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char *db) {
+    char *prepare = genPrepareSql(stbInfo, tagData, tableSeq, db);
     if (taos_stmt2_prepare(stmt2, prepare, strlen(prepare))) {
         errorPrint("taos_stmt2_prepare(%s) failed. errstr=%s\n", prepare, taos_stmt2_error(stmt2));
         tmfree(prepare);
