@@ -90,6 +90,7 @@ int32_t decimal128ToDataVal(Decimal128* dec, SValue* pVal);
 int32_t decimalToStr(const DecimalType* pDec, int8_t type, int8_t precision, int8_t scale, char* pBuf, int32_t bufLen);
 
 int32_t decimalGetRetType(const SDataType* pLeftT, const SDataType* pRightT, EOperatorType opType, SDataType* pOutType);
+bool    decimal64Compare(EOperatorType op, const SDecimalCompareCtx* pLeft, const SDecimalCompareCtx* pRight);
 bool    decimalCompare(EOperatorType op, const SDecimalCompareCtx* pLeft, const SDecimalCompareCtx* pRight);
 int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pRightT, const SDataType* pOutT,
                   const void* pLeftData, const void* pRightData, void* pOutputData);
