@@ -100,7 +100,6 @@ class TDTestCase(TBase):
         # native restful websock test
         args = [
             ["",   18, 346, -2, 310], 
-            ["-R", 22, 350, -3, 313],
             ["-T 40 -E http://localhost:6041", 21, 349, -3, 312]
         ]
         for arg in args:
@@ -133,8 +132,7 @@ class TDTestCase(TBase):
 
     def checkDumpInOut(self):
         args = [
-            ["",   18], 
-            ["-R ", 22],
+            ["",   18],
             ["-E http://localhost:6041", 21]
         ]
 

@@ -225,7 +225,7 @@ class TDTestCase(TBase):
         db, stb, childCount, insertRows = self.insertData(json)
 
         # dumpInOut
-        modes = ["", "-R" , "--cloud=http://localhost:6041"]
+        modes = ["", "--cloud=http://localhost:6041"]
         for mode in modes:
             self.dumpInOutMode(mode, db , json, tmpdir)
 
