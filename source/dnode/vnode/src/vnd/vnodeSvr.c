@@ -752,6 +752,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       }
 
     } break;
+    case TDMT_VND_STREAM_ALL_STOP: {
+      if (pVnode->restored && vnodeIsLeader(pVnode) && (code = tqProcessAllTaskStopReq(pVnode->pTq, pMsg)) < 0) {
+        goto _err;
+      }
+
+    } break;
 #endif
     case TDMT_VND_ALTER_CONFIRM:
       needCommit = pVnode->config.hashChange;

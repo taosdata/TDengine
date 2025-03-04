@@ -167,10 +167,8 @@ int32_t tqScanWalAsync(STQ* pTq, bool ckPause) {
   return code;
 }
 
-int32_t tqStopStreamTasksAsync(STQ* pTq) {
-  SStreamMeta* pMeta = pTq->pStreamMeta;
-  int32_t      vgId = pMeta->vgId;
-  return streamTaskSchedTask(&pTq->pVnode->msgCb, vgId, 0, 0, STREAM_EXEC_T_STOP_ALL_TASKS);
+int32_t tqStopStreamAllTasksAsync(SStreamMeta* pMeta, SMsgCb* pMsgCb) {
+  return streamTaskSchedTask(pMsgCb, pMeta->vgId, 0, 0, STREAM_EXEC_T_STOP_ALL_TASKS);
 }
 
 int32_t setWalReaderStartOffset(SStreamTask* pTask, int32_t vgId) {

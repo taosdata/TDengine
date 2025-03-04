@@ -627,7 +627,7 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
 #ifdef USE_TQ
   if (pVnode->pTq) {
     tqUpdateNodeStage(pVnode->pTq, false);
-    if (tqStopStreamTasksAsync(pVnode->pTq) != 0) {
+    if (tqStopStreamAllTasksAsync(pVnode->pTq->pStreamMeta, &pVnode->msgCb) != 0) {
       vError("vgId:%d, failed to stop stream tasks", pVnode->config.vgId);
     }
   }

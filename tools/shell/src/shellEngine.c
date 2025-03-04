@@ -669,7 +669,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       printf("%*" PRId64, width, taosGetInt64Aligned((int64_t *)val));
       break;
     case TSDB_DATA_TYPE_UBIGINT:
-      printf("%*" PRIu64, width, taosGetUInt64Aligned((uint64_t*))val));
+      printf("%*" PRIu64, width, taosGetUInt64Aligned((uint64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
       if (tsEnableScience) {
