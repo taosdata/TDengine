@@ -4176,6 +4176,7 @@ int32_t fltSclGetOrCreateColumnRange(SColumnNode *colNode, SArray *colRangeList,
 
 static int32_t fltSclBuildDecimalDatumFromValueNode(SFltSclDatum* datum, SColumnNode* pColNode, SValueNode* valNode) {
   datum->type = pColNode->node.resType;
+  SDataType valDt = valNode->node.resType;
   if (valNode->isNull) {
     datum->kind = FLT_SCL_DATUM_KIND_NULL;
   } else {
@@ -4203,6 +4204,7 @@ static int32_t fltSclBuildDecimalDatumFromValueNode(SFltSclDatum* datum, SColumn
       case TSDB_DATA_TYPE_FLOAT:
       case TSDB_DATA_TYPE_DOUBLE:
         pInput = &valNode->datum.d;
+        valDt.type = TSDB_DATA_TYPE_DOUBLE;
         break;
       case TSDB_DATA_TYPE_VARCHAR:
         pInput = valNode->literal;
@@ -4224,7 +4226,7 @@ static int32_t fltSclBuildDecimalDatumFromValueNode(SFltSclDatum* datum, SColumn
       datum->kind = FLT_SCL_DATUM_KIND_DECIMAL;
     }
     if (datum->kind == FLT_SCL_DATUM_KIND_DECIMAL64 || datum->kind == FLT_SCL_DATUM_KIND_DECIMAL) {
-      int32_t code = convertToDecimal(pInput, &valNode->node.resType, pData, &datum->type);
+      int32_t code = convertToDecimal(pInput, &valDt, pData, &datum->type);
       if (TSDB_CODE_SUCCESS != code) return code;  // TODO wjm handle overflow error
       valNode->node.resType = datum->type;
     }
