@@ -16,7 +16,7 @@ set(CONTRIB_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
 configure_file("${TD_ENTERPRISE_DIR}/cmake/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
 # community
-IF (NOT EXISTS ${TD_SOURCE_DIR}/community/source)
+IF (NOT EXISTS ${TD_SOURCE_DIR}/source)
         EXECUTE_PROCESS(
         COMMAND  git rev-parse --abbrev-ref HEAD
         OUTPUT_VARIABLE TD_VERSION
