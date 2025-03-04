@@ -64,6 +64,9 @@ class TDTestCase(TBase):
         options = "-X http://127.0.0.1:6041"
         self.insertBenchJson(json, options, True)
 
+        # clear env
+        os.environ['TDENGINE_CLOUD_DSN'] = ""
+
     def checkCommandLine(self):
         # modes
         modes = ["", "-Z 1 -B 1", "-Z websocket", "-Z 0", "-Z native -B 2"]
@@ -101,12 +104,15 @@ class TDTestCase(TBase):
 
         # do check
         for option in options:
-            self.checkExcept(bench + "" + option)
+            self.checkExcept(bench + " " + option)
+
+    def checkHostPort(self):
+        # host port
+        self.benchmarkCmd("-h 127.0.0.1", 5, 100, 10, ["insert rows: 500"])
+        self.benchmarkCmd("-h 127.0.0.1 -P 6041 -uroot -ptaosdata", 5, 100, 10, ["insert rows: 500"])
+        self.benchmarkCmd("-Z 0 -h 127.0.0.1 -P 6030 -uroot -ptaosdata", 5, 100, 10, ["insert rows: 500"])
 
     def run(self):
-        # cmd > json > env
-        self.checkPriority()
-
         # command line test
         self.checkCommandLine()
 
@@ -115,6 +121,10 @@ class TDTestCase(TBase):
 
         # except
         self.checkExceptCmd()
+
+        # cmd > json > env
+        self.checkPriority()
+
 
         
 
