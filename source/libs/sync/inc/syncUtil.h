@@ -34,7 +34,7 @@ extern "C" {
 
 #define sGTrace(param, ...) do { if (sDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); sTrace(param ", QID:%s", __VA_ARGS__, buf);}} while(0)
 #define sGFatal(param, ...) do { if (sDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); sFatal(param ", QID:%s", __VA_ARGS__, buf);}} while(0)
-#define sGError(param, ...) do { if (sDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf);sError(param  ", QID:%s", __VA_ARGS__, buf);}} while(0)
+#define sGError(param, ...) do { if (sDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); sError(param ", QID:%s", __VA_ARGS__, buf);}} while(0)
 #define sGWarn(param, ...)  do { if (sDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); sWarn(param  ", QID:%s", __VA_ARGS__, buf);}} while(0)
 #define sGInfo(param, ...)  do { if (sDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); sInfo(param  ", QID:%s", __VA_ARGS__, buf);}} while(0)
 #define sGDebug(param, ...) do { if (sDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); sDebug(param ", QID:%s", __VA_ARGS__, buf);}} while(0)
@@ -46,12 +46,19 @@ extern "C" {
 #define sLDebug(...) if (sDebugFlag & DEBUG_DEBUG) { taosPrintLongString("SYN DEBUG ", DEBUG_DEBUG, sDebugFlag, __VA_ARGS__); }
 #define sLTrace(...) if (sDebugFlag & DEBUG_TRACE) { taosPrintLongString("SYN TRACE ", DEBUG_TRACE, sDebugFlag, __VA_ARGS__); }
 
-#define sNFatal(pNode, ...)  if (sDebugFlag & DEBUG_FATAL) { syncPrintNodeLog("SYN FATAL ", DEBUG_FATAL, 255,        true,  pNode, __VA_ARGS__); }
-#define sNError(pNode, ...)  if (sDebugFlag & DEBUG_ERROR) { syncPrintNodeLog("SYN ERROR ", DEBUG_ERROR, 255,        true,  pNode, __VA_ARGS__); }
-#define sNWarn(pNode, ...)   if (sDebugFlag & DEBUG_WARN)  { syncPrintNodeLog("SYN WARN  ", DEBUG_WARN,  255,        true,  pNode, __VA_ARGS__); }
-#define sNInfo(pNode, ...)   if (sDebugFlag & DEBUG_INFO)  { syncPrintNodeLog("SYN INFO  ", DEBUG_INFO,  255,        true,  pNode, __VA_ARGS__); }
-#define sNDebug(pNode, ...)  if (sDebugFlag & DEBUG_DEBUG) { syncPrintNodeLog("SYN DEBUG ", DEBUG_DEBUG, sDebugFlag, false, pNode, __VA_ARGS__); }
-#define sNTrace(pNode, ...)  if (sDebugFlag & DEBUG_TRACE) { syncPrintNodeLog("SYN TRACE ", DEBUG_TRACE, sDebugFlag, false, pNode, __VA_ARGS__); }
+#define sNFatal(pNode, ...)  if (sDebugFlag & DEBUG_FATAL) { syncPrintNodeLog("SYN FATAL ", DEBUG_FATAL, 255, true,        pNode,  __VA_ARGS__); }
+#define sNError(pNode, ...)  if (sDebugFlag & DEBUG_ERROR) { syncPrintNodeLog("SYN ERROR ", DEBUG_ERROR, 255, true,        pNode,  __VA_ARGS__); }
+#define sNWarn(pNode, ...)   if (sDebugFlag & DEBUG_WARN)  { syncPrintNodeLog("SYN WARN  ", DEBUG_WARN,  255, true,        pNode,  __VA_ARGS__); }
+#define sNInfo(pNode, ...)   if (sDebugFlag & DEBUG_INFO)  { syncPrintNodeLog("SYN INFO  ", DEBUG_INFO,  255, true,        pNode, __VA_ARGS__); }
+#define sNDebug(pNode, ...)  if (sDebugFlag & DEBUG_DEBUG) { syncPrintNodeLog("SYN DEBUG ", DEBUG_DEBUG, sDebugFlag, true, pNode,  __VA_ARGS__); }
+#define sNTrace(pNode, ...)  if (sDebugFlag & DEBUG_TRACE) { syncPrintNodeLog("SYN TRACE ", DEBUG_TRACE, sDebugFlag, true, pNode,  __VA_ARGS__); }
+
+#define sHFatal(pNode, ...)  if (sDebugFlag & DEBUG_FATAL) { syncPrintHbLog("SYN FATAL ", DEBUG_FATAL, 255, true,        pNode,  __VA_ARGS__); }
+#define sHError(pNode, ...)  if (sDebugFlag & DEBUG_ERROR) { syncPrintHbLog("SYN ERROR ", DEBUG_ERROR, 255, true,        pNode,  __VA_ARGS__); }
+#define sHWarn(pNode, ...)   if (sDebugFlag & DEBUG_WARN)  { syncPrintHbLog("SYN WARN  ", DEBUG_WARN,  255, true,        pNode,  __VA_ARGS__); }
+#define sHInfo(pNode, ...)   if (sDebugFlag & DEBUG_INFO)  { syncPrintHbLog("SYN INFO  ", DEBUG_INFO,  255, true,        pNode, __VA_ARGS__); }
+#define sHDebug(pNode, ...)  if (sDebugFlag & DEBUG_DEBUG) { syncPrintHbLog("SYN DEBUG ", DEBUG_DEBUG, sDebugFlag, true, pNode,  __VA_ARGS__); }
+#define sHTrace(pNode, ...)  if (sDebugFlag & DEBUG_TRACE) { syncPrintHbLog("SYN TRACE ", DEBUG_TRACE, sDebugFlag, true, pNode,  __VA_ARGS__); }
 
 #define sSFatal(pSender, ...)  if (sDebugFlag & DEBUG_FATAL) { syncPrintSnapshotSenderLog("SYN FATAL ", DEBUG_FATAL, 255,        pSender, __VA_ARGS__); }
 #define sSError(pSender, ...)  if (sDebugFlag & DEBUG_ERROR) { syncPrintSnapshotSenderLog("SYN ERROR ", DEBUG_ERROR, 255,        pSender, __VA_ARGS__); }
@@ -87,6 +94,8 @@ void syncUtilGenerateArbToken(int32_t nodeId, int32_t groupId, char* buf);
 
 void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, bool formatTime, SSyncNode* pNode,
                       const char* format, ...);
+void syncPrintHbLog(const char* flags, ELogLevel level, int32_t dflag, bool formatTime, SSyncNode* pNode,
+                    const char* format, ...);
 void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dflag, SSyncSnapshotSender* pSender,
                                 const char* format, ...);
 void syncPrintSnapshotReceiverLog(const char* flags, ELogLevel level, int32_t dflag, SSyncSnapshotReceiver* pReceiver,

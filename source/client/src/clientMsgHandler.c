@@ -372,11 +372,13 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
 int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (pMsg == NULL) {
+    tscError("processCreateSTableRsp: invalid input param, pMsg is NULL");
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
   if (param == NULL) {
     taosMemoryFree(pMsg->pEpSet);
     taosMemoryFree(pMsg->pData);
+    tscError("processCreateSTableRsp: invalid input param, param is NULL");
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
