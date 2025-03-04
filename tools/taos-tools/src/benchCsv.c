@@ -448,7 +448,7 @@ static int csvExportCreateSql(CsvWriteMeta* write_meta) {
         goto end;
     }
 
-    succPrint("Export create sql to file: %s successfully..\n", fullname);
+    succPrint("Export create sql to file: %s successfully.\n", fullname);
 
 end:
     if (fp) {
@@ -827,6 +827,10 @@ static CsvIoError csvWrite(CsvFileHandle* fhdl, const char* buf, size_t size) {
 
 
 static void csvClose(CsvFileHandle* fhdl) {
+    if (!fhdl) {
+        return;
+    }
+
     if (fhdl->compress_level == CSV_COMPRESS_NONE) {
         if (fhdl->handle.fp) {
             fclose(fhdl->handle.fp);
@@ -838,6 +842,7 @@ static void csvClose(CsvFileHandle* fhdl) {
             fhdl->handle.gf = NULL;
         }
     }
+    tmfree(fhdl);
 }
 
 
