@@ -213,3 +213,13 @@ SyncTerm raftStoreGetTerm(SSyncNode *pNode) {
   (void)taosThreadMutexUnlock(&pNode->raftStore.mutex);
   return term;
 }
+
+SyncTerm raftStoreTryGetTerm(SSyncNode *pNode) {
+  SyncTerm term = 0;
+  if (taosThreadMutexTryLock(&pNode->raftStore.mutex) == 0) {
+    term = pNode->raftStore.currentTerm;
+    (void)taosThreadMutexUnlock(&pNode->raftStore.mutex);
+  }
+
+  return term;
+}
