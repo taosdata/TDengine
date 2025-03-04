@@ -211,7 +211,7 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
   SColumnInfoData* pResHighCol =
       (pSupp->resHighSlot != -1 ? taosArrayGet(pBlock->pDataBlock, pSupp->resHighSlot) : NULL);
 
-  SJson* pJson = taosAnalySendReqRetJson(pSupp->algoUrl, ANALYTICS_HTTP_TYPE_POST, pBuf, pSupp->timeout);
+  SJson* pJson = taosAnalySendReqRetJson(pSupp->algoUrl, ANALYTICS_HTTP_TYPE_POST, pBuf, pSupp->timeout * 1000);
   if (pJson == NULL) {
     return terrno;
   }
@@ -534,15 +534,15 @@ static int32_t forecastParseAlgo(SForecastSupp* pSupp, const char* id) {
 
   bool hasTimeout = taosAnalGetOptInt(pSupp->algoOpt, "timeout", &pSupp->timeout);
   if (!hasTimeout) {
-    qDebug("%s not set the timeout val, set default:%d", id, ANALY_FC_DEFAULT_TIMEOUT);
-    pSupp->timeout = ANALY_FC_DEFAULT_TIMEOUT;
+    qDebug("%s not set the timeout val, set default:%d", id, ANALY_DEFAULT_TIMEOUT);
+    pSupp->timeout = ANALY_DEFAULT_TIMEOUT;
   } else {
-    if (pSupp->timeout <= 500 || pSupp->timeout > ANALY_FC_MAX_TIMEOUT) {
-      qDebug("%s timeout val:%" PRId64 "ms is invalid (greater than 10min or less than 0.5s), use default:%dms",
-             id, pSupp->timeout, ANALY_FC_DEFAULT_TIMEOUT);
-      pSupp->timeout = ANALY_FC_DEFAULT_TIMEOUT;
+    if (pSupp->timeout <= 0 || pSupp->timeout > ANALY_MAX_TIMEOUT) {
+      qDebug("%s timeout val:%" PRId64 "s is invalid (greater than 10min or less than 1s), use default:%dms",
+             id, pSupp->timeout, ANALY_DEFAULT_TIMEOUT);
+      pSupp->timeout = ANALY_DEFAULT_TIMEOUT;
     } else {
-      qDebug("%s timeout val is set to: %" PRId64 "ms", id, pSupp->timeout);
+      qDebug("%s timeout val is set to: %" PRId64 "s", id, pSupp->timeout);
     }
   }
 

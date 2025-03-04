@@ -30,8 +30,8 @@ extern "C" {
 #define ANAL_FORECAST_DEFAULT_WNCHECK 1
 #define ANAL_FORECAST_MAX_ROWS        40000
 #define ANAL_ANOMALY_WINDOW_MAX_ROWS  40000
-#define ANALY_FC_DEFAULT_TIMEOUT      60000
-#define ANALY_FC_MAX_TIMEOUT          (600*1000)
+#define ANALY_DEFAULT_TIMEOUT         60
+#define ANALY_MAX_TIMEOUT             600
 
 typedef struct {
   EAnalAlgoType type;

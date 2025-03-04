@@ -92,15 +92,15 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
 
   bool hasTimeout = taosAnalGetOptInt(pAnomalyNode->anomalyOpt, "timeout", &pInfo->timeout);
   if (!hasTimeout) {
-    qDebug("not set the timeout val, set default:%d", ANALY_FC_DEFAULT_TIMEOUT);
-    pInfo->timeout = ANALY_FC_DEFAULT_TIMEOUT;
+    qDebug("not set the timeout val, set default:%d", ANALY_DEFAULT_TIMEOUT);
+    pInfo->timeout = ANALY_DEFAULT_TIMEOUT;
   } else {
-    if (pInfo->timeout <= 500 || pInfo->timeout > 600*1000) {
-      qDebug("timeout val:%" PRId64 "ms is invalid (greater than 10min or less than 0.5s), use default:%dms",
-             pInfo->timeout, ANALY_FC_DEFAULT_TIMEOUT);
-      pInfo->timeout = ANALY_FC_DEFAULT_TIMEOUT;
+    if (pInfo->timeout <= 0 || pInfo->timeout > ANALY_MAX_TIMEOUT) {
+      qDebug("timeout val:%" PRId64 "s is invalid (greater than 10min or less than 1s), use default:%dms",
+             pInfo->timeout, ANALY_DEFAULT_TIMEOUT);
+      pInfo->timeout = ANALY_DEFAULT_TIMEOUT;
     } else {
-      qDebug("timeout val is set to: %" PRId64 "ms", pInfo->timeout);
+      qDebug("timeout val is set to: %" PRId64 "s", pInfo->timeout);
     }
   }
 
@@ -466,7 +466,7 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   code = taosAnalBufClose(&analBuf);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
-  pJson = taosAnalySendReqRetJson(pInfo->algoUrl, ANALYTICS_HTTP_TYPE_POST, &analBuf, pInfo->timeout);
+  pJson = taosAnalySendReqRetJson(pInfo->algoUrl, ANALYTICS_HTTP_TYPE_POST, &analBuf, pInfo->timeout * 1000);
   if (pJson == NULL) {
     code = terrno;
     goto _OVER;
