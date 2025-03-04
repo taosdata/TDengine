@@ -104,7 +104,7 @@ class TDTestCase(TBase):
 
         # do check
         for option in options:
-            self.checkExcept(bench + " " + option + " -y")
+            self.checkExcept(bench + " -y " + option)
 
     def checkHostPort(self):
         # host port
