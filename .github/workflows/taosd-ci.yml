@@ -1,14 +1,14 @@
 name: TDengine CI Test
 
 on:
-  pull_request:
-    branches:
-      - 'main'
-      - '3.0'
-      - '3.1'
-    paths-ignore:
-      - 'packaging/**'
-      - 'docs/**'
+  # pull_request:
+  #   branches:
+  #     - 'main'
+  #     - '3.0'
+  #     - '3.1'
+  #   paths-ignore:
+  #     - 'packaging/**'
+  #     - 'docs/**'
   repository_dispatch:
     types: [run-tests]
 
@@ -333,7 +333,7 @@ jobs:
       WIN_INTERNAL_ROOT: "C:\\workspace\\TDinternal"
       WIN_COMMUNITY_ROOT: "C:\\workspace\\TDinternal\\community"
       WIN_SYSTEM_TEST_ROOT: "C:\\workspace\\TDinternal\\community\\tests\\system-test"
-      WIN_VS_PATH: "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat"
+      WIN_VS_PATH: "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat"
       WIN_CPU_TYPE: "x64"
     steps:
       - name: Output the environment information
