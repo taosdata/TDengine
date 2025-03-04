@@ -651,11 +651,17 @@ void mndRetrieveAlgoList(SMnode* pMnode, SArray* pFc, SArray* pAd) {
 
     if (pObj->numOfAlgos >= ANALY_ALGO_TYPE_END) {
       if (pObj->algos[ANALY_ALGO_TYPE_ANOMALY_DETECT] != NULL) {
-        taosArrayAddAll(pAd, pObj->algos[ANALY_ALGO_TYPE_ANOMALY_DETECT]);
+        void* p = taosArrayAddAll(pAd, pObj->algos[ANALY_ALGO_TYPE_ANOMALY_DETECT]);
+        if (p == NULL) {
+          mError("failed to add retrieved anomaly-detection algorithms, code:%s", tstrerror(terrno));
+        }
       }
 
       if (pObj->algos[ANALY_ALGO_TYPE_FORECAST] != NULL) {
-        taosArrayAddAll(pFc, pObj->algos[ANALY_ALGO_TYPE_FORECAST]);
+        void* p = taosArrayAddAll(pFc, pObj->algos[ANALY_ALGO_TYPE_FORECAST]);
+        if (p == NULL) {
+          mError("failed to add retrieved forecast algorithms, code:%s", tstrerror(terrno));
+        }
       }
     }
 
