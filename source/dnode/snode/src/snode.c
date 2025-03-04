@@ -160,6 +160,8 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
       return tqStreamTaskProcessUpdateReq(pSnode->pMeta, &pSnode->msgCb, pMsg, true, true);
     case TDMT_VND_STREAM_TASK_RESET:
       return tqStreamTaskProcessTaskResetReq(pSnode->pMeta, pMsg->pCont);
+    case TDMT_VND_STREAM_ALL_STOP:
+      return tqStreamTaskProcessAllTaskStopReq(pSnode->pMeta, &pSnode->msgCb, pMsg);
     case TDMT_STREAM_TASK_PAUSE:
       return tqStreamTaskProcessTaskPauseReq(pSnode->pMeta, pMsg->pCont);
     case TDMT_STREAM_TASK_RESUME:
