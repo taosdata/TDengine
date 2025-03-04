@@ -2317,9 +2317,9 @@ typedef struct SSysTableSchema {
 int32_t tSerializeSRetrieveTableReq(void* buf, int32_t bufLen, SRetrieveTableReq* pReq);
 int32_t tDeserializeSRetrieveTableReq(void* buf, int32_t bufLen, SRetrieveTableReq* pReq);
 
-#define RETRIEVE_TABLE_RSP_VERSION          0
-#define RETRIEVE_TABLE_RSP_TMQ_VERSION      1
-#define RETRIEVE_TABLE_RSP_TMQ_RAW_VERSION  2
+#define RETRIEVE_TABLE_RSP_VERSION         0
+#define RETRIEVE_TABLE_RSP_TMQ_VERSION     1
+#define RETRIEVE_TABLE_RSP_TMQ_RAW_VERSION 2
 
 typedef struct {
   int64_t useconds;
@@ -4224,7 +4224,7 @@ typedef struct {
   int8_t       rawData;
   int32_t      minPollRows;
   int8_t       enableBatchMeta;
-  SHashObj    *uidHash;  // to find if uid is duplicated
+  SHashObj*    uidHash;  // to find if uid is duplicated
 } SMqPollReq;
 
 int32_t tSerializeSMqPollReq(void* buf, int32_t bufLen, SMqPollReq* pReq);
@@ -4298,13 +4298,13 @@ typedef struct {
       SArray* createTableLen;
       SArray* createTableReq;
     };
-    struct{
+    struct {
       int32_t len;
       void*   rawData;
     };
   };
-  void*   data;  //for free in client, only effected if type is data or metadata. raw data not effected
-  bool    blockDataElementFree;   // if true, free blockDataElement in blockData,(true in server, false in client)
+  void* data;                  // for free in client, only effected if type is data or metadata. raw data not effected
+  bool  blockDataElementFree;  // if true, free blockDataElement in blockData,(true in server, false in client)
 
 } SMqDataRsp;
 
@@ -4503,8 +4503,9 @@ typedef struct {
   SArray* pRsps;  // SArray<SBatchRspMsg>
 } SBatchRsp;
 
-int32_t                  tSerializeSBatchReq(void* buf, int32_t bufLen, SBatchReq* pReq);
-int32_t                  tDeserializeSBatchReq(void* buf, int32_t bufLen, SBatchReq* pReq);
+int32_t tSerializeSBatchReq(void* buf, int32_t bufLen, SBatchReq* pReq);
+int32_t tDeserializeSBatchReq(void* buf, int32_t bufLen, SBatchReq* pReq);
+
 static FORCE_INLINE void tFreeSBatchReqMsg(void* msg) {
   if (NULL == msg) {
     return;

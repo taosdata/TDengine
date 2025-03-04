@@ -18,12 +18,12 @@
 extern "C" {
 #endif
 
-#ifdef TD_ASTRA
+#ifdef TD_ASTRA_RPC
 #include "tmsg.h"
 #include "transLog.h"
 #include "transportInt.h"
 #include "trpc.h"
-#include "ttrace.h"
+#include "tversion.h"
 
 #else
 #include <uv.h>
@@ -245,7 +245,7 @@ typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } Co
 #define transIsReq(type)             (type & 1U)
 
 #define transLabel(trans) ((STrans*)trans)->label
-#ifdef TD_ASTRA
+#ifdef TD_ASTRA_RPC
 typedef struct SConnBuffer {
   char* buf;
   int   len;
@@ -336,7 +336,28 @@ int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf);
 int32_t transSetConnOption(uv_tcp_t* stream, int keepalive);
 #endif
 
-#ifdef TD_ASTRA
+#ifdef TD_ASTRA_RPC
+int32_t transSendRequest(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
+int32_t transSendRecv(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp);
+int32_t transSendRecvWithTimeout(void* pInit, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
+                                 int32_t timeoutMs);
+int32_t transSendRequestWithId(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId);
+int32_t transFreeConnById(void* pInit, int64_t transpointId);
+
+int32_t transSendResponse(STransMsg* msg);
+int32_t transRegisterMsg(const STransMsg* msg);
+int32_t transSetDefaultAddr(void* pInit, const char* ip, const char* fqdn);
+int32_t transSetIpWhiteList(void* pInit, void* arg, FilteFunc* func);
+void    transRefSrvHandle(void* handle);
+void    transUnrefSrvHandle(void* handle);
+
+void    transRefCliHandle(void* handle);
+int32_t transUnrefCliHandle(void* handle);
+int32_t transGetRefCount(void* handle);
+
+int32_t transReleaseCliHandle(void* handle, int32_t status);
+int32_t transReleaseSrvHandle(void* handle, int32_t status);
+
 int32_t transSendRequest2(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
 int32_t transSendRecv2(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp);
 int32_t transSendRecvWithTimeout2(void* pInit, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
@@ -381,7 +402,7 @@ int32_t transReleaseSrvHandle(void* handle, int32_t status);
 
 #endif
 
-#ifndef TD_ASTRA
+#ifndef TD_ASTRA_RPC
 void    transSockInfo2Str(struct sockaddr* sockname, char* dst);
 int32_t transAllocHandle(int64_t* refId);
 void*   transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
@@ -389,11 +410,11 @@ void*   transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThread
 void    transCloseClient(void* arg);
 void    transCloseServer(void* arg);
 #else
-int32_t transAllocHandle2(int64_t* refId);
-void*   transInitServer2(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
-void*   transInitClient2(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
-void    transCloseClient2(void* arg);
-void    transCloseServer2(void* arg);
+int32_t transAllocHandle(int64_t* refId);
+void*   transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
+void*   transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
+void    transCloseClient(void* arg);
+void    transCloseServer(void* arg);
 #endif
 
 void  transCtxInit(STransCtx* ctx);
@@ -472,7 +493,7 @@ void transQueueClear(STransQueue* queue);
  */
 void transQueueDestroy(STransQueue* queue);
 
-#ifndef TD_ASTRA
+#ifndef TD_ASTRA_RPC
 /*
  * delay queue based on uv loop and uv timer, and only used in retry
  */
@@ -548,7 +569,7 @@ int32_t subnetDebugInfoToBuf(SubnetUtils* pUtils, char* buf);
 int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf);
 int32_t transUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf);
 
-#ifdef TD_ASTRA
+#ifdef TD_ASTRA_RPC
 
 #define ASYNC_CHECK_HANDLE(idMgt, id, exh1)                                              \
   do {                                                                                   \
@@ -584,7 +605,7 @@ enum { REQ_STATUS_INIT = 0, REQ_STATUS_PROCESSING };
 #define HEAP_MISS_HIT_LIMIT 100000
 #define READ_TIMEOUT        100000
 
-#ifndef TD_ASTRA
+#ifndef TD_ASTRA_RPC
 typedef struct {
   queue      node;  // queue for write
   queue      q;     // queue for reqs

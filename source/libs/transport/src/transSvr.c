@@ -16,7 +16,7 @@
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
-#ifndef TD_ASTRA
+#ifndef TD_ASTRA_RPC
 static char* notify = "a";
 
 typedef struct {
@@ -2073,7 +2073,7 @@ int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
   return code;
 }
 #else
-int32_t transReleaseSrvHandle(void *handle) { return 0; }
+int32_t transReleaseSrvHandle(void *handle, int32_t status) { return 0; }
 void    transRefSrvHandle(void *handle) { return; }
 
 void    transUnrefSrvHandle(void *handle) { return; }

@@ -16,7 +16,7 @@
 #include "transComm.h"
 #include "tqueue.h"
 
-#ifndef TD_ASTRA
+#ifndef TD_ASTRA_RPC
 #define BUFFER_CAP 8 * 1024
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
@@ -485,7 +485,8 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
 //   return NULL;
 // }
 
-// void transQueueRemoveByFilter(STransQueue* q, bool (*filter)(void* e, void* arg), void* arg, void* dst, int32_t size) {
+// void transQueueRemoveByFilter(STransQueue* q, bool (*filter)(void* e, void* arg), void* arg, void* dst, int32_t size)
+// {
 //   queue* d = dst;
 //   queue* node = QUEUE_NEXT(&q->node);
 //   while (node != &q->node) {
@@ -2076,7 +2077,7 @@ int32_t transValidReqEpset(SReqEpSet* pReqEpSet) {
   return TSDB_CODE_SUCCESS;
 }
 
-#endif // TD_ASTRA
+#endif  // TD_ASTRA_RPC
 
 int32_t transQueueInit(STransQueue* wq, void (*freeFunc)(void* arg)) {
   QUEUE_INIT(&wq->node);

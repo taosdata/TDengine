@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#ifndef TD_ASTRA
+#ifndef TD_ASTRA_RPC
 #include <uv.h>
 #include "lz4.h"
 #include "os.h"
@@ -45,7 +45,7 @@ extern "C" {
 #include "tutil.h"
 #endif
 
-#ifndef TD_ASTRA
+#ifndef TD_ASTRA_RPC
 void* taosInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
 void* taosInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
 

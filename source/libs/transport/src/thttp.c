@@ -14,7 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
-#ifndef TD_ASTRA
+#include "thttp.h"
+#include "zlib.h"
+#ifndef TD_ASTRA_RPC
 // clang-format off
 #include <uv.h>
 #include "zlib.h"
@@ -1120,4 +1122,23 @@ _end:
   }
   return code;
 }
-#endif // TD_ASTRA
+#endif  // TD_ASTRA_RPC
+
+int32_t taosTelemetryMgtInit(STelemAddrMgmt* mgt, char* defaultAddr) { return 0; }
+void    taosTelemetryDestroy(STelemAddrMgmt* mgt) { return; }
+
+// not safe for multi-thread, should be called in the same thread
+int32_t taosSendTelemReport(STelemAddrMgmt* mgt, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                            EHttpCompFlag flag) {
+  return 0;
+}
+
+int32_t taosSendRecvHttpReportWithQID(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                                      EHttpCompFlag flag, const char* qid, int64_t recvBufId) {
+  return 0;
+}
+
+int32_t taosSendHttpReportWithQID(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                                  EHttpCompFlag flag, const char* qid) {
+  return 0;
+}

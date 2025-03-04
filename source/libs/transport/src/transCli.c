@@ -20,7 +20,7 @@
 #include "transLog.h"
 // clang-format on
 
-#ifndef TD_ASTRA
+#ifndef TD_ASTRA_RPC
 typedef struct {
   int32_t numOfConn;
   queue   msgQ;
@@ -571,8 +571,7 @@ int8_t cliMayNotifyUserOnRecvReleaseExcept(SCliConn* conn, STransMsgHead* pHead,
 
   SCliThrd* pThrd = conn->hostThrd;
   STransMsg resp = {.code = pHead->code};
-  int64_t   qId = taosHton64(pHead->qid);
-  STraceId* trace = &pHead->traceId;
+  int64_t   qId = taosHton64(pHead->qid) STraceId* trace = &pHead->traceId;
   code = cliBuildExceptResp(pThrd, pReq, &resp);
   if (code != 0) {
     tGWarn("%s conn %p failed to build except resp for req:%" PRId64 " since %s", CONN_GET_INST_LABEL(conn), conn, qId,
@@ -3946,8 +3945,8 @@ int32_t transHeapBalance(SHeap* heap, SCliConn* p) {
 
 #else
 void    transRefCliHandle(void* handle) { return; }
-void    transUnrefCliHandle(void* handle) { return; }
-int32_t transReleaseCliHandle(void* handle) { return 0; }
+int32_t transUnrefCliHandle(void* handle) { return 0; }
+int32_t transReleaseCliHandle(void* handle, int32_t status) { return 0; }
 int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* ctx) {
   int32_t code = 0;
   int32_t cliVer = 0;

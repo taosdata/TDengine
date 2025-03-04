@@ -19,7 +19,7 @@
 extern "C" {
 #endif
 
-#ifndef TD_ASTRA
+#ifndef TD_ASTRA_RPC
 #include <stdbool.h>
 #include <stdint.h>
 #include "taosdef.h"
@@ -230,9 +230,9 @@ typedef struct SRpcHandleInfo {
   int32_t cliVer;
 
   // app info
-  void *ahandle;  // app handle set by client
-  void *wrapper;  // wrapper handle
-  void *node;     // node mgmt handle
+  void *ahandle;    // app handle set by client
+  void *wrapper;    // wrapper handle
+  void *node;       // node mgmt handle
 #ifdef TD_ASTRA_32
   void *ahandleEx;  // app handle set by client
 #endif
@@ -361,7 +361,8 @@ void *rpcReallocCont(void *ptr, int64_t contLen);
 int32_t rpcSendRequest(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid);
 int32_t rpcSendResponse(SRpcMsg *pMsg);
 int32_t rpcRegisterBrokenLinkArg(SRpcMsg *msg);
-int32_t rpcReleaseHandle(void *handle, int8_t type, int32_t status);  // just release conn to rpc instance, no close sock
+int32_t rpcReleaseHandle(void *handle, int8_t type,
+                         int32_t status);  // just release conn to rpc instance, no close sock
 
 // These functions will not be called in the child process
 int32_t rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);
