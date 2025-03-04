@@ -529,6 +529,16 @@ typedef struct STableScanPhysiNode {
   bool           smallDataTsSort;
 } STableScanPhysiNode;
 
+typedef struct SVTableSourceScanPhysiNode {
+  STableScanPhysiNode basicScan;  // scan info of virtual table
+  // todo(kjq): add physical table info here
+} SVTableSourceScanPhysiNode;
+
+typedef struct SVTableMergePhysiNode {
+  STableScanPhysiNode basicScan;  // scan info of virtual table
+  // todo(kjq): add physical table info here
+}SVTableMergePhysiNode;
+
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
 typedef STableScanPhysiNode STableMergeScanPhysiNode;
 typedef STableScanPhysiNode SStreamScanPhysiNode;
