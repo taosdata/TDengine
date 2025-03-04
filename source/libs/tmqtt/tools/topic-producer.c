@@ -221,7 +221,8 @@ int32_t create_topic(TAOS* pConn) {
 
   pRes = taos_query(
       pConn,
-      "CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters");
+      "CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, tbname, current, voltage, phase, groupid, location, "
+      "tbname FROM meters");
   code = taos_errno(pRes);
   if (code != 0) {
     fprintf(stderr, "Failed to create topic topic_meters, ErrCode: 0x%x, ErrMessage: %s.\n", code, taos_errstr(pRes));
