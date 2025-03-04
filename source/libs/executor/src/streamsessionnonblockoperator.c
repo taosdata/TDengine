@@ -49,6 +49,8 @@ void streamSessionNonblockReloadState(SOperatorInfo* pOperator) {
   SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
   int32_t                        size = 0;
   void*                          pBuf = NULL;
+
+  resetWinRange(&pAggSup->winRange);
   code = pAggSup->stateStore.streamStateGetInfo(pAggSup->pState, STREAM_SESSION_NONBLOCK_OP_STATE_NAME,
                                                 strlen(STREAM_SESSION_NONBLOCK_OP_STATE_NAME), &pBuf, &size);
   QUERY_CHECK_CODE(code, lino, _end);

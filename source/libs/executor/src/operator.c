@@ -646,9 +646,9 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_FINAL_SESSION == type) {
     code = createFinalSessionNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_STATE == type) {
-    //todo (liuyao) add
+    code = createStateNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_EVENT == type) {
-    //todo (liuyao) add
+    code = createEventNonblockOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT == type) {
     //todo (liuyao) add
   } else {

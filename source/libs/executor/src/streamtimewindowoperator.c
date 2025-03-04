@@ -45,11 +45,6 @@
 
 #define MAX_STREAM_HISTORY_RESULT 20000000
 
-typedef struct SStateWindowInfo {
-  SResultWindowInfo winInfo;
-  SStateKeys*       pStateKey;
-} SStateWindowInfo;
-
 static int32_t doStreamMidIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 
 int32_t binarySearchCom(void* keyList, int num, void* pKey, int order, __compare_fn_t comparefn) {
@@ -4526,7 +4521,7 @@ bool compareWinStateKey(SStateKeys* left, SStateKeys* right) {
   return compareVal(left->pData, right);
 }
 
-static void getNextStateWin(const SStreamAggSupporter* pAggSup, SStateWindowInfo* pNextWin, bool asc) {
+void getNextStateWin(const SStreamAggSupporter* pAggSup, SStateWindowInfo* pNextWin, bool asc) {
   SStreamStateCur* pCur = NULL;
 
   if (pAggSup == NULL || pNextWin == NULL) {
@@ -5226,8 +5221,8 @@ void streamStateReleaseState(SOperatorInfo* pOperator) {
   }
 }
 
-static int32_t compactStateWindow(SOperatorInfo* pOperator, SResultWindowInfo* pCurWin, SResultWindowInfo* pNextWin,
-                                  SSHashObj* pStUpdated, SSHashObj* pStDeleted) {
+int32_t compactStateWindow(SOperatorInfo* pOperator, SResultWindowInfo* pCurWin, SResultWindowInfo* pNextWin,
+                           SSHashObj* pStUpdated, SSHashObj* pStDeleted) {
   SExprSupp*                   pSup = &pOperator->exprSupp;
   SExecTaskInfo*               pTaskInfo = pOperator->pTaskInfo;
   SStreamStateAggOperatorInfo* pInfo = pOperator->info;
@@ -5418,7 +5413,7 @@ int32_t createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   pInfo->destHasPrimaryKey = pStateNode->window.destHasPrimaryKey;
   pInfo->pOperator = pOperator;
 
-  setOperatorInfo(pOperator, "StreamStateAggOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE, true, OP_NOT_OPENED,
+  setOperatorInfo(pOperator, "StreamStateAggOperator", nodeType(pPhyNode), true, OP_NOT_OPENED,
                   pInfo, pTaskInfo);
   // for stream
   void*   buff = NULL;
@@ -5431,13 +5426,26 @@ int32_t createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
     taosMemoryFree(buff);
     QUERY_CHECK_CODE(code, lino, _error);
   }
-
-  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamStateAggNext, NULL, destroyStreamStateOperatorInfo,
-                                         optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
-  setOperatorStreamStateFn(pOperator, streamStateReleaseState, streamStateReloadState);
-
+  initNonBlockAggSupptor(&pInfo->nbSup, NULL);
   code = initStreamBasicInfo(&pInfo->basic, pOperator);
   QUERY_CHECK_CODE(code, lino, _error);
+
+  if (pStateNode->window.triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+    if (pHandle->fillHistory == STREAM_HISTORY_OPERATOR) {
+      setFillHistoryOperatorFlag(&pInfo->basic);
+    } else if (pHandle->fillHistory == STREAM_RECALCUL_OPERATOR) {
+      setRecalculateOperatorFlag(&pInfo->basic);
+    }
+
+    pOperator->fpSet =
+        createOperatorFpSet(optrDummyOpenFn, doStreamStateNonblockAggNext, NULL, destroyStreamStateOperatorInfo,
+                            optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+    setOperatorStreamStateFn(pOperator, streamStateNonblockReleaseState, streamStateNonblockReloadState);
+  } else {
+    pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamStateAggNext, NULL, destroyStreamStateOperatorInfo,
+                                           optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+    setOperatorStreamStateFn(pOperator, streamStateReleaseState, streamStateReloadState);
+  }
 
   code = initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex,
                         &pInfo->twAggSup, &pInfo->basic, 0);

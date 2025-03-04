@@ -89,6 +89,22 @@ typedef enum SIntervalSliceType {
   INTERVAL_SLICE_END = 2,
 } SIntervalSliceType;
 
+typedef struct SStateWindowInfo {
+  SResultWindowInfo winInfo;
+  SStateKeys*       pStateKey;
+} SStateWindowInfo;
+
+typedef struct SEventWinfowFlag {
+  bool startFlag;
+  bool endFlag;
+} SEventWinfowFlag;
+
+typedef struct SEventWindowInfo {
+  SResultWindowInfo winInfo;
+  SEventWinfowFlag* pWinFlag;
+} SEventWindowInfo;
+
+
 void    setStreamOperatorState(SSteamOpBasicInfo* pBasicInfo, EStreamType type);
 bool    needSaveStreamOperatorInfo(SSteamOpBasicInfo* pBasicInfo);
 void    saveStreamOperatorStateComplete(SSteamOpBasicInfo* pBasicInfo);
