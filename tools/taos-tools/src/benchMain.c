@@ -60,11 +60,6 @@ void checkArgumentValid() {
         g_arguments->host = DEFAULT_HOST;
     }
 
-    // check dsn valid
-    if(g_arguments->dsn && g_arguments->dsn[0] == 0) {
-        warnPrint("dsn is not null, but empty string, so set null. dsn=%s\n", g_arguments->dsn);
-        g_arguments->dsn = NULL;
-    }
 }
 
 // apply cfg
@@ -91,12 +86,6 @@ int32_t applyConfigDir(char * cfgDir){
  }
 
 int32_t setConnMode(int8_t  connMode, char *dsn) {
-    // check valid
-    if (connMode == CONN_MODE_NATIVE && dsn != NULL ) {
-        errorPrint("set connMode Native but found dns, conflict. dsn=%s\n", dsn);
-        return -1;
-    }
-
     // set conn mode
     char * strMode = connMode == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET;
     int32_t code = taos_options(TSDB_OPTION_DRIVER, strMode);
@@ -130,15 +119,11 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
-    // read evn
-    if (g_arguments->dsn != NULL) {
-        infoPrint("Get dsn from command. dsn=%s\n", g_arguments->dsn);
-    } else {
-        char * dsn = getenv("TDENGINE_CLOUD_DSN");
-        if (dsn != NULL && strlen(dsn) > 3) {
-            g_arguments->dsn = dsn;
-            infoPrint("Get dsn from getenv TDENGINE_CLOUD_DSN=%s\n", g_arguments->dsn);
-        } 
+    // check valid
+    if(g_arguments->connMode == CONN_MODE_NATIVE && g_arguments->dsn) {
+        errorPrint("Setting native and setting dsn cannot be specified simultaneously in command line. dsn=%s\n", g_arguments->dsn);
+        exitLog();
+        return -1;
     }
 
     // read json config
@@ -147,10 +132,19 @@ int main(int argc, char* argv[]) {
         if (readJsonConfig(g_arguments->metaFile)) {
             errorPrint("failed to readJsonConfig %s\n", g_arguments->metaFile);
             exitLog();
-            return -1;    
+            return -1;
         }
     } else {
         modifyArgument();
+    }
+
+    // read evn
+    if (g_arguments->dsn == NULL) {
+        char * dsn = getenv("TDENGINE_CLOUD_DSN");
+        if (dsn != NULL && strlen(dsn) > 0) {
+            g_arguments->dsn = dsn;
+            infoPrint("Get dsn from getenv TDENGINE_CLOUD_DSN=%s\n", g_arguments->dsn);
+        } 
     }
 
     // open result file

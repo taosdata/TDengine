@@ -1504,6 +1504,15 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
         }        
     }
 
+    // dsn
+    tools_cJSON *dsn = tools_cJSON_GetObjectItem(json, "dsn");
+    if (tools_cJSON_IsString(dsn) && strlen(dsn->valuestring) > 0) {
+        if (g_arguments->dsn == NULL) {
+            g_arguments->dsn = dsn->valuestring;
+            infoPrint("set websocket true from json->dsn=%s\n", g_arguments->dsn);    
+        }
+    }    
+
     tools_cJSON *host = tools_cJSON_GetObjectItem(json, "host");
     if (host && host->type == tools_cJSON_String && host->valuestring != NULL) {
         if(g_arguments->host && strlen(g_arguments->host) > 0) {
@@ -1591,12 +1600,6 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
 
 static int getMetaFromInsertJsonFile(tools_cJSON *json) {
     int32_t code = -1;
-
-    tools_cJSON *dsn = tools_cJSON_GetObjectItem(json, "dsn");
-    if (tools_cJSON_IsString(dsn)) {
-        g_arguments->dsn = dsn->valuestring;
-        infoPrint("set websocket true from json->dsn=%s\n", g_arguments->dsn);
-    }
 
     // check after inserted
     tools_cJSON *checkSql = tools_cJSON_GetObjectItem(json, "check_sql");

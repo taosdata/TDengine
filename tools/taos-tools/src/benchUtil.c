@@ -307,7 +307,7 @@ SBenchConn* initBenchConnImpl() {
     char *   dsnc = NULL;
 
     // set mode
-    if (g_arguments->dsn) {
+    if (g_arguments->connMode != CONN_MODE_NATIVE && g_arguments->dsn) {
         dsnc = strToLowerCopy(g_arguments->dsn);
         if (dsnc == NULL) {
             tmfree(conn);
