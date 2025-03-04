@@ -6,6 +6,8 @@ target_include_directories(
   PUBLIC "${TD_SOURCE_DIR}/include/libs/tcs"
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
+# This depends on rocksdb explicitly
+add_dependencies(stream rocksdb)
 
 if(${BUILD_WITH_ROCKSDB})
   if(${BUILD_CONTRIB})
