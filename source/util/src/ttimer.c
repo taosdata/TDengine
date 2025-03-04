@@ -318,17 +318,22 @@ static void addToExpired(tmr_obj_t* head) {
     schedMsg.msg = NULL;
     schedMsg.ahandle = head;
     schedMsg.thandle = NULL;
-    if (head->priority == 1) {
+    uint8_t priority = head->priority;
+
+    if (priority == 1) {
       if (taosScheduleTask(tmrQhandle, &schedMsg) != 0) {
         tmrError("%s failed to add expired timer[id=%" PRIuPTR "] to queue.", head->ctrl->label, id);
       }
-    } else if (head->priority == 2) {
+    } else if (priority == 2) {
       if (taosScheduleTask(tmrQhandleHigh, &schedMsg) != 0) {
         tmrError("%s failed to add expired timer[id=%" PRIuPTR "] to high level queue.", head->ctrl->label, id);
       }
     }
+    else{
+      tmrError("%s invalid priority level %d for timer[id=%" PRIuPTR "].", head->ctrl->label, priority, id);
+    }
 
-    tmrDebug("timer[id=%" PRIuPTR "] has been added to queue priority:%d.", id, head->priority);
+    tmrDebug("timer[id=%" PRIuPTR "] has been added to queue priority:%d.", id, priority);
     head = next;
   }
 }

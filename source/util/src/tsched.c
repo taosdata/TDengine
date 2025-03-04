@@ -148,7 +148,7 @@ void *taosProcessSchedQueue(void *scheduler) {
   snprintf(name, tListLen(name), "%s-taskQ", pSched->label);
   setThreadName(name);
   int64_t pid = taosGetSelfPthreadId();
-  uInfo("scheduler %s is started, thread:%" PRId64, pSched->label, pid);
+  uInfo("scheduler %s is started, thread:%" PRId64, name, pid);
 
   while (1) {
     if ((ret = tsem_wait(&pSched->fullSem)) != 0) {
