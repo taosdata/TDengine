@@ -6292,6 +6292,7 @@ int32_t tSerializeSTableInfoReq(void *buf, int32_t bufLen, STableInfoReq *pReq) 
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->dbFName));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tbName));
   TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->option));
+  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->autoCreateCtb));
   tEndEncode(&encoder);
 
 _exit:
@@ -6330,6 +6331,11 @@ int32_t tDeserializeSTableInfoReq(void *buf, int32_t bufLen, STableInfoReq *pReq
     TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pReq->option));
   } else {
     pReq->option = 0;
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pReq->autoCreateCtb));
+  } else {
+    pReq->autoCreateCtb = 0;
   }
 
   tEndDecode(&decoder);

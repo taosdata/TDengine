@@ -3093,6 +3093,7 @@ int32_t ctgLaunchGetTbMetasTask(SCtgTask* pTask) {
   SCtgTbMetasCtx*   pCtx = (SCtgTbMetasCtx*)pTask->taskCtx;
   SCtgJob*          pJob = pTask->pJob;
   SName*            pName = NULL;
+  bool              autoCreate = false;
 
   int32_t dbNum = taosArrayGetSize(pCtx->pNames);
   int32_t fetchIdx = 0;
@@ -3103,6 +3104,7 @@ int32_t ctgLaunchGetTbMetasTask(SCtgTask* pTask) {
       ctgError("fail to get the %dth STablesReq, num:%d", i, dbNum);
       CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
     }
+    autoCreate = pReq->autoCreate;
 
     ctgDebug("start to check tb metas in db %s, tbNum %ld", pReq->dbFName, taosArrayGetSize(pReq->pTables));
     CTG_ERR_RET(ctgGetTbMetasFromCache(pCtg, pConn, pCtx, i, &fetchIdx, baseResIdx, pReq->pTables));
@@ -3143,6 +3145,7 @@ int32_t ctgLaunchGetTbMetasTask(SCtgTask* pTask) {
     }
 
     SCtgTaskReq tReq;
+    tReq.autoCreateCtb = (autoCreate && i == pCtx->fetchNum - 1) ? 1 : 0;
     tReq.pTask = pTask;
     tReq.msgIdx = pFetch->fetchIdx;
     CTG_ERR_RET(ctgAsyncRefreshTbMeta(&tReq, pFetch->flag, pName, &pFetch->vgId));
