@@ -250,11 +250,7 @@ typedef struct {
   void (*setFreeCellInfo)(SCell *pCell, int szCell, int nxOffset);
 } SPageMethods;
 
-#if TD_PACK_MIN_SIZE == 4
-#pragma pack(push, 4)
-#else
-#pragma pack(push, 1)
-#endif
+PACK_PUSH_MIN
 
 // Page footer
 typedef struct {

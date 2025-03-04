@@ -129,11 +129,7 @@ typedef struct {
   int tmp;  // TODO: to avoid compile error
 } STpRow;   // tuple
 
-#if TD_PACK_MIN_SIZE == 4
-#pragma pack(push, 4)
-#else
-#pragma pack(push, 1)
-#endif
+PACK_PUSH_MIN
 typedef struct {
   col_id_t colId;
   uint32_t offset;

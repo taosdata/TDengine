@@ -283,11 +283,7 @@ struct SColData {
   uint8_t *pData;
 };
 
-#if TD_PACK_MIN_SIZE == 4
-#pragma pack(push, 4)
-#else
-#pragma pack(push, 1)
-#endif
+PACK_PUSH_MIN
 struct STagVal {
   //  char colName[TSDB_COL_NAME_LEN]; // only used for tmq_get_meta
   union {

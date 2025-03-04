@@ -24,11 +24,7 @@ extern "C" {
 #define GROUP_CACHE_MAX_FILE_FDS 10
 #define GROUP_CACHE_DEFAULT_VGID 0
 
-#if TD_PACK_MIN_SIZE == 4
-#pragma pack(push, 4)
-#else
-#pragma pack(push, 1)
-#endif
+PACK_PUSH_MIN
 typedef struct SGcBlkBufBasic {
   int32_t           fileId;
   int64_t           blkId;

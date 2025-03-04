@@ -43,11 +43,7 @@ struct SBTree {
 #define TDB_BTREE_PAGE_IS_LEAF(PAGE)          (TDB_BTREE_PAGE_GET_FLAGS(PAGE) & TDB_BTREE_LEAF)
 #define TDB_BTREE_PAGE_IS_OVFL(PAGE)          (TDB_BTREE_PAGE_GET_FLAGS(PAGE) & TDB_BTREE_OVFL)
 
-#if TD_PACK_MIN_SIZE == 4
-#pragma pack(push, 4)
-#else
-#pragma pack(push, 1)
-#endif
+PACK_PUSH_MIN
 typedef struct {
   TDB_BTREE_PAGE_COMMON_HDR
 } SLeafHdr;

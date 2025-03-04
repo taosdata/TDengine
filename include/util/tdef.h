@@ -25,10 +25,10 @@ extern "C" {
 
 #define TSDB__packed
 
-#if !defined(TD_PACK_MIN_SIZE)
-#error "TD_PACK_MIN_SIZE is not defined"
-#elif (defined(TD_ASTRA) && TD_PACK_MIN_SIZE != 4) || (!defined(TD_ASTRA) && TD_PACK_MIN_SIZE != 1)
-#error "TD_PACK_MIN_SIZE value is invalid"
+#if defined(TD_ASTRA_32)
+#define PACK_PUSH_MIN _Pragma("pack(push, 4)")
+#else
+#define PACK_PUSH_MIN _Pragma("pack(push, 1)")
 #endif
 
 #define TSKEY             int64_t

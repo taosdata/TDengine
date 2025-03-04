@@ -525,11 +525,7 @@ typedef struct SRetention {
 
 #define RETENTION_VALID(l, r) ((((l) == 0 && (r)->freq >= 0) || ((r)->freq > 0)) && ((r)->keep > 0))
 
-#if TD_PACK_MIN_SIZE == 4
-#pragma pack(push, 4)
-#else
-#pragma pack(push, 1)
-#endif
+PACK_PUSH_MIN
 // null-terminated string instead of char array to avoid too many memory consumption in case of more than 1M tableMeta
 typedef struct SEp {
   char     fqdn[TSDB_FQDN_LEN];
