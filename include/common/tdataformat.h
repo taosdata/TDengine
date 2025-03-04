@@ -143,12 +143,13 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 typedef struct {
   uint64_t offset;
   uint32_t len;
+  uint32_t dataOffset;
 } SBlobValue;
 
 typedef struct {
   uint64_t seq;
   uint32_t seqOffsetInRow;
-  int32_t rowIndex;
+  int32_t  rowIndex;
   void    *data;
   int32_t  dataLen;
 } SBlobItem;
