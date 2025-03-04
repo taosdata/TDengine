@@ -144,8 +144,6 @@ static int32_t ignoreUsingClause(SInsertParseContext* pCxt, const char** pSql) {
 static int32_t ignoreUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   const char** pSql = &pStmt->pSql;
   int32_t      code = TSDB_CODE_SUCCESS;
-  SToken       token;
-  NEXT_TOKEN(*pSql, token);
   code = parseBoundTagsClause(pCxt, pStmt);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
@@ -181,6 +179,8 @@ static int32_t parseDuplicateUsingClause(SInsertParseContext* pCxt, SVnodeModify
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
+    SToken token;
+    NEXT_TOKEN(pStmt->pSql, token);
     return ignoreUsingClause(pCxt, pStmt);
   }
 
@@ -1316,16 +1316,37 @@ static int32_t preParseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpS
   return insCreateSName(&pStmt->usingTableName, pTbName, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg);
 }
 
-static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool* ctbCacheHit) {
   int32_t code = TSDB_CODE_SUCCESS;
+  STableMeta* pStableMeta = NULL;
+  STableMeta* pCtableMeta = NULL;
   if (pCxt->forceUpdate) {
     pCxt->missCache = true;
     return TSDB_CODE_SUCCESS;
   }
   if (!pCxt->missCache) {
     bool bUsingTable = true;
-    code = getTableMeta(pCxt, &pStmt->usingTableName, &pStmt->pTableMeta, &pCxt->missCache, bUsingTable);
+    code = getTableMeta(pCxt, &pStmt->usingTableName, &pStableMeta, &pCxt->missCache, bUsingTable);
   }
+
+  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
+    bool bUsingTable = false;
+    code = getTableMeta(pCxt, &pStmt->targetTableName, &pCtableMeta, &pCxt->missCache, bUsingTable);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
+    code = (pStableMeta->suid == pCtableMeta->suid) ? TSDB_CODE_SUCCESS : TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;
+    *ctbCacheHit = true;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (*ctbCacheHit) {
+      code = cloneTableMeta(pCtableMeta,&pStmt->pTableMeta);
+    } else {
+      code = cloneTableMeta( pStableMeta,&pStmt->pTableMeta);
+    }
+  }
+  taosMemoryFree(pStableMeta);
+  taosMemoryFree(pCtableMeta);
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTargetTableVgroup(pCxt->pComCxt, pStmt, true, &pCxt->missCache);
   }
@@ -1341,9 +1362,14 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
 static int32_t parseUsingTableNameImpl(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   SToken token;
   NEXT_TOKEN(pStmt->pSql, token);
+  bool    ctbCacheHit = false;
   int32_t code = preParseUsingTableName(pCxt, pStmt, &token);
   if (TSDB_CODE_SUCCESS == code) {
-    code = getUsingTableSchema(pCxt, pStmt);
+    code = getUsingTableSchema(pCxt, pStmt, &ctbCacheHit);
+    if (TSDB_CODE_SUCCESS == code && ctbCacheHit) {
+      pStmt->usingTableProcessing = false;
+      return ignoreUsingClause(pCxt, pStmt);
+    }
   }
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = storeChildTableMeta(pCxt, pStmt);
@@ -1360,27 +1386,14 @@ static int32_t parseUsingTableNameImpl(SInsertParseContext* pCxt, SVnodeModifyOp
 static int32_t parseUsingTableName(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   SToken  token;
   int32_t index = 0;
-  int32_t code = TSDB_CODE_SUCCESS;
-
   NEXT_TOKEN_KEEP_SQL(pStmt->pSql, token, index);
-  if (pCxt->isStmtBind) {
-    if (token.type != TK_USING) {
-      return getTargetTableSchema(pCxt, pStmt);
-    }
-  } else {
-    code = getTargetTableSchema(pCxt, pStmt);
-    if (token.type != TK_USING) {
-      return code;
-    } else if ((!pCxt->missCache) && (TSDB_CODE_SUCCESS == code) && (!pCxt->isStmtBind)) {
-      pStmt->pSql += index;
-      return ignoreUsingClause(pCxt, pStmt);
-    }
+  if (TK_USING != token.type) {
+    return getTargetTableSchema(pCxt, pStmt);
   }
-
   pStmt->usingTableProcessing = true;
   // pStmt->pSql -> stb_name [(tag1_name, ...)
   pStmt->pSql += index;
-  code = parseDuplicateUsingClause(pCxt, pStmt, &pCxt->usingDuplicateTable);
+  int32_t code = parseDuplicateUsingClause(pCxt, pStmt, &pCxt->usingDuplicateTable);
   if (TSDB_CODE_SUCCESS == code && !pCxt->usingDuplicateTable) {
     return parseUsingTableNameImpl(pCxt, pStmt);
   }

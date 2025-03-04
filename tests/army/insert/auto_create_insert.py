@@ -142,6 +142,17 @@ class TDTestCase(TBase):
         tdSql.execute("USE test")
         tdSql.error("INSERT INTO t_8 USING stb TAGS (8) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test') t_8 USING stb TAGS (ddd) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test')", expectErrInfo="syntax error")
 
+    def check_table_with_another_stb_name(self):
+        tdLog.info(f"check table with another stb name")
+        tdSql.execute("USE test")
+        tdSql.execute("CREATE STABLE IF NOT EXISTS stb2 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT)")
+        tdSql.execute("INSERT INTO t_20 USING stb2 TAGS (20) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test')")
+        tdSql.query("select * from t_20")
+        tdSql.checkRows(1)
+        tdSql.error("INSERT INTO t_20 USING stb TAGS (20) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test')", expectErrInfo="Table already exists in other stables")
+        tdSql.error("INSERT INTO t_20 USING stb TAGS (20) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test')", expectErrInfo="Table already exists in other stables")
+
+
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -172,6 +183,9 @@ class TDTestCase(TBase):
 
         # check duplicate table with err tag
         self.check_duplicate_table_with_err_tag()
+
+        # check table with another stb name
+        self.check_table_with_another_stb_name()
 
         tdLog.success(f"{__file__} successfully executed")
 
