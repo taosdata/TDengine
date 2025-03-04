@@ -516,7 +516,6 @@ mod tests {
     #[tokio::test]
     async fn test_historian_to_taos() {
         let (tx, _rx) = flume::bounded(1);
-
         // when
         let res = historian_to_taos(
             "historian://".into_dsn().unwrap(),

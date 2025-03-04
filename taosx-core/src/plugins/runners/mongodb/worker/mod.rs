@@ -135,6 +135,7 @@ pub async fn migrate_history_by_subtable(
             placeholders.insert(k, vec);
         }
     }
+    tracing::info!("migrate mongodb, placeholders size: {}", placeholders.len());
     // generate combinations
     let mut combinations = HashSet::new();
     generate_combinations(
@@ -144,6 +145,7 @@ pub async fn migrate_history_by_subtable(
         BTreeMap::new(),
         &mut combinations,
     );
+    tracing::info!("migrate mongodb, combinations size: {}", combinations.len());
     // if no distinct values, use the original sql
     if combinations.is_empty() {
         combinations.insert(SubSql {
@@ -272,6 +274,12 @@ pub async fn get_all_distinct_values(
     };
     let time_zone = FixedOffset::from_str(&config.task.time_zone.to_string())?;
     let interval = config.task.interval;
+    tracing::info!(
+        "migrate mongodb, get all distinct values, start: {}, end: {}, interval: {}",
+        start,
+        end,
+        interval
+    );
 
     // split the query into multiple windows
     let window_start = start;
@@ -304,6 +312,13 @@ pub async fn get_all_distinct_values(
         config.task.end = Some(window_end_with_tz.with_timezone(&Utc));
         let database = config.task.generate_database()?;
         let collection = config.task.generate_collection()?;
+        tracing::info!(
+            "migrate mongodb, get all distinct values, database: {}, collection: {}, start: {}, end: {:?}",
+            database,
+            collection,
+            config.task.start,
+            config.task.end
+        );
 
         if current_database != database || current_collection != collection {
             // get distinct values
@@ -345,6 +360,10 @@ pub async fn get_all_distinct_values(
         // move the window
         window_start_with_tz = window_end_with_tz;
     }
+    tracing::info!(
+        "migrate mongodb, get all distinct values finished, filters size: {}",
+        filters.len()
+    );
     Ok(filters)
 }
 

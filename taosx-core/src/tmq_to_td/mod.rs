@@ -139,6 +139,16 @@ async fn write_data(
             match code {
                 // Table not exist error codes or invalid input.
                 0x070F | 0x0218 | 0x2603 | 0x036D | 0x0618 | 0x2662 | 0x0118 | 0x4000 | 0x060B => {
+                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                    // 0x070F: invalid input
+                    // 0x0218: the table does not exist
+                    // 0x2603: the table does not exist
+                    // 0x036D: the table does not exist
+                    // 0x0618: the table does not exist
+                    // 0x2662: the table does not exist
+                    // 0x0118: invalid parameter
+                    // 0x4000: invalid msg
+                    // 0x060B: the primary timestamp out of range
                     tracing::debug!("Fallback to block-by-block method due to: {err:#}.");
                     last_error.replace(err);
                 }
@@ -318,6 +328,10 @@ async fn write_data(
                         || errstr.contains("[0x0603]")
                         || errstr.contains("[0x03C7]")
                     {
+                        // 0x032C: object is creating
+                        // 0x0115: invalid msg
+                        // 0x0603: table already exists
+                        // 0x03C7: stable uid not match
                         // counter!(METRIC_TMQ_WRITE_META_FAILS, 1);
                         tracing::warn!("[{id}] {errstr}");
                     } else {
@@ -441,6 +455,10 @@ async fn write_meta(
                 match code {
                     // Table not exist error codes.
                     0x0218 | 0x2603 | 0x036D | 0x0618 => {
+                        // 0x0218: the table does not exist
+                        // 0x2603: the table does not exist
+                        // 0x036D: the table does not exist
+                        // 0x0618: the table does not exist
                         for json_meta in &json_meta {
                             match json_meta {
                                 MetaUnit::Create(create) => match create {
@@ -495,6 +513,11 @@ async fn write_meta(
                         }
                     }
                     0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3 => {
+                        // 0x032C: object is creating
+                        // 0x0115: invalid msg
+                        // 0x0603: table already exists
+                        // 0x03C7: stable uid not match
+                        // 0x03D3: conflict transaction not completed
                         // do nothing
                     }
                     _ => {
@@ -530,6 +553,11 @@ async fn write_meta(
                     || errstr.contains("[0x0603]")
                     || errstr.contains("[0x03C7]")
                 {
+                    // 0x032C: object is creating
+                    // 0x03D3: conflict transaction not completed
+                    // 0x0115: invalid msg
+                    // 0x0603: table already exists
+                    // 0x03C7: stable uid not match
                     tracing::warn!("{errstr}");
                 } else {
                     bail!("[{id}] write raw meta error: {err}");
@@ -594,6 +622,7 @@ async fn sync_msg(
             if let Err(err) = write_meta_result {
                 let msg = format!("{:#}", err);
                 if msg.contains("0xE00") && retries < max_retries {
+                    // 0xE00: connection error
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                     *taos = target_pool.get().await.context("Target connection error")?;
                     retries += 1;
@@ -623,6 +652,8 @@ async fn sync_msg(
             {
                 let msg = format!("{:#}", err);
                 if msg.contains("0xE00") && retries < max_retries {
+                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                    // 0xE00: connection error
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                     *taos = target_pool.get().await.context("Target connection error")?;
                     retries += 1;
@@ -652,6 +683,7 @@ async fn sync_msg(
             if let Err(err) = write_meta_result {
                 let msg = format!("{:#}", err);
                 if msg.contains("0xE00") && retries < max_retries {
+                    // 0xE00: connection error
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                     *taos = target_pool.get().await.context("Target connection error")?;
                     retries += 1;
@@ -679,6 +711,8 @@ async fn sync_msg(
                 {
                     let msg = format!("{:#}", err);
                     if msg.contains("0xE00") && retries < max_retries {
+                        // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                        // 0xE00: connection error
                         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                         *taos = target_pool.get().await.context("Target connection error")?;
                         retries += 1;
@@ -1709,10 +1743,16 @@ pub async fn tmq_to_td(
                                 let err_str = format!("{err:#}");
                                 if !(err_str.contains("0xE001")
                                     || err_str.contains("0xE002")
-                                    || err_str.contains("0xE003"))
+                                    || err_str.contains("0xE003")
+                                    || err_str.contains("0xE004")
+                                    || err_str.contains("0xE00B"))
                                 {
-                                    // 0xE001 is the error code for "Connection refused"
-                                    // 0xE002 is the error code for "Connection reset without closing handshake"
+                                    // NOTICE 此方法不涉及 transform 配置，所以不进行“写入异常处理”
+                                    // 0xE001: internal error
+                                    // 0xE002: connection closed
+                                    // 0xE003: send timeout
+                                    // 0xE004: receive timeout
+                                    // 0x000B: unable to establish connection
                                     return Err(err);
                                 }
                                 if retries > max_retries {

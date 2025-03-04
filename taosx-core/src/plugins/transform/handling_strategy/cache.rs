@@ -12,10 +12,11 @@ impl HandlingCacheFailed {
     pub fn handle(&self, err: String) -> anyhow::Result<()> {
         match self {
             HandlingCacheFailed::Skip => {
-                // TODO: Implement skip
+                tracing::warn!("{err}: skip record");
                 Ok(())
             }
             HandlingCacheFailed::Break => {
+                tracing::error!("{err}: break task");
                 anyhow::bail!(err)
             }
         }
@@ -25,7 +26,11 @@ impl HandlingCacheFailed {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct Cache {
     #[serde(default)]
-    pub max_size: usize,
+    pub max_size: String,
+    #[serde(default)]
+    pub max_size_value: usize,
+    #[serde(default)]
+    pub max_size_unit: String,
     #[serde(default)]
     pub location: String,
     #[serde(default)]
@@ -35,7 +40,9 @@ pub struct Cache {
 impl Default for Cache {
     fn default() -> Self {
         Self {
-            max_size: 0,
+            max_size: "0GB".to_string(),
+            max_size_value: 0,
+            max_size_unit: "GB".to_string(),
             location: "cache".to_string(),
             on_fail: HandlingCacheFailed::default(),
         }

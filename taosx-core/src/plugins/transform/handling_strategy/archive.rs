@@ -10,17 +10,18 @@ pub enum HandlingArchiveFailed {
 }
 
 impl HandlingArchiveFailed {
-    pub fn handle(&self, err: String) -> anyhow::Result<()> {
+    pub fn handle(&self, err: String) -> anyhow::Result<bool> {
         match self {
             HandlingArchiveFailed::Rotate => {
-                // TODO: Implement delete old files
-                Ok(())
+                tracing::trace!("{err}: delete the oldest file and retry");
+                Ok(true)
             }
             HandlingArchiveFailed::Skip => {
-                // TODO: Implement skip
-                Ok(())
+                tracing::warn!("{err}: skip record");
+                Ok(false)
             }
             HandlingArchiveFailed::Break => {
+                tracing::error!("{err}: break task");
                 anyhow::bail!(err)
             }
         }
@@ -30,9 +31,17 @@ impl HandlingArchiveFailed {
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct Archive {
     #[serde(default)]
-    pub keep_days: usize,
+    pub keep_days: String,
     #[serde(default)]
-    pub max_size: usize,
+    pub keep_days_value: usize,
+    #[serde(default)]
+    pub keep_days_unit: String,
+    #[serde(default)]
+    pub max_size: String,
+    #[serde(default)]
+    pub max_size_value: usize,
+    #[serde(default)]
+    pub max_size_unit: String,
     #[serde(default)]
     pub location: String,
     #[serde(default)]
@@ -42,8 +51,12 @@ pub struct Archive {
 impl Default for Archive {
     fn default() -> Self {
         Self {
-            keep_days: 30,
-            max_size: 0,
+            keep_days: "0d".to_string(),
+            keep_days_value: 0,
+            keep_days_unit: "d".to_string(),
+            max_size: "0GB".to_string(),
+            max_size_value: 0,
+            max_size_unit: "GB".to_string(),
             location: "archived".to_string(),
             on_fail: HandlingArchiveFailed::default(),
         }
