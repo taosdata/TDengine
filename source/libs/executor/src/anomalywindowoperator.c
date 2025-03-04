@@ -96,11 +96,11 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
     pInfo->timeout = ANALY_FC_DEFAULT_TIMEOUT;
   } else {
     if (pInfo->timeout <= 500 || pInfo->timeout > 600*1000) {
-      qDebug("timeout val:%" PRId64 "ms is invalid (greater than 10min or less than 0.5s), use default:%" PRId64 "ms",
+      qDebug("timeout val:%" PRId64 "ms is invalid (greater than 10min or less than 0.5s), use default:%dms",
              pInfo->timeout, ANALY_FC_DEFAULT_TIMEOUT);
       pInfo->timeout = ANALY_FC_DEFAULT_TIMEOUT;
     } else {
-      qDebug("timeout val is set to: %d" PRId64 "ms", pInfo->timeout);
+      qDebug("timeout val is set to: %" PRId64 "ms", pInfo->timeout);
     }
   }
 
