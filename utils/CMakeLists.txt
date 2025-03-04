@@ -2,7 +2,7 @@
 ADD_SUBDIRECTORY(tsim)
 
 IF(${BUILD_TEST})
-  ADD_SUBDIRECTORY(test)
+  ADD_SUBDIRECTORY(test/c)
 ENDIF(${BUILD_TEST})
 
 # ADD_SUBDIRECTORY(comparisonTest/tdengine)
