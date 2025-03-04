@@ -782,8 +782,12 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || analVerChanged ||
                    pMnode->ipWhiteVer != statusReq.ipWhiteVer || encryptKeyChanged || enableWhiteListChanged;
   const STraceId *trace = &pReq->info.traceId;
-  mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
-          pDnode->accessTimes, needCheck, online, reboot, dnodeChanged, statusReq.statusSeq);
+  char            timestamp[TD_TIME_STR_LEN] = {0};
+  if (mDebugFlag & DEBUG_TRACE) (void)formatTimestampLocal(timestamp, statusReq.timestamp, TSDB_TIME_PRECISION_MILLI);
+  mGTrace(
+      "dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d "
+      "timestamp:%s",
+      pDnode->id, pDnode->accessTimes, needCheck, online, reboot, dnodeChanged, statusReq.statusSeq, timestamp);
 
   if (reboot) {
     tsGrantHBInterval = GRANT_HEART_BEAT_MIN;

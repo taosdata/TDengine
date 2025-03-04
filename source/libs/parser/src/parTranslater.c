@@ -8934,6 +8934,10 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SBalanceVgroupReq, pReq);
       break;
     }
+    case TDMT_MND_ARB_ASSIGN_LEADER: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SAssignLeaderReq, pReq);
+      break;
+    }
     case TDMT_MND_REDISTRIBUTE_VGROUP: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SRedistributeVgroupReq, pReq);
       break;
@@ -11315,9 +11319,11 @@ static int32_t translateCompactRange(STranslateContext* pCxt, const char* dbName
 }
 
 static int32_t translateCompactDb(STranslateContext* pCxt, SCompactDatabaseStmt* pStmt) {
-  SCompactDbReq compactReq = {0};
-  SName         name;
-  int32_t       code = TSDB_CODE_SUCCESS;
+  SCompactDbReq compactReq = {
+      .metaOnly = pStmt->metaOnly,
+  };
+  SName   name;
+  int32_t code = TSDB_CODE_SUCCESS;
   code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
   if (TSDB_CODE_SUCCESS != code) return code;
 
@@ -11384,7 +11390,9 @@ static int32_t translateVgroupList(STranslateContext* pCxt, SNodeList* vgroupLis
 static int32_t translateCompactVgroups(STranslateContext* pCxt, SCompactVgroupsStmt* pStmt) {
   int32_t       code = TSDB_CODE_SUCCESS;
   SName         name;
-  SCompactDbReq req = {0};
+  SCompactDbReq req = {
+      .metaOnly = pStmt->metaOnly,
+  };
 
   code = tNameSetDbName(&name, pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal,
                         strlen(((SValueNode*)pStmt->pDbName)->literal));
@@ -13182,6 +13190,13 @@ static int32_t translateBalanceVgroup(STranslateContext* pCxt, SBalanceVgroupStm
   return code;
 }
 
+static int32_t translateAssignLeader(STranslateContext* pCxt, SAssignLeaderStmt* pStmt) {
+  SAssignLeaderReq req = {0};
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_ARB_ASSIGN_LEADER, (FSerializeFunc)tSerializeSAssignLeaderReq, &req);
+  tFreeSAssignLeaderReq(&req);
+  return code;
+}
+
 static int32_t translateBalanceVgroupLeader(STranslateContext* pCxt, SBalanceVgroupLeaderStmt* pStmt) {
   SBalanceVgroupLeaderReq req = {0};
   req.vgId = pStmt->vgId;
@@ -13938,6 +13953,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       code = translateBalanceVgroup(pCxt, (SBalanceVgroupStmt*)pNode);
+      break;
+    case QUERY_NODE_ASSIGN_LEADER_STMT:
+      code = translateAssignLeader(pCxt, (SAssignLeaderStmt*)pNode);
       break;
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
       code = translateBalanceVgroupLeader(pCxt, (SBalanceVgroupLeaderStmt*)pNode);

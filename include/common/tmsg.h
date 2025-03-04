@@ -359,6 +359,7 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_ANODE_STMT,
   QUERY_NODE_DROP_ANODE_STMT,
   QUERY_NODE_UPDATE_ANODE_STMT,
+  QUERY_NODE_ASSIGN_LEADER_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -1639,6 +1640,7 @@ typedef struct {
   int32_t     sqlLen;
   char*       sql;
   SArray*     vgroupIds;
+  int8_t      metaOnly;
 } SCompactDbReq;
 
 int32_t tSerializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq);
@@ -1845,6 +1847,7 @@ typedef struct {
   int32_t     statusSeq;
   int64_t     ipWhiteVer;
   int64_t     analVer;
+  int64_t     timestamp;
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
@@ -2083,6 +2086,7 @@ typedef struct {
   int64_t     compactStartTime;
   STimeWindow tw;
   int32_t     compactId;
+  int8_t      metaOnly;
 } SCompactVnodeReq;
 
 int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
@@ -2583,6 +2587,7 @@ typedef struct {
   char*   arbToken;
   int64_t arbTerm;
   char*   memberToken;
+  int8_t  force;
 } SVArbSetAssignedLeaderReq;
 
 int32_t tSerializeSVArbSetAssignedLeaderReq(void* buf, int32_t bufLen, SVArbSetAssignedLeaderReq* pReq);
@@ -2661,6 +2666,15 @@ int32_t tSerializeSBalanceVgroupReq(void* buf, int32_t bufLen, SBalanceVgroupReq
 int32_t tDeserializeSBalanceVgroupReq(void* buf, int32_t bufLen, SBalanceVgroupReq* pReq);
 void    tFreeSBalanceVgroupReq(SBalanceVgroupReq* pReq);
 
+typedef struct {
+  int32_t useless;  // useless
+  int32_t sqlLen;
+  char*   sql;
+} SAssignLeaderReq;
+
+int32_t tSerializeSAssignLeaderReq(void* buf, int32_t bufLen, SAssignLeaderReq* pReq);
+int32_t tDeserializeSAssignLeaderReq(void* buf, int32_t bufLen, SAssignLeaderReq* pReq);
+void    tFreeSAssignLeaderReq(SAssignLeaderReq* pReq);
 typedef struct {
   int32_t vgId1;
   int32_t vgId2;

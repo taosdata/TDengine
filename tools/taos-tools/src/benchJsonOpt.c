@@ -2254,7 +2254,6 @@ static int getMetaFromQueryJsonFile(tools_cJSON *json) {
     return 0;
 }
 
-#ifdef TD_VER_COMPATIBLE_3_0_0_0
 static int getMetaFromTmqJsonFile(tools_cJSON *json) {
     int32_t code = -1;
 
@@ -2422,7 +2421,6 @@ static int getMetaFromTmqJsonFile(tools_cJSON *json) {
 TMQ_PARSE_OVER:
     return code;
 }
-#endif
 
 int readJsonConfig(char * file) {
     int32_t code = -1;
