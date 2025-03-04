@@ -255,6 +255,7 @@ if __name__ == "__main__":
     #
     # do exeCmd command
     #
+    websocket = True  # default is websocket , so must start taosAdapter
     if not execCmd == "":
         if restful or websocket:
             tAdapter.init(deployPath)
