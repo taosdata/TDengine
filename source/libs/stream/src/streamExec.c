@@ -122,7 +122,7 @@ static int32_t doAppendPullOverBlock(SStreamTask* pTask, int32_t* pNumOfBlocks, 
             pTask->info.selfChildId, pRetrieveBlock->reqId);
   } else {
     code = terrno;
-    stError("s-task:%s failed to append pull over block for retrieve data, QID:0x%" PRIx64" code:%s", pTask->id.idStr,
+    stError("s-task:%s failed to append pull over block for retrieve data, QID:0x%" PRIx64 " code:%s", pTask->id.idStr,
             pRetrieveBlock->reqId, tstrerror(code));
   }
 
