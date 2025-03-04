@@ -90,7 +90,7 @@ def test_sanity_favorite(case_setup):
 @pytest.mark.parametrize(
     "tz_data",
     [
-        ("", "+00:00"),
+        ("", "Z"),
         # ("Europe/Rome", "+02:00"), # this timezone is not recommended
         ("Europe/Moscow", "+03:00"),
         ("Asia/Shanghai", "+08:00"),
