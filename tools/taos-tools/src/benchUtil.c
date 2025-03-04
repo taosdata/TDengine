@@ -926,6 +926,19 @@ char* genQMark( int32_t QCnt) {
     return buf;
 }
 
+// get colNames , first is tbname
+char *genColNames(BArray *cols) {
+    // reserve tbname,ts and "," space
+    char * buf = benchCalloc(TSDB_TABLE_NAME_LEN + 1, cols->size + 1, false);
+    strcpy(buf, "tbname,ts");
+    for (int32_t i = 0; i < cols->size; i++) {
+        Field * col = benchArrayGet(cols, i);
+        strcat(buf, ",");
+        strcat(buf, col->name)
+    }
+    return buf;
+}
+
 //
 //  STMT2  
 //

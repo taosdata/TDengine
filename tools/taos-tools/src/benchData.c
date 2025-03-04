@@ -235,6 +235,7 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq) {
     int n;
     char *tagQ = NULL;
     char *colQ = genQMark(stbInfo->cols->size);
+    char *colNames = NULL;
     bool  tagQFree = false;
 
     if(tagData == NULL) {
@@ -255,16 +256,23 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq) {
                        "INSERT INTO ? USING `%s` TAGS (%s) %s VALUES(?,%s)",
                        stbInfo->stbName, tagQ, ttl, colQ);
     } else {
-        n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
-                        "INSERT INTO ? VALUES(?,%s)", colQ);
+        if (g_arguments->connMode == CONN_MODE_NATIVE) {
+            // native
+            n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
+                "INSERT INTO ? VALUES(?,%s)", colQ);
+        } else {
+            // websocket
+            colNames = genColNames(stbInfo->cols);
+            n = snprintf(prepare + len, TSDB_MAX_ALLOWED_SQL_LEN - len,
+                "INSERT INTO `%s`(%s) VALUES(?,?,%s)", stbInfo->stbName, colNames, colQ);
+        }
     }
     len += n;
 
-    // free from genQMark
-    if(tagQFree) {
-        tmfree(tagQ);
-    }
+    // free
+    tmfree(tagQ);
     tmfree(colQ);
+    tmfree(colNames);
 
     // check valid
     if (g_arguments->prepared_rand < g_arguments->reqPerReq) {
