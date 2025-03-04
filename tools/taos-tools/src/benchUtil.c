@@ -934,7 +934,7 @@ char *genColNames(BArray *cols) {
     for (int32_t i = 0; i < cols->size; i++) {
         Field * col = benchArrayGet(cols, i);
         strcat(buf, ",");
-        strcat(buf, col->name)
+        strcat(buf, col->name);
     }
     return buf;
 }
