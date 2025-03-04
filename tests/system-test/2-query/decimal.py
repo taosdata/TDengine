@@ -43,11 +43,11 @@ scalar_convert_err = -2147470768
 
 
 decimal_insert_validator_test = False
-operator_test_round = 1
+operator_test_round = 10
 tb_insert_rows = 1000
-binary_op_with_const_test = False
-binary_op_with_col_test = False
-unary_op_test = False
+binary_op_with_const_test = True
+binary_op_with_col_test = True
+unary_op_test = True
 binary_op_in_where_test = True
 
 class DecimalTypeGeneratorConfig:
@@ -1516,7 +1516,6 @@ class TDTestCase:
         get_constant_cols_func,
         get_exprs_func,
     ):
-        constant_cols = get_constant_cols_func()
         exprs: List[DecimalColumnExpr] = get_exprs_func()
         if not binary_op_with_const_test:
             return

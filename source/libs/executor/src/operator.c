@@ -28,7 +28,6 @@
 
 #include "storageapi.h"
 #include "tdatablock.h"
-#include "gperftools/profiler.h"
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
                                    __optr_close_fn_t closeFn, __optr_reqBuf_fn_t reqBufFn, __optr_explain_fn_t explain,
@@ -283,7 +282,6 @@ int32_t stopTableScanOperator(SOperatorInfo* pOperator, const char* pIdStr, SSto
 int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SNode* pTagCond,
                        SNode* pTagIndexCond, const char* pUser, const char* dbname, SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
-  ProfilerStart("/tmp/createOperator.prof");
 
   int32_t     code = 0;
   int32_t     type = nodeType(pPhyNode);
@@ -656,7 +654,6 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
 }
 
 void destroyOperator(SOperatorInfo* pOperator) {
-  ProfilerFlush();
   if (pOperator == NULL) {
     return;
   }
