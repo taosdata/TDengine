@@ -1045,8 +1045,8 @@ int32_t compareUint64Uint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareDecimal64(const void* pleft, const void* pright) {
-  if (decimalCompare(OP_TYPE_GREATER_THAN, pleft, pright)) return 1;
-  if (decimalCompare(OP_TYPE_LOWER_THAN, pleft, pright)) return -1;
+  if (decimal64Compare(OP_TYPE_GREATER_THAN, pleft, pright)) return 1;
+  if (decimal64Compare(OP_TYPE_LOWER_THAN, pleft, pright)) return -1;
   return 0;
 }
 

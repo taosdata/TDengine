@@ -1125,6 +1125,71 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
   return code;
 }
 
+bool doCompareDecimal128(EOperatorType op, const Decimal128* pLeftDec, const Decimal128* pRightDec) {
+  switch (op) {
+    case OP_TYPE_GREATER_THAN:
+      return decimal128Gt(pLeftDec, pRightDec, WORD_NUM(Decimal));
+    case OP_TYPE_GREATER_EQUAL:
+      return !decimal128Lt(pLeftDec, pRightDec, WORD_NUM(Decimal));
+    case OP_TYPE_LOWER_THAN:
+      return decimal128Lt(pLeftDec, pRightDec, WORD_NUM(Decimal));
+    case OP_TYPE_LOWER_EQUAL:
+      return !decimal128Gt(pLeftDec, pRightDec, WORD_NUM(Decimal));
+    case OP_TYPE_EQUAL:
+      return decimal128Eq(pLeftDec, pRightDec, WORD_NUM(Decimal));
+    case OP_TYPE_NOT_EQUAL:
+      return !decimal128Eq(pLeftDec, pRightDec, WORD_NUM(Decimal));
+    default:
+      break;
+  }
+  return false;
+}
+
+bool decimal64Compare(EOperatorType op, const SDecimalCompareCtx* pLeft, const SDecimalCompareCtx* pRight) {
+  bool ret = false;
+  uint8_t leftPrec = 0, leftScale = 0, rightPrec = 0, rightScale = 0;
+  decimalFromTypeMod(pLeft->typeMod, &leftPrec, &leftScale);
+  decimalFromTypeMod(pRight->typeMod, &rightPrec, &rightScale);
+  int32_t deltaScale = leftScale - rightScale;
+
+  Decimal64 leftDec = *(Decimal64*)pLeft->pData, rightDec = *(Decimal64*)pRight->pData;
+
+  if (deltaScale != 0) {
+    bool needInt128 = (deltaScale < 0 && leftPrec - deltaScale > TSDB_DECIMAL64_MAX_PRECISION) ||
+                      (rightPrec + deltaScale > TSDB_DECIMAL64_MAX_PRECISION);
+    if (needInt128) {
+      Decimal128 dec128L = {0}, dec128R = {0};
+      makeDecimal128FromDecimal64(&dec128L, leftDec);
+      makeDecimal128FromDecimal64(&dec128R, rightDec);
+      return doCompareDecimal128(op, &dec128L, &dec128R);
+    } else {
+      if (deltaScale < 0) {
+        decimal64ScaleUp(&leftDec, -deltaScale);
+      } else {
+        decimal64ScaleUp(&rightDec, deltaScale);
+      }
+    }
+  }
+
+  switch (op) {
+    case OP_TYPE_GREATER_THAN:
+      return decimal64Gt(&leftDec, &rightDec, WORD_NUM(Decimal64));
+    case OP_TYPE_GREATER_EQUAL:
+      return !decimal64Lt(&leftDec, &rightDec, WORD_NUM(Decimal64));
+    case OP_TYPE_LOWER_THAN:
+      return decimal64Lt(&leftDec, &rightDec, WORD_NUM(Decimal64));
+    case OP_TYPE_LOWER_EQUAL:
+      return !decimal64Gt(&leftDec, &rightDec, WORD_NUM(Decimal64));
+    case OP_TYPE_EQUAL:
+      return decimal64Eq(&leftDec, &rightDec, WORD_NUM(Decimal64));
+    case OP_TYPE_NOT_EQUAL:
+      return !decimal64Eq(&leftDec, &rightDec, WORD_NUM(Decimal64));
+    default:
+      break;
+  }
+  return ret;
+}
+
 // There is no need to do type conversions, we assume that pLeftT and pRightT are all decimal128 types.
 bool decimalCompare(EOperatorType op, const SDecimalCompareCtx* pLeft, const SDecimalCompareCtx* pRight) {
   bool    ret = false;
@@ -1171,24 +1236,7 @@ bool decimalCompare(EOperatorType op, const SDecimalCompareCtx* pLeft, const SDe
       }
     }
   }
-
-  switch (op) {
-    case OP_TYPE_GREATER_THAN:
-      return decimal128Gt(&pLeftDec, &pRightDec, WORD_NUM(Decimal));
-    case OP_TYPE_GREATER_EQUAL:
-      return !decimal128Lt(&pLeftDec, &pRightDec, WORD_NUM(Decimal));
-    case OP_TYPE_LOWER_THAN:
-      return decimal128Lt(&pLeftDec, &pRightDec, WORD_NUM(Decimal));
-    case OP_TYPE_LOWER_EQUAL:
-      return !decimal128Gt(&pLeftDec, &pRightDec, WORD_NUM(Decimal));
-    case OP_TYPE_EQUAL:
-      return decimal128Eq(&pLeftDec, &pRightDec, WORD_NUM(Decimal));
-    case OP_TYPE_NOT_EQUAL:
-      return !decimal128Eq(&pLeftDec, &pRightDec, WORD_NUM(Decimal));
-    default:
-      break;
-  }
-  return ret;
+  return doCompareDecimal128(op, &pLeftDec, &pRightDec);
 }
 
 #define ABS_INT64(v)  (v) == INT64_MIN ? (uint64_t)INT64_MAX + 1 : (uint64_t)llabs(v)
