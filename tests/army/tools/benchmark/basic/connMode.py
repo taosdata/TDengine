@@ -79,14 +79,15 @@ class TDTestCase(TBase):
             ["Connect mode is : Native", Rows],
             ["Connect mode is : Native", Rows],
         ]
-        # iface
+        # iface todo add sml
         iface = ["taosc", "stmt", "stmt2"]
 
         # do check
         for face in iface:
             for i in range(len(modes)):
                 self.benchmarkCmd(f"{modes[i]} -I {face}", 10, 999, 1000, results1[i])
-
+                
+        
     def checkExceptCmd(self):
         # exe
         bench   = frame.etool.benchMarkFile()

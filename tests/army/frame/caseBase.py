@@ -465,6 +465,7 @@ class TBase:
     # cmd
     def benchmarkCmd(self, options, childCnt, insertRows, timeStep, results):
         # set
+        self.stb              = "meters"
         self.childtable_count = childCnt
         self.insert_rows      = insertRows
         self.timestamp_step   = timeStep
@@ -474,3 +475,6 @@ class TBase:
         rlist = self.benchmark(cmd)
         for result in results:
             self.checkListString(rlist, result)
+
+        # check correct
+        self.checkInsertCorrect()    
