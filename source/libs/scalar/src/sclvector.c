@@ -2294,6 +2294,7 @@ static int32_t vectorMathOpOneRowForDecimal(SScalarParam *pLeft, SScalarParam *p
   }
   Decimal oneRowData = {0};
   SDataType oneRowType = outType;
+  oneRowType.precision = TSDB_DECIMAL_MAX_PRECISION;
   if (pLeft == pOneRowParam) {
     oneRowType.scale = leftType.scale;
     code = convertToDecimal(colDataGetData(pLeft->columnData, 0), &leftType, &oneRowData, &oneRowType);
