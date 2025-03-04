@@ -148,6 +148,7 @@ static void doStartScanWal(void* param, void* tmrId) {
     return;
   }
 
+  // failed to lock, try 500ms later
   code = streamMetaTryRlock(pMeta);
   if (code == 0) {
     numOfTasks = taosArrayGetSize(pMeta->pTaskList);
@@ -156,20 +157,18 @@ static void doStartScanWal(void* param, void* tmrId) {
     numOfTasks = 0;
   }
 
-  if (numOfTasks == 0) {
-    goto _end;
-  }
+  if (numOfTasks > 0) {
+    tqDebug("vgId:%d create msg to start wal scan, numOfTasks:%d", vgId, numOfTasks);
 
-  tqDebug("vgId:%d create msg to start wal scan, numOfTasks:%d", vgId, numOfTasks);
-
-   #if 0
+#if 0
   //  wait for the vnode is freed, and invalid read may occur.
   taosMsleep(10000);
-   #endif
+#endif
 
-  code = streamTaskSchedTask(&pParam->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA);
-  if (code) {
-    tqError("vgId:%d failed sched task to scan wal, code:%s", vgId, tstrerror(code));
+    code = streamTaskSchedTask(&pParam->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA);
+    if (code) {
+      tqError("vgId:%d failed sched task to scan wal, code:%s", vgId, tstrerror(code));
+    }
   }
 
 _end:
@@ -192,7 +191,7 @@ void tqScanWalAsync(STQ* pTq) {
 
   // 1. the vnode should be the leader.
   // 2. the stream isn't disabled
-  if ((pMeta->role == NODE_ROLE_FOLLOWER) || tsDisableStream) {
+  if ((pMeta->role != NODE_ROLE_LEADER) || tsDisableStream) {
     tqInfo("vgId:%d follower node or stream disabled, not scan wal", vgId);
     return;
   }
