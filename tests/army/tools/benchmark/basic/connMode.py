@@ -97,14 +97,14 @@ class TDTestCase(TBase):
             "-Z abcdefg",
             "-X",
             "-X 127.0.0.1:6041",
-            "-X https://gw.cloud.taosdata.com?token617ffdf... -y",
-            "-Z 1 -X https://gw.cloud.taosdata.com?token=617ffdf... -y",
-            "-X http://127.0.0.1:6042 -y"
+            "-X https://gw.cloud.taosdata.com?token617ffdf...",
+            "-Z 1 -X https://gw.cloud.taosdata.com?token=617ffdf...",
+            "-X http://127.0.0.1:6042"
         ]
 
         # do check
         for option in options:
-            self.checkExcept(bench + " " + option)
+            self.checkExcept(bench + " " + option + " -y")
 
     def checkHostPort(self):
         # host port
