@@ -502,12 +502,13 @@ typedef struct SStreamRecParam {
   int32_t sqlCapcity;
   char    pUrl[TSDB_EP_LEN + 17];  // "http://localhost:6041/rest/sql"
   char    pAuth[512 + 22];         // Authorization: Basic token
-  char    pStbFullName[TSDB_TABLE_NAME_LEN];
+  char    pStbFullName[TSDB_TABLE_FNAME_LEN];
   char    pWstartName[TSDB_COL_NAME_LEN];
   char    pWendName[TSDB_COL_NAME_LEN];
   char    pGroupIdName[TSDB_COL_NAME_LEN];
   void*   pIteData;
   int32_t iter;
+  TSKEY   gap;
 } SStreamRecParam;
 
 typedef struct SStreamScanInfo {
@@ -714,11 +715,6 @@ typedef struct SWindowRowsSup {
   uint64_t    groupId;
 } SWindowRowsSup;
 
-typedef struct SResultWindowInfo {
-  SRowBuffPos* pStatePos;
-  SSessionKey  sessionWin;
-  bool         isOutput;
-} SResultWindowInfo;
 typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
 
 typedef struct SNonBlockAggSupporter {
@@ -1134,7 +1130,7 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, SExprSupp* pExpSup, in
                                SReadHandle* pHandle, STimeWindowAggSupp* pTwAggSup, const char* taskIdStr,
                                SStorageAPI* pApi, int32_t tsIndex, int8_t stateType, int32_t ratio);
 int32_t initDownStream(struct SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uint16_t type,
-                       int32_t tsColIndex, STimeWindowAggSupp* pTwSup, struct SSteamOpBasicInfo* pBasic);
+                       int32_t tsColIndex, STimeWindowAggSupp* pTwSup, struct SSteamOpBasicInfo* pBasic, int64_t recalculateInterval);
 int32_t getMaxTsWins(const SArray* pAllWins, SArray* pMaxWins);
 void    initGroupResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
 void    getSessionHashKey(const SSessionKey* pKey, SSessionKey* pHashKey);

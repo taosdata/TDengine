@@ -579,7 +579,7 @@ int32_t initIntervalSliceDownStream(SOperatorInfo* downstream, SStreamAggSupport
   }
   pBasic->pTsDataState = pScanInfo->basic.pTsDataState;
 
-  if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL) {
+  if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_INTERVAL) {
     pScanInfo->scanAllTables = true;
   }
   pScanInfo->recalculateInterval = recalculateInterval;

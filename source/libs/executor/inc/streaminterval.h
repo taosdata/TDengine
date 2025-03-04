@@ -41,9 +41,9 @@ int32_t     initNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup, SInterval* pIn
 void        destroyNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup);
 int32_t     buildRetriveRequest(SExecTaskInfo* pTaskInfo, SStreamAggSupporter* pAggSup, STableTsDataState* pTsDataState,
                                 SNonBlockAggSupporter* pNbSup);
-int32_t checkAndSaveWinStateToDisc(int32_t startIndex, SArray* pUpdated, uint64_t uid, STableTsDataState* pTsDataState,
-                                   SStreamAggSupporter* pAggSup);
 int32_t getChildIndex(SSDataBlock* pBlock);
+void    adjustDownstreamBasicInfo(SOperatorInfo* downstream, struct SSteamOpBasicInfo* pBasic);
+int32_t processDataPullOver(SSDataBlock* pBlock, SSHashObj* pPullMap, SExecTaskInfo* pTaskInfo);
 
 #ifdef __cplusplus
 }

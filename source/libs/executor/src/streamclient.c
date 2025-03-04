@@ -34,10 +34,10 @@ static int32_t buildSessionResultSql(SSHashObj* pRangeMap, SStreamRecParam* pPar
       }
     }
     len += tsnprintf(pParam->pSql + len, pParam->sqlCapcity - len,
-                     "select %" PRId64 ", " PRId64 ", %s , %s, %s from %s where %s == %" PRIu64
-                     " and (%s < %" PRId64 " or %s > %" PRId64 " )",
-                     pKey->win.skey, pKey->win.ekey, pParam->pGroupIdName, pParam->pWstartName, pParam->pWendName,
-                     pParam->pStbFullName, pParam->pGroupIdName, pKey->groupId, pParam->pWendName, pKey->win.skey,
+                     "select %" PRId64 ", %" PRId64 ", `%s` , cast(`%s` as bigint), cast( (`%s` - %" PRId64 ") as bigint) from %s where `%s` == %" PRIu64
+                     " and ( (`%s` - %" PRId64 ") >= %" PRId64 " and `%s` <= %" PRId64 " )",
+                     pKey->win.skey, pKey->win.ekey, pParam->pGroupIdName, pParam->pWstartName, pParam->pWendName, pParam->gap,
+                     pParam->pStbFullName, pParam->pGroupIdName, pKey->groupId, pParam->pWendName, pParam->gap, pKey->win.skey,
                      pParam->pWstartName, pKey->win.ekey);
     if (len >= pParam->sqlCapcity - 1) {
       *pEnd = false;
@@ -58,13 +58,15 @@ static size_t parseResult(char* pCont, size_t contLen, size_t nmemb, void* userd
   QUERY_CHECK_CONDITION(nmemb > CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
   QUERY_CHECK_NULL(pCont, code, lino, _end, TSDB_CODE_FAILED);
 
+  qTrace("===stream=== result:%s", pCont);
   (*(SJson**)userdata) = tjsonParse(pCont);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    return 0;
   }
-  return code;
+  return contLen * nmemb;
 }
 
 static int32_t doProcessSql(SStreamRecParam* pParam, SJson** ppJsonResult) {
@@ -89,6 +91,8 @@ static int32_t doProcessSql(SStreamRecParam* pParam, SJson** ppJsonResult) {
   curlRes = curl_easy_setopt(pCurl, CURLOPT_POSTFIELDS, pParam->pSql);
   QUERY_CHECK_CONDITION(curlRes == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
 
+  qTrace("===stream=== sql:%s", pParam->pSql);
+
   curlRes = curl_easy_setopt(pCurl, CURLOPT_FOLLOWLOCATION, 1L);
   QUERY_CHECK_CONDITION(curlRes == CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
 
@@ -109,7 +113,7 @@ _end:
     curl_easy_cleanup(pCurl);
   }
   if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    qError("%s failed at line %d since %s. error code:%d", __func__, lino, tstrerror(code), curlRes);
   }
   return code;
 }
@@ -134,7 +138,7 @@ static int32_t doTransformResult(const SJson* pJsonResult, SArray** ppRangeRes) 
       int32_t cols = tjsonGetArraySize(pRow);
       if (cols > 0) {
         SArray* pRowArray = taosArrayInit(cols, sizeof(int64_t));
-        taosArrayPush((*ppRangeRes), pRowArray);
+        taosArrayPush((*ppRangeRes), &pRowArray);
         QUERY_CHECK_NULL(*ppRangeRes, code, lino, _end, terrno);
         for (int32_t j = 0; j < cols; ++j) {
           SJson*  pCell = tjsonGetArrayItem(pRow, j);
@@ -161,8 +165,8 @@ int32_t streamClientGetResultRange(SStreamRecParam* pParam, SSHashObj* pRangeMap
 
   pParam->pIteData = NULL;
   pParam->iter = 0;
-  bool isEnd = true;
-  while (isEnd) {
+  bool isEnd = false;
+  while (!isEnd) {
     code = buildSessionResultSql(pRangeMap, pParam, &isEnd);
     QUERY_CHECK_CODE(code, lino, _end);
 

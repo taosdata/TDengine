@@ -871,9 +871,9 @@ static int32_t generateSessionDataScanRange(SStreamScanInfo* pInfo, SSHashObj* p
   for (int32_t i = 0; i < size; i++) {
     SArray* pRange = taosArrayGetP(pSrcBlock, i);
     uint64_t      groupId = *(uint64_t*) taosArrayGet(pRange, 2);
-    STimeWindow   win = {0};
-    win.skey = *(TSKEY*) taosArrayGet(pRange, 3);
-    win.skey = *(TSKEY*) taosArrayGet(pRange, 4);
+    STimeWindow   resWin = {0};
+    resWin.skey = *(TSKEY*) taosArrayGet(pRange, 3);
+    resWin.ekey = *(TSKEY*) taosArrayGet(pRange, 4);
 
     SSessionKey key = {.groupId = groupId};
     key.win.skey = *(TSKEY*) taosArrayGet(pRange, 0);
@@ -882,7 +882,7 @@ static int32_t generateSessionDataScanRange(SStreamScanInfo* pInfo, SSHashObj* p
     QUERY_CHECK_NULL(pVal, code, lino, _end, TSDB_CODE_FAILED);
     SRecDataInfo* pRecData = *(void**)pVal;
 
-    code = pInfo->stateStore.streamStateMergeAndSaveScanRange(pInfo->basic.pTsDataState, &win, groupId, pRecData,
+    code = pInfo->stateStore.streamStateMergeAndSaveScanRange(pInfo->basic.pTsDataState, &resWin, groupId, pRecData,
                                                               pInfo->basic.pTsDataState->recValueLen);
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -1785,6 +1785,11 @@ int32_t createStreamDataScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNo
   (*pTempState) = *pTaskInfo->streamInfo.pState;
   pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
   pInfo->stateStore.streamStateSetNumber(pTempState, 1, pInfo->primaryTsIndex);
+  
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  pInfo->pRecRangeMap = tSimpleHashInit(32, hashFn);
+  pInfo->pRecRangeRes = NULL;
+  initStreamRecalculateParam(pTableScanNode, &pInfo->recParam);
 
   void* pOtherState = pTaskInfo->streamInfo.pOtherState;
   pAPI->stateStore.streamStateInitTsDataState(&pInfo->basic.pTsDataState, pkType.type, pkType.bytes, pTempState, pOtherState);

@@ -285,7 +285,7 @@ int32_t streamCreateAddRecalculateEndBlock(SStreamTask* pTask) {
   SStreamDataBlock* pBlock = NULL;
   int32_t           code = streamCreateRecalculateBlock(pTask, &pBlock, STREAM_RECALCULATE_END);
   if (code) {
-    stError("s-task:%s failed to create recalculate end trigger, code:%s, try again in %dms", id, tstrerror(code));
+    stError("s-task:%s failed to create recalculate end trigger, code:%s, try again in ms", id, tstrerror(code));
     return code;
   }
 

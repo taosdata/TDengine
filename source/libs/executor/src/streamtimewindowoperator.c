@@ -2254,7 +2254,7 @@ void initDummyFunction(SqlFunctionCtx* pDummy, SqlFunctionCtx* pCtx, int32_t num
 }
 
 int32_t initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, uint16_t type, int32_t tsColIndex,
-                       STimeWindowAggSupp* pTwSup, struct SSteamOpBasicInfo* pBasic) {
+                       STimeWindowAggSupp* pTwSup, struct SSteamOpBasicInfo* pBasic, int64_t recalculateInterval) {
   SExecTaskInfo* pTaskInfo = downstream->pTaskInfo;
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
@@ -2265,7 +2265,7 @@ int32_t initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, 
   }
 
   if (downstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    code = initDownStream(downstream->pDownstream[0], pAggSup, type, tsColIndex, pTwSup, pBasic);
+    code = initDownStream(downstream->pDownstream[0], pAggSup, type, tsColIndex, pTwSup, pBasic, recalculateInterval);
     return code;
   }
   SStreamScanInfo* pScanInfo = downstream->info;
@@ -2282,6 +2282,15 @@ int32_t initDownStream(SOperatorInfo* downstream, SStreamAggSupporter* pAggSup, 
   if (!hasSrcPrimaryKeyCol(pBasic)) {
     pBasic->primaryPkIndex = pScanInfo->basic.primaryPkIndex;
   }
+
+  pBasic->pTsDataState = pScanInfo->basic.pTsDataState;
+
+  if (type == QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_SEMI_SESSION) {
+    pScanInfo->scanAllTables = true;
+  }
+  pScanInfo->recalculateInterval = recalculateInterval;
+  pScanInfo->windowSup.parentType = type;
+  pScanInfo->recParam.gap = pAggSup->gap;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -2532,9 +2541,8 @@ int32_t updateSessionWindowInfo(SStreamAggSupporter* pAggSup, SResultWindowInfo*
         code = saveDeleteRes(pStDeleted, pWinInfo->sessionWin);
         QUERY_CHECK_CODE(code, lino, _end);
       }
-      if (pStUpdated != NULL) {
-        removeSessionResult(pAggSup, pStUpdated, pResultRows, &pWinInfo->sessionWin);
-      }
+
+      removeSessionResult(pAggSup, pStUpdated, pResultRows, &pWinInfo->sessionWin);
       pWinInfo->sessionWin.win.skey = pStartTs[i];
     }
     pWinInfo->sessionWin.win.ekey = TMAX(pWinInfo->sessionWin.win.ekey, pStartTs[i]);
@@ -4118,8 +4126,7 @@ int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   pInfo->pOperator = pOperator;
   initNonBlockAggSupptor(&pInfo->nbSup, NULL);
 
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION;
-  setOperatorInfo(pOperator, getStreamOpName(pOperator->operatorType), QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION, true,
+  setOperatorInfo(pOperator, getStreamOpName(pOperator->operatorType), nodeType(pSessionNode), true,
                   OP_NOT_OPENED, pInfo, pTaskInfo);
   if (pPhyNode->type != QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
     // for stream
@@ -4135,8 +4142,16 @@ int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode
     }
   }
 
+  code = initStreamBasicInfo(&pInfo->basic, pOperator);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
-  pOperator->fpSet =
+    if (pHandle->fillHistory == STREAM_HISTORY_OPERATOR) {
+      setFillHistoryOperatorFlag(&pInfo->basic);
+    } else if (pHandle->fillHistory == STREAM_RECALCUL_OPERATOR) {
+      setRecalculateOperatorFlag(&pInfo->basic);
+    }
+    pOperator->fpSet =
         createOperatorFpSet(optrDummyOpenFn, doStreamSessionNonblockAggNext, NULL, destroyStreamSessionAggOperatorInfo,
                             optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
     setOperatorStreamStateFn(pOperator, streamSessionNonblockReleaseState, streamSessionNonblockReloadState);
@@ -4147,13 +4162,10 @@ int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode
     setOperatorStreamStateFn(pOperator, streamSessionReleaseState, streamSessionReloadState);
   }
 
-  code = initStreamBasicInfo(&pInfo->basic, pOperator);
-  QUERY_CHECK_CODE(code, lino, _error);
-
   if (downstream) {
     pInfo->basic.primaryPkIndex = -1;
     code = initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex,
-                          &pInfo->twAggSup, &pInfo->basic);
+                          &pInfo->twAggSup, &pInfo->basic, pSessionNode->window.recalculateInterval);
     QUERY_CHECK_CODE(code, lino, _error);
 
     code = appendDownstream(pOperator, &downstream, 1);
@@ -5428,7 +5440,7 @@ int32_t createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = initDownStream(downstream, &pInfo->streamAggSup, pOperator->operatorType, pInfo->primaryTsIndex,
-                        &pInfo->twAggSup, &pInfo->basic);
+                        &pInfo->twAggSup, &pInfo->basic, 0);
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = appendDownstream(pOperator, &downstream, 1);

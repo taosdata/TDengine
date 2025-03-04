@@ -1432,10 +1432,14 @@ int32_t getNLastSessionStateKVByCur(SStreamStateCur* pCur, int32_t num, SArray* 
   int32_t i = TMAX(size - num, 0);
 
   for ( ; i < size; i++) {
-    void* pPos = taosArrayGet(pWinStates, i);
+    SRowBuffPos* pPos = taosArrayGetP(pWinStates, i);
     QUERY_CHECK_NULL(pPos, code, lino, _end, terrno);
 
-    void* pTempRes = taosArrayPush(pRes, &pPos);
+    SResultWindowInfo winInfo = {0};
+    winInfo.pStatePos = pPos;
+    winInfo.sessionWin = *(SSessionKey*)pPos->pKey;
+
+    void* pTempRes = taosArrayPush(pRes, &winInfo);
     QUERY_CHECK_NULL(pTempRes, code, lino, _end, terrno);
   }
 
@@ -1449,6 +1453,9 @@ _end:
 bool hasSessionState(SStreamFileState* pFileState, SSessionKey* pKey, TSKEY gap, bool* pIsLast) {
   SSHashObj*   pRowStateBuff = getRowStateBuff(pFileState);
   void**       ppBuff = (void**)tSimpleHashGet(pRowStateBuff, &pKey->groupId, sizeof(uint64_t));
+  if (ppBuff == NULL) {
+    return false;
+  }
   SArray*      pWinStates = (SArray*)(*ppBuff);
   int32_t      size = taosArrayGetSize(pWinStates);
   int32_t      index = binarySearch(pWinStates, size, pKey, sessionStateKeyCompare);

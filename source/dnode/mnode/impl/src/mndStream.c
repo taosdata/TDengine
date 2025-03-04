@@ -469,6 +469,9 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
       .recalculateInterval = pCreate->recalculateInterval,
   };
   char *pTargetFStable = strchr(pCreate->targetStbFullName, '.');
+  if (pTargetFStable != NULL) {
+    pTargetFStable = pTargetFStable + 1;
+  }
   tstrncpy(cxt.pStbFullName, pTargetFStable, TSDB_TABLE_FNAME_LEN);
   tstrncpy(cxt.pWstartName, pCreate->pWstartName, TSDB_COL_NAME_LEN);
   tstrncpy(cxt.pWendName, pCreate->pWendName, TSDB_COL_NAME_LEN);

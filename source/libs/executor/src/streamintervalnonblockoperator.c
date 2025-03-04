@@ -117,7 +117,7 @@ int32_t saveRecWindowToDisc(SSessionKey* pWinKey, uint64_t uid, EStreamType mode
                                                           len);
 }
 
-int32_t checkAndSaveWinStateToDisc(int32_t startIndex, SArray* pUpdated, uint64_t uid, STableTsDataState* pTsDataState,
+static int32_t checkAndSaveWinStateToDisc(int32_t startIndex, SArray* pUpdated, uint64_t uid, STableTsDataState* pTsDataState,
                                    SStreamAggSupporter* pAggSup) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -594,7 +594,7 @@ _end:
   return code;
 }
 
-static int32_t processDataPullOver(SSDataBlock* pBlock, SSHashObj* pPullMap, SExecTaskInfo* pTaskInfo) {
+int32_t processDataPullOver(SSDataBlock* pBlock, SSHashObj* pPullMap, SExecTaskInfo* pTaskInfo) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   SColumnInfoData* pStartCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);

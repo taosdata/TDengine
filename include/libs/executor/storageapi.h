@@ -346,6 +346,12 @@ typedef struct SScanRange {
   SSHashObj*  pUIds;
 } SScanRange;
 
+typedef struct SResultWindowInfo {
+  SRowBuffPos* pStatePos;
+  SSessionKey  sessionWin;
+  bool         isOutput;
+} SResultWindowInfo;
+
 typedef struct {
   void*   iter;      //  rocksdb_iterator_t*    iter;
   void*   snapshot;  //  rocksdb_snapshot_t*    snapshot;
