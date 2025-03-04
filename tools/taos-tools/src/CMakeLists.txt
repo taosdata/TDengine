@@ -364,4 +364,4 @@ ELSE ()
     TARGET_LINK_LIBRARIES(taosBenchmark taos msvcregex pthread toolscJson ${WEBSOCKET_LINK_FLAGS})
 ENDIF ()
 
-target_link_libraries(taosBenchmark PRIVATE z)
+target_link_libraries(taosBenchmark z)
