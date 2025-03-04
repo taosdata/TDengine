@@ -1080,9 +1080,9 @@ void taos_init_imp(void) {
   }
 
 #ifdef TAOSD_INTEGRATED
-  ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1), "failed to init cfg");
-#else
   ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0), "failed to init cfg");
+#else
+  ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1), "failed to init cfg");
 #endif
 
   initQueryModuleMsgHandle();
