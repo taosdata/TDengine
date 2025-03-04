@@ -7836,6 +7836,52 @@ static SNode* createSetOperProject(const char* pTableAlias, SNode* pNode) {
   return (SNode*)pCol;
 }
 
+static bool isUionOperator(SNode* pNode) {
+  return QUERY_NODE_SET_OPERATOR == nodeType(pNode) && (((SSetOperator*)pNode)->opType == SET_OP_TYPE_UNION ||
+                                                        ((SSetOperator*)pNode)->opType == SET_OP_TYPE_UNION_ALL);
+}
+
+static int32_t pushdownCastForUnion(STranslateContext* pCxt, SNode* pNode, SExprNode* pExpr, int pos) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (isUionOperator(pNode)) {
+    SSetOperator* pSetOperator = (SSetOperator*)pNode;
+    SNodeList*    pLeftProjections = getProjectList(pSetOperator->pLeft);
+    SNodeList*    pRightProjections = getProjectList(pSetOperator->pRight);
+    if (LIST_LENGTH(pLeftProjections) != LIST_LENGTH(pRightProjections)) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INCORRECT_NUM_OF_COL);
+    }
+
+    SNode*  pLeft = NULL;
+    SNode*  pRight = NULL;
+    int32_t index = 0;
+    FORBOTH(pLeft, pLeftProjections, pRight, pRightProjections) {
+      ++index;
+      if (index < pos) {
+        continue;
+      }
+      SNode* pRightFunc = NULL;
+      code = createCastFunc(pCxt, pRight, pExpr->resType, &pRightFunc);
+      if (TSDB_CODE_SUCCESS != code || NULL == pRightFunc) {
+        return code;
+      }
+      REPLACE_LIST2_NODE(pRightFunc);
+      code = pushdownCastForUnion(pCxt, pSetOperator->pRight, (SExprNode*)pRightFunc, index);
+      if (TSDB_CODE_SUCCESS != code ) return code;
+
+      SNode* pLeftFunc = NULL;
+      code = createCastFunc(pCxt, pLeft, pExpr->resType, &pLeftFunc);
+      if (TSDB_CODE_SUCCESS != code || NULL == pLeftFunc) {
+        return code;
+      }
+      REPLACE_LIST1_NODE(pLeftFunc);
+      code = pushdownCastForUnion(pCxt, pSetOperator->pLeft, (SExprNode*)pLeftFunc, index);
+      if (TSDB_CODE_SUCCESS != code ) return code;
+      break;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pSetOperator) {
   SNodeList* pLeftProjections = getProjectList(pSetOperator->pLeft);
   SNodeList* pRightProjections = getProjectList(pSetOperator->pRight);
@@ -7845,9 +7891,11 @@ static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pS
 
   SNode* pLeft = NULL;
   SNode* pRight = NULL;
+  int32_t index = 0;
   FORBOTH(pLeft, pLeftProjections, pRight, pRightProjections) {
     SExprNode* pLeftExpr = (SExprNode*)pLeft;
     SExprNode* pRightExpr = (SExprNode*)pRight;
+    ++index;
     int32_t    comp = dataTypeComp(&pLeftExpr->resType, &pRightExpr->resType);
     if (comp > 0) {
       SNode*  pRightFunc = NULL;
@@ -7857,6 +7905,8 @@ static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pS
       }
       REPLACE_LIST2_NODE(pRightFunc);
       pRightExpr = (SExprNode*)pRightFunc;
+      code = pushdownCastForUnion(pCxt, pSetOperator->pRight, pRightExpr, index);
+      if (TSDB_CODE_SUCCESS != code ) return code;
     } else if (comp < 0) {
       SNode*  pLeftFunc = NULL;
       int32_t code = createCastFunc(pCxt, pLeft, pRightExpr->resType, &pLeftFunc);
@@ -7869,6 +7919,8 @@ static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pS
       snprintf(pLeftFuncExpr->userAlias, sizeof(pLeftFuncExpr->userAlias), "%s", pLeftExpr->userAlias);
       pLeft = pLeftFunc;
       pLeftExpr = pLeftFuncExpr;
+      code = pushdownCastForUnion(pCxt, pSetOperator->pLeft, pLeftExpr, index);
+      if (TSDB_CODE_SUCCESS != code ) return code;
     }
     snprintf(pRightExpr->aliasName, sizeof(pRightExpr->aliasName), "%s", pLeftExpr->aliasName);
     SNode* pProj = createSetOperProject(pSetOperator->stmtName, pLeft);

@@ -7,7 +7,7 @@ Apache Superset is a modern enterprise level business intelligence (BI) web appl
 It is supported by the Apache Software Foundation and is an open source project with an active community and rich ecosystem.
 Apache Superset provides an intuitive user interface that makes creating, sharing, and visualizing data simple, while supporting multiple data sources and rich visualization options.  
 
-Through the Python connector of TDengine, Superset can support TDengine data sources and provide functions such as data presentation and analysis  
+Through the Python connector of TDengine, Superset can support TDengine data sources and provide functions such as data presentation and analysis.  
 
 ## Prerequisites
 
