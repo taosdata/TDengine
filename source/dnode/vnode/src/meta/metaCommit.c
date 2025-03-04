@@ -26,9 +26,7 @@ static FORCE_INLINE void *metaMalloc(void *pPool, size_t size) {
 
   return vnodeBufPoolMallocAligned((SVBufPool *)pPool, size);
 }
-static FORCE_INLINE void *metaMalloc2(void *pPool, size_t size) {
-  return vnodeBufPoolMallocAligned((SVBufPool *)pPool, size);
-}
+
 static FORCE_INLINE void metaFree(void *pPool, void *p) { vnodeBufPoolFree((SVBufPool *)pPool, p); }
 
 // begin a meta txn

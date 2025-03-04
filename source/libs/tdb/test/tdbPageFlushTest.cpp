@@ -85,6 +85,32 @@ static void *poolMalloc(void *arg, size_t size) {
   return ptr;
 }
 
+static void *poolMallocRestricted(void *arg, size_t size) {
+  void     *ptr = NULL;
+  SPoolMem *pPool = (SPoolMem *)arg;
+  SPoolMem *pMem;
+
+  if (pPool->size > 1024 * 1024 * 10) {
+    return NULL;
+  }
+
+  pMem = (SPoolMem *)taosMemoryMalloc(sizeof(*pMem) + size);
+  if (pMem == NULL) {
+    assert(0);
+  }
+
+  pMem->size = sizeof(*pMem) + size;
+  pMem->next = pPool->next;
+  pMem->prev = pPool;
+
+  pPool->next->prev = pMem;
+  pPool->next = pMem;
+  pPool->size += pMem->size;
+
+  ptr = (void *)(&pMem[1]);
+  return ptr;
+}
+
 static void poolFree(void *arg, void *ptr) {
   SPoolMem *pPool = (SPoolMem *)arg;
   SPoolMem *pMem;
@@ -180,7 +206,7 @@ static void insertOfp(void) {
   // start a transaction
   TXN *txn = NULL;
 
-  tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  tdbBegin(pEnv, &txn, poolMallocRestricted, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
 
   // generate value payload
   // char val[((4083 - 4 - 3 - 2) + 1) * 100];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
@@ -190,9 +216,13 @@ static void insertOfp(void) {
 
   // insert the generated big data
   // char const *key = "key1";
-  char const *key = "key123456789";
-  ret = tdbTbInsert(pDb, key, strlen(key) + 1, val, valLen, txn);
-  GTEST_ASSERT_EQ(ret, 0);
+  for (int i = 0; i < 1024 * 4; ++i) {
+    // char const *key = "key123456789";
+    char key[32] = {0};
+    sprintf(key, "key-%d", i);
+    ret = tdbTbInsert(pDb, key, strlen(key) + 1, val, valLen, txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
 
   // commit current transaction
   tdbCommit(pEnv, txn);
