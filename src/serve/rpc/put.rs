@@ -1047,9 +1047,6 @@ impl PutStream {
                 res = future_consume => {
                     res?
                 }
-                res = process_cache => {
-                    res??
-                },
             }
             abort_handle_process_cache.abort();
             notify.notify_waiters();

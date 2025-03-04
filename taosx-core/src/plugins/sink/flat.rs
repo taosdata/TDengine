@@ -720,6 +720,21 @@ pub async fn flat_write_with_sql(
                                             // if the tag is modified successfully, continue to write, otherwise, handle the error below
                                             if let Err(e) = taos.as_ref().unwrap().exec(&sql).await
                                             {
+                                                let code = e.code();
+                                                let errno: i32 = code.into();
+                                                if (errno == 0x264B
+                                                    || errno == 0x036F
+                                                    || errno == 0x03D3)
+                                                    && (f.ty() == Ty::VarBinary
+                                                        || f.ty() == Ty::VarChar
+                                                        || f.ty() == Ty::NChar
+                                                        || f.ty() == Ty::Geometry)
+                                                {
+                                                    // 0x264B: Only varbinary/binary/nchar/geometry column length could be modified, and the length can only be increased, not decreased
+                                                    // 0x036F: Invalid row bytes
+                                                    // 0x03D3: Conflict transaction not completed
+                                                    continue;
+                                                }
                                                 tracing::error!(sql, "modify tag error: {e:#}");
                                             } else {
                                                 continue;
@@ -742,6 +757,21 @@ pub async fn flat_write_with_sql(
                                             // if the field is modified successfully, continue to write, otherwise, handle the error below
                                             if let Err(e) = taos.as_ref().unwrap().exec(&sql).await
                                             {
+                                                let code = e.code();
+                                                let errno: i32 = code.into();
+                                                if (errno == 0x264B
+                                                    || errno == 0x036F
+                                                    || errno == 0x03D3)
+                                                    && (f.ty() == Ty::VarBinary
+                                                        || f.ty() == Ty::VarChar
+                                                        || f.ty() == Ty::NChar
+                                                        || f.ty() == Ty::Geometry)
+                                                {
+                                                    // 0x264B: Only varbinary/binary/nchar/geometry column length could be modified, and the length can only be increased, not decreased
+                                                    // 0x036F: Invalid row bytes
+                                                    // 0x03D3: Conflict transaction not completed
+                                                    continue;
+                                                }
                                                 tracing::error!(sql, "modify column error: {e:#}");
                                             } else {
                                                 continue;

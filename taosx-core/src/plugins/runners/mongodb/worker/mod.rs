@@ -313,9 +313,11 @@ pub async fn get_all_distinct_values(
         let database = config.task.generate_database()?;
         let collection = config.task.generate_collection()?;
         tracing::info!(
-            "migrate mongodb, get all distinct values, database: {}, collection: {}",
+            "migrate mongodb, get all distinct values, database: {}, collection: {}, start: {}, end: {:?}",
             database,
-            collection
+            collection,
+            config.task.start,
+            config.task.end
         );
 
         if current_database != database || current_collection != collection {

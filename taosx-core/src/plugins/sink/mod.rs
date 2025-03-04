@@ -3754,9 +3754,6 @@ async fn ipc_process<R: Read + Send + 'static, W: Write + Send + 'static>(
         res = future_consume => {
             res?
         }
-        res = process_cache => {
-            res??
-        },
         _ = cancel.cancelled() => {}
     };
     abort_handle_process_cache.abort();
@@ -4682,11 +4679,6 @@ pub async fn channel_based_transformer(
                         tracing::error!("archive consumer error: {e:#}");
                     }
                 }
-                status = process_cache => {
-                    if let Err(e) = status {
-                        tracing::error!("process cache error: {e:#}");
-                    }
-                },
             }
             abort_handle_process_cache.abort();
         }
