@@ -538,7 +538,7 @@ static int32_t forecastParseAlgo(SForecastSupp* pSupp, const char* id) {
     pSupp->timeout = ANALY_FC_DEFAULT_TIMEOUT;
   } else {
     if (pSupp->timeout <= 500 || pSupp->timeout > ANALY_FC_MAX_TIMEOUT) {
-      qDebug("%s timeout val:%" PRId64 "ms is invalid (greater than 10min or less than 0.5s), use default:%" PRId64 "ms",
+      qDebug("%s timeout val:%" PRId64 "ms is invalid (greater than 10min or less than 0.5s), use default:%dms",
              id, pSupp->timeout, ANALY_FC_DEFAULT_TIMEOUT);
       pSupp->timeout = ANALY_FC_DEFAULT_TIMEOUT;
     } else {
