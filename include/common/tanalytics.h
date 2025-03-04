@@ -86,7 +86,7 @@ int32_t taosAnalBufWriteDataEnd(SAnalyticBuf *pBuf);
 int32_t taosAnalBufClose(SAnalyticBuf *pBuf);
 void    taosAnalBufDestroy(SAnalyticBuf *pBuf);
 
-const char   *taosAnalAlgoStr(EAnalAlgoType algoType);
+const char   *taosAnalysisAlgoType(EAnalAlgoType algoType);
 EAnalAlgoType taosAnalAlgoInt(const char *algoName);
 const char   *taosAnalAlgoUrlStr(EAnalAlgoType algoType);
 

@@ -1733,7 +1733,7 @@ void onUdfcPipeWrite(uv_write_t *write, int32_t status) {
 void onUdfcPipeConnect(uv_connect_t *connect, int32_t status) {
   SClientUvTaskNode *uvTask = connect->data;
   if (status != 0) {
-    fnError("client connect error, task seq: %" PRId64 ", code: %s", uvTask->seqNum, uv_strerror(status));
+    fnError("client connect error, task seq: %" PRId64 ", code:%s", uvTask->seqNum, uv_strerror(status));
   }
   uvTask->errCode = status;
 
@@ -1812,7 +1812,7 @@ int32_t udfcQueueUvTask(SClientUvTaskNode *uvTask) {
   uv_mutex_unlock(&udfc->taskQueueMutex);
   int32_t code = uv_async_send(&udfc->loopTaskAync);
   if (code != 0) {
-    fnError("udfc queue uv task to event loop failed. code: %s", uv_strerror(code));
+    fnError("udfc queue uv task to event loop failed. code:%s", uv_strerror(code));
     return TSDB_CODE_UDF_UV_EXEC_FAILURE;
   }
 
@@ -1884,7 +1884,7 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
         int32_t err = uv_write(write, (uv_stream_t *)pipe, &uvTask->reqBuf, 1, onUdfcPipeWrite);
         if (err != 0) {
           taosMemoryFree(write);
-          fnError("udfc event loop start req_rsp task uv_write failed. uvtask: %p, code: %s", uvTask, uv_strerror(err));
+          fnError("udfc event loop start req_rsp task uv_write failed. uvtask: %p, code:%s", uvTask, uv_strerror(err));
         }
         code = err;
       }
@@ -2219,7 +2219,7 @@ int32_t callUdf(UdfcFuncHandle handle, int8_t callType, SSDataBlock *input, SUdf
         break;
       }
     }
-  };
+  }
   taosMemoryFree(task);
   return code;
 }

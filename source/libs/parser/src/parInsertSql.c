@@ -2351,7 +2351,7 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
   }
   taosMemoryFree(pLine);
 
-  parserDebug("0x%" PRIx64 " %d rows have been parsed", pCxt->pComCxt->requestId, *pNumOfRows);
+  parserDebug("QID:0x%" PRIx64 ", %d rows have been parsed", pCxt->pComCxt->requestId, *pNumOfRows);
 
   if (TSDB_CODE_SUCCESS == code && 0 == (*pNumOfRows) && 0 == pStmt->totalRowsNum &&
       (!TSDB_QUERY_HAS_TYPE(pStmt->insertType, TSDB_QUERY_TYPE_STMT_INSERT)) && !pStmt->fileProcessing) {
@@ -2381,10 +2381,10 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
     if (!pStmt->fileProcessing) {
       code = taosCloseFile(&pStmt->fp);
       if (TSDB_CODE_SUCCESS != code) {
-        parserWarn("0x%" PRIx64 " failed to close file.", pCxt->pComCxt->requestId);
+        parserWarn("QID:0x%" PRIx64 ", failed to close file.", pCxt->pComCxt->requestId);
       }
     } else {
-      parserDebug("0x%" PRIx64 " insert from csv. File is too large, do it in batches.", pCxt->pComCxt->requestId);
+      parserDebug("QID:0x%" PRIx64 ", insert from csv. File is too large, do it in batches.", pCxt->pComCxt->requestId);
     }
     if (pStmt->insertType != TSDB_QUERY_TYPE_FILE_INSERT) {
       return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is exclusive", NULL);
@@ -2676,7 +2676,7 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
   if (pCxt->isStmtBind) {
     if (TK_NK_ID == pTbName->type || (tbNameAfterDbName != NULL && *(tbNameAfterDbName + 1) != '?')) {
       // In SQL statements, the table name has already been specified.
-      parserWarn("0x%" PRIx64 " table name is specified in sql, ignore the table name in bind param",
+      parserWarn("QID:0x%" PRIx64 ", table name is specified in sql, ignore the table name in bind param",
                  pCxt->pComCxt->requestId);
     }
   }
@@ -2750,6 +2750,9 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
     code = checkTableClauseFirstToken(pCxt, pStmt, &token, &hasData);
     if (TSDB_CODE_SUCCESS == code && hasData) {
       code = parseInsertTableClause(pCxt, pStmt, &token);
+    }
+    if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && pCxt->preCtbname) {
+      code = TSDB_CODE_TSC_STMT_TBNAME_ERROR;
     }
   }
 
@@ -3191,14 +3194,14 @@ static int32_t buildInsertCatalogReq(SInsertParseContext* pCxt, SVnodeModifyOpSt
 static int32_t setNextStageInfo(SInsertParseContext* pCxt, SQuery* pQuery, SCatalogReq* pCatalogReq) {
   SVnodeModifyOpStmt* pStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
   if (pCxt->missCache) {
-    parserDebug("0x%" PRIx64 " %d rows of %d tables have been inserted before cache miss", pCxt->pComCxt->requestId,
+    parserDebug("QID:0x%" PRIx64 ", %d rows of %d tables will be inserted before cache miss", pCxt->pComCxt->requestId,
                 pStmt->totalRowsNum, pStmt->totalTbNum);
 
     pQuery->execStage = QUERY_EXEC_STAGE_PARSE;
     return buildInsertCatalogReq(pCxt, pStmt, pCatalogReq);
   }
 
-  parserDebug("0x%" PRIx64 " %d rows of %d tables have been inserted", pCxt->pComCxt->requestId, pStmt->totalRowsNum,
+  parserDebug("QID:0x%" PRIx64 ", %d rows of %d tables will be inserted", pCxt->pComCxt->requestId, pStmt->totalRowsNum,
               pStmt->totalTbNum);
 
   pQuery->execStage = QUERY_EXEC_STAGE_SCHEDULE;

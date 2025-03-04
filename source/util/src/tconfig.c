@@ -102,6 +102,7 @@ int32_t cfgLoadFromArray(SConfig *pCfg, SArray *pArgs) {
 }
 
 int32_t cfgUpdateFromArray(SConfig *pCfg, SArray *pArgs) {
+  int32_t code = TSDB_CODE_SUCCESS;
   int32_t size = taosArrayGetSize(pArgs);
   for (int32_t i = 0; i < size; ++i) {
     SConfigItem *pItemNew = taosArrayGet(pArgs, i);
@@ -129,14 +130,27 @@ int32_t cfgUpdateFromArray(SConfig *pCfg, SArray *pArgs) {
         break;
       case CFG_DTYPE_STRING:
       case CFG_DTYPE_DIR:
-      case CFG_DTYPE_LOCALE:
-      case CFG_DTYPE_CHARSET:
-      case CFG_DTYPE_TIMEZONE:
         taosMemoryFree(pItemOld->str);
         pItemOld->str = taosStrdup(pItemNew->str);
         if (pItemOld->str == NULL) {
           (void)taosThreadMutexUnlock(&pCfg->lock);
           TAOS_RETURN(terrno);
+        }
+        break;
+      case CFG_DTYPE_LOCALE:
+      case CFG_DTYPE_CHARSET:
+        code = cfgSetItemVal(pItemOld, pItemNew->name, pItemNew->str, pItemNew->stype);
+        if (code != TSDB_CODE_SUCCESS) {
+          (void)taosThreadMutexUnlock(&pCfg->lock);
+          TAOS_RETURN(code);
+        }
+        break;
+      case CFG_DTYPE_TIMEZONE:
+        truncateTimezoneString(pItemNew->str);
+        code = cfgSetItemVal(pItemOld, pItemNew->name, pItemNew->str, pItemNew->stype);
+        if (code != TSDB_CODE_SUCCESS) {
+          (void)taosThreadMutexUnlock(&pCfg->lock);
+          TAOS_RETURN(code);
         }
         break;
       default:
@@ -1451,7 +1465,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
   int32_t olen, vlen, vlen2, vlen3, vlen4;
   int32_t code = 0, lino = 0;
   if (url == NULL || strlen(url) == 0) {
-    uInfo("apoll url not load");
+    uTrace("apoll url not load");
     TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
 

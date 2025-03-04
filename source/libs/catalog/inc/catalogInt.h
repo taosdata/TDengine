@@ -827,19 +827,19 @@ typedef struct SCtgCacheItemInfo {
 #define CTG_CACHE_OVERFLOW(_csize, _maxsize) ((_maxsize >= 0) ? ((_csize) >= (_maxsize)*1048576L * 0.9) : false)
 #define CTG_CACHE_LOW(_csize, _maxsize)      ((_maxsize >= 0) ? ((_csize) <= (_maxsize)*1048576L * 0.75) : true)
 
-#define ctgFatal(param, ...) qFatal("CTG:%p " param, pCtg, __VA_ARGS__)
-#define ctgError(param, ...) qError("CTG:%p " param, pCtg, __VA_ARGS__)
-#define ctgWarn(param, ...)  qWarn("CTG:%p " param, pCtg, __VA_ARGS__)
-#define ctgInfo(param, ...)  qInfo("CTG:%p " param, pCtg, __VA_ARGS__)
-#define ctgDebug(param, ...) qDebug("CTG:%p " param, pCtg, __VA_ARGS__)
-#define ctgTrace(param, ...) qTrace("CTG:%p " param, pCtg, __VA_ARGS__)
+#define ctgFatal(param, ...) qFatal("CTG:%p, " param, pCtg, __VA_ARGS__)
+#define ctgError(param, ...) qError("CTG:%p, " param, pCtg, __VA_ARGS__)
+#define ctgWarn(param, ...)  qWarn ("CTG:%p, " param, pCtg, __VA_ARGS__)
+#define ctgInfo(param, ...)  qInfo ("CTG:%p, " param, pCtg, __VA_ARGS__)
+#define ctgDebug(param, ...) qDebug("CTG:%p, " param, pCtg, __VA_ARGS__)
+#define ctgTrace(param, ...) qTrace("CTG:%p, " param, pCtg, __VA_ARGS__)
 
-#define ctgTaskFatal(param, ...) qFatal("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskError(param, ...) qError("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskWarn(param, ...)  qWarn("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskInfo(param, ...)  qInfo("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskDebug(param, ...) qDebug("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskTrace(param, ...) qTrace("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskFatal(param, ...) qFatal("QID:%" PRIx64 ", CTG:%p, " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskError(param, ...) qError("QID:%" PRIx64 ", CTG:%p, " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskWarn(param, ...)  qWarn ("QID:%" PRIx64 ", CTG:%p, " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskInfo(param, ...)  qInfo ("QID:%" PRIx64 ", CTG:%p, " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskDebug(param, ...) qDebug("QID:%" PRIx64 ", CTG:%p, " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskTrace(param, ...) qTrace("QID:%" PRIx64 ", CTG:%p, " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
 
 #define CTG_LOCK_DEBUG(...)     \
   do {                          \
@@ -1119,7 +1119,7 @@ void    ctgFreeBatch(SCtgBatch* pBatch);
 void    ctgFreeBatchs(SHashObj* pBatchs);
 int32_t ctgCloneVgInfo(SDBVgInfo* src, SDBVgInfo** dst);
 int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput);
-int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList);
+int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList, const char* dbFName);
 void    ctgFreeJob(void* job);
 void    ctgFreeHandleImpl(SCatalog* pCtg);
 int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* dbInfo, const SName* pTableName,
@@ -1159,7 +1159,8 @@ int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName*
 int32_t ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch, SName** ppName);
 int32_t ctgdGetOneHandle(SCatalog** pHandle);
 int     ctgVgInfoComp(const void* lp, const void* rp);
-int32_t ctgMakeVgArray(SDBVgInfo* dbInfo);
+int32_t ctgMakeVgArray(SDBVgInfo* dbInfo, const char* dbName, bool isFullName);
+int32_t ctgMakeVgArraySortBy(SDBVgInfo* dbInfo, __compar_fn_t sort_func);
 int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res);
 int32_t ctgReadDBCfgFromCache(SCatalog* pCtg, const char* dbFName, SDbCfgInfo* pDbCfg);
 

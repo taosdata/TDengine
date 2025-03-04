@@ -200,6 +200,17 @@ class TDTestCase:
             tdSql.execute(f'delete from {tbname} where ts between {self.ts+i+1} and {self.ts}')
             tdSql.query(f'select {col_name} from {tbname}')
             tdSql.checkRows(tb_num*row_num)
+        for i in range(row_num):
+            tdSql.execute(f'delete from {tbname} where t1 = 1')
+            tdSql.execute(f'flush database {dbname}')
+            tdSql.execute('reset query cache')
+            tdSql.query(f'select {col_name} from {tbname}')
+            tdSql.checkRows(0)
+            for j in range(tb_num):
+                self.insert_base_data(col_type,f'{tbname}_{j}',row_num,base_data)
+            tdSql.execute(f'delete from {tbname} where t1 = 0')
+            tdSql.query(f'select {col_name} from {tbname}')
+            tdSql.checkRows(tb_num*row_num)
     def delete_error(self,tbname,column_name,column_type,base_data):
         for error_list in ['',f'ts = {self.ts} and',f'ts = {self.ts} or']:
             if 'binary' in column_type.lower():

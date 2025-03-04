@@ -20,42 +20,14 @@
 #include "tlog.h"
 #include "tsched.h"
 
-#define tmrFatal(...)                                                     \
-  {                                                                       \
-    if (tmrDebugFlag & DEBUG_FATAL) {                                     \
-      taosPrintLog("TMR FATAL ", DEBUG_FATAL, tmrDebugFlag, __VA_ARGS__); \
-    }                                                                     \
-  }
-#define tmrError(...)                                                     \
-  {                                                                       \
-    if (tmrDebugFlag & DEBUG_ERROR) {                                     \
-      taosPrintLog("TMR ERROR ", DEBUG_ERROR, tmrDebugFlag, __VA_ARGS__); \
-    }                                                                     \
-  }
-#define tmrWarn(...)                                                    \
-  {                                                                     \
-    if (tmrDebugFlag & DEBUG_WARN) {                                    \
-      taosPrintLog("TMR WARN ", DEBUG_WARN, tmrDebugFlag, __VA_ARGS__); \
-    }                                                                   \
-  }
-#define tmrInfo(...)                                               \
-  {                                                                \
-    if (tmrDebugFlag & DEBUG_INFO) {                               \
-      taosPrintLog("TMR ", DEBUG_INFO, tmrDebugFlag, __VA_ARGS__); \
-    }                                                              \
-  }
-#define tmrDebug(...)                                               \
-  {                                                                 \
-    if (tmrDebugFlag & DEBUG_DEBUG) {                               \
-      taosPrintLog("TMR ", DEBUG_DEBUG, tmrDebugFlag, __VA_ARGS__); \
-    }                                                               \
-  }
-#define tmrTrace(...)                                               \
-  {                                                                 \
-    if (tmrDebugFlag & DEBUG_TRACE) {                               \
-      taosPrintLog("TMR ", DEBUG_TRACE, tmrDebugFlag, __VA_ARGS__); \
-    }                                                               \
-  }
+// clang-format off
+#define tmrFatal(...) { if (tmrDebugFlag & DEBUG_FATAL) { taosPrintLog("TMR FATAL ", DEBUG_FATAL, tmrDebugFlag, __VA_ARGS__); }}
+#define tmrError(...) { if (tmrDebugFlag & DEBUG_ERROR) { taosPrintLog("TMR ERROR ", DEBUG_ERROR, tmrDebugFlag, __VA_ARGS__); }}
+#define tmrWarn(...)  { if (tmrDebugFlag & DEBUG_WARN)  { taosPrintLog("TMR WARN  ", DEBUG_WARN,  tmrDebugFlag, __VA_ARGS__); }}
+#define tmrInfo(...)  { if (tmrDebugFlag & DEBUG_INFO)  { taosPrintLog("TMR INFO  ", DEBUG_INFO,  tmrDebugFlag, __VA_ARGS__); }}
+#define tmrDebug(...) { if (tmrDebugFlag & DEBUG_DEBUG) { taosPrintLog("TMR DEBUG ", DEBUG_DEBUG, tmrDebugFlag, __VA_ARGS__); }}
+#define tmrTrace(...) { if (tmrDebugFlag & DEBUG_TRACE) { taosPrintLog("TMR TRACE ", DEBUG_TRACE, tmrDebugFlag, __VA_ARGS__); }}
+// clang-format on
 
 #define TIMER_STATE_WAITING  0
 #define TIMER_STATE_EXPIRED  1
@@ -138,7 +110,9 @@ static uintptr_t getNextTimerId() {
   return id;
 }
 
-static void timerAddRef(tmr_obj_t* timer) { (void)atomic_add_fetch_8(&timer->refCount, 1); }
+static void timerAddRef(tmr_obj_t* timer) {
+  (void)atomic_add_fetch_8(&timer->refCount, 1);
+}
 
 static void timerDecRef(tmr_obj_t* timer) {
   if (atomic_sub_fetch_8(&timer->refCount, 1) == 0) {

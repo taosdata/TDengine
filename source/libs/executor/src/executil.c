@@ -18,6 +18,8 @@
 #include "index.h"
 #include "os.h"
 #include "query.h"
+#include "querynodes.h"
+#include "tarray.h"
 #include "tdatablock.h"
 #include "thash.h"
 #include "tmsg.h"
@@ -49,13 +51,13 @@ typedef enum {
 
 static FilterCondType checkTagCond(SNode* cond);
 static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond, SStorageAPI* pAPI);
-static int32_t optimizeTbnameInCondImpl(void* metaHandle, SArray* list, SNode* pTagCond, SStorageAPI* pStoreAPI);
+static int32_t optimizeTbnameInCondImpl(void* metaHandle, SArray* list, SNode* pTagCond, SStorageAPI* pStoreAPI, uint64_t suid);
 
 static int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
                             STableListInfo* pListInfo, uint8_t* digest, const char* idstr, SStorageAPI* pStorageAPI);
 
-static int64_t getLimit(const SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->limit; }
-static int64_t getOffset(const SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->offset; }
+static int64_t getLimit(const SNode* pLimit) { return (NULL == pLimit || NULL == ((SLimitNode*)pLimit)->limit) ? -1 : ((SLimitNode*)pLimit)->limit->datum.i; }
+static int64_t getOffset(const SNode* pLimit) { return (NULL == pLimit || NULL == ((SLimitNode*)pLimit)->offset) ? -1 : ((SLimitNode*)pLimit)->offset->datum.i; }
 static void    releaseColInfoData(void* pCol);
 
 void initResultRowInfo(SResultRowInfo* pResultRowInfo) {
@@ -212,6 +214,7 @@ void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
     pGroupResInfo->pRows = NULL;
   }
   pGroupResInfo->index = 0;
+  pGroupResInfo->delIndex = 0;
 }
 
 int32_t resultrowComparAsc(const void* p1, const void* p2) {
@@ -303,6 +306,7 @@ void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayL
   pGroupResInfo->freeItem = true;
   pGroupResInfo->pRows = pArrayList;
   pGroupResInfo->index = 0;
+  pGroupResInfo->delIndex = 0;
 }
 
 bool hasRemainResults(SGroupResInfo* pGroupResInfo) {
@@ -1061,7 +1065,7 @@ static int32_t optimizeTbnameInCond(void* pVnode, int64_t suid, SArray* list, SN
   int32_t ntype = nodeType(cond);
 
   if (ntype == QUERY_NODE_OPERATOR) {
-    ret = optimizeTbnameInCondImpl(pVnode, list, cond, pAPI);
+    ret = optimizeTbnameInCondImpl(pVnode, list, cond, pAPI, suid);
   }
 
   if (ntype != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
@@ -1080,7 +1084,7 @@ static int32_t optimizeTbnameInCond(void* pVnode, int64_t suid, SArray* list, SN
   SListCell* cell = pList->pHead;
   for (int i = 0; i < len; i++) {
     if (cell == NULL) break;
-    if (optimizeTbnameInCondImpl(pVnode, list, cell->pNode, pAPI) == 0) {
+    if (optimizeTbnameInCondImpl(pVnode, list, cell->pNode, pAPI, suid) == 0) {
       hasTbnameCond = true;
       break;
     }
@@ -1099,7 +1103,7 @@ static int32_t optimizeTbnameInCond(void* pVnode, int64_t suid, SArray* list, SN
 
 // only return uid that does not contained in pExistedUidList
 static int32_t optimizeTbnameInCondImpl(void* pVnode, SArray* pExistedUidList, SNode* pTagCond,
-                                        SStorageAPI* pStoreAPI) {
+                                        SStorageAPI* pStoreAPI, uint64_t suid) {
   if (nodeType(pTagCond) != QUERY_NODE_OPERATOR) {
     return -1;
   }
@@ -1148,10 +1152,13 @@ static int32_t optimizeTbnameInCondImpl(void* pVnode, SArray* pExistedUidList, S
     for (int i = 0; i < numOfTables; i++) {
       char* name = taosArrayGetP(pTbList, i);
 
-      uint64_t uid = 0;
+      uint64_t uid = 0, csuid = 0;
       if (pStoreAPI->metaFn.getTableUidByName(pVnode, name, &uid) == 0) {
         ETableType tbType = TSDB_TABLE_MAX;
-        if (pStoreAPI->metaFn.getTableTypeByName(pVnode, name, &tbType) == 0 && tbType == TSDB_CHILD_TABLE) {
+        if (pStoreAPI->metaFn.getTableTypeSuidByName(pVnode, name, &tbType, &csuid) == 0 && tbType == TSDB_CHILD_TABLE) {
+          if (suid != csuid) {
+            continue;
+          }
           if (NULL == uHash || taosHashGet(uHash, &uid, sizeof(uid)) == NULL) {
             STUidTagInfo s = {.uid = uid, .name = name, .pTagVal = NULL};
             void*        tmp = taosArrayPush(pExistedUidList, &s);
@@ -1953,6 +1960,7 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
+    pExp->pExpr->_function.bindExprID = ((SExprNode*)pNode)->bindExprID;
   } else if (type == QUERY_NODE_OPERATOR) {
     pExp->pExpr->nodeType = QUERY_NODE_OPERATOR;
     SOperatorNode* pOpNode = (SOperatorNode*)pNode;
@@ -1990,7 +1998,7 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     QUERY_CHECK_CODE(code, lino, _end);
   }
-
+  pExp->pExpr->relatedTo = ((SExprNode*)pNode)->relatedTo;
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -2071,42 +2079,78 @@ int32_t createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, SExprInfo** 
   return code;
 }
 
+static void deleteSubsidiareCtx(void* pData) {
+  SSubsidiaryResInfo* pCtx = (SSubsidiaryResInfo*)pData;
+  if (pCtx->pCtx) {
+    taosMemoryFreeClear(pCtx->pCtx);
+  }
+}
+
 // set the output buffer for the selectivity + tag query
 static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   int32_t num = 0;
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
-  SqlFunctionCtx*  p = NULL;
-  SqlFunctionCtx** pValCtx = taosMemoryCalloc(numOfOutput, POINTER_BYTES);
-  if (pValCtx == NULL) {
-    return terrno;
+  SArray* pValCtxArray = NULL;
+  for (int32_t i = numOfOutput - 1; i > 0; --i) {  // select Func is at the end of the list
+    int32_t funcIdx = pCtx[i].pExpr->pExpr->_function.bindExprID;
+    if (funcIdx > 0) {
+      if (pValCtxArray == NULL) {
+        // the end of the list is the select function of biggest index
+        pValCtxArray = taosArrayInit_s(sizeof(SSubsidiaryResInfo*), funcIdx);
+        if (pValCtxArray == NULL) {
+          return terrno;
+        }
+      }
+      if (funcIdx > pValCtxArray->size) {
+        qError("funcIdx:%d is out of range", funcIdx);
+        taosArrayDestroyP(pValCtxArray, deleteSubsidiareCtx);
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      SSubsidiaryResInfo* pSubsidiary = &pCtx[i].subsidiaries;
+      pSubsidiary->pCtx = taosMemoryCalloc(numOfOutput, POINTER_BYTES);
+      if (pSubsidiary->pCtx == NULL) {
+        taosArrayDestroyP(pValCtxArray, deleteSubsidiareCtx);
+        return terrno;
+      }
+      pSubsidiary->num = 0;
+      taosArraySet(pValCtxArray, funcIdx - 1, &pSubsidiary);
+    }
   }
 
-  SHashObj* pSelectFuncs = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
-  QUERY_CHECK_NULL(pSelectFuncs, code, lino, _end, terrno);
+  SqlFunctionCtx*  p = NULL;
+  SqlFunctionCtx** pValCtx = NULL;
+  if (pValCtxArray == NULL) {
+    pValCtx = taosMemoryCalloc(numOfOutput, POINTER_BYTES);
+    if (pValCtx == NULL) {
+      QUERY_CHECK_CODE(terrno, lino, _end);
+    }
+  }
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
     const char* pName = pCtx[i].pExpr->pExpr->_function.functionName;
-    if ((strcmp(pName, "_select_value") == 0) || (strcmp(pName, "_group_key") == 0) ||
-        (strcmp(pName, "_group_const_value") == 0)) {
-      pValCtx[num++] = &pCtx[i];
-    } else if (fmIsSelectFunc(pCtx[i].functionId)) {
-      void* data = taosHashGet(pSelectFuncs, pName, strlen(pName));
-      if (taosHashGetSize(pSelectFuncs) != 0 && data == NULL) {
-        p = NULL;
-        break;
+    if ((strcmp(pName, "_select_value") == 0)) {
+      if (pValCtxArray == NULL) {
+        pValCtx[num++] = &pCtx[i];
       } else {
-        int32_t tempRes = taosHashPut(pSelectFuncs, pName, strlen(pName), &num, sizeof(num));
-        if (tempRes != TSDB_CODE_SUCCESS && tempRes != TSDB_CODE_DUP_KEY) {
-          code = tempRes;
-          QUERY_CHECK_CODE(code, lino, _end);
+        int32_t bindFuncIndex = pCtx[i].pExpr->pExpr->relatedTo;  // start from index 1;
+        if (bindFuncIndex > 0) {  // 0 is default index related to the select function
+          bindFuncIndex -= 1;
         }
-        p = &pCtx[i];
+        SSubsidiaryResInfo** pSubsidiary = taosArrayGet(pValCtxArray, bindFuncIndex);
+        if(pSubsidiary == NULL) {
+          QUERY_CHECK_CODE(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR, lino, _end);
+        }
+        (*pSubsidiary)->pCtx[(*pSubsidiary)->num] = &pCtx[i];
+        (*pSubsidiary)->num++;
       }
+    } else if (fmIsSelectFunc(pCtx[i].functionId)) {
+       if (pValCtxArray == NULL) {
+        p = &pCtx[i];
+       }
     }
   }
-  taosHashCleanup(pSelectFuncs);
 
   if (p != NULL) {
     p->subsidiaries.pCtx = pValCtx;
@@ -2117,9 +2161,11 @@ static int32_t setSelectValueColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutpu
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroyP(pValCtxArray, deleteSubsidiareCtx);
     taosMemoryFreeClear(pValCtx);
-    taosHashCleanup(pSelectFuncs);
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  } else {
+    taosArrayDestroy(pValCtxArray);
   }
   return code;
 }
@@ -2865,7 +2911,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
   int32_t code = getTableList(pHandle->vnode, pScanNode, pTagCond, pTagIndexCond, pTableListInfo, digest, idStr,
                               &pTaskInfo->storageAPI);
   if (code != TSDB_CODE_SUCCESS) {
-    qError("failed to getTableList, code: %s", tstrerror(code));
+    qError("failed to getTableList, code:%s", tstrerror(code));
     return code;
   }
 

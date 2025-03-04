@@ -165,6 +165,55 @@ int32_t colDataSetValOrCover(SColumnInfoData* pColumnInfoData, uint32_t rowIndex
   return colDataSetValHelp(pColumnInfoData, rowIndex, pData, isNull);
 }
 
+int32_t varColSetVarData(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pVarData, int32_t varDataLen,
+                         bool isNull) {
+  if (!IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (isNull || pVarData == NULL) {
+    pColumnInfoData->varmeta.offset[rowIndex] = -1;  // it is a null value of VAR type.
+    pColumnInfoData->hasNull = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t dataLen = VARSTR_HEADER_SIZE + varDataLen;
+  if (pColumnInfoData->varmeta.offset[rowIndex] > 0) {
+    pColumnInfoData->varmeta.length = pColumnInfoData->varmeta.offset[rowIndex];
+  }
+
+  SVarColAttr* pAttr = &pColumnInfoData->varmeta;
+  if (pAttr->allocLen < pAttr->length + dataLen) {
+    uint32_t newSize = pAttr->allocLen;
+    if (newSize <= 1) {
+      newSize = 8;
+    }
+
+    while (newSize < pAttr->length + dataLen) {
+      newSize = newSize * 1.5;
+      if (newSize > UINT32_MAX) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
+
+    char* buf = taosMemoryRealloc(pColumnInfoData->pData, newSize);
+    if (buf == NULL) {
+      return terrno;
+    }
+
+    pColumnInfoData->pData = buf;
+    pAttr->allocLen = newSize;
+  }
+
+  uint32_t len = pColumnInfoData->varmeta.length;
+  pColumnInfoData->varmeta.offset[rowIndex] = len;
+
+  (void)memmove(varDataVal(pColumnInfoData->pData + len), pVarData, varDataLen);
+  varDataSetLen(pColumnInfoData->pData + len, varDataLen);
+  pColumnInfoData->varmeta.length += dataLen;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t colDataReassignVal(SColumnInfoData* pColumnInfoData, uint32_t dstRowIdx, uint32_t srcRowIdx,
                            const char* pData) {
   int32_t type = pColumnInfoData->info.type;
@@ -2682,7 +2731,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
   terrno = 0;
 
   if (NULL == pReq) {
-    if (!(pReq = taosMemoryMalloc(sizeof(SSubmitReq2)))) {
+    if (!(pReq = taosMemoryCalloc(1, sizeof(SSubmitReq2)))) {
       code = terrno;
       goto _end;
     }
@@ -3058,6 +3107,33 @@ int32_t buildCtbNameByGroupIdImpl(const char* stbFullName, uint64_t groupId, cha
     return TSDB_CODE_INVALID_PARA;
   }
 
+  return code;
+}
+
+int32_t buildSinkDestTableName(char* parTbName, const char* stbFullName, uint64_t gid, bool newSubTableRule,
+                               char** dstTableName) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (parTbName[0]) {
+    if (newSubTableRule && !isAutoTableName(parTbName) && !alreadyAddGroupId(parTbName, gid) && gid != 0 &&
+        stbFullName) {
+      *dstTableName = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
+      TSDB_CHECK_NULL(*dstTableName, code, lino, _end, terrno);
+
+      tstrncpy(*dstTableName, parTbName, TSDB_TABLE_NAME_LEN);
+      code = buildCtbNameAddGroupId(stbFullName, *dstTableName, gid, TSDB_TABLE_NAME_LEN);
+      TSDB_CHECK_CODE(code, lino, _end);
+    } else {
+      *dstTableName = taosStrdup(parTbName);
+      TSDB_CHECK_NULL(*dstTableName, code, lino, _end, terrno);
+    }
+  } else {
+    code = buildCtbNameByGroupId(stbFullName, gid, dstTableName);
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
   return code;
 }
 

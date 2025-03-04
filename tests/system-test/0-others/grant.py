@@ -135,14 +135,84 @@ class TDTestCase:
         port = dnode.cfgDict["serverPort"]
         config_dir = dnode.cfgDir
         return taos.connect(host=host, port=int(port), config=config_dir)
+    
+    def getShowGrantsTimeSeries(self, maxRetry=10):
+        for nRetry in range(maxRetry):
+            tdSql.query("show grants")
+            timeseries = tdSql.queryResult[0][5]
+            tdSql.query("show grants full")
+            full_timeseries = tdSql.queryResult[1][3]
+            if timeseries == full_timeseries:
+                return int(timeseries.split('/')[0])
+            else:
+                tdLog.info(f"timeseries: {timeseries}, != full_timeseries: {full_timeseries}, retry: {nRetry}") 
+                time.sleep(1)
+        raise Exception("Timeseries not equal within {maxRetry} seconds")
 
-    def s1_check_alive(self):
+    def getTablesTimeSeries(self):
+        tdSql.query(f"select cast(sum(columns-1) as int) as tss from information_schema.ins_tables where db_name not in ('information_schema', 'performance_schema', 'audit')")
+        return int(tdSql.queryResult[0][0])
+
+    def checkGrantsTimeSeries(self, prompt="", nExpectedTimeSeries=0, maxRetry=10):
+        for nRetry in range(maxRetry):
+            tss_grant = self.getShowGrantsTimeSeries()
+            if tss_grant == nExpectedTimeSeries:
+                tss_table = self.getTablesTimeSeries()
+                if tss_grant == tss_table:
+                    tdLog.info(f"{prompt}: tss_grant: {tss_grant} == tss_table: {tss_table}")
+                    return
+                else:
+                    raise Exception(f"{prompt}: tss_grant: {tss_grant} != tss_table: {tss_table}")
+            time.sleep(1)
+        raise Exception(f"{prompt}: tss_grant: {tss_grant} != nExpectedTimeSeries: {nExpectedTimeSeries}")
+
+    def s1_check_timeseries(self):
         # check cluster alive
         tdLog.printNoPrefix("======== test cluster alive: ")
         tdSql.checkDataLoop(0, 0, 1, "show cluster alive;", 20, 0.5)
 
         tdSql.query("show db.alive;")
         tdSql.checkData(0, 0, 1)
+
+        # check timeseries
+        tss_grant = 5
+        for i in range(0, 3):
+            tdLog.printNoPrefix(f"======== test timeseries: loop{i}")
+            self.checkGrantsTimeSeries("initial check", tss_grant)
+            tdSql.execute("create database if not exists db100")
+            tdSql.execute("create table db100.stb100(ts timestamp, c0 int,c1 bigint,c2 int,c3 float,c4 double) tags(t0 bigint unsigned)")
+            tdSql.execute("create table db100.ctb100 using db100.stb100 tags(100)")
+            tdSql.execute("create table db100.ctb101 using db100.stb100 tags(101)")
+            tdSql.execute("create table db100.ntb100 (ts timestamp, c0 int,c1 bigint,c2 int,c3 float,c4 double)")
+            tdSql.execute("create table db100.ntb101 (ts timestamp, c0 int,c1 bigint,c2 int,c3 float,c4 double)")
+            tss_grant += 20
+            self.checkGrantsTimeSeries("create tables and check", tss_grant)
+            tdSql.execute("alter table db100.stb100 add column c5 int")
+            tdSql.execute("alter stable db100.stb100 add column c6 int")
+            tdSql.execute("alter table db100.stb100 add tag t1 int")
+            tss_grant += 4
+            self.checkGrantsTimeSeries("add stable column and check", tss_grant)
+            tdSql.execute("create table db100.ctb102 using db100.stb100 tags(102, 102)")
+            tdSql.execute("alter table db100.ctb100 set tag t0=1000")
+            tdSql.execute("alter table db100.ntb100 add column c5 int")
+            tss_grant += 8
+            self.checkGrantsTimeSeries("add ntable column and check", tss_grant)
+            tdSql.execute("alter table db100.stb100 drop column c5")
+            tdSql.execute("alter table db100.stb100 drop tag t1")
+            tdSql.execute("alter table db100.ntb100 drop column c0")
+            tdSql.execute("alter table db100.stb100 drop column c0")
+            tss_grant -= 7
+            self.checkGrantsTimeSeries("drop stb/ntb column and check", tss_grant)
+            tdSql.execute("drop table db100.ctb100")
+            tdSql.execute("drop table db100.ntb100")
+            tss_grant -= 10
+            self.checkGrantsTimeSeries("drop ctb/ntb and check", tss_grant)
+            tdSql.execute("drop table db100.stb100")
+            tss_grant -= 10
+            self.checkGrantsTimeSeries("drop stb and check", tss_grant)
+            tdSql.execute("drop database db100")
+            tss_grant -= 5
+            self.checkGrantsTimeSeries("drop database and check", tss_grant)
 
     def s2_check_show_grants_ungranted(self):
         tdLog.printNoPrefix("======== test show grants ungranted: ")
@@ -158,9 +228,21 @@ class TDTestCase:
             tdSql.query(f'show grants;')
             tdSql.checkEqual(len(tdSql.queryResult), 1)
             infoFile.write(";".join(map(str,tdSql.queryResult[0])) + "\n")
+            tdLog.info(f"show grants: {tdSql.queryResult[0]}")
+            expireTimeStr=tdSql.queryResult[0][1]
+            serviceTimeStr=tdSql.queryResult[0][2]
+            tdLog.info(f"expireTimeStr: {expireTimeStr}, serviceTimeStr: {serviceTimeStr}")
+            expireTime = time.mktime(time.strptime(expireTimeStr, "%Y-%m-%d %H:%M:%S"))
+            serviceTime = time.mktime(time.strptime(serviceTimeStr, "%Y-%m-%d %H:%M:%S"))
+            tdLog.info(f"expireTime: {expireTime}, serviceTime: {serviceTime}")
+            tdSql.checkEqual(True, abs(expireTime - serviceTime - 864000) < 15)
             tdSql.query(f'show grants full;')
-            tdSql.checkEqual(len(tdSql.queryResult), 31)
-            
+            nGrantItems = 32
+            tdSql.checkEqual(len(tdSql.queryResult), nGrantItems)
+            tdSql.checkEqual(tdSql.queryResult[0][2], serviceTimeStr)
+            for i in range(1, nGrantItems):
+                tdSql.checkEqual(tdSql.queryResult[i][2], expireTimeStr)
+
             if infoFile:
                 infoFile.flush()
 
@@ -209,7 +291,7 @@ class TDTestCase:
         # print(self.master_dnode.cfgDict)
         # keep the order of following steps
         self.s0_five_dnode_one_mnode()
-        self.s1_check_alive()
+        self.s1_check_timeseries()
         self.s2_check_show_grants_ungranted()
         self.s3_check_show_grants_granted() 
 

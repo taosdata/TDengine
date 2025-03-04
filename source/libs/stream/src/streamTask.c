@@ -326,6 +326,13 @@ void tFreeStreamTask(void* pParam) {
   streamTaskDestroyActiveChkptInfo(pTask->chkInfo.pActiveInfo);
   pTask->chkInfo.pActiveInfo = NULL;
 
+  taosArrayDestroyP(pTask->notifyInfo.pNotifyAddrUrls, NULL);
+  taosMemoryFreeClear(pTask->notifyInfo.streamName);
+  taosMemoryFreeClear(pTask->notifyInfo.stbFullName);
+  tDeleteSchemaWrapper(pTask->notifyInfo.pSchemaWrapper);
+
+  pTask->notifyEventStat = (STaskNotifyEventStat){0};
+
   taosMemoryFree(pTask);
   stDebug("s-task:0x%x free task completed", taskId);
 }
@@ -703,7 +710,7 @@ int32_t streamTaskStop(SStreamTask* pTask) {
   }
 
   if (pTask->info.taskLevel != TASK_LEVEL__SINK && pTask->exec.pExecutor != NULL) {
-    code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
+    code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS, 5000);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s failed to kill task related query handle, code:%s", id, tstrerror(code));
     }
@@ -862,7 +869,7 @@ int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt) {
       pStreamTask->status.taskStatus = TASK_STATUS__READY;
     }
 
-    code = streamMetaSaveTask(pMeta, pStreamTask);
+    code = streamMetaSaveTaskInMeta(pMeta, pStreamTask);
     streamMutexUnlock(&(pStreamTask->lock));
 
     streamMetaReleaseTask(pMeta, pStreamTask);
@@ -983,6 +990,7 @@ void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc) 
 
   pDst->startTime = pSrc->startTime;
   pDst->hTaskId = pSrc->hTaskId;
+  pDst->notifyEventStat = pSrc->notifyEventStat;
 }
 
 STaskStatusEntry streamTaskGetStatusEntry(SStreamTask* pTask) {
@@ -1011,6 +1019,7 @@ STaskStatusEntry streamTaskGetStatusEntry(SStreamTask* pTask) {
       .outputThroughput = SIZE_IN_KiB(pExecInfo->outputThroughput),
       .startCheckpointId = pExecInfo->startCheckpointId,
       .startCheckpointVer = pExecInfo->startCheckpointVer,
+      .notifyEventStat = pTask->notifyEventStat,
   };
   return entry;
 }
@@ -1025,7 +1034,7 @@ static int32_t taskPauseCallback(SStreamTask* pTask, void* param) {
   // in case of fill-history task, stop the tsdb file scan operation.
   if (pTask->info.fillHistory == 1) {
     void* pExecutor = pTask->exec.pExecutor;
-    code = qKillTask(pExecutor, TSDB_CODE_SUCCESS);
+    code = qKillTask(pExecutor, TSDB_CODE_SUCCESS, 10000);
   }
 
   stDebug("vgId:%d s-task:%s set pause flag and pause task", pMeta->vgId, pTask->id.idStr);
@@ -1287,6 +1296,8 @@ const char* streamTaskGetExecType(int32_t type) {
       return "resume-task-from-idle";
     case STREAM_EXEC_T_ADD_FAILED_TASK:
       return "record-start-failed-task";
+    case STREAM_EXEC_T_STOP_ONE_TASK:
+      return "stop-one-task";
     case 0:
       return "exec-all-tasks";
     default:
@@ -1318,6 +1329,78 @@ void streamTaskFreeRefId(int64_t* pRefId) {
   metaRefMgtRemove(pRefId);
 }
 
+static int32_t tEncodeStreamNotifyInfo(SEncoder* pEncoder, const SNotifyInfo* info) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  QUERY_CHECK_NULL(pEncoder, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(info, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+
+  int32_t addrSize = taosArrayGetSize(info->pNotifyAddrUrls);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, addrSize));
+  for (int32_t i = 0; i < addrSize; ++i) {
+    const char* url = taosArrayGetP(info->pNotifyAddrUrls, i);
+    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, url));
+  }
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, info->notifyEventTypes));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, info->notifyErrorHandle));
+  if (addrSize > 0) {
+    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, info->streamName));
+    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, info->stbFullName));
+    TAOS_CHECK_EXIT(tEncodeSSchemaWrapper(pEncoder, info->pSchemaWrapper));
+  }
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t tDecodeStreamNotifyInfo(SDecoder* pDecoder, SNotifyInfo* info) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  QUERY_CHECK_NULL(pDecoder, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(info, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+
+  int32_t addrSize = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &addrSize));
+  info->pNotifyAddrUrls = taosArrayInit(addrSize, POINTER_BYTES);
+  QUERY_CHECK_NULL(info->pNotifyAddrUrls, code, lino, _exit, terrno);
+  for (int32_t i = 0; i < addrSize; ++i) {
+    char *url = NULL;
+    TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &url));
+    url = taosStrndup(url, TSDB_STREAM_NOTIFY_URL_LEN);
+    QUERY_CHECK_NULL(url, code, lino, _exit, terrno);
+    if (taosArrayPush(info->pNotifyAddrUrls, &url) == NULL) {
+      taosMemoryFree(url);
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &info->notifyEventTypes));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &info->notifyErrorHandle));
+  if (addrSize > 0) {
+    char* name = NULL;
+    TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &name));
+    info->streamName = taosStrndup(name, TSDB_STREAM_FNAME_LEN + 1);
+    QUERY_CHECK_NULL(info->streamName, code, lino, _exit, terrno);
+    TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &name));
+    info->stbFullName = taosStrndup(name, TSDB_STREAM_FNAME_LEN + 1);
+    QUERY_CHECK_NULL(info->stbFullName, code, lino, _exit, terrno);
+    info->pSchemaWrapper = taosMemoryCalloc(1, sizeof(SSchemaWrapper));
+    if (info->pSchemaWrapper == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tDecodeSSchemaWrapper(pDecoder, info->pSchemaWrapper));
+  }
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
 
 int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   int32_t code = 0;
@@ -1387,6 +1470,10 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->info.delaySchedParam));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->subtableWithoutMd5));
   TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pTask->reserve, sizeof(pTask->reserve) - 1));
+
+  if (pTask->ver >= SSTREAM_TASK_ADD_NOTIFY_VER) {
+    TAOS_CHECK_EXIT(tEncodeStreamNotifyInfo(pEncoder, &pTask->notifyInfo));
+  }
 
   tEndEncode(pEncoder);
 _exit:
@@ -1485,6 +1572,10 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pTask->subtableWithoutMd5));
   }
   TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTask->reserve));
+
+  if (pTask->ver >= SSTREAM_TASK_ADD_NOTIFY_VER) {
+    TAOS_CHECK_EXIT(tDecodeStreamNotifyInfo(pDecoder, &pTask->notifyInfo));
+  }
 
   tEndDecode(pDecoder);
 

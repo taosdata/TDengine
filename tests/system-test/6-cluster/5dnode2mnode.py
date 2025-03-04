@@ -48,6 +48,7 @@ class TDTestCase:
         tdSql.checkData(4,1,'%s:6430'%self.host)
         tdSql.checkData(0,4,'ready')
         tdSql.checkData(4,4,'ready')
+        time.sleep(1)
         tdSql.query("select * from information_schema.ins_mnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(0,2,'leader')

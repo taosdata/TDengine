@@ -1967,7 +1967,7 @@ ignore_null_values: {
 - For queries on tables with composite primary keys, if there are data with the same timestamp, only the data with the smallest composite primary key participates in the calculation.
 - INTERP query supports NEAR FILL mode, i.e., when FILL is needed, it uses the data closest to the current time point for interpolation. When the timestamps before and after are equally close to the current time slice, FILL the previous row's value. This mode is not supported in stream computing and window queries. For example: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR).(Supported from version 3.3.4.9).
 - INTERP can only use the pseudocolumn `_irowts_origin` when using FILL PREV/NEXT/NEAR modes. `_irowts_origin` is supported from version 3.3.4.9.
-- INTERP `RANGE` clause supports the expansion of the time range (supported from version 3.3.4.9), such as `RANGE('2023-01-01 00:00:00', 10s)` means to find data 10s before and after the time point '2023-01-01 00:00:00' for interpolation, FILL PREV/NEXT/NEAR respectively means to look for data forward/backward/around the time point, if there is no data around the time point, then use the value specified by FILL for interpolation, therefore the FILL clause must specify a value at this time. For example: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', 10s) FILL(PREV, 1). Currently, only the combination of time point and time range is supported, not the combination of time interval and time range, i.e., RANGE('2023-01-01 00:00:00', '2023-02-01 00:00:00', 1h) is not supported. The specified time range rules are similar to EVERY, the unit cannot be year or month, the value cannot be 0, and cannot have quotes. When using this extension, other FILL modes except FILL PREV/NEXT/NEAR are not supported, and the EVERY clause cannot be specified.
+- INTERP `RANGE` clause supports the expansion of the time range (supported from version 3.3.4.9), For example, `RANGE('2023-01-01 00:00:00', 10s)` means that only data within 10s around the time point '2023-01-01 00:00:00' can be used for interpolation. `FILL PREV/NEXT/NEAR` respectively means to look for data forward/backward/around the time point. If there is no data around the time point, the default value specified by `FILL` is used for interpolation. Therefore the `FILL` clause must specify the default value at the same time. For example: SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', 10s) FILL(PREV, 1). Starting from the 3.3.6.0 version, the combination of time period and time range is supported. When interpolating for each point within the time period, the time range requirement must be met. Prior versions only supported single time point and its time range. The available values for time range are similar to `EVERY`, the unit cannot be year or month, the value must be greater than 0, and cannot be in quotes. When using this extension, `FILL` modes other than `PREV/NEXT/NEAR` are not supported.
 
 ### LAST
 
@@ -2124,6 +2124,28 @@ UNIQUE(expr)
 **Applicable Data Types**: All types of fields.
 
 **Applicable to**: Tables and supertables.
+
+### COLS​
+
+```sql​
+COLS​(func(expr), output_expr1, [, output_expr2] ... )​
+```
+
+**Function Description**: On the data row where the execution result of function func(expr) is located, execute the expression output_expr1, [, output_expr2], return its result, and the result of func (expr) is not output.​
+
+**Return Data Type**: Returns multiple columns of data, and the data type of each column is the type of the result returned by the corresponding expression.​
+
+**Applicable Data Types**: All type fields.​
+
+**Applicable to**: Tables and Super Tables.​
+
+**Usage Instructions**:
+- Func function type: must be a single-line selection function (output result is a single-line selection function, for example, last is a single-line selection function, but top is a multi-line selection function).​
+- Mainly used to obtain the associated columns of multiple selection function results in a single SQL query. For example: select cols(max(c0), ts), cols(max(c1), ts) from ... can be used to get the different ts values of the maximum values of columns c0 and c1.
+- The result of the parameter func is not returned. If you need to output the result of func, you can add additional output columns, such as: select first(ts), cols(first(ts), c1) from ..
+- When there is only one column in the output, you can set an alias for the function. For example, you can do it like this: "select cols(first (ts), c1) as c11 from ...".
+- Output one or more columns, and you can set an alias for each output column of the function. For example, you can do it like this: "select (first (ts), c1 as c11, c2 as c22) from ...".
+
 
 ## Time-Series Specific Functions
 

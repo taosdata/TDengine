@@ -339,8 +339,8 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
       break;
     }
 
-    // Got data from sink
-    QW_TASK_DLOG("there are data in sink, dataLength:%" PRId64 "", len);
+    // get data from sink
+    QW_TASK_DLOG("there are data in sink, dataLength:%" PRId64, len);
 
     *dataLen += len + PAYLOAD_PREFIX_LEN;
     *pRawDataLen += rawLen + PAYLOAD_PREFIX_LEN;
@@ -559,13 +559,13 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
     QW_ERR_JRET(ctx->pJobInfo->errCode);
   }
 
-  if (atomic_load_8((int8_t *)&ctx->queryEnd) && !ctx->dynamicTask) {
-    QW_TASK_ELOG("query already end, phase:%d", phase);
-    QW_ERR_JRET(TSDB_CODE_QW_MSG_ERROR);
-  }
-
   switch (phase) {
     case QW_PHASE_PRE_QUERY: {
+      if (atomic_load_8((int8_t *)&ctx->queryEnd) && !ctx->dynamicTask) {
+        QW_TASK_ELOG("query already end, phase:%d", phase);
+        QW_ERR_JRET(TSDB_CODE_QW_MSG_ERROR);
+      }
+      
       if (QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
         QW_TASK_ELOG("task already dropped at phase %s", qwPhaseStr(phase));
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_STATUS_ERROR);
@@ -592,6 +592,11 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
       break;
     }
     case QW_PHASE_PRE_FETCH: {
+      if (atomic_load_8((int8_t *)&ctx->queryEnd) && !ctx->dynamicTask) {
+        QW_TASK_ELOG("query already end, phase:%d", phase);
+        QW_ERR_JRET(TSDB_CODE_QW_MSG_ERROR);
+      }
+      
       if (QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP) || QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
         QW_TASK_WLOG("task dropping or already dropped, phase:%s", qwPhaseStr(phase));
         QW_ERR_JRET(ctx->rspCode);
@@ -614,6 +619,12 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
       break;
     }
     case QW_PHASE_PRE_CQUERY: {
+      if (atomic_load_8((int8_t *)&ctx->queryEnd) && !ctx->dynamicTask) {
+        QW_TASK_ELOG("query already end, phase:%d", phase);
+        code = ctx->rspCode;
+        goto _return;
+      }
+      
       if (QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
         QW_TASK_WLOG("task already dropped, phase:%s", qwPhaseStr(phase));
         QW_ERR_JRET(ctx->rspCode);
@@ -1688,18 +1699,18 @@ void qWorkerRetireJob(uint64_t jobId, uint64_t clientId, int32_t errCode) {
 
   SQWJobInfo *pJob = (SQWJobInfo *)taosHashGet(gQueryMgmt.pJobInfo, id, sizeof(id));
   if (NULL == pJob) {
-    qError("QID:0x%" PRIx64 " CID:0x%" PRIx64 " fail to get job from job hash", jobId, clientId);
+    qError("QID:0x%" PRIx64 ", CID:0x%" PRIx64 " fail to get job from job hash", jobId, clientId);
     return;
   }
 
   if (0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) &&
       0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
-    qDebug("QID:0x%" PRIx64 " CID:0x%" PRIx64 " mark retired, errCode: 0x%x, allocSize:%" PRId64, jobId, clientId,
+    qDebug("QID:0x%" PRIx64 ", CID:0x%" PRIx64 " mark retired, errCode: 0x%x, allocSize:%" PRId64, jobId, clientId,
            errCode, atomic_load_64(&pJob->memInfo->allocMemSize));
 
     (void)qwRetireJob(pJob);
   } else {
-    qDebug("QID:0x%" PRIx64 " already retired, retired: %d, errCode: 0x%x, allocSize:%" PRId64, jobId,
+    qDebug("QID:0x%" PRIx64 ", already retired, retired: %d, errCode: 0x%x, allocSize:%" PRId64, jobId,
            atomic_load_8(&pJob->retired), atomic_load_32(&pJob->errCode), atomic_load_64(&pJob->memInfo->allocMemSize));
   }
 }
@@ -1730,10 +1741,10 @@ void qWorkerRetireJobs(int64_t retireSize, int32_t errCode) {
       
       jobNum++;
 
-      qDebug("QID:0x%" PRIx64 " CID:0x%" PRIx64 " job mark retired in batch, retired:%d, usedSize:%" PRId64 ", retireSize:%" PRId64, 
+      qDebug("QID:0x%" PRIx64 ", CID:0x%" PRIx64 " job mark retired in batch, retired:%d, usedSize:%" PRId64 ", retireSize:%" PRId64, 
       pJob->memInfo->jobId, pJob->memInfo->clientId, retired, aSize, retireSize);
     } else {
-      qDebug("QID:0x%" PRIx64 " CID:0x%" PRIx64 " job may already failed, errCode:%s", pJob->memInfo->jobId, pJob->memInfo->clientId, tstrerror(pJob->errCode));
+      qDebug("QID:0x%" PRIx64 ", CID:0x%" PRIx64 " job may already failed, errCode:%s", pJob->memInfo->jobId, pJob->memInfo->clientId, tstrerror(pJob->errCode));
     }
 
     pJob = (SQWJobInfo *)taosHashIterate(gQueryMgmt.pJobInfo, pJob);

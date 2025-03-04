@@ -198,7 +198,7 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
                     ", current: " + rowData.getFloat(1) +
                     ", voltage: " + rowData.getInt(2) +
                     ", phase: " + rowData.getFloat(3) +
-                    ", location: " + new String(rowData.getBinary(4)));
+                    ", location: " + rowData.getString(4).toString());
             sb.append("\n");
             return sb.toString();
         });
@@ -263,7 +263,7 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
         Class<SourceRecords<RowData>> typeClass = (Class<SourceRecords<RowData>>) (Class<?>) SourceRecords.class;
         SourceSplitSql sql = new SourceSplitSql("select ts, `current`, voltage, phase, tbname from meters");
         TDengineSource<SourceRecords<RowData>> source = new TDengineSource<>(connProps, sql, typeClass);
-        DataStreamSource<SourceRecords<RowData>> input = env.fromSource(source, WatermarkStrategy.noWatermarks(), "kafka-source");
+        DataStreamSource<SourceRecords<RowData>> input = env.fromSource(source, WatermarkStrategy.noWatermarks(), "tdengine-source");
         DataStream<String> resultStream = input.map((MapFunction<SourceRecords<RowData>, String>) records -> {
             StringBuilder sb = new StringBuilder();
             Iterator<RowData> iterator = records.iterator();
@@ -273,7 +273,7 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
                         ", current: " + row.getFloat(1) +
                         ", voltage: " + row.getInt(2) +
                         ", phase: " + row.getFloat(3) +
-                        ", location: " + new String(row.getBinary(4)));
+                        ", location: " + rowData.getString(4).toString());
                 sb.append("\n");
                 totalVoltage.addAndGet(row.getInt(2));
             }
@@ -304,14 +304,14 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
         config.setProperty(TDengineCdcParams.VALUE_DESERIALIZER, "RowData");
         config.setProperty(TDengineCdcParams.VALUE_DESERIALIZER_ENCODING, "UTF-8");
         TDengineCdcSource<RowData> tdengineSource = new TDengineCdcSource<>("topic_meters", config, RowData.class);
-        DataStreamSource<RowData> input = env.fromSource(tdengineSource, WatermarkStrategy.noWatermarks(), "kafka-source");
+        DataStreamSource<RowData> input = env.fromSource(tdengineSource, WatermarkStrategy.noWatermarks(), "tdengine-source");
         DataStream<String> resultStream = input.map((MapFunction<RowData, String>) rowData -> {
             StringBuilder sb = new StringBuilder();
             sb.append("tsxx: " + rowData.getTimestamp(0, 0) +
                     ", current: " + rowData.getFloat(1) +
                     ", voltage: " + rowData.getInt(2) +
                     ", phase: " + rowData.getFloat(3) +
-                    ", location: " + new String(rowData.getBinary(4)));
+                    ", location: " + rowData.getString(4).toString());
             sb.append("\n");
             totalVoltage.addAndGet(rowData.getInt(2));
             return sb.toString();
@@ -343,7 +343,7 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
 
         Class<ConsumerRecords<RowData>> typeClass = (Class<ConsumerRecords<RowData>>) (Class<?>) ConsumerRecords.class;
         TDengineCdcSource<ConsumerRecords<RowData>> tdengineSource = new TDengineCdcSource<>("topic_meters", config, typeClass);
-        DataStreamSource<ConsumerRecords<RowData>> input = env.fromSource(tdengineSource, WatermarkStrategy.noWatermarks(), "kafka-source");
+        DataStreamSource<ConsumerRecords<RowData>> input = env.fromSource(tdengineSource, WatermarkStrategy.noWatermarks(), "tdengine-source");
         DataStream<String> resultStream = input.map((MapFunction<ConsumerRecords<RowData>, String>) records -> {
             Iterator<ConsumerRecord<RowData>> iterator = records.iterator();
             StringBuilder sb = new StringBuilder();
@@ -353,7 +353,7 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
                         ", current: " + row.getFloat(1) +
                         ", voltage: " + row.getInt(2) +
                         ", phase: " + row.getFloat(3) +
-                        ", location: " + new String(row.getBinary(4)));
+                        ", location: " + rowData.getString(4).toString());
                 sb.append("\n");
                 totalVoltage.addAndGet(row.getInt(2));
             }
@@ -388,7 +388,7 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
         config.setProperty(TDengineCdcParams.VALUE_DESERIALIZER, "com.taosdata.flink.entity.ResultDeserializer");
         config.setProperty(TDengineCdcParams.VALUE_DESERIALIZER_ENCODING, "UTF-8");
         TDengineCdcSource<ResultBean> tdengineSource = new TDengineCdcSource<>("topic_meters", config, ResultBean.class);
-        DataStreamSource<ResultBean> input = env.fromSource(tdengineSource, WatermarkStrategy.noWatermarks(), "kafka-source");
+        DataStreamSource<ResultBean> input = env.fromSource(tdengineSource, WatermarkStrategy.noWatermarks(), "tdengine-source");
         DataStream<String> resultStream = input.map((MapFunction<ResultBean, String>) rowData -> {
             StringBuilder sb = new StringBuilder();
             sb.append("ts: " + rowData.getTs() +
@@ -489,9 +489,9 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
                 " `current` FLOAT," +
                 " voltage INT," +
                 " phase FLOAT," +
-                " location VARBINARY," +
+                " location VARCHAR(255)," +
                 " groupid INT," +
-                " tbname VARBINARY" +
+                " tbname VARCHAR(255)" +
                 ") WITH (" +
                 "  'connector' = 'tdengine-connector'," +
                 "  'td.jdbc.url' = 'jdbc:TAOS-WS://localhost:6041/power?user=root&password=taosdata'," +
@@ -506,9 +506,9 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
                 " `current` FLOAT," +
                 " voltage INT," +
                 " phase FLOAT," +
-                " location VARBINARY," +
+                " location VARCHAR(255)," +
                 " groupid INT," +
-                " tbname VARBINARY" +
+                " tbname VARCHAR(255)" +
                 ") WITH (" +
                 "  'connector' = 'tdengine-connector'," +
                 "  'td.jdbc.mode' = 'sink'," +
@@ -535,9 +535,9 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
                 " `current` FLOAT," +
                 " voltage INT," +
                 " phase FLOAT," +
-                " location VARBINARY," +
+                " location VARCHAR(255)," +
                 " groupid INT," +
-                " tbname VARBINARY" +
+                " tbname VARCHAR(255)" +
                 ") WITH (" +
                 "  'connector' = 'tdengine-connector'," +
                 "  'bootstrap.servers' = 'localhost:6041'," +
@@ -554,12 +554,12 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
                 " `current` FLOAT," +
                 " voltage INT," +
                 " phase FLOAT," +
-                " location VARBINARY," +
+                " location VARCHAR(255)," +
                 " groupid INT," +
-                " tbname VARBINARY" +
+                " tbname VARCHAR(255)" +
                 ") WITH (" +
                 "  'connector' = 'tdengine-connector'," +
-                "  'td.jdbc.mode' = 'cdc'," +
+                "  'td.jdbc.mode' = 'sink'," +
                 "  'td.jdbc.url' = 'jdbc:TAOS-WS://localhost:6041/power_sink?user=root&password=taosdata'," +
                 "  'sink.db.name' = 'power_sink'," +
                 "  'sink.supertable.name' = 'sink_meters'" +

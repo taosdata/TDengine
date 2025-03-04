@@ -136,7 +136,7 @@ typedef enum {
 typedef enum {
   TRN_KILL_MODE_SKIP = 0,
   TRN_KILL_MODE_INTERUPT = 1,
-  //TRN_KILL_MODE_ROLLBACK = 2,
+  // TRN_KILL_MODE_ROLLBACK = 2,
 } ETrnKillMode;
 
 typedef enum {
@@ -316,6 +316,8 @@ typedef struct {
   int64_t            dbUid;
   SArbGroupMember    members[TSDB_ARB_GROUP_MEMBER_NUM];
   int8_t             isSync;
+  int32_t            code;
+  int64_t            updateTimeMs;
   SArbAssignedLeader assignedLeader;
   int64_t            version;
 
@@ -476,6 +478,10 @@ typedef struct {
   int32_t    dnodeId;
   ESyncState syncState;
   int64_t    syncTerm;
+  int64_t    syncAppliedIndex;
+  int64_t    lastSyncAppliedIndexUpdateTime;
+  double     appliedRate;
+  int64_t    syncCommitIndex;
   bool       syncRestore;
   bool       syncCanRead;
   int64_t    roleTimeMs;

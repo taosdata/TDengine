@@ -170,10 +170,252 @@ class TDTestCase(TBase):
         tdSql.checkData(0, 1, 2)
         tdSql.checkData(2, 1, 1)
 
+    def ts5946(self):
+        tdLog.info("check bug TD_xx ...\n")
+        sqls = [
+            "drop database if exists ctg_tsdb",
+            "create database ctg_tsdb cachemodel 'both' stt_trigger 1;",
+            "use ctg_tsdb;",
+            "CREATE STABLE `stb_sxny_cn` (`dt` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium', \
+                `val` DOUBLE ENCODE 'delta-d' COMPRESS 'tsz' LEVEL 'medium') TAGS (`point` VARCHAR(50),  \
+                `point_name` VARCHAR(64), `point_path` VARCHAR(2000), `index_name` VARCHAR(64),          \
+                `country_equipment_code` VARCHAR(64), `index_code` VARCHAR(64), `ps_code` VARCHAR(50),   \
+                `cnstationno` VARCHAR(255), `index_level` VARCHAR(10), `cz_flag` VARCHAR(255),           \
+                `blq_flag` VARCHAR(255), `dcc_flag` VARCHAR(255))",
+                
+                
+            "CREATE STABLE `stb_popo_power_station_all` (`ts` TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium',      \
+                `assemble_capacity` DOUBLE ENCODE 'delta-d' COMPRESS 'lz4' LEVEL 'medium', `ps_status` DOUBLE ENCODE         \
+                'delta-d' COMPRESS 'lz4' LEVEL 'medium') TAGS (`ps_type` VARCHAR(255), `ps_type_code` VARCHAR(255),          \
+                `belorg_name` VARCHAR(255), `belorg_code` VARCHAR(255), `country_code` VARCHAR(255), `country_name`          \
+                VARCHAR(255), `area_name` VARCHAR(255), `area_code` VARCHAR(255), `ps_name` VARCHAR(255), `ps_code`          \
+                VARCHAR(255), `ps_aab` VARCHAR(255), `ps_type_sec_lvl` VARCHAR(255), `ps_type_sec_lvl_name` VARCHAR(255),    \
+                `ps_type_name` VARCHAR(255), `longitude` DOUBLE, `latitude` DOUBLE, `is_china` VARCHAR(255), `is_access`     \
+                VARCHAR(255), `first_put_production_date` VARCHAR(255), `all_put_production_date` VARCHAR(255), `merge_date` \
+                VARCHAR(255), `sold_date` VARCHAR(255), `cap_detail` VARCHAR(500), `ps_unit` VARCHAR(255), `region_name`     \
+                VARCHAR(255))",
+        ]
+        
+        
+        tdSql.executes(sqls)
+        
+        ts = 1657146000000
+        
+        # create subtable and insert data for super table stb_sxny_cn
+        for i in range(1, 1000):
+            sql = f"CREATE TABLE `stb_sxny_cn_{i}` USING `stb_sxny_cn` (point, point_name, point_path, index_name, country_equipment_code,                      \
+                index_code, ps_code, cnstationno, index_level, cz_flag, blq_flag, dcc_flag) TAGS('point{i}', 'point_name{i}', 'point_path{i}', 'index_name{i}', \
+                'country_equipment_code{i}', 'index_code{i}', 'ps_code{i%500}', 'cnstationno{i}', '{i}', 'cz_flag{i}', 'blq_flag{i}', 'dcc_flag{i}');"
+            tdSql.execute(sql)
+            sql = f"INSERT INTO `stb_sxny_cn_{i}` VALUES "
+            values = []
+            for j in range(1, 100):
+                values.append(f"({ts+(i%5)*86400000 + j}, {i%500 + j/20})")
+            sql += ", ".join(values)
+            tdSql.execute(sql)
+            tdLog.debug(f"create table stb_sxny_cn_{i} and insert data successfully")
+                    
+        # create subtable and insert data for super table stb_popo_power_station_all
+        for i in range(1, 1000):
+            sql = f"CREATE TABLE `stb_popo_power_station_all_{i}` USING `stb_popo_power_station_all` (ps_type, ps_type_code, belorg_name, belorg_code,          \
+                country_code, country_name, area_name, area_code, ps_name, ps_code, ps_aab, ps_type_sec_lvl, ps_type_sec_lvl_name, ps_type_name,                \
+                longitude, latitude, is_china, is_access, first_put_production_date, all_put_production_date, merge_date, sold_date, cap_detail, ps_unit,       \
+                region_name) TAGS ('ps_type{i}', 'ps_type_code{i}', 'belorg_name{i}', 'belorg_code{i}', 'country_code{i}', 'country_name{i}', 'area_name{i}',   \
+                'area_code{i}', 'ps_name{i}', 'ps_code{i}', 'ps_aab{i}', 'ps_type_sec_lvl{i}', 'ps_type_sec_lvl_name{i}', 'ps_type_name{i}', {i},               \
+                {i}, 'is_china{i}', 'is_access{i}', 'first_put_production_date{i}', 'all_put_production_date{i}', 'merge_date{i}', 'sold_date{i}',              \
+                'cap_detail{i}', 'ps_unit{i}', 'region_name{i}');"
+            tdSql.execute(sql)
+            sql = f"INSERT INTO `stb_popo_power_station_all_{i}` VALUES "
+            values = []
+            for j in range(1, 6):
+                values.append(f"({ts+(j-1)*86400000}, {i*10 + j%10}, {j})")
+            sql += ", ".join(values)
+            tdSql.execute(sql)
+            tdLog.debug(f"create table stb_popo_power_station_all_{i} and insert data successfully")
+        
+        for i in range(1, 499, 20):
+            pscode = f"ps_code{i}"
+            
+            querySql = f"select t2.ts ,tt.ps_code,t2.ps_code from   \
+                    ( select TIMETRUNCATE(t1.dt, 1d, 1) dt,  t1.ps_code, first(dt)  \
+                        from ctg_tsdb.stb_sxny_cn t1 where ps_code<>'0' and dt >= '2022-07-07 00:00:00.000' \
+                        and t1.ps_code='{pscode}' partition by point state_window(cast(val as int)) order by \
+                        TIMETRUNCATE(t1.dt, 1d, 0) ) tt \
+                        left join ctg_tsdb.stb_popo_power_station_all t2   \
+                        on TIMETRUNCATE(tt.dt, 1d, 1)=TIMETRUNCATE(t2.ts, 1d, 1)  \
+                        and tt.ps_code = t2.ps_code "
+            tdSql.query(querySql)
+            tdSql.checkData(0, 1, pscode)
+            tdSql.checkData(0, 2, pscode)
+            tdLog.debug(f"execute sql: {pscode}")
+            
+            querySql = f"select t2.ts ,tt.ps_code,t2.ps_code from ( select last(t1.dt) dt,  t1.ps_code, first(dt)  \
+                from ctg_tsdb.stb_sxny_cn t1 where ps_code<>'0' and dt >= '2022-07-07 00:00:00.000' and \
+                t1.ps_code='{pscode}' group by tbname order by dt) tt left join \
+                ctg_tsdb.stb_popo_power_station_all t2  on TIMETRUNCATE(tt.dt, 1d, 1)=TIMETRUNCATE(t2.ts, 1d, 1) \
+                and tt.ps_code = t2.ps_code"
+            tdSql.query(querySql)
+            tdSql.checkData(0, 1, pscode)
+            tdSql.checkData(0, 2, pscode)
+            tdLog.debug(f"execute sql: {pscode}")
+            
+            querySql = f"select t2.ts ,tt.ps_code,t2.ps_code from ( select last(t1.dt) dt,  last(ps_code) ps_code \
+                from ctg_tsdb.stb_sxny_cn t1 where ps_code<>'0' and dt >= '2022-07-07 00:00:00.000' and \
+                t1.ps_code='{pscode}'  order by dt) tt left join ctg_tsdb.stb_popo_power_station_all t2  on \
+                TIMETRUNCATE(tt.dt, 1d, 1)=TIMETRUNCATE(t2.ts, 1d, 1) and tt.ps_code = t2.ps_code"
+            tdSql.query(querySql)
+            tdSql.checkData(0, 1, pscode)
+            tdSql.checkData(0, 2, pscode)
+            tdLog.debug(f"execute sql: {pscode}")
+            
+            querySql = f"select t2.ts ,tt.ps_code,t2.ps_code from ( select _wstart dt,  t1.ps_code, first(dt)  \
+                from ctg_tsdb.stb_sxny_cn t1 where ps_code<>'0' and dt >= '2022-07-07 00:00:00.000' and \
+                t1.ps_code='{pscode}' interval(1m) order by dt) tt left join ctg_tsdb.stb_popo_power_station_all t2  \
+                on TIMETRUNCATE(tt.dt, 1d, 1)=TIMETRUNCATE(t2.ts, 1d, 1) and tt.ps_code = t2.ps_code"
+            tdSql.query(querySql)
+            tdSql.checkData(0, 1, pscode)
+            tdSql.checkData(0, 2, pscode)
+            tdLog.debug(f"execute sql: {pscode}")
+
+            querySql = f"select t2.ts ,tt.ps_code,t2.ps_code from (select first(dt) dt, t1.ps_code from \
+                ctg_tsdb.stb_sxny_cn t1 where ps_code<>'0' and dt >= '2022-07-07 00:00:00.000' and t1.ps_code='{pscode}' \
+                session(dt, 1m) order by dt) tt left join ctg_tsdb.stb_popo_power_station_all t2  on \
+                TIMETRUNCATE(tt.dt, 1d, 1)=TIMETRUNCATE(t2.ts, 1d, 1) and tt.ps_code = t2.ps_code"
+            tdSql.query(querySql)
+            tdSql.checkData(0, 1, pscode)
+            tdSql.checkData(0, 2, pscode)
+            tdLog.debug(f"execute sql: {pscode}")
+
+    def FIX_TS_5984(self):
+        tdLog.info("check bug TS_5984 ...\n")
+        # prepare data
+        sqls = [
+            "drop database if exists ts_5984;",
+            "create database ts_5984 minrows 10;",
+            "use ts_5984;",
+            "create table t1 (ts timestamp, str varchar(10) primary key, c1 int);",
+            """insert into t1 values
+               ('2025-01-01 00:00:00', 'a', 1),
+               ('2025-01-01 00:00:00', 'b', 2),
+               ('2025-01-01 00:00:00', 'c', 3),
+               ('2025-01-01 00:00:00', 'd', 4),
+               ('2025-01-01 00:00:00', 'e', 5),
+               ('2025-01-01 00:00:00', 'f', 6),
+               ('2025-01-01 00:00:00', 'g', 7),
+               ('2025-01-01 00:00:00', 'h', 8),
+               ('2025-01-01 00:00:00', 'i', 9),
+               ('2025-01-01 00:00:00', 'j', 10),
+               ('2025-01-01 00:00:00', 'k', 11),
+               ('2025-01-01 00:00:00', 'l', 12),
+               ('2025-01-01 00:00:00', 'm', 13),
+               ('2025-01-01 00:00:00', 'n', 14);"""
+        ]
+        tdSql.executes(sqls)
+        # do flush and compact
+        tdSql.execute("flush database ts_5984;")
+        time.sleep(3)
+        tdSql.execute("compact database ts_5984;")
+        while True:
+            tdSql.query("show compacts;")
+            # break if no compact task
+            if tdSql.getRows() == 0:
+                break
+            time.sleep(3)
+
+        tdSql.query("select * from t1 where ts > '2025-01-01 00:00:00';")
+        tdSql.checkRows(0)
+
+    def FIX_TS_6058(self):
+        tdSql.execute("create database iot_60j_production_eqp;")
+        tdSql.execute("create table iot_60j_production_eqp.realtime_data_collections (device_time TIMESTAMP, item_value VARCHAR(64), \
+            upload_time TIMESTAMP) tags(bu_id VARCHAR(64), district_id VARCHAR(64), factory_id VARCHAR(64), production_line_id VARCHAR(64), \
+            production_processes_id VARCHAR(64), work_center_id VARCHAR(64), station_id VARCHAR(64), device_name VARCHAR(64), item_name VARCHAR(64));")
+    
+        sub1 = " SELECT '实际速度' as name, 0 as rank, '当月' as cycle,\
+                 CASE \
+                    WHEN COUNT(item_value) = 0 THEN NULL\
+                    ELSE AVG(CAST(item_value AS double))\
+                    END AS item_value\
+                FROM iot_60j_production_eqp.realtime_data_collections\
+                WHERE device_time >= TO_TIMESTAMP(CONCAT(substring(TO_CHAR(today  ,'YYYY-MM-dd'), 1,7), '-01 00:00:00'), 'YYYY-mm-dd')\
+                AND item_name = 'Premixer_SpindleMotor_ActualSpeed' "
+         
+        sub2 = " SELECT  '实际速度' as name, 3 as rank, TO_CHAR(TODAY(),'YYYY-MM-dd') as cycle,\
+                 CASE \
+                    WHEN COUNT(item_value) = 0 THEN NULL\
+                    ELSE AVG(CAST(item_value AS double))\
+                    END AS item_value\
+                FROM iot_60j_production_eqp.realtime_data_collections\
+                WHERE device_time >= TODAY()-1d and device_time <= now()\
+                AND item_name = 'Premixer_SpindleMotor_ActualSpeed' "
+                  
+        sub3 = " SELECT  '设定速度' as name, 1 as rank, CAST(CONCAT('WEEK-',CAST(WEEKOFYEAR(TODAY()-1w) as VARCHAR)) as VARCHAR) as cycle,\
+                 CASE \
+                    WHEN COUNT(item_value) = 0 THEN NULL\
+                    ELSE AVG(CAST(item_value AS double))\
+                    END AS item_value\
+                FROM iot_60j_production_eqp.realtime_data_collections\
+                where \
+                item_name = 'Premixer_SpindleMotor_SettingSpeed'\
+                      AND (\
+                        (WEEKDAY(now) = 0 AND  device_time >= today()-8d and device_time <= today()-1d) OR\
+                        (WEEKDAY(now) = 1 AND  device_time >= today()-9d and device_time <= today()-2d) OR\
+                        (WEEKDAY(now) = 2 AND  device_time >= today()-10d and device_time <= today()-3d) OR\
+                        (WEEKDAY(now) = 3 AND  device_time >= today()-11d and device_time <= today()-4d) OR\
+                        (WEEKDAY(now) = 4 AND  device_time >= today()-12d and device_time <= today()-5d) OR\
+                        (WEEKDAY(now) = 5 AND  device_time >= today()-13d and device_time <= today()-6d) OR\
+                        (WEEKDAY(now) = 6 AND  device_time >= today()-14d and device_time <= today()-7d)\
+                    ) "   
+                    
+        sub4 = " SELECT  '设定速度2' as name, 1 as rank, CAST(CONCAT('WEEK-',CAST(WEEKOFYEAR(TODAY()-1w) as VARCHAR)) as VARCHAR(5000)) as cycle,\
+                 CASE \
+                    WHEN COUNT(item_value) = 0 THEN NULL\
+                    ELSE AVG(CAST(item_value AS double))\
+                    END AS item_value\
+                FROM iot_60j_production_eqp.realtime_data_collections\
+                where \
+                item_name = 'Premixer_SpindleMotor_SettingSpeed'\
+                      AND (\
+                        (WEEKDAY(now) = 0 AND  device_time >= today()-8d and device_time <= today()-1d) OR\
+                        (WEEKDAY(now) = 1 AND  device_time >= today()-9d and device_time <= today()-2d) OR\
+                        (WEEKDAY(now) = 2 AND  device_time >= today()-10d and device_time <= today()-3d) OR\
+                        (WEEKDAY(now) = 3 AND  device_time >= today()-11d and device_time <= today()-4d) OR\
+                        (WEEKDAY(now) = 4 AND  device_time >= today()-12d and device_time <= today()-5d) OR\
+                        (WEEKDAY(now) = 5 AND  device_time >= today()-13d and device_time <= today()-6d) OR\
+                        (WEEKDAY(now) = 6 AND  device_time >= today()-14d and device_time <= today()-7d)\
+                    ) "      
+        for uiontype in ["union" ,"union all"]:
+            repeatLines = 1
+            if uiontype == "union":
+                repeatLines = 0
+            for i in range(1, 10):
+                tdLog.debug(f"test: realtime_data_collections {i} times...")
+                tdSql.query(f"select name,cycle,item_value from ( {sub1} {uiontype} {sub2} {uiontype} {sub3}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(3)
+                tdSql.query(f"select name,cycle,item_value from ( {sub1} {uiontype} {sub2} {uiontype} {sub4}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(3)
+                tdSql.query(f"select name,cycle,item_value from ( {sub3} {uiontype} {sub2} {uiontype} {sub1}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(3)
+                tdSql.query(f"select name,cycle,item_value from ( {sub3} {uiontype} {sub2} {uiontype} {sub1}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(3)
+                tdSql.query(f"select name,cycle,item_value from ( {sub2} {uiontype} {sub4} {uiontype} {sub1}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(3)
+                tdSql.query(f"select name,cycle,item_value from ( {sub3} {uiontype} {sub2} {uiontype} {sub1} {uiontype} {sub4}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(4)
+                tdSql.query(f"select name,cycle,item_value from ( {sub2} {uiontype} {sub3} {uiontype} {sub1} {uiontype} {sub4}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(4)
+                tdSql.query(f"select name,cycle,item_value from ( {sub3} {uiontype} {sub4} {uiontype} {sub1} {uiontype} {sub2}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(4)
+                tdSql.query(f"select name,cycle,item_value from ( {sub3} {uiontype} {sub4} {uiontype} {sub1} {uiontype} {sub2}  {uiontype} {sub4}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(4 + repeatLines)
+                tdSql.query(f"select name,cycle,item_value from ( {sub3} {uiontype} {sub2} {uiontype} {sub1} {uiontype} {sub2}  {uiontype} {sub4}) order by rank,name,cycle;", queryTimes = 1)
+                tdSql.checkRows(4 + repeatLines)
+            
     # run
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
-
+        
+        self.ts5946()
         # TD BUGS
         self.FIX_TD_30686()
         self.FIX_TD_31684()
@@ -182,6 +424,8 @@ class TDTestCase(TBase):
         self.FIX_TS_5105()
         self.FIX_TS_5143()
         self.FIX_TS_5239()
+        self.FIX_TS_5984()
+        self.FIX_TS_6058()
 
         tdLog.success(f"{__file__} successfully executed")
 

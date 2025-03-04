@@ -212,15 +212,6 @@ void insertData(TAOS *taos, TAOS_STMT_OPTIONS *option, const char *sql, int CTB_
 
 void getFields(TAOS *taos, const char *sql, int expectedALLFieldNum, TAOS_FIELD_E *expectedTagFields,
                int expectedTagFieldNum, TAOS_FIELD_E *expectedColFields, int expectedColFieldNum) {
-  // create database and table
-  do_query(taos, "DROP DATABASE IF EXISTS stmt_testdb_3");
-  do_query(taos, "CREATE DATABASE IF NOT EXISTS stmt_testdb_3");
-  do_query(taos, "USE stmt_testdb_3");
-  do_query(
-      taos,
-      "CREATE STABLE IF NOT EXISTS stmt_testdb_3.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
-      "(groupId INT, location BINARY(24))");
-
   TAOS_STMT *stmt = taos_stmt_init(taos);
   ASSERT_NE(stmt, nullptr);
   int code = taos_stmt_prepare(stmt, sql, 0);
@@ -267,6 +258,24 @@ void getFields(TAOS *taos, const char *sql, int expectedALLFieldNum, TAOS_FIELD_
   taos_stmt_close(stmt);
 }
 
+void getFieldsError(TAOS *taos, const char *sql, int expectedErrocode) {
+  TAOS_STMT *stmt = taos_stmt_init(taos);
+  ASSERT_NE(stmt, nullptr);
+  STscStmt *pStmt = (STscStmt *)stmt;
+
+  int code = taos_stmt_prepare(stmt, sql, 0);
+
+  int           fieldNum = 0;
+  TAOS_FIELD_E *pFields = NULL;
+  code = taos_stmt_get_tag_fields(stmt, &fieldNum, &pFields);
+  ASSERT_EQ(code, expectedErrocode);
+  ASSERT_EQ(pStmt->errCode, TSDB_CODE_SUCCESS);
+
+  taosMemoryFree(pFields);
+
+  taos_stmt_close(stmt);
+}
+
 }  // namespace
 
 int main(int argc, char **argv) {
@@ -298,6 +307,15 @@ TEST(stmtCase, get_fields) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
+  // create database and table
+  do_query(taos, "DROP DATABASE IF EXISTS stmt_testdb_3");
+  do_query(taos, "CREATE DATABASE IF NOT EXISTS stmt_testdb_3");
+  do_query(taos, "USE stmt_testdb_3");
+  do_query(
+      taos,
+      "CREATE STABLE IF NOT EXISTS stmt_testdb_3.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
+      "(groupId INT, location BINARY(24))");
+  // nomarl test
   {
     TAOS_FIELD_E tagFields[2] = {{"groupid", TSDB_DATA_TYPE_INT, 0, 0, sizeof(int)},
                                  {"location", TSDB_DATA_TYPE_BINARY, 0, 0, 24}};
@@ -307,6 +325,12 @@ TEST(stmtCase, get_fields) {
                                  {"phase", TSDB_DATA_TYPE_FLOAT, 0, 0, sizeof(float)}};
     getFields(taos, "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)", 7, &tagFields[0], 2, &colFields[0], 4);
   }
+  // error case [TD-33570]
+  { getFieldsError(taos, "INSERT INTO ? VALUES (?,?,?,?)", TSDB_CODE_TSC_STMT_TBNAME_ERROR); }
+
+  { getFieldsError(taos, "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)", TSDB_CODE_TSC_STMT_TBNAME_ERROR); }
+
+
   do_query(taos, "DROP DATABASE IF EXISTS stmt_testdb_3");
   taos_close(taos);
 }
@@ -520,9 +544,6 @@ TEST(stmtCase, geometry) {
   int   code = taos_stmt_prepare(stmt, stmt_sql, 0);
   checkError(stmt, code);
 
-  // code = taos_stmt_set_tbname(stmt, "tb1");
-  // checkError(stmt, code);
-
   code = taos_stmt_bind_param_batch(stmt, params);
   checkError(stmt, code);
 
@@ -532,11 +553,58 @@ TEST(stmtCase, geometry) {
   code = taos_stmt_execute(stmt);
   checkError(stmt, code);
 
+  //test wrong wkb input
+  unsigned char wkb2[3][61] = {
+      {
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0xF0, 0x3F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40,
+      },
+      {0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0xf0, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0xf0, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f},
+      {0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+       0x00, 0xf0, 0x3f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf0, 0x3f, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40}};
+  params[1].buffer = wkb2;
+  code = taos_stmt_bind_param_batch(stmt, params);
+  ASSERT_EQ(code, TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
+
   taosMemoryFree(t64_len);
   taosMemoryFree(wkb_len);
   taos_stmt_close(stmt);
   do_query(taos, "DROP DATABASE IF EXISTS stmt_testdb_5");
   taos_close(taos);
 }
+//TD-33582
+TEST(stmtCase, errcode) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
 
+  do_query(taos, "DROP DATABASE IF EXISTS stmt_testdb_4");
+  do_query(taos, "CREATE DATABASE IF NOT EXISTS stmt_testdb_4");
+  do_query(taos, "USE stmt_testdb_4");
+  do_query(
+      taos,
+      "CREATE STABLE IF NOT EXISTS stmt_testdb_4.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS "
+      "(groupId INT, location BINARY(24))");
+
+  TAOS_STMT *stmt = taos_stmt_init(taos);
+  ASSERT_NE(stmt, nullptr);
+  char *sql = "select * from t where ts > ? and name = ? foo = ?";
+  int   code = taos_stmt_prepare(stmt, sql, 0);
+  checkError(stmt, code);
+
+  int fieldNum = 0;
+  TAOS_FIELD_E *pFields = NULL;
+  code = stmtGetParamNum(stmt, &fieldNum);
+  ASSERT_EQ(code, TSDB_CODE_PAR_SYNTAX_ERROR);
+
+  code = taos_stmt_get_tag_fields(stmt, &fieldNum, &pFields);
+  ASSERT_EQ(code, TSDB_CODE_PAR_SYNTAX_ERROR);
+  // get fail dont influence the next stmt prepare
+  sql = "nsert into ? (ts, name) values (?, ?)";
+  code = taos_stmt_prepare(stmt, sql, 0);
+  checkError(stmt, code);
+}
 #pragma GCC diagnostic pop

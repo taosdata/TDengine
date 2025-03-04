@@ -254,8 +254,7 @@ void shellRunSingleCommandImp(char *command) {
   }
 
   if (shellRegexMatch(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
-    fprintf(stdout, "Database changed.\r\n\r\n");
-    fflush(stdout);
+    printf("Database changed.\r\n\r\n");
 
     // call back auto tab module
     callbackAutoTab(command, pSql, true);
@@ -672,7 +671,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       if (tsEnableScience) {
         printf("%*.7e", width, GET_FLOAT_VAL(val));
       } else {
-        n = tsnprintf(buf, LENGTH, "%*.7f", width, GET_FLOAT_VAL(val));
+        n = snprintf(buf, LENGTH, "%*.*g", width, FLT_DIG, GET_FLOAT_VAL(val));
         if (n > SHELL_FLOAT_WIDTH) {
           printf("%*.7e", width, GET_FLOAT_VAL(val));
         } else {
@@ -685,7 +684,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
         snprintf(buf, LENGTH, "%*.15e", width, GET_DOUBLE_VAL(val));
         printf("%s", buf);
       } else {
-        n = tsnprintf(buf, LENGTH, "%*.15f", width, GET_DOUBLE_VAL(val));
+        n = snprintf(buf, LENGTH, "%*.*g", width, DBL_DIG, GET_DOUBLE_VAL(val));
         if (n > SHELL_DOUBLE_WIDTH) {
           printf("%*.15e", width, GET_DOUBLE_VAL(val));
         } else {
@@ -1267,6 +1266,9 @@ void *shellCancelHandler(void *arg) {
   return NULL;
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+
 void *shellThreadLoop(void *arg) {
   setThreadName("shellThreadLoop");
   taosGetOldTerminalMode();
@@ -1298,6 +1300,7 @@ void *shellThreadLoop(void *arg) {
   taosThreadCleanupPop(1);
   return NULL;
 }
+#pragma GCC diagnostic pop
 
 int32_t shellExecute() {
   printf(shell.info.clientVersion, shell.info.cusName, taos_get_client_info(), shell.info.cusName);

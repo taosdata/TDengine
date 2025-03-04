@@ -1,5 +1,5 @@
 ---
-sidebar_label: 用Docker快速体验
+sidebar_label: 用 Docker 快速体验
 title: 用 Docker 快速体验 TDengine
 description: 使用 Docker 快速体验 TDengine 的高效写入和查询
 ---
@@ -91,7 +91,7 @@ taosBenchmark 提供了丰富的选项，允许用户自定义测试参数，如
 taosBenchmark --help
 ```
 
-有关taosBenchmark 的详细使用方法，请参考[taosBenchmark 参考手册](../../reference/tools/taosbenchmark)
+有关 taosBenchmark 的详细使用方法，请参考 [taosBenchmark 参考手册](../../reference/tools/taosbenchmark)
 
 ### 体验查询
 
