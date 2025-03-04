@@ -1328,6 +1328,9 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     bool bUsingTable = true;
     code = getTableMeta(pCxt, &pStmt->usingTableName, &pStableMeta, &pCxt->missCache, bUsingTable);
   }
+  if (pCxt->isStmtBind) {
+    goto _no_ctb_cache;
+  }
 
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     bool bUsingTable = false;
@@ -1338,11 +1341,12 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     code = (pStableMeta->suid == pCtableMeta->suid) ? TSDB_CODE_SUCCESS : TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;
     *ctbCacheHit = true;
   }
+_no_ctb_cache:
   if (TSDB_CODE_SUCCESS == code) {
     if (*ctbCacheHit) {
-      code = cloneTableMeta(pCtableMeta,&pStmt->pTableMeta);
+      code = cloneTableMeta(pCtableMeta, &pStmt->pTableMeta);
     } else {
-      code = cloneTableMeta( pStableMeta,&pStmt->pTableMeta);
+      code = cloneTableMeta(pStableMeta, &pStmt->pTableMeta);
     }
   }
   taosMemoryFree(pStableMeta);
