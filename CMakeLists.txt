@@ -24,7 +24,7 @@ include(${TD_SUPPORT_DIR}/cmake.version)
 include(${TD_SUPPORT_DIR}/cmake.install)
 
 add_library(api INTERFACE)
-target_include_directories(api INTERFACE "${TD_SOURTD_COMMUNITY_DIRCE_DIR}/include/client")
+target_include_directories(api INTERFACE "${TD_COMMUNITY_DIR}/include/client")
 
 add_subdirectory(community/contrib)
 add_subdirectory(community/source)
