@@ -261,9 +261,9 @@ if __name__ == "__main__":
     #
     # do exeCmd command
     #
-    websocket = True  # default is websocket , so must start taosAdapter
+    taosAdapter = True  # default is websocket , so must start taosAdapter
     if not execCmd == "":
-        if taosAdapter or taosAdapter or restful or websocket:
+        if taosAdapter or restful or websocket:
             tAdapter.init(deployPath)
         else:
             tdDnodes.init(deployPath)
