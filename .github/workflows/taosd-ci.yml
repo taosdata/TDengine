@@ -360,6 +360,7 @@ jobs:
             git checkout "%TARGET_BRANCH%"
           ) else (
             echo Directory does not exist: "%WIN_INTERNAL_ROOT%"
+            exit 1
           )
 
           :: Prepare community repository
@@ -372,6 +373,7 @@ jobs:
             git checkout "%TARGET_BRANCH%"
           ) else (
             echo Directory does not exist: "%WIN_COMMUNITY_ROOT%"
+            exit 1
           )
         shell: cmd
       - name: Get latest codes and logs for TDinternal PR
