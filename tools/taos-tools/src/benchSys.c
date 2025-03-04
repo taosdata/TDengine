@@ -119,8 +119,9 @@ int32_t benchParseArgsNoArgp(int argc, char* argv[]) {
             || key[1] == 'a' || key[1] == 'F'
             || key[1] == 'k' || key[1] == 'z'
             || key[1] == 'W' || key[1] == 'v'
-            || key[1] == 'Z'
+            || key[1] == 'X' || key[1] == 'Z'
         ) {
+            // check input value
             if (i + 1 >= argc) {
                 errorPrint("option %s requires an argument\r\n", key);
                 return -1;
@@ -623,7 +624,7 @@ int32_t benchParseSingleOpt(int32_t key, char* arg) {
                 g_arguments->connMode = CONN_MODE_WEBSOCKET;
             } else {
                 fprintf(stderr, "invalid input %s for option %c\r\n", arg, key);
-                return -1;
+                exit(-1);
             }
             break;    
         default:

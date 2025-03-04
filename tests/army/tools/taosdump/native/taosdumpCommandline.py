@@ -183,20 +183,7 @@ class TDTestCase(TBase):
             rlist = self.taosdump(command)
             for result in results:
                 self.checkListString(rlist, result)
-            # clear tmp    
-
-    
-    # check except
-    def checkExcept(self, command):
-        try:
-            code = frame.eos.exe(command, show = True)
-            if code == 0:
-                tdLog.exit(f"Failed, not report error cmd:{command}")
-            else:
-                tdLog.info(f"Passed, report error code={code} is expect, cmd:{command}")
-        except:
-            tdLog.info(f"Passed, catch expect report error for command {command}")
-
+            # clear tmp
 
     # except commandline
     def exceptCommandLine(self, taosdump, db, stb, tmpdir):

@@ -86,6 +86,8 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-supplement-insert.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/commandline-vgroups.py
 
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/connMode.py
+
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/custom_col_tag.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/default_json.py
