@@ -1476,6 +1476,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->syncAppliedIndex));
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->syncCommitIndex));
   }
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->timestamp));
 
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->timestamp));
 

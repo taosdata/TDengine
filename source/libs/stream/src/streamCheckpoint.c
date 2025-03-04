@@ -734,7 +734,7 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
   pTask->status.taskStatus = TASK_STATUS__READY;
 
-  code = streamMetaSaveTask(pMeta, pTask);
+  code = streamMetaSaveTaskInMeta(pMeta, pTask);
   streamMutexUnlock(&pTask->lock);
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -910,8 +910,11 @@ int32_t streamTaskBuildCheckpoint(SStreamTask* pTask) {
   int64_t      startTs = pTask->chkInfo.startTs;
   int64_t      ckId = pTask->chkInfo.pActiveInfo->activeId;
   const char*  id = pTask->id.idStr;
-  bool         dropRelHTask = (streamTaskGetPrevStatus(pTask) == TASK_STATUS__HALT);
   SStreamMeta* pMeta = pTask->pMeta;
+
+  streamMutexLock(&pTask->lock);
+  bool dropRelHTask = (streamTaskGetPrevStatus(pTask) == TASK_STATUS__HALT);
+  streamMutexUnlock(&pTask->lock);
 
   // sink task does not need to save the status, and generated the checkpoint
   if (pTask->info.taskLevel != TASK_LEVEL__SINK) {
@@ -1581,6 +1584,14 @@ int32_t streamTaskSendNegotiateChkptIdMsg(SStreamTask* pTask) {
     streamFreeTaskState(pTask, p);
     pTask->pBackend = NULL;
   }
+
+  streamMetaWLock(pTask->pMeta);
+  if (pTask->exec.pExecutor != NULL) {
+    qDestroyTask(pTask->exec.pExecutor);
+    pTask->exec.pExecutor = NULL;
+  }
+  streamMetaWUnLock(pTask->pMeta);
+
   return 0;
 }
 

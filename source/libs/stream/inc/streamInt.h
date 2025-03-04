@@ -144,6 +144,8 @@ struct SStreamQueue {
   STaosQall*  qall;
   void*       qItem;
   int8_t      status;
+  STaosQueue* pChkptQueue;
+  void*       qChkptItem;
 };
 
 struct SStreamQueueItem {

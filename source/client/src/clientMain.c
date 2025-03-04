@@ -899,6 +899,7 @@ int taos_select_db(TAOS *taos, const char *db) {
 
   if (db == NULL || strlen(db) == 0) {
     releaseTscObj(*(int64_t *)taos);
+    tscError("invalid parameter for %s", db == NULL ? "db is NULL" : "db is empty");
     terrno = TSDB_CODE_TSC_INVALID_INPUT;
     return terrno;
   }
@@ -2267,10 +2268,6 @@ int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t c
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
-  if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 0) {
-    tscError("async bind param is still working, please try again later");
-    return TSDB_CODE_TSC_STMT_API_ERROR;
-  }
 
   ThreadArgs *args = (ThreadArgs *)taosMemoryMalloc(sizeof(ThreadArgs));
   args->stmt = stmt;
@@ -2278,14 +2275,23 @@ int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t c
   args->col_idx = col_idx;
   args->fp = fp;
   args->param = param;
+
+  (void)taosThreadMutexLock(&(pStmt->asyncBindParam.mutex));
+  if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 0) {
+    (void)taosThreadMutexUnlock(&(pStmt->asyncBindParam.mutex));
+    tscError("async bind param is still working, please try again later");
+    return TSDB_CODE_TSC_STMT_API_ERROR;
+  }
   (void)atomic_add_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
+  (void)taosThreadMutexUnlock(&(pStmt->asyncBindParam.mutex));
+
   int code_s = taosStmt2AsyncBind(stmtAsyncBindThreadFunc, (void *)args);
   if (code_s != TSDB_CODE_SUCCESS) {
     (void)taosThreadMutexLock(&(pStmt->asyncBindParam.mutex));
     (void)taosThreadCondSignal(&(pStmt->asyncBindParam.waitCond));
     (void)atomic_sub_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
     (void)taosThreadMutexUnlock(&(pStmt->asyncBindParam.mutex));
-    // terrno = TAOS_SYSTEM_ERROR(errno);
+     tscError("async bind failed, code:%d , %s", code_s, tstrerror(code_s));
   }
 
   return code_s;
