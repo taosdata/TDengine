@@ -686,6 +686,9 @@ void taosTmrCleanUp(void* handle) {
     taosCleanUpScheduler(tmrQhandle);
     taosMemoryFreeClear(tmrQhandle);
 
+    taosCleanUpScheduler(tmrQhandleHigh);
+    taosMemoryFreeClear(tmrQhandleHigh);
+
     for (int32_t i = 0; i < tListLen(wheels); i++) {
       time_wheel_t* wheel = wheels + i;
       (void)taosThreadMutexDestroy(&wheel->mutex);
