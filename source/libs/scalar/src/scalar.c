@@ -1298,6 +1298,16 @@ EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
         return DEAL_RES_ERROR;
       }
       (void)memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
+    } else if (type == TSDB_DATA_TYPE_DECIMAL) {
+      res->datum.p = taosMemoryCalloc(1, DECIMAL128_BYTES);
+      if (!res->datum.p) {
+        sclError("calloc %d failed", DECIMAL128_BYTES);
+        sclFreeParam(&output);
+        nodesDestroyNode((SNode*)res);
+        ctx->code = terrno;
+        return DEAL_RES_ERROR;
+      }
+      (void)memcpy(res->datum.p, output.columnData->pData, DECIMAL128_BYTES);
     } else {
       ctx->code = nodesSetValueNodeValue(res, output.columnData->pData);
       if (ctx->code) {

@@ -1072,7 +1072,7 @@ void nodesDestroyNode(SNode* pNode) {
       SValueNode* pValue = (SValueNode*)pNode;
       destroyExprNode((SExprNode*)pNode);
       taosMemoryFreeClear(pValue->literal);
-      if (IS_VAR_DATA_TYPE(pValue->node.resType.type)) {
+      if (IS_VAR_DATA_TYPE(pValue->node.resType.type) || pValue->node.resType.type == TSDB_DATA_TYPE_DECIMAL) {
         taosMemoryFreeClear(pValue->datum.p);
       }
       break;
