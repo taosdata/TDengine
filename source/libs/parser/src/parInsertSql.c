@@ -104,8 +104,8 @@ static int32_t skipTableOptions(SInsertParseContext* pCxt, const char** pSql) {
 }
 
 // pSql -> stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)
-#if 0
-static int32_t ignoreUsingClause(SInsertParseContext* pCxt, const char** pSql) {
+static int32_t ignoreUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+  const char** pSql = &pStmt->pSql;
   int32_t code = TSDB_CODE_SUCCESS;
   SToken  token;
   NEXT_TOKEN(*pSql, token);
@@ -140,8 +140,8 @@ static int32_t ignoreUsingClause(SInsertParseContext* pCxt, const char** pSql) {
 
   return code;
 }
-#else
-static int32_t ignoreUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
+
+static int32_t ignoreUsingClauseAndCheckTagValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
   const char** pSql = &pStmt->pSql;
   int32_t      code = TSDB_CODE_SUCCESS;
   code = parseBoundTagsClause(pCxt, pStmt);
@@ -160,7 +160,6 @@ static int32_t ignoreUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
 
   return code;
 }
-#endif
 
 static int32_t parseDuplicateUsingClause(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt, bool* pDuplicate) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -179,8 +178,6 @@ static int32_t parseDuplicateUsingClause(SInsertParseContext* pCxt, SVnodeModify
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
-    SToken token;
-    NEXT_TOKEN(pStmt->pSql, token);
     return ignoreUsingClause(pCxt, pStmt);
   }
 
@@ -1385,7 +1382,7 @@ static int32_t parseUsingTableNameImpl(SInsertParseContext* pCxt, SVnodeModifyOp
     code = getUsingTableSchema(pCxt, pStmt, &ctbCacheHit);
     if (TSDB_CODE_SUCCESS == code && ctbCacheHit) {
       pStmt->usingTableProcessing = false;
-      return ignoreUsingClause(pCxt, pStmt);
+      return ignoreUsingClauseAndCheckTagValues(pCxt, pStmt);
     }
   }
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
