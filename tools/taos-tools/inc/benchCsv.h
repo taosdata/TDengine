@@ -76,6 +76,8 @@ typedef struct {
     uint64_t        total_rows;
     time_t          start_secs;
     time_t          end_secs;
+    int64_t         start_ts;
+    int64_t         end_ts;
     size_t          thread_id;
     bool            output_header;
     int             tags_buf_size;
