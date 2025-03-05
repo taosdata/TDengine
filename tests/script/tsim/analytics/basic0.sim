@@ -88,9 +88,9 @@ sql_error select count(*) from ct1 anomaly_window(c6, 'algo=ksigma,k=2');
 sql_error select forecast(c6, 'algo=holtwinters,conf=0.5,wncheck=1,period=0') from ct1
 
 
-print ==================== invalid timeout parameter
-sql_error select forecast(c1, 'algo=holtwinters, timeout=6000') from ct1;
-sql_error select forecast(c1, 'algo=holtwinters, timeout=0') from ct1;
+print ==================== invalid timeout parameter, will reset the parameters.
+sql select forecast(c1, 'algo=holtwinters, timeout=6000') from ct1;
+sql select forecast(c1, 'algo=holtwinters, timeout=0') from ct1;
 
 print =========================== valid timeout
 sql select forecast(c1, 'algo=holtwinters, timeout=120') from ct1;
