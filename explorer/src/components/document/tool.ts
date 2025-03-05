@@ -141,8 +141,46 @@ export default () => [
       { title: t('docs.tools.superset.step1'), dom: 'superset-repare' },
       { title: t('docs.tools.superset.step2'), dom: 'superset-install' },
       { title: t('docs.tools.superset.step3'), dom: 'superset-config' },
-      { title: t('docs.tools.superset.step4'), dom: 'superset-createds' },
-      { title: t('docs.tools.superset.step5'), dom: 'superset-report' }
+      { title: t('docs.tools.superset.step4'), dom: 'superset-import' },
+      { title: t('docs.tools.superset.step5'), dom: 'superset-example' }
+    ]
+  },
+  {
+    name: 'Excel',
+    title: t('docs.tools.excel.name'),
+    icon: 'excel-logo',
+    desc: t('docs.tools.excel.desc'),
+    docs: {
+      zh: mdx.excelDoc,
+      en: mdx.excelDoc
+    },
+    version: '>=3.3.5.0',
+    isAli: true,
+    steps: [
+      { title: t('docs.tools.excel.step1'), dom: 'excel-repare' },
+      { title: t('docs.tools.excel.step2'), dom: 'excel-install' },
+      { title: t('docs.tools.excel.step3'), dom: 'excel-config' },
+      { title: t('docs.tools.excel.step4'), dom: 'excel-import' },
+      { title: t('docs.tools.excel.step5'), dom: 'excel-example' }
+    ]
+  },
+  {
+    name: 'Tableau',
+    title: t('docs.tools.tableau.name'),
+    icon: 'tableau-logo',
+    desc: t('docs.tools.tableau.desc'),
+    docs: {
+      zh: mdx.tableauDoc,
+      en: mdx.tableauDoc
+    },
+    version: '>=3.3.5.0',
+    isAli: true,
+    steps: [
+      { title: t('docs.tools.tableau.step1'), dom: 'tableau-repare' },
+      { title: t('docs.tools.tableau.step2'), dom: 'tableau-install' },
+      { title: t('docs.tools.tableau.step3'), dom: 'tableau-config' },
+      { title: t('docs.tools.tableau.step4'), dom: 'tableau-import' },
+      { title: t('docs.tools.tableau.step5'), dom: 'tableau-example' }
     ]
   }
 ];
