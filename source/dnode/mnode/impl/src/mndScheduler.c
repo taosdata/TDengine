@@ -719,9 +719,104 @@ static void bindTwoLevel(SArray* tasks, int32_t begin, int32_t end) {
   mDebug("bindTwoLevel task list(%d-%d) to taskId:%s", begin, end - 1, (*(pDownTask))->id.idStr);
 }
 
-static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan* pPlan, SEpSet* pEpset, int64_t skey,
-                                SArray* pVerList) {
+int32_t getVgId(SDBVgInfo* dbInfo, char* dbFName, int32_t* vgId, char *tbName) {
   int32_t code = 0;
+  int32_t lino = 0;
+  QUERY_CHECK_CODE(dynMakeVgArraySortBy(dbInfo, dynVgInfoComp), lino, _return);
+
+  int32_t vgNum = taosArrayGetSize(dbInfo->vgArray);
+  if (vgNum <= 0) {
+    qError("db vgroup cache invalid, db:%s, vgroup number:%d", dbFName, vgNum);
+    QUERY_CHECK_CODE(TSDB_CODE_TSC_DB_NOT_SELECTED, lino, _return);
+  }
+
+  SVgroupInfo* vgInfo = NULL;
+  char         tbFullName[TSDB_TABLE_FNAME_LEN];
+  (void)snprintf(tbFullName, sizeof(tbFullName), "%s.", dbFName);
+  int32_t offset = strlen(tbFullName);
+
+  (void)snprintf(tbFullName + offset, sizeof(tbFullName) - offset, "%s", tbName);
+  uint32_t hashValue = taosGetTbHashVal(tbFullName, (uint32_t)strlen(tbFullName), dbInfo->hashMethod,
+                                        dbInfo->hashPrefix, dbInfo->hashSuffix);
+
+  vgInfo = taosArraySearch(dbInfo->vgArray, &hashValue, dynHashValueComp, TD_EQ);
+  if (NULL == vgInfo) {
+    qError("no hash range found for hash value [%u], db:%s, numOfVgId:%d", hashValue, dbFName,
+             (int32_t)taosArrayGetSize(dbInfo->vgArray));
+    return TSDB_CODE_CTG_INTERNAL_ERROR;
+  }
+
+  *vgId = vgInfo->vgId;
+
+_return:
+  return code;
+}
+
+static int32_t buildDBVgroupsMap(SMnode* pMnode, SSHashObj* pDbVgroup, SSHashObj* pRes) {
+  void*   pIter = NULL;
+  SSdb*   pSdb = pMnode->pSdb;
+  int32_t code = TSDB_CODE_SUCCESS;
+  char    key[TSDB_DB_NAME_LEN + 32];
+
+  while (1) {
+    SVgObj* pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
+    if (pIter == NULL) {
+      break;
+    }
+
+    SArray** pVgroupList = (SArray**)tSimpleHashGet(pDbVgroup, pVgroup->dbName, strlen(pVgroup->dbName));
+    if (NULL == pVgroupList) {
+      *pVgroupList = taosArrayInit(20, size_t elemSize);
+    }
+
+    snprintf(key, sizeof(key), "%s.%d", pVgroup->dbName, pVgroup->vgId);
+    code = tSimpleHashPut(pRes, key, strlen(key), NULL, 0);
+    if (code != 0) {
+      mError("tSimpleHashPut failed to put key %s, code:%s", key, tstrerror(code));
+      sdbRelease(pSdb, pVgroup);
+      return code;
+    }
+
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  return code;
+}
+
+static int32_t buildVSubtableMap(SMnode* pMnode, SArray* pVSubTables, SSHashObj** ppRes) {
+  *ppRes = tSimpleHashInit(100, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  if (NULL == *ppRes) {
+    mError("tSimpleHashInit failed, error:%s", tstrerror(terrno));
+    return terrno;
+  }
+
+  SSHashObj* pDbVgroups = tSimpleHashInit(20, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  if (NULL == pDbVgroups) {
+    mError("tSimpleHashInit failed, error:%s", tstrerror(terrno));
+    return terrno;
+  }
+  
+  TAOS_CHECK_RETURN(buildDBVgroupsMap(pMnode, pDbVgroups, *ppRes));
+  int32_t vgNum = taosArrayGetSize(pVSubTables);
+  for (int32_t i = 0; i < vgNum; ++i) {
+    SVSubTablesRsp* pVgTbs = taosArrayGet(pVSubTables, i);
+    int32_t tbNum = taosArrayGetSize(pVgTbs->pTables);
+    for (int32_t n = 0; n < tbNum; ++n) {
+      SVCTableRefCols* pTb = (SVCTableRefCols*)taosArrayGetP(pVgTbs->pTables, n);
+      for (int32_t m = 0; m < pTb->numOfColRefs; ++m) {
+        SRefColInfo* pCol = pTb->refCols + m;
+        
+      }
+    }
+  }
+  
+}
+
+static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan* pPlan, SEpSet* pEpset, SCMCreateStreamReq* pCreate) {
+  int32_t code = 0;
+  int64_t skey = pCreate->lastTs;
+  SArray* pVerList = pCreate->pVgroupVerList;
   SSdb*   pSdb = pMnode->pSdb;
   int32_t numOfPlanLevel = LIST_LENGTH(pPlan->pSubplans);
   bool    hasExtraSink = false;
@@ -844,7 +939,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
   TAOS_RETURN(code);
 }
 
-int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream, int64_t skey, SArray* pVgVerList) {
+int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream, SCMCreateStreamReq* pCreate) {
   int32_t     code = 0;
   SQueryPlan* pPlan = qStringToQueryPlan(pStream->physicalPlan);
   if (pPlan == NULL) {
@@ -855,7 +950,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream, int64_t skey, SAr
   SEpSet mnodeEpset = {0};
   mndGetMnodeEpSet(pMnode, &mnodeEpset);
 
-  code = doScheduleStream(pStream, pMnode, pPlan, &mnodeEpset, skey, pVgVerList);
+  code = doScheduleStream(pStream, pMnode, pPlan, &mnodeEpset, pCreate);
   qDestroyQueryPlan(pPlan);
 
   TAOS_RETURN(code);

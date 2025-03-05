@@ -72,6 +72,7 @@ typedef enum {
   CTG_CI_SVR_VER,
   CTG_CI_VIEW,
   CTG_CI_TBL_TSMA,
+  CTG_CI_VSUB_TBLS,
   CTG_CI_MAX_VALUE,
 } CTG_CACHE_ITEM;
 
@@ -133,6 +134,7 @@ typedef enum {
   CTG_TASK_GET_TB_TSMA,
   CTG_TASK_GET_TSMA,
   CTG_TASK_GET_TB_NAME,
+  CTG_TASK_GET_V_SUBTABLES,
 } CTG_TASK_TYPE;
 
 typedef enum {
@@ -307,6 +309,20 @@ typedef struct SCtgTbTSMACtx {
   SArray* pFetches;
 } SCtgTbTSMACtx;
 
+typedef struct SCtgVSubTablesCtx {
+  SArray* pNames;
+  int32_t tbType;
+  int64_t suid;
+  
+  int32_t vgNum;
+  bool    clonedVgroups;
+  SArray* pVgroups;
+  
+  SVSubTablesRsp* pResList;
+  int32_t         resIdx;
+} SCtgVSubTablesCtx;
+
+
 typedef STableIndexRsp STableIndex;
 typedef STableTSMAInfo STSMACache;
 
@@ -433,6 +449,7 @@ typedef struct SCtgJob {
   int32_t          tbTsmaNum;
   int32_t          tsmaNum;  // currently, only 1 is possible
   int32_t          tbNameNum;
+  int32_t          vsubTbNum;
 } SCtgJob;
 
 typedef struct SCtgMsgCtx {
@@ -1076,6 +1093,7 @@ int32_t ctgOpUpdateTbIndex(SCtgCacheOperation* operation);
 int32_t ctgOpClearCache(SCtgCacheOperation* operation);
 int32_t ctgOpUpdateViewMeta(SCtgCacheOperation* operation);
 int32_t ctgReadTbTypeFromCache(SCatalog* pCtg, char* dbFName, char* tableName, int32_t* tbType);
+int32_t ctgReadTbTypeSuidFromCache(SCatalog *pCtg, char *dbFName, char *tbName, int32_t *tbType, int64_t* suid);
 int32_t ctgGetTbHashVgroupFromCache(SCatalog* pCtg, const SName* pTableName, SVgroupInfo** pVgroup);
 int32_t ctgGetViewsFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgViewsCtx* ctx, int32_t dbIdx,
                              int32_t* fetchIdx, int32_t baseResIdx, SArray* pList);
@@ -1114,6 +1132,7 @@ int32_t ctgLaunchJob(SCtgJob* pJob);
 int32_t ctgMakeAsyncRes(SCtgJob* pJob);
 int32_t ctgLaunchSubTask(SCtgTask** ppTask, CTG_TASK_TYPE type, ctgSubTaskCbFp fp, void* param);
 int32_t ctgGetTbCfgCb(SCtgTask* pTask);
+int32_t ctgGetVSubTablesCb(SCtgTask* pTask);
 void    ctgFreeHandle(SCatalog* pCatalog);
 
 void    ctgFreeSViewMeta(SViewMeta* pMeta);
