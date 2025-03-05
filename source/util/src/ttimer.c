@@ -61,6 +61,7 @@ typedef struct tmr_obj_t {
   };
   TAOS_TMR_CALLBACK fp;
   void*             param;
+  uint8_t           priority;
 } tmr_obj_t;
 
 typedef struct timer_list_t {
@@ -90,6 +91,7 @@ static TdThreadMutex tmrCtrlMutex;
 static tmr_ctrl_t*   tmrCtrls;
 static tmr_ctrl_t*   unusedTmrCtrl = NULL;
 static void*         tmrQhandle;
+static void*         tmrQhandleHigh;
 static int32_t       numOfTmrCtrl = 0;
 
 int32_t          taosTmrThreads = 1;
@@ -288,22 +290,35 @@ static void addToExpired(tmr_obj_t* head) {
     schedMsg.msg = NULL;
     schedMsg.ahandle = head;
     schedMsg.thandle = NULL;
-    if (taosScheduleTask(tmrQhandle, &schedMsg) != 0) {
-      tmrError("%s failed to add expired timer[id=%" PRIuPTR "] to queue.", head->ctrl->label, id);
+    uint8_t priority = head->priority;
+
+    if (priority == 1) {
+      if (taosScheduleTask(tmrQhandle, &schedMsg) != 0) {
+        tmrError("%s failed to add expired timer[id=%" PRIuPTR "] to queue.", head->ctrl->label, id);
+      }
+    } else if (priority == 2) {
+      if (taosScheduleTask(tmrQhandleHigh, &schedMsg) != 0) {
+        tmrError("%s failed to add expired timer[id=%" PRIuPTR "] to high level queue.", head->ctrl->label, id);
+      }
+    }
+    else{
+      tmrError("%s invalid priority level %d for timer[id=%" PRIuPTR "].", head->ctrl->label, priority, id);
     }
 
-    tmrDebug("timer[id=%" PRIuPTR "] has been added to queue.", id);
+    tmrDebug("timer[id=%" PRIuPTR "] has been added to queue priority:%d.", id, priority);
     head = next;
   }
 }
 
-static uintptr_t doStartTimer(tmr_obj_t* timer, TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, tmr_ctrl_t* ctrl) {
+static uintptr_t doStartTimer(tmr_obj_t* timer, TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, tmr_ctrl_t* ctrl,
+                              uint8_t priority) {
   uintptr_t id = getNextTimerId();
   timer->id = id;
   timer->state = TIMER_STATE_WAITING;
   timer->fp = fp;
   timer->param = param;
   timer->ctrl = ctrl;
+  timer->priority = priority;
   addTimer(timer);
 
   const char* fmt = "%s timer[id=%" PRIuPTR ", fp=%p, param=%p] started";
@@ -321,7 +336,7 @@ static uintptr_t doStartTimer(tmr_obj_t* timer, TAOS_TMR_CALLBACK fp, int32_t ms
   return id;
 }
 
-tmr_h taosTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle) {
+tmr_h taosTmrStartPriority(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, uint8_t priority) {
   tmr_ctrl_t* ctrl = (tmr_ctrl_t*)handle;
   if (ctrl == NULL || ctrl->label[0] == 0) {
     return NULL;
@@ -333,7 +348,11 @@ tmr_h taosTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* ha
     return NULL;
   }
 
-  return (tmr_h)doStartTimer(timer, fp, mseconds, param, ctrl);
+  return (tmr_h)doStartTimer(timer, fp, mseconds, param, ctrl, priority);
+}
+
+tmr_h taosTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle) {
+  return taosTmrStartPriority(fp, mseconds, param, handle, 1);
 }
 
 static void taosTimerLoopFunc(int32_t signo) {
@@ -460,7 +479,8 @@ bool taosTmrIsStopped(tmr_h* timerId) {
   return (state == TIMER_STATE_CANCELED) || (state == TIMER_STATE_STOPPED);
 }
 
-bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, tmr_h* pTmrId) {
+bool taosTmrResetPriority(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, tmr_h* pTmrId,
+                          uint8_t priority) {
   tmr_ctrl_t* ctrl = (tmr_ctrl_t*)handle;
   if (ctrl == NULL || ctrl->label[0] == 0) {
     return false;
@@ -481,7 +501,7 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* han
   }
 
   if (timer == NULL) {
-    *pTmrId = taosTmrStart(fp, mseconds, param, handle);
+    *pTmrId = taosTmrStartPriority(fp, mseconds, param, handle, priority);
     if (NULL == *pTmrId) {
       stopped = true;
     }
@@ -502,9 +522,13 @@ bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* han
     uError("timer refCount=%d not expected 1", timer->refCount);
   }
   memset(timer, 0, sizeof(*timer));
-  *pTmrId = (tmr_h)doStartTimer(timer, fp, mseconds, param, ctrl);
+  *pTmrId = (tmr_h)doStartTimer(timer, fp, mseconds, param, ctrl, priority);
 
   return stopped;
+}
+
+bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void* param, void* handle, tmr_h* pTmrId) {
+  return taosTmrResetPriority(fp, mseconds, param, handle, pTmrId, 1);
 }
 
 static int32_t taosTmrModuleInit(void) {
@@ -550,6 +574,7 @@ static int32_t taosTmrModuleInit(void) {
   }
 
   tmrQhandle = taosInitScheduler(10000, taosTmrThreads, "tmr", NULL);
+  tmrQhandleHigh = taosInitScheduler(10000, taosTmrThreads, "high-tmr", NULL);
   if (taosInitTimer(taosTimerLoopFunc, MSECONDS_PER_TICK) != 0) {
     tmrError("failed to initialize timer");
   }
@@ -632,6 +657,9 @@ void taosTmrCleanUp(void* handle) {
 
     taosCleanUpScheduler(tmrQhandle);
     taosMemoryFreeClear(tmrQhandle);
+
+    taosCleanUpScheduler(tmrQhandleHigh);
+    taosMemoryFreeClear(tmrQhandleHigh);
 
     for (int32_t i = 0; i < tListLen(wheels); i++) {
       time_wheel_t* wheel = wheels + i;
