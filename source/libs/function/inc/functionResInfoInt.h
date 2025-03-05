@@ -87,13 +87,19 @@ typedef struct SDecimalSumRes {
 
 #define SUM_RES_GET_DECIMAL_SUM(pSumRes) ((SDecimalSumRes*)(pSumRes))->sum
 // TODO wjm check for overflow
-#define SUM_RES_INC_DECIMAL_SUM(pSumRes, pVal, type)                           \
-  do {                                                                         \
-    const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);           \
-    if (type == TSDB_DATA_TYPE_DECIMAL64)                                      \
-      pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pVal, WORD_NUM(Decimal64)); \
-    else                                                                       \
-      pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pVal, WORD_NUM(Decimal));   \
+#define SUM_RES_INC_DECIMAL_SUM(pSumRes, pVal, type)                                           \
+  do {                                                                                         \
+    const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);                           \
+    int32_t            wordNum = 0;                                                            \
+    if (type == TSDB_DATA_TYPE_DECIMAL64) {                                                    \
+      wordNum = WORD_NUM(Decimal64);                                                           \
+      overflow = decimal128AddCheckOverflow(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pVal, wordNum); \
+    } else {                                                                                   \
+      wordNum = WORD_NUM(Decimal);                                                             \
+      overflow = decimal128AddCheckOverflow(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pVal, wordNum); \
+    }                                                                                          \
+    if (overflow) break;                                                                       \
+    pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pVal, wordNum);                               \
   } while (0)
 
 typedef struct SMinmaxResInfo {

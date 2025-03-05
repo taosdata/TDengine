@@ -177,20 +177,21 @@ typedef struct SColumnDataAgg {
     struct {
       uint64_t decimal128Sum[2];
       uint64_t decimal128Max[2];
-      uint64_t decimal128Min[2]; // TODO wjm 1. use deicmal128Sum for decimal64, 2. add overflow flag
+      uint64_t decimal128Min[2];  // TODO wjm 1. use deicmal128Sum for decimal64, 2. add overflow flag
+      uint8_t  overflow;
     };
   };
 } SColumnDataAgg;
 #pragma pack(pop)
 
 #define COL_AGG_GET_SUM_PTR(pAggs, dataType) \
-  (dataType != TSDB_DATA_TYPE_DECIMAL ? (void*)&pAggs->sum : (void*)pAggs->decimal128Sum)
+  (!IS_DECIMAL_TYPE(dataType) ? (void*)&pAggs->sum : (void*)pAggs->decimal128Sum)
 
 #define COL_AGG_GET_MAX_PTR(pAggs, dataType) \
-  (dataType != TSDB_DATA_TYPE_DECIMAL ? (void*)&pAggs->max : (void*)pAggs->decimal128Max)
+  (!IS_DECIMAL_TYPE(dataType) ? (void*)&pAggs->max : (void*)pAggs->decimal128Max)
 
 #define COL_AGG_GET_MIN_PTR(pAggs, dataType) \
-  (dataType != TSDB_DATA_TYPE_DECIMAL ? (void*)&pAggs->min : (void*)pAggs->decimal128Min)
+  (!IS_DECIMAL_TYPE(dataType) ? (void*)&pAggs->min : (void*)pAggs->decimal128Min)
 
 typedef struct SBlockID {
   // The uid of table, from which current data block comes. And it is always 0, if current block is the

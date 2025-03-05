@@ -619,7 +619,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
 
     int16_t index = 0;
     void*   tval = NULL;
-    if (type == TSDB_DATA_TYPE_DECIMAL) {
+    if (IS_DECIMAL_TYPE(type)) {
       tval = isMinFunc ? pInput->pColumnDataAgg[0]->decimal128Min : pInput->pColumnDataAgg[0]->decimal128Max;
     } else {
       tval = (isMinFunc) ? &pInput->pColumnDataAgg[0]->min : &pInput->pColumnDataAgg[0]->max;

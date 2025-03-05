@@ -4222,29 +4222,36 @@ static FORCE_INLINE void tColDataCalcSMAVarType(SColData *pColData, SColumnDataA
   }
 }
 
-#define CALC_DECIMAL_SUM_MAX_MIN(TYPE, pOps, pColData, pSum, pMax, pMin) \
-  for (int32_t iVal = 0; iVal < pColData->nVal; ++iVal) {                \
-    pVal = ((TYPE *)pColData->pData) + iVal;                             \
-    pOps->add(pSum, pVal, WORD_NUM(TYPE));                               \
-    if (pOps->gt(pVal, pMax, WORD_NUM(TYPE))) {                          \
-      *(pMax) = *pVal;                                                   \
-    }                                                                    \
-    if (pOps->lt(pVal, pMin, WORD_NUM(TYPE))) {                          \
-      *(pMin) = *pVal;                                                   \
-    }                                                                    \
-  }
+#define CALC_DECIMAL_SUM_MAX_MIN(TYPE, pSumOp, pCompOp, pColData, pSum, pMax, pMin)           \
+  do {                                                                                        \
+    if (decimal128AddCheckOverflow((Decimal *)pSum, pVal, WORD_NUM(TYPE))) *pOverflow = true; \
+    pSumOp->add(pSum, pVal, WORD_NUM(TYPE));                                                  \
+    if (pCompOp->gt(pVal, pMax, WORD_NUM(TYPE))) {                                            \
+      *(pMax) = *pVal;                                                                        \
+    }                                                                                         \
+    if (pCompOp->lt(pVal, pMin, WORD_NUM(TYPE))) {                                            \
+      *(pMin) = *pVal;                                                                        \
+    }                                                                                         \
+  } while (0)
 
 static FORCE_INLINE void tColDataCalcSMADecimal64Type(SColData* pColData, SColumnDataAgg* pAggs) {
-  Decimal64* pSum = (Decimal64*)&pAggs->sum, *pMax = (Decimal64*)&pAggs->max, *pMin = (Decimal64*)&pAggs->min;
-  *pSum = DECIMAL64_ZERO;
+  Decimal128 *pSum = (Decimal128 *)pAggs->decimal128Sum;
+  Decimal64  *pMax = (Decimal64 *)pAggs->decimal128Max, *pMin = (Decimal64 *)pAggs->decimal128Min;
+  uint8_t *pOverflow = &pAggs->overflow;
+  *pSum = DECIMAL128_ZERO;
   *pMax = DECIMAL64_MIN;
   *pMin = DECIMAL64_MAX;
   pAggs->numOfNull = 0;
+  pAggs->colId |= 0x80000000; // TODO wjm define it
 
   Decimal64   *pVal = NULL;
-  SDecimalOps *pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
+  const SDecimalOps *pSumOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+  const SDecimalOps *pCompOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
   if (HAS_VALUE == pColData->flag) {
-    CALC_DECIMAL_SUM_MAX_MIN(Decimal64, pOps, pColData, pSum, pMax, pMin);
+    for (int32_t iVal = 0; iVal < pColData->nVal; ++iVal) {
+      pVal = ((Decimal64*)pColData->pData) + iVal;
+      CALC_DECIMAL_SUM_MAX_MIN(Decimal64, pSumOps, pCompOps, pColData, pSum, pMax, pMin);
+    }
   } else {
     for (int32_t iVal = 0; iVal < pColData->nVal; ++iVal) {
       switch (tColDataGetBitValue(pColData, iVal)) {
@@ -4253,7 +4260,8 @@ static FORCE_INLINE void tColDataCalcSMADecimal64Type(SColData* pColData, SColum
           pAggs->numOfNull++;
           break;
         case 2:
-          CALC_DECIMAL_SUM_MAX_MIN(Decimal64, pOps, pColData, pSum, pMax, pMin);// TODO wjm what if overflow
+          pVal = ((Decimal64 *)pColData->pData) + iVal;
+          CALC_DECIMAL_SUM_MAX_MIN(Decimal64, pSumOps, pCompOps, pColData, pSum, pMax, pMin);
           break;
         default:
           break;
@@ -4263,7 +4271,9 @@ static FORCE_INLINE void tColDataCalcSMADecimal64Type(SColData* pColData, SColum
 }
 
 static FORCE_INLINE void tColDataCalcSMADecimal128Type(SColData* pColData, SColumnDataAgg* pAggs) {
-  Decimal128* pSum = (Decimal128*)pAggs->decimal128Sum, *pMax = (Decimal128*)pAggs->decimal128Max, *pMin = (Decimal128*)pAggs->decimal128Min;
+  Decimal128 *pSum = (Decimal128 *)pAggs->decimal128Sum, *pMax = (Decimal128 *)pAggs->decimal128Max,
+             *pMin = (Decimal128 *)pAggs->decimal128Min;
+  uint8_t *pOverflow = &pAggs->overflow;
   *pSum = DECIMAL128_ZERO;
   *pMax = DECIMAL128_MIN;
   *pMin = DECIMAL128_MAX;
@@ -4273,7 +4283,10 @@ static FORCE_INLINE void tColDataCalcSMADecimal128Type(SColData* pColData, SColu
   Decimal128 *pVal = NULL;
   SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
   if (HAS_VALUE == pColData->flag) {
-    CALC_DECIMAL_SUM_MAX_MIN(Decimal128, pOps, pColData, pSum, pMax, pMin);
+    for (int32_t iVal = 0; iVal < pColData->nVal; ++iVal) {
+      pVal = ((Decimal128*)pColData->pData) + iVal;
+      CALC_DECIMAL_SUM_MAX_MIN(Decimal128, pOps, pOps, pColData, pSum, pMax, pMin);
+    }
   } else {
     for (int32_t iVal = 0; iVal < pColData->nVal; ++iVal) {
       switch (tColDataGetBitValue(pColData, iVal)) {
@@ -4282,7 +4295,8 @@ static FORCE_INLINE void tColDataCalcSMADecimal128Type(SColData* pColData, SColu
           pAggs->numOfNull++;
           break;
         case 2:
-          CALC_DECIMAL_SUM_MAX_MIN(Decimal128, pOps, pColData, pSum, pMax, pMin);
+          pVal = ((Decimal128*)pColData->pData) + iVal;
+          CALC_DECIMAL_SUM_MAX_MIN(Decimal128, pOps, pOps, pColData, pSum, pMax, pMin);
           break;
         default:
           break;

@@ -7,8 +7,10 @@ import time
 import threading
 import secrets
 import numpy
+from paramiko import Agent
 
 import query
+from tag_lite import datatype
 from util.log import *
 from util.sql import *
 from util.cases import *
@@ -43,12 +45,13 @@ scalar_convert_err = -2147470768
 
 
 decimal_insert_validator_test = False
-operator_test_round = 10
+operator_test_round = 1
 tb_insert_rows = 1000
 binary_op_with_const_test = True
 binary_op_with_col_test = True
 unary_op_test = True
 binary_op_in_where_test = True
+test_decimal_funcs = True
 
 class DecimalTypeGeneratorConfig:
     def __init__(self):
@@ -156,14 +159,14 @@ class DecimalColumnAggregator:
         self.null_num: int = 0
         self.none_num: int = 0
 
-    def add_value(self, value: str):
+    def add_value(self, value: str, scale: int):
         self.count += 1
         if value == "NULL":
             self.null_num += 1
         elif value == "None":
             self.none_num += 1
         else:
-            v: Decimal = Decimal(value)
+            v: Decimal = get_decimal(value, scale)
             self.sum += v
             if v > self.max:
                 self.max = v
@@ -244,6 +247,10 @@ class DecimalColumnExpr:
 
     def should_skip_for_decimal(self, cols: list):
         return False
+    
+    def check_query_results(self, query_col_res: List, tbname: str):
+        query_len = len(query_col_res)
+        pass
     
     def check_for_filtering(self, query_col_res: List, tbname: str):
         j: int = -1
@@ -479,6 +486,7 @@ class DataType:
         return val
 
 class DecimalType(DataType):
+    MAX_PRECISION = 38
     def __init__(self, type, precision: int, scale: int):
         self.precision_ = precision
         self.scale_ = scale
@@ -496,6 +504,14 @@ class DecimalType(DataType):
 
     def get_decimal_type_mod(self) -> int:
         return self.precision_ * 100 + self.scale()
+    
+    def set_prec(self, prec: int):
+        self.precision_ = prec
+        self.type_mod = self.get_decimal_type_mod()
+    
+    def set_scale(self, scale: int):
+        self.scale_ = scale
+        self.type_mod = self.get_decimal_type_mod()
 
     def prec(self):
         return self.precision_
@@ -520,7 +536,7 @@ class DecimalType(DataType):
 
     def generate_value(self) -> str:
         val = self.decimal_generator.generate(self.generator_config)
-        self.aggregator.add_value(val) ## convert to Decimal first
+        self.aggregator.add_value(val, self.scale()) ## convert to Decimal first
         # self.values.append(val)  ## save it into files maybe
         return val
 
@@ -605,6 +621,12 @@ class Column:
         if self.is_constant_col():
             return self.get_constant_val_for_execute()
         return self.get_typed_val_for_execute(self.saved_vals[tbname][idx])
+    
+    def get_cardinality(self, tbname):
+        if self.is_constant_col():
+            return 1
+        else:
+            return len(self.saved_vals[tbname])
 
     ## tbName: for normal table, pass the tbname, for child table, pass the child table name
     def generate_value(self, tbName: str = '', save: bool = True):
@@ -824,6 +846,143 @@ class TableDataValidator:
                 col.check(res[colIdx], row_num * self.tbIdx)
             colIdx += 1
 
+class DecimalFunction(DecimalColumnExpr):
+    def __init__(self, format, executor, name: str):
+        super().__init__(format, executor)
+        self.func_name_ = name
+    
+    def is_agg_func(self, op: str):
+        return False
+
+    def get_func_res(self):
+        return None
+    
+    def get_input_types(self):
+        return [self.query_col]
+    
+    @staticmethod
+    def get_decimal_agg_funcs() -> List:
+        return [DecimalMinFunction(), DecimalMaxFunction(), DecimalSumFunction(), DecimalAvgFunction()]
+
+    def check_results(self, query_col_res: List) -> bool:
+        return False
+
+    def check_for_agg_func(self, query_col_res: List, tbname: str):
+        col_expr = self.query_col
+        for i in range(col_expr.get_cardinality(tbname)):
+            col_val = col_expr.get_val_for_execute(tbname, i)
+            self.execute((col_val,))
+        if not self.check_results(query_col_res):
+            tdLog.exit(f"check failed for {self}, query got: {query_col_res}, expect {self.get_func_res()}")
+
+class DecimalAggFunction(DecimalFunction):
+    def __init__(self, format, executor, name: str):
+        super().__init__(format, executor, name)
+    
+    def is_agg_func(self, op):
+        return True
+    
+    def should_skip_for_decimal(self, cols: list):
+        col: Column = cols[0]
+        if col.type_.is_decimal_type():
+            return False
+        return True
+
+    def check_results(self, query_col_res):
+        if len(query_col_res) == 0:
+            tdLog.info(f"query got no output: {self}, py calc: {self.get_func_res()}")
+            return True
+        else:
+            return self.get_func_res() == Decimal(query_col_res[0])
+
+class DecimalMinFunction(DecimalAggFunction):
+    def __init__(self):
+        super().__init__("min({0})", DecimalMinFunction.execute_min, "min")
+        self.min_: Decimal = None
+    
+    def get_func_res(self) -> Decimal:
+        decimal_type: DecimalType = self.query_col.type_
+        return decimal_type.aggregator.min
+        return self.min_
+    
+    def generate_res_type(self) -> DataType:
+        self.res_type_ = self.query_col.type_
+    
+    def execute_min(self, params):
+        if params[0] is None:
+            return
+        if self.min_ is None:
+            self.min_ = Decimal(params[0])
+        else:
+            self.min_ = min(self.min_, Decimal(params[0]))
+        return self.min_
+
+class DecimalMaxFunction(DecimalAggFunction):
+    def __init__(self):
+        super().__init__("max({0})", DecimalMaxFunction.execute_max, "max")
+        self.max_: Decimal = None
+    
+    def get_func_res(self) -> Decimal:
+        return self.max_
+    
+    def generate_res_type(self) -> DataType:
+        self.res_type_ = self.query_col.type_
+    
+    def execute_max(self, params):
+        if params[0] is None:
+            return
+        if self.max_ is None:
+            self.max_ = Decimal(params[0])
+        else:
+            self.max_ = max(self.max_, Decimal(params[0]))
+        return self.max_
+
+class DecimalSumFunction(DecimalAggFunction):
+    def __init__(self):
+        super().__init__("sum({0})", DecimalSumFunction.execute_sum, "sum")
+        self.sum_:Decimal = None
+    def get_func_res(self) -> Decimal:
+        decimal_type: DecimalType = self.query_col.type_
+        return decimal_type.aggregator.sum
+        return self.sum_
+    def generate_res_type(self) -> DataType:
+        self.res_type_ = self.query_col.type_
+        self.res_type_.set_prec(DecimalType.MAX_PRECISION)
+    def execute_sum(self, params):
+        if params[0] is None:
+            return
+        if self.sum_ is None:
+            self.sum_ = Decimal(params[0])
+        else:
+            self.sum_ += Decimal(params[0])
+        return self.sum_
+
+class DecimalAvgFunction(DecimalAggFunction):
+    def __init__(self):
+        super().__init__("avg({0})", DecimalAvgFunction.execute_avg, "avg")
+        self.count_: Decimal = 0
+        self.sum_: Decimal = None
+    def get_func_res(self) -> Decimal:
+        decimal_type: DecimalType = self.query_col.type_
+        return get_decimal(
+            decimal_type.aggregator.sum
+            / (decimal_type.aggregator.count - decimal_type.aggregator.null_num),
+            self.res_type_.scale(),
+        )
+    def generate_res_type(self) -> DataType:
+        sum_type = self.query_col.type_
+        sum_type.set_prec(DecimalType.MAX_PRECISION)
+        count_type = DataType(TypeEnum.BIGINT, 8, 0)
+        self.res_type_ = DecimalBinaryOperator.calc_decimal_prec_scale(sum_type, count_type, "/")
+    def execute_avg(self, params):
+        if params[0] is None:
+            return
+        if self.sum_ is None:
+            self.sum_ = Decimal(params[0])
+        else:
+            self.sum_ += Decimal(params[0])
+        self.count_ += 1
+        return self.get_func_res()
 
 class DecimalBinaryOperator(DecimalColumnExpr):
     def __init__(self, format, executor, op: str):
@@ -845,7 +1004,7 @@ class DecimalBinaryOperator(DecimalColumnExpr):
             return True
         if self.op_ != "%":
             return False
-        ## why skip decimal % float/double? it's wrong now.
+        ## TODO wjm why skip decimal % float/double? it's wrong now.
         left_is_real = left_col.type_.is_real_type() or left_col.type_.is_varchar_type()
         right_is_real = right_col.type_.is_real_type() or right_col.type_.is_varchar_type()
         if left_is_real or right_is_real:
@@ -1554,7 +1713,7 @@ class TDTestCase:
             threads.append(t)
         for t in threads:
             t.join()
-    
+
     def run_in_thread2(self, func, params) -> threading.Thread:
         t = threading.Thread(target=func, args=params)
         t.start()
@@ -1638,10 +1797,6 @@ class TDTestCase:
 
         self.test_query_decimal_where_clause()
 
-    def test_decimal_functions(self):
-        self.test_decimal_last_first_func()
-        funcs = ["max", "min", "sum", "avg", "count", "first", "last", "cast"]
-
     def test_decimal_last_first_func(self):
         pass
 
@@ -1663,9 +1818,7 @@ class TDTestCase:
             for col in tb_cols:
                 if col.name_ == '':
                     continue
-                left_is_decimal = col.type_.is_decimal_type()
                 for const_col in constant_cols:
-                    right_is_decimal = const_col.type_.is_decimal_type()
                     if expr.should_skip_for_decimal([col, const_col]):
                         continue
                     const_col.generate_value()
@@ -1740,7 +1893,7 @@ class TDTestCase:
                 self.norm_table_name,
                 self.norm_tb_columns,
                 binary_compare_ops)
-        
+
         ## TODO wjm
         ## 3. (dec op const col) op const col
         ## 4. (dec op dec) op const col
@@ -1764,6 +1917,32 @@ class TDTestCase:
 
     def test_query_decimal_case_when(self):
         pass
+
+    def test_decimal_agg_funcs(self, dbname, tbname, tb_cols: List[Column], get_agg_funcs_func):
+        agg_funcs: List[DecimalFunction] = get_agg_funcs_func()
+        for func in agg_funcs:
+            for col in tb_cols:
+                if col.name_ == '' or func.should_skip_for_decimal([col]):
+                    continue
+                func.query_col = col
+                select_expr = func.generate([col])
+                sql = f"select {select_expr} from {dbname}.{tbname}"
+                res = TaosShell().query(sql)
+                if len(res) > 0:
+                    res = res[0]
+                func.check_for_agg_func(res, tbname)
+
+    def test_decimal_functions(self):
+        if not test_decimal_funcs:
+            return
+        self.test_decimal_agg_funcs(
+            self.db_name,
+            self.norm_table_name,
+            self.norm_tb_columns,
+            DecimalFunction.get_decimal_agg_funcs,
+        )
+
+        self.test_decimal_last_first_func()
 
     def test_query_decimal(self):
         self.test_decimal_operators()

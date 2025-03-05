@@ -95,6 +95,7 @@ bool    decimalCompare(EOperatorType op, const SDecimalCompareCtx* pLeft, const 
 int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pRightT, const SDataType* pOutT,
                   const void* pLeftData, const void* pRightData, void* pOutputData);
 int32_t convertToDecimal(const void* pData, const SDataType* pInputType, void* pOut, const SDataType* pOutType);
+bool decimal128AddCheckOverflow(const Decimal128* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
 
 DEFINE_TYPE_FROM_DECIMAL_FUNCS(, Decimal64);
 DEFINE_TYPE_FROM_DECIMAL_FUNCS(, Decimal128);
