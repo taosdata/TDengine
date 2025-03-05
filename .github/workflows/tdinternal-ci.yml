@@ -1,6 +1,6 @@
 name: TDinternal CI Pipelines
 
-description: Only trigger the ci workflow of TDnegine and pass the source branch, target branch and pr number. 
+description: Only trigger the ci workflow of TDnegine and pass the value of source branch, target branch、pr number and github.ref. 
 
 on:
   pull_request:
@@ -26,5 +26,6 @@ jobs:
             {
               "tdinternal_source_branch": "${{ github.event.pull_request.head.ref }}",
               "tdinternal_target_branch": "${{ github.event.pull_request.base.ref }}",
-              "tdinternal_pr_number": "${{ github.event.pull_request.number }}"
+              "tdinternal_pr_number": "${{ github.event.pull_request.number }}",
+              "ref": "${{ github.ref }}"
             }
