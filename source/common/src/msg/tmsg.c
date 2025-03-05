@@ -4488,6 +4488,160 @@ _exit:
   return code;
 }
 
+int32_t tSerializeSVSubTablesReq(void *buf, int32_t bufLen, SVSubTablesReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->suid));
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVSubTablesReq(void *buf, int32_t bufLen, SVSubTablesReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->suid));
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSVSubTablesRspImpl(SEncoder* pEncoder, SVSubTablesRsp *pRsp) {
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->vgId));
+  int32_t numOfTables = taosArrayGetSize(pRsp->pTables);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, numOfTables));
+  for (int32_t i = 0; i < numOfTables; ++i) {
+    SVCTableRefCols *pTb = (SVCTableRefCols *)taosArrayGetP(pRsp->pTables, i);
+    TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pTb->uid));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTb->numOfSrcTbls));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTb->numOfColRefs));
+    for (int32_t n = 0; n < pTb->numOfColRefs; ++n) {
+      SRefColInfo* pCol = pTb->refCols + n;
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refDbName));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refTableName));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refColName));
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tSerializeSVSubTablesRsp(void *buf, int32_t bufLen, SVSubTablesRsp *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tSerializeSVSubTablesRspImpl(&encoder, pRsp));
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSVSubTablesRspImpl(SDecoder* pDecoder, SVSubTablesRsp *pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SVCTableRefCols tb = {0};
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->vgId));
+  int32_t numOfTables = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numOfTables));
+  if (numOfTables > 0) {
+    pRsp->pTables = taosArrayInit(numOfTables, POINTER_BYTES);
+    if (NULL == pRsp->pTables) {
+      code = terrno;
+      return code;
+    }
+    
+    for (int32_t i = 0; i < numOfTables; ++i) {
+      TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &tb.uid));
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &tb.numOfSrcTbls));
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &tb.numOfColRefs));
+      if (tb.numOfColRefs > 0) {
+        SVCTableRefCols* pTb = taosMemoryCalloc(1, sizeof(tb) + tb.numOfColRefs * sizeof(SRefColInfo));
+        if (NULL == pTb) {
+          code = terrno;
+          return code;
+        }
+        if (NULL == taosArrayPush(pRsp->pTables, &pTb)) {
+          code = terrno;
+          taosMemoryFree(pTb);
+          return code;
+        }
+
+        pTb->refCols = (SRefColInfo*)(pTb + 1);
+        for (int32_t n = 0; n < tb.numOfColRefs; ++n) {
+          TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->refCols[n].refDbName));
+          TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->refCols[n].refTableName));
+          TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->refCols[n].refColName));
+        }
+      }
+    }
+  }
+
+  return code;
+}
+
+int32_t tDeserializeSVSubTablesRsp(void *buf, int32_t bufLen, SVSubTablesRsp *pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDeserializeSVSubTablesRspImpl(&decoder, pRsp));
+
+  tEndDecode(&decoder);
+
+_exit:
+
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSVCTableRefCols(void *pParam) {
+  SVCTableRefCols* pCols = *(SVCTableRefCols**)pParam;
+  if (NULL == pCols) {
+    return;
+  }
+
+  taosMemoryFree(pCols);
+}
+
+void tDestroySVSubTablesRsp(SVSubTablesRsp *pRsp) {
+  if (NULL == pRsp) {
+    return;
+  }
+
+  taosArrayDestroyEx(pRsp->pTables, tFreeSVCTableRefCols);
+}
+
 int32_t tSerializeSQnodeListReq(void *buf, int32_t bufLen, SQnodeListReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
@@ -10244,6 +10398,14 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->notifyEventTypes));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->notifyErrorHandle));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->notifyHistory));
+
+  int32_t vgNum = taosArrayGetSize(pReq->pVSubTables);
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, vgNum));
+  for (int32_t i = 0; i < vgNum; ++i) {
+    SVSubTablesRsp* pVgTables = taosArrayGet(pReq->pVSubTables, i);
+    TAOS_CHECK_EXIT(tSerializeSVSubTablesRspImpl(&encoder, pVgTables));
+  }
+  
   tEndEncode(&encoder);
 
 _exit:
@@ -10402,7 +10564,28 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->notifyHistory));
   }
 
+  if (!tDecodeIsEnd(&decoder)) {
+    int32_t vgNum = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &vgNum));
+    if (vgNum > 0) {
+      pReq->pVSubTables = taosArrayInit(vgNum, sizeof(SVSubTablesRsp));
+      if (pReq->pVSubTables == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      SVSubTablesRsp vgTables = {0};
+      for (int32_t i = 0; i < vgNum; ++i) {
+        vgTables.pTables = NULL;
+        TAOS_CHECK_EXIT(tDeserializeSVSubTablesRspImpl(&decoder, &vgTables));
+        if (taosArrayPush(pReq->pVSubTables, &vgTables) == NULL) {
+          tDestroySVSubTablesRsp(&vgTables);
+          TAOS_CHECK_EXIT(terrno);
+        }
+      }
+    }
+  }
+
   tEndDecode(&decoder);
+  
 _exit:
   tDecoderClear(&decoder);
   return code;
@@ -10465,6 +10648,7 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosArrayDestroy(pReq->pVgroupVerList);
   taosArrayDestroy(pReq->pCols);
   taosArrayDestroyP(pReq->pNotifyAddrUrls, NULL);
+  taosArrayDestroyEx(pReq->pVSubTables, tDestroySVSubTablesRsp);
 }
 
 int32_t tEncodeSRSmaParam(SEncoder *pCoder, const SRSmaParam *pRSmaParam) {
