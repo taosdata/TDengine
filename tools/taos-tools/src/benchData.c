@@ -270,7 +270,9 @@ char* genPrepareSql(SSuperTable *stbInfo, char* tagData, uint64_t tableSeq, char
     len += n;
 
     // free
-    tmfree(tagQ);
+    if (tagQFree) {
+        tmfree(tagQ);
+    }
     tmfree(colQ);
     tmfree(colNames);
 

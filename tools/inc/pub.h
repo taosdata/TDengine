@@ -60,6 +60,9 @@
 //  --------------  api ------------------
 //
 
+// get comn mode, if invalid argp then exit app
+int8_t getConnMode(char *arg);
+
 char* strToLowerCopy(const char *str);
 int32_t parseDsn(char* dsn, char **host, char **port, char **user, char **pwd, char* error);
 

@@ -84,6 +84,7 @@ typedef struct {
   char*       dsn;
   int32_t     timeout;
   int8_t      connMode;
+  bool        port_inputted;
 } SShellArgs;
 
 typedef struct {

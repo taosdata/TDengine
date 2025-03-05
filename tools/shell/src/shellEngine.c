@@ -1299,7 +1299,6 @@ TAOS* createConnect(SShellArgs *pArgs) {
   if (pArgs->connMode != CONN_MODE_NATIVE && pArgs->dsn) {
       dsnc = strToLowerCopy(pArgs->dsn);
       if (dsnc == NULL) {
-          free(conn);
           return NULL;
       }
 
@@ -1329,8 +1328,8 @@ TAOS* createConnect(SShellArgs *pArgs) {
 
   } else {
 
-      host = pArgs->host;
-      user = pArgs->user;
+      host = (char *)pArgs->host;
+      user = (char *)pArgs->user;
       pwd  = pArgs->password;
 
       if (pArgs->port_inputted) {

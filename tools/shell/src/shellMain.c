@@ -45,6 +45,8 @@ void initArgument(SShellArgs *pArgs) {
   // conn mode
   pArgs->dsn      = NULL;
   pArgs->connMode = CONN_MODE_INVALID;
+
+  pArgs->port_inputted = false;
 }
 
 // set conn mode
@@ -67,7 +69,7 @@ int main(int argc, char *argv[]) {
   taosSetSignal(SIGFPE, shellCrashHandler);
   taosSetSignal(SIGSEGV, shellCrashHandler);
 
-  initArgument(shell.args);
+  initArgument(&shell.args);
 
   if (shellCheckIntSize() != 0) {
     return -1;

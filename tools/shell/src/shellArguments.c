@@ -160,7 +160,11 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       break;
     case 'P':
       pArgs->port = atoi(arg);
-      if (pArgs->port == 0) pArgs->port = -1;
+      if (pArgs->port == 0) {
+        pArgs->port = -1;
+      } else {
+        pArgs->port_inputted = true;
+      }
       break;
     case 'u':
       pArgs->user = arg;
