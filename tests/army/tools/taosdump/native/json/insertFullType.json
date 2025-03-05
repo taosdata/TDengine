@@ -13,7 +13,7 @@
     "databases": [
         {
             "dbinfo":{
-                "name":"testother",
+                "name":"test",
                 "drop":"yes"
             },
             "super_tables":[

@@ -173,7 +173,7 @@ class TDTestCase(TBase):
             [f"--help", ["Report bugs to"]],
             [f"-?", ["Report bugs to"]],
             [f"-V", ["version:"]],
-            [f"--usage", ["taosdump [OPTION...] -o outpath"]]
+            [f"--usage", ["taosdump [OPTION...] -o outpath"]],
             # conn mode -Z
             [f"-Z 0 -E '2022-10-01 00:00:60.000' test -o {tmpdir}", [
                 "Connect mode is : Native", 
