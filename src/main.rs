@@ -605,12 +605,23 @@ fn init_tracing_layers(
         args.global.instance_id.unwrap_or(16),
     )
     .compress(compress.unwrap())
-    .reserved_disk_size(&reserved_disk_size.unwrap())
+    .reserved_disk_size(reserved_disk_size.as_deref().unwrap())
     .rotation_count(rotation_count.unwrap())
     .keep_days(keep_days.unwrap())
-    .rotation_size(&rotation_size.unwrap())
+    .rotation_size(rotation_size.as_deref().unwrap())
     .build()
     .unwrap();
+
+    taosx_core::global::GLOBAL_LOG_OPTS
+        .set(taosx_core::global::LogOpts {
+            instance_id: args.global.instance_id.unwrap_or(16),
+            compress,
+            rotation_count,
+            keep_days,
+            rotation_size: rotation_size.clone(),
+            reserved_disk_size: reserved_disk_size.clone(),
+        })
+        .expect("set global log opts");
 
     layers.push(TaosLayer::<Qid>::new(appender).boxed());
 

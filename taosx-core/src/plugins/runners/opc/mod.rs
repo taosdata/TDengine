@@ -1,3 +1,13 @@
+use crate::dsv::DataSourceValidation;
+use crate::runners::opc::config::csv::header::CsvHeader;
+use crate::runners::opc::config::csv::CsvParser;
+use crate::runners::opc::config::model::{ModelType, OpcModelConfig};
+use crate::runners::opc::config::{OPCConfig, PointsMode};
+use crate::runners::opc::point_updater::PointsUpdater;
+use crate::runners::{get_logs_home_dir, log_rotation, new_rolling_file_appender};
+use crate::utils::dsn::json_to_dsn;
+use crate::utils::monitor::send_sub_process_info;
+use crate::{build_ipc, utils::port_pool::PortPool, Action, DataSet, DataSetsReq, Transferred};
 use anyhow::Context;
 use csv_async::AsyncReader;
 use futures_util::StreamExt;
@@ -16,20 +26,7 @@ use tokio::{io::AsyncBufReadExt, sync::Mutex};
 use tokio_process_terminate::TerminateExt;
 use tokio_util::sync::CancellationToken;
 use tracing::instrument;
-
-use crate::dsv::DataSourceValidation;
-use crate::runners::log_rotation;
-use crate::runners::opc::config::csv::header::CsvHeader;
-use crate::runners::opc::config::csv::CsvParser;
-use crate::runners::opc::config::model::{ModelType, OpcModelConfig};
-use crate::runners::opc::config::{OPCConfig, PointsMode};
-use crate::runners::opc::point_updater::PointsUpdater;
-use crate::utils::dsn::json_to_dsn;
-use crate::utils::monitor::send_sub_process_info;
-use crate::{
-    build_ipc, get_log_keep_days, utils::port_pool::PortPool, Action, DataSet, DataSetsReq,
-    Transferred,
-};
+use tracing_subscriber::fmt::MakeWriter;
 
 use super::get_data_dir;
 
@@ -189,14 +186,6 @@ pub async fn opc_to_taos(
     )
     .await?;
 
-    // create log file: opc.log
-    let mut log_path = super::get_log_dir("");
-    std::fs::create_dir_all(&log_path)
-        .with_context(|| format!("Log path {}", log_path.display()))?;
-    log_path.push(format!("opc-{}.log", task_id.unwrap_or(0)));
-    let log_keep_days = get_log_keep_days();
-    let mut log_rotation = log_rotation(&log_path, log_keep_days);
-
     // OPCConfig -> collect.toml
     let config_dir = get_data_dir()
         .join("tasks")
@@ -247,10 +236,18 @@ pub async fn opc_to_taos(
         updater.run().await;
     });
 
+    // create log file: opc.log
+    let log_path = get_logs_home_dir();
+    let log_file_name = format!("opc-{}", task_id.unwrap_or(0));
+    let appender = new_rolling_file_appender(log_path.as_path(), &log_file_name)
+        .context("failed to create opc log")?;
+
     const ERROR_BUF_SIZE: usize = 2;
     let error_buf = Arc::new(Mutex::new(ringbuf::HeapRb::<String>::new(ERROR_BUF_SIZE)));
     let error_buf_producer = error_buf.clone();
     let stderr = child.stderr.take().expect("Failed to capture stderr");
+
+    // let log_rotation_clone = Arc::clone(&log_rotation);
     tokio::spawn(async move {
         let mut reader = tokio::io::BufReader::new(stderr);
         let mut line = String::new();
@@ -266,10 +263,15 @@ pub async fn opc_to_taos(
                 let mut guard = error_buf_producer.lock().await;
                 let _ = guard.push_overwrite(line.clone());
             }
+
             // Write the line to log_rotation
-            write!(log_rotation, "{}", line)?;
+            let mut log_rotation = appender.make_writer();
+            let _ = log_rotation.write(line.as_bytes())?;
+            log_rotation.flush()?;
+
             line.clear();
         }
+
         Ok::<(), std::io::Error>(())
     });
 

@@ -2,8 +2,20 @@ use std::{num::NonZeroUsize, sync::OnceLock};
 
 pub static mut DRY_RUN: bool = false;
 pub static mut SQL_TAG_CACHE_CAPACITY: usize = 0;
-
 pub static TABLE_TAG_CACHE: OnceLock<scc::HashSet<String>> = OnceLock::new();
+
+#[derive(Debug, Clone)]
+pub struct LogOpts {
+    pub instance_id: u8,
+    pub compress: Option<bool>,
+    pub rotation_count: Option<u16>,
+    pub keep_days: Option<u16>,
+    pub rotation_size: Option<String>,
+    pub reserved_disk_size: Option<String>,
+}
+
+pub static GLOBAL_LOG_OPTS: OnceLock<LogOpts> = OnceLock::new();
+
 static AGENT_IN_MEMORY_CACHE_CAPACITY: OnceLock<NonZeroUsize> = OnceLock::new();
 
 pub(crate) fn agent_in_memory_cache_capacity() -> NonZeroUsize {

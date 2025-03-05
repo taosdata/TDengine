@@ -23,6 +23,7 @@ use tracing_subscriber::{
 };
 use twelf::{config, Layer};
 
+use taosx_core::global::GLOBAL_LOG_OPTS;
 use taosx_core::{
     get_data_dir,
     runners::{
@@ -884,6 +885,17 @@ fn main() -> anyhow::Result<()> {
     .rotation_size(rotation_size.as_ref().unwrap())
     .build()
     .unwrap();
+
+    GLOBAL_LOG_OPTS
+        .set(taosx_core::global::LogOpts {
+            instance_id: *INSTANCE_ID.get().unwrap(),
+            compress: compress.map(|c| c.to_bool().unwrap_or(false)),
+            rotation_count: *rotation_count,
+            keep_days: None,
+            rotation_size: rotation_size.clone(),
+            reserved_disk_size: reserved_disk_size.clone(),
+        })
+        .expect("set global log options failed");
 
     layers.push(
         TaosLayer::<Qid>::new(appender)
