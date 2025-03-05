@@ -1,7 +1,7 @@
 use actix_cors::Cors;
 use actix_files::NamedFile;
 use anyhow::Context;
-use chrono::TimeZone;
+use chrono::{SecondsFormat, TimeZone};
 use clap_verbosity_flag::{InfoLevel, Verbosity};
 use deadpool::managed::{Object, PoolError};
 use favorites::FavoritesSql;
@@ -1592,6 +1592,12 @@ impl Args {
                 data: vec![vec![serde_json::Value::Number(affect_rows.into())]],
             });
         }
+        let precision = set.precision();
+        let seconds_format = match precision {
+            Precision::Millisecond => SecondsFormat::Millis,
+            Precision::Microsecond => SecondsFormat::Micros,
+            Precision::Nanosecond => SecondsFormat::Nanos,
+        };
         let column_meta = set
             .fields()
             .iter()
@@ -1607,7 +1613,9 @@ impl Args {
                     .map(|v| match v {
                         taos::Value::Timestamp(ts) => {
                             let ts_with_tz = tz.from_utc_datetime(&ts.to_naive_datetime());
-                            serde_json::Value::String(ts_with_tz.to_rfc3339())
+                            serde_json::Value::String(
+                                ts_with_tz.to_rfc3339_opts(seconds_format, true),
+                            )
                         }
                         taos::Value::VarBinary(vb) => serde_json::Value::String(format!(
                             "\\x{}",
@@ -2025,6 +2033,111 @@ certificate_key = "tests/assets/cert-key.pem"
             .timeout(std::time::Duration::from_secs(3))
             .assert();
         assert.interrupted();
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_timestamp_seconds_format_with_taos() -> anyhow::Result<(), anyhow::Error> {
+        let profile = Profile {
+            cluster: Some("http://localhost:6041".to_string()),
+            ..Default::default()
+        };
+
+        let args = Args {
+            profile,
+            ..Default::default()
+        };
+
+        // 默认用户名密码：root:taosdata
+        let dsn = args.build_dsn("Basic cm9vdDp0YW9zZGF0YQ==").unwrap();
+
+        // 清除旧数据
+        let sql = "DROP DATABASE IF EXISTS `test_ts_seconds_format`";
+        let _ = args.query_inner(&dsn, sql, None, 0).await;
+
+        // 创建数据库
+        let db = "test_ts_seconds_format";
+        let precisions = ["ms", "us", "ns"];
+        let bj_expects = [
+            [
+                "2025-01-01T08:00:00.000+08:00",
+                "2025-01-01T08:00:01.100+08:00",
+                "2025-01-01T08:00:03.999+08:00",
+            ],
+            [
+                "2025-01-01T08:00:00.000000+08:00",
+                "2025-01-01T08:00:01.100000+08:00",
+                "2025-01-01T08:00:03.999000+08:00",
+            ],
+            [
+                "2025-01-01T08:00:00.000000000+08:00",
+                "2025-01-01T08:00:01.100000000+08:00",
+                "2025-01-01T08:00:03.999000000+08:00",
+            ],
+        ];
+        let utc_expects = [
+            [
+                "2025-01-01T00:00:00.000Z",
+                "2025-01-01T00:00:01.100Z",
+                "2025-01-01T00:00:03.999Z",
+            ],
+            [
+                "2025-01-01T00:00:00.000000Z",
+                "2025-01-01T00:00:01.100000Z",
+                "2025-01-01T00:00:03.999000Z",
+            ],
+            [
+                "2025-01-01T00:00:00.000000000Z",
+                "2025-01-01T00:00:01.100000000Z",
+                "2025-01-01T00:00:03.999000000Z",
+            ],
+        ];
+        for (idx, precision) in precisions.into_iter().enumerate() {
+            let sql = format!("create database `{db}` precision '{precision}'");
+            let result = args.query_inner(&dsn, &sql, None, 0).await.unwrap();
+            assert_eq!(
+                result.data.first().unwrap().first().unwrap().to_string(),
+                "0"
+            );
+
+            // 创建超级表
+            let sql =
+                format!("CREATE STABLE `{db}`.`stb` (ts TIMESTAMP,v1 DOUBLE) TAGS (t1 VARCHAR(8))");
+            let result = args.query_inner(&dsn, &sql, None, 0).await.unwrap();
+            assert_eq!(
+                result.data.first().unwrap().first().unwrap().to_string(),
+                "0"
+            );
+
+            // 写入测试数据
+            let sql = r#"insert into `test_ts_seconds_format`.`tb1` using `test_ts_seconds_format`.`stb` tags ('a') 
+                        values ('2025-01-01T00:00:00Z', 19.81) ('2025-01-01T00:00:01.100Z', 19.60)
+                               ('2025-01-01T00:00:03.999Z', 19.25)"#;
+            let tz = Some("Asia/Shanghai".to_string());
+            let result = args.query_inner(&dsn, sql, tz.as_ref(), 0).await.unwrap();
+            assert_eq!(
+                result.data.first().unwrap().first().unwrap().to_string(),
+                "3"
+            );
+            let sql = "select * from `test_ts_seconds_format`.`tb1`";
+            let result = args.query_inner(&dsn, sql, tz.as_ref(), 0).await.unwrap();
+            // 转成 string 来检查精度
+            for j in [0, 1, 2] {
+                assert_eq!(result.data[j][0].as_str().unwrap(), bj_expects[idx][j]);
+            }
+
+            let tz = Some("UTC".to_string());
+            let result = args.query_inner(&dsn, sql, tz.as_ref(), 0).await.unwrap();
+            // 转成 string 来检查精度
+            for j in [0, 1, 2] {
+                assert_eq!(result.data[j][0].as_str().unwrap(), utc_expects[idx][j]);
+            }
+
+            // 删除测试数据库
+            let sql = "DROP DATABASE `test_ts_seconds_format`";
+            args.query_inner(&dsn, sql, None, 0).await.unwrap();
+        }
+
         Ok(())
     }
 
