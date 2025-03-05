@@ -27,6 +27,7 @@
 #include "scheduler.h"
 #include "tcache.h"
 #include "tcompare.h"
+#include "tconv.h"
 #include "tglobal.h"
 #include "thttp.h"
 #include "tmsg.h"
@@ -36,7 +37,6 @@
 #include "tsched.h"
 #include "ttime.h"
 #include "tversion.h"
-#include "tconv.h"
 
 #include "cus_name.h"
 
@@ -63,13 +63,13 @@
     }                                 \
   } while (0)
 
-STscDbg  tscDbg = {0};
-SAppInfo appInfo;
-int64_t  lastClusterId = 0;
-int32_t  clientReqRefPool = -1;
-int32_t  clientConnRefPool = -1;
-int32_t  clientStop = -1;
-SHashObj* pTimezoneMap = NULL;
+STscDbg   tscDbg = {0};
+SAppInfo  appInfo;
+int64_t   lastClusterId = 0;
+int32_t   clientReqRefPool = -1;
+int32_t   clientConnRefPool = -1;
+int32_t   clientStop = -1;
+SHashObj *pTimezoneMap = NULL;
 
 int32_t timestampDeltaLimit = 900;  // s
 
@@ -380,7 +380,6 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
     tscError("invalid version string.");
     return code;
   }
-
   *pDnodeConn = rpcOpen(&rpcInit);
   if (*pDnodeConn == NULL) {
     tscError("failed to init connection to server since %s", tstrerror(terrno));
@@ -968,7 +967,7 @@ void taos_init_imp(void) {
   ENV_ERR_RET(taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1), "failed to init cfg");
 
   initQueryModuleMsgHandle();
-  if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL){
+  if ((tsCharsetCxt = taosConvInit(tsCharset)) == NULL) {
     tscInitRes = terrno;
     tscError("failed to init conv");
     return;
