@@ -57,12 +57,12 @@ class TBase:
         self.stb    = stb
 
         # sql 
-        self.sqlSum = f"select sum({checkColName}) from {self.stb}"
-        self.sqlMax = f"select max({checkColName}) from {self.stb}"
-        self.sqlMin = f"select min({checkColName}) from {self.stb}"
-        self.sqlAvg = f"select avg({checkColName}) from {self.stb}"
-        self.sqlFirst = f"select first(ts) from {self.stb}"
-        self.sqlLast  = f"select last(ts) from {self.stb}"
+        self.sqlSum = f"select sum({checkColName}) from {db}.{self.stb}"
+        self.sqlMax = f"select max({checkColName}) from {db}.{self.stb}"
+        self.sqlMin = f"select min({checkColName}) from {db}.{self.stb}"
+        self.sqlAvg = f"select avg({checkColName}) from {db}.{self.stb}"
+        self.sqlFirst = f"select first(ts) from {db}.{self.stb}"
+        self.sqlLast  = f"select last(ts) from {db}.{self.stb}"
 
     # stop
     def stop(self):
@@ -143,15 +143,15 @@ class TBase:
     # basic
     def checkInsertCorrect(self, difCnt = 0):
         # check count
-        sql = f"select count(*) from {self.stb}"
+        sql = f"select count(*) from {self.db}.{self.stb}"
         tdSql.checkAgg(sql, self.childtable_count * self.insert_rows)
 
         # check child table count
-        sql = f" select count(*) from (select count(*) as cnt , tbname from {self.stb} group by tbname) where cnt = {self.insert_rows} "
+        sql = f" select count(*) from (select count(*) as cnt , tbname from {self.db}.{self.stb} group by tbname) where cnt = {self.insert_rows} "
         tdSql.checkAgg(sql, self.childtable_count)
 
         # check step
-        sql = f"select count(*) from (select diff(ts) as dif from {self.stb} partition by tbname order by ts desc) where dif != {self.timestamp_step}"
+        sql = f"select count(*) from (select diff(ts) as dif from {self.db}.{self.stb} partition by tbname order by ts desc) where dif != {self.timestamp_step}"
         tdSql.checkAgg(sql, difCnt)
 
     # save agg result
@@ -175,27 +175,27 @@ class TBase:
     # self check 
     def checkConsistency(self, col):
         # top with max
-        sql = f"select max({col}) from {self.stb}"
+        sql = f"select max({col}) from {self.db}.{self.stb}"
         expect = tdSql.getFirstValue(sql)
-        sql = f"select top({col}, 5) from {self.stb}"
+        sql = f"select top({col}, 5) from {self.db}.{self.stb}"
         tdSql.checkFirstValue(sql, expect)
 
         #bottom with min
-        sql = f"select min({col}) from {self.stb}"
+        sql = f"select min({col}) from {self.db}.{self.stb}"
         expect = tdSql.getFirstValue(sql)
-        sql = f"select bottom({col}, 5) from {self.stb}"
+        sql = f"select bottom({col}, 5) from {self.db}.{self.stb}"
         tdSql.checkFirstValue(sql, expect)
 
         # order by asc limit 1 with first
-        sql = f"select last({col}) from {self.stb}"
+        sql = f"select last({col}) from {self.db}.{self.stb}"
         expect = tdSql.getFirstValue(sql)
-        sql = f"select {col} from {self.stb} order by _c0 desc limit 1"
+        sql = f"select {col} from {self.db}.{self.stb} order by _c0 desc limit 1"
         tdSql.checkFirstValue(sql, expect)
 
         # order by desc limit 1 with last
-        sql = f"select first({col}) from {self.stb}"
+        sql = f"select first({col}) from {self.db}.{self.db}."
         expect = tdSql.getFirstValue(sql)
-        sql = f"select {col} from {self.stb} order by _c0 asc limit 1"
+        sql = f"select {col} from {self.db}.{self.db}. order by _c0 asc limit 1"
         tdSql.checkFirstValue(sql, expect)
 
 
@@ -465,7 +465,6 @@ class TBase:
     # cmd
     def benchmarkCmd(self, options, childCnt, insertRows, timeStep, results):
         # set
-        self.stb              = "meters"
         self.childtable_count = childCnt
         self.insert_rows      = insertRows
         self.timestamp_step   = timeStep

@@ -114,6 +114,10 @@ class TDTestCase(TBase):
         self.benchmarkCmd("-Z 0 -h 127.0.0.1 -P 6030 -uroot -ptaosdata", 5, 100, 10, ["insert rows: 500"])
 
     def run(self):
+        # init
+        self.db  = "test"
+        self.stb = "meters"
+
         # command line test
         self.checkCommandLine()
 
