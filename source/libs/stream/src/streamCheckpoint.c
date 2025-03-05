@@ -766,7 +766,7 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
         stInfo("s-task:0x%x fill-history updated to recalculate task, reset step2Start ts, stream task:0x%x",
                hTaskId.taskId, pReq->taskId);
 
-        streamMutexLock(&pTask->lock);
+        streamMutexLock(&pHTask->lock);
 
         pHTask->info.fillHistory = STREAM_RECALCUL_TASK;
         pHTask->execInfo.step2Start = 0; // clear the step2start timestamp
@@ -776,7 +776,19 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
           code = streamTaskHandleEvent(pHTask->status.pSM, TASK_EVENT_SCANHIST_DONE);
         }
 
-        streamMutexUnlock(&pTask->lock);
+        if (pHTask->pBackend != NULL) {
+          streamFreeTaskState(pHTask, TASK_STATUS__READY);
+          pHTask->pBackend = NULL;
+        }
+
+        if (pHTask->exec.pExecutor != NULL) {
+          qDestroyTask(pHTask->exec.pExecutor);
+          pHTask->exec.pExecutor = NULL;
+        }
+
+        pMeta->expandTaskFn(pHTask);
+
+        streamMutexUnlock(&pHTask->lock);
 
         code = streamMetaSaveTask(pMeta, pHTask);
         streamMetaReleaseTask(pMeta, pHTask);
