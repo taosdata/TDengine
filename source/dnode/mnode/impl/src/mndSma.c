@@ -313,7 +313,7 @@ static void *mndBuildVCreateSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSm
   req.version = 0;
   req.intervalUnit = pSma->intervalUnit;
   req.slidingUnit = pSma->slidingUnit;
-//  req.timezoneInt = pSma->timezone;
+  //  req.timezoneInt = pSma->timezone;
   tstrncpy(req.indexName, (char *)tNameGetTableName(&name), TSDB_INDEX_NAME_LEN);
   req.exprLen = pSma->exprLen;
   req.tagsFilterLen = pSma->tagsFilterLen;
@@ -616,7 +616,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
 #if 0
 //  smaObj.timezone = pCreate->timezone;
 #endif
-//  smaObj.timezone = taosGetLocalTimezoneOffset();  // use timezone of server
+  //  smaObj.timezone = taosGetLocalTimezoneOffset();  // use timezone of server
   smaObj.interval = pCreate->interval;
   smaObj.offset = pCreate->offset;
   smaObj.sliding = pCreate->sliding;
@@ -795,7 +795,7 @@ static int32_t mndGetStreamNameFromSmaName(char *streamName, char *smaName) {
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  snprintf(streamName, TSDB_TABLE_FNAME_LEN,"%d.%s", n.acctId, n.tname);
+  snprintf(streamName, TSDB_TABLE_FNAME_LEN, "%d.%s", n.acctId, n.tname);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1502,7 +1502,7 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 // sma and tag index comm func
 static int32_t mndProcessDropIdxReq(SRpcMsg *pReq) {
   int ret = mndProcessDropSmaReq(pReq);
-  if (terrno == TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST) {
+  if (terrno == TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST || terrno == TSDB_CODE_MND_SMA_NOT_EXIST) {
     terrno = 0;
     ret = mndProcessDropTagIdxReq(pReq);
   }
@@ -1551,7 +1551,7 @@ static void initSMAObj(SCreateTSMACxt *pCxt) {
   pCxt->pSma->dbUid = pCxt->pDb->uid;
   pCxt->pSma->interval = pCxt->pCreateSmaReq->interval;
   pCxt->pSma->intervalUnit = pCxt->pCreateSmaReq->intervalUnit;
-//  pCxt->pSma->timezone = taosGetLocalTimezoneOffset();
+  //  pCxt->pSma->timezone = taosGetLocalTimezoneOffset();
   pCxt->pSma->version = 1;
 
   pCxt->pSma->exprLen = pCxt->pCreateSmaReq->exprLen;
@@ -1837,7 +1837,7 @@ static int32_t mndTSMAGenerateOutputName(const char *tsmaName, char *streamName,
     return code;
   }
   snprintf(streamName, TSDB_TABLE_FNAME_LEN, "%d.%s", smaName.acctId, smaName.tname);
-  snprintf(targetStbName, TSDB_TABLE_FNAME_LEN, "%s"TSMA_RES_STB_POSTFIX, tsmaName);
+  snprintf(targetStbName, TSDB_TABLE_FNAME_LEN, "%s" TSMA_RES_STB_POSTFIX, tsmaName);
   return TSDB_CODE_SUCCESS;
 }
 
