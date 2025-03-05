@@ -126,7 +126,7 @@ static struct argp_option shellOptions[] = {
     {"display-width", 'w', "WIDTH", 0, SHELL_WIDTH},
     {"netrole", 'n', "NETROLE", 0, SHELL_NET_ROLE},
     {"pktlen", 'l', "PKTLEN", 0, SHELL_PKT_LEN},
-    {"dsn", 'E', "DSN", 0, OLD_DSN_DESC},
+    {"cloud-dsn", 'E', "DSN", 0, OLD_DSN_DESC},
     {"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
     {"bimode", 'B', 0, 0, SHELL_BI_MODE},

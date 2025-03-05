@@ -158,9 +158,10 @@ class TDTestCase(TBase):
     def basicCommandLine(self, tmpdir):
         #command and check result 
         checkItems = [
-            [f"-h 127.0.0.1 -P 6030 -uroot -ptaosdata -A -N -o {tmpdir}", ["OK: Database test dumped"]],
+            [f"-h 127.0.0.1 -P 6041 -uroot -ptaosdata -A -N -o {tmpdir}", ["OK: Database test dumped"]],
             [f"-r result -a -e test d0 -o {tmpdir}", ["OK: table: d0 dumped", "OK: 100 row(s) dumped out!"]],
             [f"-n -D test -o {tmpdir}", ["OK: Database test dumped", "OK: 205 row(s) dumped out!"]],
+            [f"-Z 0 -P 6030 -n -D test -o {tmpdir}", ["OK: Database test dumped", "OK: 205 row(s) dumped out!"]],
             [f"-L -D test -o {tmpdir}", ["OK: Database test dumped", "OK: 205 row(s) dumped out!"]],
             [f"-s -D test -o {tmpdir}", ["dumping out schema: 1 from meters.d0", "OK: Database test dumped", "OK: 0 row(s) dumped out!"]],
             [f"-N -d deflate -S '2022-10-01 00:00:50.000' test meters  -o {tmpdir}",["OK: table: meters dumped", "OK: 100 row(s) dumped out!"]],
@@ -173,6 +174,17 @@ class TDTestCase(TBase):
             [f"-?", ["Report bugs to"]],
             [f"-V", ["version:"]],
             [f"--usage", ["taosdump [OPTION...] -o outpath"]]
+            # conn mode -Z
+            [f"-Z 0 -E '2022-10-01 00:00:60.000' test -o {tmpdir}", [
+                "Connect mode is : Native", 
+                "OK: Database test dumped", 
+                "OK: 122 row(s) dumped out!"]
+            ],
+            [f"-Z 1 -E '2022-10-01 00:00:60.000' test -o {tmpdir}", [
+                "Connect mode is : WebSocket",
+                "OK: Database test dumped", 
+                "OK: 122 row(s) dumped out!"]
+            ],
         ]
 
         # executes 
@@ -181,8 +193,7 @@ class TDTestCase(TBase):
             command = item[0]
             results = item[1]
             rlist = self.taosdump(command)
-            for result in results:
-                self.checkListString(rlist, result)
+            self.checkManyString(rlist, results)
             # clear tmp
 
     # except commandline
@@ -201,6 +212,73 @@ class TDTestCase(TBase):
         self.checkExcept(taosdump + f" -t 2 -k 2 -z 1 -C https://not-exist.com:80/cloud -D test -o {tmpdir}")
         self.checkExcept(taosdump + f" -P 65536")
 
+        # conn mode
+        options = [
+            f"-Z native -X http://127.0.0.1:6041 -D {db} -o {tmpdir}",
+            f"-Z 100  -D {db} -o {tmpdir}",
+            f"-Z abcdefg -D {db} -o {tmpdir}",
+            f"-X -D {db} -o {tmpdir}",
+            f"-X 127.0.0.1:6041 -D {db} -o {tmpdir}",
+            f"-X https://gw.cloud.taosdata.com?token617ffdf... -D {db} -o {tmpdir}",
+            f"-Z 1 -X https://gw.cloud.taosdata.com?token=617ffdf... -D {db} -o {tmpdir}",
+            f"-X http://127.0.0.1:6042 -D {db} -o {tmpdir}"
+        ]
+
+        # do check
+        for option in options:
+            self.checkExcept(taosdump + " " + option)
+
+
+    # expect cmd > json > evn
+    def checkPriority(self, db, stb, childCount, insertRows, tmpdir):
+        #
+        #  cmd & env
+        #
+        
+        # env  6043 - invalid
+        os.environ['TDENGINE_CLOUD_DSN'] = "http://127.0.0.1:6043"
+        # cmd 6041 - valid
+        cmd = f"-X http://127.0.0.1:6041 -D {db} -o {tmpdir}"
+        self.clearPath(tmpdir)
+        rlist = self.taosdump(cmd)
+        results = [
+            "Connect mode is : WebSocket",
+            "OK: Database test dumped", 
+            "OK: 205 row(s) dumped out!"
+        ]
+        self.checkManyString(rlist, results)
+
+        #
+        # env
+        #
+
+        os.environ['TDENGINE_CLOUD_DSN'] = "http://127.0.0.1:6041"
+        # cmd 6041 - valid
+        self.clearPath(tmpdir)
+        cmd = f"-D {db} -o {tmpdir}"
+        rlist = self.taosdump(cmd)
+        self.checkManyString(rlist, results)
+
+        #
+        # cmd
+        #
+
+        os.environ['TDENGINE_CLOUD_DSN'] = ""
+        # cmd 6041 - valid
+        self.clearPath(tmpdir)
+        cmd = f"-X http://127.0.0.1:6041 -D {db} -o {tmpdir}"
+        rlist = self.taosdump(cmd)
+        self.checkManyString(rlist, results)
+
+        # clear env
+        os.environ['TDENGINE_CLOUD_DSN'] = ""
+
+
+    # conn mode
+    def checkConnMode(self, db, stb, childCount, insertRows, tmpdir):
+        # priority
+        self.checkPriority(db, stb, childCount, insertRows, tmpdir)
+    
     # run
     def run(self):
         
@@ -212,11 +290,11 @@ class TDTestCase(TBase):
         db, stb, childCount, insertRows = self.insertData(json)
 
         # dumpInOut
-        modes = ["", "--cloud=http://localhost:6041"]
+        modes = ["-Z native", "-Z websocket", "--dsn=http://localhost:6041"]
         for mode in modes:
             self.dumpInOutMode(mode, db , json, tmpdir)
 
-        tdLog.info("1. native rest ws dumpIn Out  .......................... [Passed]")
+        tdLog.info("1. native rest ws dumpIn Out  ........................... [Passed]")
 
         # basic commandline
         self.basicCommandLine(tmpdir)
@@ -227,14 +305,13 @@ class TDTestCase(TBase):
         tdLog.info("3. except command line  ................................. [Passed]")
 
         #
-        # varbinary and geometry for native
+        # check connMode
         #
-        json = "./tools/taosdump/native/json/insertOther.json"
-        # insert 
-        db, stb, childCount, insertRows = self.insertData(json)
-        # dump in/out
-        self.dumpInOutMode("", db , json, tmpdir)
-        tdLog.info("4. native varbinary geometry ........................... [Passed]")
+        self.checkConnMode(db, stb, childCount, insertRows, tmpdir)
+        tdLog.info("4. check conn mode  ..................................... [Passed]")
+
+
+
 
 
     def stop(self):

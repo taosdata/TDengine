@@ -350,17 +350,22 @@ class TBase:
 
 
     # check list have str
-    def checkListString(self, vlist, s):
+    def checkListString(self, rlist, s):
         if s is None:
             return 
-        for i in range(len(vlist)):
-            if vlist[i].find(s) != -1:
+        for i in range(len(rlist)):
+            if rlist[i].find(s) != -1:
                 # found
-                tdLog.info(f'found "{s}" on index {i} , line={vlist[i]}')
+                tdLog.info(f'found "{s}" on index {i} , line={rlist[i]}')
                 return 
 
         # not found
-        tdLog.exit(f'faild, not found "{s}" on list:{vlist}')
+        tdLog.exit(f'faild, not found "{s}" on list:{rlist}')
+    
+    # check many string
+    def checkManyString(self, rlist, manys):
+        for s in manys:
+            self.checkListString(rlist, s)
 
 #
 #  str util
