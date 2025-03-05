@@ -122,6 +122,10 @@ impl ParserConfig {
 
                 let mut new_obj = Map::new();
                 new_obj.insert(format!("_val{}", the_flag), v.clone());
+                if the_flag != "" {
+                    new_obj.insert("_val".to_string(), v.clone());
+                }
+
                 new_obj.insert("_ts".to_string(), json!(dt));
                 arr_data.push(new_obj);
             } else if k != "DATA_DATE" {
@@ -343,7 +347,7 @@ mod tests {
         );
         assert_eq!(
             parsed_data[1].get("_ts").unwrap().as_str().unwrap(),
-            "2021-01-01T00:15:00+08:00"
+            format!("{yesterday}T00:15:00+08:00")
         );
         assert_eq!(
             parsed_data[2].get("_ts").unwrap().as_str().unwrap(),
