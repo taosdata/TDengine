@@ -39,7 +39,7 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
     auditSetDnodeId(pCfg->dnodeId);
     code = dmWriteEps(pMgmt->pData);
     if (code != 0) {
-      dInfo("failed to set local info, dnodeId:%d clusterId:%" PRId64 " reason:%s", pCfg->dnodeId, pCfg->clusterId,
+      dInfo("failed to set local info, dnodeId:%d clusterId:0x%" PRIx64 " reason:%s", pCfg->dnodeId, pCfg->clusterId,
             tstrerror(code));
     }
     (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);

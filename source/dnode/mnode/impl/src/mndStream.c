@@ -2887,7 +2887,7 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
     if (taosArrayGetSize(pInfo->pTaskList) == 0) {
       mndClearConsensusRspEntry(pInfo);
       if (streamId == -1) {
-        mError("streamId is -1, streamId:%" PRIx64" in consensus-checkpointId hashMap, cont", pInfo->streamId);
+        mError("streamId is -1, streamId:%" PRIx64 " in consensus-checkpointId hashMap, cont", pInfo->streamId);
       }
 
       void *p = taosArrayPush(pStreamList, &streamId);

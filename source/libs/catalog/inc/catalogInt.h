@@ -827,19 +827,19 @@ typedef struct SCtgCacheItemInfo {
 #define CTG_CACHE_OVERFLOW(_csize, _maxsize) ((_maxsize >= 0) ? ((_csize) >= (_maxsize)*1048576L * 0.9) : false)
 #define CTG_CACHE_LOW(_csize, _maxsize)      ((_maxsize >= 0) ? ((_csize) <= (_maxsize)*1048576L * 0.75) : true)
 
-#define ctgFatal(param, ...) qFatal("CTG:%p " param, pCtg, __VA_ARGS__)
-#define ctgError(param, ...) qError("CTG:%p " param, pCtg, __VA_ARGS__)
-#define ctgWarn(param, ...)  qWarn("CTG:%p " param, pCtg, __VA_ARGS__)
-#define ctgInfo(param, ...)  qInfo("CTG:%p " param, pCtg, __VA_ARGS__)
-#define ctgDebug(param, ...) qDebug("CTG:%p " param, pCtg, __VA_ARGS__)
-#define ctgTrace(param, ...) qTrace("CTG:%p " param, pCtg, __VA_ARGS__)
+#define ctgFatal(param, ...) qFatal("CTG:%p, " param, pCtg, __VA_ARGS__)
+#define ctgError(param, ...) qError("CTG:%p, " param, pCtg, __VA_ARGS__)
+#define ctgWarn(param, ...)  qWarn ("CTG:%p, " param, pCtg, __VA_ARGS__)
+#define ctgInfo(param, ...)  qInfo ("CTG:%p, " param, pCtg, __VA_ARGS__)
+#define ctgDebug(param, ...) qDebug("CTG:%p, " param, pCtg, __VA_ARGS__)
+#define ctgTrace(param, ...) qTrace("CTG:%p, " param, pCtg, __VA_ARGS__)
 
-#define ctgTaskFatal(param, ...) qFatal("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskError(param, ...) qError("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskWarn(param, ...)  qWarn("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskInfo(param, ...)  qInfo("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskDebug(param, ...) qDebug("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskTrace(param, ...) qTrace("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskFatal(param, ...) qFatal("QID:%" PRIx64 ", CTG:%p, " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskError(param, ...) qError("QID:%" PRIx64 ", CTG:%p, " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskWarn(param, ...)  qWarn ("QID:%" PRIx64 ", CTG:%p, " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskInfo(param, ...)  qInfo ("QID:%" PRIx64 ", CTG:%p, " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskDebug(param, ...) qDebug("QID:%" PRIx64 ", CTG:%p, " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskTrace(param, ...) qTrace("QID:%" PRIx64 ", CTG:%p, " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
 
 #define CTG_LOCK_DEBUG(...)     \
   do {                          \

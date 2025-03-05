@@ -410,7 +410,7 @@ END:
 int32_t smlParseEndTelnetJsonFormat(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs, SSmlKv *kv) {
   int32_t code = 0;
   int32_t lino = 0;
-  uDebug("SML:0x%" PRIx64 " %s format true, ts:%" PRId64, info->id, __FUNCTION__ , kvTs->i);
+  uDebug("SML:0x%" PRIx64 ", %s format true, ts:%" PRId64, info->id, __FUNCTION__ , kvTs->i);
   SML_CHECK_CODE(smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, kvTs, 0, info->taos->optionInfo.charsetCxt));
   SML_CHECK_CODE(smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, kv, 1, info->taos->optionInfo.charsetCxt));
   SML_CHECK_CODE(smlBuildRow(info->currTableDataCtx));
@@ -423,7 +423,7 @@ END:
 int32_t smlParseEndTelnetJsonUnFormat(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs, SSmlKv *kv) {
   int32_t code = 0;
   int32_t lino = 0;
-  uDebug("SML:0x%" PRIx64 " %s format false, ts:%" PRId64, info->id, __FUNCTION__, kvTs->i);
+  uDebug("SML:0x%" PRIx64 ", %s format false, ts:%" PRId64, info->id, __FUNCTION__, kvTs->i);
   if (elements->colArray == NULL) {
     elements->colArray = taosArrayInit(16, sizeof(SSmlKv));
     SML_CHECK_NULL(elements->colArray);
@@ -437,7 +437,7 @@ END:
 
 int32_t smlParseEndLine(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs) {
   if (info->dataFormat) {
-    uDebug("SML:0x%" PRIx64 " %s format true, ts:%" PRId64, info->id, __FUNCTION__, kvTs->i);
+    uDebug("SML:0x%" PRIx64 ", %s format true, ts:%" PRId64, info->id, __FUNCTION__, kvTs->i);
     int32_t ret = smlBuildCol(info->currTableDataCtx, info->currSTableMeta->schema, kvTs, 0, info->taos->optionInfo.charsetCxt);
     if (ret == TSDB_CODE_SUCCESS) {
       ret = smlBuildRow(info->currTableDataCtx);
@@ -446,11 +446,11 @@ int32_t smlParseEndLine(SSmlHandle *info, SSmlLineInfo *elements, SSmlKv *kvTs) 
     clearColValArraySml(info->currTableDataCtx->pValues);
     taosArrayClearP(info->escapedStringList, NULL);
     if (unlikely(ret != TSDB_CODE_SUCCESS)) {
-      uError("SML:0x%" PRIx64 " %s smlBuildCol error:%d", info->id, __FUNCTION__, ret);
+      uError("SML:0x%" PRIx64 ", %s smlBuildCol error:%d", info->id, __FUNCTION__, ret);
       return ret;
     }
   } else {
-    uDebug("SML:0x%" PRIx64 " %s format false, ts:%" PRId64, info->id, __FUNCTION__, kvTs->i);
+    uDebug("SML:0x%" PRIx64 ", %s format false, ts:%" PRId64, info->id, __FUNCTION__, kvTs->i);
     taosArraySet(elements->colArray, 0, kvTs);
   }
   info->preLine = *elements;
@@ -697,7 +697,7 @@ static int32_t smlGenerateSchemaAction(SSchema *colField, SHashObj *colHash, SSm
   uint16_t *index = colHash ? (uint16_t *)taosHashGet(colHash, kv->key, kv->keyLen) : NULL;
   if (index) {
     if (colField[*index].type != kv->type) {
-      snprintf(info->msgBuf.buf, info->msgBuf.len, "SML:0x%" PRIx64 " %s point type and db type mismatch. db type: %s, point type: %s, key: %s",
+      snprintf(info->msgBuf.buf, info->msgBuf.len, "SML:0x%" PRIx64 ", %s point type and db type mismatch, db type:%s, point type:%s, key:%s",
                info->id, __FUNCTION__, tDataTypes[colField[*index].type].name, tDataTypes[kv->type].name, kv->key);
       uError("%s", info->msgBuf.buf);
       return TSDB_CODE_SML_INVALID_DATA;
@@ -954,7 +954,7 @@ static int32_t smlCreateTable(SSmlHandle *info, SRequestConnInfo *conn, SSmlSTab
   SArray *pColumns = NULL;
   SArray *pTags = NULL;
   SML_CHECK_CODE(smlCheckAuth(info, conn, NULL, AUTH_TYPE_WRITE));
-  uDebug("SML:0x%" PRIx64 " %s create table:%s", info->id, __FUNCTION__, pName->tname);
+  uDebug("SML:0x%" PRIx64 ", %s create table:%s", info->id, __FUNCTION__, pName->tname);
   pColumns = taosArrayInit(taosArrayGetSize(sTableData->cols), sizeof(SField));
   SML_CHECK_NULL(pColumns);
   pTags = taosArrayInit(taosArrayGetSize(sTableData->tags), sizeof(SField));
@@ -1005,7 +1005,7 @@ static int32_t smlModifyTag(SSmlHandle *info, SHashObj* hashTmpCheck, SHashObj* 
 
   if (action != SCHEMA_ACTION_NULL) {
     SML_CHECK_CODE(smlCheckAuth(info, conn, pName->tname, AUTH_TYPE_WRITE));
-    uDebug("SML:0x%" PRIx64 " %s change table tag, table:%s, action:%d", info->id, __FUNCTION__, pName->tname,
+    uDebug("SML:0x%" PRIx64 ", %s change table tag, table:%s, action:%d", info->id, __FUNCTION__, pName->tname,
            action);
     SML_CHECK_CODE(smlBuildFields(&pColumns, &pTags, *pTableMeta, sTableData));
     SML_CHECK_CODE(smlBuildFieldsList(info, (*pTableMeta)->schema, hashTmp, sTableData->tags, pTags,
@@ -1036,7 +1036,7 @@ static int32_t smlModifyCols(SSmlHandle *info, SHashObj* hashTmpCheck, SHashObj*
 
   if (action != SCHEMA_ACTION_NULL) {
     SML_CHECK_CODE(smlCheckAuth(info, conn, pName->tname, AUTH_TYPE_WRITE));
-    uDebug("SML:0x%" PRIx64 " %s change table col, table:%s, action:%d", info->id, __FUNCTION__, pName->tname,
+    uDebug("SML:0x%" PRIx64 ", %s change table col, table:%s, action:%d", info->id, __FUNCTION__, pName->tname,
            action);
     SML_CHECK_CODE(smlBuildFields(&pColumns, &pTags, *pTableMeta, sTableData));
     SML_CHECK_CODE(smlBuildFieldsList(info, (*pTableMeta)->schema, hashTmp, sTableData->cols, pColumns,
@@ -1068,7 +1068,7 @@ END:
 }
 
 static int32_t smlModifyDBSchemas(SSmlHandle *info) {
-  uDebug("SML:0x%" PRIx64 " %s start, format:%d, needModifySchema:%d", info->id, __FUNCTION__, info->dataFormat,
+  uDebug("SML:0x%" PRIx64 ", %s start, format:%d, needModifySchema:%d", info->id, __FUNCTION__, info->dataFormat,
          info->needModifySchema);
   if (info->dataFormat && !info->needModifySchema) {
     return TSDB_CODE_SUCCESS;
@@ -1132,7 +1132,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
       colHashTmp = NULL;
       tagHashTmp = NULL;
     } else {
-      uError("SML:0x%" PRIx64 " %s load table meta error: %s", info->id, __FUNCTION__, tstrerror(code));
+      uError("SML:0x%" PRIx64 ", %s load table meta error:%s", info->id, __FUNCTION__, tstrerror(code));
       goto END;
     }
 
@@ -1143,11 +1143,11 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
 
     taosMemoryFreeClear(sTableData->tableMeta);
     sTableData->tableMeta = pTableMeta;
-    uDebug("SML:0x%" PRIx64 " %s modify schema uid:%" PRIu64 ", sversion:%d, tversion:%d", info->id, __FUNCTION__, pTableMeta->uid,
+    uDebug("SML:0x%" PRIx64 ", %s modify schema uid:%" PRIu64 ", sversion:%d, tversion:%d", info->id, __FUNCTION__, pTableMeta->uid,
            pTableMeta->sversion, pTableMeta->tversion);
     tmp = (SSmlSTableMeta **)taosHashIterate(info->superTables, tmp);
   }
-  uDebug("SML:0x%" PRIx64 " %s end success, format:%d, needModifySchema:%d", info->id, __FUNCTION__, info->dataFormat,
+  uDebug("SML:0x%" PRIx64 ", %s end success, format:%d, needModifySchema:%d", info->id, __FUNCTION__, info->dataFormat,
          info->needModifySchema);
 
   return TSDB_CODE_SUCCESS;
@@ -1158,7 +1158,7 @@ END:
   taosHashCleanup(tagHashTmp);
   taosMemoryFreeClear(pTableMeta);
   (void)catalogRefreshTableMeta(info->pCatalog, &conn, &pName, 1);  // ignore refresh meta code if there is an error
-  uError("SML:0x%" PRIx64 " %s end failed:%d:%s, format:%d, needModifySchema:%d", info->id, __FUNCTION__, code,
+  uError("SML:0x%" PRIx64 ", %s end failed:%d:%s, format:%d, needModifySchema:%d", info->id, __FUNCTION__, code,
          tstrerror(code), info->dataFormat, info->needModifySchema);
 
   return code;
@@ -1358,7 +1358,7 @@ END:
 }
 
 static int32_t smlParseEnd(SSmlHandle *info) {
-  uDebug("SML:0x%" PRIx64 " %s start, format:%d, linenum:%d", info->id, __FUNCTION__, info->dataFormat,
+  uDebug("SML:0x%" PRIx64 ", %s start, format:%d, linenum:%d", info->id, __FUNCTION__, info->dataFormat,
          info->lineNum);
   int32_t code = 0;
   int32_t lino = 0;
@@ -1378,7 +1378,7 @@ static int32_t smlParseEnd(SSmlHandle *info) {
     }
 
     if (tinfo == NULL) {
-      uError("SML:0x%" PRIx64 "get oneTable failed, line num:%d", info->id, i);
+      uError("SML:0x%" PRIx64 ", get oneTable failed, line num:%d", info->id, i);
       smlBuildInvalidDataMsg(&info->msgBuf, "get oneTable failed", elements->measure);
       return TSDB_CODE_SML_INVALID_DATA;
     }
@@ -1398,14 +1398,14 @@ static int32_t smlParseEnd(SSmlHandle *info) {
     SSmlSTableMeta **tableMeta =
         (SSmlSTableMeta **)taosHashGet(info->superTables, elements->measure, elements->measureLen);
     if (tableMeta) {  // update meta
-      uDebug("SML:0x%" PRIx64 " %s update meta, format:%d, linenum:%d", info->id, __FUNCTION__, info->dataFormat,
+      uDebug("SML:0x%" PRIx64 ", %s update meta, format:%d, linenum:%d", info->id, __FUNCTION__, info->dataFormat,
              info->lineNum);
       SML_CHECK_CODE(smlUpdateMeta((*tableMeta)->colHash, (*tableMeta)->cols, elements->colArray, false, &info->msgBuf,
                           (*tableMeta)->tagHash));
       SML_CHECK_CODE(smlUpdateMeta((*tableMeta)->tagHash, (*tableMeta)->tags, tinfo->tags, true, &info->msgBuf,
                           (*tableMeta)->colHash));
     } else {
-      uDebug("SML:0x%" PRIx64 " %s add meta, format:%d, linenum:%d", info->id, __FUNCTION__, info->dataFormat,
+      uDebug("SML:0x%" PRIx64 ", %s add meta, format:%d, linenum:%d", info->id, __FUNCTION__, info->dataFormat,
              info->lineNum);
       SSmlSTableMeta *meta = NULL;
       SML_CHECK_CODE(smlBuildSTableMeta(info->dataFormat, &meta));
@@ -1418,7 +1418,7 @@ static int32_t smlParseEnd(SSmlHandle *info) {
       SML_CHECK_CODE(smlInsertMeta(meta->colHash, meta->cols, elements->colArray, meta->tagHash));
     }
   }
-  uDebug("SML:0x%" PRIx64 " %s end, format:%d, linenum:%d", info->id, __FUNCTION__, info->dataFormat, info->lineNum);
+  uDebug("SML:0x%" PRIx64 ", %s end, format:%d, linenum:%d", info->id, __FUNCTION__, info->dataFormat, info->lineNum);
 
 END:
   RETURN
@@ -1429,7 +1429,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
   int32_t         lino      = 0;
   char           *measure   = NULL;
   SSmlTableInfo **oneTable  = NULL;
-  uDebug("SML:0x%" PRIx64 " %s start, format:%d", info->id, __FUNCTION__, info->dataFormat);
+  uDebug("SML:0x%" PRIx64 ", %s start, format:%d", info->id, __FUNCTION__, info->dataFormat);
 
   if (info->pRequest->dbList == NULL) {
     info->pRequest->dbList = taosArrayInit(1, TSDB_DB_FNAME_LEN);
@@ -1478,14 +1478,14 @@ static int32_t smlInsertData(SSmlHandle *info) {
     SSmlSTableMeta **pMeta =
         (SSmlSTableMeta **)taosHashGet(info->superTables, tableData->sTableName, tableData->sTableNameLen);
     if (unlikely(NULL == pMeta || NULL == *pMeta || NULL == (*pMeta)->tableMeta)) {
-      uError("SML:0x%" PRIx64 " %s NULL == pMeta. table name: %s", info->id, __FUNCTION__, tableData->childTableName);
+      uError("SML:0x%" PRIx64 ", %s NULL == pMeta. table name:%s", info->id, __FUNCTION__, tableData->childTableName);
       SML_CHECK_CODE(TSDB_CODE_SML_INTERNAL_ERROR);
     }
 
     // use tablemeta of stable to save vgid and uid of child table
     (*pMeta)->tableMeta->vgId = vg.vgId;
     (*pMeta)->tableMeta->uid = tableData->uid;  // one table merge data block together according uid
-    uDebug("SML:0x%" PRIx64 " %s table:%s, uid:%" PRIu64 ", format:%d", info->id, __FUNCTION__, pName.tname,
+    uDebug("SML:0x%" PRIx64 ", %s table:%s, uid:%" PRIu64 ", format:%d", info->id, __FUNCTION__, pName.tname,
            tableData->uid, info->dataFormat);
 
     SML_CHECK_CODE(smlBindData(info->pQuery, info->dataFormat, tableData->tags, (*pMeta)->cols, tableData->cols,
@@ -1503,7 +1503,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
 
   launchQueryImpl(info->pRequest, info->pQuery, true, NULL);  // no need to check return code
 
-  uDebug("SML:0x%" PRIx64 " %s end, format:%d, code:%d,%s", info->id, __FUNCTION__, info->dataFormat, info->pRequest->code,
+  uDebug("SML:0x%" PRIx64 ", %s end, format:%d, code:%d,%s", info->id, __FUNCTION__, info->dataFormat, info->pRequest->code,
          tstrerror(info->pRequest->code));
 
   return info->pRequest->code;
@@ -1560,15 +1560,15 @@ END:
 static void printRaw(int64_t id, int lineNum, int numLines, ELogLevel level, char* data, int32_t len){
   char *print = taosMemoryMalloc(len + 1);
   if (print == NULL) {
-    uError("SML:0x%" PRIx64 " smlParseLine failed. code : %d", id, terrno);
+    uError("SML:0x%" PRIx64 ", smlParseLine failed. code :%d", id, terrno);
     return;
   }
   (void)memcpy(print, data, len);
   print[len] = '\0';
   if (level == DEBUG_DEBUG){
-    uDebug("SML:0x%" PRIx64 " smlParseLine is raw, line %d/%d : %s", id, lineNum, numLines, print);
+    uDebug("SML:0x%" PRIx64 ", smlParseLine is raw, line %d/%d :%s", id, lineNum, numLines, print);
   }else if (level == DEBUG_ERROR){
-    uError("SML:0x%" PRIx64 " smlParseLine failed. line %d/%d : %s", id, lineNum, numLines, print);
+    uError("SML:0x%" PRIx64 ", smlParseLine failed. line %d/%d :%s", id, lineNum, numLines, print);
   }
   taosMemoryFree(print);
 }
@@ -1594,7 +1594,7 @@ static bool getLine(SSmlHandle *info, char *lines[], char **rawLine, char *rawLi
   if (*rawLine != NULL && (uDebugFlag & DEBUG_DEBUG)) {
     printRaw(info->id, i, numLines, DEBUG_DEBUG, *tmp, *len);
   } else {
-    uDebug("SML:0x%" PRIx64 " smlParseLine is not raw, line %d/%d : %s", info->id, i, numLines, *tmp);
+    uDebug("SML:0x%" PRIx64 ", smlParseLine is not raw, line %d/%d :%s", info->id, i, numLines, *tmp);
   }
   return true;
 }
@@ -1614,7 +1614,7 @@ static int32_t smlParseJson(SSmlHandle *info, char *lines[], char *rawLine) {
 }
 
 static int32_t smlParseStart(SSmlHandle *info, char *lines[], char *rawLine, char *rawLineEnd, int numLines) {
-  uDebug("SML:0x%" PRIx64 " %s start", info->id, __FUNCTION__);
+  uDebug("SML:0x%" PRIx64 ", %s start", info->id, __FUNCTION__);
   int32_t code = TSDB_CODE_SUCCESS;
   if (info->protocol == TSDB_SML_JSON_PROTOCOL) {
     return smlParseJson(info, lines, rawLine);
@@ -1648,12 +1648,12 @@ static int32_t smlParseStart(SSmlHandle *info, char *lines[], char *rawLine, cha
       if (rawLine != NULL) {
         printRaw(info->id, i, numLines, DEBUG_ERROR, tmp, len);
       } else {
-        uError("SML:0x%" PRIx64 " %s failed. line %d : %s", info->id, __FUNCTION__, i, tmp);
+        uError("SML:0x%" PRIx64 ", %s failed. line %d :%s", info->id, __FUNCTION__, i, tmp);
       }
       return code;
     }
     if (info->reRun) {
-      uDebug("SML:0x%" PRIx64 " %s re run", info->id, __FUNCTION__);
+      uDebug("SML:0x%" PRIx64 ", %s re run", info->id, __FUNCTION__);
       i = 0;
       rawLine = oldRaw;
       code = smlClearForRerun(info);
@@ -1664,7 +1664,7 @@ static int32_t smlParseStart(SSmlHandle *info, char *lines[], char *rawLine, cha
     }
     i++;
   }
-  uDebug("SML:0x%" PRIx64 " %s end", info->id, __FUNCTION__);
+  uDebug("SML:0x%" PRIx64 ", %s end", info->id, __FUNCTION__);
 
   return code;
 }
@@ -1691,7 +1691,7 @@ static int smlProcess(SSmlHandle *info, char *lines[], char *rawLine, char *rawL
       break;
     }
     taosMsleep(100);
-    uInfo("SML:0x%" PRIx64 " smlModifyDBSchemas retry code:%s, times:%d", info->id, tstrerror(code), retryNum);
+    uInfo("SML:0x%" PRIx64 ", smlModifyDBSchemas retry code:%s, times:%d", info->id, tstrerror(code), retryNum);
   } while (retryNum++ < taosHashGetSize(info->superTables) * MAX_RETRY_TIMES);
 
   SML_CHECK_CODE(code);

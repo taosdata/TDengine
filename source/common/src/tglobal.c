@@ -2015,15 +2015,15 @@ if(code != 0) {
 
 static int32_t taosCheckGlobalCfg() {
   uint32_t ipv4 = 0;
-  uInfo("start to check global tsLocalFqdn:%s, tsServerPort:%u", tsLocalFqdn, tsServerPort);
+  uInfo("check global fqdn:%s and port:%u", tsLocalFqdn, tsServerPort);
   int32_t code = taosGetIpv4FromFqdn(tsLocalFqdn, &ipv4);
   if (code) {
-    uError("failed to get ip from fqdn:%s since %s, dnode can not be initialized", tsLocalFqdn, tstrerror(code));
+    uError("failed to get ip from fqdn:%s since %s, can not be initialized", tsLocalFqdn, tstrerror(code));
     TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);
   }
 
   if (tsServerPort <= 0) {
-    uError("invalid server port:%u, dnode can not be initialized", tsServerPort);
+    uError("invalid server port:%u, can not be initialized", tsServerPort);
     TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);
   }
 
@@ -2862,7 +2862,7 @@ static void taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag
     if (code != TSDB_CODE_CFG_NOT_FOUND) {
       uError("failed to set flag %s to %d, since:%s", name, flag, tstrerror(code));
     } else {
-      uDebug("failed to set flag %s to %d, since:%s", name, flag, tstrerror(code));
+      uTrace("failed to set flag %s to %d, since:%s", name, flag, tstrerror(code));
     }
   }
   return;

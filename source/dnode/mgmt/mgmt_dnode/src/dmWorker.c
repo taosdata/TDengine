@@ -307,7 +307,7 @@ static void *dmCrashReportThreadFp(void *param) {
         truncateFile = true;
       }
     } else {
-      dDebug("no crash info");
+      dInfo("no crash info was found");
     }
 
     taosMemoryFree(pMsg);
