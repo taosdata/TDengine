@@ -28,7 +28,6 @@
 #define tqInfoC(...)  do { if (cDebugFlag & DEBUG_INFO  || tqClientDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  INFO  ", DEBUG_INFO,  tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
 #define tqDebugC(...) do { if (cDebugFlag & DEBUG_DEBUG || tqClientDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  DEBUG ", DEBUG_DEBUG, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
 
-#define EMPTY_BLOCK_POLL_IDLE_DURATION 10
 #define DEFAULT_AUTO_COMMIT_INTERVAL   5000
 #define DEFAULT_HEARTBEAT_INTERVAL     3000
 #define DEFAULT_ASKEP_INTERVAL         1000
@@ -149,7 +148,6 @@ struct tmq_t {
   STscObj*    pTscObj;       // connection
   SArray*     clientTopics;  // SArray<SMqClientTopic>
   STaosQueue* mqueue;        // queue of rsp
-  STaosQall*  qall;
   STaosQueue* delayedTask;  // delayed task queue for heartbeat and auto commit
   tsem2_t     rspSem;
 };
@@ -174,7 +172,6 @@ typedef struct {
   int32_t       vgId;
   int32_t       vgStatus;
   int32_t       vgSkipCnt;            // here used to mark the slow vgroups
-  int64_t       emptyBlockReceiveTs;  // once empty block is received, idle for ignoreCnt then start to poll data
   int64_t       blockReceiveTs;       // once empty block is received, idle for ignoreCnt then start to poll data
   int64_t       blockSleepForReplay;  // once empty block is received, idle for ignoreCnt then start to poll data
   bool          seekUpdated;          // offset is updated by seek operator, therefore, not update by vnode rsp.
@@ -1134,7 +1131,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
   tDestroySMqHbReq(&req);
   if (tmrId != NULL) {
     bool ret = taosTmrReset(tmqSendHbReq, tmq->heartBeatIntervalMs, param, tmqMgmt.timer, &tmq->hbLiveTimer);
-    tqDebugC("consumer:0x%" PRIx64 " reset timer for tmq heartbeat:%d, pollFlag:%d", tmq->consumerId, ret, tmq->pollFlag);
+    tqDebugC("consumer:0x%" PRIx64 " reset timer for tmq heartbeat ret:%d, interval:%d, pollFlag:%d", tmq->consumerId, ret, tmq->heartBeatIntervalMs, tmq->pollFlag);
   }
   int32_t ret = taosReleaseRef(tmqMgmt.rsetId, refId);
   if (ret != 0){
@@ -1226,7 +1223,6 @@ static void initClientTopicFromRsp(SMqClientTopic* pTopic, SMqSubTopicEp* pTopic
         .epSet = pVgEp->epSet,
         .vgStatus = pInfo ? pInfo->vgStatus : TMQ_VG_STATUS__IDLE,
         .vgSkipCnt = 0,
-        .emptyBlockReceiveTs = 0,
         .blockReceiveTs = 0,
         .blockSleepForReplay = 0,
         .numOfRows = pInfo ? pInfo->numOfRows : 0,
@@ -1487,27 +1483,14 @@ END:
 }
 
 static int32_t tmqHandleAllDelayedTask(tmq_t* pTmq) {
-  STaosQall* qall = NULL;
-  int32_t    code = 0;
-
-  code = taosAllocateQall(&qall);
-  if (code) {
-    tqErrorC("consumer:0x%" PRIx64 ", failed to allocate qall, code:%s", pTmq->consumerId, tstrerror(code));
-    return code;
-  }
-
-  int32_t numOfItems = taosReadAllQitems(pTmq->delayedTask, qall);
-  if (numOfItems == 0) {
-    taosFreeQall(qall);
-    return 0;
-  }
-
-  tqDebugC("consumer:0x%" PRIx64 " handle delayed %d tasks before poll data", pTmq->consumerId, numOfItems);
-  int8_t* pTaskType = NULL;
-  while (taosGetQitem(qall, (void**)&pTaskType) != 0) {
+  tqDebugC("consumer:0x%" PRIx64 " handle delayed %d tasks before poll data", pTmq->consumerId, taosQueueItemSize(pTmq->delayedTask));
+  while (1) {
+    int8_t* pTaskType = NULL;
+    taosReadQitem(pTmq->delayedTask, (void**)&pTaskType);
+    if (pTaskType == NULL) {break;}
     if (*pTaskType == TMQ_DELAYED_TASK__ASK_EP) {
       tqDebugC("consumer:0x%" PRIx64 " retrieve ask ep timer", pTmq->consumerId);
-      code = askEp(pTmq, NULL, false, false);
+      int32_t code = askEp(pTmq, NULL, false, false);
       if (code != 0) {
         tqErrorC("consumer:0x%" PRIx64 " failed to ask ep, code:%s", pTmq->consumerId, tstrerror(code));
       }
@@ -1530,23 +1513,15 @@ static int32_t tmqHandleAllDelayedTask(tmq_t* pTmq) {
     taosFreeQitem(pTaskType);
   }
 
-  taosFreeQall(qall);
   return 0;
 }
 
 void tmqClearUnhandleMsg(tmq_t* tmq) {
   if (tmq == NULL) return;
-  SMqRspWrapper* rspWrapper = NULL;
-  while (taosGetQitem(tmq->qall, (void**)&rspWrapper) != 0) {
-    tmqFreeRspWrapper(rspWrapper);
-    taosFreeQitem(rspWrapper);
-  }
-
-  rspWrapper = NULL;
-  if (taosReadAllQitems(tmq->mqueue, tmq->qall) == 0){
-    return;
-  }
-  while (taosGetQitem(tmq->qall, (void**)&rspWrapper) != 0) {
+  while (1) {
+    SMqRspWrapper* rspWrapper = NULL;
+    taosReadQitem(tmq->mqueue, (void**)&rspWrapper);
+    if (rspWrapper == NULL) break;
     tmqFreeRspWrapper(rspWrapper);
     taosFreeQitem(rspWrapper);
   }
@@ -1613,7 +1588,6 @@ void tmqFreeImpl(void* handle) {
     taosCloseQueue(tmq->delayedTask);
   }
 
-  taosFreeQall(tmq->qall);
   if(tsem2_destroy(&tmq->rspSem) != 0) {
     tqErrorC("failed to destroy sem in free tmq");
   }
@@ -1736,14 +1710,6 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
     tqErrorC("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, tstrerror(code),
              pTmq->groupId);
     SET_ERROR_MSG_TMQ("open delayed task queue failed")
-    goto _failed;
-  }
-
-  code = taosAllocateQall(&pTmq->qall);
-  if (code) {
-    tqErrorC("consumer:0x%" PRIx64 " setup failed since %s, groupId:%s", pTmq->consumerId, tstrerror(code),
-             pTmq->groupId);
-    SET_ERROR_MSG_TMQ("allocate qall failed")
     goto _failed;
   }
 
@@ -2128,7 +2094,6 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
-
   if (tsem2_post(&tmq->rspSem) != 0){
     tqErrorC("failed to post rsp sem, consumer:0x%" PRIx64, tmq->consumerId);
   }
@@ -2322,7 +2287,7 @@ static int32_t tmqPollImpl(tmq_t* tmq) {
   taosWLockLatch(&tmq->lock);
 
   if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__LOST){
-    code = TSDB_CODE_TMQ_CONSUMER_MISMATCH;
+    code = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
     goto end;
   }
 
@@ -2344,14 +2309,7 @@ static int32_t tmqPollImpl(tmq_t* tmq) {
       if (pVg == NULL) {
         continue;
       }
-      int64_t elapsed = taosGetTimestampMs() - pVg->emptyBlockReceiveTs;
-      if (elapsed < EMPTY_BLOCK_POLL_IDLE_DURATION && elapsed >= 0) {  // less than 10ms
-        tqDebugC("consumer:0x%" PRIx64 " epoch %d, vgId:%d idle for 10ms before start next poll", tmq->consumerId,
-                 tmq->epoch, pVg->vgId);
-        continue;
-      }
-
-      elapsed = taosGetTimestampMs() - pVg->blockReceiveTs;
+      int64_t elapsed = taosGetTimestampMs() - pVg->blockReceiveTs;
       if (tmq->replayEnable && elapsed < pVg->blockSleepForReplay && elapsed >= 0) {
         tqDebugC("consumer:0x%" PRIx64 " epoch %d, vgId:%d idle for %" PRId64 "ms before start next poll when replay",
                  tmq->consumerId, tmq->epoch, pVg->vgId, pVg->blockSleepForReplay);
@@ -2430,12 +2388,12 @@ static int32_t processMqRspError(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
   if (pRspWrapper->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {  // for vnode transform
     code = askEp(tmq, NULL, false, true);
     if (code != 0) {
-      tqErrorC("consumer:0x%" PRIx64 " failed to ask ep, code:%s", tmq->consumerId, tstrerror(code));
+      tqErrorC("consumer:0x%" PRIx64 " failed to ask ep wher vnode transform, code:%s", tmq->consumerId, tstrerror(code));
     }
   } else if (pRspWrapper->code == TSDB_CODE_TMQ_CONSUMER_MISMATCH) {
-    code = askEp(tmq, NULL, false, false);
+    code = syncAskEp(tmq);
     if (code != 0) {
-      tqErrorC("consumer:0x%" PRIx64 " failed to ask ep, code:%s", tmq->consumerId, tstrerror(code));
+      tqErrorC("consumer:0x%" PRIx64 " failed to ask ep when consumer mismatch, code:%s", tmq->consumerId, tstrerror(code));
     }
   } else if (pRspWrapper->code == TSDB_CODE_TMQ_NO_TABLE_QUALIFIED){
     code = 0;
@@ -2446,7 +2404,6 @@ static int32_t processMqRspError(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
   SMqClientVg* pVg = NULL;
   getVgInfo(tmq, pollRspWrapper->topicName, pollRspWrapper->vgId, &pVg);
   if (pVg) {
-    pVg->emptyBlockReceiveTs = taosGetTimestampMs();
     atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
   }
   taosWUnLockLatch(&tmq->lock);
@@ -2525,7 +2482,6 @@ static SMqRspObj* processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
       tqDebugC("consumer:0x%" PRIx64 " empty block received, vgId:%d, offset:%s, vg total:%" PRId64
                    ", total:%" PRId64 ", QID:0x%" PRIx64,
                tmq->consumerId, pVg->vgId, buf, pVg->numOfRows, tmq->totalRows, pollRspWrapper->reqId);
-      pVg->emptyBlockReceiveTs = taosGetTimestampMs();
     } else {
       pRspObj = buildRsp(pollRspWrapper);
       if (pRspObj == NULL) {
@@ -2539,7 +2495,6 @@ static SMqRspObj* processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper){
         tmqBuildRspFromWrapperInner(pollRspWrapper, pVg, &numOfRows, pRspObj);
         tmq->totalRows += numOfRows;
       }
-      pVg->emptyBlockReceiveTs = 0;
       if (tmq->replayEnable && pRspWrapper->tmqRspType != TMQ_MSG_TYPE__POLL_RAW_DATA_RSP) {
         pVg->blockReceiveTs = taosGetTimestampMs();
         pVg->blockSleepForReplay = pRspObj->dataRsp.sleepTime;
@@ -2575,22 +2530,14 @@ END:
 }
 
 static void* tmqHandleAllRsp(tmq_t* tmq) {
-  tqDebugC("consumer:0x%" PRIx64 " start to handle the rsp, total:%d", tmq->consumerId, taosQallItemSize(tmq->qall));
+  tqDebugC("consumer:0x%" PRIx64 " start to handle the rsp, total:%d", tmq->consumerId, taosQueueItemSize(tmq->mqueue));
 
   int32_t code = 0;
   void* returnVal = NULL;
   while (1) {
     SMqRspWrapper* pRspWrapper = NULL;
-    if (taosGetQitem(tmq->qall, (void**)&pRspWrapper) == 0) {
-      code = taosReadAllQitems(tmq->mqueue, tmq->qall);
-      if (code == 0){
-        goto END;
-      }
-      code = taosGetQitem(tmq->qall, (void**)&pRspWrapper);
-      if (code == 0) {
-        goto END;
-      }
-    }
+    taosReadQitem(tmq->mqueue, (void**)&pRspWrapper);
+    if (pRspWrapper == NULL) {break;}
 
     tqDebugC("consumer:0x%" PRIx64 " handle rsp, type:%s", tmq->consumerId, tmqMsgTypeStr[pRspWrapper->tmqRspType]);
     if (pRspWrapper->code != 0) {
@@ -2629,9 +2576,6 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     code = tmqHandleAllDelayedTask(tmq);
     TSDB_CHECK_CODE(code, lino, END);
 
-    code = tmqPollImpl(tmq);
-    TSDB_CHECK_CODE(code, lino, END);
-
     rspObj = tmqHandleAllRsp(tmq);
     if (rspObj) {
       tqDebugC("consumer:0x%" PRIx64 " return rsp %p", tmq->consumerId, rspObj);
@@ -2640,11 +2584,14 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, END);
 
+    code = tmqPollImpl(tmq);
+    TSDB_CHECK_CODE(code, lino, END);
+
     if (timeout >= 0) {
       int64_t currentTime = taosGetTimestampMs();
       int64_t elapsedTime = currentTime - startTime;
-      TSDB_CHECK_CONDITION(elapsedTime <= timeout && elapsedTime >= 0, code, lino, END, 0);
       (void)tsem2_timewait(&tmq->rspSem, (timeout - elapsedTime));
+      TSDB_CHECK_CONDITION(elapsedTime < timeout && elapsedTime >= 0, code, lino, END, 0);
     } else {
       (void)tsem2_timewait(&tmq->rspSem, 1000);
     }
