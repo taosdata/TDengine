@@ -256,7 +256,7 @@ int32_t taosDriverInit(EDriverType driverType) {
 _OVER:
   if (code != 0) {
     printf("failed to load function %s from %s since %s [0x%X]\r\n", funcName, driverPath, terrstr(), terrno);
-    taosDriverCleanup(tsDriver);
+    taosDriverCleanup();
   }
 
   return code;
