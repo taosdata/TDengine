@@ -94,7 +94,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
 
 static void dmMayShouldUpdateAnalFunc(SDnodeMgmt *pMgmt, int64_t newVer) {
   int32_t code = 0;
-  int64_t oldVer = taosAnalGetVersion();
+  int64_t oldVer = taosAnalyGetVersion();
   if (oldVer == newVer) return;
   dDebug("analysis on dnode ver:%" PRId64 ", status ver:%" PRId64, oldVer, newVer);
 
@@ -233,7 +233,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   req.statusSeq = pMgmt->statusSeq;
   req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
-  req.analVer = taosAnalGetVersion();
+  req.analVer = taosAnalyGetVersion();
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   if (contLen < 0) {
