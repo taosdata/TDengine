@@ -148,10 +148,19 @@ async fn get_maximum_timestamp(
     Ok(chrono::Utc::now() + Duration::from_secs(365 * 24 * 3600))
 }
 
-pub async fn get_database(taos: &mut Option<TaosConnection>) -> Result<String, TaosError> {
+pub async fn get_database(
+    pool: &TaosPool,
+    taos: &mut Option<TaosConnection>,
+    max_retries: u32,
+    cancel: &CancellationToken,
+) -> Result<String, TaosError> {
     const SQL_SELECT_DATABASE: &str = "select database();";
     if taos.is_none() {
-        return Err(TaosError::new(0xFFFF, "Connection is not established"));
+        taos.replace(
+            reconnect_with_max_retries(pool, max_retries, cancel)
+                .in_current_span()
+                .await?,
+        );
     }
 
     match taos

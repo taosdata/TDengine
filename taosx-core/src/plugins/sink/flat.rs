@@ -460,15 +460,16 @@ pub async fn flat_write_with_sql(
         .iter()
         .into_group_map_by(|m| m.stable_name().map(|s| s.to_string()));
 
-    let database_name = match get_database(taos).await {
-        Ok(db) => Some(db),
-        Err(err) => {
-            match handling_database_not_exist(global, messages, err, archive_tx.clone()).await {
-                Ok(_) => return Ok(0),
-                Err(e) => return Err(e),
+    let database_name =
+        match get_database(pool, taos, DEFAULT_MAX_RETRIES_FOR_CONNECTION, cancel).await {
+            Ok(db) => Some(db),
+            Err(err) => {
+                match handling_database_not_exist(global, messages, err, archive_tx.clone()).await {
+                    Ok(_) => return Ok(0),
+                    Err(e) => return Err(e),
+                }
             }
-        }
-    };
+        };
     // insert into stable
     for (stable, messages) in groups.into_iter() {
         let instant = std::time::Instant::now();
