@@ -380,6 +380,7 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
     tscError("invalid version string.");
     return code;
   }
+
   *pDnodeConn = rpcOpen(&rpcInit);
   if (*pDnodeConn == NULL) {
     tscError("failed to init connection to server since %s", tstrerror(terrno));
