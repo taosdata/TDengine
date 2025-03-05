@@ -45,7 +45,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   pOut->dbVgroup->hashSuffix = usedbRsp->hashSuffix;
   pOut->dbVgroup->stateTs = usedbRsp->stateTs;
 
-  qDebug("Got %d vgroup for db %s, vgVersion:%d, stateTs:%" PRId64, usedbRsp->vgNum, usedbRsp->db, usedbRsp->vgVersion,
+  qDebug("db:%s, get %d vgroup, vgVersion:%d, stateTs:%" PRId64, usedbRsp->db, usedbRsp->vgNum, usedbRsp->vgVersion,
          usedbRsp->stateTs);
 
   if (usedbRsp->vgNum <= 0) {
@@ -61,7 +61,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   for (int32_t i = 0; i < usedbRsp->vgNum; ++i) {
     SVgroupInfo *pVgInfo = taosArrayGet(usedbRsp->pVgroupInfos, i);
     pOut->dbVgroup->numOfTable += pVgInfo->numOfTable;
-    qDebug("the %dth vgroup, id %d, epNum %d, current %s port %d", i, pVgInfo->vgId, pVgInfo->epSet.numOfEps,
+    qDebug("the %dth vgroup, id:%d, epNum:%d, current:%s port:%u", i, pVgInfo->vgId, pVgInfo->epSet.numOfEps,
            pVgInfo->epSet.eps[pVgInfo->epSet.inUse].fqdn, pVgInfo->epSet.eps[pVgInfo->epSet.inUse].port);
     if (0 != taosHashPut(pOut->dbVgroup->vgHash, &pVgInfo->vgId, sizeof(int32_t), pVgInfo, sizeof(SVgroupInfo))) {
       return terrno;
@@ -521,7 +521,7 @@ int32_t queryCreateCTableMetaFromMsg(STableMetaRsp *msg, SCTableMeta *pMeta) {
   pMeta->uid = msg->tuid;
   pMeta->suid = msg->suid;
 
-  qDebug("ctable %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s suid %" PRIx64, msg->tbName, pMeta->uid,
+  qDebug("ctb:%s, uid:0x%" PRIx64 " meta returned, type:%d vgId:%d db:%s suid:%" PRIx64, msg->tbName, pMeta->uid,
          pMeta->tableType, pMeta->vgId, msg->dbFName, pMeta->suid);
 
   return TSDB_CODE_SUCCESS;
@@ -572,9 +572,9 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
     }
   }
 
-  qDebug("table %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s stb %s suid %" PRIx64
-         " sver %d tver %d"
-         " tagNum %d colNum %d precision %d rowSize %d",
+  qDebug("tb:%s, uid:%" PRIx64 " meta returned, type:%d vgId:%d db:%s stb:%s suid:%" PRIx64
+         " sver:%d tver:%d"
+         " tagNum:%d colNum:%d precision:%d rowSize:%d",
          msg->tbName, pTableMeta->uid, pTableMeta->tableType, pTableMeta->vgId, msg->dbFName, msg->stbName,
          pTableMeta->suid, pTableMeta->sversion, pTableMeta->tversion, pTableMeta->tableInfo.numOfTags,
          pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.precision, pTableMeta->tableInfo.rowSize);
@@ -632,9 +632,9 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   char *pTbName = (char *)pTableMeta + metaSize + schemaExtSize;
   tstrncpy(pTbName, msg->tbName, tbNameSize);
 
-  qDebug("table %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s stb %s suid %" PRIx64
-         " sver %d tver %d"
-         " tagNum %d colNum %d precision %d rowSize %d",
+  qDebug("tb:%s, uid:%" PRIx64 " meta returned, type:%d vgId:%d db:%s stb:%s suid:%" PRIx64
+         " sver:%d tver:%d"
+         " tagNum:%d colNum:%d precision:%d rowSize:%d",
          msg->tbName, pTableMeta->uid, pTableMeta->tableType, pTableMeta->vgId, msg->dbFName, msg->stbName,
          pTableMeta->suid, pTableMeta->sversion, pTableMeta->tversion, pTableMeta->tableInfo.numOfTags,
          pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.precision, pTableMeta->tableInfo.rowSize);
@@ -831,7 +831,7 @@ int32_t queryProcessGetDbCfgRsp(void *output, char *msg, int32_t msgSize) {
   }
 
   if (tDeserializeSDbCfgRsp(msg, msgSize, &out) != 0) {
-    qError("tDeserializeSDbCfgRsp failed, msgSize:%d,dbCfgRsp:%lu", msgSize, sizeof(out));
+    qError("tDeserializeSDbCfgRsp failed, msgSize:%d, dbCfgRsp:%lu", msgSize, sizeof(out));
     return TSDB_CODE_INVALID_MSG;
   }
 
@@ -981,7 +981,7 @@ int32_t queryProcessStreamProgressRsp(void* output, char* msg, int32_t msgSize) 
   }
 
   if (tDeserializeSStreamProgressRsp(msg, msgSize, output) != 0) {
-    qError("tDeserializeStreamProgressRsp failed, msgSize: %d", msgSize);
+    qError("tDeserializeStreamProgressRsp failed, msgSize:%d", msgSize);
     return TSDB_CODE_INVALID_MSG;
   }
   return TSDB_CODE_SUCCESS;

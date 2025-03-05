@@ -557,8 +557,10 @@ description: TDengine 服务端的错误码列表和详细说明
 
 | 错误码     | 错误描述              | 可能的出错场景或者可能的原因                                                     | 建议用户采取的措施             |
 | ---------- | --------------------- | -------------------------------------------------------------------------------- | ------------------------------ |
+| 0x800003E6 | Consumer not exist    | Consumer 超时下线                                                                | 重新建 consumer 订阅数据     |
+| 0x800003EA | Consumer not ready    | Consumer 正在平衡中                                                               | 等待 2 秒后重试     |
 | 0x80004000 | Invalid message       | 订阅到的数据非法，一般不会出现                                                   | 具体查看 client 端的错误日志提示 |
-| 0x80004001 | Consumer mismatch     | 订阅请求的 vnode 和重新分配的 vnode不一致，一般存在于有新消费者加入相同消费者组里时 | 内部错误，不暴露给用户         |
+| 0x80004001 | Consumer mismatch     | 订阅请求的 vnode 和重新分配的 vnode 不一致，一般存在于有新消费者加入相同消费者组里时         | 内部错误         |
 | 0x80004002 | Consumer closed       | 消费者已经不存在了                                                               | 查看是否已经 close 掉了          |
 | 0x80004017 | Invalid status, please subscribe topic first | 数据订阅状态不对                                                                 | 没有调用 subscribe，直接 poll 数据     |
 | 0x80004100 | Stream task not exist | 流计算任务不存在                                                                 | 具体查看 server 端的错误日志     |
