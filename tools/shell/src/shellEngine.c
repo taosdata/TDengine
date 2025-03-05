@@ -672,7 +672,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
         printf("%*.7e", width, GET_FLOAT_VAL(val));
       } else {
         n = snprintf(buf, LENGTH, "%*.*g", width, FLT_DIG, GET_FLOAT_VAL(val));
-        if (n > SHELL_FLOAT_WIDTH) {
+        if (n > width) {
           printf("%*.7e", width, GET_FLOAT_VAL(val));
         } else {
           printf("%s", buf);

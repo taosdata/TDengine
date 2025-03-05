@@ -22,6 +22,9 @@
 #include "tanalytics.h"
 #include "taoserror.h"
 #include "ttime.h"
+#include "functionMgt.h"
+#include "ttypes.h"
+#include "tglobal.h"
 
 static int32_t buildFuncErrMsg(char* pErrBuf, int32_t len, int32_t errCode, const char* pFormat, ...) {
   va_list vArgList;
@@ -1742,6 +1745,49 @@ static int32_t translateHistogramPartial(SFunctionNode* pFunc, char* pErrBuf, in
   FUNC_ERR_RET(translateHistogramImpl(pFunc, pErrBuf, len));
   pFunc->node.resType =
       (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateGreatestleast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (LIST_LENGTH(pFunc->pParameterList) < 2) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  bool mixTypeToStrings = tsTransToStrWhenMixTypeInLeast;
+
+  SDataType res = {.type = 0};
+  for (int32_t i = 0; i < LIST_LENGTH(pFunc->pParameterList); i++) {
+    SDataType* para = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i));
+
+    if (IS_NULL_TYPE(para->type)) {
+      res.type = TSDB_DATA_TYPE_NULL;
+      break;
+    } else if (IS_MATHABLE_TYPE(para->type)) {
+      if(res.type == 0) {
+        res.type = para->type;
+        res.bytes = para->bytes;
+      } else if(IS_MATHABLE_TYPE(res.type) || !mixTypeToStrings) {
+        int32_t resType = vectorGetConvertType(res.type, para->type);
+        res.type = resType == 0 ? res.type : resType;
+        res.bytes =  tDataTypes[resType].bytes;
+      }
+    } else if (IS_COMPARE_STR_DATA_TYPE(para->type)) {
+      if(res.type == 0) {
+        res.type = para->type;
+        res.bytes = para->bytes;
+      } else if(IS_COMPARE_STR_DATA_TYPE(res.type)) {
+        int32_t resType = vectorGetConvertType(res.type, para->type);
+        res.type = resType == 0 ? res.type : resType;
+        res.bytes = TMAX(res.bytes, para->bytes);
+      } else if(mixTypeToStrings) { // res.type is mathable type
+        res.type = para->type;
+        res.bytes = para->bytes;
+      }
+    } else {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+  }
+  pFunc->node.resType = res;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -5655,6 +5701,26 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "cols",
     .translateFunc = invalidColsFunction,
+  },
+  {
+    .name = "greatest",
+    .type = FUNCTION_TYPE_GREATEST,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateGreatestleast,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = greatestFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "least",
+    .type = FUNCTION_TYPE_LEAST,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .translateFunc = translateGreatestleast,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = leastFunction,
+    .finalizeFunc = NULL
   },
 };
 // clang-format on

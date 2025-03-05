@@ -1,11 +1,14 @@
+#include <stdint.h>
 #include "cJSON.h"
 #include "function.h"
 #include "scalar.h"
 #include "sclInt.h"
 #include "sclvector.h"
 #include "tdatablock.h"
+#include "tdef.h"
 #include "tjson.h"
 #include "ttime.h"
+#include "filter.h"
 
 typedef float (*_float_fn)(float);
 typedef float (*_float_fn_2)(float, float);
@@ -4401,5 +4404,135 @@ int32_t uniqueScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
 
 int32_t modeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return selectScalarFunction(pInput, inputNum, pOutput);
+}
+
+typedef struct SCovertScarlarParam {
+  SScalarParam covertParam;
+  SScalarParam *param;
+  bool converted;
+} SCovertScarlarParam;
+
+void freeSCovertScarlarParams(SCovertScarlarParam *pCovertParams, int32_t num) {
+  if (pCovertParams == NULL) {
+    return;
+  }
+  for (int32_t i = 0; i < num; i++) {
+    if (pCovertParams[i].converted) {
+      sclFreeParam(pCovertParams[i].param);
+    }
+  }
+  taosMemoryFree(pCovertParams);
+}
+
+static int32_t vectorCompareAndSelect(SCovertScarlarParam *pParams, int32_t numOfRows, int numOfCols,
+                                      int32_t *resultColIndex, EOperatorType optr) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t type = GET_PARAM_TYPE(pParams[0].param);
+
+  __compar_fn_t fp = NULL;
+  code = filterGetCompFunc(&fp, type, optr);
+  if(code != TSDB_CODE_SUCCESS) {
+    qError("failed to get compare function, func:%s type:%d, optr:%d", __FUNCTION__, type, optr);
+    return code;
+  }
+
+  for (int32_t i = 0; i < numOfRows; i++) {
+    int selectIndex = 0;
+    if (colDataIsNull_s(pParams[selectIndex].param->columnData, i)) {
+      resultColIndex[i] = -1;
+      continue;
+    }
+    for (int32_t j = 1; j < numOfCols; j++) {
+      if (colDataIsNull_s(pParams[j].param->columnData, i)) {
+        resultColIndex[i] = -1;
+        break;
+      } else {
+        int32_t leftRowNo = pParams[selectIndex].param->numOfRows == 1 ? 0 : i;
+        int32_t rightRowNo = pParams[j].param->numOfRows == 1 ? 0 : i;
+        char   *pLeftData = colDataGetData(pParams[selectIndex].param->columnData, leftRowNo);
+        char   *pRightData = colDataGetData(pParams[j].param->columnData, rightRowNo);
+        bool    pRes = filterDoCompare(fp, optr, pLeftData, pRightData);
+        if (!pRes) {
+          selectIndex = j;
+        }
+      }
+      resultColIndex[i] = selectIndex;
+    }
+  }
+
+  return code;
+}
+
+static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput, EOperatorType order) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  SColumnInfoData *pOutputData = pOutput[0].columnData;
+  int16_t          outputType = GET_PARAM_TYPE(&pOutput[0]);
+  int64_t          outputLen = GET_PARAM_BYTES(&pOutput[0]);
+
+  SCovertScarlarParam *pCovertParams = NULL;
+  int32_t             *resultColIndex = NULL;
+
+  int32_t numOfRows = 0;
+  bool    IsNullType = false;
+  // If any column is NULL type, the output is NULL type
+  for (int32_t i = 0; i < inputNum; i++) {
+    if (numOfRows != 0 && numOfRows != pInput[i].numOfRows && pInput[i].numOfRows != 1 && numOfRows != 1) {
+      qError("input rows not match, func:%s, rows:%d, %d", __FUNCTION__, numOfRows, pInput[i].numOfRows);
+      code = TSDB_CODE_TSC_INTERNAL_ERROR;
+      goto _return;
+    }
+    numOfRows = TMAX(numOfRows, pInput[i].numOfRows);
+    IsNullType |= IS_NULL_TYPE(GET_PARAM_TYPE(&pInput[i]));
+  }
+
+  if (IsNullType) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+  pCovertParams = taosMemoryMalloc(inputNum * sizeof(SCovertScarlarParam));
+  for (int32_t j = 0; j < inputNum; j++) {
+    SScalarParam *pParam = &pInput[j];
+    int16_t       oldType = GET_PARAM_TYPE(&pInput[j]);
+    if (oldType != outputType) {
+      pCovertParams[j].covertParam = (SScalarParam){0};
+      setTzCharset(&pCovertParams[j].covertParam, pParam->tz, pParam->charsetCxt);
+      SCL_ERR_JRET(vectorConvertSingleCol(pParam, &pCovertParams[j].covertParam, outputType, 0, pParam->numOfRows));
+      pCovertParams[j].param = &pCovertParams[j].covertParam;
+      pCovertParams[j].converted = true;
+    } else {
+      pCovertParams[j].param = pParam;
+      pCovertParams[j].converted = false;
+    }
+  }
+
+  resultColIndex = taosMemoryCalloc(numOfRows, sizeof(int32_t));
+  SCL_ERR_JRET(vectorCompareAndSelect(pCovertParams, numOfRows, inputNum, resultColIndex, order));
+
+  for (int32_t i = 0; i < numOfRows; i++) {
+    int32_t index = resultColIndex[i];
+    if (index == -1) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+    int32_t rowNo = pCovertParams[index].param->numOfRows == 1 ? 0 : i;
+    char   *data = colDataGetData(pCovertParams[index].param->columnData, rowNo);
+    SCL_ERR_JRET(colDataSetVal(pOutputData, i, data, false));
+  }
+
+  pOutput->numOfRows = numOfRows;
+
+_return:
+  freeSCovertScarlarParams(pCovertParams, inputNum);
+  taosMemoryFree(resultColIndex);
+  return code;
+}
+
+int32_t greatestFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return greatestLeastImpl(pInput, inputNum, pOutput, OP_TYPE_GREATER_THAN);
+}
+
+int32_t leastFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  return greatestLeastImpl(pInput, inputNum, pOutput, OP_TYPE_LOWER_THAN);
 }
 
