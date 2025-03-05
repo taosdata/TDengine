@@ -72,11 +72,7 @@ def build_package(internal_root, new_version, branch_name) {
         date
         cd ''' + internal_root + '''
         rm -rf /usr/include/taos.h
-        // rm ${INTERNAL_ROOT}/enterprise/contrib/deps-download/CMakeCache.txt
-		// rm ${INTERNAL_ROOT}/community/contrib/deps-download/CMakeCache.txt
-		// rm -rf ${INTERNAL_ROOT}/community/contrib/libs3
-		// rm -rf ${INTERNAL_ROOT}/community/contrib/deps-download/libs3-prefix
-        
+      
         cp community/include/client/taos.h /usr/include/
         cd enterprise/packaging/
         eval `ssh-agent -s`
