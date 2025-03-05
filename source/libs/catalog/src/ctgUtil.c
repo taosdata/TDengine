@@ -202,6 +202,9 @@ void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pTsmas);
   pData->pTsmas = NULL;
 
+  taosArrayDestroyEx(pData->pVSubTables, tDestroySVSubTablesRsp);
+  pData->pVSubTables = NULL;
+
   taosMemoryFreeClear(pData->pSvrVer);
 }
 
@@ -657,6 +660,10 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       }
       break;
     }
+    case TDMT_VND_VSUBTABLES_META: {
+      taosMemoryFreeClear(pCtx->target);
+      break;
+    }
     default:
       qError("invalid reqType %d", pCtx->reqType);
       break;
@@ -859,6 +866,9 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
       *pRes = NULL;  // no need to free it
       break;
     }
+    case CTG_TASK_GET_V_SUBTABLES: {
+      break;
+    }
     default:
       qError("invalid task type %d", type);
       break;
@@ -1047,6 +1057,22 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       if (pTask->msgCtx.lastOut) {
         ctgFreeSTableMetaOutput((STableMetaOutput*)pTask->msgCtx.lastOut);
         pTask->msgCtx.lastOut = NULL;
+      }
+      taosMemoryFreeClear(pTask->taskCtx);
+      break;
+    }
+    case CTG_TASK_GET_V_SUBTABLES: {
+      SCtgVSubTablesCtx* taskCtx = (SCtgVSubTablesCtx*)pTask->taskCtx;
+      if (taskCtx->clonedVgroups) {
+        taosArrayDestroy(taskCtx->pVgroups);
+        taskCtx->pVgroups = NULL;
+      }
+      if (taskCtx->pResList) {
+        for (int32_t i = 0; i < taskCtx->vgNum; ++i) {
+          SVSubTablesRsp* pVg = taskCtx->pResList + i;
+          tDestroySVSubTablesRsp(pVg);
+        }
+        taosMemoryFreeClear(taskCtx->pResList);
       }
       taosMemoryFreeClear(pTask->taskCtx);
       break;
@@ -1775,7 +1801,7 @@ int32_t ctgCloneTableIndex(SArray* pIndex, SArray** pRes) {
 
 int32_t ctgUpdateSendTargetInfo(SMsgSendInfo* pMsgSendInfo, int32_t msgType, char* dbFName, int32_t vgId) {
   if (msgType == TDMT_VND_TABLE_META || msgType == TDMT_VND_TABLE_CFG || msgType == TDMT_VND_BATCH_META ||
-      msgType == TDMT_VND_TABLE_NAME) {
+      msgType == TDMT_VND_TABLE_NAME || msgType == TDMT_VND_VSUBTABLES_META || msgType == TDMT_VND_GET_STREAM_PROGRESS) {
     pMsgSendInfo->target.type = TARGET_TYPE_VNODE;
     pMsgSendInfo->target.vgId = vgId;
     pMsgSendInfo->target.dbFName = taosStrdup(dbFName);

@@ -12916,7 +12916,9 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   if (TSDB_CODE_SUCCESS == code) {
     code = buildStreamNotifyOptions(pCxt, pStmt->pNotifyOptions, pReq);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    TSWAP(pReq->pVSubTables, pCxt->pMetaCache->pVSubTables);
+  }
   return code;
 }
 

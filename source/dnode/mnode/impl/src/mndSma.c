@@ -89,7 +89,7 @@ int32_t mndInitSma(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndSmaActionDelete,
   };
 
-  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_SMA, mndProcessCreateSmaReq);
+//  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_SMA, mndProcessCreateSmaReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_SMA, mndProcessDropIdxReq);
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_SMA_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_SMA_RSP, mndTransProcessRsp);
@@ -590,6 +590,7 @@ static void mndDestroySmaObj(SSmaObj *pSmaObj) {
   }
 }
 
+#if 0
 static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCreate, SDbObj *pDb, SStbObj *pStb,
                             const char *streamName) {
   int32_t code = 0;
@@ -760,6 +761,7 @@ _OVER:
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }
+#endif
 
 static int32_t mndCheckCreateSmaReq(SMCreateSmaReq *pCreate) {
   int32_t code = TSDB_CODE_MND_INVALID_SMA_OPTION;
@@ -799,6 +801,7 @@ static int32_t mndGetStreamNameFromSmaName(char *streamName, char *smaName) {
   return TSDB_CODE_SUCCESS;
 }
 
+#if 0
 static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
   SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
@@ -889,6 +892,7 @@ _OVER:
 
   TAOS_RETURN(code);
 }
+#endif
 
 static int32_t mndSetDropSmaRedoLogs(SMnode *pMnode, STrans *pTrans, SSmaObj *pSma) {
   int32_t  code = 0;
