@@ -573,6 +573,7 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
 
     if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
       parserDebug("tb %s.%s not exist", sname.dbname, sname.tname);
+      // if table not exist, we should create it
       return code;
     }
 

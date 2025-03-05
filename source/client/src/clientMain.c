@@ -2168,7 +2168,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
-  if( atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum)>1) {
+  if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 1) {
     tscError("async bind param is still working, please try again later");
     return TSDB_CODE_TSC_STMT_API_ERROR;
   }

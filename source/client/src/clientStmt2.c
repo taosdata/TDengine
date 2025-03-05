@@ -240,9 +240,9 @@ static int32_t stmtUpdateInfo(TAOS_STMT2* stmt, STableMeta* pTableMeta, void* ta
   STMT_ERR_RET(stmtUpdateExecInfo(stmt, pVgHash, pBlockHash));
 
   pStmt->sql.autoCreateTbl = autoCreateTbl;
-  if (pStmt->sql.autoCreateTbl) {
-    pStmt->sql.stbInterlaceMode = false;
-  }
+  // if (pStmt->sql.autoCreateTbl) {
+  //   pStmt->sql.stbInterlaceMode = false;
+  // }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -691,12 +691,11 @@ static int32_t stmtAsyncOutput(STscStmt2* pStmt, void* param) {
 
     atomic_store_8((int8_t*)&pStmt->sql.siInfo.tableColsReady, true);
   } else {
-    STMT_ERR_RET(qAppendStmtTableOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, &pParam->tblData, pStmt->exec.pCurrBlock,
-                                        &pStmt->sql.siInfo));
-
+    int code = qAppendStmtTableOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, &pParam->tblData, pStmt->exec.pCurrBlock,
+                                        &pStmt->sql.siInfo);
     // taosMemoryFree(pParam->pTbData);
-
     (void)atomic_sub_fetch_64(&pStmt->sql.siInfo.tbRemainNum, 1);
+    STMT_ERR_RET(code);
   }
   return TSDB_CODE_SUCCESS;
 }
