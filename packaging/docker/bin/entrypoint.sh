@@ -40,17 +40,19 @@ sysctl -w kernel.core_pattern=/corefile/core-$FQDN-%e-%p >/dev/null >&1
 set -e
 
 
-
+PID_TAOSD=0
 # if dnode has been created or has mnode ep set or the host is first ep or not for cluster, just start.
 if [ -f "$DATA_DIR/dnode/dnode.json" ] ||
     [ -f "$DATA_DIR/dnode/mnodeEpSet.json" ] ||
     [ "$TAOS_FQDN" = "$FIRST_EP_HOST" ]; then
     $@ &
+    PID_TAOSD=$!
 # others will first wait the first ep ready.
 else
     if [ "$TAOS_FIRST_EP" = "" ]; then
         echo "run TDengine with single node."
         $@ &
+        PID_TAOSD=$!
     fi
     while true; do
         es=$(taos -h $FIRST_EP_HOST -P $FIRST_EP_PORT --check | grep "^[0-9]*:")
@@ -66,11 +68,14 @@ else
         echo "TDengine is running"
       else
         $@ &
+        PID_TAOSD=$!
     fi
 fi
 
+PID_TAOSADAPTER=0
 if [ "$DISABLE_ADAPTER" = "0" ]; then
     which taosadapter >/dev/null && taosadapter &
+    PID_TAOSADAPTER=$!
     # wait for 6041 port ready
     for _ in $(seq 1 20); do
         nc -z localhost 6041 && break
@@ -78,9 +83,11 @@ if [ "$DISABLE_ADAPTER" = "0" ]; then
     done
 fi
 
+PID_TAOSKEEPER=0
 if [ "$DISABLE_KEEPER" = "0" ]; then
     sleep 3
     which taoskeeper >/dev/null && taoskeeper &
+    PID_TAOSKEEPER=$!
     # wait for 6043 port ready
     for _ in $(seq 1 20); do
         nc -z localhost 6043 && break
@@ -89,9 +96,13 @@ if [ "$DISABLE_KEEPER" = "0" ]; then
 fi
 
 
-which taos-explorer >/dev/null && taos-explorer
+PID_TAOS_EXPLORER=0
+which taos-explorer >/dev/null && taos-explorer &
+PID_TAOS_EXPLORER=$!
 # wait for 6060 port ready
 for _ in $(seq 1 20); do
     nc -z localhost 6060 && break
     sleep 0.5
 done
+
+wait -n $PID_TAOSD $PID_TAOSADAPTER $PID_TAOSKEEPER $PID_TAOS_EXPLORER
