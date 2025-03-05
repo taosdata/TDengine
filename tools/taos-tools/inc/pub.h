@@ -36,6 +36,9 @@
 #define DRIVER_OPT     "driver"
 #define DRIVER_DESC    "Connect driver , value can be \"Native\" or \"WebSocket\""
 
+#define DSN_DESC       "The dsn to connect the cloud service."
+#define OLD_DSN_DESC   "same with -X options"
+
 // connect mode type define
 #define CONN_MODE_INVALID   -1
 #define CONN_MODE_NATIVE    0

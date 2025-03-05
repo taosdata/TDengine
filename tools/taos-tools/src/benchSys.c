@@ -73,9 +73,9 @@ void benchPrintHelp() {
     printf("%s%s%s%s\r\n", indent, "-x,", indent, BENCH_AGGR);
     printf("%s%s%s%s\r\n", indent, "-y,", indent, BENCH_YES);
     printf("%s%s%s%s\r\n", indent, "-z,", indent, BENCH_TRYING_INTERVAL);
-    printf("%s%s%s%s\r\n", indent, "-W,", indent, BENCH_DSN);
     printf("%s%s%s%s\r\n", indent, "-v,", indent, BENCH_VGROUPS);
     printf("%s%s%s%s\r\n", indent, "-V,", indent, BENCH_VERSION);
+    printf("%s%s%s%s\r\n", indent, "-X,", indent, DSN_DESC);
     printf("%s%s%s%s\r\n", indent, "-Z,", indent, DRIVER_DESC);
     printf("\r\n\r\nReport bugs to %s.\r\n", CUS_EMAIL);
 }
@@ -188,13 +188,13 @@ static struct argp_option bench_options[] = {
     {"debug", 'g', 0, 0, BENCH_DEBUG},
     {"performance", 'G', 0, 0, BENCH_PERFORMANCE},
     {"prepared_rand", 'F', "NUMBER", 0, BENCH_PREPARE},
-    {"cloud_dsn", 'W', "DSN", 0, BENCH_DSN},
+    {"cloud_dsn", 'W', "DSN", 0, OLD_DSN_DESC},
     {"keep-trying", 'k', "NUMBER", 0, BENCH_KEEPTRYING},
     {"trying-interval", 'z', "NUMBER", 0, BENCH_TRYING_INTERVAL},
     {"vgroups", 'v', "NUMBER", 0, BENCH_VGROUPS},
     {"version", 'V', 0, 0, BENCH_VERSION},
     {"nodrop", 'Q', 0, 0, BENCH_NODROP},
-    {"dsn", 'X', "DSN", 0, BENCH_DSN},
+    {"dsn", 'X', "DSN", 0, DSN_DESC},
     {DRIVER_OPT, 'Z', "DRIVER", 0, DRIVER_DESC},
     {0}
 };
