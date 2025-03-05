@@ -95,11 +95,11 @@ class TDTestCase(TBase):
         # normal table
         sqls = [
             f"create table {db}.ntb(st timestamp, c1 int, c2 binary(32))",
-            f"insert into {db}.ntb values(now, 1, 'abc1')",
-            f"insert into {db}.ntb values(now, 2, 'abc2')",
-            f"insert into {db}.ntb values(now, 3, 'abc3')",
-            f"insert into {db}.ntb values(now, 4, 'abc4')",
-            f"insert into {db}.ntb values(now, 5, 'abc5')",
+            f"insert into {db}.ntb values('2025-01-01 10:00:01', 1, 'abc1')",
+            f"insert into {db}.ntb values('2025-01-01 10:00:02', 2, 'abc2')",
+            f"insert into {db}.ntb values('2025-01-01 10:00:03', 3, 'abc3')",
+            f"insert into {db}.ntb values('2025-01-01 10:00:04', 4, 'abc4')",
+            f"insert into {db}.ntb values('2025-01-01 10:00:05', 5, 'abc5')",
         ]
         for sql in sqls:
             tdSql.execute(sql)
@@ -175,12 +175,12 @@ class TDTestCase(TBase):
             [f"-V", ["version:"]],
             [f"--usage", ["taosdump [OPTION...] -o outpath"]],
             # conn mode -Z
-            [f"-Z 0 -E '2022-10-01 00:00:60.000' test -o {tmpdir}", [
+            [f"-Z   0 -E '2022-10-01 00:00:60.000' test -o {tmpdir}", [
                 "Connect mode is : Native", 
                 "OK: Database test dumped", 
                 "OK: 122 row(s) dumped out!"]
             ],
-            [f"-Z 1 -E '2022-10-01 00:00:60.000' test -o {tmpdir}", [
+            [f"-Z  1 -E '2022-10-01 00:00:60.000' test -o {tmpdir}", [
                 "Connect mode is : WebSocket",
                 "OK: Database test dumped", 
                 "OK: 122 row(s) dumped out!"]
