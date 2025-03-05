@@ -1502,7 +1502,7 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 // sma and tag index comm func
 static int32_t mndProcessDropIdxReq(SRpcMsg *pReq) {
   int ret = mndProcessDropSmaReq(pReq);
-  if (terrno == TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST || terrno == TSDB_CODE_MND_SMA_NOT_EXIST) {
+  if (ret == TSDB_CODE_MND_TAG_INDEX_ALREADY_EXIST || ret == TSDB_CODE_MND_SMA_NOT_EXIST) {
     terrno = 0;
     ret = mndProcessDropTagIdxReq(pReq);
   }
