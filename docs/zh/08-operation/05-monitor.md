@@ -4,7 +4,7 @@ title: 运行监控
 toc_max_heading_level: 4
 ---
 
-为了确保集群稳定运行，TDengine 集成了多种监控指标收集机制，并通 过taosKeeper 进行汇总。taosKeeper负责接收这些数据，并将其写入一个独立的 TDengine 实例中，该实例可以与被监控的 TDengine 集群保持独立。TDengine 中的两个核心组件 taosd （数据库引擎） 和 taosX （数据接入平台）都通过相同的监控架构来实现对其运行时的监控，但各自的监控指标设计有所不同。 
+为了确保集群稳定运行，TDengine 集成了多种监控指标收集机制，并通过 taosKeeper 进行汇总。taosKeeper 负责接收这些数据，并将其写入一个独立的 TDengine 实例中，该实例可以与被监控的 TDengine 集群保持独立。TDengine 中的两个核心组件 taosd （数据库引擎）和 taosX （数据接入平台）都通过相同的监控架构来实现对其运行时的监控，但各自的监控指标设计有所不同。 
 
 至于如何获取和使用这些监控数据，用户可以使用第三方的监测工具比如 Zabbix 来获取这些保存的系统监测数据，进而将 TDengine 的运行状况无缝集成到现有的 IT 监控系统中。也可以使用 TDengine 提供的 TDinsight 插件，使用该插件用户可以通过 Grafana 平台直观地展示和管理这些监控信息，如下图所示。这为用户提供了灵活的监控选项，以满足不同场景下的运维需求。
 
@@ -24,7 +24,7 @@ taosKeeper 的配置文件默认位于 `/etc/taos/taoskeeper.toml`。 详细配�
 
 通过集成 Grafana 和 TDengine 数据源插件，TDinsight 能够读取 taosKeeper 收集的监控数据。这使得用户可以在 Grafana 平台上直观地查看 TDengine 集群的状态、节点信息、读写请求以及资源使用情况等关键指标，实现数据的可视化展示。
 
-以下是TDinsight 的详细使用说明，以帮助你充分利用这一强大工具。
+以下是 TDinsight 的详细使用说明，以帮助你充分利用这一强大工具。
 
 #### 前置条件
 
@@ -40,7 +40,7 @@ taosKeeper 的配置文件默认位于 `/etc/taos/taoskeeper.toml`。 详细配�
 
 #### 导入仪表盘
 
-TDengine 数据源插件已提交至 Grafana 官网，如何安装 TDengine 数据源插件和配置数据源请参考：[安装 Grafana Plugin 并配置数据源](../../third-party/visual/grafana/#安装-grafana-plugin-并配置数据源)。完成插件的安装和数据源的创建后，可以进行 TDinsight 仪表盘的导入。
+TDengine 数据源插件已提交至 Grafana 官网，如何安装 TDengine 数据源插件和配置数据源请参考 [安装 Grafana Plugin 并配置数据源](../../third-party/visual/grafana/#安装-grafana-plugin-并配置数据源)。完成插件的安装和数据源的创建后，可以进行 TDinsight 仪表盘的导入。
 
 在 Grafana 的 “Home” -> “Dashboards” 页面，点击位于右上角的 “New” -> “import” 按钮，即可进入 Dashboard 的导入页面，它支持以下两种导入方式。
 - Dashboard ID：18180。
