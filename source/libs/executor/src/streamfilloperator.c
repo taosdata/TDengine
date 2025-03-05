@@ -22,6 +22,7 @@
 
 #include "executorInt.h"
 #include "streamexecutorInt.h"
+#include "streaminterval.h"
 #include "tcommon.h"
 #include "thash.h"
 #include "ttime.h"
@@ -135,7 +136,7 @@ void destroyStreamFillInfo(SStreamFillInfo* pFillInfo) {
   taosMemoryFree(pFillInfo);
 }
 
-static void destroyStreamFillOperatorInfo(void* param) {
+void destroyStreamFillOperatorInfo(void* param) {
   SStreamFillOperatorInfo* pInfo = (SStreamFillOperatorInfo*)param;
   destroyStreamFillInfo(pInfo->pFillInfo);
   destroyStreamFillSupporter(pInfo->pFillSup);
@@ -158,6 +159,7 @@ static void destroyStreamFillOperatorInfo(void* param) {
   if (pInfo->pState != NULL) {
     taosMemoryFreeClear(pInfo->pState);
   }
+  destroyStreamBasicInfo(&pInfo->basic);
 
   taosMemoryFree(pInfo);
 }
@@ -1003,7 +1005,7 @@ void resetStreamFillInfo(SStreamFillOperatorInfo* pInfo) {
   pInfo->pFillInfo->delIndex = 0;
 }
 
-static int32_t doApplyStreamScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pSrcBlock,
+int32_t doApplyStreamScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pSrcBlock,
                                               SSDataBlock* pDstBlock) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
@@ -1385,7 +1387,7 @@ _end:
   return code;
 }
 
-static void removeDuplicateResult(SArray* pTsArrray, __compar_fn_t fn) {
+void removeDuplicateResult(SArray* pTsArrray, __compar_fn_t fn) {
   taosArraySort(pTsArrray, fn);
   taosArrayRemoveDuplicate(pTsArrray, fn, NULL);
 }
@@ -1560,6 +1562,7 @@ static SStreamFillSupporter* initStreamFillSup(SStreamFillPhysiNode* pPhyFillNod
   pFillSup->pResMap = tSimpleHashInit(16, hashFn);
   QUERY_CHECK_NULL(pFillSup->pResMap, code, lino, _end, terrno);
   pFillSup->hasDelete = false;
+  pFillSup->normalFill = true;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1736,18 +1739,20 @@ static void setValueForFillInfo(SStreamFillSupporter* pFillSup, SStreamFillInfo*
   }
 }
 
-int32_t getDownStreamInfo(SOperatorInfo* downstream, int8_t* triggerType, SInterval* pInterval) {
+int32_t getDownStreamInfo(SOperatorInfo* downstream, int8_t* triggerType, SInterval* pInterval, int16_t* pOperatorFlag) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (IS_NORMAL_INTERVAL_OP(downstream)) {
     SStreamIntervalOperatorInfo* pInfo = downstream->info;
     *triggerType = pInfo->twAggSup.calTrigger;
     *pInterval = pInfo->interval;
+    *pOperatorFlag = pInfo->basic.operatorFlag;
   } else if (IS_CONTINUE_INTERVAL_OP(downstream)) {
     SStreamIntervalSliceOperatorInfo* pInfo = downstream->info;
     *triggerType = pInfo->twAggSup.calTrigger;
     *pInterval = pInfo->interval;
     pInfo->hasFill = true;
+    *pOperatorFlag = pInfo->basic.operatorFlag;
   } else {
     code = TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
@@ -1810,7 +1815,8 @@ int32_t createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysi
 
   int8_t triggerType = 0;
   SInterval interval = {0};
-  code = getDownStreamInfo(downstream, &triggerType, &interval);
+  int16_t opFlag = 0;
+  code = getDownStreamInfo(downstream, &triggerType, &interval, &opFlag);
   QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->pFillSup = initStreamFillSup(pPhyFillNode, &interval, pFillExprInfo, numOfFillCols, &pTaskInfo->storageAPI,
@@ -1861,7 +1867,7 @@ int32_t createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysi
   QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->srcRowIndex = -1;
-  setOperatorInfo(pOperator, "StreamFillOperator", QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL, false, OP_NOT_OPENED, pInfo,
+  setOperatorInfo(pOperator, "StreamFillOperator", nodeType(pPhyFillNode), false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
 
   if (triggerType == STREAM_TRIGGER_FORCE_WINDOW_CLOSE) {
@@ -1869,6 +1875,22 @@ int32_t createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysi
                               GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI);
     QUERY_CHECK_CODE(code, lino, _error);
     pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamForceFillNext, NULL, destroyStreamFillOperatorInfo,
+                                           optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  } else if (triggerType == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) {
+    code = initFillOperatorStateBuff(pInfo, pTaskInfo->streamInfo.pState, &pTaskInfo->storageAPI.stateStore, pHandle,
+                              GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI);
+    QUERY_CHECK_CODE(code, lino, _error);
+
+    initNonBlockAggSupptor(&pInfo->nbSup, &pInfo->pFillSup->interval);
+    code = initStreamBasicInfo(&pInfo->basic, pOperator);
+    QUERY_CHECK_CODE(code, lino, _error);
+    pInfo->basic.operatorFlag = opFlag;
+    if (isFinalOperator(&pInfo->basic)) {
+      pInfo->nbSup.numOfKeep++;
+    }
+    code = initOffsetInfo(&pInfo->pFillSup->pOffsetInfo, pInfo->pRes);
+    QUERY_CHECK_CODE(code, lino, _error);
+    pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamNonblockFillNext, NULL, destroyStreamNonblockFillOperatorInfo,
                                            optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   } else {
     pInfo->pState = NULL;

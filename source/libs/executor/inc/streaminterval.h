@@ -20,6 +20,7 @@ extern "C" {
 #endif
 
 #include "executorInt.h"
+#include "operator.h"
 
 typedef struct SPullWindowInfo {
   STimeWindow window;
@@ -41,9 +42,22 @@ int32_t     initNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup, SInterval* pIn
 void        destroyNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup);
 int32_t     buildRetriveRequest(SExecTaskInfo* pTaskInfo, SStreamAggSupporter* pAggSup, STableTsDataState* pTsDataState,
                                 SNonBlockAggSupporter* pNbSup);
-int32_t getChildIndex(SSDataBlock* pBlock);
-void    adjustDownstreamBasicInfo(SOperatorInfo* downstream, struct SSteamOpBasicInfo* pBasic);
-int32_t processDataPullOver(SSDataBlock* pBlock, SSHashObj* pPullMap, SExecTaskInfo* pTaskInfo);
+int32_t     getChildIndex(SSDataBlock* pBlock);
+void        adjustDownstreamBasicInfo(SOperatorInfo* downstream, struct SSteamOpBasicInfo* pBasic);
+int32_t     processDataPullOver(SSDataBlock* pBlock, SSHashObj* pPullMap, SExecTaskInfo* pTaskInfo);
+int32_t     doStreamNonblockFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
+int32_t     doApplyStreamScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pSrcBlock, SSDataBlock* pDstBlock);
+void        resetStreamFillInfo(SStreamFillOperatorInfo* pInfo);
+void        removeDuplicateResult(SArray* pTsArrray, __compar_fn_t fn);
+int32_t     keepBlockRowInStateBuf(SStreamFillOperatorInfo* pInfo, SStreamFillInfo* pFillInfo, SSDataBlock* pBlock,
+                                   TSKEY* tsCol, int32_t rowId, uint64_t groupId, int32_t rowSize);
+void        setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, TSKEY ts);
+void        doStreamTimeSliceFillRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo, SSDataBlock* pRes);
+void        resetTimeSlicePrevAndNextWindow(SStreamFillSupporter* pFillSup);
+TSKEY       adustPrevTsKey(TSKEY pointTs, TSKEY rowTs, SInterval* pInterval);
+TSKEY       adustEndTsKey(TSKEY pointTs, TSKEY rowTs, SInterval* pInterval);
+void        destroyStreamFillOperatorInfo(void* param);
+void        destroyStreamNonblockFillOperatorInfo(void* param);
 
 #ifdef __cplusplus
 }
