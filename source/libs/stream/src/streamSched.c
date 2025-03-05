@@ -363,22 +363,42 @@ void streamTaskSchedHelper(void* param, void* tmrId) {
         goto _end;
       }
     } else if (trigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE && level == TASK_LEVEL__SOURCE) {
-      SStreamDataBlock* pTrigger = NULL;
-      code = streamCreateRecalculateBlock(pTask, &pTrigger, STREAM_RECALCULATE_START);
-      if (code) {
-        stError("s-task:%s failed to prepare recalculate data trigger, code:%s, try again in %dms", id, tstrerror(code),
-                nextTrigger);
-        goto _end;
+      // we need to make sure fill-history process is completed
+      STaskId hId = pTask->hTaskInfo.id;
+      {
+        SStreamTask* pHTask = NULL;
+        int32_t      ret = streamMetaAcquireTaskUnsafe(pTask->pMeta, &hId, &pHTask);
+
+        if (ret == 0 && pHTask != NULL) {
+          if (pHTask->info.fillHistory == STREAM_RECALCUL_TASK) {
+            SStreamDataBlock* pTrigger = NULL;
+            code = streamCreateRecalculateBlock(pTask, &pTrigger, STREAM_RECALCULATE_START);
+            if (code) {
+              stError("s-task:%s failed to prepare recalculate data trigger, code:%s, try again in %dms", id,
+                      tstrerror(code), nextTrigger);
+              streamMetaReleaseTask(pTask->pMeta, pHTask);
+              goto _end;
+            }
+
+            atomic_store_8(&pTask->schedInfo.status, TASK_TRIGGER_STATUS__INACTIVE);
+            code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTrigger);
+            if (code != TSDB_CODE_SUCCESS) {
+              stError("s-task:%s failed to put recalculate block into q, code:%s", pTask->id.idStr, tstrerror(code));
+              streamMetaReleaseTask(pTask->pMeta, pHTask);
+              goto _end;
+            } else {
+              stDebug("s-task:%s put recalculate block into inputQ", pTask->id.idStr);
+            }
+
+          } else {
+            stDebug("s-task:%s related task:0x%" PRIx64 " in fill-history model, not start the recalculate procedure",
+                    pTask->id.idStr, hId.taskId);
+          }
+
+          streamMetaReleaseTask(pTask->pMeta, pHTask);
+        }
       }
 
-      atomic_store_8(&pTask->schedInfo.status, TASK_TRIGGER_STATUS__INACTIVE);
-      code = streamTaskPutDataIntoInputQ(pTask, (SStreamQueueItem*)pTrigger);
-      if (code != TSDB_CODE_SUCCESS) {
-        stError("s-task:%s failed to put recalculate block into q, code:%s", pTask->id.idStr, tstrerror(code));
-        goto _end;
-      } else {
-        stDebug("s-task:%s put recalculate block into inputQ", pTask->id.idStr);
-      }
     } else if (status == TASK_TRIGGER_STATUS__MAY_ACTIVE) {
       SStreamTrigger* pTrigger = NULL;
       code = streamCreateTriggerBlock(&pTrigger, STREAM_INPUT__GET_RES, STREAM_GET_ALL);

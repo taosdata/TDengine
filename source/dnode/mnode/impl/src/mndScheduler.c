@@ -527,8 +527,13 @@ static int32_t addSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream
     }
 
     if (needHistoryTask(pStream)) {
-      EStreamTaskType type = (pStream->conf.trigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE) ? STREAM_RECALCUL_TASK
-                                                                                               : STREAM_HISTORY_TASK;
+      EStreamTaskType type = 0;
+      if (pStream->conf.trigger == STREAM_TRIGGER_CONTINUOUS_WINDOW_CLOSE && (pStream->conf.fillHistory == 0)) {
+        type = STREAM_RECALCUL_TASK; // only the recalculating task
+      } else {
+        type = STREAM_HISTORY_TASK; // set the fill-history option
+      }
+
       code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVerList, pVgroup, type,
                              useTriggerParam, hasAggTasks);
       if (code != 0) {

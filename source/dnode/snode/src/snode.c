@@ -46,14 +46,14 @@ int32_t sndBuildStreamTask(SSnode *pSnode, SStreamTask *pTask, int64_t nextProce
   if (pTask->info.fillHistory == STREAM_HISTORY_TASK) {
     sndInfo("vgId:%d build stream task, s-task:%s, %p checkpointId:%" PRId64 " checkpointVer:%" PRId64
             " nextProcessVer:%" PRId64
-            " child id:%d, level:%d, status:%s fill-history:%d, related stream task:0x%x trigger:%" PRId64 " ms",
+            " child id:%d, level:%d, status:%s taskType:%d, related stream task:0x%x trigger:%" PRId64 " ms",
             SNODE_HANDLE, pTask->id.idStr, pTask, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
             pTask->info.selfChildId, pTask->info.taskLevel, p, pTask->info.fillHistory,
             (int32_t)pTask->streamTaskId.taskId, pTask->info.delaySchedParam);
   } else {
     sndInfo("vgId:%d build stream task, s-task:%s, %p checkpointId:%" PRId64 " checkpointVer:%" PRId64
             " nextProcessVer:%" PRId64
-            " child id:%d, level:%d, status:%s fill-history:%d, related fill-task:0x%x trigger:%" PRId64 " ms",
+            " child id:%d, level:%d, status:%s taskType:%d, related helper-task:0x%x trigger:%" PRId64 " ms",
             SNODE_HANDLE, pTask->id.idStr, pTask, pChkInfo->checkpointId, pChkInfo->checkpointVer, pChkInfo->nextProcessVer,
             pTask->info.selfChildId, pTask->info.taskLevel, p, pTask->info.fillHistory,
             (int32_t)pTask->hTaskInfo.id.taskId, pTask->info.delaySchedParam);
