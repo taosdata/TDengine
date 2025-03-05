@@ -16,15 +16,10 @@ IF(TD_WEBSOCKET)
             DEPENDS ${TAOS_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
-            UPDATE_COMMAND
-                COMMAND echo "Starting to switch branch"
-                COMMAND git fetch origin main && git checkout -f origin/main 
-                COMMAND echo "Switched to the main branch successfully"
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
-            COMMAND cargo update
-            COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static cargo build --release -p taos-ws-sys --features rustls
+            COMMAND RUSTFLAGS=-Ctarget-feature=-crt-static cargo build --release --locked -p taos-ws-sys --features rustls
             INSTALL_COMMAND
             COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
             COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
@@ -39,15 +34,10 @@ IF(TD_WEBSOCKET)
             DEPENDS ${TAOS_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
-            UPDATE_COMMAND
-                COMMAND echo "Starting to switch branch"
-                COMMAND git fetch origin main && git checkout -f origin/main 
-                COMMAND echo "Switched to the main branch successfully"
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
-            COMMAND cargo update
-            COMMAND cargo build --release -p taos-ws-sys --features rustls
+            COMMAND cargo build --release --locked -p taos-ws-sys --features rustls
             INSTALL_COMMAND
             COMMAND cp target/release/taosws.dll ${CMAKE_BINARY_DIR}/build/lib
             COMMAND cp target/release/taosws.dll.lib ${CMAKE_BINARY_DIR}/build/lib/taosws.lib
@@ -63,15 +53,10 @@ IF(TD_WEBSOCKET)
             DEPENDS ${TAOS_LIB}
             BUILD_IN_SOURCE 1
             CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
-            UPDATE_COMMAND
-                COMMAND echo "Starting to switch branch"
-                COMMAND git fetch origin main && git checkout -f origin/main 
-                COMMAND echo "Switched to the main branch successfully"
             PATCH_COMMAND
             COMMAND git clean -f -d
             BUILD_COMMAND
-            COMMAND cargo update
-            COMMAND cargo build --release -p taos-ws-sys --features rustls
+            COMMAND cargo build --release --locked -p taos-ws-sys --features rustls
             INSTALL_COMMAND
             COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
             COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include

@@ -21,28 +21,17 @@
 #include "tglobal.h"
 #include "version.h"
 #include "tconv.h"
-#ifdef TD_JEMALLOC_ENABLED
-#include "jemalloc/jemalloc.h"
-#endif
 #include "dmUtil.h"
 #include "tcs.h"
 #include "qworker.h"
 
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
+#ifdef TD_JEMALLOC_ENABLED
+#define ALLOW_FORBID_FUNC
+#include "jemalloc/jemalloc.h"
+#endif
+
 #include "cus_name.h"
-#else
-#ifndef CUS_NAME
-#define CUS_NAME "TDengine"
-#endif
 
-#ifndef CUS_PROMPT
-#define CUS_PROMPT "taos"
-#endif
-
-#ifndef CUS_EMAIL
-#define CUS_EMAIL "<support@taosdata.com>"
-#endif
-#endif
 // clang-format off
 #define DM_APOLLO_URL    "The apollo string to use when configuring the server, such as: -a 'jsonFile:./tests/cfg.json', cfg.json text can be '{\"fqdn\":\"td1\"}'."
 #define DM_CFG_DIR       "Configuration directory."
@@ -181,8 +170,6 @@ static void dmSetSignalHandle() {
 #endif
 }
 
-extern bool generateNewMeta;
-
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   global.startTime = taosGetTimestampMs();
 
@@ -221,8 +208,6 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       global.dumpSdb = true;
     } else if (strcmp(argv[i], "-dTxn") == 0) {
       global.deleteTrans = true;
-    } else if (strcmp(argv[i], "-r") == 0) {
-      generateNewMeta = true;
     } else if (strcmp(argv[i], "-E") == 0) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {

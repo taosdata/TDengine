@@ -24,6 +24,8 @@ Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-conne
 
 | Node.js 连接器 版本 |          主要变化         |   TDengine 版本    |
 | ------------------| ----------------------| ----------------|
+|        3.1.4       | 修改 readme |  - |
+|        3.1.3       | 升级了 es5-ext 版本，解决低版本的漏洞 |  - |
 |        3.1.2       | 对数据协议和解析进行了优化，性能得到大幅提升|  - |
 |        3.1.1       | 优化了数据传输性能          |  3.3.2.0 及更高版本 |
 |        3.1.0       | 新版本发布，支持 WebSocket 连接 |  3.2.0.0 及更高版本 |
@@ -130,16 +132,20 @@ Node.js 连接器（`@tdengine/websocket`）, 其通过 taosAdapter 提供的 We
 除了通过指定的 URL 获取连接，还可以使用 WSConfig 指定建立连接时的参数。
 
 ```js
-try {
-    let url = 'ws://127.0.0.1:6041'
-    let conf = WsSql.NewConfig(url)
-    conf.setUser('root')
-    conf.setPwd('taosdata')
-    conf.setDb('db')
-    conf.setTimeOut(500)
-    let wsSql = await WsSql.open(conf);
-} catch (e) {
-    console.error(e);
+const taos = require("@tdengine/websocket");
+
+async function createConnect() {
+    try {
+        let url = 'ws://127.0.0.1:6041'
+        let conf = new taos.WSConfig(url)
+        conf.setUser('root')
+        conf.setPwd('taosdata')
+        conf.setDb('db')
+        conf.setTimeOut(500)
+        let wsSql = await taos.sqlConnect(conf)
+    } catch (e) {
+        console.error(e);
+    }
 }
 ```
 

@@ -46,9 +46,9 @@ TDengine 支持按时间窗口切分方式进行聚合结果查询，比如温�
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col)
+  | STATE_WINDOW(col) [TRUE_FOR(true_for_duration)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
-  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
   | COUNT_WINDOW(count_val[, sliding_val])
 }
 ```
@@ -165,6 +165,12 @@ TDengine 还支持将 CASE 表达式用在状态量，可以表达某个状态�
 SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END status FROM meters PARTITION BY tbname STATE_WINDOW(CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END);
 ```
 
+状态窗口支持使用 TRUE_FOR 参数来设定窗口的最小持续时长。如果某个状态窗口的宽度低于该设定值，则会自动舍弃，不返回任何计算结果。例如，设置最短持续时长为 3s:
+
+```
+SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (3s);
+```
+
 ### 会话窗口
 
 会话窗口根据记录的时间戳主键的值来确定是否属于同一个会话。如下图所示，如果设置时间戳的连续的间隔小于等于 12 秒，则以下 6 条记录构成 2 个会话窗口，分别是：[2019-04-28 14:22:10，2019-04-28 14:22:30]和[2019-04-28 14:23:10，2019-04-28 14:23:30]。因为 2019-04-28 14:22:30 与 2019-04-28 14:23:10 之间的时间间隔是 40 秒，超过了连续时间间隔（12 秒）。
@@ -195,6 +201,12 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 ```
 
 ![TDengine Database 事件窗口示意图](./event_window.webp)
+
+事件窗口支持使用 TRUE_FOR 参数来设定窗口的最小持续时长。如果某个事件窗口的宽度低于该设定值，则会自动舍弃，不返回任何计算结果。例如，设置最短持续时长为 3s:
+
+```
+select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (3s);
+```
 
 ### 计数窗口
 

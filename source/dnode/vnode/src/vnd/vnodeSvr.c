@@ -314,25 +314,25 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     uint64_t nColData;
     if (tDecodeU64v(pCoder, &nColData) < 0) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     SColData colData = {0};
     code = tDecodeColData(version, pCoder, &colData);
     if (code) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     if (colData.flag != HAS_VALUE) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     for (int32_t iRow = 0; iRow < colData.nVal; iRow++) {
       if (((TSKEY *)colData.pData)[iRow] < minKey || ((TSKEY *)colData.pData)[iRow] > maxKey) {
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
 
@@ -340,14 +340,14 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
       code = tDecodeColData(version, pCoder, &colData);
       if (code) {
         code = TSDB_CODE_INVALID_MSG;
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
   } else {
     uint64_t nRow;
     if (tDecodeU64v(pCoder, &nRow) < 0) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     for (int32_t iRow = 0; iRow < nRow; ++iRow) {
@@ -356,7 +356,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
 
       if (pRow->ts < minKey || pRow->ts > maxKey) {
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
   }
@@ -369,6 +369,9 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   tEndDecode(pCoder);
 
 _exit:
+  if (code) {
+    vError("vgId:%d, %s:%d failed to vnodePreProcessSubmitTbData submit request since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
   return code;
 }
 static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
@@ -748,6 +751,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
       }
 
     } break;
+    case TDMT_VND_STREAM_ALL_STOP: {
+      if (pVnode->restored && vnodeIsLeader(pVnode) && (code = tqProcessAllTaskStopReq(pVnode->pTq, pMsg)) < 0) {
+        goto _err;
+      }
+
+    } break;
     case TDMT_VND_ALTER_CONFIRM:
       needCommit = pVnode->config.hashChange;
       if (vnodeProcessAlterConfirmReq(pVnode, ver, pReq, len, pRsp) < 0) {
@@ -945,22 +954,8 @@ int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) 
       return tqProcessTaskRetrieveReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_RETRIEVE_RSP:
       return tqProcessTaskRetrieveRsp(pVnode->pTq, pMsg);
-    case TDMT_VND_STREAM_SCAN_HISTORY:
-      return tqProcessTaskScanHistory(pVnode->pTq, pMsg);
-    case TDMT_STREAM_TASK_CHECKPOINT_READY:
-      return tqProcessTaskCheckpointReadyMsg(pVnode->pTq, pMsg);
-    case TDMT_STREAM_TASK_CHECKPOINT_READY_RSP:
-      return tqProcessTaskCheckpointReadyRsp(pVnode->pTq, pMsg);
-    case TDMT_STREAM_RETRIEVE_TRIGGER:
-      return tqProcessTaskRetrieveTriggerReq(pVnode->pTq, pMsg);
-    case TDMT_STREAM_RETRIEVE_TRIGGER_RSP:
-      return tqProcessTaskRetrieveTriggerRsp(pVnode->pTq, pMsg);
-    case TDMT_MND_STREAM_REQ_CHKPT_RSP:
-      return tqProcessStreamReqCheckpointRsp(pVnode->pTq, pMsg);
     case TDMT_VND_GET_STREAM_PROGRESS:
       return tqStreamProgressRetrieveReq(pVnode->pTq, pMsg);
-    case TDMT_MND_STREAM_CHKPT_REPORT_RSP:
-      return tqProcessTaskChkptReportRsp(pVnode->pTq, pMsg);
     default:
       vError("unknown msg type:%d in stream queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
@@ -987,8 +982,36 @@ int32_t vnodeProcessStreamCtrlMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pIn
       return tqProcessTaskCheckReq(pVnode->pTq, pMsg);
     case TDMT_VND_STREAM_TASK_CHECK_RSP:
       return tqProcessTaskCheckRsp(pVnode->pTq, pMsg);
+    case TDMT_STREAM_TASK_CHECKPOINT_READY:
+      return tqProcessTaskCheckpointReadyMsg(pVnode->pTq, pMsg);
+    case TDMT_STREAM_TASK_CHECKPOINT_READY_RSP:
+      return tqProcessTaskCheckpointReadyRsp(pVnode->pTq, pMsg);
+    case TDMT_STREAM_RETRIEVE_TRIGGER:
+      return tqProcessTaskRetrieveTriggerReq(pVnode->pTq, pMsg);
+    case TDMT_STREAM_RETRIEVE_TRIGGER_RSP:
+      return tqProcessTaskRetrieveTriggerRsp(pVnode->pTq, pMsg);
+    case TDMT_MND_STREAM_REQ_CHKPT_RSP:
+      return tqProcessStreamReqCheckpointRsp(pVnode->pTq, pMsg);
+    case TDMT_MND_STREAM_CHKPT_REPORT_RSP:
+      return tqProcessTaskChkptReportRsp(pVnode->pTq, pMsg);
     default:
       vError("unknown msg type:%d in stream ctrl queue", pMsg->msgType);
+      return TSDB_CODE_APP_ERROR;
+  }
+}
+
+int32_t vnodeProcessStreamLongExecMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
+  vTrace("vgId:%d, msg:%p in stream long exec queue is processing", pVnode->config.vgId, pMsg);
+  if (!syncIsReadyForRead(pVnode->sync)) {
+    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
+    return 0;
+  }
+
+  switch (pMsg->msgType) {
+    case TDMT_VND_STREAM_SCAN_HISTORY:
+      return tqProcessTaskScanHistory(pVnode->pTq, pMsg);
+    default:
+      vError("unknown msg type:%d in stream long exec queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
   }
 }
@@ -1889,7 +1912,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     len -= sizeof(SSubmitReq2Msg);
     SDecoder dc = {0};
     tDecoderInit(&dc, pReq, len);
-    if (tDecodeSubmitReq(&dc, pSubmitReq) < 0) {
+    if (tDecodeSubmitReq(&dc, pSubmitReq, NULL) < 0) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
     }

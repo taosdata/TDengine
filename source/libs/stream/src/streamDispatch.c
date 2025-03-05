@@ -131,12 +131,12 @@ int32_t streamTaskBroadcastRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* r
 
     code = tmsgSendReq(&pEpInfo->epSet, &rpcMsg);
     if (code != 0) {
-      rpcFreeCont(buf);
-      return code;
+      stError("s-task:%s (child %d) failed to send retrieve req to task:0x%x (vgId:%d) QID:0x%" PRIx64 " code:%s",
+              pTask->id.idStr, pTask->info.selfChildId, pEpInfo->taskId, pEpInfo->nodeId, req->reqId, tstrerror(code));
+    } else {
+      stDebug("s-task:%s (child %d) send retrieve req to task:0x%x (vgId:%d), QID:0x%" PRIx64, pTask->id.idStr,
+              pTask->info.selfChildId, pEpInfo->taskId, pEpInfo->nodeId, req->reqId);
     }
-
-    stDebug("s-task:%s (child %d) send retrieve req to task:0x%x (vgId:%d),QID:0x%" PRIx64, pTask->id.idStr,
-            pTask->info.selfChildId, pEpInfo->taskId, pEpInfo->nodeId, req->reqId);
   }
 
   return code;
@@ -1097,6 +1097,8 @@ static void chkptReadyMsgSendMonitorFn(void* param, void* tmrId) {
   id = pTask->id.idStr;
   pActiveInfo = pTask->chkInfo.pActiveInfo;
   pTmrInfo = &pActiveInfo->chkptReadyMsgTmr;
+
+  stDebug("s-task:%s acquire task, refId:%" PRId64, id, taskRefId);
 
   // check the status every 100ms
   if (streamTaskShouldStop(pTask)) {

@@ -449,6 +449,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   // open meta
+  (void)taosThreadRwlockInit(&pVnode->metaRWLock, NULL);
   vInfo("vgId:%d, start to open vnode meta", TD_VID(pVnode));
   if (metaOpen(pVnode, &pVnode->pMeta, rollback) < 0) {
     vError("vgId:%d, failed to open vnode meta since %s", TD_VID(pVnode), tstrerror(terrno));
@@ -548,6 +549,7 @@ _err:
   if (pVnode->pMeta) metaClose(&pVnode->pMeta);
   if (pVnode->freeList) vnodeCloseBufPool(pVnode);
 
+  (void)taosThreadRwlockDestroy(&pVnode->metaRWLock);
   taosMemoryFree(pVnode);
   return NULL;
 }

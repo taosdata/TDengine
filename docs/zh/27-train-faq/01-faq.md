@@ -81,7 +81,7 @@ description: 一些常见问题的解决方法汇总
 
 ### 5. 遇到错误 Unable to resolve FQDN” 怎么办？
 
-产生这个错误，是由于客户端或数据节点无法解析 FQDN(Fully Qualified Domain Name)导致。对于 TAOS Shell 或客户端应用，请做如下检查：
+产生这个错误，是由于客户端或数据节点无法解析 FQDN(Fully Qualified Domain Name)导致。对于 TDengine CLI 或客户端应用，请做如下检查：
 
 1. 请检查连接的服务器的 FQDN 是否正确，FQDN 配置参考：[一篇文章说清楚 TDengine 的 FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)
 2. 如果网络配置有 DNS server，请检查是否正常工作
@@ -247,13 +247,13 @@ launchctl limit maxfiles
 该提示是创建 db 的 vnode 数量不够了，需要的 vnode 不能超过了 dnode 中 vnode 的上限。因为系统默认是一个 dnode 中有 CPU 核数两倍的 vnode，也可以通过配置文件中的参数 supportVnodes 控制。
 正常调大 taos.cfg 中 supportVnodes 参数即可。
 
-### 21 在服务器上的使用 taos-CLI 能查到指定时间段的数据，但在客户端机器上查不到？
+### 21 在服务器上的使用 TDengine CLI能查到指定时间段的数据，但在客户端机器上查不到？
 这种情况是因为客户端与服务器上设置的时区不一致导致的，调整客户端与服务器的时区一致即可解决。
 
 ### 22 表名确认是存在的，但在写入或查询时返回表名不存在，什么原因？ 
-TDengine 中的所有名称，包括数据库名、表名等都是区分大小写的，如果这些名称在程序或 taos-CLI 中没有使用反引号（`）括起来使用，即使你输入的是大写的，引擎也会转化成小写来使用，如果名称前后加上了反引号，引擎就不会再转化成小写，会保持原样来使用。
+TDengine 中的所有名称，包括数据库名、表名等都是区分大小写的，如果这些名称在程序或 TDengine CLI中没有使用反引号（`）括起来使用，即使你输入的是大写的，引擎也会转化成小写来使用，如果名称前后加上了反引号，引擎就不会再转化成小写，会保持原样来使用。
 
-### 23 在 taos-CLI 中查询，字段内容不能完全显示出来怎么办？
+### 23 在 TDengine CLI中查询，字段内容不能完全显示出来怎么办？
 可以使用 \G 参数来竖式显示，如 show databases\G; （为了输入方便，在"\"后加 TAB 键，会自动补全后面的内容）
 
 ### 24 使用 taosBenchmark 测试工具写入数据查询很快，为什么我写入的数据查询非常慢？
@@ -310,5 +310,18 @@ TDinsight插件中展示的数据是通过taosKeeper和taosAdapter服务收集�
 ### 34 超级表带 TAG 过滤查子查数据与直接查子表哪个块？
 直接查子表更快。超级表带 TAG 过滤查询子查数据是为满足查询方便性，同时可对多个子表中数据进行过滤，如果目的是追求性能并已明确查询子表，直接从子表查性能更高
 
-### 35 如何查看数据压缩率指标？
-TDengine 目前只提供以表为统计单位的压缩率，数据库及整体还未提供，查看命令是在客户端 taos-CLI 中执行 `SHOW TABLE DISTRIBUTED table_name;` 命令，table_name 为要查看压缩率的表，可以为超级表、普通表及子表，详细可 [查看此处](https://docs.taosdata.com/reference/taos-sql/show/#show-table-distributed)
+### 35 如何查看数据库的数据压缩率和磁盘占用指标？
+TDengine 3.3.5.0 之前的版本，只提供以表为统计单位的压缩率，数据库及整体还未提供，查看命令是在客户端 TDengine CLI 中执行 `SHOW TABLE DISTRIBUTED table_name;` 命令，table_name 为要查看压缩率的表，可以为超级表、普通表及子表，详细可 [查看此处](https://docs.taosdata.com/reference/taos-sql/show/#show-table-distributed)
+
+TDengine 3.3.5.0 及以上的版本，还提供了数据库整体压缩率和磁盘空间占用统计。查看数据库整体的数据压缩率和磁盘空间占用的命令为 `SHOW db_name.disk_info;`，查看数据库各个模块的磁盘空间占用的命令为 `SELECT * FROM INFORMATION_SCHEMA.INS_DISK_USAGE WHERE db_name='db_name';`，db_name 为要查看的数据库名称。详细可 [查看此处](https://docs.taosdata.com/reference/taos-sql/database/#%E6%9F%A5%E7%9C%8B-db-%E7%9A%84%E7%A3%81%E7%9B%98%E7%A9%BA%E9%97%B4%E5%8D%A0%E7%94%A8)
+
+### 36 短时间内，通过 systemd 重启 taosd 超过一定次数后重启失败，报错：start-limit-hit。
+问题描述：
+TDengine 3.3.5.1 及以上的版本，taosd.service 的 systemd 配置文件中，StartLimitInterval 参数从 60 秒调整为 900 秒。若在 900 秒内 taosd 服务重启达到 3 次，后续通过 systemd 启动 taosd 服务时会失败，执行 `systemctl status taosd.service` 显示错误：Failed with result 'start-limit-hit'。
+
+问题原因：
+TDengine 3.3.5.1 之前的版本，StartLimitInterval 为 60 秒。若在 60 秒内无法完成 3 次重启（例如，因从 WAL（预写式日志）中恢复大量数据导致启动时间较长），则下一个 60 秒周期内的重启会重新计数，导致系统持续不断地重启 taosd 服务。为避免无限重启问题，将 StartLimitInterval 由 60 秒调整为 900 秒。因此，在使用 systemd 短时间内多次启动 taosd 时遇到 start-limit-hit 错误的机率增多。
+
+问题解决：
+1）通过 systemd 重启 taosd 服务：推荐方法是先执行命令 `systemctl reset-failed taosd.service` 重置失败计数器，然后再通过 `systemctl restart taosd.service` 重启；若需长期调整，可手动修改 /etc/systemd/system/taosd.service 文件，将 StartLimitInterval 调小或将 StartLimitBurst 调大(注：重新安装 taosd 会重置该参数，需要重新修改)，执行 `systemctl daemon-reload` 重新加载配置，然后再重启。2）也可以不通过 systemd 而是通过 taosd 命令直接重启 taosd 服务，此时不受 StartLimitInterval 和 StartLimitBurst 参数限制。
+

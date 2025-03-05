@@ -535,11 +535,37 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, SDnodeObj *pDnode, const S
   return DND_REASON_ONLINE;
 }
 
+double calcAppliedRate(int64_t currentCount, int64_t lastCount, int64_t currentTimeMs, int64_t lastTimeMs) {
+  if ((currentTimeMs <= lastTimeMs) || (currentCount <= lastCount)) {
+    return 0.0;
+  }
+
+  int64_t deltaCount = currentCount - lastCount;
+  int64_t deltaMs = currentTimeMs - lastTimeMs;
+  double  rate = (double)deltaCount / (double)deltaMs;
+  return rate;
+}
+
 static bool mndUpdateVnodeState(int32_t vgId, SVnodeGid *pGid, SVnodeLoad *pVload) {
   bool stateChanged = false;
   bool roleChanged = pGid->syncState != pVload->syncState ||
                      (pVload->syncTerm != -1 && pGid->syncTerm != pVload->syncTerm) ||
                      pGid->roleTimeMs != pVload->roleTimeMs;
+
+  if (pVload->syncCommitIndex > pVload->syncAppliedIndex) {
+    if (pGid->lastSyncAppliedIndexUpdateTime == 0) {
+      pGid->lastSyncAppliedIndexUpdateTime = taosGetTimestampMs();
+    } else if (pGid->syncAppliedIndex != pVload->syncAppliedIndex) {
+      int64_t currentTimeMs = taosGetTimestampMs();
+      pGid->appliedRate = calcAppliedRate(pVload->syncAppliedIndex, pGid->syncAppliedIndex, currentTimeMs,
+                                          pGid->lastSyncAppliedIndexUpdateTime);
+
+      pGid->lastSyncAppliedIndexUpdateTime = currentTimeMs;
+    }
+  }
+
+  pGid->syncAppliedIndex = pVload->syncAppliedIndex;
+  pGid->syncCommitIndex = pVload->syncCommitIndex;
   if (roleChanged || pGid->syncRestore != pVload->syncRestore || pGid->syncCanRead != pVload->syncCanRead ||
       pGid->startTimeMs != pVload->startTimeMs) {
     mInfo(
@@ -756,8 +782,12 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || analVerChanged ||
                    pMnode->ipWhiteVer != statusReq.ipWhiteVer || encryptKeyChanged || enableWhiteListChanged;
   const STraceId *trace = &pReq->info.traceId;
-  mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
-          pDnode->accessTimes, needCheck, online, reboot, dnodeChanged, statusReq.statusSeq);
+  char            timestamp[TD_TIME_STR_LEN] = {0};
+  if (mDebugFlag & DEBUG_TRACE) (void)formatTimestampLocal(timestamp, statusReq.timestamp, TSDB_TIME_PRECISION_MILLI);
+  mGTrace(
+      "dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d "
+      "timestamp:%s",
+      pDnode->id, pDnode->accessTimes, needCheck, online, reboot, dnodeChanged, statusReq.statusSeq, timestamp);
 
   if (reboot) {
     tsGrantHBInterval = GRANT_HEART_BEAT_MIN;

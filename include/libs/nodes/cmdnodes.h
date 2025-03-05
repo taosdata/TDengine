@@ -169,6 +169,7 @@ typedef struct SCompactDatabaseStmt {
   char      dbName[TSDB_DB_NAME_LEN];
   SNode*    pStart;
   SNode*    pEnd;
+  bool      metaOnly;
 } SCompactDatabaseStmt;
 
 typedef struct SCompactVgroupsStmt {
@@ -177,6 +178,7 @@ typedef struct SCompactVgroupsStmt {
   SNodeList* vgidList;
   SNode*     pStart;
   SNode*     pEnd;
+  bool       metaOnly;
 } SCompactVgroupsStmt;
 
 typedef struct STableOptions {
@@ -573,6 +575,7 @@ typedef enum EStreamNotifyOptionSetFlag {
 } EStreamNotifyOptionSetFlag;
 
 typedef enum EStreamNotifyEventType {
+  SNOTIFY_EVENT_WINDOW_INVALIDATION = 0,
   SNOTIFY_EVENT_WINDOW_OPEN = BIT_FLAG_MASK(0),
   SNOTIFY_EVENT_WINDOW_CLOSE = BIT_FLAG_MASK(1),
 } EStreamNotifyEventType;
@@ -681,6 +684,10 @@ typedef SGrantStmt SRevokeStmt;
 typedef struct SBalanceVgroupStmt {
   ENodeType type;
 } SBalanceVgroupStmt;
+
+typedef struct SAssignLeaderStmt {
+  ENodeType type;
+} SAssignLeaderStmt;
 
 typedef struct SBalanceVgroupLeaderStmt {
   ENodeType type;

@@ -158,11 +158,14 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
 int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colIdx, void* charsetCxt);
 int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
                                STSchema** pTSchema, SBindInfo2* pBindInfos, void *charsetCxt);
-int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen, void *charsetCxt);
+int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
+                            void* charsetCxt);
 int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                                 int32_t colIdx, int32_t rowNum, void *charsetCxt);
+                                 int32_t colIdx, int32_t rowNum, void* charsetCxt);
+int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
+                           STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt);
 int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName,
-                            TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen, void *charsetCxt);
+                            TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt);
 
 void    destroyBoundColumnInfo(void* pBoundInfo);
 int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
@@ -180,8 +183,11 @@ int32_t smlBindData(SQuery* handle, bool dataFormat, SArray* tags, SArray* colsS
                     STableMeta* pTableMeta, char* tableName, const char* sTableName, int32_t sTableNameLen, int32_t ttl,
                     char* msgBuf, int32_t msgBufLen, void* charsetCxt);
 int32_t smlBuildOutput(SQuery* handle, SHashObj* pVgHash);
+int32_t smlBuildOutputRaw(SQuery* handle, SHashObj* pVgHash);
+int     rawBlockBindRawData(SHashObj* pVgroupHash, SArray* pVgroupList, STableMeta* pTableMeta, void* data);
 int     rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, void* fields,
                          int numFields, bool needChangeLength, char* errstr, int32_t errstrLen, bool raw);
+int32_t checkSchema(SSchema* pColSchema, int8_t* fields, char* errstr, int32_t errstrLen);
 
 int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray);
 int32_t serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap, SArray** pOut);

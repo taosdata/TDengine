@@ -331,6 +331,8 @@ void tFreeStreamTask(void* pParam) {
   taosMemoryFreeClear(pTask->notifyInfo.stbFullName);
   tDeleteSchemaWrapper(pTask->notifyInfo.pSchemaWrapper);
 
+  pTask->notifyEventStat = (STaskNotifyEventStat){0};
+
   taosMemoryFree(pTask);
   stDebug("s-task:0x%x free task completed", taskId);
 }
@@ -708,7 +710,7 @@ int32_t streamTaskStop(SStreamTask* pTask) {
   }
 
   if (pTask->info.taskLevel != TASK_LEVEL__SINK && pTask->exec.pExecutor != NULL) {
-    code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS);
+    code = qKillTask(pTask->exec.pExecutor, TSDB_CODE_SUCCESS, 5000);
     if (code != TSDB_CODE_SUCCESS) {
       stError("s-task:%s failed to kill task related query handle, code:%s", id, tstrerror(code));
     }
@@ -867,7 +869,7 @@ int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t resetRelHalt) {
       pStreamTask->status.taskStatus = TASK_STATUS__READY;
     }
 
-    code = streamMetaSaveTask(pMeta, pStreamTask);
+    code = streamMetaSaveTaskInMeta(pMeta, pStreamTask);
     streamMutexUnlock(&(pStreamTask->lock));
 
     streamMetaReleaseTask(pMeta, pStreamTask);
@@ -988,6 +990,7 @@ void streamTaskStatusCopy(STaskStatusEntry* pDst, const STaskStatusEntry* pSrc) 
 
   pDst->startTime = pSrc->startTime;
   pDst->hTaskId = pSrc->hTaskId;
+  pDst->notifyEventStat = pSrc->notifyEventStat;
 }
 
 STaskStatusEntry streamTaskGetStatusEntry(SStreamTask* pTask) {
@@ -1016,6 +1019,7 @@ STaskStatusEntry streamTaskGetStatusEntry(SStreamTask* pTask) {
       .outputThroughput = SIZE_IN_KiB(pExecInfo->outputThroughput),
       .startCheckpointId = pExecInfo->startCheckpointId,
       .startCheckpointVer = pExecInfo->startCheckpointVer,
+      .notifyEventStat = pTask->notifyEventStat,
   };
   return entry;
 }
@@ -1030,7 +1034,7 @@ static int32_t taskPauseCallback(SStreamTask* pTask, void* param) {
   // in case of fill-history task, stop the tsdb file scan operation.
   if (pTask->info.fillHistory == 1) {
     void* pExecutor = pTask->exec.pExecutor;
-    code = qKillTask(pExecutor, TSDB_CODE_SUCCESS);
+    code = qKillTask(pExecutor, TSDB_CODE_SUCCESS, 10000);
   }
 
   stDebug("vgId:%d s-task:%s set pause flag and pause task", pMeta->vgId, pTask->id.idStr);
@@ -1292,6 +1296,8 @@ const char* streamTaskGetExecType(int32_t type) {
       return "resume-task-from-idle";
     case STREAM_EXEC_T_ADD_FAILED_TASK:
       return "record-start-failed-task";
+    case STREAM_EXEC_T_STOP_ONE_TASK:
+      return "stop-one-task";
     case 0:
       return "exec-all-tasks";
     default:

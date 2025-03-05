@@ -198,7 +198,7 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
                     ", current: " + rowData.getFloat(1) +
                     ", voltage: " + rowData.getInt(2) +
                     ", phase: " + rowData.getFloat(3) +
-                    ", location: " + new String(rowData.getBinary(4)));
+                    ", location: " + rowData.getString(4).toString());
             sb.append("\n");
             return sb.toString();
         });
@@ -273,7 +273,7 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
                         ", current: " + row.getFloat(1) +
                         ", voltage: " + row.getInt(2) +
                         ", phase: " + row.getFloat(3) +
-                        ", location: " + new String(row.getBinary(4)));
+                        ", location: " + rowData.getString(4).toString());
                 sb.append("\n");
                 totalVoltage.addAndGet(row.getInt(2));
             }
@@ -311,7 +311,7 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
                     ", current: " + rowData.getFloat(1) +
                     ", voltage: " + rowData.getInt(2) +
                     ", phase: " + rowData.getFloat(3) +
-                    ", location: " + new String(rowData.getBinary(4)));
+                    ", location: " + rowData.getString(4).toString());
             sb.append("\n");
             totalVoltage.addAndGet(rowData.getInt(2));
             return sb.toString();
@@ -353,7 +353,7 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
                         ", current: " + row.getFloat(1) +
                         ", voltage: " + row.getInt(2) +
                         ", phase: " + row.getFloat(3) +
-                        ", location: " + new String(row.getBinary(4)));
+                        ", location: " + rowData.getString(4).toString());
                 sb.append("\n");
                 totalVoltage.addAndGet(row.getInt(2));
             }
@@ -489,9 +489,9 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
                 " `current` FLOAT," +
                 " voltage INT," +
                 " phase FLOAT," +
-                " location VARBINARY," +
+                " location VARCHAR(255)," +
                 " groupid INT," +
-                " tbname VARBINARY" +
+                " tbname VARCHAR(255)" +
                 ") WITH (" +
                 "  'connector' = 'tdengine-connector'," +
                 "  'td.jdbc.url' = 'jdbc:TAOS-WS://localhost:6041/power?user=root&password=taosdata'," +
@@ -506,9 +506,9 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
                 " `current` FLOAT," +
                 " voltage INT," +
                 " phase FLOAT," +
-                " location VARBINARY," +
+                " location VARCHAR(255)," +
                 " groupid INT," +
-                " tbname VARBINARY" +
+                " tbname VARCHAR(255)" +
                 ") WITH (" +
                 "  'connector' = 'tdengine-connector'," +
                 "  'td.jdbc.mode' = 'sink'," +
@@ -535,9 +535,9 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
                 " `current` FLOAT," +
                 " voltage INT," +
                 " phase FLOAT," +
-                " location VARBINARY," +
+                " location VARCHAR(255)," +
                 " groupid INT," +
-                " tbname VARBINARY" +
+                " tbname VARCHAR(255)" +
                 ") WITH (" +
                 "  'connector' = 'tdengine-connector'," +
                 "  'bootstrap.servers' = 'localhost:6041'," +
@@ -554,12 +554,12 @@ splitSql.setSelect("ts, current, voltage, phase, groupid, location")
                 " `current` FLOAT," +
                 " voltage INT," +
                 " phase FLOAT," +
-                " location VARBINARY," +
+                " location VARCHAR(255)," +
                 " groupid INT," +
-                " tbname VARBINARY" +
+                " tbname VARCHAR(255)" +
                 ") WITH (" +
                 "  'connector' = 'tdengine-connector'," +
-                "  'td.jdbc.mode' = 'cdc'," +
+                "  'td.jdbc.mode' = 'sink'," +
                 "  'td.jdbc.url' = 'jdbc:TAOS-WS://localhost:6041/power_sink?user=root&password=taosdata'," +
                 "  'sink.db.name' = 'power_sink'," +
                 "  'sink.supertable.name' = 'sink_meters'" +

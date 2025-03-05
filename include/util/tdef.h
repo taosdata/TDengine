@@ -17,6 +17,7 @@
 #define _TD_UTIL_DEF_H_
 
 #include "os.h"
+#include "cus_name.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -77,14 +78,6 @@ extern const int32_t TYPE_BYTES[21];
 #define TSDB_DEFAULT_PASS "prodb"
 #else
 #define TSDB_DEFAULT_PASS "taosdata"
-#endif
-
-#ifndef TD_PRODUCT_NAME
-#ifdef TD_ENTERPRISE
-#define TD_PRODUCT_NAME "TDengine Enterprise Edition"
-#else
-#define TD_PRODUCT_NAME "TDengine Community Edition"
-#endif
 #endif
 
 #define TSDB_TRUE  1
@@ -246,6 +239,7 @@ typedef enum ELogicConditionType {
 #define TSDB_USER_CGROUP_LEN          (TSDB_USER_LEN + TSDB_CGROUP_LEN)  // it is a null-terminated string
 #define TSDB_STREAM_NAME_LEN          193                                // it is a null-terminated string
 #define TSDB_STREAM_NOTIFY_URL_LEN    128                                // it includes the terminating '\0'
+#define TSDB_STREAM_NOTIFY_STAT_LEN   350                                // it includes the terminating '\0'
 #define TSDB_DB_NAME_LEN              65
 #define TSDB_DB_FNAME_LEN             (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_PRIVILEDGE_CONDITION_LEN 48 * 1024
@@ -272,6 +266,7 @@ typedef enum ELogicConditionType {
 #define TSDB_SUBSCRIBE_KEY_LEN   (TSDB_CGROUP_LEN + TSDB_TOPIC_FNAME_LEN + 2)
 #define TSDB_PARTITION_KEY_LEN   (TSDB_SUBSCRIBE_KEY_LEN + 20)
 #define TSDB_COL_NAME_LEN        65
+#define TSDB_COL_NAME_EXLEN      8
 #define TSDB_COL_FNAME_LEN       (TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
 #define TSDB_MAX_SAVED_SQL_LEN   TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN         TSDB_PAYLOAD_SIZE
@@ -329,8 +324,8 @@ typedef enum ELogicConditionType {
 #define TSDB_ARB_GROUP_MEMBER_NUM 2
 #define TSDB_ARB_TOKEN_SIZE       32
 
-#define TSDB_TRANS_STAGE_LEN 12
-#define TSDB_TRANS_TYPE_LEN  16
+#define TSDB_TRANS_STAGE_LEN   12
+#define TSDB_TRANS_TYPE_LEN    16
 #define TSDB_TRANS_ERROR_LEN   512
 #define TSDB_TRANS_OBJTYPE_LEN 40
 #define TSDB_TRANS_RESULT_LEN  100
@@ -364,6 +359,8 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MAX_REPLICA               5
 #define TSDB_MAX_LEARNER_REPLICA       10
+#define TSDB_SYNC_RESTORE_lEN          20
+#define TSDB_SYNC_APPLY_COMMIT_LEN     41
 #define TSDB_SYNC_LOG_BUFFER_SIZE      4096
 #define TSDB_SYNC_LOG_BUFFER_RETENTION 256
 #define TSDB_SYNC_LOG_BUFFER_THRESHOLD (1024 * 1024 * 5)
@@ -679,7 +676,7 @@ typedef enum {
   TSDB_VERSION_END,
 } EVersionType;
 
-#define MIN_RESERVE_MEM_SIZE 1024 // MB
+#define MIN_RESERVE_MEM_SIZE 1024  // MB
 
 #ifdef __cplusplus
 }

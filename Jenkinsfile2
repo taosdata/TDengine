@@ -70,7 +70,7 @@ def check_docs(){
             returnStdout: true
         )
         
-        def file_no_doc_changed = sh (
+        file_no_doc_changed = sh (
             script: '''
                 cd ${WKC}
                 git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" || :

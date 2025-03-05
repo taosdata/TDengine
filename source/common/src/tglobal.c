@@ -28,9 +28,6 @@
 
 #include "tutil.h"
 
-#if defined(CUS_NAME) || defined(CUS_PROMPT) || defined(CUS_EMAIL)
-#include "cus_name.h"
-#endif
 
 #define CONFIG_PATH_LEN (TSDB_FILENAME_LEN + 12)
 #define CONFIG_FILE_LEN (CONFIG_PATH_LEN + 32)
@@ -192,7 +189,7 @@ char    tsCheckpointBackupDir[PATH_MAX] = "/var/lib/taos/backup/checkpoint/";
 
 // tmq
 int32_t tmqMaxTopicNum = 20;
-int32_t tmqRowSize = 4096;
+int32_t tmqRowSize = 1000;
 // query
 int32_t tsQueryPolicy = 1;
 bool    tsQueryTbNotExistAsEmpty = false;
@@ -359,6 +356,9 @@ int32_t tsMaxTsmaNum = 3;
 int32_t tsMaxTsmaCalcDelay = 600;
 int64_t tsmaDataDeleteMark = 1000 * 60 * 60 * 24;  // in ms, default to 1d
 void   *pTimezoneNameMap = NULL;
+
+int32_t tsStreamNotifyMessageSize = 8 * 1024;  // KB, default 8MB
+int32_t tsStreamNotifyFrameSize = 256;         // KB, default 256KB
 
 int32_t taosCheckCfgStrValueLen(const char *name, const char *value, int32_t len);
 
@@ -961,7 +961,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "s3Accesskey", tsS3AccessKey[0], CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "s3Endpoint", tsS3Endpoint[0], CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "s3BucketName", tsS3BucketName, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "s3BucketName", tsS3BucketName, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_LOCAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "s3PageCacheSize", tsS3PageCacheSize, 4, 1024 * 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "s3UploadDelaySec", tsS3UploadDelaySec, 1, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL));
@@ -969,6 +969,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   // min free disk space used to check if the disk is full [50MB, 1GB]
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "minDiskFreeSize", tsMinDiskFreeSize, TFS_MIN_DISK_FREE_SIZE, 1024 * 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_LOCAL));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableWhiteList", tsEnableWhiteList, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
+
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamNotifyMessageSize", tsStreamNotifyMessageSize, 8, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamNotifyFrameSize", tsStreamNotifyFrameSize, 8, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_LOCAL));
 
   // clang-format on
 
@@ -1858,6 +1861,12 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minReservedMemorySize");
   tsMinReservedMemorySize = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamNotifyMessageSize");
+  tsStreamNotifyMessageSize = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamNotifyFrameSize");
+  tsStreamNotifyFrameSize = pItem->i32;
+
   // GRANT_CFG_GET;
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -1978,15 +1987,15 @@ _exit:
 
 static int32_t taosCheckGlobalCfg() {
   uint32_t ipv4 = 0;
-  uInfo("start to check global tsLocalFqdn:%s, tsServerPort:%u", tsLocalFqdn, tsServerPort);
+  uInfo("check global fqdn:%s and port:%u", tsLocalFqdn, tsServerPort);
   int32_t code = taosGetIpv4FromFqdn(tsLocalFqdn, &ipv4);
   if (code) {
-    uError("failed to get ip from fqdn:%s since %s, dnode can not be initialized", tsLocalFqdn, tstrerror(code));
+    uError("failed to get ip from fqdn:%s since %s, can not be initialized", tsLocalFqdn, tstrerror(code));
     TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);
   }
 
   if (tsServerPort <= 0) {
-    uError("invalid server port:%u, dnode can not be initialized", tsServerPort);
+    uError("invalid server port:%u, can not be initialized", tsServerPort);
     TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);
   }
 
@@ -2826,7 +2835,7 @@ static void taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag
     if (code != TSDB_CODE_CFG_NOT_FOUND) {
       uError("failed to set flag %s to %d, since:%s", name, flag, tstrerror(code));
     } else {
-      uDebug("failed to set flag %s to %d, since:%s", name, flag, tstrerror(code));
+      uTrace("failed to set flag %s to %d, since:%s", name, flag, tstrerror(code));
     }
   }
   return;
