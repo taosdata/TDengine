@@ -1405,6 +1405,65 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
                 }
             }
         }
+
+        // csv file prefix
+        tools_cJSON* csv_fp = tools_cJSON_GetObjectItem(stbInfo, "csv_file_prefix");
+        if (csv_fp && csv_fp->type == tools_cJSON_String && csv_fp->valuestring != NULL) {
+            superTable->csv_file_prefix = csv_fp->valuestring;
+        } else {
+            superTable->csv_file_prefix = "data";
+        }
+
+        // csv timestamp format
+        tools_cJSON* csv_tf = tools_cJSON_GetObjectItem(stbInfo, "csv_ts_format");
+        if (csv_tf && csv_tf->type == tools_cJSON_String && csv_tf->valuestring != NULL) {
+            superTable->csv_ts_format = csv_tf->valuestring;
+        } else {
+            superTable->csv_ts_format = NULL;
+        }
+
+        // csv timestamp format
+        tools_cJSON* csv_ti = tools_cJSON_GetObjectItem(stbInfo, "csv_ts_interval");
+        if (csv_ti && csv_ti->type == tools_cJSON_String && csv_ti->valuestring != NULL) {
+            superTable->csv_ts_interval = csv_ti->valuestring;
+        } else {
+            superTable->csv_ts_interval = "1d";
+        }
+
+        // csv output header
+        superTable->csv_output_header = true;
+        tools_cJSON* oph = tools_cJSON_GetObjectItem(stbInfo, "csv_output_header");
+        if (oph && oph->type == tools_cJSON_String && oph->valuestring != NULL) {
+            if (0 == strcasecmp(oph->valuestring, "yes") || 0 == strcasecmp(oph->valuestring, "true")) {
+                superTable->csv_output_header = true;
+            } else if (0 == strcasecmp(oph->valuestring, "no") || 0 == strcasecmp(oph->valuestring, "false")) {
+                superTable->csv_output_header = false;
+            }
+        }
+
+        // csv tbname alias
+        tools_cJSON* tba = tools_cJSON_GetObjectItem(stbInfo, "csv_tbname_alias");
+        if (tba && tba->type == tools_cJSON_String && tba->valuestring != NULL) {
+            superTable->csv_tbname_alias = tba->valuestring;
+        } else {
+            superTable->csv_tbname_alias = "device_id";
+        }
+
+        // csv compression level
+        tools_cJSON* cl = tools_cJSON_GetObjectItem(stbInfo, "csv_compress_level");
+        if (cl && cl->type == tools_cJSON_String && cl->valuestring != NULL) {
+            if (0 == strcasecmp(cl->valuestring, "none")) {
+                superTable->csv_compress_level = CSV_COMPRESS_NONE;
+            } else if (0 == strcasecmp(cl->valuestring, "fast")) {
+                superTable->csv_compress_level = CSV_COMPRESS_FAST;
+            } else if (0 == strcasecmp(cl->valuestring, "balance")) {
+                superTable->csv_compress_level = CSV_COMPRESS_BALANCE;
+            } else if (0 == strcasecmp(cl->valuestring, "best")) {
+                superTable->csv_compress_level = CSV_COMPRESS_BEST;
+            }
+        } else {
+            superTable->csv_compress_level = CSV_COMPRESS_NONE;
+        }
     }
     return 0;
 }
@@ -1594,65 +1653,6 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
         g_arguments->output_path = "./output/";
     }
     (void)mkdir(g_arguments->output_path, 0775);
-
-    // csv file prefix
-    tools_cJSON* csv_fp = tools_cJSON_GetObjectItem(json, "csv_file_prefix");
-    if (csv_fp && csv_fp->type == tools_cJSON_String && csv_fp->valuestring != NULL) {
-        g_arguments->csv_file_prefix = csv_fp->valuestring;
-    } else {
-        g_arguments->csv_file_prefix = "data";
-    }
-
-    // csv timestamp format
-    tools_cJSON* csv_tf = tools_cJSON_GetObjectItem(json, "csv_ts_format");
-    if (csv_tf && csv_tf->type == tools_cJSON_String && csv_tf->valuestring != NULL) {
-        g_arguments->csv_ts_format = csv_tf->valuestring;
-    } else {
-        g_arguments->csv_ts_format = NULL;
-    }
-
-    // csv timestamp format
-    tools_cJSON* csv_ti = tools_cJSON_GetObjectItem(json, "csv_ts_interval");
-    if (csv_ti && csv_ti->type == tools_cJSON_String && csv_ti->valuestring != NULL) {
-        g_arguments->csv_ts_interval = csv_ti->valuestring;
-    } else {
-        g_arguments->csv_ts_interval = "1d";
-    }
-
-    // csv output header
-    g_arguments->csv_output_header = true;
-    tools_cJSON* oph = tools_cJSON_GetObjectItem(json, "csv_output_header");
-    if (oph && oph->type == tools_cJSON_String && oph->valuestring != NULL) {
-        if (0 == strcasecmp(oph->valuestring, "yes") || 0 == strcasecmp(oph->valuestring, "true")) {
-            g_arguments->csv_output_header = true;
-        } else if (0 == strcasecmp(oph->valuestring, "no") || 0 == strcasecmp(oph->valuestring, "false")) {
-            g_arguments->csv_output_header = false;
-        }
-    }
-
-    // csv tbname alias
-    tools_cJSON* tba = tools_cJSON_GetObjectItem(json, "csv_tbname_alias");
-    if (tba && tba->type == tools_cJSON_String && tba->valuestring != NULL) {
-        g_arguments->csv_tbname_alias = tba->valuestring;
-    } else {
-        g_arguments->csv_tbname_alias = "device_id";
-    }
-
-    // csv compression level
-    tools_cJSON* cl = tools_cJSON_GetObjectItem(json, "csv_compress_level");
-    if (cl && cl->type == tools_cJSON_String && cl->valuestring != NULL) {
-        if (0 == strcasecmp(cl->valuestring, "none")) {
-            g_arguments->csv_compress_level = CSV_COMPRESS_NONE;
-        } else if (0 == strcasecmp(cl->valuestring, "fast")) {
-            g_arguments->csv_compress_level = CSV_COMPRESS_FAST;
-        } else if (0 == strcasecmp(cl->valuestring, "balance")) {
-            g_arguments->csv_compress_level = CSV_COMPRESS_BALANCE;
-        } else if (0 == strcasecmp(cl->valuestring, "best")) {
-            g_arguments->csv_compress_level = CSV_COMPRESS_BEST;
-        }
-    } else {
-        g_arguments->csv_compress_level = CSV_COMPRESS_NONE;
-    }
 
     code = 0;
     return code;

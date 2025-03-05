@@ -479,6 +479,13 @@ typedef struct SChildTable_S {
     int32_t   pkCnt;
 } SChildTable;
 
+typedef enum {
+    CSV_COMPRESS_NONE       = 0,
+    CSV_COMPRESS_FAST       = 1,
+    CSV_COMPRESS_BALANCE    = 6,
+    CSV_COMPRESS_BEST       = 9
+} CsvCompressionLevel;
+
 #define PRIMARY_KEY "PRIMARY KEY"
 typedef struct SSuperTable_S {
     char      *stbName;
@@ -581,6 +588,15 @@ typedef struct SSuperTable_S {
 
     // execute sqls after create super table
     char **sqls;
+
+    char*     csv_file_prefix;
+    char*     csv_ts_format;
+    char*     csv_ts_interval;
+    char*     csv_tbname_alias;
+    long      csv_ts_intv_secs;
+    bool      csv_output_header;
+    CsvCompressionLevel csv_compress_level;
+
 } SSuperTable;
 
 typedef struct SDbCfg_S {
@@ -719,14 +735,6 @@ typedef struct STmqMetaInfo_S {
     uint16_t           iface;
 } STmqMetaInfo;
 
-
-typedef enum {
-    CSV_COMPRESS_NONE       = 0,
-    CSV_COMPRESS_FAST       = 1,
-    CSV_COMPRESS_BALANCE    = 6,
-    CSV_COMPRESS_BEST       = 9
-} CsvCompressionLevel;
-
 typedef struct SArguments_S {
     uint8_t             taosc_version;
     char *              metaFile;
@@ -791,14 +799,6 @@ typedef struct SArguments_S {
 
     char*               output_path;
     char                output_path_buf[MAX_PATH_LEN];
-    char*               csv_file_prefix;
-    char*               csv_ts_format;
-    char*               csv_ts_interval;
-    char*               csv_tbname_alias;
-    long                csv_ts_intv_secs;
-    bool                csv_output_header;
-
-    CsvCompressionLevel csv_compress_level;
 
 } SArguments;
 
