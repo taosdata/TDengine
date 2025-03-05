@@ -477,6 +477,8 @@ pub enum TaosLogWriter<'a> {
     Null(std::io::Empty),
 }
 
+unsafe impl Send for TaosLogWriter<'_> {}
+
 impl std::io::Write for TaosLogWriter<'_> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         match self {
@@ -597,10 +599,15 @@ fn parse_filename(
     instance_id: u8,
     name: &str,
 ) -> Option<(DateTime<Local>, usize)> {
+    let prefix = format!("{}_", component);
+    if !name.starts_with(&prefix) {
+        return None;
+    }
+    let name = &name[prefix.len()..];
     static LOG_FILE_NAME_RE: OnceLock<Regex> = OnceLock::new();
     let re = LOG_FILE_NAME_RE.get_or_init(|| {
         let re = r"(?<date>\d{8})\.log(\.(?<index1>\d+)|\.gz|\.(?<index2>\d+)\.gz)?$";
-        Regex::new(&format!("^{component}_{instance_id}_{re}")).unwrap()
+        Regex::new(&format!("^{instance_id}_{re}")).unwrap()
     });
     let caps = re.captures(name)?;
     let date = caps.name("date").and_then(|m| parse_date_str(m.as_str()))?;
@@ -650,31 +657,46 @@ mod tests {
 
     #[test]
     fn parse_filename_test() {
-        let component = "taosx";
+        assert_eq!(
+            parse_filename("taosx", 1, "taosx_1_20240909.log"),
+            Some((parse_date_str("20240909").unwrap(), 0))
+        );
+        assert_eq!(
+            parse_filename("taosx", 2, "taosx_1_20240909.log.1"),
+            Some((parse_date_str("20240909").unwrap(), 1))
+        );
+        assert_eq!(
+            parse_filename("taosx", 3, "taosx_1_20240909.log.gz"),
+            Some((parse_date_str("20240909").unwrap(), 0))
+        );
+        assert_eq!(
+            parse_filename("taosx", 4, "taosx_1_20240909.log.1.gz"),
+            Some((parse_date_str("20240909").unwrap(), 1))
+        );
+        assert_eq!(
+            parse_filename("taosx", 1, "taosx_agent_1_20240909.log"),
+            None
+        );
+        assert_eq!(
+            parse_filename("taosx", 1, "taosx_agent_1_20240909.log"),
+            None
+        );
 
         assert_eq!(
-            parse_filename(component, 1, "taosx_1_20240909.log"),
+            parse_filename("opc-1", 1, "opc-1_1_20240909.log"),
             Some((parse_date_str("20240909").unwrap(), 0))
         );
         assert_eq!(
-            parse_filename(component, 2, "taosx_1_20240909.log.1"),
+            parse_filename("opc-1", 1, "opc-1_1_20240909.log.1"),
             Some((parse_date_str("20240909").unwrap(), 1))
         );
         assert_eq!(
-            parse_filename(component, 3, "taosx_1_20240909.log.gz"),
+            parse_filename("opc-1", 1, "opc-1_1_20240909.log.gz"),
             Some((parse_date_str("20240909").unwrap(), 0))
         );
         assert_eq!(
-            parse_filename(component, 4, "taosx_1_20240909.log.1.gz"),
+            parse_filename("opc-1", 1, "opc-1_1_20240909.log.1.gz"),
             Some((parse_date_str("20240909").unwrap(), 1))
-        );
-        assert_eq!(
-            parse_filename(component, 1, "taosx_agent_1_20240909.log"),
-            None
-        );
-        assert_eq!(
-            parse_filename(component, 1, "taosx_agent_1_20240909.log"),
-            None
         );
     }
 
