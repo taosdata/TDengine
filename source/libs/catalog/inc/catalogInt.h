@@ -481,6 +481,7 @@ struct SCtgTask {
 typedef struct SCtgTaskReq {
   SCtgTask* pTask;
   int32_t   msgIdx;
+  uint8_t   autoCreateCtb;
 } SCtgTaskReq;
 
 typedef int32_t (*ctgInitTaskFp)(SCtgJob*, int32_t, void*);

@@ -1927,8 +1927,10 @@ TEST(stmt2Case, async_order) {
   while (!stop_task) {
     auto elapsed_time = std::chrono::steady_clock::now() - start_time;
     if (std::chrono::duration_cast<std::chrono::seconds>(elapsed_time).count() > 100) {
+      if (t.joinable()) {
+        t.detach();
+      }
       FAIL() << "Test[stmt2_async_test] timed out";
-      t.detach();
       break;
     }
     std::this_thread::sleep_for(std::chrono::seconds(1));  // 每 1s 检查一次
