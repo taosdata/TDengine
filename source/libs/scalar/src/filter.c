@@ -4228,7 +4228,7 @@ static int32_t fltSclBuildDecimalDatumFromValueNode(SFltSclDatum* datum, SColumn
     if (datum->kind == FLT_SCL_DATUM_KIND_DECIMAL64 || datum->kind == FLT_SCL_DATUM_KIND_DECIMAL) {
       int32_t code = convertToDecimal(pInput, &valDt, pData, &datum->type);
       if (TSDB_CODE_SUCCESS != code) return code;  // TODO wjm handle overflow error
-      valNode->node.resType = datum->type;
+      //valNode->node.resType = datum->type;
     }
   }
   FLT_RET(0);

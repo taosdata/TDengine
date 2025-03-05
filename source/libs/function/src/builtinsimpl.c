@@ -106,17 +106,19 @@ typedef enum {
     }                                                                    \
   } while (0)
 
-#define LIST_ADD_DECIMAL_N(_res, _col, _start, _rows, _t, numOfElem)     \
-  do {                                                                   \
-    _t*                d = (_t*)(_col->pData);                           \
-    const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);     \
-    for (int32_t i = (_start); i < (_rows) + (_start); ++i) {            \
-      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) { \
-        continue;                                                        \
-      };                                                                 \
-      pOps->add(_res, d + i, WORD_NUM(_t));                              \
-      (numOfElem)++;                                                     \
-    }                                                                    \
+#define LIST_ADD_DECIMAL_N(_res, _col, _start, _rows, _t, numOfElem)                          \
+  do {                                                                                        \
+    _t*                d = (_t*)(_col->pData);                                                \
+    const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);                          \
+    for (int32_t i = (_start); i < (_rows) + (_start); ++i) {                                 \
+      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) {                      \
+        continue;                                                                             \
+      };                                                                                      \
+      overflow = overflow || decimal128AddCheckOverflow((Decimal*)_res, d + i, WORD_NUM(_t)); \
+      if (overflow) break;                                                                    \
+      pOps->add(_res, d + i, WORD_NUM(_t));                                                   \
+      (numOfElem)++;                                                                          \
+    }                                                                                         \
   } while (0)
 
 #define LIST_SUB_N(_res, _col, _start, _rows, _t, numOfElem)             \
@@ -654,12 +656,12 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
       SUM_RES_INC_DSUM(pSumRes, GET_DOUBLE_VAL((const char*)&(pAgg->sum)));
     } else if (IS_DECIMAL_TYPE(type)) {
       SUM_RES_SET_TYPE(pSumRes, pCtx->inputType, TSDB_DATA_TYPE_DECIMAL);
-      const SDecimalOps* pOps = getDecimalOps(type);
-      if (TSDB_DATA_TYPE_DECIMAL64 == type) {
-        pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), &pAgg->sum, WORD_NUM(Decimal64));
-      } else if (TSDB_DATA_TYPE_DECIMAL == type) {
-        pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), &pAgg->decimal128Sum, WORD_NUM(Decimal));
+      const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+      if (pAgg->overflow || decimal128AddCheckOverflow((Decimal*)&SUM_RES_GET_DECIMAL_SUM(pSumRes),
+                                                       &pAgg->decimal128Sum, WORD_NUM(Decimal))) {
+        return TSDB_CODE_DECIMAL_OVERFLOW;
       }
+      pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), &pAgg->decimal128Sum, WORD_NUM(Decimal));
     }
   } else {  // computing based on the true data block
     SColumnInfoData* pCol = pInput->pData[0];
@@ -693,12 +695,13 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
       LIST_ADD_N(SUM_RES_GET_DSUM(pSumRes), pCol, start, numOfRows, float, numOfElem);
     } else if (IS_DECIMAL_TYPE(type)) {
       SUM_RES_SET_TYPE(pSumRes, pCtx->inputType, TSDB_DATA_TYPE_DECIMAL);
+      int32_t overflow = false;
       if (TSDB_DATA_TYPE_DECIMAL64 == type) {
         LIST_ADD_DECIMAL_N(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pCol, start, numOfRows, Decimal64, numOfElem);
       } else if (TSDB_DATA_TYPE_DECIMAL == type) {
         LIST_ADD_DECIMAL_N(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pCol, start, numOfRows, Decimal128, numOfElem);
       }
-      // TODO wjm check overflow
+      if (overflow) return TSDB_CODE_DECIMAL_OVERFLOW;
     }
   }
 

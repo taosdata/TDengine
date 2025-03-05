@@ -1509,6 +1509,17 @@ TEST_F(DecimalTest, decimalFromStr) {
   Numeric<128> numeric128 = {38, 10, "0"};
 }
 
+TEST(decimal, test_add_check_overflow) {
+  Numeric<128> dec128 = {38, 10, "9999999999999999999999999999.9999999999"};
+  Numeric<64> dec64 = {18, 2, "123.12"};
+  bool overflow = decimal128AddCheckOverflow((Decimal128*)&dec128.dec(), &dec64.dec(), WORD_NUM(Decimal64));
+  ASSERT_TRUE(overflow);
+  dec128 = {38, 10, "-9999999999999999999999999999.9999999999"};
+  ASSERT_FALSE(decimal128AddCheckOverflow((Decimal128*)&dec128.dec(), &dec64.dec(), WORD_NUM(Decimal64)));
+  dec64 = {18, 2, "-123.1"};
+  ASSERT_TRUE(decimal128AddCheckOverflow((Decimal128*)&dec128.dec(), &dec64.dec(), WORD_NUM(Decimal64)));
+}
+
 
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);

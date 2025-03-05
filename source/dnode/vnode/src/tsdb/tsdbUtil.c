@@ -1577,12 +1577,13 @@ int32_t tPutColumnDataAgg(SBuffer *buffer, SColumnDataAgg *pColAgg) {
   if (pColAgg->colId & 0x80000000) {
     if ((code = tBufferPutI32v(buffer, pColAgg->colId))) return code;
     if ((code = tBufferPutI16v(buffer, pColAgg->numOfNull))) return code;
-    if ((code = tBufferPutI64(buffer, pColAgg->decimal128Sum[0]))) return code;
-    if ((code = tBufferPutI64(buffer, pColAgg->decimal128Sum[1]))) return code;
-    if ((code = tBufferPutI64(buffer, pColAgg->decimal128Max[0]))) return code;
-    if ((code = tBufferPutI64(buffer, pColAgg->decimal128Max[1]))) return code;
-    if ((code = tBufferPutI64(buffer, pColAgg->decimal128Min[0]))) return code;
-    if ((code = tBufferPutI64(buffer, pColAgg->decimal128Min[1]))) return code;
+    if ((code = tBufferPutU64(buffer, pColAgg->decimal128Sum[0]))) return code;
+    if ((code = tBufferPutU64(buffer, pColAgg->decimal128Sum[1]))) return code;
+    if ((code = tBufferPutU64(buffer, pColAgg->decimal128Max[0]))) return code;
+    if ((code = tBufferPutU64(buffer, pColAgg->decimal128Max[1]))) return code;
+    if ((code = tBufferPutU64(buffer, pColAgg->decimal128Min[0]))) return code;
+    if ((code = tBufferPutU64(buffer, pColAgg->decimal128Min[1]))) return code;
+    if ((code = tBufferPutU8(buffer, pColAgg->overflow))) return code;
   } else {
     if ((code = tBufferPutI32v(buffer, pColAgg->colId))) return code;
     if ((code = tBufferPutI16v(buffer, pColAgg->numOfNull))) return code;
@@ -1601,12 +1602,13 @@ int32_t tGetColumnDataAgg(SBufferReader *br, SColumnDataAgg *pColAgg) {
   if ((code = tBufferGetI16v(br, &pColAgg->numOfNull))) return code;
   if (pColAgg->colId & 0x80000000) {
     pColAgg->colId &= 0xFFFF;
-    if ((code = tBufferGetI64(br, &pColAgg->decimal128Sum[0]))) return code;
-    if ((code = tBufferGetI64(br, &pColAgg->decimal128Sum[1]))) return code;
-    if ((code = tBufferGetI64(br, &pColAgg->decimal128Max[0]))) return code;
-    if ((code = tBufferGetI64(br, &pColAgg->decimal128Max[1]))) return code;
-    if ((code = tBufferGetI64(br, &pColAgg->decimal128Min[0]))) return code;
-    if ((code = tBufferGetI64(br, &pColAgg->decimal128Min[1]))) return code;
+    if ((code = tBufferGetU64(br, &pColAgg->decimal128Sum[0]))) return code;
+    if ((code = tBufferGetU64(br, &pColAgg->decimal128Sum[1]))) return code;
+    if ((code = tBufferGetU64(br, &pColAgg->decimal128Max[0]))) return code;
+    if ((code = tBufferGetU64(br, &pColAgg->decimal128Max[1]))) return code;
+    if ((code = tBufferGetU64(br, &pColAgg->decimal128Min[0]))) return code;
+    if ((code = tBufferGetU64(br, &pColAgg->decimal128Min[1]))) return code;
+    if ((code = tBufferGetU8(br, &pColAgg->overflow))) return code;
   } else {
     if ((code = tBufferGetI64(br, &pColAgg->sum))) return code;
     if ((code = tBufferGetI64(br, &pColAgg->max))) return code;
