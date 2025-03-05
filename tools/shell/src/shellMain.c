@@ -40,6 +40,25 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
 #endif
 }
 
+// init arguments
+void initArgument(SShellArgs *pArgs) {
+  // conn mode
+  pArgs->dsn      = NULL;
+  pArgs->connMode = CONN_MODE_INVALID;
+}
+
+// set conn mode
+int32_t setConnMode(int8_t connMode) {
+  // set conn mode
+  char * strMode = connMode == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET;
+  int32_t code = taos_options(TSDB_OPTION_DRIVER, strMode);
+  if (code != TSDB_CODE_SUCCESS) {
+    fprintf(stderr, "failed to load driver since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
+    return -1;
+  }
+  return 0;
+}
+
 int main(int argc, char *argv[]) {
 #if !defined(WINDOWS)
   taosSetSignal(SIGBUS, shellCrashHandler);
@@ -47,6 +66,8 @@ int main(int argc, char *argv[]) {
   taosSetSignal(SIGABRT, shellCrashHandler);
   taosSetSignal(SIGFPE, shellCrashHandler);
   taosSetSignal(SIGSEGV, shellCrashHandler);
+
+  initArgument(shell.args);
 
   if (shellCheckIntSize() != 0) {
     return -1;
@@ -81,13 +102,11 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  if (shellCheckDsn() != 0) {
+  if (getDsnEnv() != 0) {
     return -1;
   }
 
-  const char *driverType = shell.args.is_native ? "native" : "websocket";
-  if (taos_options(TSDB_OPTION_DRIVER, driverType) != 0) {
-    fprintf(stderr, "failed to load driver since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
+  if (setConnMode(shell.args.connMode)) {
     return -1;
   }
 

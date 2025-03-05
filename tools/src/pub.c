@@ -11,7 +11,7 @@
  */
 
  #include <stdio.h>
- #include "pub.h"
+ #include "../inc/pub.h"
 
 
  char* strToLowerCopy(const char *str) {
@@ -74,5 +74,18 @@
      }
  
      return 0;
+ }
+
+ // get comn mode, if invalid exit app
+ int8_t getConnMode(char *arg) {
+    // compare
+    if (strcasecmp(arg, STR_NATIVE) == 0 || strcasecmp(arg, "0") == 0) {
+        return  CONN_MODE_NATIVE;
+    } else if (strcasecmp(arg, STR_WEBSOCKET) == 0 || strcasecmp(arg, "1") == 0) {
+        return CONN_MODE_WEBSOCKET;
+    } else {
+        fprintf(stderr, "invalid input %s for option -Z, only support: %s or %s\r\n", arg, STR_NATIVE, STR_WEBSOCKET);
+        exit(-1);
+    }
  }
  

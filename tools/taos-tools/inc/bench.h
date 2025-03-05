@@ -73,6 +73,7 @@
 #include <taos.h>
 #include <toolsdef.h>
 #include <taoserror.h>
+#include "../../inc/pub.h"
 
 #ifdef WINDOWS
 #define _CRT_RAND_S

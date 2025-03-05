@@ -121,7 +121,7 @@ int main(int argc, char* argv[]) {
 
     // check valid
     if(g_arguments->connMode == CONN_MODE_NATIVE && g_arguments->dsn) {
-        errorPrint("Setting native and setting dsn cannot be specified simultaneously in command line. dsn=%s\n", g_arguments->dsn);
+        errorPrint("%s", DSN_NATIVE_CONFLICT);
         exitLog();
         return -1;
     }

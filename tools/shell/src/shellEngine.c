@@ -1286,6 +1286,70 @@ void *shellThreadLoop(void *arg) {
 }
 #pragma GCC diagnostic pop
 
+TAOS* createConnect(SShellArgs *pArgs) {
+  char     show[256] = "\0";
+  char *   host = NULL;
+  uint16_t port = 0;
+  char *   user = NULL;
+  char *   pwd  = NULL;
+  int32_t  code = 0;
+  char *   dsnc = NULL;
+
+  // set mode
+  if (pArgs->connMode != CONN_MODE_NATIVE && pArgs->dsn) {
+      dsnc = strToLowerCopy(pArgs->dsn);
+      if (dsnc == NULL) {
+          free(conn);
+          return NULL;
+      }
+
+      char *cport = NULL;
+      char error[512] = "\0";
+      code = parseDsn(dsnc, &host, &cport, &user, &pwd, error);
+      if (code) {
+          printf("%s dsn=%s\n", error, dsnc);
+          free(dsnc);
+          return NULL;
+      }
+
+      // default ws port
+      if (cport == NULL) {
+          if (user)
+              port = DEFAULT_PORT_WS_CLOUD;
+          else
+              port = DEFAULT_PORT_WS_LOCAL;
+      } else {
+          port = atoi(cport);
+      }
+
+      // websocket
+      memcpy(show, pArgs->dsn, 20);
+      memcpy(show + 20, "...", 3);
+      memcpy(show + 23, pArgs->dsn + strlen(pArgs->dsn) - 10, 10);
+
+  } else {
+
+      host = pArgs->host;
+      user = pArgs->user;
+      pwd  = pArgs->password;
+
+      if (pArgs->port_inputted) {
+          port = pArgs->port;
+      } else {
+          port = pArgs->connMode == CONN_MODE_NATIVE ? DEFAULT_PORT_NATIVE : DEFAULT_PORT_WS_LOCAL;
+      }
+
+      sprintf(show, "host:%s port:%d ", host, port);
+  }
+
+  // connect main
+  if (pArgs->auth) {
+    return taos_connect_auth(host, user, pArgs->auth, pArgs->database, port);
+  } else {
+    return taos_connect(host, user, pwd, pArgs->database, port);
+  }
+}
+
 int32_t shellExecute() {
   printf(shell.info.clientVersion, shell.info.cusName, 
              shell.args.is_native ? "Native" : "WebSocket",
@@ -1293,21 +1357,7 @@ int32_t shellExecute() {
   fflush(stdout);
 
   SShellArgs *pArgs = &shell.args;
-
-  if (shell.args.dsn != NULL) {
-    // parser dsn to host/port 
-    // if (shell.args.auth == NULL) {
-    //   shell.conn = taos_connect(pArgs->dsn, pArgs->user, pArgs->password, pArgs->database);
-    // } else {
-    //   shell.conn = taos_connect(pArgs->dsn, pArgs->user, pArgs->auth, pArgs->database);
-    // }
-  } else {
-    if (shell.args.auth == NULL) {
-      shell.conn = taos_connect(pArgs->host, pArgs->user, pArgs->password, pArgs->database, pArgs->port);
-    } else {
-      shell.conn = taos_connect_auth(pArgs->host, pArgs->user, pArgs->auth, pArgs->database, pArgs->port);
-    }
-  }
+  shell.conn = createConnect(pArgs);
 
   if (shell.conn == NULL) {
     printf("failed to connect to server, reason: %s [0x%08X]\n%s", taos_errstr(NULL), taos_errno(NULL),

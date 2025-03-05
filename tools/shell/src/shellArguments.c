@@ -14,6 +14,7 @@
  */
 
 #include "shellInt.h"
+#include "../../inc/pub.h"
 
 
 #define TAOS_CONSOLE_PROMPT_CONTINUE "   -> "
@@ -51,8 +52,6 @@
 #else
 #define SHELL_DRIVER_DEFAULT "0."
 #endif
-#define SHELL_DRIVER \
-  "How to access the database, 0|native for Native, 1|websocket for WebSocket, default is " SHELL_DRIVER_DEFAULT
 
 static int32_t shellParseSingleOpt(int32_t key, char *arg);
 
@@ -80,11 +79,13 @@ void shellPrintHelp() {
   printf("%s%s%s%s\r\n", indent, "-s,", indent, SHELL_CMD);
   printf("%s%s%s%s\r\n", indent, "-t,", indent, SHELL_STARTUP);
   printf("%s%s%s%s\r\n", indent, "-u,", indent, SHELL_USER);
-  printf("%s%s%s%s\r\n", indent, "-E,", indent, SHELL_DSN);
+  printf("%s%s%s%s\r\n", indent, "-E,", indent, OLD_DSN_DESC);
   printf("%s%s%s%s\r\n", indent, "-T,", indent, SHELL_TIMEOUT);
-  printf("%s%s%s%s\r\n", indent, "-v,", indent, SHELL_DRIVER);
   printf("%s%s%s%s\r\n", indent, "-w,", indent, SHELL_WIDTH);
   printf("%s%s%s%s\r\n", indent, "-V,", indent, SHELL_VERSION);
+  printf("%s%s%s%s\r\n", indent, "-X,", indent, DSN_DESC);
+  printf("%s%s%s%s\r\n", indent, "-Z,", indent, DRIVER_DESC);
+
 #ifdef CUS_EMAIL
   printf("\r\n\r\nReport bugs to %s.\r\n", CUS_EMAIL);
 #else
@@ -125,11 +126,12 @@ static struct argp_option shellOptions[] = {
     {"display-width", 'w', "WIDTH", 0, SHELL_WIDTH},
     {"netrole", 'n', "NETROLE", 0, SHELL_NET_ROLE},
     {"pktlen", 'l', "PKTLEN", 0, SHELL_PKT_LEN},
-    {"dsn", 'E', "DSN", 0, SHELL_DSN},
+    {"dsn", 'E', "DSN", 0, OLD_DSN_DESC},
     {"timeout", 'T', "SECONDS", 0, SHELL_TIMEOUT},
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
     {"bimode", 'B', 0, 0, SHELL_BI_MODE},
-    {"driver", 'Z', "DRIVER", 0, SHELL_DRIVER},
+    {"dsn", 'X', "DSN", 0, DSN_DESC},
+    {DRIVER_OPT, 'Z', "DRIVER", 0, DRIVER_DESC},
     {0},
 };
 
@@ -228,20 +230,14 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       break;
 #endif
     case 'E':
+    case 'X':
       pArgs->dsn = arg;
       break;
     case 'T':
       pArgs->timeout = atoi(arg);
       break;
     case 'Z':
-      if (strcasecmp(arg, "native") == 0 || strcasecmp(arg, "0") == 0) {
-        pArgs->is_native = true;
-      } else if (strcasecmp(arg, "websocket") == 0 || strcasecmp(arg, "1") == 0) {
-        pArgs->is_native = false;
-      } else {
-        fprintf(stderr, "invalid input %s for option %c\r\n", arg, key);
-        return -1;
-      }
+      pArgs->connMode = getConnMode(arg);
       break;
     case 'V':
       pArgs->is_version = true;
@@ -282,7 +278,7 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
 
     if (key[1] == 'h' || key[1] == 'P' || key[1] == 'u' || key[1] == 'a' || key[1] == 'c' || key[1] == 's' ||
         key[1] == 'f' || key[1] == 'd' || key[1] == 'w' || key[1] == 'n' || key[1] == 'l' || key[1] == 'N' ||
-        key[1] == 'E' || key[1] == 'T' || key[1] == 'v') {
+        key[1] == 'E' || key[1] == 'T' || key[1] == 'X' || key[1] == 'Z') {
       if (i + 1 >= argc) {
         fprintf(stderr, "option %s requires an argument\r\n", key);
         return -1;
@@ -479,22 +475,25 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   return shellCheckArgs();
 }
 
-int32_t shellCheckDsn() {
-  if (shell.args.is_native) {
+int32_t getDsnEnv() {
+  if (shell.args.connMode == CONN_MODE_NATIVE) {
     if (shell.args.dsn != NULL) {
-      fprintf(stderr, "DSN option not support in native connection mode.\r\n");
+      fprintf(stderr, DSN_NATIVE_CONFLICT);
       return -1;
     }
   } else {
     if (shell.args.dsn != NULL) {
       return 0;
     } else {
+      // read cloud
       shell.args.dsn = getenv("TDENGINE_CLOUD_DSN");
       if (shell.args.dsn && strlen(shell.args.dsn) > 4) {
         fprintf(stderr, "Use the environment variable TDENGINE_CLOUD_DSN:%s as the input for the DSN option.\r\n",
                 shell.args.dsn);
         return 0;
       }
+
+      // read local
       shell.args.dsn = getenv("TDENGINE_DSN");
       if (shell.args.dsn && strlen(shell.args.dsn) > 4) {
         fprintf(stderr, "Use the environment variable TDENGINE_DSN:%s as the input for the DSN option.\r\n",

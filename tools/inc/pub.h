@@ -39,6 +39,8 @@
 #define DSN_DESC       "The dsn to connect the cloud service."
 #define OLD_DSN_DESC   "same with -X options"
 
+#define DSN_NATIVE_CONFLICT "DSN option not support in native connection mode.\n"
+
 // connect mode type define
 #define CONN_MODE_INVALID   -1
 #define CONN_MODE_NATIVE    0

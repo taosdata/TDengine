@@ -39,6 +39,7 @@
 #include <taos.h>
 #include <taoserror.h>
 #include <toolsdef.h>
+#include "../../inc/pub.h"
 
 
 //
@@ -377,11 +378,6 @@ typedef struct arguments {
     int8_t   connMode;
     bool     port_inputted;
     char    *dsn;
-    /*
-    char    *cloudToken;
-    int      cloudPort;
-    char     cloudHost[MAX_HOSTNAME_LEN];
-    */
 
     // put rename db string
     char      * renameBuf;

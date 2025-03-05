@@ -28,6 +28,7 @@
 #include "tutil.h"
 #include "tversion.h"
 #include "version.h"
+#include "../../inc/pub.h"
 
 #define SHELL_WS_TIMEOUT                       30
 #define SHELL_WS_DSN_BUFF                      256
@@ -82,6 +83,7 @@ typedef struct {
   int32_t     abort;
   char*       dsn;
   int32_t     timeout;
+  int8_t      connMode;
 } SShellArgs;
 
 typedef struct {
@@ -135,7 +137,7 @@ void    shellGenerateAuth();
 void    shellDumpConfig();
 void    shellCheckServerStatus();
 bool    shellRegexMatch(const char* s, const char* reg, int32_t cflags);
-int32_t shellCheckDsn();
+int32_t getDsnEnv();
 void    shellExit();
 
 // shellNettest.c

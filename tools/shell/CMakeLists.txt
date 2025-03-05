@@ -1,6 +1,6 @@
 aux_source_directory(src SHELL_SRC)
 
-add_executable(shell ${SHELL_SRC})
+add_executable(shell ${SHELL_SRC} ../src/pub.c)
 
 IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
     ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
@@ -43,7 +43,7 @@ IF(TD_LINUX)
     include_directories(${CMAKE_CURRENT_SOURCE_DIR}/inc)
 
     # shell_ut library
-    add_library(shell_ut STATIC ${SHELL_SRC})
+    add_library(shell_ut STATIC ${SHELL_SRC} ../src/pub.c)
 
     target_link_libraries(shell_ut PUBLIC ${TAOS_LIB} ${LINK_JEMALLOC} ${LINK_ARGP})
     target_link_libraries(shell_ut PRIVATE os common transport geometry util)
