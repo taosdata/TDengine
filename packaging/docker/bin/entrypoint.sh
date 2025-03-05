@@ -74,8 +74,16 @@ fi
 
 PID_TAOSADAPTER=0
 if [ "$DISABLE_ADAPTER" = "0" ]; then
-    which taosadapter >/dev/null && taosadapter &
-    PID_TAOSADAPTER=$!
+    # check if the process is running
+    if ! pgrep taosadapter >/dev/null; then
+        which taosadapter >/dev/null && {
+            taosadapter &
+            PID_TAOSADAPTER=$!
+        }
+    else
+        PID_TAOSADAPTER=$(pgrep taosadapter)
+        echo "taosadapter already running with PID: $PID_TAOSADAPTER"
+    fi
     # wait for 6041 port ready
     for _ in $(seq 1 20); do
         nc -z localhost 6041 && break
@@ -85,9 +93,16 @@ fi
 
 PID_TAOSKEEPER=0
 if [ "$DISABLE_KEEPER" = "0" ]; then
-    sleep 3
-    which taoskeeper >/dev/null && taoskeeper &
-    PID_TAOSKEEPER=$!
+    # check if the process is running
+    if ! pgrep taoskeeper >/dev/null; then
+        which taoskeeper >/dev/null && {
+            taoskeeper &
+            PID_TAOSKEEPER=$!
+        }   
+    else
+        PID_TAOSKEEPER=$(pgrep taoskeeper)
+        echo "taoskeeper already running with PID: $PID_TAOSKEEPER"
+    fi
     # wait for 6043 port ready
     for _ in $(seq 1 20); do
         nc -z localhost 6043 && break
@@ -97,12 +112,30 @@ fi
 
 
 PID_TAOS_EXPLORER=0
-which taos-explorer >/dev/null && taos-explorer &
-PID_TAOS_EXPLORER=$!
+# check if the process is running
+if ! pgrep taos-explorer >/dev/null; then
+    which taos-explorer >/dev/null && {
+        taos-explorer &
+        PID_TAOS_EXPLORER=$!
+    }
+else
+    PID_TAOS_EXPLORER=$(pgrep taos-explorer)
+    echo "taos-explorer already running with PID: $PID_TAOS_EXPLORER"
+fi
 # wait for 6060 port ready
 for _ in $(seq 1 20); do
     nc -z localhost 6060 && break
     sleep 0.5
 done
 
-wait -n $PID_TAOSD $PID_TAOSADAPTER $PID_TAOSKEEPER $PID_TAOS_EXPLORER
+# create an array to store the PIDs of the processes
+WAIT_PIDS=()
+[ $PID_TAOSD -ne 0 ] && WAIT_PIDS+=($PID_TAOSD)
+[ $PID_TAOSADAPTER -ne 0 ] && WAIT_PIDS+=($PID_TAOSADAPTER)
+[ $PID_TAOSKEEPER -ne 0 ] && WAIT_PIDS+=($PID_TAOSKEEPER)
+[ $PID_TAOS_EXPLORER -ne 0 ] && WAIT_PIDS+=($PID_TAOS_EXPLORER)
+
+# wait for the processes to finish
+if [ ${#WAIT_PIDS[@]} -gt 0 ]; then
+    wait -n "${WAIT_PIDS[@]}"
+fi
