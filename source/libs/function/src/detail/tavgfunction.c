@@ -126,7 +126,7 @@ int32_t avgFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo)
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t calculateAvgBySMAInfo(void* pRes, int32_t numOfRows, int32_t type, const SColumnDataAgg* pAgg) {
+static int32_t calculateAvgBySMAInfo(void* pRes, int32_t numOfRows, int32_t type, const SColumnDataAgg* pAgg, int32_t* pNumOfElem) {
   int32_t numOfElem = numOfRows - pAgg->numOfNull;
 
   AVG_RES_INC_COUNT(pRes, type, numOfElem);
@@ -137,16 +137,17 @@ static int32_t calculateAvgBySMAInfo(void* pRes, int32_t numOfRows, int32_t type
   } else if (IS_FLOAT_TYPE(type)) {
     SUM_RES_INC_DSUM(&AVG_RES_GET_SUM(pRes), GET_DOUBLE_VAL((const char*)&(pAgg->sum)));
   } else if (IS_DECIMAL_TYPE(type)) {
-    if (type == TSDB_DATA_TYPE_DECIMAL64)
-      SUM_RES_INC_DECIMAL_SUM(&AVG_RES_GET_DECIMAL_SUM(pRes), &pAgg->sum, TSDB_DATA_TYPE_DECIMAL64);
-    else
-      SUM_RES_INC_DECIMAL_SUM(&AVG_RES_GET_DECIMAL_SUM(pRes), &pAgg->decimal128Sum, TSDB_DATA_TYPE_DECIMAL);
+    bool overflow = pAgg->overflow;
+    if (overflow) return TSDB_CODE_DECIMAL_OVERFLOW;
+    SUM_RES_INC_DECIMAL_SUM(&AVG_RES_GET_DECIMAL_SUM(pRes), &pAgg->decimal128Sum, TSDB_DATA_TYPE_DECIMAL);
+    if (overflow) return TSDB_CODE_DECIMAL_OVERFLOW;
   }
 
-  return numOfElem;
+  *pNumOfElem = numOfElem;
+  return 0;
 }
 
-static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputColumnInfoData *pInput, void* pRes) {
+static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputColumnInfoData *pInput, void* pRes, int32_t* pNumOfElem) {
   int32_t start = pInput->startRowIndex;
   int32_t numOfRows = pInput->numOfRows;
   int32_t numOfElems = 0;
@@ -306,14 +307,17 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
 
         numOfElems += 1;
         AVG_RES_INC_COUNT(pRes, type, 1);
+        bool overflow = false;
         SUM_RES_INC_DECIMAL_SUM(&AVG_RES_GET_DECIMAL_SUM(pRes), (const void*)(pDec + i * tDataTypes[type].bytes), type);
+        if (overflow) return TSDB_CODE_DECIMAL_OVERFLOW;
       }
     } break;
     default:
       break;
   }
 
-  return numOfElems;
+  *pNumOfElem = numOfElems;
+  return 0;
 }
 
 int32_t avgFunction(SqlFunctionCtx* pCtx) {
@@ -341,7 +345,8 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
   if (IS_DECIMAL_TYPE(type)) AVG_RES_SET_INPUT_SCALE(pAvgRes, pInput->pData[0]->info.scale);
 
   if (pInput->colDataSMAIsSet) {  // try to use SMA if available
-    numOfElem = calculateAvgBySMAInfo(pAvgRes, numOfRows, type, pAgg);
+    int32_t code = calculateAvgBySMAInfo(pAvgRes, numOfRows, type, pAgg, &numOfElem);
+    if (code != 0) return code;
   } else if (!pCol->hasNull) {  // try to employ the simd instructions to speed up the loop
     numOfElem = pInput->numOfRows;
     AVG_RES_INC_COUNT(pAvgRes, pCtx->inputType, pInput->numOfRows);
@@ -424,6 +429,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
         const char* pDec = pCol->pData;
         // TODO wjm check for overflow
         for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+          bool overflow = false;
           if (type == TSDB_DATA_TYPE_DECIMAL64) {
             SUM_RES_INC_DECIMAL_SUM(&AVG_RES_GET_DECIMAL_SUM(pAvgRes), (const void*)(pDec + i * tDataTypes[type].bytes),
                                     TSDB_DATA_TYPE_DECIMAL64);
@@ -431,13 +437,14 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
             SUM_RES_INC_DECIMAL_SUM(&AVG_RES_GET_DECIMAL_SUM(pAvgRes), (const void*)(pDec + i * tDataTypes[type].bytes),
                                     TSDB_DATA_TYPE_DECIMAL);
           }
+          if (overflow) return TSDB_CODE_DECIMAL_OVERFLOW;
         }
       } break;
       default:
         return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
     }
   } else {
-    numOfElem = doAddNumericVector(pCol, type, pInput, pAvgRes);
+    int32_t code = doAddNumericVector(pCol, type, pInput, pAvgRes, &numOfElem);
   }
 
 _over:
@@ -446,12 +453,12 @@ _over:
   return TSDB_CODE_SUCCESS;
 }
 
-static void avgTransferInfo(SqlFunctionCtx* pCtx, void* pInput, void* pOutput) {
+static int32_t avgTransferInfo(SqlFunctionCtx* pCtx, void* pInput, void* pOutput) {
   int32_t inputDT = pCtx->pExpr->pExpr->_function.pFunctNode->srcFuncInputType.type;
   int32_t type = AVG_RES_GET_TYPE(pInput, inputDT);
   pCtx->inputType = type;
   if (IS_NULL_TYPE(type)) {
-    return;
+    return 0;
   }
 
 
@@ -464,12 +471,15 @@ static void avgTransferInfo(SqlFunctionCtx* pCtx, void* pInput, void* pOutput) {
     CHECK_OVERFLOW_SUM_UNSIGNED_BIG(pOutput, (overflow ? SUM_RES_GET_DSUM(&AVG_RES_GET_SUM(pInput)) : SUM_RES_GET_USUM(&AVG_RES_GET_SUM(pInput))), overflow);
   } else if (IS_DECIMAL_TYPE(type)) {
     AVG_RES_SET_INPUT_SCALE(pOutput, AVG_RES_GET_INPUT_SCALE(pInput));
+    bool overflow = false;
     SUM_RES_INC_DECIMAL_SUM(&AVG_RES_GET_DECIMAL_SUM(pOutput), &AVG_RES_GET_DECIMAL_SUM(pInput), TSDB_DATA_TYPE_DECIMAL);
+    if (overflow) return TSDB_CODE_DECIMAL_OVERFLOW;
   } else {
     SUM_RES_INC_DSUM(&AVG_RES_GET_SUM(pOutput), SUM_RES_GET_DSUM(&AVG_RES_GET_SUM(pInput)));
   }
 
   AVG_RES_INC_COUNT(pOutput, type, AVG_RES_GET_COUNT(pInput, true, type));
+  return 0;
 }
 
 int32_t avgFunctionMerge(SqlFunctionCtx* pCtx) {
@@ -493,7 +503,8 @@ int32_t avgFunctionMerge(SqlFunctionCtx* pCtx) {
     if(colDataIsNull_s(pCol, i)) continue;
     char*    data = colDataGetData(pCol, i);
     void* pInputInfo = varDataVal(data);
-    avgTransferInfo(pCtx, pInputInfo, pInfo);
+    int32_t code = avgTransferInfo(pCtx, pInputInfo, pInfo);
+    if (code != 0) return code;
   }
 
   SET_VAL(GET_RES_INFO(pCtx), 1, 1);

@@ -1920,6 +1920,18 @@ static int32_t decimal128CountRoundingDelta(const Decimal128* pDec, int8_t scale
   return res;
 }
 
+bool decimal128AddCheckOverflow(const Decimal128* pLeft, const DecimalType* pRight, uint8_t rightWordNum) {
+  if (DECIMAL128_SIGN(pLeft) == 0) {
+    Decimal128 max = decimal128Max;
+    decimal128Subtract(&max, pLeft, WORD_NUM(Decimal128));
+    return decimal128Lt(&max, pRight, rightWordNum);
+  } else {
+    Decimal128 min = decimal128Min;
+    decimal128Subtract(&min, pLeft, WORD_NUM(Decimal128));
+    return decimal128Gt(&min, pRight, rightWordNum);
+  }
+}
+
 int32_t TEST_decimal64From_int64_t(Decimal64* pDec, uint8_t prec, uint8_t scale, int64_t v) {
   return decimal64FromInt64(pDec, prec, scale, v);
 }
