@@ -7,6 +7,8 @@ export { default as taosDumpDoc } from './tools/taosdump.vue';
 export { default as powerbiDoc } from './tools/powerbi.vue';
 export { default as yonghongbiDoc } from './tools/yonghongbi.vue';
 export { default as supersetDoc } from './tools/superset.vue';
+export { default as excelDoc } from './tools/excel.vue';
+export { default as tableauDoc } from './tools/tableau.vue';
 
 export { default as javaDoc } from './connectors/java.vue';
 export { default as pythonDoc } from './connectors/python.vue';
