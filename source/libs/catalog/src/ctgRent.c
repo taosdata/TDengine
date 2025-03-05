@@ -240,7 +240,7 @@ void ctgRemoveStbRent(SCatalog *pCtg, SCtgDBCache *dbCache) {
 
     code = ctgMetaRentRemove(&pCtg->stbRent, suid, ctgStbVersionSortCompare, ctgStbVersionSearchCompare);
     if (TSDB_CODE_SUCCESS == code) {
-      ctgDebug("suid:0x%" PRIx64 ", stb removed from rent", *suid);
+      ctgDebug("suid:0x%" PRIx64 ", stb removed from rent", suid);
     }
 
     pIter = taosHashIterate(dbCache->stbCache, pIter);
