@@ -140,7 +140,9 @@ class TDTestCase(TBase):
     def check_duplicate_table_with_err_tag(self):
         tdLog.info(f"check tag parse error with cache")
         tdSql.execute("USE test")
-        tdSql.error("INSERT INTO t_8 USING stb TAGS (8) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test') t_8 USING stb TAGS (ddd) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test')", expectErrInfo="syntax error")
+        tdSql.execute("INSERT INTO t_8 USING stb TAGS (8) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test') t_8 USING stb TAGS (ddd) VALUES ('2024-01-01 00:00:00', 1, 2.0, 'test')")
+        tdSql.query("select * from t_8")
+        tdSql.checkRows(1)
 
     def check_table_with_another_stb_name(self):
         tdLog.info(f"check table with another stb name")
