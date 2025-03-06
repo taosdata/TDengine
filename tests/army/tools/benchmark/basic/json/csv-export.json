@@ -1,6 +1,6 @@
 {
     "filetype": "csvfile",
-    "output_path": "./csv/",
+    "output_dir": "./csv/",
     "databases": [
         {
             "dbinfo": {

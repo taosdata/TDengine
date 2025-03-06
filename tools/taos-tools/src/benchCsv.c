@@ -60,6 +60,24 @@ static int csvValidateParamTsFormat(const char* csv_ts_format) {
         return -1;
     }
 
+    int has_Y = 0, has_m = 0, has_d = 0;
+    const char* p = csv_ts_format;
+    while (*p) {
+        if (*p == '%') {
+            p++;
+            switch (*p) {
+                case 'Y': has_Y = 1; break;
+                case 'm': has_m = 1; break;
+                case 'd': has_d = 1; break;
+            }
+        }
+        p++;
+    }
+ 
+    if (has_Y == 0 || has_m == 0 || has_d == 0) {
+        return -1;
+    }
+
     return 0;
 }
 
