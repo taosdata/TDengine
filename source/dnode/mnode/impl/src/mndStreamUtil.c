@@ -812,25 +812,15 @@ int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mndCreateSetConsensusChkptIdTrans(SMnode *pMnode, SStreamObj *pStream, int32_t taskId, int64_t checkpointId,
-                                          int64_t ts) {
-  char         msg[128] = {0};
-  STrans      *pTrans = NULL;
-  SStreamTask *pTask = NULL;
+int32_t mndCreateSetConsensusChkptIdTrans(SMnode *pMnode, SStreamObj *pStream, int64_t checkpointId, SArray* pList) {
+  char    msg[128] = {0};
+  STrans *pTrans = NULL;
 
-  snprintf(msg, tListLen(msg), "set consen-chkpt-id for task:0x%x", taskId);
+  snprintf(msg, tListLen(msg), "set consen-chkpt-id for stream:0x%" PRIx64, pStream->uid);
 
   int32_t code = doCreateTrans(pMnode, pStream, NULL, TRN_CONFLICT_NOTHING, MND_STREAM_CHKPT_CONSEN_NAME, msg, &pTrans);
   if (pTrans == NULL || code != 0) {
     return terrno;
-  }
-
-  STaskId id = {.streamId = pStream->uid, .taskId = taskId};
-  code = mndGetStreamTask(&id, pStream, &pTask);
-  if (code) {
-    mError("failed to get task:0x%x in stream:%s, failed to create consensus-checkpointId", taskId, pStream->name);
-    sdbRelease(pMnode->pSdb, pStream);
-    return code;
   }
 
   code = mndStreamRegisterTrans(pTrans, MND_STREAM_CHKPT_CONSEN_NAME, pStream->uid);
@@ -839,7 +829,7 @@ int32_t mndCreateSetConsensusChkptIdTrans(SMnode *pMnode, SStreamObj *pStream, i
     return code;
   }
 
-  code = mndStreamSetChkptIdAction(pMnode, pTrans, pTask, checkpointId, ts);
+  code = mndStreamSetChkptIdAction(pMnode, pTrans, pStream, checkpointId, pList);
   if (code != 0) {
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
@@ -854,8 +844,10 @@ int32_t mndCreateSetConsensusChkptIdTrans(SMnode *pMnode, SStreamObj *pStream, i
   }
 
   code = mndTransPrepare(pMnode, pTrans);
+
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("trans:%d, failed to prepare set consensus-chkptId trans since %s", pTrans->id, terrstr());
+    mError("trans:%d, failed to prepare set consensus-chkptId trans for stream:0x%" PRId64 " since %s", pTrans->id,
+           pStream->uid, tstrerror(code));
     sdbRelease(pMnode->pSdb, pStream);
     mndTransDrop(pTrans);
     return code;
