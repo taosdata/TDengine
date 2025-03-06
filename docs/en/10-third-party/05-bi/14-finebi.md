@@ -17,7 +17,10 @@ By using the TDengine Java connector, FineBI can quickly access the data in TDen
 
 ## Configure Data Source
 
-**Step 1**, Modify the FineBI service configuration. Open the configuration file `/usr/local/FineBI6.1/webapps/webroot/WEB-INF/embed/finedb/db.script`, find the configuration item `SystemConfig.driverUpload` and change its value to true.
+**Step 1**, In the `db.script` configuration file of the FineBI server, find the `SystemConfig.driverUpload` configuration item and change its value to true.
+
+- Windows system: The path of the configuration file is webapps/webroot/WEB-INF/embed/finedb/db.script under the installation directory.
+- Linux/Mac system: The path of the configuration file is /usr/local/FineBI6.1/webapps/webroot/WEB-INF/embed/finedb/db.script.
 
 **Step 2**, Start the FineBI service. Enter `http://ip:37799/webroot/decision` in the browser, where "ip" is the IP address of the FineBI server.
 
@@ -37,7 +40,7 @@ By using the TDengine Java connector, FineBI can quickly access the data in TDen
 
 ![finebi-workbook](./finebi/jdbc-connect.jpg) 
 
-**Step 7**, On the configuration page, first enter the name of the data connection. Then, select "Custom" in the [Driver] option and choose the previously created data connection from the drop-down list (e.g., `com.taosdata.jdbc.ws.WebSocketDriver (tdengine-websocket)`). After that, configure the "Data Connection URL" (e.g., `jdbc:TAOS-WS://localhost:6041/power?user=root&password=taosdata&fineBIDialect=mysql`). Once the settings are completed, click [Test Connection] in the top-right corner to test the connection. After the verification is successful, click [Save] to finish the configuration.
+**Step 7**, On the configuration page, first enter the name of the data connection. Then, select "Custom" in the [Driver] option and choose the configured driver from the drop-down list (e.g., `com.taosdata.jdbc.ws.WebSocketDriver (tdengine-websocket)`). After that, configure the "Data Connection URL" (e.g., `jdbc:TAOS-WS://localhost:6041/power?user=root&password=taosdata&fineBIDialect=mysql`). Once the settings are completed, click [Test Connection] in the top-right corner to test the connection. After the verification is successful, click [Save] to finish the configuration.
 
 :::tip
 `fineBIDialect=mysql` The meaning of this setting is to adopt the SQL dialect rules of the MySQL database. Simply put, it tells FineBI to parse and execute relevant queries and operations in the specific way that the MySQL database handles SQL statements.
