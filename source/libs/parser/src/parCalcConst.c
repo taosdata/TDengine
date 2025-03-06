@@ -118,6 +118,39 @@ static int32_t calcConstCondition(SCalcConstContext* pCxt, SNode** pNode) {
   return code;
 }
 
+static EDealRes rewriteCalcConstValue(SNode** pNode, void* pContext) {
+  int32_t                code = TSDB_CODE_SUCCESS;
+  int32_t                lino = 0;
+  SCalcConstContext* pCtx = (SCalcConstContext*)pContext;
+
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*pNode)) {
+    return DEAL_RES_CONTINUE;
+  } else if (QUERY_NODE_OPERATOR == nodeType(*pNode)) {
+    SOperatorNode* pOp = (SOperatorNode*)*pNode;
+    if (OP_TYPE_EQUAL == pOp->opType && (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode*)pOp->pLeft)->resType.type || TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode*)pOp->pRight)->resType.type)) {
+      code = calcConstNode(&pOp->pLeft);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = calcConstNode(&pOp->pRight);
+      }
+      
+      goto _end;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstCondition(pCtx, pNode);
+  }
+  
+_end:
+
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    return DEAL_RES_ERROR;
+  }
+  
+  return DEAL_RES_IGNORE_CHILD;
+}
+
 static int32_t rewriteConditionForFromTable(SCalcConstContext* pCxt, SNode* pTable) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pTable)) {
@@ -133,6 +166,14 @@ static int32_t rewriteConditionForFromTable(SCalcConstContext* pCxt, SNode* pTab
         code = rewriteConditionForFromTable(pCxt, pJoin->pRight);
       }
       if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pOnCond) {
+        code = rewriteCondition(pCxt, &pJoin->pOnCond);
+      }
+      if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pOnCond) {
+        nodesRewriteExpr(&pJoin->pOnCond, rewriteCalcConstValue, pCxt);
+      }
+
+/*
+      if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pOnCond) {
         code = nodesCloneNode(pJoin->pOnCond, &pCond);
       }
       if (TSDB_CODE_SUCCESS == code && NULL != pJoin->pOnCond) {
@@ -142,18 +183,9 @@ static int32_t rewriteConditionForFromTable(SCalcConstContext* pCxt, SNode* pTab
         nodesDestroyNode(pJoin->pOnCond);
         pJoin->pOnCond = pCond;
         pCond = NULL;
-        /* TODO
-        SValueNode* pVal = (SValueNode*)pJoin->pOnCond;
-        if (TSDB_DATA_TYPE_BOOL == pVal->node.resType.type) {
-          if (pVal->datum.b) {
-            pJoin->condAlwaysTrue = true;
-          } else {
-            pJoin->condAlwaysFalse = true;
-          }
-        }
-        */
       }
       nodesDestroyNode(pCond);
+*/
       // todo empty table
       break;
     }

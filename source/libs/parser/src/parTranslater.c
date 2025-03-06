@@ -5107,21 +5107,34 @@ int32_t mergeInnerJoinConds(SNode** ppDst, SNode** ppSrc) {
   while (true) {
     if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppDst) && ((SLogicConditionNode*)*ppDst)->condType == LOGIC_COND_TYPE_AND) {
       SLogicConditionNode* pLogic = (SLogicConditionNode*)*ppDst;
-      code = nodesListMakeStrictAppend(&pLogic->pParameterList, *ppSrc);
-      if (TSDB_CODE_SUCCESS == code) {
-        *ppSrc = NULL;
+      if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppSrc) && ((SLogicConditionNode*)*ppSrc)->condType == LOGIC_COND_TYPE_AND) {
+        SLogicConditionNode* pSrcLogic = (SLogicConditionNode*)*ppSrc;
+        code = nodesListMakeStrictAppendList(&pLogic->pParameterList, pSrcLogic->pParameterList);
+        if (TSDB_CODE_SUCCESS == code) {
+          pSrcLogic->pParameterList = NULL;
+          nodesDestroyNode(*ppSrc);
+          *ppSrc = NULL;
+        }
+      } else {
+        code = nodesListMakeStrictAppend(&pLogic->pParameterList, *ppSrc);
+        if (TSDB_CODE_SUCCESS == code) {
+          *ppSrc = NULL;
+        }
       }
+
       return code;
     }
 
-    if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppSrc) && ((SLogicConditionNode*)*ppSrc)->condType == LOGIC_COND_TYPE_AND) {
+    if (TSDB_CODE_SUCCESS == code && QUERY_NODE_LOGIC_CONDITION == nodeType(*ppSrc) && ((SLogicConditionNode*)*ppSrc)->condType == LOGIC_COND_TYPE_AND) {
       SNode* pTmp = *ppDst;
       *ppDst = *ppSrc;
       *ppSrc = pTmp;
       continue;
     }
 
-    code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &pNew);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &pNew);
+    }
     if (TSDB_CODE_SUCCESS == code) {
       SLogicConditionNode* pLogic = (SLogicConditionNode*)pNew;
       pLogic->condType = LOGIC_COND_TYPE_AND;
@@ -5229,7 +5242,7 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
       if (TSDB_CODE_SUCCESS == code) {
         code = checkJoinTable(pCxt, pJoinTable);
       }
-      if (TSDB_CODE_SUCCESS == code && pCurrSmt->pWhere && JOIN_TYPE_INNER == pJoinTable->joinType) {
+      if (TSDB_CODE_SUCCESS == code && !inJoin && pCurrSmt->pWhere && JOIN_TYPE_INNER == pJoinTable->joinType) {
         if (pJoinTable->pOnCond) {
           code = mergeInnerJoinConds(&pJoinTable->pOnCond, &pCurrSmt->pWhere);
         } else {

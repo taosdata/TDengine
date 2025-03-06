@@ -1057,12 +1057,12 @@ static int32_t setMergeJoinPrimColEqCond(SNode* pEqCond, int32_t subType, int16_
   return code;
 }
 
-static int32_t removePrimColFromJoinTargets(SNodeList* pTargets, SValueNode* pLeftPrimExpr, SColumnNode** ppRemoved) {
+static int32_t removePrimColFromJoinTargets(SNodeList* pTargets, SValueNode* pPrimExpr, SColumnNode** ppRemoved) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode* pNode = NULL;
   FOREACH(pNode, pTargets) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    if (0 == strcmp(pCol->tableAlias, pLeftPrimExpr->node.srcTable) && 0 == strcmp(pCol->colName, pLeftPrimExpr->node.aliasName)) {
+    if (0 == strcmp(pCol->tableAlias, pPrimExpr->node.srcTable) && 0 == strcmp(pCol->colName, pPrimExpr->node.aliasName)) {
       code = nodesCloneNode(pNode, (SNode**)ppRemoved);
       ERASE_NODE(pTargets);
       break;

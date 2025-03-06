@@ -946,7 +946,7 @@ static int32_t pdcJoinSplitPrimInLogicCond(SJoinLogicNode* pJoin, SNode** ppInpu
   SNode*     pCond = NULL;
   WHERE_EACH(pCond, pLogicCond->pParameterList) {
     SNode* pNew = NULL;
-    if (pdcJoinIsPrimEqualCond(pJoin, pCond, constAsPrim) && (NULL == *ppPrimEqCond)) {
+    if (pdcJoinIsPrimEqualCond(pJoin, pCond, constAsPrim) && (NULL == *ppPrimEqCond) && (!constAsPrim || pJoin->leftConstPrimGot || pJoin->rightConstPrimGot)) {
       code = nodesCloneNode(pCond, &pNew);
       if (TSDB_CODE_SUCCESS != code) break;
       *ppPrimEqCond = pNew;
@@ -1446,7 +1446,7 @@ static int32_t pdcJoinSplitConstPrimEqCond(SOptimizeContext* pCxt, SJoinLogicNod
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppCond) &&
       LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)*ppCond)->condType) {
     code = pdcJoinSplitPrimInLogicCond(pJoin, ppCond, &pPrimKeyEqCond, &pJoinOnCond, true);
-  } else if (pdcJoinIsPrimEqualCond(pJoin, *ppCond, true)) {
+  } else if (pdcJoinIsPrimEqualCond(pJoin, *ppCond, true) && (pJoin->leftConstPrimGot || pJoin->rightConstPrimGot)) {
     pPrimKeyEqCond = *ppCond;
     pJoinOnCond = NULL;
   } else {
@@ -1512,7 +1512,7 @@ static int32_t pdcJoinCheckAllCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin
   if (pJoin->leftNoOrderedSubQuery || pJoin->rightNoOrderedSubQuery || !primCondGot) {
     pJoin->noPrimKeyEqCond = true;
     int32_t code = pdcJoinSplitConstPrimEqCond(pCxt, pJoin, ppCond);
-    if (code || pJoin->pPrimKeyEqCond) {
+    if (code || (pJoin->pPrimKeyEqCond)) {
       return code;
     }
     
