@@ -16,7 +16,7 @@
 #include "mndStream.h"
 #include "mndTrans.h"
 
-#define MAX_CHKPT_EXEC_ELAPSED (600*1000)  // 600s
+#define MAX_CHKPT_EXEC_ELAPSED (600*1000*3)  // 600s
 
 typedef struct SKeyInfo {
   void   *pKey;

@@ -2784,6 +2784,7 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
       if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
         mError("failed to create consensus-checkpoint trans, stream:0x%" PRIx64, pStream->uid);
       } else {
+        numOfTrans += 1;
         mndClearConsensusRspEntry(pInfo);
         void *p = taosArrayPush(pStreamList, &streamId);
         if (p == NULL) {
