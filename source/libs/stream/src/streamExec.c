@@ -200,6 +200,10 @@ int32_t streamTaskExecImpl(SStreamTask* pTask, SStreamQueueItem* pItem, int64_t*
       break;
     }
 
+    if (pTask->info.fillHistory == STREAM_RECALCUL_TASK && pTask->info.taskLevel == TASK_LEVEL__AGG) {
+      stDebug("s-task:%s exec output type:%d", pTask->id.idStr, output->info.type);
+    }
+
     if (output->info.type == STREAM_RETRIEVE) {
       if (streamBroadcastToUpTasks(pTask, output) < 0) {
         // TODO

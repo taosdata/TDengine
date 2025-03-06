@@ -253,7 +253,7 @@ static int32_t doAddSinkTask(SStreamObj* pStream, SMnode* pMnode, SVgObj* pVgrou
   streamGetUidTaskList(pStream, type, &uid, &pTaskList);
 
   SStreamTask* pTask = NULL;
-  int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, pEpset, type, 0, 0, *pTaskList, pStream->conf.fillHistory,
+  int32_t code = tNewStreamTask(uid, TASK_LEVEL__SINK, pEpset, type, pStream->conf.trigger, 0, *pTaskList, pStream->conf.fillHistory,
                                 pStream->subTableWithoutMd5, 1, &pTask);
   if (code != 0) {
     return code;
