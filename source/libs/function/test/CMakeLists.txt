@@ -1,18 +1,12 @@
-
+include_directories("${TD_SOURCE_DIR}/include/libs/function")
+include_directories("${TD_SOURCE_DIR}/contrib/libuv/include")
+include_directories("${TD_SOURCE_DIR}/include/util")
+include_directories("${TD_SOURCE_DIR}/include/common")
+include_directories("${TD_SOURCE_DIR}/include/client")
+include_directories("${TD_SOURCE_DIR}/include/os")
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/../inc")
 
 add_executable(runUdf runUdf.c)
-target_include_directories(
-    runUdf
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
-    "${TD_SOURCE_DIR}/include/util"
-    "${TD_SOURCE_DIR}/include/common"
-    "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/include/os"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
-
 target_link_libraries(
     runUdf
     PUBLIC uv_a
@@ -20,59 +14,15 @@ target_link_libraries(
 )
 
 add_library(udf1 STATIC MODULE udf1.c)
-target_include_directories(
-    udf1
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/include/util"
-    "${TD_SOURCE_DIR}/include/common"
-    "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/include/os"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
-
 target_link_libraries(udf1 PUBLIC os)
 
-add_library(udf1_dup STATIC MODULE udf1_dup.c)
-target_include_directories(
-    udf1_dup
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/include/util"
-    "${TD_SOURCE_DIR}/include/common"
-    "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/include/os"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
-
-target_link_libraries(udf1_dup PUBLIC os)
-
 add_library(udf2 STATIC MODULE udf2.c)
-target_include_directories(
-    udf2
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/include/util"
-    "${TD_SOURCE_DIR}/include/common"
-    "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/include/os"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
-
 target_link_libraries(udf2 PUBLIC os)
 
-add_library(udf2_dup STATIC MODULE udf2_dup.c)
-target_include_directories(
-    udf2_dup
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/include/util"
-    "${TD_SOURCE_DIR}/include/common"
-    "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/include/os"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
+add_library(udf1_dup STATIC MODULE udf1_dup.c)
+target_link_libraries(udf1_dup PUBLIC os)
 
+add_library(udf2_dup STATIC MODULE udf2_dup.c)
 target_link_libraries(udf2_dup PUBLIC os)
 
 set(TARGET_NAMES
@@ -98,20 +48,7 @@ set(COMPILE_DEFINITIONS
 foreach(index RANGE 0 6)
     list(GET TARGET_NAMES ${index} target_name)
     list(GET COMPILE_DEFINITIONS ${index} compile_def)
-
     add_library(${target_name} STATIC MODULE change_udf.c)
-    target_include_directories(
-        ${target_name}
-        PUBLIC
-        "${TD_SOURCE_DIR}/include/libs/function"
-        "${TD_SOURCE_DIR}/include/util"
-        "${TD_SOURCE_DIR}/include/common"
-        "${TD_SOURCE_DIR}/include/client"
-        "${TD_SOURCE_DIR}/include/os"
-        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-    )
     target_compile_definitions(${target_name} PRIVATE ${compile_def})
-    target_link_libraries(
-        ${target_name} PUBLIC os
-    )
+    target_link_libraries(${target_name} PUBLIC os)
 endforeach()
