@@ -39,12 +39,6 @@
 #define FILL_POS_MID     2
 #define FILL_POS_END     3
 
-typedef struct STimeRange {
-  TSKEY    skey;
-  TSKEY    ekey;
-  uint64_t groupId;
-} STimeRange;
-
 TSKEY getNextWindowTs(TSKEY ts, SInterval* pInterval) {
   STimeWindow win = {.skey = ts, .ekey = ts};
   getNextTimeWindow(pInterval, &win, TSDB_ORDER_ASC);
@@ -634,7 +628,7 @@ static void keepResultInDiscBuf(SOperatorInfo* pOperator, uint64_t groupId, SRes
   }
 }
 
-static void doStreamFillRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* pFillSup, SSDataBlock* pRes) {
+void doStreamFillRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* pFillSup, SSDataBlock* pRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   bool    res = false;
@@ -813,8 +807,7 @@ _end:
   return code;
 }
 
-static int32_t buildDeleteResult(SOperatorInfo* pOperator, TSKEY startTs, TSKEY endTs, uint64_t groupId,
-                                 SSDataBlock* delRes) {
+int32_t buildDeleteResult(SOperatorInfo* pOperator, TSKEY startTs, TSKEY endTs, uint64_t groupId, SSDataBlock* delRes) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
   SStreamFillOperatorInfo* pInfo = pOperator->info;
@@ -854,7 +847,7 @@ static int32_t doDeleteFillResultImpl(SOperatorInfo* pOperator, TSKEY startTs, T
     code = buildDeleteResult(pOperator, startTs, endTs, groupId, pInfo->pDelRes);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
-    STimeRange tw = {
+    STimeFillRange tw = {
         .skey = startTs,
         .ekey = endTs,
         .groupId = groupId,
@@ -901,7 +894,7 @@ static void doDeleteFillFinalize(SOperatorInfo* pOperator) {
   SStreamFillInfo*         pFillInfo = pInfo->pFillInfo;
   int32_t                  size = taosArrayGetSize(pFillInfo->delRanges);
   while (pFillInfo->delIndex < size) {
-    STimeRange* range = taosArrayGet(pFillInfo->delRanges, pFillInfo->delIndex);
+    STimeFillRange* range = taosArrayGet(pFillInfo->delRanges, pFillInfo->delIndex);
     if (pInfo->pRes->info.id.groupId != 0 && pInfo->pRes->info.id.groupId != range->groupId) {
       return;
     }
@@ -1687,7 +1680,7 @@ SStreamFillInfo* initStreamFillInfo(SStreamFillSupporter* pFillSup, SSDataBlock*
   }
 
   pFillInfo->type = pFillSup->type;
-  pFillInfo->delRanges = taosArrayInit(16, sizeof(STimeRange));
+  pFillInfo->delRanges = taosArrayInit(16, sizeof(STimeFillRange));
   if (!pFillInfo->delRanges) {
     code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);

@@ -496,10 +496,12 @@ typedef struct SStreamFillSupporter {
   __compar_fn_t  comparePkColFn;
   int32_t*       pOffsetInfo;
   bool           normalFill;
+  void*          pEmptyRow;
+  SArray*        pResultRange;
 } SStreamFillSupporter;
 
 typedef struct SStreamRecParam {
-  char    pSql[1024];
+  char    pSql[2048];
   int32_t sqlCapcity;
   char    pUrl[TSDB_EP_LEN + 17];  // "http://localhost:6041/rest/sql"
   char    pAuth[512 + 22];         // Authorization: Basic token
@@ -719,15 +721,16 @@ typedef struct SWindowRowsSup {
 typedef int32_t (*AggImplFn)(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
 
 typedef struct SNonBlockAggSupporter {
-  int32_t       numOfKeep;
-  TSKEY         tsOfKeep;
-  AggImplFn     pWindowAggFn;
-  SArray*       pPullWins;
-  int32_t       pullIndex;
-  SSDataBlock*  pPullDataRes;
-  SSHashObj*    pHistoryGroup;
-  SSHashObj*    pPullDataMap;
-  int32_t       numOfChild;
+  int32_t         numOfKeep;
+  TSKEY           tsOfKeep;
+  AggImplFn       pWindowAggFn;
+  SArray*         pPullWins;
+  int32_t         pullIndex;
+  SSDataBlock*    pPullDataRes;
+  SSHashObj*      pHistoryGroup;
+  SSHashObj*      pPullDataMap;
+  int32_t         numOfChild;
+  SStreamRecParam recParam;
 } SNonBlockAggSupporter;
 
 typedef struct SSessionAggOperatorInfo {

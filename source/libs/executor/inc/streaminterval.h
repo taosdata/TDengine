@@ -28,6 +28,14 @@ typedef struct SPullWindowInfo {
   STimeWindow calWin;
 } SPullWindowInfo;
 
+typedef struct STimeFillRange {
+  TSKEY    skey;
+  TSKEY    ekey;
+  uint64_t groupId;
+  void*    pStartRow;
+  void*    pEndRow;
+} STimeFillRange;
+
 int32_t     doStreamIntervalNonblockAggImpl(struct SOperatorInfo* pOperator, SSDataBlock* pBlock);
 STimeWindow getFinalTimeWindow(int64_t ts, SInterval* pInterval);
 int32_t     getNextQualifiedFinalWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
@@ -58,6 +66,9 @@ TSKEY       adustPrevTsKey(TSKEY pointTs, TSKEY rowTs, SInterval* pInterval);
 TSKEY       adustEndTsKey(TSKEY pointTs, TSKEY rowTs, SInterval* pInterval);
 void        destroyStreamFillOperatorInfo(void* param);
 void        destroyStreamNonblockFillOperatorInfo(void* param);
+int32_t     buildDeleteResult(SOperatorInfo* pOperator, TSKEY startTs, TSKEY endTs, uint64_t groupId, SSDataBlock* delRes);
+void        setDeleteFillValueInfo(TSKEY start, TSKEY end, SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo);
+void        doStreamFillRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* pFillSup, SSDataBlock* pRes);
 
 #ifdef __cplusplus
 }

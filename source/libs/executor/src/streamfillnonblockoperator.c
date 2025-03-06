@@ -23,6 +23,7 @@
 #include "executorInt.h"
 #include "streamexecutorInt.h"
 #include "streaminterval.h"
+#include "streamsession.h"
 #include "tcommon.h"
 #include "thash.h"
 #include "ttime.h"
@@ -117,6 +118,33 @@ _end:
   return code;
 }
 
+static int32_t getResultInfoFromResult(SStreamRecParam* pParam, SStreamFillSupporter* pFillSup, SWinKey* pKey) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  code = streamClientGetFillRange(pParam, pKey, pFillSup->pResultRange, pFillSup->pEmptyRow, pFillSup->rowSize, pFillSup->pOffsetInfo, pFillSup->numOfAllCols);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  SSliceRowData* pPrevRowData = taosArrayGetP(pFillSup->pResultRange, 0);
+  if (pFillSup->prev.key < pPrevRowData->key) {
+    pFillSup->prevOriginKey = pPrevRowData->key;
+    pFillSup->prev.key = adustPrevTsKey(pPrevRowData->key, pPrevRowData->key, &pFillSup->interval);
+    pFillSup->prev.pRowVal = (SResultCellData*)pPrevRowData->pRowVal;
+  }
+
+  SSliceRowData* pNextRowData = taosArrayGetP(pFillSup->pResultRange, 1);
+  if ((pFillSup->next.key > pNextRowData->key) || (!hasNextWindow(pFillSup) && pNextRowData->key != INT64_MIN)) {
+    pFillSup->nextOriginKey = pNextRowData->key;
+    pFillSup->next.key = adustEndTsKey(pNextRowData->key, pNextRowData->key, &pFillSup->interval);
+    pFillSup->next.pRowVal = (SResultCellData*)pNextRowData->pRowVal;
+  }
+  
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 void doBuildNonblockFillResult(SOperatorInfo* pOperator, SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo,
                                SSDataBlock* pBlock, SGroupResInfo* pGroupResInfo) {
   int32_t                  code = TSDB_CODE_SUCCESS;
@@ -135,8 +163,13 @@ void doBuildNonblockFillResult(SOperatorInfo* pOperator, SStreamFillSupporter* p
     } else if (pBlock->info.id.groupId != pKey->groupId) {
       break;
     }
+
     code = getResultInfoFromState(&pInfo->stateStore, pInfo->pState, pInfo->pFillSup, pKey);
     QUERY_CHECK_CODE(code, lino, _end);
+    if (isRecalculateOperator(&pInfo->basic)) {
+      taosArrayClearP(pFillSup->pResultRange, NULL);
+      getResultInfoFromResult(&pInfo->nbSup.recParam, pFillSup, pKey);
+    }
 
     setTimeSliceFillRule(pFillSup, pFillInfo, pKey->ts);
     doStreamTimeSliceFillRange(pFillSup, pFillInfo, pBlock);
@@ -175,6 +208,97 @@ _end:
   return code;
 }
 
+static int32_t doDeleteNonblockFillResult(SOperatorInfo* pOperator) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  lino = 0;
+  SStorageAPI*             pAPI = &pOperator->pTaskInfo->storageAPI;
+  SStreamFillOperatorInfo* pInfo = pOperator->info;
+  SStreamFillInfo*         pFillInfo = pInfo->pFillInfo;
+  SStreamFillSupporter*    pFillSup = pInfo->pFillSup;
+  SSDataBlock*             pBlock = pInfo->pSrcDelBlock;
+  SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
+
+  SColumnInfoData* pStartCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
+  TSKEY*           tsStarts = (TSKEY*)pStartCol->pData;
+  SColumnInfoData* pGroupCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
+  uint64_t*        groupIds = (uint64_t*)pGroupCol->pData;
+  SResultRowData   prev = {0};
+  SResultRowData   next = {0};
+  
+  taosArrayClearP(pFillSup->pResultRange, NULL);
+  while (pInfo->srcDelRowIndex < pBlock->info.rows) {
+    TSKEY    curDelTs = tsStarts[pInfo->srcDelRowIndex];
+    uint64_t curDelGroupId = groupIds[pInfo->srcDelRowIndex];
+    SWinKey  curDelKey = {.ts = curDelTs, .groupId = curDelGroupId};
+
+    resetTimeSlicePrevAndNextWindow(pFillSup);
+    getResultInfoFromResult(&pInfo->nbSup.recParam, pFillSup, &curDelKey);
+    prev = pFillSup->prev;
+    next = pFillSup->next;
+
+    pInfo->srcDelRowIndex++;
+
+    while (pInfo->srcDelRowIndex < pBlock->info.rows) {
+      TSKEY    nextDelTs = tsStarts[pInfo->srcDelRowIndex];
+      uint64_t nextGroupId = groupIds[pInfo->srcDelRowIndex];
+      if (curDelGroupId != nextGroupId || next.key < nextDelTs) {
+        break;
+      }
+      taosArrayClear(pFillSup->pResultRange);
+      curDelKey.ts = nextDelTs;
+      getResultInfoFromResult(&pInfo->nbSup.recParam, pFillSup, &curDelKey);
+      void* pPrevRowData = taosArrayGetP(pFillSup->pResultRange, 0);
+      taosMemFreeClear(pPrevRowData);
+      if (hasNextWindow(pFillSup)) {
+        next = pFillSup->next;
+      }
+      pInfo->srcDelRowIndex++;
+    }
+
+    if (hasNextWindow(pFillSup)) {
+      STimeFillRange tw = {
+          .skey = prev.key,
+          .ekey = next.key,
+          .groupId = curDelGroupId,
+          .pStartRow = prev.pRowVal,
+          .pEndRow = next.pRowVal,
+      };
+      void* tmpRes = taosArrayPush(pInfo->pFillInfo->delRanges, &tw);
+      QUERY_CHECK_NULL(tmpRes, code, lino, _end, terrno);
+    } else {
+      code = buildDeleteResult(pOperator, prev.key, next.key, curDelGroupId, pInfo->pDelRes);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s. task:%s", __func__, lino, tstrerror(code), GET_TASKID(pTaskInfo));
+  }
+  return code;
+}
+
+static void doFillDeleteRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* pFillSup, SSDataBlock* pBlock) {
+  int32_t size = taosArrayGetSize(pFillInfo->delRanges);
+  while (pFillInfo->delIndex < size) {
+    STimeFillRange* range = taosArrayGet(pFillInfo->delRanges, pFillInfo->delIndex);
+    if (pBlock->info.id.groupId != 0 && pBlock->info.id.groupId != range->groupId) {
+      return;
+    }
+    pFillSup->prev.key = range->skey;
+    pFillSup->prev.pRowVal = range->pStartRow;
+    pFillSup->next.key = range->ekey;
+    pFillSup->next.pRowVal = range->pEndRow;
+
+    setDeleteFillValueInfo(range->skey, range->ekey, pFillSup, pFillInfo);
+    pFillInfo->delIndex++;
+    if (pFillInfo->needFill) {
+      doStreamFillRange(pFillInfo, pFillSup, pBlock);
+      pBlock->info.id.groupId = range->groupId;
+    }
+  }
+}
+
 int32_t doStreamNonblockFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
@@ -187,6 +311,18 @@ int32_t doStreamNonblockFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
   }
 
   if (pOperator->status == OP_RES_TO_RETURN) {
+    if (isRecalculateOperator(&pInfo->basic)) {
+      blockDataCleanup(pInfo->pRes);
+      code = blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
+      QUERY_CHECK_CODE(code, lino, _end);
+      doFillDeleteRange(pInfo->pFillInfo, pInfo->pFillSup, pInfo->pRes);
+      if (pInfo->pRes->info.rows > 0) {
+        printDataBlock(pInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+        (*ppRes) = pInfo->pRes;
+        return code;
+      }
+    }
+
     if (hasRemainCalc(pInfo->pFillInfo) ||
         (pInfo->pFillInfo->pos != FILL_POS_INVALID && pInfo->pFillInfo->needFill == true)) {
       blockDataCleanup(pInfo->pRes);
@@ -242,7 +378,23 @@ int32_t doStreamNonblockFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
         goto _end;
       } break;
       case STREAM_DELETE_RESULT: {
-        // todo(liuyao) add
+        if (!isRecalculateOperator(&pInfo->basic)) {
+          qDebug("===stream===%s ignore recv block. type:%d", GET_TASKID(pTaskInfo), pBlock->info.type);
+          continue;
+        }
+        pInfo->pSrcDelBlock = pBlock;
+        pInfo->srcDelRowIndex = 0;
+        blockDataCleanup(pInfo->pDelRes);
+        pInfo->pFillSup->hasDelete = true;
+        code = doDeleteNonblockFillResult(pOperator);
+        QUERY_CHECK_CODE(code, lino, _end);
+
+        if (pInfo->pDelRes->info.rows > 0) {
+          printDataBlock(pInfo->pDelRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+          (*ppRes) = pInfo->pDelRes;
+          return code;
+        }
+        continue;
       } break;
       case STREAM_RETRIEVE:
       case STREAM_CREATE_CHILD_TABLE: {
