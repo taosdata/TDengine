@@ -2612,7 +2612,7 @@ static int64_t getConsensusId(int64_t streamId, int32_t numOfTasks, int32_t *pEx
     if (chkId > pe->checkpointInfo.latestId) {
       if (chkId != INT64_MAX) {
         *pAllSame = false;
-        mDebug("checkpointIds not identical, prev:%" PRId64 " smaller:%" PRId64 " from task:0x" PRIx64, chkId,
+        mDebug("checkpointIds not identical, prev:%" PRId64 " smaller:%" PRId64 " from task:0x%" PRIx64, chkId,
                pe->checkpointInfo.latestId, pe->id.taskId);
       }
       chkId = pe->checkpointInfo.latestId;
