@@ -160,6 +160,7 @@ void destroyStreamFillOperatorInfo(void* param) {
     taosMemoryFreeClear(pInfo->pState);
   }
   destroyStreamBasicInfo(&pInfo->basic);
+  destroyNonBlockAggSupptor(&pInfo->nbSup);
 
   taosMemoryFree(pInfo);
 }

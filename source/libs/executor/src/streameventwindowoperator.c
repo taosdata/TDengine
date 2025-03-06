@@ -93,6 +93,7 @@ void destroyStreamEventOperatorInfo(void* param) {
     nodesDestroyList(pInfo->pEndCondCols);
     pInfo->pEndCondCols = NULL;
   }
+  destroyNonBlockAggSupptor(&pInfo->nbSup);
 
   taosMemoryFreeClear(param);
 }

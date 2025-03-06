@@ -1548,6 +1548,8 @@ static void destroyStreamDataScanOperatorInfo(void* param) {
   if (pStreamScan->stateStore.updateInfoDestroy != NULL && pStreamScan->pUpdateInfo != NULL) {
     pStreamScan->stateStore.updateInfoDestroy(pStreamScan->pUpdateInfo);
   }
+  tSimpleHashCleanup(pStreamScan->pRecRangeMap);
+  pStreamScan->pRecRangeMap = NULL;
 
   taosMemoryFree(pStreamScan);
 }
