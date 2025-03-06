@@ -27,6 +27,7 @@
 #include "scheduler.h"
 #include "tcache.h"
 #include "tcompare.h"
+#include "tconv.h"
 #include "tglobal.h"
 #include "thttp.h"
 #include "tmsg.h"
@@ -36,7 +37,6 @@
 #include "tsched.h"
 #include "ttime.h"
 #include "tversion.h"
-#include "tconv.h"
 
 #include "cus_name.h"
 
@@ -63,13 +63,13 @@
     }                                 \
   } while (0)
 
-STscDbg  tscDbg = {0};
-SAppInfo appInfo;
-int64_t  lastClusterId = 0;
-int32_t  clientReqRefPool = -1;
-int32_t  clientConnRefPool = -1;
-int32_t  clientStop = -1;
-SHashObj* pTimezoneMap = NULL;
+STscDbg   tscDbg = {0};
+SAppInfo  appInfo;
+int64_t   lastClusterId = 0;
+int32_t   clientReqRefPool = -1;
+int32_t   clientConnRefPool = -1;
+int32_t   clientStop = -1;
+SHashObj *pTimezoneMap = NULL;
 
 int32_t timestampDeltaLimit = 900;  // s
 
@@ -925,7 +925,6 @@ void tscWriteCrashInfo(int signum, void *sigInfo, void *context) {
 }
 #endif
 
-
 #ifdef TAOSD_INTEGRATED
 typedef struct {
   TdThread pid;
@@ -1117,7 +1116,7 @@ void taos_init_imp(void) {
 
   ENV_ERR_RET(taosGetAppName(appInfo.appName, NULL), "failed to get app name");
   ENV_ERR_RET(taosThreadMutexInit(&appInfo.mutex, NULL), "failed to init thread mutex");
-  ENV_ERR_RET(tscCrashReportInit(), "failed to init crash report");
+  // ENV_ERR_RET(tscCrashReportInit(), "failed to init crash report");
   ENV_ERR_RET(qInitKeywordsTable(), "failed to init parser keywords table");
 #ifdef TAOSD_INTEGRATED
   ENV_ERR_RET(shellStartDaemon(0, NULL), "failed to start taosd daemon");

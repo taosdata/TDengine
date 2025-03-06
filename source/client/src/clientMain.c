@@ -230,7 +230,7 @@ void taos_cleanup(void) {
   }
 
   monitorClose();
-  tscStopCrashReport();
+  // tscStopCrashReport();
 
   hbMgrCleanUp();
 
@@ -1294,8 +1294,8 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     }
 
     // return to app directly
-    tscError("req:0x%" PRIx64 ", error occurs, code:%s, return to user app, QID:0x%" PRIx64, pRequest->self, tstrerror(code),
-             pRequest->requestId);
+    tscError("req:0x%" PRIx64 ", error occurs, code:%s, return to user app, QID:0x%" PRIx64, pRequest->self,
+             tstrerror(code), pRequest->requestId);
     pRequest->code = code;
     returnToUser(pRequest);
   }
@@ -1507,8 +1507,8 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
       code = refreshMeta(pRequest->pTscObj, pRequest);
       if (code != 0) {
-        tscWarn("req:0x%" PRIx64 ", refresh meta failed, code:%d - %s, QID:0x%" PRIx64, pRequest->self, code, tstrerror(code),
-                pRequest->requestId);
+        tscWarn("req:0x%" PRIx64 ", refresh meta failed, code:%d - %s, QID:0x%" PRIx64, pRequest->self, code,
+                tstrerror(code), pRequest->requestId);
       }
       pRequest->prevCode = code;
       doAsyncQuery(pRequest, true);
@@ -2179,7 +2179,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
-  if( atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum)>1) {
+  if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 1) {
     tscError("async bind param is still working, please try again later");
     return TSDB_CODE_TSC_STMT_API_ERROR;
   }
@@ -2292,7 +2292,7 @@ int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t c
     (void)taosThreadCondSignal(&(pStmt->asyncBindParam.waitCond));
     (void)atomic_sub_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
     (void)taosThreadMutexUnlock(&(pStmt->asyncBindParam.mutex));
-     tscError("async bind failed, code:%d , %s", code_s, tstrerror(code_s));
+    tscError("async bind failed, code:%d , %s", code_s, tstrerror(code_s));
   }
 
   return code_s;
