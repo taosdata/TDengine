@@ -2612,6 +2612,8 @@ static int64_t getConsensusId(int64_t streamId, int32_t numOfTasks, int32_t *pEx
     if (chkId > pe->checkpointInfo.latestId) {
       if (chkId != INT64_MAX) {
         *pAllSame = false;
+        mDebug("checkpointIds not identical, prev:%" PRId64 " smaller:%" PRId64 " from task:0x" PRIx64, chkId,
+               pe->checkpointInfo.latestId, pe->id.taskId);
       }
       chkId = pe->checkpointInfo.latestId;
     }
@@ -2747,8 +2749,8 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
       }
 
       if (((now - pe->ts) >= 10 * 1000) || allSame) {
-        mDebug("s-task:0x%x sendTs:%" PRId64 " wait %.2fs or all tasks have same checkpointId", pe->req.taskId,
-               pe->req.startTs, (now - pe->ts) / 1000.0);
+        mDebug("s-task:0x%x sendTs:%" PRId64 " wait %.2fs or all tasks have same checkpointId:%" PRId64, pe->req.taskId,
+               pe->req.startTs, (now - pe->ts) / 1000.0, chkId);
         if (chkId > pe->req.checkpointId) {
           streamMutexUnlock(&execInfo.lock);
           taosArrayDestroy(pStreamList);
@@ -2791,28 +2793,6 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
     }
 
     mndReleaseStream(pMnode, pStream);
-
-//    int32_t alreadySend = doCleanReqList(pList, pInfo);
-
-    // clear request stream item with empty task list
-//    if (taosArrayGetSize(pInfo->pTaskList) == 0) {
-//      mndClearConsensusRspEntry(pInfo);
-//      if (streamId == -1) {
-//        mError("streamId is -1, streamId:%" PRIx64" in consensus-checkpointId hashMap, cont", pInfo->streamId);
-//      }
-//
-//      void *p = taosArrayPush(pStreamList, &streamId);
-//      if (p == NULL) {
-//        mError("failed to put into stream list, stream:0x%" PRIx64 " not remove it in consensus-chkpt list", streamId);
-//      }
-//    }
-
-//    numOfTrans += alreadySend;
-//    if (numOfTrans > maxAllowedTrans) {
-//      mInfo("already send consensus-checkpointId trans:%d, try next time", alreadySend);
-//      taosHashCancelIterate(execInfo.pStreamConsensus, pIter);
-//      break;
-//    }
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(pStreamList); ++i) {
