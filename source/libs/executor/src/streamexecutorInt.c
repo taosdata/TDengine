@@ -176,11 +176,18 @@ bool isSemiOperator(SSteamOpBasicInfo* pBasicInfo) {
 }
 
 void destroyStreamBasicInfo(SSteamOpBasicInfo* pBasicInfo) {
+  blockDataDestroy(pBasicInfo->pCheckpointRes);
+  pBasicInfo->pCheckpointRes = NULL;
+
+  tSimpleHashCleanup(pBasicInfo->pSeDeleted);
+  pBasicInfo->pSeDeleted = NULL;
+
   blockDataDestroy(pBasicInfo->pDelRes);
   pBasicInfo->pDelRes = NULL;
-
   taosArrayDestroyP(pBasicInfo->pUpdated, destroyFlusedPos);
   pBasicInfo->pUpdated = NULL;
+
+  pBasicInfo->pTsDataState = NULL;
 
   destroyStreamNotifyEventSupp(&pBasicInfo->notifyEventSup);
 }

@@ -1006,8 +1006,7 @@ static int32_t generateDataScanRange(SStreamScanInfo* pInfo, char* pTaskIdStr) {
       QUERY_CHECK_CODE(code, lino, _end);
     } break;
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_CONTINUE_COUNT: {
-      // todo(liuyao) get range from table of result
-      QUERY_CHECK_CODE(code, lino, _end);
+
     } break;
     default:
       break;
@@ -1543,6 +1542,7 @@ static void destroyStreamDataScanOperatorInfo(void* param) {
 
   if (pStreamScan->stateStore.streamStateDestroyTsDataState) {
     pStreamScan->stateStore.streamStateDestroyTsDataState(pStreamScan->basic.pTsDataState);
+    pStreamScan->basic.pTsDataState = NULL;
   }
 
   if (pStreamScan->stateStore.updateInfoDestroy != NULL && pStreamScan->pUpdateInfo != NULL) {

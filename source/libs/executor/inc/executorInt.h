@@ -495,6 +495,7 @@ typedef struct SStreamFillSupporter {
   int32_t        pkColBytes;
   __compar_fn_t  comparePkColFn;
   int32_t*       pOffsetInfo;
+  bool           normalFill;
 } SStreamFillSupporter;
 
 typedef struct SStreamRecParam {
@@ -935,6 +936,7 @@ typedef struct SStreamFillOperatorInfo {
   SGroupResInfo         groupResInfo;
   SStreamState*         pState;
   SStateStore           stateStore;
+  SNonBlockAggSupporter nbSup;
 } SStreamFillOperatorInfo;
 
 typedef struct SStreamTimeSliceOperatorInfo {
