@@ -490,6 +490,7 @@ typedef enum ENodeType {
 typedef struct {
   int32_t     vgId;
   uint8_t     option;  // 0x0 REQ_OPT_TBNAME, 0x01 REQ_OPT_TBUID
+  uint8_t     autoCreateCtb;  // 0x0 not auto create, 0x01 auto create
   const char* dbFName;
   const char* tbName;
 } SBuildTableInput;
@@ -2173,6 +2174,7 @@ typedef struct {
   char     dbFName[TSDB_DB_FNAME_LEN];
   char     tbName[TSDB_TABLE_NAME_LEN];
   uint8_t  option;
+  uint8_t  autoCreateCtb;
 } STableInfoReq;
 
 int32_t tSerializeSTableInfoReq(void* buf, int32_t bufLen, STableInfoReq* pReq);
