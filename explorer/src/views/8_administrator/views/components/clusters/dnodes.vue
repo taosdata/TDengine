@@ -1,11 +1,7 @@
 <template>
+  <title-bar :show-add="true" :name="$t('taoscluster.dnodes')" @add="openDialog(ruleFormRef)"></title-bar>
   <div class="dnode-block">
-    <div class="flex-end">
-      <el-button plain size="default" icon="Plus" :disabled="!isDisable" @click="openDialog(ruleFormRef)">{{
-        $t('add')
-      }}</el-button>
-    </div>
-    <el-table style="margin-top: 20px" :data="dnodesList" size="small">
+    <el-table :data="dnodesList" size="small">
       <el-table-column width="400" :label="$t('taoscluster.endpoint')" prop="endpoint"></el-table-column>
       <el-table-column :label="$t('taoscluster.vnodes')" prop="vnodes"></el-table-column>
       <el-table-column :label="$t('taoscluster.supportvnodes')" prop="support_vnodes"></el-table-column>
@@ -64,6 +60,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import titleBar from '../title-bar.vue';
 import { sendSQLReq } from '@/api/explorer';
 import { FormInstance } from 'element-plus';
 import useCluster from './useCluster';
@@ -163,7 +160,7 @@ getAllDnodes();
 }
 
 .dnode-block {
-  min-height: 150px;
   overflow: auto;
+  margin-bottom: 30px;
 }
 </style>

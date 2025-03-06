@@ -1,11 +1,7 @@
 <template>
   <div class="qnode-block">
-    <div class="flex-end">
-      <el-button plain size="default" icon="Plus" :disabled="!isDisable" @click="openDialog(ruleFormRef)">{{
-        $t('add')
-      }}</el-button>
-    </div>
-    <el-table style="margin-top: 20px" :data="qnodesList" size="small">
+    <title-bar :show-add="true" :name="$t('taoscluster.qnodes')" @add="openDialog(ruleFormRef)"></title-bar>
+    <el-table :data="qnodesList" size="small">
       <el-table-column :label="$t('taoscluster.endpoint')" prop="endpoint"></el-table-column>
       <el-table-column :label="$t('taoscluster.createtime')" prop="create_time" width="240"></el-table-column>
 
@@ -64,6 +60,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import titleBar from '../title-bar.vue';
 import { sendSQLReq } from '@/api/explorer';
 import { FormInstance } from 'element-plus';
 import useCluster from './useCluster';
@@ -159,7 +156,7 @@ getAllQnodes();
 }
 
 .qnode-block {
-  min-height: 150px;
+  margin-bottom: 30px;
   overflow: auto;
 }
 </style>
