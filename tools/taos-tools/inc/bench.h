@@ -732,7 +732,6 @@ typedef struct SArguments_S {
     uint64_t            insert_interval;
     bool                demo_mode;
     bool                aggr_func;
-    struct sockaddr_in  serv_addr;
     uint64_t            totalChildTables;
     uint64_t            actualChildTables;
     uint64_t            autoCreatedChildTables;
@@ -907,8 +906,6 @@ int     queryDbExecCall(SBenchConn *conn, char *command);
 SBenchConn* initBenchConn();
 void    closeBenchConn(SBenchConn* conn);
 int     regexMatch(const char *s, const char *reg, int cflags);
-int     convertHostToServAddr(char *host, uint16_t port,
-                              struct sockaddr_in *serv_addr);
 int     getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
                                     char ** childTblNameOfSuperTbl,
                                     int64_t childTblCountOfSuperTbl);
@@ -954,7 +951,6 @@ int  insertTestProcess();
 void postFreeResource();
 int queryTestProcess();
 int subscribeTestProcess();
-int convertServAddr(int iface, bool tcp, int protocol);
 
 void printVersion();
 int32_t benchParseSingleOpt(int32_t key, char* arg);

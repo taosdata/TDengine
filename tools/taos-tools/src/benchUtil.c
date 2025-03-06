@@ -162,50 +162,6 @@ int getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
     return 0;
 }
 
-int convertHostToServAddr(char *host, uint16_t port,
-        struct sockaddr_in *serv_addr) {
-    if (!host) {
-        errorPrint("%s", "convertHostToServAddr host is null.");
-        return -1;
-    }
-    debugPrint("convertHostToServAddr(host: %s, port: %d)\n", host,
-            port);
-#ifdef WINDOWS
-    WSADATA wsaData;
-    int ret = WSAStartup(MAKEWORD(2, 2), &wsaData);
-    if (ret) {
-        return ret;
-    }
-#endif
-    struct hostent *server = gethostbyname(host);
-    if ((server == NULL) || (server->h_addr == NULL)) {
-        errorPrint("%s", "no such host");
-        return -1;
-    }
-    memset(serv_addr, 0, sizeof(struct sockaddr_in));
-    serv_addr->sin_family = AF_INET;
-    serv_addr->sin_port = htons(port);
-
-#ifdef WINDOWS
-    struct addrinfo  hints = {0};
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-
-    struct addrinfo *pai = NULL;
-
-    if (!getaddrinfo(server->h_name, NULL, &hints, &pai)) {
-        serv_addr->sin_addr.s_addr =
-               ((struct sockaddr_in *) pai->ai_addr)->sin_addr.s_addr;
-        freeaddrinfo(pai);
-    }
-    WSACleanup();
-#else
-    serv_addr->sin_addr.s_addr = inet_addr(host);
-    memcpy(&(serv_addr->sin_addr.s_addr), server->h_addr, server->h_length);
-#endif
-    return 0;
-}
-
 void prompt(bool nonStopMode) {
     if (!g_arguments->answer_yes) {
         g_arguments->in_prompt = true;
@@ -854,30 +810,6 @@ void benchSetSignal(int32_t signum, ToolsSignalHandler sigfp) {
 }
 #endif
 
-int convertServAddr(int iface, bool tcp, int protocol) {
-    if (tcp && protocol == TSDB_SML_TELNET_PROTOCOL) {
-        // telnet_tcp_port        
-        if (convertHostToServAddr(g_arguments->host,
-                    g_arguments->telnet_tcp_port,
-                    &(g_arguments->serv_addr))) {
-            errorPrint("%s\n", "convert host to server address");
-            return -1;
-        }
-        infoPrint("convertServAddr host=%s telnet_tcp_port:%d to serv_addr=%p iface=%d \n", 
-                g_arguments->host, g_arguments->telnet_tcp_port, &g_arguments->serv_addr, iface);
-    } else {
-        int port = g_arguments->port_inputted ? g_arguments->port:DEFAULT_REST_PORT;
-        if (convertHostToServAddr(g_arguments->host,
-                                    port,
-                    &(g_arguments->serv_addr))) {
-            errorPrint("%s\n", "convert host to server address");
-            return -1;
-        }
-        infoPrint("convertServAddr host=%s port:%d to serv_addr=%p iface=%d \n", 
-                g_arguments->host, port, &g_arguments->serv_addr, iface);
-    }
-    return 0;
-}
 
 FORCE_INLINE void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res) {    
     char buff[512];
