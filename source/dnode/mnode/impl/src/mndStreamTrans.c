@@ -73,7 +73,10 @@ int32_t mndStreamClearFinishedTrans(SMnode *pMnode, int32_t *pNumOfActiveChkpt, 
           mInfo("long chkpt transId:%d, start:%" PRId64
                 " exec duration:%.2fs, beyond threshold %.2f min, kill it and reset task status",
                 pTrans->id, pTrans->createdTime, dur / 1000.0, MAX_CHKPT_EXEC_ELAPSED/(1000*60.0));
-          taosArrayPush(pLongChkptTrans, pEntry);
+          void* p = taosArrayPush(pLongChkptTrans, pEntry);
+          if (p == NULL) {
+            mError("failed to add long checkpoint trans, transId:%d, code:%s", pEntry->transId, tstrerror(terrno));
+          }
         }
       }
       mndReleaseTrans(pMnode, pTrans);
@@ -399,7 +402,10 @@ void killChkptAndResetStreamTask(SMnode *pMnode, SArray* pLongChkpts) {
       mDebug("stream:%s 0x%" PRIx64 " transId:%d checkpointId:%" PRId64 " create reset task trans", p->name,
              pTrans->streamId, pTrans->transId, p->checkpointId);
 
-      mndCreateStreamResetStatusTrans(pMnode, p, p->checkpointId);
+      code = mndCreateStreamResetStatusTrans(pMnode, p, p->checkpointId);
+      if (code) {
+        mError("stream:%s 0x%"PRIx64" failed to create reset stream task, code:%s", p->name, p->uid, tstrerror(code));
+      }
       sdbRelease(pMnode->pSdb, p);
     }
   }

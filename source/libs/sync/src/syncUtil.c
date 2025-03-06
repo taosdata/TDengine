@@ -286,7 +286,7 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, bool fo
 void syncPrintHbLog(const char* flags, ELogLevel level, int32_t dflag, bool formatTime, SSyncNode* pNode,
                     const char* format, ...) {
   if (pNode == NULL || pNode->pLogStore == NULL) return;
-  int64_t currentTerm = raftStoreGetTerm(pNode);
+  int64_t currentTerm = raftStoreTryGetTerm(pNode);
 
   // save error code, otherwise it will be overwritten
   int32_t errCode = terrno;
@@ -467,17 +467,24 @@ void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntries
 
 void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, bool printX, int64_t timerElapsed,
                           int64_t execTime) {
-  if (printX) {
-    sHTrace(pSyncNode,
-            "send sync-heartbeat to dnode:%d {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
-            ", ts:%" PRId64 "}, x",
-            DID(&pMsg->destId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pMsg->timeStamp);
-  } else {
-    sHTrace(pSyncNode,
-            "send sync-heartbeat to dnode:%d {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
-            ", ts:%" PRId64 "}, timer-elapsed:%" PRId64 ", next-exec:%" PRId64,
-            DID(&pMsg->destId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pMsg->timeStamp, timerElapsed,
-            execTime);
+  if (sDebugFlag & DEBUG_TRACE) {
+    char pBuf[TD_TIME_STR_LEN] = {0};
+    if (pMsg->timeStamp > 0) {
+      if (formatTimestampLocal(pBuf, pMsg->timeStamp, TSDB_TIME_PRECISION_MILLI) == NULL) {
+        pBuf[0] = '\0';
+      }
+    }
+    if (printX) {
+      sHTrace(pSyncNode,
+              "send sync-heartbeat to dnode:%d {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
+              ", ts:%s}, x",
+              DID(&pMsg->destId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf);
+    } else {
+      sHTrace(pSyncNode,
+              "send sync-heartbeat to dnode:%d {term:%" PRId64 ", commit-index:%" PRId64 ", min-match:%" PRId64
+              ", ts:%s}, timer-elapsed:%" PRId64 ", next-exec:%" PRId64,
+              DID(&pMsg->destId), pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pBuf, timerElapsed, execTime);
+    }
   }
 }
 

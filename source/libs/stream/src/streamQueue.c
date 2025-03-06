@@ -37,7 +37,7 @@ static void streamQueueNextItemInSourceQ(SStreamQueue* pQueue, SStreamQueueItem*
 static void streamQueueCleanup(SStreamQueue* pQueue) {
   SStreamQueueItem* qItem = NULL;
   while (1) {
-    streamQueueNextItemInSourceQ(pQueue, &qItem, TASK_STATUS__READY, NULL);
+    streamQueueNextItemInSourceQ(pQueue, &qItem, TASK_STATUS__READY, "");
     if (qItem == NULL) {
       break;
     }
@@ -149,6 +149,46 @@ void streamQueueNextItemInSourceQ(SStreamQueue* pQueue, SStreamQueueItem** pItem
   if (pQueue->qItem == NULL) {
     (void)taosReadAllQitems(pQueue->pQueue, pQueue->qall);
     (void)taosGetQitem(pQueue->qall, &pQueue->qItem);
+  }
+
+  *pItem = streamQueueCurItem(pQueue);
+}
+
+void streamQueueNextItemInSourceQ(SStreamQueue* pQueue, SStreamQueueItem** pItem, ETaskStatus status, const char* id) {
+  *pItem = NULL;
+  int8_t flag = atomic_exchange_8(&pQueue->status, STREAM_QUEUE__PROCESSING);
+
+  if (flag == STREAM_QUEUE__CHKPTFAILED) {
+    *pItem = pQueue->qChkptItem;
+    return;
+  }
+
+  if (flag == STREAM_QUEUE__FAILED) {
+    *pItem = pQueue->qItem;
+    return;
+  }
+
+  pQueue->qChkptItem = NULL;
+  taosReadQitem(pQueue->pChkptQueue, (void**)&pQueue->qChkptItem);
+  if (pQueue->qChkptItem != NULL) {
+    stDebug("s-task:%s read data from checkpoint queue, status:%d", id, status);
+    *pItem = pQueue->qChkptItem;
+    return;
+  }
+
+  // if in checkpoint status, not read data from ordinary input q.
+  if (status == TASK_STATUS__CK) {
+    stDebug("s-task:%s in checkpoint status, not read data in block queue, status:%d", id, status);
+    return;
+  }
+
+  // let's try the ordinary input q
+  pQueue->qItem = NULL;
+  int32_t num = taosGetQitem(pQueue->qall, &pQueue->qItem);
+
+  if (pQueue->qItem == NULL) {
+    num = taosReadAllQitems(pQueue->pQueue, pQueue->qall);
+    num = taosGetQitem(pQueue->qall, &pQueue->qItem);
   }
 
   *pItem = streamQueueCurItem(pQueue);

@@ -48,7 +48,7 @@ int32_t tqScanWal(STQ* pTq) {
   }
 
   // the scan wal interval less than 200, not scan, actually.
-  if ((pMeta->scanInfo.lastScanTs > st) && (pMeta->scanInfo.lastScanTs - st < 200)) {
+  if ((pMeta->scanInfo.lastScanTs > 0) && (st - pMeta->scanInfo.lastScanTs < 200)) {
     tqDebug("vgId:%d scan wal less than 200ms, do nothing", vgId);
     atomic_store_32(&pMeta->scanInfo.scanSentinel, 0);
     return code;
@@ -162,10 +162,10 @@ static void doStartScanWal(void* param, void* tmrId) {
 
   tqDebug("vgId:%d create msg to start wal scan, numOfTasks:%d", vgId, numOfTasks);
 
-#if 0
+   #if 0
   //  wait for the vnode is freed, and invalid read may occur.
   taosMsleep(10000);
-#endif
+   #endif
 
   code = streamTaskSchedTask(&pParam->msgCb, vgId, 0, 0, STREAM_EXEC_T_EXTRACT_WAL_DATA, false);
   if (code) {
@@ -325,7 +325,10 @@ bool taskReadyForDataFromWal(SStreamTask* pTask) {
   // check whether input queue is full or not
   if (streamQueueIsFull(pTask->inputq.queue)) {
     tqTrace("s-task:%s input queue is full, launch task without scanning wal", pTask->id.idStr);
-    streamTrySchedExec(pTask, false);
+    int32_t code = streamTrySchedExec(pTask);
+    if (code) {
+      tqError("s-task:%s failed to start task while inputQ is full", pTask->id.idStr);
+    }
     return false;
   }
 

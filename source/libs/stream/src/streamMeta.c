@@ -888,7 +888,6 @@ static void doRemoveIdFromList(SArray* pTaskList, int32_t num, SStreamTaskId* id
 
 static int32_t streamTaskSendTransSuccessMsg(SStreamTask* pTask, void* param) {
   int32_t code = 0;
-  int32_t waitingDuration = 5000;
 
   if (pTask->info.taskLevel == TASK_LEVEL__SOURCE) {
     code = streamTaskSendCheckpointSourceRsp(pTask);

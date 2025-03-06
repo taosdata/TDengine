@@ -2663,7 +2663,7 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
   int64_t now = taosGetTimestampMs();
   bool    allReady = true;
   SArray *pNodeSnapshot = NULL;
-  int32_t maxAllowedTrans = 50;
+  int32_t maxAllowedTrans = 20;
   int32_t numOfTrans = 0;
   int32_t code = 0;
   void   *pIter = NULL;
@@ -2750,6 +2750,7 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
           return TSDB_CODE_FAILED;
         }
 
+        // todo: check for redundant consensus-checkpoint trans, if this kinds of trans repeatly failed.
         code = mndCreateSetConsensusChkptIdTrans(pMnode, pStream, pe->req.taskId, chkId, pe->req.startTs);
         if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
           mError("failed to create consensus-checkpoint trans, stream:0x%" PRIx64, pStream->uid);

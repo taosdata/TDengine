@@ -15,7 +15,7 @@ StatsD 是汇总和总结应用指标的一个简单的守护进程，近些年�
 要将 StatsD 数据写入 TDengine 需要以下几方面的准备工作。
 - TDengine 集群已经部署并正常运行
 - taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](../../../reference/components/taosadapter)
-- StatsD 已经安装。安装 StatsD 请参考[官方文档](https://github.com/statsd/statsd)
+- StatsD 已经安装。安装 StatsD 请参考 [官方文档](https://github.com/statsd/statsd)
 
 ## 配置步骤
 <StatsD />

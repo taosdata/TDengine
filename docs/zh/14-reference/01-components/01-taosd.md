@@ -12,24 +12,24 @@ taosd 命令行参数如下
 - -a `<json file>`：指定一个 JSON 文件，其中包含服务启动时的各项配置参数，其格式形如 `{"fqdn":"td1"}`，关于配置参数的细节请参考下一节
 - -c `<directory>`：指定配置文件所在目录
 - -s：打印 SDB 信息
-- -C: 打印配置信息
-- -e: 指定环境变量的字符串，例如：`-e 'TAOS_FQDN=td1'`
-- -E: 指定环境变量的文件路径，默认是 `./.env`，.env 文件中的内容可以是 `TAOS_FQDN=td1`
-- -o: 指定日志输入方式，可选 `stdout`, `stderr`, `/dev/null`, `<directory>`,` <directory>/<filename>`, `<filename>`
-- -k: 获取机器码
-- -dm: 启用内存调度
-- -V: 打印版本信息
+- -C：打印配置信息
+- -e：指定环境变量的字符串，例如 `-e 'TAOS_FQDN=td1'`
+- -E：指定环境变量的文件路径，默认是 `./.env`，.env 文件中的内容可以是 `TAOS_FQDN=td1`
+- -o：指定日志输入方式，可选 `stdout`、`stderr`、`/dev/null`、`<directory>`、` <directory>/<filename>`、`<filename>`
+- -k：获取机器码
+- -dm：启用内存调度
+- -V：打印版本信息
 
 ## 配置参数
 
 :::note
-配置文件参数修改后，需要重启*taosd*服务，或客户端应用才能生效
+配置文件参数修改后，通常需要重启 *taosd* 服务，或客户端应用才能生效
 :::
 
 ### 连接相关
 
 #### firstEp
-- 说明：taosd 启动时，主动连接的集群中首个 dnode 的 end point
+- 说明：taosd 启动时，主动连接的集群中首个 dnode 的 endpoint
 - 类型：endpoint
 - 默认值：localhost:6030
 - 动态修改：不支持
@@ -143,11 +143,11 @@ taosd 命令行参数如下
 - 支持版本：v3.3.4.0 版本之后取消
 
 #### maxRetryWaitTime
-- 说明：重连最大超时时间, 从重试时候开始计算
+- 说明：重连最大超时时间，从重试时候开始计算
 - 类型：整数
 - 单位：毫秒
 - 默认值：10000
-- 最小值：0
+- 最小值：3000
 - 最大值：86400000
 - 动态修改：支持通过 SQL 修改，重启后生效
 - 支持版本：从 v3.3.4.0 版本开始引入
@@ -459,6 +459,7 @@ taosd 命令行参数如下
 - 支持版本：从 v3.1.0.0 版本开始引入
 
 :::info
+#### 区域相关参数说明
 1. 为应对多时区的数据写入和查询问题，TDengine 采用 Unix 时间戳(Unix Timestamp)来记录和存储时间戳。Unix 时间戳的特点决定了任一时刻不论在任何时区，产生的时间戳均一致。需要注意的是，Unix 时间戳是在客户端完成转换和记录。为了确保客户端其他形式的时间转换为正确的 Unix 时间戳，需要设置正确的时区。
 
 在 Linux/macOS 中，客户端会自动读取系统设置的时区信息。用户也可以采用多种方式在配置文件设置时区。例如：
@@ -1326,7 +1327,7 @@ charset 的有效值是 UTF-8。
 
 #### forceReadConfig
 - 说明：配置文件所在目录
-- 类型：整数；0:使用持久化的配置参数，1:使用配置文件中的配置参数；
+- 类型：整数；0：使用持久化的配置参数，1：使用配置文件中的配置参数；
 - 默认值：0
 - 最小值：0
 - 最大值：1
@@ -1341,7 +1342,7 @@ charset 的有效值是 UTF-8。
 
 #### assert
 - 说明：断言控制开关
-- 类型：整数；0:关闭，1：开启
+- 类型：整数；0：关闭，1：开启
 - 默认值：0
 - 最小值：0
 - 最大值：1
@@ -1419,7 +1420,7 @@ charset 的有效值是 UTF-8。
 ### 压缩参数
 
 #### fPrecision
-- 说明：设置 float 类型浮点数压缩精度, 小于此值的浮点数尾数部分将被截断
+- 说明：设置 float 类型浮点数压缩精度，小于此值的浮点数尾数部分将被截断
 - 类型：浮点数
 - 默认值：0.00000001
 - 最小值：0.00000001
@@ -1533,7 +1534,7 @@ taosd 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | :------------- | :-------- | :------ | :--------------------------------------------- |
 | \_ts           | TIMESTAMP |         | timestamp                                      |
 | tables\_num    | DOUBLE    |         | vgroup 中 table 数量                           |
-| status         | DOUBLE    |         | vgroup 状态, 取值范围 unsynced = 0, ready = 1 |
+| status         | DOUBLE    |         | vgroup 状态，取值范围 0：unsynced、1：ready |
 | vgroup\_id     | VARCHAR   | TAG     | vgroup id                                      |
 | database\_name | VARCHAR   | TAG     | vgroup 所属的 database 名字                    |
 | cluster\_id    | VARCHAR   | TAG     | cluster id                                     |
@@ -1562,10 +1563,10 @@ taosd 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | io\_write\_disk   | DOUBLE    |         | 磁盘 io 吞吐率，从 `/proc/<taosd_pid>/io` 中读取的 write_bytes。单位 byte/s                       |
 | vnodes\_num       | DOUBLE    |         | dnode 上 vnodes 数量                                                                              |
 | masters           | DOUBLE    |         | dnode 上 master node 数量                                                                         |
-| has\_mnode        | DOUBLE    |         | dnode 是否包含 mnode，取值范围 包含=1,不包含=0                                                   |
-| has\_qnode        | DOUBLE    |         | dnode 是否包含 qnode，取值范围 包含=1,不包含=0                                                   |
-| has\_snode        | DOUBLE    |         | dnode 是否包含 snode，取值范围 包含=1,不包含=0                                                   |
-| has\_bnode        | DOUBLE    |         | dnode 是否包含 bnode，取值范围 包含=1,不包含=0                                                   |
+| has\_mnode        | DOUBLE    |         | dnode 是否包含 mnode，取值范围：1：包含、0：不包含                                                   |
+| has\_qnode        | DOUBLE    |         | dnode 是否包含 qnode，取值范围：1：包含、0：不包含                                                  |
+| has\_snode        | DOUBLE    |         | dnode 是否包含 snode，取值范围：1：包含、0：不包含                                              |
+| has\_bnode        | DOUBLE    |         | dnode 是否包含 bnode，取值范围：1：包含、0：不包含                                                    |
 | error\_log\_count | DOUBLE    |         | error 总数                                                                                        |
 | info\_log\_count  | DOUBLE    |         | info 总数                                                                                         |
 | debug\_log\_count | DOUBLE    |         | debug 总数                                                                                        |
@@ -1581,7 +1582,7 @@ taosd 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | field       | type      | is\_tag | comment                                  |
 | :---------- | :-------- | :------ | :--------------------------------------- |
 | \_ts        | TIMESTAMP |         | timestamp                                |
-| status      | DOUBLE    |         | dnode 状态,取值范围 ready=1，offline =0 |
+| status      | DOUBLE    |         | dnode 状态,取值范围 1：ready、0：offline |
 | dnode\_id   | VARCHAR   | TAG     | dnode id                                 |
 | dnode\_ep   | VARCHAR   | TAG     | dnode endpoint                           |
 | cluster\_id | VARCHAR   | TAG     | cluster id                               |
@@ -1624,7 +1625,7 @@ taosd 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | field       | type      | is\_tag | comment                                                                                                  |
 | :---------- | :-------- | :------ | :------------------------------------------------------------------------------------------------------- |
 | \_ts        | TIMESTAMP |         | timestamp                                                                                                |
-| role        | DOUBLE    |         | mnode 角色， 取值范围 offline = 0,follower = 100,candidate = 101,leader = 102,error = 103,learner = 104 |
+| role        | DOUBLE    |         | mnode 角色，取值范围 0：offline、100：follower、101：candidate、102：leader、103：error、104、learne |
 | mnode\_id   | VARCHAR   | TAG     | master node id                                                                                           |
 | mnode\_ep   | VARCHAR   | TAG     | master node endpoint                                                                                     |
 | cluster\_id | VARCHAR   | TAG     | cluster id                                                                                               |
@@ -1636,7 +1637,7 @@ taosd 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | field          | type      | is\_tag | comment                                                                                                 |
 | :------------- | :-------- | :------ | :------------------------------------------------------------------------------------------------------ |
 | \_ts           | TIMESTAMP |         | timestamp                                                                                               |
-| vnode\_role    | DOUBLE    |         | vnode 角色，取值范围 offline = 0,follower = 100,candidate = 101,leader = 102,error = 103,learner = 104 |
+| vnode\_role    | DOUBLE    |         | vnode 角色，取值范围 0：offline、100：follower、101：candidate、102：leader、103：error、104、learne |
 | vgroup\_id     | VARCHAR   | TAG     | dnode id                                                                                                |
 | dnode\_id      | VARCHAR   | TAG     | dnode id                                                                                                |
 | database\_name | VARCHAR   | TAG     | vgroup 所属的 database 名字                                                                             |
@@ -1650,9 +1651,9 @@ taosd 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | :---------- | :-------- | :------ | :--------------------------------------- |
 | \_ts        | TIMESTAMP |         | timestamp                                |
 | count       | DOUBLE    |         | sql 数量                                 |
-| result      | VARCHAR   | TAG     | sql的执行结果，取值范围 Success, Failed |
-| username    | VARCHAR   | TAG     | 执行sql的user name                       |
-| sql\_type   | VARCHAR   | TAG     | sql类型，取值范围 inserted_rows         |
+| result      | VARCHAR   | TAG     | sql 的执行结果，取值范围 Success、Failed |
+| username    | VARCHAR   | TAG     | 执行 sql 的 user name                       |
+| sql\_type   | VARCHAR   | TAG     | sql 类型，取值范围 inserted_rows         |
 | dnode\_id   | VARCHAR   | TAG     | dnode id                                 |
 | dnode\_ep   | VARCHAR   | TAG     | dnode endpoint                           |
 | vgroup\_id  | VARCHAR   | TAG     | dnode id                                 |
@@ -1666,9 +1667,9 @@ taosd 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | :---------- | :-------- | :------ | :---------------------------------------- |
 | \_ts        | TIMESTAMP |         | timestamp                                 |
 | count       | DOUBLE    |         | sql 数量                                  |
-| result      | VARCHAR   | TAG     | sql的执行结果，取值范围 Success, Failed  |
-| username    | VARCHAR   | TAG     | 执行sql的user name                        |
-| sql\_type   | VARCHAR   | TAG     | sql类型，取值范围 select, insert，delete |
+| result      | VARCHAR   | TAG     | sql 的执行结果，取值范围 Success、Failed  |
+| username    | VARCHAR   | TAG     | 执行 sql 的 user name                        |
+| sql\_type   | VARCHAR   | TAG     | sql 类型，取值范围 select、insert、delete |
 | cluster\_id | VARCHAR   | TAG     | cluster id                                |
 
 ### taos\_slow\_sql 表
@@ -1679,35 +1680,29 @@ taosd 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | :---------- | :-------- | :------ | :---------------------------------------------------- |
 | \_ts        | TIMESTAMP |         | timestamp                                             |
 | count       | DOUBLE    |         | sql 数量                                              |
-| result      | VARCHAR   | TAG     | sql的执行结果，取值范围 Success, Failed              |
-| username    | VARCHAR   | TAG     | 执行sql的user name                                    |
-| duration    | VARCHAR   | TAG     | sql执行耗时，取值范围 3-10s,10-100s,100-1000s,1000s- |
+| result      | VARCHAR   | TAG     | sql 的执行结果，取值范围 Success、Failed              |
+| username    | VARCHAR   | TAG     | 执行 sql 的 user name                                    |
+| duration    | VARCHAR   | TAG     | sql 执行耗时，取值范围 3-10s,10-100s,100-1000s,1000s- |
 | cluster\_id | VARCHAR   | TAG     | cluster id                                            |
 
-## 日志相关
+### taos\_slow\_sql\_detail 表
 
-TDengine 通过日志文件记录系统运行状态，帮助用户监控系统运行情况，排查问题，这里主要介绍 taosc 和 taosd 两个系统日志的相关说明。
+`taos_slow_sql_detail` 记录客户端慢查询详细信息。子表名规则为 `{user}_{db}_{ip}_clusterId_{cluster_id}`
 
-TDengine 的日志文件主要包括普通日志和慢日志两种类型。
-
-1. 普通日志行为说明
-    1. 同一台机器上可以起多个客户端进程，所以客户端日志命名方式为 taoslogX.Y，其中 X 为序号，为空或者 0 到 9，Y 为后缀 0 或者 1。
-    2. 同一台机器上只能有一个服务端进程。所以服务端日志命名方式为 taosdlog.Y，其中 Y 为后缀， 0 或者 1。
-
-       序号和后缀确定规则如下（假设日志路径为 /var/log/taos/）：
-        1. 确定序号：使用 10 个序号作为日志命名方式，/var/log/taos/taoslog0.Y  -  /var/log/taos/taoslog9.Y，依次检测每个序号是否使用，找到第一个没使用的序号作为该进程的日志文件使用的序号。 如果 10 个序号都被进程使用，不使用序号，即 /var/log/taos/taoslog.Y，进程都往相同的文件里写（序号为空）。
-        2. 确定后缀：0 或者 1。比如确定序号为 3，备选的日志文件名就为 /var/log/taos/taoslog3.0 /var/log/taos/taoslog3.1。如果两个文件都不存在用后缀 0，一个存在一个不存在，用存在的后缀。两个都存在，用修改时间最近的那个后缀。
-    3. 如果日志文件超过配置的条数 numOfLogLines，会切换后缀名，继续写日志，比如/var/log/taos/taoslog3.0 写够了，切换到 /var/log/taos/taoslog3.1 继续写日志。/var/log/taos/taoslog3.0  会添加时间戳后缀重命名并压缩存储（异步线程操作）。
-    4. 通过配置 logKeepDays 控制日志文件保存几天，几天之外的日志会被删除。比如配置为 1，则一天之前的日志会在新日志压缩存储时检测删除。不是自然天。
-
-系统除了记录普通日志以外，对于执行时间超过配置时间的 SQL 语句，会被记录到慢日志中。慢日志文件主要用于分析系统性能，排查性能问题。
-
-2. 慢日志行为说明
-    1. 慢日志一方面会记录到本地慢日志文件中，另一方面会通过 taosAdapter 发送到 taosKeeper 进行结构化存储（需打开 monitorr 开关）。
-    2. 慢日志文件存储规则为：
-        1. 慢日志文件一天一个，如果当天没有慢日志，没有当天的文件。
-        2. 文件名为 taosSlowLog.yyyy-mm-dd（taosSlowLog.2024-08-02），日志存储路径通过 logDir 配置。
-        3. 多个客户端的日志存储在相应日志路径下的同一个 taosSlowLog.yyyy.mm.dd 文件里。
-        4. 慢日志文件不自动删除，不压缩。
-        5. 使用和普通日志文件相同的三个参数 logDir,  minimalLogDirGB,  asyncLog。另外两个参数 numOfLogLines，logKeepDays 不适用于慢日志。
+| field          | type      | is\_tag | comment                                               |
+| :------------- | :-------- | :------ | :---------------------------------------------------- |
+| start\_ts      | TIMESTAMP |         | sql 开始执行的客户端时间，单位ms，主键                     |
+| request\_id    | UINT64_T  |         | sql 请求的 request id，为 hash 生产的随机值              |
+| query\_time    | INT32_T   |         | sql 执行耗时，单位ms                                   |
+| code           | INT32_T   |         | sql 执行返回码，0表示成功                               |
+| error\_info    | VARCHAR   |         | sql 执行失败时，记录的错误信息                           |
+| type           | INT8_T    |         | sql 语句的类型（1：查询，2：写入，4：其他）                  |
+| rows\_num      | INT64_T   |         | sql 执行结果的记录数目                                   |
+| sql            | VARCHAR   |         | sql 语句的字符串                                       |
+| process\_name  | VARCHAR   |         | 进程名称                                              |
+| process\_id    | VARCHAR   |         | 进程 id                                              |
+| db             | VARCHAR   | TAG     | 执行 sql 所属数据库                                    |
+| user           | VARCHAR   | TAG     | 执行 sql 语句的用户                                    |
+| ip             | VARCHAR   | TAG     | 记录执行 sql 语句的 client 的 ip 地址                   |
+| cluster\_id    | VARCHAR   | TAG     | cluster id                                           |
 
