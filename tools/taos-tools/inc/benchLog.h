@@ -17,6 +17,7 @@
 #define INC_BENCHLOG_H_
 
 #include <stdbool.h>
+#include <stdint.h>
 
 //
 // suport thread safe log module
