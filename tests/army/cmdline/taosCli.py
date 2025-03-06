@@ -96,6 +96,11 @@ class TDTestCase(TBase):
         # insert
         json = "cmdline/json/taosCli.json"
         db, stb, childCount, insertRows = self.insertBenchJson(json)
+        # set
+        self.db  = db
+        self.stb = stb
+        self.insert_rows      = insertRows
+        self.childtable_count = childCount
 
         # native restful websock test
         args = [
@@ -182,7 +187,7 @@ class TDTestCase(TBase):
         args = [
             [lname, "failed to create log at"],
             ['-uroot -w 40 -ptaosdata -c /root/taos/ -s"show databases"', queryOK],
-            ['-o "./current/log/files/" -s"show databases;"', queryOK],
+            ['-o "./current/log/files/" -h localhost -uroot -ptaosdata  -s"show databases;"', queryOK],
             ['-a ""', "Invalid auth"],
             ['-s "quit;"', "Welcome to the TDengine Command Line Interface"],
             ['-a "abc"', "[0x80000357]"],
@@ -193,7 +198,7 @@ class TDTestCase(TBase):
             ['-p"abc" -s "show dnodes;"', "[0x80000357]"],
             ['-d "abc" -s "show dnodes;"', "[0x80000388]"],
             ['-N 0 -s "show dnodes;"', "Invalid pktNum"],
-            ['-N 10 -s "show dnodes;"', queryOK],
+            ['-N 10 -h 127.0.0.1 -s "show dnodes;"', queryOK],
             ['-w 0 -s "show dnodes;"', "Invalid displayWidth"],
             ['-w 10 -s "show dnodes;"', queryOK],
             ['-W 10 -s "show dnodes;"', None],
@@ -207,10 +212,116 @@ class TDTestCase(TBase):
             ['-uroot -p < cmdline/data/pwd.txt -s "show dnodes;"', queryOK],
         ]
 
-        for arg in args:
-            rlist = self.taos(arg[0])
-            if arg[1] != None:
-                self.checkListString(rlist, arg[1])    
+        modes = ["-Z 0","-Z 1"]
+        for mode in modes:
+            for arg in args:
+                rlist = self.taos(mode + " " + arg[0])
+                if arg[1] != None:
+                    self.checkListString(rlist, arg[1])
+
+
+    # expect cmd > json > evn
+    def checkPriority(self):
+        #
+        #  cmd & env
+        #
+        
+        # env  6043 - invalid
+        os.environ['TDENGINE_CLOUD_DSN'] = "http://127.0.0.1:6043"
+        # cmd 6041 - valid
+        cmd = f"-X http://127.0.0.1:6041 -s 'select ts from test.meters'"
+        rlist = self.taos(cmd, checkRun = True)
+        results = [
+            "WebSocket Client Version",
+            "2022-10-01 00:01:39.000", 
+            "Query OK, 200 row(s) in set"
+        ]
+        self.checkManyString(rlist, results)
+
+        #
+        # env
+        #
+
+        # cloud
+        os.environ['TDENGINE_CLOUD_DSN'] = "http://127.0.0.1:6041"
+        cmd = f"-s 'select ts from test.meters'"
+        rlist = self.taos(cmd, checkRun = True)
+        self.checkManyString(rlist, results)
+        # local
+        os.environ['TDENGINE_CLOUD_DSN'] = ""
+        os.environ['TDENGINE_DSN']       = "http://127.0.0.1:6041"
+        cmd = f"-s 'select ts from test.meters'"
+        rlist = self.taos(cmd, checkRun = True)
+        self.checkManyString(rlist, results)
+        # local & cloud -> cloud first
+        os.environ['TDENGINE_CLOUD_DSN'] = "http://127.0.0.1:6041"  # valid
+        os.environ['TDENGINE_DSN']       = "http://127.0.0.1:6042"  # invalid
+        cmd = f"-s 'select ts from test.meters'"
+        rlist = self.taos(cmd, checkRun = True)
+        self.checkManyString(rlist, results)
+
+
+        #
+        # cmd
+        #
+
+        os.environ['TDENGINE_CLOUD_DSN'] = ""
+        os.environ['TDENGINE_DSN']       = ""
+        cmd = f"-X http://127.0.0.1:6041 -s 'select ts from test.meters'"
+        rlist = self.taos(cmd, checkRun = True)
+        self.checkManyString(rlist, results)
+
+
+    def checkExceptCmd(self):
+        # exe
+        taos = frame.etool.taosFile()
+        # option
+        options = [
+            "-Z native -X http://127.0.0.1:6041",
+            "-Z 100",
+            "-Z abcdefg",
+            "-X",
+            "-X  ",
+            "-X 127.0.0.1:6041",
+            "-X https://gw.cloud.taosdata.com?token617ffdf...",
+            "-Z 1 -X https://gw.cloud.taosdata.com?token=617ffdf...",
+            "-X http://127.0.0.1:6042"
+        ]
+
+        # do check
+        for option in options:
+            self.checkExcept(taos + " -s 'show dnodes;' " + option)
+    
+    def checkModeVersion(self):    
+        # results
+        results = [
+            "WebSocket Client Version",
+            "2022-10-01 00:01:39.000", 
+            "Query OK, 100 row(s) in set"
+        ]
+    
+        # default
+        cmd = f"-s 'select ts from test.d0'"
+        rlist = self.taos(cmd, checkRun = True)
+        self.checkManyString(rlist, results)
+        # websocket
+        cmd = f"-Z 1 -s 'select ts from test.d0'"
+        rlist = self.taos(cmd, checkRun = True)
+        self.checkManyString(rlist, results)        
+
+        # native
+        cmd = f"-Z 0 -s 'select ts from test.d0'"
+        results[0] = "Native Client Version"
+        rlist = self.taos(cmd, checkRun = True)
+        self.checkManyString(rlist, results)
+
+    def checkConnMode(self):
+        # priority
+        self.checkPriority()
+        # except
+        self.checkExceptCmd()
+        # mode version
+        self.checkModeVersion()
 
     # run
     def run(self):
@@ -233,6 +344,9 @@ class TDTestCase(TBase):
 
         # check data in/out
         self.checkDumpInOut()
+
+        # check conn mode
+        self.checkConnMode()
 
         tdLog.success(f"{__file__} successfully executed")
 

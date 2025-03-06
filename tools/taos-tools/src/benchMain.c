@@ -126,6 +126,15 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
+    // read evn
+    if (g_arguments->dsn == NULL) {
+        char * dsn = getenv("TDENGINE_CLOUD_DSN");
+        if (dsn != NULL && strlen(dsn) > 0) {
+            g_arguments->dsn = dsn;
+            infoPrint("Get dsn from getenv TDENGINE_CLOUD_DSN=%s\n", g_arguments->dsn);
+        } 
+    }
+    
     // read json config
     if (g_arguments->metaFile) {
         g_arguments->totalChildTables = 0;
@@ -136,15 +145,6 @@ int main(int argc, char* argv[]) {
         }
     } else {
         modifyArgument();
-    }
-
-    // read evn
-    if (g_arguments->dsn == NULL) {
-        char * dsn = getenv("TDENGINE_CLOUD_DSN");
-        if (dsn != NULL && strlen(dsn) > 0) {
-            g_arguments->dsn = dsn;
-            infoPrint("Get dsn from getenv TDENGINE_CLOUD_DSN=%s\n", g_arguments->dsn);
-        } 
     }
 
     // open result file

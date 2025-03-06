@@ -1509,46 +1509,56 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
     if (tools_cJSON_IsString(dsn) && strlen(dsn->valuestring) > 0) {
         if (g_arguments->dsn == NULL) {
             g_arguments->dsn = dsn->valuestring;
-            infoPrint("set websocket true from json->dsn=%s\n", g_arguments->dsn);    
+            infoPrint("read dsn from json. dsn=%s\n", g_arguments->dsn);
         }
     }    
 
+    // host
     tools_cJSON *host = tools_cJSON_GetObjectItem(json, "host");
     if (host && host->type == tools_cJSON_String && host->valuestring != NULL) {
-        if(g_arguments->host && strlen(g_arguments->host) > 0) {
-            warnPrint("command line already pass host is %s, json config host(%s) had been ignored.\n", g_arguments->host, host->valuestring);
-        } else {
+        if(g_arguments->host == NULL) {
             g_arguments->host = host->valuestring;
+            infoPrint("read host from json: %s .\n", g_arguments->host);
         }     
     }
 
+    // port
     tools_cJSON *port = tools_cJSON_GetObjectItem(json, "port");
     if (port && port->type == tools_cJSON_Number) {
-        if(g_arguments->port != DEFAULT_PORT) {
-            warnPrint("command line already pass port is %d, json config port(%d) had been ignored.\n", g_arguments->port, (uint16_t)port->valueint);
+        if (g_arguments->port_inputted) {
+            // command line input port first
+            warnPrint("command port: %d, json port ignored.\n", g_arguments->port);
         } else {
-            g_arguments->port = (uint16_t)port->valueint;
-            if(g_arguments->port != DEFAULT_PORT) {
-                infoPrint("json file config special port %d .\n", g_arguments->port);
-                g_arguments->port_inputted = true;
+            // default port set auto port
+            if (port->valueint != DEFAULT_PORT) {
+                g_arguments->port = (uint16_t)port->valueint;
+                infoPrint("read port form json: %d .\n", g_arguments->port);
+                g_arguments->port_inputted = true;    
             }
         }
     }
 
+    // user
     tools_cJSON *user = tools_cJSON_GetObjectItem(json, "user");
     if (user && user->type == tools_cJSON_String && user->valuestring != NULL) {
-        g_arguments->user = user->valuestring;
+        if (g_arguments->user == NULL) {
+            g_arguments->user = user->valuestring;
+            infoPrint("read user from json: %s .\n", g_arguments->user);
+        }
     }
 
+    // pass
     tools_cJSON *password = tools_cJSON_GetObjectItem(json, "password");
     if (password && password->type == tools_cJSON_String &&
         password->valuestring != NULL) {
-        g_arguments->password = password->valuestring;
+        if(g_arguments->password == NULL) {
+            g_arguments->password = password->valuestring;
+            infoPrint("read password from json: %s .\n", "******");
+        }        
     }
 
-    tools_cJSON *answerPrompt =
-        tools_cJSON_GetObjectItem(json,
-                                  "confirm_parameter_prompt");  // yes, no,
+    // yes, no
+    tools_cJSON *answerPrompt = tools_cJSON_GetObjectItem(json, "confirm_parameter_prompt");
     if (answerPrompt && answerPrompt->type == tools_cJSON_String
             && answerPrompt->valuestring != NULL) {
         if (0 == strcasecmp(answerPrompt->valuestring, "no")) {

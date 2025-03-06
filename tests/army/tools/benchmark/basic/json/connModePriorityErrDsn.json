@@ -1,11 +1,6 @@
 {
   "filetype": "insert",
   "dsn": "http://127.0.0.1:6042",
-  "cfgdir": "/etc/taos",
-  "host": "127.0.0.1",
-  "port": 6030,
-  "user": "root",
-  "password": "taosdata",
   "num_of_records_per_req": 3000,
   "thread_count": 2,
   "confirm_parameter_prompt": "no",

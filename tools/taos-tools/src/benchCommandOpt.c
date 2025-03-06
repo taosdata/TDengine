@@ -210,11 +210,11 @@ void initArgument() {
     g_arguments->test_mode = INSERT_TEST;
     g_arguments->demo_mode = true;
     g_arguments->host = NULL;
-    g_arguments->port = DEFAULT_PORT;
+    g_arguments->port = 0;
     g_arguments->port_inputted = false;
     g_arguments->telnet_tcp_port = TELNET_TCP_PORT;
-    g_arguments->user = TSDB_DEFAULT_USER;
-    g_arguments->password = TSDB_DEFAULT_PASS;
+    g_arguments->user     = NULL;
+    g_arguments->password = NULL;
     g_arguments->answer_yes = 0;
     g_arguments->debug_print = 0;
     g_arguments->binwidth = DEFAULT_BINWIDTH;

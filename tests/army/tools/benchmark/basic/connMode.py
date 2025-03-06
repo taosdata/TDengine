@@ -28,27 +28,27 @@ class TDTestCase(TBase):
         taosBenchmark public->connMode test cases
         """
 
-    # expect cmd > json > evn
+    # expect cmd > evn > json
     def checkPriority(self):
 
         #
         #  cmd & json
         #
         
-        # json 6042 - invalid
-        json = "tools/benchmark/basic/json/connModePriorityErr.json"
-        # cmd  6041 - valid
+        # cmd first 6041 - valid
         options = "-X http://127.0.0.1:6041"
+        # json 6042 - invalid
+        json = "tools/benchmark/basic/json/connModePriorityErrDsn.json"
         self.insertBenchJson(json, options, True)
 
         #
-        # json & env
+        #  env > json
         #
 
-        # env  6043 - invalid
-        os.environ['TDENGINE_CLOUD_DSN'] = "http://127.0.0.1:6043"
+        # env 6041 - valid
+        os.environ['TDENGINE_CLOUD_DSN'] = "http://127.0.0.1:6041"
         # json 6042 - invalid
-        json = "tools/benchmark/basic/json/connModePriority.json"
+        json = "tools/benchmark/basic/json/connModePriorityErrDsn.json"
         self.insertBenchJson(json, "", True)
 
 
@@ -56,12 +56,12 @@ class TDTestCase(TBase):
         # cmd & json & evn
         #
 
+        # cmd  6041 - valid
+        options = "-X http://127.0.0.1:6041"
         # env  6043 - invalid
         os.environ['TDENGINE_CLOUD_DSN'] = "http://127.0.0.1:6043"
         # json 6042 - invalid
-        json = "tools/benchmark/basic/json/connModePriorityErr.json"
-        # cmd  6041 - valid
-        options = "-X http://127.0.0.1:6041"
+        json = "tools/benchmark/basic/json/connModePriorityErrDsn.json"
         self.insertBenchJson(json, options, True)
 
         # clear env
@@ -108,10 +108,29 @@ class TDTestCase(TBase):
             self.checkExcept(bench + " -y " + option)
 
     def checkHostPort(self):
-        # host port
+        #
+        # ommand
+        # 
         self.benchmarkCmd("-h 127.0.0.1", 5, 100, 10, ["insert rows: 500"])
         self.benchmarkCmd("-h 127.0.0.1 -P 6041 -uroot -ptaosdata", 5, 100, 10, ["insert rows: 500"])
         self.benchmarkCmd("-Z 0 -h 127.0.0.1 -P 6030 -uroot -ptaosdata", 5, 100, 10, ["insert rows: 500"])
+
+        #
+        # command & json
+        #
+
+        # 6041 is default
+        options = "-h 127.0.0.1 -P 6041 -uroot -ptaosdata"
+        json = "tools/benchmark/basic/json/connModePriorityErrHost.json"
+        self.insertBenchJson(json, options, True)
+
+        # cmd port first json port
+        options = "-Z native -P 6030"
+        json = "tools/benchmark/basic/json/connModePriority.json"
+        self.insertBenchJson(json, options, True)
+        options = "-Z websocket -P 6041"
+        json = "tools/benchmark/basic/json/connModePriority.json"
+        self.insertBenchJson(json, options, True)
 
     def run(self):
         # init
@@ -121,17 +140,14 @@ class TDTestCase(TBase):
         # command line test
         self.checkCommandLine()
 
-        # host and port 
-        self.checkHostPort()
-
         # except
         self.checkExceptCmd()
 
         # cmd > json > env
         self.checkPriority()
 
-
-        
+        # host and port 
+        self.checkHostPort()
 
     def stop(self):
         tdSql.close()
