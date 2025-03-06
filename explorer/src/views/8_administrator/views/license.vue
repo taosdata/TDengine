@@ -1,6 +1,6 @@
 <template>
-  <div v-loading="loading" class="dnode-block">
-    <div class="flex-end">
+  <div v-loading="loading">
+    <div class="flex-end" style="margin-bottom: 10px">
       <el-button
         plain
         type="primary"
@@ -15,10 +15,8 @@
         $t('taosuser.activationLicense')
       }}</el-button>
     </div>
-    <p class="title">
-      <span>{{ $t('topic.basicDatabaseFeatures') }}</span>
-    </p>
-    <el-descriptions class="margin-top" title="" :column="3">
+    <title-bar :name="$t('topic.basicDatabaseFeatures')" />
+    <el-descriptions style="margin-bottom: 30px;" :column="3">
       <el-descriptions-item :label="$t('topic.clusterId')" :label-style="style">
         <span>{{ clusterId }}</span>
       </el-descriptions-item>
@@ -41,10 +39,8 @@
       </el-descriptions-item>
     </el-descriptions>
     <template v-if="!isLessThan3_2_3_0">
-      <p class="title">
-        <span>{{ $t('topic.advancedDatabaseFeatures') }}</span>
-      </p>
-      <el-table style="margin-top: 20px" :data="advancedTableData" size="small">
+      <title-bar :name="$t('topic.advancedDatabaseFeatures')" />
+      <el-table style="margin-bottom: 30px" :data="advancedTableData" size="small">
         <el-table-column :label="$t('topic.advancedFeatures')" prop="display_name"></el-table-column>
         <el-table-column :label="$t('topic.number')" prop="limits">
           <template #default="scope">
@@ -60,10 +56,8 @@
         </el-table-column>
       </el-table>
     </template>
-    <p v-if="getMetaShow('dataIn')" class="title">
-      <span>{{ $t('topic.connectors') }}</span>
-    </p>
-    <el-table v-if="getMetaShow('dataIn')" style="margin-top: 20px" :data="tableData" size="small">
+    <title-bar :name="$t('topic.connectors')" />
+    <el-table v-if="getMetaShow('dataIn')" :data="tableData" size="small">
       <el-table-column :label="$t('topic.type')" prop="type"></el-table-column>
       <el-table-column :label="$t('topic.tasks')" prop="number">
         <template #default="scope">
@@ -137,6 +131,7 @@ import { parsinginZone, getLocalLang, compareVersion } from '@/utils/index';
 import { FormRules, FormInstance } from 'element-plus';
 import useLicense from '@/hooks/useLicense';
 import { useStore } from 'vuex';
+import titleBar from './components/title-bar.vue';
 
 const globalCustomProperties: any = inject('globalCustomProperties');
 const { $IS_COMMUNITY, $INDUSTRY, $error } = globalCustomProperties;
@@ -351,10 +346,6 @@ getData();
 handlecActiveCodeShow();
 </script>
 <style lang="scss" scoped>
-.dnode-block {
-  margin-top: 10px;
-}
-
 :deep(.el-form-item__content) {
   display: flex;
 }
@@ -375,16 +366,6 @@ handlecActiveCodeShow();
 :deep(.el-form-item--default .el-form-item__label) {
   text-align: left;
   word-break: break-word;
-}
-
-.title {
-  padding: 8px 16px;
-  margin: 30px 0 10px;
-  font-size: 16px;
-  color: #333;
-  background-color: #ecf8ff;
-  border-left: 5px solid #50bfff;
-  border-radius: 4px;
 }
 
 .activate-title {

@@ -13,6 +13,7 @@ export default {
     adddnodes: "Add DNodes",
     addmnodes: "Add MNodes",
     addqnodes: "Add QNodes",
+    addanodes: "Add ANodes",
     endpointRequired: "Please input the endpoint.",
   },
 }

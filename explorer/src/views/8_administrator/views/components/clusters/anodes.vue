@@ -1,23 +1,14 @@
 <template>
-  <div class="mnode-block">
-    <title-bar :show-add="true" :name="$t('taoscluster.mnodes')" @add="openDialog(ruleFormRef)"></title-bar>
-    <el-table :data="mnodesList" size="small">
-      <el-table-column :label="$t('taoscluster.endpoint')" prop="endpoint" width="400"></el-table-column>
-      <el-table-column :label="$t('taoscluster.role')" prop="role"></el-table-column>
-      <!-- 占位 -->
-      <el-table-column />
+  <div class="node-block">
+    <title-bar :show-add="true" :name="'ANodes'" @add="openDialog(ruleFormRef)"></title-bar>
+    <el-table :data="nodesList" size="small">
+      <el-table-column :label="$t('taoscluster.endpoint')" prop="url"></el-table-column>
       <el-table-column :label="$t('taoscluster.status')" prop="status"></el-table-column>
       <el-table-column :label="$t('taoscluster.createtime')" prop="create_time" width="240"></el-table-column>
+
       <el-table-column :label="$t('taoscluster.action')" width="65">
         <template #default="scope">
-          <el-button
-            v-if="scope.row.role !== 'leader'"
-            plain
-            size="small"
-            icon="Delete"
-            :disabled="!isDisable"
-            @click="del(scope.row)"
-          ></el-button>
+          <el-button plain size="small" icon="Delete" :disabled="!isDisable" @click="del(scope.row)"></el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -35,7 +26,7 @@
     <el-dialog
       v-model="dialog"
       align="center"
-      :title="$t('taoscluster.addmnodes')"
+      :title="$t('taoscluster.addanodes')"
       width="600px"
       :destroy-on-close="true"
       :close-on-click-modal="false"
@@ -49,19 +40,19 @@
         label-width="auto"
         class="demo-ruleForm"
       >
-        <el-form-item label="DNodes" prop="DNodes">
-          <el-select v-model="ruleForm.DNodes" placeholder="" style="width: 100%">
-            <el-option v-for="item in dnodes" :key="item.id" :label="item.endpoint" :value="item.id"></el-option>
-          </el-select>
+        <el-form-item label="Endpoint" prop="endpoint" required>
+          <el-input v-model.trim="ruleForm.endpoint" @keyup.enter="addNodes(ruleFormRef)"></el-input>
         </el-form-item>
       </el-form>
 
       <el-row style="margin-top: 20px">
         <el-col :span="5" :offset="6">
-          <el-button class="w100" @click="dialog = false">{{ $t('cancel') }}</el-button>
+          <el-button class="w100" @click="dialog = false">
+            {{ $t('cancel') }}
+          </el-button>
         </el-col>
         <el-col :span="5" :push="4">
-          <el-button class="w100" type="primary" @click="addMnodes(ruleFormRef)">{{ $t('confirm') }}</el-button>
+          <el-button class="w100" type="primary" @click="addNodes(ruleFormRef)">{{ $t('confirm') }}</el-button>
         </el-col>
       </el-row>
     </el-dialog>
@@ -79,20 +70,12 @@ const { t } = useI18n();
 const globalCustomProperties: any = inject('globalCustomProperties');
 const { $error } = globalCustomProperties;
 
-defineProps({
-  dnodes: {
-    type: Array,
-    default: () => {
-      return [];
-    }
-  }
-});
-const mnodesList = ref([]);
+const nodesList = ref([]);
 
-async function getAllMnodes() {
+async function getAllNodes() {
   try {
-    return await sendSQLReq(`select * from information_schema.ins_mnodes;`).then((res: any) => {
-      mnodesList.value = res.data.map((data: { [x: string]: any }) => {
+    return await sendSQLReq(`select * from information_schema.ins_anodes;`).then((res: any) => {
+      nodesList.value = res.data.map((data: { [x: string]: any }) => {
         return Object.fromEntries(
           res.column_meta.map((item: any[], index: string | number) => {
             return [item[0], data[index]];
@@ -104,34 +87,31 @@ async function getAllMnodes() {
     console.log(error);
   }
 }
-
 function handlePageChange() {}
-function del(data: { endpoint: string; id: string | number }) {
+
+function del(data: { endpoint: string; id: number | string }) {
   ElMessageBox.confirm(t('isDel', [data.endpoint]), t('wraning'), {
     confirmButtonText: t('confirm'),
     cancelButtonText: t('cancel'),
     type: 'warning'
   }).then(() => {
-    sendSQLReq(`drop mnode on dnode ${data.id};`)
-      .then((res: { code: string | number }) => {
-        if (res.code == 0) {
-          ElMessage.success(t('delSucc'));
-          getAllMnodes();
-        }
-      })
-      .catch((err: any) => {
-        return Promise.reject(err);
-      });
+    sendSQLReq(`drop anode ${data.id};`).then((res: { code: number | string }) => {
+      if (res.code == 0) {
+        ElMessage.success(t('delSucc'));
+        getAllNodes();
+      }
+    });
   });
 }
-async function addMnodes(formEl: FormInstance | undefined) {
+async function addNodes(formEl: FormInstance | undefined) {
   if (!formEl) return;
   formEl.validate(async valid => {
     if (valid) {
+
       try {
-        return await sendSQLReq(`create mnode on dnode ${ruleForm.DNodes};`).then((res: { code: number | string }) => {
+        return await sendSQLReq(`create anode '${ruleForm.endpoint}';`).then((res: { code: number | string }) => {
           if (res.code == 0) {
-            getAllMnodes();
+            getAllNodes();
             dialog.value = false;
           }
         });
@@ -143,9 +123,18 @@ async function addMnodes(formEl: FormInstance | undefined) {
   });
 }
 
-getAllMnodes();
+getAllNodes();
 </script>
 <style lang="scss" scoped>
+:deep(.el-form-item__content) {
+  display: flex;
+}
+
+:deep(.el-select) {
+  flex: 1;
+  width: 100%;
+}
+
 .flex-between {
   position: absolute;
   top: 15px;
@@ -158,7 +147,7 @@ getAllMnodes();
   }
 }
 
-.mnode-block {
+.node-block {
   margin-bottom: 30px;
   overflow: auto;
 }
