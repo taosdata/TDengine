@@ -316,6 +316,9 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
         ENDIF ()
 
     ENDIF ()
+
+    target_link_libraries(taosBenchmark z)
+
 ELSE ()
     ADD_DEFINITIONS(-DWINDOWS)
     SET(CMAKE_C_STANDARD 11)
@@ -364,4 +367,3 @@ ELSE ()
     TARGET_LINK_LIBRARIES(taosBenchmark taos msvcregex pthread toolscJson ${WEBSOCKET_LINK_FLAGS})
 ENDIF ()
 
-target_link_libraries(taosBenchmark z)

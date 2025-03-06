@@ -16,7 +16,10 @@
 #ifndef INC_BENCHCSV_H_
 #define INC_BENCHCSV_H_
 
+#ifndef _WIN32
 #include <zlib.h>
+#endif
+
 #include "bench.h"
 
 
@@ -38,7 +41,9 @@ typedef struct {
     CsvCompressionLevel compress_level;
     CsvIoError result;
     union {
+#ifndef _WIN32
         gzFile  gf;
+#endif
         FILE*   fp;
     } handle;
 } CsvFileHandle;

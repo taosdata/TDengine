@@ -953,12 +953,15 @@ static CsvFileHandle* csvOpen(const char* filename, CsvCompressionLevel compress
     if (compress_level == CSV_COMPRESS_NONE) {
         fhdl->handle.fp = fopen(filename, "w");
         failed = (!fhdl->handle.fp);
-    } else {
+    }
+#ifndef _WIN32
+    else {
         char mode[TINY_BUFF_LEN];
         (void)snprintf(mode, sizeof(mode), "wb%d", compress_level);
         fhdl->handle.gf = gzopen(filename, mode);
         failed = (!fhdl->handle.gf);
     }
+#endif
 
     if (failed) {
         tmfree(fhdl);
@@ -986,7 +989,9 @@ static CsvIoError csvWrite(CsvFileHandle* fhdl, const char* buf, size_t size) {
             fhdl->result = CSV_ERR_WRITE_FAILED;
             return CSV_ERR_WRITE_FAILED;
         }
-    } else {
+    }
+#ifndef _WIN32
+    else {
         int ret = gzwrite(fhdl->handle.gf, buf, size);
         if (ret != size) {
             errorPrint("Failed to write csv file: %s. expected written %zu but %d.\n",
@@ -998,6 +1003,8 @@ static CsvIoError csvWrite(CsvFileHandle* fhdl, const char* buf, size_t size) {
             return CSV_ERR_WRITE_FAILED;
         }
     }
+#endif
+
     return CSV_ERR_OK;
 }
 
@@ -1012,12 +1019,16 @@ static void csvClose(CsvFileHandle* fhdl) {
             fclose(fhdl->handle.fp);
             fhdl->handle.fp = NULL;
         }
-    } else {
+    }
+#ifndef _WIN32
+    else {
         if (fhdl->handle.gf) {
             gzclose(fhdl->handle.gf);
             fhdl->handle.gf = NULL;
         }
     }
+#endif
+
     tmfree(fhdl);
 }
 
