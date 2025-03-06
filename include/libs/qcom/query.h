@@ -164,6 +164,29 @@ typedef struct SDBVgInfo {
   SArray*   vgArray;  // SVgroupInfo
 } SDBVgInfo;
 
+typedef struct SVGroupHashInfo {
+  int32_t  vgId;
+  uint32_t hashBegin;
+  uint32_t hashEnd;
+} SVGroupHashInfo;
+
+typedef struct SDBVgHashInfo {
+  int16_t   hashPrefix;
+  int16_t   hashSuffix;
+  int8_t    hashMethod;
+  bool      vgSorted;
+  SArray*   vgArray;   //SArray<SVGroupHashInfo>
+} SDBVgHashInfo;
+
+typedef struct SStreamVBuildCtx {
+  int64_t      lastUid;
+  SRefColInfo* lastCol;
+
+  SSHashObj*   lastVg;
+  SSHashObj*   lastVtable;
+  SArray*      lastOtable;
+} SStreamVBuildCtx;
+
 typedef struct SUseDbOutput {
   char       db[TSDB_DB_FNAME_LEN];
   uint64_t   dbId;
