@@ -33,14 +33,14 @@ target_link_libraries(
     PUBLIC uv_a
 )
 
-add_executable(udfd src/udfd.c)
+add_executable(taosudf src/udfd.c)
 
 if(${TD_DARWIN})
-    target_compile_options(udfd PRIVATE -Wno-error=deprecated-non-prototype)
+    target_compile_options(taosudf PRIVATE -Wno-error=deprecated-non-prototype)
 endif()
 
 target_include_directories(
-    udfd
+    taosudf
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/function"
     "${TD_SOURCE_DIR}/contrib/libuv/include"
@@ -52,7 +52,7 @@ target_include_directories(
 )
 
 target_link_libraries(
-    udfd
+    taosudf
     PUBLIC uv_a
     PRIVATE os util common nodes function
 )
