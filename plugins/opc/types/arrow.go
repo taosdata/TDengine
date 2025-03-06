@@ -199,6 +199,7 @@ func newArrowFields(dataType arrow.DataType) []arrow.Field {
 		{Name: "received", Type: &arrow.TimestampType{Unit: arrow.Millisecond}}, // client timestamp
 		{Name: "value", Type: dataType, Nullable: true},
 		{Name: "status", Type: arrow.PrimitiveTypes.Int64},
+		{Name: "request", Type: &arrow.TimestampType{Unit: arrow.Millisecond}},
 	}
 }
 
