@@ -48,7 +48,7 @@ impl Failed<()> {
     pub fn from_error(err: impl Display) -> Self {
         Self {
             code: Code::FAILED,
-            message: format!("{err}"),
+            message: format!("{err:#}"),
             data: (),
         }
     }
