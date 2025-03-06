@@ -53,7 +53,7 @@ class TDTestCase(TBase):
         return formatted_time
 
 
-    def calc_time_slice_partitions(self, total_start_ts, total_end_ts, ts_step, childs, ts_format, ts_interval):
+    def calc_time_slice_partitions(self, total_start_ts, total_end_ts, ts_step, ts_format, ts_interval):
         interval_days   = int(ts_interval[:-1])
         n_days_millis   = interval_days * 24 * 60 * 60 * 1000
 
@@ -81,8 +81,6 @@ class TDTestCase(TBase):
                     count = delta // ts_step + 1
                 else:
                     count = delta // ts_step
-
-                count *= childs
 
             partitions.append({ 
                 "start_ts": current_s,
@@ -142,7 +140,7 @@ class TDTestCase(TBase):
     def check_stb_correct(self, data, db, stb):
         filepath        = data["output_path"]
         stbName         = stb["name"]
-        childs          = stb["childtable_to"] - stb["childtable_from"]
+        child_count     = stb["childtable_to"] - stb["childtable_from"]
         insert_rows     = stb["insert_rows"]
         interlace_rows  = stb["interlace_rows"]
         csv_file_prefix = stb["csv_file_prefix"]
@@ -154,7 +152,7 @@ class TDTestCase(TBase):
         total_end_ts     = total_start_ts + ts_step * insert_rows
 
 
-        all_rows = childs * insert_rows
+        all_rows = child_count * insert_rows
         if interlace_rows > 0:
             # interlace
 
@@ -164,20 +162,35 @@ class TDTestCase(TBase):
                 self.check_stb_csv_correct(csv_file_name, all_rows, interlace_rows)
             else:
                 # time slice
-                partitions = self.calc_time_slice_partitions(total_start_ts, total_end_ts, ts_step, childs, csv_ts_format, csv_ts_interval)
+                partitions = self.calc_time_slice_partitions(total_start_ts, total_end_ts, ts_step, csv_ts_format, csv_ts_interval)
                 for part in partitions:
                     csv_file_name = f"{filepath}{csv_file_prefix}_{part['start_time']}_{part['end_time']}.csv"
-                    self.check_stb_csv_correct(csv_file_name, part['count'], interlace_rows)
+                    self.check_stb_csv_correct(csv_file_name, part['count'] * child_count, interlace_rows)
         else:
             # batch
-            interlace_rows = insert_rows
+            thread_count    = stb["thread_count"]
+            interlace_rows  = insert_rows
             if not csv_ts_format:
                 # normal
-                pass
+                for i in range(thread_count):
+                    csv_file_name = f"{filepath}{csv_file_prefix}_{i + 1}.csv"
+                    if i < child_count % thread_count:
+                        self.check_stb_csv_correct(csv_file_name, insert_rows * (child_count // thread_count + 1), interlace_rows)
+                    else:
+                        self.check_stb_csv_correct(csv_file_name, insert_rows * (child_count // thread_count), interlace_rows)
             else:
                 # time slice
-                pass
-    
+                for i in range(thread_count):
+                    partitions = self.calc_time_slice_partitions(total_start_ts, total_end_ts, ts_step, csv_ts_format, csv_ts_interval)
+                    for part in partitions:
+                        csv_file_name = f"{filepath}{csv_file_prefix}_{i + 1}_{part['start_time']}_{part['end_time']}.csv"
+                        if i < child_count % thread_count:
+                            slice_rows = part['count'] * (child_count // thread_count + 1)
+                        else:
+                            slice_rows = part['count'] * (child_count // thread_count)
+
+                        self.check_stb_csv_correct(csv_file_name, slice_rows, part['count'])
+
 
     # check result
     def check_result(self, jsonFile):
@@ -211,7 +224,7 @@ class TDTestCase(TBase):
         benchmark = etool.benchMarkFile()
 
         # do check interlace normal
-        json = "tools/benchmark/basic/json/csv-interlace-normal.json"
+        json = "tools/benchmark/basic/json/csv-export.json"
         self.check_export_csv(benchmark, json)
 
     def stop(self):
