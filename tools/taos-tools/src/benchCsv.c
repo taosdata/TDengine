@@ -371,7 +371,7 @@ int csvGenCreateDbSql(SDataBase* db, char* buf, int size) {
 
 
 static int csvExportCreateDbSql(CsvWriteMeta* write_meta, FILE* fp) {
-    char buf[LARGE_BUFF_LEN]    = {};
+    char buf[LARGE_BUFF_LEN]    = {0};
     int  ret    = 0;
     int  length = 0;
 
@@ -547,7 +547,7 @@ int csvGenCreateStbSql(SDataBase* db, SSuperTable* stb, char* buf, int size) {
 
 
 static int csvExportCreateStbSql(CsvWriteMeta* write_meta, FILE* fp) {
-    char buf[4096] = {};
+    char buf[4096] = {0};
     int  ret    = 0;
     int  length = 0;
 
@@ -572,7 +572,7 @@ static int csvExportCreateStbSql(CsvWriteMeta* write_meta, FILE* fp) {
 
 
 static int csvExportCreateSql(CsvWriteMeta* write_meta) {
-    char fullname[MAX_PATH_LEN] = {};
+    char fullname[MAX_PATH_LEN] = {0};
     int   ret       = 0;
     int   length    = 0;
     FILE* fp        = NULL;
@@ -1078,7 +1078,7 @@ static void* csvGenStbThread(void* arg) {
     uint64_t ctb_idx            = 0;
     int      ret                = 0;
     CsvFileHandle*    fhdl      = NULL;
-    char fullname[MAX_PATH_LEN] = {};
+    char fullname[MAX_PATH_LEN] = {0};
 
     uint64_t total_rows         = 0;
     uint64_t pre_total_rows     = 0;

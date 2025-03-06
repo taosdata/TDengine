@@ -1646,7 +1646,7 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
     }
 
     // output dir
-    tools_cJSON* opp = tools_cJSON_GetObjectItem(json, "output_path");
+    tools_cJSON* opp = tools_cJSON_GetObjectItem(json, "output_dir");
     if (opp && opp->type == tools_cJSON_String && opp->valuestring != NULL) {
         g_arguments->output_path = opp->valuestring;
     } else {

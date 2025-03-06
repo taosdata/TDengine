@@ -122,7 +122,7 @@ class TDTestCase(TBase):
                         if batch != interlace_rows:
                             tdLog.exit(f"interlace_rows invalid. tbName={name} actual={batch} expected={interlace_rows} i={count} csv_file_name={csv_file_name}")
                         batch = 1
-                        name  = row[tbname_idx]             
+                        name  = row[tbname_idx]
                 # count ++
                 count += 1
         # batch
@@ -136,9 +136,9 @@ class TDTestCase(TBase):
         tdLog.info(f"Check generate csv file successfully. csv_file_name={csv_file_name} count={count} interlace_rows={batch}")
 
 
-    # check correct    
+    # check correct
     def check_stb_correct(self, data, db, stb):
-        filepath        = data["output_path"]
+        filepath        = data["output_dir"]
         stbName         = stb["name"]
         child_count     = stb["childtable_to"] - stb["childtable_from"]
         insert_rows     = stb["insert_rows"]
