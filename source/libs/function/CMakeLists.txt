@@ -20,17 +20,6 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
-    MESSAGE(STATUS, "linux64 and jemalloc enable")
-    ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
-    SET(LINK_JEMALLOC "-L${CMAKE_BINARY_DIR}/build/lib -ljemalloc")
-ELSE()
-    MESSAGE(STATUS, "linux64 and jemalloc not enable")
-    SET(LINK_JEMALLOC "")
-ENDIF()
-
-MESSAGE(STATUS, ${LINK_JEMALLOC})
-
 target_link_libraries(
     function
     PRIVATE os
@@ -60,7 +49,7 @@ target_include_directories(
 target_link_libraries(
     runUdf
     PUBLIC uv_a
-    PRIVATE os util common nodes function ${LINK_JEMALLOC}
+    PRIVATE os util common nodes function
 )
 
 add_library(udf1 STATIC MODULE test/udf1.c)
@@ -75,8 +64,7 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-target_link_libraries(
-    udf1 PUBLIC os ${LINK_JEMALLOC})
+target_link_libraries(udf1 PUBLIC os)
 
 add_library(udf1_dup STATIC MODULE test/udf1_dup.c)
 target_include_directories(
@@ -90,8 +78,7 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-target_link_libraries(
-    udf1_dup PUBLIC os ${LINK_JEMALLOC})
+target_link_libraries(udf1_dup PUBLIC os)
 
 add_library(udf2 STATIC MODULE test/udf2.c)
 target_include_directories(
@@ -105,9 +92,7 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-target_link_libraries(
-    udf2 PUBLIC os ${LINK_JEMALLOC}
-)
+target_link_libraries(udf2 PUBLIC os)
 
 add_library(udf2_dup STATIC MODULE test/udf2_dup.c)
 target_include_directories(
@@ -121,9 +106,7 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-target_link_libraries(
-    udf2_dup PUBLIC os ${LINK_JEMALLOC}
-)
+target_link_libraries(udf2_dup PUBLIC os)
 
 set(TARGET_NAMES
     change_udf_normal
@@ -162,7 +145,7 @@ foreach(index RANGE 0 6)
     )
     target_compile_definitions(${target_name} PRIVATE ${compile_def})
     target_link_libraries(
-        ${target_name} PUBLIC os ${LINK_JEMALLOC}
+        ${target_name} PUBLIC os
     )
 endforeach()
 
@@ -188,5 +171,5 @@ target_include_directories(
 target_link_libraries(
     udfd
     PUBLIC uv_a
-    PRIVATE os util common nodes function ${LINK_JEMALLOC}
+    PRIVATE os util common nodes function
 )
