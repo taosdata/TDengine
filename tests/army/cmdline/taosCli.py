@@ -57,31 +57,30 @@ class TDTestCase(TBase):
     def checkResultWithMode(self, db, stb, arg):
         result = "Query OK, 10 row(s)"
         mode = arg[0]
-        rowh = arg[1]
-        rowv = arg[2]
-        idx  = arg[3]
-        idxv = arg[4]
 
         # use db
-        if mode != "-R":
-            rlist = self.taos(f'{mode} -s "show databases;use {db};show databases;" ')
-            self.checkListString(rlist, "Database changed")
+        rlist = self.taos(f'{mode} -s "show databases;use {db};show databases;" ')
+        self.checkListString(rlist, "Database changed")
 
         # hori
-        cmd = f'{mode} -s "select * from {db}.{stb} limit 10'
+        cmd = f'{mode} -s "select ts,ic from {db}.{stb} limit 10'
         rlist = self.taos(cmd + '"')
-        # line count
-        self.checkSame(len(rlist), rowh)
-        # last line
-        self.checkSame(rlist[idx][:len(result)], result)
+        results = [
+            "2022-10-01 00:00:09.000 |",
+            result
+        ]
+        self.checkManyString(rlist, results)
 
         # vec
         rlist = self.taos(cmd + '\G"')
-        # line count
-        self.checkSame(len(rlist), rowv)
-        self.checkSame(rlist[idxv], "*************************** 10.row ***************************")
-        # last line
-        self.checkSame(rlist[idx][:len(result)], result)
+        results = [
+            "ts: 2022-10-01 00:00:09.000",
+            "****** 10.row *******",
+            "2022-10-01 00:00:09.000 |",
+            result
+        ]
+        self.checkManyString(rlist, results)
+
 
         # -B have some problem need todo
         self.taos(f'{mode} -B -s "select * from {db}.{stb} where ts < 1"')
@@ -104,8 +103,8 @@ class TDTestCase(TBase):
 
         # native restful websock test
         args = [
-            ["",   18, 346, -2, 310], 
-            ["-T 40 -E http://localhost:6041", 21, 349, -3, 312]
+            ["-Z native"], 
+            ["-T 40 -E http://localhost:6041"]
         ]
         for arg in args:
             self.checkResultWithMode(db, stb, arg)

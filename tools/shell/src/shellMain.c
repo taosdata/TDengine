@@ -42,6 +42,12 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
 
 // init arguments
 void initArgument(SShellArgs *pArgs) {
+  pArgs->host     = NULL;
+  pArgs->port     = 0;
+  pArgs->user     = NULL;
+  pArgs->password = NULL;
+  pArgs->database = NULL;
+
   // conn mode
   pArgs->dsn      = NULL;
   pArgs->connMode = CONN_MODE_INVALID;

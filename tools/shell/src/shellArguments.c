@@ -342,11 +342,6 @@ static void shellInitArgs(int argc, char *argv[]) {
   pArgs->pktNum = SHELL_DEF_PKG_NUM;
   pArgs->displayWidth = SHELL_DEFAULT_MAX_BINARY_DISPLAY_WIDTH;
   pArgs->timeout = SHELL_WS_TIMEOUT;
-#ifdef WEBSOCKET
-  pArgs->is_native = true;  // todo simon -> false
-#else
-  pArgs->is_native = true;
-#endif
 
   shell.exit = false;
 }

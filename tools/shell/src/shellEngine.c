@@ -1351,7 +1351,7 @@ TAOS* createConnect(SShellArgs *pArgs) {
 
 int32_t shellExecute() {
   printf(shell.info.clientVersion, shell.info.cusName, 
-             shell.args.is_native ? "Native" : "WebSocket",
+             shell.args.connMode == CONN_MODE_NATIVE ? STR_NATIVE : STR_WEBSOCKET,
              TD_VER_NUMBER, shell.info.cusName);
   fflush(stdout);
 

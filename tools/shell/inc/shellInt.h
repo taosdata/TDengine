@@ -74,7 +74,6 @@ typedef struct {
   bool        is_dump_config;
   bool        is_check;
   bool        is_startup;
-  bool        is_native;
   bool        is_help;
   int32_t     port;
   int32_t     pktLen;
