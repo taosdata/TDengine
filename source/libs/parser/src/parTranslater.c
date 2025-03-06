@@ -8294,6 +8294,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->compactStartTime = pStmt->pOptions->compactStartTime;
   pReq->compactEndTime = pStmt->pOptions->compactEndTime;
   pReq->compactTimeOffset = pStmt->pOptions->compactTimeOffset;
+  pReq->flushInterval = pStmt->pOptions->flushInterval;
 
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
@@ -9178,6 +9179,7 @@ static int32_t buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStm
   pReq->compactStartTime = pStmt->pOptions->compactStartTime;
   pReq->compactEndTime = pStmt->pOptions->compactEndTime;
   pReq->compactTimeOffset = pStmt->pOptions->compactTimeOffset;
+  pReq->flushInterval = pStmt->pOptions->flushInterval;
   return code;
 }
 

@@ -94,6 +94,23 @@ static void *mndBuildTimerMsg(int32_t *pContLen) {
   return pReq;
 }
 
+static void *mndBuildTimerMsgWithArg(int32_t *pContLen, char *db) {
+  terrno = 0;
+  SMTimerReq timerReq = {0};
+  tstrncpy(timerReq.db, db, TSDB_DB_FNAME_LEN);
+
+  int32_t contLen = tSerializeSMTimerMsg(NULL, 0, &timerReq);
+  if (contLen <= 0) return NULL;
+  void *pReq = rpcMallocCont(contLen);
+  if (pReq == NULL) return NULL;
+
+  if (tSerializeSMTimerMsg(pReq, contLen, &timerReq) < 0) {
+    mError("failed to serialize timer msg since %s", terrstr());
+  }
+  *pContLen = contLen;
+  return pReq;
+}
+
 static void mndPullupTrans(SMnode *pMnode) {
   mTrace("pullup trans msg");
   int32_t contLen = 0;
@@ -125,7 +142,6 @@ static void mndPullupTtl(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TTL_TIMER, .pCont = pReq, .contLen = contLen};
-  // TODO check return value
   if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
     mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
   }
@@ -136,9 +152,20 @@ static void mndPullupTrimDb(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRIM_DB_TIMER, .pCont = pReq, .contLen = contLen};
-  // TODO check return value
   if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
     mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+  }
+}
+
+static void mndPullupCommitDb(SMnode *pMnode, char *db) {
+  mTrace("pullup commit db");
+  int32_t contLen = 0;
+  int32_t code = 0;
+  void   *pReq = mndBuildTimerMsgWithArg(&contLen, db);
+  mInfo("pull up commit db %s", db);
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_COMMIT_DB_TIMER, .pCont = pReq, .contLen = contLen};
+  if ((code = tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg)) < 0) {
+    mError("failed to put commit-db-timer into write-queue since %s, line:%d", tstrerror(code), __LINE__);
   }
 }
 
@@ -146,7 +173,6 @@ static void mndPullupS3MigrateDb(SMnode *pMnode) {
   mTrace("pullup trim");
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
-  // TODO check return value
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_S3MIGRATE_DB_TIMER, .pCont = pReq, .contLen = contLen};
   if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
     mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
@@ -381,6 +407,20 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
 
   if (sec % tsTrimVDbIntervalSec == 0) {
     mndPullupTrimDb(pMnode);
+  }
+
+  SDbObj *pDb = NULL;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  while ((pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb))) {
+    mDebug("db:%s, flush period:%d, sec:%" PRId64, pDb->name, pDb->cfg.flushInterval, sec);
+    if (pDb->cfg.flushInterval > 0) {
+      mDebug("db:%s, flush period:%d, sec:%" PRId64, pDb->name, pDb->cfg.flushInterval, sec);
+      if (sec % pDb->cfg.flushInterval == 0) {
+        mndPullupCommitDb(pMnode, pDb->name);
+      }
+    }
+    sdbRelease(pSdb, pDb);
   }
 
   if (tsS3MigrateEnabled && sec % tsS3MigrateIntervalSec == 0) {
@@ -897,7 +937,7 @@ _OVER:
       pMsg->msgType == TDMT_MND_COMPACT_TIMER || pMsg->msgType == TDMT_MND_NODECHECK_TIMER ||
       pMsg->msgType == TDMT_MND_GRANT_HB_TIMER || pMsg->msgType == TDMT_MND_STREAM_REQ_CHKPT ||
       pMsg->msgType == TDMT_MND_S3MIGRATE_DB_TIMER || pMsg->msgType == TDMT_MND_ARB_HEARTBEAT_TIMER ||
-      pMsg->msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER) {
+      pMsg->msgType == TDMT_MND_ARB_CHECK_SYNC_TIMER || pMsg->msgType == TDMT_MND_COMMIT_DB_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
            pMnode->stopped, state.restored, syncStr(state.state));
     TAOS_RETURN(code);
