@@ -206,6 +206,54 @@ static void insertOfp(void) {
   // start a transaction
   TXN *txn = NULL;
 
+  tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+
+  // generate value payload
+  // char val[((4083 - 4 - 3 - 2) + 1) * 100];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
+  char val[32605];
+  int  valLen = sizeof(val) / sizeof(val[0]);
+  generateBigVal(val, valLen);
+
+  // insert the generated big data
+  char const *key = "key123456789";
+  ret = tdbTbInsert(pDb, key, strlen(key) + 1, val, valLen, txn);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // commit current transaction
+  tdbCommit(pEnv, txn);
+  tdbPostCommit(pEnv, txn);
+
+  closePool(pPool);
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  tdbClose(pEnv);
+}
+
+static void insertMultipleOfp(void) {
+  int ret = 0;
+
+  // open Env
+  int const pageSize = 4096;
+  int const pageNum = 64;
+  TDB      *pEnv = openEnv("tdb", pageSize, pageNum);
+  GTEST_ASSERT_NE(pEnv, nullptr);
+
+  // open db
+  TTB          *pDb = NULL;
+  tdb_cmpr_fn_t compFunc = tKeyCmpr;
+  // ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // open the pool
+  SPoolMem *pPool = openPool();
+
+  // start a transaction
+  TXN *txn = NULL;
+
   tdbBegin(pEnv, &txn, poolMallocRestricted, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
 
   // generate value payload
@@ -241,13 +289,80 @@ static void insertOfp(void) {
 TEST(TdbPageFlushTest, TbRestoreTest) {
   clearDb("tdb");
 
-  insertOfp();
+  insertMultipleOfp();
+}
+
+// TEST(TdbPageFlushTest, DISABLED_TbRestoreTest2) {
+TEST(TdbPageFlushTest, TbRestoreTest2) {
+  clearDb("tdb");
+
+  int ret = 0;
+
+  // open Env
+  int const pageSize = 4096;
+  int const pageNum = 64;
+  TDB      *pEnv = openEnv("tdb", pageSize, pageNum);
+  GTEST_ASSERT_NE(pEnv, nullptr);
+
+  // open db
+  TTB          *pDb = NULL;
+  tdb_cmpr_fn_t compFunc = tKeyCmpr;
+  // ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // open the pool
+  SPoolMem *pPool = openPool();
+
+  // start a transaction
+  TXN *txn = NULL;
+
+  tdbBegin(pEnv, &txn, poolMallocRestricted, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+
+  // generate value payload
+  // char val[((4083 - 4 - 3 - 2) + 1) * 100];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
+  char val[32605];
+  int  valLen = sizeof(val) / sizeof(val[0]);
+  generateBigVal(val, valLen);
+
+  // insert the generated big data
+  // char const *key = "key1";
+  for (int i = 0; i < 1024 * 4; ++i) {
+    // char const *key = "key123456789";
+    char key[32] = {0};
+    sprintf(key, "key-%d", i);
+    ret = tdbTbInsert(pDb, key, strlen(key) + 1, val, valLen, txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  // commit current transaction
+  tdbCommit(pEnv, txn);
+  tdbPostCommit(pEnv, txn);
+  tdbBegin(pEnv, &txn, poolMallocRestricted, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+
+  for (int i = 1024 * 4; i < 1024 * 8; ++i) {
+    char key[32] = {0};
+    sprintf(key, "key-%d", i);
+    ret = tdbTbInsert(pDb, key, strlen(key) + 1, val, valLen, txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  tdbCommit(pEnv, txn);
+  tdbPostCommit(pEnv, txn);
+
+  closePool(pPool);
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  tdbClose(pEnv);
 
   // exit in the middle of page flushing
 }
 
-TEST(TdbPageFlushTest, DISABLED_TbRestoreTest2) {
-  // TEST(TdbPageFlushTest, TbRestoreTest2) {
+TEST(TdbPageFlushTest, DISABLED_TbRestoreTest3) {
+  // TEST(TdbPageFlushTest, TbRestoreTest3) {
   // open db
 
   // complete the inserting after journal restoring
