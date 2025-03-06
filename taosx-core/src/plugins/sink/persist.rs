@@ -79,6 +79,7 @@ impl PersistComponent {
     }
 }
 
+#[tracing::instrument(name = "persist_queue_rw_runners", skip_all)]
 pub async fn get_persist(
     task_id: i64,
     config: PersistConfig,

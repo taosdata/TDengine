@@ -4366,7 +4366,7 @@ pub async fn listen_tcp_socket_with_agent(
                         Ok(None) => break,
                         Ok(Some(Ok(Ok(_)))) => {},
                         Ok(Some(Ok(Err(e)))) => {
-                            tracing::warn!("persist task exit with error: {e}");
+                            tracing::warn!("persist task exit with error: {e:#}");
                         },
                         Ok(Some(Err(e))) => {
                             tracing::warn!("persist task exit paniced: {e}");
