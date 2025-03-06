@@ -93,14 +93,17 @@ taosBenchmark -f <json file>
 
 本节所列参数适用于所有功能模式。
 
-- **filetype**：功能分类，可选值为 `insert`、`query` 和 `subscribe`。分别对应插入、查询和订阅功能。每个配置文件中只能指定其中之一。
+- **filetype**：功能分类，可选值为 `insert`、`query`、`subscribe` 和 `csvfile`。分别对应插入、查询、订阅和生成csv文件功能。每个配置文件中只能指定其中之一。
+
 - **cfgdir**：TDengine 客户端配置文件所在的目录，默认路径是 /etc/taos 。
+
+- **output_dir**：指定输出文件的目录，当功能分类是 `csvfile` 时，指生成的 csv 文件的保存目录，默认值为 ./output/ 。
 
 - **host**：指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost 。
 
 - **port**：要连接的 TDengine 服务器的端口号，默认值为 6030 。
 
-- **user**：用于连接 TDengine 服务端的用户名，默认为 root 。
+- **user**：用于连接 TDengine 服务端的用户名，默认值为 root 。
 
 - **password**：用于连接 TDengine 服务端的密码，默认值为 taosdata。
 
@@ -184,10 +187,34 @@ taosBenchmark -f <json file>
 - **tags_file**：仅当 insert_mode 为 taosc，rest 的模式下生效。最终的 tag 的数值与 childtable_count 有关，如果 csv 文件内的 tag 数据行小于给定的子表数量，那么会循环读取 csv 文件数据直到生成 childtable_count 指定的子表数量；否则则只会读取 childtable_count 行 tag 数据。也即最终生成的子表数量为二者取小。
 
 - **primary_key**：指定超级表是否有复合主键，取值 1 和 0，复合主键列只能是超级表的第二列，指定生成复合主键后要确保第二列符合复合主键的数据类型，否则会报错。
+
 - **repeat_ts_min**：数值类型，复合主键开启情况下指定生成相同时间戳记录的最小个数，生成相同时间戳记录的个数是在范围[repeat_ts_min, repeat_ts_max] 内的随机值，最小值等于最大值时为固定个数。
+
 - **repeat_ts_max**：数值类型，复合主键开启情况下指定生成相同时间戳记录的最大个数。
+
 - **sqls**：字符串数组类型，指定超级表创建成功后要执行的 sql 数组，sql 中指定表名前面要带数据库名，否则会报未指定数据库错误。
 
+- **csv_file_prefix**：字符串类型，设置生成的 csv 文件名称的前缀，默认值为 data 。
+
+- **csv_ts_format**：字符串类型，设置生成的 csv 文件名称中时间字符串的格式，格式遵循 `strftime` 格式标准，如果没有设置表示不按照时间段切分文件。支持的模式有：
+  - %Y: 年份，四位数表示（例如：2025）
+  - %m: 月份，两位数表示（01到12）
+  - %d: 一个月中的日子，两位数表示（01到31）
+  - %H: 小时，24小时制，两位数表示（00到23）
+  - %M: 分钟，两位数表示（00到59）
+  - %S: 秒，两位数表示（00到59）
+
+- **csv_ts_interval**：字符串类型，设置生成的 csv 文件名称中时间段间隔，支持天、小时、分钟、秒级间隔，如 1d/2h/30m/40s，默认值为 1d 。
+
+- **csv_output_header**：字符串类型，设置生成的 csv 文件是否包含列头描述，默认值为 true 。
+
+- **csv_tbname_alias**：字符串类型，设置 csv 文件列头描述中 tbname 字段的别名，默认值为 device_id 。
+
+- **csv_compress_level**：字符串类型，设置生成 csv 并自动压缩成 gzip 格式文件的压缩等级。可选值为：
+  - none：不压缩
+  - fast：gzip 1级压缩
+  - balance：gzip 6级压缩
+  - best：gzip 9级压缩
 
 #### 标签列与数据列
 
