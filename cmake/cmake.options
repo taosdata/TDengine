@@ -153,6 +153,12 @@ option(
 
 ENDIF ()
 
+option(
+    BUILD_WITH_UDF
+    "If build with UDF"
+    ON
+)
+
 ADD_DEFINITIONS(-DUSE_AUDIT)
 ADD_DEFINITIONS(-DUSE_GEOS)
 ADD_DEFINITIONS(-DUSE_UDF)

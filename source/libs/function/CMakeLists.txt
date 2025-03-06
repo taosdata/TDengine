@@ -40,7 +40,8 @@ target_link_libraries(
     PRIVATE transport
     PUBLIC uv_a
 )
-
+if(${BUILD_WITH_UDF})
+if(${BUILD_TEST})
 add_executable(runUdf test/runUdf.c)
 target_include_directories(
     runUdf
@@ -185,6 +186,7 @@ foreach(index RANGE 0 6)
         ${target_name} PUBLIC os ${LINK_JEMALLOC}
     )
 endforeach()
+endif(${BUILD_TEST})
 
 # SET(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/build/bin)
 add_executable(udfd src/udfd.c)
@@ -214,3 +216,4 @@ target_link_libraries(
     PUBLIC uv_a
     PRIVATE os util common nodes function ${LINK_JEMALLOC}
 )
+endif(${BUILD_WITH_UDF})
