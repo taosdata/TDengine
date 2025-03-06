@@ -882,10 +882,33 @@ if not is_dir explorer/dist/
 end
 """
 
-[tasks.test]
+[tasks.test-without-explorer]
 dependencies = ["install-llvm-cov", "install-nextest", "assert-explorer-dist"]
 command = "cargo"
-args = ["llvm-cov", "nextest", "--workspace", "--no-fail-fast", "--html"]
+args = [
+  "llvm-cov",
+  "nextest",
+  "--workspace",
+  "--no-fail-fast",
+  "--html",
+  "--exclude",
+  "taos-explorer",
+]
+
+[tasks.test-explorer]
+dependencies = ["install-llvm-cov", "install-nextest", "assert-explorer-dist"]
+command = "cargo"
+args = [
+  "llvm-cov",
+  "nextest",
+  "-p",
+  "taos-explorer",
+  "--no-fail-fast",
+  "--html",
+]
+
+[tasks.test]
+dependencies = ["test-without-explorer", "test-explorer"]
 
 [tasks.install-locally]
 dependencies = ["install-plugins", "install-agent"]
