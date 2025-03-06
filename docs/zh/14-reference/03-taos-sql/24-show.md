@@ -128,10 +128,10 @@ SHOW INDEXES FROM [db_name.]tbl_name;
 ## SHOW LOCAL VARIABLES
 
 ```sql
-SHOW LOCAL VARIABLES;
+SHOW LOCAL VARIABLES [like pattern];
 ```
 
-显示当前客户端配置参数的运行值。
+显示当前客户端配置参数的运行值，可使用 like pattern 根据 name 进行过滤。
 
 ## SHOW MNODES
 
@@ -322,11 +322,12 @@ SHOW USERS;
 ## SHOW CLUSTER VARIABLES(3.0.1.6 之前为 SHOW VARIABLES)
 
 ```sql
-SHOW CLUSTER VARIABLES;
-SHOW DNODE dnode_id VARIABLES;
+SHOW CLUSTER VARIABLES [like pattern];;
+SHOW DNODE dnode_id VARIABLES [like pattern];;
 ```
 
 显示当前系统中各节点需要相同的配置参数的运行值，也可以指定 DNODE 来查看其的配置参数。
+可使用 like pattern 根据 name 进行过滤。
 
 ## SHOW VGROUPS
 
