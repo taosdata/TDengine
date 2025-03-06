@@ -13,6 +13,20 @@ settings:
         logDir: /var/log/taos
         debugFlag: 135
         supportVnodes: 1000
+- name: taosd
+  fqdn: [localhost]
+  spec:
+    version: 2.4.0.0
+    config:
+      firstEP: localhost:6031
+    dnodes:
+    - endpoint: localhost:6031
+      config_dir: /etc/taos1
+      config:
+        dataDir: /var/lib/taos1
+        logDir: /var/log/taos1
+        debugFlag: 135
+        supportVnodes: 1000
 - name: taopy
   fqdn: [localhost]
   spec:
