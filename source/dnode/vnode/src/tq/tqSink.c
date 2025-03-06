@@ -1428,6 +1428,7 @@ int32_t handleResultBlockMsg(SStreamTask* pTask, SSDataBlock* pDataBlock, int32_
   code = setDstTableDataUid(pVnode, pTask, pDataBlock, stbFullName, &tbData);
   if (code != TSDB_CODE_SUCCESS) {
     tqError("vgId:%d s-task:%s dst-table not exist, stb:%s discard stream results", vgId, id, stbFullName);
+    tDestroySubmitReq(&submitReq, TSDB_MSG_FLG_ENCODE);
     return code;
   }
 
@@ -1439,12 +1440,14 @@ int32_t handleResultBlockMsg(SStreamTask* pTask, SSDataBlock* pDataBlock, int32_
       tbData.pCreateTbReq = NULL;
     }
 
+    tDestroySubmitReq(&submitReq, TSDB_MSG_FLG_ENCODE);
     return code;
   }
 
   void* p = taosArrayPush(submitReq.aSubmitTbData, &tbData);
   if (p == NULL) {
     tqDebug("vgId:%d, s-task:%s failed to build submit msg, code:%s, data lost", vgId, id, tstrerror(terrno));
+    tDestroySubmitReq(&submitReq, TSDB_MSG_FLG_ENCODE);
     return terrno;
   }
 

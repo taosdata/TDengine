@@ -1476,6 +1476,9 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->syncAppliedIndex));
     TAOS_CHECK_EXIT(tEncodeI64(&encoder, pload->syncCommitIndex));
   }
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->timestamp));
+
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->timestamp));
 
   tEndEncode(&encoder);
 
@@ -1612,6 +1615,10 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pLoad->syncAppliedIndex));
       TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pLoad->syncCommitIndex));
     }
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->timestamp));
   }
 
   tEndDecode(&decoder);
@@ -6286,6 +6293,7 @@ int32_t tSerializeSTableInfoReq(void *buf, int32_t bufLen, STableInfoReq *pReq) 
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->dbFName));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->tbName));
   TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->option));
+  TAOS_CHECK_EXIT(tEncodeU8(&encoder, pReq->autoCreateCtb));
   tEndEncode(&encoder);
 
 _exit:
@@ -6324,6 +6332,11 @@ int32_t tDeserializeSTableInfoReq(void *buf, int32_t bufLen, STableInfoReq *pReq
     TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pReq->option));
   } else {
     pReq->option = 0;
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeU8(&decoder, &pReq->autoCreateCtb));
+  } else {
+    pReq->autoCreateCtb = 0;
   }
 
   tEndDecode(&decoder);
@@ -11940,7 +11953,11 @@ int32_t tEncodeSubmitReq(SEncoder *pCoder, const SSubmitReq2 *pReq) {
     }
   } else{
     for (uint64_t i = 0; i < taosArrayGetSize(pReq->aSubmitTbData); i++) {
-      TAOS_CHECK_EXIT(tEncodeSSubmitTbData(pCoder, taosArrayGet(pReq->aSubmitTbData, i)));
+      SSubmitTbData *pSubmitTbData = taosArrayGet(pReq->aSubmitTbData, i);
+      if ((pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) && pSubmitTbData->pCreateTbReq == NULL) {
+        pSubmitTbData->flags = 0;
+      }
+      TAOS_CHECK_EXIT(tEncodeSSubmitTbData(pCoder, pSubmitTbData));
     }
   }
 

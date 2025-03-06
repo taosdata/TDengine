@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 TDengine 是一个高性能、分布式的时序数据库。通过集成的缓存、数据订阅、流计算和数据清洗与转换等功能，TDengine 已经发展成为一个专为物联网、工业互联网、金融和 IT 运维等关键行业量身定制的时序大数据平台。该平台能够高效地汇聚、存储、分析、计算和分发来自海量数据采集点的大规模数据流，每日处理能力可达 TB 乃至 PB 级别。借助 TDengine，企业可以实现实时的业务监控和预警，进而发掘出有价值的商业洞察。
 
-自 2019 年 7 月 以来， 涛思数据陆续将 TDengine 的不同版本开源，包括单机版（2019 年 7 月）、集群版（2020 年 8 月）以及云原生版（2022 年 8 月）。开源之后，TDengine 迅速获得了全球开发者的关注，多次在 GitHub 网站全球趋势排行榜上位居榜首，最新的关注热度见[涛思数据首页](https://www.taosdata.com/)。
+自 2019 年 7 月 以来， 涛思数据陆续将 TDengine 的不同版本开源，包括单机版（2019 年 7 月）、集群版（2020 年 8 月）以及云原生版（2022 年 8 月）。开源之后，TDengine 迅速获得了全球开发者的关注，多次在 GitHub 网站全球趋势排行榜上位居榜首，最新的关注热度见 [涛思数据首页](https://www.taosdata.com/)。
 
 ## TDengine 产品
 
@@ -16,7 +16,7 @@ TDengine OSS 是一个开源的高性能时序数据库，与其他时序数据�
 
 在 TDengine OSS 的基础上，TDengine Enterprise 提供了增强的辅助功能，包括数据的备份恢复、异地容灾、多级存储、视图、权限控制、安全加密、IP 白名单、支持 MQTT、OPC-UA、OPC-DA、PI、Wonderware、Kafka 等各种数据源。这些功能为企业提供了更为全面、安全、可靠和高效的时序数据管理解决方案。更多的细节请看 [TDengine Enterprise](https://www.taosdata.com/tdengine-pro)。
 
-此外，TDengine Cloud 作为一种全托管的云服务，存储与计算分离，分开计费，为企业提供了企业级的工具和服务，彻底解决了运维难题，尤其适合中小规模的用户使用。更多的细节请看[TDengine 云服务](https://cloud.taosdata.com/?utm_source=menu&utm_medium=webcn)
+此外，TDengine Cloud 作为一种全托管的云服务，存储与计算分离，分开计费，为企业提供了企业级的工具和服务，彻底解决了运维难题，尤其适合中小规模的用户使用。更多的细节请看 [TDengine 云服务](https://cloud.taosdata.com/?utm_source=menu&utm_medium=webcn)。
 
 ## TDengine 主要功能与特性
 

@@ -349,7 +349,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       if (code) {
         pTaskInfo->code = code;
         tableListDestroy(pTableListInfo);
-        qError("failed to createScanTableListInfo, code: %s", tstrerror(code));
+        qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
         return code;
       }
 
@@ -387,7 +387,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         if (code) {
           pTaskInfo->code = code;
           tableListDestroy(pTableListInfo);
-          qError("failed to createScanTableListInfo, code: %s", tstrerror(code));
+          qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
           return code;
         }
       }
@@ -417,7 +417,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
                                        pTagIndexCond, pTaskInfo);
         if (code != TSDB_CODE_SUCCESS) {
           pTaskInfo->code = code;
-          qError("failed to getTableList, code: %s", tstrerror(code));
+          qError("failed to getTableList, code:%s", tstrerror(code));
           tableListDestroy(pTableListInfo);
           return code;
         }
