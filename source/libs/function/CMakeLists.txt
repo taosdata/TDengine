@@ -58,6 +58,5 @@ target_link_libraries(
 )
 
 if(${BUILD_TEST})
-    MESSAGE(STATUS, " FUNCTION BUILD TEST")
     add_subdirectory(test)
 endif()
