@@ -45,7 +45,6 @@ void initArgument(SShellArgs *pArgs) {
   pArgs->host     = NULL;
   pArgs->port     = 0;
   pArgs->user     = NULL;
-  pArgs->password = NULL;
   pArgs->database = NULL;
 
   // conn mode
