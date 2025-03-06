@@ -162,10 +162,10 @@ make
 可以使用Jemalloc作为内存分配器，而不是使用glibc:
 
 ```bash
-cmake .. -DJEMALLOC_ENABLED=true
+cmake .. -DJEMALLOC_ENABLED=ON
 ```
-TDengine构建脚本可以自动检测x86、x86-64、arm64平台上主机的体系结构。
-您也可以通过CPUTYPE选项手动指定架构:
+TDengine构建脚本可以自动检测 x86、x86-64、arm64 平台上主机的体系结构。
+您也可以通过 CPUTYPE 选项手动指定架构:
 
 ```bash
 cmake .. -DCPUTYPE=aarch64 && cmake --build .
