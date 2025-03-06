@@ -1362,6 +1362,10 @@ void streamMetaUpdateStageRole(SStreamMeta* pMeta, int64_t stage, bool isLeader)
   }
 
   pMeta->role = (isLeader) ? NODE_ROLE_LEADER : NODE_ROLE_FOLLOWER;
+  if (!isLeader) {
+    streamMetaResetStartInfo(&pMeta->startInfo, pMeta->vgId);
+  }
+
   streamMetaWUnLock(pMeta);
 
   if (isLeader) {
