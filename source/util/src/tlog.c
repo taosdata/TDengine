@@ -1357,7 +1357,10 @@ static void checkWriteCrashLogToFileInNewThead() {
     }
     taosLogCrashInfo(gCrashBasicInfo.nodeType, pMsg, msgLen, gCrashBasicInfo.signum, gCrashBasicInfo.sigInfo);
     setCrashWriterStatus(CRASH_LOG_WRITER_INIT);
-    tsem_post(&gCrashBasicInfo.sem);
+    int32_t code = tsem_post(&gCrashBasicInfo.sem);
+    if (code != 0 ) {
+      uError("failed to post sem for crashBasicInfo, code:%d", code);
+    }
   }
 }
 
@@ -1386,7 +1389,10 @@ void writeCrashLogToFile(int signum, void *sigInfo, char *nodeType, int64_t clus
     gCrashBasicInfo.nodeType = nodeType;
     gCrashBasicInfo.signum = signum;
     gCrashBasicInfo.sigInfo = sigInfo;
-    tsem_wait(&gCrashBasicInfo.sem);
+    int32_t code = tsem_wait(&gCrashBasicInfo.sem);
+    if (code != 0 ) {
+      uError("failed to wait sem for crashBasicInfo, code:%d", code);
+    }
   }
 }
 

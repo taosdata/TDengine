@@ -665,7 +665,9 @@ void taosCloseDll(void* handle) {
 #if defined(WINDOWS)
   FreeLibrary((HMODULE)handle);
 #else
-  dlclose(handle);
+  if (dlclose(handle) != 0 && errno != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+  }
 #endif
 }
 
