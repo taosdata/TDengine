@@ -10503,9 +10503,17 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   createReq.superUser = 0;
   createReq.sysInfo = pStmt->sysinfo;
   createReq.enable = 1;
-  tstrncpy(createReq.pass, pStmt->password, TSDB_USET_PASSWORD_LEN);
   createReq.isImport = pStmt->isImport;
   createReq.createDb = pStmt->createDb;
+
+  if(pStmt->isImport == 1){
+    tstrncpy(createReq.pass, pStmt->password, TSDB_USET_PASSWORD_LEN);
+  }
+  else{
+    taosEncryptPass_c((uint8_t*)pStmt->password, strlen(pStmt->password), createReq.pass);
+     
+  }
+  createReq.passIsMd5 = 1;   
 
   createReq.numIpRanges = pStmt->numIpRanges;
   if (pStmt->numIpRanges > 0) {
@@ -10548,7 +10556,13 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   alterReq.enable = pStmt->enable;
   alterReq.sysInfo = pStmt->sysinfo;
   alterReq.createdb = pStmt->createdb ? 1 : 0;
-  snprintf(alterReq.pass, sizeof(alterReq.pass), "%s", pStmt->password);
+
+  int32_t len = strlen(pStmt->password);
+  if (len > 0) {
+    taosEncryptPass_c((uint8_t*)pStmt->password, len, alterReq.pass);
+    alterReq.passIsMd5 = 1;
+  }
+
   if (NULL != pCxt->pParseCxt->db) {
     snprintf(alterReq.objname, sizeof(alterReq.objname), "%s", pCxt->pParseCxt->db);
   }

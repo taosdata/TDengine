@@ -48,6 +48,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_demo
     PUBLIC ${TAOS_NATIVE_LIB}
@@ -55,6 +56,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_sim
     PUBLIC ${TAOS_NATIVE_LIB}
@@ -62,6 +64,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_ts5466
     PUBLIC ${TAOS_NATIVE_LIB}
@@ -69,6 +72,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_td32187
     PUBLIC ${TAOS_NATIVE_LIB}
@@ -76,6 +80,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_td32471
     PUBLIC ${TAOS_LIB}
@@ -83,6 +88,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_td33798
     PUBLIC ${TAOS_LIB}
@@ -90,6 +96,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_poll_test
     PUBLIC ${TAOS_LIB}
@@ -104,6 +111,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_ts5776
     PUBLIC ${TAOS_LIB}
@@ -111,6 +119,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_taosx_ci
     PUBLIC ${TAOS_NATIVE_LIB}
@@ -118,6 +127,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_offset_test
     PUBLIC ${TAOS_NATIVE_LIB}
