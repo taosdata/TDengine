@@ -348,42 +348,62 @@ where
 /// OPC UA: <table_prefix>_{ns}_{id}_<table_suffix>
 /// OPC DA: <table_prefix>_{tag_name/TagName}_<table_suffix>
 fn generate_tbname_from_pattern(ty: &str, tb_name: &str, point_id: &str) -> String {
-    let tbname = if ty == "opcua" {
-        // ns=13;i=1003
-        // ns=6;s=Scalar_Instructions
-        // ns=6;g=00000000-0000-0000-0000-000000009204
-        // ns=6;b=CQIABQ==
-
-        if let Some((ns, id)) = point_id.split_once(";") {
-            let ns = if ns.contains("ns=") {
-                let (_, ns) = ns.split_once("=").unwrap();
-                ns
+    let tbname = match ty {
+        "opcua" => {
+            // ns=13;i=1003
+            // ns=6;s=Scalar_Instructions
+            // ns=6;g=00000000-0000-0000-0000-000000009204
+            // ns=6;b=CQIABQ==
+            if let Some((ns, id)) = point_id.split_once(";") {
+                let ns = if ns.contains("ns=") {
+                    let (_, ns) = ns.split_once("=").unwrap();
+                    ns
+                } else {
+                    ns
+                };
+                let id = if let Some((_, id)) = id.split_once('=') {
+                    id
+                } else {
+                    id
+                };
+                assert!(!id.is_empty(), "id should not be empty: {}", point_id);
+                tb_name.replace("{ns}", ns).replace("{id}", id)
             } else {
-                ns
-            };
-            let id = if let Some((_, id)) = id.split_once('=') {
-                id
-            } else {
-                id
-            };
-            assert!(!id.is_empty(), "id should not be empty: {}", point_id);
-            tb_name.replace("{ns}", ns).replace("{id}", id)
-        } else {
-            assert!(!point_id.is_empty(), "id should not be empty: {}", point_id);
-            tb_name.replace("{ns}", "0").replace("{id}", point_id)
+                assert!(!point_id.is_empty(), "id should not be empty: {}", point_id);
+                tb_name.replace("{ns}", "0").replace("{id}", point_id)
+            }
         }
-    } else {
-        let tag_index = point_id.rfind(".");
-        let tag_name = if let Some(index) = tag_index {
-            // should be Device.DeviceType.TagName pattern
-            &point_id[index + 1..]
-        } else {
-            point_id
-        };
-        let tb_name = tb_name.replace("{TagName}", tag_name);
-
-        tb_name.replace("{tag_name}", tag_name)
+        "opcda" => {
+            if tb_name.contains("{TagName}") || tb_name.contains("{tag_name}") {
+                let tag_index = point_id.rfind(".");
+                let tag_name = if let Some(index) = tag_index {
+                    // should be Device.DeviceType.TagName pattern
+                    &point_id[index + 1..]
+                } else {
+                    point_id
+                };
+                let tb_name = tb_name.replace("{TagName}", tag_name);
+                tb_name.replace("{tag_name}", tag_name)
+            } else if tb_name.contains("{/tag_name}") {
+                let tag_index = point_id.rfind("/");
+                let tag_name = if let Some(index) = tag_index {
+                    // should be Device/DeviceType/TagName pattern
+                    &point_id[index + 1..]
+                } else {
+                    point_id
+                };
+                tb_name.replace("{/tag_name}", tag_name)
+            } else if tb_name.contains("{id}") {
+                tb_name.replace("{id}", point_id)
+            } else if tb_name.contains("{_id}") {
+                tb_name.replace("{_id}", &point_id.replace("/", "_"))
+            } else {
+                tb_name.to_string()
+            }
+        }
+        _ => tb_name.to_string(),
     };
+
     tbname.replace(".", "_").replace("`", "_")
 }
 
@@ -857,25 +877,74 @@ mod tests {
     }
 
     #[test]
-    fn test_tbname_pattern() {
-        let cases = [
-            ("{ns}_{id}", "ns=13;i=10003", "13_10003"),
-            ("{ns}_{id}", "ns=13;b=GCC", "13_GCC"),
-            (
-                "{ns}_{id}",
-                "ns=13;g=00000000-0000-0000-0000-000000009204",
-                "13_00000000-0000-0000-0000-000000009204",
+    fn test_generate_tbname_from_pattern() {
+        // OPC UA
+        assert_eq!(
+            generate_tbname_from_pattern("opcua", "t_{ns}_{id}", "ns=13;i=10003"),
+            "t_13_10003"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcua", "t_{ns}_{id}", "ns=13;b=GCC"),
+            "t_13_GCC"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern(
+                "opcua",
+                "t_{ns}_{id}",
+                "ns=13;g=00000000-0000-0000-0000-000000009204"
             ),
-            (
-                "{ns}_{id}",
-                r#"ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]}"#,
-                r#"3_Special_\"!§$%&/()=?_´\\+~*'#_-:_;,<>|@^°€µ{[]}"#,
+            "t_13_00000000-0000-0000-0000-000000009204"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern(
+                "opcua",
+                "t_{ns}_{id}",
+                r#"ns=3;s=Special_\"!§$%&/()=?`´\\+~*'#_-:.;,<>|@^°€µ{[]}"#
             ),
-        ];
-        for (pattern, point_id, expected) in cases.iter() {
-            let tbname = generate_tbname_from_pattern("opcua", pattern, point_id);
-            assert_eq!(tbname, *expected);
-        }
+            r#"t_3_Special_\"!§$%&/()=?_´\\+~*'#_-:_;,<>|@^°€µ{[]}"#
+        );
+
+        // OPC DA
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{TagName}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
+            "t_PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{tag_name}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
+            "t_PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{/tag_name}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
+            "t_EDCGQ_MP706AT_PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{id}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
+            "t_/ASSETS/AB/EDCGQ_MP706AT_PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t{_id}", "/ASSETS/AB/EDCGQ.MP706AT.PV"),
+            "t_ASSETS_AB_EDCGQ_MP706AT_PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{TagName}", "02_LI7059.DACA.PV"),
+            "t_PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{tag_name}", "02_LI7059.DACA.PV"),
+            "t_PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{/tag_name}", "02_LI7059.DACA.PV"),
+            "t_02_LI7059_DACA_PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{id}", "02_LI7059.DACA.PV"),
+            "t_02_LI7059_DACA_PV"
+        );
+        assert_eq!(
+            generate_tbname_from_pattern("opcda", "t_{_id}", "02_LI7059.DACA.PV"),
+            "t_02_LI7059_DACA_PV"
+        );
     }
 
     #[test]

@@ -98,6 +98,7 @@ impl OpcPointMappingRule {
     ) -> anyhow::Result<PointConfig> {
         let driver = self.opc_type.to_string();
 
+        // 生成 tbname
         let tbname = generate_tbname_from_pattern(
             driver.as_str(),
             self.tbname_expression.as_str(),
