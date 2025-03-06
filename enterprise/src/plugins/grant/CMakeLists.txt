@@ -197,8 +197,8 @@ IF(TD_ENTERPRISE)
   ENDIF()
 ENDIF()
 
-target_link_libraries(grant util sdb mnode)
+TARGET_LINK_LIBRARIES(grant util sdb mnode)
 
 IF(${BUILD_TEST})
   ADD_SUBDIRECTORY(test)
-endif(${BUILD_TEST})
+ENDIF(${BUILD_TEST})

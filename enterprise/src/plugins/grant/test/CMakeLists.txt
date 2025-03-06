@@ -22,8 +22,9 @@ ENDIF()
 
 TARGET_LINK_LIBRARIES(
   grantTest
-  PRIVATE ${TAOS_GRANT_STUB} grant taos
+  PRIVATE ${TAOS_GRANT_STUB} grant ${TAOS_LIB}
 )
+
 TARGET_INCLUDE_DIRECTORIES(
   grantTest
   PUBLIC "${TD_COMMUNITY_DIR}/src/util/inc"
@@ -36,8 +37,3 @@ IF(TD_ENTERPRISE)
     PRIVATE "${TD_ENTERPRISE_DIR}/src/plugins/grant/inc"
   )
 ENDIF()
-
-# ADD_TEST(
-# NAME grantTest
-# COMMAND grantTest
-# )
