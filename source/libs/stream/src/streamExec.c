@@ -341,7 +341,7 @@ SScanhistoryDataInfo streamScanHistoryData(SStreamTask* pTask, int64_t st) {
     return buildScanhistoryExecRet(TASK_SCANHISTORY_QUIT, 0);
   }
 
-  if (!pTask->hTaskInfo.operatorOpen) {
+  if ((!pTask->hTaskInfo.operatorOpen) || (pTask->info.fillHistory == STREAM_RECALCUL_TASK)) {
     int32_t code = qSetStreamOpOpen(exec);
     pTask->hTaskInfo.operatorOpen = true;
   }
