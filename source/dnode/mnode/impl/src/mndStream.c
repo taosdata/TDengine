@@ -2762,16 +2762,6 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
           return TSDB_CODE_FAILED;
         }
 
-        // todo: check for redundant consensus-checkpoint trans, if this kinds of trans repeatly failed.
-//        code = mndCreateSetConsensusChkptIdTrans(pMnode, pStream, pe->req.taskId, chkId, pInfo->pTaskList);
-//        if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-//          mError("failed to create consensus-checkpoint trans, stream:0x%" PRIx64, pStream->uid);
-//        }
-
-//        void *p = taosArrayPush(pList, &pe->req.taskId);
-//        if (p == NULL) {
-//          mError("failed to put into task list, taskId:0x%x", pe->req.taskId);
-//        }
       } else {
         mDebug("s-task:0x%x sendTs:%" PRId64 " wait %.2fs already, wait for next round to check", pe->req.taskId,
                pe->req.startTs, (now - pe->ts) / 1000.0);
@@ -2780,16 +2770,23 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
     }
 
     if (allQualified) {
-      code = mndCreateSetConsensusChkptIdTrans(pMnode, pStream, chkId, pInfo->pTaskList);
-      if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-        mError("failed to create consensus-checkpoint trans, stream:0x%" PRIx64, pStream->uid);
-      } else {
-        numOfTrans += 1;
-        mndClearConsensusRspEntry(pInfo);
-        void *p = taosArrayPush(pStreamList, &streamId);
-        if (p == NULL) {
-          mError("failed to put into stream list, stream:0x%" PRIx64 " not remove it in consensus-chkpt list", streamId);
+      code = mndStreamTransConflictCheck(pMnode, pStream->uid, MND_STREAM_CHKPT_CONSEN_NAME, false);
+
+      if (code == 0) {
+        code = mndCreateSetConsensusChkptIdTrans(pMnode, pStream, chkId, pInfo->pTaskList);
+        if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+          mError("failed to create consensus-checkpoint trans, stream:0x%" PRIx64, pStream->uid);
+        } else {
+          numOfTrans += 1;
+          mndClearConsensusRspEntry(pInfo);
+          void *p = taosArrayPush(pStreamList, &streamId);
+          if (p == NULL) {
+            mError("failed to put into stream list, stream:0x%" PRIx64 " not remove it in consensus-chkpt list",
+                   streamId);
+          }
         }
+      } else {
+        mDebug("stream:0x%" PRIx64 "not create chktp-consensus, due to trans conflict", pStream->uid);
       }
     }
 
