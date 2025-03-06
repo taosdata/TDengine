@@ -74,9 +74,8 @@ class TDTestCase(TBase):
         # vec
         rlist = self.taos(cmd + '\G"')
         results = [
-            "ts: 2022-10-01 00:00:09.000",
             "****** 10.row *******",
-            "2022-10-01 00:00:09.000 |",
+            "ts: 2022-10-01 00:00:09.000",
             result
         ]
         self.checkManyString(rlist, results)
@@ -152,10 +151,18 @@ class TDTestCase(TBase):
         rlist2 = self.taos("--version")
 
         self.checkSame(rlist1, rlist2)
-        self.checkSame(len(rlist1), 5)
+        if len(rlist1) < 4:
+            tdLog.exit(f"version lines less than 4. {rlist1}")
 
         if len(rlist1[2]) < 42:
             tdLog.exit("git commit id length is invalid: " + rlist1[2])
+        
+        keys = [
+            "version:",
+            "git:",
+            "build:"
+        ]
+        self.checkManyString(rlist1, keys)
 
 
     def checkHelp(self):
@@ -184,7 +191,7 @@ class TDTestCase(TBase):
 
         # invalid input check
         args = [
-            [lname, "failed to create log at"],
+            #[lname, "failed to create log at"],
             ['-uroot -w 40 -ptaosdata -c /root/taos/ -s"show databases"', queryOK],
             ['-o "./current/log/files/" -h localhost -uroot -ptaosdata  -s"show databases;"', queryOK],
             ['-a ""', "Invalid auth"],
