@@ -1091,6 +1091,7 @@ typedef struct {
   char*       sql;
   int8_t      isImport;
   int8_t      createDb;
+  int8_t      passIsMd5;
 } SCreateUserReq;
 
 int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
@@ -1161,6 +1162,7 @@ typedef struct {
   int64_t     privileges;
   int32_t     sqlLen;
   char*       sql;
+  int8_t      passIsMd5;
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
@@ -3571,6 +3573,7 @@ typedef struct {
   SArray*       rsps;  // SArray<SClientHbRsp>
   SMonitorParas monitorParas;
   int8_t        enableAuditDelete;
+  int8_t        enableStrongPass;
 } SClientHbBatchRsp;
 
 static FORCE_INLINE uint32_t hbKeyHashFunc(const char* key, uint32_t keyLen) { return taosIntHash_64(key, keyLen); }
