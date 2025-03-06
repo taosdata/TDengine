@@ -25,6 +25,11 @@
 #include <time.h>
 #include <errno.h>
 
+#ifdef WINDOWS
+#define strcasecmp       _stricmp
+#define strncasecmp      _strnicmp
+#endif
+
 //
 //  --------------  define ------------------
 //
