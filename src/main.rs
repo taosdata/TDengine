@@ -886,7 +886,7 @@ fn main() -> Result<()> {
     let mut _notify_watcher = None;
     if let Some(handle) = handle {
         let parent = config_file.parent().context("get config dir error")?;
-        if config_file.exists() && is_root_directory(parent) {
+        if config_file.exists() && !is_root_directory(parent) {
             let mut watcher = notify::recommended_watcher({
                 let config_file = config_file.clone();
                 move |event: notify::Result<notify::Event>| {
