@@ -92,6 +92,7 @@ static int32_t getResultInfoFromState(SStateStore* pStateStore, SStreamState* pS
   qDebug("===stream=== set stream prev buf.ts:%" PRId64 ", groupId:%" PRIu64 ", res:%d", preKey.ts, preKey.groupId,
          tmpRes);
   if (tmpRes == TSDB_CODE_SUCCESS) {
+    pFillSup->prevOriginKey = preKey.ts;
     pFillSup->prev.key = adustPrevTsKey(preKey.ts, preKey.ts, &pFillSup->interval);
     pFillSup->prev.pRowVal = (SResultCellData*)pPrevStatePos->pRowBuff;
   }
@@ -104,6 +105,7 @@ static int32_t getResultInfoFromState(SStateStore* pStateStore, SStreamState* pS
   qDebug("===stream=== set stream next buf.ts:%" PRId64 ", groupId:%" PRIu64 ", res:%d", nextKey.ts, nextKey.groupId,
          tmpRes);
   if (tmpRes == TSDB_CODE_SUCCESS) {
+    pFillSup->nextOriginKey = nextKey.ts;
     pFillSup->next.key = adustEndTsKey(nextKey.ts, nextKey.ts, &pFillSup->interval);
     pFillSup->next.pRowVal = (SResultCellData*)pNextStatePos->pRowBuff;
   }

@@ -646,7 +646,8 @@ void doStreamTimeSliceFillRange(SStreamFillSupporter* pFillSup, SStreamFillInfo*
       pFillInfo->pLinearInfo->hasNext = false;
       taosArraySwap(pFillInfo->pLinearInfo->pEndPoints, pFillInfo->pLinearInfo->pNextEndPoints);
       pFillInfo->pResRow = &pFillSup->cur;
-      setFillKeyInfo(pFillSup->cur.key, pFillInfo->pLinearInfo->nextEnd, &pFillSup->interval, pFillInfo);
+      TSKEY newStart = adustPrevTsKey(pFillSup->cur.key, pFillSup->cur.key, &pFillSup->interval);
+      setFillKeyInfo(newStart, pFillInfo->pLinearInfo->nextEnd, &pFillSup->interval, pFillInfo);
       fillLinearRange(pFillSup, pFillInfo, pRes);
     }
   }
@@ -1168,15 +1169,28 @@ void setTimeSliceFillRule(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFill
     } break;
     case TSDB_FILL_LINEAR: {
       if (hasPrevWindow(pFillSup) && hasNextWindow(pFillSup)) {
-        setFillKeyInfo(prevWKey, nextWKey, &pFillSup->interval, pFillInfo);
-        pFillInfo->pos = FILL_POS_INVALID;
-        SET_WIN_KEY_INVALID(pFillInfo->pLinearInfo->nextEnd);
-        pFillSup->next.key = pFillSup->nextOriginKey;
-        copyCalcRowDeltaData(&pFillSup->next, pFillInfo->pLinearInfo->pEndPoints, pFillSup->pAllColInfo,
-                             pFillSup->numOfAllCols, pFillSup->pOffsetInfo, pFillSup->normalFill);
-        pFillSup->prev.key = pFillSup->prevOriginKey;
-        pFillInfo->pResRow = &pFillSup->prev;
-        pFillInfo->pLinearInfo->hasNext = false;
+        if (pFillSup->normalFill) {
+          setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
+          pFillInfo->pos = FILL_POS_MID;
+          copyCalcRowDeltaData(&pFillSup->cur, pFillInfo->pLinearInfo->pEndPoints, pFillSup->pAllColInfo,
+                               pFillSup->numOfAllCols, pFillSup->pOffsetInfo, pFillSup->normalFill);
+          pFillSup->next.key = pFillSup->nextOriginKey;
+          pFillInfo->pResRow = &pFillSup->prev;
+          copyCalcRowDeltaData(&pFillSup->next, pFillInfo->pLinearInfo->pNextEndPoints, pFillSup->pAllColInfo,
+                               pFillSup->numOfAllCols, pFillSup->pOffsetInfo, pFillSup->normalFill);
+          pFillInfo->pLinearInfo->nextEnd = nextWKey;
+          pFillInfo->pLinearInfo->hasNext = true;
+        } else {
+          setFillKeyInfo(prevWKey, nextWKey, &pFillSup->interval, pFillInfo);
+          pFillInfo->pos = FILL_POS_INVALID;
+          SET_WIN_KEY_INVALID(pFillInfo->pLinearInfo->nextEnd);
+          pFillSup->next.key = pFillSup->nextOriginKey;
+          copyCalcRowDeltaData(&pFillSup->next, pFillInfo->pLinearInfo->pEndPoints, pFillSup->pAllColInfo,
+                               pFillSup->numOfAllCols, pFillSup->pOffsetInfo, pFillSup->normalFill);
+          pFillSup->prev.key = pFillSup->prevOriginKey;
+          pFillInfo->pResRow = &pFillSup->prev;
+          pFillInfo->pLinearInfo->hasNext = false;
+        }
       } else if (hasPrevWindow(pFillSup)) {
         setFillKeyInfo(prevWKey, endTs, &pFillSup->interval, pFillInfo);
         pFillInfo->pos = FILL_POS_END;

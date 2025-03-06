@@ -2220,6 +2220,7 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->historyWins);
   blockDataDestroy(pInfo->pCheckpointRes);
   tSimpleHashCleanup(pInfo->pPkDeleted);
+  destroyNonBlockAggSupptor(&pInfo->nbSup);
 
   taosMemoryFreeClear(param);
 }
@@ -4490,6 +4491,7 @@ void destroyStreamStateOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->historyWins);
   blockDataDestroy(pInfo->pCheckpointRes);
   tSimpleHashCleanup(pInfo->pPkDeleted);
+  destroyNonBlockAggSupptor(&pInfo->nbSup);
 
   taosMemoryFreeClear(param);
 }
