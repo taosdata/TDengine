@@ -1,14 +1,14 @@
 name: TDengine CI Test
 
 on:
-  # pull_request:
-  #   branches:
-  #     - 'main'
-  #     - '3.0'
-  #     - '3.1'
-  #   paths-ignore:
-  #     - 'packaging/**'
-  #     - 'docs/**'
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.1'
+    paths-ignore:
+      - 'packaging/**'
+      - 'docs/**'
   repository_dispatch:
     types: [run-tests]
 
@@ -57,14 +57,14 @@ jobs:
             cd ${{ env.WKC }}
             changed_files_non_doc=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD $target_branch`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | tr '\n' ' ' || :)
 
-            if [[ "$changed_files_non_doc" != '' &&  "$changed_files_non_doc" =~ /forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics/ ]]; then
+            if [[ "$changed_files_non_doc" != '' &&  "$changed_files_non_doc" =~ /forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics|tdgpt/ ]]; then
               run_tdgpt_test="true"
             else
               run_tdgpt_test="false"
             fi
 
             # check whether to run function test cases
-            changed_files_non_tdgpt=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD $target_branch`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | grep -Ev "forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics" | tr '\n' ' ' ||:)
+            changed_files_non_tdgpt=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD $target_branch`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | grep -Ev "forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics|tdgpt" | tr '\n' ' ' ||:)
             if [ "$changed_files_non_tdgpt" != '' ]; then
               run_function_test="true"
             else
@@ -231,7 +231,7 @@ jobs:
     if: ${{ needs.fetch-parameters.outputs.run_function_test == 'true' }}
     runs-on: 
       group: CI
-      labels: [self-hosted, macOS, ARM64, testing]
+      labels: [self-hosted, macOS, testing]
     timeout-minutes: 60
     env:
       IS_TDINTERNAL: ${{ needs.fetch-parameters.outputs.tdinternal }}
