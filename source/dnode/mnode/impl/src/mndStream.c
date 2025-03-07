@@ -646,7 +646,6 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
       uint8_t prec = 0, scale = 0;
       extractDecimalTypeInfoFromBytes(&pField->bytes, &prec, &scale);
       pField->typeMod = decimalCalcTypeMod(prec, scale);
-      ASSERT(pField->flags & COL_HAS_TYPE_MOD);// TODO wjm
     }
   }
 
