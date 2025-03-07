@@ -570,18 +570,18 @@ pub(super) async fn get_sample(
     match timeout(query_timeout, get_sample_impl(controller, query)).await {
         Ok(Ok(sample)) => Ok(HttpResponse::Ok().json(sample)),
         Ok(Err(err)) => {
-            tracing::error!("failed to get sample from data source, cause: {err:?}");
+            tracing::error!("failed to get sample from data source, cause: {err:#}");
             Err(Failed::new(
                 Code::FAILED,
                 format!("failed to get sample from data source, cause: {err:#}"),
                 (),
             ))
         }
-        Err(err) => {
-            tracing::error!("get sample from data source timeout, cause: {err:?}");
+        Err(_) => {
+            tracing::error!("get sample from data source timeout");
             Err(Failed::new(
                 Code::FAILED,
-                format!("get sample from data source timeout, cause: {err:#}"),
+                "get sample from data source timeout".to_string(),
                 (),
             ))
         }

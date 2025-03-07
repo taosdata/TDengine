@@ -48,14 +48,23 @@ def uploadSSL(
     ca_file: str, client_cert_file: str, client_key_file: str, env_data, case_data
 ):
     file = File(env_data, task_type)
-    ca_dir = file.upload(ca_file)
-    client_cert_dir = file.upload(client_cert_file)
-    client_key_dir = file.upload(client_key_file)
+    ca_dir = None
+    if ca_file is not None:
+        ca_dir = file.upload(ca_file)
+    client_cert_dir = None
+    if client_cert_file is not None:
+        client_cert_dir = file.upload(client_cert_file)
+    client_key_dir = None
+    if client_key_file is not None:
+        client_key_dir = file.upload(client_key_file)
 
     case_data["from"]["fromhost"] = f"mqtt://{env_data['data_source']['mqtt'][2]}"
-    case_data["from"]["ca"] = f"@{ca_dir}"
-    case_data["from"]["cert"] = f"@{client_cert_dir}"
-    case_data["from"]["cert_key"] = f"@{client_key_dir}"
+    if ca_dir is not None:
+        case_data["from"]["ca"] = f"@{ca_dir}"
+    if client_cert_dir is not None:
+        case_data["from"]["cert"] = f"@{client_cert_dir}"
+    if client_key_dir is not None:
+        case_data["from"]["cert_key"] = f"@{client_key_dir}"
 
 
 def mqtt_sanity_test(env_data, case_data, mqttconfigfile):
@@ -180,12 +189,12 @@ def test_case_auth(input_data):
 
 
 @pytest.mark.sanity
-def test_case_ssl(input_data):
+def test_case_ssl_no_auth(input_data):
     """
     用例概述: mqtt 用例
     用例步骤：
     1. 任务使用 agent
-    2. 使用 ssl 证书
+    2. 不使用 ssl 证书进行 tls 认证
 
     验证点：
     1. 数据正常写入
@@ -195,10 +204,7 @@ def test_case_ssl(input_data):
     case_data = copy.deepcopy(case_data_orig)
     case_data["from"]["client_id"] = "client" + str(random.randint(1, 10000))
 
-    ca_file = "mqtt/ssl/ca.crt"
-    client_cert_file = "mqtt/ssl/client.crt"
-    client_key_file = "mqtt/ssl/client.key"
-    uploadSSL(ca_file, client_cert_file, client_key_file, env_data, case_data)
+    uploadSSL(None, None, None, env_data, case_data)
 
     metrics = mqtt_sanity_test(env_data, case_data, "mqtt/mqtt.yaml")
     rows_count = TaosAdapter.check_db_count(
@@ -207,7 +213,6 @@ def test_case_ssl(input_data):
     assert rows_count > 0, "入库的数据量应大于 0"
     assert metrics["current"]["written_rows"] > 0, "任务 metrics 中的 written_rows 应大于 0"
     TaosAdapter.drop_db(env_data["taosadapter_host"], case_data["to"]["target_dbname"])
-
 
 @pytest.mark.negative
 def test_invalid_dsn(input_data):

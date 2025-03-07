@@ -333,7 +333,7 @@ pub fn get_string_from_param_or_file(
 }
 
 #[derive(Debug)]
-pub struct NoCertificateVerification();
+pub struct NoCertificateVerification;
 
 impl ServerCertVerifier for NoCertificateVerification {
     fn verify_server_cert(

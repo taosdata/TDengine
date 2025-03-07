@@ -148,7 +148,7 @@ sqlx-postgres = { version = "0.8", features = [
   "bit-vec",
 ] }
 oracle = { version = "0.5", features = ["chrono"] }
-rumqttc = "0.24.0"
+rumqttc.workspace = true
 rustls-pemfile = "2"
 rustls-native-certs = "0.7"
 
