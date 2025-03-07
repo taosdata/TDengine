@@ -1235,7 +1235,7 @@ void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
 void freeTableScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
 void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
-  if (NULL == pParam) {
+  if (NULL == pParam || pParam->reUse) {
     return;
   }
 
@@ -1251,6 +1251,8 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
       type == OP_GET_PARAM ? freeTableScanGetOperatorParam(pParam) : freeTableScanNotifyOperatorParam(pParam);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
       break;
     default:
       qError("unsupported op %d param, type %d", pParam->opType, type);
