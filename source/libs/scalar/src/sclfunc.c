@@ -2099,7 +2099,14 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           varDataSetLen(output, len);
         } else {
           int32_t outputSize = (outputLen - VARSTR_HEADER_SIZE) < bufSize ? (outputLen - VARSTR_HEADER_SIZE + 1): bufSize;
-          NUM_TO_STRING(inputType, input, outputSize, buf);
+          if (IS_DECIMAL_TYPE(inputType)) {
+            if (outputType == TSDB_DATA_TYPE_GEOMETRY) return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+            uint8_t inputPrec = GET_PARAM_PRECISON(&pInput[0]), inputScale = GET_PARAM_SCALE(&pInput[0]);
+            code = decimalToStr(input, inputType, inputPrec, inputScale, buf, outputSize);
+            if (code != 0) goto _end;
+          } else {
+            NUM_TO_STRING(inputType, input, outputSize, buf);
+          }
           int32_t len = (int32_t)strlen(buf);
           len = (outputLen - VARSTR_HEADER_SIZE) > len ? len : (outputLen - VARSTR_HEADER_SIZE);
           (void)memcpy(varDataVal(output), buf, len);
@@ -2145,7 +2152,13 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           (void)memcpy(output, input, len + VARSTR_HEADER_SIZE);
           varDataSetLen(output, len);
         } else {
-          NUM_TO_STRING(inputType, input, bufSize, buf);
+          if (IS_DECIMAL_TYPE(inputType)) {
+            uint8_t inputPrec = GET_PARAM_PRECISON(&pInput[0]), inputScale = GET_PARAM_SCALE(&pInput[0]);
+            code = decimalToStr(input, inputType, inputPrec, inputScale, buf, bufSize);
+            if (code != 0) goto _end;
+          } else {
+            NUM_TO_STRING(inputType, input, bufSize, buf);
+          }
           len = (int32_t)strlen(buf);
           len = outputCharLen > len ? len : outputCharLen;
           bool ret = taosMbsToUcs4(buf, len, (TdUcs4 *)varDataVal(output), outputLen - VARSTR_HEADER_SIZE, &len, pInput->charsetCxt);
@@ -2175,7 +2188,10 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           convBuf[len] = 0;
           code = convertToDecimal(convBuf, &iT, output, &oT);
         } else {
-          code = convertToDecimal(input, &iT, output, &oT);
+          if (IS_VAR_DATA_TYPE(iT.type))
+            code = convertToDecimal(varDataVal(input), &iT, output, &oT);
+          else
+            code = convertToDecimal(input, &iT, output, &oT);
         }
         if (code != TSDB_CODE_SUCCESS) {
           terrno = code;

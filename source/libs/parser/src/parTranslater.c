@@ -2518,7 +2518,8 @@ static bool hasInvalidFuncNesting(SFunctionNode* pFunc) {
 static int32_t getFuncInfo(STranslateContext* pCxt, SFunctionNode* pFunc) {
   // the time precision of the function execution environment
   pFunc->dual = pCxt->dual;
-  pFunc->node.resType.precision = getPrecisionFromCurrStmt(pCxt->pCurrStmt, TSDB_TIME_PRECISION_MILLI);
+  if (!IS_DECIMAL_TYPE(pFunc->node.resType.type))
+    pFunc->node.resType.precision = getPrecisionFromCurrStmt(pCxt->pCurrStmt, TSDB_TIME_PRECISION_MILLI);
   int32_t code = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
   if (TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION == code) {
     code = getUdfInfo(pCxt, pFunc);

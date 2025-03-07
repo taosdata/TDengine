@@ -2319,12 +2319,14 @@ void* nodesGetValueFromNode(SValueNode* pNode) {
     case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
+    case TSDB_DATA_TYPE_DECIMAL64:
       return (void*)&pNode->typeData;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_GEOMETRY:
+    case TSDB_DATA_TYPE_DECIMAL:
       return (void*)pNode->datum.p;
     default:
       break;
