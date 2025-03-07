@@ -868,11 +868,11 @@ int32_t processCreateStreamFirstRsp(void* param, SDataBuf* pMsg, int32_t code) {
       tscError("failed to post semaphore");
     }
   }
-  if (code == 0){
+  if (code == 0 && !pRequest->streamRunHistory){
     tscInfo("[create stream with histroy] create in second phase");
     size_t sqlLen = strlen(pRequest->sqlstr);
     SRequestObj* pRequestNew = NULL;
-    code = buildRequest(pRequest->pTscObj->id, pRequest->sqlstr, sqlLen, param, false, &pRequestNew, 0);
+    code = buildRequest(pRequest->pTscObj->id, pRequest->sqlstr, sqlLen, NULL, false, &pRequestNew, 0);
     if (code == TSDB_CODE_SUCCESS) {
       pRequestNew->source = pRequest->source;
       pRequestNew->body.queryFp = NULL;
