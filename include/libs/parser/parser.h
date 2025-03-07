@@ -103,6 +103,7 @@ typedef struct SParseContext {
   setQueryFn       setQueryFp;
   timezone_t       timezone;
   void            *charsetCxt;
+  bool             streamRunHistory;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);

@@ -852,6 +852,37 @@ int32_t processCompactDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
+int32_t processCreateStreamFirstRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+  }
+
+  taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
+
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+  } else {
+    if (tsem_post(&pRequest->body.rspSem) != 0) {
+      tscError("failed to post semaphore");
+    }
+  }
+  if (code == 0){
+    tscInfo("[create stream with histroy] create in second phase");
+    size_t sqlLen = strlen(pRequest->sqlstr);
+    SRequestObj* pRequestNew = NULL;
+    code = buildRequest(pRequest->pTscObj->id, pRequest->sqlstr, sqlLen, param, false, &pRequestNew, 0);
+    if (code == TSDB_CODE_SUCCESS) {
+      pRequestNew->source = pRequest->source;
+      pRequestNew->body.queryFp = NULL;
+      pRequestNew->streamRunHistory = true;
+      doAsyncQuery(pRequestNew, false);
+    }
+  }
+  return code;
+}
+
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
   switch (msgType) {
     case TDMT_MND_CONNECT:
@@ -868,6 +899,8 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
       return processAlterStbRsp;
     case TDMT_MND_SHOW_VARIABLES:
       return processShowVariablesRsp;
+    case TDMT_MND_CREATE_STREAM:
+      return processCreateStreamFirstRsp;
     case TDMT_MND_COMPACT_DB:
       return processCompactDbRsp;
     default:
