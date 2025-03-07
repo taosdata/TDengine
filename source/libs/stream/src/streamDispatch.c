@@ -730,6 +730,8 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
     if (!pDataBlock->info.parTbName[0]) {
       memset(pDataBlock->info.parTbName, 0, TSDB_TABLE_NAME_LEN);
       memcpy(pDataBlock->info.parTbName, pBln->parTbName, strlen(pBln->parTbName));
+      stDebug("s-task:%s cached table name:%s, groupId:%" PRId64 " hashVal:0x%x", pTask->id.idStr, pBln->parTbName,
+              hashValue);
     }
   } else {
     char ctbName[TSDB_TABLE_FNAME_LEN] = {0};
@@ -765,7 +767,7 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
     bln.hashValue = hashValue;
     memcpy(bln.parTbName, pDataBlock->info.parTbName, strlen(pDataBlock->info.parTbName));
 
-    stDebug("s-task:%s dst table:%s hashVal:0x%x", pTask->id.idStr, ctbName, hashValue);
+    stDebug("s-task:%s dst table:%s hashVal:0x%x groupId:%"PRId64, pTask->id.idStr, ctbName, hashValue, groupId);
 
     // failed to put into name buffer, no need to do anything
     if (tSimpleHashGetSize(pTask->pNameMap) < MAX_BLOCK_NAME_NUM) {  // allow error, and do nothing

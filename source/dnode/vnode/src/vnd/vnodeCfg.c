@@ -401,7 +401,7 @@ int vnodeValidateTableHash(SVnode *pVnode, char *tableFName) {
   }
 
   if (hashValue < pVnode->config.hashBegin || hashValue > pVnode->config.hashEnd) {
-    vInfo("vgId:%d, %d, %d, hashVal: %d, restored:%d", pVnode->config.vgId, pVnode->config.hashBegin,
+    vInfo("vgId:%d, %u, %u, hashVal: %u, restored:%d", pVnode->config.vgId, pVnode->config.hashBegin,
           pVnode->config.hashEnd, hashValue, pVnode->restored);
 
     vError("vgId:%d invalid table name:%s, hashVal:0x%x, range [0x%x, 0x%x]", pVnode->config.vgId,
