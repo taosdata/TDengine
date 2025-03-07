@@ -4318,6 +4318,11 @@ enum {
   PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_UID_SLOT1,
   PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_SRC_SCAN0,
   PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_SRC_SCAN1,
+  PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SCAN_ALL_COLS,
+  PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SUID,
+  PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_ACCOUNT_ID,
+  PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_EP_SET,
+  PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SCAN_COLS,
 };
 
 static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4352,6 +4357,19 @@ static int32_t physiDynQueryCtrlNodeToMsg(const void* pObj, STlvEncoder* pEncode
         break;
       }
       case DYN_QTYPE_VTB_SCAN: {
+        code = tlvEncodeBool(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SCAN_ALL_COLS, pNode->vtbScan.scanAllCols);
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeU64(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SUID, pNode->vtbScan.suid);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeI32(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_ACCOUNT_ID, pNode->vtbScan.accountId);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeObj(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_EP_SET, epSetToMsg, &pNode->vtbScan.mgmtEpSet);
+        }
+        if (TSDB_CODE_SUCCESS == code) {
+          code = tlvEncodeObj(pEncoder, PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SCAN_COLS, nodeListToMsg, pNode->vtbScan.pScanCols);
+        }
         break;
       }
       default:
@@ -4394,7 +4412,21 @@ static int32_t msgToPhysiDynQueryCtrlNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_DYN_QUERY_CTRL_CODE_STB_JOIN_SRC_SCAN1:
         code = tlvDecodeBool(pTlv, &pNode->stbJoin.srcScan[1]);
-        break;      
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SCAN_ALL_COLS:
+        code = tlvDecodeBool(pTlv, &pNode->vtbScan.scanAllCols);
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SUID:
+        code = tlvDecodeU64(pTlv, &pNode->vtbScan.suid);
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_ACCOUNT_ID:
+        code = tlvDecodeI32(pTlv, &pNode->vtbScan.accountId);
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_EP_SET:
+        code = tlvDecodeObjFromTlv(pTlv, msgToEpSet, &pNode->vtbScan.mgmtEpSet);
+        break;
+      case PHY_DYN_QUERY_CTRL_CODE_VTB_SCAN_SCAN_COLS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->vtbScan.pScanCols);
       default:
         break;
     }
@@ -4518,7 +4550,9 @@ static int32_t subplanInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueBool(pEncoder, pNode->isAudit);
   }
-
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueBool(pEncoder, pNode->processOneBlock);
+  }
   return code;
 }
 
@@ -4578,6 +4612,9 @@ static int32_t msgToSubplanInline(STlvDecoder* pDecoder, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueBool(pDecoder, &pNode->isAudit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueBool(pDecoder, &pNode->processOneBlock);
   }
   return code;
 }

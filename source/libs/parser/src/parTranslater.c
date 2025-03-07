@@ -1527,7 +1527,7 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
     }
   } else if (QUERY_NODE_VIRTUAL_TABLE == nodeType(pTable)) {
     const STableMeta* pMeta = ((SVirtualTableNode *)pTable)->pMeta;
-    int32_t           nums = pMeta->tableInfo.numOfColumns;
+    int32_t           nums = pMeta->tableInfo.numOfColumns + (igTags ? 0 : (TSDB_SUPER_TABLE == pMeta->tableType ? pMeta->tableInfo.numOfTags : 0));
     for (int32_t i = 0; i < nums; ++i) {
       SColumnNode* pCol = NULL;
       code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
@@ -4494,7 +4494,7 @@ static bool isSingleTable(SRealTableNode* pRealTable) {
            0 != strcmp(pRealTable->table.tableName, TSDB_INS_TABLE_FILESETS);
   }
   return (TSDB_CHILD_TABLE == tableType || TSDB_NORMAL_TABLE == tableType ||
-          TSDB_VIRTUAL_CHILD_TABLE == tableType || TSDB_VIRTUAL_TABLE == tableType);
+          TSDB_VIRTUAL_CHILD_TABLE == tableType || TSDB_VIRTUAL_NORMAL_TABLE == tableType);
 }
 
 static int32_t setTableIndex(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
@@ -5014,34 +5014,42 @@ int32_t validateJoinConds(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
   return code;
 }
 
-static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SName* pName) {
+static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTable, SName* pName,
+                                          SVirtualTableNode* pVTable, SRealTableNode* pRTNode) {
   SRealTableNode*    pRealTable = (SRealTableNode*)*pTable;
-  int32_t            code = TSDB_CODE_SUCCESS;
   STableMeta*        pMeta = pRealTable->pMeta;
-  SVirtualTableNode* pVTable = NULL;
-  SRealTableNode*    pRTNode = NULL;
-  SHashObj*          pTableNameHash = NULL;
+  int32_t            code = TSDB_CODE_SUCCESS;
 
-  PAR_ERR_RET(nodesMakeNode(QUERY_NODE_VIRTUAL_TABLE, (SNode**)&pVTable));
-  tstrncpy(pVTable->table.dbName, pRealTable->table.dbName, sizeof(pVTable->table.dbName));
-  tstrncpy(pVTable->table.tableName, pRealTable->table.tableName, sizeof(pVTable->table.tableName));
-  tstrncpy(pVTable->table.tableAlias, pRealTable->table.tableAlias, sizeof(pVTable->table.tableAlias));
-
-  pVTable->table.precision = pRealTable->pMeta->tableInfo.precision;
-  pVTable->table.singleTable = false;
-
-  if (pMeta->tableType == TSDB_SUPER_TABLE && pMeta->virtualStb) {
-    PAR_ERR_JRET(getTargetMeta(pCxt, pName, &(pVTable->pMeta), true));
-    PAR_ERR_JRET(setVSuperTableVgroupList(pCxt, pName, pVTable));
-    PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRealTable));
-    *pTable = (SNode*)pVTable;
-    return code;
+  if (!pMeta->virtualStb) {
+    PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_TABLE_TYPE);
   }
+
+  PAR_ERR_JRET(getTargetMeta(pCxt, pName, &(pVTable->pMeta), true));
+  PAR_ERR_JRET(setVSuperTableVgroupList(pCxt, pName, pVTable));
+  PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRealTable));
+  *pTable = (SNode*)pVTable;
+
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("translateVirtualSuperTable failed, code:%d, errmsg:%s", code, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode** pTable, SName* pName,
+                                                SVirtualTableNode* pVTable, SRealTableNode* pRTNode) {
+  int32_t            code = TSDB_CODE_SUCCESS;
+  SHashObj*          pTableNameHash = NULL;
+  SRealTableNode*    pRealTable = (SRealTableNode*)*pTable;
+  STableMeta*        pMeta = pRealTable->pMeta;
+  int32_t            lino = 0;
 
   TSWAP(pVTable->pMeta, pRealTable->pMeta);
   TSWAP(pVTable->pVgroupList, pRealTable->pVgroupList);
 
   pTableNameHash = taosHashInit(pMeta->numOfColRefs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  QUERY_CHECK_NULL(pTableNameHash, code, lino, _return, terrno);
+
   bool tmpAsync = pCxt->pParseCxt->async;
   pCxt->pParseCxt->async = false;
   pCxt->refTable = true;
@@ -5071,7 +5079,42 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
   return code;
 
 _return:
+  qError("translateVirtualNormalChildTable failed, lino:%d, code:%d, errmsg:%s", lino, code, tstrerror(code));
   taosHashCleanup(pTableNameHash);
+  return code;
+}
+
+static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SName* pName) {
+  SRealTableNode*    pRealTable = (SRealTableNode*)*pTable;
+  int32_t            code = TSDB_CODE_SUCCESS;
+  STableMeta*        pMeta = pRealTable->pMeta;
+  SVirtualTableNode* pVTable = NULL;
+  SRealTableNode*    pRTNode = NULL;
+
+  PAR_ERR_RET(nodesMakeNode(QUERY_NODE_VIRTUAL_TABLE, (SNode**)&pVTable));
+  tstrncpy(pVTable->table.dbName, pRealTable->table.dbName, sizeof(pVTable->table.dbName));
+  tstrncpy(pVTable->table.tableName, pRealTable->table.tableName, sizeof(pVTable->table.tableName));
+  tstrncpy(pVTable->table.tableAlias, pRealTable->table.tableAlias, sizeof(pVTable->table.tableAlias));
+
+  pVTable->table.precision = pRealTable->pMeta->tableInfo.precision;
+  pVTable->table.singleTable = false;
+
+  switch(pMeta->tableType) {
+    case TSDB_SUPER_TABLE:
+      PAR_ERR_JRET(translateVirtualSuperTable(pCxt, pTable, pName, pVTable, pRTNode));
+      break;
+    case TSDB_VIRTUAL_CHILD_TABLE:
+    case TSDB_VIRTUAL_NORMAL_TABLE:
+      PAR_ERR_JRET(translateVirtualNormalChildTable(pCxt, pTable, pName, pVTable, pRTNode));
+      break;
+    default:
+      PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_TABLE_TYPE);
+      break;
+  }
+
+  return code;
+_return:
+  qError("translateVirtualTable failed, code:%d, errmsg:%s", code, tstrerror(code));
   nodesDestroyNode((SNode*)pVTable);
   nodesDestroyNode((SNode*)pRTNode);
   return code;
@@ -5278,7 +5321,7 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinPare
           code = setTableVgroupList(pCxt, &name, pRealTable);
         }
         if (TSDB_CODE_SUCCESS == code) {
-          if (TSDB_VIRTUAL_TABLE == pRealTable->pMeta->tableType ||
+          if (TSDB_VIRTUAL_NORMAL_TABLE == pRealTable->pMeta->tableType ||
               TSDB_VIRTUAL_CHILD_TABLE == pRealTable->pMeta->tableType ||
               pRealTable->pMeta->virtualStb) {
             if (!isSelectStmt(pCxt->pCurrStmt)) {
@@ -13349,7 +13392,7 @@ static int32_t translateGrantTagCond(STranslateContext* pCxt, SGrantStmt* pStmt,
     }
 
     if (TSDB_SUPER_TABLE != pTable->pMeta->tableType && TSDB_NORMAL_TABLE != pTable->pMeta->tableType &&
-        TSDB_VIRTUAL_TABLE != pTable->pMeta->tableType) {
+        TSDB_VIRTUAL_NORMAL_TABLE != pTable->pMeta->tableType) {
       nodesDestroyNode((SNode*)pTable);
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "Only supertable and normal table can be granted");
@@ -15345,7 +15388,7 @@ static int32_t buildVirtualTableBatchReq(const SCreateVTableStmt* pStmt, const S
   SNode*        pCol;
   col_id_t      index = 0;
 
-  req.type = TD_VIRTUAL_TABLE;
+  req.type = TD_VIRTUAL_NORMAL_TABLE;
   req.name = taosStrdup(pStmt->tableName);
   req.ntb.schemaRow.nCols = LIST_LENGTH(pStmt->pCols);
   req.ntb.schemaRow.version = 1;
@@ -16516,7 +16559,7 @@ static int32_t addDropTbReqIntoVgroup(SHashObj* pVgroupHashmap, SVgroupInfo* pVg
 }
 
 static bool isVirtualTable(int8_t tableType) {
-  if (tableType == TSDB_VIRTUAL_CHILD_TABLE || tableType == TSDB_VIRTUAL_TABLE) {
+  if (tableType == TSDB_VIRTUAL_CHILD_TABLE || tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
     return true;
   } else {
     return false;
@@ -17173,7 +17216,7 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
   }
 
   if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) {
-    if (TSDB_VIRTUAL_TABLE != pTableMeta->tableType) {
+    if (TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
     }
 
@@ -17274,7 +17317,7 @@ static int32_t buildUpdateColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROW_LENGTH, TSDB_MAX_BYTES_PER_ROW);
   }
 
-  if (TSDB_VIRTUAL_TABLE == pTableMeta->tableType) {
+  if (TSDB_VIRTUAL_NORMAL_TABLE == pTableMeta->tableType) {
     int32_t index = findColRefIndex(pTableMeta->colRef, pTableMeta, pSchema->colId);
     if (index != -1) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
@@ -17350,7 +17393,7 @@ static int buildAlterTableColumnCompress(STranslateContext* pCxt, SAlterTableStm
                                          SVAlterTbReq* pReq) {
   if (TSDB_CHILD_TABLE == pTableMeta->tableType ||
       TSDB_VIRTUAL_CHILD_TABLE == pTableMeta->tableType ||
-      TSDB_VIRTUAL_TABLE == pTableMeta->tableType) {
+      TSDB_VIRTUAL_NORMAL_TABLE == pTableMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   }
 
@@ -17376,7 +17419,7 @@ static int buildAlterTableColumnCompress(STranslateContext* pCxt, SAlterTableStm
 
 static int buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                     SVAlterTbReq* pReq) {
-  if (TSDB_VIRTUAL_CHILD_TABLE != pTableMeta->tableType && TSDB_VIRTUAL_TABLE != pTableMeta->tableType) {
+  if (TSDB_VIRTUAL_CHILD_TABLE != pTableMeta->tableType && TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   }
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -17402,7 +17445,7 @@ _return:
 
 static int buildRemoveTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                     SVAlterTbReq* pReq) {
-  if (TSDB_VIRTUAL_CHILD_TABLE != pTableMeta->tableType && TSDB_VIRTUAL_TABLE != pTableMeta->tableType) {
+  if (TSDB_VIRTUAL_CHILD_TABLE != pTableMeta->tableType && TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   }
 
@@ -17552,7 +17595,7 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
   if (TSDB_SUPER_TABLE == pTableMeta->tableType) {
     return TSDB_CODE_SUCCESS;
   } else if (TSDB_CHILD_TABLE != pTableMeta->tableType && TSDB_NORMAL_TABLE != pTableMeta->tableType &&
-             TSDB_VIRTUAL_TABLE != pTableMeta->tableType && TSDB_VIRTUAL_CHILD_TABLE != pTableMeta->tableType) {
+             TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType && TSDB_VIRTUAL_CHILD_TABLE != pTableMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   }
 
@@ -17680,6 +17723,8 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
   STag*                 pTag = NULL;
   SArray*               tagName = NULL;
   SNode*                pCol = NULL;
+
+  PAR_ERR_JRET(checkCreateVSubTable(pCxt,pStmt));
 
   pBufArray = taosArrayInit(1, POINTER_BYTES);
   tagName = taosArrayInit(8, TSDB_COL_NAME_LEN);

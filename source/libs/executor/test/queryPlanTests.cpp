@@ -3146,7 +3146,7 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
     case QUERY_NODE_PHYSICAL_PLAN_DELETE: {
       DataSinkHandle handle = NULL;
-      qptCtx.result.code = dsCreateDataSinker(NULL, (SDataSinkNode**)&pNode, &handle, NULL, NULL);
+      qptCtx.result.code = dsCreateDataSinker(NULL, (SDataSinkNode**)&pNode, &handle, NULL, NULL, false);
       dsDestroyDataSinker(handle);
       break;
     }
