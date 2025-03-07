@@ -183,6 +183,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CONN_ID,          "Invalid connection id
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_USER_DISABLED,            "User is disabled")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_PLATFORM,         "Unsupported feature on this platform")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_RETURN_VALUE_NULL,        "Return value is null")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INTERNAL_ERROR,           "Mnode internal error")
 
 // mnode-sdb
 TAOS_DEFINE_ERROR(TSDB_CODE_SDB_OBJ_ALREADY_THERE,        "Object already there")

@@ -896,6 +896,7 @@ typedef struct SSubplan {
   SDataSinkNode* pDataSink;     // data of the subplan flow into the datasink
   SNode*         pTagCond;
   SNode*         pTagIndexCond;
+  SSHashObj*     pVTables;      // for stream virtual tables
   bool           showRewrite;
   bool           isView;
   bool           isAudit;
