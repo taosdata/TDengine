@@ -790,7 +790,7 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
 
         streamMutexUnlock(&pHTask->lock);
 
-        code = streamMetaSaveTask(pMeta, pHTask);
+        code = streamMetaSaveTaskInMeta(pMeta, pHTask);
         streamMetaReleaseTask(pMeta, pHTask);
       }
     }
