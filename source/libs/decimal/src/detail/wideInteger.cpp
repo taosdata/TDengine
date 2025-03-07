@@ -36,31 +36,28 @@ void uInt128Subtract(UInt128* pLeft, const UInt128* pRight) {
   *pX -= *pY;
 }
 void uInt128Multiply(UInt128* pLeft, const UInt128* pRight) {
-  /*
   intx::uint128 *pX = (intx::uint128*)pLeft;
   const intx::uint128 *pY = (const intx::uint128*)pRight;
-  *pX *= *pY; */
-  __uint128_t *px = (__uint128_t*)pLeft;
+  *pX *= *pY;
+  /* __uint128_t *px = (__uint128_t*)pLeft;
   const __uint128_t *py = (__uint128_t*)pRight;
-  *px = *px * *py;
+  *px = *px * *py; */
 }
 void uInt128Divide(UInt128* pLeft, const UInt128* pRight) {
-  /*
   intx::uint128 *pX = (intx::uint128*)pLeft;
   const intx::uint128 *pY = (const intx::uint128*)pRight;
-  *pX /= *pY;*/
-  __uint128_t *px = (__uint128_t*)pLeft;
+  *pX /= *pY;
+  /* __uint128_t *px = (__uint128_t*)pLeft;
   const __uint128_t *py = (__uint128_t*)pRight;
-  *px = *px / *py;
+  *px = *px / *py; */
 }
 void uInt128Mod(UInt128* pLeft, const UInt128* pRight) {
-  /*
   intx::uint128 *pX = (intx::uint128*)pLeft;
   const intx::uint128 *pY = (const intx::uint128*)pRight;
-  *pX %= *pY;*/
-  __uint128_t *px = (__uint128_t*)pLeft;
+  *pX %= *pY;
+  /* __uint128_t *px = (__uint128_t*)pLeft;
   const __uint128_t *py = (__uint128_t*)pRight;
-  *px = *px % *py;
+  *px = *px % *py; */
 }
 bool uInt128Lt(const UInt128* pLeft, const UInt128* pRight) {
   const intx::uint128 *pX = (const intx::uint128*)pLeft;
