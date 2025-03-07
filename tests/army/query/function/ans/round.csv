@@ -67,12 +67,12 @@ taos> select ROUND(10.55, 1) + 1
 taos> select ROUND(ROUND(ROUND(ROUND(ROUND(ROUND(ROUND(123.123456789, 9), 8), 7), 6), 5), 4))
  round(round(round(round(round(round(round(123.123456789, 9), 8), |
 ===================================================================
-                                                               12 |
+                                                             123 |
 
 taos> select ROUND(ROUND(ROUND(ROUND(ROUND(ROUND(ROUND(123456789.123456789, -1), -2), -3), -4), -5), -6))
  round(round(round(round(round(round(round(123456789.123456789, - |
 ===================================================================
-                                                         12300000 |
+                                                       123000000 |
 
 taos> select ROUND(current) from ts_4893.meters order by ts limit 20
     round(current)    |

@@ -1748,6 +1748,7 @@ static int32_t translateHistogramPartial(SFunctionNode* pFunc, char* pErrBuf, in
   return TSDB_CODE_SUCCESS;
 }
 
+#define NUMERIC_TO_STRINGS_LEN 25
 static int32_t translateGreatestleast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (LIST_LENGTH(pFunc->pParameterList) < 2) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -1756,32 +1757,48 @@ static int32_t translateGreatestleast(SFunctionNode* pFunc, char* pErrBuf, int32
   bool mixTypeToStrings = tsTransToStrWhenMixTypeInLeast;
 
   SDataType res = {.type = 0};
+  bool     resInit = false;
   for (int32_t i = 0; i < LIST_LENGTH(pFunc->pParameterList); i++) {
     SDataType* para = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i));
 
     if (IS_NULL_TYPE(para->type)) {
       res.type = TSDB_DATA_TYPE_NULL;
+      res.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
       break;
-    } else if (IS_MATHABLE_TYPE(para->type)) {
-      if(res.type == 0) {
-        res.type = para->type;
-        res.bytes = para->bytes;
-      } else if(IS_MATHABLE_TYPE(res.type) || !mixTypeToStrings) {
+    }
+
+    if (!resInit) {
+      res.type = para->type;
+      res.bytes = para->bytes;
+      resInit = true;
+      continue;
+    }
+
+    if (IS_MATHABLE_TYPE(para->type)) {
+      if (res.type == para->type) {
+        continue;
+      } else if (IS_MATHABLE_TYPE(res.type) || !mixTypeToStrings) {
         int32_t resType = vectorGetConvertType(res.type, para->type);
         res.type = resType == 0 ? res.type : resType;
-        res.bytes =  tDataTypes[resType].bytes;
+        res.bytes = tDataTypes[resType].bytes;
+      } else {
+        // last res is strings, para is numeric and mixTypeToStrings is true
+        res.bytes = TMAX(res.bytes, NUMERIC_TO_STRINGS_LEN);
       }
     } else if (IS_COMPARE_STR_DATA_TYPE(para->type)) {
-      if(res.type == 0) {
-        res.type = para->type;
-        res.bytes = para->bytes;
-      } else if(IS_COMPARE_STR_DATA_TYPE(res.type)) {
+      if (IS_COMPARE_STR_DATA_TYPE(res.type)) {
         int32_t resType = vectorGetConvertType(res.type, para->type);
         res.type = resType == 0 ? res.type : resType;
         res.bytes = TMAX(res.bytes, para->bytes);
-      } else if(mixTypeToStrings) { // res.type is mathable type
+      } else if (mixTypeToStrings) {
+        // last res is numeric, para is string, and mixTypeToStrings is true
         res.type = para->type;
-        res.bytes = para->bytes;
+        res.bytes = TMAX(para->bytes, NUMERIC_TO_STRINGS_LEN);
+      } else {
+        // last res is numeric, para is string, and mixTypeToStrings is false
+        int32_t resType = vectorGetConvertType(res.type, para->type);
+        res.type = resType == 0 ? res.type : resType;
+        res.bytes = tDataTypes[resType].bytes;
       }
     } else {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);

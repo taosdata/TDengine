@@ -668,6 +668,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       printf("%*" PRIu64, width, *((uint64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
+      width = width >= LENGTH ? LENGTH - 1 : width;
       if (tsEnableScience) {
         printf("%*.7e", width, GET_FLOAT_VAL(val));
       } else {
@@ -676,6 +677,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       }
       break;
     case TSDB_DATA_TYPE_DOUBLE:
+      width = width >= LENGTH ? LENGTH - 1 : width;
       if (tsEnableScience) {
         snprintf(buf, LENGTH, "%*.15e", width, GET_DOUBLE_VAL(val));
         printf("%s", buf);

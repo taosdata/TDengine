@@ -47,12 +47,12 @@ taos> select TRUNCATE(10.55, 1) + 1
 taos> select TRUNCATE(TRUNCATE(TRUNCATE(TRUNCATE(TRUNCATE(TRUNCATE(TRUNCATE(123.123456789, 9), 8), 7), 6), 5), 4), 3)
  truncate(truncate(truncate(truncate(truncate(truncate(truncate(1 |
 ===================================================================
-                                                           123.12 |
+                                                         123.123 |
 
 taos> select TRUNCATE(TRUNCATE(TRUNCATE(TRUNCATE(TRUNCATE(TRUNCATE(TRUNCATE(123456789.123456789, -1), -2), -3), -4), -5), -6), -7)
  truncate(truncate(truncate(truncate(truncate(truncate(truncate(1 |
 ===================================================================
-                                                         12000000 |
+                                                       120000000 |
 
 taos> select TRUNCATE(87654321.123456789, id) from ts_4893.meters order by ts limit 10
  truncate(87654321.123456789, id) |
@@ -144,12 +144,12 @@ taos> select TRUNC(10.55, 1) + 1
 taos> select TRUNC(TRUNC(TRUNC(TRUNC(TRUNC(TRUNC(TRUNC(123.123456789, 9), 8), 7), 6), 5), 4), 3)
  trunc(trunc(trunc(trunc(trunc(trunc(trunc(123.123456789, 9), 8), |
 ===================================================================
-                                                           123.12 |
+                                                         123.123 |
 
 taos> select TRUNC(TRUNC(TRUNC(TRUNC(TRUNC(TRUNC(TRUNC(123456789.123456789, -1), -2), -3), -4), -5), -6), -7)
  trunc(trunc(trunc(trunc(trunc(trunc(trunc(123456789.123456789, - |
 ===================================================================
-                                                         12000000 |
+                                                       120000000 |
 
 taos> select TRUNC(87654321.123456789, id) from ts_4893.meters order by ts limit 10
  trunc(87654321.123456789, id) |
