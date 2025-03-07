@@ -6,8 +6,7 @@ import taostest
 from utils.log import TDLog
 from utils.sql import tdSql
 from utils.before_test import BeforeTest
-from utils.pytest.util.cluster import cluster as cluster_pytest, ClusterDnodes as ClusterDnodes_pytest
-from utils.pytest.util.dnodes import tdDnodes as tdDnodes_pytest
+
 from utils.pytest.util.sql import tdSql as tdSql_pytest
 import taos
 import taosrest
@@ -68,13 +67,16 @@ def before_test_session(request):
                 servers.append({
                     "host": host,
                     "port": int(port),
-                    "config": setting["spec"]["dnodes"][0]["config"]  # 完整的配置信息
+                    "config": setting["spec"]["dnodes"][0]["config"],  # 完整的配置信息
+                    "endpoint": endpoint,
+                    "cfg_path": setting["spec"]["dnodes"][0]["config_dir"]
                 })
         request.session.host = servers[0]["host"]
         request.session.port = servers[0]["port"]
         request.session.user = "root"
         request.session.password = "taosdata"
         request.session.cfg_path = servers[0]["config"]["config_dir"]
+        request.session.servers = servers
 
     # 解析入参，存入session变量
     else:
@@ -143,13 +145,8 @@ def before_test_class(request):
     request.cls.tdSql = request.session.before_test.get_tdsql(request.cls.conn)
     request.cls.replicaVar = request.session.replicaVar
     # 为老用例兼容，初始化部分实例
-    if request.cls.dnode_nums > 1:
-        dnodeslist = cluster_pytest.configure_cluster(dnodeNums=request.cls.dnode_nums, mnodeNums=request.cls.mnode_nums, independentMnode=True)
-        tdDnodes_pytest = ClusterDnodes_pytest(dnodeslist)
-        tdDnodes_pytest.init("", "")
-        tdDnodes_pytest.setValgrind(0)
-
-
+    request.session.before_test.init_dnode_cluster(request, dnode_nums=request.cls.dnode_nums, mnode_nums=request.cls.mnode_nums, independentMnode=True)
+    
     tdSql_pytest.init(request.cls.conn.cursor())
 
 
