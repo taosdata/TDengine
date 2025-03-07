@@ -1,0 +1,76 @@
+###################################################################
+#           Copyright (c) 2016 by TAOS Technologies, Inc.
+#                     All rights reserved.
+#
+#  This file is proprietary and confidential to TAOS Technologies.
+#  No part of this file may be reproduced, stored, transmitted,
+#  disclosed or used in any form or by any means other than as
+#  expressly provided by the written permission from Jianhui Tao
+#
+###################################################################
+
+# -*- coding: utf-8 -*-
+
+import sys
+import time
+import random
+
+import taos
+import frame
+import frame.etool
+
+
+from frame.log import *
+from frame.cases import *
+from frame.sql import *
+from frame.caseBase import *
+from frame import *
+
+
+class TDTestCase(TBase):
+
+    def prepare_database(self):
+        tdLog.info(f"prepare database")
+        tdSql.execute("DROP DATABASE IF EXISTS test")
+        tdSql.execute("CREATE DATABASE IF NOT EXISTS test")
+        tdSql.execute("USE test")
+
+
+    def check_create_stb_with_keep(self):
+        tdLog.info(f"check create stb with keep")
+        tdSql.execute("USE test")
+        tdSql.execute(f"CREATE STABLE IF NOT EXISTS stb_0 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 1d")
+        tdSql.execute(f"CREATE STABLE IF NOT EXISTS stb_1 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 1440m")
+        tdSql.execute(f"CREATE STABLE IF NOT EXISTS stb_2 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 24h")
+        tdSql.execute(f"CREATE STABLE IF NOT EXISTS stb_3 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 7d")
+        tdSql.execute(f"CREATE STABLE IF NOT EXISTS stb_4 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 30d")
+        tdSql.execute(f"CREATE STABLE IF NOT EXISTS stb_5 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 365000d")
+        tdSql.execute(f"CREATE STABLE IF NOT EXISTS stb_6 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 365")
+
+    def check_create_stb_with_err_keep_duration(self):
+        tdLog.info(f"check create stb with err keep duration")
+        tdSql.execute("USE test")
+        tdSql.error(f"CREATE STABLE IF NOT EXISTS stb_7 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 0d",expectErrInfo="Invalid option keep value")
+        tdSql.error(f"CREATE STABLE IF NOT EXISTS stb_8 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP -1d",expectErrInfo="syntax error")
+        tdSql.error(f"CREATE STABLE IF NOT EXISTS stb_9 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP -1",expectErrInfo="syntax error")
+        tdSql.error(f"CREATE STABLE IF NOT EXISTS stb_10 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 1m",expectErrInfo="Invalid option keep value")
+        tdSql.error(f"CREATE STABLE IF NOT EXISTS stb_11 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 1h",expectErrInfo="Invalid option keep value")
+        tdSql.error(f"CREATE STABLE IF NOT EXISTS stb_12 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 365001d",expectErrInfo="Invalid option keep value")
+
+    # run
+    def run(self):
+        tdLog.debug(f"start to excute {__file__}")
+
+        # prepare database
+        self.prepare_database()
+
+        # check create stb with keep
+        self.check_create_stb_with_keep()
+
+        # check create stb with err keep duration
+        self.check_create_stb_with_err_keep_duration()
+
+        tdLog.success(f"{__file__} successfully executed")
+
+tdCases.addLinux(__file__, TDTestCase())
+tdCases.addWindows(__file__, TDTestCase())
