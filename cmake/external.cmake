@@ -106,6 +106,8 @@ endmacro()
 # get_from_local_repo_if_exists/get_from_local_if_exists
 # is for local storage of externals only
 macro(get_from_local_repo_if_exists git_url)              # {
+  # if LOCAL_REPO is set as: -DLOCAL_REPO:STRING=ssh://host/path-to-local-repo
+  # then _git_url would be: ssh://host/path-to-local-repo/<git_url-name>.git
   if(NOT DEFINED LOCAL_REPO)
     set(_git_url "${git_url}")
   else()
@@ -127,32 +129,31 @@ endmacro()                                                # }
 
 # zlib
 if(${TD_LINUX})
-    set(ext_zlib_static libz.a)
+    set(ext_zlib_static libzs$<$<CONFIG:Debug>:d>.a)
 elseif(${TD_DARWIN})
-    set(ext_zlib_static libz.a)
+    set(ext_zlib_static libzs$<$<CONFIG:Debug>:d>.a)
 elseif(${TD_WINDOWS})
-    set(ext_zlib_static zlibstatic$<$<CONFIG:Debug>:D>.lib)
+    set(ext_zlib_static zs$<$<CONFIG:Debug>:d>.lib)
 endif()
 INIT_EXT(ext_zlib
     INC_DIR          include
     LIB              lib/${ext_zlib_static}
 )
-get_from_local_repo_if_exists("https://github.com/taosdata-contrib/zlib.git")
-# if LOCAL_REPO is set as: -DLOCAL_REPO:STRING=ssh://host/path-to-local-repo
-# then _git_url would be: ssh://host/path-to-local-repo/zlib.git
+# freemine: original from taosdata-contrib
+# GIT_REPOSITORY https://github.com/taosdata-contrib/zlib.git
+# GIT_TAG        v1.2.11
+get_from_local_repo_if_exists("https://github.com/madler/zlib.git")
 ExternalProject_Add(ext_zlib
     GIT_REPOSITORY ${_git_url}
-    GIT_TAG v1.2.11        # better NOT use branch name
+    GIT_TAG 5a82f71ed1dfc0bec044d9702463dbdf84ea3b71
     PREFIX "${_base}"
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}        # if main project is built in Debug, ext_zlib is too
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}                # let default INSTALL step use
     CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON            # linking consistent
-    PATCH_COMMAND
-        COMMAND git restore -- CMakeLists.txt                       # tweek
-        COMMAND git apply ${TD_CONTRIB_DIR}/zlib.diff
+    CMAKE_ARGS -DZLIB_BUILD_SHARED:BOOL=OFF
+    CMAKE_ARGS -DZLIB_BUILD_TESTING:BOOL=ON
     GIT_SHALLOW TRUE
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
 add_dependencies(build_externals ext_zlib)     # this is for github workflow in cache-miss step.
-

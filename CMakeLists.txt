@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.16)
 
 project(
   TDengine
@@ -21,6 +21,9 @@ include(${TD_SUPPORT_DIR}/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.version)
 
 include(${TD_SUPPORT_DIR}/external.cmake)
+
+# freemine: porting contrib/externals
+return()
 
 # contrib
 add_subdirectory(contrib)
