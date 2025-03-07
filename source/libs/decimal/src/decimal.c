@@ -473,7 +473,7 @@ int32_t decimal64ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32
   int32_t code = decimalGetWhole(pInt, DECIMAL_64, scale, &whole);
   pos += snprintf(pBuf + pos, bufLen - pos, "%" PRId64, DECIMAL64_GET_VALUE(&whole));
   if (scale > 0) {
-    decimalGetFrac(pInt, DECIMAL_64, scale, &frac);
+    (void)decimalGetFrac(pInt, DECIMAL_64, scale, &frac);
     if (DECIMAL64_GET_VALUE(&frac) != 0 || DECIMAL64_GET_VALUE(&whole) != 0) {
       TAOS_STRCAT(pBuf + pos, ".");
       pos += 1;
@@ -641,11 +641,8 @@ static bool decimal128Lt(const DecimalType* pLeft, const DecimalType* pRight, ui
   // TODO wjm pRightDec use const
   Decimal128 *pLeftDec = (Decimal128*)pLeft, *pRightDec = (Decimal128*)pRight;
   Decimal128  right = {0};
-  char left_buf[64] = {0}, right_buf[64] = {0}; // TODO wjm remove it
   DECIMAL128_CHECK_RIGHT_WORD_NUM(rightWordNum, pRightDec, right, pRight);
 
-  decimal128ToStr(pLeftDec, 0, left_buf, 64);
-  decimal128ToStr(pRightDec, 0, right_buf, 64);
   return DECIMAL128_HIGH_WORD(pLeftDec) < DECIMAL128_HIGH_WORD(pRightDec) ||
          (DECIMAL128_HIGH_WORD(pLeftDec) == DECIMAL128_HIGH_WORD(pRightDec) &&
           DECIMAL128_LOW_WORD(pLeftDec) < DECIMAL128_LOW_WORD(pRightDec));
@@ -1367,8 +1364,8 @@ static int64_t int64FromDecimal128(const DecimalType* pDec, uint8_t prec, uint8_
     return 0;
   }
   Decimal128 max = {0}, min = {0};
-  decimal128FromInt64(&max, TSDB_DECIMAL128_MAX_PRECISION, 0, INT64_MAX);
-  decimal128FromInt64(&min, TSDB_DECIMAL128_MAX_PRECISION, 0, INT64_MIN);
+  (void)decimal128FromInt64(&max, TSDB_DECIMAL128_MAX_PRECISION, 0, INT64_MAX);
+  (void)decimal128FromInt64(&min, TSDB_DECIMAL128_MAX_PRECISION, 0, INT64_MIN);
   if (decimal128Gt(&rounded, &max, WORD_NUM(Decimal128)) || decimal128Lt(&rounded, &min, WORD_NUM(Decimal128))) {
     overflow = true;
     return (int64_t)DECIMAL128_LOW_WORD(&rounded);
@@ -1384,7 +1381,7 @@ static uint64_t uint64FromDecimal128(const DecimalType* pDec, uint8_t prec, uint
   if (overflow) return 0;
 
   Decimal128 max = {0};
-  decimal128FromUint64(&max, TSDB_DECIMAL128_MAX_PRECISION, 0, UINT64_MAX);
+  (void)decimal128FromUint64(&max, TSDB_DECIMAL128_MAX_PRECISION, 0, UINT64_MAX);
   if (decimal128Gt(&rounded, &max, WORD_NUM(Decimal128)) ||
       decimal128Lt(&rounded, &decimal128Zero, WORD_NUM(Decimal128))) {
     overflow = true;

@@ -117,7 +117,7 @@ def scan_files_path(source_file_path):
     # scan_dir_list = ["source", "include", "docs/examples", "tests/script/api", "src/plugins"]
     scan_dir_list = ["source", "include", "docs/examples", "src/plugins"]
     scan_skip_file_list = ["/root/charles/TDinternal/community/tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl",
-                           "/test/", "contrib", "debug", "deps", "/root/charles/TDinternal/community/source/libs/parser/src/sql.c", "/root/charles/TDinternal/community/source/client/jni/windows/win32/bridge/AccessBridgeCalls.c"]
+                           "/test/", "contrib", "debug", "deps", "/root/charles/TDinternal/community/source/libs/parser/src/sql.c", "/root/charles/TDinternal/community/source/client/jni/windows/win32/bridge/AccessBridgeCalls.c", "/root/charles/TDinternal/community/source/libs/decimal/src/detail"]
     for root, dirs, files in os.walk(source_file_path):
         for file in files:
             if any(item in root for item in scan_dir_list):
@@ -129,7 +129,7 @@ def scan_files_path(source_file_path):
 def input_files(change_files):
     # scan_dir_list = ["source", "include", "docs/examples", "tests/script/api", "src/plugins"]
     scan_dir_list = ["source", "include", "docs/examples", "src/plugins"]
-    scan_skip_file_list = ["tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl", "/test/", "contrib", "debug", "deps", "source/libs/parser/src/sql.c", "source/libs/azure", "source/client/jni/windows/win32/bridge/AccessBridgeCalls.c"]
+    scan_skip_file_list = ["tools/taosws-rs/target/release/build/openssl-sys-7811e597b848e397/out/openssl-build/install/include/openssl", "/test/", "contrib", "debug", "deps", "source/libs/parser/src/sql.c", "source/libs/azure", "source/client/jni/windows/win32/bridge/AccessBridgeCalls.c", "/root/charles/TDinternal/community/source/libs/decimal/src/detail"]
     with open(change_files, 'r') as file:
         for line in file:
             file_name = line.strip()
