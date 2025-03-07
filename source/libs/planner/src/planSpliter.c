@@ -70,6 +70,7 @@ static SLogicSubplan* splCreateScanSubplan(SSplitContext* pCxt, SLogicNode* pNod
   }
   pSubplan->id.queryId = pCxt->queryId;
   pSubplan->id.groupId = pCxt->groupId;
+  // TODO(smj):refact here.
   pSubplan->subplanType = nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN ? SUBPLAN_TYPE_MERGE : SUBPLAN_TYPE_SCAN;
   pSubplan->pNode = pNode;
   pSubplan->pNode->pParent = NULL;
@@ -150,10 +151,11 @@ static int32_t splCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pChild, SE
 }
 
 static int32_t splCreateExchangeNodeForSubplan(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pSplitNode,
-                                               ESubplanType subplanType) {
+                                               ESubplanType subplanType, bool seqScan) {
   SExchangeLogicNode* pExchange = NULL;
   int32_t             code = splCreateExchangeNode(pCxt, pSplitNode, &pExchange);
   if (TSDB_CODE_SUCCESS == code) {
+    pExchange->seqRecvData = seqScan;
     code = replaceLogicNode(pSubplan, pSplitNode, (SLogicNode*)pExchange);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -1076,7 +1078,7 @@ static int32_t stbSplCreatePartAggNode(SAggLogicNode* pMergeAgg, SLogicNode** pO
 }
 
 static int32_t stbSplSplitAggNodeForPartTable(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
-  int32_t code = splCreateExchangeNodeForSubplan(pCxt, pInfo->pSubplan, pInfo->pSplitNode, SUBPLAN_TYPE_MERGE);
+  int32_t code = splCreateExchangeNodeForSubplan(pCxt, pInfo->pSubplan, pInfo->pSplitNode, SUBPLAN_TYPE_MERGE, false);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,
                                      (SNode*)splCreateScanSubplan(pCxt, pInfo->pSplitNode, SPLIT_FLAG_STABLE_SPLIT));
@@ -1454,7 +1456,7 @@ static int32_t stbSplSplitScanNodeWithoutPartTags(SSplitContext* pCxt, SStableSp
   SLogicNode* pSplitNode = NULL;
   int32_t     code = stbSplGetSplitNodeForScan(pInfo, &pSplitNode);
   if (TSDB_CODE_SUCCESS == code) {
-    code = splCreateExchangeNodeForSubplan(pCxt, pInfo->pSubplan, pSplitNode, pInfo->pSubplan->subplanType);
+    code = splCreateExchangeNodeForSubplan(pCxt, pInfo->pSubplan, pSplitNode, pInfo->pSubplan->subplanType, false);
   }
   if (TSDB_CODE_SUCCESS == code) {
     splSetSubplanType(pInfo->pSubplan);
@@ -1774,7 +1776,7 @@ static int32_t singleTableJoinSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan
   if (!splMatch(pCxt, pSubplan, 0, (FSplFindSplitNode)sigTbJoinSplFindSplitNode, &info)) {
     return TSDB_CODE_SUCCESS;
   }
-  int32_t code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType);
+  int32_t code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType, false);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, info.pSplitNode, 0));
   }
@@ -2002,7 +2004,7 @@ static int32_t insertSelectSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
 
   SLogicSubplan* pNewSubplan = NULL;
   SNodeList*     pSubplanChildren = info.pSubplan->pChildren;
-  int32_t        code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pQueryRoot, SUBPLAN_TYPE_MODIFY);
+  int32_t        code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pQueryRoot, SUBPLAN_TYPE_MODIFY, false);
   if (TSDB_CODE_SUCCESS == code) {
     code = splCreateSubplan(pCxt, info.pQueryRoot, &pNewSubplan);
   }
@@ -2044,8 +2046,10 @@ static int32_t virtualTableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   int32_t startGroupId = pCxt->groupId;
   SNode*  pChild = NULL;
   FOREACH(pChild, info.pVirtual->node.pChildren) {
-    PLAN_ERR_JRET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)pChild, info.pSubplan->subplanType));
-    PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, (SLogicNode*)pChild, 0)));
+    PLAN_ERR_JRET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)pChild, info.pSubplan->subplanType, info.pVirtual->tableType == TSDB_SUPER_TABLE));
+    SLogicSubplan *sub = splCreateScanSubplan(pCxt, (SLogicNode*)pChild, 0);
+    sub->processOneBlock = (info.pVirtual->tableType == TSDB_SUPER_TABLE);
+    PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)sub));
     ++(pCxt->groupId);
   }
   info.pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
@@ -2090,7 +2094,7 @@ static int32_t mergeAggColsSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     return TSDB_CODE_SUCCESS;
   }
 
-  PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, SUBPLAN_TYPE_MERGE));
+  PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, SUBPLAN_TYPE_MERGE, false));
   PLAN_ERR_RET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, info.pSplitNode, 0)));
 
   ++(pCxt->groupId);
@@ -2126,7 +2130,7 @@ static int32_t qnodeSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     return TSDB_CODE_SUCCESS;
   }
   ((SScanLogicNode*)info.pSplitNode)->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD;
-  int32_t code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType);
+  int32_t code = splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType, false);
   if (TSDB_CODE_SUCCESS == code) {
     SLogicSubplan* pScanSubplan = splCreateScanSubplan(pCxt, info.pSplitNode, 0);
     if (NULL != pScanSubplan) {
@@ -2173,8 +2177,7 @@ static int32_t dynVirtualScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan)
 
   SNode         *pSub = NULL;
   SNodeList     *pSubplanChildren = info.pSubplan->pChildren;
-  PLAN_ERR_JRET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)info.pDyn, info.pSubplan->subplanType));
-  ((SExchangeLogicNode*)info.pSubplan->pNode)->seqRecvData = true;
+  PLAN_ERR_JRET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)info.pDyn, info.pSubplan->subplanType, true));
   PLAN_ERR_JRET(splCreateSubplan(pCxt, (SLogicNode*)info.pDyn, (SLogicSubplan**)&pSub));
   ((SLogicSubplan*)pSub)->subplanType = SUBPLAN_TYPE_MERGE;
   splSetSubplanVgroups((SLogicSubplan*)pSub, (SLogicNode*)info.pDyn);
