@@ -178,6 +178,11 @@ typedef struct SDBVgHashInfo {
   SArray*   vgArray;   //SArray<SVGroupHashInfo>
 } SDBVgHashInfo;
 
+typedef struct SColIdName {
+  int16_t colId;
+  char*   colName;
+} SColIdName;
+
 typedef struct SStreamVBuildCtx {
   int64_t      lastUid;
   SRefColInfo* lastCol;

@@ -123,6 +123,7 @@ enum {
 
 typedef enum {
   TASK_LEVEL__SOURCE = 1,
+  TASK_LEVEL__MERGE,
   TASK_LEVEL__AGG,
   TASK_LEVEL__SINK,
   TASK_LEVEL_SMA,
@@ -134,6 +135,7 @@ enum {
   TASK_OUTPUT__TABLE,
   TASK_OUTPUT__SMA,
   TASK_OUTPUT__FETCH,
+  TASK_OUTPUT__VTABLE_MAP,
 };
 
 enum {
@@ -399,6 +401,7 @@ typedef struct STaskOutputInfo {
     STaskSinkTb    tbSink;
     STaskSinkSma   smaSink;
     STaskSinkFetch fetchSink;
+    SSHashObj*     vtableMap;
   };
   int8_t        type;
   STokenBucket* pTokenBucket;
@@ -464,6 +467,7 @@ struct SStreamTask {
   STaskCheckInfo      taskCheckInfo;
   SNotifyInfo         notifyInfo;
   STaskNotifyEventStat notifyEventStat;
+  SArray*              pVTables;   // for merge task, SArray<SVCTableMergeInfo>
 
   // the followings attributes don't be serialized
   SScanhistorySchedInfo schedHistoryInfo;
