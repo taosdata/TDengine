@@ -124,7 +124,6 @@ def scan_files_path(source_file_path):
         "deps",
         "/root/charles/TDinternal/community/source/libs/parser/src/sql.c",
         "/root/charles/TDinternal/community/source/client/jni/windows/win32/bridge/AccessBridgeCalls.c",
-        "/root/charles/TDinternal/community/source/libs/decimal/",
     ]
     for root, dirs, files in os.walk(source_file_path):
         for file in files:
@@ -146,7 +145,7 @@ def input_files(change_files):
         "source/libs/parser/src/sql.c",
         "source/libs/azure",
         "source/client/jni/windows/win32/bridge/AccessBridgeCalls.c",
-        "/root/charles/TDinternal/community/source/libs/decimal/",
+        "source/libs/decimal/",
     ]
     with open(change_files, 'r') as file:
         for line in file:
