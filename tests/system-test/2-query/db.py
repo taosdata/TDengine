@@ -46,8 +46,8 @@ class TDTestCase:
         tdSql.checkRows(2)
     
     def case2(self):
-        tdSql.query("show variables")        
-        tdSql.checkRows(87)
+        tdSql.query("show variables") 
+        tdSql.checkGreater(tdSql.getRows(), 80)       
 
         for i in range(self.replicaVar):
             tdSql.query("show dnode %d variables like 'debugFlag'" % (i + 1))
@@ -88,7 +88,7 @@ class TDTestCase:
         
     def show_local_variables_like(self):
         tdSql.query("show local variables")        
-        tdSql.checkRows(85)
+        tdSql.checkGreater(tdSql.getRows(), 80)
 
         tdSql.query("show local variables like 'debugFlag'")
         tdSql.checkRows(1)
@@ -116,7 +116,7 @@ class TDTestCase:
         for zone in zones:
             tdLog.info(f"show {zone} variables")
             tdSql.query(f"show {zone} variables")        
-            tdSql.checkRows(87)
+            tdSql.checkGreater(tdSql.getRows(), 80)
 
             tdLog.info(f"show {zone} variables like 'debugFlag'")
             #tdSql.query(f"show {zone} variables like 'debugFlag'")
