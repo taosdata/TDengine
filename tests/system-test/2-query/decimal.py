@@ -1998,6 +1998,14 @@ class TDTestCase:
             ),
         )
 
+        self.check_decimal_binary_expr_with_const_col_results(
+            self.db_name,
+            self.stable_name,
+            self.stb_columns,
+            Column.get_decimal_oper_const_cols,
+            DecimalBinaryOperator.get_all_binary_ops,
+        )
+
         ## test decimal column op decimal column
         for i in range(operator_test_round):
             self.check_decimal_binary_expr_with_col_results(
@@ -2146,7 +2154,7 @@ class TDTestCase:
                 if len(res) > 0:
                     res = res[0]
                 func.check_for_agg_func(res, tbname, func)
-    
+
     def test_decimal_cast_func(self, dbname, tbname, tb_cols: List[Column]):
         for col in tb_cols:
             if col.name_ == '':
@@ -2160,7 +2168,6 @@ class TDTestCase:
                 if len(res) > 0:
                     res = res[0]
                 cast_func.check(res, tbname)
-
 
     def test_decimal_functions(self):
         if not test_decimal_funcs:
