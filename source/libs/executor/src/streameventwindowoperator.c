@@ -1049,7 +1049,7 @@ int32_t createStreamEventAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
     QUERY_CHECK_CODE(code, lino, _error);
   }
 
-  initNonBlockAggSupptor(&pInfo->nbSup, NULL);
+  initNonBlockAggSupptor(&pInfo->nbSup, NULL, NULL);
   code = initStreamBasicInfo(&pInfo->basic, pOperator);
   QUERY_CHECK_CODE(code, lino, _error);
 

@@ -409,7 +409,8 @@ static bool isSelectGroupConstValueFunc(SExprInfo* pExprInfo) {
 static bool isWindowFunction(SFillColInfo* pCol) {
   return (pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_START ||
           pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_END ||
-          pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_DURATION);
+          pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_DURATION ||
+          pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_IS_WINDOW_FILLED);
 }
 
 static int32_t fillPointResult(SStreamFillSupporter* pFillSup, SResultRowData* pResRow, SResultRowData* pNonFillRow,
@@ -445,10 +446,11 @@ static int32_t fillPointResult(SStreamFillSupporter* pFillSup, SResultRowData* p
           .currentKey = ts,
           .order = TSDB_ORDER_ASC,
           .interval = pFillSup->interval,
+          .isFilled = isFilled,
       };
       bool filled = fillIfWindowPseudoColumn(&tmpInfo, pFillCol, pDstCol, pBlock->info.rows);
       if (!filled) {
-        qError("%s failed at line %d since fill errror", __func__, lino);
+        qError("%s failed at line %d since fill errror", __func__, __LINE__);
       }
     } else {
       int32_t          srcSlot = pFillCol->pExpr->base.pParam[0].pCol->slotId;
@@ -520,6 +522,7 @@ static void fillLinearRange(SStreamFillSupporter* pFillSup, SStreamFillInfo* pFi
             .currentKey = pFillInfo->current,
             .order = TSDB_ORDER_ASC,
             .interval = pFillSup->interval,
+            .isFilled = true,
         };
         bool filled = fillIfWindowPseudoColumn(&tmpInfo, pFillCol, pDstCol, pBlock->info.rows);
         if (!filled) {

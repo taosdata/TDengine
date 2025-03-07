@@ -479,7 +479,7 @@ _end:
 }
 
 static int32_t buildFillResult(SResultRowData* pResRow, SStreamFillSupporter* pFillSup, TSKEY ts, SSDataBlock* pBlock,
-                               bool* pRes) {
+                               bool* pRes, bool isFilld) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pBlock->info.rows >= pBlock->info.capacity) {
@@ -503,6 +503,7 @@ static int32_t buildFillResult(SResultRowData* pResRow, SStreamFillSupporter* pF
                .currentKey = ts,
                .order = TSDB_ORDER_ASC,
                .interval = pFillSup->interval,
+               .isFilled = isFilld,
     };
     bool filled = fillIfWindowPseudoColumn(&tmpInfo, pFillCol, pColData, pBlock->info.rows);
     if (!filled) {
@@ -535,7 +536,7 @@ static void doStreamFillNormal(SStreamFillSupporter* pFillSup, SStreamFillInfo* 
     STimeWindow st = {.skey = pFillInfo->current, .ekey = pFillInfo->current};
     if (inWinRange(&pFillSup->winRange, &st)) {
       bool res = true;
-      code = buildFillResult(pFillInfo->pResRow, pFillSup, pFillInfo->current, pBlock, &res);
+      code = buildFillResult(pFillInfo->pResRow, pFillSup, pFillInfo->current, pBlock, &res, true);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     pFillInfo->current = taosTimeAdd(pFillInfo->current, pFillSup->interval.sliding, pFillSup->interval.slidingUnit,
@@ -572,6 +573,7 @@ static void doStreamFillLinear(SStreamFillSupporter* pFillSup, SStreamFillInfo* 
               .currentKey = pFillInfo->current,
               .order = TSDB_ORDER_ASC,
               .interval = pFillSup->interval,
+              .isFilled = true,
       };
 
       int32_t          slotId = GET_DEST_SLOT_ID(pFillCol);
@@ -633,13 +635,13 @@ void doStreamFillRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* pFillSu
   int32_t lino = 0;
   bool    res = false;
   if (pFillInfo->needFill == false) {
-    code = buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes, &res);
+    code = buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes, &res, false);
     QUERY_CHECK_CODE(code, lino, _end);
     return;
   }
 
   if (pFillInfo->pos == FILL_POS_START) {
-    code = buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes, &res);
+    code = buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes, &res, false);
     QUERY_CHECK_CODE(code, lino, _end);
     if (res) {
       pFillInfo->pos = FILL_POS_INVALID;
@@ -651,7 +653,7 @@ void doStreamFillRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* pFillSu
     doStreamFillLinear(pFillSup, pFillInfo, pRes);
 
     if (pFillInfo->pos == FILL_POS_MID) {
-      code = buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes, &res);
+      code = buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes, &res, false);
       QUERY_CHECK_CODE(code, lino, _end);
       if (res) {
         pFillInfo->pos = FILL_POS_INVALID;
@@ -668,7 +670,7 @@ void doStreamFillRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* pFillSu
     }
   }
   if (pFillInfo->pos == FILL_POS_END) {
-    code = buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes, &res);
+    code = buildFillResult(&pFillSup->cur, pFillSup, pFillSup->cur.key, pRes, &res, false);
     QUERY_CHECK_CODE(code, lino, _end);
     if (res) {
       pFillInfo->pos = FILL_POS_INVALID;
@@ -1201,7 +1203,7 @@ void doBuildForceFillResultImpl(SOperatorInfo* pOperator, SStreamFillSupporter* 
     if (winCode == TSDB_CODE_SUCCESS) {
       pFillSup->cur.key = pKey->ts;
       pFillSup->cur.pRowVal = pValPos->pRowBuff;
-      code = buildFillResult(&pFillSup->cur, pFillSup, pKey->ts, pBlock, &res);
+      code = buildFillResult(&pFillSup->cur, pFillSup, pKey->ts, pBlock, &res, false);
       QUERY_CHECK_CODE(code, lino, _end);
       resetForceFillWindow(&pFillSup->cur);
       releaseOutputBuf(pInfo->pState, pValPos, &pInfo->stateStore);
@@ -1216,12 +1218,12 @@ void doBuildForceFillResultImpl(SOperatorInfo* pOperator, SStreamFillSupporter* 
         pFillSup->cur.key = pKey->ts;
         pFillSup->cur.pRowVal = prePos->pRowBuff;
         if (pFillInfo->type == TSDB_FILL_PREV) {
-          code = buildFillResult(&pFillSup->cur, pFillSup, pKey->ts, pBlock, &res);
+          code = buildFillResult(&pFillSup->cur, pFillSup, pKey->ts, pBlock, &res, true);
           QUERY_CHECK_CODE(code, lino, _end);
         } else {
           copyNotFillExpData(pFillSup, pFillInfo);
           pFillInfo->pResRow->key = pKey->ts;
-          code = buildFillResult(pFillInfo->pResRow, pFillSup, pKey->ts, pBlock, &res);
+          code = buildFillResult(pFillInfo->pResRow, pFillSup, pKey->ts, pBlock, &res, true);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         resetForceFillWindow(&pFillSup->cur);
@@ -1557,6 +1559,8 @@ static SStreamFillSupporter* initStreamFillSup(SStreamFillPhysiNode* pPhyFillNod
   QUERY_CHECK_NULL(pFillSup->pResMap, code, lino, _end, terrno);
   pFillSup->hasDelete = false;
   pFillSup->normalFill = true;
+  pFillSup->pResultRange = taosArrayInit(2, POINTER_BYTES);
+
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1875,14 +1879,14 @@ int32_t createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysi
                               GET_TASKID(pTaskInfo), &pTaskInfo->storageAPI);
     QUERY_CHECK_CODE(code, lino, _error);
 
-    initNonBlockAggSupptor(&pInfo->nbSup, &pInfo->pFillSup->interval);
+    initNonBlockAggSupptor(&pInfo->nbSup, &pInfo->pFillSup->interval, downstream);
     code = initStreamBasicInfo(&pInfo->basic, pOperator);
     QUERY_CHECK_CODE(code, lino, _error);
     pInfo->basic.operatorFlag = opFlag;
     if (isFinalOperator(&pInfo->basic)) {
       pInfo->nbSup.numOfKeep++;
     }
-    code = initOffsetInfo(&pInfo->pFillSup->pOffsetInfo, pInfo->pRes);
+    code = initFillSupRowInfo(pInfo->pFillSup, pInfo->pRes);
     QUERY_CHECK_CODE(code, lino, _error);
     pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamNonblockFillNext, NULL, destroyStreamNonblockFillOperatorInfo,
                                            optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);

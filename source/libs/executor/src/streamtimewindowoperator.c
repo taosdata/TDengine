@@ -4120,7 +4120,7 @@ int32_t createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   pInfo->pPkDeleted = tSimpleHashInit(64, hashFn);
   QUERY_CHECK_NULL(pInfo->pPkDeleted, code, lino, _error, terrno);
   pInfo->pOperator = pOperator;
-  initNonBlockAggSupptor(&pInfo->nbSup, NULL);
+  initNonBlockAggSupptor(&pInfo->nbSup, NULL, NULL);
 
   setOperatorInfo(pOperator, getStreamOpName(pOperator->operatorType), nodeType(pSessionNode), true,
                   OP_NOT_OPENED, pInfo, pTaskInfo);
@@ -5428,7 +5428,7 @@ int32_t createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* 
     taosMemoryFree(buff);
     QUERY_CHECK_CODE(code, lino, _error);
   }
-  initNonBlockAggSupptor(&pInfo->nbSup, NULL);
+  initNonBlockAggSupptor(&pInfo->nbSup, NULL, NULL);
   code = initStreamBasicInfo(&pInfo->basic, pOperator);
   QUERY_CHECK_CODE(code, lino, _error);
 

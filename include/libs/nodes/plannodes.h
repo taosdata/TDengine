@@ -512,6 +512,7 @@ typedef struct STableScanPhysiNode {
   char           pWstartName[TSDB_COL_NAME_LEN];
   char           pWendName[TSDB_COL_NAME_LEN];
   char           pGroupIdName[TSDB_COL_NAME_LEN];
+  char           pIsWindowFilledName[TSDB_COL_NAME_LEN];
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;

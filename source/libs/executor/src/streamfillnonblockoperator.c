@@ -124,18 +124,21 @@ static int32_t getResultInfoFromResult(SStreamRecParam* pParam, SStreamFillSuppo
   code = streamClientGetFillRange(pParam, pKey, pFillSup->pResultRange, pFillSup->pEmptyRow, pFillSup->rowSize, pFillSup->pOffsetInfo, pFillSup->numOfAllCols);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  SSliceRowData* pPrevRowData = taosArrayGetP(pFillSup->pResultRange, 0);
-  if (pFillSup->prev.key < pPrevRowData->key) {
-    pFillSup->prevOriginKey = pPrevRowData->key;
-    pFillSup->prev.key = adustPrevTsKey(pPrevRowData->key, pPrevRowData->key, &pFillSup->interval);
-    pFillSup->prev.pRowVal = (SResultCellData*)pPrevRowData->pRowVal;
-  }
-
-  SSliceRowData* pNextRowData = taosArrayGetP(pFillSup->pResultRange, 1);
-  if ((pFillSup->next.key > pNextRowData->key) || (!hasNextWindow(pFillSup) && pNextRowData->key != INT64_MIN)) {
-    pFillSup->nextOriginKey = pNextRowData->key;
-    pFillSup->next.key = adustEndTsKey(pNextRowData->key, pNextRowData->key, &pFillSup->interval);
-    pFillSup->next.pRowVal = (SResultCellData*)pNextRowData->pRowVal;
+  for (int32_t i = 0; i < taosArrayGetSize(pFillSup->pResultRange); i++) {
+    SSliceRowData* pSRdata = taosArrayGetP(pFillSup->pResultRange, i);
+    if (pSRdata->key < pKey->ts) {
+      if (pFillSup->prev.key < pSRdata->key) {
+        pFillSup->prevOriginKey = pSRdata->key;
+        pFillSup->prev.key = adustPrevTsKey(pSRdata->key, pSRdata->key, &pFillSup->interval);
+        pFillSup->prev.pRowVal = (SResultCellData*)pSRdata->pRowVal;
+      }
+    } else if (pSRdata->key > pKey->ts) {
+      if ((pFillSup->next.key > pSRdata->key) || (!hasNextWindow(pFillSup) && pSRdata->key != INT64_MIN)) {
+        pFillSup->nextOriginKey = pSRdata->key;
+        pFillSup->next.key = adustEndTsKey(pSRdata->key, pSRdata->key, &pFillSup->interval);
+        pFillSup->next.pRowVal = (SResultCellData*)pSRdata->pRowVal;
+      }
+    }
   }
   
 _end:
@@ -297,6 +300,37 @@ static void doFillDeleteRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* 
       pBlock->info.id.groupId = range->groupId;
     }
   }
+}
+
+int32_t initFillSupRowInfo(SStreamFillSupporter* pFillSup, SSDataBlock* pRes) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+
+  code = initOffsetInfo(&pFillSup->pOffsetInfo, pRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  int32_t  numOfCol = taosArrayGetSize(pRes->pDataBlock);
+  pFillSup->pEmptyRow = taosMemoryCalloc(1, pFillSup->rowSize);
+  QUERY_CHECK_NULL(pFillSup->pEmptyRow, code, lino, _end, lino);
+
+  for (int32_t i = 0; i < numOfCol; i++) {
+    SColumnInfoData* pColInfo = taosArrayGet(pRes->pDataBlock, i);
+    int32_t bytes = 1;
+    int32_t type = 1;
+    if (pColInfo != NULL) {
+      bytes = pColInfo->info.bytes;
+      type = pColInfo->info.type;
+    }
+    SResultCellData* pCell = getSliceResultCell(pFillSup->pEmptyRow, i, pFillSup->pOffsetInfo);
+    pCell->bytes = bytes;
+    pCell->type = type;
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t doStreamNonblockFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {

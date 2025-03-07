@@ -46,7 +46,7 @@ int32_t     copyRecDataToBuff(TSKEY calStart, TSKEY calEnd, uint64_t uid, uint64
                               int32_t buffLen);
 int32_t     saveRecWindowToDisc(SSessionKey* pWinKey, uint64_t uid, EStreamType mode, STableTsDataState* pTsDataState,
                                 SStreamAggSupporter* pAggSup);
-int32_t     initNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup, SInterval* pInterval);
+int32_t     initNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup, SInterval* pInterval, SOperatorInfo* downstream);
 void        destroyNonBlockAggSupptor(SNonBlockAggSupporter* pNbSup);
 int32_t     buildRetriveRequest(SExecTaskInfo* pTaskInfo, SStreamAggSupporter* pAggSup, STableTsDataState* pTsDataState,
                                 SNonBlockAggSupporter* pNbSup);
@@ -69,6 +69,7 @@ void        destroyStreamNonblockFillOperatorInfo(void* param);
 int32_t     buildDeleteResult(SOperatorInfo* pOperator, TSKEY startTs, TSKEY endTs, uint64_t groupId, SSDataBlock* delRes);
 void        setDeleteFillValueInfo(TSKEY start, TSKEY end, SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo);
 void        doStreamFillRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* pFillSup, SSDataBlock* pRes);
+int32_t     initFillSupRowInfo(SStreamFillSupporter* pFillSup, SSDataBlock* pRes);
 
 #ifdef __cplusplus
 }

@@ -181,15 +181,15 @@ _end:
 }
 
 static int32_t buildFillResultSql(SWinKey* pKey, SStreamRecParam* pParam) {
-  int64_t prevLen = 0;
-  int64_t len = 0;
   (void)memset(pParam->pSql, 0, pParam->sqlCapcity);
-  len += tsnprintf(pParam->pSql + len, pParam->sqlCapcity - len,
-                   "select *, cast(%s as bigint) from %s where %s == %" PRIu64 " and ts < %" PRId64
-                   " order by 1 desc limit 1 union all select *, cast(%s as bigint) from  %s where %s == %" PRIu64
-                   " and ts > %" PRId64 " order by 1 asc limit 1",
-                   pParam->pWstartName, pParam->pStbFullName, pParam->pGroupIdName, pKey->groupId, pKey->ts,
-                   pParam->pWstartName, pParam->pStbFullName, pParam->pGroupIdName, pKey->groupId, pKey->ts);
+  (void)tsnprintf(
+      pParam->pSql, pParam->sqlCapcity,
+      "(select *, cast(`%s` as bigint) from %s where `%s` == %" PRIu64 " and `%s` < %" PRId64
+      " and `%s` ==0 order by 1 desc limit 1) union all (select *, cast(`%s` as bigint) from  %s where `%s` == %" PRIu64
+      " and `%s` > %" PRId64 " and `%s` ==0 order by 1 asc limit 1)",
+      pParam->pWstartName, pParam->pStbFullName, pParam->pGroupIdName, pKey->groupId, pParam->pWstartName, pKey->ts,
+      pParam->pIsWindowFilledName, pParam->pWstartName, pParam->pStbFullName, pParam->pGroupIdName, pKey->groupId,
+      pParam->pWstartName, pKey->ts, pParam->pIsWindowFilledName);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -216,7 +216,7 @@ static int32_t jsonToDataCell(const SJson* pJson, SResultCellData* pCell) {
   return code;
 }
 
-static int32_t doTransformFillResult(const SJson* pJsonResult, SArray* pRangeRes, void* pRow, int32_t size,
+static int32_t doTransformFillResult(const SJson* pJsonResult, SArray* pRangeRes, void* pEmptyRow, int32_t size,
                                      int32_t* pOffsetInfo, int32_t numOfCols) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -232,9 +232,9 @@ static int32_t doTransformFillResult(const SJson* pJsonResult, SArray* pRangeRes
       int32_t        cols = tjsonGetArraySize(pRow);
       SSliceRowData* pRowData = taosMemoryCalloc(1, sizeof(TSKEY) + size);
       pRowData->key = INT64_MIN;
-      memcpy(pRowData->pRowVal, pRow, size);
+      memcpy(pRowData->pRowVal, pEmptyRow, size);
       for (int32_t j = 0; j < cols && j < numOfCols; ++j) {
-        SJson*           pJsonCell = tjsonGetArrayItem(pRow, j);
+        SJson* pJsonCell = tjsonGetArrayItem(pRow, j);
         QUERY_CHECK_NULL(pJsonCell, code, lino, _end, TSDB_CODE_FAILED);
 
         SResultCellData* pDataCell = getSliceResultCell((SResultCellData*)pRowData->pRowVal, j, pOffsetInfo);
@@ -261,7 +261,7 @@ _end:
   return code;
 }
 
-int32_t streamClientGetFillRange(SStreamRecParam* pParam, SWinKey* pKey, SArray* pRangeRes, void* pRow, int32_t size,
+int32_t streamClientGetFillRange(SStreamRecParam* pParam, SWinKey* pKey, SArray* pRangeRes, void* pEmptyRow, int32_t size,
                                  int32_t* pOffsetInfo, int32_t numOfCols) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -272,7 +272,7 @@ int32_t streamClientGetFillRange(SStreamRecParam* pParam, SWinKey* pKey, SArray*
   SJson* pJsRes = NULL;
   code = doProcessSql(pParam, &pJsRes);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = doTransformFillResult(pJsRes, pRangeRes, pRow, size, pOffsetInfo, numOfCols);
+  code = doTransformFillResult(pJsRes, pRangeRes, pEmptyRow, size, pOffsetInfo, numOfCols);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:

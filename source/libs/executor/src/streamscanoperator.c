@@ -1620,6 +1620,8 @@ static void initStreamRecalculateParam(STableScanPhysiNode* pTableScanNode, SStr
   tstrncpy(pParam->pWstartName, pTableScanNode->pWstartName, TSDB_COL_NAME_LEN);
   tstrncpy(pParam->pWendName, pTableScanNode->pWendName, TSDB_COL_NAME_LEN);
   tstrncpy(pParam->pGroupIdName, pTableScanNode->pGroupIdName, TSDB_COL_NAME_LEN);
+  tstrncpy(pParam->pIsWindowFilledName, pTableScanNode->pIsWindowFilledName, TSDB_COL_NAME_LEN);
+
 
   pParam->sqlCapcity = tListLen(pParam->pSql);
   (void)tsnprintf(pParam->pUrl, tListLen(pParam->pUrl), "http://%s:%d/rest/sql", tsAdapterFqdn, tsAdapterPort);
