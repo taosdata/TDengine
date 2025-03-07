@@ -317,7 +317,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
 
     ENDIF ()
 
-    target_link_libraries(taosBenchmark z)
+    TARGET_LINK_LIBRARIES(taosBenchmark z)
 
 ELSE ()
     ADD_DEFINITIONS(-DWINDOWS)
@@ -334,6 +334,7 @@ ELSE ()
     ADD_DEPENDENCIES(taosdump deps-snappy)
     ADD_DEPENDENCIES(taosdump deps-libargp)
     ADD_DEPENDENCIES(taosdump apache-avro)
+    ADD_DEPENDENCIES(taosBenchmark tools-zlib)
 
     IF (${WEBSOCKET})
         INCLUDE_DIRECTORIES(/usr/local/include/)
@@ -365,5 +366,8 @@ ELSE ()
     ENDIF ()
 
     TARGET_LINK_LIBRARIES(taosBenchmark taos msvcregex pthread toolscJson ${WEBSOCKET_LINK_FLAGS})
+
+    TARGET_LINK_LIBRARIES(taosBenchmark zlibstatic)
+
 ENDIF ()
 
