@@ -467,7 +467,7 @@ _end:
 
 void destroyFlusedPos(void* pRes) {
   SRowBuffPos* pPos = (SRowBuffPos*)pRes;
-  if (!pPos->needFree && !pPos->pRowBuff) {
+  if (pPos->needFree && !pPos->pRowBuff) {
     taosMemoryFreeClear(pPos->pKey);
     taosMemoryFree(pPos);
   }
