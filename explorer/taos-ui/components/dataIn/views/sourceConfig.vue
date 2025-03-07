@@ -170,7 +170,9 @@ import {
   currentTaskStatus,
   connectivityCheckResult,
   validOpcFileResult,
-  getAdvancedHealth
+  getAdvancedHealth,
+  formatFromData,
+  recoverFromData
 } from '../model/util';
 import { transformerState, configureSupportFlags, resetTransformerState } from '../components/commonTransformer/util';
 import { getDataInProps } from '../model/useDataIn';
@@ -244,7 +246,7 @@ const labels = computed(() => {
   return ['type::datain', `cluster-id::${instance?.tdClusterId}`, `user::${instance?.user}`];
 });
 
-provide('toUrl', toUrl.value);
+provide('toUrl', toUrl);
 
 taskId.value = Number(route?.params.taskId);
 
@@ -262,9 +264,7 @@ watch(
 onMounted(async () => {
   if (route?.params.page === 'edit' || route?.params.page === 'copy') {
     await handleDetailData(route?.params.taskId);
-    sourceForm.type = route?.params.type;
     currentPageType.value = route?.params.page;
-    getDataSource();
   } else {
     dataInProps.isIndusty ? (sourceForm.type = 'csv') : (sourceForm.type = 'tmq');
     currentPageType.value = 'add';
@@ -278,10 +278,13 @@ async function handleDetailData(id: string | number) {
   const data = await dataInProps.dataSource.api.getTaskDetailApi(id);
 
   sourceForm.agent = data.from.agent;
-  sourceForm.type = data.type;
+  sourceForm.type = data.from.type;
+  getDataSource();
+
   sourceForm.name = data.name;
   sourceForm.targetDB = data.to_expand.subject;
-  sourceForm.data = data.from.data;
+  // sourceForm.data = data.from.data;
+  recoverFromData(sourceForm.data, data.from.data);
   if (data.parser) {
     transformerState.transformerParserData = data.parser;
   }
@@ -295,11 +298,8 @@ function getDataSource() {
   currentDefinition.value = defaultConfig.defaultSourceConfig[sourceForm.type];
   definitionsList.value = defaultConfig.definitionsList;
   if (!currentDefinition.value) return;
-  if (currentPageType.value === 'add') {
-    sourceForm.data = generateFormInitData(currentDefinition.value?.config);
-  }
+  sourceForm.data = generateFormInitData(currentDefinition.value?.config);
   configureSupportFlags(sourceForm.type);
-
   componentKey.value++;
 }
 async function getDatabaseList() {
@@ -403,7 +403,7 @@ async function submit() {
     if (valid) {
       const type = sourceForm.type;
       const params = {
-        from: sourceForm,
+        from: formatFromData(sourceForm),
         name: sourceForm.name,
         to: toUrl.value,
         labels: labels.value,

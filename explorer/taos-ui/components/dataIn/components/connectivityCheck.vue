@@ -34,13 +34,19 @@
 import type { ComponentInternalInstance } from 'vue';
 import BlockHeader from './blockHeader.vue';
 import { t } from 'locales';
-import { currentPageType, sourceForm, connectivityCheckResult, validateFormFields } from '../model/util';
+import {
+  currentPageType,
+  sourceForm,
+  connectivityCheckResult,
+  validateFormFields,
+  formatFromData
+} from '../model/util';
 import { getDataInProps } from '../model/useDataIn';
 import { isEn } from 'config';
 const dataInProps = getDataInProps();
 
 const sourceParent = inject<ComponentInternalInstance>('sourceParent') as any;
-const toUrl = inject('toUrl');
+const toUrl: any = inject('toUrl');
 
 const checkResult: any = ref({});
 const checkLoading = ref<boolean>(false);
@@ -119,9 +125,11 @@ async function getValidateResult(data: Recordable, agent: number | string) {
         via: agent
       };
     }
+
+    const from = formatFromData(data);
     const parameter = {
-      from: data,
-      to: toUrl,
+      from,
+      to: toUrl.value,
       ...viaObj
     };
 

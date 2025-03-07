@@ -416,11 +416,35 @@ export default {
           max: 100
         },
         {
+          label: '缓存实时数据',
+          field: 'persist_data_enable',
+          description:
+            '开启后，当 taosX 由于性能不足或者下游 TDengine 写入慢时，会将实时数据暂存，等恢复时再将缓存数据重新写入下游 TDengine.\n',
+          defaultValue: false,
+          required: false,
+          type: 'switch'
+        },
+        {
+          label: '缓存数据存储目录',
+          field: 'persist_data_dir',
+          description: '自定义缓存数据存储目录，默认存储到系统数据目录下。\n',
+          placeholder: '$DATA_DIR/tasks/:id/persist_queue/',
+          required: false,
+          type: 'input',
+          displayDependsOn: ['advanced_options/persist_data_enable'],
+          displayDependsOnValues: {
+            persist_data_enable: [true]
+          }
+        },
+        {
           label: '保存原始数据',
           field: 'keep_raw_data',
           description: '是否保存原始数据？\n',
           defaultValue: false,
           required: false,
+          hint: {
+            type: 'bool'
+          },
           type: 'switch'
         },
         {
@@ -431,7 +455,11 @@ export default {
           required: false,
           type: 'number',
           min: 1,
-          max: 365
+          max: 365,
+          displayDependsOn: ['advanced_options/keep_raw_data'],
+          displayDependsOnValues: {
+            keep_raw_data: [true]
+          }
         },
         {
           label: '原始数据存储目录',
@@ -439,7 +467,11 @@ export default {
           description: '自定义原始数据存储目录，默认存储到系统数据目录下。\n',
           placeholder: '$DATA_DIR/tasks/:id/rawdata/',
           required: false,
-          type: 'input'
+          type: 'input',
+          displayDependsOn: ['advanced_options/keep_raw_data'],
+          displayDependsOnValues: {
+            keep_raw_data: [true]
+          }
         },
         {
           label: '健康监测时段',

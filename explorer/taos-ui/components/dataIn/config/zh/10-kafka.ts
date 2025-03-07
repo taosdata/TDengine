@@ -13,31 +13,18 @@ export default {
       field: 'connection_options',
       children: [
         {
-          host: {
-            label: 'bootstrap-server',
-            description:
-              'Kafka Server 地址。\n<br/>如果配置多个，所有 Kafka Server 必须属于同一个集群。\n<br/>如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。\n',
-            field: 'host_1',
-            placeholder: '127.0.0.1',
-            required: true,
-            pattern: null,
-            defaultValue: '',
-            type: 'input'
-          },
-          port: {
-            label: '服务端口',
-            description: 'Kafka 的端口',
-            field: 'port_1',
-            placeholder: '9092',
-            required: true,
-            pattern: '^(?:0|[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$',
-            patternMsg: '端口号的范围是 0-65535',
-            defaultValue: '',
-            type: 'input'
-          }
+          label: 'bootstrap-server',
+          description:
+            'Kafka Server 地址。\n<br/>如果配置多个，所有 Kafka Server 必须属于同一个集群，并使用逗号分割。\n<br/>如果使用了 Agent ，该地址必须能够从 Agent 访问。如果没有使用 Agent, 该地址必须能够从 TDengine 系统所在服务器访问。\n',
+          field: 'endpoint',
+          placeholder: 'ip:port,ip:port',
+          pattern: null,
+          defaultValue: '',
+          required: true,
+          display_order: 1,
+          type: 'input'
         }
-      ],
-      type: 'grouping'
+      ]
     },
     {
       label: 'Groups-before',

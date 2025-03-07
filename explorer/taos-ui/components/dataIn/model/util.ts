@@ -208,6 +208,65 @@ export const isShowResultTable = ref<boolean>(false);
 // 获取数据点位
 export const datasetTableData = ref();
 
+export function recoverFromData(dataDisplay: Recordable, rdata: Recordable, parentKey?: string) {
+  // console.log('recoverFromData', dataDisplay);
+  // console.log('data', data);
+  const keys = Object.getOwnPropertyNames(dataDisplay);
+
+  keys.forEach(key => {
+    if (typeof dataDisplay[key] === 'object') {
+      // 对象或数组类型
+      recoverFromData(dataDisplay[key], rdata, key);
+    } else if (rdata[key] !== undefined) {
+      // 有值的情况下，需要恢复
+      dataDisplay[key] = rdata[key];
+    } else if (rdata[`${parentKey}.${key}`] !== undefined) {
+      // 有值的情况下，需要恢复
+      dataDisplay[key] = rdata[`${parentKey}.${key}`];
+    }
+  });
+}
+
+export function formatFromData(from: Recordable) {
+  const { agent, type, data } = from;
+  const resultFrom = {
+    agent,
+    type,
+    data: {}
+  };
+  mergeToFromData(data, resultFrom.data);
+  return resultFrom;
+}
+
+// 将配置数据合入为 from.data 参数，也就是3.3.6.0版本之前的 dsn 字符串的 对象表达形式
+function mergeToFromData(data: Recordable, fromData: Recordable, fullNameMap: any = {}, parentKey?: string) {
+  const keys = Object.getOwnPropertyNames(data);
+
+  keys.forEach(key => {
+    if (!parentKey && (key === 'parser' || !data[key])) {
+      // 不需要根节点的 parser 数据，如果根节点没有配置，则也不需要
+      console.log('skip key:', key);
+      return;
+    }
+
+    if (typeof data[key] === 'object') {
+      // 对象或数组类型
+      mergeToFromData(data[key], fromData, fullNameMap, key);
+    } else {
+      // 普通类型
+      if (fromData[key] !== undefined) {
+        const fullName = fullNameMap[key];
+        fromData[fullName] = fromData[key];
+        delete fromData[key];
+        fromData[`${parentKey}.${key}`] = data[key];
+      } else {
+        fromData[key] = data[key];
+        fullNameMap[key] = `${parentKey}.${key}`;
+      }
+    }
+  });
+}
+
 // 获取嵌套的值
 export const getNestedValue = (obj: Recordable, str: string) => {
   const path = str.split('/');

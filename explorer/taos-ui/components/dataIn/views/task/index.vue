@@ -402,7 +402,7 @@ async function getList() {
       }
       (item['taskid'] = item.id), (item['localname'] = item.name);
       item['localtype'] = dataSourceMap[item.from.type] ? dataSourceMap[item.from.type] : '';
-      item['target'] = item.from ? item.from.targetDB : '';
+      item['target'] = item.to_expand?.subject || '';
       item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
       item['disableEdit'] = item.from.type === 'csv' && item.from.data.csvData.currentTab === 'upload_csv_file';
       return item;
