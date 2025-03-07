@@ -1,7 +1,6 @@
 PROJECT(TDengine)
 
 # Set c++ compiler options
-
 SET(COMMON_FLAGS "-Wall -fPIC -g -fsigned-char -fpack-struct=8 -D_FILE_OFFSET_BITS=64 -D_LARGE_FILE")
 SET(COMMON_CXX_FLAGS "${COMMON_FLAGS} -std=c++11")
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${COMMON_CXX_FLAGS} ${DEBUG_FLAGS}")
