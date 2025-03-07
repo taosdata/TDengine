@@ -1,0 +1,57 @@
+###################################################################
+#           Copyright (c) 2016 by TAOS Technologies, Inc.
+#                     All rights reserved.
+#
+#  This file is proprietary and confidential to TAOS Technologies.
+#  No part of this file may be reproduced, stored, transmitted,
+#  disclosed or used in any form or by any means other than as
+#  expressly provided by the written permission from Jianhui Tao
+#
+###################################################################
+
+# -*- coding: utf-8 -*-
+import pytest
+import logging
+
+logger = logging.getLogger(__name__)
+
+class TestKeepTimeOffset:
+    def setup_class(cls):
+        logger.debug("start to execute %s" % __file__)
+
+    def test_create_db(self):
+        hours = 8
+        # create
+        keep_str = f"KEEP_TIME_OFFSET {hours}"
+        self.tdSql.execute(f"create database db {keep_str}")
+
+        # check result
+        self.tdSql.query("select `keep_time_offset` from  information_schema.ins_databases where name='db'")
+        self.tdSql.checkData(0, 0, hours)
+
+        # alter
+        hours = 4
+        keep_str = f"KEEP_TIME_OFFSET {hours}"
+        self.tdSql.execute(f"alter database db {keep_str}")
+
+        # check result
+        self.tdSql.query("select `keep_time_offset` from  information_schema.ins_databases where name='db'")
+        self.tdSql.checkData(0, 0, hours)
+
+
+    def test_check_old_syntax(self):
+        # old syntax would not support again
+        self.tdSql.error("alter dnode 1 'keeptimeoffset 10';")
+
+
+    def run(self):
+        # check new syntax right
+        self.create_db()
+
+        # check old syntax error
+        self.check_old_syntax()
+        
+
+    def teardown_class(cls):
+        logger.info("%s successfully executed" % __file__)
+
