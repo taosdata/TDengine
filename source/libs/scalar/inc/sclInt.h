@@ -142,6 +142,7 @@ int32_t sclConvertToTsValueNode(int8_t precision, SValueNode* valueNode);
 #define GET_PARAM_TYPE(_c)     ((_c)->columnData ? (_c)->columnData->info.type : (_c)->filterValueType)
 #define GET_PARAM_BYTES(_c)    ((_c)->columnData->info.bytes)
 #define GET_PARAM_PRECISON(_c) ((_c)->columnData->info.precision)
+#define GET_PARAM_SCALE(_c)    ((_c)->columnData->info.scale)
 
 void sclFreeParam(SScalarParam* param);
 int32_t doVectorCompare(SScalarParam* pLeft, SScalarParam *pLeftVar, SScalarParam* pRight, SScalarParam *pOut, int32_t startIndex, int32_t numOfRows,
