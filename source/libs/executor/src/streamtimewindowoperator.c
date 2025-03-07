@@ -4254,8 +4254,8 @@ void destroyStreamStateOperatorInfo(void* param) {
                               &pInfo->groupResInfo);
     pInfo->pOperator = NULL;
   }
-  destroyStreamAggSupporter(&pInfo->streamAggSup);
   clearGroupResInfo(&pInfo->groupResInfo);
+  destroyStreamAggSupporter(&pInfo->streamAggSup);
   taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
   pInfo->pUpdated = NULL;
 
