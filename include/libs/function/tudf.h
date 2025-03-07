@@ -43,22 +43,21 @@ extern "C" {
 #endif
 #define UDF_DNODE_ID_ENV_NAME "DNODE_ID"
 
-#define TAOS_UV_LIB_ERROR_RET(ret)                    \
-    do {                                              \
-        if (0 != ret) {                               \
-            terrno = TSDB_CODE_UDF_UV_EXEC_FAILURE;   \
-            return TSDB_CODE_UDF_UV_EXEC_FAILURE;     \
-        }                                             \
-    } while(0)
+#define TAOS_UV_LIB_ERROR_RET(ret)            \
+  do {                                        \
+    if (0 != ret) {                           \
+      terrno = TSDB_CODE_UDF_UV_EXEC_FAILURE; \
+      return TSDB_CODE_UDF_UV_EXEC_FAILURE;   \
+    }                                         \
+  } while (0)
 
-
-#define TAOS_UV_CHECK_ERRNO(CODE)                   \
-  do {                                              \
-    if (0 != CODE) {                                \
-      terrln = __LINE__;                            \
-      terrno = (CODE);     \
-      goto _exit;                                   \
-    }                                               \
+#define TAOS_UV_CHECK_ERRNO(CODE) \
+  do {                            \
+    if (0 != CODE) {              \
+      terrln = __LINE__;          \
+      terrno = (CODE);            \
+      goto _exit;                 \
+    }                             \
   } while (0)
 
 #define TAOS_UDF_CHECK_PTR_RCODE(...)                                          \
@@ -132,7 +131,8 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock);
 
 int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols, SScalarParam *output);
 
-int32_t cleanUpUdfs();
+// int32_t cleanUpUdfs();
+static FORCE_INLINE int32_t cleanUpUdfs() { return 0; }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // udf api
@@ -140,25 +140,29 @@ int32_t cleanUpUdfs();
  * create udfd proxy, called once in process that call doSetupUdf/callUdfxxx/doTeardownUdf
  * @return error code
  */
-int32_t udfcOpen();
+// int32_t udfcOpen();
+static FORCE_INLINE int32_t udfcOpen() { return 0; }
 
 /**
  * destroy udfd proxy
  * @return error code
  */
-int32_t udfcClose();
+// int32_t udfcClose();
+
+static FORCE_INLINE int32_t udfcClose() { return 0; }
 
 /**
  * start udfd that serves udf function invocation under dnode startDnodeId
  * @param startDnodeId
  * @return
  */
-int32_t udfStartUdfd(int32_t startDnodeId);
+static FORCE_INLINE int32_t udfStartUdfd(int32_t startDnodeId) { return 0; }
+
 /**
  * stop udfd
  * @return
  */
-void udfStopUdfd();
+static FORCE_INLINE void udfStopUdfd() { return; }
 
 /**
  * get udfd pid

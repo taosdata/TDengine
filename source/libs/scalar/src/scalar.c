@@ -24,7 +24,8 @@ int32_t scalarGetOperatorParamNum(EOperatorType type) {
 int32_t sclConvertToTsValueNode(int8_t precision, SValueNode *valueNode) {
   char   *timeStr = valueNode->datum.p;
   int64_t value = 0;
-  int32_t code = convertStringToTimestamp(valueNode->node.resType.type, valueNode->datum.p, precision, &value, valueNode->tz, valueNode->charsetCxt);  //todo tz
+  int32_t code = convertStringToTimestamp(valueNode->node.resType.type, valueNode->datum.p, precision, &value,
+                                          valueNode->tz, valueNode->charsetCxt);  // todo tz
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -135,7 +136,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, int8_
   int32_t len = 0;
   void   *buf = NULL;
 
-  SNode* nodeItem = NULL;
+  SNode *nodeItem = NULL;
   FOREACH(nodeItem, nodeList->pNodeList) {
     SValueNode *valueNode = (SValueNode *)nodeItem;
     if ((IS_VAR_DATA_TYPE(valueNode->node.resType.type) && (processType == 1 || processType == 3)) ||
@@ -379,23 +380,22 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       }
 
       int32_t type = ctx->type.selfType;
-      SNode* nodeItem = NULL;
+      SNode  *nodeItem = NULL;
       FOREACH(nodeItem, nodeList->pNodeList) {
         SValueNode *valueNode = (SValueNode *)nodeItem;
-        int32_t tmp = vectorGetConvertType(type, valueNode->node.resType.type);
-        if (tmp != 0){
+        int32_t     tmp = vectorGetConvertType(type, valueNode->node.resType.type);
+        if (tmp != 0) {
           type = tmp;
         }
-
       }
-      if (IS_NUMERIC_TYPE(type)){
+      if (IS_NUMERIC_TYPE(type)) {
         ctx->type.peerType = type;
       }
       type = ctx->type.peerType;
-      if (IS_VAR_DATA_TYPE(ctx->type.selfType) && IS_NUMERIC_TYPE(type)){
+      if (IS_VAR_DATA_TYPE(ctx->type.selfType) && IS_NUMERIC_TYPE(type)) {
         SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type, 1));
         SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilterOthers, node, ctx->type.selfType, 2));
-      } else if (IS_INTEGER_TYPE(ctx->type.selfType) && IS_FLOAT_TYPE(type)){
+      } else if (IS_INTEGER_TYPE(ctx->type.selfType) && IS_FLOAT_TYPE(type)) {
         SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilter, node, type, 3));
         SCL_ERR_RET(scalarGenerateSetFromList((void **)&param->pHashFilterOthers, node, ctx->type.selfType, 4));
       } else {
@@ -790,7 +790,9 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
   setTzCharset(params, node->tz, node->charsetCxt);
 
   if (fmIsUserDefinedFunc(node->funcId)) {
-    code = callUdfScalarFunc(node->functionName, params, paramNum, output);
+    // code = callUdfScalarFunc(node->functionName, params, paramNum, output);
+    code = 0;
+
     if (code != 0) {
       sclError("fmExecFunction error. callUdfScalarFunc. function name: %s, udf code:%d", node->functionName, code);
       goto _return;
@@ -1218,8 +1220,7 @@ EDealRes sclRewriteNonConstOperator(SNode **pNode, SScalarCtx *ctx) {
 EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode         *tnode = NULL;
-  if ((!fmIsScalarFunc(node->funcId) && (!ctx->dual)) ||
-      fmIsUserDefinedFunc(node->funcId)) {
+  if ((!fmIsScalarFunc(node->funcId) && (!ctx->dual)) || fmIsUserDefinedFunc(node->funcId)) {
     return DEAL_RES_CONTINUE;
   }
 
