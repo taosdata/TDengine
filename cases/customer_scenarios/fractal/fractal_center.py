@@ -15,7 +15,7 @@ class FractalCenter(TDCase):
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
         self.fqdn = self.taosd_setting["fqdn"][0]
         self.case_config = json.load(open(os.path.join(self.env_root, "workflow_config.json")))
-        self.db_config = self.case_config["db_config"]
+        self.db_config = json.load(open(os.path.join(self.env_root, "db_config.json")))
         self.case_data_org = file.read_yaml(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/config.yaml')
         self.edge_hosts = self.case_config["edge_dnode_hosts"]
         self.tdCom.api_type = 'restful'
@@ -56,7 +56,7 @@ class FractalCenter(TDCase):
             response = self.tdRest.request(data=case_data, method='POST', url=f'http://{self.fqdn}:6060/api/x/tasks',header=headers)
             task_info = response.json()
             task_list.append(task_info["id"])
-  
+
 
     def desc(self) -> str:
         case_description = """
