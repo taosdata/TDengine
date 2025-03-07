@@ -148,7 +148,7 @@ TEST(TAOS_ERROR_TEST, terror_compatibility_test) {
     map[pInfo->macro] = pInfo;
   }
 
-  string configFileName = "errorCodeTable.ini";
+  string configFileName = "test_errorcode.ini";
   string execDir = getExecutableDirectory();
   string configFilePath(execDir + configFileName);
 

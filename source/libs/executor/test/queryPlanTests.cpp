@@ -2790,7 +2790,7 @@ SNode* qptCreateDataDeletePhysiNode(int32_t nodeType) {
   pDeleter->tableId = QPT_CORRECT_HIGH_PROB() ? qptCtx.param.tbl.uid : taosRand();
   pDeleter->tableType = QPT_CORRECT_HIGH_PROB() ? (QPT_RAND_BOOL_V ? TSDB_CHILD_TABLE : TSDB_NORMAL_TABLE) : (taosRand() % TSDB_TABLE_MAX);
   if (QPT_CORRECT_HIGH_PROB()) {
-    sprintf(pDeleter->tableFName, "1.%s.%s", qptCtx.param.db.dbName, qptCtx.param.tbl.tblName);
+    snprintf(pDeleter->tableFName, sizeof(pDeleter->tableFName), "1.%s.%s", qptCtx.param.db.dbName, qptCtx.param.tbl.tblName);
   } else {
     pDeleter->tableFName[0] = QPT_RAND_BOOL_V ? 'a' : 0;
   }

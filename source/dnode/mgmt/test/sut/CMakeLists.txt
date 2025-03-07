@@ -6,5 +6,5 @@ target_include_directories(
 )
 
 target_link_libraries(
-  sut PUBLIC gtest_main dnode nodes planner qcom sdb os util common executor function scalar vnode
+  sut PUBLIC ${TAOS_LIB} gtest_main dnode nodes planner qcom sdb os util common executor function scalar vnode transport parser catalog scheduler geometry
 )

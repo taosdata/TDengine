@@ -6,96 +6,96 @@ FIND_LIBRARY(LIB_GTEST_STATIC_DIR libgtest.a /usr/lib/ /usr/local/lib /usr/lib64
 FIND_LIBRARY(LIB_GTEST_SHARED_DIR libgtest.so /usr/lib/ /usr/local/lib /usr/lib64)
 
 IF(HEADER_GTEST_INCLUDE_DIR AND(LIB_GTEST_STATIC_DIR OR LIB_GTEST_SHARED_DIR))
-    MESSAGE(STATUS "gTest library found, build os test")
+  MESSAGE(STATUS "gTest library found, build os test")
 
-    INCLUDE_DIRECTORIES(${HEADER_GTEST_INCLUDE_DIR})
-    AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
+  INCLUDE_DIRECTORIES(${HEADER_GTEST_INCLUDE_DIR})
+  AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 ENDIF()
 
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
 
 if(TD_LINUX)
-    add_executable(osAtomicTests "osAtomicTests.cpp")
-    target_link_libraries(osAtomicTests os util gtest_main)
-    add_test(
-        NAME osAtomicTests
-        COMMAND osAtomicTests
-    )
+  add_executable(test_osatomic "osAtomicTests.cpp")
+  target_link_libraries(test_osatomic sut)
+  add_test(
+    NAME test_osatomic
+    COMMAND test_osatomic
+  )
 
-    add_executable(osDirTests "osDirTests.cpp")
-    target_link_libraries(osDirTests os util gtest_main)
-    add_test(
-        NAME osDirTests
-        COMMAND osDirTests
-    )
+  add_executable(test_osdir "osDirTests.cpp")
+  target_link_libraries(test_osdir sut)
+  add_test(
+    NAME test_osdir
+    COMMAND test_osdir
+  )
 
-    add_executable(osFileTests "osFileTests.cpp")
-    target_link_libraries(osFileTests os util gtest_main)
-    add_test(
-        NAME osFileTests
-        COMMAND osFileTests
-    )
+  add_executable(test_osfile "osFileTests.cpp")
+  target_link_libraries(test_osfile sut)
+  add_test(
+    NAME test_osfile
+    COMMAND test_osfile
+  )
 
-    add_executable(osEnvTests "osEnvTests.cpp")
-    target_link_libraries(osEnvTests os util gtest_main)
-    add_test(
-        NAME osEnvTests
-        COMMAND osEnvTests
-    )
+  add_executable(test_osenv "osEnvTests.cpp")
+  target_link_libraries(test_osenv sut)
+  add_test(
+    NAME test_osenv
+    COMMAND test_osenv
+  )
 
-    add_executable(osTests "osTests.cpp")
-    target_link_libraries(osTests os util gtest_main)
-    add_test(
-        NAME osTests
-        COMMAND osTests
-    )
+  add_executable(test_ostest "osTests.cpp")
+  target_link_libraries(test_ostest sut)
+  add_test(
+    NAME test_ostest
+    COMMAND test_ostest
+  )
 
-    add_executable(osThreadTests "osThreadTests.cpp")
-    target_link_libraries(osThreadTests os util gtest_main)
-    add_test(
-        NAME osThreadTests
-        COMMAND osThreadTests
-    )
+  add_executable(test_osthread "osThreadTests.cpp")
+  target_link_libraries(test_osthread sut)
+  add_test(
+    NAME test_osthread
+    COMMAND test_osthread
+  )
 endif()
 
-add_executable(osMathTests "osMathTests.cpp")
-target_link_libraries(osMathTests os util gtest_main)
+add_executable(test_osmath "osMathTests.cpp")
+target_link_libraries(test_osmath sut)
 add_test(
-    NAME osMathTests
-    COMMAND osMathTests
+  NAME test_osmath
+  COMMAND test_osmath
 )
 
-add_executable(osSemaphoreTests "osSemaphoreTests.cpp")
-target_link_libraries(osSemaphoreTests os util gtest_main)
+add_executable(test_ossemaphore "osSemaphoreTests.cpp")
+target_link_libraries(test_ossemaphore sut)
 add_test(
-    NAME osSemaphoreTests
-    COMMAND osSemaphoreTests
+  NAME test_ossemaphore
+  COMMAND test_ossemaphore
 )
 
-add_executable(osSleepTests "osSleepTests.cpp")
-target_link_libraries(osSleepTests os util gtest_main)
+add_executable(test_ossleep "osSleepTests.cpp")
+target_link_libraries(test_ossleep sut)
 add_test(
-    NAME osSleepTests
-    COMMAND osSleepTests
+  NAME test_ossleep
+  COMMAND test_ossleep
 )
 
-add_executable(osStringTests "osStringTests.cpp")
-target_link_libraries(osStringTests os util gtest_main)
+add_executable(test_osstring "osStringTests.cpp")
+target_link_libraries(test_osstring sut)
 add_test(
-    NAME osStringTests
-    COMMAND osStringTests
+  NAME test_osstring
+  COMMAND test_osstring
 )
 
-add_executable(osSystemTests "osSystemTests.cpp")
-target_link_libraries(osSystemTests os util gtest_main)
+add_executable(test_ossystem "osSystemTests.cpp")
+target_link_libraries(test_ossystem sut)
 add_test(
-    NAME osSystemTests
-    COMMAND osSystemTests
+  NAME test_ossystem
+  COMMAND test_ossystem
 )
 
-add_executable(osTimeTests "osTimeTests.cpp")
-target_link_libraries(osTimeTests os util gtest_main)
+add_executable(test_ostime "osTimeTests.cpp")
+target_link_libraries(test_ostime sut)
 add_test(
-    NAME osTimeTests
-    COMMAND osTimeTests
+  NAME test_ostime
+  COMMAND test_ostime
 )

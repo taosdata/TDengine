@@ -1,128 +1,106 @@
 IF(NOT TD_DARWIN)
-  add_executable(idxTest "")
-  add_executable(idxFstTest "")
-  add_executable(idxFstUT "")
-  add_executable(idxUtilUT "")
-  add_executable(idxJsonUT "")
-  add_executable(idxFstUtilUT "")
+  add_executable(test_idx "")
+  add_executable(test_idxfst1 "")
+  add_executable(test_idxfst2 "")
+  add_executable(test_idxutil "")
+  add_executable(test_idxjson "")
+  add_executable(test_idxfstutil "")
 
-  target_sources(idxTest
+  target_sources(test_idx
     PRIVATE
     "indexTests.cc"
   )
-  target_sources(idxFstTest
+  target_sources(test_idxfst1
     PRIVATE
     "fstTest.cc"
   )
 
-  target_sources(idxFstUT
+  target_sources(test_idxfst2
     PRIVATE
     "fstUT.cc"
   )
-  target_sources(idxUtilUT
+  target_sources(test_idxutil
     PRIVATE
     "utilUT.cc"
   )
 
-  target_sources(idxJsonUT
+  target_sources(test_idxjson
     PRIVATE
     "jsonUT.cc"
   )
-  target_sources(idxFstUtilUT
+  target_sources(test_idxfstutil
     PRIVATE
     "fstUtilUT.cc"
   )
 
-  target_include_directories(idxTest
+  target_include_directories(test_idx
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/index"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
   )
-  target_include_directories(idxFstTest
+  target_include_directories(test_idxfst1
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/index"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
   )
-  target_sources(idxJsonUT
+  target_sources(test_idxjson
     PRIVATE
     "jsonUT.cc"
   )
-  target_include_directories(idxTest
+  target_include_directories(test_idx
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/index"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
   )
-  target_include_directories(idxFstTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/index"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-  )
-
-  target_include_directories(idxFstUT
+  target_include_directories(test_idxfst1
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/index"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
   )
 
-  target_include_directories(idxUtilUT
+  target_include_directories(test_idxfst2
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/index"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
   )
 
-  target_include_directories(idxJsonUT
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/index"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-  )
-  target_include_directories(idxFstUtilUT
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/index"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-  )
-  target_include_directories(idxJsonUT
+  target_include_directories(test_idxutil
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/index"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
   )
 
-  target_link_libraries(idxTest
+  target_include_directories(test_idxjson
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/index"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  )
+  target_include_directories(test_idxfstutil
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/index"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  )
+  target_include_directories(test_idxjson
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/index"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  )
+
+  target_link_libraries(test_idx
     os
     util
     common
     gtest_main
     index
   )
-  target_link_libraries(idxFstTest
+  target_link_libraries(test_idxfst1
     os
     util
     common
     gtest_main
     index
   )
-  target_link_libraries(idxFstUT
-    os
-    util
-    common
-    gtest_main
-    index
-  )
-
-  target_link_libraries(idxTest
-    os
-    util
-    common
-    gtest_main
-    index
-  )
-  target_link_libraries(idxFstTest
-    os
-    util
-    common
-    gtest_main
-    index
-  )
-  target_link_libraries(idxFstUT
+  target_link_libraries(test_idxfst2
     os
     util
     common
@@ -130,7 +108,21 @@ IF(NOT TD_DARWIN)
     index
   )
 
-  target_link_libraries(idxUtilUT
+  target_link_libraries(test_idx
+    os
+    util
+    common
+    gtest_main
+    index
+  )
+  target_link_libraries(test_idxfst1
+    os
+    util
+    common
+    gtest_main
+    index
+  )
+  target_link_libraries(test_idxfst2
     os
     util
     common
@@ -138,14 +130,22 @@ IF(NOT TD_DARWIN)
     index
   )
 
-  target_link_libraries(idxJsonUT
+  target_link_libraries(test_idxutil
     os
     util
     common
     gtest_main
     index
   )
-  target_link_libraries(idxFstUtilUT
+
+  target_link_libraries(test_idxjson
+    os
+    util
+    common
+    gtest_main
+    index
+  )
+  target_link_libraries(test_idxfstutil
     os
     util
     common
@@ -154,28 +154,28 @@ IF(NOT TD_DARWIN)
   )
 
   add_test(
-    NAME idxJsonUT
-    COMMAND idxJsonUT
+    NAME test_idxjson
+    COMMAND test_idxjson
   )
   add_test(
-    NAME idxFstUtilUT
-    COMMAND idxFstUtilUT
+    NAME test_idxfstutil
+    COMMAND test_idxfstutil
   )
 
   add_test(
-    NAME idxTest
-    COMMAND idxTest
+    NAME test_idx
+    COMMAND test_idx
   )
   add_test(
-    NAME idxUtilUT
-    COMMAND idxUtilUT
+    NAME test_idxutil
+    COMMAND test_idxutil
   )
   add_test(
-    NAME idxFstUT
-    COMMAND idxFstUT
+    NAME test_idxfst2
+    COMMAND test_idxfst2
   )
   add_test(
-    NAME idxFstTest
-    COMMAND idxFstTest
+    NAME test_idxfst1
+    COMMAND test_idxfst1
   )
 ENDIF()

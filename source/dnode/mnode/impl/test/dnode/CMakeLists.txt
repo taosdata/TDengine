@@ -1,11 +1,11 @@
 # aux_source_directory(. MNODE_DNODE_TEST_SRC)
-# add_executable(mdnodeTest ${MNODE_DNODE_TEST_SRC})
+# add_executable(test_mdnode ${MNODE_DNODE_TEST_SRC})
 # target_link_libraries(
-#     mdnodeTest
-#     PUBLIC sut
+#   test_mdnode
+#   PUBLIC sut
 # )
 
 # add_test(
-#     NAME mdnodeTest
-#     COMMAND mdnodeTest
+#   NAME test_mdnode
+#   COMMAND test_mdnode
 # )

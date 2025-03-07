@@ -1,20 +1,16 @@
-add_executable(walTest "")
-target_sources(walTest
-    PRIVATE
-    "walMetaTest.cpp"
-)
-target_include_directories(walTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/wal"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+add_executable(test_wal "walMetaTest.cpp")
+target_include_directories(test_wal
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/wal"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
-target_link_libraries(walTest
-    wal
-    gtest_main
+target_link_libraries(test_wal
+  wal
+  sut
 )
-enable_testing()
+
 add_test(
-    NAME wal_test
-    COMMAND walTest
+  NAME test_wal
+  COMMAND test_wal
 )

@@ -5,15 +5,15 @@ IF(NOT TD_DARWIN)
   SET(CMAKE_CXX_STANDARD 11)
 
   AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
-  ADD_EXECUTABLE(geomTest ${SOURCE_LIST})
+  ADD_EXECUTABLE(test_geom ${SOURCE_LIST})
 
   TARGET_LINK_LIBRARIES(
-    geomTest
+    test_geom
     PUBLIC os util gtest qcom nodes geometry scalar function scalar
   )
 
   add_test(
-    NAME geomTest
-    COMMAND geomTest
+    NAME test_geom
+    COMMAND test_geom
   )
 ENDIF()

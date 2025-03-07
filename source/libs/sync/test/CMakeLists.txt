@@ -61,810 +61,804 @@ add_executable(syncLocalCmdTest "")
 add_executable(syncPreSnapshotTest "")
 add_executable(syncPreSnapshotReplyTest "")
 
-
 target_sources(syncTest
-    PRIVATE
-    "syncTest.cpp"
+  PRIVATE
+  "syncTest.cpp"
 )
 target_sources(syncRaftIdCheck
-    PRIVATE
-    "syncRaftIdCheck.cpp"
+  PRIVATE
+  "syncRaftIdCheck.cpp"
 )
 target_sources(syncEnvTest
-    PRIVATE
-    "syncEnvTest.cpp"
+  PRIVATE
+  "syncEnvTest.cpp"
 )
 target_sources(syncPingTimerTest
-    PRIVATE
-    "syncPingTimerTest.cpp"
+  PRIVATE
+  "syncPingTimerTest.cpp"
 )
 target_sources(syncIOTickQTest
-    PRIVATE
-    "syncIOTickQTest.cpp"
+  PRIVATE
+  "syncIOTickQTest.cpp"
 )
 target_sources(syncIOTickPingTest
-    PRIVATE
-    "syncIOTickPingTest.cpp"
+  PRIVATE
+  "syncIOTickPingTest.cpp"
 )
 target_sources(syncIOSendMsgTest
-    PRIVATE
-    "syncIOSendMsgTest.cpp"
+  PRIVATE
+  "syncIOSendMsgTest.cpp"
 )
 target_sources(syncIOClientTest
-    PRIVATE
-    "syncIOClientTest.cpp"
+  PRIVATE
+  "syncIOClientTest.cpp"
 )
 target_sources(syncIOServerTest
-    PRIVATE
-    "syncIOServerTest.cpp"
+  PRIVATE
+  "syncIOServerTest.cpp"
 )
 target_sources(syncRaftStoreTest
-    PRIVATE
-    "syncRaftStoreTest.cpp"
+  PRIVATE
+  "syncRaftStoreTest.cpp"
 )
 target_sources(syncEnqTest
-    PRIVATE
-    "syncEnqTest.cpp"
+  PRIVATE
+  "syncEnqTest.cpp"
 )
 target_sources(syncIndexTest
-    PRIVATE
-    "syncIndexTest.cpp"
+  PRIVATE
+  "syncIndexTest.cpp"
 )
 target_sources(syncInitTest
-    PRIVATE
-    "syncInitTest.cpp"
+  PRIVATE
+  "syncInitTest.cpp"
 )
 target_sources(syncUtilTest
-    PRIVATE
-    "syncUtilTest.cpp"
+  PRIVATE
+  "syncUtilTest.cpp"
 )
 target_sources(syncVotesGrantedTest
-    PRIVATE
-    "syncVotesGrantedTest.cpp"
+  PRIVATE
+  "syncVotesGrantedTest.cpp"
 )
 target_sources(syncVotesRespondTest
-    PRIVATE
-    "syncVotesRespondTest.cpp"
+  PRIVATE
+  "syncVotesRespondTest.cpp"
 )
 target_sources(syncIndexMgrTest
-    PRIVATE
-    "syncIndexMgrTest.cpp"
+  PRIVATE
+  "syncIndexMgrTest.cpp"
 )
 target_sources(syncLogStoreTest
-    PRIVATE
-    "syncLogStoreTest.cpp"
+  PRIVATE
+  "syncLogStoreTest.cpp"
 )
 target_sources(syncEntryTest
-    PRIVATE
-    "syncEntryTest.cpp"
+  PRIVATE
+  "syncEntryTest.cpp"
 )
 target_sources(syncEntryCacheTest
-    PRIVATE
-    "syncEntryCacheTest.cpp"
+  PRIVATE
+  "syncEntryCacheTest.cpp"
 )
 target_sources(syncHashCacheTest
-    PRIVATE
-    "syncHashCacheTest.cpp"
+  PRIVATE
+  "syncHashCacheTest.cpp"
 )
 target_sources(syncRequestVoteTest
-    PRIVATE
-    "syncRequestVoteTest.cpp"
+  PRIVATE
+  "syncRequestVoteTest.cpp"
 )
 target_sources(syncRequestVoteReplyTest
-    PRIVATE
-    "syncRequestVoteReplyTest.cpp"
+  PRIVATE
+  "syncRequestVoteReplyTest.cpp"
 )
 target_sources(syncAppendEntriesTest
-    PRIVATE
-    "syncAppendEntriesTest.cpp"
+  PRIVATE
+  "syncAppendEntriesTest.cpp"
 )
 target_sources(syncAppendEntriesBatchTest
-    PRIVATE
-    "syncAppendEntriesBatchTest.cpp"
+  PRIVATE
+  "syncAppendEntriesBatchTest.cpp"
 )
 target_sources(syncAppendEntriesReplyTest
-    PRIVATE
-    "syncAppendEntriesReplyTest.cpp"
+  PRIVATE
+  "syncAppendEntriesReplyTest.cpp"
 )
 target_sources(syncTimeoutTest
-    PRIVATE
-    "syncTimeoutTest.cpp"
+  PRIVATE
+  "syncTimeoutTest.cpp"
 )
 target_sources(syncPingTest
-    PRIVATE
-    "syncPingTest.cpp"
+  PRIVATE
+  "syncPingTest.cpp"
 )
 target_sources(syncPingReplyTest
-    PRIVATE
-    "syncPingReplyTest.cpp"
+  PRIVATE
+  "syncPingReplyTest.cpp"
 )
 target_sources(syncRpcMsgTest
-    PRIVATE
-    "syncRpcMsgTest.cpp"
+  PRIVATE
+  "syncRpcMsgTest.cpp"
 )
 target_sources(syncPingTimerTest2
-    PRIVATE
-    "syncPingTimerTest2.cpp"
+  PRIVATE
+  "syncPingTimerTest2.cpp"
 )
 target_sources(syncPingSelfTest
-    PRIVATE
-    "syncPingSelfTest.cpp"
+  PRIVATE
+  "syncPingSelfTest.cpp"
 )
 target_sources(syncElectTest
-    PRIVATE
-    "syncElectTest.cpp"
+  PRIVATE
+  "syncElectTest.cpp"
 )
 target_sources(syncEncodeTest
-    PRIVATE
-    "syncEncodeTest.cpp"
+  PRIVATE
+  "syncEncodeTest.cpp"
 )
 target_sources(syncWriteTest
-    PRIVATE
-    "syncWriteTest.cpp"
+  PRIVATE
+  "syncWriteTest.cpp"
 )
 target_sources(syncReplicateTest
-    PRIVATE
-    "syncReplicateTest.cpp"
+  PRIVATE
+  "syncReplicateTest.cpp"
 )
 target_sources(syncRefTest
-    PRIVATE
-    "syncRefTest.cpp"
+  PRIVATE
+  "syncRefTest.cpp"
 )
 target_sources(syncLogStoreCheck
-    PRIVATE
-    "syncLogStoreCheck.cpp"
+  PRIVATE
+  "syncLogStoreCheck.cpp"
 )
 target_sources(syncLogStoreCheck2
-    PRIVATE
-    "syncLogStoreCheck2.cpp"
+  PRIVATE
+  "syncLogStoreCheck2.cpp"
 )
 target_sources(syncRaftCfgTest
-    PRIVATE
-    "syncRaftCfgTest.cpp"
+  PRIVATE
+  "syncRaftCfgTest.cpp"
 )
 target_sources(syncRespMgrTest
-    PRIVATE
-    "syncRespMgrTest.cpp"
+  PRIVATE
+  "syncRespMgrTest.cpp"
 )
 target_sources(syncSnapshotTest
-    PRIVATE
-    "syncSnapshotTest.cpp"
+  PRIVATE
+  "syncSnapshotTest.cpp"
 )
 target_sources(syncApplyMsgTest
-    PRIVATE
-    "syncApplyMsgTest.cpp"
+  PRIVATE
+  "syncApplyMsgTest.cpp"
 )
 target_sources(syncConfigChangeTest
-    PRIVATE
-    "syncConfigChangeTest.cpp"
+  PRIVATE
+  "syncConfigChangeTest.cpp"
 )
 target_sources(syncConfigChangeSnapshotTest
-    PRIVATE
-    "syncConfigChangeSnapshotTest.cpp"
+  PRIVATE
+  "syncConfigChangeSnapshotTest.cpp"
 )
 target_sources(syncSnapshotSendTest
-    PRIVATE
-    "syncSnapshotSendTest.cpp"
+  PRIVATE
+  "syncSnapshotSendTest.cpp"
 )
 target_sources(syncSnapshotRspTest
-    PRIVATE
-    "syncSnapshotRspTest.cpp"
+  PRIVATE
+  "syncSnapshotRspTest.cpp"
 )
 target_sources(syncSnapshotSenderTest
-    PRIVATE
-    "syncSnapshotSenderTest.cpp"
+  PRIVATE
+  "syncSnapshotSenderTest.cpp"
 )
 target_sources(syncSnapshotReceiverTest
-    PRIVATE
-    "syncSnapshotReceiverTest.cpp"
+  PRIVATE
+  "syncSnapshotReceiverTest.cpp"
 )
 target_sources(syncTestTool
-    PRIVATE
-    "syncTestTool.cpp"
+  PRIVATE
+  "syncTestTool.cpp"
 )
 target_sources(syncRaftLogTest
-    PRIVATE
-    "syncRaftLogTest.cpp"
+  PRIVATE
+  "syncRaftLogTest.cpp"
 )
 target_sources(syncRaftLogTest2
-    PRIVATE
-    "syncRaftLogTest2.cpp"
+  PRIVATE
+  "syncRaftLogTest2.cpp"
 )
 target_sources(syncRaftLogTest3
-    PRIVATE
-    "syncRaftLogTest3.cpp"
+  PRIVATE
+  "syncRaftLogTest3.cpp"
 )
 target_sources(syncLeaderTransferTest
-    PRIVATE
-    "syncLeaderTransferTest.cpp"
+  PRIVATE
+  "syncLeaderTransferTest.cpp"
 )
 target_sources(syncRestoreFromSnapshot
-    PRIVATE
-    "syncRestoreFromSnapshot.cpp"
+  PRIVATE
+  "syncRestoreFromSnapshot.cpp"
 )
 target_sources(syncRaftCfgIndexTest
-    PRIVATE
-    "syncRaftCfgIndexTest.cpp"
+  PRIVATE
+  "syncRaftCfgIndexTest.cpp"
 )
 target_sources(syncHeartbeatTest
-    PRIVATE
-    "syncHeartbeatTest.cpp"
+  PRIVATE
+  "syncHeartbeatTest.cpp"
 )
 target_sources(syncHeartbeatReplyTest
-    PRIVATE
-    "syncHeartbeatReplyTest.cpp"
+  PRIVATE
+  "syncHeartbeatReplyTest.cpp"
 )
 target_sources(syncLocalCmdTest
-    PRIVATE
-    "syncLocalCmdTest.cpp"
+  PRIVATE
+  "syncLocalCmdTest.cpp"
 )
 target_sources(syncPreSnapshotTest
-    PRIVATE
-    "syncPreSnapshotTest.cpp"
+  PRIVATE
+  "syncPreSnapshotTest.cpp"
 )
 target_sources(syncPreSnapshotReplyTest
-    PRIVATE
-    "syncPreSnapshotReplyTest.cpp"
+  PRIVATE
+  "syncPreSnapshotReplyTest.cpp"
 )
-
 
 target_include_directories(syncTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRaftIdCheck
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncEnvTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncPingTimerTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncIOTickQTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncIOTickPingTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncIOSendMsgTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncIOClientTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncIOServerTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRaftStoreTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncEnqTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncIndexTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncInitTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncUtilTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncVotesGrantedTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncVotesRespondTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncIndexMgrTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncLogStoreTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncEntryTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncEntryCacheTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncHashCacheTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRequestVoteTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRequestVoteReplyTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncAppendEntriesTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncAppendEntriesBatchTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncAppendEntriesReplyTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncTimeoutTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncPingTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncPingReplyTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRpcMsgTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncPingTimerTest2
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncPingSelfTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncElectTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncEncodeTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncWriteTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncReplicateTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRefTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncLogStoreCheck
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncLogStoreCheck2
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRaftCfgTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRespMgrTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncSnapshotTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncApplyMsgTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncConfigChangeTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncConfigChangeSnapshotTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncSnapshotSendTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncSnapshotRspTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncSnapshotSenderTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncSnapshotReceiverTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncTestTool
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRaftLogTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRaftLogTest2
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRaftLogTest3
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncLeaderTransferTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRestoreFromSnapshot
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncRaftCfgIndexTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncHeartbeatTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncHeartbeatReplyTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncLocalCmdTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncPreSnapshotTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncPreSnapshotReplyTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/sync"
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
-
 
 target_link_libraries(syncTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncRaftIdCheck
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncEnvTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncPingTimerTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncIOTickQTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncIOTickPingTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncIOSendMsgTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncIOClientTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncIOServerTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncRaftStoreTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncEnqTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncIndexTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncInitTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncUtilTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncVotesGrantedTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncVotesRespondTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncIndexMgrTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncLogStoreTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncEntryTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncEntryCacheTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncHashCacheTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncRequestVoteTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncRequestVoteReplyTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncAppendEntriesTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncAppendEntriesBatchTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncAppendEntriesReplyTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncTimeoutTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncPingTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncPingReplyTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncRpcMsgTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncPingTimerTest2
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncPingSelfTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncElectTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncEncodeTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncWriteTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncReplicateTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncRefTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncLogStoreCheck
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncLogStoreCheck2
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncRaftCfgTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncRespMgrTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncSnapshotTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncApplyMsgTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncConfigChangeTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncConfigChangeSnapshotTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncSnapshotSendTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncSnapshotRspTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncSnapshotSenderTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncSnapshotReceiverTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncTestTool
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncRaftLogTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncRaftLogTest2
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncRaftLogTest3
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncLeaderTransferTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncRestoreFromSnapshot
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncRaftCfgIndexTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncHeartbeatTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncHeartbeatReplyTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncLocalCmdTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncPreSnapshotTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
 target_link_libraries(syncPreSnapshotReplyTest
-    sync_test_lib
-    gtest_main
+  sync_test_lib
+  gtest_main
 )
-
 
 enable_testing()
 add_test(
-    NAME sync_test
-    COMMAND syncTest
+  NAME test_sync
+  COMMAND test_sync
 )
-
-

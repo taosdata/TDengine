@@ -184,7 +184,7 @@ TEST(td_msg_test, msg_type_compatibility_test) {
     map[info.name] = &info;
   }
 
-  string configFileName = "msgTypeTable.ini";
+  string configFileName = "test_msgtype.ini";
   string execDir = getExecutableDirectory();
   string configFilePath(execDir + configFileName);
 
@@ -264,7 +264,7 @@ void generateConfigFile(const string& filePath) {
 void processCommandArgs(int argc, char** argv) {
   for (int i = 1; i < argc; ++i) {
     if (string(argv[i]) == "--output-config") {
-      string configFile = (i + 1 < argc) ? argv[++i] : "./msgTypeTable.ini";
+      string configFile = (i + 1 < argc) ? argv[++i] : "./test_msgtype.ini";
       generateConfigFile(configFile);
       exit(0);
     }

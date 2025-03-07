@@ -1,19 +1,19 @@
 enable_testing()
 
 aux_source_directory(. TFS_TEST_SRC)
-add_executable(tfs_test ${TFS_TEST_SRC})
+add_executable(test_tfs ${TFS_TEST_SRC})
 target_link_libraries(
-  tfs_test
+  test_tfs
   PUBLIC tfs
   PUBLIC gtest_main
 )
 target_include_directories(
-  tfs_test
+  test_tfs
   PUBLIC "${TD_SOURCE_DIR}/include/libs/tfs"
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
 add_test(
-    NAME tfs_test
-    COMMAND tfs_test
+    NAME test_tfs
+    COMMAND test_tfs
 )
