@@ -160,4 +160,5 @@ def handle_forecast_req():
 
 
 if __name__ == '__main__':
+    # add coments to verify ci workflow of gpt codes update
     app.run()
