@@ -260,19 +260,34 @@ void vnodeGetMetaPath(SVnode *pVnode, const char *metaDir, char *fname) {
 int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   int32_t code = TSDB_CODE_SUCCESS;
   char    metaDir[TSDB_FILENAME_LEN] = {0};
+  char    metaBackupDir[TSDB_FILENAME_LEN] = {0};
   char    metaTempDir[TSDB_FILENAME_LEN] = {0};
 
   vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
+  vnodeGetMetaPath(pVnode, VNODE_META_BACKUP_DIR, metaBackupDir);
   vnodeGetMetaPath(pVnode, VNODE_META_TMP_DIR, metaTempDir);
 
-  // Check file states
-  if (!taosCheckExistFile(metaDir) && taosCheckExistFile(metaTempDir)) {
+  bool metaExists = taosCheckExistFile(metaDir);
+  bool metaBackupExists = taosCheckExistFile(metaBackupDir);
+  bool metaTempExists = taosCheckExistFile(metaTempDir);
+
+  if ((!metaBackupExists && !metaExists && metaTempExists)     //
+      || (metaBackupExists && !metaExists && !metaTempExists)  //
+      || (metaBackupExists && metaExists && metaTempExists)    //
+  ) {
+    metaError("vgId:%d, invalid meta state, please check!", TD_VID(pVnode));
+    return TSDB_CODE_FAILED;
+  } else if (!metaBackupExists && metaExists && metaTempExists) {
+    (void)taosRemoveDir(metaTempDir);
+  } else if (metaBackupExists && !metaExists && metaTempExists) {
     code = taosRenameFile(metaTempDir, metaDir);
     if (code) {
-      metaError("vgId:%d, %s failed at %s:%d since %s: rename %s to %s failed", TD_VID(pVnode), __func__, __FILE__,
-                __LINE__, tstrerror(code), metaTempDir, metaDir);
+      metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
       return code;
     }
+    (void)taosRemoveDir(metaBackupDir);
+  } else if (metaBackupExists && metaExists && !metaTempExists) {
+    (void)taosRemoveDir(metaBackupDir);
   }
 
   // Do open meta
