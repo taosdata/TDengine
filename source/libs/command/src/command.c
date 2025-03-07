@@ -604,11 +604,11 @@ static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
     int typeLen = 0;
 
     if (hasRefCol(pCfg->tableType) && pCfg->pColRefs && pRef->hasRef) {
-      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "FROM \'%s\'", pRef->refDbName);
+      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "FROM `%s`", pRef->refDbName);
       typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, ".");
-      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "\'%s\'", pRef->refTableName);
+      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "`%s`", pRef->refTableName);
       typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, ".");
-      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "\'%s\'", pRef->refColName);
+      typeLen += tsnprintf(type + typeLen, sizeof(type) - typeLen, "`%s`", pRef->refColName);
     } else {
       continue;
     }
@@ -851,7 +851,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     len +=
         snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
-  } else if (TSDB_VIRTUAL_TABLE == pCfg->tableType) {
+  } else if (TSDB_VIRTUAL_NORMAL_TABLE == pCfg->tableType) {
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
                      "CREATE VTABLE `%s` (", tbName);
     appendColumnFields(buf2, &len, pCfg);
