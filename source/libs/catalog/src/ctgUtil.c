@@ -430,7 +430,7 @@ void ctgFreeHandle(SCatalog* pCtg) {
 
   taosMemoryFree(pCtg);
 
-  ctgInfo("handle freed, clusterId:0x%" PRIx64, clusterId);
+  ctgInfo("clusterId:0x%" PRIx64 ", handle freed", clusterId);
 }
 
 void ctgClearHandleMeta(SCatalog* pCtg, int64_t* pClearedSize, int64_t* pCleardNum, bool* roundDone) {
@@ -541,7 +541,7 @@ void ctgClearHandle(SCatalog* pCtg) {
 
   CTG_STAT_RT_INC(numOfOpClearCache, 1);
 
-  ctgInfo("handle cleared, clusterId:0x%" PRIx64, clusterId);
+  ctgInfo("clusterId:0x%" PRIx64 ", handle cleared", clusterId);
 }
 
 void ctgFreeSUseDbOutput(SUseDbOutput* pOutput) {
@@ -1097,7 +1097,7 @@ void ctgFreeJob(void* job) {
 
   taosMemoryFree(job);
 
-  qDebug("QID:0x%" PRIx64 ", ctg job 0x%" PRIx64 " freed", qid, rid);
+  qDebug("QID:0x%" PRIx64 ", ctg jobId:0x%" PRIx64 " freed", qid, rid);
 }
 
 int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* target) {
@@ -1196,7 +1196,7 @@ int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList, cons
 
   *pList = vgList;
 
-  ctgDebug("Got vgList from cache, vgNum:%d", vgNum);
+  ctgDebug("get vgList from cache, vgNum:%d", vgNum);
 
   return TSDB_CODE_SUCCESS;
 
@@ -1286,14 +1286,14 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog* pCtg, SEpSet* pMgmtEps, SDBVgInfo* d
   */
 
   if (NULL == vgInfo) {
-    ctgError("no hash range found for hash value [%u], db:%s, numOfVgId:%d", hashValue, db,
+    ctgError("tb:%s, no hash range found for hash value [%u], db:%s, numOfVgId:%d", tbFullName, hashValue, db,
              (int32_t)taosArrayGetSize(dbInfo->vgArray));
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
   *pVgroup = *vgInfo;
 
-  ctgDebug("Got tb %s hash vgroup, vgId:%d, epNum %d, current %s port %d", tbFullName, vgInfo->vgId,
+  ctgDebug("tb:%s, get hash vgroup, vgId:%d, epNum %d, current:%s port:%d", tbFullName, vgInfo->vgId,
            vgInfo->epSet.numOfEps, vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn,
            vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
@@ -1327,7 +1327,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
 
       TAOS_MEMCPY(vgInfo, &mgmtInfo, sizeof(mgmtInfo));
 
-      ctgDebug("Got tb hash vgroup, vgId:%d, epNum %d, current %s port %d", vgInfo->vgId, vgInfo->epSet.numOfEps,
+      ctgDebug("get tb hash vgroup, vgId:%d, epNum %d, current %s port %d", vgInfo->vgId, vgInfo->epSet.numOfEps,
                vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn, vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
       if (update) {
@@ -1376,7 +1376,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
 
       TAOS_MEMCPY(vgInfo, pSrcVg, sizeof(*pSrcVg));
 
-      ctgDebug("Got tb hash vgroup, vgId:%d, epNum %d, current %s port %d", vgInfo->vgId, vgInfo->epSet.numOfEps,
+      ctgDebug("get tb hash vgroup, vgId:%d, epNum %d, current %s port %d", vgInfo->vgId, vgInfo->epSet.numOfEps,
                vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn, vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
       if (update) {
@@ -1437,7 +1437,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SEpSet* pMgmgEpSet, SCtgTaskR
 
     *pNewVg = *vgInfo;
 
-    ctgDebug("Got tb %s hash vgroup, vgId:%d, epNum %d, current %s port %d", tbFullName, vgInfo->vgId,
+    ctgDebug("tb:%s, get hash vgroup, vgId:%d, epNum %d, current %s port %d", tbFullName, vgInfo->vgId,
              vgInfo->epSet.numOfEps, vgInfo->epSet.eps[vgInfo->epSet.inUse].fqdn,
              vgInfo->epSet.eps[vgInfo->epSet.inUse].port);
 
@@ -1496,7 +1496,7 @@ int32_t ctgGetVgIdsFromHashValue(SCatalog* pCtg, SDBVgInfo* dbInfo, char* dbFNam
 
     vgId[i] = vgInfo->vgId;
 
-    ctgDebug("Got tb %s vgId:%d", tbFullName, vgInfo->vgId);
+    ctgDebug("tb:%s, get vgId:%d", tbFullName, vgInfo->vgId);
   }
 
   CTG_RET(code);
@@ -1689,7 +1689,7 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     }
 
     (*pOutput)->tbMeta = taosMemoryMalloc(metaSize + schemaExtSize);
-    qDebug("tbMeta cloned, size:%d, p:%p", metaSize, (*pOutput)->tbMeta);
+    qTrace("tbmeta cloned, size:%d, p:%p", metaSize, (*pOutput)->tbMeta);
     if (NULL == (*pOutput)->tbMeta) {
       qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
       taosMemoryFreeClear(*pOutput);
@@ -2076,7 +2076,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
     if (NULL == pMeta) {
       if (req->onlyCache) {
         res->metaNotExists = true;
-        ctgDebug("db %s tb %s meta not in cache for auth", req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
+        ctgDebug("db:%s, tb:%s meta not in cache for auth", req->pRawReq->tbName.dbname, req->pRawReq->tbName.tname);
         goto _return;
       }
 
@@ -2097,7 +2097,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
       if (NULL == stbName) {
         if (req->onlyCache) {
           res->metaNotExists = true;
-          ctgDebug("suid %" PRIu64 " name not in cache for auth", pMeta->suid);
+          ctgDebug("suid:%" PRIu64 ", name not in cache for auth", pMeta->suid);
           goto _return;
         }
 
@@ -2108,7 +2108,7 @@ int32_t ctgChkSetTbAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
       continue;
     }
 
-    ctgError("Invalid table type %d for %s", pMeta->tableType, tbFName);
+    ctgError("invalid table type %d for %s", pMeta->tableType, tbFName);
     CTG_ERR_JRET(TSDB_CODE_INVALID_PARA);
   }
 
@@ -2740,8 +2740,8 @@ bool isCtgTSMACacheOutOfDate(STSMACache* pTsmaCache) {
   bool    ret = !pTsmaCache->fillHistoryFinished ||
              (tsMaxTsmaCalcDelay * 1000 - pTsmaCache->delayDuration) < (now - pTsmaCache->reqTs);
   if (ret) {
-    qDebug("tsma %s.%s in cache has been out of date, history finished: %d, remain valid after: %" PRId64
-           " passed: %" PRId64,
+    qDebug("tsma:%s.%s in cache has been out of date, history finished:%d, remain valid after:%" PRId64
+           " passed:%" PRId64,
            pTsmaCache->dbFName, pTsmaCache->name, pTsmaCache->fillHistoryFinished,
            tsMaxTsmaCalcDelay * 1000 - pTsmaCache->delayDuration, now - pTsmaCache->reqTs);
   }

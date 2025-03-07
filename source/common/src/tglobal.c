@@ -55,6 +55,7 @@ EEncryptScope tsiEncryptScope = 0;
 // char     tsAuthCode[500] = {0};
 // char     tsEncryptKey[17] = {0};
 char tsEncryptKey[17] = {0};
+int8_t tsEnableStrongPassword = 1;
 
 // common
 int32_t tsMaxShellConns = 50000;
@@ -838,6 +839,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptAlgorithm", tsEncryptAlgorithm, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptScope", tsEncryptScope, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableStrongPassword", tsEnableStrongPassword, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL));
 
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxShellConns", tsMaxShellConns, 10, 50000000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL));
@@ -1530,6 +1532,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, 100));
   tstrncpy(tsEncryptScope, pItem->str, 100);
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableStrongPassword");
+  tsEnableStrongPassword = pItem->i32;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfRpcThreads");
   tsNumOfRpcThreads = pItem->i32;
 
@@ -1982,15 +1987,15 @@ _exit:
 
 static int32_t taosCheckGlobalCfg() {
   uint32_t ipv4 = 0;
-  uInfo("start to check global tsLocalFqdn:%s, tsServerPort:%u", tsLocalFqdn, tsServerPort);
+  uInfo("check global fqdn:%s and port:%u", tsLocalFqdn, tsServerPort);
   int32_t code = taosGetIpv4FromFqdn(tsLocalFqdn, &ipv4);
   if (code) {
-    uError("failed to get ip from fqdn:%s since %s, dnode can not be initialized", tsLocalFqdn, tstrerror(code));
+    uError("failed to get ip from fqdn:%s since %s, can not be initialized", tsLocalFqdn, tstrerror(code));
     TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);
   }
 
   if (tsServerPort <= 0) {
-    uError("invalid server port:%u, dnode can not be initialized", tsServerPort);
+    uError("invalid server port:%u, can not be initialized", tsServerPort);
     TAOS_RETURN(TSDB_CODE_RPC_FQDN_ERROR);
   }
 
@@ -2527,7 +2532,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"arbHeartBeatIntervalSec", &tsArbHeartBeatIntervalSec},
                                          {"arbCheckSyncIntervalSec", &tsArbCheckSyncIntervalSec},
                                          {"arbSetAssignedTimeoutSec", &tsArbSetAssignedTimeoutSec},
-                                         {"queryNoFetchTimeoutSec", &tsQueryNoFetchTimeoutSec}};
+                                         {"queryNoFetchTimeoutSec", &tsQueryNoFetchTimeoutSec},
+                                         {"enableStrongPassword", &tsEnableStrongPassword}};
 
     if ((code = taosCfgSetOption(debugOptions, tListLen(debugOptions), pItem, true)) != TSDB_CODE_SUCCESS) {
       code = taosCfgSetOption(options, tListLen(options), pItem, false);
@@ -2829,7 +2835,7 @@ static void taosCheckAndSetDebugFlag(int32_t *pFlagPtr, char *name, int32_t flag
     if (code != TSDB_CODE_CFG_NOT_FOUND) {
       uError("failed to set flag %s to %d, since:%s", name, flag, tstrerror(code));
     } else {
-      uDebug("failed to set flag %s to %d, since:%s", name, flag, tstrerror(code));
+      uTrace("failed to set flag %s to %d, since:%s", name, flag, tstrerror(code));
     }
   }
   return;

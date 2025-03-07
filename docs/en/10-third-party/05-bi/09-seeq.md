@@ -22,8 +22,6 @@ Through the `TDengine Java connector`, Seeq can easily support querying time-ser
 
 ## Configure Data Source
 
-### Configuration of JDBC Connector
-
 **Step 1**, Check the data storage location
 
 ```shell
@@ -42,9 +40,13 @@ sudo seeq restart
 
 Use a browser to visit ip:34216 and follow the instructions to enter the license.
 
-## Load TDengine Time-Series Data
+## Data Analysis
 
-This chapter demonstrates how to use the Seeq software to load TDengine time-series data.
+### Scenario Introduction
+
+The example scenario is a power system where users collect electricity usage data from power station instruments daily and store it in the TDengine cluster. Now, users want to predict how power consumption will develop and purchase more equipment to support it. User power consumption varies with monthly orders, and considering seasonal changes, power consumption will differ. This city is located in the northern hemisphere, so more electricity is used in summer. We simulate data to reflect these assumptions.
+
+### Data preparation
 
 **Step 1**, Create tables in TDengine.
 
@@ -245,12 +247,6 @@ The source code is hosted on [GitHub Repository](https://github.com/sangshuduo/t
     }
 }
 ```
-
-## Data Analysis
-
-### Scenario Introduction
-
-The example scenario is a power system where users collect electricity usage data from power station instruments daily and store it in the TDengine cluster. Now, users want to predict how power consumption will develop and purchase more equipment to support it. User power consumption varies with monthly orders, and considering seasonal changes, power consumption will differ. This city is located in the northern hemisphere, so more electricity is used in summer. We simulate data to reflect these assumptions.
 
 ### Using Seeq Workbench
 
