@@ -56,6 +56,32 @@ class TDTestCase(TBase):
         tdSql.error(f"CREATE STABLE IF NOT EXISTS stb_10 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 1m",expectErrInfo="Invalid option keep value")
         tdSql.error(f"CREATE STABLE IF NOT EXISTS stb_11 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 1h",expectErrInfo="Invalid option keep value")
         tdSql.error(f"CREATE STABLE IF NOT EXISTS stb_12 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 365001d",expectErrInfo="Invalid option keep value")
+        tdSql.error(f"CREATE STABLE IF NOT EXISTS stb_13 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 365001",expectErrInfo="Invalid option keep value")
+        tdSql.error(f"CREATE STABLE IF NOT EXISTS stb_14 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 1f",expectErrInfo="syntax error")
+        tdSql.error(f"CREATE STABLE IF NOT EXISTS stb_15 (ts TIMESTAMP, a INT, b FLOAT, c BINARY(10)) TAGS (e_id INT) KEEP 1d1",expectErrInfo="syntax error")
+
+    def check_alter_stb_with_keep(self):
+        tdLog.info(f"check alter stb with keep")
+        tdSql.execute("USE test")
+        tdSql.execute(f"ALTER STABLE stb_0 KEEP 1440m")
+        tdSql.execute(f"ALTER STABLE stb_0 KEEP 24h")
+        tdSql.execute(f"ALTER STABLE stb_0 KEEP 7d")
+        tdSql.execute(f"ALTER STABLE stb_0 KEEP 30d")
+        tdSql.execute(f"ALTER STABLE stb_0 KEEP 365000d")
+        tdSql.execute(f"ALTER STABLE stb_0 KEEP 365")
+
+    def check_alter_stb_with_keep_err(self):
+        tdLog.info(f"check alter stb with keep err")
+        tdSql.execute("USE test")
+        tdSql.error(f"ALTER STABLE stb_0 KEEP 0d",expectErrInfo="Invalid option keep value")
+        tdSql.error(f"ALTER STABLE stb_0 KEEP -1d",expectErrInfo="syntax error")
+        tdSql.error(f"ALTER STABLE stb_0 KEEP -1",expectErrInfo="syntax error")
+        tdSql.error(f"ALTER STABLE stb_0 KEEP 1m",expectErrInfo="Invalid option keep value")
+        tdSql.error(f"ALTER STABLE stb_0 KEEP 1h",expectErrInfo="Invalid option keep value")
+        tdSql.error(f"ALTER STABLE stb_0 KEEP 365001d",expectErrInfo="Invalid option keep value")
+        tdSql.error(f"ALTER STABLE stb_0 KEEP 365001",expectErrInfo="Invalid option keep value")
+        tdSql.error(f"ALTER STABLE stb_0 KEEP 1f",expectErrInfo="syntax error")
+        tdSql.error(f"ALTER STABLE stb_0 KEEP 1d1",expectErrInfo="syntax error")
 
     # run
     def run(self):
@@ -69,6 +95,12 @@ class TDTestCase(TBase):
 
         # check create stb with err keep duration
         self.check_create_stb_with_err_keep_duration()
+
+        # check alter stb with keep
+        self.check_alter_stb_with_keep()
+
+        # check alter stb with keep err
+        self.check_alter_stb_with_keep_err()
 
         tdLog.success(f"{__file__} successfully executed")
 
