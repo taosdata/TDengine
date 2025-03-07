@@ -5837,7 +5837,11 @@ int32_t tSerializeSShowVariablesReq(void *buf, int32_t bufLen, SShowVariablesReq
   tEncoderInit(&encoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartEncode(&encoder));
-  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->useless));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->opType));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->valLen));
+  if (pReq->valLen > 0) {
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, (const uint8_t *)pReq->val, pReq->valLen));
+  }
   tEndEncode(&encoder);
 
 _exit:
@@ -5848,6 +5852,37 @@ _exit:
   }
   tEncoderClear(&encoder);
   return tlen;
+}
+
+int32_t tDeserializeSShowVariablesReq(void *buf, int32_t bufLen, SShowVariablesReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->opType));
+  TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pReq->valLen));
+
+  if (pReq->valLen > 0) {
+    pReq->val = taosMemoryCalloc(1, pReq->valLen + 1);
+    if (pReq->val == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->val));
+  }
+
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSShowVariablesReq(SShowVariablesReq *pReq) {
+  if (NULL != pReq && NULL != pReq->val) {
+    taosMemoryFree(pReq->val);
+    pReq->val = NULL;
+  }
 }
 
 int32_t tEncodeSVariablesInfo(SEncoder *pEncoder, SVariablesInfo *pInfo) {
