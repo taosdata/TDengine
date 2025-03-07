@@ -622,7 +622,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
     (void)taosThreadAttrInit(&thAttr);
     (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
     if (taosThreadCreate(&pThread->thread, &thAttr, vmOpenVnodeInThread, pThread) != 0) {
-      dError("thread:%d, failed to create thread to open vnode, reason:%s", pThread->threadIndex, strerror(errno));
+      dError("thread:%d, failed to create thread to open vnode, reason:%s", pThread->threadIndex, strerror(ERRNO));
     }
 
     (void)taosThreadAttrDestroy(&thAttr);
@@ -740,7 +740,7 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
     (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
 
     if (taosThreadCreate(&pThread->thread, &thAttr, vmCloseVnodeInThread, pThread) != 0) {
-      dError("thread:%d, failed to create thread to close vnode since %s", pThread->threadIndex, strerror(errno));
+      dError("thread:%d, failed to create thread to close vnode since %s", pThread->threadIndex, strerror(ERRNO));
     }
 
     (void)taosThreadAttrDestroy(&thAttr);
@@ -850,7 +850,7 @@ static int32_t vmInitTimer(SVnodeMgmt *pMgmt) {
   (void)taosThreadAttrInit(&thAttr);
   (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
   if (taosThreadCreate(&pMgmt->thread, &thAttr, vmThreadFp, pMgmt) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     dError("failed to create vnode timer thread since %s", tstrerror(code));
     return code;
   }
@@ -886,19 +886,19 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 
   code = taosThreadRwlockInit(&pMgmt->hashLock, NULL);
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _OVER;
   }
 
   code = taosThreadMutexInit(&pMgmt->mutex, NULL);
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _OVER;
   }
 
   code = taosThreadMutexInit(&pMgmt->fileLock, NULL);
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _OVER;
   }
 
@@ -1046,7 +1046,7 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
     (void)taosThreadAttrInit(&thAttr);
     (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
     if (taosThreadCreate(&pThread->thread, &thAttr, vmRestoreVnodeInThread, pThread) != 0) {
-      dError("thread:%d, failed to create thread to restore vnode since %s", pThread->threadIndex, strerror(errno));
+      dError("thread:%d, failed to create thread to restore vnode since %s", pThread->threadIndex, strerror(ERRNO));
     }
 
     (void)taosThreadAttrDestroy(&thAttr);

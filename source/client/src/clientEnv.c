@@ -56,7 +56,7 @@
   do {                                \
     int32_t _code = (c);              \
     if (_code != TSDB_CODE_SUCCESS) { \
-      errno = _code;                  \
+      terrno = _code;                 \
       tscInitRes = _code;             \
       tscError(info);                 \
       return;                         \
@@ -890,15 +890,15 @@ int32_t tscCrashReportInit() {
   TSC_ERR_JRET(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE));
   TdThread crashReportThread;
   if (taosThreadCreate(&crashReportThread, &thAttr, tscCrashReportThreadFp, NULL) != 0) {
-    tscError("failed to create crashReport thread since %s", strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    TSC_ERR_RET(errno);
+    tscError("failed to create crashReport thread since %s", strerror(ERRNO));
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    TSC_ERR_RET(terrno);
   }
 
   (void)taosThreadAttrDestroy(&thAttr);
 _return:
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     TSC_ERR_RET(terrno);
   }
 
@@ -1051,7 +1051,7 @@ void taos_init_imp(void) {
   // In the APIs of other program language, taos_cleanup is not available yet.
   // So, to make sure taos_cleanup will be invoked to clean up the allocated resource to suppress the valgrind warning.
   (void)atexit(taos_cleanup);
-  errno = TSDB_CODE_SUCCESS;
+  SET_ERRNO(TSDB_CODE_SUCCESS);
   taosSeedRand(taosGetTimestampSec());
 
   appInfo.pid = taosGetPId();
@@ -1069,7 +1069,7 @@ void taos_init_imp(void) {
   const char *logName = CUS_PROMPT "log";
   ENV_ERR_RET(taosInitLogOutput(&logName), "failed to init log output");
   if (taosCreateLog(logName, 10, configDir, NULL, NULL, NULL, NULL, 1) != 0) {
-    (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logName, strerror(errno), configDir);
+    (void)printf(" WARING: Create %s failed:%s. configDir=%s\n", logName, strerror(ERRNO), configDir);
     tscInitRes = terrno;
     return;
   }

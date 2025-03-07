@@ -99,7 +99,7 @@ static timezone_t setConnnectionTz(const char *val) {
     tz = tzalloc("UTC");
     if (tz == NULL) {
       tscError("%s set timezone UTC error", __func__);
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
       goto END;
     }
   }

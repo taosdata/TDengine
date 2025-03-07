@@ -404,7 +404,7 @@ int32_t taosSetTfsCfg(SConfig *pCfg) {
   tsDiskCfg[0].disable = 0;
   tstrncpy(tsDataDir, pItem->str, PATH_MAX);
   if (taosMulMkDir(tsDataDir) != 0) {
-    int32_t code = TAOS_SYSTEM_ERROR(errno);
+    int32_t code = TAOS_SYSTEM_ERROR(ERRNO);
     uError("failed to create dataDir:%s, since:%s", tsDataDir, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -1380,7 +1380,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "minimalTmpDirGB");
   tsTempSpace.reserved = (int64_t)(((double)pItem->fval) * 1024 * 1024 * 1024);
   if (taosMulMkDir(tsTempDir) != 0) {
-    int32_t code = TAOS_SYSTEM_ERROR(errno);
+    int32_t code = TAOS_SYSTEM_ERROR(ERRNO);
     uError("failed to create tempDir:%s since %s", tsTempDir, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -2771,7 +2771,7 @@ static int32_t taosCfgDynamicOptionsForClient(SConfig *pCfg, const char *name) {
         tstrncpy(tsTempDir, pItem->str, PATH_MAX);
         TAOS_CHECK_GOTO(taosExpandDir(tsTempDir, tsTempDir, PATH_MAX), &lino, _out);
         if (taosMulMkDir(tsTempDir) != 0) {
-          code = TAOS_SYSTEM_ERROR(errno);
+          code = TAOS_SYSTEM_ERROR(ERRNO);
           uError("failed to create tempDir:%s since %s", tsTempDir, tstrerror(code));
           goto _out;
         }
@@ -3091,7 +3091,7 @@ int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version
       taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
 
   if (pConfigFile == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     uError("failed to open file:%s since %s", filename, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -3100,7 +3100,7 @@ int32_t taosPersistGlobalConfig(SArray *array, const char *path, int32_t version
 
   if (taosWriteFile(pConfigFile, serialized, strlen(serialized)) < 0) {
     lino = __LINE__;
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     uError("failed to write file:%s since %s", filename, tstrerror(code));
     goto _exit;
   }

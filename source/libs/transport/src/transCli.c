@@ -2233,7 +2233,7 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     int err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread, (void*)(pThrd));
     if (err != 0) {
       destroyThrdObj(pThrd);
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = TAOS_SYSTEM_ERROR(ERRNO);
       TAOS_CHECK_GOTO(code, NULL, _err);
     } else {
       tDebug("success to create tranport-cli thread:%d", i);
@@ -3296,7 +3296,7 @@ int32_t transCreateSyncMsg(STransMsg* pTransMsg, int64_t* refId) {
   }
 
   if (tsem2_init(sem, 0, 0) != 0) {
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), NULL, _EXIT);
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(ERRNO), NULL, _EXIT);
   }
 
   STransSyncMsg* pSyncMsg = taosMemoryCalloc(1, sizeof(STransSyncMsg));

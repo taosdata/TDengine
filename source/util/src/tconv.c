@@ -94,14 +94,14 @@ void* taosConvInit(const char* charset) {
   for (int32_t i = 0; i < info.gConvMaxNum[M2C]; ++i) {
     info.gConv[M2C][i].conv = iconv_open(DEFAULT_UNICODE_ENCODEC, charset);
     if ((iconv_t)-1 == info.gConv[M2C][i].conv) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
       goto FAILED;
     }
   }
   for (int32_t i = 0; i < info.gConvMaxNum[C2M]; ++i) {
     info.gConv[C2M][i].conv = iconv_open(charset, DEFAULT_UNICODE_ENCODEC);
     if ((iconv_t)-1 == info.gConv[C2M][i].conv) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
       goto FAILED;
     }
   }

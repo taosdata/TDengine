@@ -751,7 +751,7 @@ int32_t transInit() {
   // init env
   int32_t code = taosThreadOnce(&transModuleInit, transInitEnv);
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
   }
   return code;
 }
@@ -1868,7 +1868,7 @@ int32_t transInit() {
   // init env
   int32_t code = taosThreadOnce(&transModuleInit, transInitEnv);
   if (code != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
   }
   return code;
 }

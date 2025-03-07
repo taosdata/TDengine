@@ -47,7 +47,7 @@ static FORCE_INLINE bool isNullValue(int8_t dataType, SToken* pToken) {
 }
 
 static FORCE_INLINE int32_t toDouble(SToken* pToken, double* value, char** endPtr) {
-  errno = 0;
+  SET_ERRNO(0);
   *value = taosStr2Double(pToken->z, endPtr);
 
   // not a valid integer number, return error
@@ -656,7 +656,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(pMsgBuf, "illegal float data", pToken->z);
       }
-      if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || isinf(dv) || isnan(dv)) {
+      if (((dv == HUGE_VAL || dv == -HUGE_VAL) && ERRNO == ERANGE) || isinf(dv) || isnan(dv)) {
         return buildSyntaxErrMsg(pMsgBuf, "illegal double data", pToken->z);
       }
 
@@ -721,7 +721,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
           return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
         }
         char buf[512] = {0};
-        snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s %d %d", strerror(terrno), errno, EILSEQ);
+        snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s %d %d", strerror(terrno), ERRNO, EILSEQ);
         taosMemoryFree(p);
         return buildSyntaxErrMsg(pMsgBuf, buf, pToken->z);
       }

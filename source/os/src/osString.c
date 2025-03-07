@@ -173,11 +173,11 @@ int32_t taosStr2int64(const char *str, int64_t *val) {
   if (str == NULL || val == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  errno = 0;
+  SET_ERRNO(0);
   char   *endptr = NULL;
   int64_t ret = strtoll(str, &endptr, 10);
-  if (errno != 0) {
-    return TAOS_SYSTEM_ERROR(errno);
+  if (ERRNO != 0) {
+    return TAOS_SYSTEM_ERROR(ERRNO);
   } else {
     if (endptr == str) {
       return TSDB_CODE_INVALID_PARA;
@@ -236,11 +236,11 @@ int32_t taosStr2Uint64(const char *str, uint64_t *val) {
     return TSDB_CODE_INVALID_PARA;
   }
   char *endptr = NULL;
-  errno = 0;
+  SET_ERRNO(0);
   uint64_t ret = strtoull(str, &endptr, 10);
 
-  if (errno != 0) {
-    return TAOS_SYSTEM_ERROR(errno);
+  if (ERRNO != 0) {
+    return TAOS_SYSTEM_ERROR(ERRNO);
   } else {
     if (endptr == str) {
       return TSDB_CODE_INVALID_PARA;
@@ -368,13 +368,13 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt) {
     if (type == M2C) {
       iconv_t c = iconv_open(DEFAULT_UNICODE_ENCODEC, "UTF-8");
       if ((iconv_t)-1 == c) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
+        terrno = TAOS_SYSTEM_ERROR(ERRNO);
       }
       return c;
     } else {
       iconv_t c = iconv_open("UTF-8", DEFAULT_UNICODE_ENCODEC);
       if ((iconv_t)-1 == c) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
+        terrno = TAOS_SYSTEM_ERROR(ERRNO);
       }
       return c;
     }
@@ -457,7 +457,7 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
   size_t ucs4_input_len = mbsLength;
   size_t outLeft = ucs4_max_len;
   if (iconv(conv, (char **)&mbs, &ucs4_input_len, (char **)&ucs4, &outLeft) == -1) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     taosReleaseConv(idx, conv, M2C, charsetCxt);
     return false;
   }
@@ -502,7 +502,7 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, void* chars
   size_t ucs4_input_len = ucs4_max_len;
   size_t outLen = ucs4_max_len;
   if (iconv(conv, (char **)&ucs4, &ucs4_input_len, &mbs, &outLen) == -1) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     taosReleaseConv(idx, conv, C2M, charsetCxt);
     terrno = code;
     return code;
@@ -533,7 +533,7 @@ int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_t c
   size_t ucs4_input_len = ucs4_max_len;
   size_t outLen = ucs4_max_len;
   if (iconv(conv, (char **)&ucs4, &ucs4_input_len, &mbs, &outLen) == -1) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -553,7 +553,7 @@ bool taosValidateEncodec(const char *encodec) {
 #else
   iconv_t cd = iconv_open(encodec, DEFAULT_UNICODE_ENCODEC);
   if (cd == (iconv_t)(-1)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return false;
   }
 
@@ -759,7 +759,7 @@ int64_t taosStr2Int64(const char *str, char **pEnd, int32_t radix) {
   }
   int64_t tmp = strtoll(str, pEnd, radix);
 #if defined(DARWIN) || defined(_ALPINE)
-  if (errno == EINVAL) errno = 0;
+  if (ERRNO == EINVAL) SET_ERRNO(0);
 #endif
   return tmp;
 }
@@ -771,7 +771,7 @@ uint64_t taosStr2UInt64(const char *str, char **pEnd, int32_t radix) {
   }
   uint64_t tmp = strtoull(str, pEnd, radix);
 #if defined(DARWIN) || defined(_ALPINE)
-  if (errno == EINVAL) errno = 0;
+  if (ERRNO == EINVAL) SET_ERRNO(0);
 #endif
   return tmp;
 }
@@ -783,7 +783,7 @@ int32_t taosStr2Int32(const char *str, char **pEnd, int32_t radix) {
   }
   int32_t tmp = strtol(str, pEnd, radix);
 #if defined(DARWIN) || defined(_ALPINE)
-  if (errno == EINVAL) errno = 0;
+  if (ERRNO == EINVAL) SET_ERRNO(0);
 #endif
   return tmp;
 }
@@ -795,7 +795,7 @@ uint32_t taosStr2UInt32(const char *str, char **pEnd, int32_t radix) {
   }
   uint32_t tmp = strtol(str, pEnd, radix);
 #if defined(DARWIN) || defined(_ALPINE)
-  if (errno == EINVAL) errno = 0;
+  if (ERRNO == EINVAL) SET_ERRNO(0);
 #endif
   return tmp;
 }
@@ -807,7 +807,7 @@ int16_t taosStr2Int16(const char *str, char **pEnd, int32_t radix) {
   }
   int32_t tmp = strtol(str, pEnd, radix);
 #if defined(DARWIN) || defined(_ALPINE)
-  if (errno == EINVAL) errno = 0;
+  if (ERRNO == EINVAL) SET_ERRNO(0);
 #endif
   return (int16_t)tmp;
 }
@@ -819,7 +819,7 @@ uint16_t taosStr2UInt16(const char *str, char **pEnd, int32_t radix) {
   }
   uint32_t tmp = strtoul(str, pEnd, radix);
 #if defined(DARWIN) || defined(_ALPINE)
-  if (errno == EINVAL) errno = 0;
+  if (ERRNO == EINVAL) SET_ERRNO(0);
 #endif
   return (uint16_t)tmp;
 }
@@ -840,7 +840,7 @@ uint8_t taosStr2UInt8(const char *str, char **pEnd, int32_t radix) {
   }
   uint32_t tmp = strtoul(str, pEnd, radix);
 #if defined(DARWIN) || defined(_ALPINE)
-  if (errno == EINVAL) errno = 0;
+  if (ERRNO == EINVAL) SET_ERRNO(0);
 #endif
   return tmp;
 }

@@ -964,7 +964,7 @@ int32_t cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t
   }
 
   if (len < 0) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   if (len > bufSize) {
@@ -990,7 +990,7 @@ int32_t cfgDumpItemCategory(SConfigItem *pItem, char *buf, int32_t bufSize, int3
   }
 
   if (len < 0) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   if (len > bufSize) {
@@ -1363,7 +1363,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
   if (pFile == NULL) {
     // success when the file does not exist
     code = terrno;
-    if (errno == ENOENT) {
+    if (ERRNO == ENOENT) {
       uInfo("failed to load from cfg file %s since %s, use default parameters", filepath, tstrerror(code));
       TAOS_RETURN(TSDB_CODE_SUCCESS);
     } else {

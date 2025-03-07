@@ -238,7 +238,7 @@ int32_t taosMemoryDbgInit() {
 #if defined(LINUX) && !defined(_ALPINE) && !defined(TD_ASTRA)
   int ret = mallopt(M_MMAP_THRESHOLD, 0);
   if (0 == ret) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
 
   return 0;
@@ -251,7 +251,7 @@ int32_t taosMemoryDbgInitRestore() {
 #if defined(LINUX) && !defined(_ALPINE) && !defined(TD_ASTRA)
   int ret = mallopt(M_MMAP_THRESHOLD, 128 * 1024);
   if (0 == ret) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
 
   return 0;
@@ -476,10 +476,10 @@ void *taosMemMallocAlign(uint32_t alignment, int64_t size) {
 
   void *p = memalign(alignment, size);
   if (NULL == p) {
-    if (ENOMEM == errno) {
+    if (ENOMEM == ERRNO) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
     } else {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
     }
   }
   return p;

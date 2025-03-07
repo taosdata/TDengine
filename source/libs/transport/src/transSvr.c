@@ -1533,7 +1533,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   }
 
   if (false == taosValidIpAndPort(srv->ip, srv->port)) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     tError("invalid ip/port, %d:%d since %s", srv->ip, srv->port, terrstr());
     goto End;
   }
@@ -1685,7 +1685,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   if (code == 0) {
     tDebug("success to create accept-thread");
   } else {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     tError("failed  to create accept-thread since %s", tstrerror(code));
 
     goto End;

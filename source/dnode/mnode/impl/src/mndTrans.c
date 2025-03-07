@@ -861,7 +861,7 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
         pTrans->createdTime);
   code = mndSyncPropose(pMnode, pRaw, pTrans->id);
   if (code != 0) {
-    mError("trans:%d, failed to sync, errno:%s code:0x%x createTime:%" PRId64 " saved trans:%d", pTrans->id,
+    mError("trans:%d, failed to sync, ERRNO:%s code:0x%x createTime:%" PRId64 " saved trans:%d", pTrans->id,
            tstrerror(code), code, pTrans->createdTime, pMnode->syncMgmt.transId);
     sdbFreeRaw(pRaw);
     TAOS_RETURN(code);

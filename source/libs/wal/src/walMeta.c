@@ -98,12 +98,12 @@ FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* 
 
     int64_t ret = taosLSeekFile(pFile, offset, SEEK_SET);
     if (ret < 0) {
-      wError("vgId:%d, failed to lseek file due to %s. offset:%" PRId64 "", pWal->cfg.vgId, strerror(errno), offset);
+      wError("vgId:%d, failed to lseek file due to %s. offset:%" PRId64 "", pWal->cfg.vgId, strerror(ERRNO), offset);
       TAOS_CHECK_GOTO(terrno, &lino, _err);
     }
 
     if (readSize != taosReadFile(pFile, buf, readSize)) {
-      wError("vgId:%d, failed to read file due to %s. readSize:%" PRId64 ", file:%s", pWal->cfg.vgId, strerror(errno),
+      wError("vgId:%d, failed to read file due to %s. readSize:%" PRId64 ", file:%s", pWal->cfg.vgId, strerror(ERRNO),
              readSize, fnameStr);
       TAOS_CHECK_GOTO(terrno, &lino, _err);
     }
@@ -167,7 +167,7 @@ FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* 
         }
         if (extraSize != taosReadFile(pFile, buf + readSize, extraSize)) {
           wError("vgId:%d, failed to read file due to %s. offset:%" PRId64 ", extraSize:%" PRId64 ", file:%s",
-                 pWal->cfg.vgId, strerror(errno), offset + readSize, extraSize, fnameStr);
+                 pWal->cfg.vgId, strerror(ERRNO), offset + readSize, extraSize, fnameStr);
           code = terrno;
           break;
         }
@@ -216,7 +216,7 @@ FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* 
     }
 
     if (pWal->cfg.level != TAOS_WAL_SKIP && taosFsyncFile(pFile) < 0) {
-      wError("failed to fsync file due to %s. file:%s", strerror(errno), fnameStr);
+      wError("failed to fsync file due to %s. file:%s", strerror(ERRNO), fnameStr);
       TAOS_CHECK_GOTO(terrno, &lino, _err);
     }
   }
@@ -315,7 +315,7 @@ static int32_t walRepairLogFileTs(SWal* pWal, bool* updateMeta) {
     walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
     int64_t mtime = 0;
     if (taosStatFile(fnameStr, NULL, &mtime, NULL) < 0) {
-      wError("vgId:%d, failed to stat file due to %s, file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
+      wError("vgId:%d, failed to stat file due to %s, file:%s", pWal->cfg.vgId, strerror(ERRNO), fnameStr);
 
       TAOS_RETURN(terrno);
     }
@@ -564,8 +564,8 @@ static int32_t walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
   walBuildLogName(pWal, pFileInfo->firstVer, fLogNameStr);
   int64_t fileSize = 0;
 
-  if (taosStatFile(fnameStr, &fileSize, NULL, NULL) < 0 && errno != ENOENT) {
-    wError("vgId:%d, failed to stat file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
+  if (taosStatFile(fnameStr, &fileSize, NULL, NULL) < 0 && ERRNO != ENOENT) {
+    wError("vgId:%d, failed to stat file due to %s. file:%s", pWal->cfg.vgId, strerror(ERRNO), fnameStr);
 
     TAOS_RETURN(terrno);
   }
@@ -684,7 +684,7 @@ static int32_t walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
   if (pWal->cfg.level != TAOS_WAL_SKIP && taosFsyncFile(pIdxFile) < 0) {
     wError("vgId:%d, faild to fsync file since %s. file:%s", pWal->cfg.vgId, terrstr(), fnameStr);
 
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _err);
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(ERRNO), &lino, _err);
   }
 
   if (count > 0) {
@@ -961,15 +961,15 @@ int32_t walSaveMeta(SWal* pWal) {
   TAOS_CHECK_GOTO(walFindCurMetaVer(pWal, &metaVer), &lino, _err);
   // fsync the idx and log file at first to ensure validity of meta
   if (pWal->cfg.level != TAOS_WAL_SKIP && taosFsyncFile(pWal->pIdxFile) < 0) {
-    wError("vgId:%d, failed to sync idx file due to %s", pWal->cfg.vgId, strerror(errno));
+    wError("vgId:%d, failed to sync idx file due to %s", pWal->cfg.vgId, strerror(ERRNO));
 
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   if (pWal->cfg.level != TAOS_WAL_SKIP && taosFsyncFile(pWal->pLogFile) < 0) {
-    wError("vgId:%d, failed to sync log file due to %s", pWal->cfg.vgId, strerror(errno));
+    wError("vgId:%d, failed to sync log file due to %s", pWal->cfg.vgId, strerror(ERRNO));
 
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   // update synced offset
@@ -978,13 +978,13 @@ int32_t walSaveMeta(SWal* pWal) {
   // flush to a tmpfile
   n = walBuildTmpMetaName(pWal, tmpFnameStr);
   if (n >= sizeof(tmpFnameStr)) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   TdFilePtr pMetaFile =
       taosOpenFile(tmpFnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
   if (pMetaFile == NULL) {
-    wError("vgId:%d, failed to open file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), tmpFnameStr);
+    wError("vgId:%d, failed to open file due to %s. file:%s", pWal->cfg.vgId, strerror(ERRNO), tmpFnameStr);
 
     TAOS_RETURN(terrno);
   }
@@ -993,21 +993,21 @@ int32_t walSaveMeta(SWal* pWal) {
   TAOS_CHECK_RETURN(walMetaSerialize(pWal, &serialized));
   int len = strlen(serialized);
   if (pWal->cfg.level != TAOS_WAL_SKIP && len != taosWriteFile(pMetaFile, serialized, len)) {
-    wError("vgId:%d, failed to write file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), tmpFnameStr);
+    wError("vgId:%d, failed to write file due to %s. file:%s", pWal->cfg.vgId, strerror(ERRNO), tmpFnameStr);
 
     TAOS_CHECK_GOTO(terrno, &lino, _err);
   }
 
   if (pWal->cfg.level != TAOS_WAL_SKIP && taosFsyncFile(pMetaFile) < 0) {
-    wError("vgId:%d, failed to sync file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), tmpFnameStr);
+    wError("vgId:%d, failed to sync file due to %s. file:%s", pWal->cfg.vgId, strerror(ERRNO), tmpFnameStr);
 
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _err);
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(ERRNO), &lino, _err);
   }
 
   if (taosCloseFile(&pMetaFile) < 0) {
-    wError("vgId:%d, failed to close file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), tmpFnameStr);
+    wError("vgId:%d, failed to close file due to %s. file:%s", pWal->cfg.vgId, strerror(ERRNO), tmpFnameStr);
 
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _err);
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(ERRNO), &lino, _err);
   }
   wInfo("vgId:%d, save meta file: %s, firstVer:%" PRId64 ", lastVer:%" PRId64, pWal->cfg.vgId, tmpFnameStr,
         pWal->vers.firstVer, pWal->vers.lastVer);
@@ -1019,20 +1019,20 @@ int32_t walSaveMeta(SWal* pWal) {
   }
 
   if (taosRenameFile(tmpFnameStr, fnameStr) < 0) {
-    wError("failed to rename file due to %s. dest:%s", strerror(errno), fnameStr);
+    wError("failed to rename file due to %s. dest:%s", strerror(ERRNO), fnameStr);
 
-    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(errno), &lino, _err);
+    TAOS_CHECK_GOTO(TAOS_SYSTEM_ERROR(ERRNO), &lino, _err);
   }
 
   // delete old file
   if (metaVer > -1) {
     n = walBuildMetaName(pWal, metaVer, fnameStr);
     if (n >= sizeof(fnameStr)) {
-      TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+      TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
     }
     code = taosRemoveFile(fnameStr);
     if (code) {
-      wError("vgId:%d, failed to remove file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
+      wError("vgId:%d, failed to remove file due to %s. file:%s", pWal->cfg.vgId, strerror(ERRNO), fnameStr);
     } else {
       wInfo("vgId:%d, remove old meta file: %s", pWal->cfg.vgId, fnameStr);
     }
@@ -1062,7 +1062,7 @@ int32_t walLoadMeta(SWal* pWal) {
   char fnameStr[WAL_FILE_LEN];
   n = walBuildMetaName(pWal, metaVer, fnameStr);
   if (n >= sizeof(fnameStr)) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
   // read metafile
   int64_t fileSize = 0;
@@ -1070,7 +1070,7 @@ int32_t walLoadMeta(SWal* pWal) {
   if (fileSize == 0) {
     code = taosRemoveFile(fnameStr);
     if (code) {
-      wError("vgId:%d, failed to remove file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
+      wError("vgId:%d, failed to remove file due to %s. file:%s", pWal->cfg.vgId, strerror(ERRNO), fnameStr);
     } else {
       wInfo("vgId:%d, remove old meta file: %s", pWal->cfg.vgId, fnameStr);
     }
@@ -1124,7 +1124,7 @@ int32_t walRemoveMeta(SWal* pWal) {
   char fnameStr[WAL_FILE_LEN];
   int  n = walBuildMetaName(pWal, metaVer, fnameStr);
   if (n >= sizeof(fnameStr)) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
   return taosRemoveFile(fnameStr);
 }

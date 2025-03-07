@@ -39,6 +39,8 @@ extern "C" {
 #include <sys/shm.h>
 #include <sys/statvfs.h>
 #include <termios.h>
+#else 
+#include <astra.h>
 #endif
 
 #include <sched.h>
@@ -149,6 +151,11 @@ extern threadlocal bool tsEnableRandErr;
       return terrno;                   \
     }                                  \
   } while (0)
+
+#ifndef TD_ASTRA
+#define SET_ERRNO(_code) (errno = (_code));
+#define ERRNO            errno
+#endif
 
 #ifdef __cplusplus
 }

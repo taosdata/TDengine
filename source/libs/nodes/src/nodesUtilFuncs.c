@@ -190,7 +190,7 @@ static int32_t createNodeAllocator(int32_t chunkSize, SNodeAllocator** pAllocato
     return code;
   }
   if (0 != taosThreadMutexInit(&(*pAllocator)->mutex, NULL)) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
   return TSDB_CODE_SUCCESS;
 }

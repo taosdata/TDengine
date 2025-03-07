@@ -1760,7 +1760,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   // init semaphore
   if (tsem2_init(&pTmq->rspSem, 0, 0) != 0) {
     tqErrorC("consumer:0x %" PRIx64 " setup failed since %s, consumer group %s", pTmq->consumerId,
-             tstrerror(TAOS_SYSTEM_ERROR(errno)), pTmq->groupId);
+             tstrerror(TAOS_SYSTEM_ERROR(ERRNO)), pTmq->groupId);
     SET_ERROR_MSG_TMQ("init t_sem failed")
     goto _failed;
   }

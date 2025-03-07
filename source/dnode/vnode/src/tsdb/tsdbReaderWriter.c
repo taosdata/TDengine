@@ -572,7 +572,7 @@ int32_t tsdbFsyncFile(STsdbFD *pFD, int32_t encryptAlgorithm, char *encryptKey) 
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (taosFsyncFile(pFD->pFD) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(ERRNO), lino, _exit);
   }
 
 _exit:

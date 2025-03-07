@@ -3309,7 +3309,7 @@ int32_t ctgStartUpdateThread() {
   CTG_ERR_JRET(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE));
 
   if (taosThreadCreate(&gCtgMgmt.updateThread, &thAttr, ctgUpdateThreadFunc, NULL) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     CTG_ERR_RET(terrno);
   }
 
@@ -3318,7 +3318,7 @@ int32_t ctgStartUpdateThread() {
 _return:
 
   if (code) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     CTG_ERR_RET(terrno);
   }
   

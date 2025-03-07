@@ -125,7 +125,7 @@ void taosGetSystemLocale(char *outLocale, char *outCharset) {
 
   locale = setlocale(LC_CTYPE, "");
   if (locale == NULL) {
-    // printf("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", errno, strerror(errno));
+    // printf("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", ERRNO, strerror(ERRNO));
     tstrncpy(outLocale, "en_US.UTF-8", TD_LOCALE_LEN);
   } else {
     tstrncpy(outLocale, locale, TD_LOCALE_LEN);

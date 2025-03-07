@@ -463,13 +463,13 @@ int32_t walEndSnapshot(SWal *pWal) {
     pInfo = taosArrayGet(pWal->toDeleteFiles, i);
 
     walBuildLogName(pWal, pInfo->firstVer, fnameStr);
-    if (taosRemoveFile(fnameStr) < 0 && errno != ENOENT) {
-      wError("vgId:%d, failed to remove log file %s due to %s", pWal->cfg.vgId, fnameStr, strerror(errno));
+    if (taosRemoveFile(fnameStr) < 0 && ERRNO != ENOENT) {
+      wError("vgId:%d, failed to remove log file %s due to %s", pWal->cfg.vgId, fnameStr, strerror(ERRNO));
       goto _exit;
     }
     walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
-    if (taosRemoveFile(fnameStr) < 0 && errno != ENOENT) {
-      wError("vgId:%d, failed to remove idx file %s due to %s", pWal->cfg.vgId, fnameStr, strerror(errno));
+    if (taosRemoveFile(fnameStr) < 0 && ERRNO != ENOENT) {
+      wError("vgId:%d, failed to remove idx file %s due to %s", pWal->cfg.vgId, fnameStr, strerror(ERRNO));
       goto _exit;
     }
   }
@@ -508,7 +508,7 @@ static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
 
   int64_t size = taosWriteFile(pWal->pIdxFile, &entry, sizeof(SWalIdxEntry));
   if (size != sizeof(SWalIdxEntry)) {
-    wError("vgId:%d, failed to write idx entry due to %s. ver:%" PRId64, pWal->cfg.vgId, strerror(errno), ver);
+    wError("vgId:%d, failed to write idx entry due to %s. ver:%" PRId64, pWal->cfg.vgId, strerror(ERRNO), ver);
     walStopDnode(pWal);
     TAOS_RETURN(terrno);
   }
@@ -554,7 +554,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
       taosWriteFile(pWal->pLogFile, &pWal->writeHead, sizeof(SWalCkHead)) != sizeof(SWalCkHead)) {
     code = terrno;
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
-           strerror(errno));
+           strerror(ERRNO));
     walStopDnode(pWal);
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
@@ -576,7 +576,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     newBodyEncrypted = taosMemoryMalloc(cyptedBodyLen);
     if (newBodyEncrypted == NULL) {
       wError("vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
-             strerror(errno));
+             strerror(ERRNO));
 
       if (newBody != NULL) taosMemoryFreeClear(newBody);
 
@@ -601,7 +601,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   if (pWal->cfg.level != TAOS_WAL_SKIP && taosWriteFile(pWal->pLogFile, (char *)buf, cyptedBodyLen) != cyptedBodyLen) {
     code = terrno;
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
-           strerror(errno));
+           strerror(ERRNO));
 
     if (pWal->cfg.encryptAlgorithm == DND_CA_SM4) {
       taosMemoryFreeClear(newBody);
@@ -729,7 +729,7 @@ int32_t walFsync(SWal *pWal, bool forceFsync) {
     wTrace("vgId:%d, fileId:%" PRId64 ".log, do fsync", pWal->cfg.vgId, walGetCurFileFirstVer(pWal));
     if (taosFsyncFile(pWal->pLogFile) < 0) {
       wError("vgId:%d, file:%" PRId64 ".log, fsync failed since %s", pWal->cfg.vgId, walGetCurFileFirstVer(pWal),
-             strerror(errno));
+             strerror(ERRNO));
       code = terrno;
     }
   }

@@ -729,7 +729,7 @@ char *tz_win[W_TZ_CITY_NUM][2] = {{"Asia/Shanghai", "China Standard Time"},
                         {"W-SU", "Russian Standard Time"},
                         {"Zulu", "UTC"}};
 #elif defined(_TD_DARWIN_64)
-#include <errno.h>
+#include <ERRNO.h>
 #include <libproc.h>
 #else
 #include <argp.h>
@@ -775,7 +775,7 @@ int32_t taosSetGlobalTimezone(const char *tz) {
 #else
       code = setenv("TZ", tz, 1);
   if (-1 == code) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -790,7 +790,7 @@ int32_t taosGetLocalTimezoneOffset() {
   time_t    tx1 = taosGetTimestampSec();
   struct tm tm1;
   if (taosLocalTime(&tx1, &tm1, NULL, 0, NULL) == NULL) {
-    uError("%s failed to get local time: code:%d", __FUNCTION__, errno);
+    uError("%s failed to get local time: code:%d", __FUNCTION__, ERRNO);
     return TSDB_CODE_TIME_ERROR;
   }
 #ifdef WINDOWS
@@ -805,7 +805,7 @@ int32_t taosGetLocalTimezoneOffset() {
 int32_t taosFormatTimezoneStr(time_t t, const char *tz, timezone_t sp, char *outTimezoneStr) {
   struct tm tm1;
   if (taosLocalTime(&t, &tm1, NULL, 0, sp) == NULL) {
-    uError("%s failed to get local time: code:%d", __FUNCTION__, errno);
+    uError("%s failed to get local time: code:%d", __FUNCTION__, ERRNO);
     return TSDB_CODE_TIME_ERROR;
   }
 
@@ -841,7 +841,7 @@ void getTimezoneStr(char *tz) {
   do {
     int n = readlink("/etc/localtime", tz, TD_TIMEZONE_LEN - 1);
     if (n < 0) {
-      uWarn("[tz] failed to readlink /etc/localtime, reason:%s", strerror(errno));
+      uWarn("[tz] failed to readlink /etc/localtime, reason:%s", strerror(ERRNO));
       break;
     }
 
@@ -857,7 +857,7 @@ void getTimezoneStr(char *tz) {
 
   TdFilePtr pFile = taosOpenFile("/etc/timezone", TD_FILE_READ);
   if (pFile == NULL) {
-    uWarn("[tz] failed to open /etc/timezone, reason:%s", strerror(errno));
+    uWarn("[tz] failed to open /etc/timezone, reason:%s", strerror(ERRNO));
     goto END;
   }
   int len = taosReadFile(pFile, tz, TD_TIMEZONE_LEN - 1);

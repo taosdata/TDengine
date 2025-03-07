@@ -553,7 +553,7 @@ static int32_t taosTmrModuleInit(void) {
   for (int32_t i = 0; i < tListLen(wheels); i++) {
     time_wheel_t* wheel = wheels + i;
     if (taosThreadMutexInit(&wheel->mutex, NULL) != 0) {
-      tmrError("failed to create the mutex for wheel, reason:%s", strerror(errno));
+      tmrError("failed to create the mutex for wheel, reason:%s", strerror(ERRNO));
       return terrno;
     }
     wheel->nextScanAt = now + wheel->resolution;

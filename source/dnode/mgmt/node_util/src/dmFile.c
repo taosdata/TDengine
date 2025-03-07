@@ -163,7 +163,7 @@ int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
   }
 
   if (taosCloseFile(&pFile) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _OVER;
   }
   TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
@@ -206,7 +206,7 @@ int32_t dmCheckRunning(const char *dataDir, TdFilePtr *pFile) {
   } while (retryTimes < 12);
 
   if (ret < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     (void)taosCloseFile(pFile);
     *pFile = NULL;
     return code;
@@ -249,12 +249,12 @@ static int32_t dmWriteCheckCodeFile(char *file, char *realfile, char *key, bool 
   }
 
   if (taosFsyncFile(pFile) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _OVER;
   }
 
   if (taosCloseFile(&pFile) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _OVER;
   }
 
@@ -291,7 +291,7 @@ static int32_t dmWriteEncryptCodeFile(char *file, char *realfile, char *encryptC
   }
 
   if (taosCloseFile(&pFile) != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _OVER;
   }
 

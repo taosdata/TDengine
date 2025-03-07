@@ -370,7 +370,7 @@ int32_t taosGetTimeOfDay(struct timeval *tv) {
   return 0;
 #else
   code = gettimeofday(tv, NULL);
-  return (-1 == code) ? (terrno = TAOS_SYSTEM_ERROR(errno)) : 0;
+  return (-1 == code) ? (terrno = TAOS_SYSTEM_ERROR(ERRNO)) : 0;
 #endif
 }
 
@@ -380,7 +380,7 @@ int32_t taosTime(time_t *t) {
   }
   time_t r = time(t);
   if (r == (time_t)-1) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
   return 0;
 }
@@ -442,13 +442,13 @@ time_t taosMktime(struct tm *timep, timezone_t tz) {
 #elif defined(TD_ASTRA)
   time_t r =  mktime(timep);
   if (r == (time_t)-1) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
   return r;
 #else
   time_t r = (tz != NULL ? mktime_z(tz, timep) : mktime(timep));
   if (r == (time_t)-1) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
   timezone = -timep->tm_gmtoff;
   return r;
@@ -577,6 +577,6 @@ int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
   return (0);
 #else
   code = clock_gettime(clock_id, pTS);
-  return (-1 == code) ? (terrno = TAOS_SYSTEM_ERROR(errno)) : 0;
+  return (-1 == code) ? (terrno = TAOS_SYSTEM_ERROR(ERRNO)) : 0;
 #endif
 }

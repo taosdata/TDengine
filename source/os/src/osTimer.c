@@ -116,7 +116,7 @@ static void *taosProcessAlarmSignal(void *tharg) {
   sevent.sigev_signo = SIGALRM;
 
   if (timer_create(CLOCK_REALTIME, &sevent, &timerId) == -1) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return NULL;
   }
 
@@ -130,7 +130,7 @@ static void *taosProcessAlarmSignal(void *tharg) {
     ts.it_interval.tv_nsec = 1000000 * MSECONDS_PER_TICK;
 
     if (-1 == timer_settime(timerId, 0, &ts, NULL)) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
       break;
     }
 

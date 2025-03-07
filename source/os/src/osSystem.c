@@ -151,7 +151,7 @@ int32_t taosSetConsoleEcho(bool on) {
   struct termios term;
 
   if (tcgetattr(STDIN_FILENO, &term) == -1) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -162,7 +162,7 @@ int32_t taosSetConsoleEcho(bool on) {
 
   err = tcsetattr(STDIN_FILENO, TCSAFLUSH, &term);
   if (err == -1) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -197,7 +197,7 @@ int32_t taosSetTerminalMode() {
   newtio.c_cc[VTIME] = 0;
 
   if (-1 == tcsetattr(0, TCSANOW, &newtio)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     (void)fprintf(stderr, "Fail to set terminal properties!\n");
     return terrno;
   }
@@ -212,13 +212,13 @@ int32_t taosGetOldTerminalMode() {
 #else
   /* Make sure stdin is a terminal. */
   if (!isatty(STDIN_FILENO)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
   // Get the parameter of current terminal
   if (-1 == tcgetattr(0, &oldtio)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -231,7 +231,7 @@ int32_t taosResetTerminalMode() {
   return 0;
 #else
   if (-1 == tcsetattr(0, TCSANOW, &oldtio)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     (void)fprintf(stderr, "Fail to reset the terminal properties!\n");
     return terrno;
   }
@@ -252,7 +252,7 @@ TdCmdPtr taosOpenCmd(const char* cmd) {
 #else
   TdCmdPtr p = (TdCmdPtr)popen(cmd, "r");
   if (NULL == p) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
   return p;
 #endif
@@ -327,7 +327,7 @@ int64_t taosGetLineCmd(TdCmdPtr pCmd, char** __restrict ptrBuf) {
   ssize_t len = 0;
   len = getline(ptrBuf, (size_t*)&len, (FILE*)pCmd);
   if (-1 == len) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
   return len;

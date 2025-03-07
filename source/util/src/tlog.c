@@ -221,7 +221,7 @@ int32_t taosInitSlowLog() {
   TAOS_UNUSED(taosUmaskFile(0));
   tsLogObj.slowHandle->pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE | TD_FILE_APPEND);
   if (tsLogObj.slowHandle->pFile == NULL) {
-    (void)printf("\nfailed to open slow log file:%s, reason:%s\n", name, strerror(errno));
+    (void)printf("\nfailed to open slow log file:%s, reason:%s\n", name, strerror(ERRNO));
     return terrno;
   }
 
@@ -527,7 +527,7 @@ void taosOpenNewSlowLogFile() {
   (void)snprintf(name, PATH_MAX + TD_TIME_STR_LEN, "%s.%s", tsLogObj.slowLogName, day);
   pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pFile == NULL) {
-    uError("open new log file fail! reason:%s, reuse lastlog", strerror(errno));
+    uError("open new log file fail! reason:%s, reuse lastlog", strerror(ERRNO));
     (void)taosThreadMutexUnlock(&tsLogObj.logMutex);
     return;
   }
@@ -561,7 +561,7 @@ static bool taosCheckFileIsOpen(char *logFileName) {
     if (lastErrorIsFileNotExist()) {
       return false;
     } else {
-      printf("\n%s:%d failed to open log file:%s, reason:%s\n", __func__, __LINE__, logFileName, strerror(errno));
+      printf("\n%s:%d failed to open log file:%s, reason:%s\n", __func__, __LINE__, logFileName, strerror(ERRNO));
       return true;
     }
   }
@@ -663,7 +663,7 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
 
   tsLogObj.logHandle->pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE | TD_FILE_APPEND);
   if (tsLogObj.logHandle->pFile == NULL) {
-    (void)printf("\n%s:%d failed to open log file:%s, reason:%s\n", __func__, __LINE__, name, strerror(errno));
+    (void)printf("\n%s:%d failed to open log file:%s, reason:%s\n", __func__, __LINE__, name, strerror(ERRNO));
     return terrno;
   }
   TAOS_UNUSED(taosLockLogFile(tsLogObj.logHandle->pFile));
@@ -722,7 +722,7 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
   time_t curTime = timeSecs.tv_sec;
   ptm = taosLocalTime(&curTime, &Tm, NULL, 0, NULL);
   if (ptm == NULL) {
-    uError("%s failed to get local time, code:%d", __FUNCTION__, errno);
+    uError("%s failed to get local time, code:%d", __FUNCTION__, ERRNO);
     return 0;
   }
   return snprintf(buffer, LOG_MAX_STACK_LINE_BUFFER_SIZE, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s %s",
@@ -761,7 +761,7 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
 #pragma GCC diagnostic ignored "-Wunused-result"
 #ifndef TD_ASTRA
     if (write(fd, buffer, (uint32_t)len) < 0) {
-      TAOS_UNUSED(printf("failed to write log to screen, reason:%s\n", strerror(errno)));
+      TAOS_UNUSED(printf("failed to write log to screen, reason:%s\n", strerror(ERRNO)));
     }
 #else
     TAOS_UNUSED(fprintf(fd == 1 ? stdout : stderr, "%s", buffer));
@@ -1420,7 +1420,7 @@ void taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr 
 
     pFile = taosOpenFile(filepath, TD_FILE_READ | TD_FILE_WRITE);
     if (pFile == NULL) {
-      if (ENOENT == errno) {
+      if (ENOENT == ERRNO) {
         return;
       }
 

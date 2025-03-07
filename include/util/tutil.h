@@ -269,20 +269,20 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 
 #define QUERY_CHECK_CODE TSDB_CHECK_CODE
 
-#define TSDB_CHECK_CONDITION(condition, CODE, LINO, LABEL, ERRNO) \
-  if (UNLIKELY(!(condition))) {                                   \
-    (CODE) = (ERRNO);                                             \
-    (LINO) = __LINE__;                                            \
-    goto LABEL;                                                   \
+#define TSDB_CHECK_CONDITION(condition, CODE, LINO, LABEL, _ERRNO) \
+  if (UNLIKELY(!(condition))) {                                    \
+    (CODE) = (_ERRNO);                                             \
+    (LINO) = __LINE__;                                             \
+    goto LABEL;                                                    \
   }
 
 #define QUERY_CHECK_CONDITION TSDB_CHECK_CONDITION
 
-#define TSDB_CHECK_NULL(ptr, CODE, LINO, LABEL, ERRNO) \
-  if (UNLIKELY((ptr) == NULL)) {                       \
-    (CODE) = (ERRNO);                                  \
-    (LINO) = __LINE__;                                 \
-    goto LABEL;                                        \
+#define TSDB_CHECK_NULL(ptr, CODE, LINO, LABEL, _ERRNO) \
+  if (UNLIKELY((ptr) == NULL)) {                        \
+    (CODE) = (_ERRNO);                                  \
+    (LINO) = __LINE__;                                  \
+    goto LABEL;                                         \
   }
 
 #define QUERY_CHECK_NULL TSDB_CHECK_NULL
@@ -291,7 +291,7 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
 
 #define VND_CHECK_CODE(CODE, LINO, LABEL) TSDB_CHECK_CODE(CODE, LINO, LABEL)
 
-#define TCONTAINER_OF(ptr, type, member) ((type *)((char *)(ptr)-offsetof(type, member)))
+#define TCONTAINER_OF(ptr, type, member) ((type *)((char *)(ptr) - offsetof(type, member)))
 
 #define TAOS_GET_TERRNO(code) (terrno == 0 ? code : terrno)
 
@@ -308,13 +308,13 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     }                               \
   } while (0)
 
-#define TAOS_CHECK_RETURN_SET_CODE(CMD, CODE, ERRNO) \
-  do {                                               \
-    int32_t __c = (CMD);                             \
-    if (__c != TSDB_CODE_SUCCESS) {                  \
-      (CODE) = (ERRNO);                              \
-      TAOS_RETURN(__c);                              \
-    }                                                \
+#define TAOS_CHECK_RETURN_SET_CODE(CMD, CODE, _ERRNO) \
+  do {                                                \
+    int32_t __c = (CMD);                              \
+    if (__c != TSDB_CODE_SUCCESS) {                   \
+      (CODE) = (_ERRNO);                              \
+      TAOS_RETURN(__c);                               \
+    }                                                 \
   } while (0)
 
 #define TAOS_CHECK_RETURN_WITH_RELEASE(CMD, PTR1, PTR2) \
@@ -355,14 +355,14 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     }                               \
   } while (0)
 
-#define TAOS_CHECK_EXIT_SET_CODE(CMD, CODE, ERRNO) \
-  do {                                             \
-    code = (CMD);                                  \
-    if (code < TSDB_CODE_SUCCESS) {                \
-      (CODE) = (ERRNO);                            \
-      lino = __LINE__;                             \
-      goto _exit;                                  \
-    }                                              \
+#define TAOS_CHECK_EXIT_SET_CODE(CMD, CODE, _ERRNO) \
+  do {                                              \
+    code = (CMD);                                   \
+    if (code < TSDB_CODE_SUCCESS) {                 \
+      (CODE) = (_ERRNO);                            \
+      lino = __LINE__;                              \
+      goto _exit;                                   \
+    }                                               \
   } while (0)
 
 #define TAOS_UNUSED(expr) (void)(expr)

@@ -86,7 +86,7 @@ int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
   if (old == 0) {
     if ((taosThreadKeyCreate(&tlGeosCtxKey, destroyThreadLocalGeosCtx)) != 0) {
       atomic_store_8(&tlGeosCtxKeyInited, 0);
-      TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
+      TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(ERRNO));
     }
     atomic_store_8(&tlGeosCtxKeyInited, 1);
   }
@@ -97,7 +97,7 @@ int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
   }
   if ((taosThreadSetSpecific(tlGeosCtxKey, (const void *)tlGeosCtxObj)) != 0) {
     taosMemoryFreeClear(tlGeosCtxObj);
-    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
+    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   *ppCtx = tlGeosCtx = tlGeosCtxObj;

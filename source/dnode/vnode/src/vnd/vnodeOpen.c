@@ -51,8 +51,8 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs
 
   // create vnode env
   if (vnodeMkDir(pTfs, path)) {
-    vError("vgId:%d, failed to prepare vnode dir since %s, path: %s", pCfg->vgId, strerror(errno), path);
-    return TAOS_SYSTEM_ERROR(errno);
+    vError("vgId:%d, failed to prepare vnode dir since %s, path: %s", pCfg->vgId, strerror(ERRNO), path);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
   vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
 
@@ -388,7 +388,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   if (vnodeMkDir(pTfs, path)) {
-    vError("vgId:%d, failed to prepare vnode dir since %s, path: %s", info.config.vgId, strerror(errno), path);
+    vError("vgId:%d, failed to prepare vnode dir since %s, path: %s", info.config.vgId, strerror(ERRNO), path);
     return NULL;
   }
   // save vnode info on dnode ep changed

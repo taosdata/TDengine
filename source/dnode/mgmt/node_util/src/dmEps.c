@@ -657,7 +657,7 @@ static int32_t dmReadDnodePairs(SDnodeData *pData) {
   pData->oldDnodeEps = taosArrayInit(1, sizeof(SDnodeEpPair));
   if (pData->oldDnodeEps == NULL) {
     code = terrno;
-    dError("failed to calloc dnodeEp array since %s", strerror(errno));
+    dError("failed to calloc dnodeEp array since %s", strerror(ERRNO));
     goto _OVER;
   }
 

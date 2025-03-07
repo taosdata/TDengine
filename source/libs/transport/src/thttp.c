@@ -920,7 +920,7 @@ int64_t transInitHttpChanImpl() {
 
   err = taosThreadCreate(&http->thread, NULL, httpThread, (void*)http);
   if (err != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _ERROR;
   }
 

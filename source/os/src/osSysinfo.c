@@ -191,7 +191,7 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
          cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system, &cpuInfo->idle, &cpuInfo->wa, &cpuInfo->hi,
          &cpuInfo->si, &cpuInfo->st, &cpuInfo->guest, &cpuInfo->guest_nice);
   if (EOF == code) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     TAOS_SKIP_ERROR(taosCloseFile(&pFile));
     return terrno;
   }
@@ -240,7 +240,7 @@ static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
       code = sscanf(line + i + 1, "%" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, &cpuInfo->utime, &cpuInfo->stime,
              &cpuInfo->cutime, &cpuInfo->cstime);
       if (EOF == code) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
+        terrno = TAOS_SYSTEM_ERROR(ERRNO);
         return terrno;
       }
              
@@ -385,12 +385,12 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
 
   if(sName) snprintf(sName, maxLen, "macOS");
   if (sysctl(osversion_name, 2, osversion, &osversion_len, NULL, 0) == -1) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
 
   uint32_t major, minor;
   if (sscanf(osversion, "%u.%u", &major, &minor) == EOF) {
-      return TAOS_SYSTEM_ERROR(errno);
+      return TAOS_SYSTEM_ERROR(ERRNO);
   }
   if (major >= 20) {
       major -= 9; // macOS 11 and newer
@@ -598,14 +598,14 @@ static int32_t taosCntrGetCpuCores(float *numOfCores) {
     *numOfCores = sysCores;
   }
   if(*numOfCores <= 0) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
   goto _end;
   
 _sys:
   *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
   if(*numOfCores <= 0) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
   
 _end:
@@ -624,7 +624,7 @@ int32_t taosGetCpuCores(float *numOfCores, bool physical) {
 #elif defined(_TD_DARWIN_64)
   *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
   if(*numOfCores <= 0) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
   return 0;
 #elif defined(TD_ASTRA) // TD_ASTRA_TODO
@@ -634,7 +634,7 @@ int32_t taosGetCpuCores(float *numOfCores, bool physical) {
   if (physical) {
     *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
     if(*numOfCores <= 0) {
-      return TAOS_SYSTEM_ERROR(errno);
+      return TAOS_SYSTEM_ERROR(ERRNO);
     }
   } else {
     int code= taosCntrGetCpuCores(numOfCores);
@@ -736,7 +736,7 @@ int32_t taosGetTotalMemory(int64_t *totalKB) {
 #else
   *totalKB = (int64_t)(sysconf(_SC_PHYS_PAGES) * tsPageSizeKB);
   if(*totalKB <= 0) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
   return 0;
 #endif
@@ -862,7 +862,7 @@ int32_t taosGetSysMemory(int64_t *usedKB) {
 #else
   *usedKB = sysconf(_SC_AVPHYS_PAGES) * tsPageSizeKB;
   if(*usedKB <= 0) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
   return 0;
 #endif
@@ -884,15 +884,15 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
     diskSize->used = (int64_t)(i64TotalBytes - i64FreeBytes);
     return 0;
   } else {
-    // printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
+    // printf("failed to get disk size, dataDir:%s ERRNO:%s", tsDataDir, strerror(ERRNO));
     terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
     return terrno;
   }
 #elif defined(_TD_DARWIN_64)
   struct statvfs info;
   if (statvfs(dataDir, &info)) {
-    // printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    // printf("failed to get disk size, dataDir:%s ERRNO:%s", tsDataDir, strerror(ERRNO));
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   } else {
     diskSize->total = info.f_blocks * info.f_frsize;
@@ -902,7 +902,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
   }
 #elif defined(TD_ASTRA)  // TD_ASTRA_TODO
   //  if (-1 == ioctl(dataDir, FIOFSTATVFSGETBYNAME, &info)) { // TODO:try to check whether the API is available
-  //     terrno = TAOS_SYSTEM_ERROR(errno);
+  //     terrno = TAOS_SYSTEM_ERROR(ERRNO);
   //     return terrno;
   diskSize->total = 100LL * 1024 * 1024 * 1024;
   diskSize->avail = 50LL * 1024 * 1024 * 1024;
@@ -916,7 +916,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
 #else
   struct statvfs info;
   if (-1 == statvfs(dataDir, &info)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   } else {
     diskSize->total = info.f_blocks * info.f_frsize;
@@ -1225,11 +1225,11 @@ char *taosGetCmdlineByPID(int pid) {
   return "";
 #elif defined(_TD_DARWIN_64)
   static char cmdline[1024];
-  errno = 0;
+  SET_ERRNO(0);
 
   if (proc_pidpath(pid, cmdline, sizeof(cmdline)) <= 0) {
-    fprintf(stderr, "PID is %d, %s", pid, strerror(errno));
-    return strerror(errno);
+    fprintf(stderr, "PID is %d, %s", pid, strerror(ERRNO));
+    return strerror(ERRNO);
   }
 
   return cmdline;
@@ -1264,7 +1264,7 @@ int64_t taosGetOsUptime() {
 #else
   struct sysinfo info;
   if (-1 == sysinfo(&info)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
   
@@ -1293,7 +1293,7 @@ void taosSetCoreDump(bool enable) {
     rlim_new.rlim_cur = RLIM_INFINITY;
     rlim_new.rlim_max = RLIM_INFINITY;
     if (setrlimit(RLIMIT_CORE, &rlim_new) != 0) {
-      // printf("set unlimited fail, error: %s", strerror(errno));
+      // printf("set unlimited fail, error: %s", strerror(ERRNO));
       rlim_new.rlim_cur = rlim.rlim_max;
       rlim_new.rlim_max = rlim.rlim_max;
       (void)setrlimit(RLIMIT_CORE, &rlim_new);
@@ -1331,7 +1331,7 @@ void taosSetCoreDump(bool enable) {
 
 #ifndef __loongarch64
   if (syscall(SYS__sysctl, &args) == -1) {
-    // printf("_sysctl(kern_core_uses_pid) set fail: %s", strerror(errno));
+    // printf("_sysctl(kern_core_uses_pid) set fail: %s", strerror(ERRNO));
   }
 #endif
 
@@ -1349,7 +1349,7 @@ void taosSetCoreDump(bool enable) {
 
 #ifndef __loongarch64
   if (syscall(SYS__sysctl, &args) == -1) {
-    // printf("_sysctl(kern_core_uses_pid) get fail: %s", strerror(errno));
+    // printf("_sysctl(kern_core_uses_pid) get fail: %s", strerror(ERRNO));
   }
 #endif
 
@@ -1402,7 +1402,7 @@ SysNameInfo taosGetSysNameInfo() {
     tstrncpy(info.version, uts.version, sizeof(info.version));
     tstrncpy(info.machine, uts.machine, sizeof(info.machine));
   } else {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
 
   return info;
@@ -1441,7 +1441,7 @@ int32_t taosGetMaclocalhostnameByCommand(char *hostname, size_t maxLen) {
     }
     taosCloseCmd(&pCmd);
   }
-  return TAOS_SYSTEM_ERROR(errno);
+  return TAOS_SYSTEM_ERROR(ERRNO);
 }
 
 int32_t getMacLocalHostNameBySCD(char *hostname, size_t maxLen) {
@@ -1470,7 +1470,7 @@ int32_t taosGetlocalhostname(char *hostname, size_t maxLen) {
 #else
   int r = gethostname(hostname, maxLen);
   if (-1 == r) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
   return r;

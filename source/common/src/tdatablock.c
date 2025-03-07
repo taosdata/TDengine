@@ -1472,7 +1472,7 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
         SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, 0);
         SBlockOrderInfo* pOrder = taosArrayGet(pOrderInfo, 0);
         if (pColInfoData == NULL || pOrder == NULL) {
-          return errno;
+          return terrno;
         }
 
         int64_t p0 = taosGetTimestampUs();
@@ -1861,14 +1861,14 @@ int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock) {
   // window start ts
   void* px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
   // window end ts
   px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
@@ -1878,14 +1878,14 @@ int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock) {
   // uid
   px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
   // group id
   px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
@@ -1895,14 +1895,14 @@ int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock) {
   // calculate start ts
   px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
   // calculate end ts
   px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 
@@ -1911,7 +1911,7 @@ int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock) {
   infoData.info.bytes = VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN;
   px = taosArrayPush(p->pDataBlock, &infoData);
   if (px == NULL) {
-    code = errno;
+    code = terrno;
     goto _err;
   }
 

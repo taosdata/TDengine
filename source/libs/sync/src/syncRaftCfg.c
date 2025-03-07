@@ -160,7 +160,7 @@ int32_t syncWriteCfgFile(SSyncNode *pNode) {
   }
 
   if (taosFsyncFile(pFile) < 0) {
-    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
+    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   TAOS_CHECK_EXIT(taosCloseFile(&pFile));

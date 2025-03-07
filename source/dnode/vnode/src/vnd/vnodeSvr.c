@@ -2288,10 +2288,10 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
   }
 
   if (pVnode->config.szCache != req.pages) {
-    if (metaAlterCache(pVnode->pMeta, req.pages) < 0) {
+    if ((terrno = metaAlterCache(pVnode->pMeta, req.pages)) < 0) {
       vError("vgId:%d, failed to change vnode pages from %d to %d failed since %s", TD_VID(pVnode),
-             pVnode->config.szCache, req.pages, tstrerror(errno));
-      return errno;
+             pVnode->config.szCache, req.pages, tstrerror(terrno));
+      return terrno;
     } else {
       vInfo("vgId:%d, vnode pages is changed from %d to %d", TD_VID(pVnode), pVnode->config.szCache, req.pages);
       pVnode->config.szCache = req.pages;
@@ -2361,7 +2361,7 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
 
       int32_t ret = tsdbDisableAndCancelAllBgTask(pVnode->pTsdb);
       if (ret != 0) {
-        vError("vgId:%d, failed to disable bg task since %s", TD_VID(pVnode), tstrerror(errno));
+        vError("vgId:%d, failed to disable bg task since %s", TD_VID(pVnode), tstrerror(ERRNO));
       }
 
       pVnode->config.sttTrigger = req.sttTrigger;
@@ -2382,7 +2382,7 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t ver, void *pRe
 
   if (walChanged) {
     if (walAlter(pVnode->pWal, &pVnode->config.walCfg) != 0) {
-      vError("vgId:%d, failed to alter wal config since %s", TD_VID(pVnode), tstrerror(errno));
+      vError("vgId:%d, failed to alter wal config since %s", TD_VID(pVnode), tstrerror(ERRNO));
     }
   }
 
