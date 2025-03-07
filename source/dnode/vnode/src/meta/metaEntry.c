@@ -271,7 +271,7 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
       }
       TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ctbEntry.suid));
       TAOS_CHECK_RETURN(tEncodeTag(pCoder, (const STag *)pME->ctbEntry.pTags));
-    } else if (pME->type == TSDB_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_TABLE) {
+    } else if (pME->type == TSDB_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_NORMAL_TABLE) {
       TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ntbEntry.btime));
       TAOS_CHECK_RETURN(tEncodeI32(pCoder, pME->ntbEntry.ttlDays));
       TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pME->ntbEntry.commentLen));
@@ -286,7 +286,7 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
       metaError("meta/entry: invalide table type: %" PRId8 " encode failed.", pME->type);
       return TSDB_CODE_INVALID_PARA;
     }
-    if (pME->type == TSDB_VIRTUAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    if (pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
       TAOS_CHECK_RETURN(meteEncodeColRefEntry(pCoder, pME));
     } else {
       TAOS_CHECK_RETURN(meteEncodeColCmprEntry(pCoder, pME));
@@ -331,7 +331,7 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
       }
       TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->ctbEntry.suid));
       TAOS_CHECK_RETURN(tDecodeTag(pCoder, (STag **)&pME->ctbEntry.pTags));
-    } else if (pME->type == TSDB_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_TABLE) {
+    } else if (pME->type == TSDB_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_NORMAL_TABLE) {
       TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->ntbEntry.btime));
       TAOS_CHECK_RETURN(tDecodeI32(pCoder, &pME->ntbEntry.ttlDays));
       TAOS_CHECK_RETURN(tDecodeI32v(pCoder, &pME->ntbEntry.commentLen));
@@ -373,13 +373,13 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
         TAOS_CHECK_RETURN(metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->ntbEntry.schemaRow));
       }
       TABLE_SET_COL_COMPRESSED(pME->flags);
-    } else if (pME->type == TSDB_VIRTUAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    } else if (pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
       if (!tDecodeIsEnd(pCoder)) {
         uDebug("set type: %d, tableName:%s", pME->type, pME->name);
         TAOS_CHECK_RETURN(meteDecodeColRefEntry(pCoder, pME));
       } else {
         uDebug("set default type: %d, tableName:%s", pME->type, pME->name);
-        if (pME->type == TSDB_VIRTUAL_TABLE) {
+        if (pME->type == TSDB_VIRTUAL_NORMAL_TABLE) {
            TAOS_CHECK_RETURN(metatInitDefaultSColRefWrapper(pCoder, &pME->colRef, &pME->ntbEntry.schemaRow));
         }
       }
@@ -440,7 +440,7 @@ void metaCloneEntryFree(SMetaEntry **ppEntry) {
   } else if (TSDB_CHILD_TABLE == (*ppEntry)->type || TSDB_VIRTUAL_CHILD_TABLE == (*ppEntry)->type) {
     taosMemoryFreeClear((*ppEntry)->ctbEntry.comment);
     taosMemoryFreeClear((*ppEntry)->ctbEntry.pTags);
-  } else if (TSDB_NORMAL_TABLE == (*ppEntry)->type || TSDB_VIRTUAL_TABLE == (*ppEntry)->type) {
+  } else if (TSDB_NORMAL_TABLE == (*ppEntry)->type || TSDB_VIRTUAL_NORMAL_TABLE == (*ppEntry)->type) {
     metaCloneSchemaFree(&(*ppEntry)->ntbEntry.schemaRow);
     taosMemoryFreeClear((*ppEntry)->ntbEntry.comment);
   } else {
@@ -524,7 +524,7 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
       return code;
     }
     memcpy((*ppEntry)->ctbEntry.pTags, pEntry->ctbEntry.pTags, pTags->len);
-  } else if (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_TABLE) {
+  } else if (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     (*ppEntry)->ntbEntry.btime = pEntry->ntbEntry.btime;
     (*ppEntry)->ntbEntry.ttlDays = pEntry->ntbEntry.ttlDays;
     (*ppEntry)->ntbEntry.ncid = pEntry->ntbEntry.ncid;
@@ -551,7 +551,7 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  if (pEntry->type == TSDB_VIRTUAL_TABLE || pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
+  if (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
     code = metaCloneColRef(&pEntry->colRef, &(*ppEntry)->colRef);
     if (code) {
       metaCloneEntryFree(ppEntry);

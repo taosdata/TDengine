@@ -9265,12 +9265,26 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
       STableScanOperatorParam *pScan = (STableScanOperatorParam *)pOpParam->value;
       TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pScan->tableSeq));
+      TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pScan->isVtbRefScan));
       int32_t uidNum = taosArrayGetSize(pScan->pUidList);
       TAOS_CHECK_RETURN(tEncodeI32(pEncoder, uidNum));
       for (int32_t m = 0; m < uidNum; ++m) {
         int64_t *pUid = taosArrayGet(pScan->pUidList, m);
         TAOS_CHECK_RETURN(tEncodeI64(pEncoder, *pUid));
       }
+      if (pScan->isVtbRefScan && pScan->pOrgTbInfo) {
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pScan->pOrgTbInfo->vgId));
+        TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pScan->pOrgTbInfo->tbName));
+        int32_t num = taosArrayGetSize(pScan->pOrgTbInfo->colMap);
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, num));
+        for (int32_t i = 0; i < num; ++i) {
+          SColIdNameKV *pColKV = taosArrayGet(pScan->pOrgTbInfo->colMap, i);
+          TAOS_CHECK_RETURN(tEncodeI16(pEncoder, pColKV->colId));
+          TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColKV->colName));
+        }
+      }
+      TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pScan->window.skey));
+      TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pScan->window.ekey));
       break;
     }
     default:
@@ -9284,6 +9298,7 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
     TAOS_CHECK_RETURN(tSerializeSOperatorParam(pEncoder, pChild));
   }
 
+  TAOS_CHECK_RETURN(tEncodeBool(pEncoder, pOpParam->reUse));
   return 0;
 }
 
@@ -9297,6 +9312,7 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
         TAOS_CHECK_RETURN(terrno);
       }
       TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t *)&pScan->tableSeq));
+      TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t *)&pScan->isVtbRefScan));
       int32_t uidNum = 0;
       int64_t uid = 0;
       TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &uidNum));
@@ -9314,6 +9330,27 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
         }
       } else {
         pScan->pUidList = NULL;
+      }
+      if (pScan->isVtbRefScan) {
+        pScan->pOrgTbInfo = taosMemoryMalloc(sizeof(SOrgTbInfo));
+
+        TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pScan->pOrgTbInfo->vgId));
+        TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pScan->pOrgTbInfo->tbName));
+        int32_t num = 0;
+        TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &num));
+        pScan->pOrgTbInfo->colMap = taosArrayInit(num, sizeof(SColIdNameKV));
+        for (int32_t i = 0; i < num; ++i) {
+          SColIdNameKV pColKV;
+          TAOS_CHECK_RETURN(tDecodeI16(pDecoder, (int16_t *)&(pColKV.colId)));
+          TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColKV.colName));
+          if (taosArrayPush(pScan->pOrgTbInfo->colMap, &pColKV) == NULL) {
+            TAOS_CHECK_RETURN(terrno);
+          }
+        }
+        TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pScan->window.skey));
+        TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pScan->window.ekey));
+      } else {
+        pScan->pOrgTbInfo = NULL;
       }
       pOpParam->value = pScan;
       break;
@@ -9342,6 +9379,12 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
     }
   } else {
     pOpParam->pChildren = NULL;
+  }
+
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_RETURN(tDecodeBool(pDecoder, &pOpParam->reUse));
+  } else {
+    pOpParam->reUse = false;
   }
 
   return 0;
@@ -10754,7 +10797,7 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
       char *name = taosArrayGet(pReq->ctb.tagName, i);
       TAOS_CHECK_EXIT(tEncodeCStr(pCoder, name));
     }
-  } else if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_TABLE) {
+  } else if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     TAOS_CHECK_EXIT(tEncodeSSchemaWrapper(pCoder, &pReq->ntb.schemaRow));
   } else {
     return TSDB_CODE_INVALID_MSG;
@@ -10769,7 +10812,7 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   if (pReq->type == TSDB_SUPER_TABLE || pReq->type == TSDB_NORMAL_TABLE) {
     TAOS_CHECK_EXIT(tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr));
   }
-  if (pReq->type == TSDB_VIRTUAL_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
+  if (pReq->type == TSDB_VIRTUAL_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
     TAOS_CHECK_EXIT(tEncodeSColRefWrapper(pCoder, &pReq->colRef));
   }
   if (pReq->pExtSchemas) {
@@ -10825,7 +10868,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
         TAOS_CHECK_EXIT(terrno);
       }
     }
-  } else if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_TABLE) {
+  } else if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     TAOS_CHECK_EXIT(tDecodeSSchemaWrapperEx(pCoder, &pReq->ntb.schemaRow));
   } else {
     return TSDB_CODE_INVALID_MSG;
@@ -10841,7 +10884,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
       if (!tDecodeIsEnd(pCoder)) {
         TAOS_CHECK_EXIT(tDecodeSColCmprWrapperEx(pCoder, &pReq->colCmpr));
       }
-    } else if (pReq->type == TSDB_VIRTUAL_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    } else if (pReq->type == TSDB_VIRTUAL_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
       if (!tDecodeIsEnd(pCoder)) {
         TAOS_CHECK_EXIT(tDecodeSColRefWrapperEx(pCoder, &pReq->colRef));
       }
@@ -10871,7 +10914,7 @@ void tDestroySVCreateTbReq(SVCreateTbReq *pReq, int32_t flags) {
 
     if (pReq->type == TSDB_CHILD_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
       taosArrayDestroy(pReq->ctb.tagName);
-    } else if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_TABLE) {
+    } else if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
       taosMemoryFreeClear(pReq->ntb.schemaRow.pSchema);
     }
   }

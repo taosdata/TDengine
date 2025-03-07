@@ -261,6 +261,8 @@ typedef struct SDynQueryCtrlStbJoin {
 } SDynQueryCtrlStbJoin;
 
 typedef struct SDynQueryCtrlVtbScan {
+  bool          scanAllCols;
+  uint64_t      suid;
   SVgroupsInfo* pVgroupList;
 } SDynQueryCtrlVtbScan;
 
@@ -431,6 +433,7 @@ typedef struct SLogicSubplan {
   int32_t       level;
   int32_t       splitFlag;
   int32_t       numOfComputeNodes;
+  bool          processOneBlock;
 } SLogicSubplan;
 
 typedef struct SQueryLogicPlan {
@@ -656,9 +659,11 @@ typedef struct SStbJoinDynCtrlBasic {
 } SStbJoinDynCtrlBasic;
 
 typedef struct SVtbScanDynCtrlBasic {
+  bool       scanAllCols;
   uint64_t   suid;
-  int32_t    dbNums;
-  SDBVgInfo *pVgInfo;
+  int32_t    accountId;
+  SEpSet     mgmtEpSet;
+  SNodeList *pScanCols;
 } SVtbScanDynCtrlBasic;
 
 typedef struct SDynQueryCtrlPhysiNode {
@@ -894,6 +899,7 @@ typedef struct SSubplan {
   bool           isAudit;
   bool           dynamicRowThreshold;
   int32_t        rowsThreshold;
+  bool           processOneBlock;
 } SSubplan;
 
 typedef enum EExplainMode { EXPLAIN_MODE_DISABLE = 1, EXPLAIN_MODE_STATIC, EXPLAIN_MODE_ANALYZE } EExplainMode;

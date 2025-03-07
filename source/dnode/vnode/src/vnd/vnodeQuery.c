@@ -181,7 +181,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       break;
     }
     case TSDB_NORMAL_TABLE:
-    case TSDB_VIRTUAL_TABLE: {
+    case TSDB_VIRTUAL_NORMAL_TABLE: {
       schema = mer1.me.ntbEntry.schemaRow;
       break;
     }
@@ -351,7 +351,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       goto _exit;
     }
     (void)memcpy(cfgRsp.pTags, pTag, cfgRsp.tagsLen);
-  } else if (mer1.me.type == TSDB_NORMAL_TABLE || mer1.me.type == TSDB_VIRTUAL_TABLE) {
+  } else if (mer1.me.type == TSDB_NORMAL_TABLE || mer1.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
     schema = mer1.me.ntbEntry.schemaRow;
     cfgRsp.ttl = mer1.me.ntbEntry.ttlDays;
     cfgRsp.commentLen = mer1.me.ntbEntry.commentLen;

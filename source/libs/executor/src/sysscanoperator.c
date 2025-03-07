@@ -516,7 +516,7 @@ static SSDataBlock* doOptimizeTableNameFilter(SOperatorInfo* pOperator, SSDataBl
   } else if (smrTable.me.type == TSDB_NORMAL_TABLE) {
     schemaRow = &smrTable.me.ntbEntry.schemaRow;
     STR_TO_VARSTR(typeName, "NORMAL_TABLE");
-  } else if (smrTable.me.type == TSDB_VIRTUAL_TABLE) {
+  } else if (smrTable.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
     schemaRow = &smrTable.me.ntbEntry.schemaRow;
     colRef = &smrTable.me.colRef;
     STR_TO_VARSTR(typeName, "VIRTUAL_NORMAL_TABLE");
@@ -693,7 +693,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       schemaRow = &pInfo->pCur->mr.me.ntbEntry.schemaRow;
       STR_TO_VARSTR(typeName, "NORMAL_TABLE");
       STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
-    } else if (pInfo->pCur->mr.me.type == TSDB_VIRTUAL_TABLE) {
+    } else if (pInfo->pCur->mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
       qDebug("sysTableScanUserCols cursor get virtual normal table, %s", GET_TASKID(pTaskInfo));
       schemaRow = &pInfo->pCur->mr.me.ntbEntry.schemaRow;
       STR_TO_VARSTR(typeName, "VIRTUAL_NORMAL_TABLE");
@@ -1635,7 +1635,7 @@ static int32_t doSetUserTableMetaInfo(SStoreMetaReader* pMetaReaderFn, SStoreMet
 
     STR_TO_VARSTR(n, "NORMAL_TABLE");
     // impl later
-  } else if (tableType == TSDB_VIRTUAL_TABLE) {
+  } else if (tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
     // create time
     pColInfoData = taosArrayGet(p->pDataBlock, 2);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -2039,7 +2039,7 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       QUERY_CHECK_CODE(code, lino, _end);
 
       STR_TO_VARSTR(n, "NORMAL_TABLE");
-    } else if (tableType == TSDB_VIRTUAL_TABLE) {
+    } else if (tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
       // create time
       pColInfoData = taosArrayGet(p->pDataBlock, 2);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
