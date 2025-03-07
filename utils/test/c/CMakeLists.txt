@@ -1,5 +1,4 @@
 add_executable(tmq_demo tmqDemo.c)
-add_dependencies(tmq_demo ${TAOS_LIB})
 add_executable(tmq_sim tmqSim.c)
 add_executable(create_table createTable.c)
 add_executable(tmq_taosx_ci tmq_taosx_ci.c)
@@ -9,6 +8,7 @@ add_executable(tmq_td32187 tmq_td32187.c)
 add_executable(tmq_ts5776 tmq_ts5776.c)
 add_executable(tmq_td32471 tmq_td32471.c)
 add_executable(tmq_td33798 tmq_td33798.c)
+add_executable(tmq_poll_test tmq_poll_test.c)
 add_executable(tmq_write_raw_test tmq_write_raw_test.c)
 add_executable(write_raw_block_test write_raw_block_test.c)
 add_executable(sml_test sml_test.c)
@@ -47,6 +47,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_demo
     PUBLIC ${TAOS_LIB}
@@ -54,6 +55,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_sim
     PUBLIC ${TAOS_LIB_PLATFORM_SPEC}
@@ -61,6 +63,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_ts5466
     PUBLIC ${TAOS_LIB}
@@ -68,6 +71,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_td32187
     PUBLIC ${TAOS_LIB}
@@ -75,6 +79,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_td32471
     PUBLIC ${TAOS_LIB}
@@ -82,8 +87,17 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_td33798
+    PUBLIC ${TAOS_LIB}
+    PUBLIC util
+    PUBLIC common
+    PUBLIC os
+)
+
+target_link_libraries(
+    tmq_poll_test
     PUBLIC ${TAOS_LIB}
     PUBLIC util
     PUBLIC common
@@ -96,6 +110,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_ts5776
     PUBLIC ${TAOS_LIB}
@@ -103,6 +118,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_taosx_ci
     PUBLIC ${TAOS_LIB}
@@ -110,6 +126,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_offset_test
     PUBLIC ${TAOS_LIB}

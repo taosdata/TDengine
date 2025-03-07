@@ -300,6 +300,8 @@ _OVER:
   }
   sdbRelease(pMnode->pSdb, vObj);
   cfgArrayCleanUp(array);
+
+  tFreeSConfigReq(&configReq);
   return code;
 }
 

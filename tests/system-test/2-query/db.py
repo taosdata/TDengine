@@ -46,6 +46,7 @@ class TDTestCase:
         tdSql.checkRows(2)
     
     def case2(self):
+
         tdSql.query("show variables") 
         tdSql.checkGreater(tdSql.getRows(), 80)       
 

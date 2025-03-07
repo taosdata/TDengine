@@ -352,7 +352,7 @@ main 函数可以接收 5 个启动参数，依次是：
 
 <details>
 
-SQLWriter 类封装了拼 SQL 和写数据的逻辑。所有的表都没有提前创建，而是在发生表不存在错误的时候，再以超级表为模板批量建表，然后重新执行 INSERT 语句。对于其它错误会记录当时执行的 SQL， 以便排查错误和故障恢复。这个类也对 SQL 是否超过最大长度限制做了检查，根据 TDengine 3.0 的限制由输入参数 maxSQLLength 传入了支持的最大 SQL 长度，即 1,048,576 。
+SQLWriter 类封装了拼 SQL 和写数据的逻辑。所有的表都没有提前创建，而是在发生表不存在错误的时候，再以超级表为模板批量建表，然后重新执行 INSERT 语句。对于其它错误会记录当时执行的 SQL，以便排查错误和故障恢复。这个类也对 SQL 是否超过最大长度限制做了检查，根据 TDengine 3.0 的限制由输入参数 maxSQLLength 传入了支持的最大 SQL 长度，即 1,048,576 。
 
 <summary>SQLWriter</summary>
 
@@ -374,7 +374,7 @@ SQLWriter 类封装了拼 SQL 和写数据的逻辑。所有的表都没有提�
    - 已安装 Python3， 推荐版本 >= 3.8
    - 已安装 taospy
 
-2. 安装 faster-fifo 代替 python 内置的 multiprocessing.Queue
+2. 安装 faster-fifo 代替 Python 内置的 multiprocessing.Queue
 
    ```
    pip3 install faster-fifo
