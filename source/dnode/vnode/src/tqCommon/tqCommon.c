@@ -1299,17 +1299,21 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
 
   code = streamMetaAcquireTask(pMeta, req.streamId, req.taskId, &pTask);
   if (pTask == NULL || (code != 0)) {
-    tqError("vgId:%d process consensus checkpointId req:%" PRId64
-            " transId:%d, failed to acquire task:0x%x, it may have been dropped/stopped already",
-            pMeta->vgId, req.checkpointId, req.transId, req.taskId);
-
     // ignore this code to avoid error code over write
     if (pMeta->role == NODE_ROLE_LEADER) {
+      tqError("vgId:%d process consensus checkpointId req:%" PRId64
+              " transId:%d, failed to acquire task:0x%x, it may have been dropped/stopped already",
+              pMeta->vgId, req.checkpointId, req.transId, req.taskId);
+
       int32_t ret = streamMetaAddFailedTask(pMeta, req.streamId, req.taskId);
       if (ret) {
         tqError("s-task:0x%x failed add check downstream failed, core:%s", req.taskId, tstrerror(ret));
       }
+    } else {
+      tqDebug("vgId:%d task:0x%x stopped in follower node, not set the consensus checkpointId:%" PRId64 " transId:%d",
+              pMeta->vgId, req.taskId, req.checkpointId, req.transId);
     }
+
     return 0;
   }
 

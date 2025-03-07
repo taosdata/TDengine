@@ -2790,6 +2790,12 @@ int32_t mndProcessConsensusInTmr(SRpcMsg *pMsg) {
     }
 
     mndReleaseStream(pMnode, pStream);
+
+    // create one transaction each time
+    if (numOfTrans > 0) {
+      taosHashCancelIterate(execInfo.pStreamConsensus, pIter);
+      break;
+    }
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(pStreamList); ++i) {
