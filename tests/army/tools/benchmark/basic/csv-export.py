@@ -16,6 +16,7 @@ import csv
 import datetime
 
 import frame
+import frame.eos
 import frame.etool
 from frame.log import *
 from frame.cases import *
@@ -213,7 +214,7 @@ class TDTestCase(TBase):
 
         # exec
         cmd = f"{benchmark} {options} -f {jsonFile}"
-        os.system(cmd)
+        eos.exe(cmd)
 
         # check result
         self.check_result(jsonFile)

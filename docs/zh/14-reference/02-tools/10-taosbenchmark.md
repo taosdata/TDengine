@@ -93,7 +93,7 @@ taosBenchmark -f <json file>
 
 本节所列参数适用于所有功能模式。
 
-- **filetype**：功能分类，可选值为 `insert`、`query`、`subscribe` 和 `csvfile`。分别对应插入、查询、订阅和生成csv文件功能。每个配置文件中只能指定其中之一。
+- **filetype**：功能分类，可选值为 `insert`、`query`、`subscribe` 和 `csvfile`。分别对应插入、查询、订阅和生成 csv 文件功能。每个配置文件中只能指定其中之一。
 
 - **cfgdir**：TDengine 客户端配置文件所在的目录，默认路径是 /etc/taos 。
 
@@ -206,11 +206,11 @@ taosBenchmark -f <json file>
 
 - **csv_ts_interval**：字符串类型，设置生成的 csv 文件名称中时间段间隔，支持天、小时、分钟、秒级间隔，如 1d/2h/30m/40s，默认值为 1d 。
 
-- **csv_output_header**：字符串类型，设置生成的 csv 文件是否包含列头描述，默认值为 true 。
+- **csv_output_header**：字符串类型，设置生成的 csv 文件是否包含列头描述，默认值为 yes 。
 
 - **csv_tbname_alias**：字符串类型，设置 csv 文件列头描述中 tbname 字段的别名，默认值为 device_id 。
 
-- **csv_compress_level**：字符串类型，设置生成 csv 并自动压缩成 gzip 格式文件的压缩等级。可选值为：
+- **csv_compress_level**：字符串类型，设置生成 csv 编码数据并自动压缩成 gzip 格式文件的压缩等级。此过程直接编码并压缩，而非先生成 csv 文件再压缩。可选值为：
   - none：不压缩
   - fast：gzip 1级压缩
   - balance：gzip 6级压缩
@@ -406,6 +406,17 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU，单位为�
 
 ```json
 {{#include /TDengine/tools/taos-tools/example/tmq.json}}
+```
+
+</details>
+
+### 生成 CSV 文件 JSON 示例
+
+<details>
+<summary>csv-export.json</summary>
+
+```json
+{{#include /TDengine/tools/taos-tools/example/csv-export.json}}
 ```
 
 </details>

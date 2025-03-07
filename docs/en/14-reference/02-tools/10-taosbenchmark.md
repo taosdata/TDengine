@@ -298,11 +298,11 @@ Parameters related to supertable creation are configured in the `super_tables` s
 
 - **csv_ts_interval**: String type, sets the time interval for splitting generated csv file names. Supports daily, hourly, minute, and second intervals such as 1d/2h/30m/40s. The default value is "1d".
 
-- **csv_output_header**: String type, sets whether the generated csv files should contain column header descriptions. The default value is "true".
+- **csv_output_header**: String type, sets whether the generated csv files should contain column header descriptions. The default value is "yes".
 
 - **csv_tbname_alias**: String type, sets the alias for the tbname field in the column header descriptions of csv files. The default value is "device_id".
 
-- **csv_compress_level**: String type, sets the compression level when generating csv files and automatically compressing them into gzip format. Possible values are:
+- **csv_compress_level**: String type, sets the compression level for generating csv-encoded data and automatically compressing it into gzip file. This process directly encodes and compresses the data, rather than first generating a csv file and then compressing it. Possible values are:
   - none: No compression
   - fast: gzip level 1 compression
   - balance: gzip level 6 compression
@@ -498,6 +498,17 @@ Note: Data types in the taosBenchmark configuration file must be in lowercase to
 
 ```json
 {{#include /TDengine/tools/taos-tools/example/tmq.json}}
+```
+
+</details>
+
+### Export CSV File Example
+
+<details>
+<summary>csv-export.json</summary>
+
+```json
+{{#include /TDengine/tools/taos-tools/example/csv-export.json}}
 ```
 
 </details>

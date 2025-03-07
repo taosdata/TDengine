@@ -19,7 +19,7 @@
                     "childtable_from": 1000,
                     "childtable_to": 1010,
                     "csv_file_prefix": "data",
-                    "csv_output_header": "true",
+                    "csv_output_header": "yes",
                     "csv_tbname_alias": "device_id",
                     "csv_compress_level": "none",
                     "columns": [
@@ -59,7 +59,7 @@
                     "csv_file_prefix": "data",
                     "csv_ts_format": "%Y%m%d",
                     "csv_ts_interval": "1d",
-                    "csv_output_header": "true",
+                    "csv_output_header": "yes",
                     "csv_tbname_alias": "device_id",
                     "csv_compress_level": "none",
                     "columns": [
@@ -98,7 +98,7 @@
                     "childtable_from": 1000,
                     "childtable_to": 1010,
                     "csv_file_prefix": "data",
-                    "csv_output_header": "true",
+                    "csv_output_header": "yes",
                     "csv_tbname_alias": "device_id",
                     "csv_compress_level": "none",
                     "columns": [
@@ -139,7 +139,7 @@
                     "csv_file_prefix": "data",
                     "csv_ts_format": "%Y%m%d",
                     "csv_ts_interval": "1d",
-                    "csv_output_header": "true",
+                    "csv_output_header": "yes",
                     "csv_tbname_alias": "device_id",
                     "csv_compress_level": "none",
                     "columns": [

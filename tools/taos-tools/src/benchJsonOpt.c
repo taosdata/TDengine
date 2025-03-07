@@ -1434,9 +1434,9 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
         superTable->csv_output_header = true;
         tools_cJSON* oph = tools_cJSON_GetObjectItem(stbInfo, "csv_output_header");
         if (oph && oph->type == tools_cJSON_String && oph->valuestring != NULL) {
-            if (0 == strcasecmp(oph->valuestring, "yes") || 0 == strcasecmp(oph->valuestring, "true")) {
+            if (0 == strcasecmp(oph->valuestring, "yes")) {
                 superTable->csv_output_header = true;
-            } else if (0 == strcasecmp(oph->valuestring, "no") || 0 == strcasecmp(oph->valuestring, "false")) {
+            } else if (0 == strcasecmp(oph->valuestring, "no")) {
                 superTable->csv_output_header = false;
             }
         }
