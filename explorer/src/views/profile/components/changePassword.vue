@@ -20,7 +20,7 @@
     </el-form-item>
     <el-form-item :label="t('login.newPass')" prop="new_password">
       <el-popover trigger="click" placement="right-end">
-        <ol v-dompurify-html="t('login.passwordTip')" style="padding-left: 10px; list-style: unset"></ol>
+        <ol v-dompurify-html="t(enableStrongPassword ? 'login.passwordTip' : 'login.passwordNotStrictTip')" style="padding-left: 10px; list-style: unset"></ol>
         <template #reference>
           <el-input
             v-model.trim="changeForm.new_password"
@@ -53,11 +53,14 @@
 </template>
 
 <script setup lang="ts">
-import { validPassword } from '@/utils/validate';
+import { validPassword, validPasswordNotStrict } from '@/utils/validate';
+import { getDatabaseVariables } from '@/api/database';
 import { sendSQLReq } from '@/api/explorer';
 import { deleteCookieItem } from '@/utils/index';
 import { decrypt } from '@/utils/index';
 import type { FormInstance } from 'element-plus';
+
+const enableStrongPassword = ref(false);
 
 const { t } = useI18n();
 const router = useRouter();
@@ -84,12 +87,21 @@ const validateOldPwd = (_: any, value: any, callback: (arg0?: Error | undefined)
 };
 const checkPassword = (_: any, value: string, callback: (arg0: Error | undefined) => void) => {
   err_msg.value = '';
-  callback(validPassword(value) ? undefined : new Error(t('login.passwordError')));
+  callback(validatePasswordLocal(value) ? undefined : new Error(t('login.passwordError')));
 };
 const cheakConfirmPassword = (_: any, value: string, callback: (arg0: Error | undefined) => void) => {
   err_msg.value = '';
   callback(value == changeForm.new_password ? undefined : new Error(t('login.twoPassError')));
 };
+
+const validatePasswordLocal = (value: string) => {
+  if (enableStrongPassword.value) {
+    return validPassword(value);
+  } else {
+    return validPasswordNotStrict(value);
+  }
+};
+
 const rules = computed(() => {
   return {
     old_password: [
@@ -161,6 +173,12 @@ function change() {
     }
   });
 }
+
+onMounted(async () => {
+  const result = await getDatabaseVariables('EnableStrongPassword');
+  enableStrongPassword.value = (result === true || result === 'true');
+});
+
 </script>
 
 <style lang="scss" scoped>

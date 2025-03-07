@@ -6,7 +6,7 @@
       </el-form-item>
       <el-form-item :label="$t('taosuser.password')" prop="pwd">
         <el-popover trigger="click" placement="right-end">
-          <ol v-dompurify-html="$t('login.passwordTip')" style="padding-left: 10px; list-style: unset"></ol>
+          <ol v-dompurify-html="$t(enableStrongPassword ? 'login.passwordTip' : 'login.passwordNotStrictTip')" style="padding-left: 10px; list-style: unset"></ol>
           <template #reference>
             <el-input v-model.trim="ruleForm.pwd" clear maxlength="16" :show-password="true" minlength="8"></el-input>
           </template>
@@ -64,8 +64,9 @@
 
 <script setup lang="ts">
 import { sendSQLReq } from '@/api/explorer';
+import { getDatabaseVariables } from '@/api/database';
 import { FormInstance, FormRules } from 'element-plus';
-import { validPassword } from '@/utils/validate';
+import { validPassword, validPasswordNotStrict } from '@/utils/validate';
 
 const globalCustomProperties: any = inject('globalCustomProperties');
 const { $IS_COMMUNITY, $error } = globalCustomProperties;
@@ -86,7 +87,16 @@ const props = defineProps({
 });
 
 const checkPassword = async (_: any, value: string, callback: (arg0: Error | undefined) => void) => {
-  callback(validPassword(value) ? undefined : new Error(t('login.passwordError')));
+  callback(validatePasswordLocal(value) ? undefined : new Error(t('login.passwordError')));
+};
+
+const enableStrongPassword = ref(false);
+const validatePasswordLocal = (value: string) => {
+  if (enableStrongPassword.value) {
+    return validPassword(value);
+  } else {
+    return validPasswordNotStrict(value);
+  }
 };
 
 const ruleFormRef = ref<FormInstance>();
@@ -213,6 +223,7 @@ async function getUserPrivileges() {
     console.log(error);
   }
 }
+
 async function getUserTopics() {
   try {
     const res = await sendSQLReq(
@@ -387,6 +398,12 @@ function submit(formEl: FormInstance | undefined) {
     createUser(formEl);
   }
 }
+
+onMounted(async () => {
+  const result = await getDatabaseVariables('EnableStrongPassword');
+  enableStrongPassword.value = (result === true || result === 'true');
+});
+
 </script>
 
 <style lang="scss" scoped>

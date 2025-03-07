@@ -29,6 +29,23 @@ export async function getStables(database) {
   }
 }
 
+export async function getDatabaseVariables(key?: string) {
+  try {
+    const result = await sendSQLReq('show variables');
+    if (!key) {
+      return result.data;
+    }
+    const hit = result.data.find((item: any) => item[0] == key);
+    if (hit) {
+      return hit[1];
+    }
+    return null;
+  } catch (error) {
+    console.log(error);
+    return null;
+  }
+}
+
 export function getDBStruct(dbName: string) {
   return executeDBOperations(`SELECT * FROM information_schema.ins_databases where name='${dbName}';`)
     .then(data => data[0] || {})

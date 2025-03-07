@@ -42,11 +42,20 @@ export function validEmail(email: string) {
   return reg.test(email);
 }
 
+// EnableStrongPassword 时，采用此规则，要求必须至少包含大写字母、小写字母、数字、特殊字符中的三类
 export function validPassword(password: string) {
-  return /^(?![A-Za-z]+$)(?![A-Z0-9]+$)(?![a-z0-9]+$)(?![a-z\W]+$)(?![A-Z\W]+$)(?![0-9\W]+$)[a-zA-Z0-9_\W]{8,16}$/.test(
+  return /^(?![A-Za-z]+$)(?![A-Z0-9]+$)(?![a-z0-9]+$)(?![a-z\W]+$)(?![A-Z\W]+$)(?![0-9\W]+$)[a-zA-Z0-9_\W]{8,255}$/.test(
     password
   );
 }
+
+// EnableStrongPassword = false 时，采用此规则
+export function validPasswordNotStrict(password: string) {
+  return /^[a-zA-Z0-9_\W]{8,255}$/.test(
+    password
+  );
+}
+
 /**
  * @param {string} str
  * @returns {Boolean}
