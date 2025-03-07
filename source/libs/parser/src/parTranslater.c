@@ -10073,6 +10073,7 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   pReq->watermark2 = pStmt->pOptions->watermark2;
   pReq->deleteMark1 = pStmt->pOptions->deleteMark1;
   pReq->deleteMark2 = pStmt->pOptions->deleteMark2;
+  pReq->keep = pStmt->pOptions->keep;
   pReq->colVer = 1;
   pReq->tagVer = 1;
   pReq->source = TD_REQ_FROM_APP;

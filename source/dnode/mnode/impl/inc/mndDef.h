@@ -590,6 +590,7 @@ typedef struct {
   SRWLatch  lock;
   int8_t    source;
   SColCmpr* pCmpr;
+  int64_t   keep;
 } SStbObj;
 
 typedef struct {

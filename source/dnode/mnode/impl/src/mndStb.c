@@ -190,6 +190,8 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
       SDB_SET_INT32(pRaw, dataPos, p->alg, _OVER)
     }
   }
+  SDB_SET_INT64(pRaw, dataPos, pStb->keep, _OVER)
+
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -316,6 +318,7 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
       SDB_GET_INT32(pRaw, dataPos, (int32_t *)&pCmpr->alg, _OVER)  // compatiable
     }
   }
+  SDB_GET_INT64(pRaw, dataPos, &pStb->keep, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
 
@@ -878,6 +881,7 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->commentLen = pCreate->commentLen;
   pDst->pFuncs = pCreate->pFuncs;
   pDst->source = pCreate->source;
+  pDst->keep = pCreate->keep;
   pCreate->pFuncs = NULL;
 
   if (pDst->commentLen > 0) {

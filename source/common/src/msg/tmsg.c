@@ -692,6 +692,7 @@ int32_t tSerializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pReq
   }
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->deleteMark1));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->deleteMark2));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->keep));
 
   ENCODESQL();
 
@@ -802,6 +803,9 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
 
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->deleteMark1));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->deleteMark2));
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->keep));
+  }
 
   DECODESQL();
 

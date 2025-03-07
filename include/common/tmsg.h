@@ -948,6 +948,7 @@ typedef struct {
   int64_t  deleteMark2;
   int32_t  sqlLen;
   char*    sql;
+  int64_t  keep;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
