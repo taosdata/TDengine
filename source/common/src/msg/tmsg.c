@@ -627,7 +627,7 @@ int32_t tDeserializeSClientHbBatchRsp(void *buf, int32_t bufLen, SClientHbBatchR
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pBatchRsp->enableStrongPass));
   } else {
-    pBatchRsp->enableStrongPass = 1;
+    pBatchRsp->enableStrongPass = 0;
   }
 
   tEndDecode(&decoder);
