@@ -972,7 +972,6 @@ static int32_t decimalDivide(Decimal* pX, const SDataType* pXT, const Decimal* p
   }
 
   int8_t deltaScale = pOT->scale + pYT->scale - pXT->scale;
-  assert(deltaScale >= 0);
 
   Decimal xTmp = *pX;
   decimal128Abs(&xTmp); // TODO wjm test decimal64 / decimal64
@@ -1264,7 +1263,6 @@ static int64_t int64FromDecimal64(const DecimalType* pDec, uint8_t prec, uint8_t
   Decimal64 rounded = *(Decimal64*)pDec;
   bool      overflow = false;
   decimal64RoundWithPositiveScale(&rounded, prec, scale, prec, 0, ROUND_TYPE_HALF_ROUND_UP, &overflow);
-  assert(!overflow); // TODO wjm remove this assert
   if (overflow) return 0;
 
   return DECIMAL64_GET_VALUE(&rounded);
@@ -1274,7 +1272,6 @@ static uint64_t uint64FromDecimal64(const DecimalType* pDec, uint8_t prec, uint8
   Decimal64 rounded = *(Decimal64*)pDec;
   bool      overflow = false;
   decimal64RoundWithPositiveScale(&rounded, prec, scale, prec, 0, ROUND_TYPE_HALF_ROUND_UP, &overflow);
-  assert(!overflow); // TODO wjm remove this assert
   if (overflow) return 0;
 
   return DECIMAL64_GET_VALUE(&rounded);
