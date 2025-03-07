@@ -1765,6 +1765,7 @@ int32_t decimal128FromStr(const char* str, int32_t len, uint8_t expectPrecision,
   return code;
 }
 
+#if 0
 __int128 decimal128ToInt128(const Decimal128* pDec) {
   __int128 ret = 0;
   ret = DECIMAL128_HIGH_WORD(pDec);
@@ -1772,6 +1773,7 @@ __int128 decimal128ToInt128(const Decimal128* pDec) {
   ret |= DECIMAL128_LOW_WORD(pDec);
   return ret;
 }
+#endif
 
 static int32_t decimal128CountLeadingBinaryZeros(const Decimal128* pDec) {
   if (DECIMAL128_HIGH_WORD(pDec) == 0) {

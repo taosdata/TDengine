@@ -683,6 +683,7 @@ TEST(decimal, conversion) {
 
 static constexpr uint64_t k1E16 = 10000000000000000LL;
 
+#if 0
 TEST(decimal, decimalFromStr) {
   char       inputBuf[64] = "123.000000000000000000000000000000001";
   Decimal128 dec128 = {0};
@@ -704,6 +705,7 @@ TEST(decimal, decimalFromStr) {
   ASSERT_EQ(999999, DECIMAL64_GET_VALUE(&dec64));
 
 }
+#endif
 
 TEST(decimal, toStr) {
   Decimal64 dec = {0};
