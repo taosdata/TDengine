@@ -168,6 +168,14 @@ uint64_t tsortGetGroupId(STupleHandle* pVHandle);
 void     tsortGetBlockInfo(STupleHandle* pVHandle, SDataBlockInfo* pInfo);
 
 /**
+ * return the SColumnInfoData of columns in the tuple
+ * @param pVHandle
+ * @param colId
+ * @return
+ */
+void tsortGetColumnInfo(STupleHandle* pVHandle, int32_t colIndex, SColumnInfoData** pColInfo);
+
+/**
  * return the number of columns in the tuple
  * @param pVHandle
  * @return

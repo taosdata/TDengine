@@ -225,11 +225,11 @@ typedef enum _mgmt_table {
 #define TSDB_COL_IS_UD_COL(f)     ((f & (~(TSDB_COL_NULL))) == TSDB_COL_UDC)
 #define TSDB_COL_REQ_NULL(f)      (((f)&TSDB_COL_NULL) != 0)
 
-#define TD_SUPER_TABLE         TSDB_SUPER_TABLE
-#define TD_CHILD_TABLE         TSDB_CHILD_TABLE
-#define TD_NORMAL_TABLE        TSDB_NORMAL_TABLE
-#define TD_VIRTUAL_TABLE       TSDB_VIRTUAL_TABLE
-#define TD_VIRTUAL_CHILD_TABLE TSDB_VIRTUAL_CHILD_TABLE
+#define TD_SUPER_TABLE          TSDB_SUPER_TABLE
+#define TD_CHILD_TABLE          TSDB_CHILD_TABLE
+#define TD_NORMAL_TABLE         TSDB_NORMAL_TABLE
+#define TD_VIRTUAL_NORMAL_TABLE TSDB_VIRTUAL_NORMAL_TABLE
+#define TD_VIRTUAL_CHILD_TABLE  TSDB_VIRTUAL_CHILD_TABLE
 
 typedef enum ENodeType {
   // Syntax nodes are used in parser and planner module, and some are also used in executor module, such as COLUMN,
@@ -615,16 +615,6 @@ typedef struct {
   int32_t   version;
   SColRef*  pColRef;
 } SColRefWrapper;
-
-typedef struct {
-  int32_t vgId;
-  SColRef colRef;
-} SColRefEx;
-
-typedef struct {
-  int32_t     nCols;
-  SColRefEx*  pColRefEx;
-} SColRefExWrapper;
 
 struct SSchema {
   int8_t   type;
@@ -2898,12 +2888,37 @@ typedef struct SOperatorParam {
   int32_t downstreamIdx;
   void*   value;
   SArray* pChildren;  // SArray<SOperatorParam*>
+  bool    reUse;
 } SOperatorParam;
 
+typedef struct SColIdNameKV {
+  col_id_t colId;
+  char     colName[TSDB_COL_NAME_LEN];
+} SColIdNameKV;
+
+typedef struct SColIdPair {
+  col_id_t vtbColId;
+  col_id_t orgColId;
+} SColIdPair;
+
+typedef struct SOrgTbInfo {
+  int32_t   vgId;
+  char      tbName[TSDB_TABLE_FNAME_LEN];
+  SArray*   colMap;  // SArray<SColIdNameKV>
+} SOrgTbInfo;
+
 typedef struct STableScanOperatorParam {
-  bool    tableSeq;
-  SArray* pUidList;
+  bool           tableSeq;
+  bool           isVtbRefScan;
+  SArray*        pUidList;
+  SOrgTbInfo*    pOrgTbInfo;
+  STimeWindow    window;
 } STableScanOperatorParam;
+
+typedef struct SVTableScanOperatorParam {
+  uint64_t       uid;
+  SArray*        pOpParamArray;  // SArray<SOperatorParam>
+} SVTableScanOperatorParam;
 
 typedef struct {
   SMsgHead        header;
@@ -3387,7 +3402,7 @@ static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
     taosMemoryFreeClear(req->ctb.stbName);
     taosArrayDestroy(req->ctb.tagName);
     req->ctb.tagName = NULL;
-  } else if (req->type == TSDB_NORMAL_TABLE || req->type == TSDB_VIRTUAL_TABLE) {
+  } else if (req->type == TSDB_NORMAL_TABLE || req->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
   }
   taosMemoryFreeClear(req->colCmpr.pColCmpr);

@@ -218,7 +218,7 @@ static int32_t metaSchemaTableUpsert(SMeta *pMeta, const SMetaHandleParam *pPara
   const SSchemaWrapper *pSchema = NULL;
   if (pEntry->type == TSDB_SUPER_TABLE) {
     pSchema = &pEntry->stbEntry.schemaRow;
-  } else if (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_TABLE) {
+  } else if (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     pSchema = &pEntry->ntbEntry.schemaRow;
   } else {
     return TSDB_CODE_INVALID_PARA;
@@ -584,7 +584,7 @@ static int32_t metaSchemaTableUpdate(SMeta *pMeta, const SMetaHandleParam *pPara
     return metaSchemaTableUpsert(pMeta, pParam, META_TABLE_OP_UPDATA);
   }
 
-  if (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_TABLE) {
+  if (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     // check row schema
     if (pOldEntry->ntbEntry.schemaRow.version != pEntry->ntbEntry.schemaRow.version) {
       return metaSchemaTableUpsert(pMeta, pParam, META_TABLE_OP_UPDATA);
@@ -629,7 +629,7 @@ static void metaBuildEntryInfo(const SMetaEntry *pEntry, SMetaInfo *pInfo) {
   } else if (pEntry->type == TSDB_CHILD_TABLE || pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
     pInfo->suid = pEntry->ctbEntry.suid;
     pInfo->skmVer = 0;
-  } else if (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_TABLE) {
+  } else if (pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     pInfo->suid = 0;
     pInfo->skmVer = pEntry->ntbEntry.schemaRow.version;
   }
@@ -1027,7 +1027,7 @@ static int32_t metaBtimeIdxUpsert(SMeta *pMeta, const SMetaHandleParam *pParam, 
 
   if (TSDB_CHILD_TABLE == pEntry->type || TSDB_VIRTUAL_CHILD_TABLE == pEntry->type) {
     key.btime = pEntry->ctbEntry.btime;
-  } else if (TSDB_NORMAL_TABLE == pEntry->type || TSDB_VIRTUAL_TABLE == pEntry->type) {
+  } else if (TSDB_NORMAL_TABLE == pEntry->type || TSDB_VIRTUAL_NORMAL_TABLE == pEntry->type) {
     key.btime = pEntry->ntbEntry.btime;
   } else {
     return TSDB_CODE_INVALID_PARA;
@@ -2463,7 +2463,7 @@ int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry) {
         }
         break;
       }
-      case TSDB_VIRTUAL_TABLE: {
+      case TSDB_VIRTUAL_NORMAL_TABLE: {
         if (isExist) {
           code = metaHandleVirtualNormalTableUpdate(pMeta, pEntry);
         } else {
@@ -2498,7 +2498,7 @@ int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry) {
         code = metaHandleNormalTableDrop(pMeta, pEntry);
         break;
       }
-      case TSDB_VIRTUAL_TABLE: {
+      case TSDB_VIRTUAL_NORMAL_TABLE: {
         code = metaHandleVirtualNormalTableDrop(pMeta, pEntry);
         break;
       }
