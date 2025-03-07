@@ -12,21 +12,20 @@ class FractalQuery(TDCase):
         self.tdCom = TDCom(self.tdSql, self.env_setting)
         self.tdRest = TDRest(env_setting=self.env_setting)
         self._remote: Remote = Remote(self.logger)
-        self.query_file_name = "query1.json"
+        self.query_file_name = "query.json"
         self.env_root = os.path.join(os.environ["TEST_ROOT"], "env")
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
         self.case_config = json.load(open(os.path.join(self.env_root, "workflow_config.json")))
-        self.taosBenchmark_config = self.case_config["query_config"]
-        json_file_path = f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/{self.query_file_name}'
+        self.taosBenchmark_config = dict()
+        self.json_file_path = os.path.join(self.env_root, self.query_file_name)
 
         self.query_host = self.taosd_setting["fqdn"][0]
         self.taosBenchmark_config["host"] = self.query_host
-        self.taosBenchmark_config["query_mode"] = "rest"
-        self.taosBenchmark_config["databases"] = "center_db"
 
         self.taosBenchmark_config["test_log"] = "/root/testlog/"
 
-        self.tdCom.config_query_json(self._remote, json_file_path, self.taosBenchmark_config)
+        self.tdCom.config_query_json(self._remote, self.json_file_path, self.taosBenchmark_config)
+
         self.tdCom.api_type = 'restful'
         self.taosBenchmark_iplist = self.get_fqdn("taosBenchmark")
         self.jfile = QueryFile()
@@ -40,7 +39,7 @@ class FractalQuery(TDCase):
         pass
 
     def run(self):
-        json_info = json.load(open(f'{os.environ["TEST_ROOT"]}/cases/customer_scenarios/fractal/{self.query_file_name}'))
+        json_info = json.load(open(self.json_file_path))
         self.jfile.genBenchmarkJson(self.run_log_dir, self.query_file_name, json_info)
         self.query_file.put_file(self.taosBenchmark_iplist, [json_info], [self.query_file_name])
         result_file_name = self.run_log_dir + '/perf_report.txt'
