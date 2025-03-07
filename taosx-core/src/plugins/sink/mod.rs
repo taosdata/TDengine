@@ -14,10 +14,10 @@ use std::{
     time::Duration,
 };
 
-use crate::runners::opc::config::model::ColumnConfig;
-use crate::runners::opc::config::model::OpcModelConfig;
-use crate::runners::opc::config::model::TableConfig;
-use crate::runners::opc::config::model::TagConfig;
+use crate::plugins::runners::opc::model::ColumnConfig;
+use crate::plugins::runners::opc::model::OpcModelConfig;
+use crate::plugins::runners::opc::model::TableConfig;
+use crate::plugins::runners::opc::model::TagConfig;
 
 use crate::core_metrics::{get_metrics, get_metrics_arc_from_i64};
 use crate::utils::breakpoints::BreakpointDb;
@@ -1853,7 +1853,7 @@ fn get_transform_exprssion_by_id(
 
 #[cfg(test)]
 mod handle_transform_tests {
-    use crate::runners::opc::config::csv::CsvParser;
+    use crate::plugins::runners::opc::csv::CsvParser;
     use crate::sink::handle_transform;
     use arrow::array::{
         Array, Float64Array, Int32Array, Int64Array, StringArray, TimestampMillisecondArray,
@@ -3847,7 +3847,7 @@ pub async fn handle_point_message_init(config: &OpcModelConfig, taos: &Taos) -> 
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_handle_point_message_init_with_taos() {
-    use crate::runners::opc::config::model::PointConfig;
+    use crate::plugins::runners::opc::model::PointConfig;
     use crate::runners::opc::OpcType;
 
     use crate::utils::trace::{DEFAULT_INSTANCE_ID, INSTANCE_ID};

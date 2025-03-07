@@ -18,7 +18,9 @@ use utoipa::*;
 use crate::serve::{controller::TaskControllerRef, task::Failed};
 pub use definition::*;
 pub use point_loader::*;
-use taosx_core::runners::opc::config::model::ModelType;
+use taosx_core::plugins::runners::opc::csv::CsvParser;
+use taosx_core::plugins::runners::opc::model::ModelType;
+use taosx_core::utils::dsn::json_to_dsn;
 use taosx_core::utils::timeout::{Timeout, TimeoutType};
 use taosx_core::{dsv::DataSourceValidation, utils::license, QueryDataSourceReq};
 use taosx_core::{get_data_dir, list_datasets_from, plugins, validate_dsn, DataSetsReq};
@@ -30,7 +32,6 @@ use taosx_core::{
         transform::{PIElementModelConfig, PIPointModelConfig},
     },
 };
-use taosx_core::{runners::opc::config::csv::CsvParser, utils::dsn::json_to_dsn};
 
 mod definition;
 pub(crate) mod opc;

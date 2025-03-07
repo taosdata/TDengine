@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 use taos::Dsn;
 use tempfile::NamedTempFile;
 
-use crate::runners::opc::config::collect::CollectConfig;
-use crate::runners::opc::config::connect::ConnectConfig;
-use crate::runners::opc::config::csv::CsvParser;
-use crate::runners::opc::config::model::{
+use crate::plugins::runners::opc::csv::CsvParser;
+use crate::plugins::runners::opc::model::{
     ColumnConfig, GeneratePointMappingBy, OpcModelConfig, OpcPointMappingRule,
 };
+use crate::runners::opc::config::collect::CollectConfig;
+use crate::runners::opc::config::connect::ConnectConfig;
 use crate::runners::opc::config::points::PointsConfig;
 use crate::runners::opc::config::report::ReportConfig;
 use crate::runners::opc::{csv_string_record_from_iter, opc_datasets_impl, OpcType};
@@ -17,8 +17,6 @@ use crate::utils::validate_table_column_name;
 
 pub mod collect;
 mod connect;
-pub mod csv;
-pub mod model;
 pub mod points;
 mod report;
 

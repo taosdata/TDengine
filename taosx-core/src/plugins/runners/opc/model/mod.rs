@@ -10,8 +10,8 @@ use taos::{Dsn, Ty};
 use taosx_ipc::prelude::IpcDataType;
 use taosx_ipc::types::DataSet;
 
-use crate::runners::opc::config::csv::header::CsvHeader;
-use crate::runners::opc::config::csv::CsvParser;
+use crate::plugins::runners::opc::csv::header::CsvHeader;
+use crate::plugins::runners::opc::csv::CsvParser;
 use crate::runners::opc::config::OPCConfig;
 use crate::runners::opc::{generate_stable_from_pattern, generate_tbname_from_pattern, OpcType};
 use crate::utils::rhai_syntax_validator::check_math_expression;

@@ -2,8 +2,8 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use taos::Dsn;
 
+use crate::plugins::runners::opc::csv::CsvParser;
 use crate::runners::opc::config::collect::parse_opc_node_ids;
-use crate::runners::opc::config::csv::CsvParser;
 use crate::runners::opc::config::{OPCConfig, PointsMode};
 use crate::runners::opc::OpcType;
 

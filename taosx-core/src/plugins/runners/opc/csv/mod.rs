@@ -1,6 +1,6 @@
 use crate::get_data_dir;
-use crate::runners::opc::config::csv::header::CsvHeader;
-use crate::runners::opc::config::model::{
+use crate::plugins::runners::opc::csv::header::CsvHeader;
+use crate::plugins::runners::opc::model::{
     ColumnConfig, GeneratePointMappingBy, OpcModelConfig, PointConfig, TableConfig,
 };
 use crate::runners::opc::config::OPCConfig;

@@ -1,21 +1,21 @@
+use super::get_data_dir;
 use crate::dsv::DataSourceValidation;
-use crate::runners::opc::config::csv::header::CsvHeader;
-use crate::runners::opc::config::csv::CsvParser;
-use crate::runners::opc::config::model::{ModelType, OpcModelConfig};
 use crate::runners::opc::config::{OPCConfig, PointsMode};
+use crate::runners::opc::model::{ModelType, OpcModelConfig};
 use crate::runners::opc::point_updater::PointsUpdater;
 use crate::runners::{get_logs_home_dir, log_rotation, new_rolling_file_appender};
 use crate::utils::dsn::json_to_dsn;
 use crate::utils::monitor::send_sub_process_info;
 use crate::{build_ipc, utils::port_pool::PortPool, Action, DataSet, DataSetsReq, Transferred};
-use anyhow::Context;
+use anyhow::{bail, Context};
+use csv::header::CsvHeader;
+use csv::CsvParser;
 use csv_async::AsyncReader;
 use futures_util::StreamExt;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::fs::File;
-use std::str::FromStr;
 use std::{io::prelude::*, path::PathBuf, sync::Arc};
 use taos::{Dsn, IntoDsn};
 use taosx_ipc::prelude::IpcDataType;
@@ -28,9 +28,9 @@ use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 use tracing_subscriber::fmt::MakeWriter;
 
-use super::get_data_dir;
-
 pub mod config;
+pub mod csv;
+pub mod model;
 mod point_updater;
 
 #[allow(clippy::upper_case_acronyms)]
@@ -54,32 +54,31 @@ impl OpcType {
         if fake {
             return Ok(Self::FAKE);
         }
-
-        let opc_type = dsn.driver.as_str();
+        let opc_type = dsn.driver.to_lowercase();
         let protocol = dsn.protocol.clone();
-        match opc_type {
+        match opc_type.as_str() {
             "opcua" => Ok(Self::OPCUA),
             "opcda" => Ok(Self::OPCDA),
             "fake" => Ok(Self::FAKE),
             "opc" => match protocol.as_deref() {
                 Some("ua") => Ok(Self::OPCUA),
                 Some("da") => Ok(Self::OPCDA),
-                _ => anyhow::bail!("unknown opc protocol"),
+                _ => bail!("unknown opc protocol"),
             },
-            _ => anyhow::bail!("invalid opc type"),
+            _ => bail!("invalid opc type"),
         }
     }
 }
 
-impl FromStr for OpcType {
-    type Err = String;
+impl TryFrom<&str> for OpcType {
+    type Error = anyhow::Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
             "opcua" => Ok(Self::OPCUA),
             "opcda" => Ok(Self::OPCDA),
             "fake" => Ok(Self::FAKE),
-            _ => Err(s.to_string()),
+            _ => bail!("invalid opc type: {}", value),
         }
     }
 }
@@ -824,6 +823,7 @@ async fn check_point_id_duplicated(dsn: &Dsn, csv_line: String) -> anyhow::Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::str::FromStr;
     use taos::IntoDsn;
 
     #[tokio::test]
