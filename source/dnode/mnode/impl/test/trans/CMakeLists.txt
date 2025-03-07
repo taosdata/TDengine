@@ -1,37 +1,38 @@
 # add_executable(transTest1 "")
 # target_sources(transTest1
-#     PRIVATE
-#     "${CMAKE_CURRENT_SOURCE_DIR}/trans1.cpp"
+# PRIVATE
+# "${CMAKE_CURRENT_SOURCE_DIR}/trans1.cpp"
 # )
 # target_link_libraries(
-#     transTest1
-#     PUBLIC sut
+# transTest1
+# PUBLIC sut
 # )
 # target_include_directories(
-#     transTest1
-#     PUBLIC "${TD_SOURCE_DIR}/include/dnode/mnode"
-#     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../inc"
+# transTest1
+# PUBLIC "${TD_SOURCE_DIR}/include/dnode/mnode"
+# PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../inc"
 # )
 # add_test(
-#     NAME transTest1
-#     COMMAND transTest1
+# NAME transTest1
+# COMMAND transTest1
 # )
 
-add_executable(transTest2 "")
-target_sources(transTest2
-    PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/trans2.cpp"
+add_executable(test_trans2 "")
+target_sources(test_trans2
+  PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}/trans2.cpp"
 )
 target_link_libraries(
-    transTest2
-    PUBLIC dnode mnode gtest_main
+  test_trans2
+  PUBLIC sut
 )
 target_include_directories(
-    transTest2
-    PUBLIC "${TD_SOURCE_DIR}/include/dnode/mnode"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../inc"
+  test_trans2
+  PUBLIC "${TD_SOURCE_DIR}/include/dnode/mnode"
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../inc"
 )
-#add_test(
-#    NAME transTest2
-#    COMMAND transTest2
-#)
+
+# add_test(
+# NAME test_trans2
+# COMMAND test_trans2
+# )

@@ -1,11 +1,11 @@
 aux_source_directory(. MNODE_SHOW_TEST_SRC)
-add_executable(showTest ${MNODE_SHOW_TEST_SRC})
+add_executable(test_show ${MNODE_SHOW_TEST_SRC})
 target_link_libraries(
-    showTest
-    PUBLIC sut
+  test_show
+  PUBLIC sut
 )
 
 add_test(
-    NAME showTest
-    COMMAND showTest
+  NAME test_show
+  COMMAND test_show
 )

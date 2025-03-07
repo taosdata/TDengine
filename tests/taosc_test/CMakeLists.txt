@@ -6,22 +6,22 @@ FIND_LIBRARY(LIB_GTEST_STATIC_DIR libgtest.a /usr/lib/ /usr/local/lib /usr/lib64
 FIND_LIBRARY(LIB_GTEST_SHARED_DIR libgtest.so /usr/lib/ /usr/local/lib /usr/lib64 /usr/local/taos/driver/)
 
 IF(HEADER_GTEST_INCLUDE_DIR AND(LIB_GTEST_STATIC_DIR OR LIB_GTEST_SHARED_DIR))
-    MESSAGE(STATUS "gTest library found, build os test")
+  MESSAGE(STATUS "gTest library found, build os test")
 
-    INCLUDE_DIRECTORIES(${HEADER_GTEST_INCLUDE_DIR})
-    AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
+  INCLUDE_DIRECTORIES(${HEADER_GTEST_INCLUDE_DIR})
+  AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 ENDIF()
 
 aux_source_directory(src OS_SRC)
 
-# taoscTest
-add_executable(taoscTest "taoscTest.cpp")
-target_link_libraries(taoscTest PUBLIC ${TAOS_LIB} os util common gtest_main)
+# test_taosc
+add_executable(test_taosc "taoscTest.cpp")
+target_link_libraries(test_taosc PUBLIC ${TAOS_LIB} os util common gtest_main)
 target_include_directories(
-    taoscTest
-    PUBLIC "${TD_SOURCE_DIR}/include/os"
+  test_taosc
+  PUBLIC "${TD_SOURCE_DIR}/include/os"
 )
 add_test(
-    NAME taoscTest
-    COMMAND taoscTest
+  NAME test_taosc
+  COMMAND test_taosc
 )

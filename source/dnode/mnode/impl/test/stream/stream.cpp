@@ -163,11 +163,11 @@ class StreamTest : public testing::Test { // 继承了 testing::Test
     initStreamExecInfo();
     initNodeInfo();
 
-    (void) printf("setup env for streamTest suite");
+    (void) printf("setup env for test_stream suite");
   }
 
   static void TearDownTestSuite() {
-    (void) printf("tearDown env for streamTest suite");
+    (void) printf("tearDown env for test_stream suite");
   }
 
   virtual void SetUp() override {
