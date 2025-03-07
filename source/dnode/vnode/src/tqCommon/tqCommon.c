@@ -1299,14 +1299,17 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
 
   code = streamMetaAcquireTask(pMeta, req.streamId, req.taskId, &pTask);
   if (pTask == NULL || (code != 0)) {
-    tqError("vgId:%d process consensus checkpointId req, failed to acquire task:0x%x, it may have been dropped already",
-            pMeta->vgId, req.taskId);
-    // ignore this code to avoid error code over write
-    int32_t ret = streamMetaAddFailedTask(pMeta, req.streamId, req.taskId);
-    if (ret) {
-      tqError("s-task:0x%x failed add check downstream failed, core:%s", req.taskId, tstrerror(ret));
-    }
+    tqError("vgId:%d process consensus checkpointId req:%" PRId64
+            " transId:%d, failed to acquire task:0x%x, it may have been dropped/stopped already",
+            pMeta->vgId, req.checkpointId, req.transId, req.taskId);
 
+    // ignore this code to avoid error code over write
+    if (pMeta->role == NODE_ROLE_LEADER) {
+      int32_t ret = streamMetaAddFailedTask(pMeta, req.streamId, req.taskId);
+      if (ret) {
+        tqError("s-task:0x%x failed add check downstream failed, core:%s", req.taskId, tstrerror(ret));
+      }
+    }
     return 0;
   }
 
@@ -1316,13 +1319,16 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
            " from task createTs:%" PRId64 " < task createTs:%" PRId64 ", discard",
            pTask->id.idStr, pMeta->vgId, pTask->execInfo.created, req.checkpointId, req.startTs,
            pTask->execInfo.created);
-    streamMetaAddFailedTaskSelf(pTask, now);
+    if (pMeta->role == NODE_ROLE_LEADER) {
+      streamMetaAddFailedTaskSelf(pTask, now);
+    }
     streamMetaReleaseTask(pMeta, pTask);
     return TSDB_CODE_SUCCESS;
   }
 
-  tqDebug("s-task:%s vgId:%d checkpointId:%" PRId64 " restore to consensus-checkpointId:%" PRId64 " from mnode",
-          pTask->id.idStr, vgId, pTask->chkInfo.checkpointId, req.checkpointId);
+  tqDebug("s-task:%s vgId:%d checkpointId:%" PRId64 " restore to consensus-checkpointId:%" PRId64
+          " transId:%d from mnode",
+          pTask->id.idStr, vgId, pTask->chkInfo.checkpointId, req.checkpointId, req.transId);
 
   streamMutexLock(&pTask->lock);
   if (pTask->chkInfo.checkpointId < req.checkpointId) {

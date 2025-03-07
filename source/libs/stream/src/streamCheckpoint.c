@@ -630,7 +630,7 @@ static int32_t doUpdateCheckpointInfoCheck(SStreamTask* pTask, bool restored, SV
 
           int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
           stDebug("s-task:%s vgId:%d related fill-history task:0x%x dropped in update checkpointInfo, remain tasks:%d",
-                  id, vgId, pReq->taskId, numOfTasks);
+                  id, vgId, pReq->hTaskId, numOfTasks);
 
           //todo: task may not exist, commit anyway, optimize this later
           code = streamMetaCommit(pMeta);
