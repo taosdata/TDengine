@@ -3992,6 +3992,110 @@ static int32_t jsonToQueryNodeAddr(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkColOtableName = "colOtableName";
+static const char* jkColVtableId = "colVtableId";
+static int32_t colIdNameToJson(const void* pObj, SJson* pJson) {
+  const SColIdName* pCol = (const SColIdName*)pObj;
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkColVtableId, pCol->colId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkColOtableName, pCol->colName);
+  }
+
+  return code;
+}
+
+
+static const char* jkOtableHashSize = "otbHashSize";
+static const char* jkOtableHashKV = "otbHashKeyValue";
+static const char* jkOtableHashName = "otbHashName";
+static const char* jkOtableHashValue = "otbHashValue";
+static int32_t oTableHashToJson(const void* pObj, SJson* pJson) {
+  const SSHashObj* pHash = (const SSHashObj*)pObj;
+  int32_t code = tjsonAddIntegerToObject(pJson, jkOtableHashSize, tSimpleHashGetSize(pHash));
+  if (code) {
+    return code;
+  }
+  
+  SJson* pJsonArray = tjsonAddArrayToObject(pJson, jkOtableHashKV);
+  if (NULL == pJsonArray) {
+    return terrno;
+  }
+
+  int32_t iter = 0;
+  SArray** pCols = NULL;
+  char* pKey = NULL;
+  void* p = NULL;
+  while (NULL != (p = tSimpleHashIterate(pHash, p, &iter))) {
+    pKey = (char*)tSimpleHashGetKey(p, NULL);
+    pCols = (SArray**)p;
+    SJson* pJobj = tjsonCreateObject();
+    if (pJobj == NULL) {
+      return terrno;
+    }
+    code = tjsonAddStringToObject(pJobj, jkOtableHashName, pKey);
+    if (code) {
+      return code;
+    }
+    code = tjsonAddArray(pJobj, jkOtableHashValue, colIdNameToJson, TARRAY_GET_ELEM(*pCols, 0), sizeof(SColIdName), taosArrayGetSize(*pCols));
+    if (code) {
+      return code;
+    }
+    code = tjsonAddItemToArray(pJsonArray, pJobj);
+    if (code) {
+      return code;
+    }
+  }
+
+  return code;
+}
+
+static const char* jkVtablesHashSize = "vtbHashSize";
+static const char* jkVtablesHashKV = "vtbHashKeyValue";
+static const char* jkVtablesVuid = "vtbHashVuid";
+static const char* jkVtablesVValue = "vtbHashVValue";
+static int32_t vtablesHashToJson(const void* pObj, SJson* pJson) {
+  const SSHashObj* pHash = (const SSHashObj*)pObj;
+  int32_t code = tjsonAddIntegerToObject(pJson, jkVtablesHashSize, tSimpleHashGetSize(pHash));
+  if (code) {
+    return code;
+  }
+  
+  SJson* pJsonArray = tjsonAddArrayToObject(pJson, jkVtablesHashKV);
+  if (NULL == pJsonArray) {
+    return terrno;
+  }
+
+  int32_t iter = 0;
+  SSHashObj** pOtable = NULL;
+  char* pKey = NULL;
+  void* p = NULL;
+  while (NULL != (p = tSimpleHashIterate(pHash, p, &iter))) {
+    pKey = (char*)tSimpleHashGetKey(p, NULL);
+    pOtable = (SSHashObj**)p;
+    SJson* pJobj = tjsonCreateObject();
+    if (pJobj == NULL) {
+      return terrno;
+    }
+    code = tjsonAddIntegerToObject(pJobj, jkVtablesVuid, *(uint64_t*)((int32_t*)pKey + 1));
+    if (code) {
+      return code;
+    }
+    code = tjsonAddObject(pJobj, jkVtablesVValue, oTableHashToJson, *pOtable);
+    if (code) {
+      return code;
+    }
+    code = tjsonAddItemToArray(pJsonArray, pJobj);
+    if (code) {
+      return code;
+    }
+  }
+
+  return code;
+}
+
+
+
 static const char* jkSubplanId = "Id";
 static const char* jkSubplanType = "SubplanType";
 static const char* jkSubplanMsgType = "MsgType";
@@ -4003,11 +4107,13 @@ static const char* jkSubplanRootNode = "RootNode";
 static const char* jkSubplanDataSink = "DataSink";
 static const char* jkSubplanTagCond = "TagCond";
 static const char* jkSubplanTagIndexCond = "TagIndexCond";
+static const char* jkSubplanVTables = "VTables";
 static const char* jkSubplanShowRewrite = "ShowRewrite";
 static const char* jkSubplanRowsThreshold = "RowThreshold";
 static const char* jkSubplanDynamicRowsThreshold = "DyRowThreshold";
 static const char* jkSubplanIsView = "IsView";
 static const char* jkSubplanIsAudit = "IsAudit";
+
 
 static int32_t subplanToJson(const void* pObj, SJson* pJson) {
   const SSubplan* pNode = (const SSubplan*)pObj;
@@ -4044,6 +4150,9 @@ static int32_t subplanToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddObject(pJson, jkSubplanTagIndexCond, nodeToJson, pNode->pTagIndexCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkSubplanVTables, vtablesHashToJson, pNode->pVTables);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkSubplanShowRewrite, pNode->showRewrite);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -4061,6 +4170,93 @@ static int32_t subplanToJson(const void* pObj, SJson* pJson) {
 
   return code;
 }
+
+static int32_t jsonToOtableCols(const SJson* pJson, void* pObj) {
+  SArray** pCols = (SArray**)pObj;
+  SColIdName col;
+  char colName[TSDB_COL_NAME_LEN];
+  int32_t code = 0;
+  int32_t colNum = tjsonGetArraySize(pJson);
+  *pCols = taosArrayInit(colNum, sizeof(SColIdName));
+  if (NULL == *pCols) {
+    return terrno;
+  }
+  for (int32_t i = 0; i < colNum; ++i) {
+    SJson* pCol = tjsonGetArrayItem(pJson, i);
+    code = tjsonGetIntValue(pCol, jkColVtableId, &col.colId);
+    if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
+    code = tjsonGetStringValue(pCol, jkColOtableName, colName);
+    if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
+    col.colName = taosStrdup(colName);
+    if (NULL == col.colName) {
+      return terrno;
+    }
+    if (NULL == taosArrayPush(*pCols, &col)) {
+      return terrno;
+    }
+  }
+}
+
+static int32_t jsonToOtableHash(const SJson* pJson, void* pObj) {
+  SSHashObj** pHash = (SSHashObj**)pObj;
+  int32_t hashSize = 0;
+  int32_t code = tjsonGetIntValue(pJson, jkOtableHashSize, &hashSize);
+  if (TSDB_CODE_SUCCESS == code && hashSize > 0) {
+    *pHash = tSimpleHashInit(hashSize, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    if (NULL == *pHash) {
+      return terrno;
+    }
+    SJson *ovalues = tjsonGetObjectItem(pJson, jkOtableHashKV);
+    if (ovalues == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
+    char tbName[TSDB_TABLE_NAME_LEN];
+    SArray* pCols = NULL;
+    for (int32_t d = 0; d < hashSize; ++d) {
+      SJson *okeyValue = tjsonGetArrayItem(ovalues, d);
+      if (okeyValue == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
+    
+      code = tjsonGetStringValue(okeyValue, jkOtableHashName, &tbName);
+      if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
+      SJson *ovalue = tjsonGetObjectItem(okeyValue, jkOtableHashValue);
+      code = jsonToOtableCols(ovalue, &pCols);
+      if (code < 0) return code;
+      code = tSimpleHashPut(*pHash, tbName, strlen(tbName) + 1, &pCols, POINTER_BYTES);
+      if (code < 0) return code;
+    }
+  }
+
+  return code;
+}
+
+static int32_t jsonToVtablesHash(const SJson* pJson, void* pObj) {
+  SSHashObj** pHash = (SSHashObj**)pObj;
+  int32_t hashSize = 0;
+  int32_t code = tjsonGetIntValue(pJson, jkVtablesHashSize, &hashSize);
+  if (TSDB_CODE_SUCCESS == code && hashSize > 0) {
+    *pHash = tSimpleHashInit(hashSize, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    if (NULL == *pHash) {
+      return terrno;
+    }
+    SJson *vvalues = tjsonGetObjectItem(pJson, jkVtablesHashKV);
+    if (vvalues == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
+    uint64_t vuid = 0;
+    SSHashObj* pOtable = NULL;
+    for (int32_t d = 0; d < hashSize; ++d) {
+      SJson *vkeyValue = tjsonGetArrayItem(vvalues, d);
+      if (vkeyValue == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
+    
+      code = tjsonGetIntValue(vkeyValue, jkVtablesVuid, &vuid);
+      if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
+      SJson *vvalue = tjsonGetObjectItem(vkeyValue, jkVtablesVValue);
+      code = jsonToOtableHash(vvalue, &pOtable);
+      if (code < 0) return code;
+      code = tSimpleHashPut(*pHash, &vuid, sizeof(vuid), &pOtable, POINTER_BYTES);
+      if (code < 0) return code;
+    }
+  }
+
+  return code;
+}
+
 
 static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
   SSubplan* pNode = (SSubplan*)pObj;
@@ -4095,6 +4291,9 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkSubplanTagIndexCond, (SNode**)&pNode->pTagIndexCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonToObject(pJson, jkSubplanVTables, jsonToVtablesHash, &pNode->pVTables);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkSubplanShowRewrite, &pNode->showRewrite);

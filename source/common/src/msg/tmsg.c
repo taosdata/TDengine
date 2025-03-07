@@ -4535,6 +4535,7 @@ int32_t tSerializeSVSubTablesRspImpl(SEncoder* pEncoder, SVSubTablesRsp *pRsp) {
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTb->numOfColRefs));
     for (int32_t n = 0; n < pTb->numOfColRefs; ++n) {
       SRefColInfo* pCol = pTb->refCols + n;
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pCol->colId));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refDbName));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refTableName));
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refColName));
@@ -4597,6 +4598,7 @@ int32_t tDeserializeSVSubTablesRspImpl(SDecoder* pDecoder, SVSubTablesRsp *pRsp)
 
         pTb->refCols = (SRefColInfo*)(pTb + 1);
         for (int32_t n = 0; n < tb.numOfColRefs; ++n) {
+          TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pTb->refCols[n].colId));
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->refCols[n].refDbName));
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->refCols[n].refTableName));
           TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->refCols[n].refColName));

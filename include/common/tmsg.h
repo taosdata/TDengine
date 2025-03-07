@@ -622,6 +622,7 @@ typedef struct {
 } SColRefEx;
 
 typedef struct {
+  int16_t colId;
   char    refDbName[TSDB_DB_NAME_LEN];
   char    refTableName[TSDB_TABLE_NAME_LEN];
   char    refColName[TSDB_COL_NAME_LEN];
@@ -633,6 +634,11 @@ typedef struct SVCTableRefCols {
   int32_t      numOfColRefs;
   SRefColInfo* refCols;
 } SVCTableRefCols;
+
+typedef struct SVCTableMergeInfo {
+  uint64_t     uid;
+  int32_t      numOfSrcTbls;
+} SVCTableMergeInfo;
 
 typedef struct {
   int32_t     nCols;

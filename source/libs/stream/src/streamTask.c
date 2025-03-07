@@ -1402,6 +1402,97 @@ _exit:
   return code;
 }
 
+int32_t tEncodeVTablesInfo(SEncoder* pEncoder, SArray* pVTables) {
+  SVCTableMergeInfo* pMergeInfo = NULL;
+  int32_t mergeNum = taosArrayGetSize(pVTables);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, mergeNum));
+  for (int32_t i = 0; i < mergeNum; ++i) {
+    pMergeInfo = (SVCTableMergeInfo*)taosArrayGet(pVTables, i);
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pMergeInfo->uid));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMergeInfo->numOfSrcTbls));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tDecodeVTablesInfo(SDecoder* pDecoder, SArray** pTables) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  int32_t mergeNum = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &mergeNum));
+  if (mergeNum > 0) {
+    *pTables = taosArrayInit(mergeNum, sizeof(SVCTableMergeInfo));
+    QUERY_CHECK_NULL(*pTables, code, lino, _exit, terrno);
+  }
+
+  SVCTableMergeInfo mergeInfo;
+  for (int32_t i = 0; i < mergeNum; ++i) {
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &mergeInfo.uid));
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &mergeInfo.numOfSrcTbls));
+    if (taosArrayPush(*pTables, &mergeInfo) == NULL) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+  }
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tSerializeVTableMap(SEncoder* pEncoder, const SSHashObj* pVtables) {
+  int32_t tbNum = tSimpleHashGetSize(pVtables);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, tbNum));
+  int32_t iter = 0;
+  STaskDispatcherFixed* pAddr = NULL;
+  void* p = NULL;
+  uint64_t* uid = NULL;
+  while (NULL != (p = tSimpleHashIterate(pVtables, p, &iter))) {
+    pAddr = (STaskDispatcherFixed*)p;
+    uid = (uint64_t*)tSimpleHashGetKey(p, NULL);
+    
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, uid));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pAddr->taskId));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pAddr->nodeId));
+    TAOS_CHECK_EXIT(tEncodeSEpSet(pEncoder, &pAddr->epSet));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tDeserializeVTableMap(SDecoder* pDecoder, SSHashObj** pVtables) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  int32_t tbNum = 0;
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &tbNum));
+  if (tbNum <= 0) {
+    return code;
+  }
+  
+  *pVtables = tSimpleHashInit(tbNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  QUERY_CHECK_NULL(*pVtables, code, lino, _exit, terrno);
+
+  uint64_t uid = 0;
+  STaskDispatcherFixed addr;
+  for (int32_t i = 0; i < tbNum; ++i) {
+    TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &uid));
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &addr.taskId));
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &addr.nodeId));
+    TAOS_CHECK_EXIT(tDecodeSEpSet(pDecoder, &addr.epSet));
+    TAOS_CHECK_EXIT(tSimpleHashPut(*pVtables, &uid, sizeof(uid), &addr, sizeof(addr)));
+  }
+
+_exit:
+
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   int32_t code = 0;
   int32_t lino;
@@ -1466,6 +1557,8 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     TAOS_CHECK_EXIT(tSerializeSUseDbRspImp(pEncoder, &pTask->outputInfo.shuffleDispatcher.dbInfo));
     TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pTask->outputInfo.shuffleDispatcher.stbFullName));
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__VTABLE_MAP) {
+    TAOS_CHECK_EXIT(tSerializeVTableMap(pEncoder, pTask->outputInfo.vtableMap));
   }
   TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pTask->info.delaySchedParam));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pTask->subtableWithoutMd5));
@@ -1473,6 +1566,7 @@ int32_t tEncodeStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
 
   if (pTask->ver >= SSTREAM_TASK_ADD_NOTIFY_VER) {
     TAOS_CHECK_EXIT(tEncodeStreamNotifyInfo(pEncoder, &pTask->notifyInfo));
+    TAOS_CHECK_EXIT(tEncodeVTablesInfo(pEncoder, pTask->pVTables));
   }
 
   tEndEncode(pEncoder);
@@ -1566,6 +1660,8 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     TAOS_CHECK_EXIT(tDeserializeSUseDbRspImp(pDecoder, &pTask->outputInfo.shuffleDispatcher.dbInfo));
     TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTask->outputInfo.shuffleDispatcher.stbFullName));
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__VTABLE_MAP) {
+    TAOS_CHECK_EXIT(tDeserializeVTableMap(pDecoder, &pTask->outputInfo.vtableMap));
   }
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pTask->info.delaySchedParam));
   if (pTask->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
@@ -1575,6 +1671,7 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
 
   if (pTask->ver >= SSTREAM_TASK_ADD_NOTIFY_VER) {
     TAOS_CHECK_EXIT(tDecodeStreamNotifyInfo(pDecoder, &pTask->notifyInfo));
+    TAOS_CHECK_EXIT(tDecodeVTablesInfo(pDecoder, &pTask->pVTables));
   }
 
   tEndDecode(pDecoder);
