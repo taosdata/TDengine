@@ -1190,12 +1190,30 @@ bool decimal64Compare(EOperatorType op, const SDecimalCompareCtx* pLeft, const S
   return ret;
 }
 
-// There is no need to do type conversions, we assume that pLeftT and pRightT are all decimal128 types.
 bool decimalCompare(EOperatorType op, const SDecimalCompareCtx* pLeft, const SDecimalCompareCtx* pRight) {
+  if (pLeft->type == TSDB_DATA_TYPE_DECIMAL64 && pRight->type == TSDB_DATA_TYPE_DECIMAL64) {
+    return decimal64Compare(op, pLeft, pRight);
+  }
   bool    ret = false;
   uint8_t leftPrec = 0, leftScale = 0, rightPrec = 0, rightScale = 0;
   decimalFromTypeMod(pLeft->typeMod, &leftPrec, &leftScale);
   decimalFromTypeMod(pRight->typeMod, &rightPrec, &rightScale);
+
+  if (pLeft->type == TSDB_DATA_TYPE_DECIMAL64) {
+    Decimal128 dec128 = {0};
+    makeDecimal128FromDecimal64(&dec128, *(Decimal64*)pLeft->pData);
+    SDecimalCompareCtx leftCtx = {.pData = &dec128,
+                                  .type = TSDB_DATA_TYPE_DECIMAL,
+                                  .typeMod = decimalCalcTypeMod(TSDB_DECIMAL128_MAX_PRECISION, leftScale)};
+    return decimalCompare(op, &leftCtx, pRight);
+  } else if (pRight->type == TSDB_DATA_TYPE_DECIMAL64) {
+    Decimal128 dec128 = {0};
+    makeDecimal128FromDecimal64(&dec128, *(Decimal64*)pRight->pData);
+    SDecimalCompareCtx rightCtx = {.pData = &dec128,
+                                  .type = TSDB_DATA_TYPE_DECIMAL,
+                                  .typeMod = decimalCalcTypeMod(TSDB_DECIMAL128_MAX_PRECISION, rightScale)};
+    return decimalCompare(op, pLeft, &rightCtx);
+  }
   int32_t deltaScale = leftScale - rightScale;
   Decimal pLeftDec = *(Decimal*)pLeft->pData, pRightDec = *(Decimal*)pRight->pData;
 
@@ -1297,6 +1315,9 @@ static int32_t decimal64FromDouble(DecimalType* pDec, uint8_t prec, uint8_t scal
 
   uint64_t result = (uint64_t)abs;
   makeDecimal64(pDec, result);
+  Decimal64 max = {0};
+  DECIMAL64_GET_MAX(prec, &max);
+  if (decimal64Gt(pDec, &max, WORD_NUM(Decimal64))) goto _OVERFLOW;
   if (negative) decimal64Negate(pDec);
   return 0;
 
@@ -1353,7 +1374,7 @@ static int64_t int64FromDecimal128(const DecimalType* pDec, uint8_t prec, uint8_
   decimal128FromInt64(&min, TSDB_DECIMAL128_MAX_PRECISION, 0, INT64_MIN);
   if (decimal128Gt(&rounded, &max, WORD_NUM(Decimal128)) || decimal128Lt(&rounded, &min, WORD_NUM(Decimal128))) {
     overflow = true;
-    return 0;
+    return (int64_t)DECIMAL128_LOW_WORD(&rounded);
   }
 
   return (int64_t)DECIMAL128_LOW_WORD(&rounded);
@@ -1370,7 +1391,7 @@ static uint64_t uint64FromDecimal128(const DecimalType* pDec, uint8_t prec, uint
   if (decimal128Gt(&rounded, &max, WORD_NUM(Decimal128)) ||
       decimal128Lt(&rounded, &decimal128Zero, WORD_NUM(Decimal128))) {
     overflow = true;
-    return 0;
+    return DECIMAL128_LOW_WORD(&rounded);
   }
   return DECIMAL128_LOW_WORD(&rounded);
 }
@@ -1437,7 +1458,7 @@ static int32_t decimal128FromDecimal64(DecimalType* pDec, uint8_t prec, uint8_t 
   makeDecimal128(pDec, 0, DECIMAL64_GET_VALUE(&dec64));
   Decimal128 max = {0};
   DECIMAL128_GET_MAX(prec - scale, &max);
-  decimal64ScaleTo(&dec64, valScale, 0);
+  decimal64ScaleDown(&dec64, valScale, false);
   if (decimal128Lt(&max, &dec64, WORD_NUM(Decimal64))) {
     return TSDB_CODE_DECIMAL_OVERFLOW;
   }

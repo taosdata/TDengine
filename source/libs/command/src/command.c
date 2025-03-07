@@ -1040,6 +1040,8 @@ static int32_t createSelectResultDataBlock(SNodeList* pProjects, SSDataBlock** p
     } else {
       infoData.info.type = pExpr->resType.type;
       infoData.info.bytes = pExpr->resType.bytes;
+      infoData.info.precision = pExpr->resType.precision;
+      infoData.info.scale = pExpr->resType.scale;
     }
     QRY_ERR_RET(blockDataAppendColInfo(pBlock, &infoData));
   }

@@ -67,7 +67,7 @@ static const Decimal128 decimal128Min = DEFINE_DECIMAL128(17759344522308878337UL
 #define DECIMAL128_CLONE(pDst, pFrom) makeDecimal128(pDst, DECIMAL128_HIGH_WORD(pFrom), DECIMAL128_LOW_WORD(pFrom))
 
 typedef struct SDecimalCompareCtx {
-  void*    pData;
+  const void*    pData;
   int8_t   type;
   STypeMod typeMod;
 } SDecimalCompareCtx;

@@ -3955,6 +3955,14 @@ int32_t fltSclCompareWithFloat64(SFltSclDatum *val1, SFltSclDatum *val2) {
     case FLT_SCL_DATUM_KIND_FLOAT64: {
       return compareDoubleVal(&val1->d, &val2->d);
     }
+    case FLT_SCL_DATUM_KIND_DECIMAL64: {
+      double d = doubleFromDecimal64(&val1->i, val1->type.precision, val1->type.scale);
+      return compareDoubleVal(&d, &val2->d);
+    }
+    case FLT_SCL_DATUM_KIND_DECIMAL: {
+      double d = doubleFromDecimal128(val1->pData, val1->type.precision, val1->type.scale);
+      return compareDoubleVal(&d, &val2->d);
+    }
     // TODO: varchar, nchar
     default:
       qError("not supported comparsion. kind1 %d, kind2 %d", val1->kind, val2->kind);
@@ -3996,9 +4004,22 @@ int32_t fltSclCompareWithUInt64(SFltSclDatum *val1, SFltSclDatum *val2) {
   }
 }
 
+int32_t fltSclCompareWithDecimal(void* pData1, const SDataType* pType1, void* pData2, const SDataType* pType2) {
+  SDecimalCompareCtx ctx1 = {.pData = pData1, .type =pType1->type, .typeMod = decimalCalcTypeMod(pType1->precision, pType1->scale)},
+                     ctx2 = {.pData = pData2, .type = pType2->type, .typeMod = decimalCalcTypeMod(pType2->precision, pType2->scale)};
+  if (decimalCompare(OP_TYPE_GREATER_THAN, &ctx1, &ctx2)) return 1;
+  if (decimalCompare(OP_TYPE_EQUAL, &ctx1, &ctx2)) return 0;
+  return -1;
+}
+
 int32_t fltSclCompareDatum(SFltSclDatum *val1, SFltSclDatum *val2) {
   if (val2->kind == FLT_SCL_DATUM_KIND_NULL || val2->kind == FLT_SCL_DATUM_KIND_MIN ||
       val2->kind == FLT_SCL_DATUM_KIND_MAX) {
+    return (val1->kind < val2->kind) ? -1 : ((val1->kind > val2->kind) ? 1 : 0);
+  }
+
+  if (val1->kind == FLT_SCL_DATUM_KIND_NULL || val1->kind == FLT_SCL_DATUM_KIND_MIN ||
+      val1->kind == FLT_SCL_DATUM_KIND_MAX) {
     return (val1->kind < val2->kind) ? -1 : ((val1->kind > val2->kind) ? 1 : 0);
   }
 
@@ -4013,20 +4034,13 @@ int32_t fltSclCompareDatum(SFltSclDatum *val1, SFltSclDatum *val2) {
       return fltSclCompareWithFloat64(val1, val2);
     }
     case FLT_SCL_DATUM_KIND_DECIMAL64: {
-      if (val1->kind == FLT_SCL_DATUM_KIND_NULL || val1->kind == FLT_SCL_DATUM_KIND_MIN ||
-          val1->kind == FLT_SCL_DATUM_KIND_MAX) {
-        return (val1->kind < val2->kind) ? -1 : ((val1->kind > val2->kind) ? 1 : 0);
-      }
-      return compareDecimal64SameScale(&val1->i, &val2->i);
+      void* pData1 = val1->kind == FLT_SCL_DATUM_KIND_DECIMAL64 ? (void*)&val1->i : (void*)val1->pData;
+      return fltSclCompareWithDecimal(pData1, &val1->type, &val2->i, &val2->type);
     }
     case FLT_SCL_DATUM_KIND_DECIMAL: {
-      if (val1->kind == FLT_SCL_DATUM_KIND_NULL || val1->kind == FLT_SCL_DATUM_KIND_MIN ||
-          val1->kind == FLT_SCL_DATUM_KIND_MAX) {
-        return (val1->kind < val2->kind) ? -1 : ((val1->kind > val2->kind) ? 1 : 0);
-      }
-      return compareDecimal128SameScale(val1->pData, val2->pData);
+      void* pData1 = val1->kind == FLT_SCL_DATUM_KIND_DECIMAL64 ? (void*)&val1->i : (void*)val1->pData;
+      return fltSclCompareWithDecimal(pData1, &val1->type, val2->pData, &val2->type);
     }
-    // TODO: varchar/nchar
     default:
       qError("not supported kind when compare datum. kind2 : %d", val2->kind);
       return 0;
@@ -4203,13 +4217,26 @@ static int32_t fltSclBuildDecimalDatumFromValueNode(SFltSclDatum* datum, SColumn
         break;
       case TSDB_DATA_TYPE_FLOAT:
       case TSDB_DATA_TYPE_DOUBLE:
-        pInput = &valNode->datum.d;
-        valDt.type = TSDB_DATA_TYPE_DOUBLE;
-        break;
+        datum->kind = FLT_SCL_DATUM_KIND_FLOAT64;
+        datum->type = valDt;
+        datum->d = valNode->datum.d;
+        FLT_RET(0);
       case TSDB_DATA_TYPE_VARCHAR:
-        pInput = valNode->literal;
-        break;
-      // TODO wjm test cast to decimal
+        datum->kind = FLT_SCL_DATUM_KIND_FLOAT64;
+        datum->type.type = TSDB_DATA_TYPE_DOUBLE;
+        datum->type.bytes = DOUBLE_BYTES;
+        datum->d = taosStr2Double(valNode->literal, NULL);
+        FLT_RET(0);
+      case TSDB_DATA_TYPE_DECIMAL64:
+        datum->kind = FLT_SCL_DATUM_KIND_DECIMAL64;
+        datum->type = valDt;
+        datum->i = valNode->datum.i;
+        FLT_RET(0);
+      case TSDB_DATA_TYPE_DECIMAL:
+        datum->kind = FLT_SCL_DATUM_KIND_DECIMAL;
+        datum->type = valDt;
+        datum->pData = (void*)valNode->datum.p;
+        FLT_RET(0);
       default:
         qError("not supported type %d when build decimal datum from value node", valNode->node.resType.type);
         return TSDB_CODE_INVALID_PARA;
@@ -4217,7 +4244,7 @@ static int32_t fltSclBuildDecimalDatumFromValueNode(SFltSclDatum* datum, SColumn
 
     void *pData = NULL;
     if (datum->type.type == TSDB_DATA_TYPE_DECIMAL64) {
-      pData = &datum->i; // TODO wjm set kind
+      pData = &datum->i;
       datum->kind = FLT_SCL_DATUM_KIND_DECIMAL64;
     } else if (datum->type.type == TSDB_DATA_TYPE_DECIMAL) {
       pData = taosMemoryCalloc(1, pColNode->node.resType.bytes);
@@ -4313,7 +4340,7 @@ int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum *datum, uint8_t type, voi
       break;
     }
     case TSDB_DATA_TYPE_DECIMAL64:
-      datum->kind = FLT_SCL_DATUM_KIND_DECIMAL;
+      datum->kind = FLT_SCL_DATUM_KIND_DECIMAL64;
       datum->u = *(uint64_t *)val;
       break;
     case TSDB_DATA_TYPE_DECIMAL:
@@ -5020,35 +5047,39 @@ static int32_t fltSclBuildRangePointsForInOper(SFltSclOperator* oper, SArray* po
     SValueNode *valueNode = (SValueNode *)nodeItem;
     SFltSclDatum valDatum;
     FLT_ERR_RET(fltSclBuildDatumFromValueNode(&valDatum, oper->colNode, valueNode));
+    if (valDatum.kind == FLT_SCL_DATUM_KIND_NULL) {
+      continue;
+    }
+    if (IS_DECIMAL_TYPE(oper->colNode->node.resType.type)) {
+      if (IS_DECIMAL_TYPE(valDatum.type.type)) {
+        double v = valDatum.type.type == TSDB_DATA_TYPE_DECIMAL64
+                       ? doubleFromDecimal64(&valDatum.i, valDatum.type.precision, valDatum.type.scale)
+                       : doubleFromDecimal128(valDatum.pData, valDatum.type.precision, valDatum.type.scale);
+        if (minDatum.kind == FLT_SCL_DATUM_KIND_FLOAT64) {
+          minDatum.d = TMIN(v, minDatum.d);
+          maxDatum.d = TMAX(v, maxDatum.d);
+        } else if (minDatum.kind == FLT_SCL_DATUM_KIND_INT64) {
+          minDatum.d = v;
+          maxDatum.d = v;
+          minDatum.kind = FLT_SCL_DATUM_KIND_FLOAT64;
+          maxDatum.kind = FLT_SCL_DATUM_KIND_FLOAT64;
+        }
+      } else if (valDatum.kind == FLT_SCL_DATUM_KIND_FLOAT64) {
+        if (minDatum.kind == FLT_SCL_DATUM_KIND_INT64) {
+          minDatum.kind = FLT_SCL_DATUM_KIND_FLOAT64;
+          maxDatum.kind = FLT_SCL_DATUM_KIND_FLOAT64;
+          minDatum.d = TMIN(valDatum.d, minDatum.d);
+          maxDatum.d = TMAX(valDatum.d, maxDatum.d);
+        } else {
+          minDatum.d = TMIN(valDatum.d, minDatum.d);
+          maxDatum.d = TMAX(valDatum.d, maxDatum.d);
+        }
+      }
+      continue;
+    }
     if(valueNode->node.resType.type == TSDB_DATA_TYPE_FLOAT || valueNode->node.resType.type == TSDB_DATA_TYPE_DOUBLE) {
       minDatum.i = TMIN(minDatum.i, valDatum.d);
       maxDatum.i = TMAX(maxDatum.i, valDatum.d);
-    } else if (IS_DECIMAL_TYPE(valueNode->node.resType.type)) {
-      // TODO wjm test it, looks like we cannot assign double or decimal values to int64, what if in (0, 1.9), and there is a block with all col range in 1.1-1.8.
-      SDecimalOps* pOps = getDecimalOps(valueNode->node.resType.type);
-      if (valueNode->node.resType.type == TSDB_DATA_TYPE_DECIMAL64) {
-        // TODO wjm do i need to convert precision and scale???
-        if (pOps->gt(&minDatum.i, &valDatum.i, WORD_NUM(Decimal64))) minDatum.i = valDatum.i;
-        if (pOps->lt(&maxDatum.i, &valDatum.i, WORD_NUM(Decimal64))) maxDatum.i = valDatum.i;
-        maxDatum.kind = minDatum.kind = FLT_SCL_DATUM_KIND_DECIMAL64;
-      } else if (valueNode->node.resType.type == TSDB_DATA_TYPE_DECIMAL) {
-        if (listNode->pNodeList->pHead->pNode == nodeItem) {
-          // first node in list, set min/max datum
-          minDatum.pData = taosMemoryCalloc(1, sizeof(Decimal));
-          if (!minDatum.pData) return terrno;
-          maxDatum.pData = taosMemoryCalloc(1, sizeof(Decimal));
-          if (!maxDatum.pData) {
-            taosMemoryFreeClear(minDatum.pData);
-            return terrno;
-          }
-          DECIMAL128_CLONE((Decimal*)minDatum.pData, &decimal128Max);
-          DECIMAL128_CLONE((Decimal*)maxDatum.pData, &decimal128Min);
-        }
-        if (pOps->gt(minDatum.pData, valDatum.pData, WORD_NUM(Decimal))) DECIMAL128_CLONE((Decimal*)minDatum.pData, (Decimal*)valDatum.pData);
-
-        if (pOps->lt(maxDatum.pData, valDatum.pData, WORD_NUM(Decimal))) DECIMAL128_CLONE((Decimal*)maxDatum.pData, (Decimal*)valDatum.pData);
-        maxDatum.kind = minDatum.kind = FLT_SCL_DATUM_KIND_DECIMAL;
-      }
     } else {
       minDatum.i = TMIN(minDatum.i, valDatum.i);
       maxDatum.i = TMAX(maxDatum.i, valDatum.i);
