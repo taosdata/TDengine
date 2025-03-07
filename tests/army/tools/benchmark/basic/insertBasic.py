@@ -13,6 +13,7 @@
 import os
 import json
 import frame
+import frame.eos
 import frame.etool
 from frame.log import *
 from frame.cases import *
@@ -109,7 +110,6 @@ class TDTestCase(TBase):
                 tdLog.info(f" vgroups real={tdSql.getData(0,0)} expect={vgroups}")
                 tdSql.checkData(0, 0, vgroups, True)
 
-
     # bugs ts
     def checkVGroups(self, benchmark):
         # vgroups with command line set
@@ -117,12 +117,19 @@ class TDTestCase(TBase):
         # vgroups with json file
         self.testBenchmarkJson(benchmark, "./tools/benchmark/basic/json/insertBasic.json", "", True)
 
+
+    def checkInsertManyStb(self):
+        # many stb
+        self.benchInsert("./tools/benchmark/basic/json/insertManyStb.json", "", True)
+    
     def run(self):
-        benchmark = etool.benchMarkFile()
+        benchmark = frame.etool.benchMarkFile()
 
         # vgroups
         self.checkVGroups(benchmark)
 
+        # check many stable
+        self.checkInsertManyStb()
 
     def stop(self):
         tdSql.close()
