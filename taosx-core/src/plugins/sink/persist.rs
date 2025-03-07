@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::Context;
-use arrow_array::RecordBatch;
+use arrow::array::RecordBatch;
 use arrow_compute_ext::RecordBatchExt;
 use arrow_schema::{ArrowError, Schema};
 use faststr::FastStr;
@@ -679,8 +679,9 @@ impl PersistMetrics {
 
 #[cfg(test)]
 mod tests {
-    use arrow::array::{StringBuilder, TimestampNanosecondBuilder, UInt8Builder};
-    use arrow_array::{ArrayRef, RecordBatch};
+    use arrow::array::{
+        ArrayRef, RecordBatch, StringBuilder, TimestampNanosecondBuilder, UInt8Builder,
+    };
     use arrow_schema::{DataType, Field, TimeUnit};
     use serde_json::json;
     use tempfile::tempdir;
