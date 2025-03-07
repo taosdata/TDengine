@@ -728,14 +728,20 @@ int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
   void   *pIter = NULL;
   int32_t code = 0;
-  SArray *pDropped = taosArrayInit(4, sizeof(int64_t));
-  if (pDropped == NULL) {
-    return terrno;
-  }
+  int32_t lino = 0;
+  SArray *pDropped = NULL;
 
   mDebug("start to scan checkpoint report info");
 
   streamMutexLock(&execInfo.lock);
+
+  int32_t num = taosHashGetSize(execInfo.pChkptStreams);
+  if (num == 0) {
+    goto _end;
+  }
+
+  pDropped = taosArrayInit(4, sizeof(int64_t));
+  TSDB_CHECK_NULL(pDropped, code, lino, _end, terrno);
 
   while ((pIter = taosHashIterate(execInfo.pChkptStreams, pIter)) != NULL) {
     SChkptReportInfo *px = (SChkptReportInfo *)pIter;
@@ -804,12 +810,15 @@ int32_t mndScanCheckpointReportInfo(SRpcMsg *pReq) {
     mDebug("drop %d stream(s) in checkpoint-report list, remain:%d", size, numOfStreams);
   }
 
+_end:
   streamMutexUnlock(&execInfo.lock);
 
-  taosArrayDestroy(pDropped);
+  if (pDropped != NULL) {
+    taosArrayDestroy(pDropped);
+  }
 
   mDebug("end to scan checkpoint report info")
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t mndCreateSetConsensusChkptIdTrans(SMnode *pMnode, SStreamObj *pStream, int64_t checkpointId, SArray* pList) {

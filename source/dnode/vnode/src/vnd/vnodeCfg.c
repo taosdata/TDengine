@@ -401,6 +401,9 @@ int vnodeValidateTableHash(SVnode *pVnode, char *tableFName) {
   }
 
   if (hashValue < pVnode->config.hashBegin || hashValue > pVnode->config.hashEnd) {
+    vError("vgId:%d invalid table name:%s, hashVal:0x%x, range [0x%x, 0x%x]", pVnode->config.vgId,
+           tableFName, pVnode->config.hashBegin, pVnode->config.hashEnd);
+
     return terrno = TSDB_CODE_VND_HASH_MISMATCH;
   }
 
