@@ -834,8 +834,10 @@ int32_t taosFormatTimezoneStr(time_t t, const char *tz, timezone_t sp, char *out
   return 0;
 }
 
-#ifndef WINDOWS
 void getTimezoneStr(char *tz) {
+#ifdef TD_ASTRA
+  memcpy(tz, "Asia/Shanghai", sizeof("Asia/Shanghai"));
+#elif !defined(WINDOWS)
   do {
     int n = readlink("/etc/localtime", tz, TD_TIMEZONE_LEN - 1);
     if (n < 0) {
@@ -873,8 +875,8 @@ END:
     memcpy(tz, TZ_UNKNOWN, sizeof(TZ_UNKNOWN));
   }
   uDebug("[tz] system timezone:%s", tz);
-}
 #endif
+}
 
 void truncateTimezoneString(char *tz) {
   char *spacePos = strchr(tz, ' ');

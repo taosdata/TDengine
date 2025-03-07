@@ -59,6 +59,8 @@ uint32_t taosSafeRand(void) {
   }
   if (hCryptProv != NULL) CryptReleaseContext(hCryptProv, 0);
   return seed;
+#elif defined(TD_ASTRA)
+  return (uint32_t)taosGetTimestampSec();
 #else
   TdFilePtr pFile;
   int       seed;

@@ -125,8 +125,9 @@ void dmLogCrash(int signum, void *sigInfo, void *context) {
   if (taosIgnSignal(SIGSEGV) != 0) {
     dWarn("failed to ignore signal SIGABRT");
   }
+#ifdef USE_REPORT
   writeCrashLogToFile(signum, sigInfo, CUS_PROMPT "d", dmGetClusterId(), global.startTime);
-
+#endif
 #ifdef _TD_DARWIN_64
   exit(signum);
 #elif defined(WINDOWS)

@@ -1234,9 +1234,8 @@ bool taosAssertDebug(bool condition, const char *file, int32_t line, bool core, 
 
   return true;
 }
-
+#ifdef USE_REPORT
 void taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, void *sigInfo) {
-#ifndef TD_ASTRA
   const char *flags = "UTL FATAL ";
   ELogLevel   level = DEBUG_FATAL;
   int32_t     dflag = 255;
@@ -1294,7 +1293,6 @@ _return:
   taosPrintTrace(flags, level, dflag, 8);
 #endif
 #endif
-#endif // TD_ASTRA
   taosMemoryFree(pMsg);
 }
 
@@ -1488,6 +1486,7 @@ void taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile) {
   TAOS_UNUSED(taosUnLockFile(pFile));
   TAOS_UNUSED(taosCloseFile(&pFile));
 }
+#endif // USE_REPORT
 
 #ifdef NDEBUG
 bool taosAssertRelease(bool condition) {
