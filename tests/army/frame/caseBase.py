@@ -448,6 +448,7 @@ class TBase:
             dbName = db["dbinfo"]["name"]        
             stbs   = db["super_tables"]
             for stb in stbs:
+                stbName        = stb["name"]
                 child_count    = stb["childtable_count"]
                 insert_rows    = stb["insert_rows"]
                 timestamp_step = stb["timestamp_step"]
@@ -455,14 +456,14 @@ class TBase:
                 # check result
 
                 # count
-                sql = f"select count(*) from {db}.{stb}"
+                sql = f"select count(*) from {dbName}.{stbName}"
                 tdSql.checkAgg(sql, child_count * insert_rows)
                 # diff
-                sql = f"select * from (select diff(ts) as dif from {db}.{stb} partition by tbname) where dif != {timestamp_step};"
+                sql = f"select * from (select diff(ts) as dif from {dbName}.{stbName} partition by tbname) where dif != {timestamp_step};"
                 tdSql.query(sql)
                 tdSql.checkRows(0)
                 # show 
-                tdLog.info(f"insert check passed. db:{db} stb:{stb} child_count:{child_count} insert_rows:{insert_rows}\n")
+                tdLog.info(f"insert check passed. db:{dbName} stb:{stbName} child_count:{child_count} insert_rows:{insert_rows}\n")
 
     # tmq
     def tmqBenchJson(self, jsonFile, options="", checkStep=False):

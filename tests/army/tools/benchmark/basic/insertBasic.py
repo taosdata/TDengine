@@ -120,7 +120,7 @@ class TDTestCase(TBase):
 
     def checkInsertManyStb(self):
         # many stb
-        self.benchInsert("./tools/benchmark/basic/json/insertManyStb.json", "", True)
+        self.benchInsert("./tools/benchmark/basic/json/insertManyStb.json")
     
     def run(self):
         benchmark = frame.etool.benchMarkFile()
