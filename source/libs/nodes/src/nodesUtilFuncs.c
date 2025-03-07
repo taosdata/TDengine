@@ -202,7 +202,7 @@ static void destroyNodeAllocator(void* p) {
 
   SNodeAllocator* pAllocator = p;
 
-  nodesDebug("query id %" PRIx64 " allocator id %" PRIx64 " alloc chunkNum: %d, chunkTotakSize: %d",
+  nodesDebug("QID:0x%" PRIx64 ", destroy allocatorId:0x%" PRIx64 ", chunkNum:%d, chunkTotakSize:%d",
              pAllocator->queryId, pAllocator->self, pAllocator->chunkNum, pAllocator->chunkNum * pAllocator->chunkSize);
 
   SNodeMemChunk* pChunk = pAllocator->pChunks;
@@ -238,7 +238,7 @@ void nodesDestroyAllocatorSet() {
       refId = pAllocator->self;
       int32_t code = taosRemoveRef(g_allocatorReqRefPool, refId);
       if (TSDB_CODE_SUCCESS != code) {
-        nodesError("failed to remove ref at: %s:%d, rsetId:%d, refId:%" PRId64, __func__, __LINE__,
+        nodesError("failed to remove ref at %s:%d, rsetId:%d, refId:%" PRId64, __func__, __LINE__,
                    g_allocatorReqRefPool, refId);
       }
       pAllocator = taosIterateRef(g_allocatorReqRefPool, refId);
@@ -301,9 +301,9 @@ int32_t nodesReleaseAllocator(int64_t allocatorId) {
   }
 
   if (NULL == g_pNodeAllocator) {
-    nodesError("allocator id %" PRIx64
-               " release failed: The nodesReleaseAllocator function needs to be called after the nodesAcquireAllocator "
-               "function is called!",
+    nodesError("allocatorId:0x%" PRIx64
+               ", release failed, The nodesReleaseAllocator function needs to be called after the "
+               "nodesAcquireAllocator function is called!",
                allocatorId);
     return TSDB_CODE_FAILED;
   }
@@ -320,7 +320,7 @@ int64_t nodesMakeAllocatorWeakRef(int64_t allocatorId) {
 
   SNodeAllocator* pAllocator = taosAcquireRef(g_allocatorReqRefPool, allocatorId);
   if (NULL == pAllocator) {
-    nodesError("allocator id %" PRIx64 " weak reference failed", allocatorId);
+    nodesError("allocatorId:0x%" PRIx64 ", weak reference failed", allocatorId);
     return -1;
   }
   return pAllocator->self;
@@ -335,7 +335,7 @@ void nodesDestroyAllocator(int64_t allocatorId) {
 
   int32_t code = taosRemoveRef(g_allocatorReqRefPool, allocatorId);
   if (TSDB_CODE_SUCCESS != code) {
-    nodesError("failed to remove ref at: %s:%d, rsetId:%d, refId:%" PRId64, __func__, __LINE__, g_allocatorReqRefPool,
+    nodesError("failed to remove ref at %s:%d, rsetId:%d, refId:%" PRId64, __func__, __LINE__, g_allocatorReqRefPool,
                allocatorId);
   }
 }
@@ -624,6 +624,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_BALANCE_VGROUP_STMT:
       code = makeNode(type, sizeof(SBalanceVgroupStmt), &pNode);
+      break;
+    case QUERY_NODE_ASSIGN_LEADER_STMT:
+      code = makeNode(type, sizeof(SAssignLeaderStmt), &pNode);
       break;
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:
       code = makeNode(type, sizeof(SBalanceVgroupLeaderStmt), &pNode);
@@ -980,8 +983,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     default:
       break;
   }
-  if (TSDB_CODE_SUCCESS != code)
+  if (TSDB_CODE_SUCCESS != code) {
     nodesError("nodesMakeNode unknown node = %s", nodesNodeName(type));
+  }
   else
     *ppNodeOut = pNode;
   return code;
@@ -1332,6 +1336,7 @@ void nodesDestroyNode(SNode* pNode) {
       taosArrayDestroy(pStmt->pTableTag);
       taosHashCleanup(pStmt->pVgroupsHashObj);
       taosHashCleanup(pStmt->pSubTableHashObj);
+      taosHashCleanup(pStmt->pSuperTableHashObj);
       taosHashCleanup(pStmt->pTableNameHashObj);
       taosHashCleanup(pStmt->pDbFNameHashObj);
       taosHashCleanup(pStmt->pTableCxtHashObj);
@@ -1356,7 +1361,7 @@ void nodesDestroyNode(SNode* pNode) {
 
       int32_t code = taosCloseFile(&pStmt->fp);
       if (TSDB_CODE_SUCCESS != code) {
-        nodesError("failed to close file: %s:%d", __func__, __LINE__);
+        nodesError("failed to close file %s:%d", __func__, __LINE__);
       }
       break;
     }
@@ -1516,6 +1521,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_RESUME_STREAM_STMT:                   // no pointer field
     case QUERY_NODE_RESET_STREAM_STMT:                    // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_STMT:                  // no pointer field
+    case QUERY_NODE_ASSIGN_LEADER_STMT: 
     case QUERY_NODE_BALANCE_VGROUP_LEADER_STMT:           // no pointer field
     case QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT:  // no pointer field
     case QUERY_NODE_MERGE_VGROUP_STMT:                    // no pointer field

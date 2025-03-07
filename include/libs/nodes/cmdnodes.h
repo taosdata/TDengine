@@ -170,6 +170,7 @@ typedef struct SCompactDatabaseStmt {
   char      dbName[TSDB_DB_NAME_LEN];
   SNode*    pStart;
   SNode*    pEnd;
+  bool      metaOnly;
 } SCompactDatabaseStmt;
 
 typedef struct SCompactVgroupsStmt {
@@ -178,6 +179,7 @@ typedef struct SCompactVgroupsStmt {
   SNodeList* vgidList;
   SNode*     pStart;
   SNode*     pEnd;
+  bool       metaOnly;
 } SCompactVgroupsStmt;
 
 typedef struct STableOptions {
@@ -300,7 +302,7 @@ typedef struct SAlterTableMultiStmt {
 typedef struct SCreateUserStmt {
   ENodeType   type;
   char        userName[TSDB_USER_LEN];
-  char        password[TSDB_USET_PASSWORD_LEN];
+  char        password[TSDB_USET_PASSWORD_LONGLEN];
   int8_t      sysinfo;
   int8_t      createDb;
   int8_t      isImport;
@@ -314,7 +316,7 @@ typedef struct SAlterUserStmt {
   ENodeType   type;
   char        userName[TSDB_USER_LEN];
   int8_t      alterType;
-  char        password[TSDB_USET_PASSWORD_LEN];
+  char        password[TSDB_USET_PASSWORD_LONGLEN];
   int8_t      enable;
   int8_t      sysinfo;
   int8_t      createdb;
@@ -684,6 +686,10 @@ typedef SGrantStmt SRevokeStmt;
 typedef struct SBalanceVgroupStmt {
   ENodeType type;
 } SBalanceVgroupStmt;
+
+typedef struct SAssignLeaderStmt {
+  ENodeType type;
+} SAssignLeaderStmt;
 
 typedef struct SBalanceVgroupLeaderStmt {
   ENodeType type;

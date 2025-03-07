@@ -19,12 +19,24 @@ import subprocess
 import time
 from distutils.log import warn as printf
 import platform
+import ast
 
 from util.log import *
 from util.dnodes import *
 from util.cases import *
 
 import taos
+
+def get_local_classes_in_order(file_path):
+    with open(file_path, "r", encoding="utf-8") as file:
+        tree = ast.parse(file.read(), filename=file_path)
+    
+    classes = [node.name for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]
+    return classes
+
+def dynamicLoadModule(fileName):
+    moduleName = fileName.replace(".py", "").replace(os.sep, ".")
+    return importlib.import_module(moduleName, package='..')
 
 
 if __name__ == "__main__":
@@ -136,10 +148,11 @@ if __name__ == "__main__":
             except:
                 pass
             if is_test_framework:
-                moduleName = fileName.replace(".py", "").replace(os.sep, ".")
-                uModule = importlib.import_module(moduleName)
+                uModule = dynamicLoadModule(fileName)
                 try:
-                    ucase = uModule.TDTestCase()
+                    class_names = get_local_classes_in_order(fileName)
+                    case_class = getattr(uModule, class_names[-1])
+                    ucase = case_class()
                     tdDnodes.deploy(1,ucase.updatecfgDict)
                 except :
                     tdDnodes.deploy(1,{})
@@ -170,10 +183,11 @@ if __name__ == "__main__":
         except:
             pass
         if is_test_framework:
-            moduleName = fileName.replace(".py", "").replace("/", ".")
-            uModule = importlib.import_module(moduleName)
+            uModule = dynamicLoadModule(fileName)
             try:
-                ucase = uModule.TDTestCase()
+                class_names = get_local_classes_in_order(fileName)
+                case_class = getattr(uModule, class_names[-1])
+                ucase = case_class()
                 tdDnodes.deploy(1,ucase.updatecfgDict)
             except :
                 tdDnodes.deploy(1,{})

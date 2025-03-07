@@ -122,6 +122,7 @@ void shellCheckServerStatus() {
   } while (1);
 }
 #ifdef WEBSOCKET
+char dsn[1024] = "ws://localhost:6041";
 void shellCheckConnectMode() {
 	if (shell.args.dsn) {
 		shell.args.cloud = true;
@@ -144,21 +145,22 @@ void shellCheckConnectMode() {
 			shell.args.restful = false;
 			return;
 		}
-
-		if (shell.args.restful) {
-			if (!shell.args.host) {
-				shell.args.host = "localhost";
-			}
-			if (!shell.args.port) {
-				shell.args.port = 6041;
-			}
-			shell.args.dsn = taosMemoryCalloc(1, 1024);
-			snprintf(shell.args.dsn, 1024, "ws://%s:%d",
-					shell.args.host, shell.args.port);
-		}
-		shell.args.cloud = false;
-		return;
 	}
+
+  if (shell.args.restful) {
+    if (!shell.args.host) {
+      shell.args.host = "localhost";
+    }
+    if (!shell.args.port) {
+      shell.args.port = 6041;
+    }
+    shell.args.dsn = dsn;
+    snprintf(shell.args.dsn, 1024, "ws://%s:%d",
+        shell.args.host, shell.args.port);
+  }
+  shell.args.cloud = false;
+  return;
+
 }
 #endif
 

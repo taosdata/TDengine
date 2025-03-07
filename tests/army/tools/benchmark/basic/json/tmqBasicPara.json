@@ -5,13 +5,14 @@
     "port": 6030,
     "user": "root",
     "password": "taosdata",
-    "databases": "db",
+    "databases": "test",
     "confirm_parameter_prompt": "no",
-    "result_file": "./tmq_result1.txt",
+    "result_file": "./tmq_result_para.txt",
     "tmq_info": {
         "concurrent": 2,
         "poll_delay": 3000,
-        "group.id": "grpId_0",
+        "create_mode": "parallel",
+        "group_mode": "independent",
         "client.id": "clientId",
         "auto.offset.reset": "earliest",
         "enable.auto.commit": "true",
@@ -19,10 +20,10 @@
         "enable.heartbeat.background": "true",
         "experimental.snapshot.enable": "true",
         "msg.with.table.name": "false",
-        "rows_file": "./consumed_rows1",
-        "expect_rows": 50,
+        "rows_file": "./rows_file_para",
+        "expect_rows": 100,
         "topic_list": [
-            {"name": "tmq_topic_0", "sql": "select c0 from db.stb;"}
+            {"name": "topic_benchmark_d0", "sql": "select * from test.d0;"}
         ]
     }
 }
