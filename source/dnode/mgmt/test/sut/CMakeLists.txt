@@ -6,5 +6,5 @@ target_include_directories(
 )
 
 target_link_libraries(
-  sut PUBLIC dnode nodes planner gtest qcom
+  sut PUBLIC gtest_main dnode nodes planner qcom sdb os util common executor function scalar vnode
 )

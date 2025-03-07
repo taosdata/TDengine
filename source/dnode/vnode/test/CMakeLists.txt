@@ -18,7 +18,7 @@ IF(NOT TD_WINDOWS)
   enable_testing()
 
   add_test(
-    NAME tq_test
+    NAME test_tq
     COMMAND test_tq
   )
 ENDIF()

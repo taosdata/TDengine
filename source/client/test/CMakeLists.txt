@@ -5,128 +5,125 @@ MESSAGE(STATUS "build parser unit test")
 SET(CMAKE_CXX_STANDARD 11)
 AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
-ADD_EXECUTABLE(clientTest clientTests.cpp)
+ADD_EXECUTABLE(test_client clientTests.cpp)
 TARGET_LINK_LIBRARIES(
-        clientTest
-        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+  test_client
+  PUBLIC sut
 )
 
-ADD_EXECUTABLE(connectOptionsTest connectOptionsTest.cpp)
+ADD_EXECUTABLE(test_connect_options connectOptionsTest.cpp)
 TARGET_LINK_LIBRARIES(
-        connectOptionsTest
-        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+  test_connect_options
+  PUBLIC sut
 )
 
-ADD_EXECUTABLE(tmqTest tmqTest.cpp)
+ADD_EXECUTABLE(test_tmq tmqTest.cpp)
 TARGET_LINK_LIBRARIES(
-        tmqTest
-        PUBLIC os util common transport parser catalog scheduler function gtest ${TAOS_LIB_STATIC} qcom
+  test_tmq
+  PUBLIC sut
 )
 
-ADD_EXECUTABLE(smlTest smlTest.cpp)
+ADD_EXECUTABLE(test_sml smlTest.cpp)
 TARGET_LINK_LIBRARIES(
-        smlTest
-        PUBLIC os util common transport parser catalog scheduler function gtest ${TAOS_LIB_STATIC} qcom geometry
+  test_sml
+  PUBLIC sut
 )
 
-#ADD_EXECUTABLE(clientMonitorTest clientMonitorTests.cpp)
-#TARGET_LINK_LIBRARIES(
-#        clientMonitorTest
-#        PUBLIC os util common transport monitor parser catalog scheduler function gtest ${TAOS_LIB_STATIC} qcom executor
-#)
-
-ADD_EXECUTABLE(userOperTest ../../../tests/script/api/passwdTest.c)
+# ADD_EXECUTABLE(test_clientmonitor clientMonitorTests.cpp)
+# TARGET_LINK_LIBRARIES(
+# test_clientmonitor
+# PUBLIC sut
+# )
+ADD_EXECUTABLE(test_useroper ../../../tests/script/api/passwdTest.c)
 TARGET_LINK_LIBRARIES(
-        userOperTest
-        PUBLIC ${TAOS_LIB}
+  test_useroper
+  PUBLIC ${TAOS_LIB}
 )
 
-ADD_EXECUTABLE(stmt2Test stmt2Test.cpp)
+ADD_EXECUTABLE(test_stmt2 stmt2Test.cpp)
 TARGET_LINK_LIBRARIES(
-        stmt2Test
-        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+  test_stmt2
+  os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
 )
 
-ADD_EXECUTABLE(stmtTest stmtTest.cpp)
+ADD_EXECUTABLE(test_stmt stmtTest.cpp)
 TARGET_LINK_LIBRARIES(
-        stmtTest
-        os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
+  test_stmt
+  os util common transport parser catalog scheduler gtest ${TAOS_LIB_STATIC} qcom executor function
 )
 
 TARGET_INCLUDE_DIRECTORIES(
-        clientTest
-        PUBLIC "${TD_SOURCE_DIR}/include/client/"
-        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+  test_client
+  PUBLIC "${TD_SOURCE_DIR}/include/client/"
+  PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 
 TARGET_INCLUDE_DIRECTORIES(
-        connectOptionsTest
-        PUBLIC "${TD_SOURCE_DIR}/include/client/"
-        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+  test_connect_options
+  PUBLIC "${TD_SOURCE_DIR}/include/client/"
+  PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 
 IF(${TD_LINUX})
-        add_test(
-                NAME clientTest
-                COMMAND clientTest
-        )
-        add_test(
-                NAME connectOptionsTest
-                COMMAND connectOptionsTest
-        )
-        add_test(
-                NAME stmt2Test
-                COMMAND stmt2Test
-        )
-        add_test(
-                NAME stmtTest
-                COMMAND stmtTest
-        )
-ENDIF ()
+  add_test(
+    NAME test_client
+    COMMAND test_client
+  )
+  add_test(
+    NAME test_connect_options
+    COMMAND test_connect_options
+  )
+  add_test(
+    NAME test_stmt2
+    COMMAND test_stmt2
+  )
+  add_test(
+    NAME test_stmt
+    COMMAND test_stmt
+  )
+ENDIF()
 
 TARGET_INCLUDE_DIRECTORIES(
-        tmqTest
-        PUBLIC "${TD_SOURCE_DIR}/include/client/"
-        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+  test_tmq
+  PUBLIC "${TD_SOURCE_DIR}/include/client/"
+  PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 
 TARGET_INCLUDE_DIRECTORIES(
-        smlTest
-        PUBLIC "${TD_SOURCE_DIR}/include/client/"
-        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+  test_sml
+  PUBLIC "${TD_SOURCE_DIR}/include/client/"
+  PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 
-#TARGET_INCLUDE_DIRECTORIES(
-#        clientMonitorTest
-#        PUBLIC "${TD_SOURCE_DIR}/include/client/"
-#        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
-#)
-
+# TARGET_INCLUDE_DIRECTORIES(
+# test_clientmonitor
+# PUBLIC "${TD_SOURCE_DIR}/include/client/"
+# PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+# )
 TARGET_INCLUDE_DIRECTORIES(
-        stmt2Test
-        PUBLIC "${TD_SOURCE_DIR}/include/client/"
-        PUBLIC "${TD_SOURCE_DIR}/include/libs/geometry"
-        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+  test_stmt2
+  PUBLIC "${TD_SOURCE_DIR}/include/client/"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/geometry"
+  PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 
 TARGET_INCLUDE_DIRECTORIES(
-        stmtTest
-        PUBLIC "${TD_SOURCE_DIR}/include/client/"
-        PUBLIC "${TD_SOURCE_DIR}/include/libs/geometry"
-        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+  test_stmt
+  PUBLIC "${TD_SOURCE_DIR}/include/client/"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/geometry"
+  PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
 )
 
 add_test(
-        NAME smlTest
-        COMMAND smlTest
+  NAME test_sml
+  COMMAND test_sml
 )
 
 # add_test(
-#         NAME clientMonitorTest
-#         COMMAND clientMonitorTest
+# NAME test_clientmonitor
+# COMMAND test_clientmonitor
 # )
-
 add_test(
-        NAME userOperTest
-        COMMAND userOperTest
+  NAME test_useroper
+  COMMAND test_useroper
 )
