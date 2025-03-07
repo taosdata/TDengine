@@ -987,6 +987,7 @@ typedef struct {
   char*   comment;
   int32_t sqlLen;
   char*   sql;
+  int64_t keep;
 } SMAlterStbReq;
 
 int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);

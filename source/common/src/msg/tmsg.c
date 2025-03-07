@@ -913,6 +913,7 @@ int32_t tSerializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq) 
   if (pReq->commentLen > 0) {
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->comment));
   }
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->keep));
   ENCODESQL();
   tEndEncode(&encoder);
 
@@ -975,7 +976,9 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
     }
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->comment));
   }
-
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->keep));
+  }
   DECODESQL();
 
   tEndDecode(&decoder);

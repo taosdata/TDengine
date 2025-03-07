@@ -9198,8 +9198,7 @@ static int32_t checkColumnOptions(SNodeList* pList) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkTableKeepOption(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
-  STableOptions* pOptions = pStmt->pOptions;
+static int32_t checkTableKeepOption(STranslateContext* pCxt, STableOptions* pOptions) {
   if (pOptions->keep == -1 && pOptions->pKeepNode == NULL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -9673,7 +9672,7 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
     code = checkColumnOptions(pStmt->pCols);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkTableKeepOption(pCxt, pStmt);
+    code = checkTableKeepOption(pCxt, pStmt->pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
     if (createStable && pStmt->pOptions->ttl != 0) {
@@ -10437,6 +10436,9 @@ static int32_t checkAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt* pS
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkAlterSuperTableBySchema(pCxt, pStmt, pTableMeta);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkTableKeepOption(pCxt, pStmt->pOptions);
   }
   taosMemoryFree(pTableMeta);
   return code;
