@@ -621,10 +621,60 @@ static int32_t jsonToSchema(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkRefColHasRef = "HasRef";
+static const char* jkRefColColId = "ColId";
+static const char* jkRefColDbName = "DbName";
+static const char* jkRefColTableName = "TableName";
+static const char* jkRefColColName = "ColName";
+
+static int32_t refColToJson(const void* pObj, SJson* pJson) {
+  const SColRef* pCol = (const SColRef*)pObj;
+
+  int32_t code = tjsonAddBoolToObject(pJson, jkRefColHasRef, pCol->hasRef);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkRefColColId, pCol->id);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkRefColDbName, pCol->refDbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkRefColTableName, pCol->refTableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkRefColColName, pCol->refColName);
+  }
+
+  return code;
+}
+
+
+static int32_t jsonToRefCol(const SJson* pJson, void* pObj) {
+  SColRef* pCol = (SColRef*)pObj;
+
+  int32_t code = tjsonGetBoolValue(pJson, jkRefColHasRef, &pCol->hasRef);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetSmallIntValue(pJson, jkRefColColId, &pCol->id);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkRefColDbName, pCol->refDbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkRefColTableName, pCol->refTableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkRefColColName, pCol->refColName);
+  }
+
+  return code;
+}
+
+
 static const char* jkTableMetaVgId = "VgId";
 static const char* jkTableMetaTableType = "TableType";
 static const char* jkTableMetaUid = "Uid";
 static const char* jkTableMetaSuid = "Suid";
+static const char* jkTableMetaColRefNum = "ColRefNum";
+static const char* jkTableMetaRefCols = "RefCols";
 static const char* jkTableMetaSversion = "Sversion";
 static const char* jkTableMetaTversion = "Tversion";
 static const char* jkTableMetaComInfo = "ComInfo";
@@ -642,6 +692,13 @@ static int32_t tableMetaToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkTableMetaSuid, pNode->suid);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkTableMetaColRefNum, pNode->numOfColRefs);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->numOfColRefs > 0) {
+    code = tjsonAddArray(pJson, jkTableMetaRefCols, refColToJson, pNode->colRef, sizeof(SColRef),
+                         pNode->numOfColRefs);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkTableMetaSversion, pNode->sversion);
@@ -675,6 +732,9 @@ static int32_t jsonToTableMeta(const SJson* pJson, void* pObj) {
     tjsonGetNumberValue(pJson, jkTableMetaSuid, pNode->suid, code);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkTableMetaColRefNum, pNode->numOfColRefs, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     tjsonGetNumberValue(pJson, jkTableMetaSversion, pNode->sversion, code);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -685,6 +745,10 @@ static int32_t jsonToTableMeta(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonToArray(pJson, jkTableMetaColSchemas, jsonToSchema, pNode->schema, sizeof(SSchema));
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->numOfColRefs > 0) {
+    pNode->colRef = (SColRef*)((char*)(pNode + 1) + TABLE_TOTAL_COL_NUM(pNode) * sizeof(SSchema));
+    code = tjsonToArray(pJson, jkTableMetaRefCols, jsonToRefCol, pNode->colRef, sizeof(SColRef));
   }
 
   return code;

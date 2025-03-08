@@ -137,7 +137,7 @@ bool    qParseDbName(const char* pStr, size_t length, char** pDbName);
 // for async mode
 int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq);
 int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
-                            const struct SMetaData* pMetaData, SQuery* pQuery);
+                            struct SMetaData* pMetaData, SQuery* pQuery);
 int32_t qContinueParseSql(SParseContext* pCxt, struct SCatalogReq* pCatalogReq, const struct SMetaData* pMetaData,
                           SQuery* pQuery);
 int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, SSDataBlock* pBlock);

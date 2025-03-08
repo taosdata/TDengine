@@ -250,7 +250,7 @@ class ParserTestBaseImpl {
     DO_WITH_THROW(g_mockCatalogService->catalogGetAllMeta, pCatalogReq, pMetaData);
   }
 
-  void doPutMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache) {
+  void doPutMetaDataToCache(const SCatalogReq* pCatalogReq, SMetaData* pMetaData, SParseMetaCache* pMetaCache) {
     DO_WITH_THROW(putMetaDataToCache, pCatalogReq, pMetaData, pMetaCache);
   }
 
@@ -283,7 +283,7 @@ class ParserTestBaseImpl {
     }
   }
 
-  void doAnalyseSqlSemantic(SParseContext* pCxt, const SCatalogReq* pCatalogReq, const SMetaData* pMetaData,
+  void doAnalyseSqlSemantic(SParseContext* pCxt, const SCatalogReq* pCatalogReq, SMetaData* pMetaData,
                             SQuery* pQuery) {
     DO_WITH_THROW(qAnalyseSqlSemantic, pCxt, pCatalogReq, pMetaData, pQuery);
     res_.calcConstAst_ = toString(pQuery->pRoot);
