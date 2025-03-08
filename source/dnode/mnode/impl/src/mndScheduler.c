@@ -442,11 +442,6 @@ static void setHTasksId(SStreamObj* pStream) {
 
 static int32_t addSourceTaskVTableOutput(SStreamTask* pTask, SSHashObj* pVgTasks, SSHashObj* pVtables) {
   int32_t code = 0;
-  STaskDispatcherFixed* addr = (STaskDispatcherFixed*)tSimpleHashGet(pVgTasks, &pTask->info.nodeId, sizeof(pTask->info.nodeId));
-  if (NULL == addr) {
-    mError("tSimpleHashGet vgId %d STaskDispatcherFixed failed", pTask->info.nodeId);
-    return TSDB_CODE_MND_INTERNAL_ERROR;
-  }
 
   pTask->outputInfo.type = TASK_OUTPUT__VTABLE_MAP;
   int32_t tbNum = tSimpleHashGetSize(pVtables);
@@ -477,6 +472,9 @@ static int32_t addSourceTaskVTableOutput(SStreamTask* pTask, SSHashObj* pVgTasks
       mError("tSimpleHashPut uid to STaskDispatcherFixed failed, error:%d", code);
       return code;
     }
+    
+    mDebug("source task[%s,vg:%d] add vtable output map, vuid %" PRIu64 " => [%d, vg:%d]", 
+        pTask->id.idStr, pTask->info.nodeId, uid, pAddr->taskId, pAddr->nodeId);
   }
 
   return code;
@@ -503,6 +501,8 @@ static int32_t doAddSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStre
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
+
+  mError("souce task plan:%s", pTask->exec.qmsg);
 
   if (pVgTasks) {
     code = addSourceTaskVTableOutput(pTask, pVgTasks, plan->pVTables);
@@ -557,9 +557,10 @@ static int32_t doAddMergeTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStrea
       mError("taosArrayPush SVCTableMergeInfo failed, error:%d", terrno);
       return code;
     }
-  }
 
-  mDebug("doAddMergeTask taskId:%s, %p vgId:%d, historyTask:%d", pTask->id.idStr, pTask, pVgroup->vgId, isHistoryTask);
+    mDebug("merge task[%s, vg:%d] add vtable info: vuid %" PRIu64 ", numOfSrcTbls:%d", 
+        pTask->id.idStr, pVgroup->vgId, tbInfo.uid, tbInfo.numOfSrcTbls);
+  }
 
   code = mndAssignStreamTaskToVgroup(pMnode, pTask, plan, pVgroup);
   if (code != TSDB_CODE_SUCCESS) {
@@ -684,7 +685,7 @@ static int32_t addVTableSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* p
       return TSDB_CODE_MND_INTERNAL_ERROR;
     }
 
-    (void)taosStr2int32(pVgStr, &vgId);
+    (void)taosStr2int32(pVgStr + 1, &vgId);
     
     pVgroup = mndAcquireVgroup(pMnode, vgId);
     if (NULL == pVgroup) {
@@ -957,12 +958,12 @@ int dbVgInfoComp(const void* lp, const void* rp) {
   return 0;
 }
 
-int32_t getTableVgId(SDBVgHashInfo* dbInfo, int32_t acctId, char* dbName, int32_t* vgId, char *tbName) {
+int32_t getTableVgId(SDBVgHashInfo* dbInfo, int32_t acctId, char* dbFName, int32_t* vgId, char *tbName) {
   int32_t code = 0;
   int32_t lino = 0;
   SVgroupInfo* vgInfo = NULL;
   char         tbFullName[TSDB_TABLE_FNAME_LEN];
-  (void)snprintf(tbFullName, sizeof(tbFullName), "%s.%s", dbName, tbName);
+  (void)snprintf(tbFullName, sizeof(tbFullName), "%s.%s", dbFName, tbName);
   uint32_t hashValue = taosGetTbHashVal(tbFullName, (uint32_t)strlen(tbFullName), dbInfo->hashMethod,
                                         dbInfo->hashPrefix, dbInfo->hashSuffix);
 
@@ -973,7 +974,7 @@ int32_t getTableVgId(SDBVgHashInfo* dbInfo, int32_t acctId, char* dbName, int32_
 
   vgInfo = taosArraySearch(dbInfo->vgArray, &hashValue, tableHashValueComp, TD_EQ);
   if (NULL == vgInfo) {
-    qError("no hash range found for hash value [%u], db:%s, numOfVgId:%d", hashValue, dbName,
+    qError("no hash range found for hash value [%u], dbFName:%s, numOfVgId:%d", hashValue, dbFName,
              (int32_t)taosArrayGetSize(dbInfo->vgArray));
     return TSDB_CODE_INVALID_PARA;
   }
@@ -1107,7 +1108,7 @@ static int32_t addVTableToVnode(SSHashObj* pVg, int32_t vvgId, uint64_t vuid, SR
 
   pCtx->lastUid = vuid;
 
-  SSHashObj* pVtable = (SSHashObj*)tSimpleHashGet(pVg, vId, sizeof(vId) + 1);
+  SSHashObj** pVtable = (SSHashObj**)tSimpleHashGet(pVg, vId, sizeof(vId) + 1);
   if (NULL == pVtable) {
     pNewVtable = (SSHashObj*)tSimpleHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
     TSDB_CHECK_NULL(pNewVtable, code, lino, _return, terrno);
@@ -1125,7 +1126,7 @@ static int32_t addVTableToVnode(SSHashObj* pVg, int32_t vvgId, uint64_t vuid, SR
     return code;
   }
   
-  SArray** pOtable = tSimpleHashGet(pVtable, pCol->refTableName, strlen(pCol->refTableName) + 1);
+  SArray** pOtable = tSimpleHashGet(*pVtable, pCol->refTableName, strlen(pCol->refTableName) + 1);
   if (NULL == pOtable) {
     pNewOtable = taosArrayInit(4, sizeof(SColIdName));
     TSDB_CHECK_NULL(pNewOtable, code, lino, _return, terrno);
@@ -1138,10 +1139,10 @@ static int32_t addVTableToVnode(SSHashObj* pVg, int32_t vvgId, uint64_t vuid, SR
   col.colName = pCol->refColName;
   TSDB_CHECK_NULL(taosArrayPush(pTarOtable, &col), code, lino, _return, terrno);
   if (NULL == pOtable) {
-    TSDB_CHECK_CODE(tSimpleHashPut(pVtable, pCol->refTableName, strlen(pCol->refTableName) + 1, &pNewOtable, POINTER_BYTES), lino, _return);
+    TSDB_CHECK_CODE(tSimpleHashPut(*pVtable, pCol->refTableName, strlen(pCol->refTableName) + 1, &pNewOtable, POINTER_BYTES), lino, _return);
   }
 
-  pCtx->lastVtable = pVtable;
+  pCtx->lastVtable = *pVtable;
   pCtx->lastOtable = pTarOtable;
 
 _return:
@@ -1153,14 +1154,14 @@ _return:
   return code;
 }
 
-static int32_t addVgroupToRes(int32_t vvgId, uint64_t vuid, SRefColInfo* pCol, SDBVgHashInfo* pDb, SSHashObj* pRes, SStreamVBuildCtx* pCtx) {
+static int32_t addVgroupToRes(char* fDBName, int32_t vvgId, uint64_t vuid, SRefColInfo* pCol, SDBVgHashInfo* pDb, SSHashObj* pRes, SStreamVBuildCtx* pCtx) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t vgId = 0;
   char dbVgId[TSDB_DB_NAME_LEN + 32];
   SSHashObj *pTarVg = NULL, *pNewVg = NULL;
   
-  TSDB_CHECK_CODE(getTableVgId(pDb, 1, pCol->refDbName, &vgId, pCol->refColName), lino, _return);
+  TSDB_CHECK_CODE(getTableVgId(pDb, 1, fDBName, &vgId, pCol->refColName), lino, _return);
 
   snprintf(dbVgId, sizeof(dbVgId), "%s.%d", pCol->refDbName, vgId);
 
@@ -1199,6 +1200,7 @@ static int32_t addRefColToMap(int32_t vvgId, uint64_t vuid, SRefColInfo* pCol, S
   bool isLastVtable = vuid == pCtx->lastUid;
   SSHashObj* currOtable = NULL;
   SColIdName col;
+  char fDBName[TSDB_DB_FNAME_LEN];
   
   if (pCtx->lastCol && pCtx->lastCol->refDbName[0] == pCol->refDbName[0] && pCtx->lastCol->refTableName[0] == pCol->refTableName[0] &&
      0 == strcmp(pCtx->lastCol->refDbName, pCol->refDbName) && 0 == strcmp(pCtx->lastCol->refTableName, pCol->refTableName)) {
@@ -1213,14 +1215,15 @@ static int32_t addRefColToMap(int32_t vvgId, uint64_t vuid, SRefColInfo* pCol, S
     return code;
   }
 
-  SDBVgHashInfo* pDb = (SDBVgHashInfo*)tSimpleHashGet(pDbVgroups, pCol->refDbName, strlen(pCol->refDbName) + 1);
+  snprintf(fDBName, sizeof(fDBName), "1.%s", pCol->refDbName);
+  SDBVgHashInfo* pDb = (SDBVgHashInfo*)tSimpleHashGet(pDbVgroups, fDBName, strlen(fDBName) + 1);
   if (NULL == pDb) {
     mError("refDb %s does not exist", pCol->refDbName);
     code = TSDB_CODE_MND_DB_NOT_EXIST;
     goto _return;
   }
 
-  TSDB_CHECK_CODE(addVgroupToRes(vvgId, vuid, pCol, pDb, pRes, pCtx), lino, _return);
+  TSDB_CHECK_CODE(addVgroupToRes(fDBName, vvgId, vuid, pCol, pDb, pRes, pCtx), lino, _return);
 
   pCtx->lastCol = pCol;
 

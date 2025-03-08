@@ -5052,7 +5052,7 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
   STableMeta*        pMeta = pRealTable->pMeta;
   int32_t            code = TSDB_CODE_SUCCESS;
 
-  if (!pMeta->virtualStb) {
+  if (!pMeta->virtualStb && !pCxt->createStream) {
     PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_TABLE_TYPE);
   }
 

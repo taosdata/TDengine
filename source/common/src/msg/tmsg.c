@@ -4641,6 +4641,9 @@ int32_t tDeserializeSVSubTablesRspImpl(SDecoder* pDecoder, SVSubTablesRsp *pRsp)
           return code;
         }
 
+        pTb->uid = tb.uid;
+        pTb->numOfSrcTbls = tb.numOfSrcTbls;
+        pTb->numOfColRefs = tb.numOfColRefs;
         pTb->refCols = (SRefColInfo*)(pTb + 1);
         for (int32_t n = 0; n < tb.numOfColRefs; ++n) {
           TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pTb->refCols[n].colId));
