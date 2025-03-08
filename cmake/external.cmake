@@ -418,3 +418,34 @@ ExternalProject_Add(ext_xz
     VERBATIM
 )
 add_dependencies(build_externals ext_xz)     # this is for github workflow in cache-miss step.
+
+# lzma2
+if(${TD_LINUX})
+    set(ext_lzma2_static liblzma2.a)
+elseif(${TD_DARWIN})
+    set(ext_lzma2_static liblzma2.a)
+elseif(${TD_WINDOWS})
+    set(ext_lzma2_static liblzma2.lib)
+endif()
+INIT_EXT(ext_lzma2
+    INC_DIR          include
+    LIB              lib/${ext_lzma2_static}
+)
+# GIT_REPOSITORY https://github.com/conor42/fast-lzma2.git
+get_from_local_repo_if_exists("https://github.com/conor42/fast-lzma2.git")
+ExternalProject_Add(ext_lzma2
+    GIT_REPOSITORY ${_git_url}
+    GIT_TAG ded964d203cabe1a572d2c813c55e8a94b4eda48
+    PREFIX "${_base}"
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND ""
+    INSTALL_COMMAND ""
+    # freemine: TODO: seems xxhash.c/xxhahs.h is the target?
+    #           seems xz.git is far much newer
+    GIT_SHALLOW TRUE
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_lzma2)     # this is for github workflow in cache-miss step.

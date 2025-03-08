@@ -69,9 +69,6 @@ if(NOT ${TD_WINDOWS})
     cat("${TD_SUPPORT_DIR}/tz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(NOT ${TD_WINDOWS})
 
-# lzma2
-cat("${TD_SUPPORT_DIR}/lzma_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-
 # RocksDB is now included via cmake/RocksDB.cmake.inc
 
 # cat("${TD_SUPPORT_DIR}/zstd_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
