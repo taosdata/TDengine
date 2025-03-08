@@ -4275,7 +4275,7 @@ int32_t ctgLaunchGetVSubTablesTask(SCtgTask* pTask) {
     }
   }
 
-  if (TSDB_VIRTUAL_CHILD_TABLE == pCtx->pMeta->tableType || TSDB_VIRTUAL_TABLE == pCtx->pMeta->tableType) {
+  if (TSDB_VIRTUAL_CHILD_TABLE == pCtx->pMeta->tableType || TSDB_VIRTUAL_NORMAL_TABLE == pCtx->pMeta->tableType) {
     CTG_ERR_RET(ctgBuildNormalChildVtbList(pCtx));
     CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
     return TSDB_CODE_SUCCESS;

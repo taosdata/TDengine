@@ -5137,7 +5137,11 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
       break;
     case TSDB_VIRTUAL_CHILD_TABLE:
     case TSDB_VIRTUAL_NORMAL_TABLE:
-      PAR_ERR_JRET(translateVirtualNormalChildTable(pCxt, pTable, pName, pVTable, pRTNode));
+      if (pCxt->createStream) {
+        PAR_ERR_JRET(translateVirtualSuperTable(pCxt, pTable, pName, pVTable, pRTNode));
+      } else {
+        PAR_ERR_JRET(translateVirtualNormalChildTable(pCxt, pTable, pName, pVTable, pRTNode));
+      }
       break;
     default:
       PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_TABLE_TYPE);
