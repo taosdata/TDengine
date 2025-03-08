@@ -4565,6 +4565,8 @@ _exit:
 }
 
 int32_t tSerializeSVSubTablesRspImpl(SEncoder* pEncoder, SVSubTablesRsp *pRsp) {
+  int32_t  code = 0;
+  int32_t  lino;
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->vgId));
   int32_t numOfTables = taosArrayGetSize(pRsp->pTables);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, numOfTables));
@@ -4582,7 +4584,9 @@ int32_t tSerializeSVSubTablesRspImpl(SEncoder* pEncoder, SVSubTablesRsp *pRsp) {
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+_exit:
+
+  return code;
 }
 
 int32_t tSerializeSVSubTablesRsp(void *buf, int32_t bufLen, SVSubTablesRsp *pRsp) {
@@ -4608,7 +4612,8 @@ _exit:
 }
 
 int32_t tDeserializeSVSubTablesRspImpl(SDecoder* pDecoder, SVSubTablesRsp *pRsp) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t  code = 0;
+  int32_t  lino;
   SVCTableRefCols tb = {0};
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->vgId));
   int32_t numOfTables = 0;
@@ -4647,6 +4652,8 @@ int32_t tDeserializeSVSubTablesRspImpl(SDecoder* pDecoder, SVSubTablesRsp *pRsp)
     }
   }
 
+_exit:
+
   return code;
 }
 
@@ -4676,10 +4683,12 @@ void tFreeSVCTableRefCols(void *pParam) {
   taosMemoryFree(pCols);
 }
 
-void tDestroySVSubTablesRsp(SVSubTablesRsp *pRsp) {
-  if (NULL == pRsp) {
+void tDestroySVSubTablesRsp(void* rsp) {
+  if (NULL == rsp) {
     return;
   }
+
+  SVSubTablesRsp *pRsp = (SVSubTablesRsp*)rsp;
 
   taosArrayDestroyEx(pRsp->pTables, tFreeSVCTableRefCols);
 }
