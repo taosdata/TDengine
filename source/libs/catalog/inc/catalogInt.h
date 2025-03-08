@@ -311,9 +311,9 @@ typedef struct SCtgTbTSMACtx {
 
 typedef struct SCtgVSubTablesCtx {
   SArray* pNames;
-  int32_t tbType;
-  int64_t suid;
-  
+
+  STableMeta* pMeta;
+ 
   int32_t vgNum;
   bool    clonedVgroups;
   SArray* pVgroups;
@@ -1232,6 +1232,7 @@ int32_t  ctgGetStreamProgressFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, 
                                        void* bInput);
 int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx, int32_t flag,
                         CTG_TSMA_FETCH_TYPE fetchType, const SName* sourceTbName);
+int32_t ctgBuildNormalChildVtbList(SCtgVSubTablesCtx* pCtx);                        
 int32_t ctgOpUpdateDbTsmaVersion(SCtgCacheOperation* pOper);
 int32_t ctgUpdateDbTsmaVersionEnqueue(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId,
                                       bool syncOper);

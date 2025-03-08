@@ -1474,17 +1474,22 @@ int32_t ctgDumpVSubTablesRes(SCtgTask* pTask) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SCtgJob* pJob = pTask->pJob;
   SCtgVSubTablesCtx* pCtx = (SCtgVSubTablesCtx*)pTask->taskCtx;
 
-  pJob->jobRes.pVSubTables = taosArrayInit(pCtx->vgNum, sizeof(SVSubTablesRsp));
+  if (NULL == pCtx->pResList) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  SCtgJob* pJob = pTask->pJob;
+  int32_t resVgNum = (TSDB_SUPER_TABLE == pCtx->pMeta->tableType) ? pCtx->vgNum : 1;
+  pJob->jobRes.pVSubTables = taosArrayInit(resVgNum, sizeof(SVSubTablesRsp));
   if (NULL == pJob->jobRes.pVSubTables) {
-    ctgError("taosArrayInit %d SVSubTablesRsp failed, error:%d", pCtx->vgNum, terrno);
+    ctgError("taosArrayInit %d SVSubTablesRsp failed, error:%d", resVgNum, terrno);
     return terrno;
   }
 
   SVSubTablesRsp* pVg = NULL;
-  for (int32_t i = 0; i < pCtx->vgNum; ++i) {
+  for (int32_t i = 0; i < resVgNum; ++i) {
     pVg = (SVSubTablesRsp*)pCtx->pResList + i;
     if (NULL == taosArrayPush(pJob->jobRes.pVSubTables, pVg)) {
       ctgError("taosArrayPush failed, error:%d", terrno);
@@ -4253,9 +4258,11 @@ int32_t ctgLaunchGetVSubTablesTask(SCtgTask* pTask) {
 
   (void)tNameGetFullDbName(pName, dbFName);
 
-  if (pCtx->tbType <= 0) {
-    CTG_ERR_RET(ctgReadTbTypeSuidFromCache(pCtg, dbFName, pName->tname, &pCtx->tbType, &pCtx->suid));
-    if (pCtx->tbType <= 0) {
+  if (NULL == pCtx->pMeta) {
+    SCtgTbMetaCtx metaCtx = {0};
+    metaCtx->pName = pName;
+    CTG_ERR_RET(ctgReadTbMetaFromCache(pCtg, &metaCtx, &pCtx->pMeta));
+    if (NULL == pCtx->pMeta) {
       SCtgTbMetaParam param;
       param.pName = pName;
       param.flag = 0;
@@ -4264,7 +4271,13 @@ int32_t ctgLaunchGetVSubTablesTask(SCtgTask* pTask) {
     }
   }
 
-  if (TSDB_SUPER_TABLE != pCtx->tbType) {
+  if (TSDB_VIRTUAL_CHILD_TABLE == pCtx->pMeta->tableType || TSDB_VIRTUAL_TABLE == pCtx->pMeta->tableType) {
+    CTG_ERR_RET(ctgBuildNormalChildVtbList(pCtx));
+    CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  if (TSDB_SUPER_TABLE != pCtx->pMeta->tableType || !pCtx->pMeta->virtualStb) {
     CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
     return TSDB_CODE_SUCCESS;
   }
@@ -4293,7 +4306,7 @@ int32_t ctgLaunchGetVSubTablesTask(SCtgTask* pTask) {
     SCtgTaskReq tReq;
     tReq.pTask = pTask;
     tReq.msgIdx = -1;    
-    CTG_ERR_JRET(ctgGetVSubTablesFromVnode(pCtg, pConn, pCtx->suid, pVg, tReq));
+    CTG_ERR_JRET(ctgGetVSubTablesFromVnode(pCtg, pConn, pCtx->pMeta->suid, pVg, tReq));
   }
 
   if (dbCache) {
@@ -4380,8 +4393,7 @@ int32_t ctgGetVSubTablesCb(SCtgTask* pTask) {
 
   SCtgVSubTablesCtx* pCtx = (SCtgVSubTablesCtx*)pTask->taskCtx;
   if (CTG_TASK_GET_TB_META == pTask->subRes.type) {
-    pCtx->tbType = ((STableMeta*)pTask->subRes.res)->tableType;
-    pCtx->suid = ((STableMeta*)pTask->subRes.res)->suid;
+    TSWAP(pCtx->pMeta, pTask->subRes.res);
   } else if (CTG_TASK_GET_DB_VGROUP == pTask->subRes.type) {
     SDBVgInfo* pDb = (SDBVgInfo*)pTask->subRes.res;
 

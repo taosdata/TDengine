@@ -936,6 +936,9 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
       *pRes = NULL;
       break;
     }
+    case CTG_TASK_GET_V_SUBTABLES: {
+
+    }
     default:
       qError("invalid task type %d", type);
       break;
@@ -2837,3 +2840,69 @@ int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t*
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t ctgBuildNormalChildVtbList(SCtgVSubTablesCtx* pCtx) {
+  int32_t code = TSDB_CODE_SUCCESS, line = 0;
+  char tbFName[TSDB_TABLE_FNAME_LEN];
+  pCtx->pResList = taosMemoryCalloc(1, sizeof(*pCtx->pResList));
+  QUERY_CHECK_NULL(pCtx->pResList, code, line, _return, terrno);
+
+  pCtx->pResList->vgId = pCtx->pMeta->vgId;
+
+  pCtx->pResList->pTables = taosArrayInit(1, POINTER_BYTES);
+  QUERY_CHECK_NULL(pCtx->pResList->pTables, code, line, _return, terrno);
+
+  SSHashObj* pSrcTbls = tSimpleHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  QUERY_CHECK_NULL(pSrcTbls, code, line, _return, terrno);
+
+  int32_t refColsNum = 0;
+  for (int32_t i = 0; i < pCtx->pMeta->numOfColRefs; ++i) {
+    if (!pCtx->pMeta->colRef[i].hasRef) {
+      continue;
+    }
+    
+    refColsNum++;
+  }
+  
+  SVCTableRefCols* pTb = (SVCTableRefCols*)taosMemoryCalloc(1, refColsNum * sizeof(SRefColInfo) + sizeof(SVCTableRefCols));
+  QUERY_CHECK_NULL(pTb, code, line, _return, terrno);
+  pTb->uid = pCtx->pMeta->uid;
+  pTb->numOfColRefs = refColsNum;
+  
+  refColsNum = 0;
+  for (int32_t j = 0; j < pCtx->pMeta->numOfColRefs; j++) {
+    if (!pCtx->pMeta->colRef[i].hasRef) {
+      continue;
+    }
+
+    pTb->refCols[refColsNum].colId = pCtx->pMeta->colRef[j].id;
+    tstrncpy(pTb->refCols[refColsNum].refColName, pCtx->pMeta->colRef[j].refColName, TSDB_COL_NAME_LEN);
+    tstrncpy(pTb->refCols[refColsNum].refTableName, pCtx->pMeta->colRef[j].refTableName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pTb->refCols[refColsNum].refDbName,pCtx->pMeta->colRef[j].refDbName, TSDB_DB_NAME_LEN);
+
+    snprintf(tbFName, sizeof(tbFName), "%s.%s", pTb->refCols[refColsNum].refDbName, pTb->refCols[refColsNum].refTableName);
+
+    if (NULL == tSimpleHashGet(pSrcTbls, tbFName, strlen(tbFName))) {
+      QUERY_CHECK_CODE(tSimpleHashPut(pSrcTbls, tbFName, strlen(tbFName), &code, sizeof(code)), line, _return);
+    }
+    
+    refColsNum++;
+  }
+
+  pTb->numOfSrcTbls = tSimpleHashGetSize(pSrcTbls);
+  QUERY_CHECK_NULL(taosArrayPush(pCtx->pResList->pTables, &pTb), code, line, _return, terrno);
+  pTb = NULL;
+
+_return:
+
+  tSimpleHashCleanup(pSrcTbls);
+  taosMemoryFree(pTb);
+  
+  if (code) {
+    qError("%s failed since %s", __func__, tstrerror(code));
+  }
+
+  return code;
+}
+
+
