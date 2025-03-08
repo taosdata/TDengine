@@ -2872,7 +2872,7 @@ int32_t ctgBuildNormalChildVtbList(SCtgVSubTablesCtx* pCtx) {
   
   refColsNum = 0;
   for (int32_t j = 0; j < pCtx->pMeta->numOfColRefs; j++) {
-    if (!pCtx->pMeta->colRef[i].hasRef) {
+    if (!pCtx->pMeta->colRef[j].hasRef) {
       continue;
     }
 
