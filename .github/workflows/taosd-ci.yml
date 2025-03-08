@@ -68,6 +68,10 @@ jobs:
           echo "run_function_test=$run_function_test" >> $GITHUB_OUTPUT
           echo "run_tdgpt_test=$run_tdgpt_test" >> $GITHUB_OUTPUT
 
+          echo ${{ github.event.pull_request.head.ref }}
+          echo ${{ github.event.pull_request.base.ref }}
+          echo ${{ github.event.pull_request.number }}
+
   run-tests-on-linux:
     uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@feat/wangxu/taosd-ci
     needs: fetch-parameters
