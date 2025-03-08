@@ -332,7 +332,7 @@ if(${BUILD_TEST}) # freemine: add BUILD_GTEST
 endif(${BUILD_TEST})
 
 # cppstub
-if(NOT ${BUILD_TEST})
+if(${BUILD_TEST})
     if(${TD_LINUX})
         set(ext_cppstub_static libcppstub.a)
     elseif(${TD_DARWIN})
