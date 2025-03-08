@@ -1433,6 +1433,7 @@ typedef struct {
 
 int32_t tSerializeSVSubTablesRsp(void *buf, int32_t bufLen, SVSubTablesRsp *pRsp);
 int32_t tDeserializeSVSubTablesRsp(void *buf, int32_t bufLen, SVSubTablesRsp *pRsp);
+void tDestroySVSubTablesRsp(void* rsp);
 
 
 typedef struct {
