@@ -2652,10 +2652,10 @@ SNode* qptCreateHashJoinPhysiNode(int32_t nodeType) {
   qptMakeLimitNode(&pJoin->pJLimit);
 
   qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
-  qptMakeColumnList(&pJoin->pOnLeft);
+  qptMakeColumnList(&pJoin->pOnLeftCols);
 
   qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
-  qptMakeColumnList(&pJoin->pOnRight);
+  qptMakeColumnList(&pJoin->pOnRightCols);
 
   qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
   qptMakeExprNode(&pJoin->leftPrimExpr);
