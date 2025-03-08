@@ -71,7 +71,7 @@ jobs:
   run-tests-on-linux:
     uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@feat/wangxu/taosd-ci
     needs: fetch-parameters
-    if: ${{ needs.fetch-parameters.outputs.run_function_test == 'true' }}
+    if: ${{ needs.fetch-parameters.outputs.run_tdgpt_test == 'true' || needs.fetch-parameters.outputs.run_function_test == 'true' }}
     with:
       tdinternal: false
       run_function_test: ${{ needs.fetch-parameters.outputs.run_function_test }}
