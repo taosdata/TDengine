@@ -732,3 +732,34 @@ if(NOT ${TD_WINDOWS})
     add_dependencies(build_externals ext_curl)     # this is for github workflow in cache-miss step.
 endif(NOT ${TD_WINDOWS})
 
+# geos
+if(${BUILD_GEOS})
+    if(${TD_LINUX})
+        set(ext_geos_static geos.a)
+    elseif(${TD_DARWIN})
+        set(ext_geos_static geos.a)
+    elseif(${TD_WINDOWS})
+        set(ext_geos_static geos.lib)
+    endif()
+    INIT_EXT(ext_geos
+        INC_DIR          include
+        LIB              lib/${ext_geos_static}
+    )
+    # GIT_REPOSITORY https://github.com/libgeos/geos.git
+    # GIT_TAG 3.12.0
+    get_from_local_repo_if_exists("https://github.com/libgeos/geos.git")
+    ExternalProject_Add(ext_geos
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG f1519c182497a99db8315ef78e0ae283b0469008
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
+        CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_geos)     # this is for github workflow in cache-miss step.
+endif()
+

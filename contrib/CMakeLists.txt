@@ -83,11 +83,6 @@ if(${BUILD_ADDR2LINE})
     endif(NOT ${TD_WINDOWS})
 endif(${BUILD_ADDR2LINE})
 
-# geos
-if(${BUILD_GEOS})
-    cat("${TD_SUPPORT_DIR}/geos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif()
-
 #
 if(${BUILD_PCRE2})
     cat("${TD_SUPPORT_DIR}/pcre2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
