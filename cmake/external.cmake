@@ -273,3 +273,27 @@ if(${BUILD_WCWIDTH})
     add_dependencies(build_externals ext_wcwidth)     # this is for github workflow in cache-miss step.
 endif()
 
+# wingetopt
+if(${BUILD_WINGETOPT})
+    if(${TD_WINDOWS})
+        set(ext_wingetopt_static wingetopt.lib)
+    endif()
+    INIT_EXT(ext_wingetopt
+        INC_DIR          include
+        LIB              lib/${ext_wingetopt_static}
+    )
+    # GIT_REPOSITORY https://github.com/alex85k/wingetopt.git
+    # GIT_TAG master
+    get_from_local_repo_if_exists("https://github.com/alex85k/wingetopt.git")
+    ExternalProject_Add(ext_wingetopt
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG e8531ed21b44f5a723c1dd700701b2a58ce3ea01
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_wingetopt)     # this is for github workflow in cache-miss step.
+endif()
