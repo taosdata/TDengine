@@ -926,6 +926,8 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  goto _OVER;
+
   // add notify info into all stream tasks
   code = addStreamNotifyInfo(&createReq, &streamObj);
   if (code != TSDB_CODE_SUCCESS) {

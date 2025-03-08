@@ -2868,6 +2868,7 @@ int32_t ctgBuildNormalChildVtbList(SCtgVSubTablesCtx* pCtx) {
   QUERY_CHECK_NULL(pTb, code, line, _return, terrno);
   pTb->uid = pCtx->pMeta->uid;
   pTb->numOfColRefs = refColsNum;
+  pTb->refCols = (SRefColInfo*)(pTb + 1);
   
   refColsNum = 0;
   for (int32_t j = 0; j < pCtx->pMeta->numOfColRefs; j++) {

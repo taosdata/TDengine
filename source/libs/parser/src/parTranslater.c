@@ -5030,7 +5030,7 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
   pVTable->table.precision = pRealTable->pMeta->tableInfo.precision;
   pVTable->table.singleTable = false;
 
-  if (pMeta->tableType == TSDB_SUPER_TABLE && pMeta->virtualStb) {
+  if ((pMeta->tableType == TSDB_SUPER_TABLE && pMeta->virtualStb) || pCxt->createStream) {
     PAR_ERR_JRET(getTargetMeta(pCxt, pName, &(pVTable->pMeta), true));
     PAR_ERR_JRET(setVSuperTableVgroupList(pCxt, pName, pVTable));
     PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRealTable));
