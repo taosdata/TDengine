@@ -1695,7 +1695,7 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
       bytes = getAvgInfoSize(pFunc) + VARSTR_HEADER_SIZE;
       break;
     case FUNCTION_TYPE_AVG_STATE_MERGE:
-      pFunc->srcFuncInputType = pFunc->pSrcFuncRef->srcFuncInputType;
+      if (pFunc->pSrcFuncRef) pFunc->srcFuncInputType = pFunc->pSrcFuncRef->srcFuncInputType;
       bytes = getAvgInfoSize(pFunc) + VARSTR_HEADER_SIZE;
       break;
     case FUNCTION_TYPE_HISTOGRAM_PARTIAL:
@@ -4822,7 +4822,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .inputParaInfo[0][0] = {.isLastParam = true,
                                            .startParam = 1,
                                            .endParam = 1,
-                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},

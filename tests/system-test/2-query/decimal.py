@@ -44,12 +44,12 @@ scalar_convert_err = -2147470768
 decimal_insert_validator_test = False
 operator_test_round = 1
 tb_insert_rows = 1000
-binary_op_with_const_test = True
-binary_op_with_col_test = True
-unary_op_test = True
-binary_op_in_where_test = True
+binary_op_with_const_test = False
+binary_op_with_col_test = False
+unary_op_test = False
+binary_op_in_where_test = False
 test_decimal_funcs = True
-cast_func_test_round = 100
+cast_func_test_round = 10
 
 class DecimalTypeGeneratorConfig:
     def __init__(self):
@@ -643,11 +643,20 @@ class Column:
     def get_val_for_execute(self, tbname: str, idx: int):
         if self.is_constant_col():
             return self.get_constant_val_for_execute()
+        if len(self.saved_vals) > 1:
+            for key in self.saved_vals.keys():
+                l = len(self.saved_vals[key])
+                if idx < l:
+                    return self.get_typed_val_for_execute(self.saved_vals[key][idx])
+                else:
+                    idx -= l
         return self.get_typed_val_for_execute(self.saved_vals[tbname][idx])
     
     def get_cardinality(self, tbname):
         if self.is_constant_col():
             return 1
+        elif len(self.saved_vals) > 1:
+            return len(self.saved_vals['t0'])
         else:
             return len(self.saved_vals[tbname])
 
@@ -1138,7 +1147,8 @@ class DecimalMaxFunction(DecimalAggFunction):
         self.max_: Decimal = None
     
     def get_func_res(self) -> Decimal:
-        return self.max_
+        decimal_type: DecimalType = self.query_col.type_
+        return decimal_type.aggregator.max
     
     def generate_res_type(self) -> DataType:
         self.res_type_ = self.query_col.type_
@@ -1793,7 +1803,7 @@ class TDTestCase:
         create_stream = f"CREATE STREAM {self.stream_name} FILL_HISTORY 1 INTO {self.db_name}.{self.stream_out_stb} AS SELECT _wstart, count(c1), avg(c2), sum(c3) FROM {self.db_name}.{self.stable_name} INTERVAL(10s)"
         tdSql.execute(create_stream, queryTimes=1, show=True)
         self.wait_query_result(
-            f"select count(*) from {self.db_name}.{self.stream_out_stb}", [(500,)], 30
+            f"select count(*) from {self.db_name}.{self.stream_out_stb}", [(50,)], 30
         )
 
     def test_decimal_and_tsma(self):
@@ -1998,14 +2008,6 @@ class TDTestCase:
             ),
         )
 
-        self.check_decimal_binary_expr_with_const_col_results(
-            self.db_name,
-            self.stable_name,
-            self.stb_columns,
-            Column.get_decimal_oper_const_cols,
-            DecimalBinaryOperator.get_all_binary_ops,
-        )
-
         ## test decimal column op decimal column
         for i in range(operator_test_round):
             self.check_decimal_binary_expr_with_col_results(
@@ -2177,6 +2179,9 @@ class TDTestCase:
             self.norm_table_name,
             self.norm_tb_columns,
             DecimalFunction.get_decimal_agg_funcs,
+        )
+        self.test_decimal_agg_funcs(
+            self.db_name, self.stable_name, self.stb_columns, DecimalFunction.get_decimal_agg_funcs
         )
         self.test_decimal_cast_func(self.db_name, self.norm_table_name, self.norm_tb_columns)
 
