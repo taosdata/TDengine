@@ -1,5 +1,5 @@
 
-taos> alter local 'transToStrWhenMixTypeInLeast' '1';
+taos> alter local 'compareAsStrInGreatest' '1';
 
 taos> select GREATEST(1,2,3,4,5,6,7,8,9,10);
  greatest(1,2,3,4,5,6,7,8,9,10) |
@@ -713,7 +713,7 @@ taos> select GREATEST(current, voltage, '15') from ts_4893.n1;
  NULL                             |
  5.000000                         |
 
-taos> alter local 'transToStrWhenMixTypeInLeast' '0';
+taos> alter local 'compareAsStrInGreatest' '0';
 
 taos> select GREATEST(1,'2',3.3,4.4,5);
  greatest(1,'2',3.3,4.4,5) |

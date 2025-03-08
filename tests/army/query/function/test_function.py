@@ -286,7 +286,7 @@ class TDTestCase(TBase):
     def test_greatest(self):
         self.test_normal_query_new("greatest")
         
-        tdSql.execute("alter local 'transToStrWhenMixTypeInLeast' '1';")
+        tdSql.execute("alter local 'compareAsStrInGreatest' '1';")
         
         tdSql.query("select GREATEST(NULL, NULL, NULL, NULL);")
         tdSql.checkRows(1)
@@ -358,7 +358,7 @@ class TDTestCase(TBase):
     def test_least(self):
         self.test_normal_query_new("least")
 
-        tdSql.execute("alter local 'transToStrWhenMixTypeInLeast' '1';")
+        tdSql.execute("alter local 'compareAsStrInGreatest' '1';")
         
         tdSql.query("select LEAST(NULL, NULL, NULL, NULL);")
         tdSql.checkRows(1)
