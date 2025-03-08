@@ -74,8 +74,8 @@ jobs:
     if: ${{ needs.fetch-parameters.outputs.run_tdgpt_test == 'true' || needs.fetch-parameters.outputs.run_function_test == 'true' }}
     with:
       tdinternal: false
-      run_function_test: ${{ needs.fetch-parameters.outputs.run_function_test }}
-      run_tdgpt_test: ${{ needs.fetch-parameters.outputs.run_tdgpt_test }}
+      run_function_test: ${{ needs.fetch-parameters.outputs.run_function_test == 'true' }}
+      run_tdgpt_test: ${{ needs.fetch-parameters.outputs.run_tdgpt_test == 'true' }}
       source_branch: ${{ github.event.pull_request.head.ref }}
       target_branch: ${{ github.event.pull_request.base.ref }}
       pr_number: ${{ github.event.pull_request.number }}
