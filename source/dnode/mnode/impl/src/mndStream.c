@@ -1238,8 +1238,8 @@ static bool isStreamReadyHelp(int64_t now, SStreamObj* pStream) {
 
     if (lastReadyTs != -1) {
       mInfo("not start checkpoint, stream:0x%" PRIx64 " last ready ts:%" PRId64 " ready duration:%" PRId64
-            "ms less than threshold",
-            pStream->uid, lastReadyTs, (now - lastReadyTs));
+            "s less than threshold",
+            pStream->uid, lastReadyTs, (now - lastReadyTs)/1000.0);
     }
 
     ready = false;
