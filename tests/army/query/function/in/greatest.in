@@ -1,4 +1,4 @@
-alter local 'transToStrWhenMixTypeInLeast' '1';
+alter local 'compareAsStrInGreatest' '1';
 select GREATEST(1,2,3,4,5,6,7,8,9,10);
 select GREATEST(1,1.1,2.23,3.4444,5.66666666,6.21241241,7.999999999999);
 select GREATEST(1,'2',3.3,4.4,5);
@@ -116,7 +116,7 @@ select GREATEST('23', 3443434343434343) from ts_4893.n1;
 select GREATEST('23', 1443434343434343) from ts_4893.n1;
 select GREATEST(current, voltage) from ts_4893.n1;
 select GREATEST(current, voltage, '15') from ts_4893.n1; 
-alter local 'transToStrWhenMixTypeInLeast' '0';
+alter local 'compareAsStrInGreatest' '0';
 select GREATEST(1,'2',3.3,4.4,5);
 select GREATEST(1,2,3,4,5,'5.1');
 select GREATEST(121,'18');
