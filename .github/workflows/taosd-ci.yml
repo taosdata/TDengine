@@ -1,9 +1,6 @@
 name: TDengine CI Test
 
 on:
-  push:
-    branches:
-      - 'feat/wangxu/taosd-ci'
   pull_request:
     branches:
       - 'main'
@@ -33,8 +30,7 @@ jobs:
         id: parameters
         run: |
           set -euo pipefail
-          target_branch="3.0" # for test
-          # target_branch=${{ github.event.pull_request.base.ref }}
+          target_branch=${{ github.event.pull_request.base.ref }}
           
           # Check whether to run tdgpt test cases
           cd ${{ env.WKC }}
@@ -74,7 +70,7 @@ jobs:
           echo ${{ github.event.pull_request.number }}
 
   run-tests-on-linux:
-    uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@feat/wangxu/taosd-ci
+    uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml
     needs: fetch-parameters
     if: ${{ needs.fetch-parameters.outputs.run_tdgpt_test == 'true' || needs.fetch-parameters.outputs.run_function_test == 'true' }}
     with:
@@ -86,7 +82,7 @@ jobs:
       pr_number: ${{ github.event.pull_request.number }}
 
   run-tests-on-mac:
-    uses: taosdata/.github/.github/workflows/run-tests-on-macos.yml@feat/wangxu/taosd-ci
+    uses: taosdata/.github/.github/workflows/run-tests-on-macos.yml
     needs: fetch-parameters
     if: ${{ needs.fetch-parameters.outputs.run_function_test == 'true' }}
     with:
@@ -96,7 +92,7 @@ jobs:
       pr_number: ${{ github.event.pull_request.number }}
 
   run-tests-on-windows:
-    uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@feat/wangxu/taosd-ci
+    uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml
     needs: fetch-parameters
     if: ${{ needs.fetch-parameters.outputs.run_function_test == 'true' }}
     with:
