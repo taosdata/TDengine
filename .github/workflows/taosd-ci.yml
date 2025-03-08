@@ -62,6 +62,7 @@ jobs:
           else
             run_function_test="false"
           fi
+
           echo "run function test: ${run_function_test}"
 
           # Output the results for GitHub Actions
