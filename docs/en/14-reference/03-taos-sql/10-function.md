@@ -600,6 +600,40 @@ taos> select radians(180);
          3.141592653589793 |
 ```
 
+#### GREATEST
+```sql
+GREATEST(expr1, expr2[, expr]...)
+```
+
+**Function Description**: Get the maximum value of all input parameters. The minimum number of parameters for this function is 2.
+
+**Version**：ver-3.3.6.0
+
+**Return Type**：Refer to the comparison rules. The comparison type is the final return type.
+
+**Applicable Data Types**:
+- Numeric types: including bool, integer and floating point types
+- nchar and varchar types.
+
+**Comparison rules**: The following rules describe the conversion method of the comparison operation:
+- If any parameter is NULL, the comparison result is NULL.
+- If all parameters in the comparison operation are string types, compare them as string types
+- If all parameters are numeric types, compare them as numeric types.
+- TIMESTAMP type is also a numeric type. When the types involved in the comparison with TIMESTAMP are all integer types, compare them as TIMESTAMP;
+- If there are both string types and numeric types in the parameters, according to the `compareAsStrInGreatest` configuration item, they are uniformly compared as strings or numeric values. By default, they are compared as strings.
+- In all cases, when different types are compared, the comparison type will choose the type with a larger range for comparison. For example, when comparing integer types, if there is a BIGINT type, BIGINT will definitely be selected as the comparison type.
+
+**Related configuration items**: Client configuration, compareAsStrInGreatest is 1, which means that both string types and numeric types are converted to string comparisons, and 0 means that they are converted to numeric types. The default is 1.
+
+
+#### LEAST
+```sql
+LEAST(expr1, expr2[, expr]...)
+```
+
+**Function Description**：Get the minimum value of all input parameters. The arguments are compared using the same rules as for LEAST(). The rest of the description is the same as the greatest function.
+
+
 ### String Functions
 
 The input parameters for string functions are of string type, and the return results are of numeric type or string type.
