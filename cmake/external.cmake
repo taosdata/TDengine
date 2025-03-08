@@ -331,6 +331,41 @@ if(${BUILD_TEST}) # freemine: add BUILD_GTEST
     add_dependencies(build_externals ext_gtest)     # this is for github workflow in cache-miss step.
 endif(${BUILD_TEST})
 
+# cppstub
+if(NOT ${BUILD_TEST})
+    if(${TD_LINUX})
+        set(ext_cppstub_static libcppstub.a)
+    elseif(${TD_DARWIN})
+        set(ext_cppstub_static libcppstub.a)
+    elseif(${TD_WINDOWS})
+        set(ext_cppstub_static cppstub.lib)
+    endif()
+    INIT_EXT(ext_cppstub
+        INC_DIR          include
+        LIB              lib/${ext_cppstub_static}
+                         lib/${ext_cppstub_main}
+    )
+    # GIT_REPOSITORY https://github.com/coolxv/cpp-stub.git
+    # GIT_TAG 3137465194014d66a8402941e80d2bccc6346f51
+    # GIT_SUBMODULES "src"
+    get_from_local_repo_if_exists("https://github.com/coolxv/cpp-stub.git")
+    ExternalProject_Add(ext_cppstub
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG 3137465194014d66a8402941e80d2bccc6346f51
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        # freemine: TODO: seems only .h files are exported
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_cppstub)     # this is for github workflow in cache-miss step.
+endif(${BUILD_TEST})
+
 # lz4
 if(${TD_LINUX})
     set(ext_lz4_static liblz4.a)

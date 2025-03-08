@@ -60,11 +60,6 @@ if(${JEMALLOC_ENABLED})
     cat("${TD_SUPPORT_DIR}/jemalloc_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
-# googletest
-if(${BUILD_TEST})
-    cat("${TD_SUPPORT_DIR}/stub_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif(${BUILD_TEST})
-
 # RocksDB is now included via cmake/RocksDB.cmake.inc
 
 # cat("${TD_SUPPORT_DIR}/zstd_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
