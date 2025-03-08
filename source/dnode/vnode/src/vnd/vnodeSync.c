@@ -169,8 +169,9 @@ void vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit) {
     rpcFreeCont(rpcMsg.pCont);
     rpcMsg.pCont = NULL;
   } else {
-    if (tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
-      vTrace("vgId:%d, failed to put vnode commit to queue since %s", pVnode->config.vgId, terrstr());
+    int32_t code = 0;
+    if ((code = tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &rpcMsg)) < 0) {
+      vError("vgId:%d, failed to put vnode commit to write_queue since %s", pVnode->config.vgId, tstrerror(code));
     }
   }
 }
@@ -449,7 +450,9 @@ static int32_t vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsm
           pVnode->config.vgId, pFsm, pMeta->index, pMeta->term, pMsg->info.conn.applyIndex, pMeta->isWeak, pMeta->code,
           pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType), pMsg->code);
 
-  return tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, pMsg);
+  int32_t code = tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, pMsg);
+  if (code < 0) vError("vgId:%d, failed to put into apply_queue since %s", pVnode->config.vgId, tstrerror(code));
+  return code;
 }
 
 static int32_t vnodeSyncCommitMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
