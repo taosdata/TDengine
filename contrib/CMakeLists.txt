@@ -55,11 +55,6 @@ else()
     cat("${TD_SUPPORT_DIR}/taosadapter_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
-# pthread
-if(${BUILD_PTHREAD})
-    cat("${TD_SUPPORT_DIR}/pthread_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif()
-
 # iconv
 if(${BUILD_WITH_ICONV})
     cat("${TD_SUPPORT_DIR}/iconv_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})

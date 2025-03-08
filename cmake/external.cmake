@@ -157,3 +157,31 @@ ExternalProject_Add(ext_zlib
     VERBATIM
 )
 add_dependencies(build_externals ext_zlib)     # this is for github workflow in cache-miss step.
+
+# pthread
+if(${BUILD_PTHREAD})
+    if(${TD_WINDOWS})
+        set(ext_pthread_static pthreadVC3.lib)
+    endif()
+    INIT_EXT(ext_pthread
+        INC_DIR          include
+        LIB              lib/${ext_pthread_static}
+    )
+    # GIT_REPOSITORY https://github.com/GerHobbelt/pthread-win32
+    # GIT_TAG v3.0.3.1
+    get_from_local_repo_if_exists("https://github.com/GerHobbelt/pthread-win32")
+    ExternalProject_Add(ext_pthread
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG 3309f4d6e7538f349ae450347b02132ecb0606a7
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=ON         # freemine: building dll or not
+        CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=/wd4244"
+        CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=/wd4244"
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_pthread)     # this is for github workflow in cache-miss step.
+endif()
