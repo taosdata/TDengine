@@ -619,13 +619,19 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
   pTbCtx->pData->aRowP = pTbData->aCol;
 
   code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
+  if (pTbCtx->pData->pCreateTbReq || code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+    pTbCtx->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
+    vgId = pTbCtx->pMeta->vgId;
+    uid = 0;
+    code = TSDB_CODE_SUCCESS;
+  } else {
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    pTbCtx->pMeta->vgId = vgId;
+    pTbCtx->pMeta->uid = uid;
+    pTbCtx->pData->uid = uid;
   }
-
-  pTbCtx->pMeta->vgId = vgId;
-  pTbCtx->pMeta->uid = uid;
-  pTbCtx->pData->uid = uid;
 
   if (!pTbCtx->ordered) {
     code = tRowSort(pTbCtx->pData->aRowP);
