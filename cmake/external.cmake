@@ -622,3 +622,31 @@ if(${BUILD_WITH_SQLITE})
     )
     add_dependencies(build_externals ext_sqlite)     # this is for github workflow in cache-miss step.
 endif(${BUILD_WITH_SQLITE})
+
+# crashdump
+if(${BUILD_CRASHDUMP})
+    if(${TD_WINDOWS})
+        set(ext_crashdump_static crashdump.lib)
+    endif()
+    INIT_EXT(ext_crashdump
+        INC_DIR          include
+        LIB              lib/${ext_crashdump_static}
+    )
+    # GIT_REPOSITORY https://github.com/Arnavion/crashdump.git
+    # GIT_TAG master
+    get_from_local_repo_if_exists("https://github.com/Arnavion/crashdump.git")
+    ExternalProject_Add(ext_crashdump
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG 149b43c10debdf28a2c50d79dee5ff344d83bd06
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        PATCH_COMMAND
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/crashdump.cmake CMakeLists.txt
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/crasher.c.in crasher/crasher.c
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_crashdump)     # this is for github workflow in cache-miss step.
+endif(${BUILD_CRASHDUMP})

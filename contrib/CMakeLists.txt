@@ -82,11 +82,6 @@ elseif(${BUILD_WITH_COS})
     add_definitions(-DUSE_COS)
 endif()
 
-# crashdump
-if(${BUILD_CRASHDUMP})
-    cat("${TD_SUPPORT_DIR}/crashdump_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif(${BUILD_CRASHDUMP})
-
 # addr2line
 if(${BUILD_ADDR2LINE})
     if(NOT ${TD_WINDOWS})
