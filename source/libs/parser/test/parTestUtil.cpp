@@ -242,7 +242,7 @@ class ParserTestBaseImpl {
     DO_WITH_THROW(collectMetaKey, pCxt, pQuery, pMetaCache);
   }
 
-  void doBuildCatalogReq(SParseContext* pCxt, const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
+  void doBuildCatalogReq(SParseContext* pCxt, SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
     DO_WITH_THROW(buildCatalogReq, pMetaCache, pCatalogReq);
   }
 
