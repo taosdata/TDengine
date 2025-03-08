@@ -546,3 +546,44 @@ if(NOT ${TD_WINDOWS})
     add_dependencies(build_externals ext_tz)     # this is for github workflow in cache-miss step.
 endif(NOT ${TD_WINDOWS})
 
+# jemalloc
+if(${JEMALLOC_ENABLED})
+    find_program(HAVE_AUTOCONF autoconf)
+    if(${HAVE_AUTOCONF} STREQUAL "HAVE_AUTOCONF-NOTFOUND")
+        message(FATAL_ERROR "`autoconf` not exist, you can install it by `sudo apt install autoconf` on linux, or `brew install autoconf` on MacOS")
+    endif()
+    if(${TD_LINUX})
+        set(ext_jemalloc_static jemalloc.a)
+    elseif(${TD_DARWIN})
+        set(ext_jemalloc_static jemalloc.a)
+    endif()
+    INIT_EXT(ext_jemalloc
+        INC_DIR          include
+        LIB              lib/${ext_jemalloc_static}
+    )
+    # GIT_REPOSITORY https://github.com/jemalloc/jemalloc.git
+    # GIT_TAG 5.3.0
+    get_from_local_repo_if_exists("https://github.com/jemalloc/jemalloc.git")
+    ExternalProject_Add(ext_jemalloc
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG 5.3.0
+        PREFIX "${_base}"
+        BUILD_IN_SOURCE TRUE
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        PATCH_COMMAND
+            COMMAND ./autogen.sh
+        CONFIGURE_COMMAND
+            COMMAND ./configure --prefix=${_ins} --disable-initial-exec-tls     # freemine: why disable-initial-exec-tls
+        BUILD_COMMAND
+            COMMAND make
+        INSTALL_COMMAND
+            COMMAND make install
+        # freemine: TODO: always refreshed!!!
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_jemalloc)     # this is for github workflow in cache-miss step.
+endif()
+
