@@ -589,3 +589,36 @@ if(${JEMALLOC_ENABLED})
     add_dependencies(build_externals ext_jemalloc)     # this is for github workflow in cache-miss step.
 endif()
 
+# sqlite
+if(${BUILD_WITH_SQLITE})
+    if(${TD_LINUX})
+        set(ext_sqlite_static sqlite.a)
+    elseif(${TD_DARWIN})
+        set(ext_sqlite_static sqlite.a)
+    elseif(${TD_WINDOWS})
+        set(ext_sqlite_static sqlite.lib)
+    endif()
+    INIT_EXT(ext_sqlite
+        INC_DIR          include
+        LIB              lib/${ext_sqlite_static}
+    )
+    # GIT_REPOSITORY https://github.com/sqlite/sqlite.git
+    # GIT_TAG version-3.36.0
+    get_from_local_repo_if_exists("https://github.com/sqlite/sqlite.git")
+    ExternalProject_Add(ext_sqlite
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG version-3.36.0
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        # freemine: TODO: seems no use at all
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+        GIT_PROGRESS TRUE
+    )
+    add_dependencies(build_externals ext_sqlite)     # this is for github workflow in cache-miss step.
+endif(${BUILD_WITH_SQLITE})

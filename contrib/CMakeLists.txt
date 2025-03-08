@@ -59,11 +59,6 @@ endif()
 
 # cat("${TD_SUPPORT_DIR}/zstd_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
-# sqlite
-if(${BUILD_WITH_SQLITE})
-    cat("${TD_SUPPORT_DIR}/sqlite_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif(${BUILD_WITH_SQLITE})
-
 # libcurl
 if(NOT ${TD_WINDOWS})
     file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
