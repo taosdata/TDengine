@@ -73,11 +73,6 @@ endif(NOT ${TD_WINDOWS})
 
 # cat("${TD_SUPPORT_DIR}/zstd_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
-# libuv
-if(${BUILD_WITH_UV})
-    cat("${TD_SUPPORT_DIR}/libuv_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif(${BUILD_WITH_UV})
-
 # sqlite
 if(${BUILD_WITH_SQLITE})
     cat("${TD_SUPPORT_DIR}/sqlite_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})

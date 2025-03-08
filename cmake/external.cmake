@@ -449,3 +449,33 @@ ExternalProject_Add(ext_lzma2
     VERBATIM
 )
 add_dependencies(build_externals ext_lzma2)     # this is for github workflow in cache-miss step.
+
+# libuv
+if(${BUILD_WITH_UV})
+    if(${TD_LINUX})
+        set(ext_libuv_static libuv.a)
+    elseif(${TD_DARWIN})
+        set(ext_libuv_static libuv.a)
+    elseif(${TD_WINDOWS})
+        set(ext_libuv_static libuv.lib)
+    endif()
+    INIT_EXT(ext_libuv
+        INC_DIR          include
+        LIB              lib/${ext_libuv_static}
+    )
+    # GIT_REPOSITORY https://github.com/libuv/libuv.git
+    # GIT_TAG v1.49.2
+    get_from_local_repo_if_exists("https://github.com/libuv/libuv.git")
+    ExternalProject_Add(ext_libuv
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG v1.50.0
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DLIBUV_BUILD_SHARED:BOOL=OFF
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_libuv)     # this is for github workflow in cache-miss step.
+endif(${BUILD_WITH_UV})
