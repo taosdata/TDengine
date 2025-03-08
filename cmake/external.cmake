@@ -312,8 +312,8 @@ if(${BUILD_TEST}) # freemine: add BUILD_GTEST
     endif()
     INIT_EXT(ext_gtest
         INC_DIR          include
-        LIB              lib/${ext_wingetopt_static}
-                         lib/${ext_wingetopt_main}
+        LIB              lib/${ext_gtest_static}
+                         lib/${ext_gtest_main}
     )
     # GIT_REPOSITORY https://github.com/taosdata-contrib/googletest.git
     # GIT_TAG release-1.11.0
