@@ -70,6 +70,7 @@ int32_t     buildDeleteResult(SOperatorInfo* pOperator, TSKEY startTs, TSKEY end
 void        setDeleteFillValueInfo(TSKEY start, TSKEY end, SStreamFillSupporter* pFillSup, SStreamFillInfo* pFillInfo);
 void        doStreamFillRange(SStreamFillInfo* pFillInfo, SStreamFillSupporter* pFillSup, SSDataBlock* pRes);
 int32_t     initFillSupRowInfo(SStreamFillSupporter* pFillSup, SSDataBlock* pRes);
+void        getStateKeepInfo(SNonBlockAggSupporter* pNbSup, bool isRecOp, int32_t* pNumRes, TSKEY* pTsRes);
 
 #ifdef __cplusplus
 }

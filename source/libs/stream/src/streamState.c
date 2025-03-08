@@ -722,6 +722,7 @@ int32_t streamStateGroupGetKVByCur(SStreamStateCur* pCur, int64_t* pKey, void** 
 }
 
 void streamStateClearExpiredState(SStreamState* pState, int32_t numOfKeep, TSKEY minTs) {
+  qDebug("===stream=== clear stream state. keep:%d, ts:%" PRId64, numOfKeep, minTs);
   if (numOfKeep == 0) {
     streamFileStateClear(pState->pFileState);
     SSHashObj* pSearchBuff = getSearchBuff(pState->pFileState);

@@ -62,6 +62,16 @@ void releaseFlusedPos(void* pRes) {
   }
 }
 
+void getStateKeepInfo(SNonBlockAggSupporter* pNbSup, bool isRecOp, int32_t* pNumRes, TSKEY* pTsRes) {
+  if (isRecOp) {
+    (*pNumRes) = 0;
+    (*pTsRes) = INT64_MIN;
+  } else {
+    (*pNumRes) = pNbSup->numOfKeep;
+    (*pTsRes) = pNbSup->tsOfKeep;
+  }
+}
+
 void streamIntervalNonblockReleaseState(SOperatorInfo* pOperator) {
   SStreamIntervalSliceOperatorInfo* pInfo = pOperator->info;
   SStreamAggSupporter*              pAggSup = &pInfo->streamAggSup;
@@ -401,7 +411,10 @@ static int32_t buildOtherResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   }
 
   if (!isHistoryOperator(&pInfo->basic) || !isFinalOperator(&pInfo->basic)) {
-    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, pInfo->nbSup.numOfKeep, pInfo->nbSup.tsOfKeep);
+    int32_t numOfKeep = 0;
+    TSKEY tsOfKeep = INT64_MAX;
+    getStateKeepInfo(&pInfo->nbSup, isRecalculateOperator(&pInfo->basic), &numOfKeep, &tsOfKeep);
+    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, numOfKeep, tsOfKeep);
   }
   pInfo->twAggSup.minTs = INT64_MAX;
   setStreamOperatorCompleted(pOperator);
@@ -669,7 +682,10 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
   }
 
   if (isHistoryOperator(&pInfo->basic) && !isFinalOperator(&pInfo->basic)) {
-    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, pInfo->nbSup.numOfKeep, pInfo->nbSup.tsOfKeep);
+    int32_t numOfKeep = 0;
+    TSKEY tsOfKeep = INT64_MAX;
+    getStateKeepInfo(&pInfo->nbSup, isRecalculateOperator(&pInfo->basic), &numOfKeep, &tsOfKeep);
+    pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, numOfKeep, tsOfKeep);
   }
 
   if (pOperator->status == OP_RES_TO_RETURN) {

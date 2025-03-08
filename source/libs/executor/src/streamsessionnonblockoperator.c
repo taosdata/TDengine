@@ -302,7 +302,10 @@ static int32_t buildOtherResult(SOperatorInfo* pOperator, SOptrBasicInfo* pBinfo
   }
 
   if (!isHistoryOperator(pBasic) || !isFinalOperator(pBasic)) {
-    pAggSup->stateStore.streamStateClearExpiredSessionState(pAggSup->pState, pNbSup->numOfKeep, pNbSup->tsOfKeep,
+    int32_t numOfKeep = 0;
+    TSKEY tsOfKeep = INT64_MAX;
+    getStateKeepInfo(pNbSup, isRecalculateOperator(pBasic), &numOfKeep, &tsOfKeep);
+    pAggSup->stateStore.streamStateClearExpiredSessionState(pAggSup->pState, numOfKeep, tsOfKeep,
                                                             pNbSup->pHistoryGroup);
   }
   pTwAggSup->minTs = INT64_MAX;
@@ -467,6 +470,9 @@ int32_t doStreamSessionNonblockAggNextImpl(SOperatorInfo* pOperator, SOptrBasicI
   }
 
   if (isHistoryOperator(pBasic) && !isFinalOperator(pBasic)) {
+    int32_t numOfKeep = 0;
+    TSKEY tsOfKeep = INT64_MAX;
+    getStateKeepInfo(pNbSup, isRecalculateOperator(pBasic), &numOfKeep, &tsOfKeep);
     pAggSup->stateStore.streamStateClearExpiredSessionState(pAggSup->pState, pNbSup->numOfKeep, pNbSup->tsOfKeep,
                                                             pNbSup->pHistoryGroup);
   }
