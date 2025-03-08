@@ -47,6 +47,7 @@ typedef struct SPatternCompareInfo {
 
 int32_t InitRegexCache();
 void    DestroyRegexCache();
+int32_t rawStrPatternMatch(const char *pattern, const char *str);
 int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t ssize, const SPatternCompareInfo *pInfo);
 int32_t checkRegexPattern(const char *pPattern);
 void    DestoryThreadLocalRegComp();

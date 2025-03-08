@@ -171,7 +171,7 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
   ${csudo}rm -f ${bin_link_dir}/taosadapter || :
   ${csudo}rm -f ${bin_link_dir}/taoskeeper || :
-  ${csudo}rm -f ${bin_link_dir}/udfd || :
+  ${csudo}rm -f ${bin_link_dir}/taosudf || :
   ${csudo}rm -f ${bin_link_dir}/taosdemo || :
   ${csudo}rm -f ${bin_link_dir}/taosdump || :
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
@@ -186,7 +186,7 @@ function install_bin() {
     [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taoskeeper ] && ${csudo}cp -r ${binary_dir}/build/bin/taoskeeper ${install_main_dir}/bin || :
-    [ -f ${binary_dir}/build/bin/udfd ] && ${csudo}cp -r ${binary_dir}/build/bin/udfd ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/taosudf ] && ${csudo}cp -r ${binary_dir}/build/bin/taosudf ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosx ] && ${csudo}cp -r ${binary_dir}/build/bin/taosx ${install_main_dir}/bin || :
     ${csudo}cp -r ${binary_dir}/build/bin/${serverName} ${install_main_dir}/bin || :
 
@@ -201,7 +201,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo}ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taoskeeper ] && ${csudo}ln -s ${install_main_dir}/bin/taoskeeper ${bin_link_dir}/taoskeeper > /dev/null 2>&1 || :
-    [ -x ${install_main_dir}/bin/udfd ] && ${csudo}ln -s ${install_main_dir}/bin/udfd ${bin_link_dir}/udfd > /dev/null 2>&1 || :
+    [ -x ${install_main_dir}/bin/taosudf ] && ${csudo}ln -s ${install_main_dir}/bin/taosudf ${bin_link_dir}/taosudf > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo}ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosx ] && ${csudo}ln -s ${install_main_dir}/bin/taosx ${bin_link_dir}/taosx > /dev/null 2>&1 || :
@@ -216,7 +216,7 @@ function install_bin() {
     [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taoskeeper ] && ${csudo}cp -r ${binary_dir}/build/bin/taoskeeper ${install_main_dir}/bin || :
-    [ -f ${binary_dir}/build/bin/udfd ] && ${csudo}cp -r ${binary_dir}/build/bin/udfd ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/taosudf ] && ${csudo}cp -r ${binary_dir}/build/bin/taosudf ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosx ] && ${csudo}cp -r ${binary_dir}/build/bin/taosx ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/*explorer ] && ${csudo}cp -r ${binary_dir}/build/bin/*explorer ${install_main_dir}/bin || :
     ${csudo}cp -r ${binary_dir}/build/bin/${serverName} ${install_main_dir}/bin || :
@@ -228,7 +228,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo}ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taoskeeper ] && ${csudo}ln -s ${install_main_dir}/bin/taoskeeper ${bin_link_dir}/taoskeeper > /dev/null 2>&1 || :
-    [ -x ${install_main_dir}/bin/udfd ] && ${csudo}ln -s ${install_main_dir}/bin/udfd ${bin_link_dir}/udfd > /dev/null 2>&1 || :
+    [ -x ${install_main_dir}/bin/taosudf ] && ${csudo}ln -s ${install_main_dir}/bin/taosudf ${bin_link_dir}/taosudf > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump > /dev/null 2>&1 || :
     [ -f ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -sf ${install_main_dir}/bin/taosBenchmark ${install_main_dir}/bin/taosdemo > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/taosx ] && ${csudo}ln -s ${install_main_dir}/bin/taosx ${bin_link_dir}/taosx > /dev/null 2>&1 || :
