@@ -637,11 +637,10 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       AVG_RES_GET_AVG(pRes) = SUM_RES_GET_DSUM(&AVG_RES_GET_SUM(pRes)) / ((double)AVG_RES_GET_COUNT(pRes, false, 0));
     }
   }
-  if (!IS_DECIMAL_TYPE(pCtx->inputType)) {
-    if (isinf(AVG_RES_GET_AVG(pRes)) || isnan(AVG_RES_GET_AVG(pRes))) pEntryInfo->numOfRes = 0;
-  }
   if (AVG_RES_GET_COUNT(pRes, true, pCtx->inputType) == 0) {
     pEntryInfo->numOfRes = 0;
+  } else if (!IS_DECIMAL_TYPE(pCtx->inputType)) {
+    if (isinf(AVG_RES_GET_AVG(pRes)) || isnan(AVG_RES_GET_AVG(pRes))) pEntryInfo->numOfRes = 0;
   } else {
     pEntryInfo->numOfRes = 1;
   }
