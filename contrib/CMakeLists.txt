@@ -62,7 +62,6 @@ endif()
 
 # googletest
 if(${BUILD_TEST})
-    cat("${TD_SUPPORT_DIR}/gtest_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/stub_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_TEST})
 

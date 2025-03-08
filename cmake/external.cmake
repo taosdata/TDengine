@@ -297,3 +297,36 @@ if(${BUILD_WINGETOPT})
     )
     add_dependencies(build_externals ext_wingetopt)     # this is for github workflow in cache-miss step.
 endif()
+
+# googletest
+if(${BUILD_TEST}) # freemine: add BUILD_GTEST
+    if(${TD_LINUX})
+        set(ext_gtest_static gtest.a)
+        set(ext_gtest_main gtest_main.a)
+    elseif(${TD_DARWIN})
+        set(ext_gtest_static gtest.a)
+        set(ext_gtest_main gtest_main.a)
+    elseif(${TD_WINDOWS})
+        set(ext_gtest_static gtest.lib)
+        set(ext_gtest_main gtest_main.lib)
+    endif()
+    INIT_EXT(ext_gtest
+        INC_DIR          include
+        LIB              lib/${ext_wingetopt_static}
+                         lib/${ext_wingetopt_main}
+    )
+    # GIT_REPOSITORY https://github.com/taosdata-contrib/googletest.git
+    # GIT_TAG release-1.11.0
+    get_from_local_repo_if_exists("https://github.com/google/googletest.git")
+    ExternalProject_Add(ext_gtest
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG release-1.12.0
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_gtest)     # this is for github workflow in cache-miss step.
+endif(${BUILD_TEST})
