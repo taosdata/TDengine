@@ -378,7 +378,7 @@ INIT_EXT(ext_cjson
 get_from_local_repo_if_exists("https://github.com/DaveGamble/cJSON.git")
 ExternalProject_Add(ext_cjson
     GIT_REPOSITORY ${_git_url}
-    GIT_TAG v1.7.18
+    GIT_TAG 12c4bf1986c288950a3d06da757109a6aa1ece38
     PREFIX "${_base}"
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
