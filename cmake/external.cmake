@@ -391,3 +391,30 @@ ExternalProject_Add(ext_cjson
     VERBATIM
 )
 add_dependencies(build_externals ext_cjson)     # this is for github workflow in cache-miss step.
+
+# xz
+if(${TD_LINUX})
+    set(ext_xz_static liblzma.a)
+elseif(${TD_DARWIN})
+    set(ext_xz_static liblzma.a)
+elseif(${TD_WINDOWS})
+    set(ext_xz_static liblzma.lib)
+endif()
+INIT_EXT(ext_xz
+    INC_DIR          include
+    LIB              lib/${ext_xz_static}
+)
+# GIT_REPOSITORY https://github.com/xz-mirror/xz.git
+# GIT_TAG v5.4.4
+get_from_local_repo_if_exists("https://github.com/xz-mirror/xz.git")
+ExternalProject_Add(ext_xz
+    GIT_REPOSITORY ${_git_url}
+    GIT_TAG v5.4.4
+    PREFIX "${_base}"
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    GIT_SHALLOW TRUE
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_xz)     # this is for github workflow in cache-miss step.

@@ -69,9 +69,6 @@ if(NOT ${TD_WINDOWS})
     cat("${TD_SUPPORT_DIR}/tz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(NOT ${TD_WINDOWS})
 
-# xz
-# cat("${TD_SUPPORT_DIR}/xz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-
 # lzma2
 cat("${TD_SUPPORT_DIR}/lzma_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
