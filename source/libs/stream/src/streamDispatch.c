@@ -757,7 +757,7 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
       }
     }
 
-    snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->outputInfo.shuffleDispatcher.dbInfo.db,
+    snprintf(ctbName, TSDB_TABLE_FNAME_LEN, "%s.%s", pTask->outputInfo.shuffleDispatcher.dbInfo.db,
              pDataBlock->info.parTbName);
 
     SUseDbRsp* pDbInfo = &pTask->outputInfo.shuffleDispatcher.dbInfo;
