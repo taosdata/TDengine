@@ -33,7 +33,8 @@ jobs:
         id: parameters
         run: |
           set -euo pipefail
-          target_branch=${{ github.event.pull_request.base.ref }}
+          target_branch="3.0" # for test
+          # target_branch=${{ github.event.pull_request.base.ref }}
           
           # Check whether to run tdgpt test cases
           cd ${{ env.WKC }}
