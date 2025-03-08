@@ -10,7 +10,7 @@ on:
       - 'packaging/**'
       - 'docs/**'
   repository_dispatch:
-    types: [run-tests]
+    types: [trigger-tests-from-tdinternal]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.event.client_payload.ref}}-${{ github.event_name == 'repository_dispatch' && 'dispatch' || ''}}
@@ -55,21 +55,29 @@ jobs:
 
             # check whether to run tdgpt test cases
             cd ${{ env.WKC }}
-            changed_files_non_doc=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD $target_branch`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | tr '\n' ' ' || :)
-
-            if [[ "$changed_files_non_doc" != '' &&  "$changed_files_non_doc" =~ /forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics|tdgpt/ ]]; then
+            changed_files_non_doc=$(git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD $target_branch) | grep -v "^docs/en/" | grep -v "^docs/zh/" | grep -v ".md$" | tr '\n' ' ' || :)
+            echo “changed files exclude doc, ${changed_files_non_doc}"
+            if [[ -n "$changed_files_non_doc" && "$changed_files_non_doc" =~ (forecastoperator\.c|anomalywindowoperator\.c|tanalytics\.h|tanalytics\.c|tdgpt_cases\.task|analytics|tdgpt) ]]; then
               run_tdgpt_test="true"
             else
               run_tdgpt_test="false"
             fi
+            echo "run tdgpt test: ${run_tdgpt_test}"
 
             # check whether to run function test cases
-            changed_files_non_tdgpt=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD $target_branch`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | grep -Ev "forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics|tdgpt" | tr '\n' ' ' ||:)
-            if [ "$changed_files_non_tdgpt" != '' ]; then
+            changed_files_non_tdgpt=$(git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD $target_branch) | \
+              grep -v "^docs/en/" | \
+              grep -v "^docs/zh/" | \
+              grep -v ".md$" | \
+              grep -Ev "forecastoperator\.c|anomalywindowoperator\.c|tanalytics\.h|tanalytics\.c|tdgpt_cases\.task|analytics|tdgpt" | \
+              tr '\n' ' ' || :) 
+            echo "changed file exclude tdgpt: ${changed_files_non_tdgpt}"
+            if [ -n "$changed_files_non_tdgpt" ]; then
               run_function_test="true"
             else
               run_function_test="false"
             fi
+            echo "run function test: ${run_function_test}"
           fi
 
           echo "tdinternal=$tdinternal" >> $GITHUB_OUTPUT
