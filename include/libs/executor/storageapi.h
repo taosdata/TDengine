@@ -229,8 +229,8 @@ typedef struct SStoreTqReader {
   int64_t (*tqGetResultBlockTime)();
   int32_t (*tqGetStreamExecProgress)();
 
-  void (*tqReaderSetColIdList)();
-  void (*tqReaderSetQueryTableList)();
+  int32_t (*tqReaderSetColIdList)();
+  int32_t (*tqReaderSetQueryTableList)();
 
   void (*tqReaderAddTables)();
   void (*tqReaderRemoveTables)();

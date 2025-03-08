@@ -4613,6 +4613,8 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
     if (pHandle->initTqReader) {
       pInfo->tqReader = pAPI->tqReaderFn.tqReaderOpen(pHandle->vnode);
       QUERY_CHECK_NULL(pInfo->tqReader, code, lino, _error, terrno);
+      // todo(kjq): gather table source scan info from pTaskInfo->pSubplan and store it in tqReader
+      // todo(kjq): build result data block in tqReader
     } else {
       pInfo->tqReader = pHandle->tqReader;
       QUERY_CHECK_NULL(pInfo->tqReader, code, lino, _error, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
@@ -4634,12 +4636,14 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
     QUERY_CHECK_CODE(code, lino, _error);
 
     // set the extract column id to streamHandle
-    pAPI->tqReaderFn.tqReaderSetColIdList(pInfo->tqReader, pColIds);
+    code = pAPI->tqReaderFn.tqReaderSetColIdList(pInfo->tqReader, pColIds, idstr);
+    QUERY_CHECK_CODE(code, lino, _error);
 
     SArray* tableIdList = NULL;
     code = extractTableIdList(((STableScanInfo*)(pInfo->pTableScanOp->info))->base.pTableListInfo, &tableIdList);
     QUERY_CHECK_CODE(code, lino, _error);
-    pAPI->tqReaderFn.tqReaderSetQueryTableList(pInfo->tqReader, tableIdList, idstr);
+    code = pAPI->tqReaderFn.tqReaderSetQueryTableList(pInfo->tqReader, tableIdList, idstr);
+    QUERY_CHECK_CODE(code, lino, _error);
     taosArrayDestroy(tableIdList);
     memcpy(&pTaskInfo->streamInfo.tableCond, &pTSInfo->base.cond, sizeof(SQueryTableDataCond));
   } else {

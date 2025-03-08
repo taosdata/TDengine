@@ -55,6 +55,7 @@ bool taosLRUCacheRef(SLRUCache *cache, LRUHandle *handle);
 bool taosLRUCacheRelease(SLRUCache *cache, LRUHandle *handle, bool eraseIfLastRef);
 
 void *taosLRUCacheValue(SLRUCache *cache, LRUHandle *handle);
+void  taosLRUCacheUpdate(SLRUCache *cache, LRUHandle *handle, void *value);
 
 size_t taosLRUCacheGetUsage(SLRUCache *cache);
 size_t taosLRUCacheGetPinnedUsage(SLRUCache *cache);
