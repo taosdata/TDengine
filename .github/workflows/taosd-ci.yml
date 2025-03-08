@@ -1,6 +1,9 @@
 name: TDengine CI Test
 
 on:
+  push:
+    branches:
+      - 'feat/wangxu/taosd-ci'
   pull_request:
     branches:
       - 'main'
