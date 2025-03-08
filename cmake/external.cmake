@@ -330,3 +330,33 @@ if(${BUILD_TEST}) # freemine: add BUILD_GTEST
     )
     add_dependencies(build_externals ext_gtest)     # this is for github workflow in cache-miss step.
 endif(${BUILD_TEST})
+
+# lz4
+if(${TD_LINUX})
+    set(ext_lz4_static liblz4.a)
+elseif(${TD_DARWIN})
+    set(ext_lz4_static liblz4.a)
+elseif(${TD_WINDOWS})
+    set(ext_lz4_static lz4.lib)
+endif()
+INIT_EXT(ext_lz4
+    INC_DIR          include
+    LIB              lib/${ext_lz4_static}
+)
+# GIT_REPOSITORY https://github.com/taosdata-contrib/lz4.git
+# GIT_TAG v1.9.3
+get_from_local_repo_if_exists("https://github.com/lz4/lz4.git")
+ExternalProject_Add(ext_lz4
+    GIT_REPOSITORY ${_git_url}
+    GIT_TAG v1.10.0
+    PREFIX "${_base}"
+    SOURCE_SUBDIR build/cmake
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
+    CMAKE_ARGS -DBUILD_STATIC_LIBS:BOOL=ON
+    GIT_SHALLOW TRUE
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_lz4)     # this is for github workflow in cache-miss step.
