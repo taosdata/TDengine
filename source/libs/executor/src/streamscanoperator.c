@@ -1555,6 +1555,9 @@ static void destroyStreamDataScanOperatorInfo(void* param) {
   tSimpleHashCleanup(pStreamScan->pRecRangeMap);
   pStreamScan->pRecRangeMap = NULL;
 
+  taosArrayDestroy(pStreamScan->pRecRangeRes);
+  pStreamScan->pRecRangeRes = NULL;
+
   taosMemoryFree(pStreamScan);
 }
 
