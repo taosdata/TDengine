@@ -61,8 +61,6 @@ endif()
 
 # libcurl
 if(NOT ${TD_WINDOWS})
-    file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
-    cat("${TD_SUPPORT_DIR}/ssl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(NOT ${TD_WINDOWS})
 
