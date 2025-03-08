@@ -1227,7 +1227,6 @@ class TDTestCase:
     
     def run(self):
         self.init_data()
-        time.sleep(9999999)
         self.test_ddl()
         self.test_query_with_tsma()
         # bug to fix

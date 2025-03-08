@@ -643,7 +643,7 @@ static int32_t fmCreateStateMergeFunc(SFunctionNode* pFunc, SFunctionNode** pSta
     SNodeList* pParams = NULL;
     int32_t    code = nodesCloneList(pFunc->pParameterList, &pParams);
     if (!pParams) return code;
-    code = createFunction(funcMgtBuiltins[pFunc->funcId].pMergeFunc, pParams, pStateMergeFunc);
+    code = createFunctionWithSrcFunc(funcMgtBuiltins[pFunc->funcId].pMergeFunc, pFunc, pParams, pStateMergeFunc);
     if (TSDB_CODE_SUCCESS != code) {
       nodesDestroyList(pParams);
       return code;

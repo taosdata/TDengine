@@ -1943,10 +1943,6 @@ int32_t doVectorCompare(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarPara
   } else {
     fp = filterGetCompFuncEx(lType, rType, optr);
   }
-  if (!fp) {
-    qError("doVecotrCompare failed with fp is NULL, op: %d, lType: %d, rType: %d", optr, lType, rType);
-    return TSDB_CODE_INTERNAL_ERROR;
-  }
 
   if (pLeftVar != NULL) {// TODO wjm test when pLeftVar is not NULL
     SCL_ERR_RET(filterGetCompFunc(&fpVar, GET_PARAM_TYPE(pLeftVar), optr));
