@@ -129,9 +129,9 @@ endmacro()                                                # }
 
 # zlib
 if(${TD_LINUX})
-    set(ext_zlib_static libzs$<$<CONFIG:Debug>:d>.a)
+    set(ext_zlib_static libz.a)
 elseif(${TD_DARWIN})
-    set(ext_zlib_static libzs$<$<CONFIG:Debug>:d>.a)
+    set(ext_zlib_static libz.a)
 elseif(${TD_WINDOWS})
     set(ext_zlib_static zs$<$<CONFIG:Debug>:d>.lib)
 endif()
