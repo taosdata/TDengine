@@ -472,10 +472,10 @@ taos> select myfun(v1, v2) from t;
 DB error: udf function execution failure (0.011088s)
 ```
 
-不幸的是执行失败了，什么原因呢？查看 udfd 进程的日志。
+不幸的是执行失败了，什么原因呢？查看 taosudf 进程的日志。
 
 ```shell
-tail -10 /var/log/taos/udfd.log
+tail -10 /var/log/taos/taosudf.log
 ```
 
 发现以下错误信息。
