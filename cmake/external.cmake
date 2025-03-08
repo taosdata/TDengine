@@ -219,7 +219,7 @@ endif()
 # msvc regex
 if(${BUILD_MSVCREGEX})
     if(${TD_WINDOWS})
-        set(ext_msvcregex_static msvcregex.lib)
+        set(ext_msvcregex_static regex$<$<CONFIG:Debug>:_d>.lib)
     endif()
     INIT_EXT(ext_msvcregex
         INC_DIR          include
@@ -238,7 +238,7 @@ if(${BUILD_MSVCREGEX})
             COMMAND nmake /f NMakefile all test test2 test3
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${ext_msvcregex_source}/regex.h" "${_ins}/include/regex.h"
-            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${ext_msvcregex_source}/regex$<$<CONFIG:Debug>:_d>.lib" "${_ins}/lib/regex$<$<CONFIG:Debug>:_d>.lib"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${ext_msvcregex_source}/${ext_msvcregex_static}" "${_ins}/lib/${ext_msvcregex_static}"
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
