@@ -443,7 +443,7 @@ int32_t queryBuildVSubTablesMsg(void* input, char** msg, int32_t msgSize, int32_
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSUseDbReq(pBuf, bufLen, &req) < 0)   {
+  if(tSerializeSVSubTablesReq(pBuf, bufLen, &req) < 0)   {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
