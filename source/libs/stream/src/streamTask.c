@@ -151,10 +151,6 @@ int32_t tNewStreamTask(int64_t streamId, int8_t taskLevel, SEpSet* pEpset, bool 
   pTask->outputq.status = TASK_OUTPUT_STATUS__NORMAL;
 
   pTask->taskCheckInfo.pList = taosArrayInit(4, sizeof(SDownstreamStatusInfo));
-  code = taosThreadMutexInit(&pTask->taskCheckInfo.checkInfoLock, NULL);
-  if (code) {
-    return code;
-  }
 
   if (fillHistory && !hasFillhistory) {
     stError("s-task:0x%x create task failed, due to inconsistent fill-history flag", pTask->id.taskId);
@@ -226,13 +222,13 @@ void tFreeStreamTask(void* pParam) {
   STaskExecStatisInfo* pStatis = &pTask->execInfo;
 
   ETaskStatus status1 = TASK_STATUS__UNINIT;
-  streamMutexLock(&pTask->lock);
   if (pTask->status.pSM != NULL) {
+    streamMutexLock(&pTask->lock);
     SStreamTaskState status = streamTaskGetStatus(pTask);
     p = status.name;
     status1 = status.state;
+    streamMutexUnlock(&pTask->lock);
   }
-  streamMutexUnlock(&pTask->lock);
 
   stDebug("start to free s-task:0x%x %p, state:%s, refId:%" PRId64, taskId, pTask, p, pTask->id.refId);
 
@@ -304,17 +300,21 @@ void tFreeStreamTask(void* pParam) {
     tSimpleHashCleanup(pTask->pNameMap);
   }
 
+  if (pTask->status.pSM != NULL) {
+    streamMutexDestroy(&pTask->lock);
+    streamMutexDestroy(&pTask->msgInfo.lock);
+    streamMutexDestroy(&pTask->taskCheckInfo.checkInfoLock);
+  }
+
   streamDestroyStateMachine(pTask->status.pSM);
   pTask->status.pSM = NULL;
 
   streamTaskDestroyUpstreamInfo(&pTask->upstreamInfo);
 
   taosMemoryFree(pTask->outputInfo.pTokenBucket);
-  streamMutexDestroy(&pTask->lock);
 
   taosArrayDestroy(pTask->msgInfo.pSendInfo);
   pTask->msgInfo.pSendInfo = NULL;
-  streamMutexDestroy(&pTask->msgInfo.lock);
 
   taosArrayDestroy(pTask->outputInfo.pNodeEpsetUpdateList);
   pTask->outputInfo.pNodeEpsetUpdateList = NULL;
@@ -527,6 +527,11 @@ int32_t streamTaskInit(SStreamTask* pTask, SStreamMeta* pMeta, SMsgCb* pMsgCb, i
   if (pTask->taskCheckInfo.pList == NULL) {
     stError("s-task:%s failed to prepare taskCheckInfo list, code:%s", pTask->id.idStr, tstrerror(terrno));
     return terrno;
+  }
+
+  code = taosThreadMutexInit(&pTask->taskCheckInfo.checkInfoLock, NULL);
+  if (code) {
+    return code;
   }
 
   if (pTask->chkInfo.pActiveInfo == NULL) {

@@ -366,7 +366,7 @@ int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId) {
   return 0;
 }
 
-int32_t tqProcessPollPush(STQ* pTq, SRpcMsg* pMsg) {
+int32_t tqProcessPollPush(STQ* pTq) {
   if (pTq == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }

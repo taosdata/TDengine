@@ -326,8 +326,6 @@ void streamTaskCleanupCheckInfo(STaskCheckInfo* pInfo) {
     streamTmrStop(pInfo->checkRspTmr);
     pInfo->checkRspTmr = NULL;
   }
-
-  streamMutexDestroy(&pInfo->checkInfoLock);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
