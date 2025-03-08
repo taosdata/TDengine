@@ -574,7 +574,9 @@ if(${JEMALLOC_ENABLED})
         PATCH_COMMAND
             COMMAND ./autogen.sh
         CONFIGURE_COMMAND
-            COMMAND ./configure --prefix=${_ins} --disable-initial-exec-tls     # freemine: why disable-initial-exec-tls
+            COMMAND ./configure -prefix=${_ins} --disable-initial-exec-tls     # freemine: why disable-initial-exec-tls
+                    CFLAGS=-Wno-missing-braces
+                    CXXFLAGS=-Wno-missing-braces
         BUILD_COMMAND
             COMMAND make
         INSTALL_COMMAND
