@@ -13,31 +13,18 @@ export default {
       field: 'connection_options',
       children: [
         {
-          host: {
-            label: 'bootstrap-server',
-            description:
-              'kafka bootstrap-server.\n<br/>If you configure multiple Kafka servers, all Kafka servers must belong to the same cluster.\n<br/>If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.',
-            field: 'host_42248ddb-b1b0-4cb5-93c4-e7708e85664d',
-            placeholder: '127.0.0.1',
-            required: true,
-            pattern: null,
-            defaultValue: '',
-            type: 'input'
-          },
-          port: {
-            label: 'Port',
-            description: 'Kafka Server Port',
-            field: 'port_42248ddb-b1b0-4cb5-93c4-e7708e85664d',
-            placeholder: '9092',
-            required: true,
-            pattern: '^(?:0|[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$',
-            patternMsg: 'The port number ranges from 0 to 65535',
-            defaultValue: '',
-            type: 'input'
-          }
+          label: 'bootstrap-server',
+          description:
+            'kafka bootstrap-server.\n<br/>If you configure multiple Kafka servers, all Kafka servers must belong to the same cluster.\n<br/>If using an Agent, this address must be accessible from the Agent. If not using an Agent, this address must be accessible from the TDengine system.',
+          field: 'endpoint',
+          placeholder: 'ip:port,ip:port',
+          pattern: null,
+          defaultValue: '',
+          required: true,
+          display_order: 1,
+          type: 'input'
         }
-      ],
-      type: 'grouping'
+      ]
     },
     {
       label: 'Groups-before',

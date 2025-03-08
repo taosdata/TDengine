@@ -245,7 +245,6 @@ function mergeToFromData(data: Recordable, fromData: Recordable, fullNameMap: an
   keys.forEach(key => {
     if (!parentKey && (key === 'parser' || !data[key])) {
       // 不需要根节点的 parser 数据，如果根节点没有配置，则也不需要
-      console.log('skip key:', key);
       return;
     }
 

@@ -23,9 +23,8 @@
   </div>
 </template>
 <script setup lang="ts">
-import { getTimeParser } from 'components/dataIn/model/util';
 import { t } from 'locales';
-import { supportTransform, transformerState } from './util';
+import { transformerState } from './util';
 import { getDataInProps } from 'components/dataIn/model/useDataIn';
 const dataInProps = getDataInProps();
 
@@ -160,10 +159,10 @@ async function getParserData(data: any) {
 function deleteFilter() {
   emit('delete-filter', props.itemData.key);
 }
+
+const generateInput = inject('generateInput');
 //提交
 function submitFilter() {
-  const resultMsgbody = getResultMsgbody();
-  const inputList = getInputList(resultMsgbody);
   const parser = {
     parser: {
       parse: transformerState.topParse?.parser.parse,
@@ -171,12 +170,7 @@ function submitFilter() {
         ? [{ ...transformerState.transformExtractParseData }, { filter: ruleForm.filter_name.trim() }]
         : [{ filter: ruleForm.filter_name.trim() }]
     },
-    input:
-      props.datasourceType === 'csv'
-        ? transformerState.csvTransformerParser?.inputList
-        : supportTransform.supportSQL
-          ? transformerState.topParse?.input
-          : inputList
+    input: props.datasourceType === 'csv' ? transformerState.csvTransformerParser?.inputList : generateInput()
   };
 
   transformerState.transformerFilterParseData = {
@@ -184,59 +178,6 @@ function submitFilter() {
   };
   isexecuted.value = true;
   getParserData(parser);
-}
-
-function getResultMsgbody(): string[] {
-  let resultMsgbody = [];
-  if (props.msgForm.msgbody.replace(/\}\s*\{/g, '}{').includes('}{')) {
-    resultMsgbody = props.msgForm.msgbody.replace(/\}\s*\{/g, '}&${').split('&$');
-  } else {
-    if (/\n/g.test(props.msgForm.msgbody) && /^[^{]/.test(props.msgForm.msgbody.trim())) {
-      //普通文本，目前第一列暂时不能为json格式
-      resultMsgbody = props.msgForm.msgbody.replace(/[\n\s]/g, '*&$*').split('*&$*');
-    } else {
-      try {
-        if (/^\{/g.test(props.msgForm.msgbody) && JSON.parse(props.msgForm.msgbody)) {
-          resultMsgbody = [].concat(props.msgForm.msgbody);
-        }
-      } catch (error) {
-        ElMessage.error(t('dataIn.transformer.jsontip'));
-      }
-
-      resultMsgbody = props.msgForm.msgbody.split(';');
-    }
-  }
-  return resultMsgbody;
-}
-function getInputList(resultMsgbody: string[]): Recordable[] {
-  let inputList = [];
-
-  inputList = resultMsgbody.map(msg => {
-    const inputobj: Recordable = {};
-    props.indentifiedColumns.forEach((item: Recordable) => {
-      if (props.datasourceType == 'mqtt') {
-        if (item.name == 'payload') {
-          inputobj['payload'] = msg;
-        } else {
-          inputobj[item.name] = item.type == 'timestamp' ? getTimeParser(new Date()) : item.name;
-        }
-      } else if (props.datasourceType == 'kafka') {
-        if (item.name == 'value') {
-          inputobj['value'] = msg;
-        } else {
-          inputobj[item.name] = item.type == 'timestamp' ? getTimeParser(new Date()) : item.name;
-        }
-      } else if (props.datasourceType == 'mongodb') {
-        if (item.name == 'value') {
-          inputobj['value'] = msg;
-        } else {
-          inputobj[item.name] = item.type == 'timestamp' ? getTimeParser(new Date()) : item.name;
-        }
-      }
-    });
-    return inputobj;
-  });
-  return inputList;
 }
 </script>
 <style lang="scss" scoped>

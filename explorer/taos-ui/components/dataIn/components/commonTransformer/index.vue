@@ -1698,6 +1698,7 @@ function changeColumnStatus(index: number, name: string) {
   extractArr.value[index]['value_type'] = columnsArr.value[ind].type;
 }
 
+provide('generateInput', generateInput);
 //输出input结果
 function generateInput() {
   let demo_list;
