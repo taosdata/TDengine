@@ -207,6 +207,21 @@ typedef struct SIdInfo {
   int32_t index;
 } SIdInfo;
 
+typedef struct SVTColInfo {
+  int32_t vColId;  // column id of virtual table
+  int32_t pColId;  // column id of physical table
+  int64_t pTbUid;  // uid of physical table
+} SVTColInfo;
+
+typedef struct SVTSourceScanInfo {
+  SHashObj  *pVirtualTables;       // source column info of each vtable column. key: vtUid, value: SArray<SVTColInfo>*
+  SHashObj  *pPhysicalTables;      // set of vtables for each ptable. Key: ptUid, value: SArray<vtUid>*
+  SLRUCache *pPhyTblSchemaCache;   // cache for physical table schema
+  int32_t    nextVirtualTableIdx;  // index in the value of pVirtualTables
+  uint64_t   metaFetch;
+  uint64_t   cacheHit;
+} SVTSourceScanInfo;
+
 typedef struct STqReader {
   SPackedData     msg;
   SSubmitReq2     submit;
@@ -224,6 +239,7 @@ typedef struct STqReader {
   int64_t         lastTs;
   bool            hasPrimaryKey;
   SExtSchema     *extSchema;
+  SVTSourceScanInfo vtSourceScanInfo;
 } STqReader;
 
 STqReader *tqReaderOpen(SVnode *pVnode);
@@ -232,8 +248,8 @@ void       tqReaderClose(STqReader *);
 bool tqGetTablePrimaryKey(STqReader *pReader);
 void tqSetTablePrimaryKey(STqReader *pReader, int64_t uid);
 
-void tqReaderSetColIdList(STqReader *pReader, SArray *pColIdList);
-void tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList, const char *id);
+int32_t tqReaderSetColIdList(STqReader *pReader, SArray *pColIdList, const char *id);
+int32_t tqReaderSetTbUidList(STqReader *pReader, const SArray *tbUidList, const char *id);
 void tqReaderAddTbUidList(STqReader *pReader, const SArray *pTableUidList);
 void tqReaderRemoveTbUidList(STqReader *pReader, const SArray *tbUidList);
 
@@ -254,6 +270,12 @@ bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(STqReader *pReader, SSDataBlock **pRes, const char *idstr);
 int32_t tqRetrieveTaosxBlock(STqReader *pReader, SMqDataRsp* pRsp, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet, SArray* rawList, int8_t fetchMeta);
 int32_t tqGetStreamExecInfo(SVnode *pVnode, int64_t streamId, int64_t *pDelay, bool *fhFinished);
+
+int32_t tqReaderSetVtableInfo(STqReader *pReader, void *vnode, void *pAPI, SSHashObj *pVtableInfos,
+                              SSDataBlock **ppResBlock, const char *idstr);
+int32_t tqRetrieveVTableDataBlock(STqReader *pReader, SSDataBlock **pRes, const char *idstr);
+bool    tqNextVTableSourceBlockImpl(STqReader *pReader, const char *idstr);
+bool    tqReaderIsQueriedSourceTable(STqReader *pReader, uint64_t uid);
 
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);

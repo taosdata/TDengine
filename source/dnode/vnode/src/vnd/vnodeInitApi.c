@@ -150,6 +150,8 @@ void initTqAPI(SStoreTqReader* pTq) {
   pTq->tqGetResultBlockTime = tqGetResultBlockTime;
 
   pTq->tqGetStreamExecProgress = tqGetStreamExecInfo;
+
+  pTq->tqReaderSetVtableInfo = tqReaderSetVtableInfo;
 #endif
 }
 

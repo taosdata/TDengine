@@ -446,20 +446,24 @@ static void setHTasksId(SStreamObj* pStream) {
 
 static int32_t addSourceTaskVTableOutput(SStreamTask* pTask, SSHashObj* pVgTasks, SSHashObj* pVtables) {
   int32_t code = 0;
+  int32_t lino = 0;
+  int32_t taskNum = tSimpleHashGetSize(pVgTasks);
+  int32_t tbNum = tSimpleHashGetSize(pVtables);
+
+  SSHashObj *pTaskMap = tSimpleHashInit(taskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  TSDB_CHECK_NULL(pTaskMap, code, lino, _end, terrno);
 
   pTask->outputInfo.type = TASK_OUTPUT__VTABLE_MAP;
-  int32_t tbNum = tSimpleHashGetSize(pVtables);
-  pTask->outputInfo.vtableMap = tSimpleHashInit(tbNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
-  if (NULL == pTask->outputInfo.vtableMap) {
-    code = terrno;
-    mError("tSimpleHashInit failed, error:%d", terrno);
-    return code;
-  }
+  STaskDispatcherVtableMap *pDispatcher = &pTask->outputInfo.vtableMapDispatcher;
+  pDispatcher->taskInfos = taosArrayInit(taskNum, sizeof(STaskDispatcherFixed));
+  TSDB_CHECK_NULL(pDispatcher->taskInfos, code, lino, _end, terrno);
+  pDispatcher->vtableMap = tSimpleHashInit(tbNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  TSDB_CHECK_NULL(pDispatcher->vtableMap, code, lino, _end, terrno);
 
-  int32_t iter = 0, vgId = 0;
-  uint64_t uid = 0;
+  int32_t               iter = 0, vgId = 0;
+  uint64_t              uid = 0;
   STaskDispatcherFixed* pAddr = NULL;
-  void* p = NULL;
+  void*                 p = NULL;
   while (NULL != (p = tSimpleHashIterate(pVtables, p, &iter))) {
     char* vgUid = tSimpleHashGetKey(p, NULL);
     vgId = *(int32_t*)vgUid;
@@ -471,7 +475,22 @@ static int32_t addSourceTaskVTableOutput(SStreamTask* pTask, SSHashObj* pVgTasks
       return code;
     }
 
-    code = tSimpleHashPut(pTask->outputInfo.vtableMap, &uid, sizeof(uid), pAddr, sizeof(*pAddr));
+    void*   px = tSimpleHashGet(pTaskMap, &pAddr->taskId, sizeof(int32_t));
+    int32_t idx = 0;
+    if (px == NULL) {
+      px = taosArrayPush(pDispatcher->taskInfos, pAddr);
+      TSDB_CHECK_NULL(px, code, lino, _end, terrno);
+      idx = taosArrayGetSize(pDispatcher->taskInfos) - 1;
+      code = tSimpleHashPut(pTaskMap, &pAddr->taskId, sizeof(int32_t), &idx, sizeof(int32_t));
+      if (code) {
+        mError("tSimpleHashPut uid to task idx failed, error:%d", code);
+        return code;
+      }
+    } else {
+      idx = *(int32_t*)px;
+    }
+
+    code = tSimpleHashPut(pDispatcher->vtableMap, &uid, sizeof(int64_t), &idx, sizeof(int32_t));
     if (code) {
       mError("tSimpleHashPut uid to STaskDispatcherFixed failed, error:%d", code);
       return code;
@@ -481,6 +500,14 @@ static int32_t addSourceTaskVTableOutput(SStreamTask* pTask, SSHashObj* pVgTasks
         pTask->id.idStr, pTask->info.nodeId, uid, pAddr->taskId, pAddr->nodeId);
   }
 
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("source task[%s,vg:%d] add vtable output map failed, lino:%d, error:%s", pTask->id.idStr, pTask->info.nodeId,
+           lino, tstrerror(code));
+  }
+  if (pTaskMap != NULL) {
+    tSimpleHashCleanup(pTaskMap);
+  }
   return code;
 }
 
@@ -1137,7 +1164,7 @@ static int32_t addVTableToVnode(SSHashObj* pVg, int32_t vvgId, uint64_t vuid, SR
 
   pCtx->lastUid = vuid;
 
-  SSHashObj** pVtable = (SSHashObj**)tSimpleHashGet(pVg, vId, sizeof(vId) + 1);
+  SSHashObj** pVtable = (SSHashObj**)tSimpleHashGet(pVg, vId, sizeof(vId));
   if (NULL == pVtable) {
     pNewVtable = (SSHashObj*)tSimpleHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
     TSDB_CHECK_NULL(pNewVtable, code, lino, _return, terrno);
@@ -1149,7 +1176,7 @@ static int32_t addVTableToVnode(SSHashObj* pVg, int32_t vvgId, uint64_t vuid, SR
     TSDB_CHECK_NULL(col.colName, code, lino, _return, terrno);
     TSDB_CHECK_NULL(taosArrayPush(pNewOtable, &col), code, lino, _return, terrno);
     TSDB_CHECK_CODE(tSimpleHashPut(pNewVtable, pCol->refTableName, strlen(pCol->refTableName) + 1, &pNewOtable, POINTER_BYTES), lino, _return);
-    TSDB_CHECK_CODE(tSimpleHashPut(pVg, vId, sizeof(vId) + 1, &pNewVtable, POINTER_BYTES), lino, _return);
+    TSDB_CHECK_CODE(tSimpleHashPut(pVg, vId, sizeof(vId), &pNewVtable, POINTER_BYTES), lino, _return);
 
     pCtx->lastVtable = pNewVtable;
     pCtx->lastOtable = pNewOtable;
@@ -1353,7 +1380,8 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
     }
   }
 
-  if ((numOfPlanLevel > 1 && !isVTableStream) || externalTargetDB || multiTarget || pStream->fixedSinkVgId) {
+  if ((numOfPlanLevel > 1 && !isVTableStream) || (numOfPlanLevel > 2 && isVTableStream) || externalTargetDB ||
+      multiTarget || pStream->fixedSinkVgId) {
     // add extra sink
     hasExtraSink = true;
     code = addSinkTask(pMnode, pStream, pEpset);
@@ -1371,7 +1399,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
       return code;
     }
 
-    plan = getVTbScanSubPlan(pPlan); 
+    plan = getVTbScanSubPlan(pPlan);
     if (plan == NULL) {
       mError("fail to get vtable scan plan");
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
