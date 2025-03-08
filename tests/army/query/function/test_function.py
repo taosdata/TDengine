@@ -348,6 +348,10 @@ class TDTestCase(TBase):
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "102.000000")
         
+        tdSql.query("select GREATEST(now, 1);")
+        tdSql.query("select GREATEST(now, 1.0);")
+        tdSql.query("select GREATEST(now, '1');")
+        
         tdSql.error("select GREATEST(cast('a' as varbinary), cast('b' as varbinary), 'c', 'd');")
         tdSql.error("select GREATEST(6, cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")       
 
@@ -423,9 +427,77 @@ class TDTestCase(TBase):
         tdSql.query("select LEAST(cast(100 as float), cast(101 as varchar(20)), cast(102 as tinyint));")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "100.000000")
+        
+        tdSql.query("select LEAST(now, 1);")
+        tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, "1970-01-01 08:00:00.001")
+        
+        tdSql.query("select LEAST(now, 1.0);")
+        tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, 1)
+        
+        tdSql.query("select LEAST(now, '1');")
+        tdSql.checkRows(1)
+        tdSql.checkCols(1)
+        tdSql.checkData(0, 0, "1")
 
         tdSql.error("select LEAST(cast('a' as varbinary), cast('b' as varbinary), 'c', 'd');")
         tdSql.error("select LEAST(cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")
+
+    def test_greatest_large_table(self):
+        tdLog.info("test greatest large table.")
+           
+        ts = 1741341251000
+        create_table_sql = "CREATE TABLE `large_table` (`ts` TIMESTAMP"
+        for i in range(1, 1001):
+            if i % 5 == 1:
+                create_table_sql += f", `col{i}` INT"
+            elif i % 5 == 2:
+                create_table_sql += f", `col{i}` FLOAT"
+            elif i % 5 == 3:
+                create_table_sql += f", `col{i}` DOUBLE"
+            elif i % 5 == 4:
+                create_table_sql += f", `col{i}` VARCHAR(64)"
+            else:
+                create_table_sql += f", `col{i}` NCHAR(50)"
+        create_table_sql += ");"
+        tdSql.execute(create_table_sql)
+ 
+        for j in range(1000):
+            insert_sql = f"INSERT INTO `large_table` VALUES ({ts +j}"
+            for i in range(1, 1001):
+                if i % 5 == 1:
+                    insert_sql += f", {j + i}"
+                elif i % 5 == 2:
+                    insert_sql += f", {j + i}.1"
+                elif i % 5 == 3:
+                    insert_sql += f", {j + i}.2"
+                elif i % 5 == 4:
+                    insert_sql += f", '{j + i}'"
+                else:
+                    insert_sql += f", '{j + i}'"
+            insert_sql += ");"
+            tdSql.execute(insert_sql)
+
+        greatest_query = "SELECT GREATEST("
+        for i in range(1, 1001):
+            greatest_query += f"`col{i}`"
+            if i < 1000:
+                greatest_query += ", "
+        greatest_query += ") FROM `large_table` LIMIT 1;"
+        tdLog.info(f"greatest_query: {greatest_query}")
+        tdSql.execute(greatest_query)
+        
+        greatest_query = "SELECT "
+        for i in range(1, 1001):
+            greatest_query += f"`col{i}` > `col5`"
+            if i < 1000:
+                greatest_query += ", "
+        greatest_query += " FROM `large_table` LIMIT 1;"
+        tdLog.info(f"greatest_query: {greatest_query}")
+        tdSql.execute(greatest_query)
 
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -445,6 +517,7 @@ class TDTestCase(TBase):
         self.test_rand()
         self.test_greatest()
         self.test_least()
+        self.test_greatest_large_table()
         
         # char function
         self.test_char_length()
