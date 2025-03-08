@@ -3136,6 +3136,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   SOperatorInfo*  pOperator = pInfo->pStreamScanOp;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   const char*     id = GET_TASKID(pTaskInfo);
+  SSHashObj*      pVtableInfos = pTaskInfo->pSubplan->pVTables;
 
   code = blockDataEnsureCapacity(pInfo->pRes, pBlock->info.rows);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -3146,7 +3147,12 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   pBlockInfo->version = pBlock->info.version;
 
   STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
-  pBlockInfo->id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
+  if (pVtableInfos == NULL) {
+    pBlockInfo->id.groupId = tableListGetTableGroupId(pTableScanInfo->base.pTableListInfo, pBlock->info.id.uid);
+  } else {
+    // use original table uid as groupId for vtable
+    pBlockInfo->id.groupId = pBlock->info.id.groupId;
+  }
 
   SArray* pColList = taosArrayInit(4, sizeof(int32_t));
   QUERY_CHECK_NULL(pColList, code, lino, _end, terrno);
@@ -4651,6 +4657,39 @@ _end:
   return code;
 }
 
+static int32_t createStreamVtableBlock(SColMatchInfo *pMatchInfo, SSDataBlock **ppRes, const char *idstr) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SSDataBlock *pRes = NULL;
+
+  QUERY_CHECK_NULL(pMatchInfo, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  *ppRes = NULL;
+
+  code = createDataBlock(&pRes);
+  QUERY_CHECK_CODE(code, lino, _end);
+  int32_t numOfOutput = taosArrayGetSize(pMatchInfo->pList);
+  for (int32_t i = 0; i < numOfOutput; ++i) {
+    SColMatchItem*  pItem = taosArrayGet(pMatchInfo->pList, i);
+    SColumnInfoData colInfo = createColumnInfoData(pItem->dataType.type, pItem->dataType.bytes, pItem->colId);
+    code = blockDataAppendColInfo(pRes, &colInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  *ppRes = pRes;
+  pRes = NULL;
+
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s, id: %s", __func__, lino, tstrerror(code), idstr);
+  }
+  if (pRes != NULL) {
+    blockDataDestroy(pRes);
+  }
+  return code;
+}
+
 int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
                                      STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
                                      SOperatorInfo** pOptrInfo) {
@@ -4663,6 +4702,7 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
   SOperatorInfo*   pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   SStorageAPI*     pAPI = &pTaskInfo->storageAPI;
   const char*      idstr = pTaskInfo->id.str;
+  SSHashObj*       pVtableInfos = pTaskInfo->pSubplan->pVTables;
 
   if (pInfo == NULL || pOperator == NULL) {
     code = terrno;
@@ -4769,6 +4809,16 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
       QUERY_CHECK_NULL(pInfo->tqReader, code, lino, _error, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     }
 
+    if (pVtableInfos != NULL) {
+      // save vtable info into tqReader for vtable source scan
+      SSDataBlock* pResBlock = NULL;
+      code = createStreamVtableBlock(&pInfo->matchInfo, &pResBlock, idstr);
+      QUERY_CHECK_CODE(code, lino, _error);
+      code = pAPI->tqReaderFn.tqReaderSetVtableInfo(pInfo->tqReader, pHandle->vnode, pAPI, pVtableInfos, &pResBlock,
+                                                    idstr);
+      QUERY_CHECK_CODE(code, lino, _error);
+    }
+
     pInfo->pUpdateInfo = NULL;
     pInfo->pTableScanOp = pTableScanOp;
     if (pInfo->pTableScanOp->pTaskInfo->streamInfo.pState) {
@@ -4785,12 +4835,14 @@ int32_t createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* 
     QUERY_CHECK_CODE(code, lino, _error);
 
     // set the extract column id to streamHandle
-    pAPI->tqReaderFn.tqReaderSetColIdList(pInfo->tqReader, pColIds);
+    code = pAPI->tqReaderFn.tqReaderSetColIdList(pInfo->tqReader, pColIds, idstr);
+    QUERY_CHECK_CODE(code, lino, _error);
 
     SArray* tableIdList = NULL;
     code = extractTableIdList(((STableScanInfo*)(pInfo->pTableScanOp->info))->base.pTableListInfo, &tableIdList);
     QUERY_CHECK_CODE(code, lino, _error);
-    pAPI->tqReaderFn.tqReaderSetQueryTableList(pInfo->tqReader, tableIdList, idstr);
+    code = pAPI->tqReaderFn.tqReaderSetQueryTableList(pInfo->tqReader, tableIdList, idstr);
+    QUERY_CHECK_CODE(code, lino, _error);
     taosArrayDestroy(tableIdList);
     memcpy(&pTaskInfo->streamInfo.tableCond, &pTSInfo->base.cond, sizeof(SQueryTableDataCond));
   } else {

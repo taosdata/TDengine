@@ -407,7 +407,8 @@ int32_t streamProcessCheckpointTriggerBlock(SStreamTask* pTask, SStreamDataBlock
     chkptFailedByRetrieveReqToSource(pTask, checkpointId);
 #endif
 
-    if (type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    if (type == TASK_OUTPUT__FIXED_DISPATCH || type == TASK_OUTPUT__SHUFFLE_DISPATCH ||
+        type == TASK_OUTPUT__VTABLE_MAP) {
       stDebug("s-task:%s set childIdx:%d, and add checkpoint-trigger block into outputQ", id, pTask->info.selfChildId);
       code = continueDispatchCheckpointTriggerBlock(pBlock, pTask);  // todo handle this failure
     } else {  // only one task exists, no need to dispatch downstream info
@@ -1328,6 +1329,20 @@ int32_t streamTaskInitTriggerDispatchInfo(SStreamTask* pTask, int64_t sendingChk
       void* px = taosArrayPush(pInfo->pDispatchTriggerList, &p);
       if (px == NULL) {  // pause the stream task, if memory not enough
         code = terrno;
+      }
+    } else if (pTask->outputInfo.type == TASK_OUTPUT__VTABLE_MAP) {
+      for (int32_t i = 0; i < streamTaskGetNumOfDownstream(pTask); ++i) {
+        STaskDispatcherFixed* pAddr = taosArrayGet(pTask->outputInfo.vtableMapDispatcher.taskInfos, i);
+        if (pAddr == NULL) {
+          continue;
+        }
+
+        STaskTriggerSendInfo p = {.sendTs = now, .recved = false, .nodeId = pAddr->nodeId, .taskId = pAddr->taskId};
+        void*                px = taosArrayPush(pInfo->pDispatchTriggerList, &p);
+        if (px == NULL) {  // pause the stream task, if memory not enough
+          code = terrno;
+          break;
+        }
       }
     } else {
       for (int32_t i = 0; i < streamTaskGetNumOfDownstream(pTask); ++i) {

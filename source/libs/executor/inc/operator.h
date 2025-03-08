@@ -190,7 +190,8 @@ SSDataBlock*   getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator,
 int16_t        getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx);
 
 int32_t        createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SNode* pTagCond,
-                              SNode* pTagIndexCond, const char* pUser, const char* dbname, SOperatorInfo** pOptrInfo);
+                              SNode* pTagIndexCond, const char* pUser, const char* dbname, SOperatorInfo** pOptrInfo,
+                              EOPTR_EXEC_MODEL model);
 void           destroyOperator(SOperatorInfo* pOperator);
 void           destroyOperatorAndDownstreams(SOperatorInfo* pOperator, SOperatorInfo** stream, int32_t num);
 

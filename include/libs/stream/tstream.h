@@ -124,10 +124,10 @@ enum {
 
 typedef enum {
   TASK_LEVEL__SOURCE = 1,
-  TASK_LEVEL__MERGE,
   TASK_LEVEL__AGG,
   TASK_LEVEL__SINK,
   TASK_LEVEL_SMA,
+  TASK_LEVEL__MERGE,
 } ETASK_LEVEL;
 
 enum {
@@ -212,6 +212,11 @@ typedef struct {
   char      stbFullName[TSDB_TABLE_FNAME_LEN];
   SUseDbRsp dbInfo;
 } STaskDispatcherShuffle;
+
+typedef struct {
+  SArray*    taskInfos;  // SArray<STaskDispatcherFixed>
+  SSHashObj* vtableMap;
+} STaskDispatcherVtableMap;
 
 typedef struct {
   int32_t nodeId;
@@ -397,13 +402,13 @@ typedef struct SHistoryTaskInfo {
 
 typedef struct STaskOutputInfo {
   union {
-    STaskDispatcherFixed   fixedDispatcher;
-    STaskDispatcherShuffle shuffleDispatcher;
+    STaskDispatcherFixed     fixedDispatcher;
+    STaskDispatcherShuffle   shuffleDispatcher;
+    STaskDispatcherVtableMap vtableMapDispatcher;
 
     STaskSinkTb    tbSink;
     STaskSinkSma   smaSink;
     STaskSinkFetch fetchSink;
-    SSHashObj*     vtableMap;
   };
   int8_t        type;
   STokenBucket* pTokenBucket;
