@@ -685,11 +685,50 @@ if(NOT ${TD_WINDOWS})
         INSTALL_COMMAND
             COMMAND make install_sw -j4
             COMMAND ${CMAKE_COMMAND} -E create_symlink ${_ins}/lib64 ${_ins}/lib
-        # freemine: TODO:
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
     add_dependencies(build_externals ext_ssl)     # this is for github workflow in cache-miss step.
+endif(NOT ${TD_WINDOWS})
+
+# libcurl
+if(NOT ${TD_WINDOWS})
+    if(${TD_LINUX})
+        set(ext_curl_static libcurl.a)
+    elseif(${TD_DARWIN})
+        set(ext_curl_static libcurl.a)
+    endif()
+    INIT_EXT(ext_curl
+        INC_DIR          include
+        LIB              lib/${ext_curl_static}
+    )
+    # URL https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz
+    # URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+    get_from_local_if_exists("https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz")
+    ExternalProject_Add(ext_curl
+        URL ${_url}
+        URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+        DEPENDS ext_ssl
+        PREFIX "${_base}"
+        BUILD_IN_SOURCE TRUE
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CONFIGURE_COMMAND
+            # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
+            COMMAND ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
+                    --enable-websockets --enable-shared=no --disable-ldap
+                    --disable-ldaps --without-brotli --without-zstd
+                    --without-libidn2 --without-nghttp2 --without-libpsl
+                    --without-librtmp #--enable-debug
+        BUILD_COMMAND
+            COMMAND make -j4
+        INSTALL_COMMAND
+            COMMAND make install
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_curl)     # this is for github workflow in cache-miss step.
 endif(NOT ${TD_WINDOWS})
 

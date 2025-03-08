@@ -59,11 +59,6 @@ endif()
 
 # cat("${TD_SUPPORT_DIR}/zstd_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
-# libcurl
-if(NOT ${TD_WINDOWS})
-    cat("${TD_SUPPORT_DIR}/curl_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif(NOT ${TD_WINDOWS})
-
 # s3
 if(${BUILD_WITH_S3})
     cat("${TD_SUPPORT_DIR}/xml2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
