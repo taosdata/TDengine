@@ -55,11 +55,6 @@ else()
     cat("${TD_SUPPORT_DIR}/taosadapter_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
-# iconv
-if(${BUILD_WITH_ICONV})
-    cat("${TD_SUPPORT_DIR}/iconv_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif()
-
 # jemalloc
 if(${JEMALLOC_ENABLED})
     cat("${TD_SUPPORT_DIR}/jemalloc_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})

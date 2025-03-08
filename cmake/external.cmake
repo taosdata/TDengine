@@ -185,3 +185,31 @@ if(${BUILD_PTHREAD})
     )
     add_dependencies(build_externals ext_pthread)     # this is for github workflow in cache-miss step.
 endif()
+
+# iconv
+if(${BUILD_WITH_ICONV})
+    if(${TD_WINDOWS})
+        set(ext_iconv_static iconv.lib)
+    endif()
+    INIT_EXT(ext_iconv
+        INC_DIR          include
+        LIB              lib/${ext_iconv_static}
+    )
+    # GIT_REPOSITORY https://github.com/win-iconv/win-iconv.git
+    # GIT_TAG v0.0.8
+    get_from_local_repo_if_exists("https://github.com/win-iconv/win-iconv.git")
+    ExternalProject_Add(ext_iconv
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG 9f98392dfecadffd62572e73e9aba878e03496c4
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DBUILD_SHARED:BOOL=OFF
+        CMAKE_ARGS -DBUILD_STATIC:BOOL=ON
+        CMAKE_ARGS -DCMAKE_C_FLAGS:STRING=/wd4267
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_iconv)     # this is for github workflow in cache-miss step.
+endif()
