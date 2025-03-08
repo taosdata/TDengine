@@ -1754,7 +1754,7 @@ static int32_t translateGreatestleast(SFunctionNode* pFunc, char* pErrBuf, int32
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  bool mixTypeToStrings = tsTransToStrWhenMixTypeInLeast;
+  bool mixTypeToStrings = tsCompareAsStrInGreatest;
 
   SDataType res = {.type = 0};
   bool     resInit = false;
