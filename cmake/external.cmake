@@ -245,3 +245,31 @@ if(${BUILD_MSVCREGEX})
     )
     add_dependencies(build_externals ext_msvcregex)     # this is for github workflow in cache-miss step.
 endif()
+
+# wcwidth
+if(${BUILD_WCWIDTH})
+    if(${TD_WINDOWS})
+        set(ext_wcwidth_static wcwidth.lib)
+    endif()
+    INIT_EXT(ext_wcwidth
+        INC_DIR          include
+        LIB              lib/${ext_wcwidth_static}
+    )
+    # GIT_REPOSITORY https://github.com/fumiyas/wcwidth-cjk.git
+    # GIT_TAG master
+    get_from_local_repo_if_exists("https://github.com/fumiyas/wcwidth-cjk.git")
+    ExternalProject_Add(ext_wcwidth
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG a1b1e2c346a563f6538e46e1d29c265bdd5b1c9a
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        PATCH_COMMAND
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_CONTRIB_DIR}/wcwidth.cmake" "${ext_wcwidth_source}/CMakeLists.txt"
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_wcwidth)     # this is for github workflow in cache-miss step.
+endif()
+
