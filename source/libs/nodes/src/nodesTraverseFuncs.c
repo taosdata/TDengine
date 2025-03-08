@@ -78,6 +78,7 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       break;
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
+    case QUERY_NODE_VIRTUAL_TABLE:
       break;  // todo
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoinTableNode = (SJoinTableNode*)pNode;
@@ -295,6 +296,7 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     }
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
+    case QUERY_NODE_VIRTUAL_TABLE:
       break;  // todo
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoinTableNode = (SJoinTableNode*)pNode;

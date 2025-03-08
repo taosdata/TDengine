@@ -161,10 +161,13 @@ typedef struct SSortMergeJoinOperatorParam {
 } SSortMergeJoinOperatorParam;
 
 typedef struct SExchangeOperatorBasicParam {
-  int32_t vgId;
-  int32_t srcOpType;
-  bool    tableSeq;
-  SArray* uidList;
+  int32_t        vgId;
+  int32_t        srcOpType;
+  bool           tableSeq;
+  SArray*        uidList;
+  bool           isVtbRefScan;
+  SOrgTbInfo* colMap;
+  STimeWindow    window;
 } SExchangeOperatorBasicParam;
 
 typedef struct SExchangeOperatorBatchParam {
@@ -253,6 +256,7 @@ typedef struct STableScanBase {
   STsdbReader*           dataReader;
   SFileBlockLoadRecorder readRecorder;
   SQueryTableDataCond    cond;
+  SQueryTableDataCond    orgCond; // use for virtual super table scan
   SAggOptrPushDownInfo   pdInfo;
   SColMatchInfo          matchInfo;
   SReadHandle            readHandle;
@@ -283,6 +287,8 @@ typedef struct STableScanInfo {
   bool            hasGroupByTag;
   bool            filesetDelimited;
   bool            needCountEmptyTable;
+  SSDataBlock*    pOrgBlock;
+  bool            ignoreTag;
 } STableScanInfo;
 
 typedef enum ESubTableInputType {
@@ -1136,6 +1142,7 @@ void*   decodeSTimeWindowAggSupp(void* buf, STimeWindowAggSupp* pTwAggSup);
 void    destroyOperatorParamValue(void* pValues);
 int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc);
 int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq);
+int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window);
 void    freeExchangeGetBasicOperatorParam(void* pParam);
 void    freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type);
 void    freeResetOperatorParams(struct SOperatorInfo* pOperator, SOperatorParamType type, bool allFree);
