@@ -479,3 +479,35 @@ if(${BUILD_WITH_UV})
     )
     add_dependencies(build_externals ext_libuv)     # this is for github workflow in cache-miss step.
 endif(${BUILD_WITH_UV})
+
+# tz
+if(NOT ${TD_WINDOWS})
+    if(${TD_LINUX})
+        set(ext_tz_static tz.a)
+    elseif(${TD_DARWIN})
+        set(ext_tz_static tz.a)
+    endif()
+    INIT_EXT(ext_tz
+        INC_DIR          include
+        LIB              lib/${ext_tz_static}
+    )
+    # GIT_REPOSITORY https://github.com/eggert/tz.git
+    # GIT_TAG main
+    get_from_local_repo_if_exists("https://github.com/eggert/tz.git")
+    ExternalProject_Add(ext_tz
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG 271a5784a59e454b659d85948b5e65c17c11516a
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        # freemine: TODO:
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_tz)     # this is for github workflow in cache-miss step.
+endif(NOT ${TD_WINDOWS})
+

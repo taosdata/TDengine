@@ -65,10 +65,6 @@ if(${BUILD_TEST})
     cat("${TD_SUPPORT_DIR}/stub_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_TEST})
 
-if(NOT ${TD_WINDOWS})
-    cat("${TD_SUPPORT_DIR}/tz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif(NOT ${TD_WINDOWS})
-
 # RocksDB is now included via cmake/RocksDB.cmake.inc
 
 # cat("${TD_SUPPORT_DIR}/zstd_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
