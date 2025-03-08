@@ -15,6 +15,9 @@ const parseBackup = (data: any) => {
   }
 
   targetData.status = data.status;
+  targetData.last_modified_at = data.last_modified_at;
+  targetData.reason = data.reason;
+  
   targetData.stable = data.from_expand.params?.stable || '';
   targetData.upcoming = data.trigger.upcoming;
   targetData.running = data.status !== 'stopped';
@@ -57,6 +60,8 @@ const parseRestore = data => {
   targetData.from_point_end = data.from_expand.params.to;
   targetData.to_database = data.to_expand.subject;
   targetData.status = data.status;
+  targetData.last_modified_at = data.last_modified_at;
+  targetData.reason = data.reason;
   targetData.created_at = parsinginZone(data.created_at);
   return targetData;
 };

@@ -34,7 +34,18 @@
     </el-table-column>
     <el-table-column width="100" :label="$t('taosuser.lastbackup')" prop="status" show-overflow-tooltip>
       <template #default="scope">
-        <span>{{ handleDSStatus(scope.row.status) }}</span>
+        <el-tooltip
+          v-if="['interrupted', 'failed'].includes(scope.row.status.toLowerCase())"
+          placement="top"
+          :open-delay="0" 
+        >
+          <template #content>
+            <div>{{ scope.row.last_modified_at }}</div>
+            <div>{{ scope.row.reason }}</div>
+          </template>
+          <span>{{ handleDSStatus(scope.row.status) }}</span>
+        </el-tooltip>
+        <span v-else>{{ handleDSStatus(scope.row.status) }}</span>
       </template>
     </el-table-column>
     <el-table-column :label="$t('taosuser.operation')" width="150">
