@@ -48,7 +48,7 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
     msgNum = 0;
   }
 
-  ctgDebug("QID:0x%" PRIx64 " ctg got batch %d rsp %s", pJob->queryId, cbParam->batchId,
+  ctgDebug("QID:0x%" PRIx64 ", ctg got batch:%d rsp:%s", pJob->queryId, cbParam->batchId,
            TMSG_INFO(cbParam->reqType + 1));
 
   SHashObj* pBatchs = taosHashInit(taskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -109,13 +109,13 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
     tReq.msgIdx = pRsp->msgIdx;
     SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, tReq.msgIdx);
     if (NULL == pMsgCtx) {
-      ctgError("get task %d SCtgMsgCtx failed, taskType:%d", tReq.msgIdx, pTask->type);
+      ctgError("task:%d, get SCtgMsgCtx failed, taskType:%d", tReq.msgIdx, pTask->type);
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
     pMsgCtx->pBatchs = pBatchs;
 
-    ctgDebug("QID:0x%" PRIx64 " ctg task %d idx %d start to handle rsp %s, pBatchs: %p", pJob->queryId, pTask->taskId,
+    ctgDebug("QID:0x%" PRIx64 ", ctg task:%d idx:%d start to handle rsp:%s, pBatchs:%p", pJob->queryId, pTask->taskId,
              pRsp->msgIdx, TMSG_INFO(taskMsg.msgType + 1), pBatchs);
 
     (void)(*gCtgAsyncFps[pTask->type].handleRspFp)(
@@ -144,11 +144,11 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
 
       code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
       if (code) {
-        qError("Process qnode list rsp failed, error:%s", tstrerror(rspCode));
+        qError("process qnode list rsp failed, error:%s", tstrerror(rspCode));
         CTG_ERR_RET(code);
       }
 
-      qDebug("Got qnode list from mnode, listNum:%d", (int32_t)taosArrayGetSize(out));
+      qDebug("get qnode list from mnode, listNum:%d", (int32_t)taosArrayGetSize(out));
       break;
     }
     case TDMT_MND_DNODE_LIST: {
@@ -159,194 +159,194 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
 
       code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
       if (code) {
-        qError("Process dnode list rsp failed, error:%s", tstrerror(rspCode));
+        qError("process dnode list rsp failed, error:%s", tstrerror(rspCode));
         CTG_ERR_RET(code);
       }
 
-      qDebug("Got dnode list from mnode, listNum:%d", (int32_t)taosArrayGetSize(*(SArray**)out));
+      qDebug("get dnode list from mnode, listNum:%d", (int32_t)taosArrayGetSize(*(SArray**)out));
       break;
     }
     case TDMT_MND_USE_DB: {
       if (TSDB_CODE_SUCCESS != rspCode) {
-        qError("error rsp for use db, error:%s, dbFName:%s", tstrerror(rspCode), target);
+        qError("db:%s, error rsp for use db, error:%s", target, tstrerror(rspCode));
         CTG_ERR_RET(rspCode);
       }
 
       code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
       if (code) {
-        qError("Process use db rsp failed, error:%s, dbFName:%s", tstrerror(code), target);
+        qError("db:%s, process use db rsp failed, error:%s", target, tstrerror(code));
         CTG_ERR_RET(code);
       }
 
-      qDebug("Got db vgInfo from mnode, dbFName:%s", target);
+      qDebug("db:%s, get db vgInfo from mnode", target);
       break;
     }
     case TDMT_MND_GET_DB_CFG: {
       if (TSDB_CODE_SUCCESS != rspCode) {
-        qError("error rsp for get db cfg, error:%s, db:%s", tstrerror(rspCode), target);
+        qError("db:%s, error rsp for get db cfg, error:%s", target, tstrerror(rspCode));
         CTG_ERR_RET(rspCode);
       }
 
       code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
       if (code) {
-        qError("Process get db cfg rsp failed, error:%s, db:%s", tstrerror(code), target);
+        qError("db:%s, process get db cfg rsp failed, error:%s", target, tstrerror(code));
         CTG_ERR_RET(code);
       }
 
-      qDebug("Got db cfg from mnode, dbFName:%s", target);
+      qDebug("db:%s, get db cfg from mnode", target);
       break;
     }
     case TDMT_MND_GET_INDEX: {
       if (TSDB_CODE_SUCCESS != rspCode) {
-        qError("error rsp for get index, error:%s, indexName:%s", tstrerror(rspCode), target);
+        qError("index:%s, error rsp for get index, error:%s", target, tstrerror(rspCode));
         CTG_ERR_RET(rspCode);
       }
 
       code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
       if (code) {
-        qError("Process get index rsp failed, error:%s, indexName:%s", tstrerror(code), target);
+        qError("index:%s, process get index rsp failed, error:%s", target, tstrerror(code));
         CTG_ERR_RET(code);
       }
 
-      qDebug("Got index from mnode, indexName:%s", target);
+      qDebug("index:%s, get index from mnode", target);
       break;
     }
     case TDMT_MND_GET_TABLE_INDEX: {
       if (TSDB_CODE_SUCCESS != rspCode) {
-        qError("error rsp for get table index, error:%s, tbFName:%s", tstrerror(rspCode), target);
+        qError("tb:%s, error rsp for get table index, error:%s", target, tstrerror(rspCode));
         CTG_ERR_RET(rspCode);
       }
 
       code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
       if (code) {
-        qError("Process get table index rsp failed, error:%s, tbFName:%s", tstrerror(code), target);
+        qError("tb:%s, process get table index rsp failed, error:%s", target, tstrerror(code));
         CTG_ERR_RET(code);
       }
 
-      qDebug("Got table index from mnode, tbFName:%s", target);
+      qDebug("tb:%s, get table index from mnode", target);
       break;
     }
     case TDMT_MND_RETRIEVE_FUNC: {
       if (TSDB_CODE_SUCCESS != rspCode) {
-        qError("error rsp for get udf, error:%s, funcName:%s", tstrerror(rspCode), target);
+        qError("func:%s, error rsp for get udf, error:%s", target, tstrerror(rspCode));
         CTG_ERR_RET(rspCode);
       }
 
       code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
       if (code) {
-        qError("Process get udf rsp failed, error:%s, funcName:%s", tstrerror(code), target);
+        qError("func:%s, Process get udf rsp failed, error:%s", target, tstrerror(code));
         CTG_ERR_RET(code);
       }
 
-      qDebug("Got udf from mnode, funcName:%s", target);
+      qDebug("func:%s, get udf from mnode", target);
       break;
     }
     case TDMT_MND_GET_USER_AUTH: {
       if (TSDB_CODE_SUCCESS != rspCode) {
-        qError("error rsp for get user auth, error:%s, user:%s", tstrerror(rspCode), target);
+        qError("user:%s, error rsp for get user auth, error:%s", target, tstrerror(rspCode));
         CTG_ERR_RET(rspCode);
       }
 
       code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
       if (code) {
-        qError("Process get user auth rsp failed, error:%s, user:%s", tstrerror(code), target);
+        qError("user:%s, process get user auth rsp failed, error:%s", target, tstrerror(code));
         CTG_ERR_RET(code);
       }
 
-      qDebug("Got user auth from mnode, user:%s", target);
+      qDebug("user:%s, get user auth from mnode", target);
       break;
     }
     case TDMT_MND_TABLE_META: {
       if (TSDB_CODE_SUCCESS != rspCode) {
         if (CTG_TABLE_NOT_EXIST(rspCode)) {
           SET_META_TYPE_NULL(((STableMetaOutput*)out)->metaType);
-          qDebug("stablemeta not exist in mnode, tbFName:%s", target);
+          qDebug("tb:%s, stablemeta not exist in mnode", target);
           return TSDB_CODE_SUCCESS;
         }
 
-        qError("error rsp for stablemeta from mnode, error:%s, tbFName:%s", tstrerror(rspCode), target);
+        qError("tb:%s, error rsp for stablemeta from mnode, error:%s", target, tstrerror(rspCode));
         CTG_ERR_RET(rspCode);
       }
 
       code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
       if (code) {
-        qError("Process mnode stablemeta rsp failed, error:%s, tbFName:%s", tstrerror(code), target);
+        qError("tb:%s, process mnode stablemeta rsp failed, error:%s", target, tstrerror(code));
         CTG_ERR_RET(code);
       }
 
-      qDebug("Got table meta from mnode, tbFName:%s", target);
+      qDebug("tb:%s, get table meta from mnode", target);
       break;
     }
     case TDMT_VND_TABLE_META: {
       if (TSDB_CODE_SUCCESS != rspCode) {
         if (CTG_TABLE_NOT_EXIST(rspCode)) {
           SET_META_TYPE_NULL(((STableMetaOutput*)out)->metaType);
-          qDebug("tablemeta not exist in vnode, tbFName:%s", target);
+          qDebug("tb:%s, tablemeta not exist in vnode", target);
           return TSDB_CODE_SUCCESS;
         }
 
-        qError("error rsp for table meta from vnode, code:%s, tbFName:%s", tstrerror(rspCode), target);
+        qError("tb:%s, error rsp for table meta from vnode, code:%s", target, tstrerror(rspCode));
         CTG_ERR_RET(rspCode);
       }
 
       code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
       if (code) {
-        qError("Process vnode tablemeta rsp failed, code:%s, tbFName:%s", tstrerror(code), target);
+        qError("tb:%s, process vnode tablemeta rsp failed, code:%s", target, tstrerror(code));
         CTG_ERR_RET(code);
       }
 
-      qDebug("Got table meta from vnode, tbFName:%s", target);
+      qDebug("tb:%s, get table meta from vnode", target);
       break;
     }
     case TDMT_VND_TABLE_NAME: {
       if (TSDB_CODE_SUCCESS != rspCode) {
         if (CTG_TABLE_NOT_EXIST(rspCode)) {
           SET_META_TYPE_NULL(((STableMetaOutput*)out)->metaType);
-          qDebug("tablemeta not exist in vnode, tbFName:%s", target);
+          qDebug("tb:%s, tablemeta not exist in vnode", target);
           return TSDB_CODE_SUCCESS;
         }
 
-        qError("error rsp for table meta from vnode, code:%s, tbFName:%s", tstrerror(rspCode), target);
+        qError("tb:%s, error rsp for table meta from vnode, code:%s", target, tstrerror(rspCode));
         CTG_ERR_RET(rspCode);
       }
 
       code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
       if (code) {
-        qError("Process vnode tablemeta rsp failed, code:%s, tbFName:%s", tstrerror(code), target);
+        qError("tb:%s, process vnode tablemeta rsp failed, code:%s", target, tstrerror(code));
         CTG_ERR_RET(code);
       }
 
-      qDebug("Got table meta from vnode, tbFName:%s", target);
+      qDebug("tb:%s, get table meta from vnode", target);
       break;
     }
     case TDMT_VND_TABLE_CFG: {
       if (TSDB_CODE_SUCCESS != rspCode) {
-        qError("error rsp for table cfg from vnode, code:%s, tbFName:%s", tstrerror(rspCode), target);
+        qError("tb:%s, error rsp for table cfg from vnode, code:%s,", target, tstrerror(rspCode));
         CTG_ERR_RET(rspCode);
       }
 
       code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
       if (code) {
-        qError("Process vnode tb cfg rsp failed, code:%s, tbFName:%s", tstrerror(code), target);
+        qError("tb:%s, process vnode tb cfg rsp failed, code:%s", target, tstrerror(code));
         CTG_ERR_RET(code);
       }
 
-      qDebug("Got table cfg from vnode, tbFName:%s", target);
+      qDebug("tb:%s, get table cfg from vnode", target);
       break;
     }
     case TDMT_MND_TABLE_CFG: {
       if (TSDB_CODE_SUCCESS != rspCode) {
-        qError("error rsp for stb cfg from mnode, error:%s, tbFName:%s", tstrerror(rspCode), target);
+        qError("tb:%s, error rsp for stb cfg from mnode, error:%s", target, tstrerror(rspCode));
         CTG_ERR_RET(rspCode);
       }
 
       code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
       if (code) {
-        qError("Process mnode stb cfg rsp failed, error:%s, tbFName:%s", tstrerror(code), target);
+        qError("tb:%s, Process mnode stb cfg rsp failed, error:%s", target, tstrerror(code));
         CTG_ERR_RET(code);
       }
 
-      qDebug("Got stb cfg from mnode, tbFName:%s", target);
+      qDebug("tb:%s, get stb cfg from mnode", target);
       break;
     }
     case TDMT_MND_SERVER_VERSION: {
@@ -357,11 +357,11 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
 
       code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
       if (code) {
-        qError("Process svr ver rsp failed, error:%s", tstrerror(code));
+        qError("process svr ver rsp failed, error:%s", tstrerror(code));
         CTG_ERR_RET(code);
       }
 
-      qDebug("Got svr ver from mnode");
+      qDebug("get svr ver from mnode");
       break;
     }
     case TDMT_MND_VIEW_META: {
@@ -376,29 +376,29 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
 
       code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
       if (code) {
-        qError("Process get view-meta rsp failed, error:%s, viewFName:%s", tstrerror(code), target);
+        qError("view:%s, process get view-meta rsp failed, error:%s", target, tstrerror(code));
         CTG_ERR_RET(code);
       }
 
-      qDebug("Got view-meta from mnode, viewFName:%s", target);
+      qDebug("view:%s, get view-meta from mnode", target);
       break;
     }
     case TDMT_MND_GET_TSMA:
     case TDMT_MND_GET_TABLE_TSMA: {
       if (TSDB_CODE_SUCCESS != rspCode) {
         if (TSDB_CODE_MND_SMA_NOT_EXIST != rspCode) {
-          qError("error rsp for get table tsma, error:%s, tbFName:%s", tstrerror(rspCode), target);
+          qError("tb:%s, error rsp for get table tsma, error:%s", target, tstrerror(rspCode));
         }
         CTG_ERR_RET(rspCode);
       }
 
       code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
       if (code) {
-        qError("Process get table tsma rsp failed, error:%s, tbFName:%s", tstrerror(code), target);
+        qError("tb:%s, Process get table tsma rsp failed, error:%s", target, tstrerror(code));
         CTG_ERR_RET(code);
       }
 
-      qDebug("Got table tsma from mnode, tbFName:%s", target);
+      qDebug("tb:%s, get table tsma from mnode", target);
       break;
     }
     case TDMT_VND_GET_STREAM_PROGRESS: {
@@ -407,7 +407,7 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       }
       code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
       if (code) {
-        qError("Process get stream progress rsp failed, err: %s, tbFName: %s", tstrerror(code), target);
+        qError("tb:%s, process get stream progress rsp failed, error:%s", target, tstrerror(code));
         CTG_ERR_RET(code);
       }
       break;
@@ -425,7 +425,7 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
     }
     default:
       if (TSDB_CODE_SUCCESS != rspCode) {
-        qError("Got error rsp, error:%s", tstrerror(rspCode));
+        qError("get error rsp, error:%s", tstrerror(rspCode));
         CTG_ERR_RET(rspCode);
       }
 
@@ -466,7 +466,7 @@ int32_t ctgHandleMsgCallback(void* param, SDataBuf* pMsg, int32_t rspCode) {
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    qDebug("QID:0x%" PRIx64 " ctg task %d start to handle rsp %s", pJob->queryId, pTask->taskId,
+    qDebug("QID:0x%" PRIx64 ", ctg task:%d start to handle rsp:%s", pJob->queryId, pTask->taskId,
            TMSG_INFO(cbParam->reqType + 1));
 
 #if CTG_BATCH_FETCH
@@ -479,7 +479,7 @@ int32_t ctgHandleMsgCallback(void* param, SDataBuf* pMsg, int32_t rspCode) {
 
     SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, -1);
     if (NULL == pMsgCtx) {
-      ctgError("get task %d SCtgMsgCtx failed, taskType:%d", -1, pTask->type);
+      ctgError("task:%d, get SCtgMsgCtx failed, taskType:%d", -1, pTask->type);
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
@@ -573,7 +573,7 @@ int32_t ctgAsyncSendMsg(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob* pJob, 
     CTG_ERR_JRET(code);
   }
 
-  ctgDebug("ctg req msg sent,QID:0x%" PRIx64 ", msg type:%d, %s", pJob->queryId, msgType, TMSG_INFO(msgType));
+  ctgDebug("ctg req msg sent, QID:0x%" PRIx64 ", msg type:%d, %s", pJob->queryId, msgType, TMSG_INFO(msgType));
   return TSDB_CODE_SUCCESS;
 
 _return:
@@ -594,7 +594,7 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
   SBatchMsg   req = {0};
   SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, tReq->msgIdx);
   if (NULL == pMsgCtx) {
-    ctgError("get task %d SCtgMsgCtx failed, taskType:%d", tReq->msgIdx, pTask->type);
+    ctgError("task:%d, get SCtgMsgCtx failed, taskType:%d", tReq->msgIdx, pTask->type);
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
@@ -688,7 +688,7 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
       CTG_ERR_JRET(terrno);
     }
 
-    ctgDebug("task %d %s req added to batch %d, target vgId %d", pTask->taskId, TMSG_INFO(msgType), newBatch.batchId,
+    ctgDebug("task:%d, %s req added to batch:%d, target vgId:%d", pTask->taskId, TMSG_INFO(msgType), newBatch.batchId,
              vgId);
 
     return TSDB_CODE_SUCCESS;
@@ -762,7 +762,7 @@ int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgT
     (void)tNameGetFullDbName(pName, pBatch->dbFName);
   }
 
-  ctgDebug("task %d %s req added to batch %d, target vgId %d", pTask->taskId, TMSG_INFO(msgType), pBatch->batchId,
+  ctgDebug("task:%d, %s req added to batch:%d, target vgId:%d", pTask->taskId, TMSG_INFO(msgType), pBatch->batchId,
            vgId);
 
   return TSDB_CODE_SUCCESS;
@@ -806,7 +806,7 @@ int32_t ctgBuildBatchReqMsg(SCtgBatch* pBatch, int32_t vgId, void** msg, int32_t
 
   *pSize = msgSize;
 
-  qDebug("batch req %d to vg %d msg built with %d meta reqs", pBatch->batchId, vgId, num);
+  qDebug("batch:%d, batch req to vgId:%d msg built with %d meta reqs", pBatch->batchId, vgId, num);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -821,7 +821,7 @@ int32_t ctgLaunchBatchs(SCatalog* pCtg, SCtgJob* pJob, SHashObj* pBatchs) {
     SCtgBatch* pBatch = (SCtgBatch*)p;
     int32_t    msgSize = 0;
 
-    ctgDebug("QID:0x%" PRIx64 " ctg start to launch batch %d", pJob->queryId, pBatch->batchId);
+    ctgDebug("QID:0x%" PRIx64 ", ctg start to launch batch:%d", pJob->queryId, pBatch->batchId);
 
     CTG_ERR_JRET(ctgBuildBatchReqMsg(pBatch, *vgId, &msg, &msgSize));
     code = ctgAsyncSendMsg(pCtg, &pBatch->conn, pJob, pBatch->pTaskIds, pBatch->batchId, pBatch->pMsgIdxs,
@@ -1378,6 +1378,7 @@ int32_t ctgGetTbMetaFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
 int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SVgroupInfo* vgroupInfo,
                               STableMetaOutput* out, SCtgTaskReq* tReq) {
   SCtgTask* pTask = tReq ? tReq->pTask : NULL;
+  uint8_t   autoCreateCtb = tReq ? tReq->autoCreateCtb : 0;
   char      dbFName[TSDB_DB_FNAME_LEN];
   (void)tNameGetFullDbName(pTableName, dbFName);
   int32_t reqType = (pTask && pTask->type == CTG_TASK_GET_TB_NAME ? TDMT_VND_TABLE_NAME : TDMT_VND_TABLE_META);
@@ -1391,6 +1392,7 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
 
   SBuildTableInput bInput = {.vgId = vgroupInfo->vgId,
                              .option = reqType == TDMT_VND_TABLE_NAME ? REQ_OPT_TBUID : REQ_OPT_TBNAME,
+                             .autoCreateCtb = autoCreateCtb,
                              .dbFName = dbFName,
                              .tbName = (char*)tNameGetTableName(pTableName)};
   char*            msg = NULL;

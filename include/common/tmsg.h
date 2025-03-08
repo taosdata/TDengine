@@ -225,11 +225,11 @@ typedef enum _mgmt_table {
 #define TSDB_COL_IS_UD_COL(f)     ((f & (~(TSDB_COL_NULL))) == TSDB_COL_UDC)
 #define TSDB_COL_REQ_NULL(f)      (((f)&TSDB_COL_NULL) != 0)
 
-#define TD_SUPER_TABLE         TSDB_SUPER_TABLE
-#define TD_CHILD_TABLE         TSDB_CHILD_TABLE
-#define TD_NORMAL_TABLE        TSDB_NORMAL_TABLE
-#define TD_VIRTUAL_TABLE       TSDB_VIRTUAL_TABLE
-#define TD_VIRTUAL_CHILD_TABLE TSDB_VIRTUAL_CHILD_TABLE
+#define TD_SUPER_TABLE          TSDB_SUPER_TABLE
+#define TD_CHILD_TABLE          TSDB_CHILD_TABLE
+#define TD_NORMAL_TABLE         TSDB_NORMAL_TABLE
+#define TD_VIRTUAL_NORMAL_TABLE TSDB_VIRTUAL_NORMAL_TABLE
+#define TD_VIRTUAL_CHILD_TABLE  TSDB_VIRTUAL_CHILD_TABLE
 
 typedef enum ENodeType {
   // Syntax nodes are used in parser and planner module, and some are also used in executor module, such as COLUMN,
@@ -372,6 +372,7 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_ANODE_STMT,
   QUERY_NODE_DROP_ANODE_STMT,
   QUERY_NODE_UPDATE_ANODE_STMT,
+  QUERY_NODE_ASSIGN_LEADER_STMT,
   QUERY_NODE_SHOW_CREATE_TSMA_STMT,
   QUERY_NODE_SHOW_CREATE_VTABLE_STMT,
 
@@ -506,6 +507,7 @@ typedef enum ENodeType {
 typedef struct {
   int32_t     vgId;
   uint8_t     option;  // 0x0 REQ_OPT_TBNAME, 0x01 REQ_OPT_TBUID
+  uint8_t     autoCreateCtb;  // 0x0 not auto create, 0x01 auto create
   const char* dbFName;
   const char* tbName;
 } SBuildTableInput;
@@ -617,11 +619,6 @@ typedef struct {
 } SColRefWrapper;
 
 typedef struct {
-  int32_t vgId;
-  SColRef colRef;
-} SColRefEx;
-
-typedef struct {
   int16_t colId;
   char    refDbName[TSDB_DB_NAME_LEN];
   char    refTableName[TSDB_TABLE_NAME_LEN];
@@ -639,11 +636,6 @@ typedef struct SVCTableMergeInfo {
   uint64_t     uid;
   int32_t      numOfSrcTbls;
 } SVCTableMergeInfo;
-
-typedef struct {
-  int32_t     nCols;
-  SColRefEx*  pColRefEx;
-} SColRefExWrapper;
 
 struct SSchema {
   int8_t   type;
@@ -1193,6 +1185,7 @@ typedef struct {
   char*       sql;
   int8_t      isImport;
   int8_t      createDb;
+  int8_t      passIsMd5;
 } SCreateUserReq;
 
 int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
@@ -1263,6 +1256,7 @@ typedef struct {
   int64_t     privileges;
   int32_t     sqlLen;
   char*       sql;
+  int8_t      passIsMd5;
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
@@ -1763,6 +1757,7 @@ typedef struct {
   int32_t     sqlLen;
   char*       sql;
   SArray*     vgroupIds;
+  int8_t      metaOnly;
 } SCompactDbReq;
 
 int32_t tSerializeSCompactDbReq(void* buf, int32_t bufLen, SCompactDbReq* pReq);
@@ -1969,6 +1964,7 @@ typedef struct {
   int32_t     statusSeq;
   int64_t     ipWhiteVer;
   int64_t     analVer;
+  int64_t     timestamp;
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
@@ -2207,6 +2203,7 @@ typedef struct {
   int64_t     compactStartTime;
   STimeWindow tw;
   int32_t     compactId;
+  int8_t      metaOnly;
 } SCompactVnodeReq;
 
 int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
@@ -2293,6 +2290,7 @@ typedef struct {
   char     dbFName[TSDB_DB_FNAME_LEN];
   char     tbName[TSDB_TABLE_NAME_LEN];
   uint8_t  option;
+  uint8_t  autoCreateCtb;
 } STableInfoReq;
 
 int32_t tSerializeSTableInfoReq(void* buf, int32_t bufLen, STableInfoReq* pReq);
@@ -2707,6 +2705,7 @@ typedef struct {
   char*   arbToken;
   int64_t arbTerm;
   char*   memberToken;
+  int8_t  force;
 } SVArbSetAssignedLeaderReq;
 
 int32_t tSerializeSVArbSetAssignedLeaderReq(void* buf, int32_t bufLen, SVArbSetAssignedLeaderReq* pReq);
@@ -2785,6 +2784,15 @@ int32_t tSerializeSBalanceVgroupReq(void* buf, int32_t bufLen, SBalanceVgroupReq
 int32_t tDeserializeSBalanceVgroupReq(void* buf, int32_t bufLen, SBalanceVgroupReq* pReq);
 void    tFreeSBalanceVgroupReq(SBalanceVgroupReq* pReq);
 
+typedef struct {
+  int32_t useless;  // useless
+  int32_t sqlLen;
+  char*   sql;
+} SAssignLeaderReq;
+
+int32_t tSerializeSAssignLeaderReq(void* buf, int32_t bufLen, SAssignLeaderReq* pReq);
+int32_t tDeserializeSAssignLeaderReq(void* buf, int32_t bufLen, SAssignLeaderReq* pReq);
+void    tFreeSAssignLeaderReq(SAssignLeaderReq* pReq);
 typedef struct {
   int32_t vgId1;
   int32_t vgId2;
@@ -2916,12 +2924,37 @@ typedef struct SOperatorParam {
   int32_t downstreamIdx;
   void*   value;
   SArray* pChildren;  // SArray<SOperatorParam*>
+  bool    reUse;
 } SOperatorParam;
 
+typedef struct SColIdNameKV {
+  col_id_t colId;
+  char     colName[TSDB_COL_NAME_LEN];
+} SColIdNameKV;
+
+typedef struct SColIdPair {
+  col_id_t vtbColId;
+  col_id_t orgColId;
+} SColIdPair;
+
+typedef struct SOrgTbInfo {
+  int32_t   vgId;
+  char      tbName[TSDB_TABLE_FNAME_LEN];
+  SArray*   colMap;  // SArray<SColIdNameKV>
+} SOrgTbInfo;
+
 typedef struct STableScanOperatorParam {
-  bool    tableSeq;
-  SArray* pUidList;
+  bool           tableSeq;
+  bool           isVtbRefScan;
+  SArray*        pUidList;
+  SOrgTbInfo*    pOrgTbInfo;
+  STimeWindow    window;
 } STableScanOperatorParam;
+
+typedef struct SVTableScanOperatorParam {
+  uint64_t       uid;
+  SArray*        pOpParamArray;  // SArray<SOperatorParam>
+} SVTableScanOperatorParam;
 
 typedef struct {
   SMsgHead        header;
@@ -3406,7 +3439,7 @@ static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
     taosMemoryFreeClear(req->ctb.stbName);
     taosArrayDestroy(req->ctb.tagName);
     req->ctb.tagName = NULL;
-  } else if (req->type == TSDB_NORMAL_TABLE || req->type == TSDB_VIRTUAL_TABLE) {
+  } else if (req->type == TSDB_NORMAL_TABLE || req->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
   }
   taosMemoryFreeClear(req->colCmpr.pColCmpr);
@@ -3689,6 +3722,7 @@ typedef struct {
   SArray*       rsps;  // SArray<SClientHbRsp>
   SMonitorParas monitorParas;
   int8_t        enableAuditDelete;
+  int8_t        enableStrongPass;
 } SClientHbBatchRsp;
 
 static FORCE_INLINE uint32_t hbKeyHashFunc(const char* key, uint32_t keyLen) { return taosIntHash_64(key, keyLen); }

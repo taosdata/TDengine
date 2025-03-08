@@ -7,7 +7,7 @@ toc_max_heading_level: 4
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-通过参数绑定方式写入数据时，能避免SQL语法解析的资源消耗，从而显著提升写入性能。参数绑定能提高写入效率的原因主要有以下几点：
+通过参数绑定方式写入数据时，能避免 SQL 语法解析的资源消耗，从而显著提升写入性能。参数绑定能提高写入效率的原因主要有以下几点：
 
 - 减少解析时间：通过参数绑定，SQL 语句的结构在第一次执行时就已经确定，后续的执行只需要替换参数值，这样可以避免每次执行时都进行语法解析，从而减少解析时间。  
 - 预编译：当使用参数绑定时，SQL 语句可以被预编译并缓存，后续使用不同的参数值执行时，可以直接使用预编译的版本，提高执行效率。  
@@ -19,9 +19,9 @@ import TabItem from "@theme/TabItem";
    我们只推荐使用下面两种形式的 SQL 进行参数绑定写入：
 
     ```sql
-    一、确定子表存在：
+    一、确定子表存在
        1. INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?)  
-    二、自动建表：
+    二、自动建表
        1. INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)   
        2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
     ```
@@ -50,7 +50,7 @@ import TabItem from "@theme/TabItem";
 {{#include docs/examples/java/src/main/java/com/taos/example/WSParameterBindingExtendInterfaceDemo.java:para_bind}}
 ```
 
-这是一个[更详细的参数绑定示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/WSParameterBindingFullDemo.java)  
+这是一个 [更详细的参数绑定示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/WSParameterBindingFullDemo.java)  
 
 </TabItem>
 <TabItem label="Python" value="python">
@@ -100,7 +100,7 @@ import TabItem from "@theme/TabItem";
 {{#include docs/examples/java/src/main/java/com/taos/example/ParameterBindingBasicDemo.java:para_bind}}
 ```
 
-这是一个[更详细的参数绑定示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/ParameterBindingFullDemo.java)  
+这是一个 [更详细的参数绑定示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/java/src/main/java/com/taos/example/ParameterBindingFullDemo.java)  
 
 </TabItem>
 <TabItem label="Python" value="python">

@@ -91,7 +91,7 @@ int32_t qwSendQueryRsp(QW_FPARAMS_DEF, int32_t msgType, SQWTaskCtx *ctx, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
+int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool processOneBlock) {
   int32_t        code = 0;
   bool           qcontinue = true;
   uint64_t       useconds = 0;
@@ -124,7 +124,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
       qwDbgSimulateSleep();
 
       taosEnableMemPoolUsage(ctx->memPoolSession);
-      code = qExecTaskOpt(taskHandle, pResList, &useconds, &hasMore, &localFetch);
+      code = qExecTaskOpt(taskHandle, pResList, &useconds, &hasMore, &localFetch, processOneBlock);
       taosDisableMemPoolUsage();
 
       if (code) {
@@ -339,8 +339,8 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
       break;
     }
 
-    // Got data from sink
-    QW_TASK_DLOG("there are data in sink, dataLength:%" PRId64 "", len);
+    // get data from sink
+    QW_TASK_DLOG("there are data in sink, dataLength:%" PRId64, len);
 
     *dataLen += len + PAYLOAD_PREFIX_LEN;
     *pRawDataLen += rawLen + PAYLOAD_PREFIX_LEN;
@@ -876,7 +876,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   QW_ERR_JRET(qwSaveTbVersionInfo(pTaskInfo, ctx));
 
   if (!ctx->dynamicTask) {
-    QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL));
+    QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL, false));
   } else {
     ctx->queryExecDone = true;
     ctx->queryEnd = true;
@@ -915,15 +915,17 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     atomic_store_8((int8_t *)&ctx->queryInQueue, 0);
     atomic_store_8((int8_t *)&ctx->queryContinue, 0);
 
+    uint64_t flag = 0;
+    dsGetSinkFlags(ctx->sinkHandle, &flag);
     if (!queryStop) {
-      QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryStop));
+      QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryStop, flag & DS_FLAG_PROCESS_ONE_BLOCK));
     }
 
     if (QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
       SOutputData sOutput = {0};
       QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawLen, &rsp, &sOutput));
 
-      if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {
+      if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus) && !(flag & DS_FLAG_PROCESS_ONE_BLOCK)) {
         QW_TASK_DLOG("task not end and buf is %s, need to continue query", qwBufStatusStr(sOutput.bufStatus));
 
         atomic_store_8((int8_t *)&ctx->queryContinue, 1);
@@ -1406,7 +1408,7 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes) {
 
   ctx.sinkWithMemPool = flags & DS_FLAG_USE_MEMPOOL;
 
-  QW_ERR_JRET(qwExecTask(QW_FPARAMS(), &ctx, NULL));
+  QW_ERR_JRET(qwExecTask(QW_FPARAMS(), &ctx, NULL, false));
 
   QW_ERR_JRET(qwGetDeleteResFromSink(QW_FPARAMS(), &ctx, pRes));
 
@@ -1623,7 +1625,7 @@ int32_t qWorkerProcessLocalQuery(void *pMgmt, uint64_t sId, uint64_t qId, uint64
   atomic_store_ptr(&ctx->taskHandle, pTaskInfo);
   atomic_store_ptr(&ctx->sinkHandle, sinkHandle);
 
-  QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL));
+  QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL, false));
 
 _return:
 
@@ -1665,7 +1667,7 @@ int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64
     QW_ERR_JRET(qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawLen, &rsp, &sOutput));
 
     if (NULL == rsp) {
-      QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryStop));
+      QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryStop, false));
 
       continue;
     } else {
@@ -1699,18 +1701,18 @@ void qWorkerRetireJob(uint64_t jobId, uint64_t clientId, int32_t errCode) {
 
   SQWJobInfo *pJob = (SQWJobInfo *)taosHashGet(gQueryMgmt.pJobInfo, id, sizeof(id));
   if (NULL == pJob) {
-    qError("QID:0x%" PRIx64 " CID:0x%" PRIx64 " fail to get job from job hash", jobId, clientId);
+    qError("QID:0x%" PRIx64 ", CID:0x%" PRIx64 " fail to get job from job hash", jobId, clientId);
     return;
   }
 
   if (0 == atomic_val_compare_exchange_32(&pJob->errCode, 0, errCode) &&
       0 == atomic_val_compare_exchange_8(&pJob->retired, 0, 1)) {
-    qDebug("QID:0x%" PRIx64 " CID:0x%" PRIx64 " mark retired, errCode: 0x%x, allocSize:%" PRId64, jobId, clientId,
+    qDebug("QID:0x%" PRIx64 ", CID:0x%" PRIx64 " mark retired, errCode: 0x%x, allocSize:%" PRId64, jobId, clientId,
            errCode, atomic_load_64(&pJob->memInfo->allocMemSize));
 
     (void)qwRetireJob(pJob);
   } else {
-    qDebug("QID:0x%" PRIx64 " already retired, retired: %d, errCode: 0x%x, allocSize:%" PRId64, jobId,
+    qDebug("QID:0x%" PRIx64 ", already retired, retired: %d, errCode: 0x%x, allocSize:%" PRId64, jobId,
            atomic_load_8(&pJob->retired), atomic_load_32(&pJob->errCode), atomic_load_64(&pJob->memInfo->allocMemSize));
   }
 }
@@ -1741,10 +1743,10 @@ void qWorkerRetireJobs(int64_t retireSize, int32_t errCode) {
       
       jobNum++;
 
-      qDebug("QID:0x%" PRIx64 " CID:0x%" PRIx64 " job mark retired in batch, retired:%d, usedSize:%" PRId64 ", retireSize:%" PRId64, 
+      qDebug("QID:0x%" PRIx64 ", CID:0x%" PRIx64 " job mark retired in batch, retired:%d, usedSize:%" PRId64 ", retireSize:%" PRId64, 
       pJob->memInfo->jobId, pJob->memInfo->clientId, retired, aSize, retireSize);
     } else {
-      qDebug("QID:0x%" PRIx64 " CID:0x%" PRIx64 " job may already failed, errCode:%s", pJob->memInfo->jobId, pJob->memInfo->clientId, tstrerror(pJob->errCode));
+      qDebug("QID:0x%" PRIx64 ", CID:0x%" PRIx64 " job may already failed, errCode:%s", pJob->memInfo->jobId, pJob->memInfo->clientId, tstrerror(pJob->errCode));
     }
 
     pJob = (SQWJobInfo *)taosHashIterate(gQueryMgmt.pJobInfo, pJob);

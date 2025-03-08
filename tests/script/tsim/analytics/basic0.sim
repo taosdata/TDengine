@@ -69,6 +69,9 @@ if $data00 != 1 then
    return -1
 endi
 
+print ================= too many rows error
+sql_error select forecast(c6, 'algo=holtwinters, rows=1025') from ct1;
+
 print =================  try every loaded anomaly detection algorithm
 sql select count(*) from ct1 anomaly_window(c1, 'algo=iqr');
 sql select count(*) from ct1 anomaly_window(c1, 'algo=ksigma');

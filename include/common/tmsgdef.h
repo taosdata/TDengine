@@ -130,6 +130,7 @@
   TD_DEF_MSG_TYPE(TDMT_MND_UPDATE_ANODE, "update-anode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_DROP_ANODE, "drop-anode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_RETRIEVE_ANAL_ALGO, "retrieve-anal-algo", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_GET_DB_INFO, "get-db-info", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_DND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MND_MSG)  // 1<<8
@@ -263,6 +264,7 @@
   TD_DEF_MSG_TYPE(TDMT_MND_CONFIG, "init-config", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_CONFIG_SDB, "config-sdb", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_RESET_STREAM, "reset-stream", NULL, NULL)
+  // do not add new message type here, since mnode msg overload. you can add new message type after dnode msg
   TD_CLOSE_MSG_SEG(TDMT_END_MND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_VND_MSG)  // 2<<8
@@ -402,6 +404,7 @@
   TD_DEF_MSG_TYPE(TDMT_VND_STREAM_TASK_CHECK, "vnode-stream-task-check", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_STREAM_UNUSED, "vnd-stream-unused", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_GET_STREAM_PROGRESS, "vnd-stream-progress", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_STREAM_ALL_STOP, "vnd-stream-allstop", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_VND_STREAM_MSG)
 
   TD_NEW_MSG_SEG(TDMT_VND_TMQ_MSG)  //8 << 8
@@ -422,6 +425,7 @@
   TD_DEF_MSG_TYPE(TDMT_MND_ARB_CHECK_SYNC_TIMER, "mnd-arb-check-sync-tmr", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_ARB_UPDATE_GROUP, "mnd-arb-update-group", NULL, NULL) // no longer used
   TD_DEF_MSG_TYPE(TDMT_MND_ARB_UPDATE_GROUP_BATCH, "mnd-arb-update-group-batch", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_ARB_ASSIGN_LEADER, "mnd-arb-assign-leader", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_MND_ARB_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MAX_MSG)  // msg end mark

@@ -49,7 +49,7 @@ int32_t fillTableColCmpr(SMetaReader *reader, SSchemaExt *pExt, int32_t numOfCol
   return 0;
 }
 
-void vnodePrintTableMeta(STableMetaRsp* pMeta) {
+void vnodePrintTableMeta(STableMetaRsp *pMeta) {
   if (!(qDebugFlag & DEBUG_DEBUG)) {
     return;
   }
@@ -70,11 +70,11 @@ void vnodePrintTableMeta(STableMetaRsp* pMeta) {
   qDebug("sysInfo:%d", pMeta->sysInfo);
   if (pMeta->pSchemas) {
     for (int32_t i = 0; i < (pMeta->numOfColumns + pMeta->numOfTags); ++i) {
-      SSchema* pSchema = pMeta->pSchemas + i;
-      qDebug("%d col/tag: type:%d, flags:%d, colId:%d, bytes:%d, name:%s", i, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes, pSchema->name);
+      SSchema *pSchema = pMeta->pSchemas + i;
+      qDebug("%d col/tag: type:%d, flags:%d, colId:%d, bytes:%d, name:%s", i, pSchema->type, pSchema->flags,
+             pSchema->colId, pSchema->bytes, pSchema->name);
     }
   }
-
 }
 
 int32_t fillTableColRef(SMetaReader *reader, SColRef *pRef, int32_t numOfCol) {
@@ -112,12 +112,14 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   void          *pRsp = NULL;
   SSchemaWrapper schema = {0};
   SSchemaWrapper schemaTag = {0};
+  uint8_t        autoCreateCtb = 0;
 
   // decode req
   if (tDeserializeSTableInfoReq(pMsg->pCont, pMsg->contLen, &infoReq) != 0) {
     code = terrno;
     goto _exit4;
   }
+  autoCreateCtb = infoReq.autoCreateCtb;
 
   if (infoReq.option == REQ_OPT_TBUID) reqTbUid = true;
   metaRsp.dbId = pVnode->config.dbId;
@@ -179,7 +181,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       break;
     }
     case TSDB_NORMAL_TABLE:
-    case TSDB_VIRTUAL_TABLE: {
+    case TSDB_VIRTUAL_NORMAL_TABLE: {
       schema = mer1.me.ntbEntry.schemaRow;
       break;
     }
@@ -264,6 +266,10 @@ _exit4:
   rpcMsg.code = code;
   rpcMsg.msgType = pMsg->msgType;
 
+  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST && autoCreateCtb == 1) {
+    code = TSDB_CODE_SUCCESS;
+  }
+
   if (code) {
     qError("get table %s meta with %" PRIu8 " failed cause of %s", infoReq.tbName, infoReq.option, tstrerror(code));
   }
@@ -342,7 +348,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       goto _exit;
     }
     (void)memcpy(cfgRsp.pTags, pTag, cfgRsp.tagsLen);
-  } else if (mer1.me.type == TSDB_NORMAL_TABLE || mer1.me.type == TSDB_VIRTUAL_TABLE) {
+  } else if (mer1.me.type == TSDB_NORMAL_TABLE || mer1.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
     schema = mer1.me.ntbEntry.schemaRow;
     cfgRsp.ttl = mer1.me.ntbEntry.ttlDays;
     cfgRsp.commentLen = mer1.me.ntbEntry.commentLen;
@@ -737,6 +743,12 @@ _return:
   return code;
 }
 
+#define VNODE_DO_META_QUERY(pVnode, cmd)                 \
+  do {                                                   \
+    (void)taosThreadRwlockRdlock(&(pVnode)->metaRWLock); \
+    cmd;                                                 \
+    (void)taosThreadRwlockUnlock(&(pVnode)->metaRWLock); \
+  } while (0)
 
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   SSyncState state = syncGetState(pVnode->sync);
@@ -753,8 +765,8 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->learnerProgress = state.progress;
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
   pLoad->numOfCachedTables = tsdbCacheGetElems(pVnode);
-  pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
-  pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1);
+  VNODE_DO_META_QUERY(pVnode, pLoad->numOfTables = metaGetTbNum(pVnode->pMeta));
+  VNODE_DO_META_QUERY(pVnode, pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1));
   pLoad->totalStorage = (int64_t)3 * 1073741824;
   pLoad->compStorage = (int64_t)2 * 1073741824;
   pLoad->pointsWritten = 100;

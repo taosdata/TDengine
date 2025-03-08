@@ -167,7 +167,7 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, int32_t dbN
  * @param handle
  * @return
  */
-int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal);
+int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal, bool processOneBlock);
 
 int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pBlock, uint64_t* useconds);
 
@@ -183,7 +183,7 @@ void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo);
  */
 int32_t qAsyncKillTask(qTaskInfo_t tinfo, int32_t rspCode);
 
-int32_t qKillTask(qTaskInfo_t tinfo, int32_t rspCode);
+int32_t qKillTask(qTaskInfo_t tinfo, int32_t rspCode, int64_t waitDuration);
 
 bool qTaskIsExecuting(qTaskInfo_t qinfo);
 

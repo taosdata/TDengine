@@ -39,6 +39,7 @@ static SLogicSubplan* singleCloneSubLogicPlan(SScaleOutContext* pCxt, SLogicSubp
   pDst->id.queryId = pSrc->id.queryId;
   pDst->id.groupId = pSrc->id.groupId;
   pDst->id.subplanId = pCxt->subplanId++;
+  pDst->processOneBlock = pSrc->processOneBlock;
   return pDst;
 }
 
@@ -52,6 +53,17 @@ static int32_t doSetScanVgroup(SLogicNode* pNode, const SVgroupInfo* pVgroup, bo
     memcpy(pScan->pVgroupList->vgroups, pVgroup, sizeof(SVgroupInfo));
     *pFound = true;
     return TSDB_CODE_SUCCESS;
+  } else if (QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(pNode)) {
+    SDynQueryCtrlLogicNode* pCtrl = (SDynQueryCtrlLogicNode*)pNode;
+    if (DYN_QTYPE_VTB_SCAN == pCtrl->qType) {
+      pCtrl->vtbScan.pVgroupList = taosMemoryCalloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
+      if (NULL == pCtrl->vtbScan.pVgroupList) {
+        return terrno;
+      }
+      memcpy(pCtrl->vtbScan.pVgroupList->vgroups, pVgroup, sizeof(SVgroupInfo));
+      *pFound = true;
+      return TSDB_CODE_SUCCESS;
+    }
   }
   SNode* pChild = NULL;
   FOREACH(pChild, pNode->pChildren) {

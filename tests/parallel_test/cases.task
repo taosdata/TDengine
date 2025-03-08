@@ -22,6 +22,7 @@
 ,,y,army,./pytest.sh python3 ./test.py -f multi-level/mlevel_basic.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f db-encrypt/basic.py -N 3 -M 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f cluster/arbitrator_restart.py -N 3
 ,,n,army,python3 ./test.py -f storage/s3/s3Basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/snapshot.py -N 3 -L 3 -D 2
 ,,y,army,./pytest.sh python3 ./test.py -f vtable/test_vtable_create.py
@@ -54,11 +55,13 @@
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/incSnapshot.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/clusterBasic.py -N 5
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/tsdbSnapshot.py -N 3 -M 3
+,,y,army,./pytest.sh python3 ./test.py -f cluster/strongPassword.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/query_basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_query_accuracy.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_ts5400.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_having.py
 ,,y,army,./pytest.sh python3 ./test.py -f insert/insert_basic.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f insert/auto_create_insert.py
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/splitVgroupByLearner.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f authorith/authBasic.py -N 3
 ,,n,army,python3 ./test.py -f cmdline/fullopt.py
@@ -1821,3 +1824,6 @@
 ,,n,develop-test,python3 ./test.py -f 2-query/ts-range.py
 ,,n,develop-test,python3 ./test.py -f 2-query/tag_scan.py
 ,,n,develop-test,python3 ./test.py -f 2-query/show_create_db.py
+
+# new test
+,,y,test_new,./pytest.sh python3 ./test.py -f storage/compact/test_compact_meta.py

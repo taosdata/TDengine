@@ -866,3 +866,28 @@ int32_t tDecodeStreamTaskRunReq(SDecoder* pDecoder, SStreamTaskRunReq* pReq) {
 _exit:
   return code;
 }
+
+int32_t tEncodeStreamTaskStopReq(SEncoder* pEncoder, const SStreamTaskStopReq* pReq) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tStartEncode(pEncoder));
+  TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pReq->streamId));
+  tEndEncode(pEncoder);
+
+_exit:
+  return code;
+}
+
+int32_t tDecodeStreamTaskStopReq(SDecoder* pDecoder, SStreamTaskStopReq* pReq) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tStartDecode(pDecoder));
+  TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->streamId));
+  tEndDecode(pDecoder);
+
+_exit:
+  return code;
+
+}

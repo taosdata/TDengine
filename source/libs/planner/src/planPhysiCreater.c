@@ -1820,31 +1820,56 @@ static int32_t updateDynQueryCtrlStbJoinInfo(SPhysiPlanContext* pCxt, SNodeList*
   return code;
 }
 
+static int32_t updateDynQueryCtrlVtbScanInfo(SPhysiPlanContext* pCxt, SNodeList* pChildren,
+                                             SDynQueryCtrlLogicNode* pLogicNode, SDynQueryCtrlPhysiNode* pDynCtrl,
+                                             SSubplan* pSubPlan) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pLogicNode->vtbScan.pVgroupList) {
+    vgroupInfoToNodeAddr(pLogicNode->vtbScan.pVgroupList->vgroups, &pSubPlan->execNode);
+    pSubPlan->execNodeStat.tableNum = pLogicNode->vtbScan.pVgroupList->vgroups[0].numOfTable;
+  }
+
+  PLAN_ERR_JRET(nodesCloneList(pLogicNode->node.pTargets, &pDynCtrl->vtbScan.pScanCols));
+
+  pDynCtrl->vtbScan.suid = pLogicNode->vtbScan.suid;
+  pDynCtrl->vtbScan.mgmtEpSet = pCxt->pPlanCxt->mgmtEpSet;
+  pDynCtrl->vtbScan.accountId = pCxt->pPlanCxt->acctId;
+
+  return code;
+_return:
+  planError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+  return code;
+}
+
+
 static int32_t createDynQueryCtrlPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
-                                           SDynQueryCtrlLogicNode* pLogicNode, SPhysiNode** pPhyNode) {
+                                           SDynQueryCtrlLogicNode* pLogicNode, SPhysiNode** pPhyNode, SSubplan* pSubPlan) {
   int32_t                 code = TSDB_CODE_SUCCESS;
+  int32_t                 lino = 0;
   SDynQueryCtrlPhysiNode* pDynCtrl =
       (SDynQueryCtrlPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pLogicNode, QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL);
-  if (NULL == pDynCtrl) {
-    return terrno;
-  }
+  QUERY_CHECK_NULL(pDynCtrl, code, lino, _return, terrno);
 
   switch (pLogicNode->qType) {
     case DYN_QTYPE_STB_HASH:
-      code = updateDynQueryCtrlStbJoinInfo(pCxt, pChildren, pLogicNode, pDynCtrl);
+      PLAN_ERR_JRET(updateDynQueryCtrlStbJoinInfo(pCxt, pChildren, pLogicNode, pDynCtrl));
+      break;
+    case DYN_QTYPE_VTB_SCAN:
+      PLAN_ERR_JRET(updateDynQueryCtrlVtbScanInfo(pCxt, pChildren, pLogicNode, pDynCtrl, pSubPlan));
       break;
     case DYN_QTYPE_VTB_SCAN:
       break;
     default:
-      planError("Invalid dyn query ctrl type:%d", pLogicNode->qType);
-      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      PLAN_ERR_JRET(TSDB_CODE_PLAN_INVALID_DYN_CTRL_TYPE);
   }
 
-  if (TSDB_CODE_SUCCESS == code) {
-    pDynCtrl->qType = pLogicNode->qType;
-    *pPhyNode = (SPhysiNode*)pDynCtrl;
-  }
+  pDynCtrl->qType = pLogicNode->qType;
+  *pPhyNode = (SPhysiNode*)pDynCtrl;
 
+  return code;
+_return:
+  planError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
   return code;
 }
 
@@ -2959,7 +2984,7 @@ static int32_t doCreatePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
     case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
       return createGroupCachePhysiNode(pCxt, pChildren, (SGroupCacheLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
-      return createDynQueryCtrlPhysiNode(pCxt, pChildren, (SDynQueryCtrlLogicNode*)pLogicNode, pPhyNode);
+      return createDynQueryCtrlPhysiNode(pCxt, pChildren, (SDynQueryCtrlLogicNode*)pLogicNode, pPhyNode, pSubplan);
     case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
       return createVirtualTableScanPhysiNode(pCxt, pSubplan, pChildren, (SVirtualScanLogicNode*)pLogicNode, pPhyNode);
     default:
@@ -3055,6 +3080,7 @@ static int32_t makeSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubplan
   pSubplan->dynamicRowThreshold = false;
   pSubplan->isView = pCxt->pPlanCxt->isView;
   pSubplan->isAudit = pCxt->pPlanCxt->isAudit;
+  pSubplan->processOneBlock = pLogicSubplan->processOneBlock;
   if (NULL != pCxt->pPlanCxt->pUser) {
     snprintf(pSubplan->user, sizeof(pSubplan->user), "%s", pCxt->pPlanCxt->pUser);
   }

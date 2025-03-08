@@ -362,6 +362,7 @@ static SKeyword keywordTable[] = {
     {"ON_FAILURE",           TK_ON_FAILURE},
     {"NOTIFY_HISTORY",       TK_NOTIFY_HISTORY},
     {"REGEXP",               TK_REGEXP},
+    {"ASSIGN",               TK_ASSIGN},
     {"TRUE_FOR",             TK_TRUE_FOR},
     {"VTABLES",              TK_VTABLES},
 };

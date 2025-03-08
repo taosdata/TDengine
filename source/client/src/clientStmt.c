@@ -39,13 +39,21 @@ static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void**
 }
 
 bool stmtDequeue(STscStmt* pStmt, SStmtQNode** param) {
-  (void)taosThreadMutexLock(&pStmt->queue.mutex);
+  int i = 0;
   while (0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
-    (void)taosThreadCondWait(&pStmt->queue.waitCond, &pStmt->queue.mutex);
-    if (atomic_load_8((int8_t*)&pStmt->queue.stopQueue)) {
+    if (i < 10) {
+      taosUsleep(1);
+      i++;
+    } else {
+      (void)taosThreadMutexLock(&pStmt->queue.mutex);
+      if (0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
+        (void)taosThreadCondWait(&pStmt->queue.waitCond, &pStmt->queue.mutex);
+      }
       (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
-      return false;
     }
+  }
+  if (pStmt->queue.stopQueue) {
+    return false;
   }
   SStmtQNode* orig = pStmt->queue.head;
   SStmtQNode* node = pStmt->queue.head->next;
@@ -53,24 +61,19 @@ bool stmtDequeue(STscStmt* pStmt, SStmtQNode** param) {
   *param = node;
 
   (void)atomic_sub_fetch_64((int64_t*)&pStmt->queue.qRemainNum, 1);
-  (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
-
-
-  *param = node;
 
   return true;
 }
 
 void stmtEnqueue(STscStmt* pStmt, SStmtQNode* param) {
-  (void)taosThreadMutexLock(&pStmt->queue.mutex);
-
   pStmt->queue.tail->next = param;
   pStmt->queue.tail = param;
 
   pStmt->stat.bindDataNum++;
+
+  (void)taosThreadMutexLock(&pStmt->queue.mutex);
   (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
   (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
-
   (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 }
 
@@ -100,7 +103,7 @@ int32_t stmtSwitchStatus(STscStmt* pStmt, STMT_STATUS newStatus) {
   }
 
   if (pStmt->errCode && newStatus != STMT_PREPARE) {
-    STMT_DLOG("stmt already failed with err: %s", tstrerror(pStmt->errCode));
+    STMT_DLOG("stmt already failed with err:%s", tstrerror(pStmt->errCode));
     return pStmt->errCode;
   }
 
@@ -423,11 +426,9 @@ void stmtResetQueueTableBuf(STableBufInfo* pTblBuf, SStmtQueue* pQueue) {
   pTblBuf->buffIdx = 1;
   pTblBuf->buffOffset = sizeof(*pQueue->head);
 
-  (void)taosThreadMutexLock(&pQueue->mutex);
   pQueue->head = pQueue->tail = pTblBuf->pCurBuff;
   pQueue->qRemainNum = 0;
   pQueue->head->next = NULL;
-  (void)taosThreadMutexUnlock(&pQueue->mutex);
 }
 
 int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool deepClean) {
@@ -573,7 +574,7 @@ int32_t stmtRebuildDataBlock(STscStmt* pStmt, STableDataCxt* pDataBlock, STableD
   STMT_ERR_RET(stmtTryAddTableVgroupInfo(pStmt, &vgId));
   STMT_ERR_RET(qRebuildStmtDataBlock(newBlock, pDataBlock, uid, suid, vgId, pStmt->sql.autoCreateTbl));
 
-  STMT_DLOG("tableDataCxt rebuilt, uid:%" PRId64 ", vgId:%d", uid, vgId);
+  STMT_DLOG("uid:%" PRId64 ", rebuild table data context, vgId:%d", uid, vgId);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -778,7 +779,7 @@ void* stmtBindThreadFunc(void* param) {
   STscStmt* pStmt = (STscStmt*)param;
 
   while (true) {
-    if (atomic_load_8((int8_t*)&pStmt->queue.stopQueue)) {
+    if (pStmt->queue.stopQueue) {
       break;
     }
 
@@ -983,7 +984,7 @@ int32_t stmtInitStbInterlaceTableInfo(STscStmt* pStmt) {
 int stmtSetDbName(TAOS_STMT* stmt, const char* dbName) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
-  STMT_DLOG("start to set dbName: %s", dbName);
+  STMT_DLOG("start to set dbName:%s", dbName);
 
   STMT_ERR_RET(stmtCreateRequest(pStmt));
 
@@ -1001,7 +1002,7 @@ int stmtSetTbName(TAOS_STMT* stmt, const char* tbName) {
 
   int64_t startUs = taosGetTimestampUs();
 
-  STMT_DLOG("start to set tbName: %s", tbName);
+  STMT_DLOG("start to set tbName:%s", tbName);
 
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
     return pStmt->errCode;
@@ -1222,7 +1223,7 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
 
   int64_t startUs = taosGetTimestampUs();
 
-  STMT_DLOG("start to bind stmt data, colIdx: %d", colIdx);
+  STMT_DLOG("start to bind stmt data, colIdx:%d", colIdx);
 
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
     return pStmt->errCode;
@@ -1417,7 +1418,7 @@ int stmtAddBatch(TAOS_STMT* stmt) {
 }
 /*
 int stmtUpdateTableUid(STscStmt* pStmt, SSubmitRsp* pRsp) {
-  tscDebug("stmt start to update tbUid, blockNum: %d", pRsp->nBlocks);
+  tscDebug("stmt start to update tbUid, blockNum:%d", pRsp->nBlocks);
 
   int32_t code = 0;
   int32_t finalCode = 0;
@@ -1630,8 +1631,9 @@ int stmtClose(TAOS_STMT* stmt) {
   STMT_DLOG_E("start to free stmt");
 
   pStmt->queue.stopQueue = true;
-
+  
   (void)taosThreadMutexLock(&pStmt->queue.mutex);
+  (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
   (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
   (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 
@@ -1643,7 +1645,7 @@ int stmtClose(TAOS_STMT* stmt) {
   (void)taosThreadCondDestroy(&pStmt->queue.waitCond);
   (void)taosThreadMutexDestroy(&pStmt->queue.mutex);
 
-  STMT_DLOG("stmt %p closed, stbInterlaceMode: %d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
+  STMT_DLOG("stmt %p closed, stbInterlaceMode:%d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
             ", parseSqlNum=>%" PRId64 ", pStmt->stat.bindDataNum=>%" PRId64
             ", settbnameAPI:%u, bindAPI:%u, addbatchAPI:%u, execAPI:%u"
             ", setTbNameUs:%" PRId64 ", bindDataUs:%" PRId64 ",%" PRId64 ",%" PRId64 ",%" PRId64 " addBatchUs:%" PRId64

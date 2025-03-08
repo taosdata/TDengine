@@ -84,12 +84,12 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 
 |Parameter Name         |Supported Version        |Dynamic Modification|Description|
 |-----------------------|-------------------------|--------------------|------------|
-|timezone         |          |Not supported                     |Time zone; defaults to dynamically obtaining the current time zone setting from the system|
-|locale           |          |Not supported                     |System locale information and encoding format, defaults to obtaining from the system|
-|charset          |          |Not supported                     |Character set encoding, defaults to obtaining from the system|
+|timezone         |          | since 3.1.0.0                     |Time zone; defaults to dynamically obtaining the current time zone setting from the system|
+|locale           |          | since 3.1.0.0                     |System locale information and encoding format, defaults to obtaining from the system|
+|charset          |          | since 3.1.0.0                     |Character set encoding, defaults to obtaining from the system|
 
 :::info
-
+#### Explanation of Regional Related Parameters
 1. To address the issue of data writing and querying across multiple time zones, TDengine uses Unix Timestamps to record and store timestamps. The nature of Unix Timestamps ensures that the timestamps generated are consistent at any given moment across any time zone. It is important to note that the conversion to Unix Timestamps is done on the client side. To ensure that other forms of time on the client are correctly converted to Unix Timestamps, it is necessary to set the correct time zone.
 
 On Linux/macOS, the client automatically reads the time zone information set by the system. Users can also set the time zone in the configuration file in various ways. For example:
@@ -231,6 +231,7 @@ The effective value of charset is UTF-8.
 |udf                       |          |Supported, effective after restart|Whether to start UDF service; 0: do not start, 1: start; default value 0 |
 |udfdResFuncs              |          |Supported, effective after restart|Internal parameter, for setting UDF result sets|
 |udfdLdLibPath             |          |Supported, effective after restart|Internal parameter, indicates the library path for loading UDF|
+|enableStrongPassword      | After 3.3.5.0 |Supported, effective after restart|The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
 
 ### Stream Computing Parameters
 
@@ -534,29 +535,23 @@ The `taosd_vnodes_role` table records virtual node role information.
 | duration    | VARCHAR   | tag    | SQL execution duration, value range: 3-10s, 10-100s, 100-1000s, 1000s- |
 | cluster_id  | VARCHAR   | tag    | cluster id                                       |
 
-## Log Related
+### taos\_slow\_sql\_detail 表
 
-TDengine records the system's operational status through log files, helping users monitor the system's condition and troubleshoot issues. This section mainly introduces the related explanations of two system logs: taosc and taosd.
+`taos_slow_sql_detail` records slow query detail information.The rule of the table name is `{user}_{db}_{ip}_clusterId_{cluster_id}`
 
-TDengine's log files mainly include two types: normal logs and slow logs.
-
-1. Normal Log Behavior Explanation
-    1. Multiple client processes can be started on the same machine, so the client log naming convention is taoslogX.Y, where X is a number, either empty or from 0 to 9, and Y is a suffix, either 0 or 1.
-    2. Only one server process can exist on the same machine. Therefore, the server log naming convention is taosdlog.Y, where Y is a suffix, either 0 or 1.
-
-       The rules for determining the number and suffix are as follows (assuming the log path is /var/log/taos/):
-        1. Determining the number: Use 10 numbers as the log naming convention, /var/log/taos/taoslog0.Y - /var/log/taos/taoslog9.Y, check each number sequentially to find the first unused number as the log file number for that process. If all 10 numbers are used by processes, do not use a number, i.e., /var/log/taos/taoslog.Y, and all processes write to the same file (number is empty).
-        2. Determining the suffix: 0 or 1. For example, if the number is determined to be 3, the alternative log file names would be /var/log/taos/taoslog3.0 /var/log/taos/taoslog3.1. If both files do not exist, use suffix 0; if one exists and the other does not, use the existing suffix. If both exist, use the suffix of the file that was modified most recently.
-    3. If the log file exceeds the configured number of lines numOfLogLines, it will switch suffixes and continue logging, e.g., /var/log/taos/taoslog3.0 is full, switch to /var/log/taos/taoslog3.1 to continue logging. /var/log/taos/taoslog3.0 will be renamed with a timestamp suffix and compressed for storage (handled by an asynchronous thread).
-    4. Control how many days log files are kept through the configuration logKeepDays, logs older than a certain number of days will be deleted when new logs are compressed and stored. It is not based on natural days.
-
-In addition to recording normal logs, SQL statements that take longer than the configured time will be recorded in the slow logs. Slow log files are mainly used for analyzing system performance and troubleshooting performance issues.
-
-2. Slow Log Behavior Explanation
-    1. Slow logs are recorded both locally in slow log files and sent to taosKeeper for structured storage via taosAdapter (monitor switch must be turned on).
-    2. Slow log file storage rules are:
-        1. One slow log file per day; if there are no slow logs for the day, there is no file for that day.
-        2. The file name is taosSlowLog.yyyy-mm-dd (taosSlowLog.2024-08-02), and the log storage path is configured through logDir.
-        3. Logs from multiple clients are stored in the same taosSlowLog.yyyy.mm.dd file under the respective log path.
-        4. Slow log files are not automatically deleted or compressed.
-        5. Uses the same three parameters as normal log files: logDir, minimalLogDirGB, asyncLog. The other two parameters, numOfLogLines and logKeepDays, do not apply to slow logs.
+| field          | type      | is\_tag | comment                                               |
+| :------------- | :-------- | :------ | :---------------------------------------------------- |
+| start\_ts      | TIMESTAMP |         | sql start exec time in client, ms,primary key                     |
+| request\_id    | UINT64_T  |         | sql request id, random hash              |
+| query\_time    | INT32_T   |         | sql exec time, ms                                   |
+| code           | INT32_T   |         | sql return code, 0 success                               |
+| error\_info    | VARCHAR   |         | error info if sql exec failed                           |
+| type           | INT8_T    |         | sql type（1-query, 2-insert, 4-others）                  |
+| rows\_num      | INT64_T   |         | sql result rows num                                   |
+| sql            | VARCHAR   |         | sql sting                                       |
+| process\_name  | VARCHAR   |         | process name                                              |
+| process\_id    | VARCHAR   |         | process id                                              |
+| db             | VARCHAR   | TAG     | which db the sql belong to                                   |
+| user           | VARCHAR   | TAG     | the user that exec this sql                                    |
+| ip             | VARCHAR   | TAG     | the client ip that exec this sql                             |
+| cluster\_id    | VARCHAR   | TAG     | cluster id                                           |

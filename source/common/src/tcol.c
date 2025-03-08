@@ -353,7 +353,7 @@ bool useCompress(uint8_t tableType) {
 }
 
 bool hasRefCol(uint8_t tableType) {
-  return TSDB_VIRTUAL_TABLE == tableType || TSDB_VIRTUAL_CHILD_TABLE == tableType;
+  return TSDB_VIRTUAL_NORMAL_TABLE == tableType || TSDB_VIRTUAL_CHILD_TABLE == tableType;
 }
 
 int8_t validColCompressLevel(uint8_t type, uint8_t level) {

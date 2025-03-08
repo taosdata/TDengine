@@ -59,42 +59,14 @@ extern "C" {
 #define FAILED_POSTFIX  ""
 #endif
 
-#define simFatal(...)                                            \
-  {                                                              \
-    if (simDebugFlag & DEBUG_FATAL) {                            \
-      taosPrintLog("SIM FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); \
-    }                                                            \
-  }
-#define simError(...)                                            \
-  {                                                              \
-    if (simDebugFlag & DEBUG_ERROR) {                            \
-      taosPrintLog("SIM ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); \
-    }                                                            \
-  }
-#define simWarn(...)                                           \
-  {                                                            \
-    if (simDebugFlag & DEBUG_WARN) {                           \
-      taosPrintLog("SIM WARN ", DEBUG_WARN, 255, __VA_ARGS__); \
-    }                                                          \
-  }
-#define simInfo(...)                                      \
-  {                                                       \
-    if (simDebugFlag & DEBUG_INFO) {                      \
-      taosPrintLog("SIM ", DEBUG_INFO, 255, __VA_ARGS__); \
-    }                                                     \
-  }
-#define simDebug(...)                                               \
-  {                                                                 \
-    if (simDebugFlag & DEBUG_DEBUG) {                               \
-      taosPrintLog("SIM ", DEBUG_DEBUG, simDebugFlag, __VA_ARGS__); \
-    }                                                               \
-  }
-#define simTrace(...)                                               \
-  {                                                                 \
-    if (simDebugFlag & DEBUG_TRACE) {                               \
-      taosPrintLog("SIM ", DEBUG_TRACE, simDebugFlag, __VA_ARGS__); \
-    }                                                               \
-  }
+// clang-format off
+#define simFatal(...) { if (simDebugFlag & DEBUG_FATAL) { taosPrintLog("SIM FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
+#define simError(...) { if (simDebugFlag & DEBUG_ERROR) { taosPrintLog("SIM ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
+#define simWarn(...)  { if (simDebugFlag & DEBUG_WARN)  { taosPrintLog("SIM WARN  ", DEBUG_WARN,  255, __VA_ARGS__); }}
+#define simInfo(...)  { if (simDebugFlag & DEBUG_INFO)  { taosPrintLog("SIM INFO  ", DEBUG_INFO,  255, __VA_ARGS__); }}
+#define simDebug(...) { if (simDebugFlag & DEBUG_DEBUG) { taosPrintLog("SIM DEBUG ", DEBUG_DEBUG, simDebugFlag, __VA_ARGS__); }}
+#define simTrace(...) { if (simDebugFlag & DEBUG_TRACE) { taosPrintLog("SIM TRACE ", DEBUG_TRACE, simDebugFlag, __VA_ARGS__); }}
+// clang-format on
 
 enum { SIM_SCRIPT_TYPE_MAIN, SIM_SCRIPT_TYPE_BACKGROUND };
 
