@@ -335,9 +335,10 @@ static void removeDataDeleteResults(SArray* pUpdatedWins, SArray* pDelWins) {
   }
   taosArraySort(pDelWins, winKeyCmprImpl);
   taosArrayRemoveDuplicate(pDelWins, winKeyCmprImpl, NULL);
+  delSize = taosArrayGetSize(pDelWins);
 
   for (int32_t i = 0; i < size; i++) {
-    SRowBuffPos* pPos = *(SRowBuffPos**)taosArrayGet(pUpdatedWins, i);
+    SRowBuffPos* pPos = (SRowBuffPos*) taosArrayGetP(pUpdatedWins, i);
     SWinKey*     pResKey = (SWinKey*)pPos->pKey;
     int32_t      index = binarySearchCom(pDelWins, delSize, pResKey, TSDB_ORDER_DESC, compareWinKey);
     if (index >= 0 && 0 == compareWinKey(pResKey, pDelWins, index)) {

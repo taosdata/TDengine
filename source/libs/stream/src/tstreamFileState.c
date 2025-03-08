@@ -1875,13 +1875,19 @@ void moveLastStateCurNext(SStreamStateCur* pCur, getStateBuffFn fn) {
 int32_t getNLastStateKVByCur(SStreamStateCur* pCur, int32_t num, SArray* pRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  if (pCur->pHashData == NULL) {
-    return TSDB_CODE_FAILED;
-  }
-  SArray*  pWinStates = *((void**)pCur->pHashData);
-  int32_t size = taosArrayGetSize(pWinStates);
-  if (size == 0) {
-    return TSDB_CODE_FAILED;
+  SArray*  pWinStates = NULL;
+  int32_t size = 0;
+
+  while(1) {
+    if (pCur->pHashData == NULL) {
+      return TSDB_CODE_FAILED;
+    }
+    pWinStates = *((void**)pCur->pHashData);
+    size = taosArrayGetSize(pWinStates);
+    if (size > 0) {
+      break;
+    }
+    moveLastStateCurNext(pCur, getSearchBuff);
   }
 
   int32_t i = TMAX(size - num, 0);
