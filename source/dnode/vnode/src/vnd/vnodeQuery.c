@@ -707,7 +707,7 @@ int32_t vnodeGetVSubtablesMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   if (tDeserializeSVSubTablesReq(pMsg->pCont, pMsg->contLen, &req)) {
     code = terrno;
     qError("tDeserializeSVSubTablesReq failed");
-    goto _exit;
+    goto _return;
   }
 
   SReadHandle handle = {.vnode = pVnode};

@@ -1475,6 +1475,7 @@ int32_t ctgDumpVSubTablesRes(SCtgTask* pTask) {
   }
 
   SCtgVSubTablesCtx* pCtx = (SCtgVSubTablesCtx*)pTask->taskCtx;
+  SCatalog*          pCtg = pTask->pJob->pCtg;
 
   if (NULL == pCtx->pResList) {
     return TSDB_CODE_SUCCESS;
@@ -4263,7 +4264,7 @@ int32_t ctgLaunchGetVSubTablesTask(SCtgTask* pTask) {
 
   if (NULL == pCtx->pMeta) {
     SCtgTbMetaCtx metaCtx = {0};
-    metaCtx->pName = pName;
+    metaCtx.pName = pName;
     CTG_ERR_RET(ctgReadTbMetaFromCache(pCtg, &metaCtx, &pCtx->pMeta));
     if (NULL == pCtx->pMeta) {
       SCtgTbMetaParam param;
@@ -4309,7 +4310,7 @@ int32_t ctgLaunchGetVSubTablesTask(SCtgTask* pTask) {
     SCtgTaskReq tReq;
     tReq.pTask = pTask;
     tReq.msgIdx = -1;    
-    CTG_ERR_JRET(ctgGetVSubTablesFromVnode(pCtg, pConn, pCtx->pMeta->suid, pVg, tReq));
+    CTG_ERR_JRET(ctgGetVSubTablesFromVnode(pCtg, pConn, pCtx->pMeta->suid, pVg, &tReq));
   }
 
   if (dbCache) {

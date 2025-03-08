@@ -412,7 +412,7 @@ static void setHTasksId(SStreamObj* pStream) {
 
 static int32_t addSourceTaskVTableOutput(SStreamTask* pTask, SSHashObj* pVgTasks, SSHashObj* pVtables) {
   int32_t code = 0;
-  STaskDispatcherFixed* addr = (STaskDispatcherFixed*)tSimpleHashGet(pVgTasks, pTask->info.nodeId, sizeof(pTask->info.nodeId));
+  STaskDispatcherFixed* addr = (STaskDispatcherFixed*)tSimpleHashGet(pVgTasks, &pTask->info.nodeId, sizeof(pTask->info.nodeId));
   if (NULL == addr) {
     mError("tSimpleHashGet vgId %d STaskDispatcherFixed failed", pTask->info.nodeId);
     return TSDB_CODE_MND_INTERNAL_ERROR;
@@ -503,7 +503,7 @@ static int32_t doAddMergeTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStrea
 
   int32_t code = tNewStreamTask(pStream->uid, TASK_LEVEL__MERGE, pEpset, isHistoryTask, pStream->conf.trigger,
                                 useTriggerParam ? pStream->conf.triggerParam : 0, *pTaskList, pStream->conf.fillHistory,
-                                pStream->subTableWithoutMd5, pTask);
+                                pStream->subTableWithoutMd5, &pTask);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -901,6 +901,18 @@ int32_t tableHashValueComp(void const* lp, void const* rp) {
 }
 
 
+int dbVgInfoComp(const void* lp, const void* rp) {
+  SVGroupHashInfo* pLeft = (SVGroupHashInfo*)lp;
+  SVGroupHashInfo* pRight = (SVGroupHashInfo*)rp;
+  if (pLeft->hashBegin < pRight->hashBegin) {
+    return -1;
+  } else if (pLeft->hashBegin > pRight->hashBegin) {
+    return 1;
+  }
+
+  return 0;
+}
+
 int32_t getTableVgId(SDBVgHashInfo* dbInfo, int32_t acctId, char* dbName, int32_t* vgId, char *tbName) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -929,17 +941,6 @@ _return:
   return code;
 }
 
-int dbVgInfoComp(const void* lp, const void* rp) {
-  SVGroupHashInfo* pLeft = (SVGroupHashInfo*)lp;
-  SVGroupHashInfo* pRight = (SVGroupHashInfo*)rp;
-  if (pLeft->hashBegin < pRight->hashBegin) {
-    return -1;
-  } else if (pLeft->hashBegin > pRight->hashBegin) {
-    return 1;
-  }
-
-  return 0;
-}
 
 static void destroyVSubtableVtb(SSHashObj *pVtable) {
   int32_t iter = 0;
@@ -1080,7 +1081,7 @@ static int32_t addVTableToVnode(SSHashObj* pVg, int32_t vvgId, uint64_t vuid, SR
     return code;
   }
   
-  SColIdName* pOtable = tSimpleHashGet(pVtable, pCol->refTableName, strlen(pCol->refTableName) + 1);
+  SArray** pOtable = tSimpleHashGet(pVtable, pCol->refTableName, strlen(pCol->refTableName) + 1);
   if (NULL == pOtable) {
     pNewOtable = taosArrayInit(4, sizeof(SColIdName));
     TSDB_CHECK_NULL(pNewOtable, code, lino, _return, terrno);
@@ -1155,7 +1156,7 @@ static int32_t addRefColToMap(int32_t vvgId, uint64_t vuid, SRefColInfo* pCol, S
   SSHashObj* currOtable = NULL;
   SColIdName col;
   
-  if (pCtx->lastCol && pCtx->lastCol->refDbName[0] == pCol->refDbName[0] && pCtx->lastCol->refTableName[0] == pCol->refTableName[0]
+  if (pCtx->lastCol && pCtx->lastCol->refDbName[0] == pCol->refDbName[0] && pCtx->lastCol->refTableName[0] == pCol->refTableName[0] &&
      0 == strcmp(pCtx->lastCol->refDbName, pCol->refDbName) && 0 == strcmp(pCtx->lastCol->refTableName, pCol->refTableName)) {
     if (isLastVtable) {
       col.colId = pCol->colId;
@@ -1216,7 +1217,7 @@ static int32_t buildVSubtableMap(SMnode* pMnode, SArray* pVSubTables, SSHashObj*
       SVCTableRefCols* pTb = (SVCTableRefCols*)taosArrayGetP(pVgTbs->pTables, n);
       for (int32_t m = 0; m < pTb->numOfColRefs; ++m) {
         SRefColInfo* pCol = pTb->refCols + m;
-        TAOS_CHECK_EXIT(addRefColToMap(pVgTbs->vgId, pTb->uid, pCol, pDbVgroups, *ppRes, ctx));
+        TAOS_CHECK_EXIT(addRefColToMap(pVgTbs->vgId, pTb->uid, pCol, pDbVgroups, *ppRes, &ctx));
       }
     }
   }
@@ -1270,7 +1271,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
     }
   }
 
-  if ((numOfPlanLevel > 1 && !STaskDispatcherFixed) || externalTargetDB || multiTarget || pStream->fixedSinkVgId) {
+  if ((numOfPlanLevel > 1 && !isVTableStream) || externalTargetDB || multiTarget || pStream->fixedSinkVgId) {
     // add extra sink
     hasExtraSink = true;
     code = addSinkTask(pMnode, pStream, pEpset);
@@ -1296,7 +1297,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
     }
 
     SArray** pSourceTaskList = taosArrayGetLast(pStream->tasks);
-    code = addVTableMergeTask(pMnode, plan, pStream, pEpset, skey, pVerList, (numOfPlanLevel == 1), pCreate, pVTableMap);
+    code = addVTableMergeTask(pMnode, plan, pStream, pEpset, (numOfPlanLevel == 1), pCreate, pVTableMap);
     if (code) {
       return code;
     }

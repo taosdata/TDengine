@@ -4183,7 +4183,7 @@ static int32_t jsonToOtableCols(const SJson* pJson, void* pObj) {
   }
   for (int32_t i = 0; i < colNum; ++i) {
     SJson* pCol = tjsonGetArrayItem(pJson, i);
-    code = tjsonGetIntValue(pCol, jkColVtableId, &col.colId);
+    code = tjsonGetSmallIntValue(pCol, jkColVtableId, &col.colId);
     if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
     code = tjsonGetStringValue(pCol, jkColOtableName, colName);
     if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
@@ -4195,6 +4195,8 @@ static int32_t jsonToOtableCols(const SJson* pJson, void* pObj) {
       return terrno;
     }
   }
+
+  return code;
 }
 
 static int32_t jsonToOtableHash(const SJson* pJson, void* pObj) {
@@ -4214,7 +4216,7 @@ static int32_t jsonToOtableHash(const SJson* pJson, void* pObj) {
       SJson *okeyValue = tjsonGetArrayItem(ovalues, d);
       if (okeyValue == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
     
-      code = tjsonGetStringValue(okeyValue, jkOtableHashName, &tbName);
+      code = tjsonGetStringValue(okeyValue, jkOtableHashName, tbName);
       if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
       SJson *ovalue = tjsonGetObjectItem(okeyValue, jkOtableHashValue);
       code = jsonToOtableCols(ovalue, &pCols);
@@ -4244,7 +4246,7 @@ static int32_t jsonToVtablesHash(const SJson* pJson, void* pObj) {
       SJson *vkeyValue = tjsonGetArrayItem(vvalues, d);
       if (vkeyValue == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
     
-      code = tjsonGetIntValue(vkeyValue, jkVtablesVuid, &vuid);
+      code = tjsonGetUBigIntValue(vkeyValue, jkVtablesVuid, &vuid);
       if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
       SJson *vvalue = tjsonGetObjectItem(vkeyValue, jkVtablesVValue);
       code = jsonToOtableHash(vvalue, &pOtable);

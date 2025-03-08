@@ -1403,6 +1403,8 @@ _exit:
 }
 
 int32_t tEncodeVTablesInfo(SEncoder* pEncoder, SArray* pVTables) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   SVCTableMergeInfo* pMergeInfo = NULL;
   int32_t mergeNum = taosArrayGetSize(pVTables);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, mergeNum));
@@ -1412,7 +1414,11 @@ int32_t tEncodeVTablesInfo(SEncoder* pEncoder, SArray* pVTables) {
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pMergeInfo->numOfSrcTbls));
   }
 
-  return TSDB_CODE_SUCCESS;
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t tDecodeVTablesInfo(SDecoder* pDecoder, SArray** pTables) {
@@ -1443,23 +1449,29 @@ _exit:
 }
 
 int32_t tSerializeVTableMap(SEncoder* pEncoder, const SSHashObj* pVtables) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   int32_t tbNum = tSimpleHashGetSize(pVtables);
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, tbNum));
   int32_t iter = 0;
   STaskDispatcherFixed* pAddr = NULL;
   void* p = NULL;
-  uint64_t* uid = NULL;
+  int64_t* uid = NULL;
   while (NULL != (p = tSimpleHashIterate(pVtables, p, &iter))) {
     pAddr = (STaskDispatcherFixed*)p;
     uid = (uint64_t*)tSimpleHashGetKey(p, NULL);
     
-    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, uid));
+    TAOS_CHECK_EXIT(tEncodeI64(pEncoder, *uid));
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pAddr->taskId));
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pAddr->nodeId));
     TAOS_CHECK_EXIT(tEncodeSEpSet(pEncoder, &pAddr->epSet));
   }
 
-  return TSDB_CODE_SUCCESS;
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
 int32_t tDeserializeVTableMap(SDecoder* pDecoder, SSHashObj** pVtables) {
