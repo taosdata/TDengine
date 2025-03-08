@@ -75,14 +75,6 @@ elseif(${BUILD_WITH_COS})
     add_definitions(-DUSE_COS)
 endif()
 
-# addr2line
-if(${BUILD_ADDR2LINE})
-    if(NOT ${TD_WINDOWS})
-        cat("${TD_SUPPORT_DIR}/libdwarf_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-        cat("${TD_SUPPORT_DIR}/addr2line_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-    endif(NOT ${TD_WINDOWS})
-endif(${BUILD_ADDR2LINE})
-
 #
 if(${BUILD_PCRE2})
     cat("${TD_SUPPORT_DIR}/pcre2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})

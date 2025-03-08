@@ -763,3 +763,74 @@ if(${BUILD_GEOS})
     add_dependencies(build_externals ext_geos)     # this is for github workflow in cache-miss step.
 endif()
 
+# libdwarf
+# if(${BUILD_ADDR2LINE})
+    if(${TD_LINUX})
+        set(ext_dwarf_static libdwarf.a)
+    elseif(${TD_DARWIN})
+        set(ext_dwarf_static libdwarf.a)
+    endif()
+    INIT_EXT(ext_dwarf
+        INC_DIR          include
+        LIB              lib/${ext_dwarf_static}
+    )
+    # GIT_REPOSITORY https://github.com/davea42/libdwarf-code.git
+    # GIT_TAG libdwarf-0.3.1
+    get_from_local_repo_if_exists("https://github.com/davea42/libdwarf-code.git")
+    ExternalProject_Add(ext_dwarf
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG libdwarf-0.3.1
+        DEPENDS ext_zlib
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DDO_TESTING:BOOL=OFF
+        CMAKE_ARGS -DDWARF_WITH_LIBELF:BOOL=ON
+        CMAKE_ARGS -DLIBDWARF_CRT:STRING=MD
+        CMAKE_ARGS -DWALL:BOOL=ON
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config ${CMAKE_BUILD_TYPE}
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                    "${ext_dwarf_source}/src/lib/libdwarf/dwarf.h"
+                    "${ext_dwarf_install}/include/libdwarf/dwarf.h"
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_dwarf)     # this is for github workflow in cache-miss step.
+# endif(${BUILD_ADDR2LINE})
+
+# addr2line
+# if(${BUILD_ADDR2LINE})
+    if(${TD_LINUX})
+        set(ext_addr2line_static libaddr2line.a)
+    elseif(${TD_DARWIN})
+        set(ext_addr2line_static libaddr2line.a)
+    endif()
+    INIT_EXT(ext_addr2line
+        INC_DIR          include
+        LIB              lib/${ext_addr2line_static}
+    )
+    # GIT_REPOSITORY https://github.com/davea42/libdwarf-addr2line.git
+    # GIT_TAG main
+    get_from_local_repo_if_exists("https://github.com/davea42/libdwarf-addr2line.git")
+    ExternalProject_Add(ext_addr2line
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG 9d76b420f9d1261fa7feada3a209e605f54ba859
+        DEPENDS ext_dwarf
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DDWARF_BASE_DIR:STRING=${ext_dwarf_install}
+        PATCH_COMMAND
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_CONTRIB_DIR}/addr2line.cmake" "${ext_addr2line_source}/CMakeLists.txt"
+        # CONFIGURE_COMMAND ""
+        # BUILD_COMMAND ""
+        # INSTALL_COMMAND ""
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_addr2line)     # this is for github workflow in cache-miss step.
+# endif(${BUILD_ADDR2LINE})
+
