@@ -11,7 +11,7 @@ on:
       - 'docs/**'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.event.client_payload.ref }}-${{ github.event_name == 'repository_dispatch' && 'dispatch' || ''}}
+  group: ${{ github.workflow }}-${{ github.ref }}-TDengine
   cancel-in-progress: true
 
 env:
@@ -25,86 +25,70 @@ jobs:
       group: CI
       labels: [self-hosted, Linux, X64, testing]
     outputs:
-      tdinternal: ${{ steps.parameters.outputs.tdinternal }}
       run_function_test: ${{ steps.parameters.outputs.run_function_test }}
       run_tdgpt_test: ${{ steps.parameters.outputs.run_tdgpt_test }}
-      source_branch: ${{ steps.parameters.outputs.source_branch }}
-      target_branch: ${{ steps.parameters.outputs.target_branch }}
-      pr_number: ${{ steps.parameters.outputs.pr_number }}
     steps:
       - name: Determine trigger source and fetch parameters
         id: parameters
         run: |
           set -euo pipefail
-          # check the trigger source and get branch information
-          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
-            tdinternal="true"
-            source_branch=${{ github.event.client_payload.tdinternal_source_branch }}
-            target_branch=${{ github.event.client_payload.tdinternal_target_branch }}
-            pr_number=${{ github.event.client_payload.tdinternal_pr_number }}
+          # check whether to run tdgpt test cases
+          cd ${{ env.WKC }}
+          changed_files_non_doc=$(git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD $target_branch) | grep -v "^docs/en/" | grep -v "^docs/zh/" | grep -v ".md$" | tr '\n' ' ' || :)
+          echo “changed files exclude doc, ${changed_files_non_doc}"
+          if [[ -n "$changed_files_non_doc" && "$changed_files_non_doc" =~ (forecastoperator\.c|anomalywindowoperator\.c|tanalytics\.h|tanalytics\.c|tdgpt_cases\.task|analytics|tdgpt) ]]; then
             run_tdgpt_test="true"
+          else
+            run_tdgpt_test="false"
+          fi
+          echo "run tdgpt test: ${run_tdgpt_test}"
+
+          # check whether to run function test cases
+          changed_files_non_tdgpt=$(git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD $target_branch) | \
+            grep -v "^docs/en/" | \
+            grep -v "^docs/zh/" | \
+            grep -v ".md$" | \
+            grep -Ev "forecastoperator\.c|anomalywindowoperator\.c|tanalytics\.h|tanalytics\.c|tdgpt_cases\.task|analytics|tdgpt" | \
+            tr '\n' ' ' || :) 
+          echo "changed file exclude tdgpt: ${changed_files_non_tdgpt}"
+          if [ -n "$changed_files_non_tdgpt" ]; then
             run_function_test="true"
           else
-            tdinternal="false"
-            source_branch=${{ github.event.pull_request.head.ref }}
-            target_branch=${{ github.event.pull_request.base.ref }}
-            pr_number=${{ github.event.pull_request.number }}
-
-            # check whether to run tdgpt test cases
-            cd ${{ env.WKC }}
-            changed_files_non_doc=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD $target_branch`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | tr '\n' ' ' || :)
-
-            if [[ "$changed_files_non_doc" != '' &&  "$changed_files_non_doc" =~ /forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics|tdgpt/ ]]; then
-              run_tdgpt_test="true"
-            else
-              run_tdgpt_test="false"
-            fi
-
-            # check whether to run function test cases
-            changed_files_non_tdgpt=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD $target_branch`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | grep -Ev "forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics|tdgpt" | tr '\n' ' ' ||:)
-            if [ "$changed_files_non_tdgpt" != '' ]; then
-              run_function_test="true"
-            else
-              run_function_test="false"
-            fi
+            run_function_test="false"
           fi
+          echo "run function test: ${run_function_test}"
 
-          echo "tdinternal=$tdinternal" >> $GITHUB_OUTPUT
           echo "run_function_test=$run_function_test" >> $GITHUB_OUTPUT
           echo "run_tdgpt_test=$run_tdgpt_test" >> $GITHUB_OUTPUT
-          echo "source_branch=$source_branch" >> $GITHUB_OUTPUT
-          echo "target_branch=$target_branch" >> $GITHUB_OUTPUT
-          echo "pr_number=$pr_number" >> $GITHUB_OUTPUT
 
   run-tests-on-linux:
     uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@feat/wangxu/taosd-ci
     needs: fetch-parameters
     if: ${{ needs.fetch-parameters.outputs.run_function_test == 'true' }}
     with:
-      tdinternal: ${{ needs.fetch-parameters.outputs.tdinternal }}
+      tdinternal: false
       run_function_test: ${{ needs.fetch-parameters.outputs.run_function_test }}
       run_tdgpt_test: ${{ needs.fetch-parameters.outputs.run_tdgpt_test }}
-      source_branch: ${{ needs.fetch-parameters.outputs.source_branch }}
-      target_branch: ${{ needs.fetch-parameters.outputs.target_branch }}
-      pr_number: ${{ needs.fetch-parameters.outputs.pr_number }}
+      source_branch: ${{ github.event.pull_request.head.ref }}
+      target_branch: ${{ github.event.pull_request.base.ref }}
+      pr_number: ${{ github.event.pull_request.number }}
 
   run-tests-on-mac:
     uses: taosdata/.github/.github/workflows/run-tests-on-macos.yml@feat/wangxu/taosd-ci
     needs: fetch-parameters
     if: ${{ needs.fetch-parameters.outputs.run_function_test == 'true' }}
     with:
-      tdinternal: ${{ needs.fetch-parameters.outputs.tdinternal }}
-      source_branch: ${{ needs.fetch-parameters.outputs.source_branch }}
-      target_branch: ${{ needs.fetch-parameters.outputs.target_branch }}
-      pr_number: ${{ needs.fetch-parameters.outputs.pr_number }}
+      tdinternal: false
+      source_branch: ${{ github.event.pull_request.head.ref }}
+      target_branch: ${{ github.event.pull_request.base.ref }}
+      pr_number: ${{ github.event.pull_request.number }}
 
   run-tests-on-windows:
     uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@feat/wangxu/taosd-ci
     needs: fetch-parameters
     if: ${{ needs.fetch-parameters.outputs.run_function_test == 'true' }}
     with:
-      tdinternal: ${{ needs.fetch-parameters.outputs.tdinternal }}
-      source_branch: ${{ needs.fetch-parameters.outputs.source_branch }}
-      target_branch: ${{ needs.fetch-parameters.outputs.target_branch }}
-      pr_number: ${{ needs.fetch-parameters.outputs.pr_number }}
-
+      tdinternal: false
+      source_branch: ${{ github.event.pull_request.head.ref }}
+      target_branch: ${{ github.event.pull_request.base.ref }}
+      pr_number: ${{ github.event.pull_request.number }}
