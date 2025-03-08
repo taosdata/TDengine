@@ -1487,7 +1487,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamCoverage");
   tsStreamCoverage = pItem->bval;
 
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "StreamRunHistoryAsync");
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamRunHistoryAsync");
   tsStreamRunHistoryAsync = pItem->bval;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
