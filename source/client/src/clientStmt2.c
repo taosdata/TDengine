@@ -1051,6 +1051,9 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags) {
   STableDataCxt** pDataBlock =
       (STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
   if (NULL == pDataBlock) {
+    if(pStmt->sql.autoCreateTbl){
+      return TSDB_CODE_SUCCESS;
+    }
     tscError("table %s not found in exec blockHash", pStmt->bInfo.tbFName);
     STMT_ERR_RET(TSDB_CODE_APP_ERROR);
   }
