@@ -880,6 +880,9 @@ int32_t processCreateStreamFirstRsp(void* param, SDataBuf* pMsg, int32_t code) {
       doAsyncQuery(pRequestNew, false);
     }
   }
+  if (pRequest->streamRunHistory){
+    destroyRequest(pRequest);
+  }
   return code;
 }
 
