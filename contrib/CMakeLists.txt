@@ -65,9 +65,6 @@ if(${BUILD_TEST})
     cat("${TD_SUPPORT_DIR}/stub_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_TEST})
 
-# cJson
-cat("${TD_SUPPORT_DIR}/cjson_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-
 if(NOT ${TD_WINDOWS})
     cat("${TD_SUPPORT_DIR}/tz_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(NOT ${TD_WINDOWS})
