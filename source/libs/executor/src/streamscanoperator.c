@@ -1223,6 +1223,14 @@ static int32_t doDataRangeScan(SStreamScanInfo* pInfo, SExecTaskInfo* pTaskInfo,
       }
       code = prepareDataRangeScan(pInfo, &pInfo->curRange);
       QUERY_CHECK_CODE(code, lino, _end);
+
+      blockDataCleanup(pInfo->pUpdateRes);
+      code = buildRecBlockByRange(&pInfo->curRange, pInfo->pUpdateRes);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (pInfo->pUpdateRes->info.rows > 0) {
+        (*ppRes) = pInfo->pUpdateRes;
+        break;
+      }
     }
 
     code = doOneRangeScan(pInfo, &pInfo->curRange, &pTsdbBlock);
@@ -1232,19 +1240,6 @@ static int32_t doDataRangeScan(SStreamScanInfo* pInfo, SExecTaskInfo* pTaskInfo,
       pInfo->pRangeScanRes = pTsdbBlock;
       code = calBlockTbName(pInfo, pTsdbBlock, 0);
       QUERY_CHECK_CODE(code, lino, _end);
-
-      blockDataCleanup(pInfo->pUpdateRes);
-      code = buildRecBlockByRange(&pInfo->curRange, pInfo->pUpdateRes);
-      QUERY_CHECK_CODE(code, lino, _end);
-      if (pInfo->pUpdateRes->info.rows > 0) {
-        (*ppRes) = pInfo->pUpdateRes;
-        if (pInfo->pCreateTbRes->info.rows > 0) {
-          pInfo->scanMode = STREAM_SCAN_FROM_CREATE_TABLERES;
-        } else {
-          pInfo->scanMode = STREAM_SCAN_FROM_RES;
-        }
-        break;
-      }
 
       if (pInfo->pCreateTbRes->info.rows > 0) {
         (*ppRes) = pInfo->pCreateTbRes;
