@@ -60,11 +60,6 @@ if(${JEMALLOC_ENABLED})
     cat("${TD_SUPPORT_DIR}/jemalloc_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
-# msvc regex
-if(${BUILD_MSVCREGEX})
-    cat("${TD_SUPPORT_DIR}/msvcregex_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif()
-
 # wcwidth
 if(${BUILD_WCWIDTH})
     cat("${TD_SUPPORT_DIR}/wcwidth_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})

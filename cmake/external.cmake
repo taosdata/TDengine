@@ -17,6 +17,8 @@ macro(INIT_EXT name)
     set(_base            "${CMAKE_SOURCE_DIR}/.externals/build/${name}")                      # where all source and build stuffs locate
     set(_ins             "${CMAKE_SOURCE_DIR}/.externals/install/${name}/${TD_CONFIG_NAME}")  # where all installed stuffs locate
     set(${name}_base     "${_base}")
+    set(${name}_source   "${_base}/src/${name}")
+    set(${name}_build    "${_base}/src/${name}-build")
     set(${name}_install  "${_ins}")
     set(${name}_inc_dir  "")
     set(${name}_libs     "")
@@ -212,4 +214,34 @@ if(${BUILD_WITH_ICONV})
         VERBATIM
     )
     add_dependencies(build_externals ext_iconv)     # this is for github workflow in cache-miss step.
+endif()
+
+# msvc regex
+if(${BUILD_MSVCREGEX})
+    if(${TD_WINDOWS})
+        set(ext_msvcregex_static msvcregex.lib)
+    endif()
+    INIT_EXT(ext_msvcregex
+        INC_DIR          include
+        LIB              lib/${ext_msvcregex_static}
+    )
+    # GIT_REPOSITORY https://gitee.com/l0km/libgnurx-msvc.git
+    # GIT_TAG master
+    get_from_local_repo_if_exists("https://gitee.com/l0km/libgnurx-msvc.git")
+    ExternalProject_Add(ext_msvcregex
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG 1a6514dd59bac8173ad4a55f63727d36269043cd
+        PREFIX "${_base}"
+        BUILD_IN_SOURCE TRUE
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND
+            COMMAND nmake /f NMakefile all test test2 test3
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${ext_msvcregex_source}/regex.h" "${_ins}/include/regex.h"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${ext_msvcregex_source}/regex$<$<CONFIG:Debug>:_d>.lib" "${_ins}/lib/regex$<$<CONFIG:Debug>:_d>.lib"
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_msvcregex)     # this is for github workflow in cache-miss step.
 endif()
