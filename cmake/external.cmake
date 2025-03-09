@@ -784,6 +784,8 @@ endif()
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=-I${ext_zlib_install}/include -L${ext_zlib_install}/lib"
+        CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=-I${ext_zlib_install}/include -L${ext_zlib_install}/lib"
         CMAKE_ARGS -DDO_TESTING:BOOL=OFF
         CMAKE_ARGS -DDWARF_WITH_LIBELF:BOOL=ON
         CMAKE_ARGS -DLIBDWARF_CRT:STRING=MD
@@ -822,6 +824,7 @@ endif()
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DDWARF_BASE_DIR:STRING=${ext_dwarf_install}
+        CMAKE_ARGS -DZLIB_BASE_DIR:STRING=${ext_zlib_install}
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_CONTRIB_DIR}/addr2line.cmake" "${ext_addr2line_source}/CMakeLists.txt"
         # CONFIGURE_COMMAND ""
