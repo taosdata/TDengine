@@ -77,6 +77,7 @@
 #
 
 # benchmark 64 cases
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/insertBasic.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/rest_insert_alltypes_json.py -R
 ,,n,army,python3 ./test.py -f tools/benchmark/basic/taosdemoTestQueryWithJson-mixed-query.py -R
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/stmt_sample_csv_json.py
