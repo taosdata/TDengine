@@ -287,10 +287,7 @@ void *taosMemMalloc(int64_t size) {
 #endif
   void *p = malloc(size);
   if (NULL == p) {
-	__asm("bkpt #0");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-  } else {
-    atomic_add_fetch_64(&tsMemoryUsed, size);
   }
   return p;
 #endif
