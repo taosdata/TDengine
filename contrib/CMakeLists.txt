@@ -75,11 +75,6 @@ elseif(${BUILD_WITH_COS})
     add_definitions(-DUSE_COS)
 endif()
 
-#
-if(${BUILD_PCRE2})
-    cat("${TD_SUPPORT_DIR}/pcre2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif()
-
 find_program(C_COMPILER_LEMON NAMES gcc)
 if(C_COMPILER_LEMON)
     message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")

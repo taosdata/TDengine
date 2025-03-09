@@ -837,3 +837,41 @@ endif()
     add_dependencies(build_externals ext_addr2line)     # this is for github workflow in cache-miss step.
 # endif(${BUILD_ADDR2LINE})
 
+# pcre2
+if(${BUILD_PCRE2})
+    # freemine: seems no necessary cause strict rules has been enforced by geos
+    if(${TD_LINUX})
+        set(ext_pcre2_static pcre2.a)
+    elseif(${TD_DARWIN})
+        set(ext_pcre2_static pcre2.a)
+    elseif(${TD_WINDOWS})
+        set(ext_pcre2_static pcre2.lib)
+    endif()
+    INIT_EXT(ext_pcre2
+        INC_DIR          include
+        LIB              lib/${ext_pcre2_static}
+    )
+    # GIT_REPOSITORY https://github.com/PCRE2Project/pcre2.git
+    # GIT_TAG pcre2-10.43
+    get_from_local_repo_if_exists("https://github.com/PCRE2Project/pcre2.git")
+    ExternalProject_Add(ext_pcre2
+        GIT_REPOSITORY ${_git_url}
+        # GIT_TAG db3b532aa0cc9bbaf804927b1f15566cadb4917a
+        GIT_TAG pcre2-10.45
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DPCRE2_BUILD_TESTS:BOOL=OFF
+        CMAKE_ARGS -DPCRE2_STATIC_PIC:BOOL=OFF
+        CMAKE_ARGS -DPCRE2_SHOW_REPORT:BOOL=OFF
+        # freemine: turns off because of dynamic linking
+        CMAKE_ARGS -DPCRE2_SUPPORT_LIBZ:BOOL=OFF
+        CMAKE_ARGS -DPCRE2_SUPPORT_LIBBZ2:BOOL=OFF
+        CMAKE_ARGS -DPCRE2_SUPPORT_LIBREADLINE:BOOL=OFF
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_pcre2)     # this is for github workflow in cache-miss step.
+endif()
+
