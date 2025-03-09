@@ -311,6 +311,16 @@ class TBase:
         if len(lists) == 0:
             tdLog.exit(f"list is empty {tips}")
 
+    # check list have str
+    def checkListString(self, vlist, s):
+        for i in range(len(vlist)):
+            if vlist[i].find(s) != -1:
+                # found
+                tdLog.info(f'found "{s}" on index {i} , line={vlist[i]}')
+                return 
+
+        # not found
+        tdLog.exit(f'faild, not found "{s}" on list:{vlist}')
 
 #
 #  str util
