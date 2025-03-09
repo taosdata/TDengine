@@ -94,12 +94,11 @@ tDataTypeCompress tDataCompress[TSDB_DATA_TYPE_MAX] = {
     {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString2, tsDecompressString2},
     {TSDB_DATA_TYPE_VARBINARY, 9, 1, "VARBINARY", 0, 0, tsCompressString2,
      tsDecompressString2},                                               // placeholder, not implemented
-    {TSDB_DATA_TYPE_DECIMAL, 7, DECIMAL128_BYTES, "DECIMAL", 0, 0, tsCompressDecimal128, tsDecompressDecimal128},         // placeholder, not implemented
+    {TSDB_DATA_TYPE_DECIMAL, 7, DECIMAL128_BYTES, "DECIMAL", 0, 0, tsCompressDecimal128, tsDecompressDecimal128},
     {TSDB_DATA_TYPE_BLOB, 4, 1, "BLOB", 0, 0, NULL, NULL},               // placeholder, not implemented
     {TSDB_DATA_TYPE_MEDIUMBLOB, 10, 1, "MEDIUMBLOB", 0, 0, NULL, NULL},  // placeholder, not implemented
     {TSDB_DATA_TYPE_GEOMETRY, 8, 1, "GEOMETRY", 0, 0, tsCompressString2, tsDecompressString2},
-    {TSDB_DATA_TYPE_DECIMAL64, 9, DECIMAL64_BYTES, "DECIMAL64", 0, 0, tsCompressDecimal64, tsDecompressDecimal64},         // placeholder, not implemented
-    // TODO wjm decimal compress
+    {TSDB_DATA_TYPE_DECIMAL64, 9, DECIMAL64_BYTES, "DECIMAL64", 0, 0, tsCompressDecimal64, tsDecompressDecimal64},
 
 };
 

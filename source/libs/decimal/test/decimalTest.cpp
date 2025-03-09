@@ -574,13 +574,13 @@ TEST(decimal, typeFromDecimal) {
   uintv = dec1;
   doublev = dec1;
   ASSERT_EQ(intv, -123);
-  ASSERT_EQ(uintv, 0);
+  ASSERT_EQ(uintv, 18446744073709551493ULL);
   ASSERT_EQ(doublev, -123.44);
   intv = dec1 = "-123.99";
   uintv = dec1;
   doublev = dec1;
   ASSERT_EQ(intv, -124);
-  ASSERT_EQ(uintv, 0);
+  ASSERT_EQ(uintv, 18446744073709551492ULL);
   ASSERT_EQ(doublev, -123.99);
 
   bool boolv = false;

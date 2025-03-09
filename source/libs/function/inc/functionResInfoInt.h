@@ -53,7 +53,7 @@ typedef struct SDecimalSumRes {
   int16_t    type;
   int64_t    prevTs;
   bool       isPrevTsSet;
-  bool       overflow;  // if overflow is true, dsum to be used for any type;
+  bool       overflow;
   uint32_t   flag; // currently not used
 } SDecimalSumRes;
 
@@ -86,7 +86,6 @@ typedef struct SDecimalSumRes {
 #define SUM_RES_INC_DSUM(pSumRes, val) ((SSumRes*)(pSumRes))->dsum += val
 
 #define SUM_RES_GET_DECIMAL_SUM(pSumRes) ((SDecimalSumRes*)(pSumRes))->sum
-// TODO wjm check for overflow
 #define SUM_RES_INC_DECIMAL_SUM(pSumRes, pVal, type)                                           \
   do {                                                                                         \
     const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);                           \

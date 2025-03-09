@@ -762,7 +762,6 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
         break;
       case TSDB_DATA_TYPE_DECIMAL64:
       case TSDB_DATA_TYPE_DECIMAL: {
-        // TODO wjm var header len???
         uint32_t decimalLen = strlen(row[i]);
         uint32_t copyLen = TMIN(size - len - 1, decimalLen);
         (void)memcpy(str + len, row[i], copyLen);

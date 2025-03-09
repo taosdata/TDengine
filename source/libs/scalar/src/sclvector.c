@@ -254,7 +254,7 @@ static FORCE_INLINE int32_t varToDecimal(char* buf, SScalarParam* pOut, int32_t 
   Decimal *pDec = (Decimal *)colDataGetData(pOut->columnData, rowIndex);
   int32_t code = decimalFromStr(buf, strlen(buf), pOut->columnData->info.precision, pOut->columnData->info.scale, pDec);
   if (TSDB_CODE_SUCCESS != code) {
-    // TODO wjm set overflow???
+    if (overflow) *overflow = code == TSDB_CODE_DECIMAL_OVERFLOW;
     SCL_RET(code);
   }
   SCL_RET(code);
@@ -1020,7 +1020,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
         Decimal value = {0};
         SDataType inputType = GET_COL_DATA_TYPE(pInputCol->info), outputType = GET_COL_DATA_TYPE(pOutputCol->info);
         int32_t code = convertToDecimal(colDataGetData(pInputCol, i), &inputType, &value, &outputType);
-        if (TSDB_CODE_SUCCESS != code) return code; // TODO wjm handle overflow
+        if (TSDB_CODE_SUCCESS != code) return code;
         code = colDataSetVal(pOutputCol, i, (const char*)&value, false);
         if (TSDB_CODE_SUCCESS != code) return code;
       }
@@ -1147,10 +1147,6 @@ int32_t vectorConvertCols(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
   int32_t leftType = GET_PARAM_TYPE(pLeft);
   int32_t rightType = GET_PARAM_TYPE(pRight);
   if (leftType == rightType) {
-    if (IS_DECIMAL_TYPE(leftType)) {
-      //TODO wjm force do conversion for decimal type, do not convert any more, do conversion inside decimal.c
-      //TODO wjm where c1 = "999999999999999.99999"; this str will be converted to double and do comapre, add doc in TS
-    }
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1944,7 +1940,7 @@ int32_t doVectorCompare(SScalarParam *pLeft, SScalarParam *pLeftVar, SScalarPara
     fp = filterGetCompFuncEx(lType, rType, optr);
   }
 
-  if (pLeftVar != NULL) {// TODO wjm test when pLeftVar is not NULL
+  if (pLeftVar != NULL) {
     SCL_ERR_RET(filterGetCompFunc(&fpVar, GET_PARAM_TYPE(pLeftVar), optr));
   }
   if (startIndex < 0) {

@@ -193,7 +193,6 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
     }
   }
 
-  // TODO wjm test it, what if some cols are deleted, maybe rewrite it
   if (hasTypeMod) {
     for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
       SDB_SET_INT32(pRaw, dataPos, pStb->pExtSchemas[i].typeMod, _OVER);

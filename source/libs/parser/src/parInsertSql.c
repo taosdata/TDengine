@@ -1612,7 +1612,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       break;
     }
     case TSDB_DATA_TYPE_UTINYINT: {
-      int32_t code = toUIntegerEx(pToken->z, pToken->n, pToken->type, &VALUE_GET_TRIVIAL_DATUM(&pVal->value));
+      int32_t code = toUIntegerEx(pToken->z, pToken->n, pToken->type, (uint64_t*)&VALUE_GET_TRIVIAL_DATUM(&pVal->value));
       if (TSDB_CODE_SUCCESS != code) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid unsigned tinyint data", pToken->z);
       } else if (VALUE_GET_TRIVIAL_DATUM(&pVal->value) > UINT8_MAX) {
@@ -1819,9 +1819,6 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
-      // TODO wjm
-      // precision check
-      // scale auto fit
       code = decimal64ToDataVal(&dec, &pVal->value);
       if (TSDB_CODE_SUCCESS != code) {
         return code;

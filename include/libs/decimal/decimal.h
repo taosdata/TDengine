@@ -72,7 +72,6 @@ typedef struct SDecimalCompareCtx {
   STypeMod typeMod;
 } SDecimalCompareCtx;
 
-// TODO wjm check if we need to expose these functions in decimal.h
 void makeDecimal64(Decimal64* pDec64, int64_t w);
 void makeDecimal128(Decimal128* pDec128, int64_t hi, uint64_t low);
 
@@ -100,7 +99,6 @@ bool decimal128AddCheckOverflow(const Decimal128* pLeft, const DecimalType* pRig
 DEFINE_TYPE_FROM_DECIMAL_FUNCS(, Decimal64);
 DEFINE_TYPE_FROM_DECIMAL_FUNCS(, Decimal128);
 
-// TODO wjm change rightWordNum to DecimalType??
 typedef struct SDecimalOps {
   void (*negate)(DecimalType* pWord);
   void (*abs)(DecimalType* pWord);

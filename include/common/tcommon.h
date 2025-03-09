@@ -177,7 +177,7 @@ typedef struct SColumnDataAgg {
     struct {
       uint64_t decimal128Sum[2];
       uint64_t decimal128Max[2];
-      uint64_t decimal128Min[2];  // TODO wjm 1. use deicmal128Sum for decimal64, 2. add overflow flag
+      uint64_t decimal128Min[2];
       uint8_t  overflow;
     };
   };
