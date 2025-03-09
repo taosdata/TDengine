@@ -914,7 +914,7 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   }
 
   if (tsem_init(&pJob->rspSem, 0, 0)) {
-    SCH_JOB_ELOG("tsem_init failed, errno:%d", errno);
+    SCH_JOB_ELOG("tsem_init failed, errno:%d", ERRNO);
     SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
   }
 

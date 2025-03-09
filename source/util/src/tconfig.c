@@ -355,7 +355,7 @@ static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType 
            cfgStypeStr(stype), value);
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
-
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if (!taosValidateEncodec(value)) {
     uError("invalid charset:%s", value);
     TAOS_RETURN(terrno);
@@ -366,7 +366,7 @@ static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType 
   }
   (void)memcpy(tsCharset, value, strlen(value) + 1);
   TAOS_CHECK_RETURN(doSetConf(pItem, value, stype));
-
+#endif
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -582,14 +582,14 @@ SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName) {
   int32_t size = taosArrayGetSize(pCfg->localArray);
   for (int32_t i = 0; i < size; ++i) {
     SConfigItem *pItem = taosArrayGet(pCfg->localArray, i);
-    if (strcasecmp(pItem->name, pName) == 0) {
+    if (taosStrcasecmp(pItem->name, pName) == 0) {
       return pItem;
     }
   }
   size = taosArrayGetSize(pCfg->globalArray);
   for (int32_t i = 0; i < size; ++i) {
     SConfigItem *pItem = taosArrayGet(pCfg->globalArray, i);
-    if (strcasecmp(pItem->name, pName) == 0) {
+    if (taosStrcasecmp(pItem->name, pName) == 0) {
       return pItem;
     }
   }
@@ -964,7 +964,7 @@ int32_t cfgDumpItemScope(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t
   }
 
   if (len < 0) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   if (len > bufSize) {
@@ -990,7 +990,7 @@ int32_t cfgDumpItemCategory(SConfigItem *pItem, char *buf, int32_t bufSize, int3
   }
 
   if (len < 0) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   if (len > bufSize) {
@@ -1363,7 +1363,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
   if (pFile == NULL) {
     // success when the file does not exist
     code = terrno;
-    if (errno == ENOENT) {
+    if (ERRNO == ENOENT) {
       uInfo("failed to load from cfg file %s since %s, use default parameters", filepath, tstrerror(code));
       TAOS_RETURN(TSDB_CODE_SUCCESS);
     } else {
@@ -1440,7 +1440,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
     size_t       len = strlen(name);
     const char  *debugFlagStr = "debugFlag";
     const size_t debugFlagLen = strlen(debugFlagStr);
-    if (len >= debugFlagLen && strcasecmp(name + len - debugFlagLen, debugFlagStr) == 0) {
+    if (len >= debugFlagLen && taosStrcasecmp(name + len - debugFlagLen, debugFlagStr) == 0) {
       code = cfgUpdateDebugFlagItem(pConfig, name, len == debugFlagLen);
       if (TSDB_CODE_SUCCESS != code && TSDB_CODE_CFG_NOT_FOUND != code) break;
     }

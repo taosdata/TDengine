@@ -232,15 +232,15 @@ void ctgRemoveStbRent(SCatalog *pCtg, SCtgDBCache *dbCache) {
     return;
   }
 
-  int32_t code =  TSDB_CODE_SUCCESS;
-  void *pIter = taosHashIterate(dbCache->stbCache, NULL);
+  int32_t code = TSDB_CODE_SUCCESS;
+  void   *pIter = taosHashIterate(dbCache->stbCache, NULL);
   while (pIter) {
-    uint64_t *suid = NULL;
-    suid = taosHashGetKey(pIter, NULL);
+    uint64_t *pSuid = taosHashGetKey(pIter, NULL);
+    uint64_t  suid = taosGetUInt64Aligned(pSuid);
 
-    code = ctgMetaRentRemove(&pCtg->stbRent, *suid, ctgStbVersionSortCompare, ctgStbVersionSearchCompare);
+    code = ctgMetaRentRemove(&pCtg->stbRent, suid, ctgStbVersionSortCompare, ctgStbVersionSearchCompare);
     if (TSDB_CODE_SUCCESS == code) {
-      ctgDebug("suid:0x%" PRIx64 ", stb removed from rent", *suid);
+      ctgDebug("suid:0x%" PRIx64 ", stb removed from rent", suid);
     }
 
     pIter = taosHashIterate(dbCache->stbCache, pIter);

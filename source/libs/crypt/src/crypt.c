@@ -24,7 +24,7 @@ int32_t CBC_Decrypt(SCryptOpts *opts) {
   return CBC_DecryptImpl(opts); 
 }
 
-#ifndef TD_ENTERPRISE
+#if !defined(TD_ENTERPRISE) && !defined(TD_ASTRA)
 int32_t CBC_EncryptImpl(SCryptOpts *opts) { 
   memcpy(opts->result, opts->source, opts->len);
   return opts->len; 

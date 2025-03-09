@@ -34,7 +34,7 @@ static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson);
 #define BIT_FLG_NULL  ((uint8_t)0x1)
 #define BIT_FLG_VALUE ((uint8_t)0x2)
 
-#pragma pack(push, 1)
+PACK_PUSH_MIN
 typedef struct {
   int16_t nCol;
   uint8_t idx[];  // uint8_t * | uint16_t * | uint32_t *
@@ -1372,7 +1372,7 @@ int32_t tValueCompare(const SValue *tv1, const SValue *tv2) {
       return ret ? ret : (tv1->nData < tv2->nData ? -1 : (tv1->nData > tv2->nData ? 1 : 0));
     }
     case TSDB_DATA_TYPE_NCHAR: {
-      int32_t ret = tasoUcs4Compare((TdUcs4 *)tv1->pData, (TdUcs4 *)tv2->pData,
+      int32_t ret = taosUcs4Compare((TdUcs4 *)tv1->pData, (TdUcs4 *)tv2->pData,
                                     tv1->nData < tv2->nData ? tv1->nData : tv2->nData);
       return ret ? ret : (tv1->nData < tv2->nData ? -1 : (tv1->nData > tv2->nData ? 1 : 0));
     }

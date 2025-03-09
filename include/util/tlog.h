@@ -34,6 +34,11 @@ typedef enum {
   DEBUG_FILE = 128
 } ELogLevel;
 
+typedef enum {
+  LOG_MODE_TAOSC = 1,
+  LOG_MODE_TAOSD = 2
+} ELogMode;
+
 typedef void (*LogFp)(int64_t ts, ELogLevel level, const char *content);
 
 extern bool    tsLogEmbedded;

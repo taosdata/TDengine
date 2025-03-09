@@ -14,6 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "thttp.h"
+#include "zlib.h"
+#ifndef TD_ASTRA_RPC
 // clang-format off
 #include <uv.h>
 #include "zlib.h"
@@ -917,7 +920,7 @@ int64_t transInitHttpChanImpl() {
 
   err = taosThreadCreate(&http->thread, NULL, httpThread, (void*)http);
   if (err != 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     goto _ERROR;
   }
 
@@ -1118,4 +1121,24 @@ _end:
            mgt->cachedAddr);
   }
   return code;
+}
+#endif  // TD_ASTRA_RPC
+
+int32_t taosTelemetryMgtInit(STelemAddrMgmt* mgt, char* defaultAddr) { return 0; }
+void    taosTelemetryDestroy(STelemAddrMgmt* mgt) { return; }
+
+// not safe for multi-thread, should be called in the same thread
+int32_t taosSendTelemReport(STelemAddrMgmt* mgt, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                            EHttpCompFlag flag) {
+  return 0;
+}
+
+int32_t taosSendRecvHttpReportWithQID(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                                      EHttpCompFlag flag, const char* qid, int64_t recvBufId) {
+  return 0;
+}
+
+int32_t taosSendHttpReportWithQID(const char* server, const char* uri, uint16_t port, char* pCont, int32_t contLen,
+                                  EHttpCompFlag flag, const char* qid) {
+  return 0;
 }

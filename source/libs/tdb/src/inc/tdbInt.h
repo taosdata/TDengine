@@ -250,7 +250,7 @@ typedef struct {
   void (*setFreeCellInfo)(SCell *pCell, int szCell, int nxOffset);
 } SPageMethods;
 
-#pragma pack(push, 1)
+PACK_PUSH_MIN
 
 // Page footer
 typedef struct {

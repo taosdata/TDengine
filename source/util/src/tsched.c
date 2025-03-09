@@ -68,7 +68,7 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
   pSched->emptySlot = 0;
 
   if (taosThreadMutexInit(&pSched->queueMutex, NULL) < 0) {
-    uError("init %s:queueMutex failed(%s)", label, strerror(errno));
+    uError("init %s:queueMutex failed(%s)", label, strerror(ERRNO));
     taosCleanUpScheduler(pSched);
     if (schedMalloced) {
       taosMemoryFree(pSched);
@@ -77,7 +77,7 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
   }
 
   if (tsem_init(&pSched->emptySem, 0, (uint32_t)pSched->queueSize) != 0) {
-    uError("init %s:empty semaphore failed(%s)", label, strerror(errno));
+    uError("init %s:empty semaphore failed(%s)", label, strerror(ERRNO));
     taosCleanUpScheduler(pSched);
     if (schedMalloced) {
       taosMemoryFree(pSched);
@@ -86,7 +86,7 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
   }
 
   if (tsem_init(&pSched->fullSem, 0, 0) != 0) {
-    uError("init %s:full semaphore failed(%s)", label, strerror(errno));
+    uError("init %s:full semaphore failed(%s)", label, strerror(ERRNO));
     taosCleanUpScheduler(pSched);
     if (schedMalloced) {
       taosMemoryFree(pSched);
@@ -159,7 +159,7 @@ void *taosProcessSchedQueue(void *scheduler) {
     }
 
     if ((ret = taosThreadMutexLock(&pSched->queueMutex)) != 0) {
-      uFatal("lock %s queueMutex failed(%s)", pSched->label, strerror(errno));
+      uFatal("lock %s queueMutex failed(%s)", pSched->label, strerror(ERRNO));
     }
 
     msg = pSched->queue[pSched->fullSlot];
@@ -167,7 +167,7 @@ void *taosProcessSchedQueue(void *scheduler) {
     pSched->fullSlot = (pSched->fullSlot + 1) % pSched->queueSize;
 
     if ((ret = taosThreadMutexUnlock(&pSched->queueMutex)) != 0) {
-      uFatal("unlock %s queueMutex failed(%s)", pSched->label, strerror(errno));
+      uFatal("unlock %s queueMutex failed(%s)", pSched->label, strerror(ERRNO));
     }
 
     if ((ret = tsem_post(&pSched->emptySem)) != 0) {
@@ -202,14 +202,14 @@ int taosScheduleTask(void *queueScheduler, SSchedMsg *pMsg) {
   }
 
   if ((ret = taosThreadMutexLock(&pSched->queueMutex)) != 0) {
-    uFatal("lock %s queueMutex failed(%s)", pSched->label, strerror(errno));
+    uFatal("lock %s queueMutex failed(%s)", pSched->label, strerror(ERRNO));
   }
 
   pSched->queue[pSched->emptySlot] = *pMsg;
   pSched->emptySlot = (pSched->emptySlot + 1) % pSched->queueSize;
 
   if ((ret = taosThreadMutexUnlock(&pSched->queueMutex)) != 0) {
-    uFatal("unlock %s queueMutex failed(%s)", pSched->label, strerror(errno));
+    uFatal("unlock %s queueMutex failed(%s)", pSched->label, strerror(ERRNO));
   }
 
   if ((ret = tsem_post(&pSched->fullSem)) != 0) {

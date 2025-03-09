@@ -14,7 +14,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include <regex.h>
+#ifndef TD_ASTRA
 #include <uv.h>
+#endif
 
 #include "nodes.h"
 #include "parAst.h"
@@ -1497,7 +1499,7 @@ SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode
   interval->pOffset = pOffset;
   interval->pSliding = pSliding;
   interval->pFill = pFill;
-  interval->timeRange = TSWINDOW_INITIALIZER;
+  TAOS_SET_OBJ_ALIGNED(&interval->timeRange, TSWINDOW_INITIALIZER);
   interval->timezone = pCxt->pQueryCxt->timezone;
   return (SNode*)interval;
 _err:
@@ -3064,7 +3066,8 @@ _err:
 
 static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange) {
   int32_t code = TSDB_CODE_SUCCESS;
-  char*   ipCopy = taosStrdup(ipRange);
+#ifndef TD_ASTRA
+  char* ipCopy = taosStrdup(ipRange);
   if (!ipCopy) return terrno;
   char* slash = strchr(ipCopy, '/');
   if (slash) {
@@ -3097,6 +3100,7 @@ static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange
   }
 
   taosMemoryFreeClear(ipCopy);
+#endif
   return code;
 }
 
@@ -3794,7 +3798,7 @@ static bool validateNotifyUrl(const char* url) {
   if (!url || *url == '\0') return false;
 
   for (int32_t i = 0; i < ARRAY_SIZE(prefix); ++i) {
-    if (strncasecmp(url, prefix[i], strlen(prefix[i])) == 0) {
+    if (taosStrncasecmp(url, prefix[i], strlen(prefix[i])) == 0) {
       host = url + strlen(prefix[i]);
       break;
     }
@@ -3840,9 +3844,9 @@ SNode* createStreamNotifyOptions(SAstCreateContext* pCxt, SNodeList* pAddrUrls, 
 
   FOREACH(pNode, pEventTypes) {
     char *eventStr = ((SValueNode *)pNode)->literal;
-    if (strncasecmp(eventStr, eWindowOpenStr, strlen(eWindowOpenStr) + 1) == 0) {
+    if (taosStrncasecmp(eventStr, eWindowOpenStr, strlen(eWindowOpenStr) + 1) == 0) {
       BIT_FLAG_SET_MASK(eventTypes, SNOTIFY_EVENT_WINDOW_OPEN);
-    } else if (strncasecmp(eventStr, eWindowCloseStr, strlen(eWindowCloseStr) + 1) == 0) {
+    } else if (taosStrncasecmp(eventStr, eWindowCloseStr, strlen(eWindowCloseStr) + 1) == 0) {
       BIT_FLAG_SET_MASK(eventTypes, SNOTIFY_EVENT_WINDOW_CLOSE);
     } else {
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,

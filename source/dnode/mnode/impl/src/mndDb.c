@@ -925,7 +925,7 @@ static int32_t mndCheckDbEncryptKey(SMnode *pMnode, SCreateDbReq *pReq) {
   SDnodeObj *pDnode = NULL;
   void      *pIter = NULL;
 
-#ifdef TD_ENTERPRISE
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   if (pReq->encryptAlgorithm == TSDB_ENCRYPT_ALGO_NONE) goto _exit;
   TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DB_ENCRYPTION), NULL, _exit);
   if (tsEncryptionKeyStat != ENCRYPT_KEY_STAT_LOADED) {

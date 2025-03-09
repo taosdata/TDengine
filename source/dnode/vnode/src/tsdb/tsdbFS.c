@@ -122,7 +122,7 @@ static int32_t tsdbSaveFSToFile(STsdbFS *pFS, const char *fname) {
   }
 
   if (taosFsyncFile(pFD) < 0) {
-    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(errno), lino, _exit);
+    TSDB_CHECK_CODE(code = TAOS_SYSTEM_ERROR(ERRNO), lino, _exit);
   }
 
 _exit:
@@ -744,7 +744,7 @@ static int32_t tsdbFSRollback(STsdb *pTsdb) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(errno));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(ERRNO));
   }
   return code;
 }
