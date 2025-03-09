@@ -55,7 +55,6 @@ bool    tIsValidFileName(const char *fileName, const char *pattern);
 bool    tIsValidFilePath(const char *filePath, const char *pattern);
 
 #ifdef TD_ASTRA
-#define CHECK_ALIGNMENT
 static FORCE_INLINE int32_t taosStrcasecmp(const char *s1, const char *s2) {
   if (s1[0] == 0 && s2[0] == 0) return 0;
   return strcasecmp(s1, s2);
@@ -65,6 +64,13 @@ static FORCE_INLINE int32_t taosStrncasecmp(const char *s1, const char *s2, size
   if (s1[0] == 0 && s2[0] == 0) return 0;
   return strncasecmp(s1, s2, n);
 }
+#else
+#define taosStrcasecmp  strcasecmp
+#define taosStrncasecmp strncasecmp
+#endif
+
+#ifdef NO_UNALIGNED_ACCESS
+#define CHECK_ALIGNMENT
 static FORCE_INLINE int64_t taosGetInt64Aligned(int64_t *pVal) {
 #ifdef CHECK_ALIGNMENT
   if ((((uintptr_t)pVal) & 7) == 0) return *pVal;
@@ -160,9 +166,10 @@ static FORCE_INLINE void taosSetPUInt64Aligned(uint64_t *to, uint64_t *from) {
 #endif
   memcpy(to, from, sizeof(uint64_t));
 }
+
+#define TAOS_SET_OBJ_ALIGNED(pTo, vFrom)  memcpy((pTo), &(vFrom), sizeof(*(pTo)))
+#define TAOS_SET_POBJ_ALIGNED(pTo, pFrom) memcpy((pTo), (pFrom), sizeof(*(pTo)))
 #else
-#define taosStrcasecmp  strcasecmp
-#define taosStrncasecmp strncasecmp
 static FORCE_INLINE int64_t  taosGetInt64Aligned(int64_t *pVal) { return *pVal; }
 static FORCE_INLINE uint64_t taosGetUInt64Aligned(uint64_t *pVal) { return *pVal; }
 static FORCE_INLINE float    taosGetFloatAligned(float *pVal) { return *pVal; }
@@ -173,6 +180,8 @@ static FORCE_INLINE void     taosSetPInt64Aligned(int64_t *to, int64_t *from) { 
 static FORCE_INLINE void     taosSetPFloatAligned(float *to, float *from) { *to = *from; }
 static FORCE_INLINE void     taosSetPDoubleAligned(double *to, double *from) { *to = *from; }
 static FORCE_INLINE void     taosSetPUInt64Aligned(uint64_t *to, uint64_t *from) { *to = *from; }
+#define TAOS_SET_OBJ_ALIGNED(pTo, vFrom)  *(pTo) = (vFrom)
+#define TAOS_SET_POBJ_ALIGNED(pTo, pFrom) *(pTo) = *(pFrom)
 #endif
 
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {

@@ -840,7 +840,7 @@ int32_t createSelectStmtImpl(bool isDistinct, SNodeList* pProjectionList, SNode*
   select->timeLineResMode = select->isDistinct ? TIME_LINE_NONE : TIME_LINE_GLOBAL;
   select->timeLineCurMode = TIME_LINE_GLOBAL;
   select->onlyHasKeepOrderFunc = true;
-  select->timeRange = TSWINDOW_INITIALIZER;
+  TAOS_SET_OBJ_ALIGNED(&select->timeRange, TSWINDOW_INITIALIZER); 
   select->pHint = pHint;
   select->lastProcessByRowFuncId = -1;
   *ppSelect = (SNode*)select;

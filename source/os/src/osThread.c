@@ -25,11 +25,15 @@ int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)
   if (!attr) {
     pthread_attr_t threadAttr;
     pthread_attr_init(&threadAttr);
-    pthread_attr_setstacksize(&threadAttr, DEFAULT_STACK_SIZE);
+    pthread_attr_setstacksize(&threadAttr, STACK_SIZE_DEFAULT);
     code = pthread_create(tid, &threadAttr, start, arg);
     pthread_attr_destroy(&threadAttr);
   } else {
-    pthread_attr_setstacksize(attr, DEFAULT_STACK_SIZE);
+    int32_t stackSize = 0;
+    pthread_attr_getstacksize(attr, &stackSize);
+    if (stackSize == 0) {
+      pthread_attr_setstacksize(attr, STACK_SIZE_DEFAULT);
+    }
     code = pthread_create(tid, attr, start, arg);
   }
 #else

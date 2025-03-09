@@ -390,7 +390,9 @@ static int32_t walCreateThread() {
   TdThreadAttr thAttr;
   (void)taosThreadAttrInit(&thAttr);
   (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
-
+#ifdef TD_COMPACT_OS
+    (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
+#endif
   if (taosThreadCreate(&tsWal.thread, &thAttr, walThreadFunc, NULL) != 0) {
     wError("failed to create wal thread since %s", strerror(ERRNO));
 

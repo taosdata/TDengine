@@ -159,6 +159,9 @@ static void      taosWriteSlowLog(SLogBuff *pLogBuf);
 static int32_t taosStartLog() {
   TdThreadAttr threadAttr;
   (void)taosThreadAttrInit(&threadAttr);
+#ifdef TD_COMPACT_OS
+  (void)taosThreadAttrSetStackSize(&threadAttr, STACK_SIZE_SMALL);
+#endif
   if (taosThreadCreate(&(tsLogObj.logHandle->asyncThread), &threadAttr, taosAsyncOutputLog, tsLogObj.logHandle) != 0) {
     return terrno;
   }
@@ -476,7 +479,9 @@ static int32_t taosOpenNewLogFile() {
     TdThreadAttr attr;
     (void)taosThreadAttrInit(&attr);
     (void)taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_DETACHED);
-
+#ifdef TD_COMPACT_OS
+    (void)taosThreadAttrSetStackSize(&attr, STACK_SIZE_SMALL);
+#endif
     OldFileKeeper *oldFileKeeper = taosOpenNewFile();
     if (!oldFileKeeper) {
       tsLogObj.openInProgress = 0;
@@ -1184,6 +1189,9 @@ static void *taosAsyncOutputLog(void *param) {
         TdThreadAttr attr;
         (void)taosThreadAttrInit(&attr);
         (void)taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_DETACHED);
+#ifdef TD_COMPACT_OS
+        (void)taosThreadAttrSetStackSize(&attr, STACK_SIZE_SMALL);
+#endif
         if (taosThreadCreate(&thread, &attr, taosLogRotateFunc, tsLogObj.logHandle) == 0) {
           uInfo("process log rotation");
           lastCheckSec = curSec;

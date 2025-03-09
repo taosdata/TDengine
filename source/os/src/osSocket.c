@@ -364,8 +364,9 @@ int32_t taosGetFqdn(char *fqdn) {
 #else  // linux
 
 #endif  // linux
-
-#if defined(LINUX)
+#if defined(TD_ASTRA)
+  tstrncpy(fqdn, hostname, TD_FQDN_LEN);  
+#elif defined(LINUX)
 
   struct addrinfo  hints = {0};
   struct addrinfo *result = NULL;

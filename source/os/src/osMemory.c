@@ -287,7 +287,10 @@ void *taosMemMalloc(int64_t size) {
 #endif
   void *p = malloc(size);
   if (NULL == p) {
+	__asm("bkpt #0");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    atomic_add_fetch_64(&tsMemoryUsed, size);
   }
   return p;
 #endif
@@ -320,7 +323,7 @@ void *taosMemCalloc(int64_t num, int64_t size) {
   }
 #endif
 #ifdef TD_ASTRA
-  if (size == 0) size = 1;
+  if (0 == num || 0 == size) num = size = 1; 
 #endif
   void *p = calloc(num, size);
   if (NULL == p) {

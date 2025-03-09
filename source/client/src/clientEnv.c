@@ -974,7 +974,9 @@ static int32_t shellStartDaemon(int argc, char *argv[]) {
   TdThreadAttr thAttr;
   (void)taosThreadAttrInit(&thAttr);
   (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
-
+#ifdef TD_COMPACT_OS
+  (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
+#endif
   pArgs = (SExecArgs *)taosMemoryCalloc(1, sizeof(SExecArgs));
   if (pArgs == NULL) {
     code = terrno;
@@ -1004,7 +1006,7 @@ static int32_t shellStartDaemon(int argc, char *argv[]) {
       code = TSDB_CODE_APP_ERROR;
       TAOS_CHECK_EXIT(code);
     }
-    taosMsleep(100);
+    taosMsleep(1000);
   }
 
 _exit:

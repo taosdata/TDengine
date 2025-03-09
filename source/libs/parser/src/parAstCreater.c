@@ -1499,7 +1499,7 @@ SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode
   interval->pOffset = pOffset;
   interval->pSliding = pSliding;
   interval->pFill = pFill;
-  interval->timeRange = TSWINDOW_INITIALIZER;
+  TAOS_SET_OBJ_ALIGNED(&interval->timeRange, TSWINDOW_INITIALIZER);
   interval->timezone = pCxt->pQueryCxt->timezone;
   return (SNode*)interval;
 _err:

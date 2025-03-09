@@ -571,7 +571,7 @@ int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
     TAOS_RETURN(TSDB_CODE_FS_INVLD_CFG);
   }
 #else  // TD_ASTRA_TODO
-  if (!taosCheckAccessFile(dirName, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_EXEC_OK)) {
+  if (!taosCheckAccessFile(dirName, TD_FILE_ACCESS_EXIST_OK)) {
     fError("failed to mount %s to FS since no access rights", pCfg->dir);
     TAOS_RETURN(TSDB_CODE_FS_INVLD_CFG);
   }

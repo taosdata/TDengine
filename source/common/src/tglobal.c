@@ -1924,9 +1924,10 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
 #ifdef TAOSD_INTEGRATED
   mode |= LOG_MODE_TAOSD;
-#endif
-
+  tsLogEmbedded = 1;
+#else
   tsLogEmbedded = (mode & LOG_MODE_TAOSC) ? 0 : 1;
+#endif
   TAOS_CHECK_GOTO(taosAddClientLogCfg(pCfg), &lino, _exit);
   if (mode & LOG_MODE_TAOSD) {
     TAOS_CHECK_GOTO(taosAddServerLogCfg(pCfg), &lino, _exit);
@@ -2191,6 +2192,10 @@ int32_t readCfgFile(const char *path, bool isGlobal) {
     code = terrno;
     uError("failed to stat file:%s , since %s", filename, tstrerror(code));
     TAOS_RETURN(code);
+  }
+  if (fileSize == 0) {
+    uInfo("config file:%s is empty", filename);
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
   }
   TdFilePtr pFile = taosOpenFile(filename, TD_FILE_READ);
   if (pFile == NULL) {

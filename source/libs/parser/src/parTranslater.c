@@ -5809,7 +5809,7 @@ static int32_t getTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bo
   if (TSDB_CODE_SUCCESS == code) {
     *pPrimaryKeyCond = pNew;
     if (nodeType(pNew) == QUERY_NODE_VALUE) {
-      *pTimeRange = TSWINDOW_INITIALIZER;
+      TAOS_SET_OBJ_ALIGNED(pTimeRange, TSWINDOW_INITIALIZER);
     } else {
       code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict);
     }
@@ -5819,7 +5819,7 @@ static int32_t getTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bo
 
 static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode* pWhere, STimeWindow* pTimeRange) {
   if (NULL == pWhere) {
-    *pTimeRange = TSWINDOW_INITIALIZER;
+    TAOS_SET_OBJ_ALIGNED(pTimeRange, TSWINDOW_INITIALIZER);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -5837,7 +5837,7 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode* pWhere, STimeWi
       bool isStrict = false;
       code = getTimeRange(&pPrimaryKeyCond, pTimeRange, &isStrict);
     } else {
-      *pTimeRange = TSWINDOW_INITIALIZER;
+     TAOS_SET_OBJ_ALIGNED(pTimeRange, TSWINDOW_INITIALIZER);
     }
   }
   nodesDestroyNode(pCond);
@@ -8027,10 +8027,9 @@ static int32_t translateSetOperator(STranslateContext* pCxt, SSetOperator* pSetO
 
 static int32_t partitionDeleteWhere(STranslateContext* pCxt, SDeleteStmt* pDelete) {
   if (NULL == pDelete->pWhere) {
-    pDelete->timeRange = TSWINDOW_INITIALIZER;
+    TAOS_SET_OBJ_ALIGNED(&pDelete->timeRange, TSWINDOW_INITIALIZER);
     return TSDB_CODE_SUCCESS;
   }
-
   SNode*  pPrimaryKeyCond = NULL;
   SNode*  pOtherCond = NULL;
   int32_t code = filterPartitionCond(&pDelete->pWhere, &pPrimaryKeyCond, NULL, &pDelete->pTagCond, &pOtherCond);
@@ -8045,7 +8044,7 @@ static int32_t partitionDeleteWhere(STranslateContext* pCxt, SDeleteStmt* pDelet
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DELETE_WHERE);
       }
     } else {
-      pDelete->timeRange = TSWINDOW_INITIALIZER;
+      TAOS_SET_OBJ_ALIGNED(&pDelete->timeRange, TSWINDOW_INITIALIZER);
     }
   }
   nodesDestroyNode(pPrimaryKeyCond);

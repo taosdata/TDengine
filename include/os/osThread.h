@@ -71,9 +71,11 @@ typedef pthread_condattr_t   TdThreadCondAttr;
 typedef pthread_key_t        TdThreadKey;
 #endif
 #ifdef TD_ASTRA
-#define DEFAULT_STACK_SIZE    (8388480)
+// #define STACK_SIZE_DEFAULT    (8388480)
+#define STACK_SIZE_DEFAULT    (1048576 << 1)
+#define STACK_SIZE_SMALL      (1048576)
 #else
-#define DEFAULT_STACK_SIZE    (10485760)
+#define STACK_SIZE_DEFAULT    (10485760)
 #endif
 #define taosThreadCleanupPush pthread_cleanup_push
 #define taosThreadCleanupPop  pthread_cleanup_pop

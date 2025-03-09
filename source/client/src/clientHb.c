@@ -1401,6 +1401,9 @@ static int32_t hbCreateThread() {
   TdThreadAttr thAttr;
   TSC_ERR_JRET(taosThreadAttrInit(&thAttr));
   TSC_ERR_JRET(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE));
+#ifdef TD_COMPACT_OS
+  TSC_ERR_JRET(taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL));
+#endif
 
   if (taosThreadCreate(&clientHbMgr.thread, &thAttr, hbThreadFunc, NULL) != 0) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);

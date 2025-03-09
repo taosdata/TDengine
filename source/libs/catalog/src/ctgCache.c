@@ -3307,6 +3307,9 @@ int32_t ctgStartUpdateThread() {
   TdThreadAttr thAttr;
   CTG_ERR_JRET(taosThreadAttrInit(&thAttr));
   CTG_ERR_JRET(taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE));
+#ifdef TD_COMPACT_OS
+  CTG_ERR_JRET(taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL));
+#endif
 
   if (taosThreadCreate(&gCtgMgmt.updateThread, &thAttr, ctgUpdateThreadFunc, NULL) != 0) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);

@@ -390,7 +390,7 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
   pScan->tableType = pRealTable->pMeta->tableType;
   pScan->scanSeq[0] = hasRepeatScanFuncs ? 2 : 1;
   pScan->scanSeq[1] = 0;
-  pScan->scanRange = TSWINDOW_INITIALIZER;
+  TAOS_SET_OBJ_ALIGNED(&pScan->scanRange, TSWINDOW_INITIALIZER);
   pScan->tableName.type = TSDB_TABLE_NAME_T;
   pScan->tableName.acctId = pCxt->pPlanCxt->acctId;
   tstrncpy(pScan->tableName.dbname, pRealTable->table.dbName, TSDB_DB_NAME_LEN);
