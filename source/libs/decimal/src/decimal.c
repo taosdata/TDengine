@@ -27,7 +27,7 @@ typedef enum DecimalRoundType {
   ROUND_TYPE_CEIL,
   ROUND_TYPE_FLOOR,
   ROUND_TYPE_TRUNC,
-  ROUND_TYPE_HALF_ROUND_UP, // TODO wjm use this for scaling down/up
+  ROUND_TYPE_HALF_ROUND_UP,
 } DecimalRoundType;
 
 #define DECIMAL_GET_INTERNAL_TYPE(dataType) ((dataType) == TSDB_DATA_TYPE_DECIMAL ? DECIMAL_128 : DECIMAL_64)
@@ -37,7 +37,6 @@ static SDecimalOps* getDecimalOpsImp(DecimalInternalType t);
 
 #define DECIMAL_MIN_ADJUSTED_SCALE 6
 
-// TODO wjm use uint64_t ???
 static Decimal64 SCALE_MULTIPLIER_64[TSDB_DECIMAL64_MAX_PRECISION + 1] = {1LL,
                                                                           10LL,
                                                                           100LL,
@@ -300,31 +299,20 @@ int32_t decimal128ToDataVal(Decimal128* dec, SValue* pVal) {
 
 #define DECIMAL64_SIGN(pDec) (1 | (DECIMAL64_GET_VALUE(pDec) >> 63))
 
-static int32_t decimalGetWhole(const DecimalType* pDec, DecimalInternalType type, int8_t scale, DecimalType* pWhole) {
-  SDecimalOps* pOps = getDecimalOpsImp(type);
-  if (type == DECIMAL_64) {
-    DECIMAL64_CLONE(pWhole, pDec);
-    Decimal64 scaleMul = SCALE_MULTIPLIER_64[scale];
-    pOps->divide(pWhole, &scaleMul, 1, NULL);
-    pOps->abs(pWhole);
-  } else {
-    memcpy(pWhole, pDec, DECIMAL_GET_WORD_NUM(type) * sizeof(DecimalWord));
-    // TODO wjm
-    // pOps.divide(pWhole, )
-  }
-  return 0;
+static void decimal64GetWhole(const DecimalType* pDec, int8_t scale, DecimalType* pWhole) {
+  SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
+  DECIMAL64_CLONE(pWhole, pDec);
+  Decimal64 scaleMul = SCALE_MULTIPLIER_64[scale];
+  pOps->divide(pWhole, &scaleMul, 1, NULL);
+  pOps->abs(pWhole);
 }
 
-static int32_t decimalGetFrac(const DecimalType* pDec, DecimalInternalType type, int8_t scale, DecimalType* pFrac) {
-  SDecimalOps* pOps = getDecimalOpsImp(type);
-  if (type == DECIMAL_64) {
-    DECIMAL64_CLONE(pFrac, pDec);
-    Decimal64 scaleMul = SCALE_MULTIPLIER_64[scale];
-    pOps->mod(pFrac, &scaleMul, 1);
-    pOps->abs(pFrac);
-  } else {
-  }
-  return 0;
+static void decimal64GetFrac(const DecimalType* pDec, int8_t scale, DecimalType* pFrac) {
+  SDecimalOps* pOps = getDecimalOpsImp(DECIMAL_64);
+  DECIMAL64_CLONE(pFrac, pDec);
+  Decimal64 scaleMul = SCALE_MULTIPLIER_64[scale];
+  pOps->mod(pFrac, &scaleMul, 1);
+  pOps->abs(pFrac);
 }
 
 static void    decimal64Negate(DecimalType* pInt);
@@ -470,10 +458,10 @@ int32_t decimal64ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32
   if (DECIMAL64_SIGN((Decimal64*)pInt) == -1) {
     pos = sprintf(pBuf, "-");
   }
-  int32_t code = decimalGetWhole(pInt, DECIMAL_64, scale, &whole);
+  decimal64GetWhole(pInt, scale, &whole);
   pos += snprintf(pBuf + pos, bufLen - pos, "%" PRId64, DECIMAL64_GET_VALUE(&whole));
   if (scale > 0) {
-    (void)decimalGetFrac(pInt, DECIMAL_64, scale, &frac);
+    decimal64GetFrac(pInt, scale, &frac);
     if (DECIMAL64_GET_VALUE(&frac) != 0 || DECIMAL64_GET_VALUE(&whole) != 0) {
       TAOS_STRCAT(pBuf + pos, ".");
       pos += 1;
@@ -1928,7 +1916,7 @@ static int32_t decimal128CountRoundingDelta(const Decimal128* pDec, int8_t scale
         res = 0;
         break;
       }
-      res = decimal128Lt(pDec, &decimal128Zero, WORD_NUM(Decimal128)) ? -1 : 1; // TODO wjm use sign??
+      res = DECIMAL128_SIGN(pDec) == -1 ? -1 : 1;
     } break;
     case ROUND_TYPE_TRUNC:
     default:

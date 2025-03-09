@@ -2162,8 +2162,6 @@ static int32_t convertDecimalType(SReqResultInfo* pResultInfo) {
         return code;
       }
     }
-    // TODO wjm handle NULL???
-    // TODO wjm use vardatalen???
     pResultInfo->pCol[i].pData = pResultInfo->convertBuf[i];
     pResultInfo->row[i] = pResultInfo->pCol[i].pData;
   }

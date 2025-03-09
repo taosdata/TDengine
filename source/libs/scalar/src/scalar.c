@@ -168,10 +168,6 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, SType
       if (overflow) {
         continue;
       }
-      // TODO wjm For decimal types, after conversion, check if we lose some scale to ignore values with larger scale
-      // e.g. convert decimal(18, 4) to decimal(18, 2) with value:
-      //  1.2345 -> 1.23. 1.23 != 1.2345, ignore this value, can't be the same as any decimal(18, 2)
-      //  1.2300 -> 1.23. 1.2300 == 1.23, take this value.
 
       if (IS_VAR_DATA_TYPE(type)) {
         buf = colDataGetVarData(out.columnData, 0);

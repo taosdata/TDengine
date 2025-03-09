@@ -3438,6 +3438,12 @@ static int32_t selectCommonType(SDataType* commonType, const SDataType* newType)
   }
 
   if (commonType->type == newType->type) {
+    if (IS_DECIMAL_TYPE(commonType->type)) {
+      if ((commonType->precision - commonType->scale) < (newType->precision - newType->scale)) {
+        commonType->precision = newType->precision;
+        commonType->scale = newType->scale;
+      }
+    }
     commonType->bytes = TMAX(commonType->bytes, newType->bytes);
     return TSDB_CODE_SUCCESS;
   }
@@ -3448,6 +3454,11 @@ static int32_t selectCommonType(SDataType* commonType, const SDataType* newType)
   } else if ((resultType == TSDB_DATA_TYPE_NCHAR) &&
              (IS_MATHABLE_TYPE(commonType->type) || IS_MATHABLE_TYPE(newType->type))) {
     commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), QUERY_NUMBER_MAX_DISPLAY_LEN * TSDB_NCHAR_SIZE);
+  } else if (IS_DECIMAL_TYPE(resultType)) {
+    if ((commonType->precision - commonType->scale) < (newType->precision - newType->scale)) {
+      commonType->precision = newType->precision;
+      commonType->scale = newType->scale;
+    }
   } else {
     commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), TYPE_BYTES[resultType]);
   }

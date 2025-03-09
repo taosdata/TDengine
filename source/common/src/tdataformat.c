@@ -4788,7 +4788,6 @@ void valueSetDatum(SValue *pVal, int8_t type, void *pDatum, uint32_t len) {
         pVal->val = *(uint64_t *)pDatum;
         break;
       default:
-        // TODO wjm log some thing???
         break;
     }
   }

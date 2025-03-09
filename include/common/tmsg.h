@@ -587,7 +587,6 @@ STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
 // for debug
 int32_t tPrintFixedSchemaSubmitReq(SSubmitReq* pReq, STSchema* pSchema);
 
-// TODO wjm resolve compatibility problem
 struct SSchema {
   int8_t   type;
   int8_t   flags;

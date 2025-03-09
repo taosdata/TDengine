@@ -327,8 +327,12 @@ static int32_t tsdbCacheDeserializeV0(char const *value, SLastCol *pLastCol) {
       pLastCol->colVal.value.pData = (uint8_t *)(&pLastColV0[1]);
     }
     return sizeof(SLastColV0) + pLastColV0->colVal.value.nData;
+  } else if (pLastCol->colVal.value.type == TSDB_DATA_TYPE_DECIMAL) {
+    pLastCol->colVal.value.nData = pLastColV0->colVal.value.nData;
+    pLastCol->colVal.value.pData = (uint8_t*)(&pLastColV0[1]);
+    return sizeof(SLastColV0) + pLastColV0->colVal.value.nData;
   } else {
-    valueCloneDatum(&pLastCol->colVal.value, &pLastColV0->colVal.value, pLastColV0->colVal.value.type);
+    pLastCol->colVal.value.val = pLastColV0->colVal.value.val;
     return sizeof(SLastColV0);
   }
 }
@@ -419,8 +423,12 @@ static int32_t tsdbCacheSerializeV0(char const *value, SLastCol *pLastCol) {
       memcpy(&pLastColV0[1], pLastCol->colVal.value.pData, pLastCol->colVal.value.nData);
     }
     return sizeof(SLastColV0) + pLastCol->colVal.value.nData;
+  } else if (pLastCol->colVal.value.type == TSDB_DATA_TYPE_DECIMAL) {
+    memcpy(&pLastColV0[1], pLastCol->colVal.value.pData, pLastCol->colVal.value.nData);
+    pLastColV0->colVal.value.nData = pLastCol->colVal.value.nData;
+    return sizeof(SLastColV0) + pLastCol->colVal.value.nData;
   } else {
-    valueCloneDatum(&pLastColV0->colVal.value, &pLastCol->colVal.value, pLastCol->colVal.value.type);
+    pLastColV0->colVal.value.val = pLastCol->colVal.value.val;
     return sizeof(SLastColV0);
   }
 
@@ -431,6 +439,9 @@ static int32_t tsdbCacheSerialize(SLastCol *pLastCol, char **value, size_t *size
   *size = sizeof(SLastColV0);
   if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type)) {
     *size += pLastCol->colVal.value.nData;
+  }
+  if (pLastCol->colVal.value.type == TSDB_DATA_TYPE_DECIMAL) {
+    *size += DECIMAL128_BYTES;
   }
   *size += sizeof(uint8_t) + sizeof(uint8_t) + sizeof(uint8_t);  // version + numOfPKs + cacheStatus
 
@@ -830,6 +841,14 @@ static int32_t tsdbCacheReallocSLastCol(SLastCol *pCol, size_t *pCharge) {
 
   if (IS_VAR_DATA_TYPE(pCol->colVal.value.type)) {
     TAOS_CHECK_EXIT(reallocVarData(&pCol->colVal));
+    charge += pCol->colVal.value.nData;
+  }
+
+  if (pCol->colVal.value.type == TSDB_DATA_TYPE_DECIMAL) {
+    void* p = taosMemoryMalloc(pCol->colVal.value.nData);
+    if (!p) TAOS_CHECK_EXIT(terrno);
+    (void)memcpy(p, pCol->colVal.value.pData, pCol->colVal.value.nData);
+    pCol->colVal.value.pData = p;
     charge += pCol->colVal.value.nData;
   }
 

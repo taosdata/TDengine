@@ -427,7 +427,6 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
       case TSDB_DATA_TYPE_DECIMAL:
       case TSDB_DATA_TYPE_DECIMAL64: {
         const char* pDec = pCol->pData;
-        // TODO wjm check for overflow
         for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
           bool overflow = false;
           if (type == TSDB_DATA_TYPE_DECIMAL64) {
@@ -607,7 +606,6 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   if (AVG_RES_GET_COUNT(pRes, true, pCtx->inputType) > 0) {
     
     if(AVG_RES_GET_SUM_OVERFLOW(pRes, true, pCtx->inputType)) {
-      // overflow flag set , use dsum TODO wjm check deicmal overflow and return error
       AVG_RES_GET_AVG(pRes) = SUM_RES_GET_DSUM(&AVG_RES_GET_SUM(pRes)) / ((double)AVG_RES_GET_COUNT(pRes, false, 0));
     }else if (IS_SIGNED_NUMERIC_TYPE(type)) {
       AVG_RES_GET_AVG(pRes) = SUM_RES_GET_ISUM(&AVG_RES_GET_SUM(pRes)) / ((double)AVG_RES_GET_COUNT(pRes, false, 0));

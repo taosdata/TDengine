@@ -22,28 +22,28 @@
 extern "C" {
 #endif
 
-typedef struct uint128 {
+struct uint128 {
   uint64_t low;
   uint64_t high;
-} uint128;
+};
 
 struct int128 {
   uint64_t low;
   int64_t  high;
 };
 
-typedef struct uint256 {
-  uint128 low;
-  uint128 high;
-} uint256; // TODO wjm remove typedef
+struct uint256 {
+  struct uint128 low;
+  struct uint128 high;
+};
 
 struct int256 {
-  uint128 low;
+  struct uint128 low;
   struct int128 high;
 };
 
-#define UInt128 uint128
-#define UInt256 uint256
+#define UInt128 struct uint128
+#define UInt256 struct uint256
 #define Int128  struct int128
 #define Int256  struct int256
 
