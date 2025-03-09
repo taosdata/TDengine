@@ -398,7 +398,7 @@ void qDestroyParseContext(SParseContext* pCxt) {
 void qDestroyQuery(SQuery* pQueryNode) { nodesDestroyNode((SNode*)pQueryNode); }
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
-  return extractResultSchema(pRoot, numOfCols, pSchema);
+  return extractResultSchema(pRoot, numOfCols, pSchema, NULL);
 }
 
 int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid) {

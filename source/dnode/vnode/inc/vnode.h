@@ -219,6 +219,7 @@ typedef struct STqReader {
   SSDataBlock    *pResBlock;
   int64_t         lastTs;
   bool            hasPrimaryKey;
+  SExtSchema     *extSchema;
 } STqReader;
 
 STqReader *tqReaderOpen(SVnode *pVnode);

@@ -75,7 +75,6 @@ static int32_t tqInitTaosxRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset) {
   pRsp->blockSchema = taosArrayInit(0, sizeof(void*));
   TSDB_CHECK_NULL(pRsp->blockSchema, code, lino, END, terrno);
 
-
 END:
   if (code != 0){
     tqError("%s failed at:%d, code:%s", __FUNCTION__ , lino, tstrerror(code));
