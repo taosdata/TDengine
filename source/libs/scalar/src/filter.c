@@ -3935,6 +3935,7 @@ typedef struct {
     uint64_t u;      // for uint
     double   d;      // for double
     uint8_t *pData;  // for varchar, nchar, len prefixed
+    Decimal dec;     // for decimal
   };
   SDataType type;    // TODO: original data type, may not be used?
 } SFltSclDatum;
@@ -3960,7 +3961,7 @@ int32_t fltSclCompareWithFloat64(SFltSclDatum *val1, SFltSclDatum *val2) {
       return compareDoubleVal(&d, &val2->d);
     }
     case FLT_SCL_DATUM_KIND_DECIMAL: {
-      double d = doubleFromDecimal128(val1->pData, val1->type.precision, val1->type.scale);
+      double d = doubleFromDecimal128(&val1->dec, val1->type.precision, val1->type.scale);
       return compareDoubleVal(&d, &val2->d);
     }
     // TODO: varchar, nchar
@@ -4034,12 +4035,12 @@ int32_t fltSclCompareDatum(SFltSclDatum *val1, SFltSclDatum *val2) {
       return fltSclCompareWithFloat64(val1, val2);
     }
     case FLT_SCL_DATUM_KIND_DECIMAL64: {
-      void* pData1 = val1->kind == FLT_SCL_DATUM_KIND_DECIMAL64 ? (void*)&val1->i : (void*)val1->pData;
+      void* pData1 = val1->kind == FLT_SCL_DATUM_KIND_DECIMAL64 ? (void*)&val1->i : (void*)&val1->dec;
       return fltSclCompareWithDecimal(pData1, &val1->type, &val2->i, &val2->type);
     }
     case FLT_SCL_DATUM_KIND_DECIMAL: {
-      void* pData1 = val1->kind == FLT_SCL_DATUM_KIND_DECIMAL64 ? (void*)&val1->i : (void*)val1->pData;
-      return fltSclCompareWithDecimal(pData1, &val1->type, val2->pData, &val2->type);
+      void* pData1 = val1->kind == FLT_SCL_DATUM_KIND_DECIMAL64 ? (void*)&val1->i : (void*)&val1->dec;
+      return fltSclCompareWithDecimal(pData1, &val1->type, &val2->dec, &val2->type);
     }
     default:
       qError("not supported kind when compare datum. kind2 : %d", val2->kind);
@@ -4235,7 +4236,7 @@ static int32_t fltSclBuildDecimalDatumFromValueNode(SFltSclDatum* datum, SColumn
       case TSDB_DATA_TYPE_DECIMAL:
         datum->kind = FLT_SCL_DATUM_KIND_DECIMAL;
         datum->type = valDt;
-        datum->pData = (void*)valNode->datum.p;
+        datum->dec = *(Decimal*)valNode->datum.p;
         FLT_RET(0);
       default:
         qError("not supported type %d when build decimal datum from value node", valNode->node.resType.type);
@@ -4247,15 +4248,12 @@ static int32_t fltSclBuildDecimalDatumFromValueNode(SFltSclDatum* datum, SColumn
       pData = &datum->i;
       datum->kind = FLT_SCL_DATUM_KIND_DECIMAL64;
     } else if (datum->type.type == TSDB_DATA_TYPE_DECIMAL) {
-      pData = taosMemoryCalloc(1, pColNode->node.resType.bytes);
-      if (!pData) FLT_ERR_RET(terrno);
-      datum->pData = pData;
+      pData = &datum->dec;
       datum->kind = FLT_SCL_DATUM_KIND_DECIMAL;
     }
     if (datum->kind == FLT_SCL_DATUM_KIND_DECIMAL64 || datum->kind == FLT_SCL_DATUM_KIND_DECIMAL) {
       int32_t code = convertToDecimal(pInput, &valDt, pData, &datum->type);
-      if (TSDB_CODE_SUCCESS != code) return code;  // TODO wjm handle overflow error
-      //valNode->node.resType = datum->type;
+      if (TSDB_CODE_SUCCESS != code) return code;
     }
   }
   FLT_RET(0);
@@ -4345,8 +4343,7 @@ int32_t fltSclBuildDatumFromBlockSmaValue(SFltSclDatum *datum, uint8_t type, voi
       break;
     case TSDB_DATA_TYPE_DECIMAL:
       datum->kind = FLT_SCL_DATUM_KIND_DECIMAL;
-      datum->pData = taosMemoryCalloc(1, tDataTypes[type].bytes);
-      memcpy(datum->pData, val, tDataTypes[type].bytes);
+      datum->dec = *(Decimal *)val;
       break;
 
     // TODO:varchar/nchar/json
@@ -4850,6 +4847,10 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       stat->scalarMode = true;
       return DEAL_RES_CONTINUE;
     }
+    if (IS_DECIMAL_TYPE(valueNode->node.resType.type)) {
+      stat->scalarMode = true;
+      return DEAL_RES_CONTINUE;
+    }
     return DEAL_RES_CONTINUE;
   }
 
@@ -4873,7 +4874,8 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
     uint8_t     type = valueNode->node.resType.type;
     SNode      *node = NULL;
     FOREACH(node, listNode->pNodeList) {
-      if (type != ((SValueNode *)node)->node.resType.type) {
+      uint8_t nodeT = ((SExprNode*)node)->resType.type;
+      if (type != nodeT || IS_DECIMAL_TYPE(nodeT)) {
         stat->scalarMode = true;
         return DEAL_RES_CONTINUE;
       }
@@ -5037,7 +5039,6 @@ _return:
   FLT_RET(code);
 }
 
-// TODO wjm start from here, check why 这里将double赋值给整数?????
 static int32_t fltSclBuildRangePointsForInOper(SFltSclOperator* oper, SArray* points) {
   SNodeListNode *listNode = (SNodeListNode *)oper->valNode;
   SFltSclDatum minDatum = {.kind = FLT_SCL_DATUM_KIND_INT64, .i = INT64_MAX, .type = oper->colNode->node.resType};
@@ -5054,7 +5055,7 @@ static int32_t fltSclBuildRangePointsForInOper(SFltSclOperator* oper, SArray* po
       if (IS_DECIMAL_TYPE(valDatum.type.type)) {
         double v = valDatum.type.type == TSDB_DATA_TYPE_DECIMAL64
                        ? doubleFromDecimal64(&valDatum.i, valDatum.type.precision, valDatum.type.scale)
-                       : doubleFromDecimal128(valDatum.pData, valDatum.type.precision, valDatum.type.scale);
+                       : doubleFromDecimal128(&valDatum.dec, valDatum.type.precision, valDatum.type.scale);
         if (minDatum.kind == FLT_SCL_DATUM_KIND_FLOAT64) {
           minDatum.d = TMIN(v, minDatum.d);
           maxDatum.d = TMAX(v, maxDatum.d);
@@ -5369,16 +5370,24 @@ int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode, SFltTreeStat *pStat)
   }
   FLT_ERR_JRET(fltSclProcessCNF(pInfo, sclOpList, colRangeList));
   pInfo->sclCtx.fltSclRange = colRangeList;
+  colRangeList = NULL;
 
+_return:
   for (int32_t i = 0; i < taosArrayGetSize(sclOpList); ++i) {
     SFltSclOperator *sclOp = taosArrayGet(sclOpList, i);
     if (NULL == sclOp) {
-      FLT_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
+      code = TSDB_CODE_OUT_OF_RANGE;
+      break;
     }
     nodesDestroyNode((SNode *)sclOp->colNode);
     nodesDestroyNode((SNode *)sclOp->valNode);
   }
-_return:
+
+  for (int32_t i = 0; i < taosArrayGetSize(colRangeList); ++i) {
+    SFltSclColumnRange *colRange = taosArrayGet(colRangeList, i);
+    nodesDestroyNode((SNode *)colRange->colNode);
+    taosArrayDestroy(colRange->points);
+  }
   taosArrayDestroy(sclOpList);
   return code;
 }

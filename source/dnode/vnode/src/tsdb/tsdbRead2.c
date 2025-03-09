@@ -1354,6 +1354,7 @@ static int32_t copyNumericCols(const SColData* pData, SFileBlockDumpInfo* pDumpI
       case TSDB_DATA_TYPE_TIMESTAMP:
       case TSDB_DATA_TYPE_DOUBLE:
       case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_DECIMAL64:
       case TSDB_DATA_TYPE_UBIGINT: {
         int32_t  mid = dumpedRows >> 1u;
         int64_t* pts = (int64_t*)pColData->pData;
@@ -1399,6 +1400,20 @@ static int32_t copyNumericCols(const SColData* pData, SFileBlockDumpInfo* pDumpI
           int32_t t = pts[j];
           pts[j] = pts[dumpedRows - j - 1];
           pts[dumpedRows - j - 1] = t;
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_DECIMAL: {
+        int32_t  mid = dumpedRows >> 1u;
+        DecimalWord* pDec = (DecimalWord*)pColData->pData;
+        DecimalWord tmp[2] = {0};
+        for (int32_t j = 0; j < mid; ++j) {
+          tmp[0] = pDec[2 * j];
+          tmp[1] = pDec[2 * j + 1];
+          pDec[2 * j] = pDec[2 * (dumpedRows - j - 1)];
+          pDec[2 * j + 1] = pDec[2 * (dumpedRows - j - 1) + 1];
+          pDec[2 * (dumpedRows - j - 1)] = tmp[0];
+          pDec[2 * (dumpedRows - j - 1) + 1] = tmp[1];
         }
         break;
       }

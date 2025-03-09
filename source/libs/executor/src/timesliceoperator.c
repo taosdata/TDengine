@@ -502,8 +502,6 @@ static bool genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
           }
           code = colDataSetVal(pDst, rows, (char*)&v, isNull);
           QUERY_CHECK_CODE(code, lino, _end);
-        } else if (IS_DECIMAL_TYPE(pDst->info.type)) {
-          // TODO wjm
         }
 
         ++fillColIndex;

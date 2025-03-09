@@ -706,8 +706,6 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
       SColCmpr *p = &pEntry->colCmpr.pColCmpr[i];
       pRsp->pSchemaExt[i].colId = p->id;
       pRsp->pSchemaExt[i].compress = p->alg;
-      // TODO wjm
-      // if (pEntry->pExtSchemas) pRsp->pSchemaExt[i].typeMod = pEntry->pExtSchemas[i].typeMod;
     }
   }
 
