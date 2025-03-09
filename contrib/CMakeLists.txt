@@ -43,8 +43,6 @@ endif()
 set(CONTRIB_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
 configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
-# RocksDB is now included via cmake/RocksDB.cmake.inc
-
 # cat("${TD_SUPPORT_DIR}/zstd_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
 # s3
@@ -181,11 +179,6 @@ if(${BUILD_WITH_UV})
         endif()
     endif(${TD_LINUX})
 endif(${BUILD_WITH_UV})
-
-# Include RocksDB configuration
-if(${BUILD_WITH_ROCKSDB})
-    include(${TD_CONTRIB_DIR}/inc/RocksDB.cmake.inc)
-endif()
 
 if(${BUILD_WITH_S3})
     INCLUDE_DIRECTORIES($ENV{HOME}/.cos-local.2/include)

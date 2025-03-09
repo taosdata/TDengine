@@ -937,10 +937,51 @@ else()
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
-        # GIT_SHALLOW TRUE
+        GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
     add_dependencies(build_externals ext_taosadapter)     # this is for github workflow in cache-miss step.
+endif()
+
+if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
+    if(${TD_LINUX})
+        set(ext_rocksdb_static rocksdb.a)
+    elseif(${TD_DARWIN})
+        set(ext_rocksdb_static rocksdb.a)
+    elseif(${TD_WINDOWS})
+        set(ext_rocksdb_static rocksdb.lib)
+    endif()
+    INIT_EXT(ext_rocksdb
+        INC_DIR          include
+        LIB              lib/${ext_rocksdb_static}
+    )
+    # URL https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz
+    # URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
+    get_from_local_if_exists("https://github.com/facebook/rocksdb/archive/refs/tags/v8.1.1.tar.gz")
+    ExternalProject_Add(ext_rocksdb
+        URL ${_url}
+        URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+        CMAKE_ARGS -DPORTABLE:BOOL=ON
+        CMAKE_ARGS -DWITH_FALLOCATE:BOOL=OFF
+        CMAKE_ARGS -DWITH_JEMALLOC:BOOL=OFF
+        CMAKE_ARGS -DWITH_GFLAGS:BOOL=OFF
+        CMAKE_ARGS -DWITH_LIBURING:BOOL=OFF
+        CMAKE_ARGS -DFAIL_ON_WARNINGS:BOOL=OFF
+        # CMAKE_ARGS -DWITH_ALL_TESTS:BOOL=OFF
+        CMAKE_ARGS -DWITH_TESTS:BOOL=OFF
+        CMAKE_ARGS -DWITH_BENCHMARK_TOOLS:BOOL=OFF
+        CMAKE_ARGS -DWITH_TOOLS:BOOL=OFF
+        CMAKE_ARGS -DROCKSDB_BUILD_SHARED:BOOL=OFF
+        # "-DCMAKE_CXX_FLAGS:STRING=-Wno-maybe-uninitialized"
+        GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_rocksdb)     # this is for github workflow in cache-miss step.
 endif()
 
