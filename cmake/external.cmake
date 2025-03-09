@@ -561,16 +561,6 @@ if(${JEMALLOC_ENABLED})
         INC_DIR          include
         LIB              lib/${ext_jemalloc_static}
     )
-    set(ext_jemalloc_gen
-        include/jemalloc/jemalloc.h
-        lib/libjemalloc.a
-        lib/libjemalloc_pic.a
-        lib/pkgconfig/jemalloc.pc
-        bin/jemalloc.sh
-        bin/jeprof
-        bin/jemalloc-config
-    )
-    list(TRANSFORM ext_jemalloc_gen PREPEND "${ext_jemalloc_source}/install/" OUTPUT_VARIABLE _depends)
     # GIT_REPOSITORY https://github.com/jemalloc/jemalloc.git
     # GIT_TAG 5.3.0
     get_from_local_repo_if_exists("https://github.com/jemalloc/jemalloc.git")
@@ -581,41 +571,22 @@ if(${JEMALLOC_ENABLED})
         BUILD_IN_SOURCE TRUE
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND ""
-        INSTALL_COMMAND ""
+        PATCH_COMMAND
+            COMMAND ./autogen.sh
+        CONFIGURE_COMMAND
+            COMMAND ./configure -prefix=${_ins} --disable-initial-exec-tls     # freemine: why disable-initial-exec-tls
+                    CFLAGS=-Wno-missing-braces
+                    CXXFLAGS=-Wno-missing-braces
+        BUILD_COMMAND
+            COMMAND make
+        INSTALL_COMMAND
+            COMMAND make install
+        # freemine: TODO: always refreshed!!!
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
     add_dependencies(build_externals ext_jemalloc)     # this is for github workflow in cache-miss step.
-    add_custom_command(
-        OUTPUT ${_depends}
-        DEPENDS ext_jemalloc     # freemine: currently, we lose dependencies upon .c/.h source files
-                                 #           if u wanna a refresh build, remove whole `ext_jemalloc` source tree
-        WORKING_DIRECTORY ${ext_jemalloc_source}
-        COMMAND autoconf
-        COMMAND ./configure -prefix=${ext_jemalloc_source}/install
-                --disable-initial-exec-tls     # freemine: why disable-initial-exec-tls
-                --disable-shared
-                --disable-autogen
-                --disable-doc
-        COMMAND make
-        COMMAND make install
-    )
-    add_custom_target(build_jemalloc
-        DEPENDS ${_depends}
-        WORKING_DIRECTORY ${ext_jemalloc_source}/install
-        COMMAND ${CMAKE_COMMAND} -E echo
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ext_jemalloc_source}/install/lib/libjemalloc.a            ${_ins}/lib/libjemalloc.a
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ext_jemalloc_source}/install/lib/libjemalloc_pic.a        ${_ins}/lib/libjemalloc_pic.a
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ext_jemalloc_source}/install/lib/pkgconfig/jemalloc.pc    ${_ins}/lib/pkgconfig/jemalloc.pc
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ext_jemalloc_source}/install/bin/jemalloc.sh              ${_ins}/bin/jemalloc.sh
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ext_jemalloc_source}/install/bin/jeprof                   ${_ins}/bin/jeprof
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ext_jemalloc_source}/install/bin/jemalloc-config          ${_ins}/bin/jemalloc-config
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ext_jemalloc_source}/install/include/jemalloc/jemalloc.h  ${_ins}/include/jemalloc/jemalloc.h
-    )
-    add_dependencies(build_externals build_jemalloc)     # this is for github workflow in cache-miss step.
 endif()
 
 # sqlite
@@ -903,50 +874,4 @@ if(${BUILD_PCRE2})
     )
     add_dependencies(build_externals ext_pcre2)     # this is for github workflow in cache-miss step.
 endif()
-
-# mxml
-if(${BUILD_WITH_COS})
-    # freemine: why at this moment???
-    # file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.1/)
-    if(${TD_LINUX})
-        set(ext_mxml_static libmxml4.a)
-    elseif(${TD_DARWIN})
-        set(ext_mxml_static libmxml4.a)
-    endif()
-    INIT_EXT(ext_mxml
-        INC_DIR          include
-        LIB              lib/${ext_mxml_static}
-    )
-    # GIT_REPOSITORY https://github.com/michaelrsweet/mxml.git
-    # GIT_TAG v2.12
-    get_from_local_repo_if_exists("https://github.com/michaelrsweet/mxml.git")
-    ExternalProject_Add(ext_mxml
-        GIT_REPOSITORY ${_git_url}
-        GIT_TAG v4.0.4
-        PREFIX "${_base}"
-        CONFIGURE_COMMAND ""
-        BUILD_COMMAND ""
-        INSTALL_COMMAND ""
-    )
-    add_custom_command(
-        OUTPUT
-            ${ext_mxml_source}/install/include/libmxml4/mxml.h
-            ${ext_mxml_source}/install/lib/${ext_mxml_static}
-        DEPENDS ext_mxml     # freemine: currently, we lose dependencies upon .c/.h source files
-                             #           if u wanna a refresh build, remove whole `ext_mxml` source tree
-        WORKING_DIRECTORY ${ext_mxml_source}
-        COMMAND ./configure --prefix=${ext_mxml_source}/install --enable-shared=no
-        COMMAND make -j4
-        COMMAND make install -j4
-    )
-    add_custom_target(build_mxml
-        DEPENDS
-            ${ext_mxml_source}/install/include/libmxml4/mxml.h
-            ${ext_mxml_source}/install/lib/${ext_mxml_static}
-        WORKING_DIRECTORY ${ext_mxml_source}/install
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different lib/${ext_mxml_static} ${_ins}/lib/${ext_mxml_static}
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different include/libmxml4/mxml.h ${_ins}/include/libmxml4/mxml.h
-    )
-    add_dependencies(build_externals build_mxml)     # this is for github workflow in cache-miss step.
-endif(${BUILD_WITH_COS})
 

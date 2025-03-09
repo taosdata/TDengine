@@ -15,6 +15,7 @@ elseif(${BUILD_WITH_COS})
 
     if(${BUILD_WITH_COS})
         file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.1/)
+        cat("${TD_SUPPORT_DIR}/mxml_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
         cat("${TD_SUPPORT_DIR}/apr_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
     endif(${BUILD_WITH_COS})
 
@@ -67,6 +68,7 @@ if(${BUILD_WITH_S3})
 
 # cos
 elseif(${BUILD_WITH_COS})
+    # cat("${TD_SUPPORT_DIR}/mxml_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     # cat("${TD_SUPPORT_DIR}/apr_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     # cat("${TD_SUPPORT_DIR}/apr-util_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/cos_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
