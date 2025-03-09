@@ -94,49 +94,49 @@ ENDIF()
 # ================================================================================================
 # googletest
 if(${BUILD_TEST})
-    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-    add_subdirectory(googletest EXCLUDE_FROM_ALL)
-    target_include_directories(
-        gtest
-        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cpp-stub/src>
-    )
+    # freemine: set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+    # freemine: add_subdirectory(googletest EXCLUDE_FROM_ALL)
+    # freemine: target_include_directories(
+    # freemine:     gtest
+    # freemine:     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cpp-stub/src>
+    # freemine: )
 
-    if(${TD_WINDOWS})
-        target_include_directories(
-            gtest
-            PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cpp-stub/src_win>
-        )
-    endif(${TD_WINDOWS})
+    # freemine: if(${TD_WINDOWS})
+    # freemine:     target_include_directories(
+    # freemine:         gtest
+    # freemine:         PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cpp-stub/src_win>
+    # freemine:     )
+    # freemine: endif(${TD_WINDOWS})
 
-    if(${TD_LINUX})
-        target_include_directories(
-            gtest
-            PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cpp-stub/src_linux>
-        )
-    endif(${TD_LINUX})
+    # freemine: if(${TD_LINUX})
+    # freemine:     target_include_directories(
+    # freemine:         gtest
+    # freemine:         PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cpp-stub/src_linux>
+    # freemine:     )
+    # freemine: endif(${TD_LINUX})
 
-    if(${TD_DARWIN})
-        target_include_directories(
-            gtest
-            PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cpp-stub/src_darwin>
-        )
-    endif(${TD_DARWIN})
+    # freemine: if(${TD_DARWIN})
+    # freemine:     target_include_directories(
+    # freemine:         gtest
+    # freemine:         PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cpp-stub/src_darwin>
+    # freemine:     )
+    # freemine: endif(${TD_DARWIN})
 endif(${BUILD_TEST})
 
 # cJson
 # see https://stackoverflow.com/questions/37582508/silence-cmp0048-warnings-in-vendored-projects
-set(CMAKE_PROJECT_INCLUDE_BEFORE "${TD_SUPPORT_DIR}/EnableCMP0048.txt.in")
-option(ENABLE_CJSON_TEST "Enable building cJSON test" OFF)
-option(CJSON_OVERRIDE_BUILD_SHARED_LIBS "Override BUILD_SHARED_LIBS with CJSON_BUILD_SHARED_LIBS" ON)
-option(CJSON_BUILD_SHARED_LIBS "Overrides BUILD_SHARED_LIBS if CJSON_OVERRIDE_BUILD_SHARED_LIBS is enabled" OFF)
-add_subdirectory(cJson EXCLUDE_FROM_ALL)
-target_include_directories(
-    cjson
-
-    # see https://stackoverflow.com/questions/25676277/cmake-target-include-directories-prints-an-error-when-i-try-to-add-the-source
-    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cJson>
-)
-unset(CMAKE_PROJECT_INCLUDE_BEFORE)
+# freemine: set(CMAKE_PROJECT_INCLUDE_BEFORE "${TD_SUPPORT_DIR}/EnableCMP0048.txt.in")
+# freemine: option(ENABLE_CJSON_TEST "Enable building cJSON test" OFF)
+# freemine: option(CJSON_OVERRIDE_BUILD_SHARED_LIBS "Override BUILD_SHARED_LIBS with CJSON_BUILD_SHARED_LIBS" ON)
+# freemine: option(CJSON_BUILD_SHARED_LIBS "Overrides BUILD_SHARED_LIBS if CJSON_OVERRIDE_BUILD_SHARED_LIBS is enabled" OFF)
+# freemine: add_subdirectory(cJson EXCLUDE_FROM_ALL)
+# freemine: target_include_directories(
+# freemine:     cjson
+# freemine: 
+# freemine:     # see https://stackoverflow.com/questions/25676277/cmake-target-include-directories-prints-an-error-when-i-try-to-add-the-source
+# freemine:     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/cJson>
+# freemine: )
+# freemine: unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 
 # xml2
 # if(${BUILD_WITH_S3})
@@ -144,13 +144,13 @@ unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 # endif()
 
 # lz4
-add_subdirectory(lz4/build/cmake EXCLUDE_FROM_ALL)
-target_include_directories(
-    lz4_static
-    PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/lz4/lib
-)
+# freemine: add_subdirectory(lz4/build/cmake EXCLUDE_FROM_ALL)
+# freemine: target_include_directories(
+# freemine:     lz4_static
+# freemine:     PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/lz4/lib
+# freemine: )
 
-unset(CMAKE_PROJECT_INCLUDE_BEFORE)
+# freemine: unset(CMAKE_PROJECT_INCLUDE_BEFORE)
 
 # add_subdirectory(xz EXCLUDE_FROM_ALL)
 # target_include_directories(
@@ -291,14 +291,14 @@ endif(${BUILD_WCWIDTH})
 
 # LIBUV
 if(${BUILD_WITH_UV})
-    if(TD_WINDOWS)
-        # There is no GetHostNameW function on win7.
-        file(READ "libuv/src/win/util.c" LIBUV_WIN_UTIL_CONTENT)
-        string(REPLACE "if (GetHostNameW(buf, UV_MAXHOSTNAMESIZE" "DWORD  nSize = UV_MAXHOSTNAMESIZE;\n  if (GetComputerNameW(buf, &nSize" LIBUV_WIN_UTIL_CONTENT "${LIBUV_WIN_UTIL_CONTENT}")
-        file(WRITE "libuv/src/win/util.c" "${LIBUV_WIN_UTIL_CONTENT}")
-    endif()
+    # freemine: if(TD_WINDOWS)
+    # freemine:     # There is no GetHostNameW function on win7.
+    # freemine:     file(READ "libuv/src/win/util.c" LIBUV_WIN_UTIL_CONTENT)
+    # freemine:     string(REPLACE "if (GetHostNameW(buf, UV_MAXHOSTNAMESIZE" "DWORD  nSize = UV_MAXHOSTNAMESIZE;\n  if (GetComputerNameW(buf, &nSize" LIBUV_WIN_UTIL_CONTENT "${LIBUV_WIN_UTIL_CONTENT}")
+    # freemine:     file(WRITE "libuv/src/win/util.c" "${LIBUV_WIN_UTIL_CONTENT}")
+    # freemine: endif()
 
-    add_subdirectory(libuv EXCLUDE_FROM_ALL)
+    # freemine: add_subdirectory(libuv EXCLUDE_FROM_ALL)
 endif(${BUILD_WITH_UV})
 
 # SQLite
@@ -370,33 +370,33 @@ endif(${BUILD_ADDR2LINE})
 
 # geos
 if(${BUILD_GEOS})
-    if(${TD_LINUX})
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_REL}")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL}")
+    # freemine: if(${TD_LINUX})
+    # freemine:     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS_REL}")
+    # freemine:     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS_REL}")
 
-        if("${CMAKE_BUILD_TYPE}" STREQUAL "")
-            SET(CMAKE_BUILD_TYPE Release)
-        endif()
-    endif(${TD_LINUX})
+    # freemine:     if("${CMAKE_BUILD_TYPE}" STREQUAL "")
+    # freemine:         SET(CMAKE_BUILD_TYPE Release)
+    # freemine:     endif()
+    # freemine: endif(${TD_LINUX})
 
-    option(BUILD_SHARED_LIBS "Build GEOS with shared libraries" OFF)
-    add_subdirectory(geos EXCLUDE_FROM_ALL)
+    # freemine: option(BUILD_SHARED_LIBS "Build GEOS with shared libraries" OFF)
+    # freemine: add_subdirectory(geos EXCLUDE_FROM_ALL)
 
-    if(${TD_WINDOWS})
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
-    else()
-        unset(CMAKE_CXX_STANDARD CACHE) # undo libgeos's setting of global CMAKE_CXX_STANDARD
-    endif(${TD_WINDOWS})
+    # freemine: if(${TD_WINDOWS})
+    # freemine:     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    # freemine:     SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+    # freemine: else()
+    # freemine:     unset(CMAKE_CXX_STANDARD CACHE) # undo libgeos's setting of global CMAKE_CXX_STANDARD
+    # freemine: endif(${TD_WINDOWS})
 
-    target_include_directories(
-        geos_c
-        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/geos/include>
-    )
+    # freemine: target_include_directories(
+    # freemine:     geos_c
+    # freemine:     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/geos/include>
+    # freemine: )
 endif(${BUILD_GEOS})
 
 if(${BUILD_PCRE2})
-    add_subdirectory(pcre2 EXCLUDE_FROM_ALL)
+    # freemine: add_subdirectory(pcre2 EXCLUDE_FROM_ALL)
 endif(${BUILD_PCRE2})
 
 if(${TD_LINUX} AND ${BUILD_WITH_S3})
@@ -416,19 +416,19 @@ ENDIF()
 
 
 if(NOT ${TD_WINDOWS})
-    MESSAGE(STATUS "timezone file path: " ${TZ_OUTPUT_PATH})
+    # freemine: MESSAGE(STATUS "timezone file path: " ${TZ_OUTPUT_PATH})
 
-    execute_process(
-            COMMAND make TZDIR=${TZ_OUTPUT_PATH}/ clean tzdir.h
-            WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
-    )
+    # freemine: execute_process(
+    # freemine:         COMMAND make TZDIR=${TZ_OUTPUT_PATH}/ clean tzdir.h
+    # freemine:         WORKING_DIRECTORY "${TD_CONTRIB_DIR}/tz"
+    # freemine: )
 
-    set(TZ_SRC_DIR "${TD_SOURCE_DIR}/source/os/src/timezone")
-    file(REMOVE_RECURSE ${TZ_SRC_DIR})
-    file(MAKE_DIRECTORY ${TZ_SRC_DIR})
-    file(COPY ${TD_CONTRIB_DIR}/tz/private.h ${TD_CONTRIB_DIR}/tz/tzdir.h ${TD_CONTRIB_DIR}/tz/tzfile.h
-            ${TD_CONTRIB_DIR}/tz/localtime.c ${TD_CONTRIB_DIR}/tz/strftime.c
-            DESTINATION ${TZ_SRC_DIR})
+    # freemine: set(TZ_SRC_DIR "${TD_SOURCE_DIR}/source/os/src/timezone")
+    # freemine: file(REMOVE_RECURSE ${TZ_SRC_DIR})
+    # freemine: file(MAKE_DIRECTORY ${TZ_SRC_DIR})
+    # freemine: file(COPY ${TD_CONTRIB_DIR}/tz/private.h ${TD_CONTRIB_DIR}/tz/tzdir.h ${TD_CONTRIB_DIR}/tz/tzfile.h
+    # freemine:         ${TD_CONTRIB_DIR}/tz/localtime.c ${TD_CONTRIB_DIR}/tz/strftime.c
+    # freemine:         DESTINATION ${TZ_SRC_DIR})
 endif(NOT ${TD_WINDOWS})
 
 #if(NOT ${TD_WINDOWS})

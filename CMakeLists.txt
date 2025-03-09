@@ -22,11 +22,11 @@ include(${TD_SUPPORT_DIR}/cmake.version)
 
 include(${TD_SUPPORT_DIR}/external.cmake)
 
-# freemine: porting contrib/externals
-return()
-
 # contrib
 add_subdirectory(contrib)
+
+# freemine: porting contrib/externals
+return()
 
 set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
 
