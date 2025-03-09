@@ -1832,6 +1832,7 @@ bool tqNextVTableSourceBlockImpl(STqReader* pReader, const char* idstr) {
     if (px != NULL) {
       SArray* pRelatedVTs = *(SArray**)px;
       if (taosArrayGetSize(pRelatedVTs) > 0) {
+        pScanInfo->nextVirtualTableIdx = 0;
         return true;
       }
     }
