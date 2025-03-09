@@ -61,7 +61,7 @@ if [ "${verMode}" == "cluster" ]; then
 else
   services=(${PREFIX}"d" ${PREFIX}"adapter" ${PREFIX}"keeper" ${PREFIX}"-explorer")
 fi
-tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" udfd set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
+tools=(${PREFIX} ${PREFIX}"Benchmark" ${PREFIX}"dump" ${PREFIX}"demo" taosudf set_core.sh TDinsight.sh $uninstallScript start-all.sh stop-all.sh)
 
 csudo=""
 if command -v sudo >/dev/null; then

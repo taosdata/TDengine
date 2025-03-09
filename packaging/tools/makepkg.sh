@@ -98,7 +98,7 @@ else
       ${taostools_bin_files} \
       ${build_dir}/bin/${clientName}adapter \
       ${build_dir}/bin/${clientName}keeper \
-      ${build_dir}/bin/udfd \
+      ${build_dir}/bin/taosudf \
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
       ${script_dir}/startPre.sh \

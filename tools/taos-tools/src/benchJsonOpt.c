@@ -1378,6 +1378,65 @@ static int getStableInfo(tools_cJSON *dbinfos, int index) {
                 }
             }
         }
+
+        // csv file prefix
+        tools_cJSON* csv_fp = tools_cJSON_GetObjectItem(stbInfo, "csv_file_prefix");
+        if (csv_fp && csv_fp->type == tools_cJSON_String && csv_fp->valuestring != NULL) {
+            superTable->csv_file_prefix = csv_fp->valuestring;
+        } else {
+            superTable->csv_file_prefix = "data";
+        }
+
+        // csv timestamp format
+        tools_cJSON* csv_tf = tools_cJSON_GetObjectItem(stbInfo, "csv_ts_format");
+        if (csv_tf && csv_tf->type == tools_cJSON_String && csv_tf->valuestring != NULL) {
+            superTable->csv_ts_format = csv_tf->valuestring;
+        } else {
+            superTable->csv_ts_format = NULL;
+        }
+
+        // csv timestamp format
+        tools_cJSON* csv_ti = tools_cJSON_GetObjectItem(stbInfo, "csv_ts_interval");
+        if (csv_ti && csv_ti->type == tools_cJSON_String && csv_ti->valuestring != NULL) {
+            superTable->csv_ts_interval = csv_ti->valuestring;
+        } else {
+            superTable->csv_ts_interval = "1d";
+        }
+
+        // csv output header
+        superTable->csv_output_header = true;
+        tools_cJSON* oph = tools_cJSON_GetObjectItem(stbInfo, "csv_output_header");
+        if (oph && oph->type == tools_cJSON_String && oph->valuestring != NULL) {
+            if (0 == strcasecmp(oph->valuestring, "yes")) {
+                superTable->csv_output_header = true;
+            } else if (0 == strcasecmp(oph->valuestring, "no")) {
+                superTable->csv_output_header = false;
+            }
+        }
+
+        // csv tbname alias
+        tools_cJSON* tba = tools_cJSON_GetObjectItem(stbInfo, "csv_tbname_alias");
+        if (tba && tba->type == tools_cJSON_String && tba->valuestring != NULL) {
+            superTable->csv_tbname_alias = tba->valuestring;
+        } else {
+            superTable->csv_tbname_alias = "device_id";
+        }
+
+        // csv compression level
+        tools_cJSON* cl = tools_cJSON_GetObjectItem(stbInfo, "csv_compress_level");
+        if (cl && cl->type == tools_cJSON_String && cl->valuestring != NULL) {
+            if (0 == strcasecmp(cl->valuestring, "none")) {
+                superTable->csv_compress_level = CSV_COMPRESS_NONE;
+            } else if (0 == strcasecmp(cl->valuestring, "fast")) {
+                superTable->csv_compress_level = CSV_COMPRESS_FAST;
+            } else if (0 == strcasecmp(cl->valuestring, "balance")) {
+                superTable->csv_compress_level = CSV_COMPRESS_BALANCE;
+            } else if (0 == strcasecmp(cl->valuestring, "best")) {
+                superTable->csv_compress_level = CSV_COMPRESS_BEST;
+            }
+        } else {
+            superTable->csv_compress_level = CSV_COMPRESS_NONE;
+        }
     }
     return 0;
 }
@@ -1583,26 +1642,14 @@ static int getMetaFromCommonJsonFile(tools_cJSON *json) {
         }
     }
 
-    g_arguments->csvPath[0] = 0;
-    tools_cJSON *csv = tools_cJSON_GetObjectItem(json, "csvPath");
-    if (csv && (csv->type == tools_cJSON_String)
-            && (csv->valuestring != NULL)) {
-        tstrncpy(g_arguments->csvPath, csv->valuestring, MAX_FILE_NAME_LEN);
-    }
-
-    size_t len = strlen(g_arguments->csvPath);
-
-    if(len == 0) {
-        // set default with current path
-        strcpy(g_arguments->csvPath, "./output/");
-        mkdir(g_arguments->csvPath, 0775);
+    // output dir
+    tools_cJSON* opp = tools_cJSON_GetObjectItem(json, "output_dir");
+    if (opp && opp->type == tools_cJSON_String && opp->valuestring != NULL) {
+        g_arguments->output_path = opp->valuestring;
     } else {
-        // append end
-        if (g_arguments->csvPath[len-1] != '/' ) {
-            strcat(g_arguments->csvPath, "/");
-        }
-        mkdir(g_arguments->csvPath, 0775);
+        g_arguments->output_path = "./output/";
     }
+    (void)mkdir(g_arguments->output_path, 0775);
 
     code = 0;
     return code;

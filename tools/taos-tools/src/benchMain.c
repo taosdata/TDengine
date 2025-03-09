@@ -200,7 +200,7 @@ int main(int argc, char* argv[]) {
         }
     } else if (g_arguments->test_mode == CSVFILE_TEST) {
         if (csvTestProcess()) {
-            errorPrint("%s", "query test process failed\n");
+            errorPrint("%s", "generate csv process failed\n");
             ret = -1;
         }
     } else if (g_arguments->test_mode == QUERY_TEST) {

@@ -117,7 +117,7 @@ if %Enterprise% == TRUE (
 )
 
 copy %binary_dir%\\build\\bin\\taosd.exe %target_dir% > nul
-copy %binary_dir%\\build\\bin\\udfd.exe %target_dir% > nul
+copy %binary_dir%\\build\\bin\\taosudf.exe %target_dir% > nul
 if exist %binary_dir%\\build\\bin\\taosadapter.exe (
     copy %binary_dir%\\build\\bin\\taosadapter.exe %target_dir% > nul
 )

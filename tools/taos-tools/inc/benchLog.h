@@ -16,6 +16,9 @@
 #ifndef INC_BENCHLOG_H_
 #define INC_BENCHLOG_H_
 
+#include <stdbool.h>
+#include <stdint.h>
+
 //
 // suport thread safe log module
 //
@@ -52,7 +55,7 @@ void exitLog();
                     (int32_t)timeSecs.tv_usec);                             \
             fprintf(stdout, "DEBG: ");                                      \
             fprintf(stdout, "%s(%d) ", __FILE__, __LINE__);                 \
-            fprintf(stdout, "" fmt, __VA_ARGS__);                           \
+            fprintf(stdout, "" fmt, ##__VA_ARGS__);                         \
             unlockLog(LOG_STDOUT);                                          \
         }                                                                   \
     } while (0)
@@ -73,7 +76,7 @@ void exitLog();
                     (int32_t)timeSecs.tv_usec);                             \
             fprintf(stdout, "DEBG: ");                                      \
             fprintf(stdout, "%s(%d) ", __FILE__, __LINE__);                 \
-            fprintf(stdout, "" fmt, __VA_ARGS__);                           \
+            fprintf(stdout, "" fmt, ##__VA_ARGS__);                         \
             unlockLog(LOG_STDOUT);                                          \
         }                                                                   \
     } while (0)
@@ -93,7 +96,7 @@ void exitLog();
     do {                                                                    \
         if (g_arguments->debug_print) {                                     \
             lockLog(LOG_STDOUT);                                            \
-            fprintf(stdout, "" fmt, __VA_ARGS__);                           \
+            fprintf(stdout, "" fmt, ##__VA_ARGS__);                         \
             unlockLog(LOG_STDOUT);                                          \
         }                                                                   \
     } while (0)
@@ -101,14 +104,14 @@ void exitLog();
 #define infoPrintNoTimestamp(fmt, ...)                                      \
     do {                                                                    \
         lockLog(LOG_STDOUT);                                                \
-        fprintf(stdout, "" fmt, __VA_ARGS__);                               \
+        fprintf(stdout, "" fmt, ##__VA_ARGS__);                             \
         unlockLog(LOG_STDOUT);                                              \
     } while (0)
 
 #define infoPrintNoTimestampToFile(fmt, ...)                                \
     do {                                                                    \
         lockLog(LOG_RESULT);                                                \
-        fprintf(g_arguments->fpOfInsertResult, "" fmt, __VA_ARGS__);        \
+        fprintf(g_arguments->fpOfInsertResult, "" fmt, ##__VA_ARGS__);      \
         unlockLog(LOG_RESULT);                                              \
     } while (0)
 
@@ -125,7 +128,7 @@ void exitLog();
                 ptm->tm_mon + 1,                                            \
                 ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec,       \
                 (int32_t)timeSecs.tv_usec);                                 \
-        fprintf(stdout, "INFO: " fmt, __VA_ARGS__);                         \
+        fprintf(stdout, "INFO: " fmt, ##__VA_ARGS__);                       \
         unlockLog(LOG_STDOUT);                                              \
     } while (0)
 
@@ -141,7 +144,7 @@ void exitLog();
         fprintf(g_arguments->fpOfInsertResult,"[%02d/%02d %02d:%02d:%02d.%06d] ", ptm->tm_mon + 1, \
                 ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec,    \
                 (int32_t)timeSecs.tv_usec);                              \
-        fprintf(g_arguments->fpOfInsertResult, "INFO: " fmt, __VA_ARGS__);\
+        fprintf(g_arguments->fpOfInsertResult, "INFO: " fmt, ##__VA_ARGS__);\
         unlockLog(LOG_RESULT);                                            \
     } while (0)
 
@@ -159,7 +162,7 @@ void exitLog();
                     ptm->tm_mon + 1,                                        \
                     ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec,   \
                     (int32_t)timeSecs.tv_usec);                             \
-            fprintf(stderr, "PERF: " fmt, __VA_ARGS__);                     \
+            fprintf(stderr, "PERF: " fmt, ##__VA_ARGS__);                   \
             unlockLog(LOG_STDERR);                                          \
             if (g_arguments->fpOfInsertResult && !g_arguments->terminate) { \
                 lockLog(LOG_RESULT);                                        \
@@ -171,7 +174,7 @@ void exitLog();
                         (int32_t)timeSecs.tv_usec);                         \
                 fprintf(g_arguments->fpOfInsertResult, "PERF: ");           \
                 fprintf(g_arguments->fpOfInsertResult,                      \
-                        "" fmt, __VA_ARGS__);                               \
+                        "" fmt, ##__VA_ARGS__);                             \
                 unlockLog(LOG_RESULT);                                      \
             }                                                               \
         }                                                                   \
@@ -195,7 +198,7 @@ void exitLog();
         if (g_arguments->debug_print) {                                     \
             fprintf(stderr, "%s(%d) ", __FILE__, __LINE__);                 \
         }                                                                   \
-        fprintf(stderr, "" fmt, __VA_ARGS__);                               \
+        fprintf(stderr, "" fmt, ##__VA_ARGS__);                             \
         fprintf(stderr, "\033[0m");                                         \
         unlockLog(LOG_STDERR);                                              \
         if (g_arguments->fpOfInsertResult && !g_arguments->terminate) {     \
@@ -205,7 +208,7 @@ void exitLog();
                 ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec,       \
                 (int32_t)timeSecs.tv_usec);                                 \
             fprintf(g_arguments->fpOfInsertResult, "ERROR: ");              \
-            fprintf(g_arguments->fpOfInsertResult, "" fmt, __VA_ARGS__);    \
+            fprintf(g_arguments->fpOfInsertResult, "" fmt, ##__VA_ARGS__);  \
             unlockLog(LOG_RESULT);                                          \
         }                                                                   \
     } while (0)
@@ -228,7 +231,7 @@ void exitLog();
         if (g_arguments->debug_print) {                                     \
             fprintf(stderr, "%s(%d) ", __FILE__, __LINE__);                 \
         }                                                                   \
-        fprintf(stderr, "" fmt, __VA_ARGS__);                               \
+        fprintf(stderr, "" fmt, ##__VA_ARGS__);                             \
         fprintf(stderr, "\033[0m");                                         \
         unlockLog(LOG_STDERR);                                              \
         if (g_arguments->fpOfInsertResult && !g_arguments->terminate) {     \
@@ -238,7 +241,7 @@ void exitLog();
                 ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec,       \
                 (int32_t)timeSecs.tv_usec);                                 \
             fprintf(g_arguments->fpOfInsertResult, "WARN: ");               \
-            fprintf(g_arguments->fpOfInsertResult, "" fmt, __VA_ARGS__);    \
+            fprintf(g_arguments->fpOfInsertResult, "" fmt, ##__VA_ARGS__);  \
             unlockLog(LOG_RESULT);                                          \
         }                                                                   \
     } while (0)
@@ -261,7 +264,7 @@ void exitLog();
         if (g_arguments->debug_print) {                                     \
             fprintf(stderr, "%s(%d) ", __FILE__, __LINE__);                 \
         }                                                                   \
-        fprintf(stderr, "" fmt, __VA_ARGS__);                               \
+        fprintf(stderr, "" fmt, ##__VA_ARGS__);                             \
         fprintf(stderr, "\033[0m");                                         \
         unlockLog(LOG_STDERR);                                              \
         if (g_arguments->fpOfInsertResult && !g_arguments->terminate) {     \
@@ -271,7 +274,7 @@ void exitLog();
                 ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec,       \
                 (int32_t)timeSecs.tv_usec);                                 \
             fprintf(g_arguments->fpOfInsertResult, "SUCC: ");               \
-            fprintf(g_arguments->fpOfInsertResult, "" fmt, __VA_ARGS__);    \
+            fprintf(g_arguments->fpOfInsertResult, "" fmt, ##__VA_ARGS__);  \
             unlockLog(LOG_RESULT);                                          \
         }                                                                   \
     } while (0)

@@ -22,6 +22,9 @@
 #define CURL_STATICLIB
 #define ALLOW_FORBID_FUNC
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 #ifdef LINUX
 
 #ifndef _ALPINE
@@ -465,6 +468,13 @@ typedef struct SChildTable_S {
     int32_t   pkCnt;
 } SChildTable;
 
+typedef enum {
+    CSV_COMPRESS_NONE       = 0,
+    CSV_COMPRESS_FAST       = 1,
+    CSV_COMPRESS_BALANCE    = 6,
+    CSV_COMPRESS_BEST       = 9
+} CsvCompressionLevel;
+
 #define PRIMARY_KEY "PRIMARY KEY"
 typedef struct SSuperTable_S {
     char      *stbName;
@@ -567,6 +577,15 @@ typedef struct SSuperTable_S {
 
     // execute sqls after create super table
     char **sqls;
+
+    char*     csv_file_prefix;
+    char*     csv_ts_format;
+    char*     csv_ts_interval;
+    char*     csv_tbname_alias;
+    long      csv_ts_intv_secs;
+    bool      csv_output_header;
+    CsvCompressionLevel csv_compress_level;
+
 } SSuperTable;
 
 typedef struct SDbCfg_S {
@@ -762,10 +781,10 @@ typedef struct SArguments_S {
     bool                mistMode;
     bool                escape_character;
     bool                pre_load_tb_meta;
-    char                csvPath[MAX_FILE_NAME_LEN];
-
     bool                bind_vgroup;
     int8_t              connMode; // see define CONN_MODE_
+    char*               output_path;
+    char                output_path_buf[MAX_PATH_LEN];
 } SArguments;
 
 typedef struct SBenchConn {

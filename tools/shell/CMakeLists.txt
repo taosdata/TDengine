@@ -24,6 +24,7 @@ endif()
 
 target_link_libraries(
     shell
+    PUBLIC ${LINK_WEBSOCKET}
     PRIVATE os common transport geometry util
 )
 
@@ -37,10 +38,10 @@ SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)
 #
 # generator library shell_ut for uint test
 #
-
 IF(TD_LINUX)
     # include
     include_directories(${CMAKE_CURRENT_SOURCE_DIR}/inc)
+
 
     # shell_ut library
     add_library(shell_ut STATIC ${SHELL_SRC} ../src/pub.c)
