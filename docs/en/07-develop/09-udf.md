@@ -495,10 +495,10 @@ taos> select myfun(v1, v2) from t;
 DB error: udf function execution failure (0.011088s)
 ```
 
-Unfortunately, the execution failed. What could be the reason? Check the udfd process logs.
+Unfortunately, the execution failed. What could be the reason? Check the taosudf process logs.
 
 ```shell
-tail -10 /var/log/taos/udfd.log
+tail -10 /var/log/taos/taosudf.log
 ```
 
 Found the following error messages.
