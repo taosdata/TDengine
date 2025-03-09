@@ -13,13 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "mndStream.h"
 #include "audit.h"
 #include "mndDb.h"
 #include "mndPrivilege.h"
 #include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndStb.h"
-#include "mndStream.h"
 #include "mndTrans.h"
 #include "osMemory.h"
 #include "parser.h"
@@ -1228,18 +1228,16 @@ static int32_t streamWaitComparFn(const void *p1, const void *p2) {
 }
 
 // all tasks of this stream should be ready, otherwise do nothing
-static bool isStreamReadyHelp(int64_t now, SStreamObj* pStream) {
+static bool isStreamReadyHelp(int64_t now, SStreamObj *pStream) {
   bool ready = false;
 
   streamMutexLock(&execInfo.lock);
 
   int64_t lastReadyTs = getStreamTaskLastReadyState(execInfo.pTaskList, pStream->uid);
   if ((lastReadyTs == -1) || ((lastReadyTs != -1) && ((now - lastReadyTs) < tsStreamCheckpointInterval * 1000))) {
-
     if (lastReadyTs != -1) {
-      mInfo("not start checkpoint, stream:0x%" PRIx64 " last ready ts:%" PRId64 " ready duration:%" PRId64
-            "s less than threshold",
-            pStream->uid, lastReadyTs, (now - lastReadyTs)/1000.0);
+      mInfo("not start checkpoint, stream:0x%" PRIx64 " readyTs:%" PRId64 " ready duration:%.2fs less than threshold",
+            pStream->uid, lastReadyTs, (now - lastReadyTs) / 1000.0);
     }
 
     ready = false;
@@ -1901,11 +1899,12 @@ static int32_t mndProcessResumeStreamReq(SRpcMsg *pReq) {
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo, bool includeAllNodes, STrans** pUpdateTrans) {
-  SSdb       *pSdb = pMnode->pSdb;
-  void       *pIter = NULL;
-  STrans     *pTrans = NULL;
-  int32_t     code = 0;
+static int32_t mndProcessVgroupChange(SMnode *pMnode, SVgroupChangeInfo *pChangeInfo, bool includeAllNodes,
+                                      STrans **pUpdateTrans) {
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  STrans *pTrans = NULL;
+  int32_t code = 0;
   *pUpdateTrans = NULL;
 
   // conflict check for nodeUpdate trans, here we randomly chose one stream to add into the trans pool
@@ -2395,7 +2394,7 @@ int32_t mndProcessStreamReqCheckpoint(SRpcMsg *pReq) {
     }
 
     // remove this entry
-    (void) taosHashRemove(execInfo.pTransferStateStreams, &req.streamId, sizeof(int64_t));
+    (void)taosHashRemove(execInfo.pTransferStateStreams, &req.streamId, sizeof(int64_t));
 
     int32_t numOfStreams = taosHashGetSize(execInfo.pTransferStateStreams);
     mDebug("stream:0x%" PRIx64 " removed, remain streams:%d fill-history not completed", req.streamId, numOfStreams);
@@ -2475,7 +2474,7 @@ static void doAddReportStreamTask(SArray *pList, int64_t reportedChkptId, const 
                pReport->taskId, p->checkpointId, pReport->checkpointId);
       } else if (p->checkpointId < pReport->checkpointId) {  // expired checkpoint-report msg, update it
         mInfo("s-task:0x%x expired checkpoint-report info in checkpoint-report list update from %" PRId64 "->%" PRId64,
-               pReport->taskId, p->checkpointId, pReport->checkpointId);
+              pReport->taskId, p->checkpointId, pReport->checkpointId);
 
         // update the checkpoint report info
         p->checkpointId = pReport->checkpointId;
@@ -2639,7 +2638,7 @@ static void doSendQuickRsp(SRpcHandleInfo *pInfo, int32_t msgSize, int32_t vgId,
   }
 }
 
-static int32_t doCleanReqList(SArray* pList, SCheckpointConsensusInfo* pInfo) {
+static int32_t doCleanReqList(SArray *pList, SCheckpointConsensusInfo *pInfo) {
   int32_t alreadySend = taosArrayGetSize(pList);
 
   for (int32_t i = 0; i < alreadySend; ++i) {
