@@ -43,14 +43,6 @@ endif()
 set(CONTRIB_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
 configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
-# taosadapter
-if(${BUILD_HTTP})
-    MESSAGE("BUILD_HTTP is on")
-else()
-    MESSAGE("BUILD_HTTP is off, use taosAdapter")
-    cat("${TD_SUPPORT_DIR}/taosadapter_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif()
-
 # RocksDB is now included via cmake/RocksDB.cmake.inc
 
 # cat("${TD_SUPPORT_DIR}/zstd_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})

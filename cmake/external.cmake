@@ -908,3 +908,39 @@ if(${WEBSOCKET})
     add_dependencies(build_externals ext_taosws)     # this is for github workflow in cache-miss step.
 endif()
 
+# taosadapter
+if(${BUILD_HTTP})
+    MESSAGE("BUILD_HTTP is on")
+else()
+    MESSAGE("BUILD_HTTP is off, use taosAdapter")
+    if(${TD_LINUX})
+        set(ext_taosadapter_static taosadapter.a)
+    elseif(${TD_DARWIN})
+        set(ext_taosadapter_static taosadapter.a)
+    elseif(${TD_WINDOWS})
+        set(ext_taosadapter_static taosadapter.lib)
+    endif()
+    INIT_EXT(ext_taosadapter
+        INC_DIR          include
+        LIB              lib/${ext_taosadapter_static}
+    )
+    # GIT_REPOSITORY https://github.com/taosdata/taosadapter.git
+    # GIT_TAG 3.0
+    get_from_local_repo_if_exists("https://github.com/taosdata/taosadapter.git")
+    ExternalProject_Add(ext_taosadapter
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG 3.0
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        # freemine: just download for the moment
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        # GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_taosadapter)     # this is for github workflow in cache-miss step.
+endif()
+
