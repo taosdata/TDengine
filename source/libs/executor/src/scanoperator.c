@@ -2844,7 +2844,7 @@ _end:
   return code;
 }
 
-static int32_t generateDeleteResultBlock(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock) {
+int32_t generateDeleteResultBlock(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock) {
   blockDataCleanup(pDestBlock);
   int32_t rows = pSrcBlock->info.rows;
   if (rows == 0) {
@@ -2860,8 +2860,7 @@ static int32_t generateDeleteResultBlock(SStreamScanInfo* pInfo, SSDataBlock* pS
   return generateDeleteResultBlockImpl(pInfo, pSrcBlock, pDestBlock);
 }
 
-static int32_t generateScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock,
-                                 EStreamType type) {
+int32_t generateScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSrcBlock, SSDataBlock* pDestBlock, EStreamType type) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (isIntervalWindow(pInfo)) {
@@ -2908,7 +2907,7 @@ bool checkExpiredData(SStateStore* pAPI, SUpdateInfo* pUpdateInfo, STimeWindowAg
   return isExpired;
 }
 
-static int32_t checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock* pBlock, bool out) {
+int32_t checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock* pBlock, bool out) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (out) {
@@ -3151,8 +3150,7 @@ int32_t colIdComparFn(const void* param1, const void* param2) {
   }
 }
 
-int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STimeWindow* pTimeWindow,
-                        bool filter) {
+int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, STimeWindow* pTimeWindow, bool filter) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
@@ -3497,7 +3495,7 @@ _end:
   return code;
 }
 
-static int32_t doCheckUpdate(SStreamScanInfo* pInfo, TSKEY endKey, SSDataBlock* pBlock) {
+int32_t doCheckUpdate(SStreamScanInfo* pInfo, TSKEY endKey, SSDataBlock* pBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pInfo->pUpdateInfo) {
@@ -3696,17 +3694,17 @@ _end:
   qInfo("%s end at line %d", __func__, lino);
 }
 
-static bool hasScanRange(SStreamScanInfo* pInfo) {
+bool hasScanRange(SStreamScanInfo* pInfo) {
   SStreamAggSupporter* pSup = pInfo->windowSup.pStreamAggSup;
   return pSup && pSup->pScanBlock->info.rows > 0 && (isStateWindow(pInfo) || isCountWindow(pInfo));
 }
 
-static bool isStreamWindow(SStreamScanInfo* pInfo) {
+bool isStreamWindow(SStreamScanInfo* pInfo) {
   return isIntervalWindow(pInfo) || isSessionWindow(pInfo) || isStateWindow(pInfo) || isCountWindow(pInfo) ||
          isTimeSlice(pInfo);
 }
 
-static int32_t copyGetResultBlock(SSDataBlock* dest, TSKEY start, TSKEY end) {
+int32_t copyGetResultBlock(SSDataBlock* dest, TSKEY start, TSKEY end) {
   int32_t code = blockDataEnsureCapacity(dest, 1);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -4479,7 +4477,7 @@ _end:
   return code;
 }
 
-static void destroyStreamScanOperatorInfo(void* param) {
+void destroyStreamScanOperatorInfo(void* param) {
   if (param == NULL) {
     return;
   }
@@ -4491,6 +4489,10 @@ static void destroyStreamScanOperatorInfo(void* param) {
 
   if (pStreamScan->tqReader != NULL && pStreamScan->readerFn.tqReaderClose != NULL) {
     pStreamScan->readerFn.tqReaderClose(pStreamScan->tqReader);
+  }
+  if (pStreamScan->pVtableMergeHandles) {
+    taosHashCleanup(pStreamScan->pVtableMergeHandles);
+    pStreamScan->pVtableMergeHandles = NULL;
   }
   if (pStreamScan->matchInfo.pList) {
     taosArrayDestroy(pStreamScan->matchInfo.pList);
@@ -4693,6 +4695,9 @@ static int32_t createStreamVtableBlock(SColMatchInfo *pMatchInfo, SSDataBlock **
   int32_t numOfOutput = taosArrayGetSize(pMatchInfo->pList);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SColMatchItem*  pItem = taosArrayGet(pMatchInfo->pList, i);
+    if (!pItem->needOutput) {
+      continue;
+    }
     SColumnInfoData colInfo = createColumnInfoData(pItem->dataType.type, pItem->dataType.bytes, pItem->colId);
     code = blockDataAppendColInfo(pRes, &colInfo);
     QUERY_CHECK_CODE(code, lino, _end);

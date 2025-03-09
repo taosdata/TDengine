@@ -188,6 +188,7 @@ int32_t createEventNonblockOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
 
 int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, SReadHandle* readHandle, STableListInfo* pTableListInfo, int32_t numOfDownstream, SVirtualScanPhysiNode * pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo);
 
+int32_t createStreamVtableMergeOperatorInfo(SReadHandle* pHandle, SVirtualScanPhysiNode* pVirtualScanNode, SNode* pTagCond, SExecTaskInfo* pTaskInfo, SOperatorInfo** pInfo);
 // clang-format on
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,

@@ -17,9 +17,14 @@
 #include "filter.h"
 #include "operator.h"
 #include "querytask.h"
+#include "streamexecutorInt.h"
 #include "tdatablock.h"
+#include "ttime.h"
 #include "virtualtablescan.h"
 #include "tsort.h"
+
+#define STREAM_VTABLE_MERGE_OP_NAME "StreamVtableMergeOperator"
+#define STREAM_VTABLE_MERGE_OP_CHECKPOINT_NAME "StreamVtableMergeOperator_Checkpoint"
 
 typedef struct SVirtualTableScanInfo {
   STableScanBase base;
@@ -758,4 +763,592 @@ _return:
    pTaskInfo->code = code;
    destroyOperatorAndDownstreams(pOperator, pDownstream, numOfDownstream);
    return code;
+}
+
+static int32_t doStreamVtableMergeNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  // NOTE: this operator does never check if current status is done or not
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  const char*    id = GET_TASKID(pTaskInfo);
+
+  SStorageAPI*     pAPI = &pTaskInfo->storageAPI;
+  SStreamScanInfo* pInfo = pOperator->info;
+  SStreamTaskInfo* pStreamInfo = &pTaskInfo->streamInfo;
+
+  qDebug("stream scan started, %s", id);
+
+  // TODO(kjq): add fill history recover step
+
+  size_t total = taosArrayGetSize(pInfo->pBlockLists);
+// TODO: refactor
+FETCH_NEXT_BLOCK:
+  if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
+    if (pInfo->validBlockIndex >= total) {
+      doClearBufferedBlocks(pInfo);
+      (*ppRes) = NULL;
+      return code;
+    }
+
+    int32_t current = pInfo->validBlockIndex++;
+    qDebug("process %d/%d input data blocks, %s", current, (int32_t)total, id);
+
+    SPackedData* pPacked = taosArrayGet(pInfo->pBlockLists, current);
+    QUERY_CHECK_NULL(pPacked, code, lino, _end, terrno);
+
+    SSDataBlock* pBlock = pPacked->pDataBlock;
+    if (pBlock->info.parTbName[0]) {
+      code =
+          pAPI->stateStore.streamStatePutParName(pStreamInfo->pState, pBlock->info.id.groupId, pBlock->info.parTbName);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
+    // TODO move into scan
+    pBlock->info.calWin.skey = INT64_MIN;
+    pBlock->info.calWin.ekey = INT64_MAX;
+    pBlock->info.dataLoad = 1;
+    if (pInfo->pUpdateInfo) {
+      pInfo->pUpdateInfo->maxDataVersion = TMAX(pInfo->pUpdateInfo->maxDataVersion, pBlock->info.version);
+    }
+
+    code = blockDataUpdateTsWindow(pBlock, 0);
+    QUERY_CHECK_CODE(code, lino, _end);
+    switch (pBlock->info.type) {
+      case STREAM_NORMAL:
+      case STREAM_GET_ALL:
+        printDataBlock(pBlock, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+        setStreamOperatorState(&pInfo->basic, pBlock->info.type);
+        (*ppRes) = pBlock;
+        return code;
+      case STREAM_RETRIEVE: {
+        pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
+        pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RETRIEVE;
+        code = copyDataBlock(pInfo->pUpdateRes, pBlock);
+        QUERY_CHECK_CODE(code, lino, _end);
+        pInfo->updateResIndex = 0;
+        prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex, NULL);
+        pAPI->stateStore.updateInfoAddCloseWindowSBF(pInfo->pUpdateInfo);
+      } break;
+      case STREAM_DELETE_DATA: {
+        printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "delete recv", GET_TASKID(pTaskInfo));
+        SSDataBlock* pDelBlock = NULL;
+        if (pInfo->tqReader) {
+          code = createSpecialDataBlock(STREAM_DELETE_DATA, &pDelBlock);
+          QUERY_CHECK_CODE(code, lino, _end);
+
+          code = filterDelBlockByUid(pDelBlock, pBlock, pInfo->tqReader, &pInfo->readerFn);
+          QUERY_CHECK_CODE(code, lino, _end);
+        } else {
+          pDelBlock = pBlock;
+        }
+
+        code = setBlockGroupIdByUid(pInfo, pDelBlock);
+        QUERY_CHECK_CODE(code, lino, _end);
+        code = rebuildDeleteBlockData(pDelBlock, &pStreamInfo->fillHistoryWindow, id);
+        QUERY_CHECK_CODE(code, lino, _end);
+        printSpecDataBlock(pDelBlock, getStreamOpName(pOperator->operatorType), "delete recv filtered",
+                           GET_TASKID(pTaskInfo));
+        if (pDelBlock->info.rows == 0) {
+          if (pInfo->tqReader) {
+            blockDataDestroy(pDelBlock);
+          }
+          goto FETCH_NEXT_BLOCK;
+        }
+
+        if (!isStreamWindow(pInfo)) {
+          code = generateDeleteResultBlock(pInfo, pDelBlock, pInfo->pDeleteDataRes);
+          QUERY_CHECK_CODE(code, lino, _end);
+          if (pInfo->partitionSup.needCalc) {
+            pInfo->pDeleteDataRes->info.type = STREAM_DELETE_DATA;
+          } else {
+            pInfo->pDeleteDataRes->info.type = STREAM_DELETE_RESULT;
+          }
+          blockDataDestroy(pDelBlock);
+
+          if (pInfo->pDeleteDataRes->info.rows > 0) {
+            printSpecDataBlock(pInfo->pDeleteDataRes, getStreamOpName(pOperator->operatorType), "delete result",
+                               GET_TASKID(pTaskInfo));
+            setStreamOperatorState(&pInfo->basic, pInfo->pDeleteDataRes->info.type);
+            (*ppRes) = pInfo->pDeleteDataRes;
+            return code;
+          } else {
+            goto FETCH_NEXT_BLOCK;
+          }
+        } else {
+          pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
+          pInfo->updateResIndex = 0;
+          code = generateScanRange(pInfo, pDelBlock, pInfo->pUpdateRes, STREAM_DELETE_DATA);
+          QUERY_CHECK_CODE(code, lino, _end);
+          prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex, NULL);
+          code = copyDataBlock(pInfo->pDeleteDataRes, pInfo->pUpdateRes);
+          QUERY_CHECK_CODE(code, lino, _end);
+          pInfo->pDeleteDataRes->info.type = STREAM_DELETE_DATA;
+          if (pInfo->tqReader) {
+            blockDataDestroy(pDelBlock);
+          }
+          if (pInfo->pDeleteDataRes->info.rows > 0) {
+            pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
+            printSpecDataBlock(pInfo->pDeleteDataRes, getStreamOpName(pOperator->operatorType), "delete result",
+                               GET_TASKID(pTaskInfo));
+            setStreamOperatorState(&pInfo->basic, pInfo->pDeleteDataRes->info.type);
+            (*ppRes) = pInfo->pDeleteDataRes;
+            return code;
+          } else {
+            goto FETCH_NEXT_BLOCK;
+          }
+        }
+      } break;
+      case STREAM_GET_RESULT: {
+        pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
+        pInfo->updateResIndex = 0;
+        pInfo->lastScanRange = pBlock->info.window;
+        TSKEY endKey = taosTimeGetIntervalEnd(pBlock->info.window.skey, &pInfo->interval);
+        if (pInfo->useGetResultRange == true) {
+          endKey = pBlock->info.window.ekey;
+        }
+        code = copyGetResultBlock(pInfo->pUpdateRes, pBlock->info.window.skey, endKey);
+        QUERY_CHECK_CODE(code, lino, _end);
+        pInfo->pUpdateInfo->maxDataVersion = -1;
+        prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex, NULL);
+        pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
+      } break;
+      case STREAM_DROP_CHILD_TABLE: {
+        int32_t deleteNum = 0;
+        code = deletePartName(&pInfo->stateStore, pInfo->pStreamScanOp->pTaskInfo->streamInfo.pState, pBlock, &deleteNum);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (deleteNum == 0) {
+          printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "block recv", GET_TASKID(pTaskInfo));
+          qDebug("===stream=== ignore block type 18, delete num is 0");
+          goto FETCH_NEXT_BLOCK;
+        }
+      } break;
+      case STREAM_CHECKPOINT: {
+        qError("stream check point error. msg type: STREAM_INPUT__DATA_BLOCK");
+      } break;
+      default:
+        break;
+    }
+    printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "block recv", GET_TASKID(pTaskInfo));
+    setStreamOperatorState(&pInfo->basic, pBlock->info.type);
+    (*ppRes) = pBlock;
+    return code;
+  } else if (pInfo->blockType == STREAM_INPUT__DATA_SUBMIT) {
+    qDebug("stream scan mode:%d, %s", pInfo->scanMode, id);
+    switch (pInfo->scanMode) {
+      case STREAM_SCAN_FROM_RES: {
+        pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+        code = doCheckUpdate(pInfo, pInfo->pRes->info.window.ekey, pInfo->pRes);
+        QUERY_CHECK_CODE(code, lino, _end);
+        setStreamOperatorState(&pInfo->basic, pInfo->pRes->info.type);
+        code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+        QUERY_CHECK_CODE(code, lino, _end);
+        pInfo->pRes->info.dataLoad = 1;
+        code = blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (pInfo->pRes->info.rows > 0) {
+          printDataBlock(pInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+          (*ppRes) = pInfo->pRes;
+          return code;
+        }
+      } break;
+      case STREAM_SCAN_FROM_DELETE_DATA: {
+        code = generateScanRange(pInfo, pInfo->pUpdateDataRes, pInfo->pUpdateRes, STREAM_PARTITION_DELETE_DATA);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (pInfo->pUpdateRes->info.rows > 0) {
+          prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex, NULL);
+          pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
+          code = copyDataBlock(pInfo->pDeleteDataRes, pInfo->pUpdateRes);
+          QUERY_CHECK_CODE(code, lino, _end);
+          pInfo->pDeleteDataRes->info.type = STREAM_DELETE_DATA;
+          (*ppRes) = pInfo->pDeleteDataRes;
+          return code;
+        }
+        qError("%s===stream=== %s failed at line %d since pInfo->pUpdateRes is empty", GET_TASKID(pTaskInfo), __func__,
+               __LINE__);
+        blockDataCleanup(pInfo->pUpdateDataRes);
+        pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+      } break;
+      case STREAM_SCAN_FROM_UPDATERES: {
+        code = generateScanRange(pInfo, pInfo->pUpdateDataRes, pInfo->pUpdateRes, STREAM_CLEAR);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (pInfo->pUpdateRes->info.rows > 0) {
+          prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex, NULL);
+          pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
+          (*ppRes) = pInfo->pUpdateRes;
+          return code;
+        }
+        qError("%s===stream=== %s failed at line %d since pInfo->pUpdateRes is empty", GET_TASKID(pTaskInfo), __func__,
+               __LINE__);
+        blockDataCleanup(pInfo->pUpdateDataRes);
+        pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+      } break;
+      case STREAM_SCAN_FROM_DATAREADER_RANGE:
+      case STREAM_SCAN_FROM_DATAREADER_RETRIEVE: {
+        if (pInfo->pRangeScanRes != NULL) {
+          (*ppRes) = pInfo->pRangeScanRes;
+          pInfo->pRangeScanRes = NULL;
+          return code;
+        }
+        SSDataBlock* pSDB = NULL;
+        code = doRangeScan(pInfo, pInfo->pUpdateRes, pInfo->primaryTsIndex, &pInfo->updateResIndex, &pSDB);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (pSDB) {
+          STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
+          pSDB->info.type = pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER_RANGE ? STREAM_NORMAL : STREAM_PULL_DATA;
+          if (!pInfo->igCheckUpdate && pInfo->pUpdateInfo) {
+            code = checkUpdateData(pInfo, true, pSDB, false);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          printSpecDataBlock(pSDB, getStreamOpName(pOperator->operatorType), "update", GET_TASKID(pTaskInfo));
+          code = calBlockTbName(pInfo, pSDB, 0);
+          QUERY_CHECK_CODE(code, lino, _end);
+
+          if (pInfo->pCreateTbRes->info.rows > 0) {
+            printSpecDataBlock(pInfo->pCreateTbRes, getStreamOpName(pOperator->operatorType), "update",
+                               GET_TASKID(pTaskInfo));
+            (*ppRes) = pInfo->pCreateTbRes;
+            pInfo->pRangeScanRes = pSDB;
+            return code;
+          }
+
+          (*ppRes) = pSDB;
+          return code;
+        }
+        blockDataCleanup(pInfo->pUpdateDataRes);
+        pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+      } break;
+      default:
+        break;
+    }
+
+    if (hasScanRange(pInfo)) {
+      pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
+      pInfo->updateResIndex = 0;
+      SStreamAggSupporter* pSup = pInfo->windowSup.pStreamAggSup;
+      code = copyDataBlock(pInfo->pUpdateRes, pSup->pScanBlock);
+      QUERY_CHECK_CODE(code, lino, _end);
+      blockDataCleanup(pSup->pScanBlock);
+      prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex, NULL);
+      pInfo->pUpdateRes->info.type = STREAM_DELETE_DATA;
+      printSpecDataBlock(pInfo->pUpdateRes, getStreamOpName(pOperator->operatorType), "rebuild", GET_TASKID(pTaskInfo));
+      (*ppRes) = pInfo->pUpdateRes;
+      return code;
+    }
+
+    SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
+    int32_t         totalBlocks = taosArrayGetSize(pInfo->pBlockLists);
+
+  NEXT_SUBMIT_BLK:
+    while (1) {
+      if (pInfo->readerFn.tqReaderCurrentBlockConsumed(pInfo->tqReader)) {
+        if (pInfo->validBlockIndex >= totalBlocks) {
+          pAPI->stateStore.updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
+          doClearBufferedBlocks(pInfo);
+
+          qDebug("stream scan return empty, all %d submit blocks consumed, %s", totalBlocks, id);
+          (*ppRes) = NULL;
+          return code;
+        }
+
+        int32_t      current = pInfo->validBlockIndex++;
+        SPackedData* pSubmit = taosArrayGet(pInfo->pBlockLists, current);
+        QUERY_CHECK_NULL(pSubmit, code, lino, _end, terrno);
+
+        qDebug("set %d/%d as the input submit block, %s", current + 1, totalBlocks, id);
+        if (pAPI->tqReaderFn.tqReaderSetSubmitMsg(pInfo->tqReader, pSubmit->msgStr, pSubmit->msgLen, pSubmit->ver,
+                                                  NULL) < 0) {
+          qError("submit msg messed up when initializing stream submit block %p, current %d/%d, %s", pSubmit, current,
+                 totalBlocks, id);
+          continue;
+        }
+      }
+
+      blockDataCleanup(pInfo->pRes);
+
+      while (pAPI->tqReaderFn.tqNextBlockImpl(pInfo->tqReader, id)) {
+        SSDataBlock* pRes = NULL;
+
+        code = pAPI->tqReaderFn.tqRetrieveBlock(pInfo->tqReader, &pRes, id);
+        qDebug("retrieve data from submit completed code:%s rows:%" PRId64 " %s", tstrerror(code), pRes->info.rows, id);
+
+        if (code != TSDB_CODE_SUCCESS || pRes->info.rows == 0) {
+          qDebug("retrieve data failed, try next block in submit block, %s", id);
+          continue;
+        }
+
+        code = setBlockIntoRes(pInfo, pRes, &pStreamInfo->fillHistoryWindow, false);
+        if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+          pInfo->pRes->info.rows = 0;
+          code = TSDB_CODE_SUCCESS;
+        } else {
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+
+        if (pInfo->pRes->info.rows == 0) {
+          continue;
+        }
+
+        if (pInfo->pCreateTbRes->info.rows > 0) {
+          pInfo->scanMode = STREAM_SCAN_FROM_RES;
+          qDebug("create table res exists, rows:%" PRId64 " return from stream scan, %s",
+                 pInfo->pCreateTbRes->info.rows, id);
+          (*ppRes) = pInfo->pCreateTbRes;
+          return code;
+        }
+
+        code = doCheckUpdate(pInfo, pBlockInfo->window.ekey, pInfo->pRes);
+        QUERY_CHECK_CODE(code, lino, _end);
+        setStreamOperatorState(&pInfo->basic, pInfo->pRes->info.type);
+        code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
+        QUERY_CHECK_CODE(code, lino, _end);
+
+        code = blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
+        QUERY_CHECK_CODE(code, lino, _end);
+
+        int64_t numOfUpdateRes = pInfo->pUpdateDataRes->info.rows;
+        qDebug("%s %" PRId64 " rows in datablock, update res:%" PRId64, id, pBlockInfo->rows, numOfUpdateRes);
+        if (pBlockInfo->rows > 0 || numOfUpdateRes > 0) {
+          break;
+        }
+      }
+
+      if (pBlockInfo->rows > 0 || pInfo->pUpdateDataRes->info.rows > 0) {
+        break;
+      } else {
+        continue;
+      }
+    }
+
+    // record the scan action.
+    pInfo->numOfExec++;
+    pOperator->resultInfo.totalRows += pBlockInfo->rows;
+
+    qDebug("stream scan completed, and return source rows:%" PRId64 ", %s", pBlockInfo->rows, id);
+    if (pBlockInfo->rows > 0) {
+      printDataBlock(pInfo->pRes, getStreamOpName(pOperator->operatorType), GET_TASKID(pTaskInfo));
+      (*ppRes) = pInfo->pRes;
+      return code;
+    }
+
+    if (pInfo->pUpdateDataRes->info.rows > 0) {
+      goto FETCH_NEXT_BLOCK;
+    }
+
+    goto NEXT_SUBMIT_BLK;
+  } else if (pInfo->blockType == STREAM_INPUT__CHECKPOINT) {
+    if (pInfo->validBlockIndex >= total) {
+      doClearBufferedBlocks(pInfo);
+      (*ppRes) = NULL;
+      return code;
+    }
+
+    int32_t current = pInfo->validBlockIndex++;
+    qDebug("process %d/%d input data blocks, %s", current, (int32_t)total, id);
+
+    SPackedData* pData = taosArrayGet(pInfo->pBlockLists, current);
+    QUERY_CHECK_NULL(pData, code, lino, _end, terrno);
+    SSDataBlock* pBlock = taosArrayGet(pData->pDataBlock, 0);
+    QUERY_CHECK_NULL(pBlock, code, lino, _end, terrno);
+
+    if (pBlock->info.type == STREAM_CHECKPOINT) {
+      // todo(kjq): serialize checkpoint
+    }
+    // printDataBlock(pInfo->pCheckpointRes, "stream scan ck", GET_TASKID(pTaskInfo));
+    (*ppRes) = pInfo->pCheckpointRes;
+    return code;
+  } else {
+    qError("stream scan error, invalid block type %d, %s", pInfo->blockType, id);
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
+  (*ppRes) = NULL;
+  return code;
+}
+
+int32_t createStreamVtableMergeOperatorInfo(SReadHandle* pHandle, SVirtualScanPhysiNode* pVirtualScanNode,
+                                            SNode* pTagCond, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo) {
+  QRY_PARAM_CHECK(pOptrInfo);
+
+  int32_t          code = TSDB_CODE_SUCCESS;
+  int32_t          lino = 0;
+  SStreamScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamScanInfo));
+  SOperatorInfo*   pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  SStorageAPI*     pAPI = &pTaskInfo->storageAPI;
+
+  if (pInfo == NULL || pOperator == NULL) {
+    code = terrno;
+    goto _error;
+  }
+
+  SScanPhysiNode*     pScanPhyNode = &pVirtualScanNode->scan;
+  SDataBlockDescNode* pDescNode = pScanPhyNode->node.pOutputDataBlockDesc;
+
+  pInfo->pTagCond = pTagCond;
+  pInfo->pGroupTags = pVirtualScanNode->pGroupTags;
+
+  int32_t numOfCols = 0;
+  code = extractColMatchInfo(pScanPhyNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID, &pInfo->matchInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
+  SDataType pkType = {0};
+  pInfo->primaryKeyIndex = -1;
+  pInfo->basic.primaryPkIndex = -1;
+  int32_t numOfOutput = taosArrayGetSize(pInfo->matchInfo.pList);
+
+  for (int32_t i = 0; i < numOfOutput; ++i) {
+    SColMatchItem* id = taosArrayGet(pInfo->matchInfo.pList, i);
+    QUERY_CHECK_NULL(id, code, lino, _error, terrno);
+    if (id->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      pInfo->primaryTsIndex = id->dstSlotId;
+    }
+    if (id->isPk) {
+      pInfo->primaryKeyIndex = id->dstSlotId;
+      pInfo->basic.primaryPkIndex = id->dstSlotId;
+      pkType = id->dataType;
+    }
+  }
+
+  pInfo->pPartTbnameSup = NULL;
+  if (pVirtualScanNode->pSubtable != NULL) {
+    SExprInfo* pSubTableExpr = taosMemoryCalloc(1, sizeof(SExprInfo));
+    if (pSubTableExpr == NULL) {
+      code = terrno;
+      goto _error;
+    }
+
+    pInfo->tbnameCalSup.pExprInfo = pSubTableExpr;
+    code = createExprFromOneNode(pSubTableExpr, pVirtualScanNode->pSubtable, 0);
+    QUERY_CHECK_CODE(code, lino, _error);
+
+    if (initExprSupp(&pInfo->tbnameCalSup, pSubTableExpr, 1, &pTaskInfo->storageAPI.functionStore) != 0) {
+      goto _error;
+    }
+  }
+
+  if (pVirtualScanNode->pTags != NULL) {
+    int32_t    numOfTags;
+    SExprInfo* pTagExpr = createExpr(pVirtualScanNode->pTags, &numOfTags);
+    if (pTagExpr == NULL) {
+      goto _error;
+    }
+    code = initExprSupp(&pInfo->tagCalSup, pTagExpr, numOfTags, &pTaskInfo->storageAPI.functionStore);
+    if (code != 0) {
+      goto _error;
+    }
+  }
+  // todo(kjq): add partition table name generation
+  // todo(kjq): add tag column generation
+
+  pInfo->pBlockLists = taosArrayInit(4, sizeof(SPackedData));
+  QUERY_CHECK_NULL(pInfo->pBlockLists, code, lino, _error, terrno);
+
+  // TODO(kjq): support virtual table re-scan from tsdb
+
+  if (pTaskInfo->streamInfo.pState) {
+    pAPI->stateStore.streamStateSetNumber(pTaskInfo->streamInfo.pState, -1, pInfo->primaryTsIndex);
+  }
+
+  pInfo->readHandle = *pHandle;
+  pTaskInfo->streamInfo.snapshotVer = pHandle->version;
+  pInfo->pCreateTbRes = buildCreateTableBlock(&pInfo->tbnameCalSup, &pInfo->tagCalSup);
+  QUERY_CHECK_NULL(pInfo->pCreateTbRes, code, lino, _error, terrno);
+
+  // create the pseduo columns info
+  if (pVirtualScanNode->scan.pScanPseudoCols != NULL) {
+    code = createExprInfo(pVirtualScanNode->scan.pScanPseudoCols, NULL, &pInfo->pPseudoExpr, &pInfo->numOfPseudoExpr);
+    QUERY_CHECK_CODE(code, lino, _error);
+  }
+
+  code = filterInitFromNode((SNode*)pScanPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  QUERY_CHECK_CODE(code, lino, _error);
+
+  pInfo->pRes = createDataBlockFromDescNode(pDescNode);
+  QUERY_CHECK_NULL(pInfo->pRes, code, lino, _error, terrno);
+  code = createSpecialDataBlock(STREAM_CLEAR, &pInfo->pUpdateRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
+  pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+  pInfo->windowSup = (SWindowSupporter){.pStreamAggSup = NULL, .gap = -1, .parentType = QUERY_NODE_PHYSICAL_PLAN};
+  pInfo->groupId = 0;
+  pInfo->igCheckGroupId = false;
+  pInfo->pStreamScanOp = pOperator;
+  pInfo->deleteDataIndex = 0;
+  code = createSpecialDataBlock(STREAM_DELETE_DATA, &pInfo->pDeleteDataRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
+  pInfo->updateWin = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MAX};
+  code = createSpecialDataBlock(STREAM_CLEAR, &pInfo->pUpdateDataRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
+  if (pInfo->primaryKeyIndex != -1) {
+    pInfo->pUpdateDataRes->info.rowSize += pkType.bytes;
+    SColumnInfoData infoData = {0};
+    infoData.info.type = pkType.type;
+    infoData.info.bytes = pkType.bytes;
+    void* px = taosArrayPush(pInfo->pUpdateDataRes->pDataBlock, &infoData);
+    QUERY_CHECK_NULL(px, code, lino, _error, terrno);
+
+    pInfo->pkColType = pkType.type;
+    pInfo->pkColLen = pkType.bytes;
+  }
+
+  pInfo->partitionSup.needCalc = false;
+  pInfo->igCheckUpdate = pVirtualScanNode->igCheckUpdate;
+  pInfo->igExpired = pVirtualScanNode->igExpired;
+  pInfo->twAggSup.maxTs = INT64_MIN;
+  pInfo->pState = pTaskInfo->streamInfo.pState;
+  pInfo->stateStore = pTaskInfo->storageAPI.stateStore;
+  pInfo->readerFn = pTaskInfo->storageAPI.tqReaderFn;
+  pInfo->pFillSup = NULL;
+  pInfo->useGetResultRange = false;
+  pInfo->pRangeScanRes = NULL;
+
+  code = createSpecialDataBlock(STREAM_CHECKPOINT, &pInfo->pCheckpointRes);
+  QUERY_CHECK_CODE(code, lino, _error);
+
+  pInfo->lastScanRange.skey = INT64_MIN;
+  pInfo->lastScanRange.ekey = INT64_MIN;
+  // for stream
+  if (pTaskInfo->streamInfo.pState) {
+    void*   buff = NULL;
+    int32_t len = 0;
+    int32_t res =
+        pAPI->stateStore.streamStateGetInfo(pTaskInfo->streamInfo.pState, STREAM_VTABLE_MERGE_OP_CHECKPOINT_NAME,
+                                            strlen(STREAM_VTABLE_MERGE_OP_CHECKPOINT_NAME), &buff, &len);
+    if (res == TSDB_CODE_SUCCESS) {
+      // todo(kjq): deserialize checkpoint here
+      taosMemoryFree(buff);
+    }
+  }
+
+  setOperatorInfo(pOperator, STREAM_VTABLE_MERGE_OP_NAME, QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN, false,
+                  OP_NOT_OPENED, pInfo, pTaskInfo);
+  pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
+
+  pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doStreamVtableMergeNext, NULL, destroyStreamScanOperatorInfo,
+                                         optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  // TODO(kjq): save and load fill history state
+
+  *pOptrInfo = pOperator;
+  return code;
+
+_error:
+  if (pInfo != NULL) {
+    destroyStreamScanOperatorInfo(pInfo);
+  }
+
+  if (pOperator != NULL) {
+    pOperator->info = NULL;
+    destroyOperator(pOperator);
+  }
+  pTaskInfo->code = code;
+  return code;
 }

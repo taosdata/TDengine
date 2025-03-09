@@ -1381,7 +1381,7 @@ int32_t tqReaderSetVtableInfo(STqReader* pReader, void* vnode, void* ptr, SSHash
     goto _end;
   }
 
-  pVirtualTables = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  pVirtualTables = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   TSDB_CHECK_NULL(pVirtualTables, code, lino, _end, terrno);
   taosHashSetFreeFp(pVirtualTables, destroySourceScanTables);
 
@@ -1503,7 +1503,7 @@ static int32_t tqCollectPhysicalTables(STqReader* pReader, const char* idstr) {
     goto _end;
   }
 
-  pPhysicalTables = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+  pPhysicalTables = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   TSDB_CHECK_NULL(pPhysicalTables, code, lino, _end, terrno);
   taosHashSetFreeFp(pPhysicalTables, destroySourceScanTables);
 
@@ -1648,7 +1648,7 @@ int32_t tqRetrieveVTableDataBlock(STqReader* pReader, SSDataBlock** pRes, const 
 
     if (pWrapper == NULL) {
       // get physical table schema from meta
-      pWrapper = metaGetTableSchema(pReader->pVnodeMeta, pTbUid, pSubmitTbData->sver, 1);
+      pWrapper = metaGetTableSchema(pReader->pVnodeMeta, pTbUid, pSubmitTbData->sver, 1, NULL);
       if (pWrapper == NULL) {
         tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", uid:%" PRId64
                "version %d, possibly dropped table",
@@ -1844,6 +1844,7 @@ bool tqNextVTableSourceBlockImpl(STqReader* pReader, const char* idstr) {
     if (px != NULL) {
       SArray* pRelatedVTs = *(SArray**)px;
       if (taosArrayGetSize(pRelatedVTs) > 0) {
+        pScanInfo->nextVirtualTableIdx = 0;
         return true;
       }
     }

@@ -500,6 +500,10 @@ typedef struct SVirtualScanPhysiNode {
   bool           groupSort;
   bool           scanAllCols;
   SNodeList*     pTargets;
+  SNodeList*     pTags;
+  SNode*         pSubtable;
+  int8_t         igExpired;
+  int8_t         igCheckUpdate;
 }SVirtualScanPhysiNode;
 
 typedef struct SLastRowScanPhysiNode {
