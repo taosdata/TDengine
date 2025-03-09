@@ -10,6 +10,7 @@ if(${BUILD_WITH_S3})
     file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
 
 elseif(${BUILD_WITH_COS})
+    message(FATAL_ERROR "freemine: not implemented yet")
     set(CONTRIB_TMP_FILE3 "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in3")
     configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE3})
 
@@ -61,6 +62,7 @@ endif()
 
 # s3
 if(${BUILD_WITH_S3})
+    message(FATAL_ERROR "freemine: not implemented yet")
     cat("${TD_SUPPORT_DIR}/xml2_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/libs3_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     cat("${TD_SUPPORT_DIR}/azure_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -68,6 +70,7 @@ if(${BUILD_WITH_S3})
 
 # cos
 elseif(${BUILD_WITH_COS})
+    message(FATAL_ERROR "freemine: not implemented yet")
     # cat("${TD_SUPPORT_DIR}/mxml_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     # cat("${TD_SUPPORT_DIR}/apr_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
     # cat("${TD_SUPPORT_DIR}/apr-util_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
