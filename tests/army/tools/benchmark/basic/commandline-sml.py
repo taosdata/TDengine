@@ -67,6 +67,16 @@ class TDTestCase(TBase):
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 10*10000)
 
+        # add normal table
+        cmd = "%s -N -I sml -t 2 -n 10000  -y" % binPath
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+
+        tdSql.query("select count(*) from test.d0")
+        tdSql.checkData(0, 0, 1*10000)
+        tdSql.query("select count(*) from test.d1")
+        tdSql.checkData(0, 0, 1*10000)
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

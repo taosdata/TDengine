@@ -15,8 +15,9 @@ IF(TD_LINUX)
     )
 
     target_include_directories(
-        benchmarkTest
-        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        benchmarkTest PRIVATE 
+        "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../deps/toolscJson/inc/"
     )
     
     add_test(

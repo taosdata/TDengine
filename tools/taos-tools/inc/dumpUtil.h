@@ -66,18 +66,4 @@ TAOS *taosConnect(const char *dbName);
 TAOS_RES *taosQuery(TAOS *taos, const char *sql, int32_t *code);
 
 
-//
-// ---------------  websocket ------------------
-//
-#ifdef WEBSOCKET
-// ws connect
-WS_TAOS *wsConnect();
-// ws query
-WS_RES *wsQuery(WS_TAOS **ws_taos, const char *sql, int32_t *code);
-// ws fetch
-int32_t wsFetchBlock(WS_RES *rs, const void **pData, int32_t *numOfRows);
-
-#endif
-
-
 #endif  // INC_DUMPUTIL_H_

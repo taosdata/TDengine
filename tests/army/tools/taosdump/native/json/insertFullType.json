@@ -41,7 +41,9 @@
                         { "type": "ubigint",     "name": "ubi", "max": 10000, "min": 0 },
                         { "type": "binary",      "name": "bin", "len": 4},
                         { "type": "nchar",       "name": "nch", "len": 8},
-                        { "type": "varchar",     "name": "vac", "len": 8}
+                        { "type": "varbinary",   "name": "vab", "len": 8},
+                        { "type": "varchar",     "name": "vac", "len": 8},
+                        { "type": "geometry",    "name": "geo", "len": 32}                        
                     ],
                     "tags":[
                         { "type": "bool",        "name": "tbc"},
@@ -57,7 +59,9 @@
                         { "type": "ubigint",     "name": "tubi", "max": 10000, "min": 0 },
                         { "type": "binary",      "name": "tbin", "len": 4},
                         { "type": "nchar",       "name": "tnch", "len": 8},
-                        { "type": "varchar",     "name": "tvac", "len": 8}
+                        { "type": "varbinary",   "name": "tvab", "len": 8},
+                        { "type": "varchar",     "name": "tvac", "len": 8},
+                        { "type": "geometry",    "name": "tgeo", "len": 32}
                     ]
                 }
             ]
