@@ -6,6 +6,10 @@ project(
   DESCRIPTION "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
 )
 
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+  cmake_policy(SET CMP0135 NEW)
+endif()
+
 if(NOT DEFINED TD_SOURCE_DIR)
   set(TD_SOURCE_DIR ${PROJECT_SOURCE_DIR})
 endif()
