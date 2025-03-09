@@ -51,14 +51,17 @@ pub enum State {
 
 impl State {
     /// Tick the state machine.
-    fn upgrade(self, state: State) -> State {
+    fn tick(self, state: State) -> State {
         if self == state {
             return self;
         }
         if self.is_initial() && matches!(state, State::Idle | State::Active | State::Pending) {
             return Self::Ready;
         }
-        self.max(state)
+        if state.is_initial() {
+            return self;
+        }
+        state
     }
 }
 
@@ -426,7 +429,6 @@ impl HealthChecker {
             return State::Idle;
         }
         let messages: MessageMetrics = self.messages_in_window.iter().sum();
-
         if messages.source_messages == 0 {
             return State::Idle;
         }
@@ -459,7 +461,7 @@ impl HealthChecker {
     fn get_state(&self) -> State {
         let last_state = self.state;
         let state = self.message_state();
-        last_state.upgrade(state.max(self.error_state()))
+        last_state.tick(state.max(self.error_state()))
     }
 }
 
@@ -642,26 +644,26 @@ mod tests {
     #[test]
     fn test_state_upgrade() {
         let state = State::Initial;
-        assert_eq!(state.upgrade(State::Initial), State::Initial);
-        assert_eq!(state.upgrade(State::Ready), State::Ready);
-        assert_eq!(state.upgrade(State::Idle), State::Ready);
-        assert_eq!(state.upgrade(State::Active), State::Ready);
-        assert_eq!(state.upgrade(State::Pending), State::Ready);
-        assert_eq!(state.upgrade(State::Busy), State::Busy);
-        assert_eq!(state.upgrade(State::Bounce), State::Bounce);
-        assert_eq!(state.upgrade(State::SourceError), State::SourceError);
-        assert_eq!(state.upgrade(State::SinkError), State::SinkError);
-        assert_eq!(state.upgrade(State::Fatal), State::Fatal);
+        assert_eq!(state.tick(State::Initial), State::Initial);
+        assert_eq!(state.tick(State::Ready), State::Ready);
+        assert_eq!(state.tick(State::Idle), State::Ready);
+        assert_eq!(state.tick(State::Active), State::Ready);
+        assert_eq!(state.tick(State::Pending), State::Ready);
+        assert_eq!(state.tick(State::Busy), State::Busy);
+        assert_eq!(state.tick(State::Bounce), State::Bounce);
+        assert_eq!(state.tick(State::SourceError), State::SourceError);
+        assert_eq!(state.tick(State::SinkError), State::SinkError);
+        assert_eq!(state.tick(State::Fatal), State::Fatal);
 
         for state in State::VARIANTS.iter().skip(2) {
             let last = State::from_str(state).unwrap();
 
             for next in State::VARIANTS.iter() {
                 let next = State::from_str(next).unwrap();
-                if next > last {
-                    assert_eq!(last.upgrade(next), next);
+                if !next.is_initial() {
+                    assert_eq!(last.tick(next), next);
                 } else {
-                    assert_eq!(last.upgrade(next), last);
+                    assert_eq!(last.tick(next), last);
                 }
             }
         }
@@ -689,9 +691,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_health_checker() {
-        let _ = tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::TRACE)
-            .try_init();
+        // let _ = tracing_subscriber::fmt()
+        //     .with_max_level(tracing::Level::TRACE)
+        //     .try_init();
         let opts = HealthOpts::builder()
             .health_check_window_in_second(2)
             .health_check_interval_in_second(1)
@@ -722,18 +724,23 @@ mod tests {
             metrics.processed_messages.fetch_add(100, Ordering::SeqCst);
             interval.tick().await;
         }
+        println!("1. Try get ready state...");
         let first = rx.try_recv().expect("Subscriber should receive notify");
         tokio::task::yield_now().await;
         assert_eq!(first.state, State::Ready);
+        println!("1. OK.");
         interval.tick().await;
         interval.tick().await;
+        println!("2. Try get active state...");
         let second = rx.try_recv().expect("Subscriber should receive notify");
         assert_eq!(second.state, State::Active);
+        println!("2. OK.");
 
         for _ in 0..3 {
             metrics.received_messages.fetch_add(1, Ordering::SeqCst);
             interval.tick().await;
         }
+        println!("3. Try get pending state...");
         loop {
             tokio::task::yield_now().await;
             let notify = rx.try_recv();
@@ -742,7 +749,9 @@ mod tests {
                 panic!("Subscriber should receive notify");
             }
             let notify = notify.unwrap();
+            dbg!(&notify.state);
             if notify.state == State::Pending {
+                println!("3. OK.");
                 break;
             }
         }
@@ -751,6 +760,7 @@ mod tests {
             metrics.processed_messages.fetch_add(10, Ordering::SeqCst);
             interval.tick().await;
         }
+        println!("4. Try get busy state...");
         loop {
             let notify = rx.try_recv();
             if notify.is_err() {
@@ -758,10 +768,30 @@ mod tests {
                 panic!("Subscriber should receive notify");
             }
             let notify = notify.unwrap();
+            dbg!(&notify.state);
             if notify.state == State::Busy {
+                println!("3. OK.");
                 break;
             }
         }
+        // TD-33427: 任务不再处理消息后，状态仍是 busy
+        println!("4. Try get idle state after busy...");
+        loop {
+            interval.tick().await;
+            let notify = rx.try_recv();
+            if notify.is_err() {
+                tracing::error!("Subscriber should receive notify");
+                panic!("Subscriber should receive notify");
+            }
+            let notify = notify.unwrap();
+            dbg!(&notify);
+            if notify.state == State::Idle {
+                println!("4. OK.");
+                break;
+            }
+        }
+
+        println!("5. Try get source error state...");
         {
             tx.send_async(TaskNotify {
                 source: EventSource::Source,
@@ -780,11 +810,13 @@ mod tests {
                 panic!("Subscriber should receive notify");
             }
             let notify = notify.unwrap();
-            if notify.state == State::Busy {
+            if notify.state == State::SourceError {
+                println!("5. OK...");
                 break;
             }
         }
 
+        println!("6. Try get sink error state...");
         {
             tx.send_async(TaskNotify {
                 source: EventSource::Sink,
@@ -794,6 +826,19 @@ mod tests {
             .await
             .expect("Failed to send notify");
             interval.tick().await;
+        }
+        loop {
+            interval.tick().await;
+            let notify = rx.try_recv();
+            if notify.is_err() {
+                tracing::error!("Subscriber should receive notify");
+                panic!("Subscriber should receive notify");
+            }
+            let notify = notify.unwrap();
+            if notify.state == State::SinkError {
+                println!("6. OK...");
+                break;
+            }
         }
         {
             tx.send_async(TaskNotify {

@@ -10,7 +10,7 @@ use std::{
 };
 
 use anyhow::Context;
-use arrow_array::{Array, RecordBatch, StringArray, TimestampNanosecondArray};
+use arrow::array::{Array, RecordBatch, StringArray, TimestampNanosecondArray};
 use arrow_schema::{ArrowError, Field};
 use async_backtrace::framed;
 use chrono::Utc;

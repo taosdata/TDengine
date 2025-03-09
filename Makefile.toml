@@ -262,16 +262,10 @@ cargo make build -p taosx -p taosx-agent -p taos-explorer
 """
 
 [tasks.build-sanitizer]
-command = "cargo"
 env = { "RUSTFLAGS" = "-Zsanitizer=address --cfg tokio_unstable" }
-args = [
-  "build",
-  "--profile",
-  "sani",
-  "--target",
-  "x86_64-unknown-linux-gnu",
-  "-Zbuild-std",
-]
+script = """
+cargo +nightly build --profile sani --target x86_64-unknown-linux-gnu -Zbuild-std
+"""
 
 [tasks.clean-all]
 dependencies = ["clean-plugins", "clean"]

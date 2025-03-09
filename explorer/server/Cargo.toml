@@ -20,8 +20,8 @@ reqwest = { version = "0.11.27", default-features = false, features = [
   "rustls-tls",
 ] }
 anyhow = "1"
-clap = { version = "4", features = ["derive", "env"] }
-clap-verbosity-flag = "2.2.0"
+clap = { workspace = true, features = ["derive", "env"] }
+clap-verbosity-flag = { workspace = true }
 sqlx = { version = "0.8", features = ["sqlite", "chrono", "runtime-tokio"] }
 tokio = { version = "1", features = ["full"] }
 tokio-util = "0.7.10"
@@ -44,15 +44,15 @@ deadpool = "0.10"
 
 const_format = "0.2.32"
 shadow-rs = { workspace = true }
-geos = { version = "9.0.0", features = ["static"] }
+geos = { version = "10.0.0", features = ["static"] }
 hex = "0.4.3"
 chrono = "0.4"
-chrono-tz = "0.9.0"
-scc = "2.1.16"
+chrono-tz = "0.10.0"
+scc = { workspace = true } 
 
-taoslog = { path = "../../crates/taoslog", features = ["ansi"] }
+taoslog = { workspace = true, features = ["ansi"] }
 http = "0.2.12"
-bitfield = "0.16.1"
+bitfield = "0.18.1"
 serde_with = "3.9.0"
 assert_cmd = "2.0.16"
 assert_fs = "1.1.2"

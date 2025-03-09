@@ -517,9 +517,9 @@ def build_taos_explorer(explorer_path, mode):
         os.system(f'VER_NUMBER={release_info.TdengineVersion} CUS_PROMPT={release_info.CustomPrompt} CUS_NAME={release_info.CustomName} CUS_EMAIL={release_info.CustomEmail} cargo make deploy-explorer')
 
 def copy_taos_explorer_on_windows(explorer_path):
-    explorer_exe_path = os.path.join(taosx_dir, "target", "deploy", "taos-explorer.exe")
-    explorer_srv_path = os.path.join(taosx_dir, "target", "deploy", "taos-explorer-srv.exe")
-    explorer_srv_xml_path = os.path.join(taosx_dir, "target", "deploy", "taos-explorer-srv.xml")
+    explorer_exe_path = os.path.join(taosx_dir, "target", "deploy", f"{release_info.CustomPrompt}-explorer.exe")
+    explorer_srv_path = os.path.join(taosx_dir, "target", "deploy", f"{release_info.CustomPrompt}-explorer-srv.exe")
+    explorer_srv_xml_path = os.path.join(taosx_dir, "target", "deploy", f"{release_info.CustomPrompt}-explorer-srv.xml")
     explorer_toml_path = os.path.join(taosx_dir, "target", "deploy", "explorer.toml")
 
     taos_explorer_install_path = os.path.join(release_info.InstallPath, "bin")
