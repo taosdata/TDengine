@@ -689,6 +689,7 @@ static void destroyForecastInfo(void* param) {
 
 int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                    SOperatorInfo** pOptrInfo) {
+  
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
