@@ -1159,6 +1159,61 @@ taos> select repeat('abc',-1);
                   |
 ```
 
+#### CRC32
+
+```sql
+CRC32(string)
+```
+**Function Description**: Return the unsigned 32 bit integer that represents the Cyclic Redundancy Check (CRC).
+
+**Return Type**: UINT. 
+
+**Applicable Data Types**: VARCHAR, NCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- If `string` is NULL, it raises the error `Invalid parameter data type`.
+- if `string` is the empty string, returns 0.
+- This function is multibyte safe.
+
+**Example**:
+
+```sql
+taos> select crc32("");
+  crc32("")  |
+==============
+           0 |
+
+taos> select crc32("This is a string");
+ crc32("This is a string") |
+============================
+                 141976383 |
+
+taos> select crc32("這是一個字串");
+ crc32("這是一個字串") |
+======================
+          1867394985 |
+
+taos> select crc32(col_name) from ins_columns limit 10;
+ crc32(col_name) |
+==================
+      3208210256 |
+      3292663675 |
+      3081158046 |
+      1063017838 |
+      2063623452 |
+      3996452140 |
+      2559042119 |
+      3485334036 |
+      3208210256 |
+      3292663675 |
+
+```
+
 ### Conversion Functions
 
 Conversion functions convert values from one data type to another.
