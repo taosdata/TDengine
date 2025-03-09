@@ -8,8 +8,8 @@ edition = "2021"
 [dependencies]
 anyhow = "1"
 cfg-if = "1"
-clap = { version = "4", features = ["derive", "env"] }
-clap-verbosity-flag = "2.0.0"
+clap = { workspace = true, features = ["derive", "env"] }
+clap-verbosity-flag = { workspace = true }
 const_format = "0.2"
 dotenv = "0.15.0"
 log = { version = "0.4", features = ["serde"] }

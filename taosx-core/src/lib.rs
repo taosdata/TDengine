@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
-use arrow_array::RecordBatch;
+use arrow::array::RecordBatch;
 use chrono::NaiveDate;
 use core_metrics::get_metrics_arc_from_i64;
 use flume::Receiver;

@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/big"
+	"net"
 	"os"
 	"path"
 	"path/filepath"
@@ -699,166 +700,230 @@ func TestChangeCollectConfigObs(t *testing.T) {
 	lock.Unlock()
 }
 
-// func TestChangeCollectConfigSub(t *testing.T) {
-// 	ctx, cancel := context.WithCancel(context.Background())
-// 	defer cancel()
-// 	connectConfig := config.UaConnectConfig{
-// 		Endpoint:       "opc.tcp://127.0.0.1:4840",
-// 		ConnectTimeout: 10,
-// 		RequestTimeout: 10,
-// 		SecurityPolicy: "None",
-// 		SecurityMode:   "None",
-// 		AuthMethod:     "anonymous",
-// 	}
-// 	collectConfig := config.CollectConfig{
-// 		ContainsBad: true,
-// 		Ua: config.UaCollectConfig{
-// 			CollectMode: "subscribe",
-// 			Nodes: []config.NodeConfig{
-// 				{"ns=2;i=1001"},
-// 				{"ns=2;i=1002"},
-// 				{"ns=2;i=1003"},
-// 			},
-// 		},
-// 	}
-// 	expectNodes := map[string]bool{
-// 		"ns=2;i=1001": true,
-// 		"ns=2;i=1002": true,
-// 		"ns=2;i=1003": true,
-// 	}
-// 	lock := sync.Mutex{}
-// 	expectGotNodes := map[string]struct{}{
-// 		"ns=2;i=1001": {},
-// 		"ns=2;i=1002": {},
-// 		"ns=2;i=1003": {},
-// 	}
-// 	var onMessage = func(message []*common.NodeValue) {
-// 		for _, m := range message {
-// 			t.Log(m.IDStr)
-// 			lock.Lock()
-// 			if !expectNodes[m.IDStr] {
-// 				t.Fatal("unexpected node", m.IDStr)
-// 			}
-// 			delete(expectGotNodes, m.IDStr)
-// 			lock.Unlock()
-// 		}
-// 	}
-// 	client, err := NewUAClient(ctx, connectConfig, 1, logrus.New().WithField("test", "test"))
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	err = client.Connect()
-// 	if err != nil {
-// 		t.Fatal(err)
-// 	}
-// 	defer client.Close()
-// 	err = client.Collect(collectConfig, onMessage)
-// 	assert.NoError(t, err)
-// 	time.Sleep(time.Second * 3)
-// 	lock.Lock()
-// 	if len(expectGotNodes) != 0 {
-// 		t.Fatal("not all nodes got")
-// 	}
-// 	lock.Unlock()
-// 	newCollectConfig := config.CollectConfig{
-// 		Interval:    1,
-// 		ContainsBad: true,
-// 		Ua: config.UaCollectConfig{
-// 			CollectMode: "subscribe",
-// 			Nodes: []config.NodeConfig{
-// 				{"ns=2;i=1001"},
-// 				{"ns=2;i=1002"},
-// 			},
-// 		},
-// 	}
-// 	client.ChangeCollectConfig(newCollectConfig)
-// 	lock.Lock()
-// 	expectGotNodes = map[string]struct{}{
-// 		"ns=2;i=1001": {},
-// 		"ns=2;i=1002": {},
-// 	}
-// 	expectNodes["ns=2;i=1003"] = false
-// 	lock.Unlock()
-// 	time.Sleep(time.Second * 3)
-// 	lock.Lock()
-// 	if len(expectGotNodes) != 0 {
-// 		t.Fatal("not all nodes got")
-// 	}
-// 	lock.Unlock()
-// 	newCollectConfig = config.CollectConfig{
-// 		Interval:    1,
-// 		ContainsBad: true,
-// 		Ua: config.UaCollectConfig{
-// 			CollectMode: "subscribe",
-// 			Nodes: []config.NodeConfig{
-// 				{"ns=2;i=1001"},
-// 			},
-// 		},
-// 	}
-// 	client.ChangeCollectConfig(newCollectConfig)
-// 	lock.Lock()
-// 	expectGotNodes = map[string]struct{}{
-// 		"ns=2;i=1001": {},
-// 	}
-// 	expectNodes["ns=2;i=1002"] = false
-// 	lock.Unlock()
-// 	time.Sleep(time.Second * 3)
-// 	lock.Lock()
-// 	if len(expectGotNodes) != 0 {
-// 		t.Fatal("not all nodes got")
-// 	}
-// 	lock.Unlock()
-// 	newCollectConfig = config.CollectConfig{
-// 		Interval:    1,
-// 		ContainsBad: true,
-// 		Ua: config.UaCollectConfig{
-// 			CollectMode: "subscribe",
-// 			Nodes: []config.NodeConfig{
-// 				{"ns=2;i=1001"},
-// 				{"ns=2;i=1003"},
-// 			},
-// 		},
-// 	}
-// 	lock.Lock()
-// 	expectGotNodes = map[string]struct{}{
-// 		"ns=2;i=1001": {},
-// 		"ns=2;i=1003": {},
-// 	}
-// 	expectNodes["ns=2;i=1003"] = true
-// 	lock.Unlock()
-// 	client.ChangeCollectConfig(newCollectConfig)
-// 	time.Sleep(time.Second * 3)
-// 	lock.Lock()
-// 	if len(expectGotNodes) != 0 {
-// 		t.Fatal("not all nodes got")
-// 	}
-// 	lock.Unlock()
-// 	newCollectConfig = config.CollectConfig{
-// 		Interval:    1,
-// 		ContainsBad: true,
-// 		Ua: config.UaCollectConfig{
-// 			CollectMode: "subscribe",
-// 			Nodes: []config.NodeConfig{
-// 				{"ns=2;i=1001"},
-// 				{"ns=2;i=1002"},
-// 				{"ns=2;i=1003"},
-// 			},
-// 		},
-// 	}
-// 	lock.Lock()
-// 	expectGotNodes = map[string]struct{}{
-// 		"ns=2;i=1001": {},
-// 		"ns=2;i=1002": {},
-// 		"ns=2;i=1003": {},
-// 	}
-// 	expectNodes["ns=2;i=1002"] = true
-// 	expectNodes["ns=2;i=1003"] = true
-// 	lock.Unlock()
-// 	client.ChangeCollectConfig(newCollectConfig)
-// 	time.Sleep(time.Second * 3)
-// 	lock.Lock()
-// 	if len(expectGotNodes) != 0 {
-// 		t.Fatal("not all nodes got")
-// 	}
-// 	lock.Unlock()
-// }
+func TestChangeCollectConfigSub(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	connectConfig := config.UaConnectConfig{
+		Endpoint:       "opc.tcp://127.0.0.1:4840",
+		ConnectTimeout: 10,
+		RequestTimeout: 10,
+		SecurityPolicy: "None",
+		SecurityMode:   "None",
+		AuthMethod:     "anonymous",
+	}
+	collectConfig := config.CollectConfig{
+		ContainsBad: true,
+		Ua: config.UaCollectConfig{
+			CollectMode: "subscribe",
+			Nodes: []config.NodeConfig{
+				{"ns=2;i=1001"},
+				{"ns=2;i=1002"},
+				{"ns=2;i=1003"},
+			},
+		},
+	}
+	expectNodes := map[string]bool{
+		"ns=2;i=1001": true,
+		"ns=2;i=1002": true,
+		"ns=2;i=1003": true,
+	}
+	lock := sync.Mutex{}
+	expectGotNodes := map[string]struct{}{
+		"ns=2;i=1001": {},
+		"ns=2;i=1002": {},
+		"ns=2;i=1003": {},
+	}
+	var onMessage = func(message []*common.NodeValue) {
+		for _, m := range message {
+			t.Log(m.IDStr)
+			lock.Lock()
+			if !expectNodes[m.IDStr] {
+				t.Fatal("unexpected node", m.IDStr)
+			}
+			delete(expectGotNodes, m.IDStr)
+			lock.Unlock()
+		}
+	}
+	client, err := NewUAClient(ctx, connectConfig, 1, logrus.New().WithField("test", "test"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = client.Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	err = client.Collect(collectConfig, onMessage)
+	assert.NoError(t, err)
+	time.Sleep(time.Second * 3)
+	lock.Lock()
+	if len(expectGotNodes) != 0 {
+		t.Fatal("not all nodes got")
+	}
+	lock.Unlock()
+	newCollectConfig := config.CollectConfig{
+		Interval:    1,
+		ContainsBad: true,
+		Ua: config.UaCollectConfig{
+			CollectMode: "subscribe",
+			Nodes: []config.NodeConfig{
+				{"ns=2;i=1001"},
+				{"ns=2;i=1002"},
+			},
+		},
+	}
+	client.ChangeCollectConfig(newCollectConfig)
+	lock.Lock()
+	expectGotNodes = map[string]struct{}{
+		"ns=2;i=1001": {},
+		"ns=2;i=1002": {},
+	}
+	expectNodes["ns=2;i=1003"] = false
+	lock.Unlock()
+	time.Sleep(time.Second * 3)
+	lock.Lock()
+	if len(expectGotNodes) != 0 {
+		t.Fatal("not all nodes got")
+	}
+	lock.Unlock()
+	newCollectConfig = config.CollectConfig{
+		Interval:    1,
+		ContainsBad: true,
+		Ua: config.UaCollectConfig{
+			CollectMode: "subscribe",
+			Nodes: []config.NodeConfig{
+				{"ns=2;i=1001"},
+			},
+		},
+	}
+	client.ChangeCollectConfig(newCollectConfig)
+	lock.Lock()
+	expectGotNodes = map[string]struct{}{
+		"ns=2;i=1001": {},
+	}
+	expectNodes["ns=2;i=1002"] = false
+	lock.Unlock()
+	time.Sleep(time.Second * 3)
+	lock.Lock()
+	if len(expectGotNodes) != 0 {
+		t.Fatal("not all nodes got")
+	}
+	lock.Unlock()
+	newCollectConfig = config.CollectConfig{
+		Interval:    1,
+		ContainsBad: true,
+		Ua: config.UaCollectConfig{
+			CollectMode: "subscribe",
+			Nodes: []config.NodeConfig{
+				{"ns=2;i=1001"},
+				{"ns=2;i=1003"},
+			},
+		},
+	}
+	lock.Lock()
+	expectGotNodes = map[string]struct{}{
+		"ns=2;i=1001": {},
+		"ns=2;i=1003": {},
+	}
+	expectNodes["ns=2;i=1003"] = true
+	lock.Unlock()
+	client.ChangeCollectConfig(newCollectConfig)
+	time.Sleep(time.Second * 3)
+	lock.Lock()
+	if len(expectGotNodes) != 0 {
+		t.Fatal("not all nodes got")
+	}
+	lock.Unlock()
+	newCollectConfig = config.CollectConfig{
+		Interval:    1,
+		ContainsBad: true,
+		Ua: config.UaCollectConfig{
+			CollectMode: "subscribe",
+			Nodes: []config.NodeConfig{
+				{"ns=2;i=1001"},
+				{"ns=2;i=1002"},
+				{"ns=2;i=1003"},
+			},
+		},
+	}
+	lock.Lock()
+	expectGotNodes = map[string]struct{}{
+		"ns=2;i=1001": {},
+		"ns=2;i=1002": {},
+		"ns=2;i=1003": {},
+	}
+	expectNodes["ns=2;i=1002"] = true
+	expectNodes["ns=2;i=1003"] = true
+	lock.Unlock()
+	client.ChangeCollectConfig(newCollectConfig)
+	time.Sleep(time.Second * 3)
+	lock.Lock()
+	if len(expectGotNodes) != 0 {
+		t.Fatal("not all nodes got")
+	}
+	lock.Unlock()
+}
+
+func TestReconnect(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	connectConfig := config.UaConnectConfig{
+		Endpoint:       "opc.tcp://127.0.0.1:4840",
+		ConnectTimeout: 10,
+		RequestTimeout: 10,
+		SecurityPolicy: "None",
+		SecurityMode:   "None",
+		AuthMethod:     "anonymous",
+	}
+
+	client, err := NewUAClient(ctx, connectConfig, 1, logrus.New().WithField("test", "test"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = client.Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+
+	oldConn := client.conn
+	client.reconnect(oldConn, nil)
+	assert.Equal(t, oldConn, client.conn)
+	client.reconnect(oldConn, fmt.Errorf("test"))
+	assert.Equal(t, oldConn, client.conn)
+	client.reconnect(oldConn, &net.OpError{Op: "wsasend", Net: "tcp", Source: nil, Addr: nil, Err: nil})
+	assert.NotEqual(t, oldConn, client.conn)
+	tmpDir := t.TempDir()
+	collectConfig := config.CollectConfig{
+		Interval:    1,
+		ContainsBad: true,
+		Dump: config.DumpConfig{
+			Enable: true,
+			Path:   tmpDir,
+			Keep:   1,
+		},
+		Ua: config.UaCollectConfig{
+			CollectMode: "observe",
+			Nodes: []config.NodeConfig{
+				{"ns=2;i=1001"},
+				{"ns=2;i=1002"},
+				{"ns=2;i=1003"},
+			},
+		},
+	}
+	gotMessage := false
+	var onMessage = func(message []*common.NodeValue) {
+		gotMessage = true
+	}
+	err = client.Collect(collectConfig, onMessage)
+	assert.NoError(t, err)
+	time.Sleep(time.Second * 2)
+	files, err := findFilesWithPrefix(tmpDir, "opc_data.dump")
+	assert.NoError(t, err)
+	assert.Len(t, files, 1)
+	data, err := os.ReadFile(files[0])
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+	t.Log(string(data))
+	assert.True(t, gotMessage)
+}

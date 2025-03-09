@@ -4373,7 +4373,7 @@ mod parser_tests {
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
 
-        let raw_data = arrow_array::record_batch!(
+        let raw_data = arrow::array::record_batch!(
             ("topic", Utf8, ["test", "test", "test"]),
             (
                 "value",
@@ -4460,7 +4460,7 @@ mod test {
         }"#;
         let parser: Parser = serde_json::from_str(parser).unwrap();
 
-        let raw_data = arrow_array::record_batch!(
+        let raw_data = arrow::array::record_batch!(
             ("topic", Utf8, ["test", "test", "test"]),
             (
                 "value",

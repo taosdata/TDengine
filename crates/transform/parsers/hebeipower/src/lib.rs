@@ -103,6 +103,10 @@ impl ParserConfig {
 
                 let mut new_obj = Map::new();
                 new_obj.insert(format!("_val{}", the_flag), v.clone());
+                if the_flag != "" {
+                    new_obj.insert("_val".to_string(), v.clone());
+                }
+
                 new_obj.insert("_ts".to_string(), json!(dt));
                 arr_data.push(new_obj);
             } else if k != "DATA_DATE" {
