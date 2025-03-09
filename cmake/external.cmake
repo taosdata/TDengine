@@ -875,3 +875,36 @@ if(${BUILD_PCRE2})
     add_dependencies(build_externals ext_pcre2)     # this is for github workflow in cache-miss step.
 endif()
 
+# taosws-rs
+if(${WEBSOCKET})
+    if(${TD_LINUX})
+        set(ext_taosws_static taosws.a)
+    elseif(${TD_DARWIN})
+        set(ext_taosws_static taosws.a)
+    elseif(${TD_WINDOWS})
+        set(ext_taosws_static taosws.lib)
+    endif()
+    INIT_EXT(ext_taosws
+        INC_DIR          include
+        LIB              lib/${ext_taosws_static}
+    )
+    # GIT_REPOSITORY https://github.com/taosdata/taos-connector-rust.git
+    # GIT_TAG 3.0
+    get_from_local_repo_if_exists("https://github.com/taosdata/taos-connector-rust.git")
+    ExternalProject_Add(ext_taosws
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG 3.0
+        PREFIX "${_base}"
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        # freemine: just download for the moment
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        # GIT_SHALLOW TRUE
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_taosws)     # this is for github workflow in cache-miss step.
+endif()
+

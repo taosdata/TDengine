@@ -43,11 +43,6 @@ endif()
 set(CONTRIB_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
 configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
-# taosws-rs
-if(${WEBSOCKET})
-    cat("${TD_SUPPORT_DIR}/taosws_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-endif()
-
 # taosadapter
 if(${BUILD_HTTP})
     MESSAGE("BUILD_HTTP is on")
