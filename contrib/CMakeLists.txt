@@ -75,16 +75,8 @@ elseif(${BUILD_WITH_COS})
     add_definitions(-DUSE_COS)
 endif()
 
-find_program(C_COMPILER_LEMON NAMES gcc)
-if(C_COMPILER_LEMON)
-    message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
-else()
-    set(C_COMPILER_LEMON ${CMAKE_C_COMPILER})
-    message(STATUS "LEMON C compiler: ${C_COMPILER_LEMON}")
-endif()
-
 # lemon
-cat("${TD_SUPPORT_DIR}/lemon_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+add_subdirectory(lemon)
 
 # Force specify CC=cc on MacOS. Because the default CC setting in the generated Makefile has issues finding standard library headers
 IF(${TD_DARWIN})
