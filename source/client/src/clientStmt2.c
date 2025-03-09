@@ -692,7 +692,7 @@ static int32_t stmtAsyncOutput(STscStmt2* pStmt, void* param) {
     atomic_store_8((int8_t*)&pStmt->sql.siInfo.tableColsReady, true);
   } else {
     int code = qAppendStmtTableOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, &pParam->tblData, pStmt->exec.pCurrBlock,
-                                        &pStmt->sql.siInfo);
+                                      &pStmt->sql.siInfo, pParam->pCreateTbReq);
     // taosMemoryFree(pParam->pTbData);
     (void)atomic_sub_fetch_64(&pStmt->sql.siInfo.tbRemainNum, 1);
     STMT_ERR_RET(code);
@@ -1018,7 +1018,7 @@ int stmtSetTbName2(TAOS_STMT2* stmt, const char* tbName) {
   return TSDB_CODE_SUCCESS;
 }
 
-int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags) {
+int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags, SVCreateTbReq** pCreateTbReq) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
   STMT_DLOG_E("start to set tbTags");
@@ -1047,25 +1047,46 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags) {
   //   tscWarn("no tags or cols bound in sql, will not bound tags");
   //   return TSDB_CODE_SUCCESS;
   // }
-
-  STableDataCxt** pDataBlock =
-      (STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
-  if (NULL == pDataBlock) {
-    if(pStmt->sql.autoCreateTbl){
-      return TSDB_CODE_SUCCESS;
-    }
-    tscError("table %s not found in exec blockHash", pStmt->bInfo.tbFName);
-    STMT_ERR_RET(TSDB_CODE_APP_ERROR);
+  if (pStmt->sql.autoCreateTbl && pStmt->sql.stbInterlaceMode) {
+    STMT_ERR_RET(qCreateSName(&pStmt->bInfo.sname, pStmt->bInfo.tbName, pStmt->taos->acctId, pStmt->exec.pRequest->pDb,
+                              pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
+    STMT_ERR_RET(tNameExtractFullName(&pStmt->bInfo.sname, pStmt->bInfo.tbFName));
   }
 
+  STableDataCxt** pDataBlock = NULL;
+  if (pStmt->exec.pCurrBlock) {
+    pDataBlock = &pStmt->exec.pCurrBlock;
+  } else {
+    pDataBlock =
+        (STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
+    if (NULL == pDataBlock) {
+      tscError("table %s not found in exec blockHash", pStmt->bInfo.tbFName);
+      STMT_ERR_RET(TSDB_CODE_TSC_STMT_CACHE_ERROR);
+    }
+    // pStmt->exec.pCurrBlock = *pDataBlock;
+    // if (pStmt->sql.stbInterlaceMode) {
+    //   taosArrayDestroy(pStmt->exec.pCurrBlock->pData->aCol);
+    //   (*pDataBlock)->pData->aCol = NULL;
+    // }
+  }
   if (pStmt->bInfo.inExecCache && !pStmt->sql.autoCreateTbl) {
     return TSDB_CODE_SUCCESS;
   }
 
   tscDebug("start to bind stmt tag values");
-  STMT_ERR_RET(qBindStmtTagsValue2(*pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.tbSuid, pStmt->bInfo.stbFName,
+
+  void* boundTags = NULL;
+  if (pStmt->sql.stbInterlaceMode) {
+    boundTags = pStmt->sql.siInfo.boundTags;
+    *pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+    STMT_ERR_RET(stmtTryAddTableVgroupInfo(pStmt, &(*pDataBlock)->pMeta->vgId));
+  } else {
+    boundTags = pStmt->bInfo.boundTags;
+  }
+
+  STMT_ERR_RET(qBindStmtTagsValue2(*pDataBlock, boundTags, pStmt->bInfo.tbSuid, pStmt->bInfo.stbFName,
                                    pStmt->bInfo.sname.tname, tags, pStmt->exec.pRequest->msgBuf,
-                                   pStmt->exec.pRequest->msgBufLen, pStmt->taos->optionInfo.charsetCxt));
+                                   pStmt->exec.pRequest->msgBufLen, pStmt->taos->optionInfo.charsetCxt, *pCreateTbReq));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1283,6 +1304,10 @@ static int stmtAddBatch2(TAOS_STMT2* stmt) {
     param->restoreTbCols = true;
     param->next = NULL;
 
+    if (pStmt->sql.autoCreateTbl) {
+      pStmt->bInfo.tagsCached = true;
+    }
+
     stmtEnqueue(pStmt, param);
 
     return TSDB_CODE_SUCCESS;
@@ -1336,7 +1361,7 @@ static int32_t stmtRestoreQueryFields(STscStmt2* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 */
-int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
+int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCreateTbReq* pCreateTbReq) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
   int32_t    code = 0;
 
@@ -1445,6 +1470,8 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
 
     param->restoreTbCols = false;
     tstrncpy(param->tblData.tbName, pStmt->bInfo.tbName, TSDB_TABLE_NAME_LEN);
+
+    param->pCreateTbReq = pCreateTbReq;
   }
 
   int64_t startUs3 = taosGetTimestampUs();

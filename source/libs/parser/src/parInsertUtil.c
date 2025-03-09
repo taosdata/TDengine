@@ -611,7 +611,7 @@ int32_t qBuildStmtFinOutput1(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDa
 }
 
 int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
-                                  SStbInterlaceInfo* pBuildInfo) {
+                                  SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq) {
   int32_t  code = TSDB_CODE_SUCCESS;
   uint64_t uid;
   int32_t  vgId;
@@ -619,10 +619,11 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
   pTbCtx->pData->aRowP = pTbData->aCol;
 
   code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId);
-  if (pTbCtx->pData->pCreateTbReq && code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+  if (ctbReq !=NULL && code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
     pTbCtx->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
     vgId = pTbCtx->pMeta->vgId;
     uid = 0;
+    pTbCtx->pData->pCreateTbReq = ctbReq;
     code = TSDB_CODE_SUCCESS;
   } else {
     if (TSDB_CODE_SUCCESS != code) {

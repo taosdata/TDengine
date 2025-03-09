@@ -123,6 +123,7 @@ typedef struct SStmtStatInfo {
 typedef struct SStmtQNode {
   bool                 restoreTbCols;
   STableColsData       tblData;
+  SVCreateTbReq       *pCreateTbReq;
   struct SStmtQNode*   next;
 } SStmtQNode;
 
