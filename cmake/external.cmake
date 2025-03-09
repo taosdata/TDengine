@@ -875,3 +875,49 @@ if(${BUILD_PCRE2})
     add_dependencies(build_externals ext_pcre2)     # this is for github workflow in cache-miss step.
 endif()
 
+# mxml
+# if(${BUILD_WITH_COS})
+    # freemine: why at this moment???
+    # file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.1/)
+    if(${TD_LINUX})
+        set(ext_mxml_static libmxml4.a)
+    elseif(${TD_DARWIN})
+        set(ext_mxml_static libmxml4.a)
+    endif()
+    INIT_EXT(ext_mxml
+        INC_DIR          include
+        LIB              lib/${ext_mxml_static}
+    )
+    # GIT_REPOSITORY https://github.com/michaelrsweet/mxml.git
+    # GIT_TAG v2.12
+    get_from_local_repo_if_exists("https://github.com/michaelrsweet/mxml.git")
+    ExternalProject_Add(ext_mxml
+        GIT_REPOSITORY ${_git_url}
+        GIT_TAG v4.0.4
+        PREFIX "${_base}"
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+    )
+    add_custom_command(
+        OUTPUT
+            ${ext_mxml_source}/install/include/libmxml4/mxml.h
+            ${ext_mxml_source}/install/lib/${ext_mxml_static}
+        DEPENDS ext_mxml     # freemine: currently, we lose dependencies upon .c/.h source files
+                             #           if u wanna a refresh build, remove whole `ext_mxml` source tree
+        WORKING_DIRECTORY ${ext_mxml_source}
+        COMMAND ./configure --prefix=${ext_mxml_source}/install --enable-shared=no
+        COMMAND make -j4
+        COMMAND make install -j4
+    )
+    add_custom_target(build_mxml
+        DEPENDS
+            ${ext_mxml_source}/install/include/libmxml4/mxml.h
+            ${ext_mxml_source}/install/lib/${ext_mxml_static}
+        WORKING_DIRECTORY ${ext_mxml_source}/install
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different lib/${ext_mxml_static} ${_ins}/lib/${ext_mxml_static}
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different include/libmxml4/mxml.h ${_ins}/include/libmxml4/mxml.h
+    )
+    add_dependencies(build_externals build_mxml)     # this is for github workflow in cache-miss step.
+# endif(${BUILD_WITH_COS})
+
