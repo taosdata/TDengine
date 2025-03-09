@@ -4,6 +4,7 @@ title: TDengine 数据查询
 toc_max_heading_level: 4
 ---
 
+import win from './window.png';
 import swin from './session-window.png';
 import ewin from './event-window.png';
 
@@ -148,7 +149,7 @@ Query OK, 10 row(s) in set (2.415961s)
 
 窗口划分逻辑如下图所示：
 
-![常用窗口划分逻辑](./window.png)
+<img src={win} width="500" alt="常用窗口划分逻辑" />
 
 窗口子句语法如下：
 
@@ -465,7 +466,7 @@ Query OK, 10 row(s) in set (0.043489s)
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
 ```
 
-<img src={ewin} width="400" alt="事件窗口示意图" />
+<img src={ewin} width="350" alt="事件窗口示意图" />
 
 示例 SQL:
 
