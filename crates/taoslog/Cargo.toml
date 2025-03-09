@@ -19,7 +19,7 @@ thread-id = "4.2.2"
 regex = "1"
 sysinfo = { version = "0.31.4", default-features = false, features = ["disk"] }
 flume = "0.11.0"
-arrow-schema = "*"
+arrow-schema = { workspace = true }
 http = "0.2.12"
 nu-ansi-term = { version = "0.50.1", optional = true }
 rayon = "1"
