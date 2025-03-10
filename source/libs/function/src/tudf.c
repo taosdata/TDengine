@@ -2324,4 +2324,15 @@ _exit:
 
   return code;
 }
+#else
+#include "tudf.h"
+
+int32_t cleanUpUdfs() { return 0; }
+int32_t udfcOpen() { return 0; }
+int32_t udfcClose() { return 0; }
+int32_t udfStartUdfd(int32_t startDnodeId) { return 0; }
+void    udfStopUdfd() { return; }
+int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols, SScalarParam *output) {
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
 #endif

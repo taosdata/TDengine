@@ -131,8 +131,7 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock *pBlock);
 
 int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols, SScalarParam *output);
 
-// int32_t cleanUpUdfs();
-static FORCE_INLINE int32_t cleanUpUdfs() { return 0; }
+int32_t cleanUpUdfs();
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // udf api
@@ -140,29 +139,26 @@ static FORCE_INLINE int32_t cleanUpUdfs() { return 0; }
  * create taosudf proxy, called once in process that call doSetupUdf/callUdfxxx/doTeardownUdf
  * @return error code
  */
-// int32_t udfcOpen();
-static FORCE_INLINE int32_t udfcOpen() { return 0; }
+int32_t udfcOpen();
 
 /**
  * destroy taosudf proxy
  * @return error code
  */
-// int32_t udfcClose();
-
-static FORCE_INLINE int32_t udfcClose() { return 0; }
+int32_t udfcClose();
 
 /**
  * start taosudf that serves udf function invocation under dnode startDnodeId
  * @param startDnodeId
  * @return
  */
-static FORCE_INLINE int32_t udfStartUdfd(int32_t startDnodeId) { return 0; }
+int32_t udfStartUdfd(int32_t startDnodeId);
 
 /**
  * stop taosudf
  * @return
  */
-static FORCE_INLINE void udfStopUdfd() { return; }
+void udfStopUdfd();
 
 /**
  * get taosudf pid

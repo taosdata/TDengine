@@ -1118,7 +1118,9 @@ void taos_init_imp(void) {
 
   ENV_ERR_RET(taosGetAppName(appInfo.appName, NULL), "failed to get app name");
   ENV_ERR_RET(taosThreadMutexInit(&appInfo.mutex, NULL), "failed to init thread mutex");
-  // ENV_ERR_RET(tscCrashReportInit(), "failed to init crash report");
+#ifdef USE_REPORT  
+  ENV_ERR_RET(tscCrashReportInit(), "failed to init crash report");
+#endif
   ENV_ERR_RET(qInitKeywordsTable(), "failed to init parser keywords table");
 #ifdef TAOSD_INTEGRATED
   ENV_ERR_RET(shellStartDaemon(0, NULL), "failed to start taosd daemon");
