@@ -702,7 +702,7 @@ TEST(decimal, toStr) {
 SDataType getDecimalType(uint8_t prec, uint8_t scale) {
   if (prec > TSDB_DECIMAL_MAX_PRECISION) throw std::string("invalid prec: ") + std::to_string(prec);
   uint8_t type = decimalTypeFromPrecision(prec);
-  return {.type = type, .precision = prec, .scale = scale, .bytes = tDataTypes[type].bytes};
+  return {type, prec, scale, tDataTypes[type].bytes};
 }
 
 bool operator==(const SDataType& lt, const SDataType& rt) {
