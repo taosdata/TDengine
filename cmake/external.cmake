@@ -55,10 +55,13 @@ macro(INIT_EXT name)               # {
     # eg.: DEP_ext_zlib(tgt)
     #      make tgt depend on ext_zlib, and call target_include_directories/target_link_libraries accordingly
     #      NOTE: currently, full path to the target's artifact is used, such as libz.a
-    macro(DEP_${name} tgt)
+    macro(DEP_${name} tgt)           # {
         cmake_language(CALL DEP_${name}_INC ${tgt})
         cmake_language(CALL DEP_${name}_LIB ${tgt})
-    endmacro()
+        if(NOT ${TD_WINDOWS})
+            target_link_libraries(${tgt} PUBLIC stdc++)
+        endif()
+    endmacro()                       # }
     macro(DEP_${name}_INC tgt)               # {
         foreach(v ${${name}_inc_dir})
             target_include_directories(${tgt} PUBLIC "${v}")
@@ -540,9 +543,9 @@ if(NOT ${TD_WINDOWS})       # {
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
             # COMMAND make CFLAGS+=-fPIC CFLAGS+=-g TZDIR=${TZ_OUTPUT_PATH} clean libtz.a
-            COMMAND make DESTDIR=${_ins}
+            COMMAND make CFLAGS+=-fPIC DESTDIR=${_ins}
         INSTALL_COMMAND
-            COMMAND make DESTDIR=${_ins} install
+            COMMAND make CFLAGS+=-fPIC DESTDIR=${_ins} install
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
@@ -743,14 +746,14 @@ endif(NOT ${TD_WINDOWS})    # }
 # geos
 if(${BUILD_GEOS})           # {
     if(${TD_LINUX})
-        set(ext_geos_c_static libgeos_c.a)
         set(ext_geos_static libgeos.a)
+        set(ext_geos_c_static libgeos_c.a)
     elseif(${TD_DARWIN})
-        set(ext_geos_c_static libgeos_c.a)
         set(ext_geos_static libgeos.a)
+        set(ext_geos_c_static libgeos_c.a)
     elseif(${TD_WINDOWS})
-        set(ext_geos_c_static libgeos_c.lib)
         set(ext_geos_static libgeos.lib)
+        set(ext_geos_c_static libgeos_c.lib)
     endif()
     INIT_EXT(ext_geos
         INC_DIR          include

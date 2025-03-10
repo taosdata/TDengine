@@ -10,6 +10,9 @@ if(TD_LINUX)
   DEP_ext_lzma2(util)
 endif()
 DEP_ext_geos(util)
+if(${BUILD_PCRE2})          # {
+  DEP_ext_pcre2(util)
+endif()                     # }
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)
     add_definitions(-DGRANTS_CFG)
@@ -37,12 +40,14 @@ if(TD_LINUX)
         util
         PUBLIC os common
         PUBLIC api
+        PUBLIC TSZ
     )
 else()
     target_link_libraries(
         util
         PUBLIC os common
         PUBLIC api
+        PUBLIC TSZ
     )
 endif()
 

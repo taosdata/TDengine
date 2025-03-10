@@ -42,12 +42,18 @@ if(${BUILD_TEST})
   enable_testing()
 endif(${BUILD_TEST})
 
+add_subdirectory(utils)
+
 add_subdirectory(source)
+
 # freemine: porting source
 return()
 
+
+add_subdirectory(utils/tsim)
+add_subdirectory(utils/test/c)
+
 add_subdirectory(tools)
-add_subdirectory(utils)
 add_subdirectory(examples/c)
 add_subdirectory(tests)
 include(${TD_SUPPORT_DIR}/cmake.install)

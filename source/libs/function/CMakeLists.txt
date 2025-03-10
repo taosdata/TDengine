@@ -37,7 +37,7 @@ target_link_libraries(
     PRIVATE qcom
     PRIVATE scalar
     PRIVATE geometry
-    PRIVATE transport
+    PUBLIC transport
 )
 
 add_executable(runUdf test/runUdf.c)
@@ -211,3 +211,4 @@ target_link_libraries(
     udfd
     PRIVATE os util common nodes function ${LINK_JEMALLOC}
 )
+

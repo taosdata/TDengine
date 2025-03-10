@@ -1,6 +1,7 @@
 # vnode
 add_subdirectory(src/tqCommon)
 add_library(vnode STATIC "")
+DEP_ext_rocksdb(vnode)
 
 if(${TD_DARWIN})
     target_compile_options(vnode PRIVATE -Wno-error=single-bit-bitfield-constant-conversion)
@@ -127,7 +128,6 @@ if(${BUILD_CONTRIB})
         PUBLIC "${TD_SOURCE_DIR}/include/libs/scalar"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/crypt"
         PUBLIC "${TD_SOURCE_DIR}/include/dnode/vnode"
-        PUBLIC "${TD_SOURCE_DIR}/contrib/rocksdb/include"
     )
 else()
     target_include_directories(
@@ -176,7 +176,6 @@ target_link_libraries(
     # PUBLIC bdb
     # PUBLIC scalar
     # PUBLIC zstd
-    PUBLIC rocksdb
     PUBLIC transport
     PUBLIC stream
     PUBLIC index
