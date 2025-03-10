@@ -612,14 +612,13 @@ GREATEST(expr1, expr2[, expr]...)
 **Return Type**：Refer to the comparison rules. The comparison type is the final return type.
 
 **Applicable Data Types**:
-- Numeric types: including bool, integer and floating point types
-- nchar and varchar types.
+- Numeric types: timestamp, bool, integer and floating point types
+- Strings types: nchar and varchar types.
 
 **Comparison rules**: The following rules describe the conversion method of the comparison operation:
 - If any parameter is NULL, the comparison result is NULL.
 - If all parameters in the comparison operation are string types, compare them as string types
 - If all parameters are numeric types, compare them as numeric types.
-- TIMESTAMP type is also a numeric type. When the types involved in the comparison with TIMESTAMP are all integer types, compare them as TIMESTAMP;
 - If there are both string types and numeric types in the parameters, according to the `compareAsStrInGreatest` configuration item, they are uniformly compared as strings or numeric values. By default, they are compared as strings.
 - In all cases, when different types are compared, the comparison type will choose the type with a larger range for comparison. For example, when comparing integer types, if there is a BIGINT type, BIGINT will definitely be selected as the comparison type.
 
@@ -631,7 +630,7 @@ GREATEST(expr1, expr2[, expr]...)
 LEAST(expr1, expr2[, expr]...)
 ```
 
-**Function Description**：Get the minimum value of all input parameters. The arguments are compared using the same rules as for LEAST(). The rest of the description is the same as the greatest function.
+**Function Description**：Get the minimum value of all input parameters. The arguments are compared using the same rules as for GREATEST(). The rest of the description is the same as the greatest function.
 
 
 ### String Functions
