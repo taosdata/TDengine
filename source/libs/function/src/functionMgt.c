@@ -250,6 +250,13 @@ bool fmIsLastRowFunc(int32_t funcId) {
   return FUNCTION_TYPE_LAST_ROW == funcMgtBuiltins[funcId].type;
 }
 
+bool fmIsLastFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_LAST == funcMgtBuiltins[funcId].type;
+}
+
 bool fmIsNotNullOutputFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;

@@ -3146,7 +3146,7 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
     case QUERY_NODE_PHYSICAL_PLAN_DELETE: {
       DataSinkHandle handle = NULL;
-      qptCtx.result.code = dsCreateDataSinker(NULL, (SDataSinkNode**)&pNode, &handle, NULL, NULL);
+      qptCtx.result.code = dsCreateDataSinker(NULL, (SDataSinkNode**)&pNode, &handle, NULL, NULL, false);
       dsDestroyDataSinker(handle);
       break;
     }
@@ -3176,7 +3176,7 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
       qptCtx.result.code = createGroupCacheOperatorInfo(NULL, 0, (SGroupCachePhysiNode*)pNode, pTaskInfo, ppOperaotr);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
-      qptCtx.result.code = createDynQueryCtrlOperatorInfo(NULL, 0, (SDynQueryCtrlPhysiNode*)pNode, pTaskInfo, ppOperaotr);
+      qptCtx.result.code = createDynQueryCtrlOperatorInfo(NULL, 0, (SDynQueryCtrlPhysiNode*)pNode, pTaskInfo, pReadHandle, ppOperaotr);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
       qptCtx.result.code = createCountwindowOperatorInfo(NULL, (SPhysiNode*)pNode, pTaskInfo, ppOperaotr);
