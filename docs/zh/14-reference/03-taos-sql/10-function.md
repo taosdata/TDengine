@@ -536,7 +536,7 @@ TAN(expr)
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
-##### TRUNCATE
+#### TRUNCATE
 
 ```sql
 TRUNCATE(expr, digits)
@@ -720,7 +720,7 @@ CONCAT_WS(separator_expr, expr1, expr2 [, expr] ...)
 
 **功能说明**：带分隔符的字符串连接函数。
 
-**返回结果类型**：如果所有参数均为VARCHAR类型，则结果类型为VARCHAR。如果参数包含NCHAR类型，则结果类型为NCHAR。如果参数包含NULL值，则输出值为NULL。
+**返回结果类型**：如果所有参数均为 VARCHAR 类型，则结果类型为 VARCHAR。如果参数包含 NCHAR 类型，则结果类型为 NCHAR。如果参数包含 NULL 值，则输出值为 NULL。
 
 **适用数据类型**：VARCHAR、NCHAR。该函数最小参数个数为 3 个，最大参数个数为 9 个。
 
