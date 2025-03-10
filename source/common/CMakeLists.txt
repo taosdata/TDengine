@@ -9,8 +9,13 @@ endif()
 
 add_library(common STATIC ${COMMON_SRC})
 DEP_ext_cjson(common)
-
 add_dependencies(common lemon_sql)
+
+target_include_directories(common
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/utils/TSZ/sz/inc      # freemine: tweak for defines.h, potential cyclic-dependencies, and need to be refactored!!!
+        ${CMAKE_BINARY_DIR}/source/libs/parser    # freemine: tweak for token_lemon_token.h, potential cyclic-dependencies!!!
+)
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
