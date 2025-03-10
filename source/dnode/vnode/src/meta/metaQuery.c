@@ -1681,9 +1681,13 @@ int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t
   // slow path: search TDB
   int64_t ctbNum = 0;
   int32_t colNum = 0;
+  int64_t keep = 0;
   code = vnodeGetCtbNum(pVnode, uid, &ctbNum);
   if (TSDB_CODE_SUCCESS == code) {
     code = vnodeGetStbColumnNum(pVnode, uid, &colNum);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = vnodeGetStbKeep(pVnode, uid, &keep);
   }
   metaULock(pVnodeObj->pMeta);
   if (TSDB_CODE_SUCCESS != code) {
@@ -1696,13 +1700,14 @@ int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t
   state.uid = uid;
   state.ctbNum = ctbNum;
   state.colNum = colNum;
-
+  state.keep = keep;
   // upsert the cache
   metaWLock(pVnodeObj->pMeta);
 
   int32_t ret = metaStatsCacheUpsert(pVnodeObj->pMeta, &state);
   if (ret) {
-    metaError("failed to upsert stats, uid:%" PRId64 ", ctbNum:%" PRId64 ", colNum:%d", uid, ctbNum, colNum);
+    metaError("failed to upsert stats, uid:%" PRId64 ", ctbNum:%" PRId64 ", colNum:%d, keep:%" PRId64, uid, ctbNum,
+              colNum, keep);
   }
 
   metaULock(pVnodeObj->pMeta);
@@ -1711,16 +1716,20 @@ _exit:
   return code;
 }
 
-void metaUpdateStbStats(SMeta *pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol) {
+void metaUpdateStbStats(SMeta *pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol, int64_t deltaKeep) {
   SMetaStbStats stats = {0};
 
   if (metaStatsCacheGet(pMeta, uid, &stats) == TSDB_CODE_SUCCESS) {
     stats.ctbNum += deltaCtb;
     stats.colNum += deltaCol;
+    if (deltaKeep > 0) {
+      stats.keep = deltaKeep;
+    }
+
     int32_t code = metaStatsCacheUpsert(pMeta, &stats);
     if (code) {
-      metaError("vgId:%d, failed to update stats, uid:%" PRId64 ", ctbNum:%" PRId64 ", colNum:%d",
-                TD_VID(pMeta->pVnode), uid, deltaCtb, deltaCol);
+      metaError("vgId:%d, failed to update stats, uid:%" PRId64 ", ctbNum:%" PRId64 ", colNum:%d, keep:%" PRId64,
+                TD_VID(pMeta->pVnode), uid, deltaCtb, deltaCol, deltaKeep > 0 ? deltaKeep : stats.keep);
     }
   }
 }

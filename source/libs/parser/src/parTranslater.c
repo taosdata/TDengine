@@ -9249,6 +9249,32 @@ static int32_t checkColumnOptions(SNodeList* pList) {
   }
   return TSDB_CODE_SUCCESS;
 }
+
+static int32_t checkTableKeepOption(STranslateContext* pCxt, STableOptions* pOptions) {
+  if (pOptions == NULL || (pOptions->keep == -1 && pOptions->pKeepNode == NULL)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pOptions && pOptions->pKeepNode) {
+    if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pKeepNode)) {
+      return pCxt->errCode;
+    }
+    if (pOptions->pKeepNode->unit != TIME_UNIT_DAY && pOptions->pKeepNode->unit != TIME_UNIT_HOUR &&
+        pOptions->pKeepNode->unit != TIME_UNIT_MINUTE) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
+                                     "Invalid option keep unit: %c, only %c, %c, %c allowed", pOptions->pKeepNode->unit,
+                                     TIME_UNIT_DAY, TIME_UNIT_HOUR, TIME_UNIT_MINUTE);
+    }
+    pOptions->keep = pOptions->pKeepNode->datum.i / 60 / 1000;
+  }
+
+  if (pOptions->keep < TSDB_MIN_KEEP || pOptions->keep > TSDB_MAX_KEEP) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_TSC_VALUE_OUT_OF_RANGE,
+                                   "Invalid option keep value: %lld, should be in range [%d, %d]", pOptions->keep,
+                                   TSDB_MIN_KEEP, TSDB_MAX_KEEP);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateS3MigrateDatabase(STranslateContext* pCxt, SS3MigrateDatabaseStmt* pStmt) {
   SS3MigrateDbReq req = {0};
   SName           name = {0};
@@ -9698,6 +9724,9 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
     code = checkColumnOptions(pStmt->pCols);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = checkTableKeepOption(pCxt, pStmt->pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     if (createStable && pStmt->pOptions->ttl != 0) {
       code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
                                      "Only supported for create non-super table in databases "
@@ -10095,6 +10124,7 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   pReq->watermark2 = pStmt->pOptions->watermark2;
   pReq->deleteMark1 = pStmt->pOptions->deleteMark1;
   pReq->deleteMark2 = pStmt->pOptions->deleteMark2;
+  pReq->keep = pStmt->pOptions->keep;
   pReq->colVer = 1;
   pReq->tagVer = 1;
   pReq->source = TD_REQ_FROM_APP;
@@ -10458,6 +10488,9 @@ static int32_t checkAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt* pS
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkAlterSuperTableBySchema(pCxt, pStmt, pTableMeta);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkTableKeepOption(pCxt, pStmt->pOptions);
   }
   taosMemoryFree(pTableMeta);
   return code;

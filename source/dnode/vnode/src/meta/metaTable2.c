@@ -180,6 +180,7 @@ int32_t metaCreateSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq
       .name = pReq->name,
       .stbEntry.schemaRow = pReq->schemaRow,
       .stbEntry.schemaTag = pReq->schemaTag,
+      .stbEntry.keep = pReq->keep,
   };
   if (pReq->rollup) {
     TABLE_SET_ROLLUP(entry.flags);
@@ -1760,6 +1761,7 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
       .name = pReq->name,
       .stbEntry.schemaRow = pReq->schemaRow,
       .stbEntry.schemaTag = pReq->schemaTag,
+      .stbEntry.keep = pReq->keep,
       .colCmpr = pReq->colCmpr,
   };
   TABLE_SET_COL_COMPRESSED(entry.flags);
