@@ -662,10 +662,15 @@ if(NOT ${TD_WINDOWS})
         set(ext_ssl_static libssl.a)
         set(ext_crypto_static libcrypto.a)
     endif()
+    if(${TD_LINUX})
+      set(_lib lib64)
+    else()
+      set(_lib lib)
+    endif()
     INIT_EXT(ext_ssl
         INC_DIR          include
-        LIB              lib/${ext_ssl_static}
-                         lib/${ext_crypto_static}
+        LIB              ${_lib}/${ext_ssl_static}
+                         ${_lib}/${ext_crypto_static}
     )
     # URL https://github.com/openssl/openssl/releases/download/openssl-3.1.3/openssl-3.1.3.tar.gz
     # URL_HASH SHA256=f0316a2ebd89e7f2352976445458689f80302093788c466692fb2a188b2eacf6
