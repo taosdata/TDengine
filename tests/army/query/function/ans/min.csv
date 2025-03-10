@@ -576,7 +576,7 @@ taos> select min(total_voltage) from (select sum(voltage) as total_voltage from 
 taos> select round(min(current), 2) from ts_4893.meters
  round(min(current), 2) |
 =========================
-          8.0000000e+00 |
+                      8 |
 
 taos> select pow(min(current), 2) from ts_4893.meters
    pow(min(current), 2)    |
@@ -651,7 +651,7 @@ taos> select min(cast(10000000000 as bigint unsigned))
 taos> select min(cast(1.1 as float))
  min(cast(1.1 as float)) |
 ==========================
-           1.1000000e+00 |
+                     1.1 |
 
 taos> select min(cast(1.1 as double))
  min(cast(1.1 as double))  |
