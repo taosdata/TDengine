@@ -352,6 +352,7 @@ class TDTestCase(TBase):
         tdSql.query("select GREATEST(now, 1.0);")
         tdSql.query("select GREATEST(now, '1');")
         
+        tdSql.error("select GREATEST(1)")
         tdSql.error("select GREATEST(cast('a' as varbinary), cast('b' as varbinary), 'c', 'd');")
         tdSql.error("select GREATEST(6, cast('f' as varbinary), cast('b' as varbinary), 'c', 'd');")       
 
