@@ -32,12 +32,12 @@ struct STaosQueue {
   void         *ahandle;  // for queue set
   FItem         itemFp;
   FItems        itemsFp;
-  TdThreadMutex mutex;
-  int64_t       memOfItems;
   int32_t       numOfItems;
+  int64_t       memOfItems;
   int64_t       threadId;
   int64_t       memLimit;
   int64_t       itemLimit;
+  TdThreadMutex mutex;
 };
 
 struct STaosQset {

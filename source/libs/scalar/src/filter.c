@@ -4468,7 +4468,7 @@ int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow *win, bool *isStri
   FLT_CHK_JMP(emptyGroups == info->groupNum);
 
   if (prev->notnull) {
-    *win = TSWINDOW_INITIALIZER;
+    TAOS_SET_OBJ_ALIGNED(win, TSWINDOW_INITIALIZER);
   } else {
     FLT_ERR_JRET(filterGetRangeNum(prev, &num));
 
@@ -4481,8 +4481,8 @@ int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow *win, bool *isStri
 
     SFilterRange tra;
     FLT_ERR_JRET(filterGetRangeRes(prev, &tra));
-    win->skey = tra.s;
-    win->ekey = tra.e;
+    taosSetInt64Aligned(&win->skey, tra.s);
+    taosSetInt64Aligned(&win->ekey, tra.e);
     if (FILTER_GET_FLAG(tra.sflag, RANGE_FLG_EXCLUDE)) {
       win->skey++;
     }
@@ -4494,17 +4494,19 @@ int32_t filterGetTimeRangeImpl(SFilterInfo *info, STimeWindow *win, bool *isStri
   (void)filterFreeRangeCtx(prev);  // No need to handle the return value.
   (void)filterFreeRangeCtx(tmpc);  // No need to handle the return value.
 
-  qDebug("qFilter time range:[%" PRId64 "]-[%" PRId64 "]", win->skey, win->ekey);
+  qDebug("qFilter time range:[%" PRId64 "]-[%" PRId64 "]", taosGetInt64Aligned(&win->skey),
+         taosGetInt64Aligned(&win->ekey));
   return TSDB_CODE_SUCCESS;
 
 _return:
 
-  *win = TSWINDOW_DESC_INITIALIZER;
+  TAOS_SET_OBJ_ALIGNED(win, TSWINDOW_DESC_INITIALIZER);
 
   (void)filterFreeRangeCtx(prev);  // No need to handle the return value.
   (void)filterFreeRangeCtx(tmpc);  // No need to handle the return value.
 
-  qDebug("qFilter time range:[%" PRId64 "]-[%" PRId64 "]", win->skey, win->ekey);
+  qDebug("qFilter time range:[%" PRId64 "]-[%" PRId64 "]", taosGetInt64Aligned(&win->skey),
+         taosGetInt64Aligned(&win->ekey));
 
   return code;
 }
@@ -4572,7 +4574,7 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
       }
       SArray             *points = colRange->points;
       if (taosArrayGetSize(points) == 2) {
-        *win = TSWINDOW_DESC_INITIALIZER;
+        TAOS_SET_OBJ_ALIGNED(win, TSWINDOW_DESC_INITIALIZER);
         SFltSclPoint *startPt = taosArrayGet(points, 0);
         SFltSclPoint *endPt = taosArrayGet(points, 1);
         if (NULL == startPt || NULL == endPt) {
@@ -4582,16 +4584,16 @@ int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict) {
         SFltSclDatum  end;
         FLT_ERR_JRET(fltSclGetTimeStampDatum(startPt, &start));
         FLT_ERR_JRET(fltSclGetTimeStampDatum(endPt, &end));
-        win->skey = start.i;
-        win->ekey = end.i;
+        taosSetInt64Aligned(&win->skey, start.i);
+        taosSetInt64Aligned(&win->ekey, end.i);
         *isStrict = info->isStrict;
         goto _return;
       } else if (taosArrayGetSize(points) == 0) {
-        *win = TSWINDOW_DESC_INITIALIZER;
+        TAOS_SET_OBJ_ALIGNED(win, TSWINDOW_DESC_INITIALIZER);
         goto _return;
       }
     }
-    *win = TSWINDOW_INITIALIZER;
+    TAOS_SET_OBJ_ALIGNED(win, TSWINDOW_INITIALIZER);
     *isStrict = false;
     goto _return;
   }

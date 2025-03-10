@@ -317,7 +317,7 @@ uint64_t schGenUUID(void) {
   if (hashId == 0) {
     int32_t code = taosGetSystemUUID32(&hashId);
     if (code != TSDB_CODE_SUCCESS) {
-      qError("Failed to get the system uid, reason:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
+      qError("Failed to get the system uid, reason:%s", tstrerror(TAOS_SYSTEM_ERROR(ERRNO)));
     }
   }
 

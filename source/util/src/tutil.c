@@ -490,9 +490,9 @@ size_t twcsncspn(const TdUcs4 *wcs, size_t size, const TdUcs4 *reject, size_t rs
 int32_t parseCfgReal(const char *str, float *out) {
   float val;
   char  *endPtr;
-  errno = 0;
+  SET_ERRNO(0);
   val = taosStr2Float(str, &endPtr);
-  if (str == endPtr || errno == ERANGE || isnan(val)) {
+  if (str == endPtr || ERRNO == ERANGE || isnan(val)) {
     return terrno = TSDB_CODE_INVALID_CFG_VALUE;
   }
   while (isspace((unsigned char)*endPtr)) endPtr++;

@@ -260,7 +260,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   }
   tjsonGetNumberValue(pJson, "tsdb.encryptAlgorithm", pCfg->tsdbCfg.encryptAlgorithm, code);
   if (code) return code;
-#if defined(TD_ENTERPRISE)
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   if (pCfg->tsdbCfg.encryptAlgorithm == DND_CA_SM4) {
     if (tsEncryptKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
@@ -287,7 +287,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code) return code;
   tjsonGetNumberValue(pJson, "wal.encryptAlgorithm", pCfg->walCfg.encryptAlgorithm, code);
   if (code) return code;
-#if defined(TD_ENTERPRISE)
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   if (pCfg->walCfg.encryptAlgorithm == DND_CA_SM4) {
     if (tsEncryptKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
@@ -298,7 +298,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
 #endif
   tjsonGetNumberValue(pJson, "tdbEncryptAlgorithm", pCfg->tdbEncryptAlgorithm, code);
   if (code) return code;
-#if defined(TD_ENTERPRISE)
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   if (pCfg->tdbEncryptAlgorithm == DND_CA_SM4) {
     if (tsEncryptKey[0] == 0) {
       return terrno = TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;

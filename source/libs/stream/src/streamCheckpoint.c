@@ -1483,7 +1483,7 @@ int32_t downloadCheckpointByNameS3(const char* id, const char* fname, const char
   int32_t code = tcsGetObjectToFile(buf, dstName);
   if (code != 0) {
     taosMemoryFree(buf);
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
   taosMemoryFree(buf);
   return 0;
@@ -1509,7 +1509,7 @@ int32_t streamTaskUploadCheckpoint(const char* id, const char* path, int64_t che
   if (strlen(tsSnodeAddress) != 0) {
     code = uploadByRsync(id, path, checkpointId);
     if (code != 0) {
-      return TAOS_SYSTEM_ERROR(errno);
+      return TAOS_SYSTEM_ERROR(ERRNO);
     }
   } else if (tsS3StreamEnabled) {
     return uploadCheckpointToS3(id, path);

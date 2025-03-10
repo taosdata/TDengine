@@ -43,22 +43,21 @@ extern "C" {
 #endif
 #define UDF_DNODE_ID_ENV_NAME "DNODE_ID"
 
-#define TAOS_UV_LIB_ERROR_RET(ret)                    \
-    do {                                              \
-        if (0 != ret) {                               \
-            terrno = TSDB_CODE_UDF_UV_EXEC_FAILURE;   \
-            return TSDB_CODE_UDF_UV_EXEC_FAILURE;     \
-        }                                             \
-    } while(0)
+#define TAOS_UV_LIB_ERROR_RET(ret)            \
+  do {                                        \
+    if (0 != ret) {                           \
+      terrno = TSDB_CODE_UDF_UV_EXEC_FAILURE; \
+      return TSDB_CODE_UDF_UV_EXEC_FAILURE;   \
+    }                                         \
+  } while (0)
 
-
-#define TAOS_UV_CHECK_ERRNO(CODE)                   \
-  do {                                              \
-    if (0 != CODE) {                                \
-      terrln = __LINE__;                            \
-      terrno = (CODE);     \
-      goto _exit;                                   \
-    }                                               \
+#define TAOS_UV_CHECK_ERRNO(CODE) \
+  do {                            \
+    if (0 != CODE) {              \
+      terrln = __LINE__;          \
+      terrno = (CODE);            \
+      goto _exit;                 \
+    }                             \
   } while (0)
 
 #define TAOS_UDF_CHECK_PTR_RCODE(...)                                          \
@@ -154,6 +153,7 @@ int32_t udfcClose();
  * @return
  */
 int32_t udfStartUdfd(int32_t startDnodeId);
+
 /**
  * stop taosudf
  * @return

@@ -101,8 +101,8 @@ static int32_t dmCheckDiskSpace() {
   int32_t code = 0;
   code = osUpdate();
   if (code != 0) {
-    code = 0;  // ignore the error, just log it
     dError("failed to update os info since %s", tstrerror(code));
+    code = 0;  // ignore the error, just log it
   }
   if (!dmDataSpaceAvailable()) {
     code = TSDB_CODE_NO_DISKSPACE;

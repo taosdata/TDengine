@@ -17,7 +17,7 @@ TEST(log, check_log_refactor) {
   tsAsyncLog = 0;
   // idxDebugFlag = 143;
   strcpy(tsLogDir, (char *)logDir);
-  taosInitLog(tsLogDir, 10, false);
+  taosInitLog(tsLogDir, 10, 0);
   tsAsyncLog = 0;
   uDebugFlag = 143;
 
@@ -54,7 +54,7 @@ TEST(log, misc) {
   taosRemoveDir(path);
   taosMkDir(path);
   tstrncpy(tsLogDir, path, PATH_MAX);
-  EXPECT_EQ(taosInitLog("taoslog", 1, true), 0);
+  EXPECT_EQ(taosInitLog("taoslog", 1, 1), 0);
 
   taosOpenNewSlowLogFile();
   taosLogObjSetToday(INT64_MIN);
@@ -93,6 +93,7 @@ TEST(log, misc) {
   tsAssert = true;
 
   // test taosLogCrashInfo, taosReadCrashInfo and taosReleaseCrashLogFile
+#ifdef USE_REPORT
   char  nodeType[16] = "nodeType";
   char *pCrashMsg = (char *)taosMemoryCalloc(1, 16);
   EXPECT_NE(pCrashMsg, nullptr);
@@ -133,7 +134,7 @@ TEST(log, misc) {
   pFile = taosOpenFile(crashInfo, TD_FILE_WRITE);
   EXPECT_NE(pFile, nullptr);
   taosReleaseCrashLogFile(pFile, true);
-
+#endif
   // clean up
   taosRemoveDir(path);
 

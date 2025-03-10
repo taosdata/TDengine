@@ -29,13 +29,23 @@ extern "C" {
 #define TPOW2(x) ((x) * (x))
 #define TABS(x)  ((x) > 0 ? (x) : -(x))
 
-#define TSWAP(a, b)                  \
-  do {                               \
-    char *__tmp = (char*)alloca(sizeof(a)); \
-    (void)memcpy(__tmp, &(a), sizeof(a));  \
-    (void)memcpy(&(a), &(b), sizeof(a));   \
-    (void)memcpy(&(b), __tmp, sizeof(a));  \
+#ifndef TD_ASTRA
+#define TSWAP(a, b)                          \
+  do {                                       \
+    char *__tmp = (char *)alloca(sizeof(a)); \
+    (void)memcpy(__tmp, &(a), sizeof(a));    \
+    (void)memcpy(&(a), &(b), sizeof(a));     \
+    (void)memcpy(&(b), __tmp, sizeof(a));    \
   } while (0)
+#else
+#define TSWAP(a, b)                       \
+  do {                                    \
+    char __tmp[sizeof(a)];                \
+    (void)memcpy(__tmp, &(a), sizeof(a)); \
+    (void)memcpy(&(a), &(b), sizeof(a));  \
+    (void)memcpy(&(b), __tmp, sizeof(a)); \
+  } while (0)
+#endif
 
 #ifdef WINDOWS
 

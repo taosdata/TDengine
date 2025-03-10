@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef USE_GEOS
 #include "geosWrapper.h"
 #include "tutil.h"
 #include "types.h"
@@ -479,3 +480,4 @@ void destroyGeometry(GEOSGeometry **geom, const GEOSPreparedGeometry **preparedG
     *geom = NULL;
   }
 }
+#endif

@@ -12,6 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifdef USE_UDF
 #include "uv.h"
 
 #include "os.h"
@@ -65,7 +66,7 @@ void udfUdfdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal) 
   TAOS_UDF_CHECK_PTR_RVOID(process);
   fnInfo("taosudf process exited with status %" PRId64 ", signal %d", exitStatus, termSignal);
   SUdfdData *pData = process->data;
-  if(pData == NULL) {
+  if (pData == NULL) {
     fnError("taosudf process data is NULL");
     return;
   }
@@ -410,7 +411,7 @@ typedef void *QUEUE[2];
 #define QUEUE_NEXT_PREV(q) (QUEUE_PREV(QUEUE_NEXT(q)))
 
 /* Public macros. */
-#define QUEUE_DATA(ptr, type, field) ((type *)((char *)(ptr) - offsetof(type, field)))
+#define QUEUE_DATA(ptr, type, field) ((type *)((char *)(ptr)-offsetof(type, field)))
 
 /* Important note: mutating the list while QUEUE_FOREACH is
  * iterating over its elements results in undefined behavior.
@@ -2323,3 +2324,15 @@ _exit:
 
   return code;
 }
+#else
+#include "tudf.h"
+
+int32_t cleanUpUdfs() { return 0; }
+int32_t udfcOpen() { return 0; }
+int32_t udfcClose() { return 0; }
+int32_t udfStartUdfd(int32_t startDnodeId) { return 0; }
+void    udfStopUdfd() { return; }
+int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols, SScalarParam *output) {
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+#endif
