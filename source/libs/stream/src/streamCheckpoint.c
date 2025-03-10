@@ -93,7 +93,7 @@ int32_t appendCheckpointIntoInputQ(SStreamTask* pTask, int32_t checkpointType, i
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  return streamTrySchedExec(pTask);
+  return streamTrySchedExec(pTask, true);
 }
 
 int32_t streamProcessCheckpointSourceReq(SStreamTask* pTask, SStreamCheckpointSourceReq* pReq) {

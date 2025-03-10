@@ -92,7 +92,7 @@ FAIL:
 }
 
 int32_t sndInit(SSnode *pSnode) {
-  if (streamTaskSchedTask(&pSnode->msgCb, pSnode->pMeta->vgId, 0, 0, STREAM_EXEC_T_START_ALL_TASKS) != 0) {
+  if (streamTaskSchedTask(&pSnode->msgCb, pSnode->pMeta->vgId, 0, 0, STREAM_EXEC_T_START_ALL_TASKS, false) != 0) {
     sndError("failed to start all tasks");
   }
   return 0;

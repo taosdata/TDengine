@@ -131,7 +131,7 @@ int32_t tqStreamTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, bool restart) {
   tqDebug("vgId:%d start all %d stream task(s) async", vgId, numOfTasks);
 
   int32_t type = restart ? STREAM_EXEC_T_RESTART_ALL_TASKS : STREAM_EXEC_T_START_ALL_TASKS;
-  return streamTaskSchedTask(cb, vgId, 0, 0, type);
+  return streamTaskSchedTask(cb, vgId, 0, 0, type, false);
 }
 
 int32_t tqStreamStartOneTaskAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t streamId, int32_t taskId) {
@@ -143,7 +143,7 @@ int32_t tqStreamStartOneTaskAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t stream
   }
 
   tqDebug("vgId:%d start task:0x%x async", vgId, taskId);
-  return streamTaskSchedTask(cb, vgId, streamId, taskId, STREAM_EXEC_T_START_ONE_TASK);
+  return streamTaskSchedTask(cb, vgId, streamId, taskId, STREAM_EXEC_T_START_ONE_TASK, false);
 }
 
 // this is to process request from transaction, always return true.
@@ -1222,7 +1222,7 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
     } else if (level == TASK_LEVEL__SOURCE && (streamQueueGetNumOfItems(pTask->inputq.queue) == 0)) {
 //      code = tqScanWalAsync((STQ*)handle, false);
     } else {
-      code = streamTrySchedExec(pTask);
+      code = streamTrySchedExec(pTask, false);
     }
   }
 

@@ -1834,6 +1834,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   int32_t      status = 0;
   SStreamMeta* pMeta = pTask->pMeta;
   const char*  id = pTask->id.idStr;
+  bool         chkptMsg = false;
 
   stDebug("s-task:%s receive dispatch msg from taskId:0x%x(vgId:%d), msgLen:%" PRId64 ", msgId:%d", id,
           pReq->upstreamTaskId, pReq->upstreamNodeId, pReq->totalLen, pReq->msgId);
@@ -1863,6 +1864,7 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
         // blocked. Note that there is no race condition here.
         if (pReq->type == STREAM_INPUT__CHECKPOINT_TRIGGER) {
           streamTaskCloseUpstreamInput(pTask, pReq->upstreamTaskId);
+          chkptMsg = true;
           stDebug("s-task:%s close inputQ for upstream:0x%x, msgId:%d", id, pReq->upstreamTaskId, pReq->msgId);
         } else if (pReq->type == STREAM_INPUT__TRANS_STATE) {
           stDebug("s-task:%s recv trans-state msgId:%d from upstream:0x%x", id, pReq->msgId, pReq->upstreamTaskId);
@@ -1890,5 +1892,5 @@ int32_t streamProcessDispatchMsg(SStreamTask* pTask, SStreamDispatchReq* pReq, S
     tmsgSendRsp(pRsp);
   }
 
-  return streamTrySchedExec(pTask);
+  return streamTrySchedExec(pTask, chkptMsg);
 }
