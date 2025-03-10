@@ -485,10 +485,10 @@ This document details the server error codes that may be encountered when using 
 | Error Code | Description                        | Possible Scenarios or Reasons                                | Recommended Actions                                          |
 | ---------- | ---------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | 0x80002901 | udf is stopping                    | udf call received when dnode exits                           | Stop executing udf queries                                   |
-| 0x80002902 | udf pipe read error                | Error occurred when taosd reads from udfd pipe               | udfd unexpectedly exits, 1) C udf crash 2) udfd crash        |
-| 0x80002903 | udf pipe connect error             | Error establishing pipe connection to udfd in taosd          | 1) Corresponding udfd not started in taosd. Restart taosd    |
-| 0x80002904 | udf pipe not exist                 | Connection error occurs between two phases of udf setup, call, and teardown, causing the connection to disappear, subsequent phases continue | udfd unexpectedly exits, 1) C udf crash 2) udfd crash        |
-| 0x80002905 | udf load failure                   | Error loading udf in udfd                                    | 1) udf does not exist in mnode 2) Error in udf loading. Check logs |
+| 0x80002902 | udf pipe read error                | Error occurred when taosd reads from taosudf pipe            | taosudf unexpectedly exits, 1) C udf crash 2) taosudf crash        |
+| 0x80002903 | udf pipe connect error             | Error establishing pipe connection to taosudf in taosd       | 1) Corresponding taosudf not started in taosd. Restart taosd    |
+| 0x80002904 | udf pipe not exist                 | Connection error occurs between two phases of udf setup, call, and teardown, causing the connection to disappear, subsequent phases continue | taosudf unexpectedly exits, 1) C udf crash 2) taosudf crash        |
+| 0x80002905 | udf load failure                   | Error loading udf in taosudf                                 | 1) udf does not exist in mnode 2) Error in udf loading. Check logs |
 | 0x80002906 | udf invalid function input         | udf input check                                              | udf function does not accept input, such as wrong column type |
 | 0x80002907 | udf invalid bufsize                | Intermediate result in udf aggregation function exceeds specified bufsize | Increase bufsize, or reduce intermediate result size         |
 | 0x80002908 | udf invalid output type            | udf output type differs from the type specified when creating udf | Modify udf, or the type when creating udf, to match the result |

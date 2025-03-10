@@ -1,5 +1,4 @@
 add_executable(tmq_demo tmqDemo.c)
-add_dependencies(tmq_demo ${TAOS_LIB})
 add_executable(tmq_sim tmqSim.c)
 add_executable(create_table createTable.c)
 add_executable(tmq_taosx_ci tmq_taosx_ci.c)
@@ -48,6 +47,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_demo
     PUBLIC ${TAOS_LIB}
@@ -55,6 +55,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_sim
     PUBLIC ${TAOS_LIB_PLATFORM_SPEC}
@@ -62,6 +63,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_ts5466
     PUBLIC ${TAOS_LIB}
@@ -69,6 +71,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_td32187
     PUBLIC ${TAOS_LIB}
@@ -76,6 +79,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_td32471
     PUBLIC ${TAOS_LIB}
@@ -83,6 +87,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_td33798
     PUBLIC ${TAOS_LIB}
@@ -90,6 +95,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_poll_test
     PUBLIC ${TAOS_LIB}
@@ -104,6 +110,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_ts5776
     PUBLIC ${TAOS_LIB}
@@ -111,6 +118,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_taosx_ci
     PUBLIC ${TAOS_LIB}
@@ -118,6 +126,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
 target_link_libraries(
     tmq_offset_test
     PUBLIC ${TAOS_LIB}

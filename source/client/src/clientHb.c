@@ -608,6 +608,8 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
 
   pInst->serverCfg.monitorParas = pRsp.monitorParas;
   pInst->serverCfg.enableAuditDelete = pRsp.enableAuditDelete;
+  pInst->serverCfg.enableStrongPass = pRsp.enableStrongPass;
+  tsEnableStrongPassword = pInst->serverCfg.enableStrongPass;
   tscDebug("monitor paras from hb, clusterId:0x%" PRIx64 ", threshold:%d scope:%d", pInst->clusterId,
            pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
 
