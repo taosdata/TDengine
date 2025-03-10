@@ -26,18 +26,18 @@ Tableau 是一款知名的商业智能工具，它支持多种数据源，可方
  
 **第 3 步**，点击 `DSN` 单选框，接着选择已配置好的数据源(MyTDengine)，然后点击`连接`按钮。待连接成功后，删除字符串附加部分的内容，最后点击`登录`按钮即可。
 
-![tableau-odbc](./tableau/tableau-odbc.jpg) 
+![tableau-odbc](./tableau/tableau-odbc.webp) 
 
 ## 数据分析
 
 **第 1 步**，在工作簿页面中，选择已连接的数据源。点击数据库的下拉列表，会显示需要进行数据分析的数据库。在此基础上，点击表选项中的查找按钮，即可将该数据库下的所有表显示出来。然后，拖动需要分析的表到右侧区域，即可显示出表结构。
 
-![tableau-workbook](./tableau/tableau-table.jpg) 
+![tableau-workbook](./tableau/tableau-table.webp) 
 
 **第 2 步**，点击下方的"立即更新"按钮，即可将表中的数据展示出来。
 
-![tableau-workbook](./tableau/tableau-data.jpg) 
+![tableau-workbook](./tableau/tableau-data.webp) 
 
 **第 3 步**，点击窗口下方的"工作表"，弹出数据分析窗口， 并展示分析表的所有字段,将字段拖动到行列即可展示出图表。
 
-![tableau-workbook](./tableau/tableau-analysis.jpg) 
+![tableau-workbook](./tableau/tableau-analysis.webp) 

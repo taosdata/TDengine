@@ -27,19 +27,19 @@ It should be noted that when configuring the ODBC data source for Tableau, the [
 
 **Step 3**, Click the `DSN` radio button, then select the configured data source (MyTDengine), and click the `Connect` button. After the connection is successful, delete the content of the string attachment, and finally click the `Sign In` button.  
 
-![tableau-odbc](./tableau/tableau-odbc.jpg)
+![tableau-odbc](./tableau/tableau-odbc.webp)
 
 ## Data Analysis
 
 **Step 1**, In the workbook page, the connected data sources will be displayed. Clicking on the dropdown list of databases will display the databases that require data analysis. On this basis, click the search button in the table options to display all tables in the database. Then, drag the table to be analyzed to the right area to display the table structure.
 
-![tableau-workbook](./tableau/tableau-table.jpg)
+![tableau-workbook](./tableau/tableau-table.webp)
 
 **Step 2**, Click the `Update Now` button below to display the data in the table.
 
-![tableau-workbook](./tableau/tableau-data.jpg)
+![tableau-workbook](./tableau/tableau-data.webp)
 
 **Step 3**, Click on the "Worksheet" at the bottom of the window to pop up the data analysis window, which displays all the fields of the analysis table. Drag the fields to the rows and columns to display the chart.
 
-![tableau-workbook](./tableau/tableau-analysis.jpg)
+![tableau-workbook](./tableau/tableau-analysis.webp)
 
