@@ -1033,18 +1033,26 @@ int convertStringToDatatype(char *type, int length) {
         return TSDB_DATA_TYPE_BOOL;
     } else if (0 == strCompareN(type, "tinyint", length)) {
         return TSDB_DATA_TYPE_TINYINT;
+    } else if (0 == strCompareN(type, "tinyint unsigned", length)) {
+        return TSDB_DATA_TYPE_UTINYINT;
     } else if (0 == strCompareN(type, "utinyint", length)) {
         return TSDB_DATA_TYPE_UTINYINT;
     } else if (0 == strCompareN(type, "smallint", length)) {
         return TSDB_DATA_TYPE_SMALLINT;
+    } else if (0 == strCompareN(type, "smallint unsigned", length)) {
+        return TSDB_DATA_TYPE_USMALLINT;
     } else if (0 == strCompareN(type, "usmallint", length)) {
         return TSDB_DATA_TYPE_USMALLINT;
     } else if (0 == strCompareN(type, "int", length)) {
         return TSDB_DATA_TYPE_INT;
+    } else if (0 == strCompareN(type, "int unsigned", length)) {
+        return TSDB_DATA_TYPE_UINT;
     } else if (0 == strCompareN(type, "uint", length)) {
         return TSDB_DATA_TYPE_UINT;
     } else if (0 == strCompareN(type, "bigint", length)) {
         return TSDB_DATA_TYPE_BIGINT;
+    } else if (0 == strCompareN(type, "bigint unsigned", length)) {
+        return TSDB_DATA_TYPE_UBIGINT;
     } else if (0 == strCompareN(type, "ubigint", length)) {
         return TSDB_DATA_TYPE_UBIGINT;
     } else if (0 == strCompareN(type, "float", length)) {

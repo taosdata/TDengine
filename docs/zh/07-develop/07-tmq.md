@@ -73,7 +73,7 @@ TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接�
 #### msg.with.table.name
 - 说明：是否允许从消息中解析表名
 - 类型：boolean
-- 备注：不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句），默认关闭。从 3.2.0.0 版本该参数废弃。
+- 备注：不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句），默认关闭。v3.2.0.0 该参数废弃。
 
 #### enable.replay
 - 说明：是否开启数据回放功能
@@ -83,12 +83,27 @@ TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接�
 #### session.timeout.ms
 - 说明：consumer 心跳丢失后超时时间
 - 类型：integer
-- 备注：超时后会触发 rebalance 逻辑，成功后该 consumer 会被删除（从 3.3.3.0 版本开始支持）。默认值为 12000，取值范围 [6000，1800000]。
+- 备注：超时后会触发 rebalance 逻辑，成功后该 consumer 会被删除。默认值为 12000，取值范围 [6000，1800000]。v3.3.3.0 开始支持）
 
 #### max.poll.interval.ms
 - 说明：consumer poll 拉取数据间隔的最长时间
 - 类型：integer
-- 备注：超过该时间，会认为该 consumer 离线，触发 rebalance 逻辑，成功后该 consumer 会被删除（从 3.3.3.0 版本开始支持）。默认值为 300000，[1000，INT32_MAX] 。
+- 备注：超过该时间，会认为该 consumer 离线，触发 rebalance 逻辑，成功后该 consumer 会被删除。默认值为 300000，[1000，INT32_MAX]。v3.3.3.0 开始支持。
+
+#### fetch.max.wait.ms
+- 说明：服务端单次返回数据的最大耗时
+- 类型：integer
+- 备注：默认值为 1000，[1，INT32_MAX]。v3.3.6.0 开始支持。
+
+#### min.poll.rows
+- 说明：服务端单次返回数据的最小条数
+- 类型：integer
+- 备注：默认值为 4096，[1，INT32_MAX]。v3.3.6.0 开始支持。
+
+#### msg.consume.rawdata
+- 说明：消费数据时拉取数据类型为二进制类型，不可做解析操作 `内部参数，只用于 taosX 数据迁移`
+- 类型：integer
+- 备注：默认值为 0 表示不起效，非 0 为起效。v3.3.6.0 开始支持。   
 
 下面是各语言连接器创建参数：
 <Tabs defaultValue="java" groupId="lang">

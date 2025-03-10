@@ -69,6 +69,7 @@ extern EEncryptAlgor tsiEncryptAlgorithm;
 extern EEncryptScope tsiEncryptScope;
 // extern char     tsAuthCode[];
 extern char tsEncryptKey[];
+extern int8_t tsEnableStrongPassword;
 
 // common
 extern int32_t tsMaxShellConns;
@@ -296,6 +297,8 @@ extern int32_t tsMaxStreamBackendCache;
 extern int32_t tsPQSortMemThreshold;
 extern bool    tsStreamCoverage;
 extern int8_t  tsS3EpNum;
+extern int32_t tsStreamNotifyMessageSize;
+extern int32_t tsStreamNotifyFrameSize;
 
 extern bool tsExperimental;
 // #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)

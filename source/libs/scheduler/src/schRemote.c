@@ -489,7 +489,8 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
   SSchTask              *pTask = NULL;
   SSchJob               *pJob = NULL;
 
-  qDebug("begin to handle rsp msg, type:%s, handle:%p, code:%s", TMSG_INFO(pMsg->msgType), pMsg->handle,
+  int64_t qid = pParam->queryId;
+  qDebug("QID:0x%" PRIx64 ", begin to handle rsp msg, type:%s, handle:%p, code:%s", qid,TMSG_INFO(pMsg->msgType), pMsg->handle,
          tstrerror(rspCode));
 
   SCH_ERR_JRET(schProcessOnCbBegin(&pJob, &pTask, pParam->queryId, pParam->refId, pParam->taskId));
@@ -503,7 +504,7 @@ _return:
   taosMemoryFreeClear(pMsg->pData);
   taosMemoryFreeClear(pMsg->pEpSet);
 
-  qDebug("end to handle rsp msg, type:%s, handle:%p, code:%s", TMSG_INFO(pMsg->msgType), pMsg->handle,
+  qDebug("QID:0x%" PRIx64 ", end to handle rsp msg, type:%s, handle:%p, code:%s", qid, TMSG_INFO(pMsg->msgType), pMsg->handle,
          tstrerror(rspCode));
 
   SCH_RET(code);
@@ -511,7 +512,7 @@ _return:
 
 int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
-  qDebug("QID:0x%" PRIx64 ",SID:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 " drop task rsp received, code:0x%x", 
+  qDebug("QID:0x%" PRIx64 ", SID:0x%" PRIx64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 " drop task rsp received, code:0x%x", 
          pParam->queryId, pParam->seriousId, pParam->clientId, pParam->taskId, code);
   // called if drop task rsp received code
   (void)rpcReleaseHandle(pMsg->handle, TAOS_CONN_CLIENT, 0); // ignore error
@@ -528,7 +529,7 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
 
 int32_t schHandleNotifyCallback(void *param, SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
-  qDebug("QID:0x%" PRIx64 ",SID:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 " task notify rsp received, code:0x%x", 
+  qDebug("QID:0x%" PRIx64 ", SID:0x%" PRIx64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 " task notify rsp received, code:0x%x", 
          pParam->queryId, pParam->seriousId, pParam->clientId, pParam->taskId, code);
   if (pMsg) {
     taosMemoryFreeClear(pMsg->pData);
@@ -1110,7 +1111,7 @@ _return:
 }
 
 int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr, int32_t msgType, void* param) {
-  int32_t msgSize = 0;
+  int32_t  msgSize = 0;
   void    *msg = NULL;
   int32_t  code = 0;
   bool     isCandidateAddr = false;
@@ -1136,13 +1137,8 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     case TDMT_VND_SUBMIT:
     case TDMT_VND_COMMIT: {
       msgSize = pTask->msgLen;
-      msg = taosMemoryCalloc(1, msgSize);
-      if (NULL == msg) {
-        SCH_TASK_ELOG("calloc %d failed", msgSize);
-        SCH_ERR_RET(terrno);
-      }
-
-      TAOS_MEMCPY(msg, pTask->msg, msgSize);
+      msg = pTask->msg;
+      pTask->msg = NULL;
       break;
     }
 

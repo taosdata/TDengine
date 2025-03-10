@@ -15,6 +15,7 @@
 
 #include "sync.h"
 #include "tcs.h"
+#include "tq.h"
 #include "tsdb.h"
 #include "vnd.h"
 
@@ -448,6 +449,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   // open meta
+  (void)taosThreadRwlockInit(&pVnode->metaRWLock, NULL);
   vInfo("vgId:%d, start to open vnode meta", TD_VID(pVnode));
   if (metaOpen(pVnode, &pVnode->pMeta, rollback) < 0) {
     vError("vgId:%d, failed to open vnode meta since %s", TD_VID(pVnode), tstrerror(terrno));
@@ -482,6 +484,14 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
   ret = taosRealPath(tdir, NULL, sizeof(tdir));
   TAOS_UNUSED(ret);
+
+  // init handle map for stream event notification
+  ret = tqInitNotifyHandleMap(&pVnode->pNotifyHandleMap);
+  if (ret != TSDB_CODE_SUCCESS) {
+    vError("vgId:%d, failed to init StreamNotifyHandleMap", TD_VID(pVnode));
+    terrno = ret;
+    goto _err;
+  }
 
   // open query
   vInfo("vgId:%d, start to open vnode query", TD_VID(pVnode));
@@ -539,6 +549,7 @@ _err:
   if (pVnode->pMeta) metaClose(&pVnode->pMeta);
   if (pVnode->freeList) vnodeCloseBufPool(pVnode);
 
+  (void)taosThreadRwlockDestroy(&pVnode->metaRWLock);
   taosMemoryFree(pVnode);
   return NULL;
 }
@@ -555,6 +566,7 @@ void vnodeClose(SVnode *pVnode) {
     vnodeAWait(&pVnode->commitTask);
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
+    tqDestroyNotifyHandleMap(&pVnode->pNotifyHandleMap);
     tqClose(pVnode->pTq);
     walClose(pVnode->pWal);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);

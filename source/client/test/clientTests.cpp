@@ -152,13 +152,13 @@ void createNewTable(TAOS* pConn, int32_t index, int32_t numOfRows, int64_t start
     for (int32_t i = 0; i < numOfRows; i += 20) {
       char sql[1024] = {0};
       (void)sprintf(sql,
-              "insert into tu%d values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
-              "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
-              "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
-              "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)",
-              index, i, i, i + 1, i + 1, i + 2, i + 2, i + 3, i + 3, i + 4, i + 4, i + 5, i + 5, i + 6, i + 6, i + 7,
-              i + 7, i + 8, i + 8, i + 9, i + 9, i + 10, i + 10, i + 11, i + 11, i + 12, i + 12, i + 13, i + 13, i + 14,
-              i + 14, i + 15, i + 15, i + 16, i + 16, i + 17, i + 17, i + 18, i + 18, i + 19, i + 19);
+                    "insert into tu%d values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
+                    "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
+                    "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
+                    "(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)",
+                    index, i, i, i + 1, i + 1, i + 2, i + 2, i + 3, i + 3, i + 4, i + 4, i + 5, i + 5, i + 6, i + 6, i + 7,
+                    i + 7, i + 8, i + 8, i + 9, i + 9, i + 10, i + 10, i + 11, i + 11, i + 12, i + 12, i + 13, i + 13, i + 14,
+                    i + 14, i + 15, i + 15, i + 16, i + 16, i + 17, i + 17, i + 18, i + 18, i + 19, i + 19);
       TAOS_RES* p = taos_query(pConn, sql);
       if (taos_errno(p) != 0) {
         (void)printf("failed to insert data, reason:%s\n", taos_errstr(p));
@@ -170,14 +170,14 @@ void createNewTable(TAOS* pConn, int32_t index, int32_t numOfRows, int64_t start
     for (int32_t i = 0; i < numOfRows; i += 20) {
       char sql[1024*50] = {0};
       (void)sprintf(sql,
-              "insert into tu%d values(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, "
-              "%d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, "
-              "'%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')",
-              index, startTs, i, pVarchar, startTs + 1, i + 1, pVarchar, startTs + 2, i + 2, pVarchar, startTs + 3, i + 3, pVarchar, startTs + 4, i + 4,
-              pVarchar, startTs + 5, i + 5, pVarchar, startTs + 6, i + 6, pVarchar, startTs + 7, i + 7, pVarchar, startTs + 8, i + 8, pVarchar, startTs + 9, i + 9,
-              pVarchar, startTs + 10, i + 10, pVarchar, startTs + 11, i + 11, pVarchar, startTs + 12, i + 12, pVarchar, startTs + 13, i + 13, pVarchar, startTs + 14,
-              i + 14, pVarchar, startTs + 15, i + 15, pVarchar, startTs + 16, i + 16, pVarchar, startTs + 17, i + 17, pVarchar, startTs + 18, i + 18,
-              pVarchar, startTs + 19, i + 19, pVarchar);
+                    "insert into tu%d values(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, "
+                    "%d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, "
+                    "'%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')(%ld, %d, '%s')",
+                    index, startTs, i, pVarchar, startTs + 1, i + 1, pVarchar, startTs + 2, i + 2, pVarchar, startTs + 3, i + 3, pVarchar, startTs + 4, i + 4,
+                    pVarchar, startTs + 5, i + 5, pVarchar, startTs + 6, i + 6, pVarchar, startTs + 7, i + 7, pVarchar, startTs + 8, i + 8, pVarchar, startTs + 9, i + 9,
+                    pVarchar, startTs + 10, i + 10, pVarchar, startTs + 11, i + 11, pVarchar, startTs + 12, i + 12, pVarchar, startTs + 13, i + 13, pVarchar, startTs + 14,
+                    i + 14, pVarchar, startTs + 15, i + 15, pVarchar, startTs + 16, i + 16, pVarchar, startTs + 17, i + 17, pVarchar, startTs + 18, i + 18,
+                    pVarchar, startTs + 19, i + 19, pVarchar);
       TAOS_RES* p = taos_query(pConn, sql);
       if (taos_errno(p) != 0) {
         (void)printf("failed to insert data, reason:%s\n", taos_errstr(p));
@@ -309,8 +309,8 @@ int main(int argc, char** argv) {
     if (code != 0) {
       return code;
     }
-     
-    
+
+
   }
 
   numOfThreads = TMAX(numOfThreads, 1);
@@ -1441,7 +1441,7 @@ TEST(clientCase, sub_tb_test) {
   int32_t code = tmq_get_topic_assignment(tmq, "t1", &pAssign, &numOfAssign);
   if (code != 0) {
     (void)printf("error occurs:%s\n", tmq_err2str(code));
-   (void)tmq_consumer_close(tmq);
+    (void)tmq_consumer_close(tmq);
     taos_close(pConn);
     (void)fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
     return;
@@ -1510,7 +1510,7 @@ TEST(clientCase, sub_tb_mt_test) {
     (void)taosThreadCreate(&qid[i], NULL, doConsumeData, NULL);
   }
 
-  for (int32_t i = 0; i < 4; ++i) {
+  for (int32_t i = 0; i < 1; ++i) {
     (void)taosThreadJoin(qid[i], NULL);
   }
 }
@@ -1523,29 +1523,29 @@ TEST(clientCase, timezone_Test) {
     TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
     ASSERT_NE(pConn, nullptr);
 
-    TAOS_RES* pRes = taos_query(pConn, "drop database if exists db1");
+    TAOS_RES* pRes = taos_query(pConn, "drop database if exists db_timezone");
     ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
     taos_free_result(pRes);
 
-    pRes = taos_query(pConn, "create database db1");
+    pRes = taos_query(pConn, "create database db_timezone");
     ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
     taos_free_result(pRes);
 
-    pRes = taos_query(pConn, "create table db1.t1 (ts timestamp, v int)");
+    pRes = taos_query(pConn, "create table db_timezone.t1 (ts timestamp, v int)");
     while (taos_errno(pRes) == TSDB_CODE_MND_DB_IN_CREATING || taos_errno(pRes) == TSDB_CODE_MND_DB_IN_DROPPING) {
       taosMsleep(2000);
-      pRes = taos_query(pConn, "create table db1.t1 (ts timestamp, v int)");
+      pRes = taos_query(pConn, "create table db_timezone.t1 (ts timestamp, v int)");
     }
     ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
     taos_free_result(pRes);
 
     char sql[256] = {0};
-    (void)sprintf(sql, "insert into db1.t1 values('2023-09-16 17:00:00', 1)");
+    (void)sprintf(sql, "insert into db_timezone.t1 values('2023-09-16 17:00:00', 1)");
     pRes = taos_query(pConn, sql);
     ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
     taos_free_result(pRes);
 
-    pRes = taos_query(pConn, "select * from db1.t1 where ts == '2023-09-16 17:00:00'");
+    pRes = taos_query(pConn, "select * from db_timezone.t1 where ts == '2023-09-16 17:00:00'");
     ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
 
     TAOS_ROW    pRow = NULL;
@@ -1571,7 +1571,7 @@ TEST(clientCase, timezone_Test) {
     TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
     ASSERT_NE(pConn, nullptr);
 
-    TAOS_RES* pRes = taos_query(pConn, "select * from db1.t1 where ts == '2023-09-16 01:00:00'");
+    TAOS_RES* pRes = taos_query(pConn, "select * from db_timezone.t1 where ts == '2023-09-16 01:00:00'");
     ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
 
     TAOS_ROW    pRow = NULL;
@@ -1588,7 +1588,7 @@ TEST(clientCase, timezone_Test) {
     taos_free_result(pRes);
 
     char sql[256] = {0};
-    (void)sprintf(sql, "insert into db1.t1 values('2023-09-16 17:00:01', 1)");
+    (void)sprintf(sql, "insert into db_timezone.t1 values('2023-09-16 17:00:01', 1)");
     pRes = taos_query(pConn, sql);
     ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
 
@@ -1604,7 +1604,7 @@ TEST(clientCase, timezone_Test) {
     TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
     ASSERT_NE(pConn, nullptr);
 
-    TAOS_RES* pRes = taos_query(pConn, "select * from db1.t1 where ts == '2023-09-16 09:00:00'");
+    TAOS_RES* pRes = taos_query(pConn, "select * from db_timezone.t1 where ts == '2023-09-16 09:00:00'");
     ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
 
     TAOS_ROW    pRow = NULL;
@@ -1620,7 +1620,7 @@ TEST(clientCase, timezone_Test) {
     taos_free_result(pRes);
 
     {
-      TAOS_RES* pRes = taos_query(pConn, "select * from db1.t1 where ts == '2023-09-17 01:00:01'");
+      TAOS_RES* pRes = taos_query(pConn, "select * from db_timezone.t1 where ts == '2023-09-17 01:00:01'");
       ASSERT_EQ(taos_errno(pRes), TSDB_CODE_SUCCESS);
 
       TAOS_ROW    pRow = NULL;

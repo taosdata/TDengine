@@ -53,8 +53,8 @@ static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t l
 static int32_t vnodeProcessDropTSmaCtbReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp,
                                           SRpcMsg *pOriginRpc);
 
-static int32_t vnodePreCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
-static int32_t vnodeCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
+static int32_t vnodeCheckToken(SVnode *pVnode, char *member0Token, char *member1Token);
+static int32_t vnodeCheckSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
 static int32_t vnodeProcessFetchTtlExpiredTbs(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 
 extern int32_t vnodeProcessKillCompactReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
@@ -314,25 +314,25 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     uint64_t nColData;
     if (tDecodeU64v(pCoder, &nColData) < 0) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     SColData colData = {0};
     code = tDecodeColData(version, pCoder, &colData);
     if (code) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     if (colData.flag != HAS_VALUE) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     for (int32_t iRow = 0; iRow < colData.nVal; iRow++) {
       if (((TSKEY *)colData.pData)[iRow] < minKey || ((TSKEY *)colData.pData)[iRow] > maxKey) {
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
 
@@ -340,14 +340,14 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
       code = tDecodeColData(version, pCoder, &colData);
       if (code) {
         code = TSDB_CODE_INVALID_MSG;
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
   } else {
     uint64_t nRow;
     if (tDecodeU64v(pCoder, &nRow) < 0) {
       code = TSDB_CODE_INVALID_MSG;
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     for (int32_t iRow = 0; iRow < nRow; ++iRow) {
@@ -356,7 +356,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
 
       if (pRow->ts < minKey || pRow->ts > maxKey) {
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
-        goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
   }
@@ -369,6 +369,9 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   tEndDecode(pCoder);
 
 _exit:
+  if (code) {
+    vError("vgId:%d, %s:%d failed to vnodePreProcessSubmitTbData submit request since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  }
   return code;
 }
 static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
@@ -489,7 +492,7 @@ static int32_t vnodePreProcessArbCheckSyncMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     return TSDB_CODE_INVALID_MSG;
   }
 
-  int32_t ret = vnodePreCheckAssignedLogSyncd(pVnode, syncReq.member0Token, syncReq.member1Token);
+  int32_t ret = vnodeCheckToken(pVnode, syncReq.member0Token, syncReq.member1Token);
   if (ret != 0) {
     vError("vgId:%d, failed to preprocess arb check sync request since %s", TD_VID(pVnode), tstrerror(ret));
   }
@@ -744,6 +747,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     } break;
     case TDMT_VND_STREAM_TASK_RESET: {
       if (pVnode->restored && vnodeIsLeader(pVnode) && (code = tqProcessTaskResetReq(pVnode->pTq, pMsg)) < 0) {
+        goto _err;
+      }
+
+    } break;
+    case TDMT_VND_STREAM_ALL_STOP: {
+      if (pVnode->restored && vnodeIsLeader(pVnode) && (code = tqProcessAllTaskStopReq(pVnode->pTq, pMsg)) < 0) {
         goto _err;
       }
 
@@ -1923,7 +1932,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     len -= sizeof(SSubmitReq2Msg);
     SDecoder dc = {0};
     tDecoderInit(&dc, pReq, len);
-    if (tDecodeSubmitReq(&dc, pSubmitReq) < 0) {
+    if (tDecodeSubmitReq(&dc, pSubmitReq, NULL) < 0) {
       code = TSDB_CODE_INVALID_MSG;
       goto _exit;
     }
@@ -2585,7 +2594,7 @@ static int32_t vnodeProcessConfigChangeReq(SVnode *pVnode, int64_t ver, void *pR
   return 0;
 }
 
-static int32_t vnodePreCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token) {
+static int32_t vnodeCheckToken(SVnode *pVnode, char *member0Token, char *member1Token) {
   SSyncState syncState = syncGetState(pVnode->sync);
   if (syncState.state != TAOS_SYNC_STATE_LEADER) {
     return terrno = TSDB_CODE_SYN_NOT_LEADER;
@@ -2605,13 +2614,13 @@ static int32_t vnodePreCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token,
   return 0;
 }
 
-static int32_t vnodeCheckAssignedLogSyncd(SVnode *pVnode, char *member0Token, char *member1Token) {
-  int32_t code = vnodePreCheckAssignedLogSyncd(pVnode, member0Token, member1Token);
+static int32_t vnodeCheckSyncd(SVnode *pVnode, char *member0Token, char *member1Token) {
+  int32_t code = vnodeCheckToken(pVnode, member0Token, member1Token);
   if (code != 0) {
     return code;
   }
 
-  return syncGetAssignedLogSynced(pVnode->sync);
+  return syncCheckSynced(pVnode->sync);
 }
 
 static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
@@ -2635,7 +2644,7 @@ static int32_t vnodeProcessArbCheckSyncReq(SVnode *pVnode, void *pReq, int32_t l
   syncRsp.member1Token = syncReq.member1Token;
   syncRsp.vgId = TD_VID(pVnode);
 
-  if (vnodeCheckAssignedLogSyncd(pVnode, syncReq.member0Token, syncReq.member1Token) != 0) {
+  if (vnodeCheckSyncd(pVnode, syncReq.member0Token, syncReq.member1Token) != 0) {
     vError("vgId:%d, failed to check assigned log syncd", TD_VID(pVnode));
   }
   syncRsp.errCode = terrno;

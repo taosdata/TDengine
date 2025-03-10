@@ -16,8 +16,6 @@
 #include "tcommon.h"
 #include "tq.h"
 
-#define IS_NEW_SUBTB_RULE(_t) (((_t)->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER) && ((_t)->subtableWithoutMd5 != 1))
-
 typedef struct STableSinkInfo {
   uint64_t uid;
   tstr     name;
@@ -991,7 +989,7 @@ int32_t setDstTableDataUid(SVnode* pVnode, SStreamTask* pTask, SSDataBlock* pDat
         tqDebug("s-task:%s append groupId:%" PRId64 " for generated dstTable:%s", id, groupId, dstTableName);
         if (pTask->ver == SSTREAM_TASK_SUBTABLE_CHANGED_VER) {
           code = buildCtbNameAddGroupId(NULL, dstTableName, groupId, sizeof(pDataBlock->info.parTbName));
-        } else if (pTask->ver > SSTREAM_TASK_SUBTABLE_CHANGED_VER && stbFullName) {
+        } else if (pTask->ver >= SSTREAM_TASK_APPEND_STABLE_NAME_VER && stbFullName) {
           code = buildCtbNameAddGroupId(stbFullName, dstTableName, groupId, sizeof(pDataBlock->info.parTbName));
         }
         if (code != TSDB_CODE_SUCCESS) {
@@ -1158,6 +1156,12 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
     return;
   }
 
+  code = tqSendAllNotifyEvents(pBlocks, pTask, pVnode);
+  if (code != TSDB_CODE_SUCCESS) {
+    tqError("vgId: %d, s-task:%s failed to send all event notifications", vgId, id);
+    // continue processing even if notification fails
+  }
+
   bool onlySubmitData = hasOnlySubmitData(pBlocks, numOfBlocks);
   if (!onlySubmitData || pTask->subtableWithoutMd5 == 1) {
     tqDebug("vgId:%d, s-task:%s write %d stream resBlock(s) into table, has delete block, submit one-by-one", vgId, id,
@@ -1181,6 +1185,8 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
         continue;
       } else if (pDataBlock->info.type == STREAM_DROP_CHILD_TABLE && pTask->subtableWithoutMd5) {
         code = doBuildAndSendDropTableMsg(pVnode, stbFullName, pDataBlock, pTask, suid);
+      } else if (pDataBlock->info.type == STREAM_NOTIFY_EVENT) {
+        continue;
       } else {
         code = handleResultBlockMsg(pTask, pDataBlock, i, pVnode, earlyTs);
       }
@@ -1322,6 +1328,10 @@ void rebuildAndSendMultiResBlock(SStreamTask* pTask, const SArray* pBlocks, SVno
     }
 
     if (pDataBlock->info.type == STREAM_CHECKPOINT) {
+      continue;
+    }
+
+    if (pDataBlock->info.type == STREAM_NOTIFY_EVENT) {
       continue;
     }
 

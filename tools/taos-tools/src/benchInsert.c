@@ -607,14 +607,10 @@ int32_t toolsGetDefaultVGroups() {
     infoPrint("check local machine CPU: %d Memory:%d MB \n", cores, (int32_t)(MemKB/1024));
     if (MemKB <= 2*1024*1024) { // 2G
         return 1;
-    } else if (MemKB <= 4*1024*1024) { // 4G
+    } else if (MemKB <= 256*1024*1024) { // 256G
         return 2;
-    } else if (MemKB <= 8*1024*1024) { // 8G
-        return 3;
-    } else if (MemKB <= 16*1024*1024) { // 16G
+    } else if (MemKB <= 512*1024*1024) { // 512G
         return 4;
-    } else if (MemKB <= 32*1024*1024) { // 32G
-        return 5;
     } else {
         return cores / 2;
     }
@@ -623,22 +619,13 @@ int32_t toolsGetDefaultVGroups() {
 int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
     int dataLen = 0;
     int n;
-    if (-1 != g_arguments->inputted_vgroups) {
-        n = snprintf(command + dataLen, SHORT_1K_SQL_BUFF_LEN - dataLen,
-                    g_arguments->escape_character
-                        ? "CREATE DATABASE IF NOT EXISTS `%s` VGROUPS %d"
-                        : "CREATE DATABASE IF NOT EXISTS %s VGROUPS %d",
-                            database->dbName,
-                            (-1 != g_arguments->inputted_vgroups)?
-                            g_arguments->inputted_vgroups:
-                            min(remainVnodes, toolsGetNumberOfCores()));
-    } else {
-        n = snprintf(command + dataLen, SHORT_1K_SQL_BUFF_LEN - dataLen,
-                    g_arguments->escape_character
-                        ? "CREATE DATABASE IF NOT EXISTS `%s`"
-                        : "CREATE DATABASE IF NOT EXISTS %s",
-                            database->dbName);
-    }
+
+    // create database
+    n = snprintf(command + dataLen, SHORT_1K_SQL_BUFF_LEN - dataLen,
+                g_arguments->escape_character
+                    ? "CREATE DATABASE IF NOT EXISTS `%s`"
+                    : "CREATE DATABASE IF NOT EXISTS %s",
+                    database->dbName);
 
     if (n < 0 || n >= SHORT_1K_SQL_BUFF_LEN - dataLen) {
         errorPrint("%s() LN%d snprintf overflow\n",
@@ -648,9 +635,24 @@ int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
         dataLen += n;
     }
 
+    int vgroups = g_arguments->inputted_vgroups;
+
+    // append config items
     if (database->cfgs) {
         for (int i = 0; i < database->cfgs->size; i++) {
             SDbCfg* cfg = benchArrayGet(database->cfgs, i);
+
+            // check vgroups
+            if (strcasecmp(cfg->name, "vgroups") == 0) {
+                if (vgroups > 0) {
+                    // inputted vgroups by commandline
+                    infoPrint("ignore config set vgroups %d\n", cfg->valueint);
+                } else {
+                    vgroups = cfg->valueint;
+                }
+                continue;
+            }
+
             if (cfg->valuestring) {
                 n = snprintf(command + dataLen,
                                         TSDB_MAX_ALLOWED_SQL_LEN - dataLen,
@@ -668,6 +670,17 @@ int geneDbCreateCmd(SDataBase *database, char *command, int remainVnodes) {
                 dataLen += n;
             }
         }
+    }
+
+    // benchmark default
+    if (vgroups < 1) {
+        vgroups = toolsGetDefaultVGroups();
+        debugPrint("vgroup set with toolsGetDefaultVGroups(). vgroups=%d\n", vgroups);
+    }
+
+    // not found vgroups
+    if (vgroups > 0) {
+        dataLen += snprintf(command + dataLen, TSDB_MAX_ALLOWED_SQL_LEN - dataLen, " VGROUPS %d", vgroups);
     }
 
     switch (database->precision) {
@@ -1915,7 +1928,7 @@ static void *syncWriteInterlace(void *sarg) {
         bindv = createBindV(nBatchTable,  tagCnt, stbInfo->cols->size + 1);
     }
 
-    bool oldInitStmt = stbInfo->autoTblCreating || database->superTbls->size > 1;
+    bool oldInitStmt = stbInfo->autoTblCreating;
     // not auto create table call once
     if(stbInfo->iface == STMT_IFACE && !oldInitStmt) {
         debugPrint("call prepareStmt for stable:%s\n", stbInfo->stbName);
@@ -2887,7 +2900,7 @@ void *syncWriteProgressive(void *sarg) {
         tagData = benchCalloc(TAG_BATCH_COUNT, stbInfo->lenOfTags, false);
     }
 
-    bool oldInitStmt = stbInfo->autoTblCreating || database->superTbls->size > 1;
+    bool oldInitStmt = stbInfo->autoTblCreating;
     // stmt.  not auto table create call on stmt
     if (stbInfo->iface == STMT_IFACE && !oldInitStmt) {
         if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w)) {
@@ -3896,11 +3909,8 @@ int32_t initInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
                 if (NULL == pThreadInfo->conn) {
                     goto END;
                 }
+                // single always true for benchmark
                 bool single = true;
-                if (database->superTbls->size > 1) {
-                    single = false;
-                }
-
                 if (stbInfo->iface == STMT2_IFACE) {
                     // stmt2 init
                     if (pThreadInfo->conn->stmt2)
@@ -4136,6 +4146,8 @@ int32_t runInsertLimitThread(SDataBase* database, SSuperTable* stbInfo, int32_t 
             debugPrint("current thread index=%d all thread=%d\n", t, nthreads);
         }
     }
+
+    tmfree(slot);
 
     return 0;
 }

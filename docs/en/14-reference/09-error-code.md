@@ -458,6 +458,12 @@ This document details the server error codes that may be encountered when using 
 | 0x80002665 | The _TAGS pseudocolumn can only be used for subtable and supertable queries | Illegal tag column query                                     | Check and correct the SQL statement                          |
 | 0x80002666 | Subquery does not output primary timestamp column            | Check and correct the SQL statement                          |                                                              |
 | 0x80002667 | Invalid usage of expr: %s                                    | Illegal expression                                           | Check and correct the SQL statement                          |
+| 0x80002687 | True_for duration cannot be negative                         | Use negative value as true_for duration                      | Check and correct the SQL statement                          |
+| 0x80002688 | Cannot use 'year' or 'month' as true_for duration            | Use year or month as true_for_duration                       | Check and correct the SQL statement                          |
+| 0x80002689 | Invalid using cols function                                  | Illegal using cols function                                        | Check and correct the SQL statement                          |
+| 0x8000268A | Cols function's first param must be a select function that output a single row | The first parameter of the cols function should be a selection function | Check and correct the SQL statement                          |
+| 0x8000268B | Invalid using cols function with multiple output columns     | Illegal using the cols function for multiple column output             | Check and correct the SQL statement                          |
+| 0x8000268C | Invalid using alias for cols function                        | Illegal cols function alias                                  | Check and correct the SQL statement                          |
 | 0x800026FF | Parser internal error                                        | Internal error in parser                                     | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002700 | Planner internal error                                       | Internal error in planner                                    | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002701 | Expect ts equal                                              | JOIN condition validation failed                             | Preserve the scene and logs, report issue on GitHub          |
@@ -479,10 +485,10 @@ This document details the server error codes that may be encountered when using 
 | Error Code | Description                        | Possible Scenarios or Reasons                                | Recommended Actions                                          |
 | ---------- | ---------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | 0x80002901 | udf is stopping                    | udf call received when dnode exits                           | Stop executing udf queries                                   |
-| 0x80002902 | udf pipe read error                | Error occurred when taosd reads from udfd pipe               | udfd unexpectedly exits, 1) C udf crash 2) udfd crash        |
-| 0x80002903 | udf pipe connect error             | Error establishing pipe connection to udfd in taosd          | 1) Corresponding udfd not started in taosd. Restart taosd    |
-| 0x80002904 | udf pipe not exist                 | Connection error occurs between two phases of udf setup, call, and teardown, causing the connection to disappear, subsequent phases continue | udfd unexpectedly exits, 1) C udf crash 2) udfd crash        |
-| 0x80002905 | udf load failure                   | Error loading udf in udfd                                    | 1) udf does not exist in mnode 2) Error in udf loading. Check logs |
+| 0x80002902 | udf pipe read error                | Error occurred when taosd reads from taosudf pipe            | taosudf unexpectedly exits, 1) C udf crash 2) taosudf crash        |
+| 0x80002903 | udf pipe connect error             | Error establishing pipe connection to taosudf in taosd       | 1) Corresponding taosudf not started in taosd. Restart taosd    |
+| 0x80002904 | udf pipe not exist                 | Connection error occurs between two phases of udf setup, call, and teardown, causing the connection to disappear, subsequent phases continue | taosudf unexpectedly exits, 1) C udf crash 2) taosudf crash        |
+| 0x80002905 | udf load failure                   | Error loading udf in taosudf                                 | 1) udf does not exist in mnode 2) Error in udf loading. Check logs |
 | 0x80002906 | udf invalid function input         | udf input check                                              | udf function does not accept input, such as wrong column type |
 | 0x80002907 | udf invalid bufsize                | Intermediate result in udf aggregation function exceeds specified bufsize | Increase bufsize, or reduce intermediate result size         |
 | 0x80002908 | udf invalid output type            | udf output type differs from the type specified when creating udf | Modify udf, or the type when creating udf, to match the result |
@@ -531,8 +537,11 @@ This document details the server error codes that may be encountered when using 
 
 | Error Code | Description           | Possible Error Scenarios or Reasons                          | Recommended Actions for Users                |
 | ---------- | --------------------- | ------------------------------------------------------------ | -------------------------------------------- |
+| 0x800003E6 | Consumer not exist    | Consumer timeout offline                                     | rebuild consumer to subscribe data again     |
+| 0x800003EA | Consumer not ready    | Consumer rebalancing                                         | retry after 2s     |
 | 0x80004000 | Invalid message       | The subscribed data is illegal, generally does not occur     | Check the client-side error logs for details |
-| 0x80004001 | Consumer mismatch     | The vnode requested for subscription and the reassigned vnode are inconsistent, usually occurs when new consumers join the same consumer group | Internal error, not exposed to users         |
+| 0x80004001 | Consumer mismatch     | The vnode requested for subscription and the reassigned vnode are inconsistent, usually occurs when new consumers join the same consumer group | Internal error        |
 | 0x80004002 | Consumer closed       | The consumer no longer exists                                | Check if it has already been closed          |
-| 0x80004017 | Invalid status, please subscribe topic first | tmq status invalidate | Without calling subscribe, directly poll data |
+| 0x80004017 | Invalid status, please subscribe topic first | tmq status invalidate                 | Without calling subscribe, directly poll data     |
 | 0x80004100 | Stream task not exist | The stream computing task does not exist                     | Check the server-side error logs             |
+

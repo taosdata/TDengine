@@ -231,6 +231,7 @@ The effective value of charset is UTF-8.
 |udf                       |          |Supported, effective after restart|Whether to start UDF service; 0: do not start, 1: start; default value 0 |
 |udfdResFuncs              |          |Supported, effective after restart|Internal parameter, for setting UDF result sets|
 |udfdLdLibPath             |          |Supported, effective after restart|Internal parameter, indicates the library path for loading UDF|
+|enableStrongPassword      | After 3.3.5.0 |Supported, effective after restart|The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
 
 ### Stream Computing Parameters
 
@@ -243,6 +244,8 @@ The effective value of charset is UTF-8.
 | concurrentCheckpoint   |          |Supported, effective immediately  | Internal parameter, whether to check checkpoints concurrently |
 | maxStreamBackendCache  |          |Supported, effective immediately  | Internal parameter, maximum cache used by stream computing |
 | streamSinkDataRate     |          |Supported, effective after restart| Internal parameter, used to control the write speed of stream computing results |
+| streamNotifyMessageSize | After 3.3.6.0 | Not supported | Internal parameter, controls the message size for event notifications, default value is 8192 |
+| streamNotifyFrameSize   | After 3.3.6.0 | Not supported | Internal parameter, controls the underlying frame size when sending event notification messages, default value is 256 |
 
 ### Log Related
 

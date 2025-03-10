@@ -265,14 +265,6 @@ static int32_t tsdbMergeFileSetBeginOpenWriter(SMerger *merger) {
   int32_t lino = 0;
   int32_t vid = TD_VID(merger->tsdb->pVnode);
 
-  SDiskID did;
-  int32_t level = tsdbFidLevel(merger->ctx->fset->fid, &merger->tsdb->keepCfg, merger->ctx->now);
-
-  TAOS_CHECK_GOTO(tfsAllocDisk(merger->tsdb->pVnode->pTfs, level, &did), &lino, _exit);
-
-  code = tfsMkdirRecurAt(merger->tsdb->pVnode->pTfs, merger->tsdb->path, did);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
   SFSetWriterConfig config = {
       .tsdb = merger->tsdb,
       .toSttOnly = true,
@@ -283,7 +275,7 @@ static int32_t tsdbMergeFileSetBeginOpenWriter(SMerger *merger) {
       .cmprAlg = merger->cmprAlg,
       .fid = merger->ctx->fset->fid,
       .cid = merger->cid,
-      .did = did,
+      .expLevel = tsdbFidLevel(merger->ctx->fset->fid, &merger->tsdb->keepCfg, merger->ctx->now),
       .level = merger->ctx->level,
   };
 

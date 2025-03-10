@@ -250,6 +250,29 @@ int32_t qSetStreamOpOpen(qTaskInfo_t tinfo) {
   return code;
 }
 
+int32_t qSetStreamNotifyInfo(qTaskInfo_t tinfo, int32_t eventTypes, const SSchemaWrapper* pSchemaWrapper,
+                             const char* stbFullName, bool newSubTableRule, STaskNotifyEventStat* pNotifyEventStat) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SStreamTaskInfo *pStreamInfo = NULL;
+
+  if (tinfo == 0 || eventTypes == 0 || pSchemaWrapper == NULL || stbFullName == NULL) {
+    goto _end;
+  }
+
+  pStreamInfo = &((SExecTaskInfo*)tinfo)->streamInfo;
+  pStreamInfo->eventTypes = eventTypes;
+  pStreamInfo->notifyResultSchema = tCloneSSchemaWrapper(pSchemaWrapper);
+  if (pStreamInfo->notifyResultSchema == NULL) {
+    code = terrno;
+  }
+  pStreamInfo->stbFullName = taosStrdup(stbFullName);
+  pStreamInfo->newSubTableRule = newSubTableRule;
+  pStreamInfo->pNotifyEventStat = pNotifyEventStat;
+
+_end:
+  return code;
+}
+
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
   if (tinfo == NULL) {
     return TSDB_CODE_APP_ERROR;
@@ -608,7 +631,7 @@ void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
 }
 
 int32_t qExecutorInit(void) {
-  (void) taosThreadOnce(&initPoolOnce, initRefPool);
+  (void)taosThreadOnce(&initPoolOnce, initRefPool);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -622,7 +645,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
 
   int32_t code = createExecTaskInfo(pSubplan, pTask, readHandle, taskId, vgId, sql, model);
   if (code != TSDB_CODE_SUCCESS || NULL == *pTask) {
-    qError("failed to createExecTaskInfo, code: %s", tstrerror(code));
+    qError("failed to createExecTaskInfo, code:%s", tstrerror(code));
     goto _error;
   }
 

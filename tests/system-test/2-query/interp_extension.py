@@ -376,7 +376,7 @@ class TDTestCase:
 
         ### range with around interval cannot specify two timepoints, currently not supported
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', '2020-02-01 00:02:00', 1h) fill(near, 1, 1)"
-        tdSql.error(sql, -2147473920) ## syntax error
+        tdSql.error(sql, -2147473827) ## syntax error
 
         ### NULL/linear cannot specify other values
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', '2020-02-01 00:02:00') fill(NULL, 1, 1)"
@@ -387,7 +387,8 @@ class TDTestCase:
 
         ### cannot have every clause with range around
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1h) every(1s) fill(prev, 1, 1)"
-        tdSql.error(sql, -2147473827) ## TSDB_CODE_PAR_INVALID_INTERP_CLAUSE
+        tdSql.query(sql, queryTimes=1)
+        tdSql.checkRows(1)
 
         ### cannot specify near/prev/next values when using range
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', '2020-02-01 00:01:00') every(1s) fill(near, 1, 1)"
@@ -409,13 +410,13 @@ class TDTestCase:
 
         ### range interval cannot be 0
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 0h) fill(near, 1, 1)"
-        tdSql.error(sql, -2147473861) ## TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE
+        tdSql.error(sql, -2147473920) ## syntax error
 
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1y) fill(near, 1, 1)"
-        tdSql.error(sql, -2147473915) ## TSDB_CODE_PAR_WRONG_VALUE_TYPE
+        tdSql.error(sql, -2147473920) ## syntax error
 
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters range('2020-02-01 00:00:00', 1n) fill(near, 1, 1)"
-        tdSql.error(sql, -2147473915) ## TSDB_CODE_PAR_WRONG_VALUE_TYPE
+        tdSql.error(sql, -2147473920) ## syntax error
 
         sql = f"select _irowts, interp(c1), interp(c2), _isfilled from test.meters where ts between '2020-02-01 00:00:00' and '2020-02-01 00:00:00' range('2020-02-01 00:00:00', 1h) fill(near, 1, 1)"
         tdSql.query(sql, queryTimes=1)
