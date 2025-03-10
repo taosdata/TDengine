@@ -6249,7 +6249,7 @@ static int32_t translateAnomalyWindow(STranslateContext* pCxt, SSelectStmt* pSel
   SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pSelect->pWindow;
   int32_t             code = checkAnomalyExpr(pCxt, pAnomaly->pExpr);
   if (TSDB_CODE_SUCCESS == code) {
-    if (!taosAnalGetOptStr(pAnomaly->anomalyOpt, "algo", NULL, 0) != 0) {
+    if (!taosAnalyGetOptStr(pAnomaly->anomalyOpt, "algo", NULL, 0) != 0) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_OPT,
                                      "ANOMALY_WINDOW option should include algo field");
     }
@@ -10503,9 +10503,17 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   createReq.superUser = 0;
   createReq.sysInfo = pStmt->sysinfo;
   createReq.enable = 1;
-  tstrncpy(createReq.pass, pStmt->password, TSDB_USET_PASSWORD_LEN);
   createReq.isImport = pStmt->isImport;
   createReq.createDb = pStmt->createDb;
+
+  if(pStmt->isImport == 1){
+    tstrncpy(createReq.pass, pStmt->password, TSDB_USET_PASSWORD_LEN);
+  }
+  else{
+    taosEncryptPass_c((uint8_t*)pStmt->password, strlen(pStmt->password), createReq.pass);
+     
+  }
+  createReq.passIsMd5 = 1;   
 
   createReq.numIpRanges = pStmt->numIpRanges;
   if (pStmt->numIpRanges > 0) {
@@ -10548,7 +10556,13 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   alterReq.enable = pStmt->enable;
   alterReq.sysInfo = pStmt->sysinfo;
   alterReq.createdb = pStmt->createdb ? 1 : 0;
-  snprintf(alterReq.pass, sizeof(alterReq.pass), "%s", pStmt->password);
+
+  int32_t len = strlen(pStmt->password);
+  if (len > 0) {
+    taosEncryptPass_c((uint8_t*)pStmt->password, len, alterReq.pass);
+    alterReq.passIsMd5 = 1;
+  }
+
   if (NULL != pCxt->pParseCxt->db) {
     snprintf(alterReq.objname, sizeof(alterReq.objname), "%s", pCxt->pParseCxt->db);
   }
@@ -13311,7 +13325,16 @@ static int32_t translateSplitVgroup(STranslateContext* pCxt, SSplitVgroupStmt* p
 
 static int32_t translateShowVariables(STranslateContext* pCxt, SShowStmt* pStmt) {
   SShowVariablesReq req = {0};
-  return buildCmdMsg(pCxt, TDMT_MND_SHOW_VARIABLES, (FSerializeFunc)tSerializeSShowVariablesReq, &req);
+  req.opType = pStmt->tableCondType;
+  if (req.opType == OP_TYPE_LIKE && pStmt->pTbName) {
+    req.valLen = strlen(((SValueNode*)pStmt->pTbName)->literal);
+    if (req.valLen > 0) {
+      req.val = taosStrdupi(((SValueNode*)pStmt->pTbName)->literal);
+    }
+  }
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_SHOW_VARIABLES, (FSerializeFunc)tSerializeSShowVariablesReq, &req);
+  tFreeSShowVariablesReq(&req);
+  return code;
 }
 
 static int32_t translateShowCreateDatabase(STranslateContext* pCxt, SShowCreateDatabaseStmt* pStmt) {
