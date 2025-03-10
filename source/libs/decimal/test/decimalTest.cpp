@@ -187,16 +187,11 @@ class Numeric {
 
   static SDataType getRetType(EOperatorType op, const SDataType& lt, const SDataType& rt) {
     SDataType ot = {0};
-    int32_t code = decimalGetRetType(&lt, &rt, op, &ot);
+    int32_t   code = decimalGetRetType(&lt, &rt, op, &ot);
     if (code != 0) throw std::runtime_error(tstrerror(code));
     return ot;
   }
-  SDataType type() const {
-    return {.type = NumericType<BitNum>::dataType,
-            .precision = prec(),
-            .scale = scale(),
-            .bytes = NumericType<BitNum>::bytes};
-  }
+  SDataType   type() const { return {NumericType<BitNum>::dataType, prec(), scale(), NumericType<BitNum>::bytes}; }
   uint8_t     prec() const { return prec_; }
   uint8_t     scale() const { return scale_; }
   const Type& dec() const { return dec_; }
@@ -210,14 +205,8 @@ class Numeric {
 
   template <int BitNum2, int BitNumO>
   Numeric<BitNumO> binaryOp(const Numeric<BitNum2>& r, EOperatorType op) {
-    SDataType        lt{.type = NumericType<BitNum>::dataType,
-                        .precision = prec_,
-                        .scale = scale_,
-                        .bytes = NumericType<BitNum>::bytes};
-    SDataType        rt{.type = NumericType<BitNum2>::dataType,
-                        .precision = r.prec(),
-                        .scale = r.scale(),
-                        .bytes = NumericType<BitNum2>::bytes};
+    SDataType        lt{NumericType<BitNum>::dataType, prec_, scale_, NumericType<BitNum>::bytes};
+    SDataType        rt{NumericType<BitNum2>::dataType, r.prec(), r.scale(), NumericType<BitNum2>::bytes};
     SDataType        ot = getRetType(op, lt, rt);
     Numeric<BitNumO> out{ot.precision, ot.scale, "0"};
     int32_t          code = decimalOp(op, &lt, &rt, &ot, &dec_, &r.dec(), &out);
@@ -228,11 +217,8 @@ class Numeric {
   template <int BitNumO, typename T>
   Numeric<BitNumO> binaryOp(const T& r, EOperatorType op) {
     using TypeInfo = TrivialTypeInfo<T>;
-    SDataType        lt{.type = NumericType<BitNum>::dataType,
-                        .precision = prec_,
-                        .scale = scale_,
-                        .bytes = NumericType<BitNum>::bytes};
-    SDataType        rt{.type = TypeInfo::dataType, .precision = 0, .scale = 0, .bytes = TypeInfo::bytes};
+    SDataType        lt{NumericType<BitNum>::dataType, prec_, scale_, NumericType<BitNum>::bytes};
+    SDataType        rt{TypeInfo::dataType, 0, 0, TypeInfo::bytes};
     SDataType        ot = getRetType(op, lt, rt);
     Numeric<BitNumO> out{ot.precision, ot.scale, "0"};
     int32_t          code = decimalOp(op, &lt, &rt, &ot, &dec_, &r, &out);
@@ -382,24 +368,16 @@ class Numeric {
   DEFINE_OPERATOR_EQ_T(float);
 
   Numeric& operator=(const Decimal128& d) {
-    SDataType inputDt = {
-        .type = TSDB_DATA_TYPE_DECIMAL, .precision = prec(), .scale = scale(), .bytes = DECIMAL128_BYTES};
-    SDataType outputDt = {.type = NumericType<BitNum>::dataType,
-                          .precision = prec(),
-                          .scale = scale(),
-                          .bytes = NumericType<BitNum>::bytes};
+    SDataType inputDt = {TSDB_DATA_TYPE_DECIMAL, prec(), scale(), DECIMAL128_BYTES};
+    SDataType outputDt = {NumericType<BitNum>::dataType, prec(), scale(), NumericType<BitNum>::bytes};
     int32_t   code = convertToDecimal(&d, &inputDt, &dec_, &outputDt);
     if (code == TSDB_CODE_DECIMAL_OVERFLOW) throw std::overflow_error(tstrerror(code));
     if (code != 0) throw std::runtime_error(tstrerror(code));
     return *this;
   }
   Numeric& operator=(const Decimal64& d) {
-    SDataType inputDt = {
-        .type = TSDB_DATA_TYPE_DECIMAL64, .precision = prec(), .scale = scale(), .bytes = DECIMAL64_BYTES};
-    SDataType outputDt = {.type = NumericType<BitNum>::dataType,
-                          .precision = prec_,
-                          .scale = scale_,
-                          .bytes = NumericType<BitNum>::bytes};
+    SDataType inputDt = {TSDB_DATA_TYPE_DECIMAL64, prec(), scale(), DECIMAL64_BYTES};
+    SDataType outputDt = {NumericType<BitNum>::dataType, prec_, scale_, NumericType<BitNum>::bytes};
     int32_t   code = convertToDecimal(&d, &inputDt, &dec_, &outputDt);
     if (code == TSDB_CODE_DECIMAL_OVERFLOW) throw std::overflow_error(tstrerror(code));
     if (code != 0) throw std::runtime_error(tstrerror(code));
@@ -415,13 +393,10 @@ class Numeric {
   template <int BitNum2>
   Numeric& operator=(const Numeric<BitNum2>& num2) {
     static_assert(BitNum2 == 64 || BitNum2 == 128, "Only support decimal128/decimal64");
-    SDataType inputDt = {
-        .type = num2.type().type, .precision = num2.prec(), .scale = num2.scale(), .bytes = num2.type().bytes};
-    SDataType outputDt = {.type = NumericType<BitNum>::dataType,
-                          .precision = NumericType<BitNum>::maxPrec,
-                          .scale = num2.scale(),
-                          .bytes = NumericType<BitNum>::bytes};
-    int32_t code = convertToDecimal(&num2.dec(), &inputDt, &dec_, &outputDt);
+    SDataType inputDt = {num2.type().type, num2.prec(), num2.scale(), num2.type().bytes};
+    SDataType outputDt = {NumericType<BitNum>::dataType, NumericType<BitNum>::maxPrec, num2.scale(),
+                          NumericType<BitNum>::bytes};
+    int32_t   code = convertToDecimal(&num2.dec(), &inputDt, &dec_, &outputDt);
     if (code == TSDB_CODE_DECIMAL_OVERFLOW) throw std::overflow_error(tstrerror(code));
     if (code != 0) throw std::runtime_error(tstrerror(code));
     prec_ = outputDt.precision;
@@ -653,9 +628,9 @@ TEST(decimal, conversion) {
   // convert uint8 to decimal
   char      buf[64] = {0};
   int8_t    i8 = 22;
-  SDataType inputType = {.type = TSDB_DATA_TYPE_TINYINT, .bytes = 1};
+  SDataType inputType = {TSDB_DATA_TYPE_TINYINT, 1};
   uint8_t   prec = 10, scale = 2;
-  SDataType decType = {.type = TSDB_DATA_TYPE_DECIMAL64, .precision = prec, .scale = scale, .bytes = 8};
+  SDataType decType = {TSDB_DATA_TYPE_DECIMAL64, prec, scale, 8};
   Decimal64 dec64 = {0};
   int32_t   code = convertToDecimal(&i8, &inputType, &dec64, &decType);
   ASSERT_TRUE(code == 0);
@@ -738,7 +713,7 @@ TEST(decimal, decimalOpRetType) {
   EOperatorType op = OP_TYPE_ADD;
   auto          ta = getDecimalType(10, 2);
   auto          tb = getDecimalType(10, 2);
-  SDataType     tc{}, tExpect = {.type = TSDB_DATA_TYPE_DECIMAL, .precision = 11, .scale = 2, .bytes = sizeof(Decimal)};
+  SDataType     tc{}, tExpect = {TSDB_DATA_TYPE_DECIMAL, 11, 2, sizeof(Decimal)};
   int32_t       code = decimalGetRetType(&ta, &tb, op, &tc);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tExpect, tc);
@@ -775,8 +750,8 @@ TEST(decimal, decimalOpRetType) {
   code = decimalGetRetType(&ta, &tb, op, &tc);
 
   Numeric<64> aNum = {10, 2, "123.99"};
-  int64_t bInt64 = 317759474393305778;
-  auto res = aNum / bInt64;
+  int64_t     bInt64 = 317759474393305778;
+  auto        res = aNum / bInt64;
   ASSERT_EQ(res.scale(), 22);
 }
 
@@ -793,7 +768,7 @@ TEST(decimal, op) {
   code = decimal64FromStr(strb, strlen(strb), tb.precision, tb.scale, &b);
   ASSERT_EQ(code, 0);
 
-  SDataType tc{}, tExpect{.type = TSDB_DATA_TYPE_DECIMAL, .precision = 11, .scale = 2, .bytes = sizeof(Decimal)};
+  SDataType tc{}, tExpect{TSDB_DATA_TYPE_DECIMAL, 11, 2, sizeof(Decimal)};
   code = decimalGetRetType(&ta, &tb, op, &tc);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tc, tExpect);
@@ -951,78 +926,78 @@ void testDecimalFromStr(std::vector<DecimalFromStrTestUnit<BitNum>>& units) {
 
 TEST(decimal, decimalFromStr_all) {
   std::vector<DecimalFromStrTestUnit<64>> units = {
-    {10, 5, "1e+2.1", "100.00000", false},
-    {10, 5, "0e+1000", "0", false},
-    {10, 5, "0e-1000", "0", false},
-    {10, 5, "0e-100", "0", false},
-    {10, 5, "0e100", "0", false},
-    {10, 5, "0e10", "0", false},
-    {10, 5, "1.634e-5", "0.00002", false},
-    {18, 16, "-0.0009900000000000000009e5", "-99.0000000000000001", false},
-    {18, 10, "1.23456e7", "12345600.0000000000", false},
-    {10, 5, "0e-10", "0", false},
-    {10, 8, "1.000000000000000009e2", "", true},
-    {10, 8, "1.2345e2", "", true},
-    {18, 18, "-0.0000000000000100000010000000900000009e10", "-0.000100000010000001", false},
-    {18, 18, "-0.1999999999999999999e-1", "-0.020000000000000000", false},
-    {18, 18, "-0.9999999999999999999e-1", "-0.100000000000000000", false},
-    {18, 18, "-9.999999999999999999e-1", "", true},
-    {10, 10, "-9.9999999e-2", "-0.0999999990", false},
-    {10, 6, "9.99999e4", "", true},
-    {18, 4, "9.999999e1", "100.0000", false},
-    {18, 18, "0.0000000000000000000000000010000000000000000199999e26", "0.100000000000000002", false},
-    {18, 18, "0.000000000000000000000000001000000000000000009e26", "0.100000000000000001", false},
-    {10, 10, "0.000000000010000000009e10", "0.1000000001", false},
-    {10, 10, "0.000000000000000000009e10", "0.0000000001", false},
-    {10, 10, "0.00000000001e10", "0.1000000000", false},
-    {10, 7, "-1234567890e-8", "-12.3456789", false},
-    {10, 4, "1e5", "100000.0000", false},
-    {10, 3, "123.000E4", "1230000.000", false},
-    {10, 3, "123.456E2", "12345.600", false},
-    {18, 2, "1.2345e8", "123450000.00", false},
-    {10, 2, "1.2345e8", "123450000.00", true},
-    {18, 4, "9.99999", "10.0000", false},
-    {10, 2, "123.45", "123.45", false},
-    {10, 2, "123.456", "123.46", false},
-    {10, 2, "123.454", "123.45"},
-    {18, 2, "1234567890123456.456", "1234567890123456.46", false},
-    {18, 2, "9999999999999999.995", "", true},
-    {18, 2, "9999999999999999.994", "9999999999999999.99", false},
-    {18, 2, "-9999999999999999.995", "", true},
-    {18, 2, "-9999999999999999.994", "-9999999999999999.99", false},
-    {18, 2, "-9999999999999999.9999999", "", true},
-    {10, 2, "12345678.456", "12345678.46", false},
-    {10, 2, "12345678.454", "12345678.45", false},
-    {10, 2, "99999999.999", "", true},
-    {10, 2, "-99999999.992", "-99999999.99", false},
-    {10, 2, "-99999999.999", "", true},
-    {10, 2, "-99999989.998", "-99999990.00", false},
-    {10, 2, "-99999998.997", "-99999999.00", false},
-    {10, 2, "-99999999.009", "-99999999.01", false},
-    {18, 17, "-9.99999999999999999999", "", true},
-    {18, 16, "-99.999999999999999899999", "-99.9999999999999999", false},
-    {18, 16, "-99.999999999999990099999", "-99.9999999999999901", false},
-    {18, 18, "0.0000000000000000099", "0.000000000000000010", false},
-    {18, 18, "0.0000000000000000001", "0", false},
-    {18, 18, "0.0000000000000000005", "0.000000000000000001", false},
-    {18, 18, "-0.0000000000000000001", "0", false},
-    {18, 18, "-0.00000000000000000019999", "0", false},
-    {18, 18, "-0.0000000000000000005", "-0.000000000000000001", false},
-    {18, 18, "-0.00000000000000000000000000123123123", "0", false},
-    {18, 18, "0.10000000000000000000000000123123123", "0.100000000000000000", false},
-    {18, 18, "0.000000000000000000000000000000000000006", "0", false},
-    {18, 17, "1.00000000000000000999", "1.00000000000000001", false},
-    {18, 17, "1.00000000000000000199", "1.00000000000000000", false},
-    {15, 1, "-00000.", "0", false},
-    {14, 12, "-.000", "0", false},
-    {14, 12, "-.000000000000", "0", false},
-    {14, 12, "-.", "0", false},
-    {14, 10, "12345.12345", "", true},
-    {14, 0, "123456789012345.123123", "", true},
-    {18, 0, "1234567890123456789.123123", "", true},
-    {18, 0, "1.23456e18", "", true},
-    {18, 18, "1.23456e0", "", true},
-    {18, 18, "1.23456e-1", "0.123456000000000000", false},
+      {10, 5, "1e+2.1", "100.00000", false},
+      {10, 5, "0e+1000", "0", false},
+      {10, 5, "0e-1000", "0", false},
+      {10, 5, "0e-100", "0", false},
+      {10, 5, "0e100", "0", false},
+      {10, 5, "0e10", "0", false},
+      {10, 5, "1.634e-5", "0.00002", false},
+      {18, 16, "-0.0009900000000000000009e5", "-99.0000000000000001", false},
+      {18, 10, "1.23456e7", "12345600.0000000000", false},
+      {10, 5, "0e-10", "0", false},
+      {10, 8, "1.000000000000000009e2", "", true},
+      {10, 8, "1.2345e2", "", true},
+      {18, 18, "-0.0000000000000100000010000000900000009e10", "-0.000100000010000001", false},
+      {18, 18, "-0.1999999999999999999e-1", "-0.020000000000000000", false},
+      {18, 18, "-0.9999999999999999999e-1", "-0.100000000000000000", false},
+      {18, 18, "-9.999999999999999999e-1", "", true},
+      {10, 10, "-9.9999999e-2", "-0.0999999990", false},
+      {10, 6, "9.99999e4", "", true},
+      {18, 4, "9.999999e1", "100.0000", false},
+      {18, 18, "0.0000000000000000000000000010000000000000000199999e26", "0.100000000000000002", false},
+      {18, 18, "0.000000000000000000000000001000000000000000009e26", "0.100000000000000001", false},
+      {10, 10, "0.000000000010000000009e10", "0.1000000001", false},
+      {10, 10, "0.000000000000000000009e10", "0.0000000001", false},
+      {10, 10, "0.00000000001e10", "0.1000000000", false},
+      {10, 7, "-1234567890e-8", "-12.3456789", false},
+      {10, 4, "1e5", "100000.0000", false},
+      {10, 3, "123.000E4", "1230000.000", false},
+      {10, 3, "123.456E2", "12345.600", false},
+      {18, 2, "1.2345e8", "123450000.00", false},
+      {10, 2, "1.2345e8", "123450000.00", true},
+      {18, 4, "9.99999", "10.0000", false},
+      {10, 2, "123.45", "123.45", false},
+      {10, 2, "123.456", "123.46", false},
+      {10, 2, "123.454", "123.45"},
+      {18, 2, "1234567890123456.456", "1234567890123456.46", false},
+      {18, 2, "9999999999999999.995", "", true},
+      {18, 2, "9999999999999999.994", "9999999999999999.99", false},
+      {18, 2, "-9999999999999999.995", "", true},
+      {18, 2, "-9999999999999999.994", "-9999999999999999.99", false},
+      {18, 2, "-9999999999999999.9999999", "", true},
+      {10, 2, "12345678.456", "12345678.46", false},
+      {10, 2, "12345678.454", "12345678.45", false},
+      {10, 2, "99999999.999", "", true},
+      {10, 2, "-99999999.992", "-99999999.99", false},
+      {10, 2, "-99999999.999", "", true},
+      {10, 2, "-99999989.998", "-99999990.00", false},
+      {10, 2, "-99999998.997", "-99999999.00", false},
+      {10, 2, "-99999999.009", "-99999999.01", false},
+      {18, 17, "-9.99999999999999999999", "", true},
+      {18, 16, "-99.999999999999999899999", "-99.9999999999999999", false},
+      {18, 16, "-99.999999999999990099999", "-99.9999999999999901", false},
+      {18, 18, "0.0000000000000000099", "0.000000000000000010", false},
+      {18, 18, "0.0000000000000000001", "0", false},
+      {18, 18, "0.0000000000000000005", "0.000000000000000001", false},
+      {18, 18, "-0.0000000000000000001", "0", false},
+      {18, 18, "-0.00000000000000000019999", "0", false},
+      {18, 18, "-0.0000000000000000005", "-0.000000000000000001", false},
+      {18, 18, "-0.00000000000000000000000000123123123", "0", false},
+      {18, 18, "0.10000000000000000000000000123123123", "0.100000000000000000", false},
+      {18, 18, "0.000000000000000000000000000000000000006", "0", false},
+      {18, 17, "1.00000000000000000999", "1.00000000000000001", false},
+      {18, 17, "1.00000000000000000199", "1.00000000000000000", false},
+      {15, 1, "-00000.", "0", false},
+      {14, 12, "-.000", "0", false},
+      {14, 12, "-.000000000000", "0", false},
+      {14, 12, "-.", "0", false},
+      {14, 10, "12345.12345", "", true},
+      {14, 0, "123456789012345.123123", "", true},
+      {18, 0, "1234567890123456789.123123", "", true},
+      {18, 0, "1.23456e18", "", true},
+      {18, 18, "1.23456e0", "", true},
+      {18, 18, "1.23456e-1", "0.123456000000000000", false},
   };
   testDecimalFromStr(units);
 
@@ -1234,7 +1209,7 @@ struct DecimalRetTypeCheckContent {
     op_type = get_op_type(op);
   }
 
-  void check(const DecimalRetTypeCheckConfig &config = DecimalRetTypeCheckConfig()) {
+  void check(const DecimalRetTypeCheckConfig& config = DecimalRetTypeCheckConfig()) {
     SDataType ret = {0};
     try {
       if (config.log)
@@ -1293,13 +1268,11 @@ TEST(decimal_all, test_decimal_compare) {
 
 TEST(decimal_all, ret_type_for_non_decimal_types) {
   std::vector<DecimalRetTypeCheckContent> non_decimal_types;
-  SDataType decimal_type = {TSDB_DATA_TYPE_DECIMAL64, 10, 2, 8};
-  EOperatorType op = OP_TYPE_DIV;
-  std::vector<SDataType> out_types;
-  auto count_digits = [](uint64_t v) {
-    return std::floor(std::log10(v) + 1);
-  };
-  std::vector<SDataType> equivalent_decimal_types;
+  SDataType                               decimal_type = {TSDB_DATA_TYPE_DECIMAL64, 10, 2, 8};
+  EOperatorType                           op = OP_TYPE_DIV;
+  std::vector<SDataType>                  out_types;
+  auto                                    count_digits = [](uint64_t v) { return std::floor(std::log10(v) + 1); };
+  std::vector<SDataType>                  equivalent_decimal_types;
   // #define TSDB_DATA_TYPE_NULL       0   // 1 bytes
   equivalent_decimal_types.push_back({TSDB_DATA_TYPE_NULL, 0, 0, tDataTypes[TSDB_DATA_TYPE_NULL].bytes});
   // #define TSDB_DATA_TYPE_BOOL       1   // 1 bytes
@@ -1369,12 +1342,12 @@ class DecimalTest : public ::testing::Test {
     }
     return conn;
   }
-  TAOS*                        default_conn_ = NULL;
-  static constexpr const char* host = "127.0.0.1";
-  static constexpr const char* user = "root";
-  static constexpr const char* passwd = "taosdata";
-  static constexpr const char* db = "test";
-  DecimalStringRandomGenerator generator_;
+  TAOS*                              default_conn_ = NULL;
+  static constexpr const char*       host = "127.0.0.1";
+  static constexpr const char*       user = "root";
+  static constexpr const char*       passwd = "taosdata";
+  static constexpr const char*       db = "test";
+  DecimalStringRandomGenerator       generator_;
   DecimalStringRandomGeneratorConfig generator_config_;
 
  public:
@@ -1393,12 +1366,10 @@ class DecimalTest : public ::testing::Test {
   std::string generate_decimal_str() { return generator_.generate(generator_config_); }
 };
 
-TEST_F(DecimalTest, insert) {
-  
-}
+TEST_F(DecimalTest, insert) {}
 
 TEST(decimal, fillDecimalInfoInBytes) {
-  auto d = getDecimalType(10, 2);
+  auto    d = getDecimalType(10, 2);
   int32_t bytes = 0;
   fillBytesForDecimalType(&bytes, d.type, d.precision, d.scale);
 
@@ -1509,7 +1480,7 @@ TEST_F(DecimalTest, decimalFromStr) {
 
   numeric64 = {18, 0, "0"};
 
-  numeric64 = { 18, 18, "0"};
+  numeric64 = {18, 18, "0"};
 
   numeric64 = {18, 2, "0"};
   Numeric<128> numeric128 = {38, 10, "0"};
@@ -1517,15 +1488,14 @@ TEST_F(DecimalTest, decimalFromStr) {
 
 TEST(decimal, test_add_check_overflow) {
   Numeric<128> dec128 = {38, 10, "9999999999999999999999999999.9999999999"};
-  Numeric<64> dec64 = {18, 2, "123.12"};
-  bool overflow = decimal128AddCheckOverflow((Decimal128*)&dec128.dec(), &dec64.dec(), WORD_NUM(Decimal64));
+  Numeric<64>  dec64 = {18, 2, "123.12"};
+  bool         overflow = decimal128AddCheckOverflow((Decimal128*)&dec128.dec(), &dec64.dec(), WORD_NUM(Decimal64));
   ASSERT_TRUE(overflow);
   dec128 = {38, 10, "-9999999999999999999999999999.9999999999"};
   ASSERT_FALSE(decimal128AddCheckOverflow((Decimal128*)&dec128.dec(), &dec64.dec(), WORD_NUM(Decimal64)));
   dec64 = {18, 2, "-123.1"};
   ASSERT_TRUE(decimal128AddCheckOverflow((Decimal128*)&dec128.dec(), &dec64.dec(), WORD_NUM(Decimal64)));
 }
-
 
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);

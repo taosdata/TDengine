@@ -9430,7 +9430,8 @@ static int32_t checkDecimalDataType(STranslateContext* pCxt, SDataType pDataType
     if (pDataType.precision < TSDB_DECIMAL_MIN_PRECISION || pDataType.precision > TSDB_DECIMAL_MAX_PRECISION ||
         pDataType.precision < pDataType.scale) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
-                                     "Invalid column type: %s, invalid precision or scale");
+                                     "Invalid column type DECIMAL(%d,%d) , invalid precision or scale",
+                                     pDataType.precision, pDataType.scale);
     }
   }
   return TSDB_CODE_SUCCESS;
