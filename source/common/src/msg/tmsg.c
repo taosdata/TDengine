@@ -12005,7 +12005,7 @@ int32_t tEncodeSubmitReq(SEncoder *pCoder, const SSubmitReq2 *pReq) {
     for (uint64_t i = 0; i < taosArrayGetSize(pReq->aSubmitTbData); i++) {
       SSubmitTbData *pSubmitTbData = taosArrayGet(pReq->aSubmitTbData, i);
       if ((pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) && pSubmitTbData->pCreateTbReq == NULL) {
-        pSubmitTbData->flags = 0;
+        pSubmitTbData->flags &= ~SUBMIT_REQ_AUTO_CREATE_TABLE;
       }
       TAOS_CHECK_EXIT(tEncodeSSubmitTbData(pCoder, pSubmitTbData));
     }
