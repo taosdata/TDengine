@@ -2217,11 +2217,8 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
         if (code) {
           goto out;
         }
-      // } else if (pStmt->bInfo.tbType == TSDB_CHILD_TABLE) {
-      //   code = stmtSetTbTags2(stmt, NULL, NULL);
-      //   if (code) {
-      //     return code;
-      //   }
+      } else {
+        pStmt->sql.autoCreateTbl = false;
       }
     }
     if (bindv->bind_cols && bindv->bind_cols[i]) {

@@ -928,7 +928,6 @@ TEST(stmt2Case, stmt2_stb_insert) {
             "insert into stmt2_testdb_1.? using stmt2_testdb_1.stb (t1,t2)tags(?,?) (ts,b)values(?,?)", 3, 3, 3, true,
             true);
   }
-  { do_stmt("no-interlcace & aync exec", taos, &option, "insert into db.? values(?,?)", 3, 3, 3, false, true); }
 
   // interlace = 0 & use db]
   do_query(taos, "use stmt2_testdb_1");
@@ -956,11 +955,19 @@ TEST(stmt2Case, stmt2_stb_insert) {
     do_stmt("interlcace & no-preCreateTB", taos, &option, "insert into ? using stb (t1,t2)tags(?,?) (ts,b)values(?,?)",
             3, 3, 3, true, false);
   }
+  {
+    do_stmt("interlcace & no-preCreateTB", taos, &option,
+            "insert into stmt2_testdb_1.stb (ts,b,tbname,t1,t2) values(?,?,?,?,?)", 3, 3, 3, true, false);
+  }
   // interlace = 0
   option = {0, false, false, NULL, NULL};
   {
     do_stmt("no-interlcace & no-preCreateTB", taos, &option,
             "insert into ? using stb (t1,t2)tags(?,?) (ts,b)values(?,?)", 3, 3, 3, true, false);
+  }
+  {
+    do_stmt("no-interlcace & no-preCreateTB", taos, &option,
+            "insert into stmt2_testdb_1.stb (ts,b,tbname,t1,t2) values(?,?,?,?,?)", 3, 3, 3, true, false);
   }
 
   do_query(taos, "drop database if exists stmt2_testdb_1");
@@ -1028,7 +1035,6 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
   // less cols and tags
   {
     TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
-    // TODO: support insert into stb values(?,?,?) autoCreateTable interlace mode
     TAOS_STMT2_OPTION option = {0, false, false, NULL, NULL};
     ASSERT_NE(stmt, nullptr);
     const char* sql = "INSERT INTO stmt2_testdb_6.stb1 (ts,int_tag,tbname)  VALUES (?,?,?)";
@@ -1070,12 +1076,12 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
 
   // disorder cols and tags
   {
-    // TODO: support insert into stb values(?,?,?) autoCreateTable interlace mode
     TAOS_STMT2_OPTION option = {0, false, false, NULL, NULL};
     TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
     ASSERT_NE(stmt, nullptr);
     do_query(taos,
-             "INSERT INTO stmt2_testdb_6.stb1 (ts, int_tag, tbname)  VALUES (1591060627000, 5, 'tb5')(1591060627000, 6,'tb6')");
+             "INSERT INTO stmt2_testdb_6.stb1 (ts, int_tag, tbname)  VALUES (1591060627000, 5, 'tb5')(1591060627000, "
+             "6,'tb6')");
     const char* sql = "INSERT INTO stmt2_testdb_6.stb1 (binary_tag,int_col,tbname,ts,int_tag)  VALUES (?,?,?,?,?)";
     printf("stmt2 [%s] : %s\n", "disorder params", sql);
     int code = taos_stmt2_prepare(stmt, sql, 0);

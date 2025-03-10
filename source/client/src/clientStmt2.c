@@ -1076,6 +1076,9 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags, SVCreateTbReq** pCre
   if (pStmt->sql.stbInterlaceMode) {
     boundTags = pStmt->sql.siInfo.boundTags;
     *pCreateTbReq = taosMemoryCalloc(1, sizeof(SVCreateTbReq));
+    if (NULL == pCreateTbReq) {
+      return terrno;
+    }
     STMT_ERR_RET(stmtTryAddTableVgroupInfo(pStmt, &(*pDataBlock)->pMeta->vgId));
   } else {
     boundTags = pStmt->bInfo.boundTags;
