@@ -1675,14 +1675,15 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
   resetClolumnReserve(pInfo->pResBlock, pInfo->base.dataBlockLoadFlag);
   QUERY_CHECK_NULL(pInfo->pResBlock, code, lino, _error, terrno);
+
+  code = prepareDataBlockBuf(pInfo->pResBlock, &pInfo->base.matchInfo);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   if (pScanNode->node.dynamicOp) {
     TSWAP(pInfo->pOrgBlock, pInfo->pResBlock);
     memcpy(&pInfo->base.orgCond, &pInfo->base.cond, sizeof(SQueryTableDataCond));
     memset(&pInfo->base.cond, 0, sizeof(SQueryTableDataCond));
   }
-
-  code = prepareDataBlockBuf(pInfo->pResBlock, &pInfo->base.matchInfo);
-  QUERY_CHECK_CODE(code, lino, _error);
 
   code = filterInitFromNode((SNode*)pTableScanNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   QUERY_CHECK_CODE(code, lino, _error);

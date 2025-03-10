@@ -611,6 +611,7 @@ int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, in
   (*ppRes)->downstreamIdx = 0;
   (*ppRes)->value = pScan;
   (*ppRes)->pChildren = NULL;
+  (*ppRes)->reUse = false;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -655,6 +656,7 @@ int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, 
   (*ppRes)->downstreamIdx = 0;
   (*ppRes)->value = pScan;
   (*ppRes)->pChildren = NULL;
+  (*ppRes)->reUse = false;
 
   return TSDB_CODE_SUCCESS;
 }

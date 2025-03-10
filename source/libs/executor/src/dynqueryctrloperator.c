@@ -202,6 +202,7 @@ static int32_t buildGroupCacheOperatorParam(SOperatorParam** ppRes, int32_t down
   (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE;
   (*ppRes)->downstreamIdx = downstreamIdx;
   (*ppRes)->value = pGc;
+  (*ppRes)->reUse = false;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -229,6 +230,7 @@ static int32_t buildGroupCacheNotifyOperatorParam(SOperatorParam** ppRes, int32_
   (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE;
   (*ppRes)->downstreamIdx = downstreamIdx;
   (*ppRes)->value = pGc;
+  (*ppRes)->reUse = false;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -265,7 +267,8 @@ static int32_t buildExchangeOperatorParam(SOperatorParam** ppRes, int32_t downst
   (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
   (*ppRes)->downstreamIdx = downstreamIdx;
   (*ppRes)->value = pExc;
-  
+  (*ppRes)->reUse = false;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1037,6 +1040,7 @@ static int32_t buildVtbScanOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOper
   (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN;
   (*ppRes)->downstreamIdx = 0;
   (*ppRes)->value = pVScan;
+  (*ppRes)->reUse = false;
 
   return TSDB_CODE_SUCCESS;
 }

@@ -9225,7 +9225,7 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN: {
       STableScanOperatorParam *pScan = (STableScanOperatorParam *)pOpParam->value;
       TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pScan->tableSeq));
-      TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pScan->isVtbRefScan));
+      TAOS_CHECK_RETURN(tEncodeBool(pEncoder, pScan->isVtbRefScan));
       int32_t uidNum = taosArrayGetSize(pScan->pUidList);
       TAOS_CHECK_RETURN(tEncodeI32(pEncoder, uidNum));
       for (int32_t m = 0; m < uidNum; ++m) {
@@ -9272,7 +9272,7 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
         TAOS_CHECK_RETURN(terrno);
       }
       TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t *)&pScan->tableSeq));
-      TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t *)&pScan->isVtbRefScan));
+      TAOS_CHECK_RETURN(tDecodeBool(pDecoder, &pScan->isVtbRefScan));
       int32_t uidNum = 0;
       int64_t uid = 0;
       TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &uidNum));
