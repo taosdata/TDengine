@@ -995,6 +995,8 @@ static void mndShowStreamStatus(char *dst, int8_t status) {
     tstrncpy(dst, "recover", MND_STREAM_TRIGGER_NAME_SIZE);
   } else if (status == STREAM_STATUS__PAUSE) {
     tstrncpy(dst, "paused", MND_STREAM_TRIGGER_NAME_SIZE);
+  } else if (status == STREAM_STATUS__INIT) {
+    tstrncpy(dst, "init", MND_STREAM_TRIGGER_NAME_SIZE);
   }
 }
 
@@ -1108,7 +1110,7 @@ int32_t setStreamAttrInResBlock(SStreamObj *pStream, SSDataBlock *pBlock, int32_
   TSDB_CHECK_CODE(code, lino, _end);
 
   int8_t streamStatus = atomic_load_8(&pStream->status);
-  if (isPaused) {
+  if (isPaused && pStream->tasks != NULL) {
     streamStatus = STREAM_STATUS__PAUSE;
   }
   mndShowStreamStatus(status2, streamStatus);

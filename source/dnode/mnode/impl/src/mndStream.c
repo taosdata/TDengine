@@ -246,7 +246,14 @@ static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStream
   pOldStream->updateTime = pNewStream->updateTime;
   pOldStream->checkpointId = pNewStream->checkpointId;
   pOldStream->checkpointFreq = pNewStream->checkpointFreq;
-
+  if (pOldStream->tasks == NULL){
+    pOldStream->tasks = pNewStream->tasks;
+    pNewStream->tasks = NULL;
+  }
+  if (pOldStream->pHTasksList == NULL){
+    pOldStream->pHTasksList = pNewStream->pHTasksList;
+    pNewStream->pHTasksList = NULL;
+  }
   taosWUnLockLatch(&pOldStream->lock);
   return 0;
 }
@@ -346,7 +353,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   snprintf(p, tListLen(p), "%s_%s", pObj->name, "fillhistory");
 
   pObj->hTaskUid = mndGenerateUid(pObj->name, strlen(pObj->name));
-  pObj->status = 0;
+  pObj->status = STREAM_STATUS__NORMAL;
 
   pObj->conf.igExpired = pCreate->igExpired;
   pObj->conf.trigger = pCreate->triggerType;
@@ -851,14 +858,16 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   code = mndAcquireStream(pMnode, createReq.name, &pStream);
   if (pStream != NULL && code == 0) {
-    if (createReq.igExists) {
-      mInfo("stream:%s, already exist, ignore exist is set", createReq.name);
-      mndReleaseStream(pMnode, pStream);
-      tFreeSCMCreateStreamReq(&createReq);
-      return code;
-    } else {
-      code = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
-      goto _OVER;
+    if (pStream->tasks != NULL){
+      if (createReq.igExists) {
+        mInfo("stream:%s, already exist, ignore exist is set", createReq.name);
+        mndReleaseStream(pMnode, pStream);
+        tFreeSCMCreateStreamReq(&createReq);
+        return code;
+      } else {
+        code = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
+        goto _OVER;
+      }
     }
   } else if (code != TSDB_CODE_MND_STREAM_NOT_EXIST) {
     goto _OVER;
@@ -900,8 +909,44 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  bool buildEmptyStream = false;
+  if (createReq.lastTs == 0 && createReq.fillHistory != STREAM_FILL_HISTORY_OFF){
+    streamObj.status = STREAM_STATUS__INIT;
+    buildEmptyStream = true;
+  }
+
+  if ((code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, streamObj.sourceDb)) != 0) {
+    goto _OVER;
+  }
+
+  if ((code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, streamObj.targetDb)) != 0) {
+    goto _OVER;
+  }
+
   code = doStreamCheck(pMnode, &streamObj);
   TSDB_CHECK_CODE(code, lino, _OVER);
+
+  // schedule stream task for stream obj
+  if (!buildEmptyStream) {
+    code = mndScheduleStream(pMnode, &streamObj, createReq.lastTs, createReq.pVgroupVerList);
+    if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+      mError("stream:%s, failed to schedule since %s", createReq.name, tstrerror(code));
+      goto _OVER;
+    }
+    // add notify info into all stream tasks
+    code = addStreamNotifyInfo(&createReq, &streamObj);
+    if (code != TSDB_CODE_SUCCESS) {
+      mError("stream:%s failed to add stream notify info since %s", createReq.name, tstrerror(code));
+      goto _OVER;
+    }
+
+    // add into buffer firstly
+    // to make sure when the hb from vnode arrived, the newly created tasks have been in the task map already.
+    streamMutexLock(&execInfo.lock);
+    mDebug("stream stream:%s start to register tasks into task nodeList and set initial checkpointId", createReq.name);
+    saveTaskAndNodeInfoIntoBuf(&streamObj, &execInfo);
+    streamMutexUnlock(&execInfo.lock);
+  }
 
   code = doCreateTrans(pMnode, &streamObj, pReq, TRN_CONFLICT_DB, MND_STREAM_CREATE_NAME, pMsg, &pTrans);
   if (pTrans == NULL || code) {
@@ -909,79 +954,37 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
   // create stb for stream
-  if (createReq.createStb == STREAM_CREATE_STABLE_TRUE) {
+  if (createReq.createStb == STREAM_CREATE_STABLE_TRUE && !buildEmptyStream) {
     if ((code = mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user)) < 0) {
       mError("trans:%d, failed to create stb for stream %s since %s", pTrans->id, createReq.name, tstrerror(code));
-      mndTransDrop(pTrans);
       goto _OVER;
     }
   } else {
     mDebug("stream:%s no need create stable", createReq.name);
   }
 
-  // schedule stream task for stream obj
-  code = mndScheduleStream(pMnode, &streamObj, createReq.lastTs, createReq.pVgroupVerList);
-  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("stream:%s, failed to schedule since %s", createReq.name, tstrerror(code));
-    mndTransDrop(pTrans);
-    goto _OVER;
-  }
-
-  // add notify info into all stream tasks
-  code = addStreamNotifyInfo(&createReq, &streamObj);
-  if (code != TSDB_CODE_SUCCESS) {
-    mError("stream:%s failed to add stream notify info since %s", createReq.name, tstrerror(code));
-    mndTransDrop(pTrans);
-    goto _OVER;
-  }
-
   // add stream to trans
   code = mndPersistStream(pTrans, &streamObj);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("stream:%s, failed to persist since %s", createReq.name, tstrerror(code));
-    mndTransDrop(pTrans);
     goto _OVER;
   }
-
-  if ((code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_READ_DB, streamObj.sourceDb)) != 0) {
-    mndTransDrop(pTrans);
-    goto _OVER;
-  }
-
-  if ((code = mndCheckDbPrivilegeByName(pMnode, pReq->info.conn.user, MND_OPER_WRITE_DB, streamObj.targetDb)) != 0) {
-    mndTransDrop(pTrans);
-    goto _OVER;
-  }
-
-  // add into buffer firstly
-  // to make sure when the hb from vnode arrived, the newly created tasks have been in the task map already.
-  streamMutexLock(&execInfo.lock);
-  mDebug("stream stream:%s start to register tasks into task nodeList and set initial checkpointId", createReq.name);
-  saveTaskAndNodeInfoIntoBuf(&streamObj, &execInfo);
-  streamMutexUnlock(&execInfo.lock);
 
   // execute creation
   code = mndTransPrepare(pMnode, pTrans);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
-    mndTransDrop(pTrans);
     goto _OVER;
   }
 
-  mndTransDrop(pTrans);
-
   SName dbname = {0};
-  code = tNameFromString(&dbname, createReq.sourceDB, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-  if (code) {
+  if (tNameFromString(&dbname, createReq.sourceDB, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE) != 0) {
     mError("invalid source dbname:%s in create stream, code:%s", createReq.sourceDB, tstrerror(code));
-    goto _OVER;
   }
 
   SName name = {0};
-  code = tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_TABLE);
-  if (code) {
+  if (tNameFromString(&name, createReq.name, T_NAME_ACCT | T_NAME_TABLE) != 0) {
     mError("invalid stream name:%s in create strem, code:%s", createReq.name, tstrerror(code));
-    goto _OVER;
   }
 
   // reuse this function for stream
@@ -1001,6 +1004,7 @@ _OVER:
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
 
+  mndTransDrop(pTrans);
   mndReleaseStream(pMnode, pStream);
   tFreeSCMCreateStreamReq(&createReq);
   tFreeStreamObj(&streamObj);
