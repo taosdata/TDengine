@@ -158,9 +158,6 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     SStreamScanInfo* pInfo = pOperator->info;
 
     qDebug("s-task:%s in this batch, %d blocks need to be processed", id, (int32_t)numOfBlocks);
-    if (!(pInfo->validBlockIndex == 0 && taosArrayGetSize(pInfo->pBlockLists) == 0)) {
-      qError("ERROR===stream===%s  index%d   size:%d", id, pInfo->validBlockIndex, taosArrayGetSize(pInfo->pBlockLists));
-    }
     QUERY_CHECK_CONDITION((pInfo->validBlockIndex == 0 && taosArrayGetSize(pInfo->pBlockLists) == 0), code, lino, _end,
                           TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
