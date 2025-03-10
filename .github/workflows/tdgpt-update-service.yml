@@ -1,8 +1,9 @@
 name: TDGpt Update Service
 
 on:
+  push:
   schedule:
-    - cron: '45 13 * * *'
+    - cron: '30 00 * * *'
 
 env:
   WKC: "/root/TDengine"
