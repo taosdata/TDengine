@@ -93,8 +93,7 @@ static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
 
     int32_t total = atomic_add_fetch_64((int64_t *)&pSummary->totalRequests, 1);
     int32_t currentInst = atomic_add_fetch_64((int64_t *)&pSummary->currentRequests, 1);
-    tscDebug("0x%" PRIx64 " new Request from connObj:0x%" PRIx64
-             ", current:%d, app current:%d, total:%d,QID:0x%" PRIx64,
+    tscDebug("req:0x%" PRIx64 ", new from connObj:0x%" PRIx64 ", current:%d, app current:%d, total:%d, QID:0x%" PRIx64,
              pRequest->self, pRequest->pTscObj->id, num, currentInst, total, pRequest->requestId);
   }
 
@@ -134,7 +133,7 @@ static int32_t generateWriteSlowLog(STscObj *pTscObj, SRequestObj *pRequest, int
   cJSON  *json = cJSON_CreateObject();
   int32_t code = TSDB_CODE_SUCCESS;
   if (json == NULL) {
-    tscError("[monitor] cJSON_CreateObject failed");
+    tscError("failed to create monitor json");
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   char clusterId[32] = {0};
@@ -255,26 +254,25 @@ static void deregisterRequest(SRequestObj *pRequest) {
   int32_t reqType = SLOW_LOG_TYPE_OTHERS;
 
   int64_t duration = taosGetTimestampUs() - pRequest->metric.start;
-  tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ",QID:0x%" PRIx64
-           " elapsed:%.2f ms, "
-           "current:%d, app current:%d",
+  tscDebug("req:0x%" PRIx64 ", free from connObj:0x%" PRIx64 ", QID:0x%" PRIx64
+           ", elapsed:%.2f ms, current:%d, app current:%d",
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
 
   if (TSDB_CODE_SUCCESS == nodesSimAcquireAllocator(pRequest->allocatorRefId)) {
     if ((pRequest->pQuery && pRequest->pQuery->pRoot && QUERY_NODE_VNODE_MODIFY_STMT == pRequest->pQuery->pRoot->type &&
          (0 == ((SVnodeModifyOpStmt *)pRequest->pQuery->pRoot)->sqlNodeType)) ||
         QUERY_NODE_VNODE_MODIFY_STMT == pRequest->stmtType) {
-      tscDebug("insert duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
-               "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
-               duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
-               pRequest->metric.planCostUs, pRequest->metric.execCostUs);
+      tscDebug("req:0x%" PRIx64 ", insert duration:%" PRId64 "us, parseCost:%" PRId64 "us, ctgCost:%" PRId64
+               "us, analyseCost:%" PRId64 "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
+               pRequest->self, duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs,
+               pRequest->metric.analyseCostUs, pRequest->metric.planCostUs, pRequest->metric.execCostUs);
       (void)atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
       reqType = SLOW_LOG_TYPE_INSERT;
     } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
-      tscDebug("query duration %" PRId64 "us: parseCost:%" PRId64 "us, ctgCost:%" PRId64 "us, analyseCost:%" PRId64
-               "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
-               duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs, pRequest->metric.analyseCostUs,
-               pRequest->metric.planCostUs, pRequest->metric.execCostUs);
+      tscDebug("req:0x%" PRIx64 ", query duration:%" PRId64 "us, parseCost:%" PRId64 "us, ctgCost:%" PRId64
+               "us, analyseCost:%" PRId64 "us, planCost:%" PRId64 "us, exec:%" PRId64 "us",
+               pRequest->self, duration, pRequest->metric.parseCostUs, pRequest->metric.ctgCostUs,
+               pRequest->metric.analyseCostUs, pRequest->metric.planCostUs, pRequest->metric.execCostUs);
 
       (void)atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
       reqType = SLOW_LOG_TYPE_QUERY;
@@ -299,7 +297,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
       checkSlowLogExceptDb(pRequest, pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogExceptDb)) {
     (void)atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
     if (pTscObj->pAppInfo->serverCfg.monitorParas.tsSlowLogScope & reqType) {
-      taosPrintSlowLog("PID:%d, Conn:%u,QID:0x%" PRIx64 ", Start:%" PRId64 " us, Duration:%" PRId64 "us, SQL:%s",
+      taosPrintSlowLog("PID:%d, connId:%u, QID:0x%" PRIx64 ", Start:%" PRId64 "us, Duration:%" PRId64 "us, SQL:%s",
                        taosGetPId(), pTscObj->connId, pRequest->requestId, pRequest->metric.start, duration,
                        pRequest->sqlstr);
       if (pTscObj->pAppInfo->serverCfg.monitorParas.tsEnableMonitor) {
@@ -460,7 +458,7 @@ void destroyTscObj(void *pObj) {
 
   STscObj *pTscObj = pObj;
   int64_t  tscId = pTscObj->id;
-  tscTrace("begin to destroy tscObj %" PRIx64 " p:%p", tscId, pTscObj);
+  tscTrace("connObj:%" PRIx64 ", begin destroy, p:%p", tscId, pTscObj);
 
   SClientHbKey connKey = {.tscRid = pTscObj->id, .connType = pTscObj->connType};
   hbDeregisterConn(pTscObj, connKey);
@@ -469,7 +467,7 @@ void destroyTscObj(void *pObj) {
   taosHashCleanup(pTscObj->pRequests);
 
   schedulerStopQueryHb(pTscObj->pAppInfo->pTransporter);
-  tscDebug("connObj 0x%" PRIx64 " p:%p destroyed, remain inst totalConn:%" PRId64, pTscObj->id, pTscObj,
+  tscDebug("connObj:0x%" PRIx64 ", p:%p destroyed, remain inst totalConn:%" PRId64, pTscObj->id, pTscObj,
            pTscObj->pAppInfo->numOfConns);
 
   // In any cases, we should not free app inst here. Or an race condition rises.
@@ -478,7 +476,7 @@ void destroyTscObj(void *pObj) {
   (void)taosThreadMutexDestroy(&pTscObj->mutex);
   taosMemoryFree(pTscObj);
 
-  tscTrace("end to destroy tscObj %" PRIx64 " p:%p", tscId, pTscObj);
+  tscTrace("connObj:0x%" PRIx64 ", end destroy, p:%p", tscId, pTscObj);
 }
 
 int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t connType, SAppInstInfo *pAppInfo,
@@ -518,7 +516,7 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
 
   (void)atomic_add_fetch_64(&(*pObj)->pAppInfo->numOfConns, 1);
 
-  tscDebug("connObj created, 0x%" PRIx64 ",p:%p", (*pObj)->id, *pObj);
+  tscInfo("connObj:0x%" PRIx64 ", created, p:%p", (*pObj)->id, *pObj);
   return code;
 }
 
@@ -684,13 +682,13 @@ void doDestroyRequest(void *p) {
   SRequestObj *pRequest = (SRequestObj *)p;
 
   uint64_t reqId = pRequest->requestId;
-  tscDebug("begin to destroy request 0x%" PRIx64 " p:%p", reqId, pRequest);
+  tscDebug("QID:0x%" PRIx64 ", begin destroy request, res:%p", reqId, pRequest);
 
   int64_t nextReqRefId = pRequest->relation.nextRefId;
 
   int32_t code = taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
   if (TSDB_CODE_SUCCESS != code) {
-    tscWarn("failed to remove request from hash, code:%s", tstrerror(code));
+    tscDebug("failed to remove request from hash since %s", tstrerror(code));
   }
   schedulerFreeJob(&pRequest->body.queryJob, 0);
 
@@ -726,14 +724,12 @@ void doDestroyRequest(void *p) {
   taosMemoryFreeClear(pRequest->effectiveUser);
   taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFree(pRequest);
-  tscDebug("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
+  tscDebug("QID:0x%" PRIx64 ", end destroy request, res:%p", reqId, pRequest);
   destroyNextReq(nextReqRefId);
 }
 
 void destroyRequest(SRequestObj *pRequest) {
-  if (pRequest == NULL) {
-    return;
-  }
+  if (pRequest == NULL) return;
 
   taos_stop_query(pRequest);
   (void)removeFromMostPrevReq(pRequest);
@@ -744,12 +740,12 @@ void taosStopQueryImpl(SRequestObj *pRequest) {
 
   // It is not a query, no need to stop.
   if (NULL == pRequest->pQuery || QUERY_EXEC_MODE_SCHEDULE != pRequest->pQuery->execMode) {
-    tscDebug("request 0x%" PRIx64 " no need to be killed since not query", pRequest->requestId);
+    tscDebug("QID:0x%" PRIx64 ", no need to be killed since not query", pRequest->requestId);
     return;
   }
 
   schedulerFreeJob(&pRequest->body.queryJob, TSDB_CODE_TSC_QUERY_KILLED);
-  tscDebug("request %" PRIx64 " killed", pRequest->requestId);
+  tscDebug("QID:0x%" PRIx64 ", killed", pRequest->requestId);
 }
 
 void stopAllQueries(SRequestObj *pRequest) {
@@ -857,7 +853,7 @@ static void *tscCrashReportThreadFp(void *param) {
         truncateFile = true;
       }
     } else {
-      tscDebug("no crash info");
+      tscInfo("no crash info was found");
     }
 
     taosMemoryFree(pMsg);
@@ -985,12 +981,12 @@ void taos_init_imp(void) {
     return;
   }
 
+  tscInfo("starting to initialize TAOS driver");
+
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   ENV_ERR_RET(catalogInit(&cfg), "failed to init catalog");
   ENV_ERR_RET(schedulerInit(), "failed to init scheduler");
   ENV_ERR_RET(initClientId(), "failed to init clientId");
-
-  tscDebug("starting to initialize TAOS driver");
 
   ENV_ERR_RET(initTaskQueue(), "failed to init task queue");
   ENV_ERR_RET(fmFuncMgtInit(), "failed to init funcMgt");
@@ -1004,7 +1000,7 @@ void taos_init_imp(void) {
   ENV_ERR_RET(tscCrashReportInit(), "failed to init crash report");
   ENV_ERR_RET(qInitKeywordsTable(), "failed to init parser keywords table");
 
-  tscDebug("client is initialized successfully");
+  tscInfo("TAOS driver is initialized successfully");
 }
 
 int taos_init() {

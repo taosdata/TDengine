@@ -15,6 +15,7 @@
 
 #include "filter.h"
 #include "function.h"
+#include "nodes.h"
 #include "os.h"
 #include "querynodes.h"
 #include "tfill.h"
@@ -359,7 +360,7 @@ int32_t doAggregateImpl(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx) {
         if (pCtx[k].fpSet.cleanup != NULL) {
           pCtx[k].fpSet.cleanup(&pCtx[k]);
         }
-        qError("%s aggregate function error happens, code: %s", GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
+        qError("%s aggregate function error happens, code:%s", GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
         return code;
       }
     }
@@ -802,7 +803,7 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
           if (pCtx[k].fpSet.cleanup != NULL) {
             pCtx[k].fpSet.cleanup(&pCtx[k]);
           }
-          qError("%s apply functions error, code: %s", GET_TASKID(taskInfo), tstrerror(code));
+          qError("%s apply functions error, code:%s", GET_TASKID(taskInfo), tstrerror(code));
           taskInfo->code = code;
           return code;
         }

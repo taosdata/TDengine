@@ -592,17 +592,17 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
 
         cfgPath = buildPath + "/../sim/dnode1/cfg"
-        udfdPath = buildPath +'/build/bin/udfd'
+        udfdPath = buildPath +'/build/bin/taosudf'
 
         for i in range(3):
 
-            tdLog.info(" loop restart udfd  %d_th" % i)
+            tdLog.info(" loop restart taosudf  %d_th" % i)
 
             tdSql.query("select udf2(sub1.c1 ,sub1.c2), udf2(sub2.c2 ,sub2.c1) from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null")
             tdSql.checkData(0,0,169.661427555)
             tdSql.checkData(0,1,169.661427555)
-            # stop udfd cmds
-            get_processID = "ps -ef | grep -w udfd | grep -v grep| grep -v defunct | awk '{print $2}'"
+            # stop taosudf cmds
+            get_processID = "ps -ef | grep -w taosudf | grep -v grep| grep -v defunct | awk '{print $2}'"
             processID = subprocess.check_output(get_processID, shell=True).decode("utf-8")
             stop_udfd = " kill -9 %s" % processID
             os.system(stop_udfd)
@@ -613,9 +613,9 @@ class TDTestCase:
             tdSql.checkData(0,0,169.661427555)
             tdSql.checkData(0,1,169.661427555)
 
-            # # start udfd  cmds
+            # # start taosudf  cmds
             # start_udfd = "nohup " + udfdPath +'-c' +cfgPath +" > /dev/null 2>&1 &"
-            # tdLog.info("start udfd : %s " % start_udfd)
+            # tdLog.info("start taosudf : %s " % start_udfd)
 
     def test_function_name(self):
         tdLog.info(" create function name is not build_in functions ")

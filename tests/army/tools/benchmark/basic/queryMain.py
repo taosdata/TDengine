@@ -28,19 +28,10 @@ from frame.caseBase import *
 from frame import *
 
 
-# reomve single and double quotation
-def removeQuotation(origin):
-    value = ""
-    for c in origin:
-        if c != '\'' and c != '"':
-            value += c
-
-    return value
-
 class TDTestCase(TBase):
     def caseDescription(self):
         """
-        [TD-11510] taosBenchmark test cases
+        taosBenchmark query->Basic test cases
         """
 
     def runSeconds(self, command, timeout = 180):

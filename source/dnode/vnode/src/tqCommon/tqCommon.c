@@ -86,6 +86,14 @@ int32_t tqExpandStreamTask(SStreamTask* pTask) {
     if (code) {
       return code;
     }
+
+    code = qSetStreamNotifyInfo(pTask->exec.pExecutor, pTask->notifyInfo.notifyEventTypes,
+                                pTask->notifyInfo.pSchemaWrapper, pTask->notifyInfo.stbFullName,
+                                IS_NEW_SUBTB_RULE(pTask), &pTask->notifyEventStat);
+    if (code) {
+      tqError("s-task:%s failed to set stream notify info, code:%s", pTask->id.idStr, tstrerror(code));
+      return code;
+    }
   }
 
   streamSetupScheduleTrigger(pTask);
@@ -123,7 +131,7 @@ int32_t tqStreamTaskStartAsync(SStreamMeta* pMeta, SMsgCb* cb, bool restart) {
   tqDebug("vgId:%d start all %d stream task(s) async", vgId, numOfTasks);
 
   int32_t type = restart ? STREAM_EXEC_T_RESTART_ALL_TASKS : STREAM_EXEC_T_START_ALL_TASKS;
-  return streamTaskSchedTask(cb, vgId, 0, 0, type);
+  return streamTaskSchedTask(cb, vgId, 0, 0, type, false);
 }
 
 int32_t tqStreamStartOneTaskAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t streamId, int32_t taskId) {
@@ -135,7 +143,7 @@ int32_t tqStreamStartOneTaskAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t stream
   }
 
   tqDebug("vgId:%d start task:0x%x async", vgId, taskId);
-  return streamTaskSchedTask(cb, vgId, streamId, taskId, STREAM_EXEC_T_START_ONE_TASK);
+  return streamTaskSchedTask(cb, vgId, streamId, taskId, STREAM_EXEC_T_START_ONE_TASK, false);
 }
 
 // this is to process request from transaction, always return true.
@@ -462,7 +470,7 @@ int32_t tqStreamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   }
 
   // enqueue
-  tqDebug("s-task:%s (vgId:%d level:%d) recv retrieve req from task:0x%x(vgId:%d),QID:0x%" PRIx64, pTask->id.idStr,
+  tqDebug("s-task:%s (vgId:%d level:%d) recv retrieve req from task:0x%x(vgId:%d), QID:0x%" PRIx64, pTask->id.idStr,
           pTask->pMeta->vgId, pTask->info.taskLevel, req.srcTaskId, req.srcNodeId, req.reqId);
 
   // if task is in ck status, set current ck failed
@@ -992,6 +1000,39 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, char* pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t tqStreamTaskProcessAllTaskStopReq(SStreamMeta* pMeta, SMsgCb* pMsgCb, SRpcMsg* pMsg) {
+  int32_t  code = 0;
+  int32_t  vgId = pMeta->vgId;
+  char*    msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t  len = pMsg->contLen - sizeof(SMsgHead);
+  SDecoder decoder;
+
+  SStreamTaskStopReq req = {0};
+  tDecoderInit(&decoder, (uint8_t*)msg, len);
+  if ((code = tDecodeStreamTaskStopReq(&decoder, &req)) < 0) {
+    tqError("vgId:%d failed to decode stop all streams, code:%s", pMeta->vgId, tstrerror(code));
+    tDecoderClear(&decoder);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  tDecoderClear(&decoder);
+
+  // stop all stream tasks, only invoked when trying to drop db
+  if (req.streamId <= 0) {
+    tqDebug("vgId:%d recv msg to stop all tasks in sync before dropping vnode", vgId);
+    code = streamMetaStopAllTasks(pMeta);
+    if (code) {
+      tqError("vgId:%d failed to stop all tasks, code:%s", vgId, tstrerror(code));
+    }
+
+  } else {  // stop only one stream tasks
+
+  }
+
+  // always return success
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tqStreamTaskProcessRetrieveTriggerReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   SRetrieveChkptTriggerReq req = {0};
   SStreamTask*             pTask = NULL;
@@ -1181,7 +1222,7 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
     } else if (level == TASK_LEVEL__SOURCE && (streamQueueGetNumOfItems(pTask->inputq.queue) == 0)) {
 //      code = tqScanWalAsync((STQ*)handle, false);
     } else {
-      code = streamTrySchedExec(pTask);
+      code = streamTrySchedExec(pTask, false);
     }
   }
 

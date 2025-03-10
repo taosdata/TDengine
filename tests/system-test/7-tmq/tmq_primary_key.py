@@ -18,10 +18,19 @@ import datetime
 sys.path.append("./7-tmq")
 from tmqCommon import *
 
+consumer_dict = {
+    "group.id": "g1",
+    "td.connect.user": "root",
+    "td.connect.pass": "taosdata",
+    "auto.offset.reset": "earliest",
+    "enable.auto.commit": "false",
+    "experimental.snapshot.enable": "true",
+    "min.poll.rows": "1"
+}
 
 class TDTestCase:
     clientCfgDict = {'debugFlag': 135}
-    updatecfgDict = {'debugFlag': 135, 'asynclog': 0, 'tmqRowSize':1}
+    updatecfgDict = {'debugFlag': 135, 'asynclog': 0}
     updatecfgDict["clientCfg"] = clientCfgDict
 
     def init(self, conn, logSql, replicaVar=1):
@@ -44,16 +53,7 @@ class TDTestCase:
 
         tdSql.execute(f'create topic topic_pk_query as select * from pk')
 
-        consumer_dict = {
-            "group.id": "g1",
-            "td.connect.user": "root",
-            "td.connect.pass": "taosdata",
-            "auto.offset.reset": "earliest",
-            "enable.auto.commit": "false",
-            "experimental.snapshot.enable": "true",
-        }
         consumer = Consumer(consumer_dict)
-
         try:
             consumer.subscribe(["topic_pk_query"])
         except TmqError:
@@ -156,14 +156,6 @@ class TDTestCase:
 
         tdSql.execute(f'create topic topic_pk_stable as stable pks')
 
-        consumer_dict = {
-            "group.id": "g1",
-            "td.connect.user": "root",
-            "td.connect.pass": "taosdata",
-            "auto.offset.reset": "earliest",
-            "enable.auto.commit": "false",
-            "experimental.snapshot.enable": "true",
-        }
         consumer = Consumer(consumer_dict)
 
         try:
@@ -266,14 +258,6 @@ class TDTestCase:
 
         tdSql.execute(f'create topic topic_in with meta as database abc1')
 
-        consumer_dict = {
-            "group.id": "g1",
-            "td.connect.user": "root",
-            "td.connect.pass": "taosdata",
-            "auto.offset.reset": "earliest",
-            "enable.auto.commit": "false",
-            "experimental.snapshot.enable": "true",
-        }
         consumer = Consumer(consumer_dict)
 
         try:
@@ -376,14 +360,6 @@ class TDTestCase:
 
         tdSql.execute(f'create topic topic_pk_string with meta as database db_pk_string')
 
-        consumer_dict = {
-            "group.id": "g1",
-            "td.connect.user": "root",
-            "td.connect.pass": "taosdata",
-            "auto.offset.reset": "earliest",
-            "enable.auto.commit": "false",
-            "experimental.snapshot.enable": "true",
-        }
         consumer = Consumer(consumer_dict)
 
         try:
@@ -485,14 +461,6 @@ class TDTestCase:
 
         tdSql.execute(f'create topic topic_pk_query_30755 as select * from pk')
 
-        consumer_dict = {
-            "group.id": "g1",
-            "td.connect.user": "root",
-            "td.connect.pass": "taosdata",
-            "auto.offset.reset": "earliest",
-            "enable.auto.commit": "false",
-            "experimental.snapshot.enable": "true",
-        }
         consumer = Consumer(consumer_dict)
 
         try:

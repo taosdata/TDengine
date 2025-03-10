@@ -19,7 +19,7 @@ script_dir=$(dirname $(readlink -f "$0"))
 PREFIX="taos"
 clientName="${PREFIX}"
 serverName="${PREFIX}d"
-udfdName="udfd"
+udfdName="taosudf"
 configFile="${PREFIX}.cfg"
 productName="TDengine"
 emailName="taosdata.com"
@@ -156,7 +156,7 @@ done
 
 #echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
-tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh udfd set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
+tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh taosudf set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
 if [ "${verMode}" == "cluster" ]; then
   services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
 elif [ "${verMode}" == "edge" ]; then

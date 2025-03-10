@@ -187,6 +187,15 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
     }                               \
   } while (0)
 
+#define TAOS_CHECK_RETURN_SET_CODE(CMD, CODE, ERRNO) \
+  do {                                               \
+    int32_t __c = (CMD);                             \
+    if (__c != TSDB_CODE_SUCCESS) {                  \
+      (CODE) = (ERRNO);                              \
+      TAOS_RETURN(__c);                              \
+    }                                                \
+  } while (0)
+
 #define TAOS_CHECK_RETURN_WITH_RELEASE(CMD, PTR1, PTR2) \
   do {                                                  \
     int32_t __c = (CMD);                                \
@@ -223,6 +232,16 @@ static FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, 
       lino = __LINE__;              \
       goto _exit;                   \
     }                               \
+  } while (0)
+
+#define TAOS_CHECK_EXIT_SET_CODE(CMD, CODE, ERRNO) \
+  do {                                             \
+    code = (CMD);                                  \
+    if (code < TSDB_CODE_SUCCESS) {                \
+      (CODE) = (ERRNO);                            \
+      lino = __LINE__;                             \
+      goto _exit;                                  \
+    }                                              \
   } while (0)
 
 #define TAOS_UNUSED(expr) (void)(expr)

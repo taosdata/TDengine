@@ -3957,7 +3957,7 @@ FETCH_NEXT_BLOCK:
         QUERY_CHECK_NULL(pSubmit, code, lino, _end, terrno);
 
         qDebug("set %d/%d as the input submit block, %s", current + 1, totalBlocks, id);
-        if (pAPI->tqReaderFn.tqReaderSetSubmitMsg(pInfo->tqReader, pSubmit->msgStr, pSubmit->msgLen, pSubmit->ver) <
+        if (pAPI->tqReaderFn.tqReaderSetSubmitMsg(pInfo->tqReader, pSubmit->msgStr, pSubmit->msgLen, pSubmit->ver, NULL) <
             0) {
           qError("submit msg messed up when initializing stream submit block %p, current %d/%d, %s", pSubmit, current,
                  totalBlocks, id);
@@ -5193,7 +5193,7 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
     setOperatorCompleted(pOperator);
   }
 
-  // qDebug("QInfo:0x%"PRIx64" create tag values results completed, rows:%d", GET_TASKID(pRuntimeEnv), count);
+  // qDebug("QInfo:0x%" PRIx64 ", create tag values results completed, rows:%d", GET_TASKID(pRuntimeEnv), count);
   if (pOperator->status == OP_EXEC_DONE) {
     setTaskStatus(pTaskInfo, TASK_COMPLETED);
   }

@@ -27,35 +27,6 @@
 #include "tlog.h"
 #include "ttime.h"
 
-typedef struct SSessionAggOperatorInfo {
-  SOptrBasicInfo     binfo;
-  SAggSupporter      aggSup;
-  SExprSupp          scalarSupp;  // supporter for perform scalar function
-  SGroupResInfo      groupResInfo;
-  SWindowRowsSup     winSup;
-  bool               reptScan;  // next round scan
-  int64_t            gap;       // session window gap
-  int32_t            tsSlotId;  // primary timestamp slot id
-  STimeWindowAggSupp twAggSup;
-  SOperatorInfo*     pOperator;
-  bool               cleanGroupResInfo;
-} SSessionAggOperatorInfo;
-
-typedef struct SStateWindowOperatorInfo {
-  SOptrBasicInfo     binfo;
-  SAggSupporter      aggSup;
-  SExprSupp          scalarSup;
-  SGroupResInfo      groupResInfo;
-  SWindowRowsSup     winSup;
-  SColumn            stateCol;  // start row index
-  bool               hasKey;
-  SStateKeys         stateKey;
-  int32_t            tsSlotId;  // primary timestamp column slot id
-  STimeWindowAggSupp twAggSup;
-  SOperatorInfo*     pOperator;
-  bool               cleanGroupResInfo;
-} SStateWindowOperatorInfo;
-
 typedef enum SResultTsInterpType {
   RESULT_ROW_START_INTERP = 1,
   RESULT_ROW_END_INTERP = 2,
@@ -1743,6 +1714,7 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWinodwPhy
   pInfo->tsSlotId = tsSlotId;
   pInfo->pOperator = pOperator;
   pInfo->cleanGroupResInfo = false;
+  pInfo->trueForLimit = pStateNode->trueForLimit;
   setOperatorInfo(pOperator, "StateWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(openStateWindowAggOptr, doStateWindowAggNext, NULL, destroyStateWindowOperatorInfo,

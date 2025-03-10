@@ -781,6 +781,7 @@ static int32_t tsdbSttFileDoWriteFooter(SSttFileWriter *writer) {
 static int32_t tsdbSttFWriterDoOpen(SSttFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
+  STsdb  *tsdb = writer->config->tsdb;
 
   // set
   if (!writer->config->skmTb) writer->config->skmTb = writer->skmTb;
@@ -790,9 +791,14 @@ static int32_t tsdbSttFWriterDoOpen(SSttFileWriter *writer) {
     writer->buffers = writer->local;
   }
 
+  // alloc disk id
+  SDiskID diskId = {0};
+  code = tsdbAllocateDisk(tsdb, tsdbFTypeLabel(TSDB_FTYPE_STT), writer->config->expLevel, &diskId);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   writer->file[0] = (STFile){
       .type = TSDB_FTYPE_STT,
-      .did = writer->config->did,
+      .did = diskId,
       .fid = writer->config->fid,
       .cid = writer->config->cid,
       .size = 0,

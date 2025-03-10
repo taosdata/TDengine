@@ -139,3 +139,28 @@ TEST(log, misc) {
 
   taosCloseLog();
 }
+
+TEST(log, test_u64toa) {
+  char buf[64] = {0};
+  char *p = buf;
+
+  p = u64toaFastLut(0, buf);
+  EXPECT_EQ(p, buf + 1);
+  EXPECT_EQ(strcmp(buf, "0"), 0);
+
+  p = u64toaFastLut(1, buf);
+  EXPECT_EQ(p, buf + 1);
+  EXPECT_EQ(strcmp(buf, "1"), 0);
+
+  p = u64toaFastLut(12, buf);
+  EXPECT_EQ(p, buf + 2);
+  EXPECT_EQ(strcmp(buf, "12"), 0);
+
+  p = u64toaFastLut(12345, buf);
+  EXPECT_EQ(p, buf + 5);
+  EXPECT_EQ(strcmp(buf, "12345"), 0);
+
+  p = u64toaFastLut(1234567890, buf);
+  EXPECT_EQ(p, buf + 10);
+  EXPECT_EQ(strcmp(buf, "1234567890"), 0);
+}

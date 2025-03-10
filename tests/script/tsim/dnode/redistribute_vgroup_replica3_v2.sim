@@ -122,13 +122,13 @@ if $data(2)[4] == leader then
   $follower1 = 3
   $follower2 = 4
 endi
-if $data(2)[6] == leader then
+if $data(2)[7] == leader then
   $leaderExist = 1
   $leaderVnode = 3
   $follower1 = 2
   $follower2 = 4
 endi
-if $data(2)[8] == leader then
+if $data(2)[10] == leader then
   $leaderExist = 1
   $leaderVnode = 4
   $follower1 = 2

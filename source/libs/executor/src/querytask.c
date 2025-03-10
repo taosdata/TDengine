@@ -262,6 +262,8 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
 static void cleanupStreamInfo(SStreamTaskInfo* pStreamInfo) {
   tDeleteSchemaWrapper(pStreamInfo->schema);
   tOffsetDestroy(&pStreamInfo->currentOffset);
+  tDeleteSchemaWrapper(pStreamInfo->notifyResultSchema);
+  taosMemoryFree(pStreamInfo->stbFullName);
 }
 
 static void freeBlock(void* pParam) {

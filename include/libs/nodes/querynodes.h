@@ -16,6 +16,7 @@
 #ifndef _TD_QUERY_NODES_H_
 #define _TD_QUERY_NODES_H_
 
+#include <stdint.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -61,6 +62,8 @@ typedef struct SExprNode {
   bool      asParam;
   bool      asPosition;
   int32_t   projIdx;
+  int32_t   relatedTo;
+  int32_t   bindExprID;
 } SExprNode;
 
 typedef enum EColumnType {
@@ -322,6 +325,7 @@ typedef struct SStateWindowNode {
   ENodeType type;  // QUERY_NODE_STATE_WINDOW
   SNode*    pCol;  // timestamp primary key
   SNode*    pExpr;
+  SNode*    pTrueForLimit;
 } SStateWindowNode;
 
 typedef struct SSessionWindowNode {
@@ -346,6 +350,7 @@ typedef struct SEventWindowNode {
   SNode*    pCol;  // timestamp primary key
   SNode*    pStartCond;
   SNode*    pEndCond;
+  SNode*    pTrueForLimit;
 } SEventWindowNode;
 
 typedef struct SCountWindowNode {
@@ -420,7 +425,7 @@ typedef struct SWindowOffsetNode {
 
 typedef struct SRangeAroundNode {
   ENodeType type;
-  SNode*    pTimepoint;
+  SNode*    pRange;
   SNode*    pInterval;
 } SRangeAroundNode;
 
@@ -428,6 +433,7 @@ typedef struct SSelectStmt {
   ENodeType     type;  // QUERY_NODE_SELECT_STMT
   bool          isDistinct;
   SNodeList*    pProjectionList;
+  SNodeList*    pProjectionBindList;
   SNode*        pFromTable;
   SNode*        pWhere;
   SNodeList*    pPartitionByList;
@@ -565,6 +571,7 @@ typedef struct SVnodeModifyOpStmt {
   SHashObj*             pVgroupsHashObj;     // SHashObj<vgId, SVgInfo>
   SHashObj*             pTableBlockHashObj;  // SHashObj<tuid, STableDataCxt*>
   SHashObj*             pSubTableHashObj;    // SHashObj<table_name, STableMeta*>
+  SHashObj*             pSuperTableHashObj;  // SHashObj<table_name, STableMeta*>
   SHashObj*             pTableNameHashObj;   // set of table names for refreshing meta, sync mode
   SHashObj*             pDbFNameHashObj;     // set of db names for refreshing meta, sync mode
   SHashObj*             pTableCxtHashObj;    // temp SHashObj<tuid, STableDataCxt*> for single request
@@ -696,6 +703,9 @@ char*   getJoinTypeString(EJoinType type);
 char*   getJoinSTypeString(EJoinSubType type);
 char*   getFullJoinTypeString(EJoinType type, EJoinSubType stype);
 int32_t mergeJoinConds(SNode** ppDst, SNode** ppSrc);
+
+void rewriteExprAliasName(SExprNode* pNode, int64_t num);
+bool isRelatedToOtherExpr(SExprNode* pExpr);
 
 #ifdef __cplusplus
 }

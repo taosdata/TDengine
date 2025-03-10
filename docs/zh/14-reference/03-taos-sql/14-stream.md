@@ -8,7 +8,7 @@ description: 流式计算的相关 SQL 的详细语法
 ## 创建流式计算
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery
+CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery [notification_definition]
 stream_options: {
  TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time | FORCE_WINDOW_CLOSE]
  WATERMARK      time
@@ -84,6 +84,8 @@ SELECT _wstart, count(*), avg(voltage) from meters PARTITION BY tbname EVENT_WIN
 CREATE STREAM streams1 IGNORE EXPIRED 1 WATERMARK 100s INTO streamt1 AS
 SELECT _wstart, count(*), avg(voltage) from meters PARTITION BY tbname COUNT_WINDOW(10);
 ```
+
+notification_definition 子句定义了窗口计算过程中，在窗口打开/关闭等指定事件发生时，需要向哪些地址发送通知。详见 [流式计算的事件通知](#流式计算的事件通知)
 
 ## 流式计算的 partition
 
@@ -298,4 +300,223 @@ RESUME STREAM [IF EXISTS] [IGNORE UNTREATED] stream_name;
 CREATE SNODE ON DNODE [id]
 ```
 其中的 id 是集群中的 dnode 的序号。请注意选择的dnode，流计算的中间状态将自动在其上进行备份。
-从 3.3.4.0 版本开始，在多副本环境中创建流会进行 snode 的**存在性检查**，要求首先创建 snode。如果 snode 不存在，无法创建流。
+从 v3.3.4.0 开始，在多副本环境中创建流会进行 snode 的**存在性检查**，要求首先创建 snode。如果 snode 不存在，无法创建流。
+
+## 流式计算的事件通知
+
+### 使用说明
+
+流式计算支持在窗口打开/关闭时，向外部系统发送相关的事件通知。用户通过 `notification_definition` 来指定需要通知的事件，以及用于接收通知消息的目标地址。
+
+```sql
+notification_definition:
+    NOTIFY (url [, url] ...) ON (event_type [, event_type] ...) [notification_options]
+
+event_type:
+    'WINDOW_OPEN'
+  | 'WINDOW_CLOSE'
+
+notification_options: {
+    NOTIFY_HISTORY [0|1]
+    ON_FAILURE [DROP|PAUSE]
+}
+```
+
+上述语法中的相关规则含义如下：
+1. `url`：指定通知的目标地址，必须包括协议、IP 或域名、端口号，并允许包含路径、参数。目前仅支持 websocket 协议。例如：`ws://localhost:8080`、`ws://localhost:8080/notify`、`wss://localhost:8080/notify?key=foo`。
+1. `event_type`：定义需要通知的事件，支持的事件类型有：
+    1. WINDOW_OPEN：窗口打开事件，所有类型的窗口打开时都会触发。
+    1. WINDOW_CLOSE：窗口关闭事件，所有类型的窗口关闭时都会触发。
+1. `NOTIFY_HISTORY`：控制是否在计算历史数据时触发通知，默认值为 0，即不触发。
+1. `ON_FAILURE`：向通知地址发送通知失败时(比如网络不佳场景)是否允许丢弃部分事件，默认值为 `PAUSE`。
+    1. PAUSE 表示发送通知失败时暂停流计算任务。taosd 会重试发送通知，直到发送成功后，任务自动恢复运行。
+    1. DROP 表示发送通知失败时直接丢弃事件信息，流计算任务继续运行，不受影响。
+
+比如，以下示例创建一个流，计算电表电流的每分钟平均值，并在窗口打开、关闭时向两个通知地址发送通知，计算历史数据时不发送通知，不允许在通知发送失败时丢弃通知：
+
+```sql
+CREATE STREAM avg_current_stream FILL_HISTORY 1
+    AS SELECT _wstart, _wend, AVG(current) FROM meters
+    INTERVAL (1m)
+    NOTIFY ('ws://localhost:8080/notify', 'wss://192.168.1.1:8080/notify?key=foo')
+    ON ('WINDOW_OPEN', 'WINDOW_CLOSE');
+    NOTIFY_HISTORY 0
+    ON_FAILURE PAUSE;
+```
+
+当触发指定的事件时，taosd 会向指定的 URL 发送 POST 请求，消息体为 JSON 格式。一个请求可能包含若干个流的若干个事件，且事件类型不一定相同。
+事件信息视窗口类型而定：
+
+1. 时间窗口：开始时发送起始时间；结束时发送起始时间、结束时间、计算结果。
+1. 状态窗口：开始时发送起始时间、前一个窗口的状态值、当前窗口的状态值；结束时发送起始时间、结束时间、计算结果、当前窗口的状态值、下一个窗口的状态值。
+1. 会话窗口：开始时发送起始时间；结束时发送起始时间、结束时间、计算结果。
+1. 事件窗口：开始时发送起始时间，触发窗口打开的数据值和对应条件编号；结束时发送起始时间、结束时间、计算结果、触发窗口关闭的数据值和对应条件编号。
+1. 计数窗口：开始时发送起始时间；结束时发送起始时间、结束时间、计算结果。
+
+通知消息的结构示例如下：
+
+```json
+{
+  "messageId": "unique-message-id-12345",
+  "timestamp": 1733284887203,
+  "streams": [
+    {
+      "streamName": "avg_current_stream",
+      "events": [
+        {
+          "tableName": "t_a667a16127d3b5a18988e32f3e76cd30",
+          "eventType": "WINDOW_OPEN",
+          "eventTime": 1733284887097,
+          "windowId": "window-id-67890",
+          "windowType": "Time",
+          "windowStart": 1733284800000
+        },
+        {
+          "tableName": "t_a667a16127d3b5a18988e32f3e76cd30",
+          "eventType": "WINDOW_CLOSE",
+          "eventTime": 1733284887197,
+          "windowId": "window-id-67890",
+          "windowType": "Time",
+          "windowStart": 1733284800000,
+          "windowEnd": 1733284860000,
+          "result": {
+            "_wstart": 1733284800000,
+            "avg(current)": 1.3
+          }
+        }
+      ]
+    },
+    {
+      "streamName": "max_voltage_stream",
+      "events": [
+        {
+          "tableName": "t_96f62b752f36e9b16dc969fe45363748",
+          "eventType": "WINDOW_OPEN",
+          "eventTime": 1733284887231,
+          "windowId": "window-id-13579",
+          "windowType": "Event",
+          "windowStart": 1733284800000,
+          "triggerCondition": {
+            "conditionIndex": 0,
+            "fieldValue": {
+              "c1": 10,
+              "c2": 15
+            }
+          },
+        },
+        {
+          "tableName": "t_96f62b752f36e9b16dc969fe45363748",
+          "eventType": "WINDOW_CLOSE",
+          "eventTime": 1733284887231,
+          "windowId": "window-id-13579",
+          "windowType": "Event",
+          "windowStart": 1733284800000,
+          "windowEnd": 1733284810000,
+          "triggerCondition": {
+            "conditionIndex": 1,
+            "fieldValue": {
+              "c1": 20
+              "c2": 3
+            }
+          },
+          "result": {
+            "_wstart": 1733284800000,
+            "max(voltage)": 220
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+后续小节是通知消息中各个字段的说明。
+
+### 根级字段说明
+
+1. messageId：字符串类型，是通知消息的唯一标识符，确保整条消息可以被追踪和去重。
+1. timestamp：长整型时间戳，表示通知消息生成的时间，精确到毫秒，即: '00:00, Jan 1 1970 UTC' 以来的毫秒数。
+1. streams：对象数组，包含多个流任务的事件信息。(详细信息见下节)
+
+### stream 对象的字段说明
+
+1. streamName：字符串类型，流任务的名称，用于标识事件所属的流。
+1. events：对象数组，该流任务下的事件列表，包含一个或多个事件对象。(详细信息见下节)
+
+### event 对象的字段说明
+
+#### 通用字段
+
+这部分是所有 event 对象所共有的字段。
+1. tableName：字符串类型，是对应目标子表的表名。
+1. eventType：字符串类型，表示事件类型，支持 WINDOW_OPEN、WINDOW_CLOSE、WINDOW_INVALIDATION 三种类型。
+1. eventTime：长整型时间戳，表示事件生成时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
+1. windowId：字符串类型，窗口的唯一标识符，确保打开和关闭事件的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一窗口的 windowId 保持不变。
+1. windowType：字符串类型，表示窗口类型，支持 Time、State、Session、Event、Count 五种类型。
+
+#### 时间窗口相关字段
+
+这部分是 windowType 为 Time 时 event 对象才有的字段。
+1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+    1. windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+    1. result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+#### 状态窗口相关字段
+
+这部分是 windowType 为 State 时 event 对象才有的字段。
+1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+    1. prevState：与状态列的类型相同，表示上一个窗口的状态值。如果没有上一个窗口(即：现在是第一个窗口)，则为 NULL。
+    1. curState：与状态列的类型相同，表示当前窗口的状态值。
+1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+    1. windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+    1. curState：与状态列的类型相同，表示当前窗口的状态值。
+    1. nextState：与状态列的类型相同，表示下一个窗口的状态值。
+    1. result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+#### 会话窗口相关字段
+
+这部分是 windowType 为 Session 时 event 对象才有的字段。
+1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+    1. windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+    1. result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+#### 事件窗口相关字段
+
+这部分是 windowType 为 Event 时 event 对象才有的字段。
+1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
+  1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+  1. triggerCondition：触发窗口开始的条件信息，包括以下字段：
+    1. conditionIndex：整型，表示满足的触发窗口开始的条件的索引，从0开始编号。
+    1. fieldValue：键值对形式，包含条件列列名及其对应的值。
+1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+    1. windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+    1. triggerCondition：触发窗口关闭的条件信息，包括以下字段：
+        1. conditionIndex：整型，表示满足的触发窗口关闭的条件的索引，从0开始编号。
+        1. fieldValue：键值对形式，包含条件列列名及其对应的值。
+    1. result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+#### 计数窗口相关字段
+
+这部分是 windowType 为 Count 时 event 对象才有的字段。
+1. 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+1. 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
+    1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+    1. windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+    1. result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
+
+#### 窗口失效相关字段
+
+因为流计算过程中会遇到数据乱序、更新、删除等情况，可能造成已生成的窗口被删除，或者结果需要重新计算。此时会向通知地址发送一条 WINDOW_INVALIDATION 的通知，说明哪些窗口已经被删除。
+这部分是 eventType 为 WINDOW_INVALIDATION 时，event 对象才有的字段。
+1. windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+1. windowEnd: 长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。

@@ -409,7 +409,7 @@
 (void)tqProcessTaskConsenChkptIdReq
 (void)tqProcessTaskResetReq
 (void)tqScanWalAsync
-(void)tqStopStreamTasksAsync
+(void)tqStopStreamAllTasksAsync
 (void)tqUpdateTbUidList
 (void)transAcquireExHandle
 (void)transAsyncSend

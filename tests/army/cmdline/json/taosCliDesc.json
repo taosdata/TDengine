@@ -1,0 +1,57 @@
+{
+    "filetype":"insert",
+    "cfgdir":"/etc/taos",
+    "host":"127.0.0.1",
+    "port":6030,
+    "user":"root",
+    "password":"taosdata",
+    "thread_count":1,
+    "create_table_thread_count":1,
+    "confirm_parameter_prompt":"no",
+    "prepare_rand":100,
+    "num_of_records_per_req":100,
+    "databases": [
+        {
+            "dbinfo":{
+                "name":"test",
+                "drop":"yes"
+            },
+            "super_tables":[
+                {
+                    "name":"meters",
+                    "child_table_exists":"no",
+                    "childtable_prefix":"d",
+                    "data_source":"rand",
+                    "insert_mode":"taosc",
+                    "childtable_count": 1,
+                    "insert_rows":10,
+                    "timestamp_step":1000,
+                    "start_timestamp":"2022-10-01 00:00:00.000",
+                    "columns":[
+                        { "type": "int",   "count": 1000,  "max": 2000, "min": 0 }
+                    ],
+                    "tags":[
+                        {
+                            "type":"binary",
+                            "name":"location",
+                            "max":64,
+                            "min":1,
+                            "values":[
+                                "San Francisco",
+                                "Los Angles",
+                                "San Diego",
+                                "San Jose",
+                                "Palo Alto",
+                                "Campbell",
+                                "Mountain View",
+                                "Sunnyvale",
+                                "Santa Clara",
+                                "Cupertino"
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

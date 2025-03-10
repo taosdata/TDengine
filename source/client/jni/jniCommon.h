@@ -22,42 +22,14 @@
 #ifndef TDENGINE_JNICOMMON_H
 #define TDENGINE_JNICOMMON_H
 
-#define jniFatal(...)                                                     \
-  {                                                                       \
-    if (jniDebugFlag & DEBUG_FATAL) {                                     \
-      taosPrintLog("JNI FATAL ", DEBUG_FATAL, jniDebugFlag, __VA_ARGS__); \
-    }                                                                     \
-  }
-#define jniError(...)                                                     \
-  {                                                                       \
-    if (jniDebugFlag & DEBUG_ERROR) {                                     \
-      taosPrintLog("JNI ERROR ", DEBUG_ERROR, jniDebugFlag, __VA_ARGS__); \
-    }                                                                     \
-  }
-#define jniWarn(...)                                                    \
-  {                                                                     \
-    if (jniDebugFlag & DEBUG_WARN) {                                    \
-      taosPrintLog("JNI WARN ", DEBUG_WARN, jniDebugFlag, __VA_ARGS__); \
-    }                                                                   \
-  }
-#define jniInfo(...)                                               \
-  {                                                                \
-    if (jniDebugFlag & DEBUG_INFO) {                               \
-      taosPrintLog("JNI ", DEBUG_INFO, jniDebugFlag, __VA_ARGS__); \
-    }                                                              \
-  }
-#define jniDebug(...)                                               \
-  {                                                                 \
-    if (jniDebugFlag & DEBUG_DEBUG) {                               \
-      taosPrintLog("JNI ", DEBUG_DEBUG, jniDebugFlag, __VA_ARGS__); \
-    }                                                               \
-  }
-#define jniTrace(...)                                               \
-  {                                                                 \
-    if (jniDebugFlag & DEBUG_TRACE) {                               \
-      taosPrintLog("JNI ", DEBUG_TRACE, jniDebugFlag, __VA_ARGS__); \
-    }                                                               \
-  }
+// clang-format off
+#define jniFatal(...) do { if (jniDebugFlag & DEBUG_FATAL) { taosPrintLog("JNI FATAL ", DEBUG_FATAL, jniDebugFlag, __VA_ARGS__); }} while(0)
+#define jniError(...) do { if (jniDebugFlag & DEBUG_ERROR) { taosPrintLog("JNI ERROR ", DEBUG_ERROR, jniDebugFlag, __VA_ARGS__); }} while(0)
+#define jniWarn(...)  do { if (jniDebugFlag & DEBUG_WARN)  { taosPrintLog("JNI WARN  ", DEBUG_WARN,  jniDebugFlag, __VA_ARGS__); }} while(0)
+#define jniInfo(...)  do { if (jniDebugFlag & DEBUG_INFO)  { taosPrintLog("JNI INFO  ", DEBUG_INFO,  jniDebugFlag, __VA_ARGS__); }} while(0)
+#define jniDebug(...) do { if (jniDebugFlag & DEBUG_DEBUG) { taosPrintLog("JNI DEBUG ", DEBUG_DEBUG, jniDebugFlag, __VA_ARGS__); }} while(0)
+#define jniTrace(...) do { if (jniDebugFlag & DEBUG_TRACE) { taosPrintLog("JNI TRACE ", DEBUG_TRACE, jniDebugFlag, __VA_ARGS__); }} while(0)
+// clang-format on
 
 extern jclass    g_arrayListClass;
 extern jmethodID g_arrayListConstructFp;

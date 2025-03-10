@@ -622,7 +622,7 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
       SColData *pColData = tBlockDataGetColData(pRow->pBlockData, pTColumn->colId);
 
       if (pColData) {
-        if (tColDataGetValue(pColData, pRow->iRow, pColVal) != 0){
+        if (tColDataGetValue(pColData, pRow->iRow, pColVal) != 0) {
           tsdbError("failed to tColDataGetValue");
         }
       } else {
@@ -647,7 +647,7 @@ void tColRowGetPrimaryKey(SBlockData *pBlock, int32_t irow, SRowKey *key) {
     SColData *pColData = &pBlock->aColData[i];
     if (pColData->cflag & COL_IS_KEY) {
       SColVal cv;
-      if (tColDataGetValue(pColData, irow, &cv) != 0){
+      if (tColDataGetValue(pColData, irow, &cv) != 0) {
         break;
       }
       key->pks[key->numOfPKs] = cv.value;
@@ -723,7 +723,8 @@ SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
     }
 
     if (pIter->iColData <= pIter->pRow->pBlockData->nColData) {
-      if (tColDataGetValue(&pIter->pRow->pBlockData->aColData[pIter->iColData - 1], pIter->pRow->iRow, &pIter->cv) != 0){
+      if (tColDataGetValue(&pIter->pRow->pBlockData->aColData[pIter->iColData - 1], pIter->pRow->iRow, &pIter->cv) !=
+          0) {
         return NULL;
       }
       ++pIter->iColData;
@@ -1800,5 +1801,50 @@ int32_t tsdbGetColCmprAlgFromSet(SHashObj *set, int16_t colId, uint32_t *alg) {
 uint32_t tsdbCvtTimestampAlg(uint32_t alg) {
   DEFINE_VAR(alg)
 
+  return 0;
+}
+
+int32_t tsdbAllocateDisk(STsdb *tsdb, const char *label, int32_t expLevel, SDiskID *diskId) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SDiskID did = {0};
+  STfs   *tfs = tsdb->pVnode->pTfs;
+
+  code = tfsAllocDisk(tfs, expLevel, label, &did);
+  if (code) {
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, __LINE__,
+              tstrerror(code));
+    return code;
+  }
+
+  if (tfsMkdirRecurAt(tfs, tsdb->path, did) != 0) {
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, __LINE__,
+              tstrerror(code));
+  }
+
+  if (diskId) {
+    *diskId = did;
+  }
+  return code;
+}
+
+int32_t tsdbAllocateDiskAtLevel(STsdb *tsdb, int32_t level, const char *label, SDiskID *diskId) {
+  int32_t code = 0;
+  SDiskID did = {0};
+  STfs   *tfs = tsdb->pVnode->pTfs;
+
+  code = tfsAllocDiskAtLevel(tfs, level, label, &did);
+  if (code) {
+    return code;
+  }
+
+  if (tfsMkdirRecurAt(tfs, tsdb->path, did) != 0) {
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, __LINE__,
+              tstrerror(code));
+  }
+
+  if (diskId) {
+    *diskId = did;
+  }
   return 0;
 }

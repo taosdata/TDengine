@@ -102,6 +102,9 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pState->pCol, order, walker, pContext);
       }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pState->pTrueForLimit, order, walker, pContext);
+      }
       break;
     }
     case QUERY_NODE_SESSION_WINDOW: {
@@ -173,6 +176,9 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pEvent->pEndCond, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pEvent->pTrueForLimit, order, walker, pContext);
       }
       break;
     }
@@ -313,6 +319,9 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pState->pCol, order, rewriter, pContext);
       }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pState->pTrueForLimit, order, rewriter, pContext);
+      }
       break;
     }
     case QUERY_NODE_SESSION_WINDOW: {
@@ -384,6 +393,9 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pEvent->pEndCond, order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pEvent->pTrueForLimit, order, rewriter, pContext);
       }
       break;
     }
@@ -475,6 +487,7 @@ void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalke
       nodesWalkExprs(pSelect->pOrderByList, walker, pContext);
     case SQL_CLAUSE_ORDER_BY:
       nodesWalkExprs(pSelect->pProjectionList, walker, pContext);
+      nodesWalkExprs(pSelect->pProjectionBindList, walker, pContext);
     default:
       break;
   }
@@ -515,6 +528,7 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
       nodesRewriteExprs(pSelect->pOrderByList, rewriter, pContext);
     case SQL_CLAUSE_ORDER_BY:
       nodesRewriteExprs(pSelect->pProjectionList, rewriter, pContext);
+      nodesRewriteExprs(pSelect->pProjectionBindList, rewriter, pContext);
     default:
       break;
   }

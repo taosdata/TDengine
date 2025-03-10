@@ -87,7 +87,7 @@ void taosRandStr(char* str, int32_t size) {
 
 void taosRandStr2(char* str, int32_t size) {
   const char* set = "abcdefghijklmnopqrstuvwxyz0123456789@";
-  int32_t     len = strlen(set);
+  int32_t     len = 37;
 
   for (int32_t i = 0; i < size; ++i) {
     str[i] = set[taosRand() % len];

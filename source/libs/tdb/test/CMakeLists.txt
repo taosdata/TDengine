@@ -18,3 +18,6 @@ target_link_libraries(tdbPageDefragmentTest tdb gtest gtest_main)
 add_executable(tdbPageRecycleTest "tdbPageRecycleTest.cpp")
 target_link_libraries(tdbPageRecycleTest tdb gtest gtest_main)
 
+# page flush testing
+add_executable(tdbPageFlushTest "tdbPageFlushTest.cpp")
+target_link_libraries(tdbPageFlushTest tdb gtest gtest_main)

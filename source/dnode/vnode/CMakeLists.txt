@@ -75,6 +75,7 @@ set(
     "src/tq/tqSnapshot.c"
     "src/tq/tqStreamStateSnap.c"
     "src/tq/tqStreamTaskSnap.c"
+    "src/tq/tqStreamNotify.c"
 )
 
 aux_source_directory("src/tsdb/" TSDB_SOURCE_FILES)
@@ -95,6 +96,7 @@ if(TD_VNODE_PLUGINS)
         vnode
         PRIVATE
         ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbCompact.c
+        ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/metaCompact.c
         ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/tsdbCompactMonitor.c
         ${TD_ENTERPRISE_DIR}/src/plugins/vnode/src/vnodeCompact.c
     )

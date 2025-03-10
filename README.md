@@ -177,7 +177,7 @@ If you want to compile taosKeeper, you need to add the `--DBUILD_KEEPER=true` op
 You can use Jemalloc as memory allocator instead of glibc:
 
 ```bash
-cmake .. -DJEMALLOC_ENABLED=true
+cmake .. -DJEMALLOC_ENABLED=ON
 ```
 
 TDengine build script can auto-detect the host machine's architecture on x86, x86-64, arm64 platform.

@@ -1501,3 +1501,47 @@ bool taosAssertRelease(bool condition) {
   return true;
 }
 #endif
+
+#define NUM_BASE 100
+#define DIGIT_LENGTH 2
+#define MAX_DIGITS 24
+
+char* u64toaFastLut(uint64_t val, char* buf) {
+  // Look-up table for 2-digit numbers
+  static const char* lut =
+      "0001020304050607080910111213141516171819202122232425262728293031323334353637383940414243444546474849505152535455"
+      "5657585960616263646566676869707172737475767778798081828384858687888990919293949596979899";
+
+  char  temp[MAX_DIGITS];
+  char* p = temp + tListLen(temp);
+
+  // Process the digits greater than or equal to 100
+  while (val >= NUM_BASE) {
+    // Get the last 2 digits from the look-up table and add to the buffer
+    p -= DIGIT_LENGTH;
+    strncpy(p, lut + (val % NUM_BASE) * DIGIT_LENGTH, DIGIT_LENGTH);
+    val /= NUM_BASE;
+  }
+
+  // Process the remaining 1 or 2 digits
+  if (val >= 10) {
+    // If the number is 10 or more, get the 2 digits from the look-up table
+    p -= DIGIT_LENGTH;
+    strncpy(p, lut + val * DIGIT_LENGTH, DIGIT_LENGTH);
+  } else if (val > 0 || p == temp) {
+    // If the number is less than 10, add the single digit to the buffer
+    p -= 1;
+    *p = val + '0';
+  }
+
+  int64_t len = temp + tListLen(temp) - p;
+  if (len > 0) {
+    memcpy(buf, p, len);
+  } else {
+    buf[0] = '0';
+    len = 1;
+  }
+  buf[len] = '\0';
+
+  return buf + len;
+}

@@ -24,22 +24,6 @@
 #include "tdatablock.h"
 #include "ttime.h"
 
-typedef struct SEventWindowOperatorInfo {
-  SOptrBasicInfo     binfo;
-  SAggSupporter      aggSup;
-  SExprSupp          scalarSup;
-  SWindowRowsSup     winSup;
-  int32_t            tsSlotId;  // primary timestamp column slot id
-  STimeWindowAggSupp twAggSup;
-  uint64_t           groupId;  // current group id, used to identify the data block from different groups
-  SFilterInfo*       pStartCondInfo;
-  SFilterInfo*       pEndCondInfo;
-  bool               inWindow;
-  SResultRow*        pRow;
-  SSDataBlock*       pPreDataBlock;
-  SOperatorInfo*     pOperator;
-} SEventWindowOperatorInfo;
-
 static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** pRes);
 static void    destroyEWindowOperatorInfo(void* param);
 static int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo, SSDataBlock* pBlock);
@@ -114,8 +98,9 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   pInfo->tsSlotId = tsSlotId;
   pInfo->pPreDataBlock = NULL;
   pInfo->pOperator = pOperator;
+  pInfo->trueForLimit = pEventWindowNode->trueForLimit;
 
-  setOperatorInfo(pOperator, "EventWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE, true, OP_NOT_OPENED, pInfo,
+  setOperatorInfo(pOperator, "EventWindowOperator", QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT, true, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, eventWindowAggregateNext, NULL, destroyEWindowOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
@@ -297,6 +282,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
   TSKEY*           tsList = (TSKEY*)pColInfoData->pData;
   SWindowRowsSup*  pRowSup = &pInfo->winSup;
   int32_t          rowIndex = 0;
+  int64_t          minWindowSize = getMinWindowSize(pOperator);
 
   pRowSup->numOfRows = 0;
   if (pInfo->groupId == 0) {
@@ -341,18 +327,23 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
         QUERY_CHECK_CODE(code, lino, _return);
         doUpdateNumOfRows(pSup->pCtx, pInfo->pRow, pSup->numOfExprs, pSup->rowEntryInfoOffset);
 
-        // check buffer size
-        if (pRes->info.rows + pInfo->pRow->numOfRows >= pRes->info.capacity) {
-          int32_t newSize = pRes->info.rows + pInfo->pRow->numOfRows;
-          code = blockDataEnsureCapacity(pRes, newSize);
+        if (pRowSup->win.ekey - pRowSup->win.skey < minWindowSize) {
+          qDebug("skip small window, groupId: %" PRId64 ", windowSize: %" PRId64 ", minWindowSize: %" PRId64,
+                 pInfo->groupId, pRowSup->win.ekey - pRowSup->win.skey, minWindowSize);
+        } else {
+          // check buffer size
+          if (pRes->info.rows + pInfo->pRow->numOfRows >= pRes->info.capacity) {
+            int32_t newSize = pRes->info.rows + pInfo->pRow->numOfRows;
+            code = blockDataEnsureCapacity(pRes, newSize);
+            QUERY_CHECK_CODE(code, lino, _return);
+          }
+
+          code = copyResultrowToDataBlock(pSup->pExprInfo, pSup->numOfExprs, pInfo->pRow, pSup->pCtx, pRes,
+                                          pSup->rowEntryInfoOffset, pTaskInfo);
           QUERY_CHECK_CODE(code, lino, _return);
+
+          pRes->info.rows += pInfo->pRow->numOfRows;
         }
-
-        code = copyResultrowToDataBlock(pSup->pExprInfo, pSup->numOfExprs, pInfo->pRow, pSup->pCtx, pRes,
-                                        pSup->rowEntryInfoOffset, pTaskInfo);
-        QUERY_CHECK_CODE(code, lino, _return);
-
-        pRes->info.rows += pInfo->pRow->numOfRows;
         pInfo->pRow->numOfRows = 0;
 
         pInfo->inWindow = false;

@@ -9,7 +9,7 @@ import imgStream from './assets/stream-processing-01.png';
 ## Creating Stream Computing
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery
+CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name[(field1_name, field2_name [PRIMARY KEY], ...)] [TAGS (create_definition [, create_definition] ...)] SUBTABLE(expression) AS subquery [notification_definition]
 stream_options: {
  TRIGGER        [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time | FORCE_WINDOW_CLOSE]
  WATERMARK      time
@@ -84,6 +84,8 @@ SELECT _wstart, count(*), avg(voltage) from meters PARTITION BY tbname EVENT_WIN
 CREATE STREAM streams1 IGNORE EXPIRED 1 WATERMARK 100s INTO streamt1 AS
 SELECT _wstart, count(*), avg(voltage) from meters PARTITION BY tbname COUNT_WINDOW(10);
 ```
+
+notification_definition clause specifies the addresses to which notifications should be sent when designated events occur during window computations, such as window opening or closing. For more details, see [Stream Computing Event Notifications](#stream-computing-event-notifications).
 
 ## Stream Computation Partitioning
 
@@ -305,3 +307,223 @@ CREATE SNODE ON DNODE [id]
 
 The id is the serial number of the dnode in the cluster. Please be mindful of the selected dnode, as the intermediate state of stream computing will automatically be backed up on it.
 Starting from version 3.3.4.0, in a multi-replica environment, creating a stream will perform an **existence check** of snode, requiring the snode to be created first. If the snode does not exist, the stream cannot be created.
+
+## Stream Computing Event Notifications
+
+### User Guide
+
+Stream computing supports sending event notifications to external systems when windows open or close. Users can specify the events to be notified and the target addresses for receiving notification messages using the notification_definition clause.
+
+```sql
+notification_definition:
+    NOTIFY (url [, url] ...) ON (event_type [, event_type] ...) [notification_options]
+
+event_type:
+    'WINDOW_OPEN'
+  | 'WINDOW_CLOSE'
+
+notification_options: {
+    NOTIFY_HISTORY [0|1]
+    ON_FAILURE [DROP|PAUSE]
+}
+```
+
+The rules for the syntax above are as follows:
+1. `url`: Specifies the target address for the notification. It must include the protocol, IP or domain name, port, and may include a path and parameters. Currently, only the websocket protocol is supported. For example: 'ws://localhost:8080', 'ws://localhost:8080/notify', 'wss://localhost:8080/notify?key=foo'.
+2. `event_type`: Defines the events that trigger notifications. Supported event types include:
+    1. 'WINDOW_OPEN': Window open event; triggered when any type of window opens.
+    2. 'WINDOW_CLOSE': Window close event; triggered when any type of window closes.
+3. `NOTIFY_HISTORY`: Controls whether to trigger notifications during the computation of historical data. The default value is 0, which means no notifications are sent.
+4. `ON_FAILURE`: Determines whether to allow dropping some events if sending notifications fails (e.g., in poor network conditions). The default value is `PAUSE`:
+    1. PAUSE means that the stream computing task is paused if sending a notification fails. taosd will retry until the notification is successfully delivered and the task resumes.
+    2. DROP means that if sending a notification fails, the event information is discarded, and the stream computing task continues running unaffected.
+
+For example, the following creates a stream that computes the per-minute average current from electric meters and sends notifications to two target addresses when the window opens and closes. It does not send notifications for historical data and does not allow dropping notifications on failure:
+
+```sql
+CREATE STREAM avg_current_stream FILL_HISTORY 1
+    AS SELECT _wstart, _wend, AVG(current) FROM meters
+    INTERVAL (1m)
+    NOTIFY ('ws://localhost:8080/notify', 'wss://192.168.1.1:8080/notify?key=foo')
+    ON ('WINDOW_OPEN', 'WINDOW_CLOSE');
+    NOTIFY_HISTORY 0
+    ON_FAILURE PAUSE;
+```
+
+When the specified events are triggered, taosd will send a POST request to the given URL(s) with a JSON message body. A single request may contain events from several streams, and the event types may differ.
+
+The details of the event information depend on the type of window:
+
+1. Time Window: At the opening, the start time is sent; at the closing, the start time, end time, and computation result are sent.
+2. State Window: At the opening, the start time, previous window's state, and current window's state are sent; at closing, the start time, end time, computation result, current window state, and next window state are sent.
+3. Session Window: At the opening, the start time is sent; at the closing, the start time, end time, and computation result are sent.
+4. Event Window: At the opening, the start time along with the data values and corresponding condition index that triggered the window opening are sent; at the closing, the start time, end time, computation result, and the triggering data value and condition index for window closure are sent.
+5. Count Window: At the opening, the start time is sent; at the closing, the start time, end time, and computation result are sent.
+
+An example structure for the notification message is shown below:
+
+```json
+{
+  "messageId": "unique-message-id-12345",
+  "timestamp": 1733284887203,
+  "streams": [
+    {
+      "streamName": "avg_current_stream",
+      "events": [
+        {
+          "tableName": "t_a667a16127d3b5a18988e32f3e76cd30",
+          "eventType": "WINDOW_OPEN",
+          "eventTime": 1733284887097,
+          "windowId": "window-id-67890",
+          "windowType": "Time",
+          "windowStart": 1733284800000
+        },
+        {
+          "tableName": "t_a667a16127d3b5a18988e32f3e76cd30",
+          "eventType": "WINDOW_CLOSE",
+          "eventTime": 1733284887197,
+          "windowId": "window-id-67890",
+          "windowType": "Time",
+          "windowStart": 1733284800000,
+          "windowEnd": 1733284860000,
+          "result": {
+            "_wstart": 1733284800000,
+            "avg(current)": 1.3
+          }
+        }
+      ]
+    },
+    {
+      "streamName": "max_voltage_stream",
+      "events": [
+        {
+          "tableName": "t_96f62b752f36e9b16dc969fe45363748",
+          "eventType": "WINDOW_OPEN",
+          "eventTime": 1733284887231,
+          "windowId": "window-id-13579",
+          "windowType": "Event",
+          "windowStart": 1733284800000,
+          "triggerCondition": {
+            "conditionIndex": 0,
+            "fieldValue": {
+              "c1": 10,
+              "c2": 15
+            }
+          },
+        },
+        {
+          "tableName": "t_96f62b752f36e9b16dc969fe45363748",
+          "eventType": "WINDOW_CLOSE",
+          "eventTime": 1733284887231,
+          "windowId": "window-id-13579",
+          "windowType": "Event",
+          "windowStart": 1733284800000,
+          "windowEnd": 1733284810000,
+          "triggerCondition": {
+            "conditionIndex": 1,
+            "fieldValue": {
+              "c1": 20
+              "c2": 3
+            }
+          },
+          "result": {
+            "_wstart": 1733284800000,
+            "max(voltage)": 220
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+The following sections explain the fields in the notification message.
+
+### Root-Level Field Descriptions
+
+1. "messageId": A string that uniquely identifies the notification message. It ensures that the entire message can be tracked and de-duplicated.
+2. "timestamp": A long integer timestamp representing the time when the notification message was generated, accurate to the millisecond (i.e., the number of milliseconds since '00:00, Jan 1 1970 UTC').
+3. "streams": An array containing the event information for multiple stream tasks. (See the following sections for details.)
+
+### "stream" Object Field Descriptions
+
+1. "streamName": A string representing the name of the stream task, used to identify which stream the events belong to.
+2. "events": An array containing the list of event objects for the stream task. Each event object includes detailed information. (See the next sections for details.)
+
+### "event" Object Field Descriptions
+
+#### Common Fields
+
+These fields are common to all event objects.
+1. "tableName": A string indicating the name of the target subtable.
+2. "eventType": A string representing the event type ("WINDOW_OPEN", "WINDOW_CLOSE", or "WINDOW_INVALIDATION").
+3. "eventTime": A long integer timestamp that indicates when the event was generated, accurate to the millisecond (i.e., the number of milliseconds since '00:00, Jan 1 1970 UTC').
+4. "windowId": A string representing the unique identifier for the window. This ID ensures that the open and close events for the same window can be correlated. In the case that taosd restarts due to a fault, some events may be sent repeatedly, but the windowId remains constant for the same window.
+5. "windowType": A string that indicates the window type ("Time", "State", "Session", "Event", or "Count").
+
+#### Fields for Time Windows
+
+These fields are present only when "windowType" is "Time".
+1. When "eventType" is "WINDOW_OPEN", the following field is included:
+    1. "windowStart": A long integer timestamp representing the start time of the window, matching the time precision of the result table.
+2. When "eventType" is "WINDOW_CLOSE", the following fields are included:
+    1. "windowStart": A long integer timestamp representing the start time of the window.
+    1. "windowEnd": A long integer timestamp representing the end time of the window.
+    1. "result": An object containing key-value pairs of the computed result columns and their corresponding values.
+
+#### Fields for State Windows
+
+These fields are present only when "windowType" is "State".
+1. When "eventType" is "WINDOW_OPEN", the following fields are included:
+    1. "windowStart": A long integer timestamp representing the start time of the window.
+    1. "prevState": A value of the same type as the state column, representing the state of the previous window. If there is no previous window (i.e., this is the first window), it will be NULL.
+    1. "curState": A value of the same type as the state column, representing the current window's state.
+2. When "eventType" is "WINDOW_CLOSE", the following fields are included:
+    1. "windowStart": A long integer timestamp representing the start time of the window.
+    1. "windowEnd": A long integer timestamp representing the end time of the window.
+    1. "curState": The current window's state.
+    1. "nextState": The state for the next window.
+    1. "result": An object containing key-value pairs of the computed result columns and their corresponding values.
+
+#### Fields for Session Windows
+
+These fields are present only when "windowType" is "Session".
+1. When "eventType" is "WINDOW_OPEN", the following field is included:
+    1. "windowStart": A long integer timestamp representing the start time of the window.
+2. When "eventType" is "WINDOW_CLOSE", the following fields are included:
+    1. "windowStart": A long integer timestamp representing the start time of the window.
+    1. "windowEnd": A long integer timestamp representing the end time of the window.
+    1. "result": An object containing key-value pairs of the computed result columns and their corresponding values.
+
+#### Fields for Event Windows
+
+These fields are present only when "windowType" is "Event".
+1. When "eventType" is "WINDOW_OPEN", the following fields are included:
+    1. "windowStart": A long integer timestamp representing the start time of the window.
+    1. "triggerCondition": An object that provides information about the condition that triggered the window to open. It includes:
+        1. "conditionIndex": An integer representing the index of the condition that triggered the window, starting from 0.
+        1. "fieldValue": An object containing key-value pairs of the column names related to the condition and their respective values.
+2. When "eventType" is "WINDOW_CLOSE", the following fields are included:
+    1. "windowStart": A long integer timestamp representing the start time of the window.
+    1. "windowEnd": A long integer timestamp representing the end time of the window.
+    1. "triggerCondition": An object that provides information about the condition that triggered the window to close. It includes:
+        1. "conditionIndex": An integer representing the index of the condition that triggered the closure, starting from 0.
+        1. "fieldValue": An object containing key-value pairs of the related column names and their respective values.
+    1. "result": An object containing key-value pairs of the computed result columns and their corresponding values.
+
+#### Fields for Count Windows
+
+These fields are present only when "windowType" is "Count".
+1. When "eventType" is "WINDOW_OPEN", the following field is included:
+    1. "windowStart": A long integer timestamp representing the start time of the window.
+2. When "eventType" is "WINDOW_CLOSE", the following fields are included:
+    1. "windowStart": A long integer timestamp representing the start time of the window.
+    1. "windowEnd": A long integer timestamp representing the end time of the window.
+    1. "result": An object containing key-value pairs of the computed result columns and their corresponding values.
+
+#### Fields for Window Invalidation
+
+Due to scenarios such as data disorder, updates, or deletions during stream computing, windows that have already been generated might be removed or their results need to be recalculated. In such cases, a notification with the eventType "WINDOW_INVALIDATION" is sent to inform which windows have been invalidated.
+For events with "eventType" as "WINDOW_INVALIDATION", the following fields are included:
+1. "windowStart": A long integer timestamp representing the start time of the window.
+1. "windowEnd": A long integer timestamp representing the end time of the window.

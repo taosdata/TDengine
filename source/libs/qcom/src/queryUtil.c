@@ -165,7 +165,7 @@ int32_t initTaskQueue() {
     return -1;
   }
 
-  qDebug("task queue is initialized, numOfThreads: %d", tsNumOfTaskQueueThreads);
+  qInfo("task queue is initialized, numOfThreads: %d", tsNumOfTaskQueueThreads);
   return 0;
 }
 
@@ -200,6 +200,18 @@ int32_t taosAsyncRecover() {
     return -1;
   }
   return taskQueue.wrokrerPool.pCb->afterRecoverFromBlocking(&taskQueue.wrokrerPool);
+}
+
+int32_t taosStmt2AsyncBind(__async_exec_fn_t bindFn, void* bindParam) {
+  SSchedMsg* pSchedMsg;
+  int32_t rc = taosAllocateQitem(sizeof(SSchedMsg), DEF_QITEM, 0, (void **)&pSchedMsg);
+  if (rc) return rc;
+  pSchedMsg->fp = NULL;
+  pSchedMsg->ahandle = bindFn;
+  pSchedMsg->thandle = bindParam;
+  // pSchedMsg->msg = code;
+
+  return taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
 }
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
@@ -331,7 +343,7 @@ void destroyQueryExecRes(SExecResult* pRes) {
       break;
     }
     default:
-      qError("invalid exec result for request type %d", pRes->msgType);
+      qError("invalid exec result for request type:%d", pRes->msgType);
   }
 }
 // clang-format on

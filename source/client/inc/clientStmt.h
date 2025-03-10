@@ -205,12 +205,12 @@ extern char *gStmtStatusStr[];
     }                                \
   } while (0)
 
-#define STMT_FLOG(param, ...) qFatal("stmt:%p " param, pStmt, __VA_ARGS__)
-#define STMT_ELOG(param, ...) qError("stmt:%p " param, pStmt, __VA_ARGS__)
-#define STMT_DLOG(param, ...) qDebug("stmt:%p " param, pStmt, __VA_ARGS__)
+#define STMT_FLOG(param, ...) qFatal("stmt:%p, " param, pStmt, __VA_ARGS__)
+#define STMT_ELOG(param, ...) qError("stmt:%p, " param, pStmt, __VA_ARGS__)
+#define STMT_DLOG(param, ...) qDebug("stmt:%p, " param, pStmt, __VA_ARGS__)
 
-#define STMT_ELOG_E(param) qError("stmt:%p " param, pStmt)
-#define STMT_DLOG_E(param) qDebug("stmt:%p " param, pStmt)
+#define STMT_ELOG_E(param) qError("stmt:%p, " param, pStmt)
+#define STMT_DLOG_E(param) qDebug("stmt:%p, " param, pStmt)
 
 TAOS_STMT  *stmtInit(STscObj* taos, int64_t reqid, TAOS_STMT_OPTIONS* pOptions);
 int         stmtClose(TAOS_STMT *stmt);

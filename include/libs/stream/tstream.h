@@ -66,10 +66,14 @@ typedef struct SStreamTaskSM         SStreamTaskSM;
 typedef struct SStreamQueueItem      SStreamQueueItem;
 typedef struct SActiveCheckpointInfo SActiveCheckpointInfo;
 
-#define SSTREAM_TASK_VER                  4
-#define SSTREAM_TASK_INCOMPATIBLE_VER     1
-#define SSTREAM_TASK_NEED_CONVERT_VER     2
-#define SSTREAM_TASK_SUBTABLE_CHANGED_VER 3
+#define SSTREAM_TASK_VER                    5
+#define SSTREAM_TASK_INCOMPATIBLE_VER       1
+#define SSTREAM_TASK_NEED_CONVERT_VER       2
+#define SSTREAM_TASK_SUBTABLE_CHANGED_VER   3  // Append subtable name with groupId
+#define SSTREAM_TASK_APPEND_STABLE_NAME_VER 4  // Append subtable name with stableName and groupId
+#define SSTREAM_TASK_ADD_NOTIFY_VER         5  // Support event notification at window open/close
+
+#define IS_NEW_SUBTB_RULE(_t) (((_t)->ver >= SSTREAM_TASK_SUBTABLE_CHANGED_VER) && ((_t)->subtableWithoutMd5 != 1))
 
 extern int32_t streamMetaRefPool;
 extern int32_t streamTaskRefPool;
@@ -429,6 +433,15 @@ typedef struct STaskCheckInfo {
   TdThreadMutex checkInfoLock;
 } STaskCheckInfo;
 
+typedef struct SNotifyInfo {
+  SArray*         pNotifyAddrUrls;
+  int32_t         notifyEventTypes;
+  int32_t         notifyErrorHandle;
+  char*           streamName;
+  char*           stbFullName;
+  SSchemaWrapper* pSchemaWrapper;
+} SNotifyInfo;
+
 struct SStreamTask {
   int64_t             ver;
   SStreamTaskId       id;
@@ -451,6 +464,8 @@ struct SStreamTask {
   SStreamState*       pState;  // state backend
   SUpstreamInfo       upstreamInfo;
   STaskCheckInfo      taskCheckInfo;
+  SNotifyInfo         notifyInfo;
+  STaskNotifyEventStat notifyEventStat;
 
   // the followings attributes don't be serialized
   SScanhistorySchedInfo schedHistoryInfo;
@@ -622,6 +637,7 @@ typedef struct STaskStatusEntry {
   int64_t       startCheckpointVer;
   int64_t       hTaskId;
   STaskCkptInfo checkpointInfo;
+  STaskNotifyEventStat notifyEventStat;
 } STaskStatusEntry;
 
 //typedef struct SNodeUpdateInfo {
@@ -686,8 +702,8 @@ int32_t streamTaskClearHTaskAttr(SStreamTask* pTask, int32_t clearRelHalt);
 
 int32_t streamExecTask(SStreamTask* pTask);
 int32_t streamResumeTask(SStreamTask* pTask);
-int32_t streamTrySchedExec(SStreamTask* pTask);
-int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId, int32_t execType);
+int32_t streamTrySchedExec(SStreamTask* pTask, bool chkptExec);
+int32_t streamTaskSchedTask(SMsgCb* pMsgCb, int32_t vgId, int64_t streamId, int32_t taskId, int32_t execType, bool chkptExec);
 void    streamTaskResumeInFuture(SStreamTask* pTask);
 void    streamTaskClearSchedIdleInfo(SStreamTask* pTask);
 void    streamTaskSetIdleInfo(SStreamTask* pTask, int32_t idleTime);

@@ -1310,8 +1310,8 @@ int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlo
   TSDB_CHECK_CODE(code, lino, _end);
 
   // input queue
-  char        vbuf[40] = {0};
-  char        buf[38] = {0};
+  char        vbuf[TSDB_STREAM_NOTIFY_STAT_LEN + 2] = {0};
+  char        buf[TSDB_STREAM_NOTIFY_STAT_LEN] = {0};
   const char *queueInfoStr = "%4.2f MiB (%6.2f%)";
   snprintf(buf, tListLen(buf), queueInfoStr, pe->inputQUsed, pe->inputRate);
   STR_TO_VARSTR(vbuf, buf);
@@ -1503,6 +1503,47 @@ int32_t setTaskAttrInResBlock(SStreamObj *pStream, SStreamTask *pTask, SSDataBlo
 
   code = colDataSetVal(pColInfo, numOfRows, 0, true);
   TSDB_CHECK_CODE(code, lino, _end);
+
+  // notify_event_stat
+  int32_t offset =0;
+  if (pe->notifyEventStat.notifyEventAddTimes > 0) {
+    offset += tsnprintf(buf + offset, sizeof(buf) - offset, "Add %" PRId64 "x, %" PRId64 " elems in %lfs; ",
+                        pe->notifyEventStat.notifyEventAddTimes, pe->notifyEventStat.notifyEventAddElems,
+                        pe->notifyEventStat.notifyEventAddCostSec);
+  }
+  if (pe->notifyEventStat.notifyEventPushTimes > 0) {
+    offset += tsnprintf(buf + offset, sizeof(buf) - offset, "Push %" PRId64 "x, %" PRId64 " elems in %lfs; ",
+                        pe->notifyEventStat.notifyEventPushTimes, pe->notifyEventStat.notifyEventPushElems,
+                        pe->notifyEventStat.notifyEventPushCostSec);
+  }
+  if (pe->notifyEventStat.notifyEventPackTimes > 0) {
+    offset += tsnprintf(buf + offset, sizeof(buf) - offset, "Pack %" PRId64 "x, %" PRId64 " elems in %lfs; ",
+                        pe->notifyEventStat.notifyEventPackTimes, pe->notifyEventStat.notifyEventPackElems,
+                        pe->notifyEventStat.notifyEventPackCostSec);
+  }
+  if (pe->notifyEventStat.notifyEventSendTimes > 0) {
+    offset += tsnprintf(buf + offset, sizeof(buf) - offset, "Send %" PRId64 "x, %" PRId64 " elems in %lfs; ",
+                        pe->notifyEventStat.notifyEventSendTimes, pe->notifyEventStat.notifyEventSendElems,
+                        pe->notifyEventStat.notifyEventSendCostSec);
+  }
+  if (pe->notifyEventStat.notifyEventHoldElems > 0) {
+    offset += tsnprintf(buf + offset, sizeof(buf) - offset, "[Hold %" PRId64 " elems] ",
+                        pe->notifyEventStat.notifyEventHoldElems);
+  }
+  TSDB_CHECK_CONDITION(offset < sizeof(buf), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  buf[offset] = '\0';
+
+  STR_TO_VARSTR(vbuf, buf);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+
+  if (offset == 0) {
+    colDataSetNULL(pColInfo, numOfRows);
+  } else {
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)vbuf, false);
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
 
 _end:
   if (code) {

@@ -56,14 +56,13 @@ join_clause:
 
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col)
+  | STATE_WINDOW(col) [TRUE_FOR(true_for_duration)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
-  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_duration)]
   | COUNT_WINDOW(count_val[, sliding_val])
 
 interp_clause:
-      RANGE(ts_val [, ts_val]) EVERY(every_val) FILL(fill_mod_and_val)
-    | RANGE(ts_val, surrounding_time_val) FILL(fill_mod_and_val)
+      RANGE(ts_val [, ts_val] [, surrounding_time_val]) EVERY(every_val) FILL(fill_mod_and_val)
 
 partition_by_clause:
     PARTITION BY partition_by_expr [, partition_by_expr] ...

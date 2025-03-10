@@ -114,6 +114,7 @@ int32_t taosDflSignal(int32_t signum) {
   return 0;
 }
 
+#if 0
 int32_t taosKillChildOnParentStopped() {
 #ifndef _TD_DARWIN_64
   int32_t code = prctl(PR_SET_PDEATHSIG, SIGKILL);
@@ -126,5 +127,6 @@ int32_t taosKillChildOnParentStopped() {
 #endif
   return 0;
 }
+#endif
 
 #endif

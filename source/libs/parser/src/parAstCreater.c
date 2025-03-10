@@ -16,6 +16,7 @@
 #include <regex.h>
 #include <uv.h>
 
+#include "nodes.h"
 #include "parAst.h"
 #include "parUtil.h"
 #include "tglobal.h"
@@ -107,18 +108,73 @@ static bool invalidPassword(const char* pPassword) {
   return 0 == res;
 }
 
+static bool invalidStrongPassword(const char* pPassword) {
+  if (strcmp(pPassword, "taosdata") == 0) {
+    return false;
+  }
+
+  bool charTypes[4] = {0};
+  for (int32_t i = 0; i < strlen(pPassword); ++i) {
+    if (taosIsBigChar(pPassword[i])) {
+      charTypes[0] = true;
+    } else if (taosIsSmallChar(pPassword[i])) {
+      charTypes[1] = true;
+    } else if (taosIsNumberChar(pPassword[i])) {
+      charTypes[2] = true;
+    } else if (taosIsSpecialChar(pPassword[i])) {
+      charTypes[3] = true;
+    } else {
+      return true;
+    }
+  }
+
+  int32_t numOfTypes = 0;
+  for (int32_t i = 0; i < 4; ++i) {
+    numOfTypes += charTypes[i];
+  }
+
+  if (numOfTypes < 3) {
+    return true;
+  }
+
+  return false;
+}
+
 static bool checkPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken, char* pPassword) {
   if (NULL == pPasswordToken) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
-  } else if (pPasswordToken->n >= (TSDB_USET_PASSWORD_LEN + 2)) {
+  } else if (pPasswordToken->n >= (TSDB_USET_PASSWORD_LONGLEN + 2)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
   } else {
     strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
     (void)strdequote(pPassword);
-    if (strtrim(pPassword) <= 0) {
+    if (strtrim(pPassword) < TSDB_PASSWORD_MIN_LEN) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY);
-    } else if (invalidPassword(pPassword)) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PASSWD);
+    } else {
+      if (tsEnableStrongPassword) {
+        if (invalidStrongPassword(pPassword)) {
+          pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PASSWD);
+        }
+      } else {
+        if (invalidPassword(pPassword)) {
+          pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PASSWD);
+        }
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS == pCxt->errCode;
+}
+
+static bool checkImportPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken, char* pPassword) {
+  if (NULL == pPasswordToken) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+  } else if (pPasswordToken->n > (32 + 2)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
+  } else {
+    strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
+    (void)strdequote(pPassword);
+    if (strtrim(pPassword) < 32) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY);
     }
   }
   return TSDB_CODE_SUCCESS == pCxt->errCode;
@@ -354,6 +410,33 @@ SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
   SRawExprNode* target = (SRawExprNode*)pNode;
   SToken        t = {.type = 0, .z = target->p, .n = target->n};
   return t;
+}
+
+SNodeList* createColsFuncParamNodeList(SAstCreateContext* pCxt, SNode* pNode, SNodeList* pNodeList, SToken* pAlias) {
+  CHECK_PARSER_STATUS(pCxt);
+    if (NULL == pNode || QUERY_NODE_RAW_EXPR != nodeType(pNode)) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+  }
+  CHECK_PARSER_STATUS(pCxt);
+  SRawExprNode* pRawExpr = (SRawExprNode*)pNode;
+  SNode*        pFuncNode = pRawExpr->pNode;
+  if(pFuncNode->type != QUERY_NODE_FUNCTION) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+  }
+  CHECK_PARSER_STATUS(pCxt);
+  SNodeList* list = NULL;
+  pCxt->errCode = nodesMakeList(&list);
+  CHECK_MAKE_NODE(list);
+  pCxt->errCode = nodesListAppend(list, pFuncNode);
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesListAppendList(list, pNodeList);
+  CHECK_PARSER_STATUS(pCxt);
+  return list;
+
+  _err:
+  nodesDestroyNode(pFuncNode);
+  nodesDestroyList(pNodeList);
+  return NULL;
 }
 
 SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode) {
@@ -1332,7 +1415,7 @@ _err:
   return NULL;
 }
 
-SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr) {
+SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr, SNode* pTrueForLimit) {
   SStateWindowNode* state = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STATE_WINDOW, (SNode**)&state);
@@ -1340,14 +1423,16 @@ SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr) {
   state->pCol = createPrimaryKeyCol(pCxt, NULL);
   CHECK_MAKE_NODE(state->pCol);
   state->pExpr = pExpr;
+  state->pTrueForLimit = pTrueForLimit;
   return (SNode*)state;
 _err:
   nodesDestroyNode((SNode*)state);
   nodesDestroyNode(pExpr);
+  nodesDestroyNode(pTrueForLimit);
   return NULL;
 }
 
-SNode* createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* pEndCond) {
+SNode* createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* pEndCond, SNode* pTrueForLimit) {
   SEventWindowNode* pEvent = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_EVENT_WINDOW, (SNode**)&pEvent);
@@ -1356,11 +1441,13 @@ SNode* createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* 
   CHECK_MAKE_NODE(pEvent->pCol);
   pEvent->pStartCond = pStartCond;
   pEvent->pEndCond = pEndCond;
+  pEvent->pTrueForLimit = pTrueForLimit;
   return (SNode*)pEvent;
 _err:
   nodesDestroyNode((SNode*)pEvent);
   nodesDestroyNode(pStartCond);
   nodesDestroyNode(pEndCond);
+  nodesDestroyNode(pTrueForLimit);
   return NULL;
 }
 
@@ -1471,13 +1558,19 @@ _err:
   return NULL;
 }
 
-SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd) {
+SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd, SNode* pInterval) {
   CHECK_PARSER_STATUS(pCxt);
-  if (pEnd && nodeType(pEnd) == QUERY_NODE_VALUE && ((SValueNode*)pEnd)->flag & VALUE_FLAG_IS_DURATION) {
-    return createInterpTimeAround(pCxt, pStart, pEnd);
+  if (NULL == pInterval) {
+    if (pEnd && nodeType(pEnd) == QUERY_NODE_VALUE && ((SValueNode*)pEnd)->flag & VALUE_FLAG_IS_DURATION) {
+      return createInterpTimeAround(pCxt, pStart, NULL, pEnd);
+    }
+    return createBetweenAnd(pCxt, createPrimaryKeyCol(pCxt, NULL), pStart, pEnd);
   }
-  return createBetweenAnd(pCxt, createPrimaryKeyCol(pCxt, NULL), pStart, pEnd);
+
+  return createInterpTimeAround(pCxt, pStart, pEnd, pInterval);
+  
 _err:
+
   nodesDestroyNode(pStart);
   nodesDestroyNode(pEnd);
   return NULL;
@@ -1491,12 +1584,16 @@ _err:
   return NULL;
 }
 
-SNode* createInterpTimeAround(SAstCreateContext* pCxt, SNode* pTimepoint, SNode* pInterval) {
+SNode* createInterpTimeAround(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd, SNode* pInterval) {
   CHECK_PARSER_STATUS(pCxt);
   SRangeAroundNode* pAround = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_RANGE_AROUND, (SNode**)&pAround);
   CHECK_PARSER_STATUS(pCxt);
-  pAround->pTimepoint = createInterpTimePoint(pCxt, pTimepoint);
+  if (NULL == pEnd) {
+    pAround->pRange = createInterpTimePoint(pCxt, pStart);
+  } else {
+    pAround->pRange = createBetweenAnd(pCxt, createPrimaryKeyCol(pCxt, NULL), pStart, pEnd);
+  }
   pAround->pInterval = pInterval;
   CHECK_PARSER_STATUS(pCxt);
   return (SNode*)pAround;
@@ -1526,8 +1623,8 @@ SNode* createCaseWhenNode(SAstCreateContext* pCxt, SNode* pCase, SNodeList* pWhe
   pCaseWhen->pCase = pCase;
   pCaseWhen->pWhenThenList = pWhenThenList;
   pCaseWhen->pElse = pElse;
-  pCaseWhen->tz    = pCxt->pQueryCxt->timezone;
-  pCaseWhen->charsetCxt    = pCxt->pQueryCxt->charsetCxt;
+  pCaseWhen->tz = pCxt->pQueryCxt->timezone;
+  pCaseWhen->charsetCxt = pCxt->pQueryCxt->charsetCxt;
   return (SNode*)pCaseWhen;
 _err:
   nodesDestroyNode(pCase);
@@ -1668,7 +1765,7 @@ SNode* addRangeClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pRange) {
     if (pRange && nodeType(pRange) == QUERY_NODE_RANGE_AROUND) {
       pSelect->pRangeAround = pRange;
       SRangeAroundNode* pAround = (SRangeAroundNode*)pRange;
-      TSWAP(pSelect->pRange, pAround->pTimepoint);
+      TSWAP(pSelect->pRange, pAround->pRange);
     } else {
       pSelect->pRange = pRange;
     }
@@ -2170,7 +2267,7 @@ _err:
   return NULL;
 }
 
-SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd) {
+SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart, SNode* pEnd, bool metaOnly) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, pDbName, false));
   SCompactDatabaseStmt* pStmt = NULL;
@@ -2179,6 +2276,7 @@ SNode* createCompactStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pStart
   COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
   pStmt->pStart = pStart;
   pStmt->pEnd = pEnd;
+  pStmt->metaOnly = metaOnly;
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pStart);
@@ -2187,7 +2285,7 @@ _err:
 }
 
 SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeList* vgidList, SNode* pStart,
-                                SNode* pEnd) {
+                                SNode* pEnd, bool metaOnly) {
   CHECK_PARSER_STATUS(pCxt);
   if (NULL == pDbName) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "database not specified");
@@ -2201,6 +2299,7 @@ SNode* createCompactVgroupsStmt(SAstCreateContext* pCxt, SNode* pDbName, SNodeLi
   pStmt->vgidList = vgidList;
   pStmt->pStart = pStart;
   pStmt->pEnd = pEnd;
+  pStmt->metaOnly = metaOnly;
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pDbName);
@@ -2705,6 +2804,22 @@ static bool needDbShowStmt(ENodeType type) {
          QUERY_NODE_SHOW_VIEWS_STMT == type || QUERY_NODE_SHOW_TSMAS_STMT == type || QUERY_NODE_SHOW_USAGE_STMT == type;
 }
 
+SNode* createShowStmtWithLike(SAstCreateContext* pCxt, ENodeType type,   SNode*  pLikePattern) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->withFull = false;
+  pStmt->pTbName = pLikePattern;
+  if (pLikePattern) {
+    pStmt->tableCondType = OP_TYPE_LIKE;
+  }
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pLikePattern);
+  return NULL;
+}
+
 SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
   CHECK_PARSER_STATUS(pCxt);
   SShowStmt* pStmt = NULL;
@@ -2935,6 +3050,18 @@ _err:
   return NULL;
 }
 
+SNode* createShowTransactionDetailsStmt(SAstCreateContext* pCxt, SNode* pTransactionIdNode) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowTransactionDetailsStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->pTransactionId = pTransactionIdNode;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pTransactionIdNode);
+  return NULL;
+}
+
 static int32_t getIpV4RangeFromWhitelistItem(char* ipRange, SIpV4Range* pIpRange) {
   int32_t code = TSDB_CODE_SUCCESS;
   char*   ipCopy = taosStrdup(ipRange);
@@ -2995,7 +3122,14 @@ static int32_t fillIpRangesFromWhiteList(SAstCreateContext* pCxt, SNodeList* pIp
 }
 
 SNode* addCreateUserStmtWhiteList(SAstCreateContext* pCxt, SNode* pCreateUserStmt, SNodeList* pIpRangesNodeList) {
-  if (NULL == pCreateUserStmt || NULL == pIpRangesNodeList) {
+  if (NULL == pCreateUserStmt) {
+    if (pIpRangesNodeList != NULL) {
+      nodesDestroyList(pIpRangesNodeList);
+    }
+    return NULL;
+  }
+
+  if (NULL == pIpRangesNodeList) {
     return pCreateUserStmt;
   }
 
@@ -3018,14 +3152,18 @@ _err:
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword, int8_t sysinfo,
                             int8_t createDb, int8_t is_import) {
   CHECK_PARSER_STATUS(pCxt);
-  char password[TSDB_USET_PASSWORD_LEN + 3] = {0};
+  char password[TSDB_USET_PASSWORD_LONGLEN + 3] = {0};
   CHECK_NAME(checkUserName(pCxt, pUserName));
-  CHECK_NAME(checkPassword(pCxt, pPassword, password));
+  if (is_import == 0) {
+    CHECK_NAME(checkPassword(pCxt, pPassword, password));
+  } else {
+    CHECK_NAME(checkImportPassword(pCxt, pPassword, password));
+  }
   SCreateUserStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_USER_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   COPY_STRING_FORM_ID_TOKEN(pStmt->userName, pUserName);
-  tstrncpy(pStmt->password, password, TSDB_USET_PASSWORD_LEN);
+  tstrncpy(pStmt->password, password, TSDB_USET_PASSWORD_LONGLEN);
   pStmt->sysinfo = sysinfo;
   pStmt->createDb = createDb;
   pStmt->isImport = is_import;
@@ -3044,10 +3182,10 @@ SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t al
   pStmt->alterType = alterType;
   switch (alterType) {
     case TSDB_ALTER_USER_PASSWD: {
-      char    password[TSDB_USET_PASSWORD_LEN] = {0};
+      char    password[TSDB_USET_PASSWORD_LONGLEN] = {0};
       SToken* pVal = pAlterInfo;
       CHECK_NAME(checkPassword(pCxt, pVal, password));
-      tstrncpy(pStmt->password, password, TSDB_USET_PASSWORD_LEN);
+      tstrncpy(pStmt->password, password, TSDB_USET_PASSWORD_LONGLEN);
       break;
     }
     case TSDB_ALTER_USER_ENABLE: {
@@ -3649,8 +3787,115 @@ SNode* setStreamOptions(SAstCreateContext* pCxt, SNode* pOptions, EStreamOptions
   return pOptions;
 }
 
+static bool validateNotifyUrl(const char* url) {
+  const char* prefix[] = {"http://", "https://", "ws://", "wss://"};
+  const char* host = NULL;
+
+  if (!url || *url == '\0') return false;
+
+  for (int32_t i = 0; i < ARRAY_SIZE(prefix); ++i) {
+    if (strncasecmp(url, prefix[i], strlen(prefix[i])) == 0) {
+      host = url + strlen(prefix[i]);
+      break;
+    }
+  }
+
+  return (host != NULL) && (*host != '\0') && (*host != '/');
+}
+
+SNode* createStreamNotifyOptions(SAstCreateContext* pCxt, SNodeList* pAddrUrls, SNodeList* pEventTypes) {
+  SNode*                 pNode = NULL;
+  EStreamNotifyEventType eventTypes = 0;
+  const char*            eWindowOpenStr = "WINDOW_OPEN";
+  const char*            eWindowCloseStr = "WINDOW_CLOSE";
+
+  CHECK_PARSER_STATUS(pCxt);
+
+  if (LIST_LENGTH(pAddrUrls) == 0) {
+    pCxt->errCode =
+        generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "notification address cannot be empty");
+    goto _err;
+  }
+
+  FOREACH(pNode, pAddrUrls) {
+    char *url = ((SValueNode*)pNode)->literal;
+    if (strlen(url) >= TSDB_STREAM_NOTIFY_URL_LEN) {
+      pCxt->errCode =
+          generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                  "notification address \"%s\" exceed maximum length %d", url, TSDB_STREAM_NOTIFY_URL_LEN);
+      goto _err;
+    }
+    if (!validateNotifyUrl(url)) {
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                              "invalid notification address \"%s\"", url);
+      goto _err;
+    }
+  }
+
+  if (LIST_LENGTH(pEventTypes) == 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "event types must be specified for notification");
+    goto _err;
+  }
+
+  FOREACH(pNode, pEventTypes) {
+    char *eventStr = ((SValueNode *)pNode)->literal;
+    if (strncasecmp(eventStr, eWindowOpenStr, strlen(eWindowOpenStr) + 1) == 0) {
+      BIT_FLAG_SET_MASK(eventTypes, SNOTIFY_EVENT_WINDOW_OPEN);
+    } else if (strncasecmp(eventStr, eWindowCloseStr, strlen(eWindowCloseStr) + 1) == 0) {
+      BIT_FLAG_SET_MASK(eventTypes, SNOTIFY_EVENT_WINDOW_CLOSE);
+    } else {
+      pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                              "invalid event type '%s' for notification", eventStr);
+      goto _err;
+    }
+  }
+
+  SStreamNotifyOptions* pNotifyOptions = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM_NOTIFY_OPTIONS, (SNode**)&pNotifyOptions);
+  CHECK_MAKE_NODE(pNotifyOptions);
+  pNotifyOptions->pAddrUrls = pAddrUrls;
+  pNotifyOptions->eventTypes = eventTypes;
+  pNotifyOptions->errorHandle = SNOTIFY_ERROR_HANDLE_PAUSE;
+  pNotifyOptions->notifyHistory = false;
+  nodesDestroyList(pEventTypes);
+  return (SNode*)pNotifyOptions;
+_err:
+  nodesDestroyList(pAddrUrls);
+  nodesDestroyList(pEventTypes);
+  return NULL;
+}
+
+SNode* setStreamNotifyOptions(SAstCreateContext* pCxt, SNode* pNode, EStreamNotifyOptionSetFlag setFlag,
+                              SToken* pToken) {
+  CHECK_PARSER_STATUS(pCxt);
+
+  SStreamNotifyOptions* pNotifyOption = (SStreamNotifyOptions*)pNode;
+  if (BIT_FLAG_TEST_MASK(pNotifyOption->setFlag, setFlag)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                         "stream notify options each item can only be set once");
+    goto _err;
+  }
+  switch (setFlag) {
+    case SNOTIFY_OPT_ERROR_HANDLE_SET:
+      pNotifyOption->errorHandle = (pToken->type == TK_DROP) ? SNOTIFY_ERROR_HANDLE_DROP : SNOTIFY_ERROR_HANDLE_PAUSE;
+      break;
+    case SNOTIFY_OPT_NOTIFY_HISTORY_SET:
+      pNotifyOption->notifyHistory = taosStr2Int8(pToken->z, NULL, 10);
+      break;
+    default:
+      break;
+  }
+  BIT_FLAG_SET_MASK(pNotifyOption->setFlag, setFlag);
+  return pNode;
+_err:
+  nodesDestroyNode(pNode);
+  return NULL;
+}
+
 SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pStreamName, SNode* pRealTable,
-                              SNode* pOptions, SNodeList* pTags, SNode* pSubtable, SNode* pQuery, SNodeList* pCols) {
+                              SNode* pOptions, SNodeList* pTags, SNode* pSubtable, SNode* pQuery, SNodeList* pCols,
+                              SNode* pNotifyOptions) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkStreamName(pCxt, pStreamName));
   SCreateStreamStmt* pStmt = NULL;
@@ -3666,6 +3911,7 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken
   pStmt->pTags = pTags;
   pStmt->pSubtable = pSubtable;
   pStmt->pCols = pCols;
+  pStmt->pNotifyOptions = (SStreamNotifyOptions*)pNotifyOptions;
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pRealTable);
@@ -3674,6 +3920,7 @@ _err:
   nodesDestroyList(pTags);
   nodesDestroyNode(pSubtable);
   nodesDestroyList(pCols);
+  nodesDestroyNode(pNotifyOptions);
   return NULL;
 }
 
@@ -3718,6 +3965,20 @@ _err:
   return NULL;
 }
 
+SNode* createResetStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pStreamName) {
+  CHECK_PARSER_STATUS(pCxt);
+  CHECK_NAME(checkStreamName(pCxt, pStreamName));
+  SPauseStreamStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_RESET_STREAM_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->streamName, pStreamName);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+
 SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId) {
   CHECK_PARSER_STATUS(pCxt);
   SKillStmt* pStmt = NULL;
@@ -3744,6 +4005,16 @@ SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   SBalanceVgroupStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_BALANCE_VGROUP_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createAssignLeaderStmt(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAssignLeaderStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ASSIGN_LEADER_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   return (SNode*)pStmt;
 _err:

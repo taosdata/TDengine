@@ -420,9 +420,9 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x8000262A | STATE_WINDOW not support for super table query                                                         | 不支持超级表的 STATE_WINDOW                    | 检查并修正 SQL 语句                     |
 | 0x8000262B | SESSION gap should be fixed time window, and greater than 0                                            | SESSION 窗口值非法                             | 检查并修正 SQL 语句                     |
 | 0x8000262C | Only support SESSION on primary timestamp column                                                       | SESSION 窗口列非法                             | 检查并修正 SQL 语句                     |
-| 0x8000262D | Interval offset cannot be negative                                                                     | INTERVAL offset 值非法                         | 检查并修正 SQL 语句                     |
-| 0x8000262E | Cannot use 'year' as offset when interval is 'month'                                                   | INTERVAL offset 单位非法                       | 检查并修正 SQL 语句                     |
-| 0x8000262F | Interval offset should be shorter than interval                                                        | INTERVAL offset 值非法                         | 检查并修正 SQL 语句                     |
+| 0x8000262D | Interval offset cannot be negative                                                                     | INTERVAL offset值非法                         | 检查并修正 SQL 语句                     |
+| 0x8000262E | Cannot use 'year' as offset when interval is 'month'                                                   | INTERVAL offset单位非法                       | 检查并修正 SQL 语句                     |
+| 0x8000262F | Interval offset should be shorter than interval                                                        | INTERVAL offset值非法                         | 检查并修正 SQL 语句                     |
 | 0x80002630 | Does not support sliding when interval is natural month/year                                           | sliding 单位非法                               | 检查并修正 SQL 语句                     |
 | 0x80002631 | sliding value no larger than the interval value                                                        | sliding 值非法                                 | 检查并修正 SQL 语句                     |
 | 0x80002632 | sliding value can not less than 1%% of interval value                                                  | sliding 值非法                                 | 检查并修正 SQL 语句                     |
@@ -431,7 +431,7 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80002635 | Incorrect TIMESTAMP value                                                                              | 主键时间戳列值非法                            | 检查并修正 SQL 语句                     |
 | 0x80002637 | soffset/offset can not be less than 0                                                                  | soffset/offset 值非法                          | 检查并修正 SQL 语句                     |
 | 0x80002638 | slimit/soffset only available for PARTITION/GROUP BY query                                             | slimit/soffset 只支持 PARTITION BY/GROUP BY 语句 | 检查并修正 SQL 语句                     |
-| 0x80002639 | Invalid topic query                                                                                    | 不支持的 TOPIC 查询语                           |
+| 0x80002639 | Invalid topic query                                                                                    | 不支持的 TOPIC 查询语法                           |
 | 0x8000263A | Cannot drop super table in batch                                                                       | 不支持批量删除超级表                          | 检查并修正 SQL 语句                     |
 | 0x8000263B | Start(end) time of query range required or time range too large                                        | 窗口个数超出限制                              | 检查并修正 SQL 语句                     |
 | 0x8000263C | Duplicated column names                                                                                | 列名称重复                                    | 检查并修正 SQL 语句                     |
@@ -469,15 +469,21 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x8000265F | Only support single table                                                                              | 函数只支持在单表查询中使用                    | 检查并修正 SQL 语句                     |
 | 0x80002660 | Invalid sma index                                                                                      | 非法创建 SMA 语句                               | 检查并修正 SQL 语句                     |
 | 0x80002661 | Invalid SELECTed expression                                                                            | 无效查询语句                                  | 检查并修正 SQL 语句                     |
-| 0x80002662 | Fail to get table info                                                                                 | 获取表元数据信息失败                          | 保留现场和日志，github 上报 issue       |
+| 0x80002662 | Fail to get table info                                                                                 | 获取表元数据信息失败                          | 保留现场和日志，github上报issue       |
 | 0x80002663 | Not unique table/alias                                                                                 | 表名（别名）冲突                              | 检查并修正 SQL 语句                     |
 | 0x80002664 | Join requires valid time series input                                                                  | 不支持子查询不含主键时间戳列输出的 JOIN 查询    | 检查并修正 SQL 语句                     |
 | 0x80002665 | The _TAGS pseudo column can only be used for subtable and supertable queries                           | 非法 TAG 列查询                                 | 检查并修正 SQL 语句                     |
-| 0x80002666 | 子查询不含主键时间戳列输出                                                                             | 检查并修正 SQL 语句                             |
+| 0x80002666 | 子查询不含主键时间戳列输出                                                                                | 检查并修正 SQL 语句                             |
 | 0x80002667 | Invalid usage of expr: %s                                                                              | 非法表达式                                    | 检查并修正 SQL 语句                     |
-| 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                | 保留现场和日志，github 上报 issue       |
-| 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                | 保留现场和日志，github 上报 issue       |
-| 0x80002701 | Expect ts equal                                                                                        | JOIN 条件校验失败                              | 保留现场和日志，github 上报 issue       |
+| 0x80002687 | True_for duration cannot be negative                                                                   | true_for 的值不能是负数                        | 检查并修正 SQL 语句                     |
+| 0x80002688 | Cannot use 'year' or 'month' as true_for duration                                                      | 不能使用 n(月), y(年) 作为 true_for 的时间单位   | 检查并修正 SQL 语句                     |
+| 0x80002689 | Invalid using cols function                                                                            | cols 函数使用错误                             | 检查并修正 SQL 语句                        |
+| 0x8000268A | Cols function's first param must be a select function that output a single row         | cols 函数第一个参数应该为选择函数                | 检查并修正 SQL 语句                     |
+| 0x8000268B | Invalid using cols function with multiple output columns                                               | 多列输出的 cols 函数使用错误                   | 检查并修正 SQL 语句                      |
+| 0x8000268C | Invalid using alias for cols function                                                                  | cols 函数输出列重命名错误                      | 检查并修正 SQL 语句                     |
+| 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                | 保留现场和日志，github上报issue       |
+| 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                | 保留现场和日志，github上报issue       |
+| 0x80002701 | Expect ts equal                                                                                        | JOIN 条件校验失败                              | 保留现场和日志，github上报issue       |
 | 0x80002702 | Cross join not support                                                                                 | 不支持 CROSS JOIN                              | 检查并修正 SQL 语句                     |
 
 
@@ -551,9 +557,11 @@ description: TDengine 服务端的错误码列表和详细说明
 
 | 错误码     | 错误描述              | 可能的出错场景或者可能的原因                                                     | 建议用户采取的措施             |
 | ---------- | --------------------- | -------------------------------------------------------------------------------- | ------------------------------ |
+| 0x800003E6 | Consumer not exist    | Consumer 超时下线                                                                | 重新建 consumer 订阅数据     |
+| 0x800003EA | Consumer not ready    | Consumer 正在平衡中                                                               | 等待 2 秒后重试     |
 | 0x80004000 | Invalid message       | 订阅到的数据非法，一般不会出现                                                   | 具体查看 client 端的错误日志提示 |
-| 0x80004001 | Consumer mismatch     | 订阅请求的 vnode 和重新分配的 vnode 不一致，一般存在于有新消费者加入相同消费者组里时 | 内部错误，不暴露给用户         |
+| 0x80004001 | Consumer mismatch     | 订阅请求的 vnode 和重新分配的 vnode 不一致，一般存在于有新消费者加入相同消费者组里时         | 内部错误         |
 | 0x80004002 | Consumer closed       | 消费者已经不存在了                                                               | 查看是否已经 close 掉了          |
-| 0x80004017 | Invalid status, please subscribe topic first | 数据订阅状态不对 | 没有调用 subscribe，直接 poll 数据 |
+| 0x80004017 | Invalid status, please subscribe topic first | 数据订阅状态不对                                                                 | 没有调用 subscribe，直接 poll 数据     |
 | 0x80004100 | Stream task not exist | 流计算任务不存在                                                                 | 具体查看 server 端的错误日志     |
 

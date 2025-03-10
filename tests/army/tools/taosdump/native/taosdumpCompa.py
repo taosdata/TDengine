@@ -108,7 +108,6 @@ class TDTestCase(TBase):
         # verify db
         self.verifyResult(db)
 
-
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

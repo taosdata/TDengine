@@ -55,6 +55,19 @@ class TDTestCase:
         tdLog.debug("res2: %s" % str(res2))
         assert(len(res1) == len(res2) and res1[0][0] == res2[4][0])
 
+        # test ts-5613
+        sql = "select cast(2<>3 as int) from t"
+        tdSql.query(sql)
+        tdSql.checkData(0,0,1)
+
+        sql = "select cast(2 not in(3) as int) from t"
+        tdSql.query(sql)
+        tdSql.checkData(0,0,1)
+
+        sql = "select cast(2 is NULL as int) from t"
+        tdSql.query(sql)
+        tdSql.checkData(0,0,0)
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

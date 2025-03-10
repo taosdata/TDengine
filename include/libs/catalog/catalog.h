@@ -79,6 +79,7 @@ typedef struct SDbInfo {
 typedef struct STablesReq {
   char    dbFName[TSDB_DB_FNAME_LEN];
   SArray* pTables;
+  uint8_t autoCreate;  // 0x0 not auto create, 0x01 auto create
 } STablesReq;
 
 typedef struct SCatalogReq {
