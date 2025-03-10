@@ -540,6 +540,8 @@ if(NOT ${TD_WINDOWS})       # {
         BUILD_IN_SOURCE TRUE
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        PATCH_COMMAND
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/tz.Makefile Makefile
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
             # COMMAND make CFLAGS+=-fPIC CFLAGS+=-g TZDIR=${TZ_OUTPUT_PATH} clean libtz.a
