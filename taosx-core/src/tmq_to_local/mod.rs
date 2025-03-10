@@ -320,6 +320,7 @@ impl BackupWorker {
             match message {
                 MessageSet::Meta(meta) => {
                     let raw = meta.as_raw_meta().await?;
+                    tracing::debug!("backup meta, len: {}", raw.raw_len());
                     self.man
                         .write_vgroup_with_raw(vg_id, &raw, RawType::Meta)
                         .await
@@ -332,6 +333,7 @@ impl BackupWorker {
                 }
                 MessageSet::Data(data) => {
                     let raw = data.as_raw_data().await?;
+                    tracing::debug!("backup data, len: {}", raw.raw_len());
                     self.man
                         .write_vgroup_with_raw(vg_id, &raw, RawType::Data)
                         .await
@@ -344,6 +346,7 @@ impl BackupWorker {
                 }
                 MessageSet::MetaData(_meta, data) => {
                     let raw = data.as_raw_data().await?;
+                    tracing::debug!("backup raw data, len: {}", raw.raw_len());
                     self.man
                         .write_vgroup_with_raw(vg_id, &raw, RawType::Both)
                         .await
