@@ -7,6 +7,7 @@ IF(NOT TD_DARWIN)
     AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
     
     ADD_EXECUTABLE(nodesTest ${SOURCE_LIST})
+    DEP_ext_gtest(nodesTest)
     
     TARGET_INCLUDE_DIRECTORIES(
         nodesTest
@@ -16,7 +17,7 @@ IF(NOT TD_DARWIN)
     
     TARGET_LINK_LIBRARIES(
         nodesTest
-        PUBLIC os util common nodes qcom gtest
+        PUBLIC os util common nodes qcom
     )
     
     add_test(

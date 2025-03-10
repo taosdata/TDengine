@@ -7,9 +7,11 @@ IF(NOT TD_DARWIN)
         AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
         ADD_EXECUTABLE(qworkerTest ${SOURCE_LIST})
+        DEP_ext_gtest(qworkerTest)
+        DEP_ext_cppstub(qworkerTest)
         TARGET_LINK_LIBRARIES(
                 qworkerTest
-                PUBLIC os util common transport gtest qcom nodes planner qworker executor index
+                PUBLIC os util common transport qcom nodes planner qworker executor index
         )
 
         TARGET_INCLUDE_DIRECTORIES(

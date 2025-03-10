@@ -6,10 +6,11 @@ IF(NOT TD_DARWIN)
 
   AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
   ADD_EXECUTABLE(geomTest ${SOURCE_LIST})
+  DEP_ext_gtest(geomTest)
 
   TARGET_LINK_LIBRARIES(
     geomTest
-    PUBLIC os util gtest qcom nodes geometry scalar function scalar
+    PUBLIC os util qcom nodes geometry scalar function scalar
   )
 
   add_test(

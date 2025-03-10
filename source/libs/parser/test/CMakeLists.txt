@@ -7,6 +7,8 @@ IF(NOT TD_DARWIN)
     AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
     ADD_EXECUTABLE(parserTest ${SOURCE_LIST})
+    DEP_ext_gtest(parserTest)
+    DEP_ext_cppstub(parserTest)
 
     TARGET_INCLUDE_DIRECTORIES(
             parserTest
@@ -16,7 +18,7 @@ IF(NOT TD_DARWIN)
 
     TARGET_LINK_LIBRARIES(
             parserTest
-            PUBLIC os util common nodes parser catalog transport gtest function planner qcom
+            PUBLIC os util common nodes parser catalog transport function planner qcom
     )
 
     if(${BUILD_WINGETOPT})

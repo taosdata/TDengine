@@ -11,16 +11,18 @@ IF(NOT TD_DARWIN)
         "${SOURCE_LIST}/../../../parser/test/mockCatalog.cpp"
         "${SOURCE_LIST}/../../../parser/test/mockCatalogService.cpp"
     )
+    DEP_ext_gtest(plannerTest)
+    DEP_ext_cppstub(plannerTest)
 
     IF (TD_GRANT)
         TARGET_LINK_LIBRARIES(
                 plannerTest
-                PUBLIC os util common nodes planner parser catalog transport gtest function qcom grant
+                PUBLIC os util common nodes planner parser catalog transport function qcom grant
         )
     ELSE ()
         TARGET_LINK_LIBRARIES(
                 plannerTest
-                PUBLIC os util common nodes planner parser catalog transport gtest function qcom
+                PUBLIC os util common nodes planner parser catalog transport function qcom
         )
     ENDIF()
 

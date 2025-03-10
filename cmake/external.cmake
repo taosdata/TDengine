@@ -309,8 +309,8 @@ if(${BUILD_TEST})           # {
     endif()
     INIT_EXT(ext_gtest
         INC_DIR          include
-        LIB              lib/${ext_gtest_static}
-                         lib/${ext_gtest_main}
+        LIB              lib/${ext_gtest_main}
+                         lib/${ext_gtest_static}
     )
     # GIT_REPOSITORY https://github.com/taosdata-contrib/googletest.git
     # GIT_TAG release-1.11.0
@@ -326,21 +326,23 @@ if(${BUILD_TEST})           # {
         VERBATIM
     )
     add_dependencies(build_externals ext_gtest)     # this is for github workflow in cache-miss step.
+    include_directories(${_ins}/include)            # freemine: a better and specific way?
 endif(${BUILD_TEST})        # }
 
 # cppstub
 if(${BUILD_TEST})           # {
     if(${TD_LINUX})
         set(ext_cppstub_static libcppstub.a)
+        set(_platform_dir      src_linux)
     elseif(${TD_DARWIN})
         set(ext_cppstub_static libcppstub.a)
+        set(_platform_dir      src_darwin)
     elseif(${TD_WINDOWS})
         set(ext_cppstub_static cppstub.lib)
+        set(_platform_dir      src_win)
     endif()
     INIT_EXT(ext_cppstub
         INC_DIR          include
-        LIB              lib/${ext_cppstub_static}
-                         lib/${ext_cppstub_main}
     )
     # GIT_REPOSITORY https://github.com/coolxv/cpp-stub.git
     # GIT_TAG 3137465194014d66a8402941e80d2bccc6346f51
@@ -355,6 +357,8 @@ if(${BUILD_TEST})           # {
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${ext_cppstub_source}/src/stub.h ${_ins}/include/stub.h
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${ext_cppstub_source}/${_platform_dir}/addr_any.h ${_ins}/include/addr_any.h
         # freemine: TODO: seems only .h files are exported
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE

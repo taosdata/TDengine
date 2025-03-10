@@ -51,11 +51,8 @@ add_subdirectory(tools)
 add_subdirectory(examples/c)
 add_subdirectory(tests)
 
-# freemine: porting source
-return()
-
-
 include(${TD_SUPPORT_DIR}/cmake.install)
 
 # docs
 add_subdirectory(docs/doxgen)
+

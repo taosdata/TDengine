@@ -7,9 +7,11 @@ IF(NOT TD_DARWIN)
         AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
         ADD_EXECUTABLE(scalarTest ${SOURCE_LIST})
+        DEP_ext_gtest(scalarTest)
+        DEP_ext_cppstub(scalarTest)
         TARGET_LINK_LIBRARIES(
                 scalarTest
-                PUBLIC os util common gtest qcom function nodes scalar parser catalog transport
+                PUBLIC os util common qcom function nodes scalar parser catalog transport
         )
 
         TARGET_INCLUDE_DIRECTORIES(

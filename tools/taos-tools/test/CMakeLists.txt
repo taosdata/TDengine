@@ -9,10 +9,7 @@ IF(TD_LINUX)
 
     # benchmark
     ADD_EXECUTABLE(benchmarkTest benchmarkTest.cpp)
-    TARGET_LINK_LIBRARIES(
-            benchmarkTest
-            PRIVATE gtest 
-    )
+    DEP_ext_gtest(benchmarkTest)
 
     target_include_directories(
         benchmarkTest
@@ -26,10 +23,7 @@ IF(TD_LINUX)
 
     # taosdump
     ADD_EXECUTABLE(taosdumpTest taosdumpTest.cpp ../src/toolsSys.c)
-    TARGET_LINK_LIBRARIES(
-        taosdumpTest
-            PRIVATE gtest 
-    )
+    DEP_ext_gtest(taosdumpTest)
 
     target_include_directories(
         taosdumpTest
