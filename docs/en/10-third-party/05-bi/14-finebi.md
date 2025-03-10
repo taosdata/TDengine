@@ -12,7 +12,7 @@ By using the TDengine Java connector, FineBI can quickly access the data in TDen
 
 - TDengine 3.3.4.0 and above version is installed and running normally (both Enterprise and Community versions are available).
 - taosAdapter is running normally, refer to [taosAdapter Reference](../../../tdengine-reference/components/taosadapter/).
-- Install FineBI (if not installed, please download and install [Download FineBI](https://intl.finebi.com/product/download)). 
+- Install FineBI (if not installed, please download and install [Download FineBI](https://intl.finebi.com/download)). 
 - Download the fine_conf_entity plugin to support the addition of JDBC drivers, [Download link](https://market.fanruan.com/plugin/1052a471-0239-4cd8-b832-045d53182c5d).
 - Install the JDBC driver. Download the `TDengine JDBC connector` file `taos-jdbcdriver-3.4.0-dist.jar` or a higher version from `maven.org`.
 
