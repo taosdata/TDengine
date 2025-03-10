@@ -797,7 +797,7 @@ static bool funcNotSupportStringSma(SFunctionNode* pFunc) {
 }
 
 EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
-  if(funcNotSupportStringSma(pFunc)) {
+  if (funcNotSupportStringSma(pFunc)) {
     return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
   return FUNC_DATA_REQUIRED_SMA_LOAD;
@@ -6611,7 +6611,7 @@ int32_t blockDBUsageFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   double   compressRadio = 0;
   if (rawDataSize != 0) {
     compressRadio = totalDiskSize * 100 / (double)rawDataSize;
-    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio=[%.2f]", compressRadio);
+    len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio=[%.2f%]", compressRadio);
   } else {
     len = tsnprintf(varDataVal(st), sizeof(st) - VARSTR_HEADER_SIZE, "Compress_radio=[NULL]");
   }
