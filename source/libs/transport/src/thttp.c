@@ -14,13 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "thttp.h"
+// clang-format off
 #include "zlib.h"
 #ifndef TD_ASTRA_RPC
-// clang-format off
-#include <uv.h>
-#include "zlib.h"
 #include "thttp.h"
+#include <uv.h>
 #include "taoserror.h"
 #include "transComm.h"
 
@@ -1122,7 +1120,7 @@ _end:
   }
   return code;
 }
-#endif  // TD_ASTRA_RPC
+#else  // TD_ASTRA_RPC
 
 int32_t taosTelemetryMgtInit(STelemAddrMgmt* mgt, char* defaultAddr) { return 0; }
 void    taosTelemetryDestroy(STelemAddrMgmt* mgt) { return; }
@@ -1142,3 +1140,4 @@ int32_t taosSendHttpReportWithQID(const char* server, const char* uri, uint16_t 
                                   EHttpCompFlag flag, const char* qid) {
   return 0;
 }
+#endif

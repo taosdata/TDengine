@@ -17,9 +17,6 @@
 #define _TD_UTIL_HTTP_H_
 
 #include <stdint.h>
-#include "os.h"
-#include "tdef.h"
-#include "tref.h"
 
 #ifdef __cplusplus
 extern "C" {
