@@ -90,7 +90,7 @@ class Numeric64 {
   Numeric64& operator=(const Numeric64& r);
   Numeric64& operator=(const Numeric128& r);
 
-  static SDecimalOps* getOps() { return getDecimalOps(TSDB_DATA_TYPE_DECIMAL64); }
+  static const SDecimalOps* getOps() { return getDecimalOps(TSDB_DATA_TYPE_DECIMAL64); }
 };
 
 class Numeric128 {
@@ -110,7 +110,7 @@ class Numeric128 {
     return *this;
   }
 
-  static SDecimalOps* getOps() { return getDecimalOps(TSDB_DATA_TYPE_DECIMAL); }
+  static const SDecimalOps* getOps() { return getDecimalOps(TSDB_DATA_TYPE_DECIMAL); }
 };
 
 Numeric64& Numeric64::operator=(const Numeric64& r) {
