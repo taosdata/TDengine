@@ -77,7 +77,7 @@ IF(TD_WEBSOCKET)
             PATCH_COMMAND
                 COMMAND git clean -f -d
             BUILD_COMMAND
-                COMMAND cargo update
+                # COMMAND cargo update        # freemine: why update?
                 COMMAND cargo build --release -p taos-ws-sys --features rustls
             INSTALL_COMMAND
                 COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${websocket_lib_file} ${_ins}/lib/${websocket_lib_file}
