@@ -213,6 +213,26 @@ class TDTestCase(TBase):
             rlist = self.taos(arg[0])
             if arg[1] != None:
                 self.checkListString(rlist, arg[1])    
+    
+    # password
+    def checkPassword(self):
+        # 255 char max password
+        pwd     = ""
+        pwdFile = "cmdline/data/pwdMax.txt"
+        with open(pwdFile) as file:
+            pwd = file.readline()
+        
+        sql = f"create user dkj pass '{pwd}' "
+        tdSql.execute(sql)
+         
+        cmds = [
+            f"-udkj -p{pwd} -s show databases;",         # command pass
+            f"-udkj -p < {pwdFile} -s show databases;"   # input   pass
+        ]
+
+        for cmd in cmds:
+            rlist = self.taos(cmd)
+            self.checkListString("Query OK,")
 
     # run
     def run(self):
@@ -235,6 +255,9 @@ class TDTestCase(TBase):
 
         # check data in/out
         self.checkDumpInOut()
+
+        # max password
+        self.checkPassword()
 
         tdLog.success(f"{__file__} successfully executed")
 
