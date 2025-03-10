@@ -172,7 +172,7 @@ void clearColValArraySml(SArray* pCols) {
       taosMemoryFreeClear(pCol->value.pData);
     }
     pCol->flag = CV_FLAG_NONE;
-    valueClearDatum(&pCol->value, pCol->value.type);
+    pCol->value.val = 0;
   }
 }
 
