@@ -27,6 +27,8 @@ extern "C" {
 
 #if defined(TD_ASTRA_32)
 #define PACK_PUSH_MIN _Pragma("pack(push, 4)")
+#elif defined(WINDOWS)
+#define PACK_PUSH_MIN __pragma(pack(push, 1))
 #else
 #define PACK_PUSH_MIN _Pragma("pack(push, 1)")
 #endif
