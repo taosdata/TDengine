@@ -2,7 +2,7 @@ name: TDGpt Update Service
 
 on:
   schedule:
-    - cron: '30 00 * * *'
+    - cron: '45 13 * * *'
 
 env:
   WKC: "/root/TDengine"
