@@ -39,7 +39,6 @@ void unlockLog(int8_t idx);
 // exit log
 void exitLog();
 
-
 #define debugPrint(fmt, ...)                                                \
     do {                                                                    \
         if (g_arguments->debug_print) {                                     \

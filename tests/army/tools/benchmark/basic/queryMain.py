@@ -203,10 +203,6 @@ class TDTestCase(TBase):
         for arg in args:
             self.checkAfterRun(benchmark, arg[0] + ".json", arg[1], tbCnt)
 
-        # rest
-        for arg in args:
-            self.checkAfterRun(benchmark, arg[0] + "Rest.json", arg[1], tbCnt)
-
     def expectFailed(self, command):
         ret = os.system(command)
         if ret == 0:

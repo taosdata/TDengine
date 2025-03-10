@@ -79,10 +79,12 @@ if [ "$osType" != "Darwin" ]; then
         ${script_dir}/get_client.sh"
   fi
   lib_files="${build_dir}/lib/libtaos.so.${version}"
+  nativelib_files="${build_dir}/lib/libtaosnative.so.${version}"
   wslib_files="${build_dir}/lib/libtaosws.so"
 else
   bin_files="${build_dir}/bin/${clientName} ${script_dir}/remove_client.sh"
   lib_files="${build_dir}/lib/libtaos.${version}.dylib"
+  nativelib_files="${build_dir}/lib/libtaosnative.${version}.dylib"
   wslib_files="${build_dir}/lib/libtaosws.dylib"
 fi
 
@@ -224,6 +226,7 @@ fi
 # Copy driver
 mkdir -p ${install_dir}/driver
 cp ${lib_files} ${install_dir}/driver
+cp ${nativelib_files} ${install_dir}/driver
 
 # Copy connector
 connector_dir="${code_dir}/connector"

@@ -44,6 +44,8 @@ description: TDengine 服务端的错误码列表和详细说明
 | 0x80000107 | Ref ID is removed                 | 引用的 ref 资源已经释放               | 保留现场和日志，github 上报 issue |
 | 0x80000108 | Invalid Ref ID                    | 无效 ref ID                        | 保留现场和日志，github 上报 issue |
 | 0x8000010A | Ref is not there                  | ref 信息不存在                     | 保留现场和日志，github 上报 issue |
+| 0x8000010B | Driver was not loaded                   | 未在系统路径中找到 libtaosnative.so 或 libtaosws.so                      | 重新安装客户端驱动 |
+| 0x8000010C | Function was not loaded from the driver | 在 libtaos.so 中定义的一些函数在 libtaosnative.so 或 libtaosws.so 中未实现 | 保留现场和日志，github 上报 issue |
 | 0x80000110 | Unexpected generic error          | 系统内部错误                       | 保留现场和日志，github 上报 issue |
 | 0x80000111 | Action in progress                | 操作进行中                         | 1.等待操作完成 2.根据需要取消操作 3.当超出合理时间仍然未完成可保留现场和日志，或联系客户支持 |
 | 0x80000112 | Out of range                      | 配置参数超出允许值范围                 | 更改参数                                                                                                                                           |
