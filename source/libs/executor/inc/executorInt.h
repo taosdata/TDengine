@@ -166,7 +166,7 @@ typedef struct SExchangeOperatorBasicParam {
   bool           tableSeq;
   SArray*        uidList;
   bool           isVtbRefScan;
-  SOrgTbInfo* colMap;
+  SOrgTbInfo*    colMap;
   STimeWindow    window;
 } SExchangeOperatorBasicParam;
 
@@ -289,6 +289,7 @@ typedef struct STableScanInfo {
   bool            needCountEmptyTable;
   SSDataBlock*    pOrgBlock;
   bool            ignoreTag;
+  bool            virtualStableScan;
 } STableScanInfo;
 
 typedef enum ESubTableInputType {

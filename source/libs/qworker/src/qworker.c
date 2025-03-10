@@ -916,7 +916,9 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     atomic_store_8((int8_t *)&ctx->queryContinue, 0);
 
     uint64_t flag = 0;
-    (void)dsGetSinkFlags(ctx->sinkHandle, &flag);
+    if (ctx->sinkHandle) {
+      (void)dsGetSinkFlags(ctx->sinkHandle, &flag);
+    }
     if (!queryStop) {
       QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryStop, flag & DS_FLAG_PROCESS_ONE_BLOCK));
     }

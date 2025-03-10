@@ -1202,6 +1202,10 @@ void freeOperatorParamImpl(SOperatorParam* pParam, SOperatorParamType type) {
 void freeExchangeGetBasicOperatorParam(void* pParam) {
   SExchangeOperatorBasicParam* pBasic = (SExchangeOperatorBasicParam*)pParam;
   taosArrayDestroy(pBasic->uidList);
+  if (pBasic->colMap) {
+    taosArrayDestroy(pBasic->colMap->colMap);
+    taosMemoryFreeClear(pBasic->colMap);
+  }
 }
 
 void freeExchangeGetOperatorParam(SOperatorParam* pParam) {
@@ -1229,10 +1233,28 @@ void freeMergeJoinNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorPara
 void freeTableScanGetOperatorParam(SOperatorParam* pParam) {
   STableScanOperatorParam* pTableScanParam = (STableScanOperatorParam*)pParam->value;
   taosArrayDestroy(pTableScanParam->pUidList);
+  if (pTableScanParam->pOrgTbInfo) {
+    taosArrayDestroy(pTableScanParam->pOrgTbInfo->colMap);
+    taosMemoryFreeClear(pTableScanParam->pOrgTbInfo);
+  }
   freeOperatorParamImpl(pParam, OP_GET_PARAM);
 }
 
 void freeTableScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
+
+void freeOpParamItem(void* pItem) {
+  SOperatorParam* pParam = *(SOperatorParam**)pItem;
+  pParam->reUse = false;
+  freeOperatorParam(pParam, OP_GET_PARAM);
+}
+
+void freeVirtualTableScanGetOperatorParam(SOperatorParam* pParam) {
+  SVTableScanOperatorParam* pVTableScanParam = (SVTableScanOperatorParam*)pParam->value;
+  taosArrayDestroyEx(pVTableScanParam->pOpParamArray, freeOpParamItem);
+  freeOperatorParamImpl(pParam, OP_GET_PARAM);
+}
+
+void freeVTableScanNotifyOperatorParam(SOperatorParam* pParam) { freeOperatorParamImpl(pParam, OP_NOTIFY_PARAM); }
 
 void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
   if (NULL == pParam || pParam->reUse) {
@@ -1253,6 +1275,7 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
       type == OP_GET_PARAM ? freeTableScanGetOperatorParam(pParam) : freeTableScanNotifyOperatorParam(pParam);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN:
+      type == OP_GET_PARAM ? freeVirtualTableScanGetOperatorParam(pParam) : freeVTableScanNotifyOperatorParam(pParam);
       break;
     default:
       qError("unsupported op %d param, type %d", pParam->opType, type);

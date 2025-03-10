@@ -53,6 +53,7 @@ typedef struct SPlanContext {
   char        pWendName[TSDB_COL_NAME_LEN];
   char        pGroupIdName[TSDB_COL_NAME_LEN];
   char        pIsWindowFilledName[TSDB_COL_NAME_LEN];
+  bool        virtualStableQuery;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

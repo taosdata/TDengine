@@ -219,14 +219,19 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  metaRsp.pColRefs = (SColRef*)taosMemoryMalloc(sizeof(SColRef) * metaRsp.numOfColumns);
-  if (metaRsp.pColRefs) {
-    code = fillTableColRef(&mer1, metaRsp.pColRefs, metaRsp.numOfColumns);
-    if (code < 0) {
-      goto _exit;
+  if (hasRefCol(mer1.me.type)) {
+    metaRsp.pColRefs = (SColRef*)taosMemoryMalloc(sizeof(SColRef) * metaRsp.numOfColumns);
+    if (metaRsp.pColRefs) {
+      code = fillTableColRef(&mer1, metaRsp.pColRefs, metaRsp.numOfColumns);
+      if (code < 0) {
+        goto _exit;
+      }
     }
+    metaRsp.numOfColRefs = metaRsp.numOfColumns;
+  } else {
+    metaRsp.pColRefs = NULL;
+    metaRsp.numOfColRefs = 0;
   }
-  metaRsp.numOfColRefs = metaRsp.numOfColumns;
 
   vnodePrintTableMeta(&metaRsp);
 

@@ -1882,6 +1882,9 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL: {
       SDynQueryCtrlLogicNode* pLogicNode = (SDynQueryCtrlLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
+      if (pLogicNode->qType == DYN_QTYPE_VTB_SCAN) {
+        taosMemoryFreeClear(pLogicNode->vtbScan.pVgroupList);
+      }
       break;
     }
     case QUERY_NODE_LOGIC_SUBPLAN: {
@@ -2127,6 +2130,9 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL: {
       SDynQueryCtrlPhysiNode* pPhyNode = (SDynQueryCtrlPhysiNode*)pNode;
+      if (pPhyNode->qType == DYN_QTYPE_VTB_SCAN) {
+        nodesDestroyList(pPhyNode->vtbScan.pScanCols);
+      }
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       break;
     }

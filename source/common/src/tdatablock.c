@@ -1224,10 +1224,9 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
  */
 size_t blockDataGetSerialMetaSize(uint32_t numOfCols) {
   // | version | total length | total rows | blankFull | total columns | flag seg| block group id | column schema
-  // | each column length | start key | end key
+  // | each column length
   return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(bool) + sizeof(int32_t) + sizeof(int32_t) +
-         sizeof(uint64_t) + numOfCols * (sizeof(int8_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t) +
-         sizeof(int64_t) + sizeof(int64_t);
+         sizeof(uint64_t) + numOfCols * (sizeof(int8_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t);
 }
 
 double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
@@ -3365,14 +3364,6 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
   *blankFill = pBlock->info.blankFill;
   data += sizeof(bool);
 
-  int64_t *startKey = (int64_t*)data;
-  *startKey = pBlock->info.window.skey;
-  data += sizeof(int64_t);
-
-  int64_t *endKey = (int64_t*)data;
-  *endKey = pBlock->info.window.ekey;
-  data += sizeof(int64_t);
-
   *actualLen = dataLen;
 #ifndef NO_UNALIGNED_ACCESS
   *groupId = pBlock->info.id.groupId;
@@ -3513,17 +3504,9 @@ int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos
   bool blankFill = *(bool*)pStart;
   pStart += sizeof(bool);
 
-  int64_t startKey = *(int64_t*)pStart;
-  pStart += sizeof(int64_t);
-
-  int64_t endKey = *(int64_t*)pStart;
-  pStart += sizeof(int64_t);
-
   pBlock->info.dataLoad = 1;
   pBlock->info.rows = numOfRows;
   pBlock->info.blankFill = blankFill;
-  pBlock->info.window.skey = startKey;
-  pBlock->info.window.ekey = endKey;
   if (pStart - pData != dataLen) {
     uError("block decode msg len error, pStart:%p, pData:%p, dataLen:%d", pStart, pData, dataLen);
     terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;

@@ -344,6 +344,9 @@ static bool stbSplIsTableCountQuery(SLogicNode* pNode) {
 }
 
 static bool stbSplNeedSplit(SFindSplitNodeCtx* pCtx, SLogicNode* pNode) {
+  if (pCtx->pSplitCtx->pPlanCxt->virtualStableQuery) {
+    return false;
+  }
   bool streamQuery = pCtx->pSplitCtx->pPlanCxt->streamQuery;
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:

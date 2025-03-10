@@ -2939,7 +2939,6 @@ typedef struct SOrgTbInfo {
 
 typedef struct STableScanOperatorParam {
   bool           tableSeq;
-  bool           isVtbRefScan;
   SArray*        pUidList;
   SOrgTbInfo*    pOrgTbInfo;
   STimeWindow    window;

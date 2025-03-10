@@ -14081,9 +14081,13 @@ static int32_t translateShowCreateVTable(STranslateContext* pCxt, SShowCreateTab
 }
 
 static int32_t translateShowCreateView(STranslateContext* pCxt, SShowCreateViewStmt* pStmt) {
+#ifndef TD_ENTERPRISE
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#else
   SName name = {0};
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->viewName, &name);
   return getViewMetaFromMetaCache(pCxt, &name, (SViewMeta**)&pStmt->pViewMeta);
+#endif
 }
 
 static int32_t createColumnNodeWithName(const char* name, SNode** ppCol) {
@@ -17666,6 +17670,11 @@ static int32_t checkColRef(STranslateContext* pCxt, char* pRefDbName, char* pRef
 
   // org table cannot has composite primary key
   if (pRefTableMeta->tableInfo.numOfColumns > 1 && pRefTableMeta->schema[1].flags & COL_IS_KEY) {
+    PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN));
+  }
+
+  // org table must be child table or normal table
+  if (pRefTableMeta->tableType != TSDB_NORMAL_TABLE && pRefTableMeta->tableType != TSDB_CHILD_TABLE) {
     PAR_ERR_JRET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN));
   }
 

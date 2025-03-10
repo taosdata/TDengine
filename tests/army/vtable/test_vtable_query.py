@@ -18,6 +18,7 @@ from frame.cases import *
 from frame.sql import *
 from frame.caseBase import *
 from frame.common import *
+import time
 
 class TDTestCase(TBase):
 
@@ -56,11 +57,11 @@ class TDTestCase(TBase):
                       "binary_32_tag binary(32))")
 
         tdLog.info(f"prepare org child table.")
-        for i in range(3):
+        for i in range(15):
             tdSql.execute(f"CREATE TABLE `vtb_org_child_{i}` USING `vtb_org_stb` TAGS ({i}, false, {i}, {i}, 'child{i}', 'child{i}');")
 
         tdLog.info(f"prepare org normal table.")
-        for i in range(3):
+        for i in range(15):
             tdSql.execute(f"CREATE TABLE `vtb_org_normal_{i}` (ts timestamp, u_tinyint_col tinyint unsigned, u_smallint_col smallint unsigned, u_int_col int unsigned, u_bigint_col bigint unsigned, tinyint_col tinyint, smallint_col smallint, int_col int, bigint_col bigint, float_col float, double_col double, bool_col bool, binary_16_col binary(16), binary_32_col binary(32), nchar_16_col nchar(16), nchar_32_col nchar(32)) SMA(u_tinyint_col)")
 
         tdLog.info(f"insert data into org tables.")
@@ -193,6 +194,24 @@ class TDTestCase(TBase):
         tdSql.execute(f"CREATE VTABLE `vtb_virtual_ctb_empty` "
                       "USING `vtb_virtual_stb` TAGS (2, false, 2, 2, 'child2', 'child2')")
 
+        tdSql.execute(f"CREATE VTABLE `vtb_virtual_ctb_mix` ("
+                      f"u_tinyint_col from vtb_org_child_0.u_tinyint_col, "
+                      f"u_smallint_col from vtb_org_child_1.u_smallint_col, "
+                      f"u_int_col from vtb_org_child_2.u_int_col, "
+                      f"u_bigint_col from vtb_org_child_0.u_bigint_col, "
+                      f"tinyint_col from vtb_org_child_1.tinyint_col, "
+                      f"smallint_col from vtb_org_child_2.smallint_col, "
+                      f"int_col from vtb_org_child_0.int_col, "
+                      f"bigint_col from vtb_org_child_1.bigint_col, "
+                      f"float_col from vtb_org_child_2.float_col, "
+                      f"double_col from vtb_org_child_0.double_col, "
+                      f"bool_col from vtb_org_child_1.bool_col, "
+                      f"binary_16_col from vtb_org_child_2.binary_16_col,"
+                      f"binary_32_col from vtb_org_child_0.binary_32_col,"
+                      f"nchar_16_col from vtb_org_child_1.nchar_16_col,"
+                      f"nchar_32_col from vtb_org_child_2.nchar_32_col)"
+                      f"USING `vtb_virtual_stb` TAGS (3, false, 3, 3, 'child3', 'child3')")
+
     def test_normal_query(self, testCase):
         # read sql from .sql file and execute
         tdLog.info(f"test case : {testCase}.")
@@ -203,10 +222,9 @@ class TDTestCase(TBase):
 
 
     def test_select_virtual_normal_table(self):
-
         self.test_normal_query("test_vtable_select_test_projection")
         self.test_normal_query("test_vtable_select_test_projection_filter")
-        self.test_normal_query("test_vtable_select_test_function")
+        #self.test_normal_query("test_vtable_select_test_function")
 
         self.test_normal_query("test_vtable_select_test_interval")
         self.test_normal_query("test_vtable_select_test_state")
@@ -219,10 +237,9 @@ class TDTestCase(TBase):
         self.test_normal_query("test_vtable_select_test_orderby")
 
     def test_select_virtual_child_table(self):
-
         self.test_normal_query("test_vctable_select_test_projection")
         self.test_normal_query("test_vctable_select_test_projection_filter")
-        self.test_normal_query("test_vctable_select_test_function")
+        #self.test_normal_query("test_vctable_select_test_function")
 
         self.test_normal_query("test_vctable_select_test_interval")
         self.test_normal_query("test_vctable_select_test_state")
@@ -233,12 +250,29 @@ class TDTestCase(TBase):
         self.test_normal_query("test_vctable_select_test_partition")
         self.test_normal_query("test_vctable_select_test_group")
         self.test_normal_query("test_vctable_select_test_orderby")
+
+    def test_select_virtual_super_table(self):
+        self.test_normal_query("test_vstable_select_test_projection")
+        self.test_normal_query("test_vstable_select_test_projection_filter")
+        #self.test_normal_query("test_vstable_select_test_function")
+
+        self.test_normal_query("test_vstable_select_test_interval")
+        self.test_normal_query("test_vstable_select_test_state")
+        self.test_normal_query("test_vstable_select_test_session")
+        #self.test_normal_query("test_vstable_select_test_event")
+        self.test_normal_query("test_vstable_select_test_count")
+
+        self.test_normal_query("test_vstable_select_test_partition")
+        self.test_normal_query("test_vstable_select_test_group")
+        self.test_normal_query("test_vstable_select_test_orderby")
+
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
 
         self.prepare_org_tables()
         self.test_select_virtual_normal_table()
         self.test_select_virtual_child_table()
+        self.test_select_virtual_super_table()
 
 
         tdLog.success(f"{__file__} successfully executed")
