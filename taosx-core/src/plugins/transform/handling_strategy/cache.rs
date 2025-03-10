@@ -23,11 +23,19 @@ impl HandlingCacheFailed {
     }
 }
 
+fn default_max_size() -> String {
+    "0GB".to_string()
+}
+
+fn default_max_size_value() -> usize {
+    0
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct Cache {
-    #[serde(default)]
+    #[serde(default = "default_max_size")]
     pub max_size: String,
-    #[serde(default)]
+    #[serde(default = "default_max_size_value")]
     pub max_size_value: usize,
     #[serde(default)]
     pub max_size_unit: String,

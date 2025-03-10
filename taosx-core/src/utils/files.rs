@@ -136,7 +136,8 @@ pub fn write_to_parquet_file(
     let props = WriterProperties::builder()
         .set_compression(Compression::ZSTD(ZstdLevel::default()))
         .build();
-    let mut writer = ArrowWriter::try_new(file, schema, Some(props)).unwrap();
+    let mut writer =
+        ArrowWriter::try_new(file, schema, Some(props)).context("init arrow writer error")?;
     writer.write(record)?;
     writer.close()?;
     Ok(())
@@ -153,7 +154,7 @@ pub fn delete_old_parquet_files_by_date(
     let data_dir = get_data_dir();
     let path = data_dir.join("tasks").join(format!("{task_id}"));
     let path = path.join(format!("{}.{}", filename, Utc::now().format("%Y%m%d")));
-    let path = path.parent().unwrap();
+    let path = path.parent().context("get parent path error")?;
     if !path.exists() {
         if let Err(err) = std::fs::create_dir_all(path) {
             tracing::error!("failed to create dir {:?}: {}", path, err);
@@ -165,7 +166,7 @@ pub fn delete_old_parquet_files_by_date(
 
     for file in files {
         if let Some(file_name) = file.file_name().and_then(|s| s.to_str()) {
-            let file_date = file_name.split('.').last().unwrap();
+            let file_date = file_name.split('.').last().context("get file date error")?;
             if let Ok(file_date) = chrono::NaiveDate::parse_from_str(file_date, "%Y%m%d") {
                 if file_date <= cutoff_date.naive_utc().date() {
                     tracing::info!("delete archived file: {:?}, since out of date", file);
@@ -189,14 +190,14 @@ pub fn delete_old_parquet_files_by_size(
     let mut total_file_size = 0;
 
     let entries = read_parquet_dir_entries(task_id, filename)?;
-    let mut entries = entries
+    let mut entries: Vec<(&DirEntry, u64)> = entries
         .iter()
-        .map(|entry| {
-            let file_size = entry.metadata().unwrap().len();
+        .map(|entry| -> anyhow::Result<_> {
+            let file_size = entry.metadata().context("get entry metadata error")?.len();
             total_file_size += file_size;
-            (entry, file_size)
+            Ok((entry, file_size))
         })
-        .collect_vec();
+        .try_collect()?;
     entries.sort_by_key(|(entry, _)| entry.file_name());
 
     for (entry, file_size) in entries {
@@ -238,6 +239,9 @@ pub fn delete_oldest_parquet_file(task_id: i64, filename: &String) -> anyhow::Re
 /// Only return the files in the level one of the path.
 /// Sort the files by the file name, and filter the files by the filename.
 pub fn read_parquet_dir_files(task_id: i64, filename: &String) -> anyhow::Result<Vec<PathBuf>> {
+    if filename.is_empty() {
+        return Ok(vec![]);
+    }
     let mut entries = read_parquet_dir_entries(task_id, filename)?;
     entries.sort_by_key(|entry| entry.file_name());
 
@@ -257,7 +261,7 @@ fn read_parquet_dir_entries(task_id: i64, filename: &String) -> anyhow::Result<V
     let data_dir = get_data_dir();
     let path = data_dir.join("tasks").join(format!("{task_id}"));
     let path = path.join(format!("{}.{}", filename, Utc::now().format("%Y%m%d")));
-    let path = path.parent().unwrap();
+    let path = path.parent().context("get parent path error")?;
     if !path.exists() {
         if let Err(err) = std::fs::create_dir_all(path) {
             tracing::error!("failed to create dir {:?}: {}", path, err);
