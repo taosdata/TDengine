@@ -57,8 +57,9 @@ target_link_libraries(
     PUBLIC uv_a
     PRIVATE os util common nodes function
 )
-endif(${BUILD_WITH_UDF})
 
 if(${BUILD_TEST})
     add_subdirectory(test)
 endif()
+
+endif(${BUILD_WITH_UDF})
