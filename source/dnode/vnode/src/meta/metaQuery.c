@@ -425,6 +425,7 @@ _query:
       goto _exit;
     }
   }
+  if (extSchema != NULL) *extSchema = metaGetSExtSchema(&me);
   tDecoderClear(&dc);
 
   // query from skm db
@@ -437,7 +438,6 @@ _query:
     goto _err;
   }
   pSchema = tCloneSSchemaWrapper(&schema);
-  if (extSchema != NULL) *extSchema = metaGetSExtSchema(&me);
   tDecoderClear(&dc);
 
 _exit:
