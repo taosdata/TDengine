@@ -18,8 +18,8 @@ add_test(
 add_executable(tdbExOVFLTest "tdbExOVFLTest.cpp")
 target_link_libraries(tdbExOVFLTest tdb gtest_main)
 add_test(
-   NAME tdbExOVFLTest
-   COMMAND tdbExOVFLTest
+    NAME tdbExOVFLTest
+    COMMAND tdbExOVFLTest
 )
 
 # page defragment testing
