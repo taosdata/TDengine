@@ -211,15 +211,15 @@ endif()
 
 # pthread
 if(${BUILD_PTHREAD})
-    if("${CMAKE_BUILD_TYPE}" STREQUAL "")
-        SET(CMAKE_BUILD_TYPE Release)
-    endif()
+    # freemine: if("${CMAKE_BUILD_TYPE}" STREQUAL "")
+    # freemine:     SET(CMAKE_BUILD_TYPE Release)
+    # freemine: endif()
 
-    add_definitions(-DPTW32_STATIC_LIB)
-    add_subdirectory(pthread EXCLUDE_FROM_ALL)
-    set_target_properties(libpthreadVC3 PROPERTIES OUTPUT_NAME pthread)
-    add_library(pthread INTERFACE)
-    target_link_libraries(pthread INTERFACE libpthreadVC3)
+    # freemine: add_definitions(-DPTW32_STATIC_LIB)
+    # freemine: add_subdirectory(pthread EXCLUDE_FROM_ALL)
+    # freemine: set_target_properties(libpthreadVC3 PROPERTIES OUTPUT_NAME pthread)
+    # freemine: add_library(pthread INTERFACE)
+    # freemine: target_link_libraries(pthread INTERFACE libpthreadVC3)
 endif()
 
 # jemalloc
@@ -237,49 +237,49 @@ endif()
 
 # crashdump
 if(${BUILD_CRASHDUMP})
-    add_executable(dumper "crashdump/dumper/dumper.c")
-    target_link_libraries(dumper User32.lib dbghelp.lib)
-    file(READ "crashdump/crasher/crasher.c" CRASHDUMP_CONTENT)
-    string(REPLACE "main(" "main_crashdump(" CRASHDUMP_CONTENT "${CRASHDUMP_CONTENT}")
-    file(WRITE "crashdump/crasher/crasher.c" "${CRASHDUMP_CONTENT}")
-    add_library(crashdump STATIC "crashdump/crasher/crasher.c")
+    # freemine: add_executable(dumper "crashdump/dumper/dumper.c")
+    # freemine: target_link_libraries(dumper User32.lib dbghelp.lib)
+    # freemine: file(READ "crashdump/crasher/crasher.c" CRASHDUMP_CONTENT)
+    # freemine: string(REPLACE "main(" "main_crashdump(" CRASHDUMP_CONTENT "${CRASHDUMP_CONTENT}")
+    # freemine: file(WRITE "crashdump/crasher/crasher.c" "${CRASHDUMP_CONTENT}")
+    # freemine: add_library(crashdump STATIC "crashdump/crasher/crasher.c")
 endif()
 
 # iconv
 if(${BUILD_WITH_ICONV})
-    add_library(iconv STATIC iconv/win_iconv.c)
+    # freemine: add_library(iconv STATIC iconv/win_iconv.c)
 endif(${BUILD_WITH_ICONV})
 
 # wingetopt
 if(${BUILD_WINGETOPT})
-    add_subdirectory(wingetopt EXCLUDE_FROM_ALL)
+    # freemine: add_subdirectory(wingetopt EXCLUDE_FROM_ALL)
 endif(${BUILD_WINGETOPT})
 
 # msvcregex
 if(${BUILD_MSVCREGEX})
-    add_library(msvcregex STATIC "")
-    target_sources(msvcregex
-        PRIVATE "msvcregex/regex.c"
-    )
-    target_include_directories(msvcregex
-        PRIVATE "msvcregex"
-    )
-    target_link_libraries(msvcregex
-        INTERFACE Shell32
-    )
-    SET_TARGET_PROPERTIES(msvcregex PROPERTIES OUTPUT_NAME msvcregex)
+    # freemine: add_library(msvcregex STATIC "")
+    # freemine: target_sources(msvcregex
+    # freemine:     PRIVATE "msvcregex/regex.c"
+    # freemine: )
+    # freemine: target_include_directories(msvcregex
+    # freemine:     PRIVATE "msvcregex"
+    # freemine: )
+    # freemine: target_link_libraries(msvcregex
+    # freemine:     INTERFACE Shell32
+    # freemine: )
+    # freemine: SET_TARGET_PROPERTIES(msvcregex PROPERTIES OUTPUT_NAME msvcregex)
 endif(${BUILD_MSVCREGEX})
 
 # wcwidth
 if(${BUILD_WCWIDTH})
-    add_library(wcwidth STATIC "")
-    target_sources(wcwidth
-        PRIVATE "wcwidth/wcwidth.c"
-    )
-    target_include_directories(wcwidth
-        PRIVATE "wcwidth"
-    )
-    SET_TARGET_PROPERTIES(wcwidth PROPERTIES OUTPUT_NAME wcwidth)
+    # freemine: add_library(wcwidth STATIC "")
+    # freemine: target_sources(wcwidth
+    # freemine:     PRIVATE "wcwidth/wcwidth.c"
+    # freemine: )
+    # freemine: target_include_directories(wcwidth
+    # freemine:     PRIVATE "wcwidth"
+    # freemine: )
+    # freemine: SET_TARGET_PROPERTIES(wcwidth PROPERTIES OUTPUT_NAME wcwidth)
 endif(${BUILD_WCWIDTH})
 
 # LIBUV
