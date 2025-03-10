@@ -490,11 +490,11 @@ class DataType:
         return val
 
     @staticmethod
-    def get_decimal_types() -> list[int]:
+    def get_decimal_types() -> list:
         return [TypeEnum.DECIMAL64, TypeEnum.DECIMAL]
 
     @staticmethod
-    def get_decimal_op_types()-> list[int]:
+    def get_decimal_op_types()-> list:
         return [
             TypeEnum.BOOL,
             TypeEnum.TINYINT,
@@ -2194,7 +2194,7 @@ class TDTestCase:
         ## 5. (dec op const col) op dec
         ## 6. (dec op dec) op dec
     
-    def test_query_with_order_by_for_tb(self, tbname: str, cols: list[Column]):
+    def test_query_with_order_by_for_tb(self, tbname: str, cols: list):
         for col in cols:
             if col.type_.is_decimal_type() and col.name_ != '':
                 self.test_query_with_order_by(col, tbname)
