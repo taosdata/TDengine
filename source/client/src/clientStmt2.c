@@ -1717,7 +1717,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
   }
 
   TSC_ERR_RET(taosThreadMutexLock(&pStmt->asyncBindParam.mutex));
-  while (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 0) {
+  if (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 0) {
     (void)taosThreadCondWait(&pStmt->asyncBindParam.waitCond, &pStmt->asyncBindParam.mutex);
   }
   TSC_ERR_RET(taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex));
@@ -1822,12 +1822,6 @@ int stmtClose2(TAOS_STMT2* stmt) {
     (void)taosThreadJoin(pStmt->bindThread, NULL);
     pStmt->bindThreadInUse = false;
   }
-
-  TSC_ERR_RET(taosThreadMutexLock(&pStmt->asyncBindParam.mutex));
-  while (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 0) {
-    (void)taosThreadCondWait(&pStmt->asyncBindParam.waitCond, &pStmt->asyncBindParam.mutex);
-  }
-  TSC_ERR_RET(taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex));
 
   (void)taosThreadCondDestroy(&pStmt->queue.waitCond);
   (void)taosThreadMutexDestroy(&pStmt->queue.mutex);
@@ -1994,10 +1988,12 @@ int32_t stmtAsyncBindThreadFunc(void* args) {
 
   int code = taos_stmt2_bind_param(targs->stmt, targs->bindv, targs->col_idx);
   targs->fp(targs->param, NULL, code);
+
   (void)taosThreadMutexLock(&(pStmt->asyncBindParam.mutex));
   (void)atomic_sub_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
   (void)taosThreadCondSignal(&(pStmt->asyncBindParam.waitCond));
   (void)taosThreadMutexUnlock(&(pStmt->asyncBindParam.mutex));
+
   taosMemoryFree(args);
 
   qInfo("async stmt bind thread stopped");
