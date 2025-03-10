@@ -1928,7 +1928,7 @@ static void *syncWriteInterlace(void *sarg) {
         bindv = createBindV(nBatchTable,  tagCnt, stbInfo->cols->size + 1);
     }
 
-    bool oldInitStmt = stbInfo->autoTblCreating || database->superTbls->size > 1;
+    bool oldInitStmt = stbInfo->autoTblCreating;
     // not auto create table call once
     if(stbInfo->iface == STMT_IFACE && !oldInitStmt) {
         debugPrint("call prepareStmt for stable:%s\n", stbInfo->stbName);
@@ -2900,7 +2900,7 @@ void *syncWriteProgressive(void *sarg) {
         tagData = benchCalloc(TAG_BATCH_COUNT, stbInfo->lenOfTags, false);
     }
 
-    bool oldInitStmt = stbInfo->autoTblCreating || database->superTbls->size > 1;
+    bool oldInitStmt = stbInfo->autoTblCreating;
     // stmt.  not auto table create call on stmt
     if (stbInfo->iface == STMT_IFACE && !oldInitStmt) {
         if (prepareStmt(pThreadInfo->conn->stmt, stbInfo, tagData, w)) {
@@ -3909,11 +3909,8 @@ int32_t initInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
                 if (NULL == pThreadInfo->conn) {
                     goto END;
                 }
+                // single always true for benchmark
                 bool single = true;
-                if (database->superTbls->size > 1) {
-                    single = false;
-                }
-
                 if (stbInfo->iface == STMT2_IFACE) {
                     // stmt2 init
                     if (pThreadInfo->conn->stmt2)
