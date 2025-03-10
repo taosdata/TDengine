@@ -23,30 +23,31 @@ impl DsnParamGetter for Dsn {
 }
 
 pub fn dsn_to_json(dsn: &Dsn) -> serde_json::Value {
-    let mut map = serde_json::Map::new();
-    map.insert("type".to_string(), serde_json::json!(dsn.driver));
+    let mut map_l1 = serde_json::Map::new();
+    let mut map_l2 = serde_json::Map::new();
+    map_l1.insert("type".to_string(), serde_json::json!(dsn.driver));
     if let Some(protocol) = &dsn.protocol {
-        map.insert("protocol".to_string(), serde_json::json!(protocol));
+        map_l1.insert("protocol".to_string(), serde_json::json!(protocol));
     }
     if let Some(username) = &dsn.username {
-        map.insert("username".to_string(), serde_json::json!(username));
+        map_l2.insert("username".to_string(), serde_json::json!(username));
     }
     if let Some(password) = &dsn.password {
-        map.insert("password".to_string(), serde_json::json!(password));
+        map_l2.insert("password".to_string(), serde_json::json!(password));
     }
     if let Some(address) = dsn.addresses.first() {
         if let Some(host) = &address.host {
-            map.insert("host".to_string(), serde_json::json!(host));
+            map_l2.insert("host".to_string(), serde_json::json!(host));
         }
         if let Some(port) = &address.port {
-            map.insert("port".to_string(), serde_json::json!(port));
+            map_l2.insert("port".to_string(), serde_json::json!(port));
         }
     }
     if let Some(path) = &dsn.path {
-        map.insert("path".to_string(), serde_json::json!(path));
+        map_l2.insert("path".to_string(), serde_json::json!(path));
     }
     if let Some(subject) = &dsn.subject {
-        map.insert("subject".to_string(), serde_json::json!(subject));
+        map_l2.insert("subject".to_string(), serde_json::json!(subject));
     }
     // custom parameters for different drivers
     match dsn.driver.to_lowercase().as_str() {
@@ -62,7 +63,7 @@ pub fn dsn_to_json(dsn: &Dsn) -> serde_json::Value {
                 })
                 .collect_vec()
                 .join(",");
-            map.insert("endpoint".to_string(), serde_json::json!(endpoint));
+            map_l2.insert("endpoint".to_string(), serde_json::json!(endpoint));
         }
         "opcua" | "opcda" => {
             // 192.168.1.45:53530/OPCUA/SimulationServer
@@ -82,7 +83,7 @@ pub fn dsn_to_json(dsn: &Dsn) -> serde_json::Value {
             } else {
                 endpoint
             };
-            map.insert("endpoint".to_string(), serde_json::json!(endpoint));
+            map_l2.insert("endpoint".to_string(), serde_json::json!(endpoint));
         }
         "tmq" => {
             // taos+ws://root:taosdata@192.168.1.45:6041/db1
@@ -117,15 +118,16 @@ pub fn dsn_to_json(dsn: &Dsn) -> serde_json::Value {
             } else {
                 endpoint
             };
-            map.insert("endpoint".to_string(), serde_json::json!(endpoint));
+            map_l2.insert("endpoint".to_string(), serde_json::json!(endpoint));
         }
         _ => {}
     }
     // other dsn params
     for (k, v) in &dsn.params {
-        map.insert(k.clone(), serde_json::Value::String(v.clone()));
+        map_l2.insert(k.clone(), serde_json::Value::String(v.clone()));
     }
-    serde_json::Value::Object(map)
+    map_l1.insert("data".to_string(), serde_json::Value::Object(map_l2));
+    serde_json::Value::Object(map_l1)
 }
 
 pub fn json_to_dsn(json: &serde_json::Value) -> anyhow::Result<Dsn> {
