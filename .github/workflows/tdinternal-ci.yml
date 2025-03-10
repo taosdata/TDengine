@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   run-tests-on-linux:
-    uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml
+    uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@main
     with:
       tdinternal: true
       run_function_test: true
@@ -26,7 +26,7 @@ jobs:
       pr_number: ${{ github.event.pull_request.number }}
 
   run-tests-on-mac:
-    uses: taosdata/.github/.github/workflows/run-tests-on-macos.yml
+    uses: taosdata/.github/.github/workflows/run-tests-on-macos.yml@main
     with:
       tdinternal: true
       source_branch: ${{ github.event.pull_request.head.ref }}
@@ -34,7 +34,7 @@ jobs:
       pr_number: ${{ github.event.pull_request.number }}
 
   run-tests-on-windows:
-    uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml
+    uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@main
     with:
       tdinternal: true
       source_branch: ${{ github.event.pull_request.head.ref }}
