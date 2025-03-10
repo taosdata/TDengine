@@ -13605,9 +13605,13 @@ static int32_t translateShowCreateVTable(STranslateContext* pCxt, SShowCreateTab
 }
 
 static int32_t translateShowCreateView(STranslateContext* pCxt, SShowCreateViewStmt* pStmt) {
+#ifndef TD_ENTERPRISE
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#else
   SName name = {0};
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->viewName, &name);
   return getViewMetaFromMetaCache(pCxt, &name, (SViewMeta**)&pStmt->pViewMeta);
+#endif
 }
 
 static int32_t createColumnNodeWithName(const char* name, SNode** ppCol) {
