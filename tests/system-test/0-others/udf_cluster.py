@@ -301,14 +301,14 @@ class TDTestCase:
 
         cfgPath = dnode.cfgDir
 
-        udfdPath = buildPath +'/build/bin/udfd'
+        udfdPath = buildPath +'/build/bin/taosudf'
 
         for i in range(5):
 
-            tdLog.info(" loop restart udfd  %d_th  at dnode_index : %s" % (i ,dnode.index))
+            tdLog.info(" loop restart taosudf  %d_th  at dnode_index : %s" % (i ,dnode.index))
             self.basic_udf_query(dnode)
-            # stop udfd cmds
-            get_processID = "ps -ef | grep -w udfd | grep %s | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}'"%cfgPath
+            # stop taosudf cmds
+            get_processID = "ps -ef | grep -w taosudf | grep %s | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}'"%cfgPath
             processID = subprocess.check_output(get_processID, shell=True).decode("utf-8")
             stop_udfd = " kill -9 %s" % processID
             os.system(stop_udfd)
@@ -317,7 +317,7 @@ class TDTestCase:
     def test_restart_udfd_All_dnodes(self):
 
         for dnode in self.TDDnodes.dnodes:
-            tdLog.info(" start restart udfd for dnode_index :%s" %dnode.index )
+            tdLog.info(" start restart taosudf for dnode_index :%s" %dnode.index )
             self.restart_udfd(dnode)
 
 

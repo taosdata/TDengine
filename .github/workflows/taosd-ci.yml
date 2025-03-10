@@ -10,10 +10,10 @@ on:
       - 'packaging/**'
       - 'docs/**'
   repository_dispatch:
-    types: [run-tests]
+    types: [trigger-tests-from-tdinternal]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.event.client_payload.ref}}-${{ github.event_name == 'repository_dispatch' && 'dispatch' || ''}}
   cancel-in-progress: true
 
 env:
@@ -55,21 +55,29 @@ jobs:
 
             # check whether to run tdgpt test cases
             cd ${{ env.WKC }}
-            changed_files_non_doc=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD $target_branch`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | tr '\n' ' ' || :)
-
-            if [[ "$changed_files_non_doc" != '' &&  "$changed_files_non_doc" =~ /forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics/ ]]; then
+            changed_files_non_doc=$(git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD $target_branch) | grep -v "^docs/en/" | grep -v "^docs/zh/" | grep -v ".md$" | tr '\n' ' ' || :)
+            echo “changed files exclude doc, ${changed_files_non_doc}"
+            if [[ -n "$changed_files_non_doc" && "$changed_files_non_doc" =~ (forecastoperator\.c|anomalywindowoperator\.c|tanalytics\.h|tanalytics\.c|tdgpt_cases\.task|analytics|tdgpt) ]]; then
               run_tdgpt_test="true"
             else
               run_tdgpt_test="false"
             fi
+            echo "run tdgpt test: ${run_tdgpt_test}"
 
             # check whether to run function test cases
-            changed_files_non_tdgpt=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD $target_branch`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | grep -Ev "forecastoperator.c|anomalywindowoperator.c|tanalytics.h|tanalytics.c|tdgpt_cases.task|analytics" | tr '\n' ' ' ||:)
-            if [ $changed_files_non_tdgpt != '' ]; then
+            changed_files_non_tdgpt=$(git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD $target_branch) | \
+              grep -v "^docs/en/" | \
+              grep -v "^docs/zh/" | \
+              grep -v ".md$" | \
+              grep -Ev "forecastoperator\.c|anomalywindowoperator\.c|tanalytics\.h|tanalytics\.c|tdgpt_cases\.task|analytics|tdgpt" | \
+              tr '\n' ' ' || :) 
+            echo "changed file exclude tdgpt: ${changed_files_non_tdgpt}"
+            if [ -n "$changed_files_non_tdgpt" ]; then
               run_function_test="true"
             else
               run_function_test="false"
             fi
+            echo "run function test: ${run_function_test}"
           fi
 
           echo "tdinternal=$tdinternal" >> $GITHUB_OUTPUT
@@ -88,7 +96,7 @@ jobs:
     env:
       IS_TDINTERNAL: ${{ needs.fetch-parameters.outputs.tdinternal }}
       RUN_RUNCTION_TEST: ${{ needs.fetch-parameters.outputs.run_function_test }}
-      RUN_TDGPT_TEST: ${{ needs.fetch-parameters.outputs.run_tdgpt_tests }}
+      RUN_TDGPT_TEST: ${{ needs.fetch-parameters.outputs.run_tdgpt_test }}
       SOURCE_BRANCH: ${{ needs.fetch-parameters.outputs.source_branch }}
       TARGET_BRANCH: ${{ needs.fetch-parameters.outputs.target_branch }}
       PR_NUMBER: ${{ needs.fetch-parameters.outputs.pr_number }}
@@ -161,20 +169,24 @@ jobs:
           cd ${{ env.WKC }}
           git submodule update --init --recursive
       - name: Output the 'file_no_doc_changed' information to the file
-        if: ${{ env.IS_TDINTERNAL == 'false' }}
+        if: ${{ env.IS_TDINTERNAL == 'false' && env.TARGET_BRANCH != '3.1' }}
         run: |
           mkdir -p ${{ env.WKDIR }}/tmp/${{ env.PR_NUMBER }}_${{ github.run_number }}
+          cd ${{ env.WKC }}
           changed_files_non_doc=$(git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${{ env.TARGET_BRANCH }}`|grep -v "^docs/en/"|grep -v "^docs/zh/"|grep -v ".md$" | tr '\n' ' ' || :)
           echo $changed_files_non_doc > ${{ env.WKDIR }}/tmp/${{ env.PR_NUMBER }}_${{ github.run_number }}/docs_changed.txt
       - name: Check assert testing
+        if: ${{ env.IS_TDINTERNAL == 'false' && env.TARGET_BRANCH != '3.1' }}
         run: |
           cd ${{ env.WKC }}/tests/parallel_test
           ./run_check_assert_container.sh -d ${{ env.WKDIR }}
       - name: Check void function testing
+        if: ${{ env.IS_TDINTERNAL == 'false' && env.TARGET_BRANCH != '3.1' }}
         run: |
           cd ${{ env.WKC }}/tests/parallel_test
           ./run_check_void_container.sh -d ${{ env.WKDIR }}
       - name: Build docker container
+        if: ${{ env.RUN_RUNCTION_TEST == 'true' }}
         run: |
           date
           rm -rf ${{ env.WKC }}/debug
@@ -204,18 +216,19 @@ jobs:
           echo "timeout_cmd=$timeout_cmd" >> $GITHUB_OUTPUT
           echo "extra_param=$extra_param" >> $GITHUB_OUTPUT
       - name: Run function returns with a null pointer scan testing
+        if: ${{ env.IS_TDINTERNAL == 'false' && env.TARGET_BRANCH != '3.1' }}
         run: |
           cd ${{ env.WKC }}/tests/parallel_test
           ./run_scan_container.sh -d ${{ env.WKDIR }} -b ${{ env.PR_NUMBER }}_${{ github.run_number }} -f ${{ env.WKDIR }}/tmp/${{ env.PR_NUMBER }}_${{ github.run_number }}/docs_changed.txt ${{ steps.get_param.outputs.extra_param }}
       - name: Run tdgpt test cases
-        if: ${{ env.IS_TDINTERNAL }} == 'false' && ${{ env.RUN_TDGPT_TEST }} == 'true'
+        if: ${{ env.IS_TDINTERNAL == 'false' && env.TARGET_BRANCH != '3.1' && env.RUN_TDGPT_TEST == 'true' }}
         run: |
           cd ${{ env.WKC }}/tests/parallel_test
           export DEFAULT_RETRY_TIME=2
           date
           timeout 600 time ./run.sh -e -m /home/m.json -t tdgpt_cases.task -b ${{ env.PR_NUMBER }}_${{ github.run_number }} -l ${{ env.WKDIR }}/log -o 300 ${{ steps.get_param.outputs.extra_param }}
       - name: Run function test cases
-        if: ${{ env.RUN_RUNCTION_TEST }} == 'true'
+        if: ${{ env.RUN_RUNCTION_TEST == 'true'}}
         run: |
           cd ${{ env.WKC }}/tests/parallel_test
           export DEFAULT_RETRY_TIME=2
@@ -224,10 +237,10 @@ jobs:
 
   run-tests-on-mac:
     needs: fetch-parameters
-    if: ${{ needs.fetch-parameters.outputs.run_function_test == 'false' }}
+    if: ${{ needs.fetch-parameters.outputs.run_function_test == 'true' }}
     runs-on: 
       group: CI
-      labels: [self-hosted, macOS, ARM64, testing]
+      labels: [self-hosted, macOS, testing]
     timeout-minutes: 60
     env:
       IS_TDINTERNAL: ${{ needs.fetch-parameters.outputs.tdinternal }}
@@ -313,3 +326,141 @@ jobs:
           make -j10
           ctest -j10 || exit 7
           date
+
+  run-tests-on-windows:
+    needs: fetch-parameters
+    if: ${{ needs.fetch-parameters.outputs.run_function_test == 'true' }}
+    runs-on:
+      group: CI
+      labels: [self-hosted, Windows, X64, testing]
+    timeout-minutes: 126
+    env:
+      IS_TDINTERNAL: ${{ needs.fetch-parameters.outputs.tdinternal }}
+      SOURCE_BRANCH: ${{ needs.fetch-parameters.outputs.source_branch }}
+      TARGET_BRANCH: ${{ needs.fetch-parameters.outputs.target_branch }}
+      PR_NUMBER: ${{ needs.fetch-parameters.outputs.pr_number }}
+      WIN_INTERNAL_ROOT: "C:\\workspace\\0\\TDinternal"
+      WIN_COMMUNITY_ROOT: "C:\\workspace\\0\\TDinternal\\community"
+      WIN_SYSTEM_TEST_ROOT: "C:\\workspace\\0\\TDinternal\\community\\tests\\system-test"
+      WIN_VS_PATH: "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat"
+      WIN_CPU_TYPE: "x64"
+    steps:
+      - name: Output the environment information
+        run: |
+          hostname
+          taskkill /f /t /im python.exe
+          taskkill /f /t /im bash.exe
+          taskkill /f /t /im taosd.exe
+          ipconfig
+          set
+          date /t
+          time /t
+          rd /s /Q "%WIN_INTERNAL_ROOT%\debug" || exit 0
+        shell: cmd
+      - name: Prepare repositories
+        run: |
+          :: Prepare internal repository
+          if exist "%WIN_INTERNAL_ROOT%" (
+            cd /d "%WIN_INTERNAL_ROOT%"
+            git reset --hard
+            git clean -f
+            git remote prune origin
+            git fetch
+            git checkout "%TARGET_BRANCH%"
+          ) else (
+            echo Directory does not exist: "%WIN_INTERNAL_ROOT%"
+            exit 1
+          )
+
+          :: Prepare community repository
+          if exist "%WIN_COMMUNITY_ROOT%" (
+            cd /d "%WIN_COMMUNITY_ROOT%"
+            git reset --hard
+            git clean -f
+            git remote prune origin
+            git fetch
+            git checkout "%TARGET_BRANCH%"
+          ) else (
+            echo Directory does not exist: "%WIN_COMMUNITY_ROOT%"
+            exit 1
+          )
+        shell: cmd
+      - name: Get latest codes and logs for TDinternal PR
+        if: ${{ env.IS_TDINTERNAL == 'true' }}
+        run: |
+          cd %WIN_INTERNAL_ROOT%
+          git pull origin %TARGET_BRANCH%
+          git fetch origin +refs/pull/%PR_NUMBER%/merge
+          git checkout -qf FETCH_HEAD
+          cd %WIN_COMMUNITY_ROOT%
+          git remote prune origin
+          git pull
+        shell: cmd
+      - name: Get latest codes and logs for TDengine PR
+        if: ${{ env.IS_TDINTERNAL == 'false' }}
+        run: |
+          cd %WIN_INTERNAL_ROOT%
+          git pull origin %TARGET_BRANCH%
+          cd %WIN_COMMUNITY_ROOT%
+          git remote prune origin
+          git pull  origin %TARGET_BRANCH%
+          git fetch origin +refs/pull/%PR_NUMBER%/merge
+          git checkout -qf FETCH_HEAD
+        shell: cmd
+      - name: Output branch and log information
+        run: |
+          cd %WIN_INTERNAL_ROOT%
+          git branch
+          git log -5
+
+          cd %WIN_COMMUNITY_ROOT%
+          git branch
+          git log -5
+        shell: cmd
+      - name: Update submodule
+        run: |
+          cd %WIN_COMMUNITY_ROOT%
+          git submodule update --init --recursive
+        shell: cmd
+      - name: Build on windows
+        run: |
+          echo "building ..."
+          time /t
+          cd %WIN_INTERNAL_ROOT%
+          mkdir debug
+          cd debug
+          time /t
+          call "%WIN_VS_PATH%" %WIN_CPU_TYPE%
+          set CL=/MP8
+          echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> cmake"
+          time /t
+          cmake .. -G "NMake Makefiles JOM" -DBUILD_TEST=true -DBUILD_TOOLS=true || exit 7
+          echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> jom -j 6"
+          time /t
+          jom -j 6 || exit 8
+          time /t
+
+          cd %WIN_COMMUNITY_ROOT%/tests/ci
+          pip3 install taospy==2.7.21 
+          pip3 install taos-ws-py==0.3.8
+          xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
+        shell: cmd
+      - name: Run ctest
+        run: |
+          echo "windows ctest ..."
+          time /t
+          cd %WIN_INTERNAL_ROOT%\\debug
+          ctest -j 1 || exit 7
+          time /t
+        shell: cmd
+      - name: Run function test
+        run: |
+          echo "windows test ..."
+          xcopy /e/y/i/f "%WIN_INTERNAL_ROOT%\debug\build\lib\taos.dll" C:\Windows\System32
+          ls -l "C:\Windows\System32\taos.dll"
+          time /t
+          cd %WIN_SYSTEM_TEST_ROOT%
+          echo "testing ..."
+          test-all.bat ci
+          time /t
+        shell: cmd

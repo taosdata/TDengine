@@ -571,6 +571,7 @@ typedef struct SVnodeModifyOpStmt {
   SHashObj*             pVgroupsHashObj;     // SHashObj<vgId, SVgInfo>
   SHashObj*             pTableBlockHashObj;  // SHashObj<tuid, STableDataCxt*>
   SHashObj*             pSubTableHashObj;    // SHashObj<table_name, STableMeta*>
+  SHashObj*             pSuperTableHashObj;  // SHashObj<table_name, STableMeta*>
   SHashObj*             pTableNameHashObj;   // set of table names for refreshing meta, sync mode
   SHashObj*             pDbFNameHashObj;     // set of db names for refreshing meta, sync mode
   SHashObj*             pTableCxtHashObj;    // temp SHashObj<tuid, STableDataCxt*> for single request

@@ -33,7 +33,7 @@ class TDTestCase:
         self.colname_length_boundary = self.boundary.COL_KEY_MAX_LENGTH
         self.tagname_length_boundary = self.boundary.TAG_KEY_MAX_LENGTH
         self.username_length_boundary = 23
-        self.password_length_boundary = 14
+        self.password_length_boundary = 253
     def dbname_length_check(self):
         dbname_length = randint(1,self.dbname_length_boundary-1)
         for dbname in [tdCom.get_long_name(self.dbname_length_boundary),tdCom.get_long_name(dbname_length)]:

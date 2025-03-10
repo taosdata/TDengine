@@ -16,7 +16,7 @@ aux_source_directory(src OS_SRC)
 
 # taoscTest
 add_executable(taoscTest "taoscTest.cpp")
-target_link_libraries(taoscTest ${TAOS_LIB} os gtest_main)
+target_link_libraries(taoscTest PUBLIC ${TAOS_LIB} os util common gtest_main)
 target_include_directories(
     taoscTest
     PUBLIC "${TD_SOURCE_DIR}/include/os"
