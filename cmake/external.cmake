@@ -450,15 +450,15 @@ add_dependencies(build_externals ext_xz)     # this is for github workflow in ca
 
 # lzma2
 if(${TD_LINUX})
-    set(ext_lzma2_static liblzma2.a)
+    set(ext_lzma2_static libfast-lzma2.a)
 elseif(${TD_DARWIN})
-    set(ext_lzma2_static liblzma2.a)
+    set(ext_lzma2_static libfast-lzma2.a)
 elseif(${TD_WINDOWS})
-    set(ext_lzma2_static liblzma2.lib)
+    set(ext_lzma2_static libfast-lzma2.lib)
 endif()
 INIT_EXT(ext_lzma2
-    INC_DIR          include
-    LIB              lib/${ext_lzma2_static}
+    INC_DIR          usr/local/include
+    LIB              usr/local/lib/${ext_lzma2_static}
 )
 # GIT_REPOSITORY https://github.com/conor42/fast-lzma2.git
 get_from_local_repo_if_exists("https://github.com/conor42/fast-lzma2.git")
@@ -466,11 +466,16 @@ ExternalProject_Add(ext_lzma2
     GIT_REPOSITORY ${_git_url}
     GIT_TAG ded964d203cabe1a572d2c813c55e8a94b4eda48
     PREFIX "${_base}"
+    BUILD_IN_SOURCE TRUE
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    PATCH_COMMAND
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/lzma2.Makefile Makefile
     CONFIGURE_COMMAND ""
-    BUILD_COMMAND ""
-    INSTALL_COMMAND ""
+    BUILD_COMMAND
+        COMMAND make DESTDIR=${_ins}
+    INSTALL_COMMAND
+        COMMAND make DESTDIR=${_ins} install
     # freemine: TODO: seems xxhash.c/xxhahs.h is the target?
     #           seems xz.git is far much newer
     GIT_SHALLOW TRUE
