@@ -14,7 +14,6 @@ TARGET_LINK_LIBRARIES(
     PUBLIC util
     PUBLIC common
     PUBLIC os
-    PUBLIC cjson
 )
 
 LIST(APPEND TSIM_EXE_SRC src/simMain.c)

@@ -30,29 +30,19 @@ target_include_directories(
     PRIVATE "${GRANT_CFG_INCLUDE_DIR}"
     PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/sz/inc"
     PRIVATE "${TD_SOURCE_DIR}/utils/TSZ/zstd/"
-    PRIVATE "${TD_SOURCE_DIR}/contrib/lzma2/"
-    PRIVATE "${TD_SOURCE_DIR}/contrib/pcre2/"
-)
-
-target_link_directories(
-    util
-    PUBLIC "${TD_SOURCE_DIR}/contrib/lzma2"
-    PUBLIC "${TD_SOURCE_DIR}/contrib/pcre2"
 )
 
 if(TD_LINUX)
     target_link_libraries(
         util
         PUBLIC os common
-        PUBLIC pcre2-8
-        PUBLIC api cjson TSZ
+        PUBLIC api
     )
 else()
     target_link_libraries(
         util
         PUBLIC os common
-        PUBLIC pcre2-8
-        PUBLIC api cjson TSZ
+        PUBLIC api
     )
 endif()
 

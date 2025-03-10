@@ -38,7 +38,6 @@ target_link_libraries(
     PRIVATE scalar
     PRIVATE geometry
     PRIVATE transport
-    PUBLIC uv_a
 )
 
 add_executable(runUdf test/runUdf.c)
@@ -60,7 +59,6 @@ ENDIF()
 
 target_link_libraries(
     runUdf
-    PUBLIC uv_a
     PRIVATE os util common nodes function ${LINK_JEMALLOC}
 )
 
@@ -211,6 +209,5 @@ ENDIF()
 
 target_link_libraries(
     udfd
-    PUBLIC uv_a
     PRIVATE os util common nodes function ${LINK_JEMALLOC}
 )

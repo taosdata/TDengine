@@ -506,7 +506,9 @@ if(${BUILD_WITH_UV})        # {
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
         CMAKE_ARGS -DLIBUV_BUILD_SHARED:BOOL=OFF
+        CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
@@ -741,15 +743,19 @@ endif(NOT ${TD_WINDOWS})    # }
 # geos
 if(${BUILD_GEOS})           # {
     if(${TD_LINUX})
-        set(ext_geos_static geos.a)
+        set(ext_geos_c_static libgeos_c.a)
+        set(ext_geos_static libgeos.a)
     elseif(${TD_DARWIN})
-        set(ext_geos_static geos.a)
+        set(ext_geos_c_static libgeos_c.a)
+        set(ext_geos_static libgeos.a)
     elseif(${TD_WINDOWS})
-        set(ext_geos_static geos.lib)
+        set(ext_geos_c_static libgeos_c.lib)
+        set(ext_geos_static libgeos.lib)
     endif()
     INIT_EXT(ext_geos
         INC_DIR          include
-        LIB              lib/${ext_geos_static}
+        LIB              lib/${ext_geos_c_static}
+                         lib/${ext_geos_static}
     )
     # GIT_REPOSITORY https://github.com/libgeos/geos.git
     # GIT_TAG 3.12.0
@@ -760,6 +766,7 @@ if(${BUILD_GEOS})           # {
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
         CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
         CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
         GIT_SHALLOW TRUE
@@ -863,11 +870,11 @@ endif(${BUILD_ADDR2LINE})   # }
 if(${BUILD_PCRE2})          # {
     # freemine: seems no necessary cause strict rules has been enforced by geos
     if(${TD_LINUX})
-        set(ext_pcre2_static pcre2.a)
+        set(ext_pcre2_static libpcre2-8.a)
     elseif(${TD_DARWIN})
-        set(ext_pcre2_static pcre2.a)
+        set(ext_pcre2_static libpcre2-8.a)
     elseif(${TD_WINDOWS})
-        set(ext_pcre2_static pcre2.lib)
+        set(ext_pcre2_static libpcre2-8.lib)
     endif()
     INIT_EXT(ext_pcre2
         INC_DIR          include
