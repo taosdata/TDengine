@@ -46,7 +46,6 @@ sim
 sim/
 psim/
 pysim/
-*.out
 *DS_Store
 tests/script/api/batchprepare
 taosadapter
@@ -98,7 +97,6 @@ tests/comparisonTest/opentsdb/opentsdbtest/.settings/
 tests/examples/JDBC/JDBCDemo/.classpath
 tests/examples/JDBC/JDBCDemo/.project
 tests/examples/JDBC/JDBCDemo/.settings/
-source/libs/parser/inc/sql.*
 source/os/src/timezone/
 tests/script/tmqResult.txt
 tests/system-test/case_to_run.txt
@@ -163,8 +161,6 @@ pcre2.h
 zconf.h
 version.h
 geos_c.h
-source/libs/parser/src/sql.c
-include/common/ttokenauto.h
 !packaging/smokeTest/pytest_require.txt
 tdengine-test-dir/
 localtime.c

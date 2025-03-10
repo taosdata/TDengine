@@ -29,10 +29,8 @@ include(${TD_SUPPORT_DIR}/external.cmake)
 # contrib
 add_subdirectory(contrib)
 
-# freemine: porting contrib/externals
-return()
-
-set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
+# freemine: turn it on to let cmake to find out non-acyclic-dependencies
+# set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
 
 # api
 add_library(api INTERFACE)
@@ -45,6 +43,9 @@ if(${BUILD_TEST})
 endif(${BUILD_TEST})
 
 add_subdirectory(source)
+# freemine: porting source
+return()
+
 add_subdirectory(tools)
 add_subdirectory(utils)
 add_subdirectory(examples/c)

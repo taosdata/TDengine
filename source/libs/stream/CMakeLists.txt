@@ -7,7 +7,7 @@ target_include_directories(
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 # This depends on rocksdb explicitly
-add_dependencies(stream rocksdb)
+DEP_ext_rocksdb(stream)
 
 if(${BUILD_WITH_ROCKSDB})
   if(${BUILD_CONTRIB})
