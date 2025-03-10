@@ -63,6 +63,13 @@ elseif(${BUILD_WITH_COS})
     add_definitions(-DUSE_COS)
 endif()
 
+# taosadapter
+if(${BUILD_HTTP})
+    MESSAGE("BUILD_HTTP is on")
+else()
+    MESSAGE("BUILD_HTTP is off, use taosAdapter")
+endif()
+
 # lemon
 add_subdirectory(lemon)
 

@@ -2,3 +2,5 @@ debug
 build
 release
 .externals
+*.swp
+

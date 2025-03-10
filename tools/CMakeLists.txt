@@ -8,6 +8,7 @@ IF(TD_WEBSOCKET)
     MESSAGE("${Green} use libtaos-ws${ColourReset}")
 
     IF(TD_ALPINE)
+        message(FATAL_ERROR         "freemine: not implemented yet")
         include(ExternalProject)
         ExternalProject_Add(taosws-rs
             PREFIX "taosws-rs"
@@ -27,6 +28,7 @@ IF(TD_WEBSOCKET)
             COMMAND cmake -E copy target/release/taosws.h ${CMAKE_BINARY_DIR}/build/include
         )
     ELSEIF(TD_WINDOWS)
+        message(FATAL_ERROR         "freemine: not implemented yet")
         include(ExternalProject)
         ExternalProject_Add(taosws-rs
             PREFIX "taosws-rs"
@@ -48,23 +50,44 @@ IF(TD_WEBSOCKET)
         )
     ELSE()
         include(ExternalProject)
-        ExternalProject_Add(taosws-rs
-            PREFIX "taosws-rs"
-            SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
-            BUILD_ALWAYS off
-            DEPENDS ${TAOS_LIB}
-            BUILD_IN_SOURCE 1
-            CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
-            PATCH_COMMAND
-            COMMAND git clean -f -d
-            BUILD_COMMAND
-            COMMAND cargo update
-            COMMAND cargo build --release -p taos-ws-sys --features rustls
-            INSTALL_COMMAND
-            COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
-            COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
-            COMMAND cmake -E copy target/release/taosws.h ${CMAKE_BINARY_DIR}/build/include
+        if(${TD_LINUX})
+            set(ext_taosws_static libtaosws.so)
+        elseif(${TD_DARWIN})
+            set(ext_taosws_static taosws)
+        elseif(${TD_WINDOWS})
+            set(ext_taosws_static taosws)
+        endif()
+        INIT_EXT(ext_taosws
+            INC_DIR          include
+            LIB              lib/${ext_taosws_static}
         )
+        # GIT_REPOSITORY https://github.com/taosdata/taos-connector-rust.git
+        # GIT_TAG 3.0
+        get_from_local_repo_if_exists("https://github.com/taosdata/taos-connector-rust.git")
+        ExternalProject_Add(ext_taosws
+            GIT_REPOSITORY ${_git_url}
+            GIT_TAG 3.0
+            PREFIX "${_base}"
+            BUILD_IN_SOURCE TRUE
+            DEPENDS ${TAOS_LIB}
+            CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+            CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+            CONFIGURE_COMMAND
+                COMMAND "${CMAKE_COMMAND}" -E echo "taosws-rs no need cmake to config"
+            PATCH_COMMAND
+                COMMAND git clean -f -d
+            BUILD_COMMAND
+                COMMAND cargo update
+                COMMAND cargo build --release -p taos-ws-sys --features rustls
+            INSTALL_COMMAND
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/${websocket_lib_file} ${_ins}/lib/${websocket_lib_file}
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different target/release/taosws.h ${_ins}/include/taosws.h
+
+            GIT_SHALLOW TRUE
+            EXCLUDE_FROM_ALL TRUE
+            VERBATIM
+        )
+        # add_dependencies(build_externals ext_taosws)     # this is for github workflow in cache-miss step.
     ENDIF()
 ENDIF()
 
@@ -134,6 +157,7 @@ ELSE()
 
     IF(TD_WINDOWS)
         MESSAGE("Building taosAdapter on Windows")
+        message(FATAL_ERROR         "freemine: not implemented yet")
         INCLUDE(ExternalProject)
         ExternalProject_Add(taosadapter
             PREFIX "taosadapter"
@@ -163,6 +187,7 @@ ELSE()
         )
     ELSEIF(TD_DARWIN)
         MESSAGE("Building taosAdapter on MACOS")
+        message(FATAL_ERROR         "freemine: not implemented yet")
         INCLUDE(ExternalProject)
         ExternalProject_Add(taosadapter
             PREFIX "taosadapter"
@@ -189,33 +214,51 @@ ELSE()
     ELSE()
         MESSAGE("Building taosAdapter on non-Windows")
         INCLUDE(ExternalProject)
-        ExternalProject_Add(taosadapter
-            PREFIX "taosadapter"
-            SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosadapter
-            BUILD_ALWAYS off
-            DEPENDS ${TAOS_LIB}
-            BUILD_IN_SOURCE 1
-            CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
-            PATCH_COMMAND
-            COMMAND git clean -f -d
-            BUILD_COMMAND
-            COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
-
-            # COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -o taosadapter-debug -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
-            INSTALL_COMMAND
-
-            # COMMAND cmake -E echo "Comparessing taosadapter.exe"
-            # COMMAND upx taosadapter || :
-            COMMAND cmake -E echo "Copy taosadapter"
-            COMMAND cmake -E copy taosadapter ${CMAKE_BINARY_DIR}/build/bin
-            COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
-            COMMAND cmake -E echo "Copy taosadapter.toml"
-            COMMAND cmake -E copy ./example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
-            COMMAND cmake -E copy ./taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/
-
-            # COMMAND cmake -E echo "Copy taosadapter-debug"
-            # COMMAND cmake -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
+        if(${TD_LINUX})
+            set(ext_taosadapter_static taosadapter.a)
+        elseif(${TD_DARWIN})
+            set(ext_taosadapter_static taosadapter.a)
+        elseif(${TD_WINDOWS})
+            set(ext_taosadapter_static taosadapter.lib)
+        endif()
+        INIT_EXT(ext_taosadapter
+            INC_DIR          include
+            LIB              lib/${ext_taosadapter_static}
         )
+        # GIT_REPOSITORY https://github.com/taosdata/taosadapter.git
+        # GIT_TAG 3.0
+        get_from_local_repo_if_exists("https://github.com/taosdata/taosadapter.git")
+        ExternalProject_Add(ext_taosadapter
+            GIT_REPOSITORY ${_git_url}
+            GIT_TAG 3.0
+            PREFIX "${_base}"
+            BUILD_IN_SOURCE TRUE
+            DEPENDS ${TAOS_LIB}
+            CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+            CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+            # freemine: just download for the moment
+            CONFIGURE_COMMAND
+                COMMAND "${CMAKE_COMMAND}" -E echo "taosadapter no need cmake to config"
+            PATCH_COMMAND
+                COMMAND git clean -f -d
+            BUILD_COMMAND
+                COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+                # COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -o taosadapter-debug -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+            INSTALL_COMMAND
+                # COMMAND "${CMAKE_COMMAND}" -E echo "Comparessing taosadapter.exe"
+                # COMMAND upx taosadapter || :
+                COMMAND "${CMAKE_COMMAND}" -E echo "Copy taosadapter"
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different taosadapter ${CMAKE_BINARY_DIR}/build/bin/taosadapter
+                COMMAND "${CMAKE_COMMAND}" -E echo "Copy taosadapter.toml"
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different ./example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/taosadapter.toml
+                COMMAND "${CMAKE_COMMAND}" -E copy_if_different ./taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/taosadapter.service
+                # COMMAND "${CMAKE_COMMAND}" -E echo "Copy taosadapter-debug"
+                # COMMAND "${CMAKE_COMMAND}" -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
+            GIT_SHALLOW TRUE
+            EXCLUDE_FROM_ALL TRUE
+            VERBATIM
+        )
+        # add_dependencies(build_externals ext_taosadapter)     # this is for github workflow in cache-miss step.
     ENDIF()
 ENDIF()
 
