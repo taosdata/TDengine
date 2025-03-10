@@ -675,13 +675,13 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
           code = saveRelatedTupleTag(pCtx, pInput, tval);
         }
       } else if (type == TSDB_DATA_TYPE_DECIMAL64) {
-        SDecimalOps* pOps = getDecimalOps(type);
+        const SDecimalOps* pOps = getDecimalOps(type);
         if (pOps->lt(&pBuf->v, tval, WORD_NUM(Decimal64)) ^ isMinFunc) {
           DECIMAL64_SET_VALUE((Decimal64*)&pBuf->v, *(int64_t*)tval);
           code =saveRelatedTupleTag(pCtx, pInput, tval);
         }
       } else if (type == TSDB_DATA_TYPE_DECIMAL) {
-        SDecimalOps* pOps = getDecimalOps(type);
+        const SDecimalOps* pOps = getDecimalOps(type);
         if (pOps->lt(pBuf->str, tval, WORD_NUM(Decimal128)) ^ isMinFunc) {
           DECIMAL128_CLONE((Decimal128*)pBuf->str, (Decimal128*)tval);
           code =saveRelatedTupleTag(pCtx, pInput, tval);

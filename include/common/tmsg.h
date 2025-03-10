@@ -704,7 +704,7 @@ typedef struct {
 } SMonitorParas;
 
 typedef struct {
-  STypeMod typeMod; // TODO wjm copy it with a struct, not it's internal members
+  STypeMod typeMod;
 } SExtSchema;
 
 bool hasExtSchema(const SExtSchema* pExtSchema);

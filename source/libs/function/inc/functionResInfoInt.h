@@ -49,7 +49,6 @@ typedef struct SSumRes {
 
 typedef struct SDecimalSumRes {
   Decimal128 sum;
-  // TODO wjm use same struct for the following four fields as SSumRes
   int16_t    type;
   int64_t    prevTs;
   bool       isPrevTsSet;

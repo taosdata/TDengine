@@ -1598,7 +1598,7 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
         VALUE_SET_TRIVIAL_DATUM(&pVal->value, v);
       } else if ((pToken->type == TK_NK_HEX || pToken->type == TK_NK_BIN) &&
                  (TSDB_CODE_SUCCESS ==
-                  toDoubleEx(pToken->z, pToken->n, pToken->type, (double*)&VALUE_GET_TRIVIAL_DATUM(&pVal->value)))) { // TODO wjm use valueGetDatum instead
+                  toDoubleEx(pToken->z, pToken->n, pToken->type, (double*)&VALUE_GET_TRIVIAL_DATUM(&pVal->value)))) {
         int8_t v = *(double*)&VALUE_GET_TRIVIAL_DATUM(&pVal->value) == 0 ? FALSE_VALUE : TRUE_VALUE;
         valueSetDatum(&pVal->value, TSDB_DATA_TYPE_BOOL, &v, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
       } else {

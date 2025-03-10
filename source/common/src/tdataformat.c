@@ -4280,8 +4280,8 @@ static FORCE_INLINE void tColDataCalcSMADecimal128Type(SColData* pColData, SColu
   pAggs->numOfNull = 0;
   pAggs->colId |= 0x80000000; // TODO wjm define it
 
-  Decimal128 *pVal = NULL;
-  SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+  Decimal128        *pVal = NULL;
+  const SDecimalOps *pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
   if (HAS_VALUE == pColData->flag) {
     for (int32_t iVal = 0; iVal < pColData->nVal; ++iVal) {
       pVal = ((Decimal128*)pColData->pData) + iVal;
@@ -4803,7 +4803,7 @@ void valueCloneDatum(SValue *pDst, const SValue *pSrc, int8_t type) {
 }
 void valueClearDatum(SValue *pVal, int8_t type) {
   if (IS_VAR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_DECIMAL) {
-    pVal->pData = NULL;
+    taosMemoryFreeClear(pVal->pData);
     pVal->nData = 0;
   } else {
     pVal->val = 0;

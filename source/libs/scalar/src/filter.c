@@ -5249,7 +5249,11 @@ static int32_t fltSclProcessCNF(SFilterInfo *pInfo, SArray *sclOpListCNF, SArray
     if (NULL == points) {
       FLT_ERR_RET(terrno);
     }
-    FLT_ERR_RET(fltSclBuildRangePoints(sclOper, points));
+    int32_t code = fltSclBuildRangePoints(sclOper, points);
+    if (code != 0) {
+      taosArrayDestroy(points);
+      FLT_ERR_RET(code);
+    }
     if (taosArrayGetSize(colRange->points) != 0) {
       SArray *merged = taosArrayInit(4, sizeof(SFltSclPoint));
       if (NULL == merged) {
@@ -5390,6 +5394,7 @@ _return:
     nodesDestroyNode((SNode *)colRange->colNode);
     taosArrayDestroy(colRange->points);
   }
+  taosArrayDestroy(colRangeList);
   taosArrayDestroy(sclOpList);
   return code;
 }
