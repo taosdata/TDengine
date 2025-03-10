@@ -490,6 +490,7 @@ typedef enum ENodeType {
 typedef struct {
   int32_t     vgId;
   uint8_t     option;  // 0x0 REQ_OPT_TBNAME, 0x01 REQ_OPT_TBUID
+  uint8_t     autoCreateCtb;  // 0x0 not auto create, 0x01 auto create
   const char* dbFName;
   const char* tbName;
 } SBuildTableInput;
@@ -1090,6 +1091,7 @@ typedef struct {
   char*       sql;
   int8_t      isImport;
   int8_t      createDb;
+  int8_t      passIsMd5;
 } SCreateUserReq;
 
 int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
@@ -1160,6 +1162,7 @@ typedef struct {
   int64_t     privileges;
   int32_t     sqlLen;
   char*       sql;
+  int8_t      passIsMd5;
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
@@ -2173,6 +2176,7 @@ typedef struct {
   char     dbFName[TSDB_DB_FNAME_LEN];
   char     tbName[TSDB_TABLE_NAME_LEN];
   uint8_t  option;
+  uint8_t  autoCreateCtb;
 } STableInfoReq;
 
 int32_t tSerializeSTableInfoReq(void* buf, int32_t bufLen, STableInfoReq* pReq);
@@ -2251,11 +2255,14 @@ typedef struct {
 } STagData;
 
 typedef struct {
-  int32_t useless;  // useless
+  int32_t  opType;
+  uint32_t valLen;
+  char*    val;
 } SShowVariablesReq;
 
 int32_t tSerializeSShowVariablesReq(void* buf, int32_t bufLen, SShowVariablesReq* pReq);
-// int32_t tDeserializeSShowVariablesReq(void* buf, int32_t bufLen, SShowVariablesReq* pReq);
+int32_t tDeserializeSShowVariablesReq(void* buf, int32_t bufLen, SShowVariablesReq* pReq);
+void    tFreeSShowVariablesReq(SShowVariablesReq* pReq);
 
 typedef struct {
   char name[TSDB_CONFIG_OPTION_LEN + 1];
@@ -3569,6 +3576,7 @@ typedef struct {
   SArray*       rsps;  // SArray<SClientHbRsp>
   SMonitorParas monitorParas;
   int8_t        enableAuditDelete;
+  int8_t        enableStrongPass;
 } SClientHbBatchRsp;
 
 static FORCE_INLINE uint32_t hbKeyHashFunc(const char* key, uint32_t keyLen) { return taosIntHash_64(key, keyLen); }
