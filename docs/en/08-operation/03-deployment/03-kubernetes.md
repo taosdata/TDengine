@@ -339,7 +339,7 @@ Helm operates Kubernetes using kubectl and kubeconfig configurations, which can 
 The TDengine Chart has not yet been released to the Helm repository, it can currently be downloaded directly from GitHub:
 
 ```shell
-wget https://github.com/taosdata/TDengine-Operator/raw/3.0/helm/tdengine-enterpise-3.5.0.tgz
+wget https://github.com/taosdata/TDengine-Operator/raw/refs/heads/3.0/helm/tdengine-enterprise-3.5.0.tgz
 ```
 
 Note that it's for the enterprise edition, and the community edition is not yet available.

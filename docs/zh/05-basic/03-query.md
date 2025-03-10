@@ -4,6 +4,10 @@ title: TDengine 数据查询
 toc_max_heading_level: 4
 ---
 
+import win from './window.png';
+import swin from './session-window.png';
+import ewin from './event-window.png';
+
 相较于其他众多时序数据库和实时数据库，TDengine 的一个独特优势在于，自其首个版本发布之初便支持标准的 SQL 查询功能。这一特性极大地降低了用户在使用过程中的学习难度。本章将以智能电表的数据模型为例介绍如何在 TDengine 中运用 SQL 查询来处理时序数据。如果需要进一步了解 SQL 语法的细节和功能，建议参阅 TDengine 的官方文档。通过本章的学习，你将能够熟练掌握 TDengine 的 SQL 查询技巧，进而高效地对时序数据进行操作和分析。
 
 ## 基本查询
@@ -145,7 +149,7 @@ Query OK, 10 row(s) in set (2.415961s)
 
 窗口划分逻辑如下图所示：
 
-![常用窗口划分逻辑](./window.png)
+<img src={win} width="500" alt="常用窗口划分逻辑" />
 
 窗口子句语法如下：
 
@@ -408,7 +412,8 @@ Query OK, 22 row(s) in set (0.153403s)
 
 会话窗口根据记录的时间戳主键的值来确定是否属于同一个会话。如下图所示，如果设置时间戳的连续的间隔小于等于 12 秒，则以下 6 条记录构成 2 个会话窗口，分别是：[2019-04-28 14:22:10，2019-04-28 14:22:30] 和 [2019-04-28 14:23:10，2019-04-28 14:23:30]。因为 2019-04-28 14:22:30 与 2019-04-28 14:23:10 之间的时间间隔是 40 秒，超过了连续时间间隔（12 秒）。
 
-![会话窗口示意图](./session-window.png)
+<img src={swin} width="320" alt="会话窗口示意图" />
+
 
 在 tol_value 时间间隔范围内的结果都认为归属于同一个窗口，如果连续的两条记录的时间超过 tol_val，则自动开启下一个窗口。
 
@@ -461,7 +466,7 @@ Query OK, 10 row(s) in set (0.043489s)
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
 ```
 
-![事件窗口示意图](./event-window.png)
+<img src={ewin} width="350" alt="事件窗口示意图" />
 
 示例 SQL:
 
