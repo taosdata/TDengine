@@ -2859,7 +2859,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq2** ppReq, const SSDataBlock* pDat
             }
             break;
           }
-          case TSDB_DATA_TYPE_DECIMAL:
+          case TSDB_DATA_TYPE_DECIMAL: // TODO wjm
           case TSDB_DATA_TYPE_BLOB:
           case TSDB_DATA_TYPE_JSON:
           case TSDB_DATA_TYPE_MEDIUMBLOB:

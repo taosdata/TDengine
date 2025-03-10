@@ -1057,28 +1057,28 @@ int32_t compareDecimal128(const void* pleft, const void* pright) {
 }
 
 int32_t compareDecimal64SameScale(const void* pleft, const void* pright) {
-  SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
+  const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
   if (pOps->gt(pleft, pright, WORD_NUM(Decimal64))) return 1;
   if (pOps->lt(pleft, pright, WORD_NUM(Decimal64))) return -1;
   return 0;
 }
 
 int32_t compareDecimal64SameScaleDesc(const void* pLeft, const void* pRight) {
-  SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
+  const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
   if (pOps->lt(pLeft, pRight, WORD_NUM(Decimal64))) return 1;
   if (pOps->gt(pLeft, pRight, WORD_NUM(Decimal64))) return -1;
   return 0;
 }
 
 int32_t compareDecimal128SameScale(const void* pleft, const void* pright) {
-  SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+  const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
   if (pOps->gt(pleft, pright, WORD_NUM(Decimal))) return 1;
   if (pOps->lt(pleft, pright, WORD_NUM(Decimal))) return -1;
   return 0;
 }
 
 int32_t compareDecimal128SameScaleDesc(const void* pLeft, const void* pRight) {
-  SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+  const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
   if (pOps->lt(pLeft, pRight, WORD_NUM(Decimal))) return 1;
   if (pOps->gt(pLeft, pRight, WORD_NUM(Decimal))) return -1;
   return 0;

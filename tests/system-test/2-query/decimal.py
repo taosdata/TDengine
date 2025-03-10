@@ -859,6 +859,7 @@ class TableInserter:
     def insert(self, rows: int, start_ts: int, step: int, flush_database: bool = False):
         pre_insert = f"insert into {self.dbName}.{self.tbName} values"
         sql = pre_insert
+        t = datetime.now()
         for i in range(rows):
             sql += f"({start_ts + i * step}"
             for column in self.columns:
@@ -872,12 +873,17 @@ class TableInserter:
                 if flush_database and local_flush_database:
                     self.conn.execute(f"flush database {self.dbName}", queryTimes=1)
                 self.conn.execute(sql, queryTimes=1)
+                t1 = datetime.now()
+                if (t1 - t).seconds > 1:
+                    TaosShell().query(f"select last(c1), last(c2) from {self.dbName}.{self.tbName}")
+                    t = t1
                 sql = pre_insert
         if len(sql) > len(pre_insert):
             # tdLog.debug(f"insert into with sql{sql}")
             if flush_database:
                 self.conn.execute(f"flush database {self.dbName}", queryTimes=1)
             self.conn.execute(sql, queryTimes=1)
+            TaosShell().query(f"select last(c1), last(c2) from {self.dbName}.{self.tbName}")
 
 class DecimalCastTypeGenerator:
     def __init__(self, input_type: DataType):
@@ -1844,7 +1850,6 @@ class TDTestCase:
     def test_decimal_ddl(self):
         tdSql.execute("create database test cachemodel 'both'", queryTimes=1)
         self.test_decimal_column_ddl()
-        ## TODO test decimal column for tmq
 
     def test_decimal_and_stream(self):
         create_stream = f"CREATE STREAM {self.stream_name} FILL_HISTORY 1 INTO {self.db_name}.{self.stream_out_stb} AS SELECT _wstart, count(c1), avg(c2), sum(c3) FROM {self.db_name}.{self.stable_name} INTERVAL(10s)"
