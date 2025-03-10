@@ -14,10 +14,19 @@
  */
 
 #include "meta.h"
+#include "vnd.h"
 
 static FORCE_INLINE void *metaMalloc(void *pPool, size_t size) {
+  SVBufPool *pool = (SVBufPool *)pPool;
+  SVnode    *pVnode = pool->pVnode;
+
+  if (pVnode->inUse && pVnode->inUse->size > pVnode->inUse->node.size) {
+    return NULL;
+  }
+
   return vnodeBufPoolMallocAligned((SVBufPool *)pPool, size);
 }
+
 static FORCE_INLINE void metaFree(void *pPool, void *p) { vnodeBufPoolFree((SVBufPool *)pPool, p); }
 
 // begin a meta txn

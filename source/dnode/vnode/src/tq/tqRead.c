@@ -222,12 +222,12 @@ int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t 
   while (offset <= appliedVer) {
     if (walFetchHead(pHandle->pWalReader, offset) < 0) {
       tqDebug("tmq poll: consumer:0x%" PRIx64 ", (epoch %d) vgId:%d offset %" PRId64
-              ", no more log to return,QID:0x%" PRIx64 " 0x%" PRIx64,
+              ", no more log to return, QID:0x%" PRIx64 " 0x%" PRIx64,
               pHandle->consumerId, pHandle->epoch, vgId, offset, reqId, id);
       goto END;
     }
 
-    tqDebug("vgId:%d, consumer:0x%" PRIx64 " taosx get msg ver %" PRId64 ", type: %s,QID:0x%" PRIx64 " 0x%" PRIx64,
+    tqDebug("vgId:%d, consumer:0x%" PRIx64 " taosx get msg ver %" PRId64 ", type:%s, QID:0x%" PRIx64 " 0x%" PRIx64,
             vgId, pHandle->consumerId, offset, TMSG_INFO(pHandle->pWalReader->pHead->head.msgType), reqId, id);
 
     if (pHandle->pWalReader->pHead->head.msgType == TDMT_VND_SUBMIT) {
@@ -1096,6 +1096,22 @@ int32_t tqRetrieveTaosxBlock(STqReader* pReader, SMqDataRsp* pRsp, SArray* block
 
   if (pSubmitTbDataRet) {
     *pSubmitTbDataRet = pSubmitTbData;
+  }
+
+  if (fetchMeta == ONLY_META) {
+    if (pSubmitTbData->pCreateTbReq != NULL) {
+      if (pRsp->createTableReq == NULL){
+        pRsp->createTableReq = taosArrayInit(0, POINTER_BYTES);
+        if (pRsp->createTableReq == NULL){
+          return terrno;
+        }
+      }
+      if (taosArrayPush(pRsp->createTableReq, &pSubmitTbData->pCreateTbReq) == NULL){
+        return terrno;
+      }
+      pSubmitTbData->pCreateTbReq = NULL;
+    }
+    return 0;
   }
 
   int32_t sversion = pSubmitTbData->sver;

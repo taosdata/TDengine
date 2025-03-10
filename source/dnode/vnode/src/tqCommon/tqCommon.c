@@ -147,7 +147,7 @@ int32_t tqStreamStartOneTaskAsync(SStreamMeta* pMeta, SMsgCb* cb, int64_t stream
 }
 
 // this is to process request from transaction, always return true.
-int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pMsg, bool restored) {
+int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pMsg, bool restored, bool isLeader) {
   int32_t      vgId = pMeta->vgId;
   char*        msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t      len = pMsg->contLen - sizeof(SMsgHead);
@@ -268,13 +268,13 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   // stream do update the nodeEp info, write it into stream meta.
   if (updated) {
     tqDebug("s-task:%s vgId:%d save task after update epset, and stop task", idstr, vgId);
-    code = streamMetaSaveTask(pMeta, pTask);
+    code = streamMetaSaveTaskInMeta(pMeta, pTask);
     if (code) {
       tqError("s-task:%s vgId:%d failed to save task, code:%s", idstr, vgId, tstrerror(code));
     }
 
     if (pHTask != NULL) {
-      code = streamMetaSaveTask(pMeta, pHTask);
+      code = streamMetaSaveTaskInMeta(pMeta, pHTask);
       if (code) {
         tqError("s-task:%s vgId:%d failed to save related history task, code:%s", idstr, vgId, tstrerror(code));
       }
@@ -306,14 +306,19 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
   int32_t numOfTasks = streamMetaGetNumOfTasks(pMeta);
   int32_t updateTasks = taosHashGetSize(pMeta->updateInfo.pTasks);
 
-  if (restored) {
+  if (restored && isLeader) {
     tqDebug("vgId:%d s-task:0x%x update epset transId:%d, set the restart flag", vgId, req.taskId, req.transId);
     pMeta->startInfo.tasksWillRestart = 1;
   }
 
   if (updateTasks < numOfTasks) {
-    tqDebug("vgId:%d closed tasks:%d, unclosed:%d, all tasks will be started when nodeEp update completed", vgId,
-            updateTasks, (numOfTasks - updateTasks));
+    if (isLeader) {
+      tqDebug("vgId:%d closed tasks:%d, unclosed:%d, all tasks will be started when nodeEp update completed", vgId,
+              updateTasks, (numOfTasks - updateTasks));
+    } else {
+      tqDebug("vgId:%d closed tasks:%d, unclosed:%d, follower not restart tasks", vgId, updateTasks,
+              (numOfTasks - updateTasks));
+    }
   } else {
     if ((code = streamMetaCommit(pMeta)) < 0) {
       // always return true
@@ -324,17 +329,21 @@ int32_t tqStreamTaskProcessUpdateReq(SStreamMeta* pMeta, SMsgCb* cb, SRpcMsg* pM
 
     streamMetaClearSetUpdateTaskListComplete(pMeta);
 
-    if (!restored) {
-      tqDebug("vgId:%d vnode restore not completed, not start all tasks", vgId);
-    } else {
-      tqDebug("vgId:%d all %d task(s) nodeEp updated and closed, transId:%d", vgId, numOfTasks, req.transId);
+    if (isLeader) {
+      if (!restored) {
+        tqDebug("vgId:%d vnode restore not completed, not start all tasks", vgId);
+      } else {
+        tqDebug("vgId:%d all %d task(s) nodeEp updated and closed, transId:%d", vgId, numOfTasks, req.transId);
 #if 0
       taosMSleep(5000);// for test purpose, to trigger the leader election
 #endif
-      code = tqStreamTaskStartAsync(pMeta, cb, true);
-      if (code) {
-        tqError("vgId:%d async start all tasks, failed, code:%s", vgId, tstrerror(code));
+        code = tqStreamTaskStartAsync(pMeta, cb, true);
+        if (code) {
+          tqError("vgId:%d async start all tasks, failed, code:%s", vgId, tstrerror(code));
+        }
       }
+    } else {
+      tqDebug("vgId:%d follower nodes not restart tasks", vgId);
     }
   }
 
@@ -461,7 +470,7 @@ int32_t tqStreamTaskProcessRetrieveReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
   }
 
   // enqueue
-  tqDebug("s-task:%s (vgId:%d level:%d) recv retrieve req from task:0x%x(vgId:%d),QID:0x%" PRIx64, pTask->id.idStr,
+  tqDebug("s-task:%s (vgId:%d level:%d) recv retrieve req from task:0x%x(vgId:%d), QID:0x%" PRIx64, pTask->id.idStr,
           pTask->pMeta->vgId, pTask->info.taskLevel, req.srcTaskId, req.srcNodeId, req.reqId);
 
   // if task is in ck status, set current ck failed
@@ -751,6 +760,8 @@ int32_t tqStreamTaskProcessDropReq(SStreamMeta* pMeta, char* msg, int32_t msgLen
   }
 
   streamMetaWUnLock(pMeta);
+  tqDebug("vgId:%d process drop task:0x%x completed", vgId, pReq->taskId);
+
   return 0;  // always return success
 }
 
@@ -865,6 +876,9 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
   } else if (type == STREAM_EXEC_T_ADD_FAILED_TASK) {
     code = streamMetaAddFailedTask(pMeta, req.streamId, req.taskId);
     return code;
+  } else if (type == STREAM_EXEC_T_STOP_ONE_TASK) {
+    code = streamMetaStopOneTask(pMeta, req.streamId, req.taskId);
+    return code;
   } else if (type == STREAM_EXEC_T_RESUME_TASK) {  // task resume to run after idle for a while
     SStreamTask* pTask = NULL;
     code = streamMetaAcquireTask(pMeta, req.streamId, req.taskId, &pTask);
@@ -946,11 +960,6 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
 
   streamMetaWUnLock(pMeta);
 
-  if (scanWal && (vgId != SNODE_HANDLE)) {
-    tqDebug("vgId:%d start scan wal for executing tasks", vgId);
-    code = tqScanWalAsync(pMeta->ahandle, true);
-  }
-
   return code;
 }
 
@@ -988,6 +997,39 @@ int32_t tqStreamTaskProcessTaskResetReq(SStreamMeta* pMeta, char* pMsg) {
   streamMutexUnlock(&pTask->lock);
 
   streamMetaReleaseTask(pMeta, pTask);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tqStreamTaskProcessAllTaskStopReq(SStreamMeta* pMeta, SMsgCb* pMsgCb, SRpcMsg* pMsg) {
+  int32_t  code = 0;
+  int32_t  vgId = pMeta->vgId;
+  char*    msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t  len = pMsg->contLen - sizeof(SMsgHead);
+  SDecoder decoder;
+
+  SStreamTaskStopReq req = {0};
+  tDecoderInit(&decoder, (uint8_t*)msg, len);
+  if ((code = tDecodeStreamTaskStopReq(&decoder, &req)) < 0) {
+    tqError("vgId:%d failed to decode stop all streams, code:%s", pMeta->vgId, tstrerror(code));
+    tDecoderClear(&decoder);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  tDecoderClear(&decoder);
+
+  // stop all stream tasks, only invoked when trying to drop db
+  if (req.streamId <= 0) {
+    tqDebug("vgId:%d recv msg to stop all tasks in sync before dropping vnode", vgId);
+    code = streamMetaStopAllTasks(pMeta);
+    if (code) {
+      tqError("vgId:%d failed to stop all tasks, code:%s", vgId, tstrerror(code));
+    }
+
+  } else {  // stop only one stream tasks
+
+  }
+
+  // always return success
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1178,7 +1220,7 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
       pTask->hTaskInfo.operatorOpen = false;
       code = streamStartScanHistoryAsync(pTask, igUntreated);
     } else if (level == TASK_LEVEL__SOURCE && (streamQueueGetNumOfItems(pTask->inputq.queue) == 0)) {
-      code = tqScanWalAsync((STQ*)handle, false);
+//      code = tqScanWalAsync((STQ*)handle, false);
     } else {
       code = streamTrySchedExec(pTask);
     }

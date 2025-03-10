@@ -425,8 +425,8 @@ static int32_t tlvDecodeValueU64(STlvDecoder* pDecoder, uint64_t* pValue) {
 }
 
 static int32_t tlvDecodeDouble(STlv* pTlv, double* pValue) {
-  int64_t temp = 0;
-  int32_t code = tlvDecodeI64(pTlv, &temp);
+  volatile int64_t temp = 0;
+  int32_t code = tlvDecodeI64(pTlv, (int64_t*)&temp);
   if (TSDB_CODE_SUCCESS == code) {
     *pValue = *(double*)&temp;
   }
@@ -434,8 +434,8 @@ static int32_t tlvDecodeDouble(STlv* pTlv, double* pValue) {
 }
 
 static int32_t tlvDecodeValueDouble(STlvDecoder* pDecoder, double* pValue) {
-  int64_t temp = 0;
-  int32_t code = tlvDecodeValueI64(pDecoder, &temp);
+  volatile int64_t temp = 0;
+  int32_t code = tlvDecodeValueI64(pDecoder, (int64_t*)&temp);
   if (TSDB_CODE_SUCCESS == code) {
     *pValue = *(double*)&temp;
   }
@@ -664,11 +664,18 @@ static int32_t msgToDataType(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { EXPR_CODE_RES_TYPE = 1 };
+enum { EXPR_CODE_RES_TYPE = 1, EXPR_CODE_BIND_TUPLE_FUNC_IDX, EXPR_CODE_TUPLE_FUNC_IDX };
 
 static int32_t exprNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SExprNode* pNode = (const SExprNode*)pObj;
-  return tlvEncodeObj(pEncoder, EXPR_CODE_RES_TYPE, dataTypeToMsg, &pNode->resType);
+  int32_t          code = tlvEncodeObj(pEncoder, EXPR_CODE_RES_TYPE, dataTypeToMsg, &pNode->resType);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, EXPR_CODE_BIND_TUPLE_FUNC_IDX, pNode->relatedTo);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, EXPR_CODE_TUPLE_FUNC_IDX, pNode->bindExprID);
+  }
+  return code;
 }
 
 static int32_t msgToExprNode(STlvDecoder* pDecoder, void* pObj) {
@@ -680,6 +687,12 @@ static int32_t msgToExprNode(STlvDecoder* pDecoder, void* pObj) {
     switch (pTlv->type) {
       case EXPR_CODE_RES_TYPE:
         code = tlvDecodeObjFromTlv(pTlv, msgToDataType, &pNode->resType);
+        break;
+      case EXPR_CODE_BIND_TUPLE_FUNC_IDX:
+        code = tlvDecodeI32(pTlv, &pNode->relatedTo);
+        break;
+      case EXPR_CODE_TUPLE_FUNC_IDX:
+        code = tlvDecodeI32(pTlv, &pNode->bindExprID);
         break;
       default:
         break;
@@ -695,6 +708,12 @@ static int32_t columnNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SColumnNode* pNode = (const SColumnNode*)pObj;
 
   int32_t code = dataTypeInlineToMsg(&pNode->node.resType, pEncoder);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI32(pEncoder, pNode->node.relatedTo);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI32(pEncoder, pNode->node.bindExprID);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueU64(pEncoder, pNode->tableId);
   }
@@ -745,6 +764,12 @@ static int32_t msgToColumnNodeInline(STlvDecoder* pDecoder, void* pObj) {
   SColumnNode* pNode = (SColumnNode*)pObj;
 
   int32_t code = msgToDataTypeInline(pDecoder, &pNode->node.resType);
+    if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueI32(pDecoder, &pNode->node.relatedTo);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueI32(pDecoder, &pNode->node.bindExprID);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueU64(pDecoder, &pNode->tableId);
   }
@@ -3443,7 +3468,7 @@ static int32_t msgToPhysiSessionWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_STATE_CODE_WINDOW = 1, PHY_STATE_CODE_KEY };
+enum { PHY_STATE_CODE_WINDOW = 1, PHY_STATE_CODE_KEY, PHY_STATE_CODE_TRUE_FOR_LIMIT };
 
 static int32_t physiStateWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SStateWinodwPhysiNode* pNode = (const SStateWinodwPhysiNode*)pObj;
@@ -3451,6 +3476,9 @@ static int32_t physiStateWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder
   int32_t code = tlvEncodeObj(pEncoder, PHY_STATE_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_STATE_CODE_KEY, nodeToMsg, pNode->pStateKey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PHY_STATE_CODE_TRUE_FOR_LIMIT, pNode->trueForLimit);
   }
 
   return code;
@@ -3469,6 +3497,9 @@ static int32_t msgToPhysiStateWindowNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_STATE_CODE_KEY:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pStateKey);
         break;
+      case PHY_STATE_CODE_TRUE_FOR_LIMIT:
+        code = tlvDecodeI64(pTlv, &pNode->trueForLimit);
+        break;
       default:
         break;
     }
@@ -3477,7 +3508,7 @@ static int32_t msgToPhysiStateWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_EVENT_CODE_WINDOW = 1, PHY_EVENT_CODE_START_COND, PHY_EVENT_CODE_END_COND };
+enum { PHY_EVENT_CODE_WINDOW = 1, PHY_EVENT_CODE_START_COND, PHY_EVENT_CODE_END_COND, PHY_EVENT_CODE_TRUE_FOR_LIMIT };
 
 static int32_t physiEventWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SEventWinodwPhysiNode* pNode = (const SEventWinodwPhysiNode*)pObj;
@@ -3488,6 +3519,9 @@ static int32_t physiEventWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_EVENT_CODE_END_COND, nodeToMsg, pNode->pEndCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PHY_EVENT_CODE_TRUE_FOR_LIMIT, pNode->trueForLimit);
   }
 
   return code;
@@ -3508,6 +3542,9 @@ static int32_t msgToPhysiEventWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_EVENT_CODE_END_COND:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pEndCond);
+        break;
+      case PHY_EVENT_CODE_TRUE_FOR_LIMIT:
+        code = tlvDecodeI64(pTlv, &pNode->trueForLimit);
         break;
       default:
         break;

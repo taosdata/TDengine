@@ -15,6 +15,9 @@
 
 #include <gtest/gtest.h>
 #include <string.h>
+#include <atomic>
+#include <chrono>
+#include <thread>
 #include "clientInt.h"
 #include "geosWrapper.h"
 #include "osSemaphore.h"
@@ -955,8 +958,49 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
            "double,bool_col bool,binary_col binary(20),nchar_col nchar(20),varbinary_col varbinary(20),geometry_col "
            "geometry(200)) tags(int_tag int,long_tag bigint,double_tag double,bool_tag bool,binary_tag "
            "binary(20),nchar_tag nchar(20),varbinary_tag varbinary(20),geometry_tag geometry(200));");
+  do_query(taos, "use stmt2_testdb_6");
 
-  TAOS_STMT2_OPTION option = {0, false, false, NULL, NULL};
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+
+  // less cols and tags using stb
+  {
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+    const char* sql = "INSERT INTO stmt2_testdb_6.? using stmt2_testdb_6.stb1 (int_tag)tags(1) (ts)  VALUES (?)";
+    int         code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code);
+    int total_affect_rows = 0;
+
+    int     t64_len[2] = {sizeof(int64_t), sizeof(int64_t)};
+    int     tag_i = 0;
+    int     tag_l = sizeof(int);
+    int64_t ts[2] = {1591060628000, 1591060628100};
+    for (int i = 0; i < 3; i++) {
+      ts[0] += 1000;
+      ts[1] += 1000;
+
+      TAOS_STMT2_BIND tags1 = {TSDB_DATA_TYPE_INT, &tag_i, &tag_l, NULL, 1};
+      TAOS_STMT2_BIND tags2 = {TSDB_DATA_TYPE_INT, &tag_i, &tag_l, NULL, 1};
+      TAOS_STMT2_BIND params1 = {TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len[0], NULL, 2};
+      TAOS_STMT2_BIND params2 = {TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len[0], NULL, 2};
+
+      TAOS_STMT2_BIND* tagv[2] = {&tags1, &tags2};
+      TAOS_STMT2_BIND* paramv[2] = {&params1, &params2};
+      char*            tbname[2] = {"tb1", "tb2"};
+      TAOS_STMT2_BINDV bindv = {2, &tbname[0], NULL, &paramv[0]};
+      code = taos_stmt2_bind_param(stmt, &bindv, -1);
+      checkError(stmt, code);
+
+      int affected_rows;
+      taos_stmt2_exec(stmt, &affected_rows);
+      total_affect_rows += affected_rows;
+
+      checkError(stmt, code);
+    }
+
+    ASSERT_EQ(total_affect_rows, 12);
+    taos_stmt2_close(stmt);
+  }
 
   // less cols and tags
   {
@@ -982,7 +1026,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
 
       TAOS_STMT2_BIND* tagv[2] = {&tags1, &tags2};
       TAOS_STMT2_BIND* paramv[2] = {&params1, &params2};
-      char*            tbname[2] = {"tb1", "tb2"};
+      char*            tbname[2] = {"tb3", "tb4"};
       TAOS_STMT2_BINDV bindv = {2, &tbname[0], &tagv[0], &paramv[0]};
       code = taos_stmt2_bind_param(stmt, &bindv, -1);
       checkError(stmt, code);
@@ -1010,26 +1054,29 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     int     tag_l = sizeof(int);
     int     tag_bl = 3;
     int64_t ts[2] = {1591060628000, 1591060628100};
+    int64_t ts_2[2] = {1591060628800, 1591060628900};
     int     t64_len[2] = {sizeof(int64_t), sizeof(int64_t)};
     int     coli[2] = {1, 2};
+    int     coli_2[2] = {3, 4};
     int     ilen[2] = {sizeof(int), sizeof(int)};
     int     total_affect_rows = 0;
     for (int i = 0; i < 3; i++) {
       ts[0] += 1000;
       ts[1] += 1000;
+      ts_2[0] += 1000;
+      ts_2[1] += 1000;
 
-      TAOS_STMT2_BIND tags1[2] = {{TSDB_DATA_TYPE_BINARY, (void*)"abc", &tag_bl, NULL, 1},
-                                  {TSDB_DATA_TYPE_INT, &tag_i, &tag_l, NULL, 1}};
-      TAOS_STMT2_BIND tags2[2] = {{TSDB_DATA_TYPE_BINARY, (void*)"abc", &tag_bl, NULL, 1},
-                                  {TSDB_DATA_TYPE_INT, &tag_i, &tag_l, NULL, 1}};
-      TAOS_STMT2_BIND params1[2] = {{TSDB_DATA_TYPE_INT, &coli, &ilen[0], NULL, 2},
-                                    {TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len[0], NULL, 2}};
-      TAOS_STMT2_BIND params2[2] = {{TSDB_DATA_TYPE_INT, &coli, &ilen[0], NULL, 2},
-                                    {TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len[0], NULL, 2}};
+      TAOS_STMT2_BIND tags[2][2] = {
+          {{TSDB_DATA_TYPE_BINARY, (void*)"abc", &tag_bl, NULL, 1}, {TSDB_DATA_TYPE_INT, &tag_i, &tag_l, NULL, 1}},
+          {{TSDB_DATA_TYPE_BINARY, (void*)"def", &tag_bl, NULL, 1}, {TSDB_DATA_TYPE_INT, &tag_i, &tag_l, NULL, 1}}};
+      TAOS_STMT2_BIND params[2][2] = {
+          {{TSDB_DATA_TYPE_INT, &coli[0], &ilen[0], NULL, 2}, {TSDB_DATA_TYPE_TIMESTAMP, &ts[0], &t64_len[0], NULL, 2}},
+          {{TSDB_DATA_TYPE_INT, &coli_2[0], &ilen[0], NULL, 2},
+           {TSDB_DATA_TYPE_TIMESTAMP, &ts_2[0], &t64_len[0], NULL, 2}}};
 
-      TAOS_STMT2_BIND* tagv[2] = {&tags1[0], &tags2[0]};
-      TAOS_STMT2_BIND* paramv[2] = {&params1[0], &params2[0]};
-      char*            tbname[2] = {"tb3", "tb4"};
+      TAOS_STMT2_BIND* tagv[2] = {&tags[0][0], &tags[1][0]};
+      TAOS_STMT2_BIND* paramv[2] = {&params[0][0], &params[1][0]};
+      char*            tbname[2] = {"tb5", "tb6"};
       TAOS_STMT2_BINDV bindv = {2, &tbname[0], &tagv[0], &paramv[0]};
       code = taos_stmt2_bind_param(stmt, &bindv, -1);
       checkError(stmt, code);
@@ -1040,6 +1087,37 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
       checkError(stmt, code);
     }
     ASSERT_EQ(total_affect_rows, 12);
+    taos_stmt2_close(stmt);
+  }
+
+  // pk error
+  {
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+    const char* sql =
+        "INSERT INTO stmt2_testdb_6.? using  stmt2_testdb_6.stb1 (int_tag)tags(1) (int_col,ts)VALUES (?,?)";
+    int code = taos_stmt2_prepare(stmt, sql, 0);
+    checkError(stmt, code);
+
+    int     tag_i = 0;
+    int     tag_l = sizeof(int);
+    int     tag_bl = 3;
+    int64_t ts[2] = {1591060628000, NULL};
+    int     t64_len[2] = {sizeof(int64_t), sizeof(int64_t)};
+    int     coli[2] = {1, 2};
+    int     ilen[2] = {sizeof(int), sizeof(int)};
+    int     total_affect_rows = 0;
+    char    is_null[2] = {1, 1};
+
+    TAOS_STMT2_BIND params1[2] = {{TSDB_DATA_TYPE_INT, &coli, &ilen[0], is_null, 2},
+                                  {TSDB_DATA_TYPE_TIMESTAMP, &ts, &t64_len[0], is_null, 2}};
+
+    TAOS_STMT2_BIND* paramv = &params1[0];
+    char*            tbname = "tb3";
+    TAOS_STMT2_BINDV bindv = {1, &tbname, NULL, &paramv};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    ASSERT_EQ(code, TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL);
+
     taos_stmt2_close(stmt);
   }
 
@@ -1631,7 +1709,7 @@ void stmtAsyncBindCb2(void* param, TAOS_RES* pRes, int code) {
   return;
 }
 
-TEST(stmt2Case, async_order) {
+void stmt2_async_test(std::atomic<bool>& stop_task) {
   int CTB_NUMS = 2;
   int ROW_NUMS = 2;
   int CYC_NUMS = 2;
@@ -1837,5 +1915,183 @@ TEST(stmt2Case, async_order) {
     taosMemoryFree(tbs[i]);
   }
   taosMemoryFree(tbs);
+  stop_task = true;
 }
+
+TEST(stmt2Case, async_order) {
+  std::atomic<bool> stop_task(false);
+  std::thread       t(stmt2_async_test, std::ref(stop_task));
+
+  // 等待 60 秒钟
+  auto start_time = std::chrono::steady_clock::now();
+  while (!stop_task) {
+    auto elapsed_time = std::chrono::steady_clock::now() - start_time;
+    if (std::chrono::duration_cast<std::chrono::seconds>(elapsed_time).count() > 100) {
+      if (t.joinable()) {
+        t.detach();
+      }
+      FAIL() << "Test[stmt2_async_test] timed out";
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::seconds(1));  // 每 1s 检查一次
+  }
+  if (t.joinable()) {
+    t.join();
+  }
+}
+
+TEST(stmt2Case, rowformat_bind) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+
+  do_query(taos, "drop database if exists stmt2_testdb_16");
+  do_query(taos, "create database IF NOT EXISTS stmt2_testdb_16");
+  do_query(
+      taos,
+      "create stable stmt2_testdb_16.stb(ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 binary(8), c6 "
+      "smallint, c7 "
+      "tinyint, c8 bool, c9 nchar(8), c10 geometry(256))TAGS(tts timestamp, t1 int, t2 bigint, t3 float, t4 double, t5 "
+      "binary(8), t6 smallint, t7 tinyint, t8 bool, t9 nchar(8), t10 geometry(256))");
+
+  TAOS_STMT2_OPTION option = {0};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+  int       code = 0;
+  uintptr_t c10len = 0;
+  struct {
+    int64_t       c1;
+    int32_t       c2;
+    int64_t       c3;
+    float         c4;
+    double        c5;
+    unsigned char c6[8];
+    int16_t       c7;
+    int8_t        c8;
+    int8_t        c9;
+    char          c10[32];
+  } v = {1591060628000, 1, 2, 3.0, 4.0, "abcdef", 5, 6, 7, "ijnop"};
+
+  struct {
+    int32_t c1;
+    int32_t c2;
+    int32_t c3;
+    int32_t c4;
+    int32_t c5;
+    int32_t c6;
+    int32_t c7;
+    int32_t c8;
+    int32_t c9;
+    int32_t c10;
+  } v_len = {sizeof(int64_t), sizeof(int32_t),
+             sizeof(int64_t), sizeof(float),
+             sizeof(double),  8,
+             sizeof(int16_t), sizeof(int8_t),
+             sizeof(int8_t),  8};
+  TAOS_STMT2_BIND params[11];
+  params[0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
+  params[0].length = (int32_t*)&v_len.c1;
+  params[0].buffer = &v.c1;
+  params[0].is_null = NULL;
+  params[0].num = 1;
+
+  params[1].buffer_type = TSDB_DATA_TYPE_INT;
+  params[1].buffer = &v.c2;
+  params[1].length = (int32_t*)&v_len.c2;
+  params[1].is_null = NULL;
+  params[1].num = 1;
+
+  params[2].buffer_type = TSDB_DATA_TYPE_BIGINT;
+  params[2].buffer = &v.c3;
+  params[2].length = (int32_t*)&v_len.c3;
+  params[2].is_null = NULL;
+  params[2].num = 1;
+
+  params[3].buffer_type = TSDB_DATA_TYPE_FLOAT;
+  params[3].buffer = &v.c4;
+  params[3].length = (int32_t*)&v_len.c4;
+  params[3].is_null = NULL;
+  params[3].num = 1;
+
+  params[4].buffer_type = TSDB_DATA_TYPE_DOUBLE;
+  params[4].buffer = &v.c5;
+  params[4].length = (int32_t*)&v_len.c5;
+  params[4].is_null = NULL;
+  params[4].num = 1;
+
+  params[5].buffer_type = TSDB_DATA_TYPE_BINARY;
+  params[5].buffer = &v.c6;
+  params[5].length = (int32_t*)&v_len.c6;
+  params[5].is_null = NULL;
+  params[5].num = 1;
+
+  params[6].buffer_type = TSDB_DATA_TYPE_SMALLINT;
+  params[6].buffer = &v.c7;
+  params[6].length = (int32_t*)&v_len.c7;
+  params[6].is_null = NULL;
+  params[6].num = 1;
+
+  params[7].buffer_type = TSDB_DATA_TYPE_TINYINT;
+  params[7].buffer = &v.c8;
+  params[7].length = (int32_t*)&v_len.c8;
+  params[7].is_null = NULL;
+  params[7].num = 1;
+
+  params[8].buffer_type = TSDB_DATA_TYPE_BOOL;
+  params[8].buffer = &v.c9;
+  params[8].length = (int32_t*)&v_len.c9;
+  params[8].is_null = NULL;
+  params[8].num = 1;
+
+  params[9].buffer_type = TSDB_DATA_TYPE_NCHAR;
+  params[9].buffer = &v.c10;
+  params[9].length = (int32_t*)&v_len.c10;
+  params[9].is_null = NULL;
+  params[9].num = 1;
+
+  unsigned char* outputGeom1;
+  size_t         size1;
+  initCtxMakePoint();
+  code = doMakePoint(1.000, 2.000, &outputGeom1, &size1);
+  checkError(stmt, code);
+  params[10].buffer_type = TSDB_DATA_TYPE_GEOMETRY;
+  params[10].buffer = outputGeom1;
+  params[10].length = (int32_t*)&size1;
+  params[10].is_null = NULL;
+  params[10].num = 1;
+
+  char* stmt_sql = "insert into stmt2_testdb_16.? using stb tags(?,?,?,?,?,?,?,?,?,?,?)values (?,?,?,?,?,?,?,?,?,?,?)";
+  code = taos_stmt2_prepare(stmt, stmt_sql, 0);
+  checkError(stmt, code);
+
+  char*            tbname[1] = {"tb1"};
+  TAOS_STMT2_BIND* tags = &params[0];
+  TAOS_STMT2_BIND* cols = &params[0];
+  TAOS_STMT2_BINDV bindv = {1, &tbname[0], &tags, &cols};
+  code = taos_stmt2_bind_param(stmt, &bindv, -2);
+  checkError(stmt, code);
+
+  int affected_rows;
+  code = taos_stmt2_exec(stmt, &affected_rows);
+  checkError(stmt, code);
+  ASSERT_EQ(affected_rows, 1);
+
+  int64_t ts2 = 1591060628000;
+  params[0].buffer = &ts2;
+  code = taos_stmt2_bind_param(stmt, &bindv, -2);
+  checkError(stmt, code);
+
+  code = taos_stmt2_exec(stmt, &affected_rows);
+  checkError(stmt, code);
+  ASSERT_EQ(affected_rows, 1);
+
+  params[0].buffer = &ts2;
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  ASSERT_EQ(code, TSDB_CODE_TSC_STMT_API_ERROR);
+
+  geosFreeBuffer(outputGeom1);
+  taos_stmt2_close(stmt);
+  do_query(taos, "drop database if exists stmt2_testdb_16");
+  taos_close(taos);
+}
+
 #pragma GCC diagnostic pop

@@ -339,6 +339,9 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
   bool tmp = (pSubmitTbData->flags & pRequest->sourceExcluded) != 0;
   TSDB_CHECK_CONDITION(!tmp, code, lino, END, TSDB_CODE_SUCCESS);
 
+  if (pHandle->fetchMeta == ONLY_META){
+    goto END;
+  }
 
   int32_t blockNum = taosArrayGetSize(pBlocks) == 0 ? 1 : taosArrayGetSize(pBlocks);
   if (pRsp->withTbName) {
@@ -347,7 +350,6 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
     TSDB_CHECK_CODE(code, lino, END);
   }
 
-  tmp = (pHandle->fetchMeta == ONLY_META && pSubmitTbData->pCreateTbReq == NULL);
   TSDB_CHECK_CONDITION(!tmp, code, lino, END, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < blockNum; i++) {
     if (taosArrayGetSize(pBlocks) == 0){
@@ -403,14 +405,16 @@ static void preProcessSubmitMsg(STqHandle* pHandle, const SMqPollReq* pRequest, 
     }
 
     int64_t uid = pSubmitTbData->uid;
-    if (taosHashGet(pRequest->uidHash, &uid, LONG_BYTES) != NULL) {
-      tqDebug("poll rawdata split,uid:%" PRId64 " is already exists", uid);
-      terrno = TSDB_CODE_TMQ_RAW_DATA_SPLIT;
-      return;
-    } else {
-      int32_t code = taosHashPut(pRequest->uidHash, &uid, LONG_BYTES, &uid, LONG_BYTES);
-      if (code != 0){
-        tqError("failed to add table uid to hash, code:%d, uid:%"PRId64, code, uid);
+    if (pRequest->rawData) {
+      if (taosHashGet(pRequest->uidHash, &uid, LONG_BYTES) != NULL) {
+        tqDebug("poll rawdata split,uid:%" PRId64 " is already exists", uid);
+        terrno = TSDB_CODE_TMQ_RAW_DATA_SPLIT;
+        return;
+      } else {
+        int32_t code = taosHashPut(pRequest->uidHash, &uid, LONG_BYTES, &uid, LONG_BYTES);
+        if (code != 0) {
+          tqError("failed to add table uid to hash, code:%d, uid:%" PRId64, code, uid);
+        }
       }
     }
 
@@ -453,9 +457,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqData
   }
   code = tqReaderSetSubmitMsg(pReader, submit.msgStr, submit.msgLen, submit.ver, rawList);
   TSDB_CHECK_CODE(code, lino, END);
-  if (pRequest->rawData) {
-    preProcessSubmitMsg(pHandle, pRequest, &rawList);
-  }
+  preProcessSubmitMsg(pHandle, pRequest, &rawList);
   // data could not contains same uid data in rawdata mode
   if (pRequest->rawData != 0 && terrno == TSDB_CODE_TMQ_RAW_DATA_SPLIT){
     goto END;
