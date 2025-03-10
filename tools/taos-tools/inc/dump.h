@@ -39,7 +39,6 @@
 #include <taos.h>
 #include <taoserror.h>
 #include <toolsdef.h>
-#include <tdef.h>
 
 #ifdef WEBSOCKET
 #include <taosws.h>
@@ -59,6 +58,7 @@
 #define NEED_CALC_COUNT         UINT64_MAX
 #define HUMAN_TIME_LEN      28
 #define DUMP_DIR_LEN        (MAX_DIR_LEN - (TSDB_DB_NAME_LEN + 10))
+#define TSDB_USET_PASSWORD_LONGLEN 256  // come from tdef.h
 
 
 #define debugPrint(fmt, ...) \
