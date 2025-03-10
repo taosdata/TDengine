@@ -518,21 +518,24 @@ if(NOT ${TD_WINDOWS})       # {
     endif()
     INIT_EXT(ext_tz
         INC_DIR          include
-        LIB              lib/${ext_tz_static}
+        LIB              usr/lib/${ext_tz_static}
     )
     # GIT_REPOSITORY https://github.com/eggert/tz.git
     # GIT_TAG main
     get_from_local_repo_if_exists("https://github.com/eggert/tz.git")
     ExternalProject_Add(ext_tz
         GIT_REPOSITORY ${_git_url}
-        GIT_TAG 271a5784a59e454b659d85948b5e65c17c11516a
+        GIT_TAG 2025a
         PREFIX "${_base}"
+        BUILD_IN_SOURCE TRUE
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
-        INSTALL_COMMAND ""
-        # freemine: TODO:
+            # COMMAND make CFLAGS+=-fPIC CFLAGS+=-g TZDIR=${TZ_OUTPUT_PATH} clean libtz.a
+            COMMAND make DESTDIR=${_ins}
+        INSTALL_COMMAND
+            COMMAND make DESTDIR=${_ins} install
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
