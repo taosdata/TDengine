@@ -1778,7 +1778,7 @@ static int32_t translateGreatestleast(SFunctionNode* pFunc, char* pErrBuf, int32
       } else if (IS_MATHABLE_TYPE(res.type) || !mixTypeToStrings) {
         int32_t resType = vectorGetConvertType(res.type, para->type);
         res.type = resType == 0 ? res.type : resType;
-        res.bytes = tDataTypes[resType].bytes;
+        res.bytes = tDataTypes[res.type].bytes;
       } else {
         // last res is strings, para is numeric and mixTypeToStrings is true
         res.bytes = TMAX(res.bytes, NUMERIC_TO_STRINGS_LEN);

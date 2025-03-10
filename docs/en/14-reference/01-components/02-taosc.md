@@ -44,6 +44,7 @@ The TDengine client driver provides all the APIs needed for application programm
 |enableQueryHb                    |         |Supported, effective immediately  |Internal parameter, whether to send query heartbeat messages|
 |minSlidingTime                   |         |Supported, effective immediately  |Internal parameter, minimum allowable value for sliding|
 |minIntervalTime                  |         |Supported, effective immediately  |Internal parameter, minimum allowable value for interval|
+|compareAsStrInGreatest           | v3.3.6.0 |Supported, effective immediately  |When the greatest and least functions have both numeric and string types as parameters, the comparison type conversion rules are as follows: Integer; 1: uniformly converted to string comparison, 0: uniformly converted to numeric type comparison.|
 
 ### Writing Related
 
