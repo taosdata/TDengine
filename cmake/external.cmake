@@ -684,7 +684,6 @@ if(NOT ${TD_WINDOWS})
             COMMAND make -j4
         INSTALL_COMMAND
             COMMAND make install_sw -j4
-            COMMAND ${CMAKE_COMMAND} -E create_symlink ${_ins}/lib64 ${_ins}/lib
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
@@ -764,7 +763,7 @@ if(${BUILD_GEOS})
 endif()
 
 # libdwarf
-# if(${BUILD_ADDR2LINE})
+if(${BUILD_ADDR2LINE})
     if(${TD_LINUX})
         set(ext_dwarf_static libdwarf.a)
     elseif(${TD_DARWIN})
@@ -774,6 +773,22 @@ endif()
         INC_DIR          include
         LIB              lib/${ext_dwarf_static}
     )
+
+    set(_c_cxx_flags_list
+      -I${ext_zlib_install}/include
+      -L${ext_zlib_install}/lib
+    )
+    if (${TD_DARWIN})
+      list(APPEND _c_cxx_flags_list
+        -Wno-unused-command-line-argument
+        -Wno-error=unused-but-set-variable
+        -Wno-error=strict-prototypes
+        -Wno-error=self-assign
+        -Wno-error=null-pointer-subtraction
+      )
+    endif()
+    string(JOIN " " _c_cxx_flags ${_c_cxx_flags_list})
+
     # GIT_REPOSITORY https://github.com/davea42/libdwarf-code.git
     # GIT_TAG libdwarf-0.3.1
     get_from_local_repo_if_exists("https://github.com/davea42/libdwarf-code.git")
@@ -784,13 +799,13 @@ endif()
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-        CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=-I${ext_zlib_install}/include -L${ext_zlib_install}/lib"
-        CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=-I${ext_zlib_install}/include -L${ext_zlib_install}/lib"
+        CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${_c_cxx_flags}"
+        CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${_c_cxx_flags}"
         CMAKE_ARGS -DDO_TESTING:BOOL=OFF
         CMAKE_ARGS -DDWARF_WITH_LIBELF:BOOL=ON
         CMAKE_ARGS -DLIBDWARF_CRT:STRING=MD
         CMAKE_ARGS -DWALL:BOOL=ON
-        INSTALL_COMMAND
+        INSTALL_COMMAND ""
             COMMAND "${CMAKE_COMMAND}" --install . --config ${CMAKE_BUILD_TYPE}
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different
                     "${ext_dwarf_source}/src/lib/libdwarf/dwarf.h"
@@ -800,10 +815,10 @@ endif()
         VERBATIM
     )
     add_dependencies(build_externals ext_dwarf)     # this is for github workflow in cache-miss step.
-# endif(${BUILD_ADDR2LINE})
+endif(${BUILD_ADDR2LINE})
 
 # addr2line
-# if(${BUILD_ADDR2LINE})
+if(${BUILD_ADDR2LINE})
     if(${TD_LINUX})
         set(ext_addr2line_static libaddr2line.a)
     elseif(${TD_DARWIN})
@@ -835,7 +850,7 @@ endif()
         VERBATIM
     )
     add_dependencies(build_externals ext_addr2line)     # this is for github workflow in cache-miss step.
-# endif(${BUILD_ADDR2LINE})
+endif(${BUILD_ADDR2LINE})
 
 # pcre2
 if(${BUILD_PCRE2})
