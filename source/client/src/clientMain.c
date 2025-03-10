@@ -599,6 +599,14 @@ TAOS_RES *taos_query_with_reqid(TAOS *taos, const char *sql, int64_t reqid) {
   return taosQueryImplWithReqid(taos, sql, false, reqid);
 }
 
+TAOS_FIELD_E *taos_fetch_fields_e(TAOS_RES *res) {
+  if (taos_num_fields(res) == 0 || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+    return NULL;
+  }
+  SReqResultInfo* pResInfo = tscGetCurResInfo(res);
+  return pResInfo->fields;
+}
+
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   if (res == NULL) {
     return NULL;
@@ -751,6 +759,14 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
 
       case TSDB_DATA_TYPE_BOOL:
         len += tsnprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
+        break;
+      case TSDB_DATA_TYPE_DECIMAL64:
+      case TSDB_DATA_TYPE_DECIMAL: {
+        uint32_t decimalLen = strlen(row[i]);
+        uint32_t copyLen = TMIN(size - len - 1, decimalLen);
+        (void)memcpy(str + len, row[i], copyLen);
+        len += copyLen;
+      } break;
       default:
         break;
     }
@@ -1260,7 +1276,7 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     }
 
     if (pQuery->haveResultSet) {
-      code = setResSchemaInfo(&pRequest->body.resInfo, pQuery->pResSchema, pQuery->numOfResCols);
+      code = setResSchemaInfo(&pRequest->body.resInfo, pQuery->pResSchema, pQuery->numOfResCols, pQuery->pResExtSchema);
       setResPrecision(&pRequest->body.resInfo, pQuery->precision);
     }
   }

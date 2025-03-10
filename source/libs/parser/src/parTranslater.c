@@ -33,6 +33,7 @@
 #include "tcol.h"
 #include "tglobal.h"
 #include "ttime.h"
+#include "decimal.h"
 
 #define generateDealNodeErrMsg(pCxt, code, ...) \
   (pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__), DEAL_RES_ERROR)
@@ -612,7 +613,7 @@ static int32_t rewriteDropTableWithMetaCache(STranslateContext* pCxt) {
     int32_t metaSize =
         sizeof(STableMeta) + sizeof(SSchema) * (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags);
     int32_t schemaExtSize =
-        (useCompress(pMeta->tableType) && pMeta->schemaExt) ? sizeof(SSchemaExt) * pMeta->tableInfo.numOfColumns : 0;
+        (withExtSchema(pMeta->tableType) && pMeta->schemaExt) ? sizeof(SSchemaExt) * pMeta->tableInfo.numOfColumns : 0;
     const char* pTbName = (const char*)pMeta + metaSize + schemaExtSize;
 
     SName name = {0};
@@ -1357,7 +1358,7 @@ static bool hasPkInTable(const STableMeta* pTableMeta) {
 }
 
 static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* pColSchema, int32_t tagFlag,
-                                  SColumnNode* pCol) {
+                                  SColumnNode* pCol, const SSchemaExt* pExtSchema) {
   tstrncpy(pCol->dbName, pTable->table.dbName, TSDB_DB_NAME_LEN);
   tstrncpy(pCol->tableAlias, pTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
   tstrncpy(pCol->tableName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);
@@ -1381,6 +1382,8 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
   pCol->tableHasPk = hasPkInTable(pTable->pMeta);
   pCol->isPk = (pCol->tableHasPk) && (pColSchema->flags & COL_IS_KEY);
   pCol->numOfPKs = pTable->pMeta->tableInfo.numOfPKs;
+
+  if (pExtSchema) fillTypeFromTypeMod(&pCol->node.resType, pExtSchema->typeMod);
 }
 
 static int32_t setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SColumnNode** pColRef) {
@@ -1477,7 +1480,10 @@ static int32_t createColumnsByTable(STranslateContext* pCxt, const STableNode* p
       if (TSDB_CODE_SUCCESS != code) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, code);
       }
-      setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns), pCol);
+      SSchemaExt* pSchemaExt =
+          pMeta->schemaExt ? (i >= pMeta->tableInfo.numOfColumns ? NULL : (pMeta->schemaExt + i)) : NULL;
+      setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns), pCol,
+                            pSchemaExt);
       setColumnPrimTs(pCxt, pCol, pTable);
       code = nodesListStrictAppend(pList, (SNode*)pCol);
     }
@@ -1545,7 +1551,7 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pCol->colName);
       }
 
-      setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema, -1, pCol);
+      setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema, -1, pCol, NULL);
       pCol->isPrimTs = true;
       *pFound = true;
       return TSDB_CODE_SUCCESS;
@@ -1554,7 +1560,9 @@ static int32_t findAndSetColumn(STranslateContext* pCxt, SColumnNode** pColRef, 
     for (int32_t i = 0; i < nums; ++i) {
       if (0 == strcmp(pCol->colName, pMeta->schema[i].name) &&
           !invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
-        setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns), pCol);
+
+        SSchemaExt* pSchemaExt = pMeta->schemaExt ? (i >= pMeta->tableInfo.numOfColumns ? NULL : (pMeta->schemaExt + i)) : NULL;
+        setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns), pCol, pSchemaExt);
         setColumnPrimTs(pCxt, pCol, pTable);
         *pFound = true;
         break;
@@ -2437,7 +2445,7 @@ static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) 
 
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL != pTable && QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
-      setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol);
+      setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol, NULL);
     } else {
       code = rewriteCountStarAsCount1(pCxt, pCount);
     }
@@ -2463,7 +2471,7 @@ static int32_t rewriteCountNotNullValue(STranslateContext* pCxt, SFunctionNode* 
     SColumnNode* pCol = NULL;
     code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
     if (TSDB_CODE_SUCCESS == code) {
-      setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol);
+      setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol, NULL);
       NODES_DESTORY_LIST(pCount->pParameterList);
       code = nodesListMakeAppend(&pCount->pParameterList, (SNode*)pCol);
     }
@@ -2492,7 +2500,7 @@ static int32_t rewriteCountTbname(STranslateContext* pCxt, SFunctionNode* pCount
     SColumnNode* pCol = NULL;
     code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
     if (TSDB_CODE_SUCCESS == code) {
-      setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol);
+      setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol, NULL);
       NODES_DESTORY_LIST(pCount->pParameterList);
       code = nodesListMakeAppend(&pCount->pParameterList, (SNode*)pCol);
     }
@@ -2509,7 +2517,8 @@ static bool hasInvalidFuncNesting(SFunctionNode* pFunc) {
 static int32_t getFuncInfo(STranslateContext* pCxt, SFunctionNode* pFunc) {
   // the time precision of the function execution environment
   pFunc->dual = pCxt->dual;
-  pFunc->node.resType.precision = getPrecisionFromCurrStmt(pCxt->pCurrStmt, TSDB_TIME_PRECISION_MILLI);
+  if (!IS_DECIMAL_TYPE(pFunc->node.resType.type))
+    pFunc->node.resType.precision = getPrecisionFromCurrStmt(pCxt->pCurrStmt, TSDB_TIME_PRECISION_MILLI);
   int32_t code = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
   if (TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION == code) {
     code = getUdfInfo(pCxt, pFunc);
@@ -3371,6 +3380,7 @@ static int32_t createCastFunc(STranslateContext* pCxt, SNode* pExpr, SDataType d
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   code = getFuncInfo(pCxt, pFunc);
+  pFunc->node.resType = dt;
   if (TSDB_CODE_SUCCESS != code) {
     nodesClearList(pFunc->pParameterList);
     pFunc->pParameterList = NULL;
@@ -3427,6 +3437,12 @@ static int32_t selectCommonType(SDataType* commonType, const SDataType* newType)
   }
 
   if (commonType->type == newType->type) {
+    if (IS_DECIMAL_TYPE(commonType->type)) {
+      if ((commonType->precision - commonType->scale) < (newType->precision - newType->scale)) {
+        commonType->precision = newType->precision;
+        commonType->scale = newType->scale;
+      }
+    }
     commonType->bytes = TMAX(commonType->bytes, newType->bytes);
     return TSDB_CODE_SUCCESS;
   }
@@ -3437,6 +3453,11 @@ static int32_t selectCommonType(SDataType* commonType, const SDataType* newType)
   } else if ((resultType == TSDB_DATA_TYPE_NCHAR) &&
              (IS_MATHABLE_TYPE(commonType->type) || IS_MATHABLE_TYPE(newType->type))) {
     commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), QUERY_NUMBER_MAX_DISPLAY_LEN * TSDB_NCHAR_SIZE);
+  } else if (IS_DECIMAL_TYPE(resultType)) {
+    if ((commonType->precision - commonType->scale) < (newType->precision - newType->scale)) {
+      commonType->precision = newType->precision;
+      commonType->scale = newType->scale;
+    }
   } else {
     commonType->bytes = TMAX(TMAX(commonType->bytes, newType->bytes), TYPE_BYTES[resultType]);
   }
@@ -5361,7 +5382,7 @@ static int32_t createTags(STranslateContext* pCxt, SNodeList** pOutput) {
     if (TSDB_CODE_SUCCESS != code) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
     }
-    setColumnInfoBySchema(pTable, pTagsSchema + i, 1, pCol);
+    setColumnInfoBySchema(pTable, pTagsSchema + i, 1, pCol, NULL);
     if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(pOutput, (SNode*)pCol)) {
       NODES_DESTORY_LIST(*pOutput);
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -9272,7 +9293,7 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calB
     } else {
       field.bytes = pCol->dataType.bytes;
     }
-
+    field.typeMod = calcTypeMod(&pCol->dataType);
     tstrncpy(field.name, pCol->colName, TSDB_COL_NAME_LEN);
     if (pCol->pOptions) {
       setColEncode(&field.compress, columnEncodeVal(((SColumnOptions*)pCol->pOptions)->encode));
@@ -9284,6 +9305,9 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray, bool calB
     }
     if (pCol->pOptions && ((SColumnOptions*)pCol->pOptions)->bPrimaryKey) {
       field.flags |= COL_IS_KEY;
+    }
+    if (field.typeMod != 0) {
+      field.flags |= COL_HAS_TYPE_MOD;
     }
     if (NULL == taosArrayPush(*pArray, &field)) {
       code = terrno;
@@ -9401,6 +9425,18 @@ static int32_t checkTableRollupOption(STranslateContext* pCxt, SNodeList* pFuncs
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkDecimalDataType(STranslateContext* pCxt, SDataType pDataType) {
+  if (IS_DECIMAL_TYPE(pDataType.type)) {
+    if (pDataType.precision < TSDB_DECIMAL_MIN_PRECISION || pDataType.precision > TSDB_DECIMAL_MAX_PRECISION ||
+        pDataType.precision < pDataType.scale) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                     "Invalid column type DECIMAL(%d,%d) , invalid precision or scale",
+                                     pDataType.precision, pDataType.scale);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkTableTagsSchema(STranslateContext* pCxt, SHashObj* pHash, SNodeList* pTags) {
   int32_t ntags = LIST_LENGTH(pTags);
   if (0 == ntags) {
@@ -9436,6 +9472,11 @@ static int32_t checkTableTagsSchema(STranslateContext* pCxt, SHashObj* pHash, SN
       tagsSize += calcTypeBytes(pTag->dataType);
     } else {
       break;
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      if (IS_DECIMAL_TYPE(pTag->dataType.type)) {
+        code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, "Decimal type is not allowed for tag");
+      }
     }
   }
 
@@ -9506,6 +9547,10 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
             generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
                                     "Invalid column type: %s, only float/double allowed for %s", pCol->colName, pFunc);
       }
+    }
+
+    if (TSDB_CODE_SUCCESS == code && IS_DECIMAL_TYPE(pCol->dataType.type)) {
+      code = checkDecimalDataType(pCxt, pCol->dataType);
     }
 
     if (TSDB_CODE_SUCCESS == code) {
@@ -9717,6 +9762,9 @@ static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchem
   }
   if (pCol->pOptions && ((SColumnOptions*)pCol->pOptions)->bPrimaryKey) {
     flags |= COL_IS_KEY;
+  }
+  if (IS_DECIMAL_TYPE(pCol->dataType.type)) {
+    flags |= COL_HAS_TYPE_MOD;
   }
   pSchema->colId = colId;
   pSchema->type = pCol->dataType.type;
@@ -10198,9 +10246,15 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
   if (NULL == pAlterReq->pFields) {
     return terrno;
   }
+  pAlterReq->pTypeMods = taosArrayInit(2, sizeof(STypeMod));
+  if (!pAlterReq->pTypeMods) return terrno;
+  STypeMod typeMod = calcTypeMod(&pStmt->dataType);
 
   switch (pStmt->alterType) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
+      if (NULL == taosArrayPush(pAlterReq->pTypeMods, &typeMod)) {
+        return terrno;
+      }  // fall through
     case TSDB_ALTER_TABLE_ADD_TAG:
     case TSDB_ALTER_TABLE_DROP_TAG:
     case TSDB_ALTER_TABLE_DROP_COLUMN:
@@ -10269,6 +10323,7 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
         }
       }
       if (NULL == taosArrayPush(pAlterReq->pFields, &field)) return terrno;
+      if (NULL == taosArrayPush(pAlterReq->pTypeMods, &typeMod)) return terrno;
       break;
     }
     default:
@@ -12098,11 +12153,16 @@ static int32_t adjustDataTypeOfProjections(STranslateContext* pCxt, const STable
   }
 
   SSchema* pSchemas = getTableColumnSchema(pMeta);
+  const SSchemaExt* pExtSchemas = getTableColumnExtSchema(pMeta);
   int32_t  index = 0;
   SNode*   pProj = NULL;
   FOREACH(pProj, pProjections) {
     SSchema*  pSchema = pSchemas + index++;
     SDataType dt = {.type = pSchema->type, .bytes = pSchema->bytes};
+    if (IS_DECIMAL_TYPE(pSchema->type)) {
+      STypeMod typeMod = (pExtSchemas + (index - 1))->typeMod;
+      extractTypeFromTypeMod(pSchema->type, typeMod, &dt.precision, &dt.scale, NULL);
+    }
     if (!dataTypeEqual(&dt, &((SExprNode*)pProj)->resType)) {
       SNode*  pFunc = NULL;
       int32_t code = createCastFunc(pCxt, pProj, dt, &pFunc);
@@ -14098,10 +14158,15 @@ static int32_t translateSubquery(STranslateContext* pCxt, SNode* pNode) {
   return code;
 }
 
-static int32_t extractQueryResultSchema(const SNodeList* pProjections, int32_t* numOfCols, SSchema** pSchema) {
+static int32_t extractQueryResultSchema(const SNodeList* pProjections, int32_t* numOfCols, SSchema** pSchema, SExtSchema** ppExtSchemas) {
   *numOfCols = LIST_LENGTH(pProjections);
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
+    return terrno;
+  }
+  if (ppExtSchemas) *ppExtSchemas = taosMemoryCalloc(*numOfCols, sizeof(SExtSchema));
+  if (ppExtSchemas && *ppExtSchemas == NULL) {
+    taosMemoryFreeClear(*pSchema);
     return terrno;
   }
 
@@ -14115,6 +14180,9 @@ static int32_t extractQueryResultSchema(const SNodeList* pProjections, int32_t* 
     } else {
       (*pSchema)[index].type = pExpr->resType.type;
       (*pSchema)[index].bytes = pExpr->resType.bytes;
+      if (ppExtSchemas) {
+        (*ppExtSchemas)[index].typeMod = calcTypeMod(&pExpr->resType);
+      }
     }
     (*pSchema)[index].colId = index + 1;
     if ('\0' != pExpr->userAlias[0]) {
@@ -14144,7 +14212,7 @@ static int32_t extractExplainResultSchema(int32_t* numOfCols, SSchema** pSchema)
 
 static int32_t extractDescribeResultSchema(STableMeta* pMeta, int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = DESCRIBE_RESULT_COLS;
-  if (pMeta && useCompress(pMeta->tableType)) *numOfCols = DESCRIBE_RESULT_COLS_COMPRESS;
+  if (pMeta && withExtSchema(pMeta->tableType)) *numOfCols = DESCRIBE_RESULT_COLS_COMPRESS;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
     return terrno;
@@ -14166,7 +14234,7 @@ static int32_t extractDescribeResultSchema(STableMeta* pMeta, int32_t* numOfCols
   (*pSchema)[3].bytes = DESCRIBE_RESULT_NOTE_LEN;
   tstrncpy((*pSchema)[3].name, "note", TSDB_COL_NAME_LEN);
 
-  if (pMeta && useCompress(pMeta->tableType)) {
+  if (pMeta && withExtSchema(pMeta->tableType)) {
     (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
     (*pSchema)[4].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
     tstrncpy((*pSchema)[4].name, "encode", TSDB_COL_NAME_LEN);
@@ -14289,7 +14357,7 @@ static int32_t extractCompactDbResultSchema(int32_t* numOfCols, SSchema** pSchem
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
+int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema, SExtSchema** ppExtSchemas) {
   if (NULL == pRoot) {
     return TSDB_CODE_SUCCESS;
   }
@@ -14297,7 +14365,7 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
   switch (nodeType(pRoot)) {
     case QUERY_NODE_SELECT_STMT:
     case QUERY_NODE_SET_OPERATOR:
-      return extractQueryResultSchema(getProjectList(pRoot), numOfCols, pSchema);
+      return extractQueryResultSchema(getProjectList(pRoot), numOfCols, pSchema, ppExtSchemas);
     case QUERY_NODE_EXPLAIN_STMT:
       return extractExplainResultSchema(numOfCols, pSchema);
     case QUERY_NODE_DESCRIBE_STMT: {
@@ -15083,6 +15151,16 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
         tdDestroySVCreateTbReq(&req);
         return code;
       }
+    }
+    if (IS_DECIMAL_TYPE(pColDef->dataType.type)) {
+      if (!req.pExtSchemas) {
+        req.pExtSchemas = taosMemoryCalloc(pStmt->pCols->length, sizeof(SExtSchema));
+        if (NULL == req.pExtSchemas) {
+          tdDestroySVCreateTbReq(&req);
+          return terrno;
+        }
+      }
+      req.pExtSchemas[index].typeMod = calcTypeMod(&pColDef->dataType);
     }
     ++index;
   }
@@ -16626,6 +16704,12 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
     int8_t code = setColCompressByOption(pReq->type, columnEncodeVal(pStmt->pColOptions->encode),
                                          columnCompressVal(pStmt->pColOptions->compress),
                                          columnLevelVal(pStmt->pColOptions->compressLevel), true, &pReq->compress);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  pReq->typeMod = 0;
+  if (IS_DECIMAL_TYPE(pStmt->dataType.type)) {
+    pReq->typeMod = decimalCalcTypeMod(pStmt->dataType.precision, pStmt->dataType.scale);
+    pReq->flags |= COL_HAS_TYPE_MOD;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -17762,7 +17846,8 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
 
   if (pQuery->haveResultSet) {
     taosMemoryFreeClear(pQuery->pResSchema);
-    if (TSDB_CODE_SUCCESS != extractResultSchema(pQuery->pRoot, &pQuery->numOfResCols, &pQuery->pResSchema)) {
+    taosMemoryFreeClear(pQuery->pResExtSchema);
+    if (TSDB_CODE_SUCCESS != extractResultSchema(pQuery->pRoot, &pQuery->numOfResCols, &pQuery->pResSchema, &pQuery->pResExtSchema)) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 

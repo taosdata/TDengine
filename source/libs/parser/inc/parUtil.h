@@ -125,6 +125,7 @@ int32_t buildInvalidOperationMsgExt(SMsgBuf* pBuf, const char* pFormat, ...);
 int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char* sourceStr);
 
 SSchema*      getTableColumnSchema(const STableMeta* pTableMeta);
+SSchemaExt*   getTableColumnExtSchema(const STableMeta* pTableMeta);
 SSchema*      getTableTagSchema(const STableMeta* pTableMeta);
 int32_t       getNumOfColumns(const STableMeta* pTableMeta);
 int32_t       getNumOfTags(const STableMeta* pTableMeta);
@@ -186,6 +187,7 @@ int32_t getTsmaFromCache(SParseMetaCache* pMetaCache, const SName* pTsmaName, ST
  * @retval val range between [INT64_MIN, INT64_MAX]
  */
 int64_t int64SafeSub(int64_t a, int64_t b);
+STypeMod calcTypeMod(const SDataType* pType);
 
 #ifdef __cplusplus
 }

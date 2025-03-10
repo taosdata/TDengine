@@ -877,6 +877,11 @@ static int32_t datumToMsg(const void* pObj, STlvEncoder* pEncoder) {
       code = tlvEncodeBinary(pEncoder, VALUE_CODE_DATUM, pNode->datum.p, getJsonValueLen(pNode->datum.p));
       break;
     case TSDB_DATA_TYPE_DECIMAL:
+      code = tlvEncodeBinary(pEncoder, VALUE_CODE_DATUM, pNode->datum.p, pNode->node.resType.bytes);
+      break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+      code = tlvEncodeI64(pEncoder, VALUE_CODE_DATUM, pNode->datum.i);
+      break;
     case TSDB_DATA_TYPE_BLOB:
       // todo
     default:
@@ -995,6 +1000,17 @@ static int32_t msgToDatum(STlv* pTlv, void* pObj) {
       break;
     }
     case TSDB_DATA_TYPE_DECIMAL:
+      pNode->datum.p = taosMemoryCalloc(1, pNode->node.resType.bytes);
+      if (!pNode->datum.p) {
+        code = terrno;
+        break;
+      }
+      code = tlvDecodeBinary(pTlv, pNode->datum.p);
+      break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+      code = tlvDecodeI64(pTlv, &pNode->datum.i);
+      *(int64_t*)&pNode->typeData = pNode->datum.i;
+      break;
     case TSDB_DATA_TYPE_BLOB:
       // todo
     default:
@@ -1138,6 +1154,7 @@ enum {
   FUNCTION_CODE_IS_MERGE_FUNC,
   FUNCTION_CODE_MERGE_FUNC_OF,
   FUNCTION_CODE_TRIM_TYPE,
+  FUNCTION_SRC_FUNC_INPUT_TYPE,
 };
 
 static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -1173,6 +1190,9 @@ static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeEnum(pEncoder, FUNCTION_CODE_TRIM_TYPE, pNode->trimType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, FUNCTION_SRC_FUNC_INPUT_TYPE, dataTypeInlineToMsg, &pNode->srcFuncInputType);
   }
 
   return code;
@@ -1218,6 +1238,8 @@ static int32_t msgToFunctionNode(STlvDecoder* pDecoder, void* pObj) {
       case FUNCTION_CODE_TRIM_TYPE:
         code = tlvDecodeEnum(pTlv, &pNode->trimType, sizeof(pNode->trimType));
         break;
+      case FUNCTION_SRC_FUNC_INPUT_TYPE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToDataTypeInline, &pNode->srcFuncInputType);
       default:
         break;
     }

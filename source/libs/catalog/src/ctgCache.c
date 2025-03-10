@@ -598,13 +598,22 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   }
 
   metaSize = CTG_META_SIZE(stbMeta);
-  *pTableMeta = taosMemoryRealloc(*pTableMeta, metaSize);
+  int32_t schemaExtSize = 0;
+  if (stbMeta->schemaExt) {
+    schemaExtSize = stbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+  }
+  *pTableMeta = taosMemoryRealloc(*pTableMeta, metaSize + schemaExtSize);
   if (NULL == *pTableMeta) {
     CTG_ERR_RET(terrno);
   }
 
   TAOS_MEMCPY(&(*pTableMeta)->sversion, &stbMeta->sversion, metaSize - sizeof(SCTableMeta));
-  (*pTableMeta)->schemaExt =  NULL;
+  if (stbMeta->schemaExt) {
+    (*pTableMeta)->schemaExt = (SSchemaExt*)((char*)*pTableMeta + metaSize);
+    TAOS_MEMCPY((*pTableMeta)->schemaExt, stbMeta->schemaExt, schemaExtSize);
+  } else {
+    (*pTableMeta)->schemaExt =  NULL;
+  }
 
   return TSDB_CODE_SUCCESS;
 }

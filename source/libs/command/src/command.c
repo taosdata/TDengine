@@ -16,6 +16,7 @@
 #include "catalog.h"
 #include "command.h"
 #include "commandInt.h"
+#include "decimal.h"
 #include "scheduler.h"
 #include "systable.h"
 #include "taosdef.h"
@@ -150,7 +151,7 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
   SColumnInfoData* pCol6 = NULL;
   // level
   SColumnInfoData* pCol7 = NULL;
-  if (useCompress(pMeta->tableType)) {
+  if (withExtSchema(pMeta->tableType)) {
     pCol5 = taosArrayGet(pBlock->pDataBlock, 4);
     pCol6 = taosArrayGet(pBlock->pDataBlock, 5);
     pCol7 = taosArrayGet(pBlock->pDataBlock, 6);
@@ -165,7 +166,15 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
     STR_TO_VARSTR(buf, pMeta->schema[i].name);
     COL_DATA_SET_VAL_AND_CHECK(pCol1, pBlock->info.rows, buf, false);
 
-    STR_TO_VARSTR(buf, tDataTypes[pMeta->schema[i].type].name);
+    if (IS_DECIMAL_TYPE(pMeta->schema[i].type) && withExtSchema(pMeta->tableType)) {
+      uint8_t prec = 0, scale = 0;
+      decimalFromTypeMod(pMeta->schemaExt[i].typeMod, &prec, &scale);
+      size_t len = snprintf(buf + VARSTR_HEADER_SIZE, DESCRIBE_RESULT_FIELD_LEN - VARSTR_HEADER_SIZE, "%s(%hhu, %hhu)",
+                            tDataTypes[pMeta->schema[i].type].name, prec, scale);
+      varDataSetLen(buf, len);
+    } else {
+      STR_TO_VARSTR(buf, tDataTypes[pMeta->schema[i].type].name);
+    }
     COL_DATA_SET_VAL_AND_CHECK(pCol2, pBlock->info.rows, buf, false);
     int32_t bytes = getSchemaBytes(pMeta->schema + i);
     COL_DATA_SET_VAL_AND_CHECK(pCol3, pBlock->info.rows, (const char*)&bytes, false);
@@ -182,7 +191,7 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
       STR_TO_VARSTR(buf, "VIEW COL");
     }
     COL_DATA_SET_VAL_AND_CHECK(pCol4, pBlock->info.rows, buf, false);
-    if (useCompress(pMeta->tableType) && pMeta->schemaExt) {
+    if (withExtSchema(pMeta->tableType) && pMeta->schemaExt) {
       if (i < pMeta->tableInfo.numOfColumns) {
         STR_TO_VARSTR(buf, columnEncodeStr(COMPRESS_L1_TYPE_U32(pMeta->schemaExt[i].compress)));
         COL_DATA_SET_VAL_AND_CHECK(pCol5, pBlock->info.rows, buf, false);
@@ -235,7 +244,7 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
     code = setDescResultIntoDataBlock(sysInfoUser, pBlock, numOfRows, pDesc->pMeta, biMode);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    if (pDesc->pMeta && useCompress(pDesc->pMeta->tableType) && pDesc->pMeta->schemaExt) {
+    if (pDesc->pMeta && withExtSchema(pDesc->pMeta->tableType) && pDesc->pMeta->schemaExt) {
       code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS_COMPRESS, pRsp);
     } else {
       code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
@@ -537,9 +546,13 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
     } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d)",
                            (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+    } else if (IS_DECIMAL_TYPE(pSchema->type)) {
+      uint8_t precision, scale;
+      decimalFromTypeMod(pCfg->pSchemaExt[i].typeMod, &precision, &scale);
+      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "(%d,%d)", precision, scale);
     }
 
-    if (useCompress(pCfg->tableType) && pCfg->pSchemaExt) {
+    if (withExtSchema(pCfg->tableType) && pCfg->pSchemaExt) {
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, " ENCODE \'%s\'",
                            columnEncodeStr(COMPRESS_L1_TYPE_U32(pCfg->pSchemaExt[i].compress)));
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, " COMPRESS \'%s\'",
@@ -1027,6 +1040,8 @@ static int32_t createSelectResultDataBlock(SNodeList* pProjects, SSDataBlock** p
     } else {
       infoData.info.type = pExpr->resType.type;
       infoData.info.bytes = pExpr->resType.bytes;
+      infoData.info.precision = pExpr->resType.precision;
+      infoData.info.scale = pExpr->resType.scale;
     }
     QRY_ERR_RET(blockDataAppendColInfo(pBlock, &infoData));
   }

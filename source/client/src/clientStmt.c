@@ -213,7 +213,7 @@ int32_t stmtBackupQueryFields(STscStmt* pStmt) {
 
 int32_t stmtRestoreQueryFields(STscStmt* pStmt) {
   SStmtQueryResInfo* pRes = &pStmt->sql.queryRes;
-  int32_t            size = pRes->numOfCols * sizeof(TAOS_FIELD);
+  int32_t            size = pRes->numOfCols * sizeof(TAOS_FIELD_E);
 
   pStmt->exec.pRequest->body.resInfo.numOfCols = pRes->numOfCols;
   pStmt->exec.pRequest->body.resInfo.precision = pRes->precision;
@@ -1270,8 +1270,9 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
 
     if (pStmt->sql.pQuery->haveResultSet) {
       STMT_ERR_RET(setResSchemaInfo(&pStmt->exec.pRequest->body.resInfo, pStmt->sql.pQuery->pResSchema,
-                                    pStmt->sql.pQuery->numOfResCols));
+                                    pStmt->sql.pQuery->numOfResCols, pStmt->sql.pQuery->pResExtSchema));
       taosMemoryFreeClear(pStmt->sql.pQuery->pResSchema);
+      taosMemoryFreeClear(pStmt->sql.pQuery->pResExtSchema);
       setResPrecision(&pStmt->exec.pRequest->body.resInfo, pStmt->sql.pQuery->precision);
     }
 

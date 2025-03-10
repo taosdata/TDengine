@@ -603,7 +603,7 @@ static void doStreamFillLinear(SStreamFillSupporter* pFillSup, SStreamFillInfo* 
         cur.key = pFillInfo->current;
         cur.val = taosMemoryCalloc(1, pCell->bytes);
         QUERY_CHECK_NULL(cur.val, code, lino, _end, terrno);
-        taosGetLinearInterpolationVal(&cur, pCell->type, &start, pEnd, pCell->type);
+        taosGetLinearInterpolationVal(&cur, pCell->type, &start, pEnd, pCell->type, typeGetTypeModFromColInfo(&pColData->info));
         code = colDataSetVal(pColData, index, (const char*)cur.val, false);
         QUERY_CHECK_CODE(code, lino, _end);
         destroySPoint(&cur);
@@ -1712,15 +1712,15 @@ static void setValueForFillInfo(SStreamFillSupporter* pFillSup, SStreamFillInfo*
       SVariant*        pVar = &(pFillCol->fillVal);
       if (pCell->type == TSDB_DATA_TYPE_FLOAT) {
         float v = 0;
-        GET_TYPED_DATA(v, float, pVar->nType, &pVar->i);
+        GET_TYPED_DATA(v, float, pVar->nType, &pVar->i, 0);
         SET_TYPED_DATA(pCell->pData, pCell->type, v);
       } else if (IS_FLOAT_TYPE(pCell->type)) {
         double v = 0;
-        GET_TYPED_DATA(v, double, pVar->nType, &pVar->i);
+        GET_TYPED_DATA(v, double, pVar->nType, &pVar->i, 0);
         SET_TYPED_DATA(pCell->pData, pCell->type, v);
       } else if (IS_INTEGER_TYPE(pCell->type)) {
         int64_t v = 0;
-        GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
+        GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i, 0);
         SET_TYPED_DATA(pCell->pData, pCell->type, v);
       } else {
         pCell->isNull = true;

@@ -221,29 +221,29 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
       if (asc) {
         switch (type) {
           case TSDB_DATA_TYPE_BIGINT: {
-            pKey->pks[0].val = INT64_MIN;
+            VALUE_SET_TRIVIAL_DATUM(pKey->pks, INT64_MIN);
             break;
           }
           case TSDB_DATA_TYPE_INT: {
             int32_t min = INT32_MIN;
-            (void)memcpy(&pKey->pks[0].val, &min, tDataTypes[type].bytes);
+            valueSetDatum(pKey->pks, type, &min, tDataTypes[type].bytes);
             break;
           }
           case TSDB_DATA_TYPE_SMALLINT: {
             int16_t min = INT16_MIN;
-            (void)memcpy(&pKey->pks[0].val, &min, tDataTypes[type].bytes);
+            valueSetDatum(pKey->pks, type, &min, tDataTypes[type].bytes);
             break;
           }
           case TSDB_DATA_TYPE_TINYINT: {
             int8_t min = INT8_MIN;
-            (void)memcpy(&pKey->pks[0].val, &min, tDataTypes[type].bytes);
+            valueSetDatum(pKey->pks, type, &min, tDataTypes[type].bytes);
             break;
           }
           case TSDB_DATA_TYPE_UTINYINT:
           case TSDB_DATA_TYPE_USMALLINT:
           case TSDB_DATA_TYPE_UINT:
           case TSDB_DATA_TYPE_UBIGINT: {
-            pKey->pks[0].val = 0;
+            VALUE_SET_TRIVIAL_DATUM(pKey->pks, 0);
             break;
           }
           default:
@@ -253,28 +253,28 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
       } else {
         switch (type) {
           case TSDB_DATA_TYPE_BIGINT:
-            pKey->pks[0].val = INT64_MAX;
+            VALUE_SET_TRIVIAL_DATUM(pKey->pks, INT64_MAX);
             break;
           case TSDB_DATA_TYPE_INT:
-            pKey->pks[0].val = INT32_MAX;
+            VALUE_SET_TRIVIAL_DATUM(pKey->pks, INT32_MAX);
             break;
           case TSDB_DATA_TYPE_SMALLINT:
-            pKey->pks[0].val = INT16_MAX;
+            VALUE_SET_TRIVIAL_DATUM(pKey->pks, INT16_MAX);
             break;
           case TSDB_DATA_TYPE_TINYINT:
-            pKey->pks[0].val = INT8_MAX;
+            VALUE_SET_TRIVIAL_DATUM(pKey->pks, INT8_MAX);
             break;
           case TSDB_DATA_TYPE_UBIGINT:
-            pKey->pks[0].val = UINT64_MAX;
+            VALUE_SET_TRIVIAL_DATUM(pKey->pks, UINT64_MAX);
             break;
           case TSDB_DATA_TYPE_UINT:
-            pKey->pks[0].val = UINT32_MAX;
+            VALUE_SET_TRIVIAL_DATUM(pKey->pks, UINT32_MAX);
             break;
           case TSDB_DATA_TYPE_USMALLINT:
-            pKey->pks[0].val = UINT16_MAX;
+            VALUE_SET_TRIVIAL_DATUM(pKey->pks, UINT16_MAX);
             break;
           case TSDB_DATA_TYPE_UTINYINT:
-            pKey->pks[0].val = UINT8_MAX;
+            VALUE_SET_TRIVIAL_DATUM(pKey->pks, UINT8_MAX);
             break;
           default:
             code = TSDB_CODE_INVALID_PARA;
@@ -722,8 +722,8 @@ int32_t recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record) {
   TSDB_CHECK_CONDITION((pFirstKey->numOfPKs == pLastKey->numOfPKs), code, lino, _end, TSDB_CODE_INVALID_PARA);
   if (pFirstKey->numOfPKs > 0) {
     if (IS_NUMERIC_TYPE(pFirstKey->pks[0].type)) {
-      pBlockInfo->firstPk.val = pFirstKey->pks[0].val;
-      pBlockInfo->lastPk.val = pLastKey->pks[0].val;
+      pBlockInfo->firstPk.val = VALUE_GET_TRIVIAL_DATUM(pFirstKey->pks);
+      pBlockInfo->lastPk.val = VALUE_GET_TRIVIAL_DATUM(pLastKey->pks);
     } else {
       int32_t keyLen = pFirstKey->pks[0].nData;
       char*   p = taosMemoryMalloc(keyLen + VARSTR_HEADER_SIZE);

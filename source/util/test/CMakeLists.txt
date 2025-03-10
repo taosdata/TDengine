@@ -30,7 +30,7 @@ ENDIF()
 # ADD_EXECUTABLE(trefTest ./trefTest.c)
 # TARGET_LINK_LIBRARIES(trefTest util common)
 # ENDIF ()
-INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
+INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/source/util/inc)
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/common)
 
 add_executable(heapTest "heapTest.cpp")
