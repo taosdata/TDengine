@@ -1004,12 +1004,15 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     code = mndScheduleStream(pMnode, &streamObj, &createReq);
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
       mError("stream:%s, failed to schedule since %s", createReq.name, tstrerror(code));
+      mndTransDrop(pTrans);
       goto _OVER;
     }
+
     // add notify info into all stream tasks
     code = addStreamNotifyInfo(&createReq, &streamObj);
     if (code != TSDB_CODE_SUCCESS) {
       mError("stream:%s failed to add stream notify info since %s", createReq.name, tstrerror(code));
+      mndTransDrop(pTrans);
       goto _OVER;
     }
 

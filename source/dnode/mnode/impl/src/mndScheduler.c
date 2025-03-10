@@ -502,7 +502,7 @@ static int32_t doAddSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStre
     return code;
   }
 
-  mError("souce task plan:%s", pTask->exec.qmsg);
+  mTrace("souce task plan:%s", pTask->exec.qmsg);
 
   if (pVgTasks) {
     code = addSourceTaskVTableOutput(pTask, pVgTasks, plan->pVTables);
