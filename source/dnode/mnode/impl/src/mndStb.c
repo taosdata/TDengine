@@ -383,69 +383,55 @@ static int32_t mndStbActionDelete(SSdb *pSdb, SStbObj *pStb) {
 }
 
 static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
+  terrno = 0;
   mTrace("stb:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
 
   taosWLockLatch(&pOld->lock);
   int32_t numOfColumns = pOld->numOfColumns;
   if (pOld->numOfColumns < pNew->numOfColumns) {
     void *pColumns = taosMemoryMalloc(pNew->numOfColumns * sizeof(SSchema));
-    if (pColumns != NULL) {
-      taosMemoryFree(pOld->pColumns);
-      pOld->pColumns = pColumns;
-    } else {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      mTrace("stb:%s, failed to perform update action since %s", pOld->name, terrstr());
-      taosWUnLockLatch(&pOld->lock);
+    if (pColumns == NULL) {
+      goto END;
     }
+    taosMemoryFree(pOld->pColumns);
+    pOld->pColumns = pColumns;
   }
 
   if (pOld->numOfTags < pNew->numOfTags) {
     void *pTags = taosMemoryMalloc(pNew->numOfTags * sizeof(SSchema));
-    if (pTags != NULL) {
-      taosMemoryFree(pOld->pTags);
-      pOld->pTags = pTags;
-    } else {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      mTrace("stb:%s, failed to perform update action since %s", pOld->name, terrstr());
-      taosWUnLockLatch(&pOld->lock);
+    if (pTags == NULL) {
+      goto END;
     }
+    taosMemoryFree(pOld->pTags);
+    pOld->pTags = pTags;
   }
 
   if (pOld->commentLen < pNew->commentLen && pNew->commentLen > 0) {
     void *comment = taosMemoryMalloc(pNew->commentLen + 1);
-    if (comment != NULL) {
-      taosMemoryFree(pOld->comment);
-      pOld->comment = comment;
-    } else {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      mTrace("stb:%s, failed to perform update action since %s", pOld->name, terrstr());
-      taosWUnLockLatch(&pOld->lock);
+    if (comment == NULL) {
+      goto END;
     }
+    taosMemoryFree(pOld->comment);
+    pOld->comment = comment;
   }
   pOld->commentLen = pNew->commentLen;
 
   if (pOld->ast1Len < pNew->ast1Len) {
     void *pAst1 = taosMemoryMalloc(pNew->ast1Len + 1);
-    if (pAst1 != NULL) {
-      taosMemoryFree(pOld->pAst1);
-      pOld->pAst1 = pAst1;
-    } else {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      mTrace("stb:%s, failed to perform update action since %s", pOld->name, terrstr());
-      taosWUnLockLatch(&pOld->lock);
+    if (pAst1 == NULL) {
+      goto END;
     }
+    taosMemoryFree(pOld->pAst1);
+    pOld->pAst1 = pAst1;
   }
 
   if (pOld->ast2Len < pNew->ast2Len) {
     void *pAst2 = taosMemoryMalloc(pNew->ast2Len + 1);
-    if (pAst2 != NULL) {
-      taosMemoryFree(pOld->pAst2);
-      pOld->pAst2 = pAst2;
-    } else {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      mTrace("stb:%s, failed to perform update action since %s", pOld->name, terrstr());
-      taosWUnLockLatch(&pOld->lock);
+    if (pAst2 == NULL) {
+      goto END
     }
+    taosMemoryFree(pOld->pAst2);
+    pOld->pAst2 = pAst2;
   }
 
   pOld->updateTime = pNew->updateTime;
@@ -477,19 +463,26 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   if (numOfColumns < pNew->numOfColumns) {
     taosMemoryFree(pOld->pCmpr);
     pOld->pCmpr = taosMemoryCalloc(pNew->numOfColumns, sizeof(SColCmpr));
+    if (pOld->pCmpr == NULL){
+      goto END;
+    }
     memcpy(pOld->pCmpr, pNew->pCmpr, pNew->numOfColumns * sizeof(SColCmpr));
   } else {
     memcpy(pOld->pCmpr, pNew->pCmpr, pNew->numOfColumns * sizeof(SColCmpr));
   }
 
-  taosMemoryFreeClear(pOld->pExtSchemas);
   if (pNew->pExtSchemas) {
+    taosMemoryFreeClear(pOld->pExtSchemas);
     pOld->pExtSchemas = taosMemoryCalloc(pNew->numOfColumns, sizeof(SExtSchema));
+    if (pOld->pExtSchemas == NULL){
+      goto END;
+    }
     memcpy(pOld->pExtSchemas, pNew->pExtSchemas, pNew->numOfColumns * sizeof(SExtSchema));
   }
 
+END:
   taosWUnLockLatch(&pOld->lock);
-  return 0;
+  return terrno;
 }
 
 SStbObj *mndAcquireStb(SMnode *pMnode, char *stbName) {
@@ -1241,8 +1234,9 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
   pDst->pColumns = taosMemoryCalloc(1, pDst->numOfColumns * sizeof(SSchema));
   pDst->pTags = taosMemoryCalloc(1, pDst->numOfTags * sizeof(SSchema));
   pDst->pCmpr = taosMemoryCalloc(1, pDst->numOfColumns * sizeof(SColCmpr));
+  pDst->pExtSchemas = taosMemoryCalloc(pDst->numOfColumns, sizeof(SExtSchema));
 
-  if (pDst->pColumns == NULL || pDst->pTags == NULL || pDst->pCmpr == NULL) {
+  if (pDst->pColumns == NULL || pDst->pTags == NULL || pDst->pCmpr == NULL || pDst->pExtSchemas == NULL) {
     code = terrno;
     TAOS_RETURN(code);
   }
@@ -1292,10 +1286,6 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
     }
     // TODO wjm test it with tmq
     if (pField->flags & COL_HAS_TYPE_MOD) {
-      if (!pDst->pExtSchemas) {
-        pDst->pExtSchemas = taosMemoryCalloc(pDst->numOfColumns, sizeof(SExtSchema));
-        if (!pDst->pExtSchemas) TAOS_RETURN(terrno);
-      }
       pDst->pExtSchemas[i].typeMod = pField->typeMod;
     }
   }
