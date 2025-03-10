@@ -729,7 +729,7 @@ char *tz_win[W_TZ_CITY_NUM][2] = {{"Asia/Shanghai", "China Standard Time"},
                         {"W-SU", "Russian Standard Time"},
                         {"Zulu", "UTC"}};
 #elif defined(_TD_DARWIN_64)
-#include <ERRNO.h>
+#include <errno.h>
 #include <libproc.h>
 #else
 #include <argp.h>
