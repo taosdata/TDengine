@@ -226,13 +226,13 @@ class TDTestCase(TBase):
         tdSql.execute(sql)
          
         cmds = [
-            f"-udkj -p{pwd} -s show databases;",         # command pass
-            f"-udkj -p < {pwdFile} -s show databases;"   # input   pass
+            f"-udkj -p{pwd} -s 'show databases;'",         # command pass
+            f"-udkj -p < {pwdFile} -s 'show databases;'"   # input   pass
         ]
 
         for cmd in cmds:
             rlist = self.taos(cmd)
-            self.checkListString("Query OK,")
+            self.checkListString(rlist, "Query OK,")
 
     # run
     def run(self):
