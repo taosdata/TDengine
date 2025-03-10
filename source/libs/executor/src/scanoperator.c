@@ -333,7 +333,7 @@ bool applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo
 }
 
 static bool isDynVtbScan(SOperatorInfo* pOperator) {
-  return ((STableScanOperatorParam*)pOperator->pOperatorGetParam->value)->isVtbRefScan;
+  return pOperator->dynamicTask && ((STableScanInfo*)(pOperator->info))->virtualStableScan;
 }
 
 static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableScanInfo, SSDataBlock* pBlock,
@@ -1231,11 +1231,6 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   int32_t                  num = 0;
   STableKeyInfo*           pList = NULL;
 
-  if (!pParam->isVtbRefScan) {
-    qError("wrong param type");
-    return TSDB_CODE_INVALID_PARA;
-  }
-
   cleanupQueryTableDataCond(&pInfo->base.cond);
   if (pAPI->tsdReader.tsdReaderClose) {
     pAPI->tsdReader.tsdReaderClose(pInfo->base.dataReader);
@@ -1675,14 +1670,16 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   pInfo->pResBlock = createDataBlockFromDescNode(pDescNode);
   resetClolumnReserve(pInfo->pResBlock, pInfo->base.dataBlockLoadFlag);
   QUERY_CHECK_NULL(pInfo->pResBlock, code, lino, _error, terrno);
-  if (pScanNode->node.dynamicOp) {
+
+  code = prepareDataBlockBuf(pInfo->pResBlock, &pInfo->base.matchInfo);
+  QUERY_CHECK_CODE(code, lino, _error);
+
+  pInfo->virtualStableScan = pScanNode->virtualStableScan;
+  if (pScanNode->node.dynamicOp && pScanNode->virtualStableScan) {
     TSWAP(pInfo->pOrgBlock, pInfo->pResBlock);
     memcpy(&pInfo->base.orgCond, &pInfo->base.cond, sizeof(SQueryTableDataCond));
     memset(&pInfo->base.cond, 0, sizeof(SQueryTableDataCond));
   }
-
-  code = prepareDataBlockBuf(pInfo->pResBlock, &pInfo->base.matchInfo);
-  QUERY_CHECK_CODE(code, lino, _error);
 
   code = filterInitFromNode((SNode*)pTableScanNode->scan.node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
   QUERY_CHECK_CODE(code, lino, _error);

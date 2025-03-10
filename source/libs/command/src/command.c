@@ -582,11 +582,11 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
     }
 
     if (hasRefCol(pCfg->tableType) && pCfg->pColRefs && pRef->hasRef) {
-      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, " FROM \'%s\'", pRef->refDbName);
+      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, " FROM `%s`", pRef->refDbName);
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, ".");
-      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "\'%s\'", pRef->refTableName);
+      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "`%s`", pRef->refTableName);
       typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, ".");
-      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "\'%s\'", pRef->refColName);
+      typeLen += tsnprintf(type + typeLen, LTYPE_LEN - typeLen, "`%s`", pRef->refColName);
     }
 
     if (!(pSchema->flags & COL_IS_KEY)) {

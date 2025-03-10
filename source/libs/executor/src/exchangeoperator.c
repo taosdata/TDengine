@@ -606,48 +606,43 @@ int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, in
     return terrno;
   }
   pScan->tableSeq = tableSeq;
+  pScan->pOrgTbInfo = NULL;
+  pScan->window.skey = INT64_MAX;
+  pScan->window.ekey = INT64_MIN;
 
   (*ppRes)->opType = srcOpType;
   (*ppRes)->downstreamIdx = 0;
   (*ppRes)->value = pScan;
   (*ppRes)->pChildren = NULL;
+  (*ppRes)->reUse = false;
 
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, SOrgTbInfo *pMap, bool tableSeq, STimeWindow *window) {
-  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
-  if (NULL == *ppRes) {
-    return terrno;
-  }
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  lino = 0;
+  STableScanOperatorParam* pScan = NULL;
 
-  STableScanOperatorParam* pScan = taosMemoryMalloc(sizeof(STableScanOperatorParam));
-  if (NULL == pScan) {
-    taosMemoryFreeClear(*ppRes);
-    return terrno;
-  }
+  *ppRes = taosMemoryMalloc(sizeof(SOperatorParam));
+  QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno);
+
+  pScan = taosMemoryMalloc(sizeof(STableScanOperatorParam));
+  QUERY_CHECK_NULL(pScan, code, lino, _return, terrno);
 
   pScan->pUidList = taosArrayDup(pUidList, NULL);
-  if (NULL == pScan->pUidList) {
-    taosMemoryFree(pScan);
-    taosMemoryFreeClear(*ppRes);
-    return terrno;
-  }
+  QUERY_CHECK_NULL(pScan->pUidList, code, lino, _return, terrno);
 
   pScan->pOrgTbInfo = taosMemoryMalloc(sizeof(SOrgTbInfo));
+  QUERY_CHECK_NULL(pScan->pOrgTbInfo, code, lino, _return, terrno);
+
   pScan->pOrgTbInfo->vgId = pMap->vgId;
   tstrncpy(pScan->pOrgTbInfo->tbName, pMap->tbName, TSDB_TABLE_FNAME_LEN);
 
   pScan->pOrgTbInfo->colMap = taosArrayDup(pMap->colMap, NULL);
-  if (NULL == pScan->pOrgTbInfo->colMap) {
-    taosMemoryFree(pScan->pOrgTbInfo);
-    taosMemoryFree(pScan);
-    taosMemoryFreeClear(*ppRes);
-    return terrno;
-  }
+  QUERY_CHECK_NULL(pScan->pOrgTbInfo->colMap, code, lino, _return, terrno);
 
   pScan->tableSeq = tableSeq;
-  pScan->isVtbRefScan = true;
   pScan->window.skey = window->skey;
   pScan->window.ekey = window->ekey;
 
@@ -655,8 +650,21 @@ int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, 
   (*ppRes)->downstreamIdx = 0;
   (*ppRes)->value = pScan;
   (*ppRes)->pChildren = NULL;
+  (*ppRes)->reUse = false;
 
-  return TSDB_CODE_SUCCESS;
+  return code;
+_return:
+  qError("%s failed at %d, failed to build scan operator msg:%s", __FUNCTION__, lino, tstrerror(code));
+  taosMemoryFreeClear(*ppRes);
+  if (pScan) {
+    taosArrayDestroy(pScan->pUidList);
+    if (pScan->pOrgTbInfo) {
+      taosArrayDestroy(pScan->pOrgTbInfo->colMap);
+      taosMemoryFreeClear(pScan->pOrgTbInfo);
+    }
+    taosMemoryFree(pScan);
+  }
+  return code;
 }
 
 int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex) {

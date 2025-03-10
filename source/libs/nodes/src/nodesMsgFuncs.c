@@ -2097,7 +2097,8 @@ enum {
   PHY_SCAN_CODE_BASE_SUID,
   PHY_SCAN_CODE_BASE_TABLE_TYPE,
   PHY_SCAN_CODE_BASE_TABLE_NAME,
-  PHY_SCAN_CODE_BASE_GROUP_ORDER_SCAN
+  PHY_SCAN_CODE_BASE_GROUP_ORDER_SCAN,
+  PHY_SCAN_CODE_BASE_VIRTUAL_STABLE_SCAN
 };
 
 static int32_t physiScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2124,6 +2125,9 @@ static int32_t physiScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_SCAN_CODE_BASE_GROUP_ORDER_SCAN, pNode->groupOrderScan);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_SCAN_CODE_BASE_VIRTUAL_STABLE_SCAN, pNode->virtualStableScan);
   }
 
   return code;
@@ -2160,6 +2164,8 @@ static int32_t msgToPhysiScanNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_SCAN_CODE_BASE_GROUP_ORDER_SCAN:
         code = tlvDecodeBool(pTlv, &pNode->groupOrderScan);
         break;
+      case PHY_SCAN_CODE_BASE_VIRTUAL_STABLE_SCAN:
+        code = tlvDecodeBool(pTlv, &pNode->virtualStableScan);
       default:
         break;
     }

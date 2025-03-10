@@ -289,6 +289,7 @@ typedef struct STableScanInfo {
   bool            needCountEmptyTable;
   SSDataBlock*    pOrgBlock;
   bool            ignoreTag;
+  bool            virtualStableScan;
 } STableScanInfo;
 
 typedef enum ESubTableInputType {

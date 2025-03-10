@@ -962,6 +962,7 @@ static int32_t handleGroupCacheRetrievedBlk(struct SOperatorInfo* pOperator, SSD
       fakeGcParam.needCache = true;
       fakeParam.downstreamIdx = pSession->downstreamIdx;
       fakeParam.value = &fakeGcParam;
+      fakeParam.reUse = false;
       code = addNewGroupData(pOperator, &fakeParam, &pGroup, GROUP_CACHE_DEFAULT_VGID, pBlock->info.id.groupId);
       if (TSDB_CODE_SUCCESS != code) {
         return code;

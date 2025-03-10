@@ -708,6 +708,7 @@ static int32_t createScanPhysiNodeFinalize(SPhysiPlanContext* pCxt, SSubplan* pS
     pScanPhysiNode->suid = pScanLogicNode->stableId;
     pScanPhysiNode->tableType = pScanLogicNode->tableType;
     pScanPhysiNode->groupOrderScan = pScanLogicNode->groupOrderScan;
+    pScanPhysiNode->virtualStableScan = pScanLogicNode->virtualStableScan;
     memcpy(&pScanPhysiNode->tableName, &pScanLogicNode->tableName, sizeof(SName));
     if (NULL != pScanLogicNode->pTagCond) {
       pSubplan->pTagCond = NULL;
