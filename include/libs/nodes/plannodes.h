@@ -163,6 +163,19 @@ typedef struct SJoinLogicNode {
   SNode*      pRightOnCond;     // table onCond filter
 } SJoinLogicNode;
 
+typedef struct SVirtualScanLogicNode {
+  SLogicNode    node;
+  bool          scanAllCols;
+  SNodeList*    pScanCols;
+  SNodeList*    pScanPseudoCols;
+  int8_t        tableType;
+  uint64_t      tableId;
+  uint64_t      stableId;
+  SVgroupsInfo* pVgroupList;
+  EScanType     scanType;
+  SName         tableName;
+} SVirtualScanLogicNode;
+
 typedef struct SAggLogicNode {
   SLogicNode node;
   SNodeList* pGroupKeys;
@@ -240,10 +253,17 @@ typedef struct SDynQueryCtrlStbJoin {
   bool       srcScan[2];
 } SDynQueryCtrlStbJoin;
 
+typedef struct SDynQueryCtrlVtbScan {
+  bool          scanAllCols;
+  uint64_t      suid;
+  SVgroupsInfo* pVgroupList;
+} SDynQueryCtrlVtbScan;
+
 typedef struct SDynQueryCtrlLogicNode {
   SLogicNode           node;
   EDynQueryType        qType;
   SDynQueryCtrlStbJoin stbJoin;
+  SDynQueryCtrlVtbScan vtbScan;
 } SDynQueryCtrlLogicNode;
 
 typedef enum EModifyTableType { MODIFY_TABLE_TYPE_INSERT = 1, MODIFY_TABLE_TYPE_DELETE } EModifyTableType;
@@ -399,6 +419,7 @@ typedef struct SLogicSubplan {
   int32_t       level;
   int32_t       splitFlag;
   int32_t       numOfComputeNodes;
+  bool          processOneBlock;
 } SLogicSubplan;
 
 typedef struct SQueryLogicPlan {
@@ -456,6 +477,14 @@ typedef struct STagScanPhysiNode {
 } STagScanPhysiNode;
 
 typedef SScanPhysiNode SBlockDistScanPhysiNode;
+
+typedef struct SVirtualScanPhysiNode {
+  SScanPhysiNode scan;
+  SNodeList*     pGroupTags;
+  bool           groupSort;
+  bool           scanAllCols;
+  SNodeList*     pTargets;
+}SVirtualScanPhysiNode;
 
 typedef struct SLastRowScanPhysiNode {
   SScanPhysiNode scan;
@@ -610,11 +639,20 @@ typedef struct SStbJoinDynCtrlBasic {
   bool    srcScan[2];
 } SStbJoinDynCtrlBasic;
 
+typedef struct SVtbScanDynCtrlBasic {
+  bool       scanAllCols;
+  uint64_t   suid;
+  int32_t    accountId;
+  SEpSet     mgmtEpSet;
+  SNodeList *pScanCols;
+} SVtbScanDynCtrlBasic;
+
 typedef struct SDynQueryCtrlPhysiNode {
   SPhysiNode    node;
   EDynQueryType qType;
   union {
     SStbJoinDynCtrlBasic stbJoin;
+    SVtbScanDynCtrlBasic vtbScan;
   };
 } SDynQueryCtrlPhysiNode;
 
@@ -841,6 +879,7 @@ typedef struct SSubplan {
   bool           isAudit;
   bool           dynamicRowThreshold;
   int32_t        rowsThreshold;
+  bool           processOneBlock;
 } SSubplan;
 
 typedef enum EExplainMode { EXPLAIN_MODE_DISABLE = 1, EXPLAIN_MODE_STATIC, EXPLAIN_MODE_ANALYZE } EExplainMode;
