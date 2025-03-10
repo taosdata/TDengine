@@ -10397,6 +10397,7 @@ int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
 
   TAOS_CHECK_EXIT(tEncodeI8(pCoder, pReq->colCmpred));
   TAOS_CHECK_EXIT(tEncodeSColCmprWrapper(pCoder, &pReq->colCmpr));
+  TAOS_CHECK_EXIT(tEncodeI64(pCoder, pReq->keep));
   tEndEncode(pCoder);
 
 _exit:
@@ -10430,6 +10431,9 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
     }
     if (!tDecodeIsEnd(pCoder)) {
       TAOS_CHECK_EXIT(tDecodeSColCmprWrapperEx(pCoder, &pReq->colCmpr));
+    }
+    if (!tDecodeIsEnd(pCoder)) {
+      TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pReq->keep));
     }
   }
   tEndDecode(pCoder);

@@ -104,6 +104,7 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
       if (TABLE_IS_ROLLUP(pME->flags)) {
         TAOS_CHECK_RETURN(tEncodeSRSmaParam(pCoder, &pME->stbEntry.rsmaParam));
       }
+      TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->stbEntry.keep));
     } else if (pME->type == TSDB_CHILD_TABLE) {
       TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ctbEntry.btime));
       TAOS_CHECK_RETURN(tEncodeI32(pCoder, pME->ctbEntry.ttlDays));
@@ -155,6 +156,9 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
       TAOS_CHECK_RETURN(tDecodeSSchemaWrapperEx(pCoder, &pME->stbEntry.schemaTag));
       if (TABLE_IS_ROLLUP(pME->flags)) {
         TAOS_CHECK_RETURN(tDecodeSRSmaParam(pCoder, &pME->stbEntry.rsmaParam));
+      }
+      if (!tDecodeIsEnd(pCoder)) {
+        TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->stbEntry.keep));
       }
     } else if (pME->type == TSDB_CHILD_TABLE) {
       TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->ctbEntry.btime));

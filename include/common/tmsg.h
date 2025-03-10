@@ -3235,6 +3235,7 @@ typedef struct SVCreateStbReq {
   int8_t          source;
   int8_t          colCmpred;
   SColCmprWrapper colCmpr;
+  int64_t         keep;
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);

@@ -530,6 +530,7 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
 
   req.colCmpred = 1;
   SColCmprWrapper *pCmpr = &req.colCmpr;
+  req.keep = pStb->keep;
   pCmpr->version = pStb->colVer;
   pCmpr->nCols = pStb->numOfColumns;
 
@@ -1477,6 +1478,10 @@ static int32_t mndUpdateTableOptions(const SStbObj *pOld, SStbObj *pNew, char *p
 
   if (ttl >= 0) {
     pNew->ttl = ttl;
+  }
+
+  if (keep > 0) {
+    pNew->keep = keep;
   }
 
   if ((code = mndAllocStbSchemas(pOld, pNew)) != 0) {

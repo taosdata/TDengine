@@ -758,6 +758,21 @@ int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t vnodeGetStbKeep(SVnode *pVnode, tb_uid_t suid, int64_t *keep) {
+  SMetaReader mr = {0};
+  metaReaderDoInit(&mr, pVnode->pMeta, META_READER_NOLOCK);
+
+  int32_t code = metaReaderGetTableEntryByUid(&mr, suid);
+  if (code == TSDB_CODE_SUCCESS) {
+    *keep = mr.me.stbEntry.keep;
+  } else {
+    *keep = 0;  // Default value if not found
+  }
+
+  metaReaderClear(&mr);
+  return TSDB_CODE_SUCCESS;
+}
+
 #ifdef TD_ENTERPRISE
 const char *tkLogStb[] = {"cluster_info",
                           "data_dir",
