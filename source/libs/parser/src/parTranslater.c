@@ -13604,7 +13604,7 @@ static int32_t translateShowCreateVTable(STranslateContext* pCxt, SShowCreateTab
 static int32_t translateShowCreateView(STranslateContext* pCxt, SShowCreateViewStmt* pStmt) {
   SName name = {0};
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->viewName, &name);
-  return 0;//getViewMetaFromMetaCache(pCxt, &name, (SViewMeta**)&pStmt->pViewMeta);
+  return getViewMetaFromMetaCache(pCxt, &name, (SViewMeta**)&pStmt->pViewMeta);
 }
 
 static int32_t createColumnNodeWithName(const char* name, SNode** ppCol) {
