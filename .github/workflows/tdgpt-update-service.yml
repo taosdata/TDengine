@@ -1,7 +1,6 @@
 name: TDGpt Update Service
 
 on:
-  push:
   schedule:
     - cron: '30 00 * * *'
 
