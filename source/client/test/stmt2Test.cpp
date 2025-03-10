@@ -133,9 +133,9 @@ void do_query(TAOS* taos, const char* sql) {
   taos_free_result(result);
 }
 
-void do_stmt(TAOS* taos, TAOS_STMT2_OPTION* option, const char* sql, int CTB_NUMS, int ROW_NUMS, int CYC_NUMS,
-             bool hastags, bool createTable) {
-  printf("test sql : %s\n", sql);
+void do_stmt(const char* msg, TAOS* taos, TAOS_STMT2_OPTION* option, const char* sql, int CTB_NUMS, int ROW_NUMS,
+             int CYC_NUMS, bool hastags, bool createTable) {
+  printf("stmt2 [%s] : %s\n", msg, sql);
   do_query(taos, "drop database if exists stmt2_testdb_1");
   do_query(taos, "create database IF NOT EXISTS stmt2_testdb_1");
   do_query(taos, "create stable stmt2_testdb_1.stb (ts timestamp, b binary(10)) tags(t1 int, t2 binary(10))");
@@ -903,43 +903,65 @@ TEST(stmt2Case, stmt2_stb_insert) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
   ASSERT_NE(taos, nullptr);
   // normal
-  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  TAOS_STMT2_OPTION option = {0, false, true, NULL, NULL};
   {
-    do_stmt(taos, &option, "insert into `stmt2_testdb_1`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)", 3, 3, 3, true,
-            true);
+    do_stmt("no-interlcace", taos, &option, "insert into `stmt2_testdb_1`.`stb` (tbname,ts,b,t1,t2) values(?,?,?,?,?)",
+            3, 3, 3, true, true);
   }
   {
-    do_stmt(taos, &option, "insert into `stmt2_testdb_1`.? using `stmt2_testdb_1`.`stb` tags(?,?) values(?,?)", 3, 3, 3,
-            true, true);
+    do_stmt("no-interlcace", taos, &option,
+            "insert into `stmt2_testdb_1`.? using `stmt2_testdb_1`.`stb` tags(?,?) values(?,?)", 3, 3, 3, true, true);
   }
 
-  // async
+  // // async
   AsyncArgs* aa = (AsyncArgs*)taosMemMalloc(sizeof(AsyncArgs));
   aa->async_affected_rows = 0;
   ASSERT_EQ(tsem_init(&aa->sem, 0, 0), TSDB_CODE_SUCCESS);
   void* param = aa;
-  option = {0, true, true, stmtAsyncQueryCb, param};
+  option = {0, false, true, stmtAsyncQueryCb, param};
   {
-    do_stmt(taos, &option, "insert into stmt2_testdb_1.stb (ts,b,tbname,t1,t2) values(?,?,?,?,?)", 3, 3, 3, true, true);
+    do_stmt("no-interlcace & aync exec", taos, &option,
+            "insert into stmt2_testdb_1.stb (ts,b,tbname,t1,t2) values(?,?,?,?,?)", 3, 3, 3, true, true);
   }
   {
-    do_stmt(taos, &option, "insert into stmt2_testdb_1.? using stmt2_testdb_1.stb (t1,t2)tags(?,?) (ts,b)values(?,?)",
-            3, 3, 3, true, true);
+    do_stmt("no-interlcace & aync exec", taos, &option,
+            "insert into stmt2_testdb_1.? using stmt2_testdb_1.stb (t1,t2)tags(?,?) (ts,b)values(?,?)", 3, 3, 3, true,
+            true);
   }
-  // { do_stmt(taos, &option, "insert into db.? values(?,?)", 3, 3, 3, false, true); }
+  { do_stmt("no-interlcace & aync exec", taos, &option, "insert into db.? values(?,?)", 3, 3, 3, false, true); }
 
   // interlace = 0 & use db]
   do_query(taos, "use stmt2_testdb_1");
   option = {0, false, false, NULL, NULL};
-  { do_stmt(taos, &option, "insert into stb (tbname,ts,b) values(?,?,?)", 3, 3, 3, false, true); }
-  { do_stmt(taos, &option, "insert into ? using stb (t1,t2)tags(?,?) (ts,b)values(?,?)", 3, 3, 3, true, true); }
-  { do_stmt(taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true); }
+  {
+    do_stmt("no-interlcace & no-db", taos, &option, "insert into stb (tbname,ts,b) values(?,?,?)", 3, 3, 3, false,
+            true);
+  }
+  {
+    do_stmt("no-interlcace & no-db", taos, &option, "insert into ? using stb (t1,t2)tags(?,?) (ts,b)values(?,?)", 3, 3,
+            3, true, true);
+  }
+  { do_stmt("no-interlcace & no-db", taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true); }
 
   // interlace = 1
   option = {0, true, true, stmtAsyncQueryCb, param};
-  { do_stmt(taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true); }
+  { do_stmt("interlcace & preCreateTB", taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true); }
   option = {0, true, true, NULL, NULL};
-  { do_stmt(taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true); }
+  { do_stmt("interlcace & preCreateTB", taos, &option, "insert into ? values(?,?)", 3, 3, 3, false, true); }
+
+  //  auto create table
+  // interlace = 1
+  option = {0, true, true, NULL, NULL};
+  {
+    do_stmt("interlcace & no-preCreateTB", taos, &option, "insert into ? using stb (t1,t2)tags(?,?) (ts,b)values(?,?)",
+            3, 3, 3, true, false);
+  }
+  // interlace = 0
+  option = {0, false, false, NULL, NULL};
+  {
+    do_stmt("no-interlcace & no-preCreateTB", taos, &option,
+            "insert into ? using stb (t1,t2)tags(?,?) (ts,b)values(?,?)", 3, 3, 3, true, false);
+  }
 
   do_query(taos, "drop database if exists stmt2_testdb_1");
   (void)tsem_destroy(&aa->sem);
@@ -967,7 +989,8 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
     ASSERT_NE(stmt, nullptr);
     const char* sql = "INSERT INTO stmt2_testdb_6.? using stmt2_testdb_6.stb1 (int_tag)tags(1) (ts)  VALUES (?)";
-    int         code = taos_stmt2_prepare(stmt, sql, 0);
+    printf("stmt2 [%s] : %s\n", "less params", sql);
+    int code = taos_stmt2_prepare(stmt, sql, 0);
     checkError(stmt, code);
     int total_affect_rows = 0;
 
@@ -987,7 +1010,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
       TAOS_STMT2_BIND* tagv[2] = {&tags1, &tags2};
       TAOS_STMT2_BIND* paramv[2] = {&params1, &params2};
       char*            tbname[2] = {"tb1", "tb2"};
-      TAOS_STMT2_BINDV bindv = {2, &tbname[0], NULL, &paramv[0]};
+      TAOS_STMT2_BINDV bindv = {2, &tbname[0], tagv, &paramv[0]};
       code = taos_stmt2_bind_param(stmt, &bindv, -1);
       checkError(stmt, code);
 
@@ -1005,9 +1028,12 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
   // less cols and tags
   {
     TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    // TODO: support insert into stb values(?,?,?) autoCreateTable interlace mode
+    TAOS_STMT2_OPTION option = {0, false, false, NULL, NULL};
     ASSERT_NE(stmt, nullptr);
     const char* sql = "INSERT INTO stmt2_testdb_6.stb1 (ts,int_tag,tbname)  VALUES (?,?,?)";
-    int         code = taos_stmt2_prepare(stmt, sql, 0);
+    printf("stmt2 [%s] : %s\n", "less params", sql);
+    int code = taos_stmt2_prepare(stmt, sql, 0);
     checkError(stmt, code);
     int total_affect_rows = 0;
 
@@ -1026,7 +1052,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
 
       TAOS_STMT2_BIND* tagv[2] = {&tags1, &tags2};
       TAOS_STMT2_BIND* paramv[2] = {&params1, &params2};
-      char*            tbname[2] = {"tb3", "tb4"};
+      char*            tbname[2] = {"tb1", "tb2"};
       TAOS_STMT2_BINDV bindv = {2, &tbname[0], &tagv[0], &paramv[0]};
       code = taos_stmt2_bind_param(stmt, &bindv, -1);
       checkError(stmt, code);
@@ -1044,10 +1070,15 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
 
   // disorder cols and tags
   {
-    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    // TODO: support insert into stb values(?,?,?) autoCreateTable interlace mode
+    TAOS_STMT2_OPTION option = {0, false, false, NULL, NULL};
+    TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
     ASSERT_NE(stmt, nullptr);
+    do_query(taos,
+             "INSERT INTO stmt2_testdb_6.stb1 (ts, int_tag, tbname)  VALUES (1591060627000, 5, 'tb5')(1591060627000, 6,'tb6')");
     const char* sql = "INSERT INTO stmt2_testdb_6.stb1 (binary_tag,int_col,tbname,ts,int_tag)  VALUES (?,?,?,?,?)";
-    int         code = taos_stmt2_prepare(stmt, sql, 0);
+    printf("stmt2 [%s] : %s\n", "disorder params", sql);
+    int code = taos_stmt2_prepare(stmt, sql, 0);
     checkError(stmt, code);
 
     int     tag_i = 0;
@@ -1096,6 +1127,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     ASSERT_NE(stmt, nullptr);
     const char* sql =
         "INSERT INTO stmt2_testdb_6.? using  stmt2_testdb_6.stb1 (int_tag)tags(1) (int_col,ts)VALUES (?,?)";
+    printf("stmt2 [%s] : %s\n", "PK error", sql);
     int code = taos_stmt2_prepare(stmt, sql, 0);
     checkError(stmt, code);
 
@@ -1131,11 +1163,10 @@ TEST(stmt2Case, stmt2_insert_db) {
   ASSERT_NE(taos, nullptr);
   do_query(taos, "drop database if exists stmt2_testdb_12");
   do_query(taos, "create database IF NOT EXISTS stmt2_testdb_12");
+  do_query(taos, "create stable `stmt2_testdb_12`.`stb1`(ts timestamp, int_col int) tags(int_tag int)");
   do_query(taos,
-           "create stable `stmt2_testdb_12`.`stb1`  (ts timestamp, int_col int,long_col bigint,double_col "
-           "double,bool_col bool,binary_col binary(20),nchar_col nchar(20),varbinary_col varbinary(20),geometry_col "
-           "geometry(200)) tags(int_tag int,long_tag bigint,double_tag double,bool_tag bool,binary_tag "
-           "binary(20),nchar_tag nchar(20),varbinary_tag varbinary(20),geometry_tag geometry(200));");
+           "INSERT INTO `stmt2_testdb_12`.`stb1` (ts,int_tag,tbname)  VALUES "
+           "(1591060627000,1,'tb1')(1591060627000,2,'tb2')");
 
   TAOS_STMT2_OPTION option = {0, false, false, NULL, NULL};
 

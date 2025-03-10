@@ -632,6 +632,9 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
     pTbCtx->pMeta->uid = uid;
     pTbCtx->pData->uid = uid;
     pTbCtx->pData->pCreateTbReq = NULL;
+    if (ctbReq != NULL) {
+      tdDestroySVCreateTbReq(ctbReq);
+    }
   }
 
   if (!pTbCtx->ordered) {

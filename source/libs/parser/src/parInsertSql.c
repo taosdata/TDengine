@@ -1933,7 +1933,8 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
         return buildInvalidOperationMsg(&pCxt->msg, "not support mixed bind and non-bind values");
       }
       pCxt->isStmtBind = true;
-      pStmt->usingTableProcessing = true;
+      // TODO: support insert into stb values(?,?,?) autoCreateTable
+      pStmt->usingTableProcessing = false;
       if (pCols->pColIndex[i] == tbnameIdx) {
         *bFoundTbName = true;
         char* tbName = NULL;

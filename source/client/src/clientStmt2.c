@@ -240,9 +240,6 @@ static int32_t stmtUpdateInfo(TAOS_STMT2* stmt, STableMeta* pTableMeta, void* ta
   STMT_ERR_RET(stmtUpdateExecInfo(stmt, pVgHash, pBlockHash));
 
   pStmt->sql.autoCreateTbl = autoCreateTbl;
-  // if (pStmt->sql.autoCreateTbl) {
-  //   pStmt->sql.stbInterlaceMode = false;
-  // }
 
   return TSDB_CODE_SUCCESS;
 }
