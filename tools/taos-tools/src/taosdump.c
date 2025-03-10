@@ -784,8 +784,7 @@ static void parse_args(
                 }
                 setConsoleEcho(true);
             } else {
-                tstrncpy(arguments->password, (char *)(argv[i] + 2),
-                        SHELL_MAX_PASSWORD_LEN);
+                strcpy(arguments->password, (char *)(argv[i] + 2));
                 strcpy(argv[i], "-p");
             }
         } else if (strcmp(argv[i], "-n") == 0) {

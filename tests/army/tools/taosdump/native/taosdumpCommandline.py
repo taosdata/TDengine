@@ -214,6 +214,27 @@ class TDTestCase(TBase):
         self.checkExcept(taosdump + f" -t 2 -k 2 -z 1 -C https://not-exist.com:80/cloud -D test -o {tmpdir}")
         self.checkExcept(taosdump + f" -P 65536")
 
+    # password
+    def checkPassword(self, tmpdir):
+        # 255 char max password
+        pwd     = ""
+        pwdFile = "cmdline/data/pwdMax.txt"
+        with open(pwdFile) as file:
+            pwd = file.readline()
+        
+        sql = f"create user dkj pass '{pwd}' "
+        tdSql.execute(sql)
+         
+        cmds = [
+            f"-udkj -p{pwd}        -D test -o {tmpdir}",  # command pass
+            f"-udkj -p < {pwdFile} -D test -o {tmpdir}"   # input   pass
+        ]
+
+        for cmd in cmds:
+            self.clearPath(tmpdir)
+            rlist = self.taosdump(cmd)
+            self.checkListString(rlist, "OK: Database test dumped")
+
     # run
     def run(self):
         
@@ -248,6 +269,12 @@ class TDTestCase(TBase):
         # dump in/out
         self.dumpInOutMode("", db , json, tmpdir)
         tdLog.info("4. native varbinary geometry ........................... [Passed]")
+
+        #
+        # long password
+        #
+        self.checkPassword(tmpdir)
+        tdLog.info("5. check long password ................................. [Passed]")
 
 
     def stop(self):

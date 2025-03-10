@@ -39,6 +39,7 @@
 #include <taos.h>
 #include <taoserror.h>
 #include <toolsdef.h>
+#include <tdef.h>
 
 #ifdef WEBSOCKET
 #include <taosws.h>
@@ -336,7 +337,7 @@ typedef struct arguments {
     // connection option
     char    *host;
     char    *user;
-    char     password[SHELL_MAX_PASSWORD_LEN];
+    char     password[TSDB_USET_PASSWORD_LONGLEN];
     uint16_t port;
     // strlen(taosdump.) +1 is 10
     char     outpath[DUMP_DIR_LEN];
