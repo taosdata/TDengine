@@ -29,7 +29,7 @@ By using the TDengine Java connector, FineBI can quickly access the data in TDen
 
 ![finebi-workbook](./finebi/plugin.webp) 
 
-**Step 4**, Click [System Management] -> [Data Connection] -> [Data Connection Management]. On the right - hand page, click the [Driver Management] button to open the configuration page. Then click the [New Driver] button, and in the pop-up window, enter a name (for example, `tdengine-websocket`) to configure the JDBC driver.
+**Step 4**, Click [System Management] -> [Data Connection] -> [Data Connection Management]. On the right-hand page, click the [Driver Management] button to open the configuration page. Then click the [New Driver] button, and in the pop-up window, enter a name (for example, `tdengine-websocket`) to configure the JDBC driver.
 
 ![finebi-workbook](./finebi/connect-manage.webp) 
 
