@@ -9199,10 +9199,10 @@ static int32_t checkColumnOptions(SNodeList* pList) {
 }
 
 static int32_t checkTableKeepOption(STranslateContext* pCxt, STableOptions* pOptions) {
-  if (pOptions->keep == -1 && pOptions->pKeepNode == NULL) {
+  if (pOptions == NULL || (pOptions->keep == -1 && pOptions->pKeepNode == NULL)) {
     return TSDB_CODE_SUCCESS;
   }
-  if (pOptions->pKeepNode) {
+  if (pOptions && pOptions->pKeepNode) {
     if (DEAL_RES_ERROR == translateValue(pCxt, pOptions->pKeepNode)) {
       return pCxt->errCode;
     }
