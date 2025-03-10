@@ -13,7 +13,7 @@ set(TD_CONFIG_NAME "$<IF:$<STREQUAL:z$<CONFIG>,z>,$<IF:$<STREQUAL:z${CMAKE_BUILD
 
 # eg.: INIT_EXT(ext_zlib)
 # initialization all variables to be used by external project and those relied on
-macro(INIT_EXT name)
+macro(INIT_EXT name)               # {
     set(_base            "${CMAKE_SOURCE_DIR}/.externals/build/${name}")                      # where all source and build stuffs locate
     set(_ins             "${CMAKE_SOURCE_DIR}/.externals/install/${name}/${TD_CONFIG_NAME}")  # where all installed stuffs locate
     set(${name}_base     "${_base}")
@@ -24,7 +24,7 @@ macro(INIT_EXT name)
     set(${name}_libs     "")
     set(${name}_byproducts "")
     set(_subclause       "")
-    foreach(v ${ARGN})
+    foreach(v ${ARGN})               # {
         if(    "${v}" STREQUAL                   "INC_DIR")
             set(_subclause                       "INC_DIR")        # target_include_directories
         elseif("${v}" STREQUAL                   "LIB_DIR")
@@ -48,7 +48,7 @@ macro(INIT_EXT name)
                 message(FATAL_ERROR     "internal error")
             endif()
         endif()
-    endforeach()
+    endforeach()                     # }
     if(DEPEND_DIRECTLY)
         add_library(${name}_imp STATIC IMPORTED)
     endif()
@@ -59,51 +59,45 @@ macro(INIT_EXT name)
         cmake_language(CALL DEP_${name}_INC ${tgt})
         cmake_language(CALL DEP_${name}_LIB ${tgt})
     endmacro()
-    macro(DEP_${name}_INC tgt)
+    macro(DEP_${name}_INC tgt)               # {
         foreach(v ${${name}_inc_dir})
             target_include_directories(${tgt} PUBLIC "${v}")
         endforeach()
-        foreach(v ${${name}_libs})
-            if(DEPEND_DIRECTLY)
+        if(DEPEND_DIRECTLY)     # {
+            foreach(v ${${name}_libs})
                 set_target_properties(${name}_imp PROPERTIES
                     IMPORTED_LOCATION "${v}"
                 )
-            endif()
-        endforeach()
-        foreach(v ${${name}_byproducts})
-            if(DEPEND_DIRECTLY)
+            endforeach()
+            foreach(v ${${name}_byproducts})
                 set_target_properties(${name}_imp PROPERTIES
                     IMPORTED_LOCATION "${v}"
                 )
-            endif()
-        endforeach()
-        if(DEPEND_DIRECTLY)
+            endforeach()
             add_dependencies(${tgt} ${name})
-        endif()
+        endif()                 # }
         add_definitions(-D_${name})
-    endmacro()
-    macro(DEP_${name}_LIB tgt)
-        foreach(v ${${name}_libs})
-            if(DEPEND_DIRECTLY)
+    endmacro()                               # }
+    macro(DEP_${name}_LIB tgt)               # {
+        if(DEPEND_DIRECTLY)     # {
+            foreach(v ${${name}_libs})
                 set_target_properties(${name}_imp PROPERTIES
                     IMPORTED_LOCATION "${v}"
                 )
-            endif()
+            endforeach()
+            foreach(v ${${name}_byproducts})
+                set_target_properties(${name}_imp PROPERTIES
+                    IMPORTED_LOCATION "${v}"
+                )
+            endforeach()
+            add_dependencies(${tgt} ${name})
+        endif()                 # }
+        foreach(v ${${name}_libs})
             target_link_libraries(${tgt} PRIVATE "${v}")
         endforeach()
-        foreach(v ${${name}_byproducts})
-            if(DEPEND_DIRECTLY)
-                set_target_properties(${name}_imp PROPERTIES
-                    IMPORTED_LOCATION "${v}"
-                )
-            endif()
-        endforeach()
-        if(DEPEND_DIRECTLY)
-            add_dependencies(${tgt} ${name})
-        endif()
         add_definitions(-D_${name})
-    endmacro()
-endmacro()
+    endmacro()                               # }
+endmacro()                         # }
 
 # get_from_local_repo_if_exists/get_from_local_if_exists
 # is for local storage of externals only
@@ -161,7 +155,7 @@ ExternalProject_Add(ext_zlib
 add_dependencies(build_externals ext_zlib)     # this is for github workflow in cache-miss step.
 
 # pthread
-if(${BUILD_PTHREAD})
+if(${BUILD_PTHREAD})        # {
     if(${TD_WINDOWS})
         set(ext_pthread_static pthreadVC3.lib)
     endif()
@@ -186,10 +180,10 @@ if(${BUILD_PTHREAD})
         VERBATIM
     )
     add_dependencies(build_externals ext_pthread)     # this is for github workflow in cache-miss step.
-endif()
+endif()                     # }
 
 # iconv
-if(${BUILD_WITH_ICONV})
+if(${BUILD_WITH_ICONV})     # {
     if(${TD_WINDOWS})
         set(ext_iconv_static iconv.lib)
     endif()
@@ -214,10 +208,10 @@ if(${BUILD_WITH_ICONV})
         VERBATIM
     )
     add_dependencies(build_externals ext_iconv)     # this is for github workflow in cache-miss step.
-endif()
+endif()                     # }
 
 # msvc regex
-if(${BUILD_MSVCREGEX})
+if(${BUILD_MSVCREGEX})      # {
     if(${TD_WINDOWS})
         set(ext_msvcregex_static regex$<$<CONFIG:Debug>:_d>.lib)
     endif()
@@ -244,10 +238,10 @@ if(${BUILD_MSVCREGEX})
         VERBATIM
     )
     add_dependencies(build_externals ext_msvcregex)     # this is for github workflow in cache-miss step.
-endif()
+endif()                     # }
 
 # wcwidth
-if(${BUILD_WCWIDTH})
+if(${BUILD_WCWIDTH})        # {
     if(${TD_WINDOWS})
         set(ext_wcwidth_static wcwidth.lib)
     endif()
@@ -271,10 +265,10 @@ if(${BUILD_WCWIDTH})
         VERBATIM
     )
     add_dependencies(build_externals ext_wcwidth)     # this is for github workflow in cache-miss step.
-endif()
+endif()                     # }
 
 # wingetopt
-if(${BUILD_WINGETOPT})
+if(${BUILD_WINGETOPT})      # {
     if(${TD_WINDOWS})
         set(ext_wingetopt_static wingetopt.lib)
     endif()
@@ -296,10 +290,10 @@ if(${BUILD_WINGETOPT})
         VERBATIM
     )
     add_dependencies(build_externals ext_wingetopt)     # this is for github workflow in cache-miss step.
-endif()
+endif()                     # }
 
 # googletest
-if(${BUILD_TEST}) # freemine: add BUILD_GTEST
+if(${BUILD_TEST})           # {
     if(${TD_LINUX})
         set(ext_gtest_static libgtest.a)
         set(ext_gtest_main libgtest_main.a)
@@ -329,10 +323,10 @@ if(${BUILD_TEST}) # freemine: add BUILD_GTEST
         VERBATIM
     )
     add_dependencies(build_externals ext_gtest)     # this is for github workflow in cache-miss step.
-endif(${BUILD_TEST})
+endif(${BUILD_TEST})        # }
 
 # cppstub
-if(${BUILD_TEST})
+if(${BUILD_TEST})           # {
     if(${TD_LINUX})
         set(ext_cppstub_static libcppstub.a)
     elseif(${TD_DARWIN})
@@ -364,7 +358,7 @@ if(${BUILD_TEST})
         VERBATIM
     )
     add_dependencies(build_externals ext_cppstub)     # this is for github workflow in cache-miss step.
-endif(${BUILD_TEST})
+endif(${BUILD_TEST})        # }
 
 # lz4
 if(${TD_LINUX})
@@ -486,7 +480,7 @@ ExternalProject_Add(ext_lzma2
 add_dependencies(build_externals ext_lzma2)     # this is for github workflow in cache-miss step.
 
 # libuv
-if(${BUILD_WITH_UV})
+if(${BUILD_WITH_UV})        # {
     if(${TD_LINUX})
         set(ext_libuv_static libuv.a)
     elseif(${TD_DARWIN})
@@ -513,10 +507,10 @@ if(${BUILD_WITH_UV})
         VERBATIM
     )
     add_dependencies(build_externals ext_libuv)     # this is for github workflow in cache-miss step.
-endif(${BUILD_WITH_UV})
+endif(${BUILD_WITH_UV})     # }
 
 # tz
-if(NOT ${TD_WINDOWS})
+if(NOT ${TD_WINDOWS})       # {
     if(${TD_LINUX})
         set(ext_tz_static tz.a)
     elseif(${TD_DARWIN})
@@ -544,10 +538,10 @@ if(NOT ${TD_WINDOWS})
         VERBATIM
     )
     add_dependencies(build_externals ext_tz)     # this is for github workflow in cache-miss step.
-endif(NOT ${TD_WINDOWS})
+endif(NOT ${TD_WINDOWS})    # }
 
 # jemalloc
-if(${JEMALLOC_ENABLED})
+if(${JEMALLOC_ENABLED})     # {
     find_program(HAVE_AUTOCONF autoconf)
     if(${HAVE_AUTOCONF} STREQUAL "HAVE_AUTOCONF-NOTFOUND")
         message(FATAL_ERROR "`autoconf` not exist, you can install it by `sudo apt install autoconf` on linux, or `brew install autoconf` on MacOS")
@@ -587,10 +581,10 @@ if(${JEMALLOC_ENABLED})
         VERBATIM
     )
     add_dependencies(build_externals ext_jemalloc)     # this is for github workflow in cache-miss step.
-endif()
+endif()                     # }
 
 # sqlite
-if(${BUILD_WITH_SQLITE})
+if(${BUILD_WITH_SQLITE})    # {
     if(${TD_LINUX})
         set(ext_sqlite_static sqlite.a)
     elseif(${TD_DARWIN})
@@ -621,10 +615,10 @@ if(${BUILD_WITH_SQLITE})
         GIT_PROGRESS TRUE
     )
     add_dependencies(build_externals ext_sqlite)     # this is for github workflow in cache-miss step.
-endif(${BUILD_WITH_SQLITE})
+endif(${BUILD_WITH_SQLITE}) # }
 
 # crashdump
-if(${BUILD_CRASHDUMP})
+if(${BUILD_CRASHDUMP})      # {
     if(${TD_WINDOWS})
         set(ext_crashdump_static crashdump.lib)
     endif()
@@ -649,10 +643,10 @@ if(${BUILD_CRASHDUMP})
         VERBATIM
     )
     add_dependencies(build_externals ext_crashdump)     # this is for github workflow in cache-miss step.
-endif(${BUILD_CRASHDUMP})
+endif(${BUILD_CRASHDUMP})   # }
 
 # ssl
-if(NOT ${TD_WINDOWS})
+if(NOT ${TD_WINDOWS})       # {
     # freemine: why at this moment???
     # file(MAKE_DIRECTORY $ENV{HOME}/.cos-local.2/)
     if(${TD_LINUX})
@@ -694,10 +688,10 @@ if(NOT ${TD_WINDOWS})
         VERBATIM
     )
     add_dependencies(build_externals ext_ssl)     # this is for github workflow in cache-miss step.
-endif(NOT ${TD_WINDOWS})
+endif(NOT ${TD_WINDOWS})    # }
 
 # libcurl
-if(NOT ${TD_WINDOWS})
+if(NOT ${TD_WINDOWS})       # {
     if(${TD_LINUX})
         set(ext_curl_static libcurl.a)
     elseif(${TD_DARWIN})
@@ -734,10 +728,10 @@ if(NOT ${TD_WINDOWS})
         VERBATIM
     )
     add_dependencies(build_externals ext_curl)     # this is for github workflow in cache-miss step.
-endif(NOT ${TD_WINDOWS})
+endif(NOT ${TD_WINDOWS})    # }
 
 # geos
-if(${BUILD_GEOS})
+if(${BUILD_GEOS})           # {
     if(${TD_LINUX})
         set(ext_geos_static geos.a)
     elseif(${TD_DARWIN})
@@ -765,10 +759,10 @@ if(${BUILD_GEOS})
         VERBATIM
     )
     add_dependencies(build_externals ext_geos)     # this is for github workflow in cache-miss step.
-endif()
+endif()                     # }
 
 # libdwarf
-if(${BUILD_ADDR2LINE})
+if(${BUILD_ADDR2LINE})      # {
     if(${TD_LINUX})
         set(ext_dwarf_static libdwarf.a)
     elseif(${TD_DARWIN})
@@ -783,7 +777,7 @@ if(${BUILD_ADDR2LINE})
       -I${ext_zlib_install}/include
       -L${ext_zlib_install}/lib
     )
-    if (${TD_DARWIN})
+    if (${TD_DARWIN})      # {
       list(APPEND _c_cxx_flags_list
         -Wno-unused-command-line-argument
         -Wno-error=unused-but-set-variable
@@ -791,7 +785,7 @@ if(${BUILD_ADDR2LINE})
         -Wno-error=self-assign
         -Wno-error=null-pointer-subtraction
       )
-    endif()
+    endif()                # }
     string(JOIN " " _c_cxx_flags ${_c_cxx_flags_list})
 
     # GIT_REPOSITORY https://github.com/davea42/libdwarf-code.git
@@ -820,10 +814,10 @@ if(${BUILD_ADDR2LINE})
         VERBATIM
     )
     add_dependencies(build_externals ext_dwarf)     # this is for github workflow in cache-miss step.
-endif(${BUILD_ADDR2LINE})
+endif(${BUILD_ADDR2LINE})   # }
 
 # addr2line
-if(${BUILD_ADDR2LINE})
+if(${BUILD_ADDR2LINE})      # {
     if(${TD_LINUX})
         set(ext_addr2line_static libaddr2line.a)
     elseif(${TD_DARWIN})
@@ -855,10 +849,10 @@ if(${BUILD_ADDR2LINE})
         VERBATIM
     )
     add_dependencies(build_externals ext_addr2line)     # this is for github workflow in cache-miss step.
-endif(${BUILD_ADDR2LINE})
+endif(${BUILD_ADDR2LINE})   # }
 
 # pcre2
-if(${BUILD_PCRE2})
+if(${BUILD_PCRE2})          # {
     # freemine: seems no necessary cause strict rules has been enforced by geos
     if(${TD_LINUX})
         set(ext_pcre2_static pcre2.a)
@@ -893,10 +887,10 @@ if(${BUILD_PCRE2})
         VERBATIM
     )
     add_dependencies(build_externals ext_pcre2)     # this is for github workflow in cache-miss step.
-endif()
+endif()                     # }
 
 # taosws-rs
-if(${WEBSOCKET})
+if(${WEBSOCKET})            # {
     if(${TD_LINUX})
         set(ext_taosws_static taosws.a)
     elseif(${TD_DARWIN})
@@ -926,12 +920,12 @@ if(${WEBSOCKET})
         VERBATIM
     )
     add_dependencies(build_externals ext_taosws)     # this is for github workflow in cache-miss step.
-endif()
+endif()                     # }
 
 # taosadapter
-if(${BUILD_HTTP})
+if(${BUILD_HTTP})           # {
     MESSAGE("BUILD_HTTP is on")
-else()
+else()                      # }{
     MESSAGE("BUILD_HTTP is off, use taosAdapter")
     if(${TD_LINUX})
         set(ext_taosadapter_static taosadapter.a)
@@ -962,9 +956,9 @@ else()
         VERBATIM
     )
     add_dependencies(build_externals ext_taosadapter)     # this is for github workflow in cache-miss step.
-endif()
+endif()                     # }
 
-if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
+if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})         # {
     if(${TD_LINUX})
         set(ext_rocksdb_static librocksdb.a)
     elseif(${TD_DARWIN})
@@ -1003,5 +997,5 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
         VERBATIM
     )
     add_dependencies(build_externals ext_rocksdb)     # this is for github workflow in cache-miss step.
-endif()
+endif()                                          # }
 
