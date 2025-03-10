@@ -17,10 +17,10 @@ add_test(
 # overflow pages testing
 add_executable(tdbExOVFLTest "tdbExOVFLTest.cpp")
 target_link_libraries(tdbExOVFLTest tdb gtest_main)
-#add_test(
-#    NAME tdbExOVFLTest
-#    COMMAND tdbExOVFLTest
-#)
+add_test(
+   NAME tdbExOVFLTest
+   COMMAND tdbExOVFLTest
+)
 
 # page defragment testing
 add_executable(tdbPageDefragmentTest "tdbPageDefragmentTest.cpp")
