@@ -666,6 +666,8 @@ int taos_print_row_with_size(char *str, uint32_t size, TAOS_ROW row, TAOS_FIELD 
       continue;
     }
 
+    len += tsnprintf(str + len, size - len, "%s: ", fields[i].name);
+
     switch (fields[i].type) {
       case TSDB_DATA_TYPE_TINYINT:
         len += tsnprintf(str + len, size - len, "%d", *((int8_t *)row[i]));
@@ -2170,7 +2172,7 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
-  if( atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum)>1) {
+  if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 1) {
     tscError("async bind param is still working, please try again later");
     return TSDB_CODE_TSC_STMT_API_ERROR;
   }
