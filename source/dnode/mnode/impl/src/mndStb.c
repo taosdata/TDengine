@@ -431,7 +431,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   if (pOld->ast2Len < pNew->ast2Len) {
     void *pAst2 = taosMemoryMalloc(pNew->ast2Len + 1);
     if (pAst2 == NULL) {
-      goto END
+      goto END;
     }
     taosMemoryFree(pOld->pAst2);
     pOld->pAst2 = pAst2;
