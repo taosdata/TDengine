@@ -93,6 +93,7 @@ TEST(log, misc) {
   tsAssert = true;
 
   // test taosLogCrashInfo, taosReadCrashInfo and taosReleaseCrashLogFile
+#ifdef USE_REPORT
   char  nodeType[16] = "nodeType";
   char *pCrashMsg = (char *)taosMemoryCalloc(1, 16);
   EXPECT_NE(pCrashMsg, nullptr);
@@ -133,7 +134,7 @@ TEST(log, misc) {
   pFile = taosOpenFile(crashInfo, TD_FILE_WRITE);
   EXPECT_NE(pFile, nullptr);
   taosReleaseCrashLogFile(pFile, true);
-
+#endif
   // clean up
   taosRemoveDir(path);
 
