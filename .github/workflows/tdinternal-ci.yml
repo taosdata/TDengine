@@ -21,22 +21,13 @@ jobs:
       tdinternal: true
       run_function_test: true
       run_tdgpt_test: false
-      source_branch: ${{ github.event.pull_request.head.ref }}
-      target_branch: ${{ github.event.pull_request.base.ref }}
-      pr_number: ${{ github.event.pull_request.number }}
 
   run-tests-on-mac:
     uses: taosdata/.github/.github/workflows/run-tests-on-macos.yml@main
     with:
       tdinternal: true
-      source_branch: ${{ github.event.pull_request.head.ref }}
-      target_branch: ${{ github.event.pull_request.base.ref }}
-      pr_number: ${{ github.event.pull_request.number }}
 
   run-tests-on-windows:
     uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@main
     with:
       tdinternal: true
-      source_branch: ${{ github.event.pull_request.head.ref }}
-      target_branch: ${{ github.event.pull_request.base.ref }}
-      pr_number: ${{ github.event.pull_request.number }}
