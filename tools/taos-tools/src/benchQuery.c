@@ -148,7 +148,7 @@ static void *specQueryMixThread(void *sarg) {
     // batchQuery
     bool     batchQuery    = g_queryInfo.specifiedQueryInfo.batchQuery;
     uint64_t queryTimes    = batchQuery ? 1 : g_queryInfo.specifiedQueryInfo.queryTimes;
-    uint64_t interval      = batchQuery ? 0 : specifiedQueryInfo.queryInterval;
+    uint64_t interval      = batchQuery ? 0 : g_queryInfo.specifiedQueryInfo.queryInterval;
     
     pThreadInfo->query_delay_list = benchArrayInit(queryTimes, sizeof(int64_t));
     for (int i = pThreadInfo->start_sql; i <= pThreadInfo->end_sql; ++i) {
@@ -854,9 +854,8 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
     uint64_t interval  = g_queryInfo.specifiedQueryInfo.queryInterval;
     pthread_t * pids   = benchCalloc(nConcurrent, sizeof(pthread_t), true);
     qThreadInfo *infos = benchCalloc(nConcurrent, sizeof(qThreadInfo), true);
-    infoPrint("start batch query , interval=%" PRIu64 " ms query times = %d  thread=%d \n", 
-        interval, g_queryInfo.query_times, nConcurrent);
-    
+    infoPrint("start batch query , interval=%" PRIu64 " ms query times = %" PRIu64 " thread=%d \n", 
+        interval, g_queryInfo.query_times, nConcurrent);    
 
     // concurent calc
     int total_sql_num = g_queryInfo.specifiedQueryInfo.sqls->size;
@@ -881,7 +880,7 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
         // create conn
         if (initQueryConn(pThreadInfo, iface)){
             ret = -1;
-            goto OVER:            
+            goto OVER;      
         }
         
         connCnt ++;
@@ -895,7 +894,7 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
     //
     // running
     //
-    for (int i = 0; i < g_queryInfo.query_times; i++) {
+    for (int m = 0; m < g_queryInfo.query_times; ++m) {
         // run thread 
         int threadCnt = 0;
         for (int i = 0; i < nConcurrent; ++i) {
@@ -964,7 +963,7 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
         }
 
         // show batch total
-        infoPrint("batch:%d execute batch:%" PRId64 " ms  sleep:%d ms\n", i, delay/1000, msleep);
+        infoPrint("batch:%d execute batch:%" PRId64 " ms  sleep:%d ms\n", m, delay/1000, msleep);
     }
     ret = 0;
 
@@ -1055,8 +1054,14 @@ int queryTestProcess() {
         // specified table
         if (g_queryInfo.specifiedQueryInfo.mixed_query) {
             // mixed
-            if (specQueryMix(g_queryInfo.iface, g_queryInfo.dbName)) {
-                return -1;
+            if(g_queryInfo.specifiedQueryInfo.batchQuery) {
+                if (specQueryBatch(g_queryInfo.iface, g_queryInfo.dbName)) {
+                    return -1;
+                }    
+            } else {
+                if (specQueryMix(g_queryInfo.iface, g_queryInfo.dbName)) {
+                    return -1;
+                }    
             }
         } else {
             // no mixied
