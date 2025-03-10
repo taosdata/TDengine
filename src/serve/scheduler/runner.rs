@@ -62,13 +62,13 @@ async fn task_opts_init(
     let id = task.id;
     let from = if let Some(topic) = task.oneshot_topic.as_deref() {
         // let mut from: Dsn = task.from.parse()?;
-        let mut from = json_to_dsn(&task.from)?;
+        let mut from = json_to_dsn(&serde_json::Value::String(task.from.clone()))?;
         from.set("use.topic.name", topic);
         tracing::info!("Set task from: {from}");
         from
     } else {
         // task.from.parse()?
-        json_to_dsn(&task.from)?
+        json_to_dsn(&serde_json::Value::String(task.from.clone()))?
     };
     let to_dsn: Dsn = task.to.parse()?;
     match from.driver.as_str() {
@@ -695,7 +695,7 @@ impl TaskState {
         let strategy = if let Some(v) = task.trigger.as_ref() {
             v
         } else {
-            let dsn = json_to_dsn(&task.from).unwrap();
+            let dsn = json_to_dsn(&serde_json::Value::String(task.from.clone())).unwrap();
             if dsn.driver.starts_with("csv") {
                 let new_file_notify = dsn
                     .get("new_file_notify")
@@ -985,7 +985,10 @@ impl TaskJob {
 
             let (from, to) = (
                 // license_tracker_state.task.from.parse().unwrap(),
-                json_to_dsn(&license_tracker_state.task.from).unwrap(),
+                json_to_dsn(&serde_json::Value::String(
+                    license_tracker_state.task.from.clone(),
+                ))
+                .unwrap(),
                 license_tracker_state.task.to.parse().unwrap(),
             );
             let validator = LicenseValidator::new(&from, &to);
@@ -1710,7 +1713,7 @@ pub async fn task_job_run(jid: Uuid, task: TaskState, global_state: Arc<GlobalSt
     let opts = TaskJob::new(jid, task.clone(), global_state.as_ref().clone());
 
     // let from_dsn: Dsn = task.task.from.parse().unwrap();
-    let from_dsn = json_to_dsn(&task.task.from).unwrap();
+    let from_dsn = json_to_dsn(&serde_json::Value::String(task.task.from.clone())).unwrap();
     let to_dsn = task.task.to.parse().unwrap();
     let task_id = task.task.id;
     let task_name = task.task.name.clone();

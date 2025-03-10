@@ -12,7 +12,7 @@ pub mod dsv;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, PartialEq, Eq)]
 pub struct DataSetsReq {
-    pub from: serde_json::Value,
+    pub from: String,
     pub via: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pattern: Option<String>,

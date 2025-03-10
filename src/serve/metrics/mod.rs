@@ -62,7 +62,7 @@ lazy_static::lazy_static! {
 
 pub async fn try_get_metrics_from_task_detail(task: &TaskDetail) -> Option<Arc<CoreMetrics>> {
     // let parse_dsn_result: Result<Dsn, _> = task.task.from.parse();
-    let parse_dsn_result = json_to_dsn(&task.task.from);
+    let parse_dsn_result = json_to_dsn(&serde_json::Value::String(task.task.from.clone()));
     if parse_dsn_result.is_err() {
         tracing::error!(
             "parse dsn error: {}, from={}",

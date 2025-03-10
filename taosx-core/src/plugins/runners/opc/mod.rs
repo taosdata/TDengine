@@ -5,7 +5,6 @@ use crate::runners::opc::config::model::{ModelType, OpcModelConfig};
 use crate::runners::opc::config::{OPCConfig, PointsMode};
 use crate::runners::opc::point_updater::PointsUpdater;
 use crate::runners::{get_logs_home_dir, log_rotation, new_rolling_file_appender};
-use crate::utils::dsn::json_to_dsn;
 use crate::utils::monitor::send_sub_process_info;
 use crate::{build_ipc, utils::port_pool::PortPool, Action, DataSet, DataSetsReq, Transferred};
 use anyhow::Context;
@@ -17,7 +16,7 @@ use std::fmt::Display;
 use std::fs::File;
 use std::str::FromStr;
 use std::{io::prelude::*, path::PathBuf, sync::Arc};
-use taos::Dsn;
+use taos::{Dsn, DsnError};
 use taosx_ipc::prelude::IpcDataType;
 use taosx_ipc::types::OptionSet;
 use tempfile::NamedTempFile;
@@ -440,8 +439,7 @@ fn get_temp_file(dsn: &Dsn, key: &str) -> Option<NamedTempFile> {
 
 /// 获取 opc 点位
 pub async fn opc_datasets(req: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
-    // let from: Dsn = req.from.parse().map_err(|err: DsnError| {
-    let from = json_to_dsn(&req.from).map_err(|err| {
+    let from: Dsn = req.from.parse().map_err(|err: DsnError| {
         anyhow::anyhow!(
             "failed to parse dsn: {}, cause: {}",
             req.from,

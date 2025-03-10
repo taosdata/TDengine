@@ -29,7 +29,7 @@ use taos::{AsyncQueryable, AsyncTBuilder, Dsn, TaosBuilder};
 use taosx_core::runners::kafka::KAFKA_ID;
 use taosx_core::runners::mqtt::MQTT_ID;
 use taosx_core::task_set::prelude::{HealthNotify, HealthState};
-use taosx_core::utils::dsn::json_to_dsn;
+use taosx_core::utils::dsn::{dsn_to_json, json_to_dsn};
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -332,6 +332,9 @@ impl TaskControllerRef {
                 task.status = task.status.as_str(),
                 "wake up task"
             );
+            if task.from.starts_with('"') {
+                task.from = task.from.trim_matches('"').replace(r#"\""#, r#"""#)
+            }
             let id = task.id;
             task.load_breakpoints().await?;
             push_task_activity(
@@ -826,11 +829,10 @@ impl TaskController {
 
     #[instrument(skip_all, fields(task.id = task.id,task.agent = task.via))]
     async fn start_task(&self, task: &Task) -> anyhow::Result<()> {
-        // let from: Dsn = task
-        //     .from
-        //     .parse()
-        //     .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
-        let from = json_to_dsn(&task.from)?;
+        let from: Dsn = task
+            .from
+            .parse()
+            .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
 
         if let Some(via) = task.via {
             if !self.agent_alive(via).await {
@@ -883,13 +885,24 @@ impl TaskController {
     pub async fn tasks(&self, mut filter: TaskFilter) -> anyhow::Result<Vec<TaskDetail>> {
         tracing::info!("list tasks");
         let condition = filter.gen_sql_conditions()?;
-        let mut tasks = sqlx::query_as::<_, Task>(&format!(
+        let tasks = sqlx::query_as::<_, Task>(&format!(
             "select * from task_with_labels where {condition} order by created_at desc"
         ))
         .fetch_all(&self.pool)
         .in_current_span()
         .await
         .context("Database error")?;
+
+        let mut tasks = tasks
+            .iter()
+            .map(|task| {
+                let mut task = task.clone();
+                if task.from.starts_with('"') {
+                    task.from = task.from.trim_matches('"').replace(r#"\""#, r#"""#)
+                }
+                task
+            })
+            .collect_vec();
 
         if filter.has_labels_filter() {
             filter.filter_task_labels(&mut tasks);
@@ -929,7 +942,13 @@ impl TaskController {
         //     .from
         //     .parse()
         //     .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
-        let mut from = json_to_dsn(&task.from)?;
+        let mut from = if let Some(from_json) = task.from_json.clone() {
+            json_to_dsn(&from_json)?
+        } else {
+            task.from
+                .parse()
+                .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?
+        };
         if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
                 anyhow::bail!("Max length of topic name is 64, please rewrite the topic name");
@@ -970,8 +989,7 @@ impl TaskController {
         }
 
         if task.via.is_none() {
-            let dsn = json_to_dsn(&task.from)?;
-            validate_dsn(dsn).await.ok()?;
+            validate_dsn(&from).await.ok()?;
         }
 
         if task.clear && to.driver == "taos" {
@@ -1008,7 +1026,7 @@ impl TaskController {
                  VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&task.name)
-        .bind(&task.from)
+        .bind(from.to_string())
         .bind(&task.oneshot_topic)
         .bind(&task.to)
         .bind(task.jobs)
@@ -1208,6 +1226,14 @@ impl TaskController {
             }
         }
 
+        let from = if let Some(from_json) = task.from_json.clone() {
+            let dsn = json_to_dsn(&from_json)?;
+            task.from = Some(dsn.to_string());
+            &dsn.to_string()
+        } else {
+            task.from.as_deref().unwrap_or(old.from.as_str())
+        };
+
         // 云服务的UpdateTask没有name，需要从labels中解析
         if task.name.is_none() {
             task.name = task.labels.as_ref().and_then(|labels| {
@@ -1244,8 +1270,7 @@ impl TaskController {
         query = query.bind(task.via);
 
         if task.via.is_none() {
-            let dsn = json_to_dsn(&task.from.clone().unwrap_or(old.from.clone()))?;
-            validate_dsn(dsn).await.ok()?;
+            validate_dsn(from).await.ok()?;
         }
 
         let res = query.execute(&self.pool).await?;
@@ -1271,12 +1296,10 @@ impl TaskController {
                 .ok_or_else(|| anyhow!("Task not found: {}", id))?;
             let scheduler = self.scheduler.clone();
             let task_in_spawn = task.task.clone();
-            // let from: Dsn = task
-            //     .from
-            //     .parse()
-            //     .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
-            let from = json_to_dsn(&task.from)?;
-
+            let from: Dsn = task
+                .from
+                .parse()
+                .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
             if let Some(via) = task.via {
                 if !self.agent_alive(via).await {
                     bail!("Agent {} is not alive", via);
@@ -1331,6 +1354,9 @@ impl TaskController {
                 t
             });
         if let Some(mut task) = task {
+            if task.from.starts_with('"') {
+                task.from = task.from.trim_matches('"').replace(r#"\""#, r#"""#)
+            };
             task.load_breakpoints().await?;
             return Ok(Some(task.into()));
         }
@@ -1369,6 +1395,9 @@ impl TaskController {
         }
 
         let mut task = task.unwrap();
+        if task.from.starts_with('"') {
+            task.from = task.from.trim_matches('"').replace(r#"\""#, r#"""#)
+        }
         task.backport_labels();
         if let Some(params) = params {
             task.after_delete = params.after_delete;
@@ -1383,8 +1412,7 @@ impl TaskController {
                 tracing::info!("task {id} successfully stopped");
                 if let Some(topic) = task.oneshot_topic.as_deref() {
                     tracing::info!("drop oneshot topic: {}", topic);
-                    // let mut dsn: Dsn = task.from.parse()?;
-                    let mut dsn = json_to_dsn(&task.from)?;
+                    let mut dsn: Dsn = task.from.parse()?;
                     let _ = dsn.subject.take();
                     let builder =
                         TaosBuilder::from_dsn(dsn).context("cannot drop oneshot topic")?;
@@ -1410,8 +1438,7 @@ impl TaskController {
 
                 if let Some(action) = task.after_delete.as_deref() {
                     if action == "clear" {
-                        // let from = task.from.parse::<Dsn>()?;
-                        let from = json_to_dsn(&task.from)?;
+                        let from = task.from.parse::<Dsn>()?;
                         let to = task.to.parse::<Dsn>()?;
                         match (from.driver.as_str(), to.driver.as_str()) {
                             ("tmq", "local") => {
@@ -1449,8 +1476,7 @@ impl TaskController {
                     .in_current_span()
                     .await?;
 
-                // let from: Dsn = task.from.parse()?;
-                let from = json_to_dsn(&task.from)?;
+                let from: Dsn = task.from.parse()?;
                 let to: Dsn = task.to.parse()?;
                 let (tx, _rx) = flume::unbounded();
                 let opts = TaskOpts {
@@ -1575,8 +1601,7 @@ impl TaskController {
         match task {
             Some(task) => {
                 // dbg!(&task);
-                // let from = task.from.parse::<Dsn>()?;
-                let from = json_to_dsn(&task.from)?;
+                let from = task.from.parse::<Dsn>()?;
                 let to = task.to.parse::<Dsn>()?;
                 match (from.driver.as_str(), to.driver.as_str()) {
                     ("tmq" | "sync", _) => {
@@ -1626,8 +1651,7 @@ impl TaskController {
     pub async fn tmq_offsets(&self, id: i64) -> anyhow::Result<Option<serde_json::Value>> {
         let from = self.get(id).await?;
         if let Some(task) = from {
-            // let mut from = task.from.parse::<Dsn>()?;
-            let mut from = json_to_dsn(&task.from)?;
+            let mut from = task.from.parse::<Dsn>()?;
             if from.driver == *"sync" {
                 from.driver = "tmq".to_string();
             }
@@ -1892,7 +1916,7 @@ impl TaskController {
         set_file_contents(dsn).await?;
 
         let data = DataSetsReq {
-            from: serde_json::Value::String(dsn.to_string()),
+            from: dsn.to_string(),
             categories: vec![categories],
             via,
             offset: 0,
@@ -2017,19 +2041,25 @@ impl TaskController {
         }
     }
 
-    pub async fn get_sample_via_agent(&self, agent: i64, dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
+    pub async fn get_sample_via_agent(
+        &self,
+        agent: i64,
+        dsn: String,
+    ) -> anyhow::Result<DsSampleIn> {
         let scheduler = self.scheduler.clone();
         if !self.agent_alive(agent).await {
             bail!("Agent {} is not alive", agent);
         }
-        // 检查是否有需要发送到 agent 的文件
-        let file_to_send = dsn.params.get("sasl_kerberos_keytab");
-        if let Some(path) = file_to_send {
-            tracing::info!("Put file to agent {}: {}", agent, path);
-            let _ = self.put_file_to_agent(agent, path.clone()).await;
+        let dsn_agent = Dsn::from_str(&dsn);
+        if let Ok(dsn_agent) = dsn_agent {
+            // 检查是否有需要发送到 agent 的文件
+            let file_to_send = dsn_agent.params.get("sasl_kerberos_keytab");
+            if let Some(path) = file_to_send {
+                tracing::info!("Put file to agent {}: {}", agent, path);
+                let _ = self.put_file_to_agent(agent, path.clone()).await;
+            }
         }
-
-        scheduler.get_sample_via_agent(agent, dsn.to_string()).await
+        scheduler.get_sample_via_agent(agent, dsn).await
     }
 
     pub async fn cluster_transferred(
@@ -2591,7 +2621,7 @@ pub struct Task {
 
     /// The stream data source.
     #[schema(example = "tmq:///test")]
-    pub from: serde_json::Value,
+    pub from: String,
 
     /// Cluster identifier for stream from. **Deprecated**, use labels instead.
     #[serde(default)]
@@ -3111,6 +3141,9 @@ pub struct TaskDetail {
     #[serde(flatten)]
     pub task: Task,
 
+    /// Serialized to json from `from` field.
+    from_json: Option<serde_json::Value>,
+
     /// Expanded DSN for source.
     from_expand: Option<ExpandedDsn>,
 
@@ -3146,6 +3179,7 @@ impl TaskDetail {
     pub fn new(task: Task) -> Self {
         TaskDetail {
             task,
+            from_json: None,
             from_expand: None,
             to_expand: None,
             agent: None,
@@ -3156,40 +3190,51 @@ impl TaskDetail {
         &self.task.status
     }
 
-    pub fn expand_detail(self, lang: Option<String>) -> Self {
+    pub fn expand_detail(self, _lang: Option<String>) -> Self {
         let value = self.task;
-        // let from_dsn: Dsn = value.from.as_str().parse().unwrap();
-        let from_dsn = json_to_dsn(&value.from).unwrap();
+        tracing::warn!("expand_detail: {}", value.from);
+        let from_dsn: Dsn = value.from.as_str().parse().unwrap();
+        let from_json = dsn_to_json(&from_dsn);
         let to_dsn: Dsn = value.to.as_str().parse().unwrap();
-        if let Some(lang) = lang {
-            match lang.as_str() {
-                "zh" => TaskDetail {
-                    from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
-                    to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
-                    task: value,
-                    agent: None,
-                },
-                _ => TaskDetail {
-                    from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
-                    to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
-                    task: value,
-                    agent: None,
-                },
-            }
-        } else {
-            TaskDetail {
-                from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
-                to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
-                task: value,
-                agent: None,
-            }
+        TaskDetail {
+            from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
+            from_json: Some(from_json),
+            to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
+            task: value,
+            agent: None,
         }
+        // if let Some(lang) = lang {
+        //     match lang.as_str() {
+        //         "zh" => TaskDetail {
+        //             from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
+        //             from_json: Some(from_json),
+        //             to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
+        //             task: value,
+        //             agent: None,
+        //         },
+        //         _ => TaskDetail {
+        //             from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
+        //             from_json: Some(from_json),
+        //             to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
+        //             task: value,
+        //             agent: None,
+        //         },
+        //     }
+        // } else {
+        //     TaskDetail {
+        //         from_expand: Some(ExpandedDsn::from(from_dsn.clone())),
+        //         from_json: Some(from_json),
+        //         to_expand: Some(ExpandedDsn::from(to_dsn.clone())),
+        //         task: value,
+        //         agent: None,
+        //     }
+        // }
     }
 
     pub fn expand(mut self) -> Self {
         let value = &self.task;
         // let from_dsn: Dsn = value.from.as_str().parse().unwrap();
-        let from_dsn = json_to_dsn(&value.from).unwrap();
+        let from_dsn = json_to_dsn(&serde_json::Value::String(value.from.clone())).unwrap();
         let to_dsn: Dsn = value.to.as_str().parse().unwrap();
         self.from_expand = Some(from_dsn.into());
         self.to_expand = Some(to_dsn.into());
@@ -3387,7 +3432,8 @@ pub(crate) struct NewTask {
     pub trigger: Option<Strategy>,
     /// The stream data source.
     #[schema(example = "tmq:///test")]
-    from: serde_json::Value,
+    from: String,
+    from_json: Option<serde_json::Value>,
     /// The stream data source cluster id.
     from_cluster: Option<String>,
 
@@ -3469,7 +3515,8 @@ impl NewTask {
 struct NewTaskV1 {
     /// The stream data source.
     #[schema(example = "tmq:///test")]
-    from: serde_json::Value,
+    from: String,
+    from_json: Option<serde_json::Value>,
 
     /// Use oneshot topic for a task, delete the topic after task deleted.
     // #[serde(default)]
@@ -3516,6 +3563,7 @@ impl From<NewTask> for NewTaskV1 {
         }
         Self {
             from: value.from,
+            from_json: value.from_json,
             oneshot_topic: value.oneshot_topic,
             to: value.to,
             clear: value.clear,
@@ -3537,7 +3585,8 @@ pub struct UpdateTask {
     /// *Deprecated*.
     stream_type: Option<String>,
     /// The stream data source.
-    from: Option<serde_json::Value>,
+    from: Option<String>,
+    from_json: Option<serde_json::Value>,
     /// *Deprecated*. The stream data source cluster id.
     from_cluster: Option<String>,
     /// Use oneshot topic for a task, delete the topic after task deleted.

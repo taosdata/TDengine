@@ -279,9 +279,7 @@ async fn action_to_arrow(
         AgentAction::GetSample(dsn, sender) => {
             let action: ArrayRef = Arc::new(StringArray::from_iter_values(["sample".to_string()]));
             // modify dsn params
-            let dsn = modify_dsn_params(&serde_json::Value::String(dsn))
-                .await?
-                .to_string();
+            let dsn = modify_dsn_params(&dsn).await?.to_string();
             let context: ArrayRef =
                 Arc::new(StringArray::from_iter_values([serde_json::to_string(&dsn)
                     .map_err(|err| {
@@ -1150,13 +1148,13 @@ impl FlightService for FlightServiceImpl {
 #[instrument(skip(task))]
 async fn modify_task_dsn_params(task: &mut Task) -> anyhow::Result<()> {
     let dsn = modify_dsn_params(&task.from).await?;
-    task.from = serde_json::Value::String(dsn.to_string());
+    task.from = dsn.to_string();
     Ok(())
 }
 
 #[instrument(skip(dsn))]
-async fn modify_dsn_params(dsn: &serde_json::Value) -> anyhow::Result<Dsn> {
-    let mut dsn = json_to_dsn(dsn)?;
+async fn modify_dsn_params(dsn: &str) -> anyhow::Result<Dsn> {
+    let mut dsn = json_to_dsn(&serde_json::Value::String(dsn.to_string()))?;
     tracing::debug!("dsn before modify: {}", &dsn);
 
     if let Some(v) = dsn.params.get("csv_config_file") {
@@ -1345,18 +1343,14 @@ mod tests {
     #[tokio::test]
     async fn test_modify_dsn_params() {
         // modify the csv_config_file
-        let dsn = "opcda://192.168.2.16/Matrikon.OPC.Simulation.1?csv_config_file=%40.%2Ftests%2Fopc%2Fopcda-utf8.csv".to_string();
-        let new_dsn = modify_dsn_params(&serde_json::Value::String(dsn))
-            .await
-            .unwrap();
+        let dsn = "opcda://192.168.2.16/Matrikon.OPC.Simulation.1?csv_config_file=%40.%2Ftests%2Fopc%2Fopcda-utf8.csv";
+        let new_dsn = modify_dsn_params(dsn).await.unwrap();
         let csv_config = new_dsn.params.get("csv_config_file").unwrap();
         assert_eq!("MCx0YWdfbmFtZSxlbmFibGVkLHN0YWJsZSx0Ym5hbWUsdmFsdWVfY29sLHZhbHVlX3RyYW5zZm9ybSx0eXBlLHF1YWxpdHlfY29sLHRzX2NvbCxyZWNlaXZlZF90c19jb2wsdHNfdHJhbnNmb3JtLHJlY2VpdmVkX3RzX3RyYW5zZm9ybSx0YWc6OlZBUkNIQVIoMjAwKTo6bmFtZQ0KMSxyb290LnBhcmVudC50ZW1wZXJhdHVyZSwxLG9wY197dHlwZX0sdF97dGFnX25hbWV9LHZhbCx2YWwgKjEuOCArIDMyLGludCxxdWFsaXR5LHRzLHJ0cywscnRzICsgOGgs5YWl5bqT5rip5bqmDQoyLHJvb3QucGFyZW50LnByZXNzdXJlLDAsb3BjX3t0eXBlfSx0X3t0YWdfbmFtZX0sdmFsLHZhbCArIDEwLCxxdWFsaXR5LHRzLHJ0cyx0cyArIDhoLCzlh4/ljovpmIDljovlipsNCjMscm9vdC5wYXJlbnQuY3VycmVudCwxLG9wY19kYV9lbGVjLHRfY3VzdG9tX2N1cnJlbnQsdmFsLCwscXVhbGl0eSx0cyxydHMsdHMgLSA2cyxydHMgLSA2cyzmgLvnur/nlLXmtYENCg==", csv_config);
 
         // do not modify the transform_config_file
-        let  dsn = "pi://192.168.0.34/ci_test?transform_config_file=%40.%2Ftaosx-core%2Ftests%2Fpi%2Fpi_singlecol_point.csv".to_string();
-        let new_dsn = modify_dsn_params(&serde_json::Value::String(dsn))
-            .await
-            .unwrap();
+        let  dsn = "pi://192.168.0.34/ci_test?transform_config_file=%40.%2Ftaosx-core%2Ftests%2Fpi%2Fpi_singlecol_point.csv";
+        let new_dsn = modify_dsn_params(dsn).await.unwrap();
         let config_file = new_dsn.params.get("transform_config_file").unwrap();
         assert_eq!("@./taosx-core/tests/pi/pi_singlecol_point.csv", config_file);
     }

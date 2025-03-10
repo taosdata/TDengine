@@ -10,7 +10,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
-use taosx_core::utils::dsn::json_to_dsn;
+use taos::IntoDsn;
 use tempfile::TempPath;
 use tokio::sync::RwLock;
 use utoipa::*;
@@ -23,7 +23,7 @@ use crate::serve::TaskController;
 
 #[derive(Debug, Deserialize, ToSchema, IntoParams)]
 pub struct DownloadAllPointsParams {
-    from: serde_json::Value,
+    from: String,
     via: Option<i64>,
     categories: String,
     lang: Option<String>,
@@ -319,14 +319,14 @@ fn get_safe_string_for_csv(s: &str) -> String {
 }
 
 async fn get_all_points(
-    from: serde_json::Value,
+    from: String,
     via: Option<i64>,
     categories: String,
     controller: &TaskController,
     lang: Option<String>,
 ) -> anyhow::Result<(String, usize)> {
     // let mut from = from.into_dsn()?;
-    let mut from = json_to_dsn(&from)?;
+    let mut from = from.into_dsn()?;
 
     let pattern = match from.driver.as_str() {
         "pi" | "pibackfill" => None,
@@ -341,7 +341,7 @@ async fn get_all_points(
             .await
     } else {
         let data = DataSetsReq {
-            from: serde_json::Value::String(from.to_string()),
+            from: from.to_string(),
             categories: vec![categories],
             via,
             offset: 0,
