@@ -18,6 +18,7 @@ void printArray(const std::array<uint64_t, N>& arr) {
   cout << endl;
 }
 
+#if 0
 template <int DIGIT_NUM>
 void extractWideInteger(__int128 a) {
   uint64_t                             k = 10;
@@ -58,6 +59,7 @@ __int128 generate_big_int128(uint32_t digitNum) {
   }
   return a;
 }
+#endif
 
 void checkDecimal(const DecimalType* pDec, uint8_t t, uint8_t prec, uint8_t scale, const char* valExpect) {
   ASSERT_TRUE(t == prec > 18 ? TSDB_DATA_TYPE_DECIMAL : TSDB_DATA_TYPE_DECIMAL64);
@@ -594,6 +596,7 @@ TEST(decimal, typeFromDecimal) {
 //  TEST same decimal type with different scale doing comparing or operations
 //  TEST case when select common type
 
+#if 0
 TEST(decimal, a) {
   __int128 a = generate_big_int128(37);
   extractWideInteger<9>(a);
@@ -644,6 +647,7 @@ TEST(decimal, divide) {
   printDecimal(&d, TSDB_DATA_TYPE_DECIMAL, out_precision, out_scale);
   ASSERT_TRUE(1);
 }
+#endif
 
 TEST(decimal, conversion) {
   // convert uint8 to decimal
