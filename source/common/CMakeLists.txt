@@ -8,6 +8,7 @@ if(TD_ENTERPRISE)
 endif()
 
 add_library(common STATIC ${COMMON_SRC})
+DEP_ext_cjson(common)
 
 add_dependencies(common lemon_sql)
 

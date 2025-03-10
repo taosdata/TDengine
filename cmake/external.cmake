@@ -399,7 +399,7 @@ elseif(${TD_WINDOWS})
     set(ext_cjson_static cjson.lib)
 endif()
 INIT_EXT(ext_cjson
-    INC_DIR          include
+    INC_DIR          include/cjson           # freemine: tweak in this way to hack #include <cJSON.h> in source codes
     LIB              lib/${ext_cjson_static}
 )
 # GIT_REPOSITORY https://github.com/taosdata-contrib/cJSON.git
@@ -512,9 +512,9 @@ endif(${BUILD_WITH_UV})     # }
 # tz
 if(NOT ${TD_WINDOWS})       # {
     if(${TD_LINUX})
-        set(ext_tz_static tz.a)
+        set(ext_tz_static libtz.a)
     elseif(${TD_DARWIN})
-        set(ext_tz_static tz.a)
+        set(ext_tz_static libtz.a)
     endif()
     INIT_EXT(ext_tz
         INC_DIR          include
