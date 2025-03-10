@@ -414,8 +414,10 @@ static int32_t tsdbCacheSerializeV0(char const *value, SLastCol *pLastCol) {
     }
     return sizeof(SLastColV0) + pLastCol->colVal.value.nData;
   } else if (pLastCol->colVal.value.type == TSDB_DATA_TYPE_DECIMAL) {
-    memcpy(&pLastColV0[1], pLastCol->colVal.value.pData, pLastCol->colVal.value.nData);
     pLastColV0->colVal.value.nData = pLastCol->colVal.value.nData;
+    if (pLastCol->colVal.value.nData > 0) {
+      memcpy(&pLastColV0[1], pLastCol->colVal.value.pData, pLastCol->colVal.value.nData);
+    }
     return sizeof(SLastColV0) + pLastCol->colVal.value.nData;
   } else {
     pLastColV0->colVal.value.val = pLastCol->colVal.value.val;
@@ -834,10 +836,12 @@ static int32_t tsdbCacheReallocSLastCol(SLastCol *pCol, size_t *pCharge) {
   }
 
   if (pCol->colVal.value.type == TSDB_DATA_TYPE_DECIMAL) {
-    void* p = taosMemoryMalloc(pCol->colVal.value.nData);
-    if (!p) TAOS_CHECK_EXIT(terrno);
-    (void)memcpy(p, pCol->colVal.value.pData, pCol->colVal.value.nData);
-    pCol->colVal.value.pData = p;
+    if (pCol->colVal.value.nData > 0) {
+      void *p = taosMemoryMalloc(pCol->colVal.value.nData);
+      if (!p) TAOS_CHECK_EXIT(terrno);
+      (void)memcpy(p, pCol->colVal.value.pData, pCol->colVal.value.nData);
+      pCol->colVal.value.pData = p;
+    }
     charge += pCol->colVal.value.nData;
   }
 
@@ -867,7 +871,8 @@ void tsdbCacheFreeSLastColItem(void *pItem) {
     }
   }
 
-  if (IS_VAR_DATA_TYPE(pCol->colVal.value.type) && pCol->colVal.value.pData) {
+  if ((IS_VAR_DATA_TYPE(pCol->colVal.value.type) || pCol->colVal.value.type == TSDB_DATA_TYPE_DECIMAL) &&
+      pCol->colVal.value.pData) {
     taosMemoryFree(pCol->colVal.value.pData);
   }
 }
@@ -889,7 +894,8 @@ static void tsdbCacheDeleter(const void *key, size_t klen, void *value, void *ud
     }
   }
 
-  if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type) /* && pLastCol->colVal.value.nData > 0*/) {
+  if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type) ||
+      pLastCol->colVal.value.type == TSDB_DATA_TYPE_DECIMAL /* && pLastCol->colVal.value.nData > 0*/) {
     taosMemoryFree(pLastCol->colVal.value.pData);
   }
 

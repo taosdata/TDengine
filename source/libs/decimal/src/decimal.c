@@ -300,7 +300,7 @@ int32_t decimal128ToDataVal(Decimal128* dec, SValue* pVal) {
 #define DECIMAL64_SIGN(pDec) (1 | (DECIMAL64_GET_VALUE(pDec) >> 63))
 
 static void decimal64GetWhole(const DecimalType* pDec, int8_t scale, DecimalType* pWhole) {
-  SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
+  const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
   DECIMAL64_CLONE(pWhole, pDec);
   Decimal64 scaleMul = SCALE_MULTIPLIER_64[scale];
   pOps->divide(pWhole, &scaleMul, 1, NULL);
@@ -308,7 +308,7 @@ static void decimal64GetWhole(const DecimalType* pDec, int8_t scale, DecimalType
 }
 
 static void decimal64GetFrac(const DecimalType* pDec, int8_t scale, DecimalType* pFrac) {
-  SDecimalOps* pOps = getDecimalOpsImp(DECIMAL_64);
+  const SDecimalOps* pOps = getDecimalOpsImp(DECIMAL_64);
   DECIMAL64_CLONE(pFrac, pDec);
   Decimal64 scaleMul = SCALE_MULTIPLIER_64[scale];
   pOps->mod(pFrac, &scaleMul, 1);
@@ -380,13 +380,10 @@ static SDecimalOps* getDecimalOpsImp(DecimalInternalType t) {
       return NULL;
   }
 }
-// TODO wjm const??
-SDecimalOps* getDecimalOps(int8_t dataType) { return getDecimalOpsImp(DECIMAL_GET_INTERNAL_TYPE(dataType)); }
+const SDecimalOps* getDecimalOps(int8_t dataType) { return getDecimalOpsImp(DECIMAL_GET_INTERNAL_TYPE(dataType)); }
 
 void makeDecimal64(Decimal64* pDec64, int64_t w) { DECIMAL64_SET_VALUE(pDec64, w); }
 
-// TODO wjm handle overflow problem of DecimalWord
-// it's impossible that pDec == INT64_MIN, only 18 digits can be accepted.
 void decimal64Negate(DecimalType* pInt) {
   Decimal64* pDec = pInt;
   DECIMAL64_SET_VALUE(pDec, -DECIMAL64_GET_VALUE(pDec));
@@ -452,7 +449,6 @@ bool decimal64Eq(const DecimalType* pLeft, const DecimalType* pRight, uint8_t ri
 }
 int32_t decimal64ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32_t bufLen) {
   Decimal     whole = {0}, frac = {0};
-  DecimalWord zero = 0;  // TODO wjm remove zero, use SIGN
   int32_t     pos = 0;
 
   if (DECIMAL64_SIGN((Decimal64*)pInt) == -1) {
@@ -514,7 +510,7 @@ static const Decimal128 SCALE_MULTIPLIER_128[TSDB_DECIMAL128_MAX_PRECISION + 1] 
     DEFINE_DECIMAL128(4003012203950112768ULL, 542101086242752LL),
     DEFINE_DECIMAL128(3136633892082024448ULL, 5421010862427522LL),
     DEFINE_DECIMAL128(12919594847110692864ULL, 54210108624275221LL),
-    DEFINE_DECIMAL128(68739955140067328ULL, 542101086242752217LL), // TODO wjm TEST it
+    DEFINE_DECIMAL128(68739955140067328ULL, 542101086242752217LL),
     DEFINE_DECIMAL128(687399551400673280ULL, 5421010862427522170LL),
 };
 
@@ -566,7 +562,7 @@ static void decimal128Negate(DecimalType* pWord) {
   Decimal128* pDec = (Decimal128*)pWord;
   uint64_t    lo = ~DECIMAL128_LOW_WORD(pDec) + 1;
   int64_t     hi = ~DECIMAL128_HIGH_WORD(pDec);
-  if (lo == 0) hi = SAFE_INT64_ADD(hi, 1); // TODO wjm test if overflow?
+  if (lo == 0) hi = SAFE_INT64_ADD(hi, 1);
   makeDecimal128(pDec, hi, lo);
 }
 
@@ -576,7 +572,6 @@ static void decimal128Abs(DecimalType* pWord) {
   }
 }
 
-// TODO wjm put it out of decimal128 functions
 #define DECIMAL128_CHECK_RIGHT_WORD_NUM(rightWordNum, pTarget, rightDec, pWord) \
   if (rightWordNum != WORD_NUM(Decimal128)) {                                   \
     Decimal64 d64 = {0};                                                        \
@@ -615,7 +610,7 @@ static void decimal128Multiply(DecimalType* pLeft, const DecimalType* pRight, ui
   bool       negate = DECIMAL128_SIGN(pLeftDec) != DECIMAL128_SIGN(pRightDec);
   Decimal128 x = *pLeftDec, y = *pRightDec;
   decimal128Abs(&x);
-  decimal128Abs(&y); // TODO wjm use too much abs, optimize it.
+  decimal128Abs(&y);
 
   UInt128 res = {0}, tmp = {0};
   makeUInt128(&res, DECIMAL128_HIGH_WORD(&x), DECIMAL128_LOW_WORD(&x));
@@ -626,7 +621,6 @@ static void decimal128Multiply(DecimalType* pLeft, const DecimalType* pRight, ui
 }
 
 static bool decimal128Lt(const DecimalType* pLeft, const DecimalType* pRight, uint8_t rightWordNum) {
-  // TODO wjm pRightDec use const
   Decimal128 *pLeftDec = (Decimal128*)pLeft, *pRightDec = (Decimal128*)pRight;
   Decimal128  right = {0};
   DECIMAL128_CHECK_RIGHT_WORD_NUM(rightWordNum, pRightDec, right, pRight);
@@ -745,7 +739,6 @@ static int32_t decimal128ToStr(const DecimalType* pInt, uint8_t scale, char* pBu
   }
   return 0;
 }
-// TODO wjm refine this interface
 int32_t decimalToStr(const DecimalType* pDec, int8_t dataType, int8_t precision, int8_t scale, char* pBuf,
                      int32_t bufLen) {
   pBuf[0] = '\0';
@@ -1285,25 +1278,25 @@ static int32_t decimal64FromUint64(DecimalType* pDec, uint8_t prec, uint8_t scal
 static int32_t decimal64FromDouble(DecimalType* pDec, uint8_t prec, uint8_t scale, double val) {
   double unscaled = val * getDoubleScaleMultiplier(scale);
   if (isnan(unscaled)) {
-    goto _OVERFLOW;
+    goto __OVERFLOW__;
   }
   unscaled = round(unscaled);
 
   bool negative = unscaled < 0 ? true : false;
   double abs = TABS(unscaled);
   if (abs > ldexp(1.0, 63) - 1) {
-    goto _OVERFLOW;
+    goto __OVERFLOW__;
   }
 
   uint64_t result = (uint64_t)abs;
   makeDecimal64(pDec, result);
   Decimal64 max = {0};
   DECIMAL64_GET_MAX(prec, &max);
-  if (decimal64Gt(pDec, &max, WORD_NUM(Decimal64))) goto _OVERFLOW;
+  if (decimal64Gt(pDec, &max, WORD_NUM(Decimal64))) goto __OVERFLOW__;
   if (negative) decimal64Negate(pDec);
   return 0;
 
-_OVERFLOW:
+__OVERFLOW__:
   makeDecimal64(pDec, 0);
   return TSDB_CODE_DECIMAL_OVERFLOW;
 }
@@ -1408,25 +1401,25 @@ static int32_t decimal128FromUint64(DecimalType* pDec, uint8_t prec, uint8_t sca
 static int32_t decimal128FromDouble(DecimalType* pDec, uint8_t prec, uint8_t scale, double val) {
   double unscaled = val * getDoubleScaleMultiplier(scale);
   if (isnan(unscaled)) {
-    goto _OVERFLOW;
+    goto __OVERFLOW__;
   }
   unscaled = round(unscaled);
 
   bool   negative = unscaled < 0 ? true : false;
   double abs = TABS(unscaled);
   if (abs > ldexp(1.0, 127) - 1) {
-    goto _OVERFLOW;
+    goto __OVERFLOW__;
   }
 
   uint64_t hi = (uint64_t)ldexp(abs, -64), lo = (uint64_t)(abs - ldexp((double)hi, 64));
   makeDecimal128(pDec, hi, lo);
   Decimal128 max = {0};
   DECIMAL128_GET_MAX(prec, &max);
-  if (decimal128Gt(pDec, &max, WORD_NUM(Decimal128))) goto _OVERFLOW;
+  if (decimal128Gt(pDec, &max, WORD_NUM(Decimal128))) goto __OVERFLOW__;
   if (negative) decimal128Negate(pDec);
   return 0;
 
-_OVERFLOW:
+__OVERFLOW__:
   *(Decimal128*)pDec = decimal128Zero;
   return TSDB_CODE_DECIMAL_OVERFLOW;
 }
@@ -1468,8 +1461,7 @@ static int32_t decimal128FromDecimal128(DecimalType* pDec, uint8_t prec, uint8_t
 }
 
 #define CONVERT_TO_DECIMAL(pData, pInputType, pOut, pOutType, decimal)                                               \
-  ({                                                                                                                 \
-    int32_t  code = 0;                                                                                               \
+  do {                                                                                                               \
     int64_t  val = 0;                                                                                                \
     uint64_t uval = 0;                                                                                               \
     double   dval = 0;                                                                                               \
@@ -1539,19 +1531,17 @@ static int32_t decimal128FromDecimal128(DecimalType* pDec, uint8_t prec, uint8_t
         code = TSDB_CODE_OPS_NOT_SUPPORT;                                                                            \
         break;                                                                                                       \
     }                                                                                                                \
-    code;                                                                                                            \
-  })
+  } while (0)
 
 int32_t convertToDecimal(const void* pData, const SDataType* pInputType, void* pOut, const SDataType* pOutType) {
-  // if (pInputType->type == pOutType->type) return 0;
   int32_t code = 0;
 
   switch (pOutType->type) {
     case TSDB_DATA_TYPE_DECIMAL64: {
-      code = CONVERT_TO_DECIMAL(pData, pInputType, pOut, pOutType, decimal64);
+      CONVERT_TO_DECIMAL(pData, pInputType, pOut, pOutType, decimal64);
     } break;
     case TSDB_DATA_TYPE_DECIMAL: {
-      code = CONVERT_TO_DECIMAL(pData, pInputType, pOut, pOutType, decimal128);
+      CONVERT_TO_DECIMAL(pData, pInputType, pOut, pOutType, decimal128);
     } break;
     default:
       code = TSDB_CODE_INTERNAL_ERROR;
@@ -1702,7 +1692,6 @@ int32_t decimal64FromStr(const char* str, int32_t len, uint8_t expectPrecision, 
   return code;
 }
 
-// TODO wjm add round param
 static void decimal128ScaleDown(Decimal128* pDec, uint8_t scaleDown, bool round) {
   if (scaleDown > 0) {
     Decimal128 divisor = SCALE_MULTIPLIER_128[scaleDown], remainder = {0};

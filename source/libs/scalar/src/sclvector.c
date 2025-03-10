@@ -1105,7 +1105,7 @@ STypeMod getConvertTypeMod(int32_t type, const SColumnInfo* pCol1, const SColumn
     } else if (pCol2 && IS_DECIMAL_TYPE(pCol2->type) && !IS_DECIMAL_TYPE(pCol1->type)) {
       return decimalCalcTypeMod(GET_DEICMAL_MAX_PRECISION(type), pCol2->scale);
     } else if (IS_DECIMAL_TYPE(pCol1->type) && pCol2 && IS_DECIMAL_TYPE(pCol2->type)) {
-      return decimalCalcTypeMod(GET_DEICMAL_MAX_PRECISION(type), MAX(pCol1->scale, pCol2->scale));
+      return decimalCalcTypeMod(GET_DEICMAL_MAX_PRECISION(type), TMAX(pCol1->scale, pCol2->scale));
     } else {
       return 0;
     }
@@ -2315,7 +2315,7 @@ static int32_t vectorMathUnaryOpForDecimal(SScalarParam *pCol, SScalarParam *pOu
                                            EOperatorType op) {
   int32_t          code = 0;
   SColumnInfoData *pOutputCol = pOut->columnData;
-  void            *pDec = pOutputCol->pData;
+  char            *pDec = pOutputCol->pData;
   for (; i < pCol->numOfRows && i >= 0; i += step, pDec += tDataTypes[pOutputCol->info.type].bytes) {
     if (IS_HELPER_NULL(pCol->columnData, i)) {
       colDataSetNULL(pOutputCol, i);

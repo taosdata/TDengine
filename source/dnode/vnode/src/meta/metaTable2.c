@@ -678,7 +678,6 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
     TAOS_RETURN(code);
   }
   code = addTableExtSchema(pEntry, pColumn, pSchema->nCols, &extSchema);
-  // TODO wjm update extSchema, client set typeMod in add request.
   if (code) {
     metaError("vgId:%d, %s failed to add ext schema at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(code), version);

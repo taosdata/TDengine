@@ -777,7 +777,8 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
       }
 
       tsdbRowGetColVal(pRow, pTSchema, jCol++, pColVal);
-      if ((!COL_VAL_IS_NONE(pColVal)) && (!COL_VAL_IS_NULL(pColVal)) && IS_VAR_DATA_TYPE(pColVal->value.type)) {
+      bool usepData = IS_VAR_DATA_TYPE(pColVal->value.type) || pColVal->value.type == TSDB_DATA_TYPE_DECIMAL;
+      if ((!COL_VAL_IS_NONE(pColVal)) && (!COL_VAL_IS_NULL(pColVal)) && usepData) {
         uint8_t *pVal = pColVal->value.pData;
 
         pColVal->value.pData = NULL;
@@ -820,7 +821,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
 
       if (key.version > pMerger->version) {
         if (!COL_VAL_IS_NONE(pColVal)) {
-          if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
+          if (IS_VAR_DATA_TYPE(pColVal->value.type) || pColVal->value.type == TSDB_DATA_TYPE_DECIMAL) {
             SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
             if (!pTColVal) return terrno;
             if (!COL_VAL_IS_NULL(pColVal)) {
@@ -843,7 +844,8 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
       } else if (key.version < pMerger->version) {
         SColVal *tColVal = (SColVal *)taosArrayGet(pMerger->pArray, iCol);
         if (COL_VAL_IS_NONE(tColVal) && !COL_VAL_IS_NONE(pColVal)) {
-          if ((!COL_VAL_IS_NULL(pColVal)) && IS_VAR_DATA_TYPE(pColVal->value.type)) {
+          bool usepData = IS_VAR_DATA_TYPE(pColVal->value.type) || pColVal->value.type == TSDB_DATA_TYPE_DECIMAL;
+          if ((!COL_VAL_IS_NULL(pColVal)) && usepData) {
             code = tRealloc(&tColVal->value.pData, pColVal->value.nData);
             if (code) return code;
 
@@ -879,7 +881,7 @@ int32_t tsdbRowMergerInit(SRowMerger *pMerger, STSchema *pSchema) {
 void tsdbRowMergerClear(SRowMerger *pMerger) {
   for (int32_t iCol = 1; iCol < pMerger->pTSchema->numOfCols; iCol++) {
     SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
-    if (IS_VAR_DATA_TYPE(pTColVal->value.type)) {
+    if (IS_VAR_DATA_TYPE(pTColVal->value.type) || pTColVal->value.type == TSDB_DATA_TYPE_DECIMAL) {
       tFree(pTColVal->value.pData);
     }
   }
@@ -891,7 +893,7 @@ void tsdbRowMergerCleanup(SRowMerger *pMerger) {
   int32_t numOfCols = taosArrayGetSize(pMerger->pArray);
   for (int32_t iCol = 1; iCol < numOfCols; iCol++) {
     SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
-    if (IS_VAR_DATA_TYPE(pTColVal->value.type)) {
+    if (IS_VAR_DATA_TYPE(pTColVal->value.type) || pTColVal->value.type == TSDB_DATA_TYPE_DECIMAL) {
       tFree(pTColVal->value.pData);
     }
   }

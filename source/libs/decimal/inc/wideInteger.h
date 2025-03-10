@@ -103,7 +103,7 @@ UInt256 uInt256RightShift(const UInt256* pLeft, int32_t shift);
 extern const UInt256 uInt256Zero;
 extern const UInt256 uInt256One;
 
-Int256  makeInt256(Int128 high, UInt128 low);// TODO wjm all params should be high then low
+Int256  makeInt256(Int128 high, UInt128 low);
 Int128 int256Hi(const Int256* pUint256);
 UInt128 int256Lo(const Int256* pUint256);
 Int256  int256Abs(const Int256* pInt256);

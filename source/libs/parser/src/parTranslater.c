@@ -9540,7 +9540,7 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
       }
     }
 
-    if (TSDB_CODE_SUCCESS == code && isAggrRollup && 0 != colIndex) { // TODO wjm, test is agg rollup
+    if (TSDB_CODE_SUCCESS == code && isAggrRollup && 0 != colIndex) {
       if (pCol->dataType.type != TSDB_DATA_TYPE_FLOAT && pCol->dataType.type != TSDB_DATA_TYPE_DOUBLE) {
         code =
             generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,

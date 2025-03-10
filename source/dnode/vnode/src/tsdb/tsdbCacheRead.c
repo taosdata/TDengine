@@ -545,7 +545,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         }
       }
 
-      if (IS_VAR_DATA_TYPE(pCol->type)) {
+      if (IS_VAR_DATA_TYPE(pCol->type) || pCol->type == TSDB_DATA_TYPE_DECIMAL) {
         p.colVal.value.pData = taosMemoryCalloc(pCol->bytes, sizeof(char));
         TSDB_CHECK_NULL(p.colVal.value.pData, code, lino, _end, terrno);
       }
@@ -630,7 +630,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
               goto _end;
             }
 
-            if (!IS_VAR_DATA_TYPE(pColVal->colVal.value.type)) {
+            if (!IS_VAR_DATA_TYPE(pColVal->colVal.value.type) && pColVal->colVal.value.type != TSDB_DATA_TYPE_DECIMAL) {
               p->colVal = pColVal->colVal;
             } else {
               if (COL_VAL_IS_VALUE(&pColVal->colVal)) {

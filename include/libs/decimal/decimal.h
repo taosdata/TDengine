@@ -114,7 +114,7 @@ typedef struct SDecimalOps {
 } SDecimalOps;
 
 // all these ops only used for comparing decimal types with same scale
-SDecimalOps* getDecimalOps(int8_t dataType);
+const SDecimalOps* getDecimalOps(int8_t dataType);
 
 #if 0
 __int128 decimal128ToInt128(const Decimal128* pDec);
