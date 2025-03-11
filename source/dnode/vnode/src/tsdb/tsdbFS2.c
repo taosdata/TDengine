@@ -985,6 +985,43 @@ int32_t tsdbFSEditAbort(STFileSystem *fs) {
   }
   return code;
 }
+int32_t tsdbGetFsSizeImpl(STFileSystem *fs, int64_t *lvl1, int64_t *lvl2) {
+  int32_t    code = 0;
+  int64_t    alvl1 = 0, alvl2 = 0;
+  STFileSet *fset;
+
+  const SSttLvl   *stt = NULL;
+  const STFileObj *fObj = NULL;
+
+  (void)taosThreadMutexLock(&fs->tsdb->mutex);
+
+  TARRAY2_FOREACH(fs->fSetArr, fset) {
+    for (int32_t t = TSDB_FTYPE_MIN; t < TSDB_FTYPE_MAX; ++t) {
+      if (fset->farr[t] == NULL) continue;
+      fObj = fset->farr[t];
+      if (fObj->nlevel == 1) {
+        alvl1 += fObj->f->size;
+      } else if (fObj->nlevel == 2) {
+        alvl2 += fObj->f->size;
+      }
+    }
+    TARRAY2_FOREACH(fset->lvlArr, stt) {
+      TARRAY2_FOREACH(stt->fobjArr, fObj) {
+        if (fObj->nlevel == 1) {
+          alvl1 += fObj->f->size;
+        } else if (fObj->nlevel == 2) {
+          alvl2 += fObj->f->size;
+        }
+      }
+    }
+  }
+
+  (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
+
+  *lvl1 = alvl1;
+  *lvl2 = alvl2;
+  return code;
+}
 
 void tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset) {
   STFileSet   tfset = {.fid = fid};

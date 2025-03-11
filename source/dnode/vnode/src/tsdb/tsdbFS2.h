@@ -59,6 +59,7 @@ void    tsdbFSUpdateEid(STFileSystem *fs, int64_t cid);
 int32_t tsdbFSEditBegin(STFileSystem *fs, const TFileOpArray *opArray, EFEditT etype);
 int32_t tsdbFSEditCommit(STFileSystem *fs);
 int32_t tsdbFSEditAbort(STFileSystem *fs);
+int32_t tsdbGetFsSizeImpl(STFileSystem *fs, int64_t *lvl1, int64_t *lvl2);
 // other
 void tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset);
 void tsdbFSCheckCommit(STsdb *tsdb, int32_t fid);

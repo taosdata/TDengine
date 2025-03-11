@@ -773,3 +773,7 @@ int32_t tsdbGetS3Size(STsdb *tsdb, int64_t *size) {
   (void)taosThreadMutexUnlock(&tsdb->mutex);
   return code;
 }
+
+int32_t tsdbGetFsSize(STsdb *tsdb, int64_t *lvl1Size, int64_t *lvl2Size) {
+  return tsdbGetFsSizeImpl(tsdb->pFS, lvl1Size, lvl2Size);
+}

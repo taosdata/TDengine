@@ -49,7 +49,7 @@ int32_t fillTableColCmpr(SMetaReader *reader, SSchemaExt *pExt, int32_t numOfCol
   return 0;
 }
 
-void vnodePrintTableMeta(STableMetaRsp* pMeta) {
+void vnodePrintTableMeta(STableMetaRsp *pMeta) {
   if (!(qDebugFlag & DEBUG_DEBUG)) {
     return;
   }
@@ -70,13 +70,12 @@ void vnodePrintTableMeta(STableMetaRsp* pMeta) {
   qDebug("sysInfo:%d", pMeta->sysInfo);
   if (pMeta->pSchemas) {
     for (int32_t i = 0; i < (pMeta->numOfColumns + pMeta->numOfTags); ++i) {
-      SSchema* pSchema = pMeta->pSchemas + i;
-      qDebug("%d col/tag: type:%d, flags:%d, colId:%d, bytes:%d, name:%s", i, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes, pSchema->name);
+      SSchema *pSchema = pMeta->pSchemas + i;
+      qDebug("%d col/tag: type:%d, flags:%d, colId:%d, bytes:%d, name:%s", i, pSchema->type, pSchema->flags,
+             pSchema->colId, pSchema->bytes, pSchema->name);
     }
   }
-
 }
-
 
 int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   STableInfoReq  infoReq = {0};
@@ -938,7 +937,9 @@ int32_t vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo) {
   pInfo->cacheSize = dirSize[3];
 
   code = tsdbGetS3Size(pVnodeObj->pTsdb, &pInfo->s3Size);
+  if (code != 0) return code;
 
+  code = tsdbGetFsSize(pVnodeObj->pTsdb, &pInfo->l1Size, &pInfo->l2Size);
   return code;
 }
 
