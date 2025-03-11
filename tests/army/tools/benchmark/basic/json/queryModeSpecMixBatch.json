@@ -7,7 +7,7 @@
 	"password": "taosdata",
 	"confirm_parameter_prompt": "no",
 	"databases": "test",
-	"query_times": 100,
+	"query_times": 5,
 	"query_mode": "taosc",
 	"specified_table_query": {
 		"concurrent": 5,

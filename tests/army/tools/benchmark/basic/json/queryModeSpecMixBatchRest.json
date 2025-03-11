@@ -7,10 +7,11 @@
 	"password": "taosdata",
 	"confirm_parameter_prompt": "no",
 	"databases": "test",
-	"query_times": 100,
+	"query_times": 5,
 	"query_mode": "rest",
 	"specified_table_query": {
-		"concurrent": 4,
+		"concurrent": 5,
+		"query_interval": 1000,
 		"mixed_query": "yes",
 		"batch_query": "yes",
 		"sqls": [

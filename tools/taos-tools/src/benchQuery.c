@@ -979,7 +979,10 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
     }
     ret = 0;
     
-    infoPrint("all sleep spend: %.3fs\n", (float)allSleep/1000);
+    printf("\n");
+    if (allSleep > 0) {
+        infoPrint("all sleep spend: %.3fs\n", (float)allSleep/1000);
+    }    
 
 OVER:
     // close conn
