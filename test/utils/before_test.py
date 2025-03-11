@@ -9,9 +9,14 @@ import taosrest
 import taosws
 import yaml
 import logging
+import socket
 import configparser
 from utils.pytest.util.cluster import cluster as cluster_pytest, ClusterDnodes as ClusterDnodes_pytest
 from utils.pytest.util.dnodes import tdDnodes as tdDnodes_pytest
+from utils.pytest.util.taosadapter import tAdapter as tAdapter_pytest
+from utils.army.frame.server.cluster import cluster as cluster_army, ClusterDnodes as ClusterDnodes_army, clusterDnodes as clusterDnodes_army
+from utils.army.frame.server.dnodes import tdDnodes as tdDnodes_army
+from utils.army.frame.taosadapter import tAdapter as tAdapter_army
 
 logger = logging.getLogger(__name__)
 logger.info(f"tdDnodes_pytest: {tdDnodes_pytest}")
@@ -132,8 +137,8 @@ class BeforeTest:
     #    except Exception as e:
     #        logger.error(f"[BeforeTest.destroy] Error run taostest --destroy: {e}")
         
-    def ci_init_config(self, denodes_num, query_policy, restful):
-        ci_path = os.path.join(os.path.dirname(self.root_dir), 'sim')
+    def ci_init_config(self, request):
+        ci_path = os.path.join(self.root_dir, 'sim')
         cfg_path = os.path.join(ci_path, 'cfg')
         yaml_data = {
             "settings": [{
@@ -148,10 +153,21 @@ class BeforeTest:
                 }
             }]
         }
-        for i in range(denodes_num):
+        servers = []
+        for i in range(request.session.denodes_num):
             dnode_cfg_path = os.path.join(ci_path, f"dnode{i+1}", "cfg")
             log_path = os.path.join(ci_path, f"dnode{i+1}", "log")
-            data_path = os.path.join(ci_path, f"dnode{i+1}", "data")
+            if request.session.level > 1 or request.session.disk > 1:
+                data_path = []
+                primary = 1
+                for l in range(request.session.level):
+                    for d in range(request.session.disk):
+                        eDir = os.path.join(ci_path, f"dnode{i+1}", f"data{l}{d}")
+                        data_path.append(f"{eDir} {l} {primary}")
+                        if primary == 1:
+                            primary = 0
+            else:
+                data_path = os.path.join(ci_path, f"dnode{i+1}", "data")
             dnode = {
                 "endpoint": f"localhost:{6030 + i * 100}",
                 "config_dir": dnode_cfg_path,
@@ -161,25 +177,38 @@ class BeforeTest:
                 }
             }
             logger.debug(f"[BeforeTest.ci_init_config] dnode: {dnode}")
-            if query_policy > 1:
-                dnode["spec"]["config"]["queryPolicy"] = query_policy
+            if request.session.query_policy > 1:
+                dnode["spec"]["config"]["queryPolicy"] = request.session.query_policy
             yaml_data["settings"][0]["spec"]["dnodes"].append(dnode)
-        if restful:
-            config_file = os.path.join(ci_path, "dnode1", "cfg", "taosadapter.toml")
-            taosConfigDir = os.path.join(ci_path, "dnode1", "cfg", "taos.cfg")
-            log_dir = os.path.join(ci_path, "dnode1", "log")
+            server = {
+                "host": dnode["endpoint"].split(":")[0],
+                "port": int(dnode["endpoint"].split(":")[1]),
+                "cfg_path": dnode["config_dir"],
+                "endpoint": dnode["endpoint"],
+                "log_dir": log_path,
+                "data_dir": data_path,
+                "config": dnode["config"]
+            }
+            servers.append(server)
+        request.session.servers = servers
+        if request.session.restful:
+            # TODO: 增加taosAdapter的配置
+            adapter_config_dir = os.path.join(ci_path, "dnode1", "cfg")
+            adapter_config_file = os.path.join(adapter_config_dir, "taosadapter.toml")
+            taos_config_file = os.path.join(ci_path, "dnode1", "cfg", "taos.cfg")
+            adapter_log_dir = os.path.join(ci_path, "dnode1", "log")
             taos_log_dir = os.path.join(ci_path, "dnode1", "log")
             restful_dict = {
                 "name": "taosAdapter",
                 "fqdn": ["localhost"],
                 "spec": {
                     "version": "2.4.0.0",
-                    "config_file": config_file,
+                    "config_file": adapter_config_file,
                     "adapter_config": {
                         "logLevel": "info",
                         "port": 6041,
-                        "taosConfigDir": taosConfigDir,
-                        "log": {"path": log_dir}
+                        "taosConfigDir": taos_config_file,
+                        "log": {"path": adapter_log_dir}
                     },
                     "taos_config": {
                         "firstEP": "localhost:6030",
@@ -188,40 +217,157 @@ class BeforeTest:
                 }
             }
             yaml_data["settings"].append(restful_dict)
+            adapter = {}
+            adapter["host"] = "localhost"
+            adapter["cfg_dir"] = adapter_config_dir
+            adapter["config_file"] = adapter_config_file
+            adapter["port"] = 6041
+            adapter["logLevel"] = "info"
+            adapter["log_path"] = adapter_log_dir
+            adapter["taos_firstEP"] = "localhost:6030"
+            adapter["taos_logDir"] = taos_log_dir
+            request.session.adapter = adapter
+        request.session.yaml_data = yaml_data
         with open(os.path.join(self.root_dir, 'env', 'ci_default.yaml'), 'w') as file:
             yaml.dump(yaml_data, file)
     
 
-    def init_dnode_cluster(self, request, dnode_nums, mnode_nums, independentMnode=True):
-        global tdDnodes_pytest
+    def get_config_from_yaml(self, request, yaml_file_path):
+        with open(yaml_file_path, "r") as f:
+            yaml_data = yaml.safe_load(f)
+
+        # 解析settings中name=taosd的配置
+        servers = []
+        request.session.restful = False
+        for setting in yaml_data.get("settings", []):
+            if setting.get("name") == "taosd":
+                for dnode in setting["spec"]["dnodes"]:
+                    endpoint = dnode["endpoint"]
+                    host, port = endpoint.split(":")
+                    server = {
+                        "host": host,
+                        "port": int(port),
+                        "cfg_path": dnode["config_dir"],
+                        "endpoint": endpoint,
+                        "log_dir": dnode["config"]["logDir"],
+                        "data_dir": dnode["config"]["dataDir"],
+                        "config": dnode["config"]
+                    }
+                    servers.append(server)
+            if setting.get("name") == "taosAdapter":
+                # TODO: 解析taosAdapter的配置
+                request.session.restful = True
+                adapter = []
+                adapter["host"] = setting["fqdn"][0]
+                adapter["cfg_dir"] = os.path.dirname(setting["spec"]["config_file"])
+                adapter["config_file"] = setting["spec"]["config_file"]
+                adapter["port"] = setting["spec"]["adapter_config"]["port"]
+                adapter["logLevel"] = setting["spec"]["adapter_config"]["logLevel"]
+                adapter["log_path"] = setting["spec"]["adapter_config"]["log"]["path"]
+                adapter["taos_firstEP"] = setting["spec"]["taos_config"]["firstEP"]
+                adapter["taos_logDir"] = setting["spec"]["taos_config"]["logDir"]
+                
+        request.session.host = servers[0]["host"]
+        request.session.port = servers[0]["port"]
+        request.session.user = "root"
+        request.session.password = "taosdata"
+        request.session.cfg_path = servers[0]["cfg_path"]
+        request.session.servers = servers
+        request.session.denodes_num = len(servers)
+        request.session.query_policy = 1
+        request.session.yaml_data = yaml_data
+        request.session.adapter = adapter
+
+
+    def init_dnode_cluster(self, request, dnode_nums, mnode_nums, independentMnode=True, level=1, disk=1):
+        global tdDnodes_pytest, tdDnodes_army
+        host = socket.gethostname()
+        if request.session.host == host or request.session.host == "localhost":
+            master_ip = ""
+        else:
+            master_ip = request.session.host
         #logger.info(f"tdDnodes_pytest in init_dnode_cluster: {tdDnodes_pytest}")
         if dnode_nums > 1:
-            dnodeslist = cluster_pytest.configure_cluster(dnodeNums=dnode_nums, mnodeNums=mnode_nums, independentMnode=independentMnode)
-            tdDnodes_pytest = ClusterDnodes_pytest(dnodeslist)
-            tdDnodes_pytest.init("", "")
+            dnodes_list_pytest = cluster_pytest.configure_cluster(dnodeNums=dnode_nums, mnodeNums=mnode_nums, independentMnode=independentMnode)
+            tdDnodes_pytest = ClusterDnodes_pytest(dnodes_list_pytest)
+            tdDnodes_pytest.init(request.session.root_dir, master_ip)
             tdDnodes_pytest.setTestCluster(False)
             tdDnodes_pytest.setValgrind(0)
             tdDnodes_pytest.setAsan(0)
+            dnodes_list_army = cluster_army.configure_cluster(dnodeNums=dnode_nums, mnodeNums=mnode_nums, independentMnode=independentMnode)
+            clusterDnodes_army.init(dnodes_list_army, request.session.root_dir, master_ip)
+            clusterDnodes_army.setTestCluster(False)
+            clusterDnodes_army.setValgrind(0)
+            clusterDnodes_army.setAsan(0)
+            tdDnodes_army = clusterDnodes_army
         else:
-            tdDnodes_pytest.init("", "")
+            tdDnodes_pytest.init(request.session.root_dir, master_ip)
             tdDnodes_pytest.setKillValgrind(1)
             tdDnodes_pytest.setTestCluster(False)
             tdDnodes_pytest.setValgrind(0)
             tdDnodes_pytest.setAsan(0)
+            tdDnodes_army.init(request.session.root_dir, master_ip)
+            tdDnodes_army.setKillValgrind(1)
+            tdDnodes_army.setTestCluster(False)
+            tdDnodes_army.setValgrind(0)
+            tdDnodes_army.setAsan(0)
         tdDnodes_pytest.sim.setTestCluster(False)
         tdDnodes_pytest.sim.logDir = os.path.join(tdDnodes_pytest.sim.path,"sim","psim","log")
         tdDnodes_pytest.sim.cfgDir = os.path.join(tdDnodes_pytest.sim.path,"sim","psim","cfg")
         tdDnodes_pytest.sim.cfgPath = os.path.join(tdDnodes_pytest.sim.path,"sim","psim","cfg","taos.cfg")
         tdDnodes_pytest.simDeployed = True
+        tdDnodes_army.sim.setTestCluster(False)
+        tdDnodes_army.setLevelDisk(request.session.level, request.session.disk)
+        tdDnodes_army.sim.logDir = os.path.join(tdDnodes_army.sim.path,"sim","psim","log")
+        tdDnodes_army.sim.cfgDir = os.path.join(tdDnodes_army.sim.path,"sim","psim","cfg")
+        tdDnodes_army.sim.cfgPath = os.path.join(tdDnodes_army.sim.path,"sim","psim","cfg","taos.cfg")
+        tdDnodes_army.simDeployed = True
         for i in range(dnode_nums):
             tdDnodes_pytest.dnodes[i].setTestCluster(False)
             tdDnodes_pytest.dnodes[i].setValgrind(0)
             tdDnodes_pytest.dnodes[i].setAsan(0)
-            tdDnodes_pytest.dnodes[i].logDir = os.path.join(tdDnodes_pytest.dnodes[i].path,"sim","dnode%d" % (i + 1), "log")
-            tdDnodes_pytest.dnodes[i].dataDir = os.path.join(tdDnodes_pytest.dnodes[i].path,"sim","dnode%d" % (i + 1), "data")
-            tdDnodes_pytest.dnodes[i].cfgDir = os.path.join(tdDnodes_pytest.dnodes[i].path,"sim","dnode%d" % (i + 1), "cfg")
-            tdDnodes_pytest.dnodes[i].cfgPath = os.path.join(tdDnodes_pytest.dnodes[i].path,"sim","dnode%d" % (i + 1), "cfg","taos.cfg")
+            tdDnodes_pytest.dnodes[i].logDir = request.session.servers[i]["log_dir"]
+            tdDnodes_pytest.dnodes[i].dataDir = request.session.servers[i]["data_dir"]
+            tdDnodes_pytest.dnodes[i].cfgDir = request.session.servers[i]["cfg_path"]
+            tdDnodes_pytest.dnodes[i].cfgPath = os.path.join(request.session.servers[i]["cfg_path"],"taos.cfg")
             tdDnodes_pytest.dnodes[i].cfgDict["dataDir"] = tdDnodes_pytest.dnodes[i].dataDir
             tdDnodes_pytest.dnodes[i].cfgDict["logDir"] = tdDnodes_pytest.dnodes[i].logDir
             tdDnodes_pytest.dnodes[i].deployed = 1
             tdDnodes_pytest.dnodes[i].running = 1
+            tdDnodes_army.dnodes[i].setTestCluster(False)
+            tdDnodes_army.dnodes[i].setValgrind(0)
+            tdDnodes_army.dnodes[i].setAsan(0)
+            tdDnodes_army.dnodes[i].logDir = request.session.servers[i]["log_dir"]
+            tdDnodes_army.dnodes[i].dataDir = request.session.servers[i]["data_dir"]
+            tdDnodes_army.dnodes[i].cfgDir = request.session.servers[i]["cfg_path"]
+            tdDnodes_army.dnodes[i].cfgPath = os.path.join(request.session.servers[i]["cfg_path"],"taos.cfg")
+            tdDnodes_army.dnodes[i].cfgDict["dataDir"] = tdDnodes_army.dnodes[i].dataDir
+            tdDnodes_army.dnodes[i].cfgDict["logDir"] = tdDnodes_army.dnodes[i].logDir
+            tdDnodes_army.dnodes[i].deployed = 1
+            tdDnodes_army.dnodes[i].running = 1
+    # TODO: 增加taosAdapter实例化
+
+        if request.session.restful:
+            tAdapter_pytest.init(request.session.root_dir, master_ip)
+            tAdapter_pytest.log_dir = request.session.adapter["log_path"]
+            tAdapter_pytest.cfg_dir = request.session.adapter["cfg_dir"]
+            tAdapter_pytest.cfg_path = request.session.adapter["config_file"]
+            tAdapter_pytest.taosadapter_cfg_dict["log"]["path"] = request.session.adapter["log_path"]
+            tAdapter_pytest.deployed = 1
+            tAdapter_pytest.running = 1
+            tAdapter_army.init(request.session.root_dir, master_ip)
+            tAdapter_army.log_dir = request.session.adapter["log_path"]
+            tAdapter_army.cfg_dir = request.session.adapter["cfg_dir"]
+            tAdapter_army.cfg_path = request.session.adapter["config_file"]
+            tAdapter_army.taosadapter_cfg_dict["log"]["path"] = request.session.adapter["log_path"]
+            tAdapter_army.deployed = 1
+            tAdapter_army.running = 1
+
+    
+
+    def update_cfg(self, updatecfgDict):
+        for key, value in updatecfgDict.items():
+            for dnode in self.request.session.yaml_data["settings"][0]["spec"]["dnodes"]:
+                dnode["config"][key] = value
+        with open(os.path.join(self.root_dir, 'env', 'ci_default.yaml'), 'w') as file:
+            yaml.dump(self.request.session.yaml_data, file)
