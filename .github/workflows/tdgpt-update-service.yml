@@ -1,4 +1,4 @@
-name: TDGpt Update Service
+name: TDgpt Update Service
 
 on:
   schedule:
