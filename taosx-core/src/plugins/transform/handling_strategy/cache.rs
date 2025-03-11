@@ -31,28 +31,40 @@ fn default_max_size_value() -> usize {
     0
 }
 
+fn default_max_size_unit() -> String {
+    "GB".to_string()
+}
+
+fn default_location() -> String {
+    "cache".to_string()
+}
+
+fn default_on_fail() -> HandlingCacheFailed {
+    HandlingCacheFailed::Skip
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct Cache {
     #[serde(default = "default_max_size")]
     pub max_size: String,
     #[serde(default = "default_max_size_value")]
     pub max_size_value: usize,
-    #[serde(default)]
+    #[serde(default = "default_max_size_unit")]
     pub max_size_unit: String,
-    #[serde(default)]
+    #[serde(default = "default_location")]
     pub location: String,
-    #[serde(default)]
+    #[serde(default = "default_on_fail")]
     pub on_fail: HandlingCacheFailed,
 }
 
 impl Default for Cache {
     fn default() -> Self {
         Self {
-            max_size: "0GB".to_string(),
-            max_size_value: 0,
-            max_size_unit: "GB".to_string(),
-            location: "cache".to_string(),
-            on_fail: HandlingCacheFailed::default(),
+            max_size: default_max_size(),
+            max_size_value: default_max_size_value(),
+            max_size_unit: default_max_size_unit(),
+            location: default_location(),
+            on_fail: default_on_fail(),
         }
     }
 }

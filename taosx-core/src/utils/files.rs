@@ -113,6 +113,7 @@ pub fn write_to_parquet_file(
     filename: &String,
     keep_days: usize,
     max_size: usize,
+    max_size_unit: &str,
     record: &RecordBatch,
 ) -> anyhow::Result<()> {
     let data_dir = get_data_dir();
@@ -127,7 +128,7 @@ pub fn write_to_parquet_file(
         delete_old_parquet_files_by_date(task_id, filename, keep_days)?;
     }
     if max_size > 0 {
-        delete_old_parquet_files_by_size(task_id, filename, max_size)?;
+        delete_old_parquet_files_by_size(task_id, filename, max_size, max_size_unit)?;
     }
 
     let path = path.join(format!("{}.{}", filename, Utc::now().format("%Y%m%d")));
@@ -185,8 +186,18 @@ pub fn delete_old_parquet_files_by_size(
     task_id: i64,
     filename: &String,
     max_size: usize,
+    max_size_unit: &str,
 ) -> anyhow::Result<()> {
-    let max_size = (max_size * 1024 * 1024 * 1024) as u64;
+    let max_size = if max_size_unit.to_lowercase() == "gb" {
+        max_size * 1024 * 1024 * 1024
+    } else if max_size_unit.to_lowercase() == "mb" {
+        max_size * 1024 * 1024
+    } else if max_size_unit.to_lowercase() == "kb" {
+        max_size * 1024
+    } else {
+        max_size
+    };
+    (max_size * 1024 * 1024 * 1024) as u64;
     let mut total_file_size = 0;
 
     let entries = read_parquet_dir_entries(task_id, filename)?;
@@ -201,7 +212,7 @@ pub fn delete_old_parquet_files_by_size(
     entries.sort_by_key(|(entry, _)| entry.file_name());
 
     for (entry, file_size) in entries {
-        if total_file_size <= max_size {
+        if total_file_size <= max_size as u64 {
             break;
         }
         let file_path = entry.path();
@@ -384,7 +395,7 @@ mod tests {
             ("int1", Arc::new(Int32Array::from(vec![1])) as ArrayRef),
         ])
         .unwrap();
-        write_to_parquet_file(task_id, &filename, 5, 2, &record).unwrap();
+        write_to_parquet_file(task_id, &filename, 5, 2, "GB", &record).unwrap();
     }
 
     #[test]
@@ -401,7 +412,8 @@ mod tests {
         let task_id = 1;
         let filename = "archive/p1/p2/p3/p4/file".to_string();
         let max_size = 8;
-        let res = delete_old_parquet_files_by_size(task_id, &filename, max_size);
+        let max_size_unit = "GB";
+        let res = delete_old_parquet_files_by_size(task_id, &filename, max_size, max_size_unit);
         assert!(res.is_ok());
     }
 
