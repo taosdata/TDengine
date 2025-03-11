@@ -2095,7 +2095,10 @@ int32_t transSendResponse(STransMsg *msg) {
   msg->type = msg->info.connType;
   return transSendResp(msg);
 }
-int32_t transRegisterMsg(const STransMsg *msg) { return 0; }
+int32_t transRegisterMsg(const STransMsg *msg) {
+  rpcFreeCont(msg->pCont);
+  return 0;
+}
 int32_t transSetIpWhiteList(void *thandle, void *arg, FilteFunc *func) { return 0; }
 
 void *transInitServer(uint32_t ip, uint32_t port, char *label, int numOfThreads, void *fp, void *pInit) { return NULL; }

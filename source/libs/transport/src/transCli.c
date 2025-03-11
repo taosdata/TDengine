@@ -4011,6 +4011,9 @@ int32_t transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, S
         taosHashPut(pTransInst->sidTable, &pReq->info.qId, sizeof(pReq->info.qId), ctx, sizeof(STransCtx));
       }
     }
+    if (pReq->msgType == TDMT_SCH_DROP_TASK) {
+      (pTransInst->destroyFp)(pReq->info.ahandle);
+    }
     taosThreadMutexUnlock(&pTransInst->sidMutx);
   }
 
@@ -4085,6 +4088,7 @@ int32_t transSendRecvWithTimeout(void* shandle, SEpSet* pEpSet, STransMsg* pReq,
   transSendRequest(shandle, NULL, pReq, NULL);
   TAOS_UNUSED(tsem_wait(tmsg->sem));
   tsem_destroy(tmsg->sem);
+  taosMemFree(tmsg->sem);
 
   memcpy(pRsp, &tmsg->pMsg, sizeof(STransMsg));
   taosMemoryFree(tmsg);

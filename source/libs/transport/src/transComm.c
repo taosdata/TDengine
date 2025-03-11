@@ -1711,6 +1711,7 @@ void* processSvrMsg(void* arg) {
           tDebug("taosd %s received from taosd, ignore", TMSG_INFO(pRpcMsg->msgType));
         }
       }
+      taosFreeQitem(pRpcMsg);
     }
     taosUpdateItemSize(qinfo.queue, numOfMsgs);
   }
@@ -1753,6 +1754,7 @@ void* procClientMsg(void* arg) {
       } else {
         tError("taosc failed to find callback for msg type:%s", TMSG_INFO(pRpcMsg->msgType));
       }
+      taosFreeQitem(pRpcMsg);
     }
     taosUpdateItemSize(qinfo.queue, numOfMsgs);
   }
