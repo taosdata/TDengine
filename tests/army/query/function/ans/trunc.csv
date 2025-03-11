@@ -47,40 +47,40 @@ taos> select TRUNCATE(10.55, 1) + 1
 taos> select TRUNCATE(TRUNCATE(TRUNCATE(TRUNCATE(TRUNCATE(TRUNCATE(TRUNCATE(123.123456789, 9), 8), 7), 6), 5), 4), 3)
  truncate(truncate(truncate(truncate(truncate(truncate(truncate(1 |
 ===================================================================
-                                            1.231230000000000e+02 |
+                                                         123.123 |
 
 taos> select TRUNCATE(TRUNCATE(TRUNCATE(TRUNCATE(TRUNCATE(TRUNCATE(TRUNCATE(123456789.123456789, -1), -2), -3), -4), -5), -6), -7)
  truncate(truncate(truncate(truncate(truncate(truncate(truncate(1 |
 ===================================================================
-                                            1.200000000000000e+08 |
+                                                       120000000 |
 
 taos> select TRUNCATE(87654321.123456789, id) from ts_4893.meters order by ts limit 10
  truncate(87654321.123456789, id) |
 ===================================
-            8.765432100000000e+07 |
-            8.765432109999999e+07 |
-            8.765432112000000e+07 |
-            8.765432112300000e+07 |
-            8.765432112340000e+07 |
-            8.765432112345000e+07 |
-            8.765432112345600e+07 |
-            8.765432112345670e+07 |
-            8.765432112345679e+07 |
-            8.765432112345679e+07 |
+                         87654321 |
+                       87654321.1 |
+                      87654321.12 |
+                     87654321.123 |
+                    87654321.1234 |
+                   87654321.12345 |
+                  87654321.123456 |
+                 87654321.1234567 |
+                 87654321.1234568 |
+                 87654321.1234568 |
 
 taos> select TRUNCATE(current, id) from ts_4893.meters order by ts limit 10
  truncate(current, id) |
 ========================
-         1.0000000e+01 |
-         8.5000000e+00 |
-         9.7900000e+00 |
-         1.1233000e+01 |
-         1.0706000e+01 |
-         8.5080004e+00 |
-         9.5959997e+00 |
-         1.0962000e+01 |
-         1.1226000e+01 |
-         1.0337000e+01 |
+                    10 |
+                   8.5 |
+                  9.79 |
+                11.233 |
+                10.706 |
+                 8.508 |
+                 9.596 |
+                10.962 |
+                11.226 |
+                10.337 |
 
 taos> select TRUNCATE(current, 1) from ts_4893.meters order by ts limit 10
  truncate(current, 1) |
@@ -144,26 +144,26 @@ taos> select TRUNC(10.55, 1) + 1
 taos> select TRUNC(TRUNC(TRUNC(TRUNC(TRUNC(TRUNC(TRUNC(123.123456789, 9), 8), 7), 6), 5), 4), 3)
  trunc(trunc(trunc(trunc(trunc(trunc(trunc(123.123456789, 9), 8), |
 ===================================================================
-                                            1.231230000000000e+02 |
+                                                         123.123 |
 
 taos> select TRUNC(TRUNC(TRUNC(TRUNC(TRUNC(TRUNC(TRUNC(123456789.123456789, -1), -2), -3), -4), -5), -6), -7)
  trunc(trunc(trunc(trunc(trunc(trunc(trunc(123456789.123456789, - |
 ===================================================================
-                                            1.200000000000000e+08 |
+                                                       120000000 |
 
 taos> select TRUNC(87654321.123456789, id) from ts_4893.meters order by ts limit 10
  trunc(87654321.123456789, id) |
 ================================
-         8.765432100000000e+07 |
-         8.765432109999999e+07 |
-         8.765432112000000e+07 |
-         8.765432112300000e+07 |
-         8.765432112340000e+07 |
-         8.765432112345000e+07 |
-         8.765432112345600e+07 |
-         8.765432112345670e+07 |
-         8.765432112345679e+07 |
-         8.765432112345679e+07 |
+                      87654321 |
+                    87654321.1 |
+                   87654321.12 |
+                  87654321.123 |
+                 87654321.1234 |
+                87654321.12345 |
+               87654321.123456 |
+              87654321.1234567 |
+              87654321.1234568 |
+              87654321.1234568 |
 
 taos> select TRUNC(current, id) from ts_4893.meters order by ts limit 10
   trunc(current, id)  |
@@ -289,7 +289,7 @@ taos> select truncate(100.9876, 2)
 taos> select truncate(99999999999999.9999, 2)
  truncate(99999999999999.9999, 2) |
 ===================================
-            1.000000000000000e+14 |
+                  100000000000000 |
 
 taos> select truncate(-5.678, 2)
     truncate(-5.678, 2)    |
@@ -314,7 +314,7 @@ taos> select truncate(phase, 3) from ts_4893.meters limit 1
 taos> select truncate(voltage + current, 2) from ts_4893.meters limit 1
  truncate(voltage + current, 2) |
 =================================
-          2.316400000000000e+02 |
+                         231.64 |
 
 taos> select truncate(voltage, -1) from ts_4893.meters limit 1
  truncate(voltage, -1) |
@@ -329,7 +329,7 @@ taos> select round(truncate(voltage, 1), 2) from ts_4893.meters limit 1
 taos> select truncate(abs(current), 1) from ts_4893.meters limit 1
  truncate(abs(current), 1) |
 ============================
-             1.0600000e+01 |
+                      10.6 |
 
 taos> select truncate(exp(phase), 2) from ts_4893.meters limit 1
   truncate(exp(phase), 2)  |

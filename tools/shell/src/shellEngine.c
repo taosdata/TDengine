@@ -672,28 +672,22 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       printf("%*" PRIu64, width, taosGetUInt64Aligned((uint64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
+      width = width >= LENGTH ? LENGTH - 1 : width;
       if (tsEnableScience) {
         printf("%*.7e", width, taosGetFloatAligned((float *)val));
       } else {
-        n = snprintf(buf, LENGTH, "%*.*g", width, FLT_DIG, taosGetFloatAligned((float *)val));
-        if (n > SHELL_FLOAT_WIDTH) {
-          printf("%*.7e", width, taosGetFloatAligned((float *)val));
-        } else {
-          printf("%s", buf);
-        }
+        snprintf(buf, LENGTH, "%*.*g", width, FLT_DIG, taosGetFloatAligned((float *)val));
+        printf("%s", buf);
       }
       break;
     case TSDB_DATA_TYPE_DOUBLE:
+      width = width >= LENGTH ? LENGTH - 1 : width;
       if (tsEnableScience) {
         snprintf(buf, LENGTH, "%*.15e", width, taosGetDoubleAligned((double *)val));
         printf("%s", buf);
       } else {
-        n = snprintf(buf, LENGTH, "%*.*g", width, DBL_DIG, taosGetDoubleAligned((double *)val));
-        if (n > SHELL_DOUBLE_WIDTH) {
-          printf("%*.15e", width, taosGetDoubleAligned((double *)val));
-        } else {
-          printf("%*s", width, buf);
-        }
+        snprintf(buf, LENGTH, "%*.*g", width, DBL_DIG, taosGetDoubleAligned((double *)val));
+        printf("%*s", width, buf);
       }
       break;
     case TSDB_DATA_TYPE_VARBINARY: {

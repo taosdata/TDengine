@@ -1000,7 +1000,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
 }
 
 int8_t gConvertTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
-    /*NULL BOOL TINY SMAL INT  BIG  FLOA DOUB VARC TIME NCHA UTIN USMA UINT UBIG JSON VARB DECI BLOB MEDB GEOM*/
+    /*             NULL       BOOL          TINY       SMAL         INT        BIG     FLOA  DOUB  VARC TIME NCHA UTIN USMA UINT UBIG JSON VARB DECI BLOB MEDB GEOM*/
     /*NULL*/    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
     /*BOOL*/    0,   0,   2,   3,   4,   5,   6,   7,   5,   9,   5,   11, 12,  13,  14,   0,  -1,   0,   0,   0,  -1,
     /*TINY*/    0,   0,   0,   3,   4,   5,   6,   7,   5,   9,   5,   3,   4,   5,   7,   0,  -1,   0,   0,   0,  -1,
@@ -1025,7 +1025,7 @@ int8_t gConvertTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
 };
 
 int8_t gDisplyTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
-              /*NULL BOOL TINY SMAL INT  BIGI FLOA DOUB VARC TIM NCHA UTIN USMA UINT UBIG JSON VARB DECI BLOB MEDB GEOM*/
+              /*   NULL         BOOL        TINY        SMAL         INT        BIGI    FLOA DOUB VARC TIM  NCHA UTIN USMA UINT UBIG JSON VARB DECI BLOB MEDB GEOM*/
     /*NULL*/    0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12,  13,  14,  15,  16,  -1,  -1,  -1,  20,
     /*BOOL*/    0,   1,   2,   3,   4,   5,   6,   7,   8,   5,  10,  11,  12,  13,  14,  -1,  -1,  -1,  -1,  -1,  -1,
     /*TINY*/    0,   0,   2,   3,   4,   5,   8,   8,   8,   5,  10,   3,   4,   5,   8,  -1,  -1,  -1,  -1,  -1,  -1,

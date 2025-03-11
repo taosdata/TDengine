@@ -22,6 +22,9 @@
 #include "tanalytics.h"
 #include "taoserror.h"
 #include "ttime.h"
+#include "functionMgt.h"
+#include "ttypes.h"
+#include "tglobal.h"
 
 static int32_t buildFuncErrMsg(char* pErrBuf, int32_t len, int32_t errCode, const char* pFormat, ...) {
   va_list vArgList;
@@ -1742,6 +1745,62 @@ static int32_t translateHistogramPartial(SFunctionNode* pFunc, char* pErrBuf, in
   FUNC_ERR_RET(translateHistogramImpl(pFunc, pErrBuf, len));
   pFunc->node.resType =
       (SDataType){.bytes = getHistogramInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
+#define NUMERIC_TO_STRINGS_LEN 25
+static int32_t translateGreatestleast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+
+  bool mixTypeToStrings = tsCompareAsStrInGreatest;
+
+  SDataType res = {.type = 0};
+  bool     resInit = false;
+  for (int32_t i = 0; i < LIST_LENGTH(pFunc->pParameterList); i++) {
+    SDataType* para = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i));
+
+    if (IS_NULL_TYPE(para->type)) {
+      res.type = TSDB_DATA_TYPE_NULL;
+      res.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
+      break;
+    }
+
+    if (!resInit) {
+      res.type = para->type;
+      res.bytes = para->bytes;
+      resInit = true;
+      continue;
+    }
+
+    if (IS_MATHABLE_TYPE(para->type)) {
+      if (res.type == para->type) {
+        continue;
+      } else if (IS_MATHABLE_TYPE(res.type) || !mixTypeToStrings) {
+        int32_t resType = vectorGetConvertType(res.type, para->type);
+        res.type = resType == 0 ? res.type : resType;
+        res.bytes = tDataTypes[res.type].bytes;
+      } else {
+        // last res is strings, para is numeric and mixTypeToStrings is true
+        res.bytes = TMAX(res.bytes, NUMERIC_TO_STRINGS_LEN);
+      }
+    } else {
+      if (IS_COMPARE_STR_DATA_TYPE(res.type)) {
+        int32_t resType = vectorGetConvertType(res.type, para->type);
+        res.type = resType == 0 ? res.type : resType;
+        res.bytes = TMAX(res.bytes, para->bytes);
+      } else if (mixTypeToStrings) {
+        // last res is numeric, para is string, and mixTypeToStrings is true
+        res.type = para->type;
+        res.bytes = TMAX(para->bytes, NUMERIC_TO_STRINGS_LEN);
+      } else {
+        // last res is numeric, para is string, and mixTypeToStrings is false
+        int32_t resType = vectorGetConvertType(res.type, para->type);
+        res.type = resType == 0 ? res.type : resType;
+        res.bytes = tDataTypes[resType].bytes;
+      }
+    }
+  }
+  pFunc->node.resType = res;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -5657,6 +5716,48 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "cols",
     .translateFunc = invalidColsFunction,
+  },
+  {
+    .name = "greatest",
+    .type = FUNCTION_TYPE_GREATEST,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .parameters = {.minParamNum = 2,
+      .maxParamNum = -1,
+      .paramInfoPattern = 1,
+      .inputParaInfo[0][0] = {.isLastParam = true,
+                              .startParam = 1,
+                              .endParam = -1,
+                              .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE | FUNC_PARAM_SUPPORT_BOOL_TYPE | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE | FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE,
+                              .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                              .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                              .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+      .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
+    .translateFunc = translateGreatestleast,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = greatestFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "least",
+    .type = FUNCTION_TYPE_LEAST,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .parameters = {.minParamNum = 2,
+      .maxParamNum = -1,
+      .paramInfoPattern = 1,
+      .inputParaInfo[0][0] = {.isLastParam = true,
+                              .startParam = 1,
+                              .endParam = -1,
+                              .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE | FUNC_PARAM_SUPPORT_BOOL_TYPE | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE | FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE,
+                              .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                              .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                              .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+      .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
+    .translateFunc = translateGreatestleast,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = leastFunction,
+    .finalizeFunc = NULL
   },
 };
 // clang-format on
