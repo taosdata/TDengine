@@ -1385,8 +1385,8 @@ TEST_F(DecimalTest, api_taos_fetch_rows) {
   const char* user = "root";
   const char* passwd = "taosdata";
   const char* db = "test_api";
-  const char* create_tb = "create table if not exists test_api.nt(ts timestamp, c1 decimal(10, 2), c2 decimal(38, 10))";
-  const char* sql = "select c1, c2 from test_api.nt";
+  const char* create_tb = "create table if not exists test_api.nt(ts timestamp, c1 decimal(10, 2), c2 decimal(38, 10), c3 varchar(255))";
+  const char* sql = "select c1, c2,c3 from test_api.nt";
   const char* sql_insert = "insert into test_api.nt values(now, 123456.123, 98472981092.1209111)";
 
   TAOS* pTaos = taos_connect(host, user, passwd, NULL, 0);
@@ -1423,6 +1423,8 @@ TEST_F(DecimalTest, api_taos_fetch_rows) {
   ASSERT_EQ(fields_e[0].scale, 2);
   ASSERT_EQ(fields_e[1].precision, 38);
   ASSERT_EQ(fields_e[1].scale, 10);
+  ASSERT_EQ(fields_e[2].type, TSDB_DATA_TYPE_VARCHAR);
+  ASSERT_EQ(fields_e[2].bytes, 255);
   taos_free_result(res);
 
   res = taos_query(pTaos, sql);
@@ -1491,10 +1493,17 @@ TEST(decimal, test_add_check_overflow) {
   Numeric<64>  dec64 = {18, 2, "123.12"};
   bool         overflow = decimal128AddCheckOverflow((Decimal128*)&dec128.dec(), &dec64.dec(), WORD_NUM(Decimal64));
   ASSERT_TRUE(overflow);
+  auto ret = dec128 + dec64;
   dec128 = {38, 10, "-9999999999999999999999999999.9999999999"};
   ASSERT_FALSE(decimal128AddCheckOverflow((Decimal128*)&dec128.dec(), &dec64.dec(), WORD_NUM(Decimal64)));
   dec64 = {18, 2, "-123.1"};
   ASSERT_TRUE(decimal128AddCheckOverflow((Decimal128*)&dec128.dec(), &dec64.dec(), WORD_NUM(Decimal64)));
+
+  dec128 = {38, 0, "99999999999999999999999999999999999999"};
+  dec64= {18, 0, "123"};
+  Numeric<128> dec128_2 = {38, 2, "999999999999999999999999999999999999.99"};
+  ASSERT_OVERFLOW(dec128 + dec128_2);
+  ASSERT_OVERFLOW(dec128 + dec64);
 }
 
 int main(int argc, char** argv) {

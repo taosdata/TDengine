@@ -536,7 +536,6 @@ static const int32_t bitsForNumDigits[] = {0,  4,  7,  10, 14,  17,  20,  24,  2
                                            44, 47, 50, 54, 57,  60,  64,  67,  70,  74,  77,  80,  84,
                                            87, 90, 94, 97, 100, 103, 107, 110, 113, 117, 120, 123, 127};
 
-// TODO wjm pre define it??  actually, its MAX_INTEGER, not MAX
 #define DECIMAL128_GET_MAX(precision, pMax)                                  \
   do {                                                                       \
     *(pMax) = SCALE_MULTIPLIER_128[precision];                               \
@@ -732,7 +731,7 @@ static int32_t decimal128ToStr(const DecimalType* pInt, uint8_t scale, char* pBu
     TAOS_STRNCAT(pBuf, "0", 2);
   }
   if (scale > 0) {
-    static char format[64] = "0000000000000000000000000000000000000000";
+    static const char *format = "0000000000000000000000000000000000000000";
     TAOS_STRNCAT(pBuf, ".", 2);
     if (wholeLen < 0) TAOS_STRNCAT(pBuf, format, TABS(wholeLen));
     TAOS_STRNCAT(pBuf, buf + TMAX(0, wholeLen), scale);
@@ -754,7 +753,7 @@ int32_t decimalToStr(const DecimalType* pDec, int8_t dataType, int8_t precision,
   return 0;
 }
 
-static void decimalAddLargePositive(Decimal* pX, const SDataType* pXT, const Decimal* pY, const SDataType* pYT,
+static int32_t decimalAddLargePositive(Decimal* pX, const SDataType* pXT, const Decimal* pY, const SDataType* pYT,
                                     const SDataType* pOT) {
   Decimal wholeX = *pX, wholeY = *pY, fracX = {0}, fracY = {0};
   decimal128Divide(&wholeX, &SCALE_MULTIPLIER_128[pXT->scale], WORD_NUM(Decimal), &fracX);
@@ -776,11 +775,18 @@ static void decimalAddLargePositive(Decimal* pX, const SDataType* pXT, const Dec
   }
 
   decimal128ScaleDown(&right, maxScale - pOT->scale, true);
+  if (decimal128AddCheckOverflow(&wholeX, &wholeY, WORD_NUM(Decimal))) {
+    return TSDB_CODE_DECIMAL_OVERFLOW;
+  }
   decimal128Add(&wholeX, &wholeY, WORD_NUM(Decimal));
+  if (decimal128AddCheckOverflow(&wholeX, &carry, WORD_NUM(Decimal))) {
+    return TSDB_CODE_DECIMAL_OVERFLOW;
+  }
   decimal128Add(&wholeX, &carry, WORD_NUM(Decimal));
   decimal128Multiply(&wholeX, &SCALE_MULTIPLIER_128[pOT->scale], WORD_NUM(Decimal));
   decimal128Add(&wholeX, &right, WORD_NUM(Decimal));
   *pX = wholeX;
+  return 0;
 }
 
 static void decimalAddLargeNegative(Decimal* pX, const SDataType* pXT, const Decimal* pY, const SDataType* pYT,
@@ -810,8 +816,9 @@ static void decimalAddLargeNegative(Decimal* pX, const SDataType* pXT, const Dec
   *pX = wholeX;
 }
 
-static void decimalAdd(Decimal* pX, const SDataType* pXT, const Decimal* pY, const SDataType* pYT,
+static int32_t decimalAdd(Decimal* pX, const SDataType* pXT, const Decimal* pY, const SDataType* pYT,
                        const SDataType* pOT) {
+  int32_t code = 0;
   if (pOT->precision < TSDB_DECIMAL_MAX_PRECISION) {
     uint8_t maxScale = TMAX(pXT->scale, pYT->scale);
     Decimal tmpY = *pY;
@@ -821,17 +828,18 @@ static void decimalAdd(Decimal* pX, const SDataType* pXT, const Decimal* pY, con
   } else {
     int8_t signX = DECIMAL128_SIGN(pX), signY = DECIMAL128_SIGN(pY);
     if (signX == 1 && signY == 1) {
-      decimalAddLargePositive(pX, pXT, pY, pYT, pOT);
+      code = decimalAddLargePositive(pX, pXT, pY, pYT, pOT);
     } else if (signX == -1 && signY == -1) {
       decimal128Negate(pX);
       Decimal y = *pY;
       decimal128Negate(&y);
-      decimalAddLargePositive(pX, pXT, &y, pYT, pOT);
+      code = decimalAddLargePositive(pX, pXT, &y, pYT, pOT);
       decimal128Negate(pX);
     } else {
       decimalAddLargeNegative(pX, pXT, pY, pYT, pOT);
     }
   }
+  return code;
 }
 
 static void makeInt256FromDecimal128(Int256* pTarget, const Decimal128* pDec) {
@@ -952,7 +960,7 @@ static int32_t decimalDivide(Decimal* pX, const SDataType* pXT, const Decimal* p
   int8_t deltaScale = pOT->scale + pYT->scale - pXT->scale;
 
   Decimal xTmp = *pX;
-  decimal128Abs(&xTmp); // TODO wjm test decimal64 / decimal64
+  decimal128Abs(&xTmp);
   int32_t bitsOccupied = 128 - decimal128CountLeadingBinaryZeros(&xTmp);
   if (bitsOccupied + bitsForNumDigits[deltaScale] <= 127) {
     xTmp = *pX;
@@ -1036,7 +1044,6 @@ static int32_t decimalMod(Decimal* pX, const SDataType* pXT, const Decimal* pY, 
 int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pRightT, const SDataType* pOutT,
                   const void* pLeftData, const void* pRightData, void* pOutputData) {
   int32_t code = 0;
-  // TODO wjm if output precision <= 18, no need to convert to decimal128
 
   Decimal   left = {0}, right = {0};
   SDataType lt = {.type = TSDB_DATA_TYPE_DECIMAL,
@@ -1050,7 +1057,7 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
   if (pRightT) rt.scale = pRightT->scale;
   if (TSDB_DATA_TYPE_DECIMAL != pLeftT->type) {
     code = convertToDecimal(pLeftData, pLeftT, &left, &lt);
-    if (TSDB_CODE_SUCCESS != code) return code; // TODO add some logs here
+    if (TSDB_CODE_SUCCESS != code) return code;
   } else {
     left = *(Decimal*)pLeftData;
   }
@@ -1070,11 +1077,11 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
   switch (op) {
     case OP_TYPE_ADD:
     // TODO wjm check overflow
-      decimalAdd(&left, &lt, &right, &rt, pOutT);
+      code = decimalAdd(&left, &lt, &right, &rt, pOutT);
       break;
     case OP_TYPE_SUB:
       decimal128Negate(&right);
-      decimalAdd(&left, &lt, &right, &rt, pOutT);
+      code = decimalAdd(&left, &lt, &right, &rt, pOutT);
       break;
     case OP_TYPE_MULTI:
       code = decimalMultiply(&left, &lt, &right, &rt, pOutT);
@@ -1339,7 +1346,7 @@ static int32_t decimal64FromDecimal64(DecimalType* pDec, uint8_t prec, uint8_t s
 
 static int64_t int64FromDecimal128(const DecimalType* pDec, uint8_t prec, uint8_t scale) {
   Decimal128 rounded = *(Decimal128*)pDec;
-  bool       overflow = false;  // TODO wjm pass out the overflow??
+  bool       overflow = false;
   decimal128RoundWithPositiveScale(&rounded, prec, scale, prec, 0, ROUND_TYPE_HALF_ROUND_UP, &overflow);
   if (overflow) {
     return 0;
@@ -1372,7 +1379,7 @@ static uint64_t uint64FromDecimal128(const DecimalType* pDec, uint8_t prec, uint
 }
 
 static int32_t decimal128FromInt64(DecimalType* pDec, uint8_t prec, uint8_t scale, int64_t val) {
-  if (prec - scale <= 18) {  // TODO wjm test int64 with 19 digits.
+  if (prec - scale <= 18) {
     Decimal64 max = {0};
     DECIMAL64_GET_MAX(prec - scale, &max);
     if (DECIMAL64_GET_VALUE(&max) < val || -DECIMAL64_GET_VALUE(&max) > val) return TSDB_CODE_DECIMAL_OVERFLOW;

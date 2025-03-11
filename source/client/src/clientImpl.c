@@ -551,9 +551,9 @@ int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32
 
     if (pSchema[i].type == TSDB_DATA_TYPE_VARCHAR || pSchema[i].type == TSDB_DATA_TYPE_VARBINARY ||
         pSchema[i].type == TSDB_DATA_TYPE_GEOMETRY) {
-      pResInfo->userFields[i].bytes -= VARSTR_HEADER_SIZE;
+      pResInfo->fields[i].bytes = pResInfo->userFields[i].bytes -= VARSTR_HEADER_SIZE;
     } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR || pSchema[i].type == TSDB_DATA_TYPE_JSON) {
-      pResInfo->userFields[i].bytes = (pResInfo->userFields[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+      pResInfo->fields[i].bytes = pResInfo->userFields[i].bytes = (pResInfo->userFields[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
     } else if (IS_DECIMAL_TYPE(pSchema[i].type) && pExtSchema) {
       decimalFromTypeMod(pExtSchema[i].typeMod, &pResInfo->fields[i].precision, &pResInfo->fields[i].scale);
     }
