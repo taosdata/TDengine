@@ -4562,7 +4562,7 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
     if (oldType != outputType) {
       pCovertParams[j].covertParam = (SScalarParam){0};
       setTzCharset(&pCovertParams[j].covertParam, pParam->tz, pParam->charsetCxt);
-      SCL_ERR_JRET(vectorConvertSingleCol(pParam, &pCovertParams[j].covertParam, outputType, 0, pParam->numOfRows));
+      SCL_ERR_JRET(vectorConvertSingleCol(pParam, &pCovertParams[j].covertParam, outputType, 0, 0, pParam->numOfRows));
       pCovertParams[j].param = &pCovertParams[j].covertParam;
       pCovertParams[j].converted = true;
     } else {
