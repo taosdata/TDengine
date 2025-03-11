@@ -66,7 +66,8 @@ pub mod tests;
 
 #[derive(Deserialize, Clone, Debug, Hash, PartialEq, Eq, ToSchema)]
 pub struct DataSetsReq {
-    from: String,
+    from: Option<String>,
+    from_json: Option<serde_json::Value>,
     pub via: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pattern: Option<String>,

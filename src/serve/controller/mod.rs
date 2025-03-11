@@ -944,10 +944,11 @@ impl TaskController {
         //     .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?;
         let mut from = if let Some(from_json) = task.from_json.clone() {
             json_to_dsn(&from_json)?
+        } else if let Some(from) = task.from.clone() {
+            from.parse()
+                .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", from))?
         } else {
-            task.from
-                .parse()
-                .map_err(|err| anyhow::format_err!("Invalid data source `{}`: {err}", task.from))?
+            anyhow::bail!("from is required");
         };
         if let Some(topic) = task.oneshot_topic.as_deref() {
             if topic.len() > 64 {
@@ -1916,7 +1917,8 @@ impl TaskController {
         set_file_contents(dsn).await?;
 
         let data = DataSetsReq {
-            from: dsn.to_string(),
+            from: Some(dsn.to_string()),
+            from_json: None,
             categories: vec![categories],
             via,
             offset: 0,
@@ -3432,7 +3434,7 @@ pub(crate) struct NewTask {
     pub trigger: Option<Strategy>,
     /// The stream data source.
     #[schema(example = "tmq:///test")]
-    from: String,
+    from: Option<String>,
     from_json: Option<serde_json::Value>,
     /// The stream data source cluster id.
     from_cluster: Option<String>,
@@ -3515,7 +3517,7 @@ impl NewTask {
 struct NewTaskV1 {
     /// The stream data source.
     #[schema(example = "tmq:///test")]
-    from: String,
+    from: Option<String>,
     from_json: Option<serde_json::Value>,
 
     /// Use oneshot topic for a task, delete the topic after task deleted.

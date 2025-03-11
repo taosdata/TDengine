@@ -162,7 +162,14 @@ pub async fn build_ipc(
 }
 
 pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
-    let from = data.from.clone().into_dsn()?;
+    let data_clone = data.clone();
+    let from = if let Some(from_json) = data_clone.from_json {
+        json_to_dsn(&from_json)?
+    } else if let Some(from) = data_clone.from {
+        from.into_dsn()?
+    } else {
+        anyhow::bail!("from is required");
+    };
     match from.driver.as_str() {
         "tmq" | "sync" => {
             let mut from = from.clone();
