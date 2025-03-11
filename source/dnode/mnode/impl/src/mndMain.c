@@ -464,12 +464,6 @@ static void *mndThreadFp(void *param) {
     int64_t sec = lastTime / 10;
     mndDoTimerCheckTask(pMnode, sec);
 
-    int64_t minCron = minCronTime();
-    if (sec % minCron != 0) {
-      terrno = 0;
-      continue;
-    }
-
     mndDoTimerPullupTask(pMnode, sec);
   }
 
