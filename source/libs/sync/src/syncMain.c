@@ -3578,7 +3578,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   SRpcMsg rpcMsg = {0};
   TAOS_CHECK_RETURN(syncBuildHeartbeatReply(&rpcMsg, ths->vgId));
-  SyncTerm currentTerm = raftStoreGetTerm(ths);
+  SyncTerm currentTerm = raftStoreTryGetTerm(ths);
 
   SyncHeartbeatReply* pMsgReply = rpcMsg.pCont;
   pMsgReply->destId = pMsg->srcId;
@@ -3648,6 +3648,11 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   // reply
+  TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
+  trace = &(rpcMsg.info.traceId);
+  sGTrace("vgId:%d, send sync-heartbeat-reply to dnode:%d term:%" PRId64 " timestamp:%" PRId64, ths->vgId,
+          DID(&(pMsgReply->destId)), pMsgReply->term, pMsgReply->timeStamp);
+
   TAOS_CHECK_RETURN(syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg));
 
   if (resetElect) syncNodeResetElectTimer(ths);
