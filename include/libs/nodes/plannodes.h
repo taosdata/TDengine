@@ -129,6 +129,7 @@ typedef struct SScanLogicNode {
   bool          smallDataTsSort;   // disable row id sort for table merge scan
   bool          needSplit;
   bool          noPseudoRefAfterGrp;  // no pseudo columns referenced ater group/partition clause
+  bool          virtualStableScan;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -469,6 +470,7 @@ typedef struct SScanPhysiNode {
   int8_t     tableType;
   SName      tableName;
   bool       groupOrderScan;
+  bool       virtualStableScan;
 } SScanPhysiNode;
 
 typedef struct STagScanPhysiNode {

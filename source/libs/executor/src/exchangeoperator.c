@@ -648,7 +648,6 @@ int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, 
   }
 
   pScan->tableSeq = tableSeq;
-  pScan->isVtbRefScan = true;
   pScan->window.skey = window->skey;
   pScan->window.ekey = window->ekey;
 

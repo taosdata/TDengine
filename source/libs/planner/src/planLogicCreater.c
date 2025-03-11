@@ -588,6 +588,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   } else {
     nodesDestroyNode((SNode*)pScan);
   }
+  pScan->virtualStableScan = false;
 
   return code;
 }
@@ -987,6 +988,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   }
 
   ((SScanLogicNode *)pRealTableScan)->node.dynamicOp = true;
+  ((SScanLogicNode *)pRealTableScan)->virtualStableScan = true;
   PLAN_ERR_JRET(nodesListStrictAppend(pVtableScan->node.pChildren, (SNode*)(pRealTableScan)));
   pRealTableScan->pParent = (SLogicNode *)pVtableScan;
 
