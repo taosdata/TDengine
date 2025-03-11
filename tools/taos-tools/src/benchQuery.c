@@ -854,7 +854,7 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
     uint64_t interval  = g_queryInfo.specifiedQueryInfo.queryInterval;
     pthread_t * pids   = benchCalloc(nConcurrent, sizeof(pthread_t), true);
     qThreadInfo *infos = benchCalloc(nConcurrent, sizeof(qThreadInfo), true);
-    infoPrint("start batch query , interval=%" PRIu64 " ms query times = %" PRIu64 " thread=%d \n", 
+    infoPrint("start batch query, sleep interval:%" PRIu64 "ms query times:%" PRIu64 " thread:%d \n", 
         interval, g_queryInfo.query_times, nConcurrent);    
 
     // concurent calc
@@ -894,9 +894,13 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
     //
     // running
     //
+    int threadCnt = 0;
     for (int m = 0; m < g_queryInfo.query_times; ++m) {
-        // run thread 
-        int threadCnt = 0;
+        // reset
+        threadCnt = 0;
+        start_sql = 0;
+
+        // create thread
         for (int i = 0; i < nConcurrent; ++i) {
             qThreadInfo *pThreadInfo = infos + i;
             pThreadInfo->threadID    = i;
@@ -917,15 +921,15 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
             
             threadCnt ++;
         }
-    
-    
+        
         bool needExit = false;
-        // if failed, set termainte flag true like ctrl+c exit
         if (threadCnt != nConcurrent) {
+            // if failed, set termainte flag true like ctrl+c exit
             needExit = true;
             g_arguments->terminate = true;
         }
         
+        // wait thread finished
         int64_t start = toolsGetTimestampUs();
         for (int i = 0; i < threadCnt; ++i) {
             pthread_join(pids[i], NULL);
@@ -963,7 +967,7 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
         }
 
         // show batch total
-        infoPrint("batch:%d execute batch:%" PRId64 " ms  sleep:%d ms\n", m, delay/1000, msleep);
+        infoPrint("count:%d execute batch:%" PRId64 " ms sleep:%d ms\n", m + 1, delay/1000, msleep);
     }
     ret = 0;
 
@@ -1048,7 +1052,6 @@ int queryTestProcess() {
     // start running
     //
 
-    
     uint64_t startTs = toolsGetTimestampMs();
     if(g_queryInfo.specifiedQueryInfo.sqls && g_queryInfo.specifiedQueryInfo.sqls->size > 0) {
         // specified table
