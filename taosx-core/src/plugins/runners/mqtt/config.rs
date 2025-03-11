@@ -19,12 +19,14 @@ pub struct MqttConfig {
     pub topics: HashMap<String, u8>,
     pub topic_pattern: Option<TopicPattern>,
     pub dump: Option<DumpConfig>,
+    pub persist_data: Option<PersistDataConfig>,
     pub codec_processor: (Option<Decompressor>, Option<StringDecoder>),
 }
 
 #[derive(Debug, PartialEq)]
 pub struct TaskConfig {
     pub batch_size: usize,
+    /// timeout unit: ms
     pub batch_timeout: usize,
     pub unprocessed_messages_buffer_size: usize,
     pub maximum_processing_batch: usize,
@@ -68,6 +70,23 @@ impl DumpConfig {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub struct PersistDataConfig {
+    pub dir: Option<PathBuf>,
+}
+
+impl PersistDataConfig {
+    pub fn from_dsn(dsn: &Dsn) -> anyhow::Result<Option<Self>> {
+        let enable = parse_simple_params(dsn, "persist_data_enable")?.is_some_and(|v| v);
+        if !enable {
+            return Ok(None);
+        }
+
+        let dir = parse_simple_params(dsn, "persist_data_dir")?;
+        Ok(Some(Self { dir }))
+    }
+}
+
 impl TryFrom<&Dsn> for MqttConfig {
     type Error = anyhow::Error;
 
@@ -77,9 +96,18 @@ impl TryFrom<&Dsn> for MqttConfig {
             mqtt: dsn.try_into()?,
             topics: parse_topics(dsn)?,
             dump: DumpConfig::from_dsn(dsn)?,
+            persist_data: PersistDataConfig::from_dsn(dsn)?,
             codec_processor: parse_codec_processor(dsn)?,
             topic_pattern: parse_simple_params(dsn, "topic_pattern")?,
         })
+    }
+}
+
+impl TryFrom<Dsn> for MqttConfig {
+    type Error = anyhow::Error;
+
+    fn try_from(dsn: Dsn) -> anyhow::Result<Self> {
+        (&dsn).try_into()
     }
 }
 

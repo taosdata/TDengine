@@ -176,6 +176,7 @@ pub async fn pi_to_taos(
         transferred,
         task_id,
         notify.clone(),
+        None,
     )
     .await?;
     tokio::time::sleep(Duration::from_millis(500)).await;

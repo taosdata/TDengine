@@ -103,11 +103,7 @@ impl DsSampleIn {
 
         let json: Vec<_> = json_batches
             .iter()
-            .map(|batch| {
-                batch
-                    .to_json_rows()
-                    .map(|v| v.into_iter().map(serde_json::Value::from))
-            })
+            .map(|batch| batch.to_json_rows::<serde_json::Value>())
             .flatten_ok()
             .try_collect()?;
 

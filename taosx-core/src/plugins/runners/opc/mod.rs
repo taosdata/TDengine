@@ -183,6 +183,7 @@ pub async fn opc_to_taos(
         transferred,
         task_id,
         notify,
+        None,
     )
     .await?;
 

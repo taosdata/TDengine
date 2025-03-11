@@ -1,4 +1,5 @@
 use std::{
+    io::BufWriter,
     net::SocketAddr,
     num::NonZero,
     path::PathBuf,
@@ -12,7 +13,11 @@ use std::{
 use anyhow::Context;
 use arrow::{
     array::{BinaryArray, Int32Array},
-    ipc::{reader::StreamReader, writer::StreamWriter},
+    ipc::{
+        reader::StreamReader,
+        writer::{IpcWriteOptions, StreamWriter},
+        CompressionType,
+    },
 };
 use clap::Parser;
 
@@ -60,6 +65,8 @@ struct Generate {
     interval: Option<Duration>,
     #[arg(long, value_parser = fundu::parse_duration)]
     stat_interval: Option<Duration>,
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    compression: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -187,7 +194,13 @@ fn generate(args: Generate) -> anyhow::Result<()> {
             if permit_rx.as_ref().is_some_and(|rx| rx.recv().is_err()) {
                 break;
             }
-            let Ok(ack) = ack else { return };
+            let ack = match ack {
+                Ok(ack) => ack,
+                Err(e) => {
+                    println!("read ack error: {e:#}");
+                    return;
+                }
+            };
             ack_count.fetch_add(1, atomic::Ordering::SeqCst);
             let code_array = {
                 let code_column = ack.column_by_name("code").expect("code column not found");
@@ -215,9 +228,16 @@ fn generate(args: Generate) -> anyhow::Result<()> {
         }
     });
 
-    let mut writer = StreamWriter::try_new_buffered(write_stream, &faker.get_schema())
-        .context("create stream writer error")?;
-    let interval = args.interval.unwrap_or(Duration::ZERO);
+    let mut opts = IpcWriteOptions::default();
+    if args.compression {
+        opts = opts
+            .try_with_compression(Some(CompressionType::ZSTD))
+            .context("try new ipc writer options error")?;
+    }
+    let mut writer =
+        StreamWriter::try_new_with_options(BufWriter::new(write_stream), &faker.get_schema(), opts)
+            .context("create stream writer error")?;
+    let interval = args.interval;
     std::thread::spawn(move || {
         loop {
             if permit_tx.as_ref().is_some_and(|tx| tx.send(()).is_err()) {
@@ -231,7 +251,9 @@ fn generate(args: Generate) -> anyhow::Result<()> {
                 break;
             }
             batch_count.fetch_add(1, atomic::Ordering::SeqCst);
-            std::thread::sleep(interval);
+            if let Some(interval) = interval {
+                std::thread::sleep(interval);
+            }
         }
         if let Err(e) = writer.finish() {
             println!("finish record batch writer error: {e}")
@@ -247,9 +269,11 @@ fn generate(args: Generate) -> anyhow::Result<()> {
                 .rand_record_batch()
                 .expect("generate record batch error");
             gen_count.fetch_add(1, atomic::Ordering::SeqCst);
-            std::thread::sleep(interval);
+            if let Some(interval) = interval {
+                std::thread::sleep(interval);
+            }
             if batch_tx.send(batch).is_err() {
-                return;
+                break;
             }
         });
     }

@@ -579,6 +579,7 @@ version = "1.9.0"
 dependencies = [
  "arrow",
  "arrow-schema",
+ "serde",
  "serde_json",
 ]
 
@@ -3333,10 +3334,12 @@ dependencies = [
 name = "futures-ext"
 version = "1.9.0"
 dependencies = [
+ "anyhow",
  "futures",
  "futures-core",
  "futures-util",
  "pin-project-lite",
+ "tokio",
 ]
 
 [[package]]
@@ -5966,6 +5969,31 @@ name = "percent-encoding"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
+
+[[package]]
+name = "persist-queue"
+version = "1.9.0"
+dependencies = [
+ "anyhow",
+ "bitfield 0.16.1",
+ "bytes",
+ "clap",
+ "crc32fast",
+ "flume",
+ "fs2",
+ "futures",
+ "futures-ext",
+ "notify",
+ "parking_lot 0.12.3",
+ "rand 0.8.5",
+ "serde",
+ "snafu",
+ "tempfile",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+]
 
 [[package]]
 name = "pest"
@@ -8902,6 +8930,7 @@ dependencies = [
  "parking_lot 0.12.3",
  "parquet",
  "paste",
+ "persist-queue",
  "pretty_env_logger",
  "rand 0.8.5",
  "rayon",

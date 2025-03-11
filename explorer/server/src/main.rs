@@ -2039,7 +2039,7 @@ certificate_key = "tests/assets/cert-key.pem"
     }
 
     #[tokio::test]
-    async fn test_connect_timeout() -> anyhow::Result<(), anyhow::Error> {
+    async fn test_connect_timeout_with_taos() -> anyhow::Result<(), anyhow::Error> {
         let profile = Profile {
             cluster: Some("http://no.exist:6041".to_string()),
             ..Default::default()

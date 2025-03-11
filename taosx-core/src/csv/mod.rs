@@ -19,8 +19,6 @@ use notify::{Config, Event, RecursiveMode, Watcher};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use taos::{AsyncFetchable, AsyncQueryable, AsyncTBuilder, Dsn, Itertools, TaosBuilder};
-use taosx_ipc::stream::flat::FlatMessage;
-use taosx_ipc::stream::reader::IpcMessage;
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
 
@@ -37,7 +35,7 @@ use crate::utils::dsn::json_to_dsn;
 use crate::utils::port_pool::PortPool;
 use crate::{utils, Parser, Transferred};
 
-type MsgSender = flume::Sender<std::result::Result<Box<dyn IpcMessage>, ArrowError>>;
+type MsgSender = flume::Sender<std::result::Result<RecordBatch, ArrowError>>;
 trait CsvReaderExt: Send + Sync + std::io::Read {}
 
 impl<T: Send + Sync + std::io::Read> CsvReaderExt for T {}
@@ -1313,9 +1311,7 @@ impl CsvSource {
                     while let Some(batch) = stream.next().await {
                         let batch = batch?;
                         count += batch.num_rows();
-                        let msg =
-                            Box::new(FlatMessage::new(vec![batch.into()])) as Box<dyn IpcMessage>;
-                        sender.send_async(Ok(msg)).await?;
+                        sender.send_async(Ok(batch)).await?;
                         tracing::debug!(path, count, "send batches to writer");
 
                         // record to file list, the status is processing

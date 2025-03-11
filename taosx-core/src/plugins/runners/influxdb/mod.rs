@@ -103,6 +103,7 @@ pub async fn influxdb_to_taos(
         transferred,
         task_id,
         notify,
+        None,
     )
     .await?;
 

@@ -286,6 +286,7 @@ pub async fn kafka_to_taos(
         transferred,
         task_id,
         notify.clone(),
+        None,
     )
     .await?;
 
