@@ -197,6 +197,8 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp, const char* id) {
   return code;
 }
 
+
+
 static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const char* pId) {
   SAnalyticBuf* pBuf = &pSupp->analyBuf;
   int32_t       resCurRow = pBlock->info.rows;
