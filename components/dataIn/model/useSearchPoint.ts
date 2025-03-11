@@ -41,9 +41,8 @@ export default function () {
     try {
       loading.value = true;
       // 获取 ticket
-      console.log('output:', from);
       const params: Recordable = {
-        from: from,
+        from_json: from,
         categories: categoryOpc.value
       };
 
