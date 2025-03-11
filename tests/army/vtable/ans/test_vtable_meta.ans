@@ -57,7 +57,7 @@ taos> describe test_vtable_meta.vtb_virtual_ctb0;
  u_smallint_col                 | SMALLINT UNSIGNED      |           2 |                    | test_vtable_meta.vtb_org_ch... |
  u_int_col                      | INT UNSIGNED           |           4 |                    | test_vtable_meta.vtb_org_ch... |
  u_bigint_col                   | BIGINT UNSIGNED        |           8 |                    | test_vtable_meta.vtb_org_ch... |
- tinyint_col                    | TINYINT                |f           1 |                    | test_vtable_meta.vtb_org_ch... |
+ tinyint_col                    | TINYINT                |           1 |                    | test_vtable_meta.vtb_org_ch... |
  smallint_col                   | SMALLINT               |           2 |                    |                                |
  int_col                        | INT                    |           4 |                    |                                |
  bigint_col                     | BIGINT                 |           8 |                    |                                |
