@@ -34,7 +34,7 @@ pub mod model;
 mod point_updater;
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum OpcType {
     OPCUA,
@@ -472,7 +472,7 @@ async fn opc_datasets_impl(from: Dsn) -> anyhow::Result<Vec<DataSet>> {
                 from.to_string()
             ))?;
 
-            let parser = CsvParser::try_new(opc_type.clone(), csv_files)?;
+            let parser = CsvParser::try_new(opc_type, csv_files)?;
             let model_config = parser.parse().await?;
             to_opc_dataset_vec(&model_config).await?
         }
@@ -550,7 +550,7 @@ async fn opc_datasets_by_csv(
 
     let header = rdr.headers().await?;
 
-    let header = CsvHeader::try_new(opc_type.clone(), header)?;
+    let header = CsvHeader::try_new(opc_type, header)?;
     let point_id_idx = header.id_index();
     let enabled_idx = header.enabled_index();
 
@@ -796,7 +796,7 @@ async fn check_point_id_duplicated(dsn: &Dsn, csv_line: String) -> anyhow::Resul
     let mut rdr = AsyncReader::from_reader(csv_line.as_bytes());
     // new point header
     let headers = rdr.headers().await?;
-    let csv_header = CsvHeader::try_new(opc_type.clone(), headers)?;
+    let csv_header = CsvHeader::try_new(opc_type, headers)?;
     // new point line
     let mut records = rdr.records();
     let record = records.next().await.unwrap()?;
@@ -807,7 +807,7 @@ async fn check_point_id_duplicated(dsn: &Dsn, csv_line: String) -> anyhow::Resul
         "csv_config_file not found in dsn: {}",
         dsn.to_string()
     ))?;
-    let parser = CsvParser::try_new(opc_type.clone(), csv_files)?;
+    let parser = CsvParser::try_new(opc_type, csv_files)?;
     let point_ids = parser.parse_all_point_id().await?;
 
     // check if point_id already exists

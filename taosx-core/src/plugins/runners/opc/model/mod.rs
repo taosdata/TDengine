@@ -226,7 +226,7 @@ impl OpcModelConfig {
         // check tbname
         for (point_id, point_config) in self.point_config_map.iter() {
             let tbname = point_config.code.as_str();
-            OpcModelConfig::check_tbname(&self.opc_type, tbname).map_err(|err| {
+            OpcModelConfig::check_tbname(self.opc_type, tbname).map_err(|err| {
                 anyhow::anyhow!(
                     "invalid tbname of point_id: {}, cause: {}",
                     point_id,
@@ -299,7 +299,7 @@ impl OpcModelConfig {
     }
 
     /// 校验 tbname 配置是否合法，tbname 为任意字符串，如果存在 {}，则{}中间的 string 必须为 ns、id、tag_name
-    fn check_tbname(opc_type: &OpcType, tbname: &str) -> anyhow::Result<()> {
+    fn check_tbname(opc_type: OpcType, tbname: &str) -> anyhow::Result<()> {
         if tbname.is_empty() {
             bail!("tbname is required");
         }
@@ -441,8 +441,8 @@ impl OpcModelConfig {
             let tbname = point_config.code;
 
             match (
-                PointConfig::is_expr(&self.opc_type, "stable", stable.as_str()),
-                PointConfig::is_expr(&self.opc_type, "tbname", tbname.as_str()),
+                PointConfig::is_expr(self.opc_type, "stable", stable.as_str()),
+                PointConfig::is_expr(self.opc_type, "tbname", tbname.as_str()),
             ) {
                 // stable 为表达式
                 (true, _) => {
@@ -601,8 +601,8 @@ impl OpcModelConfig {
             let stable = point_config.stable.unwrap();
             let tbname = point_config.code;
             match (
-                PointConfig::is_expr(&self.opc_type, "stable", stable.as_str()),
-                PointConfig::is_expr(&self.opc_type, "tbname", tbname.as_str()),
+                PointConfig::is_expr(self.opc_type, "stable", stable.as_str()),
+                PointConfig::is_expr(self.opc_type, "tbname", tbname.as_str()),
             ) {
                 (false, false) => {
                     Self::is_stable_and_tbname_conflict(
@@ -672,9 +672,9 @@ impl OpcModelConfig {
             }
             GeneratePointMappingBy::Csv((csv_files, csv_origin)) => {
                 let parser = match csv_origin {
-                    None => CsvParser::try_new(self.opc_type.clone(), csv_files.clone())?,
+                    None => CsvParser::try_new(self.opc_type, csv_files.clone())?,
                     Some(csv_origin) => {
-                        CsvParser::try_new(self.opc_type.clone(), vec![format!("@{}", csv_origin)])?
+                        CsvParser::try_new(self.opc_type, vec![format!("@{}", csv_origin)])?
                     }
                 };
 
@@ -707,9 +707,9 @@ impl OpcModelConfig {
             }
             Some(GeneratePointMappingBy::Csv((csv, csv_origin))) => {
                 let parser = match csv_origin {
-                    None => CsvParser::try_new(self.opc_type.clone(), csv.clone())?,
+                    None => CsvParser::try_new(self.opc_type, csv.clone())?,
                     Some(csv_origin) => {
-                        CsvParser::try_new(self.opc_type.clone(), vec![format!("@{}", csv_origin)])?
+                        CsvParser::try_new(self.opc_type, vec![format!("@{}", csv_origin)])?
                     }
                 };
                 parser.parse_transform(column_name).await
@@ -875,30 +875,30 @@ mod test_opc_model_config {
 
     #[test]
     fn test_check_tbname() {
-        let res = OpcModelConfig::check_tbname(&OpcType::OPCUA, "t_{ns}_{id}");
+        let res = OpcModelConfig::check_tbname(OpcType::OPCUA, "t_{ns}_{id}");
         assert!(res.is_ok());
 
-        let res = OpcModelConfig::check_tbname(&OpcType::OPCDA, "t_{tag_name}");
+        let res = OpcModelConfig::check_tbname(OpcType::OPCDA, "t_{tag_name}");
         assert!(res.is_ok());
 
-        let res = OpcModelConfig::check_tbname(&OpcType::OPCDA, "t_{TagName}");
+        let res = OpcModelConfig::check_tbname(OpcType::OPCDA, "t_{TagName}");
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
             "invalid tbname expression: t_{TagName}"
         );
 
-        let res = OpcModelConfig::check_tbname(&OpcType::OPCUA, "t_abc");
+        let res = OpcModelConfig::check_tbname(OpcType::OPCUA, "t_abc");
         assert!(res.is_ok());
 
-        let res = OpcModelConfig::check_tbname(&OpcType::OPCUA, "t_{tag_name}");
+        let res = OpcModelConfig::check_tbname(OpcType::OPCUA, "t_{tag_name}");
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
             "invalid tbname expression: t_{tag_name}"
         );
 
-        let res = OpcModelConfig::check_tbname(&OpcType::OPCUA, "");
+        let res = OpcModelConfig::check_tbname(OpcType::OPCUA, "");
         assert!(res.is_err());
         assert_eq!(res.unwrap_err().to_string(), "tbname is required");
     }
@@ -1175,7 +1175,7 @@ pub struct PointConfig {
 
 impl PointConfig {
     /// return true if the column value is an expression
-    pub fn is_expr(opc_type: &OpcType, col_name: &str, col_value: &str) -> bool {
+    pub fn is_expr(opc_type: OpcType, col_name: &str, col_value: &str) -> bool {
         match col_name {
             "stable" => col_value.contains("{type}"),
             "tbname" => match opc_type {
@@ -1224,30 +1224,26 @@ mod test_point_config {
     #[test]
     fn test_is_expr() {
         // stable
-        assert!(PointConfig::is_expr(
-            &OpcType::OPCUA,
-            "stable",
-            "opc_{type}"
-        ));
-        assert!(!PointConfig::is_expr(&OpcType::OPCUA, "stable", "opc"));
+        assert!(PointConfig::is_expr(OpcType::OPCUA, "stable", "opc_{type}"));
+        assert!(!PointConfig::is_expr(OpcType::OPCUA, "stable", "opc"));
 
         // tbname
         assert!(PointConfig::is_expr(
-            &OpcType::OPCUA,
+            OpcType::OPCUA,
             "tbname",
             "t_{ns}_{id}"
         ));
         assert!(PointConfig::is_expr(
-            &OpcType::OPCDA,
+            OpcType::OPCDA,
             "tbname",
             "t_{tag_name}"
         ));
         assert!(!PointConfig::is_expr(
-            &OpcType::OPCUA,
+            OpcType::OPCUA,
             "tbname",
             "t_{tag_name}"
         ));
-        assert!(!PointConfig::is_expr(&OpcType::OPCUA, "tbname", "tb123"));
+        assert!(!PointConfig::is_expr(OpcType::OPCUA, "tbname", "tb123"));
     }
 }
 

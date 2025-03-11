@@ -201,8 +201,8 @@ impl CsvHeader {
         self.enabled_index
     }
 
-    pub fn get_opc_type(&self) -> &OpcType {
-        &self.opc_type
+    pub fn get_opc_type(&self) -> OpcType {
+        self.opc_type
     }
 
     pub fn get_columns(&self) -> Vec<&CsvColumn> {

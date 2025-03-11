@@ -86,7 +86,7 @@ impl OPCConfig {
                 let (point_map, table_map) = rule.generate(points)?;
 
                 OpcModelConfig {
-                    opc_type: opc_type.clone(),
+                    opc_type,
                     generate_rule: Some(GeneratePointMappingBy::Rule(rule)),
                     point_config_map: point_map,
                     table_config_map: table_map,
