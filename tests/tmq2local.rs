@@ -2,7 +2,6 @@
 mod test_tmq_to_local {
     use anyhow::bail;
     use assert_cmd::Command;
-    use itertools::Itertools;
     use opendal::Entry;
     use std::env;
     use std::path::Path;
@@ -38,20 +37,24 @@ mod test_tmq_to_local {
         drop_topic_and_database(&taos, DST_DB).await?;
         write_few_rows(&taos, SRC_DB, ROWS).await?;
 
-        let backup_path = tempfile::TempDir::new()?;
+        let backup_dir = env::var("BACKUP_DIR")
+            .ok()
+            .map(|p| Path::new(&p).to_path_buf())
+            .unwrap_or_else(|| tempfile::TempDir::new().unwrap().into_path());
+
         // 备份数据
-        let data_dir = tempfile::tempdir()?;
         let from = format!("{taos_addr}/{SRC_DB}");
-        let to = format!("local:{}", backup_path.path().to_str().unwrap());
+        let to = format!("local:{}", backup_dir.to_string_lossy().into_owned());
         let mut cmd = Command::cargo_bin(&taosx_cmd)?;
         cmd.arg("run")
             .arg("-f")
             .arg(&from)
             .arg("-t")
             .arg(&to)
-            .env("TAOSX_DATA_DIR", data_dir.path())
+            .env("TAOSX_DATA_DIR", backup_dir.as_path())
             .assert()
             .success();
+        dbg!(cmd.get_args().collect::<Vec<_>>());
 
         // 恢复数据
         let from = from.into_dsn()?;
@@ -59,28 +62,28 @@ mod test_tmq_to_local {
         let backup_config = BackupConfigBuilder::new(None, &from, &to).build().await?;
         let from = format!(
             "local:{}?topic={}&db_name={SRC_DB}&db_sql=CREATE DATABASE `{SRC_DB}` VGROUPS {VGROUPS}&to=now",
-            backup_path.path().to_str().unwrap(),
+            backup_dir.to_string_lossy().into_owned(),
             &backup_config.topic,
         );
         let to = format!("{taos_addr}/{DST_DB}");
         taos.exec(format!("CREATE DATABASE `{DST_DB}`")).await?;
-        let data_dir = tempfile::tempdir()?;
         let mut cmd = Command::cargo_bin(&taosx_cmd)?;
         cmd.arg("run")
             .arg("-f")
             .arg(&from)
             .arg("-t")
             .arg(&to)
-            .env("TAOSX_DATA_DIR", data_dir.path())
+            .env("TAOSX_DATA_DIR", backup_dir.as_path())
             .assert()
             .success();
+        dbg!(cmd.get_args().collect::<Vec<_>>());
 
         // 检查 TDengine 的数据
         assert_database_rows(&taos, SRC_DB, DST_DB, ROWS).await?;
 
         // 检查本地的备份文件
-        assert!(backup_path.path().exists());
-        let files = list_local_files(backup_path.path())?;
+        assert!(backup_dir.exists());
+        let files = list_local_files(backup_dir.as_path())?;
         assert_eq!(files.len(), VGROUPS);
         for f in files.iter() {
             assert!(f.ends_with(".z"));
@@ -350,11 +353,18 @@ mod test_tmq_to_local {
         Ok(())
     }
 
+    // 列出当前目录下的文件
     fn list_local_files(path: &Path) -> anyhow::Result<Vec<String>> {
-        let assert = Command::new("ls").arg(path).assert();
-        let files = String::from_utf8(assert.get_output().stdout.clone())?;
-        let files = files.lines().map(|f| f.to_string()).collect_vec();
-
+        let mut files = vec![];
+        for entry in std::fs::read_dir(path)? {
+            let entry = entry?;
+            let p = entry.path();
+            if p.is_file() {
+                if let Some(file_name) = p.file_name() {
+                    files.push(file_name.to_string_lossy().to_string());
+                }
+            }
+        }
         dbg!(&files);
 
         Ok(files)

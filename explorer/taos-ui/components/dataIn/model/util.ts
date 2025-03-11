@@ -208,18 +208,28 @@ export const isShowResultTable = ref<boolean>(false);
 // 获取数据点位
 export const datasetTableData = ref();
 
-export function recoverFromData(dataDisplay: Recordable, rdata: Recordable, parentKey?: string) {
+export function recoverFromData(dstype: string, dataDisplay: Recordable, rdata: Recordable, parentKey?: string) {
   // console.log('recoverFromData', dataDisplay);
-  // console.log('data', data);
+  // console.log('data', rdata);
   const keys = Object.getOwnPropertyNames(dataDisplay);
 
   keys.forEach(key => {
     if (typeof dataDisplay[key] === 'object') {
       // 对象或数组类型
-      recoverFromData(dataDisplay[key], rdata, key);
+      recoverFromData(dstype, dataDisplay[key], rdata, key);
     } else if (rdata[key] !== undefined) {
       // 有值的情况下，需要恢复
-      dataDisplay[key] = rdata[key];
+      if (dstype === 'opentsdb' && key === 'metrics') {
+        if (rdata[key].length > 0) {
+          dataDisplay[key] = rdata[key].split(',');
+        } else {
+          dataDisplay[key] = [];
+        }
+      } else if (key === 'port' && typeof rdata[key] === 'number') {
+        dataDisplay[key] = String(rdata[key]);
+      } else {
+        dataDisplay[key] = rdata[key];
+      }
     } else if (rdata[`${parentKey}.${key}`] !== undefined) {
       // 有值的情况下，需要恢复
       dataDisplay[key] = rdata[`${parentKey}.${key}`];
@@ -250,7 +260,11 @@ function mergeToFromData(data: Recordable, fromData: Recordable, fullNameMap: an
 
     if (typeof data[key] === 'object') {
       // 对象或数组类型
-      mergeToFromData(data[key], fromData, fullNameMap, key);
+      if (data[key].length !== undefined) {
+        fromData[key] = data[key].join(',');
+      } else {
+        mergeToFromData(data[key], fromData, fullNameMap, key);
+      }
     } else {
       // 普通类型
       if (fromData[key] !== undefined) {

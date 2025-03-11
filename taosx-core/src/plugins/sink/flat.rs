@@ -452,6 +452,10 @@ pub async fn flat_write_with_sql(
         };
     }
 
+    if messages.is_empty() {
+        return Ok(0);
+    }
+
     let mut count = 0;
     // Split messages into different stales.
     let cols = messages[0].records.num_columns();

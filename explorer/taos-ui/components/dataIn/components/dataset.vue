@@ -340,7 +340,7 @@ async function submit() {
 
     const via = sourceForm.agent;
     const params: Recordable = {
-      from: { ...sourceForm, ...info },
+      from_json: { ...sourceForm, ...info },
       categories: category.value
     };
 

@@ -66,7 +66,7 @@ onMounted(() => {
 
 function onValid(param: string, agent: number) {
   const params: any = {
-    from: param,
+    from_json: param,
     categories: ['nodes'],
     pattern: 'api',
     offset: 0,

@@ -11,7 +11,11 @@ use crate::{
     core_metrics::{get_metrics_arc_or, CoreMetrics, TaskMetrics},
     sync_super_table_schema,
     tmq::{tmq_metric::TmqMetrics, *},
-    utils::{constants::VERSION_3_3_0, dsn::json_to_dsn, interval::IntervalLimit},
+    utils::{
+        constants::{VERSION_3_3_0, VERSION_3_3_6},
+        dsn::json_to_dsn,
+        interval::IntervalLimit,
+    },
     Action,
 };
 use anyhow::{anyhow, bail, Context, Result};
@@ -129,12 +133,7 @@ async fn write_data(
             .as_raw_data()
             .await
             .context("Data source raw data error")?;
-        if let Err(err) = taos
-            .write_raw_meta(&unsafe {
-                std::mem::transmute::<taos::taos_query::common::RawData, taos::RawMeta>(raw)
-            })
-            .await
-        {
+        if let Err(err) = taos.write_raw_meta(&raw).await {
             let code = *err.code().deref();
             match code {
                 // Table not exist error codes or invalid input.
@@ -314,14 +313,7 @@ async fn write_data(
     if !has_blocks {
         if actions.is_empty() {
             if target_is_v3 {
-                if let Err(err) = taos
-                    .write_raw_meta(&unsafe {
-                        std::mem::transmute::<taos::taos_query::common::RawData, taos::RawMeta>(
-                            data.as_raw_data().await?,
-                        )
-                    })
-                    .await
-                {
+                if let Err(err) = taos.write_raw_meta(&data.as_raw_data().await?).await {
                     let errstr = err.to_string();
                     if errstr.contains("[0x032C]")
                         || errstr.contains("[0x0115]")
@@ -1457,6 +1449,13 @@ pub async fn tmq_to_td(
         if source_version >= VERSION_3_3_0 && target_version < VERSION_3_3_0 {
             bail!("Source version is 3.3.0 or later, but target version is earlier than 3.3.0, which is not supported.");
         }
+
+        if source_version >= VERSION_3_3_6
+            && target_version >= VERSION_3_3_6
+            && strategy.prefer_raw()
+        {
+            from.set("msg.consume.rawdata", "1");
+        }
     }
 
     let source_pool = TaosBuilder::from_dsn(&from)?.pool()?;
@@ -1874,7 +1873,7 @@ pub struct TableProgress {
 }
 #[instrument(skip_all)]
 pub async fn get_table_progress(
-    from: &serde_json::Value,
+    from: &str,
     to: &str,
     // format db.table
     table: &str,
@@ -1882,7 +1881,7 @@ pub async fn get_table_progress(
     end: Option<&String>,
 ) -> anyhow::Result<TableProgress> {
     // let mut from: Dsn = from.parse()?;
-    let mut from = json_to_dsn(from)?;
+    let mut from = json_to_dsn(&serde_json::Value::String(from.to_string()))?;
     let _ = from.remove("use.topic.name");
     let _ = from.remove("use.table.name");
     let _ = from.remove("with.meta.delete");

@@ -1,8 +1,8 @@
 use anyhow::{anyhow, Result};
 use async_backtrace::framed;
-use taos::Dsn;
+use taos::{Dsn, Itertools};
 
-use taosx_core::utils::{dsn::json_to_dsn, license::LicenseKind, mask_dsn};
+use taosx_core::utils::{license::LicenseKind, mask_dsn};
 use tracing::{instrument, Instrument};
 
 /// LicenseValidator is used to validate the license of the source and target data sources.
@@ -61,15 +61,25 @@ impl<'a> LicenseValidator<'a> {
                             return Ok(LicenseKind::good());
                         }
                     };
-                    let mut used: Vec<String> = sqlx::query_scalar(&format!("select `from` from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}%';", cluster_id, self.from.driver))
+                    let used: Vec<String> = sqlx::query_scalar(&format!("select `from` from tasks join labels where key='cluster-id' and `value` = '{}' and deleted = false and `from` like '{}%';", cluster_id, self.from.driver))
                                     .fetch_all(pool)
                                     .await?;
+                    let mut used = used
+                        .iter()
+                        .map(|s| {
+                            if s.starts_with('"') {
+                                s.trim_matches('"').replace(r#"\""#, r#"""#)
+                            } else {
+                                s.to_string()
+                            }
+                        })
+                        .collect_vec();
+
                     used.push(self.from.to_string());
                     let used = used
                         .into_iter()
                         .map(|s| {
-                            // s.parse::<Dsn>()
-                            json_to_dsn(&serde_json::Value::String(s))
+                            s.parse::<Dsn>()
                                 .unwrap()
                                 .addresses
                                 .first()

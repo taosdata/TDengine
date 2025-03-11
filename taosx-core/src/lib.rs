@@ -652,7 +652,7 @@ impl ArchiveConsumer {
         while let Ok((archive_type, batch)) = receiver.recv_async().await {
             match archive_type {
                 ArchiveType::Cache => {
-                    match write_to_parquet_file(self.task_id, &cache.location, 0, 0, &batch) {
+                    match write_to_parquet_file(self.task_id, &cache.location, 0, 0, "", &batch) {
                         Ok(_) => {
                             tracing::debug!("cache records success, {} rows", batch.num_rows());
                         }
@@ -668,6 +668,7 @@ impl ArchiveConsumer {
                         &archive.location,
                         archive.keep_days_value,
                         archive.max_size_value,
+                        archive.max_size_unit.as_str(),
                         &batch,
                     ) {
                         Ok(_) => {
@@ -687,6 +688,7 @@ impl ArchiveConsumer {
                                         &archive.location,
                                         archive.keep_days_value,
                                         archive.max_size_value,
+                                        archive.max_size_unit.as_str(),
                                         &batch,
                                     ) {
                                         tracing::error!(

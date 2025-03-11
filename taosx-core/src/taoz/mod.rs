@@ -786,10 +786,7 @@ mod tests {
             let res = reader.read_message_async().await;
             match res {
                 Ok(message) => match message {
-                    ZMessage::Meta(meta) => {
-                        dbg!(&meta);
-                        taos.write_raw_meta(&meta).await?
-                    }
+                    ZMessage::Meta(meta) => taos.write_raw_meta(&meta).await?,
                     ZMessage::Data(data) => {
                         // dbg!(&data);
                         for raw in data {
@@ -799,11 +796,7 @@ mod tests {
                         println!("rows: {}", rows);
                         // taos.write_raw_data(data[0]).await?
                     }
-                    ZMessage::Raw(raw_type, raw) => {
-                        dbg!(&raw_type, &raw);
-                        let meta = raw.into();
-                        taos.write_raw_meta(&meta).await?
-                    }
+                    ZMessage::Raw(_raw_type, raw) => taos.write_raw_meta(&raw).await?,
                 },
                 Err(err) => {
                     dbg!(&err);

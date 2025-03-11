@@ -4,7 +4,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Context, Result};
-use taos::{Address, Dsn};
+use taos::{Address, Dsn, Itertools};
 
 pub trait DsnParamGetter {
     fn get_bool(&self, key: &str) -> Result<Option<bool>>;
@@ -22,17 +22,133 @@ impl DsnParamGetter for Dsn {
     }
 }
 
+pub fn dsn_to_json(dsn: &Dsn) -> serde_json::Value {
+    let mut map_l1 = serde_json::Map::new();
+    let mut map_l2 = serde_json::Map::new();
+    map_l1.insert("type".to_string(), serde_json::json!(dsn.driver));
+    if let Some(protocol) = &dsn.protocol {
+        map_l1.insert("protocol".to_string(), serde_json::json!(protocol));
+    }
+    if let Some(username) = &dsn.username {
+        map_l2.insert("username".to_string(), serde_json::json!(username));
+    }
+    if let Some(password) = &dsn.password {
+        map_l2.insert("password".to_string(), serde_json::json!(password));
+    }
+    if let Some(address) = dsn.addresses.first() {
+        if let Some(host) = &address.host {
+            map_l2.insert("host".to_string(), serde_json::json!(host));
+        }
+        if let Some(port) = &address.port {
+            map_l2.insert("port".to_string(), serde_json::json!(port));
+        }
+    }
+    if let Some(path) = &dsn.path {
+        map_l2.insert("path".to_string(), serde_json::json!(path));
+    }
+    if let Some(subject) = &dsn.subject {
+        map_l2.insert("subject".to_string(), serde_json::json!(subject));
+    }
+    // custom parameters for different drivers
+    match dsn.driver.to_lowercase().as_str() {
+        "mqtt" | "kafka" => {
+            // 192.168.1.45:1883,192.168.1.46:1883,...
+            let endpoint = dsn
+                .addresses
+                .iter()
+                .map(|address| match (&address.host, &address.port) {
+                    (Some(host), Some(port)) => format!("{}:{}", host, port),
+                    (Some(host), None) => host.clone(),
+                    _ => String::new(),
+                })
+                .collect_vec()
+                .join(",");
+            map_l2.insert("endpoint".to_string(), serde_json::json!(endpoint));
+        }
+        "opcua" | "opcda" => {
+            // 192.168.1.45:53530/OPCUA/SimulationServer
+            let endpoint = if let Some(address) = dsn.addresses.first() {
+                match (&address.host, &address.port) {
+                    (Some(host), Some(port)) => {
+                        format!("{}://{}:{}", dsn.driver.to_lowercase(), host, port)
+                    }
+                    (Some(host), None) => format!("{}://{}", dsn.driver.to_lowercase(), host),
+                    _ => format!("{}://", dsn.driver.to_lowercase()),
+                }
+            } else {
+                format!("{}://", dsn.driver.to_lowercase())
+            };
+            let endpoint = if let Some(subject) = &dsn.subject {
+                format!("{}/{}", endpoint, subject)
+            } else {
+                endpoint
+            };
+            map_l2.insert("endpoint".to_string(), serde_json::json!(endpoint));
+        }
+        "tmq" => {
+            // taos+ws://root:taosdata@192.168.1.45:6041/db1
+            let endpoint = if let Some(address) = dsn.addresses.first() {
+                match (&address.host, &address.port) {
+                    (Some(host), Some(port)) => format!("{}:{}", host, port),
+                    (Some(host), None) => host.clone(),
+                    _ => String::new(),
+                }
+            } else {
+                String::new()
+            };
+            let endpoint = match (&dsn.username, &dsn.password) {
+                (Some(username), Some(password)) => {
+                    format!("{}:{}@{}", username, password, endpoint)
+                }
+                (Some(username), None) => format!("{}@{}", username, endpoint),
+                _ => endpoint,
+            };
+            let endpoint = if dsn.protocol.is_some() {
+                format!(
+                    "{}+{}://{}",
+                    dsn.driver.to_lowercase(),
+                    dsn.protocol.clone().unwrap(),
+                    endpoint
+                )
+            } else {
+                format!("{}://{}", dsn.driver.to_lowercase(), endpoint)
+            };
+            let endpoint = if let Some(subject) = &dsn.subject {
+                format!("{}/{}", endpoint, subject)
+            } else {
+                endpoint
+            };
+            map_l2.insert("endpoint".to_string(), serde_json::json!(endpoint));
+        }
+        _ => {}
+    }
+    // other dsn params
+    for (k, v) in &dsn.params {
+        map_l2.insert(k.clone(), serde_json::Value::String(v.clone()));
+    }
+    map_l1.insert("data".to_string(), serde_json::Value::Object(map_l2));
+    serde_json::Value::Object(map_l1)
+}
+
 pub fn json_to_dsn(json: &serde_json::Value) -> anyhow::Result<Dsn> {
     let mut dsn = Dsn::default();
     // json to hashmap
     let mut params_map = HashMap::<String, String>::new();
     match json {
         serde_json::Value::String(str) => {
+            let str = if str.starts_with('"') {
+                str.trim_matches('"').replace(r#"\""#, r#"""#)
+            } else {
+                str.to_string()
+            };
+            if str.is_empty() {
+                return Ok(dsn);
+            }
             // try to parse as json string
-            let json_value: serde_json::Value = match serde_json::from_str(str) {
+            let json_value: serde_json::Value = match serde_json::from_str(&str) {
                 Ok(value) => value,
                 Err(_) => {
-                    tracing::warn!("parse by json failed, use default dsn");
+                    tracing::warn!("parse by json failed, use default dsn: {}", str);
                     return str
                         .parse()
                         .with_context(|| format!("Invalid data source: {}", json));
@@ -83,7 +199,7 @@ pub fn json_to_dsn(json: &serde_json::Value) -> anyhow::Result<Dsn> {
     // custom parameters for different drivers
     match dsn.driver.to_lowercase().as_str() {
         "mqtt" | "kafka" => {
-            // 192.168.1.45:1883
+            // 192.168.1.45:1883,192.168.1.46:1883,...
             let endpoint = params_map.remove("endpoint").map(|s| s.to_string());
             if let Some(endpoint) = endpoint {
                 let endpoints = endpoint.split(",").collect::<Vec<&str>>();
@@ -181,6 +297,7 @@ fn flatten_json(key: &String, value: &serde_json::Value, map: &mut HashMap<Strin
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::dsn::dsn_to_json;
     use crate::utils::dsn::json_to_dsn;
 
     /// test Value::String(json_string)
@@ -370,5 +487,15 @@ mod tests {
         let from = serde_json::Value::String(from.to_string());
         let dsn = json_to_dsn(&from).unwrap();
         dbg!(&dsn);
+    }
+
+    #[test]
+    fn test_dsn_to_json() {
+        let dsn = r#"mongodb://admin:tbase125!@127.0.0.1:27017?database=test_db5_${y}&collection=tb_${J}&sql={"createtime":{"$gte":${start_datetime},"$lt":${end_datetime}}}&start=2020-01-02T00:00:00+08:00&end=2020-03-01T00:00:00+08:00&read_concurrency=0&tls=False"#;
+        let dsn = json_to_dsn(&serde_json::Value::String(dsn.to_string())).unwrap();
+        dbg!(&dsn);
+        let json = dsn_to_json(&dsn);
+        dbg!(&json);
+        println!("{}", serde_json::to_string(&json).unwrap());
     }
 }

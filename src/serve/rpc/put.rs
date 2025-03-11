@@ -121,7 +121,7 @@ async fn ipc_stream_writer(
     ))?;
     let task_id = task.id;
     // let from: Dsn = task.from.parse().unwrap();
-    let from = json_to_dsn(&task.from)?;
+    let from = json_to_dsn(&serde_json::Value::String(task.from.clone()))?;
     let to: Dsn = task.to.parse().unwrap();
     let taos = pool.get().await?;
     let worker = IpcStreamWorker::new(
@@ -364,7 +364,7 @@ async fn spawn_stream_writer(
     let pool = builder.pool()?;
     let lock = Arc::new(tokio::sync::Mutex::new(()));
     // let from_dsn: Dsn = task.from.parse()?;
-    let from_dsn = json_to_dsn(&task.from)?;
+    let from_dsn = json_to_dsn(&serde_json::Value::String(task.from.clone()))?;
     let to_dsn: Dsn = task.to.parse()?;
 
     let connector = match from_dsn.driver.as_str() {
@@ -876,7 +876,7 @@ impl PutStream {
                     .unwrap()
                     .unwrap();
                 // let from: Dsn = task.from.parse()?;
-                let from = json_to_dsn(&task.from)?;
+                let from = json_to_dsn(&serde_json::Value::String(task.from.clone()))?;
                 let to: Dsn = task.to.parse()?;
                 let _ = init_task_metrics(&from, &to, self.task_id, None).await;
                 get_metrics(self.task_id)

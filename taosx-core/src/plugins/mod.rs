@@ -164,8 +164,14 @@ pub async fn build_ipc(
 }
 
 pub async fn list_datasets_from(data: &DataSetsReq) -> anyhow::Result<Vec<DataSet>> {
-    // let from = data.from.clone().into_dsn()?;
-    let from = json_to_dsn(&data.from)?;
+    let data_clone = data.clone();
+    let from = if let Some(from_json) = data_clone.from_json {
+        json_to_dsn(&from_json)?
+    } else if let Some(from) = data_clone.from {
+        from.into_dsn()?
+    } else {
+        anyhow::bail!("from is required");
+    };
     match from.driver.as_str() {
         "tmq" | "sync" => {
             let mut from = from.clone();
@@ -252,24 +258,27 @@ pub async fn validate_dsn(dsn: impl IntoDsn) -> DataSourceValidation {
     }
 }
 
-pub async fn get_sample(dsn: &Dsn) -> anyhow::Result<DsSampleIn> {
+pub async fn get_sample(dsn: impl IntoDsn) -> anyhow::Result<DsSampleIn> {
+    let dsn = dsn
+        .into_dsn()
+        .map_err(|err| anyhow::format_err!("invalid dsn, cause: {err}"))?;
     match dsn.driver.as_str() {
-        runners::historian::AVEVA_HISTORIAN_ID => runners::historian::get_sample(dsn).await,
+        runners::historian::AVEVA_HISTORIAN_ID => runners::historian::get_sample(&dsn).await,
         runners::kafka::KAFKA_ID => {
-            let limit = parse_sample_limit(dsn);
-            let timeout = parse_sample_timeout(dsn);
-            runners::kafka::get_sample(dsn, limit, timeout).await
+            let limit = parse_sample_limit(&dsn);
+            let timeout = parse_sample_timeout(&dsn);
+            runners::kafka::get_sample(&dsn, limit, timeout).await
         }
         runners::mqtt::MQTT_ID => {
-            let limit = parse_sample_limit(dsn);
-            let timeout = parse_sample_timeout(dsn);
-            runners::mqtt::get_sample(dsn, limit, timeout).await
+            let limit = parse_sample_limit(&dsn);
+            let timeout = parse_sample_timeout(&dsn);
+            runners::mqtt::get_sample(&dsn, limit, timeout).await
         }
-        runners::mysql::MYSQL_ID => runners::mysql::get_sample(dsn).await,
-        runners::postgres::POSTGRES_ID => runners::postgres::get_sample(dsn).await,
-        runners::oracle::ORACLE_ID => runners::oracle::get_sample(dsn).await,
-        runners::mssql::MSSQL_ID => runners::mssql::get_sample(dsn).await,
-        runners::mongodb::MONGODB_ID => runners::mongodb::get_sample(dsn).await,
+        runners::mysql::MYSQL_ID => runners::mysql::get_sample(&dsn).await,
+        runners::postgres::POSTGRES_ID => runners::postgres::get_sample(&dsn).await,
+        runners::oracle::ORACLE_ID => runners::oracle::get_sample(&dsn).await,
+        runners::mssql::MSSQL_ID => runners::mssql::get_sample(&dsn).await,
+        runners::mongodb::MONGODB_ID => runners::mongodb::get_sample(&dsn).await,
         _ => Err(anyhow::anyhow!(
             "get sample from data source is unsupported"
         )),

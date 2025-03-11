@@ -384,6 +384,7 @@ async function getList() {
     const dataSourceFilterSet: Recordable = {};
     const statusFilterSet: Recordable = {};
     taskList.value = result.map((item: any) => {
+      item.from = item.from_json;
       if (!dataSourceFilterSet[item.from.type]) {
         filterMap.type.push({
           value: item.from.type,
@@ -404,7 +405,7 @@ async function getList() {
       item['localtype'] = dataSourceMap[item.from.type] ? dataSourceMap[item.from.type] : '';
       item['target'] = item.to_expand?.subject || '';
       item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
-      item['disableEdit'] = item.from.type === 'csv' && item.from.data.csvData.currentTab === 'upload_csv_file';
+      // item['disableEdit'] = item.from.type === 'csv' && item.from.data.csvData.currentTab === 'upload_csv_file';
       return item;
     });
   }
@@ -502,7 +503,7 @@ async function refreshCurrentTask(data: Recordable) {
         item['localtype'] = dataSourceMap[item.from.type] ? dataSourceMap[item.from.type] : '';
         item['target'] = item.from ? item.from.targetDB : '';
         item['created_at'] = item.created_at ? item.created_at.replace(/(?<=\.)\S+$/, '').replace('.', '') + 'Z' : '';
-        item['disableEdit'] = item.from.type === 'csv' && item.from.data.csvData.currentTab === 'upload_csv_file';
+        // item['disableEdit'] = item.from.type === 'csv' && item.from.data.csvData.currentTab === 'upload_csv_file';
         item['statusText'] = getStatusText(item.status);
         item['activities'] = reactive(taskList.value[index]['activities'] || []);
         return item;
