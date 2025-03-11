@@ -87,10 +87,10 @@ static int32_t vnodePreprocessCreateTableReq(SVnode *pVnode, SDecoder *pCoder, i
   if (uid == 0) {
     uid = tGenIdPI64();
   }
-  *(int64_t *)(pCoder->data + pCoder->pos) = uid;
+  taosSetInt64Aligned(pCoder->data + pCoder->pos, uid);
 
   // btime
-  *(int64_t *)(pCoder->data + pCoder->pos + 8) = btime;
+  taosSetInt64Aligned(pCoder->data + pCoder->pos + 8, btime);
 
   tEndDecode(pCoder);
 
@@ -246,7 +246,6 @@ extern int64_t tsMaxKeyByPrecision[];
 static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int64_t btimeMs, int64_t ctimeMs) {
   int32_t code = 0;
   int32_t lino = 0;
-
   if (tStartDecode(pCoder) < 0) {
     code = TSDB_CODE_INVALID_MSG;
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -274,7 +273,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   }
 
   if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
-    *(int64_t *)(pCoder->data + pCoder->pos) = uid;
+    taosSetInt64Aligned(pCoder->data + pCoder->pos, uid);
     pCoder->pos += sizeof(int64_t);
   } else {
     if (tDecodeI64(pCoder, &submitTbData.uid) < 0) {
@@ -353,8 +352,12 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     for (int32_t iRow = 0; iRow < nRow; ++iRow) {
       SRow *pRow = (SRow *)(pCoder->data + pCoder->pos);
       pCoder->pos += pRow->len;
-
+#ifndef NO_UNALIGNED_ACCESS
       if (pRow->ts < minKey || pRow->ts > maxKey) {
+#else
+      TSKEY ts = taosGetInt64Aligned(&pRow->ts);
+      if (ts < minKey || ts > maxKey) {
+#endif
         code = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
         TSDB_CHECK_CODE(code, lino, _exit);
       }
@@ -362,7 +365,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   }
 
   if (!tDecodeIsEnd(pCoder)) {
-    *(int64_t *)(pCoder->data + pCoder->pos) = ctimeMs;
+    taosSetInt64Aligned(pCoder->data + pCoder->pos, ctimeMs);
     pCoder->pos += sizeof(int64_t);
   }
 
@@ -1778,7 +1781,7 @@ static int32_t vnodeCellValConvertToColVal(STColumn *pCol, SCellVal *pCellVal, S
     float f = GET_FLOAT_VAL(pCellVal->val);
     memcpy(&pColVal->value.val, &f, sizeof(f));
   } else if (TSDB_DATA_TYPE_DOUBLE == pCol->type) {
-    pColVal->value.val = *(int64_t *)pCellVal->val;
+    taosSetPInt64Aligned(&pColVal->value.val, (int64_t *)pCellVal->val);
   } else {
     GET_TYPED_DATA(pColVal->value.val, int64_t, pCol->type, pCellVal->val);
   }
@@ -1958,7 +1961,12 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
       SRow  **aRow = (SRow **)TARRAY_DATA(pSubmitTbData->aRowP);
       SRowKey lastRowKey;
       for (int32_t iRow = 0; iRow < nRow; ++iRow) {
+#ifndef NO_UNALIGNED_ACCESS
         if (aRow[iRow]->ts < minKey || aRow[iRow]->ts > maxKey) {
+#else
+        TSKEY ts = taosGetInt64Aligned(&(aRow[iRow]->ts));
+        if (ts < minKey || ts > maxKey) {
+#endif
           code = TSDB_CODE_INVALID_MSG;
           vError("vgId:%d %s failed 2 since %s, version:%" PRId64, TD_VID(pVnode), __func__, tstrerror(code), ver);
           goto _exit;

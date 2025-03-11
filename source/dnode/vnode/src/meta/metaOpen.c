@@ -16,6 +16,21 @@
 #include "meta.h"
 #include "vnd.h"
 
+#ifndef NO_UNALIGNED_ACCESS
+#define TDB_KEY_ALIGN(k1, k2, kType)
+#else
+#define TDB_KEY_ALIGN(k1, k2, kType) \
+  kType _k1, _k2;                    \
+  if (((uintptr_t)(k1) & 7)) {       \
+    memcpy(&_k1, k1, sizeof(kType)); \
+    k1 = &_k1;                       \
+  }                                  \
+  if (((uintptr_t)(k2) & 7)) {       \
+    memcpy(&_k2, k2, sizeof(kType)); \
+    k2 = &_k2;                       \
+  }
+#endif
+
 static int tbDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int skmDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int ctbIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
@@ -380,6 +395,8 @@ static int tbDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen
   STbDbKey *pTbDbKey1 = (STbDbKey *)pKey1;
   STbDbKey *pTbDbKey2 = (STbDbKey *)pKey2;
 
+  TDB_KEY_ALIGN(pTbDbKey1, pTbDbKey2, STbDbKey);
+
   if (pTbDbKey1->version > pTbDbKey2->version) {
     return 1;
   } else if (pTbDbKey1->version < pTbDbKey2->version) {
@@ -399,6 +416,8 @@ static int skmDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLe
   SSkmDbKey *pSkmDbKey1 = (SSkmDbKey *)pKey1;
   SSkmDbKey *pSkmDbKey2 = (SSkmDbKey *)pKey2;
 
+  TDB_KEY_ALIGN(pSkmDbKey1, pSkmDbKey2, SSkmDbKey);
+
   if (pSkmDbKey1->uid > pSkmDbKey2->uid) {
     return 1;
   } else if (pSkmDbKey1->uid < pSkmDbKey2->uid) {
@@ -415,8 +434,8 @@ static int skmDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLe
 }
 
 static int uidIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
-  tb_uid_t uid1 = *(tb_uid_t *)pKey1;
-  tb_uid_t uid2 = *(tb_uid_t *)pKey2;
+  tb_uid_t uid1 = taosGetInt64Aligned((int64_t*)pKey1);
+  tb_uid_t uid2 = taosGetInt64Aligned((int64_t*)pKey2);
 
   if (uid1 > uid2) {
     return 1;
@@ -430,6 +449,8 @@ static int uidIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
 static int ctbIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   SCtbIdxKey *pCtbIdxKey1 = (SCtbIdxKey *)pKey1;
   SCtbIdxKey *pCtbIdxKey2 = (SCtbIdxKey *)pKey2;
+
+  TDB_KEY_ALIGN(pCtbIdxKey1, pCtbIdxKey2, SCtbIdxKey);
 
   if (pCtbIdxKey1->suid > pCtbIdxKey2->suid) {
     return 1;
@@ -451,6 +472,8 @@ int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   STagIdxKey *pTagIdxKey2 = (STagIdxKey *)pKey2;
   tb_uid_t    uid1 = 0, uid2 = 0;
   int         c;
+
+  TDB_KEY_ALIGN(pTagIdxKey1, pTagIdxKey2, STagIdxKey);
 
   // compare suid
   if (pTagIdxKey1->suid > pTagIdxKey2->suid) {
@@ -511,6 +534,9 @@ int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
 static int btimeIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   SBtimeIdxKey *pBtimeIdxKey1 = (SBtimeIdxKey *)pKey1;
   SBtimeIdxKey *pBtimeIdxKey2 = (SBtimeIdxKey *)pKey2;
+
+  TDB_KEY_ALIGN(pBtimeIdxKey1, pBtimeIdxKey2, SBtimeIdxKey);
+
   if (pBtimeIdxKey1->btime > pBtimeIdxKey2->btime) {
     return 1;
   } else if (pBtimeIdxKey1->btime < pBtimeIdxKey2->btime) {
@@ -530,6 +556,8 @@ static int ncolIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen
   SNcolIdxKey *pNcolIdxKey1 = (SNcolIdxKey *)pKey1;
   SNcolIdxKey *pNcolIdxKey2 = (SNcolIdxKey *)pKey2;
 
+  TDB_KEY_ALIGN(pNcolIdxKey1, pNcolIdxKey2, SNcolIdxKey);
+
   if (pNcolIdxKey1->ncol > pNcolIdxKey2->ncol) {
     return 1;
   } else if (pNcolIdxKey1->ncol < pNcolIdxKey2->ncol) {
@@ -548,6 +576,8 @@ static int ncolIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen
 static int smaIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   SSmaIdxKey *pSmaIdxKey1 = (SSmaIdxKey *)pKey1;
   SSmaIdxKey *pSmaIdxKey2 = (SSmaIdxKey *)pKey2;
+
+  TDB_KEY_ALIGN(pSmaIdxKey1, pSmaIdxKey2, SSmaIdxKey);
 
   if (pSmaIdxKey1->uid > pSmaIdxKey2->uid) {
     return 1;

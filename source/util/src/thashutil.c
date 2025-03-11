@@ -106,8 +106,12 @@ uint64_t MurmurHash3_64(const char *key, uint32_t len) {
   const uint8_t *end = data + (len - (len & 7));
 
   while (data != end) {
+#ifndef NO_UNALIGNED_ACCESS
     uint64_t k = *((uint64_t *)data);
-
+#else
+    uint64_t k = 0;
+    memcpy(&k, data, sizeof(uint64_t));
+#endif
     k *= m;
     k ^= k >> r;
     k *= m;

@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef TD_ASTRA_RPC
 #define _DEFAULT_SOURCE
 // clang-format off
 #include "zlib.h"
-#ifndef TD_ASTRA_RPC
 #include "thttp.h"
 #include <uv.h>
 #include "taoserror.h"
@@ -1121,6 +1121,8 @@ _end:
   return code;
 }
 #else  // TD_ASTRA_RPC
+
+#include "thttp.h"
 
 int32_t taosTelemetryMgtInit(STelemAddrMgmt* mgt, char* defaultAddr) { return 0; }
 void    taosTelemetryDestroy(STelemAddrMgmt* mgt) { return; }
