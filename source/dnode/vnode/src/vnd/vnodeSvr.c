@@ -87,10 +87,10 @@ static int32_t vnodePreprocessCreateTableReq(SVnode *pVnode, SDecoder *pCoder, i
   if (uid == 0) {
     uid = tGenIdPI64();
   }
-  taosSetInt64Aligned(pCoder->data + pCoder->pos, uid);
+  taosSetInt64Aligned((int64_t *)(pCoder->data + pCoder->pos), uid);
 
   // btime
-  taosSetInt64Aligned(pCoder->data + pCoder->pos + 8, btime);
+  taosSetInt64Aligned((int64_t *)(pCoder->data + pCoder->pos + 8), btime);
 
   tEndDecode(pCoder);
 
@@ -273,7 +273,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   }
 
   if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
-    taosSetInt64Aligned(pCoder->data + pCoder->pos, uid);
+    taosSetInt64Aligned((int64_t *)(pCoder->data + pCoder->pos), uid);
     pCoder->pos += sizeof(int64_t);
   } else {
     if (tDecodeI64(pCoder, &submitTbData.uid) < 0) {
@@ -365,7 +365,7 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   }
 
   if (!tDecodeIsEnd(pCoder)) {
-    taosSetInt64Aligned(pCoder->data + pCoder->pos, ctimeMs);
+    taosSetInt64Aligned((int64_t *)(pCoder->data + pCoder->pos), ctimeMs);
     pCoder->pos += sizeof(int64_t);
   }
 
