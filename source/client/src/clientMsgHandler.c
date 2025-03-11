@@ -852,7 +852,89 @@ int32_t processCompactDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
-int32_t processCreateStreamFirstRsp(void* param, SDataBuf* pMsg, int32_t code) {
+void sendCreateStreamFailedMsg(SRequestObj* pRequest, char* streamName){
+  int32_t code  = 0;
+  tscInfo("send failed stream name to mgmt: %s", streamName);
+  int32_t size = INT_BYTES + strlen(streamName);
+  char *buf = taosMemoryMalloc(size);
+  if (buf == NULL) {
+    tscError("failed to strdup stream name: %s", terrstr());
+    return;
+  }
+  *(int32_t*)buf = pRequest->code;
+  snprintf(buf + INT_BYTES, size - INT_BYTES, "%s", streamName);
+
+  SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  if (sendInfo == NULL) {
+    taosMemoryFree(buf);
+    tscError("failed to calloc msgSendInfo: %s", terrstr());
+    return;
+  }
+
+  sendInfo->msgInfo = (SDataBuf){.pData = buf, .len = size, .handle = NULL};
+  sendInfo->requestId = generateRequestId();
+  sendInfo->requestObjRefId = 0;
+  sendInfo->msgType = TDMT_MND_FAILED_STREAM;
+
+  SEpSet epSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
+  code = asyncSendMsgToServer(pRequest->pTscObj->pAppInfo->pTransporter, &epSet, NULL, sendInfo);
+  if (code != 0) {
+    tscError("failed to send failed stream name to mgmt since %s", tstrerror(code));
+  }
+}
+
+int32_t processCreateStreamSecondPhase(SRequestObj* pRequest){
+  int32_t code  = 0;
+  tscInfo("[create stream with histroy] create in second phase");
+  size_t sqlLen = strlen(pRequest->sqlstr);
+  SRequestObj* pRequestNew = NULL;
+
+  SSyncQueryParam* paramNew = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
+  if (NULL == paramNew) {
+    code = terrno;
+    goto END;
+  }
+  code = tsem_init(&paramNew->sem, 0, 0);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto END;
+  }
+
+  code = buildRequest(pRequest->pTscObj->id, pRequest->sqlstr, sqlLen, paramNew, false, &pRequestNew, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto END;
+  }
+  pRequestNew->source = pRequest->source;
+  pRequestNew->body.queryFp = syncQueryFn;
+  pRequestNew->streamRunHistory = true;
+  doAsyncQuery(pRequestNew, false);
+  code = tsem_wait(&paramNew->sem);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to wait semaphore since %s", tstrerror(code));
+  }
+  code = tsem_destroy(&paramNew->sem);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to destroy semaphore since %s", tstrerror(code));
+  }
+END:
+  taosMemoryFree(paramNew);
+  if (pRequestNew->code != 0){
+    char streamName[TSDB_STREAM_FNAME_LEN] = {0};
+    SCreateStreamStmt* pStmt = (SCreateStreamStmt*)(pRequest->pQuery->pRoot);
+    SName   name;
+    code = tNameSetDbName(&name, pRequest->pTscObj->acctId, pStmt->streamName, strlen(pStmt->streamName));
+    if (TSDB_CODE_SUCCESS != code) {
+      tscError("failed to set db name for stream since %s", tstrerror(code));
+    } else{
+      (void)tNameGetFullDbName(&name, streamName);
+      sendCreateStreamFailedMsg(pRequestNew, streamName);
+    }
+
+  }
+  destroyRequest(pRequestNew);
+  return code;
+}
+
+int32_t processCreateStreamFirstPhaseRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
@@ -869,16 +951,7 @@ int32_t processCreateStreamFirstRsp(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
   if (code == 0 && !pRequest->streamRunHistory){
-    tscInfo("[create stream with histroy] create in second phase");
-    size_t sqlLen = strlen(pRequest->sqlstr);
-    SRequestObj* pRequestNew = NULL;
-    code = buildRequest(pRequest->pTscObj->id, pRequest->sqlstr, sqlLen, NULL, false, &pRequestNew, 0);
-    if (code == TSDB_CODE_SUCCESS) {
-      pRequestNew->source = pRequest->source;
-      pRequestNew->body.queryFp = NULL;
-      pRequestNew->streamRunHistory = true;
-      doAsyncQuery(pRequestNew, false);
-    }
+    code = processCreateStreamSecondPhase(pRequest);
   }
   if (pRequest->streamRunHistory){
     destroyRequest(pRequest);
@@ -903,7 +976,7 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
     case TDMT_MND_SHOW_VARIABLES:
       return processShowVariablesRsp;
     case TDMT_MND_CREATE_STREAM:
-      return processCreateStreamFirstRsp;
+      return processCreateStreamFirstPhaseRsp;
     case TDMT_MND_COMPACT_DB:
       return processCompactDbRsp;
     default:

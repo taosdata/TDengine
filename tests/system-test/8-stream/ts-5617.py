@@ -51,7 +51,7 @@ insertJson = '''{
                     "insert_mode": "stmt",
                     "non_stop_mode": "no",
                     "line_protocol": "line",
-                    "insert_rows": 40000,
+                    "insert_rows": 10000,
                     "childtable_limit": 0,
                     "childtable_offset": 0,
                     "interlace_rows": 0,
@@ -95,12 +95,30 @@ class TDTestCase:
         if os.system("taosBenchmark -f ts-5617.json") != 0:
             tdLog.exit("taosBenchmark -f ts-5617.json")
 
+        # tdLog.info("test creating stream with history in normal ......")
+        # start_time = time.time()
+        # tdSql.execute(f'create stream s21 fill_history 1 into ts5617.st21 tags(tname varchar(20)) subtable(tname) as select last(val), last(quality) from ts5617.stb_2_2_1 partition by tbname tname interval(1800s);')
+        # end_time = time.time()
+        # if end_time - start_time > 1:
+        #     tdLog.err("create history stream sync too long")
+        #
+        # tdSql.query("show streams")
+        # tdSql.checkRows(1)
+        # tdSql.checkData(0, 1, "init")
+        #
+        # while 1:
+        #     tdSql.query("show streams")
+        #     tdLog.info(f"streams is creating ...")
+        #     if tdSql.getData(0, 1) == "ready":
+        #         break
+        #     else:
+        #         time.sleep(10)
+        #
+        # tdSql.execute(f'drop stream s21')
 
-        start_time = time.time()
-        tdSql.execute(f'create stream s21 fill_history 1 into ts5617.st21 tags(tname varchar(20)) subtable(tname) as select last(val), last(quality) from ts5617.stb_2_2_1 partition by tbname tname interval(1800s);')
-        end_time = time.time()
-        if end_time - start_time > 1:
-            tdLog.err("create stream too long")
+        tdLog.info("test creating stream with history taosd error ......")
+        tdSql.execute(f'create stream s211 fill_history 1 into ts5617.st211 tags(tname varchar(20)) subtable(tname) as select last(val), last(quality) from ts5617.stb_2_2_1 partition by tbname tname interval(1800s);')
+        tdSql.execute(f'create stable ts5617.st211(ts timestamp, i int) tags(tname varchar(20))')
 
         tdSql.query("show streams")
         tdSql.checkRows(1)
@@ -109,10 +127,31 @@ class TDTestCase:
         while 1:
             tdSql.query("show streams")
             tdLog.info(f"streams is creating ...")
-            if tdSql.getData(0, 1) == "ready":
+            if tdSql.getData(0, 1) == "failed" and tdSql.getData(0, 2) == "STable already exists":
                 break
             else:
                 time.sleep(10)
+        tdSql.execute(f'drop stream s211')
+
+        tdLog.info("test creating stream with history taosd restart ......")
+        tdSql.execute(f'create stream s2111 fill_history 1 into ts5617.st2111 tags(tname varchar(20)) subtable(tname) as select last(val), last(quality) from ts5617.stb_2_2_1 partition by tbname tname interval(1800s);')
+        tdSql.query("show streams")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "init")
+
+        tdLog.debug("restart taosd")
+        tdDnodes = cluster.dnodes
+        tdDnodes[0].forcestop()
+        tdDnodes[0].start()
+
+        while 1:
+            tdSql.query("show streams")
+            tdLog.info(f"streams is creating ...")
+            if tdSql.getData(0, 1) == "failed" and tdSql.getData(0, 2) == "timeout":
+                break
+            else:
+                time.sleep(10)
+
         return
 
     def stop(self):

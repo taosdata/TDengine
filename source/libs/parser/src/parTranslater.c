@@ -76,7 +76,7 @@ typedef struct SSysTableShowAdapter {
   const char* pDbName;
   const char* pTableName;
   int32_t     numOfShowCols;
-  const char* pShowCols[2];
+  const char* pShowCols[3];
 } SSysTableShowAdapter;
 
 typedef struct SCollectJoinCondsContext {
@@ -187,8 +187,8 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .showType = QUERY_NODE_SHOW_STREAMS_STMT,
     .pDbName = TSDB_INFORMATION_SCHEMA_DB,
     .pTableName = TSDB_INS_TABLE_STREAMS,
-    .numOfShowCols = 2,
-    .pShowCols = {"stream_name","status"}
+    .numOfShowCols = 3,
+    .pShowCols = {"stream_name","status","message"}
   },
   {
     .showType = QUERY_NODE_SHOW_TABLES_STMT,

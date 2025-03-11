@@ -326,7 +326,7 @@ int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 bool    tsFilterScalarMode = false;
 int     tsStreamAggCnt = 100000;
 bool    tsStreamCoverage = false;
-bool    tsStreamRunHistoryAsync = false;
+bool    tsStreamRunHistoryAsync = true;
 
 bool tsUpdateCacheBatch = true;
 

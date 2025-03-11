@@ -40,6 +40,8 @@ static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStreamObj *pNewStream);
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq);
+static int32_t mndProcessFailedStreamReq(SRpcMsg *pReq);
+static int32_t mndProcessCheckStreamStatusReq(SRpcMsg *pReq);
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq);
 
 static int32_t mndProcessCreateStreamReqFromMNode(SRpcMsg *pReq);
@@ -95,6 +97,8 @@ int32_t mndInitStream(SMnode *pMnode) {
   };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STREAM, mndProcessCreateStreamReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_FAILED_STREAM, mndProcessFailedStreamReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_CHECK_STREAM_TIMER, mndProcessCheckStreamStatusReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_NODECHECK_TIMER, mndProcessNodeCheck);
 
@@ -229,7 +233,7 @@ static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream) {
 }
 
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream) {
-  mTrace("stream:%s, perform delete action", pStream->name);
+  mInfo("stream:%s, perform delete action", pStream->name);
   taosWLockLatch(&pStream->lock);
   tFreeStreamObj(pStream);
   taosWUnLockLatch(&pStream->lock);
@@ -739,11 +743,11 @@ static int32_t doStreamCheck(SMnode *pMnode, SStreamObj *pStreamObj) {
       ++numOfStream;
     }
 
-    sdbRelease(pMnode->pSdb, pStream);
 
     if (numOfStream > MND_STREAM_MAX_NUM) {
       mError("too many streams, no more than %d for each database, failed to create stream:%s", MND_STREAM_MAX_NUM,
              pStreamObj->name);
+      sdbRelease(pMnode->pSdb, pStream);
       sdbCancelFetch(pMnode->pSdb, pIter);
       return TSDB_CODE_MND_TOO_MANY_STREAMS;
     }
@@ -751,9 +755,11 @@ static int32_t doStreamCheck(SMnode *pMnode, SStreamObj *pStreamObj) {
     if (pStream->targetStbUid == pStreamObj->targetStbUid) {
       mError("Cannot write the same stable as other stream:%s, failed to create stream:%s", pStream->name,
              pStreamObj->name);
+      sdbRelease(pMnode->pSdb, pStream);
       sdbCancelFetch(pMnode->pSdb, pIter);
       return TSDB_CODE_MND_INVALID_TARGET_TABLE;
     }
+    sdbRelease(pMnode->pSdb, pStream);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -830,6 +836,60 @@ _end:
   return code;
 }
 
+static int32_t mndProcessCheckStreamStatusReq(SRpcMsg *pReq) {
+  SMnode     *pMnode = pReq->info.node;
+  SStreamObj *pStream = NULL;
+  void       *pIter = NULL;
+  mInfo("stream:%s, set status to failed in timer", pStream->name);
+  while ((pIter = sdbFetch(pMnode->pSdb, SDB_STREAM, pIter, (void **)&pStream)) != NULL) {
+    taosWLockLatch(&pStream->lock);
+    if (pStream->status == STREAM_STATUS__INIT && taosGetTimestampMs() - pStream->createTime > 30*1000){
+      pStream->status = STREAM_STATUS__FAILED;
+      tstrncpy(pStream->reserve, "timeout", sizeof(pStream->reserve));
+      mInfo("stream:%s, set status to failed success because of timeout", pStream->name);
+    }
+    taosWUnLockLatch(&pStream->lock);
+    sdbRelease(pMnode->pSdb, pStream);
+    sdbCancelFetch(pMnode->pSdb, pIter);
+  }
+
+  return 0;
+}
+
+static int32_t mndProcessFailedStreamReq(SRpcMsg *pReq) {
+  SMnode     *pMnode = pReq->info.node;
+  SStreamObj *pStream = NULL;
+  int32_t     code = TSDB_CODE_SUCCESS;
+  int32_t     errCode = *(int32_t*)pReq->pCont;
+  char streamName[TSDB_STREAM_FNAME_LEN] = {0};
+  memcpy(streamName, pReq->pCont + INT_BYTES, MIN(pReq->contLen - INT_BYTES, TSDB_STREAM_FNAME_LEN - 1));
+
+#ifdef WINDOWS
+  code = TSDB_CODE_MND_INVALID_PLATFORM;
+  goto _OVER;
+#endif
+
+  mInfo("stream:%s, start to set stream failed", streamName);
+
+  code = mndAcquireStream(pMnode, streamName, &pStream);
+  if (pStream == NULL) {
+    mError("stream:%s, failed to get stream when failed stream since %s", streamName, tstrerror(code));
+    return code;
+  }
+
+  taosWLockLatch(&pStream->lock);
+  if (pStream->status == STREAM_STATUS__INIT){
+    pStream->status = STREAM_STATUS__FAILED;
+    tstrncpy(pStream->reserve, tstrerror(errCode), sizeof(pStream->reserve));
+  }
+  taosWUnLockLatch(&pStream->lock);
+  mndReleaseStream(pMnode, pStream);
+
+  mInfo("stream:%s, end to set stream failed success", streamName);
+
+  return code;
+}
+
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
@@ -861,9 +921,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     if (pStream->tasks != NULL){
       if (createReq.igExists) {
         mInfo("stream:%s, already exist, ignore exist is set", createReq.name);
-        mndReleaseStream(pMnode, pStream);
-        tFreeSCMCreateStreamReq(&createReq);
-        return code;
+        goto _OVER;
       } else {
         code = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
         goto _OVER;
@@ -2340,6 +2398,23 @@ _end:
 }
 
 static int32_t mndProcessNodeCheck(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  if (sdbGetSize(pSdb, SDB_STREAM) <= 0) {
+    return 0;
+  }
+
+  int32_t               size = sizeof(SMStreamNodeCheckMsg);
+  SMStreamNodeCheckMsg *pMsg = rpcMallocCont(size);
+  if (pMsg == NULL) {
+    return terrno;
+  }
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_STREAM_NODECHANGE_CHECK, .pCont = pMsg, .contLen = size};
+  return tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
+}
+
+static int32_t mndProcessStatusCheck(SRpcMsg *pReq) {
   SMnode *pMnode = pReq->info.node;
   SSdb   *pSdb = pMnode->pSdb;
   if (sdbGetSize(pSdb, SDB_STREAM) <= 0) {

@@ -98,7 +98,7 @@ static int32_t getDataLen(int32_t type, const char* pData) {
 }
 
 static int32_t colDataSetValHelp(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, const char* pData, bool isNull) {
-    if (isNull || pData == NULL) {
+  if (isNull || pData == NULL) {
     // There is a placehold for each NULL value of binary or nchar type.
     if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
       pColumnInfoData->varmeta.offset[rowIndex] = -1;  // it is a null value of VAR type.
