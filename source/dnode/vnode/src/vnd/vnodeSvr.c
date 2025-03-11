@@ -946,6 +946,8 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
 #ifdef USE_STREAM
 int32_t vnodeProcessStreamMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("vgId:%d, msg:%p in stream queue is processing", pVnode->config.vgId, pMsg);
+
+  // todo: NOTE: some command needs to run on follower, such as, stop_all_tasks
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
        pMsg->msgType == TDMT_VND_BATCH_META) &&
       !syncIsReadyForRead(pVnode->sync)) {
@@ -1022,6 +1024,24 @@ int32_t vnodeProcessStreamLongExecMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo 
   }
 }
 #endif
+
+int32_t vnodeProcessStreamChkptMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
+  vTrace("vgId:%d, msg:%p in stream chkpt queue is processing", pVnode->config.vgId, pMsg);
+  if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
+       pMsg->msgType == TDMT_VND_BATCH_META) &&
+      !syncIsReadyForRead(pVnode->sync)) {
+    vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
+    return 0;
+  }
+
+  switch (pMsg->msgType) {
+    case TDMT_STREAM_CHKPT_EXEC:
+      return tqProcessTaskRunReq(pVnode->pTq, pMsg);
+    default:
+      vError("unknown msg type:%d in stream chkpt queue", pMsg->msgType);
+      return TSDB_CODE_APP_ERROR;
+  }
+}
 
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   int32_t code = tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);
