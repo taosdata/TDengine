@@ -17,7 +17,7 @@ AUX_SOURCE_DIRECTORY(zstd/legacy SRC7)
 
 # archive
 ADD_LIBRARY(TSZ STATIC ${SRC1} ${SRC2} ${SRC3} ${SRC4} ${SRC5} ${SRC6} ${SRC7})
-DEP_ext_lzma2(TSZ)
+DEP_ext_xxhash(TSZ)
 TARGET_INCLUDE_DIRECTORIES(TSZ PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/sz/inc ${TD_SOURCE_DIR}/include)
 
 # windows ignore warning

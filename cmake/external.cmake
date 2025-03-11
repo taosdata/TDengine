@@ -455,6 +455,45 @@ ExternalProject_Add(ext_xz
 )
 add_dependencies(build_externals ext_xz)     # this is for github workflow in cache-miss step.
 
+# xxHash
+# freemine: ref from lzma2::xxhash.h: `https://github.com/Cyan4973/xxHash`
+# freemine: TODO: external-symbols (eg. XXH64_createState ...) exist both in libxxhash.a and libfast-lzma2.a
+#                 static linking problem?
+#                 currently, always call DEP_ext_... in such order, for the same target:
+#                 DEP_ext_xxhash(...)
+#                 DEP_ext_lzma2(...)
+if(${TD_LINUX})
+    set(ext_xxhash_static libxxhash.a)
+elseif(${TD_DARWIN})
+    set(ext_xxhash_static libxxhash.a)
+elseif(${TD_WINDOWS})
+    set(ext_xxhash_static libxxhash.lib)
+endif()
+INIT_EXT(ext_xxhash
+    INC_DIR          usr/local/include
+    LIB              usr/local/lib/${ext_xxhash_static}
+)
+get_from_local_repo_if_exists("https://github.com/Cyan4973/xxHash.git")
+ExternalProject_Add(ext_xxhash
+    GIT_REPOSITORY ${_git_url}
+    GIT_TAG de9d6577907d4f4f8153e96b0cb0cbdf7df649bb
+    PREFIX "${_base}"
+    BUILD_IN_SOURCE TRUE
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    PATCH_COMMAND
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/xxhash.Makefile Makefile
+    CONFIGURE_COMMAND ""
+    BUILD_COMMAND
+        COMMAND make DESTDIR=${_ins} VERBOSE=1
+    INSTALL_COMMAND
+        COMMAND make DESTDIR=${_ins} VERBOSE=1 install
+    GIT_SHALLOW TRUE
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_xxhash)     # this is for github workflow in cache-miss step.
+
 # lzma2
 if(${TD_LINUX})
     set(ext_lzma2_static libfast-lzma2.a)
@@ -478,13 +517,12 @@ ExternalProject_Add(ext_lzma2
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
     PATCH_COMMAND
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/lzma2.Makefile Makefile
+        # freemine: xxhash.h is now introduced by ext_xxhash
     CONFIGURE_COMMAND ""
     BUILD_COMMAND
         COMMAND make DESTDIR=${_ins}
     INSTALL_COMMAND
         COMMAND make DESTDIR=${_ins} install
-    # freemine: TODO: seems xxhash.c/xxhahs.h is the target?
-    #           seems xz.git is far much newer
     GIT_SHALLOW TRUE
     EXCLUDE_FROM_ALL TRUE
     VERBATIM

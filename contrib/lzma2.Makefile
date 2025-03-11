@@ -71,7 +71,6 @@ else
 	mkdir -p $(DESTDIR)$(PREFIX)/include
 	install -C fast-lzma2.h $(DESTDIR)$(PREFIX)/include/
 	install -C fl2_errors.h $(DESTDIR)$(PREFIX)/include/
-	install -C xxhash.h $(DESTDIR)$(PREFIX)/include/
 endif
 
 .PHONY: uninstall
