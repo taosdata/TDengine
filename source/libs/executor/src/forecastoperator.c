@@ -39,6 +39,7 @@ typedef struct {
   int64_t      optRows;
   int64_t      cachedRows;
   int32_t      numOfBlocks;
+  int64_t      timeout;
   int16_t      resTsSlot;
   int16_t      resValSlot;
   int16_t      resLowSlot;
@@ -77,10 +78,10 @@ static int32_t forecastCacheBlock(SForecastSupp* pSupp, SSDataBlock* pBlock, con
   int32_t       lino = 0;
   SAnalyticBuf* pBuf = &pSupp->analyBuf;
 
-  if (pSupp->cachedRows > ANALY_FORECAST_MAX_HISTORY_ROWS) {
+  if (pSupp->cachedRows > ANALY_FORECAST_MAX_ROWS) {
     code = TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
     qError("%s rows:%" PRId64 " for forecast cache, error happens, code:%s, upper limit:%d", id, pSupp->cachedRows,
-           tstrerror(code), ANALY_FORECAST_MAX_HISTORY_ROWS);
+           tstrerror(code), ANALY_FORECAST_MAX_ROWS);
     return code;
   }
 
@@ -158,8 +159,8 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp, const char* id) {
     qDebug("%s forecast rows not found from %s, use default:%" PRId64, id, pSupp->algoOpt, pSupp->optRows);
   }
 
-  if (pSupp->optRows > ANALY_MAX_FC_ROWS) {
-    qError("%s required too many forecast rows, max allowed:%d, required:%" PRId64, id, ANALY_MAX_FC_ROWS,
+  if (pSupp->optRows > ANALY_FORECAST_MAX_ROWS) {
+    qError("%s required too many forecast rows, max allowed:%d, required:%" PRId64, id, ANALY_FORECAST_MAX_ROWS,
            pSupp->optRows);
     return TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
   }
@@ -199,12 +200,12 @@ static int32_t forecastCloseBuf(SForecastSupp* pSupp, const char* id) {
 static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const char* pId) {
   SAnalyticBuf* pBuf = &pSupp->analyBuf;
   int32_t       resCurRow = pBlock->info.rows;
-  int8_t        tmpI8;
-  int16_t       tmpI16;
-  int32_t       tmpI32;
-  int64_t       tmpI64;
-  float         tmpFloat;
-  double        tmpDouble;
+  int8_t        tmpI8 = 0;
+  int16_t       tmpI16 = 0;
+  int32_t       tmpI32 = 0;
+  int64_t       tmpI64 = 0;
+  float         tmpFloat = 0;
+  double        tmpDouble = 0;
   int32_t       code = 0;
 
   SColumnInfoData* pResValCol = taosArrayGet(pBlock->pDataBlock, pSupp->resValSlot);
@@ -212,12 +213,13 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
     return terrno;
   }
 
-  SColumnInfoData* pResTsCol = (pSupp->resTsSlot != -1 ? taosArrayGet(pBlock->pDataBlock, pSupp->resTsSlot) : NULL);
-  SColumnInfoData* pResLowCol = (pSupp->resLowSlot != -1 ? taosArrayGet(pBlock->pDataBlock, pSupp->resLowSlot) : NULL);
+  SColumnInfoData* pResTsCol = ((pSupp->resTsSlot != -1) ? taosArrayGet(pBlock->pDataBlock, pSupp->resTsSlot) : NULL);
+  SColumnInfoData* pResLowCol =
+      ((pSupp->resLowSlot != -1) ? taosArrayGet(pBlock->pDataBlock, pSupp->resLowSlot) : NULL);
   SColumnInfoData* pResHighCol =
       (pSupp->resHighSlot != -1 ? taosArrayGet(pBlock->pDataBlock, pSupp->resHighSlot) : NULL);
 
-  SJson* pJson = taosAnalySendReqRetJson(pSupp->algoUrl, ANALYTICS_HTTP_TYPE_POST, pBuf);
+  SJson* pJson = taosAnalySendReqRetJson(pSupp->algoUrl, ANALYTICS_HTTP_TYPE_POST, pBuf, pSupp->timeout * 1000);
   if (pJson == NULL) {
     return terrno;
   }
@@ -528,18 +530,32 @@ static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs) {
   return 0;
 }
 
-static int32_t forecastParseAlgo(SForecastSupp* pSupp) {
+static int32_t forecastParseAlgo(SForecastSupp* pSupp, const char* id) {
   pSupp->maxTs = 0;
   pSupp->minTs = INT64_MAX;
   pSupp->numOfRows = 0;
 
   if (!taosAnalyGetOptStr(pSupp->algoOpt, "algo", pSupp->algoName, sizeof(pSupp->algoName))) {
-    qError("failed to get forecast algorithm name from %s", pSupp->algoOpt);
+    qError("%s failed to get forecast algorithm name from %s", id, pSupp->algoOpt);
     return TSDB_CODE_ANA_ALGO_NOT_FOUND;
   }
 
+  bool hasTimeout = taosAnalyGetOptInt(pSupp->algoOpt, "timeout", &pSupp->timeout);
+  if (!hasTimeout) {
+    qDebug("%s not set the timeout val, set default:%d", id, ANALY_DEFAULT_TIMEOUT);
+    pSupp->timeout = ANALY_DEFAULT_TIMEOUT;
+  } else {
+    if (pSupp->timeout <= 0 || pSupp->timeout > ANALY_MAX_TIMEOUT) {
+      qDebug("%s timeout val:%" PRId64 "s is invalid (greater than 10min or less than 1s), use default:%dms",
+             id, pSupp->timeout, ANALY_DEFAULT_TIMEOUT);
+      pSupp->timeout = ANALY_DEFAULT_TIMEOUT;
+    } else {
+      qDebug("%s timeout val is set to: %" PRId64 "s", id, pSupp->timeout);
+    }
+  }
+
   if (taosAnalyGetAlgoUrl(pSupp->algoName, ANALY_ALGO_TYPE_FORECAST, pSupp->algoUrl, sizeof(pSupp->algoUrl)) != 0) {
-    qError("failed to get forecast algorithm url from %s", pSupp->algoName);
+    qError("%s failed to get forecast algorithm url from %s", id, pSupp->algoName);
     return TSDB_CODE_ANA_ALGO_NOT_LOAD;
   }
 
@@ -590,6 +606,7 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
     goto _error;
   }
 
+  const char*             pId = pTaskInfo->id.str;
   SForecastSupp*          pSupp = &pInfo->forecastSupp;
   SForecastFuncPhysiNode* pForecastPhyNode = (SForecastFuncPhysiNode*)pPhyNode;
   SExprSupp*              pExprSup = &pOperator->exprSupp;
@@ -621,7 +638,7 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
   code = forecastParseOutput(pSupp, pExprSup);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  code = forecastParseAlgo(pSupp);
+  code = forecastParseAlgo(pSupp, pId);
   QUERY_CHECK_CODE(code, lino, _error);
 
   code = forecastCreateBuf(pSupp);
@@ -645,7 +662,7 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
 
   *pOptrInfo = pOperator;
 
-  qDebug("forecast env is initialized, option:%s", pSupp->algoOpt);
+  qDebug("%s forecast env is initialized, option:%s", pId, pSupp->algoOpt);
   return TSDB_CODE_SUCCESS;
 
 _error:
