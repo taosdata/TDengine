@@ -44,7 +44,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, SType
 
 int32_t vectorGetConvertType(int32_t type1, int32_t type2);
 int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, int32_t *overflow, int32_t startIndex, int32_t numOfRows);
-int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_t type, int32_t startIndex, int32_t numOfRows);
+int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_t type, STypeMod typeMod, int32_t startIndex, int32_t numOfRows);
 STypeMod getConvertTypeMod(int32_t type, const SColumnInfo *pCol1, const SColumnInfo *pCol2);
 
 /* Math functions */
