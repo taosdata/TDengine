@@ -352,9 +352,9 @@ static void haltInitialTaskStatus(SStreamTask* pTask, SSubplan* pPlan, bool isFi
   }
 }
 
-static int32_t buildSourceTask(SStreamObj* pStream, SEpSet* pEpset, bool isFillhistory, bool useTriggerParam, SStreamTask** pTask) {
+static int32_t buildSourceTask(SStreamObj* pStream, SEpSet* pEpset, bool isFillhistory, bool useTriggerParam, SStreamTask** pTask, SArray* pSourceTaskList) {
   uint64_t uid = (isFillhistory) ? pStream->hTaskUid : pStream->uid;
-  SArray** pTaskList = (isFillhistory) ? taosArrayGetLast(pStream->pHTasksList) : taosArrayGetLast(pStream->tasks);
+  SArray** pTaskList = pSourceTaskList ? &pSourceTaskList : ((isFillhistory) ? taosArrayGetLast(pStream->pHTasksList) : taosArrayGetLast(pStream->tasks));
 
   int32_t code = tNewStreamTask(uid, TASK_LEVEL__SOURCE, pEpset, isFillhistory, pStream->conf.trigger,
                                 useTriggerParam ? pStream->conf.triggerParam : 0, *pTaskList, pStream->conf.fillHistory,
@@ -451,9 +451,10 @@ static int32_t addSourceTaskVTableOutput(SStreamTask* pTask, SSHashObj* pVgTasks
 }
 
 static int32_t doAddSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream, SEpSet* pEpset, int64_t skey,
-                               SArray* pVerList, SVgObj* pVgroup, bool isHistoryTask, bool useTriggerParam, SSHashObj* pVgTasks) {
+                               SArray* pVerList, SVgObj* pVgroup, bool isHistoryTask, bool useTriggerParam, 
+                               SSHashObj* pVgTasks, SArray* pSourceTaskList) {
   SStreamTask* pTask = NULL;
-  int32_t code = buildSourceTask(pStream, pEpset, isHistoryTask, useTriggerParam, &pTask);
+  int32_t code = buildSourceTask(pStream, pEpset, isHistoryTask, useTriggerParam, &pTask, pSourceTaskList);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -663,7 +664,7 @@ static int32_t addVTableSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* p
 
     plan->pVTables = *(SSHashObj**)p;
 
-    code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVerList, pVgroup, false, useTriggerParam, pVgTasks);
+    code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVerList, pVgroup, false, useTriggerParam, pVgTasks, pSourceTaskList);
     if (code != 0) {
       mError("failed to create stream task, code:%s", tstrerror(code));
 
@@ -698,7 +699,7 @@ static int32_t addSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream
      continue;
    }
 
-   code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVerList, pVgroup, false, useTriggerParam, NULL);
+   code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVerList, pVgroup, false, useTriggerParam, NULL, NULL);
    if (code != 0) {
      mError("failed to create stream task, code:%s", tstrerror(code));
 
@@ -708,7 +709,7 @@ static int32_t addSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream
    }
 
    if (pStream->conf.fillHistory) {
-     code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVerList, pVgroup, true, useTriggerParam, NULL);
+     code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVerList, pVgroup, true, useTriggerParam, NULL, NULL);
      if (code != 0) {
        sdbRelease(pSdb, pVgroup);
        return code;
@@ -1300,6 +1301,11 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
     }
 
     SArray** pSourceTaskList = taosArrayGetLast(pStream->tasks);
+
+    code = addNewTaskList(pStream);
+    if (code) {
+      return code;
+    }
     code = addVTableMergeTask(pMnode, plan, pStream, pEpset, (numOfPlanLevel == 1), pCreate, pVTableMap);
     if (code) {
       return code;
@@ -1328,7 +1334,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
     return code;
   }
 
-  if (numOfPlanLevel == 1) {
+  if ((numOfPlanLevel == 1 && !isVTableStream) ||(numOfPlanLevel == 2 && isVTableStream)) {
     bindSourceSink(pStream, pMnode, pStream->tasks, hasExtraSink);
     if (pStream->conf.fillHistory) {
       bindSourceSink(pStream, pMnode, pStream->pHTasksList, hasExtraSink);
