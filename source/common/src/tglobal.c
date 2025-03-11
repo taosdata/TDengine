@@ -1219,7 +1219,6 @@ static int32_t taosSetClientLogCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "rpcDebugFlag");
   rpcDebugFlag = pItem->i32;
-  rpcDebugFlag = 143;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "qDebugFlag");
   qDebugFlag = pItem->i32;
