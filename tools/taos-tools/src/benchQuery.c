@@ -84,7 +84,9 @@ int32_t autoSleep(uint64_t interval, uint64_t delay ) {
     int32_t msleep = 0;
     if (delay < interval * 1000) {
         msleep = (int32_t)(interval * 1000 - delay);
+        infoPrint("do sleep %dms ...\n", msleep);
         toolsMsleep(msleep);  // ms
+        debugPrint("do sleep end\n", msleep);
     }
     return msleep;
 }
@@ -959,15 +961,16 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
         // statistic
         totalChildQuery(infos, threadCnt, end - start);
 
+        // show batch total
+        int64_t delay = end - start;
+        infoPrint("count:%d execute batch spend:%" PRId64 "\n", m + 1, delay/1000);
+
         // sleep
         int32_t msleep = 0;
-        int64_t delay = end - start;
         if ( g_queryInfo.specifiedQueryInfo.batchQuery && interval > 0) {
             msleep = autoSleep(interval, delay);
         }
 
-        // show batch total
-        infoPrint("count:%d execute batch:%" PRId64 " ms sleep:%d ms\n", m + 1, delay/1000, msleep);
     }
     ret = 0;
 
