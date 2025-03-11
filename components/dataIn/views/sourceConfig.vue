@@ -287,7 +287,7 @@ async function handleDetailData(id: string | number) {
   sourceForm.name = data.name;
   sourceForm.targetDB = data.to_expand.subject;
   // sourceForm.data = data.from.data;
-  recoverFromData(sourceForm.data, data.from.data);
+  recoverFromData(sourceForm.type, sourceForm.data, data.from.data);
   if (data.parser) {
     transformerState.transformerParserData = data.parser;
   }
