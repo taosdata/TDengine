@@ -115,7 +115,7 @@ int32_t saveRecalculateData(SStateStore* pStateStore, STableTsDataState* pTsData
     }
     int32_t     len = copyRecDataToBuff(calStart, calEnd, srcUidData[i], pSrcBlock->info.version, mode, NULL, 0,
                                         pTsDataState->pRecValueBuff, pTsDataState->recValueLen);
-    code = pStateStore->streamStateSessionSaveToDisk(pTsDataState->pState, &key, pTsDataState->pRecValueBuff, len);
+    code = pStateStore->streamStateSessionSaveToDisk(pTsDataState, &key, pTsDataState->pRecValueBuff, len);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -339,6 +339,8 @@ static int32_t doStreamBlockScan(SOperatorInfo* pOperator, SSDataBlock** ppRes) 
       } break;
       case STREAM_RECALCULATE_START: {
         if (!isSemiOperator(&pInfo->basic)) {
+          code = pInfo->stateStore.streamStateFlushReaminInfoToDisk(pInfo->basic.pTsDataState);
+          QUERY_CHECK_CODE(code, lino, _end);
           buildRecalculateDataSnapshort(pInfo, pTaskInfo);
         }
         continue;
@@ -369,7 +371,7 @@ _end:
   return code;
 }
 
-// data
+#ifdef BUILD_NO_CALL
 static int32_t buildAndSaveRecalculateData(SSDataBlock* pSrcBlock, TSKEY* pTsCol, SColumnInfoData* pPkColDataInfo, int32_t num,
                                     SPartitionBySupporter* pParSup, SExprSupp* pPartScalarSup, SStateStore* pStateStore,
                                     STableTsDataState* pTsDataState, SSDataBlock* pDestBlock) {
@@ -386,7 +388,7 @@ static int32_t buildAndSaveRecalculateData(SSDataBlock* pSrcBlock, TSKEY* pTsCol
     len = copyRecDataToBuff(pTsCol[rowId], pTsCol[rowId], pSrcBlock->info.id.uid, pSrcBlock->info.version, STREAM_CLEAR,
                             NULL, 0, pTsDataState->pRecValueBuff, pTsDataState->recValueLen);
     SSessionKey key = {.win.skey = pTsCol[rowId], .win.ekey = pTsCol[rowId], .groupId = 0};
-    code = pStateStore->streamStateSessionSaveToDisk(pTsDataState->pState, &key, pTsDataState->pRecValueBuff, len);
+    code = pStateStore->streamStateSessionSaveToDisk(pTsDataState, &key, pTsDataState->pRecValueBuff, len);
     QUERY_CHECK_CODE(code, lino, _end);
     uint64_t gpId = 0;
     code = appendPkToSpecialBlock(pDestBlock, pTsCol, pPkColDataInfo, rowId, &pSrcBlock->info.id.uid, &gpId, NULL);
@@ -397,7 +399,7 @@ static int32_t buildAndSaveRecalculateData(SSDataBlock* pSrcBlock, TSKEY* pTsCol
       len = copyRecDataToBuff(pTsCol[rowId], pTsCol[rowId], pSrcBlock->info.id.uid, pSrcBlock->info.version,
                               STREAM_DELETE_DATA, NULL, 0, pTsDataState->pRecValueBuff,
                               pTsDataState->recValueLen);
-      code = pStateStore->streamStateSessionSaveToDisk(pTsDataState->pState, &key, pTsDataState->pRecValueBuff, len);
+      code = pStateStore->streamStateSessionSaveToDisk(pTsDataState, &key, pTsDataState->pRecValueBuff, len);
       QUERY_CHECK_CODE(code, lino, _end);
 
       code = appendPkToSpecialBlock(pDestBlock, pTsCol, pPkColDataInfo, rowId, &pSrcBlock->info.id.uid, &gpId, NULL);
@@ -411,6 +413,7 @@ _end:
   }
   return code;
 }
+#endif
 
 static uint64_t getCurDataGroupId(SPartitionBySupporter* pParSup, SExprSupp* pPartScalarSup, SSDataBlock* pSrcBlock, int32_t rowId) {
   if (pParSup->needCalc) {
@@ -801,10 +804,14 @@ int32_t doStreamDataScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
 
       if (pBlock->info.type == STREAM_CHECKPOINT) {
+        code = pInfo->stateStore.streamStateFlushReaminInfoToDisk(pInfo->basic.pTsDataState);
+        QUERY_CHECK_CODE(code, lino, _end);
         streamDataScanOperatorSaveCheckpoint(pInfo);
         (*ppRes) = pInfo->pCheckpointRes;
       } else if (pBlock->info.type == STREAM_RECALCULATE_START) {
         if (!isSemiOperator(&pInfo->basic)) {
+          code = pInfo->stateStore.streamStateFlushReaminInfoToDisk(pInfo->basic.pTsDataState);
+          QUERY_CHECK_CODE(code, lino, _end);
           buildRecalculateDataSnapshort(pInfo, pTaskInfo);
         }
       } else if (pBlock->info.type == STREAM_RECALCULATE_END) {

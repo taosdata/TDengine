@@ -69,7 +69,8 @@ int32_t streamStateSessionGetKeyByRange(SStreamState* pState, const SSessionKey*
 int32_t streamStateCountGetKeyByRange(SStreamState* pState, const SSessionKey* range, SSessionKey* curKey);
 int32_t streamStateSessionAllocWinBuffByNextPosition(SStreamState* pState, SStreamStateCur* pCur,
                                                      const SSessionKey* pKey, void** pVal, int32_t* pVLen);
-int32_t streamStateSessionSaveToDisk(SStreamState* pState, SSessionKey* pKey, SRecDataInfo* pVal, int32_t vLen);
+int32_t streamStateSessionSaveToDisk(STableTsDataState* pTblState, SSessionKey* pKey, SRecDataInfo* pVal, int32_t vLen);
+int32_t streamStateFlushReaminInfoToDisk(STableTsDataState* pTblState);
 int32_t streamStateSessionDeleteAll(SStreamState* pState);
 
 SStreamStateCur *streamStateSessionSeekKeyPrev(SStreamState *pState, const SSessionKey *key);

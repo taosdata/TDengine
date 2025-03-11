@@ -90,6 +90,7 @@ void initStateStoreAPI(SStateStore* pStore) {
   pStore->streamStateCountGetKeyByRange = streamStateCountGetKeyByRange;
   pStore->streamStateSessionAllocWinBuffByNextPosition = streamStateSessionAllocWinBuffByNextPosition;
   pStore->streamStateSessionSaveToDisk = streamStateSessionSaveToDisk;
+  pStore->streamStateFlushReaminInfoToDisk = streamStateFlushReaminInfoToDisk;
   pStore->streamStateSessionDeleteAll = streamStateSessionDeleteAll;
 
   pStore->updateInfoInit = updateInfoInit;

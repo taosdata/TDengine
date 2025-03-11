@@ -123,8 +123,7 @@ int32_t saveRecWindowToDisc(SSessionKey* pWinKey, uint64_t uid, EStreamType mode
                             SStreamAggSupporter* pAggSup) {
   int32_t len = copyRecDataToBuff(pWinKey->win.skey, pWinKey->win.ekey, uid, -1, mode, NULL, 0,
                                   pTsDataState->pRecValueBuff, pTsDataState->recValueLen);
-  return pAggSup->stateStore.streamStateSessionSaveToDisk(pTsDataState->pState, pWinKey, pTsDataState->pRecValueBuff,
-                                                          len);
+  return pAggSup->stateStore.streamStateSessionSaveToDisk(pTsDataState, pWinKey, pTsDataState->pRecValueBuff, len);
 }
 
 static int32_t checkAndSaveWinStateToDisc(int32_t startIndex, SArray* pUpdated, uint64_t uid, STableTsDataState* pTsDataState,
