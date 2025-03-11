@@ -664,7 +664,7 @@ int32_t mndStreamSetChkptIdAction(SMnode *pMnode, STrans *pTrans, SStreamObj *pS
       }
     }
 
-    doSetCheckpointIdAction(pMnode, pTrans, pTask, checkpointId, startTs);
+    code = doSetCheckpointIdAction(pMnode, pTrans, pTask, checkpointId, startTs);
     if (code != TSDB_CODE_SUCCESS) {
       destroyStreamTaskIter(pIter);
       taosWUnLockLatch(&pStream->lock);
