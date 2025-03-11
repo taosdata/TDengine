@@ -242,8 +242,9 @@ ELSE()
             PATCH_COMMAND
                 COMMAND git clean -f -d
             BUILD_COMMAND
-                COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
-                # COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -o taosadapter-debug -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+                # freemine: remove -a option
+                COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+                # COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -o taosadapter-debug -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
             INSTALL_COMMAND
                 # COMMAND "${CMAKE_COMMAND}" -E echo "Comparessing taosadapter.exe"
                 # COMMAND upx taosadapter || :
@@ -259,6 +260,9 @@ ELSE()
             VERBATIM
         )
         # add_dependencies(build_externals ext_taosadapter)     # this is for github workflow in cache-miss step.
+				# freemine: make ext_taosadapter buildable
+				add_custom_target(build_ext_taosadapter ALL)
+				add_dependencies(build_ext_taosadapter ext_taosadapter)
     ENDIF()
 ENDIF()
 
@@ -332,4 +336,7 @@ IF(TD_BUILD_KEEPER)
             COMMAND cmake -E copy ./taoskeeper.service ${CMAKE_BINARY_DIR}/test/cfg/
         )
     ENDIF()
+		# freemine: make taoskeeper buildable
+		add_custom_target(build_taoskeeper ALL)
+		add_dependencies(build_taoskeeper taoskeeper)
 ENDIF()
