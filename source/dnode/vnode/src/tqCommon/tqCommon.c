@@ -960,11 +960,6 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
 
   streamMetaWUnLock(pMeta);
 
-//  if (scanWal && (vgId != SNODE_HANDLE)) {
-//    tqDebug("vgId:%d start scan wal for executing tasks", vgId);
-//    code = tqScanWalAsync(pMeta->ahandle, true);
-//  }
-
   return code;
 }
 

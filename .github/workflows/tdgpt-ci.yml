@@ -1,7 +1,6 @@
 name: TDGpt CI Pipeline
 
 on: 
-  push:
   pull_request:
     branches:
       - '3.0'
