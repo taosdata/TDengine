@@ -543,18 +543,12 @@ int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32
   }
 
   for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
-    pResInfo->fields[i].bytes = pSchema[i].bytes;
     pResInfo->fields[i].type = pSchema[i].type;
 
-    pResInfo->userFields[i].bytes = pSchema[i].bytes;
     pResInfo->userFields[i].type = pSchema[i].type;
-
-    if (pSchema[i].type == TSDB_DATA_TYPE_VARCHAR || pSchema[i].type == TSDB_DATA_TYPE_VARBINARY ||
-        pSchema[i].type == TSDB_DATA_TYPE_GEOMETRY) {
-      pResInfo->fields[i].bytes = pResInfo->userFields[i].bytes -= VARSTR_HEADER_SIZE;
-    } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR || pSchema[i].type == TSDB_DATA_TYPE_JSON) {
-      pResInfo->fields[i].bytes = pResInfo->userFields[i].bytes = (pResInfo->userFields[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
-    } else if (IS_DECIMAL_TYPE(pSchema[i].type) && pExtSchema) {
+    pResInfo->userFields[i].bytes = calcTypeBytesFromSchemaBytes(pSchema[i].type, pSchema[i].bytes);
+    pResInfo->fields[i].bytes = pResInfo->userFields[i].bytes;
+    if (IS_DECIMAL_TYPE(pSchema[i].type) && pExtSchema) {
       decimalFromTypeMod(pExtSchema[i].typeMod, &pResInfo->fields[i].precision, &pResInfo->fields[i].scale);
     }
 
@@ -1951,10 +1945,10 @@ void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
     SResultColumn* pCol = &pResultInfo->pCol[i];
 
     int32_t type = pResultInfo->fields[i].type;
-    int32_t bytes = pResultInfo->fields[i].bytes;
+    int32_t schemaBytes = calcSchemaBytesFromTypeBytes(type, pResultInfo->fields[i].bytes);
 
     if (IS_VAR_DATA_TYPE(type)) {
-      if (!IS_VAR_NULL_TYPE(type, bytes) && pCol->offset[pResultInfo->current] != -1) {
+      if (!IS_VAR_NULL_TYPE(type, schemaBytes) && pCol->offset[pResultInfo->current] != -1) {
         char* pStart = pResultInfo->pCol[i].offset[pResultInfo->current] + pResultInfo->pCol[i].pData;
 
         pResultInfo->length[i] = varDataLen(pStart);
@@ -1965,8 +1959,8 @@ void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
       }
     } else {
       if (!colDataIsNull_f(pCol->nullbitmap, pResultInfo->current)) {
-        pResultInfo->row[i] = pResultInfo->pCol[i].pData + bytes * pResultInfo->current;
-        pResultInfo->length[i] = bytes;
+        pResultInfo->row[i] = pResultInfo->pCol[i].pData + schemaBytes * pResultInfo->current;
+        pResultInfo->length[i] = schemaBytes;
       } else {
         pResultInfo->row[i] = NULL;
         pResultInfo->length[i] = 0;
@@ -2098,7 +2092,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength) {
 
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
     int32_t type = pResultInfo->fields[i].type;
-    int32_t bytes = pResultInfo->fields[i].bytes;
+    int32_t schemaBytes = calcSchemaBytesFromTypeBytes(pResultInfo->fields[i].type, pResultInfo->fields[i].bytes);
 
     if (type == TSDB_DATA_TYPE_NCHAR && colLength[i] > 0) {
       char* p = taosMemoryRealloc(pResultInfo->convertBuf[i], colLength[i]);
@@ -2115,11 +2109,11 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength) {
           char* pStart = pCol->offset[j] + pCol->pData;
 
           int32_t len = taosUcs4ToMbsEx((TdUcs4*)varDataVal(pStart), varDataLen(pStart), varDataVal(p), conv);
-          if (len < 0 || len > bytes || (p + len) >= (pResultInfo->convertBuf[i] + colLength[i])) {
+          if (len < 0 || len > schemaBytes || (p + len) >= (pResultInfo->convertBuf[i] + colLength[i])) {
             tscError(
                 "doConvertUCS4 error, invalid data. len:%d, bytes:%d, (p + len):%p, (pResultInfo->convertBuf[i] + "
                 "colLength[i]):%p",
-                len, bytes, (p + len), (pResultInfo->convertBuf[i] + colLength[i]));
+                len, schemaBytes, (p + len), (pResultInfo->convertBuf[i] + colLength[i]));
             taosReleaseConv(idx, conv, C2M, pResultInfo->charsetCxt);
             return TSDB_CODE_TSC_INTERNAL_ERROR;
           }
@@ -2492,7 +2486,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
     }
 
     pResultInfo->pCol[i].pData = pStart;
-    pResultInfo->length[i] = pResultInfo->fields[i].bytes;
+    pResultInfo->length[i] = calcSchemaBytesFromTypeBytes(pResultInfo->fields[i].type, pResultInfo->fields[i].bytes);
     pResultInfo->row[i] = pResultInfo->pCol[i].pData;
 
     pStart += colLength[i];

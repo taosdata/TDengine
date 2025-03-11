@@ -292,3 +292,21 @@ void extractDecimalTypeInfoFromBytes(int32_t *pBytes, uint8_t *precision, uint8_
   *scale = (uint8_t)(*pBytes & 0xFF);
   *pBytes >>= 24;
 }
+
+int32_t calcTypeBytesFromSchemaBytes(int32_t type, int32_t schemaBytes) {
+  if (type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
+    return schemaBytes - VARSTR_HEADER_SIZE;
+  } else if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_JSON) {
+    return (schemaBytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+  }
+  return schemaBytes;
+}
+
+int32_t calcSchemaBytesFromTypeBytes(int32_t type, int32_t varTypeBytes) {
+  if (type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_VARBINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
+    return varTypeBytes + VARSTR_HEADER_SIZE;
+  } else if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_JSON) {
+    return varTypeBytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+  }
+  return varTypeBytes;
+}
