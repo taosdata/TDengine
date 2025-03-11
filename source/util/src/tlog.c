@@ -16,12 +16,12 @@
 #define _DEFAULT_SOURCE
 #include "tlog.h"
 #include "os.h"
+#include "tcommon.h"
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tjson.h"
 #include "ttime.h"
 #include "tutil.h"
-#include "tcommon.h"
 
 #define LOG_MAX_LINE_SIZE              (10024)
 #define LOG_MAX_LINE_BUFFER_SIZE       (LOG_MAX_LINE_SIZE + 3)
@@ -123,7 +123,7 @@ int32_t cDebugFlag = 131;
 int32_t jniDebugFlag = 131;
 int32_t tmrDebugFlag = 131;
 int32_t uDebugFlag = 131;
-int32_t rpcDebugFlag = 131;
+int32_t rpcDebugFlag = 143;
 int32_t qDebugFlag = 131;
 int32_t stDebugFlag = 131;
 int32_t wDebugFlag = 131;
@@ -1294,7 +1294,7 @@ _return:
   taosPrintTrace(flags, level, dflag, 8);
 #endif
 #endif
-#endif // TD_ASTRA
+#endif  // TD_ASTRA
   taosMemoryFree(pMsg);
 }
 
@@ -1368,9 +1368,7 @@ static void checkWriteCrashLogToFileInNewThead() {
   }
 }
 
-void checkAndPrepareCrashInfo() {
-  return checkWriteCrashLogToFileInNewThead();
-}
+void checkAndPrepareCrashInfo() { return checkWriteCrashLogToFileInNewThead(); }
 
 int32_t initCrashLogWriter() {
   int32_t code = tsem_init(&gCrashBasicInfo.sem, 0, 0);
@@ -1509,18 +1507,18 @@ bool taosAssertRelease(bool condition) {
 }
 #endif
 
-#define NUM_BASE 100
+#define NUM_BASE     100
 #define DIGIT_LENGTH 2
-#define MAX_DIGITS 24
+#define MAX_DIGITS   24
 
-char* u64toaFastLut(uint64_t val, char* buf) {
+char *u64toaFastLut(uint64_t val, char *buf) {
   // Look-up table for 2-digit numbers
-  static const char* lut =
+  static const char *lut =
       "0001020304050607080910111213141516171819202122232425262728293031323334353637383940414243444546474849505152535455"
       "5657585960616263646566676869707172737475767778798081828384858687888990919293949596979899";
 
   char  temp[MAX_DIGITS];
-  char* p = temp + tListLen(temp);
+  char *p = temp + tListLen(temp);
 
   // Process the digits greater than or equal to 100
   while (val >= NUM_BASE) {

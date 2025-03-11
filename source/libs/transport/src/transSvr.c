@@ -1904,8 +1904,8 @@ int32_t transReleaseSrvHandle(void* handle, int32_t status) {
   m->msg = tmsg;
   m->type = Normal;
 
-  tDebug("%s conn:%p, start to send %s, sid:%" PRId64 "", transLabel(pThrd->pInst), exh->handle, TMSG_INFO(tmsg.msgType),
-         qId);
+  tDebug("%s conn:%p, start to send %s, sid:%" PRId64 "", transLabel(pThrd->pInst), exh->handle,
+         TMSG_INFO(tmsg.msgType), qId);
   if ((code = transAsyncSend(pThrd->asyncPool, &m->q)) != 0) {
     destroySmsg(m);
     transReleaseExHandle(info->refIdMgt, refId);
@@ -2073,8 +2073,11 @@ int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
   return code;
 }
 #else
-int32_t transReleaseSrvHandle(void *handle, int32_t status) { return 0; }
-void    transRefSrvHandle(void *handle) { return; }
+int32_t transReleaseSrvHandle(void *handle, int32_t status) {
+  tDebug("rpc start to release svr handle");
+  return 0;
+}
+void transRefSrvHandle(void *handle) { return; }
 
 void    transUnrefSrvHandle(void *handle) { return; }
 int32_t transSendResponse(STransMsg *msg) {

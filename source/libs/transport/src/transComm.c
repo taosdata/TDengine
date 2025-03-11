@@ -1645,6 +1645,12 @@ bool cliMayGetAhandle(STrans* pTrans, SRpcMsg* pMsg) {
   int64_t  seq = pMsg->info.seq;
   int32_t* msgType = NULL;
 
+  if (pMsg->msgType == TDMT_SCH_TASK_RELEASE || pMsg->msgType == TDMT_SCH_TASK_RELEASE + 1) {
+    STransCtx* ctx = taosHashGet(pTrans->sidTable, &pMsg->info.qId, sizeof(pMsg->info.qId));
+    transCtxCleanup(ctx);
+    taosHashRemove(pTrans->sidTable, &pMsg->info.qId, sizeof(pMsg->info.qId));
+    return true;
+  }
   taosThreadMutexLock(&pTrans->seqMutex);
   msgType = taosHashGet(pTrans->seqTable, &seq, sizeof(seq));
   taosThreadMutexUnlock(&pTrans->seqMutex);
@@ -1654,8 +1660,7 @@ bool cliMayGetAhandle(STrans* pTrans, SRpcMsg* pMsg) {
       return false;
     }
     pMsg->info.ahandle = transCtxDumpVal(ctx, pMsg->msgType);
-    tError("failed to find msg type for seq:%" PRId64 ", gen ahandle for type %s" PRId64, seq,
-           TMSG_INFO(pMsg->msgType));
+    tError("failed to find msg type for seq:%" PRId64 ", gen ahandle for type %s", seq, TMSG_INFO(pMsg->msgType));
   } else {
     taosThreadMutexLock(&pTrans->seqMutex);
     taosHashRemove(pTrans->seqTable, &seq, sizeof(seq));

@@ -14,12 +14,12 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "tglobal.h"
 #include "cJSON.h"
 #include "defines.h"
 #include "os.h"
 #include "osString.h"
 #include "tconfig.h"
-#include "tglobal.h"
 #include "tgrant.h"
 #include "tjson.h"
 #include "tlog.h"
@@ -27,7 +27,6 @@
 #include "tunit.h"
 
 #include "tutil.h"
-
 
 #define CONFIG_PATH_LEN (TSDB_FILENAME_LEN + 12)
 #define CONFIG_FILE_LEN (CONFIG_PATH_LEN + 32)
@@ -43,7 +42,7 @@ char          tsLocalEp[TSDB_EP_LEN] = {0};  // Local End Point, hostname:port
 char          tsVersionName[16] = "community";
 uint16_t      tsServerPort = 6030;
 int32_t       tsVersion = 30000000;
-int32_t       tsForceReadConfig = 0;
+int32_t       tsForceReadConfig = 1;
 int32_t       tsdmConfigVersion = -1;
 int32_t       tsConfigInited = 0;
 int32_t       tsStatusInterval = 1;  // second
@@ -61,9 +60,9 @@ int32_t tsMaxShellConns = 50000;
 int32_t tsShellActivityTimer = 3;  // second
 
 // memory pool
-int8_t  tsMemPoolFullFunc = 0;
+int8_t tsMemPoolFullFunc = 0;
 #ifndef TD_ASTRA
-int8_t  tsQueryUseMemoryPool = 1;
+int8_t tsQueryUseMemoryPool = 1;
 #else
 int8_t  tsQueryUseMemoryPool = 0;
 #endif
@@ -138,7 +137,7 @@ int8_t   tsGrant = 1;
 #ifdef USE_MONITOR
 bool tsEnableMonitor = true;
 #else
-bool tsEnableMonitor = false;
+bool    tsEnableMonitor = false;
 #endif
 int32_t  tsMonitorInterval = 30;
 char     tsMonitorFqdn[TSDB_FQDN_LEN] = {0};
@@ -149,7 +148,7 @@ bool     tsMonitorLogProtocol = false;
 #ifdef USE_MONITOR
 bool tsMonitorForceV2 = true;
 #else
-bool tsMonitorForceV2 = false;
+bool    tsMonitorForceV2 = false;
 #endif
 
 // audit
@@ -342,7 +341,7 @@ char    tsUdfdLdLibPath[512] = "";
 #ifdef USE_STREAM
 bool tsDisableStream = false;
 #else
-bool tsDisableStream = true;
+bool    tsDisableStream = true;
 #endif
 int64_t tsStreamBufferSize = 128 * 1024 * 1024;
 bool    tsFilterScalarMode = false;
@@ -523,9 +522,7 @@ int32_t taosSetS3Cfg(SConfig *pCfg) {
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
-struct SConfig *taosGetCfg() {
-  return tsCfg;
-}
+struct SConfig *taosGetCfg() { return tsCfg; }
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
                            char *apolloUrl) {
@@ -1222,6 +1219,7 @@ static int32_t taosSetClientLogCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "rpcDebugFlag");
   rpcDebugFlag = pItem->i32;
+  rpcDebugFlag = 143;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "qDebugFlag");
   qDebugFlag = pItem->i32;
@@ -2006,9 +2004,9 @@ int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *
   dDebugFlag = pItem->i32;
 
 _exit:
-if(code != 0) {
-  (void)printf("failed to set data folder since %s\n", tstrerror(code));
-}
+  if (code != 0) {
+    (void)printf("failed to set data folder since %s\n", tstrerror(code));
+  }
   cfgCleanup(pCfg);
   TAOS_RETURN(code);
 }
