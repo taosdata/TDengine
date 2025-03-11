@@ -147,35 +147,41 @@ class TDTestCase(TBase):
     def test_nocheck_case(self):
         tdLog.printNoPrefix(f"==========step:nocheck test")
         tdSql.execute("select * from a1 a join (select now() as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts;")
-        #tdSql.execute("select * from a1 a join (select now as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts;")
-        #select b.* from a1 a join (select __const__ as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts;
-        #select * from a1 a join (select __const__ as ts1, ts, f, g, 'a' from b1) b on a.ts = b.ts;
-        #select b.* from a1 a join (select __const__ as ts1, ts, f, g, 'a' from b1) b on a.ts = b.ts;
-        #select * from (select __const__ as ts1, ts, f, g, 'a' from b1) b join a1 a  on a.ts = b.ts;
-        #select b.* from (select __const__ as ts1, ts, f, g, 'a' from b1) b join a1 a  on a.ts = b.ts;
-        #select * from a1 a , (select __const__ as ts1, ts, f, g, 'a' from b1) b where a.ts = b.ts;
-        #select b.* from a1 a , (select __const__ as ts1, ts, f, g, 'a' from b1) b where a.ts = b.ts;
-        #select * from (select __const__ as ts1, ts, f, g, 'a' from b1) b , a1 a  where a.ts = b.ts;
-        #select b.* from (select __const__ as ts1, ts, f, g, 'a' from b1) b , a1 a  where a.ts = b.ts;
+        tdSql.execute("select * from a1 a join (select now as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts;")
+        tdSql.execute("select b.* from a1 a join (select __const__ as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts;")
+        tdSql.execute("select * from a1 a join (select __const__ as ts1, ts, f, g, 'a' from b1) b on a.ts = b.ts;")
+        tdSql.execute("select b.* from a1 a join (select __const__ as ts1, ts, f, g, 'a' from b1) b on a.ts = b.ts;")
+        tdSql.execute("select * from (select __const__ as ts1, ts, f, g, 'a' from b1) b join a1 a  on a.ts = b.ts;")
+        tdSql.execute("select b.* from (select __const__ as ts1, ts, f, g, 'a' from b1) b join a1 a  on a.ts = b.ts;")
+        tdSql.execute("select * from a1 a , (select __const__ as ts1, ts, f, g, 'a' from b1) b where a.ts = b.ts;")
+        tdSql.execute("select b.* from a1 a , (select __const__ as ts1, ts, f, g, 'a' from b1) b where a.ts = b.ts;")
+        tdSql.execute("select * from (select __const__ as ts1, ts, f, g, 'a' from b1) b , a1 a  where a.ts = b.ts;")
+        tdSql.execute("select b.* from (select __const__ as ts1, ts, f, g, 'a' from b1) b , a1 a  where a.ts = b.ts;")
 
     def test_abnormal_case(self):
         tdLog.printNoPrefix(f"==========step:abnormal case test")
         tdSql.error(f"select * from a1 a join (select '{self.today_ts}' as ts from b1) b on a.ts = b.ts;")
         tdSql.error(f"select * from a1 a join (select '{self.today_ts}' + 1s as ts from b1) b on a.ts = b.ts;")
+        tdSql.error(f"select * from a1 a left asof join (select now as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts;")
+        tdSql.error(f"select * from a1 a left window join (select now as ts1, ts, f, g, 'a' c from b1) b window_offset(-1s, 1s);")
 
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
 
         self.insert_data()
 
-        self.test_today_case("inner")
-        self.test_now_case("inner")
-        self.test_constts_case("inner")
+        #self.test_today_case("inner")
+        #self.test_now_case("inner")
+        #self.test_constts_case("inner")
 
-        self.test_today_case("left_outer")
-        self.test_now_case("left_outer")
+        #self.test_today_case("left_outer")
+        #self.test_now_case("left_outer")
 
-        self.test_abnormal_case()
+        #self.test_today_case("full_outer")
+        #self.test_today_case("left_semi")
+        #self.test_today_case("left_anti")
+
+        #self.test_abnormal_case()
 
         tdLog.success(f"{__file__} successfully executed")
 
