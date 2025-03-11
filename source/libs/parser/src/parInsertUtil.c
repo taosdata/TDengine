@@ -620,8 +620,10 @@ int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData,
   code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId);
   if (ctbReq !=NULL && code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
     pTbCtx->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
-    vgId = pTbCtx->pMeta->vgId;
+    vgId = (int32_t)ctbReq->uid;
     uid = 0;
+    pTbCtx->pMeta->vgId=(int32_t)ctbReq->uid;
+    ctbReq->uid=0;
     pTbCtx->pData->pCreateTbReq = ctbReq;
     code = TSDB_CODE_SUCCESS;
   } else {

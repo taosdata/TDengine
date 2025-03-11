@@ -2211,16 +2211,18 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
     }
 
     SVCreateTbReq *pCreateTbReq = NULL;
-    if (pStmt->sql.autoCreateTbl) {
-      if (bindv->tags && bindv->tags[i]) {
-        code = stmtSetTbTags2(stmt, bindv->tags[i], &pCreateTbReq);
-        if (code) {
-          goto out;
-        }
-      } else {
-        pStmt->sql.autoCreateTbl = false;
-      }
+    if (bindv->tags && bindv->tags[i]) {
+      code = stmtSetTbTags2(stmt, bindv->tags[i], &pCreateTbReq);
+    } else if (pStmt->sql.autoCreateTbl || pStmt->bInfo.needParse) {
+      code = stmtCheckTags2(stmt, &pCreateTbReq);
+    } else {
+      pStmt->sql.autoCreateTbl = false;
     }
+
+    if (code) {
+      goto out;
+    }
+
     if (bindv->bind_cols && bindv->bind_cols[i]) {
       TAOS_STMT2_BIND *bind = bindv->bind_cols[i];
 

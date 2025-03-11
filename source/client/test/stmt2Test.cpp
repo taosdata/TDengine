@@ -43,8 +43,7 @@ void checkError(TAOS_STMT2* stmt, int code) {
     if (pStmt == nullptr || pStmt->sql.sqlStr == nullptr || pStmt->exec.pRequest == nullptr) {
       printf("stmt api error\n  stats : %d\n  errstr : %s\n", pStmt->sql.status, taos_stmt_errstr(stmt));
     } else {
-      printf("stmt api error\n  sql : %s\n  stats : %d\n  errstr : %s\n", pStmt->sql.sqlStr, pStmt->sql.status,
-             taos_stmt_errstr(stmt));
+      printf("stmt api error\n  sql : %s\n  stats : %d\n", pStmt->sql.sqlStr, pStmt->sql.status);
     }
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
@@ -913,7 +912,7 @@ TEST(stmt2Case, stmt2_stb_insert) {
             "insert into `stmt2_testdb_1`.? using `stmt2_testdb_1`.`stb` tags(?,?) values(?,?)", 3, 3, 3, true, true);
   }
 
-  // // async
+  // async
   AsyncArgs* aa = (AsyncArgs*)taosMemMalloc(sizeof(AsyncArgs));
   aa->async_affected_rows = 0;
   ASSERT_EQ(tsem_init(&aa->sem, 0, 0), TSDB_CODE_SUCCESS);
@@ -954,6 +953,10 @@ TEST(stmt2Case, stmt2_stb_insert) {
   {
     do_stmt("interlcace & no-preCreateTB", taos, &option, "insert into ? using stb (t1,t2)tags(?,?) (ts,b)values(?,?)",
             3, 3, 3, true, false);
+  }
+  {
+    do_stmt("interlcace & no-preCreateTB", taos, &option,
+            "insert into stmt2_testdb_1.? using stb (t1,t2)tags(1,'abc') (ts,b)values(?,?)", 3, 3, 3, false, false);
   }
   {
     do_stmt("interlcace & no-preCreateTB", taos, &option,
@@ -1034,7 +1037,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
 
   // less cols and tags
   {
-    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
     TAOS_STMT2_OPTION option = {0, false, false, NULL, NULL};
     ASSERT_NE(stmt, nullptr);
     const char* sql = "INSERT INTO stmt2_testdb_6.stb1 (ts,int_tag,tbname)  VALUES (?,?,?)";

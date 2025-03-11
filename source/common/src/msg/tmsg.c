@@ -11866,6 +11866,7 @@ static int32_t tEncodeSSubmitTbData(SEncoder *pCoder, const SSubmitTbData *pSubm
   // auto create table
   if (pSubmitTbData->flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
     if (!(pSubmitTbData->pCreateTbReq)) {
+      uError("auto create table but request is NULL");
       return TSDB_CODE_INVALID_MSG;
     }
     TAOS_CHECK_EXIT(tEncodeSVCreateTbReq(pCoder, pSubmitTbData->pCreateTbReq));

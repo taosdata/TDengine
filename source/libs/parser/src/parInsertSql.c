@@ -1933,7 +1933,6 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
         return buildInvalidOperationMsg(&pCxt->msg, "not support mixed bind and non-bind values");
       }
       pCxt->isStmtBind = true;
-      pStmt->usingTableProcessing = true;
       if (pCols->pColIndex[i] == tbnameIdx) {
         *bFoundTbName = true;
         char* tbName = NULL;
@@ -1968,6 +1967,7 @@ static int32_t doGetStbRowValues(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
         if (!(tag_index < numOfTags)) {
           return buildInvalidOperationMsg(&pCxt->msg, "not expected numOfTags");
         }
+        pStmt->usingTableProcessing = true;
         pCxt->tags.pColIndex[tag_index++] = pCols->pColIndex[i] - numOfCols;
         pCxt->tags.mixTagsCols = true;
         pCxt->tags.numOfBound++;
