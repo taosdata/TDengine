@@ -8,6 +8,8 @@ from utils.sql import tdSql
 from utils.before_test import BeforeTest
 
 from utils.pytest.util.sql import tdSql as tdSql_pytest
+from utils.army.frame.sql import tdSql as tdSql_army
+from utils.taos_components import run_taosbenchMark
 import taos
 import taosrest
 import taosws
@@ -25,9 +27,15 @@ def pytest_addoption(parser):
                     help="restful realization form")
     parser.addoption("-Q", action="store",
                     help="set queryPolicy in one dnode")
+    parser.addoption("-D", action="store",
+                    help="set disk number on each level. range 1 ~ 10")
+    parser.addoption("-L", action="store",
+                    help="set multiple level number. range 1 ~ 3")
     parser.addoption("--replica", action="store",
                     help="the number of replicas")
     parser.addoption("--skip_test", action="store_true",
+                    help="Only do deploy or install without running test")
+    parser.addoption("--skip_deploy", action="store_true",
                     help="Only do deploy or install without running test")
     parser.addoption("--debug_log", action="store_true",
                     help="Enable debug log output.")
@@ -56,28 +64,38 @@ def before_test_session(request):
             raise pytest.UsageError(f"YAML file '{yaml_file_path}' does not exist.")
 
         with open(yaml_file_path, "r") as f:
-            config_data = yaml.safe_load(f)
+            yaml_data = yaml.safe_load(f)
 
         # 解析settings中name=taosd的配置
         servers = []
-        for setting in config_data.get("settings", []):
+        request.session.restful = False
+        for setting in yaml_data.get("settings", []):
             if setting.get("name") == "taosd":
-                endpoint = setting["spec"]["dnodes"][0]["endpoint"]
-                host, port = endpoint.split(":")
-                servers.append({
-                    "host": host,
-                    "port": int(port),
-                    "config": setting["spec"]["dnodes"][0]["config"],  # 完整的配置信息
-                    "endpoint": endpoint,
-                    "cfg_path": setting["spec"]["dnodes"][0]["config_dir"]
-                })
+                for dnode in setting["spec"]["dnodes"]:
+                    endpoint = dnode["endpoint"]
+                    host, port = endpoint.split(":")
+                    server = {
+                        "host": host,
+                        "port": int(port),
+                        "cfg_path": dnode["config_dir"],
+                        "endpoint": endpoint,
+                        "log_dir": dnode["config"]["logDir"],
+                        "data_dir": dnode["config"]["dataDir"],
+                        "config": dnode["config"]
+                    }
+                    servers.append(server)
+            if setting.get("name") == "taosAdapter":
+                # TODO: 解析taosAdapter的配置
+                request.session.restful = True
         request.session.host = servers[0]["host"]
         request.session.port = servers[0]["port"]
         request.session.user = "root"
         request.session.password = "taosdata"
-        request.session.cfg_path = servers[0]["config"]["config_dir"]
+        request.session.cfg_path = servers[0]["cfg_path"]
         request.session.servers = servers
-
+        request.session.denodes_num = len(servers)
+        request.session.query_policy = 1
+        request.session.yaml_data = yaml_data
     # 解析入参，存入session变量
     else:
         if request.config.getoption("-N"):
@@ -108,7 +126,18 @@ def before_test_session(request):
         request.session.setup_all = False
     else:
         request.session.setup_all = True
-    
+    if request.config.getoption("--skip_deploy"):
+        request.session.skip_deploy = True
+    else:
+        request.session.skip_deploy = False
+    if request.config.getoption("-D"):
+        request.session.disk = int(request.config.getoption("-D"))
+    else:
+        request.session.disk = 1
+    if request.config.getoption("-L"):
+        request.session.level = int(request.config.getoption("-L"))
+    else:
+        request.session.level = 1
 
     request.session.root_dir = request.config.rootdir
     request.session.yaml_file = yaml_file
@@ -129,12 +158,15 @@ def before_test_class(request):
         request.cls.port = request.session.port
         request.cls.cfg_path = request.session.cfg_path
     else:
-        request.session.before_test.ci_init_config(request.session.denodes_num, request.session.query_policy, request.session.restful)
+        request.session.before_test.ci_init_config(request)
         request.cls.yaml_file = 'ci_default.yaml'
         request.cls.host = "localhost"
         request.cls.port = 6030
         request.cls.cfg_path = os.path.join(os.path.dirname(request.session.root_dir), 'sim', 'dnode0', 'cfg')
-    if not request.session.setup_all:
+    
+    if hasattr(request.cls, "updatecfgDict"):
+        request.session.before_test.update_cfg(request.cls.updatecfgDict)
+    if not request.session.setup_all and not request.session.skip_deploy:
         request.session.before_test.deploy_taos(request.cls.yaml_file, request.session.mnodes_num)
     
     request.cls.dnode_nums = request.session.denodes_num
@@ -145,12 +177,418 @@ def before_test_class(request):
     request.cls.tdSql = request.session.before_test.get_tdsql(request.cls.conn)
     request.cls.replicaVar = request.session.replicaVar
     # 为老用例兼容，初始化部分实例
-    request.session.before_test.init_dnode_cluster(request, dnode_nums=request.cls.dnode_nums, mnode_nums=request.cls.mnode_nums, independentMnode=True)
+    request.session.before_test.init_dnode_cluster(request, dnode_nums=request.cls.dnode_nums, mnode_nums=request.cls.mnode_nums, independentMnode=True, level=request.session.level, disk=request.session.disk)
     
     tdSql_pytest.init(request.cls.conn.cursor())
+    tdSql_army.init(request.cls.conn.cursor())
+
+    # 兼容army caseBase
+    request.cls.tmpdir = "tmp"
+
+    # record server information
+    request.cls.dnodeNum = 0
+    request.cls.mnodeNum = 0
+    request.cls.mLevel = 0
+    request.cls.mLevelDisk = 0
+    # test case information
+    request.cls.db     = "db"
+    request.cls.stb    = "stb"
+    request.cls.checkColName = "ic"
+    # sql 
+    request.cls.sqlSum = f"select sum({request.cls.checkColName}) from {request.cls.stb}"
+    request.cls.sqlMax = f"select max({request.cls.checkColName}) from {request.cls.stb}"
+    request.cls.sqlMin = f"select min({request.cls.checkColName}) from {request.cls.stb}"
+    request.cls.sqlAvg = f"select avg({request.cls.checkColName}) from {request.cls.stb}"
+    request.cls.sqlFirst = f"select first(ts) from {request.cls.stb}"
+    request.cls.sqlLast  = f"select last(ts) from {request.cls.stb}"
 
 
     yield
 
     request.cls.tdSql.close()
     request.cls.conn.close()
+
+@pytest.fixture(scope="class", autouse=True)
+def add_common_methods(request):
+
+    def stop(self):
+        request.cls.tdSql.close()
+    
+    request.cls.stop = stop
+
+    def createDb(self, options=""):
+        sql = f"create database {self.db} {options}"
+        request.cls.tdSql.execute(sql, show=True)
+    
+    request.cls.createDb = createDb
+#
+#   db action
+#         
+
+    def trimDb(self, show = False):
+        request.cls.tdSql.execute(f"trim database {self.db}", show = show)
+    
+    request.cls.trimDb = trimDb
+
+    def compactDb(self, show = False):
+        request.cls.tdSql.execute(f"compact database {self.db}", show = show)
+    
+    request.cls.compactDb = compactDb
+
+    def flushDb(self, show = False):
+        request.cls.tdSql.execute(f"flush database {self.db}", show = show)
+
+    request.cls.flushDb = flushDb
+
+    def dropDb(self, show = False):
+        request.cls.tdSql.execute(f"drop database {self.db}", show = show)
+
+    request.cls.dropDb = dropDb
+
+    def dropStream(self, sname, show = False):
+        request.cls.tdSql.execute(f"drop stream {sname}", show = show)
+
+    request.cls.dropStream = dropStream
+
+    def splitVGroups(self):
+        vgids = self.getVGroup(self.db)
+        selid = random.choice(vgids)
+        sql = f"split vgroup {selid}"
+        request.cls.tdSql.execute(sql, show=True)
+        if self.waitTransactionZero() is False:
+            tdLog.exit(f"{sql} transaction not finished")
+            return False
+        return True
+
+    request.cls.splitVGroups = splitVGroups
+
+    def alterReplica(self, replica):
+        sql = f"alter database {self.db} replica {replica}"
+        request.cls.tdSql.execute(sql, show=True)
+        if self.waitTransactionZero() is False:
+            logger.exit(f"{sql} transaction not finished")
+            return False
+        return True
+
+    request.cls.alterReplica = alterReplica
+
+    def balanceVGroup(self):
+        sql = f"balance vgroup"
+        request.cls.tdSql.execute(sql, show=True)
+        if self.waitTransactionZero() is False:
+            logger.exit(f"{sql} transaction not finished")
+            return False
+        return True
+
+    request.cls.balanceVGroup = balanceVGroup
+    
+    def balanceVGroupLeader(self):
+        sql = f"balance vgroup leader"
+        request.cls.tdSql.execute(sql, show=True)
+        if self.waitTransactionZero() is False:
+            logger.exit(f"{sql} transaction not finished")
+            return False
+        return True
+
+    request.cls.balanceVGroupLeader = balanceVGroupLeader
+    def balanceVGroupLeaderOn(self, vgId):
+        sql = f"balance vgroup leader on {vgId}"
+        request.cls.tdSql.execute(sql, show=True)
+        if self.waitTransactionZero() is False:
+            logger.exit(f"{sql} transaction not finished")
+            return False
+        return True
+
+    request.cls.balanceVGroupLeaderOn = balanceVGroupLeaderOn
+
+    def balanceVGroupLeaderOn(self, vgId):
+        sql = f"balance vgroup leader on {vgId}"
+        request.cls.tdSql.execute(sql, show=True)
+        if self.waitTransactionZero() is False:
+            logger.exit(f"{sql} transaction not finished")
+            return False
+    
+    request.cls.balanceVGroupLeaderOn = balanceVGroupLeaderOn
+#
+#  check db correct
+#                
+
+    # basic
+    def checkInsertCorrect(self, difCnt = 0):
+        # check count
+        sql = f"select count(*) from {self.stb}"
+        request.cls.tdSql.checkAgg(sql, self.childtable_count * self.insert_rows)
+
+        # check child table count
+        sql = f" select count(*) from (select count(*) as cnt , tbname from {self.stb} group by tbname) where cnt = {self.insert_rows} "
+        request.cls.tdSql.checkAgg(sql, self.childtable_count)
+
+        # check step
+        sql = f"select count(*) from (select diff(ts) as dif from {self.stb} partition by tbname order by ts desc) where dif != {self.timestamp_step}"
+        request.cls.tdSql.checkAgg(sql, difCnt)
+
+    request.cls.checkInsertCorrect = checkInsertCorrect
+    # save agg result
+    def snapshotAgg(self):        
+        self.sum =  request.cls.tdSql.getFirstValue(self.sqlSum)
+        self.avg =  request.cls.tdSql.getFirstValue(self.sqlAvg)
+        self.min =  request.cls.tdSql.getFirstValue(self.sqlMin)
+        self.max =  request.cls.tdSql.getFirstValue(self.sqlMax)
+        self.first = request.cls.tdSql.getFirstValue(self.sqlFirst)
+        self.last  = request.cls.tdSql.getFirstValue(self.sqlLast)
+
+    request.cls.snapshotAgg = snapshotAgg
+    # check agg 
+    def checkAggCorrect(self):
+        request.cls.tdSql.checkAgg(self.sqlSum, self.sum)
+        request.cls.tdSql.checkAgg(self.sqlAvg, self.avg)
+        request.cls.tdSql.checkAgg(self.sqlMin, self.min)
+        request.cls.tdSql.checkAgg(self.sqlMax, self.max)
+        request.cls.tdSql.checkAgg(self.sqlFirst, self.first)
+        request.cls.tdSql.checkAgg(self.sqlLast,  self.last)
+
+    request.cls.checkAggCorrect = checkAggCorrect
+    # self check 
+    def checkConsistency(self, col):
+        # top with max
+        sql = f"select max({col}) from {self.stb}"
+        expect = request.cls.tdSql.getFirstValue(sql)
+        sql = f"select top({col}, 5) from {self.stb}"
+        request.cls.tdSql.checkFirstValue(sql, expect)
+
+        #bottom with min
+        sql = f"select min({col}) from {self.stb}"
+        expect = request.cls.tdSql.getFirstValue(sql)
+        sql = f"select bottom({col}, 5) from {self.stb}"
+        request.cls.tdSql.checkFirstValue(sql, expect)
+
+        # order by asc limit 1 with first
+        sql = f"select last({col}) from {self.stb}"
+        expect = request.cls.tdSql.getFirstValue(sql)
+        sql = f"select {col} from {self.stb} order by _c0 desc limit 1"
+        request.cls.tdSql.checkFirstValue(sql, expect)
+
+        # order by desc limit 1 with last
+        sql = f"select first({col}) from {self.stb}"
+        expect = request.cls.tdSql.getFirstValue(sql)
+        sql = f"select {col} from {self.stb} order by _c0 asc limit 1"
+        request.cls.tdSql.checkFirstValue(sql, expect)
+    
+    request.cls.checkConsistency = checkConsistency
+
+    # check sql1 is same result with sql2
+    def checkSameResult(self, sql1, sql2):
+        logger.info(f"sql1={sql1}")
+        logger.info(f"sql2={sql2}")
+        logger.info("compare sql1 same with sql2 ...")
+
+        # sql
+        rows1 = request.cls.tdSql.query(sql1,queryTimes=2)
+        res1 = copy.deepcopy(request.cls.tdSql.res)
+
+        request.cls.tdSql.query(sql2,queryTimes=2)
+        res2 = request.cls.tdSql.res
+
+        rowlen1 = len(res1)
+        rowlen2 = len(res2)
+        errCnt = 0
+
+        if rowlen1 != rowlen2:
+            logger.error(f"both row count not equal. rowlen1={rowlen1} rowlen2={rowlen2} ")
+            return False
+        
+        for i in range(rowlen1):
+            row1 = res1[i]
+            row2 = res2[i]
+            collen1 = len(row1)
+            collen2 = len(row2)
+            if collen1 != collen2:
+                logger.error(f"both col count not equal. collen1={collen1} collen2={collen2}")
+                return False
+            for j in range(collen1):
+                if row1[j] != row2[j]:
+                    logger.info(f"error both column value not equal. row={i} col={j} col1={row1[j]} col2={row2[j]} .")
+                    errCnt += 1
+
+        if errCnt > 0:
+            logger.error(f"sql2 column value different with sql1. different count ={errCnt} ")
+
+        logger.info("sql1 same result with sql2.")
+    
+    request.cls.checkSameResult = checkSameResult
+#
+#   get db information
+#
+
+    # get vgroups
+    def getVGroup(self, dbName):
+        vgidList = []
+        sql = f"select vgroup_id from information_schema.ins_vgroups where db_name='{dbName}'"
+        res = request.cls.tdSql.getResult(sql)
+        rows = len(res)
+        for i in range(rows):
+            vgidList.append(res[i][0])
+
+        return vgidList
+    
+    request.cls.getVGroup = getVGroup
+    
+    # get distributed rows
+    def getDistributed(self, tbName):
+        sql = f"show table distributed {tbName}"
+        request.cls.tdSql.query(sql)
+        dics = {}
+        i = 0
+        for i in range(request.cls.tdSql.getRows()):
+            row = request.cls.tdSql.getData(i, 0)
+            #print(row)
+            row = row.replace('[', '').replace(']', '')
+            #print(row)
+            items = row.split(' ')
+            #print(items)
+            for item in items:
+                #print(item)
+                v = item.split('=')
+                #print(v)
+                if len(v) == 2:
+                    dics[v[0]] = v[1]
+            if i > 5:
+                break
+        print(dics)
+        return dics
+    
+    request.cls.getDistributed = getDistributed
+
+#
+#   util 
+#
+    
+    # wait transactions count to zero , return False is translation not finished
+    def waitTransactionZero(self, seconds = 300, interval = 1):
+        # wait end
+        for i in range(seconds):
+            sql ="show transactions;"
+            rows = request.cls.tdSql.query(sql)
+            if rows == 0:
+                logger.info("transaction count became zero.")
+                return True
+            #tdLog.info(f"i={i} wait ...")
+            time.sleep(interval)
+        
+        return False    
+    
+    request.cls.waitTransactionZero = waitTransactionZero
+    def waitCompactsZero(self, seconds = 300, interval = 1):
+        # wait end
+        for i in range(seconds):
+            sql ="show compacts;"
+            rows = request.cls.tdSql.query(sql)
+            if rows == 0:
+                logger.info("compacts count became zero.")
+                return True
+            #tdLog.info(f"i={i} wait ...")
+            time.sleep(interval)
+        
+        return False
+    
+    request.cls.waitCompactsZero = waitCompactsZero
+
+    # check file exist
+    def checkFileExist(self, pathFile):
+        if os.path.exists(pathFile) == False:
+            logger.error(f"file not exist {pathFile}")
+
+    # check list not exist
+    def checkListNotEmpty(self, lists, tips=""):
+        if len(lists) == 0:
+            logger.error(f"list is empty {tips}")
+
+    request.cls.checkListNotEmpty = checkListNotEmpty
+
+#
+#  str util
+#
+    # covert list to sql format string
+    def listSql(self, lists, sepa = ","):
+        strs = ""
+        for ls in lists:
+            if strs != "":
+                strs += sepa
+            strs += f"'{ls}'"
+        return strs
+
+    request.cls.listSql = listSql
+#
+#  taosBenchmark 
+#
+    
+    # run taosBenchmark and check insert Result
+    def insertBenchJson(self, jsonFile, options="", checkStep=False):
+        # exe insert 
+        cmd = f"{options} -f {jsonFile}"        
+        run_taosbenchMark(command = cmd)
+
+        #
+        # check insert result
+        #
+        with open(jsonFile, "r") as file:
+            data = json.load(file)
+        
+        db  = data["databases"][0]["dbinfo"]["name"]        
+        stb = data["databases"][0]["super_tables"][0]["name"]
+        child_count = data["databases"][0]["super_tables"][0]["childtable_count"]
+        insert_rows = data["databases"][0]["super_tables"][0]["insert_rows"]
+        timestamp_step = data["databases"][0]["super_tables"][0]["timestamp_step"]
+        
+        # drop
+        try:
+            drop = data["databases"][0]["dbinfo"]["drop"]
+        except:
+            drop = "yes"
+
+        # command is first
+        if options.find("-Q") != -1:
+            drop = "no"
+
+        # cachemodel
+        try:
+            cachemode = data["databases"][0]["dbinfo"]["cachemodel"]
+        except:
+            cachemode = None
+
+        # vgropus
+        try:
+            vgroups   = data["databases"][0]["dbinfo"]["vgroups"]
+        except:
+            vgroups = None
+
+        logger.info(f"get json info: db={db} stb={stb} child_count={child_count} insert_rows={insert_rows} \n")
+        
+        # all count insert_rows * child_table_count
+        sql = f"select * from {db}.{stb}"
+        request.cls.tdSql.query(sql)
+        request.cls.tdSql.checkRows(child_count * insert_rows)
+
+        # timestamp step
+        if checkStep:
+            sql = f"select * from (select diff(ts) as dif from {db}.{stb} partition by tbname) where dif != {timestamp_step};"
+            request.cls.tdSql.query(sql)
+            request.cls.tdSql.checkRows(0)
+
+        if drop.lower() == "yes":
+            # check database optins 
+            sql = f"select `vgroups`,`cachemodel` from information_schema.ins_databases where name='{db}';"
+            request.cls.tdSql.query(sql)
+
+            if cachemode != None:
+                
+                value = frame.eutil.removeQuota(cachemode)                
+                logger.info(f" deal both origin={cachemode} after={value}")
+                request.cls.tdSql.checkData(0, 1, value)
+
+            if vgroups != None:
+                request.cls.tdSql.checkData(0, 0, vgroups)
+
+        return db, stb,child_count, insert_rows
+
+    request.cls.insertBenchJson = insertBenchJson
