@@ -1,6 +1,6 @@
 ---
-sidebar_label: Fine BI
-title: 与 Fine BI 集成
+sidebar_label: FineBI
+title: 与 FineBI 集成
 ---
 
 帆软是一家专注于商业智能与数据分析领域的科技企业，凭借自主研发的 FineBI 和 FineReport 两款核心产品在行业内占据重要地位。帆软的 BI 工具广泛应用于各类企业，帮助用户实现数据的可视化分析、报表生成和数据决策支持。
