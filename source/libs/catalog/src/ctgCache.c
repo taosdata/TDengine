@@ -546,7 +546,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
       schemaExtSize = tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
     }
     if (hasRefCol(tbMeta->tableType) && tbMeta->colRef != NULL) {
-      colRefSize += tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+      colRefSize += tbMeta->tableInfo.numOfColumns * sizeof(SColRef);
     }
     *pTableMeta = taosMemoryCalloc(1, metaSize + schemaExtSize + colRefSize);
     if (NULL == *pTableMeta) {
