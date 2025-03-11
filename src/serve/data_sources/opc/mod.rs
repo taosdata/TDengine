@@ -221,7 +221,7 @@ async fn get_point_header_impl(
 
     // get dsn
     // let dsn = task.from.clone().into_dsn()?;
-    let dsn = json_to_dsn(&task.from)?;
+    let dsn = json_to_dsn(&serde_json::Value::String(task.from.clone()))?;
     tracing::debug!("get point headers for task: {}, from: {:?}", task_id, dsn);
 
     // set current dir to DATA_DIR
@@ -294,7 +294,7 @@ async fn append_point_impl(
     let _ = std::env::set_current_dir(get_data_dir());
 
     // let from = task.from.clone().into_dsn()?;
-    let from = json_to_dsn(&task.from)?;
+    let from = json_to_dsn(&serde_json::Value::String(task.from.clone()))?;
     let to = task.to.clone().into_dsn()?;
 
     // Vec<PointDetail> to csv

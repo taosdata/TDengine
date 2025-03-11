@@ -1873,7 +1873,7 @@ pub struct TableProgress {
 }
 #[instrument(skip_all)]
 pub async fn get_table_progress(
-    from: &serde_json::Value,
+    from: &str,
     to: &str,
     // format db.table
     table: &str,
@@ -1881,7 +1881,7 @@ pub async fn get_table_progress(
     end: Option<&String>,
 ) -> anyhow::Result<TableProgress> {
     // let mut from: Dsn = from.parse()?;
-    let mut from = json_to_dsn(from)?;
+    let mut from = json_to_dsn(&serde_json::Value::String(from.to_string()))?;
     let _ = from.remove("use.topic.name");
     let _ = from.remove("use.table.name");
     let _ = from.remove("with.meta.delete");

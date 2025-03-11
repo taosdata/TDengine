@@ -10,6 +10,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
+use taos::IntoDsn;
 use taosx_core::utils::dsn::json_to_dsn;
 use tempfile::TempPath;
 use tokio::sync::RwLock;
@@ -23,7 +24,8 @@ use crate::serve::TaskController;
 
 #[derive(Debug, Deserialize, ToSchema, IntoParams)]
 pub struct DownloadAllPointsParams {
-    from: serde_json::Value,
+    from: Option<String>,
+    from_json: Option<serde_json::Value>,
     via: Option<i64>,
     categories: String,
     lang: Option<String>,
@@ -128,8 +130,17 @@ pub async fn download_all_point_csv_file(
     params: Query<DownloadAllPointsParams>,
 ) -> anyhow::Result<NamedFile> {
     let params = params.into_inner();
+    let from = if let Some(from_json) = params.from_json {
+        let from = json_to_dsn(&from_json)?;
+        from.to_string()
+    } else if let Some(from) = params.from {
+        from
+    } else {
+        return Err(anyhow!("from is required"));
+    };
+
     let (data, _) = get_all_points(
-        params.from,
+        from,
         params.via,
         params.categories,
         controller.into_inner().as_ref(),
@@ -176,9 +187,17 @@ pub async fn arrange_point_file_download_task(
 
     tokio::spawn(async move {
         tracing::debug!("start async download task: {}", &task_id);
+        let from = if let Some(from_json) = params.from_json {
+            match json_to_dsn(&from_json) {
+                Ok(dsn) => dsn.to_string(),
+                Err(_) => String::new(),
+            }
+        } else {
+            params.from.unwrap_or_default()
+        };
 
         match get_all_points(
-            params.from,
+            from,
             params.via,
             params.categories,
             controller.into_inner().as_ref(),
@@ -319,14 +338,13 @@ fn get_safe_string_for_csv(s: &str) -> String {
 }
 
 async fn get_all_points(
-    from: serde_json::Value,
+    from: String,
     via: Option<i64>,
     categories: String,
     controller: &TaskController,
     lang: Option<String>,
 ) -> anyhow::Result<(String, usize)> {
-    // let mut from = from.into_dsn()?;
-    let mut from = json_to_dsn(&from)?;
+    let mut from = from.into_dsn()?;
 
     let pattern = match from.driver.as_str() {
         "pi" | "pibackfill" => None,
@@ -341,7 +359,8 @@ async fn get_all_points(
             .await
     } else {
         let data = DataSetsReq {
-            from: serde_json::Value::String(from.to_string()),
+            from: Some(from.to_string()),
+            from_json: None,
             categories: vec![categories],
             via,
             offset: 0,
