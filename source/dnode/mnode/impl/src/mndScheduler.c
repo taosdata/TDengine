@@ -371,10 +371,14 @@ static void haltInitialTaskStatus(SStreamTask* pTask, SSubplan* pPlan, bool isFi
 }
 
 static int32_t buildSourceTask(SStreamObj* pStream, SEpSet* pEpset, EStreamTaskType type, bool useTriggerParam,
-                               int8_t hasAggTasks, SStreamTask** pTask) {
+                               int8_t hasAggTasks, SStreamTask** pTask, SArray* pSourceTaskList) {
   uint64_t uid = 0;
   SArray** pTaskList = NULL;
-  streamGetUidTaskList(pStream, type, &uid, &pTaskList);
+  if (pSourceTaskList) {
+    pTaskList = &pSourceTaskList;
+  } else {
+    streamGetUidTaskList(pStream, type, &uid, &pTaskList);
+  }
 
   int32_t trigger = 0;
   if (type == STREAM_RECALCUL_TASK) {
@@ -482,9 +486,9 @@ static int32_t addSourceTaskVTableOutput(SStreamTask* pTask, SSHashObj* pVgTasks
 
 static int32_t doAddSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream, SEpSet* pEpset, int64_t skey,
                                SArray* pVerList, SVgObj* pVgroup, EStreamTaskType type, bool useTriggerParam,
-                               int8_t hasAggTasks, SSHashObj* pVgTasks) {
+                               int8_t hasAggTasks, SSHashObj* pVgTasks, SArray* pSourceTaskList) {
   SStreamTask* pTask = NULL;
-  int32_t code = buildSourceTask(pStream, pEpset, type, useTriggerParam, hasAggTasks, &pTask);
+  int32_t code = buildSourceTask(pStream, pEpset, type, useTriggerParam, hasAggTasks, &pTask, pSourceTaskList);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -695,7 +699,8 @@ static int32_t addVTableSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* p
 
     plan->pVTables = *(SSHashObj**)p;
 
-    code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVerList, pVgroup, false, useTriggerParam, hasAggTasks, pVgTasks);
+    code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVerList, pVgroup, false, useTriggerParam,
+                           hasAggTasks, pVgTasks, pSourceTaskList);
     if (code != 0) {
       mError("failed to create stream task, code:%s", tstrerror(code));
 
@@ -731,7 +736,7 @@ static int32_t addSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream
     }
 
     code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVerList, pVgroup, STREAM_NORMAL_TASK,
-                           useTriggerParam, hasAggTasks, NULL);
+                           useTriggerParam, hasAggTasks, NULL, NULL);
     if (code != 0) {
       mError("failed to create stream task, code:%s", tstrerror(code));
 
@@ -748,7 +753,7 @@ static int32_t addSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream
       }
 
       code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVerList, pVgroup, type,
-                             useTriggerParam, hasAggTasks, NULL);
+                             useTriggerParam, hasAggTasks, NULL, NULL);
       if (code != 0) {
         sdbRelease(pSdb, pVgroup);
         return code;
@@ -1346,6 +1351,11 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
     }
 
     SArray** pSourceTaskList = taosArrayGetLast(pStream->pTaskList);
+
+    code = addNewTaskList(pStream);
+    if (code) {
+      return code;
+    }
     code = addVTableMergeTask(pMnode, plan, pStream, pEpset, (numOfPlanLevel == 1), hasAggTasks, pCreate, pVTableMap);
     if (code) {
       return code;
@@ -1375,7 +1385,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
     return code;
   }
 
-  if (numOfPlanLevel == 1) {
+  if ((numOfPlanLevel == 1 && !isVTableStream) ||(numOfPlanLevel == 2 && isVTableStream)) {
     bindSourceSink(pStream, pMnode, pStream->pTaskList, hasExtraSink);
     if (needHistoryTask(pStream)) {
       bindSourceSink(pStream, pMnode, pStream->pHTaskList, hasExtraSink);
