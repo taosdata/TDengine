@@ -5,7 +5,7 @@ on:
     branches:
       - '3.0'
     paths:
-      - 'tools/tdgpt/*'
+      - 'tools/tdgpt/**'
 
 jobs:
   build:
