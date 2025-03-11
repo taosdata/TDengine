@@ -1074,6 +1074,10 @@ static int32_t removePrimColFromJoinTargets(SNodeList* pTargets, SValueNode* pPr
 
 static int32_t appendPrimColToJoinTargets(SSortMergeJoinPhysiNode* pJoin, SColumnNode** ppTarget, STargetNode* primExpr, int16_t blkId) {
   SColumnNode* pCol = *ppTarget;
+  if (TSDB_DATA_TYPE_TIMESTAMP != pCol->node.resType.type) {
+    planError("primary key output type is not ts, type:%d", pCol->node.resType.type);
+    return TSDB_CODE_PAR_PRIM_KEY_MUST_BE_TS;
+  }
   pCol->dataBlockId = blkId;
   pCol->slotId = primExpr->slotId;
   int32_t code = nodesListMakeStrictAppend(&pJoin->pTargets, (SNode *)pCol);

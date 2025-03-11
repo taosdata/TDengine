@@ -118,17 +118,31 @@ class TDTestCase(TBase):
     def test_constts_case(self, testCase):
         tdLog.printNoPrefix(f"==========step:{testCase} + ts:{self.today_ts} test")
         self.replace_string(f'{testCase}.constts.in', f'{testCase}.constts.in.tmp1', '__today__', f'"{self.today_ts}"')
+        self.replace_string(f'{testCase}.constts.csv', f'{testCase}.constts.csv.tmp1', '__today__', f'{self.today_date}')
+        self.replace_string2(f'{testCase}.constts.csv.tmp1', f'{testCase}.constts.csv.tmp2', '__tomorrow__', f'{self.tomorrow_date}')
         # read sql from .sql file and execute
         self.sqlFile = etool.curFile(__file__, f"joinConst/{testCase}.constts.in.tmp1")
-        self.ansFile = etool.curFile(__file__, f"joinConst/{testCase}.today_ts.csv")
+        self.ansFile = etool.curFile(__file__, f"joinConst/{testCase}.constts.csv.tmp2")
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
         tdLog.printNoPrefix(f"==========step:{testCase} + ts:{self.tomorrow_ts} test")
-        self.replace_string(f'{testCase}.constts.in', f'{testCase}.constts.in.tmp2', '__today__', f'"{self.tomorrow_ts}"')
+        self.replace_string(f'{testCase}.constts.in', f'{testCase}.constts2.in.tmp2', '__today__', f'"{self.tomorrow_ts}"')
+        self.replace_string(f'{testCase}.constts2.csv', f'{testCase}.constts2.csv.tmp1', '__today__', f'{self.today_date}')
+        self.replace_string2(f'{testCase}.constts2.csv.tmp1', f'{testCase}.constts2.csv.tmp2', '__tomorrow__', f'{self.tomorrow_date}')
         # read sql from .sql file and execute
-        self.sqlFile = etool.curFile(__file__, f"joinConst/{testCase}.constts.in.tmp2")
-        self.ansFile = etool.curFile(__file__, f"joinConst/{testCase}.tomorrow_ts.csv")
+        self.sqlFile = etool.curFile(__file__, f"joinConst/{testCase}.constts2.in.tmp2")
+        self.ansFile = etool.curFile(__file__, f"joinConst/{testCase}.constts2.csv.tmp2")
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
+
+        tdLog.printNoPrefix(f"==========step:{testCase} + ts:{self.today_ts} + 1s test")
+        self.replace_string(f'{testCase}.constts.in', f'{testCase}.constts3.in.tmp1', '__today__', f'"{self.today_ts}" + 1s')
+        self.replace_string(f'{testCase}.constts3.csv', f'{testCase}.constts3.csv.tmp1', '__today__', f'{self.today_date}')
+        self.replace_string2(f'{testCase}.constts3.csv.tmp1', f'{testCase}.constts3.csv.tmp2', '__tomorrow__', f'{self.tomorrow_date}')
+        # read sql from .sql file and execute
+        self.sqlFile = etool.curFile(__file__, f"joinConst/{testCase}.constts3.in.tmp1")
+        self.ansFile = etool.curFile(__file__, f"joinConst/{testCase}.constts3.csv.tmp2")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
+
 
     def test_nocheck_case(self):
         tdLog.printNoPrefix(f"==========step:nocheck test")
@@ -146,7 +160,8 @@ class TDTestCase(TBase):
 
     def test_abnormal_case(self):
         tdLog.printNoPrefix(f"==========step:abnormal case test")
-        tdSql.error("select interp(c1) from test.td32727 range('2020-02-01 00:00:00.000', '2020-02-01 00:00:30.000', -1s) every(2s) fill(prev, 99);")
+        tdSql.error(f"select * from a1 a join (select '{self.today_ts}' as ts from b1) b on a.ts = b.ts;")
+        tdSql.error(f"select * from a1 a join (select '{self.today_ts}' + 1s as ts from b1) b on a.ts = b.ts;")
 
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
@@ -155,11 +170,12 @@ class TDTestCase(TBase):
 
         self.test_today_case("inner")
         self.test_now_case("inner")
-        #self.test_constts_case("inner")
+        self.test_constts_case("inner")
 
         self.test_today_case("left_outer")
+        self.test_now_case("left_outer")
 
-        #self.test_abnormal_case()
+        self.test_abnormal_case()
 
         tdLog.success(f"{__file__} successfully executed")
 

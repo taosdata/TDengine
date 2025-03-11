@@ -2696,11 +2696,9 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
 
   bool           res = false;
   SOperatorNode* pOp = (SOperatorNode*)pJoin->pPrimKeyEqCond;
-  if (QUERY_NODE_VALUE == nodeType(pOp->pLeft) || QUERY_NODE_VALUE == nodeType(pOp->pRight)) {
-    return TSDB_CODE_SUCCESS;
-  }
 
-  if (QUERY_NODE_COLUMN != nodeType(pOp->pLeft) || QUERY_NODE_COLUMN != nodeType(pOp->pRight)) {
+  if ((QUERY_NODE_COLUMN != nodeType(pOp->pLeft) && QUERY_NODE_VALUE != nodeType(pOp->pLeft)) || 
+      (QUERY_NODE_COLUMN != nodeType(pOp->pRight) && QUERY_NODE_VALUE != nodeType(pOp->pRight))) {
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
@@ -2710,11 +2708,13 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  if (NULL !=
-      tSimpleHashGet(pTables, ((SColumnNode*)pOp->pLeft)->tableAlias, strlen(((SColumnNode*)pOp->pLeft)->tableAlias))) {
+
+  char* opLeftTable = (QUERY_NODE_COLUMN == nodeType(pOp->pLeft)) ? ((SColumnNode*)pOp->pLeft)->tableAlias : ((SValueNode*)pOp->pLeft)->node.srcTable;
+  char* opRightTable = (QUERY_NODE_COLUMN == nodeType(pOp->pRight)) ? ((SColumnNode*)pOp->pRight)->tableAlias : ((SValueNode*)pOp->pRight)->node.srcTable;
+  
+  if (NULL != tSimpleHashGet(pTables, opLeftTable, strlen(opLeftTable))) {
     pOrderByNode = pOp->pLeft;
-  } else if (NULL != tSimpleHashGet(pTables, ((SColumnNode*)pOp->pRight)->tableAlias,
-                                    strlen(((SColumnNode*)pOp->pRight)->tableAlias))) {
+  } else if (NULL != tSimpleHashGet(pTables, opRightTable, strlen(opRightTable))) {
     pOrderByNode = pOp->pRight;
   }
 
@@ -2767,7 +2767,6 @@ static int32_t sortForJoinOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
   }
   *pChildPos = (SNode*)pSort;
   pSort->node.pParent = (SLogicNode*)pJoin;
-  ;
 
 _return:
 

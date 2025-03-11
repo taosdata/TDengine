@@ -348,6 +348,8 @@ typedef struct SMJoinOperatorInfo {
 #define PROBE_TS_NREACH(_asc, _pts, _bts) (((_asc) && (_pts) > (_bts)) || (!(_asc) && (_pts) < (_bts)))
 #define MJOIN_BUILD_BLK_OOR(_asc, _pts, _pidx, _bts, _bnum) (((_asc) && (*((int64_t*)(_pts) + (_pidx)) > *((int64_t*)(_bts) + (_bnum) - 1))) || ((!(_asc)) && (*((int64_t*)(_pts) + (_pidx)) < *((int64_t*)(_bts) + (_bnum) - 1))))
 
+#define MJOIN_PRIM_EXPR_GOT(_pJoin) ((_pJoin)->probe->primCtx.type > 0 || (_pJoin)->build->primCtx.type > 0)
+
 #define GRP_REMAIN_ROWS(_grp) ((_grp)->endIdx - (_grp)->readIdx + 1)
 #define GRP_DONE(_grp) ((_grp)->readIdx > (_grp)->endIdx)
 
