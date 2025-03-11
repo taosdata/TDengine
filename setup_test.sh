@@ -1,1 +1,0 @@
-cd tests/e2e && cp setenv.sh.example setenv.sh && source setenv.sh && poetry install

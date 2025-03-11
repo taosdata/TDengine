@@ -1,1 +1,0 @@
-::: test_function.opcua_test

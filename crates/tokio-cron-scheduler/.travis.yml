@@ -1,7 +1,0 @@
-language: rust
-rust:
-  - stable
-script:
-  - cargo build
-  - cargo test
-  - cargo doc

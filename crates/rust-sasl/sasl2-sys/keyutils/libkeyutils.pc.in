@@ -1,8 +1,0 @@
-libdir=@libdir@
-includedir=@includedir@
-
-Name: libkeyutils
-Description: keyutils library
-Version: @VERSION@
-Cflags: -I${includedir}
-Libs: -L${libdir} -lkeyutils
