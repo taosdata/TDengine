@@ -2,7 +2,6 @@
 mod test_tmq_to_local {
     use anyhow::bail;
     use assert_cmd::Command;
-    use itertools::Itertools;
     use opendal::Entry;
     use std::env;
     use std::path::Path;
@@ -55,7 +54,7 @@ mod test_tmq_to_local {
             .env("TAOSX_DATA_DIR", backup_dir.as_path())
             .assert()
             .success();
-        dbg!(cmd.get_args().collect_vec());
+        dbg!(cmd.get_args().collect::<Vec<_>>());
 
         // 恢复数据
         let from = from.into_dsn()?;
@@ -77,7 +76,7 @@ mod test_tmq_to_local {
             .env("TAOSX_DATA_DIR", backup_dir.as_path())
             .assert()
             .success();
-        dbg!(cmd.get_args().collect_vec());
+        dbg!(cmd.get_args().collect::<Vec<_>>());
 
         // 检查 TDengine 的数据
         assert_database_rows(&taos, SRC_DB, DST_DB, ROWS).await?;
@@ -354,11 +353,18 @@ mod test_tmq_to_local {
         Ok(())
     }
 
+    // 列出当前目录下的文件
     fn list_local_files(path: &Path) -> anyhow::Result<Vec<String>> {
-        let assert = Command::new("ls").arg(path).assert();
-        let files = String::from_utf8(assert.get_output().stdout.clone())?;
-        let files = files.lines().map(|f| f.to_string()).collect_vec();
-
+        let mut files = vec![];
+        for entry in std::fs::read_dir(path)? {
+            let entry = entry?;
+            let p = entry.path();
+            if p.is_file() {
+                if let Some(file_name) = p.file_name() {
+                    files.push(file_name.to_string_lossy().to_string());
+                }
+            }
+        }
         dbg!(&files);
 
         Ok(files)
