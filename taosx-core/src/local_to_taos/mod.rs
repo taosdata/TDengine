@@ -565,8 +565,7 @@ async fn restore(
                     }
                     ZMessage::Raw(raw_type, raw) => {
                         tracing::debug!("restore raw, len: {}", raw.raw_len());
-                        let raw_meta = raw.into();
-                        if let Err(err) = taos.write_raw_meta(&raw_meta).await {
+                        if let Err(err) = taos.write_raw_meta(&raw).await {
                             let code: i32 = err.code().into();
                             match code {
                                 0x032C | 0x0115 | 0x0603 | 0x03C7 | 0x03D3 | 0x2603 => {
@@ -578,7 +577,7 @@ async fn restore(
                                     // 0x2603: the table does not exist
                                     tracing::debug!(raw.r#type = ?raw_type, "Found recoverable error: {:#}, retry once", err);
                                     tokio::time::sleep(Duration::from_millis(100)).await;
-                                    match taos.write_raw_meta(&raw_meta).await {
+                                    match taos.write_raw_meta(&raw).await {
                                         Ok(_) => {
                                             tracing::debug!("retry success");
                                         }
@@ -594,7 +593,7 @@ async fn restore(
                                 }
                             }
                         };
-                        metrics.add_extra_metric(&PROCESSED_BYTES, raw_meta.raw_len() as u64);
+                        metrics.add_extra_metric(&PROCESSED_BYTES, raw.raw_len() as u64);
                     }
                 }
             }
