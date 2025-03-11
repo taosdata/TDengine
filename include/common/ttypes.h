@@ -423,6 +423,9 @@ uint8_t getScaleFromTypeMod(int32_t type, STypeMod mod);
 void    fillBytesForDecimalType(int32_t *pBytes, int32_t type, uint8_t precision, uint8_t scale);
 void    extractDecimalTypeInfoFromBytes(int32_t *pBytes, uint8_t *precision, uint8_t *scale);
 
+int32_t calcTypeBytesFromSchemaBytes(int32_t type, int32_t schemaBytes);
+int32_t calcSchemaBytesFromTypeBytes(int32_t type, int32_t varTypeBytes);
+
 #ifdef __cplusplus
 }
 #endif

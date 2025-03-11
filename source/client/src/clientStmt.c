@@ -1862,7 +1862,7 @@ int stmtGetParam(TAOS_STMT* stmt, int idx, int* type, int* bytes) {
   }
 
   *type = pField[idx].type;
-  *bytes = pField[idx].bytes;
+  *bytes = calcSchemaBytesFromTypeBytes(pField[idx].type, pField[idx].bytes);
 
 _return:
 

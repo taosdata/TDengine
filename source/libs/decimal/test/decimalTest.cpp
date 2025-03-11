@@ -1425,6 +1425,7 @@ TEST_F(DecimalTest, api_taos_fetch_rows) {
   ASSERT_EQ(fields_e[1].scale, 10);
   ASSERT_EQ(fields_e[2].type, TSDB_DATA_TYPE_VARCHAR);
   ASSERT_EQ(fields_e[2].bytes, 255);
+
   taos_free_result(res);
 
   res = taos_query(pTaos, sql);
