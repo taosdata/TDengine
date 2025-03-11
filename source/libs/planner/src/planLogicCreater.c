@@ -811,6 +811,17 @@ static int32_t scanAddCol(SLogicNode* pLogicNode, SColRef* colRef, STableNode* p
     tstrncpy(pRefTableScanCol->tableName, pVirtualTableNode->tableName, sizeof(pRefTableScanCol->tableName));
     tstrncpy(pRefTableScanCol->colName, pSchema->name, sizeof(pRefTableScanCol->colName));
   }
+
+  // eliminate duplicate scan cols.
+  SNode *pCol = NULL;
+  FOREACH(pCol, pLogicScan->pScanCols) {
+    if (0 == strncmp(((SColumnNode*)pCol)->colName, pRefTableScanCol->colName, TSDB_COL_NAME_LEN) &&
+        0 == strncmp(((SColumnNode*)pCol)->tableName, pRefTableScanCol->tableName, TSDB_TABLE_NAME_LEN) &&
+        0 == strncmp(((SColumnNode*)pCol)->dbName, pRefTableScanCol->dbName, TSDB_DB_NAME_LEN)) {
+      nodesDestroyNode((SNode*)pRefTableScanCol);
+      return TSDB_CODE_SUCCESS;
+    }
+  }
   pRefTableScanCol->colId = colId;
   pRefTableScanCol->tableId = pLogicScan->tableId;
   pRefTableScanCol->tableType = pLogicScan->tableType;
@@ -976,6 +987,7 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
 
   if (scanAllCols) {
     nodesDestroyList(((SScanLogicNode*)pRealTableScan)->node.pTargets);
+    ((SScanLogicNode*)pRealTableScan)->node.pTargets = NULL;
     pVtableScan->scanAllCols = true;
     for (int32_t i = 0; i < pVirtualTable->pMeta->tableInfo.numOfColumns; i++) {
       if (pVirtualTable->pMeta->schema[i].colId == PRIMARYKEY_TIMESTAMP_COL_ID) {

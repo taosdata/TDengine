@@ -73,6 +73,7 @@ int32_t virtualScanloadNextDataBlockFromParam(void* param, SSDataBlock** ppBlock
   SExchangeOperatorParam* pParam = (SExchangeOperatorParam*)pOperatorGetParam->value;
 
   pParam->basic.window = pCtx->window;
+  pOperator->status = OP_NOT_OPENED;
   VTS_ERR_JRET(pOperator->fpSet.getNextExtFn(pOperator, pOperatorGetParam, &pRes));
 
   VTS_ERR_JRET(blockDataCheck(pRes));
