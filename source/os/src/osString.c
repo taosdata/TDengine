@@ -121,7 +121,7 @@ char *stpncpy(char *dest, const char *src, int n) {
   if (len < n) {
     memset(dest + len, '\0', n - len);
   }
-  return orig_dest + n;
+  return orig_dest + len;
 }
 char *taosStrndupi(const char *s, int64_t size) {
   if (s == NULL) {

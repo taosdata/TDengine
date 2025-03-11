@@ -2469,10 +2469,11 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4) {
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if (convertUcs4) {
     code = doConvertUCS4(pResultInfo, colLength);
   }
-
+#endif
   return code;
 }
 
