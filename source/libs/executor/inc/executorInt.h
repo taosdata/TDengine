@@ -471,6 +471,7 @@ typedef struct SSteamOpBasicInfo {
   SArray*                pUpdated;
   bool                   destHasPrimaryKey;
   STableTsDataState*     pTsDataState;
+  int32_t                numOfRecv;
 } SSteamOpBasicInfo;
 
 typedef struct SStreamFillSupporter {

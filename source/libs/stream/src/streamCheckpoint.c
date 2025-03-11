@@ -764,7 +764,7 @@ int32_t streamTaskUpdateTaskCheckpointInfo(SStreamTask* pTask, bool restored, SV
       code = streamMetaAcquireTaskUnsafe(pMeta, &hTaskId, &pHTask);
       if (code == 0 && pHTask != NULL) {
         stInfo("s-task:0x%x fill-history updated to recalculate task, reset step2Start ts, stream task:0x%x",
-               hTaskId.taskId, pReq->taskId);
+               (int32_t)hTaskId.taskId, pReq->taskId);
 
         streamMutexLock(&pHTask->lock);
 

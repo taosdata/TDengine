@@ -417,9 +417,10 @@ static int32_t buildOtherResult(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     pAggSup->stateStore.streamStateClearExpiredState(pAggSup->pState, numOfKeep, tsOfKeep);
   }
   pInfo->twAggSup.minTs = INT64_MAX;
+  pInfo->basic.numOfRecv = 0;
   setStreamOperatorCompleted(pOperator);
   if (isFinalOperator(&pInfo->basic) && tSimpleHashGetSize(pInfo->nbSup.pPullDataMap) == 0) {
-    qDebug("===stream===%s recalculate is finished.", GET_TASKID(pTaskInfo));
+    qInfo("===stream===%s recalculate is finished.", GET_TASKID(pTaskInfo));
     pTaskInfo->streamInfo.recoverScanFinished = true;
   }
   (*ppRes) = NULL;
@@ -705,13 +706,15 @@ int32_t doStreamIntervalNonblockAggNext(SOperatorInfo* pOperator, SSDataBlock** 
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (pBlock == NULL) {
-      qDebug("===stream===%s return data:%s.", GET_TASKID(pTaskInfo), getStreamOpName(pOperator->operatorType));
+      qDebug("===stream===%s return data:%s. rev rows:%d", GET_TASKID(pTaskInfo),
+             getStreamOpName(pOperator->operatorType), pInfo->basic.numOfRecv);
       if (isFinalOperator(&pInfo->basic) && isRecalculateOperator(&pInfo->basic)) {
         code = buildRetriveRequest(pTaskInfo, pAggSup, pInfo->basic.pTsDataState, &pInfo->nbSup);
       }
       pOperator->status = OP_RES_TO_RETURN;
       break;
     }
+    pInfo->basic.numOfRecv += pBlock->info.rows;
 
     printSpecDataBlock(pBlock, getStreamOpName(pOperator->operatorType), "recv", GET_TASKID(pTaskInfo));
     setStreamOperatorState(&pInfo->basic, pBlock->info.type);

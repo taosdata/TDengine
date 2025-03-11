@@ -774,6 +774,7 @@ int32_t doStreamDataScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     pTSInfo->base.cond.endVersion = -1;
     pStreamInfo->recoverScanFinished = true;
     (*ppRes) = NULL;
+    qDebug("===stream===%s fill history is finished.", GET_TASKID(pTaskInfo));
     return code;
   }
 
@@ -1369,6 +1370,7 @@ static int32_t doStreamRecalculateDataScan(SOperatorInfo* pOperator, SSDataBlock
     pInfo->stateStore.streamStateSessionDeleteAll(pInfo->basic.pTsDataState->pState);
     pInfo->basic.pTsDataState->curRecId = -1;
     pTaskInfo->streamInfo.recoverScanFinished = true;
+    qDebug("===stream===%s recalculate is finished.", GET_TASKID(pTaskInfo));
   }
 
 _end:
