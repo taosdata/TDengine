@@ -154,21 +154,7 @@ class TestInsertDouble:
             self.tdSql.checkRows(12)
             logger.info("==========end case2 run ...............")
 
-    def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
-        self.tdSql.prepare(replica = self.replicaVar)
-        self.prepare_db()
-
-        self.test_value("t1", "bigint", 64)
-        self.test_value("t2", "int", 32)
-        self.test_value("t3", "smallint", 16)
-        self.test_value("t4", "tinyint", 8)
-        tdLog.printNoPrefix("==========end case1 run ...............")
-
-        self.test_tags("t_big", "bigint", 64)
-        self.test_tags("t_int", "int", 32)
-        self.test_tags("t_small", "smallint", 16)
-        self.test_tags("t_tiny", "tinyint", 8)
-        logger.info("==========end case2 run ...............")
+    
 
     def teardown_class(cls):
         logger.info(f"{__file__} successfully executed")
