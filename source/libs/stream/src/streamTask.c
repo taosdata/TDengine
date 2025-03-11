@@ -1194,7 +1194,7 @@ int32_t streamProcessRetrieveReq(SStreamTask* pTask, SStreamRetrieveReq* pReq) {
   if (code != 0) {
     return code;
   }
-  return streamTrySchedExec(pTask);
+  return streamTrySchedExec(pTask, false);
 }
 
 void streamTaskSetRemoveBackendFiles(SStreamTask* pTask) { pTask->status.removeBackendFiles = true; }

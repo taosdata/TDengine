@@ -25,12 +25,13 @@
 extern "C" {
 #endif
 
-#define ANALY_FORECAST_DEFAULT_ROWS     10
-#define ANALY_FORECAST_DEFAULT_CONF     95
-#define ANALY_FORECAST_DEFAULT_WNCHECK  1
-#define ANALY_FORECAST_MAX_HISTORY_ROWS 40000
-#define ANALY_MAX_FC_ROWS               1024
-#define ANALY_ANOMALY_WINDOW_MAX_ROWS   40000
+#define ANALY_FORECAST_DEFAULT_ROWS    10
+#define ANALY_FORECAST_DEFAULT_CONF    95
+#define ANALY_FORECAST_DEFAULT_WNCHECK 1
+#define ANALY_FORECAST_MAX_ROWS        40000
+#define ANALY_ANOMALY_WINDOW_MAX_ROWS  40000
+#define ANALY_DEFAULT_TIMEOUT         60
+#define ANALY_MAX_TIMEOUT             600
 
 typedef struct {
   EAnalAlgoType type;
@@ -48,7 +49,7 @@ typedef enum {
 typedef enum {
   ANALYTICS_HTTP_TYPE_GET = 0,
   ANALYTICS_HTTP_TYPE_POST,
-} EAnalHttpType;
+} EAnalyHttpType;
 
 typedef struct {
   TdFilePtr filePtr;
@@ -66,7 +67,7 @@ typedef struct {
 
 int32_t taosAnalyticsInit();
 void    taosAnalyticsCleanup();
-SJson  *taosAnalySendReqRetJson(const char *url, EAnalHttpType type, SAnalyticBuf *pBuf);
+SJson  *taosAnalySendReqRetJson(const char *url, EAnalyHttpType type, SAnalyticBuf *pBuf, int64_t timeout);
 
 int32_t taosAnalyGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen);
 bool    taosAnalyGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen);
