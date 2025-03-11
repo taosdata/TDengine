@@ -532,9 +532,17 @@ int32_t sifStr2Num(char *buf, int32_t len, int8_t type, void *val) {
 static int32_t sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typedata, SMetaFltParam *param) {
   int32_t code = 0;
   int8_t  ltype = left->colValType, rtype = right->colValType;
-  if (!IS_NUMERIC_TYPE(ltype) || !((IS_NUMERIC_TYPE(rtype)) || rtype == TSDB_DATA_TYPE_VARCHAR)) {
-    return TSDB_CODE_INVALID_PARA;
+  // if (!IS_NUMERIC_TYPE(ltype) || !((IS_NUMERIC_TYPE(rtype)) || rtype == TSDB_DATA_TYPE_VARCHAR)) {
+  //   return TSDB_CODE_INVALID_PARA;
+  // }
+  if (IS_VAR_DATA_TYPE(ltype)) {
+    if (ltype == TSDB_DATA_TYPE_VARCHAR || ltype == TSDB_DATA_TYPE_BINARY || ltype == TSDB_DATA_TYPE_VARBINARY) {
+      return 0;
+    } else {
+      return TSDB_CODE_INVALID_PARA;
+    }
   }
+
   if (ltype == TSDB_DATA_TYPE_FLOAT) {
     float f = 0;
     if (IS_NUMERIC_TYPE(rtype)) {

@@ -2144,11 +2144,12 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
                               &pInfo->groupResInfo);
     pInfo->pOperator = NULL;
   }
-  destroyStreamAggSupporter(&pInfo->streamAggSup);
+
   cleanupExprSupp(&pInfo->scalarSupp);
   clearGroupResInfo(&pInfo->groupResInfo);
   taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
   pInfo->pUpdated = NULL;
+  destroyStreamAggSupporter(&pInfo->streamAggSup);
 
   if (pInfo->pChildren != NULL) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
@@ -4254,6 +4255,7 @@ void destroyStreamStateOperatorInfo(void* param) {
                               &pInfo->groupResInfo);
     pInfo->pOperator = NULL;
   }
+
   clearGroupResInfo(&pInfo->groupResInfo);
   taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
   pInfo->pUpdated = NULL;
