@@ -402,6 +402,7 @@ static int32_t buildMergeJoinOperatorParam(SOperatorParam** ppRes, bool initPara
   
   (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN;
   (*ppRes)->value = pJoin;
+  (*ppRes)->reUse = false;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -441,6 +442,7 @@ static int32_t buildMergeJoinNotifyOperatorParam(SOperatorParam** ppRes, SOperat
   
   (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN;
   (*ppRes)->value = NULL;
+  (*ppRes)->reUse = false;
 
   return TSDB_CODE_SUCCESS;
 }
