@@ -1576,7 +1576,7 @@ int32_t tGetDiskDataHdr(SBufferReader *br, SDiskDataHdr *pHdr) {
 int32_t tPutColumnDataAgg(SBuffer *buffer, SColumnDataAgg *pColAgg) {
   int32_t code;
 
-  if (pColAgg->colId & 0x80000000) {
+  if (pColAgg->colId & DECIMAL_AGG_FLAG) {
     if ((code = tBufferPutI32v(buffer, pColAgg->colId))) return code;
     if ((code = tBufferPutI16v(buffer, pColAgg->numOfNull))) return code;
     if ((code = tBufferPutU64(buffer, pColAgg->decimal128Sum[0]))) return code;
@@ -1602,7 +1602,7 @@ int32_t tGetColumnDataAgg(SBufferReader *br, SColumnDataAgg *pColAgg) {
 
   if ((code = tBufferGetI32v(br, &pColAgg->colId))) return code;
   if ((code = tBufferGetI16v(br, &pColAgg->numOfNull))) return code;
-  if (pColAgg->colId & 0x80000000) {
+  if (pColAgg->colId & DECIMAL_AGG_FLAG) {
     pColAgg->colId &= 0xFFFF;
     if ((code = tBufferGetU64(br, &pColAgg->decimal128Sum[0]))) return code;
     if ((code = tBufferGetU64(br, &pColAgg->decimal128Sum[1]))) return code;

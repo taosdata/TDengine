@@ -184,6 +184,8 @@ typedef struct SColumnDataAgg {
 } SColumnDataAgg;
 #pragma pack(pop)
 
+#define DECIMAL_AGG_FLAG 0x80000000
+
 #define COL_AGG_GET_SUM_PTR(pAggs, dataType) \
   (!IS_DECIMAL_TYPE(dataType) ? (void*)&pAggs->sum : (void*)pAggs->decimal128Sum)
 

@@ -4242,7 +4242,7 @@ static FORCE_INLINE void tColDataCalcSMADecimal64Type(SColData* pColData, SColum
   *pMax = DECIMAL64_MIN;
   *pMin = DECIMAL64_MAX;
   pAggs->numOfNull = 0;
-  pAggs->colId |= 0x80000000; // TODO wjm define it
+  pAggs->colId |= DECIMAL_AGG_FLAG;
 
   Decimal64   *pVal = NULL;
   const SDecimalOps *pSumOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
@@ -4278,7 +4278,7 @@ static FORCE_INLINE void tColDataCalcSMADecimal128Type(SColData* pColData, SColu
   *pMax = DECIMAL128_MIN;
   *pMin = DECIMAL128_MAX;
   pAggs->numOfNull = 0;
-  pAggs->colId |= 0x80000000; // TODO wjm define it
+  pAggs->colId |= DECIMAL_AGG_FLAG;
 
   Decimal128        *pVal = NULL;
   const SDecimalOps *pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);

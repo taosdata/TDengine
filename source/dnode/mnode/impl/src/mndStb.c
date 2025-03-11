@@ -1291,7 +1291,6 @@ static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq
     } else {
       p->alg = pField->compress;
     }
-    // TODO wjm test it with tmq
     if (pField->flags & COL_HAS_TYPE_MOD) {
       pDst->pExtSchemas[i].typeMod = pField->typeMod;
     }
