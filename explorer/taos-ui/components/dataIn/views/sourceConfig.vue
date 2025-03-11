@@ -276,6 +276,9 @@ const isShowAgent = computed(() => !NoNeedAgentType.includes(sourceForm.type));
 
 async function handleDetailData(id: string | number) {
   const data = await dataInProps.dataSource.api.getTaskDetailApi(id);
+  if (data.from_json) {
+    data.from = data.from_json;
+  }
 
   sourceForm.agent = data.from.agent;
   sourceForm.type = data.from.type;
@@ -389,7 +392,8 @@ function isEqualParams(obj1: any, obj2: any) {
 }
 
 interface paramsProps {
-  from: Recordable;
+  from?: string;
+  from_json: Recordable;
   name: string;
   to: string;
   labels: string[];
@@ -403,7 +407,8 @@ async function submit() {
     if (valid) {
       const type = sourceForm.type;
       const params = {
-        from: formatFromData(sourceForm),
+        from: '',
+        from_json: formatFromData(sourceForm),
         name: sourceForm.name,
         to: toUrl.value,
         labels: labels.value,

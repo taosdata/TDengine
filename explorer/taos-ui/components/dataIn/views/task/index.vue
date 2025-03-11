@@ -384,6 +384,7 @@ async function getList() {
     const dataSourceFilterSet: Recordable = {};
     const statusFilterSet: Recordable = {};
     taskList.value = result.map((item: any) => {
+      item.from = item.from_json;
       if (!dataSourceFilterSet[item.from.type]) {
         filterMap.type.push({
           value: item.from.type,
