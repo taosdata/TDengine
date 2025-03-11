@@ -293,8 +293,15 @@ typedef struct {
   int8_t dirty;
   struct {
     int16_t cid;
+    int8_t  type;
     int8_t  flag;
-    SValue value;
+    union {
+      int64_t val;
+      struct {
+        uint32_t nData;
+        uint8_t *pData;
+      };
+    } value;
   } colVal;
 } SLastColV0;
 
@@ -306,7 +313,7 @@ static int32_t tsdbCacheDeserializeV0(char const *value, SLastCol *pLastCol) {
   pLastCol->dirty = pLastColV0->dirty;
   pLastCol->colVal.cid = pLastColV0->colVal.cid;
   pLastCol->colVal.flag = pLastColV0->colVal.flag;
-  pLastCol->colVal.value.type = pLastColV0->colVal.value.type;
+  pLastCol->colVal.value.type = pLastColV0->colVal.type;
 
   pLastCol->cacheStatus = TSDB_LAST_CACHE_VALID;
 
@@ -406,7 +413,7 @@ static int32_t tsdbCacheSerializeV0(char const *value, SLastCol *pLastCol) {
   pLastColV0->dirty = pLastCol->dirty;
   pLastColV0->colVal.cid = pLastCol->colVal.cid;
   pLastColV0->colVal.flag = pLastCol->colVal.flag;
-  pLastColV0->colVal.value.type = pLastCol->colVal.value.type;
+  pLastColV0->colVal.type = pLastCol->colVal.value.type;
   if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type)) {
     pLastColV0->colVal.value.nData = pLastCol->colVal.value.nData;
     if (pLastCol->colVal.value.nData > 0) {

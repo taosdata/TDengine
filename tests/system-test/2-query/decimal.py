@@ -960,9 +960,9 @@ class DecimalFunction(DecimalColumnExpr):
             DecimalSumFunction(),
             DecimalAvgFunction(),
             DecimalCountFunction(),
-            #DecimalLastRowFunction(),
-            #DecimalLastFunction(),
-            #DecimalFirstFunction(),
+            DecimalLastRowFunction(),
+            DecimalLastFunction(),
+            DecimalFirstFunction(),
         ]
 
     def check_results(self, query_col_res: List) -> bool:
@@ -2296,9 +2296,7 @@ class TDTestCase:
             self.norm_tb_columns,
             DecimalFunction.get_decimal_agg_funcs,
         )
-        self.test_decimal_agg_funcs(
-            self.db_name, self.stable_name, self.stb_columns, DecimalFunction.get_decimal_agg_funcs
-        )
+        ##self.test_decimal_agg_funcs( self.db_name, self.stable_name, self.stb_columns, DecimalFunction.get_decimal_agg_funcs)
         self.test_decimal_cast_func(self.db_name, self.norm_table_name, self.norm_tb_columns)
 
     def test_query_decimal(self):

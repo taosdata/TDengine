@@ -638,7 +638,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     }
 
     if (pResultInfo->current < pResultInfo->numOfRows) {
-      doSetOneRowPtr(pResultInfo);
+      doSetOneRowPtr(pResultInfo, false);
       pResultInfo->current += 1;
       return pResultInfo->row;
     } else {
@@ -646,7 +646,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
         return NULL;
       }
 
-      doSetOneRowPtr(pResultInfo);
+      doSetOneRowPtr(pResultInfo, false);
       pResultInfo->current += 1;
       return pResultInfo->row;
     }
@@ -1276,7 +1276,7 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     }
 
     if (pQuery->haveResultSet) {
-      code = setResSchemaInfo(&pRequest->body.resInfo, pQuery->pResSchema, pQuery->numOfResCols, pQuery->pResExtSchema);
+      code = setResSchemaInfo(&pRequest->body.resInfo, pQuery->pResSchema, pQuery->numOfResCols, pQuery->pResExtSchema, pRequest->isStmtBind);
       setResPrecision(&pRequest->body.resInfo, pQuery->precision);
     }
   }

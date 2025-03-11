@@ -1385,7 +1385,7 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
 
     if (pStmt->sql.pQuery->haveResultSet) {
       STMT_ERR_RET(setResSchemaInfo(&pStmt->exec.pRequest->body.resInfo, pStmt->sql.pQuery->pResSchema,
-                                    pStmt->sql.pQuery->numOfResCols, pStmt->sql.pQuery->pResExtSchema));
+                                    pStmt->sql.pQuery->numOfResCols, pStmt->sql.pQuery->pResExtSchema, true));
       taosMemoryFreeClear(pStmt->sql.pQuery->pResSchema);
       taosMemoryFreeClear(pStmt->sql.pQuery->pResExtSchema);
       setResPrecision(&pStmt->exec.pRequest->body.resInfo, pStmt->sql.pQuery->precision);
