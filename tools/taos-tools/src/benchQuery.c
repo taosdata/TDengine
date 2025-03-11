@@ -83,10 +83,10 @@ int selectAndGetResult(qThreadInfo *pThreadInfo, char *command, bool record) {
 int32_t autoSleep(uint64_t interval, uint64_t delay ) {
     int32_t msleep = 0;
     if (delay < interval * 1000) {
-        msleep = (int32_t)(interval * 1000 - delay);
+        msleep = (int32_t)((interval - delay/1000));
         infoPrint("do sleep %dms ...\n", msleep);
         toolsMsleep(msleep);  // ms
-        debugPrint("do sleep end\n", msleep);
+        debugPrint("%s\n","do sleep end");
     }
     return msleep;
 }
@@ -897,6 +897,7 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
     // running
     //
     int threadCnt = 0;
+    int allSleep  = 0;
     for (int m = 0; m < g_queryInfo.query_times; ++m) {
         // reset
         threadCnt = 0;
@@ -959,20 +960,26 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
         }
     
         // statistic
+        printf("\n");
         totalChildQuery(infos, threadCnt, end - start);
 
         // show batch total
         int64_t delay = end - start;
-        infoPrint("count:%d execute batch spend:%" PRId64 "\n", m + 1, delay/1000);
+        infoPrint("count:%d execute batch spend: %" PRId64 "ms\n", m + 1, delay/1000);
 
         // sleep
-        int32_t msleep = 0;
         if ( g_queryInfo.specifiedQueryInfo.batchQuery && interval > 0) {
-            msleep = autoSleep(interval, delay);
+            allSleep += autoSleep(interval, delay);
         }
 
+        // check cancel
+        if(g_arguments->terminate) {
+            break;
+        }
     }
     ret = 0;
+    
+    infoPrint("all sleep spend: %.3fs\n", (float)allSleep/1000);
 
 OVER:
     // close conn
