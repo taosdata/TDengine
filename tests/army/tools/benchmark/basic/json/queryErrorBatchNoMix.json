@@ -11,9 +11,9 @@
 	"query_mode": "taosc",
 	"specified_table_query": {
 		"concurrent": 5,
-		"query_interval": 100,
-		"mixed_query": "yes",
-		"batch_query": "no",
+		"query_interval": 0,
+		"mixed_query": "no",
+		"batch_query": "yes",
 		"sqls": [
 			{
 				"sql": "select last_row(*) from test.meters"
