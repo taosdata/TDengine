@@ -3012,7 +3012,7 @@ int32_t tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4, SReqResultInfo** pRes
       doFreeReqResultInfo(&pRspObj->resInfo);
       SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(data->blockSchema, pRspObj->resIter);
       if (pSW) {
-        TAOS_CHECK_RETURN(setResSchemaInfo(&pRspObj->resInfo, pSW->pSchema, pSW->nCols, NULL));
+        TAOS_CHECK_RETURN(setResSchemaInfo(&pRspObj->resInfo, pSW->pSchema, pSW->nCols, NULL, false));
       }
     }
 
@@ -3028,7 +3028,7 @@ int32_t tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4, SReqResultInfo** pRes
     pRspObj->resInfo.precision = precision;
 
     pRspObj->resInfo.totalRows += pRspObj->resInfo.numOfRows;
-    int32_t code = setResultDataPtr(&pRspObj->resInfo, convertUcs4);
+    int32_t code = setResultDataPtr(&pRspObj->resInfo, convertUcs4, false);
     if (code != 0) {
       return code;
     }
