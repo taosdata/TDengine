@@ -608,6 +608,8 @@ void dmStopWorker(SDnodeMgmt *pMgmt) {
   dDebug("dnode workers are closed");
 }
 
+
+
 int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SSingleWorker *pWorker = &pMgmt->mgmtWorker;
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
