@@ -61,11 +61,11 @@ int32_t tsMaxShellConns = 50000;
 int32_t tsShellActivityTimer = 3;  // second
 
 // memory pool
-int8_t  tsMemPoolFullFunc = 0;
+int8_t tsMemPoolFullFunc = 0;
 #ifndef TD_ASTRA
-int8_t  tsQueryUseMemoryPool = 1;
+int8_t tsQueryUseMemoryPool = 1;
 #else
-int8_t  tsQueryUseMemoryPool = 0;
+int8_t tsQueryUseMemoryPool = 0;
 #endif
 int32_t tsQueryBufferPoolSize = 0;       // MB
 int32_t tsSingleQueryMaxMemorySize = 0;  // MB
@@ -2009,9 +2009,9 @@ int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *
   dDebugFlag = pItem->i32;
 
 _exit:
-if(code != 0) {
-  (void)printf("failed to set data folder since %s\n", tstrerror(code));
-}
+  if (code != 0) {
+    (void)printf("failed to set data folder since %s\n", tstrerror(code));
+  }
   cfgCleanup(pCfg);
   TAOS_RETURN(code);
 }
