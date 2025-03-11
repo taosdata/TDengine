@@ -22,6 +22,8 @@ typedef struct STaskId {
   int64_t taskId;
 } STaskId;
 
+
+
 typedef struct STaskCkptInfo {
   int64_t latestId;          // saved checkpoint id
   int64_t latestVer;         // saved checkpoint ver

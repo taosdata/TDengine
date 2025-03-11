@@ -7,6 +7,8 @@ slug: /get-started/deploy-in-docker
 
 You can install TDengine in a Docker container and perform some basic tests to verify its performance.
 
+
+
 To install TDengine on your local machine instead of in a container, see [Get Started with TDengine Using an Installation Package](../deploy-from-package/).
 
 ## Before You Begin
