@@ -197,7 +197,6 @@ pub fn delete_old_parquet_files_by_size(
     } else {
         max_size
     };
-    (max_size * 1024 * 1024 * 1024) as u64;
     let mut total_file_size = 0;
 
     let entries = read_parquet_dir_entries(task_id, filename)?;
