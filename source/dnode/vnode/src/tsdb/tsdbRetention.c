@@ -13,10 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "meta.h"
+#include "taosdef.h"
+#include "taoserror.h"
 #include "tcs.h"
 #include "tsdb.h"
 #include "tsdbFS2.h"
 #include "vnd.h"
+#include "vnode.h"
+#include "vnodeInt.h"
 
 typedef struct {
   STsdb  *tsdb;
@@ -285,6 +290,75 @@ _exit:
   return code;
 }
 
+static int32_t tsdbDeleteSingleStbExpiredData(SRTNer *rtner, tb_uid_t suid, int64_t expireTs) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SArray *childList = NULL;
+  code = metaGetChildUidsOfSuperTable(rtner->tsdb->pVnode->pMeta, suid, &childList);
+  if (code) {
+    tsdbError("vgId:%d, failed to get child tables for stb:%" PRId64 " since %s", TD_VID(rtner->tsdb->pVnode), suid,
+              tstrerror(code));
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(childList); i++) {
+    tb_uid_t childUid = *(tb_uid_t *)taosArrayGet(childList, i);
+
+    code = tsdbDeleteTableData(rtner->tsdb, rtner->now, suid, childUid, TSKEY_MIN, expireTs);
+    if (code != 0) {
+      tsdbError("vgId:%d, failed to delete expired data for stb:%" PRId64 ", table:%" PRId64 " since %s",
+                TD_VID(rtner->tsdb->pVnode), suid, childUid, tstrerror(code));
+    } else {
+      tsdbDebug("vgId:%d, deleted expired data for stb:%" PRId64 ", table:%" PRId64 ", data before %" PRId64,
+                TD_VID(rtner->tsdb->pVnode), suid, childUid, expireTs);
+    }
+  }
+
+  taosArrayDestroy(childList);
+
+_exit:
+  return code;
+}
+
+static int32_t tsdbDeleteExpiredStbData(SRTNer *rtner) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SMeta *pMeta = rtner->tsdb->pVnode->pMeta;
+
+  SMStbCursor *pStbCursor = metaOpenStbCursor(pMeta, 0);
+  if (pStbCursor) {
+    tb_uid_t suid;
+
+    while ((suid = metaStbCursorNext(pStbCursor)) > 0) {
+      int64_t stbKeep = metaGetStbKeep(pMeta, suid);
+
+      if (stbKeep > 0 && stbKeep < rtner->tsdb->keepCfg.keep2) {
+        tsdbDebug("vgId:%d, checking expired data for stb:%" PRId64 " with specific keep:%" PRId64,
+                  TD_VID(rtner->tsdb->pVnode), suid, stbKeep);
+
+        int64_t expireTs = rtner->now - (tsTickPerMin[rtner->tsdb->keepCfg.precision] * stbKeep);
+
+        code = tsdbDeleteSingleStbExpiredData(rtner, suid, expireTs);
+        if (code) {
+          tsdbError("vgId:%d, failed to delete expired data for stb:%" PRId64 " since %s", TD_VID(rtner->tsdb->pVnode),
+                    suid, tstrerror(code));
+          return code;
+        }
+      }
+    }
+    metaCloseStbCursor(pStbCursor);
+  } else {
+    tsdbDebug("vgId:%d, no stb to delete", TD_VID(rtner->tsdb->pVnode));
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("vgId:%d, failed to delete expired stb data since %s", TD_VID(rtner->tsdb->pVnode), tstrerror(code));
+  }
+
+  return code;
+}
+
 static int32_t tsdbDoRetention(SRTNer *rtner) {
   int32_t    code = 0;
   int32_t    lino = 0;
@@ -305,6 +379,11 @@ static int32_t tsdbDoRetention(SRTNer *rtner) {
       code = tsdbRemoveOrMoveFileObject(rtner, expLevel, fobj);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
+  }
+
+  if (expLevel >= 0) {
+    code = tsdbDeleteExpiredStbData(rtner);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
 _exit:
@@ -738,7 +817,7 @@ int32_t tsdbAsyncS3Migrate(STsdb *tsdb, int64_t now) {
 
   int32_t expired = grantCheck(TSDB_GRANT_OBJECT_STORAGE);
   if (expired && tsS3Enabled) {
-    tsdbWarn("s3 grant expired: %d", expired);
+    tsdbError("s3 grant expired: %d", expired);
     tsS3Enabled = false;
   } else if (!expired && tsS3EnabledCfg) {
     tsS3Enabled = true;
