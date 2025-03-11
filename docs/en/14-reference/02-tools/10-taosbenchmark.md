@@ -348,9 +348,11 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 ### Query Parameters
 
 In query scenarios, `filetype` must be set to `query`.
+"taosc": Query through Native Connection Method
+"rest" : Query through RESTful Connection Method
+
 `query_times` specifies the number of times to run the query, numeric type.
 
-Query scenarios can control the execution of slow query statements by setting `kill_slow_query_threshold` and `kill_slow_query_interval` parameters, where threshold controls that queries exceeding the specified exec_usec time will be killed by taosBenchmark, in seconds; interval controls the sleep time to avoid continuous slow query CPU consumption, in seconds.
 
 For other common parameters, see [General Configuration Parameters](#general-configuration-parameters)
 
@@ -364,7 +366,19 @@ Configuration parameters for querying specified tables (can specify supertables,
   `Mixed Query`: 
   All SQL statements in `sqls` are divided into `threads` groups, with each thread executing one group. Each SQL statement needs to execute `query_times` queries.   
   The total number of queries(`Mixed Query`) = the number of `sqls` * `query_times`
+
+- **batch_query** : Batch query power switch
+The value range "yes" indicates that it is enabled, "no" indicates that it is not enabled, and other values report errors.
+Batch query refers to dividing all SQL statements in SQL into `threads` groups, with each thread executing one group. 
+Each SQL statement is queried only once before exiting, and the main thread waits for all threads to complete before determining if the `query_interval` parameter is set. If sleep is required for a specified time, each thread group is restarted and the previous process is repeated until the number of queries is exhausted.
+Functional limitations:
+1. Only supports scenarios where `mixed_query` is set to 'yes'.
+2. Restful queries are not supported, meaning `query_made` cannot be 'rest'.
+
 - **query_interval** : Query interval, in millisecond, default is 0.
+When the 'batch_query' switch is turned on, it indicates the interval time after each batch query is completed, When closed, it indicates the interval time between each SQL query completion.
+If the execution time of the query exceeds the interval time, it will no longer wait. If the execution time of the query is less than the interval time, it is necessary to wait to make up for the interval time.
+
 - **threads** : Number of threads executing the SQL query, default is 1.
 - **sqls**:
   - **sql**: The SQL command to execute, required.
