@@ -286,7 +286,7 @@ static bool isEmptyQueryTimeWindow(STimeWindow* pWindow) {
 
 // Update the query time window according to the data time to live(TTL) information, in order to avoid to return
 // the expired data to client, even it is queried already.
-static int32_t updateQueryTimeWindow(STsdb* pTsdb, STimeWindow* pWindow, STimeWindow* out, int64_t suid) {
+static int32_t updateQueryTimeWindow(STsdb* pTsdb, STimeWindow* pWindow, STimeWindow* out) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int64_t earlyTs = 0;
@@ -295,7 +295,7 @@ static int32_t updateQueryTimeWindow(STsdb* pTsdb, STimeWindow* pWindow, STimeWi
   TSDB_CHECK_NULL(pWindow, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(out, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  earlyTs = tsdbGetEarliestTs(pTsdb, suid);
+  earlyTs = tsdbGetEarliestTs(pTsdb);
   *out = *pWindow;
   if (out->skey < earlyTs) {
     out->skey = earlyTs;
@@ -725,7 +725,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
   pReader->info.suid = pCond->suid;
   pReader->info.order = pCond->order;
   pReader->info.verRange = getQueryVerRange(pVnode, pCond, level);
-  code = updateQueryTimeWindow(pReader->pTsdb, &pCond->twindows, &pReader->info.window, pReader->info.suid);
+  code = updateQueryTimeWindow(pReader->pTsdb, &pCond->twindows, &pReader->info.window);
   TSDB_CHECK_CODE(code, lino, _end);
 
   if (idstr == NULL) {
@@ -6480,7 +6480,7 @@ int32_t tsdbReaderReset2(STsdbReader* pReader, SQueryTableDataCond* pCond) {
   TSDB_CHECK_NULL(pCond, code, lino, _end, TSDB_CODE_INVALID_PARA);
   pReader->info.order = pCond->order;
   pReader->type = TIMEWINDOW_RANGE_CONTAINED;
-  code = updateQueryTimeWindow(pReader->pTsdb, &pCond->twindows, &pReader->info.window, pReader->info.suid);
+  code = updateQueryTimeWindow(pReader->pTsdb, &pCond->twindows, &pReader->info.window);
   TSDB_CHECK_CODE(code, lino, _end);
   pStatus->loadFromFile = true;
   pStatus->pTableIter = NULL;

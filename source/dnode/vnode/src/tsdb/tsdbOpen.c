@@ -30,19 +30,11 @@ void tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
   pKeepCfg->keepTimeOffset = pCfg->keepTimeOffset;
 }
 
-int64_t tsdbGetEarliestTs(STsdb *pTsdb, int64_t suid) {
+int64_t tsdbGetEarliestTs(STsdb *pTsdb) {
   STsdbKeepCfg *pCfg = &pTsdb->keepCfg;
-  int64_t       keep = pCfg->keep2;
-
-  if (pTsdb->pVnode != NULL && suid > 0) {
-    int64_t stbKeep = metaGetStbKeep(pTsdb->pVnode->pMeta, suid);
-    if (stbKeep > 0 && stbKeep < keep) {
-      keep = stbKeep;
-    }
-  }
 
   int64_t now = taosGetTimestamp(pCfg->precision);
-  int64_t ts = now - (tsTickPerMin[pCfg->precision] * keep) + 1;  // needs to add one tick
+  int64_t ts = now - (tsTickPerMin[pCfg->precision] * pCfg->keep2) + 1;  // needs to add one tick
   return ts;
 }
 
