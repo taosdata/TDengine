@@ -140,7 +140,7 @@ tags
 *CMakeCache*
 *CMakeFiles*
 .history/
-#*.txt
+*.txt
 *.tcl
 *.pc
 contrib/geos
