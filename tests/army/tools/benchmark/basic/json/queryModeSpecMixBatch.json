@@ -18,7 +18,7 @@
 				"sql": "select last_row(*) from test.meters"
 			},
 			{
-				"sql": "select count(*) from test.metres"
+				"sql": "select count(*) from test.meters"
 			},
 			{
 				"sql": "select * from test.d0",
