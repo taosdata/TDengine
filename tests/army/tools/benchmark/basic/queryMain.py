@@ -205,6 +205,7 @@ class TDTestCase(TBase):
         args = [
             ["./tools/benchmark/basic/json/queryModeSpec", True],
             ["./tools/benchmark/basic/json/queryModeSpecMix", True],
+            ["./tools/benchmark/basic/json/queryModeSpecMixBatch", True],
             ["./tools/benchmark/basic/json/queryModeSuper", False]
         ]
 
