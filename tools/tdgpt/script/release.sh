@@ -1,15 +1,33 @@
 #!/bin/bash
-# Generate install package for all os system
+
+# Generate install package for Linux Platform
 
 set -e
-# set -x
+
+while getopts "e:v:" opt; do
+    case "$opt" in
+        e) edition="$OPTARG" ;;  # -e enterprise/community
+        v) version="$OPTARG" ;;  # -v version
+        *) echo "Usage: $0 -e edition -v version"; exit 1 ;;
+    esac
+done
+
+if [ -z "$edition" ] || [ -z "$version" ]; then
+    echo "Usage: $0 -e edition -v version"
+    exit 1
+fi
+if [ "$edition" == "enterprise" ]; then
+    productName="TDengine-enterprise-anode"
+fi
+
+if [ "$edition" == "community" ]; then
+    productName="TDengine-community-anode"
+fi
+
+echo start to build release package, edition: ${edition}, version: ${version}
 
 curr_dir=$(pwd)
 compile_dir=$1
-version="1.0.1"
-osType=
-pagMode=
-productName="TDengine-community-anode"
 
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/..)"
