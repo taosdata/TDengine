@@ -291,18 +291,18 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
   }
 
   STableDataCxt* pTableCtx = *pSrc;
-  if (pStmt->sql.stbInterlaceMode) {
-    int16_t lastIdx = -1;
+  // if (pStmt->sql.stbInterlaceMode) {
+  //   int16_t lastIdx = -1;
 
-    for (int32_t i = 0; i < pTableCtx->boundColsInfo.numOfBound; ++i) {
-      if (pTableCtx->boundColsInfo.pColIndex[i] < lastIdx) {
-        pStmt->sql.stbInterlaceMode = false;
-        break;
-      }
+  //   for (int32_t i = 0; i < pTableCtx->boundColsInfo.numOfBound; ++i) {
+  //     if (pTableCtx->boundColsInfo.pColIndex[i] < lastIdx) {
+  //       pStmt->sql.stbInterlaceMode = false;
+  //       break;
+  //     }
 
-      lastIdx = pTableCtx->boundColsInfo.pColIndex[i];
-    }
-  }
+  //     lastIdx = pTableCtx->boundColsInfo.pColIndex[i];
+  //   }
+  // }
 
   if (NULL == pStmt->sql.pBindInfo) {
     pStmt->sql.pBindInfo = taosMemoryMalloc(pTableCtx->boundColsInfo.numOfBound * sizeof(*pStmt->sql.pBindInfo));
@@ -1219,6 +1219,7 @@ static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIEL
     pDataBlock =
         (STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
   }
+
   if (NULL == pDataBlock || NULL == *pDataBlock) {
     tscError("table %s not found in exec blockHash", pStmt->bInfo.tbFName);
     STMT_ERRI_JRET(TSDB_CODE_APP_ERROR);
@@ -1227,9 +1228,7 @@ static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIEL
   STMT_ERRI_JRET(qBuildStmtStbColFields(*pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.preCtbname, fieldNum, fields));
   if (pStmt->bInfo.tbType == TSDB_SUPER_TABLE) {
     pStmt->bInfo.needParse = true;
-    if (!pStmt->sql.stbInterlaceMode) {
-      qDestroyStmtDataBlock(*pDataBlock);
-    }
+    qDestroyStmtDataBlock(*(STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName)));
     if (taosHashRemove(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName)) != 0) {
       tscError("get fileds %s remove exec blockHash fail", pStmt->bInfo.tbFName);
       STMT_ERRI_JRET(TSDB_CODE_APP_ERROR);
