@@ -115,8 +115,9 @@ class TDTestCase:
                 time.sleep(5)
 
         tdSql.execute(f'drop stream s21')
+        tdSql.execute(f'drop table if exists ts5617.st21')
 
-        tdLog.info("test creating stream with history taosd error ......")
+        tdLog.info("test creating stream with history in taosd error ......")
         tdSql.execute(f'create stream s211 fill_history 1 into ts5617.st211 tags(tname varchar(20)) subtable(tname) as select last(val), last(quality) from ts5617.stb_2_2_1 partition by tbname tname interval(1800s);')
         tdSql.execute(f'create stable ts5617.st211(ts timestamp, i int) tags(tname varchar(20))')
 
@@ -135,9 +136,30 @@ class TDTestCase:
                 time.sleep(5)
             time.sleep(10)
         tdSql.execute(f'drop stream s211')
+        tdSql.execute(f'drop table if exists ts5617.st211')
 
-        tdLog.info("test creating stream with history taosd restart ......")
-        tdSql.execute(f'create stream s2111 fill_history 1 into ts5617.st2111 tags(tname varchar(20)) subtable(tname) as select last(val), last(quality) from ts5617.stb_2_2_1 partition by tbname tname interval(1800s);')
+        tdLog.info("test creating stream with history in taosd error ......")
+        tdSql.execute(f'create stream s21 fill_history 1 into ts5617.st21 as select last(val), last(quality) from ts5617.d_0 interval(1800s);')
+        tdSql.execute(f'create stream s211 fill_history 1 into ts5617.st211 as select last(val), last(quality) from ts5617.d_0 interval(1800s);')
+
+        while 1:
+            tdSql.query("show streams")
+            tdLog.info(tdSql.queryResult)
+
+            tdLog.info(f"streams is creating ...")
+            if "failed" in [tdSql.getData(0, 1), tdSql.getData(1, 1)] and "Conflict transaction not completed" in [tdSql.getData(0, 2), tdSql.getData(1, 2)]:
+                break
+            else:
+                time.sleep(5)
+
+        tdSql.execute(f'drop stream s21')
+        tdSql.execute(f'drop stream s211')
+        tdSql.execute(f'drop table if exists ts5617.st21')
+        tdSql.execute(f'drop table if exists  ts5617.st211')
+
+
+        tdLog.info("test creating stream with history in taosd restart ......")
+        tdSql.execute(f'create stream s21 fill_history 1 into ts5617.st21 tags(tname varchar(20)) subtable(tname) as select last(val), last(quality) from ts5617.stb_2_2_1 partition by tbname tname interval(1800s);')
         tdSql.query("show streams")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, "init")
