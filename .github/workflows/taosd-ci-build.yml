@@ -88,6 +88,16 @@ jobs:
           which taosadapter
           which taoskeeper
 
+      - name: Statistics ldd
+        run: |
+          find ${{ github.workspace }}/debug/build/lib -type f -print0 | xargs -0 ldd
+          find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ldd
+
+      - name: Statistics size
+        run: |
+          find ${{ github.workspace }}/debug/build/lib -type f -print0 | xargs -0 ls -lh
+          find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ls -lh
+
       - name: Start taosd
         run: |
           cp /etc/taos/taos.cfg ./
