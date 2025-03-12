@@ -121,20 +121,21 @@ class TDTestCase(TBase):
                     else:
                         # switch to another child table
                         if batch != interlace_rows:
-                            tdLog.exit(f"interlace_rows invalid. tbName={name} actual={batch} expected={interlace_rows} i={count} csv_file_name={csv_file_name}")
+                            tdLog.exit(f"interlace rows is not as expected. tbname={name}, actual: {batch}, expected: {interlace_rows}, count: {count}, csv_file_name: {csv_file_name}")
                         batch = 1
                         name  = row[tbname_idx]
                 # count ++
                 count += 1
         # batch
         if batch != interlace_rows:
-            tdLog.exit(f"interlace_rows invalid. tbName={name} actual={batch} expected={interlace_rows} i={count} csv_file_name={csv_file_name}")
+            tdLog.exit(f"interlace rows is not as expected. tbname={name}, actual: {batch}, expected: {interlace_rows}, count: {count}, csv_file_name: {csv_file_name}")
+
 
         # check all rows
         if count != all_rows:
-            tdLog.exit(f"all_rows invalid. actual={count} expected={all_rows} csv_file_name={csv_file_name}")
+            tdLog.exit(f"total rows is not as expected. actual: {count}, expected: {all_rows}, csv_file_name: {csv_file_name}")
 
-        tdLog.info(f"Check generate csv file successfully. csv_file_name={csv_file_name} count={count} interlace_rows={batch}")
+        tdLog.info(f"check generate csv file successfully. csv_file_name: {csv_file_name}, count: {count}, interlace_rows: {interlace_rows}")
 
 
     # check correct
@@ -194,9 +195,9 @@ class TDTestCase(TBase):
 
 
     # check result
-    def check_result(self, jsonFile):
+    def check_result(self, json_file):
          # csv
-        with open(jsonFile) as file:
+        with open(json_file) as file:
              data = json.load(file)
 
         # read json
@@ -208,25 +209,167 @@ class TDTestCase(TBase):
             self.check_stb_correct(data, database, stable)
 
 
-    def check_export_csv(self, benchmark, jsonFile, options=""):
+    def exec_benchmark(self, benchmark, json_file, options=""):
+        cmd = f"{benchmark} {options} -f {json_file}"
+        eos.exe(cmd)
+
+
+    def check_export_csv_main(self, benchmark, json_file, options=""):
         # clear
         self.clear_directory()
 
         # exec
-        cmd = f"{benchmark} {options} -f {jsonFile}"
-        eos.exe(cmd)
+        self.exec_benchmark(benchmark, json_file, options)
 
         # check result
-        self.check_result(jsonFile)
+        self.check_result(json_file)
  
+
+    def check_export_csv_others(self, benchmark, json_file, options=""):
+        # clear
+        self.clear_directory()
+
+        # file ts interval second
+        new_json_file = self.genNewJson(json_file, self.fun_csv_ts_interval_second)
+        self.exec_benchmark(benchmark, new_json_file, options)
+        self.check_file_line_count("./csv/data_20231115061320_20231115061321.csv", 10001)
+
+        # file ts interval minute
+        new_json_file = self.genNewJson(json_file, self.fun_csv_ts_interval_minute)
+        self.exec_benchmark(benchmark, new_json_file, options)
+        self.check_file_line_count("./csv/data_202311150613_202311150614.csv", 10001)
+
+        # file ts interval hour
+        new_json_file = self.genNewJson(json_file, self.fun_csv_ts_interval_hour)
+        self.exec_benchmark(benchmark, new_json_file, options)
+        self.check_file_line_count("./csv/data_2023111506_2023111507.csv", 10001)
+
+        # db precision us
+        new_json_file = self.genNewJson(json_file, self.fun_db_precision_us)
+        self.exec_benchmark(benchmark, new_json_file, options)
+        self.check_file_line_count("./csv/data_20231115_20231116.csv", 10001)
+
+        # db precision ns
+        new_json_file = self.genNewJson(json_file, self.fun_db_precision_ns)
+        self.exec_benchmark(benchmark, new_json_file, options)
+        self.check_file_line_count("./csv/data_20231115_20231116.csv", 10001)
+
+        # thread num
+        new_json_file = self.genNewJson(json_file, self.fun_thread_num)
+        self.exec_benchmark(benchmark, new_json_file, options)
+        self.check_file_line_count("./csv/data_10.csv", 1001)
+
+        # create sql
+        new_json_file = self.genNewJson(json_file, self.fun_create_sql)
+        self.exec_benchmark(benchmark, new_json_file, options)
+        self.check_file_line_count("./csv/create_stmt.txt", 2)
+
+        # gzip
+        new_json_file = self.genNewJson(json_file, self.fun_gzip)
+        self.exec_benchmark(benchmark, new_json_file, options)
+        eos.exe("gunzip ./csv/data.csv.gz")
+        self.check_file_line_count("./csv/data.csv", 10001)
+
+
+    def fun_csv_ts_interval_second(self, data):
+        db  = data['databases'][0]
+        stb = db["super_tables"][0]
+        stb['timestamp_step'] = '10'
+        stb['csv_ts_format'] = '%Y%m%d%H%M%S'
+        stb['csv_ts_interval'] = '1s'
+
+
+    def fun_csv_ts_interval_minute(self, data):
+        db  = data['databases'][0]
+        stb = db["super_tables"][0]
+        stb['timestamp_step'] = '600'
+        stb['csv_ts_format'] = '%Y%m%d%H%M'
+        stb['csv_ts_interval'] = '1m'
+
+
+    def fun_csv_ts_interval_hour(self, data):
+        db  = data['databases'][0]
+        stb = db["super_tables"][0]
+        stb['timestamp_step'] = '36000'
+        stb['csv_ts_format'] = '%Y%m%d%H'
+        stb['csv_ts_interval'] = '1h'
+
+
+    def fun_db_precision_us(self, data):
+        db  = data['databases'][0]
+        db['dbinfo']['precision'] = 'us'
+        stb = db["super_tables"][0]
+        stb['start_timestamp'] = 1700000000000000
+
+
+    def fun_db_precision_ns(self, data):
+        db  = data['databases'][0]
+        db['dbinfo']['precision'] = 'ns'
+        stb = db["super_tables"][0]
+        stb['start_timestamp'] = 1700000000000000000
+
+
+    def fun_thread_num(self, data):
+        data['thread_count'] = 12
+        db  = data['databases'][0]
+        stb = db["super_tables"][0]
+        stb.pop('interlace_rows', None)
+        stb.pop('csv_ts_format', None)
+        stb.pop('csv_ts_interval', None)
+
+
+    def fun_create_sql(self, data):
+        db  = data['databases'][0]
+        dbinfo = db['dbinfo']
+        dbinfo['buffer']    = 256
+        dbinfo['cachemode'] = 'none'
+        stb = db["super_tables"][0]
+        stb['primary_key']  = 1
+        stb['columns'][0]   = { "type": "bool", "name": "bc", "encode": 'simple8b', 'compress': 'lz4', 'level': 'medium'}
+        stb['comment']      = "csv export sample"
+        stb['delay']        = 10
+        stb['file_factor']  = 20
+        stb['rollup']       = 'min'
+        stb['max_delay']    = '300s'
+        stb['watermark']    = '10m'
+        stb['columns'][1]   = { "type": "float", "name": "fc", "min": 1, "sma": "yes"}
+        stb['columns'][2]   = { "type": "double", "name": "dc", "min":10, "max":10, "sma": "yes"}
+
+
+    def fun_gzip(self, data):
+        db  = data['databases'][0]
+        stb = db["super_tables"][0]
+        stb.pop('csv_ts_format', None)
+        stb.pop('csv_ts_interval', None)
+        stb['csv_compress_level'] = "fast"
+
+
+    def check_file_line_count(self, filename, expected_lines):
+        try:
+            with open(filename, 'r', encoding='utf-8') as file:
+                actual_lines = sum(1 for line in file)
+
+            if expected_lines >= 0:
+                is_correct = actual_lines == expected_lines
+                if not is_correct:
+                    tdLog.exit(f"check csv data failed, actual: {actual_lines}, expected: {expected_lines}, filename: {filename}")
+        
+        except FileNotFoundError:
+            tdLog.exit(f"check csv data failed, file not exists. filename: {filename}")
+
 
     def run(self):
         # path
         benchmark = etool.benchMarkFile()
 
-        # do check interlace normal
-        json = "tools/benchmark/basic/json/csv-export.json"
-        self.check_export_csv(benchmark, json)
+        # check normal
+        json_file = "tools/benchmark/basic/json/csv-export.json"
+        self.check_export_csv_main(benchmark, json_file)
+
+        # check others
+        json_file = "tools/benchmark/basic/json/csv-export-template.json"
+        self.check_export_csv_others(benchmark, json_file)
+
 
     def stop(self):
         tdSql.close()

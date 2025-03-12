@@ -18,6 +18,8 @@ import datetime
 import random
 import copy
 import json
+import tempfile
+import uuid
 
 import frame.eos
 import frame.etool
@@ -477,3 +479,20 @@ class TBase:
         print(rlist)
 
         return rlist
+
+    # generate new json file
+    def genNewJson(self, jsonFile, modifyFunc=None):
+        with open(jsonFile, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        if callable(modifyFunc):
+            modifyFunc(data)
+        
+        tempDir = os.path.join(tempfile.gettempdir(), 'json_templates')
+        os.makedirs(tempDir, exist_ok=True)
+        tempPath = os.path.join(tempDir, f"temp_{uuid.uuid4().hex}.json")
+
+        with open(tempPath, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+        return tempPath
