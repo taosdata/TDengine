@@ -752,3 +752,10 @@ void freeDbCfgInfo(SDbCfgInfo* pInfo) {
 void* getTaskPoolWorkerCb() {
   return taskQueue.wrokrerPool.pCb;
 }
+
+
+void tFreeStreamVtbOtbInfo(void* param);
+void tFreeStreamVtbVtbInfo(void* param);
+void tFreeStreamVtbDbVgInfo(void* param);
+
+

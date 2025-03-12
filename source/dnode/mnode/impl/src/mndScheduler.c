@@ -574,7 +574,7 @@ static SSubplan* getAggSubPlan(const SQueryPlan* pPlan, int index) {
 }
 
 static int32_t addVTableMergeTask(SMnode* pMnode, SSubplan* plan, SStreamObj* pStream, SEpSet* pEpset,
-                             bool useTriggerParam, SCMCreateStreamReq* pCreate, SSHashObj* pVTableMap) {
+                             bool useTriggerParam, SCMCreateStreamReq* pCreate) {
   SVgObj* pVgroup = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t vgNum = taosArrayGetSize(pCreate->pVSubTables);
@@ -651,6 +651,7 @@ static int32_t addVTableSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* p
     char* pVgStr = strrchr(pDbVg, '.');
     if (NULL == pVgStr) {
       mError("Invalid DbVg string: %s", pDbVg);
+      tSimpleHashCleanup(pVgTasks);
       return TSDB_CODE_MND_INTERNAL_ERROR;
     }
 
@@ -663,17 +664,21 @@ static int32_t addVTableSourceTask(SMnode* pMnode, SSubplan* plan, SStreamObj* p
     }
 
     plan->pVTables = *(SSHashObj**)p;
+    *(SSHashObj**)p = NULL;
 
     code = doAddSourceTask(pMnode, plan, pStream, pEpset, nextWindowSkey, pVerList, pVgroup, false, useTriggerParam, pVgTasks, pSourceTaskList);
     if (code != 0) {
       mError("failed to create stream task, code:%s", tstrerror(code));
 
       mndReleaseVgroup(pMnode, pVgroup);
+      tSimpleHashCleanup(pVgTasks);
       return code;
     }
 
     mndReleaseVgroup(pMnode, pVgroup);
   }
+
+  tSimpleHashCleanup(pVgTasks);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1091,8 +1096,10 @@ static int32_t addVTableToVnode(SSHashObj* pVg, int32_t vvgId, uint64_t vuid, SR
     TSDB_CHECK_NULL(pNewVtable, code, lino, _return, terrno);
     pNewOtable = taosArrayInit(4, sizeof(SColIdName));
     TSDB_CHECK_NULL(pNewOtable, code, lino, _return, terrno);
+    tSimpleHashSetFreeFp(pNewVtable, tFreeStreamVtbOtbInfo);
     col.colId = pCol->colId;
-    col.colName = pCol->refColName;
+    col.colName = taosStrdup(pCol->refColName);
+    TSDB_CHECK_NULL(col.colName, code, lino, _return, terrno);
     TSDB_CHECK_NULL(taosArrayPush(pNewOtable, &col), code, lino, _return, terrno);
     TSDB_CHECK_CODE(tSimpleHashPut(pNewVtable, pCol->refTableName, strlen(pCol->refTableName) + 1, &pNewOtable, POINTER_BYTES), lino, _return);
     TSDB_CHECK_CODE(tSimpleHashPut(pVg, vId, sizeof(vId) + 1, &pNewVtable, POINTER_BYTES), lino, _return);
@@ -1113,7 +1120,8 @@ static int32_t addVTableToVnode(SSHashObj* pVg, int32_t vvgId, uint64_t vuid, SR
   }
   
   col.colId = pCol->colId;
-  col.colName = pCol->refColName;
+  col.colName = taosStrdup(pCol->refColName);
+  TSDB_CHECK_NULL(col.colName, code, lino, _return, terrno);  
   TSDB_CHECK_NULL(taosArrayPush(pTarOtable, &col), code, lino, _return, terrno);
   if (NULL == pOtable) {
     TSDB_CHECK_CODE(tSimpleHashPut(*pVtable, pCol->refTableName, strlen(pCol->refTableName) + 1, &pNewOtable, POINTER_BYTES), lino, _return);
@@ -1146,6 +1154,7 @@ static int32_t addVgroupToRes(char* fDBName, int32_t vvgId, uint64_t vuid, SRefC
   if (NULL == pVg) {
     pNewVg = tSimpleHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
     TSDB_CHECK_NULL(pNewVg, code, lino, _return, terrno);
+    tSimpleHashSetFreeFp(pNewVg, tFreeStreamVtbVtbInfo);
     pTarVg = pNewVg;
   } else {
     pTarVg = *pVg;
@@ -1183,7 +1192,8 @@ static int32_t addRefColToMap(int32_t vvgId, uint64_t vuid, SRefColInfo* pCol, S
      0 == strcmp(pCtx->lastCol->refDbName, pCol->refDbName) && 0 == strcmp(pCtx->lastCol->refTableName, pCol->refTableName)) {
     if (isLastVtable) {
       col.colId = pCol->colId;
-      col.colName = pCol->refColName;
+      col.colName = taosStrdup(pCol->refColName);
+      TSDB_CHECK_NULL(col.colName, code, lino, _return, terrno);
       TSDB_CHECK_NULL(taosArrayPush(pCtx->lastOtable, &col), code, lino, _return, terrno);
       return code;
     }
@@ -1231,6 +1241,7 @@ static int32_t buildVSubtableMap(SMnode* pMnode, SArray* pVSubTables, SSHashObj*
     mError("tSimpleHashInit failed, error:%s", tstrerror(terrno));
     goto _exit;
   }
+  tSimpleHashSetFreeFp(*ppRes, tFreeStreamVtbDbVgInfo);
 
   SStreamVBuildCtx ctx = {0};
   int32_t vgNum = taosArrayGetSize(pVSubTables);
@@ -1266,7 +1277,6 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
   int32_t numOfPlanLevel = LIST_LENGTH(pPlan->pSubplans);
   bool    hasExtraSink = false;
   bool    externalTargetDB = strcmp(pStream->sourceDb, pStream->targetDb) != 0;
-  SSHashObj* pVTableMap = NULL;
   SSubplan* plan = NULL;
   SDbObj* pDbObj = mndAcquireDb(pMnode, pStream->targetDb);
   if (pDbObj == NULL) {
@@ -1288,7 +1298,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
   }
 
   if (pCreate->pVSubTables) {
-    code = buildVSubtableMap(pMnode, pCreate->pVSubTables, &pVTableMap);
+    code = buildVSubtableMap(pMnode, pCreate->pVSubTables, &pStream->pVTableMap);
     if (TSDB_CODE_SUCCESS != code) {
       mError("failed to buildVSubtableMap, code:%s", tstrerror(terrno));
       return code;
@@ -1306,7 +1316,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
 
   pStream->totalLevel = numOfPlanLevel + hasExtraSink;
 
-  if (pVTableMap) {
+  if (pStream->pVTableMap) {
     code = addNewTaskList(pStream);
     if (code) {
       return code;
@@ -1326,7 +1336,7 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
     if (code) {
       return code;
     }
-    code = addVTableMergeTask(pMnode, plan, pStream, pEpset, (numOfPlanLevel == 1), pCreate, pVTableMap);
+    code = addVTableMergeTask(pMnode, plan, pStream, pEpset, (numOfPlanLevel == 1), pCreate);
     if (code) {
       return code;
     }
@@ -1339,7 +1349,8 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
     }
 
     SArray** pMergeTaskList = taosArrayGetLast(pStream->tasks);
-    code = addVTableSourceTask(pMnode, plan, pStream, pEpset, skey, pVerList, (numOfPlanLevel == 1), pCreate, pVTableMap, *pSourceTaskList, *pMergeTaskList);
+    code = addVTableSourceTask(pMnode, plan, pStream, pEpset, skey, pVerList, (numOfPlanLevel == 1), pCreate,
+                               pStream->pVTableMap, *pSourceTaskList, *pMergeTaskList);
   } else {
     plan = getScanSubPlan(pPlan);  // source plan
     if (plan == NULL) {
@@ -1436,8 +1447,8 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
 
 int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream, SCMCreateStreamReq* pCreate) {
   int32_t     code = 0;
-  SQueryPlan* pPlan = qStringToQueryPlan(pStream->physicalPlan);
-  if (pPlan == NULL) {
+  pStream->pPlan = qStringToQueryPlan(pStream->physicalPlan);
+  if (pStream->pPlan == NULL) {
     code = TSDB_CODE_QRY_INVALID_INPUT;
     TAOS_RETURN(code);
   }
@@ -1445,8 +1456,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream, SCMCreateStreamRe
   SEpSet mnodeEpset = {0};
   mndGetMnodeEpSet(pMnode, &mnodeEpset);
 
-  code = doScheduleStream(pStream, pMnode, pPlan, &mnodeEpset, pCreate);
-  qDestroyQueryPlan(pPlan);
+  code = doScheduleStream(pStream, pMnode, pStream->pPlan, &mnodeEpset, pCreate);
 
   TAOS_RETURN(code);
 }

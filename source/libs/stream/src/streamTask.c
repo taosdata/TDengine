@@ -295,6 +295,8 @@ void tFreeStreamTask(void* pParam) {
     tDeleteSchemaWrapper(pTask->outputInfo.tbSink.pTagSchema);
   } else if (pTask->outputInfo.type == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     taosArrayDestroy(pTask->outputInfo.shuffleDispatcher.dbInfo.pVgroupInfos);
+  } else if (pTask->outputInfo.type == TASK_OUTPUT__VTABLE_MAP) {
+    tSimpleHashCleanup(pTask->outputInfo.vtableMap);
   }
 
   streamTaskCleanupCheckInfo(&pTask->taskCheckInfo);
@@ -303,6 +305,9 @@ void tFreeStreamTask(void* pParam) {
   if (pTask->pNameMap) {
     tSimpleHashCleanup(pTask->pNameMap);
   }
+
+  taosArrayDestroy(pTask->pVTables);
+  pTask->pVTables = NULL;
 
   streamDestroyStateMachine(pTask->status.pSM);
   pTask->status.pSM = NULL;

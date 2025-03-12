@@ -4252,13 +4252,15 @@ int32_t ctgLaunchGetVSubTablesTask(SCtgTask* pTask) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  pMsgCtx->target = taosMemoryMalloc(TSDB_TABLE_FNAME_LEN);
   if (NULL == pMsgCtx->target) {
-    ctgError("taosMemoryMalloc %d failed", TSDB_TABLE_FNAME_LEN);
-    CTG_ERR_RET(terrno);
+    pMsgCtx->target = taosMemoryMalloc(TSDB_TABLE_FNAME_LEN);
+    if (NULL == pMsgCtx->target) {
+      ctgError("taosMemoryMalloc %d failed", TSDB_TABLE_FNAME_LEN);
+      CTG_ERR_RET(terrno);
+    }
+    
+    tNameExtractFullName(pName, pMsgCtx->target);
   }
-  
-  tNameExtractFullName(pName, pMsgCtx->target);
 
   (void)tNameGetFullDbName(pName, dbFName);
 

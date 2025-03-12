@@ -4272,6 +4272,8 @@ static int32_t jsonToOtableHash(const SJson* pJson, void* pObj) {
     if (NULL == *pHash) {
       return terrno;
     }
+    tSimpleHashSetFreeFp(*pHash, tFreeStreamVtbOtbInfo);
+    
     SJson *ovalues = tjsonGetObjectItem(pJson, jkOtableHashKV);
     if (ovalues == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
     char tbName[TSDB_TABLE_NAME_LEN];
@@ -4293,6 +4295,8 @@ static int32_t jsonToOtableHash(const SJson* pJson, void* pObj) {
   return code;
 }
 
+
+
 static int32_t jsonToVtablesHash(const SJson* pJson, void* pObj) {
   SSHashObj** pHash = (SSHashObj**)pObj;
   int32_t hashSize = 0;
@@ -4302,6 +4306,7 @@ static int32_t jsonToVtablesHash(const SJson* pJson, void* pObj) {
     if (NULL == *pHash) {
       return terrno;
     }
+    tSimpleHashSetFreeFp(*pHash, tFreeStreamVtbVtbInfo);
     SJson *vvalues = tjsonGetObjectItem(pJson, jkVtablesHashKV);
     if (vvalues == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
     uint64_t vuid = 0;

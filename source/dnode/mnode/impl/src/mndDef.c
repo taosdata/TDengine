@@ -232,6 +232,12 @@ void tFreeStreamObj(SStreamObj *pStream) {
   if (pStream->tagSchema.nCols > 0) {
     taosMemoryFree(pStream->tagSchema.pSchema);
   }
+
+  qDestroyQueryPlan(pStream->pPlan);
+  pStream->pPlan = NULL;
+
+  tSimpleHashCleanup(pStream->pVTableMap);
+  pStream->pVTableMap = NULL;
 }
 
 SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {

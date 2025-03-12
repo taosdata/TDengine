@@ -400,6 +400,10 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst);
 void    freeVgInfo(SDBVgInfo* vgInfo);
 void    freeDbCfgInfo(SDbCfgInfo* pInfo);
 
+void tFreeStreamVtbOtbInfo(void* param);
+void tFreeStreamVtbVtbInfo(void* param);
+void tFreeStreamVtbDbVgInfo(void* param);
+
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
                                           void* (*mallocFp)(int64_t));
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t msgSize);
