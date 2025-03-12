@@ -267,7 +267,7 @@ int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int3
 
     for(int32_t i = 0; i < taosArrayGetSize(pStartInfo->pStagesList); ++i) {
       SStartTaskStageInfo* pStageInfo = taosArrayGet(pStartInfo->pStagesList, i);
-      stDebug("vgId:%d start task procedure, stage:%d, ts:%" PRId64, pStageInfo->stage, pStageInfo->ts);
+      stDebug("vgId:%d start task procedure, stage:%d, ts:%" PRId64, pMeta->vgId, pStageInfo->stage, pStageInfo->ts);
     }
 
     stDebug("vgId:%d all %d task(s) check downstream completed, last completed task:0x%x (succ:%d) startTs:%" PRId64
@@ -504,8 +504,7 @@ int32_t streamMetaStopAllTasks(SStreamMeta* pMeta) {
 
 int32_t streamTaskCheckIfReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
   SConsenChkptInfo* pConChkptInfo = &pTask->status.consenChkptInfo;
-
-  int32_t vgId = pTask->pMeta->vgId;
+  int32_t           vgId = pTask->pMeta->vgId;
 
   if (pTask->pMeta->startInfo.curStage == START_MARK_REQ_CHKPID) {
     if (pConChkptInfo->status == TASK_CONSEN_CHKPT_REQ) {
