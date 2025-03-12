@@ -176,7 +176,7 @@ class TDTestCase(TBase):
 
         self.test_today_case("left_outer")
         self.test_now_case("left_outer")
-        #self.test_today_case("right_outer")
+        self.test_today_case("right_outer")
 
         self.test_today_case("full_outer")
         self.test_today_case("left_semi")
