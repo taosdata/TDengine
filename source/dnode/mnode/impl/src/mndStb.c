@@ -434,6 +434,8 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->smaVer = pNew->smaVer;
   pOld->nextColId = pNew->nextColId;
   pOld->ttl = pNew->ttl;
+  pOld->keep = pNew->keep;
+  
   if (pNew->numOfColumns > 0) {
     pOld->numOfColumns = pNew->numOfColumns;
     memcpy(pOld->pColumns, pNew->pColumns, pOld->numOfColumns * sizeof(SSchema));

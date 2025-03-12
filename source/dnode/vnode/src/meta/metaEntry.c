@@ -104,7 +104,6 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
       if (TABLE_IS_ROLLUP(pME->flags)) {
         TAOS_CHECK_RETURN(tEncodeSRSmaParam(pCoder, &pME->stbEntry.rsmaParam));
       }
-      TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->stbEntry.keep));
     } else if (pME->type == TSDB_CHILD_TABLE) {
       TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ctbEntry.btime));
       TAOS_CHECK_RETURN(tEncodeI32(pCoder, pME->ctbEntry.ttlDays));
@@ -131,6 +130,9 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     }
     TAOS_CHECK_RETURN(meteEncodeColCmprEntry(pCoder, pME));
   }
+  if (pME->type == TSDB_SUPER_TABLE) {
+    TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->stbEntry.keep));
+  }
 
   tEndEncode(pCoder);
   return 0;
@@ -156,9 +158,6 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
       TAOS_CHECK_RETURN(tDecodeSSchemaWrapperEx(pCoder, &pME->stbEntry.schemaTag));
       if (TABLE_IS_ROLLUP(pME->flags)) {
         TAOS_CHECK_RETURN(tDecodeSRSmaParam(pCoder, &pME->stbEntry.rsmaParam));
-      }
-      if (!tDecodeIsEnd(pCoder)) {
-        TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->stbEntry.keep));
       }
     } else if (pME->type == TSDB_CHILD_TABLE) {
       TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->ctbEntry.btime));
@@ -211,6 +210,11 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
         TAOS_CHECK_RETURN(metatInitDefaultSColCmprWrapper(pCoder, &pME->colCmpr, &pME->ntbEntry.schemaRow));
       }
       TABLE_SET_COL_COMPRESSED(pME->flags);
+    }
+  }
+  if (pME->type == TSDB_SUPER_TABLE) {
+    if (!tDecodeIsEnd(pCoder)) {
+      TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->stbEntry.keep));
     }
   }
 
@@ -314,6 +318,7 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
       metaCloneEntryFree(ppEntry);
       return code;
     }
+    (*ppEntry)->stbEntry.keep = pEntry->stbEntry.keep;
   } else if (pEntry->type == TSDB_CHILD_TABLE) {
     (*ppEntry)->ctbEntry.btime = pEntry->ctbEntry.btime;
     (*ppEntry)->ctbEntry.ttlDays = pEntry->ctbEntry.ttlDays;

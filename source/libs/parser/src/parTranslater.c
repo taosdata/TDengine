@@ -10169,6 +10169,10 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
       pAlterReq->commentLen = -1;
     }
 
+    if (pStmt->pOptions->keep > 0) {
+      pAlterReq->keep = pStmt->pOptions->keep;
+    }
+
     return TSDB_CODE_SUCCESS;
   }
 
