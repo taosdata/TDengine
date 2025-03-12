@@ -928,7 +928,7 @@ static FORCE_INLINE int32_t vnodeGetDBPrimaryInfo(SVnode *pVnode, SDbSizeStatisI
     dirSize[i] = size;
   }
 
-  pInfo->l1Size = dirSize[0] - dirSize[3];
+  pInfo->l1Size = 0;
   pInfo->walSize = dirSize[1];
   pInfo->metaSize = dirSize[2];
   pInfo->cacheSize = dirSize[3];
@@ -944,11 +944,12 @@ int32_t vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo) {
   code = vnodeGetDBPrimaryInfo(pVnode, pInfo);
   if (code != 0) goto _exit;
 
+  code = tsdbGetFsSize(pVnodeObj->pTsdb, pInfo);
+  if (code != 0) goto _exit;
+
   code = tsdbGetS3Size(pVnodeObj->pTsdb, &pInfo->s3Size);
   if (code != 0) goto _exit;
 
-  code = tsdbGetFsSize(pVnodeObj->pTsdb, pInfo);
-  if (code != 0) goto _exit;
 _exit:
   return code;
 }

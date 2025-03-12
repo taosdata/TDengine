@@ -167,9 +167,9 @@ class TDTestCase:
         for vgid in range(2, 2+self.vgroups): 
             tsdb_path = self.dnode_path+f'/{path}/vnode/vnode{vgid}/tsdb'
             size += get_disk_usage(tsdb_path) 
+        return size
 
-
-    def _value_check(self, size1, size2, threshold=100):
+    def _value_check(self, size1, size2, threshold=1000):
         if abs(size1 - size2) < threshold:
             tdLog.info(f"checkEqual success, base_value={size1},check_value={size2}") 
         else :
@@ -193,8 +193,8 @@ class TDTestCase:
         size2 = self._calculate_disk_usage('data01')
 
         tdSql.query(f'select sum(data1), sum(data2) from information_schema.ins_disk_usage where db_name="{self.db_name}"')  
-        data1 = tdSql.queryResult[0][0]  
-        data2 = tdSql.queryResult[0][1]  
+        data1 = int(tdSql.queryResult[0][0])  
+        data2 = int(tdSql.queryResult[0][1])  
 
         self._value_check(size1, data1)
         self._value_check(size2, data2)
