@@ -866,7 +866,7 @@ void totalBatchQuery(int32_t allSleep, BArray *pDelays) {
     }
 
     // show P90 ...
-    if (delay_list->size) {
+    if (pDelays->size) {
         infoPrint(
                 "Total delay: "
                 "min delay: %.6fs, "
