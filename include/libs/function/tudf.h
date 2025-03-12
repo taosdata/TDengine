@@ -59,6 +59,7 @@ extern "C" {
       terrno = (CODE);     \
       goto _exit;                                   \
     }                                               \
+  } while (0)
 
 #define TAOS_UDF_CHECK_PTR_RCODE(...)                                          \
   do {                                                                         \
