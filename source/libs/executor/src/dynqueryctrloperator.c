@@ -1052,7 +1052,11 @@ int32_t dynProcessUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SDynQueryCtrlOperatorInfo* pScanResInfo = (SDynQueryCtrlOperatorInfo*)operator->info;
 
   if (TSDB_CODE_SUCCESS == code) {
-    pScanResInfo->vtbScan.pRsp = pMsg->pData;
+    pScanResInfo->vtbScan.pRsp = taosMemoryMalloc(sizeof(SUseDbRsp));
+    if (NULL == pScanResInfo->vtbScan.pRsp) {
+      qError("processUseDbRsp failed since %s", tstrerror(terrno));
+      return terrno;
+    }
     if (tDeserializeSUseDbRsp(pMsg->pData, (int32_t)pMsg->len, pScanResInfo->vtbScan.pRsp) != 0) {
       qError("processUseDbRsp deserialize SUseDbRsp failed");
     }
