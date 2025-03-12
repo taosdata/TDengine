@@ -1077,6 +1077,7 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
         }
         taosMemoryFreeClear(taskCtx->pResList);
       }
+      taosMemoryFreeClear(taskCtx->pMeta);
       taosMemoryFreeClear(pTask->taskCtx);
       break;
     }
