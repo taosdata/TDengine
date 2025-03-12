@@ -364,7 +364,7 @@ static SKeyword keywordTable[] = {
     {"REGEXP",               TK_REGEXP},
     {"ASSIGN",               TK_ASSIGN},
     {"TRUE_FOR",             TK_TRUE_FOR},
-    {"VTABLES",              TK_VTABLES},
+    {"META_ONLY",            TK_META_ONLY}
 };
 // clang-format on
 
