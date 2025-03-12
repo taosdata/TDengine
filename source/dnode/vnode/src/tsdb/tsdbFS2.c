@@ -986,27 +986,27 @@ int32_t tsdbFSEditAbort(STFileSystem *fs) {
   return code;
 }
 
-static FORCE_INLINE void getSizeByLevel(const STFileObj *fObj, int64_t *lvl0, int64_t *lvl1, int64_t *lvl2) {
+static FORCE_INLINE void getSizeByLevel(const STFileObj *fObj, int64_t *lvl1, int64_t *lvl2, int64_t *lvl3) {
   if (fObj == NULL) return;
 
   int64_t sz = fObj->f->size;
-  // level == 0, primary storage,obtain size by traversing the primary directory's folder
+  // level == 0, primary storage
   // level == 1, second storage,
   // level == 2, third storage
   int32_t level = fObj->f->did.level;
   if (level == 0) {
-    *lvl0 += sz;
-  } else if (level == 1) {
     *lvl1 += sz;
-  } else if (level == 2) {
+  } else if (level == 1) {
     *lvl2 += sz;
+  } else if (level == 2) {
+    *lvl3 += sz;
   }
 }
 int32_t tsdbGetFsSizeImpl(STFileSystem *fs, SDbSizeStatisInfo *pInfo) {
-  int32_t    code = 0;
-  int64_t    alvl0 = 0, alvl1 = 0, alvl2 = 0;
-  STFileSet *fset;
+  int32_t code = 0;
+  int64_t l1 = 0, l2 = 0, l3 = 0;
 
+  const STFileSet *fset;
   const SSttLvl   *stt = NULL;
   const STFileObj *fObj = NULL;
 
@@ -1016,18 +1016,18 @@ int32_t tsdbGetFsSizeImpl(STFileSystem *fs, SDbSizeStatisInfo *pInfo) {
     for (int32_t t = TSDB_FTYPE_MIN; t < TSDB_FTYPE_MAX; ++t) {
       if (fset->farr[t] == NULL) continue;
       fObj = fset->farr[t];
-      getSizeByLevel(fObj, &alvl0, &alvl1, &alvl2);
+      getSizeByLevel(fObj, &l1, &l2, &l3);
     }
     TARRAY2_FOREACH(fset->lvlArr, stt) {
-      TARRAY2_FOREACH(stt->fobjArr, fObj) { getSizeByLevel(fObj, &alvl0, &alvl1, &alvl2); }
+      TARRAY2_FOREACH(stt->fobjArr, fObj) { getSizeByLevel(fObj, &l1, &l2, &l3); }
     }
   }
 
   (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
 
-  pInfo->l1Size = alvl0;
-  pInfo->l2Size = alvl1;
-  pInfo->l3Size = alvl2;
+  pInfo->l1Size = l1;
+  pInfo->l2Size = l2;
+  pInfo->l3Size = l3;
   return code;
 }
 
