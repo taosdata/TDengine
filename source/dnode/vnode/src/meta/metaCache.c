@@ -143,7 +143,7 @@ int32_t metaCacheOpen(SMeta* pMeta) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
-  pMeta->pCache->sTagFilterResCache.pUidResCache = taosLRUCacheInit(1024, -1, 0.5);
+  pMeta->pCache->sTagFilterResCache.pUidResCache = taosLRUCacheInit(5 * 1024 * 1024, -1, 0.5);
   if (pMeta->pCache->sTagFilterResCache.pUidResCache == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
@@ -158,7 +158,7 @@ int32_t metaCacheOpen(SMeta* pMeta) {
   taosHashSetFreeFp(pMeta->pCache->sTagFilterResCache.pTableEntry, freeCacheEntryFp);
   (void)taosThreadMutexInit(&pMeta->pCache->sTagFilterResCache.lock, NULL);
 
-  pMeta->pCache->STbGroupResCache.pResCache = taosLRUCacheInit(1024, -1, 0.5);
+  pMeta->pCache->STbGroupResCache.pResCache = taosLRUCacheInit(5 * 1024 * 1024, -1, 0.5);
   if (pMeta->pCache->STbGroupResCache.pResCache == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
