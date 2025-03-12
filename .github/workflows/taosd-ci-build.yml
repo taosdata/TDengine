@@ -95,8 +95,8 @@ jobs:
 
       - name: Statistics size
         run: |
-          find ${{ github.workspace }}/debug/build/lib -type f -print0 | xargs -0 ls -lh
-          find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ls -lh
+          find ${{ github.workspace }}/debug/build/lib -type f -print0 | xargs -0 ls -lhrS
+          find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ls -lhrS
 
       - name: Start taosd
         run: |
