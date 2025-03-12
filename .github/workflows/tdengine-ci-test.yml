@@ -129,3 +129,6 @@ jobs:
     if: ${{ needs.fetch-parameters.outputs.run_function_test == 'true' }}
     with:
       tdinternal: false
+      specified_source_branch: ${{ github.event.inputs.specified_source_branch }}
+      specified_target_branch: ${{ github.event.inputs.specified_target_branch }}
+      specified_pr_number: ${{ github.event.inputs.specified_pr_number }}
