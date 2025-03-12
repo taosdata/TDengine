@@ -685,12 +685,12 @@ taos> select tan(u_tinyint_col) from test_vtable_select.vtb_virtual_ntb_full lim
          -1.36361501510227 |
          -17.3617655018194 |
           1.31426500645334 |
-       -0.0887157567700604 |
+       -0.0887157567700605 |
         -0.359502553689686 |
           -4.1853335779117 |
          0.686747689351523 |
          -1.72022931175244 |
-         -3.38051500624658 |
+         -3.38051500624659 |
          0.310309660994801 |
           1.24427005812871 |
           5.19280171238487 |
@@ -2970,5 +2970,5 @@ taos> select stateduration(u_tinyint_col, "GT", 20, 1a) from test_vtable_select.
 taos> select twa(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 50;
        twa(int_col)        |
 ============================
-         -163781.012033155 |
+         -163685.413924687 |
 
