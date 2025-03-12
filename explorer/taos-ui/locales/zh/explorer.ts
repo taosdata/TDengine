@@ -44,7 +44,7 @@ export default {
   delDBUseingByDatasource: '数据库“{0}”正在被数据源“{1}”使用，请先停止该任务，然后尝试删除。',
   delDatabaseMsgDBMart:
     '数据库”{0}“已经在数据库集市发布。如果你删除该数据库，已经加入的用户将无法访问该数据库，请谨慎删除。您仍然要删除该数据库吗？',
-  delDatabaseMsg: '请您确认要删除数据库”{0}“？',
+  delDatabaseMsg: '请您确认要删除数据库“{0}”？',
   advancedFilter: '高级筛选',
   stbAdvancedFilter: `超级表“{0}”高级筛选`,
   viewData: '查看{0}行数据',

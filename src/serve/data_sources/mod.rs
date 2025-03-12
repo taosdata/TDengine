@@ -317,7 +317,7 @@ pub(super) async fn data_source_collection(
 pub struct DsnAgentQuery {
     /// source dsn
     #[param(allow_reserved)]
-    dsn: String,
+    dsn: serde_json::Value,
     /// sink dsn
     to: Option<String>,
     /// agent id
@@ -351,7 +351,7 @@ pub(super) async fn data_source_is_valid(
     let query = query.into_inner();
 
     let timeout_sec = query.timeout.unwrap_or_else(|| {
-        let dsn = query.dsn.clone().into_dsn();
+        let dsn = json_to_dsn(&query.dsn);
         if let Ok(dsn) = dsn {
             Timeout::get(TimeoutType::ValidateDataSource(dsn))
         } else {
@@ -378,7 +378,7 @@ async fn is_datasource_valid_impl(
     controller: Data<TaskControllerRef>,
     query: DsnAgentQuery,
 ) -> DataSourceValidation {
-    let dsn = query.dsn.into_dsn();
+    let dsn = json_to_dsn(&query.dsn);
     match dsn {
         Err(err) => {
             DataSourceValidation::invalid("unknown".to_string(), format!("DSN error: {err:#}"))
@@ -397,6 +397,7 @@ async fn is_datasource_valid_impl(
 pub struct DsnAgentQueryV2 {
     #[param(allow_reserved)]
     from: Option<String>,
+    from_json: Option<serde_json::Value>,
     #[param(allow_reserved)]
     to: Option<String>,
     via: Option<i64>,
@@ -421,28 +422,42 @@ pub(super) async fn data_source_sink_is_valid(
     let _ = std::env::set_current_dir(get_data_dir());
 
     let query = query.into_inner();
-    let query_timeout = query
-        .timeout
-        .unwrap_or_else(|| match (&query.from, &query.to) {
-            (Some(from), Some(to)) => {
-                let a = json_to_dsn(&serde_json::Value::String(from.clone()))
+    let query_timeout =
+        query
+            .timeout
+            .unwrap_or_else(|| match (&query.from, &query.from_json, &query.to) {
+                (_, Some(from_json), Some(to)) => {
+                    let a = json_to_dsn(from_json)
+                        .map(|dsn| Timeout::get(TimeoutType::ValidateDataSource(dsn)))
+                        .unwrap_or(Timeout::get(TimeoutType::Default));
+                    let b = to
+                        .into_dsn()
+                        .map(|dsn| Timeout::get(TimeoutType::ValidateDataSource(dsn)))
+                        .unwrap_or(Timeout::get(TimeoutType::Default));
+                    a.max(b)
+                }
+                (Some(from), None, Some(to)) => {
+                    let a = json_to_dsn(&serde_json::Value::String(from.clone()))
+                        .map(|dsn| Timeout::get(TimeoutType::ValidateDataSource(dsn)))
+                        .unwrap_or(Timeout::get(TimeoutType::Default));
+                    let b = to
+                        .into_dsn()
+                        .map(|dsn| Timeout::get(TimeoutType::ValidateDataSource(dsn)))
+                        .unwrap_or(Timeout::get(TimeoutType::Default));
+                    a.max(b)
+                }
+                (_, Some(from_json), None) => json_to_dsn(from_json)
                     .map(|dsn| Timeout::get(TimeoutType::ValidateDataSource(dsn)))
-                    .unwrap_or(Timeout::get(TimeoutType::Default));
-                let b = to
+                    .unwrap_or(Timeout::get(TimeoutType::Default)),
+                (Some(from), None, None) => json_to_dsn(&serde_json::Value::String(from.clone()))
+                    .map(|dsn| Timeout::get(TimeoutType::ValidateDataSource(dsn)))
+                    .unwrap_or(Timeout::get(TimeoutType::Default)),
+                (None, None, Some(to)) => to
                     .into_dsn()
                     .map(|dsn| Timeout::get(TimeoutType::ValidateDataSource(dsn)))
-                    .unwrap_or(Timeout::get(TimeoutType::Default));
-                a.max(b)
-            }
-            (Some(from), None) => json_to_dsn(&serde_json::Value::String(from.clone()))
-                .map(|dsn| Timeout::get(TimeoutType::ValidateDataSource(dsn)))
-                .unwrap_or(Timeout::get(TimeoutType::Default)),
-            (None, Some(to)) => to
-                .into_dsn()
-                .map(|dsn| Timeout::get(TimeoutType::ValidateDataSource(dsn)))
-                .unwrap_or(Timeout::get(TimeoutType::Default)),
-            (None, None) => Timeout::get(TimeoutType::Default),
-        });
+                    .unwrap_or(Timeout::get(TimeoutType::Default)),
+                (None, None, None) => Timeout::get(TimeoutType::Default),
+            });
     let span = Span::current();
     let result = timeout(
         Duration::from_secs(query_timeout),
@@ -463,9 +478,16 @@ async fn dsn_and_license_validate(
     controller: Data<TaskControllerRef>,
     query: DsnAgentQueryV2,
 ) -> DataSourceValidation {
-    match (query.from, query.to) {
+    match (query.from, query.from_json, query.to) {
         // 保留之前检查 DataSource 的逻辑
-        (Some(from), Some(to)) => match json_to_dsn(&serde_json::Value::String(from.clone())) {
+        (_, Some(from_json), Some(to)) => match json_to_dsn(&from_json) {
+            Err(err) => {
+                DataSourceValidation::invalid("unknown", format!("invalid DSN, cause: {}", err))
+            }
+            Ok(dsn) => validate_2dsn_and_license(dsn.to_string(), to, query.via, controller).await,
+        },
+        (Some(from), None, Some(to)) => match json_to_dsn(&serde_json::Value::String(from.clone()))
+        {
             Err(err) => {
                 DataSourceValidation::invalid("unknown", format!("invalid DSN, cause: {}", err))
             }
@@ -474,15 +496,21 @@ async fn dsn_and_license_validate(
         // 如果 from 和 to 中只有一个 DSN，那么只检查一个 DSN。
         // 例如：备份任务检查 S3 的连通性，from 为 None，to 为 Some("local:$BACKUP_DIR?$S3_PARAMS...")
         // TODO：只检查了 dsn 的连通性，没有检查 license
-        (Some(from), None) => match json_to_dsn(&serde_json::Value::String(from.clone())) {
+        (_, Some(from_json), None) => match json_to_dsn(&from_json) {
             Err(err) => {
                 DataSourceValidation::invalid("unknown", format!("invalid DSN, cause: {}", err))
             }
             Ok(dsn) => validate_dsn(dsn.to_string()).await,
         },
-        (None, Some(to)) => validate_dsn(to).await,
+        (Some(from), None, None) => match json_to_dsn(&serde_json::Value::String(from.clone())) {
+            Err(err) => {
+                DataSourceValidation::invalid("unknown", format!("invalid DSN, cause: {}", err))
+            }
+            Ok(dsn) => validate_dsn(dsn.to_string()).await,
+        },
+        (None, None, Some(to)) => validate_dsn(to).await,
         // 两个 DSN 都为空，返回错误
-        (None, None) => DataSourceValidation::invalid(
+        (None, None, None) => DataSourceValidation::invalid(
             "unknown".to_string(),
             "invalid DSN not found".to_string(),
         ),
@@ -554,7 +582,7 @@ pub(super) async fn get_sample(
     let query = query.into_inner();
 
     let query_timeout = query.timeout.unwrap_or_else(|| {
-        let dsn = json_to_dsn(&serde_json::Value::String(query.dsn.clone()));
+        let dsn = json_to_dsn(&query.dsn);
         if let Ok(dsn) = dsn {
             Timeout::get(TimeoutType::GetSample(dsn))
         } else {
@@ -594,11 +622,15 @@ async fn get_sample_impl(
     query: DsnAgentQuery,
 ) -> anyhow::Result<DsSampleIn> {
     let via = query.via;
-    let dsn = json_to_dsn(&serde_json::Value::String(query.dsn.clone()))?;
+    let dsn = json_to_dsn(&query.dsn)?;
 
     match via {
         None => plugins::get_sample(&dsn).await,
-        Some(agent) => controller.get_sample_via_agent(agent, query.dsn).await,
+        Some(agent) => {
+            controller
+                .get_sample_via_agent(agent, dsn.to_string())
+                .await
+        }
     }
 }
 
@@ -805,7 +837,7 @@ pub async fn is_opc_csv_valid(req: Json<DsnAgentQuery>) -> impl Responder {
 }
 
 async fn is_opc_csv_valid_impl(req: DsnAgentQuery) -> anyhow::Result<()> {
-    let from = json_to_dsn(&serde_json::Value::String(req.dsn))?;
+    let from = json_to_dsn(&req.dsn)?;
 
     let parser = CsvParser::from_dsn(&from)
         .map_err(|err| anyhow::anyhow!("failed to parse dsn: {}, cause: {:?}", from, err))?;
