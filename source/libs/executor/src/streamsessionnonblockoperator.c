@@ -310,7 +310,7 @@ static int32_t buildOtherResult(SOperatorInfo* pOperator, SOptrBasicInfo* pBinfo
   }
   pTwAggSup->minTs = INT64_MAX;
   setStreamOperatorCompleted(pOperator);
-  if (isFinalOperator(pBasic) && tSimpleHashGetSize(pNbSup->pPullDataMap) == 0) {
+  if (isFinalOperator(pBasic) && isRecalculateOperator(pBasic) && tSimpleHashGetSize(pNbSup->pPullDataMap) == 0) {
     qDebug("===stream===%s recalculate is finished.", GET_TASKID(pTaskInfo));
     pTaskInfo->streamInfo.recoverScanFinished = true;
   }
