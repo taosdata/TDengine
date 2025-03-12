@@ -347,9 +347,11 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 
 ### Query Parameters
 
-In query scenarios, `filetype` must be set to `query`.
-"taosc": Query through Native Connection Method
-"rest" : Query through RESTful Connection Method
+`filetype` must be set to `query`.
+
+`query_mode` connect method:    
+- "taosc": Native.    
+- "rest" : RESTful.   
 
 `query_times` specifies the number of times to run the query, numeric type.
 
@@ -367,8 +369,9 @@ Configuration parameters for querying specified tables (can specify supertables,
   All SQL statements in `sqls` are divided into `threads` groups, with each thread executing one group. Each SQL statement needs to execute `query_times` queries.   
   The total number of queries(`Mixed Query`) = the number of `sqls` * `query_times`. 
 
-- **batch_query** : Batch query power switch.  
-The value range "yes" indicates that it is enabled, "no" indicates that it is not enabled, and other values report errors.  
+- **batch_query** : Batch query power switch.    
+"yes": indicates that it is enabled.   
+"no":  indicates that it is not enabled, and other values report errors.    
 Batch query refers to dividing all SQL statements in SQL into `threads` groups, with each thread executing one group.   
 Each SQL statement is queried only once before exiting, and the main thread waits for all threads to complete before determining if the `query_interval` parameter is set. If sleep is required for a specified time, each thread group is restarted and the previous process is repeated until the number of queries is exhausted.   
 Functional limitations:  
