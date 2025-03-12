@@ -914,6 +914,26 @@ static void bindSourceSink(SStreamObj* pStream, SMnode* pMnode, SArray* tasks, b
   }
 }
 
+static void bindVtableMergeSink(SStreamObj* pStream, SMnode* pMnode, SArray* tasks, bool hasExtraSink) {
+  int32_t code = 0;
+  SArray* pSinkTaskList = taosArrayGetP(tasks, SINK_NODE_LEVEL);
+  SArray* pMergeTaskList = taosArrayGetP(tasks, hasExtraSink ? SINK_NODE_LEVEL + 2 : SINK_NODE_LEVEL + 1);
+
+  for (int i = 0; i < taosArrayGetSize(pMergeTaskList); i++) {
+    SStreamTask* pMergeTask = taosArrayGetP(pMergeTaskList, i);
+    mDebug("bindVtableMergeSink taskId:%s to sink task list", pMergeTask->id.idStr);
+
+    if (hasExtraSink) {
+      bindTaskToSinkTask(pStream, pMnode, pSinkTaskList, pMergeTask);
+    } else {
+      if ((code = mndSetSinkTaskInfo(pStream, pMergeTask)) != 0) {
+        mError("failed bind task to sink task since %s", tstrerror(code));
+      }
+    }
+  }
+}
+
+
 static void bindTwoLevel(SArray* tasks, int32_t begin, int32_t end) {
   int32_t code = 0;
   size_t size = taosArrayGetSize(tasks);
@@ -1385,11 +1405,16 @@ static int32_t doScheduleStream(SStreamObj* pStream, SMnode* pMnode, SQueryPlan*
     return code;
   }
 
-  if ((numOfPlanLevel == 1 && !isVTableStream) ||(numOfPlanLevel == 2 && isVTableStream)) {
+  if ((numOfPlanLevel == 1 && !isVTableStream)) {
     bindSourceSink(pStream, pMnode, pStream->pTaskList, hasExtraSink);
     if (needHistoryTask(pStream)) {
       bindSourceSink(pStream, pMnode, pStream->pHTaskList, hasExtraSink);
     }
+    return TDB_CODE_SUCCESS;
+  }
+
+  if (numOfPlanLevel == 2 && isVTableStream) {
+    bindVtableMergeSink(pStream, pMnode, pStream->pTaskList, hasExtraSink);
     return TDB_CODE_SUCCESS;
   }
 
