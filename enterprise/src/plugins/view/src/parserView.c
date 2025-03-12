@@ -39,7 +39,7 @@ int32_t getViewQuerySqlUser(STranslateContext* pCxt, SName* pName, char** queryS
   return code;
 }
  
-int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName) {
+int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName, bool inJoin) {
    SRealTableNode* pRealTable = (SRealTableNode*)*pTable;
    SParseContext* pParseCxt = pCxt->pParseCxt;
    char* querySql = NULL;
@@ -94,7 +94,7 @@ int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName) {
    nodesDestroyNode(*pTable);
    *pTable = (SNode*)tempTable;
  
-   code = translateTable(pCxt, pTable, NULL);
+   code = translateTable(pCxt, pTable, inJoin);
  
  _exit:
  
