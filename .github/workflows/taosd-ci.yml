@@ -70,33 +70,24 @@ jobs:
           echo ${{ github.event.pull_request.number }}
 
   run-tests-on-linux:
-    uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml
+    uses: taosdata/.github/.github/workflows/run-tests-on-linux.yml@main
     needs: fetch-parameters
     if: ${{ needs.fetch-parameters.outputs.run_tdgpt_test == 'true' || needs.fetch-parameters.outputs.run_function_test == 'true' }}
     with:
       tdinternal: false
-      run_function_test: ${{ needs.fetch-parameters.outputs.run_function_test == 'true' || false }}
-      run_tdgpt_test: ${{ needs.fetch-parameters.outputs.run_tdgpt_test == 'true' || false }}
-      source_branch: ${{ github.event.pull_request.head.ref }}
-      target_branch: ${{ github.event.pull_request.base.ref }}
-      pr_number: ${{ github.event.pull_request.number }}
+      run_function_test: ${{ needs.fetch-parameters.outputs.run_function_test == 'true' }}
+      run_tdgpt_test: ${{ needs.fetch-parameters.outputs.run_tdgpt_test == 'true' }}
 
   run-tests-on-mac:
-    uses: taosdata/.github/.github/workflows/run-tests-on-macos.yml
+    uses: taosdata/.github/.github/workflows/run-tests-on-macos.yml@main
     needs: fetch-parameters
     if: ${{ needs.fetch-parameters.outputs.run_function_test == 'true' }}
     with:
       tdinternal: false
-      source_branch: ${{ github.event.pull_request.head.ref }}
-      target_branch: ${{ github.event.pull_request.base.ref }}
-      pr_number: ${{ github.event.pull_request.number }}
 
   run-tests-on-windows:
-    uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml
+    uses: taosdata/.github/.github/workflows/run-tests-on-windows.yml@main
     needs: fetch-parameters
     if: ${{ needs.fetch-parameters.outputs.run_function_test == 'true' }}
     with:
       tdinternal: false
-      source_branch: ${{ github.event.pull_request.head.ref }}
-      target_branch: ${{ github.event.pull_request.base.ref }}
-      pr_number: ${{ github.event.pull_request.number }}
