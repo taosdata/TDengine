@@ -290,6 +290,13 @@ typedef struct {
 } SSnodeObj;
 
 typedef struct {
+  int32_t    id;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  SDnodeObj* pDnode;
+} SXnodeObj;
+
+typedef struct {
   int32_t dnodeId;
   char    token[TSDB_ARB_TOKEN_SIZE];
   int8_t  acked;
