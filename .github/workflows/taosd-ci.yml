@@ -19,6 +19,7 @@ env:
 
 jobs:
   fetch-parameters:
+    name: Prepare Test
     runs-on: 
       group: CI
       labels: [self-hosted, Linux, X64, testing]
