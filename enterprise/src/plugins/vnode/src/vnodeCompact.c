@@ -192,25 +192,35 @@ static int32_t vnodeCompactMetaCommit(SVnode *pVnode) {
   int32_t code = TSDB_CODE_SUCCESS;
   char    metaDir[TSDB_FILENAME_LEN] = {0};
   char    metaCompactDir[TSDB_FILENAME_LEN] = {0};
+  char    metaBackupDir[TSDB_FILENAME_LEN] = {0};
 
   vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
   vnodeGetMetaPath(pVnode, VNODE_META_TMP_DIR, metaCompactDir);
+  vnodeGetMetaPath(pVnode, VNODE_META_BACKUP_DIR, metaBackupDir);
 
   (void)taosThreadRwlockWrlock(&pVnode->metaRWLock);
 
   metaClose(&pVnode->pNewMeta);
   metaClose(&pVnode->pMeta);
 
-  // Remove the old meta dir
-  taosRemoveDir(metaDir);
+  // Backup the meta dir
+  code = taosRenameFile(metaDir, metaBackupDir);
+  if (code) {
+    (void)taosThreadRwlockUnlock(&pVnode->metaRWLock);
+    vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    return code;
+  }
 
-  // Rename the meta file
+  // Rename the meta dir
   code = taosRenameFile(metaCompactDir, metaDir);
   if (code) {
     (void)taosThreadRwlockUnlock(&pVnode->metaRWLock);
     vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
     return code;
   }
+
+  // Remove backup dir
+  taosRemoveDir(metaBackupDir);
 
   // Open the meta
   code = metaOpen(pVnode, &pVnode->pMeta, 0);
