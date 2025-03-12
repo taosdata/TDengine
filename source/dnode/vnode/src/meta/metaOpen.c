@@ -263,7 +263,7 @@ _exit:
     metaDebug("vgId:%d %s success", TD_VID(pVnode), __func__);
     *ppMeta = pMeta;
   }
-  return code;
+  TAOS_RETURN(code);
 }
 
 void vnodeGetMetaPath(SVnode *pVnode, const char *metaDir, char *fname) {
@@ -439,14 +439,14 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
       || (metaBackupExists && metaExists && metaTempExists)    //
   ) {
     metaError("vgId:%d, invalid meta state, please check!", TD_VID(pVnode));
-    return TSDB_CODE_FAILED;
+    TAOS_RETURN(TSDB_CODE_FAILED);
   } else if (!metaBackupExists && metaExists && metaTempExists) {
     taosRemoveDir(metaTempDir);
   } else if (metaBackupExists && !metaExists && metaTempExists) {
     code = taosRenameFile(metaTempDir, metaDir);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
-      return code;
+      TAOS_RETURN(code);
     }
     taosRemoveDir(metaBackupDir);
   } else if (metaBackupExists && metaExists && !metaTempExists) {
@@ -457,14 +457,14 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   code = metaOpenImpl(pVnode, ppMeta, VNODE_META_DIR, rollback);
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
-    return code;
+    TAOS_RETURN(code);
   }
 
   if (generateNewMeta) {
     code = metaGenerateNewMeta(ppMeta);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
-      return code;
+      TAOS_RETURN(code);
     }
   }
 
