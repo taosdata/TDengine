@@ -1213,15 +1213,15 @@ static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIEL
 
   STableDataCxt** pDataBlock = NULL;
 
-  if (pStmt->sql.stbInterlaceMode) {
+  if (pStmt->sql.stbInterlaceMode && pStmt->sql.siInfo.pDataCtx != NULL) {
     pDataBlock = &pStmt->sql.siInfo.pDataCtx;
   } else {
     pDataBlock =
         (STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
-    if (NULL == pDataBlock) {
-      tscError("table %s not found in exec blockHash", pStmt->bInfo.tbFName);
-      STMT_ERRI_JRET(TSDB_CODE_APP_ERROR);
-    }
+  }
+  if (NULL == pDataBlock) {
+    tscError("table %s not found in exec blockHash", pStmt->bInfo.tbFName);
+    STMT_ERRI_JRET(TSDB_CODE_APP_ERROR);
   }
 
   STMT_ERRI_JRET(qBuildStmtStbColFields(*pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.preCtbname, fieldNum, fields));
