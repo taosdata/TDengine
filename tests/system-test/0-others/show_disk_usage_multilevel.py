@@ -167,7 +167,7 @@ class TDTestCase:
         for vgid in range(2, 2+self.vgroups): 
             tsdb_path = self.dnode_path+f'/{path}/vnode/vnode{vgid}/tsdb'
             size += get_disk_usage(tsdb_path) 
-        return size
+        return int(size/1024)
 
     def _value_check(self, size1, size2, threshold=1000):
         if abs(size1 - size2) < threshold:
