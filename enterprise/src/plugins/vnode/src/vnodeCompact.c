@@ -204,7 +204,12 @@ static int32_t vnodeCompactMetaCommit(SVnode *pVnode) {
   metaClose(&pVnode->pMeta);
 
   // Backup the meta dir
-  taosRenameFile(metaDir, metaBackupDir);
+  code = taosRenameFile(metaDir, metaBackupDir);
+  if (code) {
+    (void)taosThreadRwlockUnlock(&pVnode->metaRWLock);
+    vError("vgId:%d, %s failed at line %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
+    return code;
+  }
 
   // Rename the meta dir
   code = taosRenameFile(metaCompactDir, metaDir);
