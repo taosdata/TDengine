@@ -1212,10 +1212,12 @@ static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIEL
   }
 
   STableDataCxt** pDataBlock = NULL;
+  bool            cleanStb = false;
 
   if (pStmt->sql.stbInterlaceMode && pStmt->sql.siInfo.pDataCtx != NULL) {
     pDataBlock = &pStmt->sql.siInfo.pDataCtx;
   } else {
+    cleanStb = true;
     pDataBlock =
         (STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
   }
@@ -1225,10 +1227,12 @@ static int stmtFetchStbColFields2(STscStmt2* pStmt, int32_t* fieldNum, TAOS_FIEL
     STMT_ERRI_JRET(TSDB_CODE_APP_ERROR);
   }
 
-  STMT_ERRI_JRET(qBuildStmtStbColFields(*pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.preCtbname, fieldNum, fields));
-  if (pStmt->bInfo.tbType == TSDB_SUPER_TABLE) {
+  STMT_ERRI_JRET(
+      qBuildStmtStbColFields(*pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.preCtbname, fieldNum, fields));
+  if (pStmt->bInfo.tbType == TSDB_SUPER_TABLE && cleanStb) {
     pStmt->bInfo.needParse = true;
-    qDestroyStmtDataBlock(*(STableDataCxt**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName)));
+    qDestroyStmtDataBlock(*pDataBlock);
+    *pDataBlock = NULL;
     if (taosHashRemove(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName)) != 0) {
       tscError("get fileds %s remove exec blockHash fail", pStmt->bInfo.tbFName);
       STMT_ERRI_JRET(TSDB_CODE_APP_ERROR);
