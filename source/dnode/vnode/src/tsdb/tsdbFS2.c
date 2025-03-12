@@ -995,7 +995,7 @@ static FORCE_INLINE void getLevelSize(const STFileObj *fObj, int64_t szArr[3]) {
   // level == 2, third storage
   int32_t level = fObj->f->did.level;
   if (level >= 0 && level <= 2) {
-    szArr[level] = sz;
+    szArr[level] += sz;
   }
 }
 int32_t tsdbGetFsSizeImpl(STFileSystem *fs, SDbSizeStatisInfo *pInfo) {
