@@ -235,6 +235,10 @@ int32_t taosDoubleEqual(const void *a, const void *b, size_t UNUSED_PARAM(sz)) {
   return getComparFunc(TSDB_DATA_TYPE_DOUBLE, -1)(a, b);
 }
 
+int32_t taosDecimalEqual(const void* a, const void* b, size_t UNUSED_PARAM(sz)) {
+  return 0;
+}
+
 _equal_fn_t taosGetDefaultEqualFunction(int32_t type) {
   _equal_fn_t fn = NULL;
   switch (type) {
@@ -243,6 +247,10 @@ _equal_fn_t taosGetDefaultEqualFunction(int32_t type) {
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       fn = taosDoubleEqual;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+    case TSDB_DATA_TYPE_DECIMAL:
+      fn = memcmp;
       break;
     default:
       fn = memcmp;

@@ -317,6 +317,11 @@
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 2
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 3
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tsma2.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 4
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 3
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 2
+,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/decimal.py -Q 1
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -R
 ,,y,system-test,./pytest.sh python3 ./test.py -f 2-query/tbnameIn.py -Q 2

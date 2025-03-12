@@ -1080,7 +1080,6 @@ static int32_t metaHandleSuperTableCreateImpl(SMeta *pMeta, const SMetaEntry *pE
     const SMetaHandleParam param = {
         .pEntry = pEntry,
     };
-
     code = metaTableOpFn[op->table][op->op](pMeta, &param);
     if (TSDB_CODE_SUCCESS != code) {
       metaErr(TD_VID(pMeta->pVnode), code);

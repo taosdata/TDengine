@@ -24,7 +24,7 @@ target_include_directories(
 target_link_libraries(
     ${TAOS_LIB}
     INTERFACE api
-    PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry
+    PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry decimal
 )
 
 if(TD_WINDOWS)
@@ -63,7 +63,7 @@ target_include_directories(
 target_link_libraries(
     ${TAOS_LIB_STATIC}
     INTERFACE api
-    PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry
+    PRIVATE os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry decimal
 )
 
 if(${BUILD_TEST})

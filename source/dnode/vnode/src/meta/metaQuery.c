@@ -378,7 +378,7 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
   return 0;
 }
 
-SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
+SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema** extSchema) {
   void           *pData = NULL;
   int             nData = 0;
   int64_t         version;
@@ -409,6 +409,7 @@ _query:
   if (me.type == TSDB_SUPER_TABLE) {
     if (sver == -1 || sver == me.stbEntry.schemaRow.version) {
       pSchema = tCloneSSchemaWrapper(&me.stbEntry.schemaRow);
+      if (extSchema != NULL) *extSchema = metaGetSExtSchema(&me);
       tDecoderClear(&dc);
       goto _exit;
     }
@@ -419,10 +420,12 @@ _query:
   } else {
     if (sver == -1 || sver == me.ntbEntry.schemaRow.version) {
       pSchema = tCloneSSchemaWrapper(&me.ntbEntry.schemaRow);
+      if (extSchema != NULL) *extSchema = metaGetSExtSchema(&me);
       tDecoderClear(&dc);
       goto _exit;
     }
   }
+  if (extSchema != NULL) *extSchema = metaGetSExtSchema(&me);
   tDecoderClear(&dc);
 
   // query from skm db
@@ -664,7 +667,7 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
   STSchema       *pTSchema = NULL;
   SSchemaWrapper *pSW = NULL;
 
-  pSW = metaGetTableSchema(pMeta, uid, sver, lock);
+  pSW = metaGetTableSchema(pMeta, uid, sver, lock, NULL);
   if (!pSW) return NULL;
 
   pTSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version);
@@ -1465,6 +1468,7 @@ END:
   if (pCursor->pMeta) metaULock(pCursor->pMeta);
   if (pCursor->pCur) tdbTbcClose(pCursor->pCur);
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
+  taosMemoryFreeClear(oStbEntry.pExtSchemas);
   tDecoderClear(&dc);
   tdbFree(pData);
 

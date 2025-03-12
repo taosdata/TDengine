@@ -469,6 +469,9 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       shellFormatTimestamp(buf, sizeof(buf), *(int64_t *)val, precision);
       taosFprintfFile(pFile, "%s%s%s", quotationStr, buf, quotationStr);
       break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+    case TSDB_DATA_TYPE_DECIMAL:
+      taosFprintfFile(pFile, "%s", val);
     default:
       break;
   }
@@ -708,6 +711,9 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       shellFormatTimestamp(buf, sizeof(buf), *(int64_t *)val, precision);
       printf("%s", buf);
       break;
+    case TSDB_DATA_TYPE_DECIMAL:
+    case TSDB_DATA_TYPE_DECIMAL64:
+      printf("%*s", width, val);
     default:
       break;
   }
@@ -895,7 +901,10 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
       } else {
         return TMAX(23, width);  // '2020-01-01 00:00:00.000'
       }
-
+    case TSDB_DATA_TYPE_DECIMAL64:
+      return TMAX(width, 20);
+    case TSDB_DATA_TYPE_DECIMAL:
+      return TMAX(width, 40);
     default:
       ASSERT(false);
   }

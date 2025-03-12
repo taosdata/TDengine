@@ -1072,7 +1072,7 @@ void nodesDestroyNode(SNode* pNode) {
       SValueNode* pValue = (SValueNode*)pNode;
       destroyExprNode((SExprNode*)pNode);
       taosMemoryFreeClear(pValue->literal);
-      if (IS_VAR_DATA_TYPE(pValue->node.resType.type)) {
+      if (IS_VAR_DATA_TYPE(pValue->node.resType.type) || pValue->node.resType.type == TSDB_DATA_TYPE_DECIMAL) {
         taosMemoryFreeClear(pValue->datum.p);
       }
       break;
@@ -1640,6 +1640,7 @@ void nodesDestroyNode(SNode* pNode) {
         taosMemoryFreeClear(pQuery->pCmdMsg->pMsg);
         taosMemoryFreeClear(pQuery->pCmdMsg);
       }
+      taosMemoryFreeClear(pQuery->pResExtSchema);
       taosArrayDestroy(pQuery->pDbList);
       taosArrayDestroy(pQuery->pTableList);
       taosArrayDestroy(pQuery->pTargetTableList);
@@ -2307,12 +2308,14 @@ void* nodesGetValueFromNode(SValueNode* pNode) {
     case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
+    case TSDB_DATA_TYPE_DECIMAL64:
       return (void*)&pNode->typeData;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_GEOMETRY:
+    case TSDB_DATA_TYPE_DECIMAL:
       return (void*)pNode->datum.p;
     default:
       break;
@@ -2376,11 +2379,17 @@ int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
-    case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_MEDIUMBLOB:
     case TSDB_DATA_TYPE_GEOMETRY:
+      pNode->datum.p = (char*)value;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+      pNode->datum.i = *(int64_t*)value;
+      pNode->typeData = *(int64_t*)value;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL:
       pNode->datum.p = (char*)value;
       break;
     default:
@@ -3025,7 +3034,17 @@ int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
         code = terrno;
       }
       break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+      pVal->d = pNode->datum.d;
+      break;
     case TSDB_DATA_TYPE_DECIMAL:
+      pVal->pz = taosMemoryCalloc(1, pVal->nLen);
+      if (!pVal->pz) {
+        code = terrno;
+        break;
+      }
+      memcpy(pVal->pz, pNode->datum.p, pVal->nLen);
+      break;
     case TSDB_DATA_TYPE_BLOB:
       // todo
     default:

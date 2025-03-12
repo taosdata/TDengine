@@ -823,7 +823,7 @@ int32_t doConvertRows(SSubmitTbData* pTableData, const STSchema* pTSchema, SSDat
             }
           } else {
             SValue sv = {.type = pCol->type};
-            memcpy(&sv.val, colData, tDataTypes[pCol->type].bytes);
+            valueSetDatum(&sv, pCol->type, colData, tDataTypes[pCol->type].bytes);
             SColVal cv = COL_VAL_VALUE(pCol->colId, sv);
             void* p = taosArrayPush(pVals, &cv);
             if (p == NULL) {

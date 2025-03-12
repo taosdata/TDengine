@@ -324,6 +324,10 @@ static int32_t tsdbCacheDeserializeV0(char const *value, SLastCol *pLastCol) {
       pLastCol->colVal.value.pData = (uint8_t *)(&pLastColV0[1]);
     }
     return sizeof(SLastColV0) + pLastColV0->colVal.value.nData;
+  } else if (pLastCol->colVal.value.type == TSDB_DATA_TYPE_DECIMAL) {
+    pLastCol->colVal.value.nData = pLastColV0->colVal.value.nData;
+    pLastCol->colVal.value.pData = (uint8_t*)(&pLastColV0[1]);
+    return sizeof(SLastColV0) + pLastColV0->colVal.value.nData;
   } else {
     pLastCol->colVal.value.val = pLastColV0->colVal.value.val;
     return sizeof(SLastColV0);
@@ -416,6 +420,12 @@ static int32_t tsdbCacheSerializeV0(char const *value, SLastCol *pLastCol) {
       memcpy(&pLastColV0[1], pLastCol->colVal.value.pData, pLastCol->colVal.value.nData);
     }
     return sizeof(SLastColV0) + pLastCol->colVal.value.nData;
+  } else if (pLastCol->colVal.value.type == TSDB_DATA_TYPE_DECIMAL) {
+    pLastColV0->colVal.value.nData = pLastCol->colVal.value.nData;
+    if (pLastCol->colVal.value.nData > 0) {
+      memcpy(&pLastColV0[1], pLastCol->colVal.value.pData, pLastCol->colVal.value.nData);
+    }
+    return sizeof(SLastColV0) + pLastCol->colVal.value.nData;
   } else {
     pLastColV0->colVal.value.val = pLastCol->colVal.value.val;
     return sizeof(SLastColV0);
@@ -428,6 +438,9 @@ static int32_t tsdbCacheSerialize(SLastCol *pLastCol, char **value, size_t *size
   *size = sizeof(SLastColV0);
   if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type)) {
     *size += pLastCol->colVal.value.nData;
+  }
+  if (pLastCol->colVal.value.type == TSDB_DATA_TYPE_DECIMAL) {
+    *size += DECIMAL128_BYTES;
   }
   *size += sizeof(uint8_t) + sizeof(uint8_t) + sizeof(uint8_t);  // version + numOfPKs + cacheStatus
 
@@ -829,6 +842,16 @@ static int32_t tsdbCacheReallocSLastCol(SLastCol *pCol, size_t *pCharge) {
     charge += pCol->colVal.value.nData;
   }
 
+  if (pCol->colVal.value.type == TSDB_DATA_TYPE_DECIMAL) {
+    if (pCol->colVal.value.nData > 0) {
+      void *p = taosMemoryMalloc(pCol->colVal.value.nData);
+      if (!p) TAOS_CHECK_EXIT(terrno);
+      (void)memcpy(p, pCol->colVal.value.pData, pCol->colVal.value.nData);
+      pCol->colVal.value.pData = p;
+    }
+    charge += pCol->colVal.value.nData;
+  }
+
   if (pCharge) {
     *pCharge = charge;
   }
@@ -855,7 +878,8 @@ void tsdbCacheFreeSLastColItem(void *pItem) {
     }
   }
 
-  if (IS_VAR_DATA_TYPE(pCol->colVal.value.type) && pCol->colVal.value.pData) {
+  if ((IS_VAR_DATA_TYPE(pCol->colVal.value.type) || pCol->colVal.value.type == TSDB_DATA_TYPE_DECIMAL) &&
+      pCol->colVal.value.pData) {
     taosMemoryFree(pCol->colVal.value.pData);
   }
 }
@@ -877,7 +901,8 @@ static void tsdbCacheDeleter(const void *key, size_t klen, void *value, void *ud
     }
   }
 
-  if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type) /* && pLastCol->colVal.value.nData > 0*/) {
+  if (IS_VAR_DATA_TYPE(pLastCol->colVal.value.type) ||
+      pLastCol->colVal.value.type == TSDB_DATA_TYPE_DECIMAL /* && pLastCol->colVal.value.nData > 0*/) {
     taosMemoryFree(pLastCol->colVal.value.pData);
   }
 
@@ -1326,7 +1351,7 @@ static void tsdbCacheUpdateLastColToNone(SLastCol *pLastCol, ELastCacheStatus ca
       taosMemoryFreeClear(pPKValue->pData);
       pPKValue->nData = 0;
     } else {
-      pPKValue->val = 0;
+      valueClearDatum(pPKValue, pPKValue->type);
     }
   }
   pLastCol->rowKey.numOfPKs = 0;
@@ -1336,7 +1361,7 @@ static void tsdbCacheUpdateLastColToNone(SLastCol *pLastCol, ELastCacheStatus ca
     taosMemoryFreeClear(pLastCol->colVal.value.pData);
     pLastCol->colVal.value.nData = 0;
   } else {
-    pLastCol->colVal.value.val = 0;
+    valueClearDatum(&pLastCol->colVal.value, pLastCol->colVal.value.type);
   }
 
   pLastCol->colVal = COL_VAL_NONE(pLastCol->colVal.cid, pLastCol->colVal.value.type);
@@ -1690,11 +1715,12 @@ int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlo
   tsdbRowGetKey(&lRow, &tsdbRowKey);
 
   {
+    SValue tsVal = {.type = TSDB_DATA_TYPE_TIMESTAMP};
+    VALUE_SET_TRIVIAL_DATUM(&tsVal, lRow.pBlockData->aTSKEY[lRow.iRow]);
     SLastUpdateCtx updateCtx = {
         .lflag = LFLAG_LAST,
         .tsdbRowKey = tsdbRowKey,
-        .colVal = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP,
-                                                                       .val = lRow.pBlockData->aTSKEY[lRow.iRow]}))};
+        .colVal = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, tsVal)};
     if (!taosArrayPush(ctxArray, &updateCtx)) {
       TAOS_CHECK_GOTO(terrno, &lino, _exit);
     }
@@ -3835,7 +3861,9 @@ static int32_t mergeLastCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SC
         }
         if (slotIds[iCol] == 0) {
           STColumn *pTColumn = &pTSchema->columns[0];
-          *pColVal = COL_VAL_VALUE(pTColumn->colId, ((SValue){.type = pTColumn->type, .val = rowKey.key.ts}));
+          SValue    val = {.type = pTColumn->type};
+          VALUE_SET_TRIVIAL_DATUM(&val, rowKey.key.ts);
+          *pColVal = COL_VAL_VALUE(pTColumn->colId, val);
 
           SLastCol colTmp = {.rowKey = rowKey.key, .colVal = *pColVal, .cacheStatus = TSDB_LAST_CACHE_VALID};
           TAOS_CHECK_GOTO(tsdbCacheReallocSLastCol(&colTmp, NULL), &lino, _err);
@@ -4003,7 +4031,9 @@ static int32_t mergeLastRowCid(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray,
       }
       if (slotIds[iCol] == 0) {
         STColumn *pTColumn = &pTSchema->columns[0];
-        *pColVal = COL_VAL_VALUE(pTColumn->colId, ((SValue){.type = pTColumn->type, .val = rowKey.key.ts}));
+        SValue    val = {.type = pTColumn->type};
+        VALUE_SET_TRIVIAL_DATUM(&val, rowKey.key.ts);
+        *pColVal = COL_VAL_VALUE(pTColumn->colId, val);
 
         SLastCol colTmp = {.rowKey = rowKey.key, .colVal = *pColVal, .cacheStatus = TSDB_LAST_CACHE_VALID};
         TAOS_CHECK_GOTO(tsdbCacheReallocSLastCol(&colTmp, NULL), &lino, _err);
