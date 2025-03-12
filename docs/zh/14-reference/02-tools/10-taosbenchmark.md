@@ -285,8 +285,8 @@ taosBenchmark -f <json file>
   取值范围 “yes” 表示开启，"no" 不开启，其它值报错。  
   批查询是指 `sqls` 中所有 sql 分成 `threads` 个组，每个线程执行一组，每个 sql 只执行一次查询后退出，主线程等待所有线程都执行完，再判断是否设置有 `query_interval` 参数，如果有需要 sleep 指定时间，再启动各线程组重复前面的过程，直到查询次数耗尽为止。  
   功能限制条件：  
-  1. 只支持 `mixed_query` 为 "yes" 的场景。  
-  2. 不支持 restful 查询，即 `query_mode` 不能为 "rest"。  
+   - 只支持 `mixed_query` 为 "yes" 的场景。  
+   - 不支持 restful 查询，即 `query_mode` 不能为 "rest"。  
 
 - **query_interval**：查询时间间隔，单位：millisecond，默认值为 0。
   "batch_query" 开关打开时，表示是每批查询完间隔时间；关闭时，表示每个 sql 查询完间隔时间

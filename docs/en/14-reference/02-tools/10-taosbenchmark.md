@@ -372,8 +372,8 @@ The value range "yes" indicates that it is enabled, "no" indicates that it is no
 Batch query refers to dividing all SQL statements in SQL into `threads` groups, with each thread executing one group.   
 Each SQL statement is queried only once before exiting, and the main thread waits for all threads to complete before determining if the `query_interval` parameter is set. If sleep is required for a specified time, each thread group is restarted and the previous process is repeated until the number of queries is exhausted.   
 Functional limitations:  
-1. Only supports scenarios where `mixed_query` is set to 'yes'.
-2. Restful queries are not supported, meaning `query_made` cannot be 'rest'.
+- Only supports scenarios where `mixed_query` is set to 'yes'.
+- Restful queries are not supported, meaning `query_made` cannot be 'rest'.
 
 - **query_interval** : Query interval, in millisecond, default is 0.
 When the 'batch_query' switch is turned on, it indicates the interval time after each batch query is completed, When closed, it indicates the interval time between each SQL query completion.
