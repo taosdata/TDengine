@@ -140,11 +140,11 @@ static int32_t doAppendRecalBlock(SStreamTask* pTask, int32_t* pNumOfBlocks, SSt
   if (p != NULL) {
     (*pNumOfBlocks) += 1;
     stDebug("s-task:%s(child %d) recalculate from upstream completed, QID:0x%" PRIx64, pTask->id.idStr,
-            pTask->info.selfChildId, /*pRecalculateBlock->reqId*/ 0L);
+            pTask->info.selfChildId, /*pRecalculateBlock->reqId*/ 0UL);
   } else {
     code = terrno;
     stError("s-task:%s failed to append recalculate block for downstream, QID:0x%" PRIx64" code:%s", pTask->id.idStr,
-            /*pRecalculateBlock->reqId*/0L, tstrerror(code));
+            /*pRecalculateBlock->reqId*/0UL, tstrerror(code));
   }
 
   return code;
