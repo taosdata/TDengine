@@ -170,18 +170,19 @@ class TDTestCase(TBase):
 
         self.insert_data()
 
-        #self.test_today_case("inner")
-        #self.test_now_case("inner")
-        #self.test_constts_case("inner")
+        self.test_today_case("inner")
+        self.test_now_case("inner")
+        self.test_constts_case("inner")
 
-        #self.test_today_case("left_outer")
-        #self.test_now_case("left_outer")
+        self.test_today_case("left_outer")
+        self.test_now_case("left_outer")
+        #self.test_today_case("right_outer")
 
-        #self.test_today_case("full_outer")
-        #self.test_today_case("left_semi")
-        #self.test_today_case("left_anti")
+        self.test_today_case("full_outer")
+        self.test_today_case("left_semi")
+        self.test_today_case("left_anti")
 
-        #self.test_abnormal_case()
+        self.test_abnormal_case()
 
         tdLog.success(f"{__file__} successfully executed")
 
