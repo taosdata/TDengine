@@ -893,6 +893,7 @@ void totalBatchQuery(int32_t allSleep, BArray *pDelays) {
 //
 static int specQueryBatch(uint16_t iface, char* dbName) {
     // init
+    BArray *pDelays    = NULL;
     int ret            = -1;
     int nConcurrent    = g_queryInfo.specifiedQueryInfo.concurrent;
     uint64_t interval  = g_queryInfo.specifiedQueryInfo.queryInterval;
@@ -938,9 +939,9 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
     //
     // running
     //
-    int threadCnt   = 0;
-    int allSleep    = 0;
-    BArray *pDelays = benchArrayInit(10, sizeof(int64_t));
+    int threadCnt = 0;
+    int allSleep  = 0;
+    pDelays       = benchArrayInit(10, sizeof(int64_t));
     for (int m = 0; m < g_queryInfo.query_times; ++m) {
         // reset
         threadCnt = 0;
