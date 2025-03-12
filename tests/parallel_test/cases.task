@@ -46,11 +46,13 @@
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/incSnapshot.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/clusterBasic.py -N 5
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/tsdbSnapshot.py -N 3 -M 3
+,,y,army,./pytest.sh python3 ./test.py -f cluster/strongPassword.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/query_basic.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_query_accuracy.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_ts5400.py
 ,,y,army,./pytest.sh python3 ./test.py -f query/accuracy/test_having.py
 ,,y,army,./pytest.sh python3 ./test.py -f insert/insert_basic.py -N 3
+,,y,army,./pytest.sh python3 ./test.py -f insert/auto_create_insert.py
 ,,y,army,./pytest.sh python3 ./test.py -f cluster/splitVgroupByLearner.py -N 3
 ,,y,army,./pytest.sh python3 ./test.py -f authorith/authBasic.py -N 3
 ,,n,army,python3 ./test.py -f cmdline/fullopt.py
@@ -96,7 +98,8 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/default_json.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/demo.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/exportCsv.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/csv-export.py
+# ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/csv-import.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to-continue.py

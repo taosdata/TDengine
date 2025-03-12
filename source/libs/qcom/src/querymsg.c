@@ -45,7 +45,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   pOut->dbVgroup->hashSuffix = usedbRsp->hashSuffix;
   pOut->dbVgroup->stateTs = usedbRsp->stateTs;
 
-  qDebug("Got %d vgroup for db %s, vgVersion:%d, stateTs:%" PRId64, usedbRsp->vgNum, usedbRsp->db, usedbRsp->vgVersion,
+  qDebug("db:%s, get %d vgroup, vgVersion:%d, stateTs:%" PRId64, usedbRsp->db, usedbRsp->vgNum, usedbRsp->vgVersion,
          usedbRsp->stateTs);
 
   if (usedbRsp->vgNum <= 0) {
@@ -61,7 +61,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   for (int32_t i = 0; i < usedbRsp->vgNum; ++i) {
     SVgroupInfo *pVgInfo = taosArrayGet(usedbRsp->pVgroupInfos, i);
     pOut->dbVgroup->numOfTable += pVgInfo->numOfTable;
-    qDebug("the %dth vgroup, id %d, epNum %d, current %s port %d", i, pVgInfo->vgId, pVgInfo->epSet.numOfEps,
+    qDebug("the %dth vgroup, id:%d, epNum:%d, current:%s port:%u", i, pVgInfo->vgId, pVgInfo->epSet.numOfEps,
            pVgInfo->epSet.eps[pVgInfo->epSet.inUse].fqdn, pVgInfo->epSet.eps[pVgInfo->epSet.inUse].port);
     if (0 != taosHashPut(pOut->dbVgroup->vgHash, &pVgInfo->vgId, sizeof(int32_t), pVgInfo, sizeof(SVgroupInfo))) {
       return terrno;
@@ -91,10 +91,8 @@ int32_t queryBuildTableMetaReqMsg(void *input, char **msg, int32_t msgSize, int3
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSTableInfoReq(pBuf, bufLen, &infoReq) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
-  }
+  int32_t ret = tSerializeSTableInfoReq(pBuf, bufLen, &infoReq);
+  if (ret < 0) return ret;
 
   *msg = pBuf;
   *msgLen = bufLen;
@@ -121,10 +119,8 @@ int32_t queryBuildUseDbMsg(void *input, char **msg, int32_t msgSize, int32_t *ms
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSUseDbReq(pBuf, bufLen, &usedbReq) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
-  }
+  int32_t ret = tSerializeSUseDbReq(pBuf, bufLen, &usedbReq);
+  if (ret < 0) return ret;
 
   *msg = pBuf;
   *msgLen = bufLen;
@@ -144,10 +140,9 @@ int32_t queryBuildQnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSQnodeListReq(pBuf, bufLen, &qnodeListReq) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
-  }
+
+  int32_t ret = tSerializeSQnodeListReq(pBuf, bufLen, &qnodeListReq);
+  if (ret < 0) return ret;
 
   *msg = pBuf;
   *msgLen = bufLen;
@@ -167,10 +162,8 @@ int32_t queryBuildDnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSDnodeListReq(pBuf, bufLen, &dnodeListReq) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
-  }
+  int32_t ret = tSerializeSDnodeListReq(pBuf, bufLen, &dnodeListReq);
+  if (ret < 0) return ret;
 
   *msg = pBuf;
   *msgLen = bufLen;
@@ -189,10 +182,8 @@ int32_t queryBuildGetSerVerMsg(void *input, char **msg, int32_t msgSize, int32_t
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSServerVerReq(pBuf, bufLen, &req) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
-  }
+  int32_t ret = tSerializeSServerVerReq(pBuf, bufLen, &req);
+  if (ret < 0) return ret;
 
   *msg = pBuf;
   *msgLen = bufLen;
@@ -213,10 +204,8 @@ int32_t queryBuildGetDBCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSDbCfgReq(pBuf, bufLen, &dbCfgReq) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
-  }
+  int32_t ret = tSerializeSDbCfgReq(pBuf, bufLen, &dbCfgReq);
+  if (ret < 0) return ret;
 
   *msg = pBuf;
   *msgLen = bufLen;
@@ -237,10 +226,8 @@ int32_t queryBuildGetIndexMsg(void *input, char **msg, int32_t msgSize, int32_t 
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSUserIndexReq(pBuf, bufLen, &indexReq) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
-  }
+  int32_t ret = tSerializeSUserIndexReq(pBuf, bufLen, &indexReq);
+  if (ret < 0) return ret;
 
   *msg = pBuf;
   *msgLen = bufLen;
@@ -272,10 +259,10 @@ int32_t queryBuildRetrieveFuncMsg(void *input, char **msg, int32_t msgSize, int3
     taosArrayDestroy(funcReq.pFuncNames);
     return terrno;
   }
-  if(tSerializeSRetrieveFuncReq(pBuf, bufLen, &funcReq) < 0)
-  {
+  int32_t ret = tSerializeSRetrieveFuncReq(pBuf, bufLen, &funcReq);
+  if (ret < 0) {
     taosArrayDestroy(funcReq.pFuncNames);
-    return TSDB_CODE_TSC_INVALID_INPUT;
+    return ret;
   }
 
   taosArrayDestroy(funcReq.pFuncNames);
@@ -299,9 +286,8 @@ int32_t queryBuildGetUserAuthMsg(void *input, char **msg, int32_t msgSize, int32
   if (NULL == pBuf) {
     return terrno;
   }
-  if (tSerializeSGetUserAuthReq(pBuf, bufLen, &req) < 0) {
-    return TSDB_CODE_TSC_INVALID_INPUT;
-  }
+  int32_t ret = tSerializeSGetUserAuthReq(pBuf, bufLen, &req);
+  if (ret < 0) return ret;
 
   *msg = pBuf;
   *msgLen = bufLen;
@@ -322,10 +308,8 @@ int32_t queryBuildGetTbIndexMsg(void *input, char **msg, int32_t msgSize, int32_
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSTableIndexReq(pBuf, bufLen, &indexReq) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
-  }
+  int32_t ret = tSerializeSTableIndexReq(pBuf, bufLen, &indexReq);
+  if (ret < 0) return ret;
 
   *msg = pBuf;
   *msgLen = bufLen;
@@ -349,10 +333,8 @@ int32_t queryBuildGetTbCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSTableCfgReq(pBuf, bufLen, &cfgReq) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
-  }
+  int32_t ret = tSerializeSTableCfgReq(pBuf, bufLen, &cfgReq);
+  if (ret < 0) return ret;
 
   *msg = pBuf;
   *msgLen = bufLen;
@@ -373,10 +355,8 @@ int32_t queryBuildGetViewMetaMsg(void *input, char **msg, int32_t msgSize, int32
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeSViewMetaReq(pBuf, bufLen, &req) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
-  }
+  int32_t ret = tSerializeSViewMetaReq(pBuf, bufLen, &req);
+  if (ret < 0) return ret;
 
   *msg = pBuf;
   *msgLen = bufLen;
@@ -398,10 +378,8 @@ int32_t queryBuildGetTableTSMAMsg(void *input, char **msg, int32_t msgSize, int3
   if (NULL == pBuf) {
     return terrno;
   }
-  if(tSerializeTableTSMAInfoReq(pBuf, bufLen, &req) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
-  }
+  int32_t ret = tSerializeTableTSMAInfoReq(pBuf, bufLen, &req);
+  if (ret < 0) return ret;
 
   *msg = pBuf;
   *msgLen = bufLen;
@@ -424,10 +402,8 @@ int32_t queryBuildGetTSMAMsg(void *input, char **msg, int32_t msgSize, int32_t *
   {
     return terrno;
   }
-  if(tSerializeTableTSMAInfoReq(pBuf, bufLen, &req) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
-  }
+  int32_t ret = tSerializeTableTSMAInfoReq(pBuf, bufLen, &req);
+  if(ret < 0) return ret;
 
   *msg = pBuf;
   *msgLen = bufLen;
@@ -445,10 +421,8 @@ int32_t queryBuildGetStreamProgressMsg(void* input, char** msg, int32_t msgSize,
     return terrno;
   }
 
-  if(tSerializeStreamProgressReq(pBuf, len, input) < 0)
-  {
-    return TSDB_CODE_TSC_INVALID_INPUT;
-  }
+  int32_t ret = tSerializeStreamProgressReq(pBuf, len, input);
+  if (ret < 0) return ret;
 
   *msg = pBuf;
   *msgLen = len;
@@ -462,6 +436,7 @@ int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
     code = TSDB_CODE_TSC_INVALID_INPUT;
+    qError("invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     goto PROCESS_USEDB_OVER;
   }
 
@@ -546,7 +521,7 @@ int32_t queryCreateCTableMetaFromMsg(STableMetaRsp *msg, SCTableMeta *pMeta) {
   pMeta->uid = msg->tuid;
   pMeta->suid = msg->suid;
 
-  qDebug("ctable %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s suid %" PRIx64, msg->tbName, pMeta->uid,
+  qDebug("ctb:%s, uid:0x%" PRIx64 " meta returned, type:%d vgId:%d db:%s suid:%" PRIx64, msg->tbName, pMeta->uid,
          pMeta->tableType, pMeta->vgId, msg->dbFName, pMeta->suid);
 
   return TSDB_CODE_SUCCESS;
@@ -597,9 +572,9 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
     }
   }
 
-  qDebug("table %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s stb %s suid %" PRIx64
-         " sver %d tver %d"
-         " tagNum %d colNum %d precision %d rowSize %d",
+  qDebug("tb:%s, uid:%" PRIx64 " meta returned, type:%d vgId:%d db:%s stb:%s suid:%" PRIx64
+         " sver:%d tver:%d"
+         " tagNum:%d colNum:%d precision:%d rowSize:%d",
          msg->tbName, pTableMeta->uid, pTableMeta->tableType, pTableMeta->vgId, msg->dbFName, msg->stbName,
          pTableMeta->suid, pTableMeta->sversion, pTableMeta->tversion, pTableMeta->tableInfo.numOfTags,
          pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.precision, pTableMeta->tableInfo.rowSize);
@@ -657,9 +632,9 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   char *pTbName = (char *)pTableMeta + metaSize + schemaExtSize;
   tstrncpy(pTbName, msg->tbName, tbNameSize);
 
-  qDebug("table %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s stb %s suid %" PRIx64
-         " sver %d tver %d"
-         " tagNum %d colNum %d precision %d rowSize %d",
+  qDebug("tb:%s, uid:%" PRIx64 " meta returned, type:%d vgId:%d db:%s stb:%s suid:%" PRIx64
+         " sver:%d tver:%d"
+         " tagNum:%d colNum:%d precision:%d rowSize:%d",
          msg->tbName, pTableMeta->uid, pTableMeta->tableType, pTableMeta->vgId, msg->dbFName, msg->stbName,
          pTableMeta->suid, pTableMeta->sversion, pTableMeta->tversion, pTableMeta->tableInfo.numOfTags,
          pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.precision, pTableMeta->tableInfo.rowSize);
@@ -673,6 +648,7 @@ int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
   STableMetaRsp metaRsp = {0};
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessTableMetaRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     code = TSDB_CODE_TSC_INVALID_INPUT;
     goto PROCESS_META_OVER;
   }
@@ -729,6 +705,7 @@ static int32_t queryProcessTableNameRsp(void *output, char *msg, int32_t msgSize
   STableMetaRsp metaRsp = {0};
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessTableNameRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     code = TSDB_CODE_TSC_INVALID_INPUT;
     goto PROCESS_NAME_OVER;
   }
@@ -785,6 +762,7 @@ int32_t queryProcessQnodeListRsp(void *output, char *msg, int32_t msgSize) {
   int32_t       code = 0;
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessQnodeListRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     code = TSDB_CODE_TSC_INVALID_INPUT;
     return code;
   }
@@ -804,6 +782,7 @@ int32_t queryProcessDnodeListRsp(void *output, char *msg, int32_t msgSize) {
   int32_t       code = 0;
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessDnodeListRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     code = TSDB_CODE_TSC_INVALID_INPUT;
     return code;
   }
@@ -824,6 +803,7 @@ int32_t queryProcessGetSerVerRsp(void *output, char *msg, int32_t msgSize) {
   int32_t       code = 0;
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetSerVerRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     code = TSDB_CODE_TSC_INVALID_INPUT;
     return code;
   }
@@ -846,11 +826,12 @@ int32_t queryProcessGetDbCfgRsp(void *output, char *msg, int32_t msgSize) {
   SDbCfgRsp out = {0};
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetDbCfgRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
   if (tDeserializeSDbCfgRsp(msg, msgSize, &out) != 0) {
-    qError("tDeserializeSDbCfgRsp failed, msgSize:%d,dbCfgRsp:%lu", msgSize, sizeof(out));
+    qError("tDeserializeSDbCfgRsp failed, msgSize:%d, dbCfgRsp:%lu", msgSize, sizeof(out));
     return TSDB_CODE_INVALID_MSG;
   }
 
@@ -863,6 +844,7 @@ int32_t queryProcessGetIndexRsp(void *output, char *msg, int32_t msgSize) {
   SUserIndexRsp out = {0};
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetIndexRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
@@ -880,6 +862,7 @@ int32_t queryProcessRetrieveFuncRsp(void *output, char *msg, int32_t msgSize) {
   SRetrieveFuncRsp out = {0};
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessRetrieveFuncRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
@@ -904,6 +887,7 @@ int32_t queryProcessRetrieveFuncRsp(void *output, char *msg, int32_t msgSize) {
 
 int32_t queryProcessGetUserAuthRsp(void *output, char *msg, int32_t msgSize) {
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetUserAuthRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
@@ -917,6 +901,7 @@ int32_t queryProcessGetUserAuthRsp(void *output, char *msg, int32_t msgSize) {
 
 int32_t queryProcessGetTbIndexRsp(void *output, char *msg, int32_t msgSize) {
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetTbIndexRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
@@ -931,6 +916,7 @@ int32_t queryProcessGetTbIndexRsp(void *output, char *msg, int32_t msgSize) {
 
 int32_t queryProcessGetTbCfgRsp(void *output, char *msg, int32_t msgSize) {
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetTbCfgRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
@@ -952,6 +938,7 @@ int32_t queryProcessGetTbCfgRsp(void *output, char *msg, int32_t msgSize) {
 
 int32_t queryProcessGetViewMetaRsp(void *output, char *msg, int32_t msgSize) {
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetViewMetaRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
@@ -975,6 +962,7 @@ int32_t queryProcessGetViewMetaRsp(void *output, char *msg, int32_t msgSize) {
 
 int32_t queryProcessGetTbTSMARsp(void* output, char* msg, int32_t msgSize) {
   if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetTbTSMARsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
@@ -988,11 +976,12 @@ int32_t queryProcessGetTbTSMARsp(void* output, char* msg, int32_t msgSize) {
 
 int32_t queryProcessStreamProgressRsp(void* output, char* msg, int32_t msgSize) {
   if (!output || !msg || msgSize <= 0) {
+    qError("queryProcessStreamProgressRsp: invalid input param, output:%p, msg:%p, msgSize:%d", output, msg, msgSize);
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
   if (tDeserializeSStreamProgressRsp(msg, msgSize, output) != 0) {
-    qError("tDeserializeStreamProgressRsp failed, msgSize: %d", msgSize);
+    qError("tDeserializeStreamProgressRsp failed, msgSize:%d", msgSize);
     return TSDB_CODE_INVALID_MSG;
   }
   return TSDB_CODE_SUCCESS;

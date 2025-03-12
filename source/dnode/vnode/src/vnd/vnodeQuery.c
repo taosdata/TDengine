@@ -90,12 +90,14 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   void          *pRsp = NULL;
   SSchemaWrapper schema = {0};
   SSchemaWrapper schemaTag = {0};
+  uint8_t        autoCreateCtb = 0;
 
   // decode req
   if (tDeserializeSTableInfoReq(pMsg->pCont, pMsg->contLen, &infoReq) != 0) {
     code = terrno;
     goto _exit4;
   }
+  autoCreateCtb = infoReq.autoCreateCtb;
 
   if (infoReq.option == REQ_OPT_TBUID) reqTbUid = true;
   metaRsp.dbId = pVnode->config.dbId;
@@ -222,6 +224,10 @@ _exit4:
   rpcMsg.contLen = rspLen;
   rpcMsg.code = code;
   rpcMsg.msgType = pMsg->msgType;
+
+  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST && autoCreateCtb == 1) {
+    code = TSDB_CODE_SUCCESS;
+  }
 
   if (code) {
     qError("get table %s meta with %" PRIu8 " failed cause of %s", infoReq.tbName, infoReq.option, tstrerror(code));
