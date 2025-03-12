@@ -56,8 +56,6 @@ void destroyStreamCountAggOperatorInfo(void* param) {
     pInfo->pOperator = NULL;
   }
 
-  destroyStreamBasicInfo(&pInfo->basic);
-
   cleanupExprSupp(&pInfo->scalarSupp);
   clearGroupResInfo(&pInfo->groupResInfo);
   taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);

@@ -2205,8 +2205,6 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
     pInfo->pOperator = NULL;
   }
 
-  destroyStreamBasicInfo(&pInfo->basic);
-
   cleanupExprSupp(&pInfo->scalarSupp);
   clearGroupResInfo(&pInfo->groupResInfo);
   taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
@@ -4443,8 +4441,6 @@ void destroyStreamStateOperatorInfo(void* param) {
                               &pInfo->groupResInfo);
     pInfo->pOperator = NULL;
   }
-
-  destroyStreamBasicInfo(&pInfo->basic);
 
   clearGroupResInfo(&pInfo->groupResInfo);
   taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
