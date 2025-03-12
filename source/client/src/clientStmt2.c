@@ -39,13 +39,21 @@ static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void**
 }
 
 static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
-  (void)taosThreadMutexLock(&pStmt->queue.mutex);
+  int i = 0;
   while (0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
-    (void)taosThreadCondWait(&pStmt->queue.waitCond, &pStmt->queue.mutex);
-    if (atomic_load_8((int8_t*)&pStmt->queue.stopQueue)) {
+    if (i < 10) {
+      taosUsleep(1);
+      i++;
+    } else {
+      (void)taosThreadMutexLock(&pStmt->queue.mutex);
+      if (0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
+        (void)taosThreadCondWait(&pStmt->queue.waitCond, &pStmt->queue.mutex);
+      }
       (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
-      return false;
     }
+  }
+  if (pStmt->queue.stopQueue) {
+    return false;
   }
   SStmtQNode* orig = pStmt->queue.head;
   SStmtQNode* node = pStmt->queue.head->next;
@@ -53,20 +61,19 @@ static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
   *param = node;
 
   (void)atomic_sub_fetch_64((int64_t*)&pStmt->queue.qRemainNum, 1);
-  (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 
   return true;
 }
 
 static void stmtEnqueue(STscStmt2* pStmt, SStmtQNode* param) {
-  (void)taosThreadMutexLock(&pStmt->queue.mutex);
-
   pStmt->queue.tail->next = param;
   pStmt->queue.tail = param;
-  pStmt->stat.bindDataNum++;
-  (void)atomic_add_fetch_64((int64_t*)&pStmt->queue.qRemainNum, 1);
-  (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
 
+  pStmt->stat.bindDataNum++;
+
+  (void)taosThreadMutexLock(&pStmt->queue.mutex);
+  (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
+  (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
   (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 }
 
@@ -100,7 +107,7 @@ static int32_t stmtSwitchStatus(STscStmt2* pStmt, STMT_STATUS newStatus) {
   }
 
   if (pStmt->errCode && newStatus != STMT_PREPARE) {
-    STMT_DLOG("stmt already failed with err: %s", tstrerror(pStmt->errCode));
+    STMT_DLOG("stmt already failed with err:%s", tstrerror(pStmt->errCode));
     return pStmt->errCode;
   }
 
@@ -343,11 +350,9 @@ static void stmtResetQueueTableBuf(STableBufInfo* pTblBuf, SStmtQueue* pQueue) {
   pTblBuf->buffIdx = 1;
   pTblBuf->buffOffset = sizeof(*pQueue->head);
 
-  (void)taosThreadMutexLock(&pQueue->mutex);
   pQueue->head = pQueue->tail = pTblBuf->pCurBuff;
   pQueue->qRemainNum = 0;
   pQueue->head->next = NULL;
-  (void)taosThreadMutexUnlock(&pQueue->mutex);
 }
 
 static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClean) {
@@ -499,7 +504,7 @@ static int32_t stmtRebuildDataBlock(STscStmt2* pStmt, STableDataCxt* pDataBlock,
   STMT_ERR_RET(stmtTryAddTableVgroupInfo(pStmt, &vgId));
   STMT_ERR_RET(qRebuildStmtDataBlock(newBlock, pDataBlock, uid, suid, vgId, pStmt->sql.autoCreateTbl));
 
-  STMT_DLOG("tableDataCxt rebuilt, uid:%" PRId64 ", vgId:%d", uid, vgId);
+  STMT_DLOG("uid:%" PRId64 ", rebuild table data context, vgId:%d", uid, vgId);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -704,7 +709,7 @@ static void* stmtBindThreadFunc(void* param) {
   STscStmt2* pStmt = (STscStmt2*)param;
 
   while (true) {
-    if (atomic_load_8((int8_t*)&pStmt->queue.stopQueue)) {
+    if (pStmt->queue.stopQueue) {
       break;
     }
 
@@ -871,7 +876,7 @@ TAOS_STMT2* stmtInit2(STscObj* taos, TAOS_STMT2_OPTION* pOptions) {
 static int stmtSetDbName2(TAOS_STMT2* stmt, const char* dbName) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
-  STMT_DLOG("start to set dbName: %s", dbName);
+  STMT_DLOG("start to set dbName:%s", dbName);
 
   pStmt->db = taosStrdup(dbName);
   (void)strdequote(pStmt->db);
@@ -967,7 +972,7 @@ int stmtSetTbName2(TAOS_STMT2* stmt, const char* tbName) {
 
   int64_t startUs = taosGetTimestampUs();
 
-  STMT_DLOG("start to set tbName: %s", tbName);
+  STMT_DLOG("start to set tbName:%s", tbName);
 
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
     return pStmt->errCode;
@@ -1335,7 +1340,7 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
 
   int64_t startUs = taosGetTimestampUs();
 
-  STMT_DLOG("start to bind stmt data, colIdx: %d", colIdx);
+  STMT_DLOG("start to bind stmt data, colIdx:%d", colIdx);
 
   if (pStmt->errCode != TSDB_CODE_SUCCESS) {
     return pStmt->errCode;
@@ -1416,7 +1421,12 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
     pStmt->exec.pCurrBlock = *pDataBlock;
     if (pStmt->sql.stbInterlaceMode) {
       taosArrayDestroy(pStmt->exec.pCurrBlock->pData->aCol);
-      pStmt->exec.pCurrBlock->pData->aCol = NULL;
+      (*pDataBlock)->pData->aCol = NULL;
+    }
+    if (colIdx < -1) {
+      pStmt->sql.bindRowFormat = true;
+      taosArrayDestroy((*pDataBlock)->pData->aCol);
+      (*pDataBlock)->pData->aCol = taosArrayInit(20, POINTER_BYTES);
     }
   }
 
@@ -1444,10 +1454,21 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
     if (pStmt->sql.stbInterlaceMode) {
       (*pDataBlock)->pData->flags = 0;
       code = qBindStmtStbColsValue2(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf,
-                                    pStmt->exec.pRequest->msgBufLen, &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo, pStmt->taos->optionInfo.charsetCxt);
+                                    pStmt->exec.pRequest->msgBufLen, &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo,
+                                    pStmt->taos->optionInfo.charsetCxt);
     } else {
-      code =
-          qBindStmtColsValue2(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen, pStmt->taos->optionInfo.charsetCxt);
+      if (colIdx == -1) {
+        if (pStmt->sql.bindRowFormat) {
+          tscError("can't mix bind row format and bind column format");
+          STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
+        }
+        code = qBindStmtColsValue2(*pDataBlock, pCols, bind, pStmt->exec.pRequest->msgBuf,
+                                   pStmt->exec.pRequest->msgBufLen, pStmt->taos->optionInfo.charsetCxt);
+      } else {
+        code = qBindStmt2RowValue(*pDataBlock, (*pDataBlock)->pData->aRowP, bind, pStmt->exec.pRequest->msgBuf,
+                                  pStmt->exec.pRequest->msgBufLen, &pStmt->sql.siInfo.pTSchema, pStmt->sql.pBindInfo,
+                                  pStmt->taos->optionInfo.charsetCxt);
+      }
     }
 
     if (code) {
@@ -1457,6 +1478,11 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
   } else {
     if (pStmt->sql.stbInterlaceMode) {
       tscError("bind single column not allowed in stb insert mode");
+      STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
+    }
+
+    if (pStmt->sql.bindRowFormat) {
+      tscError("can't mix bind row format and bind column format");
       STMT_ERR_RET(TSDB_CODE_TSC_STMT_API_ERROR);
     }
 
@@ -1494,7 +1520,7 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx) {
 }
 /*
 int stmtUpdateTableUid(STscStmt2* pStmt, SSubmitRsp* pRsp) {
-  tscDebug("stmt start to update tbUid, blockNum: %d", pRsp->nBlocks);
+  tscDebug("stmt start to update tbUid, blockNum:%d", pRsp->nBlocks);
 
   int32_t code = 0;
   int32_t finalCode = 0;
@@ -1690,11 +1716,11 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     return pStmt->errCode;
   }
 
-  taosThreadMutexLock(&pStmt->asyncBindParam.mutex);
-  if (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 0) {
+  TSC_ERR_RET(taosThreadMutexLock(&pStmt->asyncBindParam.mutex));
+  while (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 0) {
     (void)taosThreadCondWait(&pStmt->asyncBindParam.waitCond, &pStmt->asyncBindParam.mutex);
   }
-  taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex);
+  TSC_ERR_RET(taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex));
 
   if (pStmt->sql.stbInterlaceMode) {
     STMT_ERR_RET(stmtAddBatch2(pStmt));
@@ -1788,6 +1814,7 @@ int stmtClose2(TAOS_STMT2* stmt) {
   pStmt->queue.stopQueue = true;
 
   (void)taosThreadMutexLock(&pStmt->queue.mutex);
+  (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
   (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
   (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 
@@ -1796,11 +1823,12 @@ int stmtClose2(TAOS_STMT2* stmt) {
     pStmt->bindThreadInUse = false;
   }
 
-  taosThreadMutexLock(&pStmt->asyncBindParam.mutex);
-  if (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 0) {
+  TSC_ERR_RET(taosThreadMutexLock(&pStmt->asyncBindParam.mutex));
+  while (atomic_load_8((int8_t*)&pStmt->asyncBindParam.asyncBindNum) > 0) {
     (void)taosThreadCondWait(&pStmt->asyncBindParam.waitCond, &pStmt->asyncBindParam.mutex);
   }
-  taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex);
+  TSC_ERR_RET(taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex));
+
   (void)taosThreadCondDestroy(&pStmt->queue.waitCond);
   (void)taosThreadMutexDestroy(&pStmt->queue.mutex);
 
@@ -1813,7 +1841,7 @@ int stmtClose2(TAOS_STMT2* stmt) {
     }
   }
 
-  STMT_DLOG("stmt %p closed, stbInterlaceMode: %d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
+  STMT_DLOG("stmt %p closed, stbInterlaceMode:%d, statInfo: ctgGetTbMetaNum=>%" PRId64 ", getCacheTbInfo=>%" PRId64
             ", parseSqlNum=>%" PRId64 ", pStmt->stat.bindDataNum=>%" PRId64
             ", settbnameAPI:%u, bindAPI:%u, addbatchAPI:%u, execAPI:%u"
             ", setTbNameUs:%" PRId64 ", bindDataUs:%" PRId64 ",%" PRId64 ",%" PRId64 ",%" PRId64 " addBatchUs:%" PRId64

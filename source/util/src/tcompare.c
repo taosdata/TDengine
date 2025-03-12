@@ -1123,6 +1123,19 @@ int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t 
   return (j >= ssize || str[j] == 0) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
 }
 
+int32_t rawStrPatternMatch(const char *str, const char *pattern) {
+  SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
+
+  size_t pLen = strlen(pattern);
+  size_t sz = strlen(str);
+  if (pLen > TSDB_MAX_FIELD_LEN) {
+    return 1;
+  }
+
+  int32_t ret = patternMatch(pattern, pLen, str, sz, &pInfo);
+  return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
+}
+
 int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, size_t ssize,
                         const SPatternCompareInfo *pInfo) {
   TdUcs4 c, c1;

@@ -298,7 +298,7 @@ static int32_t createTableDataCxt(STableMeta* pTableMeta, SVCreateTbReq** pCreat
   }
   if (TSDB_CODE_SUCCESS == code) {
     *pOutput = pTableCxt;
-    qDebug("tableDataCxt created, code:%d, uid:%" PRId64 ", vgId:%d", code, pTableMeta->uid, pTableMeta->vgId);
+    parserDebug("uid:%" PRId64 ", create table data context, code:%d, vgId:%d", pTableMeta->uid, code, pTableMeta->vgId);
   } else {
     insDestroyTableDataCxt(pTableCxt);
   }
@@ -478,7 +478,7 @@ static int32_t fillVgroupDataCxt(STableDataCxt* pTableCxt, SVgroupDataCxt* pVgCx
     taosMemoryFreeClear(pTableCxt->pData);
   }
 
-  qDebug("add tableDataCxt uid:%" PRId64 " to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
+  parserDebug("uid:%" PRId64 ", add table data context to vgId:%d", pTableCxt->pMeta->uid, pVgCxt->vgId);
 
   return code;
 }
@@ -572,7 +572,7 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
     code = catalogGetTableMeta((SCatalog*)pBuildInfo->pCatalog, &conn, &sname, &pTableMeta);
 
     if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
-      parserDebug("tb %s.%s not exist", sname.dbname, sname.tname);
+      parserDebug("tb:%s.%s not exist", sname.dbname, sname.tname);
       return code;
     }
 
@@ -760,7 +760,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
       // skip the table has no data to insert
       // eg: import a csv without valid data
       // if (0 == taosArrayGetSize(pTableCxt->pData->aRowP)) {
-      //   qWarn("no row in tableDataCxt uid:%" PRId64 " ", pTableCxt->pMeta->uid);
+      //   parserWarn("no row in tableDataCxt uid:%" PRId64 " ", pTableCxt->pMeta->uid);
       //   p = taosHashIterate(pTableHash, p);
       //   continue;
       // }
@@ -1079,11 +1079,14 @@ end:
 }
 
 int rawBlockBindRawData(SHashObj* pVgroupHash, SArray* pVgroupList, STableMeta* pTableMeta, void* data) {
-  transformRawSSubmitTbData(data, pTableMeta->suid, pTableMeta->uid, pTableMeta->sversion);
+  int code = transformRawSSubmitTbData(data, pTableMeta->suid, pTableMeta->uid, pTableMeta->sversion);
+  if (code != 0){
+    return code;
+  }
   SVgroupDataCxt* pVgCxt = NULL;
   void**          pp = taosHashGet(pVgroupHash, &pTableMeta->vgId, sizeof(pTableMeta->vgId));
   if (NULL == pp) {
-    int code = createVgroupDataCxt(pTableMeta->vgId, pVgroupHash, pVgroupList, &pVgCxt);
+    code = createVgroupDataCxt(pTableMeta->vgId, pVgroupHash, pVgroupList, &pVgCxt);
     if (code != 0){
       return code;
     }

@@ -25,7 +25,19 @@ class TDTestCase:
 
     def run(self):
         buildPath = tdCom.getBuildPath()
+        cmdStr = '%s/build/bin/tmq_write_raw_test'%(buildPath)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+
         cmdStr = '%s/build/bin/tmq_ts5776'%(buildPath)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+
+        cmdStr = '%s/build/bin/tmq_td33798'%(buildPath)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+
+        cmdStr = '%s/build/bin/tmq_poll_test'%(buildPath)
         tdLog.info(cmdStr)
         os.system(cmdStr)
 

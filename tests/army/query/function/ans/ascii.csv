@@ -51,7 +51,7 @@ taos> select ASCII('hello') + 1 from ts_4893.meters limit 1
 taos> select ASCII('hello') + ASCII('hello') from ts_4893.meters limit 1
  ascii('hello') + ascii('hello') |
 ==================================
-           2.080000000000000e+02 |
+                             208 |
 
 taos> select ASCII(nch1) from ts_4893.meters order by ts limit 5
  ascii(nch1) |
