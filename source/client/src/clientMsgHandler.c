@@ -933,7 +933,7 @@ int32_t processCreateStreamSecondPhase(SRequestObj* pRequest){
   }
 END:
   taosMemoryFree(paramNew);
-  if (pRequestNew->code != 0){
+  if (pRequestNew != NULL && pRequestNew->code != 0){
     char streamName[TSDB_STREAM_FNAME_LEN] = {0};
     SCreateStreamStmt* pStmt = (SCreateStreamStmt*)(pRequest->pQuery->pRoot);
     SName   name;
@@ -968,9 +968,6 @@ int32_t processCreateStreamFirstPhaseRsp(void* param, SDataBuf* pMsg, int32_t co
   }
   if (code == 0 && !pRequest->streamRunHistory){
     code = processCreateStreamSecondPhase(pRequest);
-  }
-  if (pRequest->streamRunHistory){
-    destroyRequest(pRequest);
   }
   return code;
 }
