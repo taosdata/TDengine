@@ -852,6 +852,18 @@ int32_t processCompactDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
+static int32_t setCreateStreamFailedRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  if (pMsg) {
+    taosMemoryFree(pMsg->pEpSet);
+    taosMemoryFree(pMsg->pData);
+  }
+  if (code != 0){
+    tscError("setCreateStreamFailedRsp since %s", tstrerror(code));
+  } else{
+    tscInfo("setCreateStreamFailedRsp success");
+  }
+  return code;
+}
 void sendCreateStreamFailedMsg(SRequestObj* pRequest, char* streamName){
   int32_t code  = 0;
   tscInfo("send failed stream name to mgmt: %s", streamName);
@@ -862,7 +874,7 @@ void sendCreateStreamFailedMsg(SRequestObj* pRequest, char* streamName){
     return;
   }
   *(int32_t*)buf = pRequest->code;
-  snprintf(buf + INT_BYTES, size - INT_BYTES, "%s", streamName);
+  memcpy(buf + INT_BYTES, streamName, strlen(streamName));
 
   SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (sendInfo == NULL) {
@@ -870,11 +882,12 @@ void sendCreateStreamFailedMsg(SRequestObj* pRequest, char* streamName){
     tscError("failed to calloc msgSendInfo: %s", terrstr());
     return;
   }
-
+  SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
   sendInfo->msgInfo = (SDataBuf){.pData = buf, .len = size, .handle = NULL};
   sendInfo->requestId = generateRequestId();
   sendInfo->requestObjRefId = 0;
   sendInfo->msgType = TDMT_MND_FAILED_STREAM;
+  sendInfo->fp = setCreateStreamFailedRsp;
 
   SEpSet epSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
   code = asyncSendMsgToServer(pRequest->pTscObj->pAppInfo->pTransporter, &epSet, NULL, sendInfo);

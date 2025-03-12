@@ -840,17 +840,17 @@ static int32_t mndProcessCheckStreamStatusReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
   void       *pIter = NULL;
-  mInfo("stream:%s, set status to failed in timer", pStream->name);
+
   while ((pIter = sdbFetch(pMnode->pSdb, SDB_STREAM, pIter, (void **)&pStream)) != NULL) {
     taosWLockLatch(&pStream->lock);
-    if (pStream->status == STREAM_STATUS__INIT && taosGetTimestampMs() - pStream->createTime > 30*1000){
+    if (pStream->status == STREAM_STATUS__INIT && (taosGetTimestampMs() - pStream->createTime > tsStreamFailedTimeout ||
+                                                   taosGetTimestampMs() - pStream->createTime < 0)){
       pStream->status = STREAM_STATUS__FAILED;
       tstrncpy(pStream->reserve, "timeout", sizeof(pStream->reserve));
       mInfo("stream:%s, set status to failed success because of timeout", pStream->name);
     }
     taosWUnLockLatch(&pStream->lock);
     sdbRelease(pMnode->pSdb, pStream);
-    sdbCancelFetch(pMnode->pSdb, pIter);
   }
 
   return 0;
