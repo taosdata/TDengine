@@ -12478,7 +12478,7 @@ static int32_t createLastTsSelectStmt(char* pDb, const char* pTable, const char*
     return code;
   }
 
-  parserInfo("create select last ts query");
+  parserInfo("[create stream with histroy] create select last ts query, db:%s, table:%s", pDb, pTable);
   tstrncpy(col->tableAlias, pTable, tListLen(col->tableAlias));
   tstrncpy(col->colName, pkColName, tListLen(col->colName));
   SNodeList* pParameterList = NULL;
