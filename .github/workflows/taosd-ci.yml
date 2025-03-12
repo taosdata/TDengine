@@ -1,4 +1,4 @@
-name: TDengine CI Test
+name: TDengine Test
 
 on:
   pull_request:
