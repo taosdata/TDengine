@@ -40,7 +40,7 @@ def removeQuotation(origin):
 class TDTestCase(TBase):
     def caseDescription(self):
         """
-        [TD-11510] taosBenchmark test cases
+        taosBenchmark query->Basic test cases
         """
 
     def runSeconds(self, command, timeout = 180):
