@@ -866,7 +866,7 @@ static int32_t mndProcessFailedStreamReq(SRpcMsg *pReq) {
 
 #ifdef WINDOWS
   code = TSDB_CODE_MND_INVALID_PLATFORM;
-  goto _OVER;
+  return code;
 #endif
 
   mInfo("stream:%s, start to set stream failed", streamName);
