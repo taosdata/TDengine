@@ -390,7 +390,7 @@ static void *stbQueryThread(void *sarg) {
 // ---------------------------------  firse level function ------------------------------
 //
 
-void totalChildQuery(qThreadInfo* infos, int threadCnt, int64_t spend) {
+void totalChildQuery(qThreadInfo* infos, int threadCnt, int64_t spend, BArray *pDelays) {
     // valid check
     if (infos == NULL || threadCnt == 0) {
         return ;
@@ -452,9 +452,11 @@ void totalChildQuery(qThreadInfo* infos, int threadCnt, int64_t spend) {
                                     (int32_t)(delay_list->size * 0.99)))/1E6,
                 *(int64_t *)(benchArrayGet(delay_list,
                                     (int32_t)(delay_list->size - 1)))/1E6);
-    } else {
-        errorPrint("%s() LN%d, delay_list size: %"PRId64"\n",
-                   __func__, __LINE__, (int64_t)delay_list->size);
+    }
+
+    // copy to another
+    if (pDelays) {
+        benchArrayAddBatch(pDelays, delay_list->pData, delay_list->size, false);
     }
     benchArrayDestroy(delay_list);
 }
@@ -555,7 +557,7 @@ static int stbQuery(uint16_t iface, char* dbName) {
     }
 
     // total show
-    totalChildQuery(threadInfos, threadCnt, end - start);
+    totalChildQuery(threadInfos, threadCnt, end - start, NULL);
 
     ret = 0;
 
@@ -833,7 +835,7 @@ static int specQueryMix(uint16_t iface, char* dbName) {
     }
 
     // statistic
-    totalChildQuery(infos, threadCnt, end - start);
+    totalChildQuery(infos, threadCnt, end - start, NULL);
     ret = 0;
 
 OVER:
@@ -846,8 +848,48 @@ OVER:
     return ret;
 }
 
+void totalBatchQuery(int32_t allSleep, BArray *pDelays) {
+    // sort
+    qsort(pDelays->pData, pDelays->size, pDelays->elemSize, compare);
+
+    // total delays
+    double totalDelays = 0;
+    for (size_t i = 0; i < pDelays->size; i++) {
+        int64_t *delay = benchArrayGet(pDelays, i);
+        totalDelays   += *delay;
+    }    
+
+    printf("\n");
+    // show sleep times
+    if (allSleep > 0) {
+        infoPrint("All sleep spend: %.3fs\n", (float)allSleep/1000);
+    }
+
+    // show P90 ...
+    if (delay_list->size) {
+        infoPrint(
+                "Total delay: "
+                "min delay: %.6fs, "
+                "avg delay: %.6fs, "
+                "p90: %.6fs, "
+                "p95: %.6fs, "
+                "p99: %.6fs, "
+                "max: %.6fs\n",
+                *(int64_t *)(benchArrayGet(pDelays, 0))/1E6,
+                (double)totalDelays/pDelays->size/1E6,
+                *(int64_t *)(benchArrayGet(pDelays,
+                                    (int32_t)(pDelays->size * 0.9)))/1E6,
+                *(int64_t *)(benchArrayGet(pDelays,
+                                    (int32_t)(pDelays->size * 0.95)))/1E6,
+                *(int64_t *)(benchArrayGet(pDelays,
+                                    (int32_t)(pDelays->size * 0.99)))/1E6,
+                *(int64_t *)(benchArrayGet(pDelays,
+                                    (int32_t)(pDelays->size - 1)))/1E6);
+    }
+}
+
 //
-// specQueryMix
+// specQuery Mix Batch
 //
 static int specQueryBatch(uint16_t iface, char* dbName) {
     // init
@@ -896,8 +938,9 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
     //
     // running
     //
-    int threadCnt = 0;
-    int allSleep  = 0;
+    int threadCnt   = 0;
+    int allSleep    = 0;
+    BArray *pDelays = benchArrayInit(10, sizeof(int64_t));
     for (int m = 0; m < g_queryInfo.query_times; ++m) {
         // reset
         threadCnt = 0;
@@ -959,9 +1002,9 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
             goto OVER;
         }
     
-        // statistic
+        // batch total
         printf("\n");
-        totalChildQuery(infos, threadCnt, end - start);
+        totalChildQuery(infos, threadCnt, end - start, pDelays);
 
         // show batch total
         int64_t delay = end - start;
@@ -979,10 +1022,8 @@ static int specQueryBatch(uint16_t iface, char* dbName) {
     }
     ret = 0;
     
-    printf("\n");
-    if (allSleep > 0) {
-        infoPrint("all sleep spend: %.3fs\n", (float)allSleep/1000);
-    }    
+    // all total
+    totalBatchQuery(allSleep, pDelays);
 
 OVER:
     // close conn
@@ -991,11 +1032,17 @@ OVER:
         closeQueryConn(pThreadInfo, iface);
     }
 
+    // free threads
     tmfree(pids);
     tmfree(infos);
 
     // free sqls
     freeSpecialQueryInfo();
+
+    // free delays
+    if (pDelays) {
+        benchArrayDestroy(pDelays);
+    }
 
     return ret;
 }
