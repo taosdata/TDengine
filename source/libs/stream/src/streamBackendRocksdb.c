@@ -1665,7 +1665,7 @@ _EXIT:
   // clear checkpoint dir if failed
   if (code != 0 && pChkpDir != NULL) {
     if (taosDirExist(pChkpIdDir)) {
-      TAOS_UNUSED(taosRemoveDir(pChkpIdDir));
+      taosRemoveDir(pChkpIdDir);
     }
   }
   taosMemoryFree(pChkpIdDir);
