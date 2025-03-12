@@ -284,5 +284,5 @@ When the test is done, the result can be found in `${installPath}/tsbs/scripts/t
 
 ### 3.7.4 Test more scenario
 
-Use `test_tsbs.sh --help` to  get more test scenarios.
+Use `./tsbs_test.sh -h` to  get more test scenarios.
 
