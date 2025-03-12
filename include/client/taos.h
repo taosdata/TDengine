@@ -445,7 +445,6 @@ typedef enum {
 
 DLL_EXPORT TSDB_SERVER_STATUS taos_check_server_status(const char *fqdn, int port, char *details, int maxlen);
 DLL_EXPORT char              *getBuildInfo();
-
 #ifdef __cplusplus
 }
 #endif

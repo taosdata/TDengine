@@ -4513,7 +4513,6 @@ typedef struct {
 
 int32_t                  tSerializeSBatchReq(void* buf, int32_t bufLen, SBatchReq* pReq);
 int32_t                  tDeserializeSBatchReq(void* buf, int32_t bufLen, SBatchReq* pReq);
-
 static FORCE_INLINE void tFreeSBatchReqMsg(void* msg) {
   if (NULL == msg) {
     return;
