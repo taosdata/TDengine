@@ -192,7 +192,7 @@ class TDTestCase:
         size1 = self._calculate_disk_usage('data00')
         size2 = self._calculate_disk_usage('data01')
 
-        tdSql.query(f'select sum(data1), sum(data2) from information.ins_disk_usage name="{self.db_name}"')  
+        tdSql.query(f'select sum(data1), sum(data2) from information_schema.ins_disk_usage where db_name="{self.db_name}"')  
         data1 = tdSql.queryResult[0][0]  
         data2 = tdSql.queryResult[0][1]  
 
