@@ -287,7 +287,7 @@ static void *dmCrashReportThreadFp(void *param) {
     }
     if (loopTimes++ < reportPeriodNum) {
       taosMsleep(sleepTime);
-      if(loopTimes < 0) loopTimes = reportPeriodNum;
+      if (loopTimes < 0) loopTimes = reportPeriodNum;
       continue;
     }
     taosReadCrashInfo(filepath, &pMsg, &msgLen, &pFile);
@@ -540,6 +540,14 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     case TDMT_DND_DROP_SNODE:
       code = (*pMgmt->processDropNodeFp)(SNODE, pMsg);
+      break;
+    case TDMT_DND_CREATE_XNODE:
+      // TODO:
+      // code = dmProcessCreateXnode(pMgmt, pMsg);
+      break;
+    case TDMT_DND_DROP_XNODE:
+      // TODO:
+      // code = dmProcessDropXnode(pMgmt, pMsg);
       break;
     case TDMT_DND_ALTER_MNODE_TYPE:
       code = (*pMgmt->processAlterNodeTypeFp)(MNODE, pMsg);

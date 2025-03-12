@@ -376,6 +376,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS,     "Analysis failed since 
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_WN_DATA,                 "white-noise data not processed")
 
 // xnode
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_ALREADY_EXIST,      "Xnode already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_ALREADY_DEPLOYED,       "Xnode already deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_XNODE_NOT_DEPLOYED,           "Xnode not deployed")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_ANODE_NOT_EXIST,          "Xnode not there")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TOO_LONG_URL,       "Xnode too long url")
 
 // mnode-sma

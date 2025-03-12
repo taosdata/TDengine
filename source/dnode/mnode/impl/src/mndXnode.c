@@ -29,7 +29,7 @@ static SSdbRaw *mndXnodeActionEncode(SXnodeObj *pObj) {
   int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_SNODE, XNODE_VER_NUMBER, sizeof(SXnodeObj) + XNODE_RESERVE_SIZE);
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_XNODE, XNODE_VER_NUMBER, sizeof(SXnodeObj) + XNODE_RESERVE_SIZE);
   if (pRaw == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -171,15 +171,15 @@ static int32_t mndSetCreateXnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   }
   code = tSerializeSMCreateXnodeReq(pReq, contLen, &createReq);
   if (code < 0) {
-    mError("snode:%d, failed to serialize create drop snode request since %s", createReq.dnodeId, terrstr());
+    mError("xnode:%d, failed to serialize create drop xnode request since %s", createReq.dnodeId, terrstr());
   }
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
   action.pCont = pReq;
   action.contLen = contLen;
-  action.msgType = TDMT_DND_CREATE_SNODE;
-  action.acceptableCode = TSDB_CODE_SNODE_ALREADY_DEPLOYED;
+  action.msgType = TDMT_DND_CREATE_XNODE;
+  action.acceptableCode = TSDB_CODE_XNODE_ALREADY_DEPLOYED;
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
     taosMemoryFree(pReq);
@@ -202,15 +202,15 @@ static int32_t mndSetCreateXnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   }
   code = tSerializeSMDropXnodeReq(pReq, contLen, &dropReq);
   if (code < 0) {
-    mError("snode:%d, failed to serialize create drop snode request since %s", dropReq.dnodeId, terrstr());
+    mError("xnode:%d, failed to serialize create drop xnode request since %s", dropReq.dnodeId, terrstr());
   }
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
   action.pCont = pReq;
   action.contLen = contLen;
-  action.msgType = TDMT_DND_DROP_SNODE;
-  action.acceptableCode = TSDB_CODE_SNODE_NOT_DEPLOYED;
+  action.msgType = TDMT_DND_DROP_XNODE;
+  action.acceptableCode = TSDB_CODE_XNODE_NOT_DEPLOYED;
 
   if ((code = mndTransAppendUndoAction(pTrans, &action)) != 0) {
     taosMemoryFree(pReq);
@@ -223,12 +223,12 @@ static int32_t mndSetCreateXnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
 static int32_t mndCreateXnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMCreateXnodeReq *pCreate) {
   int32_t code = -1;
 
-  SXnodeObj snodeObj = {0};
-  snodeObj.id = pDnode->id;
-  snodeObj.createdTime = taosGetTimestampMs();
-  snodeObj.updateTime = snodeObj.createdTime;
+  SXnodeObj xnodeObj = {0};
+  xnodeObj.id = pDnode->id;
+  xnodeObj.createdTime = taosGetTimestampMs();
+  xnodeObj.updateTime = xnodeObj.createdTime;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-snode");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-xnode");
   if (pTrans == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -236,13 +236,13 @@ static int32_t mndCreateXnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   }
   mndTransSetSerial(pTrans);
 
-  mInfo("trans:%d, used to create snode:%d", pTrans->id, pCreate->dnodeId);
+  mInfo("trans:%d, used to create xnode:%d", pTrans->id, pCreate->dnodeId);
 
-  TAOS_CHECK_GOTO(mndSetCreateXnodeRedoLogs(pTrans, &snodeObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateXnodeUndoLogs(pTrans, &snodeObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateXnodeCommitLogs(pTrans, &snodeObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateXnodeRedoActions(pTrans, pDnode, &snodeObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateXnodeUndoActions(pTrans, pDnode, &snodeObj), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateXnodeRedoLogs(pTrans, &xnodeObj), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateXnodeUndoLogs(pTrans, &xnodeObj), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateXnodeCommitLogs(pTrans, &xnodeObj), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateXnodeRedoActions(pTrans, pDnode, &xnodeObj), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetCreateXnodeUndoActions(pTrans, pDnode, &xnodeObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
   code = 0;
@@ -261,19 +261,19 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSMCreateXnodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
-  mInfo("snode:%d, start to create", createReq.dnodeId);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_SNODE), NULL, _OVER);
+  mInfo("xnode:%d, start to create", createReq.dnodeId);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_XNODE), NULL, _OVER);
 
   //  pObj = mndAcquireXnode(pMnode, createReq.dnodeId);
   //  if (pObj != NULL) {
-  //    terrno = TSDB_CODE_MND_SNODE_ALREADY_EXIST;
+  //    terrno = TSDB_CODE_MND_XNODE_ALREADY_EXIST;
   //    goto _OVER;
-  //  } else if (terrno != TSDB_CODE_MND_SNODE_NOT_EXIST) {
+  //  } else if (terrno != TSDB_CODE_MND_XNODE_NOT_EXIST) {
   //    goto _OVER;
   //  }
 
-  if (sdbGetSize(pMnode->pSdb, SDB_SNODE) >= 1) {
-    code = TSDB_CODE_MND_SNODE_ALREADY_EXIST;
+  if (sdbGetSize(pMnode->pSdb, SDB_XNODE) >= 1) {
+    code = TSDB_CODE_MND_XNODE_ALREADY_EXIST;
     goto _OVER;
   }
 
@@ -288,7 +288,7 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("snode:%d, failed to create since %s", createReq.dnodeId, tstrerror(code));
+    mError("xnode:%d, failed to create since %s", createReq.dnodeId, tstrerror(code));
     TAOS_RETURN(code);
   }
 
@@ -337,15 +337,15 @@ static int32_t mndSetDropXnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SXn
   }
   code = tSerializeSMDropXnodeReq(pReq, contLen, &dropReq);
   if (code < 0) {
-    mError("snode:%d, failed to serialize create drop snode request since %s", dropReq.dnodeId, terrstr());
+    mError("xnode:%d, failed to serialize create drop xnode request since %s", dropReq.dnodeId, terrstr());
   }
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
   action.pCont = pReq;
   action.contLen = contLen;
-  action.msgType = TDMT_DND_DROP_SNODE;
-  action.acceptableCode = TSDB_CODE_SNODE_NOT_DEPLOYED;
+  action.msgType = TDMT_DND_DROP_XNODE;
+  action.acceptableCode = TSDB_CODE_XNODE_NOT_DEPLOYED;
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
     taosMemoryFree(pReq);
@@ -368,7 +368,7 @@ int32_t mndSetDropXnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SXnodeObj *pO
 static int32_t mndDropXnode(SMnode *pMnode, SRpcMsg *pReq, SXnodeObj *pObj) {
   int32_t code = -1;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-snode");
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-xnode");
   if (pTrans == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -376,7 +376,7 @@ static int32_t mndDropXnode(SMnode *pMnode, SRpcMsg *pReq, SXnodeObj *pObj) {
   }
   mndTransSetSerial(pTrans);
 
-  mInfo("trans:%d, used to drop snode:%d", pTrans->id, pObj->id);
+  mInfo("trans:%d, used to drop xnode:%d", pTrans->id, pObj->id);
   TAOS_CHECK_GOTO(mndSetDropXnodeInfoToTrans(pMnode, pTrans, pObj, false), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
@@ -395,8 +395,8 @@ static int32_t mndProcessDropXnodeReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSMDropXnodeReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
-  mInfo("snode:%d, start to drop", dropReq.dnodeId);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_SNODE), NULL, _OVER);
+  mInfo("xnode:%d, start to drop", dropReq.dnodeId);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_XNODE), NULL, _OVER);
 
   if (dropReq.dnodeId <= 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -416,7 +416,7 @@ static int32_t mndProcessDropXnodeReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("snode:%d, failed to drop since %s", dropReq.dnodeId, tstrerror(code));
+    mError("xnode:%d, failed to drop since %s", dropReq.dnodeId, tstrerror(code));
   }
 
   mndReleaseXnode(pMnode, pObj);
@@ -432,7 +432,7 @@ static int32_t mndRetrieveXnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   SXnodeObj *pObj = NULL;
 
   while (numOfRows < rows) {
-    pShow->pIter = sdbFetch(pSdb, SDB_SNODE, pShow->pIter, (void **)&pObj);
+    pShow->pIter = sdbFetch(pSdb, SDB_XNODE, pShow->pIter, (void **)&pObj);
     if (pShow->pIter == NULL) break;
 
     cols = 0;
@@ -460,7 +460,7 @@ static int32_t mndRetrieveXnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
 static void mndCancelGetNextXnode(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetchByType(pSdb, pIter, SDB_SNODE);
+  sdbCancelFetchByType(pSdb, pIter, SDB_XNODE);
 }
 
 SEpSet mndAcquireEpFromXnode(SMnode *pMnode, const SXnodeObj *pXnode) {
@@ -470,10 +470,10 @@ SEpSet mndAcquireEpFromXnode(SMnode *pMnode, const SXnodeObj *pXnode) {
   return epSet;
 }
 
-SXnodeObj *mndAcquireXnode(SMnode *pMnode, int32_t snodeId) {
-  SXnodeObj *pObj = sdbAcquire(pMnode->pSdb, SDB_SNODE, &snodeId);
+SXnodeObj *mndAcquireXnode(SMnode *pMnode, int32_t xnodeId) {
+  SXnodeObj *pObj = sdbAcquire(pMnode->pSdb, SDB_XNODE, &xnodeId);
   if (pObj == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
-    terrno = TSDB_CODE_MND_SNODE_NOT_EXIST;
+    terrno = TSDB_CODE_MND_XNODE_NOT_EXIST;
   }
   return pObj;
 }
@@ -494,13 +494,13 @@ int32_t mndInitXnode(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndXnodeActionDelete,
   };
 
-  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ANODE, mndProcessCreateXnodeReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_DROP_ANODE, mndProcessDropXnodeReq);
-  mndSetMsgHandle(pMnode, TDMT_DND_CREATE_SNODE_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_DND_DROP_SNODE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_XNODE, mndProcessCreateXnodeReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_XNODE, mndProcessDropXnodeReq);
+  mndSetMsgHandle(pMnode, TDMT_DND_CREATE_XNODE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_DND_DROP_XNODE_RSP, mndTransProcessRsp);
 
-  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_ANODE, mndRetrieveXnodes);
-  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_ANODE, mndCancelGetNextXnode);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_XNODE, mndRetrieveXnodes);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_XNODE, mndCancelGetNextXnode);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
