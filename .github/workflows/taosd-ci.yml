@@ -90,6 +90,7 @@ jobs:
             fi
 
             echo "run function test: ${run_function_test}"
+          fi
 
           # Output the results for GitHub Actions
           echo "run_function_test=$run_function_test" >> $GITHUB_OUTPUT
