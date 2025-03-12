@@ -1,0 +1,15 @@
+name: Cancel Workflow on Merge
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cancel-workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel Workflow if Merged
+        if: ${{ github.event.pull_request.merged }}
+        run: |
+          echo "PR has been merged, cancelling workflow..."
+          gh run cancel --repo ${{ github.repository }} --workflow "TDengine Test" --branch ${{ github.event.pull_request.base.ref }}
