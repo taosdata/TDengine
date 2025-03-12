@@ -44,6 +44,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, int8_
 
 int32_t vectorGetConvertType(int32_t type1, int32_t type2);
 int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, int32_t *overflow, int32_t startIndex, int32_t numOfRows);
+int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_t type, int32_t startIndex, int32_t numOfRows);
 
 /* Math functions */
 int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -71,6 +72,8 @@ int32_t signFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 int32_t degreesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t radiansFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t randFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t greatestFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t leastFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 /* String functions */
 int32_t lengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);

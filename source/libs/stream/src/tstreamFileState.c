@@ -423,14 +423,17 @@ int32_t clearFlushedRowBuff(SStreamFileState* pFileState, SStreamSnapshot* pFlus
 
         pFileState->flushMark = TMAX(pFileState->flushMark, pFileState->getTs(pPos->pKey));
         pFileState->stateBuffRemoveByPosFn(pFileState, pPos);
-        SListNode* tmp = tdListPopNode(pFileState->usedBuffs, pNode);
-        taosMemoryFreeClear(tmp);
+        if (pPos->beUsed == false) {
+          SListNode* tmp = tdListPopNode(pFileState->usedBuffs, pNode);
+          taosMemoryFreeClear(tmp);
+        }
         if (pPos->pRowBuff) {
           i++;
         }
       }
     }
   }
+  qDebug("clear flushed row buff. %d rows to disk. is all:%d", listNEles(pFlushList), all);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -462,7 +465,6 @@ int32_t popUsedBuffs(SStreamFileState* pFileState, SStreamSnapshot* pFlushList, 
     SRowBuffPos* pPos = *(SRowBuffPos**)pNode->data;
     if (pPos->beUsed == used) {
       if (used && !pPos->pRowBuff) {
-        QUERY_CHECK_CONDITION((pPos->needFree == true), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
         continue;
       }
       code = tdListAppend(pFlushList, &pPos);
@@ -470,8 +472,10 @@ int32_t popUsedBuffs(SStreamFileState* pFileState, SStreamSnapshot* pFlushList, 
 
       pFileState->flushMark = TMAX(pFileState->flushMark, pFileState->getTs(pPos->pKey));
       pFileState->stateBuffRemoveByPosFn(pFileState, pPos);
-      SListNode* tmp = tdListPopNode(pFileState->usedBuffs, pNode);
-      taosMemoryFreeClear(tmp);
+      if (pPos->beUsed == false) {
+        SListNode* tmp = tdListPopNode(pFileState->usedBuffs, pNode);
+        taosMemoryFreeClear(tmp);
+      }
       if (pPos->pRowBuff) {
         i++;
       }
@@ -540,9 +544,12 @@ int32_t clearRowBuff(SStreamFileState* pFileState) {
   if (pFileState->deleteMark != INT64_MAX) {
     clearExpiredRowBuff(pFileState, pFileState->maxTs - pFileState->deleteMark, false);
   }
-  if (isListEmpty(pFileState->freeBuffs)) {
-    return flushRowBuff(pFileState);
-  }
+  do {
+    int32_t code = flushRowBuff(pFileState);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  } while (isListEmpty(pFileState->freeBuffs) && pFileState->curRowCount == pFileState->maxRowCount);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -866,10 +873,10 @@ int32_t getRowBuffByPos(SStreamFileState* pFileState, SRowBuffPos* pPos, void** 
   QUERY_CHECK_CODE(code, lino, _end);
 
   (*pVal) = pPos->pRowBuff;
-  if (!pPos->needFree) {
-    code = tdListPrepend(pFileState->usedBuffs, &pPos);
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
+  // if (!pPos->needFree) {
+  //   code = tdListPrepend(pFileState->usedBuffs, &pPos);
+  //   QUERY_CHECK_CODE(code, lino, _end);
+  // }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {

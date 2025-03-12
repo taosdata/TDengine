@@ -610,11 +610,12 @@ static int32_t tsdbTryAcquireReader(STsdbReader* pReader) {
 
   code = taosThreadMutexTryLock(&pReader->readerMutex);
   if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("tsdb/read: %p, post-trytake read mutex: %p, code: %d", pReader, &pReader->readerMutex, code);
+    // Failing to acquire the lock is reasonable, not an error
+    tsdbWarn("tsdb/read: %p, post-trytake read mutex: %p, code: %d", pReader, &pReader->readerMutex, code);
   } else {
     tsdbTrace("tsdb/read: %p, post-trytask read mutex: %p", pReader, &pReader->readerMutex);
   }
-  TSDB_CHECK_CODE(code, lino, _end);
+  return code;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {

@@ -243,6 +243,8 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
       continue;
     }
 
+    // todo: this lock may blocked by lock in streamMetaStartOneTask function, which may lock a very long time when
+    // trying to load remote checkpoint data
     streamMutexLock(&pTask->lock);
     STaskStatusEntry entry = streamTaskGetStatusEntry(pTask);
     streamMutexUnlock(&pTask->lock);

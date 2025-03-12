@@ -93,7 +93,8 @@
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/default_json.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/demo.py
 
-,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/exportCsv.py
+,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/csv-export.py
+# ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/csv-import.py
 
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to.py
 ,,y,army,./pytest.sh python3 ./test.py -f tools/benchmark/basic/from-to-continue.py

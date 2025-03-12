@@ -18,7 +18,7 @@ taosdump 是用于备份 TDengine 数据到本地目录和从本地目录恢复�
 #### 对于 Ubuntu/Debian 系统
 
 ```shell
-sudo apt install libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g pkg-config libssl-dev
+sudo apt install libjansson-dev libsnappy-dev liblzma-dev libz-dev zlib1g zlib1g-dev pkg-config libssl-dev
 ```
 
 #### 对于 CentOS 7/RHEL 系统

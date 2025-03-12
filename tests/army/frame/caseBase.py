@@ -19,6 +19,7 @@ import random
 import copy
 import json
 
+import frame.eos
 import frame.etool
 import frame.eutil
 from frame.log import *
@@ -427,6 +428,42 @@ class TBase:
 
         return db, stb, child_count, insert_rows
     
+    # insert & check
+    def benchInsert(self, jsonFile, options = "", results = None):
+        # exe insert 
+        benchmark = frame.etool.benchMarkFile()
+        cmd   = f"{benchmark} {options} -f {jsonFile}"
+        rlist = frame.eos.runRetList(cmd, True, True, True)
+        if results != None:
+            for result in results:
+                self.checkListString(rlist, result)
+        
+        # open json
+        with open(jsonFile, "r") as file:
+            data = json.load(file)
+        
+        # read json
+        dbs = data["databases"]
+        for db in dbs:
+            dbName = db["dbinfo"]["name"]        
+            stbs   = db["super_tables"]
+            for stb in stbs:
+                stbName        = stb["name"]
+                child_count    = stb["childtable_count"]
+                insert_rows    = stb["insert_rows"]
+                timestamp_step = stb["timestamp_step"]
+
+                # check result
+
+                # count
+                sql = f"select count(*) from {dbName}.{stbName}"
+                tdSql.checkAgg(sql, child_count * insert_rows)
+                # diff
+                sql = f"select * from (select diff(ts) as dif from {dbName}.{stbName} partition by tbname) where dif != {timestamp_step};"
+                tdSql.query(sql)
+                tdSql.checkRows(0)
+                # show 
+                tdLog.info(f"insert check passed. db:{dbName} stb:{stbName} child_count:{child_count} insert_rows:{insert_rows}\n")
 
     # tmq
     def tmqBenchJson(self, jsonFile, options="", checkStep=False):

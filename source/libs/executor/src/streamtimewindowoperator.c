@@ -451,7 +451,7 @@ _end:
 
 void destroyFlusedPos(void* pRes) {
   SRowBuffPos* pPos = (SRowBuffPos*)pRes;
-  if (!pPos->needFree && !pPos->pRowBuff) {
+  if (pPos->needFree && !pPos->pRowBuff) {
     taosMemoryFreeClear(pPos->pKey);
     taosMemoryFree(pPos);
   }
@@ -464,9 +464,11 @@ void destroyFlusedppPos(void* ppRes) {
 
 void clearGroupResInfo(SGroupResInfo* pGroupResInfo) {
   int32_t size = taosArrayGetSize(pGroupResInfo->pRows);
-  for (int32_t i = pGroupResInfo->index; i < size; i++) {
-    void* pPos = taosArrayGetP(pGroupResInfo->pRows, i);
-    destroyFlusedPos(pPos);
+  if (pGroupResInfo->index >= 0 && pGroupResInfo->index < size) {
+    for (int32_t i = pGroupResInfo->index; i < size; i++) {
+      void* pPos = taosArrayGetP(pGroupResInfo->pRows, i);
+      destroyFlusedPos(pPos);
+    }
   }
   pGroupResInfo->freeItem = false;
   taosArrayDestroy(pGroupResInfo->pRows);
@@ -2193,11 +2195,12 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   }
 
   destroyStreamBasicInfo(&pInfo->basic);
-  destroyStreamAggSupporter(&pInfo->streamAggSup);
+
   cleanupExprSupp(&pInfo->scalarSupp);
   clearGroupResInfo(&pInfo->groupResInfo);
   taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
   pInfo->pUpdated = NULL;
+  destroyStreamAggSupporter(&pInfo->streamAggSup);
 
   if (pInfo->pChildren != NULL) {
     int32_t size = taosArrayGetSize(pInfo->pChildren);
@@ -4466,10 +4469,11 @@ void destroyStreamStateOperatorInfo(void* param) {
   }
 
   destroyStreamBasicInfo(&pInfo->basic);
-  destroyStreamAggSupporter(&pInfo->streamAggSup);
+
   clearGroupResInfo(&pInfo->groupResInfo);
   taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
   pInfo->pUpdated = NULL;
+  destroyStreamAggSupporter(&pInfo->streamAggSup);
 
   cleanupExprSupp(&pInfo->scalarSupp);
   if (pInfo->pChildren != NULL) {
