@@ -441,16 +441,16 @@ int32_t metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
     metaError("vgId:%d, invalid meta state, please check!", TD_VID(pVnode));
     return TSDB_CODE_FAILED;
   } else if (!metaBackupExists && metaExists && metaTempExists) {
-    (void)taosRemoveDir(metaTempDir);
+    taosRemoveDir(metaTempDir);
   } else if (metaBackupExists && !metaExists && metaTempExists) {
     code = taosRenameFile(metaTempDir, metaDir);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code));
       return code;
     }
-    (void)taosRemoveDir(metaBackupDir);
+    taosRemoveDir(metaBackupDir);
   } else if (metaBackupExists && metaExists && !metaTempExists) {
-    (void)taosRemoveDir(metaBackupDir);
+    taosRemoveDir(metaBackupDir);
   }
 
   // Do open meta
