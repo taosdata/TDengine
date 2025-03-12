@@ -47,7 +47,7 @@ void* benchCancelHandler(void* arg) {
 }
 #endif
 
-void checkArgumentValid() {
+int checkArgumentValid() {
      // check prepared_rand valid
     if(g_arguments->prepared_rand < g_arguments->reqPerReq) {
         infoPrint("prepared_rand(%"PRIu64") < num_of_records_per_req(%d), so set num_of_records_per_req = prepared_rand\n", 
@@ -64,13 +64,32 @@ void checkArgumentValid() {
                                  false,
                                  1)) {
             errorPrint("%s", "Failed to convert server address\n");
-            return;
+            return -1;
         }
         encodeAuthBase64();
         g_arguments->rest_server_ver_major =
             getServerVersionRest(g_arguments->port);
     }
 
+    // check batch query
+    if (g_arguments->test_mode == QUERY_TEST) {
+        if (g_queryInfo.specifiedQueryInfo.batchQuery) {
+            // batch_query = yes
+            if (!g_queryInfo.specifiedQueryInfo.mixed_query) {
+                // mixed_query = no
+                errorPrint("%s\n", "batch_query = yes require mixed_query is yes");
+                return -1;
+            }
+
+            // rest not support
+            if (g_queryInfo.iface == REST_IFACE) {
+                errorPrint("%s\n", "batch_query = yes not support restful.");
+                return -1;
+            }
+        }
+    }
+
+    return 0;
 }
 
 int main(int argc, char* argv[]) {
@@ -144,7 +163,11 @@ int main(int argc, char* argv[]) {
     }
 
     infoPrint("client version: %s\n", taos_get_client_info());
-    checkArgumentValid();
+    if (checkArgumentValid()) {
+        errorPrint("failed to readJsonConfig %s\n", g_arguments->metaFile);
+        exitLog();
+        return -1;
+    }
 
     if (g_arguments->test_mode == INSERT_TEST) {
         if (insertTestProcess()) {
