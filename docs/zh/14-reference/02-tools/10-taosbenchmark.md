@@ -255,8 +255,8 @@ taosBenchmark -f <json file>
 查询场景下 `filetype` 必须设置为 `query`。
 
 `query_mode`  查询连接方式，取值为：  
- “taosc”: 通过 Native  连接方式查询。  
- “rest” : 通过 restful 连接方式查询。  
+ - “taosc”: 通过 Native  连接方式查询。  
+ - “rest” : 通过 restful 连接方式查询。  
 
 `query_times` 指定运行查询的次数，数值类型。
 
