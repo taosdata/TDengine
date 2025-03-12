@@ -3033,7 +3033,7 @@ void printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr
     qInfo("%s===stream===%s: Block is Empty. block type %d", taskIdStr, flag, pBlock->info.type);
     return;
   }
-  if (true) {
+  if (qDebugFlag & DEBUG_DEBUG) {
     char*   pBuf = NULL;
     int32_t code = dumpBlockData(pBlock, flag, &pBuf, taskIdStr);
     if (code == 0) {
