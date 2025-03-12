@@ -486,6 +486,7 @@ void clearGroupResInfo(SGroupResInfo* pGroupResInfo) {
       destroyFlusedPos(pPos);
     }
   }
+
   pGroupResInfo->freeItem = false;
   taosArrayDestroy(pGroupResInfo->pRows);
   pGroupResInfo->pRows = NULL;

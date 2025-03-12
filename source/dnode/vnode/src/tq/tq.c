@@ -1347,10 +1347,24 @@ int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp)
 int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg) {
   int32_t vgId = TD_VID(pTq->pVnode);
 
-  SStreamCheckpointReadyMsg* pReq = (SStreamCheckpointReadyMsg*)pMsg->pCont;
   if (!vnodeIsRoleLeader(pTq->pVnode)) {
-    tqError("vgId:%d not leader, ignore the retrieve checkpoint-trigger msg from 0x%x", vgId,
-            (int32_t)pReq->downstreamTaskId);
+    char*    msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+    int32_t  len = pMsg->contLen - sizeof(SMsgHead);
+    int32_t  code = 0;
+    SDecoder decoder;
+
+    SStreamCheckpointReadyMsg req = {0};
+    tDecoderInit(&decoder, (uint8_t*)msg, len);
+    if (tDecodeStreamCheckpointReadyMsg(&decoder, &req) < 0) {
+      code = TSDB_CODE_MSG_DECODE_ERROR;
+      tDecoderClear(&decoder);
+      return code;
+    }
+    tDecoderClear(&decoder);
+
+    tqError("vgId:%d not leader, s-task:0x%x ignore the retrieve checkpoint-trigger msg from s-task:0x%x vgId:%d", vgId,
+            req.upstreamTaskId, req.downstreamTaskId, req.downstreamNodeId);
+
     return TSDB_CODE_STREAM_NOT_LEADER;
   }
 
