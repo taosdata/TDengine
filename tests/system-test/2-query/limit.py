@@ -360,7 +360,19 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdLog.info("check db1 vgroups 1 limit 1 offset 100 successfully!")
 
-
+    def ts6080(self):
+        tdLog.printNoPrefix("======== test case 6080: ")
+        tdSql.execute("create database db6080 vgroups 1;")
+        tdSql.execute("use db6080;")
+        tdSql.execute("create table db6080.st(ts timestamp, age int) tags(area int);")
+        tdSql.execute("create table db6080.t1 using db6080.st tags(1);")
+        
+        tdSql.Execute("insert into db6080.t1 values(1537146000000, 1);")
+        tdSql.Execute("insert into db6080.t1 values(1537146000001, 2);")
+        
+        tdSql.query("select ts, age from (select ts, age from db6080.t1 order by ts limit 1) where ts > 1537146000000;")
+        tdSql.checkRows(0)
+        
     def run(self):
         # tdSql.prepare()
         self.prepareTestEnv()
@@ -368,6 +380,7 @@ class TDTestCase:
 
         # one vgroup diff more than one vgroup check
         self.checkVGroups()
+        
 
 
     def stop(self):
