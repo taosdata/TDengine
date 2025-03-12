@@ -251,7 +251,7 @@ git clone https://github.com/taosdata/tsbs.git && \
 cd tsbs && \
 git checkout enh/add-influxdb3.0 && \
 cd scripts/tsdbComp && \
-./test_tsbs.sh -s scenario3
+./tsbs_test.sh -s scenario4
 ```
 
 > [!NOTE]
