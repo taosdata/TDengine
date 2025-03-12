@@ -495,6 +495,7 @@ _err:
   if (pMeta->startInfo.pFailedTaskSet) taosHashCleanup(pMeta->startInfo.pFailedTaskSet);
   if (pMeta->bkdChkptMgt) bkdMgtDestroy(pMeta->bkdChkptMgt);
 
+  if (pMeta->startInfo.pStagesList) taosArrayDestroy(pMeta->startInfo.pStagesList);
   taosMemoryFree(pMeta);
 
   stError("vgId:%d failed to open stream meta, at line:%d reason:%s", vgId, lino, tstrerror(code));
@@ -571,6 +572,8 @@ void streamMetaClear(SStreamMeta* pMeta) {
   // the willrestart/starting flag can NOT be cleared
   taosHashClear(pMeta->startInfo.pReadyTaskSet);
   taosHashClear(pMeta->startInfo.pFailedTaskSet);
+
+  taosArrayClear(pMeta->startInfo.pStagesList);
   pMeta->startInfo.readyTs = 0;
 }
 

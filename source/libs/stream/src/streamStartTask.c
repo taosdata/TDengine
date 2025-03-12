@@ -147,9 +147,14 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
     // negotiate the consensus checkpoint id for current task
     code = streamTaskSendNegotiateChkptIdMsg(pTask);
 
-    // this task may has no checkpoint, but others tasks may generate checkpoint already?
+    // this task may have no checkpoint, but others tasks may generate checkpoint already?
     streamMetaReleaseTask(pMeta, pTask);
   }
+
+  pMeta->startInfo.curStage = START_MARK_REQ_CHKPID;
+  SStartTaskStageInfo info = {.stage = pMeta->startInfo.curStage, .ts = now};
+
+  taosArrayPush(pMeta->startInfo.pStagesList, &info);
 
   // prepare the fill-history task before starting all stream tasks, to avoid fill-history tasks are started without
   // initialization, when the operation of check downstream tasks status is executed far quickly.
@@ -174,6 +179,7 @@ int32_t prepareBeforeStartTasks(SStreamMeta* pMeta, SArray** pList, int64_t now)
 
   taosHashClear(pMeta->startInfo.pReadyTaskSet);
   taosHashClear(pMeta->startInfo.pFailedTaskSet);
+  taosArrayClear(pMeta->startInfo.pStagesList);
   pMeta->startInfo.startTs = now;
 
   int32_t code = streamMetaResetTaskStatus(pMeta);
@@ -185,6 +191,8 @@ int32_t prepareBeforeStartTasks(SStreamMeta* pMeta, SArray** pList, int64_t now)
 void streamMetaResetStartInfo(STaskStartInfo* pStartInfo, int32_t vgId) {
   taosHashClear(pStartInfo->pReadyTaskSet);
   taosHashClear(pStartInfo->pFailedTaskSet);
+  taosArrayClear(pStartInfo->pStagesList);
+
   pStartInfo->tasksWillRestart = 0;
   pStartInfo->readyTs = 0;
   pStartInfo->elapsedTime = 0;
@@ -323,12 +331,19 @@ int32_t streamMetaInitStartInfo(STaskStartInfo* pStartInfo) {
     return terrno;
   }
 
+  pStartInfo->pStagesList = taosArrayInit(4, sizeof(SStartTaskStageInfo));
+  if (pStartInfo->pStagesList == NULL) {
+    return terrno;
+  }
+
   return 0;
 }
 
 void streamMetaClearStartInfo(STaskStartInfo* pStartInfo) {
   taosHashCleanup(pStartInfo->pReadyTaskSet);
   taosHashCleanup(pStartInfo->pFailedTaskSet);
+  taosArrayDestroy(pStartInfo->pStagesList);
+
   pStartInfo->readyTs = 0;
   pStartInfo->elapsedTime = 0;
   pStartInfo->startTs = 0;
@@ -472,27 +487,30 @@ int32_t streamTaskCheckIfReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
   SConsenChkptInfo* pConChkptInfo = &pTask->status.consenChkptInfo;
 
   int32_t vgId = pTask->pMeta->vgId;
-  if (pConChkptInfo->status == TASK_CONSEN_CHKPT_REQ) {
-    // mark the sending of req consensus checkpoint request.
-    pConChkptInfo->status = TASK_CONSEN_CHKPT_SEND;
-    pConChkptInfo->statusTs = ts;
-    stDebug("s-task:%s vgId:%d set requiring consensus-chkptId in hbMsg, ts:%" PRId64, pTask->id.idStr,
-            vgId, pConChkptInfo->statusTs);
-    return 1;
-  } else {
-    int32_t el = (ts - pConChkptInfo->statusTs) / 1000;
 
-    // not recv consensus-checkpoint rsp for 60sec, send it again in hb to mnode
-    if ((pConChkptInfo->status == TASK_CONSEN_CHKPT_SEND) && el > 60) {
-      pConChkptInfo->statusTs = ts;
-
-      stWarn(
-          "s-task:%s vgId:%d not recv consensus-chkptId for %ds(more than 60s), set requiring in Hb again, ts:%" PRId64,
-          pTask->id.idStr, vgId, el, pConChkptInfo->statusTs);
+  if (pTask->pMeta->startInfo.curStage == START_MARK_REQ_CHKPID) {
+    if (pConChkptInfo->status == TASK_CONSEN_CHKPT_REQ) {
+      // mark the sending of req consensus checkpoint request.
+      pConChkptInfo->status = TASK_CONSEN_CHKPT_SEND;
+      stDebug("s-task:%s vgId:%d set requiring consensus-chkptId in hbMsg, ts:%" PRId64, pTask->id.idStr, vgId,
+              pConChkptInfo->statusTs);
       return 1;
-    }
-  }
+    } else {
+      stWarn("vgId:%d, s-task:%s expired ...................", vgId, pTask->id.idStr);
+      /*int32_t el = (ts - pConChkptInfo->statusTs) / 1000;
 
+      // not recv consensus-checkpoint rsp for 60sec, send it again in hb to mnode
+      if ((pConChkptInfo->status == TASK_CONSEN_CHKPT_SEND) && el > 60) {
+        pConChkptInfo->statusTs = ts;
+
+        stWarn(
+            "s-task:%s vgId:%d not recv consensus-chkptId for %ds(more than 60s), set requiring in Hb again, ts:%"
+      PRId64, pTask->id.idStr, vgId, el, pConChkptInfo->statusTs); return 1;
+      }*/
+    }
+  } else {
+    stInfo("vgId:%d, stage:%d do nothing for task:%s", vgId, pTask->pMeta->startInfo.curStage, pTask->id.idStr);
+  }
   return 0;
 }
 
@@ -513,7 +531,8 @@ void streamTaskSetReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
   pInfo->statusTs = ts;
   pInfo->consenChkptTransId = 0;
 
-  stDebug("s-task:%s set req consen-checkpointId flag, prev transId:%d, ts:%" PRId64, pTask->id.idStr, prevTrans, ts);
+  stDebug("s-task:%s set req consen-checkpointId flag, prev transId:%d, ts:%" PRId64 ", task created ts:%" PRId64,
+          pTask->id.idStr, prevTrans, ts, pTask->execInfo.created);
 }
 
 int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId) {

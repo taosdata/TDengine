@@ -465,6 +465,17 @@ struct SStreamTask {
 
 typedef int32_t (*startComplete_fn_t)(struct SStreamMeta*);
 
+typedef enum {
+  START_MARK_REQ_CHKPID = 0x1,
+  START_WAIT_FOR_CHKPTID = 0x2,
+  START_CHECK_DOWNSTREAM = 0x3,
+} EStartStage;
+
+typedef struct {
+  EStartStage  stage;
+  int64_t      ts;
+} SStartTaskStageInfo;
+
 typedef struct STaskStartInfo {
   int64_t            startTs;
   int64_t            readyTs;
@@ -474,6 +485,8 @@ typedef struct STaskStartInfo {
   SHashObj*          pFailedTaskSet;  // tasks that are done the check downstream process, may be successful or failed
   int64_t            elapsedTime;
   int32_t            restartCount;  // restart task counter
+  EStartStage        curStage;      // task start stage
+  SArray*            pStagesList;   // history stage list with timestamp, SArrya<SStartTaskStageInfo>
   startComplete_fn_t completeFn;    // complete callback function
 } STaskStartInfo;
 

@@ -786,27 +786,53 @@ int32_t tqStreamTaskProcessUpdateCheckpointReq(SStreamMeta* pMeta, bool restored
 }
 
 static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
-  int32_t vgId = pMeta->vgId;
-  int32_t code = 0;
-  int64_t st = taosGetTimestampMs();
+  int32_t         vgId = pMeta->vgId;
+  int32_t         code = 0;
+  int64_t         st = taosGetTimestampMs();
+  STaskStartInfo* pStartInfo = &pMeta->startInfo;
 
   streamMetaWLock(pMeta);
-  if (pMeta->startInfo.startAllTasks == 1) {
-    pMeta->startInfo.restartCount += 1;
-    tqDebug("vgId:%d in start tasks procedure, inc restartCounter by 1, remaining restart:%d", vgId,
-            pMeta->startInfo.restartCount);
+  if (pStartInfo->startAllTasks == 1) {
+    // wait for the checkpoint id rsp, this rsp will be expired
+    if (pStartInfo->curStage == START_MARK_REQ_CHKPID) {
+      SStartTaskStageInfo* pCurStageInfo = taosArrayGetLast(pStartInfo->pStagesList);
+      tqInfo("vgId:%d only mark the req consensus checkpointId flag, ts:%"PRId64 " ignore and continue", vgId, pCurStageInfo->ts);
+
+      taosArrayClear(pStartInfo->pStagesList);
+      pStartInfo->curStage = 0;
+      goto _start;
+
+    } else if (pStartInfo->curStage == START_WAIT_FOR_CHKPTID) {
+      SStartTaskStageInfo* pCurStageInfo = taosArrayGetLast(pStartInfo->pStagesList);
+      tqInfo("vgId:%d already sent consensus-checkpoint msg expired, send ts:%" PRId64 " rsp will be discarded", vgId,
+             pCurStageInfo->ts);
+      // continue executing
+
+      taosArrayClear(pStartInfo->pStagesList);
+      pStartInfo->curStage = 0;
+      goto _start;
+
+    } else if (pStartInfo->curStage == START_CHECK_DOWNSTREAM) {
+      pStartInfo->restartCount += 1;
+      tqDebug(
+          "vgId:%d in start tasks procedure (check downstream), inc restartCounter by 1 and wait for it completes, "
+          "remaining restart:%d",
+          vgId, pStartInfo->restartCount);
+    } else {
+      tqInfo("vgId:%d in start procedure, but not start to do anything yet, do nothing", vgId);
+    }
+
     streamMetaWUnLock(pMeta);
     return TSDB_CODE_SUCCESS;
   }
 
-  pMeta->startInfo.startAllTasks = 1;
-  streamMetaWUnLock(pMeta);
+_start:
 
+  pStartInfo->startAllTasks = 1;
   terrno = 0;
   tqInfo("vgId:%d tasks are all updated and stopped, restart all tasks, triggered by transId:%d, ts:%" PRId64, vgId,
          pMeta->updateInfo.completeTransId, pMeta->updateInfo.completeTs);
 
-  streamMetaWLock(pMeta);
   streamMetaClear(pMeta);
 
   int64_t el = taosGetTimestampMs() - st;
@@ -814,19 +840,12 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
 
   streamMetaLoadAllTasks(pMeta);
 
-  {
-    STaskStartInfo* pStartInfo = &pMeta->startInfo;
-    taosHashClear(pStartInfo->pReadyTaskSet);
-    taosHashClear(pStartInfo->pFailedTaskSet);
-    pStartInfo->readyTs = 0;
-  }
-
   if (isLeader && !tsDisableStream) {
     streamMetaWUnLock(pMeta);
     code = streamMetaStartAllTasks(pMeta);
   } else {
     streamMetaResetStartInfo(&pMeta->startInfo, pMeta->vgId);
-    pMeta->startInfo.restartCount = 0;
+    pStartInfo->restartCount = 0;
     streamMetaWUnLock(pMeta);
     tqInfo("vgId:%d, follower node not start stream tasks or stream is disabled", vgId);
   }
@@ -1179,7 +1198,7 @@ static int32_t tqProcessTaskResumeImpl(void* handle, SStreamTask* pTask, int64_t
       pTask->hTaskInfo.operatorOpen = false;
       code = streamStartScanHistoryAsync(pTask, igUntreated);
     } else if (level == TASK_LEVEL__SOURCE && (streamQueueGetNumOfItems(pTask->inputq.queue) == 0)) {
-//      code = tqScanWalAsync((STQ*)handle, false);
+      //      code = tqScanWalAsync((STQ*)handle, false);
     } else {
       code = streamTrySchedExec(pTask);
     }

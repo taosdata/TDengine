@@ -195,6 +195,7 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
   int32_t      numOfTasks = streamMetaGetNumOfTasks(pMeta);
   SMetaHbInfo* pInfo = pMeta->pHbInfo;
   int32_t      code = 0;
+  bool         setReqCheckpointId = false;
 
   // not recv the hb msg rsp yet, send current hb msg again
   if (pInfo->msgSendTs > 0) {
@@ -243,7 +244,7 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
       continue;
     }
 
-    // todo: this lock may blocked by lock in streamMetaStartOneTask function, which may lock a very long time when
+    // todo: this lock may be blocked by lock in streamMetaStartOneTask function, which may lock a very long time when
     // trying to load remote checkpoint data
     streamMutexLock(&pTask->lock);
     STaskStatusEntry entry = streamTaskGetStatusEntry(pTask);
@@ -275,6 +276,7 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
     entry.checkpointInfo.consensusChkptId = streamTaskCheckIfReqConsenChkptId(pTask, pMsg->ts);
     if (entry.checkpointInfo.consensusChkptId) {
       entry.checkpointInfo.consensusTs = pMsg->ts;
+      setReqCheckpointId = true;
     }
     streamMutexUnlock(&pTask->lock);
 
@@ -292,6 +294,16 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
     }
 
     streamMetaReleaseTask(pMeta, pTask);
+  }
+
+  if (setReqCheckpointId) {
+    ASSERT(pMeta->startInfo.curStage == START_MARK_REQ_CHKPID);
+
+    pMeta->startInfo.curStage = START_WAIT_FOR_CHKPTID;
+    SStartTaskStageInfo info = {.stage = pMeta->startInfo.curStage, .ts = taosGetTimestampMs()};
+    taosArrayPush(pMeta->startInfo.pStagesList, &info);
+
+    stDebug("vgId:%d keep he wait-for-checkpointId rsp stage, ts:%"PRId64, pMeta->vgId, info.ts);
   }
 
   pMsg->numOfTasks = taosArrayGetSize(pMsg->pTaskStatus);
