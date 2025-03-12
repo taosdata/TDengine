@@ -1860,6 +1860,23 @@ int32_t readSpecQueryJson(tools_cJSON * specifiedQuery) {
             }
         }
 
+        // batchQuery
+        tools_cJSON *batchQueryObj =
+            tools_cJSON_GetObjectItem(specifiedQuery, "batch_query");
+        if (tools_cJSON_IsString(batchQueryObj)) {
+            if (0 == strcasecmp(batchQueryObj->valuestring, "yes")) {
+                g_queryInfo.specifiedQueryInfo.batchQuery = true;
+                infoPrint("%s\n","batch_query is True");
+            } else if (0 == strcasecmp(batchQueryObj->valuestring, "no")) {
+                g_queryInfo.specifiedQueryInfo.batchQuery = false;
+                infoPrint("%s\n","batch_query is False");
+            } else {
+                errorPrint("Invalid batch_query value: %s\n",
+                    batchQueryObj->valuestring);
+                return -1;
+            }
+        }
+
         tools_cJSON *concurrent =
             tools_cJSON_GetObjectItem(specifiedQuery, "concurrent");
         if (tools_cJSON_IsNumber(concurrent)) {

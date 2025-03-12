@@ -188,11 +188,8 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 The parameters listed in this section apply to all functional modes.
 
-- **filetype**: The function to test, possible values are `insert`, `query`, `subscribe` and `csvfile`. Corresponding to insert, query, subscribe and generate csv file functions. Only one can be specified in each configuration file.
-
+- **filetype**: The function to test, possible values are `insert`, `query`, and `subscribe`. Corresponding to insert, query, and subscribe functions. Only one can be specified in each configuration file.
 - **cfgdir**: Directory where the TDengine client configuration file is located, default path is /etc/taos.
-
-- **output_dir**: The directory specified for output files. When the feature category is csvfile, it refers to the directory where the generated csv files will be saved. The default value is ./output/.
 
 - **host**: Specifies the FQDN of the TDengine server to connect to, default value is localhost.
 
@@ -286,27 +283,6 @@ Parameters related to supertable creation are configured in the `super_tables` s
 - **repeat_ts_max** : Numeric type, when composite primary key is enabled, specifies the maximum number of records with the same timestamp to be generated
 - **sqls** : Array of strings type, specifies the array of sql to be executed after the supertable is successfully created, the table name specified in sql must be prefixed with the database name, otherwise an unspecified database error will occur
 
-- **csv_file_prefix**: String type, sets the prefix for the names of the generated csv files. Default value is "data".
-
-- **csv_ts_format**: String type, sets the format of the time string in the names of the generated csv files, following the `strftime` format standard. If not set, files will not be split by time intervals. Supported patterns include:
-  - %Y: Year as a four-digit number (e.g., 2025)
-  - %m: Month as a two-digit number (01 to 12)
-  - %d: Day of the month as a two-digit number (01 to 31)
-  - %H: Hour in 24-hour format as a two-digit number (00 to 23)
-  - %M: Minute as a two-digit number (00 to 59)
-  - %S: Second as a two-digit number (00 to 59)
-
-- **csv_ts_interval**: String type, sets the time interval for splitting generated csv file names. Supports daily, hourly, minute, and second intervals such as 1d/2h/30m/40s. The default value is "1d".
-
-- **csv_output_header**: String type, sets whether the generated csv files should contain column header descriptions. The default value is "yes".
-
-- **csv_tbname_alias**: String type, sets the alias for the tbname field in the column header descriptions of csv files. The default value is "device_id".
-
-- **csv_compress_level**: String type, sets the compression level for generating csv-encoded data and automatically compressing it into gzip file. This process directly encodes and compresses the data, rather than first generating a csv file and then compressing it. Possible values are:
-  - none: No compression
-  - fast: gzip level 1 compression
-  - balance: gzip level 6 compression
-  - best: gzip level 9 compression
 
 #### Tag and Data Columns
 
@@ -372,9 +348,11 @@ Specify the configuration parameters for tag and data columns in `super_tables` 
 ### Query Parameters
 
 In query scenarios, `filetype` must be set to `query`.
+"taosc": Query through Native Connection Method
+"rest" : Query through RESTful Connection Method
+
 `query_times` specifies the number of times to run the query, numeric type.
 
-Query scenarios can control the execution of slow query statements by setting `kill_slow_query_threshold` and `kill_slow_query_interval` parameters, where threshold controls that queries exceeding the specified exec_usec time will be killed by taosBenchmark, in seconds; interval controls the sleep time to avoid continuous slow query CPU consumption, in seconds.
 
 For other common parameters, see [General Configuration Parameters](#general-configuration-parameters)
 
@@ -382,13 +360,25 @@ For other common parameters, see [General Configuration Parameters](#general-con
 
 Configuration parameters for querying specified tables (can specify supertables, subtables, or regular tables) are set in `specified_table_query`.  
 - **mixed_query** : Query Mode . "yes" is `Mixed Query`, "no" is `General Query`, default is "no".   
-  `General Query`: 
+  `General Query`:   
   Each SQL in `sqls` starts `threads` threads to query this SQL, Each thread exits after executing the `query_times` queries, and only after all threads executing this SQL have completed can the next SQL be executed.   
   The total number of queries(`General Query`) = the number of `sqls` * `query_times` * `threads`  
-  `Mixed Query`: 
+  `Mixed Query`:   
   All SQL statements in `sqls` are divided into `threads` groups, with each thread executing one group. Each SQL statement needs to execute `query_times` queries.   
-  The total number of queries(`Mixed Query`) = the number of `sqls` * `query_times`
+  The total number of queries(`Mixed Query`) = the number of `sqls` * `query_times`. 
+
+- **batch_query** : Batch query power switch.  
+The value range "yes" indicates that it is enabled, "no" indicates that it is not enabled, and other values report errors.  
+Batch query refers to dividing all SQL statements in SQL into `threads` groups, with each thread executing one group.   
+Each SQL statement is queried only once before exiting, and the main thread waits for all threads to complete before determining if the `query_interval` parameter is set. If sleep is required for a specified time, each thread group is restarted and the previous process is repeated until the number of queries is exhausted.   
+Functional limitations:  
+1. Only supports scenarios where `mixed_query` is set to 'yes'.
+2. Restful queries are not supported, meaning `query_made` cannot be 'rest'.
+
 - **query_interval** : Query interval, in millisecond, default is 0.
+When the 'batch_query' switch is turned on, it indicates the interval time after each batch query is completed, When closed, it indicates the interval time between each SQL query completion.
+If the execution time of the query exceeds the interval time, it will no longer wait. If the execution time of the query is less than the interval time, it is necessary to wait to make up for the interval time.
+
 - **threads** : Number of threads executing the SQL query, default is 1.
 - **sqls**:
   - **sql**: The SQL command to execute, required.
@@ -498,17 +488,6 @@ Note: Data types in the taosBenchmark configuration file must be in lowercase to
 
 ```json
 {{#include /TDengine/tools/taos-tools/example/tmq.json}}
-```
-
-</details>
-
-### Export CSV File Example
-
-<details>
-<summary>csv-export.json</summary>
-
-```json
-{{#include /TDengine/tools/taos-tools/example/csv-export.json}}
 ```
 
 </details>
