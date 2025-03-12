@@ -12009,6 +12009,16 @@ static bool crossTableWithUdaf(SSelectStmt* pSelect) {
          !hasTbnameFunction(pSelect->pPartitionByList);
 }
 
+
+static bool isVirtualTable(int8_t tableType) {
+  if (tableType == TSDB_VIRTUAL_CHILD_TABLE || tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+
 static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   if (NULL == pStmt->pQuery) {
     return TSDB_CODE_SUCCESS;
@@ -12019,20 +12029,38 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
   }
 
-#ifdef TD_ENTERPRISE
   SRealTableNode* pRealTable = (SRealTableNode*)((SSelectStmt*)pStmt->pQuery)->pFromTable;
   SName           name = {0};
   STableMeta*     pMeta = NULL;
   int8_t          tableType = 0;
   toName(pCxt->pParseCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, &name);
   int32_t code = getTargetMeta(pCxt, &name, &pMeta, true);
-  if (NULL != pMeta) {
-    tableType = pMeta->tableType;
-    taosMemoryFree(pMeta);
-  }
   if (TSDB_CODE_SUCCESS != code) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
   }
+
+  if (NULL != pMeta) {
+    tableType = pMeta->tableType;
+  }
+
+  if (isVirtualTable(tableType) || (tableType == TSDB_SUPER_TABLE && pMeta->virtualStb)) {
+    if (0 == pStmt->pOptions->ignoreExpired) {
+      taosMemoryFree(pMeta);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "For virtual table IGNORE EXPIRED must be 1");
+    }
+    if (0 == pStmt->pOptions->ignoreUpdate) {
+      taosMemoryFree(pMeta);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "For virtual table IGNORE UPDATE must be 1");
+    }
+    if (pStmt->pOptions->fillHistory) {
+      taosMemoryFree(pMeta);
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "For virtual table FILL HISTORY must be 0");
+    }
+  }
+
+  taosMemoryFree(pMeta);
+
+#ifdef TD_ENTERPRISE
   if (TSDB_VIEW_TABLE == tableType) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
   }
@@ -17066,13 +17094,6 @@ static int32_t addDropTbReqIntoVgroup(SHashObj* pVgroupHashmap, SVgroupInfo* pVg
   return code;
 }
 
-static bool isVirtualTable(int8_t tableType) {
-  if (tableType == TSDB_VIRTUAL_CHILD_TABLE || tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
-    return true;
-  } else {
-    return false;
-  }
-}
 static int32_t buildDropTableVgroupHashmap(STranslateContext* pCxt, SDropTableClause* pClause, const SName* name,
                                            int8_t* tableType, SHashObj* pVgroupHashmap) {
   STableMeta* pTableMeta = NULL;
