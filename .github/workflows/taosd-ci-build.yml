@@ -90,8 +90,8 @@ jobs:
 
       - name: Statistics ldd
         run: |
-          find ${{ github.workspace }}/debug/build/lib -type f -print0 | xargs -0 ldd
-          find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ldd
+          find ${{ github.workspace }}/debug/build/lib -type f -print0 | xargs -0 ldd || true
+          find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ldd || true
 
       - name: Statistics size
         run: |
