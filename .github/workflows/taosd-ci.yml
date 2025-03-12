@@ -47,7 +47,7 @@ jobs:
         id: parameters
         run: |
           set -euo pipefail
-          if ${{ github.event_name == 'wrokflow_dispatch' }}; then
+          if ${{ github.event_name == 'workflow_dispatch' }}; then
             run_function_test="true"
             run_tdgpt_test="false"
           else
