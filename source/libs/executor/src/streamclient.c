@@ -13,11 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef WINDOWS
+
 #include <curl/curl.h>
+
+#endif
 
 #include "executorInt.h"
 #include "streamsession.h"
 #include "tjson.h"
+
+#ifndef WINDOWS
 
 static int32_t buildSessionResultSql(SSHashObj* pRangeMap, SStreamRecParam* pParam, bool* pEnd) {
   int64_t prevLen = 0;
@@ -281,3 +287,14 @@ _end:
   }
   return code;
 }
+
+#else
+
+int32_t streamClientGetResultRange(SStreamRecParam* pParam, SSHashObj* pRangeMap, SArray* pRangeRes) {
+  return TSDB_CODE_FAILED;
+}
+int32_t streamClientGetFillRange(SStreamRecParam* pParam, SWinKey* pKey, SArray* pRangeRes, void* pEmptyRow, int32_t size, int32_t* pOffsetInfo, int32_t numOfCols) {
+  return TSDB_CODE_FAILED;
+}
+
+#endif

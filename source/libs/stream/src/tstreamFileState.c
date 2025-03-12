@@ -2104,7 +2104,7 @@ void clearExpiredSessionState(SStreamFileState* pFileState, int32_t numOfKeep, T
       }
       pPos->invalid = true;
 
-      if (i = 0 && pFlushGroup != NULL) {
+      if (i == 0 && pFlushGroup != NULL) {
         void* pGpVal = tSimpleHashGet(pFlushGroup, &pKey->groupId, sizeof(uint64_t));
         if (pGpVal == NULL) {
           code = tdListAppend(pFlushList, &pPos);
