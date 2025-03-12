@@ -54,7 +54,7 @@ static int32_t buildSessionResultSql(SSHashObj* pRangeMap, SStreamRecParam* pPar
 static size_t parseResult(char* pCont, size_t contLen, size_t nmemb, void* userdata) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  qDebug("stream client response is received, contLen:%" PRIu64 ", nmemb:%" PRIu64 ", pCont:%p", contLen, nmemb, pCont);
+  qDebug("stream client response is received, contLen:%d, nmemb:%d, pCont:%p", (int32_t)contLen, (int32_t)nmemb, pCont);
   QUERY_CHECK_CONDITION(contLen > 0, code, lino, _end, TSDB_CODE_FAILED);
   QUERY_CHECK_CONDITION(nmemb > CURLE_OK, code, lino, _end, TSDB_CODE_FAILED);
   QUERY_CHECK_NULL(pCont, code, lino, _end, TSDB_CODE_FAILED);
