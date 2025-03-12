@@ -989,7 +989,7 @@ static int32_t doStreamExecTask(SStreamTask* pTask) {
               } else {
                 stDebug("s-task:%s put recalculate block into inputQ", pHTask->id.idStr);
               }
-              code = streamTrySchedExec(pHTask);
+              code = streamTrySchedExec(pHTask, false);
             }
           }
         }
