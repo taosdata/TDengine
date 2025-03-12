@@ -369,14 +369,7 @@ if [ "$osType" != "Darwin" ]; then
   fi
 
   if [[ "$verMode" == "cluster" && "$skip" == 0 ]]; then
-    echo "====clone taosx repo if taosx dir is empty===="
     taosx_release_dir="${top_dir}/enterprise/src/plugins/taosx/packaging"
-    if [ ! -d ${taosx_release_dir} ]; then
-      cd ${top_dir}/enterprise/src/plugins
-      git clone https://github.com/taosdata/taosx.git
-    else
-      echo "it has taosx repo, so don't need to clone again"
-    fi
     echo "==== generate taosx package ===="
     cd ${taosx_release_dir}
     if [[ "$cusName" == "TDengine" && "${cusPrompt}" == "taos" && "${cusEmail}" == "support@taosdata.com" ]];then

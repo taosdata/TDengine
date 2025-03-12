@@ -304,8 +304,8 @@ function build_TDengine() {
         # pull taosadapter        
         git_pull "${communityDir}/tools/taosadapter" "${branch}" "ver-${version}"
 
-        # pull taos-tools
-        git_pull "${communityDir}/tools/taos-tools" "main" "ver-${version}"
+        # # pull taos-tools
+        # git_pull "${communityDir}/tools/taos-tools" "main" "ver-${version}"
 
         # pull taosws-rs
         git_pull "${communityDir}/tools/taosws-rs" "main" "ver-${version}"
@@ -319,19 +319,28 @@ function build_TDengine() {
     repoDir=""
     echo "start to cmake tdengine"
     echo "versionType $versionType"
+    # set allocator glibc or jemalloc
+    
+    allocator="glibc"
+    if [[ "$allocator" == "jemalloc" ]]; then
+        allocator_macro="-DJEMALLOC_ENABLED=true"
+    else
+        allocator_macro="-DJEMALLOC_ENABLED=false"
+    fi
+
     if [ "$versionType" != "community" ];then
         echo "build enterprise or industry version"
         BUILD_KEEPER="internal"
         mkdir -p ${internalDir}/debug
         cd ${internalDir}/debug
-        cmd="cmake ../ -DCMAKE_BUILD_TYPE=Release -DASSERT_NOT_CORE=true -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE=\"${build_time}\" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=internal -DBUILD_TOOLS=true -DGRANT_VALUE=${grantValue} -DTD_PRODUCT_NAME=\"TDengine Enterprise Edition\" -DBUILD_KEEPER=${BUILD_KEEPER} -DBUILD_SANITIZER=0 "
+        cmd_compile_enterprise="cmake ../ -DCMAKE_BUILD_TYPE=Release -DASSERT_NOT_CORE=true -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE=\"${build_time}\" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=internal -DBUILD_TOOLS=true -DGRANT_VALUE=${grantValue} -DTD_PRODUCT_NAME=\"TDengine Enterprise Edition\" -DBUILD_KEEPER=${BUILD_KEEPER} -DBUILD_SANITIZER=0 ${allocator_macro} "
         if [ "$versionType" == "enterprise" ]; then
             echo "build TDengine enterprise version"
-            echo $cmd
-            eval $cmd
+            echo $cmd_compile_enterprise
+            eval $cmd_compile_enterprise
         elif [ "$versionType" == "industry" ]; then
             echo "build TDengine industry version"
-            industry_cmd="$cmd $(industry_options)"
+            industry_cmd="$cmd_compile_enterprise $(industry_options)"
             echo $industry_cmd
             eval $industry_cmd
         fi
@@ -342,11 +351,10 @@ function build_TDengine() {
         mkdir -p ${communityDir}/debug
         cd ${communityDir}/debug
         BUILD_KEEPER=true
-        echo "cmake ../ -DCMAKE_BUILD_TYPE=Release -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE='${build_time}' -DGITINFO=${gitinfo} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=false -DBUILD_TOOLS=true  -DBUILD_KEEPER=${BUILD_KEEPER}"
-        cmake ../ -DCMAKE_BUILD_TYPE=Release -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type}          \
-            -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE="${build_time}" -DGITINFO=${gitinfo}        \
-            -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_KEEPER=${BUILD_KEEPER} 
-
+        cmd_compile_community="cmake ../ -DCMAKE_BUILD_TYPE=Release -DCPUTYPE=${os_arch} -DWEBSOCKET=true -DOSTYPE=${os_type} -DSOMODE=dynamic -DDBNAME=taos -DVERTYPE=stable -DVERDATE='${build_time}' -DGITINFO=${gitinfo} -DVERNUMBER=${version} -DVERCOMPATIBLE=3.0.0.0 -DBUILD_HTTP=false -DBUILD_TOOLS=true  -DBUILD_KEEPER=${BUILD_KEEPER} "
+        echo $cmd_compile_community
+        eval $cmd_compile_community
+        
         binPath="${communityDir}/debug/build/bin"
         repoDir="${communityDir}"
     fi
@@ -482,7 +490,7 @@ function preparepkg() {
     mkdir -p ${install_dir}/bin ${install_dir}/cfg ${install_dir}/inc ${install_dir}/init.d
 
     # copy bin files
-    serverBin=(${prefix} ${prefix}d ${prefix}adapter ${prefix}keeper ${prefix}Benchmark ${prefix}dump udfd)
+    serverBin=(${prefix} ${prefix}d ${prefix}adapter ${prefix}keeper ${prefix}Benchmark ${prefix}dump taosudf)
 
     for bin in "${serverBin[@]}"; do
         if [ -f "${debugDir}/build/bin/${bin}" ]; then
@@ -577,6 +585,42 @@ function preparepkg() {
         cp ${explorerDir}/server/examples/explorer.toml ${install_dir}/cfg || :
     fi
     
+    #copy jemalloc
+    if [ "${versionType}" != "community" ] && [ "$allocator" == "jemalloc" ] ; then
+        build_dir="${debugDir}/build"
+        mkdir -p ${install_dir}/jemalloc/{bin,lib,lib/pkgconfig,include/jemalloc,share/doc/jemalloc,share/man/man3} 
+        if [ -f ${build_dir}/bin/jemalloc-config ]; then
+            cp ${build_dir}/bin/jemalloc-config ${install_dir}/jemalloc/bin
+        fi
+        if [ -f ${build_dir}/bin/jemalloc.sh ]; then
+            cp ${build_dir}/bin/jemalloc.sh ${install_dir}/jemalloc/bin
+        fi
+        if [ -f ${build_dir}/bin/jeprof ]; then
+            cp ${build_dir}/bin/jeprof ${install_dir}/jemalloc/bin
+        fi
+        if [ -f ${build_dir}/include/jemalloc/jemalloc.h ]; then
+            cp ${build_dir}/include/jemalloc/jemalloc.h ${install_dir}/jemalloc/include/jemalloc
+        fi
+        if [ -f ${build_dir}/lib/libjemalloc.so.2 ]; then
+            cp ${build_dir}/lib/libjemalloc.so.2 ${install_dir}/jemalloc/lib
+            ln -sf ${install_dir}/jemalloc/lib/libjemalloc.so.2 ${install_dir}/jemalloc/lib/libjemalloc.so
+        fi
+        # if [ -f ${build_dir}/lib/libjemalloc.a ]; then
+        #   cp ${build_dir}/lib/libjemalloc.a ${install_dir}/jemalloc/lib
+        # fi
+        # if [ -f ${build_dir}/lib/libjemalloc_pic.a ]; then
+        #   cp ${build_dir}/lib/libjemalloc_pic.a ${install_dir}/jemalloc/lib
+        # fi
+        if [ -f ${build_dir}/lib/pkgconfig/jemalloc.pc ]; then
+            cp ${build_dir}/lib/pkgconfig/jemalloc.pc ${install_dir}/jemalloc/lib/pkgconfig
+        fi
+        if [ -f ${build_dir}/share/doc/jemalloc/jemalloc.html ]; then
+            cp ${build_dir}/share/doc/jemalloc/jemalloc.html ${install_dir}/jemalloc/share/doc/jemalloc
+        fi
+        if [ -f ${build_dir}/share/man/man3/jemalloc.3 ]; then
+            cp ${build_dir}/share/man/man3/jemalloc.3 ${install_dir}/jemalloc/share/man/man3
+        fi 
+    fi
     # copy others    
     cp ${internalDir}/enterprise/packaging/start-all.sh ${install_dir} || :
     cp ${internalDir}/enterprise/packaging/stop-all.sh ${install_dir} || :
@@ -617,7 +661,7 @@ function make_linux_pkg() {
         cd ${install_dir}
         
         # copy bin files
-        serverBin=(remove.sh ${prefix} ${prefix}d ${prefix}keeper TDinsight.sh set_core.sh ${prefix}adapter ${prefix}d-dump-cfg.gdb  tdengine-datasource.zip udfd startPre.sh  ${prefix}Benchmark ${prefix}dump ${prefix}-explorer tdengine-datasource.zip.md5 quick_deploy.sh)
+        serverBin=(remove.sh ${prefix} ${prefix}d ${prefix}keeper TDinsight.sh set_core.sh ${prefix}adapter ${prefix}d-dump-cfg.gdb  tdengine-datasource.zip taosudf startPre.sh  ${prefix}Benchmark ${prefix}dump ${prefix}-explorer tdengine-datasource.zip.md5 quick_deploy.sh)
         mkdir -p ${install_dir}/${serverPackageName}/bin
         cd ${install_dir}/bin
         for bin in "${serverBin[@]}"; do
@@ -649,6 +693,11 @@ function make_linux_pkg() {
         cd ${install_dir}
         cp -r inc/ ${install_dir}/${serverPackageName}
         cp -r init.d/ ${install_dir}/${serverPackageName}
+        
+        # cp jemalloc
+        if [ "${versionType}" != "community" ] && [ "$allocator" == "jemalloc" ] ; then
+            cp -r jemalloc/ ${install_dir}/${serverPackageName}
+        fi
 
         cd ${serverPackageName}
         tar -zcv -f package.tar.gz * --remove-files ||:
@@ -682,6 +731,11 @@ function make_linux_pkg() {
         
         cd ${install_dir}
         cp -r inc/ ${install_dir}/${clientPackageName}
+        
+        # cp jemalloc
+        if [ "${versionType}" != "community" ] && [ "$allocator" == "jemalloc" ] ; then
+            cp -r jemalloc/ ${install_dir}/${serverPackageName}
+        fi
 
         cd ${clientPackageName}
         tar -zcv -f package.tar.gz * --remove-files ||:
@@ -793,11 +847,15 @@ function make_linux_pkg() {
 }
 
 function make_mac_pkg() {
+    # remove old package files ,include bin  cfg  driver  examples  include   share
+    mac_install_dir="/opt/tdengine"
     sudo rm -rf /opt/tdengine/*
 
-    if [ -d "/usr/local/Cellar/tdengine/$version" ];then
+    # /usr/local/Cellar/tdengine/${version} is the dst dir when make install  
+    # copy bin  cfg  driver  examples  include   share to /opt/tdengine
+    if [ -d "/usr/local/Cellar/tdengine/$version" ]; then
         sudo cp -rf /usr/local/Cellar/tdengine/$version/ /opt/tdengine/
-    elif [ -d "/opt/homebrew/Cellar/tdengine/$version" ];then
+    elif [ -d "/opt/homebrew/Cellar/tdengine/$version" ]; then
         sudo cp -rf /opt/homebrew/Cellar/tdengine/$version/ /opt/tdengine/
     else
         sudo cp -rf /usr/local/taos/ /opt/tdengine/
@@ -811,8 +869,19 @@ function make_mac_pkg() {
     sudo mkdir -p /opt/tdengine/examples/taosbenchmark-json
     sudo cp $communityDir/tools/taos-tools/example/* /opt/tdengine/examples/taosbenchmark-json
 
+    # copy connectors
+    sudo mkdir -p ${mac_install_dir}/connector
+    cd ${mac_install_dir}/connector
+
+    sudo cp -r ${connectorDir}/driver-go . && sudo mv driver-go go && sudo rm -rf go/.git || exit 1
+    sudo cp -r ${connectorDir}/taos-connector-python . && sudo mv taos-connector-python python && sudo rm -rf python/.git || exit 1
+    sudo cp -r ${connectorDir}/taos-connector-node . && sudo mv taos-connector-node nodejs && sudo rm -rf nodejs/.git || exit 1
+    sudo cp -r ${connectorDir}/taos-connector-dotnet . && sudo mv taos-connector-dotnet dotnet && sudo rm -rf dotnet/.git || exit 1
+    sudo cp -r ${connectorDir}/taos-connector-rust . && sudo mv taos-connector-rust rust && sudo rm -rf rust/.git || exit 1
+    sudo cp ${connectorDir}/taos-connector-jdbc/target/*.jar . || exit 1
+
+    # others
     if [ "${versionType}" == "community" ]; then        
-                
         # sudo cp -f ${keeperDir}/taoskeeper /opt/tdengine/bin/
         # sudo cp -f ${keeperDir}/taoskeeper.service /opt/tdengine/cfg/
         # sudo cp -f ${keeperDir}/config/taoskeeper.toml /opt/tdengine/cfg/
@@ -842,7 +911,7 @@ function make_mac_pkg() {
 
         /usr/local/bin/packagesbuild --package-version $version TDengine.pkgproj
 
-        sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/udfd,bin/taoskeeper,bin/taosadapter,bin/taos-explorer}
+        sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/taosudf,bin/taoskeeper,bin/taosadapter,bin/taos-explorer}
         sed -i '' "s/TDengine-.*-macOS-.*\</TDengine-client-$version-macOS-$os_arch\</g" $communityDir/packaging/tools/TDengine.pkgproj
         sed -i '' "s/mac_before_install.txt/mac_before_install_client.txt/g" $communityDir/packaging/tools/TDengine.pkgproj
         sed -i '' "s|$communityDir/packaging/tools/mac_install_summary.txt|$communityDir/packaging/tools/mac_install_summary_client.txt|g" $communityDir/packaging/tools/TDengine.pkgproj
@@ -852,7 +921,7 @@ function make_mac_pkg() {
         
         cd $communityDir/packaging/tools
         git checkout -- $communityDir/packaging/tools/TDengine.pkgproj
-        sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/udfd,bin/taoskeeper,bin/taosadapter,bin/taos-explorer}
+        sudo rm -rf /opt/tdengine/{service,bin/taosd,bin/taosudf,bin/taoskeeper,bin/taosadapter,bin/taos-explorer}
 
         sed -i '' "s/3.0.1.4/$version/g" $communityDir/packaging/tools/TDengine.pkgproj
         sed -i '' "s|/opt.*/tools/post.sh|$communityDir/packaging/tools/post.sh|g" $communityDir/packaging/tools/TDengine.pkgproj

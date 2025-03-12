@@ -318,7 +318,7 @@ def process_cmake():
         cmd = base_cmd + (f' -DBUILD_EXPLORER=false -DBUILD_TAOSX=false -DBUILD_KEEPER=internal '
                           f'-DASSERT_NOT_CORE=true -DBUILD_HTTP=internal -DCUS_NAME={tdCustomer.Name} '
                           f'-DCUS_PROMPT={tdCustomer.Prompt} -DCUS_EMAIL={tdCustomer.Email} -DTD_PRODUCT_NAME=\"{TD_INDUSTRY_NAME}\" '
-                          f'-DGRANT_VALUE={tdCustomer.grantValue} ')
+                          f'-DGRANT_VALUE={tdCustomer.grantValue} -DJEMALLOC_ENABLED=false ')
     logging.info(cmd)
     try:
         subprocess.check_call(cmd, shell=True)
@@ -723,7 +723,7 @@ def process_package_client():
         subprocess.check_call(f"iscc /DMyAppInstallName=\"{install_info.packagClientName}\" \
               /DMyAppIco=\"{ico_path}\" \
               /DMyAppVersion=\"{td_version.version}\" \
-              /DMyAppExcludeSource=\"taosd.exe,tmq*.exe,tsim.exe, create_table.exe, runUdf.exe, dumper.exe, udfd.exe, taoskeeper.exe, taosadapter.exe\" \
+              /DMyAppExcludeSource=\"taosd.exe,tmq*.exe,tsim.exe, create_table.exe, runUdf.exe, dumper.exe, taosudf.exe, taoskeeper.exe, taosadapter.exe\" \
               /DCusName=\"{tdCustomer.Name}\" \
               /DCusPrompt=\"{tdCustomer.Prompt}\" \
               {iss_path} /O{install_info.directory}\\{install_info.branch}\\release", shell=True)
@@ -769,7 +769,7 @@ def process_package_OEM_client():
                 /DMyAppIco=\"{ico_path}\" \
                 /DMyAppInstallDir=\"C:\\{tdCustomer.Name}\" \
                 /DMyAppVersion=\"{td_version.version}\" \
-                /DMyAppExcludeSource=\"taosd.exe,tmq*.exe,tsim.exe,taosadapter.exe,taoskeeper.exe,create_table.exe,runUdf.exe,udfd.exe,dumper.exe\" \
+                /DMyAppExcludeSource=\"taosd.exe,tmq*.exe,tsim.exe,taosadapter.exe,taoskeeper.exe,create_table.exe,runUdf.exe,taosudf.exe,dumper.exe\" \
                 /DCusName=\"{tdCustomer.Name}\" \
                 /DCusPrompt=\"{tdCustomer.Prompt}\" \
                 {iss_path} /O{install_info.directory}\\{install_info.branch}\\release")
