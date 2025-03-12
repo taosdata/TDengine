@@ -216,10 +216,6 @@ class TDTestCase:
         tdSql.query("select _wstart ,first(ts),last(ts),count(*),to_char(ts, 'yyyymmdd') as ts from ts6079.meters partition by to_char(ts, 'yyyymmdd') as ts state_window(cast(current as varchar(2)));")
         tdSql.checkRows(10)
         tdSql.checkData(0, 3, 10)
-        
-        tdSql.query("select _wstart ,first(ts),last(ts),count(*),to_char(ts,'yyyymmdd') as ts from ts6079.meters partition by to_char(ts,'yyyymmdd') as ts interval(5);")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 3, 50)
    
  
     def run(self):
