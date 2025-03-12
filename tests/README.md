@@ -249,9 +249,9 @@ You need to use sudo -s to start a new shell session as the superuser (root) in 
 cd /usr/local/src && \
 git clone https://github.com/taosdata/tsbs.git && \
 cd tsbs && \
-git checkout enh/chr-td-33357 && \
+git checkout enh/add-influxdb3.0 && \
 cd scripts/tsdbComp && \
-./testTsbs.sh 
+./test_tsbs.sh -s scenario3
 ```
 
 > [!NOTE]
@@ -280,4 +280,9 @@ serverPass="taosdata123"   # server root password
 
 ### 3.7.3 Check test results
 
-When the test is done, the result can be found in `/data2/` directory, which can also be configured in `test.ini`.
+When the test is done, the result can be found in `${installPath}/tsbs/scripts/tsdbComp/log/` directory, which can also be configured in `test.ini`.
+
+### 3.7.4 Test more scenario
+
+Use `test_tsbs.sh --help` to  get more test scenarios.
+
