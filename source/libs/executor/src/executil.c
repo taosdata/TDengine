@@ -1938,7 +1938,7 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
 #endif
 
     int32_t numOfParam = LIST_LENGTH(pFuncNode->pParameterList);
-  
+
     pExp->base.pParam = taosMemoryCalloc(numOfParam, sizeof(SFunctParam));
     QUERY_CHECK_NULL(pExp->base.pParam, code, lino, _end, terrno);
     pExp->base.numOfParams = numOfParam;
@@ -2497,12 +2497,7 @@ STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowI
 
   SResultRow* pRow = getResultRowByPos(pBuf, &pResultRowInfo->cur, false);
   if (pRow) {
-#ifndef TD_ASTRA
-    w = pRow->win;
-#else
-    w.skey = taosGetInt64Aligned(&pRow->win.skey);
-    w.ekey = taosGetInt64Aligned(&pRow->win.ekey);
-#endif
+    TAOS_SET_OBJ_ALIGNED(&w, pRow->win);
   }
 
   // in case of typical time window, we can calculate time window directly.

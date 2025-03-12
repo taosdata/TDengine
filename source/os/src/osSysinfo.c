@@ -887,14 +887,14 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
     diskSize->used = (int64_t)(i64TotalBytes - i64FreeBytes);
     return 0;
   } else {
-    // printf("failed to get disk size, dataDir:%s ERRNO:%s", tsDataDir, strerror(ERRNO));
+    // printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(ERRNO));
     terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
     return terrno;
   }
 #elif defined(_TD_DARWIN_64)
   struct statvfs info;
   if (statvfs(dataDir, &info)) {
-    // printf("failed to get disk size, dataDir:%s ERRNO:%s", tsDataDir, strerror(ERRNO));
+    // printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(ERRNO));
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   } else {

@@ -46,9 +46,6 @@ struct SHashNode {
   uint32_t   keyLen;    // length of the key
   uint16_t   refCount;  // reference count
   int8_t     removed;   // flag to indicate removed
-#ifdef TD_ASTRA_32
-  uint32_t paddingAigned;
-#endif
   char data[];
 };
 

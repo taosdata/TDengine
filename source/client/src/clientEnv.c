@@ -947,12 +947,6 @@ static void *dmStartDaemonFunc(void *param) {
   int32_t    argc = pArgs->argc;
   char     **argv = pArgs->argv;
 
-  // if (argc < 1) {
-  //   code = TSDB_CODE_INVALID_PARA;
-  //   printf("failed to start taosd since Invalid parameter, argc: %d\r\n", argc);
-  //   goto _exit;
-  // }
-
   code = dmStartDaemon(argc, (const char **)argv);
   if (code != 0) {
     printf("failed to start taosd since %s\r\n", tstrerror(code));
@@ -1054,6 +1048,7 @@ void taos_init_imp(void) {
   // So, to make sure taos_cleanup will be invoked to clean up the allocated resource to suppress the valgrind warning.
   (void)atexit(taos_cleanup);
   SET_ERRNO(TSDB_CODE_SUCCESS);
+  terrno = TSDB_CODE_SUCCESS;
   taosSeedRand(taosGetTimestampSec());
 
   appInfo.pid = taosGetPId();

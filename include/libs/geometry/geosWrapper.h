@@ -23,7 +23,7 @@ extern "C" {
 #include <stdint.h>
 #include "os.h"
 
-#ifndef TD_ASTRA
+#ifdef USE_GEOS
 #include "tgeosctx.h"
 
 void geosFreeBuffer(void *buffer);

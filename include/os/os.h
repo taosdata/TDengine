@@ -152,11 +152,6 @@ extern threadlocal bool tsEnableRandErr;
     }                                  \
   } while (0)
 
-#ifndef TD_ASTRA_RTP
-#define SET_ERRNO(_code) (errno = (_code));
-#define ERRNO            errno
-#endif
-
 #ifdef __cplusplus
 }
 #endif

@@ -38,7 +38,7 @@ void Testbase::InitLog(const char* path) {
   taosGetSystemInfo();
   tsQueueMemoryAllowed = tsTotalMemoryKB * 0.06;
   tsApplyMemoryAllowed = tsTotalMemoryKB * 0.04;
-  if (taosInitLog("taosdlog", 1, 0) != 0) {
+  if (taosInitLog("taosdlog", 1, false) != 0) {
     printf("failed to init log file\n");
   }
 }

@@ -117,7 +117,6 @@ typedef struct {
   int8_t        enableAuditDelete;
   int8_t        enableStrongPass;
 } SAppInstServerCFG;
-
 struct SAppInstInfo {
   int64_t            numOfConns;
   int32_t            totalDnodes;

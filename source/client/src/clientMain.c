@@ -230,7 +230,7 @@ void taos_cleanup(void) {
   }
 
   monitorClose();
-  // tscStopCrashReport();
+  tscStopCrashReport();
 
   hbMgrCleanUp();
 
@@ -1294,8 +1294,8 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     }
 
     // return to app directly
-    tscError("req:0x%" PRIx64 ", error occurs, code:%s, return to user app, QID:0x%" PRIx64, pRequest->self,
-             tstrerror(code), pRequest->requestId);
+    tscError("req:0x%" PRIx64 ", error occurs, code:%s, return to user app, QID:0x%" PRIx64, pRequest->self, tstrerror(code),
+             pRequest->requestId);
     pRequest->code = code;
     returnToUser(pRequest);
   }
@@ -1507,8 +1507,8 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
       code = refreshMeta(pRequest->pTscObj, pRequest);
       if (code != 0) {
-        tscWarn("req:0x%" PRIx64 ", refresh meta failed, code:%d - %s, QID:0x%" PRIx64, pRequest->self, code,
-                tstrerror(code), pRequest->requestId);
+        tscWarn("req:0x%" PRIx64 ", refresh meta failed, code:%d - %s, QID:0x%" PRIx64, pRequest->self, code, tstrerror(code),
+                pRequest->requestId);
       }
       pRequest->prevCode = code;
       doAsyncQuery(pRequest, true);

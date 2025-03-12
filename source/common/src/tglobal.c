@@ -2016,9 +2016,6 @@ int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *
   dDebugFlag = pItem->i32;
 
 _exit:
-  if (code != 0) {
-    (void)printf("failed to set data folder since %s\n", tstrerror(code));
-  }
   cfgCleanup(pCfg);
   TAOS_RETURN(code);
 }

@@ -395,7 +395,7 @@ int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
     return terrno;
   }
 #else  // TD_ASTRA_TODO
-  if (realPath && dirname) tstrncpy(realPath, dirname, maxlen);
+  if (realPath) tstrncpy(realPath, dirname, maxlen);
   return 0;
 #endif
 }

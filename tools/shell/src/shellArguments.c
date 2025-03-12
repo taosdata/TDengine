@@ -479,7 +479,8 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
 #elif defined(TD_ASTRA)
   shell.info.osname = "Astra";
-  snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getenv("HOME"), SHELL_HISTORY_FILE); //TD_ASTRA_TODO getenv("HOME")
+  snprintf(shell.history.file, TSDB_FILENAME_LEN, "C:%sTDengine%s%s", TD_DIRSEP, TD_DIRSEP,
+           SHELL_HISTORY_FILE);  // TD_ASTRA_TODO getenv("HOME")
   if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
 #else
   shell.info.osname = "Linux";

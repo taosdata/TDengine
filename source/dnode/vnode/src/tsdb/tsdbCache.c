@@ -29,8 +29,8 @@ void tsdbLRUCacheRelease(SLRUCache *cache, LRUHandle *handle, bool eraseIfLastRe
 }
 
 static int32_t tsdbOpenBCache(STsdb *pTsdb) {
-#if defined(USE_COS) || defined(USE_S3)
-  int32_t    code = 0, lino = 0;
+  int32_t code = 0, lino = 0;
+#ifdef USE_S3
   int32_t    szPage = pTsdb->pVnode->config.tsdbPageSize;
   int64_t    szBlock = tsS3BlockSize <= 1024 ? 1024 : tsS3BlockSize;
   SLRUCache *pCache = taosLRUCacheInit((int64_t)tsS3BlockCacheSize * szBlock * szPage, 0, .5);
@@ -49,14 +49,12 @@ _err:
     tsdbError("tsdb/bcache: vgId:%d, %s failed at line %d since %s.", TD_VID(pTsdb->pVnode), __func__, lino,
               tstrerror(code));
   }
-#else
-  int32_t code = 0;
 #endif
   TAOS_RETURN(code);
 }
 
 static void tsdbCloseBCache(STsdb *pTsdb) {
-#if defined(USE_COS) || defined(USE_S3)
+#ifdef USE_S3
   SLRUCache *pCache = pTsdb->bCache;
   if (pCache) {
     int32_t elems = taosLRUCacheGetElems(pCache);
@@ -73,8 +71,8 @@ static void tsdbCloseBCache(STsdb *pTsdb) {
 }
 
 static int32_t tsdbOpenPgCache(STsdb *pTsdb) {
-#if defined(USE_COS) || defined(USE_S3)
   int32_t code = 0, lino = 0;
+#ifdef USE_S3
   int32_t szPage = pTsdb->pVnode->config.tsdbPageSize;
 
   SLRUCache *pCache = taosLRUCacheInit((int64_t)tsS3PageCacheSize * szPage, 0, .5);
@@ -92,14 +90,12 @@ _err:
   if (code) {
     tsdbError("tsdb/pgcache: vgId:%d, open failed at line %d since %s.", TD_VID(pTsdb->pVnode), lino, tstrerror(code));
   }
-#else
-  int32_t code = 0;
 #endif
   TAOS_RETURN(code);
 }
 
 static void tsdbClosePgCache(STsdb *pTsdb) {
-#if defined(USE_COS) || defined(USE_S3)
+#ifdef USE_S3
   SLRUCache *pCache = pTsdb->pgCache;
   if (pCache) {
     int32_t elems = taosLRUCacheGetElems(pCache);
@@ -175,8 +171,8 @@ static int myCmp(void *state, const char *a, size_t alen, const char *b, size_t 
 }
 
 static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
-#ifdef USE_ROCKSDB
   int32_t code = 0, lino = 0;
+#ifdef USE_ROCKSDB
   rocksdb_comparator_t *cmp = rocksdb_comparator_create(NULL, myCmpDestroy, myCmp, myCmpName);
   if (NULL == cmp) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
@@ -262,8 +258,6 @@ _err2:
   rocksdb_block_based_options_destroy(tableoptions);
 _err:
   rocksdb_comparator_destroy(cmp);
-#else
-  int32_t code = 0;
 #endif
   TAOS_RETURN(code);
 }

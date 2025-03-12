@@ -925,7 +925,7 @@ int64_t taosPWriteFile(TdFilePtr pFile, const void *buf, int64_t count, int64_t 
   if (-1 == ret) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
   }
-#else
+#else  // TD_ASTRA_TODO
   int64_t ret = -1;
   int64_t cur = lseek(pFile->fd, 0, SEEK_CUR);
   if (cur < 0) {
@@ -1089,7 +1089,7 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
     return -1;
   }
 
-#if defined(_TD_DARWIN_64) || defined(TD_ASTRA) 
+#if defined(_TD_DARWIN_64) || defined(TD_ASTRA)  // TD_ASTRA_TODO
   if (lseek(pFileIn->fd, (int32_t)(*offset), 0) < 0) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return -1;
@@ -1313,7 +1313,7 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
   if (-1 == ret) {
     code = TAOS_SYSTEM_ERROR(ERRNO);
   }
-#else
+#else  // TD_ASTRA_TODO
   int64_t ret = -1;
   int64_t cur = lseek(pFile->fd, 0, SEEK_CUR);
   if (cur < 0) {

@@ -71,8 +71,7 @@ typedef pthread_condattr_t   TdThreadCondAttr;
 typedef pthread_key_t        TdThreadKey;
 #endif
 #ifdef TD_ASTRA
-// #define STACK_SIZE_DEFAULT    (8388480)
-#define STACK_SIZE_DEFAULT    (1048576 << 1)
+#define STACK_SIZE_DEFAULT    (1048576 << 2)
 #define STACK_SIZE_SMALL      (1048576)
 #else
 #define STACK_SIZE_DEFAULT    (10485760)
@@ -102,7 +101,7 @@ typedef pthread_key_t        TdThreadKey;
 #else
 #define TD_PTHREAD_MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
 #endif
-
+#if 0
 // If the error is in a third-party library, place this header file under the third-party library header file.
 // When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
@@ -207,6 +206,7 @@ typedef pthread_key_t        TdThreadKey;
 #define pthread_testcancel             PTHREAD_TESTCANCEL_FUNC_TAOS_FORBID
 #define pthread_sigmask                PTHREAD_SIGMASK_FUNC_TAOS_FORBID
 #define sigwait                        SIGWAIT_FUNC_TAOS_FORBID
+#endif
 #endif
 
 int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)(void *), void *arg);

@@ -19,15 +19,15 @@
 #ifndef NO_UNALIGNED_ACCESS
 #define TDB_KEY_ALIGN(k1, k2, kType)
 #else
-#define TDB_KEY_ALIGN(k1, k2, kType) \
-  kType _k1, _k2;                    \
-  if (((uintptr_t)(k1) & 7)) {       \
-    memcpy(&_k1, k1, sizeof(kType)); \
-    k1 = &_k1;                       \
-  }                                  \
-  if (((uintptr_t)(k2) & 7)) {       \
-    memcpy(&_k2, k2, sizeof(kType)); \
-    k2 = &_k2;                       \
+#define TDB_KEY_ALIGN(k1, k2, kType)   \
+  kType _k1, _k2;                      \
+  if (((uintptr_t)(k1) & 7)) {         \
+    memcpy(&_k1, (k1), sizeof(kType)); \
+    (k1) = &_k1;                       \
+  }                                    \
+  if (((uintptr_t)(k2) & 7)) {         \
+    memcpy(&_k2, (k2), sizeof(kType)); \
+    (k2) = &_k2;                       \
   }
 #endif
 

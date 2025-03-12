@@ -143,7 +143,7 @@ int32_t taosSetConsoleEcho(bool on) {
   }
 
   return 0;
-#elif defined(TD_ASTRA)
+#elif defined(TD_ASTRA) // TD_ASTRA_TODO
   return 0;
 #else
 #define ECHOFLAGS (ECHO | ECHOE | ECHOK | ECHONL)
@@ -171,7 +171,7 @@ int32_t taosSetConsoleEcho(bool on) {
 }
 
 int32_t taosSetTerminalMode() {
-#if defined(WINDOWS) || defined(TD_ASTRA)
+#if defined(WINDOWS) || defined(TD_ASTRA) // TD_ASTRA_TODO
   return 0;
 #else
   struct termios newtio;
@@ -207,7 +207,7 @@ int32_t taosSetTerminalMode() {
 }
 
 int32_t taosGetOldTerminalMode() {
-#if defined(WINDOWS) || defined(TD_ASTRA)
+#if defined(WINDOWS) || defined(TD_ASTRA) // TD_ASTRA_TODO
   return 0;
 #else
   /* Make sure stdin is a terminal. */
@@ -227,7 +227,7 @@ int32_t taosGetOldTerminalMode() {
 }
 
 int32_t taosResetTerminalMode() {
-#if defined(WINDOWS) || defined(TD_ASTRA)
+#if defined(WINDOWS) || defined(TD_ASTRA) // TD_ASTRA_TODO
   return 0;
 #else
   if (-1 == tcsetattr(0, TCSANOW, &oldtio)) {

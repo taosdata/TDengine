@@ -835,7 +835,7 @@ int32_t taosFormatTimezoneStr(time_t t, const char *tz, timezone_t sp, char *out
 }
 
 void getTimezoneStr(char *tz) {
-#ifdef TD_ASTRA
+#ifdef TD_ASTRA  // TD_ASTRA_TODO
   memcpy(tz, "Asia/Shanghai", sizeof("Asia/Shanghai"));
 #elif !defined(WINDOWS)
   do {

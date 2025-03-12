@@ -58,6 +58,11 @@ int32_t  taosGetErrSize();
 #define SET_ERROR_MSG(MSG, ...) \
   (void)snprintf(terrMsg, ERR_MSG_LEN, MSG, ##__VA_ARGS__)
 
+#ifndef TD_ASTRA_RTP
+#define SET_ERRNO(_code) (errno = (_code))
+#define ERRNO            errno
+#endif
+
 #define TSDB_CODE_SUCCESS                   0
 #define TSDB_CODE_FAILED                    -1   // unknown or needn't tell detail error
 

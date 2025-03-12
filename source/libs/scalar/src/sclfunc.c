@@ -580,7 +580,9 @@ static void tlrtrimspace(char *input, char *output, int32_t type, int32_t charLe
   varDataSetLen(output, resLen);
 }
 
-static bool isCharStart(char c) { return strcasecmp(tsCharset, "UTF-8") == 0 ? ((c & 0xC0) != 0x80) : true; }
+static bool isCharStart(char c) {
+  return strcasecmp(tsCharset, "UTF-8") == 0 ? ((c & 0xC0) != 0x80) : true;
+}
 
 static int32_t trimHelper(char *orgStr, char* remStr, int32_t orgLen, int32_t remLen, bool trimLeft, bool isNchar) {
   if (trimLeft) {
