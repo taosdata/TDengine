@@ -741,7 +741,6 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
           if (pBuf->str == NULL) {
             return terrno;
           }
-          pCtx->needCleanup = true;
           (void)memcpy(pBuf->str, colDataGetData(pCol, i), varDataTLen(colDataGetData(pCol, i)));
           break;
         }

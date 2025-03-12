@@ -65,7 +65,6 @@ int32_t maxFunction(SqlFunctionCtx* pCtx);
 int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t minCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t maxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
-void    minmaxCleanup(SqlFunctionCtx* pCtx);
 
 bool    getAvgFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t avgFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);

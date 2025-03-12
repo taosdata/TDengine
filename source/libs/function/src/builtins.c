@@ -1937,7 +1937,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .pPartialFunc = "min",
     .pStateFunc = "min",
     .pMergeFunc   = "min",
-    .cleanupFunc = minmaxCleanup
   },
   {
     .name = "max",
@@ -1965,7 +1964,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .pPartialFunc = "max",
     .pStateFunc = "max",
     .pMergeFunc   = "max",
-    .cleanupFunc = minmaxCleanup
   },
   {
     .name = "stddev",

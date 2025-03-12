@@ -954,6 +954,7 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     colDataSetNULL(pCol, currentRow);
   }
 
+  if (IS_VAR_DATA_TYPE(pCol->info.type)) taosMemoryFreeClear(pRes->str);
   if (pCtx->subsidiaries.num > 0) {
     if (pEntryInfo->numOfRes > 0) {
       code = setSelectivityValue(pCtx, pBlock, &pRes->tuplePos, currentRow);
@@ -1157,12 +1158,6 @@ int32_t minCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
 }
 int32_t maxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   return minMaxCombine(pDestCtx, pSourceCtx, 0);
-}
-
-void minmaxCleanup(SqlFunctionCtx* pCtx) {
-  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  SMinmaxResInfo*      pMinMaxRes = GET_ROWCELL_INTERBUF(pResInfo);
-  taosMemoryFreeClear(pMinMaxRes->str);
 }
 
 int32_t getStdInfoSize() { return (int32_t)sizeof(SStdRes); }
