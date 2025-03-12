@@ -230,48 +230,48 @@ class TDTestCase(TBase):
         self.clear_directory()
 
         # file ts interval second
-        new_json_file = self.genNewJson(json_file, self.fun_csv_ts_interval_second)
+        new_json_file = self.genNewJson(json_file, self.func_csv_ts_interval_second)
         self.exec_benchmark(benchmark, new_json_file, options)
         self.check_file_line_count("./csv/data_20231115061320_20231115061321.csv", 10001)
 
         # file ts interval minute
-        new_json_file = self.genNewJson(json_file, self.fun_csv_ts_interval_minute)
+        new_json_file = self.genNewJson(json_file, self.func_csv_ts_interval_minute)
         self.exec_benchmark(benchmark, new_json_file, options)
         self.check_file_line_count("./csv/data_202311150613_202311150614.csv", 10001)
 
         # file ts interval hour
-        new_json_file = self.genNewJson(json_file, self.fun_csv_ts_interval_hour)
+        new_json_file = self.genNewJson(json_file, self.func_csv_ts_interval_hour)
         self.exec_benchmark(benchmark, new_json_file, options)
         self.check_file_line_count("./csv/data_2023111506_2023111507.csv", 10001)
 
         # db precision us
-        new_json_file = self.genNewJson(json_file, self.fun_db_precision_us)
+        new_json_file = self.genNewJson(json_file, self.func_db_precision_us)
         self.exec_benchmark(benchmark, new_json_file, options)
         self.check_file_line_count("./csv/data_20231115_20231116.csv", 10001)
 
         # db precision ns
-        new_json_file = self.genNewJson(json_file, self.fun_db_precision_ns)
+        new_json_file = self.genNewJson(json_file, self.func_db_precision_ns)
         self.exec_benchmark(benchmark, new_json_file, options)
         self.check_file_line_count("./csv/data_20231115_20231116.csv", 10001)
 
         # thread num
-        new_json_file = self.genNewJson(json_file, self.fun_thread_num)
+        new_json_file = self.genNewJson(json_file, self.func_thread_num)
         self.exec_benchmark(benchmark, new_json_file, options)
         self.check_file_line_count("./csv/data_10.csv", 1001)
 
         # create sql
-        new_json_file = self.genNewJson(json_file, self.fun_create_sql)
+        new_json_file = self.genNewJson(json_file, self.func_create_sql)
         self.exec_benchmark(benchmark, new_json_file, options)
         self.check_file_line_count("./csv/create_stmt.txt", 2)
 
         # gzip
-        new_json_file = self.genNewJson(json_file, self.fun_gzip)
+        new_json_file = self.genNewJson(json_file, self.func_gzip)
         self.exec_benchmark(benchmark, new_json_file, options)
         eos.exe("gunzip ./csv/data.csv.gz")
         self.check_file_line_count("./csv/data.csv", 10001)
 
 
-    def fun_csv_ts_interval_second(self, data):
+    def func_csv_ts_interval_second(self, data):
         db  = data['databases'][0]
         stb = db["super_tables"][0]
         stb['timestamp_step'] = '10'
@@ -279,7 +279,7 @@ class TDTestCase(TBase):
         stb['csv_ts_interval'] = '1s'
 
 
-    def fun_csv_ts_interval_minute(self, data):
+    def func_csv_ts_interval_minute(self, data):
         db  = data['databases'][0]
         stb = db["super_tables"][0]
         stb['timestamp_step'] = '600'
@@ -287,7 +287,7 @@ class TDTestCase(TBase):
         stb['csv_ts_interval'] = '1m'
 
 
-    def fun_csv_ts_interval_hour(self, data):
+    def func_csv_ts_interval_hour(self, data):
         db  = data['databases'][0]
         stb = db["super_tables"][0]
         stb['timestamp_step'] = '36000'
@@ -295,21 +295,21 @@ class TDTestCase(TBase):
         stb['csv_ts_interval'] = '1h'
 
 
-    def fun_db_precision_us(self, data):
+    def func_db_precision_us(self, data):
         db  = data['databases'][0]
         db['dbinfo']['precision'] = 'us'
         stb = db["super_tables"][0]
         stb['start_timestamp'] = 1700000000000000
 
 
-    def fun_db_precision_ns(self, data):
+    def func_db_precision_ns(self, data):
         db  = data['databases'][0]
         db['dbinfo']['precision'] = 'ns'
         stb = db["super_tables"][0]
         stb['start_timestamp'] = 1700000000000000000
 
 
-    def fun_thread_num(self, data):
+    def func_thread_num(self, data):
         data['thread_count'] = 12
         db  = data['databases'][0]
         stb = db["super_tables"][0]
@@ -318,7 +318,7 @@ class TDTestCase(TBase):
         stb.pop('csv_ts_interval', None)
 
 
-    def fun_create_sql(self, data):
+    def func_create_sql(self, data):
         db  = data['databases'][0]
         dbinfo = db['dbinfo']
         dbinfo['buffer']    = 256
@@ -336,7 +336,7 @@ class TDTestCase(TBase):
         stb['columns'][2]   = { "type": "double", "name": "dc", "min":10, "max":10, "sma": "yes"}
 
 
-    def fun_gzip(self, data):
+    def func_gzip(self, data):
         db  = data['databases'][0]
         stb = db["super_tables"][0]
         stb.pop('csv_ts_format', None)
