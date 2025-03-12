@@ -862,7 +862,7 @@ static int32_t mndProcessFailedStreamReq(SRpcMsg *pReq) {
   int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     errCode = *(int32_t*)pReq->pCont;
   char streamName[TSDB_STREAM_FNAME_LEN] = {0};
-  memcpy(streamName, pReq->pCont + INT_BYTES, MIN(pReq->contLen - INT_BYTES, TSDB_STREAM_FNAME_LEN - 1));
+  memcpy(streamName, POINTER_SHIFT(pReq->pCont,INT_BYTES), MIN(pReq->contLen - INT_BYTES, TSDB_STREAM_FNAME_LEN - 1));
 
 #ifdef WINDOWS
   code = TSDB_CODE_MND_INVALID_PLATFORM;

@@ -872,13 +872,13 @@ void sendCreateStreamFailedMsg(SRequestObj* pRequest, char* streamName){
   int32_t code  = 0;
   tscInfo("send failed stream name to mgmt: %s", streamName);
   int32_t size = INT_BYTES + strlen(streamName);
-  char *buf = taosMemoryMalloc(size);
+  void *buf = taosMemoryMalloc(size);
   if (buf == NULL) {
     tscError("failed to strdup stream name: %s", terrstr());
     return;
   }
   *(int32_t*)buf = pRequest->code;
-  memcpy(buf + INT_BYTES, streamName, strlen(streamName));
+  memcpy(POINTER_SHIFT(buf, INT_BYTES), streamName, strlen(streamName));
 
   SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (sendInfo == NULL) {
