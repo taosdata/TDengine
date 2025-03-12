@@ -17,7 +17,9 @@
 #include "function.h"
 #include "functionMgt.h"
 #include "operator.h"
+#include "query.h"
 #include "querytask.h"
+#include "taoserror.h"
 #include "tchecksum.h"
 #include "tcommon.h"
 #include "tcompare.h"
@@ -1015,6 +1017,11 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     pAgg = (pBlock->pBlockAgg != NULL) ? &pBlock->pBlockAgg[pInfo->stateCol.slotId] : NULL;
     if (colDataIsNull(pStateColInfoData, pBlock->info.rows, j, pAgg)) {
       continue;
+    }
+    if (pStateColInfoData->pData == NULL) {
+      qError("%s:%d state column data is null", __FILE__, __LINE__);
+      pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     }
 
     char* val = colDataGetData(pStateColInfoData, j);

@@ -2196,9 +2196,17 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
   SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
   // push down expression to pOutputDataBlockDesc of child node
   if (TSDB_CODE_SUCCESS == code && NULL != pPrecalcExprs) {
-    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs, &pWindow->pExprs);
+    SNodeList* pOutput;
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs, &pOutput);
     if (TSDB_CODE_SUCCESS == code) {
-      code = addDataBlockSlots(pCxt, pWindow->pExprs, pChildTupe);
+      code = addDataBlockSlots(pCxt, pOutput, pChildTupe);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      if (pWindow->pExprs == NULL) {
+        pWindow->pExprs = pOutput;
+      } else {
+        code = nodesListAppendList(pWindow->pExprs, pOutput);
+      }
     }
   }
 
