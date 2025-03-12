@@ -3276,7 +3276,6 @@ int32_t countScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
   return TSDB_CODE_SUCCESS;
 }
 
-// TODO wjm what is sum scalar function???
 int32_t sumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
@@ -3327,6 +3326,17 @@ int32_t sumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       } else if (type == TSDB_DATA_TYPE_DOUBLE) {
         double *in = (double *)pInputData->pData;
         *out += in[i];
+      }
+    } else if (type == TSDB_DATA_TYPE_DECIMAL) {
+      Decimal128* pOut = (Decimal128*)pOutputData->pData;
+      if (type == TSDB_DATA_TYPE_DECIMAL64) {
+        const Decimal64* pIn = (Decimal64*)pInputData->pData;
+        const SDecimalOps *pOps = getDecimalOps(type);
+        pOps->add(pOut, pIn + i, WORD_NUM(Decimal64));
+      } else if (type == TSDB_DATA_TYPE_DECIMAL) {
+        const Decimal128* pIn = (Decimal128*)pInputData->pData;
+        const SDecimalOps *pOps = getDecimalOps(type);
+        pOps->add(pOut, pIn + i, WORD_NUM(Decimal128));
       }
     }
   }
@@ -3440,6 +3450,24 @@ static int32_t doMinMaxScalarFunction(SScalarParam *pInput, int32_t inputNum, SS
         }
         break;
       }
+      case TSDB_DATA_TYPE_DECIMAL64: {
+        Decimal64* p1 = (Decimal64*)pInputData->pData;
+        Decimal64* p2 = (Decimal64*)pOutputData->pData;
+        const SDecimalOps *pOps = getDecimalOps(type);
+        if (pOps->gt(p1 + i, p2, WORD_NUM(Decimal64)) ^ isMinFunc) {
+          *p2 = p1[i];
+        }
+        break;
+      }
+      case TSDB_DATA_TYPE_DECIMAL: {
+        Decimal128 *p1 = (Decimal128 *)pInputData->pData;
+        Decimal128 *p2 = (Decimal128 *)pOutputData->pData;
+        const SDecimalOps *pOps = getDecimalOps(type);
+        if (pOps->gt(p1 + i, p2, WORD_NUM(Decimal128)) ^ isMinFunc) {
+          *p2 = p1[i];
+        }
+        break;
+      }
     }
   }
 
@@ -3532,7 +3560,7 @@ int32_t avgScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       }
       case TSDB_DATA_TYPE_FLOAT: {
         float *in = (float *)pInputData->pData;
-        float *out = (float *)pOutputData->pData;
+        double *out = (double *)pOutputData->pData;
         *out += in[i];
         count++;
         break;
@@ -3544,6 +3572,22 @@ int32_t avgScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
         count++;
         break;
       }
+      case TSDB_DATA_TYPE_DECIMAL64: {
+        const Decimal64   *in = (Decimal64 *)pInputData->pData;
+        Decimal128        *out = (Decimal128 *)pOutputData->pData;
+        const SDecimalOps *pOps = getDecimalOps(type);
+        // check overflow
+        pOps->add(out, in + i, WORD_NUM(Decimal64));
+        count++;
+      } break;
+      case TSDB_DATA_TYPE_DECIMAL: {
+        const Decimal128  *in = (Decimal128 *)pInputData->pData;
+        Decimal128        *out = (Decimal128 *)pOutputData->pData;
+        const SDecimalOps *pOps = getDecimalOps(type);
+        // check overflow
+        pOps->add(out, in + i, WORD_NUM(Decimal128));
+        count++;
+      } break;
     }
   }
 
@@ -3559,6 +3603,20 @@ int32_t avgScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     } else if (IS_FLOAT_TYPE(type)) {
       double *out = (double *)pOutputData->pData;
       *(double *)out = *out / (double)count;
+    } else if (IS_DECIMAL_TYPE(type)) {
+      Decimal128 *out = (Decimal128 *)pOutputData->pData;
+      SDataType   sumDt = {.type = TSDB_DATA_TYPE_DECIMAL,
+                           .bytes = DECIMAL128_BYTES,
+                           .precision = TSDB_DECIMAL128_MAX_PRECISION,
+                           .scale = pInputData->info.scale};
+      SDataType   countDt = {
+            .type = TSDB_DATA_TYPE_BIGINT, .bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .precision = 0, .scale = 0};
+      SDataType avgDt = {.type = TSDB_DATA_TYPE_DECIMAL,
+                         .bytes = tDataTypes[TSDB_DATA_TYPE_DECIMAL].bytes,
+                         .precision = pOutputData->info.precision,
+                         .scale = pOutputData->info.scale};
+      int32_t   code = decimalOp(OP_TYPE_DIV, &sumDt, &countDt, &avgDt, out, &count, out);
+      if (code != 0) return code;
     }
   }
 

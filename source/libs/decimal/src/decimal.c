@@ -1076,7 +1076,6 @@ int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pR
 
   switch (op) {
     case OP_TYPE_ADD:
-    // TODO wjm check overflow
       code = decimalAdd(&left, &lt, &right, &rt, pOutT);
       break;
     case OP_TYPE_SUB:

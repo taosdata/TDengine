@@ -421,8 +421,8 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
           if (colDataIsNull_f(pCol->nullbitmap, i)) {
             continue;
           }
-          if (pOps->gt(pBuf->str, &pData[i], WORD_NUM(Decimal128))) {
-            memcpy(pBuf->str, pData + i, pCol->info.bytes);
+          if (pOps->gt(pBuf->dec, &pData[i], WORD_NUM(Decimal128))) {
+            memcpy(pBuf->dec, pData + i, pCol->info.bytes);
             if (pCtx->subsidiaries.num > 0) {
               code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
               if (TSDB_CODE_SUCCESS != code) return code;
@@ -518,8 +518,8 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
           if (colDataIsNull_f(pCol->nullbitmap, i)) {
             continue;
           }
-          if (pOps->lt(pBuf->str, &pData[i], WORD_NUM(Decimal128))) {
-            memcpy(pBuf->str, pData + i, pCol->info.bytes);
+          if (pOps->lt(pBuf->dec, &pData[i], WORD_NUM(Decimal128))) {
+            memcpy(pBuf->dec, pData + i, pCol->info.bytes);
             if (pCtx->subsidiaries.num > 0) {
               code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
               if (TSDB_CODE_SUCCESS != code) return code;
@@ -629,9 +629,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
       if (type == TSDB_DATA_TYPE_FLOAT) {
         GET_FLOAT_VAL(&pBuf->v) = GET_DOUBLE_VAL(tval);
       } else if (type == TSDB_DATA_TYPE_DECIMAL) {
-        pBuf->str = taosMemoryCalloc(1, pCol->info.bytes);
-        if (!pBuf->str) return terrno;
-        memcpy(pBuf->str, tval, pCol->info.bytes);
+        memcpy(pBuf->dec, tval, pCol->info.bytes);
       } else {
         pBuf->v = GET_INT64_VAL(tval);
       }
@@ -682,8 +680,8 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
         }
       } else if (type == TSDB_DATA_TYPE_DECIMAL) {
         const SDecimalOps* pOps = getDecimalOps(type);
-        if (pOps->lt(pBuf->str, tval, WORD_NUM(Decimal128)) ^ isMinFunc) {
-          DECIMAL128_CLONE((Decimal128*)pBuf->str, (Decimal128*)tval);
+        if (pOps->lt(pBuf->dec, tval, WORD_NUM(Decimal128)) ^ isMinFunc) {
+          DECIMAL128_CLONE((Decimal128*)pBuf->dec, (Decimal128*)tval);
           code =saveRelatedTupleTag(pCtx, pInput, tval);
         }
       }
@@ -743,6 +741,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
           if (pBuf->str == NULL) {
             return terrno;
           }
+          pCtx->needCleanup = true;
           (void)memcpy(pBuf->str, colDataGetData(pCol, i), varDataTLen(colDataGetData(pCol, i)));
           break;
         }
@@ -750,9 +749,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
           *(int64_t*)&pBuf->v = *(int64_t*)p;
           break;
         case TSDB_DATA_TYPE_DECIMAL:
-          pBuf->str = taosMemoryMalloc(pCol->info.bytes);
-          if (!pBuf->str) return terrno;
-          (void)memcpy(pBuf->str, p, pCol->info.bytes);
+          (void)memcpy(pBuf->dec, p, pCol->info.bytes);
           break;
         default:
           (void)memcpy(&pBuf->v, p, pCol->info.bytes);

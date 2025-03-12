@@ -713,6 +713,8 @@ typedef enum {
 typedef uint64_t DecimalWord;
 #define WORD_NUM(TYPE) (sizeof(TYPE) / sizeof(DecimalWord))
 
+#define COMPILE_TIME_ASSERT(pred) switch(0) {case 0: case pred:;}
+
 #ifdef __cplusplus
 }
 #endif

@@ -1,8 +1,6 @@
-from concurrent.futures import thread
 import math
 from random import randrange
 import random
-from re import I
 import time
 import threading
 import secrets
@@ -15,6 +13,7 @@ from util.dnodes import *
 from util.common import *
 from decimal import *
 from multiprocessing import Value, Lock
+from functools import cmp_to_key
 
 class AtomicCounter:
     def __init__(self, initial_value=0):
@@ -30,6 +29,8 @@ class AtomicCounter:
 getcontext().prec = 40
 
 def get_decimal(val, scale: int) -> Decimal:
+    if val == 'NULL':
+        return None
     getcontext().prec = 100
     return Decimal(val).quantize(Decimal("1." + "0" * scale), ROUND_HALF_UP)
 
@@ -526,7 +527,7 @@ class DecimalType(DataType):
         super().__init__(type, bytes, self.get_decimal_type_mod())
         self.decimal_generator: DecimalStringRandomGenerator = DecimalStringRandomGenerator()
         self.generator_config: DecimalTypeGeneratorConfig = DecimalTypeGeneratorConfig()
-        self.generator_config.with_corner_case = False
+        #self.generator_config.with_corner_case = False
         self.generator_config.prec = precision
         self.generator_config.scale = scale
         self.aggregator: DecimalColumnAggregator = DecimalColumnAggregator()
@@ -666,6 +667,14 @@ class Column:
             return len(self.saved_vals['t0'])
         else:
             return len(self.saved_vals[tbname])
+    
+    @staticmethod
+    def comp_key(key1, key2):
+        if key1 is None:
+            return -1
+        if key2 is None:
+            return 1
+        return key1 - key2
 
     def get_ordered_result(self, tbname: str, asc: bool) -> list:
         if tbname in self.saved_vals:
@@ -675,14 +684,31 @@ class Column:
                     for val in self.saved_vals[tbname]
                 ],
                 reverse=not asc,
+                key=cmp_to_key(Column.comp_key)
             )
         else:
             res = []
             for val in self.saved_vals.values():
                 res.extend(val)
             return sorted(
-                [get_decimal(val, self.type_.scale()) for val in res], reverse=not asc
+                [get_decimal(val, self.type_.scale()) for val in res], reverse=not asc,
+                key=cmp_to_key(Column.comp_key)
             )
+    
+    def get_group_num(self, tbname, ignore_null=False) -> int:
+        if tbname in self.saved_vals:
+            s = set(get_decimal(val, self.type_.scale()) for val in self.saved_vals[tbname])
+            if ignore_null:
+                s.remove(None)
+            return len(s)
+        else:
+            res = set()
+            for vals in self.saved_vals.values():
+                for v in vals:
+                    res.add(get_decimal(v, self.type_.scale()))
+            if ignore_null:
+                res.remove(None)
+            return len(res)
 
     ## tbName: for normal table, pass the tbname, for child table, pass the child table name
     def generate_value(self, tbName: str = '', save: bool = True):
@@ -1106,7 +1132,8 @@ class DecimalLastRowFunction(DecimalAggFunction):
     def generate_res_type(self):
         self.res_type_ = self.query_col.type_
     def execute_last_row(self, params):
-        self.res_ = Decimal(params[0])
+        if params[0] is not None:
+            self.res_ = Decimal(params[0])
 
 class DecimalCacheLastRowFunction(DecimalAggFunction):
     def __init__(self):
@@ -1857,6 +1884,59 @@ class TDTestCase:
         self.wait_query_result(
             f"select count(*) from {self.db_name}.{self.stream_out_stb}", [(50,)], 30
         )
+        ## test combine functions
+        create_stream = "CREATE STREAM stream2 trigger at_once watermark 100s  INTO test.stream_out_stb_2 AS SELECT _wstart, count(*), min(c2), max(c2), last(c1), last(c3), avg(c2), sum(c3), min(c1), max(c1), avg(c1) FROM test.nt session(ts, 5s)"
+        tdSql.execute(create_stream, queryTimes=1, show=True)
+        cols_vals = []
+        ts = datetime.now()
+        rows = []
+        row = []
+        for col in self.norm_tb_columns:
+            v = col.generate_value(self.norm_table_name)
+            cols_vals.append(v)
+            row.append(v)
+        rows.append(row)
+        row = []
+        sql = f"insert into test.nt values('{ts}', {' ,'.join(cols_vals)})"
+        tdSql.execute(sql, queryTimes=1, show=True)
+        ts = ts + timedelta(seconds=6)
+        cols_vals = []
+        for col in self.norm_tb_columns:
+            v = col.generate_value(self.norm_table_name)
+            cols_vals.append(v)
+            row.append(v)
+        rows.append(row)
+        row = []
+        sql = f"insert into test.nt values('{ts}', {' ,'.join(cols_vals)})"
+        tdSql.execute(sql, queryTimes=1, show=True)
+        ts = ts - timedelta(seconds=4)
+        ## waiting for the last two windows been calculated
+        time.sleep(10)
+        cols_vals = []
+        for col in self.norm_tb_columns:
+            v = col.generate_value(self.norm_table_name)
+            cols_vals.append(v)
+            row.append(v)
+        rows.append(row)
+        sql = f"insert into test.nt values('{ts}', {' ,'.join(cols_vals)})"
+        tdSql.execute(sql, queryTimes=1, show=True)
+        self.wait_query_result("select `count(*)` from test.stream_out_stb_2", [(3,)], 10)
+        res = TaosShell().query("select * from test.stream_out_stb_2")
+        if len(res) != 12: ## groupid
+            tdLog.exit(f"expect 12 columns but got: {len(res)}")
+        c1 = self.norm_tb_columns[0]
+        c2 = self.norm_tb_columns[1]
+        c3 = self.norm_tb_columns[2]
+        c1_vals = [get_decimal(v, c1.type_.scale()) for v in [row[0] for row in rows]]
+        c2_vals = [get_decimal(v, c2.type_.scale()) for v in [row[1] for row in rows]]
+        c3_vals = [get_decimal(v, c3.type_.scale()) for v in [row[2] for row in rows]]
+        min_c2 = Decimal(res[2][0])
+        if min_c2 != min(c2_vals):
+            tdLog.exit(f"expect min(c2) = {min(c2_vals)} got: {min_c2}")
+        max_c2 = Decimal(res[3][0])
+        if max_c2 != max(c2_vals):
+            tdLog.exit(f"expect max(c2) = {max(c2_vals)} got: {max_c2}")
+
 
     def test_decimal_and_tsma(self):
         create_tsma = f"CREATE TSMA {self.tsma_name} ON {self.db_name}.{self.stable_name} FUNCTION(count(c1), min(c2), max(c3), avg(C3)) INTERVAL(1m)"
@@ -1877,7 +1957,9 @@ class TDTestCase:
         for i in range(len(res[0])):
             v_query = res[0][i]
             v_insert = c1.get_val_for_execute(self.norm_table_name, i)
-            if Decimal(v_query) != v_insert:
+            if (v_insert is None and v_query == 'NULL') or Decimal(v_query) == v_insert:
+                continue
+            else:
                 tdLog.exit(f"query from view got different results: {v_query}, expect: {v_insert}")
         #self.check_desc("view1", [c1, Column(DecimalType(TypeEnum.DECIMAL, 38, 10))])
 
@@ -1886,9 +1968,9 @@ class TDTestCase:
         self.no_decimal_table_test()
         self.test_insert_decimal_values()
         self.test_query_decimal()
-        self.test_decimal_and_stream()
         self.test_decimal_and_tsma()
         self.test_decimal_and_view()
+        self.test_decimal_and_stream()
 
     def stop(self):
         tdSql.close()
@@ -1905,6 +1987,19 @@ class TDTestCase:
             return True
         tdLog.exit(
             f"wait query result timeout for {sql} failed after {times} time, expect {expect_result}, but got {results}"
+        )
+    
+    def wait_query_at_least_rows(self, sql: str, rows, wait_times):
+        for i in range(wait_times):
+            tdLog.info(f"wait query rows at least for {sql}, times: {i}")
+            tdSql.query(sql, queryTimes=1, show=True)
+            results = tdSql.queryResult
+            if len(results) < rows:
+                time.sleep(1)
+                continue
+            return True
+        tdLog.exit(
+            f"wait query rows at least for {sql} failed after {wait_times} times, expect at least {rows} rows, but got {len(results)} rows"
         )
 
     def check_decimal_binary_expr_with_col_results(
@@ -2204,19 +2299,42 @@ class TDTestCase:
         query_res = TaosShell().query(sql)[0]
         calculated_ordered_res = order_col.get_ordered_result(tbname, True)
         for v_from_query, v_from_calc in zip(query_res, calculated_ordered_res):
-            if Decimal(v_from_query) != v_from_calc:
+            if v_from_calc is None:
+                if v_from_query != 'NULL':
+                    tdLog.exit(f"query result: {v_from_query} not equal to calculated result: NULL")
+            elif Decimal(v_from_query) != v_from_calc:
                 tdLog.exit(f"query result: {v_from_query} not equal to calculated result: {v_from_calc}")
 
 
     def test_query_decimal_order_clause(self):
         self.test_query_with_order_by_for_tb(self.norm_table_name, self.norm_tb_columns)
         self.test_query_with_order_by_for_tb(self.stable_name, self.stb_columns)
+    
+    def test_query_decimal_group_by_decimal(self, tbname: str, cols: list):
+        for col in cols:
+            if col.type_.is_decimal_type() and col.name_ != '':
+                sql = f"select count(*) from {self.db_name}.{tbname} group by {col}"
+                query_res = TaosShell().query(sql)[0]
+                calculated_grouped_res = col.get_group_num(tbname)
+                if len(query_res) != calculated_grouped_res:
+                    tdLog.exit(f"query result: {len(query_res)} not equal to calculated result: {calculated_grouped_res}")
 
     def test_query_decimal_group_by_clause(self):
-        pass
+        self.test_query_decimal_group_by_decimal(self.norm_table_name, self.norm_tb_columns)
+        self.test_query_decimal_group_by_decimal(self.stable_name, self.stb_columns)
+    
+    def test_query_decimal_group_by_with_having(self, tbname, cols: list):
+        for col in cols:
+            if col.type_.is_decimal_type() and col.name_ != '':
+                sql = f"select count(*) from {self.db_name}.{tbname} group by {col} having {col} is not null"
+                query_res = TaosShell().query(sql)[0]
+                calculated_grouped_res = col.get_group_num(tbname, ignore_null=True)
+                if len(query_res) != calculated_grouped_res:
+                    tdLog.exit(f"query result: {len(query_res)} not equal to calculated result: {calculated_grouped_res}")
 
     def test_query_decimal_having_clause(self):
-        pass
+        self.test_query_decimal_group_by_with_having(self.norm_table_name, self.norm_tb_columns)
+        self.test_query_decimal_group_by_with_having(self.stable_name, self.stb_columns)
 
     def test_query_decimal_interval_fill(self):
         pass
@@ -2307,6 +2425,8 @@ class TDTestCase:
         self.test_query_decimal_with_sma()
         self.test_query_decimal_order_clause()
         self.test_query_decimal_case_when()
+        self.test_query_decimal_group_by_clause()
+        self.test_query_decimal_having_clause()
 
 
 event = threading.Event()

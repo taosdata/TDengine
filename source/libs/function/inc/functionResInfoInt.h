@@ -96,20 +96,36 @@ typedef struct SDecimalSumRes {
       wordNum = WORD_NUM(Decimal);                                                             \
       overflow = decimal128AddCheckOverflow(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pVal, wordNum); \
     }                                                                                          \
-    if (overflow) break;                                                                       \
     pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pVal, wordNum);                               \
+    if (overflow) break;                                                                       \
   } while (0)
 
 typedef struct SMinmaxResInfo {
   bool      assign;  // assign the first value or not
-  int64_t   v;
-  char      *str;
+  union {
+    struct {
+      int64_t v;
+      char*   str;
+    };
+    int64_t dec[2]; // for decimal types
+  };
   STuplePos tuplePos;
 
   STuplePos nullTuplePos;
   bool      nullTupleSaved;
   int16_t   type;
 } SMinmaxResInfo;
+
+typedef struct SOldMinMaxResInfo {
+  bool      assign;  // assign the first value or not
+  int64_t   v;
+  char*     str;
+  STuplePos tuplePos;
+
+  STuplePos nullTuplePos;
+  bool      nullTupleSaved;
+  int16_t   type;
+} SOldMinMaxResInfo;
 
 typedef struct SStdRes {
   double  result;

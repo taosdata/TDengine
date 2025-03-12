@@ -567,17 +567,7 @@ TEST(decimal, typeFromDecimal) {
   ASSERT_FALSE(boolv);
 }
 
-// TODO wjm TEST where decimal column in (...)
-//  TEST same decimal type with different scale doing comparing or operations
-//  TEST case when select common type
-
 #if 0
-TEST(decimal, a) {
-  __int128 a = generate_big_int128(37);
-  extractWideInteger<9>(a);
-  ASSERT_TRUE(1);
-}
-
 TEST(decimal128, to_string) {
   __int128   i = generate_big_int128(37);
   int64_t    hi = i >> 64;

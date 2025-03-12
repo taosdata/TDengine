@@ -67,9 +67,9 @@ static const Decimal128 decimal128Min = DEFINE_DECIMAL128(17759344522308878337UL
 #define DECIMAL128_CLONE(pDst, pFrom) makeDecimal128(pDst, DECIMAL128_HIGH_WORD(pFrom), DECIMAL128_LOW_WORD(pFrom))
 
 typedef struct SDecimalCompareCtx {
-  const void*    pData;
-  int8_t   type;
-  STypeMod typeMod;
+  const void* pData;
+  int8_t      type;
+  STypeMod    typeMod;
 } SDecimalCompareCtx;
 
 void makeDecimal64(Decimal64* pDec64, int64_t w);
@@ -94,7 +94,7 @@ bool    decimalCompare(EOperatorType op, const SDecimalCompareCtx* pLeft, const 
 int32_t decimalOp(EOperatorType op, const SDataType* pLeftT, const SDataType* pRightT, const SDataType* pOutT,
                   const void* pLeftData, const void* pRightData, void* pOutputData);
 int32_t convertToDecimal(const void* pData, const SDataType* pInputType, void* pOut, const SDataType* pOutType);
-bool decimal128AddCheckOverflow(const Decimal128* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
+bool    decimal128AddCheckOverflow(const Decimal128* pLeft, const DecimalType* pRight, uint8_t rightWordNum);
 
 DEFINE_TYPE_FROM_DECIMAL_FUNCS(, Decimal64);
 DEFINE_TYPE_FROM_DECIMAL_FUNCS(, Decimal128);
@@ -122,7 +122,7 @@ __int128 decimal128ToInt128(const Decimal128* pDec);
 int32_t  TEST_decimal64From_int64_t(Decimal64* pDec, uint8_t prec, uint8_t scale, int64_t v);
 int32_t  TEST_decimal64From_uint64_t(Decimal64* pDec, uint8_t prec, uint8_t scale, uint64_t v);
 int32_t  TEST_decimal64From_double(Decimal64* pDec, uint8_t prec, uint8_t scale, double v);
-double  TEST_decimal64ToDouble(Decimal64* pDec, uint8_t prec, uint8_t scale);
+double   TEST_decimal64ToDouble(Decimal64* pDec, uint8_t prec, uint8_t scale);
 
 int32_t TEST_decimal128From_int64_t(Decimal128* pDec, uint8_t prec, uint8_t scale, int64_t v);
 int32_t TEST_decimal128From_uint64_t(Decimal128* pDec, uint8_t prec, uint8_t scale, uint64_t v);
