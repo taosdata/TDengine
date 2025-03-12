@@ -774,6 +774,4 @@ int32_t tsdbGetS3Size(STsdb *tsdb, int64_t *size) {
   return code;
 }
 
-int32_t tsdbGetFsSize(STsdb *tsdb, int64_t *lvl1Size, int64_t *lvl2Size) {
-  return tsdbGetFsSizeImpl(tsdb->pFS, lvl1Size, lvl2Size);
-}
+int32_t tsdbGetFsSize(STsdb *tsdb, SDbSizeStatisInfo *pInfo) { return tsdbGetFsSizeImpl(tsdb->pFS, pInfo); }
