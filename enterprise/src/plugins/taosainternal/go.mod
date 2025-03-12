@@ -6,7 +6,7 @@ require (
 	github.com/gin-contrib/static v0.0.1
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.14.0
-	github.com/taosdata/taosadapter/v3 main
+	github.com/taosdata/taosadapter/v3 3.0
 )
 
 require (
