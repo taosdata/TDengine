@@ -181,7 +181,7 @@ static int32_t mndCheckMnodeStatus(SMnode* pMnode) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mndCheckAndAddVgroupsInfo(SMnode *pMnode, SArray *pVgroupList, bool* allReady) {
+static int32_t mndCheckAndAddVgroupsInfo(SMnode *pMnode, SArray *pVgroupList, bool* allReady, SHashObj* pTermMap) {
   SSdb     *pSdb = pMnode->pSdb;
   void     *pIter = NULL;
   SVgObj   *pVgroup = NULL;
@@ -243,6 +243,14 @@ static int32_t mndCheckAndAddVgroupsInfo(SMnode *pMnode, SArray *pVgroupList, bo
       mDebug("take node snapshot, nodeId:%d %s", entry.nodeId, buf);
     }
 
+    if (pTermMap != NULL) {
+      int64_t term = pVgroup->vnodeGid[0].syncTerm;
+      code = taosHashPut(pTermMap, &pVgroup->vgId, sizeof(pVgroup->vgId), &term, sizeof(term));
+      if (code) {
+        mError("failed to put vnode:%d term into hashMap, code:%s", pVgroup->vgId, tstrerror(code));
+      }
+    }
+
     sdbRelease(pSdb, pVgroup);
   }
 
@@ -251,7 +259,7 @@ _end:
   return code;
 }
 
-int32_t mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady, SArray **pList) {
+int32_t mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady, SArray **pList, SHashObj* pTermMap) {
   int32_t   code = 0;
   SArray   *pVgroupList = NULL;
 
@@ -266,7 +274,7 @@ int32_t mndTakeVgroupSnapshot(SMnode *pMnode, bool *allReady, SArray **pList) {
   }
 
   // 1. check for all vnodes status
-  code = mndCheckAndAddVgroupsInfo(pMnode, pVgroupList, allReady);
+  code = mndCheckAndAddVgroupsInfo(pMnode, pVgroupList, allReady, pTermMap);
   if (code) {
     goto _err;
   }
@@ -912,13 +920,15 @@ void mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpo
     }
 
     if (p->req.taskId == info.req.taskId) {
-      mDebug("s-task:0x%x already in consensus-checkpointId list for stream:0x%" PRIx64 ", update ts %" PRId64
-             "->%" PRId64 " checkpointId:%" PRId64 " -> %" PRId64 " total existed:%d",
+      mDebug("s-task:0x%x already in consensus-checkpointId list for stream:0x%" PRIx64 ", update send reqTs %" PRId64
+             "->%" PRId64 " checkpointId:%" PRId64 " -> %" PRId64 " term:%d->%d total existed:%d",
              pRestoreInfo->taskId, pRestoreInfo->streamId, p->req.startTs, info.req.startTs, p->req.checkpointId,
-             info.req.checkpointId, num);
+             info.req.checkpointId, p->req.term, info.req.term, num);
       p->req.startTs = info.req.startTs;
       p->req.checkpointId = info.req.checkpointId;
       p->req.transId = info.req.transId;
+      p->req.nodeId = info.req.nodeId;
+      p->req.term = info.req.term;
       return;
     }
   }
@@ -928,9 +938,10 @@ void mndAddConsensusTasks(SCheckpointConsensusInfo *pInfo, const SRestoreCheckpo
     mError("s-task:0x%x failed to put task into consensus-checkpointId list, code: out of memory", info.req.taskId);
   } else {
     num = taosArrayGetSize(pInfo->pTaskList);
-    mDebug("s-task:0x%x checkpointId:%" PRId64 " added into consensus-checkpointId list, stream:0x%" PRIx64
-           " waiting tasks:%d",
-           pRestoreInfo->taskId, pRestoreInfo->checkpointId, pRestoreInfo->streamId, num);
+    mDebug("s-task:0x%x (vgId:%d) checkpointId:%" PRId64 " term:%d, reqTs:%" PRId64
+           " added into consensus-checkpointId list, stream:0x%" PRIx64 " waiting tasks:%d",
+           pRestoreInfo->taskId, pRestoreInfo->nodeId, pRestoreInfo->checkpointId, info.req.term,
+           info.req.startTs, pRestoreInfo->streamId, num);
   }
 }
 
@@ -948,6 +959,7 @@ int32_t mndClearConsensusCheckpointId(SHashObj *pHash, int64_t streamId) {
 
   code = taosHashRemove(pHash, &streamId, sizeof(streamId));
   if (code == 0) {
+    numOfStreams = taosHashGetSize(pHash);
     mDebug("drop stream:0x%" PRIx64 " in consensus-checkpointId list, remain:%d", streamId, numOfStreams);
   } else {
     mError("failed to remove stream:0x%" PRIx64 " in consensus-checkpointId list, remain:%d", streamId, numOfStreams);
@@ -1633,7 +1645,7 @@ static int32_t doCheckForUpdated(SMnode *pMnode, SArray **ppNodeSnapshot) {
     }
   }
 
-  int32_t code = mndTakeVgroupSnapshot(pMnode, &allReady, ppNodeSnapshot);
+  int32_t code = mndTakeVgroupSnapshot(pMnode, &allReady, ppNodeSnapshot, NULL);
   if (code) {
     mError("failed to get the vgroup snapshot, ignore it and continue");
   }

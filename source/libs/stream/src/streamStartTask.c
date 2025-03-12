@@ -151,10 +151,16 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
     streamMetaReleaseTask(pMeta, pTask);
   }
 
+  streamMetaWLock(pMeta);
+
   pMeta->startInfo.curStage = START_MARK_REQ_CHKPID;
   SStartTaskStageInfo info = {.stage = pMeta->startInfo.curStage, .ts = now};
 
   taosArrayPush(pMeta->startInfo.pStagesList, &info);
+  stDebug("vgId:%d 0 stage -> mark_req stage, reqTs:%" PRId64" numOfStageHist:%d", pMeta->vgId, info.ts,
+          (int32_t) taosArrayGetSize(pMeta->startInfo.pStagesList));
+
+  streamMetaWUnLock(pMeta);
 
   // prepare the fill-history task before starting all stream tasks, to avoid fill-history tasks are started without
   // initialization, when the operation of check downstream tasks status is executed far quickly.
@@ -166,6 +172,7 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
 int32_t prepareBeforeStartTasks(SStreamMeta* pMeta, SArray** pList, int64_t now) {
   streamMetaWLock(pMeta);
 
+  STaskStartInfo *pInfo = &pMeta->startInfo;
   if (pMeta->closeFlag) {
     streamMetaWUnLock(pMeta);
     stError("vgId:%d vnode is closed, not start check task(s) downstream status", pMeta->vgId);
@@ -174,13 +181,17 @@ int32_t prepareBeforeStartTasks(SStreamMeta* pMeta, SArray** pList, int64_t now)
 
   *pList = taosArrayDup(pMeta->pTaskList, NULL);
   if (*pList == NULL) {
+    streamMetaWUnLock(pMeta);
+    stError("vgId:%d failed to dup tasklist, before restart tasks, code:%s", pMeta->vgId, tstrerror(terrno));
     return terrno;
   }
 
-  taosHashClear(pMeta->startInfo.pReadyTaskSet);
-  taosHashClear(pMeta->startInfo.pFailedTaskSet);
-  taosArrayClear(pMeta->startInfo.pStagesList);
-  pMeta->startInfo.startTs = now;
+  taosHashClear(pInfo->pReadyTaskSet);
+  taosHashClear(pInfo->pFailedTaskSet);
+  taosArrayClear(pInfo->pStagesList);
+
+  pInfo->curStage = 0;
+  pInfo->startTs = now;
 
   int32_t code = streamMetaResetTaskStatus(pMeta);
   streamMetaWUnLock(pMeta);
@@ -196,6 +207,7 @@ void streamMetaResetStartInfo(STaskStartInfo* pStartInfo, int32_t vgId) {
   pStartInfo->tasksWillRestart = 0;
   pStartInfo->readyTs = 0;
   pStartInfo->elapsedTime = 0;
+  pStartInfo->curStage = 0;
 
   // reset the sentinel flag value to be 0
   pStartInfo->startAllTasks = 0;
@@ -253,15 +265,22 @@ int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int3
     pStartInfo->readyTs = taosGetTimestampMs();
     pStartInfo->elapsedTime = (pStartInfo->startTs != 0) ? pStartInfo->readyTs - pStartInfo->startTs : 0;
 
+    for(int32_t i = 0; i < taosArrayGetSize(pStartInfo->pStagesList); ++i) {
+      SStartTaskStageInfo* pStageInfo = taosArrayGet(pStartInfo->pStagesList, i);
+      stDebug("vgId:%d start task procedure, stage:%d, ts:%" PRId64, pStageInfo->stage, pStageInfo->ts);
+    }
+
     stDebug("vgId:%d all %d task(s) check downstream completed, last completed task:0x%x (succ:%d) startTs:%" PRId64
-                ", readyTs:%" PRId64 " total elapsed time:%.2fs",
+            ", readyTs:%" PRId64 " total elapsed time:%.2fs",
             vgId, numOfTotal, taskId, ready, pStartInfo->startTs, pStartInfo->readyTs,
             pStartInfo->elapsedTime / 1000.0);
 
     // print the initialization elapsed time and info
     displayStatusInfo(pMeta, pStartInfo->pReadyTaskSet, true);
     displayStatusInfo(pMeta, pStartInfo->pFailedTaskSet, false);
+
     streamMetaResetStartInfo(pStartInfo, vgId);
+
     streamMetaWUnLock(pMeta);
 
     code = pStartInfo->completeFn(pMeta);
@@ -300,7 +319,7 @@ void displayStatusInfo(SStreamMeta* pMeta, SHashObj* pTaskSet, bool succ) {
   void*   pIter = NULL;
   size_t  keyLen = 0;
 
-  stInfo("vgId:%d %d tasks check-downstream completed, %s", vgId, taosHashGetSize(pTaskSet),
+  stInfo("vgId:%d %d tasks complete check-downstream, %s", vgId, taosHashGetSize(pTaskSet),
          succ ? "success" : "failed");
 
   while ((pIter = taosHashIterate(pTaskSet, pIter)) != NULL) {
@@ -496,7 +515,7 @@ int32_t streamTaskCheckIfReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
               pConChkptInfo->statusTs);
       return 1;
     } else {
-      stWarn("vgId:%d, s-task:%s expired ...................", vgId, pTask->id.idStr);
+      stWarn("vgId:%d, s-task:%s restart procedure expired", vgId, pTask->id.idStr);
       /*int32_t el = (ts - pConChkptInfo->statusTs) / 1000;
 
       // not recv consensus-checkpoint rsp for 60sec, send it again in hb to mnode

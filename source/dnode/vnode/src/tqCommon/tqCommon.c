@@ -796,7 +796,7 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
     // wait for the checkpoint id rsp, this rsp will be expired
     if (pStartInfo->curStage == START_MARK_REQ_CHKPID) {
       SStartTaskStageInfo* pCurStageInfo = taosArrayGetLast(pStartInfo->pStagesList);
-      tqInfo("vgId:%d only mark the req consensus checkpointId flag, ts:%"PRId64 " ignore and continue", vgId, pCurStageInfo->ts);
+      tqInfo("vgId:%d only mark the req consensus checkpointId flag, reqTs:%"PRId64 " ignore and continue", vgId, pCurStageInfo->ts);
 
       taosArrayClear(pStartInfo->pStagesList);
       pStartInfo->curStage = 0;
@@ -804,9 +804,9 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
 
     } else if (pStartInfo->curStage == START_WAIT_FOR_CHKPTID) {
       SStartTaskStageInfo* pCurStageInfo = taosArrayGetLast(pStartInfo->pStagesList);
-      tqInfo("vgId:%d already sent consensus-checkpoint msg expired, send ts:%" PRId64 " rsp will be discarded", vgId,
-             pCurStageInfo->ts);
-      // continue executing
+      tqInfo("vgId:%d already sent consensus-checkpoint msg(waiting for chkptid) expired, reqTs:%" PRId64
+             " rsp will be discarded",
+             vgId, pCurStageInfo->ts);
 
       taosArrayClear(pStartInfo->pStagesList);
       pStartInfo->curStage = 0;
@@ -1318,7 +1318,7 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
 
   code = streamMetaAcquireTask(pMeta, req.streamId, req.taskId, &pTask);
   if (pTask == NULL || (code != 0)) {
-    // ignore this code to avoid error code over write
+    // ignore this code to avoid error code over writing
     if (pMeta->role == NODE_ROLE_LEADER) {
       tqError("vgId:%d process consensus checkpointId req:%" PRId64
               " transId:%d, failed to acquire task:0x%x, it may have been dropped/stopped already",
@@ -1328,6 +1328,17 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
       if (ret) {
         tqError("s-task:0x%x failed add check downstream failed, core:%s", req.taskId, tstrerror(ret));
       }
+
+//      STaskId id = {.streamId = req.streamId, .taskId = req.taskId};
+//      int32_t ret1 = streamMetaAcquireTaskUnsafe(pMeta, &id, &pTask);
+//      if (ret1 == 0 && pTask != NULL) {
+//        SStreamTaskState s = streamTaskGetStatus(pTask);
+//        if (s.state == TASK_STATUS__STOP) {
+//          tqDebug("s-task:0x%x status:%s wait for it become init", req.taskId, s.name);
+//          streamMetaReleaseTask(pMeta, pTask);
+//          return TSDB_CODE_STREAM_TASK_IVLD_STATUS;
+//        }
+//      }
     } else {
       tqDebug("vgId:%d task:0x%x stopped in follower node, not set the consensus checkpointId:%" PRId64 " transId:%d",
               pMeta->vgId, req.taskId, req.checkpointId, req.transId);
@@ -1338,22 +1349,26 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
 
   // discard the rsp, since it is expired.
   if (req.startTs < pTask->execInfo.created) {
-    tqWarn("s-task:%s vgId:%d create time:%" PRId64 " recv expired consensus checkpointId:%" PRId64
+    tqWarn("s-task:%s vgId:%d createTs:%" PRId64 " recv expired consensus checkpointId:%" PRId64
            " from task createTs:%" PRId64 " < task createTs:%" PRId64 ", discard",
            pTask->id.idStr, pMeta->vgId, pTask->execInfo.created, req.checkpointId, req.startTs,
            pTask->execInfo.created);
     if (pMeta->role == NODE_ROLE_LEADER) {
       streamMetaAddFailedTaskSelf(pTask, now);
     }
+
     streamMetaReleaseTask(pMeta, pTask);
     return TSDB_CODE_SUCCESS;
   }
 
   tqDebug("s-task:%s vgId:%d checkpointId:%" PRId64 " restore to consensus-checkpointId:%" PRId64
-          " transId:%d from mnode",
-          pTask->id.idStr, vgId, pTask->chkInfo.checkpointId, req.checkpointId, req.transId);
+          " transId:%d from mnode, reqTs:%" PRId64 " task createTs:%" PRId64,
+          pTask->id.idStr, vgId, pTask->chkInfo.checkpointId, req.checkpointId, req.transId, req.startTs,
+          pTask->execInfo.created);
 
   streamMutexLock(&pTask->lock);
+  SConsenChkptInfo* pConsenInfo = &pTask->status.consenChkptInfo;
+
   if (pTask->chkInfo.checkpointId < req.checkpointId) {
     tqFatal("s-task:%s vgId:%d invalid consensus-checkpointId:%" PRId64 ", greater than existed checkpointId:%" PRId64,
             pTask->id.idStr, vgId, req.checkpointId, pTask->chkInfo.checkpointId);
@@ -1363,9 +1378,8 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
     return 0;
   }
 
-  SConsenChkptInfo* pConsenInfo = &pTask->status.consenChkptInfo;
   if (pConsenInfo->consenChkptTransId >= req.transId) {
-    tqDebug("s-task:%s vgId:%d latest consensus transId:%d, expired consensus trans:%d, discard", pTask->id.idStr, vgId,
+    tqWarn("s-task:%s vgId:%d latest consensus transId:%d, expired consensus trans:%d, discard", pTask->id.idStr, vgId,
             pConsenInfo->consenChkptTransId, req.transId);
     streamMutexUnlock(&pTask->lock);
     streamMetaReleaseTask(pMeta, pTask);
@@ -1384,6 +1398,19 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
 
   streamTaskSetConsenChkptIdRecv(pTask, req.transId, now);
   streamMutexUnlock(&pTask->lock);
+
+  streamMetaWLock(pTask->pMeta);
+  if (pMeta->startInfo.curStage == START_WAIT_FOR_CHKPTID) {
+    pMeta->startInfo.curStage = START_CHECK_DOWNSTREAM;
+
+    SStartTaskStageInfo info = {.stage = pMeta->startInfo.curStage, .ts = now};
+    taosArrayPush(pMeta->startInfo.pStagesList, &info);
+
+    tqDebug("vgId:%d wait_for_chkptId stage -> check_down_stream stage, reqTs:%" PRId64 " , numOfStageHist:%d",
+            pMeta->vgId, info.ts, (int32_t)taosArrayGetSize(pMeta->startInfo.pStagesList));
+  }
+
+  streamMetaWUnLock(pTask->pMeta);
 
   if (pMeta->role == NODE_ROLE_LEADER) {
     code = tqStreamStartOneTaskAsync(pMeta, pTask->pMsgCb, req.streamId, req.taskId);

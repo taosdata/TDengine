@@ -275,7 +275,7 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
     streamMutexLock(&pTask->lock);
     entry.checkpointInfo.consensusChkptId = streamTaskCheckIfReqConsenChkptId(pTask, pMsg->ts);
     if (entry.checkpointInfo.consensusChkptId) {
-      entry.checkpointInfo.consensusTs = pMsg->ts;
+      entry.checkpointInfo.consensusTs = pTask->status.consenChkptInfo.statusTs;
       setReqCheckpointId = true;
     }
     streamMutexUnlock(&pTask->lock);
@@ -300,10 +300,11 @@ int32_t streamMetaSendHbHelper(SStreamMeta* pMeta) {
     ASSERT(pMeta->startInfo.curStage == START_MARK_REQ_CHKPID);
 
     pMeta->startInfo.curStage = START_WAIT_FOR_CHKPTID;
-    SStartTaskStageInfo info = {.stage = pMeta->startInfo.curStage, .ts = taosGetTimestampMs()};
+    SStartTaskStageInfo info = {.stage = pMeta->startInfo.curStage, .ts = pMsg->ts};
     taosArrayPush(pMeta->startInfo.pStagesList, &info);
 
-    stDebug("vgId:%d keep he wait-for-checkpointId rsp stage, ts:%"PRId64, pMeta->vgId, info.ts);
+    stDebug("vgId:%d mark_req stage -> wait_for_chkptId stage, reqTs:%" PRId64 " , numOfStageHist:%d", pMeta->vgId,
+            info.ts, (int32_t)taosArrayGetSize(pMeta->startInfo.pStagesList));
   }
 
   pMsg->numOfTasks = taosArrayGetSize(pMsg->pTaskStatus);
