@@ -9042,6 +9042,15 @@ static int32_t fillCmdSql(STranslateContext* pCxt, int16_t msgType, void* pReq) 
       break;
     }
 
+    case TDMT_MND_CREATE_XNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateXnodeReq, pReq);
+      break;
+    }
+    case TDMT_MND_DROP_XNODE: {
+      FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMDropXnodeReq, pReq);
+      break;
+    }
+
     case TDMT_MND_CREATE_MNODE: {
       FILL_CMD_SQL(sql, sqlLen, pCmdReq, SMCreateMnodeReq, pReq);
       break;
@@ -10623,6 +10632,35 @@ static int32_t translateUpdateAnode(STranslateContext* pCxt, SUpdateAnodeStmt* p
 
   int32_t code = buildCmdMsg(pCxt, TDMT_MND_UPDATE_ANODE, (FSerializeFunc)tSerializeSMUpdateAnodeReq, &updateReq);
   tFreeSMUpdateAnodeReq(&updateReq);
+  return code;
+}
+
+static int32_t translateCreateXnode(STranslateContext* pCxt, SCreateXnodeStmt* pStmt) {
+  SMCreateXnodeReq createReq = {.dnodeId = pStmt->dnodeId};
+  /*
+  createReq.urlLen = strlen(pStmt->url) + 1;
+  if (createReq.urlLen > TSDB_ANALYTIC_ANODE_URL_LEN) {
+    return TSDB_CODE_MND_XNODE_TOO_LONG_URL;
+  }
+
+  createReq.url = taosMemoryCalloc(createReq.urlLen, 1);
+  if (createReq.url == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  tstrncpy(createReq.url, pStmt->url, createReq.urlLen);
+  */
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CREATE_XNODE, (FSerializeFunc)tSerializeSMCreateXnodeReq, &createReq);
+  tFreeSMCreateXnodeReq(&createReq);
+  return code;
+}
+
+static int32_t translateDropXnode(STranslateContext* pCxt, SDropXnodeStmt* pStmt) {
+  SMDropXnodeReq dropReq = {0};
+  dropReq.dnodeId = pStmt->dnodeId;
+
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_DROP_XNODE, (FSerializeFunc)tSerializeSMDropXnodeReq, &dropReq);
+  tFreeSMDropXnodeReq(&dropReq);
   return code;
 }
 
@@ -13941,6 +13979,12 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_UPDATE_ANODE_STMT:
       code = translateUpdateAnode(pCxt, (SUpdateAnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_CREATE_XNODE_STMT:
+      code = translateCreateXnode(pCxt, (SCreateXnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_XNODE_STMT:
+      code = translateDropXnode(pCxt, (SDropXnodeStmt*)pNode);
       break;
     case QUERY_NODE_CREATE_INDEX_STMT:
       code = translateCreateIndex(pCxt, (SCreateIndexStmt*)pNode);

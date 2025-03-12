@@ -367,6 +367,29 @@ typedef struct {
   int32_t   anodeId;
 } SUpdateAnodeStmt;
 
+typedef struct SXnodeOptions {
+  ENodeType  type;
+  SNodeList* pProtocol;
+  int64_t    protocol[XNODE_OPTION_PROTOCOL_MAX];
+} SXnodeOptions;
+
+typedef struct {
+  ENodeType      type;
+  int32_t        dnodeId;
+  char           url[TSDB_XNODE_URL_LEN + 3];
+  SXnodeOptions* pOptions;
+} SCreateXnodeStmt;
+
+typedef struct {
+  ENodeType type;
+  int32_t   dnodeId;
+} SDropXnodeStmt;
+
+typedef struct {
+  ENodeType type;
+  int32_t   dnodeId;
+} SUpdateXnodeStmt;
+
 typedef struct SShowStmt {
   ENodeType     type;
   SNode*        pDbName;  // SValueNode

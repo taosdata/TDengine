@@ -3331,6 +3331,72 @@ _err:
   return NULL;
 }
 
+SNode* createCreateXnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId, SNode* pOptions) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateXnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_XNODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
+  //(void)trimString(pUrl->z, pUrl->n, pStmt->url, sizeof(pStmt->url));
+  pStmt->pOptions = (SXnodeOptions*)pOptions;
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createDropXnodeStmt(SAstCreateContext* pCxt, const SToken* pDnodeId) {
+  CHECK_PARSER_STATUS(pCxt);
+  SUpdateXnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_XNODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
+  /*
+  if (NULL != pXnode) {
+    pStmt->xnodeId = taosStr2Int32(pXnode->z, NULL, 10);
+  } else {
+    pStmt->xnodeId = -1;
+  }
+  */
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createDefaultXnodeOptions(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SXnodeOptions* pOptions = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_XNODE_OPTIONS, (SNode**)&pOptions);
+  CHECK_MAKE_NODE(pOptions);
+
+  for (int i = 0; i < XNODE_OPTION_PROTOCOL_MAX; ++i) {
+    pOptions->protocol[i] = XNODE_OPTION_PROTOCOL_DEFAULT;
+  }
+  return (SNode*)pOptions;
+_err:
+  return NULL;
+}
+
+static SNode* setXnodeOptionImpl(SAstCreateContext* pCxt, SNode* pXnodeOptions, EXnodeOptionType type, void* pVal,
+                                    bool alter) {
+  CHECK_PARSER_STATUS(pCxt);
+  SXnodeOptions* pOptions = (SXnodeOptions*)pXnodeOptions;
+  switch (type) {
+    case DB_OPTION_KEEP:
+      pOptions->pProtocol = pVal;
+      break;
+    default:
+      break;
+  }
+  return pXnodeOptions;
+_err:
+  nodesDestroyNode(pXnodeOptions);
+  return NULL;
+}
+
+SNode* setXnodeOption(SAstCreateContext* pCxt, SNode* pOptions, EXnodeOptionType type, void* pVal) {
+  return setXnodeOptionImpl(pCxt, pOptions, type, pVal, false);
+}
+
 SNode* createEncryptKeyStmt(SAstCreateContext* pCxt, const SToken* pValue) {
   SToken config;
   config.type = TK_NK_STRING;

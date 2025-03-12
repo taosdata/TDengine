@@ -164,6 +164,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_USAGE,
   TSDB_MGMT_TABLE_FILESETS,
   TSDB_MGMT_TABLE_TRANSACTION_DETAIL,
+  TSDB_MGMT_TABLE_XNODE,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -270,6 +271,7 @@ typedef enum ENodeType {
   QUERY_NODE_ANOMALY_WINDOW,
   QUERY_NODE_RANGE_AROUND,
   QUERY_NODE_STREAM_NOTIFY_OPTIONS,
+  QUERY_NODE_XNODE_OPTIONS,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -360,6 +362,8 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_ANODE_STMT,
   QUERY_NODE_UPDATE_ANODE_STMT,
   QUERY_NODE_ASSIGN_LEADER_STMT,
+  QUERY_NODE_CREATE_XNODE_STMT,
+  QUERY_NODE_DROP_XNODE_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -409,6 +413,7 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_TSMA_STMT,
   QUERY_NODE_SHOW_FILESETS_STMT,
   QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT,
+  QUERY_NODE_SHOW_XNODES_STMT,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -2534,6 +2539,28 @@ void    tFreeSMDropAnodeReq(SMDropAnodeReq* pReq);
 int32_t tSerializeSMUpdateAnodeReq(void* buf, int32_t bufLen, SMUpdateAnodeReq* pReq);
 int32_t tDeserializeSMUpdateAnodeReq(void* buf, int32_t bufLen, SMUpdateAnodeReq* pReq);
 void    tFreeSMUpdateAnodeReq(SMUpdateAnodeReq* pReq);
+
+typedef struct {
+  int32_t dnodeId;
+  int32_t urlLen;
+  int32_t sqlLen;
+  char*   url;
+  char*   sql;
+} SMCreateXnodeReq, SDCreateXnodeReq;
+
+int32_t tSerializeSMCreateXnodeReq(void* buf, int32_t bufLen, SMCreateXnodeReq* pReq);
+int32_t tDeserializeSMCreateXnodeReq(void* buf, int32_t bufLen, SMCreateXnodeReq* pReq);
+void    tFreeSMCreateXnodeReq(SMCreateXnodeReq* pReq);
+
+typedef struct {
+  int32_t dnodeId;
+  int32_t sqlLen;
+  char*   sql;
+} SMDropXnodeReq, SDDropXnodeReq;
+
+int32_t tSerializeSMDropXnodeReq(void* buf, int32_t bufLen, SMDropXnodeReq* pReq);
+int32_t tDeserializeSMDropXnodeReq(void* buf, int32_t bufLen, SMDropXnodeReq* pReq);
+void    tFreeSMDropXnodeReq(SMDropXnodeReq* pReq);
 
 typedef struct {
   int32_t vgId;

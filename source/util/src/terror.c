@@ -375,6 +375,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_RETURN_ERROR,      "Analysis failed since 
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS,     "Analysis failed since too many input rows for anode")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_WN_DATA,                 "white-noise data not processed")
 
+// xnode
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_TOO_LONG_URL,       "Xnode too long url")
+
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_NOT_EXIST,            "sma not exist")
