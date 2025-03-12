@@ -76,88 +76,81 @@ option(
     ON
 )
 
-IF(NOT TD_ASTRA)
-option(
-        BUILD_GEOS
-        "If build with geos"
-        ON
-    )
-
-option(
-    BUILD_SHARED_LIBS
-    ""
-    OFF
-    )
-
-option(
-    RUST_BINDINGS
-    "If build with rust-bindings"
-    ON
-    )
-
-option(
-    BUILD_PCRE2
-    "If build with pcre2"
-    ON
-)
-
-option(
-    JEMALLOC_ENABLED
-    "If build with jemalloc"
-    OFF
-    )
-
-option(
-    BUILD_SANITIZER
-    "If build sanitizer"
-    OFF
-    )
-
-option(
-    BUILD_ADDR2LINE
-    "If build addr2line"
-    OFF
-    )
-
-option(
-    BUILD_WITH_LEVELDB
-    "If build with leveldb"
-    OFF
-)
-
-option(
-    BUILD_WITH_ROCKSDB
-    "If build with rocksdb"
-    ON
-)
-
-option(
-    BUILD_WITH_LZ4
-    "If build with lz4"
-    ON
-)
-
-ELSE ()
-
-option(
-    BUILD_WITH_LZMA2
-    "If build with lzma2"
-    ON
-)
-
-option(
-    BUILD_WITH_LZ4
-    "If build with lz4"
-    OFF
-)
-
-ENDIF ()
-
 option(
     BUILD_WITH_UDF
     "If build with UDF"
     ON
 )
+
+IF(NOT TD_ASTRA)
+    option(
+            BUILD_GEOS
+            "If build with geos"
+            ON
+        )
+
+    option(
+        BUILD_SHARED_LIBS
+        ""
+        OFF
+        )
+
+    option(
+        RUST_BINDINGS
+        "If build with rust-bindings"
+        ON
+        )
+
+    option(
+        BUILD_PCRE2
+        "If build with pcre2"
+        ON
+    )
+
+    option(
+        JEMALLOC_ENABLED
+        "If build with jemalloc"
+        OFF
+        )
+
+    option(
+        BUILD_SANITIZER
+        "If build sanitizer"
+        OFF
+        )
+
+    option(
+        BUILD_ADDR2LINE
+        "If build addr2line"
+        OFF
+        )
+
+    option(
+        BUILD_WITH_LEVELDB
+        "If build with leveldb"
+        OFF
+    )
+
+    option(
+        BUILD_WITH_ROCKSDB
+        "If build with rocksdb"
+        ON
+    )
+
+    option(
+        BUILD_WITH_LZ4
+        "If build with lz4"
+        ON
+    )
+ELSE ()
+
+    option(
+        BUILD_WITH_LZMA2
+        "If build with lzma2"
+        ON
+    )
+
+ENDIF ()
 
 ADD_DEFINITIONS(-DUSE_AUDIT)
 ADD_DEFINITIONS(-DUSE_GEOS)
@@ -170,6 +163,10 @@ ADD_DEFINITIONS(-DUSE_TQ)
 ADD_DEFINITIONS(-DUSE_TOPIC)
 ADD_DEFINITIONS(-DUSE_MONITOR)
 ADD_DEFINITIONS(-DUSE_REPORT)
+
+IF(${TD_ASTRA_RPC})
+    ADD_DEFINITION(-DTD_ASTRA_RPC)
+ENDIF()
 
 IF(${TD_LINUX})
 

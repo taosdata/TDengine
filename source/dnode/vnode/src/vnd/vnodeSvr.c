@@ -1023,7 +1023,6 @@ int32_t vnodeProcessStreamLongExecMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo 
       return TSDB_CODE_APP_ERROR;
   }
 }
-#endif
 
 int32_t vnodeProcessStreamChkptMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("vgId:%d, msg:%p in stream chkpt queue is processing", pVnode->config.vgId, pMsg);
@@ -1042,6 +1041,7 @@ int32_t vnodeProcessStreamChkptMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pI
       return TSDB_CODE_APP_ERROR;
   }
 }
+#endif
 
 void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   int32_t code = tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);
