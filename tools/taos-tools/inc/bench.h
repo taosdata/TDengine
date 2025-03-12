@@ -654,6 +654,7 @@ typedef struct SpecifiedQueryInfo_S {
     TAOS_RES *res[MAX_QUERY_SQL_COUNT];
     uint64_t  totalQueried;
     bool      mixed_query;
+    bool      batchQuery; // mixed query have batch and no batch query
     // error rate
     uint64_t  totalFail;
 } SpecifiedQueryInfo;

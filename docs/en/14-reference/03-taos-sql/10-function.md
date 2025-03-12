@@ -124,7 +124,39 @@ FLOOR(expr)
 ```
 
 **Function Description**: Gets the floor of the specified field.
- Other usage notes see CEIL function description.
+ Other usage notes see [CEIL](#ceil) function description.
+
+#### GREATEST
+```sql
+GREATEST(expr1, expr2[, expr]...)
+```
+
+**Function Description**: Get the maximum value of all input parameters. The minimum number of parameters for this function is 2.
+
+**Version**：ver-3.3.6.0
+
+**Return Type**：Refer to the comparison rules. The comparison type is the final return type.
+
+**Applicable Data Types**:
+- Numeric types: timestamp, bool, integer and floating point types
+- Strings types: nchar and varchar types.
+
+**Comparison rules**: The following rules describe the conversion method of the comparison operation:
+- If any parameter is NULL, the comparison result is NULL.
+- If all parameters in the comparison operation are string types, compare them as string types
+- If all parameters are numeric types, compare them as numeric types.
+- If there are both string types and numeric types in the parameters, according to the `compareAsStrInGreatest` configuration item, they are uniformly compared as strings or numeric values. By default, they are compared as strings.
+- In all cases, when different types are compared, the comparison type will choose the type with a larger range for comparison. For example, when comparing integer types, if there is a BIGINT type, BIGINT will definitely be selected as the comparison type.
+
+**Related configuration items**: Client configuration, compareAsStrInGreatest is 1, which means that both string types and numeric types are converted to string comparisons, and 0 means that they are converted to numeric types. The default is 1.
+
+
+#### LEAST
+```sql
+LEAST(expr1, expr2[, expr]...)
+```
+
+**Function Description**：Get the minimum value of all input parameters. The rest of the description is the same as the [GREATEST](#greatest) function.
 
 #### LOG
 

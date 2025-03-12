@@ -112,16 +112,6 @@ def build_pre_docs(){
             git fetch origin +refs/pull/${CHANGE_ID}/merge
             git checkout -qf FETCH_HEAD 
         '''
-
-        sh '''
-             cd ${DOC_WKC}/${tools_repo}
-            git reset --hard
-            git clean -f
-            git fetch
-            git remote prune origin
-            git checkout ''' + env.CHANGE_TARGET + '''
-            git pull >/dev/null
-        '''
     }
 }
 

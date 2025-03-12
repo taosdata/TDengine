@@ -48,7 +48,7 @@ void* benchCancelHandler(void* arg) {
 }
 #endif
 
-void checkArgumentValid() {
+int checkArgumentValid() {
      // check prepared_rand valid
     if(g_arguments->prepared_rand < g_arguments->reqPerReq) {
         infoPrint("prepared_rand(%"PRIu64") < num_of_records_per_req(%d), so set num_of_records_per_req = prepared_rand\n", 
@@ -60,6 +60,19 @@ void checkArgumentValid() {
         g_arguments->host = DEFAULT_HOST;
     }
 
+    // check batch query
+    if (g_arguments->test_mode == QUERY_TEST) {
+        if (g_queryInfo.specifiedQueryInfo.batchQuery) {
+            // batch_query = yes
+            if (!g_queryInfo.specifiedQueryInfo.mixed_query) {
+                // mixed_query = no
+                errorPrint("%s\n", "batch_query = yes require mixed_query is yes");
+                return -1;
+            }
+        }
+    }
+
+    return 0;
 }
 
 // apply cfg
@@ -161,7 +174,11 @@ int main(int argc, char* argv[]) {
 
     // check argument
     infoPrint("client version: %s\n", taos_get_client_info());
-    checkArgumentValid();
+    if (checkArgumentValid()) {
+        errorPrint("failed to readJsonConfig %s\n", g_arguments->metaFile);
+        exitLog();
+        return -1;
+    }
 
     // conn mode
     if (setConnMode(g_arguments->connMode, g_arguments->dsn) != 0) {
