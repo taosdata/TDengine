@@ -30,46 +30,48 @@ jobs:
         id: parameters
         run: |
           set -euo pipefail
-          target_branch=${{ github.event.pull_request.base.ref }}
+          # target_branch=${{ github.event.pull_request.base.ref }}
 
-          # Fetch the latest code from the target branch
-          cd ${{ env.WKC }}
-          git reset --hard
-          git clean -f
-          git remote prune origin
-          git fetch
-          git checkout "$target_branch"
-          git remote prune origin
-          git pull >/dev/null
+          # # Fetch the latest code from the target branch
+          # cd ${{ env.WKC }}
+          # git reset --hard
+          # git clean -f
+          # git remote prune origin
+          # git fetch
+          # git checkout "$target_branch"
+          # git remote prune origin
+          # git pull >/dev/null
 
-          # Check whether to run tdgpt test cases
-          changed_files_non_doc=$(git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD $target_branch) | grep -v "^docs/en/" | grep -v "^docs/zh/" | grep -v ".md$" | tr '\n' ' ' || :)
-          echo "changed files exclude doc: ${changed_files_non_doc}"
+          # # Check whether to run tdgpt test cases
+          # changed_files_non_doc=$(git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD $target_branch) | grep -v "^docs/en/" | grep -v "^docs/zh/" | grep -v ".md$" | tr '\n' ' ' || :)
+          # echo "changed files exclude doc: ${changed_files_non_doc}"
           
-          if [[ -n "$changed_files_non_doc" && "$changed_files_non_doc" =~ (forecastoperator\.c|anomalywindowoperator\.c|tanalytics\.h|tanalytics\.c|tdgpt_cases\.task|analytics|tdgpt) ]]; then
-            run_tdgpt_test="true"
-          else
-            run_tdgpt_test="false"
-          fi
-          echo "run tdgpt test: ${run_tdgpt_test}"
+          # if [[ -n "$changed_files_non_doc" && "$changed_files_non_doc" =~ (forecastoperator\.c|anomalywindowoperator\.c|tanalytics\.h|tanalytics\.c|tdgpt_cases\.task|analytics|tdgpt) ]]; then
+          #   run_tdgpt_test="true"
+          # else
+          #   run_tdgpt_test="false"
+          # fi
+          # echo "run tdgpt test: ${run_tdgpt_test}"
 
-          # Check whether to run function test cases
-          changed_files_non_tdgpt=$(git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD $target_branch) | \
-            grep -v "^docs/en/" | \
-            grep -v "^docs/zh/" | \
-            grep -v ".md$" | \
-            grep -Ev "forecastoperator\.c|anomalywindowoperator\.c|tanalytics\.h|tanalytics\.c|tdgpt_cases\.task|analytics|tdgpt" | \
-            tr '\n' ' ' || :)
-          echo "changed files exclude tdgpt: ${changed_files_non_tdgpt}"
+          # # Check whether to run function test cases
+          # changed_files_non_tdgpt=$(git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD $target_branch) | \
+          #   grep -v "^docs/en/" | \
+          #   grep -v "^docs/zh/" | \
+          #   grep -v ".md$" | \
+          #   grep -Ev "forecastoperator\.c|anomalywindowoperator\.c|tanalytics\.h|tanalytics\.c|tdgpt_cases\.task|analytics|tdgpt" | \
+          #   tr '\n' ' ' || :)
+          # echo "changed files exclude tdgpt: ${changed_files_non_tdgpt}"
           
-          if [ -n "$changed_files_non_tdgpt" ]; then
-            run_function_test="true"
-          else
-            run_function_test="false"
-          fi
+          # if [ -n "$changed_files_non_tdgpt" ]; then
+          #   run_function_test="true"
+          # else
+          #   run_function_test="false"
+          # fi
 
-          echo "run function test: ${run_function_test}"
+          # echo "run function test: ${run_function_test}"
 
+          run_tdgpt_test="true"
+          run_function_test="true"
           # Output the results for GitHub Actions
           echo "run_function_test=$run_function_test" >> $GITHUB_OUTPUT
           echo "run_tdgpt_test=$run_tdgpt_test" >> $GITHUB_OUTPUT
