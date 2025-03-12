@@ -31,9 +31,18 @@ jobs:
         run: |
           set -euo pipefail
           target_branch=${{ github.event.pull_request.base.ref }}
-          
-          # Check whether to run tdgpt test cases
+
+          # Fetch the latest code from the target branch
           cd ${{ env.WKC }}
+          git reset --hard
+          git clean -f
+          git remote prune origin
+          git fetch
+          git checkout "$target_branch"
+          git remote prune origin
+          git pull >/dev/null
+
+          # Check whether to run tdgpt test cases
           changed_files_non_doc=$(git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD $target_branch) | grep -v "^docs/en/" | grep -v "^docs/zh/" | grep -v ".md$" | tr '\n' ' ' || :)
           echo "changed files exclude doc: ${changed_files_non_doc}"
           
