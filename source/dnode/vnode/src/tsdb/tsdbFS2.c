@@ -985,6 +985,21 @@ int32_t tsdbFSEditAbort(STFileSystem *fs) {
   }
   return code;
 }
+
+static FORCE_INLINE void getSizeByLevel(const STFileObj *fObj, int64_t *lvl1, int64_t *lvl2) {
+  if (fObj == NULL) return;
+
+  int64_t sz = fObj->f->size;
+  // level == 0, primary storage,obtain size by traversing the primary directory's folder
+  // level == 1, second storage,
+  // level == 2, third storage
+  int32_t level = fObj->f->did.level;
+  if (level == 1) {
+    *lvl1 += sz;
+  } else if (level == 2) {
+    *lvl2 += sz;
+  }
+}
 int32_t tsdbGetFsSizeImpl(STFileSystem *fs, int64_t *lvl1, int64_t *lvl2) {
   int32_t    code = 0;
   int64_t    alvl1 = 0, alvl2 = 0;
@@ -999,20 +1014,10 @@ int32_t tsdbGetFsSizeImpl(STFileSystem *fs, int64_t *lvl1, int64_t *lvl2) {
     for (int32_t t = TSDB_FTYPE_MIN; t < TSDB_FTYPE_MAX; ++t) {
       if (fset->farr[t] == NULL) continue;
       fObj = fset->farr[t];
-      if (fObj->nlevel == 1) {
-        alvl1 += fObj->f->size;
-      } else if (fObj->nlevel == 2) {
-        alvl2 += fObj->f->size;
-      }
+      getSizeByLevel(fObj, &alvl1, &alvl2);
     }
     TARRAY2_FOREACH(fset->lvlArr, stt) {
-      TARRAY2_FOREACH(stt->fobjArr, fObj) {
-        if (fObj->nlevel == 1) {
-          alvl1 += fObj->f->size;
-        } else if (fObj->nlevel == 2) {
-          alvl2 += fObj->f->size;
-        }
-      }
+      TARRAY2_FOREACH(stt->fobjArr, fObj) { getSizeByLevel(fObj, &alvl1, &alvl2); }
     }
   }
 
