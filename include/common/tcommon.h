@@ -414,7 +414,7 @@ typedef struct STUidTagInfo {
 #define NOTIFY_EVENT_STR_COLUMN_INDEX 0
 
 int32_t taosGenCrashJsonMsg(int signum, char** pMsg, int64_t clusterId, int64_t startTime);
-int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol);
+int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol, char* likePattern);
 
 #define TSMA_RES_STB_POSTFIX          "_tsma_res_stb_"
 #define MD5_OUTPUT_LEN                32

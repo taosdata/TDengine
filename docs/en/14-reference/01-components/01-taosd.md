@@ -43,7 +43,7 @@ After modifying configuration file parameters, you need to restart the *taosd* s
 |resolveFQDNRetryTime   | Cancelled after 3.x      |Not supported                     |Number of retries when FQDN resolution fails|
 |timeToGetAvailableConn | Cancelled after 3.3.4.x  |Maximum waiting time to get an available connection, range 10-50000000, in milliseconds, default value 500000|
 |maxShellConns          | Cancelled after 3.x      |Supported, effective after restart|Maximum number of connections allowed|
-|maxRetryWaitTime       |                         |Supported, effective after restart|Maximum timeout for reconnection,calculated from the time of retry,range is 0-86400000,in milliseconds, default value 10000|
+|maxRetryWaitTime       |                         |Supported, effective after restart|Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 10000|
 |shareConnLimit         |Added in 3.3.4.0          |Supported, effective after restart|Number of requests a connection can share, range 1-512, default value 10|
 |readTimeout            |Added in 3.3.4.0          |Supported, effective after restart|Minimum timeout for a single request, range 64-604800, in seconds, default value 900|
 
@@ -231,6 +231,7 @@ The effective value of charset is UTF-8.
 |udf                       |          |Supported, effective after restart|Whether to start UDF service; 0: do not start, 1: start; default value 0 |
 |udfdResFuncs              |          |Supported, effective after restart|Internal parameter, for setting UDF result sets|
 |udfdLdLibPath             |          |Supported, effective after restart|Internal parameter, indicates the library path for loading UDF|
+|enableStrongPassword      | After 3.3.5.0 |Supported, effective after restart|The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
 
 ### Stream Computing Parameters
 
