@@ -1148,7 +1148,7 @@ void tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data) {
   int32_t          numOfBlocks = taosArrayGetSize(pBlocks);
   int32_t          code = TSDB_CODE_SUCCESS;
   const char*      id = pTask->id.idStr;
-  int64_t          earlyTs = tsdbGetEarliestTs(pVnode->pTsdb, suid);
+  int64_t          earlyTs = tsdbGetEarliestTs(pVnode->pTsdb);
   STaskOutputInfo* pOutputInfo = &pTask->outputInfo;
 
   code = checkTagSchema(pTask, pVnode);
