@@ -882,7 +882,6 @@ void sendCreateStreamFailedMsg(SRequestObj* pRequest, char* streamName){
     tscError("failed to calloc msgSendInfo: %s", terrstr());
     return;
   }
-  SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
   sendInfo->msgInfo = (SDataBuf){.pData = buf, .len = size, .handle = NULL};
   sendInfo->requestId = generateRequestId();
   sendInfo->requestObjRefId = 0;
