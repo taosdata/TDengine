@@ -280,7 +280,7 @@ serverPass="taosdata123"   # server root password
 
 ### 3.7.3 Check test results
 
-When the test is done, the result can be found in `${installPath}/tsbs/scripts/tsdbComp/log/` directory, which can also be configured in `test.ini`.
+When the test is done, the result can be found in `${installPath}/tsbs/scripts/tsdbComp/log/` directory, which ${installPath} can be configured in `test.ini`.
 
 ### 3.7.4 Test more scenario
 
