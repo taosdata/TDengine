@@ -20,7 +20,7 @@
 
 #define CHECK_NOT_RSP_DURATION 60 * 1000  // 60 sec
 
-static void    processDownstreamReadyRsp(SStreamTask* pTask);
+static void    processDownstreamReadyRsp(SStreamTask* pTask, bool lock);
 static void    rspMonitorFn(void* param, void* tmrId);
 static void    streamTaskInitTaskCheckInfo(STaskCheckInfo* pInfo, STaskOutputInfo* pOutputInfo, int64_t startTs);
 static int32_t streamTaskStartCheckDownstream(STaskCheckInfo* pInfo, const char* id);
@@ -135,7 +135,7 @@ void streamTaskSendCheckMsg(SStreamTask* pTask) {
   } else {  // for sink task, set it ready directly.
     stDebug("s-task:%s (vgId:%d) set downstream ready, since no downstream", idstr, pTask->info.nodeId);
     streamTaskStopMonitorCheckRsp(&pTask->taskCheckInfo, idstr);
-    processDownstreamReadyRsp(pTask);
+    processDownstreamReadyRsp(pTask, false);
   }
 
   if (code) {
@@ -208,7 +208,7 @@ int32_t streamTaskProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
     }
 
     if (left == 0) {
-      processDownstreamReadyRsp(pTask);  // all downstream tasks are ready, set the complete check downstream flag
+      processDownstreamReadyRsp(pTask, true);  // all downstream tasks are ready, set the complete check downstream flag
       streamTaskStopMonitorCheckRsp(pInfo, id);
     } else {
       stDebug("s-task:%s (vgId:%d) recv check rsp from task:0x%x (vgId:%d) status:%d, total:%d not ready:%d", id,
@@ -331,7 +331,7 @@ void streamTaskCleanupCheckInfo(STaskCheckInfo* pInfo) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-void processDownstreamReadyRsp(SStreamTask* pTask) {
+void processDownstreamReadyRsp(SStreamTask* pTask, bool lock) {
   EStreamTaskEvent event = (pTask->info.fillHistory == 0) ? TASK_EVENT_INIT : TASK_EVENT_INIT_SCANHIST;
   int32_t          code = streamTaskOnHandleEventSuccess(pTask->status.pSM, event, NULL, NULL);
   if (code) {
@@ -340,7 +340,12 @@ void processDownstreamReadyRsp(SStreamTask* pTask) {
 
   int64_t checkTs = pTask->execInfo.checkTs;
   int64_t readyTs = pTask->execInfo.readyTs;
-  code = streamMetaAddTaskLaunchResult(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, checkTs, readyTs, true);
+  if (lock) {
+    code = streamMetaAddTaskLaunchResult(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, checkTs, readyTs, true);
+  } else {
+    code = streamMetaAddTaskLaunchResultNoLock(pTask->pMeta, pTask->id.streamId, pTask->id.taskId, checkTs, readyTs, true);
+  }
+
   if (code) {
     stError("s-task:%s failed to record the downstream task status, code:%s", pTask->id.idStr, tstrerror(code));
   }
@@ -365,7 +370,7 @@ void processDownstreamReadyRsp(SStreamTask* pTask) {
   // todo: let's retry
   if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
     stDebug("s-task:%s try to launch related fill-history task", pTask->id.idStr);
-    code = streamLaunchFillHistoryTask(pTask, true);
+    code = streamLaunchFillHistoryTask(pTask, lock);
     if (code) {
       stError("s-task:%s failed to launch history task, code:%s", pTask->id.idStr, tstrerror(code));
     }

@@ -2689,19 +2689,18 @@ void taskDbDestroy(void* pDb, bool flush) {
   streamMutexDestroy(&wrapper->mutex);
   taskDbDestroyChkpOpt(wrapper);
 
-  taosMemoryFree(wrapper->idstr);
-
   if (wrapper->removeAllFiles) {
     char* err = NULL;
     stInfo("drop task remove backend data:%s", wrapper->path);
     taosRemoveDir(wrapper->path);
   }
 
-  taosMemoryFree(wrapper->path);
-  taosMemoryFree(wrapper);
-
   int64_t et = taosGetTimestampMs();
   stDebug("%s destroy stream backend:%p completed, elapsed time:%.2fs", wrapper->idstr, wrapper, (et - st)/1000.0);
+
+  taosMemoryFree(wrapper->idstr);
+  taosMemoryFree(wrapper->path);
+  taosMemoryFree(wrapper);
 }
 
 void taskDbDestroy2(void* pDb) { taskDbDestroy(pDb, true); }

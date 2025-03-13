@@ -410,7 +410,7 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
   }
 
   // the start all tasks procedure may happen to start the newly deployed stream task, and results in the
-  // concurrently start this task by two threads.
+  // concurrent start this task by two threads.
   streamMutexLock(&pTask->lock);
 
   SStreamTaskState status = streamTaskGetStatus(pTask);
@@ -433,6 +433,8 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
+  streamMetaWLock(pMeta);
+
   // avoid initialization and destroy running concurrently.
   streamMutexLock(&pTask->lock);
   if (pTask->pBackend == NULL) {
@@ -440,7 +442,7 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
     streamMutexUnlock(&pTask->lock);
 
     if (code != TSDB_CODE_SUCCESS) {
-      streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs, true);
+      streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs, false);
     }
   } else {
     streamMutexUnlock(&pTask->lock);
@@ -455,12 +457,14 @@ int32_t streamMetaStartOneTask(SStreamMeta* pMeta, int64_t streamId, int32_t tas
 
       // do no added into result hashmap if it is failed due to concurrently starting of this stream task.
       if (code != TSDB_CODE_STREAM_CONFLICT_EVENT) {
-        streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs, true);
+        streamMetaAddFailedTaskSelf(pTask, pInfo->readyTs, false);
       }
     }
   }
 
+  streamMetaWUnLock(pMeta);
   streamMetaReleaseTask(pMeta, pTask);
+
   return code;
 }
 
