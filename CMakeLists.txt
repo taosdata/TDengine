@@ -19,6 +19,7 @@ include(${TD_SUPPORT_DIR}/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.define)
 include(${TD_SUPPORT_DIR}/cmake.version)
 include(${TD_SUPPORT_DIR}/cmake.install)
+enable_testing()
 
 set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
 
@@ -34,6 +35,5 @@ add_subdirectory(docs/doxgen)
 
 if(${BUILD_TEST})
   include(CTest)
-  enable_testing()
   add_subdirectory(examples/c)
 endif(${BUILD_TEST})
