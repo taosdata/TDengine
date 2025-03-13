@@ -99,14 +99,14 @@ int32_t walInitWriteFileForSkip(SWal *pWal) {
   walBuildIdxName(pWal, fileFirstVer, fnameStr);
   pIdxTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pIdxTFile == NULL) {
-    wError("vgId:%d, failed to open file since %s", pWal->cfg.vgId, tstrerror(terrno));
+    wError("vgId:%d, failed to open file %s since %s", pWal->cfg.vgId, fnameStr, tstrerror(terrno));
     code = terrno;
     goto _exit;
   }
   walBuildLogName(pWal, fileFirstVer, fnameStr);
   pLogTFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pLogTFile == NULL) {
-    wError("vgId:%d, failed to open file since %s", pWal->cfg.vgId, tstrerror(terrno));
+    wError("vgId:%d, failed to open file %s since %s", pWal->cfg.vgId, fnameStr, tstrerror(terrno));
     code = terrno;
     goto _exit;
   }
@@ -166,7 +166,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   // init ref
   pWal->pRefHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (pWal->pRefHash == NULL) {
-    wError("failed to init hash since %s", tstrerror(terrno));
+    wError("vgId:%d, failed to init hash since %s", pWal->cfg.vgId, tstrerror(terrno));
     goto _err;
   }
 
@@ -177,7 +177,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->writeCur = -1;
   pWal->fileInfoSet = taosArrayInit(8, sizeof(SWalFileInfo));
   if (pWal->fileInfoSet == NULL) {
-    wError("vgId:%d, failed to init taosArray of fileInfoSet due to %s. path:%s", pWal->cfg.vgId, strerror(errno),
+    wError("vgId:%d, failed to init array of fileInfoSet since %s, path:%s", pWal->cfg.vgId, strerror(errno),
            pWal->path);
     goto _err;
   }
@@ -185,7 +185,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   // init gc
   pWal->toDeleteFiles = taosArrayInit(8, sizeof(SWalFileInfo));
   if (pWal->toDeleteFiles == NULL) {
-    wError("vgId:%d, failed to init taosArray of toDeleteFiles due to %s. path:%s", pWal->cfg.vgId, strerror(errno),
+    wError("vgId:%d, failed to init array of toDeleteFiles since %s, path:%s", pWal->cfg.vgId, strerror(errno),
            pWal->path);
     goto _err;
   }
@@ -202,7 +202,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   // load meta
   code = walLoadMeta(pWal);
   if (code < 0) {
-    wWarn("vgId:%d, failed to load meta since %s", pWal->cfg.vgId, tstrerror(code));
+    wWarn("vgId:%d, failed to load meta, code:0x%x", pWal->cfg.vgId, code);
   }
   if (pWal->cfg.level != TAOS_WAL_SKIP) {
     code = walCheckAndRepairMeta(pWal);
