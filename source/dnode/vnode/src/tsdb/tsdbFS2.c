@@ -986,47 +986,6 @@ int32_t tsdbFSEditAbort(STFileSystem *fs) {
   return code;
 }
 
-static FORCE_INLINE void getLevelSize(const STFileObj *fObj, int64_t szArr[3]) {
-  if (fObj == NULL) return;
-
-  int64_t sz = fObj->f->size;
-  // level == 0, primary storage
-  // level == 1, second storage,
-  // level == 2, third storage
-  int32_t level = fObj->f->did.level;
-  if (level >= 0 && level <= 2) {
-    szArr[level] += sz;
-  }
-}
-int32_t tsdbGetFsSizeImpl(STFileSystem *fs, SDbSizeStatisInfo *pInfo) {
-  int32_t code = 0;
-  int64_t levelSize[3] = {0};
-
-  const STFileSet *fset;
-  const SSttLvl   *stt = NULL;
-  const STFileObj *fObj = NULL;
-
-  (void)taosThreadMutexLock(&fs->tsdb->mutex);
-
-  TARRAY2_FOREACH(fs->fSetArr, fset) {
-    for (int32_t t = TSDB_FTYPE_MIN; t < TSDB_FTYPE_MAX; ++t) {
-      if (fset->farr[t] == NULL) continue;
-      fObj = fset->farr[t];
-      getLevelSize(fObj, levelSize);
-    }
-    TARRAY2_FOREACH(fset->lvlArr, stt) {
-      TARRAY2_FOREACH(stt->fobjArr, fObj) { getLevelSize(fObj, levelSize); }
-    }
-  }
-
-  (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
-
-  pInfo->l1Size = levelSize[0];
-  pInfo->l2Size = levelSize[1];
-  pInfo->l3Size = levelSize[2];
-  return code;
-}
-
 void tsdbFSGetFSet(STFileSystem *fs, int32_t fid, STFileSet **fset) {
   STFileSet   tfset = {.fid = fid};
   STFileSet  *pset = &tfset;
@@ -1455,3 +1414,73 @@ void tsdbFileSetReaderClose(struct SFileSetReader **ppReader) {
   *ppReader = NULL;
   return;
 }
+
+static FORCE_INLINE int32_t tsdbGetS3SizeImpl(STsdb *tsdb, int64_t *size) {
+  int32_t code = 0;
+
+  SVnodeCfg *pCfg = &tsdb->pVnode->config;
+  int64_t    chunksize = (int64_t)pCfg->tsdbPageSize * pCfg->s3ChunkSize;
+
+  STFileSet *fset;
+  TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
+    STFileObj *fobj = fset->farr[TSDB_FTYPE_DATA];
+    if (fobj) {
+      int32_t lcn = fobj->f->lcn;
+      if (lcn > 1) {
+        *size += ((lcn - 1) * chunksize);
+      }
+    }
+  }
+
+  return code;
+}
+int32_t tsdbGetS3Size(STsdb *tsdb, int64_t *size) {
+  int32_t code = 0;
+  (void)taosThreadMutexLock(&tsdb->mutex);
+  code = tsdbGetS3SizeImpl(tsdb, size);
+  (void)taosThreadMutexUnlock(&tsdb->mutex);
+  return code;
+}
+
+static FORCE_INLINE void getLevelSize(const STFileObj *fObj, int64_t szArr[3]) {
+  if (fObj == NULL) return;
+
+  int64_t sz = fObj->f->size;
+  // level == 0, primary storage
+  // level == 1, second storage,
+  // level == 2, third storage
+  int32_t level = fObj->f->did.level;
+  if (level >= 0 && level < TFS_MAX_TIERS) {
+    szArr[level] += sz;
+  }
+}
+
+static FORCE_INLINE int32_t tsdbGetFsSizeImpl(STFileSystem *fs, SDbSizeStatisInfo *pInfo) {
+  int32_t code = 0;
+  int64_t levelSize[TFS_MAX_TIERS] = {0};
+
+  const STFileSet *fset;
+  const SSttLvl   *stt = NULL;
+  const STFileObj *fObj = NULL;
+
+  (void)taosThreadMutexLock(&fs->tsdb->mutex);
+
+  TARRAY2_FOREACH(fs->fSetArr, fset) {
+    for (int32_t t = TSDB_FTYPE_MIN; t < TSDB_FTYPE_MAX; ++t) {
+      if (fset->farr[t] == NULL) continue;
+      fObj = fset->farr[t];
+      getLevelSize(fObj, levelSize);
+    }
+    TARRAY2_FOREACH(fset->lvlArr, stt) {
+      TARRAY2_FOREACH(stt->fobjArr, fObj) { getLevelSize(fObj, levelSize); }
+    }
+  }
+
+  (void)taosThreadMutexUnlock(&fs->tsdb->mutex);
+
+  pInfo->l1Size = levelSize[0];
+  pInfo->l2Size = levelSize[1];
+  pInfo->l3Size = levelSize[2];
+  return code;
+}
+int32_t tsdbGetFsSize(STsdb *tsdb, SDbSizeStatisInfo *pInfo) { return tsdbGetFsSizeImpl(tsdb->pFS, pInfo); }
