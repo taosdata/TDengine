@@ -683,7 +683,8 @@ void uvOnSendCb(uv_write_t* req, int status) {
 
   freeWReqToWQ(&conn->wq, wrapper);
 
-  tDebug("%s conn:%p, send data out ", transLabel(conn->pInst), conn);
+  tTrace("%s conn:%p, send data out", transLabel(conn->pInst), conn);
+
   if (status == 0) {
     while (!QUEUE_IS_EMPTY(&src)) {
       queue* head = QUEUE_HEAD(&src);
@@ -691,7 +692,7 @@ void uvOnSendCb(uv_write_t* req, int status) {
 
       SSvrRespMsg* smsg = QUEUE_DATA(head, SSvrRespMsg, q);
       STraceId*    trace = &smsg->msg.info.traceId;
-      tGDebug("%s conn:%p, msg already send out, seqNum:%" PRId64 ", sid:%" PRId64 "", transLabel(conn->pInst), conn,
+      tGTrace("%s conn:%p, msg already send out, seqNum:%" PRId64 ", sid:%" PRId64 "", transLabel(conn->pInst), conn,
               smsg->msg.info.seqNum, smsg->msg.info.qId);
       destroySmsg(smsg);
     }
@@ -777,10 +778,11 @@ static int32_t uvPrepareSendData(SSvrRespMsg* smsg, uv_buf_t* wb) {
   wb->len = len;
   return 0;
 }
+
 static int32_t uvBuildToSendData(SSvrConn* pConn, uv_buf_t** ppBuf, int32_t* bufNum, queue* toSendQ) {
   int32_t code = 0;
   int32_t size = transQueueSize(&pConn->resps);
-  tDebug("%s conn:%p, has %d msg to send", transLabel(pConn->pInst), pConn, size);
+  tTrace("%s conn:%p, has %d msg to send", transLabel(pConn->pInst), pConn, size);
   if (size == 0) {
     return 0;
   }
@@ -828,7 +830,7 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrRespMsg* smsg) {
   }
   int32_t size = transQueueSize(&pConn->resps);
   if (size == 0) {
-    tDebug("%s conn:%p, has %d msg to send", transLabel(pConn->pInst), pConn, size);
+    tTrace("%s conn:%p, has %d msg to send", transLabel(pConn->pInst), pConn, size);
     return;
   }
 
@@ -1718,7 +1720,7 @@ void uvHandleRelease(SSvrRespMsg* msg, SWorkThrd* thrd) { return; }
 
 void uvHandleResp(SSvrRespMsg* msg, SWorkThrd* thrd) {
   // send msg to client
-  tDebug("%s conn:%p, start to send resp (2/2)", transLabel(thrd->pInst), msg->pConn);
+  tTrace("%s conn:%p, start to send resp (2/2)", transLabel(thrd->pInst), msg->pConn);
   uvStartSendResp(msg);
 }
 
@@ -1958,7 +1960,7 @@ int32_t transSendResponse(const STransMsg* msg) {
   m->type = Normal;
 
   STraceId* trace = (STraceId*)&msg->info.traceId;
-  tGDebug("conn:%p, start to send resp (1/2)", exh->handle);
+  tGTrace("conn:%p, start to send resp (1/2)", exh->handle);
   if ((code = transAsyncSend(pThrd->asyncPool, &m->q)) != 0) {
     destroySmsg(m);
     transReleaseExHandle(msg->info.refIdMgt, refId);

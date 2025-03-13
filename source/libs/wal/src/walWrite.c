@@ -503,12 +503,12 @@ static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
   SWalFileInfo *pFileInfo = walGetCurFileInfo(pWal);
 
   int64_t idxOffset = (entry.ver - pFileInfo->firstVer) * sizeof(SWalIdxEntry);
-  wTrace("vgId:%d, write index:%" PRId64 " entry, offset:%" PRId64 ", at %" PRId64, pWal->cfg.vgId, ver, offset,
+  wTrace("vgId:%d, write entry, index:%" PRId64 " , offset:%" PRId64 ", at %" PRId64, pWal->cfg.vgId, ver, offset,
          idxOffset);
 
   int64_t size = taosWriteFile(pWal->pIdxFile, &entry, sizeof(SWalIdxEntry));
   if (size != sizeof(SWalIdxEntry)) {
-    wError("vgId:%d, failed to write index entry since %s, index:%" PRId64, pWal->cfg.vgId, strerror(errno), ver);
+    wError("vgId:%d, failed to write entry since %s, index:%" PRId64, pWal->cfg.vgId, strerror(errno), ver);
     walStopDnode(pWal);
     TAOS_RETURN(terrno);
   }
@@ -543,7 +543,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
   pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
   pWal->writeHead.cksumBody = walCalcBodyCksum(body, plainBodyLen);
-  wDebug("vgId:%d, write index:%" PRId64 ", msgType:%s, cksum head:%u, cksum body:%u", pWal->cfg.vgId, index,
+  wDebug("vgId:%d, write log, index:%" PRId64 ", msgType:%s, cksum head:%u, cksum body:%u", pWal->cfg.vgId, index,
          TMSG_INFO(msgType), pWal->writeHead.cksumHead, pWal->writeHead.cksumBody);
 
   if (pWal->cfg.level != TAOS_WAL_SKIP) {

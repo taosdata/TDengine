@@ -248,7 +248,7 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
     TAOS_RETURN(code);
   }
 
-  sNTrace(pData->pSyncNode, "write index:%" PRId64 ", type:%s, origin type:%s, elapsed:%" PRId64, pEntry->index,
+  sNTrace(pData->pSyncNode, "write log, index:%" PRId64 ", type:%s, origin type:%s, elapsed:%" PRId64, pEntry->index,
           TMSG_INFO(pEntry->msgType), TMSG_INFO(pEntry->originalRpcType), tsElapsed);
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }

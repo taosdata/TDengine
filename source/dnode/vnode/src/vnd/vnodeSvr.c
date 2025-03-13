@@ -618,7 +618,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t ver, SRpcMsg
     return terrno = TSDB_CODE_VND_DUP_REQUEST;
   }
 
-  vDebug("vgId:%d, start to process write request %s, index:%" PRId64 ", applied:%" PRId64 ", state.applyTerm:%" PRId64
+  vDebug("vgId:%d, process write request:%s, index:%" PRId64 ", applied:%" PRId64 ", state.applyTerm:%" PRId64
          ", conn.applyTerm:%" PRId64 ", contLen:%d",
          TD_VID(pVnode), TMSG_INFO(pMsg->msgType), ver, pVnode->state.applied, pVnode->state.applyTerm,
          pMsg->info.conn.applyTerm, pMsg->contLen);
@@ -2052,7 +2052,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
     }
   }
 
-  vDebug("vgId:%d, submit block size %d", TD_VID(pVnode), (int32_t)taosArrayGetSize(pSubmitReq->aSubmitTbData));
+  vDebug("vgId:%d, submit block size:%d", TD_VID(pVnode), (int32_t)taosArrayGetSize(pSubmitReq->aSubmitTbData));
 
   // loop to handle
   for (int32_t i = 0; i < TARRAY_SIZE(pSubmitReq->aSubmitTbData); ++i) {
