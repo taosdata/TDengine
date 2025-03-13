@@ -141,6 +141,8 @@ typedef unsigned __int32 uint32_t;
 #define BOOL_BUFF_LEN       6
 #define FLOAT_BUFF_LEN      22
 #define DOUBLE_BUFF_LEN     42
+#define DECIMAL_BUFF_LEN    41
+#define DECIMAL64_BUFF_LEN  21
 #define TIMESTAMP_BUFF_LEN  21
 #define PRINT_STAT_INTERVAL 30 * 1000
 #define DEFAULT_HOST        "localhost"
@@ -411,6 +413,7 @@ typedef struct SField {
     int64_t  min;
     double   maxInDbl;
     double   minInDbl;
+    uint32_t scale;
     uint32_t scalingFactor;
     tools_cJSON *  values;
 

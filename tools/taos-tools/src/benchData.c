@@ -10,10 +10,16 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  */
 
+#include <stdio.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <string.h>
+
 #include <bench.h>
 #include "benchLog.h"
 #include <math.h>
 #include <benchData.h>
+#include "decimal.h"
 
 const char charset[] =
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
@@ -118,6 +124,37 @@ float funValueFloat(Field *field, int32_t angle, int32_t loop) {
         float rate = taosRandom() % field->random;
         funVal += field->addend * (rate/100);
     } else if(field->addend !=0 ) {
+        funVal += field->addend;
+    }
+
+    funVal += field->base;
+    return funVal;
+}
+
+double funValueDouble(Field *field, int32_t angle, int32_t loop) {
+    double radian = ATOR(angle);
+    double funVal = 0;
+
+    if (field->funType == FUNTYPE_SIN)
+       funVal = sin(radian);
+    else if (field->funType == FUNTYPE_COS)
+       funVal = cos(radian);
+    else if (field->funType == FUNTYPE_COUNT)
+       funVal = (double)funCount(field->min, field->max, field->step, loop);
+    else if (field->funType == FUNTYPE_SAW)
+       funVal = (double)funSaw(field->min, field->max, field->period, loop + field->offset );
+    else if (field->funType == FUNTYPE_SQUARE)
+       funVal = (double)funSquare(field->min, field->max, field->period, loop + field->offset);
+    else if (field->funType == FUNTYPE_TRI)
+       funVal = (double)funTriAngle(field->min, field->max, field->period, loop + field->offset);
+
+    if (field->multiple != 0)
+       funVal *= field->multiple;
+
+    if ( field->addend !=0 && field->random > 0 ) {
+        double rate = taosRandom() % field->random;
+        funVal += field->addend * (rate/100);
+    } else if (field->addend !=0 ) {
         funVal += field->addend;
     }
 
@@ -461,6 +498,14 @@ uint32_t accumulateRowLen(BArray *fields, int iface) {
                 len += DOUBLE_BUFF_LEN;
                 break;
 
+            case TSDB_DATA_TYPE_DECIMAL:
+                len += DECIMAL_BUFF_LEN;
+                break;
+
+            case TSDB_DATA_TYPE_DECIMAL64:
+                len += DECIMAL64_BUFF_LEN;
+                break;
+
             case TSDB_DATA_TYPE_TIMESTAMP:
                 len += TIMESTAMP_BUFF_LEN;
                 break;
@@ -716,23 +761,31 @@ float tmpFloatImpl(Field *field, int i, int32_t angle, int32_t k) {
     return floatTmp;
 }
 
-double tmpDoubleImpl(Field *field, int32_t angle, int32_t k) {
-    double doubleTmp = (double)(field->min);
-    if(field->funType != FUNTYPE_NONE) {
-        doubleTmp = funValueFloat(field, angle, k);
+double tmpDoubleScalingImpl(Field *field, int32_t angle, int32_t k,) {
+    double doubleTmp = field->minInDbl;
+    if (field->funType != FUNTYPE_NONE) {
+        doubleTmp = funValueDouble(field, angle, k);
     } else if (field->max != field->min) {
-        if(field->gen == GEN_ORDER) {
+        if (field->gen == GEN_ORDER) {
             doubleTmp += k % (field->max - field->min);
         } else {
-            doubleTmp += ((taosRandom() %
-                (field->max - field->min)) +
-                taosRandom() % 1000000 / 1000000.0);
+            doubleTmp += (taosRandom() % (field->max - field->min));
+            if (field->type == TSDB_DATA_TYPE_DOUBLE) {
+                doubleTmp += taosRandom() % 1000000 / 1000000.0;
+            }
         }
     }
 
+    return doubleTmp;
+}
+
+double tmpDoubleImpl(Field *field, int32_t angle, int32_t k) {
+    double doubleTmp = tmpDoubleScalingImpl(field, angle, k);
+
     if (field->scalingFactor > 0) {
-        if (field->scalingFactor > 1)
-            doubleTmp = doubleTmp / field->scalingFactor;
+        if (field->scalingFactor > 1) {
+            doubleTmp /= field->scalingFactor;
+        }
 
         if (doubleTmp > field->maxInDbl)
             doubleTmp = field->maxInDbl;
@@ -783,6 +836,137 @@ static int tmpJson(char *sampleDataBuf,
     }
 
     return n;
+}
+
+Decimal64 tmpDecimal64Impl(Field *field, int32_t angle, int32_t k) {
+    double doubleTmp = tmpDoubleImpl(field, angle, k);
+    int64_t scaledInt = (int64_t)(doubleTmp * field->scalingFactor);
+
+    DECIMAL64_SET_VALUE(&result, scaledInt);
+
+    // const bool exceedMax = (scaledInt > DECIMAL64_GET_VALUE(&DECIMAL64_MAX));
+    // const bool belowMin = (scaledInt < DECIMAL64_GET_VALUE(&DECIMAL64_MIN));
+
+    // Decimal64 result;
+    // if (exceedMax) {
+    //     DECIMAL64_CLONE(&result, &DECIMAL64_MAX);
+    // } else if (belowMin) {
+    //     DECIMAL64_CLONE(&result, &DECIMAL64_MIN);
+    // } else {
+    //     DECIMAL64_SET_VALUE(&result, scaledInt);
+    // }
+
+    return result;
+}
+
+Decimal128 tmpDecimal128Impl(Field *field, int32_t angle, int32_t k) {
+    double doubleTmp = tmpDoubleImpl(field, angle, k);
+    int64_t scaledInt = (int64_t)(doubleTmp * field->scalingFactor);
+
+    uint64_t low = (uint64_t)(scaledInt & UINT64_MAX);
+    int64_t high = (scaledInt >= 0) ? 0 : -1;
+
+    Decimal128 result;
+    DECIMAL128_SET_LOW_WORD(&result, low);
+    DECIMAL128_SET_HIGH_WORD(&result, high);
+
+    // const bool exceedMax = (scaledInt > (int64_t)DECIMAL128_LOW_WORD(&DECIMAL128_MAX));
+    // const bool belowMin = (scaledInt < (int64_t)DECIMAL128_LOW_WORD(&DECIMAL128_MIN));
+    
+    // Decimal128 result;
+    // if (exceedMax) {
+    //     DECIMAL128_CLONE(&result, &DECIMAL128_MAX);
+    // } else if (belowMin) {
+    //     DECIMAL128_CLONE(&result, &DECIMAL128_MIN);
+    // } else {
+    //     DECIMAL128_SET_LOW_WORD(&result, low);
+    //     DECIMAL128_SET_HIGH_WORD(&result, high);
+    // }
+
+    return result;
+}
+
+int decimalToString(char* buf, size_t size, const void* dec, uint32_t scale, bool is128) {
+    bool negative = false;
+    char numStr[DECIMAL_BUFF_LEN] = {0};
+    char* p = numStr;
+
+
+    if (is128) {
+        int64_t high = DECIMAL128_HIGH_WORD((const Decimal128*)dec);
+        uint64_t low = DECIMAL128_LOW_WORD((const Decimal128*)dec);
+
+        negative = (high < 0);
+        if (negative) {
+            high = ~high;
+            low = ~low;
+            if (++low == 0) ++high;
+        }
+
+        uint64_t val = low;
+        do {
+            *p++ = '0' + (val % 10);
+            val /= 10;
+        } while (val > 0);
+        
+    } else {
+        int64_t value = DECIMAL64_GET_VALUE((const Decimal64*)dec);
+        negative = (value < 0);
+        uint64_t absValue = negative ? (uint64_t)(-value) : (uint64_t)value;
+        
+        do {
+            *p++ = '0' + (absValue % 10);
+            absValue /= 10;
+        } while (absValue > 0);
+    }
+
+    const size_t len = p - numStr;
+    for (size_t i = 0; i < len/2; ++i) {
+        char tmp = numStr[i];
+        numStr[i] = numStr[len-1-i];
+        numStr[len-1-i] = tmp;
+    }
+
+    const size_t totalLen   = len;
+    const size_t intLen     = (scale >= totalLen) ? 1 : (totalLen - scale);
+    const size_t fracLen    = scale;
+    const size_t reqLen     = negative + intLen + (fracLen ? 1 : 0) + fracLen + 1;
+
+    if (size < reqLen) return -1;
+
+    char* out = buf;
+    if (negative) *out++ = '-';
+    
+    if (totalLen <= scale) {
+        *out++ = '0';
+    } else {
+        memcpy(out, numStr, intLen);
+        out += intLen;
+    }
+
+    if (scale > 0) {
+        *out++ = '.';
+        if (totalLen < scale) {
+            memset(out, '0', scale - totalLen);
+            out += scale - totalLen;
+            memcpy(out, numStr, totalLen);
+            out += totalLen;
+        } else {
+            memcpy(out, numStr + intLen, fracLen);
+            out += fracLen;
+        }
+    }
+
+    *out = '\0';
+    return reqLen - 1;
+}
+
+int decimal64ToString(char* buf, size_t size, const Decimal64* dec, uint32_t scale) {
+    return decimalToString(buf, size, dec, scale, false);
+}
+
+int decimal128ToString(char* buf, size_t size, const Decimal128* dec, uint32_t scale) {
+    return decimalToString(buf, size, dec, scale, true);
 }
 
 static int generateRandDataSQL(SSuperTable *stbInfo, char *sampleDataBuf,
@@ -878,6 +1062,13 @@ static int generateRandDataSQL(SSuperTable *stbInfo, char *sampleDataBuf,
                     double double_ =  tmpDoubleImpl(field, angle, k);
                     n = snprintf(sampleDataBuf + pos, bufLen - pos,
                                         "%f,", double_);
+                    break;
+                }
+                case TSDB_DATA_TYPE_DECIMAL: {
+                    uint32_t scale = field->scale;
+                    Decimal128 dec =  tmpDecimal128Impl(field, angle, k);
+                    int n1 = snprintf(sampleDataBuf + pos, bufLen - pos,
+                                        "%" PRId64 ",", dec);
                     break;
                 }
                 case TSDB_DATA_TYPE_BINARY:

@@ -3338,6 +3338,11 @@ static int initStmtDataValue(SSuperTable *stbInfo, SChildTable *childTbl, uint64
                             }
                         }
                         break;
+                    case TSDB_DATA_TYPE_DECIMAL:
+                    case TSDB_DATA_TYPE_DECIMAL64:
+                        errorPrint("Not implemented data type in func initStmtDataValue: %s\n",
+                                convertDatatypeToString(dataType));
+                        exit(EXIT_FAILURE);
                     default:
                         break;
                 }
@@ -3421,6 +3426,12 @@ static void initStmtData(char dataType, void **data, uint32_t length) {
             tmfree(*data);
             *data = (void*)tmpP;
             break;
+
+        case TSDB_DATA_TYPE_DECIMAL:
+        case TSDB_DATA_TYPE_DECIMAL64:
+            errorPrint("Not implemented data type in func initStmtData: %s\n",
+                       convertDatatypeToString(dataType));
+            exit(EXIT_FAILURE);
 
         default:
             errorPrint("Unknown data type on initStmtData: %s\n",

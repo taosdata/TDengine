@@ -12,6 +12,7 @@
 
 #include <bench.h>
 #include "benchLog.h"
+#include "decimal.h"
 
 char resEncodingChunk[] = "Encoding: chunked";
 char succMessage[] = "succ";
@@ -909,6 +910,10 @@ char *convertDatatypeToString(int type) {
             return "varbinary";
         case TSDB_DATA_TYPE_GEOMETRY:
             return "geometry";
+        case TSDB_DATA_TYPE_DECIMAL:
+            return "decimal";
+        case TSDB_DATA_TYPE_DECIMAL64:
+            return "decimal64";
         default:
             break;
     }
@@ -945,6 +950,12 @@ int convertTypeToLength(uint8_t type) {
         case TSDB_DATA_TYPE_JSON:
             ret = JSON_FIXED_LENGTH;
             break;
+        case TSDB_DATA_TYPE_DECIMAL:
+            ret = sizeof(Decimal128);
+            break;
+        case TSDB_DATA_TYPE_DECIMAL64:
+            ret = sizeof(Decimal64);
+            break;
         default:
             break;
     }
@@ -968,6 +979,8 @@ int64_t convertDatatypeToDefaultMin(uint8_t type) {
         case TSDB_DATA_TYPE_BIGINT:
         case TSDB_DATA_TYPE_FLOAT:
         case TSDB_DATA_TYPE_DOUBLE:
+        case TSDB_DATA_TYPE_DECIMAL:
+        case TSDB_DATA_TYPE_DECIMAL64:
             ret = -1 * (RAND_MAX >> 1);
             break;
         default:
@@ -999,6 +1012,8 @@ int64_t convertDatatypeToDefaultMax(uint8_t type) {
         case TSDB_DATA_TYPE_BIGINT:
         case TSDB_DATA_TYPE_FLOAT:
         case TSDB_DATA_TYPE_DOUBLE:
+        case TSDB_DATA_TYPE_DECIMAL:
+        case TSDB_DATA_TYPE_DECIMAL64:
             ret = RAND_MAX >> 1;
             break;
         case TSDB_DATA_TYPE_UINT:
@@ -1067,6 +1082,10 @@ int convertStringToDatatype(char *type, int length) {
         return TSDB_DATA_TYPE_VARBINARY;
     } else if (0 == strCompareN(type, "geometry", length)) {
         return TSDB_DATA_TYPE_GEOMETRY;
+    } else if (0 == strCompareN(type, "decimal", length)) {
+        return TSDB_DATA_TYPE_DECIMAL;
+    } else if (0 == strCompareN(type, "decimal64", length)) {
+        return TSDB_DATA_TYPE_DECIMAL64;
     } else {
         errorPrint("unknown data type: %s\n", type);
         exit(EXIT_FAILURE);
