@@ -233,42 +233,50 @@ class TDTestCase(TBase):
         new_json_file = self.genNewJson(json_file, self.func_csv_ts_interval_second)
         self.exec_benchmark(benchmark, new_json_file, options)
         self.check_file_line_count("./csv/data_20231115061320_20231115061321.csv", 10001)
+        self.deleteFile(new_json_file)
 
         # file ts interval minute
         new_json_file = self.genNewJson(json_file, self.func_csv_ts_interval_minute)
         self.exec_benchmark(benchmark, new_json_file, options)
         self.check_file_line_count("./csv/data_202311150613_202311150614.csv", 10001)
+        self.deleteFile(new_json_file)
 
         # file ts interval hour
         new_json_file = self.genNewJson(json_file, self.func_csv_ts_interval_hour)
         self.exec_benchmark(benchmark, new_json_file, options)
         self.check_file_line_count("./csv/data_2023111506_2023111507.csv", 10001)
+        self.deleteFile(new_json_file)
 
         # db precision us
         new_json_file = self.genNewJson(json_file, self.func_db_precision_us)
         self.exec_benchmark(benchmark, new_json_file, options)
         self.check_file_line_count("./csv/data_20231115_20231116.csv", 10001)
+        self.deleteFile(new_json_file)
 
         # db precision ns
         new_json_file = self.genNewJson(json_file, self.func_db_precision_ns)
         self.exec_benchmark(benchmark, new_json_file, options)
         self.check_file_line_count("./csv/data_20231115_20231116.csv", 10001)
+        self.deleteFile(new_json_file)
 
         # thread num
         new_json_file = self.genNewJson(json_file, self.func_thread_num)
         self.exec_benchmark(benchmark, new_json_file, options)
         self.check_file_line_count("./csv/data_10.csv", 1001)
+        self.deleteFile(new_json_file)
 
         # create sql
         new_json_file = self.genNewJson(json_file, self.func_create_sql)
         self.exec_benchmark(benchmark, new_json_file, options)
         self.check_file_line_count("./csv/create_stmt.txt", 2)
+        self.deleteFile(new_json_file)
 
         # gzip
         new_json_file = self.genNewJson(json_file, self.func_gzip)
         self.exec_benchmark(benchmark, new_json_file, options)
         eos.exe("gunzip ./csv/data.csv.gz")
         self.check_file_line_count("./csv/data.csv", 10001)
+        self.deleteFile(new_json_file)
 
 
     def func_csv_ts_interval_second(self, data):

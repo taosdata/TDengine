@@ -496,3 +496,11 @@ class TBase:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
         return tempPath
+
+    # delete file
+    def deleteFile(self, filename):
+        try:
+            if os.path.exists(filename):
+                os.remove(filename)
+        except Exception as err:
+            raise Exception(err)
