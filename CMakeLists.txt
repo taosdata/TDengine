@@ -22,6 +22,7 @@ include(${TD_SUPPORT_DIR}/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.define)
 include(${TD_SUPPORT_DIR}/cmake.version)
 include(${TD_SUPPORT_DIR}/cmake.install)
+enable_testing()
 
 add_library(api INTERFACE)
 target_include_directories(api INTERFACE "${TD_COMMUNITY_DIR}/include/client")
@@ -37,7 +38,6 @@ add_subdirectory(enterprise)
 
 if(${BUILD_TEST})
   include(CTest)
-  enable_testing()
   add_subdirectory(community/examples/c)
 endif(${BUILD_TEST})
 
