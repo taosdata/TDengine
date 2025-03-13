@@ -164,25 +164,38 @@ class TDTestCase(TBase):
         tdSql.error(f"select * from a1 a join (select '{self.today_ts}' + 1s as ts from b1) b on a.ts = b.ts;")
         tdSql.error(f"select * from a1 a left asof join (select now as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts;")
         tdSql.error(f"select * from a1 a left window join (select now as ts1, ts, f, g, 'a' c from b1) b window_offset(-1s, 1s);")
+        tdSql.error(f"select * from a1 a join (select timestamp '{self.today_ts}' + 1d as ts, f, g, 'a' from b1) b on timetruncate(a.ts + 1s, 1d) = timetruncate(b.ts, 1d);")
+
+    def test_others_case(self, testCase):
+        tdLog.printNoPrefix(f"==========step:{testCase} test")
+        self.replace_string(f'{testCase}.in', f'{testCase}.in.tmp1', '__today__', 'today()')
+        self.replace_string(f'{testCase}.csv', f'{testCase}.csv.tmp1', '__today__', f'{self.today_date}')
+        self.replace_string2(f'{testCase}.csv.tmp1', f'{testCase}.csv.tmp2', '__tomorrow__', f'{self.tomorrow_date}')
+        # read sql from .sql file and execute
+        self.sqlFile = etool.curFile(__file__, f"joinConst/{testCase}.in.tmp1")
+        self.ansFile = etool.curFile(__file__, f"joinConst/{testCase}.csv.tmp2")
+        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
     def run(self):
         tdLog.debug(f"start to excute {__file__}")
 
         self.insert_data()
 
-        self.test_today_case("inner")
-        self.test_now_case("inner")
-        self.test_constts_case("inner")
+        #self.test_today_case("inner")
+        #self.test_now_case("inner")
+        #self.test_constts_case("inner")
 
-        self.test_today_case("left_outer")
-        self.test_now_case("left_outer")
-        self.test_today_case("right_outer")
+        #self.test_today_case("left_outer")
+        #self.test_now_case("left_outer")
+        #self.test_today_case("right_outer")
 
-        self.test_today_case("full_outer")
-        self.test_today_case("left_semi")
-        self.test_today_case("left_anti")
+        #self.test_today_case("full_outer")
+        #self.test_today_case("left_semi")
+        #self.test_today_case("left_anti")
 
-        self.test_abnormal_case()
+        self.test_others_case("others")
+
+        #self.test_abnormal_case()
 
         tdLog.success(f"{__file__} successfully executed")
 

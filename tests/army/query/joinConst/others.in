@@ -1,0 +1,20 @@
+use test;
+
+select * from a1 a join (select today + 1d + 2s as ts, f, g, 'a' from b1) b on a.ts = b.ts;
+select * from a1 a join (select timestamp '2025-03-13 00:00:00.000' + 1d + 2s as ts, f, g, 'a' from b1) b on a.ts = b.ts;
+select * from a1 a join (select timestamp '2025-03-13 00:00:00.000' + 1d + 2s as ts, f, g, 'a' from b1) b on a.ts = timetruncate(b.ts, 1d);
+select * from a1 a join (select timestamp '2025-03-13 00:00:00.000' + 1d + 2s as ts, f, g, 'a' from b1) b on a.ts = timetruncate(b.ts + 1s, 1d);
+select * from (select ts + 2s as ts,f from a1) a join (select timestamp '2025-03-13 00:00:00.000' + 1d + 2s as ts, f, g, 'a' from b1) b on a.ts = b.ts;
+select * from a1 a join (select case when 1 > 0 then timestamp '2025-03-13 00:00:00.000' else timestamp '2025-03-14 00:00:00.000' end as ts, f, g, 'a' from b1) b on a.ts = b.ts;
+select * from a1 a join (select timestamp '2025-03-13 00:00:00.000' + 1s as ts, f, g, 'a' from b1) b on a.ts = b.ts + 1d + 1s;
+select * from a1 a join (select timestamp '2025-03-13 00:00:00.000' + 1s as ts, f, g, 'a' from b1) b on a.ts = timetruncate(b.ts + 1d + 1s, 1d) + 2s;
+
+select * from a1 a, (select today + 1d + 2s as ts, f, g, 'a' from b1) b where a.ts = b.ts;
+select * from a1 a, (select timestamp '2025-03-13 00:00:00.000' + 1d + 2s as ts, f, g, 'a' from b1) b where a.ts = b.ts;
+select * from a1 a, (select timestamp '2025-03-13 00:00:00.000' + 1d + 2s as ts, f, g, 'a' from b1) b where a.ts = timetruncate(b.ts, 1d);
+select * from a1 a, (select timestamp '2025-03-13 00:00:00.000' + 1d + 2s as ts, f, g, 'a' from b1) b where a.ts = timetruncate(b.ts + 1s, 1d);
+select * from (select ts + 2s as ts,f from a1) a, (select timestamp '2025-03-13 00:00:00.000' + 1d + 2s as ts, f, g, 'a' from b1) b where a.ts = b.ts;
+select * from a1 a, (select case when 1 > 0 then timestamp '2025-03-13 00:00:00.000' else timestamp '2025-03-14 00:00:00.000' end as ts, f, g, 'a' from b1) b where a.ts
+ = b.ts; 
+select * from a1 a, (select timestamp '2025-03-13 00:00:00.000' + 1s as ts, f, g, 'a' from b1) b where a.ts = b.ts + 1d + 1s;
+select * from a1 a, (select timestamp '2025-03-13 00:00:00.000' + 1s as ts, f, g, 'a' from b1) b where a.ts = timetruncate(b.ts + 1d + 1s, 1d) + 2s;

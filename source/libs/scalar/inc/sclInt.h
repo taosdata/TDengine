@@ -42,6 +42,9 @@ typedef struct SScalarCtx {
 #define SCL_DATA_TYPE_DUMMY_HASH 9000
 #define SCL_DEFAULT_OP_NUM       10
 
+#define SCL_NEED_SRC_TABLE_FUNC(_type) ((_type) == FUNCTION_TYPE_TIMETRUNCATE)
+#define SCL_NEED_SRC_TABLE_OP(_type) ((_type) == OP_TYPE_ADD || (_type) == OP_TYPE_SUB)
+
 #define SCL_IS_NOTNULL_CONST_NODE(_node) ((QUERY_NODE_VALUE == (_node)->type) || (QUERY_NODE_NODE_LIST == (_node)->type))
 #define SCL_IS_CONST_NODE(_node) \
   ((NULL == (_node)) || SCL_IS_NOTNULL_CONST_NODE(_node))

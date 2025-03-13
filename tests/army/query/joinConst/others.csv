@@ -1,0 +1,3 @@
+use test;
+
+select * from a1 a join (select today + 1d as ts, f, g, 'a' from b1) b on a.ts = b.ts;
