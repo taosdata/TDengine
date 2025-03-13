@@ -1320,7 +1320,9 @@ int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
         *output = leftRes + rightRes;
       }
     }
-  } else if (pOutputCol->info.type == TSDB_DATA_TYPE_DOUBLE){
+  } else if (IS_DECIMAL_TYPE(pOutputCol->info.type)) {
+    SCL_ERR_JRET(vectorMathBinaryOpForDecimal(pLeft, pRight, pOut, step, i, OP_TYPE_ADD));
+  } else {
     SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
     SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
     double              *output = (double *)pOutputCol->pData;
@@ -1345,8 +1347,6 @@ int32_t vectorMathAdd(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
     } else if (pRight->numOfRows == 1) {
       SCL_ERR_JRET(vectorMathAddHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, i));
     }
-  } else if (IS_DECIMAL_TYPE(pOutputCol->info.type)) {
-    SCL_ERR_JRET(vectorMathBinaryOpForDecimal(pLeft, pRight, pOut, step, i, OP_TYPE_ADD));
   }
 
 _return:
@@ -1452,7 +1452,9 @@ int32_t vectorMathSub(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
         *output = leftRes - rightRes;
       }
     }
-  } else if (pOutputCol->info.type == TSDB_DATA_TYPE_DOUBLE) {
+  } else if (pOutputCol->info.type == TSDB_DATA_TYPE_DECIMAL) {
+    SCL_ERR_JRET(vectorMathBinaryOpForDecimal(pLeft, pRight, pOut, step, i, OP_TYPE_SUB));
+  } else {
     SCL_ERR_JRET(vectorConvertVarToDouble(pLeft, &leftConvert, &pLeftCol));
     SCL_ERR_JRET(vectorConvertVarToDouble(pRight, &rightConvert, &pRightCol));
     double              *output = (double *)pOutputCol->pData;
@@ -1478,8 +1480,6 @@ int32_t vectorMathSub(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *p
     } else if (pRight->numOfRows == 1) {
       SCL_ERR_JRET(vectorMathSubHelper(pLeftCol, pRightCol, pOutputCol, pLeft->numOfRows, step, 1, i));
     }
-  } else if (pOutputCol->info.type == TSDB_DATA_TYPE_DECIMAL) {
-    SCL_ERR_JRET(vectorMathBinaryOpForDecimal(pLeft, pRight, pOut, step, i, OP_TYPE_SUB));
   }
 
 _return:

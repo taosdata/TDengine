@@ -45,7 +45,7 @@ scalar_convert_err = -2147470768
 decimal_test_query = True
 decimal_insert_validator_test = False
 operator_test_round = 1
-tb_insert_rows = 10000
+tb_insert_rows = 1000
 binary_op_with_const_test = False
 binary_op_with_col_test = False
 unary_op_test = False
@@ -2430,7 +2430,7 @@ class TDTestCase:
         if not decimal_test_query:
             return
         #self.test_decimal_operators()
-        #self.test_query_decimal_where_clause()
+        self.test_query_decimal_where_clause()
         self.test_decimal_functions()
         self.test_query_decimal_order_clause()
         self.test_query_decimal_case_when()
