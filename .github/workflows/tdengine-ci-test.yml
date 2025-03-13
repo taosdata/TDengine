@@ -1,4 +1,4 @@
-name: TDengine CI Test
+name: TDengine Test
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ on:
       - 'docs/**'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-TDengine
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}-TDengine
   cancel-in-progress: true
 
 env:
@@ -19,6 +19,7 @@ env:
 
 jobs:
   fetch-parameters:
+    name: Prepare Test
     runs-on: 
       group: CI
       labels: [self-hosted, Linux, X64, testing]
