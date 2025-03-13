@@ -1442,7 +1442,7 @@ int32_t tsdbGetS3Size(STsdb *tsdb, int64_t *size) {
   return code;
 }
 
-static FORCE_INLINE void getLevelSize(const STFileObj *fObj, int64_t szArr[3]) {
+static FORCE_INLINE void getLevelSize(const STFileObj *fObj, int64_t szArr[TFS_MAX_TIERS]) {
   if (fObj == NULL) return;
 
   int64_t sz = fObj->f->size;
