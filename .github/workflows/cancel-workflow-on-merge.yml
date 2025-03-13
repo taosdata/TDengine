@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up GitHub CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" > ~/.gh_token
           gh auth login --with-token < ~/.gh_token
@@ -19,4 +21,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "PR has been merged or closed, cancelling workflow..."
-          gh run list --repo ${{ github.repository }} --branch ${{ github.event.pull_request.head.ref }} --workflow "TDengine Test" --status in_progress --json databaseId --jq '.[].databaseId' | xargs -I {} gh run cancel {}
+          gh run list --repo ${{ github.repository }} --branch ${{ github.event.pull_request.head.ref }} --workflow "TDengine Test" --status in_progress --json databaseId --jq '.[].databaseId' | xargs -I {} gh run cancel --repo ${{ github.repository }} {}
