@@ -1578,6 +1578,42 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
     *pFound = true;
     return TSDB_CODE_SUCCESS;
   }
+  // 处理超级表
+  if (TSDB_SUPER_TABLE == pMeta->tableType) {
+    // 处理tbname列
+    if (0 == strcmp(pCol->colName, "tbname")) {
+      pCol->colType = COLUMN_TYPE_TBNAME;
+      pCol->colId = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns + 1;
+      pCol->node.resType.type = TSDB_DATA_TYPE_BINARY;
+      pCol->node.resType.bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
+      *pFound = true;
+      return TSDB_CODE_SUCCESS;
+    }
+    // 先查找普通列
+    for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
+      if (0 == strcmp(pCol->colName, pMeta->schema[i].name) &&
+          !invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
+        setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, i, pCol, NULL);
+        setColumnPrimTs(pCxt, pCol, pTable);
+        *pFound = true;
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+
+    // 再查找标签列
+    for (int32_t i = pMeta->tableInfo.numOfColumns; i < pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags;
+         ++i) {
+      if (0 == strcmp(pCol->colName, pMeta->schema[i].name) &&
+          !invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
+        setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, i - pMeta->tableInfo.numOfColumns, pCol,
+                              NULL);
+        pCol->colType = COLUMN_TYPE_TAG;
+        *pFound = true;
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+  }
+
   int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
   for (int32_t i = 0; i < nums; ++i) {
     if (0 == strcmp(pCol->colName, pMeta->schema[i].name) &&
@@ -8737,7 +8773,7 @@ static int32_t translateInsertTable(STranslateContext* pCxt, SNode** pTable) {
   int32_t code = translateFrom(pCxt, pTable);
   if (TSDB_CODE_SUCCESS == code && TSDB_CHILD_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType &&
       TSDB_NORMAL_TABLE != ((SRealTableNode*)*pTable)->pMeta->tableType) {
-    code = buildInvalidOperationMsg(&pCxt->msgBuf, "insert data into super table or virtual table is not supported");
+    // code = buildInvalidOperationMsg(&pCxt->msgBuf, "insert data into super table is not supported");
   }
   return code;
 }
