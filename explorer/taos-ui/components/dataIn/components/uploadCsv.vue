@@ -142,9 +142,12 @@ function update() {
   display: flex;
   align-items: center;
 
-  &:deep(.el-upload-list__item) {
+  &:deep(.el-upload-list) {
     margin-top: 0;
-    margin-left: 1rem;
+  }
+
+  &:deep(.el-upload-list__item) {
+    margin: 0 1rem;
   }
 }
 
