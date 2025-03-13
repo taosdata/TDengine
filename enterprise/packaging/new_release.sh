@@ -408,10 +408,11 @@ function build_taosx() {
         rm -rf ${explorerDir}/public/docs ${explorerDir}/public/docs-en || true
         # pull explorer
         git_pull "${explorerDir}" "main" "ver-$version"
-        cd ${explorerDir}
-        export VUE_APP_COMMUNITY=community
-        yarn
-        VER_NUMBER=$version yarn build:bin
+        cd ${taosxDir}
+        export COMMUNITY=community
+        # pnpm install
+        # VER_NUMBER=$version pnpm build:bin
+        VER_NUMBER=$version cargo make explorer
         if [ -f "${taosxDir}/target/release/taos-explorer" ]; then
             echo "build explorer community version done"
         else
