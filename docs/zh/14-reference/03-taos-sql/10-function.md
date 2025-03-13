@@ -1861,43 +1861,6 @@ FIRST(expr)
 - 如果结果集中的某列全部为 NULL 值，则该列的返回结果也是 NULL；
 - 如果结果集中所有列全部为 NULL 值，则不返回结果。
 - 对于存在复合主键的表的查询，若最小时间戳的数据有多条，则只有对应的复合主键最小的数据被返回。
-
-### INTERP
-
-```sql
-INTERP(expr [, ignore_null_values])
-
-ignore_null_values: {
-    0
-  | 1
-}
-```
-
-**功能说明**：返回指定时间截面指定列的记录值或插值。ignore_null_values 参数的值可以是 0 或 1，为 1 时表示忽略 NULL 值，缺省值为 0。
-
-**返回数据类型**：同字段类型。
-
-**适用数据类型**：数值类型。
-
-**适用于**：表和超级表。
-
-**使用说明**
-
-- INTERP 用于在指定时间断面获取指定列的记录值，如果该时间断面不存在符合条件的行数据，那么会根据 FILL 参数的设定进行插值。
-- INTERP 的输入数据为指定列的数据，可以通过条件语句（where 子句）来对原始列数据进行过滤，如果没有指定过滤条件则输入为全部数据。
-- INTERP SQL 查询需要同时与 RANGE、EVERY 和 FILL 关键字一起使用；流计算不能使用 RANGE，需要 EVERY 和 FILL 关键字一起使用。
-- INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2) 字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
-- INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 可取值时间单位：1a(毫秒)、1s(秒)、1m(分)、1h(小时)、1d(天)、1w(周)。例如 EVERY(500a) 将对于指定数据每500毫秒间隔进行一次插值。
-- INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](../distinguished/#fill-子句)
-- INTERP 可以在 RANGE 字段中只指定唯一的时间戳对单个时间点进行插值，在这种情况下，EVERY 字段可以省略。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear)`。
-- INTERP 作用于超级表时，会将该超级表下的所有子表数据按照主键列排序后进行插值计算，也可以搭配 PARTITION BY tbname 使用，将结果强制规约到单个时间线。
-- INTERP 可以与伪列 _irowts 一起使用，返回插值点所对应的时间戳(v3.0.2.0 以后支持)。
-- INTERP 可以与伪列 _isfilled 一起使用，显示返回结果是否为原始记录或插值算法产生的数据(v3.0.3.0 以后支持)。
-- INTERP 对于带复合主键的表的查询，若存在相同时间戳的数据，则只有对应的复合主键最小的数据参与运算。
-- INTERP 查询支持 NEAR FILL 模式，即当需要 FILL 时，使用距离当前时间点最近的数据进行插值，当前后时间戳与当前时间断面一样近时，FILL 前一行的值. 此模式在流计算中和窗口查询中不支持。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR)` (v3.3.4.9 及以后支持)。
-- INTERP 只有在使用 FILL PREV/NEXT/NEAR 模式时才可以使用伪列 `_irowts_origin`。`_irowts_origin`在 v3.3.4.9 及以后支持。
-- INTERP `RANGE`子句支持时间范围的扩展(v3.3.4.9 及以后支持)，如`RANGE('2023-01-01 00:00:00', 10s)`表示在时间点 '2023-01-01 00:00:00' 查找前后 10s 的数据进行插值，FILL PREV/NEXT/NEAR 分别表示从时间点向前/向后/前后查找数据，若时间点周围没有数据，则使用 FILL 指定的值进行插值，因此此时 FILL 子句必须指定值。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', 10s) FILL(PREV, 1)`。目前仅支持时间点和时间范围的组合，不支持时间区间和时间范围的组合，即不支持 `RANGE('2023-01-01 00:00:00', '2023-02-01 00:00:00', 1h)`。所指定的时间范围规则与 EVERY 类似，单位不能是年或月，值不能为 0，不能带引号。使用该扩展时，不支持除 `FILL PREV/NEXT/NEAR` 外的其他 FILL 模式，且不能指定 EVERY 子句。
-
 ### LAST
 
 ```sql
@@ -2138,6 +2101,35 @@ ignore_option: {
 - 可以选择与相关联的列一起使用。例如 `select _rowts, DIFF() from`。
 - 当没有复合主键时，如果不同的子表有相同时间戳的数据，会提示 "Duplicate timestamps not allowed"
 - 当使用复合主键时，不同子表的时间戳和主键组合可能相同，使用哪一行取决于先找到哪一行，这意味着在这种情况下多次运行 diff() 的结果可能会不同。
+
+### INTERP
+
+```sql
+INTERP(expr [, ignore_null_values])
+
+ignore_null_values: {
+    0
+  | 1
+}
+```
+
+**功能说明**：返回指定时间截面指定列的记录值或插值。ignore_null_values 参数的值可以是 0 或 1，为 1 时表示忽略 NULL 值，缺省值为 0。
+
+**返回数据类型**：同字段类型。
+
+**适用数据类型**：数值类型。
+
+**适用于**：表和超级表。
+
+**使用说明**
+- INTERP 用于在指定时间断面获取指定列的记录值，如果该时间断面不存在符合条件的行数据，那么会根据 [FILL](../distinguished/#fill-子句) 参数的设定进行插值。
+- INTERP 的输入数据为指定列的数据，可以通过条件语句（where 子句）来对原始列数据进行过滤，如果没有指定过滤条件则输入为全部数据。
+- INTERP SQL 查询需要同时与 RANGE、EVERY 和 FILL 关键字一起使用；流计算不能使用 RANGE，需要 EVERY 和 FILL 关键字一起使用。使用规则见 [INTERP](../select/#interp) 子句。
+- INTERP 作用于超级表时，会将该超级表下的所有子表数据按照主键列排序后进行插值计算，也可以搭配 PARTITION BY tbname 使用，将结果强制规约到单个时间线。
+- INTERP 可以与伪列 `_irowts` 一起使用，返回插值点所对应的时间戳(v3.0.2.0 以后支持)。
+- INTERP 可以与伪列 `_isfilled` 一起使用，显示返回结果是否为原始记录或插值算法产生的数据(v3.0.3.0 以后支持)。
+- INTERP 只有在使用 [FILL](../distinguished/#fill-子句) PREV/NEXT/NEAR 模式时才可以使用伪列 `_irowts_origin`, 用于返回 `interp` 函数所使用的原始数据的时间戳列。若范围内无值, 则返回 NULL。`_irowts_origin` 在 v3.3.4.9 以后支持。
+- INTERP 对于带复合主键的表的查询，若存在相同时间戳的数据，则只有对应的复合主键最小的数据参与运算。
 
 ### IRATE
 
