@@ -330,7 +330,6 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
   SStreamMeta* pMeta = taosAcquireRef(streamMetaRefPool, rid);
   if (pMeta == NULL) {
     stError("invalid meta rid:%" PRId64 " failed to acquired stream-meta", rid);
-//    taosMemoryFree(param);
     return;
   }
 
@@ -358,7 +357,6 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
     } else {
       stError("vgId:%d role:%d not leader not send hb to mnode, failed to release meta rid:%" PRId64, vgId, role, rid);
     }
-//    taosMemoryFree(param);
     return;
   }
 

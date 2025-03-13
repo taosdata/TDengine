@@ -540,13 +540,13 @@ int32_t tqStreamTaskProcessCheckRsp(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLe
   if (!isLeader) {
     tqError("vgId:%d not leader, task:0x%x not handle the check rsp, downstream:0x%x (vgId:%d)", vgId,
             rsp.upstreamTaskId, rsp.downstreamTaskId, rsp.downstreamNodeId);
-    return streamMetaAddFailedTask(pMeta, rsp.streamId, rsp.upstreamTaskId);
+    return streamMetaAddFailedTask(pMeta, rsp.streamId, rsp.upstreamTaskId, true);
   }
 
   SStreamTask* pTask = NULL;
   code = streamMetaAcquireTask(pMeta, rsp.streamId, rsp.upstreamTaskId, &pTask);
   if ((pTask == NULL) || (code != 0)) {
-    return streamMetaAddFailedTask(pMeta, rsp.streamId, rsp.upstreamTaskId);
+    return streamMetaAddFailedTask(pMeta, rsp.streamId, rsp.upstreamTaskId, true);
   }
 
   code = streamTaskProcessCheckRsp(pTask, &rsp);
@@ -792,6 +792,7 @@ static int32_t restartStreamTasks(SStreamMeta* pMeta, bool isLeader) {
   STaskStartInfo* pStartInfo = &pMeta->startInfo;
 
   streamMetaWLock(pMeta);
+
   if (pStartInfo->startAllTasks == 1) {
     // wait for the checkpoint id rsp, this rsp will be expired
     if (pStartInfo->curStage == START_MARK_REQ_CHKPID) {
@@ -836,7 +837,7 @@ _start:
   streamMetaClear(pMeta);
 
   int64_t el = taosGetTimestampMs() - st;
-  tqInfo("vgId:%d close&reload state elapsed time:%.3fs", vgId, el / 1000.);
+  tqInfo("vgId:%d clear&close stream meta completed, elapsed time:%.3fs", vgId, el / 1000.);
 
   streamMetaLoadAllTasks(pMeta);
 
@@ -885,7 +886,7 @@ int32_t tqStreamTaskProcessRunReq(SStreamMeta* pMeta, SRpcMsg* pMsg, bool isLead
     code = streamMetaStopAllTasks(pMeta);
     return 0;
   } else if (type == STREAM_EXEC_T_ADD_FAILED_TASK) {
-    code = streamMetaAddFailedTask(pMeta, req.streamId, req.taskId);
+    code = streamMetaAddFailedTask(pMeta, req.streamId, req.taskId, true);
     return code;
   } else if (type == STREAM_EXEC_T_STOP_ONE_TASK) {
     code = streamMetaStopOneTask(pMeta, req.streamId, req.taskId);
@@ -942,7 +943,7 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
   bool            scanWal = false;
   int32_t         code = 0;
 
-  streamMetaWLock(pMeta);
+//  streamMetaWLock(pMeta);
   if (pStartInfo->startAllTasks == 1) {
     tqDebug("vgId:%d already in start tasks procedure in other thread, restartCounter:%d, do nothing", vgId,
             pMeta->startInfo.restartCount);
@@ -954,7 +955,7 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
       pStartInfo->restartCount -= 1;
       tqDebug("vgId:%d role:%d need to restart all tasks again, restartCounter:%d", vgId, pMeta->role,
               pStartInfo->restartCount);
-      streamMetaWUnLock(pMeta);
+//      streamMetaWUnLock(pMeta);
 
       return restartStreamTasks(pMeta, (pMeta->role == NODE_ROLE_LEADER));
     } else {
@@ -969,7 +970,7 @@ int32_t tqStartTaskCompleteCallback(SStreamMeta* pMeta) {
     }
   }
 
-  streamMetaWUnLock(pMeta);
+//  streamMetaWUnLock(pMeta);
 
   return code;
 }
@@ -1324,7 +1325,7 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
               " transId:%d, failed to acquire task:0x%x, it may have been dropped/stopped already",
               pMeta->vgId, req.checkpointId, req.transId, req.taskId);
 
-      int32_t ret = streamMetaAddFailedTask(pMeta, req.streamId, req.taskId);
+      int32_t ret = streamMetaAddFailedTask(pMeta, req.streamId, req.taskId, true);
       if (ret) {
         tqError("s-task:0x%x failed add check downstream failed, core:%s", req.taskId, tstrerror(ret));
       }
@@ -1354,7 +1355,7 @@ int32_t tqStreamTaskProcessConsenChkptIdReq(SStreamMeta* pMeta, SRpcMsg* pMsg) {
            pTask->id.idStr, pMeta->vgId, pTask->execInfo.created, req.checkpointId, req.startTs,
            pTask->execInfo.created);
     if (pMeta->role == NODE_ROLE_LEADER) {
-      streamMetaAddFailedTaskSelf(pTask, now);
+      streamMetaAddFailedTaskSelf(pTask, now, true);
     }
 
     streamMetaReleaseTask(pMeta, pTask);

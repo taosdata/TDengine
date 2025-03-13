@@ -719,7 +719,7 @@ void streamTaskStopMonitorCheckRsp(STaskCheckInfo* pInfo, const char* id);
 void streamTaskCleanupCheckInfo(STaskCheckInfo* pInfo);
 
 // fill-history task
-int32_t streamLaunchFillHistoryTask(SStreamTask* pTask);
+int32_t streamLaunchFillHistoryTask(SStreamTask* pTask, bool lock);
 int32_t streamStartScanHistoryAsync(SStreamTask* pTask, int8_t igUntreated);
 void    streamExecScanHistoryInFuture(SStreamTask* pTask, int32_t idleDuration);
 bool    streamHistoryTaskSetVerRangeStep2(SStreamTask* pTask, int64_t latestVer);
@@ -790,12 +790,14 @@ void    streamMetaNotifyClose(SStreamMeta* pMeta);
 void    streamMetaStartHb(SStreamMeta* pMeta);
 int32_t streamMetaAddTaskLaunchResult(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, int64_t startTs,
                                       int64_t endTs, bool ready);
+int32_t streamMetaAddTaskLaunchResultNoLock(SStreamMeta* pMeta, int64_t streamId, int32_t taskId,
+                                            int64_t startTs, int64_t endTs, bool ready);
 int32_t streamMetaInitStartInfo(STaskStartInfo* pStartInfo);
 void    streamMetaClearStartInfo(STaskStartInfo* pStartInfo);
 
 int32_t streamMetaResetTaskStatus(SStreamMeta* pMeta);
-int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId);
-void    streamMetaAddFailedTaskSelf(SStreamTask* pTask, int64_t failedTs);
+int32_t streamMetaAddFailedTask(SStreamMeta* pMeta, int64_t streamId, int32_t taskId, bool lock);
+void    streamMetaAddFailedTaskSelf(SStreamTask* pTask, int64_t failedTs, bool lock);
 void    streamMetaAddIntoUpdateTaskList(SStreamMeta* pMeta, SStreamTask* pTask, SStreamTask* pHTask, int32_t transId,
                                         int64_t startTs);
 void    streamMetaClearSetUpdateTaskListComplete(SStreamMeta* pMeta);

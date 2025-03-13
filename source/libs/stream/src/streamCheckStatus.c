@@ -234,7 +234,7 @@ int32_t streamTaskProcessCheckRsp(SStreamTask* pTask, const SStreamTaskCheckRsp*
         code = streamTaskAddIntoNodeUpdateList(pTask, pRsp->downstreamNodeId);
       }
 
-      streamMetaAddFailedTaskSelf(pTask, now);
+      streamMetaAddFailedTaskSelf(pTask, now, true);
     } else {  // TASK_DOWNSTREAM_NOT_READY, rsp-check monitor will retry in 300 ms
       stDebug("s-task:%s (vgId:%d) recv check rsp from task:0x%x (vgId:%d) status:%d, total:%d not ready:%d", id,
               pRsp->upstreamNodeId, pRsp->downstreamTaskId, pRsp->downstreamNodeId, pRsp->status, total, left);
@@ -351,7 +351,7 @@ void processDownstreamReadyRsp(SStreamTask* pTask) {
               pTask->info.fillHistory);
     }
 
-    // halt it self for count window stream task until the related fill history task completed.
+    // halt itself for count window stream task until the related fill history task completed.
     stDebug("s-task:%s level:%d initial status is %s from mnode, set it to be halt", pTask->id.idStr,
             pTask->info.taskLevel, streamTaskGetStatusStr(pTask->status.taskStatus));
     code = streamTaskHandleEvent(pTask->status.pSM, TASK_EVENT_HALT);
@@ -365,7 +365,7 @@ void processDownstreamReadyRsp(SStreamTask* pTask) {
   // todo: let's retry
   if (HAS_RELATED_FILLHISTORY_TASK(pTask)) {
     stDebug("s-task:%s try to launch related fill-history task", pTask->id.idStr);
-    code = streamLaunchFillHistoryTask(pTask);
+    code = streamLaunchFillHistoryTask(pTask, true);
     if (code) {
       stError("s-task:%s failed to launch history task, code:%s", pTask->id.idStr, tstrerror(code));
     }
