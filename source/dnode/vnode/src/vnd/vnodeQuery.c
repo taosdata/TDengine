@@ -947,9 +947,6 @@ int32_t vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo) {
   code = tsdbGetFsSize(pVnodeObj->pTsdb, pInfo);
   if (code != 0) goto _exit;
 
-  code = tsdbGetS3Size(pVnodeObj->pTsdb, &pInfo->s3Size);
-  if (code != 0) goto _exit;
-
 _exit:
   return code;
 }
