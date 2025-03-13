@@ -84,6 +84,9 @@ macro(INIT_EXT name)               # {
             add_dependencies(${tgt} ${name})
         endif()                 # }
         add_definitions(-D_${name})
+        if("z${name}" STREQUAL "zext_gtest")
+            target_compile_features(${tgt} PUBLIC cxx_std_11)
+        endif()
     endmacro()                               # }
     macro(DEP_${name}_LIB tgt)               # {
         if(DEPEND_DIRECTLY)     # {
@@ -605,13 +608,16 @@ endif(${BUILD_WITH_UV})     # }
 if(NOT ${TD_WINDOWS})       # {
     if(${TD_LINUX})
         set(ext_tz_static libtz.a)
+        set(_c_flags_list -fPIC)
     elseif(${TD_DARWIN})
         set(ext_tz_static libtz.a)
+        set(_c_flags_list -fPIC -DHAVE_GETTEXT=0) # freemine: TODO: brew install gettext?
     endif()
     INIT_EXT(ext_tz
         INC_DIR          include
         LIB              usr/lib/${ext_tz_static}
     )
+    string(JOIN " " _c_flags ${_c_flags_list})
     # GIT_REPOSITORY https://github.com/eggert/tz.git
     # GIT_TAG main
     get_from_local_repo_if_exists("https://github.com/eggert/tz.git")
@@ -627,9 +633,10 @@ if(NOT ${TD_WINDOWS})       # {
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
             # COMMAND make CFLAGS+=-fPIC CFLAGS+=-g TZDIR=${TZ_OUTPUT_PATH} clean libtz.a
-            COMMAND make CFLAGS+=-fPIC DESTDIR=${_ins}
+            COMMAND "${CMAKE_COMMAND}" -E echo "-=${_c_flags}=-"
+            COMMAND make "CFLAGS=${_c_flags}" DESTDIR=${_ins}
         INSTALL_COMMAND
-            COMMAND make CFLAGS+=-fPIC DESTDIR=${_ins} install
+            COMMAND make "CFLAGS=${_c_flags}" DESTDIR=${_ins} install
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM

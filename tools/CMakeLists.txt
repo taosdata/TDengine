@@ -185,32 +185,32 @@ ELSE()
             COMMAND cmake -E echo "Copy taosadapter-debug.exe"
             COMMAND cmake -E copy taosadapter-debug.exe ${CMAKE_BINARY_DIR}/build/bin
         )
-    ELSEIF(TD_DARWIN)
-        MESSAGE("Building taosAdapter on MACOS")
-        message(FATAL_ERROR         "freemine: not implemented yet")
-        INCLUDE(ExternalProject)
-        ExternalProject_Add(taosadapter
-            PREFIX "taosadapter"
-            SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosadapter
-            BUILD_ALWAYS off
-            DEPENDS ${TAOS_LIB}
-            BUILD_IN_SOURCE 1
-            CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
-            PATCH_COMMAND
-            COMMAND git clean -f -d
-            BUILD_COMMAND
-            COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -ldflags "-s -w -X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
-            COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -o taosadapter-debug -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
-            INSTALL_COMMAND
-            COMMAND cmake -E echo "Copy taosadapter"
-            COMMAND cmake -E copy taosadapter ${CMAKE_BINARY_DIR}/build/bin
-            COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
-            COMMAND cmake -E echo "Copy taosadapter.toml"
-            COMMAND cmake -E copy ./example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
-            COMMAND cmake -E copy ./taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/
-            COMMAND cmake -E echo "Copy taosadapter-debug"
-            COMMAND cmake -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
-        )
+    # freemine: ELSEIF(TD_DARWIN)
+    # freemine:     MESSAGE("Building taosAdapter on MACOS")
+    # freemine:     message(FATAL_ERROR         "freemine: not implemented yet")
+    # freemine:     INCLUDE(ExternalProject)
+    # freemine:     ExternalProject_Add(taosadapter
+    # freemine:         PREFIX "taosadapter"
+    # freemine:         SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/taosadapter
+    # freemine:         BUILD_ALWAYS off
+    # freemine:         DEPENDS ${TAOS_LIB}
+    # freemine:         BUILD_IN_SOURCE 1
+    # freemine:         CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
+    # freemine:         PATCH_COMMAND
+    # freemine:         COMMAND git clean -f -d
+    # freemine:         BUILD_COMMAND
+    # freemine:         COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -ldflags "-s -w -X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+    # freemine:         COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -o taosadapter-debug -ldflags "-X 'github.com/taosdata/taosadapter/v3/version.Version=${taos_version}' -X 'github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}' -X 'github.com/taosdata/taosadapter/v3/version.BuildInfo=${TD_VER_OSTYPE}-${TD_VER_CPUTYPE} ${TD_VER_DATE}'"
+    # freemine:         INSTALL_COMMAND
+    # freemine:         COMMAND cmake -E echo "Copy taosadapter"
+    # freemine:         COMMAND cmake -E copy taosadapter ${CMAKE_BINARY_DIR}/build/bin
+    # freemine:         COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
+    # freemine:         COMMAND cmake -E echo "Copy taosadapter.toml"
+    # freemine:         COMMAND cmake -E copy ./example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
+    # freemine:         COMMAND cmake -E copy ./taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/
+    # freemine:         COMMAND cmake -E echo "Copy taosadapter-debug"
+    # freemine:         COMMAND cmake -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
+    # freemine:     )
     ELSE()
         MESSAGE("Building taosAdapter on non-Windows")
         INCLUDE(ExternalProject)
