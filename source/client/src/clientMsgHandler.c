@@ -905,7 +905,6 @@ static void processCreateStreamSecondPhaseRsp(void* param, void* res, int32_t co
   if (code != 0 && param != NULL){
     sendCreateStreamFailedMsg(pRequest, param);
   }
-  doDestroyRequest(pRequest);
   taosMemoryFree(param);
 }
 
@@ -926,7 +925,17 @@ static char* getStreamName(SRequestObj* pRequest){
 void processCreateStreamSecondPhase(SRequestObj* pRequest){
   tscInfo("[create stream with histroy] create in second phase");
   char *streamName = getStreamName(pRequest);
-  taosAsyncQueryImpl(pRequest->pTscObj->id, pRequest->sqlstr, processCreateStreamSecondPhaseRsp, streamName, false, pRequest->source);
+  size_t sqlLen = strlen(pRequest->sqlstr);
+  SRequestObj* pRequestNew = NULL;
+  int32_t code = buildRequest(pRequest->pTscObj->id, pRequest->sqlstr, sqlLen, streamName, false, &pRequestNew, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("[create stream with histroy] create in second phase, build request failed since %s", tstrerror(code));
+    return;
+  }
+  pRequestNew->source = pRequest->source;
+  pRequestNew->body.queryFp = processCreateStreamSecondPhaseRsp;
+  pRequestNew->streamRunHistory = true;
+  doAsyncQuery(pRequestNew, false);
 }
 
 int32_t processCreateStreamFirstPhaseRsp(void* param, SDataBuf* pMsg, int32_t code) {
@@ -945,8 +954,12 @@ int32_t processCreateStreamFirstPhaseRsp(void* param, SDataBuf* pMsg, int32_t co
       tscError("failed to post semaphore");
     }
   }
-  if (code == 0 && !pRequest->streamRunHistory){
+  if (code == 0 && !pRequest->streamRunHistory && tsStreamRunHistoryAsync){
     processCreateStreamSecondPhase(pRequest);
+  }
+
+  if (pRequest->streamRunHistory){
+    doDestroyRequest(pRequest);
   }
   return code;
 }
@@ -975,3 +988,4 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
       return genericRspCallback;
   }
 }
+
