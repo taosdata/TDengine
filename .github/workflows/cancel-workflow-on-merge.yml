@@ -21,6 +21,6 @@ jobs:
             --branch ${{ github.event.pull_request.head.ref }} \
             --workflow "TDengine Test" \
             --status in_progress \
-            --status queued 
+            --status queued \
             --json databaseId --jq '.[].databaseId' | \
             xargs -I {} gh run cancel --repo ${{ github.repository }} {}
