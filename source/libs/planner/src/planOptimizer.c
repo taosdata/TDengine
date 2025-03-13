@@ -1487,10 +1487,6 @@ static int32_t pdcJoinCheckAllCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin
     return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
   }
 
-  //if ((pJoin->leftNoOrderedSubQuery || pJoin->rightNoOrderedSubQuery) && !primCondGot) {
-  //  return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PAR_VALID_TS_SERIOUS_REQUIRED);
-  //}
-
   if (IS_ASOF_JOIN(pJoin->subType)) {
     nodesDestroyNode(pJoin->addPrimEqCond);
     pJoin->addPrimEqCond = NULL;
