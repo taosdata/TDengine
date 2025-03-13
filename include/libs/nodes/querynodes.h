@@ -63,7 +63,7 @@ typedef struct SExprNode {
   bool      asParam;
   bool      asPosition;
   bool      joinSrc;
-//  bool      joinConst;
+  //bool      constValue;
   int32_t   projIdx;
   int32_t   relatedTo;
   int32_t   bindExprID;
@@ -714,6 +714,8 @@ int32_t mergeJoinConds(SNode** ppDst, SNode** ppSrc);
 
 void rewriteExprAliasName(SExprNode* pNode, int64_t num);
 bool isRelatedToOtherExpr(SExprNode* pExpr);
+bool nodesContainsColumn(SNode* pNode);
+int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond);
 
 #ifdef __cplusplus
 }

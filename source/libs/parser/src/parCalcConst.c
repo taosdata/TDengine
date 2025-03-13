@@ -281,7 +281,7 @@ static int32_t calcConstProject(SCalcConstContext* pCxt, SNode* pProject, bool d
         SAssociationNode* pAssNode = taosArrayGet(pAssociation, i);
         SNode**           pCol = pAssNode->pPlace;
         if (((SExprNode*)pAssNode->pAssociationNode)->joinSrc) {
-//          ((SExprNode*)pAssNode->pAssociationNode)->joinConst = true;
+          //((SExprNode*)pAssNode->pAssociationNode)->constValue = true;
           continue;
         }
         

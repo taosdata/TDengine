@@ -5156,6 +5156,79 @@ int32_t mergeInnerJoinConds(SNode** ppDst, SNode** ppSrc) {
   return code;
 }
 
+bool isColumnExpr(SNode* pNode) {
+  SExprNode* pExpr = (SExprNode*)pNode;
+  if (QUERY_NODE_COLUMN != nodeType(pNode) && QUERY_NODE_FUNCTION != nodeType(pNode)) {
+    return false;
+  }
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (FUNCTION_TYPE_TIMETRUNCATE != pFunc->funcType && strcasecmp(((SFunctionNode*)pNode)->functionName, "timetruncate")) {
+      return false;
+    }
+    if (!nodesContainsColumn(nodesListGetNode(pFunc->pParameterList, 0))) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+int32_t splitJoinColPrimaryCond(SNode** ppSrc, SNode** ppDst) {
+  if (NULL == *ppSrc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = 0;
+  switch (nodeType(*ppSrc)) {
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode* pOp = (SOperatorNode*)*ppSrc;
+      if (OP_TYPE_EQUAL != pOp->opType) {
+        break;
+      }
+      if (isColumnExpr(pOp->pLeft) && isColumnExpr(pOp->pRight)) {
+        TSWAP(*ppSrc, *ppDst);
+      }
+      break;
+    }
+    case QUERY_NODE_LOGIC_CONDITION: {
+      SLogicConditionNode* pLogic = (SLogicConditionNode*)*ppSrc;
+      if (LOGIC_COND_TYPE_AND != pLogic->condType) {
+        break;
+      }
+      SNode* pTmp = NULL;
+      SNode* pTmpRes = NULL;
+      WHERE_EACH(pTmp, pLogic->pParameterList) {
+        code = splitJoinColPrimaryCond(&pTmp, &pTmpRes);
+        if (code) {
+          break;
+        }
+        if (NULL == pTmp && NULL != pTmpRes) {
+          cell->pNode = NULL;
+          ERASE_NODE(pLogic->pParameterList);
+          code = nodesMergeNode(ppDst, &pTmpRes);
+          if (code) {
+            break;
+          }
+          
+          continue;
+        }
+        
+        WHERE_NEXT;
+      }
+      if (pLogic->pParameterList->length <= 0) {
+        nodesDestroyNode(*ppSrc);
+        *ppSrc = NULL;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  
+  return code;
+}
+
 int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
   SSelectStmt* pCurrSmt = (SSelectStmt*)(pCxt->pCurrStmt);
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -5243,12 +5316,17 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
         code = checkJoinTable(pCxt, pJoinTable);
       }
       if (TSDB_CODE_SUCCESS == code && !inJoin && pCurrSmt->pWhere && JOIN_TYPE_INNER == pJoinTable->joinType) {
-        if (pJoinTable->pOnCond) {
-          code = mergeInnerJoinConds(&pJoinTable->pOnCond, &pCurrSmt->pWhere);
-        } else {
-          pJoinTable->pOnCond = pCurrSmt->pWhere;
-          pCurrSmt->pWhere = NULL;
+        SNode* pPrimCond = NULL;
+        code = splitJoinColPrimaryCond(&pCurrSmt->pWhere, &pPrimCond);
+        if (TSDB_CODE_SUCCESS == code && pPrimCond) {        
+          if (pJoinTable->pOnCond) {
+            code = mergeInnerJoinConds(&pJoinTable->pOnCond, &pPrimCond);
+          } else {
+            pJoinTable->pOnCond = pPrimCond;
+            pPrimCond = NULL;
+          }
         }
+        nodesDestroyNode(pPrimCond);
       }      
       if (TSDB_CODE_SUCCESS == code) {
         pJoinTable->table.precision = calcJoinTablePrecision(pJoinTable);

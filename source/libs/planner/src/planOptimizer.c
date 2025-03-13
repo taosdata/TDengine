@@ -503,52 +503,12 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   return code;
 }
 
-static int32_t pdcMergeCondsToLogic(SNode** pDst, SNode** pSrc) {
-  SLogicConditionNode* pLogicCond = NULL;
-  int32_t              code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pLogicCond);
-  if (NULL == pLogicCond) {
-    return code;
-  }
-  pLogicCond->node.resType.type = TSDB_DATA_TYPE_BOOL;
-  pLogicCond->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
-  pLogicCond->condType = LOGIC_COND_TYPE_AND;
-  code = nodesListMakeAppend(&pLogicCond->pParameterList, *pSrc);
-  if (TSDB_CODE_SUCCESS == code) {
-    *pSrc = NULL;
-    code = nodesListMakeAppend(&pLogicCond->pParameterList, *pDst);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    *pDst = (SNode*)pLogicCond;
-  } else {
-    nodesDestroyNode((SNode*)pLogicCond);
-  }
-  return code;
-}
-
-static int32_t pdcMergeConds(SNode** pCond, SNode** pAdditionalCond) {
-  if (NULL == *pCond) {
-    TSWAP(*pCond, *pAdditionalCond);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*pCond) &&
-      LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)*pCond)->condType) {
-    code = nodesListAppend(((SLogicConditionNode*)*pCond)->pParameterList, *pAdditionalCond);
-    if (TSDB_CODE_SUCCESS == code) {
-      *pAdditionalCond = NULL;
-    }
-  } else {
-    code = pdcMergeCondsToLogic(pCond, pAdditionalCond);
-  }
-  return code;
-}
 
 static int32_t pushDownCondOptCalcTimeRange(SOptimizeContext* pCxt, SScanLogicNode* pScan, SNode** pPrimaryKeyCond,
                                             SNode** pOtherCond) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pCxt->pPlanCxt->topicQuery || pCxt->pPlanCxt->streamQuery) {
-    code = pdcMergeConds(pOtherCond, pPrimaryKeyCond);
+    code = nodesMergeNode(pOtherCond, pPrimaryKeyCond);
   } else {
     bool isStrict = false;
     code = filterGetTimeRange(*pPrimaryKeyCond, &pScan->scanRange, &isStrict);
@@ -556,7 +516,7 @@ static int32_t pushDownCondOptCalcTimeRange(SOptimizeContext* pCxt, SScanLogicNo
       if (isStrict) {
         nodesDestroyNode(*pPrimaryKeyCond);
       } else {
-        code = pdcMergeConds(pOtherCond, pPrimaryKeyCond);
+        code = nodesMergeNode(pOtherCond, pPrimaryKeyCond);
       }
       *pPrimaryKeyCond = NULL;
     }
@@ -828,11 +788,11 @@ static int32_t pdcJoinSplitCond(SJoinLogicNode* pJoin, SNode** pSrcCond, SNode**
 }
 
 static int32_t pdcJoinPushDownOnCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, SNode** pCond) {
-  return pdcMergeConds(&pJoin->pFullOnCond, pCond);
+  return nodesMergeNode(&pJoin->pFullOnCond, pCond);
 }
 
 static int32_t pdcPushDownCondToChild(SOptimizeContext* pCxt, SLogicNode* pChild, SNode** pCond) {
-  return pdcMergeConds(&pChild->pConditions, pCond);
+  return nodesMergeNode(&pChild->pConditions, pCond);
 }
 
 static bool pdcJoinIsPrim(SNode* pNode, SSHashObj* pTables, bool constAsPrim, bool* constPrimGot) {
@@ -2073,7 +2033,7 @@ static int32_t partitionAggCond(SAggLogicNode* pAgg, SNode** ppAggFunCond, SNode
 }
 
 static int32_t pushCondToAggCond(SOptimizeContext* pCxt, SAggLogicNode* pAgg, SNode** pAggFuncCond) {
-  return pdcMergeConds(&pAgg->node.pConditions, pAggFuncCond);
+  return nodesMergeNode(&pAgg->node.pConditions, pAggFuncCond);
 }
 
 typedef struct SRewriteAggGroupKeyCondContext {
