@@ -8,8 +8,15 @@ jobs:
   cancel-workflow:
     runs-on: ubuntu-latest
     steps:
+      - name: Set up GitHub CLI
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" > ~/.gh_token
+          gh auth login --with-token < ~/.gh_token
+
       - name: Cancel Workflow if Merged or Closed
         if: ${{ github.event.pull_request.merged || github.event.pull_request.state == 'closed' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "PR has been merged or closed, cancelling workflow..."
           gh run list --repo ${{ github.repository }} --branch ${{ github.event.pull_request.head.ref }} --workflow "TDengine Test" --status in_progress --json databaseId --jq '.[].databaseId' | xargs -I {} gh run cancel {}
