@@ -34,7 +34,7 @@
 #include "tname.h"
 
 #define STB_VER_NUMBER   2
-#define STB_RESERVE_SIZE 64
+#define STB_RESERVE_SIZE 56
 
 static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
