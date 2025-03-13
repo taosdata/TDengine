@@ -425,8 +425,8 @@ static int32_t tlvDecodeValueU64(STlvDecoder* pDecoder, uint64_t* pValue) {
 }
 
 static int32_t tlvDecodeDouble(STlv* pTlv, double* pValue) {
-  int64_t temp = 0;
-  int32_t code = tlvDecodeI64(pTlv, &temp);
+  volatile int64_t temp = 0;
+  int32_t code = tlvDecodeI64(pTlv, (int64_t*)&temp);
   if (TSDB_CODE_SUCCESS == code) {
     *pValue = *(double*)&temp;
   }
@@ -434,8 +434,8 @@ static int32_t tlvDecodeDouble(STlv* pTlv, double* pValue) {
 }
 
 static int32_t tlvDecodeValueDouble(STlvDecoder* pDecoder, double* pValue) {
-  int64_t temp = 0;
-  int32_t code = tlvDecodeValueI64(pDecoder, &temp);
+  volatile int64_t temp = 0;
+  int32_t code = tlvDecodeValueI64(pDecoder, (int64_t*)&temp);
   if (TSDB_CODE_SUCCESS == code) {
     *pValue = *(double*)&temp;
   }
