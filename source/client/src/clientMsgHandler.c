@@ -868,6 +868,7 @@ static int32_t setCreateStreamFailedRsp(void* param, SDataBuf* pMsg, int32_t cod
   }
   return code;
 }
+
 void sendCreateStreamFailedMsg(SRequestObj* pRequest, char* streamName){
   int32_t code  = 0;
   tscInfo("send failed stream name to mgmt: %s", streamName);
@@ -899,55 +900,33 @@ void sendCreateStreamFailedMsg(SRequestObj* pRequest, char* streamName){
   }
 }
 
-int32_t processCreateStreamSecondPhase(SRequestObj* pRequest){
-  int32_t code  = 0;
+static void processCreateStreamSecondPhaseRsp(void* param, void* res, int32_t code) {
+  SRequestObj* pRequest = res;
+  if (code != 0 && param != NULL){
+    sendCreateStreamFailedMsg(pRequest, param);
+  }
+  doDestroyRequest(pRequest);
+  taosMemoryFree(param);
+}
+
+static char* getStreamName(SRequestObj* pRequest){
+  SCreateStreamStmt* pStmt = (SCreateStreamStmt*)(pRequest->pQuery->pRoot);
+  SName   name;
+  int32_t code = tNameSetDbName(&name, pRequest->pTscObj->acctId, pStmt->streamName, strlen(pStmt->streamName));
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to set db name for stream since %s", tstrerror(code));
+    return NULL;
+  } else{
+    char *streamName = taosMemoryCalloc(1, TSDB_STREAM_FNAME_LEN);
+    (void)tNameGetFullDbName(&name, streamName);
+    return streamName;
+  }
+}
+
+void processCreateStreamSecondPhase(SRequestObj* pRequest){
   tscInfo("[create stream with histroy] create in second phase");
-  size_t sqlLen = strlen(pRequest->sqlstr);
-  SRequestObj* pRequestNew = NULL;
-
-  SSyncQueryParam* paramNew = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
-  if (NULL == paramNew) {
-    code = terrno;
-    goto END;
-  }
-  code = tsem_init(&paramNew->sem, 0, 0);
-  if (TSDB_CODE_SUCCESS != code) {
-    goto END;
-  }
-
-  code = buildRequest(pRequest->pTscObj->id, pRequest->sqlstr, sqlLen, paramNew, false, &pRequestNew, 0);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto END;
-  }
-  pRequestNew->source = pRequest->source;
-  pRequestNew->body.queryFp = syncQueryFn;
-  pRequestNew->streamRunHistory = true;
-  doAsyncQuery(pRequestNew, false);
-  code = tsem_wait(&paramNew->sem);
-  if (TSDB_CODE_SUCCESS != code) {
-    tscError("failed to wait semaphore since %s", tstrerror(code));
-  }
-  code = tsem_destroy(&paramNew->sem);
-  if (TSDB_CODE_SUCCESS != code) {
-    tscError("failed to destroy semaphore since %s", tstrerror(code));
-  }
-END:
-  taosMemoryFree(paramNew);
-  if (pRequestNew != NULL && pRequestNew->code != 0){
-    char streamName[TSDB_STREAM_FNAME_LEN] = {0};
-    SCreateStreamStmt* pStmt = (SCreateStreamStmt*)(pRequest->pQuery->pRoot);
-    SName   name;
-    code = tNameSetDbName(&name, pRequest->pTscObj->acctId, pStmt->streamName, strlen(pStmt->streamName));
-    if (TSDB_CODE_SUCCESS != code) {
-      tscError("failed to set db name for stream since %s", tstrerror(code));
-    } else{
-      (void)tNameGetFullDbName(&name, streamName);
-      sendCreateStreamFailedMsg(pRequestNew, streamName);
-    }
-
-  }
-  destroyRequest(pRequestNew);
-  return code;
+  char *streamName = getStreamName(pRequest);
+  taosAsyncQueryImpl(pRequest->pTscObj->id, pRequest->sqlstr, processCreateStreamSecondPhaseRsp, streamName, false, pRequest->source);
 }
 
 int32_t processCreateStreamFirstPhaseRsp(void* param, SDataBuf* pMsg, int32_t code) {
@@ -967,7 +946,7 @@ int32_t processCreateStreamFirstPhaseRsp(void* param, SDataBuf* pMsg, int32_t co
     }
   }
   if (code == 0 && !pRequest->streamRunHistory){
-    code = processCreateStreamSecondPhase(pRequest);
+    processCreateStreamSecondPhase(pRequest);
   }
   return code;
 }
