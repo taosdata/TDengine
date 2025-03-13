@@ -1,4 +1,5 @@
 name: Cancel Workflow on Merge or Close
+description: Cancels the workflow if the PR is merged or closed to avoid unnecessary runs.
 
 on:
   pull_request:
