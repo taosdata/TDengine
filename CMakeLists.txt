@@ -22,23 +22,23 @@ include(${TD_SUPPORT_DIR}/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.define)
 include(${TD_SUPPORT_DIR}/cmake.version)
 include(${TD_SUPPORT_DIR}/cmake.install)
-enable_testing()
+
+add_subdirectory(community/contrib)
+add_subdirectory(enterprise/contrib)
+
+if(${BUILD_TEST})
+  include(CTest)
+  enable_testing()
+  add_subdirectory(community/examples/c)
+endif(${BUILD_TEST})
 
 add_library(api INTERFACE)
 target_include_directories(api INTERFACE "${TD_COMMUNITY_DIR}/include/client")
-
-add_subdirectory(community/contrib)
 add_subdirectory(community/source)
 add_subdirectory(community/tools)
 add_subdirectory(community/utils)
 add_subdirectory(community/tests)
 add_subdirectory(community/docs/doxgen)
-add_subdirectory(enterprise/contrib)
 add_subdirectory(enterprise)
-
-if(${BUILD_TEST})
-  include(CTest)
-  add_subdirectory(community/examples/c)
-endif(${BUILD_TEST})
 
 include(CPack)
