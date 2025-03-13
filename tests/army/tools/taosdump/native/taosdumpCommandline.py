@@ -217,18 +217,21 @@ class TDTestCase(TBase):
     # password
     def checkPassword(self, tmpdir):
         # 255 char max password
+        user    = "dkj"
         pwd     = ""
         pwdFile = "cmdline/data/pwdMax.txt"
         with open(pwdFile) as file:
             pwd = file.readline()
         
-        sql = f"create user dkj pass '{pwd}' "
+        sql = f"create user {user} pass '{pwd}' "
+        tdSql.execute(sql)
+        # enterprise must set
+        sql = f"grant read on test to {user}"
         tdSql.execute(sql)
 
-        pwd = "taosdata"  
         cmds = [
-            f"-uroot -p{pwd}        -D test -o {tmpdir}",  # command pass
-            f"-uroot -p < {pwdFile} -D test -o {tmpdir}"   # input   pass
+            f"-u{user} -p{pwd}        -D test -o {tmpdir}",  # command pass
+            f"-u{user} -p < {pwdFile} -D test -o {tmpdir}"   # input   pass
         ]
 
         for cmd in cmds:
