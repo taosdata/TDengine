@@ -181,6 +181,8 @@ void destroyStreamTimeSliceOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->pCloseTs);
   destroyStreamAggSupporter(&pInfo->streamAggSup);
 
+  destroyStreamBasicInfo(&pInfo->basic);
+
   taosMemoryFreeClear(param);
 }
 

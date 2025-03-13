@@ -96,6 +96,8 @@ void destroyStreamFillSupporter(SStreamFillSupporter* pFillSup) {
   taosMemoryFree(pFillSup->nextNext.pRowVal);
 
   taosMemoryFree(pFillSup->pOffsetInfo);
+  taosArrayDestroy(pFillSup->pResultRange);
+  pFillSup->pResultRange = NULL;
 
   taosMemoryFree(pFillSup);
 }
