@@ -436,7 +436,7 @@ int32_t mndStreamSetResumeAction(STrans *pTrans, SMnode *pMnode, SStreamObj *pSt
     return code;
   }
 
-  mDebug("transId:%" PRId64 " start to create resume actions", pTrans->id);
+  mDebug("transId:%d start to create resume actions", pTrans->id);
 
   while (streamTaskIterNextTask(pIter)) {
     SStreamTask *pTask = NULL;
