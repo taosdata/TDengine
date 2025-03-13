@@ -389,7 +389,7 @@ TEST(osTest, osFile) {
   (void)taosThreadJoin(thread2, NULL);
   taosThreadClear(&thread2);
 
-  // int ret = taosRemoveFile(fname);
+  taosRemoveFile(fname);
   // ASSERT_EQ(ret, 0);
   // printf("remove file success");
 }
@@ -650,6 +650,8 @@ TEST(osTest, osFilePerformance) {
 
   taosMemoryFree(writeBuffer);
   taosMemoryFree(readBuffer);
+
+  taosRemoveFile(fname);
 
   (void)printf("Test Write file %d times, cost: %" PRId64 "us\n", TESTTIMES, WriteFileCost);
   (void)printf("Test Read file %d times, cost: %" PRId64 "us\n", TESTTIMES, ReadFileCost);
