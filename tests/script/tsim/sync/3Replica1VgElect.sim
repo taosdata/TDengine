@@ -91,19 +91,19 @@ endi
 if $data[0][4] == leader then
    if $data[0][7] == follower then
       if $data[0][10] == follower then
-         print ---- vgroup $data[0][0] leader locate on dnode $data[0][3] 
+         print ---- vgroup $data[0][0] leader locate on dnode $data[0][4] 
       endi
    endi
-elif $data[0][6] == leader then
-   if $data[0][7] == follower then
-      if $data[0][10] == follower then
-         print ---- vgroup $data[0][0] leader locate on dnode $data[0][5] 
+elif $data[0][7] == leader then
+   if $data[0][10] == follower then
+      if $data[0][4] == follower then
+         print ---- vgroup $data[0][0] leader locate on dnode $data[0][7] 
       endi
    endi
 elif $data[0][10] == leader then
    if $data[0][4] == follower then
       if $data[0][7] == follower then
-         print ---- vgroup $data[0][0] leader locate on dnode $data[0][7] 
+         print ---- vgroup $data[0][0] leader locate on dnode $data[0][10] 
       endi
    endi
 else
@@ -462,6 +462,3 @@ system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
 system sh/exec.sh -n dnode4 -s stop -x SIGINT
-
-
-

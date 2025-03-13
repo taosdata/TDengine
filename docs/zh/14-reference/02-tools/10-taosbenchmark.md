@@ -93,14 +93,17 @@ taosBenchmark -f <json file>
 
 本节所列参数适用于所有功能模式。
 
-- **filetype**：功能分类，可选值为 `insert`、`query` 和 `subscribe`。分别对应插入、查询和订阅功能。每个配置文件中只能指定其中之一。
+- **filetype**：功能分类，可选值为 `insert`、`query`、`subscribe` 和 `csvfile`。分别对应插入、查询、订阅和生成 csv 文件功能。每个配置文件中只能指定其中之一。
+
 - **cfgdir**：TDengine 客户端配置文件所在的目录，默认路径是 /etc/taos 。
+
+- **output_dir**：指定输出文件的目录，当功能分类是 `csvfile` 时，指生成的 csv 文件的保存目录，默认值为 ./output/ 。
 
 - **host**：指定要连接的 TDengine 服务端的 FQDN，默认值为 localhost 。
 
 - **port**：要连接的 TDengine 服务器的端口号，默认值为 6030 。
 
-- **user**：用于连接 TDengine 服务端的用户名，默认为 root 。
+- **user**：用于连接 TDengine 服务端的用户名，默认值为 root 。
 
 - **password**：用于连接 TDengine 服务端的密码，默认值为 taosdata。
 
@@ -184,10 +187,34 @@ taosBenchmark -f <json file>
 - **tags_file**：仅当 insert_mode 为 taosc，rest 的模式下生效。最终的 tag 的数值与 childtable_count 有关，如果 csv 文件内的 tag 数据行小于给定的子表数量，那么会循环读取 csv 文件数据直到生成 childtable_count 指定的子表数量；否则则只会读取 childtable_count 行 tag 数据。也即最终生成的子表数量为二者取小。
 
 - **primary_key**：指定超级表是否有复合主键，取值 1 和 0，复合主键列只能是超级表的第二列，指定生成复合主键后要确保第二列符合复合主键的数据类型，否则会报错。
+
 - **repeat_ts_min**：数值类型，复合主键开启情况下指定生成相同时间戳记录的最小个数，生成相同时间戳记录的个数是在范围[repeat_ts_min, repeat_ts_max] 内的随机值，最小值等于最大值时为固定个数。
+
 - **repeat_ts_max**：数值类型，复合主键开启情况下指定生成相同时间戳记录的最大个数。
+
 - **sqls**：字符串数组类型，指定超级表创建成功后要执行的 sql 数组，sql 中指定表名前面要带数据库名，否则会报未指定数据库错误。
 
+- **csv_file_prefix**：字符串类型，设置生成的 csv 文件名称的前缀，默认值为 data 。
+
+- **csv_ts_format**：字符串类型，设置生成的 csv 文件名称中时间字符串的格式，格式遵循 `strftime` 格式标准，如果没有设置表示不按照时间段切分文件。支持的模式有：
+  - %Y: 年份，四位数表示（例如：2025）
+  - %m: 月份，两位数表示（01到12）
+  - %d: 一个月中的日子，两位数表示（01到31）
+  - %H: 小时，24小时制，两位数表示（00到23）
+  - %M: 分钟，两位数表示（00到59）
+  - %S: 秒，两位数表示（00到59）
+
+- **csv_ts_interval**：字符串类型，设置生成的 csv 文件名称中时间段间隔，支持天、小时、分钟、秒级间隔，如 1d/2h/30m/40s，默认值为 1d 。
+
+- **csv_output_header**：字符串类型，设置生成的 csv 文件是否包含列头描述，默认值为 yes 。
+
+- **csv_tbname_alias**：字符串类型，设置 csv 文件列头描述中 tbname 字段的别名，默认值为 device_id 。
+
+- **csv_compress_level**：字符串类型，设置生成 csv 编码数据并自动压缩成 gzip 格式文件的压缩等级。此过程直接编码并压缩，而非先生成 csv 文件再压缩。可选值为：
+  - none：不压缩
+  - fast：gzip 1级压缩
+  - balance：gzip 6级压缩
+  - best：gzip 9级压缩
 
 #### 标签列与数据列
 
@@ -253,27 +280,45 @@ taosBenchmark -f <json file>
 ### 查询配置参数
 
 查询场景下 `filetype` 必须设置为 `query`。
+
+`query_mode`  查询连接方式，取值为：  
+ - “taosc”: 通过 Native  连接方式查询。  
+ - “rest” : 通过 restful 连接方式查询。  
+
 `query_times` 指定运行查询的次数，数值类型。
 
-查询场景可以通过设置 `kill_slow_query_threshold` 和 `kill_slow_query_interval` 参数来控制杀掉慢查询语句的执行，threshold 控制如果 exec_usec 超过指定时间的查询将被 taosBenchmark 杀掉，单位为秒。
-interval 控制休眠时间，避免持续查询慢查询消耗 CPU，单位为秒。
 
-其它通用参数详见 [通用配置参数](#通用配置参数)
+其它通用参数详见 [通用配置参数](#通用配置参数)。
 
 #### 执行指定查询语句
 
 查询指定表（可以指定超级表、子表或普通表）的配置参数在 `specified_table_query` 中设置。
 
-- **mixed_query**：查询模式  
-  “yes”：`混合查询`  
-  "no"(默认值)：`普通查询`  
-  `普通查询`：`sqls` 中每个 sql 启动 `threads` 个线程查询此 sql，执行完 `query_times` 次查询后退出，执行此 sql 的所有线程都完成后进入下一个 sql   
+
+- **mixed_query**：混合查询开关。  
+  “yes”: 开启 “混合查询”。   
+  “no” : 关闭 “混合查询” ，即 “普通查询”。  
+
+  - 普通查询：
+
+  `sqls` 中每个 sql 启动 `threads` 个线程查询此 sql, 执行完 `query_times` 次查询后退出，执行此 sql 的所有线程都完成后进入下一个 sql   
   `查询总次数` = `sqls` 个数 * `query_times` * `threads`   
   
-  `混合查询`：`sqls` 中所有 sql 分成 `threads` 个组，每个线程执行一组，每个 sql 都需执行 `query_times` 次查询  
+  - 混合查询：
+
+  `sqls` 中所有 sql 分成 `threads` 个组，每个线程执行一组， 每个 sql 都需执行 `query_times` 次查询  
   `查询总次数` = `sqls` 个数 * `query_times` 
 
+- **batch_query**：批查询功开关。  
+  取值范围 “yes” 表示开启，"no" 不开启，其它值报错。  
+  批查询是指 `sqls` 中所有 sql 分成 `threads` 个组，每个线程执行一组，每个 sql 只执行一次查询后退出，主线程等待所有线程都执行完，再判断是否设置有 `query_interval` 参数，如果有需要 sleep 指定时间，再启动各线程组重复前面的过程，直到查询次数耗尽为止。  
+  功能限制条件：  
+   - 只支持 `mixed_query` 为 "yes" 的场景。  
+   - 不支持 restful 查询，即 `query_mode` 不能为 "rest"。  
+
 - **query_interval**：查询时间间隔，单位：millisecond，默认值为 0。
+  "batch_query" 开关打开时，表示是每批查询完间隔时间；关闭时，表示每个 sql 查询完间隔时间
+  如果执行查询的时间超过间隔时间，那么将不再等待，如果执行查询的时间不足间隔时间，需等待补足间隔时间
 
 - **threads**：执行查询 SQL 的线程数，默认值为 1。
 
@@ -379,6 +424,17 @@ interval 控制休眠时间，避免持续查询慢查询消耗 CPU，单位为�
 
 ```json
 {{#include /TDengine/tools/taos-tools/example/tmq.json}}
+```
+
+</details>
+
+### 生成 CSV 文件 JSON 示例
+
+<details>
+<summary>csv-export.json</summary>
+
+```json
+{{#include /TDengine/tools/taos-tools/example/csv-export.json}}
 ```
 
 </details>

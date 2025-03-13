@@ -127,8 +127,8 @@ s3migrate database <db_name>;
 
 当 TSDB 时序数据超过 `s3_keeplocal` 参数指定的时间，相关的数据文件会被切分成多个文件块，每个文件块的默认大小是 512M 字节 (`s3_chunkpages * tsdb_pagesize`)。除了最后一个文件块保留在本地文件系统外，其余的文件块会被上传到对象存储服务。
 
-```math
-上传次数 = 数据文件大小 / (s3_chunkpages * tsdb_pagesize) - 1 
+```text
+上传次数 = 数据文件大小 / (s3_chunkpages * tsdb_pagesize) - 1
 ```
 
 在创建数据库时，可以通过 `s3_chunkpages` 参数调整每个文件块的大小，从而控制每个数据文件的上传次数。
@@ -141,7 +141,7 @@ s3migrate database <db_name>;
 
 相邻的多个数据页会作为一个数据块从对象存储下载一次，以减少从对象存储下载的次数。每个数据页的大小，在创建数据库时，通过 `tsdb_pagesize` 参数指定，默认 4K 字节。
 
-```math
+```text
 下载次数 = 查询需要的数据块数量 - 已缓存的数据块数量
 ```
 

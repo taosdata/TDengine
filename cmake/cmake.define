@@ -116,9 +116,6 @@ ELSE()
     set(VAR_TSZ "TSZ" CACHE INTERNAL "global variant tsz")
 ENDIF()
 
-# force set all platform to JEMALLOC_ENABLED = false
-# SET(JEMALLOC_ENABLED OFF)
-
 IF(TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
 
@@ -260,12 +257,15 @@ ELSE()
 ENDIF()
 
 
-IF(TD_LINUX)
+IF(TD_LINUX_64)
     IF(${JEMALLOC_ENABLED})
-        MESSAGE(STATUS "JEMALLOC_ENABLED Enabled")
+        MESSAGE(STATUS "JEMALLOC Enabled")
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-error=attributes")
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error=attributes")
+        SET(LINK_JEMALLOC "-L${CMAKE_BINARY_DIR}/build/lib -ljemalloc")
+        ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib)
     ELSE()
-        MESSAGE(STATUS "JEMALLOC_ENABLED Disabled")
+        MESSAGE(STATUS "JEMALLOC Disabled")
+        SET(LINK_JEMALLOC "")
     ENDIF()
 ENDIF()
