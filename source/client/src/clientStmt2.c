@@ -183,7 +183,7 @@ static int32_t stmtGetTbName(TAOS_STMT2* stmt, char** tbName) {
   pStmt->sql.type = STMT_TYPE_MULTI_INSERT;
 
   if ('\0' == pStmt->bInfo.tbName[0]) {
-    tscError("no table name set");
+    tscWarn("no table name set, OK if it is a stmt get fields");
     STMT_ERR_RET(TSDB_CODE_TSC_STMT_TBNAME_ERROR);
   }
 
@@ -316,7 +316,6 @@ static int32_t stmtParseSql(STscStmt2* pStmt) {
 
 static int32_t stmtCleanBindInfo(STscStmt2* pStmt) {
   pStmt->bInfo.tbUid = 0;
-  pStmt->bInfo.tbSuid = 0;
   pStmt->bInfo.tbVgId = -1;
   pStmt->bInfo.tbType = 0;
   pStmt->bInfo.needParse = true;
@@ -328,7 +327,10 @@ static int32_t stmtCleanBindInfo(STscStmt2* pStmt) {
     qDestroyBoundColInfo(pStmt->bInfo.boundTags);
     taosMemoryFreeClear(pStmt->bInfo.boundTags);
   }
-  pStmt->bInfo.stbFName[0] = 0;
+  if (!pStmt->sql.autoCreateTbl) {
+    pStmt->bInfo.stbFName[0] = 0;
+    pStmt->bInfo.tbSuid = 0;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
