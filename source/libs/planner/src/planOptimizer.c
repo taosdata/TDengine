@@ -932,6 +932,7 @@ static int32_t pdcJoinSplitPrimInLogicCond(SJoinLogicNode* pJoin, SNode** ppInpu
       *ppInput = NULL;
       return TSDB_CODE_SUCCESS;
     }
+    nodesDestroyNode(pTempOnCond);
     planError("no primary key equal cond found, condListNum:%d", pLogicCond->pParameterList->length);
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   } else {
