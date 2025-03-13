@@ -596,24 +596,60 @@ class TDTestCase(TBase):
         tdSql.query(f"SELECT * FROM stb_alter_keep WHERE ts = {day6_ts}")
         tdSql.checkEqual(tdSql.queryRows, 0)
         
-
+    def test_case8_stb_keep_compact_with_db_keep(self):
+        """Test case 8: Test STB keep compact with database keep"""
+        tdLog.info("=== Test Case 8: STB keep compact with database keep ===")
         
+        # Setup
+        db_name = "test_stb_alter_keep"
+        db_keep = 10  # Set database keep to a higher value to allow flexible STB keep testing
+        initial_stb_keep = 3  # Initial keep value
+        
+        # Create database and super table with initial keep value
+        tdLog.info(f"Creating database with keep={db_keep}")
+        tdSql.execute(f"DROP DATABASE IF EXISTS {db_name}")
+        tdSql.execute(f"CREATE DATABASE {db_name} DURATION 2d KEEP {db_keep}")
+        tdSql.execute(f"USE {db_name}")
+        
+        # Create super table with initial keep
+        tdLog.info(f"Creating super table with initial keep={initial_stb_keep}d")
+        self.create_super_table_with_keep("stb_alter_keep", initial_stb_keep)
+        
+        # Create child table and insert data with safer time margins
+        tdLog.info("Creating child table and inserting data")
+        
+        # For safety, we'll insert data with specific values that are clearly within boundaries
+        now = int(time.time() * 1000)  # Current time in milliseconds
+        
+        # Add margin to ensure day calculations don't fall on boundary
+        # Subtract a few hours from each day boundary for safety
+        margin_hours = 4  # 4 hours safety margin
+        margin_ms = margin_hours * 3600 * 1000  # Convert to milliseconds
+        
+        # Calculate timestamps with safety margins
+        day0_ts = now - (0 * 24 * 3600 * 1000) - margin_ms  # ~0.2 days ago
+        day1_ts = now - (1 * 24 * 3600 * 1000) - margin_ms  # ~1.2 days ago
+        day2_ts = now - (2 * 24 * 3600 * 1000) - margin_ms  # ~2.2 days ago
+        day4_ts = now - (4 * 24 * 3600 * 1000) - margin_ms  # ~4.2 days ago
+        day6_ts = now - (6 * 24 * 3600 * 1000) - margin_ms  # ~6.2 days ago
+        
+        # Create table and insert data
+        tdSql.execute("CREATE TABLE tb_alter_keep_1 USING stb_alter_keep TAGS(1)")
+        
+        # Insert data at different time points
+        tdLog.info("Inserting data at different time points with safety margins")
+        tdSql.execute(f"INSERT INTO tb_alter_keep_1 VALUES ({now}, 100)")  # Current
+        tdSql.execute(f"INSERT INTO tb_alter_keep_1 VALUES ({day1_ts}, 90)")  # ~1.2 days ago
+        tdSql.execute(f"INSERT INTO tb_alter_keep_1 VALUES ({day2_ts}, 80)")  # ~2.2 days ago
+        tdSql.execute(f"INSERT INTO tb_alter_keep_1 VALUES ({day4_ts}, 60)")  # ~4.2 days ago
+        tdSql.execute(f"INSERT INTO tb_alter_keep_1 VALUES ({day6_ts}, 40)")  # ~6.2 days ago
+
         # Decrease keep value to less than original
         final_keep_value = 2  # Decrease to 2 days (less than original)
-        tdLog.info(f"Altering STB keep value from {new_keep_value} to {final_keep_value}")
+        tdLog.info(f"Altering STB keep value from {initial_stb_keep} to {final_keep_value}")
         tdSql.execute(f"ALTER STABLE stb_alter_keep KEEP {final_keep_value}d")
         
-        # Try to insert a record just inside the new keep boundary
-        just_within_keep = now - (int(final_keep_value * 0.8) * 24 * 3600 * 1000)  # ~1.6 days ago
-        tdLog.info(f"Inserting data just within new keep boundary (~1.6 days ago)")
-
-        tdSql.execute(f"INSERT INTO tb_alter_keep_1 VALUES ({day2_ts}, 85)")
-        tdSql.execute(f"INSERT INTO tb_alter_keep_1 VALUES ({day4_ts}, 85)")
-        tdSql.execute(f"INSERT INTO tb_alter_keep_1 VALUES ({day6_ts}, 85)")
-
-        tdSql.execute(f"INSERT INTO tb_alter_keep_1 VALUES ({now}, 85)")
-
-        tdSql.execute(f"INSERT INTO tb_alter_keep_1 VALUES ({just_within_keep}, 85)")
+        tdSql.execute(f"INSERT INTO tb_alter_keep_1 VALUES ({day0_ts}, 85)")
         
         # Perform third compaction with reduced keep value
         tdLog.info(f"Performing third compaction with decreased STB keep={final_keep_value}")
@@ -627,7 +663,7 @@ class TDTestCase(TBase):
         # Check individual records to see what was preserved
         tdSql.query(f"SELECT * FROM stb_alter_keep WHERE ts = {now}")
         tdSql.checkEqual(tdSql.queryRows, 1)
-        tdSql.query(f"SELECT * FROM stb_alter_keep WHERE ts = {just_within_keep}")
+        tdSql.query(f"SELECT * FROM stb_alter_keep WHERE ts = {day0_ts}")
         tdSql.checkEqual(tdSql.queryRows, 1)
         tdSql.query(f"SELECT * FROM stb_alter_keep WHERE ts = {day1_ts}")
         tdSql.checkEqual(tdSql.queryRows, 1)
@@ -636,18 +672,34 @@ class TDTestCase(TBase):
         expected_preserved_count = 3
         
         tdSql.query(f"SELECT COUNT(*) FROM stb_alter_keep") 
-        tdSql.checkEqual(tdSql.getData(0, 0), expected_preserved_count)
-
+        tdSql.checkEqual(tdSql.getData(0, 0), expected_preserved_count)    
+        
     def run(self):
         tdLog.debug(f"Start to execute {__file__}")
+
+        # 1. Test case 1: STB keep=2, DB keep=10
+        self.test_case1_stb_keep_2_db_keep_10()
         
-        # self.test_case1_stb_keep_2_db_keep_10()
-        # self.test_case2_stb_keep_6_db_keep_4()
-        # self.test_case3_multiple_stbs_with_different_keep()
-        # self.test_case4_boundary_keep_duration_ratio()
-        # self.test_case5_write_time_with_keep_restrictions()
-        # self.test_case6_db_keep_8_stb_keep_4()
+        # 2. Test case 2: STB keep=6, DB keep=4
+        self.test_case2_stb_keep_6_db_keep_4()
+
+        # 3. Test case 3: Multiple STBs with different keep values
+        self.test_case3_multiple_stbs_with_different_keep()
+
+        # 4. Test case 4: Boundary keep duration ratio
+        self.test_case4_boundary_keep_duration_ratio()
+
+        # 5. Test case 5: Write time with keep restrictions
+        self.test_case5_write_time_with_keep_restrictions() 
+
+        # 6. Test case 6: DB keep=8, STB keep=4
+        self.test_case6_db_keep_8_stb_keep_4()
+
+        # 7. Test case 7: ALTER STABLE KEEP parameter
         self.test_case7_alter_stb_keep()
+
+        # 8. Test case 8: STB keep compact with database keep
+        self.test_case8_stb_keep_compact_with_db_keep()
 
         tdLog.success(f"{__file__} successfully executed")
 
