@@ -906,6 +906,7 @@ static void processCreateStreamSecondPhaseRsp(void* param, void* res, int32_t co
     sendCreateStreamFailedMsg(pRequest, param);
   }
   taosMemoryFree(param);
+  destroyRequest(pRequest);
 }
 
 static char* getStreamName(SRequestObj* pRequest){
@@ -944,9 +945,19 @@ int32_t processCreateStreamFirstPhaseRsp(void* param, SDataBuf* pMsg, int32_t co
     setErrno(pRequest, code);
   }
 
+  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
+    if (removeMeta(pRequest->pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type)) != 0) {
+      tscError("failed to remove meta data for table");
+    }
+  }
+
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
+  if (code == 0 && !pRequest->streamRunHistory && tsStreamRunHistoryAsync){
+    processCreateStreamSecondPhase(pRequest);
+  }
+  
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
   } else {
@@ -954,13 +965,7 @@ int32_t processCreateStreamFirstPhaseRsp(void* param, SDataBuf* pMsg, int32_t co
       tscError("failed to post semaphore");
     }
   }
-  if (code == 0 && !pRequest->streamRunHistory && tsStreamRunHistoryAsync){
-    processCreateStreamSecondPhase(pRequest);
-  }
 
-  if (pRequest->streamRunHistory){
-    doDestroyRequest(pRequest);
-  }
   return code;
 }
 
