@@ -1442,7 +1442,6 @@ static FORCE_INLINE int32_t tsdbGetFsSizeImpl(STsdb *tsdb, SDbSizeStatisInfo *pI
 
   TARRAY2_FOREACH(tsdb->pFS->fSetArr, fset) {
     for (int32_t t = TSDB_FTYPE_MIN; t < TSDB_FTYPE_MAX; ++t) {
-      if (fset->farr[t] == NULL) continue;
       fObj = fset->farr[t];
       getLevelSize(fObj, levelSize);
     }
