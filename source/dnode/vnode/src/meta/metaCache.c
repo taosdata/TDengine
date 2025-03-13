@@ -21,10 +21,6 @@ extern const int   tkLogStbNum;
 extern const int   tkAuditStbNum;
 #endif
 
-// 添加函数声明
-int32_t metaFetchEntryByUid(SMeta* pMeta, int64_t uid, SMetaEntry** ppEntry);
-void    metaFetchEntryFree(SMetaEntry** ppEntry);
-
 #define TAG_FILTER_RES_KEY_LEN  32
 #define META_CACHE_BASE_BUCKET  1024
 #define META_CACHE_STATS_BUCKET 16

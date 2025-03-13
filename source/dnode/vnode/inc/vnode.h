@@ -351,6 +351,9 @@ int32_t tsdbFileSetReaderNext(struct SFileSetReader *pReader);
 int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *field, void *value);
 void    tsdbFileSetReaderClose(struct SFileSetReader **ppReader);
 
+int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry);
+void    metaFetchEntryFree(SMetaEntry **ppEntry);
+
 #ifdef __cplusplus
 }
 #endif
