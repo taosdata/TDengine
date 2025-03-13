@@ -751,7 +751,7 @@ mod tests {
         assert!(res.is_err());
         assert_eq!(
             res.unwrap_err().to_string(),
-            "invalid original_ts_transform: ts - 6h, cause: Syntax error: Unexpected 'h'"
+            "invalid ts_transform: ts - 6h, cause: Syntax error: Unexpected 'h'"
         );
 
         // tbname is empty

@@ -281,19 +281,22 @@ impl OPCConfig {
     }
 
     /// 从 dsn 中解析 table_primary_key 参数：主键列。
-    /// "选择数据点位"时，table_primary_key 参数指定主键列，只能是 original_ts 或 received_ts。
+    /// "选择数据点位"时，table_primary_key 参数指定主键列，只能是 original_ts/request_ts/received_ts。
     pub fn parse_primary_key(dsn: &Dsn) -> anyhow::Result<Option<String>> {
         dsn.params.get("table_primary_key").map_or(Ok(None), |v| {
             if v.is_empty() {
                 return Ok(None);
             }
             match v.as_str() {
-                ColumnConfig::ORIGINAL_TS | ColumnConfig::RECEIVED_TS => Ok(Some(v.to_string())),
+                ColumnConfig::ORIGINAL_TS
+                | ColumnConfig::REQUEST_TS
+                | ColumnConfig::RECEIVED_TS => Ok(Some(v.to_string())),
                 _ => {
                     bail!(
-                        "invalid table_primary_key: {}, must be {} or {}",
+                        "invalid table_primary_key: {}, must be {} or {} or {}",
                         v.to_string(),
                         ColumnConfig::ORIGINAL_TS,
+                        ColumnConfig::REQUEST_TS,
                         ColumnConfig::RECEIVED_TS
                     );
                 }
@@ -404,7 +407,7 @@ mod tests {
         let result = OPCConfig::parse_primary_key(&dsn);
         assert!(result.is_err());
         assert_eq!(
-            "invalid table_primary_key: invalid, must be original_ts or received_ts",
+            "invalid table_primary_key: invalid, must be original_ts or request_ts or received_ts",
             result.err().unwrap().to_string()
         );
     }
