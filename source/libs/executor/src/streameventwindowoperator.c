@@ -48,7 +48,6 @@ void destroyStreamEventOperatorInfo(void* param) {
   }
 
   destroyStreamBasicInfo(&pInfo->basic);
-
   clearGroupResInfo(&pInfo->groupResInfo);
   taosArrayDestroyP(pInfo->pUpdated, destroyFlusedPos);
   pInfo->pUpdated = NULL;
