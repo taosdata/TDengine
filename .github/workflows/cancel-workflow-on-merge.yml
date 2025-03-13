@@ -14,5 +14,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "PR has been merged or closed, cancelling workflow..."
-          gh auth login --with-token $GH_TOKEN
+          gh auth status
           gh run list --repo ${{ github.repository }} --branch ${{ github.event.pull_request.head.ref }} --workflow "TDengine Test" --status in_progress --json databaseId --jq '.[].databaseId' | xargs -I {} gh run cancel --repo ${{ github.repository }} {}
