@@ -1,4 +1,5 @@
 option(DEPEND_DIRECTLY "depend externals directly, otherwise externals will not be built each time to save building time"    ON)
+option(ALIGN_EXTERNAL "keep externals' CMAKE_BUILD_TYPE align with the main project" OFF)
 
 include(ExternalProject)
 
@@ -10,6 +11,9 @@ add_custom_target(build_externals)
 #      cmake --build build --config Release
 #      TD_CONFIG_NAME will be `Release`
 set(TD_CONFIG_NAME "$<IF:$<STREQUAL:z$<CONFIG>,z>,$<IF:$<STREQUAL:z${CMAKE_BUILD_TYPE},z>,Debug,${CMAKE_BUILD_TYPE}>,$<CONFIG>>")
+if(NOT ${ALIGN_EXTERNAL})
+  set(TD_CONFIG_NAME "Release")
+endif()
 
 # eg.: INIT_EXT(ext_zlib)
 # initialization all variables to be used by external project and those relied on
@@ -146,7 +150,7 @@ ExternalProject_Add(ext_zlib
     GIT_REPOSITORY ${_git_url}
     GIT_TAG 5a82f71ed1dfc0bec044d9702463dbdf84ea3b71
     PREFIX "${_base}"
-    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}        # if main project is built in Debug, ext_zlib is too
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}        # if main project is built in Debug, ext_zlib is too
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}                # let default INSTALL step use
     CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON            # linking consistent
     CMAKE_ARGS -DZLIB_BUILD_SHARED:BOOL=OFF
@@ -173,11 +177,15 @@ if(${BUILD_PTHREAD})        # {
         GIT_REPOSITORY ${_git_url}
         GIT_TAG 3309f4d6e7538f349ae450347b02132ecb0606a7
         PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=ON         # freemine: building dll or not
         CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=/wd4244"
         CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=/wd4244"
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
@@ -201,11 +209,15 @@ if(${BUILD_WITH_ICONV})     # {
         GIT_REPOSITORY ${_git_url}
         GIT_TAG 9f98392dfecadffd62572e73e9aba878e03496c4
         PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DBUILD_SHARED:BOOL=OFF
         CMAKE_ARGS -DBUILD_STATIC:BOOL=ON
         CMAKE_ARGS -DCMAKE_C_FLAGS:STRING=/wd4267
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
@@ -259,10 +271,14 @@ if(${BUILD_WCWIDTH})        # {
         GIT_REPOSITORY ${_git_url}
         GIT_TAG a1b1e2c346a563f6538e46e1d29c265bdd5b1c9a
         PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_CONTRIB_DIR}/wcwidth.cmake" "${ext_wcwidth_source}/CMakeLists.txt"
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
@@ -286,8 +302,12 @@ if(${BUILD_WINGETOPT})      # {
         GIT_REPOSITORY ${_git_url}
         GIT_TAG e8531ed21b44f5a723c1dd700701b2a58ce3ea01
         PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
@@ -319,8 +339,12 @@ if(${BUILD_TEST})           # {
         GIT_REPOSITORY ${_git_url}
         GIT_TAG release-1.12.0
         PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
@@ -352,7 +376,7 @@ if(${BUILD_TEST})           # {
         GIT_REPOSITORY ${_git_url}
         GIT_TAG 3137465194014d66a8402941e80d2bccc6346f51
         PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
@@ -387,10 +411,14 @@ ExternalProject_Add(ext_lz4
     GIT_TAG v1.10.0
     PREFIX "${_base}"
     SOURCE_SUBDIR build/cmake
-    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
     CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
     CMAKE_ARGS -DBUILD_STATIC_LIBS:BOOL=ON
+    BUILD_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
     GIT_SHALLOW TRUE
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
@@ -416,12 +444,16 @@ ExternalProject_Add(ext_cjson
     GIT_REPOSITORY ${_git_url}
     GIT_TAG 12c4bf1986c288950a3d06da757109a6aa1ece38
     PREFIX "${_base}"
-    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
     CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
     CMAKE_ARGS -DCJSON_BUILD_SHARED_LIBS:BOOL=OFF
     CMAKE_ARGS -DENABLE_HIDDEN_SYMBOLS:BOOL=ON
     CMAKE_ARGS -DENABLE_PUBLIC_SYMBOLS:BOOL=OFF
+    BUILD_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
     GIT_SHALLOW TRUE
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
@@ -447,8 +479,12 @@ ExternalProject_Add(ext_xz
     GIT_REPOSITORY ${_git_url}
     GIT_TAG v5.4.4
     PREFIX "${_base}"
-    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    BUILD_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
     GIT_SHALLOW TRUE
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
@@ -479,7 +515,7 @@ ExternalProject_Add(ext_xxhash
     GIT_TAG de9d6577907d4f4f8153e96b0cb0cbdf7df649bb
     PREFIX "${_base}"
     BUILD_IN_SOURCE TRUE
-    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
     PATCH_COMMAND
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/xxhash.Makefile Makefile
@@ -513,7 +549,7 @@ ExternalProject_Add(ext_lzma2
     GIT_TAG ded964d203cabe1a572d2c813c55e8a94b4eda48
     PREFIX "${_base}"
     BUILD_IN_SOURCE TRUE
-    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+    CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
     PATCH_COMMAND
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/lzma2.Makefile Makefile
@@ -549,11 +585,15 @@ if(${BUILD_WITH_UV})        # {
         GIT_REPOSITORY ${_git_url}
         GIT_TAG v1.50.0
         PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
         CMAKE_ARGS -DLIBUV_BUILD_SHARED:BOOL=OFF
         CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
@@ -580,7 +620,7 @@ if(NOT ${TD_WINDOWS})       # {
         GIT_TAG 2025a
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/tz.Makefile Makefile
@@ -620,7 +660,7 @@ if(${JEMALLOC_ENABLED})     # {
         GIT_TAG 5.3.0
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         PATCH_COMMAND
             COMMAND ./autogen.sh
@@ -660,7 +700,7 @@ if(${BUILD_WITH_SQLITE})    # {
         GIT_REPOSITORY ${_git_url}
         GIT_TAG version-3.36.0
         PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
@@ -690,11 +730,15 @@ if(${BUILD_CRASHDUMP})      # {
         GIT_REPOSITORY ${_git_url}
         GIT_TAG 149b43c10debdf28a2c50d79dee5ff344d83bd06
         PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/crashdump.cmake CMakeLists.txt
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_CONTRIB_DIR}/crasher.c.in crasher/crasher.c
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
@@ -731,7 +775,7 @@ if(NOT ${TD_WINDOWS})       # {
         URL_HASH SHA256=f0316a2ebd89e7f2352976445458689f80302093788c466692fb2a188b2eacf6
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
             # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
@@ -767,7 +811,7 @@ if(NOT ${TD_WINDOWS})       # {
         DEPENDS ext_ssl
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
             # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
@@ -811,11 +855,15 @@ if(${BUILD_GEOS})           # {
         GIT_REPOSITORY ${_git_url}
         GIT_TAG f1519c182497a99db8315ef78e0ae283b0469008
         PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
         CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
         CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
@@ -858,7 +906,7 @@ if(${BUILD_ADDR2LINE})      # {
         GIT_TAG libdwarf-0.3.1
         DEPENDS ext_zlib
         PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${_c_cxx_flags}"
         CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${_c_cxx_flags}"
@@ -866,8 +914,10 @@ if(${BUILD_ADDR2LINE})      # {
         CMAKE_ARGS -DDWARF_WITH_LIBELF:BOOL=ON
         CMAKE_ARGS -DLIBDWARF_CRT:STRING=MD
         CMAKE_ARGS -DWALL:BOOL=ON
-        INSTALL_COMMAND ""
-            COMMAND "${CMAKE_COMMAND}" --install . --config ${CMAKE_BUILD_TYPE}
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different
                     "${ext_dwarf_source}/src/lib/libdwarf/dwarf.h"
                     "${ext_dwarf_install}/include/libdwarf/dwarf.h"
@@ -897,15 +947,16 @@ if(${BUILD_ADDR2LINE})      # {
         GIT_TAG 9d76b420f9d1261fa7feada3a209e605f54ba859
         DEPENDS ext_dwarf
         PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DDWARF_BASE_DIR:STRING=${ext_dwarf_install}
         CMAKE_ARGS -DZLIB_BASE_DIR:STRING=${ext_zlib_install}
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_CONTRIB_DIR}/addr2line.cmake" "${ext_addr2line_source}/CMakeLists.txt"
-        # CONFIGURE_COMMAND ""
-        # BUILD_COMMAND ""
-        # INSTALL_COMMAND ""
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
@@ -935,7 +986,7 @@ if(${BUILD_PCRE2})          # {
         # GIT_TAG db3b532aa0cc9bbaf804927b1f15566cadb4917a
         GIT_TAG pcre2-10.45
         PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DPCRE2_BUILD_TESTS:BOOL=OFF
         CMAKE_ARGS -DPCRE2_STATIC_PIC:BOOL=OFF
@@ -944,6 +995,10 @@ if(${BUILD_PCRE2})          # {
         CMAKE_ARGS -DPCRE2_SUPPORT_LIBZ:BOOL=OFF
         CMAKE_ARGS -DPCRE2_SUPPORT_LIBBZ2:BOOL=OFF
         CMAKE_ARGS -DPCRE2_SUPPORT_LIBREADLINE:BOOL=OFF
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
@@ -970,7 +1025,7 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})         # {
         URL ${_url}
         URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
         PREFIX "${_base}"
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}
+        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         CMAKE_ARGS -DPORTABLE:BOOL=ON
@@ -985,6 +1040,10 @@ if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})         # {
         CMAKE_ARGS -DWITH_TOOLS:BOOL=OFF
         CMAKE_ARGS -DROCKSDB_BUILD_SHARED:BOOL=OFF
         # "-DCMAKE_CXX_FLAGS:STRING=-Wno-maybe-uninitialized"
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         GIT_SHALLOW TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM

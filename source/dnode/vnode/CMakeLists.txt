@@ -1,7 +1,9 @@
 # vnode
 add_subdirectory(src/tqCommon)
 add_library(vnode STATIC "")
-DEP_ext_rocksdb(vnode)
+if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})
+  DEP_ext_rocksdb(vnode)
+endif()
 
 if(${TD_DARWIN})
     target_compile_options(vnode PRIVATE -Wno-error=single-bit-bitfield-constant-conversion)
