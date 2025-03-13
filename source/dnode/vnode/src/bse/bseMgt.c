@@ -722,8 +722,8 @@ static int32_t bseRecover(SBse *pBse) {
   TdDirPtr pDir = NULL;
   SArray  *logs = NULL;
 
-  bseInfo("vgId:%d, begin to repair meta, bse path:%s, firstVer:%" PRId64 ", lastVer:%" PRId64 ", snapshotVer:%" PRId64,
-          pBse->cfg.vgId, pBse->path, 0, 0, 0);
+  bseInfo("vgId:%d, begin to repair meta, bse path:%s, firstVer:%d, lastVer:%d, snapshotVer:%d", pBse->cfg.vgId,
+          pBse->path, 0, 0, 0);
 
   TAOS_CHECK_GOTO(regcomp(&logRegPattern, logPattern, REG_EXTENDED), &line, _err);
   TAOS_CHECK_GOTO(regcomp(&idxRegPattern, idxPattern, REG_EXTENDED), &line, _err);
@@ -1047,7 +1047,7 @@ _err:
   if (code != 0) {
     bseError("bse failed to commit at line %d since %s", line, tstrerror(code));
   } else {
-    bseInfo("bse succ to commit, cost %lld ms", taosGetTimestampMs() - start);
+    bseInfo("bse succ to commit, cost %" PRId64 " ms", taosGetTimestampMs() - start);
   }
   return code;
 }
