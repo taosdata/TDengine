@@ -245,20 +245,26 @@ class TDTestCase(TBase):
         # insert data with taosBenchmark
         db, stb, childCount, insertRows = self.insertData(json)
 
+        #
+        # long password
+        #
+        self.checkPassword(tmpdir)
+        tdLog.info("1. check long password ................................. [Passed]")
+
         # dumpInOut
         modes = ["", "-R" , "--cloud=http://localhost:6041"]
         for mode in modes:
             self.dumpInOutMode(mode, db , json, tmpdir)
 
-        tdLog.info("1. native rest ws dumpIn Out  .......................... [Passed]")
+        tdLog.info("2. native rest ws dumpIn Out  .......................... [Passed]")
 
         # basic commandline
         self.basicCommandLine(tmpdir)
-        tdLog.info("2. basic command line  .................................. [Passed]")
+        tdLog.info("3. basic command line  .................................. [Passed]")
 
         # except commandline
         self.exceptCommandLine(taosdump, db, stb, tmpdir)
-        tdLog.info("3. except command line  ................................. [Passed]")
+        tdLog.info("4. except command line  ................................. [Passed]")
 
         #
         # varbinary and geometry for native
@@ -268,13 +274,8 @@ class TDTestCase(TBase):
         db, stb, childCount, insertRows = self.insertData(json)
         # dump in/out
         self.dumpInOutMode("", db , json, tmpdir)
-        tdLog.info("4. native varbinary geometry ........................... [Passed]")
+        tdLog.info("5. native varbinary geometry ........................... [Passed]")
 
-        #
-        # long password
-        #
-        self.checkPassword(tmpdir)
-        tdLog.info("5. check long password ................................. [Passed]")
 
 
     def stop(self):
