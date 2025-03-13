@@ -880,11 +880,15 @@ int32_t bseOpen(const char *path, SBseCfg *pCfg, SBse **pBse) {
   taosThreadMutexInit(&p->mutex, NULL);
 
   p->pTableCache = taosHashInit(4096 * 2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_ENTRY_LOCK);
+  if (p->pTableCache == NULL) {
+    TAOS_CHECK_GOTO(terrno, &lino, _err);
+  }
 
   *pBse = p;
 
 _err:
   if (code != 0) {
+    bseClose(p);
     bseError("failed to open bse since %s", tstrerror(code));
   }
   return code;
