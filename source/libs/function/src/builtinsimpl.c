@@ -114,9 +114,9 @@ typedef enum {
       if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) {                      \
         continue;                                                                             \
       };                                                                                      \
-      overflow = overflow || decimal128AddCheckOverflow((Decimal*)_res, d + i, WORD_NUM(_t)); \
+      overflow = overflow || decimal128AddCheckOverflow((Decimal*)_res, d + i, DECIMAL_WORD_NUM(_t)); \
       if (overflow) break;                                                                    \
-      pOps->add(_res, d + i, WORD_NUM(_t));                                                   \
+      pOps->add(_res, d + i, DECIMAL_WORD_NUM(_t));                                                   \
       (numOfElem)++;                                                                          \
     }                                                                                         \
   } while (0)
@@ -658,10 +658,10 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
       SUM_RES_SET_TYPE(pSumRes, pCtx->inputType, TSDB_DATA_TYPE_DECIMAL);
       const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
       if (pAgg->overflow || decimal128AddCheckOverflow((Decimal*)&SUM_RES_GET_DECIMAL_SUM(pSumRes),
-                                                       &pAgg->decimal128Sum, WORD_NUM(Decimal))) {
+                                                       &pAgg->decimal128Sum, DECIMAL_WORD_NUM(Decimal))) {
         return TSDB_CODE_DECIMAL_OVERFLOW;
       }
-      pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), &pAgg->decimal128Sum, WORD_NUM(Decimal));
+      pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), &pAgg->decimal128Sum, DECIMAL_WORD_NUM(Decimal));
     }
   } else {  // computing based on the true data block
     SColumnInfoData* pCol = pInput->pData[0];
@@ -1126,7 +1126,7 @@ int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
     }
     case TSDB_DATA_TYPE_DECIMAL64: {
       const SDecimalOps* pOps = getDecimalOps(type);
-      if (pSBuf->assign && ((pOps->lt(&pDBuf->v, &pSBuf->v, WORD_NUM(Decimal64)) ^ isMinFunc) || !pDBuf->assign)) {
+      if (pSBuf->assign && ((pOps->lt(&pDBuf->v, &pSBuf->v, DECIMAL_WORD_NUM(Decimal64)) ^ isMinFunc) || !pDBuf->assign)) {
         pDBuf->v = pSBuf->v;
         replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
         pDBuf->assign = true;
@@ -1134,7 +1134,7 @@ int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
     } break;
     case TSDB_DATA_TYPE_DECIMAL: {
       const SDecimalOps* pOps = getDecimalOps(type);
-      if (pSBuf->assign && (pOps->lt(pDBuf->dec, pSBuf->dec, WORD_NUM(Decimal)) ^ isMinFunc) || !pDBuf->assign) {
+      if (pSBuf->assign && (pOps->lt(pDBuf->dec, pSBuf->dec, DECIMAL_WORD_NUM(Decimal)) ^ isMinFunc) || !pDBuf->assign) {
         memcpy(pDBuf->dec, pSBuf->dec, DECIMAL128_BYTES);
         replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
         pDBuf->assign = true;

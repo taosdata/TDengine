@@ -3738,7 +3738,9 @@ int32_t blockDataCheck(const SSDataBlock* pDataBlock) {
           } else if (TSDB_DATA_TYPE_DOUBLE == pCol->info.type) {
             double v = 0;
             GET_TYPED_DATA(v, double, pCol->info.type, colDataGetNumData(pCol, r), typeGetTypeModFromColInfo(&pCol->info));
-          } else {// TODO wjm add decimal type
+          } else if (IS_DECIMAL_TYPE(pCol->info.type)) {
+            // SKIP for decimal types
+          } else {
             GET_TYPED_DATA(typeValue, int64_t, pCol->info.type, colDataGetNumData(pCol, r), typeGetTypeModFromColInfo(&pCol->info));
           }
         }

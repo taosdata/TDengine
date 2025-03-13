@@ -4224,12 +4224,12 @@ static FORCE_INLINE void tColDataCalcSMAVarType(SColData *pColData, SColumnDataA
 
 #define CALC_DECIMAL_SUM_MAX_MIN(TYPE, pSumOp, pCompOp, pColData, pSum, pMax, pMin)           \
   do {                                                                                        \
-    if (decimal128AddCheckOverflow((Decimal *)pSum, pVal, WORD_NUM(TYPE))) *pOverflow = true; \
-    pSumOp->add(pSum, pVal, WORD_NUM(TYPE));                                                  \
-    if (pCompOp->gt(pVal, pMax, WORD_NUM(TYPE))) {                                            \
+    if (decimal128AddCheckOverflow((Decimal *)pSum, pVal, DECIMAL_WORD_NUM(TYPE))) *pOverflow = true; \
+    pSumOp->add(pSum, pVal, DECIMAL_WORD_NUM(TYPE));                                                  \
+    if (pCompOp->gt(pVal, pMax, DECIMAL_WORD_NUM(TYPE))) {                                            \
       *(pMax) = *pVal;                                                                        \
     }                                                                                         \
-    if (pCompOp->lt(pVal, pMin, WORD_NUM(TYPE))) {                                            \
+    if (pCompOp->lt(pVal, pMin, DECIMAL_WORD_NUM(TYPE))) {                                            \
       *(pMin) = *pVal;                                                                        \
     }                                                                                         \
   } while (0)

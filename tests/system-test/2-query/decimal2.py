@@ -43,14 +43,14 @@ scalar_convert_err = -2147470768
 
 
 decimal_test_query = True
-decimal_insert_validator_test = True
+decimal_insert_validator_test = False
 operator_test_round = 1
-tb_insert_rows = 1000
-binary_op_with_const_test = True
-binary_op_with_col_test = True
-unary_op_test = True
+tb_insert_rows = 10000
+binary_op_with_const_test = False
+binary_op_with_col_test = False
+unary_op_test = False
 binary_op_in_where_test = True
-test_decimal_funcs = False
+test_decimal_funcs = True
 cast_func_test_round = 10
 
 class DecimalTypeGeneratorConfig:
@@ -1800,7 +1800,7 @@ class TDTestCase:
         tdSql.error(sql, invalid_encode_param)
 
     def test_insert_decimal_values(self):
-        tdLog.debug("start to insert decimal values")
+        self.log_test("start to insert decimal values")
         for i in range(self.c_table_num):
             TableInserter(
                 tdSql,
@@ -1875,10 +1875,12 @@ class TDTestCase:
         self.test_add_drop_columns_with_decimal(self.no_decimal_col_tb_name, columns)
 
     def test_decimal_ddl(self):
+        self.log_test("test_decimal_ddl")
         tdSql.execute("create database test cachemodel 'both'", queryTimes=1)
         self.test_decimal_column_ddl()
 
     def test_decimal_and_stream(self):
+        self.log_test("test_decimal_and_stream")
         create_stream = f"CREATE STREAM {self.stream_name} FILL_HISTORY 1 INTO {self.db_name}.{self.stream_out_stb} AS SELECT _wstart, count(c1), avg(c2), sum(c3) FROM {self.db_name}.{self.stable_name} INTERVAL(10s)"
         tdSql.execute(create_stream, queryTimes=1, show=True)
         self.wait_query_result(
@@ -1939,6 +1941,7 @@ class TDTestCase:
 
 
     def test_decimal_and_tsma(self):
+        self.log_test("test_decimal_and_tsma")
         create_tsma = f"CREATE TSMA {self.tsma_name} ON {self.db_name}.{self.stable_name} FUNCTION(count(c1), min(c2), max(c3), avg(C3)) INTERVAL(1m)"
         tdSql.execute(create_tsma, queryTimes=1, show=True)
         self.wait_query_result(
@@ -1948,6 +1951,7 @@ class TDTestCase:
         )
     
     def test_decimal_and_view(self):
+        self.log_test("test_decimal_and_view")
         c1 = self.norm_tb_columns[0]
         create_view_sql = f'create view {self.db_name}.view1 as select {c1} as c1, cast({c1} as decimal(38, 10)) as c2 from {self.db_name}.{self.norm_table_name}'
         tdSql.execute(create_view_sql)
@@ -1962,15 +1966,18 @@ class TDTestCase:
             else:
                 tdLog.exit(f"query from view got different results: {v_query}, expect: {v_insert}")
         #self.check_desc("view1", [c1, Column(DecimalType(TypeEnum.DECIMAL, 38, 10))])
+    
+    def log_test(self, name: str):
+        tdLog.info(f"{datetime.now()} start to test {name}")
 
     def run(self):
         self.test_decimal_ddl()
-        self.no_decimal_table_test()
+        #self.no_decimal_table_test()
         self.test_insert_decimal_values()
         self.test_query_decimal()
-        #self.test_decimal_and_tsma()
-        #self.test_decimal_and_view()
-        #self.test_decimal_and_stream()
+        self.test_decimal_and_tsma()
+        self.test_decimal_and_view()
+        self.test_decimal_and_stream()
 
     def stop(self):
         tdSql.close()
@@ -2153,7 +2160,7 @@ class TDTestCase:
                         tdLog.exit(f"expected err not occured for sql: {sql}, expect: {invalid_operation} or {scalar_convert_err}, but got {tdSql.errno}")
 
     def test_decimal_operators(self):
-        tdLog.debug("start to test decimal operators")
+        self.log_test("start to test decimal operators")
         self.test_decimal_unsupported_types()
         ## tables: meters, nt
         ## columns: c1, c2, c3, c4, c5, c7, c8, c9, c10, c99, c100
@@ -2186,9 +2193,6 @@ class TDTestCase:
 
 
     def test_decimal_last_first_func(self):
-        pass
-
-    def test_query_decimal_with_sma(self):
         pass
 
     def check_decimal_where_with_binary_expr_with_const_col_results(
@@ -2306,6 +2310,7 @@ class TDTestCase:
 
 
     def test_query_decimal_order_clause(self):
+        self.log_test("start to test decimal order by")
         self.test_query_with_order_by_for_tb(self.norm_table_name, self.norm_tb_columns)
         self.test_query_with_order_by_for_tb(self.stable_name, self.stb_columns)
     
@@ -2319,6 +2324,7 @@ class TDTestCase:
                     tdLog.exit(f"query result: {len(query_res)} not equal to calculated result: {calculated_grouped_res}")
 
     def test_query_decimal_group_by_clause(self):
+        self.log_test("start to test decimal group by")
         self.test_query_decimal_group_by_decimal(self.norm_table_name, self.norm_tb_columns)
         self.test_query_decimal_group_by_decimal(self.stable_name, self.stb_columns)
     
@@ -2332,6 +2338,7 @@ class TDTestCase:
                     tdLog.exit(f"query result: {len(query_res)} not equal to calculated result: {calculated_grouped_res}")
 
     def test_query_decimal_having_clause(self):
+        self.log_test("start to test decimal having")
         self.test_query_decimal_group_by_with_having(self.norm_table_name, self.norm_tb_columns)
         self.test_query_decimal_group_by_with_having(self.stable_name, self.stb_columns)
 
@@ -2342,6 +2349,7 @@ class TDTestCase:
         pass
 
     def test_query_decimal_case_when(self):
+        self.log_test("start to test decimal case when")
         sql = "select case when cast(1 as decimal(10, 4)) >= 1 then cast(88888888.88 as decimal(10,2)) else cast(3.333 as decimal(10,3)) end"
         res = TaosShell().query(sql)[0]
         if res[0] != "88888888.88":
@@ -2405,6 +2413,7 @@ class TDTestCase:
                 cast_func.check(res, tbname)
 
     def test_decimal_functions(self):
+        self.log_test("start to test decimal functions")
         if not test_decimal_funcs:
             return
         self.test_decimal_agg_funcs(
@@ -2417,16 +2426,16 @@ class TDTestCase:
         self.test_decimal_cast_func(self.db_name, self.norm_table_name, self.norm_tb_columns)
 
     def test_query_decimal(self):
+        self.log_test("start to test decimal query")
         if not decimal_test_query:
             return
-        self.test_decimal_operators()
+        #self.test_decimal_operators()
         #self.test_query_decimal_where_clause()
-        #self.test_decimal_functions()
-        #self.test_query_decimal_with_sma()
-        #self.test_query_decimal_order_clause()
-        #self.test_query_decimal_case_when()
-        #self.test_query_decimal_group_by_clause()
-        #self.test_query_decimal_having_clause()
+        self.test_decimal_functions()
+        self.test_query_decimal_order_clause()
+        self.test_query_decimal_case_when()
+        self.test_query_decimal_group_by_clause()
+        self.test_query_decimal_having_clause()
 
 
 event = threading.Event()

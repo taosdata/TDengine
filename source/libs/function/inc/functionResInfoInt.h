@@ -90,10 +90,10 @@ typedef struct SDecimalSumRes {
     const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);                           \
     int32_t            wordNum = 0;                                                            \
     if (type == TSDB_DATA_TYPE_DECIMAL64) {                                                    \
-      wordNum = WORD_NUM(Decimal64);                                                           \
+      wordNum = DECIMAL_WORD_NUM(Decimal64);                                                           \
       overflow = decimal128AddCheckOverflow(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pVal, wordNum); \
     } else {                                                                                   \
-      wordNum = WORD_NUM(Decimal);                                                             \
+      wordNum = DECIMAL_WORD_NUM(Decimal);                                                             \
       overflow = decimal128AddCheckOverflow(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pVal, wordNum); \
     }                                                                                          \
     pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pVal, wordNum);                               \

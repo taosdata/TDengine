@@ -404,7 +404,7 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
           if (colDataIsNull_f(pCol->nullbitmap, i)) {
             continue;
           }
-          if (pOps->gt(&pBuf->v, &pData[i], WORD_NUM(Decimal64))) {
+          if (pOps->gt(&pBuf->v, &pData[i], DECIMAL_WORD_NUM(Decimal64))) {
             pBuf->v = DECIMAL64_GET_VALUE(&pData[i]);
             if (pCtx->subsidiaries.num > 0) {
               code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
@@ -421,7 +421,7 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
           if (colDataIsNull_f(pCol->nullbitmap, i)) {
             continue;
           }
-          if (pOps->gt(pBuf->dec, &pData[i], WORD_NUM(Decimal128))) {
+          if (pOps->gt(pBuf->dec, &pData[i], DECIMAL_WORD_NUM(Decimal128))) {
             memcpy(pBuf->dec, pData + i, pCol->info.bytes);
             if (pCtx->subsidiaries.num > 0) {
               code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
@@ -501,7 +501,7 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
           if (colDataIsNull_f(pCol->nullbitmap, i)) {
             continue;
           }
-          if (pOps->lt(&pBuf->v, &pData[i], WORD_NUM(Decimal64))) {
+          if (pOps->lt(&pBuf->v, &pData[i], DECIMAL_WORD_NUM(Decimal64))) {
             pBuf->v = DECIMAL64_GET_VALUE(&pData[i]);
             if (pCtx->subsidiaries.num > 0) {
               code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
@@ -518,7 +518,7 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
           if (colDataIsNull_f(pCol->nullbitmap, i)) {
             continue;
           }
-          if (pOps->lt(pBuf->dec, &pData[i], WORD_NUM(Decimal128))) {
+          if (pOps->lt(pBuf->dec, &pData[i], DECIMAL_WORD_NUM(Decimal128))) {
             memcpy(pBuf->dec, pData + i, pCol->info.bytes);
             if (pCtx->subsidiaries.num > 0) {
               code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
@@ -674,13 +674,13 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
         }
       } else if (type == TSDB_DATA_TYPE_DECIMAL64) {
         const SDecimalOps* pOps = getDecimalOps(type);
-        if (pOps->lt(&pBuf->v, tval, WORD_NUM(Decimal64)) ^ isMinFunc) {
+        if (pOps->lt(&pBuf->v, tval, DECIMAL_WORD_NUM(Decimal64)) ^ isMinFunc) {
           DECIMAL64_SET_VALUE((Decimal64*)&pBuf->v, *(int64_t*)tval);
           code =saveRelatedTupleTag(pCtx, pInput, tval);
         }
       } else if (type == TSDB_DATA_TYPE_DECIMAL) {
         const SDecimalOps* pOps = getDecimalOps(type);
-        if (pOps->lt(pBuf->dec, tval, WORD_NUM(Decimal128)) ^ isMinFunc) {
+        if (pOps->lt(pBuf->dec, tval, DECIMAL_WORD_NUM(Decimal128)) ^ isMinFunc) {
           DECIMAL128_CLONE((Decimal128*)pBuf->dec, (Decimal128*)tval);
           code =saveRelatedTupleTag(pCtx, pInput, tval);
         }

@@ -711,7 +711,7 @@ typedef enum {
 #define GET_DEICMAL_MAX_PRECISION(type) (type) == TSDB_DATA_TYPE_DECIMAL64 ? TSDB_DECIMAL64_MAX_PRECISION : TSDB_DECIMAL_MAX_SCALE
 
 typedef uint64_t DecimalWord;
-#define WORD_NUM(TYPE) (sizeof(TYPE) / sizeof(DecimalWord))
+#define DECIMAL_WORD_NUM(TYPE) (sizeof(TYPE) / sizeof(DecimalWord))
 
 #define COMPILE_TIME_ASSERT(pred) switch(0) {case 0: case pred:;}
 

@@ -2186,12 +2186,15 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
             goto _end;
           }
           convBuf[len] = 0;
+          iT.bytes = len;
           code = convertToDecimal(convBuf, &iT, output, &oT);
         } else {
-          if (IS_VAR_DATA_TYPE(iT.type))
+          if (IS_VAR_DATA_TYPE(iT.type)) {
+            iT.bytes = varDataLen(input);
             code = convertToDecimal(varDataVal(input), &iT, output, &oT);
-          else
+          } else {
             code = convertToDecimal(input, &iT, output, &oT);
+          }
         }
         if (code != TSDB_CODE_SUCCESS) {
           terrno = code;
@@ -3332,11 +3335,11 @@ int32_t sumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
       if (type == TSDB_DATA_TYPE_DECIMAL64) {
         const Decimal64* pIn = (Decimal64*)pInputData->pData;
         const SDecimalOps *pOps = getDecimalOps(type);
-        pOps->add(pOut, pIn + i, WORD_NUM(Decimal64));
+        pOps->add(pOut, pIn + i, DECIMAL_WORD_NUM(Decimal64));
       } else if (type == TSDB_DATA_TYPE_DECIMAL) {
         const Decimal128* pIn = (Decimal128*)pInputData->pData;
         const SDecimalOps *pOps = getDecimalOps(type);
-        pOps->add(pOut, pIn + i, WORD_NUM(Decimal128));
+        pOps->add(pOut, pIn + i, DECIMAL_WORD_NUM(Decimal128));
       }
     }
   }
@@ -3454,7 +3457,7 @@ static int32_t doMinMaxScalarFunction(SScalarParam *pInput, int32_t inputNum, SS
         Decimal64* p1 = (Decimal64*)pInputData->pData;
         Decimal64* p2 = (Decimal64*)pOutputData->pData;
         const SDecimalOps *pOps = getDecimalOps(type);
-        if (pOps->gt(p1 + i, p2, WORD_NUM(Decimal64)) ^ isMinFunc) {
+        if (pOps->gt(p1 + i, p2, DECIMAL_WORD_NUM(Decimal64)) ^ isMinFunc) {
           *p2 = p1[i];
         }
         break;
@@ -3463,7 +3466,7 @@ static int32_t doMinMaxScalarFunction(SScalarParam *pInput, int32_t inputNum, SS
         Decimal128 *p1 = (Decimal128 *)pInputData->pData;
         Decimal128 *p2 = (Decimal128 *)pOutputData->pData;
         const SDecimalOps *pOps = getDecimalOps(type);
-        if (pOps->gt(p1 + i, p2, WORD_NUM(Decimal128)) ^ isMinFunc) {
+        if (pOps->gt(p1 + i, p2, DECIMAL_WORD_NUM(Decimal128)) ^ isMinFunc) {
           *p2 = p1[i];
         }
         break;
@@ -3577,7 +3580,7 @@ int32_t avgScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
         Decimal128        *out = (Decimal128 *)pOutputData->pData;
         const SDecimalOps *pOps = getDecimalOps(type);
         // check overflow
-        pOps->add(out, in + i, WORD_NUM(Decimal64));
+        pOps->add(out, in + i, DECIMAL_WORD_NUM(Decimal64));
         count++;
       } break;
       case TSDB_DATA_TYPE_DECIMAL: {
@@ -3585,7 +3588,7 @@ int32_t avgScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
         Decimal128        *out = (Decimal128 *)pOutputData->pData;
         const SDecimalOps *pOps = getDecimalOps(type);
         // check overflow
-        pOps->add(out, in + i, WORD_NUM(Decimal128));
+        pOps->add(out, in + i, DECIMAL_WORD_NUM(Decimal128));
         count++;
       } break;
     }
