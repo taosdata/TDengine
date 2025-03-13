@@ -394,7 +394,10 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
   }
 
   if (!send) {
-    stError("vgId:%d failed to send hmMsg to mnode, retry again in 5s, code:%s", pMeta->vgId, tstrerror(code));
+    stError("vgId:%d failed to send hmMsg to mnode due to acquire lock failure, retry again in 5s", pMeta->vgId);
+  }
+  if (code) {
+    stError("vgId:%d failed to send hbMsg to mnode, retry in 5, code:%s", pMeta->vgId, tstrerror(code));
   }
 
   streamTmrStart(streamMetaHbToMnode, META_HB_CHECK_INTERVAL, param, streamTimer, &pMeta->pHbInfo->hbTmr, pMeta->vgId,

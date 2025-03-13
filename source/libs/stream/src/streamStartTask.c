@@ -526,9 +526,8 @@ int32_t streamTaskCheckIfReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
       PRId64, pTask->id.idStr, vgId, el, pConChkptInfo->statusTs); return 1;
       }*/
     }
-  } else {
-    stInfo("vgId:%d, stage:%d do nothing for task:%s", vgId, pTask->pMeta->startInfo.curStage, pTask->id.idStr);
   }
+
   return 0;
 }
 
