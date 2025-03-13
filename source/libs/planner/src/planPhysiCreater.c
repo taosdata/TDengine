@@ -957,7 +957,7 @@ static int32_t setMergeJoinPrimColEqCond(SNode* pEqCond, int32_t subType, int16_
           break;
         }
         
-        planError("value node got in prim eq left cond");
+        planError("value node got in prim eq left cond, rightType:%d", pOp->pRight ? nodeType(pOp->pRight) : 0);
         return TSDB_CODE_PLAN_INTERNAL_ERROR;
       }
       case QUERY_NODE_FUNCTION: {
@@ -1015,7 +1015,7 @@ static int32_t setMergeJoinPrimColEqCond(SNode* pEqCond, int32_t subType, int16_
           break;
         }
         
-        planError("value node got in prim eq right cond");
+        planError("value node got in prim eq right cond, leftType:%d", pOp->pLeft ? nodeType(pOp->pLeft) : 0);
         return TSDB_CODE_PLAN_INTERNAL_ERROR;
       }      
       case QUERY_NODE_FUNCTION: {
