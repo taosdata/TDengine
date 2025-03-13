@@ -394,7 +394,7 @@ void streamMetaHbToMnode(void* param, void* tmrId) {
   }
 
   if (!send) {
-    stError("vgId:%d failed to send hmMsg to mnode due to acquire lock failure, retry again in 5s", pMeta->vgId);
+    stError("vgId:%d failed to send hbMsg to mnode due to acquire lock failure, retry again in 5s", pMeta->vgId);
   }
   if (code) {
     stError("vgId:%d failed to send hbMsg to mnode, retry in 5, code:%s", pMeta->vgId, tstrerror(code));

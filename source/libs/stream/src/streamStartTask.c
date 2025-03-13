@@ -39,8 +39,9 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
   int32_t vgId = pMeta->vgId;
   int64_t now = taosGetTimestampMs();
   SArray* pTaskList = NULL;
-
+  int32_t numOfConsensusChkptIdTasks = 0;
   int32_t numOfTasks = taosArrayGetSize(pMeta->pTaskList);
+
   stInfo("vgId:%d start to consensus checkpointId for all %d task(s), start ts:%" PRId64, vgId, numOfTasks, now);
 
   if (numOfTasks == 0) {
@@ -146,21 +147,26 @@ int32_t streamMetaStartAllTasks(SStreamMeta* pMeta) {
 
     // negotiate the consensus checkpoint id for current task
     code = streamTaskSendNegotiateChkptIdMsg(pTask);
+    if (code == 0) {
+      numOfConsensusChkptIdTasks += 1;
+    }
 
     // this task may have no checkpoint, but others tasks may generate checkpoint already?
     streamMetaReleaseTask(pMeta, pTask);
   }
 
-  streamMetaWLock(pMeta);
+  if (numOfConsensusChkptIdTasks > 0) {
+    streamMetaWLock(pMeta);
 
-  pMeta->startInfo.curStage = START_MARK_REQ_CHKPID;
-  SStartTaskStageInfo info = {.stage = pMeta->startInfo.curStage, .ts = now};
+    pMeta->startInfo.curStage = START_MARK_REQ_CHKPID;
+    SStartTaskStageInfo info = {.stage = pMeta->startInfo.curStage, .ts = now};
 
-  taosArrayPush(pMeta->startInfo.pStagesList, &info);
-  stDebug("vgId:%d 0 stage -> mark_req stage, reqTs:%" PRId64" numOfStageHist:%d", pMeta->vgId, info.ts,
-          (int32_t) taosArrayGetSize(pMeta->startInfo.pStagesList));
+    taosArrayPush(pMeta->startInfo.pStagesList, &info);
+    stDebug("vgId:%d %d task(s) 0 stage -> mark_req stage, reqTs:%" PRId64 " numOfStageHist:%d", pMeta->vgId, info.ts,
+            (int32_t)taosArrayGetSize(pMeta->startInfo.pStagesList));
 
-  streamMetaWUnLock(pMeta);
+    streamMetaWUnLock(pMeta);
+  }
 
   // prepare the fill-history task before starting all stream tasks, to avoid fill-history tasks are started without
   // initialization, when the operation of check downstream tasks status is executed far quickly.
@@ -514,7 +520,7 @@ int32_t streamTaskCheckIfReqConsenChkptId(SStreamTask* pTask, int64_t ts) {
               pConChkptInfo->statusTs);
       return 1;
     } else {
-      stWarn("vgId:%d, s-task:%s restart procedure expired", vgId, pTask->id.idStr);
+      stWarn("vgId:%d, s-task:%s restart procedure expired, start stage:%d", vgId, pTask->id.idStr, pConChkptInfo->status);
       /*int32_t el = (ts - pConChkptInfo->statusTs) / 1000;
 
       // not recv consensus-checkpoint rsp for 60sec, send it again in hb to mnode
