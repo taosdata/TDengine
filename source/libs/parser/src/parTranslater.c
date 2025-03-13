@@ -15487,7 +15487,7 @@ static int32_t checkCreateSubTable(STranslateContext* pCxt, SCreateSubTableClaus
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,
                                    "The table name cannot contain '.'");
   }
-  if (pStmt->pOptions->keep >= 0 || pStmt->pOptions->pKeepNode != NULL) {
+  if (pStmt->pOptions && (pStmt->pOptions->keep >= 0 || pStmt->pOptions->pKeepNode != NULL)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
                                    "child table cannot set keep duration");
   }
@@ -16934,7 +16934,7 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
   } else if (TSDB_CHILD_TABLE != pTableMeta->tableType && TSDB_NORMAL_TABLE != pTableMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   }
-  if (pStmt->pOptions->keep >= 0 || pStmt->pOptions->pKeepNode != NULL) {
+  if (pStmt->pOptions && (pStmt->pOptions->keep >= 0 || pStmt->pOptions->pKeepNode != NULL)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_OPTION,
                                    "only super table can alter keep duration");
   }
