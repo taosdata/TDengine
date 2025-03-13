@@ -50,6 +50,19 @@ class TDSql:
         self.csvLine = 0
 
     def init(self, cursor, log=False):
+        """
+        Initializes the TDSql instance with a database cursor and optionally enables logging.
+
+        Args:
+            cursor: The database cursor to be used for executing SQL queries.
+            log (bool, optional): If True, enables logging of SQL statements to a file. Defaults to False.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
         self.cursor = cursor
 
         if (log):
@@ -57,9 +70,35 @@ class TDSql:
             self.cursor.log(caller.filename + ".sql")
 
     def close(self):
+        """
+        Closes the cursor.
+
+        Args:
+            None
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
         self.cursor.close()
 
     def prepare(self, dbname="db", drop=True, **kwargs):
+        """
+        Prepares the database by optionally dropping it if it exists, creating it, and setting it as the active database.
+
+        Args:
+            dbname (str, optional): The name of the database to be prepared. Defaults to "db".
+            drop (bool, optional): If True, drops the database if it exists before creating it. Defaults to True.
+            **kwargs: Additional keyword arguments to be included in the database creation statement. If duration is not provided, it defaults to 100.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
         tdLog.info(f"prepare database:{dbname}")
         s = 'reset query cache'
         try:
@@ -85,12 +124,19 @@ class TDSql:
     #
 
     def errors(self, sql_list, expected_error_id_list=None, expected_error_info_list=None):
-        """Execute the sql query and check the error info, expected error id or info should keep the same order with sql list,
-        expected_error_id_list or expected_error_info_list is None, then the error info will not be checked.
-        :param sql_list: the sql list to be executed.
-        :param expected_error_id: the expected error number.
-        :param expected_error_info: the expected error info.
-        :return: None
+        """
+        Executes a list of SQL queries and checks for expected errors.
+
+        Args:
+            sql_list (list): The list of SQL queries to be executed.
+            expected_error_id_list (list, optional): The list of expected error numbers corresponding to each SQL query. Defaults to None.
+            expected_error_info_list (list, optional): The list of expected error information corresponding to each SQL query. Defaults to None.
+
+        Returns:
+            None
+
+        Raises:
+            SystemExit: If the SQL list is empty, if the execution of any SQL query fails, if the expected error does not occur, or if the error information does not match the expected information.
         """
         try:
             if len(sql_list) > 0:
@@ -109,10 +155,18 @@ class TDSql:
             tdLog.exit("Failed to execute sql list: %s, error: %s" % (sql_list, ex))
 
     def queryAndCheckResult(self, sql_list, expect_result_list):
-        """Execute the sql query and check the result.
-        :param sql_list: the sql list to be executed.
-        :param expect_result_list: the expected result list.
-        :return: None
+        """
+        Executes a list of SQL queries and checks the results against the expected results.
+
+        Args:
+            sql_list (list): The list of SQL queries to be executed.
+            expect_result_list (list): The list of expected results corresponding to each SQL query.
+
+        Returns:
+            None
+
+        Raises:
+            Exception: If the execution of any SQL query fails or if the results do not match the expected results.
         """
         try:
             for index in range(len(sql_list)):
@@ -128,6 +182,22 @@ class TDSql:
             raise(ex)
 
     def query(self, sql, row_tag=None, queryTimes=10, count_expected_res=None):
+        """
+        Executes a SQL query and fetches the results.
+
+        Args:
+            sql (str): The SQL query to be executed.
+            row_tag (optional): If provided, the method will return the fetched results. Defaults to None.
+            queryTimes (int, optional): The number of times to attempt the query in case of failure. Defaults to 10.
+            count_expected_res (optional): If provided, the method will repeatedly execute the query until the first result matches this value or the queryTimes limit is reached. Defaults to None.
+
+        Returns:
+            int: The number of rows fetched if row_tag is not provided.
+            list: The fetched results if row_tag is provided.
+
+        Raises:
+            Exception: If the query fails after the specified number of attempts.
+        """
         self.sql = sql
         i=1
         while i <= queryTimes:
@@ -162,6 +232,19 @@ class TDSql:
                 pass
 
     def executeTimes(self, sql, times):
+        """
+        Executes a SQL statement a specified number of times.(Not used)
+
+        Args:
+            sql (str): The SQL statement to be executed.
+            times (int): The number of times to execute the SQL statement.
+
+        Returns:
+            int: The number of affected rows from the last execution.
+
+        Raises:
+            None
+        """
         for i in range(times):
             try:
                 return self.cursor.execute(sql)
@@ -170,6 +253,20 @@ class TDSql:
                 continue
 
     def execute(self, sql, queryTimes=10, show=False):
+        """
+        Executes a SQL statement.
+
+        Args:
+            sql (str): The SQL statement to be executed.
+            queryTimes (int, optional): The number of times to attempt the execution in case of failure. Defaults to 10.
+            show (bool, optional): If True, the SQL statement will be logged before execution. Defaults to False.
+
+        Returns:
+            int: The number of affected rows.
+
+        Raises:
+            Exception: If the execution fails after the specified number of attempts.
+        """
         self.sql = sql
         if show:
             tdLog.info(sql)
@@ -191,10 +288,38 @@ class TDSql:
 
     # execute many sql
     def executes(self, sqls, queryTimes=30, show=False):
+        """
+        Executes a list of SQL statements.
+
+        Args:
+            sqls (list): The list of SQL statements to be executed.
+            queryTimes (int, optional): The number of times to attempt the execution in case of failure. Defaults to 30.
+            show (bool, optional): If True, each SQL statement will be logged before execution. Defaults to False.
+
+        Returns:
+            None
+
+        Raises:
+            Exception: If the execution of any SQL statement fails after the specified number of attempts.
+        """
         for sql in sqls:
             self.execute(sql, queryTimes, show)
 
     def waitedQuery(self, sql, expectRows, timeout):
+        """
+        Executes a SQL query and waits until the expected number of rows is retrieved or the timeout is reached.
+
+        Args:
+            sql (str): The SQL query to be executed.
+            expectRows (int): The expected number of rows to be retrieved.
+            timeout (int): The maximum time to wait (in seconds) for the expected number of rows to be retrieved.
+
+        Returns:
+            tuple: A tuple containing the number of rows retrieved and the time taken (in seconds).
+
+        Raises:
+            Exception: If the query execution fails.
+        """
         tdLog.info("sql: %s, try to retrieve %d rows in %d seconds" % (sql, expectRows, timeout))
         self.sql = sql
         try:
@@ -215,6 +340,18 @@ class TDSql:
         return (self.queryRows, timeout)
 
     def is_err_sql(self, sql):
+        """
+        Executes a SQL statement and checks if it results in an error.(Not used)
+
+        Args:
+            sql (str): The SQL statement to be executed.
+
+        Returns:
+            bool: True if the SQL statement results in an error, False otherwise.
+
+        Raises:
+            None
+        """
         err_flag = True
         try:
             self.cursor.execute(sql)
@@ -224,6 +361,20 @@ class TDSql:
         return False if err_flag else True
 
     def error(self, sql, expectedErrno = None, expectErrInfo = None):
+        """
+        Executes a SQL statement and checks for expected errors.
+
+        Args:
+            sql (str): The SQL statement to be executed.
+            expectedErrno (int, optional): The expected error number. Defaults to None.
+            expectErrInfo (str, optional): The expected error information. Defaults to None.
+
+        Returns:
+            str: The error information if an error occurs.
+
+        Raises:
+            SystemExit: If the expected error does not occur or if the error information does not match the expected information.
+        """
         caller = inspect.getframeinfo(inspect.stack()[1][0])
         expectErrNotOccured = True
 
@@ -263,16 +414,53 @@ class TDSql:
     #
 
     def getData(self, row, col):
+        """
+        Retrieves the data at the specified row and column from the last query result.
+
+        Args:
+            row (int): The row index of the data to be retrieved.
+            col (int): The column index of the data to be retrieved.
+
+        Returns:
+            The data at the specified row and column.
+
+        Raises:
+            SystemExit: If the specified row or column is out of range.
+        """
         self.checkRowCol(row, col)
         return self.res[row][col]
     
     def getColData(self, col):
+        """
+        Retrieves all data from the specified column in the last query result.
+
+        Args:
+            col (int): The column index of the data to be retrieved.
+
+        Returns:
+            list: A list containing all data from the specified column.
+
+        Raises:
+            None
+        """
         colDatas = []
         for i in range(self.queryRows):
             colDatas.append(self.res[i][col])
         return colDatas
 
     def getResult(self, sql):
+        """
+        Executes a SQL query and fetches the results.
+
+        Args:
+            sql (str): The SQL query to be executed.
+
+        Returns:
+            list: The fetched results.
+
+        Raises:
+            Exception: If the query execution fails.
+        """
         self.sql = sql
         try:
             self.cursor.execute(sql)
@@ -285,9 +473,18 @@ class TDSql:
         return self.res
 
     def getVariable(self, search_attr):
-        '''
-            get variable of search_attr access "show variables"
-        '''
+        """
+        Retrieves the value of a specified variable from the database.
+
+        Args:
+            search_attr (str): The name of the variable to be retrieved.
+
+        Returns:
+            tuple: A tuple containing the value of the specified variable and the list of all variables.
+
+        Raises:
+            Exception: If the query execution fails.
+        """
         try:
             sql = 'show variables'
             param_list = self.query(sql, row_tag=True)
@@ -301,6 +498,20 @@ class TDSql:
             raise Exception(repr(e))
 
     def getColNameList(self, sql, col_tag=None):
+        """
+        Executes a SQL query and retrieves the column names and optionally the column types.
+
+        Args:
+            sql (str): The SQL query to be executed.
+            col_tag (optional): If provided, the method will return both column names and column types. Defaults to None.
+
+        Returns:
+            list: A list containing the column names.
+            tuple: A tuple containing two lists - the column names and the column types, if col_tag is provided.
+
+        Raises:
+            Exception: If the query execution fails.
+        """
         self.sql = sql
         try:
             col_name_list = []
@@ -319,10 +530,34 @@ class TDSql:
         return col_name_list
 
     def getRows(self):
+        """
+        Retrieves the number of rows fetched by the last query.
+
+        Args:
+            None
+
+        Returns:
+            int: The number of rows fetched by the last query.
+
+        Raises:
+            None
+        """
         return self.queryRows
 
     # get first value
     def getFirstValue(self, sql) :
+        """
+        Executes a SQL query and retrieves the first value in the result.
+
+        Args:
+            sql (str): The SQL query to be executed.
+
+        Returns:
+            The first value in the result.
+
+        Raises:
+            Exception: If the query execution fails.
+        """
         self.query(sql)
         return self.getData(0, 0)
 
@@ -332,6 +567,18 @@ class TDSql:
     #
 
     def checkRows(self, expectRows):
+        """
+        Checks if the number of rows fetched by the last query matches the expected number of rows.
+
+        Args:
+            expectRows (int): The expected number of rows.
+
+        Returns:
+            bool: True if the number of rows matches the expected number, otherwise it exits the program.
+
+        Raises:
+            SystemExit: If the number of rows does not match the expected number.
+        """
         if self.queryRows == expectRows:
             tdLog.info("sql:%s, queryRows:%d == expect:%d" % (self.sql, self.queryRows, expectRows))
             return True
@@ -341,6 +588,18 @@ class TDSql:
             tdLog.exit("%s(%d) failed: sql:%s, queryRows:%d != expect:%d" % args)
 
     def checkRows_range(self, excepte_row_list):
+        """
+        Checks if the number of rows fetched by the last query is within the expected range.(Not used)
+
+        Args:
+            excepte_row_list (list): A list of expected row counts.
+
+        Returns:
+            bool: True if the number of rows is within the expected range, otherwise it exits the program.
+
+        Raises:
+            SystemExit: If the number of rows is not within the expected range.
+        """
         if self.queryRows in excepte_row_list:
             tdLog.info(f"sql:{self.sql}, queryRows:{self.queryRows} in expect:{excepte_row_list}")
             return True
@@ -349,6 +608,18 @@ class TDSql:
             tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{self.sql}, queryRows:{self.queryRows} not in expect:{excepte_row_list}")
 
     def checkCols(self, expectCols):
+        """
+        Checks if the number of columns fetched by the last query matches the expected number of columns.
+
+        Args:
+            expectCols (int): The expected number of columns.
+
+        Returns:
+            None
+
+        Raises:
+            SystemExit: If the number of columns does not match the expected number.
+        """
         if self.queryCols == expectCols:
             tdLog.info("sql:%s, queryCols:%d == expect:%d" % (self.sql, self.queryCols, expectCols))
         else:
@@ -357,6 +628,19 @@ class TDSql:
             tdLog.exit("%s(%d) failed: sql:%s, queryCols:%d != expect:%d" % args)
 
     def checkRowCol(self, row, col):
+        """
+        Checks if the specified row and column indices are within the range of the last query result.
+
+        Args:
+            row (int): The row index to be checked.
+            col (int): The column index to be checked.
+
+        Returns:
+            None
+
+        Raises:
+            SystemExit: If the specified row or column index is out of range.
+        """
         caller = inspect.getframeinfo(inspect.stack()[2][0])
         if row < 0:
             args = (caller.filename, caller.lineno, self.sql, row)
@@ -372,11 +656,40 @@ class TDSql:
             tdLog.exit("%s(%d) failed: sql:%s, col:%d is larger than queryCols:%d" % args)
 
     def checkDataType(self, row, col, dataType):
+        """
+        Checks if the data type at the specified row and column matches the expected data type.
+
+        Args:
+            row (int): The row index of the data to be checked.
+            col (int): The column index of the data to be checked.
+            dataType (str): The expected data type.
+
+        Returns:
+            bool: True if the data type matches the expected data type, otherwise False.
+
+        Raises:
+            SystemExit: If the specified row or column index is out of range.
+        """
         self.checkRowCol(row, col)
         return self.cursor.istype(col, dataType)
 
 
     def checkData(self, row, col, data, show = False):
+        """
+        Checks if the data at the specified row and column matches the expected data.
+
+        Args:
+            row (int): The row index of the data to be checked.
+            col (int): The column index of the data to be checked.
+            data: The expected data to be compared with.
+            show (bool, optional): If True, logs a message when the check is successful. Defaults to False.
+
+        Returns:
+            None
+
+        Raises:
+            SystemExit: If the data at the specified row and column does not match the expected data.
+        """
         if row >= self.queryRows:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, row+1, self.queryRows)
@@ -497,6 +810,19 @@ class TDSql:
             tdLog.info("check successfully")
 
     def checkDataMem(self, sql, mem):
+        """
+        Executes a SQL query and checks if the result matches the expected data.
+
+        Args:
+            sql (str): The SQL query to be executed.
+            mem (list): The expected data, represented as a list of lists.
+
+        Returns:
+            None
+
+        Raises:
+            SystemExit: If the expected data is not a list of lists, or if the SQL result does not match the expected data.
+        """
         self.query(sql)
         if not isinstance(mem, list):
             caller = inspect.getframeinfo(inspect.stack()[1][0])
@@ -514,6 +840,20 @@ class TDSql:
         tdLog.info("check successfully")
 
     def checkDataCsv(self, sql, csvfilePath):
+        """
+        Executes a SQL query and checks if the result matches the expected data from a CSV file.(Not used)
+
+        Args:
+            sql (str): The SQL query to be executed.
+            csvfilePath (str): The path to the CSV file containing the expected data.
+
+        Returns:
+            None
+
+        Raises:
+            SystemExit: If the CSV file path is invalid, the file is not found, there is an error reading the file,
+                or if the sql result does not match the expected data from CSV file.
+        """
         if not isinstance(csvfilePath, str) or len(csvfilePath) == 0:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, csvfilePath)
@@ -540,6 +880,19 @@ class TDSql:
         self.checkDataMem(sql, data)
 
     def checkDataMemByLine(self, sql, mem):
+        """
+        Executes a SQL query and checks if the result matches the expected data (Same as checkDataMem).
+
+        Args:
+            sql (str): The SQL query to be executed.
+            mem (list): The expected data, represented as a list of lists.
+
+        Returns:
+            None
+
+        Raises:
+            SystemExit: If the expected data is not a list of lists, or if the SQL result does not match the expected data.
+        """
         if not isinstance(mem, list):
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql)
@@ -556,6 +909,20 @@ class TDSql:
         tdLog.info("check %s successfully" %sql)
 
     def checkDataCsvByLine(self, sql, csvfilePath):
+        """
+        Executes a SQL query and checks if the result matches the expected data from a CSV file line by line.
+
+        Args:
+            sql (str): The SQL query to be executed.
+            csvfilePath (str): The path to the CSV file containing the expected data.
+
+        Returns:
+            None
+
+        Raises:
+            SystemExit: If the CSV file path is invalid, the file is not found, there is an error reading the file,
+                        or if the SQL result does not match the expected data from the CSV file.
+        """
         if not isinstance(csvfilePath, str) or len(csvfilePath) == 0:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, csvfilePath)
@@ -584,7 +951,20 @@ class TDSql:
         self.checkDataMemByLine(sql, data)
 
     # return true or false replace exit, no print out
-    def checkRowColNoExit(self, row, col):
+    def checkRowColNoExist(self, row, col):
+        """
+        Checks if the specified row and column indices are within the range of the last query result without exiting the program.
+
+        Args:
+            row (int): The row index to be checked.
+            col (int): The column index to be checked.
+
+        Returns:
+            bool: True if the specified row and column indices are within the range, otherwise False.
+
+        Raises:
+            None
+        """
         caller = inspect.getframeinfo(inspect.stack()[2][0])
         if row < 0:
             args = (caller.filename, caller.lineno, self.sql, row)
@@ -603,8 +983,22 @@ class TDSql:
 
 
     # return true or false replace exit, no print out
-    def checkDataNoExit(self, row, col, data):
-        if self.checkRowColNoExit(row, col) == False:
+    def checkDataNoExist(self, row, col, data):
+        """
+        Checks if the data at the specified row and column matches the expected data without exiting the program.
+
+        Args:
+            row (int): The row index of the data to be checked.
+            col (int): The column index of the data to be checked.
+            data: The expected data to be compared with.
+
+        Returns:
+            bool: True if the data matches the expected data, otherwise False.
+
+        Raises:
+            None
+        """
+        if self.checkRowColNoExist(row, col) == False:
             return False
         if self.res[row][col] != data:
             if self.cursor.istype(col, "TIMESTAMP"):
@@ -634,10 +1028,28 @@ class TDSql:
 
     # loop execute sql then sleep(waitTime) , if checkData ok break loop
     def checkDataLoop(self, row, col, data, sql, loopCount, waitTime):
+        """
+        Executes a SQL query in a loop and checks if the data at the specified row and column matches the expected data.
+
+        Args:
+            row (int): The row index of the data to be checked.
+            col (int): The column index of the data to be checked.
+            data: The expected data to be compared with.
+            sql (str): The SQL query to be executed.
+            loopCount (int): The number of times to execute the SQL query.
+            waitTime (int): The time to wait (in seconds) between each execution.
+
+        Returns:
+            None
+
+        Raises:
+            Exception: If the query execution fails.
+            SystemExit: If the data at the specified row and column does not match the expected data.
+        """
         # loop check util checkData return true
         for i in range(loopCount):
             self.query(sql)
-            if self.checkDataNoExit(row, col, data) :
+            if self.checkDataNoExist(row, col, data) :
                 self.checkData(row, col, data)
                 return
             time.sleep(waitTime)
@@ -647,6 +1059,18 @@ class TDSql:
         self.checkData(row, col, data)
 
     def checkAffectedRows(self, expectAffectedRows):
+        """
+        Checks if the number of affected rows from the last executed SQL statement matches the expected number of affected rows.
+
+        Args:
+            expectAffectedRows (int): The expected number of affected rows.
+
+        Returns:
+            None
+
+        Raises:
+            SystemExit: If the number of affected rows does not match the expected number.
+        """
         if self.affectedRows != expectAffectedRows:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, self.sql, self.affectedRows, expectAffectedRows)
@@ -655,6 +1079,19 @@ class TDSql:
         tdLog.info("sql:%s, affectedRows:%d == expect:%d" % (self.sql, self.affectedRows, expectAffectedRows))
 
     def checkColNameList(self, col_name_list, expect_col_name_list):
+        """
+        Checks if the column names from the last query match the expected column names.
+
+        Args:
+            col_name_list (list): The list of column names from the last query.
+            expect_col_name_list (list): The list of expected column names.
+
+        Returns:
+            None
+
+        Raises:
+            SystemExit: If the column names do not match the expected column names.
+        """
         if col_name_list == expect_col_name_list:
             tdLog.info("sql:%s, col_name_list:%s == expect_col_name_list:%s" % (self.sql, col_name_list, expect_col_name_list))
         else:
@@ -678,6 +1115,19 @@ class TDSql:
         return False
 
     def checkEqual(self, elm, expect_elm):
+        """
+        Checks if the given element is equal to the expected element.
+
+        Args:
+            elm: The element to be checked.
+            expect_elm: The expected element to be compared with.
+
+        Returns:
+            None
+
+        Raises:
+            Exception: If the element does not match the expected element.
+        """
         if elm == expect_elm:
             tdLog.info("sql:%s, elm:%s == expect_elm:%s" % (self.sql, elm, expect_elm))
             return
@@ -691,6 +1141,19 @@ class TDSql:
         raise Exception("%s(%d) failed: sql:%s, elm:%s != expect_elm:%s" % args)
 
     def checkNotEqual(self, elm, expect_elm):
+        """
+        Checks if the given element is not equal to the expected element.
+
+        Args:
+            elm: The element to be checked.
+            expect_elm: The expected element to be compared with.
+
+        Returns:
+            None
+
+        Raises:
+            Exception: If the element matches the expected element.
+        """
         if elm != expect_elm:
             tdLog.info("sql:%s, elm:%s != expect_elm:%s" % (self.sql, elm, expect_elm))
         else:
@@ -701,17 +1164,58 @@ class TDSql:
 
     # check like select count(*) ...  sql
     def checkAgg(self, sql, expectCnt):
+        """
+        Executes an aggregate SQL query and checks if the result matches the expected count.
+
+        Args:
+            sql (str): The aggregate SQL query to be executed.
+            expectCnt (int): The expected count from the aggregate query.
+
+        Returns:
+            None
+
+        Raises:
+            Exception: If the query execution fails.
+            SystemExit: If the result of the aggregate query does not match the expected count.
+        """
         self.query(sql)
         self.checkData(0, 0, expectCnt)
         tdLog.info(f"{sql} expect {expectCnt} ok.")
     
     # expect first value
     def checkFirstValue(self, sql, expect):
+        """
+        Executes a SQL query and checks if the first value in the result matches the expected value.
+
+        Args:
+            sql (str): The SQL query to be executed.
+            expect: The expected value of the first result.
+
+        Returns:
+            None
+
+        Raises:
+            Exception: If the query execution fails.
+            SystemExit: If the first value in the result does not match the expected value.
+        """
         self.query(sql)
         self.checkData(0, 0, expect)
 
     # colIdx1 value same with colIdx2
     def checkSameColumn(self, c1, c2):
+        """
+        Checks if the values in two specified columns are the same for all rows in the last query result.
+
+        Args:
+            c1 (int): The index of the first column to be checked.
+            c2 (int): The index of the second column to be checked.
+
+        Returns:
+            None
+
+        Raises:
+            SystemExit: If the values in the specified columns are not the same for any row.
+        """
         for i in range(self.queryRows):
             if self.res[i][c1] != self.res[i][c2]:
                 tdLog.exit(f"Not same. row={i} col1={c1} col2={c2}. {self.res[i][c1]}!={self.res[i][c2]}")
@@ -722,6 +1226,19 @@ class TDSql:
     #
 
     def get_times(self, time_str, precision="ms"):
+        """
+        Converts a time string to a timestamp based on the specified precision.(Not used)
+
+        Args:
+            time_str (str): The time string to be converted. The string should end with a character indicating the time unit (e.g., 's' for seconds, 'm' for minutes).
+            precision (str, optional): The precision of the timestamp. Can be "ms" (milliseconds), "us" (microseconds), or "ns" (nanoseconds). Defaults to "ms".
+
+        Returns:
+            int: The timestamp in the specified precision.
+
+        Raises:
+            SystemExit: If the time string does not end with a valid time unit character or if the precision is not valid.
+        """
         caller = inspect.getframeinfo(inspect.stack()[1][0])
         if time_str[-1] not in TAOS_TIME_INIT:
             tdLog.exit(f"{caller.filename}({caller.lineno}) failed: {time_str} not a standard taos time init")
@@ -757,6 +1274,18 @@ class TDSql:
             return int(times*1000*1000)
 
     def get_type(self, col):
+        """
+        Retrieves the data type of the specified column in the last query result.(Not used)
+
+        Args:
+            col (int): The column index for which the data type is to be retrieved.
+
+        Returns:
+            str: The data type of the specified column.
+
+        Raises:
+            None
+        """
         if self.cursor.istype(col, "BOOL"):
             return "BOOL"
         if self.cursor.istype(col, "INT"):
